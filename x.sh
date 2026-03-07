@@ -96,7 +96,12 @@ do
 	shift
 done
 
-CMD="cat \"${LIB_PATH}${X_LIB}${X_EXT}\" ${file} | \"$SCRIPT_PATH/x\"$args"
+X_BASE=x
+if [ "$X_LIB" = "$X_BASE" ]; then
+	CMD="cat \"${LIB_PATH}${X_BASE}${X_EXT}\" ${file} | \"$SCRIPT_PATH/x\"$args"
+else
+	CMD="cat \"${LIB_PATH}${X_BASE}${X_EXT}\" \"${LIB_PATH}${X_LIB}${X_EXT}\" ${file} | \"$SCRIPT_PATH/x\"$args"
+fi
 
 if [ "$verbose" ]; then
 	echo "$CMD"

@@ -1,8 +1,8 @@
 # # Computational Expressions in C
 #
-# ## tests/scm/spec-runner.sh -- Scheme Personality Test Runner
+# ## tests/krn/spec-runner.sh -- Kernel Personality Test Runner
 #
-# @description BDD-style test runner for the Scheme personality
+# @description BDD-style test runner for the Kernel personality
 # @author [Jon Ruttan](jonruttan@gmail.com)
 # @copyright 2024 Jon Ruttan
 # @license MIT No Attribution (MIT-0)
@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SPEC_PATH="$SCRIPT_DIR/specs"
 X_BIN="$SCRIPT_DIR/../../x"
 X_LIB="$SCRIPT_DIR/../../lib/x.x"
-SCM_LIB="$SCRIPT_DIR/../../lib/scm.x"
+KRN_LIB="$SCRIPT_DIR/../../lib/krn.x"
 
 ANSI_RESET="\33[0m"
 ANSI_RED="\33[1;31m"
@@ -53,9 +53,9 @@ it() {
     return
   fi
 
-  # Run input through the Scheme personality.
-  # Pipe scm.x library + test expression through the interpreter.
-  VALUE="$(printf '%s\n' "$2" | cat "$X_LIB" "$SCM_LIB" - | "$X_BIN" 2>/dev/null | sed 's/^> //' | sed '/^$/d' | tail -1)"
+  # Run input through the Kernel personality.
+  # Pipe x.x + krn.x library + test expression through the interpreter.
+  VALUE="$(printf '%s\n' "$2" | cat "$X_LIB" "$KRN_LIB" - | "$X_BIN" 2>/dev/null | sed 's/^> //' | sed '/^$/d' | tail -1)"
   REQUIRE="$3"
 
   if [ "$VALUE" = "$REQUIRE" ]; then
