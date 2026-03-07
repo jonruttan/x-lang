@@ -29,7 +29,6 @@
   (def #f ())
 
   ; --- define: (define x val) or (define (f args...) body...) ---
-  ; Uses plain eval (no env arg) so def extends the current env persistently.
   (def define (op (name-or-form . body) e
     (if (pair? name-or-form)
       (eval (list (lit def) (first name-or-form)
@@ -62,74 +61,27 @@
   (define (caddr x) (first (rest (rest x))))
   (define (cdddr x) (rest (rest (rest x))))
 
-  ; --- Number predicates ---
-  (define (zero? n) (= n 0))
-  (define (positive? n) (> n 0))
-  (define (negative? n) (< n 0))
-  (define (even? n) (= (% n 2) 0))
-  (define (odd? n) (not (= (% n 2) 0)))
+  ; --- Scheme list aliases (x.x provides the implementations) ---
+  (define (list-ref lst n) (nth n lst))
+  (define (list-tail lst n) (drop n lst))
 
-  ; --- Numeric operations ---
-  (define (abs n) (if (< n 0) (- 0 n) n))
-  (define (min a b) (if (< a b) a b))
-  (define (max a b) (if (> a b) a b))
-
-  ; --- Boolean ---
-  (define (boolean? x) (or (eq? x t) (null? x)))
-
-  ; --- List operations ---
-  (define (length lst)
-    (if (null? lst) 0
-      (+ 1 (length (rest lst)))))
-
-  (define (append a b)
-    (if (null? a) b
-      (pair (first a) (append (rest a) b))))
-
-  (define (reverse lst)
-    (def rev-helper (fn (lst acc)
-      (if (null? lst) acc
-        (rev-helper (rest lst) (pair (first lst) acc)))))
-    (rev-helper lst ()))
-
-  (define (list-ref lst n)
-    (if (= n 0) (first lst)
-      (list-ref (rest lst) (- n 1))))
-
-  (define (list-tail lst n)
-    (if (= n 0) lst
-      (list-tail (rest lst) (- n 1))))
-
-  (define (map f lst)
-    (if (null? lst) ()
-      (pair (f (first lst)) (map f (rest lst)))))
-
-  (define (for-each f lst)
-    (if (null? lst) ()
-      (do (f (first lst)) (for-each f (rest lst)))))
-
-  (define (filter pred lst)
-    (if (null? lst) ()
-      (if (pred (first lst))
-        (pair (first lst) (filter pred (rest lst)))
-        (filter pred (rest lst)))))
-
+  ; --- Scheme-specific list operations ---
   (define (member x lst)
-    (if (null? lst) #f
-      (if (eq? x (first lst)) lst
-        (member x (rest lst)))))
+    (match
+      ((null? lst) #f)
+      ((equal? x (first lst)) lst)
+      (t (member x (rest lst)))))
 
   (define (assoc key alist)
-    (if (null? alist) #f
-      (if (eq? key (caar alist)) (first alist)
-        (assoc key (rest alist)))))
+    (match
+      ((null? alist) #f)
+      ((equal? key (caar alist)) (first alist))
+      (t (assoc key (rest alist)))))
 
   ; --- String operations (R5RS aliases) ---
   (define (string-copy s) (substring s 0 (string-length s)))
 
   ; --- letrec ---
-  ; Mutual recursion within let bindings.
-  ; Expands to: (let ((v1 ()) ...) (set! v1 e1) ... body...)
   (def letrec (op (bindings . body) e
     (eval (pair (lit let)
       (pair (map (lambda (b) (list (first b) ())) bindings)
@@ -138,9 +90,6 @@
       e)))
 
   ; --- Named let ---
-  ; Save original let, then override with a version that detects named let.
-  ; (let name ((var val)...) body...) -> recursive loop
-  ; (let ((var val)...) body...) -> original let
   (def %let let)
   (def let (op (first-arg . rest-args) e
     (if (symbol? first-arg)
@@ -152,21 +101,22 @@
       (eval (pair (lit %let) (pair first-arg rest-args)) e))))
 
   ; --- case ---
-  ; (case expr ((datum...) body) ... (else body))
   (def case (op (key . clauses) e
     (def case-val (eval key e))
     (def case-match? (fn (datum)
       (if (number? case-val) (= case-val datum) (eq? case-val datum))))
     (def case-check-datums (fn (datums)
-      (if (null? datums) ()
-        (if (case-match? (first datums)) t
-          (case-check-datums (rest datums))))))
+      (match
+        ((null? datums) ())
+        ((case-match? (first datums)) t)
+        (t (case-check-datums (rest datums))))))
     (def case-loop (fn (cls)
-      (if (null? cls) ()
-        (if (or (eq? (first (first cls)) (lit else))
-                (case-check-datums (first (first cls))))
-          (eval (cadr (first cls)) e)
-          (case-loop (rest cls))))))
+      (match
+        ((null? cls) ())
+        ((or (eq? (first (first cls)) (lit else))
+             (case-check-datums (first (first cls))))
+          (eval (cadr (first cls)) e))
+        (t (case-loop (rest cls))))))
     (case-loop clauses)))
 
   (lit scm)

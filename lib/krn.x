@@ -6,7 +6,7 @@
 ;   Operatives are first-class; applicatives derived via wrap.
 ;   Same s-expression syntax, opposite evaluation model from Scheme.
 ; @author [Jon Ruttan](jonruttan@gmail.com)
-; @copyright 2024 Jon Ruttan
+; @copyright 2026 Jon Ruttan
 ; @license MIT No Attribution (MIT-0)
 ;
 ;     ., .,

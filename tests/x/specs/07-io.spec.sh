@@ -44,7 +44,7 @@ describe 'string->symbol'
   it 'converts string to symbol' \
     '(string->symbol "hello")' 'hello'
   it 'interned equality' \
-    '(eq? (string->symbol "hello") (lit hello))' 'hello'
+    '(eq? (string->symbol "hello") (lit hello))' 't'
 
 describe 'symbol->string'
   it 'converts symbol to string' \

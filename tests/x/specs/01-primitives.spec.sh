@@ -19,8 +19,8 @@ describe 'rest'
   it 'returns rest of a list' '(rest (lit (a b c)))' '(b c)'
 
 describe 'eq?'
-  it 'returns the value for equal symbols' '(eq? (lit a) (lit a))' 'a'
-  it 'returns a bound value for eq? on same binding' '(do (def x 5) (eq? x x))' '5'
+  it 'returns t for equal symbols' '(eq? (lit a) (lit a))' 't'
+  it 'returns t for eq? on same binding' '(do (def x 5) (eq? x x))' 't'
 
 describe 'arithmetic'
   it 'adds two numbers' '(+ 1 2)' '3'
