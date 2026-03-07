@@ -32,21 +32,21 @@ describe '='
   it 'returns nil for unequal integers' '(= 3 4)' ''
 
 describe 'null?'
-  it 'returns t for nil' '(null? (quote ()))' 't'
+  it 'returns t for nil' '(null? (lit ()))' 't'
   it 'returns nil for non-nil' '(null? 1)' ''
 
 describe 'pair?'
   it 'returns t for a list' '(pair? (list 1 2))' 't'
-  it 'returns t for a cons pair' '(pair? (cons 1 2))' 't'
+  it 'returns t for a pair' '(pair? (pair 1 2))' 't'
   it 'returns nil for an atom' '(pair? 42)' ''
 
 describe 'atom?'
   it 'returns t for an integer' '(atom? 42)' 't'
-  it 'returns t for a symbol' '(atom? (quote a))' 't'
+  it 'returns t for a symbol' '(atom? (lit a))' 't'
   it 'returns nil for a list' '(atom? (list 1 2))' ''
 
 describe 'not'
-  it 'returns t for nil' '(not (quote ()))' 't'
+  it 'returns t for nil' '(not (lit ()))' 't'
   it 'returns nil for non-nil' '(not 1)' ''
 
 describe 'list'

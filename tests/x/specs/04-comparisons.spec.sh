@@ -1,4 +1,4 @@
-# 04-comparisons.spec.sh -- Tests for comparisons, booleans, cond, let
+# 04-comparisons.spec.sh -- Tests for comparisons, booleans, match, let
 
 describe '<'
   it 'returns t for less than' '(< 1 2)' 't'
@@ -25,32 +25,32 @@ describe '>='
 describe 'and'
   it 'returns t for empty and' '(and)' 't'
   it 'returns value for single truthy' '(and 1)' '1'
-  it 'returns nil for single falsy' '(and (quote ()))' ''
+  it 'returns nil for single falsy' '(and (lit ()))' ''
   it 'returns last value when all truthy' '(and 1 2 3)' '3'
-  it 'returns nil on first falsy' '(and 1 (quote ()) 3)' ''
+  it 'returns nil on first falsy' '(and 1 (lit ()) 3)' ''
   it 'short-circuits evaluation' \
-    '(do (def x 0) (and (quote ()) (set x 1)) x)' '0'
+    '(do (def x 0) (and (lit ()) (set x 1)) x)' '0'
 
 describe 'or'
   it 'returns nil for empty or' '(or)' ''
   it 'returns value for single truthy' '(or 1)' '1'
-  it 'returns nil for single falsy' '(or (quote ()))' ''
-  it 'returns first truthy value' '(or (quote ()) 2 3)' '2'
-  it 'returns nil when all falsy' '(or (quote ()) (quote ()))' ''
+  it 'returns nil for single falsy' '(or (lit ()))' ''
+  it 'returns first truthy value' '(or (lit ()) 2 3)' '2'
+  it 'returns nil when all falsy' '(or (lit ()) (lit ()))' ''
   it 'short-circuits evaluation' \
     '(do (def x 0) (or 1 (set x 1)) x)' '0'
 
-describe 'cond'
+describe 'match'
   it 'returns first matching branch' \
-    '(cond ((= 1 1) 10) ((= 2 2) 20))' '10'
+    '(match ((= 1 1) 10) ((= 2 2) 20))' '10'
   it 'returns later matching branch' \
-    '(cond ((= 1 2) 10) ((= 2 2) 20))' '20'
+    '(match ((= 1 2) 10) ((= 2 2) 20))' '20'
   it 'supports else with t' \
-    '(cond ((= 1 2) 10) (t 30))' '30'
+    '(match ((= 1 2) 10) (t 30))' '30'
   it 'returns nil when no match' \
-    '(cond ((= 1 2) 10) ((= 3 4) 20))' ''
+    '(match ((= 1 2) 10) ((= 3 4) 20))' ''
   it 'works with comparisons' \
-    '(do (def x 5) (cond ((< x 0) (quote neg)) ((= x 0) (quote zero)) (t (quote pos))))' 'pos'
+    '(do (def x 5) (match ((< x 0) (lit neg)) ((= x 0) (lit zero)) (t (lit pos))))' 'pos'
 
 describe 'let'
   it 'binds a single variable' \

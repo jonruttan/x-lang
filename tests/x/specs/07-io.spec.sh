@@ -6,11 +6,11 @@ describe 'write'
   it 'writes a string with quotes' \
     '(write "hello")' '"hello"'
   it 'writes a symbol' \
-    '(write (quote hello))' 'hello'
+    '(write (lit hello))' 'hello'
   it 'writes a list' \
-    '(write (quote (1 2 3)))' '(1 2 3)'
+    '(write (lit (1 2 3)))' '(1 2 3)'
   it 'writes a nested list' \
-    '(write (quote (1 (2 3))))' '(1 (2 3))'
+    '(write (lit (1 (2 3))))' '(1 (2 3))'
   it 'returns nil' \
     '(do (def r (write 42)) (newline) (null? r))' 't'
 
@@ -20,9 +20,9 @@ describe 'display'
   it 'displays a string without quotes' \
     '(display "hello")' 'hello'
   it 'displays a symbol' \
-    '(display (quote hello))' 'hello'
+    '(display (lit hello))' 'hello'
   it 'displays a list' \
-    '(display (quote (1 2 3)))' '(1 2 3)'
+    '(display (lit (1 2 3)))' '(1 2 3)'
   it 'returns nil' \
     '(do (def r (display 42)) (newline) (null? r))' 't'
 
@@ -44,11 +44,11 @@ describe 'string->symbol'
   it 'converts string to symbol' \
     '(string->symbol "hello")' 'hello'
   it 'interned equality' \
-    '(eq? (string->symbol "hello") (quote hello))' 'hello'
+    '(eq? (string->symbol "hello") (lit hello))' 'hello'
 
 describe 'symbol->string'
   it 'converts symbol to string' \
-    '(symbol->string (quote hello))' '"hello"'
+    '(symbol->string (lit hello))' '"hello"'
   it 'round-trip string->symbol->string' \
     '(symbol->string (string->symbol "test"))' '"test"'
 
@@ -66,7 +66,7 @@ describe 'string?'
 
 describe 'symbol?'
   it 'true for symbol' \
-    '(symbol? (quote hello))' 't'
+    '(symbol? (lit hello))' 't'
   it 'false for integer' \
     '(null? (symbol? 42))' 't'
 
@@ -74,6 +74,6 @@ describe 'procedure?'
   it 'true for fn' \
     '(procedure? (fn (x) x))' 't'
   it 'true for builtin' \
-    '(procedure? car)' 't'
+    '(procedure? first)' 't'
   it 'false for integer' \
     '(null? (procedure? 42))' 't'

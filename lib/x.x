@@ -25,31 +25,31 @@
   ; --- List folds ---
   (def fold (fn (f init lst)
     (if (null? lst) init
-      (fold f (f init (car lst)) (cdr lst)))))
+      (fold f (f init (first lst)) (rest lst)))))
 
   (def reduce (fn (f lst)
-    (fold f (car lst) (cdr lst))))
+    (fold f (first lst) (rest lst))))
 
   ; --- List generators ---
   (def range (fn (start end)
     (if (>= start end) ()
-      (cons start (range (+ start 1) end)))))
+      (pair start (range (+ start 1) end)))))
 
   (def zip (fn (a b)
     (if (or (null? a) (null? b)) ()
-      (cons (list (car a) (car b))
-            (zip (cdr a) (cdr b))))))
+      (pair (list (first a) (first b))
+            (zip (rest a) (rest b))))))
 
   ; --- List predicates ---
   (def any? (fn (pred lst)
     (if (null? lst) ()
-      (if (pred (car lst)) t
-        (any? pred (cdr lst))))))
+      (if (pred (first lst)) t
+        (any? pred (rest lst))))))
 
   (def every? (fn (pred lst)
     (if (null? lst) t
-      (if (not (pred (car lst))) ()
-        (every? pred (cdr lst))))))
+      (if (not (pred (first lst))) ()
+        (every? pred (rest lst))))))
 
-  (quote x-lib-version)
+  (lit x-lib-version)
 )

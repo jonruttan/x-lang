@@ -24,12 +24,12 @@ describe 'apply'
 
 describe 'eval'
   it 'evaluates a quoted expression' \
-    '(eval (quote (+ 1 2)))' '3'
+    '(eval (lit (+ 1 2)))' '3'
   it 'evaluates a self-evaluating form' \
     '(eval 42)' '42'
   it 'evaluates in current environment' \
-    '(do (def x 10) (eval (quote (+ x 1))))' '11'
+    '(do (def x 10) (eval (lit (+ x 1))))' '11'
   it 'evaluates a constructed expression' \
-    '(eval (cons (quote +) (list 3 4)))' '7'
+    '(eval (pair (lit +) (list 3 4)))' '7'
   it 'evaluates nested eval' \
-    '(eval (quote (eval (quote 99))))' '99'
+    '(eval (lit (eval (lit 99))))' '99'

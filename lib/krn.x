@@ -18,17 +18,23 @@
   ; $vau is the fundamental abstraction (= op)
   (def $vau op)
 
+  ; --- Aliases ---
+  (def cons pair)
+  (def car first)
+  (def cdr rest)
+  (def quote lit)
+  (def $cond match)
+
   ; --- $define! ---
   ; Uses plain eval so def extends the current env persistently.
   (def $define! (op (name-or-form . body) e
     (if (pair? name-or-form)
-      (eval (list (quote def) (car name-or-form)
-                  (cons (quote $lambda) (cons (cdr name-or-form) body))))
-      (eval (list (quote def) name-or-form (car body))))))
+      (eval (list (lit def) (first name-or-form)
+                  (pair (lit $lambda) (pair (rest name-or-form) body))))
+      (eval (list (lit def) name-or-form (first body))))))
 
   ; --- Core aliases ---
   (def $if if)
-  (def $cond cond)
   (def $let let)
   (def $sequence do)
 
@@ -40,9 +46,9 @@
 
   ; --- $lambda: create applicative from operative ---
   ($define! $lambda (op (formals . body) e
-    (wrap (eval (cons (quote $vau)
-                  (cons formals
-                    (cons (quote #ignore) body))) e))))
+    (wrap (eval (pair (lit $vau)
+                  (pair formals
+                    (pair (lit #ignore) body))) e))))
 
   ; --- Applicative wrappers for arithmetic ---
   ; In Kernel, standard combiners are applicatives (args evaluated).
@@ -52,18 +58,18 @@
   ; --- Derived operative forms ---
   ($define! $when (op (test . body) e
     ($if (eval test e)
-      (eval (cons (quote $sequence) body)))))
+      (eval (pair (lit $sequence) body)))))
 
   ($define! $unless (op (test . body) e
     ($if (not (eval test e))
-      (eval (cons (quote $sequence) body)))))
+      (eval (pair (lit $sequence) body)))))
 
   ; --- $let* ---
   ($define! $let* (op (bindings . body) e
     ($if (null? bindings)
-      (eval (cons (quote $sequence) body) e)
-      (eval (list (quote $let) (list (car bindings))
-                  (cons (quote $let*) (cons (cdr bindings) body))) e))))
+      (eval (pair (lit $sequence) body) e)
+      (eval (list (lit $let) (list (first bindings))
+                  (pair (lit $let*) (pair (rest bindings) body))) e))))
 
   ; --- Kernel-style predicates ---
   ($define! operative? ($lambda (x)
@@ -81,42 +87,42 @@
   ; --- List operations (as applicatives via $lambda) ---
   ($define! (length lst)
     ($if (null? lst) 0
-      (+ 1 (length (cdr lst)))))
+      (+ 1 (length (rest lst)))))
 
   ($define! (append a b)
     ($if (null? a) b
-      (cons (car a) (append (cdr a) b))))
+      (pair (first a) (append (rest a) b))))
 
   ($define! (reverse lst)
     (def rev-helper ($lambda (l acc)
       ($if (null? l) acc
-        (rev-helper (cdr l) (cons (car l) acc)))))
+        (rev-helper (rest l) (pair (first l) acc)))))
     (rev-helper lst ()))
 
   ($define! (list-ref lst n)
-    ($if (= n 0) (car lst)
-      (list-ref (cdr lst) (- n 1))))
+    ($if (= n 0) (first lst)
+      (list-ref (rest lst) (- n 1))))
 
   ($define! (map f lst)
     ($if (null? lst) ()
-      (cons (f (car lst)) (map f (cdr lst)))))
+      (pair (f (first lst)) (map f (rest lst)))))
 
   ($define! (filter pred lst)
     ($if (null? lst) ()
-      ($if (pred (car lst))
-        (cons (car lst) (filter pred (cdr lst)))
-        (filter pred (cdr lst)))))
+      ($if (pred (first lst))
+        (pair (first lst) (filter pred (rest lst)))
+        (filter pred (rest lst)))))
 
   ($define! (for-each f lst)
     ($if (null? lst) ()
-      ($sequence (f (car lst)) (for-each f (cdr lst)))))
+      ($sequence (f (first lst)) (for-each f (rest lst)))))
 
   ; --- Composition accessors ---
-  ($define! (caar x) (car (car x)))
-  ($define! (cadr x) (car (cdr x)))
-  ($define! (cdar x) (cdr (car x)))
-  ($define! (cddr x) (cdr (cdr x)))
-  ($define! (caddr x) (car (cdr (cdr x))))
+  ($define! (caar x) (first (first x)))
+  ($define! (cadr x) (first (rest x)))
+  ($define! (cdar x) (rest (first x)))
+  ($define! (cddr x) (rest (rest x)))
+  ($define! (caddr x) (first (rest (rest x))))
 
   ; --- Number operations ---
   ($define! (zero? n) (= n 0))
@@ -131,13 +137,13 @@
   ; --- Member / Assoc ---
   ($define! (member x lst)
     ($if (null? lst) #f
-      ($if (eq? x (car lst)) lst
-        (member x (cdr lst)))))
+      ($if (eq? x (first lst)) lst
+        (member x (rest lst)))))
 
   ($define! (assoc key alist)
     ($if (null? alist) #f
-      ($if (eq? key (caar alist)) (car alist)
-        (assoc key (cdr alist)))))
+      ($if (eq? key (caar alist)) (first alist)
+        (assoc key (rest alist)))))
 
   ; --- $letrec ---
   ; Mutual recursion within $let bindings.
@@ -145,9 +151,9 @@
   ; NOTE: Param names use lr- prefix to avoid dynamic scoping collisions
   ; with $lambda's internal params (body, e, formals).
   ($define! $letrec (op (lr-binds . lr-body) lr-e
-    (eval (cons (quote $let)
-      (cons (map ($lambda (b) (list (car b) ())) lr-binds)
-        (append (map ($lambda (b) (list (quote set) (car b) (cadr b))) lr-binds)
+    (eval (pair (lit $let)
+      (pair (map ($lambda (b) (list (first b) ())) lr-binds)
+        (append (map ($lambda (b) (list (lit set) (first b) (cadr b))) lr-binds)
                 lr-body)))
       lr-e)))
 
@@ -159,5 +165,5 @@
   ; Creates a fresh empty environment (an empty alist).
   ($define! (make-environment) ())
 
-  (quote krn)
+  (lit krn)
 )
