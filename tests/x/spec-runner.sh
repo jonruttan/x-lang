@@ -1,5 +1,20 @@
-SPEC_PATH='specs'
-RS_BIN='./rs'
+# # Computational Expressions in C
+#
+# ## tests/x/spec-runner.sh -- Language Test Runner
+#
+# @description BDD-style test runner for the x derived language
+# @author [Jon Ruttan](jonruttan@gmail.com)
+# @copyright 2024 Jon Ruttan
+# @license MIT No Attribution (MIT-0)
+#
+#     ., .,
+#     {O,O}
+#     (   )
+#      " "
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SPEC_PATH="$SCRIPT_DIR/specs"
+X_BIN="$SCRIPT_DIR/../../x"
 
 ANSI_RESET="\33[0m"
 ANSI_RED="\33[1;31m"
@@ -10,44 +25,59 @@ TEST_COUNT=0
 FAIL_COUNT=0
 PENDING_COUNT=0
 
-#SUCCESS_TEXT='.'
-#FAIL_TEXT='Failed $UNIT unit: it $IT, returned $VALUE instead of $REQUIRE'
-UNIT_TEXT='\\nUnit $UNIT\\n'
+UNIT_TEXT='\n${ANSI_BLUE}$UNIT${ANSI_RESET}\n'
 SUCCESS_TEXT='${ANSI_GREEN}.${ANSI_RESET}'
-FAIL_TEXT='\\n${ANSI_RED}Failed $UNIT unit: it $IT, returned $VALUE instead of $REQUIRE${ANSI_RESET}\\n'
-PENDING_TEXT='\\n${ANSI_BLUE}Pending: $IT${ANSI_RESET}\\n'
-SUMMARY_TEXT='\\n\\nExecuted ${TEST_COUNT} tests, ${PENDING_COUNT} pending, ${FAIL_COUNT} failing\\n'
+FAIL_TEXT='\n${ANSI_RED}FAIL: $UNIT: $IT\n  expected: $REQUIRE\n  got:      $VALUE${ANSI_RESET}\n'
+PENDING_TEXT='${ANSI_BLUE}p${ANSI_RESET}'
+SUMMARY_TEXT='\n\n${SUMMARY_COLOR}${TEST_COUNT} tests, ${FAIL_COUNT} failed, ${PENDING_COUNT} pending${ANSI_RESET}\n'
 
 output() {
-  eval "echo -n $@"
+  eval "printf \"$@\""
 }
 
-# NOTE: Nesting isn't handled
-define() {
-  UNIT=$1
+describe() {
+  UNIT="$1"
   output "$UNIT_TEXT"
 }
 
 it() {
   TEST_COUNT=$((TEST_COUNT+1))
-  IT=$1
-  if [ -e "$2" ]; then
+  IT="$1"
+
+  # Pending test (no input/expected).
+  if [ $# -lt 3 ]; then
     PENDING_COUNT=$((PENDING_COUNT+1))
-    output $PENDING_TEXT
+    output "$PENDING_TEXT"
     return
   fi
-  VALUE="$(echo "$2" | $RS_BIN  | sed -e 's/\\/\\\\/g')"
-  REQUIRE=$3
-  if [ $? -eq 0 -a "$VALUE" = "$REQUIRE" ]; then
-    output $SUCCESS_TEXT
+
+  # Run input through the interpreter.
+  # The REPL prefixes each line with "> ". Strip prompts, keep only the
+  # last result line (ignore intermediate results and the EOF prompt).
+  VALUE="$(printf '%s\n' "$2" | "$X_BIN" 2>/dev/null | sed 's/^> //' | sed '/^$/d' | tail -1)"
+  REQUIRE="$3"
+
+  if [ "$VALUE" = "$REQUIRE" ]; then
+    output "$SUCCESS_TEXT"
   else
     FAIL_COUNT=$((FAIL_COUNT+1))
-    output $FAIL_TEXT
+    output "$FAIL_TEXT"
   fi
 }
 
-for filename in $SPEC_PATH/*.spec.sh; do
-  . $filename
+# Source all spec files.
+for filename in "$SPEC_PATH"/*.spec.sh; do
+  [ -f "$filename" ] || continue
+  . "$filename"
 done
 
-output $SUMMARY_TEXT
+# Summary.
+if [ "$FAIL_COUNT" -gt 0 ]; then
+  SUMMARY_COLOR="$ANSI_RED"
+else
+  SUMMARY_COLOR="$ANSI_GREEN"
+fi
+output "$SUMMARY_TEXT"
+
+# Exit non-zero on failure.
+[ "$FAIL_COUNT" -eq 0 ]
