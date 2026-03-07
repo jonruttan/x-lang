@@ -118,5 +118,50 @@
       (if (eq? key (caar alist)) (car alist)
         (assoc key (cdr alist)))))
 
+  ; --- String operations (R5RS aliases) ---
+  (define (string-copy s) (substring s 0 (string-length s)))
+
+  ; --- letrec ---
+  ; Mutual recursion within let bindings.
+  ; Expands to: (let ((v1 ()) ...) (set! v1 e1) ... body...)
+  (def letrec (op (bindings . body) e
+    (eval (cons (quote let)
+      (cons (map (lambda (b) (list (car b) ())) bindings)
+        (append (map (lambda (b) (list (quote set!) (car b) (cadr b))) bindings)
+                body)))
+      e)))
+
+  ; --- Named let ---
+  ; Save original let, then override with a version that detects named let.
+  ; (let name ((var val)...) body...) -> recursive loop
+  ; (let ((var val)...) body...) -> original let
+  (def %let let)
+  (def let (op (first . rest) e
+    (if (symbol? first)
+      (eval (list (quote letrec)
+                  (list (list first (cons (quote lambda)
+                    (cons (map car (car rest)) (cdr rest)))))
+                  (cons first (map cadr (car rest))))
+            e)
+      (eval (cons (quote %let) (cons first rest)) e))))
+
+  ; --- case ---
+  ; (case expr ((datum...) body) ... (else body))
+  (def case (op (key . clauses) e
+    (def case-val (eval key e))
+    (def case-match? (fn (datum)
+      (if (number? case-val) (= case-val datum) (eq? case-val datum))))
+    (def case-check-datums (fn (datums)
+      (if (null? datums) ()
+        (if (case-match? (car datums)) t
+          (case-check-datums (cdr datums))))))
+    (def case-loop (fn (cls)
+      (if (null? cls) ()
+        (if (or (eq? (car (car cls)) (quote else))
+                (case-check-datums (car (car cls))))
+          (eval (cadr (car cls)) e)
+          (case-loop (cdr cls))))))
+    (case-loop clauses)))
+
   (quote scm)
 )

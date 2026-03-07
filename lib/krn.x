@@ -139,5 +139,25 @@
       ($if (eq? key (caar alist)) (car alist)
         (assoc key (cdr alist)))))
 
+  ; --- $letrec ---
+  ; Mutual recursion within $let bindings.
+  ; Expands to: ($let ((v1 ()) ...) (set v1 e1) ... body...)
+  ; NOTE: Param names use lr- prefix to avoid dynamic scoping collisions
+  ; with $lambda's internal params (body, e, formals).
+  ($define! $letrec (op (lr-binds . lr-body) lr-e
+    (eval (cons (quote $let)
+      (cons (map ($lambda (b) (list (car b) ())) lr-binds)
+        (append (map ($lambda (b) (list (quote set) (car b) (cadr b))) lr-binds)
+                lr-body)))
+      lr-e)))
+
+  ; --- get-current-environment ---
+  ; Returns the caller's environment as a first-class value.
+  ($define! get-current-environment (op () e e))
+
+  ; --- make-environment ---
+  ; Creates a fresh empty environment (an empty alist).
+  ($define! (make-environment) ())
+
   (quote krn)
 )

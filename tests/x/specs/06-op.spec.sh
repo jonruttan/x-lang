@@ -18,7 +18,7 @@ describe 'op special forms'
   it 'implements when' \
     '(do (def when (op (test . body) e (if (eval test e) (eval (cons (quote do) body) e)))) (when (= 1 1) (+ 10 20)))' '30'
   it 'when returns nil on false' \
-    '(do (def when (op (test . body) e (if (eval test e) (eval (cons (quote do) body) e)))) (when (= 1 2) (+ 10 20)))'
+    '(do (def when (op (test . body) e (if (eval test e) (eval (cons (quote do) body) e)))) (when (= 1 2) (+ 10 20)))' ''
   it 'implements define sugar' \
     '(do (def define (op (name-or-form . body) e (if (pair? name-or-form) (eval (list (quote def) (car name-or-form) (cons (quote fn) (cons (cdr name-or-form) body)))) (eval (list (quote def) name-or-form (car body)))))) (define (square x) (* x x)) (square 5))' '25'
   it 'define sugar with simple binding' \
@@ -32,6 +32,6 @@ describe 'eval with env'
 
 describe 'if without else'
   it 'returns nil when false and no else' \
-    '(if (= 1 2) 42)'
+    '(if (= 1 2) 42)' ''
   it 'returns then when true and no else' \
     '(if (= 1 1) 42)' '42'
