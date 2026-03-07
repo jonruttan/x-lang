@@ -119,5 +119,5 @@
         (t (case-loop (rest cls))))))
     (case-loop clauses)))
 
-  (lit scm)
+  (lit r5rs)
 )

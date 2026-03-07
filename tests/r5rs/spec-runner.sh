@@ -1,8 +1,8 @@
 # # Computational Expressions in C
 #
-# ## tests/krn/spec-runner.sh -- Kernel Personality Test Runner
+# ## tests/r5rs/spec-runner.sh -- R5RS Personality Test Runner
 #
-# @description BDD-style test runner for the Kernel personality
+# @description BDD-style test runner for the R5RS Scheme personality
 # @author [Jon Ruttan](jonruttan@gmail.com)
 # @copyright 2024 Jon Ruttan
 # @license MIT No Attribution (MIT-0)
@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SPEC_PATH="$SCRIPT_DIR/specs"
 X_BIN="$SCRIPT_DIR/../../x"
 X_LIB="$SCRIPT_DIR/../../lib/x.x"
-KRN_LIB="$SCRIPT_DIR/../../lang/krn/lib/krn.x"
+R5RS_LIB="$SCRIPT_DIR/../../lang/r5rs/lib/r5rs.x"
 
 ANSI_RESET="\33[0m"
 ANSI_RED="\33[1;31m"
@@ -53,9 +53,9 @@ it() {
     return
   fi
 
-  # Run input through the Kernel personality.
-  # Pipe x.x + krn.x library + test expression through the interpreter.
-  VALUE="$(printf '%s\n' "$2" | cat "$X_LIB" "$KRN_LIB" - | "$X_BIN" 2>/dev/null | sed 's/^> //' | sed '/^$/d' | tail -1)"
+  # Run input through the R5RS personality.
+  # Pipe r5rs.x library + test expression through the interpreter.
+  VALUE="$(printf '%s\n' "$2" | cat "$X_LIB" "$R5RS_LIB" - | "$X_BIN" 2>/dev/null | sed 's/^> //' | sed '/^$/d' | tail -1)"
   REQUIRE="$3"
 
   if [ "$VALUE" = "$REQUIRE" ]; then

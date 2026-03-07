@@ -14,11 +14,13 @@
 #      " "
 SCRIPT_PATH=$(dirname "$0")
 LIB_PATH=lib/
+LANG_PATH=lang/
 X_EXT=.x
 X_LIB=x
 
 if [ ! -e "$LIB_PATH" ]; then
-	LIB_PATH=/usr/local/share/x/
+	LIB_PATH=/usr/local/share/x/lib/
+	LANG_PATH=/usr/local/share/x/lang/
 fi
 
 file="\"-\""
@@ -35,7 +37,7 @@ display_help() {
 	echo "  -f, --file FILE evaluate file and exit"
 	echo "  -F, --load FILE evaluate file then continue"
 	echo "  -l, --lib NAME  library name (default: \"$X_LIB\")"
-	echo "  -L, --lib-path  library path (default: \"$LIB_PATH\")"
+	echo "  -L, --lang-path language path (default: \"$LANG_PATH\")"
 	echo "  -v, --verbose   display extra output"
 	echo "  -V, --version   display version and exit"
 }
@@ -59,8 +61,8 @@ do
 			X_EXT="$2"
 			shift 2
 			;;
-		-L | --lib-path)
-			LIB_PATH="$2"
+		-L | --lang-path)
+			LANG_PATH="$2"
 			shift 2
 			;;
 		-l | --lib)
@@ -100,7 +102,7 @@ X_BASE=x
 if [ "$X_LIB" = "$X_BASE" ]; then
 	CMD="cat \"${LIB_PATH}${X_BASE}${X_EXT}\" ${file} | \"$SCRIPT_PATH/x\"$args"
 else
-	CMD="cat \"${LIB_PATH}${X_BASE}${X_EXT}\" \"${LIB_PATH}${X_LIB}${X_EXT}\" ${file} | \"$SCRIPT_PATH/x\"$args"
+	CMD="cat \"${LIB_PATH}${X_BASE}${X_EXT}\" \"${LANG_PATH}${X_LIB}/lib/${X_LIB}${X_EXT}\" ${file} | \"$SCRIPT_PATH/x\"$args"
 fi
 
 if [ "$verbose" ]; then
