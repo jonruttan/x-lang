@@ -1,6 +1,7 @@
+#!/bin/sh
 # # Computational Expressions in C
 #
-# ## x.sh -- Shell Script
+# ## x.sh -- Shell Wrapper
 #
 # @description Computational Expressions in C
 # @author [Jon Ruttan](jonruttan@gmail.com)
@@ -13,28 +14,27 @@
 #      " "
 SCRIPT_PATH=$(dirname "$0")
 LIB_PATH=lib/
-X_EXT=.l
-X_LIB_EXT="$X_EXT"
-X_LIB=x-lib
+X_EXT=.x
+X_LIB=x
+
 if [ ! -e "$LIB_PATH" ]; then
 	LIB_PATH=/usr/local/share/x/
 fi
 
-file=\"-\"
+file="\"-\""
 verbose=""
 
 display_help() {
 	echo "Usage: $0 [OPTION]... "
 	echo
-	echo "A Minimal Lisp Implementation in Ansi C."
+	echo "Computational Expressions in C."
 	echo
 	echo "Options"
 	echo "  -h, --help      display this help and exit"
-	echo "  -e, --ext file  extention (default: \"$X_EXT\")"
-	echo "  -E, --lib-ext   library file extention (default: \"$X_LIB_EXT\")"
-	echo "  -f, --file      evaluate file and exit"
-	echo "  -F, --load      evaluate file"
-	echo "  -l, --lib       library path (default: \"$X_LIB\")"
+	echo "  -e, --ext EXT   file extension (default: \"$X_EXT\")"
+	echo "  -f, --file FILE evaluate file and exit"
+	echo "  -F, --load FILE evaluate file then continue"
+	echo "  -l, --lib NAME  library name (default: \"$X_LIB\")"
 	echo "  -L, --lib-path  library path (default: \"$LIB_PATH\")"
 	echo "  -v, --verbose   display extra output"
 	echo "  -V, --version   display version and exit"
@@ -47,17 +47,13 @@ do
 			file="\"$2\""
 			shift 2
 			;;
-		-F | --file-list)
+		-F | --load)
 			file="\"$2\" $file"
 			shift 2
 			;;
 		-h | --help)
 			display_help
 			exit 0
-			;;
-		-E | --lib-ext)
-			X_LIB_EXT="$2"
-			shift 2
 			;;
 		-e | --ext)
 			X_EXT="$2"
@@ -100,7 +96,7 @@ do
 	shift
 done
 
-CMD="""cat \"${LIB_PATH}${X_LIB}${X_LIB_EXT}\" ${file} | \"$SCRIPT_PATH/x\"$args"""
+CMD="cat \"${LIB_PATH}${X_LIB}${X_EXT}\" ${file} | \"$SCRIPT_PATH/x\"$args"
 
 if [ "$verbose" ]; then
 	echo "$CMD"
