@@ -105,8 +105,153 @@
     (for-each f (vector->list v)))
 
   ; --- Strings ---
+  (define (string . chars) (list->string chars))
+  (define (string-upcase s)
+    (list->string (map char-upcase (string->list s))))
+  (define (string-downcase s)
+    (list->string (map char-downcase (string->list s))))
+  (define (string-foldcase s)
+    (list->string (map char-foldcase (string->list s))))
+  (define (string-map f s)
+    (list->string (map f (string->list s))))
   (define (string-for-each f s)
     (for-each f (string->list s)))
+
+  ; --- Override forms that use (lit do) to use (lit begin) instead ---
+  (define when (op (test . body) e
+    (if (eval test e)
+      (eval (pair (lit begin) body) e))))
+  (define unless (op (test . body) e
+    (if (not (eval test e))
+      (eval (pair (lit begin) body) e))))
+  (define let* (op (bindings . body) e
+    (if (null? bindings)
+      (eval (pair (lit begin) body) e)
+      (eval (list (lit let) (list (first bindings))
+                  (pair (lit let*) (pair (rest bindings) body))) e))))
+
+  ; --- Iteration ---
+  ; (do ((var init step) ...) (test expr ...) command ...)
+  (define do
+    (op (bindings test-and-result . body) env
+      (let ((vars (map car bindings))
+            (inits (map (lambda (b) (list-ref b 1)) bindings))
+            (steps (map (lambda (b)
+                          (if (> (length b) 2) (list-ref b 2) (car b)))
+                        bindings))
+            (test (car test-and-result))
+            (result (cdr test-and-result)))
+        (eval
+          (cons (list (lit lambda) ()
+            (cons (lit letrec)
+              (cons (list (list (lit %do-loop) (cons (lit lambda) (cons vars
+                (list (list (lit if) test
+                  (if (null? result) (list (lit if) #f #f) (cons (lit begin) result))
+                  (append (cons (lit begin) body) (list (cons (lit %do-loop) steps)))))))))
+                (list (cons (lit %do-loop) inits)))))
+            ())
+          env))))
+
+  ; --- case-lambda ---
+  ; (case-lambda (formals body ...) ...)
+  (define case-lambda
+    (op clauses env
+      (eval
+        (list (lit lambda) (lit %cl-args)
+          (cons (lit cond)
+            (append
+              (map (lambda (clause)
+                     (list (list (lit =) (list (lit length) (lit %cl-args))
+                                         (length (car clause)))
+                           (list (lit apply) (cons (lit lambda) clause)
+                                             (lit %cl-args))))
+                   clauses)
+              (list (list #t (list (lit error) "case-lambda: no matching clause"))))))
+        env)))
+
+  ; --- Promises ---
+  (define %promise (make-type (lit PROMISE)
+    (list
+      (pair (lit write) (lambda (self) (display "#<promise>"))))))
+  (define (promise? x) (type? x %promise))
+
+  ; delay creates a promise wrapping a thunk with memoization
+  (define delay
+    (op (expr) env
+      (let ((forced #f) (result #f))
+        (make-instance %promise
+          (lambda ()
+            (if forced result
+              (let ((val (eval expr env)))
+                (set! forced #t)
+                (set! result val)
+                val)))))))
+
+  ; make-promise wraps an already-computed value
+  (define (make-promise x)
+    (if (promise? x) x
+      (let ((val x))
+        (make-instance %promise
+          (lambda () val)))))
+
+  ; force extracts the value from a promise
+  (define (force p)
+    (if (promise? p)
+      ((first p))
+      p))
+
+  ; --- Multiple values ---
+  (define %values (make-type (lit VALUES)
+    (list
+      (pair (lit write) (lambda (self)
+        (for-each (lambda (v) (display " ") (write v))
+                  (first self)))))))
+  (define (values . args)
+    (if (= (length args) 1) (car args)
+      (make-instance %values args)))
+  (define (call-with-values producer consumer)
+    (let ((result (producer)))
+      (if (type? result %values)
+        (apply consumer (first result))
+        (consumer result))))
+
+  ; --- Records ---
+  ; (define-record-type <name> (<ctor> field ...) <pred> (field accessor) ...)
+  (define define-record-type
+    (op (name constructor-spec pred . field-specs) env
+      ; Build a (begin ...) form with all definitions, eval it at top level
+      (eval
+        (cons (lit begin)
+          (append
+            (list
+              ; Type handle definition
+              (list (lit def) name
+                (list (lit make-type) (list (lit quote) name)
+                  (list (lit list)
+                    (list (lit pair) (list (lit quote) (lit write))
+                      (list (lit fn) (list (lit self))
+                        (list (lit display)
+                          (string-append "#<" (symbol->string name) ">")))))))
+              ; Constructor definition
+              (list (lit def) (car constructor-spec)
+                (list (lit fn) (cdr constructor-spec)
+                  (list (lit make-instance) name
+                    (cons (lit list)
+                      (map (lambda (f) (list (lit pair) (list (lit quote) f) f))
+                           (cdr constructor-spec))))))
+              ; Predicate definition
+              (list (lit def) pred
+                (list (lit fn) (list (lit x))
+                  (list (lit type?) (lit x) name))))
+            ; Accessor definitions + return name
+            (append
+              (map (lambda (spec)
+                     (list (lit def) (list-ref spec 1)
+                       (list (lit fn) (list (lit x))
+                         (list (lit cdr) (list (lit assq) (list (lit quote) (car spec))
+                                               (list (lit first) (lit x)))))))
+                   field-specs)
+              (list (list (lit quote) name))))))))
 
   (lit r7rs)
 )

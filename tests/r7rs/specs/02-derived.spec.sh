@@ -111,3 +111,17 @@ describe 'quasiquote'
     '(quasiquote (a (b (unquote (+ 1 2)))))' '(a (b 3))'
   it 'quasiquote without unquote' \
     '(quasiquote (a b c))' '(a b c)'
+
+describe 'case-lambda'
+  it 'case-lambda one arg' \
+    '(define f (case-lambda ((x) (* x x)) ((x y) (+ x y)))) (f 5)' '25'
+  it 'case-lambda two args' \
+    '(define f (case-lambda ((x) (* x x)) ((x y) (+ x y)))) (f 3 4)' '7'
+  it 'case-lambda three args' \
+    '(define f (case-lambda ((x) x) ((x y) (+ x y)) ((x y z) (* x y z)))) (f 2 3 4)' '24'
+  it 'case-lambda zero args' \
+    '(define f (case-lambda (() 42) ((x) x))) (f)' '42'
+  it 'case-lambda single clause' \
+    '(define f (case-lambda ((x y) (- x y)))) (f 10 3)' '7'
+  it 'case-lambda as procedure' \
+    '(procedure? (case-lambda ((x) x)))' 't'

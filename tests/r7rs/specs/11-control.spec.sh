@@ -57,3 +57,21 @@ describe 'tail recursion'
     '(define (fact n acc) (if (= n 0) acc (fact (- n 1) (* n acc)))) (fact 10 1)' '3628800'
   it 'deep tail recursion' \
     '(define (loop n) (if (= n 0) (quote done) (loop (- n 1)))) (loop 50000)' 'done'
+
+describe 'values'
+  it 'single value passthrough' \
+    '(call-with-values (lambda () (values 42)) (lambda (x) x))' '42'
+  it 'two values' \
+    '(call-with-values (lambda () (values 1 2)) +)' '3'
+  it 'three values' \
+    '(call-with-values (lambda () (values 1 2 3)) +)' '6'
+  it 'values with computation' \
+    '(call-with-values (lambda () (values (* 2 3) (* 4 5))) +)' '26'
+  it 'single value optimization' \
+    '(values 42)' '42'
+  it 'call-with-values non-values producer' \
+    '(call-with-values (lambda () 42) (lambda (x) (* x 2)))' '84'
+  it 'values with list consumer' \
+    '(call-with-values (lambda () (values 1 2 3)) list)' '(1 2 3)'
+  it 'values in let binding' \
+    '(call-with-values (lambda () (values 10 20)) (lambda (a b) (- a b)))' '-10'

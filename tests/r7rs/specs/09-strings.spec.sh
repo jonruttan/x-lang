@@ -92,6 +92,56 @@ describe 'string conversion'
   it 'string->list single' \
     '(string->list "x")' '(x)'
 
+describe 'list->string'
+  it 'list->string basic' \
+    '(list->string (list #\a #\b #\c))' '"abc"'
+  it 'list->string empty' \
+    '(list->string ())' '""'
+  it 'list->string single' \
+    '(list->string (list #\z))' '"z"'
+  it 'list->string roundtrip' \
+    '(list->string (string->list "hello"))' '"hello"'
+
+describe 'make-string'
+  it 'make-string with fill' \
+    '(make-string 3 #\a)' '"aaa"'
+  it 'make-string length' \
+    '(string-length (make-string 5 #\x))' '5'
+  it 'make-string zero' \
+    '(make-string 0 #\a)' '""'
+
+describe 'string constructor'
+  it 'string from chars' \
+    '(string #\a #\b #\c)' '"abc"'
+  it 'string single char' \
+    '(string #\z)' '"z"'
+  it 'string empty' \
+    '(string)' '""'
+
+describe 'string case conversion'
+  it 'string-upcase' \
+    '(string-upcase "hello")' '"HELLO"'
+  it 'string-upcase mixed' \
+    '(string-upcase "Hello World")' '"HELLO WORLD"'
+  it 'string-upcase already upper' \
+    '(string-upcase "ABC")' '"ABC"'
+  it 'string-downcase' \
+    '(string-downcase "HELLO")' '"hello"'
+  it 'string-downcase mixed' \
+    '(string-downcase "Hello World")' '"hello world"'
+  it 'string-foldcase' \
+    '(string-foldcase "Hello")' '"hello"'
+  it 'string-foldcase upper' \
+    '(string-foldcase "ABC")' '"abc"'
+
+describe 'string-map'
+  it 'string-map upcase' \
+    '(string-map char-upcase "hello")' '"HELLO"'
+  it 'string-map identity' \
+    '(string-map (lambda (c) c) "abc")' '"abc"'
+  it 'string-map empty' \
+    '(string-map char-upcase "")' '""'
+
 describe 'string-for-each'
   it 'string-for-each accumulates' \
     '(define acc 0) (string-for-each (lambda (c) (set! acc (+ acc 1))) "hello") acc' '5'
