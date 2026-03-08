@@ -20,6 +20,7 @@
   (include "lib/x/alist.x")
   (include "lib/x/string.x")
   (include "lib/x/vector.x")
+  (include "lib/x/float.x")
   (include "lib/x/regex.x")
 
   ()
