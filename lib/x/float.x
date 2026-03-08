@@ -82,10 +82,7 @@
 
 ; --- Comparisons ---
 (def f< (fn (a b) (ffi-call "d<d" () (first a) (first b))))
-(def f> (fn (a b) (ffi-call "d>d" () (first a) (first b))))
 (def f= (fn (a b) (ffi-call "d=d" () (first a) (first b))))
-(def f<= (fn (a b) (ffi-call "d<=d" () (first a) (first b))))
-(def f>= (fn (a b) (ffi-call "d>=d" () (first a) (first b))))
 
 ; --- Math functions via dlopen ---
 ; Load math library from current process (linked with -lm)
@@ -146,27 +143,24 @@
 (def %int* *)
 (def %int/ /)
 (def %int< <)
-(def %int> >)
 (def %int= =)
-(def %int<= <=)
-(def %int>= >=)
 
 ; Promote to float via convert handler
 (def %ensure-float (fn (x) (convert x %float)))
 
 ; Generator for binary fold-based arithmetic (+, *, /)
-(def %make-float-binop (fn (int-op float-op)
+(def %make-float-binop (fn (int-op float-op identity)
   (fn args
-    (if (null? args) (int-op)
+    (if (null? args) identity
       (fold (fn (acc x)
         (if (or (float? acc) (float? x))
           (float-op (%ensure-float acc) (%ensure-float x))
           (int-op acc x)))
         (first args) (rest args))))))
 
-(set + (%make-float-binop %int+ f+))
-(set * (%make-float-binop %int* f*))
-(set / (%make-float-binop %int/ f/))
+(set + (%make-float-binop %int+ f+ 0))
+(set * (%make-float-binop %int* f* 1))
+(set / (%make-float-binop %int/ f/ 1))
 
 ; - is special: unary negation case
 (set - (fn args
@@ -189,10 +183,7 @@
       (int-op a b)))))
 
 (set <  (%make-float-cmp %int<  f<))
-(set >  (%make-float-cmp %int>  f>))
 (set =  (%make-float-cmp %int=  f=))
-(set <= (%make-float-cmp %int<= f<=))
-(set >= (%make-float-cmp %int>= f>=))
 
 ; --- R7RS predicates ---
 (def integer? number?)
