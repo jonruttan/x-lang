@@ -3,10 +3,19 @@
 ; Float values are stored as IEEE 754 double bit patterns inside integers.
 ; The tokenizer's competitive scoring system ensures "3.14" (score 4)
 ; outscores the integer match "3" (score 1).
+;
+; All float conversion functions use generic ffi-call conventions,
+; eliminating the need for any float-specific C primitives.
 
 ; Forward-declare reader and convert handler
 (def %float-read ())
 (def %float-convert ())
+
+; --- FFI-based conversion functions ---
+; These use generic ffi-call conventions (no function pointer needed)
+(def float->string (fn (bits) (ffi-call "d->s" () bits)))
+(def int->float (fn (n) (ffi-call "i->d" () n)))
+(def float->int (fn (bits) (ffi-call "d->i" () bits)))
 
 ; State machine for tokenizer: matches [0-9]+\.[0-9]+
 ; Each state returns a closure capturing match length.
@@ -47,10 +56,6 @@
     (pair (lit convert) (fn (value)
       (%float-convert value))))))
 
-; Reader: called by tokenizer after successful analyse
-(set %float-read (fn args
-  (make-instance %float (float-read (first args)))))
-
 ; --- Predicates and constructors ---
 (def float? (fn (x) (type? x %float)))
 
@@ -85,6 +90,15 @@
 ; --- Math functions via dlopen ---
 ; Load math library from current process (linked with -lm)
 (def %libm (dlopen () 1))
+
+; string->float via strtod from libc
+(def %strtod (dlsym %libm "strtod"))
+(def string->float (fn (s) (ffi-call "s0->d" %strtod s)))
+
+; Reader: called by tokenizer after successful analyse
+; Buffer's char* is accessed the same way as string's, so s0->d works
+(set %float-read (fn args
+  (make-instance %float (ffi-call "s0->d" %strtod (first args)))))
 
 (def fsin  (fn (x) (make-instance %float
   (ffi-call "d->d" (dlsym %libm "sin") (first x)))))
