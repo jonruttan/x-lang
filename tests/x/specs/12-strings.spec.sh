@@ -8,9 +8,9 @@ describe 'string-length'
 
 describe 'string-ref'
   it 'returns character at index' \
-    '(string-ref "hello" 0)' '"h"'
+    '(string-ref "hello" 0)' 'h'
   it 'returns middle character' \
-    '(string-ref "hello" 2)' '"l"'
+    '(string-ref "hello" 2)' 'l'
 
 describe 'string-append'
   it 'concatenates two strings' \

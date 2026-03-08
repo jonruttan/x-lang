@@ -38,5 +38,5 @@
   (def len (string-length s))
   (def go (fn (i acc)
     (if (< i 0) acc
-      (go (- i 1) (string-append acc (string-ref s i))))))
+      (go (- i 1) (string-append acc (substring s i (+ i 1)))))))
   (go (- len 1) "")))
