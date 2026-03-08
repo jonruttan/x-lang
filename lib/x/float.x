@@ -120,6 +120,10 @@
   (ffi-call "d->d" (dlsym %libm "ceil") (first x)))))
 (def fround (fn (x) (make-instance %float
   (ffi-call "d->d" (dlsym %libm "round") (first x)))))
+(def ftrunc (fn (x) (make-instance %float
+  (ffi-call "d->d" (dlsym %libm "trunc") (first x)))))
+(def frint (fn (x) (make-instance %float
+  (ffi-call "d->d" (dlsym %libm "rint") (first x)))))
 (def fpow  (fn (a b) (make-instance %float
   (ffi-call "dd->d" (dlsym %libm "pow") (first a) (first b)))))
 (def fatan2 (fn (a b) (make-instance %float
@@ -160,12 +164,12 @@
           (int-op acc x)))
         (first args) (rest args))))))
 
-(def + (%make-float-binop %int+ f+))
-(def * (%make-float-binop %int* f*))
-(def / (%make-float-binop %int/ f/))
+(set + (%make-float-binop %int+ f+))
+(set * (%make-float-binop %int* f*))
+(set / (%make-float-binop %int/ f/))
 
 ; - is special: unary negation case
-(def - (fn args
+(set - (fn args
   (if (null? args) 0
     (if (null? (rest args))
       (if (float? (first args))
@@ -184,15 +188,15 @@
       (float-op (%ensure-float a) (%ensure-float b))
       (int-op a b)))))
 
-(def <  (%make-float-cmp %int<  f<))
-(def >  (%make-float-cmp %int>  f>))
-(def =  (%make-float-cmp %int=  f=))
-(def <= (%make-float-cmp %int<= f<=))
-(def >= (%make-float-cmp %int>= f>=))
+(set <  (%make-float-cmp %int<  f<))
+(set >  (%make-float-cmp %int>  f>))
+(set =  (%make-float-cmp %int=  f=))
+(set <= (%make-float-cmp %int<= f<=))
+(set >= (%make-float-cmp %int>= f>=))
 
 ; --- R7RS predicates ---
 (def integer? number?)
 (def %int-number? number?)
-(def number? (fn (x) (or (%int-number? x) (float? x))))
+(set number? (fn (x) (or (%int-number? x) (float? x))))
 (def real? number?)
 (def inexact? float?)

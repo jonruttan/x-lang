@@ -20,14 +20,20 @@
   ; --- Symbols ---
   (define (symbol=? a b) (eq? a b))
 
-  ; --- Number predicates ---
-  (define integer? number?)
+  ; --- Number predicates (corrected for float support) ---
+  (define (exact-integer? x) (%int-number? x))
+  (define (exact? x) (%int-number? x))
+  (define (rational? x) (%int-number? x))
+  (define (complex? x) (number? x))
+
+  ; --- R7RS integer? includes inexact integers (e.g. 3.0) ---
+  (define (integer? x)
+    (cond ((%int-number? x) #t)
+          ((float? x) (= x (ftrunc x)))
+          (#t #f)))
 
   ; --- Math ---
   (define (square x) (* x x))
-  (define (exact-integer? x) (number? x))
-  (define (exact? x) (number? x))
-  (define (inexact? x) #f)
   (define (truncate-quotient a b) (quotient a b))
   (define (truncate-remainder a b) (remainder a b))
   (define (floor-quotient a b)
@@ -37,7 +43,68 @@
                    (and (positive? a) (negative? b))))
         (- q 1) q)))
   (define (floor-remainder a b) (- a (* b (floor-quotient a b))))
-  (define (truncate x) x)
+
+  ; --- Rounding (pass-through for integers, use float ops for floats) ---
+  (define (floor x)
+    (if (float? x) (inexact->exact (ffloor x)) x))
+  (define (ceiling x)
+    (if (float? x) (inexact->exact (fceil x)) x))
+  (define (truncate x)
+    (if (float? x) (inexact->exact (ftrunc x)) x))
+  (define (round x)
+    (if (float? x) (inexact->exact (frint x)) x))
+
+  ; --- IEEE 754 predicates ---
+  ; Note: float literals not available inside do blocks; use exact->inexact
+  (define %pos-inf (/ (exact->inexact 1) (exact->inexact 0)))
+  (define %neg-inf (/ (exact->inexact (- 0 1)) (exact->inexact 0)))
+
+  (define (nan? x)
+    (and (float? x) (not (= x x))))
+  (define (infinite? x)
+    (and (float? x) (or (= x %pos-inf) (= x %neg-inf))))
+  (define (finite? x)
+    (and (number? x) (not (nan? x)) (not (infinite? x))))
+
+  ; --- Exact/inexact conversion (R7RS names) ---
+  (define exact inexact->exact)
+  (define inexact exact->inexact)
+
+  ; --- Generic sqrt ---
+  (define (sqrt x)
+    (if (and (%int-number? x) (>= x 0))
+      (let ((s (inexact->exact (fsqrt (exact->inexact x)))))
+        (if (= (* s s) x) s (fsqrt (exact->inexact x))))
+      (fsqrt (if (float? x) x (exact->inexact x)))))
+
+  ; --- Generic expt (override r5rs integer-only version) ---
+  (define (expt base exp)
+    (cond ((and (%int-number? base) (%int-number? exp) (>= exp 0))
+           (cond ((zero? exp) 1)
+                 ((even? exp) (expt (* base base) (quotient exp 2)))
+                 (#t (* base (expt base (- exp 1))))))
+          (#t (fpow (if (float? base) base (exact->inexact base))
+                    (if (float? exp) exp (exact->inexact exp))))))
+
+  ; --- Generic number->string / string->number ---
+  (define %int-number->string number->string)
+  (define %int-string->number string->number)
+
+  (define (number->string n)
+    (if (float? n)
+      (float->string (first n))
+      (%int-number->string n)))
+
+  (define (%string-has-dot? s)
+    (let loop ((i 0))
+      (cond ((= i (string-length s)) #f)
+            ((char=? (string-ref s i) #\.) #t)
+            (#t (loop (+ i 1))))))
+
+  (define (string->number s)
+    (if (%string-has-dot? s)
+      (make-instance %float (string->float s))
+      (%int-string->number s)))
 
   ; --- Character classification ---
   (define (char-alphabetic? c)
