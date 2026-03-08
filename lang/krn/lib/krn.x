@@ -14,6 +14,8 @@
 ;     (   )
 ;      " "
 (do
+  (include "lib/x.x")
+
   ; --- Core operative forms ---
   ; $vau is the fundamental abstraction (= op)
   (def $vau op)

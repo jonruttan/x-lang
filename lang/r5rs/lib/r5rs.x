@@ -12,6 +12,8 @@
 ;     (   )
 ;      " "
 (do
+  (include "lib/x.x")
+
   ; --- Aliases ---
   (def lambda fn)
   (def begin do)

@@ -15,7 +15,6 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SPEC_PATH="$SCRIPT_DIR/specs"
 X_BIN="$SCRIPT_DIR/../../x"
-X_LIB="$SCRIPT_DIR/../../lib/x.x"
 SL_LIB="$SCRIPT_DIR/../../lang/sl/lib/sl.x"
 
 ANSI_RESET="\33[0m"
@@ -55,7 +54,7 @@ it() {
 
   # Run input through the SL personality.
   # Pipe x.x + sl.x library + test expression through the interpreter.
-  VALUE="$(printf '%s\n' "$2" | cat "$X_LIB" "$SL_LIB" - | "$X_BIN" 2>/dev/null | sed 's/^> //' | sed '/^$/d' | tail -1)"
+  VALUE="$(printf '%s\n' "$2" | cat "$SL_LIB" - | "$X_BIN" 2>/dev/null | sed 's/^> //' | sed '/^$/d' | tail -1)"
   REQUIRE="$3"
 
   if [ "$VALUE" = "$REQUIRE" ]; then
