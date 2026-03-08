@@ -1,4 +1,6 @@
-; vector.x -- Vector type
+; vector.x -- Vector type with #() reader syntax
+
+(def %vector-read ())
 
 (def %vector (make-type "VECTOR"
   (list
@@ -12,7 +14,17 @@
               (write (first lst))
               (write-vec (rest lst) t)))))
       (write-vec (first self) ())
-      (display ")"))))))
+      (display ")")))
+    (pair (lit analyse) (fn (buffer score chr)
+      (if (= chr 35)
+        (fn (buffer score chr)
+          (if (= chr 40)
+            (score-match score 1 %vector-read)
+            ()))
+        ()))))))
+
+(set %vector-read (fn args
+  (make-instance %vector (read))))
 
 (def vector (fn args (make-instance %vector args)))
 (def vector? (fn (x) (type? x %vector)))
