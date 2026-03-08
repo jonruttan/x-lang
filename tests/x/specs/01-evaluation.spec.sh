@@ -66,15 +66,27 @@ describe 'tail call in apply'
   it 'apply with deep recursion' \
     '(do (def f (fn (n) (if (= n 0) (lit done) (apply f (list (- n 1)))))) (f 50000))' 'done'
 
-describe 'and/or in non-tail position'
-  it 'and with fn call in if condition' \
+describe 'tail call in and'
+  it 'and tail-evaluates last expression' \
+    '(do (def f (fn (n) (if (and t (> n 0)) (f (- n 1)) (lit done)))) (f 50000))' 'done'
+  it 'and with fn call in recursive condition' \
+    '(do (def h (fn (n) (> n 0))) (def f (fn (n) (if (and (h n) t) (f (- n 1)) (lit done)))) (f 50000))' 'done'
+
+describe 'tail call in or'
+  it 'or tail-evaluates last expression' \
+    '(do (def f (fn (n) (if (or () (= n 0)) (lit done) (f (- n 1))))) (f 50000))' 'done'
+  it 'or with fn call in recursive condition' \
+    '(do (def h (fn (n) (= n 0))) (def f (fn (n) (if (or () (h n)) (lit done) (f (- n 1))))) (f 50000))' 'done'
+
+describe 'and/or env restoration'
+  it 'and with fn call preserves env across iterations' \
     '(do (def h (fn (n) (> n 0))) (def f (fn (n) (if (and (h n) t) n "no"))) (f 5))' '5'
-  it 'or with fn call in if condition' \
+  it 'or with fn call preserves env across iterations' \
     '(do (def h (fn (n) (= n 0))) (def f (fn (n) (if (or () (h n)) "yes" "no"))) (f 0))' '"yes"'
-  it 'or in recursive function condition' \
-    '(do (def f (fn (n) (if (or () (= n 0)) (lit done) (f (- n 1))))) (f 10))' 'done'
-  it 'and in recursive function condition' \
-    '(do (def f (fn (n) (if (and t (> n 0)) (f (- n 1)) (lit done)))) (f 10))' 'done'
+  it 'or with fn call in deep recursion preserves env' \
+    '(do (def h (fn (n) (= n 0))) (def g (fn (n) (if (or () (h n)) (lit done) (g (- n 1))))) (g 100))' 'done'
+  it 'and with fn call in deep recursion preserves env' \
+    '(do (def h (fn (n) (> n 0))) (def g (fn (n) (if (and (h n) t) (g (- n 1)) (lit done)))) (g 100))' 'done'
 
 describe 'non-tail recursion still works'
   it 'factorial via non-tail recursion' \
