@@ -4,8 +4,9 @@
 ; The tokenizer's competitive scoring system ensures "3.14" (score 4)
 ; outscores the integer match "3" (score 1).
 
-; Forward-declare reader
+; Forward-declare reader and convert handler
 (def %float-read ())
+(def %float-convert ())
 
 ; State machine for tokenizer: matches [0-9]+\.[0-9]+
 ; Each state returns a closure capturing match length.
@@ -33,7 +34,7 @@
         (make-float-first-frac (+ len 1))
         ())))))
 
-; Float type with tokenizer and display
+; Float type with tokenizer, display, and convert handler
 (def %float (make-type "FLOAT"
   (list
     (pair (lit write) (fn (self)
@@ -42,7 +43,9 @@
       ; Entry: must start with digit [0-9]
       (if (and (>= chr 48) (<= chr 57))
         (make-float-int-digits 1)
-        ()))))))
+        ())))
+    (pair (lit convert) (fn (value)
+      (%float-convert value))))))
 
 ; Reader: called by tokenizer after successful analyse
 (set %float-read (fn args
@@ -50,9 +53,16 @@
 
 ; --- Predicates and constructors ---
 (def float? (fn (x) (type? x %float)))
-(def exact->inexact (fn (x)
-  (if (float? x) x
-    (make-instance %float (int->float x)))))
+
+; Convert handler: called by (convert value %float)
+; Defined after float? so the closure can capture it
+(set %float-convert (fn (value)
+  (if (float? value) value
+    (if (number? value)
+      (make-instance %float (int->float value))
+      ()))))
+
+(def exact->inexact (fn (x) (convert x %float)))
 (def inexact->exact (fn (x) (float->int (first x))))
 
 ; --- Arithmetic ---
@@ -123,20 +133,24 @@
 (def %int<= <=)
 (def %int>= >=)
 
-; Promote to float if either operand is float
-(def %ensure-float (fn (x)
-  (if (float? x) x (exact->inexact x))))
+; Promote to float via convert handler
+(def %ensure-float (fn (x) (convert x %float)))
 
-; Override + to handle floats
-(def + (fn args
-  (if (null? args) 0
-    (fold (fn (acc x)
-      (if (or (float? acc) (float? x))
-        (f+ (%ensure-float acc) (%ensure-float x))
-        (%int+ acc x)))
-      (first args) (rest args)))))
+; Generator for binary fold-based arithmetic (+, *, /)
+(def %make-float-binop (fn (int-op float-op)
+  (fn args
+    (if (null? args) (int-op)
+      (fold (fn (acc x)
+        (if (or (float? acc) (float? x))
+          (float-op (%ensure-float acc) (%ensure-float x))
+          (int-op acc x)))
+        (first args) (rest args))))))
 
-; Override - to handle floats
+(def + (%make-float-binop %int+ f+))
+(def * (%make-float-binop %int* f*))
+(def / (%make-float-binop %int/ f/))
+
+; - is special: unary negation case
 (def - (fn args
   (if (null? args) 0
     (if (null? (rest args))
@@ -149,49 +163,18 @@
           (%int- acc x)))
         (first args) (rest args))))))
 
-; Override * to handle floats
-(def * (fn args
-  (if (null? args) 1
-    (fold (fn (acc x)
-      (if (or (float? acc) (float? x))
-        (f* (%ensure-float acc) (%ensure-float x))
-        (%int* acc x)))
-      (first args) (rest args)))))
+; Generator for coerced comparisons
+(def %make-float-cmp (fn (int-op float-op)
+  (fn (a b)
+    (if (or (float? a) (float? b))
+      (float-op (%ensure-float a) (%ensure-float b))
+      (int-op a b)))))
 
-; Override / to handle floats
-(def / (fn args
-  (if (null? args) 1
-    (fold (fn (acc x)
-      (if (or (float? acc) (float? x))
-        (f/ (%ensure-float acc) (%ensure-float x))
-        (%int/ acc x)))
-      (first args) (rest args)))))
-
-; Override comparisons
-(def < (fn (a b)
-  (if (or (float? a) (float? b))
-    (f< (%ensure-float a) (%ensure-float b))
-    (%int< a b))))
-
-(def > (fn (a b)
-  (if (or (float? a) (float? b))
-    (f> (%ensure-float a) (%ensure-float b))
-    (%int> a b))))
-
-(def = (fn (a b)
-  (if (or (float? a) (float? b))
-    (f= (%ensure-float a) (%ensure-float b))
-    (%int= a b))))
-
-(def <= (fn (a b)
-  (if (or (float? a) (float? b))
-    (f<= (%ensure-float a) (%ensure-float b))
-    (%int<= a b))))
-
-(def >= (fn (a b)
-  (if (or (float? a) (float? b))
-    (f>= (%ensure-float a) (%ensure-float b))
-    (%int>= a b))))
+(def <  (%make-float-cmp %int<  f<))
+(def >  (%make-float-cmp %int>  f>))
+(def =  (%make-float-cmp %int=  f=))
+(def <= (%make-float-cmp %int<= f<=))
+(def >= (%make-float-cmp %int>= f>=))
 
 ; --- R7RS predicates ---
 (def integer? number?)
