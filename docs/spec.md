@@ -10,6 +10,13 @@ All primitives receive unevaluated arguments (fexpr-style) and evaluate what
 they need internally. Boolean true is the symbol `t`; false/nil is the base
 environment object (displayed as `()`).
 
+x-lang uses the fexpr evaluation model: every combiner at the C level receives
+its arguments unevaluated. Applicative semantics (automatic argument evaluation)
+are provided by `fn`, which wraps a closure. This is the inverse of most Lisps
+where functions evaluate arguments by default and macros are the special case.
+In x-lang, operatives (`op`) are the default and applicatives (`fn`) are the
+special case. This follows the Kernel language design.
+
 ---
 
 ## 1. Evaluation Model
@@ -59,8 +66,6 @@ The following forms evaluate their final expression in tail position:
 - `match`: the body of the matching clause
 - `let`: the last body form
 - `fn`: the last body form
-- `and`: the last expression (when all preceding are truthy)
-- `or`: the last expression (when all preceding are falsy)
 
 Proper tail calls MUST NOT grow the stack. A tail-recursive loop MUST be able
 to iterate without limit.
@@ -110,7 +115,7 @@ Constructs a pair from evaluated `a` and `b`.
 
 `(first p) -> obj`
 
-Returns the first element of pair `p`.
+Returns the first element of pair `p`. Calling `(first ())` is undefined.
 
 ```
 (first (pair 1 2)) -> 1
@@ -121,7 +126,7 @@ Returns the first element of pair `p`.
 
 `(rest p) -> obj`
 
-Returns the rest element of pair `p`.
+Returns the rest element of pair `p`. Calling `(rest ())` is undefined.
 
 ```
 (rest (pair 1 2)) -> 2
@@ -145,7 +150,8 @@ Constructs a proper list from zero or more evaluated arguments.
 
 Binds `name` (unevaluated symbol) to the result of evaluating `expr` in the
 current environment. The binding is created before `expr` is evaluated, enabling
-recursive definitions.
+recursive definitions. `def` always creates a new binding; it shadows any
+existing binding with the same name rather than replacing it.
 
 ```
 (def x 42) -> 42
@@ -156,7 +162,8 @@ recursive definitions.
 `(set name expr) -> value`
 
 Mutates an existing binding of `name` to the result of evaluating `expr`.
-Signals an error if `name` is not bound.
+Walks the scope chain to find the nearest enclosing binding of `name` and
+modifies it in place. Signals an error if `name` is not bound in any scope.
 
 ```
 (def x 1)
@@ -195,7 +202,8 @@ tail-evaluated. With no arguments, returns `()`.
 
 Multi-branch conditional. Evaluates each `test` in order; for the first truthy
 test, tail-evaluates the corresponding `expr` and returns it. Returns `()` if
-no test succeeds. Each clause has exactly ONE body form.
+no test succeeds. Each clause has exactly ONE body form; for multiple
+expressions, wrap in `do`.
 
 ```
 (match
@@ -217,6 +225,20 @@ restored after `let` completes.
 (let ((x 10)) x) -> 10
 ```
 
+### List indexing
+
+Lists support direct indexing when called as functions. A single integer
+argument returns the element at that zero-based index. Negative indices count
+from the end. Two integer arguments `(lst start len)` return a sublist.
+
+```
+(def xs (list 10 20 30 40))
+(xs 0) -> 10
+(xs 2) -> 30
+(xs -1) -> 40
+(xs 1 2) -> (20 30)
+```
+
 ---
 
 ## 3. Closures & Operatives
@@ -227,13 +249,16 @@ restored after `let` completes.
 
 Creates a closure (applicative). Arguments are evaluated before binding.
 Supports variadic: if `params` is a single symbol, it captures the entire
-argument list.
+argument list. A dotted-pair parameter list `(a b . rest)` binds named
+parameters and collects remaining arguments into `rest`.
 
 ```
 (def add (fn (a b) (+ a b)))
 (add 1 2) -> 3
 (def id (fn args args))
 (id 1 2 3) -> (1 2 3)
+(def f (fn (a b . rest) rest))
+(f 1 2 3 4 5) -> (3 4 5)
 ```
 
 Closures capture their lexical environment:
@@ -280,7 +305,8 @@ passing them to the underlying combiner.
 
 `(unwrap applicative) -> combiner`
 
-Extracts the underlying combiner from an applicative.
+Extracts the underlying combiner from an applicative. Calling `unwrap` on a
+value that was not created by `wrap` is undefined behavior.
 
 ```
 (def my-op (op (x) e x))
@@ -293,7 +319,9 @@ Extracts the underlying combiner from an applicative.
 `(apply f args) -> value`
 
 Calls callable `f` with a pre-evaluated list of arguments. Arguments are not
-re-evaluated.
+re-evaluated. When applying a C primitive, the arguments must be self-evaluating
+values (integers, strings, etc.) since primitives may internally evaluate their
+arguments.
 
 ```
 (apply + (list 1 2 3)) -> 6
@@ -378,7 +406,7 @@ Nested guards:
 `(error message) -> <does not return>`
 
 Signals an error. If a `guard` handler is installed, the error is caught.
-Otherwise, the error is fatal.
+Without a handler, `error` terminates the process.
 
 ```
 (guard (e e) (error "fail")) -> "fail"
@@ -430,7 +458,7 @@ Multiplication. Identity: `1`.
 
 `(/ a ...) -> integer`
 
-Integer division. Identity: `1`.
+Integer division. Identity: `1`. Division by zero is undefined.
 
 ```
 (/ 10 2) -> 5
@@ -442,7 +470,7 @@ Integer division. Identity: `1`.
 
 `(% a ...) -> integer`
 
-Integer modulo. Identity: `0`.
+Integer modulo. Identity: `0`. Modulo by zero is undefined.
 
 ```
 (% 10 3) -> 1
@@ -537,6 +565,7 @@ Symbols with the same name are interned and thus `eq?`.
 `(= a b) -> t | ()`
 
 Numeric/value equality. Compares integer values (and characters by code point).
+Comparing values of different types is undefined.
 
 ```
 (= 1 1) -> t
@@ -643,10 +672,12 @@ Returns `t` if `x` is not a pair. Inverse of `pair?`.
 
 `(procedure? x) -> t | ()`
 
-Returns `t` if `x` is callable (closure or C primitive).
+Returns `t` if `x` is a `fn` closure, a `wrap` applicative, or a C primitive.
+Returns `()` for `op` operatives and all other values.
 
 ```
 (procedure? +) -> t
+(procedure? (fn (x) x)) -> t
 (procedure? 42) -> ()
 ```
 
@@ -665,7 +696,8 @@ Returns `t` if `x` is a character object.
 
 `(char->integer c) -> integer`
 
-Returns the integer code point of character `c`.
+Returns the integer code point of character `c`. Passing a non-character value
+is undefined.
 
 ```
 (char->integer #\a) -> 97
@@ -692,7 +724,8 @@ Returns the character with code point `n`.
 
 `(string-length str) -> integer`
 
-Returns the byte length of string `str`.
+Returns the byte length of string `str` (not character count; x-lang strings
+are byte arrays with no encoding awareness).
 
 ```
 (string-length "hello") -> 5
@@ -703,7 +736,8 @@ Returns the byte length of string `str`.
 
 `(string-ref str index) -> char`
 
-Returns the character at zero-based `index` in `str`.
+Returns the character at zero-based `index` in `str`. Out-of-bounds access is
+undefined.
 
 ```
 (string-ref "hello" 0) -> h
@@ -714,7 +748,7 @@ Returns the character at zero-based `index` in `str`.
 
 `(string-append str1 str2) -> string`
 
-Concatenates two strings.
+Concatenates exactly two strings. For multiple strings, use `reduce`.
 
 ```
 (string-append "hello" " world") -> "hello world"
@@ -726,6 +760,7 @@ Concatenates two strings.
 `(substring str start end) -> string`
 
 Extracts a substring from `start` (inclusive) to `end` (exclusive).
+Out-of-bounds indices are undefined.
 
 ```
 (substring "hello" 1 3) -> "el"
@@ -778,7 +813,8 @@ Converts integer to decimal string representation.
 
 `(string->number str) -> integer`
 
-Parses string as integer. Supports `0x` prefix for hex.
+Parses string as integer. Supports `0x` prefix for hex. Non-numeric strings
+return `0`.
 
 ```
 (string->number "42") -> 42
@@ -791,10 +827,10 @@ Parses string as integer. Supports `0x` prefix for hex.
 
 ### `write`
 
-`(write obj) -> obj`
+`(write obj) -> ()`
 
 Outputs the s-expression representation of `obj` to stdout. Strings are quoted,
-special characters preserved. Returns `obj`.
+special characters escaped. Returns `()`.
 
 ```
 (write "hello")   ; outputs: "hello"
@@ -804,10 +840,10 @@ special characters preserved. Returns `obj`.
 
 ### `display`
 
-`(display obj) -> obj`
+`(display obj) -> ()`
 
 Outputs human-readable representation. Strings are printed without quotes.
-Returns `obj`.
+Returns `()`.
 
 ```
 (display "hello") ; outputs: hello
@@ -824,7 +860,8 @@ Outputs a newline character.
 
 `(read) -> obj`
 
-Reads and parses one s-expression from stdin.
+Reads and parses one s-expression from stdin. Behavior at EOF is
+implementation-dependent.
 
 ### `read-char`
 
@@ -901,13 +938,34 @@ Sequences of digits, optionally preceded by `-` for negative numbers.
 
 ### Strings
 
-Delimited by `"`. x-lang strings have NO escape processing: `"\n"` is two
-characters (backslash and n), not a newline. The only way to embed a literal
-double-quote is to not use one (use `display` to emit specific characters).
+Delimited by `"`. Strings support C-style backslash escape sequences:
+
+| Escape | Byte   | Name            |
+|--------|--------|-----------------|
+| `\"`   | `0x22` | double quote    |
+| `\\`   | `0x5C` | backslash       |
+| `\n`   | `0x0A` | newline         |
+| `\t`   | `0x09` | tab             |
+| `\r`   | `0x0D` | carriage return |
+| `\0`   | `0x00` | null            |
+| `\xHH` | *HH*   | hex byte        |
+
+Escape sequences are processed at read time: `"\n"` is a one-character string
+containing a newline byte. Unknown escape sequences (e.g., `\q`) preserve the
+literal backslash and following character. Invalid `\x` sequences (not followed
+by two hex digits) also preserve the literal characters.
+
+The `write` function re-escapes special characters so that the output is a valid
+string literal: `(write "\n")` prints `"\n"`, not a raw newline.
+
+Note: `\0` produces a null byte, which terminates the string for all operations
+that use byte-length (e.g., `string-length`, `string-append`).
 
 ```
 "hello" -> "hello"
 "" -> ""
+"a\"b" -> "a\"b"
+"a\\b" -> "a\\b"
 ```
 
 ### Symbols
@@ -923,14 +981,20 @@ my-var? -> <symbol>
 
 ### Characters
 
-`#\c` where `c` is a single character.
+`#\c` where `c` is a single character. Named characters are also supported:
+
+| Syntax       | Character      | Code |
+|--------------|----------------|------|
+| `#\space`    | space          | 32   |
+| `#\newline`  | newline (LF)   | 10   |
+| `#\tab`      | horizontal tab | 9    |
 
 ```
 #\a -> a
-#\space -> <space character>
+(char->integer #\space) -> 32
+(char->integer #\newline) -> 10
+(char->integer #\tab) -> 9
 ```
-
-**TBD**: Named characters (`#\newline`, `#\space`, `#\tab`).
 
 ### Lists
 
@@ -992,8 +1056,8 @@ is the tail.
 `(make-type name handlers) -> type-handle`
 
 Creates a new runtime type with string `name` and an alist of `handlers`.
-Supported handler keys: `call`, `write`, `length`. Returns a type handle used
-with `make-instance` and `type?`.
+Supported handler keys: `call`, `write`, `length`, `analyse`, `delimit`.
+Returns a type handle used with `make-instance` and `type?`.
 
 ```
 (def my-t (make-type "MY-T" (list)))
@@ -1056,11 +1120,11 @@ Sets the score fields for the tokenizer protocol. `length` is the match length,
 ### Call handler
 
 When a typed instance is called as a function, the `call` handler is invoked
-with the instance as `self` and the argument list.
+with the instance as `self` followed by the arguments.
 
 ```
 (def counter-t (make-type "COUNTER"
-  (list (pair (lit call) (fn (self args) (first self))))))
+  (list (pair (lit call) (fn (self . args) (first self))))))
 (def c (make-instance counter-t 42))
 (c) -> 42
 ```
@@ -1194,6 +1258,63 @@ Returns a function that applies `f` for side effects, then returns the argument.
 
 ```
 ((tap write) 42) -> 42
+```
+
+### `complement`
+
+`(complement pred) -> function`
+
+```
+((complement even?) 3) -> t
+```
+
+### `partial`
+
+`(partial f . bound) -> function`
+
+```
+((partial + 10) 5) -> 15
+```
+
+### `juxt`
+
+`(juxt . fns) -> function`
+
+```
+((juxt inc dec) 5) -> (6 4)
+```
+
+### `both`
+
+`(both f g) -> function`
+
+```
+((both positive? even?) 4) -> t
+((both positive? even?) 3) -> ()
+```
+
+### `either`
+
+`(either f g) -> function`
+
+```
+((either positive? even?) -2) -> t
+```
+
+### `all-pass`
+
+`(all-pass preds) -> function`
+
+```
+((all-pass (list positive? even?)) 4) -> t
+```
+
+### `any-pass`
+
+`(any-pass preds) -> function`
+
+```
+((any-pass (list positive? even?)) -2) -> t
 ```
 
 ---
@@ -1330,6 +1451,22 @@ Returns whichever of `a`, `b` has the larger `(f x)`.
 (odd? 4) -> ()
 ```
 
+### `sum`
+
+`(sum lst) -> integer`
+
+```
+(sum (list 1 2 3)) -> 6
+```
+
+### `product`
+
+`(product lst) -> integer`
+
+```
+(product (list 2 3 4)) -> 24
+```
+
 ---
 
 ## 15. Lib: Logic
@@ -1371,7 +1508,8 @@ Repeatedly applies `f` to `x` until `pred` is true.
 
 `(equal? a b) -> t | ()`
 
-Structural equality: numbers by value, strings by content, else by identity.
+Shallow value equality: numbers by value, strings by content, else by identity
+(`eq?`). Does not recurse into pairs or lists.
 
 ```
 (equal? 3 3) -> t
@@ -1563,64 +1701,7 @@ Maps then flattens one level.
 (empty? (list 1)) -> ()
 ```
 
-### Higher-order combinators
-
-#### `complement`
-
-`(complement pred) -> function`
-
-```
-((complement even?) 3) -> t
-```
-
-#### `partial`
-
-`(partial f . bound) -> function`
-
-```
-((partial + 10) 5) -> 15
-```
-
-#### `juxt`
-
-`(juxt . fns) -> function`
-
-```
-((juxt inc dec) 5) -> (6 4)
-```
-
-#### `both`
-
-`(both f g) -> function`
-
-```
-((both positive? even?) 4) -> t
-((both positive? even?) 3) -> ()
-```
-
-#### `either`
-
-`(either f g) -> function`
-
-```
-((either positive? even?) -2) -> t
-```
-
-#### `all-pass`
-
-`(all-pass preds) -> function`
-
-```
-((all-pass (list positive? even?)) 4) -> t
-```
-
-#### `any-pass`
-
-`(any-pass preds) -> function`
-
-```
-((any-pass (list positive? even?)) -2) -> t
-```
+### Filtering
 
 #### `reject`
 
@@ -1638,22 +1719,6 @@ Complement of `filter`.
 
 ```
 (concat (list 1 2) (list 3) (list 4 5)) -> (1 2 3 4 5)
-```
-
-#### `sum`
-
-`(sum lst) -> integer`
-
-```
-(sum (list 1 2 3)) -> 6
-```
-
-#### `product`
-
-`(product lst) -> integer`
-
-```
-(product (list 2 3 4)) -> 24
 ```
 
 ### Search

@@ -61,6 +61,22 @@ describe 'string->number'
   it 'parses zero' \
     '(string->number "0")' '0'
 
+describe 'string escapes'
+  it 'escaped quote round-trips through write' \
+    '(write "a\"b")' '"a\"b"'
+  it 'escaped backslash round-trips through write' \
+    '(write "a\\\\b")' '"a\\\\b"'
+  it 'newline round-trips through write' \
+    '(write "a\nb")' '"a\nb"'
+  it 'tab round-trips through write' \
+    '(write "a\tb")' '"a\tb"'
+  it 'carriage return round-trips through write' \
+    '(write "a\rb")' '"a\rb"'
+  it 'hex escape produces correct byte' \
+    '(= (char->integer (string-ref "\x41" 0)) 65)' 't'
+  it 'display outputs raw characters' \
+    '(display "a\tb")' 'a	b'
+
 describe 'string composition'
   it 'round-trips number->string->number' \
     '(string->number (number->string 99))' '99'

@@ -9,6 +9,13 @@ describe 'integer reader'
 describe 'string reader'
   it 'reads simple string' '"hello"' '"hello"'
   it 'reads empty string' '""' '""'
+  it 'reads string with escaped quote' '"a\"b"' '"a\"b"'
+  it 'reads string with escaped backslash' '"a\\\\b"' '"a\\\\b"'
+  it 'reads string with newline escape' '(string-length "a\nb")' '3'
+  it 'reads string with tab escape' '(string-length "a\tb")' '3'
+  it 'reads string with carriage return escape' '(string-length "a\rb")' '3'
+  it 'reads string with hex escape' '(= (char->integer (string-ref "\x41" 0)) 65)' 't'
+  it 'preserves unknown escape sequences' '(string-length "\q")' '2'
 
 describe 'symbol reader'
   it 'reads simple symbol' '(lit abc)' 'abc'
@@ -22,6 +29,12 @@ describe 'character reader'
     '(char->integer #\a)' '97'
   it 'reads uppercase character' \
     '(char->integer #\Z)' '90'
+  it 'reads named character space' \
+    '(char->integer #\space)' '32'
+  it 'reads named character newline' \
+    '(char->integer #\newline)' '10'
+  it 'reads named character tab' \
+    '(char->integer #\tab)' '9'
 
 describe 'list reader'
   it 'reads proper list' '(lit (1 2 3))' '(1 2 3)'

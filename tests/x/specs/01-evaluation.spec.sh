@@ -66,6 +66,16 @@ describe 'tail call in apply'
   it 'apply with deep recursion' \
     '(do (def f (fn (n) (if (= n 0) (lit done) (apply f (list (- n 1)))))) (f 50000))' 'done'
 
+describe 'and/or in non-tail position'
+  it 'and with fn call in if condition' \
+    '(do (def h (fn (n) (> n 0))) (def f (fn (n) (if (and (h n) t) n "no"))) (f 5))' '5'
+  it 'or with fn call in if condition' \
+    '(do (def h (fn (n) (= n 0))) (def f (fn (n) (if (or () (h n)) "yes" "no"))) (f 0))' '"yes"'
+  it 'or in recursive function condition' \
+    '(do (def f (fn (n) (if (or () (= n 0)) (lit done) (f (- n 1))))) (f 10))' 'done'
+  it 'and in recursive function condition' \
+    '(do (def f (fn (n) (if (and t (> n 0)) (f (- n 1)) (lit done)))) (f 10))' 'done'
+
 describe 'non-tail recursion still works'
   it 'factorial via non-tail recursion' \
     '(do (def fact (fn (n) (if (= n 0) 1 (* n (fact (- n 1)))))) (fact 10))' '3628800'
