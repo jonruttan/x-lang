@@ -84,9 +84,35 @@ describe 'and/or env restoration'
   it 'or with fn call preserves env across iterations' \
     '(do (def h (fn (n) (= n 0))) (def f (fn (n) (if (or () (h n)) "yes" "no"))) (f 0))' '"yes"'
   it 'or with fn call in deep recursion preserves env' \
-    '(do (def h (fn (n) (= n 0))) (def g (fn (n) (if (or () (h n)) (lit done) (g (- n 1))))) (g 100))' 'done'
+    '(do (def h (fn (n) (= n 0))) (def g (fn (n) (if (or () (h n)) (lit done) (g (- n 1))))) (g 50000))' 'done'
   it 'and with fn call in deep recursion preserves env' \
-    '(do (def h (fn (n) (> n 0))) (def g (fn (n) (if (and (h n) t) (g (- n 1)) (lit done)))) (g 100))' 'done'
+    '(do (def h (fn (n) (> n 0))) (def g (fn (n) (if (and (h n) t) (g (- n 1)) (lit done)))) (g 50000))' 'done'
+
+describe 'TCO env safety in non-tail position'
+  it 'if in arg position preserves env' \
+    '(do (def h (fn (x) (+ x 10))) (def f (fn (n m) (+ (if t (h n) 0) m))) (f 5 100))' '115'
+  it 'do in arg position preserves env' \
+    '(do (def h (fn (x) (+ x 10))) (def f (fn (n m) (+ (do 1 (h n)) m))) (f 5 100))' '115'
+  it 'match in arg position preserves env' \
+    '(do (def h (fn (x) (+ x 10))) (def f (fn (n m) (+ (match (t (h n))) m))) (f 5 100))' '115'
+  it 'nested if with fn calls preserves env' \
+    '(do (def h (fn (n) (> n 0))) (def g (fn (n m) (if (if t (h n) ()) (g (- n 1) m) m))) (g 100 42))' '42'
+  it 'if with fn call in deep recursive condition' \
+    '(do (def h (fn (n) (= n 0))) (def g (fn (n m) (if (if t (h n) ()) m (g (- n 1) m)))) (g 50000 99))' '99'
+  it 'do with fn call in recursive condition' \
+    '(do (def h (fn (n) (= n 0))) (def g (fn (n) (if (do (h n)) (lit done) (g (- n 1))))) (g 50000))' 'done'
+  it 'match with fn call in non-tail position' \
+    '(do (def h (fn (x) (* x 2))) (def f (fn (n m) (+ (match ((> n 0) (h n)) (t 0)) m))) (f 5 100))' '110'
+
+describe 'combined TCO forms'
+  it 'let inside or inside recursive fn' \
+    '(do (def f (fn (n) (if (or () (let ((m (- n 1))) (= m 0))) (lit done) (f (- n 1))))) (f 50000))' 'done'
+  it 'do inside and inside recursive fn' \
+    '(do (def f (fn (n) (if (and t (do (> n 0))) (f (- n 1)) (lit done)))) (f 50000))' 'done'
+  it 'match with and guard in recursive fn' \
+    '(do (def h (fn (n) (> n 0))) (def f (fn (n) (match ((and (h n) t) (f (- n 1))) (t (lit done))))) (f 50000))' 'done'
+  it 'nested fn calls in or condition preserve env through recursion' \
+    '(do (def p (fn (n) (= (% n 2) 0))) (def q (fn (n) (= n 0))) (def f (fn (n) (if (or (q n) (p n)) (if (q n) (lit done) (f (- n 1))) (f (- n 1))))) (f 50000))' 'done'
 
 describe 'non-tail recursion still works'
   it 'factorial via non-tail recursion' \

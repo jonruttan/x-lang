@@ -7,8 +7,13 @@ describe 'and'
   it 'returns nil for single falsy' '(and (lit ()))' ''
   it 'returns last value when all truthy' '(and 1 2 3)' '3'
   it 'returns nil on first falsy' '(and 1 (lit ()) 3)' ''
+  it 'returns actual value not t' '(and 1 "yes")' '"yes"'
   it 'short-circuits evaluation' \
     '(do (def x 0) (and (lit ()) (set x 1)) x)' '0'
+  it 'short-circuits before error' \
+    '(and (lit ()) (error "boom"))' ''
+  it 'def in last position persists' \
+    '(do (and t (def x 99)) x)' '99'
 
 describe 'or'
   it 'returns nil for empty or' '(or)' ''
@@ -16,12 +21,27 @@ describe 'or'
   it 'returns nil for single falsy' '(or (lit ()))' ''
   it 'returns first truthy value' '(or (lit ()) 2 3)' '2'
   it 'returns nil when all falsy' '(or (lit ()) (lit ()))' ''
+  it 'returns actual value not t' '(or (lit ()) "yes")' '"yes"'
   it 'short-circuits evaluation' \
     '(do (def x 0) (or 1 (set x 1)) x)' '0'
+  it 'short-circuits before error' \
+    '(or 1 (error "boom"))' '1'
+  it 'def in last position persists' \
+    '(do (or (lit ()) (def x 77)) x)' '77'
 
 describe 'not'
   it 'returns t for nil' '(not (lit ()))' 't'
   it 'returns nil for non-nil' '(not 1)' ''
+
+describe 'nested and/or'
+  it 'nested and/or returns correct value' \
+    '(and (or (lit ()) 1) (or (lit ()) 2))' '2'
+  it 'or of ands returns correct value' \
+    '(or (and (lit ()) 1) (and 1 2))' '2'
+  it 'and of ors returns correct value' \
+    '(and (or 1 2) (or 3 4))' '3'
+  it 'deeply nested logic' \
+    '(or (and (or (lit ()) (lit ())) 1) (and (or (lit ()) 5) 6))' '6'
 
 describe 'guard'
   it 'returns body result when no error' \

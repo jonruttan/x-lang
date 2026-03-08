@@ -66,6 +66,9 @@ The following forms evaluate their final expression in tail position:
 - `match`: the body of the matching clause
 - `let`: the last body form
 - `fn`: the last body form
+- `and`: the last expression
+- `or`: the last expression
+- `apply`: the last body form of the applied procedure
 
 Proper tail calls MUST NOT grow the stack. A tail-recursive loop MUST be able
 to iterate without limit.
