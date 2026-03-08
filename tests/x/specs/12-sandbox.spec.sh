@@ -1,4 +1,5 @@
-# 11-base.spec.sh -- Tests for base object manipulation
+# 12-sandbox.spec.sh -- Tests for sandboxing
+# Spec: Section 12 - Sandboxing
 
 describe 'make-base'
   it 'creates a base object' \

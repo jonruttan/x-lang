@@ -1,4 +1,5 @@
-# 12-strings.spec.sh -- Tests for string operations
+# 07-strings.spec.sh -- Tests for string operations
+# Spec: Section 7 - Strings
 
 describe 'string-length'
   it 'returns length of string' \
@@ -31,6 +32,18 @@ describe 'string=?'
     '(string=? "hello" "hello")' 't'
   it 'returns nil for different strings' \
     '(string=? "hello" "world")' ''
+
+describe 'string->symbol'
+  it 'converts string to symbol' \
+    '(string->symbol "hello")' 'hello'
+  it 'interned equality' \
+    '(eq? (string->symbol "hello") (lit hello))' 't'
+
+describe 'symbol->string'
+  it 'converts symbol to string' \
+    '(symbol->string (lit hello))' '"hello"'
+  it 'round-trip string->symbol->string' \
+    '(symbol->string (string->symbol "test"))' '"test"'
 
 describe 'number->string'
   it 'converts positive number' \

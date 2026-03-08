@@ -1,4 +1,5 @@
-# 16-regex.spec.sh -- Tests for regex type and operations
+# 20-lib-regex.spec.sh -- Tests for regex type and operations
+# Spec: Section 20 - Lib: Regex
 
 describe 'regex literal'
   it 'writes exact pattern' \

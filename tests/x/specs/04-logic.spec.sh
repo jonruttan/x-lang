@@ -1,4 +1,27 @@
-# 09-errors.spec.sh -- Tests for guard and error
+# 04-logic.spec.sh -- Tests for logic and control flow
+# Spec: Section 4 - Logic & Control
+
+describe 'and'
+  it 'returns t for empty and' '(and)' 't'
+  it 'returns value for single truthy' '(and 1)' '1'
+  it 'returns nil for single falsy' '(and (lit ()))' ''
+  it 'returns last value when all truthy' '(and 1 2 3)' '3'
+  it 'returns nil on first falsy' '(and 1 (lit ()) 3)' ''
+  it 'short-circuits evaluation' \
+    '(do (def x 0) (and (lit ()) (set x 1)) x)' '0'
+
+describe 'or'
+  it 'returns nil for empty or' '(or)' ''
+  it 'returns value for single truthy' '(or 1)' '1'
+  it 'returns nil for single falsy' '(or (lit ()))' ''
+  it 'returns first truthy value' '(or (lit ()) 2 3)' '2'
+  it 'returns nil when all falsy' '(or (lit ()) (lit ()))' ''
+  it 'short-circuits evaluation' \
+    '(do (def x 0) (or 1 (set x 1)) x)' '0'
+
+describe 'not'
+  it 'returns t for nil' '(not (lit ()))' 't'
+  it 'returns nil for non-nil' '(not 1)' ''
 
 describe 'guard'
   it 'returns body result when no error' \

@@ -1,4 +1,5 @@
-# 13-vectors.spec.sh -- Tests for vector type and operations
+# 19-lib-vector.spec.sh -- Tests for vector library
+# Spec: Section 19 - Lib: Vectors
 
 describe 'vector'
   it 'creates a vector from arguments' \
@@ -49,15 +50,3 @@ describe 'make-vector'
     '(write (make-vector 3 0))' '#(0 0 0)'
   it 'creates a vector with custom fill' \
     '(write (make-vector 2 7))' '#(7 7)'
-
-describe 'type-name'
-  it 'returns VECTOR for a vector' \
-    '(type-name (vector 1))' '"VECTOR"'
-  it 'returns LIST for a list' \
-    '(type-name (list 1 2))' '"LIST"'
-
-describe 'make-type'
-  it 'creates a custom type with call handler' \
-    '(do (def %counter (make-type "COUNTER" (list (pair (lit call) (fn (self . args) (+ (first self) (first args))))))) (def c (make-instance %counter 10)) (c 5))' '15'
-  it 'creates a custom type with write handler' \
-    '(do (def %tag (make-type "TAG" (list (pair (lit write) (fn (self) (display "<") (display (first self)) (display ">")))))) (write (make-instance %tag "hello")))' '<hello>'

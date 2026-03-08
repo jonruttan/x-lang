@@ -1,4 +1,5 @@
-# 07-io.spec.sh -- Tests for I/O primitives and type conversion
+# 08-io.spec.sh -- Tests for I/O primitives
+# Spec: Section 8 - I/O
 
 describe 'write'
   it 'writes an integer' \
@@ -40,40 +41,11 @@ describe 'read'
   it 'reads a string' \
     '(do (def x (read)) x) "world"' '"world"'
 
-describe 'string->symbol'
-  it 'converts string to symbol' \
-    '(string->symbol "hello")' 'hello'
-  it 'interned equality' \
-    '(eq? (string->symbol "hello") (lit hello))' 't'
+describe 'read-char'
+  it 'reads a single character' \
+    '(do (def c (read-char)) (char? c))' 't'
+  it 'returns nil on end of input' \
+    '(do (read-char) (null? (read-char)))' 't'
 
-describe 'symbol->string'
-  it 'converts symbol to string' \
-    '(symbol->string (lit hello))' '"hello"'
-  it 'round-trip string->symbol->string' \
-    '(symbol->string (string->symbol "test"))' '"test"'
-
-describe 'number?'
-  it 'true for integer' \
-    '(number? 42)' 't'
-  it 'false for string' \
-    '(null? (number? "hello"))' 't'
-
-describe 'string?'
-  it 'true for string' \
-    '(string? "hello")' 't'
-  it 'false for integer' \
-    '(null? (string? 42))' 't'
-
-describe 'symbol?'
-  it 'true for symbol' \
-    '(symbol? (lit hello))' 't'
-  it 'false for integer' \
-    '(null? (symbol? 42))' 't'
-
-describe 'procedure?'
-  it 'true for fn' \
-    '(procedure? (fn (x) x))' 't'
-  it 'true for builtin' \
-    '(procedure? first)' 't'
-  it 'false for integer' \
-    '(null? (procedure? 42))' 't'
+describe 'gc'
+  it 'returns nil' '(null? (gc))' 't'

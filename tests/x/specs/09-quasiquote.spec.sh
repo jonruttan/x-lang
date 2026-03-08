@@ -1,4 +1,5 @@
-# 08-quasiquote.spec.sh -- Tests for quasi, unquote, unquote-splicing
+# 09-quasiquote.spec.sh -- Tests for quasiquote
+# Spec: Section 9 - Quasiquote
 
 describe 'quasi'
   it 'returns a literal list' \
