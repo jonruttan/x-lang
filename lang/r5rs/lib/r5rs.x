@@ -121,5 +121,71 @@
         (t (case-loop (rest cls))))))
     (case-loop clauses)))
 
+  ; --- Deep structural equality (override x-lib equal? for pairs) ---
+  (define (equal? a b)
+    (cond ((and (pair? a) (pair? b))
+           (and (equal? (car a) (car b)) (equal? (cdr a) (cdr b))))
+          ((and (number? a) (number? b)) (= a b))
+          ((and (string? a) (string? b)) (string=? a b))
+          ((and (char? a) (char? b)) (= (char->integer a) (char->integer b)))
+          (#t (eq? a b))))
+
+  ; --- Equivalence ---
+  (define (eqv? a b) (equal? a b))
+
+  ; --- List predicate ---
+  (define (list? x)
+    (if (null? x) #t
+      (if (pair? x) (list? (cdr x)) #f)))
+
+  ; --- Membership with eq? ---
+  (define (memq x lst)
+    (cond ((null? lst) #f)
+          ((eq? x (car lst)) lst)
+          (#t (memq x (cdr lst)))))
+  (define (memv x lst) (memq x lst))
+
+  ; --- Association with eq? ---
+  (define (assq key alist)
+    (cond ((null? alist) #f)
+          ((eq? key (caar alist)) (car alist))
+          (#t (assq key (cdr alist)))))
+  (define (assv key alist) (assq key alist))
+
+  ; --- Character comparisons ---
+  (define (char=? a b) (= (char->integer a) (char->integer b)))
+  (define (char<? a b) (< (char->integer a) (char->integer b)))
+  (define (char>? a b) (> (char->integer a) (char->integer b)))
+  (define (char<=? a b) (<= (char->integer a) (char->integer b)))
+  (define (char>=? a b) (>= (char->integer a) (char->integer b)))
+
+  ; --- String ordering ---
+  (define (string<? a b)
+    (let loop ((i 0))
+      (cond ((= i (string-length a)) (< i (string-length b)))
+            ((= i (string-length b)) #f)
+            ((char<? (string-ref a i) (string-ref b i)) #t)
+            ((char>? (string-ref a i) (string-ref b i)) #f)
+            (#t (loop (+ i 1))))))
+  (define (string>? a b) (string<? b a))
+  (define (string<=? a b) (not (string>? a b)))
+  (define (string>=? a b) (not (string<? a b)))
+
+  ; --- Math ---
+  (define (quotient a b) (/ a b))
+  (define (remainder a b) (- a (* b (quotient a b))))
+  (define (gcd a b) (if (zero? b) (abs a) (gcd b (remainder a b))))
+  (define (lcm a b) (if (or (zero? a) (zero? b)) 0
+    (abs (* (quotient a (gcd a b)) b))))
+  (define (expt base exp)
+    (cond ((zero? exp) 1)
+          ((even? exp) (expt (* base base) (quotient exp 2)))
+          (#t (* base (expt base (- exp 1))))))
+
+  ; --- String to list ---
+  (define (string->list s)
+    (let loop ((i (- (string-length s) 1)) (acc ()))
+      (if (< i 0) acc (loop (- i 1) (cons (string-ref s i) acc)))))
+
   (lit r5rs)
 )
