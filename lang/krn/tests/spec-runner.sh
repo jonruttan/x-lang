@@ -1,7 +1,7 @@
 #!/bin/sh
 # # Computational Expressions in C
 #
-# ## tests/krn/spec-runner.sh -- Kernel Personality Test Runner
+# ## lang/krn/tests/spec-runner.sh -- Kernel Personality Test Runner
 #
 # @description BDD-style test runner for the Kernel personality
 # @author [Jon Ruttan](jonruttan@gmail.com)
@@ -15,7 +15,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SPEC_PATH="$SCRIPT_DIR/specs"
-X_BIN="$SCRIPT_DIR/../../x"
-LANG_LIB="$SCRIPT_DIR/../../lang/krn/lib/krn.x"
+X_BIN="$SCRIPT_DIR/../../../x"
+LANG_LIB="$SCRIPT_DIR/../lib/krn.x"
 
-. "$SCRIPT_DIR/../spec-runner.sh"
+. "$SCRIPT_DIR/../../../tests/spec-runner.sh"

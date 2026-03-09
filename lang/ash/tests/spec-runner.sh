@@ -1,9 +1,9 @@
 #!/bin/sh
 # # Computational Expressions in C
 #
-# ## tests/r7rs/spec-runner.sh -- R7RS Personality Test Runner
+# ## lang/ash/tests/spec-runner.sh -- ASH Shell Personality Test Runner
 #
-# @description BDD-style test runner for the R7RS Scheme personality
+# @description BDD-style test runner for ash shell tokenizer and parser
 # @author [Jon Ruttan](jonruttan@gmail.com)
 # @copyright 2024 Jon Ruttan
 # @license MIT No Attribution (MIT-0)
@@ -15,7 +15,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SPEC_PATH="$SCRIPT_DIR/specs"
-X_BIN="$SCRIPT_DIR/../../x"
-LANG_LIB="$SCRIPT_DIR/../../lang/r7rs/lib/r7rs.x"
+X_BIN="$SCRIPT_DIR/../../../x"
+LANG_LIB="$SCRIPT_DIR/../lib/ash.x"
 
-. "$SCRIPT_DIR/../spec-runner.sh"
+. "$SCRIPT_DIR/../../../tests/spec-runner.sh"
