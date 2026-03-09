@@ -84,17 +84,27 @@
   (include "lib/x/regex.x")
 
   ; --- quasi (needs append from list.x) ---
-  (def quasi (op (tmpl) e
-    (def expand (fn (t)
-      (if (or (null? t) (atom? t)) t
-        (if (eq? (first t) (lit unquote))
-          (eval (first (rest t)))
-          (if (and (pair? (first t))
-                   (eq? (first (first t)) (lit unquote-splicing)))
-            (append (eval (first (rest (first t))))
-                    (expand (rest t)))
-            (pair (expand (first t)) (expand (rest t))))))))
-    (expand tmpl)))
+  ; Compile template to a pair/lit/append tree that, when eval'd,
+  ; constructs the result with current bindings.
+  (def %quasi-compile (fn (t)
+    (if (or (null? t) (atom? t))
+      (list (lit lit) t)
+      (if (eq? (first t) (lit unquote))
+        (first (rest t))
+        (if (and (pair? (first t))
+                 (eq? (first (first t)) (lit unquote-splicing)))
+          (list (lit append)
+                (first (rest (first t)))
+                (%quasi-compile (rest t)))
+          (list (lit pair)
+                (%quasi-compile (first t))
+                (%quasi-compile (rest t))))))))
+  (def quasi (op args e
+    (if (eq? (first args) %expanded)
+      (eval (first (rest args)))
+      (%do (def %t (%quasi-compile (first args)))
+           (%rewrite args %expanded (pair %t ()))
+           (eval %t)))))
 
   ()
 )
