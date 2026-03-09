@@ -12,7 +12,7 @@
 ;     (   )
 ;      " "
 (do
-  (include "lib/x.x")
+  (include "lib/x-core.x")
 
   ; --- Aliases ---
   (def lambda fn)

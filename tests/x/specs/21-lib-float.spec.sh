@@ -1,5 +1,6 @@
 # 21-lib-float.spec.sh -- Tests for floating-point type
 # Spec: Section 21 - Float Library
+LANG_LIB="$SCRIPT_DIR/../../lib/x.x"
 
 describe 'float literals'
   it 'parses simple float' '3.14' '3.14'

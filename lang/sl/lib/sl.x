@@ -16,7 +16,7 @@
 ;      " "
 (do (def sl-lib-version "0.7.0")
 
-  (include "lib/x.x")
+  (include "lib/x-core.x")
 
   ; =========================================================
   ; Scheme-compatible aliases
@@ -48,15 +48,15 @@
       (eval (list (lit def) name-or-form (first body))))))
 
   ; =========================================================
-  ; Character constants
+  ; Character constants (single-character strings for I/O)
   ; =========================================================
-  ; x-lang string-ref returns a single-char string; these serve
-  ; as named character constants for I/O.
-  (def #newline (string-ref "\n" 0))
+  ; Use substring to get single-char strings (string-ref returns
+  ; a char integer, not a string).
+  (def #newline (substring "\n" 0 1))
   (def #nl      #newline)
-  (def #cr      (string-ref "\r" 0))
-  (def #esc     (string-ref "\x1b" 0))
-  (def #0       (string-ref "\0" 0))
+  (def #cr      (substring "\r" 0 1))
+  (def #esc     (substring "\x1b" 0 1))
+  (def #0       (substring "\0" 0 1))
   (def #crnl    (string-append #cr #nl))
 
   ; =========================================================

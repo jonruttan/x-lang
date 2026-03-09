@@ -13,6 +13,7 @@
 ;      " "
 (do
   (include "lang/r5rs/lib/r5rs.x")
+  (include "lib/x/float.x")
 
   ; --- Booleans ---
   (define (boolean=? a b) (if a (if b #t #f) (if b #f #t)))

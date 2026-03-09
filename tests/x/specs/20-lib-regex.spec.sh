@@ -1,5 +1,6 @@
 # 20-lib-regex.spec.sh -- Tests for regex type and operations
 # Spec: Section 20 - Lib: Regex
+LANG_LIB="$SCRIPT_DIR/../../lib/x.x"
 
 describe 'regex literal'
   it 'writes exact pattern' \

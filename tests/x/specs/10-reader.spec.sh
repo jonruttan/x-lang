@@ -1,5 +1,6 @@
 # 10-reader.spec.sh -- Tests for reader syntax
 # Spec: Section 10 - Reader Syntax
+LANG_LIB="$SCRIPT_DIR/../../lib/x.x"
 
 describe 'integer reader'
   it 'reads positive integers' '99' '99'

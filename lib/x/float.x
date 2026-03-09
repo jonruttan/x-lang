@@ -124,13 +124,7 @@
 (def %e  (fexp (exact->inexact 1)))
 
 ; --- Generic arithmetic overrides ---
-; Save original integer operations
-(def %int+ +)
-(def %int- -)
-(def %int* *)
-(def %int/ /)
-(def %int< <)
-(def %int= =)
+; %int+, %int-, %int*, %int/, %int<, %int= already saved by x-core.x
 
 ; Promote to float via convert handler
 (def %ensure-float (fn (x) (convert x %float)))
@@ -184,8 +178,8 @@
       (%int= a b)))))
 
 ; --- R7RS predicates ---
+; %int-number? already saved by x-core.x
 (def integer? number?)
-(def %int-number? number?)
 (set number? (fn (x) (if (%int-number? x) t (float? x))))
 (def real? number?)
 (def inexact? float?)
