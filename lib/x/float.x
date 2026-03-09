@@ -18,30 +18,29 @@
 (def float->int (fn (bits) (ffi-call "d->i" () bits)))
 
 ; State machine for tokenizer: matches [0-9]+\.[0-9]+
-; Each state returns a closure capturing match length.
+; Uses intrinsic scoring — score computed from buffer length.
 
 ; After first fractional digit: continue digits or score
-(def make-float-frac (fn (len)
-  (fn (buffer score chr)
-    (if (and (>= chr 48) (<= chr 57))
-      (make-float-frac (+ len 1))
-      (score-match score len %float-read)))))
+(def %float-frac ())
+(set %float-frac (fn (buffer score chr)
+  (if (and (>= chr 48) (<= chr 57))
+    %float-frac
+    (do (buffer-unread buffer) (score-set score 1 buffer %float-read)))))
 
 ; Must see at least one digit after '.'
-(def make-float-first-frac (fn (len)
-  (fn (buffer score chr)
-    (if (and (>= chr 48) (<= chr 57))
-      (make-float-frac (+ len 1))
-      ()))))
+(def %float-first-frac (fn (buffer score chr)
+  (if (and (>= chr 48) (<= chr 57))
+    (do (score-set score 1 buffer %float-read) %float-frac)
+    ())))
 
 ; Integer part: digits until '.'
-(def make-float-int-digits (fn (len)
-  (fn (buffer score chr)
-    (if (and (>= chr 48) (<= chr 57))
-      (make-float-int-digits (+ len 1))
-      (if (= chr 46)
-        (make-float-first-frac (+ len 1))
-        ())))))
+(def %float-int-digits ())
+(set %float-int-digits (fn (buffer score chr)
+  (if (and (>= chr 48) (<= chr 57))
+    %float-int-digits
+    (if (= chr 46)
+      %float-first-frac
+      ()))))
 
 ; Float type with tokenizer, display, and convert handler
 (def %float (make-type "FLOAT"
@@ -51,7 +50,7 @@
     (pair (lit analyse) (fn (buffer score chr)
       ; Entry: must start with digit [0-9]
       (if (and (>= chr 48) (<= chr 57))
-        (make-float-int-digits 1)
+        %float-int-digits
         ())))
     (pair (lit convert) (fn (value)
       (%float-convert value))))))
@@ -93,9 +92,9 @@
 (def string->float (fn (s) (ffi-call "s0->d" %strtod s)))
 
 ; Reader: called by tokenizer after successful analyse
-; Buffer's char* is accessed the same way as string's, so s0->d works
+; Uses buffer-token to extract consumed text, then strtod to parse
 (set %float-read (fn args
-  (make-instance %float (ffi-call "s0->d" %strtod (first args)))))
+  (make-instance %float (ffi-call "s0->d" %strtod (buffer-token (first args))))))
 
 ; Factory: resolve dlsym at definition time, return closure with cached pointer
 (def %libm-d  (fn (name) (let ((sym (dlsym %libm name))) (fn (x) (make-instance %float (ffi-call "d->d" sym (first x)))))))

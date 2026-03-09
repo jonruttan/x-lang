@@ -115,6 +115,15 @@
         (%int- 0 (first args))
         (fold %int- (first args) (rest args))))))
 
+  ; --- Intrinsic scoring helpers for custom type analysers ---
+  (def buffer-len (fn (buffer)
+    (- (first-int (rest buffer)) (first-int buffer))))
+  (def buffer-unread (fn (buffer)
+    (set-first-int (rest buffer) (- (first-int (rest buffer)) 1))))
+  (def score-set (fn (score sign buffer reader)
+    (do (set-first-int score (* sign (buffer-len buffer)))
+        (set-rest score reader))))
+
   (include "lib/x/alist.x")
   (include "lib/x/string.x")
   (include "lib/x/vector.x")

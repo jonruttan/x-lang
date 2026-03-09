@@ -19,7 +19,7 @@
       (if (= chr 35)
         (fn (buffer score chr)
           (if (= chr 40)
-            (score-match score 1 %vector-read)
+            (do (buffer-unread buffer) (score-set score 1 buffer %vector-read))
             ()))
         ()))))))
 

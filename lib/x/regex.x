@@ -126,42 +126,42 @@
 
 ; Body state: accumulate AST nodes one char at a time
 ; Note: chr is a stack atom from the tokenizer; (+ chr 0) copies to a heap int
-(def %regex-body (fn (acc n)
+(def %regex-body (fn (acc)
   (fn (buffer score chr)
     (match
       ; End of pattern
       ((= chr #\/)
-        (score-match score (+ n 1)
+        (score-set score 1 buffer
           (%regex-make-reader (reverse acc))))
       ; Escape: next char is literal
       ((= chr #\\)
-        (%regex-escape acc (+ n 1)))
+        (%regex-escape acc))
       ; Dot: any single character
       ((= chr #\.)
-        (%regex-body (pair (list (lit any)) acc) (+ n 1)))
+        (%regex-body (pair (list (lit any)) acc)))
       ; Star: zero or more (postfix, wraps previous node)
       ((= chr #\*)
         (if (null? acc)
-          (%regex-body (pair (list (lit lit) (+ chr 0)) acc) (+ n 1))
-          (%regex-body (pair (list (lit star) (first acc)) (rest acc)) (+ n 1))))
+          (%regex-body (pair (list (lit lit) (+ chr 0)) acc))
+          (%regex-body (pair (list (lit star) (first acc)) (rest acc)))))
       ; Plus: one or more (postfix)
       ((= chr #\+)
         (if (null? acc)
-          (%regex-body (pair (list (lit lit) (+ chr 0)) acc) (+ n 1))
-          (%regex-body (pair (list (lit plus) (first acc)) (rest acc)) (+ n 1))))
+          (%regex-body (pair (list (lit lit) (+ chr 0)) acc))
+          (%regex-body (pair (list (lit plus) (first acc)) (rest acc)))))
       ; Question: optional (postfix)
       ((= chr #\?)
         (if (null? acc)
-          (%regex-body (pair (list (lit lit) (+ chr 0)) acc) (+ n 1))
-          (%regex-body (pair (list (lit opt) (first acc)) (rest acc)) (+ n 1))))
+          (%regex-body (pair (list (lit lit) (+ chr 0)) acc))
+          (%regex-body (pair (list (lit opt) (first acc)) (rest acc)))))
       ; Literal character
       (t
-        (%regex-body (pair (list (lit lit) (+ chr 0)) acc) (+ n 1)))))))
+        (%regex-body (pair (list (lit lit) (+ chr 0)) acc)))))))
 
 ; Escape state: next char is literal regardless
-(set %regex-escape (fn (acc n)
+(set %regex-escape (fn (acc)
   (fn (buffer score chr)
-    (%regex-body (pair (list (lit lit) (+ chr 0)) acc) (+ n 1)))))
+    (%regex-body (pair (list (lit lit) (+ chr 0)) acc)))))
 
 ; --- Type definition ---
 
@@ -180,7 +180,7 @@
       (if (= chr #\#)
         (fn (buffer score chr)
           (if (= chr #\/)
-            (%regex-body () 2)
+            (%regex-body ())
             ()))
         ()))))))
 
