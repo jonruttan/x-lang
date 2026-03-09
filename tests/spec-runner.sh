@@ -72,11 +72,32 @@ it() {
   fi
 }
 
-# Source all spec files.
+# Source all spec files in parallel.
+_TMPDIR=$(mktemp -d)
+_N=0
 for filename in "$SPEC_PATH"/*.spec.sh; do
   [ -f "$filename" ] || continue
-  . "$filename"
+  _I=$_N
+  _N=$((_N+1))
+  (
+    TEST_COUNT=0; FAIL_COUNT=0; PENDING_COUNT=0
+    . "$filename"
+    printf '%d %d %d\n' "$TEST_COUNT" "$FAIL_COUNT" "$PENDING_COUNT" > "$_TMPDIR/$_I.cnt"
+  ) &
 done
+
+wait
+
+# Collect counts.
+_I=0
+while [ "$_I" -lt "$_N" ]; do
+  read _T _F _P < "$_TMPDIR/$_I.cnt"
+  TEST_COUNT=$((TEST_COUNT + _T))
+  FAIL_COUNT=$((FAIL_COUNT + _F))
+  PENDING_COUNT=$((PENDING_COUNT + _P))
+  _I=$((_I+1))
+done
+rm -rf "$_TMPDIR"
 
 # Summary.
 if [ "$FAIL_COUNT" -gt 0 ]; then
