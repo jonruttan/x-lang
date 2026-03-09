@@ -73,6 +73,14 @@
   (def <= (fn (a b) (or (< a b) (= a b))))
   (def >= (fn (a b) (or (< b a) (= a b))))
 
+  ; --- Profiling ---
+  (def time (op args e
+    (let ((t0 (clock)))
+      (let ((result (eval (first args) e)))
+        (display (- (clock) t0))
+        (display " us\n")
+        result))))
+
   (include "lib/x/fn.x")
   (include "lib/x/math.x")
   (include "lib/x/logic.x")
@@ -80,8 +88,8 @@
   (include "lib/x/alist.x")
   (include "lib/x/string.x")
   (include "lib/x/vector.x")
-  (include "lib/x/float.x")
   (include "lib/x/regex.x")
+  (include "lib/x/float.x")
 
   ; --- quasi (needs append from list.x) ---
   ; Compile template to a pair/lit/append tree that, when eval'd,

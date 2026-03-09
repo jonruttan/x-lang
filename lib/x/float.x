@@ -97,40 +97,27 @@
 (set %float-read (fn args
   (make-instance %float (ffi-call "s0->d" %strtod (first args)))))
 
-(def fsin  (fn (x) (make-instance %float
-  (ffi-call "d->d" (dlsym %libm "sin") (first x)))))
-(def fcos  (fn (x) (make-instance %float
-  (ffi-call "d->d" (dlsym %libm "cos") (first x)))))
-(def ftan  (fn (x) (make-instance %float
-  (ffi-call "d->d" (dlsym %libm "tan") (first x)))))
-(def fsqrt (fn (x) (make-instance %float
-  (ffi-call "d->d" (dlsym %libm "sqrt") (first x)))))
-(def fexp  (fn (x) (make-instance %float
-  (ffi-call "d->d" (dlsym %libm "exp") (first x)))))
-(def flog  (fn (x) (make-instance %float
-  (ffi-call "d->d" (dlsym %libm "log") (first x)))))
-(def fabs  (fn (x) (make-instance %float
-  (ffi-call "d->d" (dlsym %libm "fabs") (first x)))))
-(def ffloor (fn (x) (make-instance %float
-  (ffi-call "d->d" (dlsym %libm "floor") (first x)))))
-(def fceil (fn (x) (make-instance %float
-  (ffi-call "d->d" (dlsym %libm "ceil") (first x)))))
-(def fround (fn (x) (make-instance %float
-  (ffi-call "d->d" (dlsym %libm "round") (first x)))))
-(def ftrunc (fn (x) (make-instance %float
-  (ffi-call "d->d" (dlsym %libm "trunc") (first x)))))
-(def frint (fn (x) (make-instance %float
-  (ffi-call "d->d" (dlsym %libm "rint") (first x)))))
-(def fpow  (fn (a b) (make-instance %float
-  (ffi-call "dd->d" (dlsym %libm "pow") (first a) (first b)))))
-(def fatan2 (fn (a b) (make-instance %float
-  (ffi-call "dd->d" (dlsym %libm "atan2") (first a) (first b)))))
-(def fasin (fn (x) (make-instance %float
-  (ffi-call "d->d" (dlsym %libm "asin") (first x)))))
-(def facos (fn (x) (make-instance %float
-  (ffi-call "d->d" (dlsym %libm "acos") (first x)))))
-(def fatan (fn (x) (make-instance %float
-  (ffi-call "d->d" (dlsym %libm "atan") (first x)))))
+; Factory: resolve dlsym at definition time, return closure with cached pointer
+(def %libm-d  (fn (name) (let ((sym (dlsym %libm name))) (fn (x) (make-instance %float (ffi-call "d->d" sym (first x)))))))
+(def %libm-dd (fn (name) (let ((sym (dlsym %libm name))) (fn (a b) (make-instance %float (ffi-call "dd->d" sym (first a) (first b)))))))
+
+(def fsin   (%libm-d "sin"))
+(def fcos   (%libm-d "cos"))
+(def ftan   (%libm-d "tan"))
+(def fsqrt  (%libm-d "sqrt"))
+(def fexp   (%libm-d "exp"))
+(def flog   (%libm-d "log"))
+(def fabs   (%libm-d "fabs"))
+(def ffloor (%libm-d "floor"))
+(def fceil  (%libm-d "ceil"))
+(def fround (%libm-d "round"))
+(def ftrunc (%libm-d "trunc"))
+(def frint  (%libm-d "rint"))
+(def fasin  (%libm-d "asin"))
+(def facos  (%libm-d "acos"))
+(def fatan  (%libm-d "atan"))
+(def fpow   (%libm-dd "pow"))
+(def fatan2 (%libm-dd "atan2"))
 
 ; --- Constants ---
 (def %pi (fatan2 (exact->inexact 0) (exact->inexact -1)))
@@ -148,19 +135,29 @@
 ; Promote to float via convert handler
 (def %ensure-float (fn (x) (convert x %float)))
 
-; Generator for binary fold-based arithmetic (+, *, /)
-(def %make-float-binop (fn (int-op float-op identity)
-  (fn args
-    (if (null? args) identity
-      (fold (fn (acc x)
-        (if (or (float? acc) (float? x))
-          (float-op (%ensure-float acc) (%ensure-float x))
-          (int-op acc x)))
-        (first args) (rest args))))))
+; Helper: fold with float coercion
+(def %float-fold (fn (int-op float-op acc lst)
+  (if (null? lst) acc
+    (%float-fold int-op float-op
+      (if (float? acc)
+        (float-op acc (%ensure-float (first lst)))
+        (if (float? (first lst))
+          (float-op (%ensure-float acc) (first lst))
+          (int-op acc (first lst))))
+      (rest lst)))))
 
-(set + (%make-float-binop %int+ f+ 0))
-(set * (%make-float-binop %int* f* 1))
-(set / (%make-float-binop %int/ f/ 1))
+; Inlined overrides — avoid or, avoid closure variable lookup
+(set + (fn args
+  (if (null? args) 0
+    (%float-fold %int+ f+ (first args) (rest args)))))
+
+(set * (fn args
+  (if (null? args) 1
+    (%float-fold %int* f* (first args) (rest args)))))
+
+(set / (fn args
+  (if (null? args) 1
+    (%float-fold %int/ f/ (first args) (rest args)))))
 
 ; - is special: unary negation case
 (set - (fn args
@@ -169,25 +166,26 @@
       (if (float? (first args))
         (f- (exact->inexact 0) (first args))
         (%int- (first args)))
-      (fold (fn (acc x)
-        (if (or (float? acc) (float? x))
-          (f- (%ensure-float acc) (%ensure-float x))
-          (%int- acc x)))
-        (first args) (rest args))))))
+      (%float-fold %int- f- (first args) (rest args))))))
 
-; Generator for coerced comparisons
-(def %make-float-cmp (fn (int-op float-op)
-  (fn (a b)
-    (if (or (float? a) (float? b))
-      (float-op (%ensure-float a) (%ensure-float b))
-      (int-op a b)))))
+; Comparisons — inline, no or
+(set < (fn (a b)
+  (if (float? a)
+    (f< a (%ensure-float b))
+    (if (float? b)
+      (f< (%ensure-float a) b)
+      (%int< a b)))))
 
-(set <  (%make-float-cmp %int<  f<))
-(set =  (%make-float-cmp %int=  f=))
+(set = (fn (a b)
+  (if (float? a)
+    (f= a (%ensure-float b))
+    (if (float? b)
+      (f= (%ensure-float a) b)
+      (%int= a b)))))
 
 ; --- R7RS predicates ---
 (def integer? number?)
 (def %int-number? number?)
-(set number? (fn (x) (or (%int-number? x) (float? x))))
+(set number? (fn (x) (if (%int-number? x) t (float? x))))
 (def real? number?)
 (def inexact? float?)
