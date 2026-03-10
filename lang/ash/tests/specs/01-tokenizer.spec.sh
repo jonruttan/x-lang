@@ -114,6 +114,20 @@ describe 'sh-word'
     '(write (sh-tokenize "FOO=bar"))' \
     '((tok-word "FOO=bar"))'
 
+describe 'sh-word dollar'
+  it 'tokenizes dollar variable as word' \
+    '(write (sh-tokenize "echo $HOME"))' \
+    '((tok-word "echo") (tok-word "$HOME"))'
+  it 'tokenizes dollar-question' \
+    '(write (sh-tokenize "echo $?"))' \
+    '((tok-word "echo") (tok-word "$?"))'
+  it 'tokenizes dollar-dollar' \
+    '(write (sh-tokenize "echo $$"))' \
+    '((tok-word "echo") (tok-word "$$"))'
+  it 'tokenizes dollar in assignment' \
+    '(write (sh-tokenize "FOO=$BAR"))' \
+    '((tok-word "FOO=$BAR"))'
+
 describe 'integration'
   it 'tokenizes a simple pipeline' \
     '(write (sh-tokenize "echo hello | grep h"))' \
