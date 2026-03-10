@@ -195,11 +195,11 @@
   (make-type "QUOTE"
     (list
       (pair (lit analyse) (fn (buffer score chr)
-        (if (= chr 39)
+        (if (= chr (char->integer #\'))
           (score-set score 1 buffer %quote-reader)
           ())))
       (pair (lit delimit) (fn (buffer score chr)
-        (if (= chr 39)
+        (if (= chr (char->integer #\'))
           (do (buffer-unread buffer) buffer)
           ())))))
 

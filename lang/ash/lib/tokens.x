@@ -39,20 +39,21 @@
 ; --- Helpers ---
 
 ; Predicate: is chr a shell whitespace (space or tab, NOT newline)?
-(def %sh-ws? (fn (c) (or (= c 32) (= c 9))))
+(def %sh-ws? (fn (c) (or (= c (char->integer #\space)) (= c (char->integer #\tab)))))
 
 ; Predicate: is chr a shell operator start character?
 ; | & ; < > ( )
 (def %sh-op-start? (fn (c)
-  (or (= c 124) (= c 38) (= c 59)
-      (= c 60) (= c 62) (= c 40) (= c 41))))
+  (or (= c (char->integer #\|)) (= c (char->integer #\&)) (= c (char->integer #\;))
+      (= c (char->integer #\<)) (= c (char->integer #\>))
+      (= c (char->integer #\()) (= c (char->integer #\))))))
 
 ; Predicate: is chr a word-break character?
-; whitespace, newline, operator-start, single-quote, double-quote, #, $
+; whitespace, newline, operator-start, single-quote, double-quote, #
 (def %sh-word-break? (fn (c)
-  (or (%sh-ws? c) (= c 10)
+  (or (%sh-ws? c) (= c (char->integer #\newline))
       (%sh-op-start? c)
-      (= c 39) (= c 34) (= c 35) (= c 36))))
+      (= c (char->integer #\')) (= c (char->integer #\")) (= c (char->integer #\#)))))
 
 ; --- Token constructors ---
 
@@ -87,7 +88,7 @@
 (base-make-type %sh-base "SH-NL"
   (list
     (pair (lit analyse) (fn (buffer score chr)
-      (if (= chr 10)
+      (if (= chr (char->integer #\newline))
         (score-set score 1 buffer %sh-nl-read)
         ())))))
 
@@ -95,14 +96,14 @@
 
 (def %sh-comment-body ())
 (set %sh-comment-body (fn (buffer score chr)
-  (if (= chr 10)
+  (if (= chr (char->integer #\newline))
     (do (buffer-unread buffer) (score-set score (- 0 1) buffer %token-discard))
     %sh-comment-body)))
 
 (base-make-type %sh-base "SH-COMMENT"
   (list
     (pair (lit analyse) (fn (buffer score chr)
-      (if (= chr 35)
+      (if (= chr (char->integer #\#))
         (do (score-set score (- 0 1) buffer %token-discard) %sh-comment-body)
         ())))))
 
@@ -119,7 +120,7 @@
 ; Check for triple operator <<-
 (def %sh-op-triple (fn (c1 c2)
   (fn (buffer score chr)
-    (if (and (= c1 60) (= c2 60) (= chr 45))
+    (if (and (= c1 (char->integer #\<)) (= c2 (char->integer #\<)) (= chr (char->integer #\-)))
       (score-set score 1 buffer %sh-op-reader)
       (do (buffer-unread buffer) (score-set score 1 buffer %sh-op-reader))))))
 
@@ -129,18 +130,18 @@
     (match
       ; Same char doubled: ||, &&, ;;, <<, >>
       ((= chr c1)
-        (if (or (= c1 60) (= c1 62))
+        (if (or (= c1 (char->integer #\<)) (= c1 (char->integer #\>)))
           ; < or > can extend to triple
           (do (score-set score 1 buffer %sh-op-reader) (%sh-op-triple c1 (+ chr 0)))
           (score-set score 1 buffer %sh-op-reader)))
       ; <& or >&
-      ((and (or (= c1 60) (= c1 62)) (= chr 38))
+      ((and (or (= c1 (char->integer #\<)) (= c1 (char->integer #\>))) (= chr (char->integer #\&)))
         (score-set score 1 buffer %sh-op-reader))
       ; <> (c1 = <, chr = >)
-      ((and (= c1 60) (= chr 62))
+      ((and (= c1 (char->integer #\<)) (= chr (char->integer #\>)))
         (score-set score 1 buffer %sh-op-reader))
       ; >| (c1 = >, chr = |)
-      ((and (= c1 62) (= chr 124))
+      ((and (= c1 (char->integer #\>)) (= chr (char->integer #\|)))
         (score-set score 1 buffer %sh-op-reader))
       ; Not a double — un-read, score the single
       (t
@@ -151,7 +152,7 @@
     (pair (lit analyse) (fn (buffer score chr)
       (if (%sh-op-start? chr)
         ; ( and ) are always single-char
-        (if (or (= chr 40) (= chr 41))
+        (if (or (= chr (char->integer #\()) (= chr (char->integer #\))))
           (score-set score 1 buffer %sh-op-reader)
           (do (score-set score 1 buffer %sh-op-reader) (%sh-op-double (+ chr 0))))
         ())))))
@@ -164,7 +165,7 @@
 (def %sh-sq-body ())
 (set %sh-sq-body (fn (acc)
   (fn (buffer score chr)
-    (if (= chr 39)
+    (if (= chr (char->integer #\'))
       (score-set score 1 buffer
         ((fn (s) (fn args (mk-tok-sq s)))
          (list->string (reverse acc))))
@@ -173,7 +174,7 @@
 (base-make-type %sh-base "SH-SQ"
   (list
     (pair (lit analyse) (fn (buffer score chr)
-      (if (= chr 39)
+      (if (= chr (char->integer #\'))
         (%sh-sq-body ())
         ())))))
 
@@ -189,23 +190,25 @@
   (fn (buffer score chr)
     (match
       ; Escapable characters inside double quotes: $ ` " \ newline
-      ((or (= chr 36) (= chr 96) (= chr 34) (= chr 92) (= chr 10))
+      ((or (= chr (char->integer #\$)) (= chr (char->integer #\`))
+           (= chr (char->integer #\")) (= chr (char->integer #\\))
+           (= chr (char->integer #\newline)))
         (%sh-dq-body (pair (integer->char (+ chr 0)) acc)))
       ; Not escapable: keep the backslash and the character
       (t
         (%sh-dq-body (pair (integer->char (+ chr 0))
-                       (pair (integer->char 92) acc))))))))
+                       (pair #\\ acc))))))))
 
 (set %sh-dq-body (fn (acc)
   (fn (buffer score chr)
     (match
       ; Closing quote
-      ((= chr 34)
+      ((= chr (char->integer #\"))
         (score-set score 1 buffer
           ((fn (s) (fn args (mk-tok-dq s)))
            (list->string (reverse acc)))))
       ; Backslash escape
-      ((= chr 92)
+      ((= chr (char->integer #\\))
         (%sh-dq-escape acc))
       ; Regular character (including $, `, etc. — literal in Phase 1)
       (t
@@ -214,7 +217,7 @@
 (base-make-type %sh-base "SH-DQ"
   (list
     (pair (lit analyse) (fn (buffer score chr)
-      (if (= chr 34)
+      (if (= chr (char->integer #\"))
         (%sh-dq-body ())
         ())))))
 
@@ -244,7 +247,7 @@
 ; produces tok-word tokens ensures digit sequences appear as shell words.
 ; For digit-starting mixed words (10abc), returns () to let SH-WORD handle.
 
-(def %sh-digit? (fn (c) (and (>= c 48) (<= c 57))))
+(def %sh-digit? (fn (c) (and (>= c (char->integer #\0)) (<= c (char->integer #\9)))))
 
 (def %sh-int-body ())
 (set %sh-int-body (fn (buffer score chr)

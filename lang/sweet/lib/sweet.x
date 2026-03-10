@@ -80,12 +80,12 @@
     (list
       (cons (lit analyse) (lambda (buffer score chr)
         ; Match { (123) or } (125) as single char, positive score
-        (if (or (= chr 123) (= chr 125))
+        (if (or (= chr (char->integer #\{)) (= chr (char->integer #\})))
           (score-set score 1 buffer %sweet-curly-reader)
           ())))
       (cons (lit delimit) (lambda (buffer score chr)
         ; Claim { and } so SYMBOL stops at them
-        (if (or (= chr 123) (= chr 125))
+        (if (or (= chr (char->integer #\{)) (= chr (char->integer #\})))
           (begin (buffer-unread buffer) buffer)
           ())))))
 
