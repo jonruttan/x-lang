@@ -7,9 +7,8 @@
 ; All float conversion functions use generic ffi-call conventions,
 ; eliminating the need for any float-specific C primitives.
 
-; Forward-declare reader and convert handler
+; Forward-declare reader
 (def %float-read ())
-(def %float-convert ())
 
 ; --- FFI-based conversion functions ---
 ; These use generic ffi-call conventions (no function pointer needed)
@@ -42,7 +41,12 @@
       %float-first-frac
       ()))))
 
-; Float type with tokenizer, display, and convert handler
+; --- Math library for strtod (needed by convert alist) ---
+(def %libm (dlopen () 1))
+(def %strtod (dlsym %libm "strtod"))
+(def string->float (fn (s) (ffi-call "s0->d" %strtod s)))
+
+; Float type with tokenizer, display, and alist-based convert
 (def %float (make-type "FLOAT"
   (list
     (pair (lit write) (fn (self)
@@ -52,19 +56,13 @@
       (if (and (>= chr 48) (<= chr 57))
         %float-int-digits
         ())))
-    (pair (lit convert) (fn (value)
-      (%float-convert value))))))
+    (pair (lit convert)
+      (list
+        (pair (type-of 42) (fn (value)
+          (make-instance %float (int->float value)))))))))
 
 ; --- Predicates and constructors ---
 (def float? (fn (x) (type? x %float)))
-
-; Convert handler: called by (convert value %float)
-; Defined after float? so the closure can capture it
-(set %float-convert (fn (value)
-  (if (float? value) value
-    (if (number? value)
-      (make-instance %float (int->float value))
-      ()))))
 
 (def exact->inexact (fn (x) (convert x %float)))
 (def inexact->exact (fn (x) (float->int (first x))))
@@ -82,14 +80,6 @@
 ; --- Comparisons ---
 (def f< (fn (a b) (ffi-call "d<d" () (first a) (first b))))
 (def f= (fn (a b) (ffi-call "d=d" () (first a) (first b))))
-
-; --- Math functions via dlopen ---
-; Load math library from current process (linked with -lm)
-(def %libm (dlopen () 1))
-
-; string->float via strtod from libc
-(def %strtod (dlsym %libm "strtod"))
-(def string->float (fn (s) (ffi-call "s0->d" %strtod s)))
 
 ; Reader: called by tokenizer after successful analyse
 ; Uses buffer-token to extract consumed text, then strtod to parse
