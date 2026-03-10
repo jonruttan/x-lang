@@ -187,5 +187,21 @@
     (let loop ((i (- (string-length s) 1)) (acc ()))
       (if (< i 0) acc (loop (- i 1) (cons (string-ref s i) acc)))))
 
+  ; --- Quote shorthand: 'expr -> (lit expr) ---
+
+  (def %quote-reader (fn args
+    (pair (lit lit) (pair (read) ()))))
+
+  (make-type "QUOTE"
+    (list
+      (pair (lit analyse) (fn (buffer score chr)
+        (if (= chr 39)
+          (score-set score 1 buffer %quote-reader)
+          ())))
+      (pair (lit delimit) (fn (buffer score chr)
+        (if (= chr 39)
+          (do (buffer-unread buffer) buffer)
+          ())))))
+
   (lit r5rs)
 )

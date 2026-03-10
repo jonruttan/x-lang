@@ -52,6 +52,23 @@ describe 'boolean constants'
   it '#f is falsy' \
     '(if #f 1 2)' '2'
 
+describe 'quote shorthand'
+  it 'quote symbol' \
+    "(write 'a)" \
+    'a'
+  it 'quote list' \
+    "(write '(1 2 3))" \
+    '(1 2 3)'
+  it 'quote nil' \
+    "(null? '())" \
+    't'
+  it 'nested quote' \
+    "(write ''a)" \
+    '(lit a)'
+  it 'quote in list context' \
+    "(write (list 'a 'b))" \
+    '(a b)'
+
 describe 'tail recursion'
   it 'tail-recursive factorial' \
     '(define (fact n acc) (if (= n 0) acc (fact (- n 1) (* n acc)))) (fact 10 1)' '3628800'
