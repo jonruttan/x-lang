@@ -64,9 +64,8 @@ it() {
 
   # Run input through the interpreter.
   # Pipe language library + test expression through the interpreter.
-  # The REPL prefixes each line with "> ". Strip prompts, keep only the
-  # last result line (ignore intermediate results and the EOF prompt).
-  VALUE="$(printf '%s\n' "$2" | cat "$LANG_LIB" - | "$X_BIN" 2>/dev/null | sed 's/^> //' | sed '/^$/d' | tail -1)"
+  # Strip REPL prompts ("> " or "$ "), keep only the last result line.
+  VALUE="$(printf '%s\n' "$2" | cat "$LANG_LIB" - | "$X_BIN" 2>/dev/null | sed -e ':a' -e 's/^[>$] //' -e 'ta' | sed '/^$/d' | tail -1)"
   REQUIRE="$3"
 
   if [ "$VALUE" = "$REQUIRE" ]; then
