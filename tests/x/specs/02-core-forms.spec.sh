@@ -72,6 +72,15 @@ describe 'let'
   it 'nests correctly' \
     '(let ((x 1)) (let ((y 2)) (+ x y)))' '3'
 
+describe 'apply'
+  it 'applies to arg list' '(apply + (list 1 2 3))' '6'
+  it 'with one prefix arg' '(apply + 10 (list 1 2))' '13'
+  it 'with two prefix args' '(apply + 1 2 (list 3 4))' '10'
+  it 'with closure' '(apply (fn (a b c) (+ a (* b c))) (list 2 3 4))' '14'
+  it 'with prefix and closure' \
+    '(apply (fn (a b c) (+ a (* b c))) 2 (list 3 4))' '14'
+  it 'with empty tail list' '(apply + 1 2 ())' '3'
+
 describe 'list call'
   it 'indexes first element' '((list 1 2 3) 0)' '1'
   it 'indexes last element' '((list 1 2 3) 2)' '3'

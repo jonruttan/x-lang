@@ -223,6 +223,31 @@ describe 'intersperse'
     '(intersperse 0 (list 1 2 3))' '(1 0 2 0 3)'
   it 'single element unchanged' '(intersperse 0 (list 1))' '(1)'
 
+describe 'variadic append'
+  it 'appends two lists' '(append (list 1 2) (list 3 4))' '(1 2 3 4)'
+  it 'appends three lists' '(append (list 1) (list 2) (list 3))' '(1 2 3)'
+  it 'appends with empty' '(append () (list 1 2) ())' '(1 2)'
+  it 'appends zero lists' '(null? (append))' 't'
+  it 'appends one list' '(append (list 1 2))' '(1 2)'
+
+describe 'multi-list map'
+  it 'maps over two lists' \
+    '(map + (list 1 2 3) (list 10 20 30))' '(11 22 33)'
+  it 'maps over three lists' \
+    '(map + (list 1 2) (list 10 20) (list 100 200))' '(111 222)'
+  it 'stops at shortest' \
+    '(map + (list 1 2 3) (list 10 20))' '(11 22)'
+  it 'single-list backward compat' \
+    '(map inc (list 1 2 3))' '(2 3 4)'
+
+describe 'multi-list for-each'
+  it 'iterates two lists' \
+    '(do (def r ()) (for-each (fn (a b) (set r (pair (+ a b) r))) (list 1 2) (list 10 20)) (reverse r))' \
+    '(11 22)'
+  it 'single-list backward compat' \
+    '(do (def r ()) (for-each (fn (x) (set r (pair x r))) (list 1 2 3)) (reverse r))' \
+    '(1 2 3)'
+
 describe 'transpose'
   it 'transposes a matrix' \
     '(transpose (list (list 1 2 3) (list 4 5 6)))' '((1 4) (2 5) (3 6))'

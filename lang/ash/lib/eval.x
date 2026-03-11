@@ -78,7 +78,8 @@
               (string=? w "do") (string=? w "done")
               (string=? w "esac") (string=? w "}")))
         (if (eq? (first tok) (lit tok-op))
-          (string=? (first (rest tok)) ")")
+          (or (string=? (first (rest tok)) ")")
+              (string=? (first (rest tok)) ";;"))
           ()))))))
 
 (def %expect-word (fn (cur word)
@@ -302,7 +303,9 @@
 (def %eval-elif-chain ())
 (def %skip-to-done ())
 (def %eval-while-body ())
+(def %eval-until-body ())
 (def %eval-for-body ())
+(def %eval-case-clauses ())
 
 ; --- Compound command detection ---
 (def %is-compound-start? (fn (cur)
@@ -311,7 +314,8 @@
       (if (eq? (first tok) (lit tok-word))
         (let ((w (first (rest tok))))
           (or (string=? w "if") (string=? w "while")
-              (string=? w "until") (string=? w "for")))
+              (string=? w "until") (string=? w "for")
+              (string=? w "case")))
         (if (eq? (first tok) (lit tok-op))
           (string=? (first (rest tok)) "(")
           ()))))))
@@ -381,10 +385,12 @@
       (if (%tok-is-word? tok)
         (let ((w (%tok-word-val tok)))
           (if (or (string=? w "if") (string=? w "while")
-                  (string=? w "for"))
+                  (string=? w "until") (string=? w "for")
+                  (string=? w "case"))
             (do (%cursor-advance! cur)
                 (%skip-body-to-elif-else-fi cur (+ depth 1)))
-            (if (or (string=? w "fi") (string=? w "done"))
+            (if (or (string=? w "fi") (string=? w "done")
+                    (string=? w "esac"))
               (if (= depth 0)
                 ; fi at our level: consume and stop
                 (do (%cursor-advance! cur) ())
@@ -479,6 +485,29 @@
       (do (%skip-to-done cur 0)
           (set %sh-status 0) 0)))))
 
+; until cond; do body; done (loops while condition fails)
+(def %eval-until (fn (cur)
+  (%cursor-advance! cur) ; consume 'until'
+  (let ((saved (first cur)))
+    (%eval-until-body cur saved))))
+
+(set %eval-until-body (fn (cur saved)
+  (set-first cur saved) ; reset cursor to condition
+  (%skip-newlines cur)
+  (let ((cond-result (%eval-list cur)))
+    (%skip-newlines cur)
+    (%expect-word cur "do")
+    (%skip-newlines cur)
+    (if (not (= cond-result 0))
+      (let ((result (%eval-list cur)))
+        (%skip-newlines cur)
+        (%expect-word cur "done")
+        (let ((new-saved saved))
+          (%eval-until-body cur new-saved)))
+      ; Condition succeeded: skip body, done
+      (do (%skip-to-done cur 0)
+          (set %sh-status 0) 0)))))
+
 ; Skip to matching done
 (set %skip-to-done (fn (cur depth)
   (if (%cursor-empty? cur)
@@ -487,10 +516,12 @@
       (if (%tok-is-word? tok)
         (let ((w (%tok-word-val tok)))
           (%cursor-advance! cur)
-          (if (or (string=? w "while") (string=? w "for")
-                  (string=? w "if"))
+          (if (or (string=? w "while") (string=? w "until")
+                  (string=? w "for") (string=? w "if")
+                  (string=? w "case"))
             (%skip-to-done cur (+ depth 1))
-            (if (or (string=? w "done") (string=? w "fi"))
+            (if (or (string=? w "done") (string=? w "fi")
+                    (string=? w "esac"))
               (if (= depth 0) ()
                 (%skip-to-done cur (- depth 1)))
               (%skip-to-done cur depth))))
@@ -549,6 +580,110 @@
             (do (set %sh-status 0) 0)
             (%eval-for-body cur var (rest words) body-start)))))))
 
+; case WORD in PATTERN[|PATTERN]...) BODY;; ... esac
+(def %sh-pattern-match? (fn (pat word)
+  (if (string=? pat "*") t
+    (string=? pat word))))
+
+(def %collect-case-patterns ())
+(set %collect-case-patterns (fn (cur pats)
+  (if (%cursor-empty? cur)
+    (error "parse error: expected ) in case")
+    (let ((tok (%cursor-peek cur)))
+      (if (and (eq? (first tok) (lit tok-op))
+               (string=? (first (rest tok)) ")"))
+        (do (%cursor-advance! cur) (reverse pats))
+        (if (and (eq? (first tok) (lit tok-op))
+                 (string=? (first (rest tok)) "|"))
+          (do (%cursor-advance! cur) (%collect-case-patterns cur pats))
+          (do (%cursor-advance! cur)
+              (%collect-case-patterns cur
+                (pair (%tok-word-val tok) pats)))))))))
+
+(def %case-match? (fn (pats word)
+  (if (null? pats) ()
+    (if (%sh-pattern-match? (first pats) word) t
+      (%case-match? (rest pats) word)))))
+
+(def %skip-case-body ())
+(set %skip-case-body (fn (cur depth)
+  (if (%cursor-empty? cur) ()
+    (let ((tok (%cursor-peek cur)))
+      (if (eq? (first tok) (lit tok-word))
+        (let ((w (%tok-word-val tok)))
+          (%cursor-advance! cur)
+          (if (and (= depth 0) (string=? w "esac")) ()
+            (if (or (string=? w "if") (string=? w "while")
+                    (string=? w "until") (string=? w "for")
+                    (string=? w "case"))
+              (%skip-case-body cur (+ depth 1))
+              (if (or (string=? w "fi") (string=? w "done")
+                      (string=? w "esac"))
+                (%skip-case-body cur (- depth 1))
+                (%skip-case-body cur depth)))))
+        (if (eq? (first tok) (lit tok-op))
+          (do (%cursor-advance! cur)
+              (if (and (= depth 0)
+                       (string=? (first (rest tok)) ";;"))
+                ()
+                (%skip-case-body cur depth)))
+          (do (%cursor-advance! cur)
+              (%skip-case-body cur depth))))))))
+
+(def %skip-to-esac ())
+(set %skip-to-esac (fn (cur depth)
+  (if (%cursor-empty? cur) ()
+    (let ((tok (%cursor-peek cur)))
+      (if (eq? (first tok) (lit tok-word))
+        (let ((w (%tok-word-val tok)))
+          (%cursor-advance! cur)
+          (if (or (string=? w "if") (string=? w "while")
+                  (string=? w "until") (string=? w "for")
+                  (string=? w "case"))
+            (%skip-to-esac cur (+ depth 1))
+            (if (or (string=? w "fi") (string=? w "done")
+                    (string=? w "esac"))
+              (if (= depth 0) ()
+                (%skip-to-esac cur (- depth 1)))
+              (%skip-to-esac cur depth))))
+        (do (%cursor-advance! cur)
+            (%skip-to-esac cur depth)))))))
+
+(set %eval-case-clauses (fn (cur word)
+  (%skip-newlines cur)
+  (if (%cursor-empty? cur) (do (set %sh-status 0) 0)
+    (let ((tok (%cursor-peek cur)))
+      (if (and (eq? (first tok) (lit tok-word))
+               (string=? (first (rest tok)) "esac"))
+        (do (%cursor-advance! cur) (set %sh-status 0) 0)
+        (let ((pats (%collect-case-patterns cur ())))
+          (%skip-newlines cur)
+          (if (%case-match? pats word)
+            ; Match: evaluate body, skip remaining
+            (let ((result (%eval-list cur)))
+              ; Consume ;; if present
+              (if (and (not (%cursor-empty? cur))
+                       (not (eq? (first (%cursor-peek cur)) (lit tok-word))))
+                (if (and (eq? (first (%cursor-peek cur)) (lit tok-op))
+                         (string=? (first (rest (%cursor-peek cur))) ";;"))
+                  (%cursor-advance! cur) ())
+                ())
+              (%skip-to-esac cur 0)
+              (set %sh-status result) result)
+            ; No match: skip body, try next clause
+            (do (%skip-case-body cur 0)
+                (%eval-case-clauses cur word)))))))))
+
+(def %eval-case (fn (cur)
+  (%cursor-advance! cur) ; consume 'case'
+  (let ((word-tok (%cursor-peek cur)))
+    (%cursor-advance! cur) ; consume WORD
+    (let ((word (%sh-expand-word (%tok-word-val word-tok))))
+      (%skip-newlines cur)
+      (%expect-word cur "in")
+      (%skip-newlines cur)
+      (%eval-case-clauses cur word)))))
+
 ; ( list ) — subshell
 (def %eval-subshell (fn (cur)
   (%cursor-advance! cur) ; consume '('
@@ -584,12 +719,12 @@
       (%eval-subshell cur)
       (let ((word (first (rest tok))))
         (if (string=? word "if") (%eval-if cur)
-          (if (or (string=? word "while")
-                  (string=? word "until"))
-            (%eval-while cur)
-            (if (string=? word "for") (%eval-for cur)
-              (error (string-append "parse error: unexpected "
-                                     word))))))))))
+          (if (string=? word "while") (%eval-while cur)
+            (if (string=? word "until") (%eval-until cur)
+              (if (string=? word "for") (%eval-for cur)
+                (if (string=? word "case") (%eval-case cur)
+                  (error (string-append "parse error: unexpected "
+                                         word))))))))))))
 
 ; --- Pipeline execution ---
 (set %sh-pipe-chain (fn (cmds)
@@ -656,20 +791,29 @@
           (%collect-stages cur (pair stage stages)))
       (reverse (pair stage stages))))))
 
-; pipeline: command ('|' command)*
+; pipeline: ['!'] command ('|' command)*
 (def %eval-pipeline (fn (cur)
   (%skip-newlines cur)
-  ; Compound commands (if/while/for) contain internal ';' delimiters
-  ; that %collect-stage would incorrectly split on. Handle directly.
-  (if (%is-compound-start? cur)
-    (%eval-compound cur)
-    (let ((stages (%collect-stages cur ())))
-      (if (null? (rest stages))
-        ; Single command: evaluate directly
-        (let ((cur (%mk-cursor (first stages))))
-          (%eval-command cur))
-        ; Pipeline: run through pipe chain
-        (%sh-pipe-chain stages))))))
+  ; Check for ! negation
+  (let ((negate (if (and (not (%cursor-empty? cur))
+                         (%tok-is-word? (%cursor-peek cur))
+                         (string=? (%tok-word-val (%cursor-peek cur)) "!"))
+                  (do (%cursor-advance! cur) (%skip-newlines cur) t)
+                  ())))
+    ; Compound commands (if/while/for) contain internal ';' delimiters
+    ; that %collect-stage would incorrectly split on. Handle directly.
+    (let ((result
+            (if (%is-compound-start? cur)
+              (%eval-compound cur)
+              (let ((stages (%collect-stages cur ())))
+                (if (null? (rest stages))
+                  (let ((cur (%mk-cursor (first stages))))
+                    (%eval-command cur))
+                  (%sh-pipe-chain stages))))))
+      (if negate
+        (let ((neg-result (if (= result 0) 1 0)))
+          (set %sh-status neg-result) neg-result)
+        result)))))
 
 ; and_or: pipeline (('&&'|'||') pipeline)*
 (def %eval-and-or (fn (cur)

@@ -100,6 +100,48 @@ describe 'sh-eval pipeline'
     '(do (sh-eval "/bin/echo hello | /usr/bin/tr h H") ())' \
     'Hello'
 
+describe 'sh-eval until'
+  it 'until true does not execute body' \
+    '(do (sh-eval "until true; do echo bad; done") ())' \
+    ''
+  it 'until false executes body once then stops' \
+    '(do (sh-eval "export U=no; until test $U = yes; do export U=yes; done; echo $U") ())' \
+    'yes'
+  it 'until returns 0' \
+    '(sh-eval "until true; do :; done")' \
+    '0'
+
+describe 'sh-eval negation'
+  it 'negates true to 1' \
+    '(sh-eval "! true")' \
+    '1'
+  it 'negates false to 0' \
+    '(sh-eval "! false")' \
+    '0'
+  it 'negates pipeline' \
+    '(sh-eval "! /bin/echo hello | /usr/bin/tr h H")' \
+    '1'
+
+describe 'sh-eval case'
+  it 'matches exact pattern' \
+    '(do (sh-eval "case hello in hello) echo matched;; esac") ())' \
+    'matched'
+  it 'matches wildcard' \
+    '(do (sh-eval "case hello in *) echo caught;; esac") ())' \
+    'caught'
+  it 'skips non-matching clause' \
+    '(do (sh-eval "case hello in world) echo no;; hello) echo yes;; esac") ())' \
+    'yes'
+  it 'returns 0 with no match' \
+    '(sh-eval "case hello in world) echo no;; esac")' \
+    '0'
+  it 'matches with pipe alternatives' \
+    '(do (sh-eval "case dog in cat|dog|fish) echo pet;; esac") ())' \
+    'pet'
+  it 'expands variable in word' \
+    '(do (sh-eval "export X=hi; case $X in hi) echo found;; esac") ())' \
+    'found'
+
 describe 'sh-eval empty'
   it 'empty input returns 0' \
     '(sh-eval "")' \

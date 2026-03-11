@@ -26,9 +26,10 @@
   (if (null? (rest lst)) ()
     (pair (first lst) (init (rest lst))))))
 
-(def append (fn (a b)
+(def %append2 (fn (a b)
   (if (null? a) b
-    (pair (first a) (append (rest a) b)))))
+    (pair (first a) (%append2 (rest a) b)))))
+(def append (fn args (fold %append2 () args)))
 
 (def prepend (fn (x lst) (pair x lst)))
 
@@ -39,13 +40,25 @@
   (match
     ((null? lst) ())
     ((pair? (first lst))
-      (append (flatten (first lst)) (flatten (rest lst))))
+      (%append2 (flatten (first lst)) (flatten (rest lst))))
     (t (pair (first lst) (flatten (rest lst)))))))
 
 ; --- Iteration ---
-(def map (fn (f lst)
+(def %any-null? (fn (lsts)
+  (if (null? lsts) ()
+    (if (null? (first lsts)) t
+      (%any-null? (rest lsts))))))
+
+(def %map1 (fn (f lst)
   (if (null? lst) ()
-    (pair (f (first lst)) (map f (rest lst))))))
+    (pair (f (first lst)) (%map1 f (rest lst))))))
+
+(def map (fn (f . lsts)
+  (if (null? (rest lsts))
+    (%map1 f (first lsts))
+    (if (%any-null? lsts) ()
+      (pair (apply f (%map1 first lsts))
+            (apply map f (%map1 rest lsts)))))))
 
 (def filter (fn (pred lst)
   (match
@@ -54,13 +67,20 @@
       (pair (first lst) (filter pred (rest lst))))
     (t (filter pred (rest lst))))))
 
-(def for-each (fn (f lst)
+(def %for-each1 (fn (f lst)
   (if (not (null? lst))
-    (do (f (first lst)) (for-each f (rest lst))))))
+    (do (f (first lst)) (%for-each1 f (rest lst))))))
+
+(def for-each (fn (f . lsts)
+  (if (null? (rest lsts))
+    (%for-each1 f (first lsts))
+    (if (not (%any-null? lsts))
+      (do (apply f (%map1 first lsts))
+          (apply for-each f (%map1 rest lsts)))))))
 
 (def flat-map (fn (f lst)
   (if (null? lst) ()
-    (append (f (first lst)) (flat-map f (rest lst))))))
+    (%append2 (f (first lst)) (flat-map f (rest lst))))))
 
 ; --- Predicates ---
 (def any? (fn (pred lst)
@@ -88,7 +108,7 @@
 (def all-pass (fn (preds) (fn (x) (every? (fn (p) (p x)) preds))))
 (def any-pass (fn (preds) (fn (x) (any? (fn (p) (p x)) preds))))
 (def reject (fn (pred lst) (filter (complement pred) lst)))
-(def concat (fn lsts (fold append () lsts)))
+(def concat (fn lsts (apply append lsts)))
 (def sum (fn (lst) (fold + 0 lst)))
 (def product (fn (lst) (fold * 1 lst)))
 
