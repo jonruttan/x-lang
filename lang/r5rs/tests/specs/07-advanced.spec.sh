@@ -24,6 +24,30 @@ describe 'quasiquote'
   it 'quasiquote without unquote' \
     '(quasiquote (a b c))' '(a b c)'
 
+describe 'reader shorthand: quote'
+  it 'quote shorthand with symbol' \
+    '(quote a)' 'a'
+  it 'quote shorthand with list' \
+    '(quote (1 2 3))' '(1 2 3)'
+
+describe 'reader shorthand: quasiquote'
+  it 'backtick basic' \
+    '(define x 42) `(a ,x c)' '(a 42 c)'
+  it 'backtick with expression' \
+    '`(a ,(+ 1 2) c)' '(a 3 c)'
+  it 'backtick with splicing' \
+    '`(a ,@(list 1 2 3) b)' '(a 1 2 3 b)'
+  it 'backtick without unquote' \
+    '`(a b c)' '(a b c)'
+  it 'backtick nested' \
+    '`(a (b ,(+ 1 2)))' '(a (b 3))'
+  it 'backtick with symbol' \
+    '(define y 99) `(,y)' '(99)'
+  it 'unquote-splicing empty list' \
+    '`(a ,@(list) b)' '(a b)'
+  it 'unquote-splicing at end' \
+    '`(a ,@(list 1 2))' '(a 1 2)'
+
 describe 'eval'
   it 'eval simple expression' \
     '(eval (list (quote +) 1 2))' '3'

@@ -203,5 +203,44 @@
           (do (buffer-unread buffer) buffer)
           ())))))
 
+  ; --- Quasiquote shorthand: `expr -> (quasiquote expr) ---
+
+  (def %quasiquote-reader (fn args
+    (pair (lit quasiquote) (pair (read) ()))))
+
+  (make-type "QUASIQUOTE"
+    (list
+      (pair (lit analyse) (fn (buffer score chr)
+        (if (= chr (char->integer #\`))
+          (score-set score 1 buffer %quasiquote-reader)
+          ())))
+      (pair (lit delimit) (fn (buffer score chr)
+        (if (= chr (char->integer #\`))
+          (do (buffer-unread buffer) buffer)
+          ())))))
+
+  ; --- Unquote shorthand: ,expr -> (unquote expr)
+  ;                         ,@expr -> (unquote-splicing expr) ---
+
+  (def %unquote-reader (fn args
+    (pair (lit unquote) (pair (read) ()))))
+
+  (def %unquote-splicing-reader (fn args
+    (pair (lit unquote-splicing) (pair (read) ()))))
+
+  (make-type "UNQUOTE"
+    (list
+      (pair (lit analyse) (fn (buffer score chr)
+        (if (= chr (char->integer #\,))
+          (fn (buffer score chr)
+            (if (= chr (char->integer #\@))
+              (score-set score 1 buffer %unquote-splicing-reader)
+              (do (buffer-unread buffer) (score-set score 1 buffer %unquote-reader))))
+          ())))
+      (pair (lit delimit) (fn (buffer score chr)
+        (if (= chr (char->integer #\,))
+          (do (buffer-unread buffer) buffer)
+          ())))))
+
   (repl)
 )
