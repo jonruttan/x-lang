@@ -29,6 +29,7 @@
   ; --- Boolean constants ---
   (def #t t)
   (def #f ())
+  (def else t)
 
   ; --- define: (define x val) or (define (f args...) body...) ---
   (def define (op (name-or-form . body) e
@@ -102,6 +103,72 @@
             e)
       (eval (pair (lit %let) (pair first-arg rest-args)) e))))
 
+  ; --- do ---
+  ; (do ((var init step) ...) (test expr ...) command ...)
+  (define do
+    (op (bindings test-and-result . body) env
+      (let ((vars (map car bindings))
+            (inits (map (lambda (b) (list-ref b 1)) bindings))
+            (steps (map (lambda (b)
+                          (if (> (length b) 2) (list-ref b 2) (car b)))
+                        bindings))
+            (test (car test-and-result))
+            (result (cdr test-and-result)))
+        (eval
+          (cons (list (lit lambda) ()
+            (cons (lit letrec)
+              (cons (list (list (lit %do-loop) (cons (lit lambda) (cons vars
+                (list (list (lit if) test
+                  (if (null? result) (list (lit if) #f #f) (cons (lit begin) result))
+                  (append (cons (lit begin) body) (list (cons (lit %do-loop) steps)))))))))
+                (list (cons (lit %do-loop) inits)))))
+            ())
+          env))))
+
+  ; --- Override forms that used (lit do) to use (lit begin) instead ---
+  ; (do was just redefined as the R5RS iteration form)
+  (define when (op (test . body) e
+    (if (eval test e)
+      (eval (pair (lit begin) body) e))))
+  (define unless (op (test . body) e
+    (if (not (eval test e))
+      (eval (pair (lit begin) body) e))))
+  (define let* (op (bindings . body) e
+    (if (null? bindings)
+      (eval (pair (lit begin) body) e)
+      (eval (list (lit let) (list (first bindings))
+                  (pair (lit let*) (pair (rest bindings) body))) e))))
+
+  ; --- R5RS cond (multi-expression clause bodies) ---
+  (define cond (op clauses e
+    (let %cond-loop ((cls clauses))
+      (if (null? cls) ()
+        (let ((clause (first cls)))
+          (if (or (eq? (first clause) (lit else))
+                  (eval (first clause) e))
+            (eval (pair (lit begin) (rest clause)) e)
+            (%cond-loop (rest cls))))))))
+
+  ; --- Promises ---
+  (define %promise (make-type (lit PROMISE)
+    (list
+      (pair (lit write) (lambda (self) (display "#<promise>"))))))
+  (define (promise? x) (type? x %promise))
+
+  (define delay
+    (op (expr) env
+      (let ((forced #f) (result #f))
+        (make-instance %promise
+          (lambda ()
+            (if forced result
+              (let ((val (eval expr env)))
+                (set! forced #t)
+                (set! result val)
+                val)))))))
+
+  (define (force p)
+    (if (promise? p) ((first p)) p))
+
   ; --- case ---
   (def case (op (key . clauses) e
     (def case-val (eval key e))
@@ -121,17 +188,22 @@
         (t (case-loop (rest cls))))))
     (case-loop clauses)))
 
-  ; --- Deep structural equality (override x-lib equal? for pairs) ---
+  ; --- Deep structural equality (override x-lib equal? for pairs/vectors) ---
   (define (equal? a b)
     (cond ((and (pair? a) (pair? b))
            (and (equal? (car a) (car b)) (equal? (cdr a) (cdr b))))
+          ((and (vector? a) (vector? b))
+           (equal? (vector->list a) (vector->list b)))
           ((and (number? a) (number? b)) (= a b))
           ((and (string? a) (string? b)) (string=? a b))
           ((and (char? a) (char? b)) (= (char->integer a) (char->integer b)))
           (#t (eq? a b))))
 
-  ; --- Equivalence ---
-  (define (eqv? a b) (equal? a b))
+  ; --- Equivalence (identity for pairs/procs, = for numbers/chars) ---
+  (define (eqv? a b)
+    (cond ((and (number? a) (number? b)) (= a b))
+          ((and (char? a) (char? b)) (= (char->integer a) (char->integer b)))
+          (#t (eq? a b))))
 
   ; --- List predicate ---
   (define (list? x)
@@ -143,14 +215,36 @@
     (cond ((null? lst) #f)
           ((eq? x (car lst)) lst)
           (#t (memq x (cdr lst)))))
-  (define (memv x lst) (memq x lst))
+
+  ; --- Membership with eqv? ---
+  (define (memv x lst)
+    (cond ((null? lst) #f)
+          ((eqv? x (car lst)) lst)
+          (#t (memv x (cdr lst)))))
+
+  ; --- Membership with equal? (redefined to use deep equal?) ---
+  (define (member x lst)
+    (cond ((null? lst) #f)
+          ((equal? x (car lst)) lst)
+          (#t (member x (cdr lst)))))
 
   ; --- Association with eq? ---
   (define (assq key alist)
     (cond ((null? alist) #f)
           ((eq? key (caar alist)) (car alist))
           (#t (assq key (cdr alist)))))
-  (define (assv key alist) (assq key alist))
+
+  ; --- Association with eqv? ---
+  (define (assv key alist)
+    (cond ((null? alist) #f)
+          ((eqv? key (caar alist)) (car alist))
+          (#t (assv key (cdr alist)))))
+
+  ; --- Association with equal? (redefined to use deep equal?) ---
+  (define (assoc key alist)
+    (cond ((null? alist) #f)
+          ((equal? key (caar alist)) (car alist))
+          (#t (assoc key (cdr alist)))))
 
   ; --- Character comparisons ---
   (define (char=? a b) (= (char->integer a) (char->integer b)))
@@ -174,6 +268,12 @@
   ; --- Math ---
   (define (quotient a b) (/ a b))
   (define (remainder a b) (- a (* b (quotient a b))))
+  (define (modulo a b)
+    (let ((r (remainder a b)))
+      (if (zero? r) r
+        (if (if (> b 0) (< r 0) (> r 0))
+          (+ r b)
+          r))))
   (define (gcd a b) (if (zero? b) (abs a) (gcd b (remainder a b))))
   (define (lcm a b) (if (or (zero? a) (zero? b)) 0
     (abs (* (quotient a (gcd a b)) b))))
@@ -186,6 +286,9 @@
   (define (string->list s)
     (let loop ((i (- (string-length s) 1)) (acc ()))
       (if (< i 0) acc (loop (- i 1) (cons (string-ref s i) acc)))))
+
+  ; --- String constructor ---
+  (define (string . chars) (list->string chars))
 
   ; --- Quote shorthand: 'expr -> (lit expr) ---
 
