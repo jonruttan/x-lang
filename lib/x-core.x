@@ -11,6 +11,48 @@
 ;     {O,O}
 ;     (   )
 ;      " "
+
+; --- Boot: primitives implemented in x-lang (saves ROM) ---
+
+(def null? (fn (x) (eq? x ())))
+
+(def %let-params (fn (bindings)
+  (match
+    ((null? bindings) ())
+    (t (pair (first (first bindings))
+             (%let-params (rest bindings)))))))
+
+(def %let-vals (fn (bindings e)
+  (match
+    ((null? bindings) ())
+    (t (pair (eval (first (rest (first bindings))) e)
+             (%let-vals (rest bindings) e))))))
+
+(def let (op (bindings . body) e
+  (apply (eval (pair (lit fn)
+           (pair (%let-params bindings)
+             body))
+         e)
+    (%let-vals bindings e))))
+
+(def %type-pair (type-of (pair 1 2)))
+(def %type-int  (type-of 0))
+(def %type-str  (type-of ""))
+(def %type-sym  (type-of (lit a)))
+(def %type-char (type-of (integer->char 0)))
+(def %type-proc (type-of (fn () ())))
+(def %type-prim (type-of eq?))
+
+(def pair?      (fn (x) (type? x %type-pair)))
+(def number?    (fn (x) (type? x %type-int)))
+(def string?    (fn (x) (type? x %type-str)))
+(def symbol?    (fn (x) (type? x %type-sym)))
+(def char?      (fn (x) (type? x %type-char)))
+(def procedure? (fn (x)
+  (match ((type? x %type-proc) t) ((type? x %type-prim) t) (t ()))))
+
+; --- End boot ---
+
 (do (def x-lib-version "0.2.0")
 
   ; --- Derived from C primitives ---
