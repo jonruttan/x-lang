@@ -1,0 +1,88 @@
+## boolean?
+
+### true for t
+
+```scheme
+(boolean? t)
+```
+---
+    t
+
+### true for nil
+
+```scheme
+(boolean? ())
+```
+---
+    t
+
+### false for number
+
+```scheme
+(if (boolean? 42) "y" "n")
+```
+---
+    "n"
+
+## default-to
+
+### returns value when non-nil
+
+```scheme
+(default-to 0 42)
+```
+---
+    42
+
+### returns default when nil
+
+```scheme
+(default-to 0 ())
+```
+---
+    0
+
+## until
+
+### iterates until predicate holds
+
+```scheme
+(until (fn (x) (> x 10)) inc 1)
+```
+---
+    11
+
+## equal?
+
+### compares numbers
+
+```scheme
+(equal? 5 5)
+```
+---
+    t
+
+### compares different numbers
+
+```scheme
+(if (equal? 5 6) "y" "n")
+```
+---
+    "n"
+
+### compares strings
+
+```scheme
+(equal? "hi" "hi")
+```
+---
+    t
+
+### compares nil
+
+```scheme
+(equal? () ())
+```
+---
+    t
+

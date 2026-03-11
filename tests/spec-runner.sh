@@ -3,7 +3,7 @@
 #
 # ## tests/spec-runner.sh -- Shared Test Runner
 #
-# @description Parallel AWK-based test runner for .spec format
+# @description Parallel AWK-based test runner for .spec.md format
 # @author [Jon Ruttan](jonruttan@gmail.com)
 # @copyright 2024 Jon Ruttan
 # @license MIT No Attribution (MIT-0)
@@ -33,12 +33,12 @@ TEST_COUNT=0
 FAIL_COUNT=0
 PENDING_COUNT=0
 
-# Run each .spec file through AWK runner in parallel.
+# Run each .spec.md file through AWK runner in parallel.
 # Each printf is < PIPE_BUF so writes are atomic.
 # Counters are collected from temp files after all jobs finish.
 _TMPDIR=$(mktemp -d)
 _N=0
-for _spec in "$SPEC_PATH"/*.spec; do
+for _spec in "$SPEC_PATH"/*.spec.md; do
   [ -f "$_spec" ] || continue
   _I=$_N
   _N=$((_N+1))

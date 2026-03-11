@@ -3,7 +3,7 @@
 #
 # ## tests/spec-runner.awk -- AWK Test Runner
 #
-# @description State machine test runner for .spec format
+# @description State machine test runner for .spec.md format
 # @author [Jon Ruttan](jonruttan@gmail.com)
 # @copyright 2024 Jon Ruttan
 # @license MIT No Attribution (MIT-0)
@@ -21,6 +21,7 @@
 
 BEGIN {
 	state = 0
+	fenced = 0
 	tests = 0; fails = 0; pending = 0
 	unit = ""; tname = ""; input_buf = ""; expect_buf = ""
 	lib = LANG_LIB
@@ -43,6 +44,12 @@ function q(s,    _s) {
 	_s = s
 	gsub(/'/, "'\\''", _s)
 	return "'" _s "'"
+}
+
+function strip(s) {
+	if (substr(s, 1, 4) == "    ") return substr(s, 5)
+	if (substr(s, 1, 1) == "\t") return substr(s, 2)
+	return s
 }
 
 function flush(    cmd, line, output) {
@@ -88,6 +95,44 @@ function flush(    cmd, line, output) {
 	state = 0
 }
 
+# Fenced code blocks (``` with optional language tag)
+/^```/ {
+	if (fenced) { fenced = 0; next }
+	if (state == 1 || state == 2) { fenced = 1 }
+	next
+}
+
+# Fenced content: collect literally, skip all other rules
+fenced == 1 && state == 1 {
+	if (input_buf == "") input_buf = $0
+	else input_buf = input_buf "\n" $0
+	next
+}
+fenced == 1 && state == 2 {
+	if (expect_buf == "") expect_buf = $0
+	else expect_buf = expect_buf "\n" $0
+	next
+}
+fenced == 1 { next }
+
+# Unit header (## heading)
+/^## / {
+	flush()
+	unit = substr($0, 4)
+	unit_hdr = sprintf("\n%s%s%s\n", BLUE, unit, RESET)
+	next
+}
+
+# Test header (### heading)
+/^### / {
+	flush()
+	tname = substr($0, 5)
+	state = 1
+	input_buf = ""
+	expect_buf = ""
+	next
+}
+
 # Comments and metadata (only in IDLE state)
 state == 0 && /^# @lib / {
 	lib = lib_base "/" substr($0, 8)
@@ -95,26 +140,8 @@ state == 0 && /^# @lib / {
 }
 state == 0 && /^#/ { next }
 
-# Unit header
-/^== / {
-	flush()
-	unit = substr($0, 4)
-	unit_hdr = sprintf("\n%s%s%s\n", BLUE, unit, RESET)
-	next
-}
-
-# Test header
-/^-- / {
-	flush()
-	tname = substr($0, 4)
-	state = 1
-	input_buf = ""
-	expect_buf = ""
-	next
-}
-
-# Input/expect separator
-/^---$/ {
+# Input/expect separator (only in INPUT state)
+state == 1 && /^---$/ {
 	state = 2
 	next
 }
@@ -125,17 +152,27 @@ state == 0 && /^#/ { next }
 	next
 }
 
-# Collect input lines
-state == 1 {
-	if (input_buf == "") input_buf = $0
-	else input_buf = input_buf "\n" $0
+# Collect indented input lines (4-space or tab prefix required)
+state == 1 && /^    / {
+	if (input_buf == "") input_buf = strip($0)
+	else input_buf = input_buf "\n" strip($0)
+	next
+}
+state == 1 && /^\t/ {
+	if (input_buf == "") input_buf = strip($0)
+	else input_buf = input_buf "\n" strip($0)
 	next
 }
 
-# Collect expected output lines
-state == 2 {
-	if (expect_buf == "") expect_buf = $0
-	else expect_buf = expect_buf "\n" $0
+# Collect indented expected output lines (4-space or tab prefix required)
+state == 2 && /^    / {
+	if (expect_buf == "") expect_buf = strip($0)
+	else expect_buf = expect_buf "\n" strip($0)
+	next
+}
+state == 2 && /^\t/ {
+	if (expect_buf == "") expect_buf = strip($0)
+	else expect_buf = expect_buf "\n" strip($0)
 	next
 }
 
