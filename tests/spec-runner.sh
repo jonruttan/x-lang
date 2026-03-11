@@ -3,7 +3,7 @@
 #
 # ## tests/spec-runner.sh -- Shared Test Runner
 #
-# @description BDD-style test runner for x-lang personalities
+# @description Parallel AWK-based test runner for .spec format
 # @author [Jon Ruttan](jonruttan@gmail.com)
 # @copyright 2024 Jon Ruttan
 # @license MIT No Attribution (MIT-0)
@@ -22,74 +22,32 @@
 #   LANG_LIB="$SCRIPT_DIR/../../lib/x.x"
 #   . "$SCRIPT_DIR/../spec-runner.sh"
 
-ANSI_RESET="\33[0m"
-ANSI_RED="\33[1;31m"
-ANSI_GREEN="\33[1;32m"
-ANSI_BLUE="\33[1;34m"
+ANSI_RESET="\033[0m"
+ANSI_RED="\033[1;31m"
+ANSI_GREEN="\033[1;32m"
+
+# Derive project root from X_BIN (always at project root).
+RUNNER="$(cd "$(dirname "$X_BIN")" && pwd)/tests/spec-runner.awk"
 
 TEST_COUNT=0
 FAIL_COUNT=0
 PENDING_COUNT=0
 
-UNIT_TEXT='\n${ANSI_BLUE}$UNIT${ANSI_RESET}\n'
-SUCCESS_TEXT='${ANSI_GREEN}.${ANSI_RESET}'
-FAIL_TEXT='\n${ANSI_RED}FAIL: $UNIT: $IT\n  expected: $REQUIRE\n  got:      $VALUE${ANSI_RESET}\n'
-PENDING_TEXT='${ANSI_BLUE}p${ANSI_RESET}'
-SUMMARY_TEXT='\n\n${SUMMARY_COLOR}${TEST_COUNT} tests, ${FAIL_COUNT} failed, ${PENDING_COUNT} pending${ANSI_RESET}\n'
-
-output() {
-  eval "printf '%b' \"$@\""
-}
-
-# describe defers its header until the first test result,
-# so header + dots are emitted together in one atomic write.
-_UNIT_HDR=""
-
-describe() {
-  UNIT="$1"
-  _UNIT_HDR="$UNIT_TEXT"
-}
-
-it() {
-  TEST_COUNT=$((TEST_COUNT+1))
-  IT="$1"
-
-  # Pending test (no input/expected).
-  if [ $# -lt 3 ]; then
-    PENDING_COUNT=$((PENDING_COUNT+1))
-    eval "printf '%b' \"${_UNIT_HDR}${PENDING_TEXT}\""
-    _UNIT_HDR=""
-    return
-  fi
-
-  # Run input through the interpreter.
-  # Pipe language library + test expression through the interpreter.
-  # Strip REPL prompts ("> " or "$ "), keep only the last result line.
-  VALUE="$(printf '%s\n' "$2" | cat "$LANG_LIB" - | "$X_BIN" 2>/dev/null | sed -e ':a' -e 's/^[>$] //' -e 'ta' | sed '/^$/d' | tail -1)"
-  REQUIRE="$3"
-
-  if [ "$VALUE" = "$REQUIRE" ]; then
-    eval "printf '%b' \"${_UNIT_HDR}${SUCCESS_TEXT}\""
-  else
-    FAIL_COUNT=$((FAIL_COUNT+1))
-    eval "printf '%b' \"${_UNIT_HDR}${FAIL_TEXT}\""
-  fi
-  _UNIT_HDR=""
-}
-
-# Source all spec files in parallel with live output.
+# Run each .spec file through AWK runner in parallel.
 # Each printf is < PIPE_BUF so writes are atomic.
-# Only counters are buffered to temp files.
+# Counters are collected from temp files after all jobs finish.
 _TMPDIR=$(mktemp -d)
 _N=0
-for filename in "$SPEC_PATH"/*.spec.sh; do
-  [ -f "$filename" ] || continue
+for _spec in "$SPEC_PATH"/*.spec; do
+  [ -f "$_spec" ] || continue
   _I=$_N
   _N=$((_N+1))
   (
-    TEST_COUNT=0; FAIL_COUNT=0; PENDING_COUNT=0
-    . "$filename"
-    printf '%d %d %d\n' "$TEST_COUNT" "$FAIL_COUNT" "$PENDING_COUNT" > "$_TMPDIR/$_I.cnt"
+    awk -v X_BIN="$X_BIN" \
+        -v LANG_LIB="$LANG_LIB" \
+        -v TMPDIR="$_TMPDIR" \
+        -v SPEC_ID="$_I" \
+        -f "$RUNNER" "$_spec"
   ) &
 done
 
@@ -98,7 +56,7 @@ wait
 # Collect counts.
 _I=0
 while [ "$_I" -lt "$_N" ]; do
-  read _T _F _P < "$_TMPDIR/$_I.cnt"
+  read _T _F _P < "$_TMPDIR/spec-$_I.cnt"
   TEST_COUNT=$((TEST_COUNT + _T))
   FAIL_COUNT=$((FAIL_COUNT + _F))
   PENDING_COUNT=$((PENDING_COUNT + _P))
@@ -112,7 +70,8 @@ if [ "$FAIL_COUNT" -gt 0 ]; then
 else
   SUMMARY_COLOR="$ANSI_GREEN"
 fi
-output "$SUMMARY_TEXT"
+printf '\n\n%b%d tests, %d failed, %d pending%b\n' \
+  "$SUMMARY_COLOR" "$TEST_COUNT" "$FAIL_COUNT" "$PENDING_COUNT" "$ANSI_RESET"
 
 # Exit non-zero on failure.
 [ "$FAIL_COUNT" -eq 0 ]
