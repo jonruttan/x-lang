@@ -167,5 +167,5 @@
   ; Creates a fresh empty environment (an empty alist).
   ($define! (make-environment) ())
 
-  (lit krn)
+  (repl)
 )

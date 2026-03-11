@@ -151,16 +151,17 @@
            (%rewrite args %expanded (pair %t ()))
            (eval %t)))))
 
-  ; --- REPL hooks ---
-  ; The repl group is the 4th element of (first base):
-  ;   (first (rest (rest (rest (first (%base))))))
-  (def %repl-fields (fn () (first (rest (rest (rest (first (%base))))))))
-  (def repl-prompt! (fn (hook) (set-first (%repl-fields) hook)))
-  (def repl-read!   (fn (hook) (set-first (rest (%repl-fields)) hook)))
-  (def repl-eval!   (fn (hook) (set-first (rest (rest (%repl-fields))) hook)))
+  ; --- REPL ---
+  (def %repl-prompt "> ")
+  (def %repl-print (fn (result) (if (null? result) () (write result)) (newline)))
 
-  (repl-prompt! (fn () (display "> ")))
-  (repl-eval! (fn (result) (if (null? result) () (write result)) (newline)))
+  (def repl (op ()
+    (display %repl-prompt)
+    (def %r (read))
+    (if (null? %r) ()
+      (%do (guard (err (display err) (newline))
+             (%repl-print (eval! %r)))
+           (repl)))))
 
-  ()
+  (repl)
 )

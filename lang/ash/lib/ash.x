@@ -17,6 +17,6 @@
 ; Load evaluator (combined parser-evaluator)
 (include "lang/ash/lib/eval.x")
 
-; ASH REPL hooks
-(repl-prompt! (fn () (display "$ ")))
-(repl-eval! (fn (result) (if (null? result) () (write result)) (newline)))
+; ASH REPL
+(set %repl-prompt "$ ")
+(repl)

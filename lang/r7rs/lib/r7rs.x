@@ -321,5 +321,5 @@
                    field-specs)
               (list (list (lit quote) name))))))))
 
-  (lit r7rs)
+  (repl)
 )

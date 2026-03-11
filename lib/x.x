@@ -15,5 +15,5 @@
   (include "lib/x-core.x")
   (include "lib/x/regex.x")
   (include "lib/x/float.x")
-  ()
+  (repl)
 )

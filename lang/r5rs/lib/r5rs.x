@@ -203,5 +203,5 @@
           (do (buffer-unread buffer) buffer)
           ())))))
 
-  (lit r5rs)
+  (repl)
 )
