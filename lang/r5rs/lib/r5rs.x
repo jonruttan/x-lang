@@ -335,10 +335,21 @@
     (list
       (pair (lit analyse) (fn (buffer score chr)
         (if (= chr (char->integer #\,))
+          (score-set score 1 buffer %unquote-reader)
+          ())))
+      (pair (lit delimit) (fn (buffer score chr)
+        (if (= chr (char->integer #\,))
+          (do (buffer-unread buffer) buffer)
+          ())))))
+
+  (make-type "UNQUOTE-SPLICING"
+    (list
+      (pair (lit analyse) (fn (buffer score chr)
+        (if (= chr (char->integer #\,))
           (fn (buffer score chr)
             (if (= chr (char->integer #\@))
               (score-set score 1 buffer %unquote-splicing-reader)
-              (do (buffer-unread buffer) (score-set score 1 buffer %unquote-reader))))
+              ()))
           ())))
       (pair (lit delimit) (fn (buffer score chr)
         (if (= chr (char->integer #\,))
