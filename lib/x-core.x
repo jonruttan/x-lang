@@ -55,18 +55,7 @@
              (%rewrite args %expanded (pair %t ()))
              (eval %t))))))
 
-  (def %match-expand (fn (clauses)
-    (if (null? clauses) ()
-      (list (lit if) (first (first clauses))
-        (first (rest (first clauses)))
-        (%match-expand (rest clauses))))))
-  (def match (op clauses e
-    (if (null? clauses) ()
-      (if (eq? (first clauses) %expanded)
-        (eval (first (rest clauses)))
-        (%do (def %t (%match-expand clauses))
-             (%rewrite clauses %expanded (pair %t ()))
-             (eval %t))))))
+  ; match is now a C primitive in core.c
 
   ; --- Derived comparisons ---
   (def > (fn (a b) (< b a)))
