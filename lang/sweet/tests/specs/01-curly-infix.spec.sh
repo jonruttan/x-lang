@@ -8,7 +8,7 @@ describe 'curly-infix single'
     '{42}' \
     '42'
   it 'single symbol' \
-    '(define x 10) {x}' \
+    $'(define x 10)\n{x}' \
     '10'
 
 describe 'curly-infix simple'
