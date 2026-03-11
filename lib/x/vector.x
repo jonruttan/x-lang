@@ -21,7 +21,11 @@
           (if (= chr (char->integer #\())
             (do (buffer-unread buffer) (score-set score 1 buffer %vector-read))
             ()))
-        ()))))))
+        ())))
+    (pair (lit convert)
+      (list
+        (pair (type-of (pair 1 ())) (fn (value)
+          (make-instance %vector value))))))))
 
 (set %vector-read (fn args
   (make-instance %vector (read))))

@@ -59,7 +59,9 @@
     (pair (lit convert)
       (list
         (pair (type-of 42) (fn (value)
-          (make-instance %float (int->float value)))))))))
+          (make-instance %float (int->float value))))
+        (pair (type-of "") (fn (value)
+          (make-instance %float (string->float value)))))))))
 
 ; --- Predicates and constructors ---
 (def float? (fn (x) (type? x %float)))

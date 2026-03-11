@@ -49,8 +49,8 @@ describe 'type-of custom types'
 describe 'type-of used in convert alist key'
   it 'type-of key matches int for int convert' \
     '(float? (convert 42 %float))' 't'
-  it 'type-of key does not match for string' \
-    '(null? (convert "hello" %float))' 't'
+  it 'type-of key matches string for float' \
+    '(float? (convert "3.14" %float))' 't'
 
 describe 'write-to-string'
   it 'integer to string' \
@@ -98,7 +98,7 @@ describe 'convert alist dispatch'
   it 'exact match result has target type' \
     '(float? (convert 42 %float))' 't'
   it 'no match returns nil' \
-    '(null? (convert "hello" %float))' 't'
+    '(null? (convert #\a %float))' 't'
   it 'convert negative int to float' \
     '(convert -5 %float)' '-5'
   it 'convert zero to float' \
@@ -129,3 +129,19 @@ describe 'convert multi-type alist'
     '(do (def %t (make-type "MULTI-T" (list (pair (lit convert) (list (pair (type-of 42) (fn (v) (make-instance %t (+ v 100)))) (pair (type-of "") (fn (v) (make-instance %t v)))))))) (first (convert "hello" %t)))' '"hello"'
   it 'unregistered type returns nil' \
     '(do (def %t (make-type "MULTI-T" (list (pair (lit convert) (list (pair (type-of 42) (fn (v) (make-instance %t v)))))))) (null? (convert #\a %t)))' 't'
+
+describe 'convert string to float'
+  it 'converts string to float' \
+    '(float? (convert "3.14" %float))' 't'
+  it 'converted string float has correct value' \
+    '(write-to-string (convert "3.14" %float))' '"3.14"'
+  it 'converts integer string to float' \
+    '(float? (convert "42" %float))' 't'
+
+describe 'convert list to vector'
+  it 'converts list to vector' \
+    '(vector? (convert (list 1 2 3) %vector))' 't'
+  it 'converted vector has correct contents' \
+    '(vector->list (convert (list 1 2 3) %vector))' '(1 2 3)'
+  it 'nil returns nil not vector' \
+    '(null? (convert () %vector))' 't'
