@@ -64,7 +64,7 @@ Flags `0x01`-`0x08` are available for type-specific use. The `WRAP` flag (`0x01`
 
 ### The Type Contract
 
-A type definition is a `struct x_type_t` with 13 fields:
+A type definition is a `struct x_type_t` with 14 fields:
 
 ```c
 struct x_type_t {
@@ -77,7 +77,8 @@ struct x_type_t {
     x_obj_t *p_length;     /* element count                 */
     x_obj_t *p_call;       /* invocation handler            */
     x_obj_t *p_eval;       /* evaluation handler            */
-    x_obj_t *p_convert;    /* type conversion handler       */
+    x_obj_t *p_from;       /* inbound conversion alist      */
+    x_obj_t *p_to;         /* outbound conversion alist     */
     x_obj_t *p_analyse;    /* parser/tokenizer handler      */
     x_obj_t *p_delimit;    /* delimiter detection handler   */
     x_obj_t *p_write;      /* output/serialization handler  */
@@ -91,8 +92,9 @@ At runtime, this struct is stored as nested pairs:
   name                              ; field 0
   data                              ; field 1
   (make free clone units length)    ; field 2 — heap tuple
-  (call eval convert)               ; field 3 — proc tuple
-  (analyse delimit write)           ; field 4 — io tuple
+  (call eval)                       ; field 3 — proc tuple
+  (from to)                         ; field 4 — cvt tuple
+  (analyse delimit write)           ; field 5 — io tuple
 )
 ```
 
@@ -113,11 +115,15 @@ Nil fields indicate the type does not implement that method. The dispatch system
 - `units` — Returns the number of data units in an instance
 - `length` — Returns the logical element count (list length, string length, etc.)
 
-**Proc**: `call`, `eval`, `convert`
+**Proc**: `call`, `eval`
 
 - `call` — Invoked when an instance is used as a procedure. Receives the instance and arguments.
 - `eval` — Invoked when an instance appears as an expression to evaluate. Symbols use this for environment lookup. Lists use this for function application.
-- `convert` — Type conversion handler
+
+**Cvt**: `from`, `to`
+
+- `from` — Inbound conversion alist. Maps source type handles to converter functions (other→self).
+- `to` — Outbound conversion alist. Maps target type handles to converter functions (self→other).
 
 **IO**: `analyse`, `delimit`, `write`
 
@@ -137,7 +143,9 @@ x_type_field_length(X)
 
 x_type_field_proc(X)       /* the proc tuple itself */
 x_type_field_call(X)       x_type_field_eval(X)
-x_type_field_convert(X)
+
+x_type_field_cvt(X)        /* the cvt tuple itself */
+x_type_field_from(X)       x_type_field_to(X)
 
 x_type_field_io(X)         /* the io tuple itself */
 x_type_field_analyse(X)    x_type_field_delimit(X)
@@ -189,24 +197,24 @@ The evaluator, call mechanism, writer, and length calculator all follow the same
 
 ### Built-in Types
 
-| Type | name | make | free | clone | units | length | call | eval | convert | analyse | delimit | write |
-|------|------|------|------|-------|-------|--------|------|------|---------|---------|---------|-------|
-| ATOM | yes | yes | | | | | | | | | | |
-| PAIR | yes | yes | | | | yes | | | | | | yes |
-| LIST | yes | yes | | | | yes | yes | yes | | yes | yes | yes |
-| INTEGER | yes | yes | | | | | | | | yes | | yes |
-| SYMBOL | yes | yes | | | | | | yes | | yes | | yes |
-| STRING | yes | yes | | | | yes | yes | | | yes | | yes |
-| CHAR | yes | | | | | | | | | | | |
-| PRIMITIVE | yes | yes | | | | | yes | | | | | yes |
-| PROCEDURE | yes | yes | | | | | yes | | | | | yes |
-| OPERATIVE | yes | yes | | | | | yes | | | | | yes |
-| BUFFER | yes | | | | | | | | | | | |
-| ITERATOR | yes | | | | yes | | | | | | | |
-| POINTER | yes | | | | | | | | | | | |
-| WHITESPACE | yes | | | | | | | | | yes | yes | |
-| COMMENT | yes | | | | | | | | | yes | | |
-| VECTOR | yes | | | | yes | | yes | | | | | yes |
+| Type | name | make | free | clone | units | length | call | eval | from | to | analyse | delimit | write |
+|------|------|------|------|-------|-------|--------|------|------|------|-----|---------|---------|-------|
+| ATOM | yes | yes | | | | | | | | | | | |
+| PAIR | yes | yes | | | | yes | | | | | | | yes |
+| LIST | yes | yes | | | | yes | yes | yes | | | yes | yes | yes |
+| INTEGER | yes | yes | | | | | | | | | yes | | yes |
+| SYMBOL | yes | yes | | | | | | yes | | | yes | | yes |
+| STRING | yes | yes | | | | yes | yes | | | | yes | | yes |
+| CHAR | yes | | | | | | | | | | | | |
+| PRIMITIVE | yes | yes | | | | | yes | | | | | | yes |
+| PROCEDURE | yes | yes | | | | | yes | | | | | | yes |
+| OPERATIVE | yes | yes | | | | | yes | | | | | | yes |
+| BUFFER | yes | | | | | | | | | | | | |
+| ITERATOR | yes | | | | yes | | | | | | | | |
+| POINTER | yes | | | | | | | | | | | | |
+| WHITESPACE | yes | | | | | | | | | | yes | yes | |
+| COMMENT | yes | | | | | | | | | | yes | | |
+| VECTOR | yes | | | | yes | | yes | | yes | yes | | | yes |
 
 ---
 
@@ -227,7 +235,7 @@ Creates a new type at runtime. `name` is a string. `handlers` is an association 
     (pair (lit write) (fn (self) ...))))
 ```
 
-Supported handler keys: `call`, `write`, `length`.
+Supported handler keys: `call`, `eval`, `from`, `to`, `analyse`, `delimit`, `write`, `length`.
 
 Returns a type handle (the name atom) used to create instances and check types.
 

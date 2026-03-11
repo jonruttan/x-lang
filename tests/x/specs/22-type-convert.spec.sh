@@ -84,13 +84,13 @@ describe 'convert nil handling'
   it 'convert nil returns nil' \
     '(null? (convert () %float))' 't'
   it 'convert nil to custom type returns nil' \
-    '(do (def %t (make-type "CNV-T" (list (pair (lit convert) (list (pair (type-of 42) (fn (v) (make-instance %t v)))))))) (null? (convert () %t)))' 't'
+    '(do (def %t (make-type "CNV-T" (list (pair (lit from) (list (pair (type-of 42) (fn (v) (make-instance %t v)))))))) (null? (convert () %t)))' 't'
 
 describe 'convert short-circuit (already target type)'
   it 'float to float is identity' \
     '(def x 3.14) (eq? (convert x %float) x)' 't'
   it 'custom type to same type is identity' \
-    '(do (def %t (make-type "ID-T" (list (pair (lit convert) (list))))) (def obj (make-instance %t 42)) (eq? (convert obj %t) obj))' 't'
+    '(do (def %t (make-type "ID-T" (list (pair (lit from) (list))))) (def obj (make-instance %t 42)) (eq? (convert obj %t) obj))' 't'
 
 describe 'convert alist dispatch'
   it 'exact match calls converter' \
@@ -108,27 +108,27 @@ describe 'convert alist dispatch'
 
 describe 'convert wildcard t entry'
   it 'wildcard matches any type' \
-    '(do (def %t (make-type "WILD-T" (list (pair (lit convert) (list (pair t (fn (v) (make-instance %t v)))))))) (type? (convert 42 %t) %t))' 't'
+    '(do (def %t (make-type "WILD-T" (list (pair (lit from) (list (pair t (fn (v) (make-instance %t v)))))))) (type? (convert 42 %t) %t))' 't'
   it 'wildcard catches string' \
-    '(do (def %t (make-type "WILD-T" (list (pair (lit convert) (list (pair t (fn (v) (make-instance %t v)))))))) (type? (convert "hello" %t) %t))' 't'
+    '(do (def %t (make-type "WILD-T" (list (pair (lit from) (list (pair t (fn (v) (make-instance %t v)))))))) (type? (convert "hello" %t) %t))' 't'
   it 'exact match takes priority over wildcard' \
-    '(do (def %t (make-type "PRIO-T" (list (pair (lit convert) (list (pair (type-of 42) (fn (v) (make-instance %t "exact"))) (pair t (fn (v) (make-instance %t "wild")))))))) (first (convert 42 %t)))' '"exact"'
+    '(do (def %t (make-type "PRIO-T" (list (pair (lit from) (list (pair (type-of 42) (fn (v) (make-instance %t "exact"))) (pair t (fn (v) (make-instance %t "wild")))))))) (first (convert 42 %t)))' '"exact"'
   it 'wildcard used when no exact match' \
-    '(do (def %t (make-type "PRIO-T" (list (pair (lit convert) (list (pair (type-of 42) (fn (v) (make-instance %t "exact"))) (pair t (fn (v) (make-instance %t "wild")))))))) (first (convert "hello" %t)))' '"wild"'
+    '(do (def %t (make-type "PRIO-T" (list (pair (lit from) (list (pair (type-of 42) (fn (v) (make-instance %t "exact"))) (pair t (fn (v) (make-instance %t "wild")))))))) (first (convert "hello" %t)))' '"wild"'
 
 describe 'convert with no convert alist'
   it 'type with empty convert returns nil' \
-    '(do (def %t (make-type "EMPTY-T" (list (pair (lit convert) (list))))) (null? (convert 42 %t)))' 't'
+    '(do (def %t (make-type "EMPTY-T" (list (pair (lit from) (list))))) (null? (convert 42 %t)))' 't'
   it 'type with no convert field returns nil' \
     '(do (def %t (make-type "NO-CVT" (list))) (null? (convert 42 %t)))' 't'
 
 describe 'convert multi-type alist'
   it 'int converter works' \
-    '(do (def %t (make-type "MULTI-T" (list (pair (lit convert) (list (pair (type-of 42) (fn (v) (make-instance %t (+ v 100)))) (pair (type-of "") (fn (v) (make-instance %t v)))))))) (first (convert 5 %t)))' '105'
+    '(do (def %t (make-type "MULTI-T" (list (pair (lit from) (list (pair (type-of 42) (fn (v) (make-instance %t (+ v 100)))) (pair (type-of "") (fn (v) (make-instance %t v)))))))) (first (convert 5 %t)))' '105'
   it 'string converter works' \
-    '(do (def %t (make-type "MULTI-T" (list (pair (lit convert) (list (pair (type-of 42) (fn (v) (make-instance %t (+ v 100)))) (pair (type-of "") (fn (v) (make-instance %t v)))))))) (first (convert "hello" %t)))' '"hello"'
+    '(do (def %t (make-type "MULTI-T" (list (pair (lit from) (list (pair (type-of 42) (fn (v) (make-instance %t (+ v 100)))) (pair (type-of "") (fn (v) (make-instance %t v)))))))) (first (convert "hello" %t)))' '"hello"'
   it 'unregistered type returns nil' \
-    '(do (def %t (make-type "MULTI-T" (list (pair (lit convert) (list (pair (type-of 42) (fn (v) (make-instance %t v)))))))) (null? (convert #\a %t)))' 't'
+    '(do (def %t (make-type "MULTI-T" (list (pair (lit from) (list (pair (type-of 42) (fn (v) (make-instance %t v)))))))) (null? (convert #\a %t)))' 't'
 
 describe 'convert string to float'
   it 'converts string to float' \
@@ -145,3 +145,17 @@ describe 'convert list to vector'
     '(vector->list (convert (list 1 2 3) %vector))' '(1 2 3)'
   it 'nil returns nil not vector' \
     '(null? (convert () %vector))' 't'
+
+describe 'convert outbound (to alist)'
+  it 'float to int via convert' \
+    '(def x (convert 3.14 (type-of 42))) (integer? x)' 't'
+  it 'float to int value' \
+    '(convert 3.14 (type-of 42))' '3'
+  it 'float to string via convert' \
+    '(string? (convert 3.14 (type-of "")))' 't'
+  it 'float to string value' \
+    '(convert 3.14 (type-of ""))' '"3.14"'
+  it 'vector to list via convert' \
+    '(convert (vector 1 2 3) (type-of (pair 1 ())))' '(1 2 3)'
+  it 'outbound no match returns nil' \
+    '(null? (convert 3.14 (type-of #\a)))' 't'

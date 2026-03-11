@@ -22,10 +22,13 @@
             (do (buffer-unread buffer) (score-set score 1 buffer %vector-read))
             ()))
         ())))
-    (pair (lit convert)
+    (pair (lit from)
       (list
         (pair (type-of (pair 1 ())) (fn (value)
-          (make-instance %vector value))))))))
+          (make-instance %vector value)))))
+    (pair (lit to)
+      (list
+        (pair (type-of (pair 1 ())) (fn (self) (first self))))))))
 
 (set %vector-read (fn args
   (make-instance %vector (read))))

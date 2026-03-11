@@ -56,12 +56,16 @@
       (if (and (>= chr 48) (<= chr 57))
         %float-int-digits
         ())))
-    (pair (lit convert)
+    (pair (lit from)
       (list
         (pair (type-of 42) (fn (value)
           (make-instance %float (int->float value))))
         (pair (type-of "") (fn (value)
-          (make-instance %float (string->float value)))))))))
+          (make-instance %float (string->float value))))))
+    (pair (lit to)
+      (list
+        (pair (type-of 42) (fn (self) (float->int (first self))))
+        (pair (type-of "") (fn (self) (float->string (first self)))))))))
 
 ; --- Predicates and constructors ---
 (def float? (fn (x) (type? x %float)))
