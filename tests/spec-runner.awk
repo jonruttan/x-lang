@@ -90,7 +90,7 @@ function collect() {
 function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 	# Write test harness: a loop that uses %END% sentinel instead of EOF,
 	# so () input doesn't terminate the loop (read returns nil for both).
-	# Each test is wrapped in (do ...) so defs persist within the test
+	# Each test is wrapped in (begin ...) so defs persist within the test
 	# but eval %r %E restores env between tests (no state leakage).
 	printf "%s\n", "(def %T (op () %E (def %r (read)) (if (eq? %r (lit %END%)) () (%seq (guard (err (display \"Error: \") (display err) (newline)) (%repl-print (eval %r %E))) (%T)))))" > tmpfile
 	printf "%s\n", "(%T)" > tmpfile
@@ -98,8 +98,8 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 	# Write all test inputs with separators
 	for (i = from; i <= to; i++) {
 		if (i > from)
-			printf "(display \"<<SEP>>\\n\")\n" > tmpfile
-		printf "(do %s)\n", t_input[i] > tmpfile
+			printf "(heap-collect) (%%profile-dump) (display \"<<SEP>>\\n\")\n" > tmpfile
+		printf "(begin %s)\n", t_input[i] > tmpfile
 	}
 	# Write sentinel to terminate the test loop
 	printf "%s\n", "%END%" > tmpfile

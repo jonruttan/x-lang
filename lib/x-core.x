@@ -67,6 +67,7 @@
     ((null? %do-f) ())
     ((lit t) (eval (%do-nest %do-f))))))
 (def do %do-seq)
+(def begin do)
 
 ; --- End boot ---
 
@@ -127,6 +128,21 @@
         (display (- (clock) t0))
         (display " us\n")
         result))))
+
+  ; Write to stderr (swap fileout fd, display, restore)
+  (def %stderr (fn (msg)
+    (def %fo (rest (first (rest (first (%base))))))
+    (def %s (first-int %fo))
+    (set-first-int %fo (first-int (rest (rest (first (rest (first (%base))))))))
+    (display msg)
+    (set-first-int %fo %s)))
+
+  ; Dump alloc-count and heap-count to stderr
+  (def %profile-dump (fn ()
+    (%stderr (first-int (first (first (rest (rest (rest (rest (rest (first (%base)))))))))))
+    (%stderr " ")
+    (%stderr (heap-count))
+    (%stderr "\n")))
 
   (include "lib/x/fn.x")
   (include "lib/x/math.x")
