@@ -11,9 +11,8 @@
 ;     {O,O}
 ;     (   )
 ;      " "
+(include "lib/x-core.x")
 (do
-  (include "lib/x-core.x")
-
   ; --- Aliases ---
   (def lambda fn)
   (def begin do)
@@ -303,7 +302,7 @@
           ())))
       (pair (lit delimit) (fn (buffer score chr)
         (if (= chr (char->integer #\'))
-          (do (buffer-unread buffer) buffer)
+          (%seq (buffer-unread buffer) buffer)
           ())))))
 
   ; --- Quasiquote shorthand: `expr -> (quasiquote expr) ---
@@ -319,7 +318,7 @@
           ())))
       (pair (lit delimit) (fn (buffer score chr)
         (if (= chr (char->integer #\`))
-          (do (buffer-unread buffer) buffer)
+          (%seq (buffer-unread buffer) buffer)
           ())))))
 
   ; --- Unquote shorthand: ,expr -> (unquote expr)
@@ -339,7 +338,7 @@
           ())))
       (pair (lit delimit) (fn (buffer score chr)
         (if (= chr (char->integer #\,))
-          (do (buffer-unread buffer) buffer)
+          (%seq (buffer-unread buffer) buffer)
           ())))))
 
   (make-type "UNQUOTE-SPLICING"
@@ -353,7 +352,7 @@
           ())))
       (pair (lit delimit) (fn (buffer score chr)
         (if (= chr (char->integer #\,))
-          (do (buffer-unread buffer) buffer)
+          (%seq (buffer-unread buffer) buffer)
           ())))))
 
   (repl)

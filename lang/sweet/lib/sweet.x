@@ -13,9 +13,8 @@
 ;   {1 + 2}       -> 3
 ;   {2 * {3 + 4}} -> 14
 
-(do
-  (include "lang/r5rs/lib/r5rs.x")
-
+(include "lang/r5rs/lib/r5rs.x")
+(begin
   ; --- Buffer helpers (not in r5rs, needed for type handlers) ---
 
   (define (buffer-len buf)
@@ -25,8 +24,8 @@
     (set-first-int (cdr buf) (- (first-int (cdr buf)) 1)))
 
   (define (score-set score sign buf reader)
-    (begin (set-first-int score (* sign (buffer-len buf)))
-           (set-rest score reader)))
+    (%seq (set-first-int score (* sign (buffer-len buf)))
+          (set-rest score reader)))
 
   ; --- Infix-to-prefix transformer (SRFI-105) ---
 
@@ -114,7 +113,7 @@
           ())))
       (cons (lit delimit) (lambda (buffer score chr)
         (if (or (= chr (char->integer #\{)) (= chr (char->integer #\})))
-          (begin (buffer-unread buffer) buffer)
+          (%seq (buffer-unread buffer) buffer)
           ())))))
 
   ; --- SWEET-WS token type (replaces built-in WHITESPACE) ---
@@ -140,17 +139,17 @@
   ; NOTE: uses if, not cond -- cond triggers GC inside tokenizer callbacks
   (define %sweet-ws-a2 (lambda (buffer score chr)
     (if (= chr 32)                               ; space
-      (begin (if %sweet-ws-saw-nl
+      (%seq (if %sweet-ws-saw-nl
                (set! %sweet-ws-level (+ %sweet-ws-level 1)))
-             %sweet-ws-a2)
+            %sweet-ws-a2)
       (if (= chr 9)                              ; tab
-        (begin (if %sweet-ws-saw-nl
+        (%seq (if %sweet-ws-saw-nl
                  (set! %sweet-ws-level (+ %sweet-ws-level 8)))
-               %sweet-ws-a2)
+              %sweet-ws-a2)
         (if (= chr 10)                           ; newline
-          (begin (set! %sweet-ws-saw-nl #t)
-                 (set! %sweet-ws-level 0)
-                 %sweet-ws-a2)
+          (%seq (set! %sweet-ws-saw-nl #t)
+                (%seq (set! %sweet-ws-level 0)
+                      %sweet-ws-a2))
           (if (or (= chr 13) (= chr 11) (= chr 12))  ; CR, VT, FF
             %sweet-ws-a2
             (if %sweet-ws-saw-nl                 ; non-WS: finalize
@@ -160,12 +159,11 @@
   ; Analyse state 1: first char must be whitespace
   (define %sweet-ws-a1 (lambda (buffer score chr)
     (if (%sweet-ws-char? chr)
-      (begin
-        (if (= chr 10)
-          (begin (set! %sweet-ws-saw-nl #t)
-                 (set! %sweet-ws-level 0))
-          (set! %sweet-ws-saw-nl #f))
-        %sweet-ws-a2)
+      (%seq (if (= chr 10)
+              (%seq (set! %sweet-ws-saw-nl #t)
+                    (set! %sweet-ws-level 0))
+              (set! %sweet-ws-saw-nl #f))
+            %sweet-ws-a2)
       ())))
 
   ; Register SWEET-WS
@@ -174,7 +172,7 @@
       (cons (lit analyse) %sweet-ws-a1)
       (cons (lit delimit) (lambda (buffer score chr)
         (if (%sweet-ws-char? chr)
-          (begin (buffer-unread buffer) buffer)
+          (%seq (buffer-unread buffer) buffer)
           ())))))
 
   ; --- sweet-read: indentation-based grouping (SRFI-110) ---
@@ -266,8 +264,8 @@
     (display %repl-prompt)
     (def %r (sweet-read))
     (if (null? %r) ()
-      (begin (guard (err (display err) (newline))
-               (%repl-print (eval! %r)))
-             (sweet-repl)))))
+      (%seq (guard (err (display err) (newline))
+              (%repl-print (eval! %r)))
+            (sweet-repl)))))
 
   (sweet-repl))

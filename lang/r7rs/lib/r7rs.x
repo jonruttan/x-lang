@@ -11,8 +11,8 @@
 ;     {O,O}
 ;     (   )
 ;      " "
-(do
-  (include "lang/r5rs/lib/r5rs.x")
+(include "lang/r5rs/lib/r5rs.x")
+(begin
   (include "lib/x/float.x")
 
   ; --- Booleans ---

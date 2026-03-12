@@ -57,6 +57,17 @@
 (def procedure? (fn (x)
   (match ((type? x %type-proc) t) ((type? x %type-prim) t) (t ()))))
 
+(def %do-nest (fn (%dn-f)
+  (match
+    ((null? (rest %dn-f)) (first %dn-f))
+    (t (pair (lit %seq) (pair (first %dn-f)
+         (pair (%do-nest (rest %dn-f)) ())))))))
+(def %do-seq (op %do-f %do-e
+  (match
+    ((null? %do-f) ())
+    ((lit t) (eval (%do-nest %do-f))))))
+(def do %do-seq)
+
 ; --- End boot ---
 
 (do (def x-lib-version "0.2.0")
@@ -65,7 +76,6 @@
   (def not null?)
   (def atom? (fn (x) (not (pair? x))))
   (def list (fn args args))
-  (def %do do)
   (def %expanded (pair () ()))
 
   ; --- Core forms as operatives ---
@@ -83,15 +93,15 @@
     (if (null? args) (lit t)
       (if (eq? (first args) %expanded)
         (eval (first (rest args)))
-        (%do (def %t (%and-expand args))
-             (%rewrite args %expanded (pair %t ()))
-             (eval %t))))))
+        (%seq (def %t (%and-expand args))
+              (%seq (%rewrite args %expanded (pair %t ()))
+                    (eval %t)))))))
 
   (def %or-expand (fn (args)
     (if (null? args) ()
       (if (null? (rest args))
         (first args)
-        (list (lit %do)
+        (list (lit %seq)
           (list (lit def) (lit %or-v) (first args))
           (list (lit if) (lit %or-v) (lit %or-v)
             (%or-expand (rest args))))))))
@@ -99,11 +109,11 @@
     (if (null? args) ()
       (if (eq? (first args) %expanded)
         (eval (first (rest args)))
-        (%do (def %t (%or-expand args))
-             (%rewrite args %expanded (pair %t ()))
-             (eval %t))))))
+        (%seq (def %t (%or-expand args))
+              (%seq (%rewrite args %expanded (pair %t ()))
+                    (eval %t)))))))
 
-  ; match is now a C primitive in core.c
+  ; match, %seq are C primitives; do/%do-seq are x-lang boot (x-core.x)
 
   ; --- Derived comparisons ---
   (def > (fn (a b) (< b a)))
@@ -158,8 +168,8 @@
   (def buffer-unread (fn (buffer)
     (set-first-int (rest buffer) (- (first-int (rest buffer)) 1))))
   (def score-set (fn (score sign buffer reader)
-    (do (set-first-int score (* sign (buffer-len buffer)))
-        (set-rest score reader))))
+    (%seq (set-first-int score (* sign (buffer-len buffer)))
+          (set-rest score reader))))
 
   (include "lib/x/alist.x")
   (include "lib/x/string.x")
@@ -184,9 +194,9 @@
   (def quasi (op args e
     (if (eq? (first args) %expanded)
       (eval (first (rest args)))
-      (%do (def %t (%quasi-compile (first args)))
-           (%rewrite args %expanded (pair %t ()))
-           (eval %t)))))
+      (%seq (def %t (%quasi-compile (first args)))
+            (%seq (%rewrite args %expanded (pair %t ()))
+                  (eval %t))))))
 
   ; --- REPL ---
   (def %repl-prompt "> ")
@@ -196,9 +206,9 @@
     (display %repl-prompt)
     (def %r (read))
     (if (null? %r) ()
-      (%do (guard (err (display err) (newline))
-             (%repl-print (eval! %r)))
-           (repl)))))
+      (%seq (guard (err (display err) (newline))
+              (%repl-print (eval! %r)))
+            (repl)))))
 
   (repl)
 )

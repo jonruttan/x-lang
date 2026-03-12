@@ -24,12 +24,12 @@
 (set %float-frac (fn (buffer score chr)
   (if (and (>= chr 48) (<= chr 57))
     %float-frac
-    (%do (buffer-unread buffer) (score-set score 1 buffer %float-read)))))
+    (%seq (buffer-unread buffer) (score-set score 1 buffer %float-read)))))
 
 ; Must see at least one digit after '.'
 (def %float-first-frac (fn (buffer score chr)
   (if (and (>= chr 48) (<= chr 57))
-    (%do (score-set score 1 buffer %float-read) %float-frac)
+    (%seq (score-set score 1 buffer %float-read) %float-frac)
     ())))
 
 ; Integer part: digits until '.'

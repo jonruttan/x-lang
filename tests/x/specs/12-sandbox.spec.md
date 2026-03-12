@@ -62,7 +62,7 @@
 ### evaluates closures
 
 ```scheme
-(do (def b (make-base)) (base-eval b (lit (do (def f (fn (x) (* x x))) (f 5)))))
+(do (def b (make-base)) (base-eval b (lit (%seq (def f (fn (x) (* x x))) (f 5)))))
 ```
 ---
     25
