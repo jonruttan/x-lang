@@ -45,6 +45,7 @@ for _spec in "$SPEC_PATH"/*.spec.md; do
   (
     awk -v X_BIN="$X_BIN" \
         -v LANG_LIB="$LANG_LIB" \
+        -v REPL_CMD="${REPL_CMD:-(repl)}" \
         -v TMPDIR="$_TMPDIR" \
         -v SPEC_ID="$_I" \
         -f "$RUNNER" "$_spec"

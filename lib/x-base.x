@@ -1,6 +1,6 @@
 ; # Computational Expressions in C
 ;
-; ## x.x -- x Standard Library
+; ## x-base.x -- x Standard Library (non-interactive)
 ;
 ; @description Computational Expressions in C
 ; @author [Jon Ruttan](jonruttan@gmail.com)
@@ -11,8 +11,7 @@
 ;     {O,O}
 ;     (   )
 ;      " "
-(include "lib/x-base.x")
-(set %lang-name "x-lang")
-(set %lang-version x-lib-version)
-(%banner)
-(repl)
+(include "lib/x-core.x")
+(do
+  (include "lib/x/regex.x")
+  (include "lib/x/float.x"))

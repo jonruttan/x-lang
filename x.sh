@@ -25,6 +25,7 @@ fi
 
 file="\"-\""
 verbose=""
+xflags=""
 
 display_help() {
 	echo "Usage: $0 [OPTION]... "
@@ -38,6 +39,7 @@ display_help() {
 	echo "  -F, --load FILE evaluate file then continue"
 	echo "  -l, --lib NAME  library name (default: \"$X_LIB\")"
 	echo "  -L, --lang-path language path (default: \"$LANG_PATH\")"
+	echo "  -q, --quiet     suppress the startup banner"
 	echo "  -v, --verbose   display extra output"
 	echo "  -V, --version   display version and exit"
 }
@@ -68,6 +70,10 @@ do
 		-l | --lib)
 			X_LIB="$2"
 			shift 2
+			;;
+		-q | --quiet)
+			xflags="$xflags \"--quiet\""
+			shift
 			;;
 		-v | --verbose)
 			verbose="verbose"
@@ -100,9 +106,9 @@ done
 
 X_BASE=x
 if [ "$X_LIB" = "$X_BASE" ]; then
-	CMD="cat \"${LIB_PATH}${X_BASE}${X_EXT}\" ${file} | \"$SCRIPT_PATH/x\"$args"
+	CMD="cat \"${LIB_PATH}${X_BASE}${X_EXT}\" ${file} | \"$SCRIPT_PATH/x\"$xflags$args"
 else
-	CMD="cat \"${LANG_PATH}${X_LIB}/lib/${X_LIB}${X_EXT}\" ${file} | \"$SCRIPT_PATH/x\"$args"
+	CMD="cat \"${LANG_PATH}${X_LIB}/lib/${X_LIB}${X_EXT}\" ${file} | \"$SCRIPT_PATH/x\"$xflags$args"
 fi
 
 if [ "$verbose" ]; then

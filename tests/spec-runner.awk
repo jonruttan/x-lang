@@ -3,7 +3,7 @@
 #
 # ## tests/spec-runner.awk -- AWK Test Runner
 #
-# @description State machine test runner for .spec.md format
+# @description Batched test runner for .spec.md format
 # @author [Jon Ruttan](jonruttan@gmail.com)
 # @copyright 2024 Jon Ruttan
 # @license MIT No Attribution (MIT-0)
@@ -18,6 +18,10 @@
 #   LANG_LIB -- default library file path
 #   TMPDIR   -- temp directory for scratch files
 #   SPEC_ID  -- unique integer for temp file namespacing
+#
+# Tests are collected during parsing, then run in a single interpreter
+# invocation per spec file (or per library group if @lib changes).
+# A separator expression between tests delimits output sections.
 
 BEGIN {
 	state = 0
@@ -25,8 +29,10 @@ BEGIN {
 	tests = 0; fails = 0; pending = 0
 	unit = ""; tname = ""; input_buf = ""; expect_buf = ""
 	lib = LANG_LIB
+	repl_cmd = REPL_CMD ? REPL_CMD : "(repl)"
 	unit_hdr = ""
 	tmpfile = TMPDIR "/spec-" SPEC_ID ".tmp"
+	tc = 0
 
 	# Derive lib_base directory from LANG_LIB
 	n = split(LANG_LIB, _parts, "/")
@@ -52,7 +58,7 @@ function strip(s) {
 	return s
 }
 
-function flush(    cmd, line, output) {
+function collect() {
 	if (tname == "") return
 
 	tests++
@@ -67,32 +73,92 @@ function flush(    cmd, line, output) {
 		return
 	}
 
-	# Write input to temp file
-	printf "%s\n", input_buf > tmpfile
+	# Store test for batch execution
+	tc++
+	t_input[tc] = input_buf
+	t_expect[tc] = expect_buf
+	t_name[tc] = tname
+	t_unit[tc] = unit
+	t_unit_hdr[tc] = unit_hdr
+	t_lib[tc] = lib
+
+	unit_hdr = ""
+	tname = ""; input_buf = ""; expect_buf = ""
+	state = 0
+}
+
+function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
+	# Write test harness: a loop that uses %END% sentinel instead of EOF,
+	# so () input doesn't terminate the loop (read returns nil for both).
+	# Each test is wrapped in (do ...) so defs persist within the test
+	# but eval %r %E restores env between tests (no state leakage).
+	printf "%s\n", "(def %T (op () %E (def %r (read)) (if (eq? %r (lit %END%)) () (%seq (guard (err (display \"Error: \") (display err) (newline)) (%repl-print (eval %r %E))) (%T)))))" > tmpfile
+	printf "%s\n", "(%T)" > tmpfile
+
+	# Write all test inputs with separators
+	for (i = from; i <= to; i++) {
+		if (i > from)
+			printf "(display \"<<SEP>>\\n\")\n" > tmpfile
+		printf "(do %s)\n", t_input[i] > tmpfile
+	}
+	# Write sentinel to terminate the test loop
+	printf "%s\n", "%END%" > tmpfile
 	close(tmpfile)
 
-	# Run interpreter and capture output
-	cmd = "cat " q(lib) " " q(tmpfile) " | " q(X_BIN) " 2>/dev/null"
+	# Run single interpreter invocation (no REPL needed)
+	cmd = "{ cat " q(blib) "; cat " q(tmpfile) "; } | " q(X_BIN) " 2>/dev/null"
+
+	tidx = from
 	output = ""
 	while ((cmd | getline line) > 0) {
 		# Strip REPL prompts (> and $ prefixes, looping)
 		while (substr(line, 1, 2) == "> " || substr(line, 1, 2) == "$ ")
 			line = substr(line, 3)
-		if (line != "") output = line
+		if (line == "<<SEP>>") {
+			# End of test section
+			if (output == t_expect[tidx]) {
+				printf "%s%s.%s", t_unit_hdr[tidx], GREEN, RESET
+			} else {
+				fails++
+				printf "%s\n%sFAIL: %s: %s\n  expected: %s\n  got:      %s%s\n", \
+					t_unit_hdr[tidx], RED, t_unit[tidx], t_name[tidx], \
+					t_expect[tidx], output, RESET
+			}
+			tidx++
+			output = ""
+		} else if (line != "") {
+			output = line
+		}
 	}
 	close(cmd)
 
-	if (output == expect_buf) {
-		printf "%s%s.%s", unit_hdr, GREEN, RESET
-	} else {
-		fails++
-		printf "%s\n%sFAIL: %s: %s\n  expected: %s\n  got:      %s%s\n", \
-			unit_hdr, RED, unit, tname, expect_buf, output, RESET
+	# Check final test (no trailing separator)
+	if (tidx <= to) {
+		if (output == t_expect[tidx]) {
+			printf "%s%s.%s", t_unit_hdr[tidx], GREEN, RESET
+		} else {
+			fails++
+			printf "%s\n%sFAIL: %s: %s\n  expected: %s\n  got:      %s%s\n", \
+				t_unit_hdr[tidx], RED, t_unit[tidx], t_name[tidx], \
+				t_expect[tidx], output, RESET
+		}
 	}
+}
 
-	unit_hdr = ""
-	tname = ""; input_buf = ""; expect_buf = ""
-	state = 0
+function batch_run(    i, batch_start, cur_lib) {
+	if (tc == 0) return
+
+	batch_start = 1
+	cur_lib = t_lib[1]
+
+	for (i = 2; i <= tc; i++) {
+		if (t_lib[i] != cur_lib) {
+			run_batch(batch_start, i - 1, cur_lib)
+			batch_start = i
+			cur_lib = t_lib[i]
+		}
+	}
+	run_batch(batch_start, tc, cur_lib)
 }
 
 # Fenced code blocks (``` with optional language tag)
@@ -117,7 +183,7 @@ fenced == 1 { next }
 
 # Unit header (## heading)
 /^## / {
-	flush()
+	collect()
 	unit = substr($0, 4)
 	unit_hdr = sprintf("\n%s%s%s\n", BLUE, unit, RESET)
 	next
@@ -125,7 +191,7 @@ fenced == 1 { next }
 
 # Test header (### heading)
 /^### / {
-	flush()
+	collect()
 	tname = substr($0, 5)
 	state = 1
 	input_buf = ""
@@ -148,7 +214,7 @@ state == 1 && /^---$/ {
 
 # Blank lines end the current test section
 /^$/ {
-	if (state == 2) { flush() }
+	if (state == 2) { collect() }
 	next
 }
 
@@ -177,7 +243,8 @@ state == 2 && /^\t/ {
 }
 
 END {
-	flush()
+	collect()
+	batch_run()
 
 	# Write counts to temp file for aggregation
 	countfile = TMPDIR "/spec-" SPEC_ID ".cnt"
