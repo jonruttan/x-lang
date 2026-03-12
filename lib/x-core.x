@@ -16,6 +16,12 @@
 
 (def null? (fn (x) (eq? x ())))
 
+(def if (op (test then . else) e
+  (match
+    ((eval test e) (tail-eval then e))
+    ((null? else) ())
+    ((lit t) (tail-eval (first else) e)))))
+
 (def %let-params (fn (bindings)
   (match
     ((null? bindings) ())
