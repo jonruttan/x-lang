@@ -219,7 +219,7 @@
   (def %repl-prompt "> ")
   (def %repl-print (fn (result) (if (null? result) () (write result)) (newline)))
 
-  (def repl (op ()
+  (def repl (op () ()
     (display %repl-prompt)
     (def %r (read))
     (if (null? %r) ()
