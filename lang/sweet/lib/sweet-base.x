@@ -271,5 +271,14 @@
               (%repl-print (eval! %r)))
             (sweet-repl)))))
 
+  ; %test-read: read wrapper that skips SWEET-WS indent markers
+  ; Used by the test harness so %T doesn't try to evaluate markers
+  (def %test-read (fn ()
+    (def %tr (read))
+    (if (and (pair? %tr) (pair? (first %tr))
+             (eq? (first (first %tr)) (lit %indent)))
+      (%test-read)
+      %tr)))
+
   (sweet-repl)
 )

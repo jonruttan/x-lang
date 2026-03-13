@@ -30,6 +30,7 @@ BEGIN {
 	unit = ""; tname = ""; input_buf = ""; expect_buf = ""
 	lib = LANG_LIB
 	repl_cmd = REPL_CMD ? REPL_CMD : "(repl)"
+	read_fn = READ_FN ? READ_FN : "read"
 	unit_hdr = ""
 	tmpfile = TMPDIR "/spec-" SPEC_ID ".tmp"
 	tc = 0
@@ -88,22 +89,33 @@ function collect() {
 }
 
 function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
-	# Write test harness: a loop that uses %END% sentinel instead of EOF,
-	# so () input doesn't terminate the loop (read returns nil for both).
-	# Each test is wrapped in (begin ...) so defs persist within the test
-	# but eval %r %E restores env between tests (no state leakage).
-	printf "%s\n", "(def %T (op () %E (def %r (read)) (if (eq? %r (lit %END%)) () (%seq (guard (err (display \"Error: \") (display err) (newline)) (%repl-print (eval %r %E))) (%T)))))" > tmpfile
-	printf "%s\n", "(%T)" > tmpfile
-
-	# Write all test inputs with separators
-	for (i = from; i <= to; i++) {
-		if (i > from)
-			printf "(heap-collect) (%%profile-dump) (display \"<<SEP>>\\n\")\n" > tmpfile
-		printf "(begin %s)\n", t_input[i] > tmpfile
+	if (repl_cmd == " ") {
+		# Direct mode: feed tests to the personality REPL without
+		# %T harness or (begin ...) wrapper.  Used by Sweet where
+		# indentation-based grouping must see raw newlines/tokens.
+		# Each separator on its own line so sweet-read doesn't group them.
+		printf "" > tmpfile
+		for (i = from; i <= to; i++) {
+			if (i > from) {
+				printf "(heap-collect)\n" > tmpfile
+				printf "(%%profile-dump)\n" > tmpfile
+				printf "(display \"<<SEP>>\\n\")\n" > tmpfile
+			}
+			printf "%s\n", t_input[i] > tmpfile
+		}
+		close(tmpfile)
+	} else {
+		# Standard mode: %T harness with (begin ...) wrapping.
+		printf "(def %%T (op () %%E (def %%r (%s)) (if (eq? %%r (lit %%END%%)) () (%%seq (guard (err (display \"Error: \") (display err) (newline)) (%%repl-print (eval %%r %%E))) (%%T)))))\n", read_fn > tmpfile
+		printf "%s\n", "(%T)" > tmpfile
+		for (i = from; i <= to; i++) {
+			if (i > from)
+				printf "(heap-collect) (%%profile-dump) (display \"<<SEP>>\\n\")\n" > tmpfile
+			printf "(begin %s)\n", t_input[i] > tmpfile
+		}
+		printf "%s\n", "%END%" > tmpfile
+		close(tmpfile)
 	}
-	# Write sentinel to terminate the test loop
-	printf "%s\n", "%END%" > tmpfile
-	close(tmpfile)
 
 	# Run single interpreter invocation (no REPL needed)
 	cmd = "{ cat " q(blib) "; cat " q(tmpfile) "; } | " q(X_BIN) " 2>/dev/null"
