@@ -142,7 +142,8 @@
     (%stderr (first-int (first (first (rest (rest (rest (rest (rest (first (%base)))))))))))
     (%stderr " ")
     (%stderr (heap-count))
-    (%stderr "\n")))
+    (%stderr "\n")
+    ()))
 
   (include "lib/x/fn.x")
   (include "lib/x/math.x")
