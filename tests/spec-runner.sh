@@ -53,6 +53,24 @@ for _spec in "$SPEC_PATH"/*.spec.md; do
   ) &
 done
 
+# Also run applicative specs unless UNIT_ONLY is set.
+if [ -z "$UNIT_ONLY" ] && [ -d "$SPEC_PATH/applicative" ]; then
+  for _spec in "$SPEC_PATH"/applicative/*.spec.md; do
+    [ -f "$_spec" ] || continue
+    _I=$_N
+    _N=$((_N+1))
+    (
+      awk -v X_BIN="$X_BIN" \
+          -v LANG_LIB="$LANG_LIB" \
+          -v REPL_CMD="${REPL_CMD:-(repl)}" \
+          -v READ_FN="${READ_FN:-read}" \
+          -v TMPDIR="$_TMPDIR" \
+          -v SPEC_ID="$_I" \
+          -f "$RUNNER" "$_spec"
+    ) &
+  done
+fi
+
 wait
 
 # Collect counts.
