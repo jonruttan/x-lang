@@ -82,8 +82,18 @@
   (def string-length (fn (s) (s)))
   (def substring (fn (s start end) (s start (- end start))))
   (def heap-collect (fn () (heap-mark) (heap-sweep)))
+  (def % (fn (a b) (- a (* b (/ a b)))))
   (def %rewrite (fn (p a b) (set-first p a) (set-rest p b) p))
   (def %expanded (pair () ()))
+  (def %string-eq-loop (fn (a b i len)
+    (if (= i len) (lit t)
+      (if (= (char->integer (a i)) (char->integer (b i)))
+        (%string-eq-loop a b (+ i 1) len)
+        ()))))
+  (def string=? (fn (a b)
+    (if (= (a) (b))
+      (%string-eq-loop a b 0 (a))
+      ())))
 
   ; --- Core forms as operatives ---
   ; Compile-on-first-use: expand to if-tree, cache in source form via %rewrite.
@@ -163,6 +173,7 @@
   (def %int- -)
   (def %int* *)
   (def %int/ /)
+  (def %int% %)
   (def %int< <)
   (def %int= =)
   (def %int-number? number?)
@@ -185,6 +196,9 @@
         (%int- 0 (first args))
         (fold %int- (first args) (rest args))))))
 
+  (set % (fn args
+    (fold %int% (first args) (rest args))))
+
   ; --- Intrinsic scoring helpers for custom type analysers ---
   (def buffer-len (fn (buffer)
     (- (first-int (rest buffer)) (first-int buffer))))
@@ -193,6 +207,16 @@
   (def score-set (fn (score sign buffer reader)
     (%seq (set-first-int score (* sign (buffer-len buffer)))
           (set-rest score reader))))
+
+  (def peek-char (fn ()
+    (def %ch (read-char))
+    (if (null? %ch) ()
+      (do (buffer-unread
+            (first (first (rest (rest (first (rest (rest (first (%base))))))))))
+          %ch))))
+
+  (def current-line (fn ()
+    (first-int (first (rest (rest (rest (rest (first (%base))))))))))
 
   (include "lib/x/alist.x")
   (include "lib/x/string.x")
