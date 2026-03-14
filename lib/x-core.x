@@ -147,15 +147,15 @@
 
   ; Write to stderr (swap fileout fd, display, restore)
   (def %stderr (fn (msg)
-    (def %fo (rest (first (rest (first (%base))))))
+    (def %fo (first (rest (first (rest (first (%base)))))))
     (def %s (first-int %fo))
-    (set-first-int %fo (first-int (rest (rest (first (rest (first (%base))))))))
+    (set-first-int %fo (first-int (first (rest (rest (first (rest (first (%base)))))))))
     (display msg)
     (set-first-int %fo %s)))
 
   ; Dump alloc-count and heap-count to stderr
   (def %profile-dump (fn ()
-    (%stderr (first-int (first (first (rest (rest (rest (rest (rest (first (%base)))))))))))
+    (%stderr (first-int (first (first (first (rest (rest (rest (rest (rest (first (%base))))))))))))
     (%stderr " ")
     (%stderr (heap-count))
     (%stderr "\n")
@@ -216,7 +216,7 @@
           %ch))))
 
   (def current-line (fn ()
-    (first-int (first (rest (rest (rest (rest (first (%base))))))))))
+    (first-int (first (first (rest (rest (rest (rest (first (%base)))))))))))
 
   (include "lib/x/alist.x")
   (include "lib/x/string.x")

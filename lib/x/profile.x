@@ -3,19 +3,20 @@
 ; Requires: lib/x-core.x (%stderr already defined there)
 
 ; Navigate base to profile list:
-; (%base) -> (type-alist (files) (env) p-true line-number (a e t))
+; (%base) -> (type-alist-stack (files) (env) true-stack line-stack (a e t) (hooks) save)
+; Each counter is stack-wrapped: (atom(n) . nil)
 (def %profile (fn () (first (rest (rest (rest (rest (rest (first (%base))))))))))
 
-; Read counters
-(def alloc-count (fn () (first-int (first (%profile)))))
-(def eval-count  (fn () (first-int (first (rest (%profile))))))
-(def tco-count   (fn () (first-int (first (rest (rest (%profile)))))))
+; Read counters (extra first to unwrap stack)
+(def alloc-count (fn () (first-int (first (first (%profile))))))
+(def eval-count  (fn () (first-int (first (first (rest (%profile)))))))
+(def tco-count   (fn () (first-int (first (first (rest (rest (%profile))))))))
 
-; Reset counters
+; Reset counters (set-first-int on the stack-wrapped atom)
 (def profile-reset (fn ()
-  (set-first-int (first (%profile)) 0)
-  (set-first-int (first (rest (%profile))) 0)
-  (set-first-int (first (rest (rest (%profile)))) 0)))
+  (set-first-int (first (first (%profile))) 0)
+  (set-first-int (first (first (rest (%profile)))) 0)
+  (set-first-int (first (first (rest (rest (%profile))))) 0)))
 
 ; --- Heap collection ---
 
