@@ -4,6 +4,12 @@
 ; X_OBJ_FLAG_2 (0x2). After evaluating target code, walks the AST
 ; to report which if/match/cond branches were never taken.
 ;
+; Architecture: uses a handler-dispatch pattern inspired by the type
+; evaluator dispatch. Each branch form type (if, match, cond) gets
+; its own evaluator function, and a generic walker dispatches to the
+; appropriate one via a lookup table. New branch forms can be added
+; by extending the dispatch table.
+;
 ; Input: the shell wrapper pipes the file content as a quoted string
 ; literal after the library+coverage tool on stdin.
 
@@ -58,80 +64,90 @@
   (%eval-loop)
 
   ; --- Walk AST and report uncovered branches ---
+  ;
+  ; Handler-dispatch walker: each branch form type has its own
+  ; evaluator in the dispatch table. The generic walker looks up
+  ; the form head and delegates to the matching evaluator.
 
   (def %total-branches 0)
   (def %covered-branches 0)
   (def %uncovered ())
 
-  ; Forward declarations
-  (def %walk-cov ())
-  (def %walk-cov-list ())
+  ; Record a branch, checking if it was covered
+  (def %check-branch (fn (kind form)
+    (set %total-branches (+ %total-branches 1))
+    (if (%marked? form)
+      (set %covered-branches (+ %covered-branches 1))
+      (set %uncovered
+        (pair (list kind form (obj-meta-ref form 0)) %uncovered)))))
 
-  ; Walk a list of forms
-  (set %walk-cov-list (fn (forms)
-    (if (null? forms) ()
-      (if (pair? forms)
-        (do (%walk-cov (first forms))
-            (%walk-cov-list (rest forms)))
-        ()))))
+  ; --- Per-type evaluators ---
 
-  ; Walk a form, checking branch coverage
-  (set %walk-cov (fn (form)
+  ; if: check then and else branches
+  (def %if-eval (fn (form walk)
+    (def args (rest form))
+    (if (null? args) ()
+      (do
+        (walk (first args))
+        (def then-else (rest args))
+        (if (null? then-else) ()
+          (do
+            (def then-form (first then-else))
+            (%check-branch (lit if-then) then-form)
+            (walk then-form)
+
+            (def else-rest (rest then-else))
+            (if (null? else-rest) ()
+              (do
+                (def else-form (first else-rest))
+                (%check-branch (lit if-else) else-form)
+                (walk else-form)))))))))
+
+  ; match/cond: check each clause body
+  (def %clause-eval (fn (form walk)
+    (for-each (fn (clause)
+      (if (pair? clause)
+        (do
+          (def body (rest clause))
+          (if (null? body) ()
+            (do
+              (def body-form (first body))
+              (%check-branch (lit clause) body-form)
+              (walk body-form))))
+        ()))
+      (rest form))))
+
+  ; --- Dispatch table ---
+  ; Maps form head symbols to their evaluator functions.
+  ; Extend this list to track coverage for new branch forms.
+
+  (def %dispatch (list
+    (pair (lit if) %if-eval)
+    (pair (lit match) %clause-eval)
+    (pair (lit cond) %clause-eval)))
+
+  ; Lookup helper
+  (def %lookup (fn (key table)
+    (if (null? table) ()
+      (if (eq? key (first (first table)))
+        (first table)
+        (%lookup key (rest table))))))
+
+  ; --- Generic walker ---
+  ; Dispatches to per-type evaluator or recurses into subforms.
+
+  (def %cov-eval ())
+  (set %cov-eval (fn (form)
     (if (null? form) ()
       (if (not (pair? form)) ()
         (do
-          (def head (first form))
-
-          ; if: check then and else branches
-          (if (eq? head (lit if))
-            (do
-              (def args (rest form))
-              (if (null? args) ()
-                (do
-                  ; condition
-                  (%walk-cov (first args))
-                  (def then-else (rest args))
-                  (if (null? then-else) ()
-                    (do
-                      (def then-form (first then-else))
-                      (set %total-branches (+ %total-branches 1))
-                      (if (%marked? then-form)
-                        (set %covered-branches (+ %covered-branches 1))
-                        (set %uncovered (pair (list (lit if-then) then-form (obj-meta-ref then-form 0)) %uncovered)))
-                      (%walk-cov then-form)
-
-                      (def else-rest (rest then-else))
-                      (if (null? else-rest) ()
-                        (do
-                          (def else-form (first else-rest))
-                          (set %total-branches (+ %total-branches 1))
-                          (if (%marked? else-form)
-                            (set %covered-branches (+ %covered-branches 1))
-                            (set %uncovered (pair (list (lit if-else) else-form (obj-meta-ref else-form 0)) %uncovered)))
-                          (%walk-cov else-form))))))))
-
-            ; match/cond: check each clause body
-            (if (or (eq? head (lit match)) (eq? head (lit cond)))
-              (for-each (fn (clause)
-                (if (pair? clause)
-                  (do
-                    (def body (rest clause))
-                    (if (null? body) ()
-                      (do
-                        (def body-form (first body))
-                        (set %total-branches (+ %total-branches 1))
-                        (if (%marked? body-form)
-                          (set %covered-branches (+ %covered-branches 1))
-                          (set %uncovered (pair (list (lit clause) body-form (obj-meta-ref body-form 0)) %uncovered)))
-                        (%walk-cov body-form))))
-                  ()))
-                (rest form))
-
-              ; Default: walk all subforms
-              (%walk-cov-list form))))))))
+          (def handler (%lookup (first form) %dispatch))
+          (if handler
+            ((rest handler) form %cov-eval)
+            (for-each %cov-eval form)))))))
 
   ; Walk all top-level forms
-  (%walk-cov-list %tokens)
+  (for-each %cov-eval %tokens)
 
   ; --- Report ---
 
