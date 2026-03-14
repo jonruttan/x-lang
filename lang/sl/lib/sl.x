@@ -14,9 +14,8 @@
 ;     {O,O}
 ;     (   )
 ;      " "
+(include "lib/x-core.x")
 (do (def sl-lib-version "0.7.0")
-
-  (include "lib/x-core.x")
 
   ; =========================================================
   ; Scheme-compatible aliases
