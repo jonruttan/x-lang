@@ -75,3 +75,47 @@
 ```
 ---
     99
+
+## meta: tokenizer line stamping
+
+### token-read-string stamps line 1 on first token
+
+```scheme
+(do
+  (obj-meta-extra! 3)
+  (def %tokens (token-read-string (%base) "(+ 1 2)\n"))
+  (display (obj-meta-ref (first %tokens) 0)))
+```
+---
+    1
+
+### tokens on different lines get correct line numbers
+
+```scheme
+(do
+  (obj-meta-extra! 3)
+  (def %tokens (token-read-string (%base) "(+ 1 2)\n(- 3 4)\n"))
+  (display (obj-meta-ref (first %tokens) 0))
+  (display " ")
+  (display (obj-meta-ref (first (rest %tokens)) 0)))
+```
+---
+    1 2
+
+### nested form elements get correct line numbers
+
+```scheme
+(do
+  (obj-meta-extra! 3)
+  (def %tokens (token-read-string (%base) "(if t\n  1\n  2)\n"))
+  (def %form (first %tokens))
+  (def %then (first (rest (rest %form))))
+  (def %else (first (rest (rest (rest %form)))))
+  (display (obj-meta-ref %form 0))
+  (display " ")
+  (display (obj-meta-ref %then 0))
+  (display " ")
+  (display (obj-meta-ref %else 0)))
+```
+---
+    1 2 3

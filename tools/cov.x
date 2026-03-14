@@ -28,6 +28,12 @@
     (if (null? obj) t
       (> (& (obj-flags obj) %cov-bit) 0))))
 
+  ; --- Enable extra metadata for line tracking ---
+  ; One extra slot per object to store source line numbers.
+  ; The tokenizer stamps slot 0 with the line where each token starts.
+
+  (obj-meta-extra! 1)
+
   ; --- Tokenize input ---
   ; Must use (%base) so parsed symbols are interned in the current
   ; symbol table — otherwise eval won't find if/def/fn etc.
@@ -91,7 +97,7 @@
                       (set %total-branches (+ %total-branches 1))
                       (if (%marked? then-form)
                         (set %covered-branches (+ %covered-branches 1))
-                        (set %uncovered (pair (list (lit if-then) then-form) %uncovered)))
+                        (set %uncovered (pair (list (lit if-then) then-form (obj-meta-ref then-form 0)) %uncovered)))
                       (%walk-cov then-form)
 
                       (def else-rest (rest then-else))
@@ -101,7 +107,7 @@
                           (set %total-branches (+ %total-branches 1))
                           (if (%marked? else-form)
                             (set %covered-branches (+ %covered-branches 1))
-                            (set %uncovered (pair (list (lit if-else) else-form) %uncovered)))
+                            (set %uncovered (pair (list (lit if-else) else-form (obj-meta-ref else-form 0)) %uncovered)))
                           (%walk-cov else-form))))))))
 
             ; match/cond: check each clause body
@@ -116,7 +122,7 @@
                         (set %total-branches (+ %total-branches 1))
                         (if (%marked? body-form)
                           (set %covered-branches (+ %covered-branches 1))
-                          (set %uncovered (pair (list (lit clause) body-form) %uncovered)))
+                          (set %uncovered (pair (list (lit clause) body-form (obj-meta-ref body-form 0)) %uncovered)))
                         (%walk-cov body-form))))
                   ()))
                 (rest form))
@@ -142,7 +148,12 @@
         (do
           (display "Uncovered branches:\n")
           (for-each (fn (entry)
-            (display "  ")
+            (def line (first (rest (rest entry))))
+            (if (> line 0)
+              (do (display "  line ")
+                  (display line)
+                  (display ": "))
+              (display "  "))
             (display (first entry))
             (display ": ")
             (write (first (rest entry)))
