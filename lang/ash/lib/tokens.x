@@ -32,9 +32,8 @@
 (def buffer-unread (fn (buffer)
   (set-first-int (rest buffer) (- (first-int (rest buffer)) 1))))
 
-(def score-set (fn (score sign buffer reader)
-  (do (set-first-int score (* sign (buffer-len buffer)))
-      (set-rest score reader))))
+(def score-set (fn (score sign buffer)
+  (set-first-int score (* sign (buffer-len buffer)))))
 
 ; --- Helpers ---
 
@@ -72,13 +71,13 @@
 (def %sh-ws-continue ())
 (set %sh-ws-continue (fn (buffer score chr)
   (if (%sh-ws? chr) %sh-ws-continue
-    (do (buffer-unread buffer) (score-set score (- 0 1) buffer %token-discard)))))
+    (do (buffer-unread buffer) (score-set score (- 0 1) buffer)))))
 
 (base-make-type %sh-base "SH-WS"
   (list
     (pair (lit analyse) (fn (buffer score chr)
       (if (%sh-ws? chr)
-        (do (score-set score (- 0 1) buffer %token-discard) %sh-ws-continue)
+        (do (score-set score (- 0 1) buffer) %sh-ws-continue)
         ())))))
 
 ; --- sh-newline: \n as a token (positive/deterministic) ---
@@ -89,22 +88,23 @@
   (list
     (pair (lit analyse) (fn (buffer score chr)
       (if (= chr (char->integer #\newline))
-        (score-set score 1 buffer %sh-nl-read)
-        ())))))
+        (score-set score 1 buffer)
+        ())))
+    (pair (lit read) %sh-nl-read)))
 
 ; --- sh-comment: # to end of line (discarded, negative/greedy) ---
 
 (def %sh-comment-body ())
 (set %sh-comment-body (fn (buffer score chr)
   (if (= chr (char->integer #\newline))
-    (do (buffer-unread buffer) (score-set score (- 0 1) buffer %token-discard))
+    (do (buffer-unread buffer) (score-set score (- 0 1) buffer))
     %sh-comment-body)))
 
 (base-make-type %sh-base "SH-COMMENT"
   (list
     (pair (lit analyse) (fn (buffer score chr)
       (if (= chr (char->integer #\#))
-        (do (score-set score (- 0 1) buffer %token-discard) %sh-comment-body)
+        (do (score-set score (- 0 1) buffer) %sh-comment-body)
         ())))))
 
 ; --- sh-operator: single and multi-character operators (positive) ---
@@ -121,8 +121,8 @@
 (def %sh-op-triple (fn (c1 c2)
   (fn (buffer score chr)
     (if (and (= c1 (char->integer #\<)) (= c2 (char->integer #\<)) (= chr (char->integer #\-)))
-      (score-set score 1 buffer %sh-op-reader)
-      (do (buffer-unread buffer) (score-set score 1 buffer %sh-op-reader))))))
+      (score-set score 1 buffer)
+      (do (buffer-unread buffer) (score-set score 1 buffer))))))
 
 ; Check for double operators
 (def %sh-op-double (fn (c1)
@@ -132,20 +132,20 @@
       ((= chr c1)
         (if (or (= c1 (char->integer #\<)) (= c1 (char->integer #\>)))
           ; < or > can extend to triple
-          (do (score-set score 1 buffer %sh-op-reader) (%sh-op-triple c1 (+ chr 0)))
-          (score-set score 1 buffer %sh-op-reader)))
+          (do (score-set score 1 buffer) (%sh-op-triple c1 (+ chr 0)))
+          (score-set score 1 buffer)))
       ; <& or >&
       ((and (or (= c1 (char->integer #\<)) (= c1 (char->integer #\>))) (= chr (char->integer #\&)))
-        (score-set score 1 buffer %sh-op-reader))
+        (score-set score 1 buffer))
       ; <> (c1 = <, chr = >)
       ((and (= c1 (char->integer #\<)) (= chr (char->integer #\>)))
-        (score-set score 1 buffer %sh-op-reader))
+        (score-set score 1 buffer))
       ; >| (c1 = >, chr = |)
       ((and (= c1 (char->integer #\>)) (= chr (char->integer #\|)))
-        (score-set score 1 buffer %sh-op-reader))
+        (score-set score 1 buffer))
       ; Not a double — un-read, score the single
       (t
-        (do (buffer-unread buffer) (score-set score 1 buffer %sh-op-reader)))))))
+        (do (buffer-unread buffer) (score-set score 1 buffer)))))))
 
 (base-make-type %sh-base "SH-OP"
   (list
@@ -153,22 +153,25 @@
       (if (%sh-op-start? chr)
         ; ( and ) are always single-char
         (if (or (= chr (char->integer #\()) (= chr (char->integer #\))))
-          (score-set score 1 buffer %sh-op-reader)
-          (do (score-set score 1 buffer %sh-op-reader) (%sh-op-double (+ chr 0))))
-        ())))))
+          (score-set score 1 buffer)
+          (do (score-set score 1 buffer) (%sh-op-double (+ chr 0))))
+        ())))
+    (pair (lit read) %sh-op-reader)))
 
 ; --- sh-sq-string: single-quoted strings (positive) ---
 ;
 ; Everything between ' and ' is literal (no escapes).
 ; Accumulates chars into a list; score is computed from bufferlen.
 
+(def %sh-sq-read-data ())
+(def %sh-sq-read (fn args (mk-tok-sq %sh-sq-read-data)))
+
 (def %sh-sq-body ())
 (set %sh-sq-body (fn (acc)
   (fn (buffer score chr)
     (if (= chr (char->integer #\'))
-      (score-set score 1 buffer
-        ((fn (s) (fn args (mk-tok-sq s)))
-         (list->string (reverse acc))))
+      (do (set %sh-sq-read-data (list->string (reverse acc)))
+          (score-set score 1 buffer))
       (%sh-sq-body (pair (integer->char (+ chr 0)) acc))))))
 
 (base-make-type %sh-base "SH-SQ"
@@ -176,7 +179,8 @@
     (pair (lit analyse) (fn (buffer score chr)
       (if (= chr (char->integer #\'))
         (%sh-sq-body ())
-        ())))))
+        ())))
+    (pair (lit read) %sh-sq-read)))
 
 ; --- sh-dq-string: double-quoted strings (positive) ---
 ;
@@ -199,14 +203,16 @@
         (%sh-dq-body (pair (integer->char (+ chr 0))
                        (pair #\\ acc))))))))
 
+(def %sh-dq-read-data ())
+(def %sh-dq-read (fn args (mk-tok-dq %sh-dq-read-data)))
+
 (set %sh-dq-body (fn (acc)
   (fn (buffer score chr)
     (match
       ; Closing quote
       ((= chr (char->integer #\"))
-        (score-set score 1 buffer
-          ((fn (s) (fn args (mk-tok-dq s)))
-           (list->string (reverse acc)))))
+        (do (set %sh-dq-read-data (list->string (reverse acc)))
+            (score-set score 1 buffer)))
       ; Backslash escape
       ((= chr (char->integer #\\))
         (%sh-dq-escape acc))
@@ -219,7 +225,8 @@
     (pair (lit analyse) (fn (buffer score chr)
       (if (= chr (char->integer #\"))
         (%sh-dq-body ())
-        ())))))
+        ())))
+    (pair (lit read) %sh-dq-read)))
 
 ; --- sh-word: unquoted words (catch-all, negative/greedy) ---
 ;
@@ -230,15 +237,16 @@
 (def %sh-word-body ())
 (set %sh-word-body (fn (buffer score chr)
   (if (%sh-word-break? chr)
-    (do (buffer-unread buffer) (score-set score (- 0 1) buffer %sh-word-reader))
+    (do (buffer-unread buffer) (score-set score (- 0 1) buffer))
     %sh-word-body)))
 
 (base-make-type %sh-base "SH-WORD"
   (list
     (pair (lit analyse) (fn (buffer score chr)
       (if (not (%sh-word-break? chr))
-        (do (score-set score (- 0 1) buffer %sh-word-reader) %sh-word-body)
-        ())))))
+        (do (score-set score (- 0 1) buffer) %sh-word-body)
+        ())))
+    (pair (lit read) %sh-word-reader)))
 
 ; --- INTEGER: pre-register with shell-compatible reader (positive) ---
 ;
@@ -254,15 +262,16 @@
   (match
     ((%sh-digit? chr) %sh-int-body)
     ((%sh-word-break? chr)
-      (do (buffer-unread buffer) (score-set score 1 buffer %sh-word-reader)))
+      (do (buffer-unread buffer) (score-set score 1 buffer)))
     (t ()))))
 
 (base-make-type %sh-base "INTEGER"
   (list
     (pair (lit analyse) (fn (buffer score chr)
       (if (%sh-digit? chr)
-        (do (score-set score 1 buffer %sh-word-reader) %sh-int-body)
-        ())))))
+        (do (score-set score 1 buffer) %sh-int-body)
+        ())))
+    (pair (lit read) %sh-word-reader)))
 
 ; --- Convenience: tokenize a string ---
 

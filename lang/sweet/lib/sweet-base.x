@@ -23,9 +23,8 @@
   (define (buffer-unread buf)
     (set-first-int (cdr buf) (- (first-int (cdr buf)) 1)))
 
-  (define (score-set score sign buf reader)
-    (%seq (set-first-int score (* sign (buffer-len buf)))
-          (set-rest score reader)))
+  (define (score-set score sign buf)
+    (set-first-int score (* sign (buffer-len buf))))
 
   ; --- Infix-to-prefix transformer (SRFI-105) ---
 
@@ -109,8 +108,9 @@
     (list
       (cons (lit analyse) (lambda (buffer score chr)
         (if (or (= chr (char->integer #\{)) (= chr (char->integer #\})))
-          (score-set score 1 buffer %sweet-curly-reader)
+          (score-set score 1 buffer)
           ())))
+      (cons (lit read) %sweet-curly-reader)
       (cons (lit delimit) (lambda (buffer score chr)
         (if (or (= chr (char->integer #\{)) (= chr (char->integer #\})))
           (%seq (buffer-unread buffer) buffer)
@@ -153,7 +153,7 @@
           (if (or (= chr 13) (= chr 11) (= chr 12))  ; CR, VT, FF
             %sweet-ws-a2
             (if %sweet-ws-saw-nl                 ; non-WS: finalize
-              (score-set score 1 buffer %sweet-ws-reader)
+              (score-set score 1 buffer)
               ())))))))
 
   ; Analyse state 1: first char must be whitespace
@@ -170,6 +170,7 @@
   (make-type "SWEET-WS"
     (list
       (cons (lit analyse) %sweet-ws-a1)
+      (cons (lit read) %sweet-ws-reader)
       (cons (lit delimit) (lambda (buffer score chr)
         (if (%sweet-ws-char? chr)
           (%seq (buffer-unread buffer) buffer)

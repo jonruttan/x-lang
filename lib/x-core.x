@@ -204,9 +204,8 @@
     (- (first-int (rest buffer)) (first-int buffer))))
   (def buffer-unread (fn (buffer)
     (set-first-int (rest buffer) (- (first-int (rest buffer)) 1))))
-  (def score-set (fn (score sign buffer reader)
-    (%seq (set-first-int score (* sign (buffer-len buffer)))
-          (set-rest score reader))))
+  (def score-set (fn (score sign buffer)
+    (set-first-int score (* sign (buffer-len buffer)))))
 
   (def peek-char (fn ()
     (def %ch (read-char))

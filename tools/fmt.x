@@ -1,8 +1,8 @@
 ; fmt.x -- x-lang comment-preserving formatter
 ;
-; Pushes a keeping reader onto the built-in COMMENT type's analyse
-; stack so ;-comments are captured as (%comment "text") tokens instead
-; of being discarded.
+; Pushes a keeping reader onto the built-in COMMENT type's read stack
+; so ;-comments are captured as (%comment "text") tokens instead of
+; being discarded (null read = discard).
 ;
 ; Input: the shell wrapper pipes the file content as a quoted string
 ; literal after the library+formatter on stdin.
@@ -16,26 +16,13 @@
   (def %fmt-comment-reader (fn args
     (list (lit %comment) (buffer-token (first args)))))
 
-  ; Analyse continuation: consume until newline
-  (def %fmt-comment-body ())
-  (set %fmt-comment-body (fn (buffer score chr)
-    (if (= chr 10)
-      (score-set score 1 buffer %fmt-comment-reader)
-      %fmt-comment-body)))
-
-  ; Analyse entry: match ';'
-  (def %fmt-comment-analyse (fn (buffer score chr)
-    (if (= chr 59)
-      (do (score-set score 1 buffer %fmt-comment-reader) %fmt-comment-body)
-      ())))
-
   ; Navigate type struct: entry = (handle . type-struct)
-  ; type-struct has 6 elements, io is the 6th
-  ; io = (analyse-stack delimit-stack write-stack display-stack error-stack)
+  ; type-struct has 7 elements, io is the 7th
+  ; io = (analyse-stack delimit-stack read-stack write-stack display-stack error-stack)
   (def %entry-io (fn (entry)
     (first (rest (rest (rest (rest (rest (rest entry)))))))))
 
-  ; Find COMMENT entry: first with (analyse + delimit + no write)
+  ; Find COMMENT entry: first with (analyse + delimit + no read + no write)
   (def %find-comment (fn (alist)
     (if (null? alist) ()
       (do (def io (%entry-io (first alist)))
@@ -45,10 +32,11 @@
             (first alist)
             (%find-comment (rest alist)))))))
 
-  ; Push keeping analyse onto COMMENT's analyse stack
+  ; Push keeping reader onto COMMENT's read stack
   (def %comment-entry (%find-comment (first (first (first %fmt-base)))))
   (def %comment-io (%entry-io %comment-entry))
-  (set-first (first %comment-io) %fmt-comment-analyse)
+  (def %comment-read-stack (first (rest (rest %comment-io))))
+  (set-first %comment-read-stack %fmt-comment-reader)
 
   ; --- Read input string (next form on stdin) and tokenize ---
   ; The shell wrapper pipes the file content as a quoted string literal.

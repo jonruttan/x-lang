@@ -19,9 +19,10 @@
       (if (= chr (char->integer #\#))
         (fn (buffer score chr)
           (if (= chr (char->integer #\())
-            (do (buffer-unread buffer) (score-set score 1 buffer %vector-read))
+            (do (buffer-unread buffer) (score-set score 1 buffer))
             ()))
         ())))
+    (pair (lit read) (fn args (%vector-read (first args))))
     (pair (lit from)
       (list
         (pair (type-of (pair 1 ())) (fn (value)

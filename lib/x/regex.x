@@ -119,6 +119,13 @@
 (def %regex ())
 (def %regex-escape ())
 
+; Shared data cell for dynamic reader: analyser writes, reader reads
+(def %regex-read-data ())
+
+; Static reader: creates regex instance from shared data
+(def %regex-read (fn args
+  (make-instance %regex %regex-read-data)))
+
 ; Create a reader closure that captures the compiled AST
 (def %regex-make-reader (fn (ast)
   (fn args
@@ -131,8 +138,8 @@
     (match
       ; End of pattern
       ((= chr #\/)
-        (score-set score 1 buffer
-          (%regex-make-reader (reverse acc))))
+        (do (set %regex-read-data (reverse acc))
+            (score-set score 1 buffer)))
       ; Escape: next char is literal
       ((= chr #\\)
         (%regex-escape acc))
@@ -176,6 +183,7 @@
       (display "#/")
       (%regex-write (first self))
       (display "/")))
+    (pair (lit read) %regex-read)
     (pair (lit analyse) (fn (buffer score chr)
       (if (= chr #\#)
         (fn (buffer score chr)
