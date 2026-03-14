@@ -77,6 +77,12 @@
   (def not null?)
   (def atom? (fn (x) (not (pair? x))))
   (def list (fn args args))
+  (def newline (fn () (display "\n")))
+  (def string-ref (fn (s i) (s i)))
+  (def string-length (fn (s) (s)))
+  (def substring (fn (s start end) (s start (- end start))))
+  (def heap-collect (fn () (heap-mark) (heap-sweep)))
+  (def %rewrite (fn (p a b) (set-first p a) (set-rest p b) p))
   (def %expanded (pair () ()))
 
   ; --- Core forms as operatives ---
