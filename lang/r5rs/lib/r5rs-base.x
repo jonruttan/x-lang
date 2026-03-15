@@ -138,15 +138,20 @@
       (eval (list (lit let) (list (first bindings))
                   (pair (lit let*) (pair (rest bindings) body))) e))))
 
-  ; --- R5RS cond (multi-expression clause bodies) ---
+  ; --- R5RS cond (multi-expression clause bodies + => syntax) ---
   (define cond (op clauses e
     (let %cond-loop ((cls clauses))
       (if (null? cls) ()
         (let ((clause (first cls)))
-          (if (or (eq? (first clause) (lit else))
-                  (eval (first clause) e))
+          (if (eq? (first clause) (lit else))
             (eval (pair (lit begin) (rest clause)) e)
-            (%cond-loop (rest cls))))))))
+            (let ((test-val (eval (first clause) e)))
+              (if test-val
+                (if (and (pair? (rest clause))
+                         (eq? (cadr clause) (lit =>)))
+                  ((eval (caddr clause) e) test-val)
+                  (eval (pair (lit begin) (rest clause)) e))
+                (%cond-loop (rest cls))))))))))
 
   ; --- Promises ---
   (define %promise (make-type (lit PROMISE)
@@ -168,7 +173,7 @@
   (define (force p)
     (if (promise? p) ((first p)) p))
 
-  ; --- case ---
+  ; --- case (multi-expression clause bodies) ---
   (def case (op (key . clauses) e
     (def case-val (eval key e))
     (def case-match? (fn (datum)
@@ -183,7 +188,7 @@
         ((null? cls) ())
         ((or (eq? (first (first cls)) (lit else))
              (case-check-datums (first (first cls))))
-          (eval (cadr (first cls)) e))
+          (eval (pair (lit begin) (rest (first cls))) e))
         (t (case-loop (rest cls))))))
     (case-loop clauses)))
 
@@ -288,6 +293,67 @@
 
   ; --- String constructor ---
   (define (string . chars) (list->string chars))
+
+  ; --- Variadic string-append (R5RS: takes any number of args) ---
+  (define %string-append-2 string-append)
+  (define (string-append . args)
+    (if (null? args) ""
+      (let loop ((rest (cdr args)) (acc (car args)))
+        (if (null? rest) acc
+          (loop (cdr rest) (%string-append-2 acc (car rest)))))))
+
+  ; --- integer? (all x-lang numbers are integers) ---
+  (define (integer? x) (number? x))
+
+  ; --- Character classification ---
+  (define (char-alphabetic? c)
+    (let ((n (char->integer c)))
+      (or (and (>= n 65) (<= n 90))
+          (and (>= n 97) (<= n 122)))))
+
+  (define (char-numeric? c)
+    (let ((n (char->integer c)))
+      (and (>= n 48) (<= n 57))))
+
+  (define (char-whitespace? c)
+    (let ((n (char->integer c)))
+      (or (= n 32) (= n 9) (= n 10) (= n 13) (= n 12))))
+
+  (define (char-upper-case? c)
+    (let ((n (char->integer c)))
+      (and (>= n 65) (<= n 90))))
+
+  (define (char-lower-case? c)
+    (let ((n (char->integer c)))
+      (and (>= n 97) (<= n 122))))
+
+  ; --- Character case conversion ---
+  (define (char-upcase c)
+    (if (char-lower-case? c)
+      (integer->char (- (char->integer c) 32))
+      c))
+
+  (define (char-downcase c)
+    (if (char-upper-case? c)
+      (integer->char (+ (char->integer c) 32))
+      c))
+
+  ; --- Case-insensitive character comparison ---
+  (define (char-ci=? a b) (char=? (char-downcase a) (char-downcase b)))
+  (define (char-ci<? a b) (char<? (char-downcase a) (char-downcase b)))
+  (define (char-ci>? a b) (char>? (char-downcase a) (char-downcase b)))
+  (define (char-ci<=? a b) (char<=? (char-downcase a) (char-downcase b)))
+  (define (char-ci>=? a b) (char>=? (char-downcase a) (char-downcase b)))
+
+  ; --- Case-insensitive string comparison ---
+  (define (%string-downcase s)
+    (list->string (map char-downcase (string->list s))))
+
+  (define (string-ci=? a b) (string=? (%string-downcase a) (%string-downcase b)))
+  (define (string-ci<? a b) (string<? (%string-downcase a) (%string-downcase b)))
+  (define (string-ci>? a b) (string>? (%string-downcase a) (%string-downcase b)))
+  (define (string-ci<=? a b) (string<=? (%string-downcase a) (%string-downcase b)))
+  (define (string-ci>=? a b) (string>=? (%string-downcase a) (%string-downcase b)))
 
   ; --- Quote shorthand: 'expr -> (lit expr) ---
 
