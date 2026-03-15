@@ -135,6 +135,15 @@
 
   ; --- Generic walker ---
   ; Dispatches to per-type evaluator or recurses into subforms.
+  ; Uses safe-walk instead of for-each to handle improper lists
+  ; (e.g. dotted pairs like (fn (a . b) ...) in the AST).
+
+  (def %safe-walk ())
+  (set %safe-walk (fn (walk forms)
+    (if (pair? forms)
+      (do (walk (first forms))
+          (%safe-walk walk (rest forms)))
+      ())))
 
   (def %cov-eval ())
   (set %cov-eval (fn (form)
@@ -144,7 +153,7 @@
           (def handler (%lookup (first form) %dispatch))
           (if handler
             ((rest handler) form %cov-eval)
-            (for-each %cov-eval form)))))))
+            (%safe-walk %cov-eval form)))))))
 
   ; Walk all top-level forms
   (for-each %cov-eval %tokens)

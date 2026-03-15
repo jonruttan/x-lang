@@ -1,13 +1,56 @@
 ; fmt.x -- x-lang comment-preserving formatter
 ;
-; Pushes a keeping reader onto the built-in COMMENT type's read stack
-; so ;-comments are captured as (%comment "text") tokens instead of
-; being discarded (null read = discard).
+; Data-driven: reads construct declarations from a XEON file
+; (piped before the target source) to know how to format each form.
+; No hardcoded form names -- each language ships its own declarations.
 ;
-; Input: the shell wrapper pipes the file content as a quoted string
-; literal after the library+formatter on stdin.
+; Uses write-to-string for width estimation and write for single-line
+; output -- both are C primitives that traverse trees at C speed.
+;
+; Input order on stdin: constructs.x, then quoted source string.
 
 (do
+  ; --- Load construct declarations ---
+  ; First form on stdin is the base constructs list.
+  ; Optional second form is language-specific extensions.
+
+  (def %constructs (read))
+  (def %lang-constructs (read))
+  (def %all-constructs
+    (if (null? %lang-constructs) %constructs
+      (append %constructs %lang-constructs)))
+
+  ; Build lookup alist: ((name . props) ...)
+  (def %build-lookup (fn (entries acc)
+    (if (null? entries) acc
+      (do (def entry (first entries))
+          (def name (first entry))
+          (def props (rest entry))
+          (%build-lookup (rest entries)
+            (pair (pair name props) acc))))))
+  (def %fmt-table (%build-lookup %all-constructs ()))
+
+  ; Lookup helper: returns property list or () for unknown forms
+  (def %fmt-find (fn (key table)
+    (if (null? table) ()
+      (if (string=? (symbol->string key)
+                    (symbol->string (first (first table))))
+        (first table)
+        (%fmt-find key (rest table))))))
+  (def %fmt-lookup (fn (name)
+    (def entry (%fmt-find name %fmt-table))
+    (if (null? entry) ()
+      (rest entry))))
+
+  ; Get a specific property from a property list
+  (def %get-prop (fn (key props)
+    (if (null? props) ()
+      (if (pair? (first props))
+        (if (eq? (first (first props)) key)
+          (rest (first props))
+          (%get-prop key (rest props)))
+        (%get-prop key (rest props))))))
+
   ; --- Create formatter base, patch COMMENT to keep tokens ---
 
   (def %fmt-base (make-base))
@@ -18,7 +61,6 @@
 
   ; Navigate type struct: entry = (handle . type-struct)
   ; type-struct has 7 elements, io is the 7th
-  ; io = (analyse-stack delimit-stack read-stack write-stack display-stack error-stack)
   (def %entry-io (fn (entry)
     (first (rest (rest (rest (rest (rest (rest entry)))))))))
 
@@ -39,7 +81,6 @@
   (set-first %comment-read-stack %fmt-comment-reader)
 
   ; --- Read input string (next form on stdin) and tokenize ---
-  ; The shell wrapper pipes the file content as a quoted string literal.
 
   (def %input (read))
   (def %tokens (token-read-string %fmt-base %input))
@@ -49,42 +90,15 @@
   (def %comment? (fn (tok)
     (if (pair? tok) (eq? (first tok) (lit %comment)) ())))
 
-  ; --- Width estimation ---
+  ; --- Width: use write-to-string (C speed tree traversal) ---
 
-  (def %atom-width (fn (form)
-    (if (null? form) 2
-      (if (string? form) (+ 2 (string-length form))
-        (if (symbol? form) (string-length (symbol->string form))
-          (if (number? form) (string-length (number->string form))
-            (if (char? form) 3
-              4)))))))
-
-  (def %list-width ())
-  (def %form-width ())
-
-  (set %list-width (fn (form)
-    (if (null? form) 2
-      (if (not (pair? form))
-        (+ 4 (%atom-width form))
-        (fold (fn (acc x) (+ acc 1 (%form-width x))) 1 form)))))
-
-  (set %form-width (fn (form)
+  (def %form-width (fn (form)
     (if (%comment? form) 80
-      (if (pair? form) (%list-width form)
-        (%atom-width form)))))
-
-  ; --- Indentation ---
-
-  (def %indent (fn (col)
-    (if (<= col 0) ()
-      (do (display " ") (%indent (- col 1))))))
+      (string-length (write-to-string form)))))
 
   ; --- Pretty printer ---
 
-  (def %fmt-atom (fn (form)
-    (if (null? form) (display "()")
-      (if (string? form) (write form)
-        (display form)))))
+  (def %spaces (fn (n) (display (string-repeat " " n))))
 
   ; Forward declarations
   (def %fmt-expr ())
@@ -92,89 +106,68 @@
   (def %fmt-body ())
 
   ; Format a sequence of body forms, each on its own line
+  ; Handles improper lists (dotted pairs) by printing ". tail"
   (set %fmt-body (fn (forms col)
     (if (null? forms) ()
-      (do (display "\n") (%indent col)
-          (%fmt-expr (first forms) col)
-          (%fmt-body (rest forms) col)))))
+      (if (not (pair? forms))
+        (do (display "\n") (%spaces col)
+            (display ". ") (%fmt-expr forms col))
+        (do (display "\n") (%spaces col)
+            (%fmt-expr (first forms) col)
+            (%fmt-body (rest forms) col))))))
+
+  ; --- Data-driven formatting ---
+  ; Dispatches on the fmt property from the construct table.
+
+  (def %fmt-head-1 (fn (head rest-forms col)
+    (if (null? rest-forms) (write (pair head rest-forms))
+      (do (display "(") (write head) (display " ")
+          (def head-width (+ 2 (string-length (symbol->string head))))
+          (%fmt-expr (first rest-forms) (+ col head-width))
+          (%fmt-body (rest rest-forms) (+ col 2))
+          (display ")")))))
+
+  (def %fmt-head-kw (fn (head rest-forms col)
+    (do (display "(") (write head) (display " ")
+        (def head-width (+ 2 (string-length (symbol->string head))))
+        (%fmt-expr (first rest-forms) (+ col head-width))
+        (%fmt-body (rest rest-forms) (+ col 2))
+        (display ")"))))
+
+  (def %fmt-body-only (fn (head rest-forms col)
+    (do (display "(") (write head)
+        (%fmt-body rest-forms (+ col 2))
+        (display ")"))))
+
+  (def %fmt-default (fn (head rest-forms col)
+    (do (display "(")
+        (%fmt-expr head (+ col 1))
+        (%fmt-body rest-forms (+ col 2))
+        (display ")"))))
 
   ; Format a list form with indentation awareness
   (set %fmt-list (fn (form col)
     (def head (first form))
     (def rest-forms (rest form))
 
-    ; Single-line if narrow enough
+    ; Single-line if narrow enough -- write does the output at C speed
     (if (< (%form-width form) 60)
-      (do (display "(")
-          (%fmt-expr head (+ col 1))
-          (for-each (fn (x) (display " ") (%fmt-expr x (+ col 2))) rest-forms)
-          (display ")"))
+      (write form)
 
-      ; Multi-line: special form aware
-      (if (eq? head (lit def))
-        (if (null? rest-forms) (do (display "(def)"))
-          (do (display "(def ")
-              (%fmt-expr (first rest-forms) (+ col 5))
-              (%fmt-body (rest rest-forms) (+ col 2))
-              (display ")")))
-
-      (if (eq? head (lit set))
-        (if (null? rest-forms) (do (display "(set)"))
-          (do (display "(set ")
-              (%fmt-expr (first rest-forms) (+ col 5))
-              (%fmt-body (rest rest-forms) (+ col 2))
-              (display ")")))
-
-      (if (or (eq? head (lit fn)) (eq? head (lit op)))
-        (do (display "(") (display head) (display " ")
-            (def head-width (+ 2 (string-length (symbol->string head))))
-            (%fmt-expr (first rest-forms) (+ col head-width))
-            (%fmt-body (rest rest-forms) (+ col 2))
-            (display ")"))
-
-      (if (eq? head (lit if))
-        (if (null? rest-forms) (do (display "(if)"))
-          (do (display "(if ")
-              (%fmt-expr (first rest-forms) (+ col 4))
-              (%fmt-body (rest rest-forms) (+ col 2))
-              (display ")")))
-
-      (if (or (eq? head (lit do)) (eq? head (lit begin)))
-        (do (display "(") (display head)
-            (%fmt-body rest-forms (+ col 2))
-            (display ")"))
-
-      (if (eq? head (lit let))
-        (if (null? rest-forms) (do (display "(let)"))
-          (do (display "(let ")
-              (%fmt-expr (first rest-forms) (+ col 5))
-              (%fmt-body (rest rest-forms) (+ col 2))
-              (display ")")))
-
-      (if (or (eq? head (lit match)) (eq? head (lit cond)))
-        (do (display "(") (display head)
-            (%fmt-body rest-forms (+ col 2))
-            (display ")"))
-
-      (if (eq? head (lit guard))
-        (if (null? rest-forms) (do (display "(guard)"))
-          (do (display "(guard ")
-              (%fmt-expr (first rest-forms) (+ col 7))
-              (%fmt-body (rest rest-forms) (+ col 2))
-              (display ")")))
-
-        ; Default: head on first line, rest indented +2
-        (do (display "(")
-            (%fmt-expr head (+ col 1))
-            (%fmt-body rest-forms (+ col 2))
-            (display ")")))))))))))))
+      ; Multi-line: dispatch on construct table
+      (do (def props (if (symbol? head) (%fmt-lookup head) ()))
+          (def fmt-type (if (null? props) () (%get-prop (lit fmt) props)))
+          (if (eq? fmt-type (lit head-1))  (%fmt-head-1 head rest-forms col)
+          (if (eq? fmt-type (lit head-kw)) (%fmt-head-kw head rest-forms col)
+          (if (eq? fmt-type (lit body))    (%fmt-body-only head rest-forms col)
+            (%fmt-default head rest-forms col))))))))
 
   ; Format any expression
   (set %fmt-expr (fn (form col)
     (if (%comment? form)
       (display (first (rest form)))
       (if (pair? form) (%fmt-list form col)
-        (%fmt-atom form)))))
+        (write form)))))
 
   ; --- Main: output formatted tokens ---
 

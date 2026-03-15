@@ -220,13 +220,13 @@
 ---
     "t"
 
-### nil to empty string
+### nil to "()" string
 
 ```scheme
 (write-to-string ())
 ```
 ---
-    ""
+    "()"
 
 ### pair to string
 
