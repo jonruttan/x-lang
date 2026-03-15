@@ -283,6 +283,32 @@
         (apply consumer (first result))
         (consumer result))))
 
+  ; --- Characters (R7RS additions) ---
+  (define (digit-value c)
+    (let ((n (char->integer c)))
+      (cond ((and (>= n 48) (<= n 57)) (- n 48))
+            (#t #f))))
+
+  ; --- Strings/Vectors conversions ---
+  (define (string->vector s)
+    (list->vector (string->list s)))
+  (define (vector->string v)
+    (list->string (vector->list v)))
+
+  ; --- Math (R7RS additions) ---
+  (define (exact-integer-sqrt k)
+    (let ((s (inexact->exact (fsqrt (exact->inexact k)))))
+      (if (> (* s s) k)
+        (let ((s1 (- s 1)))
+          (values s1 (- k (* s1 s1))))
+        (values s (- k (* s s))))))
+
+  ; --- Error objects ---
+  ; x-lang errors are strings; error-object? tests for string
+  (define (error-object? obj) (string? obj))
+  (define (error-object-message obj) obj)
+  (define (error-object-irritants obj) ())
+
   ; --- Records ---
   ; (define-record-type <name> (<ctor> field ...) <pred> (field accessor) ...)
   (define define-record-type
