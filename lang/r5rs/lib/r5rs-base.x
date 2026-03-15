@@ -739,15 +739,10 @@
     (let ((result (thunk)))
       (after)
       result))
-  ; --- Escape-only call/cc (via guard/error) ---
+  ; --- First-class continuations (stack-copying C primitive) ---
+  ; call/cc is registered as a C primitive; alias the long name.
 
-  (define %cc-tag (cons (lit cc) (lit tag)))
-  (define (call-with-current-continuation proc)
-    (guard (e (if (pair? e)
-                (if (eq? (car e) %cc-tag) (cdr e) (error e))
-                (error e)))
-      (proc (lambda (val) (error (cons %cc-tag val))))))
-  (define call/cc call-with-current-continuation)
+  (define call-with-current-continuation call/cc)
   ; --- Environment procedures ---
 
   (define %current-env (op () e e))
