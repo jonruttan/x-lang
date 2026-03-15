@@ -6,15 +6,15 @@
 (number? 42)
 ```
 ---
-    t
+    #t
 
 ### number? on non-number
 
 ```scheme
-(null? (number? "42"))
+(not (number? "42"))
 ```
 ---
-    t
+    #t
 
 ### integer? on integer
 
@@ -22,7 +22,7 @@
 (integer? 42)
 ```
 ---
-    t
+    #t
 
 ### exact-integer? on integer
 
@@ -30,7 +30,7 @@
 (exact-integer? 42)
 ```
 ---
-    t
+    #t
 
 ### exact? on integer
 
@@ -38,15 +38,15 @@
 (exact? 42)
 ```
 ---
-    t
+    #t
 
 ### null? inexact? on integer
 
 ```scheme
-(null? (inexact? 42))
+(not (inexact? 42))
 ```
 ---
-    t
+    #t
 
 ### zero? true
 
@@ -54,15 +54,15 @@
 (zero? 0)
 ```
 ---
-    t
+    #t
 
 ### zero? false
 
 ```scheme
-(null? (zero? 1))
+(not (zero? 1))
 ```
 ---
-    t
+    #t
 
 ### positive? true
 
@@ -70,7 +70,7 @@
 (positive? 1)
 ```
 ---
-    t
+    #t
 
 ### negative? true
 
@@ -78,7 +78,7 @@
 (negative? (- 0 1))
 ```
 ---
-    t
+    #t
 
 ### odd? true
 
@@ -86,7 +86,7 @@
 (odd? 3)
 ```
 ---
-    t
+    #t
 
 ### even? true
 
@@ -94,23 +94,23 @@
 (even? 4)
 ```
 ---
-    t
+    #t
 
 ### odd? false
 
 ```scheme
-(null? (odd? 4))
+(not (odd? 4))
 ```
 ---
-    t
+    #t
 
 ### even? false
 
 ```scheme
-(null? (even? 3))
+(not (even? 3))
 ```
 ---
-    t
+    #t
 
 ## float predicates
 
@@ -120,7 +120,7 @@
 (number? 3.14)
 ```
 ---
-    t
+    #t
 
 ### real? on float
 
@@ -128,7 +128,7 @@
 (real? 3.14)
 ```
 ---
-    t
+    #t
 
 ### real? on integer
 
@@ -136,7 +136,7 @@
 (real? 42)
 ```
 ---
-    t
+    #t
 
 ### complex? on float
 
@@ -144,7 +144,7 @@
 (complex? 3.14)
 ```
 ---
-    t
+    #t
 
 ### complex? on integer
 
@@ -152,7 +152,7 @@
 (complex? 42)
 ```
 ---
-    t
+    #t
 
 ### integer? on inexact integer
 
@@ -160,23 +160,23 @@
 (integer? 3.0)
 ```
 ---
-    t
+    #t
 
 ### integer? on non-integer float
 
 ```scheme
-(null? (integer? 3.5))
+(not (integer? 3.5))
 ```
 ---
-    t
+    #t
 
 ### exact? on float is false
 
 ```scheme
-(null? (exact? 3.14))
+(not (exact? 3.14))
 ```
 ---
-    t
+    #t
 
 ### inexact? on float
 
@@ -184,15 +184,15 @@
 (inexact? 3.14)
 ```
 ---
-    t
+    #t
 
 ### exact-integer? on float is false
 
 ```scheme
-(null? (exact-integer? 3.0))
+(not (exact-integer? 3.0))
 ```
 ---
-    t
+    #t
 
 ### rational? on integer
 
@@ -200,15 +200,15 @@
 (rational? 42)
 ```
 ---
-    t
+    #t
 
 ### rational? on float is false
 
 ```scheme
-(null? (rational? 3.14))
+(not (rational? 3.14))
 ```
 ---
-    t
+    #t
 
 ### float? on float
 
@@ -216,15 +216,15 @@
 (float? 3.14)
 ```
 ---
-    t
+    #t
 
 ### float? on integer is false
 
 ```scheme
-(null? (float? 42))
+(not (float? 42))
 ```
 ---
-    t
+    #t
 
 ## IEEE 754 predicates
 
@@ -234,23 +234,23 @@
 (nan? (/ 0.0 0.0))
 ```
 ---
-    t
+    #t
 
 ### nan? on regular float
 
 ```scheme
-(null? (nan? 3.14))
+(not (nan? 3.14))
 ```
 ---
-    t
+    #t
 
 ### nan? on integer
 
 ```scheme
-(null? (nan? 42))
+(not (nan? 42))
 ```
 ---
-    t
+    #t
 
 ### infinite? on positive infinity
 
@@ -258,7 +258,7 @@
 (infinite? (/ 1.0 0.0))
 ```
 ---
-    t
+    #t
 
 ### infinite? on negative infinity
 
@@ -266,15 +266,15 @@
 (infinite? (/ (- 0 1.0) 0.0))
 ```
 ---
-    t
+    #t
 
 ### infinite? on regular float
 
 ```scheme
-(null? (infinite? 3.14))
+(not (infinite? 3.14))
 ```
 ---
-    t
+    #t
 
 ### finite? on regular float
 
@@ -282,7 +282,7 @@
 (finite? 3.14)
 ```
 ---
-    t
+    #t
 
 ### finite? on integer
 
@@ -290,23 +290,23 @@
 (finite? 42)
 ```
 ---
-    t
+    #t
 
 ### finite? on NaN
 
 ```scheme
-(null? (finite? (/ 0.0 0.0)))
+(not (finite? (/ 0.0 0.0)))
 ```
 ---
-    t
+    #t
 
 ### finite? on infinity
 
 ```scheme
-(null? (finite? (/ 1.0 0.0)))
+(not (finite? (/ 1.0 0.0)))
 ```
 ---
-    t
+    #t
 
 ## arithmetic
 
@@ -446,7 +446,7 @@
 (float? (+ 1 2.5))
 ```
 ---
-    t
+    #t
 
 ### mixed int+float result
 
@@ -478,7 +478,7 @@
 (inexact? (+ 1 2.0))
 ```
 ---
-    t
+    #t
 
 ### unary negation of float
 
@@ -512,15 +512,15 @@
 (zero? 0.0)
 ```
 ---
-    t
+    #t
 
 ### zero? on non-zero float
 
 ```scheme
-(null? (zero? 0.1))
+(not (zero? 0.1))
 ```
 ---
-    t
+    #t
 
 ### positive? on positive float
 
@@ -528,15 +528,15 @@
 (positive? 3.14)
 ```
 ---
-    t
+    #t
 
 ### positive? on negative float
 
 ```scheme
-(null? (positive? (- 0 3.14)))
+(not (positive? (- 0 3.14)))
 ```
 ---
-    t
+    #t
 
 ### negative? on negative float
 
@@ -544,7 +544,7 @@
 (negative? (- 0 3.14))
 ```
 ---
-    t
+    #t
 
 ### min with mixed types
 
@@ -552,7 +552,7 @@
 (= (min 5 2.5) 2.5)
 ```
 ---
-    t
+    #t
 
 ### max with mixed types
 
@@ -560,7 +560,7 @@
 (= (max 1 2.5) 2.5)
 ```
 ---
-    t
+    #t
 
 ### square on float
 
@@ -578,15 +578,15 @@
 (= 3 3.0)
 ```
 ---
-    t
+    #t
 
 ### int = float (unequal)
 
 ```scheme
-(null? (= 3 3.5))
+(not (= 3 3.5))
 ```
 ---
-    t
+    #t
 
 ### int < float
 
@@ -594,7 +594,7 @@
 (< 1 2.5)
 ```
 ---
-    t
+    #t
 
 ### float < int
 
@@ -602,7 +602,7 @@
 (< 0.5 1)
 ```
 ---
-    t
+    #t
 
 ### int > float
 
@@ -610,7 +610,7 @@
 (> 3 2.5)
 ```
 ---
-    t
+    #t
 
 ### int <= float (equal)
 
@@ -618,7 +618,7 @@
 (<= 3 3.0)
 ```
 ---
-    t
+    #t
 
 ### int >= float
 
@@ -626,7 +626,7 @@
 (>= 3 2.5)
 ```
 ---
-    t
+    #t
 
 ### float <= float
 
@@ -634,7 +634,7 @@
 (<= 2.5 3.0)
 ```
 ---
-    t
+    #t
 
 ## quotient and remainder
 
@@ -776,7 +776,7 @@
 (exact? (floor 3.7))
 ```
 ---
-    t
+    #t
 
 ### ceiling of positive float
 
@@ -808,7 +808,7 @@
 (exact? (ceiling 3.2))
 ```
 ---
-    t
+    #t
 
 ### truncate of positive float
 
@@ -872,7 +872,7 @@
 (exact? (round 3.7))
 ```
 ---
-    t
+    #t
 
 ## sqrt
 
@@ -890,7 +890,7 @@
 (exact? (sqrt 9))
 ```
 ---
-    t
+    #t
 
 ### sqrt of 25
 
@@ -906,7 +906,7 @@
 (inexact? (sqrt 2))
 ```
 ---
-    t
+    #t
 
 ### sqrt of non-perfect square value
 
@@ -914,7 +914,7 @@
 (> (sqrt 2) 1.4)
 ```
 ---
-    t
+    #t
 
 ### sqrt of zero
 
@@ -972,7 +972,7 @@
 (inexact? (expt 2.0 3.0))
 ```
 ---
-    t
+    #t
 
 ### expt integer result stays exact
 
@@ -980,7 +980,7 @@
 (exact? (expt 2 10))
 ```
 ---
-    t
+    #t
 
 ## exact/inexact conversion
 
@@ -990,7 +990,7 @@
 (inexact? (inexact 42))
 ```
 ---
-    t
+    #t
 
 ### inexact value
 
@@ -998,7 +998,7 @@
 (= (inexact 42) 42.0)
 ```
 ---
-    t
+    #t
 
 ### exact converts float to int
 
@@ -1006,7 +1006,7 @@
 (exact? (exact 3.0))
 ```
 ---
-    t
+    #t
 
 ### exact value
 
@@ -1014,7 +1014,7 @@
 (= (exact 3.0) 3)
 ```
 ---
-    t
+    #t
 
 ### exact->inexact converts int to float
 
@@ -1022,7 +1022,7 @@
 (inexact? (exact->inexact 5))
 ```
 ---
-    t
+    #t
 
 ### inexact->exact converts float to int
 
@@ -1030,7 +1030,7 @@
 (exact? (inexact->exact 5.0))
 ```
 ---
-    t
+    #t
 
 ## comparison
 
@@ -1040,15 +1040,15 @@
 (= 5 5)
 ```
 ---
-    t
+    #t
 
 ### not equal
 
 ```scheme
-(null? (= 5 6))
+(not (= 5 6))
 ```
 ---
-    t
+    #t
 
 ### less than
 
@@ -1056,7 +1056,7 @@
 (< 1 2)
 ```
 ---
-    t
+    #t
 
 ### greater than
 
@@ -1064,7 +1064,7 @@
 (> 2 1)
 ```
 ---
-    t
+    #t
 
 ### less or equal
 
@@ -1072,7 +1072,7 @@
 (<= 2 2)
 ```
 ---
-    t
+    #t
 
 ### greater or equal
 
@@ -1080,7 +1080,7 @@
 (>= 3 2)
 ```
 ---
-    t
+    #t
 
 ## string/number conversion
 
@@ -1122,7 +1122,7 @@
 (inexact? (string->number "3.14"))
 ```
 ---
-    t
+    #t
 
 ### string->number returns int for non-dotted
 
@@ -1130,7 +1130,7 @@
 (exact? (string->number "42"))
 ```
 ---
-    t
+    #t
 
 ### number->string negative
 

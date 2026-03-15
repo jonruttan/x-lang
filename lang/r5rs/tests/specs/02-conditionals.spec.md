@@ -22,7 +22,7 @@
 (null? (if #f 1))
 ```
 ---
-    t
+    #t
 
 ### non-boolean truthy
 
@@ -64,7 +64,7 @@
 (null? (when (= 1 2) 42))
 ```
 ---
-    t
+    #t
 
 ### supports multiple body forms
 
@@ -90,7 +90,7 @@
 (null? (unless (= 1 1) 42))
 ```
 ---
-    t
+    #t
 
 ## cond
 
@@ -116,7 +116,7 @@
 (null? (cond (#f 1)))
 ```
 ---
-    t
+    #t
 
 ## and
 
@@ -131,10 +131,10 @@
 ### short-circuits on false
 
 ```scheme
-(null? (and 1 #f 3))
+(not (and 1 #f 3))
 ```
 ---
-    t
+    #t
 
 ### no args returns true
 
@@ -142,7 +142,7 @@
 (and)
 ```
 ---
-    t
+    #t
 
 ### single true arg
 
@@ -173,28 +173,28 @@
 ### no args returns false
 
 ```scheme
-(null? (or))
+(not (or))
 ```
 ---
-    t
+    #t
 
 ### single false arg
 
 ```scheme
-(null? (or #f))
+(not (or #f))
 ```
 ---
-    t
+    #t
 
 ## not
 
 ### not true
 
 ```scheme
-(null? (not #t))
+(not (not #t))
 ```
 ---
-    t
+    #t
 
 ### not false
 
@@ -202,13 +202,13 @@
 (not #f)
 ```
 ---
-    t
+    #t
 
 ### not on non-boolean
 
 ```scheme
-(null? (not 42))
+(not (not 42))
 ```
 ---
-    t
+    #t
 

@@ -106,7 +106,7 @@
 (letrec ((e (lambda (n) (if (= n 0) #t (o (- n 1))))) (o (lambda (n) (if (= n 0) #f (e (- n 1)))))) (e 10))
 ```
 ---
-    t
+    #t
 
 ### mutual recursion odd
 
@@ -114,7 +114,7 @@
 (letrec ((e (lambda (n) (if (= n 0) #t (o (- n 1))))) (o (lambda (n) (if (= n 0) #f (e (- n 1)))))) (o 7))
 ```
 ---
-    t
+    #t
 
 ### two independent bindings
 

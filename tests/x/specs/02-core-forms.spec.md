@@ -152,7 +152,7 @@
 ### takes then branch for non-nil
 
 ```scheme
-(if (lit t) 1 2)
+(if #t 1 2)
 ```
 ---
     1
@@ -160,7 +160,7 @@
 ### takes else branch for nil
 
 ```scheme
-(if (lit ()) 1 2)
+(if #f 1 2)
 ```
 ---
     2
@@ -231,10 +231,10 @@
 ---
     20
 
-### supports else with t
+### supports else with #t
 
 ```scheme
-(match ((= 1 2) 10) (t 30))
+(match ((= 1 2) 10) (#t 30))
 ```
 ---
     30
@@ -249,7 +249,7 @@
 ### works with comparisons
 
 ```scheme
-(do (def x 5) (match ((< x 0) (lit neg)) ((= x 0) (lit zero)) (t (lit pos))))
+(do (def x 5) (match ((< x 0) (lit neg)) ((= x 0) (lit zero)) (#t (lit pos))))
 ```
 ---
     pos

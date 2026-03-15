@@ -1,6 +1,6 @@
 ; logic.x -- Boolean and logic
 
-(def boolean? (fn (x) (or (eq? x t) (null? x))))
+(def boolean? (fn (x) (or (eq? x #t) (eq? x #f))))
 
 (def default-to (fn (d x) (if (null? x) d x)))
 
@@ -12,4 +12,4 @@
     (match
       ((and (number? a) (number? b)) (= a b))
       ((and (string? a) (string? b)) (string=? a b))
-      (t (eq? a b)))))
+      (#t (eq? a b)))))

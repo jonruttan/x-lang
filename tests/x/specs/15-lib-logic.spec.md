@@ -1,20 +1,20 @@
 ## boolean?
 
-### true for t
+### true for #t
 
 ```scheme
-(boolean? t)
+(boolean? #t)
 ```
 ---
-    t
+    #t
 
-### true for nil
+### true for #f
 
 ```scheme
-(boolean? ())
+(boolean? #f)
 ```
 ---
-    t
+    #t
 
 ### false for number
 
@@ -60,7 +60,7 @@
 (equal? 5 5)
 ```
 ---
-    t
+    #t
 
 ### compares different numbers
 
@@ -76,7 +76,7 @@
 (equal? "hi" "hi")
 ```
 ---
-    t
+    #t
 
 ### compares nil
 
@@ -84,7 +84,7 @@
 (equal? () ())
 ```
 ---
-    t
+    #t
 
 ### compares different symbols
 
@@ -100,7 +100,7 @@
 (equal? (lit a) (lit a))
 ```
 ---
-    t
+    #t
 
 ### compares different strings
 

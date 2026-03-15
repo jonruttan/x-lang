@@ -14,7 +14,7 @@
 (do (def al (list (pair (lit a) 1))) (null? (aget (lit z) al)))
 ```
 ---
-    t
+    #t
 
 ### retrieves value from first entry
 
@@ -44,13 +44,13 @@
 
 ## ahas?
 
-### returns t when key exists
+### returns #t when key exists
 
 ```scheme
 (do (def al (list (pair (lit a) 1))) (ahas? (lit a) al))
 ```
 ---
-    t
+    #t
 
 ### returns nil when key missing
 
@@ -66,7 +66,7 @@
 (do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (ahas? (lit b) al))
 ```
 ---
-    t
+    #t
 
 ## aset
 
@@ -102,7 +102,7 @@
 (do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (null? (aget (lit b) (adel (lit b) al))))
 ```
 ---
-    t
+    #t
 
 ## akeys
 

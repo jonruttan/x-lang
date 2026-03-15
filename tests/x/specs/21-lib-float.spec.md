@@ -40,23 +40,23 @@
 (float? 3.14)
 ```
 ---
-    t
+    #t
 
 ### float? false for integer
 
 ```scheme
-(null? (float? 42))
+(float? 42)
 ```
 ---
-    t
+    #f
 
 ### float? false for string
 
 ```scheme
-(null? (float? "3.14"))
+(float? "3.14")
 ```
 ---
-    t
+    #f
 
 ## type convert handler
 
@@ -74,7 +74,7 @@
 (float? (convert 42 %float))
 ```
 ---
-    t
+    #t
 
 ### convert float to float is identity
 
@@ -82,7 +82,7 @@
 (def x 3.14) (eq? (convert x %float) x)
 ```
 ---
-    t
+    #t
 
 ### convert string to float
 
@@ -90,7 +90,7 @@
 (float? (convert "3.14" %float))
 ```
 ---
-    t
+    #t
 
 ### convert nil returns nil
 
@@ -98,7 +98,7 @@
 (null? (convert () %float))
 ```
 ---
-    t
+    #t
 
 ### convert negative int
 
@@ -132,7 +132,7 @@
 (float? (exact->inexact 5))
 ```
 ---
-    t
+    #t
 
 ### exact->inexact float identity
 
@@ -140,7 +140,7 @@
 (def x 3.14) (eq? (exact->inexact x) x)
 ```
 ---
-    t
+    #t
 
 ### inexact->exact truncates
 
@@ -322,15 +322,15 @@
 (f< 1.5 2.5)
 ```
 ---
-    t
+    #t
 
 ### f< false
 
 ```scheme
-(null? (f< 2.5 1.5))
+(f< 2.5 1.5)
 ```
 ---
-    t
+    #f
 
 ### f= true
 
@@ -338,15 +338,15 @@
 (f= 1.0 1.0)
 ```
 ---
-    t
+    #t
 
 ### f= false
 
 ```scheme
-(null? (f= 1.0 2.0))
+(f= 1.0 2.0)
 ```
 ---
-    t
+    #f
 
 ## generic comparisons with floats
 
@@ -356,7 +356,7 @@
 (< 1.5 2.5)
 ```
 ---
-    t
+    #t
 
 ### > with floats
 
@@ -364,7 +364,7 @@
 (> 3.0 2.0)
 ```
 ---
-    t
+    #t
 
 ### = with floats
 
@@ -372,7 +372,7 @@
 (= 1.0 1.0)
 ```
 ---
-    t
+    #t
 
 ### <= with floats
 
@@ -380,7 +380,7 @@
 (<= 2.0 2.0)
 ```
 ---
-    t
+    #t
 
 ### >= with floats
 
@@ -388,7 +388,7 @@
 (>= 3.0 2.0)
 ```
 ---
-    t
+    #t
 
 ### < int and float
 
@@ -396,7 +396,7 @@
 (< 1 2.5)
 ```
 ---
-    t
+    #t
 
 ### > float and int
 
@@ -404,7 +404,7 @@
 (> 3.5 2)
 ```
 ---
-    t
+    #t
 
 ### = int and float
 
@@ -412,7 +412,7 @@
 (= 2 2.0)
 ```
 ---
-    t
+    #t
 
 ### < integers still work
 
@@ -420,7 +420,7 @@
 (< 1 2)
 ```
 ---
-    t
+    #t
 
 ### = integers still work
 
@@ -428,7 +428,7 @@
 (= 5 5)
 ```
 ---
-    t
+    #t
 
 ## math functions
 
@@ -536,7 +536,7 @@
 (> %pi 3.14)
 ```
 ---
-    t
+    #t
 
 ### pi is approximately 3.14159 upper
 
@@ -544,7 +544,7 @@
 (< %pi 3.15)
 ```
 ---
-    t
+    #t
 
 ### e is approximately 2.71828
 
@@ -552,7 +552,7 @@
 (> %e 2.71)
 ```
 ---
-    t
+    #t
 
 ### e is approximately 2.71828 upper
 
@@ -560,7 +560,7 @@
 (< %e 2.72)
 ```
 ---
-    t
+    #t
 
 ## float predicates
 
@@ -570,7 +570,7 @@
 (number? 42)
 ```
 ---
-    t
+    #t
 
 ### number? true for float
 
@@ -578,15 +578,15 @@
 (number? 3.14)
 ```
 ---
-    t
+    #t
 
 ### number? false for string
 
 ```scheme
-(null? (number? "hello"))
+(number? "hello")
 ```
 ---
-    t
+    #f
 
 ### integer? true for int
 
@@ -594,15 +594,15 @@
 (integer? 42)
 ```
 ---
-    t
+    #t
 
 ### integer? false for float
 
 ```scheme
-(null? (integer? 3.14))
+(integer? 3.14)
 ```
 ---
-    t
+    #f
 
 ### float? true for float
 
@@ -610,15 +610,15 @@
 (float? 3.14)
 ```
 ---
-    t
+    #t
 
 ### float? false for int
 
 ```scheme
-(null? (float? 42))
+(float? 42)
 ```
 ---
-    t
+    #f
 
 ### inexact? true for float
 
@@ -626,15 +626,15 @@
 (inexact? 3.14)
 ```
 ---
-    t
+    #t
 
 ### inexact? false for int
 
 ```scheme
-(null? (inexact? 42))
+(inexact? 42)
 ```
 ---
-    t
+    #f
 
 ## float in data structures
 
@@ -702,7 +702,7 @@
 (> 0.001 (exact->inexact 0))
 ```
 ---
-    t
+    #t
 
 ### negative float
 
@@ -718,7 +718,7 @@
 (f= 0.0 (exact->inexact 0))
 ```
 ---
-    t
+    #t
 
 ### mixed arithmetic chain
 

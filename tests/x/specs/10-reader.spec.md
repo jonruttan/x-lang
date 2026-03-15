@@ -90,7 +90,7 @@
 (= (char->integer (string-ref "\x41" 0)) 65)
 ```
 ---
-    t
+    #t
 
 ### preserves unknown escape sequences
 
@@ -134,7 +134,7 @@
 (char? #\x)
 ```
 ---
-    t
+    #t
 
 ### reads specific character
 

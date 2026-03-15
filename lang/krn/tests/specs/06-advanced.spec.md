@@ -14,7 +14,7 @@
 ($letrec ((even? ($lambda (n) ($if (= n 0) #t (odd? (- n 1))))) (odd? ($lambda (n) ($if (= n 0) #f (even? (- n 1)))))) (even? 10))
 ```
 ---
-    t
+    #t
 
 ### mutual recursion odd
 
@@ -22,7 +22,7 @@
 ($letrec ((even? ($lambda (n) ($if (= n 0) #t (odd? (- n 1))))) (odd? ($lambda (n) ($if (= n 0) #f (even? (- n 1)))))) (odd? 7))
 ```
 ---
-    t
+    #t
 
 ## get-current-environment
 
@@ -50,5 +50,5 @@
 (null? (make-environment))
 ```
 ---
-    t
+    #t
 

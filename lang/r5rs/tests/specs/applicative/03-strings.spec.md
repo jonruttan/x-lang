@@ -28,7 +28,7 @@
 (define (iota-chars n) (let loop ((i 0) (acc '())) (if (= i n) (reverse acc) (loop (+ i 1) (cons (integer->char (+ 65 (modulo i 26))) acc))))) (let ((chars (iota-chars 1000))) (equal? (string->list (list->string chars)) chars))
 ```
 ---
-    t
+    #t
 
 ## substring stress
 

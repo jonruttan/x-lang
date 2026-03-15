@@ -6,7 +6,7 @@
 (guard (e #t) (error "boom"))
 ```
 ---
-    t
+    #t
 
 ### error with string message
 

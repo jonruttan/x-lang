@@ -144,7 +144,7 @@
 (null? (reverse ()))
 ```
 ---
-    t
+    #t
 
 ## flatten
 
@@ -180,7 +180,7 @@
 (null? (map inc ()))
 ```
 ---
-    t
+    #t
 
 ## filter
 
@@ -198,7 +198,7 @@
 (null? (filter negative? (list 1 2 3)))
 ```
 ---
-    t
+    #t
 
 ## for-each
 
@@ -208,7 +208,7 @@
 (null? (for-each (fn (x) x) (list 1 2 3)))
 ```
 ---
-    t
+    #t
 
 ## reject
 
@@ -250,13 +250,13 @@
 
 ## any?
 
-### returns t when one matches
+### returns #t when one matches
 
 ```scheme
 (any? even? (list 1 2 3))
 ```
 ---
-    t
+    #t
 
 ### returns nil when none match
 
@@ -268,13 +268,13 @@
 
 ## every?
 
-### returns t when all match
+### returns #t when all match
 
 ```scheme
 (every? positive? (list 1 2 3))
 ```
 ---
-    t
+    #t
 
 ### returns nil when one fails
 
@@ -286,13 +286,13 @@
 
 ## none?
 
-### returns t when none match
+### returns #t when none match
 
 ```scheme
 (none? negative? (list 1 2 3))
 ```
 ---
-    t
+    #t
 
 ### returns nil when one matches
 
@@ -310,7 +310,7 @@
 (empty? ())
 ```
 ---
-    t
+    #t
 
 ### false for non-empty
 
@@ -336,7 +336,7 @@
 (null? (find negative? (list 1 2 3)))
 ```
 ---
-    t
+    #t
 
 ## find-index
 
@@ -382,7 +382,7 @@
 (includes? 3 (list 1 2 3))
 ```
 ---
-    t
+    #t
 
 ### returns nil when not found
 
@@ -426,7 +426,7 @@
 (null? (take 0 (list 1 2 3)))
 ```
 ---
-    t
+    #t
 
 ### takes more than available
 
@@ -470,7 +470,7 @@
 (null? (take-while negative? (list 1 2 3)))
 ```
 ---
-    t
+    #t
 
 ## drop-while
 
@@ -518,7 +518,7 @@
 (null? (range 5 5))
 ```
 ---
-    t
+    #t
 
 ## repeat
 
@@ -536,7 +536,7 @@
 (null? (repeat 0 0))
 ```
 ---
-    t
+    #t
 
 ## times
 
@@ -656,7 +656,7 @@
 (null? (sort < ()))
 ```
 ---
-    t
+    #t
 
 ## sort-by
 
@@ -746,7 +746,7 @@
 (null? (append))
 ```
 ---
-    t
+    #t
 
 ### appends one list
 

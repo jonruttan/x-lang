@@ -21,13 +21,13 @@
     (match
       ((eval test e) (tail-eval then e))
       ((null? else) ())
-      ((lit t) (tail-eval (first else) e)))))
+      (#t (tail-eval (first else) e)))))
 
 (def %let-params
   (fn (bindings)
     (match
       ((null? bindings) ())
-      (t
+      (#t
         (pair
           (first (first bindings))
           (%let-params (rest bindings)))))))
@@ -36,7 +36,7 @@
   (fn (bindings e)
     (match
       ((null? bindings) ())
-      (t
+      (#t
         (pair
           (eval (first (rest (first bindings))) e)
           (%let-vals (rest bindings) e))))))
@@ -75,15 +75,15 @@
 (def procedure?
   (fn (x)
     (match
-      ((type? x %type-proc) t)
-      ((type? x %type-prim) t)
-      (t ()))))
+      ((type? x %type-proc) #t)
+      ((type? x %type-prim) #t)
+      (#t #f))))
 
 (def %do-nest
   (fn (%dn-f)
     (match
       ((null? (rest %dn-f)) (first %dn-f))
-      (t
+      (#t
         (pair
           (lit %seq)
           (pair (first %dn-f) (pair (%do-nest (rest %dn-f)) ())))))))
@@ -93,7 +93,7 @@
     %do-e
     (match
       ((null? %do-f) ())
-      ((lit t) (eval (%do-nest %do-f))))))
+      (#t (eval (%do-nest %do-f))))))
 
 (def do %do-seq)
 
@@ -104,7 +104,7 @@
   (def x-lib-version "0.2.0")
   ; --- Derived from C primitives ---
 
-  (def not null?)
+  (def not (fn (x) (if x #f #t)))
   (def atom? (fn (x) (not (pair? x))))
   (def list (fn args args))
   (def newline (fn () (display "\n")))
@@ -119,12 +119,12 @@
   (def %string-eq-loop
     (fn (a b i len)
       (if (= i len)
-        (lit t)
+        #t
         (if (= (char->integer (a i)) (char->integer (b i)))
           (%string-eq-loop a b (+ i 1) len)
-          ()))))
+          #f))))
   (def string=?
-    (fn (a b) (if (= (a) (b)) (%string-eq-loop a b 0 (a)) ())))
+    (fn (a b) (if (= (a) (b)) (%string-eq-loop a b 0 (a)) #f)))
   ; --- Core forms as operatives ---
 
   ; Compile-on-first-use: expand to if-tree, cache in source form via %rewrite.
@@ -134,15 +134,15 @@
   (def %and-expand
     (fn (args)
       (if (null? args)
-        (lit t)
+        #t
         (if (null? (rest args))
           (first args)
-          (list (lit if) (first args) (%and-expand (rest args)) ())))))
+          (list (lit if) (first args) (%and-expand (rest args)) #f)))))
   (def and
     (op args
       e
       (if (null? args)
-        (lit t)
+        #t
         (if (eq? (first args) %expanded)
           (eval (first (rest args)))
           (%seq
@@ -209,7 +209,7 @@
         (first-int
           (first
             (first
-              (first (rest (rest (rest (rest (rest (first (%base))))))))))))
+              (first (rest (rest (rest (rest (rest (rest (first (%base)))))))))))))
       (%stderr " ")
       (%stderr (heap-count))
       (%stderr "\n")
@@ -275,7 +275,7 @@
   (def current-line
     (fn ()
       (first-int
-        (first (first (rest (rest (rest (rest (first (%base)))))))))))
+        (first (first (rest (rest (rest (rest (rest (first (%base))))))))))))
   (include "lib/x/alist.x")
   (include "lib/x/string.x")
   (include "lib/x/vector.x")

@@ -8,7 +8,7 @@
 (string=? (make-string 3 #\a) "aaa")
 ```
 ---
-    t
+    #t
 
 ### make-string single char
 
@@ -16,7 +16,7 @@
 (string=? (make-string 1 #\x) "x")
 ```
 ---
-    t
+    #t
 
 ### make-string length
 
@@ -34,7 +34,7 @@
 (string=? (number->string 100) "100")
 ```
 ---
-    t
+    #t
 
 ### hexadecimal
 
@@ -42,7 +42,7 @@
 (string=? (number->string 255 16) "ff")
 ```
 ---
-    t
+    #t
 
 ### binary
 
@@ -50,7 +50,7 @@
 (string=? (number->string 5 2) "101")
 ```
 ---
-    t
+    #t
 
 ### octal
 
@@ -58,7 +58,7 @@
 (string=? (number->string 127 8) "177")
 ```
 ---
-    t
+    #t
 
 ### hex uppercase value
 
@@ -66,7 +66,7 @@
 (string=? (number->string 256 16) "100")
 ```
 ---
-    t
+    #t
 
 ### zero
 
@@ -74,7 +74,7 @@
 (string=? (number->string 0) "0")
 ```
 ---
-    t
+    #t
 
 ## string->number
 
@@ -84,7 +84,7 @@
 (= (string->number "100") 100)
 ```
 ---
-    t
+    #t
 
 ### hexadecimal
 
@@ -92,7 +92,7 @@
 (= (string->number "ff" 16) 255)
 ```
 ---
-    t
+    #t
 
 ### binary
 
@@ -100,7 +100,7 @@
 (= (string->number "101" 2) 5)
 ```
 ---
-    t
+    #t
 
 ### octal
 
@@ -108,7 +108,7 @@
 (= (string->number "177" 8) 127)
 ```
 ---
-    t
+    #t
 
 ### hex with prefix
 
@@ -116,7 +116,7 @@
 (= (string->number "100" 16) 256)
 ```
 ---
-    t
+    #t
 
 ## integer?
 
@@ -126,7 +126,7 @@
 (integer? 42)
 ```
 ---
-    t
+    #t
 
 ### zero is integer
 
@@ -134,7 +134,7 @@
 (integer? 0)
 ```
 ---
-    t
+    #t
 
 ### negative is integer
 
@@ -142,20 +142,20 @@
 (integer? -7)
 ```
 ---
-    t
+    #t
 
 ### string is not integer
 
 ```scheme
-(null? (integer? "42"))
+(not (integer? "42"))
 ```
 ---
-    t
+    #t
 
 ### symbol is not integer
 
 ```scheme
-(null? (integer? 'x))
+(not (integer? 'x))
 ```
 ---
-    t
+    #t

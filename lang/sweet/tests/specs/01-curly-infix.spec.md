@@ -6,7 +6,7 @@
 (null? {})
 ```
 ---
-    t
+    #t
 
 ## curly-infix single
 
@@ -51,7 +51,7 @@
 {5 > 3}
 ```
 ---
-    t
+    #t
 
 ### subtraction
 
@@ -71,13 +71,13 @@
 ---
     -5
 
-### not returns nil
+### not returns #f
 
 ```scheme
-(null? {not #t})
+(not {not #t})
 ```
 ---
-    t
+    #t
 
 ## curly-infix variadic
 

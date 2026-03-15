@@ -94,7 +94,7 @@
 (times identity 4)
 (times identity 0)
 (unfold (fn (x) (> x 3)) identity inc 1)
-(unfold (fn (x) t) identity inc 1)
+(unfold (fn (x) #t) identity inc 1)
 (iterate inc 4 1)
 (iterate inc 0 1)
 

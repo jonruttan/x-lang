@@ -5,8 +5,8 @@
 ;
 ; Usage:
 ;   (def rx #/ab*c/)
-;   (rx "abbc")              ; -> t
-;   (rx "abd")               ; -> ()
+;   (rx "abbc")              ; -> #t
+;   (rx "abd")               ; -> #f
 ;   (write rx)               ; -> #/ab*c/
 ; --- Matcher ---
 ; Forward-declare for mutual recursion
@@ -27,7 +27,7 @@
       ((eq? tag (lit any)) (if (< pos end) (+ pos 1) ()))
       ; Nested quantifiers: delegate to full exec
 
-      (t (regex-exec (list node) str pos end)))))
+      (#t (regex-exec (list node) str pos end)))))
 ; Greedy star: collect all reachable positions, try rest from farthest first
 
 (def regex-exec-star
@@ -96,7 +96,7 @@
               end))
           ((eq? tag (lit opt))
             (regex-exec-opt (first (rest node)) rest-nodes str pos end))
-          (t ()))))))
+          (#t ()))))))
 ; --- Write: reconstruct pattern from AST ---
 
 (def %regex-write-node
@@ -111,7 +111,7 @@
             ((= ch #\+) (do (display "\\") (display "+")))
             ((= ch #\?) (do (display "\\") (display "?")))
             ((= ch #\\) (do (display "\\") (display "\\")))
-            (t (display (integer->char ch))))))
+            (#t (display (integer->char ch))))))
       ((eq? tag (lit any)) (display "."))
       ((eq? tag (lit star))
         (do (%regex-write-node (first (rest node))) (display "*")))
@@ -185,7 +185,7 @@
               (pair (list (lit opt) (first acc)) (rest acc)))))
         ; Literal character
 
-        (t (%regex-body (pair (list (lit lit) (+ chr 0)) acc)))))))
+        (#t (%regex-body (pair (list (lit lit) (+ chr 0)) acc)))))))
 ; Escape state: next char is literal regardless
 
 (set %regex-escape
@@ -204,7 +204,7 @@
           (def input (first args))
           (def end (string-length input))
           (def result (regex-exec (first self) input 0 end))
-          (if (and result (= result end)) t ())))
+          (if (and result (= result end)) #t #f)))
       (pair
         (lit write)
         (fn (self)

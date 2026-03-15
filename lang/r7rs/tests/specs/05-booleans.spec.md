@@ -6,7 +6,7 @@
 (boolean? #t)
 ```
 ---
-    t
+    #t
 
 ### boolean? on false
 
@@ -14,41 +14,41 @@
 (boolean? #f)
 ```
 ---
-    t
+    #t
 
 ### boolean? on number
 
 ```scheme
-(null? (boolean? 0))
+(not (boolean? 0))
 ```
 ---
-    t
+    #t
 
 ### boolean? on string
 
 ```scheme
-(null? (boolean? ""))
+(not (boolean? ""))
 ```
 ---
-    t
+    #t
 
 ### boolean? on nil
 
 ```scheme
-(boolean? ())
+(not (boolean? ()))
 ```
 ---
-    t
+    #t
 
 ## not
 
 ### not true
 
 ```scheme
-(null? (not #t))
+(not (not #t))
 ```
 ---
-    t
+    #t
 
 ### not false
 
@@ -56,15 +56,15 @@
 (not #f)
 ```
 ---
-    t
+    #t
 
 ### not 3
 
 ```scheme
-(null? (not 3))
+(not (not 3))
 ```
 ---
-    t
+    #t
 
 ### not nil
 
@@ -72,7 +72,7 @@
 (not ())
 ```
 ---
-    t
+    #t
 
 ## boolean=?
 
@@ -82,7 +82,7 @@
 (boolean=? #t #t)
 ```
 ---
-    t
+    #t
 
 ### boolean=? both false
 
@@ -90,21 +90,21 @@
 (boolean=? #f #f)
 ```
 ---
-    t
+    #t
 
 ### boolean=? true false
 
 ```scheme
-(null? (boolean=? #t #f))
+(not (boolean=? #t #f))
 ```
 ---
-    t
+    #t
 
 ### boolean=? false true
 
 ```scheme
-(null? (boolean=? #f #t))
+(not (boolean=? #f #t))
 ```
 ---
-    t
+    #t
 

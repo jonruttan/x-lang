@@ -188,7 +188,7 @@
 (zero? 0)
 ```
 ---
-    t
+    #t
 
 ### false for non-zero
 
@@ -206,7 +206,7 @@
 (positive? 5)
 ```
 ---
-    t
+    #t
 
 ### false for negative
 
@@ -224,7 +224,7 @@
 (negative? -5)
 ```
 ---
-    t
+    #t
 
 ### false for positive
 
@@ -242,7 +242,7 @@
 (even? 4)
 ```
 ---
-    t
+    #t
 
 ### false for odd
 
@@ -260,7 +260,7 @@
 (odd? 3)
 ```
 ---
-    t
+    #t
 
 ### false for even
 

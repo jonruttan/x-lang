@@ -41,8 +41,6 @@
 
   ; =========================================================
 
-  (def #t t)
-  (def #f ())
   ; =========================================================
 
   ; define: (define x val) or (define (f args...) body...)
@@ -1816,8 +1814,8 @@
         (fn (datums)
           (cond
             ((null? datums) ())
-            ((case-match? (first datums)) t)
-            (t (case-check-datums (rest datums))))))
+            ((case-match? (first datums)) #t)
+            (#t (case-check-datums (rest datums))))))
       (def case-loop
         (fn (cls)
           (cond
@@ -1826,7 +1824,7 @@
                (eq? (first (first cls)) (lit else))
                (case-check-datums (first (first cls))))
               (eval (cadr (first cls)) e))
-            (t (case-loop (rest cls))))))
+            (#t (case-loop (rest cls))))))
       (case-loop clauses)))
   ; --- do (Scheme iteration form, named do-loop to avoid clash) ---
 

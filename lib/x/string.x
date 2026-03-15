@@ -7,7 +7,7 @@
     (match
       ((null? lst) "")
       ((null? (rest lst)) (first lst))
-      (t
+      (#t
         (fold
           (fn (acc s) (string-append acc (string-append sep s)))
           (first lst)
@@ -26,10 +26,10 @@
     (def go
       (fn (i)
         (match
-          ((> (+ i sub-len) s-len) ())
-          ((string=? (substring s i (+ i sub-len)) sub) t)
-          (t (go (+ i 1))))))
-    (if (= sub-len 0) t (go 0))))
+          ((> (+ i sub-len) s-len) #f)
+          ((string=? (substring s i (+ i sub-len)) sub) #t)
+          (#t (go (+ i 1))))))
+    (if (= sub-len 0) #t (go 0))))
 
 (def string-starts?
   (fn (pfx s)

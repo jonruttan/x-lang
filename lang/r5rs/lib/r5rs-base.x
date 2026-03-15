@@ -31,12 +31,28 @@
   (def cond match)
   ; --- Boolean constants ---
 
-  (def #t t)
-  (def #f ())
-  (def else t)
+  (def else #t)
   ; --- Float support ---
 
   (include "lib/x/float.x")
+  ; --- string->number: try integer first, then float ---
+
+  (def %string->number-int string->number)
+  (def %string->number-try-float
+    (fn (s)
+      (def %raw (string->float s))
+      (if (= %raw 0)
+        (if (= (string-ref s 0) (string-ref "0" 0))
+          (make-instance %float 0)
+          ())
+        (make-instance %float %raw))))
+  (def string->number
+    (fn (s . rest)
+      (if (not (null? rest))
+        (%string->number-int s (first rest))
+        (if (= (string-length s) 0) ()
+          (let ((%r (%string->number-int s)))
+            (if %r %r (%string->number-try-float s)))))))
   ; --- write-char / newline ---
 
   (def write-char (fn (c) (display (make-string 1 c))))
@@ -78,10 +94,11 @@
   ; --- Mutation ---
 
   (define
+    (%vector-set-walk lst n val)
+    (if (= n 0) (set-first lst val) (%vector-set-walk (rest lst) (- n 1) val)))
+  (define
     (vector-set! v i val)
-    (let loop
-      ((lst (first v)) (n i))
-      (if (= n 0) (set-first lst val) (loop (rest lst) (- n 1)))))
+    (%vector-set-walk (first v) i val))
   ; --- Composition accessors ---
 
   (define (caar x) (first (first x)))
@@ -92,6 +109,11 @@
   (define (caadr x) (first (first (rest x))))
   (define (caddr x) (first (rest (rest x))))
   (define (cdddr x) (rest (rest (rest x))))
+  ; --- make-vector: accept 1 or 2 args (R5RS optional fill) ---
+
+  (def %make-vector-orig make-vector)
+  (define (make-vector n . rest)
+    (%make-vector-orig n (if (null? rest) () (first rest))))
   ; --- Scheme list aliases (x.x provides the implementations) ---
 
   (define (list-ref lst n) (nth n lst))
@@ -103,13 +125,13 @@
     (match
       ((null? lst) #f)
       ((equal? x (first lst)) lst)
-      (t (member x (rest lst)))))
+      (#t (member x (rest lst)))))
   (define
     (assoc key alist)
     (match
       ((null? alist) #f)
       ((equal? key (caar alist)) (first alist))
-      (t (assoc key (rest alist)))))
+      (#t (assoc key (rest alist)))))
   ; --- String operations (R5RS aliases) ---
 
   (define (string-copy s) (substring s 0 (string-length s)))
@@ -277,8 +299,8 @@
         (fn (datums)
           (match
             ((null? datums) ())
-            ((case-match? (first datums)) t)
-            (t (case-check-datums (rest datums))))))
+            ((case-match? (first datums)) #t)
+            (#t (case-check-datums (rest datums))))))
       (def case-loop
         (fn (cls)
           (match
@@ -287,7 +309,7 @@
                (eq? (first (first cls)) (lit else))
                (case-check-datums (first (first cls))))
               (eval (pair (lit begin) (rest (first cls))) e))
-            (t (case-loop (rest cls))))))
+            (#t (case-loop (rest cls))))))
       (case-loop clauses)))
   ; --- Deep structural equality (override x-lib equal? for pairs/vectors) ---
 
@@ -858,7 +880,7 @@
 
   (define
     (%sr-safe-eval sym env)
-    (guard (e ()) (pair (lit t) (eval sym env))))
+    (guard (e ()) (pair #t (eval sym env))))
   ; Sentinel for pattern match failure (unique identity)
 
   (define %sr-no-match (pair (lit no) (lit match)))
@@ -1077,27 +1099,7 @@
 
   (define
     (%sr-instantiate template bindings def-env)
-    (let*
-      ((pvars (map car bindings))
-        (introduced (%sr-unique (%sr-introduced template pvars)))
-        (rn-lets
-          (let loop
-            ((syms introduced) (renames ()) (lets ()))
-            (if (null? syms)
-              (pair renames lets)
-              (let ((v (%sr-safe-eval (car syms) def-env)))
-                (if (pair? v)
-                  (let ((g (gensym)))
-                    (loop
-                      (cdr syms)
-                      (pair (pair (car syms) g) renames)
-                      (pair (list g (cdr v)) lets)))
-                  (loop (cdr syms) renames lets))))))
-        (renames (car rn-lets))
-        (lets (cdr rn-lets))
-        (renamed (%sr-rename template renames))
-        (expanded (%sr-subst renamed bindings)))
-      (if (null? lets) expanded (list (lit let) lets expanded))))
+    (%sr-subst template bindings))
   ; Try each clause, return first match's expansion
 
   (define
@@ -1150,11 +1152,10 @@
               (lit %sr-args)
               (lit %sr-env)
               (list
-                (lit eval)
+                (lit eval!)
                 (list
                   %ds-xfm-name
-                  (list (lit pair) (list (lit lit) name) (lit %sr-args)))
-                (lit %sr-env))))))))
+                  (list (lit pair) (list (lit lit) name) (lit %sr-args))))))))))
   ; let-syntax: local syntax bindings
 
   ; Processes one binding at a time, wrapping in let + recursing
@@ -1190,11 +1191,10 @@
                       (lit %sr-args)
                       (lit %sr-env)
                       (list
-                        (lit eval)
+                        (lit eval!)
                         (list
                           %ls-xfm-name
-                          (list (lit pair) (list (lit lit) %ls-name) (lit %sr-args)))
-                        (lit %sr-env)))))
+                          (list (lit pair) (list (lit lit) %ls-name) (lit %sr-args)))))))
                 (pair (lit let-syntax) (pair (cdr %ls-bindings) %ls-body))))
             %ls-e)))))
   ; letrec-syntax: like let-syntax but transformers can see each other

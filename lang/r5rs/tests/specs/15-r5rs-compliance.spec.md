@@ -8,7 +8,7 @@
 (eqv? #t #t)
 ```
 ---
-    t
+    #t
 
 ### eqv? on symbols
 
@@ -16,15 +16,15 @@
 (eqv? 'a 'a)
 ```
 ---
-    t
+    #t
 
 ### eqv? symbol mismatch
 
 ```scheme
-(null? (eqv? 'a 'b))
+(not (eqv? 'a 'b))
 ```
 ---
-    t
+    #t
 
 ### eqv? on numbers
 
@@ -32,7 +32,7 @@
 (eqv? 2 2)
 ```
 ---
-    t
+    #t
 
 ### eqv? on empty lists
 
@@ -40,7 +40,7 @@
 (eqv? '() '())
 ```
 ---
-    t
+    #t
 
 ### eqv? on chars
 
@@ -48,23 +48,23 @@
 (eqv? #\a #\a)
 ```
 ---
-    t
+    #t
 
 ### eqv? char mismatch
 
 ```scheme
-(null? (eqv? #\a #\b))
+(not (eqv? #\a #\b))
 ```
 ---
-    t
+    #t
 
 ### eqv? different types
 
 ```scheme
-(null? (eqv? #t 'a))
+(not (eqv? #t 'a))
 ```
 ---
-    t
+    #t
 
 ### eq? on symbols
 
@@ -72,7 +72,7 @@
 (eq? 'a 'a)
 ```
 ---
-    t
+    #t
 
 ### eq? on empty lists
 
@@ -80,7 +80,7 @@
 (eq? '() '())
 ```
 ---
-    t
+    #t
 
 ### eq? self identity
 
@@ -89,7 +89,7 @@
   (eq? x x))
 ```
 ---
-    t
+    #t
 
 ### eq? procedure identity
 
@@ -98,7 +98,7 @@
   (eq? p p))
 ```
 ---
-    t
+    #t
 
 ### equal? on lists
 
@@ -106,7 +106,7 @@
 (equal? '(a b c) '(a b c))
 ```
 ---
-    t
+    #t
 
 ### equal? on nested lists
 
@@ -114,7 +114,7 @@
 (equal? '(a (b) c) '(a (b) c))
 ```
 ---
-    t
+    #t
 
 ### equal? on strings
 
@@ -122,7 +122,7 @@
 (equal? "abc" "abc")
 ```
 ---
-    t
+    #t
 
 ### equal? on vectors
 
@@ -130,7 +130,7 @@
 (equal? (vector 1 2 3) (vector 1 2 3))
 ```
 ---
-    t
+    #t
 
 ### equal? on numbers
 
@@ -138,7 +138,7 @@
 (equal? 2 2)
 ```
 ---
-    t
+    #t
 
 ## numeric operations
 
@@ -244,7 +244,7 @@
 (= 13 (+ (* 4 (quotient 13 4)) (remainder 13 4)))
 ```
 ---
-    t
+    #t
 
 ### gcd
 
@@ -342,7 +342,7 @@
 (list? '(a b c))
 ```
 ---
-    t
+    #t
 
 ### list? on empty
 
@@ -350,15 +350,15 @@
 (list? '())
 ```
 ---
-    t
+    #t
 
 ### list? on dotted pair
 
 ```scheme
-(null? (list? '(a . b)))
+(not (list? '(a . b)))
 ```
 ---
-    t
+    #t
 
 ### memq found
 
@@ -379,10 +379,10 @@
 ### memq not found
 
 ```scheme
-(null? (memq 'a '(b c d)))
+(not (memq 'a '(b c d)))
 ```
 ---
-    t
+    #t
 
 ### memv with numbers
 
@@ -403,10 +403,10 @@
 ### assq not found
 
 ```scheme
-(null? (assq 'd '((a 1) (b 2) (c 3))))
+(not (assq 'd '((a 1) (b 2) (c 3))))
 ```
 ---
-    t
+    #t
 
 ### assv with numbers
 
@@ -440,7 +440,7 @@
 (equal? (string->list "abc") (list #\a #\b #\c))
 ```
 ---
-    t
+    #t
 
 ### list->string round trip
 
@@ -448,7 +448,7 @@
 (string=? (list->string '(#\a #\b #\c)) "abc")
 ```
 ---
-    t
+    #t
 
 ### string->list then list->string identity
 
@@ -456,7 +456,7 @@
 (string=? (list->string (string->list "hello")) "hello")
 ```
 ---
-    t
+    #t
 
 ### substring
 
@@ -464,7 +464,7 @@
 (string=? (substring "hello world" 6 11) "world")
 ```
 ---
-    t
+    #t
 
 ### string-copy
 
@@ -473,7 +473,7 @@
   (string=? (string-copy s) s))
 ```
 ---
-    t
+    #t
 
 ### string-append multiple
 
@@ -481,7 +481,7 @@
 (string=? (string-append "a" "b" "c") "abc")
 ```
 ---
-    t
+    #t
 
 ## control features
 
@@ -573,7 +573,7 @@
 (boolean? #t)
 ```
 ---
-    t
+    #t
 
 ### boolean? on false
 
@@ -581,23 +581,23 @@
 (boolean? #f)
 ```
 ---
-    t
+    #t
 
 ### boolean? on number
 
 ```scheme
-(null? (boolean? 0))
+(not (boolean? 0))
 ```
 ---
-    t
+    #t
 
 ### not true is false
 
 ```scheme
-(null? (not #t))
+(not (not #t))
 ```
 ---
-    t
+    #t
 
 ### not false is true
 
@@ -605,15 +605,15 @@
 (not #f)
 ```
 ---
-    t
+    #t
 
 ### not zero is false (zero is truthy)
 
 ```scheme
-(null? (not 0))
+(not (not 0))
 ```
 ---
-    t
+    #t
 
 ## procedure?
 
@@ -623,7 +623,7 @@
 (procedure? (lambda (x) x))
 ```
 ---
-    t
+    #t
 
 ### procedure? on builtin
 
@@ -631,20 +631,20 @@
 (procedure? car)
 ```
 ---
-    t
+    #t
 
 ### procedure? on symbol
 
 ```scheme
-(null? (procedure? 'car))
+(not (procedure? 'car))
 ```
 ---
-    t
+    #t
 
 ### procedure? on number
 
 ```scheme
-(null? (procedure? 42))
+(not (procedure? 42))
 ```
 ---
-    t
+    #t

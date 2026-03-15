@@ -6,15 +6,15 @@
 (number? 42)
 ```
 ---
-    t
+    #t
 
 ### number? false
 
 ```scheme
-(null? (number? "hello"))
+(not (number? "hello"))
 ```
 ---
-    t
+    #t
 
 ### string?
 
@@ -22,15 +22,15 @@
 (string? "hello")
 ```
 ---
-    t
+    #t
 
 ### string? false
 
 ```scheme
-(null? (string? 42))
+(not (string? 42))
 ```
 ---
-    t
+    #t
 
 ### symbol?
 
@@ -38,15 +38,15 @@
 (symbol? (quote hello))
 ```
 ---
-    t
+    #t
 
 ### symbol? false
 
 ```scheme
-(null? (symbol? 42))
+(not (symbol? 42))
 ```
 ---
-    t
+    #t
 
 ### procedure? on lambda
 
@@ -54,7 +54,7 @@
 (procedure? (lambda (x) x))
 ```
 ---
-    t
+    #t
 
 ### procedure? on builtin
 
@@ -62,15 +62,15 @@
 (procedure? car)
 ```
 ---
-    t
+    #t
 
 ### procedure? false
 
 ```scheme
-(null? (procedure? 42))
+(not (procedure? 42))
 ```
 ---
-    t
+    #t
 
 ### pair?
 
@@ -78,7 +78,7 @@
 (pair? (list 1 2))
 ```
 ---
-    t
+    #t
 
 ### null? on empty
 
@@ -86,7 +86,7 @@
 (null? ())
 ```
 ---
-    t
+    #t
 
 ### boolean? on #t
 
@@ -94,7 +94,7 @@
 (boolean? #t)
 ```
 ---
-    t
+    #t
 
 ### boolean? on #f
 
@@ -102,15 +102,15 @@
 (boolean? #f)
 ```
 ---
-    t
+    #t
 
 ### boolean? false
 
 ```scheme
-(null? (boolean? 42))
+(not (boolean? 42))
 ```
 ---
-    t
+    #t
 
 ### char? on char
 
@@ -118,15 +118,15 @@
 (char? #\a)
 ```
 ---
-    t
+    #t
 
 ### char? false
 
 ```scheme
-(null? (char? 42))
+(not (char? 42))
 ```
 ---
-    t
+    #t
 
 ## equality
 
@@ -136,15 +136,15 @@
 (eq? (quote a) (quote a))
 ```
 ---
-    t
+    #t
 
 ### eq? different symbols
 
 ```scheme
-(null? (eq? (quote a) (quote b)))
+(not (eq? (quote a) (quote b)))
 ```
 ---
-    t
+    #t
 
 ### equal? on lists
 
@@ -152,15 +152,15 @@
 (equal? (list 1 2 3) (list 1 2 3))
 ```
 ---
-    t
+    #t
 
 ### equal? different lists
 
 ```scheme
-(null? (equal? (list 1 2) (list 1 3)))
+(not (equal? (list 1 2) (list 1 3)))
 ```
 ---
-    t
+    #t
 
 ### equal? nested lists
 
@@ -168,7 +168,7 @@
 (equal? (list 1 (list 2 3)) (list 1 (list 2 3)))
 ```
 ---
-    t
+    #t
 
 ### eqv? on numbers
 
@@ -176,15 +176,15 @@
 (eqv? 42 42)
 ```
 ---
-    t
+    #t
 
 ### eqv? different numbers
 
 ```scheme
-(null? (eqv? 1 2))
+(not (eqv? 1 2))
 ```
 ---
-    t
+    #t
 
 ## list?
 
@@ -194,7 +194,7 @@
 (list? (list 1 2))
 ```
 ---
-    t
+    #t
 
 ### list? on empty
 
@@ -202,23 +202,23 @@
 (list? ())
 ```
 ---
-    t
+    #t
 
 ### list? on dotted pair
 
 ```scheme
-(null? (list? (cons 1 2)))
+(not (list? (cons 1 2)))
 ```
 ---
-    t
+    #t
 
 ### list? on atom
 
 ```scheme
-(null? (list? 42))
+(not (list? 42))
 ```
 ---
-    t
+    #t
 
 ## number predicates
 
@@ -228,23 +228,23 @@
 (zero? 0)
 ```
 ---
-    t
+    #t
 
 ### zero? false
 
 ```scheme
-(null? (zero? 1))
+(not (zero? 1))
 ```
 ---
-    t
+    #t
 
 ### zero? negative
 
 ```scheme
-(null? (zero? (- 0 1)))
+(not (zero? (- 0 1)))
 ```
 ---
-    t
+    #t
 
 ### positive?
 
@@ -252,15 +252,15 @@
 (positive? 5)
 ```
 ---
-    t
+    #t
 
 ### positive? false
 
 ```scheme
-(null? (positive? 0))
+(not (positive? 0))
 ```
 ---
-    t
+    #t
 
 ### negative?
 
@@ -268,15 +268,15 @@
 (negative? (- 0 3))
 ```
 ---
-    t
+    #t
 
 ### negative? false
 
 ```scheme
-(null? (negative? 0))
+(not (negative? 0))
 ```
 ---
-    t
+    #t
 
 ### even?
 
@@ -284,15 +284,15 @@
 (even? 4)
 ```
 ---
-    t
+    #t
 
 ### even? false
 
 ```scheme
-(null? (even? 3))
+(not (even? 3))
 ```
 ---
-    t
+    #t
 
 ### even? zero
 
@@ -300,7 +300,7 @@
 (even? 0)
 ```
 ---
-    t
+    #t
 
 ### odd?
 
@@ -308,15 +308,15 @@
 (odd? 3)
 ```
 ---
-    t
+    #t
 
 ### odd? false
 
 ```scheme
-(null? (odd? 4))
+(not (odd? 4))
 ```
 ---
-    t
+    #t
 
 ## numeric operations
 

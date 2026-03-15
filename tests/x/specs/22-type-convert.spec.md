@@ -8,7 +8,7 @@
 (not (null? (type-of 42)))
 ```
 ---
-    t
+    #t
 
 ### returns a handle for strings
 
@@ -16,7 +16,7 @@
 (not (null? (type-of "hello")))
 ```
 ---
-    t
+    #t
 
 ### returns nil for nil
 
@@ -24,7 +24,7 @@
 (null? (type-of ()))
 ```
 ---
-    t
+    #t
 
 ## type-of equality (same type)
 
@@ -34,7 +34,7 @@
 (eq? (type-of 1) (type-of 999))
 ```
 ---
-    t
+    #t
 
 ### same type handle for two strings
 
@@ -42,7 +42,7 @@
 (eq? (type-of "a") (type-of "zzz"))
 ```
 ---
-    t
+    #t
 
 ### same type handle for two pairs
 
@@ -50,7 +50,7 @@
 (do (def a (type-of (pair 1 2))) (def b (type-of (pair 3 4))) (eq? a b))
 ```
 ---
-    t
+    #t
 
 ### same type handle for two floats
 
@@ -58,15 +58,15 @@
 (eq? (type-of 1.0) (type-of 2.5))
 ```
 ---
-    t
+    #t
 
 ### same type handle for two booleans
 
 ```scheme
-(eq? (type-of t) (type-of t))
+(eq? (type-of #t) (type-of #t))
 ```
 ---
-    t
+    #t
 
 ### same type handle for two chars
 
@@ -74,49 +74,49 @@
 (eq? (type-of #\a) (type-of #\z))
 ```
 ---
-    t
+    #t
 
 ## type-of inequality (different types)
 
 ### int differs from string
 
 ```scheme
-(null? (eq? (type-of 1) (type-of "x")))
+(not (eq? (type-of 1) (type-of "x")))
 ```
 ---
-    t
+    #t
 
 ### int differs from float
 
 ```scheme
-(null? (eq? (type-of 1) (type-of 1.0)))
+(not (eq? (type-of 1) (type-of 1.0)))
 ```
 ---
-    t
+    #t
 
 ### string differs from pair
 
 ```scheme
-(do (def a (type-of "x")) (def b (type-of (pair 1 2))) (null? (eq? a b)))
+(do (def a (type-of "x")) (def b (type-of (pair 1 2))) (not (eq? a b)))
 ```
 ---
-    t
+    #t
 
 ### int differs from char
 
 ```scheme
-(null? (eq? (type-of 1) (type-of #\a)))
+(not (eq? (type-of 1) (type-of #\a)))
 ```
 ---
-    t
+    #t
 
 ### float differs from string
 
 ```scheme
-(null? (eq? (type-of 1.0) (type-of "1.0")))
+(not (eq? (type-of 1.0) (type-of "1.0")))
 ```
 ---
-    t
+    #t
 
 ## type-of custom types
 
@@ -126,7 +126,7 @@
 (do (def %t (make-type "TEST-T" (list))) (def obj (make-instance %t 1)) (not (null? (type-of obj))))
 ```
 ---
-    t
+    #t
 
 ### same custom type returns same handle
 
@@ -134,23 +134,23 @@
 (do (def %t (make-type "TEST-T" (list))) (def a (make-instance %t 1)) (def b (make-instance %t 2)) (eq? (type-of a) (type-of b)))
 ```
 ---
-    t
+    #t
 
 ### different custom types differ
 
 ```scheme
-(do (def %t1 (make-type "T1" (list))) (def %t2 (make-type "T2" (list))) (null? (eq? (type-of (make-instance %t1 1)) (type-of (make-instance %t2 1)))))
+(do (def %t1 (make-type "T1" (list))) (def %t2 (make-type "T2" (list))) (not (eq? (type-of (make-instance %t1 1)) (type-of (make-instance %t2 1)))))
 ```
 ---
-    t
+    #t
 
 ### custom type differs from int
 
 ```scheme
-(do (def %t (make-type "TEST-T" (list))) (null? (eq? (type-of (make-instance %t 1)) (type-of 42))))
+(do (def %t (make-type "TEST-T" (list))) (not (eq? (type-of (make-instance %t 1)) (type-of 42))))
 ```
 ---
-    t
+    #t
 
 ## type-of used in convert alist key
 
@@ -160,7 +160,7 @@
 (float? (convert 42 %float))
 ```
 ---
-    t
+    #t
 
 ### type-of key matches string for float
 
@@ -168,7 +168,7 @@
 (float? (convert "3.14" %float))
 ```
 ---
-    t
+    #t
 
 ## write-to-string
 
@@ -215,10 +215,10 @@
 ### boolean to string
 
 ```scheme
-(write-to-string t)
+(write-to-string #t)
 ```
 ---
-    "t"
+    "#t"
 
 ### nil to "()" string
 
@@ -274,7 +274,7 @@
 (string? (write-to-string 42))
 ```
 ---
-    t
+    #t
 
 ## convert nil handling
 
@@ -284,7 +284,7 @@
 (null? (convert () %float))
 ```
 ---
-    t
+    #t
 
 ### convert nil to custom type returns nil
 
@@ -292,7 +292,7 @@
 (do (def %t (make-type "CNV-T" (list (pair (lit from) (list (pair (type-of 42) (fn (v) (make-instance %t v)))))))) (null? (convert () %t)))
 ```
 ---
-    t
+    #t
 
 ## convert short-circuit (already target type)
 
@@ -302,7 +302,7 @@
 (def x 3.14) (eq? (convert x %float) x)
 ```
 ---
-    t
+    #t
 
 ### custom type to same type is identity
 
@@ -310,7 +310,7 @@
 (do (def %t (make-type "ID-T" (list (pair (lit from) (list))))) (def obj (make-instance %t 42)) (eq? (convert obj %t) obj))
 ```
 ---
-    t
+    #t
 
 ## convert alist dispatch
 
@@ -328,7 +328,7 @@
 (float? (convert 42 %float))
 ```
 ---
-    t
+    #t
 
 ### no match returns nil
 
@@ -336,7 +336,7 @@
 (null? (convert #\a %float))
 ```
 ---
-    t
+    #t
 
 ### convert negative int to float
 
@@ -360,30 +360,30 @@
 (float? (convert 0 %float))
 ```
 ---
-    t
+    #t
 
 ## convert wildcard t entry
 
 ### wildcard matches any type
 
 ```scheme
-(do (def %t (make-type "WILD-T" (list (pair (lit from) (list (pair t (fn (v) (make-instance %t v)))))))) (type? (convert 42 %t) %t))
+(do (def %t (make-type "WILD-T" (list (pair (lit from) (list (pair #t (fn (v) (make-instance %t v)))))))) (type? (convert 42 %t) %t))
 ```
 ---
-    t
+    #t
 
 ### wildcard catches string
 
 ```scheme
-(do (def %t (make-type "WILD-T" (list (pair (lit from) (list (pair t (fn (v) (make-instance %t v)))))))) (type? (convert "hello" %t) %t))
+(do (def %t (make-type "WILD-T" (list (pair (lit from) (list (pair #t (fn (v) (make-instance %t v)))))))) (type? (convert "hello" %t) %t))
 ```
 ---
-    t
+    #t
 
 ### exact match takes priority over wildcard
 
 ```scheme
-(do (def %t (make-type "PRIO-T" (list (pair (lit from) (list (pair (type-of 42) (fn (v) (make-instance %t "exact"))) (pair t (fn (v) (make-instance %t "wild")))))))) (first (convert 42 %t)))
+(do (def %t (make-type "PRIO-T" (list (pair (lit from) (list (pair (type-of 42) (fn (v) (make-instance %t "exact"))) (pair #t (fn (v) (make-instance %t "wild")))))))) (first (convert 42 %t)))
 ```
 ---
     "exact"
@@ -391,7 +391,7 @@
 ### wildcard used when no exact match
 
 ```scheme
-(do (def %t (make-type "PRIO-T" (list (pair (lit from) (list (pair (type-of 42) (fn (v) (make-instance %t "exact"))) (pair t (fn (v) (make-instance %t "wild")))))))) (first (convert "hello" %t)))
+(do (def %t (make-type "PRIO-T" (list (pair (lit from) (list (pair (type-of 42) (fn (v) (make-instance %t "exact"))) (pair #t (fn (v) (make-instance %t "wild")))))))) (first (convert "hello" %t)))
 ```
 ---
     "wild"
@@ -404,7 +404,7 @@
 (do (def %t (make-type "EMPTY-T" (list (pair (lit from) (list))))) (null? (convert 42 %t)))
 ```
 ---
-    t
+    #t
 
 ### type with no convert field returns nil
 
@@ -412,7 +412,7 @@
 (do (def %t (make-type "NO-CVT" (list))) (null? (convert 42 %t)))
 ```
 ---
-    t
+    #t
 
 ## convert multi-type alist
 
@@ -438,7 +438,7 @@
 (do (def %t (make-type "MULTI-T" (list (pair (lit from) (list (pair (type-of 42) (fn (v) (make-instance %t v)))))))) (null? (convert #\a %t)))
 ```
 ---
-    t
+    #t
 
 ## convert string to float
 
@@ -448,7 +448,7 @@
 (float? (convert "3.14" %float))
 ```
 ---
-    t
+    #t
 
 ### converted string float has correct value
 
@@ -464,7 +464,7 @@
 (float? (convert "42" %float))
 ```
 ---
-    t
+    #t
 
 ## convert list to vector
 
@@ -474,7 +474,7 @@
 (vector? (convert (list 1 2 3) %vector))
 ```
 ---
-    t
+    #t
 
 ### converted vector has correct contents
 
@@ -490,7 +490,7 @@
 (null? (convert () %vector))
 ```
 ---
-    t
+    #t
 
 ## convert outbound (to alist)
 
@@ -500,7 +500,7 @@
 (def x (convert 3.14 (type-of 42))) (integer? x)
 ```
 ---
-    t
+    #t
 
 ### float to int value
 
@@ -516,7 +516,7 @@
 (string? (convert 3.14 (type-of "")))
 ```
 ---
-    t
+    #t
 
 ### float to string value
 
@@ -540,5 +540,5 @@
 (null? (convert 3.14 (type-of #\a)))
 ```
 ---
-    t
+    #t
 

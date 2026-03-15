@@ -60,7 +60,7 @@
         (if (and
               (eq? (first tok) (lit tok-op))
               (string=? (first (rest tok)) op))
-          (do (%cursor-advance! cur) t)
+          (do (%cursor-advance! cur) #t)
           ())))))
 
 (def %skip-newlines
@@ -96,7 +96,7 @@
 (def %at-stop-word?
   (fn (cur)
     (if (%cursor-empty? cur)
-      t
+      #t
       (let ((tok (%cursor-peek cur)))
         (if (eq? (first tok) (lit tok-word))
           (let ((w (first (rest tok))))
@@ -123,7 +123,7 @@
         (if (and
               (eq? (first tok) (lit tok-word))
               (string=? (first (rest tok)) word))
-          (do (%cursor-advance! cur) t)
+          (do (%cursor-advance! cur) #t)
           (error (string-append "parse error: expected " word)))))))
 ; --- Variable expansion ---
 
@@ -176,7 +176,7 @@
     (set %check
       (fn (i len)
         (if (= i len)
-          t
+          #t
           (let ((c (char->integer (string-ref s i))))
             (if (and (>= c (char->integer #\0)) (<= c (char->integer #\9)))
               (%check (+ i 1) len)
@@ -253,7 +253,7 @@
             (if first-word () (display " "))
             (display (first ws))
             (%print-words (rest ws) ())))))
-    (%print-words wds t)
+    (%print-words wds #t)
     (newline)
     0))
 
@@ -371,7 +371,7 @@
         (if (= i (string-length word))
           ()
           (if (= (char->integer (string-ref word i)) (char->integer #\=))
-            (if (= i 0) () t)
+            (if (= i 0) () #t)
             (%has-eq (+ i 1))))))
     (if (= (string-length word) 0) () (%has-eq 0))))
 
@@ -774,7 +774,7 @@
 
 (def %sh-pattern-match?
   (fn (pat word)
-    (if (string=? pat "*") t (string=? pat word))))
+    (if (string=? pat "*") #t (string=? pat word))))
 
 (def %collect-case-patterns ())
 
@@ -804,7 +804,7 @@
     (if (null? pats)
       ()
       (if (%sh-pattern-match? (first pats) word)
-        t
+        #t
         (%case-match? (rest pats) word)))))
 
 (def %skip-case-body ())
@@ -1052,7 +1052,7 @@
                   (not (%cursor-empty? cur))
                   (%tok-is-word? (%cursor-peek cur))
                   (string=? (%tok-word-val (%cursor-peek cur)) "!"))
-              (do (%cursor-advance! cur) (%skip-newlines cur) t)
+              (do (%cursor-advance! cur) (%skip-newlines cur) #t)
               ())))
       ; Compound commands (if/while/for) contain internal ';' delimiters
 

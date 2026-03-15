@@ -132,37 +132,37 @@ Returns whichever of `a` or `b` is larger when compared by applying `f`.
 
 ### `zero?`
 `(zero? n) -> boolean`
-Returns `t` if the number is zero.
+Returns `#t` if the number is zero.
 ```
-(zero? 0) -> t
+(zero? 0) -> #t
 ```
 
 ### `positive?`
 `(positive? n) -> boolean`
-Returns `t` if the number is greater than zero.
+Returns `#t` if the number is greater than zero.
 ```
-(positive? 5) -> t
+(positive? 5) -> #t
 ```
 
 ### `negative?`
 `(negative? n) -> boolean`
-Returns `t` if the number is less than zero.
+Returns `#t` if the number is less than zero.
 ```
-(negative? -3) -> t
+(negative? -3) -> #t
 ```
 
 ### `even?`
 `(even? n) -> boolean`
-Returns `t` if the number is even.
+Returns `#t` if the number is even.
 ```
-(even? 4) -> t
+(even? 4) -> #t
 ```
 
 ### `odd?`
 `(odd? n) -> boolean`
-Returns `t` if the number is odd.
+Returns `#t` if the number is odd.
 ```
-(odd? 3) -> t
+(odd? 3) -> #t
 ```
 
 ---
@@ -171,9 +171,9 @@ Returns `t` if the number is odd.
 
 ### `boolean?`
 `(boolean? x) -> boolean`
-Returns `t` if `x` is `t` or `()` (the two canonical boolean values).
+Returns `#t` if `x` is `#t` or `()` (the two canonical boolean values).
 ```
-(boolean? t) -> t
+(boolean? #t) -> #t
 ```
 
 ### `default-to`
@@ -194,7 +194,7 @@ Repeatedly applies `f` to `x` until `pred` returns true, then returns the value.
 `(equal? a b) -> boolean`
 Structural equality that compares numbers by value, strings by content, and everything else by identity.
 ```
-(equal? 3 3) -> t
+(equal? 3 3) -> #t
 ```
 
 ---
@@ -320,30 +320,30 @@ Maps `f` over the list and flattens one level of nesting from the results.
 
 ### `any?`
 `(any? pred lst) -> boolean`
-Returns `t` if `pred` is true for at least one element.
+Returns `#t` if `pred` is true for at least one element.
 ```
-(any? even? (list 1 3 4)) -> t
+(any? even? (list 1 3 4)) -> #t
 ```
 
 ### `every?`
 `(every? pred lst) -> boolean`
-Returns `t` if `pred` is true for all elements.
+Returns `#t` if `pred` is true for all elements.
 ```
-(every? even? (list 2 4 6)) -> t
+(every? even? (list 2 4 6)) -> #t
 ```
 
 ### `none?`
 `(none? pred lst) -> boolean`
-Returns `t` if `pred` is false for all elements.
+Returns `#t` if `pred` is false for all elements.
 ```
-(none? even? (list 1 3 5)) -> t
+(none? even? (list 1 3 5)) -> #t
 ```
 
 ### `empty?`
 `(empty? lst) -> boolean`
-Returns `t` if the list is nil.
+Returns `#t` if the list is nil.
 ```
-(empty? ()) -> t
+(empty? ()) -> #t
 ```
 
 ---
@@ -354,7 +354,7 @@ Returns `t` if the list is nil.
 `(complement pred) -> function`
 Returns a function that negates the result of `pred`.
 ```
-((complement even?) 3) -> t
+((complement even?) 3) -> #t
 ```
 
 ### `partial`
@@ -375,28 +375,28 @@ Returns a function that applies each of `fns` to its arguments and collects the 
 `(both f g) -> function`
 Returns a predicate that is true when both `f` and `g` return true.
 ```
-((both positive? even?) 4) -> t
+((both positive? even?) 4) -> #t
 ```
 
 ### `either`
 `(either f g) -> function`
 Returns a predicate that is true when either `f` or `g` returns true.
 ```
-((either positive? even?) -2) -> t
+((either positive? even?) -2) -> #t
 ```
 
 ### `all-pass`
 `(all-pass preds) -> function`
 Returns a predicate that is true when all predicates in the list pass.
 ```
-((all-pass (list positive? even?)) 4) -> t
+((all-pass (list positive? even?)) 4) -> #t
 ```
 
 ### `any-pass`
 `(any-pass preds) -> function`
 Returns a predicate that is true when any predicate in the list passes.
 ```
-((any-pass (list positive? even?)) -2) -> t
+((any-pass (list positive? even?)) -2) -> #t
 ```
 
 ### `reject`
@@ -454,9 +454,9 @@ Returns the zero-based index of the first element equal to `x`, or `-1` if not f
 
 ### `includes?`
 `(includes? x lst) -> boolean`
-Returns `t` if `x` is found in the list using structural equality.
+Returns `#t` if `x` is found in the list using structural equality.
 ```
-(includes? 3 (list 1 2 3)) -> t
+(includes? 3 (list 1 2 3)) -> #t
 ```
 
 ### `count`
@@ -580,7 +580,7 @@ Splits a list into two lists: elements satisfying `pred` and elements that do no
 `(group-by f lst) -> alist`
 Groups elements into an association list keyed by the result of applying `f`.
 ```
-(group-by even? (list 1 2 3 4)) -> ((() 1 3) (t 2 4))
+(group-by even? (list 1 2 3 4)) -> ((() 1 3) (#t 2 4))
 ```
 
 ### `sort`
@@ -675,9 +675,9 @@ Like `aget`, but returns default `d` if the key is not found.
 
 ### `ahas?`
 `(ahas? key alist) -> boolean`
-Returns `t` if the alist contains an entry for `key`.
+Returns `#t` if the alist contains an entry for `key`.
 ```
-(ahas? 'a (list (pair 'a 1))) -> t
+(ahas? 'a (list (pair 'a 1))) -> #t
 ```
 
 ### `adel`
@@ -770,9 +770,9 @@ Applies transformation functions from the `fns` alist to matching keys in the da
 
 ### `string-empty?`
 `(string-empty? s) -> boolean`
-Returns `t` if the string has zero length.
+Returns `#t` if the string has zero length.
 ```
-(string-empty? "") -> t
+(string-empty? "") -> #t
 ```
 
 ### `string-join`
@@ -791,23 +791,23 @@ Returns the string `s` repeated `n` times.
 
 ### `string-contains?`
 `(string-contains? sub s) -> boolean`
-Returns `t` if `sub` is found anywhere within `s`.
+Returns `#t` if `sub` is found anywhere within `s`.
 ```
-(string-contains? "ell" "hello") -> t
+(string-contains? "ell" "hello") -> #t
 ```
 
 ### `string-starts?`
 `(string-starts? pfx s) -> boolean`
-Returns `t` if `s` starts with the prefix `pfx`.
+Returns `#t` if `s` starts with the prefix `pfx`.
 ```
-(string-starts? "he" "hello") -> t
+(string-starts? "he" "hello") -> #t
 ```
 
 ### `string-ends?`
 `(string-ends? sfx s) -> boolean`
-Returns `t` if `s` ends with the suffix `sfx`.
+Returns `#t` if `s` ends with the suffix `sfx`.
 ```
-(string-ends? "lo" "hello") -> t
+(string-ends? "lo" "hello") -> #t
 ```
 
 ### `string-reverse`
@@ -832,9 +832,9 @@ Creates a new vector from the given arguments.
 
 ### `vector?`
 `(vector? x) -> boolean`
-Returns `t` if `x` is a vector.
+Returns `#t` if `x` is a vector.
 ```
-(vector? (vector 1 2)) -> t
+(vector? (vector 1 2)) -> #t
 ```
 
 ### `vector-ref`

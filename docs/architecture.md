@@ -162,7 +162,7 @@ The REPL loop in `x_cli.c` runs these stages in sequence: prompt, read, eval, pr
 
 Language semantics are library files that alias x-lang primitives to match another language's naming conventions. The interpreter core has no knowledge of Scheme or Kernel.
 
-**Scheme personality** (`lib/scm.x`): aliases `fn` to `lambda`, `do` to `begin`, `pair` to `cons`, `first`/`rest` to `car`/`cdr`, `lit` to `quote`, `match` to `cond`, etc. Adds `#t`/`#f` boolean constants. Implements `define` as a wrapper around `def` that supports both variable and function shorthand forms.
+**Scheme personality** (`lib/scm.x`): aliases `fn` to `lambda`, `do` to `begin`, `pair` to `cons`, `first`/`rest` to `car`/`cdr`, `lit` to `quote`, `match` to `cond`, etc. Adds `#f` as an alias for `()`. Implements `define` as a wrapper around `def` that supports both variable and function shorthand forms.
 
 **Kernel personality** (`lib/krn.x`): aliases `op` to `$vau` (the fundamental Kernel abstraction). Implements `$define!` as an operative. Derives applicatives from operatives via `wrap`. In Kernel, operatives are first-class and applicatives are the derived form -- the inverse of Scheme's model.
 

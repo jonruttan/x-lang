@@ -14,23 +14,23 @@
 (vector? (vector 1 2))
 ```
 ---
-    t
+    #t
 
 ### vector? on list
 
 ```scheme
-(null? (vector? (list 1 2)))
+(not (vector? (list 1 2)))
 ```
 ---
-    t
+    #t
 
 ### vector? on number
 
 ```scheme
-(null? (vector? 42))
+(not (vector? 42))
 ```
 ---
-    t
+    #t
 
 ### vector empty
 
@@ -132,7 +132,7 @@
 (null? (vector->list (vector)))
 ```
 ---
-    t
+    #t
 
 ### list->vector
 
@@ -174,7 +174,7 @@
 (equal? (vector->list (vector-copy (vector 1 2))) (list 1 2))
 ```
 ---
-    t
+    #t
 
 ## vector-append
 

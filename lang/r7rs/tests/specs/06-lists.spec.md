@@ -38,7 +38,7 @@
 (pair? (cons 1 2))
 ```
 ---
-    t
+    #t
 
 ### pair? on list
 
@@ -46,23 +46,23 @@
 (pair? (list 1 2))
 ```
 ---
-    t
+    #t
 
 ### pair? on number
 
 ```scheme
-(null? (pair? 42))
+(not (pair? 42))
 ```
 ---
-    t
+    #t
 
 ### pair? on nil
 
 ```scheme
-(null? (pair? ()))
+(not (pair? ()))
 ```
 ---
-    t
+    #t
 
 ## list constructor
 
@@ -88,7 +88,7 @@
 (null? (list))
 ```
 ---
-    t
+    #t
 
 ## list predicates
 
@@ -98,7 +98,7 @@
 (list? (list 1 2 3))
 ```
 ---
-    t
+    #t
 
 ### list? on empty
 
@@ -106,23 +106,23 @@
 (list? ())
 ```
 ---
-    t
+    #t
 
 ### list? on dotted pair
 
 ```scheme
-(null? (list? (cons 1 2)))
+(not (list? (cons 1 2)))
 ```
 ---
-    t
+    #t
 
 ### list? on atom
 
 ```scheme
-(null? (list? 42))
+(not (list? 42))
 ```
 ---
-    t
+    #t
 
 ### null? on nil
 
@@ -130,15 +130,15 @@
 (null? ())
 ```
 ---
-    t
+    #t
 
 ### null? on list
 
 ```scheme
-(null? (null? (list 1)))
+(not (null? (list 1)))
 ```
 ---
-    t
+    #t
 
 ## make-list
 
@@ -164,7 +164,7 @@
 (null? (make-list 0 1))
 ```
 ---
-    t
+    #t
 
 ## list operations
 
@@ -198,7 +198,7 @@
 (null? (append () ()))
 ```
 ---
-    t
+    #t
 
 ### append nested
 
@@ -222,7 +222,7 @@
 (null? (reverse ()))
 ```
 ---
-    t
+    #t
 
 ## list access
 
@@ -274,7 +274,7 @@
 (equal? (list-copy (list 1 2 3)) (list 1 2 3))
 ```
 ---
-    t
+    #t
 
 ### list-copy empty
 
@@ -282,7 +282,7 @@
 (null? (list-copy ()))
 ```
 ---
-    t
+    #t
 
 ## member
 
@@ -297,10 +297,10 @@
 ### member not found
 
 ```scheme
-(null? (member 6 (list 1 2 3)))
+(not (member 6 (list 1 2 3)))
 ```
 ---
-    t
+    #t
 
 ## memq
 
@@ -315,10 +315,10 @@
 ### memq not found
 
 ```scheme
-(null? (memq (quote z) (list (quote a) (quote b))))
+(not (memq (quote z) (list (quote a) (quote b))))
 ```
 ---
-    t
+    #t
 
 ## assoc
 
@@ -333,10 +333,10 @@
 ### assoc not found
 
 ```scheme
-(null? (assoc (quote z) (list (list (quote a) 1))))
+(not (assoc (quote z) (list (list (quote a) 1))))
 ```
 ---
-    t
+    #t
 
 ## assq
 
@@ -351,8 +351,8 @@
 ### assq not found
 
 ```scheme
-(null? (assq (quote z) (list (list (quote a) 1))))
+(not (assq (quote z) (list (list (quote a) 1))))
 ```
 ---
-    t
+    #t
 

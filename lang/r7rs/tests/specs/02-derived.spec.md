@@ -22,7 +22,7 @@
 (null? (cond (#f 1)))
 ```
 ---
-    t
+    #t
 
 ## case
 
@@ -56,7 +56,7 @@
 (null? (case 5 ((1) (quote one)) ((2) (quote two))))
 ```
 ---
-    t
+    #t
 
 ### case matches in datum list
 
@@ -79,10 +79,10 @@
 ### and short-circuits on false
 
 ```scheme
-(null? (and 1 #f 3))
+(not (and 1 #f 3))
 ```
 ---
-    t
+    #t
 
 ### and no args returns true
 
@@ -90,7 +90,7 @@
 (and)
 ```
 ---
-    t
+    #t
 
 ### and single true arg
 
@@ -103,10 +103,10 @@
 ### and returns first false value
 
 ```scheme
-(null? (and #t #f))
+(not (and #t #f))
 ```
 ---
-    t
+    #t
 
 ## or
 
@@ -129,18 +129,18 @@
 ### or no args returns false
 
 ```scheme
-(null? (or))
+(not (or))
 ```
 ---
-    t
+    #t
 
 ### or single false
 
 ```scheme
-(null? (or #f))
+(not (or #f))
 ```
 ---
-    t
+    #t
 
 ### or single true
 
@@ -166,7 +166,7 @@
 (null? (when (= 1 2) 42))
 ```
 ---
-    t
+    #t
 
 ### when multiple body forms
 
@@ -192,7 +192,7 @@
 (null? (unless (= 1 1) 42))
 ```
 ---
-    t
+    #t
 
 ## let
 
@@ -278,7 +278,7 @@
 (letrec ((e (lambda (n) (if (= n 0) #t (o (- n 1))))) (o (lambda (n) (if (= n 0) #f (e (- n 1)))))) (e 10))
 ```
 ---
-    t
+    #t
 
 ### letrec mutual recursion odd
 
@@ -286,7 +286,7 @@
 (letrec ((e (lambda (n) (if (= n 0) #t (o (- n 1))))) (o (lambda (n) (if (= n 0) #f (e (- n 1)))))) (o 7))
 ```
 ---
-    t
+    #t
 
 ## named let
 
@@ -422,5 +422,5 @@
 (procedure? (case-lambda ((x) x)))
 ```
 ---
-    t
+    #t
 

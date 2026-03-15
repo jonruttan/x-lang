@@ -6,7 +6,7 @@
 (procedure? (lambda (x) x))
 ```
 ---
-    t
+    #t
 
 ### procedure? on builtin
 
@@ -14,31 +14,31 @@
 (procedure? +)
 ```
 ---
-    t
+    #t
 
 ### procedure? on number
 
 ```scheme
-(null? (procedure? 42))
+(not (procedure? 42))
 ```
 ---
-    t
+    #t
 
 ### procedure? on list
 
 ```scheme
-(null? (procedure? (list 1 2)))
+(not (procedure? (list 1 2)))
 ```
 ---
-    t
+    #t
 
 ### procedure? on symbol
 
 ```scheme
-(null? (procedure? (quote foo)))
+(not (procedure? (quote foo)))
 ```
 ---
-    t
+    #t
 
 ## apply
 
@@ -106,7 +106,7 @@
 (null? (map (lambda (x) x) ()))
 ```
 ---
-    t
+    #t
 
 ### map preserves order
 

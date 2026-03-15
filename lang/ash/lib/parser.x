@@ -70,7 +70,7 @@
     (let ((tok (%cursor-peek cur)))
       (if (and (eq? (first tok) (lit tok-op))
                (string=? (first (rest tok)) op))
-        (do (%cursor-advance! cur) t)
+        (do (%cursor-advance! cur) #t)
         ())))))
 
 (def %skip-newlines (fn (cur)
@@ -106,7 +106,7 @@
 ; Check if a word string is all digits (for fd prefix like 2>)
 (def %all-digits? (fn (s)
   (def %check (fn (i len)
-    (if (= i len) t
+    (if (= i len) #t
       (let ((c (char->integer (string-ref s i))))
         (if (and (>= c 48) (<= c 57))
           (%check (+ i 1) len) ())))))
@@ -183,7 +183,7 @@
     (let ((tok (%cursor-peek cur)))
       (if (and (eq? (first tok) (lit tok-word))
                (string=? (first (rest tok)) word))
-        (do (%cursor-advance! cur) t)
+        (do (%cursor-advance! cur) #t)
         (error (string-append "parse error: expected " word)))))))
 
 ; Forward declaration via set
@@ -344,7 +344,7 @@
 ; Returns t if cursor is empty or at a list-terminating keyword/operator
 
 (def %at-stop-word? (fn (cur)
-  (if (%cursor-empty? cur) t
+  (if (%cursor-empty? cur) #t
     (let ((tok (%cursor-peek cur)))
       (if (eq? (first tok) (lit tok-word))
         (let ((w (first (rest tok))))

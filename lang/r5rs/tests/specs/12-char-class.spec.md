@@ -8,7 +8,7 @@
 (char-alphabetic? #\a)
 ```
 ---
-    t
+    #t
 
 ### alphabetic uppercase
 
@@ -16,23 +16,23 @@
 (char-alphabetic? #\Z)
 ```
 ---
-    t
+    #t
 
 ### digit is not alphabetic
 
 ```scheme
-(null? (char-alphabetic? #\5))
+(not (char-alphabetic? #\5))
 ```
 ---
-    t
+    #t
 
 ### space is not alphabetic
 
 ```scheme
-(null? (char-alphabetic? #\space))
+(not (char-alphabetic? #\space))
 ```
 ---
-    t
+    #t
 
 ## char-numeric?
 
@@ -42,7 +42,7 @@
 (char-numeric? #\0)
 ```
 ---
-    t
+    #t
 
 ### nine is numeric
 
@@ -50,15 +50,15 @@
 (char-numeric? #\9)
 ```
 ---
-    t
+    #t
 
 ### letter is not numeric
 
 ```scheme
-(null? (char-numeric? #\a))
+(not (char-numeric? #\a))
 ```
 ---
-    t
+    #t
 
 ## char-whitespace?
 
@@ -68,7 +68,7 @@
 (char-whitespace? #\space)
 ```
 ---
-    t
+    #t
 
 ### newline is whitespace
 
@@ -76,15 +76,15 @@
 (char-whitespace? #\newline)
 ```
 ---
-    t
+    #t
 
 ### letter is not whitespace
 
 ```scheme
-(null? (char-whitespace? #\a))
+(not (char-whitespace? #\a))
 ```
 ---
-    t
+    #t
 
 ## char-upper-case? / char-lower-case?
 
@@ -94,7 +94,7 @@
 (char-upper-case? #\A)
 ```
 ---
-    t
+    #t
 
 ### lowercase detection
 
@@ -102,23 +102,23 @@
 (char-lower-case? #\z)
 ```
 ---
-    t
+    #t
 
 ### uppercase is not lowercase
 
 ```scheme
-(null? (char-lower-case? #\A))
+(not (char-lower-case? #\A))
 ```
 ---
-    t
+    #t
 
 ### lowercase is not uppercase
 
 ```scheme
-(null? (char-upper-case? #\a))
+(not (char-upper-case? #\a))
 ```
 ---
-    t
+    #t
 
 ## char-upcase / char-downcase
 
@@ -128,7 +128,7 @@
 (char=? (char-upcase #\a) #\A)
 ```
 ---
-    t
+    #t
 
 ### downcase uppercase letter
 
@@ -136,7 +136,7 @@
 (char=? (char-downcase #\Z) #\z)
 ```
 ---
-    t
+    #t
 
 ### upcase already uppercase
 
@@ -144,7 +144,7 @@
 (char=? (char-upcase #\A) #\A)
 ```
 ---
-    t
+    #t
 
 ### downcase already lowercase
 
@@ -152,7 +152,7 @@
 (char=? (char-downcase #\a) #\a)
 ```
 ---
-    t
+    #t
 
 ### upcase digit unchanged
 
@@ -160,7 +160,7 @@
 (char=? (char-upcase #\5) #\5)
 ```
 ---
-    t
+    #t
 
 ## case-insensitive char comparison
 
@@ -170,7 +170,7 @@
 (char-ci=? #\a #\a)
 ```
 ---
-    t
+    #t
 
 ### char-ci=? different case
 
@@ -178,7 +178,7 @@
 (char-ci=? #\A #\a)
 ```
 ---
-    t
+    #t
 
 ### char-ci<? across case
 
@@ -186,7 +186,7 @@
 (char-ci<? #\A #\b)
 ```
 ---
-    t
+    #t
 
 ### char-ci>? across case
 
@@ -194,7 +194,7 @@
 (char-ci>? #\b #\A)
 ```
 ---
-    t
+    #t
 
 ### char-ci<=? equal across case
 
@@ -202,7 +202,7 @@
 (char-ci<=? #\a #\A)
 ```
 ---
-    t
+    #t
 
 ### char-ci>=? equal across case
 
@@ -210,7 +210,7 @@
 (char-ci>=? #\A #\a)
 ```
 ---
-    t
+    #t
 
 ## case-insensitive string comparison
 
@@ -220,7 +220,7 @@
 (string-ci=? "hello" "hello")
 ```
 ---
-    t
+    #t
 
 ### string-ci=? different case
 
@@ -228,15 +228,15 @@
 (string-ci=? "Hello" "HELLO")
 ```
 ---
-    t
+    #t
 
 ### string-ci=? not equal
 
 ```scheme
-(null? (string-ci=? "hello" "world"))
+(not (string-ci=? "hello" "world"))
 ```
 ---
-    t
+    #t
 
 ### string-ci<? across case
 
@@ -244,7 +244,7 @@
 (string-ci<? "ABC" "def")
 ```
 ---
-    t
+    #t
 
 ### string-ci>? across case
 
@@ -252,4 +252,4 @@
 (string-ci>? "DEF" "abc")
 ```
 ---
-    t
+    #t

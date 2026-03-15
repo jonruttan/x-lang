@@ -11,8 +11,8 @@
 (string-repeat "ab" 3)  ; recurse
 
 ; string-contains? -- all clauses + empty check
-(string-contains? "" "hello")     ; sub-len=0 → t
-(string-contains? "ll" "hello")   ; found → t via go
+(string-contains? "" "hello")     ; sub-len=0 → #t
+(string-contains? "ll" "hello")   ; found → #t via go
 (string-contains? "xyz" "hello")  ; not found → () via go overflow
 (string-contains? "lo" "hello")   ; found at end
 

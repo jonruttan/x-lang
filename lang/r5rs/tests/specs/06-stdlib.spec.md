@@ -130,7 +130,7 @@
 (null? (range 5 5))
 ```
 ---
-    t
+    #t
 
 ### works with non-zero start
 
@@ -164,7 +164,7 @@
 (null? (zip () (list 1)))
 ```
 ---
-    t
+    #t
 
 ## any?
 
@@ -174,23 +174,23 @@
 (any? (lambda (x) (> x 3)) (list 1 2 3 4 5))
 ```
 ---
-    t
+    #t
 
 ### returns nil when none match
 
 ```scheme
-(null? (any? (lambda (x) (> x 10)) (list 1 2 3)))
+(not (any? (lambda (x) (> x 10)) (list 1 2 3)))
 ```
 ---
-    t
+    #t
 
 ### returns nil for empty list
 
 ```scheme
-(null? (any? (lambda (x) t) ()))
+(not (any? (lambda (x) t) ()))
 ```
 ---
-    t
+    #t
 
 ## every?
 
@@ -200,15 +200,15 @@
 (every? (lambda (x) (> x 0)) (list 1 2 3))
 ```
 ---
-    t
+    #t
 
 ### returns nil when one fails
 
 ```scheme
-(null? (every? (lambda (x) (> x 2)) (list 1 2 3)))
+(not (every? (lambda (x) (> x 2)) (list 1 2 3)))
 ```
 ---
-    t
+    #t
 
 ### returns t for empty list
 
@@ -216,5 +216,5 @@
 (every? (lambda (x) (> x 0)) ())
 ```
 ---
-    t
+    #t
 

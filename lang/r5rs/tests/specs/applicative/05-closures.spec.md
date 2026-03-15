@@ -36,7 +36,7 @@
 (letrec ((my-even? (lambda (n) (if (= n 0) #t (my-odd? (- n 1))))) (my-odd? (lambda (n) (if (= n 0) #f (my-even? (- n 1)))))) (list (my-even? 10000) (my-odd? 9999)))
 ```
 ---
-    (t t)
+    (#t #t)
 
 ## promise stress
 

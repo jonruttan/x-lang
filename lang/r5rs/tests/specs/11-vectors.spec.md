@@ -14,23 +14,23 @@
 (vector? (vector 1 2))
 ```
 ---
-    t
+    #t
 
 ### vector? on list
 
 ```scheme
-(null? (vector? (list 1 2)))
+(not (vector? (list 1 2)))
 ```
 ---
-    t
+    #t
 
 ### vector? on non-vector
 
 ```scheme
-(null? (vector? 42))
+(not (vector? 42))
 ```
 ---
-    t
+    #t
 
 ## vector access
 
@@ -90,7 +90,7 @@
 (null? (vector->list (vector)))
 ```
 ---
-    t
+    #t
 
 ### list->vector
 

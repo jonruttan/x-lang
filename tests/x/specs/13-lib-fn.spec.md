@@ -92,7 +92,7 @@
 ((complement even?) 3)
 ```
 ---
-    t
+    #t
 
 ### negates a true result
 
@@ -132,13 +132,13 @@
 
 ## both
 
-### returns t when both pass
+### returns #t when both pass
 
 ```scheme
 ((both positive? even?) 4)
 ```
 ---
-    t
+    #t
 
 ### returns nil when one fails
 
@@ -150,13 +150,13 @@
 
 ## either
 
-### returns t when one passes
+### returns #t when one passes
 
 ```scheme
 ((either positive? even?) -2)
 ```
 ---
-    t
+    #t
 
 ### returns nil when both fail
 
@@ -174,7 +174,7 @@
 ((all-pass (list positive? even?)) 4)
 ```
 ---
-    t
+    #t
 
 ### fails when one fails
 
@@ -192,7 +192,7 @@
 ((any-pass (list negative? even?)) 4)
 ```
 ---
-    t
+    #t
 
 ### fails when all fail
 

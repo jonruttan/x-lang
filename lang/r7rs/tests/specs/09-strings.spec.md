@@ -6,23 +6,23 @@
 (string? "hello")
 ```
 ---
-    t
+    #t
 
 ### string? on non-string
 
 ```scheme
-(null? (string? 42))
+(not (string? 42))
 ```
 ---
-    t
+    #t
 
 ### string? on symbol
 
 ```scheme
-(null? (string? (quote hello)))
+(not (string? (quote hello)))
 ```
 ---
-    t
+    #t
 
 ### string-length
 
@@ -136,7 +136,7 @@
 (equal? (string-copy "test") "test")
 ```
 ---
-    t
+    #t
 
 ## string comparison
 
@@ -146,15 +146,15 @@
 (string=? "abc" "abc")
 ```
 ---
-    t
+    #t
 
 ### string=? not equal
 
 ```scheme
-(null? (string=? "abc" "abd"))
+(not (string=? "abc" "abd"))
 ```
 ---
-    t
+    #t
 
 ### string<? less
 
@@ -162,15 +162,15 @@
 (string<? "abc" "abd")
 ```
 ---
-    t
+    #t
 
 ### string<? not less
 
 ```scheme
-(null? (string<? "abd" "abc"))
+(not (string<? "abd" "abc"))
 ```
 ---
-    t
+    #t
 
 ### string<? prefix is less
 
@@ -178,7 +178,7 @@
 (string<? "abc" "abcd")
 ```
 ---
-    t
+    #t
 
 ### string>? greater
 
@@ -186,7 +186,7 @@
 (string>? "abd" "abc")
 ```
 ---
-    t
+    #t
 
 ### string<=? equal
 
@@ -194,7 +194,7 @@
 (string<=? "abc" "abc")
 ```
 ---
-    t
+    #t
 
 ### string<=? less
 
@@ -202,7 +202,7 @@
 (string<=? "abc" "abd")
 ```
 ---
-    t
+    #t
 
 ### string>=? equal
 
@@ -210,7 +210,7 @@
 (string>=? "abc" "abc")
 ```
 ---
-    t
+    #t
 
 ### string>=? greater
 
@@ -218,7 +218,7 @@
 (string>=? "abd" "abc")
 ```
 ---
-    t
+    #t
 
 ## string case-insensitive comparison
 
@@ -228,7 +228,7 @@
 (string-ci=? "abc" "abc")
 ```
 ---
-    t
+    #t
 
 ### string-ci=? equal different case
 
@@ -236,15 +236,15 @@
 (string-ci=? "Hello" "hello")
 ```
 ---
-    t
+    #t
 
 ### string-ci=? not equal
 
 ```scheme
-(null? (string-ci=? "abc" "abd"))
+(not (string-ci=? "abc" "abd"))
 ```
 ---
-    t
+    #t
 
 ### string-ci<? less
 
@@ -252,7 +252,7 @@
 (string-ci<? "abc" "ABD")
 ```
 ---
-    t
+    #t
 
 ### string-ci>? greater
 
@@ -260,7 +260,7 @@
 (string-ci>? "ABD" "abc")
 ```
 ---
-    t
+    #t
 
 ### string-ci<=? equal different case
 
@@ -268,7 +268,7 @@
 (string-ci<=? "ABC" "abc")
 ```
 ---
-    t
+    #t
 
 ### string-ci>=? equal different case
 
@@ -276,7 +276,7 @@
 (string-ci>=? "abc" "ABC")
 ```
 ---
-    t
+    #t
 
 ## string conversion
 
@@ -294,7 +294,7 @@
 (eq? (string->symbol "hello") (quote hello))
 ```
 ---
-    t
+    #t
 
 ### number->string
 
@@ -326,7 +326,7 @@
 (null? (string->list ""))
 ```
 ---
-    t
+    #t
 
 ### string->list single
 

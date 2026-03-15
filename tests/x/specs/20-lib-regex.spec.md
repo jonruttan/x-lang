@@ -68,13 +68,13 @@
 
 ## regex?
 
-### returns t for a regex
+### returns #t for a regex
 
 ```scheme
 (regex? #/abc/)
 ```
 ---
-    t
+    #t
 
 ### returns nil for a string
 
@@ -100,7 +100,7 @@
 (#/abc/ "abc")
 ```
 ---
-    t
+    #t
 
 ### rejects different string
 
@@ -132,7 +132,7 @@
 (#// "")
 ```
 ---
-    t
+    #t
 
 ### rejects non-empty string against empty pattern
 
@@ -148,7 +148,7 @@
 (#/x/ "x")
 ```
 ---
-    t
+    #t
 
 ## regex dot wildcard
 
@@ -158,7 +158,7 @@
 (#/./ "x")
 ```
 ---
-    t
+    #t
 
 ### matches dot in middle
 
@@ -166,7 +166,7 @@
 (#/a.c/ "abc")
 ```
 ---
-    t
+    #t
 
 ### matches dot with different char
 
@@ -174,7 +174,7 @@
 (#/a.c/ "axc")
 ```
 ---
-    t
+    #t
 
 ### rejects dot against empty
 
@@ -192,7 +192,7 @@
 (#/ab*c/ "ac")
 ```
 ---
-    t
+    #t
 
 ### matches one occurrence
 
@@ -200,7 +200,7 @@
 (#/ab*c/ "abc")
 ```
 ---
-    t
+    #t
 
 ### matches multiple occurrences
 
@@ -208,7 +208,7 @@
 (#/ab*c/ "abbbc")
 ```
 ---
-    t
+    #t
 
 ### matches star at end
 
@@ -216,7 +216,7 @@
 (#/ab*/ "abbb")
 ```
 ---
-    t
+    #t
 
 ### matches star at end zero times
 
@@ -224,7 +224,7 @@
 (#/ab*/ "a")
 ```
 ---
-    t
+    #t
 
 ### matches only stars
 
@@ -232,7 +232,7 @@
 (#/a*/ "aaa")
 ```
 ---
-    t
+    #t
 
 ### matches empty with star
 
@@ -240,7 +240,7 @@
 (#/a*/ "")
 ```
 ---
-    t
+    #t
 
 ## regex plus quantifier
 
@@ -250,7 +250,7 @@
 (#/ab+c/ "abc")
 ```
 ---
-    t
+    #t
 
 ### matches multiple occurrences
 
@@ -258,7 +258,7 @@
 (#/ab+c/ "abbbc")
 ```
 ---
-    t
+    #t
 
 ### rejects zero occurrences
 
@@ -274,7 +274,7 @@
 (#/ab+/ "abb")
 ```
 ---
-    t
+    #t
 
 ### rejects plus with no match
 
@@ -292,7 +292,7 @@
 (#/ab?c/ "abc")
 ```
 ---
-    t
+    #t
 
 ### matches without the optional char
 
@@ -300,7 +300,7 @@
 (#/ab?c/ "ac")
 ```
 ---
-    t
+    #t
 
 ### rejects multiple of optional
 
@@ -318,7 +318,7 @@
 (#/a\.b/ "a.b")
 ```
 ---
-    t
+    #t
 
 ### rejects non-dot for escaped dot
 
@@ -334,7 +334,7 @@
 (#/a\\b/ "a\b")
 ```
 ---
-    t
+    #t
 
 ### matches escaped star as literal
 
@@ -342,7 +342,7 @@
 (#/a\*b/ "a*b")
 ```
 ---
-    t
+    #t
 
 ## regex backtracking
 
@@ -352,7 +352,7 @@
 (#/a.*b/ "axxb")
 ```
 ---
-    t
+    #t
 
 ### backtracks when greedy over-consumes
 
@@ -360,7 +360,7 @@
 (#/.*b/ "aab")
 ```
 ---
-    t
+    #t
 
 ### fails when backtracking exhausted
 
@@ -378,7 +378,7 @@
 (#/a.*/ "abcdef")
 ```
 ---
-    t
+    #t
 
 ### matches complex pattern
 
@@ -386,7 +386,7 @@
 (#/a.b*c/ "axbbc")
 ```
 ---
-    t
+    #t
 
 ### matches dot-plus combo
 
@@ -394,7 +394,7 @@
 (#/.+/ "abc")
 ```
 ---
-    t
+    #t
 
 ### rejects dot-plus on empty
 

@@ -200,7 +200,7 @@
 (null? '())
 ```
 ---
-    t
+    #t
 
 ### nested quote
 

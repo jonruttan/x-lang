@@ -16,7 +16,7 @@
 (define (pow-sum n) (let loop ((i 0) (acc 0)) (if (= i n) acc (loop (+ i 1) (+ acc (expt 2 i)))))) (= (pow-sum 20) (- (expt 2 20) 1))
 ```
 ---
-    t
+    #t
 
 ## gcd/lcm stress
 
@@ -36,7 +36,7 @@
 (define (check-qr a b) (= a (+ (* b (quotient a b)) (remainder a b)))) (let loop ((i -50) (ok #t)) (if (= i 51) ok (loop (+ i 1) (if (= i 0) ok (and ok (check-qr 137 i))))))
 ```
 ---
-    t
+    #t
 
 ## named let recursion
 

@@ -6,7 +6,7 @@
 (eqv? #t #t)
 ```
 ---
-    t
+    #t
 
 ### eqv? same boolean false
 
@@ -14,7 +14,7 @@
 (eqv? #f #f)
 ```
 ---
-    t
+    #t
 
 ### eqv? same symbol
 
@@ -22,15 +22,15 @@
 (eqv? (quote a) (quote a))
 ```
 ---
-    t
+    #t
 
 ### eqv? different symbols
 
 ```scheme
-(null? (eqv? (quote a) (quote b)))
+(not (eqv? (quote a) (quote b)))
 ```
 ---
-    t
+    #t
 
 ### eqv? same number
 
@@ -38,15 +38,15 @@
 (eqv? 42 42)
 ```
 ---
-    t
+    #t
 
 ### eqv? different numbers
 
 ```scheme
-(null? (eqv? 1 2))
+(not (eqv? 1 2))
 ```
 ---
-    t
+    #t
 
 ### eqv? same char
 
@@ -54,15 +54,15 @@
 (eqv? #\a #\a)
 ```
 ---
-    t
+    #t
 
 ### eqv? different chars
 
 ```scheme
-(null? (eqv? #\a #\b))
+(not (eqv? #\a #\b))
 ```
 ---
-    t
+    #t
 
 ### eqv? empty lists
 
@@ -70,23 +70,23 @@
 (eqv? () ())
 ```
 ---
-    t
+    #t
 
 ### eqv? string to symbol
 
 ```scheme
-(null? (eqv? "a" (quote a)))
+(not (eqv? "a" (quote a)))
 ```
 ---
-    t
+    #t
 
 ### eqv? number to char
 
 ```scheme
-(null? (eqv? 65 #\A))
+(not (eqv? 65 #\A))
 ```
 ---
-    t
+    #t
 
 ## eq?
 
@@ -96,15 +96,15 @@
 (eq? (quote a) (quote a))
 ```
 ---
-    t
+    #t
 
 ### eq? different symbols
 
 ```scheme
-(null? (eq? (quote a) (quote b)))
+(not (eq? (quote a) (quote b)))
 ```
 ---
-    t
+    #t
 
 ### eq? empty lists
 
@@ -112,7 +112,7 @@
 (eq? () ())
 ```
 ---
-    t
+    #t
 
 ### eq? booleans
 
@@ -120,7 +120,7 @@
 (eq? #t #t)
 ```
 ---
-    t
+    #t
 
 ## equal?
 
@@ -130,15 +130,15 @@
 (equal? (list 1 2 3) (list 1 2 3))
 ```
 ---
-    t
+    #t
 
 ### equal? different lists
 
 ```scheme
-(null? (equal? (list 1 2) (list 1 3)))
+(not (equal? (list 1 2) (list 1 3)))
 ```
 ---
-    t
+    #t
 
 ### equal? nested lists
 
@@ -146,7 +146,7 @@
 (equal? (list 1 (list 2 3)) (list 1 (list 2 3)))
 ```
 ---
-    t
+    #t
 
 ### equal? strings
 
@@ -154,15 +154,15 @@
 (equal? "abc" "abc")
 ```
 ---
-    t
+    #t
 
 ### equal? different strings
 
 ```scheme
-(null? (equal? "abc" "abd"))
+(not (equal? "abc" "abd"))
 ```
 ---
-    t
+    #t
 
 ### equal? numbers
 
@@ -170,15 +170,15 @@
 (equal? 42 42)
 ```
 ---
-    t
+    #t
 
 ### equal? mixed types
 
 ```scheme
-(null? (equal? 1 "1"))
+(not (equal? 1 "1"))
 ```
 ---
-    t
+    #t
 
 ### equal? dotted pairs
 
@@ -186,7 +186,7 @@
 (equal? (cons 1 2) (cons 1 2))
 ```
 ---
-    t
+    #t
 
 ### equal? deep nested
 
@@ -194,7 +194,7 @@
 (equal? (list (list 1 (list 2)) (list 3)) (list (list 1 (list 2)) (list 3)))
 ```
 ---
-    t
+    #t
 
 ### equal? chars
 
@@ -202,5 +202,5 @@
 (equal? #\a #\a)
 ```
 ---
-    t
+    #t
 

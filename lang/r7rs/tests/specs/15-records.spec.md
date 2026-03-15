@@ -14,7 +14,7 @@
 (define-record-type <point> (make-point x y) point? (x point-x) (y point-y)) (point? (make-point 1 2))
 ```
 ---
-    t
+    #t
 
 ### predicate true for record
 
@@ -22,23 +22,23 @@
 (define-record-type <box> (make-box val) box? (val box-val)) (box? (make-box 42))
 ```
 ---
-    t
+    #t
 
 ### predicate false for non-record
 
 ```scheme
-(define-record-type <box> (make-box val) box? (val box-val)) (null? (box? 42))
+(define-record-type <box> (make-box val) box? (val box-val)) (not (box? 42))
 ```
 ---
-    t
+    #t
 
 ### predicate false for list
 
 ```scheme
-(define-record-type <box> (make-box val) box? (val box-val)) (null? (box? (list 1 2)))
+(define-record-type <box> (make-box val) box? (val box-val)) (not (box? (list 1 2)))
 ```
 ---
-    t
+    #t
 
 ## record accessors
 

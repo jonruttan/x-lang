@@ -114,7 +114,7 @@
 (null? (list))
 ```
 ---
-    t
+    #t
 
 ## pair? / null?
 
@@ -124,7 +124,7 @@
 (pair? (list 1 2))
 ```
 ---
-    t
+    #t
 
 ### pair? on cons
 
@@ -132,23 +132,23 @@
 (pair? (cons 1 2))
 ```
 ---
-    t
+    #t
 
 ### pair? on number
 
 ```scheme
-(null? (pair? 42))
+(not (pair? 42))
 ```
 ---
-    t
+    #t
 
 ### pair? on nil
 
 ```scheme
-(null? (pair? ()))
+(not (pair? ()))
 ```
 ---
-    t
+    #t
 
 ### null? on empty
 
@@ -156,15 +156,15 @@
 (null? ())
 ```
 ---
-    t
+    #t
 
 ### null? on non-empty
 
 ```scheme
-(null? (null? (list 1)))
+(not (null? (list 1)))
 ```
 ---
-    t
+    #t
 
 ## list?
 
@@ -174,7 +174,7 @@
 (list? (list 1 2 3))
 ```
 ---
-    t
+    #t
 
 ### empty list
 
@@ -182,23 +182,23 @@
 (list? ())
 ```
 ---
-    t
+    #t
 
 ### dotted pair
 
 ```scheme
-(null? (list? (cons 1 2)))
+(not (list? (cons 1 2)))
 ```
 ---
-    t
+    #t
 
 ### non-list
 
 ```scheme
-(null? (list? 42))
+(not (list? 42))
 ```
 ---
-    t
+    #t
 
 ## length
 
@@ -250,7 +250,7 @@
 (null? (append () ()))
 ```
 ---
-    t
+    #t
 
 ## reverse
 
@@ -268,7 +268,7 @@
 (null? (reverse ()))
 ```
 ---
-    t
+    #t
 
 ### reverse single
 
@@ -346,7 +346,7 @@
 (null? (map (lambda (x) x) ()))
 ```
 ---
-    t
+    #t
 
 ## filter
 
@@ -364,7 +364,7 @@
 (null? (filter (lambda (x) (> x 10)) (list 1 2 3)))
 ```
 ---
-    t
+    #t
 
 ### filter all match
 
@@ -405,10 +405,10 @@
 ### returns false when not found
 
 ```scheme
-(null? (member (quote z) (list (quote a) (quote b))))
+(not (member (quote z) (list (quote a) (quote b))))
 ```
 ---
-    t
+    #t
 
 ## memq
 
@@ -423,10 +423,10 @@
 ### not found
 
 ```scheme
-(null? (memq (quote z) (list (quote a) (quote b))))
+(not (memq (quote z) (list (quote a) (quote b))))
 ```
 ---
-    t
+    #t
 
 ## assoc
 
@@ -441,10 +441,10 @@
 ### returns false when not found
 
 ```scheme
-(null? (assoc (quote z) (list (list (quote a) 1))))
+(not (assoc (quote z) (list (list (quote a) 1))))
 ```
 ---
-    t
+    #t
 
 ## assq
 
@@ -459,10 +459,10 @@
 ### not found
 
 ```scheme
-(null? (assq (quote z) (list (list (quote a) 1))))
+(not (assq (quote z) (list (list (quote a) 1))))
 ```
 ---
-    t
+    #t
 
 ## apply
 

@@ -27,26 +27,26 @@
 ### digit-value of non-digit letter
 
 ```scheme
-(null? (digit-value #\a))
+(not (digit-value #\a))
 ```
 ---
-    t
+    #t
 
 ### digit-value of non-digit space
 
 ```scheme
-(null? (digit-value #\space))
+(not (digit-value #\space))
 ```
 ---
-    t
+    #t
 
 ### digit-value of non-digit symbol
 
 ```scheme
-(null? (digit-value #\+))
+(not (digit-value #\+))
 ```
 ---
-    t
+    #t
 
 ## string to vector conversion
 
@@ -56,7 +56,7 @@
 (equal? (string->vector "abc") (vector #\a #\b #\c))
 ```
 ---
-    t
+    #t
 
 ### string->vector empty
 
@@ -64,7 +64,7 @@
 (equal? (string->vector "") (vector))
 ```
 ---
-    t
+    #t
 
 ### string->vector single char
 
@@ -72,7 +72,7 @@
 (equal? (string->vector "x") (vector #\x))
 ```
 ---
-    t
+    #t
 
 ### vector->string basic
 
@@ -112,7 +112,7 @@
         (vector #\a #\b #\c))
 ```
 ---
-    t
+    #t
 
 ## exact-integer-sqrt
 
@@ -195,7 +195,7 @@
   (lambda (s r) (= (+ (* s s) r) 27)))
 ```
 ---
-    t
+    #t
 
 ### exact-integer-sqrt of perfect square 100
 
@@ -214,7 +214,7 @@
 (guard (e (error-object? e)) (error "oops"))
 ```
 ---
-    t
+    #t
 
 ### error-object-message on caught error
 
@@ -230,15 +230,15 @@
 (guard (e (null? (error-object-irritants e))) (error "oops"))
 ```
 ---
-    t
+    #t
 
 ### error-object? on non-error
 
 ```scheme
-(null? (error-object? 42))
+(not (error-object? 42))
 ```
 ---
-    t
+    #t
 
 ## char-ci comparisons (gap fill)
 
@@ -248,7 +248,7 @@
 (char-ci<=? #\a #\B)
 ```
 ---
-    t
+    #t
 
 ### char-ci<=? equal different case
 
@@ -256,15 +256,15 @@
 (char-ci<=? #\A #\a)
 ```
 ---
-    t
+    #t
 
 ### char-ci<=? not less or equal
 
 ```scheme
-(null? (char-ci<=? #\c #\A))
+(not (char-ci<=? #\c #\A))
 ```
 ---
-    t
+    #t
 
 ### char-ci>=? greater
 
@@ -272,7 +272,7 @@
 (char-ci>=? #\B #\a)
 ```
 ---
-    t
+    #t
 
 ### char-ci>=? equal different case
 
@@ -280,15 +280,15 @@
 (char-ci>=? #\a #\A)
 ```
 ---
-    t
+    #t
 
 ### char-ci>=? not greater or equal
 
 ```scheme
-(null? (char-ci>=? #\A #\c))
+(not (char-ci>=? #\A #\c))
 ```
 ---
-    t
+    #t
 
 ## string-ci comparisons (gap fill)
 
@@ -298,7 +298,7 @@
 (string-ci<=? "abc" "BCD")
 ```
 ---
-    t
+    #t
 
 ### string-ci<=? equal
 
@@ -306,15 +306,15 @@
 (string-ci<=? "ABC" "abc")
 ```
 ---
-    t
+    #t
 
 ### string-ci<=? not less or equal
 
 ```scheme
-(null? (string-ci<=? "bcd" "ABC"))
+(not (string-ci<=? "bcd" "ABC"))
 ```
 ---
-    t
+    #t
 
 ### string-ci>=? greater
 
@@ -322,7 +322,7 @@
 (string-ci>=? "BCD" "abc")
 ```
 ---
-    t
+    #t
 
 ### string-ci>=? equal
 
@@ -330,15 +330,15 @@
 (string-ci>=? "abc" "ABC")
 ```
 ---
-    t
+    #t
 
 ### string-ci>=? not greater or equal
 
 ```scheme
-(null? (string-ci>=? "ABC" "bcd"))
+(not (string-ci>=? "ABC" "bcd"))
 ```
 ---
-    t
+    #t
 
 ## floor-quotient and floor-remainder (gap fill)
 

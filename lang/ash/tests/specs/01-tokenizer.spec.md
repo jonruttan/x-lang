@@ -354,7 +354,7 @@
 (null? (sh-tokenize ""))
 ```
 ---
-    t
+    #t
 
 ### tokenizes whitespace-only input
 
@@ -362,5 +362,5 @@
 (null? (sh-tokenize "   "))
 ```
 ---
-    t
+    #t
 

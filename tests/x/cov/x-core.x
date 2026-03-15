@@ -6,19 +6,19 @@
 (let () 42)
 
 ; --- and: expand + rewrite + cached paths ---
-(and)                  ; null args → t
-(and t)                ; single arg
-(and t t)              ; multi-arg, first-use expand path
-(and t t)              ; second call: cached (%expanded) path
-(and t ())             ; multi-arg, second evaluates to nil
-(and () t)             ; first is nil, short-circuit
+(and)                  ; null args → #t
+(and #t)               ; single arg
+(and #t #t)            ; multi-arg, first-use expand path
+(and #t #t)            ; second call: cached (%expanded) path
+(and #t ())            ; multi-arg, second evaluates to nil
+(and () #t)            ; first is nil, short-circuit
 
 ; --- or: expand + rewrite + cached paths ---
 (or)                   ; null args → ()
-(or t)                 ; single arg
-(or () t)              ; multi-arg, first-use expand path
-(or () t)              ; second call: cached path
-(or t ())              ; first truthy, short-circuit
+(or #t)                ; single arg
+(or () #t)             ; multi-arg, first-use expand path
+(or () #t)             ; second call: cached path
+(or #t ())             ; first truthy, short-circuit
 (or () ())             ; both nil
 
 ; --- Comparisons: >, <=, >= ---

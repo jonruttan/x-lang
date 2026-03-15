@@ -1,12 +1,12 @@
 ## and
 
-### returns t for empty and
+### returns #t for empty and
 
 ```scheme
 (and)
 ```
 ---
-    t
+    #t
 
 ### returns value for single truthy
 
@@ -31,12 +31,13 @@
 ---
     3
 
-### returns nil on first falsy
+### returns #f on first falsy
 
 ```scheme
 (and 1 (lit ()) 3)
 ```
 ---
+    #f
 
 ### returns actual value not t
 
@@ -60,11 +61,12 @@
 (and (lit ()) (error "boom"))
 ```
 ---
+    #f
 
 ### def in last position persists
 
 ```scheme
-(do (and t (def x 99)) x)
+(do (and #t (def x 99)) x)
 ```
 ---
     99
@@ -142,20 +144,21 @@
 
 ## not
 
-### returns t for nil
+### returns #t for nil
 
 ```scheme
 (not (lit ()))
 ```
 ---
-    t
+    #t
 
-### returns nil for non-nil
+### returns #f for non-nil
 
 ```scheme
 (not 1)
 ```
 ---
+    #f
 
 ## nested and/or
 

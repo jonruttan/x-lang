@@ -32,17 +32,17 @@
 (do (def my-t (make-type "MY-T" (list))) (def obj (make-instance my-t 42)) (eq? obj obj))
 ```
 ---
-    t
+    #t
 
 ## type?
 
-### returns t for matching type
+### returns #t for matching type
 
 ```scheme
 (do (def my-t (make-type "MY-T" (list))) (type? (make-instance my-t 42) my-t))
 ```
 ---
-    t
+    #t
 
 ### returns nil for wrong type
 

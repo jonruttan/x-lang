@@ -167,7 +167,7 @@
 (procedure? (wrap (op (x) e x)))
 ```
 ---
-    t
+    #t
 
 ### wrapped operative evaluates args
 

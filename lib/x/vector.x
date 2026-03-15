@@ -19,8 +19,8 @@
                 (do
                   (if sep (display " "))
                   (write (first lst))
-                  (write-vec (rest lst) t)))))
-          (write-vec (first self) ())
+                  (write-vec (rest lst) #t)))))
+          (write-vec (first self) #f)
           (display ")")))
       (pair
         (lit analyse)

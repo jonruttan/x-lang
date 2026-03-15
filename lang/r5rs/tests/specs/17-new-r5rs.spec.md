@@ -28,15 +28,15 @@
 (= 1 1 1 1)
 ```
 ---
-    t
+    #t
 
 ### = with multiple args (false)
 
 ```scheme
-(null? (= 1 1 2 1))
+(not (= 1 1 2 1))
 ```
 ---
-    t
+    #t
 
 ### < with multiple args
 
@@ -44,15 +44,15 @@
 (< 1 2 3 4)
 ```
 ---
-    t
+    #t
 
 ### < not strictly increasing
 
 ```scheme
-(null? (< 1 2 2 3))
+(not (< 1 2 2 3))
 ```
 ---
-    t
+    #t
 
 ### > with multiple args
 
@@ -60,7 +60,7 @@
 (> 4 3 2 1)
 ```
 ---
-    t
+    #t
 
 ### <= with equal elements
 
@@ -68,7 +68,7 @@
 (<= 1 1 2 3 3)
 ```
 ---
-    t
+    #t
 
 ### >= with equal elements
 
@@ -76,7 +76,7 @@
 (>= 5 3 3 1)
 ```
 ---
-    t
+    #t
 
 ### = with single arg
 
@@ -84,7 +84,7 @@
 (= 42)
 ```
 ---
-    t
+    #t
 
 ### < with two args
 
@@ -92,7 +92,7 @@
 (< 1 2)
 ```
 ---
-    t
+    #t
 
 ## variadic min/max
 
@@ -238,7 +238,7 @@
 (exact? 42)
 ```
 ---
-    t
+    #t
 
 ### inexact? on float
 
@@ -246,15 +246,15 @@
 (inexact? (exact->inexact 1))
 ```
 ---
-    t
+    #t
 
 ### exact? on float
 
 ```scheme
-(null? (exact? (exact->inexact 1)))
+(not (exact? (exact->inexact 1)))
 ```
 ---
-    t
+    #t
 
 ### real? on integer
 
@@ -262,7 +262,7 @@
 (real? 42)
 ```
 ---
-    t
+    #t
 
 ### complex? on integer
 
@@ -270,7 +270,7 @@
 (complex? 42)
 ```
 ---
-    t
+    #t
 
 ## R5RS math with floats
 
@@ -304,7 +304,7 @@
 (inexact? (sqrt 2))
 ```
 ---
-    t
+    #t
 
 ### sin of zero
 
@@ -344,7 +344,7 @@
 (inexact? (atan 1))
 ```
 ---
-    t
+    #t
 
 ### atan with two args
 
@@ -352,7 +352,7 @@
 (inexact? (atan 1 1))
 ```
 ---
-    t
+    #t
 
 ### expt with float exponent
 
@@ -360,7 +360,7 @@
 (inexact? (expt 2 (exact->inexact 3)))
 ```
 ---
-    t
+    #t
 
 ## number->string and string->number
 
@@ -391,10 +391,10 @@
 ### string->number invalid returns false
 
 ```scheme
-(null? (string->number "abc"))
+(not (string->number "abc"))
 ```
 ---
-    t
+    #t
 
 ### string->number float
 
@@ -402,15 +402,15 @@
 (inexact? (string->number "3.14"))
 ```
 ---
-    t
+    #t
 
 ### string->number empty returns false
 
 ```scheme
-(null? (string->number ""))
+(not (string->number ""))
 ```
 ---
-    t
+    #t
 
 ## letrec-syntax
 

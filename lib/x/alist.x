@@ -8,7 +8,7 @@
     (match
       ((null? alist) ())
       ((eq? key (first (first alist))) (rest (first alist)))
-      (t (aget key (rest alist))))))
+      (#t (aget key (rest alist))))))
 
 (def aget-or
   (fn (d key alist)
@@ -18,16 +18,16 @@
 (def ahas?
   (fn (key alist)
     (match
-      ((null? alist) ())
-      ((eq? key (first (first alist))) t)
-      (t (ahas? key (rest alist))))))
+      ((null? alist) #f)
+      ((eq? key (first (first alist))) #t)
+      (#t (ahas? key (rest alist))))))
 
 (def adel
   (fn (key alist)
     (match
       ((null? alist) ())
       ((eq? key (first (first alist))) (adel key (rest alist)))
-      (t (pair (first alist) (adel key (rest alist)))))))
+      (#t (pair (first alist) (adel key (rest alist)))))))
 
 (def aset
   (fn (key val alist) (pair (pair key val) (adel key alist))))

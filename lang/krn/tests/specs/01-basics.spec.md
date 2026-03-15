@@ -88,13 +88,13 @@
 #t
 ```
 ---
-    t
+    #t
 
-### #f is nil
+### #f is distinct from nil
 
 ```scheme
-(null? #f)
+(not (null? #f))
 ```
 ---
-    t
+    #t
 

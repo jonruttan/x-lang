@@ -3,18 +3,18 @@
 ### countdown 100k does not blow stack
 
 ```scheme
-(do (def loop (fn (n) (if (= n 0) t (loop (- n 1))))) (loop 100000))
+(do (def loop (fn (n) (if (= n 0) #t (loop (- n 1))))) (loop 100000))
 ```
 ---
-    t
+    #t
 
 ### countdown 200k does not blow stack
 
 ```scheme
-(do (def loop (fn (n) (if (= n 0) t (loop (- n 1))))) (loop 200000))
+(do (def loop (fn (n) (if (= n 0) #t (loop (- n 1))))) (loop 200000))
 ```
 ---
-    t
+    #t
 
 ### accumulator 100k is correct
 
@@ -31,11 +31,11 @@
 ```scheme
 (include "lib/x/profile.x")
 (profile-reset)
-(do (def loop (fn (n) (if (= n 0) t (loop (- n 1))))) (loop 10000))
+(do (def loop (fn (n) (if (= n 0) #t (loop (- n 1))))) (loop 10000))
 (< (alloc-count) 200000)
 ```
 ---
-    t
+    #t
 
 ### fold over list stays bounded
 
@@ -46,7 +46,7 @@
 (< (alloc-count) 500000)
 ```
 ---
-    t
+    #t
 
 ## GC regression
 
@@ -58,7 +58,7 @@
 (> (heap-collect-force) 0)
 ```
 ---
-    t
+    #t
 
 ### GC reduces heap after waste
 
@@ -70,7 +70,7 @@
   (< (heap-count) before))
 ```
 ---
-    t
+    #t
 
 ## time regression
 
@@ -80,7 +80,7 @@
 (= (length (map inc (range 1 5001))) 5000)
 ```
 ---
-    t
+    #t
 
 ### fold 10000 elements completes
 
@@ -88,12 +88,12 @@
 (= (fold (fn (acc x) (+ acc x)) 0 (range 1 10001)) 50005000)
 ```
 ---
-    t
+    #t
 
 ### deep recursion 50k with match
 
 ```scheme
-(do (def f (fn (n) (match ((= n 0) t) (t (f (- n 1)))))) (f 50000))
+(do (def f (fn (n) (match ((= n 0) #t) (#t (f (- n 1)))))) (f 50000))
 ```
 ---
-    t
+    #t

@@ -50,8 +50,6 @@
   (def $sequence do)
   ; --- Boolean constants ---
 
-  (def #t t)
-  (def #f ())
   (def #ignore ())
   (def #inert ())
   ; --- $lambda: create applicative from operative ---
@@ -115,7 +113,7 @@
         (not (symbol? x))
         (not (pair? x)))))
   ($define! applicative? ($lambda (x) (procedure? x)))
-  ($define! boolean? ($lambda (x) (or (eq? x t) (null? x))))
+  ($define! boolean? ($lambda (x) (or (eq? x #t) (eq? x #f))))
   ($define! inert? ($lambda (x) (null? x)))
   ; --- List operations (as applicatives via $lambda) ---
 

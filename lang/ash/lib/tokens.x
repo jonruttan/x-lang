@@ -201,7 +201,7 @@
           (score-set score 1 buffer))
         ; Not a double — un-read, score the single
 
-        (t (do (buffer-unread buffer) (score-set score 1 buffer)))))))
+        (#t (do (buffer-unread buffer) (score-set score 1 buffer)))))))
 
 (base-make-type
   %sh-base
@@ -273,7 +273,7 @@
           (%sh-dq-body (pair (integer->char (+ chr 0)) acc)))
         ; Not escapable: keep the backslash and the character
 
-        (t
+        (#t
           (%sh-dq-body
             (pair (integer->char (+ chr 0)) (pair #\\ acc))))))))
 
@@ -296,7 +296,7 @@
         ((= chr (char->integer #\\)) (%sh-dq-escape acc))
         ; Regular character (including $, `, etc. — literal in Phase 1)
 
-        (t (%sh-dq-body (pair (integer->char (+ chr 0)) acc)))))))
+        (#t (%sh-dq-body (pair (integer->char (+ chr 0)) acc)))))))
 
 (base-make-type
   %sh-base
@@ -353,7 +353,7 @@
       ((%sh-digit? chr) %sh-int-body)
       ((%sh-word-break? chr)
         (do (buffer-unread buffer) (score-set score 1 buffer)))
-      (t ()))))
+      (#t ()))))
 
 (base-make-type
   %sh-base

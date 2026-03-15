@@ -6,15 +6,15 @@
 (operative? ($vau (x) e x))
 ```
 ---
-    t
+    #t
 
 ### operative? false on applicative
 
 ```scheme
-(null? (operative? ($lambda (x) x)))
+(not (operative? ($lambda (x) x)))
 ```
 ---
-    t
+    #t
 
 ### applicative?
 
@@ -22,15 +22,15 @@
 (applicative? ($lambda (x) x))
 ```
 ---
-    t
+    #t
 
 ### applicative? false on number
 
 ```scheme
-(null? (applicative? 42))
+(not (applicative? 42))
 ```
 ---
-    t
+    #t
 
 ### boolean? on #t
 
@@ -38,7 +38,7 @@
 (boolean? #t)
 ```
 ---
-    t
+    #t
 
 ### boolean? on #f
 
@@ -46,15 +46,15 @@
 (boolean? #f)
 ```
 ---
-    t
+    #t
 
 ### boolean? false
 
 ```scheme
-(null? (boolean? 42))
+(not (boolean? 42))
 ```
 ---
-    t
+    #t
 
 ### inert? on #inert
 
@@ -62,7 +62,7 @@
 (inert? #inert)
 ```
 ---
-    t
+    #t
 
 ## number predicates
 
@@ -72,15 +72,15 @@
 (zero? 0)
 ```
 ---
-    t
+    #t
 
 ### zero? false
 
 ```scheme
-(null? (zero? 1))
+(not (zero? 1))
 ```
 ---
-    t
+    #t
 
 ### positive?
 
@@ -88,7 +88,7 @@
 (positive? 5)
 ```
 ---
-    t
+    #t
 
 ### negative?
 
@@ -96,7 +96,7 @@
 (negative? (- 0 3))
 ```
 ---
-    t
+    #t
 
 ### even?
 
@@ -104,15 +104,15 @@
 (even? 4)
 ```
 ---
-    t
+    #t
 
 ### even? false
 
 ```scheme
-(null? (even? 3))
+(not (even? 3))
 ```
 ---
-    t
+    #t
 
 ### odd?
 
@@ -120,15 +120,15 @@
 (odd? 3)
 ```
 ---
-    t
+    #t
 
 ### odd? false
 
 ```scheme
-(null? (odd? 4))
+(not (odd? 4))
 ```
 ---
-    t
+    #t
 
 ## numeric operations
 

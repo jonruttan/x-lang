@@ -12,7 +12,7 @@
 
 ; ahas? -- all 3 match clauses
 (ahas? (lit a) ())                               ; null → ()
-(ahas? (lit a) (list (pair (lit a) 1)))          ; match → t
+(ahas? (lit a) (list (pair (lit a) 1)))          ; match → #t
 (ahas? (lit b) (list (pair (lit a) 1) (pair (lit b) 2)))  ; recurse
 
 ; adel -- all 3 match clauses

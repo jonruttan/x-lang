@@ -298,7 +298,7 @@ result
 (null? (my-list))
 ```
 ---
-    t
+    #t
 
 ### ellipsis with single element
 
@@ -334,10 +334,10 @@ result
     ((_ e) e)
     ((_ e1 e2 ...)
      (if e1 (my-and e2 ...) #f))))
-(null? (my-and #f 2 3))
+(not (my-and #f 2 3))
 ```
 ---
-    t
+    #t
 
 ### multiple pvars in ellipsis (my-let)
 

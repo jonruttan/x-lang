@@ -6,6 +6,7 @@
 (pair? (make-base))
 ```
 ---
+    #f
 
 ### new base has arithmetic
 
@@ -109,7 +110,7 @@
 (not (null? (make-token-base)))
 ```
 ---
-    t
+    #t
 
 ### bare base produces no tokens
 
@@ -117,7 +118,7 @@
 (null? (token-read-string (make-token-base) "hello"))
 ```
 ---
-    t
+    #t
 
 ## base-make-type
 
@@ -250,7 +251,7 @@
 (do (def %tb7 (make-base)) (not (null? (first (first (first %tb7))))))
 ```
 ---
-    t
+    #t
 
 ### move entry from front to end
 
@@ -264,7 +265,7 @@
     (eq? (first (first %tb8-new)) %tb8-a))
 ```
 ---
-    t
+    #t
 
 ### last entry wins scoring ties
 

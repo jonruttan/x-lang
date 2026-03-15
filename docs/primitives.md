@@ -2,7 +2,7 @@
 
 ## Primitives
 
-All primitives receive unevaluated arguments (fexpr-style) and evaluate what they need internally. Boolean true is the symbol `t`; false/nil is the base environment object (displayed as `()`).
+All primitives receive unevaluated arguments (fexpr-style) and evaluate what they need internally. Boolean true is `#t`; boolean false is `#f`. Nil is `()` (the empty list).
 
 ---
 
@@ -58,24 +58,24 @@ Returns the rest element (cdr) of pair `p`.
 
 ### `eq?`
 
-`(eq? a b) -> t | ()`
+`(eq? a b) -> #t | #f`
 
-Tests pointer identity of evaluated `a` and `b`. Returns `t` if `a` and `b` are the exact same object; `()` otherwise.
+Tests pointer identity of evaluated `a` and `b`. Returns `#t` if `a` and `b` are the exact same object; `#f` otherwise.
 
 ```
-(eq? (lit x) (lit x)) -> t
-(eq? 1 1) -> ()
+(eq? (lit x) (lit x)) -> #t
+(eq? 1 1) -> #f
 ```
 
 ### `=`
 
-`(= a b) -> t | ()`
+`(= a b) -> #t | #f`
 
 Tests numeric value equality of evaluated `a` and `b`. Compares the integer values regardless of object identity.
 
 ```
-(= 1 1) -> t
-(= 1 2) -> ()
+(= 1 1) -> #t
+(= 1 2) -> #f
 ```
 
 ---
@@ -84,46 +84,46 @@ Tests numeric value equality of evaluated `a` and `b`. Compares the integer valu
 
 ### `<`
 
-`(< a b) -> t | ()`
+`(< a b) -> #t | #f`
 
-Returns `t` if integer `a` is strictly less than integer `b`.
+Returns `#t` if integer `a` is strictly less than integer `b`.
 
 ```
-(< 1 2) -> t
-(< 2 1) -> ()
+(< 1 2) -> #t
+(< 2 1) -> #f
 ```
 
 ### `>`
 
-`(> a b) -> t | ()`
+`(> a b) -> #t | #f`
 
-Returns `t` if integer `a` is strictly greater than integer `b`.
+Returns `#t` if integer `a` is strictly greater than integer `b`.
 
 ```
-(> 2 1) -> t
-(> 1 2) -> ()
+(> 2 1) -> #t
+(> 1 2) -> #f
 ```
 
 ### `<=`
 
-`(<= a b) -> t | ()`
+`(<= a b) -> #t | #f`
 
-Returns `t` if integer `a` is less than or equal to integer `b`.
+Returns `#t` if integer `a` is less than or equal to integer `b`.
 
 ```
-(<= 1 1) -> t
-(<= 2 1) -> ()
+(<= 1 1) -> #t
+(<= 2 1) -> #f
 ```
 
 ### `>=`
 
-`(>= a b) -> t | ()`
+`(>= a b) -> #t | #f`
 
-Returns `t` if integer `a` is greater than or equal to integer `b`.
+Returns `#t` if integer `a` is greater than or equal to integer `b`.
 
 ```
-(>= 1 1) -> t
-(>= 0 1) -> ()
+(>= 1 1) -> #t
+(>= 0 1) -> #f
 ```
 
 ---
@@ -297,7 +297,7 @@ Mutates an existing binding of `name` to the result of evaluating `expr`. Signal
 Evaluates `cond`. If truthy (not `()`), tail-evaluates `then`. If falsy, tail-evaluates `else` when provided, or returns `()`. Uses tail-call optimization for the selected branch.
 
 ```
-(if t 1 2) -> 1
+(if #t 1 2) -> 1
 (if () 1 2) -> 2
 (if () 1) -> ()
 ```
@@ -323,7 +323,7 @@ Multi-branch conditional (cond-style). Evaluates each `test` in order; for the f
 (match
   ((= 1 2) 10)
   ((= 1 1) 20)
-  (t 30)) -> 20
+  (#t 30)) -> 20
 ```
 
 ### `let`
@@ -414,112 +414,112 @@ Extracts the underlying combiner from an applicative created by `wrap`.
 
 ### `null?`
 
-`(null? x) -> t | ()`
+`(null? x) -> #t | #f`
 
-Returns `t` if `x` evaluates to nil (`()`); `()` otherwise.
+Returns `#t` if `x` evaluates to nil (`()`); `#f` otherwise.
 
 ```
-(null? ()) -> t
-(null? 1) -> ()
+(null? ()) -> #t
+(null? 1) -> #f
 ```
 
 ### `pair?`
 
-`(pair? x) -> t | ()`
+`(pair? x) -> #t | #f`
 
-Returns `t` if `x` evaluates to a list pair; `()` otherwise.
+Returns `#t` if `x` evaluates to a list pair; `#f` otherwise.
 
 ```
-(pair? (list 1 2)) -> t
-(pair? 1) -> ()
+(pair? (list 1 2)) -> #t
+(pair? 1) -> #f
 ```
 
 ### `atom?`
 
-`(atom? x) -> t | ()`
+`(atom? x) -> #t | #f`
 
-Returns `t` if `x` evaluates to a non-pair (atom); `()` if it is a list pair. The inverse of `pair?`.
+Returns `#t` if `x` evaluates to a non-pair (atom); `#f` if it is a list pair. The inverse of `pair?`.
 
 ```
-(atom? 1) -> t
-(atom? (list 1 2)) -> ()
+(atom? 1) -> #t
+(atom? (list 1 2)) -> #f
 ```
 
 ### `not`
 
-`(not x) -> t | ()`
+`(not x) -> #t | #f`
 
-Logical negation. Returns `t` if `x` evaluates to nil; `()` otherwise. Equivalent to `null?`.
+Logical negation. Returns `#t` if `x` evaluates to nil; `#f` otherwise. Equivalent to `null?`.
 
 ```
-(not ()) -> t
-(not 1) -> ()
+(not ()) -> #t
+(not 1) -> #f
 ```
 
 ### `number?`
 
-`(number? x) -> t | ()`
+`(number? x) -> #t | #f`
 
-Returns `t` if `x` evaluates to an integer; `()` otherwise.
+Returns `#t` if `x` evaluates to an integer; `#f` otherwise.
 
 ```
-(number? 42) -> t
-(number? "hello") -> ()
+(number? 42) -> #t
+(number? "hello") -> #f
 ```
 
 ### `string?`
 
-`(string? x) -> t | ()`
+`(string? x) -> #t | #f`
 
-Returns `t` if `x` evaluates to a string; `()` otherwise.
+Returns `#t` if `x` evaluates to a string; `#f` otherwise.
 
 ```
-(string? "hello") -> t
-(string? 42) -> ()
+(string? "hello") -> #t
+(string? 42) -> #f
 ```
 
 ### `symbol?`
 
-`(symbol? x) -> t | ()`
+`(symbol? x) -> #t | #f`
 
-Returns `t` if `x` evaluates to a symbol; `()` otherwise.
+Returns `#t` if `x` evaluates to a symbol; `#f` otherwise.
 
 ```
-(symbol? (lit x)) -> t
-(symbol? 42) -> ()
+(symbol? (lit x)) -> #t
+(symbol? 42) -> #f
 ```
 
 ### `procedure?`
 
-`(procedure? x) -> t | ()`
+`(procedure? x) -> #t | #f`
 
-Returns `t` if `x` evaluates to a callable (closure or C primitive); `()` otherwise.
+Returns `#t` if `x` evaluates to a callable (closure or C primitive); `#f` otherwise.
 
 ```
-(procedure? +) -> t
-(procedure? 42) -> ()
+(procedure? +) -> #t
+(procedure? 42) -> #f
 ```
 
 ### `char?`
 
-`(char? x) -> t | ()`
+`(char? x) -> #t | #f`
 
-Returns `t` if `x` evaluates to a character object; `()` otherwise.
+Returns `#t` if `x` evaluates to a character object; `#f` otherwise.
 
 ```
-(char? (read-char)) -> t
-(char? 42) -> ()
+(char? (read-char)) -> #t
+(char? 42) -> #f
 ```
 
 ### `type?`
 
-`(type? obj type-handle) -> t | ()`
+`(type? obj type-handle) -> #t | #f`
 
-Returns `t` if the runtime type of `obj` matches `type-handle` (as returned by `make-type`); `()` otherwise. Returns `()` for nil or objects without a type.
+Returns `#t` if the runtime type of `obj` matches `type-handle` (as returned by `make-type`); `#f` otherwise. Returns `#f` for nil or objects without a type.
 
 ```
 (def my-t (make-type "my-type" (list)))
-(type? (make-instance my-t 42) my-t) -> t
+(type? (make-instance my-t 42) my-t) -> #t
 ```
 
 ---
@@ -545,12 +545,12 @@ Constructs a proper list from zero or more evaluated arguments. `(list)` returns
 
 `(and expr ...) -> value`
 
-Short-circuit logical AND. Evaluates each `expr` left to right. Returns `()` at the first falsy value. If all values are truthy, returns the last one. With no arguments, returns `t`.
+Short-circuit logical AND. Evaluates each `expr` left to right. Returns `()` at the first falsy value. If all values are truthy, returns the last one. With no arguments, returns `#t`.
 
 ```
 (and 1 2 3) -> 3
 (and 1 () 3) -> ()
-(and) -> t
+(and) -> #t
 ```
 
 ### `or`
@@ -668,13 +668,13 @@ Returns a new string extracted from `str` starting at index `start` (inclusive) 
 
 ### `string=?`
 
-`(string=? str1 str2) -> t | ()`
+`(string=? str1 str2) -> #t | #f`
 
-Returns `t` if strings `str1` and `str2` have equal contents; `()` otherwise.
+Returns `#t` if strings `str1` and `str2` have equal contents; `#f` otherwise.
 
 ```
-(string=? "abc" "abc") -> t
-(string=? "abc" "xyz") -> ()
+(string=? "abc" "abc") -> #t
+(string=? "abc" "xyz") -> #f
 ```
 
 ### `string->symbol`
@@ -824,9 +824,9 @@ Creates a new instance of the runtime type identified by `type-handle`, storing 
 
 ### `type?`
 
-`(type? obj type-handle) -> t | ()`
+`(type? obj type-handle) -> #t | #f`
 
-Returns `t` if the runtime type of `obj` matches `type-handle`; `()` otherwise. Returns `()` for nil or objects without a type. Documented above in Predicates.
+Returns `#t` if the runtime type of `obj` matches `type-handle`; `#f` otherwise. Returns `#f` for nil or objects without a type. Documented above in Predicates.
 
 ### `type-name`
 

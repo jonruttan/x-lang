@@ -60,13 +60,13 @@
 
 ## vector?
 
-### returns t for a vector
+### returns #t for a vector
 
 ```scheme
 (vector? (vector 1))
 ```
 ---
-    t
+    #t
 
 ### returns nil for a list
 

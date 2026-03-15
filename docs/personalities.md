@@ -36,7 +36,7 @@ R5RS-compatible Scheme built on x-lang.
 | `quote` | `lit` |
 | `quasiquote` | `quasi` |
 | `cond` | `match` |
-| `#t` | `t` |
+| `#t` | `#t` |
 | `#f` | `()` |
 
 #### Derived Forms
@@ -113,7 +113,7 @@ x-lang's C primitives are already fexprs that evaluate their own arguments, so K
 | `$if` | `if` |
 | `$let` | `let` |
 | `$sequence` | `do` |
-| `#t` | `t` |
+| `#t` | `#t` |
 | `#f` | `()` |
 | `#ignore` | `()` |
 | `#inert` | `()` |
@@ -155,7 +155,7 @@ Operative. Recursive binding via `$let` + `set`. Uses `lr-` prefixed parameter n
 
 | Value | Meaning | Representation |
 |-------|---------|----------------|
-| `#t` | true | `t` |
+| `#t` | true | `#t` |
 | `#f` | false | `()` (nil) |
 | `#ignore` | ignored parameter | `()` (nil) |
 | `#inert` | no useful value | `()` (nil) |
@@ -168,7 +168,7 @@ In standard Kernel, these are distinct types. Here they map to existing x-lang v
 |-----------|----------|
 | `operative?` | True if not nil, not a procedure, not a number, string, symbol, or pair |
 | `applicative?` | Alias for `procedure?` |
-| `boolean?` | True if `t` or nil |
+| `boolean?` | True if `#t` or nil |
 | `inert?` | Alias for `null?` |
 
 #### Environment Operations

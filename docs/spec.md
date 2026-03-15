@@ -7,8 +7,8 @@ to a test file in `tests/x/specs/`. Behavior described here MUST be implemented
 and tested. Items marked **TBD** have uncertain semantics and need investigation.
 
 All primitives receive unevaluated arguments (fexpr-style) and evaluate what
-they need internally. Boolean true is the symbol `t`; false/nil is the base
-environment object (displayed as `()`).
+they need internally. Boolean true is `#t`; boolean false is `#f`. Nil is `()`
+(the empty list).
 
 x-lang uses the fexpr evaluation model: every combiner at the C level receives
 its arguments unevaluated. Applicative semantics (automatic argument evaluation)
@@ -50,8 +50,8 @@ unevaluated.
 
 ### Nil
 
-The empty list `()` is the base environment object. It is falsy and serves as
-the sole false value. `()` self-evaluates.
+The empty list `()` is nil. It is falsy. The boolean false value is `#f`.
+`()` self-evaluates.
 
 ```
 () -> ()
@@ -74,8 +74,8 @@ Proper tail calls MUST NOT grow the stack. A tail-recursive loop MUST be able
 to iterate without limit.
 
 ```
-(def loop (fn (n) (if (= n 0) t (loop (- n 1)))))
-(loop 1000000) -> t
+(def loop (fn (n) (if (= n 0) #t (loop (- n 1)))))
+(loop 1000000) -> #t
 ```
 
 ### Mutual recursion
@@ -83,9 +83,9 @@ to iterate without limit.
 Mutually tail-recursive functions MUST also run in constant stack space.
 
 ```
-(def even-tc (fn (n) (if (= n 0) t (odd-tc (- n 1)))))
-(def odd-tc (fn (n) (if (= n 0) () (even-tc (- n 1)))))
-(even-tc 100000) -> t
+(def even-tc (fn (n) (if (= n 0) #t (odd-tc (- n 1)))))
+(def odd-tc (fn (n) (if (= n 0) #f (even-tc (- n 1)))))
+(even-tc 100000) -> #t
 ```
 
 ---
@@ -182,7 +182,7 @@ Evaluates `cond`. If truthy, tail-evaluates `then`. If falsy, tail-evaluates
 `else` (or returns `()` if omitted).
 
 ```
-(if t 1 2) -> 1
+(if #t 1 2) -> 1
 (if () 1 2) -> 2
 (if () 1) -> ()
 ```
@@ -212,7 +212,7 @@ expressions, wrap in `do`.
 (match
   ((= 1 2) 10)
   ((= 1 1) 20)
-  (t 30)) -> 20
+  (#t 30)) -> 20
 ```
 
 ### `let`
@@ -351,12 +351,12 @@ Evaluates expression `expr`. With optional `env`, evaluates in that environment.
 
 Short-circuit logical AND. Evaluates each `expr` left to right. Returns `()`
 at the first falsy value. If all truthy, returns the last value. `(and)` returns
-`t`.
+`#t`.
 
 ```
 (and 1 2 3) -> 3
 (and 1 () 3) -> ()
-(and) -> t
+(and) -> #t
 ```
 
 ### `or`
@@ -374,14 +374,14 @@ Short-circuit logical OR. Returns the first truthy value. If all falsy, returns
 
 ### `not`
 
-`(not x) -> t | ()`
+`(not x) -> #t | #f`
 
-Logical negation. Returns `t` if `x` is nil; `()` otherwise.
+Logical negation. Returns `#t` if `x` is falsy; `#f` otherwise.
 
 ```
-(not ()) -> t
-(not 1) -> ()
-(not t) -> ()
+(not ()) -> #t
+(not 1) -> #f
+(not #t) -> #f
 ```
 
 ### `guard`
@@ -553,146 +553,146 @@ Right shift (arithmetic).
 
 ### `eq?`
 
-`(eq? a b) -> t | ()`
+`(eq? a b) -> #t | #f`
 
-Pointer identity. Returns `t` if `a` and `b` are the exact same object.
+Pointer identity. Returns `#t` if `a` and `b` are the exact same object.
 Symbols with the same name are interned and thus `eq?`.
 
 ```
-(eq? (lit x) (lit x)) -> t
-(eq? 1 1) -> ()
+(eq? (lit x) (lit x)) -> #t
+(eq? 1 1) -> #f
 ```
 
 ### `=`
 
-`(= a b) -> t | ()`
+`(= a b) -> #t | #f`
 
 Numeric/value equality. Compares integer values (and characters by code point).
 Comparing values of different types is undefined.
 
 ```
-(= 1 1) -> t
-(= 1 2) -> ()
+(= 1 1) -> #t
+(= 1 2) -> #f
 ```
 
 ### `<`
 
-`(< a b) -> t | ()`
+`(< a b) -> #t | #f`
 
 ```
-(< 1 2) -> t
-(< 2 1) -> ()
+(< 1 2) -> #t
+(< 2 1) -> #f
 ```
 
 ### `>`
 
-`(> a b) -> t | ()`
+`(> a b) -> #t | #f`
 
 ```
-(> 2 1) -> t
-(> 1 2) -> ()
+(> 2 1) -> #t
+(> 1 2) -> #f
 ```
 
 ### `<=`
 
-`(<= a b) -> t | ()`
+`(<= a b) -> #t | #f`
 
 ```
-(<= 1 1) -> t
-(<= 2 1) -> ()
+(<= 1 1) -> #t
+(<= 2 1) -> #f
 ```
 
 ### `>=`
 
-`(>= a b) -> t | ()`
+`(>= a b) -> #t | #f`
 
 ```
-(>= 1 1) -> t
-(>= 0 1) -> ()
+(>= 1 1) -> #t
+(>= 0 1) -> #f
 ```
 
 ### `null?`
 
-`(null? x) -> t | ()`
+`(null? x) -> #t | #f`
 
-Returns `t` if `x` is nil.
+Returns `#t` if `x` is nil.
 
 ```
-(null? ()) -> t
-(null? 1) -> ()
+(null? ()) -> #t
+(null? 1) -> #f
 ```
 
 ### `pair?`
 
-`(pair? x) -> t | ()`
+`(pair? x) -> #t | #f`
 
-Returns `t` if `x` is a pair.
+Returns `#t` if `x` is a pair.
 
 ```
-(pair? (list 1 2)) -> t
-(pair? 1) -> ()
+(pair? (list 1 2)) -> #t
+(pair? 1) -> #f
 ```
 
 ### `atom?`
 
-`(atom? x) -> t | ()`
+`(atom? x) -> #t | #f`
 
-Returns `t` if `x` is not a pair. Inverse of `pair?`.
+Returns `#t` if `x` is not a pair. Inverse of `pair?`.
 
 ```
-(atom? 1) -> t
-(atom? (list 1 2)) -> ()
+(atom? 1) -> #t
+(atom? (list 1 2)) -> #f
 ```
 
 ### `number?`
 
-`(number? x) -> t | ()`
+`(number? x) -> #t | #f`
 
 ```
-(number? 42) -> t
-(number? "hello") -> ()
+(number? 42) -> #t
+(number? "hello") -> #f
 ```
 
 ### `string?`
 
-`(string? x) -> t | ()`
+`(string? x) -> #t | #f`
 
 ```
-(string? "hello") -> t
-(string? 42) -> ()
+(string? "hello") -> #t
+(string? 42) -> #f
 ```
 
 ### `symbol?`
 
-`(symbol? x) -> t | ()`
+`(symbol? x) -> #t | #f`
 
 ```
-(symbol? (lit x)) -> t
-(symbol? 42) -> ()
+(symbol? (lit x)) -> #t
+(symbol? 42) -> #f
 ```
 
 ### `procedure?`
 
-`(procedure? x) -> t | ()`
+`(procedure? x) -> #t | #f`
 
-Returns `t` if `x` is a `fn` closure, a `wrap` applicative, or a C primitive.
-Returns `()` for `op` operatives and all other values.
+Returns `#t` if `x` is a `fn` closure, a `wrap` applicative, or a C primitive.
+Returns `#f` for `op` operatives and all other values.
 
 ```
-(procedure? +) -> t
-(procedure? (fn (x) x)) -> t
-(procedure? 42) -> ()
+(procedure? +) -> #t
+(procedure? (fn (x) x)) -> #t
+(procedure? 42) -> #f
 ```
 
 ### `char?`
 
-`(char? x) -> t | ()`
+`(char? x) -> #t | #f`
 
-Returns `t` if `x` is a character object.
+Returns `#t` if `x` is a character object.
 
 ```
-(char? #\a) -> t
-(char? 42) -> ()
+(char? #\a) -> #t
+(char? 42) -> #f
 ```
 
 ### `char->integer`
@@ -716,7 +716,7 @@ Returns the character with code point `n`.
 ```
 (integer->char 97) -> a
 (integer->char 65) -> A
-(= (integer->char 97) #\a) -> t
+(= (integer->char 97) #\a) -> #t
 ```
 
 ---
@@ -772,13 +772,13 @@ Out-of-bounds indices are undefined.
 
 ### `string=?`
 
-`(string=? str1 str2) -> t | ()`
+`(string=? str1 str2) -> #t | #f`
 
 String content equality.
 
 ```
-(string=? "abc" "abc") -> t
-(string=? "abc" "xyz") -> ()
+(string=? "abc" "abc") -> #t
+(string=? "abc" "xyz") -> #f
 ```
 
 ### `string->symbol`
@@ -1088,13 +1088,13 @@ obj -> <instance>
 
 ### `type?`
 
-`(type? obj type-handle) -> t | ()`
+`(type? obj type-handle) -> #t | #f`
 
-Returns `t` if `obj`'s runtime type matches `type-handle`.
+Returns `#t` if `obj`'s runtime type matches `type-handle`.
 
 ```
-(type? obj my-t) -> t
-(type? 42 my-t) -> ()
+(type? obj my-t) -> #t
+(type? 42 my-t) -> #f
 ```
 
 ### `type-name`
@@ -1268,7 +1268,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 `(complement pred) -> function`
 
 ```
-((complement even?) 3) -> t
+((complement even?) 3) -> #t
 ```
 
 ### `partial`
@@ -1292,8 +1292,8 @@ Returns a function that applies `f` for side effects, then returns the argument.
 `(both f g) -> function`
 
 ```
-((both positive? even?) 4) -> t
-((both positive? even?) 3) -> ()
+((both positive? even?) 4) -> #t
+((both positive? even?) 3) -> #f
 ```
 
 ### `either`
@@ -1301,7 +1301,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 `(either f g) -> function`
 
 ```
-((either positive? even?) -2) -> t
+((either positive? even?) -2) -> #t
 ```
 
 ### `all-pass`
@@ -1309,7 +1309,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 `(all-pass preds) -> function`
 
 ```
-((all-pass (list positive? even?)) 4) -> t
+((all-pass (list positive? even?)) 4) -> #t
 ```
 
 ### `any-pass`
@@ -1317,7 +1317,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 `(any-pass preds) -> function`
 
 ```
-((any-pass (list positive? even?)) -2) -> t
+((any-pass (list positive? even?)) -2) -> #t
 ```
 
 ---
@@ -1410,48 +1410,48 @@ Returns whichever of `a`, `b` has the larger `(f x)`.
 
 ### `zero?`
 
-`(zero? n) -> t | ()`
+`(zero? n) -> #t | #f`
 
 ```
-(zero? 0) -> t
-(zero? 1) -> ()
+(zero? 0) -> #t
+(zero? 1) -> #f
 ```
 
 ### `positive?`
 
-`(positive? n) -> t | ()`
+`(positive? n) -> #t | #f`
 
 ```
-(positive? 5) -> t
-(positive? -1) -> ()
-(positive? 0) -> ()
+(positive? 5) -> #t
+(positive? -1) -> #f
+(positive? 0) -> #f
 ```
 
 ### `negative?`
 
-`(negative? n) -> t | ()`
+`(negative? n) -> #t | #f`
 
 ```
-(negative? -3) -> t
-(negative? 0) -> ()
+(negative? -3) -> #t
+(negative? 0) -> #f
 ```
 
 ### `even?`
 
-`(even? n) -> t | ()`
+`(even? n) -> #t | #f`
 
 ```
-(even? 4) -> t
-(even? 3) -> ()
+(even? 4) -> #t
+(even? 3) -> #f
 ```
 
 ### `odd?`
 
-`(odd? n) -> t | ()`
+`(odd? n) -> #t | #f`
 
 ```
-(odd? 3) -> t
-(odd? 4) -> ()
+(odd? 3) -> #t
+(odd? 4) -> #f
 ```
 
 ### `sum`
@@ -1476,14 +1476,14 @@ Returns whichever of `a`, `b` has the larger `(f x)`.
 
 ### `boolean?`
 
-`(boolean? x) -> t | ()`
+`(boolean? x) -> #t | #f`
 
-Returns `t` if `x` is `t` or `()`.
+Returns `#t` if `x` is `#t` or `#f`.
 
 ```
-(boolean? t) -> t
-(boolean? ()) -> t
-(boolean? 1) -> ()
+(boolean? #t) -> #t
+(boolean? #f) -> #t
+(boolean? 1) -> #f
 ```
 
 ### `default-to`
@@ -1509,15 +1509,15 @@ Repeatedly applies `f` to `x` until `pred` is true.
 
 ### `equal?`
 
-`(equal? a b) -> t | ()`
+`(equal? a b) -> #t | #f`
 
 Shallow value equality: numbers by value, strings by content, else by identity
 (`eq?`). Does not recurse into pairs or lists.
 
 ```
-(equal? 3 3) -> t
-(equal? "abc" "abc") -> t
-(equal? (list 1) (list 1)) -> ()
+(equal? 3 3) -> #t
+(equal? "abc" "abc") -> #t
+(equal? (list 1) (list 1)) -> #f
 ```
 
 ---
@@ -1671,37 +1671,37 @@ Maps then flattens one level.
 
 #### `any?`
 
-`(any? pred lst) -> t | ()`
+`(any? pred lst) -> #t | #f`
 
 ```
-(any? even? (list 1 3 4)) -> t
-(any? even? (list 1 3 5)) -> ()
+(any? even? (list 1 3 4)) -> #t
+(any? even? (list 1 3 5)) -> #f
 ```
 
 #### `every?`
 
-`(every? pred lst) -> t | ()`
+`(every? pred lst) -> #t | #f`
 
 ```
-(every? even? (list 2 4 6)) -> t
-(every? even? (list 2 3 6)) -> ()
+(every? even? (list 2 4 6)) -> #t
+(every? even? (list 2 3 6)) -> #f
 ```
 
 #### `none?`
 
-`(none? pred lst) -> t | ()`
+`(none? pred lst) -> #t | #f`
 
 ```
-(none? even? (list 1 3 5)) -> t
+(none? even? (list 1 3 5)) -> #t
 ```
 
 #### `empty?`
 
-`(empty? lst) -> t | ()`
+`(empty? lst) -> #t | #f`
 
 ```
-(empty? ()) -> t
-(empty? (list 1)) -> ()
+(empty? ()) -> #t
+(empty? (list 1)) -> #f
 ```
 
 ### Filtering
@@ -1758,11 +1758,11 @@ Returns `-1` if not found.
 
 #### `includes?`
 
-`(includes? x lst) -> t | ()`
+`(includes? x lst) -> #t | #f`
 
 ```
-(includes? 3 (list 1 2 3)) -> t
-(includes? 9 (list 1 2 3)) -> ()
+(includes? 3 (list 1 2 3)) -> #t
+(includes? 9 (list 1 2 3)) -> #f
 ```
 
 #### `count`
@@ -1896,7 +1896,7 @@ Returns `-1` if not found.
 `(group-by f lst) -> alist`
 
 ```
-(group-by even? (list 1 2 3 4)) -> ((() 1 3) (t 2 4))
+(group-by even? (list 1 2 3 4)) -> ((#f 1 3) (#t 2 4))
 ```
 
 #### `sort`
@@ -2009,11 +2009,11 @@ with `eq?`.
 
 ### `ahas?`
 
-`(ahas? key alist) -> t | ()`
+`(ahas? key alist) -> #t | #f`
 
 ```
-(ahas? (lit a) (list (pair (lit a) 1))) -> t
-(ahas? (lit z) (list (pair (lit a) 1))) -> ()
+(ahas? (lit a) (list (pair (lit a) 1))) -> #t
+(ahas? (lit z) (list (pair (lit a) 1))) -> #f
 ```
 
 ### `adel`
@@ -2134,11 +2134,11 @@ Applies transformation functions to matching keys.
 
 ### `string-empty?`
 
-`(string-empty? s) -> t | ()`
+`(string-empty? s) -> #t | #f`
 
 ```
-(string-empty? "") -> t
-(string-empty? "a") -> ()
+(string-empty? "") -> #t
+(string-empty? "a") -> #f
 ```
 
 ### `string-join`
@@ -2161,29 +2161,29 @@ Applies transformation functions to matching keys.
 
 ### `string-contains?`
 
-`(string-contains? sub s) -> t | ()`
+`(string-contains? sub s) -> #t | #f`
 
 ```
-(string-contains? "ell" "hello") -> t
-(string-contains? "xyz" "hello") -> ()
+(string-contains? "ell" "hello") -> #t
+(string-contains? "xyz" "hello") -> #f
 ```
 
 ### `string-starts?`
 
-`(string-starts? pfx s) -> t | ()`
+`(string-starts? pfx s) -> #t | #f`
 
 ```
-(string-starts? "he" "hello") -> t
-(string-starts? "lo" "hello") -> ()
+(string-starts? "he" "hello") -> #t
+(string-starts? "lo" "hello") -> #f
 ```
 
 ### `string-ends?`
 
-`(string-ends? sfx s) -> t | ()`
+`(string-ends? sfx s) -> #t | #f`
 
 ```
-(string-ends? "lo" "hello") -> t
-(string-ends? "he" "hello") -> ()
+(string-ends? "lo" "hello") -> #t
+(string-ends? "he" "hello") -> #f
 ```
 
 ### `string-reverse`
@@ -2213,11 +2213,11 @@ Vectors are fixed-size indexed collections backed by lists. They display as
 
 ### `vector?`
 
-`(vector? x) -> t | ()`
+`(vector? x) -> #t | #f`
 
 ```
-(vector? (vector 1 2)) -> t
-(vector? (list 1 2)) -> ()
+(vector? (vector 1 2)) -> #t
+(vector? (list 1 2)) -> #f
 ```
 
 ### `vector-ref`
@@ -2269,11 +2269,11 @@ the pattern into an AST at read time and match against strings at runtime.
 
 ### `regex?`
 
-`(regex? x) -> t | ()`
+`(regex? x) -> #t | #f`
 
 ```
-(regex? #/abc/) -> t
-(regex? "abc") -> ()
+(regex? #/abc/) -> #t
+(regex? "abc") -> #f
 ```
 
 ### Regex literals
@@ -2288,13 +2288,13 @@ the pattern into an AST at read time and match against strings at runtime.
 ### Matching
 
 A regex called as a function performs a full match against a string. Returns
-`t` on match, `()` on no match.
+`#t` on match, `#f` on no match.
 
 ```
-(#/abc/ "abc") -> t
-(#/abc/ "abd") -> ()
-(#/abc/ "ab") -> ()
-(#/abc/ "abcd") -> ()
+(#/abc/ "abc") -> #t
+(#/abc/ "abd") -> #f
+(#/abc/ "ab") -> #f
+(#/abc/ "abcd") -> #f
 ```
 
 ### Dot wildcard
@@ -2302,10 +2302,10 @@ A regex called as a function performs a full match against a string. Returns
 `.` matches any single character.
 
 ```
-(#/./ "x") -> t
-(#/a.c/ "abc") -> t
-(#/a.c/ "axc") -> t
-(#/./ "") -> ()
+(#/./ "x") -> #t
+(#/a.c/ "abc") -> #t
+(#/a.c/ "axc") -> #t
+(#/./ "") -> #f
 ```
 
 ### Star quantifier
@@ -2313,10 +2313,10 @@ A regex called as a function performs a full match against a string. Returns
 `*` matches zero or more of the preceding element.
 
 ```
-(#/ab*c/ "ac") -> t
-(#/ab*c/ "abc") -> t
-(#/ab*c/ "abbbc") -> t
-(#/a*/ "") -> t
+(#/ab*c/ "ac") -> #t
+(#/ab*c/ "abc") -> #t
+(#/ab*c/ "abbbc") -> #t
+(#/a*/ "") -> #t
 ```
 
 ### Plus quantifier
@@ -2324,9 +2324,9 @@ A regex called as a function performs a full match against a string. Returns
 `+` matches one or more of the preceding element.
 
 ```
-(#/ab+c/ "abc") -> t
-(#/ab+c/ "abbbc") -> t
-(#/ab+c/ "ac") -> ()
+(#/ab+c/ "abc") -> #t
+(#/ab+c/ "abbbc") -> #t
+(#/ab+c/ "ac") -> #f
 ```
 
 ### Optional quantifier
@@ -2334,9 +2334,9 @@ A regex called as a function performs a full match against a string. Returns
 `?` matches zero or one of the preceding element.
 
 ```
-(#/ab?c/ "abc") -> t
-(#/ab?c/ "ac") -> t
-(#/ab?c/ "abbc") -> ()
+(#/ab?c/ "abc") -> #t
+(#/ab?c/ "ac") -> #t
+(#/ab?c/ "abbc") -> #f
 ```
 
 ### Escape sequences
@@ -2344,10 +2344,10 @@ A regex called as a function performs a full match against a string. Returns
 `\` escapes the following character, treating it as a literal.
 
 ```
-(#/a\\.b/ "a.b") -> t
-(#/a\\.b/ "axb") -> ()
-(#/a\\\\b/ "a\\b") -> t
-(#/a\\*b/ "a*b") -> t
+(#/a\\.b/ "a.b") -> #t
+(#/a\\.b/ "axb") -> #f
+(#/a\\\\b/ "a\\b") -> #t
+(#/a\\*b/ "a*b") -> #t
 ```
 
 ### Backtracking
@@ -2355,18 +2355,18 @@ A regex called as a function performs a full match against a string. Returns
 The `*` quantifier is greedy but backtracks to find a match.
 
 ```
-(#/a.*b/ "axxb") -> t
-(#/.*b/ "aab") -> t
-(#/a.*b/ "axx") -> ()
+(#/a.*b/ "axxb") -> #t
+(#/.*b/ "aab") -> #t
+(#/a.*b/ "axx") -> #f
 ```
 
 ### Combined patterns
 
 ```
-(#/a.*/ "abcdef") -> t
-(#/a.b*c/ "axbbc") -> t
-(#/.+/ "abc") -> t
-(#/.+/ "") -> ()
+(#/a.*/ "abcdef") -> #t
+(#/a.b*c/ "axbbc") -> #t
+(#/.+/ "abc") -> #t
+(#/.+/ "") -> #f
 ```
 
 ### `type-name`

@@ -84,7 +84,7 @@
 (null? (reverse ()))
 ```
 ---
-    t
+    #t
 
 ## list-ref
 
@@ -138,7 +138,7 @@
 (null? (filter ($lambda (x) (> x 10)) (list 1 2 3)))
 ```
 ---
-    t
+    #t
 
 ## for-each
 
@@ -163,10 +163,10 @@
 ### returns false when not found
 
 ```scheme
-(null? (member (quote z) (list (quote a) (quote b))))
+(not (member (quote z) (list (quote a) (quote b))))
 ```
 ---
-    t
+    #t
 
 ## assoc
 
@@ -181,8 +181,8 @@
 ### returns false when not found
 
 ```scheme
-(null? (assoc (quote z) (list (list (quote a) 1))))
+(not (assoc (quote z) (list (list (quote a) 1))))
 ```
 ---
-    t
+    #t
 

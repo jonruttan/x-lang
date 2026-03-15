@@ -6,23 +6,23 @@
 (char? #\a)
 ```
 ---
-    t
+    #t
 
 ### char? on string
 
 ```scheme
-(null? (char? "a"))
+(not (char? "a"))
 ```
 ---
-    t
+    #t
 
 ### char? on number
 
 ```scheme
-(null? (char? 65))
+(not (char? 65))
 ```
 ---
-    t
+    #t
 
 ### char->integer uppercase
 
@@ -88,15 +88,15 @@
 (char=? #\a #\a)
 ```
 ---
-    t
+    #t
 
 ### char=? not equal
 
 ```scheme
-(null? (char=? #\a #\b))
+(not (char=? #\a #\b))
 ```
 ---
-    t
+    #t
 
 ### char<? less
 
@@ -104,15 +104,15 @@
 (char<? #\a #\b)
 ```
 ---
-    t
+    #t
 
 ### char<? not less
 
 ```scheme
-(null? (char<? #\b #\a))
+(not (char<? #\b #\a))
 ```
 ---
-    t
+    #t
 
 ### char>? greater
 
@@ -120,7 +120,7 @@
 (char>? #\b #\a)
 ```
 ---
-    t
+    #t
 
 ### char<=? equal
 
@@ -128,7 +128,7 @@
 (char<=? #\a #\a)
 ```
 ---
-    t
+    #t
 
 ### char<=? less
 
@@ -136,7 +136,7 @@
 (char<=? #\a #\b)
 ```
 ---
-    t
+    #t
 
 ### char>=? equal
 
@@ -144,7 +144,7 @@
 (char>=? #\a #\a)
 ```
 ---
-    t
+    #t
 
 ### char>=? greater
 
@@ -152,13 +152,13 @@
 (char>=? #\b #\a)
 ```
 ---
-    t
+    #t
 
 ### char>=? not greater
 
 ```scheme
-(null? (char>=? #\a #\b))
+(not (char>=? #\a #\b))
 ```
 ---
-    t
+    #t
 

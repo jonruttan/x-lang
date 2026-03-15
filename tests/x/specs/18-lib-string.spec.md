@@ -6,7 +6,7 @@
 (string-empty? "")
 ```
 ---
-    t
+    #t
 
 ### false for non-empty
 
@@ -68,7 +68,7 @@
 (string-contains? "ll" "hello")
 ```
 ---
-    t
+    #t
 
 ### returns nil for missing
 
@@ -84,7 +84,7 @@
 (string-contains? "" "hello")
 ```
 ---
-    t
+    #t
 
 ## string-starts?
 
@@ -94,7 +94,7 @@
 (string-starts? "he" "hello")
 ```
 ---
-    t
+    #t
 
 ### false for non-prefix
 
@@ -112,7 +112,7 @@
 (string-ends? "lo" "hello")
 ```
 ---
-    t
+    #t
 
 ### false for non-suffix
 

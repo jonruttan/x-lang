@@ -49,14 +49,14 @@
       ((null? lst) ())
       ((pair? (first lst))
         (%append2 (flatten (first lst)) (flatten (rest lst))))
-      (t (pair (first lst) (flatten (rest lst)))))))
+      (#t (pair (first lst) (flatten (rest lst)))))))
 ; --- Iteration ---
 
 (def %any-null?
   (fn (lsts)
     (if (null? lsts)
       ()
-      (if (null? (first lsts)) t (%any-null? (rest lsts))))))
+      (if (null? (first lsts)) #t (%any-null? (rest lsts))))))
 
 (def %map1
   (fn (f lst)
@@ -80,7 +80,7 @@
       ((null? lst) ())
       ((pred (first lst))
         (pair (first lst) (filter pred (rest lst))))
-      (t (filter pred (rest lst))))))
+      (#t (filter pred (rest lst))))))
 
 (def %for-each1
   (fn (f lst)
@@ -106,16 +106,16 @@
 (def any?
   (fn (pred lst)
     (match
-      ((null? lst) ())
-      ((pred (first lst)) t)
-      (t (any? pred (rest lst))))))
+      ((null? lst) #f)
+      ((pred (first lst)) #t)
+      (#t (any? pred (rest lst))))))
 
 (def every?
   (fn (pred lst)
     (match
-      ((null? lst) t)
-      ((not (pred (first lst))) ())
-      (t (every? pred (rest lst))))))
+      ((null? lst) #t)
+      ((not (pred (first lst))) #f)
+      (#t (every? pred (rest lst))))))
 
 (def none? (fn (pred lst) (not (any? pred lst))))
 
@@ -155,7 +155,7 @@
     (match
       ((null? lst) ())
       ((pred (first lst)) (first lst))
-      (t (find pred (rest lst))))))
+      (#t (find pred (rest lst))))))
 
 (def find-index
   (fn (pred lst)
@@ -164,7 +164,7 @@
         (match
           ((null? lst) (- 0 1))
           ((pred (first lst)) i)
-          (t (go (+ i 1) (rest lst))))))
+          (#t (go (+ i 1) (rest lst))))))
     (go 0 lst)))
 
 (def index-of
@@ -173,9 +173,9 @@
 (def includes?
   (fn (x lst)
     (match
-      ((null? lst) ())
-      ((equal? x (first lst)) t)
-      (t (includes? x (rest lst))))))
+      ((null? lst) #f)
+      ((equal? x (first lst)) #t)
+      (#t (includes? x (rest lst))))))
 
 (def count
   (fn (pred lst)
@@ -205,7 +205,7 @@
     (match
       ((null? lst) ())
       ((pred (first lst)) (drop-while pred (rest lst)))
-      (t lst))))
+      (#t lst))))
 
 (def split-at
   (fn (n lst) (list (take n lst) (drop n lst))))
@@ -260,7 +260,7 @@
           ((null? lst) (list (reverse yes) (reverse no)))
           ((pred (first lst))
             (go (rest lst) (pair (first lst) yes) no))
-          (t (go (rest lst) yes (pair (first lst) no))))))
+          (#t (go (rest lst) yes (pair (first lst) no))))))
     (go lst () ())))
 
 (def group-by
@@ -273,7 +273,7 @@
             (pair
               (pair key (append (rest (first alist)) (list val)))
               (rest alist)))
-          (t
+          (#t
             (pair (first alist) (add-to-group (rest alist) key val))))))
     (fold (fn (acc x) (add-to-group acc (f x) x)) () lst)))
 
@@ -286,13 +286,13 @@
           ((null? b) a)
           ((cmp (first a) (first b))
             (pair (first a) (merge (rest a) b)))
-          (t (pair (first b) (merge a (rest b)))))))
+          (#t (pair (first b) (merge a (rest b)))))))
     (def split
       (fn (lst a b)
         (match
           ((null? lst) (list a b))
           ((null? (rest lst)) (list (pair (first lst) a) b))
-          (t
+          (#t
             (split
               (rest (rest lst))
               (pair (first lst) a)
@@ -313,7 +313,7 @@
       ((null? lst) ())
       ((null? (rest lst)) lst)
       ((equal? (first lst) (first (rest lst))) (uniq (rest lst)))
-      (t (pair (first lst) (uniq (rest lst)))))))
+      (#t (pair (first lst) (uniq (rest lst)))))))
 
 (def uniq-by
   (fn (f lst)
@@ -322,14 +322,14 @@
       ((null? (rest lst)) lst)
       ((equal? (f (first lst)) (f (first (rest lst))))
         (uniq-by f (rest lst)))
-      (t (pair (first lst) (uniq-by f (rest lst)))))))
+      (#t (pair (first lst) (uniq-by f (rest lst)))))))
 
 (def intersperse
   (fn (sep lst)
     (match
       ((null? lst) ())
       ((null? (rest lst)) lst)
-      (t
+      (#t
         (pair (first lst) (pair sep (intersperse sep (rest lst))))))))
 
 (def transpose
@@ -343,7 +343,7 @@
     (match
       ((null? lst) ())
       ((= n 0) (pair val (rest lst)))
-      (t (pair (first lst) (update (- n 1) val (rest lst)))))))
+      (#t (pair (first lst) (update (- n 1) val (rest lst)))))))
 
 (def insert
   (fn (n val lst)
@@ -358,11 +358,11 @@
       ((> start 0)
         (pair (first lst) (remove (- start 1) n (rest lst))))
       ((> n 0) (remove 0 (- n 1) (rest lst)))
-      (t lst))))
+      (#t lst))))
 
 (def adjust
   (fn (n f lst)
     (match
       ((null? lst) ())
       ((= n 0) (pair (f (first lst)) (rest lst)))
-      (t (pair (first lst) (adjust (- n 1) f (rest lst)))))))
+      (#t (pair (first lst) (adjust (- n 1) f (rest lst)))))))

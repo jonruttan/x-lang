@@ -6,15 +6,15 @@
 (string? "hello")
 ```
 ---
-    t
+    #t
 
 ### string? on non-string
 
 ```scheme
-(null? (string? 42))
+(not (string? 42))
 ```
 ---
-    t
+    #t
 
 ### string-length
 
@@ -104,7 +104,7 @@
 (define s "hello") (equal? s (string-copy s))
 ```
 ---
-    t
+    #t
 
 ## string comparison
 
@@ -114,15 +114,15 @@
 (string=? "abc" "abc")
 ```
 ---
-    t
+    #t
 
 ### string=? not equal
 
 ```scheme
-(null? (string=? "abc" "abd"))
+(not (string=? "abc" "abd"))
 ```
 ---
-    t
+    #t
 
 ### string<? less
 
@@ -130,15 +130,15 @@
 (string<? "abc" "abd")
 ```
 ---
-    t
+    #t
 
 ### string<? not less
 
 ```scheme
-(null? (string<? "abd" "abc"))
+(not (string<? "abd" "abc"))
 ```
 ---
-    t
+    #t
 
 ### string<? prefix is less
 
@@ -146,7 +146,7 @@
 (string<? "abc" "abcd")
 ```
 ---
-    t
+    #t
 
 ### string>? greater
 
@@ -154,7 +154,7 @@
 (string>? "abd" "abc")
 ```
 ---
-    t
+    #t
 
 ### string<=? equal
 
@@ -162,7 +162,7 @@
 (string<=? "abc" "abc")
 ```
 ---
-    t
+    #t
 
 ### string<=? less
 
@@ -170,7 +170,7 @@
 (string<=? "abc" "abd")
 ```
 ---
-    t
+    #t
 
 ### string>=? equal
 
@@ -178,7 +178,7 @@
 (string>=? "abc" "abc")
 ```
 ---
-    t
+    #t
 
 ### string>=? greater
 
@@ -186,7 +186,7 @@
 (string>=? "abd" "abc")
 ```
 ---
-    t
+    #t
 
 ## string conversion
 
@@ -204,7 +204,7 @@
 (eq? (string->symbol "hello") (quote hello))
 ```
 ---
-    t
+    #t
 
 ### number->string
 
@@ -236,5 +236,5 @@
 (null? (string->list ""))
 ```
 ---
-    t
+    #t
 

@@ -6,39 +6,39 @@
 (symbol? (quote foo))
 ```
 ---
-    t
+    #t
 
 ### symbol? on string
 
 ```scheme
-(null? (symbol? "foo"))
+(not (symbol? "foo"))
 ```
 ---
-    t
+    #t
 
 ### symbol? on number
 
 ```scheme
-(null? (symbol? 42))
+(not (symbol? 42))
 ```
 ---
-    t
+    #t
 
 ### symbol? on list
 
 ```scheme
-(null? (symbol? (list 1 2)))
+(not (symbol? (list 1 2)))
 ```
 ---
-    t
+    #t
 
 ### symbol? on boolean
 
 ```scheme
-(symbol? #t)
+(not (symbol? #t))
 ```
 ---
-    t
+    #t
 
 ## symbol=?
 
@@ -48,15 +48,15 @@
 (symbol=? (quote a) (quote a))
 ```
 ---
-    t
+    #t
 
 ### symbol=? different symbols
 
 ```scheme
-(null? (symbol=? (quote a) (quote b)))
+(not (symbol=? (quote a) (quote b)))
 ```
 ---
-    t
+    #t
 
 ## symbol conversion
 
@@ -74,7 +74,7 @@
 (eq? (string->symbol "hello") (quote hello))
 ```
 ---
-    t
+    #t
 
 ### roundtrip symbol->string->symbol
 
@@ -82,5 +82,5 @@
 (eq? (string->symbol (symbol->string (quote foo))) (quote foo))
 ```
 ---
-    t
+    #t
 

@@ -6,23 +6,23 @@
 (promise? (delay 42))
 ```
 ---
-    t
+    #t
 
 ### promise? on non-promise
 
 ```scheme
-(null? (promise? 42))
+(not (promise? 42))
 ```
 ---
-    t
+    #t
 
 ### promise? on list
 
 ```scheme
-(null? (promise? (list 1 2)))
+(not (promise? (list 1 2)))
 ```
 ---
-    t
+    #t
 
 ## force
 
@@ -92,7 +92,7 @@
 (define p (delay 99)) (eq? (make-promise p) p)
 ```
 ---
-    t
+    #t
 
 ### make-promise result forceable
 

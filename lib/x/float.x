@@ -250,7 +250,7 @@
 
 (def integer? number?)
 
-(set number? (fn (x) (if (%int-number? x) t (float? x))))
+(set number? (fn (x) (if (%int-number? x) #t (float? x))))
 
 (def real? number?)
 

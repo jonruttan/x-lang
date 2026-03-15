@@ -64,15 +64,15 @@
 (= 5 5)
 ```
 ---
-    t
+    #t
 
 ### not equal
 
 ```scheme
-(null? (= 5 6))
+(not (= 5 6))
 ```
 ---
-    t
+    #t
 
 ### less than true
 
@@ -80,15 +80,15 @@
 (< 1 2)
 ```
 ---
-    t
+    #t
 
 ### less than false
 
 ```scheme
-(null? (< 2 1))
+(not (< 2 1))
 ```
 ---
-    t
+    #t
 
 ### greater than true
 
@@ -96,15 +96,15 @@
 (> 2 1)
 ```
 ---
-    t
+    #t
 
 ### greater than false
 
 ```scheme
-(null? (> 1 2))
+(not (> 1 2))
 ```
 ---
-    t
+    #t
 
 ### less or equal on equal
 
@@ -112,7 +112,7 @@
 (<= 2 2)
 ```
 ---
-    t
+    #t
 
 ### less or equal on less
 
@@ -120,7 +120,7 @@
 (<= 1 2)
 ```
 ---
-    t
+    #t
 
 ### greater or equal on equal
 
@@ -128,7 +128,7 @@
 (>= 2 2)
 ```
 ---
-    t
+    #t
 
 ### greater or equal on greater
 
@@ -136,7 +136,7 @@
 (>= 3 2)
 ```
 ---
-    t
+    #t
 
 ## quotient and remainder
 

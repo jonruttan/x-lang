@@ -80,20 +80,21 @@
 
 ## string=?
 
-### returns t for equal strings
+### returns #t for equal strings
 
 ```scheme
 (string=? "hello" "hello")
 ```
 ---
-    t
+    #t
 
-### returns nil for different strings
+### returns #f for different strings
 
 ```scheme
 (string=? "hello" "world")
 ```
 ---
+    #f
 
 ## string->symbol
 
@@ -111,7 +112,7 @@
 (eq? (string->symbol "hello") (lit hello))
 ```
 ---
-    t
+    #t
 
 ## symbol->string
 
@@ -231,7 +232,7 @@
 (= (char->integer (string-ref "\x41" 0)) 65)
 ```
 ---
-    t
+    #t
 
 ### display outputs raw characters
 

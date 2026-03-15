@@ -1,61 +1,64 @@
 ## eq?
 
-### returns t for equal symbols
+### returns #t for equal symbols
 
 ```scheme
 (eq? (lit a) (lit a))
 ```
 ---
-    t
+    #t
 
-### returns t for eq? on same binding
+### returns #t for eq? on same binding
 
 ```scheme
 (do (def x 5) (eq? x x))
 ```
 ---
-    t
+    #t
 
 ## =
 
-### returns t for equal integers
+### returns #t for equal integers
 
 ```scheme
 (= 3 3)
 ```
 ---
-    t
+    #t
 
-### returns nil for unequal integers
+### returns #f for unequal integers
 
 ```scheme
 (= 3 4)
 ```
 ---
+    #f
 
 ## <
 
-### returns t for less than
+### returns #t for less than
 
 ```scheme
 (< 1 2)
 ```
 ---
-    t
+    #t
 
-### returns nil for equal
+### returns #f for equal
 
 ```scheme
 (< 2 2)
 ```
 ---
+    #f
 
-### returns nil for greater than
+### returns #f for greater than
 
 ```scheme
 (< 3 2)
 ```
 ---
+    #f
 
 ### handles negative numbers
 
@@ -63,31 +66,33 @@
 (< -5 0)
 ```
 ---
-    t
+    #t
 
 ## >
 
-### returns t for greater than
+### returns #t for greater than
 
 ```scheme
 (> 3 2)
 ```
 ---
-    t
+    #t
 
-### returns nil for equal
+### returns #f for equal
 
 ```scheme
 (> 2 2)
 ```
 ---
+    #f
 
-### returns nil for less than
+### returns #f for less than
 
 ```scheme
 (> 1 2)
 ```
 ---
+    #f
 
 ### handles negative numbers
 
@@ -95,124 +100,129 @@
 (> 0 -5)
 ```
 ---
-    t
+    #t
 
 ## <=
 
-### returns t for less than
+### returns #t for less than
 
 ```scheme
 (<= 1 2)
 ```
 ---
-    t
+    #t
 
-### returns t for equal
+### returns #t for equal
 
 ```scheme
 (<= 2 2)
 ```
 ---
-    t
+    #t
 
-### returns nil for greater than
+### returns #f for greater than
 
 ```scheme
 (<= 3 2)
 ```
 ---
+    #f
 
 ## >=
 
-### returns t for greater than
+### returns #t for greater than
 
 ```scheme
 (>= 3 2)
 ```
 ---
-    t
+    #t
 
-### returns t for equal
+### returns #t for equal
 
 ```scheme
 (>= 2 2)
 ```
 ---
-    t
+    #t
 
-### returns nil for less than
+### returns #f for less than
 
 ```scheme
 (>= 1 2)
 ```
 ---
+    #f
 
 ## null?
 
-### returns t for nil
+### returns #t for nil
 
 ```scheme
 (null? (lit ()))
 ```
 ---
-    t
+    #t
 
-### returns nil for non-nil
+### returns #f for non-nil
 
 ```scheme
 (null? 1)
 ```
 ---
+    #f
 
 ## pair?
 
-### returns t for a list
+### returns #t for a list
 
 ```scheme
 (pair? (list 1 2))
 ```
 ---
-    t
+    #t
 
-### returns t for a pair
+### returns #t for a pair
 
 ```scheme
 (pair? (pair 1 2))
 ```
 ---
-    t
+    #t
 
-### returns nil for an atom
+### returns #f for an atom
 
 ```scheme
 (pair? 42)
 ```
 ---
+    #f
 
 ## atom?
 
-### returns t for an integer
+### returns #t for an integer
 
 ```scheme
 (atom? 42)
 ```
 ---
-    t
+    #t
 
-### returns t for a symbol
+### returns #t for a symbol
 
 ```scheme
 (atom? (lit a))
 ```
 ---
-    t
+    #t
 
-### returns nil for a list
+### returns #f for a list
 
 ```scheme
 (atom? (list 1 2))
 ```
 ---
+    #f
 
 ## number?
 
@@ -222,15 +232,15 @@
 (number? 42)
 ```
 ---
-    t
+    #t
 
 ### false for string
 
 ```scheme
-(null? (number? "hello"))
+(number? "hello")
 ```
 ---
-    t
+    #f
 
 ## string?
 
@@ -240,15 +250,15 @@
 (string? "hello")
 ```
 ---
-    t
+    #t
 
 ### false for integer
 
 ```scheme
-(null? (string? 42))
+(string? 42)
 ```
 ---
-    t
+    #f
 
 ## symbol?
 
@@ -258,15 +268,15 @@
 (symbol? (lit hello))
 ```
 ---
-    t
+    #t
 
 ### false for integer
 
 ```scheme
-(null? (symbol? 42))
+(symbol? 42)
 ```
 ---
-    t
+    #f
 
 ## procedure?
 
@@ -276,7 +286,7 @@
 (procedure? (fn (x) x))
 ```
 ---
-    t
+    #t
 
 ### true for builtin
 
@@ -284,41 +294,41 @@
 (procedure? first)
 ```
 ---
-    t
+    #t
 
 ### false for integer
 
 ```scheme
-(null? (procedure? 42))
+(procedure? 42)
 ```
 ---
-    t
+    #f
 
 ## char?
 
-### returns nil for number
+### returns #f for number
 
 ```scheme
-(null? (char? 42))
+(char? 42)
 ```
 ---
-    t
+    #f
 
-### returns nil for string
+### returns #f for string
 
 ```scheme
-(null? (char? "hello"))
+(char? "hello")
 ```
 ---
-    t
+    #f
 
-### returns nil for symbol
+### returns #f for symbol
 
 ```scheme
-(null? (char? (lit a)))
+(char? (lit a))
 ```
 ---
-    t
+    #f
 
 ## char->integer
 
@@ -362,5 +372,5 @@
 (= (char->integer (integer->char 97)) 97)
 ```
 ---
-    t
+    #t
 

@@ -106,7 +106,7 @@
 (null? (if #f 1))
 ```
 ---
-    t
+    #t
 
 ### if non-false is true
 

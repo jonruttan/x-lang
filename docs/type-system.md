@@ -250,7 +250,7 @@ Creates an instance of a runtime-defined type. The instance stores `data` and di
 #### `type?`
 
 ```
-(type? obj type-handle) → t or ()
+(type? obj type-handle) → #t or ()
 ```
 
 Tests whether `obj` is an instance of the type identified by `type-handle`.
@@ -276,7 +276,7 @@ Returns the type name of any object as a string.
         (if (not (null? lst))
           (do (if sep (display " "))
               (write (first lst))
-              (write-vec (rest lst) t)))))
+              (write-vec (rest lst) #t)))))
       (write-vec (first self) ())
       (display ")"))))))
 

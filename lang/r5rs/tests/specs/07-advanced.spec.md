@@ -30,7 +30,7 @@
 (null? (case 5 ((1) (quote one)) ((2) (quote two))))
 ```
 ---
-    t
+    #t
 
 ### matches in datum list
 

@@ -47,13 +47,13 @@
 ---
     #\a
 
-### evaluates t
+### evaluates #t
 
 ```scheme
-t
+#t
 ```
 ---
-    t
+    #t
 
 ## symbol lookup
 

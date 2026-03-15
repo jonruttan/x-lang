@@ -172,7 +172,7 @@
 (do (sh-eval "for i in a b c; do :; done") (string=? (sh-getenv "i") "c"))
 ```
 ---
-    t
+    #t
 
 ### for loop returns 0
 
