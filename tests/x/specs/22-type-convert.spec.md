@@ -250,7 +250,7 @@
 (write-to-string #\a)
 ```
 ---
-    "a"
+    "#\\a"
 
 ### float to string
 

@@ -46,7 +46,7 @@
 (string-ref "hello" 0)
 ```
 ---
-    h
+    #\h
 
 ### string-ref last
 
@@ -54,7 +54,7 @@
 (string-ref "hello" 4)
 ```
 ---
-    o
+    #\o
 
 ### string-ref middle
 
@@ -62,7 +62,7 @@
 (string-ref "abcde" 2)
 ```
 ---
-    c
+    #\c
 
 ## string operations
 
@@ -318,7 +318,7 @@
 (string->list "abc")
 ```
 ---
-    (a b c)
+    (#\a #\b #\c)
 
 ### string->list empty
 
@@ -334,7 +334,7 @@
 (string->list "x")
 ```
 ---
-    (x)
+    (#\x)
 
 ## list->string
 

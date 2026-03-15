@@ -54,7 +54,7 @@
 (integer->char 65)
 ```
 ---
-    A
+    #\A
 
 ### roundtrip char->int->char
 
@@ -62,7 +62,7 @@
 (integer->char (char->integer #\z))
 ```
 ---
-    z
+    #\z
 
 ### char->integer space
 

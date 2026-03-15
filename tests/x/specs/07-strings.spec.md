@@ -24,7 +24,7 @@
 (string-ref "hello" 0)
 ```
 ---
-    h
+    #\h
 
 ### returns middle character
 
@@ -32,7 +32,7 @@
 (string-ref "hello" 2)
 ```
 ---
-    l
+    #\l
 
 ## string-append
 

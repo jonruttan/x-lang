@@ -13,25 +13,13 @@
 ;      " "
 (include "lang/r5rs/lib/r5rs-base.x")
 (begin
-  (include "lib/x/float.x")
+  ; float.x is already included by r5rs-base.x
 
   ; --- Booleans ---
   (define (boolean=? a b) (if a (if b #t #f) (if b #f #t)))
 
   ; --- Symbols ---
   (define (symbol=? a b) (eq? a b))
-
-  ; --- Number predicates (corrected for float support) ---
-  (define (exact-integer? x) (%int-number? x))
-  (define (exact? x) (%int-number? x))
-  (define (rational? x) (%int-number? x))
-  (define (complex? x) (number? x))
-
-  ; --- R7RS integer? includes inexact integers (e.g. 3.0) ---
-  (define (integer? x)
-    (cond ((%int-number? x) #t)
-          ((float? x) (= x (ftrunc x)))
-          (#t #f)))
 
   ; --- Math ---
   (define (square x) (* x x))
@@ -45,15 +33,7 @@
         (- q 1) q)))
   (define (floor-remainder a b) (- a (* b (floor-quotient a b))))
 
-  ; --- Rounding (pass-through for integers, use float ops for floats) ---
-  (define (floor x)
-    (if (float? x) (inexact->exact (ffloor x)) x))
-  (define (ceiling x)
-    (if (float? x) (inexact->exact (fceil x)) x))
-  (define (truncate x)
-    (if (float? x) (inexact->exact (ftrunc x)) x))
-  (define (round x)
-    (if (float? x) (inexact->exact (frint x)) x))
+  ; floor/ceiling/truncate/round already provided by r5rs-base.x
 
   ; --- IEEE 754 predicates ---
   ; Note: float literals not available inside do blocks; use exact->inexact
@@ -71,41 +51,7 @@
   (define exact inexact->exact)
   (define inexact exact->inexact)
 
-  ; --- Generic sqrt ---
-  (define (sqrt x)
-    (if (and (%int-number? x) (>= x 0))
-      (let ((s (inexact->exact (fsqrt (exact->inexact x)))))
-        (if (= (* s s) x) s (fsqrt (exact->inexact x))))
-      (fsqrt (if (float? x) x (exact->inexact x)))))
-
-  ; --- Generic expt (override r5rs integer-only version) ---
-  (define (expt base exp)
-    (cond ((and (%int-number? base) (%int-number? exp) (>= exp 0))
-           (cond ((zero? exp) 1)
-                 ((even? exp) (expt (* base base) (quotient exp 2)))
-                 (#t (* base (expt base (- exp 1))))))
-          (#t (fpow (if (float? base) base (exact->inexact base))
-                    (if (float? exp) exp (exact->inexact exp))))))
-
-  ; --- Generic number->string / string->number ---
-  (define %int-number->string number->string)
-  (define %int-string->number string->number)
-
-  (define (number->string n)
-    (if (float? n)
-      (float->string (first n))
-      (%int-number->string n)))
-
-  (define (%string-has-dot? s)
-    (let loop ((i 0))
-      (cond ((= i (string-length s)) #f)
-            ((char=? (string-ref s i) #\.) #t)
-            (#t (loop (+ i 1))))))
-
-  (define (string->number s)
-    (if (%string-has-dot? s)
-      (make-instance %float (string->float s))
-      (%int-string->number s)))
+  ; sqrt/expt/number->string/string->number already provided by r5rs-base.x
 
   ; --- Character classification ---
   (define (char-alphabetic? c)
@@ -268,20 +214,7 @@
       ((first p))
       p))
 
-  ; --- Multiple values ---
-  (define %values (make-type (lit VALUES)
-    (list
-      (pair (lit write) (lambda (self)
-        (for-each (lambda (v) (display " ") (write v))
-                  (first self)))))))
-  (define (values . args)
-    (if (= (length args) 1) (car args)
-      (make-instance %values args)))
-  (define (call-with-values producer consumer)
-    (let ((result (producer)))
-      (if (type? result %values)
-        (apply consumer (first result))
-        (consumer result))))
+  ; values/call-with-values already provided by r5rs-base.x
 
   ; --- Characters (R7RS additions) ---
   (define (digit-value c)

@@ -45,7 +45,7 @@
 #\a
 ```
 ---
-    a
+    #\a
 
 ### evaluates t
 

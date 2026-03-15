@@ -354,7 +354,7 @@
 (integer->char 65)
 ```
 ---
-    A
+    #\A
 
 ### round-trips with char->integer
 

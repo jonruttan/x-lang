@@ -21,6 +21,8 @@
   (def cons pair)
   (def car first)
   (def cdr rest)
+  (def set-car! set-first)
+  (def set-cdr! set-rest)
   (def quote lit)
   (def quasiquote quasi)
   (def cond match)
@@ -29,6 +31,15 @@
   (def #t t)
   (def #f ())
   (def else t)
+
+  ; --- Float support ---
+  (include "lib/x/float.x")
+
+  ; --- write-char / newline ---
+  (def write-char (fn (c) (display (make-string 1 c))))
+
+  ; --- Mutation aliases ---
+  ; vector-set! and string-set! require C support; not yet available
 
   ; --- define: (define x val) or (define (f args...) body...) ---
   (def define (op (name-or-form . body) e
@@ -302,8 +313,152 @@
         (if (null? rest) acc
           (loop (cdr rest) (%string-append-2 acc (car rest)))))))
 
-  ; --- integer? (all x-lang numbers are integers) ---
-  (define (integer? x) (number? x))
+  ; --- Number type predicates ---
+  (define (integer? x)
+    (cond ((%int-number? x) #t)
+          ((float? x) (= x (ftrunc x)))
+          (#t #f)))
+  (define (exact? x) (%int-number? x))
+  (define (inexact? x) (float? x))
+  (define (exact-integer? x) (%int-number? x))
+  (define (rational? x) (%int-number? x))
+  (define (real? x) (number? x))
+  (define (complex? x) (number? x))
+
+  ; --- Variadic comparisons ---
+  ; Save binary float-aware versions before redefining as variadic
+  (define %bin= =)
+  (define %bin< <)
+  (define (= . args)
+    (if (null? (cdr args)) #t
+      (let loop ((a (car args)) (rest (cdr args)))
+        (if (null? rest) #t
+          (if (%bin= a (car rest))
+            (loop (car rest) (cdr rest))
+            #f)))))
+  (define (< . args)
+    (if (null? (cdr args)) #t
+      (let loop ((a (car args)) (rest (cdr args)))
+        (if (null? rest) #t
+          (if (%bin< a (car rest))
+            (loop (car rest) (cdr rest))
+            #f)))))
+  (define (> . args)
+    (if (null? (cdr args)) #t
+      (let loop ((a (car args)) (rest (cdr args)))
+        (if (null? rest) #t
+          (if (%bin< (car rest) a)
+            (loop (car rest) (cdr rest))
+            #f)))))
+  (define (<= . args)
+    (if (null? (cdr args)) #t
+      (let loop ((a (car args)) (rest (cdr args)))
+        (if (null? rest) #t
+          (if (not (%bin< (car rest) a))
+            (loop (car rest) (cdr rest))
+            #f)))))
+  (define (>= . args)
+    (if (null? (cdr args)) #t
+      (let loop ((a (car args)) (rest (cdr args)))
+        (if (null? rest) #t
+          (if (not (%bin< a (car rest)))
+            (loop (car rest) (cdr rest))
+            #f)))))
+
+  ; --- Variadic min/max ---
+  (define (min . args)
+    (let loop ((best (car args)) (rest (cdr args)))
+      (if (null? rest) best
+        (loop (if (< (car rest) best) (car rest) best) (cdr rest)))))
+  (define (max . args)
+    (let loop ((best (car args)) (rest (cdr args)))
+      (if (null? rest) best
+        (loop (if (> (car rest) best) (car rest) best) (cdr rest)))))
+
+  ; --- Variadic gcd/lcm ---
+  (define (%gcd2 a b) (if (zero? b) a (%gcd2 b (remainder a b))))
+  (define (gcd . args)
+    (if (null? args) 0
+      (let loop ((acc (abs (car args))) (rest (cdr args)))
+        (if (null? rest) acc
+          (loop (%gcd2 acc (abs (car rest))) (cdr rest))))))
+  (define (%lcm2 a b)
+    (if (zero? b) 0
+      (abs (* (quotient a (%gcd2 a b)) b))))
+  (define (lcm . args)
+    (if (null? args) 1
+      (let loop ((acc (abs (car args))) (rest (cdr args)))
+        (if (null? rest) acc
+          (loop (%lcm2 acc (abs (car rest))) (cdr rest))))))
+
+  ; --- R5RS math with float support ---
+  (define (floor x)
+    (if (float? x) (inexact->exact (ffloor x)) x))
+  (define (ceiling x)
+    (if (float? x) (inexact->exact (fceil x)) x))
+  (define (truncate x)
+    (if (float? x) (inexact->exact (ftrunc x)) x))
+  (define (round x)
+    (if (float? x) (inexact->exact (frint x)) x))
+  (define (sqrt x)
+    (if (and (%int-number? x) (>= x 0))
+      (let ((s (inexact->exact (fsqrt (exact->inexact x)))))
+        (if (= (* s s) x) s (fsqrt (exact->inexact x))))
+      (fsqrt (if (float? x) x (exact->inexact x)))))
+  (define sin (lambda (x) (fsin (if (float? x) x (exact->inexact x)))))
+  (define cos (lambda (x) (fcos (if (float? x) x (exact->inexact x)))))
+  (define tan (lambda (x) (ftan (if (float? x) x (exact->inexact x)))))
+  (define asin (lambda (x) (fasin (if (float? x) x (exact->inexact x)))))
+  (define acos (lambda (x) (facos (if (float? x) x (exact->inexact x)))))
+  (define atan (lambda (x . rest)
+    (if (null? rest)
+      (fatan (if (float? x) x (exact->inexact x)))
+      (fatan2 (if (float? x) x (exact->inexact x))
+              (if (float? (car rest)) (car rest) (exact->inexact (car rest)))))))
+  (define (exp x) (fexp (if (float? x) x (exact->inexact x))))
+  (define (log x) (flog (if (float? x) x (exact->inexact x))))
+
+  ; --- Generic number->string / string->number ---
+  (define %int-number->string number->string)
+  (define %int-string->number string->number)
+
+  (define (number->string n)
+    (if (float? n)
+      (float->string (first n))
+      (%int-number->string n)))
+
+  (define (string->number s)
+    (let ((has-dot (let loop ((i 0))
+                     (cond ((= i (string-length s)) #f)
+                           ((char=? (string-ref s i) #\.) #t)
+                           (#t (loop (+ i 1)))))))
+      (if has-dot
+        (make-instance %float (string->float s))
+        (%int-string->number s))))
+
+  ; --- Generic expt (supports float exponents) ---
+  (define (expt base exp)
+    (cond ((and (%int-number? base) (%int-number? exp) (>= exp 0))
+           (cond ((zero? exp) 1)
+                 ((even? exp) (expt (* base base) (quotient exp 2)))
+                 (#t (* base (expt base (- exp 1))))))
+          (#t (fpow (if (float? base) base (exact->inexact base))
+                    (if (float? exp) exp (exact->inexact exp))))))
+
+  ; --- Multiple values ---
+  (define %values (make-type (lit VALUES)
+    (list
+      (pair (lit write) (lambda (self)
+        (for-each (lambda (v) (display " ") (write v))
+                  (first self)))))))
+  (define (values . args)
+    (if (= (length args) 1) (car args)
+      (make-instance %values args)))
+  (define (call-with-values producer consumer)
+    (let ((result (producer)))
+      (if (type? result %values)
+        (apply consumer (first result))
+        (consumer result))))
 
   ; --- Character classification ---
   (define (char-alphabetic? c)
@@ -584,5 +739,35 @@
                     (lit %sr-env)))))
               (pair (lit let-syntax) (pair (cdr %ls-bindings) %ls-body))))
             %ls-e)))))
+
+  ; letrec-syntax: like let-syntax but transformers can see each other
+  ; We achieve this by evaluating all transformers first, then binding them all
+  ; Uses same strategy as define-syntax: def gensym names, then let-bind macro ops
+  (define letrec-syntax
+    (op (%lrs-bindings . %lrs-body) %lrs-e
+      (if (null? %lrs-bindings)
+        (eval (pair (lit begin) %lrs-body) %lrs-e)
+        (begin
+          ; Build defs + let-bindings for all transformers
+          (def %lrs-defs ())
+          (def %lrs-let-bindings ())
+          (for-each (lambda (b)
+            (def %lrs-n (car b))
+            (def %lrs-xfm (eval (cadr b) %lrs-e))
+            (def %lrs-xn (string->symbol (string-append "%xfm-" (symbol->string %lrs-n))))
+            (set! %lrs-defs (cons (list (lit def) %lrs-xn %lrs-xfm) %lrs-defs))
+            (set! %lrs-let-bindings
+              (cons (list %lrs-n
+                      (list (lit op) (lit %sr-args) (lit %sr-env)
+                        (list (lit eval)
+                          (list %lrs-xn
+                            (list (lit pair) (list (lit lit) %lrs-n) (lit %sr-args)))
+                          (lit %sr-env))))
+                    %lrs-let-bindings)))
+            %lrs-bindings)
+          (eval (append (list (lit begin))
+                        (reverse %lrs-defs)
+                        (list (pair (lit let) (pair (reverse %lrs-let-bindings) %lrs-body))))
+                %lrs-e)))))
 
 )

@@ -54,7 +54,7 @@
 (integer->char 65)
 ```
 ---
-    A
+    #\A
 
 ### roundtrip char->int->char
 
@@ -62,7 +62,7 @@
 (integer->char (char->integer #\z))
 ```
 ---
-    z
+    #\z
 
 ### char->integer space
 
@@ -268,7 +268,7 @@
 (char-upcase #\a)
 ```
 ---
-    A
+    #\A
 
 ### char-upcase already upper
 
@@ -276,7 +276,7 @@
 (char-upcase #\A)
 ```
 ---
-    A
+    #\A
 
 ### char-upcase digit unchanged
 
@@ -284,7 +284,7 @@
 (char-upcase #\5)
 ```
 ---
-    5
+    #\5
 
 ### char-downcase uppercase
 
@@ -292,7 +292,7 @@
 (char-downcase #\A)
 ```
 ---
-    a
+    #\a
 
 ### char-downcase already lower
 
@@ -300,7 +300,7 @@
 (char-downcase #\a)
 ```
 ---
-    a
+    #\a
 
 ### char-foldcase uppercase
 
@@ -308,7 +308,7 @@
 (char-foldcase #\A)
 ```
 ---
-    a
+    #\a
 
 ### char-foldcase lowercase
 
@@ -316,7 +316,7 @@
 (char-foldcase #\a)
 ```
 ---
-    a
+    #\a
 
 ## char case-insensitive comparison
 
