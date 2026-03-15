@@ -114,7 +114,7 @@
           %sweet-curly-close
           (let loop
             ((elems ()))
-            (let ((e (read)))
+            (let ((e (%prim-read)))
               (if (null? e)
                 (infix->prefix (reverse elems))
                 (if (curly-close? e)
@@ -257,7 +257,7 @@
 
   (define
     (sweet-token-read)
-    (let ((t (read)))
+    (let ((t (%prim-read)))
       (cond
         ((null? t) t)
         ((indent-marker? t) t)
@@ -350,7 +350,7 @@
 
   (def %test-read
     (fn ()
-      (def %tr (read))
+      (def %tr (%prim-read))
       (if (and
             (pair? %tr)
             (pair? (first %tr))
