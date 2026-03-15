@@ -86,3 +86,37 @@
 ---
     t
 
+### compares different symbols
+
+```scheme
+(if (equal? (lit a) (lit b)) "y" "n")
+```
+---
+    "n"
+
+### compares equal symbols
+
+```scheme
+(equal? (lit a) (lit a))
+```
+---
+    t
+
+### compares different strings
+
+```scheme
+(if (equal? "foo" "bar") "y" "n")
+```
+---
+    "n"
+
+## until
+
+### returns immediately when predicate holds
+
+```scheme
+(until (fn (x) (> x 10)) inc 15)
+```
+---
+    15
+

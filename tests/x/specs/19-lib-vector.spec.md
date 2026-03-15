@@ -150,3 +150,19 @@
 ---
     #(7 7)
 
+### creates an empty vector with make-vector
+
+```scheme
+(write (make-vector 0 0))
+```
+---
+    #()
+
+### write separates elements with spaces
+
+```scheme
+(write (vector 1 2))
+```
+---
+    #(1 2)
+

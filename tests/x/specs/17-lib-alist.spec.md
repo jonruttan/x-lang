@@ -16,6 +16,14 @@
 ---
     t
 
+### retrieves value from first entry
+
+```scheme
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (aget (lit a) al))
+```
+---
+    1
+
 ## aget-or
 
 ### returns value when key exists
@@ -52,6 +60,14 @@
 ---
     "n"
 
+### finds key after first entry
+
+```scheme
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (ahas? (lit b) al))
+```
+---
+    t
+
 ## aset
 
 ### adds key-value pair
@@ -71,6 +87,22 @@
 ```
 ---
     1
+
+### returns same length when key not present
+
+```scheme
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (length (adel (lit z) al)))
+```
+---
+    2
+
+### removes key not at head
+
+```scheme
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (null? (aget (lit b) (adel (lit b) al))))
+```
+---
+    t
 
 ## akeys
 
