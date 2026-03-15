@@ -1164,7 +1164,21 @@
 
   (define
     (%sr-instantiate template bindings def-env)
-    (%sr-subst template bindings))
+    (let*
+      ((pvars (map car bindings))
+        (introduced (%sr-unique (%sr-introduced template pvars)))
+        (renames
+          (let loop
+            ((syms introduced) (acc ()))
+            (if (null? syms)
+              (reverse acc)
+              (let ((v (%sr-safe-eval (car syms) def-env)))
+                (if (pair? v)
+                  (loop (cdr syms) (pair (pair (car syms) (cdr v)) acc))
+                  (loop (cdr syms) acc))))))
+        (renamed (%sr-rename template renames))
+        (expanded (%sr-subst renamed bindings)))
+      expanded))
   ; Try each clause, return first match's expansion
 
   (define
