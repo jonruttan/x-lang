@@ -35,6 +35,10 @@
   ; --- Float support ---
 
   (include "lib/x/float.x")
+  ; --- Numeric tower ---
+
+  (include "lib/x/rational.x")
+  (include "lib/x/complex.x")
   ; --- string->number: try integer first, then float ---
 
   (def %string->number-int string->number)
@@ -446,7 +450,7 @@
   (define (string>=? a b) (not (string<? a b)))
   ; --- Math ---
 
-  (define (quotient a b) (/ a b))
+  (define (quotient a b) (%int/ a b))
   (define (remainder a b) (- a (* b (quotient a b))))
   (define
     (modulo a b)
@@ -489,6 +493,7 @@
           acc
           (loop (cdr rest) (%string-append-2 acc (car rest)))))))
   ; --- Number type predicates ---
+  ; Tower: integer? ⊂ rational? ⊂ real? ⊂ complex? = number?
 
   (define
     (integer? x)
@@ -496,16 +501,24 @@
       ((%int-number? x) #t)
       ((float? x) (= x (ftrunc x)))
       (#t #f)))
-  (define (exact? x) (%int-number? x))
+  (define (exact? x) (if (%rat? x) #t (%int-number? x)))
   (define (inexact? x) (float? x))
   (define (exact-integer? x) (%int-number? x))
-  (define (rational? x) (%int-number? x))
-  (define (real? x) (number? x))
-  (define (complex? x) (number? x))
-  ; --- Rational accessors (integer-only; no rational type) ---
+  ; rational?, real?, complex?, number? already set by rational.x / complex.x
+  ; --- Rational accessors ---
 
-  (define (numerator x) x)
-  (define (denominator x) (if (integer? x) 1 (error "non-rational")))
+  (define
+    (numerator x)
+    (cond
+      ((%rat? x) (first (first x)))
+      ((%int-number? x) x)
+      (#t (error "non-rational"))))
+  (define
+    (denominator x)
+    (cond
+      ((%rat? x) (rest (first x)))
+      ((%int-number? x) 1)
+      (#t (error "non-rational"))))
   ; --- Variadic comparisons ---
 
   ; Save binary float-aware versions before redefining as variadic

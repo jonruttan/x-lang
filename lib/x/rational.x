@@ -111,6 +111,11 @@
         (list
           (pair (type-of 42)
             (fn (self) (%int/ (first (first self)) (rest (first self)))))
+          (pair %float
+            (fn (self)
+              (f/
+                (make-instance %float (int->float (first (first self))))
+                (make-instance %float (int->float (rest (first self)))))))
           (pair (type-of "")
             (fn (self)
               (string-append
@@ -256,6 +261,8 @@
         (if (%rat? a) (rat= a (if (%rat? b) b (%make-rational b 1)))
           (if (%rat? b) (rat= (%make-rational a 1) b)
             (%int= a b)))))))
+; Harden % against / override (/ now produces rationals)
+(set % (fn (a b) (%int- a (%int* b (%int/ a b)))))
 ; --- Reader ---
 
 (set %rational-read

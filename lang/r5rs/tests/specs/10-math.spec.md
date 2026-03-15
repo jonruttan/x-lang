@@ -24,13 +24,13 @@
 ---
     24
 
-### integer division
+### integer division (exact rational)
 
 ```scheme
 (/ 10 3)
 ```
 ---
-    3
+    10/3
 
 ### nested arithmetic
 
