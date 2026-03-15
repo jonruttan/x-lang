@@ -38,9 +38,6 @@
   ; --- write-char / newline ---
   (def write-char (fn (c) (display (make-string 1 c))))
 
-  ; --- Mutation aliases ---
-  ; vector-set! and string-set! require C support; not yet available
-
   ; --- define: (define x val) or (define (f args...) body...) ---
   (def define (op (name-or-form . body) e
     (if (pair? name-or-form)
@@ -63,6 +60,13 @@
       (eval (pair (lit do) body) e)
       (eval (list (lit let) (list (first bindings))
                   (pair (lit let*) (pair (rest bindings) body))) e))))
+
+  ; --- Mutation ---
+  (define (vector-set! v i val)
+    (let loop ((lst (first v)) (n i))
+      (if (= n 0)
+        (set-first lst val)
+        (loop (rest lst) (- n 1)))))
 
   ; --- Composition accessors ---
   (define (caar x) (first (first x)))
@@ -578,6 +582,30 @@
           (%seq (buffer-unread buffer) buffer)
           ())))))
 
+  ; --- Ellipsis tokenizer type ---
+  ; Register '...' as a token so it parses as a symbol, not as dot-pair
+  (define %ellipsis-sym (string->symbol "..."))
+
+  ; State machine: dot1 → dot2 → dot3 → lookahead check
+  (define %ellipsis-check (lambda (buffer score chr)
+    (if (= chr 46)
+      ()
+      (%seq (buffer-unread buffer) (score-set score 1 buffer)))))
+
+  (define %ellipsis-dot3 (lambda (buffer score chr)
+    (if (= chr 46)
+      (%seq (score-set score 1 buffer) %ellipsis-check)
+      ())))
+
+  (define %ellipsis-dot2 (lambda (buffer score chr)
+    (if (= chr 46) %ellipsis-dot3 ())))
+
+  (make-type "ELLIPSIS"
+    (list
+      (pair (lit analyse) (lambda (buffer score chr)
+        (if (= chr 46) %ellipsis-dot2 ())))
+      (pair (lit read) (lambda args %ellipsis-sym))))
+
   ; --- Hygienic Macros (define-syntax, syntax-rules, let-syntax) ---
 
   ; Gensym: generate unique symbols for hygiene
@@ -593,35 +621,6 @@
   ; Sentinel for pattern match failure (unique identity)
   (define %sr-no-match (pair (lit no) (lit match)))
 
-  ; Pattern matching for syntax-rules
-  ; Returns bindings alist on success, %sr-no-match on failure
-  (define (%sr-match pattern form literals bindings)
-    (if (eq? pattern (lit _))
-      bindings
-      (if (symbol? pattern)
-        (if (memq pattern literals)
-          (if (and (symbol? form) (eq? pattern form)) bindings %sr-no-match)
-          (pair (pair pattern form) bindings))
-        (if (null? pattern)
-          (if (null? form) bindings %sr-no-match)
-          (if (pair? pattern)
-            (if (pair? form)
-              (let ((b (%sr-match (car pattern) (car form) literals bindings)))
-                (if (eq? b %sr-no-match)
-                  %sr-no-match
-                  (%sr-match (cdr pattern) (cdr form) literals b)))
-              %sr-no-match)
-            (if (equal? pattern form) bindings %sr-no-match))))))
-
-  ; Collect non-pvar symbols from template
-  (define (%sr-introduced template pvars)
-    (if (symbol? template)
-      (if (memq template pvars) () (list template))
-      (if (pair? template)
-        (append (%sr-introduced (car template) pvars)
-                (%sr-introduced (cdr template) pvars))
-        ())))
-
   ; Remove duplicates (eq?)
   (define (%sr-unique lst)
     (let loop ((in lst) (out ()))
@@ -631,14 +630,131 @@
           (loop (cdr in) out)
           (loop (cdr in) (pair (car in) out))))))
 
+  ; --- Ellipsis helpers ---
+
+  ; Count fixed elements in a pattern tail (after ...)
+  (define (%sr-tail-length pat)
+    (if (pair? pat) (+ 1 (%sr-tail-length (cdr pat))) 0))
+
+  ; Collect pattern variable names from a sub-pattern
+  (define (%sr-pattern-pvars pat literals)
+    (if (symbol? pat)
+      (if (or (eq? pat (lit _)) (memq pat literals)) () (list pat))
+      (if (pair? pat)
+        (append (%sr-pattern-pvars (car pat) literals)
+                (%sr-pattern-pvars (cdr pat) literals))
+        ())))
+
+  ; Find pvars in template that have ellipsis bindings
+  (define (%sr-ellipsis-pvars template bindings)
+    (if (symbol? template)
+      (let ((b (assq template bindings)))
+        (if (and b (pair? (cdr b)) (eq? (cadr b) %ellipsis-sym))
+          (list template)
+          ()))
+      (if (pair? template)
+        (append (%sr-ellipsis-pvars (car template) bindings)
+                (%sr-ellipsis-pvars (cdr template) bindings))
+        ())))
+
+  ; Forward declaration for mutual recursion
+  (define %sr-match ())
+
+  ; Match (sub-pat ... . tail-pat) against form list
+  (define (%sr-ellipsis-match sub-pat tail-pat form literals bindings)
+    (let* ((pvars (%sr-unique (%sr-pattern-pvars sub-pat literals)))
+           (tail-len (%sr-tail-length tail-pat))
+           (form-len (length form))
+           (rep-count (- form-len tail-len)))
+      (if (< rep-count 0)
+        %sr-no-match
+        (let loop ((i 0) (f form)
+                   (collected (map (lambda (v) (list v)) pvars)))
+          (if (= i rep-count)
+            ; Match tail, then add ellipsis bindings
+            (let ((tb (%sr-match tail-pat f literals bindings)))
+              (if (eq? tb %sr-no-match)
+                %sr-no-match
+                (let add ((cs collected) (bs tb))
+                  (if (null? cs)
+                    bs
+                    (add (cdr cs)
+                      (pair (pair (caar cs)
+                                  (pair %ellipsis-sym (reverse (cdar cs))))
+                            bs))))))
+            ; Match next repeated element
+            (let ((b (%sr-match sub-pat (car f) literals ())))
+              (if (eq? b %sr-no-match)
+                %sr-no-match
+                (loop (+ i 1) (cdr f)
+                  (map (lambda (cv)
+                         (let ((found (assq (car cv) b)))
+                           (if found
+                             (pair (car cv) (pair (cdr found) (cdr cv)))
+                             cv)))
+                       collected)))))))))
+
+  ; Pattern matching for syntax-rules
+  ; Returns bindings alist on success, %sr-no-match on failure
+  ; Ellipsis bindings stored as (pvar . (... val1 val2 ...))
+  (set! %sr-match (lambda (pattern form literals bindings)
+    (if (eq? pattern (lit _))
+      bindings
+      (if (symbol? pattern)
+        (if (memq pattern literals)
+          (if (and (symbol? form) (eq? pattern form)) bindings %sr-no-match)
+          (pair (pair pattern form) bindings))
+        (if (null? pattern)
+          (if (null? form) bindings %sr-no-match)
+          (if (pair? pattern)
+            ; Check for ellipsis: (sub-pat ... . tail)
+            (if (and (pair? (cdr pattern)) (eq? (cadr pattern) %ellipsis-sym))
+              (%sr-ellipsis-match (car pattern) (cddr pattern) form literals bindings)
+              ; Normal pair matching
+              (if (pair? form)
+                (let ((b (%sr-match (car pattern) (car form) literals bindings)))
+                  (if (eq? b %sr-no-match)
+                    %sr-no-match
+                    (%sr-match (cdr pattern) (cdr form) literals b)))
+                %sr-no-match))
+            (if (equal? pattern form) bindings %sr-no-match)))))))
+
+  ; Collect non-pvar symbols from template (excludes ... marker)
+  (define (%sr-introduced template pvars)
+    (if (symbol? template)
+      (if (or (memq template pvars) (eq? template %ellipsis-sym))
+        () (list template))
+      (if (pair? template)
+        (append (%sr-introduced (car template) pvars)
+                (%sr-introduced (cdr template) pvars))
+        ())))
+
   ; Substitute pattern variables in template
+  ; Handles (tmpl ... . rest) by expanding ellipsis-bound vars
   (define (%sr-subst template bindings)
     (if (symbol? template)
       (let ((b (assq template bindings)))
         (if b (cdr b) template))
       (if (pair? template)
-        (pair (%sr-subst (car template) bindings)
-              (%sr-subst (cdr template) bindings))
+        ; Check for ellipsis: (tmpl ... . rest)
+        (if (and (pair? (cdr template)) (eq? (cadr template) %ellipsis-sym))
+          (let* ((sub-tmpl (car template))
+                 (rest-tmpl (cddr template))
+                 (epvars (%sr-unique (%sr-ellipsis-pvars sub-tmpl bindings)))
+                 (count (if (null? epvars) 0
+                           (length (cddr (assq (car epvars) bindings))))))
+            (let loop ((i 0) (acc ()))
+              (if (= i count)
+                (append (reverse acc) (%sr-subst rest-tmpl bindings))
+                (let ((slice (map (lambda (pv)
+                                    (pair pv (list-ref (cddr (assq pv bindings)) i)))
+                                  epvars)))
+                  (loop (+ i 1)
+                    (pair (%sr-subst sub-tmpl (append slice bindings))
+                          acc))))))
+          ; Normal pair
+          (pair (%sr-subst (car template) bindings)
+                (%sr-subst (cdr template) bindings)))
         template)))
 
   ; Rename symbols in template

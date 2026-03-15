@@ -275,3 +275,113 @@ result
 ```
 ---
     1
+
+## ellipsis patterns
+
+### ellipsis collects zero or more elements
+
+```scheme
+(define-syntax my-list
+  (syntax-rules ()
+    ((_ x ...) (list x ...))))
+(my-list 1 2 3)
+```
+---
+    (1 2 3)
+
+### ellipsis with zero elements
+
+```scheme
+(define-syntax my-list
+  (syntax-rules ()
+    ((_ x ...) (list x ...))))
+(null? (my-list))
+```
+---
+    t
+
+### ellipsis with single element
+
+```scheme
+(define-syntax my-list
+  (syntax-rules ()
+    ((_ x ...) (list x ...))))
+(my-list 42)
+```
+---
+    (42)
+
+### ellipsis in recursive macro (my-and)
+
+```scheme
+(define-syntax my-and
+  (syntax-rules ()
+    ((_) #t)
+    ((_ e) e)
+    ((_ e1 e2 ...)
+     (if e1 (my-and e2 ...) #f))))
+(my-and 1 2 3)
+```
+---
+    3
+
+### ellipsis recursive macro short-circuit
+
+```scheme
+(define-syntax my-and
+  (syntax-rules ()
+    ((_) #t)
+    ((_ e) e)
+    ((_ e1 e2 ...)
+     (if e1 (my-and e2 ...) #f))))
+(null? (my-and #f 2 3))
+```
+---
+    t
+
+### multiple pvars in ellipsis (my-let)
+
+```scheme
+(define-syntax my-let
+  (syntax-rules ()
+    ((_ ((var val) ...) body)
+     ((lambda (var ...) body) val ...))))
+(my-let ((x 1) (y 2) (z 3)) (+ x y z))
+```
+---
+    6
+
+### empty ellipsis with multiple pvars
+
+```scheme
+(define-syntax my-let
+  (syntax-rules ()
+    ((_ ((var val) ...) body)
+     ((lambda (var ...) body) val ...))))
+(my-let () 42)
+```
+---
+    42
+
+### tail pattern after ellipsis
+
+```scheme
+(define-syntax last-arg
+  (syntax-rules ()
+    ((_ x ... last) last)))
+(last-arg 1 2 3 4 5)
+```
+---
+    5
+
+### begin-like sequencing with ellipsis
+
+```scheme
+(define-syntax my-begin
+  (syntax-rules ()
+    ((_ e) e)
+    ((_ e1 e2 ...) (let ((t e1)) (my-begin e2 ...)))))
+(my-begin 1 2 3)
+```
+---
+    3
