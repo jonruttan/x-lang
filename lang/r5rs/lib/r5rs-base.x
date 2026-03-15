@@ -425,4 +425,164 @@
           (%seq (buffer-unread buffer) buffer)
           ())))))
 
+  ; --- Hygienic Macros (define-syntax, syntax-rules, let-syntax) ---
+
+  ; Gensym: generate unique symbols for hygiene
+  (define %gensym-counter 0)
+  (define (gensym)
+    (set! %gensym-counter (+ %gensym-counter 1))
+    (string->symbol (string-append "%g" (number->string %gensym-counter))))
+
+  ; Safe eval: returns (t . value) if bound, () if unbound
+  (define (%sr-safe-eval sym env)
+    (guard (e ()) (pair (lit t) (eval sym env))))
+
+  ; Sentinel for pattern match failure (unique identity)
+  (define %sr-no-match (pair (lit no) (lit match)))
+
+  ; Pattern matching for syntax-rules
+  ; Returns bindings alist on success, %sr-no-match on failure
+  (define (%sr-match pattern form literals bindings)
+    (if (eq? pattern (lit _))
+      bindings
+      (if (symbol? pattern)
+        (if (memq pattern literals)
+          (if (and (symbol? form) (eq? pattern form)) bindings %sr-no-match)
+          (pair (pair pattern form) bindings))
+        (if (null? pattern)
+          (if (null? form) bindings %sr-no-match)
+          (if (pair? pattern)
+            (if (pair? form)
+              (let ((b (%sr-match (car pattern) (car form) literals bindings)))
+                (if (eq? b %sr-no-match)
+                  %sr-no-match
+                  (%sr-match (cdr pattern) (cdr form) literals b)))
+              %sr-no-match)
+            (if (equal? pattern form) bindings %sr-no-match))))))
+
+  ; Collect non-pvar symbols from template
+  (define (%sr-introduced template pvars)
+    (if (symbol? template)
+      (if (memq template pvars) () (list template))
+      (if (pair? template)
+        (append (%sr-introduced (car template) pvars)
+                (%sr-introduced (cdr template) pvars))
+        ())))
+
+  ; Remove duplicates (eq?)
+  (define (%sr-unique lst)
+    (let loop ((in lst) (out ()))
+      (if (null? in)
+        (reverse out)
+        (if (memq (car in) out)
+          (loop (cdr in) out)
+          (loop (cdr in) (pair (car in) out))))))
+
+  ; Substitute pattern variables in template
+  (define (%sr-subst template bindings)
+    (if (symbol? template)
+      (let ((b (assq template bindings)))
+        (if b (cdr b) template))
+      (if (pair? template)
+        (pair (%sr-subst (car template) bindings)
+              (%sr-subst (cdr template) bindings))
+        template)))
+
+  ; Rename symbols in template
+  (define (%sr-rename template renames)
+    (if (symbol? template)
+      (let ((r (assq template renames)))
+        (if r (cdr r) template))
+      (if (pair? template)
+        (pair (%sr-rename (car template) renames)
+              (%sr-rename (cdr template) renames))
+        template)))
+
+  ; Instantiate template with bindings and hygiene
+  ; 1. Find introduced symbols (in template, not pattern vars)
+  ; 2. For those bound in def-env: rename to gensyms, wrap in let
+  ; 3. Substitute pattern variables
+  (define (%sr-instantiate template bindings def-env)
+    (let* ((pvars (map car bindings))
+           (introduced (%sr-unique (%sr-introduced template pvars)))
+           (rn-lets
+             (let loop ((syms introduced) (renames ()) (lets ()))
+               (if (null? syms)
+                 (pair renames lets)
+                 (let ((v (%sr-safe-eval (car syms) def-env)))
+                   (if (pair? v)
+                     (let ((g (gensym)))
+                       (loop (cdr syms)
+                             (pair (pair (car syms) g) renames)
+                             (pair (list g (cdr v)) lets)))
+                     (loop (cdr syms) renames lets))))))
+           (renames (car rn-lets))
+           (lets (cdr rn-lets))
+           (renamed (%sr-rename template renames))
+           (expanded (%sr-subst renamed bindings)))
+      (if (null? lets)
+        expanded
+        (list (lit let) lets expanded))))
+
+  ; Try each clause, return first match's expansion
+  (define (%sr-expand form literals clauses def-env)
+    (if (null? clauses)
+      (error "syntax-rules: no matching pattern")
+      (let* ((clause (car clauses))
+             (pattern (car clause))
+             (template (if (pair? (cdr clause)) (cadr clause) (lit (begin))))
+             (bindings (%sr-match (cdr pattern) (cdr form) literals ())))
+        (if (eq? bindings %sr-no-match)
+          (%sr-expand form literals (cdr clauses) def-env)
+          (%sr-instantiate template bindings def-env)))))
+
+  ; syntax-rules: returns a transformer fn (lexically scoped closure)
+  ; Captures literals, clauses, and def-env for hygiene
+  (define syntax-rules
+    (op (literals . clauses) sr-env
+      (fn (form)
+        (%sr-expand form literals clauses sr-env))))
+
+  ; define-syntax: bind name to a syntax transformer
+  ; Strategy: store transformer fn under a gensym, bind name to an op
+  ; that calls it. The op is dynamically scoped so it finds the gensym
+  ; in the env at call time.
+  (define define-syntax
+    (op (name transformer-expr) e
+      (def %ds-xfm (eval transformer-expr e))
+      (def %ds-xfm-name (string->symbol (string-append "%xfm-" (symbol->string name))))
+      (eval (list (lit begin)
+        (list (lit def) %ds-xfm-name %ds-xfm)
+        (list (lit def) name
+          (list (lit op) (lit %sr-args) (lit %sr-env)
+            (list (lit eval)
+              (list %ds-xfm-name
+                (list (lit pair) (list (lit lit) name) (lit %sr-args)))
+              (lit %sr-env))))))))
+
+  ; let-syntax: local syntax bindings
+  ; Processes one binding at a time, wrapping in let + recursing
+  ; Uses %ls- prefixed params to avoid shadowing by let*/let (which also
+  ; use 'bindings'/'body'/'e' as op params in dynamic scope).
+  (define let-syntax
+    (op (%ls-bindings . %ls-body) %ls-e
+      (if (null? %ls-bindings)
+        (eval (pair (lit begin) %ls-body) %ls-e)
+        (begin
+          (def %ls-b (car %ls-bindings))
+          (def %ls-name (car %ls-b))
+          (def %ls-xfm (eval (cadr %ls-b) %ls-e))
+          (def %ls-xfm-name (string->symbol (string-append "%xfm-" (symbol->string %ls-name))))
+          (eval (list (lit begin)
+            (list (lit def) %ls-xfm-name %ls-xfm)
+            (list (lit let)
+              (list (list %ls-name
+                (list (lit op) (lit %sr-args) (lit %sr-env)
+                  (list (lit eval)
+                    (list %ls-xfm-name
+                      (list (lit pair) (list (lit lit) %ls-name) (lit %sr-args)))
+                    (lit %sr-env)))))
+              (pair (lit let-syntax) (pair (cdr %ls-bindings) %ls-body))))
+            %ls-e)))))
+
 )
