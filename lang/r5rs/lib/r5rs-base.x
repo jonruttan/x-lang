@@ -99,7 +99,12 @@
   (define
     (vector-set! v i val)
     (%vector-set-walk (first v) i val))
-  ; --- Composition accessors ---
+  (define
+    (%vector-fill-walk lst n fill)
+    (if (> n 0) (begin (set-first lst fill) (%vector-fill-walk (rest lst) (- n 1) fill))))
+  (define (vector-fill! v fill)
+    (%vector-fill-walk (first v) (vector-length v) fill))
+  ; --- Composition accessors (all 28 c*r, up to 4 deep) ---
 
   (define (caar x) (first (first x)))
   (define (cadr x) (first (rest x)))
@@ -107,8 +112,28 @@
   (define (cddr x) (rest (rest x)))
   (define (caaar x) (first (first (first x))))
   (define (caadr x) (first (first (rest x))))
+  (define (cadar x) (first (rest (first x))))
   (define (caddr x) (first (rest (rest x))))
+  (define (cdaar x) (rest (first (first x))))
+  (define (cdadr x) (rest (first (rest x))))
+  (define (cddar x) (rest (rest (first x))))
   (define (cdddr x) (rest (rest (rest x))))
+  (define (caaaar x) (first (first (first (first x)))))
+  (define (caaadr x) (first (first (first (rest x)))))
+  (define (caadar x) (first (first (rest (first x)))))
+  (define (caaddr x) (first (first (rest (rest x)))))
+  (define (cadaar x) (first (rest (first (first x)))))
+  (define (cadadr x) (first (rest (first (rest x)))))
+  (define (caddar x) (first (rest (rest (first x)))))
+  (define (cadddr x) (first (rest (rest (rest x)))))
+  (define (cdaaar x) (rest (first (first (first x)))))
+  (define (cdaadr x) (rest (first (first (rest x)))))
+  (define (cdadar x) (rest (first (rest (first x)))))
+  (define (cdaddr x) (rest (first (rest (rest x)))))
+  (define (cddaar x) (rest (rest (first (first x)))))
+  (define (cddadr x) (rest (rest (first (rest x)))))
+  (define (cdddar x) (rest (rest (rest (first x)))))
+  (define (cddddr x) (rest (rest (rest (rest x)))))
   ; --- make-vector: accept 1 or 2 args (R5RS optional fill) ---
 
   (def %make-vector-orig make-vector)
@@ -441,6 +466,16 @@
   ; --- String constructor ---
 
   (define (string . chars) (list->string chars))
+  ; --- String mutation (rebuilds; x-lang strings are immutable) ---
+
+  (define (string-set! s k c)
+    (list->string
+      (let loop ((i 0) (lst (string->list s)))
+        (if (null? lst) ()
+          (cons (if (= i k) c (car lst))
+                (loop (+ i 1) (cdr lst)))))))
+  (define (string-fill! s c)
+    (make-string (string-length s) c))
   ; --- Variadic string-append (R5RS: takes any number of args) ---
 
   (define %string-append-2 string-append)
@@ -467,6 +502,10 @@
   (define (rational? x) (%int-number? x))
   (define (real? x) (number? x))
   (define (complex? x) (number? x))
+  ; --- Rational accessors (integer-only; no rational type) ---
+
+  (define (numerator x) x)
+  (define (denominator x) (if (integer? x) 1 (error "non-rational")))
   ; --- Variadic comparisons ---
 
   ; Save binary float-aware versions before redefining as variadic
@@ -680,6 +719,32 @@
       (if (type? result %values)
         (apply consumer (first result))
         (consumer result))))
+  ; --- dynamic-wind (simplified; no call/cc interaction) ---
+
+  (define (dynamic-wind before thunk after)
+    (before)
+    (let ((result (thunk)))
+      (after)
+      result))
+  ; --- Escape-only call/cc (via guard/error) ---
+
+  (define %cc-tag (cons (lit cc) (lit tag)))
+  (define (call-with-current-continuation proc)
+    (guard (e (if (pair? e)
+                (if (eq? (car e) %cc-tag) (cdr e) (error e))
+                (error e)))
+      (proc (lambda (val) (error (cons %cc-tag val))))))
+  (define call/cc call-with-current-continuation)
+  ; --- Environment procedures ---
+
+  (define %current-env (op () e e))
+  (define (scheme-report-environment version)
+    (if (= version 5) (%current-env)
+      (error "unsupported version")))
+  (define (null-environment version)
+    (if (= version 5) (%current-env)
+      (error "unsupported version")))
+  (define (interaction-environment) (%current-env))
   ; --- Character classification ---
 
   (define
