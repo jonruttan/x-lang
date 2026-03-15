@@ -114,3 +114,67 @@
 ---
     #t
 
+## dynamic-wind
+
+### after runs on escape
+
+```scheme
+(let ((r (list)))
+  (call/cc
+    (lambda (k)
+      (dynamic-wind
+        (lambda () (set! r (cons 'before r)))
+        (lambda () (k 'escaped))
+        (lambda () (set! r (cons 'after r))))))
+  (reverse r))
+```
+---
+    (before after)
+
+### before runs on re-entry
+
+```scheme
+(let ((r (list)) (k-saved #f) (done #f))
+  (dynamic-wind
+    (lambda () (set! r (cons 'before r)))
+    (lambda ()
+      (call/cc (lambda (k) (set! k-saved k)))
+      (set! r (cons 'body r)))
+    (lambda () (set! r (cons 'after r))))
+  (if done (reverse r)
+    (begin (set! done #t) (k-saved))))
+```
+---
+    (before body after before body after)
+
+### nested unwind calls after thunks inner to outer
+
+```scheme
+(let ((r (list)))
+  (call/cc
+    (lambda (k)
+      (dynamic-wind
+        (lambda () (set! r (cons 1 r)))
+        (lambda ()
+          (dynamic-wind
+            (lambda () (set! r (cons 2 r)))
+            (lambda () (k 'done))
+            (lambda () (set! r (cons 3 r)))))
+        (lambda () (set! r (cons 4 r))))))
+  (reverse r))
+```
+---
+    (1 2 3 4)
+
+### normal dynamic-wind without escape
+
+```scheme
+(let ((x 0))
+  (dynamic-wind
+    (lambda () (set! x (+ x 1)))
+    (lambda () (+ x 10))
+    (lambda () (set! x (+ x 100)))))
+```
+---
+    11
+
