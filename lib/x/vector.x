@@ -2,46 +2,65 @@
 
 (def %vector-read ())
 
-(def %vector (make-type "VECTOR"
-  (list
-    (pair (lit call) (fn (self . args)
-      ((first self) (first args))))
-    (pair (lit write) (fn (self)
-      (display "#(")
-      (def write-vec (fn (lst sep)
-        (if (not (null? lst))
-          (do (if sep (display " "))
-              (write (first lst))
-              (write-vec (rest lst) t)))))
-      (write-vec (first self) ())
-      (display ")")))
-    (pair (lit analyse) (fn (buffer score chr)
-      (if (= chr (char->integer #\#))
+(def %vector
+  (make-type
+    "VECTOR"
+    (list
+      (pair
+        (lit call)
+        (fn (self . args) ((first self) (first args))))
+      (pair
+        (lit write)
+        (fn (self)
+          (display "#(")
+          (def write-vec
+            (fn (lst sep)
+              (if (not (null? lst))
+                (do
+                  (if sep (display " "))
+                  (write (first lst))
+                  (write-vec (rest lst) t)))))
+          (write-vec (first self) ())
+          (display ")")))
+      (pair
+        (lit analyse)
         (fn (buffer score chr)
-          (if (= chr (char->integer #\())
-            (do (buffer-unread buffer) (score-set score 1 buffer))
-            ()))
-        ())))
-    (pair (lit read) (fn args (%vector-read (first args))))
-    (pair (lit from)
-      (list
-        (pair (type-of (pair 1 ())) (fn (value)
-          (make-instance %vector value)))))
-    (pair (lit to)
-      (list
-        (pair (type-of (pair 1 ())) (fn (self) (first self))))))))
+          (if (= chr (char->integer #\#))
+            (fn (buffer score chr)
+              (if (= chr (char->integer #\())
+                (do (buffer-unread buffer) (score-set score 1 buffer))
+                ()))
+            ())))
+      (pair (lit read) (fn args (%vector-read (first args))))
+      (pair
+        (lit from)
+        (list
+          (pair
+            (type-of (pair 1 ()))
+            (fn (value) (make-instance %vector value)))))
+      (pair
+        (lit to)
+        (list
+          (pair (type-of (pair 1 ())) (fn (self) (first self))))))))
 
-(set %vector-read (fn args
-  (make-instance %vector (read))))
+(set %vector-read (fn args (make-instance %vector (read))))
 
 (def vector (fn args (make-instance %vector args)))
+
 (def vector? (fn (x) (type? x %vector)))
+
 (def vector-ref (fn (v i) (v i)))
-(def vector-length (fn (v)
-  (fold (fn (acc x) (+ acc 1)) 0 (first v))))
+
+(def vector-length
+  (fn (v) (fold (fn (acc x) (+ acc 1)) 0 (first v))))
+
 (def vector->list (fn (v) (first v)))
+
 (def list->vector (fn (lst) (make-instance %vector lst)))
-(def make-vector (fn (n fill)
-  (def build (fn (i acc)
-    (if (= i 0) acc (build (- i 1) (pair fill acc)))))
-  (make-instance %vector (build n ()))))
+
+(def make-vector
+  (fn (n fill)
+    (def build
+      (fn (i acc)
+        (if (= i 0) acc (build (- i 1) (pair fill acc)))))
+    (make-instance %vector (build n ()))))
