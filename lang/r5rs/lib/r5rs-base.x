@@ -289,13 +289,7 @@
         (if (if (> b 0) (< r 0) (> r 0))
           (+ r b)
           r))))
-  (define (gcd a b) (if (zero? b) (abs a) (gcd b (remainder a b))))
-  (define (lcm a b) (if (or (zero? a) (zero? b)) 0
-    (abs (* (quotient a (gcd a b)) b))))
-  (define (expt base exp)
-    (cond ((zero? exp) 1)
-          ((even? exp) (expt (* base base) (quotient exp 2)))
-          (#t (* base (expt base (- exp 1))))))
+  ; gcd, lcm, expt defined below as variadic/float-aware
 
   ; --- String to list ---
   (define (string->list s)
@@ -422,19 +416,23 @@
   (define %int-number->string number->string)
   (define %int-string->number string->number)
 
-  (define (number->string n)
+  (define (number->string n . radix)
     (if (float? n)
       (float->string (first n))
-      (%int-number->string n)))
+      (if (null? radix)
+        (%int-number->string n)
+        (%int-number->string n (car radix)))))
 
-  (define (string->number s)
-    (let ((has-dot (let loop ((i 0))
-                     (cond ((= i (string-length s)) #f)
-                           ((char=? (string-ref s i) #\.) #t)
-                           (#t (loop (+ i 1)))))))
-      (if has-dot
-        (make-instance %float (string->float s))
-        (%int-string->number s))))
+  (define (string->number s . radix)
+    (if (null? radix)
+      (let ((has-dot (let loop ((i 0))
+                       (cond ((= i (string-length s)) #f)
+                             ((char=? (string-ref s i) #\.) #t)
+                             (#t (loop (+ i 1)))))))
+        (if has-dot
+          (make-instance %float (string->float s))
+          (%int-string->number s)))
+      (%int-string->number s (car radix))))
 
   ; --- Generic expt (supports float exponents) ---
   (define (expt base exp)
