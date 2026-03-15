@@ -15,4 +15,5 @@
 (do
   (include "lib/x/regex.x")
   (include "lib/x/float.x")
-  (include "lib/x/rational.x"))
+  (include "lib/x/rational.x")
+  (include "lib/x/complex.x"))
