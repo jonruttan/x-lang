@@ -51,7 +51,7 @@
   (%walk-list (rest (rest (rest form)))
     (pair env-param (%add-params params scope)) uses)))
 
-; (let ((name val) ...) body...)
+; (let ((name val) ...) body...) or (let name ((var init) ...) body...)
 (def %walk-let-bindings (fn (bindings scope uses)
   (if (null? bindings)
     (list scope uses)
@@ -61,12 +61,30 @@
           (pair (first b) scope) new-uses)))))
 
 (def %walk-let (fn (form scope uses)
-  (def result (%walk-let-bindings (first (rest form)) scope uses))
-  (%walk-list (rest (rest form)) (first result) (first (rest result)))))
+  (def first-arg (first (rest form)))
+  (if (symbol? first-arg)
+    ; Named let: (let name ((var init) ...) body...)
+    (do (def result
+          (%walk-let-bindings (first (rest (rest form)))
+            (pair first-arg scope) uses))
+        (%walk-list (rest (rest (rest form)))
+          (first result) (first (rest result))))
+    ; Regular let: (let ((var init) ...) body...)
+    (do (def result (%walk-let-bindings first-arg scope uses))
+        (%walk-list (rest (rest form))
+          (first result) (first (rest result)))))))
 
-; (def name val) — add name to scope before walking val (self-reference)
+; (def name val) or (define (name params...) body...)
+; Handles compound definitions where name is a list (name params...).
 (def %walk-def (fn (form scope uses)
-  (%walk (first (rest (rest form))) (pair (first (rest form)) scope) uses)))
+  (def name-part (first (rest form)))
+  (if (pair? name-part)
+    ; Compound: (define (name params...) body...)
+    (%walk-list (rest (rest form))
+      (%add-params (rest name-part) (pair (first name-part) scope))
+      uses)
+    ; Simple: (def name val)
+    (%walk (first (rest (rest form))) (pair name-part scope) uses))))
 
 ; (set name val)
 (def %walk-set (fn (form scope uses)
@@ -91,19 +109,9 @@
             (%walk-quasi (first form) scope uses))))
       uses))))
 
-; Walk a pair (application or special form)
-(set %walk-pair (fn (form scope uses)
-  (def head (first form))
-  (if (eq? head (lit fn))    (%walk-fn form scope uses)
-  (if (eq? head (lit op))    (%walk-op form scope uses)
-  (if (eq? head (lit let))   (%walk-let form scope uses)
-  (if (eq? head (lit def))   (%walk-def form scope uses)
-  (if (eq? head (lit set))   (%walk-set form scope uses)
-  (if (eq? head (lit lit))   uses
-  (if (eq? head (lit quasi)) (%walk-quasi (first (rest form)) scope uses)
-  (if (eq? head (lit include)) uses
-  (if (eq? head (lit guard)) (%walk-guard form scope uses)
-  (%walk-list form scope uses))))))))))))
+; Walk a pair -- dispatches on %scope-table (set by lint.x)
+; %walk-pair is forward-declared; lint.x provides the real implementation
+; after loading construct declarations.
 
 ; Walk an AST form, collecting symbol uses
 (set %walk (fn (form scope uses)
