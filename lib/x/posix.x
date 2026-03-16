@@ -24,6 +24,8 @@
 
 (def %c-close (%resolve "close"))
 
+(def %c-fchmod (%resolve "fchmod"))
+
 (def %c-chdir (%resolve "chdir"))
 
 (def %c-getenv (%resolve "getenv"))
@@ -65,10 +67,16 @@
 (def sh-open-read (fn (path) (ptr-call %c-open path 0)))
 
 (def sh-open-write
-  (fn (path) (ptr-call %c-open path 1537 438)))
+  (fn (path)
+    (let ((fd (ptr-call %c-open path 1537 438)))
+      (if (>= fd 0) (ptr-call %c-fchmod fd 438))
+      fd)))
 
 (def sh-open-append
-  (fn (path) (ptr-call %c-open path 521 438)))
+  (fn (path)
+    (let ((fd (ptr-call %c-open path 521 438)))
+      (if (>= fd 0) (ptr-call %c-fchmod fd 438))
+      fd)))
 ; --- pipe: allocate int[2], call pipe(), read back fds ---
 
 (def sh-pipe

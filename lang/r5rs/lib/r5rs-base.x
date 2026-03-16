@@ -800,6 +800,7 @@
   (define %libc (dlopen () 1))
   (define %c-open (dlsym %libc "open"))
   (define %c-close (dlsym %libc "close"))
+  (define %c-fchmod (dlsym %libc "fchmod"))
   (define %c-malloc (dlsym %libc "malloc"))
 
   ; Base object navigation
@@ -820,6 +821,9 @@
   (define %prim-write write)
   (define %prim-display display)
   (define %prim-newline newline)
+
+  ; Transcript state (fd or #f)
+  (define %transcript-fd #f)
 
   ; PORT custom type
   (define %port-type
@@ -869,7 +873,8 @@
   (define (open-output-file path)
     (let ((fd (ptr-call %c-open path 1537 438)))
       (if (< fd 0) (error "cannot open output file")
-        (%make-port fd (lit output) #f))))
+        (begin (ptr-call %c-fchmod fd 438)
+          (%make-port fd (lit output) #f)))))
   (define (close-input-port p)
     (ptr-call %c-close (%port-fd p))
     (%port-close! p))
@@ -900,23 +905,32 @@
         (set-first-int %fileout-atom saved)
         result)))
 
-  ; Port-aware read
+  ; Port-aware read (echo to transcript)
   (set! read
     (lambda args
       (if (null? args)
         (let ((r (%prim-read)))
-          (if (null? r) %eof-obj r))
+          (let ((result (if (null? r) %eof-obj r)))
+            (if %transcript-fd
+              (begin
+                (%transcript-out (lambda () (%prim-write result)))
+                (%transcript-out (lambda () (%prim-newline)))))
+            result))
         (%with-input-port (car args)
           (lambda ()
             (let ((r (%prim-read)))
               (if (null? r) %eof-obj r)))))))
 
-  ; Port-aware read-char
+  ; Port-aware read-char (echo to transcript)
   (set! read-char
     (lambda args
       (if (null? args)
         (let ((r (%prim-read-char)))
-          (if (null? r) %eof-obj r))
+          (let ((result (if (null? r) %eof-obj r)))
+            (if (and %transcript-fd (not (eof-object? result)))
+              (%transcript-out
+                (lambda () (%prim-display (make-string 1 result)))))
+            result))
         (%with-input-port (car args)
           (lambda ()
             (let ((r (%prim-read-char)))
@@ -936,11 +950,21 @@
   ; char-ready? (always #t for file ports, check buffer for stdin)
   (define (char-ready? . args) #t)
 
+  ; Transcript tee: write to transcript fd, then restore
+  (define (%transcript-out thunk)
+    (let ((%ts (first-int %fileout-atom)))
+      (set-first-int %fileout-atom %transcript-fd)
+      (thunk)
+      (set-first-int %fileout-atom %ts)))
+
   ; Port-aware write
   (set! write
     (lambda (obj . args)
       (if (null? args)
-        (%prim-write obj)
+        (begin
+          (%prim-write obj)
+          (if %transcript-fd
+            (%transcript-out (lambda () (%prim-write obj)))))
         (%with-output-port (car args)
           (lambda () (%prim-write obj))))))
 
@@ -948,23 +972,32 @@
   (set! display
     (lambda (obj . args)
       (if (null? args)
-        (%prim-display obj)
+        (begin
+          (%prim-display obj)
+          (if %transcript-fd
+            (%transcript-out (lambda () (%prim-display obj)))))
         (%with-output-port (car args)
           (lambda () (%prim-display obj))))))
 
-  ; Port-aware newline
+  ; Port-aware newline (use %prim-display "\n" since %prim-newline calls display)
   (set! newline
     (lambda args
       (if (null? args)
-        (%prim-newline)
+        (begin
+          (%prim-display "\n")
+          (if %transcript-fd
+            (%transcript-out (lambda () (%prim-display "\n")))))
         (%with-output-port (car args)
-          (lambda () (%prim-newline))))))
+          (lambda () (%prim-display "\n"))))))
 
   ; Port-aware write-char
   (set! write-char
     (lambda (c . args)
       (if (null? args)
-        (%prim-display (make-string 1 c))
+        (begin
+          (%prim-display (make-string 1 c))
+          (if %transcript-fd
+            (%transcript-out (lambda () (%prim-display (make-string 1 c))))))
         (%with-output-port (car args)
           (lambda () (%prim-display (make-string 1 c)))))))
 
@@ -993,9 +1026,17 @@
   ; load = include
   (define load include)
 
-  ; transcript (optional, no-op)
-  (define (transcript-on filename) #f)
-  (define (transcript-off) #f)
+  ; transcript
+  (define (transcript-on filename)
+    (if %transcript-fd (transcript-off))
+    (set! %transcript-fd (ptr-call %c-open filename 1537 438))
+    (if (< %transcript-fd 0)
+      (begin (set! %transcript-fd #f) (error "cannot open transcript file"))
+      (ptr-call %c-fchmod %transcript-fd 438)))
+  (define (transcript-off)
+    (if %transcript-fd
+      (begin (ptr-call %c-close %transcript-fd)
+             (set! %transcript-fd #f))))
 
   ; boolean?
   (define (boolean? x) (or (eq? x #t) (eq? x #f)))

@@ -195,3 +195,71 @@
 ```
 ---
     #t
+
+### transcript records display output
+
+```scheme
+(transcript-on "/tmp/x-test-transcript.txt")
+(with-output-to-file "/dev/null" (lambda () (display "hello")))
+(transcript-off)
+(call-with-input-file "/tmp/x-test-transcript.txt"
+  (lambda (p)
+    (let ((c1 (read-char p))
+          (c2 (read-char p))
+          (c3 (read-char p))
+          (c4 (read-char p))
+          (c5 (read-char p)))
+      (string c1 c2 c3 c4 c5))))
+```
+---
+    "hello"
+
+### transcript records write output
+
+```scheme
+(transcript-on "/tmp/x-test-transcript2.txt")
+(with-output-to-file "/dev/null" (lambda () (write 42)))
+(transcript-off)
+(call-with-input-file "/tmp/x-test-transcript2.txt"
+  (lambda (p)
+    (let ((c1 (read-char p))
+          (c2 (read-char p)))
+      (string c1 c2))))
+```
+---
+    "42"
+
+### transcript records newline
+
+```scheme
+(transcript-on "/tmp/x-test-transcript3.txt")
+(with-output-to-file "/dev/null"
+  (lambda () (display "a") (newline) (display "b")))
+(transcript-off)
+(call-with-input-file "/tmp/x-test-transcript3.txt"
+  (lambda (p)
+    (let* ((c1 (read-char p))
+           (c2 (read-char p))
+           (c3 (read-char p)))
+      (string c1 c3))))
+```
+---
+    "ab"
+
+### transcript-off stops recording
+
+```scheme
+(transcript-on "/tmp/x-test-transcript4.txt")
+(with-output-to-file "/dev/null" (lambda () (display "yes")))
+(transcript-off)
+(with-output-to-file "/dev/null" (lambda () (display "no")))
+(call-with-input-file "/tmp/x-test-transcript4.txt"
+  (lambda (p)
+    (let* ((c1 (read-char p))
+           (c2 (read-char p))
+           (c3 (read-char p))
+           (c4 (read-char p)))
+      (list (string c1 c2 c3) (eof-object? c4)))))
+```
+---
+    ("yes" #t)
