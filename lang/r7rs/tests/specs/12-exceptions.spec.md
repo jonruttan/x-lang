@@ -3,7 +3,7 @@
 ### error raises exception
 
 ```scheme
-(guard (e #t) (error "boom"))
+(guard (e (#t #t)) (error "boom"))
 ```
 ---
     #t
@@ -11,7 +11,7 @@
 ### error with string message
 
 ```scheme
-(guard (e e) (error "boom"))
+(guard (e (#t e)) (error "boom"))
 ```
 ---
     "boom"
@@ -19,7 +19,7 @@
 ### error with number
 
 ```scheme
-(guard (e e) (error 42))
+(guard (e (#t e)) (error 42))
 ```
 ---
     42
@@ -27,7 +27,7 @@
 ### error with symbol
 
 ```scheme
-(guard (e e) (error (quote oops)))
+(guard (e (#t e)) (error (quote oops)))
 ```
 ---
     oops
@@ -37,7 +37,7 @@
 ### guard catches error
 
 ```scheme
-(guard (e (list (quote caught) e)) (error "fail"))
+(guard (e (#t (list (quote caught) e))) (error "fail"))
 ```
 ---
     (caught "fail")
@@ -45,7 +45,7 @@
 ### guard returns body when no error
 
 ```scheme
-(guard (e (quote caught)) (+ 1 2))
+(guard (e (#t (quote caught))) (+ 1 2))
 ```
 ---
     3
@@ -53,7 +53,7 @@
 ### guard with multiple body forms
 
 ```scheme
-(guard (e (quote caught)) 1 2 (+ 3 4))
+(guard (e (#t (quote caught))) 1 2 (+ 3 4))
 ```
 ---
     7
@@ -61,7 +61,7 @@
 ### guard handler uses error value
 
 ```scheme
-(guard (e (+ e 1)) (error 41))
+(guard (e (#t (+ e 1))) (error 41))
 ```
 ---
     42
@@ -69,7 +69,7 @@
 ### guard handler builds list
 
 ```scheme
-(guard (e (list (quote err) e)) (error (list 1 2 3)))
+(guard (e (#t (list (quote err) e))) (error (list 1 2 3)))
 ```
 ---
     (err (1 2 3))
@@ -79,7 +79,7 @@
 ### guard in let
 
 ```scheme
-(let ((x 10)) (guard (e (+ x 1)) (error "fail")))
+(let ((x 10)) (guard (e (#t (+ x 1))) (error "fail")))
 ```
 ---
     11
@@ -87,7 +87,7 @@
 ### guard in define
 
 ```scheme
-(define (safe-op) (guard (e 0) (error "fail"))) (safe-op)
+(define (safe-op) (guard (e (#t 0)) (error "fail"))) (safe-op)
 ```
 ---
     0
@@ -95,7 +95,7 @@
 ### guard passes through normal value
 
 ```scheme
-(guard (e (quote bad)) (list 1 2 3))
+(guard (e (#t (quote bad))) (list 1 2 3))
 ```
 ---
     (1 2 3)
@@ -103,8 +103,45 @@
 ### guard passes through arithmetic
 
 ```scheme
-(guard (e (quote bad)) (* 6 7))
+(guard (e (#t (quote bad))) (* 6 7))
 ```
 ---
     42
 
+## guard with cond clauses
+
+### guard matches first clause
+
+```scheme
+(guard (e ((string? e) (string-append "Error: " e)) (#t "other"))
+  (error "boom"))
+```
+---
+    "Error: boom"
+
+### guard matches second clause
+
+```scheme
+(guard (e ((number? e) (+ e 1)) (#t "other"))
+  (error "not-a-number"))
+```
+---
+    other
+
+### guard with else clause
+
+```scheme
+(guard (e ((number? e) "number") (else "else"))
+  (error "boom"))
+```
+---
+    else
+
+### guard multiple clauses with number
+
+```scheme
+(guard (e ((string? e) "string") ((number? e) (* e 2)) (else "other"))
+  (error 21))
+```
+---
+    42

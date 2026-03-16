@@ -211,7 +211,7 @@
 ### error-object? on caught error
 
 ```scheme
-(guard (e (error-object? e)) (error "oops"))
+(guard (e (#t (error-object? e))) (error "oops"))
 ```
 ---
     #t
@@ -219,7 +219,7 @@
 ### error-object-message on caught error
 
 ```scheme
-(display (guard (e (error-object-message e)) (error "test message")))
+(display (guard (e (#t (error-object-message e))) (error "test message")))
 ```
 ---
     test message
@@ -227,7 +227,7 @@
 ### error-object-irritants returns list
 
 ```scheme
-(guard (e (null? (error-object-irritants e))) (error "oops"))
+(guard (e (#t (null? (error-object-irritants e)))) (error "oops"))
 ```
 ---
     #t

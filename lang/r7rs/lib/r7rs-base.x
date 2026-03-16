@@ -21,6 +21,7 @@
   (include "lang/r7rs/lib/x/records.x")
   (include "lang/r7rs/lib/x/params.x")
   (include "lang/r7rs/lib/x/cond-expand.x")
+  (include "lang/r7rs/lib/x/guard.x")
 
   ; --- Scheme standard library ---
   (include "lang/r7rs/lib/scm/equiv.scm")
