@@ -102,3 +102,47 @@
 ---
     30
 
+## delay-force
+
+### delay-force creates promise
+
+```scheme
+(promise? (delay-force (delay 42)))
+```
+---
+    #t
+
+### delay-force basic
+
+```scheme
+(force (delay-force (delay 42)))
+```
+---
+    42
+
+### delay-force chains
+
+```scheme
+(force (delay-force (delay-force (delay 99))))
+```
+---
+    99
+
+### delay-force with expression
+
+```scheme
+(force (delay-force (make-promise (+ 3 4))))
+```
+---
+    7
+
+### delay-force memoizes
+
+```scheme
+(define count 0)
+(define p (delay-force (begin (set! count (+ count 1)) (make-promise count))))
+(force p) (force p) count
+```
+---
+    1
+
