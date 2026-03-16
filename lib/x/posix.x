@@ -83,7 +83,7 @@
   (fn ()
     (let ((buf (int->ptr (ptr-call %c-malloc 8))))
       (ptr-call %c-pipe buf)
-      (let ((r (ptr-ref buf 0)) (w (ptr-ref buf 4)))
+      (let ((r (ptr-ref buf 0 4)) (w (ptr-ref buf 4 4)))
         (ptr-call %c-free buf)
         (pair r w)))))
 ; --- waitpid: allocate int for status, wait, extract exit code ---
@@ -92,7 +92,7 @@
   (fn (pid)
     (let ((buf (int->ptr (ptr-call %c-malloc 4))))
       (ptr-call %c-waitpid pid buf 0)
-      (let ((raw (ptr-ref buf 0)))
+      (let ((raw (ptr-ref buf 0 4)))
         (ptr-call %c-free buf)
         (/ (% raw 65536) 256)))))
 ; --- exec: build C argv array, call execvp ---

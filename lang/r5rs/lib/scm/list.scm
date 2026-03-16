@@ -2,17 +2,13 @@
 
 ; --- Mutation ---
 
-(define
-  (%vector-set-walk lst n val)
-  (if (= n 0) (set-first lst val) (%vector-set-walk (rest lst) (- n 1) val)))
-(define
-  (vector-set! v i val)
-  (%vector-set-walk (first v) i val))
-(define
-  (%vector-fill-walk lst n fill)
-  (if (> n 0) (begin (set-first lst fill) (%vector-fill-walk (rest lst) (- n 1) fill))))
+(define (vector-set! v i val)
+  (obj-set! v (+ i 1) val))
 (define (vector-fill! v fill)
-  (%vector-fill-walk (first v) (vector-length v) fill))
+  (let ((len (obj-ref v 0)))
+    (let loop ((i 1))
+      (if (<= i len)
+        (begin (obj-set! v i fill) (loop (+ i 1)))))))
 
 ; --- List predicate ---
 

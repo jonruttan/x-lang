@@ -64,7 +64,7 @@
         (let ((buf (int->ptr (ptr-call %c-malloc (+ len 1)))))
           (ptr-call %c-read-raw fd buf len)
           ; Null-terminate
-          (ptr-set! buf len 0)
+          (ptr-set! buf len 0 1)
           ; Seek back to end for further writes
           (ptr-call %c-lseek fd 0 2)
           (let ((result (ptr->string buf)))
