@@ -42,23 +42,7 @@ for _spec in "$SPEC_PATH"/*.spec.md; do
   [ -f "$_spec" ] || continue
   _I=$_N
   _N=$((_N+1))
-  (
-    awk -v X_BIN="$X_BIN" \
-        -v LANG_LIB="$LANG_LIB" \
-        -v REPL_CMD="${REPL_CMD:-(repl)}" \
-        -v READ_FN="${READ_FN:-read}" \
-        -v TMPDIR="$_TMPDIR" \
-        -v SPEC_ID="$_I" \
-        -f "$RUNNER" "$_spec"
-  ) ${PARALLEL:+&}
-done
-
-# Also run applicative specs unless UNIT_ONLY is set.
-if [ -z "$UNIT_ONLY" ] && [ -d "$SPEC_PATH/applicative" ]; then
-  for _spec in "$SPEC_PATH"/applicative/*.spec.md; do
-    [ -f "$_spec" ] || continue
-    _I=$_N
-    _N=$((_N+1))
+  if [ -n "$PARALLEL" ]; then
     (
       awk -v X_BIN="$X_BIN" \
           -v LANG_LIB="$LANG_LIB" \
@@ -67,7 +51,43 @@ if [ -z "$UNIT_ONLY" ] && [ -d "$SPEC_PATH/applicative" ]; then
           -v TMPDIR="$_TMPDIR" \
           -v SPEC_ID="$_I" \
           -f "$RUNNER" "$_spec"
-    ) ${PARALLEL:+&}
+    ) &
+  else
+    awk -v X_BIN="$X_BIN" \
+        -v LANG_LIB="$LANG_LIB" \
+        -v REPL_CMD="${REPL_CMD:-(repl)}" \
+        -v READ_FN="${READ_FN:-read}" \
+        -v TMPDIR="$_TMPDIR" \
+        -v SPEC_ID="$_I" \
+        -f "$RUNNER" "$_spec"
+  fi
+done
+
+# Also run applicative specs unless UNIT_ONLY is set.
+if [ -z "$UNIT_ONLY" ] && [ -d "$SPEC_PATH/applicative" ]; then
+  for _spec in "$SPEC_PATH"/applicative/*.spec.md; do
+    [ -f "$_spec" ] || continue
+    _I=$_N
+    _N=$((_N+1))
+    if [ -n "$PARALLEL" ]; then
+      (
+        awk -v X_BIN="$X_BIN" \
+            -v LANG_LIB="$LANG_LIB" \
+            -v REPL_CMD="${REPL_CMD:-(repl)}" \
+            -v READ_FN="${READ_FN:-read}" \
+            -v TMPDIR="$_TMPDIR" \
+            -v SPEC_ID="$_I" \
+            -f "$RUNNER" "$_spec"
+      ) &
+    else
+      awk -v X_BIN="$X_BIN" \
+          -v LANG_LIB="$LANG_LIB" \
+          -v REPL_CMD="${REPL_CMD:-(repl)}" \
+          -v READ_FN="${READ_FN:-read}" \
+          -v TMPDIR="$_TMPDIR" \
+          -v SPEC_ID="$_I" \
+          -f "$RUNNER" "$_spec"
+    fi
   done
 fi
 
