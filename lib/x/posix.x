@@ -62,19 +62,19 @@
     (let ((result (ptr-call %c-getenv name)))
       (if (= result 0) () (ptr->string (int->ptr result))))))
 ; --- open variants ---
-; macOS flags: O_RDONLY=0, O_WRONLY=1, O_CREAT=512, O_TRUNC=1024, O_APPEND=8
+; O_* flags are platform constants bound by the FFI layer
 
-(def sh-open-read (fn (path) (ptr-call %c-open path 0)))
+(def sh-open-read (fn (path) (ptr-call %c-open path %O_RDONLY)))
 
 (def sh-open-write
   (fn (path)
-    (let ((fd (ptr-call %c-open path 1537 438)))
+    (let ((fd (ptr-call %c-open path (+ %O_WRONLY (+ %O_CREAT %O_TRUNC)) 438)))
       (if (>= fd 0) (ptr-call %c-fchmod fd 438))
       fd)))
 
 (def sh-open-append
   (fn (path)
-    (let ((fd (ptr-call %c-open path 521 438)))
+    (let ((fd (ptr-call %c-open path (+ %O_WRONLY (+ %O_CREAT %O_APPEND)) 438)))
       (if (>= fd 0) (ptr-call %c-fchmod fd 438))
       fd)))
 ; --- pipe: allocate int[2], call pipe(), read back fds ---
@@ -101,15 +101,15 @@
   (fn (name args)
     (let ((all (pair name args)))
       (let ((n (length all)))
-        (let ((argv (int->ptr (ptr-call %c-malloc (* (+ n 1) 8)))))
+        (let ((argv (int->ptr (ptr-call %c-malloc (* (+ n 1) %word-size)))))
           (def %fill
             (fn (lst i)
               (if (null? lst)
-                (ptr-set-word! argv (* i 8) 0)
+                (ptr-set-word! argv (* i %word-size) 0)
                 (do
                   (ptr-set-word!
                     argv
-                    (* i 8)
+                    (* i %word-size)
                     (ptr->int (string->ptr (first lst))))
                   (%fill (rest lst) (+ i 1))))))
           (%fill all 0)
