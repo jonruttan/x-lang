@@ -69,13 +69,13 @@
 
 ; Open/close
 (define (open-input-file path)
-  (let ((fd (ptr-call %c-open path 0)))
+  (let ((fd (ptr-call %c-open path %O_RDONLY)))
     (if (< fd 0) (error "cannot open input file")
       (%make-port fd (lit input)
         (obj-make "BUFFER"
           (int->ptr (ptr-call %c-malloc 65536)) 32)))))
 (define (open-output-file path)
-  (let ((fd (ptr-call %c-open path 1537 438)))
+  (let ((fd (ptr-call %c-open path (+ %O_WRONLY (+ %O_CREAT %O_TRUNC)) 438)))
     (if (< fd 0) (error "cannot open output file")
       (begin (ptr-call %c-fchmod fd 438)
         (%make-port fd (lit output) #f)))))
@@ -233,7 +233,7 @@
 ; transcript
 (define (transcript-on filename)
   (if %transcript-fd (transcript-off))
-  (set! %transcript-fd (ptr-call %c-open filename 1537 438))
+  (set! %transcript-fd (ptr-call %c-open filename (+ %O_WRONLY (+ %O_CREAT %O_TRUNC)) 438))
   (if (< %transcript-fd 0)
     (begin (set! %transcript-fd #f) (error "cannot open transcript file"))
     (ptr-call %c-fchmod %transcript-fd 438)))

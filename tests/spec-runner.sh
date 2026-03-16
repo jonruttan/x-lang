@@ -26,6 +26,23 @@ ANSI_RESET="\033[0m"
 ANSI_RED="\033[1;31m"
 ANSI_GREEN="\033[1;32m"
 
+# Detect timeout command (prevents runaway tests from OOM-killing the machine).
+# Linux: timeout, macOS: gtimeout (from coreutils), fallback: none.
+# Short timeout for unit tests, long for applicative (stress) tests.
+# Personality runners can override TIMEOUT_UNIT_SECS / TIMEOUT_APPL_SECS.
+_TIMEOUT_BIN=""
+if command -v timeout >/dev/null 2>&1; then
+  _TIMEOUT_BIN="timeout"
+elif command -v gtimeout >/dev/null 2>&1; then
+  _TIMEOUT_BIN="gtimeout"
+fi
+TIMEOUT_UNIT=""
+TIMEOUT_APPL=""
+if [ -n "$_TIMEOUT_BIN" ]; then
+  TIMEOUT_UNIT="$_TIMEOUT_BIN ${TIMEOUT_UNIT_SECS:-30}"
+  TIMEOUT_APPL="$_TIMEOUT_BIN ${TIMEOUT_APPL_SECS:-120}"
+fi
+
 # Derive project root from X_BIN (always at project root).
 RUNNER="$(cd "$(dirname "$X_BIN")" && pwd)/tests/spec-runner.awk"
 
@@ -48,6 +65,7 @@ for _spec in "$SPEC_PATH"/*.spec.md; do
           -v LANG_LIB="$LANG_LIB" \
           -v REPL_CMD="${REPL_CMD:-(repl)}" \
           -v READ_FN="${READ_FN:-read}" \
+          -v TIMEOUT_CMD="$TIMEOUT_UNIT" \
           -v TMPDIR="$_TMPDIR" \
           -v SPEC_ID="$_I" \
           -f "$RUNNER" "$_spec"
@@ -57,6 +75,7 @@ for _spec in "$SPEC_PATH"/*.spec.md; do
         -v LANG_LIB="$LANG_LIB" \
         -v REPL_CMD="${REPL_CMD:-(repl)}" \
         -v READ_FN="${READ_FN:-read}" \
+        -v TIMEOUT_CMD="$TIMEOUT_UNIT" \
         -v TMPDIR="$_TMPDIR" \
         -v SPEC_ID="$_I" \
         -f "$RUNNER" "$_spec"
@@ -75,6 +94,7 @@ if [ -z "$UNIT_ONLY" ] && [ -d "$SPEC_PATH/applicative" ]; then
             -v LANG_LIB="$LANG_LIB" \
             -v REPL_CMD="${REPL_CMD:-(repl)}" \
             -v READ_FN="${READ_FN:-read}" \
+            -v TIMEOUT_CMD="$TIMEOUT_APPL" \
             -v TMPDIR="$_TMPDIR" \
             -v SPEC_ID="$_I" \
             -f "$RUNNER" "$_spec"
@@ -84,6 +104,7 @@ if [ -z "$UNIT_ONLY" ] && [ -d "$SPEC_PATH/applicative" ]; then
           -v LANG_LIB="$LANG_LIB" \
           -v REPL_CMD="${REPL_CMD:-(repl)}" \
           -v READ_FN="${READ_FN:-read}" \
+          -v TIMEOUT_CMD="$TIMEOUT_APPL" \
           -v TMPDIR="$_TMPDIR" \
           -v SPEC_ID="$_I" \
           -f "$RUNNER" "$_spec"

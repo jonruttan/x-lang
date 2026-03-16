@@ -312,6 +312,7 @@
           (%seq (%rewrite args %expanded (pair %t ())) (eval %t))))))
   ; --- REPL ---
 
+  (def %repl-read read)
   (def %repl-prompt "> ")
   (def %repl-print
     (fn (result)
@@ -321,7 +322,7 @@
     (op ()
       ()
       (display %repl-prompt)
-      (def %r (read))
+      (def %r (%repl-read))
       (if (null? %r)
         ()
         (%seq
