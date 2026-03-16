@@ -8,36 +8,52 @@
 ---
     #t
 
-### error with string message
+### error creates error object
 
 ```scheme
-(guard (e (#t e)) (error "boom"))
+(guard (e (#t (error-object? e))) (error "boom"))
+```
+---
+    #t
+
+### error-object-message
+
+```scheme
+(guard (e (#t (error-object-message e))) (error "boom"))
 ```
 ---
     "boom"
 
-### error with number
+### error-object-irritants empty
 
 ```scheme
-(guard (e (#t e)) (error 42))
+(guard (e (#t (null? (error-object-irritants e)))) (error "oops"))
 ```
 ---
-    42
+    #t
 
-### error with symbol
+### error with irritants
 
 ```scheme
-(guard (e (#t e)) (error (quote oops)))
+(guard (e (#t (error-object-irritants e))) (error "fail" 1 2 3))
 ```
 ---
-    oops
+    (1 2 3)
+
+### error-object-message with irritants
+
+```scheme
+(guard (e (#t (error-object-message e))) (error "fail" 42))
+```
+---
+    "fail"
 
 ## guard
 
 ### guard catches error
 
 ```scheme
-(guard (e (#t (list (quote caught) e))) (error "fail"))
+(guard (e (#t (list (quote caught) (error-object-message e)))) (error "fail"))
 ```
 ---
     (caught "fail")
@@ -58,21 +74,13 @@
 ---
     7
 
-### guard handler uses error value
+### guard handler uses error message
 
 ```scheme
-(guard (e (#t (+ e 1))) (error 41))
+(guard (e (#t (+ (error-object-message e) 1))) (error 41))
 ```
 ---
     42
-
-### guard handler builds list
-
-```scheme
-(guard (e (#t (list (quote err) e))) (error (list 1 2 3)))
-```
----
-    (err (1 2 3))
 
 ## guard with computation
 
@@ -110,23 +118,14 @@
 
 ## guard with cond clauses
 
-### guard matches first clause
+### guard with error-object clause
 
 ```scheme
-(guard (e ((string? e) (string-append "Error: " e)) (#t "other"))
+(guard (e ((error-object? e) (string-append "Error: " (error-object-message e))) (#t "other"))
   (error "boom"))
 ```
 ---
     "Error: boom"
-
-### guard matches second clause
-
-```scheme
-(guard (e ((number? e) (+ e 1)) (#t "other"))
-  (error "not-a-number"))
-```
----
-    other
 
 ### guard with else clause
 
@@ -137,10 +136,10 @@
 ---
     else
 
-### guard multiple clauses with number
+### guard error-object? always matches
 
 ```scheme
-(guard (e ((string? e) "string") ((number? e) (* e 2)) (else "other"))
+(guard (e ((error-object? e) (* (error-object-message e) 2)) (else "other"))
   (error 21))
 ```
 ---
