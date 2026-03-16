@@ -184,19 +184,19 @@
     when
     (op (test . body)
       e
-      (if (eval test e) (eval (pair (lit begin) body) e))))
+      (if (eval test e) (tail-eval (pair (lit begin) body) e))))
   (define
     unless
     (op (test . body)
       e
-      (if (not (eval test e)) (eval (pair (lit begin) body) e))))
+      (if (not (eval test e)) (tail-eval (pair (lit begin) body) e))))
   (define
     let*
     (op (bindings . body)
       e
       (if (null? bindings)
-        (eval (pair (lit begin) body) e)
-        (eval
+        (tail-eval (pair (lit begin) body) e)
+        (tail-eval
           (list
             (lit let)
             (list (first bindings))

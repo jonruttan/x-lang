@@ -648,3 +648,58 @@
 ```
 ---
     #t
+
+## tail call optimization
+
+### cond in tail position
+
+```scheme
+(define (%tco-cond n)
+  (cond ((= n 0) 0) (else (%tco-cond (- n 1)))))
+(%tco-cond 10000)
+```
+---
+    0
+
+### case in tail position
+
+```scheme
+(define (%tco-case n)
+  (case n ((0) 0) (else (%tco-case (- n 1)))))
+(%tco-case 10000)
+```
+---
+    0
+
+### let* in tail position
+
+```scheme
+(define (%tco-let* n)
+  (let* ((m (- n 1)))
+    (if (= m 0) 0 (%tco-let* m))))
+(%tco-let* 10000)
+```
+---
+    0
+
+### when in tail position
+
+```scheme
+(define (%tco-when n)
+  (when (> n 0) (%tco-when (- n 1))))
+(%tco-when 10000)
+(null? (%tco-when 10000))
+```
+---
+    #t
+
+### letrec in tail position
+
+```scheme
+(define (%tco-letrec n)
+  (letrec ((f (lambda (x) (if (= x 0) 0 (f (- x 1))))))
+    (f n)))
+(%tco-letrec 10000)
+```
+---
+    0

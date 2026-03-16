@@ -77,19 +77,19 @@
   (def when
     (op (test . body)
       e
-      (if (eval test e) (eval (pair (lit do) body) e))))
+      (if (eval test e) (tail-eval (pair (lit do) body) e))))
   (def unless
     (op (test . body)
       e
-      (if (not (eval test e)) (eval (pair (lit do) body) e))))
+      (if (not (eval test e)) (tail-eval (pair (lit do) body) e))))
   ; --- let* ---
 
   (def let*
     (op (bindings . body)
       e
       (if (null? bindings)
-        (eval (pair (lit do) body) e)
-        (eval
+        (tail-eval (pair (lit do) body) e)
+        (tail-eval
           (list
             (lit let)
             (list (first bindings))
@@ -169,7 +169,7 @@
   (def letrec
     (op (bindings . body)
       e
-      (eval
+      (tail-eval
         (pair
           (lit let)
           (pair
@@ -187,7 +187,7 @@
     (op (first-arg . rest-args)
       e
       (if (symbol? first-arg)
-        (eval
+        (tail-eval
           (list
             (lit letrec)
             (list
@@ -198,7 +198,7 @@
                   (pair (map car (first rest-args)) (rest rest-args)))))
             (pair first-arg (map cadr (first rest-args))))
           e)
-        (eval (pair (lit %let) (pair first-arg rest-args)) e))))
+        (tail-eval (pair (lit %let) (pair first-arg rest-args)) e))))
   ; --- do ---
 
   ; (do ((var init step) ...) (test expr ...) command ...)
@@ -215,7 +215,7 @@
                  bindings))
              (test (car test-and-result))
              (result (cdr test-and-result)))
-        (eval
+        (tail-eval
           (cons
             (list
               (lit lambda)
@@ -251,19 +251,19 @@
     when
     (op (test . body)
       e
-      (if (eval test e) (eval (pair (lit begin) body) e))))
+      (if (eval test e) (tail-eval (pair (lit begin) body) e))))
   (define
     unless
     (op (test . body)
       e
-      (if (not (eval test e)) (eval (pair (lit begin) body) e))))
+      (if (not (eval test e)) (tail-eval (pair (lit begin) body) e))))
   (define
     let*
     (op (bindings . body)
       e
       (if (null? bindings)
-        (eval (pair (lit begin) body) e)
-        (eval
+        (tail-eval (pair (lit begin) body) e)
+        (tail-eval
           (list
             (lit let)
             (list (first bindings))
@@ -281,12 +281,12 @@
           ()
           (let ((clause (first cls)))
             (if (eq? (first clause) (lit else))
-              (eval (pair (lit begin) (rest clause)) e)
+              (tail-eval (pair (lit begin) (rest clause)) e)
               (let ((test-val (eval (first clause) e)))
                 (if test-val
                   (if (and (pair? (rest clause)) (eq? (cadr clause) (lit =>)))
                     ((eval (caddr clause) e) test-val)
-                    (eval (pair (lit begin) (rest clause)) e))
+                    (tail-eval (pair (lit begin) (rest clause)) e))
                   (%cond-loop (rest cls))))))))))
   ; --- Promises ---
 
@@ -337,7 +337,7 @@
             ((or
                (eq? (first (first cls)) (lit else))
                (case-check-datums (first (first cls))))
-              (eval (pair (lit begin) (rest (first cls))) e))
+              (tail-eval (pair (lit begin) (rest (first cls))) e))
             (#t (case-loop (rest cls))))))
       (case-loop clauses)))
   ; --- Deep structural equality (override x-lib equal? for pairs/vectors) ---
