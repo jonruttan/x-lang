@@ -7,6 +7,7 @@
 (make-type
   "QUOTE"
   (list
+    (pair (lit first-chars) "'")
     (pair
       (lit analyse)
       (fn (buffer score chr)
@@ -28,6 +29,7 @@
 (make-type
   "QUASIQUOTE"
   (list
+    (pair (lit first-chars) "`")
     (pair
       (lit analyse)
       (fn (buffer score chr)
@@ -52,6 +54,7 @@
 (make-type
   "UNQUOTE"
   (list
+    (pair (lit first-chars) ",")
     (pair
       (lit analyse)
       (fn (buffer score chr)
@@ -68,6 +71,7 @@
 (make-type
   "UNQUOTE-SPLICING"
   (list
+    (pair (lit first-chars) ",")
     (pair
       (lit analyse)
       (fn (buffer score chr)
@@ -114,6 +118,7 @@
 (make-type
   "ELLIPSIS"
   (list
+    (pair (lit first-chars) ".")
     (pair
       (lit analyse)
       (lambda

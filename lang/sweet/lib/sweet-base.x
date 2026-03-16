@@ -125,6 +125,7 @@
   (make-type
     "SWEET-CURLY"
     (list
+      (cons (lit first-chars) "{}")
       (cons
         (lit analyse)
         (lambda
@@ -232,6 +233,7 @@
   (make-type
     "SWEET-WS"
     (list
+      (cons (lit first-chars) " \t\n\r")
       (cons (lit analyse) %sweet-ws-a1)
       (cons (lit read) %sweet-ws-reader)
       (cons

@@ -212,6 +212,7 @@
           (%regex-write (first self))
           (display "/")))
       (pair (lit read) %regex-read)
+      (pair (lit first-chars) "#")
       (pair
         (lit analyse)
         (fn (buffer score chr)

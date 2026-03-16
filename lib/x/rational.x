@@ -75,6 +75,7 @@
           (display (first (first self)))
           (display "/")
           (display (rest (first self)))))
+      (pair (lit first-chars) "0123456789-+")
       (pair
         (lit analyse)
         (fn (buffer score chr)

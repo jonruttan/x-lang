@@ -45,8 +45,14 @@
       %float-int-digits
       (if (= chr 46) %float-first-frac ()))))
 ; --- Math library for strtod (needed by convert alist) ---
+; Try libm.so.6 (Linux), libm.dylib (macOS), then fall back to current process
 
-(def %libm (dlopen () 1))
+(def %libm
+  (let ((h (dlopen "libm.so.6" 1)))
+    (if h h
+      (let ((h (dlopen "libm.dylib" 1)))
+        (if h h
+          (dlopen () 1))))))
 
 (def %strtod (dlsym %libm "strtod"))
 
@@ -60,6 +66,7 @@
       (pair
         (lit write)
         (fn (self) (display (float->string (first self)))))
+      (pair (lit first-chars) "0123456789")
       (pair
         (lit analyse)
         (fn (buffer score chr)
