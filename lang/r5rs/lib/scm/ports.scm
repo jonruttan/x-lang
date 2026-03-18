@@ -7,16 +7,22 @@
 (define %c-fchmod (dlsym %libc "fchmod"))
 (define %c-malloc (dlsym %libc "malloc"))
 
-; Base object navigation
+; Base object navigation (balanced tree layout)
+; base-data = (hot . cold)
+; cold = (io-group . meta-group)
+; io-group = ((type-alist-stack . files) . (line-stack . (true . false)))
+; meta-group = ((profile . hooks) . (eval-list . (buffer . (token-cache . meta-extra))))
 (define %base-root (first (%base)))
-(define %base-files (first (rest %base-root)))
-(define %base-env (first (rest (rest %base-root))))
+(define %base-cold (rest %base-root))
+(define %base-io-group (first %base-cold))
+(define %base-io-head (first %base-io-group))
+(define %base-files (rest %base-io-head))
 (define %filein-stack-slot %base-files)
 (define %fileout-stack-slot (rest %base-files))
-(define %buffer-stack-slot (rest (rest %base-env)))
 (define %fileout-atom (first (first (rest %base-files))))
-(define %line-stack-slot
-  (rest (rest (rest (rest (rest %base-root))))))
+(define %base-meta-more (rest (rest (rest %base-cold))))
+(define %buffer-stack-slot %base-meta-more)
+(define %line-stack-slot (rest %base-io-group))
 
 ; Save C primitives before overriding
 (define %prim-read read)
