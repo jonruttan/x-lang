@@ -217,8 +217,8 @@
     (base-make-type %tb6 "FMT-COMMENT" (list (pair (lit analyse) (fn (buffer score chr)
       (if (= chr 59) (do (score-set score 1 buffer) %tb6-body) ())))
       (pair (lit read) %tb6-r)))
-    (def %tb6-ta (first (first (first %tb6))))
-    (set-first (first (first %tb6)) (append (rest %tb6-ta) (list (first %tb6-ta))))
+    (def %tb6-ta (first (first (first (first (rest (first %tb6)))))))
+    (set-first (first (first (first (rest (first %tb6))))) (append (rest %tb6-ta) (list (first %tb6-ta))))
     (def %tb6-tokens (token-read-string %tb6 "; hi\n(+ 1 2)"))
     (first (first %tb6-tokens)))
 ```
@@ -248,7 +248,7 @@
 ### access type alist
 
 ```scheme
-(do (def %tb7 (make-base)) (not (null? (first (first (first %tb7))))))
+(do (def %tb7 (make-base)) (not (null? (first (first (first (first (rest (first %tb7)))))))))
 ```
 ---
     #t
@@ -259,9 +259,9 @@
 (do (def %tb8 (make-base))
     (def %tb8-a (base-make-type %tb8 "A" (list (pair (lit analyse) (fn (buffer score chr) ())))))
     (def %tb8-b (base-make-type %tb8 "B" (list (pair (lit analyse) (fn (buffer score chr) ())))))
-    (def %tb8-ta (first (first (first %tb8))))
-    (set-first (first (first %tb8)) (append (rest %tb8-ta) (list (first %tb8-ta))))
-    (def %tb8-new (first (first (first %tb8))))
+    (def %tb8-ta (first (first (first (first (rest (first %tb8)))))))
+    (set-first (first (first (first (rest (first %tb8))))) (append (rest %tb8-ta) (list (first %tb8-ta))))
+    (def %tb8-new (first (first (first (first (rest (first %tb8)))))))
     (eq? (first (first %tb8-new)) %tb8-a))
 ```
 ---
