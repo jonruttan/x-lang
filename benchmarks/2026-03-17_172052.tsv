@@ -1,0 +1,4 @@
+name	wall_us	evals	tco	assoc_calls	assoc_steps	sym_find_calls	sym_find_steps	gc_runs	heap
+x-core	20000	15399	1587	allocs=0 evals=15399 tco=1587 heap=21110	allocs=0 evals=15399 tco=1587 heap=21110	allocs=0 evals=15399 tco=1587 heap=21110	allocs=0 evals=15399 tco=1587 heap=21110	allocs=0 evals=15399 tco=1587 heap=21110	21110
+r5rs	6990000	19224211	3206952	allocs=0 evals=19224211 tco=3206952 heap=12776286	allocs=0 evals=19224211 tco=3206952 heap=12776286	allocs=0 evals=19224211 tco=3206952 heap=12776286	allocs=0 evals=19224211 tco=3206952 heap=12776286	allocs=0 evals=19224211 tco=3206952 heap=12776286	12776286
+r7rs	38080000	96249128	15820992	allocs=0 evals=96249128 tco=15820992 heap=65544218	allocs=0 evals=96249128 tco=15820992 heap=65544218	allocs=0 evals=96249128 tco=15820992 heap=65544218	allocs=0 evals=96249128 tco=15820992 heap=65544218	allocs=0 evals=96249128 tco=15820992 heap=65544218	65544218
