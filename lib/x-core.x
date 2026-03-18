@@ -218,6 +218,7 @@
   (include "lib/x/math.x")
   (include "lib/x/logic.x")
   (include "lib/x/list.x")
+  (include "lib/x/derived.x")
   ; --- Save integer primitives and make arithmetic variadic ---
 
   ; fold (from list.x) enables variadic wrappers. float.x later overrides
@@ -279,6 +280,7 @@
   (include "lib/x/alist.x")
   (include "lib/x/string.x")
   (include "lib/x/vector.x")
+  (include "lib/x/promise.x")
   ; --- quasi (needs append from list.x) ---
 
   ; Compile template to a pair/lit/append tree that, when eval'd,

@@ -11,7 +11,6 @@
 (def set-cdr! set-rest)
 (def quote lit)
 (def quasiquote quasi)
-(def cond match)
 
 ; --- Boolean constants ---
 

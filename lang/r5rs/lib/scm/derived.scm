@@ -1,68 +1,13 @@
-; --- Derived expression types (R5RS §4.2) ---
+; --- R5RS Derived expression types (§4.2) ---
+;
+; General-purpose constructs (when, unless, let*, letrec, named let,
+; cond, case, delay/force) are now in lib/x/derived.x and lib/x/promise.x.
+;
+; This file provides only:
+;   1. R5RS do (iteration) — redefines x-lang's do (= begin)
+;   2. Post-override patches for forms that used (lit do) for sequencing
 
-; when / unless (initial versions using (lit do) = x-lang begin)
-
-(def when
-  (op (test . body)
-    e
-    (if (eval test e) (tail-eval (pair (lit do) body) e))))
-(def unless
-  (op (test . body)
-    e
-    (if (not (eval test e)) (tail-eval (pair (lit do) body) e))))
-
-; --- let* ---
-
-(def let*
-  (op (bindings . body)
-    e
-    (if (null? bindings)
-      (tail-eval (pair (lit do) body) e)
-      (tail-eval
-        (list
-          (lit let)
-          (list (first bindings))
-          (pair (lit let*) (pair (rest bindings) body)))
-        e))))
-
-; --- letrec ---
-
-(def letrec
-  (op (bindings . body)
-    e
-    (tail-eval
-      (pair
-        (lit let)
-        (pair
-          (map (lambda (b) (list (first b) ())) bindings)
-          (append
-            (map
-              (lambda (b) (list (lit set!) (first b) (cadr b)))
-              bindings)
-            body)))
-      e)))
-
-; --- Named let ---
-
-(def %let let)
-(def let
-  (op (first-arg . rest-args)
-    e
-    (if (symbol? first-arg)
-      (tail-eval
-        (list
-          (lit letrec)
-          (list
-            (list
-              first-arg
-              (pair
-                (lit lambda)
-                (pair (map car (first rest-args)) (rest rest-args)))))
-          (pair first-arg (map cadr (first rest-args))))
-        e)
-      (tail-eval (pair (lit %let) (pair first-arg rest-args)) e))))
-
-; --- do ---
+; --- do (R5RS iteration) ---
 
 ; (do ((var init step) ...) (test expr ...) command ...)
 
@@ -109,7 +54,8 @@
 
 ; --- Override forms that used (lit do) to use (lit begin) instead ---
 
-; (do was just redefined as the R5RS iteration form)
+; (do was just redefined as the R5RS iteration form, so any construct
+; that used (lit do) for sequential evaluation must switch to (lit begin))
 
 (define
   when
@@ -133,9 +79,6 @@
           (list (first bindings))
           (pair (lit let*) (pair (rest bindings) body)))
         e))))
-
-; --- R5RS cond (multi-expression clause bodies + => syntax) ---
-
 (define
   cond
   (op clauses
@@ -149,40 +92,13 @@
             (tail-eval (pair (lit begin) (rest clause)) e)
             (let ((test-val (eval (first clause) e)))
               (if test-val
-                (if (and (pair? (rest clause)) (eq? (cadr clause) (lit =>)))
-                  ((eval (caddr clause) e) test-val)
+                (if (and (pair? (rest clause))
+                         (eq? (first (rest clause)) (lit =>)))
+                  ((eval (first (rest (rest clause))) e) test-val)
                   (tail-eval (pair (lit begin) (rest clause)) e))
                 (%cond-loop (rest cls))))))))))
-
-; --- Promises ---
-
 (define
-  %promise
-  (make-type
-    (lit PROMISE)
-    (list
-      (pair (lit write) (lambda (self) (display "#<promise>"))))))
-(define (promise? x) (type? x %promise))
-(define
-  delay
-  (op (expr)
-    env
-    (let ((forced #f) (result #f))
-      (make-instance
-        %promise
-        (lambda
-          ()
-          (if forced
-            result
-            (let ((val (eval expr env)))
-              (set! forced #t)
-              (set! result val)
-              val)))))))
-(define (force p) (if (promise? p) ((first p)) p))
-
-; --- case (multi-expression clause bodies) ---
-
-(def case
+  case
   (op (key . clauses)
     e
     (def case-val (eval key e))
