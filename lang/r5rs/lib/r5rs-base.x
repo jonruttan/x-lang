@@ -18,10 +18,6 @@
   ; --- x-lang aliases for Scheme naming ---
   (include "lang/r5rs/lib/x/aliases.x")
 
-  ; --- Tokenizer types (quote, quasiquote, unquote, ellipsis) ---
-  ; Load early before heavy libraries to minimize env-walk overhead
-  (include "lang/r5rs/lib/x/syntax.x")
-
   ; --- Float support ---
   (include "lib/x/float.x")
 
@@ -71,6 +67,9 @@
   ; --- Port system ---
   (include "lang/r5rs/lib/scm/ports.scm")
 
-  ; --- Hygienic macros ---
+  ; --- Hygienic macros (before syntax.x to avoid ELLIPSIS tokenizer interference) ---
   (include "lang/r5rs/lib/scm/macro.scm")
+
+  ; --- Tokenizer types (quote, quasiquote, unquote, ellipsis) ---
+  (include "lang/r5rs/lib/x/syntax.x")
 )
