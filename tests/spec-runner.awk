@@ -110,7 +110,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 		printf "%s\n", "(%T)" > tmpfile
 		for (i = from; i <= to; i++) {
 			if (i > from)
-				printf "(heap-mark)(heap-sweep) (%%profile-dump) (display \"<<SEP>>\\n\")\n" > tmpfile
+				printf "(atomic (heap-mark) (heap-sweep)) (%%profile-dump) (display \"<<SEP>>\\n\")\n" > tmpfile
 			printf "(begin %s)\n", t_input[i] > tmpfile
 		}
 		printf "%s\n", "%END%" > tmpfile
