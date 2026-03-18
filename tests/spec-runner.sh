@@ -55,8 +55,9 @@ PENDING_COUNT=0
 # Counters are collected from temp files after all jobs finish.
 _TMPDIR=$(mktemp -d)
 _N=0
-for _spec in "$SPEC_PATH"/*.spec.md; do
+for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
   [ -f "$_spec" ] || continue
+  case "$_spec" in */applicative/*) continue ;; esac
   _I=$_N
   _N=$((_N+1))
   if [ -n "$PARALLEL" ]; then
