@@ -193,12 +193,10 @@
 
   (def %stderr
     (fn (msg)
-      (def %fo (first (rest (first (rest (first (%base)))))))
+      (def %files (rest (first (first (rest (first (%base)))))))
+      (def %fo (first (rest %files)))
       (def %s (first-int %fo))
-      (set-first-int
-        %fo
-        (first-int
-          (first (rest (rest (first (rest (first (%base)))))))))
+      (set-first-int %fo (first-int (first (rest (rest %files)))))
       (display msg)
       (set-first-int %fo %s)))
   ; Dump alloc-count and heap-count to stderr
@@ -207,9 +205,7 @@
     (fn ()
       (%stderr
         (first-int
-          (first
-            (first
-              (first (rest (rest (rest (rest (rest (rest (first (%base)))))))))))))
+          (first (first (first (first (rest (rest (first (%base))))))))))
       (%stderr " ")
       (%stderr (heap-count))
       (%stderr "\n")
@@ -271,12 +267,12 @@
         (do
           (buffer-unread
             (first
-              (first (rest (rest (first (rest (rest (first (%base))))))))))
+              (first (rest (rest (rest (rest (first (%base)))))))))
           %ch))))
   (def current-line
     (fn ()
       (first-int
-        (first (first (rest (rest (rest (rest (rest (first (%base))))))))))))
+        (first (first (rest (first (rest (first (%base))))))))))
   (include "lib/x/alist.x")
   (include "lib/x/string.x")
   (include "lib/x/vector.x")

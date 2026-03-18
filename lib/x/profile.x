@@ -2,12 +2,12 @@
 ;
 ; Requires: lib/x-core.x (%stderr already defined there)
 ; Navigate base to profile list:
-; (%base) -> (type-alist-stack (files) (env) true-stack false-stack line-stack (profile...) (hooks) save ...)
+; base-data → cold → meta-group → meta-head → first = profile
 ; Each counter is stack-wrapped: (atom(n) . nil)
 
 (def %profile
   (fn ()
-    (first (rest (rest (rest (rest (rest (rest (first (%base)))))))))))
+    (first (first (rest (rest (first (%base))))))))
 ; Read counters (extra first to unwrap stack)
 
 (def alloc-count
