@@ -82,12 +82,23 @@
               (%cov-check-fn name val))))
         (%cov-walk (rest alist) (+ n 1))))))
 
+; Skip past test defs to the library boundary marker
+(def %cov-skip-to-library
+  (fn (alist)
+    (if (null? alist) ()
+      (if (and (symbol? (first (first alist)))
+               (string=? (symbol->string (first (first alist)))
+                          "%cov-library-end"))
+        (rest alist)
+        (%cov-skip-to-library (rest alist))))))
+
 (def %cov-report
   (op () e
+    (def lib-start (%cov-skip-to-library e))
     (display "=== x-lang Library Coverage ===")
     (newline)
     (newline)
-    (%cov-walk e 0)
+    (%cov-walk (if (null? lib-start) e lib-start) 0)
     (newline)
     (display "  Full:     ")
     (display %cov-tested)
