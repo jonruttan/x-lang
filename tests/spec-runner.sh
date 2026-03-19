@@ -60,6 +60,7 @@ for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
   case "$_spec" in */applicative/*) continue ;; esac
   _I=$_N
   _N=$((_N+1))
+  _t0=$(date +%s)
   if [ -n "$PARALLEL" ]; then
     (
       awk -v X_BIN="$X_BIN" \
@@ -81,6 +82,10 @@ for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
         -v SPEC_ID="$_I" \
         -f "$RUNNER" "$_spec"
   fi
+  _t1=$(date +%s); _dt=$((_t1 - _t0))
+  if [ "$_dt" -gt 0 ]; then
+    printf " [%s: %ds]" "$(basename "$_spec" .spec.md)" "$_dt"
+  fi
 done
 
 # Also run applicative specs unless UNIT_ONLY is set.
@@ -89,6 +94,7 @@ if [ -z "$UNIT_ONLY" ] && [ -d "$SPEC_PATH/applicative" ]; then
     [ -f "$_spec" ] || continue
     _I=$_N
     _N=$((_N+1))
+    _t0=$(date +%s)
     if [ -n "$PARALLEL" ]; then
       (
         awk -v X_BIN="$X_BIN" \
@@ -109,6 +115,10 @@ if [ -z "$UNIT_ONLY" ] && [ -d "$SPEC_PATH/applicative" ]; then
           -v TMPDIR="$_TMPDIR" \
           -v SPEC_ID="$_I" \
           -f "$RUNNER" "$_spec"
+    fi
+    _t1=$(date +%s); _dt=$((_t1 - _t0))
+    if [ "$_dt" -gt 0 ]; then
+      printf " [%s: %ds]" "$(basename "$_spec" .spec.md)" "$_dt"
     fi
   done
 fi
