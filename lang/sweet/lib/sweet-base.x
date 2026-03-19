@@ -13,20 +13,9 @@
 ;   {1 + 2}       -> 3
 ;   {2 * {3 + 4}} -> 14
 
-(include "lang/r5rs/lib/r5rs-base.x")
+(include "lang/r7rs/lib/r7rs-base.x")
 
 (begin
-  ; --- Buffer helpers (not in r5rs, needed for type handlers) ---
-
-  (define
-    (buffer-len buf)
-    (- (first-int (cdr buf)) (first-int buf)))
-  (define
-    (buffer-unread buf)
-    (set-first-int (cdr buf) (- (first-int (cdr buf)) 1)))
-  (define
-    (score-set score sign buf)
-    (set-first-int score (* sign (buffer-len buf))))
   ; --- Infix-to-prefix transformer (SRFI-105) ---
 
   (define
