@@ -38,7 +38,7 @@ run_bench() {
 
     # Run with wall-clock timing; profile-dump goes to stderr
     printf '%s' "$PROF_SNIPPET" | cat $lib - | \
-        /usr/bin/time -p sh -c "./x 2>\"$stderr_file\"" 2>"$time_file" >/dev/null || true
+        /usr/bin/time -p sh -c "./x-profile 2>\"$stderr_file\"" 2>"$time_file" >/dev/null || true
 
     # Parse wall time (seconds -> microseconds)
     wall_s=$(grep '^real' "$time_file" | awk '{print $2}')
