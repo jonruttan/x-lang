@@ -67,7 +67,7 @@
                       (display "/")
                       (display total)
                       (display " (")
-                      (display (/ (* cov 100) total))
+                      (display (%int/ (* cov 100) total))
                       (display "%)")
                       (newline))))))))))))
 

@@ -40,7 +40,7 @@ for dir in "$@"; do
         /^```/ { fenced = !fenced; next }
         /^---$/ {
             if (state == 1 && buf != "") {
-                if (buf !~ /\(read[ )]/ && buf !~ /\(read-char/ && buf !~ /\(include / && buf !~ /regex/ && buf !~ /#\// && buf !~ /string->float/)
+                if (buf !~ /\(read[ )]/ && buf !~ /\(read-char/ && buf !~ /\(include / && buf !~ /make-token-base/ && buf !~ /make-base/ && buf !~ /base-make-type/ && buf !~ /base-eval/ && buf !~ /base-bind/)
                     printf "(guard (err ()) (do %s))\n", buf
                 buf = ""
             }
@@ -60,13 +60,32 @@ BLOCKS=$(wc -l < "$TMPTEST" | tr -d ' ')
 echo "x-lang coverage: $BLOCKS test blocks from $# spec directories"
 echo ""
 
+# Detect which library to load: x-base.x if ext/ specs are included
+# (they need float, vector, regex types), otherwise x-core.x.
+LIB="lib/x-core.x"
+for dir in "$@"; do
+    case "$dir" in *ext*) LIB="lib/x-base.x" ;; esac
+done
+
 # Run: library + marker + test code + coverage report.
 # The marker separates library defs from test defs so the report
 # only walks library functions (skipping test-local defs).
 # Test output is mixed in but filtered by sed to show only the report.
+# Run: library + test code + coverage report.
+# Limit to 350 blocks per invocation (more causes heap exhaustion).
+# If over the limit, trim from the end (lib tests are first, most important).
+LIMIT=350
+TOTAL=$(wc -l < "$TMPTEST" | tr -d ' ')
+if [ "$TOTAL" -gt "$LIMIT" ]; then
+    echo "  (capped at $LIMIT/$TOTAL blocks to avoid heap exhaustion)"
+    echo ""
+    head -"$LIMIT" "$TMPTEST" > "${TMPTEST}.cap"
+    mv "${TMPTEST}.cap" "$TMPTEST"
+fi
+
 {
-    cat lib/x-core.x
+    cat "$LIB"
     echo '(def %cov-library-end #t)'
     cat "$TMPTEST"
     cat tools/cov-report.x
-} | timeout 120 ./x-profile 2>/dev/null | sed -n '/=== x-lang/,$ p'
+} | timeout 180 ./x-profile 2>/dev/null | sed -n '/=== x-lang/,$ p'
