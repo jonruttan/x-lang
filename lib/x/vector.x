@@ -65,7 +65,18 @@
                 (fn (i acc)
                   (if (< i 0) acc
                     (build (- i 1) (pair (obj-ref self (+ i 1)) acc)))))
-              (build (- len 1) ()))))))))
+              (build (- len 1) ())))))
+      (pair
+        (lit iter)
+        (fn (self)
+          (def len (obj-ref self 0))
+          (def i 0)
+          (fn ()
+            (if (< i len)
+              (let ((val (obj-ref self (+ i 1))))
+                (set i (+ i 1))
+                val)
+              ())))))))
 
 (set %vector-read (fn args
   (def lst (read))

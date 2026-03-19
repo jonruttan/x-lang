@@ -84,8 +84,16 @@
 
 (def %for-each1
   (fn (f lst)
-    (if (not (null? lst))
-      (do (f (first lst)) (%for-each1 f (rest lst))))))
+    (if (null? lst) ()
+      (if (pair? lst)
+        (do (f (first lst)) (%for-each1 f (rest lst)))
+        (let ((it (iter lst)))
+          (def %iter-loop
+            (fn ()
+              (let ((val (it)))
+                (if (not (null? val))
+                  (do (f val) (%iter-loop))))))
+          (%iter-loop))))))
 
 (def for-each
   (fn (f . lsts)
