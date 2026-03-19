@@ -306,6 +306,14 @@
 
 ## char?
 
+### returns #t for a character
+
+```scheme
+(char? #\a)
+```
+---
+    #t
+
 ### returns #f for number
 
 ```scheme
