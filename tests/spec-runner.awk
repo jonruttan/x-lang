@@ -110,7 +110,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 		printf "%s\n", "(%T)" > tmpfile
 		for (i = from; i <= to; i++) {
 			if (i > from)
-				printf "(atomic heap-mark heap-sweep) (%%profile-dump) (display \"<<SEP>>\\n\")\n" > tmpfile
+				printf "(%%profile-dump) (display \"<<SEP>>\\n\")\n" > tmpfile
 			printf "(begin %s)\n", t_input[i] > tmpfile
 		}
 		printf "%s\n", "%END%" > tmpfile
@@ -120,7 +120,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 	# Run single interpreter invocation (no REPL needed)
 	# TIMEOUT_CMD (e.g. "timeout 30") prevents runaway tests from OOM-killing.
 	timeout_pfx = (TIMEOUT_CMD != "") ? TIMEOUT_CMD " " : ""
-	cmd = "{ cat " q(blib) "; cat " q(tmpfile) "; } | " timeout_pfx q(X_BIN) " 2>/dev/null"
+	cmd = "{ printf '(def %%include include)(def include (op (path) %%ie (%%include path)(atomic heap-mark heap-sweep)))\\n'; cat " q(blib) "; cat " q(tmpfile) "; } | " timeout_pfx q(X_BIN) " 2>/dev/null"
 
 	tidx = from
 	output = ""

@@ -111,7 +111,7 @@
   (def string-ref (fn (s i) (s i)))
   (def string-length (fn (s) (s)))
   (def substring (fn (s start end) (s start (- end start))))
-  (def heap-collect (fn () (heap-mark) (heap-sweep)))
+  (def heap-collect (fn () (atomic heap-mark heap-sweep) ()))
   (def % (fn (a b) (- a (* b (/ a b)))))
   (def %rewrite
     (fn (p a b) (set-first p a) (set-rest p b) p))

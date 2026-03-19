@@ -54,8 +54,12 @@
 
 ```scheme
 (include "lib/x/profile.x")
+(def before (heap-count))
 (do (def waste (fn (n) (if (= n 0) () (do (list 1 2 3) (waste (- n 1)))))) (waste 1000))
-(> (heap-collect-force) 0)
+(def after-waste (heap-count))
+(heap-collect-force)
+(def after-gc (heap-count))
+(< after-gc after-waste)
 ```
 ---
     #t
@@ -64,10 +68,11 @@
 
 ```scheme
 (include "lib/x/profile.x")
+(def before (heap-count))
 (do (def waste (fn (n) (if (= n 0) () (do (list 1 2 3) (waste (- n 1)))))) (waste 1000))
-(let ((before (heap-count)))
-  (heap-collect-force)
-  (< (heap-count) before))
+(def after-waste (heap-count))
+(heap-collect-force)
+(< (heap-count) after-waste)
 ```
 ---
     #t
