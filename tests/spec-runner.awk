@@ -47,6 +47,8 @@ BEGIN {
 	BLUE = "\033[1;34m"; RESET = "\033[0m"
 }
 
+function now() { srand(); return srand() }
+
 function q(s,    _s) {
 	_s = s
 	gsub(/'/, "'\\''", _s)
@@ -124,20 +126,28 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 
 	tidx = from
 	output = ""
+	t0 = now()
 	while ((cmd | getline line) > 0) {
 		# Strip REPL prompts (> and $ prefixes, looping)
 		while (substr(line, 1, 2) == "> " || substr(line, 1, 2) == "$ ")
 			line = substr(line, 3)
 		if (line == "<<SEP>>") {
 			# End of test section
+			dt = now() - t0
 			if (output == t_expect[tidx]) {
-				printf "%s%s.%s", t_unit_hdr[tidx], GREEN, RESET
+				if (dt > 0)
+					printf "%s%s.%s(%ds)", t_unit_hdr[tidx], GREEN, RESET, dt
+				else
+					printf "%s%s.%s", t_unit_hdr[tidx], GREEN, RESET
 			} else {
 				fails++
-				printf "%s\n%sFAIL: %s: %s\n  expected: %s\n  got:      %s%s\n", \
+				printf "%s\n%sFAIL: %s: %s\n  expected: %s\n  got:      %s%s", \
 					t_unit_hdr[tidx], RED, t_unit[tidx], t_name[tidx], \
 					t_expect[tidx], output, RESET
+				if (dt > 0) printf "(%ds)", dt
+				printf "\n"
 			}
+			t0 = now()
 			tidx++
 			output = ""
 		} else if (line != "") {
@@ -148,13 +158,19 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 
 	# Check final test (no trailing separator)
 	if (tidx <= to) {
+		dt = now() - t0
 		if (output == t_expect[tidx]) {
-			printf "%s%s.%s", t_unit_hdr[tidx], GREEN, RESET
+			if (dt > 0)
+				printf "%s%s.%s(%ds)", t_unit_hdr[tidx], GREEN, RESET, dt
+			else
+				printf "%s%s.%s", t_unit_hdr[tidx], GREEN, RESET
 		} else {
 			fails++
-			printf "%s\n%sFAIL: %s: %s\n  expected: %s\n  got:      %s%s\n", \
+			printf "%s\n%sFAIL: %s: %s\n  expected: %s\n  got:      %s%s", \
 				t_unit_hdr[tidx], RED, t_unit[tidx], t_name[tidx], \
 				t_expect[tidx], output, RESET
+			if (dt > 0) printf "(%ds)", dt
+			printf "\n"
 		}
 	}
 }
