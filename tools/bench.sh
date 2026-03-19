@@ -96,6 +96,7 @@ echo ""
 run_bench "x-core" "lib/x-core.x"
 run_bench "r5rs" "lang/r5rs/lib/r5rs-base.x"
 run_bench "r7rs" "lang/r7rs/lib/r7rs-base.x"
+run_bench "sweet" "lang/sweet/lib/sweet-base.x"
 
 echo ""
 
