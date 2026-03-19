@@ -1,6 +1,9 @@
 ; tools/cov-report.x -- x-lang library coverage report
 ;
 ; Usage: cat lib/x-core.x [tests...] tools/cov-report.x | ./x-profile
+;
+; Set %cov-tsv-mode to #t before loading for machine-readable TSV output
+; (for aggregation across multiple runs).
 
 (def %cov-word-size
   (if (> (ptr->int (int->ptr 4294967296)) 0) 8 4))
@@ -34,6 +37,10 @@
               (+ self (+ (first left) (first right)))
               (+ 1 (+ (first (rest left)) (first (rest right)))))))))))
 
+(if (not (symbol? (lit %cov-tsv-mode)))
+  ()
+  (if (null? %cov-tsv-mode)
+    (def %cov-tsv-mode #f)))
 (def %cov-tested 0)
 (def %cov-partial 0)
 (def %cov-untested 0)
@@ -47,29 +54,35 @@
           (let ((cov (first counts))
                 (total (first (rest counts))))
             (if (> total 0)
-              (do
-                (set %cov-total (+ %cov-total 1))
-                (if (= cov total)
-                  (set %cov-tested (+ %cov-tested 1))
-                  (if (= cov 0)
-                    (do
-                      (set %cov-untested (+ %cov-untested 1))
-                      (display "    ")
-                      (write name)
-                      (display " UNTESTED")
-                      (newline))
-                    (do
-                      (set %cov-partial (+ %cov-partial 1))
-                      (display "    ")
-                      (write name)
-                      (display " ")
-                      (display cov)
-                      (display "/")
-                      (display total)
-                      (display " (")
-                      (display (%int/ (* cov 100) total))
-                      (display "%)")
-                      (newline))))))))))))
+              (if %cov-tsv-mode
+                ; TSV: COV<tab>name<tab>covered<tab>total (for aggregation)
+                (do (display "COV\t") (write name) (display "\t")
+                  (display cov) (display "\t")
+                  (display total) (newline))
+                ; Human-readable
+                (do
+                  (set %cov-total (+ %cov-total 1))
+                  (if (= cov total)
+                    (set %cov-tested (+ %cov-tested 1))
+                    (if (= cov 0)
+                      (do
+                        (set %cov-untested (+ %cov-untested 1))
+                        (display "    ")
+                        (write name)
+                        (display " UNTESTED")
+                        (newline))
+                      (do
+                        (set %cov-partial (+ %cov-partial 1))
+                        (display "    ")
+                        (write name)
+                        (display " ")
+                        (display cov)
+                        (display "/")
+                        (display total)
+                        (display " (")
+                        (display (%int/ (* cov 100) total))
+                        (display "%)")
+                        (newline)))))))))))))
 
 (def %cov-walk
   (fn (alist n)
@@ -95,25 +108,26 @@
 (def %cov-report
   (op () e
     (def lib-start (%cov-skip-to-library e))
-    (display "=== x-lang Library Coverage ===")
-    (newline)
-    (newline)
+    (if (not %cov-tsv-mode)
+      (do (display "=== x-lang Library Coverage ===") (newline) (newline)))
     (%cov-walk (if (null? lib-start) e lib-start) 0)
-    (newline)
-    (display "  Full:     ")
-    (display %cov-tested)
-    (display "/")
-    (display %cov-total)
-    (newline)
-    (display "  Partial:  ")
-    (display %cov-partial)
-    (display "/")
-    (display %cov-total)
-    (newline)
-    (display "  Untested: ")
-    (display %cov-untested)
-    (display "/")
-    (display %cov-total)
-    (newline)))
+    (if (not %cov-tsv-mode)
+      (do
+        (newline)
+        (display "  Full:     ")
+        (display %cov-tested)
+        (display "/")
+        (display %cov-total)
+        (newline)
+        (display "  Partial:  ")
+        (display %cov-partial)
+        (display "/")
+        (display %cov-total)
+        (newline)
+        (display "  Untested: ")
+        (display %cov-untested)
+        (display "/")
+        (display %cov-total)
+        (newline)))))
 
 (%cov-report)
