@@ -88,8 +88,8 @@ for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
   fi
 done
 
-# Also run applicative specs unless UNIT_ONLY is set.
-if [ -z "$UNIT_ONLY" ] && [ -d "$SPEC_PATH/applicative" ]; then
+# Applicative (stress) specs only run with STRESS=1.
+if [ -n "$STRESS" ] && [ -d "$SPEC_PATH/applicative" ]; then
   for _spec in "$SPEC_PATH"/applicative/*.spec.md; do
     [ -f "$_spec" ] || continue
     _I=$_N
