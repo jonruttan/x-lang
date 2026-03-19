@@ -18,6 +18,8 @@
 #   LANG_LIB -- default library file path
 #   TMPDIR   -- temp directory for scratch files
 #   SPEC_ID  -- unique integer for temp file namespacing
+#   MAX_TEST_SECS -- per-test time limit (default 10, 0=disable)
+#   SLOW_STREAK   -- consecutive slow-test limit (default 5, 0=disable)
 #
 # Tests are collected during parsing, then run in a single interpreter
 # invocation per spec file (or per library group if @lib changes).
@@ -45,6 +47,12 @@ BEGIN {
 
 	RED = "\033[1;31m"; GREEN = "\033[1;32m"
 	BLUE = "\033[1;34m"; RESET = "\033[0m"
+
+	# Regression detection defaults
+	max_test_secs = (MAX_TEST_SECS != "") ? MAX_TEST_SECS + 0 : 10
+	slow_streak_limit = (SLOW_STREAK != "") ? SLOW_STREAK + 0 : 5
+	slow_streak = 0
+	completed = 0
 }
 
 function now() { srand(); return srand() }
@@ -59,6 +67,32 @@ function strip(s) {
 	if (substr(s, 1, 4) == "    ") return substr(s, 5)
 	if (substr(s, 1, 1) == "\t") return substr(s, 2)
 	return s
+}
+
+function abort_regression(reason) {
+	printf "\n\n%s*** SPEED REGRESSION: %s ***%s\n", RED, reason, RESET
+	printf "Aborting -- %d of %d tests completed before regression detected.\n", \
+		completed, tests
+	# Write counts so shell wrapper doesn't error on missing file
+	countfile = TMPDIR "/spec-" SPEC_ID ".cnt"
+	printf "%d %d %d\n", tests, fails + (tests - completed), pending > countfile
+	close(countfile)
+	exit 1
+}
+
+function check_regression(dt, tidx) {
+	completed++
+	if (dt > 0) {
+		slow_streak++
+		if (max_test_secs > 0 && dt > max_test_secs)
+			abort_regression(sprintf("test \"%s\" took %ds (limit: %ds)", \
+				t_name[tidx], dt, max_test_secs))
+		if (slow_streak_limit > 0 && slow_streak >= slow_streak_limit)
+			abort_regression(sprintf("%d consecutive tests took >=1s each", \
+				slow_streak))
+	} else {
+		slow_streak = 0
+	}
 }
 
 function collect() {
@@ -147,6 +181,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 				if (dt > 0) printf "(%ds)", dt
 				printf "\n"
 			}
+			check_regression(dt, tidx)
 			t0 = now()
 			tidx++
 			output = ""
@@ -172,6 +207,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 			if (dt > 0) printf "(%ds)", dt
 			printf "\n"
 		}
+		check_regression(dt, tidx)
 	}
 }
 

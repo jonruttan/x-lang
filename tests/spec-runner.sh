@@ -43,6 +43,12 @@ if [ -n "$_TIMEOUT_BIN" ]; then
   TIMEOUT_APPL="$_TIMEOUT_BIN ${TIMEOUT_APPL_SECS:-120}"
 fi
 
+# Speed regression detection (per-test).
+# MAX_TEST_SECS: abort if any single test exceeds this (0=disable, default 10).
+# SLOW_STREAK: abort after N consecutive tests taking >=1s each (0=disable, default 5).
+: "${MAX_TEST_SECS:=10}"
+: "${SLOW_STREAK:=5}"
+
 # Derive project root from X_BIN (always at project root).
 RUNNER="$(cd "$(dirname "$X_BIN")" && pwd)/tests/spec-runner.awk"
 
@@ -68,6 +74,8 @@ for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
           -v REPL_CMD="${REPL_CMD:-(repl)}" \
           -v READ_FN="${READ_FN:-read}" \
           -v TIMEOUT_CMD="$TIMEOUT_UNIT" \
+          -v MAX_TEST_SECS="$MAX_TEST_SECS" \
+          -v SLOW_STREAK="$SLOW_STREAK" \
           -v TMPDIR="$_TMPDIR" \
           -v SPEC_ID="$_I" \
           -f "$RUNNER" "$_spec"
@@ -78,6 +86,8 @@ for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
         -v REPL_CMD="${REPL_CMD:-(repl)}" \
         -v READ_FN="${READ_FN:-read}" \
         -v TIMEOUT_CMD="$TIMEOUT_UNIT" \
+        -v MAX_TEST_SECS="$MAX_TEST_SECS" \
+        -v SLOW_STREAK="$SLOW_STREAK" \
         -v TMPDIR="$_TMPDIR" \
         -v SPEC_ID="$_I" \
         -f "$RUNNER" "$_spec"
@@ -102,6 +112,8 @@ if [ -n "$STRESS" ] && [ -d "$SPEC_PATH/applicative" ]; then
             -v REPL_CMD="${REPL_CMD:-(repl)}" \
             -v READ_FN="${READ_FN:-read}" \
             -v TIMEOUT_CMD="$TIMEOUT_APPL" \
+            -v MAX_TEST_SECS="$MAX_TEST_SECS" \
+            -v SLOW_STREAK="$SLOW_STREAK" \
             -v TMPDIR="$_TMPDIR" \
             -v SPEC_ID="$_I" \
             -f "$RUNNER" "$_spec"
@@ -112,6 +124,8 @@ if [ -n "$STRESS" ] && [ -d "$SPEC_PATH/applicative" ]; then
           -v REPL_CMD="${REPL_CMD:-(repl)}" \
           -v READ_FN="${READ_FN:-read}" \
           -v TIMEOUT_CMD="$TIMEOUT_APPL" \
+          -v MAX_TEST_SECS="$MAX_TEST_SECS" \
+          -v SLOW_STREAK="$SLOW_STREAK" \
           -v TMPDIR="$_TMPDIR" \
           -v SPEC_ID="$_I" \
           -f "$RUNNER" "$_spec"
