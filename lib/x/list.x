@@ -1,19 +1,32 @@
 ; list.x -- List operations
+
+; Convert any iterable to a list. Lists/nil pass through unchanged.
+(def %as-list
+  (fn (x)
+    (if (or (null? x) (pair? x)) x
+      (let ((it (iter x)))
+        (def %go (fn ()
+          (let ((v (it)))
+            (if (null? v) () (pair v (%go))))))
+        (%go)))))
+
 ; --- Folds ---
 
 (def fold
   (fn (f init lst)
-    (if (null? lst)
-      init
-      (fold f (f init (first lst)) (rest lst)))))
+    (let ((lst (%as-list lst)))
+      (if (null? lst)
+        init
+        (fold f (f init (first lst)) (rest lst))))))
 
-(def reduce (fn (f lst) (fold f (first lst) (rest lst))))
+(def reduce (fn (f lst) (let ((lst (%as-list lst))) (fold f (first lst) (rest lst)))))
 
 (def scan
   (fn (f init lst)
-    (if (null? lst)
-      (list init)
-      (pair init (scan f (f init (first lst)) (rest lst))))))
+    (let ((lst (%as-list lst)))
+      (if (null? lst)
+        (list init)
+        (pair init (scan f (f init (first lst)) (rest lst)))))))
 ; --- Basics ---
 
 (def length (fn (lst) (fold (fn (acc x) (+ acc 1)) 0 lst)))
@@ -66,21 +79,23 @@
 
 (def map
   (fn (f . lsts)
-    (if (null? (rest lsts))
-      (%map1 f (first lsts))
-      (if (%any-null? lsts)
-        ()
-        (pair
-          (apply f (%map1 first lsts))
-          (apply map f (%map1 rest lsts)))))))
+    (let ((lsts (%map1 %as-list lsts)))
+      (if (null? (rest lsts))
+        (%map1 f (first lsts))
+        (if (%any-null? lsts)
+          ()
+          (pair
+            (apply f (%map1 first lsts))
+            (apply map f (%map1 rest lsts))))))))
 
 (def filter
   (fn (pred lst)
-    (match
-      ((null? lst) ())
-      ((pred (first lst))
-        (pair (first lst) (filter pred (rest lst))))
-      (#t (filter pred (rest lst))))))
+    (let ((lst (%as-list lst)))
+      (match
+        ((null? lst) ())
+        ((pred (first lst))
+          (pair (first lst) (filter pred (rest lst))))
+        (#t (filter pred (rest lst)))))))
 
 (def %for-each1
   (fn (f lst)
@@ -97,33 +112,37 @@
 
 (def for-each
   (fn (f . lsts)
-    (if (null? (rest lsts))
-      (%for-each1 f (first lsts))
-      (if (not (%any-null? lsts))
-        (do
-          (apply f (%map1 first lsts))
-          (apply for-each f (%map1 rest lsts)))))))
+    (let ((lsts (%map1 %as-list lsts)))
+      (if (null? (rest lsts))
+        (%for-each1 f (first lsts))
+        (if (not (%any-null? lsts))
+          (do
+            (apply f (%map1 first lsts))
+            (apply for-each f (%map1 rest lsts))))))))
 
 (def flat-map
   (fn (f lst)
-    (if (null? lst)
-      ()
-      (%append2 (f (first lst)) (flat-map f (rest lst))))))
+    (let ((lst (%as-list lst)))
+      (if (null? lst)
+        ()
+        (%append2 (f (first lst)) (flat-map f (rest lst)))))))
 ; --- Predicates ---
 
 (def any?
   (fn (pred lst)
-    (match
-      ((null? lst) #f)
-      ((pred (first lst)) #t)
-      (#t (any? pred (rest lst))))))
+    (let ((lst (%as-list lst)))
+      (match
+        ((null? lst) #f)
+        ((pred (first lst)) #t)
+        (#t (any? pred (rest lst)))))))
 
 (def every?
   (fn (pred lst)
-    (match
-      ((null? lst) #t)
-      ((not (pred (first lst))) #f)
-      (#t (every? pred (rest lst))))))
+    (let ((lst (%as-list lst)))
+      (match
+        ((null? lst) #t)
+        ((not (pred (first lst))) #f)
+        (#t (every? pred (rest lst)))))))
 
 (def none? (fn (pred lst) (not (any? pred lst))))
 
@@ -160,30 +179,33 @@
 
 (def find
   (fn (pred lst)
-    (match
-      ((null? lst) ())
-      ((pred (first lst)) (first lst))
-      (#t (find pred (rest lst))))))
+    (let ((lst (%as-list lst)))
+      (match
+        ((null? lst) ())
+        ((pred (first lst)) (first lst))
+        (#t (find pred (rest lst)))))))
 
 (def find-index
   (fn (pred lst)
-    (def go
-      (fn (i lst)
-        (match
-          ((null? lst) (- 0 1))
-          ((pred (first lst)) i)
-          (#t (go (+ i 1) (rest lst))))))
-    (go 0 lst)))
+    (let ((lst (%as-list lst)))
+      (def go
+        (fn (i lst)
+          (match
+            ((null? lst) (- 0 1))
+            ((pred (first lst)) i)
+            (#t (go (+ i 1) (rest lst))))))
+      (go 0 lst))))
 
 (def index-of
   (fn (x lst) (find-index (fn (el) (equal? el x)) lst)))
 
 (def includes?
   (fn (x lst)
-    (match
-      ((null? lst) #f)
-      ((equal? x (first lst)) #t)
-      (#t (includes? x (rest lst))))))
+    (let ((lst (%as-list lst)))
+      (match
+        ((null? lst) #f)
+        ((equal? x (first lst)) #t)
+        (#t (includes? x (rest lst)))))))
 
 (def count
   (fn (pred lst)
@@ -287,6 +309,7 @@
 
 (def sort
   (fn (cmp lst)
+    (let ((lst (%as-list lst)))
     (def merge
       (fn (a b)
         (match
@@ -310,7 +333,8 @@
       (let ((halves (split lst () ())))
         (merge
           (sort cmp (first halves))
-          (sort cmp (first (rest halves))))))))
+          (sort cmp (first (rest halves))))))))))
+
 
 (def sort-by
   (fn (f lst) (sort (fn (a b) (< (f a) (f b))) lst)))
