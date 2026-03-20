@@ -406,8 +406,9 @@
     (def %cache-hash (hash->hex (fnv-1a %expr-key)))
     (def %cache-path (str %compile-cache-dir %cache-hash %compile-ext))
 
-    ; Try loading from cache
-    (def %cached (%compile-cache-load %cache-path %fns-holder))
+    ; Try loading from cache (skip if fvars — they embed heap pointers)
+    (def %cached (if (null? %compile-fvars)
+      (%compile-cache-load %cache-path %fns-holder) ()))
     (if (not (null? %cached)) %cached
 
       ; Cache miss: compile and save to cache path
@@ -422,13 +423,15 @@
         (%fd-write %fd %c-source)
         (sh-close %fd)
 
-        ; Compile to cache path (persists across runs)
-        (%compile-cc %src-path %cache-path)
+        ; Compile to cache or temp path
+        (def %lib-path (if (null? %compile-fvars) %cache-path
+          (str "/tmp/x-compile-" %id %compile-ext)))
+        (%compile-cc %src-path %lib-path)
 
-        ; Clean up source (library stays at cache path)
+        ; Clean up source (and temp lib if fvars, else cache persists)
         (ptr-call %c-unlink %src-path)
 
-        (def %lib (dlopen %cache-path 1))
+        (def %lib (dlopen %lib-path 1))
         (if (null? %lib) (error "compile: dlopen failed"))
 
         (def %fn (dlsym %lib "fn_0"))
@@ -438,6 +441,10 @@
         ; Patch nested fn static prims
         (def %prim-type-val (ptr-ref-word (obj->ptr first) %type-offset))
         (%patch-nested-prims %lib (first %fns-holder) %prim-type-val)
+
+        ; Clean up temp lib for fvar compilations (stays mapped by dlopen)
+        (if (not (null? %compile-fvars))
+          (ptr-call %c-unlink %lib-path))
 
         %fn))))
 
