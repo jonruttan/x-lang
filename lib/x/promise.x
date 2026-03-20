@@ -21,8 +21,8 @@
           (if forced
             result
             (let ((val (eval expr env)))
-              (set forced #t)
-              (set result val)
+              (set! forced #t)
+              (set! result val)
               val)))))))
 
 (def force (fn (p) (if (promise? p) ((first p)) p)))

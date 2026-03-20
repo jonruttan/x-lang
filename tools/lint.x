@@ -26,7 +26,7 @@
   (def %build-lookup (fn (entries acc)
     (if (null? entries) acc
       (do (def entry (first entries))
-          (def name (symbol->string (first entry)))
+          (def name (convert (first entry) %string))
           (def props (rest entry))
           (%build-lookup (rest entries)
             (pair (pair name props) acc))))))
@@ -39,7 +39,7 @@
         (first table)
         (%scope-find key (rest table))))))
   (def %scope-lookup (fn (name)
-    (def entry (%scope-find (symbol->string name) %scope-table))
+    (def entry (%scope-find (convert name %string) %scope-table))
     (if (null? entry) ()
       (rest entry))))
 
@@ -55,7 +55,7 @@
   ; --- Data-driven scope dispatch ---
   ; Override %walk-pair with construct-table-driven version.
 
-  (set %walk-pair (fn (form scope uses)
+  (set! %walk-pair (fn (form scope uses)
     (def head (first form))
     (if (not (symbol? head)) (%walk-list form scope uses)
       (do (def props (%scope-lookup head))
@@ -75,7 +75,7 @@
   ; Override %walk-list to use data-driven binding detection.
   ; The version in lint-lib.x hardcodes (lit def); this one uses
   ; the construct table to detect any scope=bind form.
-  (set %walk-list (fn (forms scope uses)
+  (set! %walk-list (fn (forms scope uses)
     (if (null? forms) uses
       (if (pair? forms)
         (do (def form (first forms))

@@ -71,7 +71,7 @@
 ### increments on each call
 
 ```scheme
-(do (def counter (do (def n 0) (fn () (do (set n (+ n 1)) n)))) (do (counter) (counter) (counter)))
+(do (def counter (do (def n 0) (fn () (do (set! n (+ n 1)) n)))) (do (counter) (counter) (counter)))
 ```
 ---
     3

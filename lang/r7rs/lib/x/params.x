@@ -21,12 +21,12 @@
     env
     (let ((params (map (lambda (b) (eval (car b) env)) bindings))
           (vals (map (lambda (b) (eval (cadr b) env)) bindings)))
-      (let ((old-vals (map (lambda (p v) (p v (lit set))) params vals)))
+      (let ((old-vals (map (lambda (p v) (p v (lit set!))) params vals)))
         (dynamic-wind
           (lambda ()
-            (for-each (lambda (p v) (p v (lit set))) params vals))
+            (for-each (lambda (p v) (p v (lit set!))) params vals))
           (lambda ()
             (eval (cons (lit begin) body) env))
           (lambda ()
             (set! vals (map (lambda (p) (p)) params))
-            (for-each (lambda (p v) (p v (lit set))) params old-vals)))))))
+            (for-each (lambda (p v) (p v (lit set!))) params old-vals)))))))

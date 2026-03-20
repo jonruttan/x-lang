@@ -40,7 +40,7 @@
           (map (fn (b) (list (first b) ())) bindings)
           (append
             (map
-              (fn (b) (list (lit set) (first b) (first (rest b))))
+              (fn (b) (list (lit set!) (first b) (first (rest b))))
               bindings)
             body)))
       e)))

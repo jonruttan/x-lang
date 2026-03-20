@@ -73,7 +73,7 @@
   ; mode may be a symbol (looked up in file-modes) or a number.
   (def fopen (fn (pathname mode)
     (if (symbol? mode)
-      (set mode (first (aget mode file-modes))))
+      (set! mode (first (assoc-get mode file-modes))))
     (syscall (syscall-id (lit open)) pathname mode)))
 
   ; Close a file descriptor.

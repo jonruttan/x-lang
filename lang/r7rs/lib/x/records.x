@@ -25,7 +25,7 @@
                       (list (lit self))
                       (list
                         (lit display)
-                        (string-append "#<" (symbol->string name) ">")))))))
+                        (string-append "#<" (convert name %string) ">")))))))
             (list
               (lit def)
               (car constructor-spec)

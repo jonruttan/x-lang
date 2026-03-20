@@ -36,7 +36,7 @@
 ; Also: <digits>[.<digits>]i  (pure imaginary)
 
 (def %cx-imag-frac ())
-(set %cx-imag-frac
+(set! %cx-imag-frac
   (fn (buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %cx-imag-frac
@@ -51,7 +51,7 @@
       ())))
 
 (def %cx-imag-int ())
-(set %cx-imag-int
+(set! %cx-imag-int
   (fn (buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %cx-imag-int
@@ -68,7 +68,7 @@
       ())))
 
 (def %cx-real-frac ())
-(set %cx-real-frac
+(set! %cx-real-frac
   (fn (buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %cx-real-frac
@@ -87,7 +87,7 @@
       ())))
 
 (def %cx-real-int ())
-(set %cx-real-int
+(set! %cx-real-int
   (fn (buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %cx-real-int
@@ -114,9 +114,9 @@
   (fn (s)
     (if (%cx-find-char s 0 (string-length s) 46)
       (make-instance %float (string->float s))
-      (string->number s))))
+      (convert s %int))))
 
-(set %cx-read
+(set! %cx-read
   (fn args
     (let ((tok (buffer-token (first args))))
       (let ((len (string-length tok)))
@@ -124,7 +124,7 @@
           (let ((blen (%int- len 1)))
             (let ((sign-pos (%cx-find-char body 1 blen 43)))
               (if (null? sign-pos)
-                (set sign-pos (%cx-find-char body 1 blen 45)))
+                (set! sign-pos (%cx-find-char body 1 blen 45)))
               (if sign-pos
                 (%make-complex
                   (%cx-parse-num (substring body 0 sign-pos))
@@ -133,7 +133,7 @@
 
 ; --- Type definition ---
 
-(set %complex
+(set! %complex
   (make-type
     "COMPLEX"
     (list
@@ -244,17 +244,17 @@
             (real-op acc (first lst))))
         (rest lst)))))
 
-(set +
+(set! +
   (fn args
     (if (null? args) 0
       (%complex-fold complex+ %real+ (first args) (rest args)))))
 
-(set *
+(set! *
   (fn args
     (if (null? args) 1
       (%complex-fold complex* %real* (first args) (rest args)))))
 
-(set /
+(set! /
   (fn args
     (if (null? args) 1
       (if (null? (rest args))
@@ -263,7 +263,7 @@
           (%real/ 1 (first args)))
         (%complex-fold complex/ %real/ (first args) (rest args))))))
 
-(set -
+(set! -
   (fn args
     (if (null? args) 0
       (if (null? (rest args))
@@ -272,7 +272,7 @@
           (%real- (first args)))
         (%complex-fold complex- %real- (first args) (rest args))))))
 
-(set =
+(set! =
   (fn (a b)
     (if (%complex? a)
       (complex= a (if (%complex? b) b (%make-complex b 0)))
@@ -281,7 +281,7 @@
         (%real= a b)))))
 ; --- Predicates ---
 
-(set number?
+(set! number?
   (fn (x)
     (if (%complex? x) #t
       (if (%rat? x) #t
@@ -290,7 +290,7 @@
 
 (def complex? number?)
 
-(set real?
+(set! real?
   (fn (x)
     (if (%rat? x) #t
       (if (float? x) #t

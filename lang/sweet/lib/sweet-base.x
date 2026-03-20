@@ -62,7 +62,7 @@
         (if (equal? raw "}")
           %curly-close
           (let loop ((elems ()))
-            (set-first %wsf 0)
+            (set-first! %wsf 0)
             (let ((e (%prim-read)))
               (if (null? e) (infix->prefix (reverse elems))
                 (if (curly-close? e) (infix->prefix (reverse elems))
@@ -111,7 +111,7 @@
                 (first %a2)
                 (if (atom-val (first %nl)) (score-set score 1 buffer) ())))))))
       %ws-fvars))
-  (set-first %a2 %ws-a2)
+  (set-first! %a2 %ws-a2)
 
   ; WS analyse a1: first char must be whitespace
   (define %ws-a1
@@ -132,7 +132,7 @@
   (define %ws-reader
     (lambda args
       (buffer-unread (car args))
-      (set-first %wsf 1)
+      (set-first! %wsf 1)
       #t))
 
   ; --- Indentation grouping (SRFI-110) ---
@@ -143,7 +143,7 @@
   (define sweet-read-expr ())
 
   (define (sweet-read-siblings lv)
-    (set-first-int %slv lv)
+    (set-first-int! %slv lv)
     (let lp ((ch ()))
       (let ((child (sweet-read-expr (first-int %slv))))
         (if (null? child) (reverse ch)
@@ -155,9 +155,9 @@
 
   (set! sweet-read-expr
     (lambda (base)
-      (set-first-int %sre base)
+      (set-first-int! %sre base)
       (let lp ((acc ()))
-        (set-first %wsf 0)
+        (set-first! %wsf 0)
         (let ((t (%prim-read)))
           (if (null? t)
             (sw1 (reverse acc))
@@ -175,7 +175,7 @@
   ; %test-read: skip SWEET-WS tokens for test harness
   (def %test-read
     (fn ()
-      (set-first %wsf 0)
+      (set-first! %wsf 0)
       (def %tr (%prim-read))
       (if (not (= (first %wsf) 0)) (%test-read) %tr)))
 
@@ -218,5 +218,5 @@
             (%repl-print (eval! %r)))
           (sweet-repl)))))
 )
-(set %repl-prompt "")
+(set! %repl-prompt "")
 (sweet-repl)

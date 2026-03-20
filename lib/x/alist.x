@@ -3,60 +3,60 @@
 ; Alists: ((key1 . val1) (key2 . val2) ...)
 ; Keys compared with eq? (symbol pointer equality)
 
-(def aget
+(def assoc-get
   (fn (key alist)
     (match
       ((null? alist) ())
       ((eq? key (first (first alist))) (rest (first alist)))
-      (#t (aget key (rest alist))))))
+      (#t (assoc-get key (rest alist))))))
 
-(def aget-or
+(def assoc-get-or
   (fn (d key alist)
-    (def result (aget key alist))
+    (def result (assoc-get key alist))
     (if (null? result) d result)))
 
-(def ahas?
+(def assoc-has?
   (fn (key alist)
     (match
       ((null? alist) #f)
       ((eq? key (first (first alist))) #t)
-      (#t (ahas? key (rest alist))))))
+      (#t (assoc-has? key (rest alist))))))
 
-(def adel
+(def assoc-del
   (fn (key alist)
     (match
       ((null? alist) ())
-      ((eq? key (first (first alist))) (adel key (rest alist)))
-      (#t (pair (first alist) (adel key (rest alist)))))))
+      ((eq? key (first (first alist))) (assoc-del key (rest alist)))
+      (#t (pair (first alist) (assoc-del key (rest alist)))))))
 
-(def aset
-  (fn (key val alist) (pair (pair key val) (adel key alist))))
+(def assoc-put
+  (fn (key val alist) (pair (pair key val) (assoc-del key alist))))
 
-(def akeys (fn (alist) (map first alist)))
+(def assoc-keys (fn (alist) (map first alist)))
 
-(def avals (fn (alist) (map rest alist)))
+(def assoc-vals (fn (alist) (map rest alist)))
 
-(def amap
+(def assoc-map
   (fn (f alist)
     (map
       (fn (entry) (pair (first entry) (f (rest entry))))
       alist)))
 
-(def afilter (fn (pred alist) (filter pred alist)))
+(def assoc-filter (fn (pred alist) (filter pred alist)))
 
-(def amerge
+(def assoc-merge
   (fn (a b)
     (fold
       (fn (acc entry)
-        (if (ahas? (first entry) acc) acc (pair entry acc)))
+        (if (assoc-has? (first entry) acc) acc (pair entry acc)))
       a
       b)))
 
-(def apick
+(def assoc-pick
   (fn (keys alist)
     (filter (fn (entry) (includes? (first entry) keys)) alist)))
 
-(def aomit
+(def assoc-omit
   (fn (keys alist)
     (filter
       (fn (entry) (not (includes? (first entry) keys)))
@@ -74,7 +74,7 @@
   (fn (fns alist)
     (map
       (fn (entry)
-        (def transform (aget (first entry) fns))
+        (def transform (assoc-get (first entry) fns))
         (if (null? transform)
           entry
           (pair (first entry) (transform (rest entry)))))

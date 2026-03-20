@@ -12,7 +12,7 @@
 ;     (   )
 ;      " "
 (include "lang/r7rs/lib/r7rs-base.x")
-(set %lang-name "R7RS Scheme")
-(set %lang-version x-lib-version)
+(set! %lang-name "R7RS Scheme")
+(set! %lang-version x-lib-version)
 (%banner)
 (repl)

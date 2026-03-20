@@ -74,11 +74,11 @@
           (fn ()
             (if (< i len)
               (let ((val (obj-ref self (+ i 1))))
-                (set i (+ i 1))
+                (set! i (+ i 1))
                 val)
               ())))))))
 
-(set %vector-read (fn args
+(set! %vector-read (fn args
   (def lst (read))
   (def len (length lst))
   (def v (make-obj %vector (+ len 1)))

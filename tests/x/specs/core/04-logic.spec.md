@@ -50,7 +50,7 @@
 ### short-circuits evaluation
 
 ```scheme
-(do (def x 0) (and (lit ()) (set x 1)) x)
+(do (def x 0) (and (lit ()) (set! x 1)) x)
 ```
 ---
     0
@@ -121,7 +121,7 @@
 ### short-circuits evaluation
 
 ```scheme
-(do (def x 0) (or 1 (set x 1)) x)
+(do (def x 0) (or 1 (set! x 1)) x)
 ```
 ---
     0

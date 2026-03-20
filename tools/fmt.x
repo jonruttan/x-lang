@@ -33,8 +33,8 @@
   ; Lookup helper: returns property list or () for unknown forms
   (def %fmt-find (fn (key table)
     (if (null? table) ()
-      (if (string=? (symbol->string key)
-                    (symbol->string (first (first table))))
+      (if (string=? (convert key %string)
+                    (convert (first (first table)) %string))
         (first table)
         (%fmt-find key (rest table))))))
   (def %fmt-lookup (fn (name)
@@ -78,7 +78,7 @@
   (def %comment-entry (%find-comment (first (first (first %fmt-base)))))
   (def %comment-io (%entry-io %comment-entry))
   (def %comment-read-stack (first (rest (rest %comment-io))))
-  (set-first %comment-read-stack %fmt-comment-reader)
+  (set-first! %comment-read-stack %fmt-comment-reader)
 
   ; --- Read input string (next form on stdin) and tokenize ---
 
@@ -107,7 +107,7 @@
 
   ; Format a sequence of body forms, each on its own line
   ; Handles improper lists (dotted pairs) by printing ". tail"
-  (set %fmt-body (fn (forms col)
+  (set! %fmt-body (fn (forms col)
     (if (null? forms) ()
       (if (not (pair? forms))
         (do (display "\n") (%spaces col)
@@ -122,14 +122,14 @@
   (def %fmt-head-1 (fn (head rest-forms col)
     (if (null? rest-forms) (write (pair head rest-forms))
       (do (display "(") (write head) (display " ")
-          (def head-width (+ 2 (string-length (symbol->string head))))
+          (def head-width (+ 2 (string-length (convert head %string))))
           (%fmt-expr (first rest-forms) (+ col head-width))
           (%fmt-body (rest rest-forms) (+ col 2))
           (display ")")))))
 
   (def %fmt-head-kw (fn (head rest-forms col)
     (do (display "(") (write head) (display " ")
-        (def head-width (+ 2 (string-length (symbol->string head))))
+        (def head-width (+ 2 (string-length (convert head %string))))
         (%fmt-expr (first rest-forms) (+ col head-width))
         (%fmt-body (rest rest-forms) (+ col 2))
         (display ")"))))
@@ -146,7 +146,7 @@
         (display ")"))))
 
   ; Format a list form with indentation awareness
-  (set %fmt-list (fn (form col)
+  (set! %fmt-list (fn (form col)
     (def head (first form))
     (def rest-forms (rest form))
 
@@ -163,7 +163,7 @@
             (%fmt-default head rest-forms col))))))))
 
   ; Format any expression
-  (set %fmt-expr (fn (form col)
+  (set! %fmt-expr (fn (form col)
     (if (%comment? form)
       (display (first (rest form)))
       (if (pair? form) (%fmt-list form col)

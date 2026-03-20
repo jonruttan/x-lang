@@ -145,7 +145,7 @@
 ### applies to each element
 
 ```scheme
-($define! sum 0) (for-each ($lambda (x) (set sum (+ sum x))) (list 1 2 3)) sum
+($define! sum 0) (for-each ($lambda (x) (set! sum (+ sum x))) (list 1 2 3)) sum
 ```
 ---
     6

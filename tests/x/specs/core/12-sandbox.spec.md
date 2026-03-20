@@ -127,7 +127,7 @@
 ```scheme
 (do (def %tb1 (make-token-base))
     (def %tb1-r (fn args (list (lit word) (buffer-token (first args)))))
-    (def %tb1-a ()) (set %tb1-a (fn (buffer score chr)
+    (def %tb1-a ()) (set! %tb1-a (fn (buffer score chr)
       (if (or (= chr 32) (= chr 10)) (do (buffer-unread buffer) (score-set score (- 0 1) buffer))
         %tb1-a)))
     (base-make-type %tb1 "WORD" (list (pair (lit analyse) (fn (buffer score chr)
@@ -143,7 +143,7 @@
 ```scheme
 (do (def %tb2 (make-token-base))
     (def %tb2-r (fn args (list (lit word) (buffer-token (first args)))))
-    (def %tb2-a ()) (set %tb2-a (fn (buffer score chr)
+    (def %tb2-a ()) (set! %tb2-a (fn (buffer score chr)
       (if (or (= chr 32) (= chr 10)) (do (buffer-unread buffer) (score-set score (- 0 1) buffer))
         %tb2-a)))
     (base-make-type %tb2 "WORD" (list (pair (lit analyse) (fn (buffer score chr)
@@ -161,7 +161,7 @@
 ```scheme
 (do (def %tb3 (make-token-base))
     (def %tb3-r (fn args (buffer-token (first args))))
-    (def %tb3-body ()) (set %tb3-body (fn (buffer score chr)
+    (def %tb3-body ()) (set! %tb3-body (fn (buffer score chr)
       (if (or (= chr 32) (= chr 10)) (do (buffer-unread buffer) (score-set score (- 0 1) buffer))
         %tb3-body)))
     (base-make-type %tb3 "ALL" (list (pair (lit analyse) (fn (buffer score chr)
@@ -177,8 +177,8 @@
 ```scheme
 (do (def %tb4 (make-token-base))
     (def %tb4-r (fn args (buffer-token (first args))))
-    (def %tb4-body ()) (set %tb4-body (fn (buffer score chr)
-      (if (= chr (char->integer #\newline))
+    (def %tb4-body ()) (set! %tb4-body (fn (buffer score chr)
+      (if (= chr 10)
         (do (buffer-unread buffer) (score-set score 1 buffer))
         %tb4-body)))
     (base-make-type %tb4 "LINE" (list (pair (lit analyse) (fn (buffer score chr)
@@ -194,7 +194,7 @@
 ```scheme
 (do (def %tb5 (make-token-base))
     (def %tb5-r (fn args (list (lit tok) (buffer-token (first args)))))
-    (def %tb5-body ()) (set %tb5-body (fn (buffer score chr)
+    (def %tb5-body ()) (set! %tb5-body (fn (buffer score chr)
       (if (= chr 32) (do (buffer-unread buffer) (score-set score (- 0 1) buffer))
         %tb5-body)))
     (base-make-type %tb5 "WORD" (list (pair (lit analyse) (fn (buffer score chr)
@@ -212,13 +212,13 @@
 ```scheme
 (do (def %tb6 (make-base))
     (def %tb6-r (fn args (list (lit %comment) (buffer-token (first args)))))
-    (def %tb6-body ()) (set %tb6-body (fn (buffer score chr)
+    (def %tb6-body ()) (set! %tb6-body (fn (buffer score chr)
       (if (= chr 10) (score-set score 1 buffer) %tb6-body)))
     (base-make-type %tb6 "FMT-COMMENT" (list (pair (lit analyse) (fn (buffer score chr)
       (if (= chr 59) (do (score-set score 1 buffer) %tb6-body) ())))
       (pair (lit read) %tb6-r)))
     (def %tb6-ta (first (first (first (first (rest (first %tb6)))))))
-    (set-first (first (first (first (rest (first %tb6))))) (append (rest %tb6-ta) (list (first %tb6-ta))))
+    (set-first! (first (first (first (rest (first %tb6))))) (append (rest %tb6-ta) (list (first %tb6-ta))))
     (def %tb6-tokens (token-read-string %tb6 "; hi\n(+ 1 2)"))
     (first (first %tb6-tokens)))
 ```
@@ -260,7 +260,7 @@
     (def %tb8-a (base-make-type %tb8 "A" (list (pair (lit analyse) (fn (buffer score chr) ())))))
     (def %tb8-b (base-make-type %tb8 "B" (list (pair (lit analyse) (fn (buffer score chr) ())))))
     (def %tb8-ta (first (first (first (first (rest (first %tb8)))))))
-    (set-first (first (first (first (rest (first %tb8))))) (append (rest %tb8-ta) (list (first %tb8-ta))))
+    (set-first! (first (first (first (rest (first %tb8))))) (append (rest %tb8-ta) (list (first %tb8-ta))))
     (def %tb8-new (first (first (first (first (rest (first %tb8)))))))
     (eq? (first (first %tb8-new)) %tb8-a))
 ```

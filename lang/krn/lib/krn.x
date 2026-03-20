@@ -12,8 +12,8 @@
 ;     (   )
 ;      " "
 (include "lang/krn/lib/krn-base.x")
-(set %repl-prompt ">> ")
-(set %lang-name "Kernel")
-(set %lang-version x-lib-version)
+(set! %repl-prompt ">> ")
+(set! %lang-name "Kernel")
+(set! %lang-version x-lib-version)
 (%banner)
 (repl)

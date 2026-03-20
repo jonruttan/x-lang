@@ -12,7 +12,7 @@
 ;     (   )
 ;      " "
 (include "lang/r5rs/lib/r5rs-base.x")
-(set %lang-name "R5RS Scheme")
-(set %lang-version x-lib-version)
+(set! %lang-name "R5RS Scheme")
+(set! %lang-version x-lib-version)
 (%banner)
 (repl)

@@ -208,7 +208,7 @@
 
 ```x
 (let ((x 0))
-  (cond (#t (set x 10) (+ x 5))))
+  (cond (#t (set! x 10) (+ x 5))))
 ```
 ---
     15
@@ -217,7 +217,7 @@
 
 ```x
 (let ((x 0))
-  (cond (#f (lit no)) (else (set x 1) (+ x 2))))
+  (cond (#f (lit no)) (else (set! x 1) (+ x 2))))
 ```
 ---
     3
@@ -261,7 +261,7 @@
 (let ((x 0))
   (case 2
     ((1) (lit one))
-    ((2) (set x 10) (+ x 5))
+    ((2) (set! x 10) (+ x 5))
     ((3) (lit three))))
 ```
 ---
@@ -273,7 +273,7 @@
 (let ((x 0))
   (case 99
     ((1) (lit one))
-    (else (set x 1) (+ x 2))))
+    (else (set! x 1) (+ x 2))))
 ```
 ---
     3

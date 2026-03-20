@@ -107,11 +107,12 @@
   (def not (fn (x) (if x #f #t)))
   (def atom? (fn (x) (not (pair? x))))
   (def list (fn args args))
+  (include "lib/x/convert.x")
   (def newline (fn () (display "\n")))
   (def string-ref (fn (s i) (s i)))
   (def string-length (fn (s) (s)))
   (def substring (fn (s start end) (s start (- end start))))
-  (def heap-collect (fn () (atomic heap-mark heap-sweep) ()))
+  (def heap-collect (fn () (applicative heap-mark heap-sweep) ()))
   ; GC hooks: navigate base tree to gc-hooks cells
   (def %gc-hooks
     (rest (rest (rest (rest (rest (rest (rest (first (%base))))))))))
@@ -119,24 +120,29 @@
   (def heap-mark-root!
     (fn (obj)
       (def %cell (rest %gc-hooks-rest))
-      (set-first %cell (pair obj (first %cell)))))
+      (set-first! %cell (pair obj (first %cell)))))
   (def heap-mark-hook!
     (fn (hook)
       (def %cell (first %gc-hooks))
-      (set-first %cell (pair hook (first %cell)))))
+      (set-first! %cell (pair hook (first %cell)))))
   (def heap-free-hook!
     (fn (hook)
       (def %cell (first %gc-hooks-rest))
-      (set-first %cell (pair hook (first %cell)))))
+      (set-first! %cell (pair hook (first %cell)))))
+  ; Extend base tree: add include-list cell under io-state (after false-stack)
+  (def %io-state (rest (first (rest (first (%base))))))
+  (def %false-stack (rest (rest %io-state)))
+  (set-rest! %false-stack (pair () ()))
+  (def %include-list-cell (rest %false-stack))
   (def % (fn (a b) (- a (* b (/ a b)))))
   (def %rewrite
-    (fn (p a b) (set-first p a) (set-rest p b) p))
+    (fn (p a b) (set-first! p a) (set-rest! p b) p))
   (def %expanded (pair () ()))
   (def %string-eq-loop
     (fn (a b i len)
       (if (= i len)
         #t
-        (if (= (char->integer (a i)) (char->integer (b i)))
+        (if (= (convert (a i) %int) (convert (b i) %int))
           (%string-eq-loop a b (+ i 1) len)
           #f))))
   (def string=?
@@ -212,9 +218,9 @@
       (def %files (rest (first (first (rest (first (%base)))))))
       (def %fo (first (rest %files)))
       (def %s (first-int %fo))
-      (set-first-int %fo (first-int (first (rest (rest %files)))))
+      (set-first-int! %fo (first-int (first (rest (rest %files)))))
       (display msg)
-      (set-first-int %fo %s)))
+      (set-first-int! %fo %s)))
   ; Dump alloc-count and heap-count to stderr
 
   (def %profile-dump
@@ -245,23 +251,23 @@
   (def %int< <)
   (def %int= =)
   (def %int-number? number?)
-  (set +
+  (set! +
     (fn args
       (if (null? args) 0 (fold %int+ (first args) (rest args)))))
-  (set *
+  (set! *
     (fn args
       (if (null? args) 1 (fold %int* (first args) (rest args)))))
-  (set /
+  (set! /
     (fn args
       (if (null? args) 1 (fold %int/ (first args) (rest args)))))
-  (set -
+  (set! -
     (fn args
       (if (null? args)
         0
         (if (null? (rest args))
           (%int- 0 (first args))
           (fold %int- (first args) (rest args))))))
-  (set % (fn args (fold %int% (first args) (rest args))))
+  (set! % (fn args (fold %int% (first args) (rest args))))
   ; --- Intrinsic scoring helpers for custom type analysers ---
 
   (def buffer-len
@@ -269,12 +275,12 @@
       (- (first-int (rest buffer)) (first-int buffer))))
   (def buffer-unread
     (fn (buffer)
-      (set-first-int
+      (set-first-int!
         (rest buffer)
         (- (first-int (rest buffer)) 1))))
   (def score-set
     (fn (score sign buffer)
-      (set-first-int score (* sign (buffer-len buffer)))))
+      (set-first-int! score (* sign (buffer-len buffer)))))
   (def peek-char
     (fn ()
       (def %ch (read-char))
@@ -293,6 +299,23 @@
   (include "lib/x/string.x")
   (include "lib/x/vector.x")
   (include "lib/x/promise.x")
+  ; --- Include-once / require-once ---
+  (def %include-list-has?
+    (fn (path)
+      (def %go
+        (fn (lst)
+          (if (null? lst) #f
+            (if (string=? (first lst) path) #t
+              (%go (rest lst))))))
+      (%go (first %include-list-cell))))
+  (def include-once
+    (op (path) e
+      (let ((p (eval path e)))
+        (if (%include-list-has? p) ()
+          (do (set-first! %include-list-cell
+                (pair p (first %include-list-cell)))
+              (include p))))))
+  (def require-once include-once)
   ; --- quasi (needs append from list.x) ---
 
   ; Compile template to a pair/lit/append tree that, when eval'd,

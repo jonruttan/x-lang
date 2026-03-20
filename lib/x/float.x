@@ -23,7 +23,7 @@
 
 (def %float-frac ())
 
-(set %float-frac
+(set! %float-frac
   (fn (buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %float-frac
@@ -39,7 +39,7 @@
 
 (def %float-int-digits ())
 
-(set %float-int-digits
+(set! %float-int-digits
   (fn (buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %float-int-digits
@@ -130,7 +130,7 @@
 ; Reader: called by tokenizer after successful analyse
 ; Uses buffer-token to extract consumed text, then strtod to parse
 
-(set %float-read
+(set! %float-read
   (fn args
     (make-instance
       %float
@@ -211,26 +211,26 @@
         (rest lst)))))
 ; Inlined overrides — avoid or, avoid closure variable lookup
 
-(set +
+(set! +
   (fn args
     (if (null? args)
       0
       (%float-fold %int+ f+ (first args) (rest args)))))
 
-(set *
+(set! *
   (fn args
     (if (null? args)
       1
       (%float-fold %int* f* (first args) (rest args)))))
 
-(set /
+(set! /
   (fn args
     (if (null? args)
       1
       (%float-fold %int/ f/ (first args) (rest args)))))
 ; - is special: unary negation case
 
-(set -
+(set! -
   (fn args
     (if (null? args)
       0
@@ -241,13 +241,13 @@
         (%float-fold %int- f- (first args) (rest args))))))
 ; Comparisons — inline, no or
 
-(set <
+(set! <
   (fn (a b)
     (if (float? a)
       (f< a (%ensure-float b))
       (if (float? b) (f< (%ensure-float a) b) (%int< a b)))))
 
-(set =
+(set! =
   (fn (a b)
     (if (float? a)
       (f= a (%ensure-float b))
@@ -257,7 +257,7 @@
 
 (def integer? number?)
 
-(set number? (fn (x) (if (%int-number? x) #t (float? x))))
+(set! number? (fn (x) (if (%int-number? x) #t (float? x))))
 
 (def real? number?)
 

@@ -1,9 +1,9 @@
-## aget
+## assoc-get
 
 ### retrieves value by key
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (aget (lit b) al))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-get (lit b) al))
 ```
 ---
     2
@@ -11,7 +11,7 @@
 ### returns nil for missing key
 
 ```scheme
-(do (def al (list (pair (lit a) 1))) (null? (aget (lit z) al)))
+(do (def al (list (pair (lit a) 1))) (null? (assoc-get (lit z) al)))
 ```
 ---
     #t
@@ -19,17 +19,17 @@
 ### retrieves value from first entry
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (aget (lit a) al))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-get (lit a) al))
 ```
 ---
     1
 
-## aget-or
+## assoc-get-or
 
 ### returns value when key exists
 
 ```scheme
-(do (def al (list (pair (lit a) 1))) (aget-or 99 (lit a) al))
+(do (def al (list (pair (lit a) 1))) (assoc-get-or 99 (lit a) al))
 ```
 ---
     1
@@ -37,17 +37,17 @@
 ### returns default when key missing
 
 ```scheme
-(do (def al (list (pair (lit a) 1))) (aget-or 99 (lit z) al))
+(do (def al (list (pair (lit a) 1))) (assoc-get-or 99 (lit z) al))
 ```
 ---
     99
 
-## ahas?
+## assoc-has?
 
 ### returns #t when key exists
 
 ```scheme
-(do (def al (list (pair (lit a) 1))) (ahas? (lit a) al))
+(do (def al (list (pair (lit a) 1))) (assoc-has? (lit a) al))
 ```
 ---
     #t
@@ -55,7 +55,7 @@
 ### returns nil when key missing
 
 ```scheme
-(do (def al (list (pair (lit a) 1))) (if (ahas? (lit z) al) "y" "n"))
+(do (def al (list (pair (lit a) 1))) (if (assoc-has? (lit z) al) "y" "n"))
 ```
 ---
     "n"
@@ -63,27 +63,27 @@
 ### finds key after first entry
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (ahas? (lit b) al))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-has? (lit b) al))
 ```
 ---
     #t
 
-## aset
+## assoc-put
 
 ### adds key-value pair
 
 ```scheme
-(do (def al (list (pair (lit a) 1))) (aget (lit b) (aset (lit b) 2 al)))
+(do (def al (list (pair (lit a) 1))) (assoc-get (lit b) (assoc-put (lit b) 2 al)))
 ```
 ---
     2
 
-## adel
+## assoc-del
 
 ### removes key from alist
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (length (adel (lit a) al)))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (length (assoc-del (lit a) al)))
 ```
 ---
     1
@@ -91,7 +91,7 @@
 ### returns same length when key not present
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (length (adel (lit z) al)))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (length (assoc-del (lit z) al)))
 ```
 ---
     2
@@ -99,77 +99,77 @@
 ### removes key not at head
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (null? (aget (lit b) (adel (lit b) al))))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (null? (assoc-get (lit b) (assoc-del (lit b) al))))
 ```
 ---
     #t
 
-## akeys
+## assoc-keys
 
 ### returns list of keys
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (akeys al))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-keys al))
 ```
 ---
     (a b)
 
-## avals
+## assoc-vals
 
 ### returns list of values
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (avals al))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-vals al))
 ```
 ---
     (1 2)
 
-## amap
+## assoc-map
 
 ### applies function to all values
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (aget (lit a) (amap inc al)))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-get (lit a) (assoc-map inc al)))
 ```
 ---
     2
 
-## afilter
+## assoc-filter
 
 ### filters entries by predicate
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (length (afilter (fn (e) (> (rest e) 1)) al)))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (length (assoc-filter (fn (e) (> (rest e) 1)) al)))
 ```
 ---
     1
 
-## amerge
+## assoc-merge
 
 ### merges two alists
 
 ```scheme
-(do (def a (list (pair (lit x) 1))) (def b (list (pair (lit y) 2))) (length (amerge a b)))
+(do (def a (list (pair (lit x) 1))) (def b (list (pair (lit y) 2))) (length (assoc-merge a b)))
 ```
 ---
     2
 
-## apick
+## assoc-pick
 
 ### selects entries by key list
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2) (pair (lit c) 3))) (length (apick (list (lit a) (lit c)) al)))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2) (pair (lit c) 3))) (length (assoc-pick (list (lit a) (lit c)) al)))
 ```
 ---
     2
 
-## aomit
+## assoc-omit
 
 ### removes entries by key list
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2) (pair (lit c) 3))) (length (aomit (list (lit a)) al)))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2) (pair (lit c) 3))) (length (assoc-omit (list (lit a)) al)))
 ```
 ---
     2
@@ -179,7 +179,7 @@
 ### converts list of lists to alist
 
 ```scheme
-(do (def al (from-pairs (list (list (lit a) 1) (list (lit b) 2)))) (aget (lit a) al))
+(do (def al (from-pairs (list (list (lit a) 1) (list (lit b) 2)))) (assoc-get (lit a) al))
 ```
 ---
     1
@@ -199,7 +199,7 @@
 ### transforms values by matching keys
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (aget (lit a) (evolve (list (pair (lit a) inc)) al)))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-get (lit a) (evolve (list (pair (lit a) inc)) al)))
 ```
 ---
     2

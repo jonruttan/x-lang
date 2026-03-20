@@ -134,7 +134,7 @@
 ### mutates a binding
 
 ```scheme
-(do (def x 1) (set x 2) x)
+(do (def x 1) (set! x 2) x)
 ```
 ---
     2
@@ -142,7 +142,7 @@
 ### returns the new value
 
 ```scheme
-(do (def x 1) (set x 42))
+(do (def x 1) (set! x 42))
 ```
 ---
     42

@@ -24,7 +24,7 @@
 (define (bytevector? x) (type? x %bytevector))
 
 (define (%bv-alloc n)
-  (int->ptr (ptr-call %bv-malloc (if (= n 0) 1 n))))
+  (convert (ptr-call %bv-malloc (if (= n 0) 1 n)) %ptr))
 
 (define (bytevector . bytes)
   (let ((len (length bytes)))
@@ -70,7 +70,7 @@
           (let ((dst (obj-ref new 1)))
             (if (> len 0)
               (ptr-call %bv-memcpy dst
-                (int->ptr (+ (ptr->int src) start)) len)))
+                (convert (+ (convert src %int) start) %ptr) len)))
           new)))))
 
 (define (bytevector-copy! to at from . args)
@@ -81,8 +81,8 @@
       (let ((len (- end start)))
         (if (> len 0)
           (ptr-call %bv-memcpy
-            (int->ptr (+ (ptr->int (obj-ref to 1)) at))
-            (int->ptr (+ (ptr->int (obj-ref from 1)) start)) len))))))
+            (convert (+ (convert (obj-ref to 1) %int) at) %ptr)
+            (convert (+ (convert (obj-ref from 1) %int) start) %ptr) len))))))
 
 (define (bytevector-append . bvs)
   (let ((total (apply + (map bytevector-length bvs))))
@@ -93,7 +93,7 @@
             (let ((len (bytevector-length (car bvs))))
               (if (> len 0)
                 (ptr-call %bv-memcpy
-                  (int->ptr (+ (ptr->int dst) off))
+                  (convert (+ (convert dst %int) off) %ptr)
                   (obj-ref (car bvs) 1) len))
               (loop (cdr bvs) (+ off len))))))
       new)))
@@ -104,11 +104,12 @@
           (end (if (or (null? args) (null? (cdr args)))
                  src-len (cadr args))))
       (let ((buf (obj-ref bv 1)))
-        (list->string
+        (convert
           (let loop ((i start) (acc ()))
             (if (>= i end) (reverse acc)
               (loop (+ i 1)
-                (cons (integer->char (ptr-ref buf i 1)) acc)))))))))
+                (cons (convert (ptr-ref buf i 1) %char) acc))))
+          %string))))))
 
 (define (string->utf8 str . args)
   (let ((start (if (null? args) 0 (car args)))
@@ -121,6 +122,6 @@
           (let loop ((i 0) (si start))
             (if (< i len)
               (begin
-                (ptr-set! buf i (char->integer (string-ref str si)) 1)
+                (ptr-set! buf i (convert (string-ref str si) %int) 1)
                 (loop (+ i 1) (+ si 1))))))
         bv))))

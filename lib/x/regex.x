@@ -62,7 +62,7 @@
       (regex-exec rest-nodes str pos end))))
 ; Walk AST node list against string
 
-(set regex-exec
+(set! regex-exec
   (fn (nodes str pos end)
     (if (null? nodes)
       pos
@@ -111,7 +111,7 @@
             ((= ch #\+) (do (display "\\") (display "+")))
             ((= ch #\?) (do (display "\\") (display "?")))
             ((= ch #\\) (do (display "\\") (display "\\")))
-            (#t (display (integer->char ch))))))
+            (#t (display (convert ch %char))))))
       ((eq? tag (lit any)) (display "."))
       ((eq? tag (lit star))
         (do (%regex-write-node (first (rest node))) (display "*")))
@@ -154,7 +154,7 @@
 
         ((= chr #\/)
           (do
-            (set %regex-read-data (reverse acc))
+            (set! %regex-read-data (reverse acc))
             (score-set score 1 buffer)))
         ; Escape: next char is literal
 
@@ -188,13 +188,13 @@
         (#t (%regex-body (pair (list (lit lit) (+ chr 0)) acc)))))))
 ; Escape state: next char is literal regardless
 
-(set %regex-escape
+(set! %regex-escape
   (fn (acc)
     (fn (buffer score chr)
       (%regex-body (pair (list (lit lit) (+ chr 0)) acc)))))
 ; --- Type definition ---
 
-(set %regex
+(set! %regex
   (make-type
     "REGEX"
     (list

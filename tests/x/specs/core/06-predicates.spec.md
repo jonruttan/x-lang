@@ -338,12 +338,12 @@
 ---
     #f
 
-## char->integer
+## char to integer
 
 ### converts lowercase letter
 
 ```scheme
-(char->integer #\a)
+(convert #\a %int)
 ```
 ---
     97
@@ -351,7 +351,7 @@
 ### converts uppercase letter
 
 ```scheme
-(char->integer #\A)
+(convert #\A %int)
 ```
 ---
     65
@@ -359,25 +359,25 @@
 ### converts digit character
 
 ```scheme
-(char->integer #\0)
+(convert #\0 %int)
 ```
 ---
     48
 
-## integer->char
+## integer to char
 
 ### converts code point to character
 
 ```scheme
-(integer->char 65)
+(convert 65 %char)
 ```
 ---
     #\A
 
-### round-trips with char->integer
+### round-trips char/integer
 
 ```scheme
-(= (char->integer (integer->char 97)) 97)
+(= (convert (convert 97 %char) %int) 97)
 ```
 ---
     #t

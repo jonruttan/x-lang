@@ -24,7 +24,7 @@
   (fn (cur) (if (null? (first cur)) () (first (first cur)))))
 
 (def %cursor-advance!
-  (fn (cur) (set-first cur (rest (first cur))) ()))
+  (fn (cur) (set-first! cur (rest (first cur))) ()))
 
 (def %cursor-empty? (fn (cur) (null? (first cur))))
 ; --- Token predicates ---
@@ -134,13 +134,13 @@
       (if (= (string-length word) 0)
         word
         (if (not
-              (= (char->integer (string-ref word 0)) (char->integer #\$)))
+              (= (convert (string-ref word 0) %int) (convert #\$ %int)))
           word
           (let ((name (substring word 1 (string-length word))))
             (if (string=? name "?")
-              (number->string %sh-status)
+              (convert %sh-status %string)
               (if (string=? name "$")
-                (number->string %sh-pid)
+                (convert %sh-pid %string)
                 (let ((val (sh-getenv name))) (if (null? val) "" val))))))))))
 
 (def %sh-expand-words
@@ -173,12 +173,12 @@
 (def %all-digits?
   (fn (s)
     (def %check ())
-    (set %check
+    (set! %check
       (fn (i len)
         (if (= i len)
           #t
-          (let ((c (char->integer (string-ref s i))))
-            (if (and (>= c (char->integer #\0)) (<= c (char->integer #\9)))
+          (let ((c (convert (string-ref s i) %int)))
+            (if (and (>= c (convert #\0 %int)) (<= c (convert #\9 %int)))
               (%check (+ i 1) len)
               ())))))
     (if (= (string-length s) 0)
@@ -197,7 +197,7 @@
            (fd-val (first (rest (rest redir))))
            (target
              (%sh-expand-word (first (rest (rest (rest redir)))))))
-      (let ((fd (if (string? fd-val) (string->number fd-val) fd-val)))
+      (let ((fd (if (string? fd-val) (convert fd-val %int) fd-val)))
         (if (string=? op "<")
           (let ((fh (sh-open-read target)))
             (sh-dup2 fh fd)
@@ -215,9 +215,9 @@
                   (sh-dup2 fh fd)
                   (sh-close fh))
                 (if (string=? op ">&")
-                  (sh-dup2 (string->number target) fd)
+                  (sh-dup2 (convert target %int) fd)
                   (if (string=? op "<&")
-                    (sh-dup2 (string->number target) fd)
+                    (sh-dup2 (convert target %int) fd)
                     ()))))))))))
 
 (def %sh-setup-redirs
@@ -245,7 +245,7 @@
 (def %sh-echo
   (fn (wds)
     (def %print-words ())
-    (set %print-words
+    (set! %print-words
       (fn (ws first-word)
         (if (null? ws)
           ()
@@ -280,11 +280,11 @@
       0
       (let ((word (first wds)))
         (def %find-eq ())
-        (set %find-eq
+        (set! %find-eq
           (fn (i)
             (if (= i (string-length word))
               -1
-              (if (= (char->integer (string-ref word i)) (char->integer #\=))
+              (if (= (convert (string-ref word i) %int) (convert #\= %int))
                 i
                 (%find-eq (+ i 1))))))
         (let ((eq-pos (%find-eq 0)))
@@ -330,7 +330,7 @@
           (%sh-export wds)
           (if (string=? name "exit")
             (sh-exit
-              (if (null? wds) %sh-status (string->number (first wds))))
+              (if (null? wds) %sh-status (convert (first wds) %int)))
             (if (string=? name "true")
               0
               (if (string=? name "false")
@@ -366,11 +366,11 @@
 (def %is-assignment?
   (fn (word)
     (def %has-eq ())
-    (set %has-eq
+    (set! %has-eq
       (fn (i)
         (if (= i (string-length word))
           ()
-          (if (= (char->integer (string-ref word i)) (char->integer #\=))
+          (if (= (convert (string-ref word i) %int) (convert #\= %int))
             (if (= i 0) () #t)
             (%has-eq (+ i 1))))))
     (if (= (string-length word) 0) () (%has-eq 0))))
@@ -391,14 +391,14 @@
     (let ((expanded (%sh-expand-words wds)))
       (let ((remaining (%process-assignments expanded)))
         (if (null? remaining)
-          (do (set %sh-status 0) 0)
+          (do (set! %sh-status 0) 0)
           (let ((name (first remaining)) (cmd-wds (rest remaining)))
             (if (%sh-builtin? name)
               (let ((status (%sh-run-builtin name cmd-wds)))
-                (set %sh-status status)
+                (set! %sh-status status)
                 status)
               (let ((status (%sh-run-external name cmd-wds redirs)))
-                (set %sh-status status)
+                (set! %sh-status status)
                 status))))))))
 ; Save C pipe primitive before we shadow it
 
@@ -448,7 +448,7 @@
 
 (def %collect-cmd-tokens ())
 
-(set %collect-cmd-tokens
+(set! %collect-cmd-tokens
   (fn (cur wds redirs)
     (if (%cursor-empty? cur)
       (%sh-run-cmd (reverse wds) (reverse redirs))
@@ -461,7 +461,7 @@
                 (%cursor-advance! cur)
                 (let ((fd
                         (if (and (not (null? wds)) (%all-digits? (first wds)))
-                          (let ((n (first wds))) (set wds (rest wds)) n)
+                          (let ((n (first wds))) (set! wds (rest wds)) n)
                           (%default-fd rop))))
                   (if (%cursor-empty? cur)
                     (error "parse error: redirect without target")
@@ -503,7 +503,7 @@
 
         (let ((result (%eval-list cur)))
           (%skip-to-fi cur 0)
-          (set %sh-status result)
+          (set! %sh-status result)
           result)
         ; False: skip body, try elif/else
 
@@ -512,7 +512,7 @@
           (%eval-elif-chain cur))))))
 ; Skip balanced tokens to elif/else/fi at depth 0
 
-(set %skip-body-to-elif-else-fi
+(set! %skip-body-to-elif-else-fi
   (fn (cur depth)
     (if (%cursor-empty? cur)
       (error "parse error: unexpected EOF in if")
@@ -553,7 +553,7 @@
             (%skip-body-to-elif-else-fi cur depth)))))))
 ; Skip to matching fi (after we evaluated the true branch)
 
-(set %skip-to-fi
+(set! %skip-to-fi
   (fn (cur depth)
     (if (%cursor-empty? cur)
       (error "parse error: unexpected EOF in if")
@@ -574,7 +574,7 @@
           (do (%cursor-advance! cur) (%skip-to-fi cur depth)))))))
 ; Handle elif/else chain after condition was false
 
-(set %eval-elif-chain
+(set! %eval-elif-chain
   (fn (cur)
     (if (%cursor-empty? cur)
       (error "parse error: expected fi")
@@ -594,7 +594,7 @@
               (if (= cond-result 0)
                 (let ((result (%eval-list cur)))
                   (%skip-to-fi cur 0)
-                  (set %sh-status result)
+                  (set! %sh-status result)
                   result)
                 (do
                   (%skip-body-to-elif-else-fi cur 0)
@@ -610,14 +610,14 @@
               (let ((result (%eval-list cur)))
                 (%skip-newlines cur)
                 (%expect-word cur "fi")
-                (set %sh-status result)
+                (set! %sh-status result)
                 result))
             (if (and
                   (%tok-is-word? tok)
                   (string=? (%tok-word-val tok) "fi"))
               ; fi: no else, return 0
 
-              (do (%cursor-advance! cur) (set %sh-status 0) 0)
+              (do (%cursor-advance! cur) (set! %sh-status 0) 0)
               (error "parse error: expected elif, else, or fi"))))))))
 ; while cond; do body; done
 
@@ -630,9 +630,9 @@
 
     (let ((saved (first cur))) (%eval-while-body cur saved))))
 
-(set %eval-while-body
+(set! %eval-while-body
   (fn (cur saved)
-    (set-first cur saved)
+    (set-first! cur saved)
     ; reset cursor to condition
 
     (%skip-newlines cur)
@@ -647,7 +647,7 @@
           (let ((new-saved saved)) (%eval-while-body cur new-saved)))
         ; Condition false: skip body, done
 
-        (do (%skip-to-done cur 0) (set %sh-status 0) 0)))))
+        (do (%skip-to-done cur 0) (set! %sh-status 0) 0)))))
 ; until cond; do body; done (loops while condition fails)
 
 (def %eval-until
@@ -657,9 +657,9 @@
 
     (let ((saved (first cur))) (%eval-until-body cur saved))))
 
-(set %eval-until-body
+(set! %eval-until-body
   (fn (cur saved)
-    (set-first cur saved)
+    (set-first! cur saved)
     ; reset cursor to condition
 
     (%skip-newlines cur)
@@ -674,10 +674,10 @@
           (let ((new-saved saved)) (%eval-until-body cur new-saved)))
         ; Condition succeeded: skip body, done
 
-        (do (%skip-to-done cur 0) (set %sh-status 0) 0)))))
+        (do (%skip-to-done cur 0) (set! %sh-status 0) 0)))))
 ; Skip to matching done
 
-(set %skip-to-done
+(set! %skip-to-done
   (fn (cur depth)
     (if (%cursor-empty? cur)
       (error "parse error: unexpected EOF in while")
@@ -703,7 +703,7 @@
 
 (def %collect-for-words ())
 
-(set %collect-for-words
+(set! %collect-for-words
   (fn (cur ws)
     (if (or
           (%cursor-empty? cur)
@@ -755,20 +755,20 @@
                  (expanded (%sh-expand-words words)))
             (%eval-for-body cur var expanded body-start)))))))
 
-(set %eval-for-body
+(set! %eval-for-body
   (fn (cur var words body-start)
     (if (null? words)
-      (do (set %sh-status 0) 0)
+      (do (set! %sh-status 0) 0)
       (do
         (sh-setenv var (first words))
-        (set-first cur body-start)
+        (set-first! cur body-start)
         ; reset to body
 
         (let ((result (%eval-list cur)))
           (%skip-newlines cur)
           (%expect-word cur "done")
           (if (null? (rest words))
-            (do (set %sh-status 0) 0)
+            (do (set! %sh-status 0) 0)
             (%eval-for-body cur var (rest words) body-start)))))))
 ; case WORD in PATTERN[|PATTERN]...) BODY;; ... esac
 
@@ -778,7 +778,7 @@
 
 (def %collect-case-patterns ())
 
-(set %collect-case-patterns
+(set! %collect-case-patterns
   (fn (cur pats)
     (if (%cursor-empty? cur)
       (error "parse error: expected ) in case")
@@ -809,7 +809,7 @@
 
 (def %skip-case-body ())
 
-(set %skip-case-body
+(set! %skip-case-body
   (fn (cur depth)
     (if (%cursor-empty? cur)
       ()
@@ -842,7 +842,7 @@
 
 (def %skip-to-esac ())
 
-(set %skip-to-esac
+(set! %skip-to-esac
   (fn (cur depth)
     (if (%cursor-empty? cur)
       ()
@@ -865,16 +865,16 @@
                 (%skip-to-esac cur depth))))
           (do (%cursor-advance! cur) (%skip-to-esac cur depth)))))))
 
-(set %eval-case-clauses
+(set! %eval-case-clauses
   (fn (cur word)
     (%skip-newlines cur)
     (if (%cursor-empty? cur)
-      (do (set %sh-status 0) 0)
+      (do (set! %sh-status 0) 0)
       (let ((tok (%cursor-peek cur)))
         (if (and
               (eq? (first tok) (lit tok-word))
               (string=? (first (rest tok)) "esac"))
-          (do (%cursor-advance! cur) (set %sh-status 0) 0)
+          (do (%cursor-advance! cur) (set! %sh-status 0) 0)
           (let ((pats (%collect-case-patterns cur ())))
             (%skip-newlines cur)
             (if (%case-match? pats word)
@@ -893,7 +893,7 @@
                     ())
                   ())
                 (%skip-to-esac cur 0)
-                (set %sh-status result)
+                (set! %sh-status result)
                 result)
               ; No match: skip body, try next clause
 
@@ -929,7 +929,7 @@
         (do
           (%skip-to-close-paren cur 0)
           (let ((status (sh-wait pid)))
-            (set %sh-status status)
+            (set! %sh-status status)
             status))))))
 
 (def %skip-to-close-paren
@@ -967,7 +967,7 @@
                     (error (string-append "parse error: unexpected " word))))))))))))
 ; --- Pipeline execution ---
 
-(set %sh-pipe-chain
+(set! %sh-pipe-chain
   (fn (cmds)
     (if (null? (rest cmds))
       ; Last command: evaluate directly
@@ -1000,7 +1000,7 @@
 ; --- Recursive descent evaluator ---
 ; command: compound or simple
 
-(set %eval-command
+(set! %eval-command
   (fn (cur)
     (if (%is-compound-start? cur)
       (%eval-compound cur)
@@ -1010,7 +1010,7 @@
 
 (def %collect-stage ())
 
-(set %collect-stage
+(set! %collect-stage
   (fn (cur toks)
     (if (%cursor-empty? cur)
       (reverse toks)
@@ -1032,7 +1032,7 @@
 
 (def %collect-stages ())
 
-(set %collect-stages
+(set! %collect-stages
   (fn (cur stages)
     (let ((stage (%collect-stage cur ())))
       (if (%match-op cur "|")
@@ -1068,7 +1068,7 @@
                     (%sh-pipe-chain stages))))))
         (if negate
           (let ((neg-result (if (= result 0) 1 0)))
-            (set %sh-status neg-result)
+            (set! %sh-status neg-result)
             neg-result)
           result)))))
 ; and_or: pipeline (('&&'|'||') pipeline)*
@@ -1097,11 +1097,11 @@
             result))))))
 ; list: and_or ((';'|'&'|newline) and_or)*
 
-(set %eval-list
+(set! %eval-list
   (fn (cur)
     (%skip-newlines cur)
     (if (%at-stop-word? cur)
-      (do (set %sh-status 0) 0)
+      (do (set! %sh-status 0) 0)
       (let ((result (%eval-and-or cur)))
         (if (%cursor-empty? cur)
           result
@@ -1120,7 +1120,7 @@
                     (if (= pid 0)
                       (do result (sh-exit 0))
                       (do
-                        (set %sh-status 0)
+                        (set! %sh-status 0)
                         (%skip-newlines cur)
                         (if (%at-stop-word? cur) 0 (%eval-list cur)))))
                   result)))))))))

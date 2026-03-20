@@ -51,7 +51,7 @@
 ### even?/odd? mutual recursion via set
 
 ```scheme
-(do (def odd? ()) (def even? (fn (n) (if (= n 0) #t (odd? (- n 1))))) (set odd? (fn (n) (if (= n 0) () (even? (- n 1))))) (even? 10000))
+(do (def odd? ()) (def even? (fn (n) (if (= n 0) #t (odd? (- n 1))))) (set! odd? (fn (n) (if (= n 0) () (even? (- n 1))))) (even? 10000))
 ```
 ---
     #t

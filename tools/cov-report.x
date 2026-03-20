@@ -6,13 +6,13 @@
 ; (for aggregation across multiple runs).
 
 (def %cov-word-size
-  (if (> (ptr->int (int->ptr 4294967296)) 0) 8 4))
+  (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
 (def %cov-flags-offset (* 2 %cov-word-size))
 
 (def %cov-obj-flags
   (fn (obj)
     (if (null? obj) 0
-      (ptr-ref-word (obj->ptr obj) %cov-flags-offset))))
+      (ptr-ref-word (convert obj %ptr) %cov-flags-offset))))
 
 (def %cov-covered?
   (fn (obj) (> (& (%cov-obj-flags obj) 2) 0)))
@@ -61,18 +61,18 @@
                   (display total) (newline))
                 ; Human-readable
                 (do
-                  (set %cov-total (+ %cov-total 1))
+                  (set! %cov-total (+ %cov-total 1))
                   (if (= cov total)
-                    (set %cov-tested (+ %cov-tested 1))
+                    (set! %cov-tested (+ %cov-tested 1))
                     (if (= cov 0)
                       (do
-                        (set %cov-untested (+ %cov-untested 1))
+                        (set! %cov-untested (+ %cov-untested 1))
                         (display "    ")
                         (write name)
                         (display " UNTESTED")
                         (newline))
                       (do
-                        (set %cov-partial (+ %cov-partial 1))
+                        (set! %cov-partial (+ %cov-partial 1))
                         (display "    ")
                         (write name)
                         (display " ")
@@ -100,7 +100,7 @@
   (fn (alist)
     (if (null? alist) ()
       (if (and (symbol? (first (first alist)))
-               (string=? (symbol->string (first (first alist)))
+               (string=? (convert (first (first alist)) %string)
                           "%cov-library-end"))
         (rest alist)
         (%cov-skip-to-library (rest alist))))))

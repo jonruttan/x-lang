@@ -24,7 +24,7 @@
 ; %prim-read: raw read primitive (before ports.scm wraps it)
 ; %ellipsis-sym: the ... symbol (normally defined in macro.scm)
 (def %prim-read read)
-(def %ellipsis-sym (string->symbol "..."))
+(def %ellipsis-sym (convert "..." %symbol))
 (include "lang/r5rs/lib/x/syntax.x")
 
 (do
@@ -39,7 +39,6 @@
   (include "lib/x/complex.x")
 
   ; --- string->number: try integer first, then float ---
-  (def %string->number-int string->number)
   (def %string->number-try-float
     (fn (s)
       (def %raw (string->float s))
@@ -51,9 +50,9 @@
   (def string->number
     (fn (s . rest)
       (if (not (null? rest))
-        (%string->number-int s (first rest))
+        (convert s %int)
         (if (= (string-length s) 0) ()
-          (let ((%r (%string->number-int s)))
+          (let ((%r (convert s %int)))
             (if %r %r (%string->number-try-float s)))))))
 
   ; --- Derived expression types ---

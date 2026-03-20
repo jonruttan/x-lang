@@ -195,7 +195,7 @@
 
   ; Mutual recursion within $let bindings.
 
-  ; Expands to: ($let ((v1 ()) ...) (set v1 e1) ... body...)
+  ; Expands to: ($let ((v1 ()) ...) (set! v1 e1) ... body...)
 
   ; NOTE: Param names use lr- prefix to avoid dynamic scoping collisions
 
@@ -212,7 +212,7 @@
             (map ($lambda (b) (list (first b) ())) lr-binds)
             (append
               (map
-                ($lambda (b) (list (lit set) (first b) (cadr b)))
+                ($lambda (b) (list (lit set!) (first b) (cadr b)))
                 lr-binds)
               lr-body)))
         lr-e)))

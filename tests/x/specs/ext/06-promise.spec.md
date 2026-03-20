@@ -50,7 +50,7 @@
 
 ```x
 (def count 0)
-(def p (delay (do (set count (+ count 1)) count)))
+(def p (delay (do (set! count (+ count 1)) count)))
 (list (force p) (force p) count)
 ```
 ---
@@ -60,7 +60,7 @@
 
 ```x
 (let ((count 0))
-  (let ((p (delay (do (set count (+ count 1)) count))))
+  (let ((p (delay (do (set! count (+ count 1)) count))))
     (let loop ((i 0))
       (if (= i 100)
         (list (force p) count)

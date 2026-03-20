@@ -1,9 +1,9 @@
-## meta: obj-meta-extra primitives
+## meta: obj-meta-count primitives
 
-### obj-meta-extra defaults to 0
+### obj-meta-count defaults to 0
 
 ```scheme
-(display (obj-meta-extra))
+(display (obj-meta-count))
 ```
 ---
     0
@@ -20,14 +20,14 @@
 
 ## meta: extended object metadata
 
-### obj-meta-extra! sets and returns old value
+### obj-meta-count! sets and returns old value
 
 ```scheme
 (do
-  (def %old (obj-meta-extra! 3))
+  (def %old (obj-meta-count! 3))
   (display %old)
   (display " ")
-  (display (obj-meta-extra)))
+  (display (obj-meta-count)))
 ```
 ---
     0 3
@@ -36,7 +36,7 @@
 
 ```scheme
 (do
-  (obj-meta-extra! 3)
+  (obj-meta-count! 3)
   (def %p (pair 1 2))
   (obj-meta-set! %p 0 42)
   (display (obj-meta-ref %p 0)))
@@ -48,7 +48,7 @@
 
 ```scheme
 (do
-  (obj-meta-extra! 3)
+  (obj-meta-count! 3)
   (def %p (pair 1 2))
   (obj-meta-set! %p 0 10)
   (obj-meta-set! %p 1 20)
@@ -66,7 +66,7 @@
 
 ```scheme
 (do
-  (obj-meta-extra! 3)
+  (obj-meta-count! 3)
   (def %p (pair 1 2))
   (obj-meta-set! %p 0 99)
   ; Force allocations to trigger GC
@@ -82,7 +82,7 @@
 
 ```scheme
 (do
-  (obj-meta-extra! 3)
+  (obj-meta-count! 3)
   (def %tokens (token-read-string (%base) "(+ 1 2)\n"))
   (display (obj-meta-ref (first %tokens) 0)))
 ```
@@ -93,7 +93,7 @@
 
 ```scheme
 (do
-  (obj-meta-extra! 3)
+  (obj-meta-count! 3)
   (def %tokens (token-read-string (%base) "(+ 1 2)\n(- 3 4)\n"))
   (display (obj-meta-ref (first %tokens) 0))
   (display " ")
@@ -106,7 +106,7 @@
 
 ```scheme
 (do
-  (obj-meta-extra! 3)
+  (obj-meta-count! 3)
   (def %tokens (token-read-string (%base) "(if t\n  1\n  2)\n"))
   (def %form (first %tokens))
   (def %then (first (rest (rest %form))))

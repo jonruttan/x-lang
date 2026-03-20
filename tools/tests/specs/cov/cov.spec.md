@@ -1,17 +1,17 @@
 ## cov: FFI primitives
 
-### obj->ptr returns a non-nil value
+### convert obj to ptr returns a non-nil value
 
 ```scheme
-(display (not (null? (obj->ptr (pair 1 2)))))
+(display (not (null? (convert (pair 1 2) %ptr))))
 ```
 ---
     t
 
-### obj->ptr on integer returns a non-nil value
+### convert integer to ptr returns a non-nil value
 
 ```scheme
-(display (not (null? (obj->ptr 42))))
+(display (not (null? (convert 42 %ptr))))
 ```
 ---
     t
@@ -21,10 +21,10 @@
 ```scheme
 (do
   (def word-size
-    (if (> (ptr->int (int->ptr 4294967296)) 0) 8 4))
+    (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def %p (pair 1 2))
-  (display (number? (ptr-ref-word (obj->ptr %p) %flags-offset))))
+  (display (number? (ptr-ref-word (convert %p %ptr) %flags-offset))))
 ```
 ---
     t
@@ -34,12 +34,12 @@
 ```scheme
 (do
   (def word-size
-    (if (> (ptr->int (int->ptr 4294967296)) 0) 8 4))
+    (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def %p (pair 1 2))
-  (ptr-set-word! (obj->ptr %p) %flags-offset
-    (| (ptr-ref-word (obj->ptr %p) %flags-offset) 2))
-  (display (> (& (ptr-ref-word (obj->ptr %p) %flags-offset) 2) 0)))
+  (ptr-set-word! (convert %p %ptr) %flags-offset
+    (| (ptr-ref-word (convert %p %ptr) %flags-offset) 2))
+  (display (> (& (ptr-ref-word (convert %p %ptr) %flags-offset) 2) 0)))
 ```
 ---
     t
@@ -51,10 +51,10 @@
 ```scheme
 (do
   (def word-size
-    (if (> (ptr->int (int->ptr 4294967296)) 0) 8 4))
+    (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (obj)
-    (ptr-ref-word (obj->ptr obj) %flags-offset)))
+    (ptr-ref-word (convert obj %ptr) %flags-offset)))
   (def %tokens (token-read-string (%base) "(+ 1 2)\n"))
   (def %form (first %tokens))
   (eval %form)
@@ -68,10 +68,10 @@
 ```scheme
 (do
   (def word-size
-    (if (> (ptr->int (int->ptr 4294967296)) 0) 8 4))
+    (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (obj)
-    (ptr-ref-word (obj->ptr obj) %flags-offset)))
+    (ptr-ref-word (convert obj %ptr) %flags-offset)))
   (def %tokens (token-read-string (%base) "(if t 1 2)\n"))
   (def %form (first %tokens))
   (def %then (first (rest (rest %form))))
@@ -89,10 +89,10 @@
 ```scheme
 (do
   (def word-size
-    (if (> (ptr->int (int->ptr 4294967296)) 0) 8 4))
+    (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (obj)
-    (ptr-ref-word (obj->ptr obj) %flags-offset)))
+    (ptr-ref-word (convert obj %ptr) %flags-offset)))
   (def %tokens (token-read-string (%base) "(if t (+ 1 1) (+ 2 2))\n"))
   (def %form (first %tokens))
   (def %else (first (rest (rest (rest %form)))))
@@ -107,10 +107,10 @@
 ```scheme
 (do
   (def word-size
-    (if (> (ptr->int (int->ptr 4294967296)) 0) 8 4))
+    (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (obj)
-    (ptr-ref-word (obj->ptr obj) %flags-offset)))
+    (ptr-ref-word (convert obj %ptr) %flags-offset)))
   (def %marked? (fn (obj)
     (if (null? obj) t
       (> (& (obj-flags obj) 2) 0))))
@@ -124,10 +124,10 @@
   ; Eval using operative loop (defs persist)
   (def %forms %tokens)
   (def %loop ())
-  (set %loop (op () %e
+  (set! %loop (op () %e
     (if (not (null? %forms))
       (do (guard (err ()) (eval! (first %forms)))
-          (set %forms (rest %forms))
+          (set! %forms (rest %forms))
           (%loop)))))
   (%loop)
   (display (%marked? %then))
@@ -142,10 +142,10 @@
 ```scheme
 (do
   (def word-size
-    (if (> (ptr->int (int->ptr 4294967296)) 0) 8 4))
+    (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (obj)
-    (ptr-ref-word (obj->ptr obj) %flags-offset)))
+    (ptr-ref-word (convert obj %ptr) %flags-offset)))
   (def %tokens (token-read-string (%base)
     "(def f (fn (x) (if (< x 0) (- 0 x) (+ x 1))))\n(f 5)\n"))
   (def %def-form (first %tokens))
@@ -154,10 +154,10 @@
   (def %then (first (rest (rest %if-form))))
   (def %forms %tokens)
   (def %loop ())
-  (set %loop (op () %e
+  (set! %loop (op () %e
     (if (not (null? %forms))
       (do (guard (err ()) (eval! (first %forms)))
-          (set %forms (rest %forms))
+          (set! %forms (rest %forms))
           (%loop)))))
   (%loop)
   (display (= (& (obj-flags %then) 2) 0)))
@@ -170,12 +170,12 @@
 ```scheme
 (do
   (def word-size
-    (if (> (ptr->int (int->ptr 4294967296)) 0) 8 4))
+    (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (obj)
-    (ptr-ref-word (obj->ptr obj) %flags-offset)))
+    (ptr-ref-word (convert obj %ptr) %flags-offset)))
   (def %p (pair 1 2))
-  (ptr-set-word! (obj->ptr %p) %flags-offset
+  (ptr-set-word! (convert %p %ptr) %flags-offset
     (| (obj-flags %p) 2))
   ; Force some allocations to trigger GC
   (def %junk (map (fn (x) (pair x x)) (list 1 2 3 4 5 6 7 8 9 10)))

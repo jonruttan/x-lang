@@ -24,7 +24,7 @@
   (def %build-lookup (fn (entries acc)
     (if (null? entries) acc
       (do (def entry (first entries))
-          (def name (symbol->string (first entry)))
+          (def name (convert (first entry) %string))
           (def props (rest entry))
           (%build-lookup (rest entries)
             (pair (pair name props) acc))))))
@@ -37,7 +37,7 @@
         (first table)
         (%construct-find key (rest table))))))
   (def %construct-lookup (fn (name)
-    (def entry (%construct-find (symbol->string name) %construct-table))
+    (def entry (%construct-find (convert name %string) %construct-table))
     (if (null? entry) ()
       (rest entry))))
 
@@ -53,16 +53,16 @@
   ; --- Derive word-size and define flag access ---
 
   (def word-size
-    (if (> (ptr->int (int->ptr 4294967296)) 0) 8 4))
+    (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
 
   (def %flags-offset (* 2 word-size))
   (def %cov-bit 2)
 
   (def obj-flags (fn (obj)
-    (ptr-ref-word (obj->ptr obj) %flags-offset)))
+    (ptr-ref-word (convert obj %ptr) %flags-offset)))
 
   (def obj-flag-set (fn (obj bit)
-    (ptr-set-word! (obj->ptr obj) %flags-offset
+    (ptr-set-word! (convert obj %ptr) %flags-offset
       (| (obj-flags obj) bit))
     obj))
 
@@ -72,7 +72,7 @@
 
   ; --- Enable extra metadata for line tracking ---
 
-  (obj-meta-extra! 1)
+  (obj-meta-count! 1)
 
   ; --- Tokenize input ---
 
@@ -83,11 +83,11 @@
 
   (def %forms %tokens)
   (def %eval-loop ())
-  (set %eval-loop (op () %e
+  (set! %eval-loop (op () %e
     (if (not (null? %forms))
       (do
         (guard (err ()) (eval! (first %forms)))
-        (set %forms (rest %forms))
+        (set! %forms (rest %forms))
         (%eval-loop)))))
   (%eval-loop)
 
@@ -98,10 +98,10 @@
   (def %uncovered ())
 
   (def %check-branch (fn (kind form)
-    (set %total-branches (+ %total-branches 1))
+    (set! %total-branches (+ %total-branches 1))
     (if (%marked? form)
-      (set %covered-branches (+ %covered-branches 1))
-      (set %uncovered
+      (set! %covered-branches (+ %covered-branches 1))
+      (set! %uncovered
         (pair (list kind form (obj-meta-ref form 0)) %uncovered)))))
 
   ; --- Per-type branch evaluators ---
@@ -173,7 +173,7 @@
   (def %build-dispatch (fn (entries acc)
     (if (null? entries) acc
       (do (def entry (first entries))
-          (def name (symbol->string (first entry)))
+          (def name (convert (first entry) %string))
           (def props (rest entry))
           (def branch-type (%get-prop (lit branch) props))
           (def handler
@@ -197,21 +197,21 @@
   ; --- Generic walker ---
 
   (def %safe-walk ())
-  (set %safe-walk (fn (walk forms)
+  (set! %safe-walk (fn (walk forms)
     (if (pair? forms)
       (do (walk (first forms))
           (%safe-walk walk (rest forms)))
       ())))
 
   (def %cov-eval ())
-  (set %cov-eval (fn (form)
+  (set! %cov-eval (fn (form)
     (if (null? form) ()
       (if (not (pair? form)) ()
         (if (not (symbol? (first form)))
           (%safe-walk %cov-eval form)
           (do
             (def handler
-              (%lookup (symbol->string (first form)) %dispatch))
+              (%lookup (convert (first form) %string) %dispatch))
             (if handler
               ((rest handler) form %cov-eval)
               (%safe-walk %cov-eval form))))))))

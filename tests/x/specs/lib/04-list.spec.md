@@ -795,7 +795,7 @@
 ### iterates two lists
 
 ```scheme
-(do (def r ()) (for-each (fn (a b) (set r (pair (+ a b) r))) (list 1 2) (list 10 20)) (reverse r))
+(do (def r ()) (for-each (fn (a b) (set! r (pair (+ a b) r))) (list 1 2) (list 10 20)) (reverse r))
 ```
 ---
     (11 22)
@@ -803,7 +803,7 @@
 ### single-list backward compat
 
 ```scheme
-(do (def r ()) (for-each (fn (x) (set r (pair x r))) (list 1 2 3)) (reverse r))
+(do (def r ()) (for-each (fn (x) (set! r (pair x r))) (list 1 2 3)) (reverse r))
 ```
 ---
     (1 2 3)

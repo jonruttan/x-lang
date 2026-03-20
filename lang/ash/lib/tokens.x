@@ -30,13 +30,13 @@
 
 (def buffer-unread
   (fn (buffer)
-    (set-first-int
+    (set-first-int!
       (rest buffer)
       (- (first-int (rest buffer)) 1))))
 
 (def score-set
   (fn (score sign buffer)
-    (set-first-int score (* sign (buffer-len buffer)))))
+    (set-first-int! score (* sign (buffer-len buffer)))))
 ; --- Helpers ---
 ; Predicate: is chr a shell whitespace (space or tab, NOT newline)?
 
@@ -89,7 +89,7 @@
 
 (def %sh-ws-continue ())
 
-(set %sh-ws-continue
+(set! %sh-ws-continue
   (fn (buffer score chr)
     (if (%sh-ws? chr)
       %sh-ws-continue
@@ -126,7 +126,7 @@
 
 (def %sh-comment-body ())
 
-(set %sh-comment-body
+(set! %sh-comment-body
   (fn (buffer score chr)
     (if (= chr (char->integer #\newline))
       (do
@@ -231,12 +231,12 @@
 
 (def %sh-sq-body ())
 
-(set %sh-sq-body
+(set! %sh-sq-body
   (fn (acc)
     (fn (buffer score chr)
       (if (= chr (char->integer #\'))
         (do
-          (set %sh-sq-read-data (list->string (reverse acc)))
+          (set! %sh-sq-read-data (list->string (reverse acc)))
           (score-set score 1 buffer))
         (%sh-sq-body (pair (integer->char (+ chr 0)) acc))))))
 
@@ -258,7 +258,7 @@
 
 (def %sh-dq-body ())
 
-(set %sh-dq-escape
+(set! %sh-dq-escape
   (fn (acc)
     (fn (buffer score chr)
       (match
@@ -281,7 +281,7 @@
 
 (def %sh-dq-read (fn args (mk-tok-dq %sh-dq-read-data)))
 
-(set %sh-dq-body
+(set! %sh-dq-body
   (fn (acc)
     (fn (buffer score chr)
       (match
@@ -289,7 +289,7 @@
 
         ((= chr (char->integer #\"))
           (do
-            (set %sh-dq-read-data (list->string (reverse acc)))
+            (set! %sh-dq-read-data (list->string (reverse acc)))
             (score-set score 1 buffer)))
         ; Backslash escape
 
@@ -315,7 +315,7 @@
 
 (def %sh-word-body ())
 
-(set %sh-word-body
+(set! %sh-word-body
   (fn (buffer score chr)
     (if (%sh-word-break? chr)
       (do
@@ -347,7 +347,7 @@
 
 (def %sh-int-body ())
 
-(set %sh-int-body
+(set! %sh-int-body
   (fn (buffer score chr)
     (match
       ((%sh-digit? chr) %sh-int-body)

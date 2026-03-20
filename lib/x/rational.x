@@ -43,7 +43,7 @@
 
 (def %rat-denom ())
 
-(set %rat-denom
+(set! %rat-denom
   (fn (buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       (%seq (score-set score 1 buffer) %rat-denom)
@@ -58,14 +58,14 @@
 
 (def %rat-numer ())
 
-(set %rat-numer
+(set! %rat-numer
   (fn (buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %rat-numer
       (if (= chr 47) %rat-first-denom ()))))
 ; --- Rational type ---
 
-(set %rational
+(set! %rational
   (make-type
     "RATIONAL"
     (list
@@ -103,9 +103,9 @@
               (let ((pos (%rat-find-slash value 0 (string-length value))))
                 (if pos
                   (%make-rational
-                    (string->number (substring value 0 pos))
-                    (string->number
-                      (substring value (%int+ pos 1) (string-length value))))
+                    (convert (substring value 0 pos) %int)
+                    (convert
+                      (substring value (%int+ pos 1) (string-length value)) %int))
                   ()))))))
       (pair
         (lit to)
@@ -120,8 +120,8 @@
           (pair (type-of "")
             (fn (self)
               (string-append
-                (string-append (number->string (first (first self))) "/")
-                (number->string (rest (first self)))))))))))
+                (string-append (convert (first (first self)) %string) "/")
+                (convert (rest (first self)) %string)))))))))
 ; --- Predicates ---
 
 (def rational? (fn (x) (if (type? x %rational) #t (%int-number? x))))
@@ -212,12 +212,12 @@
         (%rat-binop rat-op float-op int-op acc (first lst))
         (rest lst)))))
 
-(set +
+(set! +
   (fn args
     (if (null? args) 0
       (%rat-fold rat+ f+ %int+ (first args) (rest args)))))
 
-(set *
+(set! *
   (fn args
     (if (null? args) 1
       (%rat-fold rat* f* %int* (first args) (rest args)))))
@@ -229,14 +229,14 @@
       (%int/ a b)
       (%make-rational a b))))
 
-(set /
+(set! /
   (fn args
     (if (null? args) 1
       (if (null? (rest args))
         (%rat-binop rat/ f/ %exact-div 1 (first args))
         (%rat-fold rat/ f/ %exact-div (first args) (rest args))))))
 
-(set -
+(set! -
   (fn args
     (if (null? args) 0
       (if (null? (rest args))
@@ -247,7 +247,7 @@
             (%int- (first args))))
         (%rat-fold rat- f- %int- (first args) (rest args))))))
 
-(set <
+(set! <
   (fn (a b)
     (if (float? a) (f< a (%ensure-float b))
       (if (float? b) (f< (%ensure-float a) b)
@@ -255,7 +255,7 @@
           (if (%rat? b) (rat< (%make-rational a 1) b)
             (%int< a b)))))))
 
-(set =
+(set! =
   (fn (a b)
     (if (float? a) (f= a (%ensure-float b))
       (if (float? b) (f= (%ensure-float a) b)
@@ -263,16 +263,16 @@
           (if (%rat? b) (rat= (%make-rational a 1) b)
             (%int= a b)))))))
 ; Harden % against / override (/ now produces rationals)
-(set % (fn (a b) (%int- a (%int* b (%int/ a b)))))
+(set! % (fn (a b) (%int- a (%int* b (%int/ a b)))))
 ; --- Reader ---
 
-(set %rational-read
+(set! %rational-read
   (fn args
     (let ((tok (buffer-token (first args))))
       (let ((pos (%rat-find-slash tok 0 (string-length tok))))
         (if pos
           (%make-rational
-            (string->number (substring tok 0 pos))
-            (string->number
-              (substring tok (%int+ pos 1) (string-length tok))))
+            (convert (substring tok 0 pos) %int)
+            (convert
+              (substring tok (%int+ pos 1) (string-length tok)) %int))
           ())))))

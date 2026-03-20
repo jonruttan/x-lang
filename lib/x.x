@@ -12,7 +12,7 @@
 ;     (   )
 ;      " "
 (include "lib/x-base.x")
-(set %lang-name "x-lang")
-(set %lang-version x-lib-version)
+(set! %lang-name "x-lang")
+(set! %lang-version x-lib-version)
 (%banner)
 (repl)

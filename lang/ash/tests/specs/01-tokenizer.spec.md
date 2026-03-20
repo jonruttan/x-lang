@@ -11,7 +11,7 @@
 ### discards tabs
 
 ```sh
-(do (def s (string-append (string-append "a" (make-string 1 (integer->char 9))) "b")) (write (sh-tokenize s)))
+(do (def s (string-append (string-append "a" (make-string 1 (convert 9 %char))) "b")) (write (sh-tokenize s)))
 ```
 ---
     ((tok-word "a") (tok-word "b"))
@@ -29,7 +29,7 @@
 ### produces a newline token
 
 ```sh
-(do (def s (string-append (string-append "a" (make-string 1 (integer->char 10))) "b")) (write (sh-tokenize s)))
+(do (def s (string-append (string-append "a" (make-string 1 (convert 10 %char))) "b")) (write (sh-tokenize s)))
 ```
 ---
     ((tok-word "a") (tok-newline) (tok-word "b"))
@@ -39,7 +39,7 @@
 ### discards comment to end of line
 
 ```sh
-(do (def s (string-append (string-append "a # comment" (make-string 1 (integer->char 10))) "b")) (write (sh-tokenize s)))
+(do (def s (string-append (string-append "a # comment" (make-string 1 (convert 10 %char))) "b")) (write (sh-tokenize s)))
 ```
 ---
     ((tok-word "a") (tok-newline) (tok-word "b"))
@@ -47,7 +47,7 @@
 ### discards whole-line comment
 
 ```sh
-(do (def s (string-append (string-append "# comment" (make-string 1 (integer->char 10))) "b")) (write (sh-tokenize s)))
+(do (def s (string-append (string-append "# comment" (make-string 1 (convert 10 %char))) "b")) (write (sh-tokenize s)))
 ```
 ---
     ((tok-newline) (tok-word "b"))

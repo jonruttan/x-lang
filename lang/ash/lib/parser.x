@@ -35,7 +35,7 @@
   (if (null? (first cur)) () (first (first cur)))))
 
 (def %cursor-advance! (fn (cur)
-  (do (set-first cur (rest (first cur)))
+  (do (set-first! cur (rest (first cur)))
       ())))
 
 (def %cursor-empty? (fn (cur)
@@ -107,7 +107,7 @@
 (def %all-digits? (fn (s)
   (def %check (fn (i len)
     (if (= i len) #t
-      (let ((c (char->integer (string-ref s i))))
+      (let ((c (convert (string-ref s i) %int)))
         (if (and (>= c 48) (<= c 57))
           (%check (+ i 1) len) ())))))
   (if (= (string-length s) 0) ()
@@ -139,7 +139,7 @@
                 (let ((fd (if (and (not (null? wds))
                                    (%all-digits? (first wds)))
                             (let ((n (first wds)))
-                              (set wds (rest wds))
+                              (set! wds (rest wds))
                               n)
                             (%default-fd rop))))
                   (if (%cursor-empty? cur)
@@ -358,7 +358,7 @@
 
 ; --- List parser (sequences with ; and &) ---
 
-(set %parse-list (fn (cur)
+(set! %parse-list (fn (cur)
   (%skip-newlines cur)
   (if (%at-stop-word? cur) ()
     (let ((left (%parse-and-or cur)))

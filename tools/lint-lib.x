@@ -26,7 +26,7 @@
         scope)))))
 
 ; Walk a list of sequential forms, accumulating defs into scope
-(set %walk-list (fn (forms scope uses)
+(set! %walk-list (fn (forms scope uses)
   (if (null? forms) uses
     (if (pair? forms)
       (do (def form (first forms))
@@ -86,7 +86,7 @@
     ; Simple: (def name val)
     (%walk (first (rest (rest form))) (pair name-part scope) uses))))
 
-; (set name val)
+; (set! name val)
 (def %walk-set (fn (form scope uses)
   (%walk (first (rest (rest form))) scope
     (%walk (first (rest form)) scope uses))))
@@ -109,17 +109,17 @@
             (%walk-quasi (first form) scope uses))))
       uses))))
 
-; Walk a pair -- dispatches on %scope-table (set by lint.x)
+; Walk a pair -- dispatches on %scope-table (set! by lint.x)
 ; %walk-pair is forward-declared; lint.x provides the real implementation
 ; after loading construct declarations.
 
 ; Walk an AST form, collecting symbol uses
-(set %walk (fn (form scope uses)
+(set! %walk (fn (form scope uses)
   (if (null? form) uses
     (if (symbol? form)
       (if (includes? form scope) uses
-        (if (ahas? form uses) uses
-          (aset form t uses)))
+        (if (assoc-has? form uses) uses
+          (assoc-put form t uses)))
       (if (pair? form)
         (%walk-pair form scope uses)
         uses)))))
@@ -141,13 +141,13 @@
 (def %lint-undefined (fn (defs uses)
   (filter (fn (sym)
     (if (includes? sym defs) ()
-      (if (ahas? sym %known-env) () t)))
-    (akeys uses))))
+      (if (assoc-has? sym %known-env) () t)))
+    (assoc-keys uses))))
 
 ; Compute unused: defined but not used (skip %-prefixed internals)
 (def %lint-unused (fn (defs uses lib-mode)
   (if lib-mode ()
     (filter (fn (sym)
-      (if (string-starts? "%" (symbol->string sym)) ()
-        (if (ahas? sym uses) () t)))
+      (if (string-starts? "%" (convert sym %string)) ()
+        (if (assoc-has? sym uses) () t)))
       defs))))

@@ -52,26 +52,26 @@
 
 (def profile-reset
   (fn ()
-    (set-first-int (first (first (%profile))) 0)
-    (set-first-int (first (first (rest (%profile)))) 0)
-    (set-first-int (first (first (rest (rest (%profile))))) 0)
-    (set-first-int (first (first (rest (rest (rest (%profile)))))) 0)
-    (set-first-int (first (first (rest (rest (rest (rest (%profile))))))) 0)
-    (set-first-int (first (first (rest (rest (rest (rest (rest (%profile)))))))) 0)
-    (set-first-int (first (first (rest (rest (rest (rest (rest (rest (%profile))))))))) 0)
-    (set-first-int (first (first (rest (rest (rest (rest (rest (rest (rest (%profile)))))))))) 0)
-    (set-first-int (first (first (rest (rest (rest (rest (rest (rest (rest (rest (%profile))))))))))) 0)
-    (set-first-int (first (first (rest (rest (rest (rest (rest (rest (rest (rest (rest (%profile)))))))))))) 0)))
+    (set-first-int! (first (first (%profile))) 0)
+    (set-first-int! (first (first (rest (%profile)))) 0)
+    (set-first-int! (first (first (rest (rest (%profile))))) 0)
+    (set-first-int! (first (first (rest (rest (rest (%profile)))))) 0)
+    (set-first-int! (first (first (rest (rest (rest (rest (%profile))))))) 0)
+    (set-first-int! (first (first (rest (rest (rest (rest (rest (%profile)))))))) 0)
+    (set-first-int! (first (first (rest (rest (rest (rest (rest (rest (%profile))))))))) 0)
+    (set-first-int! (first (first (rest (rest (rest (rest (rest (rest (rest (%profile)))))))))) 0)
+    (set-first-int! (first (first (rest (rest (rest (rest (rest (rest (rest (rest (%profile))))))))))) 0)
+    (set-first-int! (first (first (rest (rest (rest (rest (rest (rest (rest (rest (rest (%profile)))))))))))) 0)))
 
 ; --- Heap collection ---
-; Save the atomic C primitive before we shadow it
+; Save the applicative C primitive before we shadow it
 
 (def %heap-collect-prim heap-collect)
 
 (def %hc-last-allocs 0)
 
 (def %hc-last-surviving 10000)
-; Force full collection -- always runs atomic mark+sweep, returns freed count
+; Force full collection -- always runs applicative mark+sweep, returns freed count
 ; Uses op (dynamic scoping) so the caller's env is not saved/restored,
 ; avoiding GC freeing the saved env from the C stack.
 
@@ -81,8 +81,8 @@
     (def %hcf-before (heap-count))
     (%heap-collect-prim)
     (def %hcf-after (heap-count))
-    (set %hc-last-allocs (alloc-count))
-    (set %hc-last-surviving %hcf-after)
+    (set! %hc-last-allocs (alloc-count))
+    (set! %hc-last-surviving %hcf-after)
     (- %hcf-before %hcf-after)))
 ; Smart collection -- skip if heap pressure is low
 

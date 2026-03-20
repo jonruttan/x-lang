@@ -60,7 +60,7 @@
 (def sh-getenv
   (fn (name)
     (let ((result (ptr-call %c-getenv name)))
-      (if (= result 0) () (ptr->string (int->ptr result))))))
+      (if (= result 0) () (ptr->string (convert result %ptr))))))
 ; --- open variants ---
 ; O_* flags are platform constants bound by the FFI layer
 
@@ -81,7 +81,7 @@
 
 (def sh-pipe
   (fn ()
-    (let ((buf (int->ptr (ptr-call %c-malloc 8))))
+    (let ((buf (convert (ptr-call %c-malloc 8) %ptr)))
       (ptr-call %c-pipe buf)
       (let ((r (ptr-ref buf 0 4)) (w (ptr-ref buf 4 4)))
         (ptr-call %c-free buf)
@@ -90,7 +90,7 @@
 
 (def sh-wait
   (fn (pid)
-    (let ((buf (int->ptr (ptr-call %c-malloc 4))))
+    (let ((buf (convert (ptr-call %c-malloc 4) %ptr)))
       (ptr-call %c-waitpid pid buf 0)
       (let ((raw (ptr-ref buf 0 4)))
         (ptr-call %c-free buf)
@@ -101,7 +101,7 @@
   (fn (name args)
     (let ((all (pair name args)))
       (let ((n (length all)))
-        (let ((argv (int->ptr (ptr-call %c-malloc (* (+ n 1) %word-size)))))
+        (let ((argv (convert (ptr-call %c-malloc (* (+ n 1) %word-size)) %ptr)))
           (def %fill
             (fn (lst i)
               (if (null? lst)
@@ -110,7 +110,7 @@
                   (ptr-set-word!
                     argv
                     (* i %word-size)
-                    (ptr->int (string->ptr (first lst))))
+                    (convert (convert (first lst) %ptr) %int))
                   (%fill (rest lst) (+ i 1))))))
           (%fill all 0)
           (ptr-call %c-execvp name argv))))))

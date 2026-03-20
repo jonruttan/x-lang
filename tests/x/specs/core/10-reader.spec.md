@@ -87,7 +87,7 @@
 ### reads string with hex escape
 
 ```scheme
-(= (char->integer (string-ref "\x41" 0)) 65)
+(= (convert (string-ref "\x41" 0) %int) 65)
 ```
 ---
     #t
@@ -139,7 +139,7 @@
 ### reads specific character
 
 ```scheme
-(char->integer #\a)
+(convert #\a %int)
 ```
 ---
     97
@@ -147,7 +147,7 @@
 ### reads uppercase character
 
 ```scheme
-(char->integer #\Z)
+(convert #\Z %int)
 ```
 ---
     90
@@ -155,7 +155,7 @@
 ### reads named character space
 
 ```scheme
-(char->integer #\space)
+(convert #\space %int)
 ```
 ---
     32
@@ -163,7 +163,7 @@
 ### reads named character newline
 
 ```scheme
-(char->integer #\newline)
+(convert #\newline %int)
 ```
 ---
     10
@@ -171,7 +171,7 @@
 ### reads named character tab
 
 ```scheme
-(char->integer #\tab)
+(convert #\tab %int)
 ```
 ---
     9

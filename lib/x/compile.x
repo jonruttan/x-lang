@@ -60,7 +60,7 @@
     (def %go
       (fn (ps i)
         (if (null? ps) ""
-          (str "    x_obj_t *p_" (symbol->string (first ps))
+          (str "    x_obj_t *p_" (convert (first ps) %string)
                " = x_firstobj(" (%c-args-ref i) ");\n"
                (%go (rest ps) (+ i 1))))))
     (%go params 0)))
@@ -105,13 +105,13 @@
 (def %type-push-write
   (fn (type-struct handler)
     (let ((cell (%type-write-cell type-struct)))
-      (set-first cell (pair handler (first cell))))))
+      (set-first! cell (pair handler (first cell))))))
 
 ; Pop a handler from a type's write stack
 (def %type-pop-write
   (fn (type-struct)
     (let ((cell (%type-write-cell type-struct)))
-      (set-first cell (rest (first cell))))))
+      (set-first! cell (rest (first cell))))))
 
 ; Type alist path: first(first(first(first(rest(first(%base))))))
 (def %type-alist
@@ -145,20 +145,19 @@
 (def %compile-symbol-write
   (fn (sym)
     (if (%compile-member? sym %compile-params)
-      (display (str "p_" (symbol->string sym)))
+      (display (str "p_" (convert sym %string)))
       (let ((fv-entry (%compile-fvar-lookup sym)))
         (if (null? fv-entry)
-          (error (str "compile: free variable: " (symbol->string sym)))
+          (error (str "compile: free variable: " (convert sym %string)))
           (let ((fv-val (rest fv-entry)))
             (if (null? fv-val)
               (display "NULL")
               (display (str "(x_obj_t *)"
-                (number->string (ptr->int (obj->ptr fv-val))))))))))))
-
+                (convert (convert (convert fv-val %ptr) %int) %string))))))))))
 ; INT: emit integer literal
 (def %compile-int-write
   (fn (n)
-    (display (number->string n))))
+    (display (convert n %string))))
 
 ; LIST: inspect operator, dispatch to form-specific C emission
 ; Sub-expressions are emitted by calling write on them (recurses through
@@ -189,11 +188,11 @@
   (fn (args)
     (display "((")
     (if (number? (first args))
-      (display (number->string (first args)))
+      (display (convert (first args) %string))
       (do (display "x_atomint(") (%cw-emit (first args)) (display ")")))
     (display " == ")
     (if (number? (first (rest args)))
-      (display (number->string (first (rest args))))
+      (display (convert (first (rest args)) %string))
       (do (display "x_atomint(") (%cw-emit (first (rest args))) (display ")")))
     (display ") ? (x_obj_t *)1 : NULL)")))
 
@@ -203,7 +202,7 @@
     (display "(x_firstint(")
     (%cw-emit (first args))
     (display ") = ")
-    (display (number->string (first (rest args))))
+    (display (convert (first (rest args)) %string))
     (display " * x_bufferlen(")
     (%cw-emit (first (rest (rest args))))
     (display "), ")
@@ -233,9 +232,9 @@
   (fn (args)
     (let ((inner-params (first args))
           (inner-body (first (rest args)))
-          (fn-name (str "fn_" (number->string (+ 1 (length (first %compile-fns)))))))
+          (fn-name (str "fn_" (convert (+ 1 (length (first %compile-fns))) %string))))
       ; Add this fn to the list
-      (set-first %compile-fns
+      (set-first! %compile-fns
         (pair (list fn-name inner-params inner-body)
               (first %compile-fns)))
       ; Return pointer to the static prim object
@@ -260,7 +259,7 @@
     (%cw-emit (first args))
     (display ")")))
 
-; (set-first cell val) => assign + return val
+; (set-first! cell val) => assign + return val
 (def %cw-set-first
   (fn (args)
     (display "(x_firstobj(")
@@ -277,7 +276,7 @@
     (display "(x_atomint(")
     (%cw-emit (first args))
     (display ") += ")
-    (display (number->string (first (rest args))))
+    (display (convert (first (rest args)) %string))
     (display ", ")
     (%cw-emit (first args))
     (display ")")))
@@ -288,7 +287,7 @@
     (display "(x_atomint(")
     (%cw-emit (first args))
     (display ") = ")
-    (display (number->string (first (rest args))))
+    (display (convert (first (rest args)) %string))
     (display ", ")
     (%cw-emit (first args))
     (display ")")))
@@ -315,19 +314,19 @@
         (if (eq? op (lit fn))       (%cw-fn args)
         (if (eq? op (lit or))       (%cw-or args)
         (if (eq? op (lit first))    (%cw-first args)
-        (if (eq? op (lit set-first)) (%cw-set-first args)
+        (if (eq? op (lit set-first!)) (%cw-set-first args)
         (if (eq? op (lit atom-add!)) (%cw-atom-add args)
         (if (eq? op (lit atom-set!)) (%cw-atom-set args)
         (if (eq? op (lit atom-val)) (%cw-atom-val args)
           (error (str "compile: unsupported form: "
-            (symbol->string op)))))))))))))))))))
+            (convert op %string)))))))))))))))))))
 
 ; --- Generate C via write-to-string ---
 
 ; Generate a C function body by pushing write handlers and serializing
 (def %generate-fn-body
   (fn (params body)
-    (set %compile-params params)
+    (set! %compile-params params)
     (write-to-string body)))
 
 ; Generate a complete C function
@@ -359,7 +358,7 @@
   (fn (expr fns-holder)
     (let ((params (first (rest expr)))
           (body (first (rest (rest expr)))))
-      (set %compile-fns fns-holder)
+      (set! %compile-fns fns-holder)
       ; Generate the main function (may populate fns via %cw-fn)
       (def %main-c (%generate-fn "fn_0" params body))
       ; Iteratively generate nested fn bodies until stable
@@ -376,7 +375,7 @@
                     (do
                       (def %entry (first lst))
                       (def %name (first %entry))
-                      (set %nested-c
+                      (set! %nested-c
                         (str %nested-c
                           (%generate-fn %name
                             (first (rest %entry))
@@ -393,8 +392,8 @@
           (if (null? lst) ()
             (do
               (def %name (first (first lst)))
-              (set %all-fwd (str %all-fwd (%generate-fwd-decl %name)))
-              (set %all-prims (str %all-prims (%generate-static-prim %name)))
+              (set! %all-fwd (str %all-fwd (%generate-fwd-decl %name)))
+              (set! %all-prims (str %all-prims (%generate-static-prim %name)))
               (%gen-decls (rest lst))))))
       (%gen-decls (first %compile-fns))
       ; Combine
@@ -425,8 +424,8 @@
 
 (def type-cast!
   (fn (obj type-src)
-    (def %dst-ptr (obj->ptr obj))
-    (def %src-ptr (obj->ptr type-src))
+    (def %dst-ptr (convert obj %ptr))
+    (def %src-ptr (convert type-src %ptr))
     (def %type-val (ptr-ref-word %src-ptr %type-offset))
     (ptr-set-word! %dst-ptr %type-offset %type-val)
     obj))
@@ -444,7 +443,7 @@
                 "-o" lib-path src-path))))
     (def %cc-status (ptr-call %c-system %cc-cmd))
     (if (not (= %cc-status 0))
-      (error (str "compile: cc failed with status " (number->string %cc-status))))))
+      (error (str "compile: cc failed with status " (convert %cc-status %string))))))
 
 (def %patch-nested-prims
   (fn (lib fns prim-type-val)
@@ -465,7 +464,7 @@
             (if (null? fn-ptr) ()
               (do
                 (type-cast! fn-ptr first)
-                (def %prim-type-val (ptr-ref-word (obj->ptr first) %type-offset))
+                (def %prim-type-val (ptr-ref-word (convert first %ptr) %type-offset))
                 (%patch-nested-prims lib (first fns-holder) %prim-type-val)
                 fn-ptr))))))))
 
@@ -474,7 +473,7 @@
 ; Caches compiled libraries keyed by FNV-1a hash of the expression.
 (def compile
   (fn (expr . rest)
-    (set %compile-fvars (if (null? rest) () (first rest)))
+    (set! %compile-fvars (if (null? rest) () (first rest)))
     (if (not (eq? (first expr) (lit fn)))
       (error "compile: expression must be (fn (params...) body)"))
 
@@ -491,8 +490,8 @@
 
       ; Cache miss: compile and save to cache path
       (do
-        (set %compile-id (+ %compile-id 1))
-        (def %id (number->string %compile-id))
+        (set! %compile-id (+ %compile-id 1))
+        (def %id (convert %compile-id %string))
         (def %src-path (str "/tmp/x-compile-" %id ".c"))
 
         ; Push C-emitting write handlers, generate C, pop
@@ -520,7 +519,7 @@
         (type-cast! %fn first)
 
         ; Patch nested fn static prims
-        (def %prim-type-val (ptr-ref-word (obj->ptr first) %type-offset))
+        (def %prim-type-val (ptr-ref-word (convert first %ptr) %type-offset))
         (%patch-nested-prims %lib (first %fns-holder) %prim-type-val)
 
         ; Clean up temp lib for fvar compilations
@@ -533,8 +532,8 @@
 ; Returns a list of prims, one per expression.
 (def compile-batch
   (fn exprs
-    (set %compile-id (+ %compile-id 1))
-    (def %id (number->string %compile-id))
+    (set! %compile-id (+ %compile-id 1))
+    (def %id (convert %compile-id %string))
     (def %src-path (str "/tmp/x-compile-" %id ".c"))
     (def %lib-path (str "/tmp/x-compile-" %id %compile-ext))
 
@@ -549,8 +548,8 @@
               (error "compile-batch: each expression must be (fn ...)"))
             (let ((params (first (rest expr)))
                   (body (first (rest (rest expr))))
-                  (name (str "batch_" (number->string i))))
-              (set %compile-fns (list (list)))
+                  (name (str "batch_" (convert i %string))))
+              (set! %compile-fns (list (list)))
               (def %fn-c
                 (str "x_obj_t *" name
                      "(x_obj_t *p_base, x_obj_t *p_args) {\n"
@@ -583,7 +582,7 @@
     (def %resolve-all
       (fn (i n)
         (if (= i n) ()
-          (let ((name (str "batch_" (number->string i))))
+          (let ((name (str "batch_" (convert i %string))))
             (def %fn (dlsym %lib name))
             (if (null? %fn)
               (error (str "compile-batch: dlsym failed for " name)))

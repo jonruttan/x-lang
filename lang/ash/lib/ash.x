@@ -6,8 +6,8 @@
 ;   (sh-eval "echo hello | grep h")
 
 (include "lang/ash/lib/ash-base.x")
-(set %repl-prompt "$ ")
-(set %lang-name "ASH Shell")
-(set %lang-version x-lib-version)
+(set! %repl-prompt "$ ")
+(set! %lang-name "ASH Shell")
+(set! %lang-version x-lib-version)
 (%banner)
 (repl)

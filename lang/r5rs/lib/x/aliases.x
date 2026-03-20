@@ -2,13 +2,12 @@
 
 (def lambda fn)
 (def begin do)
-(def set! set)
 (def modulo %)
 (def cons pair)
 (def car first)
 (def cdr rest)
-(def set-car! set-first)
-(def set-cdr! set-rest)
+(def set-car! set-first!)
+(def set-cdr! set-rest!)
 (def quote lit)
 (def quasiquote quasi)
 
