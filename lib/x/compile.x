@@ -2,9 +2,10 @@
 ;
 ; (compile '(fn (params...) body))  =>  <prim>
 ;
-; Generates C code, compiles with cc, loads via dlopen/dlsym.
-; The result is a native primitive with the same calling convention
-; as hand-written C primitives.
+; Generates C code by pushing C-emitting write handlers onto the type
+; system's write stacks.  write-to-string then walks the expression tree
+; via normal type dispatch, each type emitting its own C representation.
+; The result is compiled with cc, loaded via dlopen/dlsym.
 
 ; --- libc write/unlink/access (not in posix.x) ---
 
@@ -45,7 +46,7 @@
   (fn args
     (fold string-append "" args)))
 
-; --- C code generator ---
+; --- C code generator utilities ---
 
 ; Generate the x_restobj chain to access parameter at index n
 (def %c-args-ref
@@ -64,16 +65,18 @@
                (%go (rest ps) (+ i 1))))))
     (%go params 0)))
 
-; Check if symbol is in a list (member not available in x-core.x)
+; Check if symbol is in a list
 (def %compile-member?
   (fn (sym lst)
     (if (null? lst) ()
       (if (eq? sym (first lst)) lst
         (%compile-member? sym (rest lst))))))
 
-; Free variable bindings for compile: ((sym . val) ...)
-; Set by compile before code generation, read by %emit-expr.
+; --- Compile state (globals read by write handlers) ---
+
 (def %compile-fvars ())
+(def %compile-params ())
+(def %compile-fns ())
 
 (def %compile-fvar-lookup
   (fn (sym)
@@ -85,213 +88,288 @@
             (%fv-go (rest fvs))))))
     (%fv-go %compile-fvars)))
 
-; Forward declarations for mutual recursion
-(def %emit-expr ())
-(def %emit-form ())
+; --- Type system access ---
 
-; --- Emit helpers (all reference %emit-expr via forward decl) ---
+; Navigate type struct to io group and write-stack
+; Type layout: (name (data (heap (proc (cvt (io (iter)))))))
+; IO layout: (analyse (delimit (read (write (display (error))))))
+(def %type-io
+  (fn (t) (first (rest (rest (rest (rest (rest t))))))))
+
+; Cell containing the write-stack (so we can push/pop)
+; write-stack = first(write-cell), where write-cell = rest^3(io)
+(def %type-write-cell
+  (fn (t) (rest (rest (rest (%type-io t))))))
+
+; Push a handler onto a type's write stack
+(def %type-push-write
+  (fn (type-struct handler)
+    (let ((cell (%type-write-cell type-struct)))
+      (set-first cell (pair handler (first cell))))))
+
+; Pop a handler from a type's write stack
+(def %type-pop-write
+  (fn (type-struct)
+    (let ((cell (%type-write-cell type-struct)))
+      (set-first cell (rest (first cell))))))
+
+; Type alist path: first(first(first(first(rest(first(%base))))))
+(def %type-alist
+  (fn ()
+    (first (first (first (first (rest (first (%base)))))))))
+
+; Find a type struct by name atom (from type-of) in the type alist
+(def %type-by-atom
+  (fn (name-atom)
+    (def %go
+      (fn (alist)
+        (if (null? alist) (error "compile: type not found")
+          (if (eq? (first (first alist)) name-atom)
+            (rest (first alist))
+            (%go (rest alist))))))
+    (%go (%type-alist))))
+
+; Cache type structs at load time using representative objects
+(def %list-type (%type-by-atom (type-of (list 1))))
+(def %symbol-type (%type-by-atom (type-of (lit a))))
+(def %int-type (%type-by-atom (type-of 0)))
+
+; --- C-emitting write handlers ---
+;
+; These are pushed onto the write stack so that write-to-string on a
+; quoted expression emits C code.  display is used for literal C text
+; (display dispatches to the display-stack, not write-stack, so no
+; recursion).  write on sub-expressions dispatches back to these handlers.
+
+; SYMBOL: emit C variable reference
+(def %compile-symbol-write
+  (fn (sym)
+    (if (%compile-member? sym %compile-params)
+      (display (str "p_" (symbol->string sym)))
+      (let ((fv-entry (%compile-fvar-lookup sym)))
+        (if (null? fv-entry)
+          (error (str "compile: free variable: " (symbol->string sym)))
+          (let ((fv-val (rest fv-entry)))
+            (if (null? fv-val)
+              (display "NULL")
+              (display (str "(x_obj_t *)"
+                (number->string (ptr->int (obj->ptr fv-val))))))))))))
+
+; INT: emit integer literal
+(def %compile-int-write
+  (fn (n)
+    (display (number->string n))))
+
+; LIST: inspect operator, dispatch to form-specific C emission
+; Sub-expressions are emitted by calling write on them (recurses through
+; the pushed write handlers).
+
+; Emit a sub-expression: nil => NULL, otherwise write dispatches to handler
+(def %cw-emit
+  (fn (expr)
+    (if (null? expr) (display "NULL") (write expr))))
+
+; --- Form emitters (called by the list write handler) ---
 
 ; (if cond then else) => ternary
-(def %emit-if
-  (fn (args params fns)
-    (let ((cond-c (%emit-expr (first args) params fns))
-          (then-c (%emit-expr (first (rest args)) params fns))
-          (else-c (if (null? (rest (rest args)))
-                    "NULL"
-                    (%emit-expr (first (rest (rest args))) params fns))))
-      (str "((x_obj_t *)" cond-c " ? "
-           then-c " : " else-c ")"))))
+(def %cw-if
+  (fn (args)
+    (display "((x_obj_t *)")
+    (%cw-emit (first args))
+    (display " ? ")
+    (%cw-emit (first (rest args)))
+    (display " : ")
+    (if (null? (rest (rest args)))
+      (display "NULL")
+      (%cw-emit (first (rest (rest args)))))
+    (display ")")))
 
-; (= a b) => integer comparison, returns truthy or NULL
-(def %emit-eq
-  (fn (args params fns)
-    (let ((a (first args))
-          (b (first (rest args))))
-      (str "(("
-        (if (number? a)
-          (number->string a)
-          (str "x_atomint(" (%emit-expr a params fns) ")"))
-        " == "
-        (if (number? b)
-          (number->string b)
-          (str "x_atomint(" (%emit-expr b params fns) ")"))
-        ") ? (x_obj_t *)1 : NULL)"))))
+; (= a b) => integer comparison
+(def %cw-eq
+  (fn (args)
+    (display "((")
+    (if (number? (first args))
+      (display (number->string (first args)))
+      (do (display "x_atomint(") (%cw-emit (first args)) (display ")")))
+    (display " == ")
+    (if (number? (first (rest args)))
+      (display (number->string (first (rest args))))
+      (do (display "x_atomint(") (%cw-emit (first (rest args))) (display ")")))
+    (display ") ? (x_obj_t *)1 : NULL)")))
 
 ; (score-set score sign buffer) => inline
-(def %emit-score-set
-  (fn (args params fns)
-    (let ((score (%emit-expr (first args) params fns))
-          (sign (first (rest args)))
-          (buffer (%emit-expr (first (rest (rest args))) params fns)))
-      (str "(x_firstint(" score ") = "
-        (number->string sign) " * x_bufferlen(" buffer
-        "), " score ")"))))
+(def %cw-score-set
+  (fn (args)
+    (display "(x_firstint(")
+    (%cw-emit (first args))
+    (display ") = ")
+    (display (number->string (first (rest args))))
+    (display " * x_bufferlen(")
+    (%cw-emit (first (rest (rest args))))
+    (display "), ")
+    (%cw-emit (first args))
+    (display ")")))
 
 ; (%seq a b) => comma operator
-(def %emit-seq
-  (fn (args params fns)
-    (str "(" (%emit-expr (first args) params fns)
-         ", " (%emit-expr (first (rest args)) params fns) ")")))
+(def %cw-seq
+  (fn (args)
+    (display "(")
+    (%cw-emit (first args))
+    (display ", ")
+    (%cw-emit (first (rest args)))
+    (display ")")))
 
 ; (buffer-unread buffer) => decrement read pointer
-(def %emit-buffer-unread
-  (fn (args params fns)
-    (let ((buffer (%emit-expr (first args) params fns)))
-      (str "(x_bufferread(" buffer ")--, " buffer ")"))))
+(def %cw-buffer-unread
+  (fn (args)
+    (display "(x_bufferread(")
+    (%cw-emit (first args))
+    (display ")--, ")
+    (%cw-emit (first args))
+    (display ")")))
 
-; Nested fn: generates a separate C function + static prim object
-(def %emit-nested-fn
-  (fn (args fns)
+; (fn (params) body) => nested function
+(def %cw-fn
+  (fn (args)
     (let ((inner-params (first args))
           (inner-body (first (rest args)))
-          (fn-name (str "fn_" (number->string (+ 1 (length (first fns)))))))
+          (fn-name (str "fn_" (number->string (+ 1 (length (first %compile-fns)))))))
       ; Add this fn to the list
-      (set-first fns
+      (set-first %compile-fns
         (pair (list fn-name inner-params inner-body)
-              (first fns)))
+              (first %compile-fns)))
       ; Return pointer to the static prim object
-      (str "(x_obj_t *)" fn-name "_prim"))))
+      (display (str "(x_obj_t *)" fn-name "_prim")))))
 
-; (or a b ...) => short-circuit logical OR, returns truthy or NULL
-(def %emit-or
-  (fn (args params fns)
-    (def %or-parts
+; (or a b ...) => short-circuit logical OR
+(def %cw-or
+  (fn (args)
+    (display "((x_obj_t *)(long)(")
+    (def %or-go
       (fn (as)
-        (if (null? (rest as))
-          (%emit-expr (first as) params fns)
-          (str (%emit-expr (first as) params fns)
-               " || " (%or-parts (rest as))))))
-    (str "((x_obj_t *)(long)(" (%or-parts args) "))")))
+        (%cw-emit (first as))
+        (if (not (null? (rest as)))
+          (do (display " || ") (%or-go (rest as))))))
+    (%or-go args)
+    (display "))")))
 
-; (first x) => x_firstobj(x) — read first element of pair/cell
-(def %emit-first
-  (fn (args params fns)
-    (str "x_firstobj(" (%emit-expr (first args) params fns) ")")))
+; (first x) => x_firstobj(x)
+(def %cw-first
+  (fn (args)
+    (display "x_firstobj(")
+    (%cw-emit (first args))
+    (display ")")))
 
-; (set-first cell val) => (x_firstobj(cell) = (x_obj_t *)val, (x_obj_t *)val)
-(def %emit-set-first
-  (fn (args params fns)
-    (let ((cell (%emit-expr (first args) params fns))
-          (val (%emit-expr (first (rest args)) params fns)))
-      (str "(x_firstobj(" cell ") = (x_obj_t *)" val
-           ", (x_obj_t *)" val ")"))))
+; (set-first cell val) => assign + return val
+(def %cw-set-first
+  (fn (args)
+    (display "(x_firstobj(")
+    (%cw-emit (first args))
+    (display ") = (x_obj_t *)")
+    (%cw-emit (first (rest args)))
+    (display ", (x_obj_t *)")
+    (%cw-emit (first (rest args)))
+    (display ")")))
 
-; (atom-add! atom-expr n) => in-place integer add, returns atom
-(def %emit-atom-add
-  (fn (args params fns)
-    (let ((atom (%emit-expr (first args) params fns))
-          (n (first (rest args))))
-      (str "(x_atomint(" atom ") += " (number->string n) ", " atom ")"))))
+; (atom-add! atom n) => in-place add
+(def %cw-atom-add
+  (fn (args)
+    (display "(x_atomint(")
+    (%cw-emit (first args))
+    (display ") += ")
+    (display (number->string (first (rest args))))
+    (display ", ")
+    (%cw-emit (first args))
+    (display ")")))
 
-; (atom-set! atom-expr n) => in-place integer set, returns atom
-(def %emit-atom-set
-  (fn (args params fns)
-    (let ((atom (%emit-expr (first args) params fns))
-          (n (first (rest args))))
-      (str "(x_atomint(" atom ") = " (number->string n) ", " atom ")"))))
+; (atom-set! atom n) => in-place set
+(def %cw-atom-set
+  (fn (args)
+    (display "(x_atomint(")
+    (%cw-emit (first args))
+    (display ") = ")
+    (display (number->string (first (rest args))))
+    (display ", ")
+    (%cw-emit (first args))
+    (display ")")))
 
-; (atom-val atom-expr) => read integer as truthy/falsy pointer (0→NULL, nonzero→truthy)
-(def %emit-atom-val
-  (fn (args params fns)
-    (str "(x_obj_t *)(long)x_atomint(" (%emit-expr (first args) params fns) ")")))
+; (atom-val atom) => read as truthy/falsy pointer
+(def %cw-atom-val
+  (fn (args)
+    (display "(x_obj_t *)(long)x_atomint(")
+    (%cw-emit (first args))
+    (display ")")))
 
-; --- Set the mutually recursive functions ---
+; LIST write handler: dispatch on operator symbol
+(def %compile-list-write
+  (fn (lst)
+    (if (null? lst)
+      (display "NULL")
+      (let ((op (first lst))
+            (args (rest lst)))
+        (if (eq? op (lit if))       (%cw-if args)
+        (if (eq? op (lit =))        (%cw-eq args)
+        (if (eq? op (lit score-set)) (%cw-score-set args)
+        (if (eq? op (lit %seq))     (%cw-seq args)
+        (if (eq? op (lit buffer-unread)) (%cw-buffer-unread args)
+        (if (eq? op (lit fn))       (%cw-fn args)
+        (if (eq? op (lit or))       (%cw-or args)
+        (if (eq? op (lit first))    (%cw-first args)
+        (if (eq? op (lit set-first)) (%cw-set-first args)
+        (if (eq? op (lit atom-add!)) (%cw-atom-add args)
+        (if (eq? op (lit atom-set!)) (%cw-atom-set args)
+        (if (eq? op (lit atom-val)) (%cw-atom-val args)
+          (error (str "compile: unsupported form: "
+            (symbol->string op)))))))))))))))))))
 
-(set %emit-expr
-  (fn (expr params fns)
-    (if (null? expr) "NULL"
-      (if (number? expr)
-        (number->string expr)
-        (if (symbol? expr)
-          (if (%compile-member? expr params)
-            (str "p_" (symbol->string expr))
-            ; Free variable: look up in compile-time fvars alist
-            (let ((%fv-entry (%compile-fvar-lookup expr)))
-              (if (null? %fv-entry)
-                (error (str "compile: free variable: " (symbol->string expr)))
-                (let ((%fv-val (rest %fv-entry)))
-                  (if (null? %fv-val)
-                    "NULL"
-                    (str "(x_obj_t *)"
-                      (number->string (ptr->int (obj->ptr %fv-val)))))))))
-          (if (pair? expr)
-            (%emit-form (first expr) (rest expr) params fns)
-            (error "compile: unknown expression type")))))))
+; --- Generate C via write-to-string ---
 
-(set %emit-form
-  (fn (op args params fns)
-    (if (eq? op (lit if))
-      (%emit-if args params fns)
-      (if (eq? op (lit =))
-        (%emit-eq args params fns)
-        (if (eq? op (lit score-set))
-          (%emit-score-set args params fns)
-          (if (eq? op (lit %seq))
-            (%emit-seq args params fns)
-            (if (eq? op (lit buffer-unread))
-              (%emit-buffer-unread args params fns)
-              (if (eq? op (lit fn))
-                (%emit-nested-fn args fns)
-                (if (eq? op (lit or))
-                  (%emit-or args params fns)
-                  (if (eq? op (lit first))
-                    (%emit-first args params fns)
-                    (if (eq? op (lit set-first))
-                      (%emit-set-first args params fns)
-                      (if (eq? op (lit atom-add!))
-                        (%emit-atom-add args params fns)
-                        (if (eq? op (lit atom-set!))
-                          (%emit-atom-set args params fns)
-                          (if (eq? op (lit atom-val))
-                            (%emit-atom-val args params fns)
-                            (error (str "compile: unsupported form: "
-                                        (symbol->string op)))))))))))))))))))
+; Generate a C function body by pushing write handlers and serializing
+(def %generate-fn-body
+  (fn (params body)
+    (set %compile-params params)
+    (write-to-string body)))
 
 ; Generate a complete C function
 (def %generate-fn
-  (fn (name params body fns)
+  (fn (name params body)
     (str "x_obj_t *" name "(x_obj_t *p_base, x_obj_t *p_args) {\n"
          (%c-param-decls params)
-         "    return " (%emit-expr body params fns) ";\n"
+         "    return " (%generate-fn-body params body) ";\n"
          "}\n\n")))
 
 ; --- Top-level C generation ---
 
-; Generate forward declaration for a nested fn (function + extern prim array)
+; Generate forward declaration for a nested fn
 (def %generate-fwd-decl
   (fn (name)
     (str "x_obj_t *" name "(x_obj_t *p_base, x_obj_t *p_args);\n"
          "extern x_obj_t " name "_prim[];\n")))
 
 ; Generate static prim object for a nested fn
-; Layout: [heap=NULL][type=NULL][flags=0][data=fn_ptr]
-; Type slot is patched after dlopen by the x-lang compile function.
 (def %generate-static-prim
   (fn (name)
     (str "x_obj_t " name "_prim[] = {\n"
          "    { .v = NULL }, { .v = NULL }, { .i = 0 }, { .fn = " name " }\n"
          "};\n\n")))
 
-; %generate-c-with-fns: generate C source, fns-holder captures nested fn info
-; Iteratively generates nested fn bodies until no new fns are discovered,
-; then emits forward declarations and static prims for ALL nested fns.
+; Generate complete C source with nested fn support.
+; Write handlers must be pushed before calling this.
 (def %generate-c-with-fns
   (fn (expr fns-holder)
     (let ((params (first (rest expr)))
-          (body (first (rest (rest expr))))
-          (fns fns-holder))
-      ; Generate the main function (may populate fns with nested fns)
-      (def %main-c (%generate-fn "fn_0" params body fns))
+          (body (first (rest (rest expr)))))
+      (set %compile-fns fns-holder)
+      ; Generate the main function (may populate fns via %cw-fn)
+      (def %main-c (%generate-fn "fn_0" params body))
       ; Iteratively generate nested fn bodies until stable
-      ; New nested fns may be discovered while generating existing ones
       (def %nested-c "")
       (def %gen-loop
         (fn (processed)
-          (def %current (first fns))
+          (def %current (first %compile-fns))
           (def %len (length %current))
           (if (= %len processed) ()
             (do
-              ; Process new fns (prepended at front of list)
               (def %gen-new
                 (fn (lst n)
                   (if (= n 0) ()
@@ -302,13 +380,12 @@
                         (str %nested-c
                           (%generate-fn %name
                             (first (rest %entry))
-                            (first (rest (rest %entry)))
-                            fns)))
+                            (first (rest (rest %entry))))))
                       (%gen-new (rest lst) (- n 1))))))
               (%gen-new %current (- %len processed))
               (%gen-loop %len)))))
       (%gen-loop 0)
-      ; Generate forward decls and static prims for ALL discovered nested fns
+      ; Generate forward decls and static prims
       (def %all-fwd "")
       (def %all-prims "")
       (def %gen-decls
@@ -319,8 +396,8 @@
               (set %all-fwd (str %all-fwd (%generate-fwd-decl %name)))
               (set %all-prims (str %all-prims (%generate-static-prim %name)))
               (%gen-decls (rest lst))))))
-      (%gen-decls (first fns))
-      ; Combine: preamble + forward decls + nested fns + static prims + main fn
+      (%gen-decls (first %compile-fns))
+      ; Combine
       (str "#include \"x-obj.h\"\n"
            "#include \"x-type/buffer.h\"\n\n"
            %all-fwd "\n"
@@ -328,16 +405,21 @@
            %all-prims
            %main-c))))
 
-; Convenience wrapper (no fns output needed)
-(def %generate-c
-  (fn (expr)
-    (%generate-c-with-fns expr (list (list)))))
+; --- Push/pop write handlers around code generation ---
+
+(def %compile-push-writers
+  (fn ()
+    (%type-push-write %list-type %compile-list-write)
+    (%type-push-write %symbol-type %compile-symbol-write)
+    (%type-push-write %int-type %compile-int-write)))
+
+(def %compile-pop-writers
+  (fn ()
+    (%type-pop-write %list-type)
+    (%type-pop-write %symbol-type)
+    (%type-pop-write %int-type)))
 
 ; --- Type casting ---
-; Copy the type slot from src object to dst object.
-; Object layout: [heap][type][flags][data...] — type at word offset 1.
-; sizeof(x_obj_t) = sizeof(void*) = %word-size (bound by C FFI layer).
-; We use ptr-ref-word/ptr-set-word! which operate in bytes.
 
 (def %type-offset %word-size)
 
@@ -351,7 +433,6 @@
 
 ; --- Compilation pipeline ---
 
-; %compile-cc: invoke cc on a source file, return nothing
 (def %compile-cc
   (fn (src-path lib-path)
     (def %cc-cmd
@@ -365,8 +446,6 @@
     (if (not (= %cc-status 0))
       (error (str "compile: cc failed with status " (number->string %cc-status))))))
 
-; %patch-nested-prims: patch type slot of static prim objects in the .so
-; prim-type-val: the integer type pointer value from a real prim
 (def %patch-nested-prims
   (fn (lib fns prim-type-val)
     (if (null? fns) ()
@@ -377,7 +456,6 @@
           (ptr-set-word! %prim-ptr %type-offset prim-type-val))
         (%patch-nested-prims lib (rest fns) prim-type-val)))))
 
-; Load a cached library, returning the prim (or () if not found)
 (def %compile-cache-load
   (fn (cache-path fns-holder)
     (if (not (%file-exists? cache-path)) ()
@@ -417,8 +495,11 @@
         (def %id (number->string %compile-id))
         (def %src-path (str "/tmp/x-compile-" %id ".c"))
 
-        ; Generate C (fns list captures nested fn info)
+        ; Push C-emitting write handlers, generate C, pop
+        (%compile-push-writers)
         (def %c-source (%generate-c-with-fns expr %fns-holder))
+        (%compile-pop-writers)
+
         (def %fd (sh-open-write %src-path))
         (%fd-write %fd %c-source)
         (sh-close %fd)
@@ -428,7 +509,7 @@
           (str "/tmp/x-compile-" %id %compile-ext)))
         (%compile-cc %src-path %lib-path)
 
-        ; Clean up source (and temp lib if fvars, else cache persists)
+        ; Clean up source
         (ptr-call %c-unlink %src-path)
 
         (def %lib (dlopen %lib-path 1))
@@ -442,7 +523,7 @@
         (def %prim-type-val (ptr-ref-word (obj->ptr first) %type-offset))
         (%patch-nested-prims %lib (first %fns-holder) %prim-type-val)
 
-        ; Clean up temp lib for fvar compilations (stays mapped by dlopen)
+        ; Clean up temp lib for fvar compilations
         (if (not (null? %compile-fvars))
           (ptr-call %c-unlink %lib-path))
 
@@ -457,6 +538,8 @@
     (def %src-path (str "/tmp/x-compile-" %id ".c"))
     (def %lib-path (str "/tmp/x-compile-" %id %compile-ext))
 
+    (%compile-push-writers)
+
     ; Generate all functions with unique top-level names
     (def %c-all
       (fn (es i acc)
@@ -466,13 +549,13 @@
               (error "compile-batch: each expression must be (fn ...)"))
             (let ((params (first (rest expr)))
                   (body (first (rest (rest expr))))
-                  (fns (list (list)))
                   (name (str "batch_" (number->string i))))
+              (set %compile-fns (list (list)))
               (def %fn-c
                 (str "x_obj_t *" name
                      "(x_obj_t *p_base, x_obj_t *p_args) {\n"
                      (%c-param-decls params)
-                     "    return " (%emit-expr body params fns) ";\n"
+                     "    return " (%generate-fn-body params body) ";\n"
                      "}\n\n"))
               (%c-all (rest es) (+ i 1) (str acc %fn-c)))))))
 
@@ -480,6 +563,8 @@
       (str "#include \"x-obj.h\"\n"
            "#include \"x-type/buffer.h\"\n\n"
            (%c-all exprs 0 "")))
+
+    (%compile-pop-writers)
 
     (def %fd (sh-open-write %src-path))
     (%fd-write %fd %c-source)
