@@ -112,6 +112,22 @@
   (def string-length (fn (s) (s)))
   (def substring (fn (s start end) (s start (- end start))))
   (def heap-collect (fn () (atomic heap-mark heap-sweep) ()))
+  ; GC hooks: navigate base tree to gc-hooks cells
+  (def %gc-hooks
+    (rest (rest (rest (rest (rest (rest (rest (first (%base))))))))))
+  (def %gc-hooks-rest (rest %gc-hooks))
+  (def heap-mark-root!
+    (fn (obj)
+      (def %cell (rest %gc-hooks-rest))
+      (set-first %cell (pair obj (first %cell)))))
+  (def heap-mark-hook!
+    (fn (hook)
+      (def %cell (first %gc-hooks))
+      (set-first %cell (pair hook (first %cell)))))
+  (def heap-free-hook!
+    (fn (hook)
+      (def %cell (first %gc-hooks-rest))
+      (set-first %cell (pair hook (first %cell)))))
   (def % (fn (a b) (- a (* b (/ a b)))))
   (def %rewrite
     (fn (p a b) (set-first p a) (set-rest p b) p))

@@ -135,7 +135,7 @@
   ; WHITESPACE type by 1. The reader unreads the extra non-WS char.
 
   ; Mutable state cells for the analyse state machine
-  (define %sweet-ws-saw-nl (list #f))
+  (define %sweet-ws-saw-nl (list 0))
   (define %sweet-ws-level (list 0))
   (define %sweet-ws-a2-ref (list ()))
 
@@ -158,15 +158,15 @@
     (compile
       (lit (fn (buffer score chr)
         (if (= chr 32)
-          (%seq (if (first %nl) (atom-add! (first %lv) 1)) (first %a2))
+          (%seq (if (atom-val (first %nl)) (atom-add! (first %lv) 1)) (first %a2))
           (if (= chr 9)
-            (%seq (if (first %nl) (atom-add! (first %lv) 8)) (first %a2))
+            (%seq (if (atom-val (first %nl)) (atom-add! (first %lv) 8)) (first %a2))
             (if (= chr 10)
-              (%seq (set-first %nl 1)
+              (%seq (atom-set! (first %nl) 1)
                     (%seq (atom-set! (first %lv) 0) (first %a2)))
               (if (or (= chr 13) (= chr 11) (= chr 12))
                 (first %a2)
-                (if (first %nl)
+                (if (atom-val (first %nl))
                   (score-set score 1 buffer) ())))))))
       %sweet-ws-fvars))
 
@@ -180,8 +180,8 @@
         (if (or (= chr 32) (= chr 9) (= chr 10) (= chr 13) (= chr 11) (= chr 12))
           (%seq
             (if (= chr 10)
-              (%seq (set-first %nl 1) (atom-set! (first %lv) 0))
-              (set-first %nl ()))
+              (%seq (atom-set! (first %nl) 1) (atom-set! (first %lv) 0))
+              (atom-set! (first %nl) 0))
             (first %a2))
           ())))
       %sweet-ws-fvars))
@@ -193,6 +193,19 @@
       (cons (lit analyse) %sweet-ws-a1)
       (cons (lit read) %sweet-ws-reader)
       (cons (lit delimit) (%sweet-nth 2 %sweet-compiled))))
+
+  ; Register compiled callbacks, mutable cells, reader closures, and
+  ; sentinels as GC roots — these are referenced by compiled native code
+  ; or tokenizer callbacks via embedded pointers.
+  (heap-mark-root! %sweet-ws-saw-nl)
+  (heap-mark-root! %sweet-ws-level)
+  (heap-mark-root! %sweet-ws-a2-ref)
+  (heap-mark-root! %sweet-compiled)
+  (heap-mark-root! %sweet-curly-reader)
+  (heap-mark-root! %sweet-curly-close)
+  (heap-mark-root! %sweet-indent-sentinel)
+  (heap-mark-root! %sweet-ws-reader)
+
   ; --- sweet-read: indentation-based grouping (SRFI-110) ---
 
   ;
