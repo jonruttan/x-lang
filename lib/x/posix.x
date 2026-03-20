@@ -60,7 +60,7 @@
 (def sh-getenv
   (fn (name)
     (let ((result (ptr-call %c-getenv name)))
-      (if (= result 0) () (ptr->string (convert result %ptr))))))
+      (if (= result 0) () (convert (convert result %ptr) %string)))))
 ; --- open variants ---
 ; O_* flags are platform constants bound by the FFI layer
 

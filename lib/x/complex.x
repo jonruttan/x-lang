@@ -106,7 +106,7 @@
 (def %cx-find-char
   (fn (s i len ch)
     (if (>= i len) ()
-      (if (= (char->integer (string-ref s i)) ch)
+      (if (= (convert (string-ref s i) %int) ch)
         i
         (%cx-find-char s (%int+ i 1) len ch)))))
 

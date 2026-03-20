@@ -22,7 +22,7 @@
 (def %rat-find-slash
   (fn (s i len)
     (if (>= i len) ()
-      (if (= (char->integer (string-ref s i)) 47)
+      (if (= (convert (string-ref s i) %int) 47)
         i
         (%rat-find-slash s (%int+ i 1) len)))))
 ; --- Constructor: auto-reduce and normalize sign ---

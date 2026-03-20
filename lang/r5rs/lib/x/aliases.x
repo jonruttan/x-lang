@@ -57,6 +57,22 @@
   (fn (n . rest)
     (%make-vector-orig n (if (null? rest) () (first rest)))))
 
+; --- Scheme conversion aliases ---
+
+(def char->integer (fn (c) (convert c %int)))
+(def integer->char (fn (n) (convert n %char)))
+(def string->symbol (fn (s) (convert s %symbol)))
+(def symbol->string (fn (s) (convert s %string)))
+(def number->string
+  (fn (n . rest)
+    (if (null? rest) (convert n %string)
+      (convert n %string (first rest)))))
+(def string->number
+  (fn (s . rest)
+    (if (null? rest) (convert s %int)
+      (convert s %int (first rest)))))
+(def list->string (fn (lst) (convert lst %string)))
+
 ; --- Scheme list aliases ---
 
 (def list-ref (fn (lst n) (nth n lst)))

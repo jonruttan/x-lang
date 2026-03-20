@@ -19,7 +19,7 @@
       (fn (i h)
         (if (= i %len) h
           (%go (+ i 1)
-            (* (^ h (char->integer (string-ref s i)))
+            (* (^ h (convert (string-ref s i) %int))
                %fnv-prime)))))
     (%go 0 %fnv-offset)))
 
