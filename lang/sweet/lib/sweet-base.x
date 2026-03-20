@@ -85,153 +85,114 @@
   ; --- SWEET-CURLY token type (follows LIST pattern) ---
 
   ; Sentinel: list whose car is a unique integer tag (GC-safe check)
-
   (define %sweet-curly-close (list 7777))
-  (define
-    (curly-close? x)
+  (define (curly-close? x)
     (and (pair? x) (eq? (car x) (car %sweet-curly-close))))
+
   ; Shared reader for both { and }
-
   ; NOTE: uses if, not cond -- cond triggers GC inside tokenizer callbacks
-
-  (define
-    %sweet-curly-reader
-    (lambda
-      args
+  (define %sweet-curly-reader
+    (lambda args
       (let ((raw (buffer-token (car args))))
         (if (equal? raw "}")
           %sweet-curly-close
-          (let loop
-            ((elems ()))
+          (let loop ((elems ()))
             (let ((e (%prim-read)))
-              (if (null? e)
-                (infix->prefix (reverse elems))
-                (if (curly-close? e)
-                  (infix->prefix (reverse elems))
-                  (if (indent-marker? e) (loop elems) (loop (cons e elems)))))))))))
-  ; Register SWEET-CURLY on the main base
+              (if (null? e) (infix->prefix (reverse elems))
+                (if (curly-close? e) (infix->prefix (reverse elems))
+                  (if (indent-marker? e) (loop elems)
+                    (loop (cons e elems)))))))))))
 
-  (make-type
-    "SWEET-CURLY"
+  ; --- Compiled tokenizer callbacks ---
+  ; Batch-compile SWEET-CURLY analyse/delimit + SWEET-WS delimit
+  (define %sweet-compiled
+    (compile-batch
+      ; 0: curly analyse — { = 123, } = 125
+      (lit (fn (buffer score chr)
+        (if (or (= chr 123) (= chr 125))
+          (score-set score 1 buffer) ())))
+      ; 1: curly delimit
+      (lit (fn (buffer score chr)
+        (if (or (= chr 123) (= chr 125))
+          (%seq (buffer-unread buffer) buffer) ())))
+      ; 2: ws delimit — whitespace chars: 32 9 10 13 11 12
+      (lit (fn (buffer score chr)
+        (if (or (= chr 32) (= chr 9) (= chr 10) (= chr 13) (= chr 11) (= chr 12))
+          (%seq (buffer-unread buffer) buffer) ())))))
+  (define %sweet-nth
+    (lambda (n lst) (if (= n 0) (car lst) (%sweet-nth (- n 1) (cdr lst)))))
+
+  ; Register SWEET-CURLY
+  (make-type "SWEET-CURLY"
     (list
       (cons (lit first-chars) "{}")
-      (cons
-        (lit analyse)
-        (lambda
-          (buffer score chr)
-          (if (or
-                (= chr (char->integer #\{))
-                (= chr (char->integer #\})))
-            (score-set score 1 buffer)
-            ())))
+      (cons (lit analyse) (%sweet-nth 0 %sweet-compiled))
       (cons (lit read) %sweet-curly-reader)
-      (cons
-        (lit delimit)
-        (lambda
-          (buffer score chr)
-          (if (or
-                (= chr (char->integer #\{))
-                (= chr (char->integer #\})))
-            (%seq (buffer-unread buffer) buffer)
-            ())))))
+      (cons (lit delimit) (%sweet-nth 1 %sweet-compiled))))
+
   ; --- SWEET-WS token type (replaces built-in WHITESPACE) ---
-
-  ;
-
   ; Scores bufferlen (not bufferlen-1) so it always beats the C
-
   ; WHITESPACE type by 1. The reader unreads the extra non-WS char.
 
-  ; Mutable state for the analyse state machine
+  ; Mutable state cells for the analyse state machine
+  (define %sweet-ws-saw-nl (list #f))
+  (define %sweet-ws-level (list 0))
+  (define %sweet-ws-a2-ref (list ()))
 
-  (define %sweet-ws-saw-nl #f)
-  (define %sweet-ws-level 0)
-  ; Check if chr is whitespace (same chars as WHITESPACE_CHARS_STR)
+  ; Free variable bindings for compiled callbacks
+  (define %sweet-ws-fvars
+    (list
+      (cons (lit %nl) %sweet-ws-saw-nl)
+      (cons (lit %lv) %sweet-ws-level)
+      (cons (lit %a2) %sweet-ws-a2-ref)))
 
-  (define
-    (%sweet-ws-char? chr)
-    (or
-      (= chr 32)
-      (= chr 9)
-      (= chr 10)
-      (= chr 13)
-      (= chr 11)
-      (= chr 12)))
   ; Reader: unread the extra char, return indent marker
-
-  (define
-    %sweet-ws-reader
-    (lambda
-      args
+  (define %sweet-ws-reader
+    (lambda args
       (buffer-unread (car args))
-      (list %sweet-indent-sentinel %sweet-ws-level)))
-  ; Analyse state 2: continue consuming, finalize on non-WS
+      (list %sweet-indent-sentinel (first %sweet-ws-level))))
 
-  ; (defined before a1 because a1 references a2)
+  ; Compile a2: continue consuming, finalize on non-WS
+  ; Uses cells for mutable state; %a2 cell for self-reference
+  (define %sweet-ws-a2
+    (compile
+      (lit (fn (buffer score chr)
+        (if (= chr 32)
+          (%seq (if (first %nl) (atom-add! (first %lv) 1)) (first %a2))
+          (if (= chr 9)
+            (%seq (if (first %nl) (atom-add! (first %lv) 8)) (first %a2))
+            (if (= chr 10)
+              (%seq (set-first %nl 1)
+                    (%seq (atom-set! (first %lv) 0) (first %a2)))
+              (if (or (= chr 13) (= chr 11) (= chr 12))
+                (first %a2)
+                (if (first %nl)
+                  (score-set score 1 buffer) ())))))))
+      %sweet-ws-fvars))
 
-  ; NOTE: uses if, not cond -- cond triggers GC inside tokenizer callbacks
+  ; Patch self-reference: a2 returns itself via the cell
+  (set-first %sweet-ws-a2-ref %sweet-ws-a2)
 
-  (define
-    %sweet-ws-a2
-    (lambda
-      (buffer score chr)
-      (if (= chr 32)
-        ; space
-
-        (%seq
-          (if %sweet-ws-saw-nl
-            (set! %sweet-ws-level (+ %sweet-ws-level 1)))
-          %sweet-ws-a2)
-        (if (= chr 9)
-          ; tab
-
+  ; Compile a1: first char must be whitespace
+  (define %sweet-ws-a1
+    (compile
+      (lit (fn (buffer score chr)
+        (if (or (= chr 32) (= chr 9) (= chr 10) (= chr 13) (= chr 11) (= chr 12))
           (%seq
-            (if %sweet-ws-saw-nl
-              (set! %sweet-ws-level (+ %sweet-ws-level 8)))
-            %sweet-ws-a2)
-          (if (= chr 10)
-            ; newline
+            (if (= chr 10)
+              (%seq (set-first %nl 1) (atom-set! (first %lv) 0))
+              (set-first %nl ()))
+            (first %a2))
+          ())))
+      %sweet-ws-fvars))
 
-            (%seq
-              (set! %sweet-ws-saw-nl #t)
-              (%seq (set! %sweet-ws-level 0) %sweet-ws-a2))
-            (if (or (= chr 13) (= chr 11) (= chr 12))
-              ; CR, VT, FF
-
-              %sweet-ws-a2
-              (if %sweet-ws-saw-nl
-                ; non-WS: finalize
-
-                (score-set score 1 buffer)
-                ())))))))
-  ; Analyse state 1: first char must be whitespace
-
-  (define
-    %sweet-ws-a1
-    (lambda
-      (buffer score chr)
-      (if (%sweet-ws-char? chr)
-        (%seq
-          (if (= chr 10)
-            (%seq (set! %sweet-ws-saw-nl #t) (set! %sweet-ws-level 0))
-            (set! %sweet-ws-saw-nl #f))
-          %sweet-ws-a2)
-        ())))
   ; Register SWEET-WS
-
-  (make-type
-    "SWEET-WS"
+  (make-type "SWEET-WS"
     (list
       (cons (lit first-chars) " \t\n\r")
       (cons (lit analyse) %sweet-ws-a1)
       (cons (lit read) %sweet-ws-reader)
-      (cons
-        (lit delimit)
-        (lambda
-          (buffer score chr)
-          (if (%sweet-ws-char? chr)
-            (%seq (buffer-unread buffer) buffer)
-            ())))))
+      (cons (lit delimit) (%sweet-nth 2 %sweet-compiled))))
   ; --- sweet-read: indentation-based grouping (SRFI-110) ---
 
   ;

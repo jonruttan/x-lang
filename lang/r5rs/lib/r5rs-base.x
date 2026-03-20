@@ -14,6 +14,18 @@
 
 (include "lib/x-core.x")
 
+; Native compiler for tokenizer callbacks (requires posix.x)
+; Must load before derived.scm redefines 'do' from begin to R5RS iteration
+(include "lib/x/posix.x")
+(include "lib/x/compile.x")
+
+; Tokenizer types: compiled to native code for fast tokenization
+; %prim-read: raw read primitive (before ports.scm wraps it)
+; %ellipsis-sym: the ... symbol (normally defined in macro.scm)
+(def %prim-read read)
+(def %ellipsis-sym (string->symbol "..."))
+(include "lang/r5rs/lib/x/syntax.x")
+
 (do
   ; --- x-lang aliases for Scheme naming ---
   (include "lang/r5rs/lib/x/aliases.x")
@@ -67,9 +79,6 @@
   ; --- Port system ---
   (include "lang/r5rs/lib/scm/ports.scm")
 
-  ; --- Hygienic macros (before syntax.x to avoid ELLIPSIS tokenizer interference) ---
+  ; --- Hygienic macros ---
   (include "lang/r5rs/lib/scm/macro.scm")
-
-  ; --- Tokenizer types (quote, quasiquote, unquote, ellipsis) ---
-  (include "lang/r5rs/lib/x/syntax.x")
 )

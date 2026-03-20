@@ -35,3 +35,5 @@
   (include "lang/r7rs/lib/scm/control.scm")
   (include "lang/r7rs/lib/scm/ports.scm")
 )
+
+; syntax.x is loaded by r5rs-base.x (compiled to native code)
