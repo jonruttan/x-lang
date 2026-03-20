@@ -6,11 +6,12 @@
 ; The result is a native primitive with the same calling convention
 ; as hand-written C primitives.
 
-; --- libc write/unlink (not in posix.x) ---
+; --- libc write/unlink/access (not in posix.x) ---
 
 (def %c-write (%resolve "write"))
 (def %c-unlink (%resolve "unlink"))
 (def %c-system (%resolve "system"))
+(def %c-access (%resolve "access"))
 
 (def %fd-write
   (fn (fd s)
@@ -19,6 +20,14 @@
 ; --- Compile counter for unique temp file names ---
 
 (def %compile-id 0)
+
+; --- Compile cache ---
+
+(def %compile-cache-dir "/tmp/x-cache-")
+
+; Check if a file exists (access with F_OK=0)
+(def %file-exists?
+  (fn (path) (= (ptr-call %c-access path 0) 0)))
 
 ; --- Platform-specific cc flags ---
 
@@ -368,44 +377,69 @@
           (ptr-set-word! %prim-ptr %type-offset prim-type-val))
         (%patch-nested-prims lib (rest fns) prim-type-val)))))
 
+; Load a cached library, returning the prim (or () if not found)
+(def %compile-cache-load
+  (fn (cache-path fns-holder)
+    (if (not (%file-exists? cache-path)) ()
+      (let ((lib (dlopen cache-path 1)))
+        (if (null? lib) ()
+          (let ((fn-ptr (dlsym lib "fn_0")))
+            (if (null? fn-ptr) ()
+              (do
+                (type-cast! fn-ptr first)
+                (def %prim-type-val (ptr-ref-word (obj->ptr first) %type-offset))
+                (%patch-nested-prims lib (first fns-holder) %prim-type-val)
+                fn-ptr))))))))
+
 ; compile: compile a single (fn ...) expression to a native prim
 ; Optional second arg: free variable alist ((sym . val) ...)
+; Caches compiled libraries keyed by FNV-1a hash of the expression.
 (def compile
   (fn (expr . rest)
     (set %compile-fvars (if (null? rest) () (first rest)))
     (if (not (eq? (first expr) (lit fn)))
       (error "compile: expression must be (fn (params...) body)"))
 
-    (set %compile-id (+ %compile-id 1))
-    (def %id (number->string %compile-id))
-    (def %src-path (str "/tmp/x-compile-" %id ".c"))
-    (def %lib-path (str "/tmp/x-compile-" %id %compile-ext))
-
-    ; Generate C (fns list captures nested fn info)
+    ; Cache lookup: hash the expression to get a stable filename
     (def %fns-holder (list (list)))
-    (def %c-source (%generate-c-with-fns expr %fns-holder))
-    (def %fd (sh-open-write %src-path))
-    (%fd-write %fd %c-source)
-    (sh-close %fd)
+    (def %expr-key (write-to-string expr))
+    (def %cache-hash (hash->hex (fnv-1a %expr-key)))
+    (def %cache-path (str %compile-cache-dir %cache-hash %compile-ext))
 
-    (%compile-cc %src-path %lib-path)
+    ; Try loading from cache
+    (def %cached (%compile-cache-load %cache-path %fns-holder))
+    (if (not (null? %cached)) %cached
 
-    (def %lib (dlopen %lib-path 1))
-    (if (null? %lib) (error "compile: dlopen failed"))
+      ; Cache miss: compile and save to cache path
+      (do
+        (set %compile-id (+ %compile-id 1))
+        (def %id (number->string %compile-id))
+        (def %src-path (str "/tmp/x-compile-" %id ".c"))
 
-    ; Clean up temp files (source no longer needed; .so stays mapped by dlopen)
-    (ptr-call %c-unlink %src-path)
-    (ptr-call %c-unlink %lib-path)
+        ; Generate C (fns list captures nested fn info)
+        (def %c-source (%generate-c-with-fns expr %fns-holder))
+        (def %fd (sh-open-write %src-path))
+        (%fd-write %fd %c-source)
+        (sh-close %fd)
 
-    (def %fn (dlsym %lib "fn_0"))
-    (if (null? %fn) (error "compile: dlsym failed for fn_0"))
-    (type-cast! %fn first)
+        ; Compile to cache path (persists across runs)
+        (%compile-cc %src-path %cache-path)
 
-    ; Patch nested fn static prims
-    (def %prim-type-val (ptr-ref-word (obj->ptr first) %type-offset))
-    (%patch-nested-prims %lib (first %fns-holder) %prim-type-val)
+        ; Clean up source (library stays at cache path)
+        (ptr-call %c-unlink %src-path)
 
-    %fn))
+        (def %lib (dlopen %cache-path 1))
+        (if (null? %lib) (error "compile: dlopen failed"))
+
+        (def %fn (dlsym %lib "fn_0"))
+        (if (null? %fn) (error "compile: dlsym failed for fn_0"))
+        (type-cast! %fn first)
+
+        ; Patch nested fn static prims
+        (def %prim-type-val (ptr-ref-word (obj->ptr first) %type-offset))
+        (%patch-nested-prims %lib (first %fns-holder) %prim-type-val)
+
+        %fn))))
 
 ; compile-batch: compile multiple (fn ...) expressions in one cc call.
 ; Returns a list of prims, one per expression.

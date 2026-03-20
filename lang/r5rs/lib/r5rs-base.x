@@ -17,6 +17,7 @@
 ; Native compiler for tokenizer callbacks (requires posix.x)
 ; Must load before derived.scm redefines 'do' from begin to R5RS iteration
 (include "lib/x/posix.x")
+(include "lib/x/hash.x")
 (include "lib/x/compile.x")
 
 ; Tokenizer types: compiled to native code for fast tokenization
