@@ -29,3 +29,16 @@
 (def even? (fn (n) (= (% n 2) 0)))
 
 (def odd? (fn (n) (not (= (% n 2) 0))))
+
+; --- GCD / LCM (need fold from list.x, loaded after) ---
+; These are defined as stubs here, then set! after list.x loads.
+; Actually loaded in x-core.x after list.x via inline definitions.
+
+; --- Exponentiation ---
+
+(def expt
+  (fn (base exp)
+    (if (= exp 0) 1
+      (if (even? exp)
+        (expt (* base base) (/ exp 2))
+        (* base (expt base (- exp 1)))))))

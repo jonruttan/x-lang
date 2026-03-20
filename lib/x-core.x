@@ -326,6 +326,24 @@
           (%int- 0 (first args))
           (fold %int- (first args) (rest args))))))
   (set! % (fn args (fold %int% (first args) (rest args))))
+  ; --- GCD / LCM (need fold + abs) ---
+
+  (def gcd
+    (fn args
+      (def %gcd2
+        (fn (a b) (if (zero? b) a (%gcd2 b (% a b)))))
+      (if (null? args) 0
+        (fold (fn (acc x) (%gcd2 (abs acc) (abs x)))
+              (first args) (rest args)))))
+
+  (def lcm
+    (fn args
+      (def %lcm2
+        (fn (a b)
+          (if (zero? b) 0 (abs (* (/ a (gcd a b)) b)))))
+      (if (null? args) 1
+        (fold (fn (acc x) (%lcm2 (abs acc) (abs x)))
+              (first args) (rest args)))))
   ; --- Intrinsic scoring helpers for custom type analysers ---
 
   (def buffer-len
@@ -354,6 +372,7 @@
       (first-int
         (first (first (rest (first (rest (first (%base))))))))))
   (include "lib/x/alist.x")
+  (include "lib/x/char.x")
   (include "lib/x/string.x")
   (include "lib/x/vector.x")
   (include "lib/x/promise.x")

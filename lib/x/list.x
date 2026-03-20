@@ -398,3 +398,36 @@
       ((null? lst) ())
       ((= n 0) (pair (f (first lst)) (rest lst)))
       (#t (pair (first lst) (adjust (- n 1) f (rest lst)))))))
+
+; --- Type predicate ---
+
+(def list?
+  (fn (x) (if (null? x) #t (if (pair? x) (list? (rest x)) #f))))
+
+; --- Membership ---
+
+(def memq
+  (fn (x lst)
+    (if (null? lst) #f
+      (if (eq? x (first lst)) lst
+        (memq x (rest lst))))))
+
+(def member
+  (fn (x lst)
+    (if (null? lst) #f
+      (if (equal? x (first lst)) lst
+        (member x (rest lst))))))
+
+; --- Association ---
+
+(def assq
+  (fn (key alist)
+    (if (null? alist) #f
+      (if (eq? key (first (first alist))) (first alist)
+        (assq key (rest alist))))))
+
+(def assoc
+  (fn (key alist)
+    (if (null? alist) #f
+      (if (equal? key (first (first alist))) (first alist)
+        (assoc key (rest alist))))))
