@@ -99,3 +99,46 @@
     (pair %string (fn (v . extra) (string->ptr v)))
     (pair %ptr    (fn (v . extra) v))
     (pair #t (fn (v . extra) (obj->ptr v)))))
+
+; --- convert dispatch (replaces C primitive) ---
+(def %alist-find
+  (fn (alist key)
+    (if (null? alist) ()
+      (if (eq? (first (first alist)) key)
+        (first alist)
+        (%alist-find (rest alist) key)))))
+
+(def convert
+  (fn (val target . extra)
+    (if (null? val) ()
+      (if (eq? (type-of val) target) val
+        (do
+          (def source (type-of val))
+          (def target-ts (%type-lookup target))
+          (def entry ())
+          ; Exact match: source in target's from-alist
+          (if (null? target-ts) ()
+            (do
+              (def from-al (first (%type-from-cell target-ts)))
+              (if (null? from-al) ()
+                (do
+                  (if (null? source) ()
+                    (set! entry (%alist-find from-al source)))
+                  ; Wildcard: #t key
+                  (if (null? entry)
+                    (set! entry (%alist-find from-al #t))
+                    ())))))
+          ; Outbound: target in source's to-alist
+          (if (null? entry)
+            (if (null? source) ()
+              (do
+                (def source-ts (%type-lookup source))
+                (if (null? source-ts) ()
+                  (do
+                    (def to-al (first (%type-to-cell source-ts)))
+                    (if (null? to-al) ()
+                      (set! entry (%alist-find to-al target)))))))
+            ())
+          ; Call converter: (fn val . extra)
+          (if (null? entry) ()
+            (apply (rest entry) (pair val extra))))))))

@@ -107,6 +107,60 @@
   (def not (fn (x) (if x #f #t)))
   (def atom? (fn (x) (not (pair? x))))
   (def list (fn args args))
+  (def % (fn (a b) (- a (* b (/ a b)))))
+  ; number->string: (number->string n [radix]) -> string representation
+  (def number->string
+    (fn (n . rest)
+      (def radix (if (null? rest) 10 (first rest)))
+      (def %d "0123456789abcdefghijklmnopqrstuvwxyz")
+      (if (= n 0) "0"
+        (if (< n 0)
+          (string-append "-" (number->string (- 0 n) radix))
+          (let ((rem (% n radix)))
+            (if (< n radix)
+              (list->string (list (%d rem)))
+              (string-append
+                (number->string (/ n radix) radix)
+                (list->string (list (%d rem))))))))))
+  ; string->number: (string->number str [radix]) -> integer or ()
+  (def string->number
+    (fn (s . rest)
+      (def radix (if (null? rest) 10 (first rest)))
+      (def len (s))
+      (if (= len 0) ()
+        (do
+          (def %0 (char->integer ("0" 0)))
+          (def %digit
+            (fn (ch)
+              (def c (char->integer ch))
+              (if (if (not (< c %0)) (not (< (+ %0 9) c)) #f)
+                (- c %0)
+                (if (if (not (< c (char->integer ("a" 0))))
+                        (not (< (+ (char->integer ("a" 0)) 25) c)) #f)
+                  (+ 10 (- c (char->integer ("a" 0))))
+                  (if (if (not (< c (char->integer ("A" 0))))
+                          (not (< (+ (char->integer ("A" 0)) 25) c)) #f)
+                    (+ 10 (- c (char->integer ("A" 0))))
+                    ())))))
+          (def c0 (char->integer (s 0)))
+          (def neg (= c0 (char->integer ("-" 0))))
+          (def start
+            (if neg 1
+              (if (= c0 (char->integer ("+" 0))) 1 0)))
+          (if (= start len) ()
+            (do
+              (def %parse
+                (fn (i acc)
+                  (if (= i len) acc
+                    (do
+                      (def d (%digit (s i)))
+                      (if (null? d) ()
+                        (if (< d radix)
+                          (%parse (+ i 1) (+ (* acc radix) d))
+                          ()))))))
+              (def result (%parse start 0))
+              (if (null? result) ()
+                (if neg (- 0 result) result))))))))
   (include "lib/x/convert.x")
   (def newline (fn () (display "\n")))
   (def string-ref (fn (s i) (s i)))
@@ -134,7 +188,6 @@
   (def %false-stack (rest (rest %io-state)))
   (set-rest! %false-stack (pair () ()))
   (def %include-list-cell (rest %false-stack))
-  (def % (fn (a b) (- a (* b (/ a b)))))
   (def %rewrite
     (fn (p a b) (set-first! p a) (set-rest! p b) p))
   (def %expanded (pair () ()))
@@ -142,7 +195,7 @@
     (fn (a b i len)
       (if (= i len)
         #t
-        (if (= (convert (a i) %int) (convert (b i) %int))
+        (if (= (char->integer (a i)) (char->integer (b i)))
           (%string-eq-loop a b (+ i 1) len)
           #f))))
   (def string=?
@@ -237,6 +290,11 @@
   (include "lib/x/logic.x")
   (include "lib/x/list.x")
   (include "lib/x/derived.x")
+  ; make-string: (make-string k [char]) -> string of k copies of char
+  (def make-string
+    (fn (k . rest)
+      (def ch (if (null? rest) (" " 0) (first rest)))
+      (list->string (repeat ch k))))
   ; --- Save integer primitives and make arithmetic variadic ---
 
   ; fold (from list.x) enables variadic wrappers. float.x later overrides
