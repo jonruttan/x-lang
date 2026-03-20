@@ -181,6 +181,11 @@
           (n (first (rest args))))
       (str "(x_atomint(" atom ") = " (number->string n) ", " atom ")"))))
 
+; (atom-val atom-expr) => read integer as truthy/falsy pointer (0→NULL, nonzero→truthy)
+(def %emit-atom-val
+  (fn (args params fns)
+    (str "(x_obj_t *)(long)x_atomint(" (%emit-expr (first args) params fns) ")")))
+
 ; --- Set the mutually recursive functions ---
 
 (set %emit-expr
@@ -228,8 +233,10 @@
                         (%emit-atom-add args params fns)
                         (if (eq? op (lit atom-set!))
                           (%emit-atom-set args params fns)
-                          (error (str "compile: unsupported form: "
-                                      (symbol->string op))))))))))))))))))
+                          (if (eq? op (lit atom-val))
+                            (%emit-atom-val args params fns)
+                            (error (str "compile: unsupported form: "
+                                        (symbol->string op)))))))))))))))))))
 
 ; Generate a complete C function
 (def %generate-fn
@@ -385,6 +392,11 @@
 
     (def %lib (dlopen %lib-path 1))
     (if (null? %lib) (error "compile: dlopen failed"))
+
+    ; Clean up temp files (source no longer needed; .so stays mapped by dlopen)
+    (ptr-call %c-unlink %src-path)
+    (ptr-call %c-unlink %lib-path)
+
     (def %fn (dlsym %lib "fn_0"))
     (if (null? %fn) (error "compile: dlsym failed for fn_0"))
     (type-cast! %fn first)
@@ -436,6 +448,10 @@
 
     (def %lib (dlopen %lib-path 1))
     (if (null? %lib) (error "compile-batch: dlopen failed"))
+
+    ; Clean up temp files
+    (ptr-call %c-unlink %src-path)
+    (ptr-call %c-unlink %lib-path)
 
     ; Resolve each function symbol
     (def %resolve-all
