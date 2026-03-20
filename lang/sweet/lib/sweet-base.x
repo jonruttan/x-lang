@@ -126,77 +126,14 @@
           ())))
       %ws-fvars))
 
-  ; WS reader: unread extra char, signal sweet-read, return sentinel
+  ; WS reader: unread extra char, signal sweet-read, return #t
+  ; Returns #t (self-evaluating) so the C eval loop handles it harmlessly
+  ; between top-level forms. sweet-read-expr uses %wsf flag to detect WS.
   (define %ws-reader
     (lambda args
       (buffer-unread (car args))
       (set-first %wsf 1)
-      %ws-mark))
-
-  ; --- Register types ---
-  (make-type "SWEET-CURLY"
-    (list
-      (cons (lit first-chars) "{}")
-      (cons (lit analyse) (%nth 0 %compiled))
-      (cons (lit read) %curly-reader)
-      (cons (lit delimit) (%nth 1 %compiled))))
-  (make-type "SWEET-WS"
-    (list
-      (cons (lit first-chars) " \t\n\r")
-      (cons (lit analyse) %ws-a1)
-      (cons (lit read) %ws-reader)
-      (cons (lit delimit) (%nth 2 %compiled))))
-
-  ; --- Override WHITESPACE to ignore newlines ---
-  ; WHITESPACE's analyse reads past \n, blocking interactive stdin.
-  ; Replace with compiled callbacks that treat \n as non-whitespace.
-  ; WHITESPACE's delimit (hardcoded C call) is unaffected — \n still delimits.
-  (define %ws-ov-a2-ref (list ()))
-  (define %ws-ov-fvars
-    (list (cons (lit %ws-ov-a2-ref) %ws-ov-a2-ref)))
-  (define %ws-ov-a2
-    (compile
-      (lit (fn (buffer score chr)
-        (if (or (= chr 32) (= chr 9) (= chr 13) (= chr 11) (= chr 12))
-          (first %ws-ov-a2-ref)
-          (%seq (buffer-unread buffer) (score-set score 1 buffer)))))
-      %ws-ov-fvars))
-  (set-first %ws-ov-a2-ref %ws-ov-a2)
-  (define %ws-ov-a1
-    (compile
-      (lit (fn (buffer score chr)
-        (if (or (= chr 32) (= chr 9) (= chr 13) (= chr 11) (= chr 12))
-          (first %ws-ov-a2-ref)
-          ())))
-      %ws-ov-fvars))
-  ; Find WHITESPACE type struct and replace its analyse
-  (define (%find-type name alist)
-    (if (null? alist) ()
-      (if (string=? (ptr->string (int->ptr (first-int (first (first alist))))) name)
-        (rest (first alist))
-        (%find-type name (rest alist)))))
-  (define %ws-type
-    (%find-type "WHITESPACE"
-      (first (first (first (first (rest (first (%base)))))))))
-  (define %ws-io
-    (first (rest (rest (rest (rest (rest %ws-type)))))))
-  (set-first (first %ws-io) %ws-ov-a1)
-
-  ; --- GC roots ---
-  (heap-mark-root! %nl)
-  (heap-mark-root! %lv)
-  (heap-mark-root! %wsf)
-  (heap-mark-root! %a2)
-  (heap-mark-root! %sre)
-  (heap-mark-root! %slv)
-  (heap-mark-root! %compiled)
-  (heap-mark-root! %curly-reader)
-  (heap-mark-root! %curly-close)
-  (heap-mark-root! %ws-mark)
-  (heap-mark-root! %ws-reader)
-  (heap-mark-root! %ws-ov-a2-ref)
-  (heap-mark-root! %ws-ov-a1)
-  (heap-mark-root! %ws-ov-a2)
+      #t))
 
   ; --- Indentation grouping (SRFI-110) ---
   (define (sw1 x)
@@ -235,17 +172,6 @@
 
   (define (sweet-read) (sweet-read-expr 0))
 
-  ; --- Sweet REPL ---
-  (def sweet-repl
-    (op ()
-      (display %repl-prompt)
-      (def %r (sweet-read))
-      (if (null? %r) ()
-        (%seq
-          (guard (err (display "Error: ") (display err) (newline))
-            (%repl-print (eval! %r)))
-          (sweet-repl)))))
-
   ; %test-read: skip SWEET-WS tokens for test harness
   (def %test-read
     (fn ()
@@ -253,4 +179,44 @@
       (def %tr (%prim-read))
       (if (not (= (first %wsf) 0)) (%test-read) %tr)))
 
-  (sweet-repl))
+  ; --- Register types ---
+  (make-type "SWEET-CURLY"
+    (list
+      (cons (lit first-chars) "{}")
+      (cons (lit analyse) (%nth 0 %compiled))
+      (cons (lit read) %curly-reader)
+      (cons (lit delimit) (%nth 1 %compiled))))
+  (make-type "SWEET-WS"
+    (list
+      (cons (lit first-chars) " \t\n\r")
+      (cons (lit analyse) %ws-a1)
+      (cons (lit read) %ws-reader)
+      (cons (lit delimit) (%nth 2 %compiled))))
+
+  ; --- GC roots ---
+  (heap-mark-root! %nl)
+  (heap-mark-root! %lv)
+  (heap-mark-root! %wsf)
+  (heap-mark-root! %a2)
+  (heap-mark-root! %sre)
+  (heap-mark-root! %slv)
+  (heap-mark-root! %compiled)
+  (heap-mark-root! %curly-reader)
+  (heap-mark-root! %curly-close)
+  (heap-mark-root! %ws-mark)
+  (heap-mark-root! %ws-reader)
+
+  ; sweet-repl: reads and evaluates sweet expressions
+  (def sweet-repl
+    (op ()
+      ()
+      (display %repl-prompt)
+      (def %r (sweet-read))
+      (if (null? %r) ()
+        (%seq
+          (guard (err (display "Error: ") (display err) (newline))
+            (%repl-print (eval! %r)))
+          (sweet-repl)))))
+)
+(set %repl-prompt "")
+(sweet-repl)
