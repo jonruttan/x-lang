@@ -9,15 +9,17 @@
     (pair "lib/x/posix.x"
     (pair "lib/x/hash.x"
     (pair "lib/x/compile.x"
+    (pair "lib/x/bignum.x"
     (pair "lib/x/float.x"
     (pair "lib/x/rational.x"
     (pair "lib/x/complex.x"
     (pair "lib/x/regex.x"
-      (first %include-list-cell)))))))))
+      (first %include-list-cell))))))))))
   ; Extended standard library
   (include "lib/x/posix.x")
   (include "lib/x/hash.x")
   (include "lib/x/compile.x")
+  (include "lib/x/bignum.x")
   (include "lib/x/float.x")
   (include "lib/x/rational.x")
   (include "lib/x/complex.x")
