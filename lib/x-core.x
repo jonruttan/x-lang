@@ -107,8 +107,10 @@
   (def not (fn (x) (if x #f #t)))
   (def atom? (fn (x) (not (pair? x))))
   (def list (fn args args))
-  (def % (fn (a b) (- a (* b (/ a b)))))
   ; number->string: (number->string n [radix]) -> string representation
+  ; Captures / and % at definition time so later overrides don't break it
+  (def %n2s/ /)
+  (def %n2s% %)
   (def number->string
     (fn (n . rest)
       (def radix (if (null? rest) 10 (first rest)))
@@ -116,11 +118,11 @@
       (if (= n 0) "0"
         (if (< n 0)
           (string-append "-" (number->string (- 0 n) radix))
-          (let ((rem (% n radix)))
+          (let ((rem (%n2s% n radix)))
             (if (< n radix)
               (list->string (list (%d rem)))
               (string-append
-                (number->string (/ n radix) radix)
+                (number->string (%n2s/ n radix) radix)
                 (list->string (list (%d rem))))))))))
   ; string->number: (string->number str [radix]) -> integer or ()
   (def string->number
@@ -220,6 +222,9 @@
   ; --- Module system: provide / import ---
   (set-rest! %include-list-cell (pair () ()))
   (def %module-registry-cell (rest %include-list-cell))
+  ; --- Documentation system ---
+  (set-rest! %module-registry-cell (pair () ()))
+  (def %doc-registry-cell (rest %module-registry-cell))
   (def %module-register!
     (fn (name exports)
       (set-first! %module-registry-cell
@@ -238,6 +243,7 @@
       ()))
   ; Pre-register all library paths so import calls in library files are no-ops
   (set-first! %include-list-cell
+    (pair "lib/x/doc.x"
     (pair "lib/x/convert.x"
     (pair "lib/x/fn.x"
     (pair "lib/x/math.x"
@@ -249,7 +255,10 @@
     (pair "lib/x/string.x"
     (pair "lib/x/vector.x"
     (pair "lib/x/promise.x"
-      (first %include-list-cell)))))))))))))
+      (first %include-list-cell))))))))))))))
+  ; --- Documentation system ---
+  (include "lib/x/doc.x")
+
   ; --- Core forms as operatives ---
 
   ; Compile-on-first-use: expand to if-tree, cache in source form via %rewrite.
@@ -355,7 +364,7 @@
   (def %int- -)
   (def %int* *)
   (def %int/ /)
-  (def %int% %)
+  (def modulo-int %)
   (def %int< <)
   (def %int= =)
   (def %int-number? number?)
@@ -375,7 +384,7 @@
         (if (null? (rest args))
           (%int- 0 (first args))
           (fold %int- (first args) (rest args))))))
-  (set! % (fn args (fold %int% (first args) (rest args))))
+  (set! % (fn args (fold modulo-int (first args) (rest args))))
   ; --- GCD / LCM (need fold + abs) ---
 
   (def gcd
@@ -504,4 +513,4 @@
     make-string string=? string-ref string-length substring
     gcd lcm newline heap-collect heap-mark-root! heap-mark-hook!
     heap-free-hook! include-once require-once provide import
-    peek-char current-line quasi repl))
+    peek-char current-line quasi repl doc note help))
