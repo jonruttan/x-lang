@@ -37,3 +37,5 @@
     (def %hi (& (>> n 32) 4294967295))
     (string-append (%hex-pad (convert %hi %string 16) 8)
                    (%hex-pad (convert %lo %string 16) 8))))
+
+(provide x/hash fnv-1a hash->hex)

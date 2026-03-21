@@ -222,3 +222,5 @@
             ()))))))
 
 (def regex? (fn (x) (type? x %regex)))
+
+(provide x/regex regex? regex-exec)

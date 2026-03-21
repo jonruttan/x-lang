@@ -1,4 +1,7 @@
 ; compile.x -- Runtime compiler: x-lang to native code
+(import x/list)
+(import x/posix)
+(import x/hash)
 ;
 ; (compile '(fn (params...) body))  =>  <prim>
 ;
@@ -590,3 +593,5 @@
             (pair %fn (%resolve-all (+ i 1) n))))))
 
     (%resolve-all 0 (length exprs))))
+
+(provide x/compile str type-cast! compile compile-batch)

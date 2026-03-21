@@ -262,3 +262,10 @@
 (def real? number?)
 
 (def inexact? float?)
+
+(provide x/float
+  float? float->string int->float float->int string->float
+  exact->inexact inexact->exact
+  f+ f- f* f/ f< f= fsin fcos ftan fsqrt fexp flog fabs
+  ffloor fceil fround ftrunc frint fasin facos fatan fpow fatan2
+  integer? real? inexact?)

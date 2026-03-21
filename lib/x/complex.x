@@ -1,4 +1,6 @@
 ; complex.x -- Complex number type
+(import x/float)
+(import x/rational)
 ;
 ; Complex values are stored as (real-part . imag-part) pairs.
 ; Components can be any real number type (integer, rational, float).
@@ -295,3 +297,7 @@
     (if (%rat? x) #t
       (if (float? x) #t
         (%int-number? x)))))
+
+(provide x/complex
+  complex? complex+ complex- complex* complex/ complex=
+  make-rectangular make-polar real-part imag-part magnitude angle)

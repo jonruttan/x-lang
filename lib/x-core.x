@@ -211,11 +211,11 @@
       (%go (first %include-list-cell))))
   (def include-once
     (op (path) e
-      (let ((p (eval path e)))
-        (if (%include-list-has? p) ()
-          (do (set-first! %include-list-cell
-                (pair p (first %include-list-cell)))
-              (include p))))))
+      (def %io-path (eval path e))
+      (if (%include-list-has? %io-path) ()
+        (do (set-first! %include-list-cell
+              (pair %io-path (first %include-list-cell)))
+            (include %io-path)))))
   (def require-once include-once)
   ; --- Module system: provide / import ---
   (set-rest! %include-list-cell (pair () ()))
@@ -235,6 +235,20 @@
   (def import
     (op (name . syms) e
       (include-once (%module-resolve name))))
+  ; Pre-register all library paths so import calls in library files are no-ops
+  (set-first! %include-list-cell
+    (pair "lib/x/convert.x"
+    (pair "lib/x/fn.x"
+    (pair "lib/x/math.x"
+    (pair "lib/x/logic.x"
+    (pair "lib/x/list.x"
+    (pair "lib/x/derived.x"
+    (pair "lib/x/alist.x"
+    (pair "lib/x/char.x"
+    (pair "lib/x/string.x"
+    (pair "lib/x/vector.x"
+    (pair "lib/x/promise.x"
+      (first %include-list-cell)))))))))))))
   ; --- Core forms as operatives ---
 
   ; Compile-on-first-use: expand to if-tree, cache in source form via %rewrite.
