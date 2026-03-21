@@ -13,3 +13,5 @@
 (def flip (fn (f) (fn (a b) (f b a))))
 
 (def tap (fn (f) (fn (x) (f x) x)))
+
+(provide x/fn identity const compose pipe curry flip tap)

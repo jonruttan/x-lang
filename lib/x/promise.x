@@ -26,3 +26,5 @@
               val)))))))
 
 (def force (fn (p) (if (promise? p) ((first p)) p)))
+
+(provide x/promise promise? delay force)

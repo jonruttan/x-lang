@@ -42,3 +42,6 @@
       (if (even? exp)
         (expt (* base base) (/ exp 2))
         (* base (expt base (- exp 1)))))))
+
+(provide x/math inc dec negate abs min max clamp min-by max-by
+  zero? positive? negative? even? odd? expt)

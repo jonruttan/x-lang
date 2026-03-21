@@ -2,6 +2,7 @@
 ;
 ; General-purpose constructs built from x-lang primitives.
 ; Loaded after list.x (letrec needs map/append).
+(import x/list)
 
 ; --- when / unless ---
 
@@ -112,3 +113,5 @@
             (tail-eval (pair (lit do) (rest (first cls))) e))
           (#t (case-loop (rest cls))))))
     (case-loop clauses)))
+
+(provide x/derived when unless let* letrec cond case)

@@ -1,4 +1,5 @@
 ; vector.x -- Vector type with #() reader syntax
+(import x/list)
 ; N+1 slot objects: slot 0 = length, slots 1..N = elements.
 
 (def %vector-read ())
@@ -139,3 +140,5 @@
           (do (obj-set! v i fill) (loop (+ i 1))))))
     (loop 1)
     v))
+
+(provide x/vector vector vector? vector-ref vector-length vector->list list->vector make-vector)

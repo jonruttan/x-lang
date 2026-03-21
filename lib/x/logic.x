@@ -13,3 +13,5 @@
       ((and (number? a) (number? b)) (= a b))
       ((and (string? a) (string? b)) (string=? a b))
       (#t (eq? a b)))))
+
+(provide x/logic boolean? default-to until equal?)

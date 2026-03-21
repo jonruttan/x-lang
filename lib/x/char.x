@@ -53,3 +53,9 @@
 (def char-ci>? (fn (a b) (char>? (char-downcase a) (char-downcase b))))
 (def char-ci<=? (fn (a b) (char<=? (char-downcase a) (char-downcase b))))
 (def char-ci>=? (fn (a b) (char>=? (char-downcase a) (char-downcase b))))
+
+(provide x/char
+  char-alphabetic? char-numeric? char-whitespace?
+  char-upper-case? char-lower-case? char-upcase char-downcase
+  char=? char<? char>? char<=? char>=?
+  char-ci=? char-ci<? char-ci>? char-ci<=? char-ci>=?)

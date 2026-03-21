@@ -200,6 +200,41 @@
           #f))))
   (def string=?
     (fn (a b) (if (= (a) (b)) (%string-eq-loop a b 0 (a)) #f)))
+  ; --- Include-once / require-once ---
+  (def %include-list-has?
+    (fn (path)
+      (def %go
+        (fn (lst)
+          (if (null? lst) #f
+            (if (string=? (first lst) path) #t
+              (%go (rest lst))))))
+      (%go (first %include-list-cell))))
+  (def include-once
+    (op (path) e
+      (let ((p (eval path e)))
+        (if (%include-list-has? p) ()
+          (do (set-first! %include-list-cell
+                (pair p (first %include-list-cell)))
+              (include p))))))
+  (def require-once include-once)
+  ; --- Module system: provide / import ---
+  (set-rest! %include-list-cell (pair () ()))
+  (def %module-registry-cell (rest %include-list-cell))
+  (def %module-register!
+    (fn (name exports)
+      (set-first! %module-registry-cell
+        (pair (pair name exports)
+              (first %module-registry-cell)))))
+  (def %module-resolve
+    (fn (name)
+      (string-append "lib/"
+        (string-append (symbol->string name) ".x"))))
+  (def provide
+    (op (name . syms) e
+      (%module-register! name syms)))
+  (def import
+    (op (name . syms) e
+      (include-once (%module-resolve name))))
   ; --- Core forms as operatives ---
 
   ; Compile-on-first-use: expand to if-tree, cache in source form via %rewrite.
@@ -376,23 +411,6 @@
   (include "lib/x/string.x")
   (include "lib/x/vector.x")
   (include "lib/x/promise.x")
-  ; --- Include-once / require-once ---
-  (def %include-list-has?
-    (fn (path)
-      (def %go
-        (fn (lst)
-          (if (null? lst) #f
-            (if (string=? (first lst) path) #t
-              (%go (rest lst))))))
-      (%go (first %include-list-cell))))
-  (def include-once
-    (op (path) e
-      (let ((p (eval path e)))
-        (if (%include-list-has? p) ()
-          (do (set-first! %include-list-cell
-                (pair p (first %include-list-cell)))
-              (include p))))))
-  (def require-once include-once)
   ; --- quasi (needs append from list.x) ---
 
   ; Compile template to a pair/lit/append tree that, when eval'd,
@@ -465,4 +483,10 @@
               ()
               (do (display " v") (display %lang-version)))
             (display " on x-lang")
-            (newline)))))))
+            (newline))))))
+  (provide x/core
+    null? if let do begin not atom? list convert number->string string->number
+    make-string string=? string-ref string-length substring
+    gcd lcm newline heap-collect heap-mark-root! heap-mark-hook!
+    heap-free-hook! include-once require-once provide import
+    peek-char current-line quasi repl))

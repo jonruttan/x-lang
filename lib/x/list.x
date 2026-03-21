@@ -1,4 +1,5 @@
 ; list.x -- List operations
+(import x/logic)
 
 ; Convert any iterable to a list. Lists/nil pass through unchanged.
 (def %as-list
@@ -431,3 +432,14 @@
     (if (null? alist) #f
       (if (equal? key (first (first alist))) (first alist)
         (assoc key (rest alist))))))
+
+(provide x/list
+  fold reduce scan length nth last init append prepend reverse flatten
+  map filter for-each flat-map any? every? none? empty?
+  complement partial juxt both either all-pass any-pass reject concat sum product
+  find find-index index-of includes? count
+  take drop take-while drop-while split-at slice
+  range repeat times unfold iterate zip zip-with
+  partition group-by sort sort-by uniq uniq-by intersperse transpose
+  update insert remove adjust
+  list? memq member assq assoc)

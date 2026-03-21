@@ -1,4 +1,7 @@
 ; string.x -- String utilities
+(import x/char)
+(import x/list)
+(import x/derived)
 
 (def string-empty? (fn (s) (= (string-length s) 0)))
 
@@ -137,3 +140,11 @@
             (go (+ i sep-len) (+ i sep-len)
                 (pair (substring s start i) acc))
             (go start (+ i 1) acc)))))))
+
+(provide x/string
+  string-empty? string-join string-repeat string-contains?
+  string-starts? string-ends? string-reverse string->list
+  string-upcase string-downcase
+  string<? string>? string<=? string>=?
+  string-ci=? string-ci<? string-ci>? string-ci<=? string-ci>=?
+  string-trim-left string-trim-right string-trim string-split)
