@@ -45,9 +45,13 @@
 
 ; --- Multi-arg string concatenation ---
 
-(def str
+(note "Utilities")
+
+(doc (def str
   (fn args
     (fold string-append "" args)))
+  (returns STRING "Concatenated result")
+  "Concatenate all arguments into a single string.")
 
 ; --- C code generator utilities ---
 
@@ -425,13 +429,15 @@
 
 (def %type-offset %word-size)
 
-(def type-cast!
-  (fn (obj type-src)
+(doc (def type-cast!
+  (fn ((param obj ANY "Object to cast") (param type-src ANY "Object whose type to copy"))
     (def %dst-ptr (convert obj %ptr))
     (def %src-ptr (convert type-src %ptr))
     (def %type-val (ptr-ref-word %src-ptr %type-offset))
     (ptr-set-word! %dst-ptr %type-offset %type-val)
     obj))
+  (returns ANY "The original object with its type tag replaced")
+  "Overwrite an object's type tag with the type of another object.")
 
 ; --- Compilation pipeline ---
 
@@ -474,8 +480,10 @@
 ; compile: compile a single (fn ...) expression to a native prim
 ; Optional second arg: free variable alist ((sym . val) ...)
 ; Caches compiled libraries keyed by FNV-1a hash of the expression.
-(def compile
-  (fn (expr . rest)
+(note "Compilation")
+
+(doc (def compile
+  (fn ((param expr LIST "A (fn (params...) body) expression") . rest)
     (set! %compile-fvars (if (null? rest) () (first rest)))
     (if (not (eq? (first expr) (lit fn)))
       (error "compile: expression must be (fn (params...) body)"))
@@ -530,10 +538,12 @@
           (ptr-call %c-unlink %lib-path))
 
         %fn))))
+  (returns PRIM "Compiled native function")
+  "Compile an (fn ...) expression to a native primitive via C. Caches results by expression hash.")
 
 ; compile-batch: compile multiple (fn ...) expressions in one cc call.
 ; Returns a list of prims, one per expression.
-(def compile-batch
+(doc (def compile-batch
   (fn exprs
     (set! %compile-id (+ %compile-id 1))
     (def %id (convert %compile-id %string))
@@ -593,5 +603,7 @@
             (pair %fn (%resolve-all (+ i 1) n))))))
 
     (%resolve-all 0 (length exprs))))
+  (returns LIST "List of compiled native primitives")
+  "Compile multiple (fn ...) expressions in a single cc invocation.")
 
 (provide x/compile str type-cast! compile compile-batch)

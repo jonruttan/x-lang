@@ -9,14 +9,30 @@
 ; Forward-declare reader
 
 (def %float-read ())
+
+(note "Conversion")
+
 ; --- FFI-based conversion functions ---
 ; These use generic ffi-call conventions (no function pointer needed)
 
-(def float->string (fn (bits) (ffi-call "d->s" () bits)))
+(doc (def float->string
+  (fn ((param bits INTEGER "IEEE 754 double bit pattern"))
+    (ffi-call "d->s" () bits)))
+  (returns STRING "Decimal string representation")
+  "Convert a float bit pattern to its string representation.")
 
-(def int->float (fn (n) (ffi-call "i->d" () n)))
+(doc (def int->float
+  (fn ((param n INTEGER "Integer value"))
+    (ffi-call "i->d" () n)))
+  (returns INTEGER "IEEE 754 double bit pattern")
+  "Convert an integer to a float bit pattern.")
 
-(def float->int (fn (bits) (ffi-call "d->i" () bits)))
+(doc (def float->int
+  (fn ((param bits INTEGER "IEEE 754 double bit pattern"))
+    (ffi-call "d->i" () bits)))
+  (returns INTEGER "Truncated integer value")
+  "Convert a float bit pattern to an integer by truncation.")
+
 ; State machine for tokenizer: matches [0-9]+\.[0-9]+
 ; Uses intrinsic scoring — score computed from buffer length.
 ; After first fractional digit: continue digits or score
@@ -56,7 +72,12 @@
 
 (def %strtod (dlsym %libm "strtod"))
 
-(def string->float (fn (s) (ffi-call "s0->d" %strtod s)))
+(doc (def string->float
+  (fn ((param s STRING "Decimal string to parse"))
+    (ffi-call "s0->d" %strtod s)))
+  (returns FLOAT "Parsed float value")
+  "Parse a decimal string into a float.")
+
 ; Float type with tokenizer, display, and alist-based convert
 
 (def %float
@@ -90,43 +111,81 @@
           (pair
             (type-of "")
             (fn (self) (float->string (first self)))))))))
+
+(note "Predicates")
+
 ; --- Predicates and constructors ---
 
-(def float? (fn (x) (type? x %float)))
+(doc (def float?
+  (fn ((param x ANY "Value to test"))
+    (type? x %float)))
+  (returns BOOLEAN "True if x is a float")
+  "Test whether a value is a float.")
 
-(def exact->inexact (fn (x) (convert x %float)))
+(doc (def exact->inexact
+  (fn ((param x INTEGER "Exact integer value"))
+    (convert x %float)))
+  (returns FLOAT "Float representation")
+  "Convert an exact integer to an inexact float.")
 
-(def inexact->exact (fn (x) (float->int (first x))))
+(doc (def inexact->exact
+  (fn ((param x FLOAT "Float value"))
+    (float->int (first x))))
+  (returns INTEGER "Truncated integer value")
+  "Convert an inexact float to an exact integer by truncation.")
+
+(note "Arithmetic")
+
 ; --- Arithmetic ---
 
-(def f+
-  (fn (a b)
+(doc (def f+
+  (fn ((param a FLOAT "First operand") (param b FLOAT "Second operand"))
     (make-instance
       %float
       (ffi-call "d+d" () (first a) (first b)))))
+  (returns FLOAT "Sum")
+  "Add two floats.")
 
-(def f-
-  (fn (a b)
+(doc (def f-
+  (fn ((param a FLOAT "First operand") (param b FLOAT "Second operand"))
     (make-instance
       %float
       (ffi-call "d-d" () (first a) (first b)))))
+  (returns FLOAT "Difference")
+  "Subtract two floats.")
 
-(def f*
-  (fn (a b)
+(doc (def f*
+  (fn ((param a FLOAT "First operand") (param b FLOAT "Second operand"))
     (make-instance
       %float
       (ffi-call "d*d" () (first a) (first b)))))
+  (returns FLOAT "Product")
+  "Multiply two floats.")
 
-(def f/
-  (fn (a b)
+(doc (def f/
+  (fn ((param a FLOAT "Dividend") (param b FLOAT "Divisor"))
     (make-instance
       %float
       (ffi-call "d/d" () (first a) (first b)))))
+  (returns FLOAT "Quotient")
+  "Divide two floats.")
+
+(note "Comparisons")
+
 ; --- Comparisons ---
 
-(def f< (fn (a b) (ffi-call "d<d" () (first a) (first b))))
+(doc (def f<
+  (fn ((param a FLOAT "Left operand") (param b FLOAT "Right operand"))
+    (ffi-call "d<d" () (first a) (first b))))
+  (returns BOOLEAN "True if a < b")
+  "Test whether float a is less than float b.")
 
-(def f= (fn (a b) (ffi-call "d=d" () (first a) (first b))))
+(doc (def f=
+  (fn ((param a FLOAT "Left operand") (param b FLOAT "Right operand"))
+    (ffi-call "d=d" () (first a) (first b))))
+  (returns BOOLEAN "True if a equals b")
+  "Test whether two floats are equal.")
+
 ; Reader: called by tokenizer after successful analyse
 ; Uses buffer-token to extract consumed text, then strtod to parse
 
@@ -135,6 +194,9 @@
     (make-instance
       %float
       (ffi-call "s0->d" %strtod (buffer-token (first args))))))
+
+(note "Math Functions")
+
 ; Factory: resolve dlsym at definition time, return closure with cached pointer
 
 (def %libm-d
@@ -151,46 +213,92 @@
           %float
           (ffi-call "dd->d" sym (first a) (first b)))))))
 
-(def fsin (%libm-d "sin"))
+(doc (def fsin (%libm-d "sin"))
+  (param x FLOAT "Angle in radians") (returns FLOAT "Sine of x")
+  "Compute the sine of a float.")
 
-(def fcos (%libm-d "cos"))
+(doc (def fcos (%libm-d "cos"))
+  (param x FLOAT "Angle in radians") (returns FLOAT "Cosine of x")
+  "Compute the cosine of a float.")
 
-(def ftan (%libm-d "tan"))
+(doc (def ftan (%libm-d "tan"))
+  (param x FLOAT "Angle in radians") (returns FLOAT "Tangent of x")
+  "Compute the tangent of a float.")
 
-(def fsqrt (%libm-d "sqrt"))
+(doc (def fsqrt (%libm-d "sqrt"))
+  (param x FLOAT "Non-negative float") (returns FLOAT "Square root of x")
+  "Compute the square root of a float.")
 
-(def fexp (%libm-d "exp"))
+(doc (def fexp (%libm-d "exp"))
+  (param x FLOAT "Exponent") (returns FLOAT "e raised to the power x")
+  "Compute e raised to a power.")
 
-(def flog (%libm-d "log"))
+(doc (def flog (%libm-d "log"))
+  (param x FLOAT "Positive float") (returns FLOAT "Natural logarithm of x")
+  "Compute the natural logarithm of a float.")
 
-(def fabs (%libm-d "fabs"))
+(doc (def fabs (%libm-d "fabs"))
+  (param x FLOAT "Float value") (returns FLOAT "Absolute value of x")
+  "Compute the absolute value of a float.")
 
-(def ffloor (%libm-d "floor"))
+(doc (def ffloor (%libm-d "floor"))
+  (param x FLOAT "Float value") (returns FLOAT "Largest integer not greater than x")
+  "Round a float down to the nearest integer.")
 
-(def fceil (%libm-d "ceil"))
+(doc (def fceil (%libm-d "ceil"))
+  (param x FLOAT "Float value") (returns FLOAT "Smallest integer not less than x")
+  "Round a float up to the nearest integer.")
 
-(def fround (%libm-d "round"))
+(doc (def fround (%libm-d "round"))
+  (param x FLOAT "Float value") (returns FLOAT "Nearest integer, ties away from zero")
+  "Round a float to the nearest integer.")
 
-(def ftrunc (%libm-d "trunc"))
+(doc (def ftrunc (%libm-d "trunc"))
+  (param x FLOAT "Float value") (returns FLOAT "Integer part of x")
+  "Truncate a float toward zero.")
 
-(def frint (%libm-d "rint"))
+(doc (def frint (%libm-d "rint"))
+  (param x FLOAT "Float value") (returns FLOAT "Nearest integer using current rounding mode")
+  "Round a float to the nearest integer using the current rounding mode.")
 
-(def fasin (%libm-d "asin"))
+(doc (def fasin (%libm-d "asin"))
+  (param x FLOAT "Value in [-1, 1]") (returns FLOAT "Arc sine in radians")
+  "Compute the arc sine of a float.")
 
-(def facos (%libm-d "acos"))
+(doc (def facos (%libm-d "acos"))
+  (param x FLOAT "Value in [-1, 1]") (returns FLOAT "Arc cosine in radians")
+  "Compute the arc cosine of a float.")
 
-(def fatan (%libm-d "atan"))
+(doc (def fatan (%libm-d "atan"))
+  (param x FLOAT "Float value") (returns FLOAT "Arc tangent in radians")
+  "Compute the arc tangent of a float.")
 
-(def fpow (%libm-dd "pow"))
+(doc (def fpow (%libm-dd "pow"))
+  (param base FLOAT "Base") (param exponent FLOAT "Exponent")
+  (returns FLOAT "base raised to the power exponent")
+  "Raise a float to a power.")
 
-(def fatan2 (%libm-dd "atan2"))
+(doc (def fatan2 (%libm-dd "atan2"))
+  (param y FLOAT "Y coordinate") (param x FLOAT "X coordinate")
+  (returns FLOAT "Angle in radians")
+  "Compute the arc tangent of y/x, using signs to determine the quadrant.")
+
 ; --- Constants ---
 
 (def %pi (fatan2 (exact->inexact 0) (exact->inexact -1)))
 
 (def %e (fexp (exact->inexact 1)))
+
+(note "Generic Overrides")
+
 ; --- Generic arithmetic overrides ---
-; %int+, %int-, %int*, %int/, %int<, %int= already saved by x-core.x
+; Save current operators (bignum-safe if bignum.x loaded before us)
+(def %safe+ +)
+(def %safe- -)
+(def %safe* *)
+(def %safe/ /)
+(def %safe< <)
+(def %safe= =)
 ; Promote to float via convert handler
 
 (def %ensure-float (fn (x) (convert x %float)))
@@ -211,24 +319,41 @@
         (rest lst)))))
 ; Inlined overrides — avoid or, avoid closure variable lookup
 
+(doc +
+  (param args ANY "Numbers (integers or floats)")
+  "Add numbers, promoting to float if any argument is a float.")
+
 (set! +
   (fn args
     (if (null? args)
       0
-      (%float-fold %int+ f+ (first args) (rest args)))))
+      (%float-fold %safe+ f+ (first args) (rest args)))))
+
+(doc *
+  (param args ANY "Numbers (integers or floats)")
+  "Multiply numbers, promoting to float if any argument is a float.")
 
 (set! *
   (fn args
     (if (null? args)
       1
-      (%float-fold %int* f* (first args) (rest args)))))
+      (%float-fold %safe* f* (first args) (rest args)))))
+
+(doc /
+  (param args ANY "Numbers (integers or floats)")
+  "Divide numbers, promoting to float if any argument is a float.")
 
 (set! /
   (fn args
     (if (null? args)
       1
-      (%float-fold %int/ f/ (first args) (rest args)))))
+      (%float-fold %safe/ f/ (first args) (rest args)))))
+
 ; - is special: unary negation case
+
+(doc -
+  (param args ANY "Numbers (integers or floats)")
+  "Subtract numbers or negate a single argument, promoting to float if needed.")
 
 (set! -
   (fn args
@@ -237,31 +362,51 @@
       (if (null? (rest args))
         (if (float? (first args))
           (f- (exact->inexact 0) (first args))
-          (%int- (first args)))
-        (%float-fold %int- f- (first args) (rest args))))))
+          (%safe- (first args)))
+        (%float-fold %safe- f- (first args) (rest args))))))
+
 ; Comparisons — inline, no or
+
+(doc <
+  (param a ANY "Left operand") (param b ANY "Right operand")
+  "Test less-than, promoting to float if either argument is a float.")
 
 (set! <
   (fn (a b)
     (if (float? a)
       (f< a (%ensure-float b))
-      (if (float? b) (f< (%ensure-float a) b) (%int< a b)))))
+      (if (float? b) (f< (%ensure-float a) b) (%safe< a b)))))
+
+(doc =
+  (param a ANY "Left operand") (param b ANY "Right operand")
+  "Test equality, promoting to float if either argument is a float.")
 
 (set! =
   (fn (a b)
     (if (float? a)
       (f= a (%ensure-float b))
-      (if (float? b) (f= (%ensure-float a) b) (%int= a b)))))
+      (if (float? b) (f= (%ensure-float a) b) (%safe= a b)))))
+
+(note "R7RS Predicates")
+
 ; --- R7RS predicates ---
 ; %int-number? already saved by x-core.x
 
-(def integer? number?)
+(doc (def integer? number?)
+  "Test whether a value is an integer. Alias for the original number? predicate.")
+
+(doc number?
+  (param x ANY "Value to test")
+  (returns BOOLEAN "True if x is a number")
+  "Test whether a value is a number (integer or float).")
 
 (set! number? (fn (x) (if (%int-number? x) #t (float? x))))
 
-(def real? number?)
+(doc (def real? number?)
+  "Test whether a value is a real number. Equivalent to number?.")
 
-(def inexact? float?)
+(doc (def inexact? float?)
+  "Test whether a value is inexact. Equivalent to float?.")
 
 (provide x/float
   float? float->string int->float float->int string->float

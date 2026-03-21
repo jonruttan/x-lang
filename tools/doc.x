@@ -86,25 +86,37 @@
 
   (def %extract-doc
     (fn (form)
-      ; form = (doc (def name value) metadata... "desc")
-      (def %def-form (first (rest form)))
-      (def %meta (rest (rest form)))
-      (def %name (first (rest %def-form)))
-      (def %value (if (null? (rest (rest %def-form))) ()
-                    (first (rest (rest %def-form)))))
-      (def %desc (%find-last-string %meta))
-      ; Extract params from fn value
-      (def %fn-params
-        (if (pair? %value)
-          (if (%sym-is? (first %value) "fn")
-            (%extract-params (first (rest %value)) ())
-            ())
-          ()))
-      ; Extract metadata sub-forms
-      (def %returns (%extract-meta-type %meta "returns" ()))
-      (def %examples (%extract-meta-type %meta "example" ()))
-      (def %sees (%extract-meta-type %meta "see" ()))
-      (list %name %desc %fn-params %returns %examples %sees)))
+      ; form = (doc X metadata... "desc")
+      ; X is either (def name value) or bare symbol
+      (def %second (first (rest form)))
+      (if (%def-form? %second)
+        ; --- Wrapping def ---
+        (do
+          (def %meta (rest (rest form)))
+          (def %name (first (rest %second)))
+          (def %value (if (null? (rest (rest %second))) ()
+                        (first (rest (rest %second)))))
+          (def %desc (%find-last-string %meta))
+          (def %fn-params
+            (if (pair? %value)
+              (if (%sym-is? (first %value) "fn")
+                (%extract-params (first (rest %value)) ())
+                ())
+              ()))
+          (def %returns (%extract-meta-type %meta "returns" ()))
+          (def %examples (%extract-meta-type %meta "example" ()))
+          (def %sees (%extract-meta-type %meta "see" ()))
+          (list %name %desc %fn-params %returns %examples %sees))
+        ; --- Bare symbol ---
+        (do
+          (def %meta (rest (rest form)))
+          (def %name %second)
+          (def %desc (%find-last-string %meta))
+          (def %fn-params (%extract-meta-type %meta "param" ()))
+          (def %returns (%extract-meta-type %meta "returns" ()))
+          (def %examples (%extract-meta-type %meta "example" ()))
+          (def %sees (%extract-meta-type %meta "see" ()))
+          (list %name %desc %fn-params %returns %examples %sees)))))
 
   ; --- Markdown output helpers ---
 

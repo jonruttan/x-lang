@@ -92,7 +92,9 @@
   (fill lst 0)
   v))
 
-(def vector (fn args
+(note "Constructors")
+
+(doc (def vector (fn args
   (def len (length args))
   (def v (make-obj %vector (+ len 1)))
   (obj-set! v 0 len)
@@ -103,22 +105,52 @@
           (fill (rest lst) (+ i 1))))))
   (fill args 0)
   v))
+  (returns VECTOR "New vector containing the arguments")
+  "Create a vector from the given arguments.")
 
-(def vector? (fn (x) (type? x %vector)))
+(doc (def make-vector
+  (fn ((param n INT "Number of elements")
+       (param fill ANY "Value to fill each slot with"))
+    (def v (make-obj %vector (+ n 1)))
+    (obj-set! v 0 n)
+    (def loop
+      (fn (i)
+        (if (<= i n)
+          (do (obj-set! v i fill) (loop (+ i 1))))))
+    (loop 1)
+    v))
+  (returns VECTOR "New vector of length n filled with fill")
+  "Create a vector of length n, with every element set to fill.")
 
-(def vector-ref (fn (v i) (obj-ref v (+ i 1))))
+(note "Predicates")
 
-(def vector-length (fn (v) (obj-ref v 0)))
+(doc (def vector? (fn ((param x ANY "Value to test")) (type? x %vector)))
+  (returns BOOL "True if x is a vector")
+  "Test whether a value is a vector.")
 
-(def vector->list (fn (v)
+(note "Access")
+
+(doc (def vector-ref (fn ((param v VECTOR "Vector") (param i INT "Zero-based index")) (obj-ref v (+ i 1))))
+  (returns ANY "Element at index i")
+  "Return the element at index i of a vector.")
+
+(doc (def vector-length (fn ((param v VECTOR "Vector")) (obj-ref v 0)))
+  (returns INT "Number of elements")
+  "Return the number of elements in a vector.")
+
+(note "Conversion")
+
+(doc (def vector->list (fn ((param v VECTOR "Vector to convert"))
   (def len (obj-ref v 0))
   (def build
     (fn (i acc)
       (if (< i 0) acc
         (build (- i 1) (pair (obj-ref v (+ i 1)) acc)))))
   (build (- len 1) ())))
+  (returns LIST "List of the vector's elements")
+  "Convert a vector to a list.")
 
-(def list->vector (fn (lst)
+(doc (def list->vector (fn ((param lst LIST "List to convert"))
   (def len (length lst))
   (def v (make-obj %vector (+ len 1)))
   (obj-set! v 0 len)
@@ -129,16 +161,7 @@
           (fill (rest l) (+ i 1))))))
   (fill lst 0)
   v))
-
-(def make-vector
-  (fn (n fill)
-    (def v (make-obj %vector (+ n 1)))
-    (obj-set! v 0 n)
-    (def loop
-      (fn (i)
-        (if (<= i n)
-          (do (obj-set! v i fill) (loop (+ i 1))))))
-    (loop 1)
-    v))
+  (returns VECTOR "New vector containing the list's elements")
+  "Convert a list to a vector.")
 
 (provide x/vector vector vector? vector-ref vector-length vector->list list->vector make-vector)

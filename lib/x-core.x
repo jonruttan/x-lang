@@ -244,6 +244,7 @@
   ; Pre-register all library paths so import calls in library files are no-ops
   (set-first! %include-list-cell
     (pair "lib/x/doc.x"
+    (pair "lib/x/doc-prims.x"
     (pair "lib/x/convert.x"
     (pair "lib/x/fn.x"
     (pair "lib/x/math.x"
@@ -255,9 +256,10 @@
     (pair "lib/x/string.x"
     (pair "lib/x/vector.x"
     (pair "lib/x/promise.x"
-      (first %include-list-cell))))))))))))))
+      (first %include-list-cell)))))))))))))))
   ; --- Documentation system ---
   (include "lib/x/doc.x")
+  (include "lib/x/doc-prims.x")
 
   ; --- Core forms as operatives ---
 

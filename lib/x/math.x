@@ -1,47 +1,79 @@
 ; math.x -- Math and number predicates
-; --- Arithmetic ---
 
-(def inc (fn (n) (+ n 1)))
+(note "Arithmetic")
 
-(def dec (fn (n) (- n 1)))
+(doc (def inc (fn ((param n NUMBER "Number to increment")) (+ n 1)))
+  (returns NUMBER "n + 1")
+  "Add one to a number.")
 
-(def negate (fn (n) (- 0 n)))
+(doc (def dec (fn ((param n NUMBER "Number to decrement")) (- n 1)))
+  (returns NUMBER "n - 1")
+  "Subtract one from a number.")
 
-(def abs (fn (n) (if (< n 0) (- 0 n) n)))
+(doc (def negate (fn ((param n NUMBER "Number to negate")) (- 0 n)))
+  (returns NUMBER "The additive inverse of n")
+  "Return the negation of a number.")
 
-(def min (fn (a b) (if (< a b) a b)))
+(doc (def abs (fn ((param n NUMBER "Number")) (if (< n 0) (- 0 n) n)))
+  (returns NUMBER "Absolute value of n")
+  "Return the absolute value of a number.")
 
-(def max (fn (a b) (if (> a b) a b)))
+(doc (def min (fn ((param a NUMBER "First number") (param b NUMBER "Second number")) (if (< a b) a b)))
+  (returns NUMBER "The smaller of a and b")
+  "Return the smaller of two numbers.")
 
-(def clamp (fn (lo hi n) (min hi (max lo n))))
+(doc (def max (fn ((param a NUMBER "First number") (param b NUMBER "Second number")) (if (> a b) a b)))
+  (returns NUMBER "The larger of a and b")
+  "Return the larger of two numbers.")
 
-(def min-by (fn (f a b) (if (< (f a) (f b)) a b)))
+(doc (def clamp (fn ((param lo NUMBER "Lower bound") (param hi NUMBER "Upper bound") (param n NUMBER "Value to clamp")) (min hi (max lo n))))
+  (returns NUMBER "n clamped to [lo, hi]")
+  "Clamp a number to the range [lo, hi].")
 
-(def max-by (fn (f a b) (if (> (f a) (f b)) a b)))
-; --- Number predicates ---
+(doc (def min-by (fn ((param f CALLABLE "Projection function") (param a ANY "First value") (param b ANY "Second value")) (if (< (f a) (f b)) a b)))
+  (returns ANY "The value whose projection is smaller")
+  "Return the value with the smaller result under f.")
 
-(def zero? (fn (n) (= n 0)))
+(doc (def max-by (fn ((param f CALLABLE "Projection function") (param a ANY "First value") (param b ANY "Second value")) (if (> (f a) (f b)) a b)))
+  (returns ANY "The value whose projection is larger")
+  "Return the value with the larger result under f.")
 
-(def positive? (fn (n) (> n 0)))
+(note "Number predicates")
 
-(def negative? (fn (n) (< n 0)))
+(doc (def zero? (fn ((param n NUMBER "Number to test")) (= n 0)))
+  (returns BOOLEAN "True if n is zero")
+  "Test whether a number is zero.")
 
-(def even? (fn (n) (= (% n 2) 0)))
+(doc (def positive? (fn ((param n NUMBER "Number to test")) (> n 0)))
+  (returns BOOLEAN "True if n is positive")
+  "Test whether a number is positive.")
 
-(def odd? (fn (n) (not (= (% n 2) 0))))
+(doc (def negative? (fn ((param n NUMBER "Number to test")) (< n 0)))
+  (returns BOOLEAN "True if n is negative")
+  "Test whether a number is negative.")
+
+(doc (def even? (fn ((param n NUMBER "Integer to test")) (= (% n 2) 0)))
+  (returns BOOLEAN "True if n is even")
+  "Test whether an integer is even.")
+
+(doc (def odd? (fn ((param n NUMBER "Integer to test")) (not (= (% n 2) 0))))
+  (returns BOOLEAN "True if n is odd")
+  "Test whether an integer is odd.")
 
 ; --- GCD / LCM (need fold from list.x, loaded after) ---
 ; These are defined as stubs here, then set! after list.x loads.
 ; Actually loaded in x-core.x after list.x via inline definitions.
 
-; --- Exponentiation ---
+(note "Exponentiation")
 
-(def expt
-  (fn (base exp)
+(doc (def expt
+  (fn ((param base NUMBER "Base") (param exp NUMBER "Non-negative integer exponent"))
     (if (= exp 0) 1
       (if (even? exp)
         (expt (* base base) (/ exp 2))
         (* base (expt base (- exp 1)))))))
+  (returns NUMBER "base raised to the power exp")
+  "Compute base raised to a non-negative integer exponent by repeated squaring.")
 
 (provide x/math inc dec negate abs min max clamp min-by max-by
   zero? positive? negative? even? odd? expt)

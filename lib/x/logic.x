@@ -1,17 +1,28 @@
 ; logic.x -- Boolean and logic
 
-(def boolean? (fn (x) (or (eq? x #t) (eq? x #f))))
+(doc (def boolean? (fn ((param x ANY "Value to test")) (or (eq? x #t) (eq? x #f))))
+  (returns BOOLEAN "True if x is #t or #f")
+  "Test whether a value is a boolean.")
 
-(def default-to (fn (d x) (if (null? x) d x)))
+(doc (def default-to (fn ((param d ANY "Default value") (param x ANY "Value to check")) (if (null? x) d x)))
+  (returns ANY "x if non-nil, otherwise d")
+  "Return x if non-nil, otherwise return the default d.")
 
-(def until
-  (fn (pred f x) (if (pred x) x (until pred f (f x)))))
+(doc (def until
+  (fn ((param pred CALLABLE "Predicate to stop on")
+       (param f CALLABLE "Transformation function")
+       (param x ANY "Initial value"))
+    (if (pred x) x (until pred f (f x)))))
+  (returns ANY "First value satisfying pred")
+  "Repeatedly apply f to x until pred is satisfied, then return the value.")
 
-(def equal?
-  (fn (a b)
+(doc (def equal?
+  (fn ((param a ANY "First value") (param b ANY "Second value"))
     (match
       ((and (number? a) (number? b)) (= a b))
       ((and (string? a) (string? b)) (string=? a b))
       (#t (eq? a b)))))
+  (returns BOOLEAN "True if a and b are structurally equal")
+  "Structural equality: compares numbers by value, strings by content, else by identity.")
 
 (provide x/logic boolean? default-to until equal?)

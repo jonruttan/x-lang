@@ -221,6 +221,18 @@
               (if (= chr #\/) (%regex-body ()) ()))
             ()))))))
 
-(def regex? (fn (x) (type? x %regex)))
+(doc (def regex?
+  (fn ((param x ANY "Value to test"))
+    (type? x %regex)))
+  (returns BOOLEAN "True if x is a regex")
+  "Test whether a value is a regex.")
+
+(doc regex-exec
+  (param nodes LIST "List of AST nodes from a compiled regex")
+  (param str STRING "Input string to match against")
+  (param pos INTEGER "Starting position in the string")
+  (param end INTEGER "End position (string length)")
+  (returns INTEGER "Final position after match, or nil on failure")
+  "Execute a regex AST against a string from the given position.")
 
 (provide x/regex regex? regex-exec)

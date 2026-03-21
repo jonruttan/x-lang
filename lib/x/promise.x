@@ -9,9 +9,15 @@
     (list
       (pair (lit write) (fn (self) (display "#<promise>"))))))
 
-(def promise? (fn (x) (type? x %promise)))
+(note "Predicates")
 
-(def delay
+(doc (def promise? (fn ((param x ANY "Value to test")) (type? x %promise)))
+  (returns BOOL "True if x is a promise")
+  "Test whether a value is a promise.")
+
+(note "Construction and evaluation")
+
+(doc (def delay
   (op (expr)
     env
     (let ((forced #f) (result #f))
@@ -24,7 +30,10 @@
               (set! forced #t)
               (set! result val)
               val)))))))
+  "Create a promise that delays evaluation of an expression until forced.")
 
-(def force (fn (p) (if (promise? p) ((first p)) p)))
+(doc (def force (fn ((param p ANY "Promise or value")) (if (promise? p) ((first p)) p)))
+  (returns ANY "The forced value, or p itself if not a promise")
+  "Force a promise, returning its cached value. Non-promises pass through.")
 
 (provide x/promise promise? delay force)

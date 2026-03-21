@@ -6,10 +6,16 @@
 
 ; --- when / unless ---
 
+(doc when "Evaluate body forms when test is true."
+  (param test ANY "Expression to evaluate as a boolean")
+  (param body ANY "One or more body expressions"))
 (def when
   (op (test . body)
     e
     (if (eval test e) (tail-eval (pair (lit do) body) e))))
+(doc unless "Evaluate body forms when test is false."
+  (param test ANY "Expression to evaluate as a boolean")
+  (param body ANY "One or more body expressions"))
 (def unless
   (op (test . body)
     e
@@ -17,6 +23,9 @@
 
 ; --- let* (sequential binding) ---
 
+(doc let* "Sequential let: bindings are evaluated left to right, each visible to the next."
+  (param bindings LIST "List of (name value) binding pairs")
+  (param body ANY "One or more body expressions"))
 (def let*
   (op (bindings . body)
     e
@@ -31,6 +40,9 @@
 
 ; --- letrec (recursive binding) ---
 
+(doc letrec "Recursive let: all bindings are visible to each other, enabling mutual recursion."
+  (param bindings LIST "List of (name value) binding pairs")
+  (param body ANY "One or more body expressions"))
 (def letrec
   (op (bindings . body)
     e
@@ -68,6 +80,8 @@
 
 ; --- cond (multi-expression clause bodies + else + => syntax) ---
 
+(doc cond "Multi-way conditional: evaluates clauses in order, returning the body of the first true test. Supports else and => syntax."
+  (param clauses LIST "List of (test body...) clauses; use else for default"))
 (def cond
   (op clauses
     e
@@ -88,6 +102,9 @@
 
 ; --- case (value dispatch with multi-expression clause bodies) ---
 
+(doc case "Dispatch on a value: evaluates key, then matches against datum lists in each clause."
+  (param key ANY "Expression to evaluate and match against")
+  (param clauses LIST "List of ((datum ...) body...) clauses; use else for default"))
 (def case
   (op (key . clauses)
     e
