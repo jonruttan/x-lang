@@ -1,6 +1,7 @@
 ; complex.x -- Complex number type
 (import x/float)
 (import x/rational)
+(import x/numeric)
 ;
 ; Complex values are stored as (real-part . imag-part) pairs.
 ; Components can be any real number type (integer, rational, float).
@@ -273,36 +274,16 @@
 
 (note "Operator Overrides")
 
-(def %complex-fold
-  (fn (complex-op real-op acc lst)
-    (if (null? lst) acc
-      (%complex-fold complex-op real-op
-        (if (%complex? acc)
-          (complex-op acc (first lst))
-          (if (%complex? (first lst))
-            (complex-op acc (first lst))
-            (real-op acc (first lst))))
-        (rest lst)))))
+(def %ensure-complex (fn (x) (if (%complex? x) x (%make-complex x 0))))
 
-(doc + "Add numbers with full numeric tower promotion (int/rational/float/complex)."
-  (param args NUMBER "Numbers to add")
-  (returns NUMBER "Sum"))
-(set! +
-  (fn args
-    (if (null? args) 0
-      (%complex-fold complex+ %real+ (first args) (rest args)))))
+; Use numeric tower factories for +, *
+(set! + (%make-fold-op %complex? complex+ %ensure-complex %real+ 0))
+(set! * (%make-fold-op %complex? complex* %ensure-complex %real* 1))
 
-(doc * "Multiply numbers with full numeric tower promotion."
-  (param args NUMBER "Numbers to multiply")
-  (returns NUMBER "Product"))
-(set! *
-  (fn args
-    (if (null? args) 1
-      (%complex-fold complex* %real* (first args) (rest args)))))
+; = uses factory
+(set! = (%make-cmp-op %complex? complex= %ensure-complex %real=))
 
-(doc / "Divide numbers with full numeric tower promotion."
-  (param args NUMBER "Numbers to divide")
-  (returns NUMBER "Quotient"))
+; / and - need unary special cases
 (set! /
   (fn args
     (if (null? args) 1
@@ -310,11 +291,13 @@
         (if (%complex? (first args))
           (complex/ (%make-complex 1 0) (first args))
           (%real/ 1 (first args)))
-        (%complex-fold complex/ %real/ (first args) (rest args))))))
+        (fold
+          (fn (acc x)
+            (if (%complex? acc) (complex/ acc (%ensure-complex x))
+              (if (%complex? x) (complex/ (%ensure-complex acc) x)
+                (%real/ acc x))))
+          (first args) (rest args))))))
 
-(doc - "Subtract numbers with full numeric tower promotion. Unary form negates."
-  (param args NUMBER "Numbers to subtract")
-  (returns NUMBER "Difference"))
 (set! -
   (fn args
     (if (null? args) 0
@@ -322,19 +305,12 @@
         (if (%complex? (first args))
           (complex- (%make-complex 0 0) (first args))
           (%real- (first args)))
-        (%complex-fold complex- %real- (first args) (rest args))))))
-
-(doc = "Test equality with full numeric tower promotion."
-  (param a NUMBER "Left operand")
-  (param b NUMBER "Right operand")
-  (returns BOOLEAN "True if a equals b"))
-(set! =
-  (fn (a b)
-    (if (%complex? a)
-      (complex= a (if (%complex? b) b (%make-complex b 0)))
-      (if (%complex? b)
-        (complex= (%make-complex a 0) b)
-        (%real= a b)))))
+        (fold
+          (fn (acc x)
+            (if (%complex? acc) (complex- acc (%ensure-complex x))
+              (if (%complex? x) (complex- (%ensure-complex acc) x)
+                (%real- acc x))))
+          (first args) (rest args))))))
 ; --- Predicates ---
 
 (note "Predicates")

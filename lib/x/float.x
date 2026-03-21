@@ -1,4 +1,5 @@
 ; float.x -- Floating-point type with IEEE 754 bit-pattern storage
+(import x/numeric)
 ;
 ; Float values are stored as IEEE 754 double bit patterns inside integers.
 ; The tokenizer's competitive scoring system ensures "3.14" (score 4)
@@ -299,93 +300,29 @@
 (def %safe/ /)
 (def %safe< <)
 (def %safe= =)
-; Promote to float via convert handler
-
 (def %ensure-float (fn (x) (convert x %float)))
-; Helper: fold with float coercion
 
-(def %float-fold
-  (fn (int-op float-op acc lst)
-    (if (null? lst)
-      acc
-      (%float-fold
-        int-op
-        float-op
-        (if (float? acc)
-          (float-op acc (%ensure-float (first lst)))
-          (if (float? (first lst))
-            (float-op (%ensure-float acc) (first lst))
-            (int-op acc (first lst))))
-        (rest lst)))))
-; Inlined overrides — avoid or, avoid closure variable lookup
-
-(doc +
-  (param args ANY "Numbers (integers or floats)")
-  "Add numbers, promoting to float if any argument is a float.")
-
-(set! +
-  (fn args
-    (if (null? args)
-      0
-      (%float-fold %safe+ f+ (first args) (rest args)))))
-
-(doc *
-  (param args ANY "Numbers (integers or floats)")
-  "Multiply numbers, promoting to float if any argument is a float.")
-
-(set! *
-  (fn args
-    (if (null? args)
-      1
-      (%float-fold %safe* f* (first args) (rest args)))))
-
-(doc /
-  (param args ANY "Numbers (integers or floats)")
-  "Divide numbers, promoting to float if any argument is a float.")
-
-(set! /
-  (fn args
-    (if (null? args)
-      1
-      (%float-fold %safe/ f/ (first args) (rest args)))))
+; Use numeric tower factories for +, *, /, <, =
+(set! + (%make-fold-op float? f+ %ensure-float %safe+ 0))
+(set! * (%make-fold-op float? f* %ensure-float %safe* 1))
+(set! / (%make-fold-op float? f/ %ensure-float %safe/ 1))
+(set! < (%make-cmp-op float? f< %ensure-float %safe<))
+(set! = (%make-cmp-op float? f= %ensure-float %safe=))
 
 ; - is special: unary negation case
-
-(doc -
-  (param args ANY "Numbers (integers or floats)")
-  "Subtract numbers or negate a single argument, promoting to float if needed.")
-
 (set! -
   (fn args
-    (if (null? args)
-      0
+    (if (null? args) 0
       (if (null? (rest args))
         (if (float? (first args))
           (f- (exact->inexact 0) (first args))
           (%safe- (first args)))
-        (%float-fold %safe- f- (first args) (rest args))))))
-
-; Comparisons — inline, no or
-
-(doc <
-  (param a ANY "Left operand") (param b ANY "Right operand")
-  "Test less-than, promoting to float if either argument is a float.")
-
-(set! <
-  (fn (a b)
-    (if (float? a)
-      (f< a (%ensure-float b))
-      (if (float? b) (f< (%ensure-float a) b) (%safe< a b)))))
-
-(doc =
-  (param a ANY "Left operand") (param b ANY "Right operand")
-  "Test equality, promoting to float if either argument is a float.")
-
-(set! =
-  (fn (a b)
-    (if (float? a)
-      (f= a (%ensure-float b))
-      (if (float? b) (f= (%ensure-float a) b) (%safe= a b)))))
+        (fold
+          (fn (acc x)
+            (if (float? acc) (f- acc (%ensure-float x))
+              (if (float? x) (f- (%ensure-float acc) x)
+                (%safe- acc x))))
+          (first args) (rest args))))))
 
 (note "R7RS Predicates")
 

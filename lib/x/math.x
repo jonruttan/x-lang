@@ -1,4 +1,6 @@
 ; math.x -- Math and number predicates
+(import x/logic)
+(import x/list)
 
 ; --- Arithmetic ---
 
@@ -64,9 +66,30 @@
   (returns BOOLEAN "True if n is odd")
   "Test whether an integer is odd.")
 
-; --- GCD / LCM (need fold from list.x, loaded after) ---
-; These are defined as stubs here, then set! after list.x loads.
-; Actually loaded in x-core.x after list.x via inline definitions.
+; --- GCD / LCM ---
+
+(note "GCD / LCM")
+
+(doc (def gcd
+  (fn args
+    (def %gcd2
+      (fn (a b) (if (zero? b) a (%gcd2 b (% a b)))))
+    (if (null? args) 0
+      (fold (fn (acc x) (%gcd2 (abs acc) (abs x)))
+            (first args) (rest args)))))
+  (returns NUMBER "Greatest common divisor of all arguments")
+  "Compute the greatest common divisor. Variadic: (gcd a b c ...) folds pairwise.")
+
+(doc (def lcm
+  (fn args
+    (def %lcm2
+      (fn (a b)
+        (if (zero? b) 0 (abs (* (/ a (gcd a b)) b)))))
+    (if (null? args) 1
+      (fold (fn (acc x) (%lcm2 (abs acc) (abs x)))
+            (first args) (rest args)))))
+  (returns NUMBER "Least common multiple of all arguments")
+  "Compute the least common multiple. Variadic: (lcm a b c ...) folds pairwise.")
 
 ; --- Exponentiation ---
 
@@ -82,6 +105,6 @@
   "Compute base raised to a non-negative integer exponent by repeated squaring.")
 
 (doc (provide x/math inc dec negate abs min max clamp min-by max-by
-  zero? positive? negative? even? odd? expt)
+  zero? positive? negative? even? odd? gcd lcm expt)
   (example "(clamp 0 10 15)" "10")
   "Integer arithmetic utilities.")

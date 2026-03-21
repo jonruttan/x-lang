@@ -247,16 +247,17 @@
     (pair "lib/x/doc-prims.x"
     (pair "lib/x/convert.x"
     (pair "lib/x/fn.x"
-    (pair "lib/x/math.x"
     (pair "lib/x/logic.x"
     (pair "lib/x/list.x"
+    (pair "lib/x/math.x"
     (pair "lib/x/derived.x"
+    (pair "lib/x/numeric.x"
     (pair "lib/x/alist.x"
     (pair "lib/x/char.x"
     (pair "lib/x/string.x"
     (pair "lib/x/vector.x"
     (pair "lib/x/promise.x"
-      (first %include-list-cell)))))))))))))))
+      (first %include-list-cell))))))))))))))))
   ; --- Documentation system ---
   (include "lib/x/doc.x")
   (include "lib/x/doc-prims.x")
@@ -310,11 +311,6 @@
             (%seq (%rewrite args %expanded (pair %t ())) (eval %t)))))))
   ; match, %seq are C primitives; do/%do-seq are x-lang boot (x-core.x)
 
-  ; --- Derived comparisons ---
-
-  (def > (fn (a b) (< b a)))
-  (def <= (fn (a b) (or (< a b) (= a b))))
-  (def >= (fn (a b) (or (< b a) (= a b))))
   ; --- Profiling ---
 
   (def time
@@ -347,15 +343,11 @@
       (%stderr "\n")
       ()))
   (include "lib/x/fn.x")
-  (include "lib/x/math.x")
   (include "lib/x/logic.x")
   (include "lib/x/list.x")
+  (include "lib/x/math.x")
   (include "lib/x/derived.x")
-  ; make-string: (make-string k [char]) -> string of k copies of char
-  (def make-string
-    (fn (k . rest)
-      (def ch (if (null? rest) (" " 0) (first rest)))
-      (list->string (repeat ch k))))
+  (include "lib/x/numeric.x")
   ; --- Save integer primitives and make arithmetic variadic ---
 
   ; fold (from list.x) enables variadic wrappers. float.x later overrides
@@ -387,24 +379,6 @@
           (%int- 0 (first args))
           (fold %int- (first args) (rest args))))))
   (set! % (fn args (fold modulo-int (first args) (rest args))))
-  ; --- GCD / LCM (need fold + abs) ---
-
-  (def gcd
-    (fn args
-      (def %gcd2
-        (fn (a b) (if (zero? b) a (%gcd2 b (% a b)))))
-      (if (null? args) 0
-        (fold (fn (acc x) (%gcd2 (abs acc) (abs x)))
-              (first args) (rest args)))))
-
-  (def lcm
-    (fn args
-      (def %lcm2
-        (fn (a b)
-          (if (zero? b) 0 (abs (* (/ a (gcd a b)) b)))))
-      (if (null? args) 1
-        (fold (fn (acc x) (%lcm2 (abs acc) (abs x)))
-              (first args) (rest args)))))
   ; --- Intrinsic scoring helpers for custom type analysers ---
 
   (def buffer-len
@@ -512,8 +486,8 @@
             (newline))))))
   (doc (provide x/core
     null? if let do begin not atom? list convert number->string string->number
-    make-string string=? string-ref string-length substring
-    gcd lcm newline heap-collect heap-mark-root! heap-mark-hook!
+    string=? string-ref string-length substring
+    newline heap-collect heap-mark-root! heap-mark-hook!
     heap-free-hook! include-once require-once provide import
     peek-char current-line quasi repl doc note help)
     (note "Built-in forms, module system, REPL, and documentation.")

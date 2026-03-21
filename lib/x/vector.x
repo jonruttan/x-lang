@@ -2,6 +2,18 @@
 (import x/list)
 ; N+1 slot objects: slot 0 = length, slots 1..N = elements.
 
+; Fill a vector's slots from a list (shared helper)
+(def %vector-from-list
+  (fn (type lst)
+    (def len (length lst))
+    (def v (make-obj type (+ len 1)))
+    (obj-set! v 0 len)
+    (def go (fn (l i)
+      (if (not (null? l))
+        (do (obj-set! v (+ i 1) (first l)) (go (rest l) (+ i 1))))))
+    (go lst 0)
+    v))
+
 (def %vector-read ())
 
 (def %vector
@@ -45,17 +57,7 @@
         (list
           (pair
             (type-of (pair 1 ()))
-            (fn (value)
-              (def len (length value))
-              (def v (make-obj %vector (+ len 1)))
-              (obj-set! v 0 len)
-              (def fill
-                (fn (lst i)
-                  (if (not (null? lst))
-                    (do (obj-set! v (+ i 1) (first lst))
-                      (fill (rest lst) (+ i 1))))))
-              (fill value 0)
-              v))))
+            (fn (value) (%vector-from-list %vector value)))))
       (pair
         (lit to)
         (list
@@ -79,32 +81,11 @@
                 val)
               ())))))))
 
-(set! %vector-read (fn args
-  (def lst (read))
-  (def len (length lst))
-  (def v (make-obj %vector (+ len 1)))
-  (obj-set! v 0 len)
-  (def fill
-    (fn (l i)
-      (if (not (null? l))
-        (do (obj-set! v (+ i 1) (first l))
-          (fill (rest l) (+ i 1))))))
-  (fill lst 0)
-  v))
+(set! %vector-read (fn args (%vector-from-list %vector (read))))
 
 (note "Constructors")
 
-(doc (def vector (fn args
-  (def len (length args))
-  (def v (make-obj %vector (+ len 1)))
-  (obj-set! v 0 len)
-  (def fill
-    (fn (lst i)
-      (if (not (null? lst))
-        (do (obj-set! v (+ i 1) (first lst))
-          (fill (rest lst) (+ i 1))))))
-  (fill args 0)
-  v))
+(doc (def vector (fn args (%vector-from-list %vector args)))
   (returns VECTOR "New vector containing the arguments")
   "Create a vector from the given arguments.")
 
@@ -151,16 +132,7 @@
   "Convert a vector to a list.")
 
 (doc (def list->vector (fn ((param lst LIST "List to convert"))
-  (def len (length lst))
-  (def v (make-obj %vector (+ len 1)))
-  (obj-set! v 0 len)
-  (def fill
-    (fn (l i)
-      (if (not (null? l))
-        (do (obj-set! v (+ i 1) (first l))
-          (fill (rest l) (+ i 1))))))
-  (fill lst 0)
-  v))
+  (%vector-from-list %vector lst)))
   (returns VECTOR "New vector containing the list's elements")
   "Convert a list to a vector.")
 

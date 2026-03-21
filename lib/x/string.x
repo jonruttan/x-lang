@@ -11,6 +11,14 @@
 
 (note "Building")
 
+(doc (def make-string
+  (fn ((param k NUMBER "Length of the string")
+       . rest)
+    (def ch (if (null? rest) (" " 0) (first rest)))
+    (list->string (repeat ch k))))
+  (returns STRING "A string of k copies of ch (default space)")
+  "Create a string of k copies of a character.")
+
 (doc (def string-join
   (fn ((param sep STRING "Separator to insert between elements")
        (param lst LIST "List of strings"))
@@ -34,19 +42,33 @@
   (returns STRING "Repeated string")
   "Repeat a string n times.")
 
+(doc (def string-pad-left
+  (fn ((param s STRING "String to pad")
+       (param n INT "Desired minimum length")
+       (param ch CHAR "Padding character"))
+    (if (not (< (string-length s) n)) s
+      (string-pad-left (string-append (list->string (list ch)) s) n ch))))
+  (returns STRING "Padded string of at least length n")
+  "Left-pad a string with ch to at least length n.")
+
 (note "Searching")
+
+; Shared helper: test if sub matches s at position pos
+(def %string-match-at?
+  (fn (s sub pos)
+    (def sub-len (string-length sub))
+    (if (> (+ pos sub-len) (string-length s)) #f
+      (string=? (substring s pos (+ pos sub-len)) sub))))
 
 (doc (def string-contains?
   (fn ((param sub STRING "Substring to search for")
        (param s STRING "String to search in"))
-    (def sub-len (string-length sub))
     (def s-len (string-length s))
+    (def sub-len (string-length sub))
     (def go
       (fn (i)
-        (match
-          ((> (+ i sub-len) s-len) #f)
-          ((string=? (substring s i (+ i sub-len)) sub) #t)
-          (#t (go (+ i 1))))))
+        (if (> (+ i sub-len) s-len) #f
+          (if (%string-match-at? s sub i) #t (go (+ i 1))))))
     (if (= sub-len 0) #t (go 0))))
   (returns BOOL "True if sub appears in s")
   "Test whether a string contains a substring.")
@@ -54,21 +76,17 @@
 (doc (def string-starts?
   (fn ((param pfx STRING "Prefix to check")
        (param s STRING "String to test"))
-    (def pfx-len (string-length pfx))
-    (if (> pfx-len (string-length s))
-      ()
-      (string=? (substring s 0 pfx-len) pfx))))
+    (%string-match-at? s pfx 0)))
   (returns BOOL "True if s starts with pfx")
   "Test whether a string starts with a prefix.")
 
 (doc (def string-ends?
   (fn ((param sfx STRING "Suffix to check")
        (param s STRING "String to test"))
-    (def sfx-len (string-length sfx))
     (def s-len (string-length s))
-    (if (> sfx-len s-len)
-      ()
-      (string=? (substring s (- s-len sfx-len) s-len) sfx))))
+    (def sfx-len (string-length sfx))
+    (if (> sfx-len s-len) #f
+      (%string-match-at? s sfx (- s-len sfx-len)))))
   (returns BOOL "True if s ends with sfx")
   "Test whether a string ends with a suffix.")
 
@@ -227,7 +245,7 @@
   "Split a string by a separator.")
 
 (doc (provide x/string
-  string-empty? string-join string-repeat string-contains?
+  make-string string-pad-left string-empty? string-join string-repeat string-contains?
   string-starts? string-ends? string-reverse string->list
   string-upcase string-downcase
   string<? string>? string<=? string>=?

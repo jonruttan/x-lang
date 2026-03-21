@@ -1,6 +1,5 @@
 ; hash.x -- FNV-1a hash function
-;
-; Provides: fnv-1a, hash->hex
+(import x/string)
 ;
 ; FNV-1a 64-bit hash operating on strings.
 ; Returns an integer suitable for use as a cache key.
@@ -19,19 +18,13 @@
     (def %len (string-length s))
     (def %go
       (fn (i h)
-        (if (= i %len) h
-          (%go (+ i 1)
-            (* (^ h (convert (string-ref s i) %int))
+        (if (%int= i %len) h
+          (%go (%int+ i 1)
+            (%int* (^ h (convert (string-ref s i) %int))
                %fnv-prime)))))
     (%go 0 %fnv-offset)))
   (returns INTEGER "64-bit FNV-1a hash value")
   "Hash a string to a 64-bit integer using the FNV-1a algorithm.")
-
-; %hex-pad: left-pad hex string to n chars with zeros
-(def %hex-pad
-  (fn (s n)
-    (if (>= (string-length s) n) s
-      (%hex-pad (string-append "0" s) n))))
 
 ; hash->hex: convert 64-bit signed integer to 16-char unsigned hex
 ; Splits into high and low 32-bit halves, each rendered as 8-char hex.
@@ -39,8 +32,8 @@
   (fn ((param n INTEGER "64-bit signed hash value"))
     (def %lo (& n 4294967295))
     (def %hi (& (>> n 32) 4294967295))
-    (string-append (%hex-pad (convert %hi %string 16) 8)
-                   (%hex-pad (convert %lo %string 16) 8))))
+    (string-append (string-pad-left (convert %hi %string 16) 8 ("0" 0))
+                   (string-pad-left (convert %lo %string 16) 8 ("0" 0)))))
   (returns STRING "16-character hexadecimal string")
   "Convert a 64-bit signed integer to a 16-character unsigned hex string.")
 

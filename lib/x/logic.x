@@ -25,5 +25,19 @@
   (returns BOOLEAN "True if a and b are structurally equal")
   "Structural equality: compares numbers by value, strings by content, else by identity.")
 
-(doc (provide x/logic boolean? default-to until equal?)
-  "Boolean logic and structural equality.")
+; --- Derived comparisons ---
+
+(doc (def > (fn ((param a NUMBER "Left operand") (param b NUMBER "Right operand")) (< b a)))
+  (returns BOOLEAN "True if a is greater than b")
+  "Test whether a is greater than b.")
+
+(doc (def <= (fn ((param a NUMBER "Left operand") (param b NUMBER "Right operand")) (or (< a b) (= a b))))
+  (returns BOOLEAN "True if a is less than or equal to b")
+  "Test whether a is less than or equal to b.")
+
+(doc (def >= (fn ((param a NUMBER "Left operand") (param b NUMBER "Right operand")) (or (< b a) (= a b))))
+  (returns BOOLEAN "True if a is greater than or equal to b")
+  "Test whether a is greater than or equal to b.")
+
+(doc (provide x/logic boolean? default-to until equal? > <= >=)
+  "Boolean logic, structural equality, and derived comparisons.")
