@@ -29,8 +29,8 @@
   (param params LIST "Parameter list: (a b), (a . rest), or args for variadic")
   (param body ANY "Body expression(s)")
   (returns PROCEDURE "A new closure")
-  (example "(def add (fn (a b) (+ a b)))" "")
-  (example "((fn (x) (* x x)) 5)" "25")
+  (example "(def add (fn (_ a b) (+ a b)))" "")
+  (example "((fn (_ x) (* x x)) 5)" "25")
   (see op))
 
 (doc op "Create an operative (fexpr: arguments are NOT evaluated)."
@@ -39,7 +39,7 @@
   (param body ANY "Body expression(s)")
   (returns OPERATIVE "A new operative")
   (note "Use eval with the env parameter to evaluate arguments selectively.")
-  (example "(def my-if (op (test then else) e (if (eval test e) (eval then e) (eval else e))))" "")
+  (example "(def my-if (op (_ test then else) e (if (eval test e) (eval then e) (eval else e))))" "")
   (see fn))
 
 (doc apply "Apply a function to a list of arguments."

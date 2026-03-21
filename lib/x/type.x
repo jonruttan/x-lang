@@ -13,13 +13,13 @@
 
 ; Return the interpreter's type alist from the base object
 (def type-alist
-  (fn ()
+  (fn (_ )
     (first (first (first (first (rest (first (%base)))))))))
 
 ; Look up a type struct by its handle atom (from type-of)
 (def type-by-atom
-  (fn (handle)
-    (def %go (fn (al)
+  (fn (_ handle)
+    (def %go (fn (_ al)
       (if (null? al) ()
         (if (eq? (first (first al)) handle)
           (rest (first al))
@@ -30,45 +30,45 @@
 
 ; Navigate to IO group (6th element)
 (def type-io
-  (fn (t) (first (rest (rest (rest (rest (rest t))))))))
+  (fn (_ t) (first (rest (rest (rest (rest (rest t))))))))
 
 ; Navigate to CVT group (5th element)
 (def type-cvt
-  (fn (t) (first (rest (rest (rest (rest t)))))))
+  (fn (_ t) (first (rest (rest (rest (rest t)))))))
 
 ; Get the write-stack cell from a type struct
 (def type-write-cell
-  (fn (t) (rest (rest (rest (type-io t))))))
+  (fn (_ t) (rest (rest (rest (type-io t))))))
 
 ; Get the analyse-stack cell from a type struct
 (def type-analyse-cell
-  (fn (t) (type-io t)))
+  (fn (_ t) (type-io t)))
 
 ; Get the from-conversion cell from a type struct
 (def type-from-cell
-  (fn (t) (first (type-cvt t))))
+  (fn (_ t) (first (type-cvt t))))
 
 ; Get the to-conversion cell from a type struct
 (def type-to-cell
-  (fn (t) (first (rest (type-cvt t)))))
+  (fn (_ t) (first (rest (type-cvt t)))))
 
 ; --- Stack manipulation ---
 
 ; Push a handler onto a type's write stack
 (def type-push-write
-  (fn (ts handler)
+  (fn (_ ts handler)
     (let ((c (type-write-cell ts)))
       (set-first! c (pair handler (first c))))))
 
 ; Pop the top handler from a type's write stack
 (def type-pop-write
-  (fn (ts)
+  (fn (_ ts)
     (let ((c (type-write-cell ts)))
       (set-first! c (rest (first c))))))
 
 ; Push a handler onto a type's analyse stack
 (def type-push-analyse
-  (fn (ts handler)
+  (fn (_ ts handler)
     (let ((c (type-analyse-cell ts)))
       (set-first! c (pair handler (first c))))))
 
@@ -79,7 +79,7 @@
 
 ; Overwrite an object's type tag with the type of another object
 (def type-cast!
-  (fn (obj type-src)
+  (fn (_ obj type-src)
     (def %dst-ptr (obj->ptr obj))
     (def %src-ptr (obj->ptr type-src))
     (def %type-val (ptr-ref-word %src-ptr %type-offset))

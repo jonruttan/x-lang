@@ -13,15 +13,15 @@
 ; --- GCD (Euclidean algorithm) ---
 
 (def %gcd
-  (fn (a b)
+  (fn (_ a b)
     (if (%int= b 0) a
       (%gcd b (%int- a (%int* b (%int/ a b)))))))
 
-(def %abs (fn (n) (if (%int< n 0) (%int- 0 n) n)))
+(def %abs (fn (_ n) (if (%int< n 0) (%int- 0 n) n)))
 ; --- Find '/' position in string ---
 
 (def %rat-find-slash
-  (fn (s i len)
+  (fn (_ s i len)
     (if (>= i len) ()
       (if (= (convert (string-ref s i) %int) 47)
         i
@@ -29,7 +29,7 @@
 ; --- Constructor: auto-reduce and normalize sign ---
 
 (def %make-rational
-  (fn (n d)
+  (fn (_ n d)
     (if (%int= d 0) (error "division by zero")
       (let ((g (%gcd (%abs n) (%abs d))))
         (let ((rn (%int/ n g)) (rd (%int/ d g)))
@@ -45,13 +45,13 @@
 (def %rat-denom ())
 
 (set! %rat-denom
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       (%seq (score-set score 1 buffer) %rat-denom)
       (%seq (buffer-unread buffer) (score-set score 1 buffer)))))
 
 (def %rat-first-denom
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       (%seq (score-set score 1 buffer) %rat-denom)
       ())))
@@ -60,7 +60,7 @@
 (def %rat-numer ())
 
 (set! %rat-numer
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %rat-numer
       (if (= chr 47) %rat-first-denom ()))))
@@ -72,35 +72,35 @@
     (list
       (pair
         (lit write)
-        (fn (self)
+        (fn (_ self)
           (display (first (first self)))
           (display "/")
           (display (rest (first self)))))
       (pair (lit first-chars) "0123456789-+")
       (pair
         (lit analyse)
-        (fn (buffer score chr)
+        (fn (_ buffer score chr)
           (if (and (>= chr 48) (<= chr 57))
             %rat-numer
             (if (= chr 45)
-              (fn (buffer score chr)
+              (fn (_ buffer score chr)
                 (if (and (>= chr 48) (<= chr 57))
                   %rat-numer
                   ()))
               (if (= chr 43)
-                (fn (buffer score chr)
+                (fn (_ buffer score chr)
                   (if (and (>= chr 48) (<= chr 57))
                     %rat-numer
                     ()))
                 ())))))
-      (pair (lit read) (fn args (%rational-read (first args))))
+      (pair (lit read) (fn (_ . args) (%rational-read (first args))))
       (pair
         (lit from)
         (list
-          (pair (type-of 42) (fn (value) (%make-rational value 1)))
+          (pair (type-of 42) (fn (_ value) (%make-rational value 1)))
           (pair
             (type-of "")
-            (fn (value)
+            (fn (_ value)
               (let ((pos (%rat-find-slash value 0 (string-length value))))
                 (if pos
                   (%make-rational
@@ -112,14 +112,14 @@
         (lit to)
         (list
           (pair (type-of 42)
-            (fn (self) (%int/ (first (first self)) (rest (first self)))))
+            (fn (_ self) (%int/ (first (first self)) (rest (first self)))))
           (pair %float
-            (fn (self)
+            (fn (_ self)
               (f/
                 (make-instance %float (int->float (first (first self))))
                 (make-instance %float (int->float (rest (first self)))))))
           (pair (type-of "")
-            (fn (self)
+            (fn (_ self)
               (string-append
                 (string-append (convert (first (first self)) %string) "/")
                 (convert (rest (first self)) %string)))))))))
@@ -127,11 +127,11 @@
 
 (note "Predicates")
 
-(doc (def rational? (fn ((param x ANY "Value to test")) (if (type? x %rational) #t (%int-number? x))))
+(doc (def rational? (fn (_ (param x ANY "Value to test")) (if (type? x %rational) #t (%int-number? x))))
   (returns BOOLEAN "True if x is rational or integer")
   "Test whether a value is a rational number or integer.")
 
-(doc (def exact? (fn ((param x ANY "Value to test")) (if (type? x %rational) #t (%int-number? x))))
+(doc (def exact? (fn (_ (param x ANY "Value to test")) (if (type? x %rational) #t (%int-number? x))))
   (returns BOOLEAN "True if x is exact (rational or integer)")
   "Test whether a value is an exact number.")
 ; --- Accessors ---
@@ -139,13 +139,13 @@
 (note "Accessors")
 
 (doc (def numerator
-  (fn ((param x RATIONAL|INTEGER "Rational or integer"))
+  (fn (_ (param x RATIONAL|INTEGER "Rational or integer"))
     (if (type? x %rational) (first (first x)) x)))
   (returns INTEGER "Numerator of the rational, or the integer itself")
   "Return the numerator of a rational number.")
 
 (doc (def denominator
-  (fn ((param x RATIONAL|INTEGER "Rational or integer"))
+  (fn (_ (param x RATIONAL|INTEGER "Rational or integer"))
     (if (type? x %rational) (rest (first x)) 1)))
   (returns INTEGER "Denominator of the rational, or 1 for integers")
   "Return the denominator of a rational number.")
@@ -154,13 +154,13 @@
 (note "Arithmetic")
 
 (def %rat-numer-of
-  (fn (x) (if (type? x %rational) (first (first x)) x)))
+  (fn (_ x) (if (type? x %rational) (first (first x)) x)))
 
 (def %rat-denom-of
-  (fn (x) (if (type? x %rational) (rest (first x)) 1)))
+  (fn (_ x) (if (type? x %rational) (rest (first x)) 1)))
 
 (doc (def rat+
-  (fn ((param a RATIONAL|INTEGER "First operand")
+  (fn (_ (param a RATIONAL|INTEGER "First operand")
        (param b RATIONAL|INTEGER "Second operand"))
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
@@ -171,7 +171,7 @@
   "Add two rational numbers.")
 
 (doc (def rat-
-  (fn ((param a RATIONAL|INTEGER "First operand")
+  (fn (_ (param a RATIONAL|INTEGER "First operand")
        (param b RATIONAL|INTEGER "Second operand"))
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
@@ -182,7 +182,7 @@
   "Subtract two rational numbers.")
 
 (doc (def rat*
-  (fn ((param a RATIONAL|INTEGER "First operand")
+  (fn (_ (param a RATIONAL|INTEGER "First operand")
        (param b RATIONAL|INTEGER "Second operand"))
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
@@ -191,7 +191,7 @@
   "Multiply two rational numbers.")
 
 (doc (def rat/
-  (fn ((param a RATIONAL|INTEGER "Dividend")
+  (fn (_ (param a RATIONAL|INTEGER "Dividend")
        (param b RATIONAL|INTEGER "Divisor"))
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
@@ -203,7 +203,7 @@
 (note "Comparison")
 
 (doc (def rat<
-  (fn ((param a RATIONAL|INTEGER "Left operand")
+  (fn (_ (param a RATIONAL|INTEGER "Left operand")
        (param b RATIONAL|INTEGER "Right operand"))
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
@@ -212,7 +212,7 @@
   "Test whether rational a is less than rational b.")
 
 (doc (def rat=
-  (fn ((param a RATIONAL|INTEGER "Left operand")
+  (fn (_ (param a RATIONAL|INTEGER "Left operand")
        (param b RATIONAL|INTEGER "Right operand"))
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
@@ -231,11 +231,11 @@
 (def %num< <)
 (def %num= =)
 
-(def %rat? (fn (x) (type? x %rational)))
+(def %rat? (fn (_ x) (type? x %rational)))
 
 ; Binary operation with promotion
 (def %rat-binop
-  (fn (rat-op float-op int-op a b)
+  (fn (_ rat-op float-op int-op a b)
     (if (float? a) (float-op a (if (float? b) b (%ensure-float b)))
       (if (float? b) (float-op (%ensure-float a) b)
         (if (%rat? a) (if (%rat? b) (rat-op a b)
@@ -245,7 +245,7 @@
 
 ; Fold for variadic ops
 (def %rat-fold
-  (fn (rat-op float-op int-op acc lst)
+  (fn (_ rat-op float-op int-op acc lst)
     (if (null? lst) acc
       (%rat-fold rat-op float-op int-op
         (%rat-binop rat-op float-op int-op acc (first lst))
@@ -255,7 +255,7 @@
   (param args NUMBER "Numbers to add")
   (returns NUMBER "Sum"))
 (set! +
-  (fn args
+  (fn (_ . args)
     (if (null? args) 0
       (%rat-fold rat+ f+ %num+ (first args) (rest args)))))
 
@@ -263,13 +263,13 @@
   (param args NUMBER "Numbers to multiply")
   (returns NUMBER "Product"))
 (set! *
-  (fn args
+  (fn (_ . args)
     (if (null? args) 1
       (%rat-fold rat* f* %num* (first args) (rest args)))))
 
 ; Integer division that produces rational when not exact
 (def %exact-div
-  (fn (a b)
+  (fn (_ a b)
     (if (= (%int- a (%int* b (%int/ a b))) 0)
       (%int/ a b)
       (%make-rational a b))))
@@ -278,7 +278,7 @@
   (param args NUMBER "Numbers to divide")
   (returns NUMBER "Quotient"))
 (set! /
-  (fn args
+  (fn (_ . args)
     (if (null? args) 1
       (if (null? (rest args))
         (%rat-binop rat/ f/ %exact-div 1 (first args))
@@ -288,7 +288,7 @@
   (param args NUMBER "Numbers to subtract")
   (returns NUMBER "Difference"))
 (set! -
-  (fn args
+  (fn (_ . args)
     (if (null? args) 0
       (if (null? (rest args))
         (if (float? (first args))
@@ -303,7 +303,7 @@
   (param b NUMBER "Right operand")
   (returns BOOLEAN "True if a < b"))
 (set! <
-  (fn (a b)
+  (fn (_ a b)
     (if (float? a) (f< a (%ensure-float b))
       (if (float? b) (f< (%ensure-float a) b)
         (if (%rat? a) (rat< a (if (%rat? b) b (%make-rational b 1)))
@@ -315,7 +315,7 @@
   (param b NUMBER "Right operand")
   (returns BOOLEAN "True if a equals b"))
 (set! =
-  (fn (a b)
+  (fn (_ a b)
     (if (float? a) (f= a (%ensure-float b))
       (if (float? b) (f= (%ensure-float a) b)
         (if (%rat? a) (rat= a (if (%rat? b) b (%make-rational b 1)))
@@ -326,11 +326,11 @@
   (param a INTEGER "Dividend")
   (param b INTEGER "Divisor")
   (returns INTEGER "Remainder"))
-(set! % (fn (a b) (%int- a (%int* b (%int/ a b)))))
+(set! % (fn (_ a b) (%int- a (%int* b (%int/ a b)))))
 ; --- Reader ---
 
 (set! %rational-read
-  (fn args
+  (fn (_ . args)
     (let ((tok (buffer-token (first args))))
       (let ((pos (%rat-find-slash tok 0 (string-length tok))))
         (if pos

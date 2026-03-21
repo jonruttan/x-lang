@@ -13,7 +13,7 @@
 ; --- Constructor: collapse to real when imag is exactly integer 0 ---
 
 (def %make-complex
-  (fn (re im)
+  (fn (_ re im)
     (if (if (%int-number? im) (%int= im 0) ())
       re
       (make-instance %complex (pair re im)))))
@@ -27,20 +27,20 @@
 (def %real< <)
 ; --- Accessors ---
 
-(def %complex? (fn (x) (type? x %complex)))
+(def %complex? (fn (_ x) (type? x %complex)))
 
 (def %complex-re
-  (fn (x) (if (%complex? x) (first (first x)) x)))
+  (fn (_ x) (if (%complex? x) (first (first x)) x)))
 
 (def %complex-im
-  (fn (x) (if (%complex? x) (rest (first x)) 0)))
+  (fn (_ x) (if (%complex? x) (rest (first x)) 0)))
 ; --- Tokenizer state machine for complex literals ---
 ; Matches: <digits>[.<digits>][+-]<digits>[.<digits>]i
 ; Also: <digits>[.<digits>]i  (pure imaginary)
 
 (def %cx-imag-frac ())
 (set! %cx-imag-frac
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %cx-imag-frac
       (if (= chr 105)
@@ -48,14 +48,14 @@
         ()))))
 
 (def %cx-imag-dot
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %cx-imag-frac
       ())))
 
 (def %cx-imag-int ())
 (set! %cx-imag-int
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %cx-imag-int
       (if (= chr 46)
@@ -65,14 +65,14 @@
           ())))))
 
 (def %cx-sign
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %cx-imag-int
       ())))
 
 (def %cx-real-frac ())
 (set! %cx-real-frac
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %cx-real-frac
       (if (= chr 43)
@@ -84,14 +84,14 @@
             ()))))))
 
 (def %cx-real-dot
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %cx-real-frac
       ())))
 
 (def %cx-real-int ())
 (set! %cx-real-int
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %cx-real-int
       (if (= chr 46)
@@ -107,20 +107,20 @@
 ; --- Reader helpers ---
 
 (def %cx-find-char
-  (fn (s i len ch)
+  (fn (_ s i len ch)
     (if (>= i len) ()
       (if (= (convert (string-ref s i) %int) ch)
         i
         (%cx-find-char s (%int+ i 1) len ch)))))
 
 (def %cx-parse-num
-  (fn (s)
+  (fn (_ s)
     (if (%cx-find-char s 0 (string-length s) 46)
       (make-instance %float (string->float s))
       (convert s %int))))
 
 (set! %cx-read
-  (fn args
+  (fn (_ . args)
     (let ((tok (buffer-token (first args))))
       (let ((len (string-length tok)))
         (let ((body (substring tok 0 (%int- len 1))))
@@ -142,7 +142,7 @@
     (list
       (pair
         (lit write)
-        (fn (self)
+        (fn (_ self)
           (let ((re (first (first self))) (im (rest (first self))))
             (display re)
             (if (not (%real< im 0)) (display "+"))
@@ -151,26 +151,26 @@
       (pair (lit first-chars) "0123456789")
       (pair
         (lit analyse)
-        (fn (buffer score chr)
+        (fn (_ buffer score chr)
           (if (and (>= chr 48) (<= chr 57)) %cx-real-int ())))
-      (pair (lit read) (fn args (%cx-read (first args))))
+      (pair (lit read) (fn (_ . args) (%cx-read (first args))))
       (pair
         (lit from)
         (list
-          (pair (type-of 42) (fn (value) (%make-complex value 0)))
-          (pair %float (fn (value) (%make-complex value 0)))
-          (pair %rational (fn (value) (%make-complex value 0)))))
+          (pair (type-of 42) (fn (_ value) (%make-complex value 0)))
+          (pair %float (fn (_ value) (%make-complex value 0)))
+          (pair %rational (fn (_ value) (%make-complex value 0)))))
       (pair
         (lit to)
         (list
           (pair (type-of "")
-            (fn (self) (write-to-string self))))))))
+            (fn (_ self) (write-to-string self))))))))
 ; --- Arithmetic ---
 
 (note "Arithmetic")
 
 (doc (def complex+
-  (fn ((param a COMPLEX|NUMBER "First operand")
+  (fn (_ (param a COMPLEX|NUMBER "First operand")
        (param b COMPLEX|NUMBER "Second operand"))
     (%make-complex
       (%real+ (%complex-re a) (%complex-re b))
@@ -179,7 +179,7 @@
   "Add two complex numbers.")
 
 (doc (def complex-
-  (fn ((param a COMPLEX|NUMBER "First operand")
+  (fn (_ (param a COMPLEX|NUMBER "First operand")
        (param b COMPLEX|NUMBER "Second operand"))
     (%make-complex
       (%real- (%complex-re a) (%complex-re b))
@@ -188,7 +188,7 @@
   "Subtract two complex numbers.")
 
 (doc (def complex*
-  (fn ((param a COMPLEX|NUMBER "First operand")
+  (fn (_ (param a COMPLEX|NUMBER "First operand")
        (param b COMPLEX|NUMBER "Second operand"))
     (let ((ar (%complex-re a)) (ai (%complex-im a))
           (br (%complex-re b)) (bi (%complex-im b)))
@@ -199,7 +199,7 @@
   "Multiply two complex numbers.")
 
 (doc (def complex/
-  (fn ((param a COMPLEX|NUMBER "Dividend")
+  (fn (_ (param a COMPLEX|NUMBER "Dividend")
        (param b COMPLEX|NUMBER "Divisor"))
     (let ((ar (%complex-re a)) (ai (%complex-im a))
           (br (%complex-re b)) (bi (%complex-im b)))
@@ -211,7 +211,7 @@
   "Divide two complex numbers.")
 
 (doc (def complex=
-  (fn ((param a COMPLEX|NUMBER "Left operand")
+  (fn (_ (param a COMPLEX|NUMBER "Left operand")
        (param b COMPLEX|NUMBER "Right operand"))
     (if (%real= (%complex-re a) (%complex-re b))
       (%real= (%complex-im a) (%complex-im b))
@@ -223,14 +223,14 @@
 (note "Constructors and Accessors")
 
 (doc (def make-rectangular
-  (fn ((param re NUMBER "Real part")
+  (fn (_ (param re NUMBER "Real part")
        (param im NUMBER "Imaginary part"))
     (%make-complex re im)))
   (returns COMPLEX|NUMBER "Complex number, or real if imaginary part is zero")
   "Construct a complex number from rectangular coordinates.")
 
 (doc (def make-polar
-  (fn ((param mag NUMBER "Magnitude")
+  (fn (_ (param mag NUMBER "Magnitude")
        (param ang NUMBER "Angle in radians"))
     (let ((fang (exact->inexact ang)) (fmag (exact->inexact mag)))
       (%make-complex
@@ -250,7 +250,7 @@
 (def imag-part %complex-im)
 
 (doc (def magnitude
-  (fn ((param z COMPLEX|NUMBER "Complex or real number"))
+  (fn (_ (param z COMPLEX|NUMBER "Complex or real number"))
     (if (%complex? z)
       (let ((re (exact->inexact (%complex-re z)))
             (im (exact->inexact (%complex-im z))))
@@ -262,7 +262,7 @@
   "Return the magnitude (absolute value) of a complex or real number.")
 
 (doc (def angle
-  (fn ((param z COMPLEX|NUMBER "Complex or real number"))
+  (fn (_ (param z COMPLEX|NUMBER "Complex or real number"))
     (if (%complex? z)
       (fatan2
         (exact->inexact (%complex-im z))
@@ -274,7 +274,7 @@
 
 (note "Operator Overrides")
 
-(def %ensure-complex (fn (x) (if (%complex? x) x (%make-complex x 0))))
+(def %ensure-complex (fn (_ x) (if (%complex? x) x (%make-complex x 0))))
 
 ; Use numeric tower factories for +, *
 (set! + (%make-fold-op %complex? complex+ %ensure-complex %real+ 0))
@@ -285,28 +285,28 @@
 
 ; / and - need unary special cases
 (set! /
-  (fn args
+  (fn (_ . args)
     (if (null? args) 1
       (if (null? (rest args))
         (if (%complex? (first args))
           (complex/ (%make-complex 1 0) (first args))
           (%real/ 1 (first args)))
         (fold
-          (fn (acc x)
+          (fn (_ acc x)
             (if (%complex? acc) (complex/ acc (%ensure-complex x))
               (if (%complex? x) (complex/ (%ensure-complex acc) x)
                 (%real/ acc x))))
           (first args) (rest args))))))
 
 (set! -
-  (fn args
+  (fn (_ . args)
     (if (null? args) 0
       (if (null? (rest args))
         (if (%complex? (first args))
           (complex- (%make-complex 0 0) (first args))
           (%real- (first args)))
         (fold
-          (fn (acc x)
+          (fn (_ acc x)
             (if (%complex? acc) (complex- acc (%ensure-complex x))
               (if (%complex? x) (complex- (%ensure-complex acc) x)
                 (%real- acc x))))
@@ -319,7 +319,7 @@
   (param x ANY "Value to test")
   (returns BOOLEAN "True if x is a number"))
 (set! number?
-  (fn (x)
+  (fn (_ x)
     (if (%complex? x) #t
       (if (%rat? x) #t
         (if (float? x) #t
@@ -334,7 +334,7 @@
   (param x ANY "Value to test")
   (returns BOOLEAN "True if x is a real number"))
 (set! real?
-  (fn (x)
+  (fn (_ x)
     (if (%rat? x) #t
       (if (float? x) #t
         (%int-number? x)))))

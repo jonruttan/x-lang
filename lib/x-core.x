@@ -13,10 +13,10 @@
 ;      " "
 ; --- Boot: primitives implemented in x-lang (saves ROM) ---
 
-(def null? (fn (x) (eq? x ())))
+(def null? (fn (_ x) (eq? x ())))
 
 (def if
-  (op (test then . else)
+  (op (_ test then . else)
     e
     (match
       ((eval test e) (tail-eval then e))
@@ -24,7 +24,7 @@
       (#t (tail-eval (first else) e)))))
 
 (def %let-params
-  (fn (bindings)
+  (fn (_ bindings)
     (match
       ((null? bindings) ())
       (#t
@@ -33,7 +33,7 @@
           (%let-params (rest bindings)))))))
 
 (def %let-vals
-  (fn (bindings e)
+  (fn (_ bindings e)
     (match
       ((null? bindings) ())
       (#t
@@ -42,10 +42,10 @@
           (%let-vals (rest bindings) e))))))
 
 (def let
-  (op (bindings . body)
+  (op (_ bindings . body)
     e
     (apply
-      (eval (pair (lit fn) (pair (%let-params bindings) body)) e)
+      (eval (pair (lit fn) (pair (pair (lit _) (%let-params bindings)) body)) e)
       (%let-vals bindings e))))
 
 (def %type-pair (type-of (pair 1 2)))
@@ -58,29 +58,29 @@
 
 (def %type-char (type-of (integer->char 0)))
 
-(def %type-proc (type-of (fn () ())))
+(def %type-proc (type-of (fn (_ ) ())))
 
 (def %type-prim (type-of eq?))
 
-(def pair? (fn (x) (type? x %type-pair)))
+(def pair? (fn (_ x) (type? x %type-pair)))
 
-(def number? (fn (x) (type? x %type-int)))
+(def number? (fn (_ x) (type? x %type-int)))
 
-(def string? (fn (x) (type? x %type-str)))
+(def string? (fn (_ x) (type? x %type-str)))
 
-(def symbol? (fn (x) (type? x %type-sym)))
+(def symbol? (fn (_ x) (type? x %type-sym)))
 
-(def char? (fn (x) (type? x %type-char)))
+(def char? (fn (_ x) (type? x %type-char)))
 
 (def procedure?
-  (fn (x)
+  (fn (_ x)
     (match
       ((type? x %type-proc) #t)
       ((type? x %type-prim) #t)
       (#t #f))))
 
 (def %do-nest
-  (fn (%dn-f)
+  (fn (_ %dn-f)
     (match
       ((null? (rest %dn-f)) (first %dn-f))
       (#t
@@ -89,7 +89,7 @@
           (pair (first %dn-f) (pair (%do-nest (rest %dn-f)) ())))))))
 
 (def %do-seq
-  (op %do-f
+  (op (_ . %do-f)
     %do-e
     (match
       ((null? %do-f) ())
@@ -104,15 +104,15 @@
   (def x-lib-version "0.2.0")
   ; --- Derived from C primitives ---
 
-  (def not (fn (x) (if x #f #t)))
-  (def atom? (fn (x) (not (pair? x))))
-  (def list (fn args args))
+  (def not (fn (_ x) (if x #f #t)))
+  (def atom? (fn (_ x) (not (pair? x))))
+  (def list (fn (_ . args) args))
   ; number->string: (number->string n [radix]) -> string representation
   ; Captures / and % at definition time so later overrides don't break it
   (def %n2s/ /)
   (def %n2s% %)
   (def number->string
-    (fn (n . rest)
+    (fn (_ n . rest)
       (def radix (if (null? rest) 10 (first rest)))
       (def %d "0123456789abcdefghijklmnopqrstuvwxyz")
       (if (= n 0) "0"
@@ -126,14 +126,14 @@
                 (list->string (list (%d rem))))))))))
   ; string->number: (string->number str [radix]) -> integer or ()
   (def string->number
-    (fn (s . rest)
+    (fn (_ s . rest)
       (def radix (if (null? rest) 10 (first rest)))
       (def len (s))
       (if (= len 0) ()
         (do
           (def %0 (char->integer ("0" 0)))
           (def %digit
-            (fn (ch)
+            (fn (_ ch)
               (def c (char->integer ch))
               (if (if (not (< c %0)) (not (< (+ %0 9) c)) #f)
                 (- c %0)
@@ -152,7 +152,7 @@
           (if (= start len) ()
             (do
               (def %parse
-                (fn (i acc)
+                (fn (_ i acc)
                   (if (= i len) acc
                     (do
                       (def d (%digit (s i)))
@@ -165,25 +165,25 @@
                 (if neg (- 0 result) result))))))))
   (include "lib/x/type.x")
   (include "lib/x/convert.x")
-  (def newline (fn () (display "\n")))
-  (def string-ref (fn (s i) (s i)))
-  (def string-length (fn (s) (s)))
-  (def substring (fn (s start end) (s start (- end start))))
-  (def heap-collect (fn () (applicative heap-mark heap-sweep) ()))
+  (def newline (fn (_ ) (display "\n")))
+  (def string-ref (fn (_ s i) (s i)))
+  (def string-length (fn (_ s) (s)))
+  (def substring (fn (_ s start end) (s start (- end start))))
+  (def heap-collect (fn (_ ) (applicative heap-mark heap-sweep) ()))
   ; GC hooks: navigate base tree to gc-hooks cells
   (def %gc-hooks
     (rest (rest (rest (rest (rest (rest (rest (first (%base))))))))))
   (def %gc-hooks-rest (rest %gc-hooks))
   (def heap-mark-root!
-    (fn (obj)
+    (fn (_ obj)
       (def %cell (rest %gc-hooks-rest))
       (set-first! %cell (pair obj (first %cell)))))
   (def heap-mark-hook!
-    (fn (hook)
+    (fn (_ hook)
       (def %cell (first %gc-hooks))
       (set-first! %cell (pair hook (first %cell)))))
   (def heap-free-hook!
-    (fn (hook)
+    (fn (_ hook)
       (def %cell (first %gc-hooks-rest))
       (set-first! %cell (pair hook (first %cell)))))
   ; Extend base tree: add include-list cell under io-state (after false-stack)
@@ -192,28 +192,28 @@
   (set-rest! %false-stack (pair () ()))
   (def %include-list-cell (rest %false-stack))
   (def %rewrite
-    (fn (p a b) (set-first! p a) (set-rest! p b) p))
+    (fn (_ p a b) (set-first! p a) (set-rest! p b) p))
   (def %expanded (pair () ()))
   (def %string-eq-loop
-    (fn (a b i len)
+    (fn (_ a b i len)
       (if (= i len)
         #t
         (if (= (char->integer (a i)) (char->integer (b i)))
           (%string-eq-loop a b (+ i 1) len)
           #f))))
   (def string=?
-    (fn (a b) (if (= (a) (b)) (%string-eq-loop a b 0 (a)) #f)))
+    (fn (_ a b) (if (= (a) (b)) (%string-eq-loop a b 0 (a)) #f)))
   ; --- Include-once / require-once ---
   (def %include-list-has?
-    (fn (path)
+    (fn (_ path)
       (def %go
-        (fn (lst)
+        (fn (_ lst)
           (if (null? lst) #f
             (if (string=? (first lst) path) #t
               (%go (rest lst))))))
       (%go (first %include-list-cell))))
   (def include-once
-    (op (path) e
+    (op (_ path) e
       (def %io-path (eval path e))
       (if (%include-list-has? %io-path) ()
         (do (set-first! %include-list-cell
@@ -227,19 +227,19 @@
   (set-rest! %module-registry-cell (pair () ()))
   (def %doc-registry-cell (rest %module-registry-cell))
   (def %module-register!
-    (fn (name exports)
+    (fn (_ name exports)
       (set-first! %module-registry-cell
         (pair (pair name exports)
               (first %module-registry-cell)))))
   (def %module-resolve
-    (fn (name)
+    (fn (_ name)
       (string-append "lib/"
         (string-append (symbol->string name) ".x"))))
   (def provide
-    (op (name . syms) e
+    (op (_ name . syms) e
       (%module-register! name syms)))
   (def import
-    (op (name . syms) e
+    (op (_ name . syms) e
       (include-once (%module-resolve name))
       ()))
   ; Pre-register all library paths so import calls in library files are no-ops
@@ -271,14 +271,14 @@
   ; First call: expand + rewrite + eval. Subsequent calls: eq? + eval.
 
   (def %and-expand
-    (fn (args)
+    (fn (_ args)
       (if (null? args)
         #t
         (if (null? (rest args))
           (first args)
           (list (lit if) (first args) (%and-expand (rest args)) #f)))))
   (def and
-    (op args
+    (op (_ . args)
       e
       (if (null? args)
         #t
@@ -288,7 +288,7 @@
             (def %t (%and-expand args))
             (%seq (%rewrite args %expanded (pair %t ())) (eval %t)))))))
   (def %or-expand
-    (fn (args)
+    (fn (_ args)
       (if (null? args)
         ()
         (if (null? (rest args))
@@ -302,7 +302,7 @@
               (lit %or-v)
               (%or-expand (rest args))))))))
   (def or
-    (op args
+    (op (_ . args)
       e
       (if (null? args)
         ()
@@ -316,7 +316,7 @@
   ; --- Profiling ---
 
   (def time
-    (op args
+    (op (_ . args)
       e
       (let ((t0 (clock)))
         (let ((result (eval (first args) e)))
@@ -326,7 +326,7 @@
   ; Write to stderr (swap fileout fd, display, restore)
 
   (def %stderr
-    (fn (msg)
+    (fn (_ msg)
       (def %files (rest (first (first (rest (first (%base)))))))
       (def %fo (first (rest %files)))
       (def %s (first-int %fo))
@@ -336,7 +336,7 @@
   ; Dump alloc-count and heap-count to stderr
 
   (def %profile-dump
-    (fn ()
+    (fn (_ )
       (%stderr
         (first-int
           (first (first (first (first (rest (rest (first (%base))))))))))
@@ -365,37 +365,37 @@
   (def %int= =)
   (def %int-number? number?)
   (set! +
-    (fn args
+    (fn (_ . args)
       (if (null? args) 0 (fold %int+ (first args) (rest args)))))
   (set! *
-    (fn args
+    (fn (_ . args)
       (if (null? args) 1 (fold %int* (first args) (rest args)))))
   (set! /
-    (fn args
+    (fn (_ . args)
       (if (null? args) 1 (fold %int/ (first args) (rest args)))))
   (set! -
-    (fn args
+    (fn (_ . args)
       (if (null? args)
         0
         (if (null? (rest args))
           (%int- 0 (first args))
           (fold %int- (first args) (rest args))))))
-  (set! % (fn args (fold modulo-int (first args) (rest args))))
+  (set! % (fn (_ . args) (fold modulo-int (first args) (rest args))))
   ; --- Intrinsic scoring helpers for custom type analysers ---
 
   (def buffer-len
-    (fn (buffer)
+    (fn (_ buffer)
       (- (first-int (rest buffer)) (first-int buffer))))
   (def buffer-unread
-    (fn (buffer)
+    (fn (_ buffer)
       (set-first-int!
         (rest buffer)
         (- (first-int (rest buffer)) 1))))
   (def score-set
-    (fn (score sign buffer)
+    (fn (_ score sign buffer)
       (set-first-int! score (* sign (buffer-len buffer)))))
   (def peek-char
-    (fn ()
+    (fn (_ )
       (def %ch (read-char))
       (if (null? %ch)
         ()
@@ -405,7 +405,7 @@
               (first (rest (rest (rest (rest (first (%base)))))))))
           %ch))))
   (def current-line
-    (fn ()
+    (fn (_ )
       (first-int
         (first (first (rest (first (rest (first (%base))))))))))
   (include "lib/x/alist.x")
@@ -420,7 +420,7 @@
   ; constructs the result with current bindings.
 
   (def %quasi-compile
-    (fn (t)
+    (fn (_ t)
       (if (or (null? t) (atom? t))
         (list (lit lit) t)
         (if (eq? (first t) (lit unquote))
@@ -437,7 +437,7 @@
               (%quasi-compile (first t))
               (%quasi-compile (rest t))))))))
   (def quasi
-    (op args
+    (op (_ . args)
       e
       (if (eq? (first args) %expanded)
         (eval (first (rest args)))
@@ -449,11 +449,11 @@
   (def %repl-read read)
   (def %repl-prompt "> ")
   (def %repl-print
-    (fn (result)
+    (fn (_ result)
       (if (null? result) () (write result))
       (newline)))
   (def repl
-    (op ()
+    (op (_ )
       ()
       (display %repl-prompt)
       (def %r (%repl-read))
@@ -468,10 +468,10 @@
   (def %lang-name ())
   (def %lang-version ())
   (def %banner
-    (fn ()
+    (fn (_ )
       (def %quiet
         (fold
-          (fn (acc a)
+          (fn (_ acc a)
             (or acc (string=? a "--quiet") (string=? a "-q")))
           ()
           args))

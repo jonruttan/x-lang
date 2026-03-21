@@ -21,7 +21,7 @@
       (append %constructs %lang-constructs)))
 
   ; Build lookup alist: ((name-string . props) ...)
-  (def %build-lookup (fn (entries acc)
+  (def %build-lookup (fn (_ entries acc)
     (if (null? entries) acc
       (do (def entry (first entries))
           (def name (convert (first entry) %string))
@@ -31,18 +31,18 @@
   (def %construct-table (%build-lookup %all-constructs ()))
 
   ; Lookup helper using string=? for cross-base symbol comparison
-  (def %construct-find (fn (key table)
+  (def %construct-find (fn (_ key table)
     (if (null? table) ()
       (if (string=? key (first (first table)))
         (first table)
         (%construct-find key (rest table))))))
-  (def %construct-lookup (fn (name)
+  (def %construct-lookup (fn (_ name)
     (def entry (%construct-find (convert name %string) %construct-table))
     (if (null? entry) ()
       (rest entry))))
 
   ; Get a property value from a property list
-  (def %get-prop (fn (key props)
+  (def %get-prop (fn (_ key props)
     (if (null? props) ()
       (if (pair? (first props))
         (if (eq? (first (first props)) key)
@@ -58,15 +58,15 @@
   (def %flags-offset (* 2 word-size))
   (def %cov-bit 2)
 
-  (def obj-flags (fn (obj)
+  (def obj-flags (fn (_ obj)
     (ptr-ref-word (convert obj %ptr) %flags-offset)))
 
-  (def obj-flag-set (fn (obj bit)
+  (def obj-flag-set (fn (_ obj bit)
     (ptr-set-word! (convert obj %ptr) %flags-offset
       (| (obj-flags obj) bit))
     obj))
 
-  (def %marked? (fn (obj)
+  (def %marked? (fn (_ obj)
     (if (null? obj) t
       (> (& (obj-flags obj) %cov-bit) 0))))
 
@@ -83,7 +83,7 @@
 
   (def %forms %tokens)
   (def %eval-loop ())
-  (set! %eval-loop (op () %e
+  (set! %eval-loop (op (_ ) %e
     (if (not (null? %forms))
       (do
         (guard (err ()) (eval! (first %forms)))
@@ -97,7 +97,7 @@
   (def %covered-branches 0)
   (def %uncovered ())
 
-  (def %check-branch (fn (kind form)
+  (def %check-branch (fn (_ kind form)
     (set! %total-branches (+ %total-branches 1))
     (if (%marked? form)
       (set! %covered-branches (+ %covered-branches 1))
@@ -107,7 +107,7 @@
   ; --- Per-type branch evaluators ---
 
   ; cond: if-style then/else branches
-  (def %cond-eval (fn (form walk)
+  (def %cond-eval (fn (_ form walk)
     (def args (rest form))
     (if (null? args) ()
       (do
@@ -126,8 +126,8 @@
                 (walk else-form)))))))))
 
   ; clauses: each subform is a clause with a body
-  (def %clause-eval (fn (form walk)
-    (def %walk-clauses (fn (clauses)
+  (def %clause-eval (fn (_ form walk)
+    (def %walk-clauses (fn (_ clauses)
       (if (null? clauses) ()
         (if (pair? clauses)
           (do (if (pair? (first clauses))
@@ -142,8 +142,8 @@
     (%walk-clauses (rest form))))
 
   ; short: each arg is a short-circuit branch (and/or)
-  (def %short-eval (fn (form walk)
-    (def %walk-args (fn (args)
+  (def %short-eval (fn (_ form walk)
+    (def %walk-args (fn (_ args)
       (if (null? args) ()
         (if (pair? args)
           (do (%check-branch (lit short-circuit) (first args))
@@ -153,14 +153,14 @@
     (%walk-args (rest form))))
 
   ; guard: handler is error path, body is normal path
-  (def %guard-eval (fn (form walk)
+  (def %guard-eval (fn (_ form walk)
     (def clause (first (rest form)))
     (if (null? clause) ()
       (do
         (def handler (first (rest clause)))
         (%check-branch (lit guard-handler) handler)
         (walk handler)))
-    (def %walk-body (fn (body)
+    (def %walk-body (fn (_ body)
       (if (null? body) ()
         (if (pair? body)
           (do (walk (first body))
@@ -170,7 +170,7 @@
 
   ; --- Build dispatch table from constructs ---
 
-  (def %build-dispatch (fn (entries acc)
+  (def %build-dispatch (fn (_ entries acc)
     (if (null? entries) acc
       (do (def entry (first entries))
           (def name (convert (first entry) %string))
@@ -188,7 +188,7 @@
   (def %dispatch (%build-dispatch %all-constructs ()))
 
   ; Lookup in dispatch table (string keys)
-  (def %lookup (fn (key table)
+  (def %lookup (fn (_ key table)
     (if (null? table) ()
       (if (string=? key (first (first table)))
         (first table)
@@ -197,14 +197,14 @@
   ; --- Generic walker ---
 
   (def %safe-walk ())
-  (set! %safe-walk (fn (walk forms)
+  (set! %safe-walk (fn (_ walk forms)
     (if (pair? forms)
       (do (walk (first forms))
           (%safe-walk walk (rest forms)))
       ())))
 
   (def %cov-eval ())
-  (set! %cov-eval (fn (form)
+  (set! %cov-eval (fn (_ form)
     (if (null? form) ()
       (if (not (pair? form)) ()
         (if (not (symbol? (first form)))
@@ -233,7 +233,7 @@
         (display "All branches covered.\n")
         (do
           (display "Uncovered branches:\n")
-          (for-each (fn (entry)
+          (for-each (fn (_ entry)
             (def line (first (rest (rest entry))))
             (if (> line 0)
               (do (display "  line ")

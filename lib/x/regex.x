@@ -15,7 +15,7 @@
 ; Match a single AST node at position, return new position or ()
 
 (def regex-exec-one
-  (fn (node str pos end)
+  (fn (_ node str pos end)
     (def tag (first node))
     (match
       ((eq? tag (lit lit))
@@ -31,13 +31,13 @@
 ; Greedy star: collect all reachable positions, try rest from farthest first
 
 (def regex-exec-star
-  (fn (inner rest-nodes str pos end)
+  (fn (_ inner rest-nodes str pos end)
     (def collect
-      (fn (p)
+      (fn (_ p)
         (def next (regex-exec-one inner str p end))
         (if (null? next) (list p) (pair p (collect next)))))
     (def try-from
-      (fn (ps)
+      (fn (_ ps)
         (if (null? ps)
           ()
           (let ((r (regex-exec rest-nodes str (first ps) end)))
@@ -46,7 +46,7 @@
 ; Plus: match inner once, then star
 
 (def regex-exec-plus
-  (fn (inner rest-nodes str pos end)
+  (fn (_ inner rest-nodes str pos end)
     (def first-match (regex-exec-one inner str pos end))
     (if (null? first-match)
       ()
@@ -54,7 +54,7 @@
 ; Optional: try with inner (greedy), backtrack to without
 
 (def regex-exec-opt
-  (fn (inner rest-nodes str pos end)
+  (fn (_ inner rest-nodes str pos end)
     (def with-inner (regex-exec-one inner str pos end))
     (if (not (null? with-inner))
       (let ((result (regex-exec rest-nodes str with-inner end)))
@@ -63,7 +63,7 @@
 ; Walk AST node list against string
 
 (set! regex-exec
-  (fn (nodes str pos end)
+  (fn (_ nodes str pos end)
     (if (null? nodes)
       pos
       (let ((node (first nodes))
@@ -100,7 +100,7 @@
 ; --- Write: reconstruct pattern from AST ---
 
 (def %regex-write-node
-  (fn (node)
+  (fn (_ node)
     (def tag (first node))
     (match
       ((eq? tag (lit lit))
@@ -121,7 +121,7 @@
         (do (%regex-write-node (first (rest node))) (display "?"))))))
 
 (def %regex-write
-  (fn (nodes)
+  (fn (_ nodes)
     (if (not (null? nodes))
       (do
         (%regex-write-node (first nodes))
@@ -138,17 +138,17 @@
 ; Static reader: creates regex instance from shared data
 
 (def %regex-read
-  (fn args (make-instance %regex %regex-read-data)))
+  (fn (_ . args) (make-instance %regex %regex-read-data)))
 ; Create a reader closure that captures the compiled AST
 
 (def %regex-make-reader
-  (fn (ast) (fn args (make-instance %regex ast))))
+  (fn (_ ast) (fn (_ . args) (make-instance %regex ast))))
 ; Body state: accumulate AST nodes one char at a time
 ; Note: chr is a stack atom from the tokenizer; (+ chr 0) copies to a heap int
 
 (def %regex-body
-  (fn (acc)
-    (fn (buffer score chr)
+  (fn (_ acc)
+    (fn (_ buffer score chr)
       (match
         ; End of pattern
 
@@ -189,8 +189,8 @@
 ; Escape state: next char is literal regardless
 
 (set! %regex-escape
-  (fn (acc)
-    (fn (buffer score chr)
+  (fn (_ acc)
+    (fn (_ buffer score chr)
       (%regex-body (pair (list (lit lit) (+ chr 0)) acc)))))
 ; --- Type definition ---
 
@@ -200,14 +200,14 @@
     (list
       (pair
         (lit call)
-        (fn (self . args)
+        (fn (_ self . args)
           (def input (first args))
           (def end (string-length input))
           (def result (regex-exec (first self) input 0 end))
           (if (and result (= result end)) #t #f)))
       (pair
         (lit write)
-        (fn (self)
+        (fn (_ self)
           (display "#/")
           (%regex-write (first self))
           (display "/")))
@@ -215,14 +215,14 @@
       (pair (lit first-chars) "#")
       (pair
         (lit analyse)
-        (fn (buffer score chr)
+        (fn (_ buffer score chr)
           (if (= chr #\#)
-            (fn (buffer score chr)
+            (fn (_ buffer score chr)
               (if (= chr #\/) (%regex-body ()) ()))
             ()))))))
 
 (doc (def regex?
-  (fn ((param x ANY "Value to test"))
+  (fn (_ (param x ANY "Value to test"))
     (type? x %regex)))
   (returns BOOLEAN "True if x is a regex")
   "Test whether a value is a regex.")

@@ -24,7 +24,7 @@
     (pair (lit %float-int-digits) %float-int-digits)
     (pair (lit %rat-numer) %rat-numer)
     (pair (lit %rat-sign)
-      (fn (buffer score chr)
+      (fn (_ buffer score chr)
         (if (< chr 48) () (if (< chr 58) %rat-numer ()))))
     (pair (lit %big-sign-state) %big-sign-state)
     (pair (lit %big-digits) %big-digits)
@@ -34,29 +34,29 @@
 (def %compiled-analysers
   (compile-batch
     ; 0: float entry
-    (lit (fn (buffer score chr)
+    (lit (fn (_ buffer score chr)
       (if (< chr 48) () (if (< chr 58) %float-int-digits ()))))
     ; 1: rational entry
-    (lit (fn (buffer score chr)
+    (lit (fn (_ buffer score chr)
       (if (< chr 48)
         (if (= chr 45) %rat-sign (if (= chr 43) %rat-sign ()))
         (if (< chr 58) %rat-numer ()))))
     ; 2: bignum entry
-    (lit (fn (buffer score chr)
+    (lit (fn (_ buffer score chr)
       (if (< chr 48)
         (if (or (= chr 45) (= chr 43)) %big-sign-state ())
         (if (< chr 58) %big-digits ()))))
     ; 3: complex entry
-    (lit (fn (buffer score chr)
+    (lit (fn (_ buffer score chr)
       (if (< chr 48) () (if (< chr 58) %cx-real-int ()))))
     ; 4: int-capped entry
-    (lit (fn (buffer score chr)
+    (lit (fn (_ buffer score chr)
       (if (< chr 48) () (if (< chr 58) %int-capped-digits ()))))))
 
 (set! %compile-fvars ())
 
 ; Patch compiled analysers onto type stacks
-(def %nth (fn (n lst) (if (= n 0) (first lst) (%nth (- n 1) (rest lst)))))
+(def %nth (fn (_ n lst) (if (= n 0) (first lst) (%nth (- n 1) (rest lst)))))
 (type-push-analyse (type-by-atom (type-of 1.0)) (%nth 0 %compiled-analysers))
 (type-push-analyse (type-by-atom (type-of 1/2)) (%nth 1 %compiled-analysers))
 (type-push-analyse (type-by-atom (type-of (expt 2 64))) (%nth 2 %compiled-analysers))
@@ -85,34 +85,34 @@
 (def current-error-handle stderr)
 
 ; --- Car/cdr composition chains ---
-(def caar (fn (x) (first (first x))))
-(def cadr (fn (x) (first (rest x))))
-(def cdar (fn (x) (rest (first x))))
-(def cddr (fn (x) (rest (rest x))))
-(def caaar (fn (x) (first (caar x))))
-(def caadr (fn (x) (first (cadr x))))
-(def cadar (fn (x) (first (cdar x))))
-(def caddr (fn (x) (first (cddr x))))
-(def cdaar (fn (x) (rest (caar x))))
-(def cdadr (fn (x) (rest (cadr x))))
-(def cddar (fn (x) (rest (cdar x))))
-(def cdddr (fn (x) (rest (cddr x))))
-(def caaaar (fn (x) (first (caaar x))))
-(def caaadr (fn (x) (first (caadr x))))
-(def caadar (fn (x) (first (cadar x))))
-(def caaddr (fn (x) (first (caddr x))))
-(def cadaar (fn (x) (first (cdaar x))))
-(def cadadr (fn (x) (first (cdadr x))))
-(def caddar (fn (x) (first (cddar x))))
-(def cadddr (fn (x) (first (cdddr x))))
-(def cdaaar (fn (x) (rest (caaar x))))
-(def cdaadr (fn (x) (rest (caadr x))))
-(def cdadar (fn (x) (rest (cadar x))))
-(def cdaddr (fn (x) (rest (caddr x))))
-(def cddaar (fn (x) (rest (cdaar x))))
-(def cddadr (fn (x) (rest (cdadr x))))
-(def cdddar (fn (x) (rest (cddar x))))
-(def cddddr (fn (x) (rest (cdddr x))))
+(def caar (fn (_ x) (first (first x))))
+(def cadr (fn (_ x) (first (rest x))))
+(def cdar (fn (_ x) (rest (first x))))
+(def cddr (fn (_ x) (rest (rest x))))
+(def caaar (fn (_ x) (first (caar x))))
+(def caadr (fn (_ x) (first (cadr x))))
+(def cadar (fn (_ x) (first (cdar x))))
+(def caddr (fn (_ x) (first (cddr x))))
+(def cdaar (fn (_ x) (rest (caar x))))
+(def cdadr (fn (_ x) (rest (cadr x))))
+(def cddar (fn (_ x) (rest (cdar x))))
+(def cdddr (fn (_ x) (rest (cddr x))))
+(def caaaar (fn (_ x) (first (caaar x))))
+(def caaadr (fn (_ x) (first (caadr x))))
+(def caadar (fn (_ x) (first (cadar x))))
+(def caaddr (fn (_ x) (first (caddr x))))
+(def cadaar (fn (_ x) (first (cdaar x))))
+(def cadadr (fn (_ x) (first (cdadr x))))
+(def caddar (fn (_ x) (first (cddar x))))
+(def cadddr (fn (_ x) (first (cdddr x))))
+(def cdaaar (fn (_ x) (rest (caaar x))))
+(def cdaadr (fn (_ x) (rest (caadr x))))
+(def cdadar (fn (_ x) (rest (cadar x))))
+(def cdaddr (fn (_ x) (rest (caddr x))))
+(def cddaar (fn (_ x) (rest (cdaar x))))
+(def cddadr (fn (_ x) (rest (cdadr x))))
+(def cdddar (fn (_ x) (rest (cddar x))))
+(def cddddr (fn (_ x) (rest (cdddr x))))
 
 ; --- Convenience aliases ---
 (def second cadr)
@@ -120,13 +120,13 @@
 (def else #t)
 
 ; --- Compatibility aliases ---
-(def list-ref (fn (lst n) (nth n lst)))
-(def list-tail (fn (lst n) (drop n lst)))
-(def string-copy (fn (s) (substring s 0 (string-length s))))
+(def list-ref (fn (_ lst n) (nth n lst)))
+(def list-tail (fn (_ lst n) (drop n lst)))
+(def string-copy (fn (_ s) (substring s 0 (string-length s))))
 
 ; --- System functions ---
 (def system
-  (fn (cmd)
+  (fn (_ cmd)
     (if (= (syscall (syscall-id (lit fork))) 0)
       (syscall
         (syscall-id (lit execve))
@@ -136,13 +136,13 @@
 ; --- do-loop: Scheme iteration form ---
 ; (do-loop ((var init step) ...) (test result ...) body ...)
 (def do-loop
-  (op (bindings test-and-result . body)
+  (op (_ bindings test-and-result . body)
     e
     (def variables (map first bindings))
     (def inits (map cadr bindings))
     (def steps
       (map
-        (fn (clause)
+        (fn (_ clause)
           (if (null? (cddr clause)) (first clause) (caddr clause)))
         bindings))
     (def test-expr (first test-and-result))
@@ -156,7 +156,7 @@
             (pair
               (lit fn)
               (pair
-                variables
+                (pair (lit _) variables)
                 (list
                   (lit if)
                   test-expr

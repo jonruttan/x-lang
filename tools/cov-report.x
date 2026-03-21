@@ -10,21 +10,21 @@
 (def %cov-flags-offset (* 2 %cov-word-size))
 
 (def %cov-obj-flags
-  (fn (obj)
+  (fn (_ obj)
     (if (null? obj) 0
       (ptr-ref-word (convert obj %ptr) %cov-flags-offset))))
 
 (def %cov-covered?
-  (fn (obj) (> (& (%cov-obj-flags obj) 2) 0)))
+  (fn (_ obj) (> (& (%cov-obj-flags obj) 2) 0)))
 
 (def %cov-is-cons?
-  (fn (x)
+  (fn (_ x)
     (if (null? x) #f
       (let ((tn (type-name x)))
         (or (string=? tn "LIST") (string=? tn "PAIR"))))))
 
 (def %cov-count-tree
-  (fn (expr depth)
+  (fn (_ expr depth)
     (if (or (null? expr) (> depth 15))
       (list 0 0)
       (if (not (%cov-is-cons? expr))
@@ -47,7 +47,7 @@
 (def %cov-total 0)
 
 (def %cov-check-fn
-  (fn (name val)
+  (fn (_ name val)
     (if (not (string=? (type-name val) "PROCEDURE")) ()
       (let ((body (obj-ref val 1)))
         (let ((counts (%cov-count-tree body 0)))
@@ -85,7 +85,7 @@
                         (newline)))))))))))))
 
 (def %cov-walk
-  (fn (alist n)
+  (fn (_ alist n)
     (if (or (null? alist) (> n 5000)) ()
       (do
         (guard (err ())
@@ -97,7 +97,7 @@
 
 ; Skip past test defs to the library boundary marker
 (def %cov-skip-to-library
-  (fn (alist)
+  (fn (_ alist)
     (if (null? alist) ()
       (if (and (symbol? (first (first alist)))
                (string=? (convert (first (first alist)) %string)
@@ -106,7 +106,7 @@
         (%cov-skip-to-library (rest alist))))))
 
 (def %cov-report
-  (op () e
+  (op (_ ) e
     (def lib-start (%cov-skip-to-library e))
     (if (not %cov-tsv-mode)
       (do (display "=== x-lang Library Coverage ===") (newline) (newline)))

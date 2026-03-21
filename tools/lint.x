@@ -23,7 +23,7 @@
       (append %constructs %lang-constructs)))
 
   ; Build lookup alist: ((name-string . props) ...)
-  (def %build-lookup (fn (entries acc)
+  (def %build-lookup (fn (_ entries acc)
     (if (null? entries) acc
       (do (def entry (first entries))
           (def name (convert (first entry) %string))
@@ -33,18 +33,18 @@
   (def %scope-table (%build-lookup %all-constructs ()))
 
   ; Lookup helper using string=? for cross-base symbol comparison
-  (def %scope-find (fn (key table)
+  (def %scope-find (fn (_ key table)
     (if (null? table) ()
       (if (string=? key (first (first table)))
         (first table)
         (%scope-find key (rest table))))))
-  (def %scope-lookup (fn (name)
+  (def %scope-lookup (fn (_ name)
     (def entry (%scope-find (convert name %string) %scope-table))
     (if (null? entry) ()
       (rest entry))))
 
   ; Get a property value from a property list
-  (def %get-prop (fn (key props)
+  (def %get-prop (fn (_ key props)
     (if (null? props) ()
       (if (pair? (first props))
         (if (eq? (first (first props)) key)
@@ -55,7 +55,7 @@
   ; --- Data-driven scope dispatch ---
   ; Override %walk-pair with construct-table-driven version.
 
-  (set! %walk-pair (fn (form scope uses)
+  (set! %walk-pair (fn (_ form scope uses)
     (def head (first form))
     (if (not (symbol? head)) (%walk-list form scope uses)
       (do (def props (%scope-lookup head))
@@ -75,7 +75,7 @@
   ; Override %walk-list to use data-driven binding detection.
   ; The version in lint-lib.x hardcodes (lit def); this one uses
   ; the construct table to detect any scope=bind form.
-  (set! %walk-list (fn (forms scope uses)
+  (set! %walk-list (fn (_ forms scope uses)
     (if (null? forms) uses
       (if (pair? forms)
         (do (def form (first forms))
@@ -95,7 +95,7 @@
   ; --- Check if a form creates a top-level binding ---
   ; Data-driven: any form with scope=bind creates a definition.
 
-  (def %is-def? (fn (form)
+  (def %is-def? (fn (_ form)
     (if (not (pair? form)) ()
       (if (not (symbol? (first form))) ()
         (do (def props (%scope-lookup (first form)))
@@ -104,7 +104,7 @@
 
   ; Extract the bound name from a def form.
   ; Handles (def name val) and (define (name args...) body...).
-  (def %def-name (fn (form)
+  (def %def-name (fn (_ form)
     (def name-part (first (rest form)))
     (if (pair? name-part) (first name-part) name-part)))
 
@@ -114,7 +114,7 @@
   (def %first-form (read))
   (def %lib-mode (eq? %first-form (lit %lint-lib)))
 
-  (def %lint-file (fn (defs uses)
+  (def %lint-file (fn (_ defs uses)
     (def form (read))
     (if (null? form) (list defs uses)
       (do (def new-defs
@@ -147,12 +147,12 @@
   ; Output
   (if (null? %undefined) ()
     (do (%stderr "Undefined:\n")
-        (for-each (fn (s) (%stderr "  ") (%stderr s) (%stderr "\n"))
+        (for-each (fn (_ s) (%stderr "  ") (%stderr s) (%stderr "\n"))
           %undefined)))
 
   (if (null? %unused) ()
     (do (%stderr "Unused:\n")
-        (for-each (fn (s) (%stderr "  ") (%stderr s) (%stderr "\n"))
+        (for-each (fn (_ s) (%stderr "  ") (%stderr s) (%stderr "\n"))
           %unused)))
 
   (if (and (null? %undefined) (null? %unused))

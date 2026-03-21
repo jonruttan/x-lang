@@ -8,15 +8,15 @@
 ; prev-op: fallback for non-matching types (the previous layer's operator)
 ; identity: identity element (0 for +, 1 for *)
 (doc (def %make-fold-op
-  (fn ((param pred? CALLABLE "Type predicate")
+  (fn (_ (param pred? CALLABLE "Type predicate")
        (param type-op CALLABLE "Binary type-specific operation")
        (param coerce CALLABLE "Coercion to this type")
        (param prev-op CALLABLE "Fallback operator for other types")
        (param identity NUMBER "Identity element (0 for +, 1 for *)"))
-    (fn args
+    (fn (_ . args)
       (if (null? args) identity
         (fold
-          (fn (acc x)
+          (fn (_ acc x)
             (if (pred? acc) (type-op acc (coerce x))
               (if (pred? x) (type-op (coerce acc) x)
                 (prev-op acc x))))
@@ -30,11 +30,11 @@
 ; coerce:  promote to the new type
 ; prev-op: fallback comparison
 (doc (def %make-cmp-op
-  (fn ((param pred? CALLABLE "Type predicate")
+  (fn (_ (param pred? CALLABLE "Type predicate")
        (param type-cmp CALLABLE "Binary type-specific comparison")
        (param coerce CALLABLE "Coercion to this type")
        (param prev-op CALLABLE "Fallback comparison for other types"))
-    (fn (a b)
+    (fn (_ a b)
       (if (pred? a) (type-cmp a (coerce b))
         (if (pred? b) (type-cmp (coerce a) b)
           (prev-op a b))))))

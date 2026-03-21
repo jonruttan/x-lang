@@ -7,23 +7,23 @@
   (make-type
     (lit PROMISE)
     (list
-      (pair (lit write) (fn (self) (display "#<promise>"))))))
+      (pair (lit write) (fn (_ self) (display "#<promise>"))))))
 
 (note "Predicates")
 
-(doc (def promise? (fn ((param x ANY "Value to test")) (type? x %promise)))
+(doc (def promise? (fn (_ (param x ANY "Value to test")) (type? x %promise)))
   (returns BOOL "True if x is a promise")
   "Test whether a value is a promise.")
 
 (note "Construction and evaluation")
 
 (doc (def delay
-  (op (expr)
+  (op (_ expr)
     env
     (let ((forced #f) (result #f))
       (make-instance
         %promise
-        (fn ()
+        (fn (_ )
           (if forced
             result
             (let ((val (eval expr env)))
@@ -32,7 +32,7 @@
               val)))))))
   "Create a promise that delays evaluation of an expression until forced.")
 
-(doc (def force (fn ((param p ANY "Promise or value")) (if (promise? p) ((first p)) p)))
+(doc (def force (fn (_ (param p ANY "Promise or value")) (if (promise? p) ((first p)) p)))
   (returns ANY "The forced value, or p itself if not a promise")
   "Force a promise, returning its cached value. Non-promises pass through.")
 

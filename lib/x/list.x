@@ -3,10 +3,10 @@
 
 ; Convert any iterable to a list. Lists/nil pass through unchanged.
 (def %as-list
-  (fn (x)
+  (fn (_ x)
     (if (or (null? x) (pair? x)) x
       (let ((it (iter x)))
-        (def %go (fn ()
+        (def %go (fn (_ )
           (let ((v (it)))
             (if (null? v) () (pair v (%go))))))
         (%go)))))
@@ -14,7 +14,7 @@
 (note "Folds")
 
 (doc (def fold
-  (fn ((param f CALLABLE "Binary function: (accumulator, element) -> new accumulator")
+  (fn (_ (param f CALLABLE "Binary function: (accumulator, element) -> new accumulator")
        (param init ANY "Initial accumulator value")
        (param lst LIST "List or iterable to fold over"))
     (let ((lst (%as-list lst)))
@@ -26,13 +26,13 @@
   "Fold a function over a list from the left.")
 
 (doc (def reduce
-  (fn ((param f CALLABLE "Binary function")
+  (fn (_ (param f CALLABLE "Binary function")
        (param lst LIST "Non-empty list or iterable"))
     (let ((lst (%as-list lst))) (fold f (first lst) (rest lst)))))
   "Fold without an initial value; uses the first element.")
 
 (doc (def scan
-  (fn ((param f CALLABLE "Binary function")
+  (fn (_ (param f CALLABLE "Binary function")
        (param init ANY "Initial accumulator value")
        (param lst LIST "List or iterable"))
     (let ((lst (%as-list lst)))
@@ -44,48 +44,48 @@
 (note "Basics")
 
 (doc (def length
-  (fn ((param lst LIST "List or iterable"))
-    (fold (fn (acc x) (+ acc 1)) 0 lst)))
+  (fn (_ (param lst LIST "List or iterable"))
+    (fold (fn (_ acc x) (+ acc 1)) 0 lst)))
   "Return the number of elements.")
 
 (doc (def nth
-  (fn ((param n INT "Zero-based index")
+  (fn (_ (param n INT "Zero-based index")
        (param lst LIST "List"))
     (if (= n 0) (first lst) (nth (- n 1) (rest lst)))))
   "Return the element at index n (zero-based).")
 
 (doc (def last
-  (fn ((param lst LIST "Non-empty list"))
+  (fn (_ (param lst LIST "Non-empty list"))
     (if (null? (rest lst)) (first lst) (last (rest lst)))))
   "Return the last element of a list.")
 
 (doc (def init
-  (fn ((param lst LIST "Non-empty list"))
+  (fn (_ (param lst LIST "Non-empty list"))
     (if (null? (rest lst))
       ()
       (pair (first lst) (init (rest lst))))))
   "Return all elements except the last.")
 
 (def %append2
-  (fn (a b)
+  (fn (_ a b)
     (if (null? a) b (pair (first a) (%append2 (rest a) b)))))
 
-(doc (def append (fn args (fold %append2 () args)))
+(doc (def append (fn (_ . args) (fold %append2 () args)))
   "Concatenate zero or more lists.")
 
 (doc (def prepend
-  (fn ((param x ANY "Element to prepend")
+  (fn (_ (param x ANY "Element to prepend")
        (param lst LIST "List"))
     (pair x lst)))
   "Add an element to the front of a list.")
 
 (doc (def reverse
-  (fn ((param lst LIST "List or iterable"))
-    (fold (fn (acc x) (pair x acc)) () lst)))
+  (fn (_ (param lst LIST "List or iterable"))
+    (fold (fn (_ acc x) (pair x acc)) () lst)))
   "Reverse a list.")
 
 (doc (def flatten
-  (fn ((param lst LIST "Nested list"))
+  (fn (_ (param lst LIST "Nested list"))
     (match
       ((null? lst) ())
       ((pair? (first lst))
@@ -96,19 +96,19 @@
 (note "Iteration")
 
 (def %any-null?
-  (fn (lsts)
+  (fn (_ lsts)
     (if (null? lsts)
       ()
       (if (null? (first lsts)) #t (%any-null? (rest lsts))))))
 
 (def %map1
-  (fn (f lst)
+  (fn (_ f lst)
     (if (null? lst)
       ()
       (pair (f (first lst)) (%map1 f (rest lst))))))
 
 (doc (def map
-  (fn ((param f CALLABLE "Function to apply") . (param lsts LIST "One or more lists"))
+  (fn (_ (param f CALLABLE "Function to apply") . (param lsts LIST "One or more lists"))
     (let ((lsts (%map1 %as-list lsts)))
       (if (null? (rest lsts))
         (%map1 f (first lsts))
@@ -121,7 +121,7 @@
   "Apply a function to each element. Supports multiple lists.")
 
 (doc (def filter
-  (fn ((param pred CALLABLE "Predicate function")
+  (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List or iterable"))
     (let ((lst (%as-list lst)))
       (match
@@ -133,20 +133,20 @@
   "Return elements that satisfy a predicate.")
 
 (def %for-each1
-  (fn (f lst)
+  (fn (_ f lst)
     (if (null? lst) ()
       (if (pair? lst)
         (do (f (first lst)) (%for-each1 f (rest lst)))
         (let ((it (iter lst)))
           (def %iter-loop
-            (fn ()
+            (fn (_ )
               (let ((val (it)))
                 (if (not (null? val))
                   (do (f val) (%iter-loop))))))
           (%iter-loop))))))
 
 (doc (def for-each
-  (fn ((param f CALLABLE "Function to apply") . (param lsts LIST "One or more lists"))
+  (fn (_ (param f CALLABLE "Function to apply") . (param lsts LIST "One or more lists"))
     (let ((lsts (%map1 %as-list lsts)))
       (if (null? (rest lsts))
         (%for-each1 f (first lsts))
@@ -157,7 +157,7 @@
   "Apply a function to each element for side effects.")
 
 (doc (def flat-map
-  (fn ((param f CALLABLE "Function returning a list")
+  (fn (_ (param f CALLABLE "Function returning a list")
        (param lst LIST "List or iterable"))
     (let ((lst (%as-list lst)))
       (if (null? lst)
@@ -168,7 +168,7 @@
 (note "Predicates")
 
 (doc (def any?
-  (fn ((param pred CALLABLE "Predicate function")
+  (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List or iterable"))
     (let ((lst (%as-list lst)))
       (match
@@ -178,7 +178,7 @@
   "Return #t if any element satisfies the predicate.")
 
 (doc (def every?
-  (fn ((param pred CALLABLE "Predicate function")
+  (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List or iterable"))
     (let ((lst (%as-list lst)))
       (match
@@ -188,82 +188,82 @@
   "Return #t if all elements satisfy the predicate.")
 
 (doc (def none?
-  (fn ((param pred CALLABLE "Predicate function")
+  (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List or iterable"))
     (not (any? pred lst))))
   "Return #t if no element satisfies the predicate.")
 
-(doc (def empty? (fn ((param lst LIST "List")) (null? lst)))
+(doc (def empty? (fn (_ (param lst LIST "List")) (null? lst)))
   "Return #t if the list is empty.")
 
 (note "Combinators")
 
 (doc (def complement
-  (fn ((param pred CALLABLE "Predicate to negate"))
-    (fn args (not (apply pred args)))))
+  (fn (_ (param pred CALLABLE "Predicate to negate"))
+    (fn (_ . args) (not (apply pred args)))))
   (returns CALLABLE "Negated predicate")
   "Return a function that negates a predicate.")
 
 (doc (def partial
-  (fn ((param f CALLABLE "Function to partially apply") . (param bound ANY "Bound arguments"))
-    (fn args (apply f (append bound args)))))
+  (fn (_ (param f CALLABLE "Function to partially apply") . (param bound ANY "Bound arguments"))
+    (fn (_ . args) (apply f (append bound args)))))
   (returns CALLABLE "Partially applied function")
   "Partially apply a function with leading arguments.")
 
 (doc (def juxt
-  (fn fns (fn args (map (fn (f) (apply f args)) fns))))
+  (fn (_ . fns) (fn (_ . args) (map (fn (_ f) (apply f args)) fns))))
   (returns CALLABLE "Juxtaposed function")
   "Create a function that applies multiple functions and collects results.")
 
 (doc (def both
-  (fn ((param f CALLABLE "First predicate")
+  (fn (_ (param f CALLABLE "First predicate")
        (param g CALLABLE "Second predicate"))
-    (fn (x) (and (f x) (g x)))))
+    (fn (_ x) (and (f x) (g x)))))
   (returns CALLABLE "Combined predicate")
   "Combine two predicates with AND.")
 
 (doc (def either
-  (fn ((param f CALLABLE "First predicate")
+  (fn (_ (param f CALLABLE "First predicate")
        (param g CALLABLE "Second predicate"))
-    (fn (x) (or (f x) (g x)))))
+    (fn (_ x) (or (f x) (g x)))))
   (returns CALLABLE "Combined predicate")
   "Combine two predicates with OR.")
 
 (doc (def all-pass
-  (fn ((param preds LIST "List of predicates"))
-    (fn (x) (every? (fn (p) (p x)) preds))))
+  (fn (_ (param preds LIST "List of predicates"))
+    (fn (_ x) (every? (fn (_ p) (p x)) preds))))
   (returns CALLABLE "Combined predicate")
   "Return a predicate that passes when all predicates pass.")
 
 (doc (def any-pass
-  (fn ((param preds LIST "List of predicates"))
-    (fn (x) (any? (fn (p) (p x)) preds))))
+  (fn (_ (param preds LIST "List of predicates"))
+    (fn (_ x) (any? (fn (_ p) (p x)) preds))))
   (returns CALLABLE "Combined predicate")
   "Return a predicate that passes when any predicate passes.")
 
 (doc (def reject
-  (fn ((param pred CALLABLE "Predicate function")
+  (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List"))
     (filter (complement pred) lst)))
   (returns LIST "Filtered list")
   "Return elements that do NOT satisfy a predicate.")
 
-(doc (def concat (fn lsts (apply append lsts)))
+(doc (def concat (fn (_ . lsts) (apply append lsts)))
   (returns LIST "Concatenated list")
   "Concatenate all argument lists into one.")
 
-(doc (def sum (fn ((param lst LIST "List of numbers")) (fold + 0 lst)))
+(doc (def sum (fn (_ (param lst LIST "List of numbers")) (fold + 0 lst)))
   (returns INT "Sum")
   "Sum all elements of a list.")
 
-(doc (def product (fn ((param lst LIST "List of numbers")) (fold * 1 lst)))
+(doc (def product (fn (_ (param lst LIST "List of numbers")) (fold * 1 lst)))
   (returns INT "Product")
   "Multiply all elements of a list.")
 
 (note "Search")
 
 (doc (def find
-  (fn ((param pred CALLABLE "Predicate function")
+  (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List or iterable"))
     (let ((lst (%as-list lst)))
       (match
@@ -273,11 +273,11 @@
   "Return the first element satisfying a predicate, or nil.")
 
 (doc (def find-index
-  (fn ((param pred CALLABLE "Predicate function")
+  (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List or iterable"))
     (let ((lst (%as-list lst)))
       (def go
-        (fn (i lst)
+        (fn (_ i lst)
           (match
             ((null? lst) (- 0 1))
             ((pred (first lst)) i)
@@ -287,14 +287,14 @@
   "Return the index of the first element satisfying a predicate.")
 
 (doc (def index-of
-  (fn ((param x ANY "Value to find")
+  (fn (_ (param x ANY "Value to find")
        (param lst LIST "List"))
-    (find-index (fn (el) (equal? el x)) lst)))
+    (find-index (fn (_ el) (equal? el x)) lst)))
   (returns INT "Index, or -1 if not found")
   "Return the index of the first occurrence of a value.")
 
 (doc (def includes?
-  (fn ((param x ANY "Value to search for")
+  (fn (_ (param x ANY "Value to search for")
        (param lst LIST "List or iterable"))
     (let ((lst (%as-list lst)))
       (match
@@ -305,16 +305,16 @@
   "Test if a list contains a value.")
 
 (doc (def count
-  (fn ((param pred CALLABLE "Predicate function")
+  (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List or iterable"))
-    (fold (fn (acc x) (if (pred x) (+ acc 1) acc)) 0 lst)))
+    (fold (fn (_ acc x) (if (pred x) (+ acc 1) acc)) 0 lst)))
   (returns INT "Count of matching elements")
   "Count elements satisfying a predicate.")
 
 (note "Slicing")
 
 (doc (def take
-  (fn ((param n INT "Number of elements")
+  (fn (_ (param n INT "Number of elements")
        (param lst LIST "List"))
     (if (or (<= n 0) (null? lst))
       ()
@@ -322,7 +322,7 @@
   "Take the first n elements of a list.")
 
 (doc (def drop
-  (fn ((param n INT "Number of elements to skip")
+  (fn (_ (param n INT "Number of elements to skip")
        (param lst LIST "List"))
     (if (or (<= n 0) (null? lst))
       lst
@@ -330,7 +330,7 @@
   "Drop the first n elements of a list.")
 
 (doc (def take-while
-  (fn ((param pred CALLABLE "Predicate function")
+  (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List"))
     (if (or (null? lst) (not (pred (first lst))))
       ()
@@ -338,7 +338,7 @@
   "Take elements from the front while predicate holds.")
 
 (doc (def drop-while
-  (fn ((param pred CALLABLE "Predicate function")
+  (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List"))
     (match
       ((null? lst) ())
@@ -347,14 +347,14 @@
   "Drop elements from the front while predicate holds.")
 
 (doc (def split-at
-  (fn ((param n INT "Split position")
+  (fn (_ (param n INT "Split position")
        (param lst LIST "List"))
     (list (take n lst) (drop n lst))))
   (returns LIST "Pair of (taken dropped)")
   "Split a list at position n.")
 
 (doc (def slice
-  (fn ((param start INT "Start index (inclusive)")
+  (fn (_ (param start INT "Start index (inclusive)")
        (param end INT "End index (exclusive)")
        (param lst LIST "List"))
     (take (- end start) (drop start lst))))
@@ -363,7 +363,7 @@
 (note "Generators")
 
 (doc (def range
-  (fn ((param start INT "Start value (inclusive)")
+  (fn (_ (param start INT "Start value (inclusive)")
        (param end INT "End value (exclusive)"))
     (if (>= start end) () (pair start (range (+ start 1) end)))))
   (returns LIST "List of integers")
@@ -371,23 +371,23 @@
   "Generate a list of integers from start to end.")
 
 (doc (def repeat
-  (fn ((param x ANY "Value to repeat")
+  (fn (_ (param x ANY "Value to repeat")
        (param n INT "Number of repetitions"))
     (if (<= n 0) () (pair x (repeat x (- n 1))))))
   (returns LIST "List of repeated values")
   "Create a list of n copies of a value.")
 
 (doc (def times
-  (fn ((param f CALLABLE "Function: index -> value")
+  (fn (_ (param f CALLABLE "Function: index -> value")
        (param n INT "Number of iterations"))
     (def go
-      (fn (i) (if (>= i n) () (pair (f i) (go (+ i 1))))))
+      (fn (_ i) (if (>= i n) () (pair (f i) (go (+ i 1))))))
     (go 0)))
   (returns LIST "List of results")
   "Apply a function to each index 0..n-1, collecting results.")
 
 (doc (def unfold
-  (fn ((param pred CALLABLE "Stop predicate: seed -> boolean")
+  (fn (_ (param pred CALLABLE "Stop predicate: seed -> boolean")
        (param f CALLABLE "Value function: seed -> element")
        (param g CALLABLE "Step function: seed -> next-seed")
        (param seed ANY "Initial seed value"))
@@ -398,7 +398,7 @@
   "Build a list by repeatedly applying step and value functions to a seed.")
 
 (doc (def iterate
-  (fn ((param f CALLABLE "Step function")
+  (fn (_ (param f CALLABLE "Step function")
        (param n INT "Number of iterations")
        (param x ANY "Initial value"))
     (if (<= n 0) () (pair x (iterate f (- n 1) (f x))))))
@@ -406,7 +406,7 @@
   "Generate n values by repeatedly applying f.")
 
 (doc (def zip
-  (fn ((param a LIST "First list")
+  (fn (_ (param a LIST "First list")
        (param b LIST "Second list"))
     (if (or (null? a) (null? b))
       ()
@@ -415,7 +415,7 @@
   "Pair up corresponding elements from two lists.")
 
 (doc (def zip-with
-  (fn ((param f CALLABLE "Combining function")
+  (fn (_ (param f CALLABLE "Combining function")
        (param a LIST "First list")
        (param b LIST "Second list"))
     (if (or (null? a) (null? b))
@@ -429,10 +429,10 @@
 (note "Transformation")
 
 (doc (def partition
-  (fn ((param pred CALLABLE "Predicate function")
+  (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List"))
     (def go
-      (fn (lst yes no)
+      (fn (_ lst yes no)
         (match
           ((null? lst) (list (reverse yes) (reverse no)))
           ((pred (first lst))
@@ -442,10 +442,10 @@
   "Split a list into elements that match and don't match a predicate.")
 
 (doc (def group-by
-  (fn ((param f CALLABLE "Key function: element -> group key")
+  (fn (_ (param f CALLABLE "Key function: element -> group key")
        (param lst LIST "List"))
     (def add-to-group
-      (fn (alist key val)
+      (fn (_ alist key val)
         (match
           ((null? alist) (list (pair key (list val))))
           ((eq? (first (first alist)) key)
@@ -454,16 +454,16 @@
               (rest alist)))
           (#t
             (pair (first alist) (add-to-group (rest alist) key val))))))
-    (fold (fn (acc x) (add-to-group acc (f x) x)) () lst)))
+    (fold (fn (_ acc x) (add-to-group acc (f x) x)) () lst)))
   (returns LIST "Alist of (key . elements)")
   "Group list elements by a key function.")
 
 (doc (def sort
-  (fn ((param cmp CALLABLE "Comparison: (a b) -> #t if a comes first")
+  (fn (_ (param cmp CALLABLE "Comparison: (a b) -> #t if a comes first")
        (param lst LIST "List or iterable"))
     (let ((lst (%as-list lst)))
     (def merge
-      (fn (a b)
+      (fn (_ a b)
         (match
           ((null? a) b)
           ((null? b) a)
@@ -471,7 +471,7 @@
             (pair (first a) (merge (rest a) b)))
           (#t (pair (first b) (merge a (rest b)))))))
     (def split
-      (fn (lst a b)
+      (fn (_ lst a b)
         (match
           ((null? lst) (list a b))
           ((null? (rest lst)) (list (pair (first lst) a) b))
@@ -490,13 +490,13 @@
 
 
 (doc (def sort-by
-  (fn ((param f CALLABLE "Key function: element -> comparable value")
+  (fn (_ (param f CALLABLE "Key function: element -> comparable value")
        (param lst LIST "List"))
-    (sort (fn (a b) (< (f a) (f b))) lst)))
+    (sort (fn (_ a b) (< (f a) (f b))) lst)))
   "Sort by a key function (ascending).")
 
 (doc (def uniq
-  (fn ((param lst LIST "Sorted list"))
+  (fn (_ (param lst LIST "Sorted list"))
     (match
       ((null? lst) ())
       ((null? (rest lst)) lst)
@@ -505,7 +505,7 @@
   "Remove consecutive duplicates from a sorted list.")
 
 (doc (def uniq-by
-  (fn ((param f CALLABLE "Key function")
+  (fn (_ (param f CALLABLE "Key function")
        (param lst LIST "Sorted list"))
     (match
       ((null? lst) ())
@@ -516,7 +516,7 @@
   "Remove consecutive duplicates by key function.")
 
 (doc (def intersperse
-  (fn ((param sep ANY "Separator element")
+  (fn (_ (param sep ANY "Separator element")
        (param lst LIST "List"))
     (match
       ((null? lst) ())
@@ -526,7 +526,7 @@
   "Insert a separator between each element.")
 
 (doc (def transpose
-  (fn ((param lsts LIST "List of lists"))
+  (fn (_ (param lsts LIST "List of lists"))
     (if (or (null? lsts) (any? null? lsts))
       ()
       (pair (map first lsts) (transpose (map rest lsts))))))
@@ -534,7 +534,7 @@
   "Transpose rows and columns of a list of lists.")
 
 (doc (def update
-  (fn ((param n INT "Index to update")
+  (fn (_ (param n INT "Index to update")
        (param val ANY "New value")
        (param lst LIST "List"))
     (match
@@ -544,7 +544,7 @@
   "Replace the element at index n.")
 
 (doc (def insert
-  (fn ((param n INT "Insertion index")
+  (fn (_ (param n INT "Insertion index")
        (param val ANY "Value to insert")
        (param lst LIST "List"))
     (if (<= n 0)
@@ -553,7 +553,7 @@
   "Insert a value at index n.")
 
 (doc (def remove
-  (fn ((param start INT "Start index")
+  (fn (_ (param start INT "Start index")
        (param n INT "Number of elements to remove")
        (param lst LIST "List"))
     (match
@@ -565,7 +565,7 @@
   "Remove n elements starting at index.")
 
 (doc (def adjust
-  (fn ((param n INT "Index to adjust")
+  (fn (_ (param n INT "Index to adjust")
        (param f CALLABLE "Transformation function")
        (param lst LIST "List"))
     (match
@@ -577,7 +577,7 @@
 (note "Type predicate")
 
 (doc (def list?
-  (fn ((param x ANY "Value to test"))
+  (fn (_ (param x ANY "Value to test"))
     (if (null? x) #t (if (pair? x) (list? (rest x)) #f))))
   (returns BOOLEAN "t if proper list")
   "Test if a value is a proper list.")
@@ -585,7 +585,7 @@
 (note "Membership")
 
 (doc (def memq
-  (fn ((param x ANY "Value to search for")
+  (fn (_ (param x ANY "Value to search for")
        (param lst LIST "List"))
     (if (null? lst) #f
       (if (eq? x (first lst)) lst
@@ -593,7 +593,7 @@
   "Find first occurrence by identity (eq?). Returns the tail from match, or #f.")
 
 (doc (def member
-  (fn ((param x ANY "Value to search for")
+  (fn (_ (param x ANY "Value to search for")
        (param lst LIST "List"))
     (if (null? lst) #f
       (if (equal? x (first lst)) lst
@@ -603,7 +603,7 @@
 (note "Association")
 
 (doc (def assq
-  (fn ((param key ANY "Key to search for")
+  (fn (_ (param key ANY "Key to search for")
        (param alist LIST "Association list"))
     (if (null? alist) #f
       (if (eq? key (first (first alist))) (first alist)
@@ -611,7 +611,7 @@
   "Look up a key in an alist by identity (eq?).")
 
 (doc (def assoc
-  (fn ((param key ANY "Key to search for")
+  (fn (_ (param key ANY "Key to search for")
        (param alist LIST "Association list"))
     (if (null? alist) #f
       (if (equal? key (first (first alist))) (first alist)

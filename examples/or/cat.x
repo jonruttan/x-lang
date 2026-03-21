@@ -6,7 +6,7 @@
 (do
   (def buf (make-string 256))
 
-  (def display-file (fn (fd)
+  (def display-file (fn (_ fd)
     (let ((n (fread fd buf 256)))
       (if (> n 0)
         (do

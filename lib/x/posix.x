@@ -9,7 +9,7 @@
 
 (def %libc (dlopen () 1))
 
-(def %resolve (fn (name) (dlsym %libc name)))
+(def %resolve (fn (_ name) (dlsym %libc name)))
 
 (def %c-fork (%resolve "fork"))
 
@@ -45,23 +45,23 @@
 
 ; --- Simple wrappers (ptr-call auto-converts string args to char*) ---
 
-(doc (def sh-fork (fn () (ptr-call %c-fork)))
+(doc (def sh-fork (fn (_ ) (ptr-call %c-fork)))
   (returns INTEGER "PID of child in parent, 0 in child, -1 on error")
   "Fork the current process.")
 
-(doc (def sh-getpid (fn () (ptr-call %c-getpid)))
+(doc (def sh-getpid (fn (_ ) (ptr-call %c-getpid)))
   (returns INTEGER "Process ID")
   "Return the current process ID.")
 
 (doc (def sh-exit
-  (fn ((param status INTEGER "Exit status code"))
+  (fn (_ (param status INTEGER "Exit status code"))
     (ptr-call %c-exit status)))
   "Terminate the process with the given exit status.")
 
 ; --- waitpid: allocate int for status, wait, extract exit code ---
 
 (doc (def sh-wait
-  (fn ((param pid INTEGER "Process ID to wait for"))
+  (fn (_ (param pid INTEGER "Process ID to wait for"))
     (let ((buf (convert (ptr-call %c-malloc 4) %ptr)))
       (ptr-call %c-waitpid pid buf 0)
       (let ((raw (ptr-ref buf 0 4)))
@@ -73,12 +73,12 @@
 ; --- exec: build C argv array, call execvp ---
 
 (doc (def sh-exec
-  (fn ((param name STRING "Program name") (param args LIST "List of argument strings"))
+  (fn (_ (param name STRING "Program name") (param args LIST "List of argument strings"))
     (let ((all (pair name args)))
       (let ((n (length all)))
         (let ((argv (convert (ptr-call %c-malloc (* (+ n 1) %word-size)) %ptr)))
           (def %fill
-            (fn (lst i)
+            (fn (_ lst i)
               (if (null? lst)
                 (ptr-set-word! argv (* i %word-size) 0)
                 (do
@@ -94,13 +94,13 @@
 (note "File Descriptors")
 
 (doc (def sh-close
-  (fn ((param fd INTEGER "File descriptor to close"))
+  (fn (_ (param fd INTEGER "File descriptor to close"))
     (ptr-call %c-close fd)))
   (returns INTEGER "0 on success, -1 on error")
   "Close a file descriptor.")
 
 (doc (def sh-dup2
-  (fn ((param old INTEGER "Source file descriptor") (param new INTEGER "Target file descriptor"))
+  (fn (_ (param old INTEGER "Source file descriptor") (param new INTEGER "Target file descriptor"))
     (ptr-call %c-dup2 old new)))
   (returns INTEGER "New file descriptor, or -1 on error")
   "Duplicate a file descriptor onto another.")
@@ -108,7 +108,7 @@
 ; --- pipe: allocate int[2], call pipe(), read back fds ---
 
 (doc (def sh-pipe
-  (fn ()
+  (fn (_ )
     (let ((buf (convert (ptr-call %c-malloc 8) %ptr)))
       (ptr-call %c-pipe buf)
       (let ((r (ptr-ref buf 0 4)) (w (ptr-ref buf 4 4)))
@@ -123,13 +123,13 @@
 ; O_* flags are platform constants bound by the FFI layer
 
 (doc (def sh-open-read
-  (fn ((param path STRING "File path to open"))
+  (fn (_ (param path STRING "File path to open"))
     (ptr-call %c-open path %O_RDONLY)))
   (returns INTEGER "File descriptor, or -1 on error")
   "Open a file for reading.")
 
 (doc (def sh-open-write
-  (fn ((param path STRING "File path to open"))
+  (fn (_ (param path STRING "File path to open"))
     (let ((fd (ptr-call %c-open path (+ %O_WRONLY (+ %O_CREAT %O_TRUNC)) 438)))
       (if (>= fd 0) (ptr-call %c-fchmod fd 438))
       fd)))
@@ -137,7 +137,7 @@
   "Open a file for writing, creating or truncating it.")
 
 (doc (def sh-open-append
-  (fn ((param path STRING "File path to open"))
+  (fn (_ (param path STRING "File path to open"))
     (let ((fd (ptr-call %c-open path (+ %O_WRONLY (+ %O_CREAT %O_APPEND)) 438)))
       (if (>= fd 0) (ptr-call %c-fchmod fd 438))
       fd)))
@@ -147,13 +147,13 @@
 (note "Environment")
 
 (doc (def sh-chdir
-  (fn ((param path STRING "Directory path"))
+  (fn (_ (param path STRING "Directory path"))
     (ptr-call %c-chdir path)))
   (returns INTEGER "0 on success, -1 on error")
   "Change the current working directory.")
 
 (doc (def sh-setenv
-  (fn ((param name STRING "Variable name") (param val STRING "Variable value"))
+  (fn (_ (param name STRING "Variable name") (param val STRING "Variable value"))
     (ptr-call %c-setenv name val 1)))
   (returns INTEGER "0 on success, -1 on error")
   "Set an environment variable, overwriting any existing value.")
@@ -161,7 +161,7 @@
 ; --- getenv: returns char*, convert to string (or () if NULL) ---
 
 (doc (def sh-getenv
-  (fn ((param name STRING "Variable name"))
+  (fn (_ (param name STRING "Variable name"))
     (let ((result (ptr-call %c-getenv name)))
       (if (= result 0) () (convert (convert result %ptr) %string)))))
   (returns STRING "Variable value, or nil if not set")
@@ -170,13 +170,13 @@
 (note "General utilities")
 
 (doc (def fd-write
-  (fn ((param fd NUMBER "File descriptor") (param s STRING "String to write"))
+  (fn (_ (param fd NUMBER "File descriptor") (param s STRING "String to write"))
     (ptr-call (%resolve "write") fd s (string-length s))))
   (returns NUMBER "Bytes written")
   "Write a string to a file descriptor.")
 
 (doc (def file-exists?
-  (fn ((param path STRING "File path to check"))
+  (fn (_ (param path STRING "File path to check"))
     (= (ptr-call (%resolve "access") path 0) 0)))
   (returns BOOLEAN "True if file exists")
   "Check if a file exists (via access with F_OK=0).")

@@ -5,7 +5,7 @@
 ; and outputs Markdown.
 ;
 ; New format: (doc (def name value) [metadata...] "description")
-; Params are inside fn: (fn ((param name TYPE "desc") ...) body)
+; Params are inside fn: (fn (_ (param name TYPE "desc") ...) body)
 
 (do
   ; --- Tokenize source ---
@@ -18,35 +18,35 @@
   ; Tokens come from make-base (separate atom namespace), so use string=?
 
   (def %sym-is?
-    (fn (sym name)
+    (fn (_ sym name)
       (if (symbol? sym) (string=? (symbol->string sym) name) ())))
 
   (def %doc-form?
-    (fn (tok)
+    (fn (_ tok)
       (if (pair? tok) (%sym-is? (first tok) "doc") ())))
 
   (def %note-form?
-    (fn (tok)
+    (fn (_ tok)
       (if (pair? tok) (%sym-is? (first tok) "note") ())))
 
   (def %def-form?
-    (fn (tok)
+    (fn (_ tok)
       (if (pair? tok) (%sym-is? (first tok) "def") ())))
 
   (def %param-form?
-    (fn (tok)
+    (fn (_ tok)
       (if (pair? tok) (%sym-is? (first tok) "param") ())))
 
   (def %provide-form?
-    (fn (tok)
+    (fn (_ tok)
       (if (pair? tok) (%sym-is? (first tok) "provide") ())))
 
   ; --- Find last string in a list ---
 
   (def %find-last-string
-    (fn (lst)
+    (fn (_ lst)
       (def %go
-        (fn (remaining found)
+        (fn (_ remaining found)
           (if (null? remaining) found
             (if (string? (first remaining))
               (%go (rest remaining) (first remaining))
@@ -57,7 +57,7 @@
   ; Walk (possibly dotted) param list, collect (param name TYPE "desc") forms
 
   (def %extract-params
-    (fn (ps acc)
+    (fn (_ ps acc)
       (if (null? ps) (reverse acc)
         (if (not (pair? ps))
           ; Dotted tail: bare symbol or (param ...)
@@ -73,7 +73,7 @@
   ; (returns TYPE "desc"), (example "in" "out"), (see name)
 
   (def %extract-meta-type
-    (fn (forms tag acc)
+    (fn (_ forms tag acc)
       (if (null? forms) (reverse acc)
         (if (pair? (first forms))
           (if (%sym-is? (first (first forms)) tag)
@@ -86,7 +86,7 @@
 
   ; Extract all metadata from a doc form
   (def %extract-all-meta
-    (fn (meta name)
+    (fn (_ meta name)
       (def %desc (%find-last-string meta))
       (def %params (%extract-meta-type meta "param" ()))
       (def %returns (%extract-meta-type meta "returns" ()))
@@ -96,7 +96,7 @@
       (list name %desc %params %returns %examples %sees %notes)))
 
   (def %extract-doc
-    (fn (form)
+    (fn (_ form)
       ; form = (doc X metadata... "desc")
       ; X is (def name value), (provide name sym...), or bare symbol
       (def %second (first (rest form)))
@@ -128,15 +128,15 @@
   ; --- Markdown output helpers ---
 
   (def %emit-heading
-    (fn (level text)
-      (for-each (fn (x) (display "#")) (range 0 level))
+    (fn (_ level text)
+      (for-each (fn (_ x) (display "#")) (range 0 level))
       (display " ")
       (display text)
       (newline)
       (newline)))
 
   (def %emit-param
-    (fn (p)
+    (fn (_ p)
       ; p = (param name TYPE "desc")
       (def %p-name (first (rest p)))
       (def %p-type
@@ -162,7 +162,7 @@
       (newline)))
 
   (def %emit-doc-entry
-    (fn (info)
+    (fn (_ info)
       ; info = (name desc params returns examples sees notes)
       (def %name (first info))
       (def %desc (first (rest info)))
@@ -189,7 +189,7 @@
       (if (not (null? %notes))
         (do
           (for-each
-            (fn (n)
+            (fn (_ n)
               ; n = (note "text")
               (display "> ")
               (display (first (rest n)))
@@ -226,7 +226,7 @@
           (newline) (newline)
           (display "```") (newline)
           (for-each
-            (fn (ex)
+            (fn (_ ex)
               ; (example "input" "output")
               (display (first (rest ex)))
               (display " => ")
@@ -241,7 +241,7 @@
         (do
           (display "**See also:** ")
           (for-each
-            (fn (s)
+            (fn (_ s)
               (display "`")
               (display (first (rest s)))
               (display "` "))
@@ -251,7 +251,7 @@
   ; --- Walk tokens and generate docs ---
 
   (def %walk
-    (fn (tokens)
+    (fn (_ tokens)
       (if (null? tokens) ()
         (let ((tok (first tokens))
               (%rest (rest tokens)))

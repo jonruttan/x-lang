@@ -17,7 +17,7 @@
 (def %walk-pair ())
 (def %walk-list ())
 
-(def %add-params (fn (params scope)
+(def %add-params (fn (_ params scope)
   (if (null? params) scope
     (if (symbol? params)
       (pair params scope)
@@ -26,7 +26,7 @@
         scope)))))
 
 ; Walk a list of sequential forms, accumulating defs into scope
-(set! %walk-list (fn (forms scope uses)
+(set! %walk-list (fn (_ forms scope uses)
   (if (null? forms) uses
     (if (pair? forms)
       (do (def form (first forms))
@@ -39,20 +39,20 @@
           (%walk-list (rest forms) new-scope new-uses))
       (%walk forms scope uses)))))
 
-; (fn (params...) body...)
-(def %walk-fn (fn (form scope uses)
+; (fn (_ params...) body...)
+(def %walk-fn (fn (_ form scope uses)
   (def params (first (rest form)))
   (%walk-list (rest (rest form)) (%add-params params scope) uses)))
 
-; (op (params env) body...)
-(def %walk-op (fn (form scope uses)
+; (op (_ params env) body...)
+(def %walk-op (fn (_ form scope uses)
   (def params (first (rest form)))
   (def env-param (first (rest (rest form))))
   (%walk-list (rest (rest (rest form)))
     (pair env-param (%add-params params scope)) uses)))
 
 ; (let ((name val) ...) body...) or (let name ((var init) ...) body...)
-(def %walk-let-bindings (fn (bindings scope uses)
+(def %walk-let-bindings (fn (_ bindings scope uses)
   (if (null? bindings)
     (list scope uses)
     (do (def b (first bindings))
@@ -60,7 +60,7 @@
         (%walk-let-bindings (rest bindings)
           (pair (first b) scope) new-uses)))))
 
-(def %walk-let (fn (form scope uses)
+(def %walk-let (fn (_ form scope uses)
   (def first-arg (first (rest form)))
   (if (symbol? first-arg)
     ; Named let: (let name ((var init) ...) body...)
@@ -76,7 +76,7 @@
 
 ; (def name val) or (define (name params...) body...)
 ; Handles compound definitions where name is a list (name params...).
-(def %walk-def (fn (form scope uses)
+(def %walk-def (fn (_ form scope uses)
   (def name-part (first (rest form)))
   (if (pair? name-part)
     ; Compound: (define (name params...) body...)
@@ -87,18 +87,18 @@
     (%walk (first (rest (rest form))) (pair name-part scope) uses))))
 
 ; (set! name val)
-(def %walk-set (fn (form scope uses)
+(def %walk-set (fn (_ form scope uses)
   (%walk (first (rest (rest form))) scope
     (%walk (first (rest form)) scope uses))))
 
 ; (guard (var handler) body...)
-(def %walk-guard (fn (form scope uses)
+(def %walk-guard (fn (_ form scope uses)
   (def clause (first (rest form)))
   (%walk-list (rest (rest form)) scope
     (%walk (first (rest clause)) (pair (first clause) scope) uses))))
 
 ; Walk quasiquote -- only walk unquoted parts
-(def %walk-quasi (fn (form scope uses)
+(def %walk-quasi (fn (_ form scope uses)
   (if (null? form) uses
     (if (pair? form)
       (if (eq? (first form) (lit unquote))
@@ -114,7 +114,7 @@
 ; after loading construct declarations.
 
 ; Walk an AST form, collecting symbol uses
-(set! %walk (fn (form scope uses)
+(set! %walk (fn (_ form scope uses)
   (if (null? form) uses
     (if (symbol? form)
       (if (includes? form scope) uses
@@ -127,7 +127,7 @@
 ; --- Analysis entry point ---
 
 ; Walk a list of top-level forms, collecting defs and uses
-(def %lint-forms (fn (forms defs uses)
+(def %lint-forms (fn (_ forms defs uses)
   (if (null? forms) (list defs uses)
     (do (def form (first forms))
         (def new-defs
@@ -138,16 +138,16 @@
         (%lint-forms (rest forms) new-defs new-uses)))))
 
 ; Compute undefined: used but not in env-alist and not in file defs
-(def %lint-undefined (fn (defs uses)
-  (filter (fn (sym)
+(def %lint-undefined (fn (_ defs uses)
+  (filter (fn (_ sym)
     (if (includes? sym defs) ()
       (if (assoc-has? sym %known-env) () t)))
     (assoc-keys uses))))
 
 ; Compute unused: defined but not used (skip %-prefixed internals)
-(def %lint-unused (fn (defs uses lib-mode)
+(def %lint-unused (fn (_ defs uses lib-mode)
   (if lib-mode ()
-    (filter (fn (sym)
+    (filter (fn (_ sym)
       (if (string-starts? "%" (convert sym %string)) ()
         (if (assoc-has? sym uses) () t)))
       defs))))

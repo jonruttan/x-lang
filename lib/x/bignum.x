@@ -14,7 +14,7 @@
 (def %long-max
   (do
     (def %bm
-      (fn (bits acc)
+      (fn (_ bits acc)
         (if (%int= bits 0) acc
           (%bm (%int- bits 1) (%int+ (%int* acc 2) 1)))))
     (%bm (%int- (%int* %word-size 8) 1) 0)))
@@ -30,7 +30,7 @@
 (def %bignum-digits-per-limb
   (do
     (def %fb
-      (fn (d b)
+      (fn (_ d b)
         (def next (%int* b 10))
         ; Safe check: LONG_MAX / next >= next means next^2 fits
         (if (%int< (%int/ %long-max next) next)
@@ -41,7 +41,7 @@
 (def %bignum-base
   (do
     (def %pb
-      (fn (d acc)
+      (fn (_ d acc)
         (if (%int= d 0) acc
           (%pb (%int- d 1) (%int* acc 10)))))
     (%pb %bignum-digits-per-limb 1)))
@@ -50,10 +50,10 @@
 
 ; Strip trailing zero limbs (MSB end), keep at least one limb
 (def %bignum-normalize
-  (fn (limbs)
+  (fn (_ limbs)
     (def %rev (reverse limbs))
     (def %strip
-      (fn (lst)
+      (fn (_ lst)
         (if (null? (rest lst)) lst
           (if (%int= (first lst) 0)
             (%strip (rest lst))
@@ -62,7 +62,7 @@
 
 ; Compare magnitudes: return -1, 0, or 1
 (def %limb-cmp
-  (fn (a b)
+  (fn (_ a b)
     (def la (length a))
     (def lb (length b))
     (if (%int< la lb) -1
@@ -70,7 +70,7 @@
         ; Same length: compare from MSB
         (do
           (def %cmp-rev
-            (fn (ra rb)
+            (fn (_ ra rb)
               (if (null? ra) 0
                 (if (%int< (first ra) (first rb)) -1
                   (if (%int< (first rb) (first ra)) 1
@@ -81,7 +81,7 @@
 
 ; Add two limb lists with carry
 (def %limb-add
-  (fn (a b carry)
+  (fn (_ a b carry)
     (if (if (null? a) (if (null? b) (%int= carry 0) #f) #f)
       ()
       (do
@@ -95,7 +95,7 @@
 
 ; Subtract b from a (assumes a >= b), with borrow
 (def %limb-sub
-  (fn (a b borrow)
+  (fn (_ a b borrow)
     (if (null? a) ()
       (do
         (def d (%int- (%int- (first a) (if (null? b) 0 (first b))) borrow))
@@ -107,7 +107,7 @@
 
 ; Multiply limb list by a single limb, with carry
 (def %limb-mul1
-  (fn (b limb carry)
+  (fn (_ b limb carry)
     (if (null? b)
       (if (%int= carry 0) () (list carry))
       (do
@@ -117,9 +117,9 @@
 
 ; Schoolbook multiply: a * b
 (def %limb-mul
-  (fn (a b)
+  (fn (_ a b)
     (def %mul-go
-      (fn (a shift acc)
+      (fn (_ a shift acc)
         (if (null? a) acc
           (%mul-go (rest a) (pair 0 shift)
             (%limb-add acc (append shift (%limb-mul1 b (first a) 0)) 0)))))
@@ -127,9 +127,9 @@
 
 ; Divide limb list by single limb, return (quotient-limbs . remainder)
 (def %limb-divmod1
-  (fn (a divisor)
+  (fn (_ a divisor)
     (def %div-go
-      (fn (ra rem qacc)
+      (fn (_ ra rem qacc)
         (if (null? ra) (pair (reverse qacc) rem)
           (do
             (def cur (%int+ (%int* rem %bignum-base) (first ra)))
@@ -140,7 +140,7 @@
 ; General division: a / b, return (quotient-limbs . remainder-limbs)
 ; Uses trial division at the limb level
 (def %limb-divmod
-  (fn (a b)
+  (fn (_ a b)
     ; Single-limb divisor: fast path
     (if (null? (rest b))
       (do
@@ -150,12 +150,12 @@
       ; Process from MSB, estimate quotient digit, subtract
       (do
         (def %top-limb
-          (fn (lst) (first (reverse lst))))
+          (fn (_ lst) (first (reverse lst))))
         (def blen (length b))
         (def btop (%top-limb b))
         ; Shift a into position and extract quotient digits
         (def %div-loop
-          (fn (rem qdigits)
+          (fn (_ rem qdigits)
             (def c (%limb-cmp rem b))
             (if (%int< c 0)
               (pair (if (null? qdigits) (list 0) (reverse qdigits)) rem)
@@ -193,18 +193,18 @@
 
 ; Pad a number string to n digits with leading zeros
 (def %bignum-pad
-  (fn (s n)
+  (fn (_ s n)
     (if (not (%int< (string-length s) n)) s
       (%bignum-pad (string-append "0" s) n))))
 
 ; Limb list to decimal string
 (def %bignum-to-string
-  (fn (sign limbs)
+  (fn (_ sign limbs)
     (def %rev (reverse limbs))
     (def prefix (if (%int= sign -1) "-" ""))
     (def head-str (number->string (first %rev)))
     (def %tail
-      (fn (lst)
+      (fn (_ lst)
         (if (null? lst) ""
           (string-append
             (%bignum-pad (number->string (first lst)) %bignum-digits-per-limb)
@@ -213,7 +213,7 @@
 
 ; Decimal string to (sign . limb-list)
 (def %bignum-from-string
-  (fn (s)
+  (fn (_ s)
     (def len (string-length s))
     (def neg (if (%int< 0 len)
                (if (%int= (char->integer (s 0)) 45) #t #f) #f))
@@ -225,7 +225,7 @@
     (def dlen (string-length digit-str))
     ; Process right-to-left in chunks of %bignum-digits-per-limb
     (def %parse-limbs
-      (fn (pos acc)
+      (fn (_ pos acc)
         (if (not (%int< 0 pos))
           acc
           (do
@@ -242,20 +242,20 @@
 ; --- Constructor with auto-demotion ---
 
 (def %bignum-to-int
-  (fn (sign limbs)
+  (fn (_ sign limbs)
     (def %go
-      (fn (lst mult acc)
+      (fn (_ lst mult acc)
         (if (null? lst) acc
           (%go (rest lst) (%int* mult %bignum-base)
                (%int+ acc (%int* (first lst) mult))))))
     (%int* sign (%go limbs 1 0))))
 
 (def %bignum-from-int
-  (fn (n)
+  (fn (_ n)
     (def sign (if (%int< n 0) -1 1))
     (def mag (if (%int< n 0) (%int- 0 n) n))
     (def %go
-      (fn (m acc)
+      (fn (_ m acc)
         (if (%int= m 0) (if (null? acc) (list 0) acc)
           (%go (%int/ m %bignum-base)
                (pair (modulo-int m %bignum-base) acc)))))
@@ -266,7 +266,7 @@
 (def %bignum-read ())
 
 (def %make-bignum
-  (fn (sign limbs)
+  (fn (_ sign limbs)
     (def nl (%bignum-normalize limbs))
     ; Zero check
     (if (if (null? (rest nl)) (%int= (first nl) 0) #f)
@@ -287,15 +287,15 @@
 
 (note "Predicates")
 
-(doc (def bignum? (fn ((param x ANY "Value to test")) (type? x %bignum)))
+(doc (def bignum? (fn (_ (param x ANY "Value to test")) (type? x %bignum)))
   (returns BOOLEAN "True if x is a bignum")
   "Test whether a value is an arbitrary-precision integer.")
 
-(def %big-sign (fn (x) (first (first x))))
-(def %big-limbs (fn (x) (rest (first x))))
+(def %big-sign (fn (_ x) (first (first x))))
+(def %big-limbs (fn (_ x) (rest (first x))))
 
 (def %ensure-big
-  (fn (x)
+  (fn (_ x)
     (if (bignum? x) x
       (do
         (def r (%bignum-from-int x))
@@ -304,7 +304,7 @@
 (note "Arithmetic")
 
 (doc (def big+
-  (fn ((param a BIGNUM "First operand")
+  (fn (_ (param a BIGNUM "First operand")
        (param b BIGNUM "Second operand"))
     (def sa (%big-sign a))
     (def sb (%big-sign b))
@@ -324,7 +324,7 @@
   "Add two bignums.")
 
 (doc (def big-
-  (fn ((param a BIGNUM "First operand")
+  (fn (_ (param a BIGNUM "First operand")
        (param b BIGNUM "Second operand"))
     ; Negate b's sign and add
     (def sb (%int* -1 (%big-sign b)))
@@ -334,7 +334,7 @@
   "Subtract two bignums.")
 
 (doc (def big*
-  (fn ((param a BIGNUM "First operand")
+  (fn (_ (param a BIGNUM "First operand")
        (param b BIGNUM "Second operand"))
     (def sa (%big-sign a))
     (def sb (%big-sign b))
@@ -344,7 +344,7 @@
   "Multiply two bignums.")
 
 (doc (def big/
-  (fn ((param a BIGNUM "Dividend")
+  (fn (_ (param a BIGNUM "Dividend")
        (param b BIGNUM "Divisor"))
     (def sa (%big-sign a))
     (def sb (%big-sign b))
@@ -355,7 +355,7 @@
   "Divide two bignums (truncating division).")
 
 (doc (def big%
-  (fn ((param a BIGNUM "Dividend")
+  (fn (_ (param a BIGNUM "Dividend")
        (param b BIGNUM "Divisor"))
     (def r (%limb-divmod (%big-limbs a) (%big-limbs b)))
     (%make-bignum (%big-sign a) (rest r))))
@@ -365,7 +365,7 @@
 (note "Comparison")
 
 (doc (def big<
-  (fn ((param a BIGNUM "Left operand")
+  (fn (_ (param a BIGNUM "Left operand")
        (param b BIGNUM "Right operand"))
     (def sa (%big-sign a))
     (def sb (%big-sign b))
@@ -381,7 +381,7 @@
   "Test whether bignum a is less than bignum b.")
 
 (doc (def big=
-  (fn ((param a BIGNUM "Left operand")
+  (fn (_ (param a BIGNUM "Left operand")
        (param b BIGNUM "Right operand"))
     (if (not (%int= (%big-sign a) (%big-sign b))) #f
       (%int= 0 (%limb-cmp (%big-limbs a) (%big-limbs b))))))
@@ -390,10 +390,10 @@
 
 ; --- Overflow detection for integer operations ---
 
-(def %int-abs (fn (n) (if (%int< n 0) (%int- 0 n) n)))
+(def %int-abs (fn (_ n) (if (%int< n 0) (%int- 0 n) n)))
 
 (def %would-overflow-add?
-  (fn (a b)
+  (fn (_ a b)
     (if (%int< 0 a)
       (if (%int< 0 b) (%int< (%int- %long-max a) b) #f)
       (if (%int< b 0)
@@ -401,7 +401,7 @@
         #f))))
 
 (def %would-overflow-mul?
-  (fn (a b)
+  (fn (_ a b)
     (if (%int= a 0) #f
       (if (%int= b 0) #f
         (%int< (%int/ %long-max (%int-abs a)) (%int-abs b))))))
@@ -412,10 +412,10 @@
   (param args INTEGER|BIGNUM "Numbers to add")
   (returns INTEGER|BIGNUM "Sum"))
 (set! +
-  (fn args
+  (fn (_ . args)
     (if (null? args) 0
       (fold
-        (fn (acc x)
+        (fn (_ acc x)
           (if (bignum? acc) (big+ acc (%ensure-big x))
             (if (bignum? x) (big+ (%ensure-big acc) x)
               (if (%would-overflow-add? acc x)
@@ -427,7 +427,7 @@
   (param args INTEGER|BIGNUM "Numbers to subtract")
   (returns INTEGER|BIGNUM "Difference"))
 (set! -
-  (fn args
+  (fn (_ . args)
     (if (null? args) 0
       (if (null? (rest args))
         ; Unary negation
@@ -436,7 +436,7 @@
                         (%big-limbs (first args)))
           (%int- (first args)))
         (fold
-          (fn (acc x)
+          (fn (_ acc x)
             (if (bignum? acc) (big- acc (%ensure-big x))
               (if (bignum? x) (big- (%ensure-big acc) x)
                 (if (%would-overflow-add? acc (%int- 0 x))
@@ -448,10 +448,10 @@
   (param args INTEGER|BIGNUM "Numbers to multiply")
   (returns INTEGER|BIGNUM "Product"))
 (set! *
-  (fn args
+  (fn (_ . args)
     (if (null? args) 1
       (fold
-        (fn (acc x)
+        (fn (_ acc x)
           (if (bignum? acc) (big* acc (%ensure-big x))
             (if (bignum? x) (big* (%ensure-big acc) x)
               (if (%would-overflow-mul? acc x)
@@ -463,10 +463,10 @@
   (param args INTEGER|BIGNUM "Numbers to divide")
   (returns INTEGER|BIGNUM "Quotient"))
 (set! /
-  (fn args
+  (fn (_ . args)
     (if (null? args) 1
       (fold
-        (fn (acc x)
+        (fn (_ acc x)
           (if (bignum? acc) (big/ acc (%ensure-big x))
             (if (bignum? x) (big/ (%ensure-big acc) x)
               (%int/ acc x))))
@@ -477,7 +477,7 @@
   (param b INTEGER|BIGNUM "Divisor")
   (returns INTEGER|BIGNUM "Remainder"))
 (set! %
-  (fn (a b)
+  (fn (_ a b)
     (if (bignum? a) (big% a (%ensure-big b))
       (if (bignum? b) (big% (%ensure-big a) b)
         (modulo-int a b)))))
@@ -487,7 +487,7 @@
   (param b INTEGER|BIGNUM "Right operand")
   (returns BOOLEAN "True if a < b"))
 (set! <
-  (fn (a b)
+  (fn (_ a b)
     (if (bignum? a) (big< a (%ensure-big b))
       (if (bignum? b) (big< (%ensure-big a) b)
         (%int< a b)))))
@@ -497,7 +497,7 @@
   (param b INTEGER|BIGNUM "Right operand")
   (returns BOOLEAN "True if a equals b"))
 (set! =
-  (fn (a b)
+  (fn (_ a b)
     (if (bignum? a) (big= a (%ensure-big b))
       (if (bignum? b) (big= (%ensure-big a) b)
         (%int= a b)))))
@@ -507,7 +507,7 @@
 ; Analyser: consumes [+-]?[0-9]+ but only scores when too many digits for int
 (def %big-digits ())
 (set! %big-digits
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (if (>= chr 48) (<= chr 57) #f)
       %big-digits
       (do (buffer-unread buffer)
@@ -517,13 +517,13 @@
             ())))))
 
 (def %big-sign-state
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (if (>= chr 48) (<= chr 57) #f)
       %big-digits
       ())))
 
 (def %big-analyse
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (if (>= chr 48) (<= chr 57) #f)
       %big-digits
       (if (if (= chr 45) #t (= chr 43))
@@ -534,28 +534,28 @@
   (make-type "BIGNUM"
     (list
       (pair (lit write)
-        (fn (self) (display (%bignum-to-string (first (first self)) (rest (first self))))))
+        (fn (_ self) (display (%bignum-to-string (first (first self)) (rest (first self))))))
       (pair (lit first-chars) "0123456789-+")
       (pair (lit analyse) %big-analyse)
-      (pair (lit read) (fn args (%bignum-read (first args))))
+      (pair (lit read) (fn (_ . args) (%bignum-read (first args))))
       (pair (lit from)
         (list
           (pair (type-of 42)
-            (fn (value)
+            (fn (_ value)
               (def r (%bignum-from-int value))
               (make-instance %bignum r)))
           (pair (type-of "")
-            (fn (value) (%bignum-from-string value)))))
+            (fn (_ value) (%bignum-from-string value)))))
       (pair (lit to)
         (list
           (pair (type-of 42)
-            (fn (self) (%bignum-to-int (first (first self)) (rest (first self)))))
+            (fn (_ self) (%bignum-to-int (first (first self)) (rest (first self)))))
           (pair (type-of "")
-            (fn (self) (%bignum-to-string (first (first self)) (rest (first self))))))))))
+            (fn (_ self) (%bignum-to-string (first (first self)) (rest (first self))))))))))
 
 ; --- Reader (set after make-type so closure captures the real %bignum) ---
 (set! %bignum-read
-  (fn args
+  (fn (_ . args)
     (def tok (buffer-token (first args)))
     (def len (string-length tok))
     (def neg (if (%int< 0 len)
@@ -567,7 +567,7 @@
     (def digit-str (if (%int= start 0) tok (substring tok start len)))
     (def dlen (string-length digit-str))
     (def %pl
-      (fn (pos acc)
+      (fn (_ pos acc)
         (if (not (%int< 0 pos)) acc
           (do
             (def cs (if (%int< (%int- pos %bignum-digits-per-limb) 0)
@@ -587,7 +587,7 @@
 
 (def %int-capped-digits ())
 (set! %int-capped-digits
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (if (>= chr 48) (<= chr 57) #f)
       %int-capped-digits
       (do (buffer-unread buffer)
@@ -596,13 +596,13 @@
             ())))))
 
 (def %int-capped-sign
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (if (>= chr 48) (<= chr 57) #f)
       %int-capped-digits
       ())))
 
 (def %int-capped-analyse
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (if (>= chr 48) (<= chr 57) #f)
       %int-capped-digits
       (if (if (= chr 45) #t (= chr 43))

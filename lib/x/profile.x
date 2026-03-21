@@ -6,52 +6,52 @@
 ; Each counter is stack-wrapped: (atom(n) . nil)
 
 (def %profile
-  (fn ()
+  (fn (_ )
     (first (first (rest (rest (first (%base))))))))
 ; Read counters (extra first to unwrap stack)
 
 (def alloc-count
-  (fn () (first-int (first (first (%profile))))))
+  (fn (_ ) (first-int (first (first (%profile))))))
 
 (def eval-count
-  (fn () (first-int (first (first (rest (%profile)))))))
+  (fn (_ ) (first-int (first (first (rest (%profile)))))))
 
 (def tco-count
-  (fn ()
+  (fn (_ )
     (first-int (first (first (rest (rest (%profile))))))))
 
 (def assoc-calls-count
-  (fn ()
+  (fn (_ )
     (first-int (first (first (rest (rest (rest (%profile)))))))))
 
 (def assoc-steps-count
-  (fn ()
+  (fn (_ )
     (first-int (first (first (rest (rest (rest (rest (%profile))))))))))
 
 (def sym-find-calls-count
-  (fn ()
+  (fn (_ )
     (first-int (first (first (rest (rest (rest (rest (rest (%profile)))))))))))
 
 (def sym-find-steps-count
-  (fn ()
+  (fn (_ )
     (first-int (first (first (rest (rest (rest (rest (rest (rest (%profile))))))))))))
 
 (def gc-runs-count
-  (fn ()
+  (fn (_ )
     (first-int (first (first (rest (rest (rest (rest (rest (rest (rest (%profile)))))))))))))
 
 (def bst-hits-count
-  (fn ()
+  (fn (_ )
     (first-int (first (first (rest (rest (rest (rest (rest (rest (rest (rest (%profile))))))))))))))
 
 (def bst-misses-count
-  (fn ()
+  (fn (_ )
     (first-int (first (first (rest (rest (rest (rest (rest (rest (rest (rest (rest (%profile)))))))))))))))
 
 ; Reset all counters
 
 (def profile-reset
-  (fn ()
+  (fn (_ )
     (set-first-int! (first (first (%profile))) 0)
     (set-first-int! (first (first (rest (%profile)))) 0)
     (set-first-int! (first (first (rest (rest (%profile))))) 0)
@@ -76,7 +76,7 @@
 ; avoiding GC freeing the saved env from the C stack.
 
 (def heap-collect-force
-  (op ()
+  (op (_ )
     %hcf-e
     (def %hcf-before (heap-count))
     (%heap-collect-prim)
@@ -87,7 +87,7 @@
 ; Smart collection -- skip if heap pressure is low
 
 (def heap-collect
-  (op ()
+  (op (_ )
     %hc-e
     (if (> (- (alloc-count) %hc-last-allocs) %hc-last-surviving)
       (heap-collect-force)
@@ -96,7 +96,7 @@
 ; Dump all profile data to stderr
 
 (def %profile-dump
-  (fn ()
+  (fn (_ )
     (%stderr "allocs=")
     (%stderr (alloc-count))
     (%stderr " evals=")

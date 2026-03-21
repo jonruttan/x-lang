@@ -16,11 +16,11 @@
 
 ; Set the from alist on a type struct
 (def %type-set-from!
-  (fn (ts alist) (set-first! (type-from-cell ts) alist)))
+  (fn (_ ts alist) (set-first! (type-from-cell ts) alist)))
 
 ; Set the to alist on a type struct
 (def %type-set-to!
-  (fn (ts alist) (set-first! (type-to-cell ts) alist)))
+  (fn (_ ts alist) (set-first! (type-to-cell ts) alist)))
 
 ; --- Type handles ---
 (def %int    (type-of 0))
@@ -35,51 +35,51 @@
 ; INT: from char, string, ptr
 (%type-set-from! (type-by-atom %int)
   (list
-    (pair %char   (fn (v . extra) (char->integer v)))
-    (pair %string (fn (v . extra)
+    (pair %char   (fn (_ v . extra) (char->integer v)))
+    (pair %string (fn (_ v . extra)
                     (if (null? extra)
                       (string->number v)
                       (string->number v (first extra)))))
-    (pair %ptr    (fn (v . extra) (ptr->int v)))))
+    (pair %ptr    (fn (_ v . extra) (ptr->int v)))))
 
 ; CHAR: from int
 (%type-set-from! (type-by-atom %char)
   (list
-    (pair %int (fn (v . extra) (integer->char v)))))
+    (pair %int (fn (_ v . extra) (integer->char v)))))
 
 ; STRING: from int, symbol, list (nil type-of)
 (%type-set-from! (type-by-atom %string)
   (list
-    (pair %int    (fn (v . extra)
+    (pair %int    (fn (_ v . extra)
                     (if (null? extra)
                       (number->string v)
                       (number->string v (first extra)))))
-    (pair %symbol (fn (v . extra) (symbol->string v)))
-    (pair %pair   (fn (v . extra) (list->string v)))))
+    (pair %symbol (fn (_ v . extra) (symbol->string v)))
+    (pair %pair   (fn (_ v . extra) (list->string v)))))
 
 ; SYMBOL: from string
 (%type-set-from! (type-by-atom %symbol)
   (list
-    (pair %string (fn (v . extra) (string->symbol v)))))
+    (pair %string (fn (_ v . extra) (string->symbol v)))))
 
 ; PTR: from int, string, any (obj->ptr as wildcard)
 (%type-set-from! (type-by-atom %ptr)
   (list
-    (pair %int    (fn (v . extra) (int->ptr v)))
-    (pair %string (fn (v . extra) (string->ptr v)))
-    (pair %ptr    (fn (v . extra) v))
-    (pair #t (fn (v . extra) (obj->ptr v)))))
+    (pair %int    (fn (_ v . extra) (int->ptr v)))
+    (pair %string (fn (_ v . extra) (string->ptr v)))
+    (pair %ptr    (fn (_ v . extra) v))
+    (pair #t (fn (_ v . extra) (obj->ptr v)))))
 
 ; --- convert dispatch (replaces C primitive) ---
 (def %alist-find
-  (fn (alist key)
+  (fn (_ alist key)
     (if (null? alist) ()
       (if (eq? (first (first alist)) key)
         (first alist)
         (%alist-find (rest alist) key)))))
 
 (def convert
-  (fn (val target . extra)
+  (fn (_ val target . extra)
     (if (null? val) ()
       (if (eq? (type-of val) target) val
         (do
@@ -109,6 +109,6 @@
                     (if (null? to-al) ()
                       (set! entry (%alist-find to-al target)))))))
             ())
-          ; Call converter: (fn val . extra)
+          ; Call converter: (fn (_ . val) . extra)
           (if (null? entry) ()
             (apply (rest entry) (pair val extra))))))))

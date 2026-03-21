@@ -21,7 +21,7 @@
       (append %constructs %lang-constructs)))
 
   ; Build lookup alist: ((name . props) ...)
-  (def %build-lookup (fn (entries acc)
+  (def %build-lookup (fn (_ entries acc)
     (if (null? entries) acc
       (do (def entry (first entries))
           (def name (first entry))
@@ -31,19 +31,19 @@
   (def %fmt-table (%build-lookup %all-constructs ()))
 
   ; Lookup helper: returns property list or () for unknown forms
-  (def %fmt-find (fn (key table)
+  (def %fmt-find (fn (_ key table)
     (if (null? table) ()
       (if (string=? (convert key %string)
                     (convert (first (first table)) %string))
         (first table)
         (%fmt-find key (rest table))))))
-  (def %fmt-lookup (fn (name)
+  (def %fmt-lookup (fn (_ name)
     (def entry (%fmt-find name %fmt-table))
     (if (null? entry) ()
       (rest entry))))
 
   ; Get a specific property from a property list
-  (def %get-prop (fn (key props)
+  (def %get-prop (fn (_ key props)
     (if (null? props) ()
       (if (pair? (first props))
         (if (eq? (first (first props)) key)
@@ -56,16 +56,16 @@
   (def %fmt-base (make-base))
 
   ; Reader that keeps the comment text as a token
-  (def %fmt-comment-reader (fn args
+  (def %fmt-comment-reader (fn (_ . args)
     (list (lit %comment) (buffer-token (first args)))))
 
   ; Navigate type struct: entry = (handle . type-struct)
   ; type-struct has 7 elements, io is the 7th
-  (def %entry-io (fn (entry)
+  (def %entry-io (fn (_ entry)
     (first (rest (rest (rest (rest (rest (rest entry)))))))))
 
   ; Find COMMENT entry: first with (analyse + delimit + no read + no write)
-  (def %find-comment (fn (alist)
+  (def %find-comment (fn (_ alist)
     (if (null? alist) ()
       (do (def io (%entry-io (first alist)))
           (if (and (not (null? (first (first io))))
@@ -87,18 +87,18 @@
 
   ; --- Predicates ---
 
-  (def %comment? (fn (tok)
+  (def %comment? (fn (_ tok)
     (if (pair? tok) (eq? (first tok) (lit %comment)) ())))
 
   ; --- Width: use write-to-string (C speed tree traversal) ---
 
-  (def %form-width (fn (form)
+  (def %form-width (fn (_ form)
     (if (%comment? form) 80
       (string-length (write-to-string form)))))
 
   ; --- Pretty printer ---
 
-  (def %spaces (fn (n) (display (string-repeat " " n))))
+  (def %spaces (fn (_ n) (display (string-repeat " " n))))
 
   ; Forward declarations
   (def %fmt-expr ())
@@ -107,7 +107,7 @@
 
   ; Format a sequence of body forms, each on its own line
   ; Handles improper lists (dotted pairs) by printing ". tail"
-  (set! %fmt-body (fn (forms col)
+  (set! %fmt-body (fn (_ forms col)
     (if (null? forms) ()
       (if (not (pair? forms))
         (do (display "\n") (%spaces col)
@@ -119,7 +119,7 @@
   ; --- Data-driven formatting ---
   ; Dispatches on the fmt property from the construct table.
 
-  (def %fmt-head-1 (fn (head rest-forms col)
+  (def %fmt-head-1 (fn (_ head rest-forms col)
     (if (null? rest-forms) (write (pair head rest-forms))
       (do (display "(") (write head) (display " ")
           (def head-width (+ 2 (string-length (convert head %string))))
@@ -127,26 +127,26 @@
           (%fmt-body (rest rest-forms) (+ col 2))
           (display ")")))))
 
-  (def %fmt-head-kw (fn (head rest-forms col)
+  (def %fmt-head-kw (fn (_ head rest-forms col)
     (do (display "(") (write head) (display " ")
         (def head-width (+ 2 (string-length (convert head %string))))
         (%fmt-expr (first rest-forms) (+ col head-width))
         (%fmt-body (rest rest-forms) (+ col 2))
         (display ")"))))
 
-  (def %fmt-body-only (fn (head rest-forms col)
+  (def %fmt-body-only (fn (_ head rest-forms col)
     (do (display "(") (write head)
         (%fmt-body rest-forms (+ col 2))
         (display ")"))))
 
-  (def %fmt-default (fn (head rest-forms col)
+  (def %fmt-default (fn (_ head rest-forms col)
     (do (display "(")
         (%fmt-expr head (+ col 1))
         (%fmt-body rest-forms (+ col 2))
         (display ")"))))
 
   ; Format a list form with indentation awareness
-  (set! %fmt-list (fn (form col)
+  (set! %fmt-list (fn (_ form col)
     (def head (first form))
     (def rest-forms (rest form))
 
@@ -163,7 +163,7 @@
             (%fmt-default head rest-forms col))))))))
 
   ; Format any expression
-  (set! %fmt-expr (fn (form col)
+  (set! %fmt-expr (fn (_ form col)
     (if (%comment? form)
       (display (first (rest form)))
       (if (pair? form) (%fmt-list form col)
@@ -171,7 +171,7 @@
 
   ; --- Main: output formatted tokens ---
 
-  (def %fmt-tokens (fn (tokens first-token)
+  (def %fmt-tokens (fn (_ tokens first-token)
     (if (null? tokens) ()
       (do (def tok (first tokens))
           ; Add blank line between top-level forms (not before first)

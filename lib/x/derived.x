@@ -10,14 +10,14 @@
   (param test ANY "Expression to evaluate as a boolean")
   (param body ANY "One or more body expressions"))
 (def when
-  (op (test . body)
+  (op (_ test . body)
     e
     (if (eval test e) (tail-eval (pair (lit do) body) e))))
 (doc unless "Evaluate body forms when test is false."
   (param test ANY "Expression to evaluate as a boolean")
   (param body ANY "One or more body expressions"))
 (def unless
-  (op (test . body)
+  (op (_ test . body)
     e
     (if (not (eval test e)) (tail-eval (pair (lit do) body) e))))
 
@@ -27,7 +27,7 @@
   (param bindings LIST "List of (name value) binding pairs")
   (param body ANY "One or more body expressions"))
 (def let*
-  (op (bindings . body)
+  (op (_ bindings . body)
     e
     (if (null? bindings)
       (tail-eval (pair (lit do) body) e)
@@ -44,16 +44,16 @@
   (param bindings LIST "List of (name value) binding pairs")
   (param body ANY "One or more body expressions"))
 (def letrec
-  (op (bindings . body)
+  (op (_ bindings . body)
     e
     (tail-eval
       (pair
         (lit let)
         (pair
-          (map (fn (b) (list (first b) ())) bindings)
+          (map (fn (_ b) (list (first b) ())) bindings)
           (append
             (map
-              (fn (b) (list (lit set!) (first b) (first (rest b))))
+              (fn (_ b) (list (lit set!) (first b) (first (rest b))))
               bindings)
             body)))
       e)))
@@ -62,7 +62,7 @@
 
 (def %let let)
 (def let
-  (op (first-arg . rest-args)
+  (op (_ first-arg . rest-args)
     e
     (if (symbol? first-arg)
       (tail-eval
@@ -73,8 +73,8 @@
               first-arg
               (pair
                 (lit fn)
-                (pair (map first (first rest-args)) (rest rest-args)))))
-          (pair first-arg (map (fn (b) (first (rest b))) (first rest-args))))
+                (pair (pair (lit _) (map first (first rest-args))) (rest rest-args)))))
+          (pair first-arg (map (fn (_ b) (first (rest b))) (first rest-args))))
         e)
       (tail-eval (pair (lit %let) (pair first-arg rest-args)) e))))
 
@@ -83,7 +83,7 @@
 (doc cond "Multi-way conditional: evaluates clauses in order, returning the body of the first true test. Supports else and => syntax."
   (param clauses LIST "List of (test body...) clauses; use else for default"))
 (def cond
-  (op clauses
+  (op (_ . clauses)
     e
     (let %cond-loop
       ((cls clauses))
@@ -106,22 +106,22 @@
   (param key ANY "Expression to evaluate and match against")
   (param clauses LIST "List of ((datum ...) body...) clauses; use else for default"))
 (def case
-  (op (key . clauses)
+  (op (_ key . clauses)
     e
     (def case-val (eval key e))
     (def case-match?
-      (fn (datum)
+      (fn (_ datum)
         (if (number? case-val)
           (= case-val datum)
           (eq? case-val datum))))
     (def case-check-datums
-      (fn (datums)
+      (fn (_ datums)
         (match
           ((null? datums) ())
           ((case-match? (first datums)) #t)
           (#t (case-check-datums (rest datums))))))
     (def case-loop
-      (fn (cls)
+      (fn (_ cls)
         (match
           ((null? cls) ())
           ((or

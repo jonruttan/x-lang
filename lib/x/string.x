@@ -6,7 +6,7 @@
 (note "Construction")
 
 (doc (def str
-  (fn args
+  (fn (_ . args)
     (fold string-append "" args)))
   (returns STRING "Concatenated result")
   (example "(str \"hello\" \" \" \"world\")" "\"hello world\"")
@@ -14,14 +14,14 @@
 
 (note "Predicates")
 
-(doc (def string-empty? (fn ((param s STRING "String to test")) (= (string-length s) 0)))
+(doc (def string-empty? (fn (_ (param s STRING "String to test")) (= (string-length s) 0)))
   (returns BOOL "True if string has zero length")
   "Test whether a string is empty.")
 
 (note "Building")
 
 (doc (def make-string
-  (fn ((param k NUMBER "Length of the string")
+  (fn (_ (param k NUMBER "Length of the string")
        . rest)
     (def ch (if (null? rest) (" " 0) (first rest)))
     (list->string (repeat ch k))))
@@ -29,21 +29,21 @@
   "Create a string of k copies of a character.")
 
 (doc (def string-join
-  (fn ((param sep STRING "Separator to insert between elements")
+  (fn (_ (param sep STRING "Separator to insert between elements")
        (param lst LIST "List of strings"))
     (match
       ((null? lst) "")
       ((null? (rest lst)) (first lst))
       (#t
         (fold
-          (fn (acc s) (string-append acc (string-append sep s)))
+          (fn (_ acc s) (string-append acc (string-append sep s)))
           (first lst)
           (rest lst))))))
   (returns STRING "Joined string")
   "Join a list of strings with a separator.")
 
 (doc (def string-repeat
-  (fn ((param s STRING "String to repeat")
+  (fn (_ (param s STRING "String to repeat")
        (param n INT "Number of repetitions"))
     (if (<= n 0)
       ""
@@ -52,7 +52,7 @@
   "Repeat a string n times.")
 
 (doc (def string-pad-left
-  (fn ((param s STRING "String to pad")
+  (fn (_ (param s STRING "String to pad")
        (param n INT "Desired minimum length")
        (param ch CHAR "Padding character"))
     (if (not (< (string-length s) n)) s
@@ -64,18 +64,18 @@
 
 ; Shared helper: test if sub matches s at position pos
 (def %string-match-at?
-  (fn (s sub pos)
+  (fn (_ s sub pos)
     (def sub-len (string-length sub))
     (if (> (+ pos sub-len) (string-length s)) #f
       (string=? (substring s pos (+ pos sub-len)) sub))))
 
 (doc (def string-contains?
-  (fn ((param sub STRING "Substring to search for")
+  (fn (_ (param sub STRING "Substring to search for")
        (param s STRING "String to search in"))
     (def s-len (string-length s))
     (def sub-len (string-length sub))
     (def go
-      (fn (i)
+      (fn (_ i)
         (if (> (+ i sub-len) s-len) #f
           (if (%string-match-at? s sub i) #t (go (+ i 1))))))
     (if (= sub-len 0) #t (go 0))))
@@ -83,14 +83,14 @@
   "Test whether a string contains a substring.")
 
 (doc (def string-starts?
-  (fn ((param pfx STRING "Prefix to check")
+  (fn (_ (param pfx STRING "Prefix to check")
        (param s STRING "String to test"))
     (%string-match-at? s pfx 0)))
   (returns BOOL "True if s starts with pfx")
   "Test whether a string starts with a prefix.")
 
 (doc (def string-ends?
-  (fn ((param sfx STRING "Suffix to check")
+  (fn (_ (param sfx STRING "Suffix to check")
        (param s STRING "String to test"))
     (def s-len (string-length s))
     (def sfx-len (string-length sfx))
@@ -102,10 +102,10 @@
 (note "Transformation")
 
 (doc (def string-reverse
-  (fn ((param s STRING "String to reverse"))
+  (fn (_ (param s STRING "String to reverse"))
     (def len (string-length s))
     (def go
-      (fn (i acc)
+      (fn (_ i acc)
         (if (< i 0)
           acc
           (go (- i 1) (string-append acc (substring s i (+ i 1)))))))
@@ -118,7 +118,7 @@
 (note "Conversion")
 
 (doc (def string->list
-  (fn ((param s STRING "String to convert"))
+  (fn (_ (param s STRING "String to convert"))
     (let go ((i (- (string-length s) 1)) (acc ()))
       (if (< i 0) acc (go (- i 1) (pair (string-ref s i) acc))))))
   (returns LIST "List of characters")
@@ -129,13 +129,13 @@
 (note "Case conversion")
 
 (doc (def string-upcase
-  (fn ((param s STRING "String to convert"))
+  (fn (_ (param s STRING "String to convert"))
     (list->string (map char-upcase (string->list s)))))
   (returns STRING "Uppercased string")
   "Convert all characters in a string to uppercase.")
 
 (doc (def string-downcase
-  (fn ((param s STRING "String to convert"))
+  (fn (_ (param s STRING "String to convert"))
     (list->string (map char-downcase (string->list s)))))
   (returns STRING "Lowercased string")
   "Convert all characters in a string to lowercase.")
@@ -145,7 +145,7 @@
 (note "Ordering")
 
 (doc (def string<?
-  (fn ((param a STRING "First string")
+  (fn (_ (param a STRING "First string")
        (param b STRING "Second string"))
     (let go ((i 0))
       (cond
@@ -157,15 +157,15 @@
   (returns BOOL "True if a is lexicographically less than b")
   "Lexicographic string less-than comparison.")
 
-(doc (def string>? (fn ((param a STRING "First string") (param b STRING "Second string")) (string<? b a)))
+(doc (def string>? (fn (_ (param a STRING "First string") (param b STRING "Second string")) (string<? b a)))
   (returns BOOL "True if a is lexicographically greater than b")
   "Lexicographic string greater-than comparison.")
 
-(doc (def string<=? (fn ((param a STRING "First string") (param b STRING "Second string")) (not (string>? a b))))
+(doc (def string<=? (fn (_ (param a STRING "First string") (param b STRING "Second string")) (not (string>? a b))))
   (returns BOOL "True if a <= b lexicographically")
   "Lexicographic string less-than-or-equal comparison.")
 
-(doc (def string>=? (fn ((param a STRING "First string") (param b STRING "Second string")) (not (string<? a b))))
+(doc (def string>=? (fn (_ (param a STRING "First string") (param b STRING "Second string")) (not (string<? a b))))
   (returns BOOL "True if a >= b lexicographically")
   "Lexicographic string greater-than-or-equal comparison.")
 
@@ -174,31 +174,31 @@
 (note "Case-insensitive comparison")
 
 (doc (def string-ci=?
-  (fn ((param a STRING "First string") (param b STRING "Second string"))
+  (fn (_ (param a STRING "First string") (param b STRING "Second string"))
     (string=? (string-downcase a) (string-downcase b))))
   (returns BOOL "True if strings are equal ignoring case")
   "Case-insensitive string equality.")
 
 (doc (def string-ci<?
-  (fn ((param a STRING "First string") (param b STRING "Second string"))
+  (fn (_ (param a STRING "First string") (param b STRING "Second string"))
     (string<? (string-downcase a) (string-downcase b))))
   (returns BOOL "True if a < b ignoring case")
   "Case-insensitive string less-than.")
 
 (doc (def string-ci>?
-  (fn ((param a STRING "First string") (param b STRING "Second string"))
+  (fn (_ (param a STRING "First string") (param b STRING "Second string"))
     (string>? (string-downcase a) (string-downcase b))))
   (returns BOOL "True if a > b ignoring case")
   "Case-insensitive string greater-than.")
 
 (doc (def string-ci<=?
-  (fn ((param a STRING "First string") (param b STRING "Second string"))
+  (fn (_ (param a STRING "First string") (param b STRING "Second string"))
     (string<=? (string-downcase a) (string-downcase b))))
   (returns BOOL "True if a <= b ignoring case")
   "Case-insensitive string less-than-or-equal.")
 
 (doc (def string-ci>=?
-  (fn ((param a STRING "First string") (param b STRING "Second string"))
+  (fn (_ (param a STRING "First string") (param b STRING "Second string"))
     (string>=? (string-downcase a) (string-downcase b))))
   (returns BOOL "True if a >= b ignoring case")
   "Case-insensitive string greater-than-or-equal.")
@@ -208,7 +208,7 @@
 (note "Trimming")
 
 (doc (def string-trim-left
-  (fn ((param s STRING "String to trim"))
+  (fn (_ (param s STRING "String to trim"))
     (let go ((i 0))
       (if (= i (string-length s)) ""
         (if (char-whitespace? (string-ref s i))
@@ -218,7 +218,7 @@
   "Remove leading whitespace from a string.")
 
 (doc (def string-trim-right
-  (fn ((param s STRING "String to trim"))
+  (fn (_ (param s STRING "String to trim"))
     (let go ((i (- (string-length s) 1)))
       (if (< i 0) ""
         (if (char-whitespace? (string-ref s i))
@@ -228,7 +228,7 @@
   "Remove trailing whitespace from a string.")
 
 (doc (def string-trim
-  (fn ((param s STRING "String to trim"))
+  (fn (_ (param s STRING "String to trim"))
     (string-trim-left (string-trim-right s))))
   (returns STRING "String with both leading and trailing whitespace removed")
   "Remove whitespace from both ends of a string.")
@@ -238,11 +238,11 @@
 (note "Splitting")
 
 (doc (def string-split
-  (fn ((param sep STRING "Separator string; empty splits into characters")
+  (fn (_ (param sep STRING "Separator string; empty splits into characters")
        (param s STRING "String to split"))
     (def sep-len (string-length sep))
     (def s-len (string-length s))
-    (if (= sep-len 0) (map (fn (c) (list->string (list c))) (string->list s))
+    (if (= sep-len 0) (map (fn (_ c) (list->string (list c))) (string->list s))
       (let go ((start 0) (i 0) (acc ()))
         (if (> (+ i sep-len) s-len)
           (reverse (pair (substring s start s-len) acc))

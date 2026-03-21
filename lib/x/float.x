@@ -17,19 +17,19 @@
 ; These use generic ffi-call conventions (no function pointer needed)
 
 (doc (def float->string
-  (fn ((param bits INTEGER "IEEE 754 double bit pattern"))
+  (fn (_ (param bits INTEGER "IEEE 754 double bit pattern"))
     (ffi-call "d->s" () bits)))
   (returns STRING "Decimal string representation")
   "Convert a float bit pattern to its string representation.")
 
 (doc (def int->float
-  (fn ((param n INTEGER "Integer value"))
+  (fn (_ (param n INTEGER "Integer value"))
     (ffi-call "i->d" () n)))
   (returns INTEGER "IEEE 754 double bit pattern")
   "Convert an integer to a float bit pattern.")
 
 (doc (def float->int
-  (fn ((param bits INTEGER "IEEE 754 double bit pattern"))
+  (fn (_ (param bits INTEGER "IEEE 754 double bit pattern"))
     (ffi-call "d->i" () bits)))
   (returns INTEGER "Truncated integer value")
   "Convert a float bit pattern to an integer by truncation.")
@@ -41,14 +41,14 @@
 (def %float-frac ())
 
 (set! %float-frac
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %float-frac
       (%seq (buffer-unread buffer) (score-set score 1 buffer)))))
 ; Must see at least one digit after '.'
 
 (def %float-first-frac
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       (%seq (score-set score 1 buffer) %float-frac)
       ())))
@@ -57,7 +57,7 @@
 (def %float-int-digits ())
 
 (set! %float-int-digits
-  (fn (buffer score chr)
+  (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %float-int-digits
       (if (= chr 46) %float-first-frac ()))))
@@ -74,7 +74,7 @@
 (def %strtod (dlsym %libm "strtod"))
 
 (doc (def string->float
-  (fn ((param s STRING "Decimal string to parse"))
+  (fn (_ (param s STRING "Decimal string to parse"))
     (ffi-call "s0->d" %strtod s)))
   (returns FLOAT "Parsed float value")
   "Parse a decimal string into a float.")
@@ -87,50 +87,50 @@
     (list
       (pair
         (lit write)
-        (fn (self) (display (float->string (first self)))))
+        (fn (_ self) (display (float->string (first self)))))
       (pair (lit first-chars) "0123456789")
       (pair
         (lit analyse)
-        (fn (buffer score chr)
+        (fn (_ buffer score chr)
           ; Entry: must start with digit [0-9]
 
           (if (and (>= chr 48) (<= chr 57)) %float-int-digits ())))
-      (pair (lit read) (fn args (%float-read (first args))))
+      (pair (lit read) (fn (_ . args) (%float-read (first args))))
       (pair
         (lit from)
         (list
           (pair
             (type-of 42)
-            (fn (value) (make-instance %float (int->float value))))
+            (fn (_ value) (make-instance %float (int->float value))))
           (pair
             (type-of "")
-            (fn (value) (make-instance %float (string->float value))))))
+            (fn (_ value) (make-instance %float (string->float value))))))
       (pair
         (lit to)
         (list
-          (pair (type-of 42) (fn (self) (float->int (first self))))
+          (pair (type-of 42) (fn (_ self) (float->int (first self))))
           (pair
             (type-of "")
-            (fn (self) (float->string (first self)))))))))
+            (fn (_ self) (float->string (first self)))))))))
 
 (note "Predicates")
 
 ; --- Predicates and constructors ---
 
 (doc (def float?
-  (fn ((param x ANY "Value to test"))
+  (fn (_ (param x ANY "Value to test"))
     (type? x %float)))
   (returns BOOLEAN "True if x is a float")
   "Test whether a value is a float.")
 
 (doc (def exact->inexact
-  (fn ((param x INTEGER "Exact integer value"))
+  (fn (_ (param x INTEGER "Exact integer value"))
     (convert x %float)))
   (returns FLOAT "Float representation")
   "Convert an exact integer to an inexact float.")
 
 (doc (def inexact->exact
-  (fn ((param x FLOAT "Float value"))
+  (fn (_ (param x FLOAT "Float value"))
     (float->int (first x))))
   (returns INTEGER "Truncated integer value")
   "Convert an inexact float to an exact integer by truncation.")
@@ -140,7 +140,7 @@
 ; --- Arithmetic ---
 
 (doc (def f+
-  (fn ((param a FLOAT "First operand") (param b FLOAT "Second operand"))
+  (fn (_ (param a FLOAT "First operand") (param b FLOAT "Second operand"))
     (make-instance
       %float
       (ffi-call "d+d" () (first a) (first b)))))
@@ -148,7 +148,7 @@
   "Add two floats.")
 
 (doc (def f-
-  (fn ((param a FLOAT "First operand") (param b FLOAT "Second operand"))
+  (fn (_ (param a FLOAT "First operand") (param b FLOAT "Second operand"))
     (make-instance
       %float
       (ffi-call "d-d" () (first a) (first b)))))
@@ -156,7 +156,7 @@
   "Subtract two floats.")
 
 (doc (def f*
-  (fn ((param a FLOAT "First operand") (param b FLOAT "Second operand"))
+  (fn (_ (param a FLOAT "First operand") (param b FLOAT "Second operand"))
     (make-instance
       %float
       (ffi-call "d*d" () (first a) (first b)))))
@@ -164,7 +164,7 @@
   "Multiply two floats.")
 
 (doc (def f/
-  (fn ((param a FLOAT "Dividend") (param b FLOAT "Divisor"))
+  (fn (_ (param a FLOAT "Dividend") (param b FLOAT "Divisor"))
     (make-instance
       %float
       (ffi-call "d/d" () (first a) (first b)))))
@@ -176,13 +176,13 @@
 ; --- Comparisons ---
 
 (doc (def f<
-  (fn ((param a FLOAT "Left operand") (param b FLOAT "Right operand"))
+  (fn (_ (param a FLOAT "Left operand") (param b FLOAT "Right operand"))
     (ffi-call "d<d" () (first a) (first b))))
   (returns BOOLEAN "True if a < b")
   "Test whether float a is less than float b.")
 
 (doc (def f=
-  (fn ((param a FLOAT "Left operand") (param b FLOAT "Right operand"))
+  (fn (_ (param a FLOAT "Left operand") (param b FLOAT "Right operand"))
     (ffi-call "d=d" () (first a) (first b))))
   (returns BOOLEAN "True if a equals b")
   "Test whether two floats are equal.")
@@ -191,7 +191,7 @@
 ; Uses buffer-token to extract consumed text, then strtod to parse
 
 (set! %float-read
-  (fn args
+  (fn (_ . args)
     (make-instance
       %float
       (ffi-call "s0->d" %strtod (buffer-token (first args))))))
@@ -201,15 +201,15 @@
 ; Factory: resolve dlsym at definition time, return closure with cached pointer
 
 (def %libm-d
-  (fn (name)
+  (fn (_ name)
     (let ((sym (dlsym %libm name)))
-      (fn (x)
+      (fn (_ x)
         (make-instance %float (ffi-call "d->d" sym (first x)))))))
 
 (def %libm-dd
-  (fn (name)
+  (fn (_ name)
     (let ((sym (dlsym %libm name)))
-      (fn (a b)
+      (fn (_ a b)
         (make-instance
           %float
           (ffi-call "dd->d" sym (first a) (first b)))))))
@@ -300,7 +300,7 @@
 (def %safe/ /)
 (def %safe< <)
 (def %safe= =)
-(def %ensure-float (fn (x) (convert x %float)))
+(def %ensure-float (fn (_ x) (convert x %float)))
 
 ; Use numeric tower factories for +, *, /, <, =
 (set! + (%make-fold-op float? f+ %ensure-float %safe+ 0))
@@ -311,14 +311,14 @@
 
 ; - is special: unary negation case
 (set! -
-  (fn args
+  (fn (_ . args)
     (if (null? args) 0
       (if (null? (rest args))
         (if (float? (first args))
           (f- (exact->inexact 0) (first args))
           (%safe- (first args)))
         (fold
-          (fn (acc x)
+          (fn (_ acc x)
             (if (float? acc) (f- acc (%ensure-float x))
               (if (float? x) (f- (%ensure-float acc) x)
                 (%safe- acc x))))
@@ -337,7 +337,7 @@
   (returns BOOLEAN "True if x is a number")
   "Test whether a value is a number (integer or float).")
 
-(set! number? (fn (x) (if (%int-number? x) #t (float? x))))
+(set! number? (fn (_ x) (if (%int-number? x) #t (float? x))))
 
 (doc (def real? number?)
   "Test whether a value is a real number. Equivalent to number?.")
