@@ -259,8 +259,7 @@
     (pair "lib/x/string.x"
     (pair "lib/x/vector.x"
     (pair "lib/x/promise.x"
-    (pair "lib/x/token.x"
-      (first %include-list-cell))))))))))))))))))
+      (first %include-list-cell)))))))))))))))))
   ; --- Documentation system ---
   (include "lib/x/doc.x")
   (include "lib/x/doc-prims.x")
@@ -414,7 +413,6 @@
   (include "lib/x/string.x")
   (include "lib/x/vector.x")
   (include "lib/x/promise.x")
-  (include "lib/x/token.x")
   ; --- quasi (needs append from list.x) ---
 
   ; Compile template to a pair/lit/append tree that, when eval'd,
