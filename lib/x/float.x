@@ -408,9 +408,12 @@
 (doc (def inexact? float?)
   "Test whether a value is inexact. Equivalent to float?.")
 
-(provide x/float
+(doc (provide x/float
   float? float->string int->float float->int string->float
   exact->inexact inexact->exact
   f+ f- f* f/ f< f= fsin fcos ftan fsqrt fexp flog fabs
   ffloor fceil fround ftrunc frint fasin facos fatan fpow fatan2
   integer? real? inexact?)
+  (note "Literal syntax: 3.14, 1.0e10. Extends +,-,*,/,<,= with float promotion.")
+  (example "(+ 1 3.14)" "4.14")
+  "IEEE 754 floating-point arithmetic.")

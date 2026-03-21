@@ -8,52 +8,74 @@
 
 (doc lit "Return the argument unevaluated (quote)."
   (param form ANY "Any expression")
-  (returns ANY "The expression itself"))
+  (returns ANY "The expression itself")
+  (example "(lit x)" "x")
+  (example "(lit (1 2 3))" "(1 2 3)"))
 
 (doc def "Bind a name to a value in the current environment."
   (param name SYMBOL "Name to bind")
-  (param value ANY "Expression to evaluate and bind"))
+  (param value ANY "Expression to evaluate and bind")
+  (note "Supports recursive definitions: name is pre-bound before value is evaluated.")
+  (example "(def x 42)" "42")
+  (see set!))
 
 (doc set! "Mutate an existing binding."
   (param name SYMBOL "Bound name to update")
-  (param value ANY "New value"))
+  (param value ANY "New value")
+  (note "Signals an error if name is not already bound.")
+  (see def))
 
-(doc fn "Create a closure (applicative: arguments are evaluated)."
-  (param params LIST "Parameter list, e.g. (a b) or (a . rest)")
+(doc fn "Create a closure (applicative: arguments are evaluated before the body runs)."
+  (param params LIST "Parameter list: (a b), (a . rest), or args for variadic")
   (param body ANY "Body expression(s)")
-  (returns PROCEDURE "A new closure"))
+  (returns PROCEDURE "A new closure")
+  (example "(def add (fn (a b) (+ a b)))" "")
+  (example "((fn (x) (* x x)) 5)" "25")
+  (see op))
 
 (doc op "Create an operative (fexpr: arguments are NOT evaluated)."
   (param params LIST "Formal parameters for unevaluated args")
   (param env-param SYMBOL "Name bound to caller's environment")
   (param body ANY "Body expression(s)")
-  (returns OPERATIVE "A new operative"))
+  (returns OPERATIVE "A new operative")
+  (note "Use eval with the env parameter to evaluate arguments selectively.")
+  (example "(def my-if (op (test then else) e (if (eval test e) (eval then e) (eval else e))))" "")
+  (see fn))
 
 (doc apply "Apply a function to a list of arguments."
   (param f CALLABLE "Function to apply")
   (param args LIST "Argument list")
-  (returns ANY "Result of application"))
+  (returns ANY "Result of application")
+  (example "(apply + '(1 2))" "3"))
 
 (doc eval "Evaluate an expression, optionally in a given environment."
   (param expr ANY "Expression to evaluate")
   (param env LIST "Environment alist (optional)")
-  (returns ANY "Result of evaluation"))
+  (returns ANY "Result of evaluation")
+  (note "With one arg: uses TCO (tail-call safe). With env arg: saves/restores env after.")
+  (see eval!))
 
-(doc eval! "Evaluate in current environment (no TCO, no env save/restore)."
+(doc eval! "Evaluate in current environment, returning the result immediately."
   (param expr ANY "Expression to evaluate")
-  (returns ANY "Result of evaluation"))
+  (returns ANY "Result of evaluation")
+  (note "No TCO, no env save/restore. Use for non-tail evaluation of computed forms.")
+  (see eval))
 
-(doc match "Pattern matching: evaluate clauses until one succeeds."
-  (param clauses LIST "((test result) ...) pairs"))
+(doc match "Pattern matching: evaluate clauses until a test succeeds."
+  (param clauses LIST "((test result) ...) pairs — first truthy test wins")
+  (example "(match ((= x 0) \"zero\") ((< x 0) \"neg\") (#t \"pos\"))" "")
+  (note "Similar to cond but a C primitive. Tests are evaluated in order."))
 
 (doc guard "Error handler: evaluate body with an error guard."
   (param var SYMBOL "Name bound to the error value")
-  (param handler ANY "Expression evaluated if error occurs")
-  (param body ANY "Expression to evaluate"))
+  (param handler ANY "Expression evaluated if error occurs (var is bound)")
+  (param body ANY "Expression to evaluate")
+  (example "(guard (e (list (lit error) e)) (+ 1 \"x\"))" "(error \"...\")"))
 
 (doc error "Signal an error with a message."
   (param message STRING "Error message")
-  (param value ANY "Associated value (optional)"))
+  (param value ANY "Associated value (optional)")
+  (example "(error \"bad input\" 42)" ""))
 
 (doc wrap "Create an applicative from a combiner (evaluates args before calling)."
   (param combiner CALLABLE "An operative or procedure")
@@ -70,15 +92,22 @@
 (doc pair "Create a new pair (cons cell) from two values."
   (param a ANY "First element (head)")
   (param d ANY "Second element (tail)")
-  (returns PAIR "A new pair"))
+  (returns PAIR "A new pair")
+  (example "(pair 1 2)" "(1 . 2)")
+  (example "(pair 1 (pair 2 ()))" "(1 2)")
+  (see first) (see rest))
 
 (doc first "Return the first element (head) of a pair."
   (param p PAIR "A pair")
-  (returns ANY "The first element"))
+  (returns ANY "The first element")
+  (example "(first '(1 2 3))" "1")
+  (see rest) (see pair))
 
 (doc rest "Return the second element (tail) of a pair."
   (param p PAIR "A pair")
-  (returns ANY "The second element"))
+  (returns ANY "The second element")
+  (example "(rest '(1 2 3))" "(2 3)")
+  (see first) (see pair))
 
 (doc set-first! "Mutate the first element of a pair."
   (param p PAIR "A pair")
@@ -213,10 +242,14 @@
 (note "I/O")
 
 (doc write "Write a value in machine-readable form."
-  (param val ANY "Value to write"))
+  (param val ANY "Value to write")
+  (note "Strings are quoted, characters show read syntax. Use for serialization.")
+  (see display) (see write-to-string))
 
 (doc display "Display a value in human-readable form."
-  (param val ANY "Value to display"))
+  (param val ANY "Value to display")
+  (note "Strings are unquoted, characters are bare. Use for user output.")
+  (see write) (see display-to-string))
 
 (doc read "Read and parse one expression from stdin."
   (returns ANY "Parsed expression"))
@@ -255,7 +288,9 @@
 (doc make-type "Create a new custom type with handlers."
   (param name STRING "Type name")
   (param handlers LIST "Alist of handler functions")
-  (returns ATOM "Type handle"))
+  (returns ATOM "Type handle")
+  (note "Handlers: call, eval, write, display, read, analyse, first-chars, from, to, iter.")
+  (see make-instance) (see type?) (see type-of))
 
 (doc make-instance "Create an instance of a custom type."
   (param type ATOM "Type handle from make-type")
@@ -337,12 +372,17 @@
 (doc if "Conditional: evaluate test, then branch."
   (param test ANY "Condition expression")
   (param then ANY "True branch")
-  (param else ANY "False branch (optional)"))
+  (param else ANY "False branch (optional)")
+  (example "(if (> 3 2) \"yes\" \"no\")" "\"yes\"")
+  (see match) (see cond))
 
 (doc let "Bind local variables and evaluate body."
   (param bindings LIST "((name value) ...) binding pairs")
   (param body ANY "Body expression")
-  (example "(let ((x 1) (y 2)) (+ x y))" "3"))
+  (note "Named let: (let name ((var init) ...) body) creates a loop.")
+  (example "(let ((x 1) (y 2)) (+ x y))" "3")
+  (example "(let loop ((n 5) (acc 1)) (if (= n 0) acc (loop (- n 1) (* acc n))))" "120")
+  (see let*) (see letrec))
 
 (doc do "Evaluate expressions sequentially, return last result."
   (param exprs ANY "One or more expressions")
@@ -378,9 +418,12 @@
 (doc newline "Display a newline character.")
 
 (doc quasi "Quasiquote: template with unquote and splicing."
-  (param template ANY "Template expression with , and ,@ escapes"))
+  (param template ANY "Template expression with , and ,@ escapes")
+  (note "Use , to unquote a single expression, ,@ to splice a list.")
+  (example "(let ((x 42)) (quasi (a ,x b)))" "(a 42 b)"))
 
-(doc repl "Start the read-eval-print loop.")
+(doc repl "Start the read-eval-print loop."
+  (note "Customizable: %repl-prompt and %repl-print control display."))
 
 (doc include-once "Load and evaluate a file, skipping if already loaded."
   (param path STRING "File path to include"))

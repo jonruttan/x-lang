@@ -510,9 +510,11 @@
               (do (display " v") (display %lang-version)))
             (display " on x-lang")
             (newline))))))
-  (provide x/core
+  (doc (provide x/core
     null? if let do begin not atom? list convert number->string string->number
     make-string string=? string-ref string-length substring
     gcd lcm newline heap-collect heap-mark-root! heap-mark-hook!
     heap-free-hook! include-once require-once provide import
-    peek-char current-line quasi repl doc note help))
+    peek-char current-line quasi repl doc note help)
+    (note "Built-in forms, module system, REPL, and documentation.")
+    "Core language: operatives, string primitives, GC, modules."))

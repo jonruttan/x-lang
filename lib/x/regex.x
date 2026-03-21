@@ -235,4 +235,7 @@
   (returns INTEGER "Final position after match, or nil on failure")
   "Execute a regex AST against a string from the given position.")
 
-(provide x/regex regex? regex-exec)
+(doc (provide x/regex regex? regex-exec)
+  (note "Syntax: #/pattern/. Supports: . (any), *, +, ?, | (alternation), () grouping, char classes [abc], [^abc], [a-z].")
+  (example "(regex-exec #/[0-9]+/ \"abc123def\" 0 12)" "result")
+  "Regular expressions with literal syntax.")

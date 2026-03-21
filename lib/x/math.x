@@ -81,5 +81,7 @@
   (returns NUMBER "base raised to the power exp")
   "Compute base raised to a non-negative integer exponent by repeated squaring.")
 
-(provide x/math inc dec negate abs min max clamp min-by max-by
+(doc (provide x/math inc dec negate abs min max clamp min-by max-by
   zero? positive? negative? even? odd? expt)
+  (example "(clamp 0 10 15)" "10")
+  "Integer arithmetic utilities.")

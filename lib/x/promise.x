@@ -36,4 +36,7 @@
   (returns ANY "The forced value, or p itself if not a promise")
   "Force a promise, returning its cached value. Non-promises pass through.")
 
-(provide x/promise promise? delay force)
+(doc (provide x/promise promise? delay force)
+  (note "Promises are memoized -- forced only once.")
+  (example "(force (delay (+ 1 2)))" "3")
+  "Lazy evaluation with delay/force.")

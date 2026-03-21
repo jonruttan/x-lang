@@ -30,4 +30,6 @@
   (returns CALLABLE "Function that applies f for side effects and returns x")
   "Return a function that calls f on its argument for side effects, then returns the argument.")
 
-(provide x/fn identity const compose pipe curry flip tap)
+(doc (provide x/fn identity const compose pipe curry flip tap)
+  (example "((compose inc inc) 1)" "3")
+  "Higher-order function combinators.")

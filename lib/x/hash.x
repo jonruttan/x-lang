@@ -44,4 +44,6 @@
   (returns STRING "16-character hexadecimal string")
   "Convert a 64-bit signed integer to a 16-character unsigned hex string.")
 
-(provide x/hash fnv-1a hash->hex)
+(doc (provide x/hash fnv-1a hash->hex)
+  (example "(hash->hex (fnv-1a \"hello\"))" "a430d84680aabd0b")
+  "FNV-1a hash function for strings.")

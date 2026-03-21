@@ -363,6 +363,12 @@
       (if (float? x) #t
         (%int-number? x)))))
 
-(provide x/complex
+(doc (provide x/complex
   complex? complex+ complex- complex* complex/ complex=
   make-rectangular make-polar real-part imag-part magnitude angle)
+  (note "Literal syntax: a+bi, a-bi (e.g. 3+4i, 0+1i, 2-3i)")
+  (note "Extends arithmetic operators (+, -, *, /, =) with complex promotion.")
+  (example "3+4i" "3+4i")
+  (example "(+ 1 2i)" "1+2i")
+  (example "(magnitude 3+4i)" "5.0")
+  "Complex number arithmetic with rectangular and polar forms.")

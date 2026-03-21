@@ -167,7 +167,9 @@
   (returns STRING "Variable value, or nil if not set")
   "Get the value of an environment variable.")
 
-(provide x/posix
+(doc (provide x/posix
   sh-fork sh-getpid sh-close sh-dup2 sh-chdir sh-exit
   sh-setenv sh-getenv sh-open-read sh-open-write sh-open-append
   sh-pipe sh-wait sh-exec)
+  (note "Provides fork, exec, pipe, dup2, wait, open, close, chdir, getenv, setenv.")
+  "POSIX system call wrappers via FFI.")

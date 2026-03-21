@@ -137,7 +137,10 @@
   (returns LIST "Alist with selected values transformed")
   "Apply per-key transform functions to values in an alist.")
 
-(provide x/alist
+(doc (provide x/alist
   assoc-get assoc-get-or assoc-has? assoc-del assoc-put
   assoc-keys assoc-vals assoc-map assoc-filter assoc-merge
   assoc-pick assoc-omit from-pairs to-pairs evolve)
+  (note "Alist format is ((key . val) ...). Keys compared with eq?.")
+  (example "(assoc-get (lit x) '((x . 1) (y . 2)))" "1")
+  "Association list operations.")

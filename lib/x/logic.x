@@ -25,4 +25,5 @@
   (returns BOOLEAN "True if a and b are structurally equal")
   "Structural equality: compares numbers by value, strings by content, else by identity.")
 
-(provide x/logic boolean? default-to until equal?)
+(doc (provide x/logic boolean? default-to until equal?)
+  "Boolean logic and structural equality.")

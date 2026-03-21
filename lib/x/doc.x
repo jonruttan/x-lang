@@ -1,14 +1,21 @@
 ; doc.x -- Inline documentation system for x-lang
 ;
-; Two forms:
+; Three forms — same metadata everywhere:
 ;
-; 1. Wrapping def (for library functions):
+; 1. Wrapping def (library functions):
 ;   (doc (def name (fn ((param p TYPE "text") ...) body))
-;     (returns TYPE "desc") (example "in" "out") "Description.")
+;     (returns TYPE "desc") (example "in" "out") (see other) "Description.")
 ;
-; 2. Bare symbol (for C primitives and pre-existing bindings):
+; 2. Wrapping provide (module-level):
+;   (doc (provide x/mod sym1 sym2 ...)
+;     (note "Literal syntax: ...") (example "expr" "result") "Module desc.")
+;
+; 3. Bare symbol (C primitives, pre-existing bindings):
 ;   (doc pair "Create a new pair."
-;     (param a ANY "First element") (param d ANY "Second element"))
+;     (param a ANY "First") (param d ANY "Second") (returns PAIR "A pair"))
+;
+; Metadata forms: (returns TYPE "desc"), (param name TYPE "desc"),
+;   (example "input" "output"), (see name), (note "text")
 ;
 ; Loaded before and/or — use nested if, not and/or/cond.
 
@@ -55,12 +62,12 @@
     (%go lst "")))
 
 ; --- Registry operations ---
-; Entry: (name desc returns params examples sees)
+; Entry: (name desc returns params examples sees notes)
 
 (def %doc-register!
-  (fn (name desc returns params examples sees)
+  (fn (name desc returns params examples sees notes)
     (set-first! %doc-registry-cell
-      (pair (list name desc returns params examples sees)
+      (pair (list name desc returns params examples sees notes)
             (first %doc-registry-cell)))))
 
 (def %doc-lookup
@@ -73,9 +80,16 @@
             (%go (rest alist))))))
     (%go (first %doc-registry-cell))))
 
+; --- Entry accessors ---
+(def %doc-entry-name    (fn (e) (first e)))
+(def %doc-entry-desc    (fn (e) (first (rest e))))
+(def %doc-entry-returns (fn (e) (first (rest (rest e)))))
+(def %doc-entry-params  (fn (e) (first (rest (rest (rest e))))))
+(def %doc-entry-examples (fn (e) (first (rest (rest (rest (rest e)))))))
+(def %doc-entry-sees    (fn (e) (first (rest (rest (rest (rest (rest e))))))))
+(def %doc-entry-notes   (fn (e) (first (rest (rest (rest (rest (rest (rest e)))))))))
+
 ; --- Strip param annotations from fn parameter list ---
-; (param name TYPE "desc") -> name, collecting metadata
-; Handles proper lists, dotted tails ((a . rest)), bare symbols.
 
 (def %doc-params-acc (pair () ()))
 
@@ -95,14 +109,12 @@
   (fn (ps)
     (if (null? ps) ()
       (if (not (pair? ps)) ps
-        ; Check if this is a (param ...) form in dotted-tail position
         (if (eq? (first ps) (lit param))
           (do
             (def %info (%doc-extract-param ps))
             (set-first! %doc-params-acc
               (pair %info (first %doc-params-acc)))
             (first %info))
-          ; Regular list element
           (if (pair? (first ps))
             (if (eq? (first (first ps)) (lit param))
               (do
@@ -118,6 +130,7 @@
 (def %doc-pending-returns (pair () ()))
 (def %doc-pending-examples (pair () ()))
 (def %doc-pending-sees (pair () ()))
+(def %doc-pending-notes (pair () ()))
 
 (def %doc-process-meta
   (fn (forms)
@@ -141,11 +154,33 @@
             (if (eq? %tag (lit see))
               (set-first! %doc-pending-sees
                 (pair (first (rest %form)) (first %doc-pending-sees)))
+            (if (eq? %tag (lit note))
+              (set-first! %doc-pending-notes
+                (pair (first (rest %form)) (first %doc-pending-notes)))
             (if (eq? %tag (lit param))
               (set-first! %doc-params-acc
                 (pair (%doc-extract-param %form)
-                      (first %doc-params-acc)))))))))
+                      (first %doc-params-acc))))))))))
         (%doc-process-meta (rest forms))))))
+
+; --- Reset all pending accumulators ---
+(def %doc-reset-pending!
+  (fn ()
+    (set-first! %doc-pending-returns ())
+    (set-first! %doc-pending-examples ())
+    (set-first! %doc-pending-sees ())
+    (set-first! %doc-pending-notes ())
+    (set-first! %doc-params-acc ())))
+
+; --- Collect all pending metadata into a register call ---
+(def %doc-collect-and-register!
+  (fn (name desc)
+    (%doc-register! name desc
+      (first %doc-pending-returns)
+      (%doc-reverse (first %doc-params-acc))
+      (%doc-reverse (first %doc-pending-examples))
+      (%doc-reverse (first %doc-pending-sees))
+      (%doc-reverse (first %doc-pending-notes)))))
 
 ; --- Reconstruct fn with stripped params ---
 
@@ -160,57 +195,61 @@
 
 ; --- Main doc operative ---
 ;
-; Two modes:
-;   (doc (def name value) [metadata...] "description")  — wraps def
-;   (doc name [metadata...] "description")               — bare symbol
+; Three modes:
+;   (doc (def name value) [meta...] "desc")      — wraps def
+;   (doc (provide name sym...) [meta...] "desc")  — wraps provide
+;   (doc name [meta...] "desc")                   — bare symbol
 
 (def doc
   (op (def-form . %doc-meta) e
     (if (not (pair? def-form))
       ; --- Bare symbol: just register docs ---
       (do
-        (def %desc (%doc-find-last-string %doc-meta))
-        (set-first! %doc-pending-returns ())
-        (set-first! %doc-pending-examples ())
-        (set-first! %doc-pending-sees ())
-        (set-first! %doc-params-acc ())
+        (%doc-reset-pending!)
         (%doc-process-meta %doc-meta)
-        (%doc-register! def-form %desc
-          (first %doc-pending-returns)
-          (%doc-reverse (first %doc-params-acc))
-          (%doc-reverse (first %doc-pending-examples))
-          (%doc-reverse (first %doc-pending-sees)))
+        (%doc-collect-and-register! def-form (%doc-find-last-string %doc-meta))
         def-form)
-      ; --- Def-wrapping: extract, strip, eval ---
-      (do
-        (def %name (first (rest def-form)))
-        (def %value (first (rest (rest def-form))))
-        (def %desc (%doc-find-last-string %doc-meta))
-        (set-first! %doc-pending-returns ())
-        (set-first! %doc-pending-examples ())
-        (set-first! %doc-pending-sees ())
-        (%doc-process-meta %doc-meta)
-        (def %ret (first %doc-pending-returns))
-        (def %exs (%doc-reverse (first %doc-pending-examples)))
-        (def %refs (%doc-reverse (first %doc-pending-sees)))
-        (set-first! %doc-params-acc ())
-        (def %clean-value (%doc-strip-fn %value))
-        (def %params (%doc-reverse (first %doc-params-acc)))
-        (%doc-register! %name %desc %ret %params %exs %refs)
-        (tail-eval (list (lit def) %name %clean-value) e)))))
+      ; --- Pair: check if def or provide ---
+      (if (eq? (first def-form) (lit provide))
+        ; --- Provide-wrapping: register module docs, eval provide ---
+        (do
+          (def %mod-name (first (rest def-form)))
+          (%doc-reset-pending!)
+          (%doc-process-meta %doc-meta)
+          (%doc-collect-and-register! %mod-name (%doc-find-last-string %doc-meta))
+          (tail-eval def-form e))
+        ; --- Def-wrapping: extract, strip params, eval ---
+        (do
+          (def %name (first (rest def-form)))
+          (def %value (first (rest (rest def-form))))
+          (%doc-reset-pending!)
+          (%doc-process-meta %doc-meta)
+          (def %ret (first %doc-pending-returns))
+          (def %exs (%doc-reverse (first %doc-pending-examples)))
+          (def %refs (%doc-reverse (first %doc-pending-sees)))
+          (def %nts (%doc-reverse (first %doc-pending-notes)))
+          (set-first! %doc-params-acc ())
+          (def %clean-value (%doc-strip-fn %value))
+          (def %params (%doc-reverse (first %doc-params-acc)))
+          (%doc-register! %name (%doc-find-last-string %doc-meta)
+            %ret %params %exs %refs %nts)
+          (tail-eval (list (lit def) %name %clean-value) e))))))
 
-; note: (note text...) -> no-op, returns nil
+; note: (note text...) -> no-op, returns nil (standalone section marker)
 (def note (op args e ()))
 
 ; --- Display ---
 
 (def %display-doc
   (fn (entry)
-    ; entry = (name desc returns params examples sees)
-    (display (first entry))
+    (display (%doc-entry-name entry))
     (display ": ")
-    (display (first (rest entry)))
+    (display (%doc-entry-desc entry))
     (newline)
+    ; Show notes
+    (%doc-for-each
+      (fn (n) (display "  ") (display n) (newline))
+      (%doc-entry-notes entry))
     ; Show params
     (def %show-params
       (fn (ps)
@@ -226,9 +265,9 @@
                   (display (first (rest (rest (first ps)))))))
             (newline)
             (%show-params (rest ps))))))
-    (%show-params (first (rest (rest (rest entry)))))
+    (%show-params (%doc-entry-params entry))
     ; Show returns
-    (def %ret (first (rest (rest entry))))
+    (def %ret (%doc-entry-returns entry))
     (if (not (null? %ret))
       (do (display "  => ")
           (display (first %ret))
@@ -237,29 +276,20 @@
                 (display (first (rest %ret)))))
           (newline)))
     ; Show examples
-    (def %show-examples
-      (fn (exs)
-        (if (null? exs) ()
-          (do
-            (display "  > ")
-            (display (first (first exs)))
-            (display " => ")
-            (display (rest (first exs)))
-            (newline)
-            (%show-examples (rest exs))))))
-    (%show-examples (first (rest (rest (rest (rest entry))))))
+    (%doc-for-each
+      (fn (ex)
+        (display "  > ")
+        (display (first ex))
+        (display " => ")
+        (display (rest ex))
+        (newline))
+      (%doc-entry-examples entry))
     ; Show see-also
-    (def %show-sees
-      (fn (refs)
-        (if (null? refs) ()
-          (do
-            (display "  See: ")
-            (display (first refs))
-            (newline)
-            (%show-sees (rest refs))))))
-    (%show-sees (first (rest (rest (rest (rest (rest entry)))))))))
+    (%doc-for-each
+      (fn (ref) (display "  See: ") (display ref) (newline))
+      (%doc-entry-sees entry))))
 
-; --- Module lookup (uses %module-registry-cell from x-core.x) ---
+; --- Module display (uses %module-registry-cell from x-core.x) ---
 
 (def %module-lookup
   (fn (name)
@@ -274,8 +304,32 @@
 (def %display-module
   (fn (entry)
     ; entry = (name . exports)
-    (display (first entry))
-    (display ":") (newline)
+    (def %mod-name (first entry))
+    ; Check doc registry for module-level docs
+    (def %mod-doc (%doc-lookup %mod-name))
+    (display %mod-name)
+    (if (not (null? %mod-doc))
+      (if (not (string=? (%doc-entry-desc %mod-doc) ""))
+        (do (display " -- ") (display (%doc-entry-desc %mod-doc)))))
+    (newline)
+    ; Show module notes
+    (if (not (null? %mod-doc))
+      (%doc-for-each
+        (fn (n) (display "  ") (display n) (newline))
+        (%doc-entry-notes %mod-doc)))
+    ; Show module examples
+    (if (not (null? %mod-doc))
+      (%doc-for-each
+        (fn (ex)
+          (display "  > ")
+          (display (first ex))
+          (display " => ")
+          (display (rest ex))
+          (newline))
+        (%doc-entry-examples %mod-doc)))
+    ; List exports
+    (if (not (null? %mod-doc))
+      (newline))
     (%doc-for-each
       (fn (sym)
         (def %e (%doc-lookup sym))
@@ -283,7 +337,7 @@
         (display sym)
         (if (not (null? %e))
           (do (display " -- ")
-              (display (first (rest %e)))))
+              (display (%doc-entry-desc %e))))
         (newline))
       (rest entry))))
 
@@ -298,7 +352,15 @@
     (newline)
     (display "Modules:") (newline)
     (%doc-for-each
-      (fn (m) (display "  ") (display (first m)) (newline))
+      (fn (m)
+        (display "  ")
+        (display (first m))
+        ; Show module description if available
+        (def %md (%doc-lookup (first m)))
+        (if (not (null? %md))
+          (if (not (string=? (%doc-entry-desc %md) ""))
+            (do (display " -- ") (display (%doc-entry-desc %md)))))
+        (newline))
       (first %module-registry-cell))))
 
 ; help: multi-dispatch
@@ -339,4 +401,6 @@
             (%search (rest entries))))))
     (%search (first %doc-registry-cell))))
 
-(provide x/doc doc note help apropos)
+(doc (provide x/doc doc note help apropos)
+  (note "doc wraps def or provide for metadata. help for REPL lookup. apropos for search.")
+  "Inline documentation system.")

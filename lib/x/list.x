@@ -618,7 +618,7 @@
         (assoc key (rest alist))))))
   "Look up a key in an alist by equality (equal?).")
 
-(provide x/list
+(doc (provide x/list
   fold reduce scan length nth last init append prepend reverse flatten
   map filter for-each flat-map any? every? none? empty?
   complement partial juxt both either all-pass any-pass reject concat sum product
@@ -628,3 +628,6 @@
   partition group-by sort sort-by uniq uniq-by intersperse transpose
   update insert remove adjust
   list? memq member assq assoc)
+  (note "Accepts any iterable (lists, vectors, custom iterables). Ramda-inspired functional style.")
+  (example "(map inc '(1 2 3))" "(2 3 4)")
+  "List processing: map, filter, fold, sort, and 60+ functions.")

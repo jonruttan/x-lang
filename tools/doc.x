@@ -84,15 +84,26 @@
 
   ; --- Extract info from a (doc (def name value) metadata... "desc") form ---
 
+  ; Extract all metadata from a doc form
+  (def %extract-all-meta
+    (fn (meta name)
+      (def %desc (%find-last-string meta))
+      (def %params (%extract-meta-type meta "param" ()))
+      (def %returns (%extract-meta-type meta "returns" ()))
+      (def %examples (%extract-meta-type meta "example" ()))
+      (def %sees (%extract-meta-type meta "see" ()))
+      (def %notes (%extract-meta-type meta "note" ()))
+      (list name %desc %params %returns %examples %sees %notes)))
+
   (def %extract-doc
     (fn (form)
       ; form = (doc X metadata... "desc")
-      ; X is either (def name value) or bare symbol
+      ; X is (def name value), (provide name sym...), or bare symbol
       (def %second (first (rest form)))
+      (def %meta (rest (rest form)))
       (if (%def-form? %second)
         ; --- Wrapping def ---
         (do
-          (def %meta (rest (rest form)))
           (def %name (first (rest %second)))
           (def %value (if (null? (rest (rest %second))) ()
                         (first (rest (rest %second)))))
@@ -106,17 +117,13 @@
           (def %returns (%extract-meta-type %meta "returns" ()))
           (def %examples (%extract-meta-type %meta "example" ()))
           (def %sees (%extract-meta-type %meta "see" ()))
-          (list %name %desc %fn-params %returns %examples %sees))
-        ; --- Bare symbol ---
-        (do
-          (def %meta (rest (rest form)))
-          (def %name %second)
-          (def %desc (%find-last-string %meta))
-          (def %fn-params (%extract-meta-type %meta "param" ()))
-          (def %returns (%extract-meta-type %meta "returns" ()))
-          (def %examples (%extract-meta-type %meta "example" ()))
-          (def %sees (%extract-meta-type %meta "see" ()))
-          (list %name %desc %fn-params %returns %examples %sees)))))
+          (def %notes (%extract-meta-type %meta "note" ()))
+          (list %name %desc %fn-params %returns %examples %sees %notes))
+        (if (%provide-form? %second)
+          ; --- Wrapping provide ---
+          (%extract-all-meta %meta (first (rest %second)))
+          ; --- Bare symbol ---
+          (%extract-all-meta %meta %second)))))
 
   ; --- Markdown output helpers ---
 
@@ -156,13 +163,16 @@
 
   (def %emit-doc-entry
     (fn (info)
-      ; info = (name desc params returns examples sees)
+      ; info = (name desc params returns examples sees notes)
       (def %name (first info))
       (def %desc (first (rest info)))
       (def %params (first (rest (rest info))))
       (def %returns (first (rest (rest (rest info)))))
       (def %examples (first (rest (rest (rest (rest info))))))
       (def %sees (first (rest (rest (rest (rest (rest info)))))))
+      (def %notes (if (null? (rest (rest (rest (rest (rest (rest info)))))))
+                    ()
+                    (first (rest (rest (rest (rest (rest (rest info)))))))))
 
       ; Function name as heading
       (display "### `")
@@ -174,6 +184,17 @@
       ; Description
       (if (not (string=? %desc ""))
         (do (display %desc) (newline) (newline)))
+
+      ; Notes
+      (if (not (null? %notes))
+        (do
+          (for-each
+            (fn (n)
+              ; n = (note "text")
+              (display "> ")
+              (display (first (rest n)))
+              (newline) (newline))
+            %notes)))
 
       ; Parameters
       (if (not (null? %params))

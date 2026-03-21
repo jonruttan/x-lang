@@ -633,4 +633,6 @@
 
 (%type-push-analyse %int-type %int-capped-analyse)
 
-(provide x/bignum bignum? big+ big- big* big/ big% big< big=)
+(doc (provide x/bignum bignum? big+ big- big* big/ big% big< big=)
+  (note "Auto-promotes when integers exceed native range. Extends +,-,*,/,%,<,=.")
+  "Arbitrary-precision integers.")

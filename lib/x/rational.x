@@ -340,5 +340,8 @@
               (substring tok (%int+ pos 1) (string-length tok)) %int))
           ())))))
 
-(provide x/rational
+(doc (provide x/rational
   rational? exact? numerator denominator rat+ rat- rat* rat/ rat< rat=)
+  (note "Literal syntax: 1/3, -2/7. Extends +,-,*,/,%,<,=.")
+  (example "(+ 1/3 1/6)" "1/2")
+  "Exact rational number arithmetic.")

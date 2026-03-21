@@ -606,4 +606,6 @@
   (returns LIST "List of compiled native primitives")
   "Compile multiple (fn ...) expressions in a single cc invocation.")
 
-(provide x/compile str type-cast! compile compile-batch)
+(doc (provide x/compile str type-cast! compile compile-batch)
+  (note "Compiles x-lang expressions to C, loads as shared libraries. Results cached by content hash.")
+  "Native code compiler via dlopen/dlsym.")

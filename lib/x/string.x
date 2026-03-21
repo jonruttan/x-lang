@@ -226,10 +226,12 @@
   (returns LIST "List of substrings")
   "Split a string by a separator.")
 
-(provide x/string
+(doc (provide x/string
   string-empty? string-join string-repeat string-contains?
   string-starts? string-ends? string-reverse string->list
   string-upcase string-downcase
   string<? string>? string<=? string>=?
   string-ci=? string-ci<? string-ci>? string-ci<=? string-ci>=?
   string-trim-left string-trim-right string-trim string-split)
+  (example "(string-split \",\" \"a,b,c\")" "(\"a\" \"b\" \"c\")")
+  "String manipulation, searching, and transformation.")
