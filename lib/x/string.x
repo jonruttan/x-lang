@@ -86,6 +86,8 @@
   (returns STRING "Reversed string")
   "Reverse a string.")
 
+; --- Conversion ---
+
 (note "Conversion")
 
 (doc (def string->list
@@ -94,6 +96,8 @@
       (if (< i 0) acc (go (- i 1) (pair (string-ref s i) acc))))))
   (returns LIST "List of characters")
   "Convert a string to a list of characters.")
+
+; --- Case conversion ---
 
 (note "Case conversion")
 
@@ -108,6 +112,8 @@
     (list->string (map char-downcase (string->list s)))))
   (returns STRING "Lowercased string")
   "Convert all characters in a string to lowercase.")
+
+; --- Ordering ---
 
 (note "Ordering")
 
@@ -135,6 +141,8 @@
 (doc (def string>=? (fn ((param a STRING "First string") (param b STRING "Second string")) (not (string<? a b))))
   (returns BOOL "True if a >= b lexicographically")
   "Lexicographic string greater-than-or-equal comparison.")
+
+; --- Case-insensitive comparison ---
 
 (note "Case-insensitive comparison")
 
@@ -168,6 +176,8 @@
   (returns BOOL "True if a >= b ignoring case")
   "Case-insensitive string greater-than-or-equal.")
 
+; --- Trimming ---
+
 (note "Trimming")
 
 (doc (def string-trim-left
@@ -195,6 +205,8 @@
     (string-trim-left (string-trim-right s))))
   (returns STRING "String with both leading and trailing whitespace removed")
   "Remove whitespace from both ends of a string.")
+
+; --- Splitting ---
 
 (note "Splitting")
 

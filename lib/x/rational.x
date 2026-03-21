@@ -125,17 +125,33 @@
                 (convert (rest (first self)) %string)))))))))
 ; --- Predicates ---
 
-(def rational? (fn (x) (if (type? x %rational) #t (%int-number? x))))
+(note "Predicates")
 
-(def exact? (fn (x) (if (type? x %rational) #t (%int-number? x))))
+(doc (def rational? (fn ((param x ANY "Value to test")) (if (type? x %rational) #t (%int-number? x))))
+  (returns BOOLEAN "True if x is rational or integer")
+  "Test whether a value is a rational number or integer.")
+
+(doc (def exact? (fn ((param x ANY "Value to test")) (if (type? x %rational) #t (%int-number? x))))
+  (returns BOOLEAN "True if x is exact (rational or integer)")
+  "Test whether a value is an exact number.")
 ; --- Accessors ---
 
-(def numerator
-  (fn (x) (if (type? x %rational) (first (first x)) x)))
+(note "Accessors")
 
-(def denominator
-  (fn (x) (if (type? x %rational) (rest (first x)) 1)))
+(doc (def numerator
+  (fn ((param x RATIONAL|INTEGER "Rational or integer"))
+    (if (type? x %rational) (first (first x)) x)))
+  (returns INTEGER "Numerator of the rational, or the integer itself")
+  "Return the numerator of a rational number.")
+
+(doc (def denominator
+  (fn ((param x RATIONAL|INTEGER "Rational or integer"))
+    (if (type? x %rational) (rest (first x)) 1)))
+  (returns INTEGER "Denominator of the rational, or 1 for integers")
+  "Return the denominator of a rational number.")
 ; --- Arithmetic ---
+
+(note "Arithmetic")
 
 (def %rat-numer-of
   (fn (x) (if (type? x %rational) (first (first x)) x)))
@@ -143,47 +159,69 @@
 (def %rat-denom-of
   (fn (x) (if (type? x %rational) (rest (first x)) 1)))
 
-(def rat+
-  (fn (a b)
+(doc (def rat+
+  (fn ((param a RATIONAL|INTEGER "First operand")
+       (param b RATIONAL|INTEGER "Second operand"))
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
       (%make-rational
         (%int+ (%int* an bd) (%int* bn ad))
         (%int* ad bd)))))
+  (returns RATIONAL|INTEGER "Sum, reduced to lowest terms")
+  "Add two rational numbers.")
 
-(def rat-
-  (fn (a b)
+(doc (def rat-
+  (fn ((param a RATIONAL|INTEGER "First operand")
+       (param b RATIONAL|INTEGER "Second operand"))
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
       (%make-rational
         (%int- (%int* an bd) (%int* bn ad))
         (%int* ad bd)))))
+  (returns RATIONAL|INTEGER "Difference, reduced to lowest terms")
+  "Subtract two rational numbers.")
 
-(def rat*
-  (fn (a b)
+(doc (def rat*
+  (fn ((param a RATIONAL|INTEGER "First operand")
+       (param b RATIONAL|INTEGER "Second operand"))
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
       (%make-rational (%int* an bn) (%int* ad bd)))))
+  (returns RATIONAL|INTEGER "Product, reduced to lowest terms")
+  "Multiply two rational numbers.")
 
-(def rat/
-  (fn (a b)
+(doc (def rat/
+  (fn ((param a RATIONAL|INTEGER "Dividend")
+       (param b RATIONAL|INTEGER "Divisor"))
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
       (%make-rational (%int* an bd) (%int* ad bn)))))
+  (returns RATIONAL|INTEGER "Quotient, reduced to lowest terms")
+  "Divide two rational numbers.")
 ; --- Comparisons ---
 
-(def rat<
-  (fn (a b)
+(note "Comparison")
+
+(doc (def rat<
+  (fn ((param a RATIONAL|INTEGER "Left operand")
+       (param b RATIONAL|INTEGER "Right operand"))
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
       (%int< (%int* an bd) (%int* bn ad)))))
+  (returns BOOLEAN "True if a < b")
+  "Test whether rational a is less than rational b.")
 
-(def rat=
-  (fn (a b)
+(doc (def rat=
+  (fn ((param a RATIONAL|INTEGER "Left operand")
+       (param b RATIONAL|INTEGER "Right operand"))
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
       (%int= (%int* an bd) (%int* bn ad)))))
+  (returns BOOLEAN "True if a equals b")
+  "Test whether two rational numbers are equal.")
 ; --- Operator promotion: int -> rational -> float ---
+
+(note "Operator Overrides")
 ; Save float-aware operators before overriding
 
 (def %num+ +)
@@ -213,15 +251,21 @@
         (%rat-binop rat-op float-op int-op acc (first lst))
         (rest lst)))))
 
+(doc + "Add numbers with int/rational/float promotion."
+  (param args NUMBER "Numbers to add")
+  (returns NUMBER "Sum"))
 (set! +
   (fn args
     (if (null? args) 0
-      (%rat-fold rat+ f+ %int+ (first args) (rest args)))))
+      (%rat-fold rat+ f+ %num+ (first args) (rest args)))))
 
+(doc * "Multiply numbers with int/rational/float promotion."
+  (param args NUMBER "Numbers to multiply")
+  (returns NUMBER "Product"))
 (set! *
   (fn args
     (if (null? args) 1
-      (%rat-fold rat* f* %int* (first args) (rest args)))))
+      (%rat-fold rat* f* %num* (first args) (rest args)))))
 
 ; Integer division that produces rational when not exact
 (def %exact-div
@@ -230,6 +274,9 @@
       (%int/ a b)
       (%make-rational a b))))
 
+(doc / "Divide numbers with int/rational/float promotion. Integer division produces rationals when not exact."
+  (param args NUMBER "Numbers to divide")
+  (returns NUMBER "Quotient"))
 (set! /
   (fn args
     (if (null? args) 1
@@ -237,6 +284,9 @@
         (%rat-binop rat/ f/ %exact-div 1 (first args))
         (%rat-fold rat/ f/ %exact-div (first args) (rest args))))))
 
+(doc - "Subtract numbers with int/rational/float promotion. Unary form negates."
+  (param args NUMBER "Numbers to subtract")
+  (returns NUMBER "Difference"))
 (set! -
   (fn args
     (if (null? args) 0
@@ -245,25 +295,37 @@
           (f- (exact->inexact 0) (first args))
           (if (%rat? (first args))
             (rat- (%make-rational 0 1) (first args))
-            (%int- (first args))))
-        (%rat-fold rat- f- %int- (first args) (rest args))))))
+            (%num- (first args))))
+        (%rat-fold rat- f- %num- (first args) (rest args))))))
 
+(doc < "Compare numbers with int/rational/float promotion."
+  (param a NUMBER "Left operand")
+  (param b NUMBER "Right operand")
+  (returns BOOLEAN "True if a < b"))
 (set! <
   (fn (a b)
     (if (float? a) (f< a (%ensure-float b))
       (if (float? b) (f< (%ensure-float a) b)
         (if (%rat? a) (rat< a (if (%rat? b) b (%make-rational b 1)))
           (if (%rat? b) (rat< (%make-rational a 1) b)
-            (%int< a b)))))))
+            (%num< a b)))))))
 
+(doc = "Test equality with int/rational/float promotion."
+  (param a NUMBER "Left operand")
+  (param b NUMBER "Right operand")
+  (returns BOOLEAN "True if a equals b"))
 (set! =
   (fn (a b)
     (if (float? a) (f= a (%ensure-float b))
       (if (float? b) (f= (%ensure-float a) b)
         (if (%rat? a) (rat= a (if (%rat? b) b (%make-rational b 1)))
           (if (%rat? b) (rat= (%make-rational a 1) b)
-            (%int= a b)))))))
+            (%num= a b)))))))
 ; Harden % against / override (/ now produces rationals)
+(doc % "Integer remainder, hardened against rational / override."
+  (param a INTEGER "Dividend")
+  (param b INTEGER "Divisor")
+  (returns INTEGER "Remainder"))
 (set! % (fn (a b) (%int- a (%int* b (%int/ a b)))))
 ; --- Reader ---
 

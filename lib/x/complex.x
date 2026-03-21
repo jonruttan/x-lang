@@ -166,58 +166,90 @@
             (fn (self) (write-to-string self))))))))
 ; --- Arithmetic ---
 
-(def complex+
-  (fn (a b)
+(note "Arithmetic")
+
+(doc (def complex+
+  (fn ((param a COMPLEX|NUMBER "First operand")
+       (param b COMPLEX|NUMBER "Second operand"))
     (%make-complex
       (%real+ (%complex-re a) (%complex-re b))
       (%real+ (%complex-im a) (%complex-im b)))))
+  (returns COMPLEX|NUMBER "Sum, collapsed to real if imaginary part is zero")
+  "Add two complex numbers.")
 
-(def complex-
-  (fn (a b)
+(doc (def complex-
+  (fn ((param a COMPLEX|NUMBER "First operand")
+       (param b COMPLEX|NUMBER "Second operand"))
     (%make-complex
       (%real- (%complex-re a) (%complex-re b))
       (%real- (%complex-im a) (%complex-im b)))))
+  (returns COMPLEX|NUMBER "Difference, collapsed to real if imaginary part is zero")
+  "Subtract two complex numbers.")
 
-(def complex*
-  (fn (a b)
+(doc (def complex*
+  (fn ((param a COMPLEX|NUMBER "First operand")
+       (param b COMPLEX|NUMBER "Second operand"))
     (let ((ar (%complex-re a)) (ai (%complex-im a))
           (br (%complex-re b)) (bi (%complex-im b)))
       (%make-complex
         (%real- (%real* ar br) (%real* ai bi))
         (%real+ (%real* ar bi) (%real* ai br))))))
+  (returns COMPLEX|NUMBER "Product, collapsed to real if imaginary part is zero")
+  "Multiply two complex numbers.")
 
-(def complex/
-  (fn (a b)
+(doc (def complex/
+  (fn ((param a COMPLEX|NUMBER "Dividend")
+       (param b COMPLEX|NUMBER "Divisor"))
     (let ((ar (%complex-re a)) (ai (%complex-im a))
           (br (%complex-re b)) (bi (%complex-im b)))
       (let ((denom (%real+ (%real* br br) (%real* bi bi))))
         (%make-complex
           (%real/ (%real+ (%real* ar br) (%real* ai bi)) denom)
           (%real/ (%real- (%real* ai br) (%real* ar bi)) denom))))))
+  (returns COMPLEX|NUMBER "Quotient, collapsed to real if imaginary part is zero")
+  "Divide two complex numbers.")
 
-(def complex=
-  (fn (a b)
+(doc (def complex=
+  (fn ((param a COMPLEX|NUMBER "Left operand")
+       (param b COMPLEX|NUMBER "Right operand"))
     (if (%real= (%complex-re a) (%complex-re b))
       (%real= (%complex-im a) (%complex-im b))
       ())))
+  (returns BOOLEAN "True if both real and imaginary parts are equal")
+  "Test whether two complex numbers are equal.")
 ; --- R5RS constructors and accessors ---
 
-(def make-rectangular
-  (fn (re im) (%make-complex re im)))
+(note "Constructors and Accessors")
 
-(def make-polar
-  (fn (mag ang)
+(doc (def make-rectangular
+  (fn ((param re NUMBER "Real part")
+       (param im NUMBER "Imaginary part"))
+    (%make-complex re im)))
+  (returns COMPLEX|NUMBER "Complex number, or real if imaginary part is zero")
+  "Construct a complex number from rectangular coordinates.")
+
+(doc (def make-polar
+  (fn ((param mag NUMBER "Magnitude")
+       (param ang NUMBER "Angle in radians"))
     (let ((fang (exact->inexact ang)) (fmag (exact->inexact mag)))
       (%make-complex
         (f* fmag (fcos fang))
         (f* fmag (fsin fang))))))
+  (returns COMPLEX|NUMBER "Complex number from polar coordinates")
+  "Construct a complex number from polar coordinates (magnitude and angle).")
 
+(doc real-part "Return the real part of a complex number, or the number itself for reals."
+  (param z COMPLEX|NUMBER "Complex or real number")
+  (returns NUMBER "Real part"))
 (def real-part %complex-re)
 
+(doc imag-part "Return the imaginary part of a complex number, or 0 for reals."
+  (param z COMPLEX|NUMBER "Complex or real number")
+  (returns NUMBER "Imaginary part"))
 (def imag-part %complex-im)
 
-(def magnitude
-  (fn (z)
+(doc (def magnitude
+  (fn ((param z COMPLEX|NUMBER "Complex or real number"))
     (if (%complex? z)
       (let ((re (exact->inexact (%complex-re z)))
             (im (exact->inexact (%complex-im z))))
@@ -225,15 +257,21 @@
       (if (%real< z 0)
         (exact->inexact (%real- 0 z))
         (exact->inexact z)))))
+  (returns FLOAT "Absolute value (distance from origin)")
+  "Return the magnitude (absolute value) of a complex or real number.")
 
-(def angle
-  (fn (z)
+(doc (def angle
+  (fn ((param z COMPLEX|NUMBER "Complex or real number"))
     (if (%complex? z)
       (fatan2
         (exact->inexact (%complex-im z))
         (exact->inexact (%complex-re z)))
       (if (%real< z 0) %pi (exact->inexact 0)))))
+  (returns FLOAT "Angle in radians")
+  "Return the angle (argument) of a complex number in radians.")
 ; --- Operator promotion: add complex layer ---
+
+(note "Operator Overrides")
 
 (def %complex-fold
   (fn (complex-op real-op acc lst)
@@ -246,16 +284,25 @@
             (real-op acc (first lst))))
         (rest lst)))))
 
+(doc + "Add numbers with full numeric tower promotion (int/rational/float/complex)."
+  (param args NUMBER "Numbers to add")
+  (returns NUMBER "Sum"))
 (set! +
   (fn args
     (if (null? args) 0
       (%complex-fold complex+ %real+ (first args) (rest args)))))
 
+(doc * "Multiply numbers with full numeric tower promotion."
+  (param args NUMBER "Numbers to multiply")
+  (returns NUMBER "Product"))
 (set! *
   (fn args
     (if (null? args) 1
       (%complex-fold complex* %real* (first args) (rest args)))))
 
+(doc / "Divide numbers with full numeric tower promotion."
+  (param args NUMBER "Numbers to divide")
+  (returns NUMBER "Quotient"))
 (set! /
   (fn args
     (if (null? args) 1
@@ -265,6 +312,9 @@
           (%real/ 1 (first args)))
         (%complex-fold complex/ %real/ (first args) (rest args))))))
 
+(doc - "Subtract numbers with full numeric tower promotion. Unary form negates."
+  (param args NUMBER "Numbers to subtract")
+  (returns NUMBER "Difference"))
 (set! -
   (fn args
     (if (null? args) 0
@@ -274,6 +324,10 @@
           (%real- (first args)))
         (%complex-fold complex- %real- (first args) (rest args))))))
 
+(doc = "Test equality with full numeric tower promotion."
+  (param a NUMBER "Left operand")
+  (param b NUMBER "Right operand")
+  (returns BOOLEAN "True if a equals b"))
 (set! =
   (fn (a b)
     (if (%complex? a)
@@ -283,6 +337,11 @@
         (%real= a b)))))
 ; --- Predicates ---
 
+(note "Predicates")
+
+(doc number? "Test whether a value is any numeric type (integer, rational, float, or complex)."
+  (param x ANY "Value to test")
+  (returns BOOLEAN "True if x is a number"))
 (set! number?
   (fn (x)
     (if (%complex? x) #t
@@ -290,8 +349,14 @@
         (if (float? x) #t
           (%int-number? x))))))
 
+(doc complex? "Test whether a value is any numeric type (alias for number?)."
+  (param x ANY "Value to test")
+  (returns BOOLEAN "True if x is a number"))
 (def complex? number?)
 
+(doc real? "Test whether a value is a real number (integer, rational, or float, but not complex)."
+  (param x ANY "Value to test")
+  (returns BOOLEAN "True if x is a real number"))
 (set! real?
   (fn (x)
     (if (%rat? x) #t

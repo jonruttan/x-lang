@@ -1,5 +1,7 @@
 ; math.x -- Math and number predicates
 
+; --- Arithmetic ---
+
 (note "Arithmetic")
 
 (doc (def inc (fn ((param n NUMBER "Number to increment")) (+ n 1)))
@@ -38,6 +40,8 @@
   (returns ANY "The value whose projection is larger")
   "Return the value with the larger result under f.")
 
+; --- Number predicates ---
+
 (note "Number predicates")
 
 (doc (def zero? (fn ((param n NUMBER "Number to test")) (= n 0)))
@@ -63,6 +67,8 @@
 ; --- GCD / LCM (need fold from list.x, loaded after) ---
 ; These are defined as stubs here, then set! after list.x loads.
 ; Actually loaded in x-core.x after list.x via inline definitions.
+
+; --- Exponentiation ---
 
 (note "Exponentiation")
 

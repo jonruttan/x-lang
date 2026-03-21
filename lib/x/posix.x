@@ -58,6 +58,8 @@
     (ptr-call %c-exit status)))
   "Terminate the process with the given exit status.")
 
+; --- waitpid: allocate int for status, wait, extract exit code ---
+
 (doc (def sh-wait
   (fn ((param pid INTEGER "Process ID to wait for"))
     (let ((buf (convert (ptr-call %c-malloc 4) %ptr)))
@@ -67,6 +69,8 @@
         (/ (% raw 65536) 256)))))
   (returns INTEGER "Exit status of the child process")
   "Wait for a child process and return its exit status.")
+
+; --- exec: build C argv array, call execvp ---
 
 (doc (def sh-exec
   (fn ((param name STRING "Program name") (param args LIST "List of argument strings"))
@@ -101,6 +105,8 @@
   (returns INTEGER "New file descriptor, or -1 on error")
   "Duplicate a file descriptor onto another.")
 
+; --- pipe: allocate int[2], call pipe(), read back fds ---
+
 (doc (def sh-pipe
   (fn ()
     (let ((buf (convert (ptr-call %c-malloc 8) %ptr)))
@@ -112,6 +118,9 @@
   "Create a pipe and return a pair of file descriptors.")
 
 (note "File I/O")
+
+; --- open variants ---
+; O_* flags are platform constants bound by the FFI layer
 
 (doc (def sh-open-read
   (fn ((param path STRING "File path to open"))
@@ -148,6 +157,8 @@
     (ptr-call %c-setenv name val 1)))
   (returns INTEGER "0 on success, -1 on error")
   "Set an environment variable, overwriting any existing value.")
+
+; --- getenv: returns char*, convert to string (or () if NULL) ---
 
 (doc (def sh-getenv
   (fn ((param name STRING "Variable name"))

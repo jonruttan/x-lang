@@ -1,5 +1,7 @@
 ; char.x -- Character predicates and case conversion
 
+; --- Classification ---
+
 (note "Classification")
 
 (doc (def char-alphabetic?
@@ -34,6 +36,8 @@
   (returns BOOL "True if c is lowercase a-z")
   "Test whether a character is lowercase.")
 
+; --- Case conversion ---
+
 (note "Case conversion")
 
 (doc (def char-upcase
@@ -51,6 +55,8 @@
       c)))
   (returns CHAR "Lowercase version of c, or c unchanged")
   "Convert a character to lowercase.")
+
+; --- Comparisons ---
 
 (note "Comparisons")
 
@@ -73,6 +79,8 @@
 (doc (def char>=? (fn ((param a CHAR "First character") (param b CHAR "Second character")) (>= (char->integer a) (char->integer b))))
   (returns BOOL "True if a is equal to or comes after b")
   "Test whether a character is greater than or equal to another.")
+
+; --- Case-insensitive comparisons ---
 
 (note "Case-insensitive comparisons")
 

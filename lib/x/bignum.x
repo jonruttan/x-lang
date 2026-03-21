@@ -24,13 +24,19 @@
 
 ; Find largest power of 10 whose square fits in native integer
 ; This gives us the bignum base and digits-per-limb
+; Find largest d where (10^d - 1)^2 fits in long
+; i.e. largest d where 10^d <= sqrt(LONG_MAX)
+; Test: can we go one more? If LONG_MAX / (b*10) < (b*10), stop at d
 (def %bignum-digits-per-limb
   (do
     (def %fb
       (fn (d b)
-        (if (%int< (%int/ %long-max b) b) d
-          (%fb (%int+ d 1) (%int* b 10)))))
-    (%fb 0 1)))
+        (def next (%int* b 10))
+        ; Safe check: LONG_MAX / next >= next means next^2 fits
+        (if (%int< (%int/ %long-max next) next)
+          d
+          (%fb (%int+ d 1) next))))
+    (%fb 1 10)))
 
 (def %bignum-base
   (do
@@ -82,7 +88,7 @@
         (def s (%int+ (%int+ (if (null? a) 0 (first a))
                               (if (null? b) 0 (first b)))
                        carry))
-        (pair (%int% s %bignum-base)
+        (pair (modulo-int s %bignum-base)
               (%limb-add (if (null? a) () (rest a))
                          (if (null? b) () (rest b))
                          (%int/ s %bignum-base)))))))
@@ -106,7 +112,7 @@
       (if (%int= carry 0) () (list carry))
       (do
         (def p (%int+ (%int* (first b) limb) carry))
-        (pair (%int% p %bignum-base)
+        (pair (modulo-int p %bignum-base)
               (%limb-mul1 (rest b) limb (%int/ p %bignum-base)))))))
 
 ; Schoolbook multiply: a * b
@@ -127,7 +133,7 @@
         (if (null? ra) (pair (reverse qacc) rem)
           (do
             (def cur (%int+ (%int* rem %bignum-base) (first ra)))
-            (%div-go (rest ra) (%int% cur divisor)
+            (%div-go (rest ra) (modulo-int cur divisor)
                      (pair (%int/ cur divisor) qacc))))))
     (%div-go (reverse a) 0 ())))
 
@@ -252,11 +258,12 @@
       (fn (m acc)
         (if (%int= m 0) (if (null? acc) (list 0) acc)
           (%go (%int/ m %bignum-base)
-               (pair (%int% m %bignum-base) acc)))))
+               (pair (modulo-int m %bignum-base) acc)))))
     (pair sign (reverse (%go mag ())))))
 
-; Forward declare %bignum
+; Forward declare %bignum and reader
 (def %bignum ())
+(def %bignum-read ())
 
 (def %make-bignum
   (fn (sign limbs)
@@ -278,7 +285,11 @@
 
 ; --- Signed operations ---
 
-(def bignum? (fn (x) (type? x %bignum)))
+(note "Predicates")
+
+(doc (def bignum? (fn ((param x ANY "Value to test")) (type? x %bignum)))
+  (returns BOOLEAN "True if x is a bignum")
+  "Test whether a value is an arbitrary-precision integer.")
 
 (def %big-sign (fn (x) (first (first x))))
 (def %big-limbs (fn (x) (rest (first x))))
@@ -290,8 +301,11 @@
         (def r (%bignum-from-int x))
         (make-instance %bignum r)))))
 
-(def big+
-  (fn (a b)
+(note "Arithmetic")
+
+(doc (def big+
+  (fn ((param a BIGNUM "First operand")
+       (param b BIGNUM "Second operand"))
     (def sa (%big-sign a))
     (def sb (%big-sign b))
     (def la (%big-limbs a))
@@ -306,36 +320,53 @@
           (if (%int< 0 c)
             (%make-bignum sa (%limb-sub la lb 0))
             (%make-bignum sb (%limb-sub lb la 0))))))))
+  (returns INTEGER|BIGNUM "Sum, demoted to integer if it fits")
+  "Add two bignums.")
 
-(def big-
-  (fn (a b)
+(doc (def big-
+  (fn ((param a BIGNUM "First operand")
+       (param b BIGNUM "Second operand"))
     ; Negate b's sign and add
     (def sb (%int* -1 (%big-sign b)))
     (def nb (make-instance %bignum (pair sb (%big-limbs b))))
     (big+ a nb)))
+  (returns INTEGER|BIGNUM "Difference, demoted to integer if it fits")
+  "Subtract two bignums.")
 
-(def big*
-  (fn (a b)
+(doc (def big*
+  (fn ((param a BIGNUM "First operand")
+       (param b BIGNUM "Second operand"))
     (def sa (%big-sign a))
     (def sb (%big-sign b))
     (def sign (%int* sa sb))
     (%make-bignum sign (%limb-mul (%big-limbs a) (%big-limbs b)))))
+  (returns INTEGER|BIGNUM "Product, demoted to integer if it fits")
+  "Multiply two bignums.")
 
-(def big/
-  (fn (a b)
+(doc (def big/
+  (fn ((param a BIGNUM "Dividend")
+       (param b BIGNUM "Divisor"))
     (def sa (%big-sign a))
     (def sb (%big-sign b))
     (def sign (%int* sa sb))
     (def r (%limb-divmod (%big-limbs a) (%big-limbs b)))
     (%make-bignum sign (first r))))
+  (returns INTEGER|BIGNUM "Quotient (truncated), demoted to integer if it fits")
+  "Divide two bignums (truncating division).")
 
-(def big%
-  (fn (a b)
+(doc (def big%
+  (fn ((param a BIGNUM "Dividend")
+       (param b BIGNUM "Divisor"))
     (def r (%limb-divmod (%big-limbs a) (%big-limbs b)))
     (%make-bignum (%big-sign a) (rest r))))
+  (returns INTEGER|BIGNUM "Remainder, demoted to integer if it fits")
+  "Compute the remainder of bignum division.")
 
-(def big<
-  (fn (a b)
+(note "Comparison")
+
+(doc (def big<
+  (fn ((param a BIGNUM "Left operand")
+       (param b BIGNUM "Right operand"))
     (def sa (%big-sign a))
     (def sb (%big-sign b))
     (if (%int< sa sb) #t
@@ -346,11 +377,16 @@
           (if (%int= sa 1)
             (%int< c 0)
             (%int< 0 c)))))))
+  (returns BOOLEAN "True if a < b")
+  "Test whether bignum a is less than bignum b.")
 
-(def big=
-  (fn (a b)
+(doc (def big=
+  (fn ((param a BIGNUM "Left operand")
+       (param b BIGNUM "Right operand"))
     (if (not (%int= (%big-sign a) (%big-sign b))) #f
       (%int= 0 (%limb-cmp (%big-limbs a) (%big-limbs b))))))
+  (returns BOOLEAN "True if a equals b")
+  "Test whether two bignums are equal.")
 
 ; --- Overflow detection for integer operations ---
 
@@ -370,8 +406,11 @@
       (if (%int= b 0) #f
         (%int< (%int/ %long-max (%int-abs a)) (%int-abs b))))))
 
-; --- Operator overrides ---
+(note "Operator Overrides")
 
+(doc + "Add numbers, promoting to bignum on overflow."
+  (param args INTEGER|BIGNUM "Numbers to add")
+  (returns INTEGER|BIGNUM "Sum"))
 (set! +
   (fn args
     (if (null? args) 0
@@ -384,6 +423,9 @@
                 (%int+ acc x)))))
         (first args) (rest args)))))
 
+(doc - "Subtract numbers, promoting to bignum on overflow. Unary form negates."
+  (param args INTEGER|BIGNUM "Numbers to subtract")
+  (returns INTEGER|BIGNUM "Difference"))
 (set! -
   (fn args
     (if (null? args) 0
@@ -402,6 +444,9 @@
                   (%int- acc x)))))
           (first args) (rest args))))))
 
+(doc * "Multiply numbers, promoting to bignum on overflow."
+  (param args INTEGER|BIGNUM "Numbers to multiply")
+  (returns INTEGER|BIGNUM "Product"))
 (set! *
   (fn args
     (if (null? args) 1
@@ -414,6 +459,9 @@
                 (%int* acc x)))))
         (first args) (rest args)))))
 
+(doc / "Divide numbers, promoting to bignum when needed."
+  (param args INTEGER|BIGNUM "Numbers to divide")
+  (returns INTEGER|BIGNUM "Quotient"))
 (set! /
   (fn args
     (if (null? args) 1
@@ -424,18 +472,30 @@
               (%int/ acc x))))
         (first args) (rest args)))))
 
+(doc % "Compute remainder, promoting to bignum when needed."
+  (param a INTEGER|BIGNUM "Dividend")
+  (param b INTEGER|BIGNUM "Divisor")
+  (returns INTEGER|BIGNUM "Remainder"))
 (set! %
   (fn (a b)
     (if (bignum? a) (big% a (%ensure-big b))
       (if (bignum? b) (big% (%ensure-big a) b)
-        (%int% a b)))))
+        (modulo-int a b)))))
 
+(doc < "Compare numbers, promoting to bignum when needed."
+  (param a INTEGER|BIGNUM "Left operand")
+  (param b INTEGER|BIGNUM "Right operand")
+  (returns BOOLEAN "True if a < b"))
 (set! <
   (fn (a b)
     (if (bignum? a) (big< a (%ensure-big b))
       (if (bignum? b) (big< (%ensure-big a) b)
         (%int< a b)))))
 
+(doc = "Test equality, promoting to bignum when needed."
+  (param a INTEGER|BIGNUM "Left operand")
+  (param b INTEGER|BIGNUM "Right operand")
+  (returns BOOLEAN "True if a equals b"))
 (set! =
   (fn (a b)
     (if (bignum? a) (big= a (%ensure-big b))
@@ -477,7 +537,7 @@
         (fn (self) (display (%bignum-to-string (first (first self)) (rest (first self))))))
       (pair (lit first-chars) "0123456789-+")
       (pair (lit analyse) %big-analyse)
-      (pair (lit read) (fn args (%bignum-from-string (buffer-token (first args)))))
+      (pair (lit read) (fn args (%bignum-read (first args))))
       (pair (lit from)
         (list
           (pair (type-of 42)
@@ -492,6 +552,31 @@
             (fn (self) (%bignum-to-int (first (first self)) (rest (first self)))))
           (pair (type-of "")
             (fn (self) (%bignum-to-string (first (first self)) (rest (first self))))))))))
+
+; --- Reader (set after make-type so closure captures the real %bignum) ---
+(set! %bignum-read
+  (fn args
+    (def tok (buffer-token (first args)))
+    (def len (string-length tok))
+    (def neg (if (%int< 0 len)
+               (if (%int= (char->integer (tok 0)) 45) #t #f) #f))
+    (def start (if neg 1
+                 (if (if (%int< 0 len)
+                       (%int= (char->integer (tok 0)) 43) #f) 1 0)))
+    (def sign (if neg -1 1))
+    (def digit-str (if (%int= start 0) tok (substring tok start len)))
+    (def dlen (string-length digit-str))
+    (def %pl
+      (fn (pos acc)
+        (if (not (%int< 0 pos)) acc
+          (do
+            (def cs (if (%int< (%int- pos %bignum-digits-per-limb) 0)
+                      0 (%int- pos %bignum-digits-per-limb)))
+            (def lm (string->number (substring digit-str cs pos)))
+            (%pl cs (pair lm acc))))))
+    (def limbs (reverse (%pl dlen ())))
+    (def nlimbs (%bignum-normalize limbs))
+    (make-instance %bignum (pair sign nlimbs))))
 
 ; --- Cap the integer analyser ---
 ; Push a capped analyser onto the integer type's analyse stack
