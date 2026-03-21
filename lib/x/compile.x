@@ -1,5 +1,6 @@
 ; compile.x -- Runtime compiler: x-lang to native code
 (import x/list)
+(import x/string)
 (import x/posix)
 (import x/hash)
 ;
@@ -10,16 +11,10 @@
 ; via normal type dispatch, each type emitting its own C representation.
 ; The result is compiled with cc, loaded via dlopen/dlsym.
 
-; --- libc write/unlink/access (not in posix.x) ---
+; --- libc resolves (fd-write and file-exists? now in posix.x) ---
 
-(def %c-write (%resolve "write"))
 (def %c-unlink (%resolve "unlink"))
 (def %c-system (%resolve "system"))
-(def %c-access (%resolve "access"))
-
-(def %fd-write
-  (fn (fd s)
-    (ptr-call %c-write fd s (string-length s))))
 
 ; --- Compile counter for unique temp file names ---
 
@@ -28,10 +23,6 @@
 ; --- Compile cache ---
 
 (def %compile-cache-dir "/tmp/x-cache-")
-
-; Check if a file exists (access with F_OK=0)
-(def %file-exists?
-  (fn (path) (= (ptr-call %c-access path 0) 0)))
 
 ; --- Platform-specific cc flags ---
 
@@ -45,13 +36,7 @@
 
 ; --- Multi-arg string concatenation ---
 
-(note "Utilities")
-
-(doc (def str
-  (fn args
-    (fold string-append "" args)))
-  (returns STRING "Concatenated result")
-  "Concatenate all arguments into a single string.")
+; str moved to string.x
 
 ; --- C code generator utilities ---
 
@@ -72,12 +57,7 @@
                (%go (rest ps) (+ i 1))))))
     (%go params 0)))
 
-; Check if symbol is in a list
-(def %compile-member?
-  (fn (sym lst)
-    (if (null? lst) ()
-      (if (eq? sym (first lst)) lst
-        (%compile-member? sym (rest lst))))))
+; memq replaced by memq from list.x
 
 ; --- Compile state (globals read by write handlers) ---
 
@@ -95,51 +75,12 @@
             (%fv-go (rest fvs))))))
     (%fv-go %compile-fvars)))
 
-; --- Type system access ---
-
-; Navigate type struct to io group and write-stack
-; Type layout: (name (data (heap (proc (cvt (io (iter)))))))
-; IO layout: (analyse (delimit (read (write (display (error))))))
-(def %type-io
-  (fn (t) (first (rest (rest (rest (rest (rest t))))))))
-
-; Cell containing the write-stack (so we can push/pop)
-; write-stack = first(write-cell), where write-cell = rest^3(io)
-(def %type-write-cell
-  (fn (t) (rest (rest (rest (%type-io t))))))
-
-; Push a handler onto a type's write stack
-(def %type-push-write
-  (fn (type-struct handler)
-    (let ((cell (%type-write-cell type-struct)))
-      (set-first! cell (pair handler (first cell))))))
-
-; Pop a handler from a type's write stack
-(def %type-pop-write
-  (fn (type-struct)
-    (let ((cell (%type-write-cell type-struct)))
-      (set-first! cell (rest (first cell))))))
-
-; Type alist path: first(first(first(first(rest(first(%base))))))
-(def %type-alist
-  (fn ()
-    (first (first (first (first (rest (first (%base)))))))))
-
-; Find a type struct by name atom (from type-of) in the type alist
-(def %type-by-atom
-  (fn (name-atom)
-    (def %go
-      (fn (alist)
-        (if (null? alist) (error "compile: type not found")
-          (if (eq? (first (first alist)) name-atom)
-            (rest (first alist))
-            (%go (rest alist))))))
-    (%go (%type-alist))))
+; --- Type system access (via type.x) ---
 
 ; Cache type structs at load time using representative objects
-(def %list-type (%type-by-atom (type-of (list 1))))
-(def %symbol-type (%type-by-atom (type-of (lit a))))
-(def %int-type (%type-by-atom (type-of 0)))
+(def %list-type (type-by-atom (type-of (list 1))))
+(def %symbol-type (type-by-atom (type-of (lit a))))
+(def %int-type (type-by-atom (type-of 0)))
 
 ; --- C-emitting write handlers ---
 ;
@@ -151,7 +92,7 @@
 ; SYMBOL: emit C variable reference
 (def %compile-symbol-write
   (fn (sym)
-    (if (%compile-member? sym %compile-params)
+    (if (memq sym %compile-params)
       (display (str "p_" (convert sym %string)))
       (let ((fv-entry (%compile-fvar-lookup sym)))
         (if (null? fv-entry)
@@ -306,27 +247,32 @@
     (%cw-emit (first args))
     (display ")")))
 
-; LIST write handler: dispatch on operator symbol
+; Emitter dispatch table: (operator . handler) alist
+(def %compile-emitters
+  (list
+    (pair (lit if)            %cw-if)
+    (pair (lit =)             %cw-eq)
+    (pair (lit score-set)     %cw-score-set)
+    (pair (lit %seq)          %cw-seq)
+    (pair (lit buffer-unread) %cw-buffer-unread)
+    (pair (lit fn)            %cw-fn)
+    (pair (lit or)            %cw-or)
+    (pair (lit first)         %cw-first)
+    (pair (lit set-first!)    %cw-set-first)
+    (pair (lit atom-add!)     %cw-atom-add)
+    (pair (lit atom-set!)     %cw-atom-set)
+    (pair (lit atom-val)      %cw-atom-val)))
+
+; LIST write handler: dispatch via alist
 (def %compile-list-write
   (fn (lst)
     (if (null? lst)
       (display "NULL")
-      (let ((op (first lst))
-            (args (rest lst)))
-        (if (eq? op (lit if))       (%cw-if args)
-        (if (eq? op (lit =))        (%cw-eq args)
-        (if (eq? op (lit score-set)) (%cw-score-set args)
-        (if (eq? op (lit %seq))     (%cw-seq args)
-        (if (eq? op (lit buffer-unread)) (%cw-buffer-unread args)
-        (if (eq? op (lit fn))       (%cw-fn args)
-        (if (eq? op (lit or))       (%cw-or args)
-        (if (eq? op (lit first))    (%cw-first args)
-        (if (eq? op (lit set-first!)) (%cw-set-first args)
-        (if (eq? op (lit atom-add!)) (%cw-atom-add args)
-        (if (eq? op (lit atom-set!)) (%cw-atom-set args)
-        (if (eq? op (lit atom-val)) (%cw-atom-val args)
+      (let ((entry (assq (first lst) %compile-emitters)))
+        (if entry
+          ((rest entry) (rest lst))
           (error (str "compile: unsupported form: "
-            (convert op %string)))))))))))))))))))
+            (convert (first lst) %string))))))))
 
 ; --- Generate C via write-to-string ---
 
@@ -415,15 +361,15 @@
 
 (def %compile-push-writers
   (fn ()
-    (%type-push-write %list-type %compile-list-write)
-    (%type-push-write %symbol-type %compile-symbol-write)
-    (%type-push-write %int-type %compile-int-write)))
+    (type-push-write %list-type %compile-list-write)
+    (type-push-write %symbol-type %compile-symbol-write)
+    (type-push-write %int-type %compile-int-write)))
 
 (def %compile-pop-writers
   (fn ()
-    (%type-pop-write %list-type)
-    (%type-pop-write %symbol-type)
-    (%type-pop-write %int-type)))
+    (type-pop-write %list-type)
+    (type-pop-write %symbol-type)
+    (type-pop-write %int-type)))
 
 ; --- Type casting ---
 
@@ -466,7 +412,7 @@
 
 (def %compile-cache-load
   (fn (cache-path fns-holder)
-    (if (not (%file-exists? cache-path)) ()
+    (if (not (file-exists? cache-path)) ()
       (let ((lib (dlopen cache-path 1)))
         (if (null? lib) ()
           (let ((fn-ptr (dlsym lib "fn_0")))
@@ -511,7 +457,7 @@
         (%compile-pop-writers)
 
         (def %fd (sh-open-write %src-path))
-        (%fd-write %fd %c-source)
+        (fd-write %fd %c-source)
         (sh-close %fd)
 
         ; Compile to cache or temp path
@@ -579,7 +525,7 @@
     (%compile-pop-writers)
 
     (def %fd (sh-open-write %src-path))
-    (%fd-write %fd %c-source)
+    (fd-write %fd %c-source)
     (sh-close %fd)
 
     (%compile-cc %src-path %lib-path)
@@ -606,6 +552,6 @@
   (returns LIST "List of compiled native primitives")
   "Compile multiple (fn ...) expressions in a single cc invocation.")
 
-(doc (provide x/compile str type-cast! compile compile-batch)
+(doc (provide x/compile type-cast! compile compile-batch)
   (note "Compiles x-lang expressions to C, loads as shared libraries. Results cached by content hash.")
   "Native code compiler via dlopen/dlsym.")

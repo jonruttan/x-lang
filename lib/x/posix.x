@@ -167,9 +167,23 @@
   (returns STRING "Variable value, or nil if not set")
   "Get the value of an environment variable.")
 
+(note "General utilities")
+
+(doc (def fd-write
+  (fn ((param fd NUMBER "File descriptor") (param s STRING "String to write"))
+    (ptr-call (%resolve "write") fd s (string-length s))))
+  (returns NUMBER "Bytes written")
+  "Write a string to a file descriptor.")
+
+(doc (def file-exists?
+  (fn ((param path STRING "File path to check"))
+    (= (ptr-call (%resolve "access") path 0) 0)))
+  (returns BOOLEAN "True if file exists")
+  "Check if a file exists (via access with F_OK=0).")
+
 (doc (provide x/posix
   sh-fork sh-getpid sh-close sh-dup2 sh-chdir sh-exit
   sh-setenv sh-getenv sh-open-read sh-open-write sh-open-append
-  sh-pipe sh-wait sh-exec)
+  sh-pipe sh-wait sh-exec fd-write file-exists?)
   (note "Provides fork, exec, pipe, dup2, wait, open, close, chdir, getenv, setenv.")
   "POSIX system call wrappers via FFI.")

@@ -3,6 +3,15 @@
 (import x/list)
 (import x/derived)
 
+(note "Construction")
+
+(doc (def str
+  (fn args
+    (fold string-append "" args)))
+  (returns STRING "Concatenated result")
+  (example "(str \"hello\" \" \" \"world\")" "\"hello world\"")
+  "Concatenate all arguments into a single string.")
+
 (note "Predicates")
 
 (doc (def string-empty? (fn ((param s STRING "String to test")) (= (string-length s) 0)))
@@ -245,7 +254,7 @@
   "Split a string by a separator.")
 
 (doc (provide x/string
-  make-string string-pad-left string-empty? string-join string-repeat string-contains?
+  str make-string string-pad-left string-empty? string-join string-repeat string-contains?
   string-starts? string-ends? string-reverse string->list
   string-upcase string-downcase
   string<? string>? string<=? string>=?

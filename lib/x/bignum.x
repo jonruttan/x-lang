@@ -582,30 +582,8 @@
 ; Push a capped analyser onto the integer type's analyse stack
 ; that rejects numbers with too many digits for native int
 
-; Type struct navigation (same as compile.x but local to avoid dependency)
-(def %big-type-io
-  (fn (t) (first (rest (rest (rest (rest (rest t))))))))
-
-(def %big-type-alist
-  (fn ()
-    (first (first (first (first (rest (first (%base)))))))))
-
-(def %big-type-by-atom
-  (fn (name-atom)
-    (def %go
-      (fn (alist)
-        (if (null? alist) ()
-          (if (eq? (first (first alist)) name-atom)
-            (rest (first alist))
-            (%go (rest alist))))))
-    (%go (%big-type-alist))))
-
-(def %type-push-analyse
-  (fn (type-struct handler)
-    (def cell (%big-type-io type-struct))
-    (set-first! cell (pair handler (first cell)))))
-
-(def %int-type (%big-type-by-atom (type-of 0)))
+; Type struct navigation via type.x (available from x-core.x boot)
+(def %int-type (type-by-atom (type-of 0)))
 
 (def %int-capped-digits ())
 (set! %int-capped-digits
@@ -631,7 +609,7 @@
         %int-capped-sign
         ()))))
 
-(%type-push-analyse %int-type %int-capped-analyse)
+(type-push-analyse %int-type %int-capped-analyse)
 
 (doc (provide x/bignum bignum? big+ big- big* big/ big% big< big=)
   (note "Auto-promotes when integers exceed native range. Extends +,-,*,/,%,<,=.")

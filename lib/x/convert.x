@@ -12,45 +12,15 @@
 ;   (convert "42" %int)          -> 42
 ;   (convert "ff" %int 16)       -> 16 parsed as hex
 
-; --- Type struct navigation ---
-; Layout: (name-stack data-stack heap-group proc-group cvt-group io-group iter-group)
-; cvt-group: (from-stack to-stack)
-; each stack: (current . saved)
-
-; Get type struct from type alist by handle atom
-(def %type-alist
-  (fn ()
-    (first (first (first (first (rest (first (%base)))))))))
-
-(def %type-lookup
-  (fn (handle)
-    (def %go
-      (fn (alist)
-        (if (null? alist) ()
-          (if (eq? (first (first alist)) handle)
-            (rest (first alist))
-            (%go (rest alist))))))
-    (%go (%type-alist))))
-
-; Navigate to cvt group (5th element)
-(def %type-cvt
-  (fn (ts) (first (rest (rest (rest (rest ts)))))))
-
-; from-stack cell (first of cvt)
-(def %type-from-cell
-  (fn (ts) (first (%type-cvt ts))))
-
-; to-stack cell (first of rest of cvt)
-(def %type-to-cell
-  (fn (ts) (first (rest (%type-cvt ts)))))
+; --- Type navigation via type.x (loaded before us) ---
 
 ; Set the from alist on a type struct
 (def %type-set-from!
-  (fn (ts alist) (set-first! (%type-from-cell ts) alist)))
+  (fn (ts alist) (set-first! (type-from-cell ts) alist)))
 
 ; Set the to alist on a type struct
 (def %type-set-to!
-  (fn (ts alist) (set-first! (%type-to-cell ts) alist)))
+  (fn (ts alist) (set-first! (type-to-cell ts) alist)))
 
 ; --- Type handles ---
 (def %int    (type-of 0))
@@ -63,7 +33,7 @@
 ; --- Register from alists (inbound conversions) ---
 
 ; INT: from char, string, ptr
-(%type-set-from! (%type-lookup %int)
+(%type-set-from! (type-by-atom %int)
   (list
     (pair %char   (fn (v . extra) (char->integer v)))
     (pair %string (fn (v . extra)
@@ -73,12 +43,12 @@
     (pair %ptr    (fn (v . extra) (ptr->int v)))))
 
 ; CHAR: from int
-(%type-set-from! (%type-lookup %char)
+(%type-set-from! (type-by-atom %char)
   (list
     (pair %int (fn (v . extra) (integer->char v)))))
 
 ; STRING: from int, symbol, list (nil type-of)
-(%type-set-from! (%type-lookup %string)
+(%type-set-from! (type-by-atom %string)
   (list
     (pair %int    (fn (v . extra)
                     (if (null? extra)
@@ -88,12 +58,12 @@
     (pair %pair   (fn (v . extra) (list->string v)))))
 
 ; SYMBOL: from string
-(%type-set-from! (%type-lookup %symbol)
+(%type-set-from! (type-by-atom %symbol)
   (list
     (pair %string (fn (v . extra) (string->symbol v)))))
 
 ; PTR: from int, string, any (obj->ptr as wildcard)
-(%type-set-from! (%type-lookup %ptr)
+(%type-set-from! (type-by-atom %ptr)
   (list
     (pair %int    (fn (v . extra) (int->ptr v)))
     (pair %string (fn (v . extra) (string->ptr v)))
@@ -114,12 +84,12 @@
       (if (eq? (type-of val) target) val
         (do
           (def source (type-of val))
-          (def target-ts (%type-lookup target))
+          (def target-ts (type-by-atom target))
           (def entry ())
           ; Exact match: source in target's from-alist
           (if (null? target-ts) ()
             (do
-              (def from-al (first (%type-from-cell target-ts)))
+              (def from-al (first (type-from-cell target-ts)))
               (if (null? from-al) ()
                 (do
                   (if (null? source) ()
@@ -132,10 +102,10 @@
           (if (null? entry)
             (if (null? source) ()
               (do
-                (def source-ts (%type-lookup source))
+                (def source-ts (type-by-atom source))
                 (if (null? source-ts) ()
                   (do
-                    (def to-al (first (%type-to-cell source-ts)))
+                    (def to-al (first (type-to-cell source-ts)))
                     (if (null? to-al) ()
                       (set! entry (%alist-find to-al target)))))))
             ())

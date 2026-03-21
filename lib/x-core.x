@@ -163,6 +163,7 @@
               (def result (%parse start 0))
               (if (null? result) ()
                 (if neg (- 0 result) result))))))))
+  (include "lib/x/type.x")
   (include "lib/x/convert.x")
   (def newline (fn () (display "\n")))
   (def string-ref (fn (s i) (s i)))
@@ -245,6 +246,7 @@
   (set-first! %include-list-cell
     (pair "lib/x/doc.x"
     (pair "lib/x/doc-prims.x"
+    (pair "lib/x/type.x"
     (pair "lib/x/convert.x"
     (pair "lib/x/fn.x"
     (pair "lib/x/logic.x"
@@ -257,7 +259,7 @@
     (pair "lib/x/string.x"
     (pair "lib/x/vector.x"
     (pair "lib/x/promise.x"
-      (first %include-list-cell))))))))))))))))
+      (first %include-list-cell)))))))))))))))))
   ; --- Documentation system ---
   (include "lib/x/doc.x")
   (include "lib/x/doc-prims.x")
@@ -484,6 +486,10 @@
               (do (display " v") (display %lang-version)))
             (display " on x-lang")
             (newline))))))
+  (provide x/type
+    type-alist type-by-atom type-io type-cvt
+    type-write-cell type-analyse-cell type-from-cell type-to-cell
+    type-push-write type-pop-write type-push-analyse)
   (doc (provide x/core
     null? if let do begin not atom? list convert number->string string->number
     string=? string-ref string-length substring
