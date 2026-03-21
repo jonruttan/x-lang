@@ -489,7 +489,7 @@
   (provide x/type
     type-alist type-by-atom type-io type-cvt
     type-write-cell type-analyse-cell type-from-cell type-to-cell
-    type-push-write type-pop-write type-push-analyse)
+    type-push-write type-pop-write type-push-analyse type-cast!)
   (doc (provide x/core
     null? if let do begin not atom? list convert number->string string->number
     string=? string-ref string-length substring

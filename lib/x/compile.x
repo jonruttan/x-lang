@@ -371,19 +371,7 @@
     (type-pop-write %symbol-type)
     (type-pop-write %int-type)))
 
-; --- Type casting ---
-
-(def %type-offset %word-size)
-
-(doc (def type-cast!
-  (fn ((param obj ANY "Object to cast") (param type-src ANY "Object whose type to copy"))
-    (def %dst-ptr (convert obj %ptr))
-    (def %src-ptr (convert type-src %ptr))
-    (def %type-val (ptr-ref-word %src-ptr %type-offset))
-    (ptr-set-word! %dst-ptr %type-offset %type-val)
-    obj))
-  (returns ANY "The original object with its type tag replaced")
-  "Overwrite an object's type tag with the type of another object.")
+; type-cast! moved to type.x
 
 ; --- Exposed pipeline stages ---
 
@@ -580,6 +568,6 @@
 (doc (provide x/compile
   compile-to-c compile-write compile-cc compile-load
   compile-cc-flags compile-ext
-  type-cast! compile compile-batch)
+  compile compile-batch)
   (note "Pipeline: compile-to-c -> compile-write -> compile-cc -> compile-load. Each stage usable independently.")
   "Native code compiler via dlopen/dlsym.")

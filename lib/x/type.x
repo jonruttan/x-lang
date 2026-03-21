@@ -72,7 +72,21 @@
     (let ((c (type-analyse-cell ts)))
       (set-first! c (pair handler (first c))))))
 
+; --- Type casting ---
+
+; Offset to type tag in object layout
+(def %type-offset %word-size)
+
+; Overwrite an object's type tag with the type of another object
+(def type-cast!
+  (fn (obj type-src)
+    (def %dst-ptr (obj->ptr obj))
+    (def %src-ptr (obj->ptr type-src))
+    (def %type-val (ptr-ref-word %src-ptr %type-offset))
+    (ptr-set-word! %dst-ptr %type-offset %type-val)
+    obj))
+
 ; provide x/type — registered by x-core.x after module system loads
 ; Exports: type-alist type-by-atom type-io type-cvt
 ;   type-write-cell type-analyse-cell type-from-cell type-to-cell
-;   type-push-write type-pop-write type-push-analyse
+;   type-push-write type-pop-write type-push-analyse type-cast!
