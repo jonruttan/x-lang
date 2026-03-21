@@ -11,7 +11,7 @@
 ;     {O,O}
 ;     (   )
 ;      " "
-(include "lib/x-base.x")
+(include "lib/x-core.x")
 (set! %lang-name "x-lang")
 (set! %lang-version x-lib-version)
 (%banner)
