@@ -9,7 +9,7 @@ Revision:    5 (2021-12-03)
 
 ## Sub-projects
 
-### X-Expressions -- Computational Expressions Library
+### X-Expressions (x-expr) -- Computational Expressions Library
 
 - Simple
 - Minimalist
@@ -23,7 +23,7 @@ Revision:    5 (2021-12-03)
 - No external dependencies
 
 
-### X-Lisp -- Minimalist Lisp Dialect
+### X-Lang (x-lang) -- Minimalist Lisp Dialect
 
 - Simple
 - Minimalist
@@ -40,7 +40,7 @@ Revision:    5 (2021-12-03)
 - No external dependencies
 
 
-### X/OR Lisp
+### X/OR (x-or) -- Maximal Lisp Dialect
 
 Experimental / Hacker Lisp
 
