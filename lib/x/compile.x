@@ -75,6 +75,16 @@
             (%fv-go (rest fvs))))))
     (%fv-go %compile-fvars)))
 
+; Return the index of a fvar symbol in %compile-fvars (for table emission)
+(def %compile-fvar-index
+  (fn (sym)
+    (def %go
+      (fn (fvs i)
+        (if (null? fvs) ()
+          (if (eq? sym (first (first fvs))) i
+            (%go (rest fvs) (+ i 1))))))
+    (%go %compile-fvars 0)))
+
 ; --- Type system access (via type.x) ---
 
 ; Cache type structs at load time using representative objects
@@ -100,8 +110,9 @@
           (let ((fv-val (rest fv-entry)))
             (if (null? fv-val)
               (display "NULL")
-              (display (str "(x_obj_t *)"
-                (convert (convert (convert fv-val %ptr) %int) %string))))))))))
+              ; Emit table lookup: x_fvar_table[N] (cacheable, patched at load)
+              (display (str "x_fvar_table["
+                (convert (%compile-fvar-index sym) %string) "]")))))))))
 ; INT: emit integer literal
 (def %compile-int-write
   (fn (n)
@@ -363,9 +374,11 @@
               (set! %all-prims (str %all-prims (%generate-static-prim %name)))
               (%gen-decls (rest lst))))))
       (%gen-decls (first %compile-fns))
-      ; Combine
+      ; Combine (add fvar table declaration if fvars present)
       (str "#include \"x-obj.h\"\n"
            "#include \"x-type/buffer.h\"\n\n"
+           (if (null? %compile-fvars) ""
+             "x_obj_t *x_fvar_table[64];\n\n")
            %all-fwd "\n"
            %nested-c
            %all-prims
@@ -384,6 +397,24 @@
     (type-pop-write %list-type)
     (type-pop-write %symbol-type)
     (type-pop-write %int-type)))
+
+; --- Fvar table patching: write runtime pointers into loaded .so ---
+; After dlopen, resolve x_fvar_table symbol and fill with current fvar values.
+(def %compile-patch-fvars
+  (fn (lib fvars)
+    (if (null? fvars) ()
+      (let ((tbl (dlsym lib "x_fvar_table")))
+        (if (null? tbl) ()
+          (do
+            (def %patch-go
+              (fn (fvs i)
+                (if (null? fvs) ()
+                  (do
+                    (ptr-set-word! tbl (* i %word-size)
+                      (if (null? (rest (first fvs))) 0
+                        (convert (convert (rest (first fvs)) %ptr) %int)))
+                    (%patch-go (rest fvs) (+ i 1))))))
+            (%patch-go fvars 0)))))))
 
 ; type-cast! moved to type.x
 
@@ -497,26 +528,36 @@
     (def %cache-hash (hash->hex (fnv-1a %expr-key)))
     (def %cache-path (str %compile-cache-dir %cache-hash compile-ext))
 
-    ; Try loading from cache (skip if fvars — they embed heap pointers)
-    (def %cached (if (null? fvars)
-      (%compile-cache-load %cache-path (list (list))) ()))
-    (if (not (null? %cached)) %cached
+    ; Try loading from cache (fvar table is patched after load)
+    (def %cached (%compile-cache-load %cache-path (list (list))))
+    (if (not (null? %cached))
+      (do
+        ; Patch fvar table with current runtime pointers
+        (if (not (null? fvars))
+          (let ((lib (dlopen %cache-path 1)))
+            (%compile-patch-fvars lib fvars)))
+        %cached)
 
       ; Cache miss: generate, write, compile, load
       (do
         (set! %compile-id (+ %compile-id 1))
         (def %id (convert %compile-id %string))
         (def %src-path (str "/tmp/x-compile-" %id ".c"))
-        (def %lib-path (if (null? fvars) %cache-path
-          (str "/tmp/x-compile-" %id compile-ext)))
 
         (compile-write %src-path (compile-to-c expr fvars))
-        (compile-cc %src-path %lib-path)
+        (compile-cc %src-path %cache-path)
         (ptr-call %c-unlink %src-path)
 
-        (def %fn (compile-load %lib-path))
+        (def %lib (dlopen %cache-path 1))
+        (if (null? %lib) (error "compile: dlopen failed"))
+        (def %fn (dlsym %lib "fn_0"))
+        (if (null? %fn) (error "compile: dlsym failed for fn_0"))
+        (type-cast! %fn first)
+        (def %prim-type-val (ptr-ref-word (convert first %ptr) %type-offset))
+        (%patch-nested-prims %lib (first (list (list))) %prim-type-val)
+        ; Patch fvar table
         (if (not (null? fvars))
-          (ptr-call %c-unlink %lib-path))
+          (%compile-patch-fvars %lib fvars))
         %fn))))
 (doc compile "Compile an (fn ...) expression to a native primitive via C. Caches by expression hash."
   (param expr LIST "A (fn (params...) body) expression")
@@ -524,63 +565,84 @@
 
 ; compile-batch: compile multiple (fn ...) expressions in one cc call.
 ; Returns a list of prims, one per expression.
+; Caches the shared library by expression hash. Fvar table patched after load.
 (def compile-batch
   (fn exprs
-    (set! %compile-id (+ %compile-id 1))
-    (def %id (convert %compile-id %string))
-    (def %src-path (str "/tmp/x-compile-" %id ".c"))
-    (def %lib-path (str "/tmp/x-compile-" %id compile-ext))
+    (def %n (length exprs))
 
-    (%compile-push-writers)
-
-    ; Generate all functions with unique top-level names
-    (def %c-all
-      (fn (es i acc)
-        (if (null? es) acc
-          (let ((expr (first es)))
-            (if (not (eq? (first expr) (lit fn)))
-              (error "compile-batch: each expression must be (fn ...)"))
-            (let ((params (first (rest expr)))
-                  (body (first (rest (rest expr))))
-                  (name (str "batch_" (convert i %string))))
-              (set! %compile-fns (list (list)))
-              (def %fn-c
-                (str "x_obj_t *" name
-                     "(x_obj_t *p_base, x_obj_t *p_args) {\n"
-                     (%c-param-decls params)
-                     "    return " (%generate-fn-body params body) ";\n"
-                     "}\n\n"))
-              (%c-all (rest es) (+ i 1) (str acc %fn-c)))))))
-
-    (def %c-source
-      (str "#include \"x-obj.h\"\n"
-           "#include \"x-type/buffer.h\"\n\n"
-           (%c-all exprs 0 "")))
-
-    (%compile-pop-writers)
-
-    (compile-write %src-path %c-source)
-    (compile-cc %src-path %lib-path)
-
-    (def %lib (dlopen %lib-path 1))
-    (if (null? %lib) (error "compile-batch: dlopen failed"))
-
-    ; Clean up temp files
-    (ptr-call %c-unlink %src-path)
-    (ptr-call %c-unlink %lib-path)
-
-    ; Resolve each function symbol
+    ; Resolve functions from a loaded library
     (def %resolve-all
-      (fn (i n)
+      (fn (lib i n)
         (if (= i n) ()
           (let ((name (str "batch_" (convert i %string))))
-            (def %fn (dlsym %lib name))
+            (def %fn (dlsym lib name))
             (if (null? %fn)
               (error (str "compile-batch: dlsym failed for " name)))
             (type-cast! %fn first)
-            (pair %fn (%resolve-all (+ i 1) n))))))
+            (pair %fn (%resolve-all lib (+ i 1) n))))))
 
-    (%resolve-all 0 (length exprs))))
+    ; Cache lookup
+    (def %batch-key (write-to-string exprs))
+    (def %batch-hash (hash->hex (fnv-1a %batch-key)))
+    (def %cache-path (str %compile-cache-dir %batch-hash compile-ext))
+
+    (if (file-exists? %cache-path)
+      ; Cache hit: load and patch fvar table
+      (let ((lib (dlopen %cache-path 1)))
+        (if (not (null? lib))
+          (do
+            (if (not (null? %compile-fvars))
+              (%compile-patch-fvars lib %compile-fvars))
+            (%resolve-all lib 0 %n))
+          ()))
+
+      ; Cache miss: generate, compile, cache, load
+      (do
+        (set! %compile-id (+ %compile-id 1))
+        (def %id (convert %compile-id %string))
+        (def %src-path (str "/tmp/x-compile-" %id ".c"))
+
+        (%compile-push-writers)
+
+        (def %c-all
+          (fn (es i acc)
+            (if (null? es) acc
+              (let ((expr (first es)))
+                (if (not (eq? (first expr) (lit fn)))
+                  (error "compile-batch: each expression must be (fn ...)"))
+                (let ((params (first (rest expr)))
+                      (body (first (rest (rest expr))))
+                      (name (str "batch_" (convert i %string))))
+                  (set! %compile-fns (list (list)))
+                  (def %fn-c
+                    (str "x_obj_t *" name
+                         "(x_obj_t *p_base, x_obj_t *p_args) {\n"
+                         (%c-param-decls params)
+                         "    return " (%generate-fn-body params body) ";\n"
+                         "}\n\n"))
+                  (%c-all (rest es) (+ i 1) (str acc %fn-c)))))))
+
+        (def %c-source
+          (str "#include \"x-obj.h\"\n"
+               "#include \"x-type/buffer.h\"\n\n"
+               (if (null? %compile-fvars) ""
+                 "x_obj_t *x_fvar_table[64];\n\n")
+               (%c-all exprs 0 "")))
+
+        (%compile-pop-writers)
+
+        (compile-write %src-path %c-source)
+        (compile-cc %src-path %cache-path)
+        (ptr-call %c-unlink %src-path)
+
+        (def %lib (dlopen %cache-path 1))
+        (if (null? %lib) (error "compile-batch: dlopen failed"))
+
+        ; Patch fvar table with current runtime pointers
+        (if (not (null? %compile-fvars))
+          (%compile-patch-fvars %lib %compile-fvars))
+
+        (%resolve-all %lib 0 %n)))))
 (doc compile-batch "Compile multiple (fn ...) expressions in a single cc invocation."
   (returns LIST "List of compiled native primitives"))
 
