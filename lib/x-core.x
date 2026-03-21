@@ -234,7 +234,8 @@
       (%module-register! name syms)))
   (def import
     (op (name . syms) e
-      (include-once (%module-resolve name))))
+      (include-once (%module-resolve name))
+      ()))
   ; Pre-register all library paths so import calls in library files are no-ops
   (set-first! %include-list-cell
     (pair "lib/x/convert.x"
