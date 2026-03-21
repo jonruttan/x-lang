@@ -200,6 +200,19 @@
     (%or-go args)
     (display "))")))
 
+; (< a b) => integer comparison, returns truthy or NULL
+(def %cw-lt
+  (fn (args)
+    (display "((")
+    (if (number? (first args))
+      (display (convert (first args) %string))
+      (do (display "x_atomint(") (%cw-emit (first args)) (display ")")))
+    (display " < ")
+    (if (number? (first (rest args)))
+      (display (convert (first (rest args)) %string))
+      (do (display "x_atomint(") (%cw-emit (first (rest args))) (display ")")))
+    (display ") ? (x_obj_t *)1 : NULL)")))
+
 ; (first x) => x_firstobj(x)
 (def %cw-first
   (fn (args)
@@ -252,6 +265,7 @@
   (list
     (pair (lit if)            %cw-if)
     (pair (lit =)             %cw-eq)
+    (pair (lit <)             %cw-lt)
     (pair (lit score-set)     %cw-score-set)
     (pair (lit %seq)          %cw-seq)
     (pair (lit buffer-unread) %cw-buffer-unread)
@@ -375,58 +389,7 @@
 
 ; --- Exposed pipeline stages ---
 
-(note "Pipeline stages")
-
-(doc (def compile-to-c
-  (fn ((param expr LIST "A (fn (params...) body) expression") . rest)
-    (set! %compile-fvars (if (null? rest) () (first rest)))
-    (if (not (eq? (first expr) (lit fn)))
-      (error "compile-to-c: expression must be (fn (params...) body)"))
-    (def %fns-holder (list (list)))
-    (%compile-push-writers)
-    (def %c-source (%generate-c-with-fns expr %fns-holder))
-    (%compile-pop-writers)
-    %c-source))
-  (returns STRING "Generated C source code")
-  (example "(compile-to-c (lit (fn (x) (if x x ()))))" "\"#include ...\"")
-  "Generate C source code from an (fn ...) expression. Optional second arg: free variable alist.")
-
-(doc (def compile-write
-  (fn ((param path STRING "Output file path") (param source STRING "Content to write"))
-    (def fd (sh-open-write path))
-    (fd-write fd source)
-    (sh-close fd)
-    path))
-  (returns STRING "The path written to")
-  (example "(compile-write \"/tmp/test.c\" c-source)" "\"/tmp/test.c\"")
-  "Write a string to a file. Returns the path.")
-
-(doc (def compile-cc
-  (fn ((param src-path STRING "C source file") (param lib-path STRING "Output shared library path"))
-    (%compile-cc src-path lib-path)))
-  (returns NIL "Nil on success, errors on failure")
-  "Invoke the C compiler on a source file to produce a shared library.")
-
-(doc (def compile-load
-  (fn ((param lib-path STRING "Path to shared library"))
-    (def %lib (dlopen lib-path 1))
-    (if (null? %lib) (error "compile-load: dlopen failed"))
-    (def %fn (dlsym %lib "fn_0"))
-    (if (null? %fn) (error "compile-load: dlsym failed for fn_0"))
-    (type-cast! %fn first)
-    %fn))
-  (returns PRIM "Native function loaded from shared library")
-  "Load a compiled shared library and return the fn_0 entry point as a callable primitive.")
-
-(doc (def compile-cc-flags %compile-cc-flags)
-  (returns LIST "Platform-specific cc flags")
-  "Compiler flags for the current platform (e.g. -bundle on macOS, -shared -fPIC on Linux).")
-
-(doc (def compile-ext %compile-ext)
-  (returns STRING "Shared library extension")
-  "Shared library file extension for the current platform (.bundle or .so).")
-
-; --- Compilation pipeline ---
+; --- Compilation internals (must be before public API for closure capture) ---
 
 (def %compile-cc
   (fn (src-path lib-path)
@@ -464,13 +427,68 @@
                 (%patch-nested-prims lib (first fns-holder) %prim-type-val)
                 fn-ptr))))))))
 
+(note "Pipeline stages")
+
+; Pipeline stage docs use bare-symbol form to avoid tail-eval closure issues
+(def compile-to-c
+  (fn (expr . rest)
+    (set! %compile-fvars (if (null? rest) () (first rest)))
+    (if (not (eq? (first expr) (lit fn)))
+      (error "compile-to-c: expression must be (fn (params...) body)"))
+    (def %fns-holder (list (list)))
+    (%compile-push-writers)
+    (def %c-source (%generate-c-with-fns expr %fns-holder))
+    (%compile-pop-writers)
+    %c-source))
+(doc compile-to-c "Generate C source code from an (fn ...) expression."
+  (param expr LIST "A (fn (params...) body) expression")
+  (returns STRING "Generated C source code"))
+
+(def compile-write
+  (fn (path source)
+    (def fd (sh-open-write path))
+    (fd-write fd source)
+    (sh-close fd)
+    path))
+(doc compile-write "Write a string to a file. Returns the path."
+  (param path STRING "Output file path")
+  (param source STRING "Content to write")
+  (returns STRING "The path written to"))
+
+(def compile-cc
+  (fn (src-path lib-path)
+    (%compile-cc src-path lib-path)))
+(doc compile-cc "Invoke the C compiler on a source file to produce a shared library."
+  (param src-path STRING "C source file")
+  (param lib-path STRING "Output shared library path"))
+
+(def compile-load
+  (fn (lib-path)
+    (def %lib (dlopen lib-path 1))
+    (if (null? %lib) (error "compile-load: dlopen failed"))
+    (def %fn (dlsym %lib "fn_0"))
+    (if (null? %fn) (error "compile-load: dlsym failed for fn_0"))
+    (type-cast! %fn first)
+    %fn))
+(doc compile-load "Load a compiled shared library and return fn_0 as a callable primitive."
+  (param lib-path STRING "Path to shared library")
+  (returns PRIM "Native function"))
+
+(def compile-cc-flags %compile-cc-flags)
+(doc compile-cc-flags "Compiler flags for the current platform."
+  (returns LIST "Platform-specific cc flags"))
+
+(def compile-ext %compile-ext)
+(doc compile-ext "Shared library file extension for the current platform."
+  (returns STRING ".bundle or .so"))
+
 ; compile: compile a single (fn ...) expression to a native prim
 ; Optional second arg: free variable alist ((sym . val) ...)
 ; Caches compiled libraries keyed by FNV-1a hash of the expression.
 (note "Compilation")
 
-(doc (def compile
-  (fn ((param expr LIST "A (fn (params...) body) expression") . rest)
+(def compile
+  (fn (expr . rest)
     (def fvars (if (null? rest) () (first rest)))
     (set! %compile-fvars fvars)
 
@@ -500,12 +518,13 @@
         (if (not (null? fvars))
           (ptr-call %c-unlink %lib-path))
         %fn))))
-  (returns PRIM "Compiled native function")
-  "Compile an (fn ...) expression to a native primitive via C. Caches results by expression hash.")
+(doc compile "Compile an (fn ...) expression to a native primitive via C. Caches by expression hash."
+  (param expr LIST "A (fn (params...) body) expression")
+  (returns PRIM "Compiled native function"))
 
 ; compile-batch: compile multiple (fn ...) expressions in one cc call.
 ; Returns a list of prims, one per expression.
-(doc (def compile-batch
+(def compile-batch
   (fn exprs
     (set! %compile-id (+ %compile-id 1))
     (def %id (convert %compile-id %string))
@@ -562,8 +581,8 @@
             (pair %fn (%resolve-all (+ i 1) n))))))
 
     (%resolve-all 0 (length exprs))))
-  (returns LIST "List of compiled native primitives")
-  "Compile multiple (fn ...) expressions in a single cc invocation.")
+(doc compile-batch "Compile multiple (fn ...) expressions in a single cc invocation."
+  (returns LIST "List of compiled native primitives"))
 
 (doc (provide x/compile
   compile-to-c compile-write compile-cc compile-load

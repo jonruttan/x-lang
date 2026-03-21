@@ -11,14 +11,31 @@
 ;     {O,O}
 ;     (   )
 ;      " "
-(include "lib/x-base.x")
-; Pre-register heavy module paths
+; Load core first (fast, no numeric tower)
+(include "lib/x-core.x")
+; Pre-register all heavy module paths
 (set-first! %include-list-cell
   (pair "lib/x/posix.x"
   (pair "lib/x/hash.x"
   (pair "lib/x/compile.x"
+  (pair "lib/x/bignum.x"
+  (pair "lib/x/regex.x"
+  (pair "lib/x/float.x"
+  (pair "lib/x/rational.x"
+  (pair "lib/x/complex.x"
   (pair "lib/x/or.x"
-    (first %include-list-cell))))))
+    (first %include-list-cell)))))))))))
+; Load compiler infrastructure FIRST (before numeric tower)
+(include "lib/x/posix.x")
+(include "lib/x/hash.x")
+(include "lib/x/compile.x")
+; Load numeric tower (analysers will be compiled after)
+(include "lib/x/bignum.x")
+(include "lib/x/regex.x")
+(include "lib/x/float.x")
+(include "lib/x/rational.x")
+(include "lib/x/complex.x")
+; Load x-or extensions
 (include "lib/x/or.x")
 (set! %lang-name "x-or")
 (set! %lang-version x-lib-version)

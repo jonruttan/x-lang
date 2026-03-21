@@ -10,6 +10,49 @@
 (import x/bignum)
 (import x/regex)
 
+; --- Compile tokenizer analysers for all numeric types ---
+; State machine functions use (if (>= chr 48) (<= chr 57) #f) pattern
+; (nested if instead of and, which the compiler doesn't support).
+; compile-batch compiles all in one cc invocation for speed.
+
+; --- Compile tokenizer analysers for numeric types ---
+; Entry-point functions are hot (called for every char of every token).
+; Uses fvars to embed references to the state-machine next functions.
+; Digit check: (if (< chr 48) () (if (< chr 58) MATCH ()))
+
+(type-push-analyse (type-by-atom (type-of 1.0))
+  (compile (lit (fn (buffer score chr)
+    (if (< chr 48) () (if (< chr 58) %float-int-digits ()))))
+    (list (pair (lit %float-int-digits) %float-int-digits))))
+
+(type-push-analyse (type-by-atom (type-of 1/2))
+  (compile (lit (fn (buffer score chr)
+    (if (< chr 48)
+      (if (= chr 45) %rat-sign (if (= chr 43) %rat-sign ()))
+      (if (< chr 58) %rat-numer ()))))
+    (list (pair (lit %rat-numer) %rat-numer)
+          (pair (lit %rat-sign)
+            (fn (buffer score chr)
+              (if (< chr 48) () (if (< chr 58) %rat-numer ())))))))
+
+(type-push-analyse (type-by-atom (type-of (expt 2 64)))
+  (compile (lit (fn (buffer score chr)
+    (if (< chr 48)
+      (if (or (= chr 45) (= chr 43)) %big-sign-state ())
+      (if (< chr 58) %big-digits ()))))
+    (list (pair (lit %big-sign-state) %big-sign-state)
+          (pair (lit %big-digits) %big-digits))))
+
+(type-push-analyse (type-by-atom (type-of 1+1i))
+  (compile (lit (fn (buffer score chr)
+    (if (< chr 48) () (if (< chr 58) %cx-real-int ()))))
+    (list (pair (lit %cx-real-int) %cx-real-int))))
+
+(type-push-analyse (type-by-atom (type-of 0))
+  (compile (lit (fn (buffer score chr)
+    (if (< chr 48) () (if (< chr 58) %int-capped-digits ()))))
+    (list (pair (lit %int-capped-digits) %int-capped-digits))))
+
 ; --- System extensions ---
 (include "lib/x/or/syscall.x")
 (include "lib/x/or/file.x")
