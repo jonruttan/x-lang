@@ -46,11 +46,11 @@
 
 ; Get the from-conversion cell from a type struct
 (def type-from-cell
-  (fn (t) (type-cvt t)))
+  (fn (t) (first (type-cvt t))))
 
 ; Get the to-conversion cell from a type struct
 (def type-to-cell
-  (fn (t) (rest (type-cvt t))))
+  (fn (t) (first (rest (type-cvt t)))))
 
 ; --- Stack manipulation ---
 

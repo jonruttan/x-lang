@@ -385,6 +385,59 @@
   (returns ANY "The original object with its type tag replaced")
   "Overwrite an object's type tag with the type of another object.")
 
+; --- Exposed pipeline stages ---
+
+(note "Pipeline stages")
+
+(doc (def compile-to-c
+  (fn ((param expr LIST "A (fn (params...) body) expression") . rest)
+    (set! %compile-fvars (if (null? rest) () (first rest)))
+    (if (not (eq? (first expr) (lit fn)))
+      (error "compile-to-c: expression must be (fn (params...) body)"))
+    (def %fns-holder (list (list)))
+    (%compile-push-writers)
+    (def %c-source (%generate-c-with-fns expr %fns-holder))
+    (%compile-pop-writers)
+    %c-source))
+  (returns STRING "Generated C source code")
+  (example "(compile-to-c (lit (fn (x) (if x x ()))))" "\"#include ...\"")
+  "Generate C source code from an (fn ...) expression. Optional second arg: free variable alist.")
+
+(doc (def compile-write
+  (fn ((param path STRING "Output file path") (param source STRING "Content to write"))
+    (def fd (sh-open-write path))
+    (fd-write fd source)
+    (sh-close fd)
+    path))
+  (returns STRING "The path written to")
+  (example "(compile-write \"/tmp/test.c\" c-source)" "\"/tmp/test.c\"")
+  "Write a string to a file. Returns the path.")
+
+(doc (def compile-cc
+  (fn ((param src-path STRING "C source file") (param lib-path STRING "Output shared library path"))
+    (%compile-cc src-path lib-path)))
+  (returns NIL "Nil on success, errors on failure")
+  "Invoke the C compiler on a source file to produce a shared library.")
+
+(doc (def compile-load
+  (fn ((param lib-path STRING "Path to shared library"))
+    (def %lib (dlopen lib-path 1))
+    (if (null? %lib) (error "compile-load: dlopen failed"))
+    (def %fn (dlsym %lib "fn_0"))
+    (if (null? %fn) (error "compile-load: dlsym failed for fn_0"))
+    (type-cast! %fn first)
+    %fn))
+  (returns PRIM "Native function loaded from shared library")
+  "Load a compiled shared library and return the fn_0 entry point as a callable primitive.")
+
+(doc (def compile-cc-flags %compile-cc-flags)
+  (returns LIST "Platform-specific cc flags")
+  "Compiler flags for the current platform (e.g. -bundle on macOS, -shared -fPIC on Linux).")
+
+(doc (def compile-ext %compile-ext)
+  (returns STRING "Shared library extension")
+  "Shared library file extension for the current platform (.bundle or .so).")
+
 ; --- Compilation pipeline ---
 
 (def %compile-cc
@@ -430,59 +483,34 @@
 
 (doc (def compile
   (fn ((param expr LIST "A (fn (params...) body) expression") . rest)
-    (set! %compile-fvars (if (null? rest) () (first rest)))
-    (if (not (eq? (first expr) (lit fn)))
-      (error "compile: expression must be (fn (params...) body)"))
+    (def fvars (if (null? rest) () (first rest)))
+    (set! %compile-fvars fvars)
 
     ; Cache lookup: hash the expression to get a stable filename
-    (def %fns-holder (list (list)))
     (def %expr-key (write-to-string expr))
     (def %cache-hash (hash->hex (fnv-1a %expr-key)))
-    (def %cache-path (str %compile-cache-dir %cache-hash %compile-ext))
+    (def %cache-path (str %compile-cache-dir %cache-hash compile-ext))
 
     ; Try loading from cache (skip if fvars — they embed heap pointers)
-    (def %cached (if (null? %compile-fvars)
-      (%compile-cache-load %cache-path %fns-holder) ()))
+    (def %cached (if (null? fvars)
+      (%compile-cache-load %cache-path (list (list))) ()))
     (if (not (null? %cached)) %cached
 
-      ; Cache miss: compile and save to cache path
+      ; Cache miss: generate, write, compile, load
       (do
         (set! %compile-id (+ %compile-id 1))
         (def %id (convert %compile-id %string))
         (def %src-path (str "/tmp/x-compile-" %id ".c"))
+        (def %lib-path (if (null? fvars) %cache-path
+          (str "/tmp/x-compile-" %id compile-ext)))
 
-        ; Push C-emitting write handlers, generate C, pop
-        (%compile-push-writers)
-        (def %c-source (%generate-c-with-fns expr %fns-holder))
-        (%compile-pop-writers)
-
-        (def %fd (sh-open-write %src-path))
-        (fd-write %fd %c-source)
-        (sh-close %fd)
-
-        ; Compile to cache or temp path
-        (def %lib-path (if (null? %compile-fvars) %cache-path
-          (str "/tmp/x-compile-" %id %compile-ext)))
-        (%compile-cc %src-path %lib-path)
-
-        ; Clean up source
+        (compile-write %src-path (compile-to-c expr fvars))
+        (compile-cc %src-path %lib-path)
         (ptr-call %c-unlink %src-path)
 
-        (def %lib (dlopen %lib-path 1))
-        (if (null? %lib) (error "compile: dlopen failed"))
-
-        (def %fn (dlsym %lib "fn_0"))
-        (if (null? %fn) (error "compile: dlsym failed for fn_0"))
-        (type-cast! %fn first)
-
-        ; Patch nested fn static prims
-        (def %prim-type-val (ptr-ref-word (convert first %ptr) %type-offset))
-        (%patch-nested-prims %lib (first %fns-holder) %prim-type-val)
-
-        ; Clean up temp lib for fvar compilations
-        (if (not (null? %compile-fvars))
+        (def %fn (compile-load %lib-path))
+        (if (not (null? fvars))
           (ptr-call %c-unlink %lib-path))
-
         %fn))))
   (returns PRIM "Compiled native function")
   "Compile an (fn ...) expression to a native primitive via C. Caches results by expression hash.")
@@ -494,7 +522,7 @@
     (set! %compile-id (+ %compile-id 1))
     (def %id (convert %compile-id %string))
     (def %src-path (str "/tmp/x-compile-" %id ".c"))
-    (def %lib-path (str "/tmp/x-compile-" %id %compile-ext))
+    (def %lib-path (str "/tmp/x-compile-" %id compile-ext))
 
     (%compile-push-writers)
 
@@ -524,11 +552,8 @@
 
     (%compile-pop-writers)
 
-    (def %fd (sh-open-write %src-path))
-    (fd-write %fd %c-source)
-    (sh-close %fd)
-
-    (%compile-cc %src-path %lib-path)
+    (compile-write %src-path %c-source)
+    (compile-cc %src-path %lib-path)
 
     (def %lib (dlopen %lib-path 1))
     (if (null? %lib) (error "compile-batch: dlopen failed"))
@@ -552,6 +577,9 @@
   (returns LIST "List of compiled native primitives")
   "Compile multiple (fn ...) expressions in a single cc invocation.")
 
-(doc (provide x/compile type-cast! compile compile-batch)
-  (note "Compiles x-lang expressions to C, loads as shared libraries. Results cached by content hash.")
+(doc (provide x/compile
+  compile-to-c compile-write compile-cc compile-load
+  compile-cc-flags compile-ext
+  type-cast! compile compile-batch)
+  (note "Pipeline: compile-to-c -> compile-write -> compile-cc -> compile-load. Each stage usable independently.")
   "Native code compiler via dlopen/dlsym.")
