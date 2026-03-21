@@ -1,11 +1,11 @@
-Title:       X-Lisp Project Notes  
-Description: Development notes for X.  
-Keywords:    [#X, #X-Lisp, #Project, #Notes]  
+Title:       X-Lang Project Notes  
+Description: Development notes for X-Lang.  
+Keywords:    [#X, #X-Lang, #Project, #Notes]  
 Author:      "[Jon Ruttan](jonruttan@gmail.com)"  
 Date:        2021-10-06  
-Revision:    5 (2021-12-03)  
+Revision:    6 (2026-03-21)  
 
-# X-Lisp Project Notes
+# X-Lang Project Notes
 
 ## Sub-projects
 
@@ -23,7 +23,9 @@ Revision:    5 (2021-12-03)
 - No external dependencies
 
 
-### X-Lang (x-lang) -- Minimalist Lisp Dialect
+### X-Lang (x-lang) -- Minimalist Dialect
+
+Foundational / Scripting
 
 - Simple
 - Minimalist
@@ -40,24 +42,26 @@ Revision:    5 (2021-12-03)
 - No external dependencies
 
 
-### X/OR (x-or) -- Maximal Lisp Dialect
+### X/OR (x-or) -- Midsize/Unstable Dialect
 
-Experimental / Hacker Lisp
+Experimental / Hacking
 
-- Built on X-Lisp
+- Built on X-Lang
 - Unstable
-- Full Scheme/Lisp
+- Full Dialect
 - Kernel access
 - Compiler
 - Modules
 
 
-### X-Pressive / X-Pro Lisp
+### X/AND (x-and) -- Maximal/Stable X-Lang Dialect
 
-- Built on X-Lisp
+Hardened / Full Stack
+
+- Built on X-Lang
 - Stable
 - Lisp1
-- Full Scheme spec
+- Full Dialect
 - Kernel access
 - Compiler
 - Modules
