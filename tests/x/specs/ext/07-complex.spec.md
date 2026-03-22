@@ -1,4 +1,4 @@
-# @lib x-base.x
+# @lib ../tests/x/lib/complex.x
 
 # complex
 

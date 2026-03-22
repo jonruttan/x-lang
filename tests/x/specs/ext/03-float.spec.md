@@ -1,4 +1,4 @@
-# @lib x-base.x
+# @lib ../tests/x/lib/float.x
 
 ## float literals
 

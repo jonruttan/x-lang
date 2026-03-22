@@ -1,4 +1,4 @@
-# @lib x-base.x
+# @lib ../tests/x/lib/hash.x
 
 ## fnv-1a
 
