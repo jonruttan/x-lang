@@ -272,7 +272,7 @@
     (display ")")))
 
 ; Emitter dispatch table: (operator . handler) alist
-(def %compile-emitters
+(def compile-emitters
   (list
     (pair (lit if)            %cw-if)
     (pair (lit =)             %cw-eq)
@@ -288,12 +288,19 @@
     (pair (lit atom-set!)     %cw-atom-set)
     (pair (lit atom-val)      %cw-atom-val)))
 
+(doc (def compile-add-emitter!
+  (fn (_ (param op SYMBOL "Operator symbol to handle")
+       (param handler CALLABLE "Emitter function: (fn (_ args) ...)"))
+    (set! compile-emitters (pair (pair op handler) compile-emitters))))
+  (returns LIST "Updated emitter alist")
+  "Register a new C code emitter for a form. The handler receives the argument list.")
+
 ; LIST write handler: dispatch via alist
 (def %compile-list-write
   (fn (_ lst)
     (if (null? lst)
       (display "NULL")
-      (let ((entry (assq (first lst) %compile-emitters)))
+      (let ((entry (assq (first lst) compile-emitters)))
         (if entry
           ((rest entry) (rest lst))
           (error (str "compile: unsupported form: "
@@ -330,6 +337,51 @@
          "    { .v = NULL }, { .v = NULL }, { .i = 0 }, { .fn = " name " }\n"
          "};\n\n")))
 
+; --- Multi-stage C generation ---
+
+; Generate nested function bodies iteratively until stable.
+; %compile-fns is populated by %cw-fn during generation.
+(def %generate-nested-fns
+  (fn (_ )
+    (def %nested-c "")
+    (def %gen-loop
+      (fn (_ processed)
+        (def %current (first %compile-fns))
+        (def %len (length %current))
+        (if (= %len processed) %nested-c
+          (do
+            (def %gen-new
+              (fn (_ lst n)
+                (if (= n 0) ()
+                  (do
+                    (def %entry (first lst))
+                    (def %name (first %entry))
+                    (set! %nested-c
+                      (str %nested-c
+                        (%generate-fn %name
+                          (first (rest %entry))
+                          (first (rest (rest %entry))))))
+                    (%gen-new (rest lst) (- n 1))))))
+            (%gen-new %current (- %len processed))
+            (%gen-loop %len)))))
+    (%gen-loop 0)))
+
+; Generate forward declarations and static prim objects for nested fns.
+(def %generate-declarations
+  (fn (_ )
+    (def %all-fwd "")
+    (def %all-prims "")
+    (def %gen-decls
+      (fn (_ lst)
+        (if (null? lst) ()
+          (do
+            (def %name (first (first lst)))
+            (set! %all-fwd (str %all-fwd (%generate-fwd-decl %name)))
+            (set! %all-prims (str %all-prims (%generate-static-prim %name)))
+            (%gen-decls (rest lst))))))
+    (%gen-decls (first %compile-fns))
+    (pair %all-fwd %all-prims)))
+
 ; Generate complete C source with nested fn support.
 ; Write handlers must be pushed before calling this.
 (def %generate-c-with-fns
@@ -337,51 +389,16 @@
     (let ((params (first (rest expr)))
           (body (first (rest (rest expr)))))
       (set! %compile-fns fns-holder)
-      ; Generate the main function (may populate fns via %cw-fn)
       (def %main-c (%generate-fn "fn_0" params body))
-      ; Iteratively generate nested fn bodies until stable
-      (def %nested-c "")
-      (def %gen-loop
-        (fn (_ processed)
-          (def %current (first %compile-fns))
-          (def %len (length %current))
-          (if (= %len processed) ()
-            (do
-              (def %gen-new
-                (fn (_ lst n)
-                  (if (= n 0) ()
-                    (do
-                      (def %entry (first lst))
-                      (def %name (first %entry))
-                      (set! %nested-c
-                        (str %nested-c
-                          (%generate-fn %name
-                            (first (rest %entry))
-                            (first (rest (rest %entry))))))
-                      (%gen-new (rest lst) (- n 1))))))
-              (%gen-new %current (- %len processed))
-              (%gen-loop %len)))))
-      (%gen-loop 0)
-      ; Generate forward decls and static prims
-      (def %all-fwd "")
-      (def %all-prims "")
-      (def %gen-decls
-        (fn (_ lst)
-          (if (null? lst) ()
-            (do
-              (def %name (first (first lst)))
-              (set! %all-fwd (str %all-fwd (%generate-fwd-decl %name)))
-              (set! %all-prims (str %all-prims (%generate-static-prim %name)))
-              (%gen-decls (rest lst))))))
-      (%gen-decls (first %compile-fns))
-      ; Combine (add fvar table declaration if fvars present)
+      (def %nested-c (%generate-nested-fns))
+      (def %decls (%generate-declarations))
       (str "#include \"x-obj.h\"\n"
            "#include \"x-type/buffer.h\"\n\n"
            (if (null? %compile-fvars) ""
              "x_obj_t *x_fvar_table[64];\n\n")
-           %all-fwd "\n"
+           (first %decls) "\n"
            %nested-c
-           %all-prims
+           (rest %decls)
            %main-c))))
 
 ; --- Push/pop write handlers around code generation ---
@@ -397,6 +414,15 @@
     (type-pop-write %list-type)
     (type-pop-write %symbol-type)
     (type-pop-write %int-type)))
+
+(doc (def compile-with-writers
+  (fn (_ (param thunk CALLABLE "Zero-arg function to call with C emitters active"))
+    (%compile-push-writers)
+    (def result (thunk))
+    (%compile-pop-writers)
+    result))
+  (returns ANY "Result of calling thunk")
+  "Push C code-generation write handlers, call thunk, pop handlers. Use for custom C generation.")
 
 ; --- Fvar table patching: write runtime pointers into loaded .so ---
 ; After dlopen, resolve x_fvar_table symbol and fill with current fvar values.
@@ -467,10 +493,8 @@
     (if (not (eq? (first expr) (lit fn)))
       (error "compile-to-c: expression must be (fn (_ params...) body)"))
     (def %fns-holder (list (list)))
-    (%compile-push-writers)
-    (def %c-source (%generate-c-with-fns expr %fns-holder))
-    (%compile-pop-writers)
-    %c-source))
+    (compile-with-writers
+      (fn (_ ) (%generate-c-with-fns expr %fns-holder)))))
 (doc compile-to-c "Generate C source code from an (fn ...) expression."
   (param expr LIST "A (fn (_ params...) body) expression")
   (returns STRING "Generated C source code"))
@@ -648,7 +672,8 @@
 
 (doc (provide x/compile
   compile-to-c compile-write compile-cc compile-load
-  compile-cc-flags compile-ext
+  compile-cc-flags compile-ext compile-with-writers
+  compile-emitters compile-add-emitter!
   compile compile-batch)
   (note "Pipeline: compile-to-c -> compile-write -> compile-cc -> compile-load. Each stage usable independently.")
   "Native code compiler via dlopen/dlsym.")

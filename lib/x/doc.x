@@ -241,6 +241,56 @@
 ; note: (note text...) -> no-op, returns nil (standalone section marker)
 (def note (op (_ . args) e ()))
 
+; --- Display helpers ---
+
+(def %display-notes
+  (fn (_ notes)
+    (%doc-for-each
+      (fn (_ n) (display "  ") (display n) (newline))
+      notes)))
+
+(def %display-params
+  (fn (_ ps)
+    (if (null? ps) ()
+      (do
+        (display "  ")
+        (display (first (first ps)))
+        (if (not (null? (first (rest (first ps)))))
+          (do (display " : ")
+              (display (first (rest (first ps))))))
+        (if (not (string=? (first (rest (rest (first ps)))) ""))
+          (do (display " -- ")
+              (display (first (rest (rest (first ps)))))))
+        (newline)
+        (%display-params (rest ps))))))
+
+(def %display-returns
+  (fn (_ ret)
+    (if (not (null? ret))
+      (do (display "  => ")
+          (display (first ret))
+          (if (not (string=? (first (rest ret)) ""))
+            (do (display " -- ")
+                (display (first (rest ret)))))
+          (newline)))))
+
+(def %display-examples
+  (fn (_ examples)
+    (%doc-for-each
+      (fn (_ ex)
+        (display "  > ")
+        (display (first ex))
+        (display " => ")
+        (display (rest ex))
+        (newline))
+      examples)))
+
+(def %display-sees
+  (fn (_ sees)
+    (%doc-for-each
+      (fn (_ ref) (display "  See: ") (display ref) (newline))
+      sees)))
+
 ; --- Display ---
 
 (def %display-doc
@@ -249,48 +299,11 @@
     (display ": ")
     (display (%doc-entry-desc entry))
     (newline)
-    ; Show notes
-    (%doc-for-each
-      (fn (_ n) (display "  ") (display n) (newline))
-      (%doc-entry-notes entry))
-    ; Show params
-    (def %show-params
-      (fn (_ ps)
-        (if (null? ps) ()
-          (do
-            (display "  ")
-            (display (first (first ps)))
-            (if (not (null? (first (rest (first ps)))))
-              (do (display " : ")
-                  (display (first (rest (first ps))))))
-            (if (not (string=? (first (rest (rest (first ps)))) ""))
-              (do (display " -- ")
-                  (display (first (rest (rest (first ps)))))))
-            (newline)
-            (%show-params (rest ps))))))
-    (%show-params (%doc-entry-params entry))
-    ; Show returns
-    (def %ret (%doc-entry-returns entry))
-    (if (not (null? %ret))
-      (do (display "  => ")
-          (display (first %ret))
-          (if (not (string=? (first (rest %ret)) ""))
-            (do (display " -- ")
-                (display (first (rest %ret)))))
-          (newline)))
-    ; Show examples
-    (%doc-for-each
-      (fn (_ ex)
-        (display "  > ")
-        (display (first ex))
-        (display " => ")
-        (display (rest ex))
-        (newline))
-      (%doc-entry-examples entry))
-    ; Show see-also
-    (%doc-for-each
-      (fn (_ ref) (display "  See: ") (display ref) (newline))
-      (%doc-entry-sees entry))))
+    (%display-notes (%doc-entry-notes entry))
+    (%display-params (%doc-entry-params entry))
+    (%display-returns (%doc-entry-returns entry))
+    (%display-examples (%doc-entry-examples entry))
+    (%display-sees (%doc-entry-sees entry))))
 
 ; --- Module display (uses %module-registry-cell from x-core.x) ---
 
@@ -298,33 +311,18 @@
 
 (def %display-module
   (fn (_ entry)
-    ; entry = (name . exports)
     (def %mod-name (first entry))
-    ; Check doc registry for module-level docs
     (def %mod-doc (%doc-lookup %mod-name))
     (display %mod-name)
     (if (not (null? %mod-doc))
       (if (not (string=? (%doc-entry-desc %mod-doc) ""))
         (do (display " -- ") (display (%doc-entry-desc %mod-doc)))))
     (newline)
-    ; Show module notes
     (if (not (null? %mod-doc))
-      (%doc-for-each
-        (fn (_ n) (display "  ") (display n) (newline))
-        (%doc-entry-notes %mod-doc)))
-    ; Show module examples
-    (if (not (null? %mod-doc))
-      (%doc-for-each
-        (fn (_ ex)
-          (display "  > ")
-          (display (first ex))
-          (display " => ")
-          (display (rest ex))
-          (newline))
-        (%doc-entry-examples %mod-doc)))
-    ; List exports
-    (if (not (null? %mod-doc))
-      (newline))
+      (do
+        (%display-notes (%doc-entry-notes %mod-doc))
+        (%display-examples (%doc-entry-examples %mod-doc))
+        (newline)))
     (%doc-for-each
       (fn (_ sym)
         (def %e (%doc-lookup sym))
