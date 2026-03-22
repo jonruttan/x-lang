@@ -145,3 +145,95 @@
 ```
 ---
     "n"
+
+## big+
+
+### adds two bignums
+
+```scheme
+(write (big+ (convert 100 %bignum) (convert 200 %bignum)))
+```
+---
+    300
+
+### adds large bignums
+
+```scheme
+(write (big+ (convert 999999999999999999 %bignum) (convert 1 %bignum)))
+```
+---
+    1000000000000000000
+
+## big-
+
+### subtracts bignums
+
+```scheme
+(write (big- (convert 1000 %bignum) (convert 1 %bignum)))
+```
+---
+    999
+
+## big*
+
+### multiplies bignums
+
+```scheme
+(write (big* (convert 12345 %bignum) (convert 6789 %bignum)))
+```
+---
+    83810205
+
+### large multiply
+
+```scheme
+(bignum? (big* (convert 999999999 %bignum) (convert 999999999 %bignum)))
+```
+---
+    #t
+
+## big/
+
+### divides bignums
+
+```scheme
+(write (big/ (convert 100 %bignum) (convert 7 %bignum)))
+```
+---
+    14
+
+## big<
+
+### less than
+
+```scheme
+(big< (convert 1 %bignum) (convert 2 %bignum))
+```
+---
+    #t
+
+### not less than
+
+```scheme
+(big< (convert 2 %bignum) (convert 1 %bignum))
+```
+---
+    #f
+
+## big=
+
+### equal
+
+```scheme
+(big= (convert 42 %bignum) (convert 42 %bignum))
+```
+---
+    #t
+
+### not equal
+
+```scheme
+(big= (convert 1 %bignum) (convert 2 %bignum))
+```
+---
+    #f
