@@ -144,12 +144,11 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 		close(tmpfile)
 	} else {
 		# Standard mode: %T harness with (begin ...) wrapping.
-		printf "(display \"<<CLK:\")(write (clock))(display \">>\\n\")\n" > tmpfile
 		printf "(def %%T (op () %%E (def %%r (%s)) (if (eq? %%r (lit %%END%%)) () (%%seq (guard (err (display \"Error: \") (display err) (newline)) (%%repl-print (eval %%r %%E))) (%%T)))))\n", read_fn > tmpfile
 		printf "%s\n", "(%T)" > tmpfile
 		for (i = from; i <= to; i++) {
 			if (i > from)
-				printf "(%%profile-dump) (display \"<<CLK:\")(write (clock))(display \">>\\n\") (display \"<<SEP>>\\n\")\n" > tmpfile
+				printf "(%%profile-dump) (display \"<<SEP>>\\n\")\n" > tmpfile
 			printf "(begin %s)\n", t_input[i] > tmpfile
 		}
 		printf "(display \"<<SEP:\")(write (clock))(display \">>\")(newline)\n" > tmpfile
@@ -171,19 +170,8 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 		# Strip REPL prompts (> and $ prefixes, looping)
 		while (substr(line, 1, 2) == "> " || substr(line, 1, 2) == "$ ")
 			line = substr(line, 3)
-		if (substr(line, 1, 9) == "<<CLK:") {
-			_us = substr(line, 9, length(line) - 10) + 0
-			if (last_clock_us == 0) {
-				load_time_ms = int(_us / 1000)
-			}
-			last_clock_us = _us
-			if (prev_clock_us == 0) prev_clock_us = _us
-			continue
-		}
 		if (line == "<<SEP>>") {
-			dt_ms = (last_clock_us > 0 && prev_clock_us > 0) \
-				? int((last_clock_us - prev_clock_us) / 1000) : 0
-			prev_clock_us = last_clock_us
+			dt_ms = 0
 			dt = int(dt_ms / 1000)
 			t_time_ms[tidx] = dt_ms
 			if (output == t_expect[tidx]) {
