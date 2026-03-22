@@ -20,11 +20,8 @@
       (let ((e (first entries)))
         (if (pair? e)
           ; range: (lo . hi) — integer codes
-          (if (>= c (first e))
-            (if (<= c (rest e))
-              #t
-              (%regex-class-match (rest entries) chr))
-            (%regex-class-match (rest entries) chr))
+          (if (and (>= c (first e)) (<= c (rest e)))
+            #t (%regex-class-match (rest entries) chr))
           ; literal char code
           (if (= c e)
             #t (%regex-class-match (rest entries) chr)))))))
