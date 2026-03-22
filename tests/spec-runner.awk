@@ -151,7 +151,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 				printf "(%%profile-dump) (display \"<<SEP>>\\n\")\n" > tmpfile
 			printf "(begin %s)\n", t_input[i] > tmpfile
 		}
-		printf "(display \"<<SEP:\")(write (clock))(display \">>\")(newline)\n" > tmpfile
+		printf "(display \"<<SEP>>\\n\")\n" > tmpfile
 		printf "%s\n", "%END%" > tmpfile
 		close(tmpfile)
 	}
@@ -164,8 +164,6 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 	tidx = from
 	output = ""
 	load_time_ms = 0
-	last_clock_us = 0
-	prev_clock_us = 0
 	while ((cmd | getline line) > 0) {
 		# Strip REPL prompts (> and $ prefixes, looping)
 		while (substr(line, 1, 2) == "> " || substr(line, 1, 2) == "$ ")
