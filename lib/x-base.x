@@ -19,9 +19,11 @@
   (pair "lib/x/float.x"
   (pair "lib/x/rational.x"
   (pair "lib/x/complex.x"
-    (first %include-list-cell)))))))
+  (pair "lib/x/hash.x"
+    (first %include-list-cell))))))))
 (include "lib/x/bignum.x")
 (include "lib/x/regex.x")
 (include "lib/x/float.x")
 (include "lib/x/rational.x")
 (include "lib/x/complex.x")
+(include "lib/x/hash.x")

@@ -174,3 +174,223 @@
 ```
 ---
     "abcd"
+
+## make-string
+
+### creates string of spaces
+
+```scheme
+(make-string 3)
+```
+---
+    "   "
+
+### creates string of specific char
+
+```scheme
+(make-string 4 ("x" 0))
+```
+---
+    "xxxx"
+
+## string-pad-left
+
+### pads shorter string
+
+```scheme
+(string-pad-left "hi" 5 (" " 0))
+```
+---
+    "   hi"
+
+### no padding if already long enough
+
+```scheme
+(string-pad-left "hello" 3 (" " 0))
+```
+---
+    "hello"
+
+## string->list
+
+### converts string to char list
+
+```scheme
+(length (string->list "abc"))
+```
+---
+    3
+
+## string-upcase
+
+### uppercases a string
+
+```scheme
+(string-upcase "hello")
+```
+---
+    "HELLO"
+
+## string-downcase
+
+### lowercases a string
+
+```scheme
+(string-downcase "HELLO")
+```
+---
+    "hello"
+
+## string<?
+
+### less than
+
+```scheme
+(string<? "abc" "abd")
+```
+---
+    #t
+
+### not less than
+
+```scheme
+(if (string<? "abd" "abc") "y" "n")
+```
+---
+    "n"
+
+## string>?
+
+### greater than
+
+```scheme
+(string>? "abd" "abc")
+```
+---
+    #t
+
+## string<=?
+
+### less or equal
+
+```scheme
+(string<=? "abc" "abc")
+```
+---
+    #t
+
+## string>=?
+
+### greater or equal
+
+```scheme
+(string>=? "abc" "abc")
+```
+---
+    #t
+
+## string-ci=?
+
+### case insensitive equal
+
+```scheme
+(string-ci=? "Hello" "hello")
+```
+---
+    #t
+
+### case insensitive not equal
+
+```scheme
+(if (string-ci=? "Hello" "world") "y" "n")
+```
+---
+    "n"
+
+## string-ci<?
+
+### case insensitive less
+
+```scheme
+(string-ci<? "abc" "DEF")
+```
+---
+    #t
+
+## string-ci>?
+
+### case insensitive greater
+
+```scheme
+(string-ci>? "DEF" "abc")
+```
+---
+    #t
+
+## string-ci<=?
+
+### case insensitive less or equal
+
+```scheme
+(string-ci<=? "abc" "ABC")
+```
+---
+    #t
+
+## string-ci>=?
+
+### case insensitive greater or equal
+
+```scheme
+(string-ci>=? "ABC" "abc")
+```
+---
+    #t
+
+## string-trim
+
+### trims whitespace
+
+```scheme
+(string-trim "  hello  ")
+```
+---
+    "hello"
+
+## string-trim-left
+
+### trims left whitespace
+
+```scheme
+(string-trim-left "  hello  ")
+```
+---
+    "hello  "
+
+## string-trim-right
+
+### trims right whitespace
+
+```scheme
+(string-trim-right "  hello  ")
+```
+---
+    "  hello"
+
+## string-split
+
+### splits by separator
+
+```scheme
+(string-split "," "a,b,c")
+```
+---
+    ("a" "b" "c")
+
+### splits with no match
+
+```scheme
+(string-split "," "abc")
+```
+---
+    ("abc")

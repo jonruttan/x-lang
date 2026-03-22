@@ -270,3 +270,73 @@
 ---
     "n"
 
+
+## gcd
+
+### two numbers
+
+```scheme
+(gcd 12 8)
+```
+---
+    4
+
+### coprime
+
+```scheme
+(gcd 7 13)
+```
+---
+    1
+
+### variadic
+
+```scheme
+(gcd 12 8 6)
+```
+---
+    2
+
+## lcm
+
+### two numbers
+
+```scheme
+(lcm 4 6)
+```
+---
+    12
+
+### variadic
+
+```scheme
+(lcm 2 3 4)
+```
+---
+    12
+
+## expt
+
+### power of two
+
+```scheme
+(expt 2 10)
+```
+---
+    1024
+
+### zero exponent
+
+```scheme
+(expt 5 0)
+```
+---
+    1
+
+### base one
+
+```scheme
+(expt 1 100)
+```
+---
+    1

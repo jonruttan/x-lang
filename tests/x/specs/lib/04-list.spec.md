@@ -876,3 +876,75 @@
 ---
     (10 21 30)
 
+
+## memq
+
+### finds element by identity
+
+```scheme
+(first (memq (lit c) (list (lit a) (lit b) (lit c) (lit d))))
+```
+---
+    c
+
+### returns false when not found
+
+```scheme
+(if (memq 6 (list 1 2 3)) "y" "n")
+```
+---
+    "n"
+
+## member
+
+### finds element by equal?
+
+```scheme
+(member 3 (list 1 2 3 4 5))
+```
+---
+    (3 4 5)
+
+### returns false when not found
+
+```scheme
+(if (member 6 (list 1 2 3)) "y" "n")
+```
+---
+    "n"
+
+## assq
+
+### finds by identity
+
+```scheme
+(rest (assq (lit b) (list (pair (lit a) 1) (pair (lit b) 2) (pair (lit c) 3))))
+```
+---
+    2
+
+### returns false when not found
+
+```scheme
+(if (assq (lit z) (list (pair (lit a) 1))) "y" "n")
+```
+---
+    "n"
+
+## assoc
+
+### finds by equal?
+
+```scheme
+(rest (assoc 2 (list (pair 1 10) (pair 2 20) (pair 3 30))))
+```
+---
+    20
+
+### returns false when not found
+
+```scheme
+(if (assoc 9 (list (pair 1 10))) "y" "n")
+```
+---
+    "n"

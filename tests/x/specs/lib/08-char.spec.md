@@ -185,3 +185,81 @@
 ```
 ---
     #f
+
+## char>?
+
+### greater than
+
+```scheme
+(char>? ("b" 0) ("a" 0))
+```
+---
+    #t
+
+### not greater
+
+```scheme
+(if (char>? ("a" 0) ("b" 0)) "y" "n")
+```
+---
+    "n"
+
+## char<=?
+
+### less or equal
+
+```scheme
+(char<=? ("a" 0) ("a" 0))
+```
+---
+    #t
+
+## char>=?
+
+### greater or equal
+
+```scheme
+(char>=? ("z" 0) ("z" 0))
+```
+---
+    #t
+
+## char-ci<?
+
+### case insensitive less
+
+```scheme
+(char-ci<? ("a" 0) ("B" 0))
+```
+---
+    #t
+
+## char-ci>?
+
+### case insensitive greater
+
+```scheme
+(char-ci>? ("B" 0) ("a" 0))
+```
+---
+    #t
+
+## char-ci<=?
+
+### case insensitive less or equal
+
+```scheme
+(char-ci<=? ("a" 0) ("A" 0))
+```
+---
+    #t
+
+## char-ci>=?
+
+### case insensitive greater or equal
+
+```scheme
+(char-ci>=? ("A" 0) ("a" 0))
+```
+---
+    #t

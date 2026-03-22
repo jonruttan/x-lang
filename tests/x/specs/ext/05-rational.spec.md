@@ -335,3 +335,39 @@
 ```
 ---
     "3/4"
+
+## numerator
+
+### extracts numerator
+
+```scheme
+(numerator 3/4)
+```
+---
+    3
+
+### integer numerator is itself
+
+```scheme
+(numerator 5)
+```
+---
+    5
+
+## denominator
+
+### extracts denominator
+
+```scheme
+(denominator 3/4)
+```
+---
+    4
+
+### integer denominator is one
+
+```scheme
+(denominator 5)
+```
+---
+    1
