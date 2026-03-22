@@ -784,3 +784,203 @@
 ---
     ("abc")
 
+## regex-count
+
+### counts matches
+
+```scheme
+(regex-count #/[0-9]+/ "a1b22c333")
+```
+---
+    3
+
+### no matches returns zero
+
+```scheme
+(regex-count #/[0-9]+/ "abc")
+```
+---
+    0
+
+### single match
+
+```scheme
+(regex-count #/abc/ "xabcx")
+```
+---
+    1
+
+## callable replace
+
+### replace with function
+
+```scheme
+(regex-replace #/[a-z]+/ "hello123" string-upcase)
+```
+---
+    "HELLO123"
+
+### replace-all with function
+
+```scheme
+(regex-replace-all #/[a-z]+/ "hello123world" string-upcase)
+```
+---
+    "HELLO123WORLD"
+
+## word boundary
+
+### word boundary at start
+
+```scheme
+(regex-match #/\bhello\b/ "hello")
+```
+---
+    #t
+
+### word boundary rejects mid-word
+
+```scheme
+(regex-match #/\bello/ "hello")
+```
+---
+    #f
+
+### word boundary in search
+
+```scheme
+(regex-find #/\b[0-9]+\b/ "abc 123 def")
+```
+---
+    "123"
+
+### non-word-boundary matches inside
+
+```scheme
+(regex-match #/hel\Blo/ "hello")
+```
+---
+    #t
+
+## find-at
+
+### find-at from offset
+
+```scheme
+(regex-find-at #/[0-9]+/ "abc123def456" 6)
+```
+---
+    (9 12)
+
+### find-at from zero same as search
+
+```scheme
+(regex-find-at #/[0-9]+/ "abc123" 0)
+```
+---
+    (3 6)
+
+### find-at past all matches
+
+```scheme
+(null? (regex-find-at #/[0-9]+/ "abc123" 6))
+```
+---
+    #t
+
+## find-all-pos
+
+### returns position pairs
+
+```scheme
+(regex-find-all-pos #/[0-9]+/ "a1b22c333")
+```
+---
+    ((1 2) (3 5) (6 9))
+
+### no matches returns empty list
+
+```scheme
+(null? (regex-find-all-pos #/[0-9]+/ "abc"))
+```
+---
+    #t
+
+## lazy quantifiers
+
+### lazy-opt prefers not matching
+
+```scheme
+(regex-find #/a??b/ "ab")
+```
+---
+    "ab"
+
+### lazy star minimal
+
+```scheme
+(regex-find #/a.*?b/ "aXXbYYb")
+```
+---
+    "aXXb"
+
+### lazy plus minimal
+
+```scheme
+(regex-find #/.+?b/ "aXXb")
+```
+---
+    "aXXb"
+
+## negated class with escapes
+
+### negated digit class
+
+```scheme
+(regex-find #/[^\d]+/ "123abc456")
+```
+---
+    "abc"
+
+### negated word class
+
+```scheme
+(regex-find #/[^\w]+/ "hello world")
+```
+---
+    " "
+
+## edge cases
+
+### empty pattern matches empty string
+
+```scheme
+(regex-match #// "")
+```
+---
+    #t
+
+### star on empty matches anything
+
+```scheme
+(regex-match #/a*/ "")
+```
+---
+    #t
+
+### anchored empty
+
+```scheme
+(regex-match #/^$/ "")
+```
+---
+    #t
+
+### anchored empty rejects non-empty
+
+```scheme
+(regex-match #/^$/ "x")
+```
+---
+    #f
+

@@ -601,22 +601,37 @@
   (returns LIST "List of (start end) pairs")
   "Find all non-overlapping match positions.")
 
+; --- Count ---
+
+(doc (def regex-count
+  (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string"))
+    (length (regex-find-all-pos rx str))))
+  (returns INTEGER "Number of non-overlapping matches")
+  (example "(regex-count #/[0-9]+/ \"a1b22c333\")" "3")
+  "Count the number of non-overlapping matches.")
+
 ; --- Replace ---
 
+(def %regex-get-replacement
+  (fn (_ rep matched)
+    (if (procedure? rep) (rep matched) rep)))
+
 (doc (def regex-replace
-  (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string") (param rep STRING "Replacement string"))
+  (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string") (param rep ANY "Replacement string or function"))
     (def m (regex-search rx str))
     (if (null? m) str
-      (string-append
-        (substring str 0 (first m))
-        (string-append rep
-          (substring str (first (rest m)) (string-length str)))))))
+      (do
+        (def matched (substring str (first m) (first (rest m))))
+        (string-append
+          (substring str 0 (first m))
+          (string-append (%regex-get-replacement rep matched)
+            (substring str (first (rest m)) (string-length str))))))))
   (returns STRING "String with first match replaced")
   (example "(regex-replace #/[0-9]+/ \"abc123def\" \"N\")" "\"abcNdef\"")
-  "Replace the first match with a replacement string.")
+  "Replace the first match. rep can be a string or a function that receives the matched text.")
 
 (doc (def regex-replace-all
-  (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string") (param rep STRING "Replacement string"))
+  (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string") (param rep ANY "Replacement string or function"))
     (def len (string-length str))
     (def %go
       (fn (_ pos acc)
@@ -626,14 +641,16 @@
           (do
             (def start (first m))
             (def end (first (rest m)))
+            (def matched (substring str start end))
             (def next (if (= start end) (+ end 1) end))
             (%go next
               (string-append acc
-                (string-append (substring str pos start) rep)))))))
+                (string-append (substring str pos start)
+                  (%regex-get-replacement rep matched))))))))
     (%go 0 "")))
   (returns STRING "String with all matches replaced")
   (example "(regex-replace-all #/[0-9]+/ \"a1b22c333\" \"N\")" "\"aNbNcN\"")
-  "Replace all matches with a replacement string.")
+  "Replace all matches. rep can be a string or a function that receives each matched text.")
 
 ; --- Split ---
 
@@ -672,7 +689,7 @@
 
 (doc (provide x/regex
   regex? regex-match regex-search regex-find-at
-  regex-find regex-find-all regex-find-all-pos
+  regex-find regex-find-all regex-find-all-pos regex-count
   regex-replace regex-replace-all regex-split
   regex-exec regex-parse)
   (note "Syntax: #/pattern/. Supports: . * + ? \\ [class] [^neg] (group) | alternation ^ $ anchors {n,m} repetition \\d \\w \\s.")
