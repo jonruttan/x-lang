@@ -70,6 +70,14 @@
 ---
     #t
 
+### float plus bignum promotes to float
+
+```scheme
+(float? (+ 1.0 99999999999999999999))
+```
+---
+    #t
+
 ## rational arithmetic
 
 ### rational addition

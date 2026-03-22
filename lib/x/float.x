@@ -104,7 +104,8 @@
             (fn (_ value) (make-instance %float (int->float value))))
           (pair
             (type-of "")
-            (fn (_ value) (make-instance %float (string->float value))))))
+            (fn (_ value) (make-instance %float (string->float value))))
+))
       (pair
         (lit to)
         (list
@@ -344,6 +345,27 @@
 
 (doc (def inexact? float?)
   "Test whether a value is inexact. Equivalent to float?.")
+
+; --- Bignum -> float conversion (registered late, after f+/f* are defined) ---
+(if (not (null? %bignum))
+  (do
+    (def %from-cell (type-from-cell (type-by-atom %float)))
+    (set-first! %from-cell
+      (pair
+        (pair %bignum
+          (fn (_ value)
+            (def sign (first (first value)))
+            (def limbs (reverse (rest (first value))))
+            (def fbase (exact->inexact %bignum-base))
+            (def fzero (exact->inexact 0))
+            ; Horner's method on reversed (now MSB-first) limbs
+            (def %go
+              (fn (_ ls acc)
+                (if (null? ls) acc
+                  (%go (rest ls) (f+ (f* acc fbase) (exact->inexact (first ls)))))))
+            (def mag (%go limbs fzero))
+            (if (%int= sign -1) (f- fzero mag) mag)))
+        (first %from-cell)))))
 
 (doc (provide x/float
   float? float->string int->float float->int string->float
