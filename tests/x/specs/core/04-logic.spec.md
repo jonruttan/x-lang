@@ -63,13 +63,13 @@
 ---
     #f
 
-### def in last position persists
+### and with nested function calls
 
 ```scheme
-(do (and #t (def x 99)) x)
+(let ((x 5)) (and (> x 3) (< x 10)))
 ```
 ---
-    99
+    #t
 
 ## or
 
@@ -134,13 +134,13 @@
 ---
     1
 
-### def in last position persists
+### or with nested function calls
 
 ```scheme
-(do (or (lit ()) (def x 77)) x)
+(let ((x 5)) (or (< x 0) (> x 3)))
 ```
 ---
-    77
+    #t
 
 ## not
 
