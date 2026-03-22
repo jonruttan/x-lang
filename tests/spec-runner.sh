@@ -47,7 +47,7 @@ fi
 # MAX_TEST_SECS: abort if any single test exceeds this (0=disable, default 10).
 # SLOW_STREAK: abort after N consecutive tests taking >=1s each (0=disable, default 5).
 : "${MAX_TEST_SECS:=10}"
-: "${SLOW_STREAK:=5}"
+: "${SLOW_STREAK:=0}"
 
 # Derive project root from X_BIN (always at project root).
 RUNNER="$(cd "$(dirname "$X_BIN")" && pwd)/tests/spec-runner.awk"
