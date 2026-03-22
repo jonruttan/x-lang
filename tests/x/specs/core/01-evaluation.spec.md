@@ -79,7 +79,7 @@
 (guard (e (lit caught)) no-such-var)
 ```
 ---
-    caught
+    (lit caught)
 
 ## recursive definitions
 

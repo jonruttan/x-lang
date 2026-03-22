@@ -112,7 +112,7 @@
 (do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-keys al))
 ```
 ---
-    (a b)
+    ((lit a) (lit b))
 
 ## assoc-vals
 
@@ -192,7 +192,7 @@
 (do (def al (list (pair (lit a) 1))) (first (first (to-pairs al))))
 ```
 ---
-    a
+    (lit a)
 
 ## evolve
 

@@ -6,7 +6,7 @@
 (do (def loop (fn (_ n) (if (= n 0) (lit done) (loop (- n 1))))) (loop 1000))
 ```
 ---
-    done
+    (lit done)
 
 ### tail-recursive accumulator
 
@@ -24,7 +24,7 @@
 (do (def f (fn (_ n) (match ((= n 0) (lit zero)) (#t (f (- n 1)))))) (f 1000))
 ```
 ---
-    zero
+    (lit zero)
 
 ## tail call in do
 
@@ -34,7 +34,7 @@
 (do (def f (fn (_ n) (do 1 2 (if (= n 0) (lit ok) (f (- n 1)))))) (f 1000))
 ```
 ---
-    ok
+    (lit ok)
 
 ## tail call in let
 
@@ -44,7 +44,7 @@
 (do (def f (fn (_ n) (let ((m (- n 1))) (if (= m 0) (lit done) (f m))))) (f 1000))
 ```
 ---
-    done
+    (lit done)
 
 ## mutual tail recursion
 
@@ -64,7 +64,7 @@
 (do (def f (fn (_ n) (if (= n 0) (lit done) (apply f (list (- n 1)))))) (f 1000))
 ```
 ---
-    done
+    (lit done)
 
 ## tail call in and
 
@@ -74,7 +74,7 @@
 (do (def f (fn (_ n) (if (and #t (> n 0)) (f (- n 1)) (lit done)))) (f 1000))
 ```
 ---
-    done
+    (lit done)
 
 ## tail call in or
 
@@ -84,7 +84,7 @@
 (do (def f (fn (_ n) (if (or () (= n 0)) (lit done) (f (- n 1))))) (f 1000))
 ```
 ---
-    done
+    (lit done)
 
 ## and/or env restoration
 
@@ -130,7 +130,7 @@
 (do (def f (fn (_ n) (if (or () (let ((m (- n 1))) (= m 0))) (lit done) (f (- n 1))))) (f 1000))
 ```
 ---
-    done
+    (lit done)
 
 ### do inside and inside recursive fn
 
@@ -138,7 +138,7 @@
 (do (def f (fn (_ n) (if (and #t (do (> n 0))) (f (- n 1)) (lit done)))) (f 1000))
 ```
 ---
-    done
+    (lit done)
 
 ## non-tail recursion still works
 

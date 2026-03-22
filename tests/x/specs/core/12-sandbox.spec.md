@@ -32,7 +32,7 @@
 (do (def x 10) (def b (make-base)) (guard (e (lit isolated)) (base-eval b (lit x))))
 ```
 ---
-    isolated
+    (lit isolated)
 
 ### child binding not visible in parent
 
@@ -40,7 +40,7 @@
 (do (def b (make-base)) (base-eval b (lit (def x 42))) (guard (e (lit isolated)) x))
 ```
 ---
-    isolated
+    (lit isolated)
 
 ### two bases are independent
 
@@ -74,7 +74,7 @@
 (do (def b (make-base)) (guard (e (lit caught)) (base-eval b (lit (error "boom")))))
 ```
 ---
-    caught
+    (lit caught)
 
 ## base-bind
 
@@ -100,7 +100,7 @@
 (do (def b (make-base)) (base-bind b (lit z) 99) (guard (e (lit ok)) z))
 ```
 ---
-    ok
+    (lit ok)
 
 ## make-token-base
 
@@ -136,7 +136,7 @@
     (first (first (token-read-string %tb1 "hello"))))
 ```
 ---
-    word
+    (lit word)
 
 ### multiple types with discard
 
@@ -205,7 +205,7 @@
     (first (first (token-read-string %tb5 "abc def"))))
 ```
 ---
-    tok
+    (lit tok)
 
 ### custom type coexists with built-in types
 
@@ -223,7 +223,7 @@
     (first (first %tb6-tokens)))
 ```
 ---
-    %comment
+    (lit %comment)
 
 ## token-read-string
 
@@ -233,7 +233,7 @@
 (first (token-read-string (make-base) "(+ 1 2)"))
 ```
 ---
-    (+ 1 2)
+    ((lit +) 1 2)
 
 ### multi-token sexp input
 
@@ -282,4 +282,4 @@
     (first (token-read-string %tb9 "x")))
 ```
 ---
-    first-type
+    (lit first-type)

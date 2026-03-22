@@ -14,7 +14,7 @@
 (quasi foo)
 ```
 ---
-    foo
+    (lit foo)
 
 ### returns nil for empty list
 
@@ -29,7 +29,7 @@
 (quasi (a (b c) d))
 ```
 ---
-    (a (b c) d)
+    ((lit a) ((lit b) (lit c)) (lit d))
 
 ## unquote
 
@@ -39,7 +39,7 @@
 (do (def x 42) (quasi (a (unquote x) c)))
 ```
 ---
-    (a 42 c)
+    ((lit a) 42 (lit c))
 
 ### evaluates an expression
 
@@ -47,7 +47,7 @@
 (quasi (result (unquote (+ 1 2))))
 ```
 ---
-    (result 3)
+    ((lit result) 3)
 
 ### substitutes in first position
 
@@ -55,7 +55,7 @@
 (do (def op (lit +)) (quasi ((unquote op) 1 2)))
 ```
 ---
-    (+ 1 2)
+    ((lit +) 1 2)
 
 ### substitutes in last position
 
@@ -63,7 +63,7 @@
 (do (def x 99) (quasi (a b (unquote x))))
 ```
 ---
-    (a b 99)
+    ((lit a) (lit b) 99)
 
 ### handles multiple unquotes
 
@@ -89,7 +89,7 @@
 (quasi (a (unquote-splicing (list)) b))
 ```
 ---
-    (a b)
+    ((lit a) (lit b))
 
 ### splices at beginning
 

@@ -885,7 +885,7 @@
 (first (memq (lit c) (list (lit a) (lit b) (lit c) (lit d))))
 ```
 ---
-    c
+    (lit c)
 
 ### returns false when not found
 

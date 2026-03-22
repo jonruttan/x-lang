@@ -218,7 +218,7 @@
 (guard (e (list (lit caught) e)) (error "oops"))
 ```
 ---
-    (caught "oops")
+    ((lit caught) "oops")
 
 ### catches unbound symbol
 
@@ -226,7 +226,7 @@
 (guard (e (lit handled)) no-such-var)
 ```
 ---
-    handled
+    (lit handled)
 
 ### returns last body form
 
@@ -242,7 +242,7 @@
 (guard (e (list (lit err) e)) (error 42))
 ```
 ---
-    (err 42)
+    ((lit err) 42)
 
 ## error
 
@@ -278,7 +278,7 @@
 (guard (e (lit outer)) (guard (e (lit inner)) (error "x")))
 ```
 ---
-    inner
+    (lit inner)
 
 ### outer guard catches when inner has no guard
 
@@ -286,7 +286,7 @@
 (guard (e (list (lit outer) e)) (do (def f (fn (_ ) (error "deep"))) (f)))
 ```
 ---
-    (outer "deep")
+    ((lit outer) "deep")
 
 ### inner guard does not catch outer body error
 
@@ -294,7 +294,7 @@
 (guard (e (list (lit caught) e)) (+ 1 2) (error "after"))
 ```
 ---
-    (caught "after")
+    ((lit caught) "after")
 
 ## guard with env restore
 

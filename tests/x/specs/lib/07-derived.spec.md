@@ -202,7 +202,7 @@
 (cond (#f => (fn (_ x) (lit bad))) (#t (lit good)))
 ```
 ---
-    good
+    (lit good)
 
 ### cond clause with multiple expressions
 
@@ -233,7 +233,7 @@
   ((3) (lit three)))
 ```
 ---
-    two
+    (lit two)
 
 ### case with else
 
@@ -243,7 +243,7 @@
   (else (lit other)))
 ```
 ---
-    other
+    (lit other)
 
 ### case with datum lists
 
@@ -253,7 +253,7 @@
   ((1 4 6 8 9) (lit composite)))
 ```
 ---
-    composite
+    (lit composite)
 
 ### case clause with multiple expressions
 
