@@ -12,6 +12,14 @@
 (def regex-exec ())
 (def regex-parse ())
 
+; Word character check: [0-9A-Za-z_]
+(def %regex-is-word-char
+  (fn (_ c)
+    (if (and (>= c 48) (<= c 57)) #t
+      (if (and (>= c 65) (<= c 90)) #t
+        (if (and (>= c 97) (<= c 122)) #t
+          (= c 95))))))
+
 ; Character class membership: check if chr (char) matches any entry (int codes)
 (def %regex-class-match
   (fn (_ entries chr)
@@ -80,6 +88,36 @@
         (if result result (regex-exec rest-nodes str pos end)))
       (regex-exec rest-nodes str pos end))))
 
+; Lazy star: try shortest match first (don't reverse)
+(def regex-exec-lazy-star
+  (fn (_ inner rest-nodes str pos end)
+    (def collect
+      (fn (_ p)
+        (def next (regex-exec-one inner str p end))
+        (if (null? next) (list p) (pair p (collect next)))))
+    (def try-from
+      (fn (_ ps)
+        (if (null? ps) ()
+          (let ((r (regex-exec rest-nodes str (first ps) end)))
+            (if r r (try-from (rest ps)))))))
+    (try-from (collect pos))))
+
+; Lazy plus: match once, then lazy star
+(def regex-exec-lazy-plus
+  (fn (_ inner rest-nodes str pos end)
+    (def first-match (regex-exec-one inner str pos end))
+    (if (null? first-match) ()
+      (regex-exec-lazy-star inner rest-nodes str first-match end))))
+
+; Lazy optional: try WITHOUT inner first, then with
+(def regex-exec-lazy-opt
+  (fn (_ inner rest-nodes str pos end)
+    (let ((without (regex-exec rest-nodes str pos end)))
+      (if without without
+        (let ((with-inner (regex-exec-one inner str pos end)))
+          (if (null? with-inner) ()
+            (regex-exec rest-nodes str with-inner end)))))))
+
 ; Counted repetition: match inner between min and max times
 (def regex-exec-repeat
   (fn (_ inner min max rest-nodes str pos end)
@@ -136,6 +174,12 @@
             (regex-exec-plus (first (rest node)) rest-nodes str pos end))
           ((eq? tag (lit opt))
             (regex-exec-opt (first (rest node)) rest-nodes str pos end))
+          ((eq? tag (lit lazy-star))
+            (regex-exec-lazy-star (first (rest node)) rest-nodes str pos end))
+          ((eq? tag (lit lazy-plus))
+            (regex-exec-lazy-plus (first (rest node)) rest-nodes str pos end))
+          ((eq? tag (lit lazy-opt))
+            (regex-exec-lazy-opt (first (rest node)) rest-nodes str pos end))
           ((eq? tag (lit repeat))
             (regex-exec-repeat (first (rest node))
               (first (rest (rest node)))
@@ -149,6 +193,20 @@
                 (regex-exec (append (first (rest (rest node))) rest-nodes) str pos end))))
           ((eq? tag (lit anchor-start))
             (if (= pos 0) (regex-exec rest-nodes str pos end) ()))
+          ((eq? tag (lit anchor-word-boundary))
+            (let ((left-word (if (= pos 0) #f
+                    (%regex-is-word-char (char->integer (string-ref str (- pos 1))))))
+                  (right-word (if (= pos end) #f
+                    (%regex-is-word-char (char->integer (string-ref str pos))))))
+              (if (eq? left-word right-word) ()
+                (regex-exec rest-nodes str pos end))))
+          ((eq? tag (lit anchor-not-word-boundary))
+            (let ((left-word (if (= pos 0) #f
+                    (%regex-is-word-char (char->integer (string-ref str (- pos 1))))))
+                  (right-word (if (= pos end) #f
+                    (%regex-is-word-char (char->integer (string-ref str pos))))))
+              (if (eq? left-word right-word)
+                (regex-exec rest-nodes str pos end) ())))
           ((eq? tag (lit anchor-end))
             (if (= pos end) (regex-exec rest-nodes str pos end) ()))
           (#t ()))))))
@@ -193,6 +251,14 @@
             (%regex-write (first (rest (rest node))))))
       ((eq? tag (lit anchor-start)) (display "^"))
       ((eq? tag (lit anchor-end)) (display "$"))
+      ((eq? tag (lit anchor-word-boundary)) (display "\\b"))
+      ((eq? tag (lit anchor-not-word-boundary)) (display "\\B"))
+      ((eq? tag (lit lazy-star))
+        (do (%regex-write-node (first (rest node))) (display "*?")))
+      ((eq? tag (lit lazy-plus))
+        (do (%regex-write-node (first (rest node))) (display "+?")))
+      ((eq? tag (lit lazy-opt))
+        (do (%regex-write-node (first (rest node))) (display "??")))
       ((eq? tag (lit repeat))
         (do (%regex-write-node (first (rest node)))
             (display "{")
@@ -263,10 +329,17 @@
   (fn (_ s pos end node)
     (if (>= pos end) (pair node pos)
       (let ((ch (string-ref s pos)))
+        (def lazy (and (< (+ pos 1) end) (= (string-ref s (+ pos 1)) #\?)))
         (match
-          ((= ch #\*) (pair (list (lit star) node) (+ pos 1)))
-          ((= ch #\+) (pair (list (lit plus) node) (+ pos 1)))
-          ((= ch #\?) (pair (list (lit opt) node) (+ pos 1)))
+          ((= ch #\*)
+            (if lazy (pair (list (lit lazy-star) node) (+ pos 2))
+              (pair (list (lit star) node) (+ pos 1))))
+          ((= ch #\+)
+            (if lazy (pair (list (lit lazy-plus) node) (+ pos 2))
+              (pair (list (lit plus) node) (+ pos 1))))
+          ((= ch #\?)
+            (if lazy (pair (list (lit lazy-opt) node) (+ pos 2))
+              (pair (list (lit opt) node) (+ pos 1))))
           ((= ch #\{) (%regex-parse-repeat-wrap s (+ pos 1) end node))
           (#t (pair node pos)))))))
 
@@ -281,6 +354,8 @@
       ((= ch #\W) (pair (list (lit nclass) (pair 48 57) (pair 65 90) (pair 97 122) 95) (+ pos 1)))
       ((= ch #\s) (pair (list (lit class) 32 9 10 13) (+ pos 1)))
       ((= ch #\S) (pair (list (lit nclass) 32 9 10 13) (+ pos 1)))
+      ((= ch #\b) (pair (list (lit anchor-word-boundary)) (+ pos 1)))
+      ((= ch #\B) (pair (list (lit anchor-not-word-boundary)) (+ pos 1)))
       (#t (pair (list (lit lit) ch) (+ pos 1))))))
 
 ; Parse character class [...] or [^...]
@@ -293,13 +368,23 @@
       (fn (_ i acc)
         (if (>= i end) (pair (pair tag (reverse acc)) i)
           (let ((ch (char->integer (string-ref s i))))
-            (if (= ch #\])
-              (pair (pair tag (reverse acc)) (+ i 1))
-              ; Check for range: a-z
-              (if (and (< (+ i 2) end) (= (char->integer (string-ref s (+ i 1))) #\-))
+            (match
+              ((= ch #\])
+                (pair (pair tag (reverse acc)) (+ i 1)))
+              ; Escape inside class: \d \w \s etc. expand to ranges/literals
+              ((= ch #\\)
+                (if (>= (+ i 1) end) (%go (+ i 1) (pair ch acc))
+                  (let ((esc (char->integer (string-ref s (+ i 1)))))
+                    (match
+                      ((= esc #\d) (%go (+ i 2) (pair (pair 48 57) acc)))
+                      ((= esc #\w) (%go (+ i 2) (pair 95 (pair (pair 97 122) (pair (pair 65 90) (pair (pair 48 57) acc))))))
+                      ((= esc #\s) (%go (+ i 2) (pair 13 (pair 10 (pair 9 (pair 32 acc))))))
+                      (#t (%go (+ i 2) (pair esc acc)))))))
+              ; Range: a-z
+              ((and (< (+ i 2) end) (= (char->integer (string-ref s (+ i 1))) #\-))
                 (let ((hi (char->integer (string-ref s (+ i 2)))))
-                  (%go (+ i 3) (pair (pair ch hi) acc)))
-                (%go (+ i 1) (pair ch acc))))))))
+                  (%go (+ i 3) (pair (pair ch hi) acc))))
+              (#t (%go (+ i 1) (pair ch acc))))))))
     (%go start ())))
 
 ; Forward-declare mutually recursive parse functions
@@ -454,6 +539,124 @@
   (returns LIST "Pair (start end) of first match, or nil if not found")
   "Search for the first occurrence of a regex pattern in a string.")
 
+; --- Search with offset ---
+
+(doc (def regex-find-at
+  (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string") (param pos INTEGER "Start position"))
+    (def end (string-length str))
+    (def %try
+      (fn (_ i)
+        (if (> i end) ()
+          (let ((result (regex-exec (first rx) str i end)))
+            (if result (list i result)
+              (%try (+ i 1)))))))
+    (%try pos)))
+  (returns LIST "Pair (start end) of match, or nil")
+  "Search for regex starting from position pos.")
+
+; --- Extract matched substring ---
+
+(doc (def regex-find
+  (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string"))
+    (def m (regex-search rx str))
+    (if (null? m) ()
+      (substring str (first m) (first (rest m))))))
+  (returns STRING "Matched substring, or nil")
+  (example "(regex-find #/[0-9]+/ \"abc123def\")" "\"123\"")
+  "Find first match and return the matched substring.")
+
+; --- Find all matches ---
+
+(doc (def regex-find-all
+  (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string"))
+    (def %go
+      (fn (_ pos acc)
+        (def m (regex-find-at rx str pos))
+        (if (null? m) (reverse acc)
+          (do
+            (def start (first m))
+            (def end (first (rest m)))
+            ; Advance by at least 1 to avoid infinite loop on zero-width matches
+            (def next (if (= start end) (+ end 1) end))
+            (%go next (pair (substring str start end) acc))))))
+    (%go 0 ())))
+  (returns LIST "List of matched substrings")
+  (example "(regex-find-all #/[0-9]+/ \"a1b22c333\")" "(\"1\" \"22\" \"333\")")
+  "Find all non-overlapping matches as a list of substrings.")
+
+; --- Find all positions ---
+
+(doc (def regex-find-all-pos
+  (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string"))
+    (def %go
+      (fn (_ pos acc)
+        (def m (regex-find-at rx str pos))
+        (if (null? m) (reverse acc)
+          (do
+            (def start (first m))
+            (def end (first (rest m)))
+            (def next (if (= start end) (+ end 1) end))
+            (%go next (pair m acc))))))
+    (%go 0 ())))
+  (returns LIST "List of (start end) pairs")
+  "Find all non-overlapping match positions.")
+
+; --- Replace ---
+
+(doc (def regex-replace
+  (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string") (param rep STRING "Replacement string"))
+    (def m (regex-search rx str))
+    (if (null? m) str
+      (string-append
+        (substring str 0 (first m))
+        (string-append rep
+          (substring str (first (rest m)) (string-length str)))))))
+  (returns STRING "String with first match replaced")
+  (example "(regex-replace #/[0-9]+/ \"abc123def\" \"N\")" "\"abcNdef\"")
+  "Replace the first match with a replacement string.")
+
+(doc (def regex-replace-all
+  (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string") (param rep STRING "Replacement string"))
+    (def len (string-length str))
+    (def %go
+      (fn (_ pos acc)
+        (def m (regex-find-at rx str pos))
+        (if (null? m)
+          (string-append acc (substring str pos len))
+          (do
+            (def start (first m))
+            (def end (first (rest m)))
+            (def next (if (= start end) (+ end 1) end))
+            (%go next
+              (string-append acc
+                (string-append (substring str pos start) rep)))))))
+    (%go 0 "")))
+  (returns STRING "String with all matches replaced")
+  (example "(regex-replace-all #/[0-9]+/ \"a1b22c333\" \"N\")" "\"aNbNcN\"")
+  "Replace all matches with a replacement string.")
+
+; --- Split ---
+
+(doc (def regex-split
+  (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string"))
+    (def len (string-length str))
+    (def %go
+      (fn (_ pos acc)
+        (def m (regex-find-at rx str pos))
+        (if (null? m)
+          (reverse (pair (substring str pos len) acc))
+          (do
+            (def start (first m))
+            (def end (first (rest m)))
+            (def next (if (= start end) (+ end 1) end))
+            (%go next (pair (substring str pos start) acc))))))
+    (%go 0 ())))
+  (returns LIST "List of substrings between matches")
+  (example "(regex-split #/,/ \"a,b,c\")" "(\"a\" \"b\" \"c\")")
+  "Split a string at regex matches.")
+
+; --- Internal docs ---
+
 (doc regex-exec
   (param nodes LIST "List of AST nodes from a compiled regex")
   (param str STRING "Input string to match against")
@@ -467,8 +670,14 @@
   (returns LIST "AST node list")
   "Parse a regex pattern string into an executable AST.")
 
-(doc (provide x/regex regex? regex-match regex-search regex-exec regex-parse)
+(doc (provide x/regex
+  regex? regex-match regex-search regex-find-at
+  regex-find regex-find-all regex-find-all-pos
+  regex-replace regex-replace-all regex-split
+  regex-exec regex-parse)
   (note "Syntax: #/pattern/. Supports: . * + ? \\ [class] [^neg] (group) | alternation ^ $ anchors {n,m} repetition \\d \\w \\s.")
-  (example "(regex-match #/ab*c/ \"abbc\")" "#t")
-  (example "(regex-search #/[0-9]+/ \"abc123def\")" "(3 6)")
+  (example "(regex-find #/[0-9]+/ \"abc123def\")" "\"123\"")
+  (example "(regex-find-all #/\\w+/ \"hello world\")" "(\"hello\" \"world\")")
+  (example "(regex-replace-all #/[0-9]+/ \"a1b2\" \"N\")" "\"aNbN\"")
+  (example "(regex-split #/,/ \"a,b,c\")" "(\"a\" \"b\" \"c\")")
   "Regular expressions with literal syntax.")
