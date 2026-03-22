@@ -16,7 +16,7 @@
 (def null? (fn (_ x) (eq? x ())))
 
 (def if
-  (op (_ test then . else)
+  (op (test then . else)
     e
     (match
       ((eval test e) (tail-eval then e))
@@ -42,7 +42,7 @@
           (%let-vals (rest bindings) e))))))
 
 (def let
-  (op (_ bindings . body)
+  (op (bindings . body)
     e
     (apply
       (eval (pair (lit fn) (pair (pair (lit _) (%let-params bindings)) body)) e)
@@ -89,7 +89,7 @@
           (pair (first %dn-f) (pair (%do-nest (rest %dn-f)) ())))))))
 
 (def %do-seq
-  (op (_ . %do-f)
+  (op %do-f
     %do-e
     (match
       ((null? %do-f) ())
@@ -213,7 +213,7 @@
               (%go (rest lst))))))
       (%go (first %include-list-cell))))
   (def include-once
-    (op (_ path) e
+    (op (path) e
       (def %io-path (eval path e))
       (if (%include-list-has? %io-path) ()
         (do (set-first! %include-list-cell
@@ -236,10 +236,10 @@
       (string-append "lib/"
         (string-append (symbol->string name) ".x"))))
   (def provide
-    (op (_ name . syms) e
+    (op (name . syms) e
       (%module-register! name syms)))
   (def import
-    (op (_ name . syms) e
+    (op (name . syms) e
       (include-once (%module-resolve name))
       ()))
   ; Pre-register all library paths so import calls in library files are no-ops
@@ -279,7 +279,7 @@
           (first args)
           (list (lit if) (first args) (%and-expand (rest args)) #f)))))
   (def and
-    (op (_ . args)
+    (op args
       e
       (if (null? args)
         #t
@@ -303,7 +303,7 @@
               (lit %or-v)
               (%or-expand (rest args))))))))
   (def or
-    (op (_ . args)
+    (op args
       e
       (if (null? args)
         ()
@@ -317,7 +317,7 @@
   ; --- Profiling ---
 
   (def time
-    (op (_ . args)
+    (op args
       e
       (let ((t0 (clock)))
         (let ((result (eval (first args) e)))
@@ -439,7 +439,7 @@
               (%quasi-compile (first t))
               (%quasi-compile (rest t))))))))
   (def quasi
-    (op (_ . args)
+    (op args
       e
       (if (eq? (first args) %expanded)
         (eval (first (rest args)))
@@ -455,7 +455,7 @@
       (if (null? result) () (write result))
       (newline)))
   (def repl
-    (op (_ )
+    (op ()
       ()
       (display %repl-prompt)
       (def %r (%repl-read))

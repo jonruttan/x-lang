@@ -18,7 +18,7 @@
 (note "Construction and evaluation")
 
 (doc (def delay
-  (op (_ expr)
+  (op (expr)
     env
     (let ((forced #f) (result #f))
       (make-instance

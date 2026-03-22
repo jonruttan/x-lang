@@ -76,7 +76,7 @@
 ; avoiding GC freeing the saved env from the C stack.
 
 (def heap-collect-force
-  (op (_ )
+  (op ()
     %hcf-e
     (def %hcf-before (heap-count))
     (%heap-collect-prim)
@@ -87,7 +87,7 @@
 ; Smart collection -- skip if heap pressure is low
 
 (def heap-collect
-  (op (_ )
+  (op ()
     %hc-e
     (if (> (- (alloc-count) %hc-last-allocs) %hc-last-surviving)
       (heap-collect-force)

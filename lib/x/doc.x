@@ -204,7 +204,7 @@
 ;   (doc name [meta...] "desc")                   — bare symbol
 
 (def doc
-  (op (_ def-form . %doc-meta) e
+  (op (def-form . %doc-meta) e
     (if (not (pair? def-form))
       ; --- Bare symbol: just register docs ---
       (do
@@ -239,7 +239,7 @@
           (tail-eval (list (lit def) %name %clean-value) e))))))
 
 ; note: (note text...) -> no-op, returns nil (standalone section marker)
-(def note (op (_ . args) e ()))
+(def note (op args e ()))
 
 ; --- Display helpers ---
 
@@ -360,7 +360,7 @@
 ;   (help)       -> overview
 ;   (help name)  -> module listing OR individual doc
 (def help
-  (op (_ . args) e
+  (op args e
     (if (null? args)
       (%display-overview)
       (do
@@ -377,7 +377,7 @@
 
 ; apropos: search doc registry by name substring
 (def apropos
-  (op (_ pattern) e
+  (op (pattern) e
     (def %pat (eval pattern e))
     (def %search
       (fn (_ entries)

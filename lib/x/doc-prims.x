@@ -39,7 +39,7 @@
   (param body ANY "Body expression(s)")
   (returns OPERATIVE "A new operative")
   (note "Use eval with the env parameter to evaluate arguments selectively.")
-  (example "(def my-if (op (_ test then else) e (if (eval test e) (eval then e) (eval else e))))" "")
+  (example "(def my-if (op (test then else) e (if (eval test e) (eval then e) (eval else e))))" "")
   (see fn))
 
 (doc apply "Apply a function to a list of arguments."

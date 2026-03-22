@@ -10,14 +10,14 @@
   (param test ANY "Expression to evaluate as a boolean")
   (param body ANY "One or more body expressions"))
 (def when
-  (op (_ test . body)
+  (op (test . body)
     e
     (if (eval test e) (tail-eval (pair (lit do) body) e))))
 (doc unless "Evaluate body forms when test is false."
   (param test ANY "Expression to evaluate as a boolean")
   (param body ANY "One or more body expressions"))
 (def unless
-  (op (_ test . body)
+  (op (test . body)
     e
     (if (not (eval test e)) (tail-eval (pair (lit do) body) e))))
 
@@ -27,7 +27,7 @@
   (param bindings LIST "List of (name value) binding pairs")
   (param body ANY "One or more body expressions"))
 (def let*
-  (op (_ bindings . body)
+  (op (bindings . body)
     e
     (if (null? bindings)
       (tail-eval (pair (lit do) body) e)
@@ -44,7 +44,7 @@
   (param bindings LIST "List of (name value) binding pairs")
   (param body ANY "One or more body expressions"))
 (def letrec
-  (op (_ bindings . body)
+  (op (bindings . body)
     e
     (tail-eval
       (pair
@@ -62,7 +62,7 @@
 
 (def %let let)
 (def let
-  (op (_ first-arg . rest-args)
+  (op (first-arg . rest-args)
     e
     (if (symbol? first-arg)
       (tail-eval
@@ -83,7 +83,7 @@
 (doc cond "Multi-way conditional: evaluates clauses in order, returning the body of the first true test. Supports else and => syntax."
   (param clauses LIST "List of (test body...) clauses; use else for default"))
 (def cond
-  (op (_ . clauses)
+  (op clauses
     e
     (let %cond-loop
       ((cls clauses))
@@ -106,7 +106,7 @@
   (param key ANY "Expression to evaluate and match against")
   (param clauses LIST "List of ((datum ...) body...) clauses; use else for default"))
 (def case
-  (op (_ key . clauses)
+  (op (key . clauses)
     e
     (def case-val (eval key e))
     (def case-match?

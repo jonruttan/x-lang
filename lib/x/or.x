@@ -136,7 +136,7 @@
 ; --- do-loop: Scheme iteration form ---
 ; (do-loop ((var init step) ...) (test result ...) body ...)
 (def do-loop
-  (op (_ bindings test-and-result . body)
+  (op (bindings test-and-result . body)
     e
     (def variables (map first bindings))
     (def inits (map cadr bindings))
