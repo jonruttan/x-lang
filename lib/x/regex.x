@@ -1,35 +1,59 @@
 ; regex.x -- Regex type with #/pattern/ reader syntax
 ;
-; Supports: literal chars, . (any), * (zero+), + (one+), ? (optional), \ (escape)
-; Full-string match semantics: pattern must match entire input.
-;
-; Usage:
-;   (def rx #/ab*c/)
-;   (rx "abbc")              ; -> #t
-;   (rx "abd")               ; -> #f
-;   (write rx)               ; -> #/ab*c/
+; Supports: literal chars, . * + ? \ escape,
+;   [abc] [a-z] [^abc] character classes,
+;   \d \w \s \D \W \S shorthand classes,
+;   ^ $ anchors, {n} {n,} {n,m} counted repetition,
+;   (group) and | alternation.
+
 ; --- Matcher ---
 ; Forward-declare for mutual recursion
 
 (def regex-exec ())
-; Match a single AST node at position, return new position or ()
+(def regex-parse ())
 
+; Character class membership: check if chr (char) matches any entry (int codes)
+(def %regex-class-match
+  (fn (_ entries chr)
+    (def c (char->integer chr))
+    (if (null? entries) #f
+      (let ((e (first entries)))
+        (if (pair? e)
+          ; range: (lo . hi) — integer codes
+          (if (>= c (first e))
+            (if (<= c (rest e))
+              #t
+              (%regex-class-match (rest entries) chr))
+            (%regex-class-match (rest entries) chr))
+          ; literal char code
+          (if (= c e)
+            #t (%regex-class-match (rest entries) chr)))))))
+
+; Match a single AST node at position, return new position or ()
 (def regex-exec-one
   (fn (_ node str pos end)
     (def tag (first node))
     (match
       ((eq? tag (lit lit))
-        (if (and
-              (< pos end)
+        (if (and (< pos end)
               (= (string-ref str pos) (first (rest node))))
-          (+ pos 1)
+          (+ pos 1) ()))
+      ((eq? tag (lit any))
+        (if (< pos end) (+ pos 1) ()))
+      ((eq? tag (lit class))
+        (if (< pos end)
+          (if (%regex-class-match (rest node) (string-ref str pos))
+            (+ pos 1) ())
           ()))
-      ((eq? tag (lit any)) (if (< pos end) (+ pos 1) ()))
+      ((eq? tag (lit nclass))
+        (if (< pos end)
+          (if (%regex-class-match (rest node) (string-ref str pos))
+            () (+ pos 1))
+          ()))
       ; Nested quantifiers: delegate to full exec
-
       (#t (regex-exec (list node) str pos end)))))
-; Greedy star: collect all reachable positions, try rest from farthest first
 
+; Greedy star: collect all reachable positions, try rest from farthest first
 (def regex-exec-star
   (fn (_ inner rest-nodes str pos end)
     (def collect
@@ -38,21 +62,19 @@
         (if (null? next) (list p) (pair p (collect next)))))
     (def try-from
       (fn (_ ps)
-        (if (null? ps)
-          ()
+        (if (null? ps) ()
           (let ((r (regex-exec rest-nodes str (first ps) end)))
             (if r r (try-from (rest ps)))))))
     (try-from (reverse (collect pos)))))
-; Plus: match inner once, then star
 
+; Plus: match inner once, then star
 (def regex-exec-plus
   (fn (_ inner rest-nodes str pos end)
     (def first-match (regex-exec-one inner str pos end))
-    (if (null? first-match)
-      ()
+    (if (null? first-match) ()
       (regex-exec-star inner rest-nodes str first-match end))))
-; Optional: try with inner (greedy), backtrack to without
 
+; Optional: try with inner (greedy), backtrack to without
 (def regex-exec-opt
   (fn (_ inner rest-nodes str pos end)
     (def with-inner (regex-exec-one inner str pos end))
@@ -60,43 +82,80 @@
       (let ((result (regex-exec rest-nodes str with-inner end)))
         (if result result (regex-exec rest-nodes str pos end)))
       (regex-exec rest-nodes str pos end))))
-; Walk AST node list against string
 
+; Counted repetition: match inner between min and max times
+(def regex-exec-repeat
+  (fn (_ inner min max rest-nodes str pos end)
+    ; Match inner exactly n times from pos
+    (def match-n
+      (fn (_ n p)
+        (if (= n 0) p
+          (let ((next (regex-exec-one inner str p end)))
+            (if (null? next) () (match-n (- n 1) next))))))
+    ; Collect positions from min to max matches (greedy)
+    (def collect-from
+      (fn (_ count p)
+        (if (> count max) ()
+          (if (< count min)
+            (let ((next (regex-exec-one inner str p end)))
+              (if (null? next) () (collect-from (+ count 1) next)))
+            (let ((next (regex-exec-one inner str p end)))
+              (if (null? next) (list p)
+                (pair p (collect-from (+ count 1) next))))))))
+    (def positions (collect-from 0 pos))
+    (def try-from
+      (fn (_ ps)
+        (if (null? ps) ()
+          (let ((r (regex-exec rest-nodes str (first ps) end)))
+            (if r r (try-from (rest ps)))))))
+    (try-from (reverse positions))))
+
+; Walk AST node list against string
 (set! regex-exec
   (fn (_ nodes str pos end)
-    (if (null? nodes)
-      pos
+    (if (null? nodes) pos
       (let ((node (first nodes))
-             (rest-nodes (rest nodes))
-             (tag (first (first nodes))))
+            (rest-nodes (rest nodes))
+            (tag (first (first nodes))))
         (match
           ((eq? tag (lit lit))
-            (if (and
-                  (< pos end)
+            (if (and (< pos end)
                   (= (string-ref str pos) (first (rest node))))
-              (regex-exec rest-nodes str (+ pos 1) end)
-              ()))
+              (regex-exec rest-nodes str (+ pos 1) end) ()))
           ((eq? tag (lit any))
             (if (< pos end)
-              (regex-exec rest-nodes str (+ pos 1) end)
-              ()))
+              (regex-exec rest-nodes str (+ pos 1) end) ()))
+          ((eq? tag (lit class))
+            (if (and (< pos end)
+                  (%regex-class-match (rest node) (string-ref str pos)))
+              (regex-exec rest-nodes str (+ pos 1) end) ()))
+          ((eq? tag (lit nclass))
+            (if (and (< pos end)
+                  (not (%regex-class-match (rest node) (string-ref str pos))))
+              (regex-exec rest-nodes str (+ pos 1) end) ()))
           ((eq? tag (lit star))
-            (regex-exec-star
-              (first (rest node))
-              rest-nodes
-              str
-              pos
-              end))
+            (regex-exec-star (first (rest node)) rest-nodes str pos end))
           ((eq? tag (lit plus))
-            (regex-exec-plus
-              (first (rest node))
-              rest-nodes
-              str
-              pos
-              end))
+            (regex-exec-plus (first (rest node)) rest-nodes str pos end))
           ((eq? tag (lit opt))
             (regex-exec-opt (first (rest node)) rest-nodes str pos end))
+          ((eq? tag (lit repeat))
+            (regex-exec-repeat (first (rest node))
+              (first (rest (rest node)))
+              (first (rest (rest (rest node))))
+              rest-nodes str pos end))
+          ((eq? tag (lit group))
+            (regex-exec (append (first (rest node)) rest-nodes) str pos end))
+          ((eq? tag (lit alt))
+            (let ((left (regex-exec (append (first (rest node)) rest-nodes) str pos end)))
+              (if left left
+                (regex-exec (append (first (rest (rest node))) rest-nodes) str pos end))))
+          ((eq? tag (lit anchor-start))
+            (if (= pos 0) (regex-exec rest-nodes str pos end) ()))
+          ((eq? tag (lit anchor-end))
+            (if (= pos end) (regex-exec rest-nodes str pos end) ()))
           (#t ()))))))
+
 ; --- Write: reconstruct pattern from AST ---
 
 (def %regex-write-node
@@ -111,6 +170,12 @@
             ((= ch #\+) (do (display "\\") (display "+")))
             ((= ch #\?) (do (display "\\") (display "?")))
             ((= ch #\\) (do (display "\\") (display "\\")))
+            ((= ch #\[) (do (display "\\") (display "[")))
+            ((= ch #\() (do (display "\\") (display "(")))
+            ((= ch #\|) (do (display "\\") (display "|")))
+            ((= ch #\{) (do (display "\\") (display "{")))
+            ((= ch #\^) (do (display "\\") (display "^")))
+            ((= ch #\$) (do (display "\\") (display "$")))
             (#t (display (convert ch %char))))))
       ((eq? tag (lit any)) (display "."))
       ((eq? tag (lit star))
@@ -118,80 +183,216 @@
       ((eq? tag (lit plus))
         (do (%regex-write-node (first (rest node))) (display "+")))
       ((eq? tag (lit opt))
-        (do (%regex-write-node (first (rest node))) (display "?"))))))
+        (do (%regex-write-node (first (rest node))) (display "?")))
+      ((eq? tag (lit class))
+        (do (display "[") (%regex-write-class (rest node)) (display "]")))
+      ((eq? tag (lit nclass))
+        (do (display "[^") (%regex-write-class (rest node)) (display "]")))
+      ((eq? tag (lit group))
+        (do (display "(") (%regex-write (first (rest node))) (display ")")))
+      ((eq? tag (lit alt))
+        (do (%regex-write (first (rest node)))
+            (display "|")
+            (%regex-write (first (rest (rest node))))))
+      ((eq? tag (lit anchor-start)) (display "^"))
+      ((eq? tag (lit anchor-end)) (display "$"))
+      ((eq? tag (lit repeat))
+        (do (%regex-write-node (first (rest node)))
+            (display "{")
+            (display (first (rest (rest node))))
+            (def mx (first (rest (rest (rest node)))))
+            (if (= mx 999999999)
+              (display ",")
+              (if (not (= mx (first (rest (rest node)))))
+                (do (display ",") (display mx))))
+            (display "}"))))))
+
+(def %regex-write-class
+  (fn (_ entries)
+    (if (not (null? entries))
+      (do
+        (def e (first entries))
+        (if (pair? e)
+          (do (display (convert (first e) %char))
+              (display "-")
+              (display (convert (rest e) %char)))
+          (display (convert e %char)))
+        (%regex-write-class (rest entries))))))
 
 (def %regex-write
   (fn (_ nodes)
     (if (not (null? nodes))
-      (do
-        (%regex-write-node (first nodes))
-        (%regex-write (rest nodes))))))
-; --- Analyser: state machine that compiles regex at read time ---
-; Forward-declare for mutual recursion
+      (do (%regex-write-node (first nodes))
+          (%regex-write (rest nodes))))))
+
+; --- Parser: compile pattern string to AST ---
+
+; Parse {n}, {n,}, {n,m} and wrap node
+(def %regex-parse-repeat-wrap
+  (fn (_ s pos end node)
+    ; Parse integer
+    (def %parse-int
+      (fn (_ i acc)
+        (if (>= i end) (pair acc i)
+          (let ((ch (string-ref s i)))
+            (if (and (>= ch 48) (<= ch 57))
+              (%parse-int (+ i 1) (+ (* acc 10) (- ch 48)))
+              (pair acc i))))))
+    (def min-r (%parse-int pos 0))
+    (def min-val (first min-r))
+    (def after-min (rest min-r))
+    (if (>= after-min end) (pair node pos)
+      (let ((ch (string-ref s after-min)))
+        (match
+          ; {n}
+          ((= ch #\})
+            (pair (list (lit repeat) node min-val min-val) (+ after-min 1)))
+          ; {n,} or {n,m}
+          ((= ch #\,)
+            (if (and (< (+ after-min 1) end) (= (string-ref s (+ after-min 1)) #\}))
+              ; {n,} — unbounded
+              (pair (list (lit repeat) node min-val 999999999) (+ after-min 2))
+              ; {n,m}
+              (let ((max-r (%parse-int (+ after-min 1) 0)))
+                (def max-val (first max-r))
+                (def after-max (rest max-r))
+                (if (and (< after-max end) (= (string-ref s after-max) #\}))
+                  (pair (list (lit repeat) node min-val max-val) (+ after-max 1))
+                  (pair node pos)))))
+          (#t (pair node pos)))))))
+
+; Wrap node with quantifier if present: * + ? {n,m}
+(def %regex-wrap-quantifier
+  (fn (_ s pos end node)
+    (if (>= pos end) (pair node pos)
+      (let ((ch (string-ref s pos)))
+        (match
+          ((= ch #\*) (pair (list (lit star) node) (+ pos 1)))
+          ((= ch #\+) (pair (list (lit plus) node) (+ pos 1)))
+          ((= ch #\?) (pair (list (lit opt) node) (+ pos 1)))
+          ((= ch #\{) (%regex-parse-repeat-wrap s (+ pos 1) end node))
+          (#t (pair node pos)))))))
+
+; Parse escape sequence
+(def %regex-parse-escape
+  (fn (_ s pos)
+    (def ch (string-ref s pos))
+    (match
+      ((= ch #\d) (pair (list (lit class) (pair 48 57)) (+ pos 1)))
+      ((= ch #\D) (pair (list (lit nclass) (pair 48 57)) (+ pos 1)))
+      ((= ch #\w) (pair (list (lit class) (pair 48 57) (pair 65 90) (pair 97 122) 95) (+ pos 1)))
+      ((= ch #\W) (pair (list (lit nclass) (pair 48 57) (pair 65 90) (pair 97 122) 95) (+ pos 1)))
+      ((= ch #\s) (pair (list (lit class) 32 9 10 13) (+ pos 1)))
+      ((= ch #\S) (pair (list (lit nclass) 32 9 10 13) (+ pos 1)))
+      (#t (pair (list (lit lit) ch) (+ pos 1))))))
+
+; Parse character class [...] or [^...]
+(def %regex-parse-class
+  (fn (_ s pos end)
+    (def negated (and (< pos end) (= (string-ref s pos) #\^)))
+    (def start (if negated (+ pos 1) pos))
+    (def tag (if negated (lit nclass) (lit class)))
+    (def %go
+      (fn (_ i acc)
+        (if (>= i end) (pair (pair tag (reverse acc)) i)
+          (let ((ch (char->integer (string-ref s i))))
+            (if (= ch #\])
+              (pair (pair tag (reverse acc)) (+ i 1))
+              ; Check for range: a-z
+              (if (and (< (+ i 2) end) (= (char->integer (string-ref s (+ i 1))) #\-))
+                (let ((hi (char->integer (string-ref s (+ i 2)))))
+                  (%go (+ i 3) (pair (pair ch hi) acc)))
+                (%go (+ i 1) (pair ch acc))))))))
+    (%go start ())))
+
+; Forward-declare mutually recursive parse functions
+(def %regex-parse-atom ())
+(def %regex-parse-group ())
+(def %regex-parse-alt-full ())
+(def %regex-parse-seq ())
+
+; --- Set parse functions (mutually recursive) ---
+
+(set! %regex-parse-atom
+  (fn (_ s i end)
+    (let ((ch (string-ref s i)))
+      (match
+        ((= ch #\.)
+          (pair (list (lit any)) (+ i 1)))
+        ((= ch #\\)
+          (if (>= (+ i 1) end) (pair (list (lit lit) ch) (+ i 1))
+            (%regex-parse-escape s (+ i 1))))
+        ((= ch #\[)
+          (%regex-parse-class s (+ i 1) end))
+        ((= ch #\()
+          (let ((inner (%regex-parse-group s (+ i 1) end)))
+            (pair (list (lit group) (first inner)) (rest inner))))
+        (#t
+          (pair (list (lit lit) ch) (+ i 1)))))))
+
+(set! %regex-parse-group
+  (fn (_ s pos end)
+    (def content (%regex-parse-alt-full s pos end 1))
+    (def nodes (first content))
+    (def close-pos (rest content))
+    (pair nodes (if (and (< close-pos end) (= (string-ref s close-pos) #\)))
+                  (+ close-pos 1) close-pos))))
+
+(set! %regex-parse-alt-full
+  (fn (_ s pos end depth)
+    (def left (%regex-parse-seq s pos end depth))
+    (def left-nodes (first left))
+    (def left-pos (rest left))
+    (if (and (< left-pos end) (= (string-ref s left-pos) #\|))
+      (let ((right (%regex-parse-alt-full s (+ left-pos 1) end depth)))
+        (pair (list (list (lit alt) left-nodes (first right))) (rest right)))
+      left)))
+
+(set! %regex-parse-seq
+  (fn (_ s pos end depth)
+    (def %go
+      (fn (_ i acc)
+        (if (>= i end) (pair (reverse acc) i)
+          (let ((ch (string-ref s i)))
+            (match
+              ((and (= ch #\)) (> depth 0)) (pair (reverse acc) i))
+              ((= ch #\|) (pair (reverse acc) i))
+              ((= ch #\^) (%go (+ i 1) (pair (list (lit anchor-start)) acc)))
+              ((= ch #\$) (%go (+ i 1) (pair (list (lit anchor-end)) acc)))
+              (#t
+                (let ((atom (%regex-parse-atom s i end)))
+                  (def node (first atom))
+                  (def next-i (rest atom))
+                  (let ((q (%regex-wrap-quantifier s next-i end node)))
+                    (%go (rest q) (pair (first q) acc))))))))))
+    (%go pos ())))
+
+; Top-level parse: pattern string to AST node list
+(set! regex-parse
+  (fn (_ pattern)
+    (def len (string-length pattern))
+    (def result (%regex-parse-alt-full pattern 0 len 0))
+    (first result)))
+
+; --- Analyser: just match #/ ... / (handle \/ escapes) ---
 
 (def %regex ())
+(def %regex-read ())
 
-(def %regex-escape ())
-; Shared data cell for dynamic reader: analyser writes, reader reads
+; Simple analyser: after seeing #, check for /, then scan until unescaped /
+(def %regex-scan-escape ())
 
-(def %regex-read-data ())
-; Static reader: creates regex instance from shared data
+(def %regex-scan-body
+  (fn (self buffer score chr)
+    (match
+      ((= chr #\/) (score-set score 1 buffer))
+      ((= chr #\\) %regex-scan-escape)
+      (#t self))))
 
-(def %regex-read
-  (fn (_ . args) (make-instance %regex %regex-read-data)))
-; Create a reader closure that captures the compiled AST
+(set! %regex-scan-escape
+  (fn (_ buffer score chr)
+    %regex-scan-body))
 
-(def %regex-make-reader
-  (fn (_ ast) (fn (_ . args) (make-instance %regex ast))))
-; Body state: accumulate AST nodes one char at a time
-; Note: chr is a stack atom from the tokenizer; (+ chr 0) copies to a heap int
-
-(def %regex-body
-  (fn (_ acc)
-    (fn (_ buffer score chr)
-      (match
-        ; End of pattern
-
-        ((= chr #\/)
-          (do
-            (set! %regex-read-data (reverse acc))
-            (score-set score 1 buffer)))
-        ; Escape: next char is literal
-
-        ((= chr #\\) (%regex-escape acc))
-        ; Dot: any single character
-
-        ((= chr #\.) (%regex-body (pair (list (lit any)) acc)))
-        ; Star: zero or more (postfix, wraps previous node)
-
-        ((= chr #\*)
-          (if (null? acc)
-            (%regex-body (pair (list (lit lit) (+ chr 0)) acc))
-            (%regex-body
-              (pair (list (lit star) (first acc)) (rest acc)))))
-        ; Plus: one or more (postfix)
-
-        ((= chr #\+)
-          (if (null? acc)
-            (%regex-body (pair (list (lit lit) (+ chr 0)) acc))
-            (%regex-body
-              (pair (list (lit plus) (first acc)) (rest acc)))))
-        ; Question: optional (postfix)
-
-        ((= chr #\?)
-          (if (null? acc)
-            (%regex-body (pair (list (lit lit) (+ chr 0)) acc))
-            (%regex-body
-              (pair (list (lit opt) (first acc)) (rest acc)))))
-        ; Literal character
-
-        (#t (%regex-body (pair (list (lit lit) (+ chr 0)) acc)))))))
-; Escape state: next char is literal regardless
-
-(set! %regex-escape
-  (fn (_ acc)
-    (fn (_ buffer score chr)
-      (%regex-body (pair (list (lit lit) (+ chr 0)) acc)))))
 ; --- Type definition ---
 
 (set! %regex
@@ -211,15 +412,23 @@
           (display "#/")
           (%regex-write (first self))
           (display "/")))
-      (pair (lit read) %regex-read)
       (pair (lit first-chars) "#")
       (pair
         (lit analyse)
         (fn (_ buffer score chr)
           (if (= chr #\#)
             (fn (_ buffer score chr)
-              (if (= chr #\/) (%regex-body ()) ()))
-            ()))))))
+              (if (= chr #\/) %regex-scan-body ()))
+            ())))
+      (pair (lit read)
+        (fn (_ . args)
+          (def tok (buffer-token (first args)))
+          ; Strip #/ prefix and / suffix
+          (def pattern (substring tok 2 (- (string-length tok) 1)))
+          (make-instance %regex (regex-parse pattern)))))))
+
+(set! %regex-read
+  (fn (_ . args) (make-instance %regex (first args))))
 
 (doc (def regex?
   (fn (_ (param x ANY "Value to test"))
@@ -256,8 +465,13 @@
   (returns INTEGER "Final position after match, or nil on failure")
   "Execute a regex AST against a string from the given position.")
 
-(doc (provide x/regex regex? regex-match regex-search regex-exec)
-  (note "Syntax: #/pattern/. Supports: . (any), * (zero+), + (one+), ? (optional), \\ (escape).")
+(doc regex-parse
+  (param pattern STRING "Regex pattern string")
+  (returns LIST "AST node list")
+  "Parse a regex pattern string into an executable AST.")
+
+(doc (provide x/regex regex? regex-match regex-search regex-exec regex-parse)
+  (note "Syntax: #/pattern/. Supports: . * + ? \\ [class] [^neg] (group) | alternation ^ $ anchors {n,m} repetition \\d \\w \\s.")
   (example "(regex-match #/ab*c/ \"abbc\")" "#t")
   (example "(regex-search #/[0-9]+/ \"abc123def\")" "(3 6)")
   "Regular expressions with literal syntax.")
