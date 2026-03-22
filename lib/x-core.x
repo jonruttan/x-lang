@@ -486,10 +486,11 @@
               (do (display " v") (display %lang-version)))
             (display " on x-lang")
             (newline))))))
-  (provide x/type
+  (doc (provide x/type
     type-alist type-by-atom type-io type-cvt
     type-write-cell type-analyse-cell type-from-cell type-to-cell
     type-push-write type-pop-write type-push-analyse type-cast!)
+    "Type system reflection and manipulation.")
   (doc (provide x/core
     null? if let do begin not atom? list convert number->string string->number
     string=? string-ref string-length substring
