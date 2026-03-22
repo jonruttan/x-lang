@@ -47,7 +47,7 @@ fi
 # MAX_TEST_SECS: abort if any single test exceeds this (0=disable, default 10).
 # SLOW_STREAK: abort after N consecutive tests taking >=1s each (0=disable, default 5).
 : "${MAX_TEST_SECS:=10}"
-: "${SLOW_STREAK:=0}"
+: "${SLOW_STREAK:=5}"
 
 # Derive project root from X_BIN (always at project root).
 RUNNER="$(cd "$(dirname "$X_BIN")" && pwd)/tests/spec-runner.awk"
@@ -139,13 +139,32 @@ fi
 
 wait
 
-# Collect counts.
+# Collect counts and timing.
 _I=0
+_TOTAL_LOAD_MS=0
+_TOTAL_TEST_MS=0
+_SLOWEST_TEST=""
+_SLOWEST_MS=0
 while [ "$_I" -lt "$_N" ]; do
   read _T _F _P < "$_TMPDIR/spec-$_I.cnt"
   TEST_COUNT=$((TEST_COUNT + _T))
   FAIL_COUNT=$((FAIL_COUNT + _F))
   PENDING_COUNT=$((PENDING_COUNT + _P))
+  # Aggregate timing if available
+  if [ -f "$_TMPDIR/spec-$_I.time" ]; then
+    while IFS='	' read -r _COL1 _COL2 _COL3; do
+      if [ "$_COL1" = "load" ]; then
+        _TOTAL_LOAD_MS=$((_TOTAL_LOAD_MS + _COL2))
+      else
+        _MS="${_COL3:-0}"
+        _TOTAL_TEST_MS=$((_TOTAL_TEST_MS + _MS))
+        if [ "$_MS" -gt "$_SLOWEST_MS" ] 2>/dev/null; then
+          _SLOWEST_MS="$_MS"
+          _SLOWEST_TEST="$_COL1: $_COL2"
+        fi
+      fi
+    done < "$_TMPDIR/spec-$_I.time"
+  fi
   _I=$((_I+1))
 done
 rm -rf "$_TMPDIR"
@@ -156,8 +175,22 @@ if [ "$FAIL_COUNT" -gt 0 ]; then
 else
   SUMMARY_COLOR="$ANSI_GREEN"
 fi
-printf '\n\n%b%d tests, %d failed, %d pending%b\n' \
+_LOAD_S=$((_TOTAL_LOAD_MS / 1000))
+_LOAD_FRAC=$(( (_TOTAL_LOAD_MS % 1000) / 100 ))
+_TEST_S=$((_TOTAL_TEST_MS / 1000))
+_TEST_FRAC=$(( (_TOTAL_TEST_MS % 1000) / 100 ))
+_SLOW_S=$((_SLOWEST_MS / 1000))
+_SLOW_FRAC=$(( (_SLOWEST_MS % 1000) / 100 ))
+printf '\n\n%b%d tests, %d failed, %d pending%b' \
   "$SUMMARY_COLOR" "$TEST_COUNT" "$FAIL_COUNT" "$PENDING_COUNT" "$ANSI_RESET"
+if [ "$_TOTAL_LOAD_MS" -gt 0 ] 2>/dev/null; then
+  printf ' (load: %d.%ds, test: %d.%ds' "$_LOAD_S" "$_LOAD_FRAC" "$_TEST_S" "$_TEST_FRAC"
+  if [ "$_SLOWEST_MS" -gt 0 ] 2>/dev/null; then
+    printf ', slowest: %d.%ds %s' "$_SLOW_S" "$_SLOW_FRAC" "$_SLOWEST_TEST"
+  fi
+  printf ')'
+fi
+printf '\n'
 
 # Exit non-zero on failure.
 [ "$FAIL_COUNT" -eq 0 ]

@@ -56,6 +56,7 @@ BEGIN {
 }
 
 function now() { srand(); return srand() }
+# Timing uses interpreter (clock) primitive via <<SEP:us>> markers
 
 function q(s,    _s) {
 	_s = s
@@ -80,13 +81,14 @@ function abort_regression(reason) {
 	exit 1
 }
 
-function check_regression(dt, tidx) {
+function check_regression(dt_ms, tidx,    dt_s) {
 	completed++
-	if (dt > 0) {
+	dt_s = int(dt_ms / 1000)
+	if (dt_s > 0) {
 		slow_streak++
-		if (max_test_secs > 0 && dt > max_test_secs)
+		if (max_test_secs > 0 && dt_s > max_test_secs)
 			abort_regression(sprintf("test \"%s\" took %ds (limit: %ds)", \
-				t_name[tidx], dt, max_test_secs))
+				t_name[tidx], dt_s, max_test_secs))
 		if (slow_streak_limit > 0 && slow_streak >= slow_streak_limit)
 			abort_regression(sprintf("%d consecutive tests took >=1s each", \
 				slow_streak))
@@ -142,13 +144,15 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 		close(tmpfile)
 	} else {
 		# Standard mode: %T harness with (begin ...) wrapping.
+		printf "(display \"<<CLK:\")(write (clock))(display \">>\\n\")\n" > tmpfile
 		printf "(def %%T (op () %%E (def %%r (%s)) (if (eq? %%r (lit %%END%%)) () (%%seq (guard (err (display \"Error: \") (display err) (newline)) (%%repl-print (eval %%r %%E))) (%%T)))))\n", read_fn > tmpfile
 		printf "%s\n", "(%T)" > tmpfile
 		for (i = from; i <= to; i++) {
 			if (i > from)
-				printf "(%%profile-dump) (display \"<<SEP>>\\n\")\n" > tmpfile
+				printf "(%%profile-dump) (display \"<<CLK:\")(write (clock))(display \">>\\n\") (display \"<<SEP>>\\n\")\n" > tmpfile
 			printf "(begin %s)\n", t_input[i] > tmpfile
 		}
+		printf "(display \"<<SEP:\")(write (clock))(display \">>\")(newline)\n" > tmpfile
 		printf "%s\n", "%END%" > tmpfile
 		close(tmpfile)
 	}
@@ -160,14 +164,28 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 
 	tidx = from
 	output = ""
-	t0 = now()
+	load_time_ms = 0
+	last_clock_us = 0
+	prev_clock_us = 0
 	while ((cmd | getline line) > 0) {
 		# Strip REPL prompts (> and $ prefixes, looping)
 		while (substr(line, 1, 2) == "> " || substr(line, 1, 2) == "$ ")
 			line = substr(line, 3)
+		if (substr(line, 1, 9) == "<<CLK:") {
+			_us = substr(line, 9, length(line) - 10) + 0
+			if (last_clock_us == 0) {
+				load_time_ms = int(_us / 1000)
+			}
+			last_clock_us = _us
+			if (prev_clock_us == 0) prev_clock_us = _us
+			continue
+		}
 		if (line == "<<SEP>>") {
-			# End of test section
-			dt = now() - t0
+			dt_ms = (last_clock_us > 0 && prev_clock_us > 0) \
+				? int((last_clock_us - prev_clock_us) / 1000) : 0
+			prev_clock_us = last_clock_us
+			dt = int(dt_ms / 1000)
+			t_time_ms[tidx] = dt_ms
 			if (output == t_expect[tidx]) {
 				if (dt > 0)
 					printf "%s%s.%s(%ds)", t_unit_hdr[tidx], GREEN, RESET, dt
@@ -181,8 +199,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 				if (dt > 0) printf "(%ds)", dt
 				printf "\n"
 			}
-			check_regression(dt, tidx)
-			t0 = now()
+			check_regression(dt_ms, tidx)
 			tidx++
 			output = ""
 		} else if (line != "") {
@@ -191,9 +208,11 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 	}
 	close(cmd)
 
-	# Check final test (no trailing separator)
+	# Safety fallback: final test without separator (shouldn't happen)
 	if (tidx <= to) {
-		dt = now() - t0
+		dt_ms = 0
+		dt = 0
+		t_time_ms[tidx] = dt_ms
 		if (output == t_expect[tidx]) {
 			if (dt > 0)
 				printf "%s%s.%s(%ds)", t_unit_hdr[tidx], GREEN, RESET, dt
@@ -207,8 +226,11 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 			if (dt > 0) printf "(%ds)", dt
 			printf "\n"
 		}
-		check_regression(dt, tidx)
+		check_regression(dt_ms, tidx)
 	}
+
+	# Record load time for this batch
+	batch_load_ms = load_time_ms
 }
 
 function batch_run(    i, batch_start, cur_lib) {
@@ -316,4 +338,12 @@ END {
 	countfile = TMPDIR "/spec-" SPEC_ID ".cnt"
 	printf "%d %d %d\n", tests, fails, pending > countfile
 	close(countfile)
+
+	# Write timing data: load_ms then per-test ms
+	timefile = TMPDIR "/spec-" SPEC_ID ".time"
+	printf "load %d\n", batch_load_ms > timefile
+	for (i = 1; i <= tc; i++) {
+		printf "%s\t%s\t%d\n", t_unit[i], t_name[i], t_time_ms[i] > timefile
+	}
+	close(timefile)
 }
