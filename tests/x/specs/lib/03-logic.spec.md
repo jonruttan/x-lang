@@ -47,7 +47,7 @@
 ### iterates until predicate holds
 
 ```scheme
-(until (fn (x) (> x 10)) inc 1)
+(until (fn (_ x) (> x 10)) inc 1)
 ```
 ---
     11
@@ -115,7 +115,7 @@
 ### returns immediately when predicate holds
 
 ```scheme
-(until (fn (x) (> x 10)) inc 15)
+(until (fn (_ x) (> x 10)) inc 15)
 ```
 ---
     15

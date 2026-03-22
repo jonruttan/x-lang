@@ -333,7 +333,7 @@
 ### with closure
 
 ```scheme
-(apply (fn (a b c) (+ a (* b c))) (list 2 3 4))
+(apply (fn (_ a b c) (+ a (* b c))) (list 2 3 4))
 ```
 ---
     14
@@ -341,7 +341,7 @@
 ### with prefix and closure
 
 ```scheme
-(apply (fn (a b c) (+ a (* b c))) 2 (list 3 4))
+(apply (fn (_ a b c) (+ a (* b c))) 2 (list 3 4))
 ```
 ---
     14

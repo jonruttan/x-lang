@@ -91,7 +91,7 @@
 ### binds recursive function
 
 ```x
-(letrec ((fact (fn (n) (if (= n 0) 1 (* n (fact (- n 1))))))) (fact 5))
+(letrec ((fact (fn (_ n) (if (= n 0) 1 (* n (fact (- n 1))))))) (fact 5))
 ```
 ---
     120
@@ -99,7 +99,7 @@
 ### mutual recursion even
 
 ```x
-(letrec ((e (fn (n) (if (= n 0) #t (o (- n 1))))) (o (fn (n) (if (= n 0) #f (e (- n 1)))))) (e 10))
+(letrec ((e (fn (_ n) (if (= n 0) #t (o (- n 1))))) (o (fn (_ n) (if (= n 0) #f (e (- n 1)))))) (e 10))
 ```
 ---
     #t
@@ -107,7 +107,7 @@
 ### mutual recursion odd
 
 ```x
-(letrec ((e (fn (n) (if (= n 0) #t (o (- n 1))))) (o (fn (n) (if (= n 0) #f (e (- n 1)))))) (o 7))
+(letrec ((e (fn (_ n) (if (= n 0) #t (o (- n 1))))) (o (fn (_ n) (if (= n 0) #f (e (- n 1)))))) (o 7))
 ```
 ---
     #t
@@ -191,7 +191,7 @@
 ### cond => applies procedure to test value
 
 ```x
-(cond (#f (lit no)) (42 => (fn (x) (* x 2))))
+(cond (#f (lit no)) (42 => (fn (_ x) (* x 2))))
 ```
 ---
     84
@@ -199,7 +199,7 @@
 ### cond => skips false clauses
 
 ```x
-(cond (#f => (fn (x) (lit bad))) (#t (lit good)))
+(cond (#f => (fn (_ x) (lit bad))) (#t (lit good)))
 ```
 ---
     good

@@ -3,7 +3,7 @@
 ### creates a custom type with call handler
 
 ```scheme
-(do (def %counter (make-type "COUNTER" (list (pair (lit call) (fn (self . args) (+ (first self) (first args))))))) (def c (make-instance %counter 10)) (c 5))
+(do (def %counter (make-type "COUNTER" (list (pair (lit call) (fn (_ self . args) (+ (first self) (first args))))))) (def c (make-instance %counter 10)) (c 5))
 ```
 ---
     15
@@ -11,7 +11,7 @@
 ### creates a custom type with write handler
 
 ```scheme
-(do (def %tag (make-type "TAG" (list (pair (lit write) (fn (self) (display "<") (display (first self)) (display ">")))))) (write (make-instance %tag "hello")))
+(do (def %tag (make-type "TAG" (list (pair (lit write) (fn (_ self) (display "<") (display (first self)) (display ">")))))) (write (make-instance %tag "hello")))
 ```
 ---
     <hello>

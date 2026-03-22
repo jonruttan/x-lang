@@ -3,7 +3,7 @@
 ### creates a procedure
 
 ```scheme
-(fn (x) x)
+(fn (_ x) x)
 ```
 ---
     #<fn>
@@ -11,7 +11,7 @@
 ### creates a procedure with empty params
 
 ```scheme
-(fn () 42)
+(fn (_ ) 42)
 ```
 ---
     #<fn>
@@ -19,7 +19,7 @@
 ### applies identity
 
 ```scheme
-((fn (x) x) 7)
+((fn (_ x) x) 7)
 ```
 ---
     7
@@ -27,7 +27,7 @@
 ### applies with two params
 
 ```scheme
-((fn (x y) (+ x y)) 3 4)
+((fn (_ x y) (+ x y)) 3 4)
 ```
 ---
     7
@@ -35,7 +35,7 @@
 ### applies with empty params
 
 ```scheme
-((fn () 42))
+((fn (_ ) 42))
 ```
 ---
     42
@@ -43,7 +43,7 @@
 ### supports multiple body forms
 
 ```scheme
-((fn (x) (+ x 1) (+ x 2)) 10)
+((fn (_ x) (+ x 1) (+ x 2)) 10)
 ```
 ---
     12
@@ -53,7 +53,7 @@
 ### captures enclosing environment
 
 ```scheme
-(do (def make-adder (fn (x) (fn (y) (+ x y)))) ((make-adder 5) 3))
+(do (def make-adder (fn (_ x) (fn (_ y) (+ x y)))) ((make-adder 5) 3))
 ```
 ---
     8
@@ -61,7 +61,7 @@
 ### captures and returns value
 
 ```scheme
-(do (def f (do (def a 10) (fn () a))) (f))
+(do (def f (do (def a 10) (fn (_ ) a))) (f))
 ```
 ---
     10
@@ -71,7 +71,7 @@
 ### increments on each call
 
 ```scheme
-(do (def counter (do (def n 0) (fn () (do (set! n (+ n 1)) n)))) (do (counter) (counter) (counter)))
+(do (def counter (do (def n 0) (fn (_ ) (do (set! n (+ n 1)) n)))) (do (counter) (counter) (counter)))
 ```
 ---
     3
@@ -81,7 +81,7 @@
 ### creates an operative
 
 ```scheme
-(def my-op (op (x) e x)) my-op
+(def my-op (op (_ x) e x)) my-op
 ```
 ---
     #<op>
@@ -89,7 +89,7 @@
 ### receives unevaluated args
 
 ```scheme
-(do (def my-op (op (x) e x)) (def a 42) (my-op a))
+(do (def my-op (op (_ x) e x)) (def a 42) (my-op a))
 ```
 ---
     a
@@ -97,7 +97,7 @@
 ### can eval args explicitly
 
 ```scheme
-(do (def my-op (op (x) e (eval x))) (def a 42) (my-op a))
+(do (def my-op (op (_ x) e (eval x))) (def a 42) (my-op a))
 ```
 ---
     42
@@ -105,7 +105,7 @@
 ### binds env-param to caller env
 
 ```scheme
-(do (def my-op (op (x) e (eval x e))) (def a 42) (my-op a))
+(do (def my-op (op (_ x) e (eval x e))) (def a 42) (my-op a))
 ```
 ---
     42
@@ -113,7 +113,7 @@
 ### supports variadic args
 
 ```scheme
-(do (def my-op (op args e (first args))) (my-op 1 2 3))
+(do (def my-op (op (_ . args) e (first args))) (my-op 1 2 3))
 ```
 ---
     1
@@ -121,7 +121,7 @@
 ### supports dotted formals
 
 ```scheme
-(do (def my-op (op (x . rest) e (list x rest))) (my-op 1 2 3))
+(do (def my-op (op (_ x . rest) e (list x rest))) (my-op 1 2 3))
 ```
 ---
     (1 (2 3))
@@ -131,7 +131,7 @@
 ### implements when
 
 ```scheme
-(do (def when (op (test . body) e (if (eval test e) (eval (pair (lit do) body) e)))) (when (= 1 1) (+ 10 20)))
+(do (def when (op (_ test . body) e (if (eval test e) (eval (pair (lit do) body) e)))) (when (= 1 1) (+ 10 20)))
 ```
 ---
     30
@@ -139,14 +139,14 @@
 ### when returns nil on false
 
 ```scheme
-(do (def when (op (test . body) e (if (eval test e) (eval (pair (lit do) body) e)))) (when (= 1 2) (+ 10 20)))
+(do (def when (op (_ test . body) e (if (eval test e) (eval (pair (lit do) body) e)))) (when (= 1 2) (+ 10 20)))
 ```
 ---
 
 ### implements define sugar
 
 ```scheme
-(do (def define (op (name-or-form . body) e (if (pair? name-or-form) (eval (list (lit def) (first name-or-form) (pair (lit fn) (pair (rest name-or-form) body)))) (eval (list (lit def) name-or-form (first body)))))) (define (square x) (* x x)) (square 5))
+(do (def define (op (_ name-or-form . body) e (if (pair? name-or-form) (eval (list (lit def) (first name-or-form) (pair (lit fn) (pair (pair (lit _) (rest name-or-form)) body)))) (eval (list (lit def) name-or-form (first body)))))) (define (square x) (* x x)) (square 5))
 ```
 ---
     25
@@ -154,7 +154,7 @@
 ### define sugar with simple binding
 
 ```scheme
-(do (def define (op (name-or-form . body) e (if (pair? name-or-form) (eval (list (lit def) (first name-or-form) (pair (lit fn) (pair (rest name-or-form) body)))) (eval (list (lit def) name-or-form (first body)))))) (define pi 314) pi)
+(do (def define (op (_ name-or-form . body) e (if (pair? name-or-form) (eval (list (lit def) (first name-or-form) (pair (lit fn) (pair (rest name-or-form) body)))) (eval (list (lit def) name-or-form (first body)))))) (define pi 314) pi)
 ```
 ---
     314
@@ -164,7 +164,7 @@
 ### wraps an operative into an applicative
 
 ```scheme
-(procedure? (wrap (op (x) e x)))
+(procedure? (wrap (op (_ x) e x)))
 ```
 ---
     #t
@@ -172,7 +172,7 @@
 ### wrapped operative evaluates args
 
 ```scheme
-(do (def my-op (op (x) e x)) (def my-fn (wrap my-op)) (my-fn (+ 1 2)))
+(do (def my-op (op (_ x) e x)) (def my-fn (wrap my-op)) (my-fn (+ 1 2)))
 ```
 ---
     3
@@ -180,7 +180,7 @@
 ### wrapped fn stays applicative
 
 ```scheme
-((wrap (fn (x) (* x 2))) 5)
+((wrap (fn (_ x) (* x 2))) 5)
 ```
 ---
     10
@@ -190,7 +190,7 @@
 ### extracts underlying combiner
 
 ```scheme
-(do (def my-op (op (x) e x)) (def my-fn (wrap my-op)) ((unwrap my-fn) (+ 1 2)))
+(do (def my-op (op (_ x) e x)) (def my-fn (wrap my-op)) ((unwrap my-fn) (+ 1 2)))
 ```
 ---
     (+ 1 2)
@@ -198,7 +198,7 @@
 ### unwrapped applicative receives unevaluated args
 
 ```scheme
-(do (def my-op (op (x) e x)) ((unwrap (wrap my-op)) (+ 1 2)))
+(do (def my-op (op (_ x) e x)) ((unwrap (wrap my-op)) (+ 1 2)))
 ```
 ---
     (+ 1 2)
@@ -208,7 +208,7 @@
 ### applies a function to a list of args
 
 ```scheme
-(apply (fn (x y) (+ x y)) (list 3 4))
+(apply (fn (_ x y) (+ x y)) (list 3 4))
 ```
 ---
     7
@@ -216,7 +216,7 @@
 ### applies with empty args
 
 ```scheme
-(apply (fn () 42) (list))
+(apply (fn (_ ) 42) (list))
 ```
 ---
     42
@@ -224,7 +224,7 @@
 ### applies a named function
 
 ```scheme
-(do (def add (fn (a b) (+ a b))) (apply add (list 10 20)))
+(do (def add (fn (_ a b) (+ a b))) (apply add (list 10 20)))
 ```
 ---
     30
@@ -232,7 +232,7 @@
 ### applies with computed arg list
 
 ```scheme
-(do (def f (fn (x) (* x x))) (apply f (list (+ 2 3))))
+(do (def f (fn (_ x) (* x x))) (apply f (list (+ 2 3))))
 ```
 ---
     25
@@ -240,7 +240,7 @@
 ### applies a recursive function
 
 ```scheme
-(do (def fact (fn (n) (if (= n 0) 1 (* n (fact (- n 1)))))) (apply fact (list 5)))
+(do (def fact (fn (_ n) (if (= n 0) 1 (* n (fact (- n 1)))))) (apply fact (list 5)))
 ```
 ---
     120

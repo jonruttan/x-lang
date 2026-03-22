@@ -205,7 +205,7 @@
 ### applies function for side effects
 
 ```scheme
-(null? (for-each (fn (x) x) (list 1 2 3)))
+(null? (for-each (fn (_ x) x) (list 1 2 3)))
 ```
 ---
     #t
@@ -225,7 +225,7 @@
 ### maps and flattens
 
 ```scheme
-(flat-map (fn (x) (list x (* x 10))) (list 1 2 3))
+(flat-map (fn (_ x) (list x (* x 10))) (list 1 2 3))
 ```
 ---
     (1 10 2 20 3 30)
@@ -551,7 +551,7 @@
 ### applies function to indices
 
 ```scheme
-(times (fn (i) (* i i)) 4)
+(times (fn (_ i) (* i i)) 4)
 ```
 ---
     (0 1 4 9)
@@ -561,7 +561,7 @@
 ### builds a list from seed
 
 ```scheme
-(unfold (fn (x) (> x 5)) identity inc 1)
+(unfold (fn (_ x) (> x 5)) identity inc 1)
 ```
 ---
     (1 2 3 4 5)
@@ -571,7 +571,7 @@
 ### generates repeated applications
 
 ```scheme
-(iterate (fn (x) (* x 2)) 4 1)
+(iterate (fn (_ x) (* x 2)) 4 1)
 ```
 ---
     (1 2 4 8)
@@ -795,7 +795,7 @@
 ### iterates two lists
 
 ```scheme
-(do (def r ()) (for-each (fn (a b) (set! r (pair (+ a b) r))) (list 1 2) (list 10 20)) (reverse r))
+(do (def r ()) (for-each (fn (_ a b) (set! r (pair (+ a b) r))) (list 1 2) (list 10 20)) (reverse r))
 ```
 ---
     (11 22)
@@ -803,7 +803,7 @@
 ### single-list backward compat
 
 ```scheme
-(do (def r ()) (for-each (fn (x) (set! r (pair x r))) (list 1 2 3)) (reverse r))
+(do (def r ()) (for-each (fn (_ x) (set! r (pair x r))) (list 1 2 3)) (reverse r))
 ```
 ---
     (1 2 3)

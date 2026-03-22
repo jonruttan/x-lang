@@ -265,7 +265,7 @@
 ### signals from nested call
 
 ```scheme
-(do (def boom (fn () (error "inner"))) (guard (e e) (boom)))
+(do (def boom (fn (_ ) (error "inner"))) (guard (e e) (boom)))
 ```
 ---
     "inner"
@@ -283,7 +283,7 @@
 ### outer guard catches when inner has no guard
 
 ```scheme
-(guard (e (list (lit outer) e)) (do (def f (fn () (error "deep"))) (f)))
+(guard (e (list (lit outer) e)) (do (def f (fn (_ ) (error "deep"))) (f)))
 ```
 ---
     (outer "deep")
@@ -309,7 +309,7 @@
 ### restores env after error in fn
 
 ```scheme
-(do (def x 5) (guard (e x) ((fn () (error "err")))))
+(do (def x 5) (guard (e x) ((fn (_ ) (error "err")))))
 ```
 ---
     5

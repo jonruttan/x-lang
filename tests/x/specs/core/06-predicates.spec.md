@@ -283,7 +283,7 @@
 ### true for fn
 
 ```scheme
-(procedure? (fn (x) x))
+(procedure? (fn (_ x) x))
 ```
 ---
     #t

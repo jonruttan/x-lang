@@ -139,7 +139,7 @@
 ### filters entries by predicate
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (length (assoc-filter (fn (e) (> (rest e) 1)) al)))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (length (assoc-filter (fn (_ e) (> (rest e) 1)) al)))
 ```
 ---
     1

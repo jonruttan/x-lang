@@ -13,7 +13,7 @@
 ### non-promise values
 
 ```x
-(list (promise? 42) (promise? "hello") (promise? (fn (x) x)))
+(list (promise? 42) (promise? "hello") (promise? (fn (_ x) x)))
 ```
 ---
     (#f #f #f)
