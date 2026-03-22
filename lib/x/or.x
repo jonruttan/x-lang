@@ -10,59 +10,6 @@
 (import x/bignum)
 (import x/regex)
 
-; --- Compile tokenizer analysers for all numeric types ---
-; State machine functions use (if (>= chr 48) (<= chr 57) #f) pattern
-; (nested if instead of and, which the compiler doesn't support).
-; compile-batch compiles all in one cc invocation for speed.
-
-; --- Compile tokenizer analysers for numeric types ---
-; Single compile-batch call = one cc invocation for all 5 entry points.
-; Set %compile-fvars to embed runtime pointers to state machines.
-
-(set! %compile-fvars
-  (list
-    (pair (lit %float-int-digits) %float-int-digits)
-    (pair (lit %rat-numer) %rat-numer)
-    (pair (lit %rat-sign)
-      (fn (_ buffer score chr)
-        (if (< chr 48) () (if (< chr 58) %rat-numer ()))))
-    (pair (lit %big-sign-state) %big-sign-state)
-    (pair (lit %big-digits) %big-digits)
-    (pair (lit %cx-real-int) %cx-real-int)
-    (pair (lit %int-capped-digits) %int-capped-digits)))
-
-(def %compiled-analysers
-  (compile-batch
-    ; 0: float entry
-    (lit (fn (_ buffer score chr)
-      (if (< chr 48) () (if (< chr 58) %float-int-digits ()))))
-    ; 1: rational entry
-    (lit (fn (_ buffer score chr)
-      (if (< chr 48)
-        (if (= chr 45) %rat-sign (if (= chr 43) %rat-sign ()))
-        (if (< chr 58) %rat-numer ()))))
-    ; 2: bignum entry
-    (lit (fn (_ buffer score chr)
-      (if (< chr 48)
-        (if (or (= chr 45) (= chr 43)) %big-sign-state ())
-        (if (< chr 58) %big-digits ()))))
-    ; 3: complex entry
-    (lit (fn (_ buffer score chr)
-      (if (< chr 48) () (if (< chr 58) %cx-real-int ()))))
-    ; 4: int-capped entry
-    (lit (fn (_ buffer score chr)
-      (if (< chr 48) () (if (< chr 58) %int-capped-digits ()))))))
-
-(set! %compile-fvars ())
-
-; Patch compiled analysers onto type stacks
-(def %nth (fn (_ n lst) (if (= n 0) (first lst) (%nth (- n 1) (rest lst)))))
-(type-push-analyse (type-by-atom (type-of 1.0)) (%nth 0 %compiled-analysers))
-(type-push-analyse (type-by-atom (type-of 1/2)) (%nth 1 %compiled-analysers))
-(type-push-analyse (type-by-atom (type-of (expt 2 64))) (%nth 2 %compiled-analysers))
-(type-push-analyse (type-by-atom (type-of 1+1i)) (%nth 3 %compiled-analysers))
-(type-push-analyse (type-by-atom (type-of 0)) (%nth 4 %compiled-analysers))
-
 ; --- System extensions ---
 (include "lib/x/or/syscall.x")
 (include "lib/x/or/file.x")
