@@ -227,6 +227,27 @@
   (returns BOOLEAN "True if x is a regex")
   "Test whether a value is a regex.")
 
+(doc (def regex-match
+  (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string"))
+    (def end (string-length str))
+    (def result (regex-exec (first rx) str 0 end))
+    (if (and result (= result end)) #t #f)))
+  (returns BOOLEAN "True if regex matches the entire string")
+  "Test whether a regex matches an entire string.")
+
+(doc (def regex-search
+  (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string"))
+    (def end (string-length str))
+    (def %try
+      (fn (_ i)
+        (if (> i end) ()
+          (let ((result (regex-exec (first rx) str i end)))
+            (if result (list i result)
+              (%try (+ i 1)))))))
+    (%try 0)))
+  (returns LIST "Pair (start end) of first match, or nil if not found")
+  "Search for the first occurrence of a regex pattern in a string.")
+
 (doc regex-exec
   (param nodes LIST "List of AST nodes from a compiled regex")
   (param str STRING "Input string to match against")
@@ -235,7 +256,8 @@
   (returns INTEGER "Final position after match, or nil on failure")
   "Execute a regex AST against a string from the given position.")
 
-(doc (provide x/regex regex? regex-exec)
-  (note "Syntax: #/pattern/. Supports: . (any), *, +, ?, | (alternation), () grouping, char classes [abc], [^abc], [a-z].")
-  (example "(regex-exec #/[0-9]+/ \"abc123def\" 0 12)" "result")
+(doc (provide x/regex regex? regex-match regex-search regex-exec)
+  (note "Syntax: #/pattern/. Supports: . (any), * (zero+), + (one+), ? (optional), \\ (escape).")
+  (example "(regex-match #/ab*c/ \"abbc\")" "#t")
+  (example "(regex-search #/[0-9]+/ \"abc123def\")" "(3 6)")
   "Regular expressions with literal syntax.")

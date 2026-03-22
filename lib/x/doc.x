@@ -70,15 +70,18 @@
       (pair (list name desc returns params examples sees notes)
             (first %doc-registry-cell)))))
 
-(def %doc-lookup
-  (fn (_ name)
+; Shared alist lookup by eq? on first element
+(def %registry-find
+  (fn (_ cell name)
     (def %go
       (fn (_ alist)
         (if (null? alist) ()
           (if (eq? (first (first alist)) name)
             (first alist)
             (%go (rest alist))))))
-    (%go (first %doc-registry-cell))))
+    (%go (first cell))))
+
+(def %doc-lookup (fn (_ name) (%registry-find %doc-registry-cell name)))
 
 ; --- Entry accessors ---
 (def %doc-entry-name    (fn (_ e) (first e)))
@@ -291,15 +294,7 @@
 
 ; --- Module display (uses %module-registry-cell from x-core.x) ---
 
-(def %module-lookup
-  (fn (_ name)
-    (def %go
-      (fn (_ alist)
-        (if (null? alist) ()
-          (if (eq? (first (first alist)) name)
-            (first alist)
-            (%go (rest alist))))))
-    (%go (first %module-registry-cell))))
+(def %module-lookup (fn (_ name) (%registry-find %module-registry-cell name)))
 
 (def %display-module
   (fn (_ entry)

@@ -211,8 +211,8 @@
             (%tail (rest lst))))))
     (string-append prefix (string-append head-str (%tail (rest %rev))))))
 
-; Decimal string to (sign . limb-list)
-(def %bignum-from-string
+; Parse decimal string to (sign . normalized-limb-list)
+(def %bignum-parse-digits
   (fn (_ s)
     (def len (string-length s))
     (def neg (if (%int< 0 len)
@@ -223,21 +223,22 @@
     (def sign (if neg -1 1))
     (def digit-str (if (%int= start 0) s (substring s start len)))
     (def dlen (string-length digit-str))
-    ; Process right-to-left in chunks of %bignum-digits-per-limb
-    (def %parse-limbs
+    (def %go
       (fn (_ pos acc)
         (if (not (%int< 0 pos))
           acc
           (do
-            (def chunk-start (if (%int< (%int- pos %bignum-digits-per-limb) 0)
-                               0
-                               (%int- pos %bignum-digits-per-limb)))
-            (def chunk (substring digit-str chunk-start pos))
-            (def limb (string->number chunk))
-            (%parse-limbs chunk-start (pair limb acc))))))
-    (def limbs (reverse (%parse-limbs dlen ())))
-    (def nlimbs (%bignum-normalize limbs))
-    (make-instance %bignum (pair sign nlimbs))))
+            (def cs (if (%int< (%int- pos %bignum-digits-per-limb) 0)
+                      0 (%int- pos %bignum-digits-per-limb)))
+            (def lm (string->number (substring digit-str cs pos)))
+            (%go cs (pair lm acc))))))
+    (pair sign (%bignum-normalize (reverse (%go dlen ()))))))
+
+; Decimal string to bignum instance
+(def %bignum-from-string
+  (fn (_ s)
+    (def parsed (%bignum-parse-digits s))
+    (make-instance %bignum parsed)))
 
 ; --- Constructor with auto-demotion ---
 
@@ -392,19 +393,23 @@
 
 (def %int-abs (fn (_ n) (if (%int< n 0) (%int- 0 n) n)))
 
-(def %would-overflow-add?
-  (fn (_ a b)
+(doc (def would-overflow-add?
+  (fn (_ (param a INTEGER "First operand") (param b INTEGER "Second operand"))
     (if (%int< 0 a)
       (if (%int< 0 b) (%int< (%int- %long-max a) b) #f)
       (if (%int< b 0)
         (%int< a (%int- (%int+ (%int- 0 %long-max) 1) (%int- 0 b)))
         #f))))
+  (returns BOOLEAN "True if a + b would overflow native integer")
+  "Test whether addition of two native integers would overflow.")
 
-(def %would-overflow-mul?
-  (fn (_ a b)
+(doc (def would-overflow-mul?
+  (fn (_ (param a INTEGER "First operand") (param b INTEGER "Second operand"))
     (if (%int= a 0) #f
       (if (%int= b 0) #f
         (%int< (%int/ %long-max (%int-abs a)) (%int-abs b))))))
+  (returns BOOLEAN "True if a * b would overflow native integer")
+  "Test whether multiplication of two native integers would overflow.")
 
 (note "Operator Overrides")
 
@@ -418,7 +423,7 @@
         (fn (_ acc x)
           (if (bignum? acc) (big+ acc (%ensure-big x))
             (if (bignum? x) (big+ (%ensure-big acc) x)
-              (if (%would-overflow-add? acc x)
+              (if (would-overflow-add? acc x)
                 (big+ (%ensure-big acc) (%ensure-big x))
                 (%int+ acc x)))))
         (first args) (rest args)))))
@@ -439,7 +444,7 @@
           (fn (_ acc x)
             (if (bignum? acc) (big- acc (%ensure-big x))
               (if (bignum? x) (big- (%ensure-big acc) x)
-                (if (%would-overflow-add? acc (%int- 0 x))
+                (if (would-overflow-add? acc (%int- 0 x))
                   (big- (%ensure-big acc) (%ensure-big x))
                   (%int- acc x)))))
           (first args) (rest args))))))
@@ -454,7 +459,7 @@
         (fn (_ acc x)
           (if (bignum? acc) (big* acc (%ensure-big x))
             (if (bignum? x) (big* (%ensure-big acc) x)
-              (if (%would-overflow-mul? acc x)
+              (if (would-overflow-mul? acc x)
                 (big* (%ensure-big acc) (%ensure-big x))
                 (%int* acc x)))))
         (first args) (rest args)))))
@@ -556,27 +561,7 @@
 ; --- Reader (set after make-type so closure captures the real %bignum) ---
 (set! %bignum-read
   (fn (_ . args)
-    (def tok (buffer-token (first args)))
-    (def len (string-length tok))
-    (def neg (if (%int< 0 len)
-               (if (%int= (char->integer (tok 0)) 45) #t #f) #f))
-    (def start (if neg 1
-                 (if (if (%int< 0 len)
-                       (%int= (char->integer (tok 0)) 43) #f) 1 0)))
-    (def sign (if neg -1 1))
-    (def digit-str (if (%int= start 0) tok (substring tok start len)))
-    (def dlen (string-length digit-str))
-    (def %pl
-      (fn (_ pos acc)
-        (if (not (%int< 0 pos)) acc
-          (do
-            (def cs (if (%int< (%int- pos %bignum-digits-per-limb) 0)
-                      0 (%int- pos %bignum-digits-per-limb)))
-            (def lm (string->number (substring digit-str cs pos)))
-            (%pl cs (pair lm acc))))))
-    (def limbs (reverse (%pl dlen ())))
-    (def nlimbs (%bignum-normalize limbs))
-    (make-instance %bignum (pair sign nlimbs))))
+    (make-instance %bignum (%bignum-parse-digits (buffer-token (first args))))))
 
 ; --- Cap the integer analyser ---
 ; Push a capped analyser onto the integer type's analyse stack
@@ -611,6 +596,7 @@
 
 (type-push-analyse %int-type %int-capped-analyse)
 
-(doc (provide x/bignum bignum? big+ big- big* big/ big% big< big=)
+(doc (provide x/bignum bignum? big+ big- big* big/ big% big< big=
+  would-overflow-add? would-overflow-mul?)
   (note "Auto-promotes when integers exceed native range. Extends +,-,*,/,%,<,=.")
   "Arbitrary-precision integers.")

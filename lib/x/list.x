@@ -2,7 +2,8 @@
 (import x/logic)
 
 ; Convert any iterable to a list. Lists/nil pass through unchanged.
-(def %as-list
+; Note: iter-based path may not work for all types yet
+(def as-list
   (fn (_ x)
     (if (or (null? x) (pair? x)) x
       (let ((it (iter x)))
@@ -17,7 +18,7 @@
   (fn (_ (param f CALLABLE "Binary function: (accumulator, element) -> new accumulator")
        (param init ANY "Initial accumulator value")
        (param lst LIST "List or iterable to fold over"))
-    (let ((lst (%as-list lst)))
+    (let ((lst (as-list lst)))
       (if (null? lst)
         init
         (fold f (f init (first lst)) (rest lst))))))
@@ -28,14 +29,14 @@
 (doc (def reduce
   (fn (_ (param f CALLABLE "Binary function")
        (param lst LIST "Non-empty list or iterable"))
-    (let ((lst (%as-list lst))) (fold f (first lst) (rest lst)))))
+    (let ((lst (as-list lst))) (fold f (first lst) (rest lst)))))
   "Fold without an initial value; uses the first element.")
 
 (doc (def scan
   (fn (_ (param f CALLABLE "Binary function")
        (param init ANY "Initial accumulator value")
        (param lst LIST "List or iterable"))
-    (let ((lst (%as-list lst)))
+    (let ((lst (as-list lst)))
       (if (null? lst)
         (list init)
         (pair init (scan f (f init (first lst)) (rest lst)))))))
@@ -109,7 +110,7 @@
 
 (doc (def map
   (fn (_ (param f CALLABLE "Function to apply") . (param lsts LIST "One or more lists"))
-    (let ((lsts (%map1 %as-list lsts)))
+    (let ((lsts (%map1 as-list lsts)))
       (if (null? (rest lsts))
         (%map1 f (first lsts))
         (if (%any-null? lsts)
@@ -123,7 +124,7 @@
 (doc (def filter
   (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List or iterable"))
-    (let ((lst (%as-list lst)))
+    (let ((lst (as-list lst)))
       (match
         ((null? lst) ())
         ((pred (first lst))
@@ -147,7 +148,7 @@
 
 (doc (def for-each
   (fn (_ (param f CALLABLE "Function to apply") . (param lsts LIST "One or more lists"))
-    (let ((lsts (%map1 %as-list lsts)))
+    (let ((lsts (%map1 as-list lsts)))
       (if (null? (rest lsts))
         (%for-each1 f (first lsts))
         (if (not (%any-null? lsts))
@@ -159,7 +160,7 @@
 (doc (def flat-map
   (fn (_ (param f CALLABLE "Function returning a list")
        (param lst LIST "List or iterable"))
-    (let ((lst (%as-list lst)))
+    (let ((lst (as-list lst)))
       (if (null? lst)
         ()
         (%append2 (f (first lst)) (flat-map f (rest lst)))))))
@@ -170,7 +171,7 @@
 (doc (def any?
   (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List or iterable"))
-    (let ((lst (%as-list lst)))
+    (let ((lst (as-list lst)))
       (match
         ((null? lst) #f)
         ((pred (first lst)) #t)
@@ -180,7 +181,7 @@
 (doc (def every?
   (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List or iterable"))
-    (let ((lst (%as-list lst)))
+    (let ((lst (as-list lst)))
       (match
         ((null? lst) #t)
         ((not (pred (first lst))) #f)
@@ -265,7 +266,7 @@
 (doc (def find
   (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List or iterable"))
-    (let ((lst (%as-list lst)))
+    (let ((lst (as-list lst)))
       (match
         ((null? lst) ())
         ((pred (first lst)) (first lst))
@@ -275,7 +276,7 @@
 (doc (def find-index
   (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List or iterable"))
-    (let ((lst (%as-list lst)))
+    (let ((lst (as-list lst)))
       (def go
         (fn (_ i lst)
           (match
@@ -296,7 +297,7 @@
 (doc (def includes?
   (fn (_ (param x ANY "Value to search for")
        (param lst LIST "List or iterable"))
-    (let ((lst (%as-list lst)))
+    (let ((lst (as-list lst)))
       (match
         ((null? lst) #f)
         ((equal? x (first lst)) #t)
@@ -461,7 +462,7 @@
 (doc (def sort
   (fn (_ (param cmp CALLABLE "Comparison: (a b) -> #t if a comes first")
        (param lst LIST "List or iterable"))
-    (let ((lst (%as-list lst)))
+    (let ((lst (as-list lst)))
     (def merge
       (fn (_ a b)
         (match
@@ -619,7 +620,7 @@
   "Look up a key in an alist by equality (equal?).")
 
 (doc (provide x/list
-  fold reduce scan length nth last init append prepend reverse flatten
+  as-list fold reduce scan length nth last init append prepend reverse flatten
   map filter for-each flat-map any? every? none? empty?
   complement partial juxt both either all-pass any-pass reject concat sum product
   find find-index index-of includes? count

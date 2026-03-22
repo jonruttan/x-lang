@@ -153,11 +153,9 @@
 
 (note "Arithmetic")
 
-(def %rat-numer-of
-  (fn (_ x) (if (type? x %rational) (first (first x)) x)))
-
-(def %rat-denom-of
-  (fn (_ x) (if (type? x %rational) (rest (first x)) 1)))
+; Use public accessors — no private duplicates
+(def %rat-numer-of numerator)
+(def %rat-denom-of denominator)
 
 (doc (def rat+
   (fn (_ (param a RATIONAL|INTEGER "First operand")
