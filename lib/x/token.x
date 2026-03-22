@@ -80,10 +80,75 @@
   (example "(make-range-state 65 90 token-accept)" "match uppercase A-Z")
   "Create a state that loops while character code is in the inclusive range.")
 
+(note "Combinators")
+
+(doc (def make-alt-state
+  (fn (_ (param state-a CALLABLE "First alternative")
+       (param state-b CALLABLE "Second alternative"))
+    (fn (_ buffer score chr)
+      (def result (state-a buffer score chr))
+      (if (null? result)
+        (state-b buffer score chr)
+        result))))
+  (returns CALLABLE "State that tries a then b")
+  (example "(make-alt-state (make-char-state 43 next ()) (make-char-state 45 next ()))" "match + or -")
+  "Try state-a on the current character. If it rejects, try state-b.")
+
+(doc (def make-string-state
+  (fn (_ (param s STRING "Literal string to match")
+       (param next CALLABLE "Called after full match")
+       (param fail CALLABLE "Called on mismatch (or nil to reject)"))
+    (def len (string-length s))
+    (def %build
+      (fn (_ i)
+        (if (= i len) next
+          (make-char-state (char->integer (s i))
+            (%build (+ i 1))
+            fail))))
+    (%build 0)))
+  (returns CALLABLE "Chain of char-states matching a literal string")
+  (example "(make-string-state \"0x\" hex-digits ())" "match '0x' prefix")
+  "Create a state chain that matches each character of a string in sequence.")
+
+(doc (def make-count-state
+  (fn (_ (param n INTEGER "Exact number of characters to match")
+       (param pred CALLABLE "Predicate: (pred chr) -> bool")
+       (param done CALLABLE "Called after exactly n matches"))
+    (def %build
+      (fn (_ remaining)
+        (if (= remaining 0) done
+          (fn (_ buffer score chr)
+            (if (pred chr)
+              (%build (- remaining 1))
+              ())))))
+    (%build n)))
+  (returns CALLABLE "State that matches exactly n characters satisfying pred")
+  (example "(make-count-state 4 char-numeric? token-accept)" "match exactly 4 digits")
+  "Match exactly n characters satisfying pred, then call done. Rejects if fewer match.")
+
+(doc (def make-min-state
+  (fn (_ (param n INTEGER "Minimum number of characters to match")
+       (param pred CALLABLE "Predicate: (pred chr) -> bool")
+       (param done CALLABLE "Called after n+ matches on non-matching char"))
+    (make-count-state n pred (make-pred-state pred done))))
+  (returns CALLABLE "State that matches n or more characters satisfying pred")
+  (example "(make-min-state 1 char-numeric? token-accept)" "match 1+ digits")
+  "Match at least n characters satisfying pred, then loop more, calling done when pred fails.")
+
+(doc (def make-optional-char
+  (fn (_ (param ch INTEGER "Character code to optionally match")
+       (param next CALLABLE "Next state (reached whether char matched or not)"))
+    (make-char-state ch next next)))
+  (returns CALLABLE "State that optionally matches a character then continues")
+  (example "(make-optional-char 43 digits)" "optionally match '+' then digits")
+  "Match a character if present, skip if not. Either way, continue to next.")
+
 (doc (provide x/token
   token-accept token-accept-inclusive token-reject
   make-digit-state make-xdigit-state make-char-state
-  make-pred-state make-range-state)
+  make-pred-state make-range-state
+  make-alt-state make-string-state make-count-state
+  make-min-state make-optional-char)
   (note "States receive (self buffer score chr). Return self to loop, another state to transition, score to accept, nil to reject.")
   (example "(make-digit-state (make-char-state 46 (make-digit-state token-accept) ()))" "integer.fractional")
   "Composable tokenizer state machine builders.")
