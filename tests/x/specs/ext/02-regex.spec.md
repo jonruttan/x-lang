@@ -474,3 +474,313 @@
 ---
     "REGEX"
 
+## character classes
+
+### matches character set
+
+```scheme
+(regex-match #/[abc]+/ "abcba")
+```
+---
+    #t
+
+### rejects non-member
+
+```scheme
+(not (regex-match #/[abc]+/ "xyz"))
+```
+---
+    #t
+
+### matches range
+
+```scheme
+(regex-match #/[a-z]+/ "hello")
+```
+---
+    #t
+
+### negated class rejects member
+
+```scheme
+(not (regex-match #/[^a-z]+/ "hello"))
+```
+---
+    #t
+
+### negated class matches non-member
+
+```scheme
+(regex-match #/[^a-z]+/ "123")
+```
+---
+    #t
+
+### class with escape
+
+```scheme
+(regex-match #/[\d]+/ "456")
+```
+---
+    #t
+
+### class with multiple escapes
+
+```scheme
+(regex-match #/[\d\s]+/ "1 2 3")
+```
+---
+    #t
+
+## shorthand classes
+
+### digit class
+
+```scheme
+(regex-match #/\d+/ "42")
+```
+---
+    #t
+
+### word class
+
+```scheme
+(regex-match #/\w+/ "hello_42")
+```
+---
+    #t
+
+### space class
+
+```scheme
+(regex-match #/\s+/ "  ")
+```
+---
+    #t
+
+### non-digit class
+
+```scheme
+(regex-match #/\D+/ "abc")
+```
+---
+    #t
+
+### non-digit rejects digits
+
+```scheme
+(not (regex-match #/\D+/ "123"))
+```
+---
+    #t
+
+## groups and alternation
+
+### alternation matches left
+
+```scheme
+(regex-match #/(foo|bar)/ "foo")
+```
+---
+    #t
+
+### alternation matches right
+
+```scheme
+(regex-match #/(foo|bar)/ "bar")
+```
+---
+    #t
+
+### alternation rejects neither
+
+```scheme
+(not (regex-match #/(foo|bar)/ "baz"))
+```
+---
+    #t
+
+### nested group
+
+```scheme
+(regex-match #/(a(b|c)d)/ "abd")
+```
+---
+    #t
+
+## anchors
+
+### start anchor
+
+```scheme
+(not (null? (regex-search #/^hello/ "hello world")))
+```
+---
+    #t
+
+### end anchor
+
+```scheme
+(not (null? (regex-search #/world$/ "hello world")))
+```
+---
+    #t
+
+### both anchors
+
+```scheme
+(regex-match #/^exact$/ "exact")
+```
+---
+    #t
+
+## counted repetition
+
+### exact count
+
+```scheme
+(regex-match #/a{3}/ "aaa")
+```
+---
+    #t
+
+### exact count rejects too few
+
+```scheme
+(not (regex-match #/a{3}/ "aa"))
+```
+---
+    #t
+
+### range count
+
+```scheme
+(regex-match #/a{2,4}/ "aaa")
+```
+---
+    #t
+
+### open-ended count
+
+```scheme
+(regex-match #/a{2,}/ "aaaaa")
+```
+---
+    #t
+
+## lazy quantifiers
+
+### lazy star matches shortest
+
+```scheme
+(regex-find #/a*?b/ "aaab")
+```
+---
+    "aaab"
+
+### lazy plus matches shortest
+
+```scheme
+(regex-find #/a+?/ "aaaa")
+```
+---
+    "a"
+
+### greedy plus matches longest
+
+```scheme
+(regex-find #/a+/ "aaaa")
+```
+---
+    "aaaa"
+
+## regex-find
+
+### finds substring
+
+```scheme
+(regex-find #/[0-9]+/ "abc123def")
+```
+---
+    "123"
+
+### returns nil on no match
+
+```scheme
+(null? (regex-find #/[0-9]+/ "abcdef"))
+```
+---
+    #t
+
+## regex-find-all
+
+### finds all matches
+
+```scheme
+(regex-find-all #/[0-9]+/ "a1b22c333")
+```
+---
+    ("1" "22" "333")
+
+### returns empty list on no match
+
+```scheme
+(null? (regex-find-all #/[0-9]+/ "abcdef"))
+```
+---
+    #t
+
+## regex-replace
+
+### replaces first match
+
+```scheme
+(regex-replace #/[0-9]+/ "a1b22c" "N")
+```
+---
+    "aNb22c"
+
+### no match returns original
+
+```scheme
+(regex-replace #/[0-9]+/ "abc" "N")
+```
+---
+    "abc"
+
+## regex-replace-all
+
+### replaces all matches
+
+```scheme
+(regex-replace-all #/[0-9]+/ "a1b22c333" "N")
+```
+---
+    "aNbNcN"
+
+## regex-split
+
+### splits on delimiter
+
+```scheme
+(regex-split #/,/ "a,b,c")
+```
+---
+    ("a" "b" "c")
+
+### splits on whitespace
+
+```scheme
+(regex-split #/\s+/ "hello world")
+```
+---
+    ("hello" "world")
+
+### no match returns single-element list
+
+```scheme
+(regex-split #/,/ "abc")
+```
+---
+    ("abc")
+
