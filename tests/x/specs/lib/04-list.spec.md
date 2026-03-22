@@ -1,3 +1,21 @@
+## as-list
+
+### passes through list
+
+```scheme
+(as-list (list 1 2 3))
+```
+---
+    (1 2 3)
+
+### passes through nil
+
+```scheme
+(null? (as-list ()))
+```
+---
+    #t
+
 ## fold
 
 ### folds left

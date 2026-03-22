@@ -404,6 +404,66 @@
 ---
     "no"
 
+## regex-match
+
+### matches full string
+
+```scheme
+(regex-match #/ab*c/ "abbc")
+```
+---
+    #t
+
+### rejects partial match
+
+```scheme
+(if (regex-match #/ab/ "abc") "yes" "no")
+```
+---
+    "no"
+
+### matches empty pattern on empty string
+
+```scheme
+(regex-match #/a*/ "")
+```
+---
+    #t
+
+## regex-search
+
+### finds match at start
+
+```scheme
+(regex-search #/ab+/ "abbc")
+```
+---
+    (0 3)
+
+### finds match in middle
+
+```scheme
+(regex-search #/b+/ "aabbc")
+```
+---
+    (2 4)
+
+### returns nil on no match
+
+```scheme
+(null? (regex-search #/z+/ "abc"))
+```
+---
+    #t
+
+### finds single char match
+
+```scheme
+(regex-search #/./ "x")
+```
+---
+    (0 1)
+
 ## type-name
 
 ### returns REGEX for a regex

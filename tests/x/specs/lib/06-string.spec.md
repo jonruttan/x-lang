@@ -140,3 +140,37 @@
 ---
     ""
 
+
+## str
+
+### concatenates strings
+
+```scheme
+(str "hello" " " "world")
+```
+---
+    "hello world"
+
+### single string
+
+```scheme
+(str "abc")
+```
+---
+    "abc"
+
+### empty strings
+
+```scheme
+(str "" "x" "")
+```
+---
+    "x"
+
+### many arguments
+
+```scheme
+(str "a" "b" "c" "d")
+```
+---
+    "abcd"
