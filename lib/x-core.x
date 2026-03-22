@@ -271,26 +271,25 @@
 
   ; First call: expand + rewrite + eval. Subsequent calls: eq? + eval.
 
+  (def %and-loop
+    (fn (_ args e)
+      (if (null? (rest args))
+        (eval (first args) e)
+        (if (eval (first args) e)
+          (%and-loop (rest args) e)
+          #f))))
   (def and
-    (op args
-      e
-      (if (null? args)
-        #t
-        (if (null? (rest args))
-          (eval (first args) e)
-          (if (eval (first args) e)
-            (eval (pair (lit and) (rest args)) e)
-            #f)))))
+    (op args e
+      (if (null? args) #t (%and-loop args e))))
+  (def %or-loop
+    (fn (_ args e)
+      (if (null? (rest args))
+        (eval (first args) e)
+        (let ((%v (eval (first args) e)))
+          (if %v %v (%or-loop (rest args) e))))))
   (def or
-    (op args
-      e
-      (if (null? args)
-        ()
-        (if (null? (rest args))
-          (eval (first args) e)
-          (let ((%or-v (eval (first args) e)))
-            (if %or-v %or-v
-              (eval (pair (lit or) (rest args)) e)))))))
+    (op args e
+      (if (null? args) () (%or-loop args e))))
   ; match, %seq are C primitives; do/%do-seq are x-lang boot (x-core.x)
 
   ; --- Profiling ---
