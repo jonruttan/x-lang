@@ -369,6 +369,65 @@
     (%cw-emit (first (rest args)))
     (display ")")))
 
+; --- Bitwise emitters ---
+
+(def %cw-bnot
+  (fn (_ args)
+    (display "x_obj_make(p_base, x_obj_type(")
+    (%cw-emit (first args))
+    (display "), 0, 1, (x_int_t)(~")
+    (%cw-int-operand (first args))
+    (display "))")))
+(def %cw-band (%cw-make-arith " & "))
+(def %cw-bor  (%cw-make-arith " | "))
+(def %cw-bxor (%cw-make-arith " ^ "))
+(def %cw-shl  (%cw-make-arith " << "))
+(def %cw-shr  (%cw-make-arith " >> "))
+
+; --- Type predicate emitters ---
+; Type checks: return arg for truthy, NULL for falsy
+
+(def %cw-make-type-pred
+  (fn (_ c-check)
+    (fn (_ args)
+      (display "(")
+      (display c-check)
+      (display "(")
+      (%cw-emit (first args))
+      (display ") ? ")
+      (%cw-emit (first args))
+      (display " : NULL)"))))
+
+(def %cw-pairp   (%cw-make-type-pred "x_obj_type_isspair"))
+(def %cw-numberp (%cw-make-type-pred "x_obj_type_issatom"))
+
+; (pair? x) checks spair type; number? checks satom type
+; symbol? and string? need type-atom comparison — not directly expressible
+; without access to the type atoms, so skip for now
+
+; --- Accessor emitters ---
+
+; (char->integer ch) => x_atomint(ch) wrapped in int atom
+(def %cw-char-to-int
+  (fn (_ args)
+    (display "x_obj_make(p_base, x_obj_type(")
+    (%cw-emit (first args))
+    (display "), 0, 1, (x_int_t)x_atomint(")
+    (%cw-emit (first args))
+    (display "))")))
+
+; (do a b c ...) => comma-chained: (a, b, c)
+(def %cw-do
+  (fn (_ args)
+    (display "(")
+    (def %go
+      (fn (_ as)
+        (%cw-emit (first as))
+        (if (not (null? (rest as)))
+          (do (display ", ") (%go (rest as))))))
+    (%go args)
+    (display ")")))
+
 ; Emitter dispatch table: (operator . handler) alist
 (def compile-emitters
   (list
@@ -383,11 +442,21 @@
     (pair (lit *)             %cw-mul)
     (pair (lit /)             %cw-div)
     (pair (lit %)             %cw-mod)
+    (pair (lit ~)             %cw-bnot)
+    (pair (lit &)             %cw-band)
+    (pair (lit |)             %cw-bor)
+    (pair (lit ^)             %cw-bxor)
+    (pair (lit <<)            %cw-shl)
+    (pair (lit >>)            %cw-shr)
     (pair (lit not)           %cw-not)
     (pair (lit and)           %cw-and)
     (pair (lit or)            %cw-or)
+    (pair (lit do)            %cw-do)
     (pair (lit null?)         %cw-null)
+    (pair (lit pair?)         %cw-pairp)
+    (pair (lit number?)       %cw-numberp)
     (pair (lit eq?)           %cw-eqp)
+    (pair (lit char->integer) %cw-char-to-int)
     (pair (lit first)         %cw-first)
     (pair (lit rest)          %cw-rest)
     (pair (lit pair)          %cw-pair)
