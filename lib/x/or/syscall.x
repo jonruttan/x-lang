@@ -1,5 +1,5 @@
 ; syscall.x -- x86_64 and i386/BSD syscall tables
-(import x/list)
+(import x/core/list)
 
 ; x86_64 syscall name table (267 entries, index = syscall number)
 

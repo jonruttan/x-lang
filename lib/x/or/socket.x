@@ -1,5 +1,5 @@
 ; socket.x -- Socket constants
-(import x/list)
+(import x/core/list)
 
 ; Socket call identifiers
 ; Usage: (socketcall-id (lit socket)) => 1

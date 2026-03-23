@@ -1,6 +1,6 @@
 ; file.x -- File I/O constants and operations
-(import x/list)
-(import x/alist)
+(import x/core/list)
+(import x/core/alist)
 
 ; File open mode flags
 (def file-modes (list

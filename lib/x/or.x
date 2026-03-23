@@ -4,11 +4,11 @@
 ; tower, regex, plus system-level extensions (syscall, file, socket).
 
 ; --- Heavy imports ---
-(import x/posix)
-(import x/hash)
-(import x/compile)
-(import x/bignum)
-(import x/regex)
+(import x/sys/posix)
+(import x/sys/hash)
+(import x/tool/compile)
+(import x/num/bignum)
+(import x/sys/regex)
 
 ; --- System extensions ---
 (include "lib/x/or/syscall.x")
