@@ -174,8 +174,8 @@
               (def result (%parse start 0))
               (if (null? result) ()
                 (if neg (- 0 result) result))))))))
-  (include "lib/x/type.x")
-  (include "lib/x/convert.x")
+  (include "lib/x/sys/type.x")
+  (include "lib/x/sys/convert.x")
   (def newline (fn (_ ) (display "\n")))
   (def string-ref (fn (_ s i) (s i)))
   (def string-length (fn (_ s) (s)))
@@ -255,26 +255,26 @@
       ()))
   ; Pre-register all library paths so import calls in library files are no-ops
   (set-first! %include-list-cell
-    (pair "lib/x/doc.x"
-    (pair "lib/x/doc-prims.x"
-    (pair "lib/x/type.x"
-    (pair "lib/x/convert.x"
-    (pair "lib/x/fn.x"
-    (pair "lib/x/logic.x"
-    (pair "lib/x/list.x"
-    (pair "lib/x/math.x"
-    (pair "lib/x/derived.x"
-    (pair "lib/x/numeric.x"
-    (pair "lib/x/alist.x"
-    (pair "lib/x/char.x"
-    (pair "lib/x/string.x"
-    (pair "lib/x/vector.x"
-    (pair "lib/x/promise.x"
-    (pair "lib/x/token.x"
+    (pair "lib/x/doc/doc.x"
+    (pair "lib/x/doc/doc-prims.x"
+    (pair "lib/x/sys/type.x"
+    (pair "lib/x/sys/convert.x"
+    (pair "lib/x/core/fn.x"
+    (pair "lib/x/core/logic.x"
+    (pair "lib/x/core/list.x"
+    (pair "lib/x/core/math.x"
+    (pair "lib/x/core/derived.x"
+    (pair "lib/x/core/numeric.x"
+    (pair "lib/x/core/alist.x"
+    (pair "lib/x/data/char.x"
+    (pair "lib/x/data/string.x"
+    (pair "lib/x/data/vector.x"
+    (pair "lib/x/data/promise.x"
+    (pair "lib/x/sys/token.x"
       (first %include-list-cell))))))))))))))))))
   ; --- Documentation system ---
-  (include "lib/x/doc.x")
-  (include "lib/x/doc-prims.x")
+  (include "lib/x/doc/doc.x")
+  (include "lib/x/doc/doc-prims.x")
 
   ; --- Core forms as operatives ---
 
@@ -334,12 +334,12 @@
       (%stderr (heap-count))
       (%stderr "\n")
       ()))
-  (include "lib/x/fn.x")
-  (include "lib/x/logic.x")
-  (include "lib/x/list.x")
-  (include "lib/x/math.x")
-  (include "lib/x/derived.x")
-  (include "lib/x/numeric.x")
+  (include "lib/x/core/fn.x")
+  (include "lib/x/core/logic.x")
+  (include "lib/x/core/list.x")
+  (include "lib/x/core/math.x")
+  (include "lib/x/core/derived.x")
+  (include "lib/x/core/numeric.x")
   ; --- Save integer primitives and make arithmetic variadic ---
 
   ; fold (from list.x) enables variadic wrappers. float.x later overrides
@@ -398,12 +398,12 @@
     (fn (_ )
       (first-int
         (first (first (rest (first (rest (first (%base))))))))))
-  (include "lib/x/alist.x")
-  (include "lib/x/char.x")
-  (include "lib/x/string.x")
-  (include "lib/x/vector.x")
-  (include "lib/x/promise.x")
-  (include "lib/x/token.x")
+  (include "lib/x/core/alist.x")
+  (include "lib/x/data/char.x")
+  (include "lib/x/data/string.x")
+  (include "lib/x/data/vector.x")
+  (include "lib/x/data/promise.x")
+  (include "lib/x/sys/token.x")
   ; --- quasi (needs append from list.x) ---
 
   ; Compile template to a pair/lit/append tree that, when eval'd,
@@ -477,7 +477,7 @@
               (do (display " v") (display %lang-version)))
             (display " on x-lang")
             (newline))))))
-  (doc (provide x/type
+  (doc (provide x/sys/type
     type-alist type-by-atom type-io type-cvt
     type-write-cell type-analyse-cell type-from-cell type-to-cell
     type-push-write type-pop-write type-push-analyse type-cast!)

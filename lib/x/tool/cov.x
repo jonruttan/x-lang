@@ -100,6 +100,6 @@
   (returns LIST "Alist from library boundary marker onward")
   "Skip past test definitions to the library boundary marker.")
 
-(doc (provide x/cov
+(doc (provide x/tool/cov
   cov-covered? cov-count-tree cov-check-fn cov-walk cov-skip-to-library)
   "Library coverage analysis for x-profile instrumented code.")

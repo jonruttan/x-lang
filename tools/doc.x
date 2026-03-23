@@ -5,7 +5,7 @@
 ; and outputs Markdown.
 
 (do
-  (import x/doc-gen)
+  (import x/doc/doc-gen)
 
   ; --- Tokenize source ---
   (def %input (read))

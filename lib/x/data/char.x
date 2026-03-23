@@ -104,7 +104,7 @@
   (returns BOOL "True if a >= b ignoring case")
   "Case-insensitive character greater-than-or-equal.")
 
-(doc (provide x/char
+(doc (provide x/data/char
   char-alphabetic? char-numeric? char-whitespace?
   char-upper-case? char-lower-case? char-upcase char-downcase
   char=? char<? char>? char<=? char>=?

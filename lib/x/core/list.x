@@ -1,5 +1,5 @@
 ; list.x -- List operations
-(import x/logic)
+(import x/core/logic)
 
 ; Convert any iterable to a list. Lists/nil pass through unchanged.
 ; Note: iter-based path may not work for all types yet
@@ -619,7 +619,7 @@
         (assoc key (rest alist))))))
   "Look up a key in an alist by equality (equal?).")
 
-(doc (provide x/list
+(doc (provide x/core/list
   as-list fold reduce scan length nth last init append prepend reverse flatten
   map filter for-each flat-map any? every? none? empty?
   complement partial juxt both either all-pass any-pass reject concat sum product

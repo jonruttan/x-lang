@@ -1,5 +1,5 @@
 ; posix.x -- POSIX function wrappers via FFI (dlsym + ptr-call)
-(import x/list)
+(import x/core/list)
 ;
 ; Replaces C shell primitives with pure x-lang using the FFI layer.
 ; Provides: sh-fork, sh-exec, sh-pipe, sh-dup2, sh-wait, sh-open-read,
@@ -181,7 +181,7 @@
   (returns BOOLEAN "True if file exists")
   "Check if a file exists (via access with F_OK=0).")
 
-(doc (provide x/posix
+(doc (provide x/sys/posix
   sh-fork sh-getpid sh-close sh-dup2 sh-chdir sh-exit
   sh-setenv sh-getenv sh-open-read sh-open-write sh-open-append
   sh-pipe sh-wait sh-exec fd-write file-exists?)

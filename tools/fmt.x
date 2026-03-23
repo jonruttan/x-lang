@@ -6,7 +6,7 @@
 ; Input order on stdin: constructs.x, lang-constructs (or ()), then quoted source string.
 
 (do
-  (import x/fmt)
+  (import x/tool/fmt)
 
   ; --- Load construct declarations ---
   (def %constructs (read))

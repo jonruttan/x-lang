@@ -1,5 +1,5 @@
 ; numeric.x -- Numeric tower promotion utilities
-(import x/list)
+(import x/core/list)
 
 ; Build a variadic fold operator that promotes to a new numeric type.
 ; pred?:   type predicate (float?, bignum?, etc.)
@@ -41,5 +41,5 @@
   (returns CALLABLE "Binary comparison with type promotion")
   "Create a binary comparison operator that promotes operands to a numeric type.")
 
-(doc (provide x/numeric %make-fold-op %make-cmp-op)
+(doc (provide x/core/numeric %make-fold-op %make-cmp-op)
   "Numeric tower helpers for building type-promoting operators.")

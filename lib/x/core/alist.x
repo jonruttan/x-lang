@@ -1,5 +1,5 @@
 ; alist.x -- Association list operations
-(import x/list)
+(import x/core/list)
 ;
 ; Alists: ((key1 . val1) (key2 . val2) ...)
 ; Keys compared with eq? (symbol pointer equality)
@@ -137,7 +137,7 @@
   (returns LIST "Alist with selected values transformed")
   "Apply per-key transform functions to values in an alist.")
 
-(doc (provide x/alist
+(doc (provide x/core/alist
   assoc-get assoc-get-or assoc-has? assoc-del assoc-put
   assoc-keys assoc-vals assoc-map assoc-filter assoc-merge
   assoc-pick assoc-omit from-pairs to-pairs evolve)

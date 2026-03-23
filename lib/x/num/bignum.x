@@ -6,7 +6,7 @@
 ;   Base chosen at load time so (base-1)^2 fits in native integer
 ;
 ; Promotion chain: integer -> bignum -> rational -> float -> complex
-(import x/list)
+(import x/core/list)
 
 ; --- Platform constants ---
 
@@ -596,7 +596,7 @@
 
 (type-push-analyse %int-type %int-capped-analyse)
 
-(doc (provide x/bignum bignum? big+ big- big* big/ big% big< big=
+(doc (provide x/num/bignum bignum? big+ big- big* big/ big% big< big=
   would-overflow-add? would-overflow-mul?)
   (note "Auto-promotes when integers exceed native range. Extends +,-,*,/,%,<,=.")
   "Arbitrary-precision integers.")

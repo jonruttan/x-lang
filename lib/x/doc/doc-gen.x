@@ -2,8 +2,8 @@
 ;
 ; Extracts (doc ...) and (note ...) forms from token trees
 ; and emits Markdown. Works with tokens from make-base + token-read-string.
-(import x/list)
-(import x/string)
+(import x/core/list)
+(import x/data/string)
 
 ; --- Predicates (cross-base: use string=? not eq?) ---
 
@@ -184,7 +184,7 @@
   (param tokens LIST "Token list from token-read-string")
   "Walk a token tree, extracting and emitting all documentation as Markdown.")
 
-(doc (provide x/doc-gen
+(doc (provide x/doc/doc-gen
   doc-sym-is? doc-form? doc-note-form? doc-def-form? doc-param-form?
   doc-provide-form? doc-find-last-string doc-extract-params
   doc-extract-meta-type doc-extract doc-emit-heading doc-emit-param

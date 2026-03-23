@@ -39,5 +39,5 @@
   (returns BOOLEAN "True if a is greater than or equal to b")
   "Test whether a is greater than or equal to b.")
 
-(doc (provide x/logic boolean? default-to until equal? > <= >=)
+(doc (provide x/core/logic boolean? default-to until equal? > <= >=)
   "Boolean logic, structural equality, and derived comparisons.")

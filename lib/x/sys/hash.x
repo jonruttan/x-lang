@@ -1,5 +1,5 @@
 ; hash.x -- FNV-1a hash function
-(import x/string)
+(import x/data/string)
 ;
 ; FNV-1a 64-bit hash operating on strings.
 ; Returns an integer suitable for use as a cache key.
@@ -37,6 +37,6 @@
   (returns STRING "16-character hexadecimal string")
   "Convert a 64-bit signed integer to a 16-character unsigned hex string.")
 
-(doc (provide x/hash fnv-1a hash->hex)
+(doc (provide x/sys/hash fnv-1a hash->hex)
   (example "(hash->hex (fnv-1a \"hello\"))" "a430d84680aabd0b")
   "FNV-1a hash function for strings.")

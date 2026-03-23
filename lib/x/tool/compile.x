@@ -1,8 +1,8 @@
 ; compile.x -- Runtime compiler: x-lang to native code
-(import x/list)
-(import x/string)
-(import x/posix)
-(import x/hash)
+(import x/core/list)
+(import x/data/string)
+(import x/sys/posix)
+(import x/sys/hash)
 ;
 ; (compile '(fn (_ params...) body))  =>  <prim>
 ;
@@ -770,7 +770,7 @@
   (returns PRIM "Compiled native function"))
 
 ; --- Default compile: JIT assembler with C fallback ---
-(include "lib/x/asm-compile.x")
+(include "lib/x/tool/asm-compile.x")
 
 (def compile
   (fn (_ expr . rest)
@@ -866,7 +866,7 @@
 (doc compile-batch "Compile multiple (fn ...) expressions in a single cc invocation."
   (returns LIST "List of compiled native primitives"))
 
-(doc (provide x/compile
+(doc (provide x/tool/compile
   compile-to-c compile-write compile-cc compile-load
   compile-cc-flags compile-ext compile-with-writers
   compile-emitters compile-add-emitter!

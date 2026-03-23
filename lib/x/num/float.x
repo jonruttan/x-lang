@@ -1,5 +1,5 @@
 ; float.x -- Floating-point type with IEEE 754 bit-pattern storage
-(import x/numeric)
+(import x/core/numeric)
 ;
 ; Float values are stored as IEEE 754 double bit patterns inside integers.
 ; The tokenizer's competitive scoring system ensures "3.14" (score 4)
@@ -367,7 +367,7 @@
             (if (%int= sign -1) (f- fzero mag) mag)))
         (first %from-cell)))))
 
-(doc (provide x/float
+(doc (provide x/num/float
   float? float->string int->float float->int string->float
   exact->inexact inexact->exact
   f+ f- f* f/ f< f= fsin fcos ftan fsqrt fexp flog fabs

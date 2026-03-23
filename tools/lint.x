@@ -12,7 +12,7 @@
 
 (do
   ; Import the linter library (defines %walk helpers, lint-forms, etc.)
-  (import x/lint)
+  (import x/tool/lint)
 
   ; --- Load construct declarations ---
 

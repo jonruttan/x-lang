@@ -1,5 +1,5 @@
 ; token.x -- Composable tokenizer state builders
-(import x/char)
+(import x/data/char)
 
 (note "Terminators")
 
@@ -143,7 +143,7 @@
   (example "(make-optional-char 43 digits)" "optionally match '+' then digits")
   "Match a character if present, skip if not. Either way, continue to next.")
 
-(doc (provide x/token
+(doc (provide x/sys/token
   token-accept token-accept-inclusive token-reject
   make-digit-state make-xdigit-state make-char-state
   make-pred-state make-range-state

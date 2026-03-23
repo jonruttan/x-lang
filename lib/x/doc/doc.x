@@ -394,6 +394,6 @@
             (%search (rest entries))))))
     (%search (first %doc-registry-cell))))
 
-(doc (provide x/doc doc note help apropos)
+(doc (provide x/doc/doc doc note help apropos)
   (note "doc wraps def or provide for metadata. help for REPL lookup. apropos for search.")
   "Inline documentation system.")

@@ -2,7 +2,7 @@
 ;
 ; General-purpose constructs built from x-lang primitives.
 ; Loaded after list.x (letrec needs map/append).
-(import x/list)
+(import x/core/list)
 
 ; --- when / unless ---
 
@@ -131,6 +131,6 @@
           (#t (case-loop (rest cls))))))
     (case-loop clauses)))
 
-(doc (provide x/derived when unless let* letrec cond case)
+(doc (provide x/core/derived when unless let* letrec cond case)
   (note "These are operatives that extend the core syntax.")
   "Derived syntax forms: cond, case, when, unless, let*, letrec.")

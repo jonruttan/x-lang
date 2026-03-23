@@ -86,7 +86,7 @@
     (ptr-set-word! %dst-ptr %type-offset %type-val)
     obj))
 
-; provide x/type — registered by x-core.x after module system loads
+; provide x/sys/type — registered by x-core.x after module system loads
 ; Exports: type-alist type-by-atom type-io type-cvt
 ;   type-write-cell type-analyse-cell type-from-cell type-to-cell
 ;   type-push-write type-pop-write type-push-analyse type-cast!

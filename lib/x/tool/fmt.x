@@ -2,7 +2,7 @@
 ;
 ; Data-driven pretty printer for x-lang s-expressions.
 ; Uses write-to-string for width estimation (C speed).
-(import x/string)
+(import x/data/string)
 
 ; --- Construct table helpers ---
 
@@ -149,7 +149,7 @@
   (param table ALIST "Formatter table from fmt-build-table")
   "Format a list of top-level tokens with the given construct table.")
 
-(doc (provide x/fmt
+(doc (provide x/tool/fmt
   fmt-build-table fmt-lookup fmt-get-prop fmt-comment? fmt-width
   fmt-expr fmt-list fmt-body fmt-tokens)
   "Comment-preserving s-expression formatter.")

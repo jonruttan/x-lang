@@ -15,27 +15,27 @@
 (include "lib/x-core.x")
 ; Pre-register all heavy module paths
 (set-first! %include-list-cell
-  (pair "lib/x/posix.x"
-  (pair "lib/x/hash.x"
-  (pair "lib/x/compile.x"
-  (pair "lib/x/bignum.x"
-  (pair "lib/x/regex.x"
-  (pair "lib/x/float.x"
-  (pair "lib/x/rational.x"
-  (pair "lib/x/complex.x"
+  (pair "lib/x/sys/posix.x"
+  (pair "lib/x/sys/hash.x"
+  (pair "lib/x/tool/compile.x"
+  (pair "lib/x/num/bignum.x"
+  (pair "lib/x/sys/regex.x"
+  (pair "lib/x/num/float.x"
+  (pair "lib/x/num/rational.x"
+  (pair "lib/x/num/complex.x"
   (pair "lib/x/or.x"
     (first %include-list-cell)))))))))))
 ; Load compiler infrastructure FIRST (before numeric tower)
-(include "lib/x/posix.x")
-(include "lib/x/hash.x")
-(include "lib/x/compile.x")
+(include "lib/x/sys/posix.x")
+(include "lib/x/sys/hash.x")
+(include "lib/x/tool/compile.x")
 
 ; --- Load numeric tower with immediate analyser compilation ---
 ; Each type's analyser is compiled right after loading, so subsequent
 ; type source files are parsed through compiled (fast) analysers.
 
 ; 1. Bignum — also provides int-capped analyser
-(include "lib/x/bignum.x")
+(include "lib/x/num/bignum.x")
 (set! %compile-fvars
   (list (pair (lit %big-sign-state) %big-sign-state)
         (pair (lit %big-digits) %big-digits)
@@ -58,10 +58,10 @@
 (set! %compile-fvars ())
 
 ; 2. Regex (has C analyser, no compile needed)
-(include "lib/x/regex.x")
+(include "lib/x/sys/regex.x")
 
 ; 3. Float
-(include "lib/x/float.x")
+(include "lib/x/num/float.x")
 (set! %compile-fvars
   (list (pair (lit %float-int-digits) %float-int-digits)))
 (type-push-analyse (type-by-atom (type-of 1.0))
@@ -72,7 +72,7 @@
 (set! %compile-fvars ())
 
 ; 4. Rational
-(include "lib/x/rational.x")
+(include "lib/x/num/rational.x")
 (set! %compile-fvars
   (list (pair (lit %rat-numer) %rat-numer)
         (pair (lit %rat-sign)
@@ -88,7 +88,7 @@
 (set! %compile-fvars ())
 
 ; 5. Complex
-(include "lib/x/complex.x")
+(include "lib/x/num/complex.x")
 (set! %compile-fvars
   (list (pair (lit %cx-real-int) %cx-real-int)))
 (type-push-analyse (type-by-atom (type-of 1+1i))

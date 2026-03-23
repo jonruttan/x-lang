@@ -1,7 +1,7 @@
 ; asm-compile.x -- JIT compiler: x-lang expressions to native machine code
 ; Produces proper x-lang prims that work with map, fold, closures, etc.
-(import x/list)
-(import x/asm)
+(import x/core/list)
+(import x/tool/asm)
 
 ; --- Resolve JIT runtime functions ---
 (def %jit-lib (dlopen () 1))
@@ -255,5 +255,5 @@
   "JIT compile an x-lang (fn ...) expression to a native prim.
    The compiled function works with map, fold, closures, etc.")
 
-(doc (provide x/asm-compile compile-asm)
+(doc (provide x/tool/asm-compile compile-asm)
   "JIT compiler: x-lang to native code via assembler.")

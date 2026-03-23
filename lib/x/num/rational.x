@@ -1,5 +1,5 @@
 ; rational.x -- Rational number type (exact fractions)
-(import x/float)
+(import x/num/float)
 ;
 ; Rational values are stored as (numerator . denominator) pairs,
 ; auto-reduced via GCD on construction. The tokenizer matches
@@ -338,7 +338,7 @@
               (substring tok (%int+ pos 1) (string-length tok)) %int))
           ())))))
 
-(doc (provide x/rational
+(doc (provide x/num/rational
   rational? exact? numerator denominator rat+ rat- rat* rat/ rat< rat=)
   (note "Literal syntax: 1/3, -2/7. Extends +,-,*,/,%,<,=.")
   (example "(+ 1/3 1/6)" "1/2")

@@ -4,7 +4,7 @@
 ;
 ; Set %cov-tsv-mode to #t before loading for machine-readable TSV output.
 
-(import x/cov)
+(import x/tool/cov)
 
 (if (not (symbol? (lit %cov-tsv-mode)))
   ()

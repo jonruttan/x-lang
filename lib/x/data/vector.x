@@ -1,5 +1,5 @@
 ; vector.x -- Vector type with #() reader syntax
-(import x/list)
+(import x/core/list)
 ; N+1 slot objects: slot 0 = length, slots 1..N = elements.
 
 ; Fill a vector's slots from a list (shared helper)
@@ -136,7 +136,7 @@
   (returns VECTOR "New vector containing the list's elements")
   "Convert a list to a vector.")
 
-(doc (provide x/vector vector vector? vector-ref vector-length vector->list list->vector make-vector)
+(doc (provide x/data/vector vector vector? vector-ref vector-length vector->list list->vector make-vector)
   (note "Literal syntax: #(1 2 3). Supports negative indexing.")
   (example "(vector-ref #(10 20 30) 1)" "20")
   "Fixed-size indexed vectors.")

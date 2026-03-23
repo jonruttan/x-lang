@@ -3,9 +3,9 @@
 ; Reports undefined symbol references and unused bindings.
 ; Uses x-lang's own env-alist for "known" symbols — no manual
 ; enumeration of C primitives or library defs needed.
-(import x/list)
-(import x/alist)
-(import x/string)
+(import x/core/list)
+(import x/core/alist)
+(import x/data/string)
 
 ; Snapshot the current env-alist — everything defined before
 ; the target file (C primitives + standard library).
@@ -177,6 +177,6 @@
   (returns LIST "Symbols defined but never used")
   "Compute unused symbols: defined but not referenced. Skips %-prefixed internals.")
 
-(doc (provide x/lint
+(doc (provide x/tool/lint
   lint-forms lint-undefined lint-unused)
   "AST linter: def/use analysis for x-lang source.")

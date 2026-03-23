@@ -687,7 +687,7 @@
   (returns LIST "AST node list")
   "Parse a regex pattern string into an executable AST.")
 
-(doc (provide x/regex
+(doc (provide x/sys/regex
   regex? regex-match regex-search regex-find-at
   regex-find regex-find-all regex-find-all-pos regex-count
   regex-replace regex-replace-all regex-split
