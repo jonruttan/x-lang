@@ -30,7 +30,10 @@
             (def arg (nth idx args))
             (def val
               (if (eq? (%op-type arg) (lit label))
-                (do (asm-patch! asm 4 (lit arm64-rel) (%op-value arg)) 0)
+                (do
+                  (def ptype (if (= width 26) (lit arm64-rel) (lit arm64-rel19)))
+                  (asm-patch! asm 4 ptype (%op-value arg))
+                  0)
                 (%op-value arg)))
             (def mask (- (<< 1 width) 1))
             (def bits (<< (& (>> val sh) mask) pos))
@@ -120,6 +123,50 @@
     (pair (lit blr) (list
       (pair (lit r) (list 3594452992          ; 0xD63F0000
         (list 0 5 5 0)))))
+
+    ; CBZ Xt, label (branch if zero, 64-bit)
+    ; imm19 at [23:5], Rt at [4:0]
+    (pair (lit cbz) (list
+      (pair (lit rl) (list 3019898880         ; 0xB4000000
+        (list 0 0 5 0)        ; Rt
+        (list 1 5 19 2)))))   ; imm19, offset>>2
+
+    ; CBNZ Xt, label (branch if not zero, 64-bit)
+    (pair (lit cbnz) (list
+      (pair (lit rl) (list 3036676096         ; 0xB5000000
+        (list 0 0 5 0)
+        (list 1 5 19 2)))))
+
+    ; CMP Xn, Xm (alias: SUBS XZR, Xn, Xm)
+    (pair (lit cmp) (list
+      (pair (lit rr) (list 3942645791         ; 0xEB00001F (Rd=XZR)
+        (list 0 5 5 0)        ; Rn (first arg = left)
+        (list 1 16 5 0)))     ; Rm (second arg = right)
+      ; Rd=XZR(31) is hardcoded in base: 0xEB00001F
+      (pair (lit ri) (list 4043309087         ; 0xF100001F = SUBS XZR, Xn, #imm
+        (list 0 5 5 0)        ; Rn
+        (list 1 10 12 0)))))  ; imm12
+
+    ; B.EQ, B.NE, B.LT, B.GE, B.GT, B.LE (conditional branches)
+    ; B.cond: imm19 at [23:5], cond at [3:0]
+    (pair (lit b/eq) (list
+      (pair (lit l) (list 1409286144          ; 0x54000000 | cond=0
+        (list 0 5 19 2)))))
+    (pair (lit b/ne) (list
+      (pair (lit l) (list 1409286145          ; 0x54000001
+        (list 0 5 19 2)))))
+    (pair (lit b/lt) (list
+      (pair (lit l) (list 1409286155          ; 0x5400000B
+        (list 0 5 19 2)))))
+    (pair (lit b/ge) (list
+      (pair (lit l) (list 1409286154          ; 0x5400000A
+        (list 0 5 19 2)))))
+    (pair (lit b/gt) (list
+      (pair (lit l) (list 1409286156          ; 0x5400000C
+        (list 0 5 19 2)))))
+    (pair (lit b/le) (list
+      (pair (lit l) (list 1409286157          ; 0x5400000D
+        (list 0 5 19 2)))))
   ))
 
 ; --- Dispatch encoder ---
@@ -133,17 +180,20 @@
 ; For B/BL: imm26 = (target - offset) >> 2, OR'd into low 26 bits
 (def %arm64-patch
   (fn (_ buf-ptr offset width ptype target)
+    (def word (ptr-ref buf-ptr offset 4))
+    (def rel (>> (- target offset) 2))
     (if (eq? ptype (lit arm64-rel))
+      ; B/BL: imm26 at [25:0]
       (do
-        ; Read existing instruction word
-        (def word (ptr-ref buf-ptr offset 4))
-        ; Compute PC-relative offset in instruction units (>> 2)
-        (def rel (>> (- target offset) 2))
-        ; Mask to 26 bits and OR into instruction
-        (def patched (| (& word (~ (- (<< 1 26) 1))) (& rel (- (<< 1 26) 1))))
-        (ptr-set! buf-ptr offset patched 4))
-      ; Generic fallback
-      (ptr-set! buf-ptr offset (- target (+ offset width)) width))))
+        (def mask (- (<< 1 26) 1))
+        (ptr-set! buf-ptr offset (| (& word (~ mask)) (& rel mask)) 4))
+      (if (eq? ptype (lit arm64-rel19))
+        ; CBZ/CBNZ/B.cond: imm19 at [23:5]
+        (do
+          (def mask (<< (- (<< 1 19) 1) 5))
+          (ptr-set! buf-ptr offset (| (& word (~ mask)) (& (<< (& rel (- (<< 1 19) 1)) 5) mask)) 4))
+        ; Generic fallback
+        (ptr-set! buf-ptr offset (- target (+ offset width)) width)))))
 
 ; --- Export architecture: (table . encoder . resolver) ---
 (set! %arch (list %arm64-table %arm64-dispatch %arm64-patch))
