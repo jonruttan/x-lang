@@ -53,6 +53,20 @@
     (def word (| 3531603968 (| (<< (& val 65535) 5) (& rd 31))))
     (%emit-u32-le! asm word)))
 
+; --- Load 64-bit immediate into register (MOVZ + 3 MOVK) ---
+; Used for loading function addresses and large constants
+(def asm-load-imm64!
+  (fn (_ asm rd-reg val)
+    (def rd (if (pair? rd-reg) (%op-value rd-reg) rd-reg))
+    ; MOVZ Xd, #bits[15:0]
+    (%emit-u32-le! asm (| 3531603968 (| (<< (& val 65535) 5) (& rd 31))))
+    ; MOVK Xd, #bits[31:16], LSL #16
+    (%emit-u32-le! asm (| 4070572032 (| (<< (& (>> val 16) 65535) 5) (& rd 31))))
+    ; MOVK Xd, #bits[47:32], LSL #32
+    (%emit-u32-le! asm (| 4072669184 (| (<< (& (>> val 32) 65535) 5) (& rd 31))))
+    ; MOVK Xd, #bits[63:48], LSL #48
+    (%emit-u32-le! asm (| 4074766336 (| (<< (& (>> val 48) 65535) 5) (& rd 31))))))
+
 ; --- Opcode table ---
 ; Constants verified with: python3 -c "print(hex(N))"
 (def %arm64-table

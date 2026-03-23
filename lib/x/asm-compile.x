@@ -14,6 +14,11 @@
 (def %asm-compile-binop ())
 (def %asm-compile-mod ())
 (def %asm-compile-if ())
+(def %asm-compile-let ())
+(def %asm-compile-funcall ())
+
+; Trampoline cell for self-recursion (set during compilation)
+(def %asm-self-cell ())
 
 ; --- Code generation ---
 ; Walk expression tree, emit instructions.
@@ -107,8 +112,10 @@
               (%asm-compile-mod asm args params)
               (if (eq? op (lit if))
                 (%asm-compile-if asm args params)
-                (error (str "asm-compile: unsupported form: "
-                  (symbol->string op)))))))))))
+                (if (eq? op (lit let))
+                  (%asm-compile-let asm args params)
+                  ; Function call: look up in environment
+                  (%asm-compile-funcall asm op args params))))))))))))
 
 ; Compile binary operation: eval left, push to stack, eval right, pop, combine
 (set! %asm-compile-binop
@@ -190,6 +197,41 @@
         (%asm-compile-expr asm else-expr params)
         (asm-label! asm (lit %end)))))))
 
+; Compile let: (let ((x expr) ...) body)
+; NOT YET SUPPORTED — would need stack frame for local variables
+(set! %asm-compile-let
+  (fn (_ asm args params)
+    (error "asm-compile: let not yet supported")))
+
+; Compile self-recursive function call via trampoline
+; %asm-self-cell holds a pointer to an 8-byte slot containing the function address.
+; The address is patched after asm-finalize!.
+(set! %asm-compile-funcall
+  (fn (_ asm fn-name args params)
+    (if (null? %asm-self-cell)
+      (error (str "asm-compile: unknown function: " (symbol->string fn-name))))
+    (def nargs (length args))
+    ; Evaluate each arg left-to-right, push to stack
+    (for-each
+      (fn (_ arg) (%asm-compile-expr asm arg params)
+        (%emit-u32-le! asm 4162785248))   ; push x0
+      args)
+    ; Pop into registers in reverse order: last arg first
+    ; Pop into x(nargs-1) down to x0
+    ; LDR Xd, [sp], #16 = 0xF84107E0 | Rd
+    (def %pop-regs
+      (fn (_ i)
+        (if (< i 0) ()
+          (do
+            (%emit-u32-le! asm (| 4165011424 i))  ; LDR Xi, [sp], #16
+            (%pop-regs (- i 1))))))
+    (%pop-regs (- nargs 1))
+    ; Load self address from trampoline cell -> x8
+    (asm-load-imm64! asm x8 (ptr->int %asm-self-cell))
+    (asm-emit! asm (lit ldr) x8 (mem 8 0))
+    ; Call
+    (asm-emit! asm (lit blr) x8)))
+
 ; --- Public API ---
 
 ; compile-asm: (compile-asm '(fn (_ params...) body)) -> x-lang callable
@@ -204,6 +246,13 @@
     ; Skip self param (_)
     (def params (rest fn-params))
     (def nparams (length params))
+
+    ; Allocate trampoline cell for self-recursion (8 bytes, holds fn address)
+    (def libc (dlopen () 1))
+    (def c-malloc (dlsym libc "malloc"))
+    (def self-cell (ptr-call c-malloc 8))
+    (ptr-set-word! self-cell 0 0)   ; initially 0
+    (set! %asm-self-cell self-cell)
 
     (def asm (asm-new))
     ; Prologue: save callee-saved registers
@@ -221,6 +270,10 @@
     (asm-epilogue! asm)
 
     (def raw-fn (asm-finalize! asm))
+
+    ; Patch trampoline cell with the function's actual address
+    (ptr-set-word! self-cell 0 (ptr->int raw-fn))
+    (set! %asm-self-cell ())
 
     ; Return a closure that wraps the JIT function.
     ; Extracts integer values from x-lang args, passes as raw longs,
