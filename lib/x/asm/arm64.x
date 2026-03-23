@@ -129,6 +129,29 @@
       (pair (lit r) (list 3594452992          ; 0xD63F0000
         (list 0 5 5 0)))))
 
+    ; MUL Xd, Xn, Xm (alias: MADD Xd, Xn, Xm, XZR)
+    ; Ra=XZR(31) hardcoded in base opcode [14:10] = 11111
+    (pair (lit mul) (list
+      (pair (lit rrr) (list 2600500224        ; 0x9B007C00 (Ra=XZR already set)
+        (list 0 0 5 0)       ; Rd
+        (list 1 5 5 0)       ; Rn
+        (list 2 16 5 0)))))  ; Rm
+
+    ; SDIV Xd, Xn, Xm (signed divide)
+    (pair (lit sdiv) (list
+      (pair (lit rrr) (list 2596277248        ; 0x9AC00C00
+        (list 0 0 5 0)       ; Rd
+        (list 1 5 5 0)       ; Rn
+        (list 2 16 5 0)))))  ; Rm
+
+    ; MSUB Xd, Xn, Xm, Xa (Xd = Xa - Xn*Xm) — for modulo
+    (pair (lit msub) (list
+      (pair (lit rrrr) (list 2600501248       ; 0x9B008000
+        (list 0 0 5 0)       ; Rd
+        (list 1 5 5 0)       ; Rn
+        (list 2 16 5 0)      ; Rm
+        (list 3 10 5 0)))))  ; Ra
+
     ; CBZ Xt, label (branch if zero, 64-bit)
     ; imm19 at [23:5], Rt at [4:0]
     (pair (lit cbz) (list

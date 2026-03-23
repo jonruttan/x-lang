@@ -12,6 +12,7 @@
 (def %asm-compile-param ())
 (def %asm-compile-call ())
 (def %asm-compile-binop ())
+(def %asm-compile-mod ())
 (def %asm-compile-if ())
 
 ; --- Code generation ---
@@ -99,25 +100,47 @@
             (asm-emit! asm (lit sub) x0 xzr x0))
           (%asm-compile-binop asm (lit sub) args params))
         (if (eq? op (lit *))
-          ; Multiply needs MUL instruction (not yet in table)
-          ; For now: error
-          (error "asm-compile: * not yet supported (need MUL instruction)")
-          (if (eq? op (lit if))
-            (%asm-compile-if asm args params)
-            (error (str "asm-compile: unsupported form: "
-              (symbol->string op)))))))))
+          (%asm-compile-binop asm (lit mul) args params)
+          (if (eq? op (lit /))
+            (%asm-compile-binop asm (lit sdiv) args params)
+            (if (eq? op (lit %))
+              (%asm-compile-mod asm args params)
+              (if (eq? op (lit if))
+                (%asm-compile-if asm args params)
+                (error (str "asm-compile: unsupported form: "
+                  (symbol->string op)))))))))))
 
-; Compile binary operation: eval left into x0, save, eval right, combine
+; Compile binary operation: eval left, push to stack, eval right, pop, combine
 (set! %asm-compile-binop
   (fn (_ asm insn args params)
     ; Evaluate left operand -> x0
     (%asm-compile-expr asm (first args) params)
-    ; Save to x21 (callee-saved scratch)
-    (asm-emit! asm (lit mov) x21 x0)
-    ; Evaluate right operand -> x0
+    ; Push x0 to stack (str x0, [sp, #-16]!)
+    (%emit-u32-le! asm 4162785248)   ; 0xF81F0FE0 = STR x0, [sp, #-16]!
+    ; Evaluate right operand -> x0 (may clobber x21)
     (%asm-compile-expr asm (first (rest args)) params)
-    ; Combine: x0 = x21 op x0
-    (asm-emit! asm insn x0 x21 x0)))
+    ; Move right to x1
+    (asm-emit! asm (lit mov) x1 x0)
+    ; Pop left from stack into x0 (ldr x0, [sp], #16)
+    (%emit-u32-le! asm 4165011424)   ; 0xF84107E0 = LDR x0, [sp], #16
+    ; Combine: x0 = x0 op x1
+    (asm-emit! asm insn x0 x0 x1)))
+
+; Compile modulo: a % b = a - (a/b)*b
+; Uses SDIV + MSUB with stack for safety
+(set! %asm-compile-mod
+  (fn (_ asm args params)
+    ; Evaluate left -> x0, push to stack
+    (%asm-compile-expr asm (first args) params)
+    (%emit-u32-le! asm 4162785248)     ; push x0
+    ; Evaluate right -> x0
+    (%asm-compile-expr asm (first (rest args)) params)
+    (asm-emit! asm (lit mov) x1 x0)   ; right in x1
+    (%emit-u32-le! asm 4165011424)     ; pop left into x0
+    ; x2 = x0 / x1 (quotient)
+    (asm-emit! asm (lit sdiv) x2 x0 x1)
+    ; x0 = x0 - x2 * x1 (remainder via MSUB)
+    (asm-emit! asm (lit msub) x0 x2 x1 x0)))
 
 ; Compile if: (if test then else)
 ; Evaluate test, compare to nil/false, branch
@@ -127,10 +150,17 @@
     (def then-expr (first (rest args)))
     (def else-expr (if (null? (rest (rest args))) 0 (first (rest (rest args)))))
 
-    ; For now, only support (if (= a b) then else) and (if (< a b) then else)
-    (if (and (pair? test-expr)
-             (or (eq? (first test-expr) (lit =))
-                 (eq? (first test-expr) (lit <))))
+    ; Comparison operators: map op to inverse branch
+    (def %cmp-branch
+      (fn (_ op)
+        (if (eq? op (lit =))  (lit b/ne)
+          (if (eq? op (lit <))  (lit b/ge)
+            (if (eq? op (lit >))  (lit b/le)
+              (if (eq? op (lit <=)) (lit b/gt)
+                (if (eq? op (lit >=)) (lit b/lt)
+                  ())))))))
+
+    (if (and (pair? test-expr) (not (null? (%cmp-branch (first test-expr)))))
       (do
         (def cmp-op (first test-expr))
         (def cmp-args (rest test-expr))
@@ -139,11 +169,9 @@
         (asm-emit! asm (lit mov) x21 x0)
         ; Evaluate right of comparison -> x0
         (%asm-compile-expr asm (first (rest cmp-args)) params)
-        ; Compare
+        ; Compare and branch to else if NOT true
         (asm-emit! asm (lit cmp) x21 x0)
-        ; Branch to else if NOT true
-        (def branch-insn (if (eq? cmp-op (lit =)) (lit b/ne) (lit b/ge)))
-        (asm-emit! asm branch-insn (label (lit %else)))
+        (asm-emit! asm (%cmp-branch cmp-op) (label (lit %else)))
         ; Then branch
         (%asm-compile-expr asm then-expr params)
         (asm-emit! asm (lit b) (label (lit %end)))
