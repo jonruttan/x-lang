@@ -129,5 +129,21 @@
       (%arm64-encode-movz asm () args)
       (%arm64-encode asm descriptor args))))
 
-; --- Export architecture ---
-(set! %arch (pair %arm64-table %arm64-dispatch))
+; --- Patch resolver: ARM64 PC-relative branches ---
+; For B/BL: imm26 = (target - offset) >> 2, OR'd into low 26 bits
+(def %arm64-patch
+  (fn (_ buf-ptr offset width ptype target)
+    (if (eq? ptype (lit arm64-rel))
+      (do
+        ; Read existing instruction word
+        (def word (ptr-ref buf-ptr offset 4))
+        ; Compute PC-relative offset in instruction units (>> 2)
+        (def rel (>> (- target offset) 2))
+        ; Mask to 26 bits and OR into instruction
+        (def patched (| (& word (~ (- (<< 1 26) 1))) (& rel (- (<< 1 26) 1))))
+        (ptr-set! buf-ptr offset patched 4))
+      ; Generic fallback
+      (ptr-set! buf-ptr offset (- target (+ offset width)) width))))
+
+; --- Export architecture: (table . encoder . resolver) ---
+(set! %arch (list %arm64-table %arm64-dispatch %arm64-patch))

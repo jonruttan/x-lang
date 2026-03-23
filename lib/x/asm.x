@@ -119,8 +119,8 @@
 (def asm-emit!
   (fn (_ asm mnemonic . args)
     (def arch (obj-ref asm 5))
-    (def table (first arch))
-    (def encode (rest arch))
+    (def table (nth 0 arch))
+    (def encode (nth 1 arch))
     (def entry (assq mnemonic table))
     (if (null? entry) (error (str "asm: unknown mnemonic: " (symbol->string mnemonic))))
     ; Match operand signature
@@ -148,7 +148,9 @@
     (def labels (obj-ref asm 3))
     (def patches (obj-ref asm 4))
     (def buf-ptr (obj-ref asm 0))
-    ; Resolve patches
+    ; Resolve patches (arch-specific resolver in slot 2 of arch)
+    (def arch (obj-ref asm 5))
+    (def resolver (if (> (length arch) 2) (nth 2 arch) ()))
     (for-each
       (fn (_ patch)
         (def offset (nth 0 patch))
@@ -159,10 +161,14 @@
         (if (null? target-entry)
           (error (str "asm: unresolved label: " (symbol->string lname))))
         (def target (rest target-entry))
-        (def val (if (eq? ptype (lit rel))
-                   (- target (+ offset width))
-                   target))
-        (ptr-set! buf-ptr offset val width))
+        (if (not (null? resolver))
+          (resolver buf-ptr offset width ptype target)
+          ; Generic fallback: relative offset
+          (do
+            (def val (if (eq? ptype (lit rel))
+                       (- target (+ offset width))
+                       target))
+            (ptr-set! buf-ptr offset val width))))
       patches)
     ; Make executable (includes icache flush on ARM)
     (%asm-mprotect-rx! buf-ptr (obj-ref asm 2))

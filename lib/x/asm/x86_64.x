@@ -142,5 +142,11 @@
         (list (list (lit rel32) 0))))))
   ))
 
+; --- Patch resolver: x86_64 rel32 ---
+(def %x86_64-patch
+  (fn (_ buf-ptr offset width ptype target)
+    (def val (- target (+ offset width)))
+    (ptr-set! buf-ptr offset val width)))
+
 ; --- Export architecture ---
-(set! %arch (pair %x86_64-table %x86_64-encode))
+(set! %arch (list %x86_64-table %x86_64-encode %x86_64-patch))
