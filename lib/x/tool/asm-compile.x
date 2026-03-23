@@ -12,7 +12,7 @@
 (def %jit-atomint  (ptr->int (dlsym %jit-lib "jit_atomint")))
 (def %jit-eval-arg (ptr->int (dlsym %jit-lib "jit_eval_arg")))
 (def %jit-build-args (ptr->int (dlsym %jit-lib "jit_build_args")))
-(def %jit-make-prim (dlsym %jit-lib "jit_make_prim"))
+(def %jit-make-callable (dlsym %jit-lib "jit_make_prim"))
 (def %jit-score-set (ptr->int (dlsym %jit-lib "jit_score_set")))
 (def %jit-buffer-unread (ptr->int (dlsym %jit-lib "jit_buffer_unread")))
 (def %jit-buffer-len (ptr->int (dlsym %jit-lib "jit_buffer_len")))
@@ -440,7 +440,7 @@
     (set! %compile-fvars ())
 
     ; Create proper x-lang prim from the raw function pointer
-    (make-prim raw-fn)))
+    (make-callable raw-fn)))
 (doc compile-asm
   (returns CALLABLE "X-lang callable prim")
   "JIT compile an x-lang (fn ...) expression to a native prim.
