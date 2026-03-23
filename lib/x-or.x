@@ -36,7 +36,7 @@
 
 ; 1. Bignum — also provides int-capped analyser
 (include "lib/x/num/bignum.x")
-(set! %compile-fvars
+(def %big-fvars
   (list (pair (lit %big-sign-state) %big-sign-state)
         (pair (lit %big-digits) %big-digits)
         (pair (lit %int-capped-digits) %int-capped-digits)
@@ -47,33 +47,31 @@
       (if (< chr 48)
         (if (or (= chr 45) (= chr 43)) %big-sign-state ())
         (if (< chr 58) %big-digits ()))))
-    %compile-fvars))
+    %big-fvars))
 (type-push-analyse (type-by-atom (type-of 0))
   (compile
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
         (if (or (= chr 45) (= chr 43)) %int-capped-sign ())
         (if (< chr 58) %int-capped-digits ()))))
-    %compile-fvars))
-(set! %compile-fvars ())
+    %big-fvars))
 
 ; 2. Regex (has C analyser, no compile needed)
 (include "lib/x/sys/regex.x")
 
 ; 3. Float
 (include "lib/x/num/float.x")
-(set! %compile-fvars
+(def %float-fvars
   (list (pair (lit %float-int-digits) %float-int-digits)))
 (type-push-analyse (type-by-atom (type-of 1.0))
   (compile
     (lit (fn (_ buffer score chr)
       (if (< chr 48) () (if (< chr 58) %float-int-digits ()))))
-    %compile-fvars))
-(set! %compile-fvars ())
+    %float-fvars))
 
 ; 4. Rational
 (include "lib/x/num/rational.x")
-(set! %compile-fvars
+(def %rat-fvars
   (list (pair (lit %rat-numer) %rat-numer)
         (pair (lit %rat-sign)
           (fn (_ buffer score chr)
@@ -84,19 +82,17 @@
       (if (< chr 48)
         (if (= chr 45) %rat-sign (if (= chr 43) %rat-sign ()))
         (if (< chr 58) %rat-numer ()))))
-    %compile-fvars))
-(set! %compile-fvars ())
+    %rat-fvars))
 
 ; 5. Complex
 (include "lib/x/num/complex.x")
-(set! %compile-fvars
+(def %cx-fvars
   (list (pair (lit %cx-real-int) %cx-real-int)))
 (type-push-analyse (type-by-atom (type-of 1+1i))
   (compile
     (lit (fn (_ buffer score chr)
       (if (< chr 48) () (if (< chr 58) %cx-real-int ()))))
-    %compile-fvars))
-(set! %compile-fvars ())
+    %cx-fvars))
 
 ; Load x-or extensions (parsed through all compiled analysers)
 (include "lib/x/or.x")

@@ -3,26 +3,61 @@
 (import x/core/list)
 (import x/tool/asm)
 
-; --- Resolve JIT runtime functions ---
+; --- Resolve JIT runtime helpers (non-variadic wrappers in jit.c) ---
 (def %jit-lib (dlopen () 1))
 (def %jit-mkint    (ptr->int (dlsym %jit-lib "jit_mkint")))
 (def %jit-mkpair   (ptr->int (dlsym %jit-lib "jit_mkpair")))
 (def %jit-firstobj (ptr->int (dlsym %jit-lib "jit_firstobj")))
 (def %jit-restobj  (ptr->int (dlsym %jit-lib "jit_restobj")))
 (def %jit-atomint  (ptr->int (dlsym %jit-lib "jit_atomint")))
-(def %jit-eval-arg   (ptr->int (dlsym %jit-lib "jit_eval_arg")))
+(def %jit-eval-arg (ptr->int (dlsym %jit-lib "jit_eval_arg")))
 (def %jit-build-args (ptr->int (dlsym %jit-lib "jit_build_args")))
-
-; --- Emit helpers: call a JIT runtime function ---
-; Loads address into x8, calls via BLR. Preserves x19 (p_base), x20 (p_args).
-(def %emit-call-jit!
-  (fn (_ asm addr)
-    (asm-load-imm64! asm x8 addr)
-    (asm-emit! asm (lit blr) x8)))
+(def %jit-make-prim (dlsym %jit-lib "jit_make_prim"))
 
 ; Stack push/pop constants
 (def %PUSH 4162785248)   ; STR x0, [sp, #-16]!
 (def %POP  4165011424)   ; LDR x0, [sp], #16
+
+; --- Emit helpers: call JIT runtime functions ---
+; All use BLR x8. Preserves x19 (p_base), x20 (p_args).
+
+(def %emit-call!
+  (fn (_ asm addr)
+    (asm-load-imm64! asm x8 addr)
+    (asm-emit! asm (lit blr) x8)))
+
+; jit_firstobj(p): x0 = firstobj(x0)
+(def %emit-firstobj!
+  (fn (_ asm)
+    (%emit-call! asm %jit-firstobj)))
+
+; jit_restobj(p): x0 = restobj(x0)
+(def %emit-restobj!
+  (fn (_ asm)
+    (%emit-call! asm %jit-restobj)))
+
+; jit_atomint(p): x0 = atomint(x0) (raw integer)
+(def %emit-atomint!
+  (fn (_ asm)
+    (%emit-call! asm %jit-atomint)))
+
+; jit_mkint(base, value): x0 = boxed atom. Expects x1 = raw value.
+(def %emit-mkint!
+  (fn (_ asm)
+    (asm-emit! asm (lit mov) x1 x0)     ; x1 = raw value
+    (asm-emit! asm (lit mov) x0 x19)    ; x0 = p_base
+    (%emit-call! asm %jit-mkint)))
+
+; jit_mkpair(base, a, b): x0 = pair. Expects x1 = a, x2 = b.
+(def %emit-mkpair!
+  (fn (_ asm)
+    (asm-emit! asm (lit mov) x0 x19)    ; x0 = p_base
+    (%emit-call! asm %jit-mkpair)))
+
+; jit_eval_arg(base, expr): x0 = eval'd. Expects x0 = base, x1 = expr.
+(def %emit-eval-arg!
+  (fn (_ asm)
+    (%emit-call! asm %jit-eval-arg)))
 
 ; --- Forward declarations ---
 (def %asm-compile-expr ())
@@ -49,16 +84,19 @@
 ; Emit code for an expression
 (set! %asm-compile-expr
   (fn (_ asm expr params)
-    (if (number? expr)
-      (asm-emit! asm (lit mov) x0 (imm expr))
-      (if (symbol? expr)
-        (%asm-compile-param asm expr params)
-        (if (pair? expr)
-          (%asm-compile-call asm expr params)
-          (error (str "asm-compile: unsupported: " (write-to-string expr))))))))
+    (if (null? expr)
+      (asm-emit! asm (lit mov) x0 (imm 0))    ; nil = NULL = 0
+      (if (number? expr)
+        (asm-emit! asm (lit mov) x0 (imm expr))
+        (if (symbol? expr)
+          (%asm-compile-param asm expr params)
+          (if (pair? expr)
+            (%asm-compile-call asm expr params)
+            (error (str "asm-compile: unsupported: " (write-to-string expr)))))))))
 
 ; Compile parameter access from x-lang args list
 ; p_args = (self arg0 arg1 ...) — walk rest N+1 times, first, eval, atomint
+; If symbol is a free variable (fvar), load its pointer as a 64-bit immediate.
 (set! %asm-compile-param
   (fn (_ asm name params)
     (def %find
@@ -66,23 +104,61 @@
         (if (null? ps)
           (error (str "asm-compile: unbound: " (symbol->string name)))
           (if (eq? name (first ps)) idx (%find (rest ps) (+ idx 1))))))
-    (def idx (%find params 0))
-    ; Start from p_args (x20)
-    (asm-emit! asm (lit mov) x0 x20)
-    ; Skip self + idx args: (idx + 1) rest calls
-    (def %skip
-      (fn (_ n)
-        (if (< n 0) ()
-          (do (%emit-call-jit! asm %jit-restobj) (%skip (- n 1))))))
-    (%skip idx)
-    ; first -> get the expression
-    (%emit-call-jit! asm %jit-firstobj)
-    ; eval_arg(p_base, expr) -> evaluate it
+    ; Check fvars first (before params, since fvar symbols may shadow)
+    (def fv-entry (%compile-fvar-lookup name))
+    (if (not (null? fv-entry))
+      ; Load fvar pointer as raw 64-bit immediate
+      (let ((val (rest fv-entry)))
+        (if (null? val)
+          (asm-emit! asm (lit mov) x0 (imm 0))
+          (asm-load-imm64! asm x0 (ptr->int (obj->ptr val)))))
+      ; Not a fvar: load from params
+      (do
+        (def idx (%find params 0))
+        (asm-emit! asm (lit mov) x0 x20)
+        (def %skip
+          (fn (_ n)
+            (if (< n 0) ()
+              (do (%emit-restobj! asm) (%skip (- n 1))))))
+        (%skip idx)
+        (%emit-firstobj! asm)
+        (asm-emit! asm (lit mov) x1 x0)
+        (asm-emit! asm (lit mov) x0 x19)
+        (%emit-eval-arg! asm)
+        (%emit-atomint! asm)))))
+
+; Compile (or a b ...): short-circuit, returns first truthy value
+(def %asm-compile-or
+  (fn (_ asm args params)
+    (def lbl-end (%asm-genlabel "%or_end"))
+    (%asm-compile-expr asm (first args) params)
+    (def %or-rest
+      (fn (_ as)
+        (if (null? as) ()
+          (do
+            (asm-emit! asm (lit cbnz) x0 (label lbl-end))
+            (%asm-compile-expr asm (first as) params)
+            (%or-rest (rest as))))))
+    (%or-rest (rest args))
+    (asm-label! asm lbl-end)))
+
+; Compile standalone comparison: (= a b) -> 1 or 0
+(def %asm-compile-cmp
+  (fn (_ asm cond-insn args params)
+    (def lbl-true (%asm-genlabel "%cmp_t"))
+    (def lbl-end  (%asm-genlabel "%cmp_e"))
+    (%asm-compile-expr asm (first args) params)
+    (%emit-u32-le! asm %PUSH)
+    (%asm-compile-expr asm (first (rest args)) params)
     (asm-emit! asm (lit mov) x1 x0)
-    (asm-emit! asm (lit mov) x0 x19)
-    (%emit-call-jit! asm %jit-eval-arg)
-    ; atomint -> raw integer
-    (%emit-call-jit! asm %jit-atomint)))
+    (%emit-u32-le! asm %POP)
+    (asm-emit! asm (lit cmp) x0 x1)
+    (asm-emit! asm cond-insn (label lbl-true))
+    (asm-emit! asm (lit mov) x0 (imm 0))
+    (asm-emit! asm (lit b) (label lbl-end))
+    (asm-label! asm lbl-true)
+    (asm-emit! asm (lit mov) x0 (imm 1))
+    (asm-label! asm lbl-end)))
 
 ; Compile a call expression
 (set! %asm-compile-call
@@ -104,7 +180,19 @@
               (%asm-compile-mod asm args params)
               (if (eq? op (lit if))
                 (%asm-compile-if asm args params)
-                (%asm-compile-funcall asm op args params)))))))))
+                (if (eq? op (lit or))
+                  (%asm-compile-or asm args params)
+                  (if (eq? op (lit =))
+                    (%asm-compile-cmp asm (lit b/eq) args params)
+                    (if (eq? op (lit <))
+                      (%asm-compile-cmp asm (lit b/lt) args params)
+                      (if (eq? op (lit >))
+                        (%asm-compile-cmp asm (lit b/gt) args params)
+                        (if (eq? op (lit <=))
+                          (%asm-compile-cmp asm (lit b/le) args params)
+                          (if (eq? op (lit >=))
+                            (%asm-compile-cmp asm (lit b/ge) args params)
+                            (%asm-compile-funcall asm op args params)))))))))))))))
 
 ; Binary operation: push left, eval right, pop left, combine
 (set! %asm-compile-binop
@@ -187,39 +275,60 @@
         (%emit-u32-le! asm %PUSH))
       args)
 
-    ; Pop args into registers for jit_build_args(p_base, nargs, a0, a1, a2, a3)
-    ; ARM64: x0=p_base, x1=nargs, x2=a0, x3=a1, x4=a2, x5=a3
-    (if (>= nargs 4) (%emit-u32-le! asm (| %POP 5)) ())
-    (if (>= nargs 3) (%emit-u32-le! asm (| %POP 4)) ())
-    (if (>= nargs 2) (%emit-u32-le! asm (| %POP 3)) ())
-    (if (>= nargs 1) (%emit-u32-le! asm (| %POP 2)) ())
-    (asm-emit! asm (lit mov) x1 (imm nargs))
-    (asm-emit! asm (lit mov) x0 x19)           ; p_base
-    (%emit-call-jit! asm %jit-build-args)      ; x0 = (nil a0 a1 ...)
+    ; Build args list: pop each, mkint, mkpair to build (nil a0 a1 ...)
+    ; Build right-to-left: start with nil, prepend each arg
+    (asm-emit! asm (lit mov) x0 (imm 0))       ; x0 = nil (accumulator)
+    (%emit-u32-le! asm %PUSH)                    ; save nil on stack
+    (def %build-arg
+      (fn (_ i)
+        (if (< i 0) ()
+          (do
+            ; Pop raw value from deep stack position
+            ; Stack: [accum] [argN-1] ... [arg0] — pop arg at position i
+            ; Actually we need to pop in reverse. Args were pushed left-to-right.
+            ; Stack top has last arg. Pop each into x1, mkint, then mkpair with accum.
+            (%emit-u32-le! asm %POP)            ; pop accum -> x0
+            (asm-emit! asm (lit mov) x3 x0)    ; x3 = accum (save)
+            (%emit-u32-le! asm %POP)            ; pop raw arg -> x0
+            (%emit-mkint! asm)                  ; x0 = atom(raw) via jit_mkint
+            (asm-emit! asm (lit mov) x1 x0)    ; x1 = a (atom)
+            (asm-emit! asm (lit mov) x2 x3)    ; x2 = d (accum)
+            (asm-emit! asm (lit mov) x0 x19)   ; x0 = p_base
+            (%emit-call! asm %jit-mkpair)      ; x0 = (atom . accum)
+            (%emit-u32-le! asm %PUSH)           ; push new accum
+            (%build-arg (- i 1))))))
+    (%build-arg (- nargs 1))
+    ; Pop final list, prepend nil as self
+    (%emit-u32-le! asm %POP)                    ; x0 = (a0 a1 ... aN)
+    (asm-emit! asm (lit mov) x2 x0)            ; x2 = d (args list)
+    (asm-emit! asm (lit mov) x1 (imm 0))       ; x1 = a (nil = self)
+    (asm-emit! asm (lit mov) x0 x19)           ; x0 = p_base
+    (%emit-call! asm %jit-mkpair)              ; x0 = (nil a0 a1 ...)
 
     ; Call self: x0=p_base, x1=p_args
     (asm-emit! asm (lit mov) x1 x0)           ; p_args
     (asm-emit! asm (lit mov) x0 x19)          ; p_base
     (asm-load-imm64! asm x8 (ptr->int %asm-self-cell))
-    (asm-emit! asm (lit ldr) x8 (mem 8 0))
+    (asm-emit! asm (lit ldr) x8 (mem x8 0))
     (asm-emit! asm (lit blr) x8)
 
-    ; x0 = boxed result. Unbox to raw integer.
-    (%emit-call-jit! asm %jit-atomint)))
+    ; x0 = boxed result. Unbox to raw integer (inline LDR).
+    (%emit-atomint! asm)))
 
 ; --- Public API ---
 
 (doc (def compile-asm
-  (fn (_ expr)
+  (fn (_ expr . %asm-rest)
     (if (not (eq? (first expr) (lit fn)))
       (error "compile-asm: expression must be (fn (_ params...) body)"))
+    (set! %compile-fvars (if (null? %asm-rest) () (first %asm-rest)))
     (def fn-params (first (rest expr)))
     (def fn-body (first (rest (rest expr))))
     (def params (rest fn-params))  ; skip self (_)
     (def nparams (length params))
 
     ; Allocate trampoline cell for self-recursion
-    (def c-malloc (dlsym %jit-lib "malloc"))
+    (def c-malloc (dlsym (dlopen () 1) "malloc"))
     (def self-cell (ptr-call c-malloc 8))
     (ptr-set-word! self-cell 0 0)
     (set! %asm-self-cell self-cell)
@@ -232,13 +341,13 @@
     (asm-emit! asm (lit mov) x19 x0)    ; p_base
     (asm-emit! asm (lit mov) x20 x1)    ; p_args
 
-    ; Compile body — result is a raw integer in x0
+    ; Compile body
     (%asm-compile-expr asm fn-body params)
 
-    ; Box result: mkint(p_base, raw_result)
-    (asm-emit! asm (lit mov) x1 x0)     ; x1 = raw result
-    (asm-emit! asm (lit mov) x0 x19)    ; x0 = p_base
-    (%emit-call-jit! asm %jit-mkint)
+    ; Box result only for pure integer functions (no fvars).
+    ; Fvar functions (analysers) return x_obj_t* directly — no boxing.
+    (if (null? %compile-fvars)
+      (%emit-mkint! asm))
 
     ; Epilogue
     (asm-epilogue! asm)
@@ -248,11 +357,13 @@
     ; Patch trampoline with actual address
     (ptr-set-word! self-cell 0 (ptr->int raw-fn))
     (set! %asm-self-cell ())
+    (set! %compile-fvars ())
 
-    ; Create proper x-lang prim
-    (jit-make-prim raw-fn)))
+    ; Create proper x-lang prim from the raw function pointer
+    (make-prim raw-fn)))
   (returns CALLABLE "X-lang callable prim")
   "JIT compile an x-lang (fn ...) expression to a native prim.
+   Accepts optional fvar alist for free variable support.
    The compiled function works with map, fold, closures, etc.")
 
 (doc (provide x/tool/asm-compile compile-asm)
