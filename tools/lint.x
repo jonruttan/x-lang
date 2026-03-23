@@ -11,8 +11,8 @@
 ; then optional %lint-lib flag, then target file forms.
 
 (do
-  ; Include the linter library (defines %walk helpers, %lint-forms, etc.)
-  (include "tools/lint-lib.x")
+  ; Import the linter library (defines %walk helpers, lint-forms, etc.)
+  (import x/lint)
 
   ; --- Load construct declarations ---
 
@@ -139,10 +139,10 @@
   (def %uses (first (rest %result)))
 
   ; Undefined: used but not in env-alist and not in file defs
-  (def %undefined (%lint-undefined %defs %uses))
+  (def %undefined (lint-undefined %defs %uses))
 
   ; Unused: defined but not used (skip %-prefixed internals)
-  (def %unused (%lint-unused %defs %uses %lib-mode))
+  (def %unused (lint-unused %defs %uses %lib-mode))
 
   ; Output
   (if (null? %undefined) ()
