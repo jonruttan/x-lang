@@ -724,7 +724,7 @@
 ; Caches compiled libraries keyed by FNV-1a hash of the expression.
 (note "Compilation")
 
-(def compile
+(def compile-c
   (fn (_ expr . rest)
     (def fvars (if (null? rest) () (first rest)))
     (set! %compile-fvars fvars)
@@ -765,7 +765,21 @@
         (if (not (null? fvars))
           (%compile-patch-fvars %lib fvars))
         %fn))))
-(doc compile "Compile an (fn ...) expression to a native primitive via C. Caches by expression hash."
+(doc compile-c "Compile an (fn ...) expression to a native primitive via C compiler. Caches by expression hash."
+  (param expr LIST "A (fn (_ params...) body) expression")
+  (returns PRIM "Compiled native function"))
+
+; --- Default compile: JIT assembler with C fallback ---
+(include "lib/x/asm-compile.x")
+
+(def compile
+  (fn (_ expr . rest)
+    (if (null? rest)
+      ; No free variables: use JIT assembler
+      (compile-asm expr)
+      ; Free variables: fall back to C compiler
+      (compile-c expr (first rest)))))
+(doc compile "Compile an (fn ...) expression to native code. Uses JIT assembler by default, falls back to C compiler for free-variable expressions."
   (param expr LIST "A (fn (_ params...) body) expression")
   (returns PRIM "Compiled native function"))
 
@@ -856,6 +870,6 @@
   compile-to-c compile-write compile-cc compile-load
   compile-cc-flags compile-ext compile-with-writers
   compile-emitters compile-add-emitter!
-  compile compile-batch)
-  (note "Pipeline: compile-to-c -> compile-write -> compile-cc -> compile-load. Each stage usable independently.")
-  "Native code compiler via dlopen/dlsym.")
+  compile compile-c compile-asm compile-batch)
+  (note "Default compile uses JIT assembler. compile-c falls back to C compiler. compile-asm is the pure JIT path.")
+  "Native code compiler: JIT assembler (default) with C compiler fallback.")
