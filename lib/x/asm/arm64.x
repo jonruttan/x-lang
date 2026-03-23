@@ -183,13 +183,15 @@
 (def asm-prologue!
   (fn (_ asm)
     (%emit-u32-le! asm 2847898621)    ; stp x29, x30, [sp, #-16]!
-    (%emit-u32-le! asm 2432697341)))  ; mov x29, sp (ADD x29, sp, #0)
+    (%emit-u32-le! asm 2847888371)    ; stp x19, x20, [sp, #-16]!
+    (%emit-u32-le! asm 2847890421)    ; stp x21, x22, [sp, #-16]!
+    (%emit-u32-le! asm 2432697341)))  ; mov x29, sp
 
-; asm-epilogue!: restore x29/x30 and return
-; LDP x29, x30, [sp], #16 = 0xA8C17BFD
-; RET                      = 0xD65F03C0
+; asm-epilogue!: restore callee-saved regs and return
 (def asm-epilogue!
   (fn (_ asm)
+    (%emit-u32-le! asm 2831244277)    ; ldp x21, x22, [sp], #16
+    (%emit-u32-le! asm 2831242227)    ; ldp x19, x20, [sp], #16
     (%emit-u32-le! asm 2831252477)    ; ldp x29, x30, [sp], #16
     (%emit-u32-le! asm 3596551104)))  ; ret
 
