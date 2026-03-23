@@ -266,10 +266,10 @@
     (pair "lib/x/core/derived.x"
     (pair "lib/x/core/numeric.x"
     (pair "lib/x/core/alist.x"
-    (pair "lib/x/data/char.x"
-    (pair "lib/x/data/string.x"
-    (pair "lib/x/data/vector.x"
-    (pair "lib/x/data/promise.x"
+    (pair "lib/x/type/char.x"
+    (pair "lib/x/type/string.x"
+    (pair "lib/x/type/vector.x"
+    (pair "lib/x/type/promise.x"
     (pair "lib/x/sys/token.x"
       (first %include-list-cell))))))))))))))))))
   ; --- Documentation system ---
@@ -399,10 +399,10 @@
       (first-int
         (first (first (rest (first (rest (first (%base))))))))))
   (include "lib/x/core/alist.x")
-  (include "lib/x/data/char.x")
-  (include "lib/x/data/string.x")
-  (include "lib/x/data/vector.x")
-  (include "lib/x/data/promise.x")
+  (include "lib/x/type/char.x")
+  (include "lib/x/type/string.x")
+  (include "lib/x/type/vector.x")
+  (include "lib/x/type/promise.x")
   (include "lib/x/sys/token.x")
   ; --- quasi (needs append from list.x) ---
 

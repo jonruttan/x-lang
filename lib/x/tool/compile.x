@@ -1,6 +1,6 @@
 ; compile.x -- Runtime compiler: x-lang to native code
 (import x/core/list)
-(import x/data/string)
+(import x/type/string)
 (import x/sys/posix)
 (import x/sys/hash)
 ;

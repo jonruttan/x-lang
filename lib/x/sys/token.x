@@ -1,5 +1,5 @@
 ; token.x -- Composable tokenizer state builders
-(import x/data/char)
+(import x/type/char)
 
 (note "Terminators")
 

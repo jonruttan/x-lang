@@ -5,7 +5,7 @@
 ; enumeration of C primitives or library defs needed.
 (import x/core/list)
 (import x/core/alist)
-(import x/data/string)
+(import x/type/string)
 
 ; Snapshot the current env-alist — everything defined before
 ; the target file (C primitives + standard library).

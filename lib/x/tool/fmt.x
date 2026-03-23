@@ -2,7 +2,7 @@
 ;
 ; Data-driven pretty printer for x-lang s-expressions.
 ; Uses write-to-string for width estimation (C speed).
-(import x/data/string)
+(import x/type/string)
 
 ; --- Construct table helpers ---
 

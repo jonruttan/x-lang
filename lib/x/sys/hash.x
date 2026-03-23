@@ -1,5 +1,5 @@
 ; hash.x -- FNV-1a hash function
-(import x/data/string)
+(import x/type/string)
 ;
 ; FNV-1a 64-bit hash operating on strings.
 ; Returns an integer suitable for use as a cache key.

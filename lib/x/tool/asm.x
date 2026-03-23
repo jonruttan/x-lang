@@ -1,6 +1,6 @@
 ; asm.x -- Data-driven assembler: JIT machine code generation
 (import x/core/list)
-(import x/data/string)
+(import x/type/string)
 
 ; --- Platform detection ---
 (def %asm-darwin? (string-contains? "darwin" x-machine))

@@ -1,5 +1,5 @@
 ; string.x -- String utilities
-(import x/data/char)
+(import x/type/char)
 (import x/core/list)
 (import x/core/derived)
 
@@ -253,7 +253,7 @@
   (returns LIST "List of substrings")
   "Split a string by a separator.")
 
-(doc (provide x/data/string
+(doc (provide x/type/string
   str make-string string-pad-left string-empty? string-join string-repeat string-contains?
   string-starts? string-ends? string-reverse string->list
   string-upcase string-downcase

@@ -3,7 +3,7 @@
 ; Extracts (doc ...) and (note ...) forms from token trees
 ; and emits Markdown. Works with tokens from make-base + token-read-string.
 (import x/core/list)
-(import x/data/string)
+(import x/type/string)
 
 ; --- Predicates (cross-base: use string=? not eq?) ---
 
