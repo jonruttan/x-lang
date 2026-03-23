@@ -1,9 +1,9 @@
-## string-empty?
+## str-empty?
 
 ### true for empty string
 
 ```scheme
-(string-empty? "")
+(str-empty? "")
 ```
 ---
     #t
@@ -11,17 +11,17 @@
 ### false for non-empty
 
 ```scheme
-(if (string-empty? "hi") "y" "n")
+(if (str-empty? "hi") "y" "n")
 ```
 ---
     "n"
 
-## string-join
+## str-join
 
 ### joins with separator
 
 ```scheme
-(string-join ", " (list "a" "b" "c"))
+(str-join ", " (list "a" "b" "c"))
 ```
 ---
     "a, b, c"
@@ -29,7 +29,7 @@
 ### joins single element
 
 ```scheme
-(string-join ", " (list "a"))
+(str-join ", " (list "a"))
 ```
 ---
     "a"
@@ -37,17 +37,17 @@
 ### joins empty list
 
 ```scheme
-(string-join ", " ())
+(str-join ", " ())
 ```
 ---
     ""
 
-## string-repeat
+## str-repeat
 
 ### repeats a string
 
 ```scheme
-(string-repeat "ab" 3)
+(str-repeat "ab" 3)
 ```
 ---
     "ababab"
@@ -55,17 +55,17 @@
 ### repeats zero times
 
 ```scheme
-(string-repeat "ab" 0)
+(str-repeat "ab" 0)
 ```
 ---
     ""
 
-## string-contains?
+## str-contains?
 
 ### finds substring
 
 ```scheme
-(string-contains? "ll" "hello")
+(str-contains? "ll" "hello")
 ```
 ---
     #t
@@ -73,7 +73,7 @@
 ### returns nil for missing
 
 ```scheme
-(if (string-contains? "xyz" "hello") "y" "n")
+(if (str-contains? "xyz" "hello") "y" "n")
 ```
 ---
     "n"
@@ -81,17 +81,17 @@
 ### empty substring always found
 
 ```scheme
-(string-contains? "" "hello")
+(str-contains? "" "hello")
 ```
 ---
     #t
 
-## string-starts?
+## str-starts?
 
 ### true when starts with prefix
 
 ```scheme
-(string-starts? "he" "hello")
+(str-starts? "he" "hello")
 ```
 ---
     #t
@@ -99,17 +99,17 @@
 ### false for non-prefix
 
 ```scheme
-(if (string-starts? "lo" "hello") "y" "n")
+(if (str-starts? "lo" "hello") "y" "n")
 ```
 ---
     "n"
 
-## string-ends?
+## str-ends?
 
 ### true when ends with suffix
 
 ```scheme
-(string-ends? "lo" "hello")
+(str-ends? "lo" "hello")
 ```
 ---
     #t
@@ -117,17 +117,17 @@
 ### false for non-suffix
 
 ```scheme
-(if (string-ends? "he" "hello") "y" "n")
+(if (str-ends? "he" "hello") "y" "n")
 ```
 ---
     "n"
 
-## string-reverse
+## str-reverse
 
 ### reverses a string
 
 ```scheme
-(string-reverse "hello")
+(str-reverse "hello")
 ```
 ---
     "olleh"
@@ -135,7 +135,7 @@
 ### reverses empty string
 
 ```scheme
-(string-reverse "")
+(str-reverse "")
 ```
 ---
     ""
@@ -175,12 +175,12 @@
 ---
     "abcd"
 
-## make-string
+## make-str
 
 ### creates string of spaces
 
 ```scheme
-(make-string 3)
+(make-str 3)
 ```
 ---
     "   "
@@ -188,17 +188,17 @@
 ### creates string of specific char
 
 ```scheme
-(make-string 4 ("x" 0))
+(make-str 4 ("x" 0))
 ```
 ---
     "xxxx"
 
-## string-pad-left
+## str-pad-left
 
 ### pads shorter string
 
 ```scheme
-(string-pad-left "hi" 5 (" " 0))
+(str-pad-left "hi" 5 (" " 0))
 ```
 ---
     "   hi"
@@ -206,47 +206,47 @@
 ### no padding if already long enough
 
 ```scheme
-(string-pad-left "hello" 3 (" " 0))
+(str-pad-left "hello" 3 (" " 0))
 ```
 ---
     "hello"
 
-## string->list
+## str->list
 
 ### converts string to char list
 
 ```scheme
-(length (string->list "abc"))
+(length (str->list "abc"))
 ```
 ---
     3
 
-## string-upcase
+## str-upcase
 
 ### uppercases a string
 
 ```scheme
-(string-upcase "hello")
+(str-upcase "hello")
 ```
 ---
     "HELLO"
 
-## string-downcase
+## str-downcase
 
 ### lowercases a string
 
 ```scheme
-(string-downcase "HELLO")
+(str-downcase "HELLO")
 ```
 ---
     "hello"
 
-## string<?
+## str<?
 
 ### less than
 
 ```scheme
-(string<? "abc" "abd")
+(str<? "abc" "abd")
 ```
 ---
     #t
@@ -254,47 +254,47 @@
 ### not less than
 
 ```scheme
-(if (string<? "abd" "abc") "y" "n")
+(if (str<? "abd" "abc") "y" "n")
 ```
 ---
     "n"
 
-## string>?
+## str>?
 
 ### greater than
 
 ```scheme
-(string>? "abd" "abc")
+(str>? "abd" "abc")
 ```
 ---
     #t
 
-## string<=?
+## str<=?
 
 ### less or equal
 
 ```scheme
-(string<=? "abc" "abc")
+(str<=? "abc" "abc")
 ```
 ---
     #t
 
-## string>=?
+## str>=?
 
 ### greater or equal
 
 ```scheme
-(string>=? "abc" "abc")
+(str>=? "abc" "abc")
 ```
 ---
     #t
 
-## string-ci=?
+## str-ci=?
 
 ### case insensitive equal
 
 ```scheme
-(string-ci=? "Hello" "hello")
+(str-ci=? "Hello" "hello")
 ```
 ---
     #t
@@ -302,87 +302,87 @@
 ### case insensitive not equal
 
 ```scheme
-(if (string-ci=? "Hello" "world") "y" "n")
+(if (str-ci=? "Hello" "world") "y" "n")
 ```
 ---
     "n"
 
-## string-ci<?
+## str-ci<?
 
 ### case insensitive less
 
 ```scheme
-(string-ci<? "abc" "DEF")
+(str-ci<? "abc" "DEF")
 ```
 ---
     #t
 
-## string-ci>?
+## str-ci>?
 
 ### case insensitive greater
 
 ```scheme
-(string-ci>? "DEF" "abc")
+(str-ci>? "DEF" "abc")
 ```
 ---
     #t
 
-## string-ci<=?
+## str-ci<=?
 
 ### case insensitive less or equal
 
 ```scheme
-(string-ci<=? "abc" "ABC")
+(str-ci<=? "abc" "ABC")
 ```
 ---
     #t
 
-## string-ci>=?
+## str-ci>=?
 
 ### case insensitive greater or equal
 
 ```scheme
-(string-ci>=? "ABC" "abc")
+(str-ci>=? "ABC" "abc")
 ```
 ---
     #t
 
-## string-trim
+## str-trim
 
 ### trims whitespace
 
 ```scheme
-(string-trim "  hello  ")
+(str-trim "  hello  ")
 ```
 ---
     "hello"
 
-## string-trim-left
+## str-trim-left
 
 ### trims left whitespace
 
 ```scheme
-(string-trim-left "  hello  ")
+(str-trim-left "  hello  ")
 ```
 ---
     "hello  "
 
-## string-trim-right
+## str-trim-right
 
 ### trims right whitespace
 
 ```scheme
-(string-trim-right "  hello  ")
+(str-trim-right "  hello  ")
 ```
 ---
     "  hello"
 
-## string-split
+## str-split
 
 ### splits by separator
 
 ```scheme
-(string-split "," "a,b,c")
+(str-split "," "a,b,c")
 ```
 ---
     ("a" "b" "c")
@@ -390,7 +390,7 @@
 ### splits with no match
 
 ```scheme
-(string-split "," "abc")
+(str-split "," "abc")
 ```
 ---
     ("abc")

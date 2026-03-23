@@ -38,15 +38,15 @@
     (if (null? lst) ()
       (do (f (first lst)) (%doc-for-each f (rest lst))))))
 
-; Local string-contains? (string.x not yet loaded)
-(def %doc-string-contains?
+; Local str-contains? (string.x not yet loaded)
+(def %doc-str-contains?
   (fn (_ sub s)
-    (def %sub-len (string-length sub))
-    (def %s-len (string-length s))
+    (def %sub-len (str-length sub))
+    (def %s-len (str-length s))
     (def %go
       (fn (_ i)
         (if (< %s-len (+ i %sub-len)) #f
-          (if (string=? (substring s i (+ i %sub-len)) sub) #t
+          (if (str=? (substring s i (+ i %sub-len)) sub) #t
             (%go (+ i 1))))))
     (if (= %sub-len 0) #t (%go 0))))
 
@@ -56,7 +56,7 @@
     (def %go
       (fn (_ remaining found)
         (if (null? remaining) found
-          (if (string? (first remaining))
+          (if (str? (first remaining))
             (%go (rest remaining) (first remaining))
             (%go (rest remaining) found)))))
     (%go lst "")))
@@ -103,7 +103,7 @@
     (def %p-type (if (null? (rest (rest form))) () (first (rest (rest form)))))
     (def %p-desc (if (null? (rest (rest form))) ""
                    (if (null? (rest (rest (rest form)))) ""
-                     (if (string? (first (rest (rest (rest form)))))
+                     (if (str? (first (rest (rest (rest form)))))
                        (first (rest (rest (rest form))))
                        ""))))
     (list %p-name %p-type %p-desc)))
@@ -147,7 +147,7 @@
               (set-first! %doc-pending-returns
                 (list (first (rest %form))
                   (if (null? (rest (rest %form))) ""
-                    (if (string? (first (rest (rest %form))))
+                    (if (str? (first (rest (rest %form))))
                       (first (rest (rest %form)))
                       ""))))
             (if (eq? %tag (lit example))
@@ -258,7 +258,7 @@
         (if (not (null? (first (rest (first ps)))))
           (do (display " : ")
               (display (first (rest (first ps))))))
-        (if (not (string=? (first (rest (rest (first ps)))) ""))
+        (if (not (str=? (first (rest (rest (first ps)))) ""))
           (do (display " -- ")
               (display (first (rest (rest (first ps)))))))
         (newline)
@@ -269,7 +269,7 @@
     (if (not (null? ret))
       (do (display "  => ")
           (display (first ret))
-          (if (not (string=? (first (rest ret)) ""))
+          (if (not (str=? (first (rest ret)) ""))
             (do (display " -- ")
                 (display (first (rest ret)))))
           (newline)))))
@@ -315,7 +315,7 @@
     (def %mod-doc (%doc-lookup %mod-name))
     (display %mod-name)
     (if (not (null? %mod-doc))
-      (if (not (string=? (%doc-entry-desc %mod-doc) ""))
+      (if (not (str=? (%doc-entry-desc %mod-doc) ""))
         (do (display " -- ") (display (%doc-entry-desc %mod-doc)))))
     (newline)
     (if (not (null? %mod-doc))
@@ -351,7 +351,7 @@
         ; Show module description if available
         (def %md (%doc-lookup (first m)))
         (if (not (null? %md))
-          (if (not (string=? (%doc-entry-desc %md) ""))
+          (if (not (str=? (%doc-entry-desc %md) ""))
             (do (display " -- ") (display (%doc-entry-desc %md)))))
         (newline))
       (first %module-registry-cell))))
@@ -383,11 +383,11 @@
       (fn (_ entries)
         (if (null? entries) ()
           (do
-            (if (%doc-string-contains? %pat
-                  (symbol->string (first (first entries))))
+            (if (%doc-str-contains? %pat
+                  (symbol->str (first (first entries))))
               (do (display "  ")
                   (display (first (first entries)))
-                  (if (not (string=? (first (rest (first entries))) ""))
+                  (if (not (str=? (first (rest (first entries))) ""))
                     (do (display " -- ")
                         (display (first (rest (first entries))))))
                   (newline)))

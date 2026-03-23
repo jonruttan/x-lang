@@ -167,7 +167,7 @@
     (base-make-type %tb3 "ALL" (list (pair (lit analyse) (fn (_ buffer score chr)
       (if (and (>= chr 33) (<= chr 126)) (do (score-set score (- 0 1) buffer) %tb3-body) ())))
       (pair (lit read) %tb3-r)))
-    (string-length (first (token-read-string %tb3 "hello"))))
+    (str-length (first (token-read-string %tb3 "hello"))))
 ```
 ---
     5
@@ -184,7 +184,7 @@
     (base-make-type %tb4 "LINE" (list (pair (lit analyse) (fn (_ buffer score chr)
       (if (and (>= chr 32) (<= chr 126)) (do (score-set score 1 buffer) %tb4-body) ())))
       (pair (lit read) %tb4-r)))
-    (string-length (first (token-read-string %tb4 "hello\n"))))
+    (str-length (first (token-read-string %tb4 "hello\n"))))
 ```
 ---
     5

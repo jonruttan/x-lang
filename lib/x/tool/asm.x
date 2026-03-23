@@ -3,8 +3,8 @@
 (import x/type/string)
 
 ; --- Platform detection ---
-(def %asm-darwin? (string-contains? "darwin" x-machine))
-(def %asm-arm64? (string-contains? "arm64" x-machine))
+(def %asm-darwin? (str-contains? "darwin" x-machine))
+(def %asm-arm64? (str-contains? "arm64" x-machine))
 
 ; --- Syscall numbers ---
 (def %SYS-mmap     (if %asm-darwin? 197 9))
@@ -60,8 +60,8 @@
 ; Build signature symbol from operand list: (reg _) (reg _) (imm _) -> rri
 (def %args-sig
   (fn (_ args)
-    (string->symbol
-      (fold (fn (_ acc op) (string-append acc (%op-sig op))) "" args))))
+    (str->symbol
+      (fold (fn (_ acc op) (str-append acc (%op-sig op))) "" args))))
 
 ; --- Buffer byte emitters ---
 (def %emit-u8!
@@ -122,12 +122,12 @@
     (def table (nth 0 arch))
     (def encode (nth 1 arch))
     (def entry (assq mnemonic table))
-    (if (null? entry) (error (str "asm: unknown mnemonic: " (symbol->string mnemonic))))
+    (if (null? entry) (error (str "asm: unknown mnemonic: " (symbol->str mnemonic))))
     ; Match operand signature
     (def sig (if (null? args) (lit ||) (%args-sig args)))
     (def variant (assq sig (rest entry)))
     (if (null? variant)
-      (error (str "asm: no variant " (symbol->string sig) " for " (symbol->string mnemonic))))
+      (error (str "asm: no variant " (symbol->str sig) " for " (symbol->str mnemonic))))
     (encode asm (rest variant) args)))
 
 (def asm-label!
@@ -159,7 +159,7 @@
         (def lname  (nth 3 patch))
         (def target-entry (assq lname labels))
         (if (null? target-entry)
-          (error (str "asm: unresolved label: " (symbol->string lname))))
+          (error (str "asm: unresolved label: " (symbol->str lname))))
         (def target (rest target-entry))
         (if (not (null? resolver))
           (resolver buf-ptr offset width ptype target)

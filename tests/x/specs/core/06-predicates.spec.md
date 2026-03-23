@@ -242,12 +242,12 @@
 ---
     #f
 
-## string?
+## str?
 
 ### true for string
 
 ```scheme
-(string? "hello")
+(str? "hello")
 ```
 ---
     #t
@@ -255,7 +255,7 @@
 ### false for integer
 
 ```scheme
-(string? 42)
+(str? 42)
 ```
 ---
     #f

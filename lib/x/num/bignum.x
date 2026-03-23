@@ -194,27 +194,27 @@
 ; Pad a number string to n digits with leading zeros
 (def %bignum-pad
   (fn (_ s n)
-    (if (not (%int< (string-length s) n)) s
-      (%bignum-pad (string-append "0" s) n))))
+    (if (not (%int< (str-length s) n)) s
+      (%bignum-pad (str-append "0" s) n))))
 
 ; Limb list to decimal string
 (def %bignum-to-string
   (fn (_ sign limbs)
     (def %rev (reverse limbs))
     (def prefix (if (%int= sign -1) "-" ""))
-    (def head-str (number->string (first %rev)))
+    (def head-str (number->str (first %rev)))
     (def %tail
       (fn (_ lst)
         (if (null? lst) ""
-          (string-append
-            (%bignum-pad (number->string (first lst)) %bignum-digits-per-limb)
+          (str-append
+            (%bignum-pad (number->str (first lst)) %bignum-digits-per-limb)
             (%tail (rest lst))))))
-    (string-append prefix (string-append head-str (%tail (rest %rev))))))
+    (str-append prefix (str-append head-str (%tail (rest %rev))))))
 
 ; Parse decimal string to (sign . normalized-limb-list)
 (def %bignum-parse-digits
   (fn (_ s)
-    (def len (string-length s))
+    (def len (str-length s))
     (def neg (if (%int< 0 len)
                (if (%int= (char->integer (s 0)) 45) #t #f) #f))
     (def start (if neg 1
@@ -222,7 +222,7 @@
                        (%int= (char->integer (s 0)) 43) #f) 1 0)))
     (def sign (if neg -1 1))
     (def digit-str (if (%int= start 0) s (substring s start len)))
-    (def dlen (string-length digit-str))
+    (def dlen (str-length digit-str))
     (def %go
       (fn (_ pos acc)
         (if (not (%int< 0 pos))
@@ -230,7 +230,7 @@
           (do
             (def cs (if (%int< (%int- pos %bignum-digits-per-limb) 0)
                       0 (%int- pos %bignum-digits-per-limb)))
-            (def lm (string->number (substring digit-str cs pos)))
+            (def lm (str->number (substring digit-str cs pos)))
             (%go cs (pair lm acc))))))
     (pair sign (%bignum-normalize (reverse (%go dlen ()))))))
 

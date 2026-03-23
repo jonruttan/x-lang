@@ -7,7 +7,7 @@
 ; (compile '(fn (_ params...) body))  =>  <prim>
 ;
 ; Generates C code by pushing C-emitting write handlers onto the type
-; system's write stacks.  write-to-string then walks the expression tree
+; system's write stacks.  write-to-str then walks the expression tree
 ; via normal type dispatch, each type emitting its own C representation.
 ; The result is compiled with cc, loaded via dlopen/dlsym.
 
@@ -27,12 +27,12 @@
 ; --- Platform-specific cc flags ---
 
 (def %compile-cc-flags
-  (if (string-contains? "darwin" x-machine)
+  (if (str-contains? "darwin" x-machine)
     (list "-bundle" "-undefined" "dynamic_lookup")
     (list "-shared" "-fPIC")))
 
 (def %compile-ext
-  (if (string-contains? "darwin" x-machine) ".bundle" ".so"))
+  (if (str-contains? "darwin" x-machine) ".bundle" ".so"))
 
 ; --- Multi-arg string concatenation ---
 
@@ -94,7 +94,7 @@
 
 ; --- C-emitting write handlers ---
 ;
-; These are pushed onto the write stack so that write-to-string on a
+; These are pushed onto the write stack so that write-to-str on a
 ; quoted expression emits C code.  display is used for literal C text
 ; (display dispatches to the display-stack, not write-stack, so no
 ; recursion).  write on sub-expressions dispatches back to these handlers.
@@ -402,7 +402,7 @@
 (def %cw-numberp (%cw-make-type-pred "x_obj_type_issatom"))
 
 ; (pair? x) checks spair type; number? checks satom type
-; symbol? and string? need type-atom comparison — not directly expressible
+; symbol? and str? need type-atom comparison — not directly expressible
 ; without access to the type atoms, so skip for now
 
 ; --- Accessor emitters ---
@@ -488,13 +488,13 @@
           (error (str "compile: unsupported form: "
             (convert (first lst) %string))))))))
 
-; --- Generate C via write-to-string ---
+; --- Generate C via write-to-str ---
 
 ; Generate a C function body by pushing write handlers and serializing
 (def %generate-fn-body
   (fn (_ params body)
     (set! %compile-params params)
-    (write-to-string body)))
+    (write-to-str body)))
 
 ; Generate a complete C function
 (def %generate-fn
@@ -730,7 +730,7 @@
     (set! %compile-fvars fvars)
 
     ; Cache lookup: hash the expression to get a stable filename
-    (def %expr-key (write-to-string expr))
+    (def %expr-key (write-to-str expr))
     (def %cache-hash (hash->hex (fnv-1a %expr-key)))
     (def %cache-path (str %compile-cache-dir %cache-hash compile-ext))
 
@@ -778,7 +778,7 @@
     (def %id (convert %compile-id %string))
     (def %src-path (str "/tmp/x-compile-" %id ".c"))
 
-    (def %expr-key (write-to-string expr))
+    (def %expr-key (write-to-str expr))
     (def %cache-hash (hash->hex (fnv-1a %expr-key)))
     (def %cache-path (str %compile-cache-dir %cache-hash compile-ext))
 
@@ -830,7 +830,7 @@
             (pair %fn (%resolve-all lib (+ i 1) n))))))
 
     ; Cache lookup
-    (def %batch-key (write-to-string exprs))
+    (def %batch-key (write-to-str exprs))
     (def %batch-hash (hash->hex (fnv-1a %batch-key)))
     (def %cache-path (str %compile-cache-dir %batch-hash compile-ext))
 

@@ -77,7 +77,7 @@
 (def %asm-genlabel
   (fn (_ prefix)
     (set! %asm-label-counter (+ %asm-label-counter 1))
-    (string->symbol (str prefix (number->string %asm-label-counter)))))
+    (str->symbol (str prefix (number->str %asm-label-counter)))))
 
 ; --- Code generation ---
 ; Convention: result always in x0 as a RAW INTEGER.
@@ -95,7 +95,7 @@
           (%asm-compile-param asm expr params)
           (if (pair? expr)
             (%asm-compile-call asm expr params)
-            (error (str "asm-compile: unsupported: " (write-to-string expr)))))))))
+            (error (str "asm-compile: unsupported: " (write-to-str expr)))))))))
 
 ; Compile parameter access from x-lang args list
 ; p_args = (self arg0 arg1 ...) — walk rest N+1 times, first, eval, atomint
@@ -105,7 +105,7 @@
     (def %find
       (fn (_ ps idx)
         (if (null? ps)
-          (error (str "asm-compile: unbound: " (symbol->string name)))
+          (error (str "asm-compile: unbound: " (symbol->str name)))
           (if (eq? name (first ps)) idx (%find (rest ps) (+ idx 1))))))
     ; Check fvars first (before params, since fvar symbols may shadow)
     (def fv-entry (%compile-fvar-lookup name))
@@ -344,7 +344,7 @@
 (set! %asm-compile-funcall
   (fn (_ asm fn-name args params)
     (if (null? %asm-self-cell)
-      (error (str "asm-compile: unknown function: " (symbol->string fn-name))))
+      (error (str "asm-compile: unknown function: " (symbol->str fn-name))))
     (def nargs (length args))
     (if (> nargs 4) (error "asm-compile: max 4 args for recursive calls"))
 

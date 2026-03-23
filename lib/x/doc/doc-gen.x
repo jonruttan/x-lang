@@ -5,11 +5,11 @@
 (import x/core/list)
 (import x/type/string)
 
-; --- Predicates (cross-base: use string=? not eq?) ---
+; --- Predicates (cross-base: use str=? not eq?) ---
 
 (doc (def doc-sym-is?
   (fn (_ sym name)
-    (if (symbol? sym) (string=? (symbol->string sym) name) ())))
+    (if (symbol? sym) (str=? (symbol->str sym) name) ())))
   (param sym ANY "Value to test")
   (param name STRING "Expected symbol name")
   (returns BOOLEAN "True if sym is a symbol with the given name")
@@ -32,7 +32,7 @@
   (fn (_ lst)
     (def %go (fn (_ remaining found)
       (if (null? remaining) found
-        (if (string? (first remaining))
+        (if (str? (first remaining))
           (%go (rest remaining) (first remaining))
           (%go (rest remaining) found)))))
     (%go lst "")))
@@ -110,13 +110,13 @@
   (def %p-desc
     (if (null? (rest (rest p))) ""
       (if (null? (rest (rest (rest p)))) ""
-        (if (string? (first (rest (rest (rest p)))))
+        (if (str? (first (rest (rest (rest p)))))
           (first (rest (rest (rest p)))) ""))))
   (display "- **") (display %p-name) (display "**")
   (if (not (null? %p-type))
-    (if (not (string? %p-type))
+    (if (not (str? %p-type))
       (do (display " : `") (display %p-type) (display "`"))))
-  (if (not (string=? %p-desc ""))
+  (if (not (str=? %p-desc ""))
     (do (display " — ") (display %p-desc)))
   (newline)))
 
@@ -130,7 +130,7 @@
     (def %sees (nth 5 info))
     (def %notes (nth 6 info))
     (display "### `") (display %name) (display "`") (newline) (newline)
-    (if (not (string=? %desc "")) (do (display %desc) (newline) (newline)))
+    (if (not (str=? %desc "")) (do (display %desc) (newline) (newline)))
     (if (not (null? %notes))
       (for-each (fn (_ n) (display "> ") (display (first (rest n))) (newline) (newline)) %notes))
     (if (not (null? %params))
@@ -140,8 +140,8 @@
       (do (def %ret (first %returns))
           (display "**Returns:** `") (display (first (rest %ret))) (display "`")
           (if (not (null? (rest (rest %ret))))
-            (if (string? (first (rest (rest %ret))))
-              (if (not (string=? (first (rest (rest %ret))) ""))
+            (if (str? (first (rest (rest %ret))))
+              (if (not (str=? (first (rest (rest %ret))) ""))
                 (do (display " — ") (display (first (rest (rest %ret))))))))
           (newline) (newline)))
     (if (not (null? %examples))
@@ -173,12 +173,12 @@
               (doc-walk %rest))
         (if (doc-def-form? tok)
           (let ((%dname (first (rest tok))))
-            (if (string=? (substring (symbol->string %dname) 0 1) "%")
+            (if (str=? (substring (symbol->str %dname) 0 1) "%")
               (doc-walk %rest)
               (do (display "### `") (display %dname) (display "`") (newline) (newline)
                   (doc-walk %rest))))
         (if (doc-provide-form? tok)
-          (do (doc-emit-heading 1 (symbol->string (first (rest tok))))
+          (do (doc-emit-heading 1 (symbol->str (first (rest tok))))
               (doc-walk %rest))
           (doc-walk %rest)))))))))
   (param tokens LIST "Token list from token-read-string")

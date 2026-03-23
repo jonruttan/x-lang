@@ -170,12 +170,12 @@
 ---
     #t
 
-## write-to-string
+## write-to-str
 
 ### integer to string
 
 ```scheme
-(write-to-string 42)
+(write-to-str 42)
 ```
 ---
     "42"
@@ -183,7 +183,7 @@
 ### negative integer to string
 
 ```scheme
-(write-to-string -7)
+(write-to-str -7)
 ```
 ---
     "-7"
@@ -191,7 +191,7 @@
 ### zero to string
 
 ```scheme
-(write-to-string 0)
+(write-to-str 0)
 ```
 ---
     "0"
@@ -199,7 +199,7 @@
 ### string to quoted string
 
 ```scheme
-(write-to-string "hello")
+(write-to-str "hello")
 ```
 ---
     "\"hello\""
@@ -207,7 +207,7 @@
 ### symbol to string
 
 ```scheme
-(write-to-string (lit foo))
+(write-to-str (lit foo))
 ```
 ---
     "foo"
@@ -215,7 +215,7 @@
 ### boolean to string
 
 ```scheme
-(write-to-string #t)
+(write-to-str #t)
 ```
 ---
     "#t"
@@ -223,7 +223,7 @@
 ### nil to "()" string
 
 ```scheme
-(write-to-string ())
+(write-to-str ())
 ```
 ---
     "()"
@@ -231,7 +231,7 @@
 ### pair to string
 
 ```scheme
-(write-to-string (pair 1 2))
+(write-to-str (pair 1 2))
 ```
 ---
     "(1 . 2)"
@@ -239,7 +239,7 @@
 ### list to string
 
 ```scheme
-(write-to-string (list 1 2 3))
+(write-to-str (list 1 2 3))
 ```
 ---
     "(1 2 3)"
@@ -247,7 +247,7 @@
 ### char to string
 
 ```scheme
-(write-to-string #\a)
+(write-to-str #\a)
 ```
 ---
     "#\\a"
@@ -255,7 +255,7 @@
 ### float to string
 
 ```scheme
-(write-to-string 3.14)
+(write-to-str 3.14)
 ```
 ---
     "3.14"
@@ -263,7 +263,7 @@
 ### nested list to string
 
 ```scheme
-(write-to-string (list (list 1 2) 3))
+(write-to-str (list (list 1 2) 3))
 ```
 ---
     "((1 2) 3)"
@@ -271,7 +271,7 @@
 ### returns a string type
 
 ```scheme
-(string? (write-to-string 42))
+(str? (write-to-str 42))
 ```
 ---
     #t
@@ -453,7 +453,7 @@
 ### converted string float has correct value
 
 ```scheme
-(write-to-string (convert "3.14" %float))
+(write-to-str (convert "3.14" %float))
 ```
 ---
     "3.14"
@@ -513,7 +513,7 @@
 ### float to string via convert
 
 ```scheme
-(string? (convert 3.14 (type-of "")))
+(str? (convert 3.14 (type-of "")))
 ```
 ---
     #t

@@ -15,7 +15,7 @@
 ### is a string
 
 ```scheme
-(string? compile-ext)
+(str? compile-ext)
 ```
 ---
     #t
@@ -23,7 +23,7 @@
 ### is a known extension
 
 ```scheme
-(or (string=? compile-ext ".so") (string=? compile-ext ".dylib") (string=? compile-ext ".bundle"))
+(or (str=? compile-ext ".so") (str=? compile-ext ".dylib") (str=? compile-ext ".bundle"))
 ```
 ---
     #t
@@ -64,7 +64,7 @@
 ### generates C source string
 
 ```scheme
-(string? (compile-to-c (lit (fn (_ n) n)) ()))
+(str? (compile-to-c (lit (fn (_ n) n)) ()))
 ```
 ---
     #t
@@ -72,7 +72,7 @@
 ### includes x-obj.h header
 
 ```scheme
-(string-contains? "x-obj.h" (compile-to-c (lit (fn (_ n) n)) ()))
+(str-contains? "x-obj.h" (compile-to-c (lit (fn (_ n) n)) ()))
 ```
 ---
     #t
@@ -80,7 +80,7 @@
 ### generates function body
 
 ```scheme
-(string-contains? "fn_0" (compile-to-c (lit (fn (_ n) n)) ()))
+(str-contains? "fn_0" (compile-to-c (lit (fn (_ n) n)) ()))
 ```
 ---
     #t
@@ -101,7 +101,7 @@
 ### executes body with writers pushed
 
 ```scheme
-(string? (compile-with-writers (fn (_) (write-to-string 42))))
+(str? (compile-with-writers (fn (_) (write-to-str 42))))
 ```
 ---
     #t

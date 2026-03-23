@@ -94,11 +94,11 @@
   (example "(make-alt-state (make-char-state 43 next ()) (make-char-state 45 next ()))" "match + or -")
   "Try state-a on the current character. If it rejects, try state-b.")
 
-(doc (def make-string-state
+(doc (def make-str-state
   (fn (_ (param s STRING "Literal string to match")
        (param next CALLABLE "Called after full match")
        (param fail CALLABLE "Called on mismatch (or nil to reject)"))
-    (def len (string-length s))
+    (def len (str-length s))
     (def %build
       (fn (_ i)
         (if (= i len) next
@@ -107,7 +107,7 @@
             fail))))
     (%build 0)))
   (returns CALLABLE "Chain of char-states matching a literal string")
-  (example "(make-string-state \"0x\" hex-digits ())" "match '0x' prefix")
+  (example "(make-str-state \"0x\" hex-digits ())" "match '0x' prefix")
   "Create a state chain that matches each character of a string in sequence.")
 
 (doc (def make-count-state
@@ -147,7 +147,7 @@
   token-accept token-accept-inclusive token-reject
   make-digit-state make-xdigit-state make-char-state
   make-pred-state make-range-state
-  make-alt-state make-string-state make-count-state
+  make-alt-state make-str-state make-count-state
   make-min-state make-optional-char)
   (note "States receive (self buffer score chr). Return self to loop, another state to transition, score to accept, nil to reject.")
   (example "(make-digit-state (make-char-state 46 (make-digit-state token-accept) ()))" "integer.fractional")

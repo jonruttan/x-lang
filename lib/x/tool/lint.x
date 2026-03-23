@@ -168,7 +168,7 @@
 (doc (def lint-unused (fn (_ defs uses lib-mode)
   (if lib-mode ()
     (filter (fn (_ sym)
-      (if (string-starts? "%" (convert sym %string)) ()
+      (if (str-starts? "%" (convert sym %string)) ()
         (if (assoc-has? sym uses) () #t)))
       defs))))
   (param defs LIST "Defined symbols from lint-forms")

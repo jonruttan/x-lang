@@ -66,7 +66,7 @@
 
 (def number? (fn (_ x) (type? x %type-int)))
 
-(def string? (fn (_ x) (type? x %type-str)))
+(def str? (fn (_ x) (type? x %type-str)))
 
 (def symbol? (fn (_ x) (type? x %type-sym)))
 
@@ -118,25 +118,25 @@
   (def not (fn (_ x) (if x #f #t)))
   (def atom? (fn (_ x) (not (pair? x))))
   (def list (fn (_ . args) args))
-  ; number->string: (number->string n [radix]) -> string representation
+  ; number->str: (number->str n [radix]) -> string representation
   ; Captures / and % at definition time so later overrides don't break it
   (def %n2s/ /)
   (def %n2s% %)
-  (def number->string
+  (def number->str
     (fn (_ n . rest)
       (def radix (if (null? rest) 10 (first rest)))
       (def %d "0123456789abcdefghijklmnopqrstuvwxyz")
       (if (= n 0) "0"
         (if (< n 0)
-          (string-append "-" (number->string (- 0 n) radix))
+          (str-append "-" (number->str (- 0 n) radix))
           (let ((rem (%n2s% n radix)))
             (if (< n radix)
-              (list->string (list (%d rem)))
-              (string-append
-                (number->string (%n2s/ n radix) radix)
-                (list->string (list (%d rem))))))))))
-  ; string->number: (string->number str [radix]) -> integer or ()
-  (def string->number
+              (list->str (list (%d rem)))
+              (str-append
+                (number->str (%n2s/ n radix) radix)
+                (list->str (list (%d rem))))))))))
+  ; str->number: (str->number str [radix]) -> integer or ()
+  (def str->number
     (fn (_ s . rest)
       (def radix (if (null? rest) 10 (first rest)))
       (def len (s))
@@ -177,8 +177,8 @@
   (include "lib/x/sys/type.x")
   (include "lib/x/sys/convert.x")
   (def newline (fn (_ ) (display "\n")))
-  (def string-ref (fn (_ s i) (s i)))
-  (def string-length (fn (_ s) (s)))
+  (def str-ref (fn (_ s i) (s i)))
+  (def str-length (fn (_ s) (s)))
   (def substring (fn (_ s start end) (s start (- end start))))
   (def heap-collect (fn (_ ) (applicative heap-mark heap-sweep) ()))
   ; GC hooks: navigate base tree to gc-hooks cells
@@ -205,22 +205,22 @@
   (def %rewrite
     (fn (_ p a b) (set-first! p a) (set-rest! p b) p))
   (def %expanded (pair () ()))
-  (def %string-eq-loop
+  (def %str-eq-loop
     (fn (_ a b i len)
       (if (= i len)
         #t
         (if (= (char->integer (a i)) (char->integer (b i)))
-          (%string-eq-loop a b (+ i 1) len)
+          (%str-eq-loop a b (+ i 1) len)
           #f))))
-  (def string=?
-    (fn (_ a b) (if (= (a) (b)) (%string-eq-loop a b 0 (a)) #f)))
+  (def str=?
+    (fn (_ a b) (if (= (a) (b)) (%str-eq-loop a b 0 (a)) #f)))
   ; --- Include-once / require-once ---
   (def %include-list-has?
     (fn (_ path)
       (def %go
         (fn (_ lst)
           (if (null? lst) #f
-            (if (string=? (first lst) path) #t
+            (if (str=? (first lst) path) #t
               (%go (rest lst))))))
       (%go (first %include-list-cell))))
   (def include-once
@@ -244,8 +244,8 @@
               (first %module-registry-cell)))))
   (def %module-resolve
     (fn (_ name)
-      (string-append "lib/"
-        (string-append (symbol->string name) ".x"))))
+      (str-append "lib/"
+        (str-append (symbol->str name) ".x"))))
   (def provide
     (op (name . syms) e
       (%module-register! name syms)))
@@ -463,7 +463,7 @@
       (def %quiet
         (fold
           (fn (_ acc a)
-            (or acc (string=? a "--quiet") (string=? a "-q")))
+            (or acc (str=? a "--quiet") (str=? a "-q")))
           ()
           args))
       (if %quiet
@@ -483,8 +483,8 @@
     type-push-write type-pop-write type-push-analyse type-cast!)
     "Type system reflection and manipulation.")
   (doc (provide x/core
-    null? if let do begin not atom? list convert number->string string->number
-    string=? string-ref string-length substring
+    null? if let do begin not atom? list convert number->str str->number
+    str=? str-ref str-length substring
     newline heap-collect heap-mark-root! heap-mark-hook!
     heap-free-hook! include-once require-once provide import
     peek-char current-line quasi repl doc note help)

@@ -220,20 +220,20 @@
 
 (note "Strings")
 
-(doc string-append "Concatenate two strings."
+(doc str-append "Concatenate two strings."
   (param a STRING "First string")
   (param b STRING "Second string")
   (returns STRING "Concatenated string"))
 
-(doc string->symbol "Convert a string to a symbol (interned)."
+(doc str->symbol "Convert a string to a symbol (interned)."
   (param s STRING "A string")
   (returns SYMBOL "An interned symbol"))
 
-(doc symbol->string "Convert a symbol to a string."
+(doc symbol->str "Convert a symbol to a string."
   (param sym SYMBOL "A symbol")
   (returns STRING "The symbol's name"))
 
-(doc list->string "Convert a list of characters to a string."
+(doc list->str "Convert a list of characters to a string."
   (param chars LIST "List of characters")
   (returns STRING "A string"))
 
@@ -244,12 +244,12 @@
 (doc write "Write a value in machine-readable form."
   (param val ANY "Value to write")
   (note "Strings are quoted, characters show read syntax. Use for serialization.")
-  (see display) (see write-to-string))
+  (see display) (see write-to-str))
 
 (doc display "Display a value in human-readable form."
   (param val ANY "Value to display")
   (note "Strings are unquoted, characters are bare. Use for user output.")
-  (see write) (see display-to-string))
+  (see write) (see display-to-str))
 
 (doc read "Read and parse one expression from stdin."
   (returns ANY "Parsed expression"))
@@ -257,11 +257,11 @@
 (doc read-char "Read one character from stdin."
   (returns CHAR "A character, or nil at EOF"))
 
-(doc write-to-string "Capture write output as a string."
+(doc write-to-str "Capture write output as a string."
   (param val ANY "Value to write")
   (returns STRING "The written representation"))
 
-(doc display-to-string "Capture display output as a string."
+(doc display-to-str "Capture display output as a string."
   (param val ANY "Value to display")
   (returns STRING "The displayed representation"))
 
@@ -439,21 +439,21 @@
   (param x ANY "Value to test")
   (returns BOOLEAN "t if atom"))
 
-(doc number->string "Convert an integer to a string."
+(doc number->str "Convert an integer to a string."
   (param n INT "Integer to convert")
   (param radix INT "Base (optional, default 10)")
   (returns STRING "String representation"))
 
-(doc string->number "Parse a string as an integer."
+(doc str->number "Parse a string as an integer."
   (param s STRING "String to parse")
   (returns INT "Parsed integer, or nil on failure"))
 
-(doc string-ref "Return the character at an index in a string."
+(doc str-ref "Return the character at an index in a string."
   (param s STRING "A string")
   (param i INT "Zero-based index")
   (returns CHAR "Character at index"))
 
-(doc string-length "Return the length of a string."
+(doc str-length "Return the length of a string."
   (param s STRING "A string")
   (returns INT "Number of characters"))
 
@@ -463,12 +463,12 @@
   (param end INT "End index (exclusive)")
   (returns STRING "The substring"))
 
-(doc string=? "Test string equality."
+(doc str=? "Test string equality."
   (param a STRING "First string")
   (param b STRING "Second string")
   (returns BOOLEAN "t if equal"))
 
-(doc make-string "Create a string of repeated characters."
+(doc make-str "Create a string of repeated characters."
   (param n INT "Length")
   (param c CHAR "Fill character")
   (returns STRING "A new string"))

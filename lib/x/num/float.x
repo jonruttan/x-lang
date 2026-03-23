@@ -16,7 +16,7 @@
 ; --- FFI-based conversion functions ---
 ; These use generic ffi-call conventions (no function pointer needed)
 
-(doc (def float->string
+(doc (def float->str
   (fn (_ (param bits INTEGER "IEEE 754 double bit pattern"))
     (ffi-call "d->s" () bits)))
   (returns STRING "Decimal string representation")
@@ -73,7 +73,7 @@
 
 (def %strtod (dlsym %libm "strtod"))
 
-(doc (def string->float
+(doc (def str->float
   (fn (_ (param s STRING "Decimal string to parse"))
     (ffi-call "s0->d" %strtod s)))
   (returns FLOAT "Parsed float value")
@@ -87,7 +87,7 @@
     (list
       (pair
         (lit write)
-        (fn (_ self) (display (float->string (first self)))))
+        (fn (_ self) (display (float->str (first self)))))
       (pair (lit first-chars) "0123456789")
       (pair
         (lit analyse)
@@ -104,7 +104,7 @@
             (fn (_ value) (make-instance %float (int->float value))))
           (pair
             (type-of "")
-            (fn (_ value) (make-instance %float (string->float value))))
+            (fn (_ value) (make-instance %float (str->float value))))
 ))
       (pair
         (lit to)
@@ -112,7 +112,7 @@
           (pair (type-of 42) (fn (_ self) (float->int (first self))))
           (pair
             (type-of "")
-            (fn (_ self) (float->string (first self)))))))))
+            (fn (_ self) (float->str (first self)))))))))
 
 (note "Predicates")
 
@@ -368,7 +368,7 @@
         (first %from-cell)))))
 
 (doc (provide x/num/float
-  float? float->string int->float float->int string->float
+  float? float->str int->float float->int str->float
   exact->inexact inexact->exact
   f+ f- f* f/ f< f= fsin fcos ftan fsqrt fexp flog fabs
   ffloor fceil fround ftrunc frint fasin facos fatan fpow fatan2

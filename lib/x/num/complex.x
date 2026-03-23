@@ -109,20 +109,20 @@
 (def %cx-find-char
   (fn (_ s i len ch)
     (if (>= i len) ()
-      (if (= (convert (string-ref s i) %int) ch)
+      (if (= (convert (str-ref s i) %int) ch)
         i
         (%cx-find-char s (%int+ i 1) len ch)))))
 
 (def %cx-parse-num
   (fn (_ s)
-    (if (%cx-find-char s 0 (string-length s) 46)
-      (make-instance %float (string->float s))
+    (if (%cx-find-char s 0 (str-length s) 46)
+      (make-instance %float (str->float s))
       (convert s %int))))
 
 (set! %cx-read
   (fn (_ . args)
     (let ((tok (buffer-token (first args))))
-      (let ((len (string-length tok)))
+      (let ((len (str-length tok)))
         (let ((body (substring tok 0 (%int- len 1))))
           (let ((blen (%int- len 1)))
             (let ((sign-pos (%cx-find-char body 1 blen 43)))
@@ -164,7 +164,7 @@
         (lit to)
         (list
           (pair (type-of "")
-            (fn (_ self) (write-to-string self))))))))
+            (fn (_ self) (write-to-str self))))))))
 ; --- Arithmetic ---
 
 (note "Arithmetic")

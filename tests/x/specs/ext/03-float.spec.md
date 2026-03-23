@@ -158,10 +158,10 @@
 ---
     9
 
-### string->float and back
+### str->float and back
 
 ```scheme
-(float->string (string->float "2.718"))
+(float->str (str->float "2.718"))
 ```
 ---
     "2.718"

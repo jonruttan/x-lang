@@ -60,11 +60,11 @@
   (syscall (syscall-id (lit write)) fd buffer size)))
 
 (def fgetc (fn (fd)
-  (let ((buffer (make-string 1)))
+  (let ((buffer (make-str 1)))
     (let ((bytes-read (fread fd buffer 1)))
       (if (<= bytes-read 0)
         (- 0 1)
-        (string-ref buffer 0))))))
+        (str-ref buffer 0))))))
 
 (provide x-or/file
   file-modes stat-flags fopen fclose fread fwrite fgetc)

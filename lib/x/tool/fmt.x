@@ -1,7 +1,7 @@
 ; fmt.x -- Comment-preserving formatter library
 ;
 ; Data-driven pretty printer for x-lang s-expressions.
-; Uses write-to-string for width estimation (C speed).
+; Uses write-to-str for width estimation (C speed).
 (import x/type/string)
 
 ; --- Construct table helpers ---
@@ -20,7 +20,7 @@
 
 (def %fmt-find (fn (_ key table)
   (if (null? table) ()
-    (if (string=? (convert key %string)
+    (if (str=? (convert key %string)
                   (convert (first (first table)) %string))
       (first table)
       (%fmt-find key (rest table))))))
@@ -57,14 +57,14 @@
 
 (doc (def fmt-width (fn (_ form)
   (if (fmt-comment? form) 80
-    (string-length (write-to-string form)))))
+    (str-length (write-to-str form)))))
   (param form ANY "Form to measure")
   (returns INTEGER "Estimated display width in characters")
-  "Estimate the display width of a form using write-to-string.")
+  "Estimate the display width of a form using write-to-str.")
 
 ; --- Pretty printer ---
 
-(def %spaces (fn (_ n) (display (string-repeat " " n))))
+(def %spaces (fn (_ n) (display (str-repeat " " n))))
 
 ; Forward declarations
 (def fmt-expr ())
@@ -84,14 +84,14 @@
 (def %fmt-head-1 (fn (_ head rest-forms col)
   (if (null? rest-forms) (write (pair head rest-forms))
     (do (display "(") (write head) (display " ")
-        (def head-width (+ 2 (string-length (convert head %string))))
+        (def head-width (+ 2 (str-length (convert head %string))))
         (fmt-expr (first rest-forms) (+ col head-width))
         (fmt-body (rest rest-forms) (+ col 2))
         (display ")")))))
 
 (def %fmt-head-kw (fn (_ head rest-forms col)
   (do (display "(") (write head) (display " ")
-      (def head-width (+ 2 (string-length (convert head %string))))
+      (def head-width (+ 2 (str-length (convert head %string))))
       (fmt-expr (first rest-forms) (+ col head-width))
       (fmt-body (rest rest-forms) (+ col 2))
       (display ")"))))

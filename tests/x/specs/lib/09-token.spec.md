@@ -78,12 +78,12 @@
 ---
     #t
 
-## make-string-state
+## make-str-state
 
 ### returns a function
 
 ```scheme
-(procedure? (make-string-state "abc" token-accept ()))
+(procedure? (make-str-state "abc" token-accept ()))
 ```
 ---
     #t

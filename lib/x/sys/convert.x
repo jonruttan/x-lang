@@ -38,8 +38,8 @@
     (pair %char   (fn (_ v . extra) (char->integer v)))
     (pair %string (fn (_ v . extra)
                     (if (null? extra)
-                      (string->number v)
-                      (string->number v (first extra)))))
+                      (str->number v)
+                      (str->number v (first extra)))))
     (pair %ptr    (fn (_ v . extra) (ptr->int v)))))
 
 ; CHAR: from int
@@ -52,21 +52,21 @@
   (list
     (pair %int    (fn (_ v . extra)
                     (if (null? extra)
-                      (number->string v)
-                      (number->string v (first extra)))))
-    (pair %symbol (fn (_ v . extra) (symbol->string v)))
-    (pair %pair   (fn (_ v . extra) (list->string v)))))
+                      (number->str v)
+                      (number->str v (first extra)))))
+    (pair %symbol (fn (_ v . extra) (symbol->str v)))
+    (pair %pair   (fn (_ v . extra) (list->str v)))))
 
 ; SYMBOL: from string
 (%type-set-from! (type-by-atom %symbol)
   (list
-    (pair %string (fn (_ v . extra) (string->symbol v)))))
+    (pair %string (fn (_ v . extra) (str->symbol v)))))
 
 ; PTR: from int, string, any (obj->ptr as wildcard)
 (%type-set-from! (type-by-atom %ptr)
   (list
     (pair %int    (fn (_ v . extra) (int->ptr v)))
-    (pair %string (fn (_ v . extra) (string->ptr v)))
+    (pair %string (fn (_ v . extra) (str->ptr v)))
     (pair %ptr    (fn (_ v . extra) v))
     (pair #t (fn (_ v . extra) (obj->ptr v)))))
 

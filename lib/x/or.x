@@ -21,7 +21,7 @@
 (def #cr (substring "\r" 0 1))
 (def #esc (substring "\x1b" 0 1))
 (def #0 (substring "" 0 1))
-(def #crnl (string-append #cr #nl))
+(def #crnl (str-append #cr #nl))
 
 ; --- I/O constants ---
 (def stdin 0)
@@ -69,7 +69,7 @@
 ; --- Compatibility aliases ---
 (def list-ref (fn (_ lst n) (nth n lst)))
 (def list-tail (fn (_ lst n) (drop n lst)))
-(def string-copy (fn (_ s) (substring s 0 (string-length s))))
+(def str-copy (fn (_ s) (substring s 0 (str-length s))))
 
 ; --- System functions ---
 (def system
@@ -120,7 +120,7 @@
   caar cadr cdar cddr caaar caadr cadar caddr cdaar cdadr cddar cdddr
   caaaar caaadr caadar caaddr cadaar cadadr caddar cadddr
   cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr
-  second third else list-ref list-tail string-copy system do-loop)
+  second third else list-ref list-tail str-copy system do-loop)
   (note "Experimental/unstable dialect with full toolbox.")
   (note "Includes compiler, POSIX, syscall, file I/O, sockets.")
   (note "Extends arithmetic with bignum, float, rational, complex, regex.")

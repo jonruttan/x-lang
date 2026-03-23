@@ -815,7 +815,7 @@
 ### replace with function
 
 ```scheme
-(regex-replace #/[a-z]+/ "hello123" string-upcase)
+(regex-replace #/[a-z]+/ "hello123" str-upcase)
 ```
 ---
     "HELLO123"
@@ -823,7 +823,7 @@
 ### replace-all with function
 
 ```scheme
-(regex-replace-all #/[a-z]+/ "hello123world" string-upcase)
+(regex-replace-all #/[a-z]+/ "hello123world" str-upcase)
 ```
 ---
     "HELLO123WORLD"

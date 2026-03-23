@@ -26,7 +26,7 @@
   (fn (_ x)
     (if (null? x) #f
       (let ((tn (type-name x)))
-        (or (string=? tn "LIST") (string=? tn "PAIR"))))))
+        (or (str=? tn "LIST") (str=? tn "PAIR"))))))
 
 ; --- AST coverage counting ---
 
@@ -52,7 +52,7 @@
 
 (doc (def cov-check-fn
   (fn (_ name val tsv-mode)
-    (if (not (string=? (type-name val) "PROCEDURE")) ()
+    (if (not (str=? (type-name val) "PROCEDURE")) ()
       (let ((body (obj-ref val 1)))
         (let ((counts (cov-count-tree body 0)))
           (let ((cov (first counts))
@@ -92,7 +92,7 @@
   (fn (_ alist)
     (if (null? alist) ()
       (if (and (symbol? (first (first alist)))
-               (string=? (convert (first (first alist)) %string)
+               (str=? (convert (first (first alist)) %string)
                           "%cov-library-end"))
         (rest alist)
         (cov-skip-to-library (rest alist))))))

@@ -39,7 +39,7 @@
 ### produces hex string
 
 ```scheme
-(string-length (hash->hex (fnv-1a "hello")))
+(str-length (hash->hex (fnv-1a "hello")))
 ```
 ---
     16
@@ -47,7 +47,7 @@
 ### consistent output
 
 ```scheme
-(string=? (hash->hex (fnv-1a "test")) (hash->hex (fnv-1a "test")))
+(str=? (hash->hex (fnv-1a "test")) (hash->hex (fnv-1a "test")))
 ```
 ---
     #t

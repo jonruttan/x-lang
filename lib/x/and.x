@@ -12,10 +12,10 @@
 ; --- Compatibility aliases ---
 (def list-ref (fn (_ lst n) (nth n lst)))
 (def list-tail (fn (_ lst n) (drop n lst)))
-(def string-copy (fn (_ s) (substring s 0 (string-length s))))
+(def str-copy (fn (_ s) (substring s 0 (str-length s))))
 
 (doc (provide x/and
-  second third else list-ref list-tail string-copy)
+  second third else list-ref list-tail str-copy)
   (note "Stable/hardened dialect with compiler, POSIX, and full numeric tower.")
   (note "No experimental extensions (syscall, file, socket).")
   "x/and: Stable full-stack dialect built on x-lang.")

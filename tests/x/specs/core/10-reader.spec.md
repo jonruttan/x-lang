@@ -63,7 +63,7 @@
 ### reads string with newline escape
 
 ```scheme
-(string-length "a\nb")
+(str-length "a\nb")
 ```
 ---
     3
@@ -71,7 +71,7 @@
 ### reads string with tab escape
 
 ```scheme
-(string-length "a\tb")
+(str-length "a\tb")
 ```
 ---
     3
@@ -79,7 +79,7 @@
 ### reads string with carriage return escape
 
 ```scheme
-(string-length "a\rb")
+(str-length "a\rb")
 ```
 ---
     3
@@ -87,7 +87,7 @@
 ### reads string with hex escape
 
 ```scheme
-(= (convert (string-ref "\x41" 0) %int) 65)
+(= (convert (str-ref "\x41" 0) %int) 65)
 ```
 ---
     #t
@@ -95,7 +95,7 @@
 ### preserves unknown escape sequences
 
 ```scheme
-(string-length "\q")
+(str-length "\q")
 ```
 ---
     2

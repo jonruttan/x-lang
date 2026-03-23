@@ -20,7 +20,7 @@ extension so editors provide syntax highlighting and structure folding.
 
 ### another test
 
-    (string-length "hello")
+    (str-length "hello")
 ---
     5
 

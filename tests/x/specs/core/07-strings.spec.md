@@ -1,9 +1,9 @@
-## string-length
+## str-length
 
 ### returns length of string
 
 ```scheme
-(string-length "hello")
+(str-length "hello")
 ```
 ---
     5
@@ -11,17 +11,17 @@
 ### returns 0 for empty string
 
 ```scheme
-(string-length "")
+(str-length "")
 ```
 ---
     0
 
-## string-ref
+## str-ref
 
 ### returns character at index
 
 ```scheme
-(string-ref "hello" 0)
+(str-ref "hello" 0)
 ```
 ---
     #\h
@@ -29,17 +29,17 @@
 ### returns middle character
 
 ```scheme
-(string-ref "hello" 2)
+(str-ref "hello" 2)
 ```
 ---
     #\l
 
-## string-append
+## str-append
 
 ### concatenates two strings
 
 ```scheme
-(string-append "hello" " world")
+(str-append "hello" " world")
 ```
 ---
     "hello world"
@@ -47,7 +47,7 @@
 ### appends to empty string
 
 ```scheme
-(string-append "" "abc")
+(str-append "" "abc")
 ```
 ---
     "abc"
@@ -78,12 +78,12 @@
 ---
     "b"
 
-## string=?
+## str=?
 
 ### returns #t for equal strings
 
 ```scheme
-(string=? "hello" "hello")
+(str=? "hello" "hello")
 ```
 ---
     #t
@@ -91,7 +91,7 @@
 ### returns #f for different strings
 
 ```scheme
-(string=? "hello" "world")
+(str=? "hello" "world")
 ```
 ---
     #f
@@ -229,7 +229,7 @@
 ### hex escape produces correct byte
 
 ```scheme
-(= (convert (string-ref "\x41" 0) %int) 65)
+(= (convert (str-ref "\x41" 0) %int) 65)
 ```
 ---
     #t
@@ -255,7 +255,7 @@
 ### builds string from parts
 
 ```scheme
-(string-length (string-append "abc" "defgh"))
+(str-length (str-append "abc" "defgh"))
 ```
 ---
     8

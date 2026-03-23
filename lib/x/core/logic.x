@@ -20,7 +20,7 @@
   (fn (_ (param a ANY "First value") (param b ANY "Second value"))
     (match
       ((and (number? a) (number? b)) (= a b))
-      ((and (string? a) (string? b)) (string=? a b))
+      ((and (str? a) (str? b)) (str=? a b))
       (#t (eq? a b)))))
   (returns BOOLEAN "True if a and b are structurally equal")
   "Structural equality: compares numbers by value, strings by content, else by identity.")

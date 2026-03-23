@@ -15,12 +15,12 @@
 ; fnv-1a: hash a string to a 64-bit integer
 (doc (def fnv-1a
   (fn (_ (param s STRING "String to hash"))
-    (def %len (string-length s))
+    (def %len (str-length s))
     (def %go
       (fn (_ i h)
         (if (%int= i %len) h
           (%go (%int+ i 1)
-            (%int* (^ h (convert (string-ref s i) %int))
+            (%int* (^ h (convert (str-ref s i) %int))
                %fnv-prime)))))
     (%go 0 %fnv-offset)))
   (returns INTEGER "64-bit FNV-1a hash value")
@@ -32,8 +32,8 @@
   (fn (_ (param n INTEGER "64-bit signed hash value"))
     (def %lo (& n 4294967295))
     (def %hi (& (>> n 32) 4294967295))
-    (string-append (string-pad-left (convert %hi %string 16) 8 ("0" 0))
-                   (string-pad-left (convert %lo %string 16) 8 ("0" 0)))))
+    (str-append (str-pad-left (convert %hi %string 16) 8 ("0" 0))
+                   (str-pad-left (convert %lo %string 16) 8 ("0" 0)))))
   (returns STRING "16-character hexadecimal string")
   "Convert a 64-bit signed integer to a 16-character unsigned hex string.")
 

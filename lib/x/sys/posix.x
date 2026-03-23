@@ -171,7 +171,7 @@
 
 (doc (def fd-write
   (fn (_ (param fd NUMBER "File descriptor") (param s STRING "String to write"))
-    (ptr-call (%resolve "write") fd s (string-length s))))
+    (ptr-call (%resolve "write") fd s (str-length s))))
   (returns NUMBER "Bytes written")
   "Write a string to a file descriptor.")
 
