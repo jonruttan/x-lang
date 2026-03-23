@@ -110,9 +110,22 @@
             (%walk-quasi (first form) scope uses))))
       uses))))
 
-; Walk a pair -- dispatches on %scope-table (overridable by tools)
-; %walk-pair is forward-declared; callers can set! it after loading
-; construct declarations for data-driven dispatch.
+; Walk a pair -- dispatches on head symbol
+(set! %walk-pair (fn (_ form scope uses)
+  (def head (first form))
+  (if (eq? head (lit fn))    (%walk-fn form scope uses)
+  (if (eq? head (lit op))    (%walk-op form scope uses)
+  (if (eq? head (lit let))   (%walk-let form scope uses)
+  (if (eq? head (lit def))   (%walk-def form scope uses)
+  (if (eq? head (lit set!))  (%walk-set form scope uses)
+  (if (eq? head (lit guard)) (%walk-guard form scope uses)
+  (if (eq? head (lit quasi)) (%walk-quasi (rest form) scope uses)
+  (if (eq? head (lit lit))   uses
+  (if (eq? head (lit if))    (%walk-list (rest form) scope uses)
+  (if (eq? head (lit do))    (%walk-list (rest form) scope uses)
+  (if (eq? head (lit match)) (%walk-list (rest form) scope uses)
+    ; Default: walk all subforms (function call)
+    (%walk-list form scope uses))))))))))))))
 
 ; Walk an AST form, collecting symbol uses
 (set! %walk (fn (_ form scope uses)
