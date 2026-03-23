@@ -10,7 +10,8 @@
 (def %jit-firstobj (ptr->int (dlsym %jit-lib "jit_firstobj")))
 (def %jit-restobj  (ptr->int (dlsym %jit-lib "jit_restobj")))
 (def %jit-atomint  (ptr->int (dlsym %jit-lib "jit_atomint")))
-(def %jit-eval-arg (ptr->int (dlsym %jit-lib "jit_eval_arg")))
+(def %jit-eval-arg   (ptr->int (dlsym %jit-lib "jit_eval_arg")))
+(def %jit-build-args (ptr->int (dlsym %jit-lib "jit_build_args")))
 
 ; --- Emit helpers: call a JIT runtime function ---
 ; Loads address into x8, calls via BLR. Preserves x19 (p_base), x20 (p_args).
@@ -177,10 +178,7 @@
     (if (null? %asm-self-cell)
       (error (str "asm-compile: unknown function: " (symbol->string fn-name))))
     (def nargs (length args))
-
-    ; The recursive call goes through the SAME code, which uses the x-lang ABI.
-    ; We need to build a proper arg list: (prim arg0-atom arg1-atom ...)
-    ; Then call through the prim's fn-ptr with (p_base, arg-list).
+    (if (> nargs 4) (error "asm-compile: max 4 args for recursive calls"))
 
     ; Evaluate each arg to raw integer, push to stack
     (for-each
@@ -189,77 +187,24 @@
         (%emit-u32-le! asm %PUSH))
       args)
 
-    ; Build the arg list by boxing each raw int and consing
-    ; Start with nil, pop args in reverse order, mkint + mkpair
-    (asm-emit! asm (lit mov) x0 (imm 0))  ; nil (accumulator)
-    (def %build
-      (fn (_ i)
-        (if (< i 0) ()
-          (do
-            ; Save current list on stack
-            (%emit-u32-le! asm %PUSH)
-            ; Pop raw value
-            (%emit-u32-le! asm (| %POP 1))  ; x1 = raw value
-            ; Save x1 (raw val), restore list
-            (%emit-u32-le! asm %PUSH)        ; push x0 (don't need, x1 has val)
-            ; Oops, need to: pop raw -> x1, then mkint(p_base, x1) -> x0 = atom
-            ; then mkpair(p_base, atom, list) -> x0 = new list
-            ; But we need the list in x2. Let me use stack differently:
+    ; Pop args into registers for jit_build_args(p_base, nargs, a0, a1, a2, a3)
+    ; ARM64: x0=p_base, x1=nargs, x2=a0, x3=a1, x4=a2, x5=a3
+    (if (>= nargs 4) (%emit-u32-le! asm (| %POP 5)) ())
+    (if (>= nargs 3) (%emit-u32-le! asm (| %POP 4)) ())
+    (if (>= nargs 2) (%emit-u32-le! asm (| %POP 3)) ())
+    (if (>= nargs 1) (%emit-u32-le! asm (| %POP 2)) ())
+    (asm-emit! asm (lit mov) x1 (imm nargs))
+    (asm-emit! asm (lit mov) x0 x19)           ; p_base
+    (%emit-call-jit! asm %jit-build-args)      ; x0 = (nil a0 a1 ...)
 
-            ; At this point: stack has [raw_val] [... more raw vals ...]
-            ; x0 = list-so-far
-            ; Save list, pop raw, mkint, mkpair
-
-            ; Actually let me redo the stack:
-            ; After initial loop, stack has: [argN-1] ... [arg0] (arg0 on top)
-            ; After starting with nil, we need to pop arg0, mkint, mkpair(atom, nil)
-            ; then pop arg1, mkint, mkpair(atom, list), etc.
-            ; But we pushed left-to-right, so arg0 is DEEPEST, argN-1 is on top.
-            ; Pop gives us argN-1 first. We want to build list right-to-left:
-            ; (pair argN-1 nil), (pair argN-2 prev), ... (pair arg0 prev)
-            ; This builds (arg0 arg1 ... argN-1) — correct!
-
-            ; x0 = list-so-far. Save on stack, pop raw value
-            (%emit-u32-le! asm %PUSH)          ; push list
-            ; Stack: [list] [raw_val] ...
-            ; We need raw_val. It's at [sp, #16]. Swap:
-            ; pop list -> x3, pop raw -> x1, push list back
-            (%emit-u32-le! asm (| %POP 3))     ; x3 = list
-            (%emit-u32-le! asm %POP)           ; x0 = raw val
-            (asm-emit! asm (lit mov) x1 x0)    ; x1 = raw
-            ; push list and raw_val atom pointers will be in x0 after mkint
-            ; Save list on stack
-            (asm-emit! asm (lit mov) x0 x3)
-            (%emit-u32-le! asm %PUSH)          ; push list
-            ; mkint(p_base, raw_val)
-            (asm-emit! asm (lit mov) x0 x19)   ; x0 = p_base (x1 = raw already)
-            (%emit-call-jit! asm %jit-mkint)   ; x0 = atom
-            ; mkpair(p_base, atom, list)
-            (asm-emit! asm (lit mov) x1 x0)    ; x1 = atom
-            (%emit-u32-le! asm (| %POP 2))     ; x2 = list (pop from stack)
-            (asm-emit! asm (lit mov) x0 x19)   ; x0 = p_base
-            (%emit-call-jit! asm %jit-mkpair)  ; x0 = (atom . list)
-            (%build (- i 1))))))
-    (%build (- nargs 1))
-
-    ; x0 = arg list (arg0 arg1 ... argN-1)
-    ; Prepend self (nil placeholder): mkpair(p_base, nil, args)
-    (asm-emit! asm (lit mov) x2 x0)           ; x2 = args
-    (asm-emit! asm (lit mov) x1 (imm 0))      ; x1 = nil (self placeholder)
-    (asm-emit! asm (lit mov) x0 x19)           ; x0 = p_base
-    (%emit-call-jit! asm %jit-mkpair)          ; x0 = (nil . args) = p_args for call
-
-    ; Save p_base/p_args, set up call
-    (asm-emit! asm (lit mov) x1 x0)           ; x1 = new p_args
-    (asm-emit! asm (lit mov) x0 x19)          ; x0 = p_base
-
-    ; Load self address from trampoline
+    ; Call self: x0=p_base, x1=p_args
+    (asm-emit! asm (lit mov) x1 x0)           ; p_args
+    (asm-emit! asm (lit mov) x0 x19)          ; p_base
     (asm-load-imm64! asm x8 (ptr->int %asm-self-cell))
     (asm-emit! asm (lit ldr) x8 (mem 8 0))
     (asm-emit! asm (lit blr) x8)
 
-    ; x0 = result (already a boxed x-lang object from mkint in the callee)
-    ; Unbox it back to raw integer for our caller
+    ; x0 = boxed result. Unbox to raw integer.
     (%emit-call-jit! asm %jit-atomint)))
 
 ; --- Public API ---
