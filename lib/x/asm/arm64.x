@@ -28,13 +28,17 @@
             (def width (nth 2 f))
             (def sh    (nth 3 f))
             (def arg (nth idx args))
+            ; Field may have 5th element: sub-index into operand
+            (def sub (if (> (length f) 4) (nth 4 f) 0))
             (def val
               (if (eq? (%op-type arg) (lit label))
                 (do
                   (def ptype (if (= width 26) (lit arm64-rel) (lit arm64-rel19)))
                   (asm-patch! asm 4 ptype (%op-value arg))
                   0)
-                (%op-value arg)))
+                (if (= sub 0)
+                  (%op-value arg)
+                  (nth (+ sub 1) arg))))
             (def mask (- (<< 1 width) 1))
             (def bits (<< (& (>> val sh) mask) pos))
             (%enc (rest flds) (| w bits))))))
@@ -91,18 +95,19 @@
         (list 2 10 12 0)))))
 
     ; LDR Xt, [Xn, #imm12*8] (unsigned offset, 64-bit)
+    ; mem operand: (mem base-reg offset) — sub=0 for base, sub=1 for offset
     (pair (lit ldr) (list
       (pair (lit rm) (list 4181721088         ; 0xF9400000
-        (list 0 0 5 0)       ; Rt
-        (list 1 5 5 0)       ; Rn (from mem)
-        (list 1 10 12 3))))) ; imm12 (offset>>3)
+        (list 0 0 5 0)       ; Rt [4:0]
+        (list 1 5 5 0)       ; Rn [9:5] from mem base (sub=0)
+        (list 1 10 12 3 1))))) ; imm12 [21:10] from mem offset (sub=1), >>3
 
     ; STR Xt, [Xn, #imm12*8]
     (pair (lit str) (list
       (pair (lit rm) (list 4177526784         ; 0xF9000000
         (list 0 0 5 0)
         (list 1 5 5 0)
-        (list 1 10 12 3)))))
+        (list 1 10 12 3 1)))))
 
     ; B (unconditional branch, PC-relative)
     (pair (lit b) (list
@@ -168,6 +173,25 @@
       (pair (lit l) (list 1409286157          ; 0x5400000D
         (list 0 5 19 2)))))
   ))
+
+; --- Prologue/epilogue helpers ---
+; These emit fixed instruction sequences for function call frames
+
+; asm-prologue!: save x29 (fp) and x30 (lr), set up frame
+; STP x29, x30, [sp, #-16]! = 0xA9BF7BFD
+; MOV x29, sp              = 0x910003FD
+(def asm-prologue!
+  (fn (_ asm)
+    (%emit-u32-le! asm 2847898621)    ; stp x29, x30, [sp, #-16]!
+    (%emit-u32-le! asm 2432697341)))  ; mov x29, sp (ADD x29, sp, #0)
+
+; asm-epilogue!: restore x29/x30 and return
+; LDP x29, x30, [sp], #16 = 0xA8C17BFD
+; RET                      = 0xD65F03C0
+(def asm-epilogue!
+  (fn (_ asm)
+    (%emit-u32-le! asm 2831252477)    ; ldp x29, x30, [sp], #16
+    (%emit-u32-le! asm 3596551104)))  ; ret
 
 ; --- Dispatch encoder ---
 (def %arm64-dispatch
