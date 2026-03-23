@@ -25,7 +25,7 @@
   (pair "lib/x/num/complex.x"
   (pair "lib/x/or.x"
     (first %include-list-cell)))))))))))
-; Load compiler infrastructure FIRST (before numeric tower)
+; Load compiler infrastructure (needed for analyser compilation + caching)
 (include "lib/x/sys/posix.x")
 (include "lib/x/sys/hash.x")
 (include "lib/x/tool/compile.x")

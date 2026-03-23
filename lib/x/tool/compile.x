@@ -769,16 +769,44 @@
   (param expr LIST "A (fn (_ params...) body) expression")
   (returns PRIM "Compiled native function"))
 
-; --- Default compile: JIT assembler with C fallback ---
+; --- Full C compilation (called by compile-cache.x on cache miss) ---
+
+(def %compile-c-full
+  (fn (_ expr fvars)
+    (set! %compile-fvars fvars)
+    (set! %compile-id (+ %compile-id 1))
+    (def %id (convert %compile-id %string))
+    (def %src-path (str "/tmp/x-compile-" %id ".c"))
+
+    (def %expr-key (write-to-string expr))
+    (def %cache-hash (hash->hex (fnv-1a %expr-key)))
+    (def %cache-path (str %compile-cache-dir %cache-hash compile-ext))
+
+    (compile-write %src-path (compile-to-c expr fvars))
+    (compile-cc %src-path %cache-path)
+    (ptr-call %c-unlink %src-path)
+
+    (def %lib (dlopen %cache-path 1))
+    (if (null? %lib) (error "compile: dlopen failed"))
+    (def %fn (dlsym %lib "fn_0"))
+    (if (null? %fn) (error "compile: dlsym failed for fn_0"))
+    (type-cast! %fn first)
+    (def %prim-type-val (ptr-ref-word (convert first %ptr) %type-offset))
+    (%patch-nested-prims %lib (first (list (list))) %prim-type-val)
+    (if (not (null? fvars))
+      (%compile-patch-fvars %lib fvars))
+    %fn))
+
+; --- JIT assembler (lazy-loaded by compile-cache.x) ---
 (include "lib/x/tool/asm-compile.x")
 
+; --- Default compile: JIT assembler with C compiler fallback ---
+
 (def compile
-  (fn (_ expr . rest)
-    (if (null? rest)
-      ; No free variables: JIT (fast, no caching needed)
+  (fn (_ expr . %c-rest)
+    (if (null? %c-rest)
       (compile-asm expr)
-      ; Free variables: C compiler (cacheable across runs)
-      (compile-c expr (first rest)))))
+      (compile-c expr (first %c-rest)))))
 (doc compile "Compile an (fn ...) expression to native code. Pure expressions use JIT assembler; fvar expressions use C compiler with persistent caching."
   (param expr LIST "A (fn (_ params...) body) expression")
   (returns PRIM "Compiled native function"))

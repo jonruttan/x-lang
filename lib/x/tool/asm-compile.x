@@ -397,7 +397,7 @@
 
 ; --- Public API ---
 
-(doc (def compile-asm
+(def compile-asm
   (fn (_ expr . %asm-rest)
     (if (not (eq? (first expr) (lit fn)))
       (error "compile-asm: expression must be (fn (_ params...) body)"))
@@ -441,6 +441,7 @@
 
     ; Create proper x-lang prim from the raw function pointer
     (make-prim raw-fn)))
+(doc compile-asm
   (returns CALLABLE "X-lang callable prim")
   "JIT compile an x-lang (fn ...) expression to a native prim.
    Accepts optional fvar alist for free variable support.
