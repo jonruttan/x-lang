@@ -774,11 +774,12 @@
 
 (def compile
   (fn (_ expr . rest)
-    ; JIT assembler handles both pure and fvar expressions
     (if (null? rest)
+      ; No free variables: JIT (fast, no caching needed)
       (compile-asm expr)
-      (compile-asm expr (first rest)))))
-(doc compile "Compile an (fn ...) expression to native code via JIT assembler. Accepts optional fvar alist for free variable support."
+      ; Free variables: C compiler (cacheable across runs)
+      (compile-c expr (first rest)))))
+(doc compile "Compile an (fn ...) expression to native code. Pure expressions use JIT assembler; fvar expressions use C compiler with persistent caching."
   (param expr LIST "A (fn (_ params...) body) expression")
   (returns PRIM "Compiled native function"))
 

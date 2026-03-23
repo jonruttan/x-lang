@@ -13,6 +13,9 @@
 (def %jit-eval-arg (ptr->int (dlsym %jit-lib "jit_eval_arg")))
 (def %jit-build-args (ptr->int (dlsym %jit-lib "jit_build_args")))
 (def %jit-make-prim (dlsym %jit-lib "jit_make_prim"))
+(def %jit-score-set (ptr->int (dlsym %jit-lib "jit_score_set")))
+(def %jit-buffer-unread (ptr->int (dlsym %jit-lib "jit_buffer_unread")))
+(def %jit-buffer-len (ptr->int (dlsym %jit-lib "jit_buffer_len")))
 
 ; Stack push/pop constants
 (def %PUSH 4162785248)   ; STR x0, [sp, #-16]!
@@ -142,6 +145,71 @@
     (%or-rest (rest args))
     (asm-label! asm lbl-end)))
 
+; Compile (and a b ...): short-circuit, returns 0 on first falsy
+(def %asm-compile-and
+  (fn (_ asm args params)
+    (def lbl-end (%asm-genlabel "%and_end"))
+    (%asm-compile-expr asm (first args) params)
+    (def %and-rest
+      (fn (_ as)
+        (if (null? as) ()
+          (do
+            (asm-emit! asm (lit cbz) x0 (label lbl-end))
+            (%asm-compile-expr asm (first as) params)
+            (%and-rest (rest as))))))
+    (%and-rest (rest args))
+    (asm-label! asm lbl-end)))
+
+; Compile (not x): 0 -> 1, nonzero -> 0
+(def %asm-compile-not
+  (fn (_ asm args params)
+    (def lbl-zero (%asm-genlabel "%not_z"))
+    (def lbl-end  (%asm-genlabel "%not_e"))
+    (%asm-compile-expr asm (first args) params)
+    (asm-emit! asm (lit cbz) x0 (label lbl-zero))
+    (asm-emit! asm (lit mov) x0 (imm 0))
+    (asm-emit! asm (lit b) (label lbl-end))
+    (asm-label! asm lbl-zero)
+    (asm-emit! asm (lit mov) x0 (imm 1))
+    (asm-label! asm lbl-end)))
+
+; Compile (%seq a b): evaluate a, discard, evaluate b, return
+(def %asm-compile-seq
+  (fn (_ asm args params)
+    (%asm-compile-expr asm (first args) params)
+    (%asm-compile-expr asm (first (rest args)) params)))
+
+; Compile (score-set score sign buffer): jit_score_set(score, sign, buffer)
+; score and buffer are x_obj_t* (fvars or params), sign is raw int
+(def %asm-compile-score-set
+  (fn (_ asm args params)
+    ; Eval score -> push
+    (%asm-compile-expr asm (first args) params)
+    (%emit-u32-le! asm %PUSH)
+    ; Eval buffer -> push
+    (%asm-compile-expr asm (first (rest (rest args))) params)
+    (%emit-u32-le! asm %PUSH)
+    ; sign is a literal number
+    (def sign-val (first (rest args)))
+    ; Call jit_score_set(score, sign, buffer)
+    (%emit-u32-le! asm %POP)                   ; x0 = buffer
+    (asm-emit! asm (lit mov) x2 x0)           ; x2 = buffer
+    (%emit-u32-le! asm %POP)                   ; x0 = score
+    (asm-emit! asm (lit mov) x1 (imm sign-val)) ; x1 = sign
+    (%emit-call! asm %jit-score-set)))
+
+; Compile (buffer-unread buffer): jit_buffer_unread(buffer)
+(def %asm-compile-buffer-unread
+  (fn (_ asm args params)
+    (%asm-compile-expr asm (first args) params)
+    (%emit-call! asm %jit-buffer-unread)))
+
+; Compile (buffer-len buffer): jit_buffer_len(buffer) -> raw int
+(def %asm-compile-buffer-len
+  (fn (_ asm args params)
+    (%asm-compile-expr asm (first args) params)
+    (%emit-call! asm %jit-buffer-len)))
+
 ; Compile standalone comparison: (= a b) -> 1 or 0
 (def %asm-compile-cmp
   (fn (_ asm cond-insn args params)
@@ -182,17 +250,29 @@
                 (%asm-compile-if asm args params)
                 (if (eq? op (lit or))
                   (%asm-compile-or asm args params)
-                  (if (eq? op (lit =))
-                    (%asm-compile-cmp asm (lit b/eq) args params)
-                    (if (eq? op (lit <))
-                      (%asm-compile-cmp asm (lit b/lt) args params)
-                      (if (eq? op (lit >))
-                        (%asm-compile-cmp asm (lit b/gt) args params)
-                        (if (eq? op (lit <=))
-                          (%asm-compile-cmp asm (lit b/le) args params)
-                          (if (eq? op (lit >=))
-                            (%asm-compile-cmp asm (lit b/ge) args params)
-                            (%asm-compile-funcall asm op args params)))))))))))))))
+                  (if (eq? op (lit and))
+                    (%asm-compile-and asm args params)
+                    (if (eq? op (lit not))
+                      (%asm-compile-not asm args params)
+                      (if (eq? op (lit %seq))
+                        (%asm-compile-seq asm args params)
+                        (if (eq? op (lit score-set))
+                          (%asm-compile-score-set asm args params)
+                          (if (eq? op (lit buffer-unread))
+                            (%asm-compile-buffer-unread asm args params)
+                            (if (eq? op (lit buffer-len))
+                              (%asm-compile-buffer-len asm args params)
+                              (if (eq? op (lit =))
+                                (%asm-compile-cmp asm (lit b/eq) args params)
+                                (if (eq? op (lit <))
+                                  (%asm-compile-cmp asm (lit b/lt) args params)
+                                  (if (eq? op (lit >))
+                                    (%asm-compile-cmp asm (lit b/gt) args params)
+                                    (if (eq? op (lit <=))
+                                      (%asm-compile-cmp asm (lit b/le) args params)
+                                      (if (eq? op (lit >=))
+                                        (%asm-compile-cmp asm (lit b/ge) args params)
+                                        (%asm-compile-funcall asm op args params)))))))))))))))))))))
 
 ; Binary operation: push left, eval right, pop left, combine
 (set! %asm-compile-binop
