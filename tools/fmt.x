@@ -1,55 +1,20 @@
-; fmt.x -- x-lang comment-preserving formatter
+; fmt.x -- x-lang comment-preserving formatter (entry script)
 ;
 ; Data-driven: reads construct declarations from a XEON file
 ; (piped before the target source) to know how to format each form.
-; No hardcoded form names -- each language ships its own declarations.
 ;
-; Uses write-to-string for width estimation and write for single-line
-; output -- both are C primitives that traverse trees at C speed.
-;
-; Input order on stdin: constructs.x, then quoted source string.
+; Input order on stdin: constructs.x, lang-constructs (or ()), then quoted source string.
 
 (do
-  ; --- Load construct declarations ---
-  ; First form on stdin is the base constructs list.
-  ; Optional second form is language-specific extensions.
+  (import x/fmt)
 
+  ; --- Load construct declarations ---
   (def %constructs (read))
   (def %lang-constructs (read))
   (def %all-constructs
     (if (null? %lang-constructs) %constructs
       (append %constructs %lang-constructs)))
-
-  ; Build lookup alist: ((name . props) ...)
-  (def %build-lookup (fn (_ entries acc)
-    (if (null? entries) acc
-      (do (def entry (first entries))
-          (def name (first entry))
-          (def props (rest entry))
-          (%build-lookup (rest entries)
-            (pair (pair name props) acc))))))
-  (def %fmt-table (%build-lookup %all-constructs ()))
-
-  ; Lookup helper: returns property list or () for unknown forms
-  (def %fmt-find (fn (_ key table)
-    (if (null? table) ()
-      (if (string=? (convert key %string)
-                    (convert (first (first table)) %string))
-        (first table)
-        (%fmt-find key (rest table))))))
-  (def %fmt-lookup (fn (_ name)
-    (def entry (%fmt-find name %fmt-table))
-    (if (null? entry) ()
-      (rest entry))))
-
-  ; Get a specific property from a property list
-  (def %get-prop (fn (_ key props)
-    (if (null? props) ()
-      (if (pair? (first props))
-        (if (eq? (first (first props)) key)
-          (rest (first props))
-          (%get-prop key (rest props)))
-        (%get-prop key (rest props))))))
+  (def %fmt-table (fmt-build-table %all-constructs))
 
   ; --- Create formatter base, patch COMMENT to keep tokens ---
 
@@ -80,107 +45,11 @@
   (def %comment-read-stack (first (rest (rest %comment-io))))
   (set-first! %comment-read-stack %fmt-comment-reader)
 
-  ; --- Read input string (next form on stdin) and tokenize ---
+  ; --- Read input string and tokenize ---
 
   (def %input (read))
   (def %tokens (token-read-string %fmt-base %input))
 
-  ; --- Predicates ---
+  ; --- Format ---
 
-  (def %comment? (fn (_ tok)
-    (if (pair? tok) (eq? (first tok) (lit %comment)) ())))
-
-  ; --- Width: use write-to-string (C speed tree traversal) ---
-
-  (def %form-width (fn (_ form)
-    (if (%comment? form) 80
-      (string-length (write-to-string form)))))
-
-  ; --- Pretty printer ---
-
-  (def %spaces (fn (_ n) (display (string-repeat " " n))))
-
-  ; Forward declarations
-  (def %fmt-expr ())
-  (def %fmt-list ())
-  (def %fmt-body ())
-
-  ; Format a sequence of body forms, each on its own line
-  ; Handles improper lists (dotted pairs) by printing ". tail"
-  (set! %fmt-body (fn (_ forms col)
-    (if (null? forms) ()
-      (if (not (pair? forms))
-        (do (display "\n") (%spaces col)
-            (display ". ") (%fmt-expr forms col))
-        (do (display "\n") (%spaces col)
-            (%fmt-expr (first forms) col)
-            (%fmt-body (rest forms) col))))))
-
-  ; --- Data-driven formatting ---
-  ; Dispatches on the fmt property from the construct table.
-
-  (def %fmt-head-1 (fn (_ head rest-forms col)
-    (if (null? rest-forms) (write (pair head rest-forms))
-      (do (display "(") (write head) (display " ")
-          (def head-width (+ 2 (string-length (convert head %string))))
-          (%fmt-expr (first rest-forms) (+ col head-width))
-          (%fmt-body (rest rest-forms) (+ col 2))
-          (display ")")))))
-
-  (def %fmt-head-kw (fn (_ head rest-forms col)
-    (do (display "(") (write head) (display " ")
-        (def head-width (+ 2 (string-length (convert head %string))))
-        (%fmt-expr (first rest-forms) (+ col head-width))
-        (%fmt-body (rest rest-forms) (+ col 2))
-        (display ")"))))
-
-  (def %fmt-body-only (fn (_ head rest-forms col)
-    (do (display "(") (write head)
-        (%fmt-body rest-forms (+ col 2))
-        (display ")"))))
-
-  (def %fmt-default (fn (_ head rest-forms col)
-    (do (display "(")
-        (%fmt-expr head (+ col 1))
-        (%fmt-body rest-forms (+ col 2))
-        (display ")"))))
-
-  ; Format a list form with indentation awareness
-  (set! %fmt-list (fn (_ form col)
-    (def head (first form))
-    (def rest-forms (rest form))
-
-    ; Single-line if narrow enough -- write does the output at C speed
-    (if (< (%form-width form) 60)
-      (write form)
-
-      ; Multi-line: dispatch on construct table
-      (do (def props (if (symbol? head) (%fmt-lookup head) ()))
-          (def fmt-type (if (null? props) () (%get-prop (lit fmt) props)))
-          (if (eq? fmt-type (lit head-1))  (%fmt-head-1 head rest-forms col)
-          (if (eq? fmt-type (lit head-kw)) (%fmt-head-kw head rest-forms col)
-          (if (eq? fmt-type (lit body))    (%fmt-body-only head rest-forms col)
-            (%fmt-default head rest-forms col))))))))
-
-  ; Format any expression
-  (set! %fmt-expr (fn (_ form col)
-    (if (%comment? form)
-      (display (first (rest form)))
-      (if (pair? form) (%fmt-list form col)
-        (write form)))))
-
-  ; --- Main: output formatted tokens ---
-
-  (def %fmt-tokens (fn (_ tokens first-token)
-    (if (null? tokens) ()
-      (do (def tok (first tokens))
-          ; Add blank line between top-level forms (not before first)
-          (if first-token ()
-            (if (%comment? tok) ()
-              (display "\n")))
-          (%fmt-expr tok 0)
-          (if (%comment? tok) ()
-            (display "\n"))
-          (%fmt-tokens (rest tokens) ())))))
-
-  (%fmt-tokens %tokens t))
+  (fmt-tokens %tokens %fmt-table))
