@@ -235,7 +235,7 @@
 (lit a)
 ```
 ---
-    a
+    (lit a)
 
 ## comment handling
 

@@ -23,7 +23,7 @@
 ### returns zero for zero
 
 ```scheme
-(do (include "lib/x/tool/asm.x") (def a (asm-new)) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (ptr-call f 0 0)) (asm-free! a))
+(do (include "lib/x/tool/asm.x") (def a (asm-new)) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (def r (ptr-call f 0 0)) (display (if (null? r) 0 r)) (asm-free! a))
 ```
 ---
     0
