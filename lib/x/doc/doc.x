@@ -239,7 +239,7 @@
           (tail-eval (list (lit def) %name %clean-value) e))))))
 
 ; note: (note text...) -> no-op, returns nil (standalone section marker)
-(def note (op args e ()))
+(def note (op %note-args e ()))
 
 ; --- Display helpers ---
 
