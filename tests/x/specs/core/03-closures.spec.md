@@ -240,7 +240,7 @@
 ### applies a recursive function
 
 ```scheme
-(do (def fact (fn (_ n) (if (= n 0) 1 (* n (fact (- n 1)))))) (apply fact (list 5)))
+(do (def fact (fn (self n) (if (= n 0) 1 (* n (self (- n 1)))))) (apply fact (list 5)))
 ```
 ---
     120

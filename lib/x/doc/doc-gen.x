@@ -30,30 +30,30 @@
 
 (def doc-find-last-string
   (fn (_ lst)
-    (def %go (fn (_ remaining found)
+    (def %go (fn (self remaining found)
       (if (null? remaining) found
         (if (str? (first remaining))
-          (%go (rest remaining) (first remaining))
-          (%go (rest remaining) found)))))
+          (self (rest remaining) (first remaining))
+          (self (rest remaining) found)))))
     (%go lst "")))
 
 (def doc-extract-params
-  (fn (_ ps acc)
+  (fn (self ps acc)
     (if (null? ps) (reverse acc)
       (if (not (pair? ps))
         (if (doc-param-form? ps) (reverse (pair ps acc)) (reverse acc))
         (if (doc-param-form? (first ps))
-          (doc-extract-params (rest ps) (pair (first ps) acc))
-          (doc-extract-params (rest ps) acc))))))
+          (self (rest ps) (pair (first ps) acc))
+          (self (rest ps) acc))))))
 
 (def doc-extract-meta-type
-  (fn (_ forms tag acc)
+  (fn (self forms tag acc)
     (if (null? forms) (reverse acc)
       (if (pair? (first forms))
         (if (doc-sym-is? (first (first forms)) tag)
-          (doc-extract-meta-type (rest forms) tag (pair (first forms) acc))
-          (doc-extract-meta-type (rest forms) tag acc))
-        (doc-extract-meta-type (rest forms) tag acc)))))
+          (self (rest forms) tag (pair (first forms) acc))
+          (self (rest forms) tag acc))
+        (self (rest forms) tag acc)))))
 
 ; --- Main doc form extraction ---
 
@@ -161,26 +161,26 @@
 ; --- Token tree walker ---
 
 (doc (def doc-walk
-  (fn (_ tokens)
+  (fn (self tokens)
     (if (null? tokens) ()
       (let ((tok (first tokens))
             (%rest (rest tokens)))
         (if (doc-form? tok)
-          (do (doc-emit-entry (doc-extract tok)) (doc-walk %rest))
+          (do (doc-emit-entry (doc-extract tok)) (self %rest))
         (if (doc-note-form? tok)
           (do (if (not (null? (rest tok)))
                 (do (display "## ") (display (first (rest tok))) (newline) (newline)))
-              (doc-walk %rest))
+              (self %rest))
         (if (doc-def-form? tok)
           (let ((%dname (first (rest tok))))
             (if (str=? (substring (symbol->str %dname) 0 1) "%")
-              (doc-walk %rest)
+              (self %rest)
               (do (display "### `") (display %dname) (display "`") (newline) (newline)
-                  (doc-walk %rest))))
+                  (self %rest))))
         (if (doc-provide-form? tok)
           (do (doc-emit-heading 1 (symbol->str (first (rest tok))))
-              (doc-walk %rest))
-          (doc-walk %rest)))))))))
+              (self %rest))
+          (self %rest)))))))))
   (param tokens LIST "Token list from token-read-string")
   "Walk a token tree, extracting and emitting all documentation as Markdown.")
 

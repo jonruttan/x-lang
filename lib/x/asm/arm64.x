@@ -19,7 +19,7 @@
     (def word (first descriptor))
     (def fields (rest descriptor))
     (def %enc
-      (fn (_ flds w)
+      (fn (self flds w)
         (if (null? flds) w
           (do
             (def f (first flds))
@@ -41,7 +41,7 @@
                   (nth (+ sub 1) arg))))
             (def mask (- (<< 1 width) 1))
             (def bits (<< (& (>> val sh) mask) pos))
-            (%enc (rest flds) (| w bits))))))
+            (self (rest flds) (| w bits))))))
     (%emit-u32-le! asm (%enc fields word))))
 
 ; --- MOVZ encoder: load 16-bit immediate into register ---

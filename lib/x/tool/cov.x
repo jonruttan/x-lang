@@ -31,17 +31,17 @@
 ; --- AST coverage counting ---
 
 (doc (def cov-count-tree
-  (fn (_ expr depth)
+  (fn (self expr depth)
     (if (or (null? expr) (> depth 15))
       (list 0 0)
       (if (not (%cov-is-cons? expr))
         (list 0 0)
         (guard (err (list 0 0))
-          (let ((left (cov-count-tree (first expr) (+ depth 1)))
-                (right (cov-count-tree (rest expr) (+ depth 1)))
-                (self (if (cov-covered? expr) 1 0)))
+          (let ((left (self (first expr) (+ depth 1)))
+                (right (self (rest expr) (+ depth 1)))
+                (cov (if (cov-covered? expr) 1 0)))
             (list
-              (+ self (+ (first left) (first right)))
+              (+ cov (+ (first left) (first right)))
               (+ 1 (+ (first (rest left)) (first (rest right)))))))))))
   (param expr ANY "AST node to walk")
   (param depth INTEGER "Current recursion depth (limit 15)")
@@ -72,7 +72,7 @@
 ; --- Env-alist walker ---
 
 (doc (def cov-walk
-  (fn (_ alist n tsv-mode)
+  (fn (self alist n tsv-mode)
     (if (or (null? alist) (> n 5000)) ()
       (do
         (guard (err ())
@@ -80,7 +80,7 @@
                 (val (rest (first alist))))
             (if (and (symbol? name) (procedure? val) (not (null? val)))
               (cov-check-fn name val tsv-mode))))
-        (cov-walk (rest alist) (+ n 1) tsv-mode)))))
+        (self (rest alist) (+ n 1) tsv-mode)))))
   (param alist LIST "Environment alist to walk")
   (param n INTEGER "Counter (limit 5000)")
   (param tsv-mode BOOLEAN "Output TSV format if true")
@@ -89,13 +89,13 @@
 ; --- Library boundary ---
 
 (doc (def cov-skip-to-library
-  (fn (_ alist)
+  (fn (self alist)
     (if (null? alist) ()
       (if (and (symbol? (first (first alist)))
                (str=? (convert (first (first alist)) %string)
                           "%cov-library-end"))
         (rest alist)
-        (cov-skip-to-library (rest alist))))))
+        (self (rest alist))))))
   (param alist LIST "Environment alist")
   (returns LIST "Alist from library boundary marker onward")
   "Skip past test definitions to the library boundary marker.")

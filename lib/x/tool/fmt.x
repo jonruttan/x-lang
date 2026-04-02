@@ -6,10 +6,10 @@
 
 ; --- Construct table helpers ---
 
-(def %fmt-build-lookup (fn (_ entries acc)
+(def %fmt-build-lookup (fn (self entries acc)
   (if (null? entries) acc
     (do (def entry (first entries))
-        (%fmt-build-lookup (rest entries)
+        (self (rest entries)
           (pair (pair (first entry) (rest entry)) acc))))))
 
 (doc (def fmt-build-table (fn (_ constructs)
@@ -18,12 +18,12 @@
   (returns ALIST "Lookup table mapping names to property lists")
   "Build a formatter lookup table from construct declarations.")
 
-(def %fmt-find (fn (_ key table)
+(def %fmt-find (fn (self key table)
   (if (null? table) ()
     (if (str=? (convert key %string)
                   (convert (first (first table)) %string))
       (first table)
-      (%fmt-find key (rest table))))))
+      (self key (rest table))))))
 
 (doc (def fmt-lookup (fn (_ name table)
   (def entry (%fmt-find name table))
@@ -33,13 +33,13 @@
   (returns LIST "Property list or nil")
   "Look up formatting properties for a construct name.")
 
-(doc (def fmt-get-prop (fn (_ key props)
+(doc (def fmt-get-prop (fn (self key props)
   (if (null? props) ()
     (if (pair? (first props))
       (if (eq? (first (first props)) key)
         (rest (first props))
-        (fmt-get-prop key (rest props)))
-      (fmt-get-prop key (rest props))))))
+        (self key (rest props)))
+      (self key (rest props))))))
   (param key SYMBOL "Property key to find")
   (param props LIST "Property list from fmt-lookup")
   (returns ANY "Property value or nil")
@@ -133,7 +133,7 @@
   "Format any expression.")
 
 (doc (def fmt-tokens (fn (_ tokens table)
-  (def %go (fn (_ toks first-token)
+  (def %go (fn (self toks first-token)
     (if (null? toks) ()
       (do (def tok (first toks))
           (if first-token ()
@@ -143,7 +143,7 @@
           (if (pair? tok) (fmt-list tok 0 table) (fmt-expr tok 0))
           (if (fmt-comment? tok) ()
             (display "\n"))
-          (%go (rest toks) ())))))
+          (self (rest toks) ())))))
   (%go tokens t)))
   (param tokens LIST "Token list from token-read-string")
   (param table ALIST "Formatter table from fmt-build-table")

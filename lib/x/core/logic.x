@@ -9,10 +9,10 @@
   "Return x if non-nil, otherwise return the default d.")
 
 (doc (def until
-  (fn (_ (param pred CALLABLE "Predicate to stop on")
+  (fn (self (param pred CALLABLE "Predicate to stop on")
        (param f CALLABLE "Transformation function")
        (param x ANY "Initial value"))
-    (if (pred x) x (until pred f (f x)))))
+    (if (pred x) x (self pred f (f x)))))
   (returns ANY "First value satisfying pred")
   "Repeatedly apply f to x until pred is satisfied, then return the value.")
 

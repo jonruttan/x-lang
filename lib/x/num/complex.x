@@ -107,11 +107,11 @@
 ; --- Reader helpers ---
 
 (def %cx-find-char
-  (fn (_ s i len ch)
+  (fn (self s i len ch)
     (if (>= i len) ()
       (if (= (convert (str-ref s i) %int) ch)
         i
-        (%cx-find-char s (%int+ i 1) len ch)))))
+        (self s (%int+ i 1) len ch)))))
 
 (def %cx-parse-num
   (fn (_ s)

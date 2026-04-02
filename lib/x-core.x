@@ -24,22 +24,22 @@
       (#t (tail-eval (first else) e)))))
 
 (def %let-params
-  (fn (_ bindings)
+  (fn (self bindings)
     (match
       ((null? bindings) ())
       (#t
         (pair
           (first (first bindings))
-          (%let-params (rest bindings)))))))
+          (self (rest bindings)))))))
 
 (def %let-vals
-  (fn (_ bindings e)
+  (fn (self bindings e)
     (match
       ((null? bindings) ())
       (#t
         (pair
           (eval (first (rest (first bindings))) e)
-          (%let-vals (rest bindings) e))))))
+          (self (rest bindings) e))))))
 
 (def let
   (op (bindings . body)
@@ -80,13 +80,13 @@
       (#t #f))))
 
 (def %do-nest
-  (fn (_ %dn-f)
+  (fn (self %dn-f)
     (match
       ((null? (rest %dn-f)) (first %dn-f))
       (#t
         (pair
           (lit %seq)
-          (pair (first %dn-f) (pair (%do-nest (rest %dn-f)) ())))))))
+          (pair (first %dn-f) (pair (self (rest %dn-f)) ())))))))
 
 (def %do-seq
   (op %do-f
@@ -123,17 +123,17 @@
   (def %n2s/ /)
   (def %n2s% %)
   (def number->str
-    (fn (_ n . rest)
+    (fn (self n . rest)
       (def radix (if (null? rest) 10 (first rest)))
       (def %d "0123456789abcdefghijklmnopqrstuvwxyz")
       (if (= n 0) "0"
         (if (< n 0)
-          (str-append "-" (number->str (- 0 n) radix))
+          (str-append "-" (self (- 0 n) radix))
           (let ((rem (%n2s% n radix)))
             (if (< n radix)
               (list->str (list (%d rem)))
               (str-append
-                (number->str (%n2s/ n radix) radix)
+                (self (%n2s/ n radix) radix)
                 (list->str (list (%d rem))))))))))
   ; str->number: (str->number str [radix]) -> integer or ()
   (def str->number
@@ -163,13 +163,13 @@
           (if (= start len) ()
             (do
               (def %parse
-                (fn (_ i acc)
+                (fn (self i acc)
                   (if (= i len) acc
                     (do
                       (def d (%digit (s i)))
                       (if (null? d) ()
                         (if (< d radix)
-                          (%parse (+ i 1) (+ (* acc radix) d))
+                          (self (+ i 1) (+ (* acc radix) d))
                           ()))))))
               (def result (%parse start 0))
               (if (null? result) ()
@@ -206,11 +206,11 @@
     (fn (_ p a b) (set-first! p a) (set-rest! p b) p))
   (def %expanded (pair () ()))
   (def %str-eq-loop
-    (fn (_ a b i len)
+    (fn (self a b i len)
       (if (= i len)
         #t
         (if (= (char->integer (a i)) (char->integer (b i)))
-          (%str-eq-loop a b (+ i 1) len)
+          (self a b (+ i 1) len)
           #f))))
   (def str=?
     (fn (_ a b) (if (= (a) (b)) (%str-eq-loop a b 0 (a)) #f)))
@@ -218,10 +218,10 @@
   (def %include-list-has?
     (fn (_ path)
       (def %go
-        (fn (_ lst)
+        (fn (self lst)
           (if (null? lst) #f
             (if (str=? (first lst) path) #t
-              (%go (rest lst))))))
+              (self (rest lst))))))
       (%go (first %include-list-cell))))
   (def include-once
     (op (path) e
@@ -248,7 +248,8 @@
         (str-append (symbol->str name) ".x"))))
   (def provide
     (op (name . syms) e
-      (%module-register! name syms)))
+      (%module-register! name syms)
+      ()))
   (def import
     (op (name . syms) e
       (include-once (%module-resolve name))
@@ -283,21 +284,21 @@
   ; First call: expand + rewrite + eval. Subsequent calls: eq? + eval.
 
   (def %and-loop
-    (fn (_ args e)
+    (fn (self args e)
       (if (null? (rest args))
         (eval (first args) e)
         (if (eval (first args) e)
-          (%and-loop (rest args) e)
+          (self (rest args) e)
           #f))))
   (def and
     (op args e
       (if (null? args) #t (%and-loop args e))))
   (def %or-loop
-    (fn (_ args e)
+    (fn (self args e)
       (if (null? (rest args))
         (eval (first args) e)
         (let ((%v (eval (first args) e)))
-          (if %v %v (%or-loop (rest args) e))))))
+          (if %v %v (self (rest args) e))))))
   (def or
     (op args e
       (if (null? args) () (%or-loop args e))))
@@ -411,7 +412,7 @@
   ; constructs the result with current bindings.
 
   (def %quasi-compile
-    (fn (_ t)
+    (fn (self t)
       (if (or (null? t) (atom? t))
         (list (lit lit) t)
         (if (eq? (first t) (lit unquote))
@@ -422,11 +423,11 @@
             (list
               (lit append)
               (first (rest (first t)))
-              (%quasi-compile (rest t)))
+              (self (rest t)))
             (list
               (lit pair)
-              (%quasi-compile (first t))
-              (%quasi-compile (rest t))))))))
+              (self (first t))
+              (self (rest t))))))))
   (def quasi
     (op args
       e

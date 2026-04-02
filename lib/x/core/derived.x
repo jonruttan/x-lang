@@ -115,20 +115,20 @@
           (= case-val datum)
           (eq? case-val datum))))
     (def case-check-datums
-      (fn (_ datums)
+      (fn (self datums)
         (match
           ((null? datums) ())
           ((case-match? (first datums)) #t)
-          (#t (case-check-datums (rest datums))))))
+          (#t (self (rest datums))))))
     (def case-loop
-      (fn (_ cls)
+      (fn (self cls)
         (match
           ((null? cls) ())
           ((or
              (eq? (first (first cls)) (lit else))
              (case-check-datums (first (first cls))))
             (tail-eval (pair (lit do) (rest (first cls))) e))
-          (#t (case-loop (rest cls))))))
+          (#t (self (rest cls))))))
     (case-loop clauses)))
 
 (doc (provide x/core/derived when unless let* letrec cond case)

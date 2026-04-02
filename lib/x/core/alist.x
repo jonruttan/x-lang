@@ -7,12 +7,12 @@
 (note "Lookup")
 
 (doc (def assoc-get
-  (fn (_ (param key SYMBOL "Key to look up")
+  (fn (self (param key SYMBOL "Key to look up")
        (param alist LIST "Association list"))
     (match
       ((null? alist) ())
       ((eq? key (first (first alist))) (rest (first alist)))
-      (#t (assoc-get key (rest alist))))))
+      (#t (self key (rest alist))))))
   (returns ANY "Value associated with key, or nil if not found")
   "Look up a key in an alist, returning its value or nil.")
 
@@ -26,24 +26,24 @@
   "Look up a key in an alist, returning a default if not found.")
 
 (doc (def assoc-has?
-  (fn (_ (param key SYMBOL "Key to check")
+  (fn (self (param key SYMBOL "Key to check")
        (param alist LIST "Association list"))
     (match
       ((null? alist) #f)
       ((eq? key (first (first alist))) #t)
-      (#t (assoc-has? key (rest alist))))))
+      (#t (self key (rest alist))))))
   (returns BOOL "True if key is present")
   "Test whether a key exists in an alist.")
 
 (note "Modification")
 
 (doc (def assoc-del
-  (fn (_ (param key SYMBOL "Key to remove")
+  (fn (self (param key SYMBOL "Key to remove")
        (param alist LIST "Association list"))
     (match
       ((null? alist) ())
-      ((eq? key (first (first alist))) (assoc-del key (rest alist)))
-      (#t (pair (first alist) (assoc-del key (rest alist)))))))
+      ((eq? key (first (first alist))) (self key (rest alist)))
+      (#t (pair (first alist) (self key (rest alist)))))))
   (returns LIST "Alist without the given key")
   "Remove all entries for a key from an alist.")
 

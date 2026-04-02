@@ -17,9 +17,9 @@
   (fn (_ (param s STRING "String to hash"))
     (def %len (str-length s))
     (def %go
-      (fn (_ i h)
+      (fn (self i h)
         (if (%int= i %len) h
-          (%go (%int+ i 1)
+          (self (%int+ i 1)
             (%int* (^ h (convert (str-ref s i) %int))
                %fnv-prime)))))
     (%go 0 %fnv-offset)))

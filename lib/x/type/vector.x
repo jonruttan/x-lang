@@ -8,15 +8,16 @@
     (def len (length lst))
     (def v (make-obj type (+ len 1)))
     (obj-set! v 0 len)
-    (def go (fn (_ l i)
+    (def go (fn (self l i)
       (if (not (null? l))
-        (do (obj-set! v (+ i 1) (first l)) (go (rest l) (+ i 1))))))
+        (do (obj-set! v (+ i 1) (first l)) (self (rest l) (+ i 1))))))
     (go lst 0)
     v))
 
 (def %vector-read ())
 
-(def %vector
+(def %vector ())
+(set! %vector
   (make-type
     "VECTOR"
     (list
@@ -33,12 +34,12 @@
           (display "#(")
           (def len (obj-ref self 0))
           (def write-vec
-            (fn (_ i sep)
+            (fn (recur i sep)
               (if (< i len)
                 (do
                   (if sep (display " "))
                   (write (obj-ref self (+ i 1)))
-                  (write-vec (+ i 1) #t)))))
+                  (recur (+ i 1) #t)))))
           (write-vec 0 #f)
           (display ")")))
       (pair (lit first-chars) "#")
@@ -65,9 +66,9 @@
             (fn (_ self)
               (def len (obj-ref self 0))
               (def build
-                (fn (_ i acc)
+                (fn (self i acc)
                   (if (< i 0) acc
-                    (build (- i 1) (pair (obj-ref self (+ i 1)) acc)))))
+                    (self (- i 1) (pair (obj-ref self (+ i 1)) acc)))))
               (build (- len 1) ())))))
       (pair
         (lit iter)
@@ -95,9 +96,9 @@
     (def v (make-obj %vector (+ n 1)))
     (obj-set! v 0 n)
     (def loop
-      (fn (_ i)
+      (fn (self i)
         (if (<= i n)
-          (do (obj-set! v i fill) (loop (+ i 1))))))
+          (do (obj-set! v i fill) (self (+ i 1))))))
     (loop 1)
     v))
   (returns VECTOR "New vector of length n filled with fill")
@@ -124,9 +125,9 @@
 (doc (def vector->list (fn (_ (param v VECTOR "Vector to convert"))
   (def len (obj-ref v 0))
   (def build
-    (fn (_ i acc)
+    (fn (self i acc)
       (if (< i 0) acc
-        (build (- i 1) (pair (obj-ref v (+ i 1)) acc)))))
+        (self (- i 1) (pair (obj-ref v (+ i 1)) acc)))))
   (build (- len 1) ())))
   (returns LIST "List of the vector's elements")
   "Convert a vector to a list.")

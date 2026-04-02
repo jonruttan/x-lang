@@ -91,7 +91,7 @@
 ### binds recursive function
 
 ```x
-(letrec ((fact (fn (_ n) (if (= n 0) 1 (* n (fact (- n 1))))))) (fact 5))
+(letrec ((fact (fn (self n) (if (= n 0) 1 (* n (self (- n 1))))))) (fact 5))
 ```
 ---
     120

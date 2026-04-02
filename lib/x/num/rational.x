@@ -13,19 +13,19 @@
 ; --- GCD (Euclidean algorithm) ---
 
 (def %gcd
-  (fn (_ a b)
+  (fn (self a b)
     (if (%int= b 0) a
-      (%gcd b (%int- a (%int* b (%int/ a b)))))))
+      (self b (%int- a (%int* b (%int/ a b)))))))
 
 (def %abs (fn (_ n) (if (%int< n 0) (%int- 0 n) n)))
 ; --- Find '/' position in string ---
 
 (def %rat-find-slash
-  (fn (_ s i len)
+  (fn (self s i len)
     (if (>= i len) ()
       (if (= (convert (str-ref s i) %int) 47)
         i
-        (%rat-find-slash s (%int+ i 1) len)))))
+        (self s (%int+ i 1) len)))))
 ; --- Constructor: auto-reduce and normalize sign ---
 
 (def %make-rational
@@ -243,9 +243,9 @@
 
 ; Fold for variadic ops
 (def %rat-fold
-  (fn (_ rat-op float-op int-op acc lst)
+  (fn (self rat-op float-op int-op acc lst)
     (if (null? lst) acc
-      (%rat-fold rat-op float-op int-op
+      (self rat-op float-op int-op
         (%rat-binop rat-op float-op int-op acc (first lst))
         (rest lst)))))
 

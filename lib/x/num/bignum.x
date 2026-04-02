@@ -14,9 +14,9 @@
 (def %long-max
   (do
     (def %bm
-      (fn (_ bits acc)
+      (fn (self bits acc)
         (if (%int= bits 0) acc
-          (%bm (%int- bits 1) (%int+ (%int* acc 2) 1)))))
+          (self (%int- bits 1) (%int+ (%int* acc 2) 1)))))
     (%bm (%int- (%int* %word-size 8) 1) 0)))
 
 ; Safe max decimal digits for native integer (conservative: 2 per byte)
@@ -30,20 +30,20 @@
 (def %bignum-digits-per-limb
   (do
     (def %fb
-      (fn (_ d b)
+      (fn (self d b)
         (def next (%int* b 10))
         ; Safe check: LONG_MAX / next >= next means next^2 fits
         (if (%int< (%int/ %long-max next) next)
           d
-          (%fb (%int+ d 1) next))))
+          (self (%int+ d 1) next))))
     (%fb 1 10)))
 
 (def %bignum-base
   (do
     (def %pb
-      (fn (_ d acc)
+      (fn (self d acc)
         (if (%int= d 0) acc
-          (%pb (%int- d 1) (%int* acc 10)))))
+          (self (%int- d 1) (%int* acc 10)))))
     (%pb %bignum-digits-per-limb 1)))
 
 ; --- Limb list utilities ---
@@ -53,10 +53,10 @@
   (fn (_ limbs)
     (def %rev (reverse limbs))
     (def %strip
-      (fn (_ lst)
+      (fn (self lst)
         (if (null? (rest lst)) lst
           (if (%int= (first lst) 0)
-            (%strip (rest lst))
+            (self (rest lst))
             lst))))
     (reverse (%strip %rev))))
 
@@ -70,18 +70,18 @@
         ; Same length: compare from MSB
         (do
           (def %cmp-rev
-            (fn (_ ra rb)
+            (fn (self ra rb)
               (if (null? ra) 0
                 (if (%int< (first ra) (first rb)) -1
                   (if (%int< (first rb) (first ra)) 1
-                    (%cmp-rev (rest ra) (rest rb)))))))
+                    (self (rest ra) (rest rb)))))))
           (%cmp-rev (reverse a) (reverse b)))))))
 
 ; --- Limb arithmetic ---
 
 ; Add two limb lists with carry
 (def %limb-add
-  (fn (_ a b carry)
+  (fn (self a b carry)
     (if (if (null? a) (if (null? b) (%int= carry 0) #f) #f)
       ()
       (do
@@ -89,39 +89,39 @@
                               (if (null? b) 0 (first b)))
                        carry))
         (pair (modulo-int s %bignum-base)
-              (%limb-add (if (null? a) () (rest a))
+              (self (if (null? a) () (rest a))
                          (if (null? b) () (rest b))
                          (%int/ s %bignum-base)))))))
 
 ; Subtract b from a (assumes a >= b), with borrow
 (def %limb-sub
-  (fn (_ a b borrow)
+  (fn (self a b borrow)
     (if (null? a) ()
       (do
         (def d (%int- (%int- (first a) (if (null? b) 0 (first b))) borrow))
         (if (%int< d 0)
           (pair (%int+ d %bignum-base)
-                (%limb-sub (rest a) (if (null? b) () (rest b)) 1))
+                (self (rest a) (if (null? b) () (rest b)) 1))
           (pair d
-                (%limb-sub (rest a) (if (null? b) () (rest b)) 0)))))))
+                (self (rest a) (if (null? b) () (rest b)) 0)))))))
 
 ; Multiply limb list by a single limb, with carry
 (def %limb-mul1
-  (fn (_ b limb carry)
+  (fn (self b limb carry)
     (if (null? b)
       (if (%int= carry 0) () (list carry))
       (do
         (def p (%int+ (%int* (first b) limb) carry))
         (pair (modulo-int p %bignum-base)
-              (%limb-mul1 (rest b) limb (%int/ p %bignum-base)))))))
+              (self (rest b) limb (%int/ p %bignum-base)))))))
 
 ; Schoolbook multiply: a * b
 (def %limb-mul
   (fn (_ a b)
     (def %mul-go
-      (fn (_ a shift acc)
+      (fn (self a shift acc)
         (if (null? a) acc
-          (%mul-go (rest a) (pair 0 shift)
+          (self (rest a) (pair 0 shift)
             (%limb-add acc (append shift (%limb-mul1 b (first a) 0)) 0)))))
     (%mul-go a () (list 0))))
 
@@ -129,11 +129,11 @@
 (def %limb-divmod1
   (fn (_ a divisor)
     (def %div-go
-      (fn (_ ra rem qacc)
+      (fn (self ra rem qacc)
         (if (null? ra) (pair (reverse qacc) rem)
           (do
             (def cur (%int+ (%int* rem %bignum-base) (first ra)))
-            (%div-go (rest ra) (modulo-int cur divisor)
+            (self (rest ra) (modulo-int cur divisor)
                      (pair (%int/ cur divisor) qacc))))))
     (%div-go (reverse a) 0 ())))
 
@@ -155,7 +155,7 @@
         (def btop (%top-limb b))
         ; Shift a into position and extract quotient digits
         (def %div-loop
-          (fn (_ rem qdigits)
+          (fn (self rem qdigits)
             (def c (%limb-cmp rem b))
             (if (%int< c 0)
               (pair (if (null? qdigits) (list 0) (reverse qdigits)) rem)
@@ -186,16 +186,16 @@
                       ())
                     ())
                   (def new-rem (%bignum-normalize (%limb-sub rem product 0)))
-                  (%div-loop new-rem (pair q-est qdigits)))))))
+                  (self new-rem (pair q-est qdigits)))))))
         (%div-loop a ())))))
 
 ; --- String conversion ---
 
 ; Pad a number string to n digits with leading zeros
 (def %bignum-pad
-  (fn (_ s n)
+  (fn (self s n)
     (if (not (%int< (str-length s) n)) s
-      (%bignum-pad (str-append "0" s) n))))
+      (self (str-append "0" s) n))))
 
 ; Limb list to decimal string
 (def %bignum-to-string
@@ -204,11 +204,11 @@
     (def prefix (if (%int= sign -1) "-" ""))
     (def head-str (number->str (first %rev)))
     (def %tail
-      (fn (_ lst)
+      (fn (self lst)
         (if (null? lst) ""
           (str-append
             (%bignum-pad (number->str (first lst)) %bignum-digits-per-limb)
-            (%tail (rest lst))))))
+            (self (rest lst))))))
     (str-append prefix (str-append head-str (%tail (rest %rev))))))
 
 ; Parse decimal string to (sign . normalized-limb-list)
@@ -224,14 +224,14 @@
     (def digit-str (if (%int= start 0) s (substring s start len)))
     (def dlen (str-length digit-str))
     (def %go
-      (fn (_ pos acc)
+      (fn (self pos acc)
         (if (not (%int< 0 pos))
           acc
           (do
             (def cs (if (%int< (%int- pos %bignum-digits-per-limb) 0)
                       0 (%int- pos %bignum-digits-per-limb)))
             (def lm (str->number (substring digit-str cs pos)))
-            (%go cs (pair lm acc))))))
+            (self cs (pair lm acc))))))
     (pair sign (%bignum-normalize (reverse (%go dlen ()))))))
 
 ; Decimal string to bignum instance
@@ -245,9 +245,9 @@
 (def %bignum-to-int
   (fn (_ sign limbs)
     (def %go
-      (fn (_ lst mult acc)
+      (fn (self lst mult acc)
         (if (null? lst) acc
-          (%go (rest lst) (%int* mult %bignum-base)
+          (self (rest lst) (%int* mult %bignum-base)
                (%int+ acc (%int* (first lst) mult))))))
     (%int* sign (%go limbs 1 0))))
 
@@ -256,9 +256,9 @@
     (def sign (if (%int< n 0) -1 1))
     (def mag (if (%int< n 0) (%int- 0 n) n))
     (def %go
-      (fn (_ m acc)
+      (fn (self m acc)
         (if (%int= m 0) (if (null? acc) (list 0) acc)
-          (%go (%int/ m %bignum-base)
+          (self (%int/ m %bignum-base)
                (pair (modulo-int m %bignum-base) acc)))))
     (pair sign (reverse (%go mag ())))))
 

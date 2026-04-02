@@ -3,7 +3,7 @@
 ### countdown 100k does not blow stack
 
 ```scheme
-(do (def loop (fn (_ n) (if (= n 0) #t (loop (- n 1))))) (loop 100000))
+(do (def loop (fn (self n) (if (= n 0) #t (self (- n 1))))) (loop 100000))
 ```
 ---
     #t
@@ -11,7 +11,7 @@
 ### countdown 200k does not blow stack
 
 ```scheme
-(do (def loop (fn (_ n) (if (= n 0) #t (loop (- n 1))))) (loop 200000))
+(do (def loop (fn (self n) (if (= n 0) #t (self (- n 1))))) (loop 200000))
 ```
 ---
     #t
@@ -19,7 +19,7 @@
 ### accumulator 100k is correct
 
 ```scheme
-(do (def sum (fn (_ n acc) (if (= n 0) acc (sum (- n 1) (+ acc n))))) (sum 100000 0))
+(do (def sum (fn (self n acc) (if (= n 0) acc (self (- n 1) (+ acc n))))) (sum 100000 0))
 ```
 ---
     5000050000
@@ -31,7 +31,7 @@
 ```scheme
 (include "lib/x/profile.x")
 (profile-reset)
-(do (def loop (fn (_ n) (if (= n 0) #t (loop (- n 1))))) (loop 10000))
+(do (def loop (fn (self n) (if (= n 0) #t (self (- n 1))))) (loop 10000))
 (< (alloc-count) 200000)
 ```
 ---
@@ -55,7 +55,7 @@
 ```scheme
 (include "lib/x/profile.x")
 (def before (heap-count))
-(do (def waste (fn (_ n) (if (= n 0) () (do (list 1 2 3) (waste (- n 1)))))) (waste 1000))
+(do (def waste (fn (self n) (if (= n 0) () (do (list 1 2 3) (self (- n 1)))))) (waste 1000))
 (def after-waste (heap-count))
 (heap-collect-force)
 (def after-gc (heap-count))
@@ -69,7 +69,7 @@
 ```scheme
 (include "lib/x/profile.x")
 (def before (heap-count))
-(do (def waste (fn (_ n) (if (= n 0) () (do (list 1 2 3) (waste (- n 1)))))) (waste 1000))
+(do (def waste (fn (self n) (if (= n 0) () (do (list 1 2 3) (self (- n 1)))))) (waste 1000))
 (def after-waste (heap-count))
 (heap-collect-force)
 (< (heap-count) after-waste)
@@ -98,7 +98,7 @@
 ### deep recursion 50k with match
 
 ```scheme
-(do (def f (fn (_ n) (match ((= n 0) #t) (#t (f (- n 1)))))) (f 50000))
+(do (def f (fn (self n) (match ((= n 0) #t) (#t (self (- n 1)))))) (f 50000))
 ```
 ---
     #t

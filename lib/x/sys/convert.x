@@ -72,11 +72,11 @@
 
 ; --- convert dispatch (replaces C primitive) ---
 (def %alist-find
-  (fn (_ alist key)
+  (fn (self alist key)
     (if (null? alist) ()
       (if (eq? (first (first alist)) key)
         (first alist)
-        (%alist-find (rest alist) key)))))
+        (self (rest alist) key)))))
 
 (def convert
   (fn (_ val target . extra)

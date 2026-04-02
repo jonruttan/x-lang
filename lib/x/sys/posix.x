@@ -78,7 +78,7 @@
       (let ((n (length all)))
         (let ((argv (convert (ptr-call %c-malloc (* (+ n 1) %word-size)) %ptr)))
           (def %fill
-            (fn (_ lst i)
+            (fn (self lst i)
               (if (null? lst)
                 (ptr-set-word! argv (* i %word-size) 0)
                 (do
@@ -86,7 +86,7 @@
                     argv
                     (* i %word-size)
                     (convert (convert (first lst) %ptr) %int))
-                  (%fill (rest lst) (+ i 1))))))
+                  (self (rest lst) (+ i 1))))))
           (%fill all 0)
           (ptr-call %c-execvp name argv))))))
   "Replace the current process with the named program. Does not return on success.")

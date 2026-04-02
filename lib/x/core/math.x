@@ -73,7 +73,7 @@
 (doc (def gcd
   (fn (_ . args)
     (def %gcd2
-      (fn (_ a b) (if (zero? b) a (%gcd2 b (% a b)))))
+      (fn (self a b) (if (zero? b) a (self b (% a b)))))
     (if (null? args) 0
       (fold (fn (_ acc x) (%gcd2 (abs acc) (abs x)))
             (first args) (rest args)))))
@@ -96,11 +96,11 @@
 (note "Exponentiation")
 
 (doc (def expt
-  (fn (_ (param base NUMBER "Base") (param exp NUMBER "Non-negative integer exponent"))
+  (fn (self (param base NUMBER "Base") (param exp NUMBER "Non-negative integer exponent"))
     (if (= exp 0) 1
       (if (even? exp)
-        (expt (* base base) (/ exp 2))
-        (* base (expt base (- exp 1)))))))
+        (self (* base base) (/ exp 2))
+        (* base (self base (- exp 1)))))))
   (returns NUMBER "base raised to the power exp")
   "Compute base raised to a non-negative integer exponent by repeated squaring.")
 

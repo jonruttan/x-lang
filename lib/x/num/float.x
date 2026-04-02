@@ -81,7 +81,8 @@
 
 ; Float type with tokenizer, display, and alist-based convert
 
-(def %float
+(def %float ())
+(set! %float
   (make-type
     "FLOAT"
     (list
@@ -360,9 +361,9 @@
             (def fzero (exact->inexact 0))
             ; Horner's method on reversed (now MSB-first) limbs
             (def %go
-              (fn (_ ls acc)
+              (fn (self ls acc)
                 (if (null? ls) acc
-                  (%go (rest ls) (f+ (f* acc fbase) (exact->inexact (first ls)))))))
+                  (self (rest ls) (f+ (f* acc fbase) (exact->inexact (first ls)))))))
             (def mag (%go limbs fzero))
             (if (%int= sign -1) (f- fzero mag) mag)))
         (first %from-cell)))))

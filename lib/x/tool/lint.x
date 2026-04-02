@@ -19,12 +19,12 @@
 (def %walk-pair ())
 (def %walk-list ())
 
-(def %add-params (fn (_ params scope)
+(def %add-params (fn (self params scope)
   (if (null? params) scope
     (if (symbol? params)
       (pair params scope)
       (if (pair? params)
-        (%add-params (rest params) (pair (first params) scope))
+        (self (rest params) (pair (first params) scope))
         scope)))))
 
 ; Walk a list of sequential forms, accumulating defs into scope
@@ -54,12 +54,12 @@
     (pair env-param (%add-params params scope)) uses)))
 
 ; (let ((name val) ...) body...) or (let name ((var init) ...) body...)
-(def %walk-let-bindings (fn (_ bindings scope uses)
+(def %walk-let-bindings (fn (self bindings scope uses)
   (if (null? bindings)
     (list scope uses)
     (do (def b (first bindings))
         (def new-uses (%walk (first (rest b)) scope uses))
-        (%walk-let-bindings (rest bindings)
+        (self (rest bindings)
           (pair (first b) scope) new-uses)))))
 
 (def %walk-let (fn (_ form scope uses)
@@ -99,15 +99,15 @@
     (%walk (first (rest clause)) (pair (first clause) scope) uses))))
 
 ; Walk quasiquote -- only walk unquoted parts
-(def %walk-quasi (fn (_ form scope uses)
+(def %walk-quasi (fn (self form scope uses)
   (if (null? form) uses
     (if (pair? form)
       (if (eq? (first form) (lit unquote))
         (%walk (first (rest form)) scope uses)
         (if (eq? (first form) (lit unquote-splicing))
           (%walk (first (rest form)) scope uses)
-          (%walk-quasi (rest form) scope
-            (%walk-quasi (first form) scope uses))))
+          (self (rest form) scope
+            (self (first form) scope uses))))
       uses))))
 
 ; Walk a pair -- dispatches on head symbol
@@ -140,7 +140,7 @@
 
 ; --- Analysis entry points ---
 
-(doc (def lint-forms (fn (_ forms defs uses)
+(doc (def lint-forms (fn (self forms defs uses)
   (if (null? forms) (list defs uses)
     (do (def form (first forms))
         (def new-defs
@@ -148,7 +148,7 @@
             (pair (first (rest form)) defs)
             defs))
         (def new-uses (%walk form () uses))
-        (lint-forms (rest forms) new-defs new-uses)))))
+        (self (rest forms) new-defs new-uses)))))
   (param forms LIST "List of top-level forms to analyze")
   (param defs LIST "Accumulator for defined symbols")
   (param uses ALIST "Accumulator for used symbols")

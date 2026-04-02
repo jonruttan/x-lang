@@ -42,19 +42,19 @@
 
 ; Generate the x_restobj chain to access parameter at index n
 (def %c-args-ref
-  (fn (_ n)
+  (fn (self n)
     (if (= n 0) "p_args"
-      (str "x_restobj(" (%c-args-ref (- n 1)) ")"))))
+      (str "x_restobj(" (self (- n 1)) ")"))))
 
 ; Generate parameter declarations at function entry
 (def %c-param-decls
   (fn (_ params)
     (def %go
-      (fn (_ ps i)
+      (fn (self ps i)
         (if (null? ps) ""
           (str "    x_obj_t *p_" (convert (first ps) %string)
                " = x_firstobj(" (%c-args-ref i) ");\n"
-               (%go (rest ps) (+ i 1))))))
+               (self (rest ps) (+ i 1))))))
     (%go params 0)))
 
 ; memq replaced by memq from list.x
@@ -68,21 +68,21 @@
 (def %compile-fvar-lookup
   (fn (_ sym)
     (def %fv-go
-      (fn (_ fvs)
+      (fn (self fvs)
         (if (null? fvs) ()
           (if (eq? sym (first (first fvs)))
             (first fvs)
-            (%fv-go (rest fvs))))))
+            (self (rest fvs))))))
     (%fv-go %compile-fvars)))
 
 ; Return the index of a fvar symbol in %compile-fvars (for table emission)
 (def %compile-fvar-index
   (fn (_ sym)
     (def %go
-      (fn (_ fvs i)
+      (fn (self fvs i)
         (if (null? fvs) ()
           (if (eq? sym (first (first fvs))) i
-            (%go (rest fvs) (+ i 1))))))
+            (self (rest fvs) (+ i 1))))))
     (%go %compile-fvars 0)))
 
 ; --- Type system access (via type.x) ---
@@ -193,10 +193,10 @@
   (fn (_ args)
     (display "((x_obj_t *)(long)(")
     (def %or-go
-      (fn (_ as)
+      (fn (self as)
         (%cw-emit (first as))
         (if (not (null? (rest as)))
-          (do (display " || ") (%or-go (rest as))))))
+          (do (display " || ") (self (rest as))))))
     (%or-go args)
     (display "))")))
 
@@ -421,10 +421,10 @@
   (fn (_ args)
     (display "(")
     (def %go
-      (fn (_ as)
+      (fn (self as)
         (%cw-emit (first as))
         (if (not (null? (rest as)))
-          (do (display ", ") (%go (rest as))))))
+          (do (display ", ") (self (rest as))))))
     (%go args)
     (display ")")))
 
@@ -527,13 +527,13 @@
   (fn (_ )
     (def %nested-c "")
     (def %gen-loop
-      (fn (_ processed)
+      (fn (self processed)
         (def %current (first %compile-fns))
         (def %len (length %current))
         (if (= %len processed) %nested-c
           (do
             (def %gen-new
-              (fn (_ lst n)
+              (fn (self lst n)
                 (if (= n 0) ()
                   (do
                     (def %entry (first lst))
@@ -543,9 +543,9 @@
                         (%generate-fn %name
                           (first (rest %entry))
                           (first (rest (rest %entry))))))
-                    (%gen-new (rest lst) (- n 1))))))
+                    (self (rest lst) (- n 1))))))
             (%gen-new %current (- %len processed))
-            (%gen-loop %len)))))
+            (self %len)))))
     (%gen-loop 0)))
 
 ; Generate forward declarations and static prim objects for nested fns.
@@ -554,13 +554,13 @@
     (def %all-fwd "")
     (def %all-prims "")
     (def %gen-decls
-      (fn (_ lst)
+      (fn (self lst)
         (if (null? lst) ()
           (do
             (def %name (first (first lst)))
             (set! %all-fwd (str %all-fwd (%generate-fwd-decl %name)))
             (set! %all-prims (str %all-prims (%generate-static-prim %name)))
-            (%gen-decls (rest lst))))))
+            (self (rest lst))))))
     (%gen-decls (first %compile-fns))
     (pair %all-fwd %all-prims)))
 
@@ -615,13 +615,13 @@
         (if (null? tbl) ()
           (do
             (def %patch-go
-              (fn (_ fvs i)
+              (fn (self fvs i)
                 (if (null? fvs) ()
                   (do
                     (ptr-set-word! tbl (* i %word-size)
                       (if (null? (rest (first fvs))) 0
                         (convert (convert (rest (first fvs)) %ptr) %int)))
-                    (%patch-go (rest fvs) (+ i 1))))))
+                    (self (rest fvs) (+ i 1))))))
             (%patch-go fvars 0)))))))
 
 ; type-cast! moved to type.x
@@ -644,14 +644,14 @@
       (error (str "compile: cc failed with status " (convert %cc-status %string))))))
 
 (def %patch-nested-prims
-  (fn (_ lib fns prim-type-val)
+  (fn (self lib fns prim-type-val)
     (if (null? fns) ()
       (do
         (def %prim-sym (str (first (first fns)) "_prim"))
         (def %prim-ptr (dlsym lib %prim-sym))
         (if (not (null? %prim-ptr))
           (ptr-set-word! %prim-ptr %type-offset prim-type-val))
-        (%patch-nested-prims lib (rest fns) prim-type-val)))))
+        (self lib (rest fns) prim-type-val)))))
 
 (def %compile-cache-load
   (fn (_ cache-path fns-holder)
@@ -820,14 +820,14 @@
 
     ; Resolve functions from a loaded library
     (def %resolve-all
-      (fn (_ lib i n)
+      (fn (self lib i n)
         (if (= i n) ()
           (let ((name (str "batch_" (convert i %string))))
             (def %fn (dlsym lib name))
             (if (null? %fn)
               (error (str "compile-batch: dlsym failed for " name)))
             (type-cast! %fn first)
-            (pair %fn (%resolve-all lib (+ i 1) n))))))
+            (pair %fn (self lib (+ i 1) n))))))
 
     ; Cache lookup
     (def %batch-key (write-to-str exprs))
@@ -853,7 +853,7 @@
         (%compile-push-writers)
 
         (def %c-all
-          (fn (_ es i acc)
+          (fn (self es i acc)
             (if (null? es) acc
               (let ((expr (first es)))
                 (if (not (eq? (first expr) (lit fn)))
@@ -868,7 +868,7 @@
                          (%c-param-decls params)
                          "    return " (%generate-fn-body params body) ";\n"
                          "}\n\n"))
-                  (%c-all (rest es) (+ i 1) (str acc %fn-c)))))))
+                  (self (rest es) (+ i 1) (str acc %fn-c)))))))
 
         (def %c-source
           (str "#include \"x-obj.h\"\n"

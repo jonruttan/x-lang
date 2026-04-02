@@ -100,10 +100,10 @@
        (param fail CALLABLE "Called on mismatch (or nil to reject)"))
     (def len (str-length s))
     (def %build
-      (fn (_ i)
+      (fn (self i)
         (if (= i len) next
           (make-char-state (char->integer (s i))
-            (%build (+ i 1))
+            (self (+ i 1))
             fail))))
     (%build 0)))
   (returns CALLABLE "Chain of char-states matching a literal string")
@@ -115,11 +115,11 @@
        (param pred CALLABLE "Predicate: (pred chr) -> bool")
        (param done CALLABLE "Called after exactly n matches"))
     (def %build
-      (fn (_ remaining)
+      (fn (self remaining)
         (if (= remaining 0) done
           (fn (_ buffer score chr)
             (if (pred chr)
-              (%build (- remaining 1))
+              (self (- remaining 1))
               ())))))
     (%build n)))
   (returns CALLABLE "State that matches exactly n characters satisfying pred")

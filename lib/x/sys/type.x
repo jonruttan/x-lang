@@ -19,11 +19,11 @@
 ; Look up a type struct by its handle atom (from type-of)
 (def type-by-atom
   (fn (_ handle)
-    (def %go (fn (_ al)
+    (def %go (fn (self al)
       (if (null? al) ()
         (if (eq? (first (first al)) handle)
           (rest (first al))
-          (%go (rest al))))))
+          (self (rest al))))))
     (%go (type-alist))))
 
 ; --- Field access ---

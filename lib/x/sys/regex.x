@@ -22,17 +22,17 @@
 
 ; Character class membership: check if chr (char) matches any entry (int codes)
 (def %regex-class-match
-  (fn (_ entries chr)
+  (fn (self entries chr)
     (def c (char->integer chr))
     (if (null? entries) #f
       (let ((e (first entries)))
         (if (pair? e)
           ; range: (lo . hi) — integer codes
           (if (and (>= c (first e)) (<= c (rest e)))
-            #t (%regex-class-match (rest entries) chr))
+            #t (self (rest entries) chr))
           ; literal char code
           (if (= c e)
-            #t (%regex-class-match (rest entries) chr)))))))
+            #t (self (rest entries) chr)))))))
 
 ; Match a single AST node at position, return new position or ()
 (def regex-exec-one
@@ -62,14 +62,14 @@
 (def regex-exec-star
   (fn (_ inner rest-nodes str pos end)
     (def collect
-      (fn (_ p)
+      (fn (self p)
         (def next (regex-exec-one inner str p end))
-        (if (null? next) (list p) (pair p (collect next)))))
+        (if (null? next) (list p) (pair p (self next)))))
     (def try-from
-      (fn (_ ps)
+      (fn (self ps)
         (if (null? ps) ()
           (let ((r (regex-exec rest-nodes str (first ps) end)))
-            (if r r (try-from (rest ps)))))))
+            (if r r (self (rest ps)))))))
     (try-from (reverse (collect pos)))))
 
 ; Plus: match inner once, then star
@@ -92,14 +92,14 @@
 (def regex-exec-lazy-star
   (fn (_ inner rest-nodes str pos end)
     (def collect
-      (fn (_ p)
+      (fn (self p)
         (def next (regex-exec-one inner str p end))
-        (if (null? next) (list p) (pair p (collect next)))))
+        (if (null? next) (list p) (pair p (self next)))))
     (def try-from
-      (fn (_ ps)
+      (fn (self ps)
         (if (null? ps) ()
           (let ((r (regex-exec rest-nodes str (first ps) end)))
-            (if r r (try-from (rest ps)))))))
+            (if r r (self (rest ps)))))))
     (try-from (collect pos))))
 
 ; Lazy plus: match once, then lazy star
@@ -123,26 +123,26 @@
   (fn (_ inner min max rest-nodes str pos end)
     ; Match inner exactly n times from pos
     (def match-n
-      (fn (_ n p)
+      (fn (self n p)
         (if (= n 0) p
           (let ((next (regex-exec-one inner str p end)))
-            (if (null? next) () (match-n (- n 1) next))))))
+            (if (null? next) () (self (- n 1) next))))))
     ; Collect positions from min to max matches (greedy)
     (def collect-from
-      (fn (_ count p)
+      (fn (self count p)
         (if (> count max) ()
           (if (< count min)
             (let ((next (regex-exec-one inner str p end)))
-              (if (null? next) () (collect-from (+ count 1) next)))
+              (if (null? next) () (self (+ count 1) next)))
             (let ((next (regex-exec-one inner str p end)))
               (if (null? next) (list p)
-                (pair p (collect-from (+ count 1) next))))))))
+                (pair p (self (+ count 1) next))))))))
     (def positions (collect-from 0 pos))
     (def try-from
-      (fn (_ ps)
+      (fn (self ps)
         (if (null? ps) ()
           (let ((r (regex-exec rest-nodes str (first ps) end)))
-            (if r r (try-from (rest ps)))))))
+            (if r r (self (rest ps)))))))
     (try-from (reverse positions))))
 
 ; Walk AST node list against string
@@ -214,7 +214,7 @@
 ; --- Write: reconstruct pattern from AST ---
 
 (def %regex-write-node
-  (fn (_ node)
+  (fn (self node)
     (def tag (first node))
     (match
       ((eq? tag (lit lit))
@@ -234,11 +234,11 @@
             (#t (display (convert ch %char))))))
       ((eq? tag (lit any)) (display "."))
       ((eq? tag (lit star))
-        (do (%regex-write-node (first (rest node))) (display "*")))
+        (do (self (first (rest node))) (display "*")))
       ((eq? tag (lit plus))
-        (do (%regex-write-node (first (rest node))) (display "+")))
+        (do (self (first (rest node))) (display "+")))
       ((eq? tag (lit opt))
-        (do (%regex-write-node (first (rest node))) (display "?")))
+        (do (self (first (rest node))) (display "?")))
       ((eq? tag (lit class))
         (do (display "[") (%regex-write-class (rest node)) (display "]")))
       ((eq? tag (lit nclass))
@@ -254,13 +254,13 @@
       ((eq? tag (lit anchor-word-boundary)) (display "\\b"))
       ((eq? tag (lit anchor-not-word-boundary)) (display "\\B"))
       ((eq? tag (lit lazy-star))
-        (do (%regex-write-node (first (rest node))) (display "*?")))
+        (do (self (first (rest node))) (display "*?")))
       ((eq? tag (lit lazy-plus))
-        (do (%regex-write-node (first (rest node))) (display "+?")))
+        (do (self (first (rest node))) (display "+?")))
       ((eq? tag (lit lazy-opt))
-        (do (%regex-write-node (first (rest node))) (display "??")))
+        (do (self (first (rest node))) (display "??")))
       ((eq? tag (lit repeat))
-        (do (%regex-write-node (first (rest node)))
+        (do (self (first (rest node)))
             (display "{")
             (display (first (rest (rest node))))
             (def mx (first (rest (rest (rest node)))))
@@ -271,7 +271,7 @@
             (display "}"))))))
 
 (def %regex-write-class
-  (fn (_ entries)
+  (fn (self entries)
     (if (not (null? entries))
       (do
         (def e (first entries))
@@ -280,13 +280,13 @@
               (display "-")
               (display (convert (rest e) %char)))
           (display (convert e %char)))
-        (%regex-write-class (rest entries))))))
+        (self (rest entries))))))
 
 (def %regex-write
-  (fn (_ nodes)
+  (fn (self nodes)
     (if (not (null? nodes))
       (do (%regex-write-node (first nodes))
-          (%regex-write (rest nodes))))))
+          (self (rest nodes))))))
 
 ; --- Parser: compile pattern string to AST ---
 
@@ -295,11 +295,11 @@
   (fn (_ s pos end node)
     ; Parse integer
     (def %parse-int
-      (fn (_ i acc)
+      (fn (self i acc)
         (if (>= i end) (pair acc i)
           (let ((ch (str-ref s i)))
             (if (and (>= ch 48) (<= ch 57))
-              (%parse-int (+ i 1) (+ (* acc 10) (- ch 48)))
+              (self (+ i 1) (+ (* acc 10) (- ch 48)))
               (pair acc i))))))
     (def min-r (%parse-int pos 0))
     (def min-val (first min-r))
@@ -365,7 +365,7 @@
     (def start (if negated (+ pos 1) pos))
     (def tag (if negated (lit nclass) (lit class)))
     (def %go
-      (fn (_ i acc)
+      (fn (self i acc)
         (if (>= i end) (pair (pair tag (reverse acc)) i)
           (let ((ch (char->integer (str-ref s i))))
             (match
@@ -373,18 +373,18 @@
                 (pair (pair tag (reverse acc)) (+ i 1)))
               ; Escape inside class: \d \w \s etc. expand to ranges/literals
               ((= ch #\\)
-                (if (>= (+ i 1) end) (%go (+ i 1) (pair ch acc))
+                (if (>= (+ i 1) end) (self (+ i 1) (pair ch acc))
                   (let ((esc (char->integer (str-ref s (+ i 1)))))
                     (match
-                      ((= esc #\d) (%go (+ i 2) (pair (pair 48 57) acc)))
-                      ((= esc #\w) (%go (+ i 2) (pair 95 (pair (pair 97 122) (pair (pair 65 90) (pair (pair 48 57) acc))))))
-                      ((= esc #\s) (%go (+ i 2) (pair 13 (pair 10 (pair 9 (pair 32 acc))))))
-                      (#t (%go (+ i 2) (pair esc acc)))))))
+                      ((= esc #\d) (self (+ i 2) (pair (pair 48 57) acc)))
+                      ((= esc #\w) (self (+ i 2) (pair 95 (pair (pair 97 122) (pair (pair 65 90) (pair (pair 48 57) acc))))))
+                      ((= esc #\s) (self (+ i 2) (pair 13 (pair 10 (pair 9 (pair 32 acc))))))
+                      (#t (self (+ i 2) (pair esc acc)))))))
               ; Range: a-z
               ((and (< (+ i 2) end) (= (char->integer (str-ref s (+ i 1))) #\-))
                 (let ((hi (char->integer (str-ref s (+ i 2)))))
-                  (%go (+ i 3) (pair (pair ch hi) acc))))
-              (#t (%go (+ i 1) (pair ch acc))))))))
+                  (self (+ i 3) (pair (pair ch hi) acc))))
+              (#t (self (+ i 1) (pair ch acc))))))))
     (%go start ())))
 
 ; Forward-declare mutually recursive parse functions
@@ -433,20 +433,20 @@
 (set! %regex-parse-seq
   (fn (_ s pos end depth)
     (def %go
-      (fn (_ i acc)
+      (fn (self i acc)
         (if (>= i end) (pair (reverse acc) i)
           (let ((ch (str-ref s i)))
             (match
               ((and (= ch #\)) (> depth 0)) (pair (reverse acc) i))
               ((= ch #\|) (pair (reverse acc) i))
-              ((= ch #\^) (%go (+ i 1) (pair (list (lit anchor-start)) acc)))
-              ((= ch #\$) (%go (+ i 1) (pair (list (lit anchor-end)) acc)))
+              ((= ch #\^) (self (+ i 1) (pair (list (lit anchor-start)) acc)))
+              ((= ch #\$) (self (+ i 1) (pair (list (lit anchor-end)) acc)))
               (#t
                 (let ((atom (%regex-parse-atom s i end)))
                   (def node (first atom))
                   (def next-i (rest atom))
                   (let ((q (%regex-wrap-quantifier s next-i end node)))
-                    (%go (rest q) (pair (first q) acc))))))))))
+                    (self (rest q) (pair (first q) acc))))))))))
     (%go pos ())))
 
 ; Top-level parse: pattern string to AST node list
@@ -530,11 +530,11 @@
   (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string"))
     (def end (str-length str))
     (def %try
-      (fn (_ i)
+      (fn (self i)
         (if (> i end) ()
           (let ((result (regex-exec (first rx) str i end)))
             (if result (list i result)
-              (%try (+ i 1)))))))
+              (self (+ i 1)))))))
     (%try 0)))
   (returns LIST "Pair (start end) of first match, or nil if not found")
   "Search for the first occurrence of a regex pattern in a string.")
@@ -545,11 +545,11 @@
   (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string") (param pos INTEGER "Start position"))
     (def end (str-length str))
     (def %try
-      (fn (_ i)
+      (fn (self i)
         (if (> i end) ()
           (let ((result (regex-exec (first rx) str i end)))
             (if result (list i result)
-              (%try (+ i 1)))))))
+              (self (+ i 1)))))))
     (%try pos)))
   (returns LIST "Pair (start end) of match, or nil")
   "Search for regex starting from position pos.")
@@ -570,7 +570,7 @@
 (doc (def regex-find-all
   (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string"))
     (def %go
-      (fn (_ pos acc)
+      (fn (self pos acc)
         (def m (regex-find-at rx str pos))
         (if (null? m) (reverse acc)
           (do
@@ -578,7 +578,7 @@
             (def end (first (rest m)))
             ; Advance by at least 1 to avoid infinite loop on zero-width matches
             (def next (if (= start end) (+ end 1) end))
-            (%go next (pair (substring str start end) acc))))))
+            (self next (pair (substring str start end) acc))))))
     (%go 0 ())))
   (returns LIST "List of matched substrings")
   (example "(regex-find-all #/[0-9]+/ \"a1b22c333\")" "(\"1\" \"22\" \"333\")")
@@ -589,14 +589,14 @@
 (doc (def regex-find-all-pos
   (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string"))
     (def %go
-      (fn (_ pos acc)
+      (fn (self pos acc)
         (def m (regex-find-at rx str pos))
         (if (null? m) (reverse acc)
           (do
             (def start (first m))
             (def end (first (rest m)))
             (def next (if (= start end) (+ end 1) end))
-            (%go next (pair m acc))))))
+            (self next (pair m acc))))))
     (%go 0 ())))
   (returns LIST "List of (start end) pairs")
   "Find all non-overlapping match positions.")
@@ -634,7 +634,7 @@
   (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string") (param rep ANY "Replacement string or function"))
     (def len (str-length str))
     (def %go
-      (fn (_ pos acc)
+      (fn (self pos acc)
         (def m (regex-find-at rx str pos))
         (if (null? m)
           (str-append acc (substring str pos len))
@@ -643,7 +643,7 @@
             (def end (first (rest m)))
             (def matched (substring str start end))
             (def next (if (= start end) (+ end 1) end))
-            (%go next
+            (self next
               (str-append acc
                 (str-append (substring str pos start)
                   (%regex-get-replacement rep matched))))))))
@@ -658,7 +658,7 @@
   (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string"))
     (def len (str-length str))
     (def %go
-      (fn (_ pos acc)
+      (fn (self pos acc)
         (def m (regex-find-at rx str pos))
         (if (null? m)
           (reverse (pair (substring str pos len) acc))
@@ -666,7 +666,7 @@
             (def start (first m))
             (def end (first (rest m)))
             (def next (if (= start end) (+ end 1) end))
-            (%go next (pair (substring str pos start) acc))))))
+            (self next (pair (substring str pos start) acc))))))
     (%go 0 ())))
   (returns LIST "List of substrings between matches")
   (example "(regex-split #/,/ \"a,b,c\")" "(\"a\" \"b\" \"c\")")

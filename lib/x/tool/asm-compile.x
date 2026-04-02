@@ -103,10 +103,10 @@
 (set! %asm-compile-param
   (fn (_ asm name params)
     (def %find
-      (fn (_ ps idx)
+      (fn (self ps idx)
         (if (null? ps)
           (error (str "asm-compile: unbound: " (symbol->str name)))
-          (if (eq? name (first ps)) idx (%find (rest ps) (+ idx 1))))))
+          (if (eq? name (first ps)) idx (self (rest ps) (+ idx 1))))))
     ; Check fvars first (before params, since fvar symbols may shadow)
     (def fv-entry (%compile-fvar-lookup name))
     (if (not (null? fv-entry))
@@ -120,9 +120,9 @@
         (def idx (%find params 0))
         (asm-emit! asm (lit mov) x0 x20)
         (def %skip
-          (fn (_ n)
+          (fn (self n)
             (if (< n 0) ()
-              (do (%emit-restobj! asm) (%skip (- n 1))))))
+              (do (%emit-restobj! asm) (self (- n 1))))))
         (%skip idx)
         (%emit-firstobj! asm)
         (asm-emit! asm (lit mov) x1 x0)
@@ -136,12 +136,12 @@
     (def lbl-end (%asm-genlabel "%or_end"))
     (%asm-compile-expr asm (first args) params)
     (def %or-rest
-      (fn (_ as)
+      (fn (self as)
         (if (null? as) ()
           (do
             (asm-emit! asm (lit cbnz) x0 (label lbl-end))
             (%asm-compile-expr asm (first as) params)
-            (%or-rest (rest as))))))
+            (self (rest as))))))
     (%or-rest (rest args))
     (asm-label! asm lbl-end)))
 
@@ -151,12 +151,12 @@
     (def lbl-end (%asm-genlabel "%and_end"))
     (%asm-compile-expr asm (first args) params)
     (def %and-rest
-      (fn (_ as)
+      (fn (self as)
         (if (null? as) ()
           (do
             (asm-emit! asm (lit cbz) x0 (label lbl-end))
             (%asm-compile-expr asm (first as) params)
-            (%and-rest (rest as))))))
+            (self (rest as))))))
     (%and-rest (rest args))
     (asm-label! asm lbl-end)))
 
@@ -360,7 +360,7 @@
     (asm-emit! asm (lit mov) x0 (imm 0))       ; x0 = nil (accumulator)
     (%emit-u32-le! asm %PUSH)                    ; save nil on stack
     (def %build-arg
-      (fn (_ i)
+      (fn (self i)
         (if (< i 0) ()
           (do
             ; Pop raw value from deep stack position
@@ -376,7 +376,7 @@
             (asm-emit! asm (lit mov) x0 x19)   ; x0 = p_base
             (%emit-call! asm %jit-mkpair)      ; x0 = (atom . accum)
             (%emit-u32-le! asm %PUSH)           ; push new accum
-            (%build-arg (- i 1))))))
+            (self (- i 1))))))
     (%build-arg (- nargs 1))
     ; Pop final list, prepend nil as self
     (%emit-u32-le! asm %POP)                    ; x0 = (a0 a1 ... aN)

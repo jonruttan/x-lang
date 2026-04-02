@@ -43,20 +43,20 @@
   "Join a list of strings with a separator.")
 
 (doc (def str-repeat
-  (fn (_ (param s STRING "String to repeat")
+  (fn (self (param s STRING "String to repeat")
        (param n INT "Number of repetitions"))
     (if (<= n 0)
       ""
-      (str-append s (str-repeat s (- n 1))))))
+      (str-append s (self s (- n 1))))))
   (returns STRING "Repeated string")
   "Repeat a string n times.")
 
 (doc (def str-pad-left
-  (fn (_ (param s STRING "String to pad")
+  (fn (self (param s STRING "String to pad")
        (param n INT "Desired minimum length")
        (param ch CHAR "Padding character"))
     (if (not (< (str-length s) n)) s
-      (str-pad-left (str-append (list->str (list ch)) s) n ch))))
+      (self (str-append (list->str (list ch)) s) n ch))))
   (returns STRING "Padded string of at least length n")
   "Left-pad a string with ch to at least length n.")
 
@@ -75,9 +75,9 @@
     (def s-len (str-length s))
     (def sub-len (str-length sub))
     (def go
-      (fn (_ i)
+      (fn (self i)
         (if (> (+ i sub-len) s-len) #f
-          (if (%str-match-at? s sub i) #t (go (+ i 1))))))
+          (if (%str-match-at? s sub i) #t (self (+ i 1))))))
     (if (= sub-len 0) #t (go 0))))
   (returns BOOL "True if sub appears in s")
   "Test whether a string contains a substring.")
@@ -105,10 +105,10 @@
   (fn (_ (param s STRING "String to reverse"))
     (def len (str-length s))
     (def go
-      (fn (_ i acc)
+      (fn (self i acc)
         (if (< i 0)
           acc
-          (go (- i 1) (str-append acc (substring s i (+ i 1)))))))
+          (self (- i 1) (str-append acc (substring s i (+ i 1)))))))
     (go (- len 1) "")))
   (returns STRING "Reversed string")
   "Reverse a string.")

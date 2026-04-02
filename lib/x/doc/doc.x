@@ -27,16 +27,16 @@
 (def %doc-reverse
   (fn (_ lst)
     (def %rv
-      (fn (_ in out)
+      (fn (self in out)
         (if (null? in) out
-          (%rv (rest in) (pair (first in) out)))))
+          (self (rest in) (pair (first in) out)))))
     (%rv lst ())))
 
 ; Local for-each (list.x not yet loaded)
 (def %doc-for-each
-  (fn (_ f lst)
+  (fn (self f lst)
     (if (null? lst) ()
-      (do (f (first lst)) (%doc-for-each f (rest lst))))))
+      (do (f (first lst)) (self f (rest lst))))))
 
 ; Local str-contains? (string.x not yet loaded)
 (def %doc-str-contains?
@@ -44,21 +44,21 @@
     (def %sub-len (str-length sub))
     (def %s-len (str-length s))
     (def %go
-      (fn (_ i)
+      (fn (self i)
         (if (< %s-len (+ i %sub-len)) #f
           (if (str=? (substring s i (+ i %sub-len)) sub) #t
-            (%go (+ i 1))))))
+            (self (+ i 1))))))
     (if (= %sub-len 0) #t (%go 0))))
 
 ; Find last string in a list
 (def %doc-find-last-string
   (fn (_ lst)
     (def %go
-      (fn (_ remaining found)
+      (fn (self remaining found)
         (if (null? remaining) found
           (if (str? (first remaining))
-            (%go (rest remaining) (first remaining))
-            (%go (rest remaining) found)))))
+            (self (rest remaining) (first remaining))
+            (self (rest remaining) found)))))
     (%go lst "")))
 
 ; --- Registry operations ---
@@ -74,11 +74,11 @@
 (def %registry-find
   (fn (_ cell name)
     (def %go
-      (fn (_ alist)
+      (fn (self alist)
         (if (null? alist) ()
           (if (eq? (first (first alist)) name)
             (first alist)
-            (%go (rest alist))))))
+            (self (rest alist))))))
     (%go (first cell))))
 
 (def %doc-lookup (fn (_ name) (%registry-find %doc-registry-cell name)))
@@ -109,7 +109,7 @@
     (list %p-name %p-type %p-desc)))
 
 (def %doc-strip-params
-  (fn (_ ps)
+  (fn (self ps)
     (if (null? ps) ()
       (if (not (pair? ps)) ps
         (if (eq? (first ps) (lit param))
@@ -124,9 +124,9 @@
                 (def %info (%doc-extract-param (first ps)))
                 (set-first! %doc-params-acc
                   (pair %info (first %doc-params-acc)))
-                (pair (first %info) (%doc-strip-params (rest ps))))
-              (pair (first ps) (%doc-strip-params (rest ps))))
-            (pair (first ps) (%doc-strip-params (rest ps)))))))))
+                (pair (first %info) (self (rest ps))))
+              (pair (first ps) (self (rest ps))))
+            (pair (first ps) (self (rest ps)))))))))
 
 ; --- Process metadata sub-forms ---
 
@@ -136,7 +136,7 @@
 (def %doc-pending-notes (pair () ()))
 
 (def %doc-process-meta
-  (fn (_ forms)
+  (fn (self forms)
     (if (null? forms) ()
       (do
         (if (pair? (first forms))
@@ -164,7 +164,7 @@
               (set-first! %doc-params-acc
                 (pair (%doc-extract-param %form)
                       (first %doc-params-acc))))))))))
-        (%doc-process-meta (rest forms))))))
+        (self (rest forms))))))
 
 ; --- Reset all pending accumulators ---
 (def %doc-reset-pending!
@@ -250,7 +250,7 @@
       notes)))
 
 (def %display-params
-  (fn (_ ps)
+  (fn (self ps)
     (if (null? ps) ()
       (do
         (display "  ")
@@ -262,7 +262,7 @@
           (do (display " -- ")
               (display (first (rest (rest (first ps)))))))
         (newline)
-        (%display-params (rest ps))))))
+        (self (rest ps))))))
 
 (def %display-returns
   (fn (_ ret)
@@ -380,7 +380,7 @@
   (op (pattern) e
     (def %pat (eval pattern e))
     (def %search
-      (fn (_ entries)
+      (fn (self entries)
         (if (null? entries) ()
           (do
             (if (%doc-str-contains? %pat
@@ -391,7 +391,7 @@
                     (do (display " -- ")
                         (display (first (rest (first entries))))))
                   (newline)))
-            (%search (rest entries))))))
+            (self (rest entries))))))
     (%search (first %doc-registry-cell))))
 
 (doc (provide x/doc/doc doc note help apropos)
