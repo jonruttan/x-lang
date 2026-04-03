@@ -12,7 +12,7 @@
 
 ; --- System extensions ---
 (include "lib/x/or/syscall.x")
-(include "lib/x/or/file.x")
+(include "lib/x/sys/file.x")
 (include "lib/x/or/socket.x")
 
 ; --- Character constants ---
