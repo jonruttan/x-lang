@@ -1,5 +1,5 @@
 ; float.x -- Floating-point type with IEEE 754 bit-pattern storage
-(import x/core/numeric)
+(import x/num/tower)
 ;
 ; Float values are stored as IEEE 754 double bit patterns inside integers.
 ; The tokenizer's competitive scoring system ensures "3.14" (score 4)

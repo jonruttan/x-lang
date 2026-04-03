@@ -1,7 +1,7 @@
 ; complex.x -- Complex number type
 (import x/num/float)
 (import x/num/rational)
-(import x/core/numeric)
+(import x/num/tower)
 ;
 ; Complex values are stored as (real-part . imag-part) pairs.
 ; Components can be any real number type (integer, rational, float).

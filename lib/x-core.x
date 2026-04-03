@@ -265,7 +265,7 @@
     (pair "lib/x/core/list.x"
     (pair "lib/x/core/math.x"
     (pair "lib/x/core/syntax.x"
-    (pair "lib/x/core/numeric.x"
+    (pair "lib/x/num/tower.x"
     (pair "lib/x/core/alist.x"
     (pair "lib/x/type/char.x"
     (pair "lib/x/type/string.x"
@@ -340,7 +340,7 @@
   (include "lib/x/core/list.x")
   (include "lib/x/core/math.x")
   (include "lib/x/core/syntax.x")
-  (include "lib/x/core/numeric.x")
+  (include "lib/x/num/tower.x")
   ; --- Save integer primitives and make arithmetic variadic ---
 
   ; fold (from list.x) enables variadic wrappers. float.x later overrides
