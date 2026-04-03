@@ -1,16 +1,33 @@
-; convert.x -- Register core type conversion handlers
+; convert.x -- Generic type conversion dispatch
 ;
-; Adds from/to conversion alists directly to C built-in type structs,
-; so (convert value type . extra-args) works for core types through
-; the standard C dispatch.
+; Provides (convert value target-type . extra-args) for core types.
+; Loads before doc.x so cannot use (doc ...) annotations.
 ;
-; Usage: (convert value type-handle . extra-args)
+; The convert function looks up a converter in two places:
+;   1. Target type's "from" alist — keyed by source type handle
+;   2. Source type's "to" alist — keyed by target type handle
+;   3. Wildcard (#t) in from-alist as fallback
+;
+; Type handles: %int, %char, %string, %symbol, %ptr, %pair
+;
+; Registered conversions:
+;   INT  <- char (char->integer), string (str->number), ptr (ptr->int)
+;   CHAR <- int (integer->char)
+;   STR  <- int (number->str), symbol (symbol->str), list (list->str)
+;   SYM  <- string (str->symbol)
+;   PTR  <- int (int->ptr), string (str->ptr), any (obj->ptr)
+;
+; Examples:
 ;   (convert 65 %char)           -> #\A
 ;   (convert #\A %int)           -> 65
 ;   (convert 42 %string)         -> "42"
 ;   (convert 255 %string 16)     -> "ff"
 ;   (convert "42" %int)          -> 42
-;   (convert "ff" %int 16)       -> 16 parsed as hex
+;   (convert "ff" %int 16)       -> 255 (hex parse)
+;   (convert (lit foo) %string)  -> "foo"
+;
+; Exports: convert
+; Registered by x-core.x after module system loads (no provide).
 
 ; --- Type navigation via type.x (loaded before us) ---
 
