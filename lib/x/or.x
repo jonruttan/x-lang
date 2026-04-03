@@ -8,7 +8,7 @@
 (import x/core/hash)
 (import x/tool/compile)
 (import x/num/bignum)
-(import x/sys/regex)
+(import x/type/regex)
 
 ; --- System extensions ---
 (include "lib/x/or/syscall.x")

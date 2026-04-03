@@ -19,7 +19,7 @@
   (pair "lib/x/core/hash.x"
   (pair "lib/x/tool/compile.x"
   (pair "lib/x/num/bignum.x"
-  (pair "lib/x/sys/regex.x"
+  (pair "lib/x/type/regex.x"
   (pair "lib/x/num/float.x"
   (pair "lib/x/num/rational.x"
   (pair "lib/x/num/complex.x"
@@ -56,7 +56,7 @@
 (set! %compile-fvars ())
 
 ; 2. Regex (C analyser, no compile needed)
-(include "lib/x/sys/regex.x")
+(include "lib/x/type/regex.x")
 
 ; 3. Float
 (include "lib/x/num/float.x")
