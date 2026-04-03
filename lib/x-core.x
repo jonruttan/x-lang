@@ -1,6 +1,6 @@
 ; # Computational Expressions in C
 ;
-; ## x-core.x -- x Core Standard Library (without regex/float)
+; ## x-core.x -- x Core Standard Library
 ;
 ; @description Computational Expressions in C
 ; @author [Jon Ruttan](jonruttan@gmail.com)
@@ -11,250 +11,22 @@
 ;     {O,O}
 ;     (   )
 ;      " "
-; --- Boot: primitives implemented in x-lang (saves ROM) ---
 
-(def null? (fn (_ x) (eq? x ())))
+; --- Boot (evaluated by C read-eval loop, no module system yet) ---
+(include "lib/x/boot/operatives.x")
+(include "lib/x/boot/predicates.x")
+(include "lib/x/boot/data.x")
+(include "lib/x/boot/string.x")
+(include "lib/x/boot/module.x")
+(include "lib/x/boot/gc.x")
 
-(def if
-  (op (test then . else)
-    e
-    (match
-      ((eval test e) (tail-eval then e))
-      ((null? else) ())
-      (#t (tail-eval (first else) e)))))
-
-(def %let-params
-  (fn (self bindings)
-    (match
-      ((null? bindings) ())
-      (#t
-        (pair
-          (first (first bindings))
-          (self (rest bindings)))))))
-
-(def %let-vals
-  (fn (self bindings e)
-    (match
-      ((null? bindings) ())
-      (#t
-        (pair
-          (eval (first (rest (first bindings))) e)
-          (self (rest bindings) e))))))
-
-(def let
-  (op (bindings . body)
-    e
-    (apply
-      (eval (pair (lit fn) (pair (pair (lit _) (%let-params bindings)) body)) e)
-      (%let-vals bindings e))))
-
-(def %type-pair (type-of (pair 1 2)))
-
-(def %type-int (type-of 0))
-
-(def %type-str (type-of ""))
-
-(def %type-sym (type-of (lit a)))
-
-(def %type-char (type-of (integer->char 0)))
-
-(def %type-proc (type-of (fn (_ ) ())))
-
-(def %type-prim (type-of eq?))
-
-(def pair? (fn (_ x) (type? x %type-pair)))
-
-(def number? (fn (_ x) (type? x %type-int)))
-
-(def str? (fn (_ x) (type? x %type-str)))
-
-(def symbol? (fn (_ x) (type? x %type-sym)))
-
-(def char? (fn (_ x) (type? x %type-char)))
-
-(def procedure?
-  (fn (_ x)
-    (match
-      ((type? x %type-proc) #t)
-      ((type? x %type-prim) #t)
-      (#t #f))))
-
-(def %do-nest
-  (fn (self %dn-f)
-    (match
-      ((null? (rest %dn-f)) (first %dn-f))
-      (#t
-        (pair
-          (lit %seq)
-          (pair (first %dn-f) (pair (self (rest %dn-f)) ())))))))
-
-(def %do-seq
-  (op %do-f
-    %do-e
-    (match
-      ((null? %do-f) ())
-      (#t (eval (%do-nest %do-f))))))
-
-(def do %do-seq)
-
-(def begin do)
-; --- Derived pair accessors (use obj-ref/obj-set! from type.c) ---
-(def set-first! (fn (_ p v) (obj-set! p 0 v) p))
-(def set-rest! (fn (_ p v) (obj-set! p 1 v) p))
-; Int variants: read/write raw integer from pair slots via ptr-ref-word/ptr-set-word!
-; %word-size and %data-offset computed once at boot
-(def %word-size (if (< 0 (ptr->int (int->ptr 4294967296))) 8 4))
-(def %data-offset (* %word-size 3))
-(def first-int (fn (_ x) (ptr-ref-word (obj->ptr x) %data-offset)))
-(def rest-int (fn (_ x) (ptr-ref-word (obj->ptr x) (+ %data-offset %word-size))))
-(def set-first-int! (fn (_ p v) (ptr-set-word! (obj->ptr p) %data-offset v) p))
-(def set-rest-int! (fn (_ p v) (ptr-set-word! (obj->ptr p) (+ %data-offset %word-size) v) p))
-; --- End boot ---
+; --- Core control flow (if, let) ---
+(include "lib/x/core/control.x")
 
 (do
   (def x-lib-version "0.2.0")
-  ; --- Derived from C primitives ---
 
-  (def not (fn (_ x) (if x #f #t)))
-  (def atom? (fn (_ x) (not (pair? x))))
-  (def list (fn (_ . args) args))
-  ; number->str: (number->str n [radix]) -> string representation
-  ; Captures / and % at definition time so later overrides don't break it
-  (def %n2s/ /)
-  (def %n2s% %)
-  (def number->str
-    (fn (self n . rest)
-      (def radix (if (null? rest) 10 (first rest)))
-      (def %d "0123456789abcdefghijklmnopqrstuvwxyz")
-      (if (= n 0) "0"
-        (if (< n 0)
-          (str-append "-" (self (- 0 n) radix))
-          (let ((rem (%n2s% n radix)))
-            (if (< n radix)
-              (list->str (list (%d rem)))
-              (str-append
-                (self (%n2s/ n radix) radix)
-                (list->str (list (%d rem))))))))))
-  ; str->number: (str->number str [radix]) -> integer or ()
-  (def str->number
-    (fn (_ s . rest)
-      (def radix (if (null? rest) 10 (first rest)))
-      (def len (s))
-      (if (= len 0) ()
-        (do
-          (def %0 (char->integer ("0" 0)))
-          (def %digit
-            (fn (_ ch)
-              (def c (char->integer ch))
-              (if (if (not (< c %0)) (not (< (+ %0 9) c)) #f)
-                (- c %0)
-                (if (if (not (< c (char->integer ("a" 0))))
-                        (not (< (+ (char->integer ("a" 0)) 25) c)) #f)
-                  (+ 10 (- c (char->integer ("a" 0))))
-                  (if (if (not (< c (char->integer ("A" 0))))
-                          (not (< (+ (char->integer ("A" 0)) 25) c)) #f)
-                    (+ 10 (- c (char->integer ("A" 0))))
-                    ())))))
-          (def c0 (char->integer (s 0)))
-          (def neg (= c0 (char->integer ("-" 0))))
-          (def start
-            (if neg 1
-              (if (= c0 (char->integer ("+" 0))) 1 0)))
-          (if (= start len) ()
-            (do
-              (def %parse
-                (fn (self i acc)
-                  (if (= i len) acc
-                    (do
-                      (def d (%digit (s i)))
-                      (if (null? d) ()
-                        (if (< d radix)
-                          (self (+ i 1) (+ (* acc radix) d))
-                          ()))))))
-              (def result (%parse start 0))
-              (if (null? result) ()
-                (if neg (- 0 result) result))))))))
-  (include "lib/x/sys/type.x")
-  (include "lib/x/sys/convert.x")
-  (def newline (fn (_ ) (display "\n")))
-  (def str-ref (fn (_ s i) (s i)))
-  (def str-length (fn (_ s) (s)))
-  (def substring (fn (_ s start end) (s start (- end start))))
-  (def heap-collect (fn (_ ) (applicative heap-mark heap-sweep) ()))
-  ; GC hooks: navigate base tree to gc-hooks cells
-  (def %gc-hooks
-    (rest (rest (rest (rest (rest (rest (rest (first (%base))))))))))
-  (def %gc-hooks-rest (rest %gc-hooks))
-  (def heap-mark-root!
-    (fn (_ obj)
-      (def %cell (rest %gc-hooks-rest))
-      (set-first! %cell (pair obj (first %cell)))))
-  (def heap-mark-hook!
-    (fn (_ hook)
-      (def %cell (first %gc-hooks))
-      (set-first! %cell (pair hook (first %cell)))))
-  (def heap-free-hook!
-    (fn (_ hook)
-      (def %cell (first %gc-hooks-rest))
-      (set-first! %cell (pair hook (first %cell)))))
-  ; Extend base tree: add include-list cell under io-state (after false-stack)
-  (def %io-state (rest (first (rest (first (%base))))))
-  (def %false-stack (rest (rest %io-state)))
-  (set-rest! %false-stack (pair () ()))
-  (def %include-list-cell (rest %false-stack))
-  (def %rewrite
-    (fn (_ p a b) (set-first! p a) (set-rest! p b) p))
-  (def %expanded (pair () ()))
-  (def %str-eq-loop
-    (fn (self a b i len)
-      (if (= i len)
-        #t
-        (if (= (char->integer (a i)) (char->integer (b i)))
-          (self a b (+ i 1) len)
-          #f))))
-  (def str=?
-    (fn (_ a b) (if (= (a) (b)) (%str-eq-loop a b 0 (a)) #f)))
-  ; --- Include-once / require-once ---
-  (def %include-list-has?
-    (fn (_ path)
-      (def %go
-        (fn (self lst)
-          (if (null? lst) #f
-            (if (str=? (first lst) path) #t
-              (self (rest lst))))))
-      (%go (first %include-list-cell))))
-  (def include-once
-    (op (path) e
-      (def %io-path (eval path e))
-      (if (%include-list-has? %io-path) ()
-        (do (set-first! %include-list-cell
-              (pair %io-path (first %include-list-cell)))
-            (include %io-path)))))
-  (def require-once include-once)
-  ; --- Module system: provide / import ---
-  (set-rest! %include-list-cell (pair () ()))
-  (def %module-registry-cell (rest %include-list-cell))
-  ; --- Documentation system ---
-  (set-rest! %module-registry-cell (pair () ()))
-  (def %doc-registry-cell (rest %module-registry-cell))
-  (def %module-register!
-    (fn (_ name exports)
-      (set-first! %module-registry-cell
-        (pair (pair name exports)
-              (first %module-registry-cell)))))
-  (def %module-resolve
-    (fn (_ name)
-      (str-append "lib/"
-        (str-append (symbol->str name) ".x"))))
-  (def provide
-    (op (name . syms) e
-      (%module-register! name syms)
-      ()))
-  (def import
-    (op (name . syms) e
-      (include-once (%module-resolve name))
-      ()))
-  ; Pre-register all library paths so import calls in library files are no-ops
+  ; Pre-register all library paths so import calls are no-ops
   (set-first! %include-list-cell
     (pair "lib/x/doc/doc.x"
     (pair "lib/x/doc/doc-prims.x"
@@ -273,211 +45,50 @@
     (pair "lib/x/type/promise.x"
     (pair "lib/x/sys/token.x"
       (first %include-list-cell))))))))))))))))))
+
+  ; --- Type system internals (before doc, cannot use provide) ---
+  (include "lib/x/sys/type.x")
+  (include "lib/x/sys/convert.x")
+
   ; --- Documentation system ---
   (include "lib/x/doc/doc.x")
   (include "lib/x/doc/doc-prims.x")
 
-  ; --- Core forms as operatives ---
+  ; --- Boolean operatives (and, or, time) ---
+  (include "lib/x/boot/and-or.x")
 
-  ; Compile-on-first-use: expand to if-tree, cache in source form via %rewrite.
-
-  ; First call: expand + rewrite + eval. Subsequent calls: eq? + eval.
-
-  (def %and-loop
-    (fn (self args e)
-      (if (null? (rest args))
-        (eval (first args) e)
-        (if (eval (first args) e)
-          (self (rest args) e)
-          #f))))
-  (def and
-    (op args e
-      (if (null? args) #t (%and-loop args e))))
-  (def %or-loop
-    (fn (self args e)
-      (if (null? (rest args))
-        (eval (first args) e)
-        (let ((%v (eval (first args) e)))
-          (if %v %v (self (rest args) e))))))
-  (def or
-    (op args e
-      (if (null? args) () (%or-loop args e))))
-  ; match, %seq are C primitives; do/%do-seq are x-lang boot (x-core.x)
-
-  ; --- Profiling ---
-
-  (def time
-    (op args
-      e
-      (let ((t0 (clock)))
-        (let ((result (eval (first args) e)))
-          (display (- (clock) t0))
-          (display " us\n")
-          result))))
-  ; Write to stderr (swap fileout fd, display, restore)
-
-  (def %stderr
-    (fn (_ msg)
-      (def %files (rest (first (first (rest (first (%base)))))))
-      (def %fo (first (rest %files)))
-      (def %s (first-int %fo))
-      (set-first-int! %fo (first-int (first (rest (rest %files)))))
-      (display msg)
-      (set-first-int! %fo %s)))
-  ; Dump alloc-count and heap-count to stderr
-
-  (def %profile-dump
-    (fn (_ )
-      (%stderr
-        (first-int
-          (first (first (first (first (rest (rest (first (%base))))))))))
-      (%stderr " ")
-      (%stderr (heap-count))
-      (%stderr "\n")
-      ()))
+  ; --- Core library ---
   (include "lib/x/core/fn.x")
   (include "lib/x/core/logic.x")
   (include "lib/x/core/list.x")
   (include "lib/x/core/math.x")
   (include "lib/x/core/syntax.x")
   (include "lib/x/num/tower.x")
-  ; --- Save integer primitives and make arithmetic variadic ---
 
-  ; fold (from list.x) enables variadic wrappers. float.x later overrides
+  ; --- Variadic arithmetic (needs fold from list.x) ---
+  (include "lib/x/boot/arithmetic.x")
 
-  ; these with float-aware versions, reusing the saved %int* primitives.
+  ; --- Intrinsics (tokenizer helpers, stderr, profile dump) ---
+  (include "lib/x/boot/intrinsics.x")
 
-  (def %int+ +)
-  (def %int- -)
-  (def %int* *)
-  (def %int/ /)
-  (def modulo-int %)
-  (def %int< <)
-  (def %int= =)
-  (def %int-number? number?)
-  (set! +
-    (fn (_ . args)
-      (if (null? args) 0 (fold %int+ (first args) (rest args)))))
-  (set! *
-    (fn (_ . args)
-      (if (null? args) 1 (fold %int* (first args) (rest args)))))
-  (set! /
-    (fn (_ . args)
-      (if (null? args) 1 (fold %int/ (first args) (rest args)))))
-  (set! -
-    (fn (_ . args)
-      (if (null? args)
-        0
-        (if (null? (rest args))
-          (%int- 0 (first args))
-          (fold %int- (first args) (rest args))))))
-  (set! % (fn (_ . args) (fold modulo-int (first args) (rest args))))
-  ; --- Intrinsic scoring helpers for custom type analysers ---
-
-  (def buffer-len
-    (fn (_ buffer)
-      (- (first-int (rest buffer)) (first-int buffer))))
-  (def buffer-unread
-    (fn (_ buffer)
-      (set-first-int!
-        (rest buffer)
-        (- (first-int (rest buffer)) 1))))
-  (def score-set
-    (fn (_ score sign buffer)
-      (set-first-int! score (* sign (buffer-len buffer)))))
-  (def peek-char
-    (fn (_ )
-      (def %ch (read-char))
-      (if (null? %ch)
-        ()
-        (do
-          (buffer-unread
-            (first
-              (first (rest (rest (rest (rest (first (%base)))))))))
-          %ch))))
-  (def current-line
-    (fn (_ )
-      (first-int
-        (first (first (rest (first (rest (first (%base))))))))))
+  ; --- Type extensions ---
   (include "lib/x/core/alist.x")
   (include "lib/x/type/char.x")
   (include "lib/x/type/string.x")
   (include "lib/x/type/vector.x")
   (include "lib/x/type/promise.x")
   (include "lib/x/sys/token.x")
-  ; --- quasi (needs append from list.x) ---
 
-  ; Compile template to a pair/lit/append tree that, when eval'd,
+  ; --- Quasi-quoting (needs append from list.x, and/or) ---
+  (include "lib/x/boot/quasi.x")
 
-  ; constructs the result with current bindings.
-
-  (def %quasi-compile
-    (fn (self t)
-      (if (or (null? t) (atom? t))
-        (list (lit lit) t)
-        (if (eq? (first t) (lit unquote))
-          (first (rest t))
-          (if (and
-                (pair? (first t))
-                (eq? (first (first t)) (lit unquote-splicing)))
-            (list
-              (lit append)
-              (first (rest (first t)))
-              (self (rest t)))
-            (list
-              (lit pair)
-              (self (first t))
-              (self (rest t))))))))
-  (def quasi
-    (op args
-      e
-      (if (eq? (first args) %expanded)
-        (eval (first (rest args)))
-        (%seq
-          (def %t (%quasi-compile (first args)))
-          (%seq (%rewrite args %expanded (pair %t ())) (eval %t))))))
   ; --- REPL ---
+  (include "lib/x/boot/repl.x")
 
-  (def %repl-read read)
-  (def %repl-prompt "> ")
-  (def %repl-print
-    (fn (_ result)
-      (if (null? result) () (write result))
-      (newline)))
-  (def repl
-    (op ()
-      ()
-      (display %repl-prompt)
-      (def %r (%repl-read))
-      (if (null? %r)
-        ()
-        (%seq
-          (guard (err (display "Error: ") (display err) (newline))
-            (%repl-print (eval! %r)))
-          (repl)))))
   ; --- Banner ---
+  (include "lib/x/boot/banner.x")
 
-  (def %lang-name ())
-  (def %lang-version ())
-  (def %banner
-    (fn (_ )
-      (def %quiet
-        (fold
-          (fn (_ acc a)
-            (or acc (str=? a "--quiet") (str=? a "-q")))
-          ()
-          args))
-      (if %quiet
-        ()
-        (if (null? %lang-name)
-          ()
-          (do
-            (display %lang-name)
-            (if (null? %lang-version)
-              ()
-              (do (display " v") (display %lang-version)))
-            (display " on x-lang")
-            (newline))))))
+  ; --- Provide ---
   (doc (provide x/sys/type
     type-alist type-by-atom type-io type-cvt
     type-write-cell type-analyse-cell type-from-cell type-to-cell
