@@ -20,12 +20,12 @@
     (pair "lib/x/num/float.x"
     (pair "lib/x/num/rational.x"
     (pair "lib/x/num/complex.x"
-    (pair "lib/x/sys/hash.x"
+    (pair "lib/x/core/hash.x"
       (first %include-list-cell))))))))
   (include "lib/x/num/bignum.x")
   (include "lib/x/sys/regex.x")
   (include "lib/x/num/float.x")
   (include "lib/x/num/rational.x")
   (include "lib/x/num/complex.x")
-  (include "lib/x/sys/hash.x")
+  (include "lib/x/core/hash.x")
   ())

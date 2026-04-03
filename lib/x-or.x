@@ -16,7 +16,7 @@
 ; Pre-register all heavy module paths
 (set-first! %include-list-cell
   (pair "lib/x/sys/posix.x"
-  (pair "lib/x/sys/hash.x"
+  (pair "lib/x/core/hash.x"
   (pair "lib/x/tool/compile.x"
   (pair "lib/x/num/bignum.x"
   (pair "lib/x/sys/regex.x"
@@ -27,7 +27,7 @@
     (first %include-list-cell)))))))))))
 ; Load compiler infrastructure (needed for analyser compilation + caching)
 (include "lib/x/sys/posix.x")
-(include "lib/x/sys/hash.x")
+(include "lib/x/core/hash.x")
 (include "lib/x/tool/compile.x")
 
 ; --- Load numeric tower with immediate analyser compilation ---

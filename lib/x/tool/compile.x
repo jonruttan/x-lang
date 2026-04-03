@@ -2,7 +2,7 @@
 (import x/core/list)
 (import x/type/string)
 (import x/sys/posix)
-(import x/sys/hash)
+(import x/core/hash)
 ;
 ; (compile '(fn (_ params...) body))  =>  <prim>
 ;
