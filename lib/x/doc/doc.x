@@ -293,12 +293,31 @@
 
 ; --- Display ---
 
+; Find which module exports a given symbol
+(def %module-for-sym
+  (fn (_ sym)
+    (def %has
+      (fn (self lst)
+        (if (null? lst) #f
+          (if (eq? (first lst) sym) #t
+            (self (rest lst))))))
+    (def %search
+      (fn (self mods)
+        (if (null? mods) ()
+          (if (%has (rest (first mods)))
+            (first (first mods))
+            (self (rest mods))))))
+    (%search (first %module-registry-cell))))
+
 (def %display-doc
   (fn (_ entry)
     (display (%doc-entry-name entry))
     (display ": ")
     (display (%doc-entry-desc entry))
     (newline)
+    (def %mod (%module-for-sym (%doc-entry-name entry)))
+    (if (not (null? %mod))
+      (do (display "  module: ") (display %mod) (newline)))
     (%display-notes (%doc-entry-notes entry))
     (%display-params (%doc-entry-params entry))
     (%display-returns (%doc-entry-returns entry))

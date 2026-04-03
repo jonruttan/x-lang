@@ -15,7 +15,7 @@
 (doc def "Bind a name to a value in the current environment."
   (param name SYMBOL "Name to bind")
   (param value ANY "Expression to evaluate and bind")
-  (note "Supports recursive definitions: name is pre-bound before value is evaluated.")
+  (note "Value is evaluated before the name is bound. Use the self parameter (first arg to fn) for recursion.")
   (example "(def x 42)" "42")
   (see set!))
 
@@ -485,3 +485,94 @@
 
 (doc heap-collect "Run a full garbage collection cycle."
   (returns INT "Number of freed objects"))
+
+(doc heap-mark-root! "Register a GC root object that will always be marked during collection."
+  (param obj ANY "Object to protect from GC"))
+
+(doc heap-mark-hook! "Register a callback to run during the GC mark phase."
+  (param fn CALLABLE "Function called during mark"))
+
+(doc heap-free-hook! "Register a callback to run during the GC free phase."
+  (param fn CALLABLE "Function called when objects are freed"))
+
+(doc require-once "Include a file only if it has not been loaded before. Alias for include-once."
+  (param path STRING "File path to include")
+  (see include-once))
+
+(doc peek-char "Return the next character from stdin without consuming it."
+  (returns CHAR "The next character, or () at EOF"))
+
+(doc current-line "Return the current source line number."
+  (returns INTEGER "Line number in the current input"))
+
+; === Type system (x/sys/type) ===
+; These load before doc.x, so docs are registered here retroactively.
+
+(note "Type system")
+
+(doc type-alist "Return the interpreter's type alist from the base object."
+  (returns LIST "Alist of (name . type-struct) pairs"))
+
+(doc type-by-atom "Look up a type struct by its handle atom (from type-of)."
+  (param handle ATOM "Type handle returned by type-of")
+  (returns LIST "The type struct, or () if not found"))
+
+(doc type-io "Navigate to a type struct's IO group (analyse, delimit, read, write, display, error)."
+  (param t LIST "Type struct")
+  (returns LIST "IO group"))
+
+(doc type-cvt "Navigate to a type struct's conversion group (from, to)."
+  (param t LIST "Type struct")
+  (returns LIST "Conversion group"))
+
+(doc type-write-cell "Get the write-handler stack cell from a type struct."
+  (param t LIST "Type struct")
+  (returns LIST "Stack cell for write handlers"))
+
+(doc type-analyse-cell "Get the analyse-handler stack cell from a type struct."
+  (param t LIST "Type struct")
+  (returns LIST "Stack cell for analyse handlers"))
+
+(doc type-from-cell "Get the from-conversion cell from a type struct."
+  (param t LIST "Type struct")
+  (returns LIST "Alist of source-type to converter function"))
+
+(doc type-to-cell "Get the to-conversion cell from a type struct."
+  (param t LIST "Type struct")
+  (returns LIST "Alist of target-type to converter function"))
+
+(doc type-push-write "Push a write handler onto a type's write stack."
+  (param ts LIST "Type struct")
+  (param handler CALLABLE "Write handler function"))
+
+(doc type-pop-write "Pop the top write handler from a type's write stack."
+  (param ts LIST "Type struct"))
+
+(doc type-push-analyse "Push an analyse handler onto a type's analyse stack."
+  (param ts LIST "Type struct")
+  (param handler CALLABLE "Analyse handler function"))
+
+(doc type-cast! "Overwrite an object's type tag with the type of another object."
+  (param obj ANY "Object to retype")
+  (param type-src ANY "Object whose type to copy")
+  (returns ANY "The retyped object"))
+
+; === Documentation system (x/doc/doc) ===
+
+(doc doc "Attach documentation metadata to a definition, provide, or bare symbol."
+  (note "Three forms: (doc (def name val) meta... desc), (doc (provide name syms) meta... desc), (doc name meta... desc)")
+  (note "Meta forms: (param name TYPE desc), (returns TYPE desc), (example expr result), (see name), (note text)"))
+
+(doc note "Section marker for documentation grouping. No-op at runtime."
+  (param text STRING "Section description"))
+
+(doc help "Look up documentation in the REPL."
+  (note "(help) shows overview. (help name) shows function or module docs. (help modules) lists all modules."))
+
+(doc apropos "Search documentation by name substring."
+  (param str STRING "Substring to search for"))
+
+(doc modules "List all known modules with load status and descriptions.")
+
+(doc (provide x/doc/doc-prims)
+  "Retroactive documentation for C primitives, boot forms, and type system functions.")

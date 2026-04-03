@@ -1,9 +1,7 @@
 ; list.x -- List operations
 (import x/core/logic)
 
-; Convert any iterable to a list. Lists/nil pass through unchanged.
-; Note: iter-based path may not work for all types yet
-(def as-list
+(doc (def as-list
   (fn (_ x)
     (if (or (null? x) (pair? x)) x
       (let ((it (iter x)))
@@ -11,6 +9,9 @@
           (let ((v (it)))
             (if (null? v) () (pair v (self))))))
         (%go)))))
+  (param x ANY "A list, nil, or iterable (e.g. vector)")
+  (returns LIST "The input as a proper list")
+  "Convert any iterable to a list. Lists and nil pass through unchanged.")
 
 (note "Folds")
 
