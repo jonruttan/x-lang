@@ -1,9 +1,12 @@
-; file.x -- File I/O constants and operations
+; file.x -- File I/O via POSIX syscalls
+;
+; Wraps low-level syscalls with symbolic mode flags.
+; Requires x-or dialect (syscall primitive).
 (import x/core/list)
 (import x/core/alist)
 
-; File open mode flags
-(def file-modes (list
+; File open mode flags (Linux O_* constants)
+(doc (def file-modes (list
   (list (lit accmode)    3)        ; 00000003
   (list (lit rdonly)     0)        ; 00000000
   (list (lit wronly)     1)        ; 00000001
@@ -25,9 +28,10 @@
   (list (lit sync)       1048576)  ; 04000000
   (list (lit path)       2097152)  ; 010000000
 ))
+  "Alist of symbolic file open mode flags to numeric O_* values.")
 
-; Stat mode flags
-(def stat-flags (list
+; Stat mode flags (Linux S_* constants)
+(doc (def stat-flags (list
   (list (lit ifmt)   61440)  ; 0170000 - these bits determine file type
   (list (lit ifdir)  16384)  ; 0040000 - directory
   (list (lit ifchr)  8192)   ; 0020000 - character device
@@ -43,28 +47,51 @@
   (list (lit iwrite) 128)    ; 00200 - write by owner
   (list (lit iexec)  64)     ; 00100 - execute by owner
 ))
+  "Alist of stat mode flags to numeric S_* values.")
 
-; File I/O functions
-(def fopen (fn (pathname mode)
+; --- File I/O functions ---
+
+(doc (def fopen (fn (pathname mode)
   (if (symbol? mode)
     (set! mode (first (assoc-get mode file-modes))))
   (syscall (syscall-id (lit open)) pathname mode)))
+  (param pathname STRING "File path to open")
+  (param mode ANY "Numeric flags or symbol from file-modes (e.g. rdonly, wronly, rdwr)")
+  (returns INTEGER "File descriptor, or negative on error")
+  "Open a file, returning a file descriptor.")
 
-(def fclose (fn (fd)
+(doc (def fclose (fn (fd)
   (syscall (syscall-id (lit close)) fd)))
+  (param fd INTEGER "File descriptor to close")
+  (returns INTEGER "0 on success, negative on error")
+  "Close a file descriptor.")
 
-(def fread (fn (fd buffer size)
+(doc (def fread (fn (fd buffer size)
   (syscall (syscall-id (lit read)) fd buffer size)))
+  (param fd INTEGER "File descriptor to read from")
+  (param buffer STRING "Buffer to read into")
+  (param size INTEGER "Maximum bytes to read")
+  (returns INTEGER "Bytes read, 0 at EOF, negative on error")
+  "Read bytes from a file descriptor into a buffer.")
 
-(def fwrite (fn (fd buffer size)
+(doc (def fwrite (fn (fd buffer size)
   (syscall (syscall-id (lit write)) fd buffer size)))
+  (param fd INTEGER "File descriptor to write to")
+  (param buffer STRING "Data to write")
+  (param size INTEGER "Number of bytes to write")
+  (returns INTEGER "Bytes written, or negative on error")
+  "Write bytes from a buffer to a file descriptor.")
 
-(def fgetc (fn (fd)
+(doc (def fgetc (fn (fd)
   (let ((buffer (make-str 1)))
     (let ((bytes-read (fread fd buffer 1)))
       (if (<= bytes-read 0)
         (- 0 1)
         (str-ref buffer 0))))))
+  (param fd INTEGER "File descriptor to read from")
+  (returns CHAR "Character read, or -1 at EOF")
+  "Read a single character from a file descriptor.")
 
-(provide x/sys/file
+(doc (provide x/sys/file
   file-modes stat-flags fopen fclose fread fwrite fgetc)
+  "File I/O via POSIX syscalls with symbolic mode flags.")
