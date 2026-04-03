@@ -182,8 +182,8 @@
 
 ; --- Load architecture ---
 (if %asm-arm64?
-  (include "lib/x/asm/arm64.x")
-  (include "lib/x/asm/x86_64.x"))
+  (include "lib/x/platform/arm64.x")
+  (include "lib/x/platform/x86_64.x"))
 
 (doc (provide x/asm
   asm-new asm-emit! asm-label! asm-patch! asm-pos asm-finalize! asm-free!

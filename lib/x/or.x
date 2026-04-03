@@ -11,9 +11,9 @@
 (import x/type/regex)
 
 ; --- System extensions ---
-(include "lib/x/or/syscall.x")
+(include "lib/x/platform/syscall.x")
 (include "lib/x/sys/file.x")
-(include "lib/x/or/socket.x")
+(include "lib/x/platform/socket.x")
 
 ; --- Character constants ---
 (def #newline (substring "\n" 0 1))
