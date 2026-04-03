@@ -31,4 +31,5 @@
     (lit none) (lit stream) (lit dgram) (lit raw) (lit rdm)
     (lit seqpacket) (lit dccp) () () () (lit packet)))))
 
-(provide x/platform/socket socketcall-id protocol-format-id sock-id)
+(doc (provide x/platform/socket socketcall-id protocol-format-id sock-id)
+  "Socket constant lookup tables for Linux socketcall, protocol families, and socket types.")
