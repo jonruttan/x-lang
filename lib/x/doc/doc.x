@@ -341,6 +341,7 @@
     (display "  (help)          show this overview") (newline)
     (display "  (help name)     docs for a function or operative") (newline)
     (display "  (help module)   list a module's exports") (newline)
+    (display "  (modules)       list all available modules") (newline)
     (display "  (apropos \"str\") search by name substring") (newline)
     (newline)
     (display "Modules:") (newline)
@@ -365,15 +366,18 @@
       (%display-overview)
       (do
         (def %h-name (first args))
-        (def %mod (%module-lookup %h-name))
-        (if (not (null? %mod))
-          (%display-module %mod)
+        (if (eq? %h-name (lit modules))
+          (modules)
           (do
-            (def %doc-entry (%doc-lookup %h-name))
-            (if (null? %doc-entry)
-              (do (display "No documentation for ")
-                  (display %h-name) (newline))
-              (%display-doc %doc-entry))))))))
+            (def %mod (%module-lookup %h-name))
+            (if (not (null? %mod))
+              (%display-module %mod)
+              (do
+                (def %doc-entry (%doc-lookup %h-name))
+                (if (null? %doc-entry)
+                  (do (display "No documentation for ")
+                      (display %h-name) (newline))
+                  (%display-doc %doc-entry))))))))))
 
 ; apropos: search doc registry by name substring
 (def apropos
@@ -394,6 +398,53 @@
             (self (rest entries))))))
     (%search (first %doc-registry-cell))))
 
-(doc (provide x/doc/doc doc note help apropos)
+; --- Module discovery ---
+
+; Reverse %module-resolve: "lib/x/core/list.x" -> x/core/list symbol
+; Returns () for paths that aren't modules (e.g. "lib/x-core.x")
+; Reverse %module-resolve: "lib/x/core/list.x" -> x/core/list symbol
+; Uses only primitives available at doc.x load time (no str-starts?/str-ends?)
+(def %path->module-name
+  (fn (_ path)
+    (def %len (str-length path))
+    (if (< %len 7) ()
+      (if (not (str=? (substring path 0 4) "lib/")) ()
+        (if (not (str=? (substring path (- %len 2) %len) ".x")) ()
+          (do
+            (def %inner (substring path 4 (- %len 2)))
+            (if (not (str=? (substring %inner 0 2) "x/")) ()
+              (str->symbol %inner))))))))
+
+; Check if module name is in the loaded registry
+(def %module-is-loaded?
+  (fn (_ name)
+    (not (null? (%registry-find %module-registry-cell name)))))
+
+; modules: list all known modules with load status
+(def modules
+  (fn (_ )
+    (display "Modules:") (newline)
+    (def %show
+      (fn (self paths)
+        (if (not (null? paths))
+          (do
+            (def %name (%path->module-name (first paths)))
+            (if (not (null? %name))
+              (do
+                (display "  ")
+                (display %name)
+                (if (%module-is-loaded? %name)
+                  (do
+                    (display "  [loaded]")
+                    (def %md (%doc-lookup %name))
+                    (if (not (null? %md))
+                      (if (not (str=? (%doc-entry-desc %md) ""))
+                        (do (display " -- ") (display (%doc-entry-desc %md))))))
+                  (display "  [available]"))
+                (newline)))
+            (self (rest paths))))))
+    (%show (first %include-list-cell))))
+
+(doc (provide x/doc/doc doc note help apropos modules)
   (note "doc wraps def or provide for metadata. help for REPL lookup. apropos for search.")
   "Inline documentation system.")
