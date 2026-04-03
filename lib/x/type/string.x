@@ -1,7 +1,7 @@
 ; string.x -- String utilities
 (import x/type/char)
 (import x/core/list)
-(import x/core/derived)
+(import x/core/syntax)
 
 (note "Construction")
 

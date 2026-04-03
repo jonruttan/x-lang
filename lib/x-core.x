@@ -264,7 +264,7 @@
     (pair "lib/x/core/logic.x"
     (pair "lib/x/core/list.x"
     (pair "lib/x/core/math.x"
-    (pair "lib/x/core/derived.x"
+    (pair "lib/x/core/syntax.x"
     (pair "lib/x/core/numeric.x"
     (pair "lib/x/core/alist.x"
     (pair "lib/x/type/char.x"
@@ -339,7 +339,7 @@
   (include "lib/x/core/logic.x")
   (include "lib/x/core/list.x")
   (include "lib/x/core/math.x")
-  (include "lib/x/core/derived.x")
+  (include "lib/x/core/syntax.x")
   (include "lib/x/core/numeric.x")
   ; --- Save integer primitives and make arithmetic variadic ---
 

@@ -131,6 +131,6 @@
           (#t (self (rest cls))))))
     (case-loop clauses)))
 
-(doc (provide x/core/derived when unless let* letrec cond case)
+(doc (provide x/core/syntax when unless let* letrec cond case)
   (note "These are operatives that extend the core syntax.")
   "Derived syntax forms: cond, case, when, unless, let*, letrec.")
