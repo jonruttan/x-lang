@@ -369,6 +369,34 @@
   (param x ANY "Value to test")
   (returns BOOLEAN "t if nil"))
 
+(doc pair? "Test if a value is a pair (cons cell)."
+  (param x ANY "Value to test")
+  (returns BOOLEAN "t if pair"))
+
+(doc atom? "Test if a value is an atom (not a pair)."
+  (param x ANY "Value to test")
+  (returns BOOLEAN "t if not a pair"))
+
+(doc number? "Test if a value is an integer."
+  (param x ANY "Value to test")
+  (returns BOOLEAN "t if integer"))
+
+(doc str? "Test if a value is a string."
+  (param x ANY "Value to test")
+  (returns BOOLEAN "t if string"))
+
+(doc symbol? "Test if a value is a symbol."
+  (param x ANY "Value to test")
+  (returns BOOLEAN "t if symbol"))
+
+(doc char? "Test if a value is a character."
+  (param x ANY "Value to test")
+  (returns BOOLEAN "t if character"))
+
+(doc procedure? "Test if a value is callable (procedure or primitive)."
+  (param x ANY "Value to test")
+  (returns BOOLEAN "t if procedure or primitive"))
+
 (doc if "Conditional: evaluate test, then branch."
   (param test ANY "Condition expression")
   (param then ANY "True branch")
@@ -409,6 +437,11 @@
   (param args ANY "Zero or more expressions")
   (returns ANY "First truthy value, or nil")
   (example "(or #f 42)" "42"))
+
+(doc time "Time an expression's evaluation in microseconds."
+  (param expr ANY "Expression to time")
+  (returns ANY "Result of expr (prints elapsed time as side effect)")
+  (example "(time (fold + 0 (range 0 1000)))" "499500"))
 
 (doc convert "Convert a value between types."
   (param val ANY "Value to convert")

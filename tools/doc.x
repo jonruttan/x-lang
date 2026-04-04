@@ -1,16 +1,26 @@
 ; doc.x -- Offline documentation generator (entry script)
 ;
-; Reads a source file (as a quoted string on stdin), tokenizes it,
-; walks the token tree to extract (doc ...) and (note ...) forms,
-; and outputs Markdown.
+; Reads two strings from stdin:
+;   1. doc-prims.x content (retroactive docs for boot modules)
+;   2. Source file content (the file being documented)
+;
+; Tokenizes both, builds a lookup alist from doc-prims.x, then walks
+; the source tokens using the alist as fallback for bare (def ...) forms.
 
 (do
   (import x/doc/doc-gen)
 
-  ; --- Tokenize source ---
-  (def %input (read))
-  (def %doc-base (make-base))
-  (def %tokens (token-read-string %doc-base %input))
+  ; --- Read inputs ---
+  (def %prims-input (read))
+  (def %source-input (read))
 
-  ; --- Generate ---
-  (doc-walk %tokens))
+  ; --- Tokenize both with a fresh base ---
+  (def %doc-base (make-base))
+  (def %prims-tokens (token-read-string %doc-base %prims-input))
+  (def %source-tokens (token-read-string %doc-base %source-input))
+
+  ; --- Build lookup alist from doc-prims tokens ---
+  (def %prims-alist (doc-build-lookup %prims-tokens))
+
+  ; --- Generate Markdown ---
+  (doc-walk-with-prims %source-tokens %prims-alist))

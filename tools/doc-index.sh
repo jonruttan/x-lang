@@ -1,60 +1,69 @@
 #!/bin/sh
 # doc-index.sh -- Generate master index for x-lang reference docs
+#
+# Scans the docs/ref/x/ directory structure directly rather than
+# querying the module registry, so all generated docs appear.
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-X="${ROOT}/x"
-LIB="${ROOT}/lib/x-core.x"
+DOCDIR="${ROOT}/docs/ref/x"
 
-TMPINPUT=$(mktemp)
-cat > "$TMPINPUT" <<'XEOF'
-(do
-  (display "# x-lang Reference\n\n")
-  (display "Generated from source by `make doc-x`.\n\n")
+echo "# x-lang Reference"
+echo
+echo "Generated from source by \`make doc-x\`."
+echo
 
-  (def %modules (first %module-registry-cell))
+# Group labels in display order
+for group in boot:Bootstrap core:Core type:Types sys:System num:"Numeric Tower" doc:Documentation tool:Tools platform:Platform; do
+    dir="${group%%:*}"
+    label="${group#*:}"
 
-  (def %groups (list
-    (pair "x/boot" "Bootstrap")
-    (pair "x/core" "Core")
-    (pair "x/type" "Types")
-    (pair "x/sys"  "System")
-    (pair "x/num"  "Numeric Tower")
-    (pair "x/doc"  "Documentation")
-    (pair "x/tool" "Tools")
-    (pair "x/platform" "Platform")))
+    if [ -d "${DOCDIR}/${dir}" ]; then
+        echo "## ${label}"
+        echo
 
-  (for-each
-    (fn (_ group)
-      (def %prefix (first group))
-      (def %label (rest group))
-      (def %found
-        (filter
-          (fn (_ mod)
-            (def %name (symbol->str (first mod)))
-            (def %plen (str-length %prefix))
-            (if (< (str-length %name) %plen) #f
-              (str=? (substring %name 0 %plen) %prefix)))
-          %modules))
-      (if (not (null? %found))
-        (do
-          (display "## ") (display %label) (newline) (newline)
-          (for-each
-            (fn (_ mod)
-              (def %name (first mod))
-              (def %name-str (symbol->str %name))
-              (def %rel (str-append (substring %name-str 2 (str-length %name-str)) ".md"))
-              (display "- [") (display %name) (display "](") (display %rel) (display ")")
-              (def %doc-entry (%doc-lookup %name))
-              (if (not (null? %doc-entry))
-                (if (not (str=? (%doc-entry-desc %doc-entry) ""))
-                  (do (display " — ") (display (%doc-entry-desc %doc-entry)))))
-              (newline))
-            %found)
-          (newline))))
-    %groups))
-XEOF
+        for f in "${DOCDIR}/${dir}"/*.md; do
+            [ -f "$f" ] || continue
+            base=$(basename "$f" .md)
+            [ "$base" = "index" ] && continue
 
-cat "$LIB" "$TMPINPUT" | "$X" 2>/dev/null
-rm -f "$TMPINPUT"
+            # Extract title from first heading
+            title=$(head -5 "$f" | grep '^# ' | head -1 | sed 's/^# //')
+            [ -z "$title" ] && title="x/${dir}/${base}"
+
+            # Extract description from first non-empty line after heading
+            desc=$(awk '/^# /{found=1; next} found && /^[^#\[]/ && !/^$/{print; exit}' "$f")
+
+            printf -- "- [%s](%s/%s.md)" "$title" "$dir" "$base"
+            [ -n "$desc" ] && printf " — %s" "$desc"
+            echo
+        done
+
+        echo
+    fi
+done
+
+# Top-level files (and.x, or.x, constructs.x, x-core.x)
+has_toplevel=0
+for f in "${DOCDIR}"/*.md; do
+    [ -f "$f" ] || continue
+    base=$(basename "$f" .md)
+    [ "$base" = "index" ] && continue
+
+    if [ "$has_toplevel" -eq 0 ]; then
+        echo "## Top-level"
+        echo
+        has_toplevel=1
+    fi
+
+    title=$(head -5 "$f" | grep '^# ' | head -1 | sed 's/^# //')
+    [ -z "$title" ] && title="$base"
+    desc=$(awk '/^# /{found=1; next} found && /^[^#\[]/ && !/^$/{print; exit}' "$f")
+
+    printf -- "- [%s](%s.md)" "$title" "$base"
+    [ -n "$desc" ] && printf " — %s" "$desc"
+    echo
+done
+
+[ "$has_toplevel" -eq 1 ] && echo

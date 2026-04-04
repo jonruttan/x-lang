@@ -160,6 +160,36 @@
   (param info LIST "Extracted doc info from doc-extract")
   "Emit a single function's documentation as Markdown.")
 
+; --- Lookup alist for retroactive docs ---
+
+(doc (def doc-build-lookup
+  (fn (self tokens)
+    (if (null? tokens) ()
+      (let ((tok (first tokens)))
+        (if (doc-form? tok)
+          (do
+            (def %info (doc-extract tok))
+            (def %name (nth 0 %info))
+            (if (symbol? %name)
+              (pair (pair (symbol->str %name) %info)
+                    (self (rest tokens)))
+              (self (rest tokens))))
+          (self (rest tokens)))))))
+  (param tokens LIST "Token list (e.g. from tokenizing doc-prims.x)")
+  (returns LIST "Alist of (name-string . extracted-7-tuple) pairs")
+  "Build a lookup alist from (doc ...) forms in a token stream.")
+
+(doc (def doc-lookup-alist
+  (fn (self alist name-str)
+    (if (null? alist) ()
+      (if (str=? (first (first alist)) name-str)
+        (rest (first alist))
+        (self (rest alist) name-str)))))
+  (param alist LIST "Alist from doc-build-lookup")
+  (param name-str STRING "Function name as string")
+  (returns LIST "Extracted 7-tuple, or () if not found")
+  "Cross-base-safe lookup in a doc alist by name string.")
+
 ; --- Token tree walker ---
 
 ; --- Find the (doc (provide ...)) or (provide ...) form in tokens ---
@@ -177,101 +207,54 @@
             (list (first (rest tok)) "" () () () () ())
             (self (rest tokens))))))))
 
-; --- Emit body (everything except the provide heading) ---
+; --- Emit body with prims alist fallback and deduplication ---
 
-(def %doc-walk-body
-  (fn (self tokens)
+(def %doc-seen-has?
+  (fn (self seen name-str)
+    (if (null? seen) #f
+      (if (str=? (first seen) name-str) #t
+        (self (rest seen) name-str)))))
+
+(def %doc-walk-body-with-prims
+  (fn (self tokens prims-alist seen)
     (if (null? tokens) ()
-      (let ((tok (first tokens))
-            (%rest (rest tokens)))
-        (if (doc-form? tok)
-          (let ((%second (first (rest tok))))
-            (if (doc-provide-form? %second)
-              (self %rest)
-              (do (doc-emit-entry (doc-extract tok)) (self %rest))))
-        (if (doc-note-form? tok)
-          (do (if (not (null? (rest tok)))
-                (do (display "## ") (display (first (rest tok))) (newline) (newline)))
-              (self %rest))
-        (if (doc-def-form? tok)
-          (let ((%dname (first (rest tok))))
-            (if (str=? (substring (symbol->str %dname) 0 1) "%")
-              (self %rest)
-              (do
-                ; Check doc registry for retroactive docs (e.g. from doc-prims.x)
-                ; Use string comparison (cross-base safe) since tokens
-                ; come from a different base than the doc registry.
-                (def %dname-str (symbol->str %dname))
-                (def %reg-entry
-                  (let ((%go (fn (self alist)
-                    (if (null? alist) ()
-                      (if (str=? (symbol->str (first (first alist))) %dname-str)
-                        (first alist)
-                        (self (rest alist)))))))
-                    (%go (first %doc-registry-cell))))
-                (if (not (null? %reg-entry))
-                  ; Emit from registry entry (untagged format).
-                  ; Registry: (name desc returns params examples sees notes)
-                  (do
-                    (display "### `") (display %dname) (display "`") (newline) (newline)
-                    ; Description
-                    (def %r-desc (%doc-entry-desc %reg-entry))
-                    (if (not (str=? %r-desc ""))
-                      (do (display %r-desc) (newline) (newline)))
-                    ; Notes (bare strings)
-                    (def %r-notes (%doc-entry-notes %reg-entry))
-                    (if (not (null? %r-notes))
-                      (for-each (fn (_ n)
-                        (display "> ") (display n) (newline) (newline))
-                        %r-notes))
-                    ; Parameters (untagged triples: name TYPE "desc")
-                    (def %r-params (%doc-entry-params %reg-entry))
-                    (if (not (null? %r-params))
-                      (do (display "**Parameters:**") (newline) (newline)
-                        (for-each (fn (_ p)
-                          (display "- **") (display (first p)) (display "**")
-                          (if (not (null? (rest p)))
-                            (do (display " : `") (display (first (rest p))) (display "`")))
-                          (if (not (null? (rest (rest p))))
-                            (if (str? (first (rest (rest p))))
-                              (do (display " — ") (display (first (rest (rest p)))))))
-                          (newline))
-                          %r-params)
-                        (newline)))
-                    ; Returns (untagged pair: TYPE "desc")
-                    (def %r-ret (%doc-entry-returns %reg-entry))
-                    (if (not (null? %r-ret))
-                      (do (display "**Returns:** `") (display (first %r-ret)) (display "`")
-                        (if (not (null? (rest %r-ret)))
-                          (if (str? (first (rest %r-ret)))
-                            (do (display " — ") (display (first (rest %r-ret))))))
-                        (newline) (newline)))
-                    ; Examples (dotted pairs: ("in" . "out"))
-                    (def %r-examples (%doc-entry-examples %reg-entry))
-                    (if (not (null? %r-examples))
-                      (do (display "**Examples:**") (newline) (newline)
-                        (display "```") (newline)
-                        (for-each (fn (_ ex)
-                          (display (first ex)) (display " => ")
-                          (display (rest ex)) (newline))
-                          %r-examples)
-                        (display "```") (newline) (newline)))
-                    ; See also (bare symbols)
-                    (def %r-sees (%doc-entry-sees %reg-entry))
-                    (if (not (null? %r-sees))
-                      (do (display "**See also:** ")
-                        (for-each (fn (_ s)
-                          (display "[`") (display s) (display "`](#")
-                          (display s) (display ") "))
-                          %r-sees)
-                        (newline) (newline))))
-                  (do (display "### `") (display %dname) (display "`") (newline) (newline)))
-                (self %rest))))
-          (self %rest))))))))
+      (do
+        (def %tok (first tokens))
+        (def %rest (rest tokens))
+        (if (doc-form? %tok)
+          (if (doc-provide-form? (first (rest %tok)))
+            (self %rest prims-alist seen)
+            (do
+              (def %info (doc-extract %tok))
+              (def %name-str (symbol->str (nth 0 %info)))
+              (if (%doc-seen-has? seen %name-str)
+                (self %rest prims-alist seen)
+                (do (doc-emit-entry %info)
+                    (self %rest prims-alist (pair %name-str seen))))))
+        (if (doc-note-form? %tok)
+          (do (if (not (null? (rest %tok)))
+                (do (display "## ") (display (first (rest %tok))) (newline) (newline)))
+              (self %rest prims-alist seen))
+        (if (doc-def-form? %tok)
+          (do
+            (def %dname (first (rest %tok)))
+            (def %dname-str (symbol->str %dname))
+            (if (str=? (substring %dname-str 0 1) "%")
+              (self %rest prims-alist seen)
+              (if (%doc-seen-has? seen %dname-str)
+                (self %rest prims-alist seen)
+                (do
+                  (def %prims-entry (doc-lookup-alist prims-alist %dname-str))
+                  (if (not (null? %prims-entry))
+                    (doc-emit-entry %prims-entry)
+                    (do (display "### `") (display %dname) (display "`") (newline) (newline)))
+                  (self %rest prims-alist (pair %dname-str seen))))))
+          (self %rest prims-alist seen))))))))
 
-(doc (def doc-walk
-  (fn (self tokens)
-    ; First pass: find the provide form and emit it as page header
+; --- Page header emission ---
+
+(def %doc-emit-page-header
+  (fn (_ tokens)
     (def %provide (%doc-find-provide tokens))
     (if (not (null? %provide))
       (do
@@ -290,9 +273,25 @@
           (do (display (nth 1 %provide)) (newline) (newline)))
         (if (not (null? (nth 6 %provide)))
           (for-each (fn (_ n) (display "> ") (display (first (rest n))) (newline) (newline))
-            (nth 6 %provide)))))
-    ; Second pass: emit all function/note entries (skip provide)
-    (%doc-walk-body tokens)))
+            (nth 6 %provide)))))))
+
+; --- Public walkers ---
+
+(doc (def doc-walk-with-prims
+  (fn (_ tokens prims-alist)
+    (%doc-emit-page-header tokens)
+    ; Build local doc lookup from standalone (doc name ...) forms in source,
+    ; then merge with prims-alist so bare defs find their docs
+    (def %local-alist (doc-build-lookup tokens))
+    (def %merged (append %local-alist prims-alist))
+    (%doc-walk-body-with-prims tokens %merged ())))
+  (param tokens LIST "Source file token list")
+  (param prims-alist LIST "Alist from doc-build-lookup (or () for none)")
+  "Walk source tokens, using prims-alist as fallback docs for bare defs.")
+
+(doc (def doc-walk
+  (fn (_ tokens)
+    (doc-walk-with-prims tokens ())))
   (param tokens LIST "Token list from token-read-string")
   "Walk a token tree, extracting and emitting all documentation as Markdown.")
 
