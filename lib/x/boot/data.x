@@ -1,12 +1,6 @@
-; data.x -- Pair and data accessors
+; data.x -- Pair and data accessors (bootstrap)
 ;
 ; Derived pair operations and low-level integer slot access.
-; Uses only C primitives (match, obj-set!, ptr-ref-word, ptr-set-word!).
-
-; Ensure do is available
-(match
-  ((guard (e ()) (eval (lit do))) ())
-  (#t (include "lib/x/boot/operatives.x")))
 
 (def set-first! (fn (_ p v) (obj-set! p 0 v) p))
 (def set-rest! (fn (_ p v) (obj-set! p 1 v) p))

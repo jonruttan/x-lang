@@ -2,10 +2,7 @@
 ;
 ; Defines if and let as operatives built on match.
 
-; Ensure null? is available
-(match
-  ((guard (e ()) (eval (lit null?))) ())
-  (#t (include "lib/x/boot/predicates.x")))
+(import x/core/predicates)
 
 (def if
   (op (test then . else)
@@ -39,3 +36,5 @@
     (apply
       (eval (pair (lit fn) (pair (pair (lit _) (%let-params bindings)) body)) e)
       (%let-vals bindings e))))
+
+(provide x/core/control if let)

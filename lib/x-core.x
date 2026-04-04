@@ -12,26 +12,25 @@
 ;     (   )
 ;      " "
 
-; --- Boot (evaluated by C read-eval loop, no module system yet) ---
+; --- Bootstrap (minimum to get provide/import working) ---
 (include "lib/x/boot/operatives.x")
-(include "lib/x/boot/predicates.x")
 (include "lib/x/boot/data.x")
 (include "lib/x/boot/string.x")
 (include "lib/x/boot/module.x")
-(include "lib/x/boot/gc.x")
-
-; --- Core control flow (if, let) ---
-(include "lib/x/core/control.x")
 
 (do
   (def x-lib-version "0.2.0")
 
   ; Pre-register all library paths so import calls are no-ops
   (set-first! %include-list-cell
+    (pair "lib/x/core/predicates.x"
+    (pair "lib/x/core/control.x"
+    (pair "lib/x/sys/gc.x"
     (pair "lib/x/doc/doc.x"
     (pair "lib/x/doc/doc-prims.x"
     (pair "lib/x/sys/type.x"
     (pair "lib/x/sys/convert.x"
+    (pair "lib/x/core/boolean.x"
     (pair "lib/x/core/fn.x"
     (pair "lib/x/core/logic.x"
     (pair "lib/x/core/list.x"
@@ -39,25 +38,35 @@
     (pair "lib/x/core/syntax.x"
     (pair "lib/x/num/tower.x"
     (pair "lib/x/core/alist.x"
+    (pair "lib/x/core/arithmetic.x"
+    (pair "lib/x/sys/intrinsics.x"
     (pair "lib/x/type/char.x"
     (pair "lib/x/type/string.x"
     (pair "lib/x/type/vector.x"
     (pair "lib/x/type/promise.x"
     (pair "lib/x/sys/token.x"
-      (first %include-list-cell))))))))))))))))))
+    (pair "lib/x/core/quasi.x"
+    (pair "lib/x/core/repl.x"
+    (pair "lib/x/core/banner.x"
+      (first %include-list-cell)))))))))))))))))))))))))))
 
-  ; --- Type system internals (before doc, cannot use provide) ---
+  ; --- Standard modules ---
+  (include "lib/x/core/predicates.x")
+  (include "lib/x/core/control.x")
+  (include "lib/x/sys/gc.x")
+
+  ; Type system internals (before doc, cannot use provide)
   (include "lib/x/sys/type.x")
   (include "lib/x/sys/convert.x")
 
-  ; --- Documentation system ---
+  ; Documentation system
   (include "lib/x/doc/doc.x")
   (include "lib/x/doc/doc-prims.x")
 
-  ; --- Boolean operatives (and, or, time) ---
-  (include "lib/x/boot/and-or.x")
+  ; Boolean operatives
+  (include "lib/x/core/boolean.x")
 
-  ; --- Core library ---
+  ; Core library
   (include "lib/x/core/fn.x")
   (include "lib/x/core/logic.x")
   (include "lib/x/core/list.x")
@@ -65,13 +74,13 @@
   (include "lib/x/core/syntax.x")
   (include "lib/x/num/tower.x")
 
-  ; --- Variadic arithmetic (needs fold from list.x) ---
-  (include "lib/x/boot/arithmetic.x")
+  ; Variadic arithmetic
+  (include "lib/x/core/arithmetic.x")
 
-  ; --- Intrinsics (tokenizer helpers, stderr, profile dump) ---
-  (include "lib/x/boot/intrinsics.x")
+  ; Tokenizer helpers
+  (include "lib/x/sys/intrinsics.x")
 
-  ; --- Type extensions ---
+  ; Type extensions
   (include "lib/x/core/alist.x")
   (include "lib/x/type/char.x")
   (include "lib/x/type/string.x")
@@ -79,14 +88,14 @@
   (include "lib/x/type/promise.x")
   (include "lib/x/sys/token.x")
 
-  ; --- Quasi-quoting (needs append from list.x, and/or) ---
-  (include "lib/x/boot/quasi.x")
+  ; Quasi-quoting
+  (include "lib/x/core/quasi.x")
 
-  ; --- REPL ---
-  (include "lib/x/boot/repl.x")
+  ; REPL
+  (include "lib/x/core/repl.x")
 
-  ; --- Banner ---
-  (include "lib/x/boot/banner.x")
+  ; Banner
+  (include "lib/x/core/banner.x")
 
   ; --- Provide ---
   (doc (provide x/sys/type

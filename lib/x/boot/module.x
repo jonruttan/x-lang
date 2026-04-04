@@ -1,12 +1,7 @@
-; module.x -- Include-once and module system
+; module.x -- Include-once and module system (bootstrap)
 ;
 ; Provides include-once, require-once, provide, import.
-; Uses match instead of if.
-
-; Ensure dependencies are loaded
-(match
-  ((guard (e ()) (eval (lit str=?))) ())
-  (#t (include "lib/x/boot/string.x")))
+; Last bootstrap file — after this, normal modules can use provide/import.
 
 ; Extend base tree: add include-list cell under io-state
 (def %io-state (rest (first (rest (first (%base))))))
@@ -24,7 +19,7 @@
     (def %go
       (fn (self lst)
         (match
-          ((null? lst) #f)
+          ((eq? lst ()) #f)
           ((str=? (first lst) path) #t)
           (#t (self (rest lst))))))
     (%go (first %include-list-cell))))

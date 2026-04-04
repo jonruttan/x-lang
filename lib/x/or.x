@@ -61,15 +61,8 @@
 (def cdddar (fn (_ x) (rest (cddar x))))
 (def cddddr (fn (_ x) (rest (cdddr x))))
 
-; --- Convenience aliases ---
-(def second cadr)
-(def third caddr)
-(def else #t)
-
-; --- Compatibility aliases ---
-(def list-ref (fn (_ lst n) (nth n lst)))
-(def list-tail (fn (_ lst n) (drop n lst)))
-(def str-copy (fn (_ s) (substring s 0 (str-length s))))
+; Convenience aliases (second, third, else, list-ref, list-tail, str-copy)
+; are now provided by x/core/list.
 
 ; --- System functions ---
 (def system
@@ -120,7 +113,7 @@
   caar cadr cdar cddr caaar caadr cadar caddr cdaar cdadr cddar cdddr
   caaaar caaadr caadar caaddr cadaar cadadr caddar cadddr
   cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr
-  second third else list-ref list-tail str-copy system do-loop)
+  system do-loop)
   (note "Experimental/unstable dialect with full toolbox.")
   (note "Includes compiler, POSIX, syscall, file I/O, sockets.")
   (note "Extends arithmetic with bignum, float, rational, complex, regex.")

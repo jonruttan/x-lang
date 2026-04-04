@@ -620,6 +620,40 @@
         (self key (rest alist))))))
   "Look up a key in an alist by equality (equal?).")
 
+; --- Convenience aliases ---
+
+(doc (def second (fn (_ x) (first (rest x))))
+  (param x LIST "A list with at least two elements")
+  (returns ANY "The second element")
+  "Return the second element of a list.")
+
+(doc (def third (fn (_ x) (first (rest (rest x)))))
+  (param x LIST "A list with at least three elements")
+  (returns ANY "The third element")
+  "Return the third element of a list.")
+
+(doc (def else #t)
+  "Alias for #t, for use as the default clause in cond/case.")
+
+; --- Compatibility aliases ---
+
+(doc (def list-ref (fn (_ lst n) (nth n lst)))
+  (param lst LIST "List to index")
+  (param n INTEGER "Zero-based index")
+  (returns ANY "The element at index n")
+  "Return the nth element of a list (Scheme compatibility).")
+
+(doc (def list-tail (fn (_ lst n) (drop n lst)))
+  (param lst LIST "List to take tail of")
+  (param n INTEGER "Number of elements to skip")
+  (returns LIST "The remaining list after dropping n elements")
+  "Return the tail of a list after n elements (Scheme compatibility).")
+
+(doc (def str-copy (fn (_ s) (substring s 0 (str-length s))))
+  (param s STRING "String to copy")
+  (returns STRING "A copy of the string")
+  "Return a copy of a string (Scheme compatibility).")
+
 (doc (provide x/core/list
   as-list fold reduce scan length nth last init append prepend reverse flatten
   map filter for-each flat-map any? every? none? empty?
@@ -629,7 +663,8 @@
   range repeat times unfold iterate zip zip-with
   partition group-by sort sort-by uniq uniq-by intersperse transpose
   update insert remove adjust
-  list? memq member assq assoc)
+  list? memq member assq assoc
+  second third else list-ref list-tail str-copy)
   (note "Accepts any iterable (lists, vectors, custom iterables). Ramda-inspired functional style.")
   (example "(map inc '(1 2 3))" "(2 3 4)")
   "List processing: map, filter, fold, sort, and 60+ functions.")

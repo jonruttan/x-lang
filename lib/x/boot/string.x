@@ -1,18 +1,9 @@
-; string.x -- Boot string operations
+; string.x -- Boot string operations (bootstrap)
 ;
-; Basic string functions needed before the full string library loads.
+; Basic string functions needed by the module system.
 ; Uses match instead of if (if not yet available).
 
-; Ensure dependencies are loaded
-(match
-  ((guard (e ()) (eval (lit pair?))) ())
-  (#t (include "lib/x/boot/predicates.x")))
-(match
-  ((guard (e ()) (eval (lit set-first!))) ())
-  (#t (include "lib/x/boot/data.x")))
-
 (def not (fn (_ x) (match (x #f) (#t #t))))
-(def atom? (fn (_ x) (not (pair? x))))
 (def list (fn (_ . args) args))
 
 (def str-ref (fn (_ s i) (s i)))
@@ -39,7 +30,7 @@
 (def %n2s% %)
 (def number->str
   (fn (self n . rest)
-    (def radix (match ((null? rest) 10) (#t (first rest))))
+    (def radix (match ((eq? rest ()) 10) (#t (first rest))))
     (def %d "0123456789abcdefghijklmnopqrstuvwxyz")
     (match
       ((= n 0) "0")
@@ -56,7 +47,7 @@
 ; str->number: (str->number str [radix]) -> integer or ()
 (def str->number
   (fn (_ s . rest)
-    (def radix (match ((null? rest) 10) (#t (first rest))))
+    (def radix (match ((eq? rest ()) 10) (#t (first rest))))
     (def len (s))
     (match
       ((= len 0) ())
@@ -95,11 +86,11 @@
                         (do
                           (def d (%digit (s i)))
                           (match
-                            ((null? d) ())
+                            ((eq? d ()) ())
                             ((< d radix) (self (+ i 1) (+ (* acc radix) d)))
                             (#t ())))))))
                 (def result (%parse start 0))
                 (match
-                  ((null? result) ())
+                  ((eq? result ()) ())
                   (neg (- 0 result))
                   (#t result))))))))))
