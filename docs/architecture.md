@@ -12,42 +12,49 @@ Each layer expands capabilities without modifying those below it.
 
 **Layer 2: Adaptive Type System.** `make-type` and `make-instance` introduce new types at runtime. Each type is a nested linked list carrying a fixed prefix of dispatch methods (call, eval, write, length, etc.) and an extensible tail for type-specific data. New types plug into the existing evaluation, printing, and comparison infrastructure the moment they are registered. Types registered at startup include symbols, lists, integers, strings, characters, primitives, procedures, operatives, buffers, whitespace, and comments.
 
-**Layer 3: Standard Library.** `lib/x.x` adds approximately 80 functions written in x-lang itself: combinators, list operations, sorting, association lists, string utilities, and vectors. This layer expands the system into type domains the C core does not address.
+**Layer 3: Modular Library.** 50+ x-lang source files organized by domain: core operations (`lib/x/core/`), custom types (`lib/x/type/`), a numeric tower (`lib/x/num/`), system interfaces (`lib/x/sys/`), self-hosted tools (`lib/x/tool/`), documentation (`lib/x/doc/`), and platform-specific code (`lib/x/platform/`). The bootstrap sequence in `lib/x-core.x` pre-registers all module paths and loads 25 core modules via `provide`/`import` with deduplication. This layer is composed into dialects (x-lang, x/and, x/or) that control which capabilities are available.
 
-**Layer 4: DLL Extension (planned).** Native C functions linked as primitives via shared libraries, extending the interpreter with new type domains (floating point, regular expressions, etc.) at native performance.
+**Layer 4: FFI and Native Code.** Dynamic library loading via `dlopen`/`dlsym` (`src/x-prim/ffi.c`), typed foreign calls with convention strings, raw pointer operations, and a JIT compiler (`lib/x/tool/compile.x`, `lib/x/tool/asm.x`) that compiles x-lang functions to native x86_64/ARM64 machine code via a data-driven assembler with mmap execution. POSIX system calls (fork, exec, pipe, dup2, wait, open, close, etc.) are wrapped as x-lang functions through the FFI in `lib/x/sys/posix.x`.
 
 ### The Base Object
 
-The base object (`p_base`) is the interpreter's root context. It is a nested linked list with three top-level fields:
+The base object (`p_base`) is the interpreter's root context. It is a nested linked list split into a "hot" path (environment and control flow, accessed on every eval) and a "cold" path (I/O, metadata, GC hooks, accessed less frequently). Every leaf field is either stack-wrapped `(current . saved)` for dynamic push/pop, or a direct value.
 
 ```
-(
-  (type-alist)
-  (file:in file:out file:err)
-  (env-alist symbol-list expr-list buffer token-cache error-handler tco-expr tco-env)
-)
+base-data
++-- first: hot (env + ctrl)
+|   +-- first: env-group
+|   |   +-- first: env-alist              [S] (current . saved)
+|   |   +-- rest: env-aux
+|   |       +-- first: env-local-boundary [D] direct pointer
+|   |       +-- rest: env-bst
+|   |           +-- first: env-global-tree [D] direct pointer
+|   |           +-- rest: shadow-list      [D] direct list
+|   +-- rest: ctrl-group
+|       +-- first: ctrl-head
+|       |   +-- first: save-stack         [D] direct stack
+|       |   +-- rest: error-handler       [S] (current . saved)
+|       +-- rest: tco
+|           +-- first: tco-expr           [S] (current . saved)
+|           +-- rest: tco-env             [S] (current . saved)
++-- rest: cold (io + meta)
+    +-- first: io-group
+    |   +-- first: io-head
+    |   |   +-- first: type-alist         [S] (current . saved)
+    |   |   +-- rest: files (filein, fileout, fileerr, write-buf, buffer)
+    |   +-- rest: io-state
+    |       +-- first: line               [S]
+    |       +-- rest: booleans (true, false)
+    +-- rest: meta-group
+        +-- first: profile counters (evals, tco, assoc, bst, gc, ...)
+        +-- rest: heap-group, eval-list, token-cache, gc-hooks
 ```
 
-- **type-alist** -- association list of all registered types, keyed by name.
-- **files** -- file descriptors for stdin, stdout, stderr.
-- **env** -- the environment tuple: bindings alist, symbol interning list, expression list, read buffer, token cache, error handler stack, and tail-call optimization state.
+Field access is via nested `first`/`rest` traversal. The macro `x_base_field_env_alist(X)` expands to `x_firstobj(x_firstobj(x_base_hot(X)))`. There is no struct -- the base is the same pair/atom material as every other value. The authoritative layout with all fields and annotations is in `include/x-base-typesystem.h`.
 
-Field access is via nested `first`/`rest` traversal. The macro `x_base_field_env_alist(X)` expands to `x_firstobj(x_restobj(x_restobj(x_firstobj(X))))`. There is no struct -- the base is the same pair/atom material as every other value.
+#### Nil
 
-#### p_base IS nil
-
-The base context object doubles as the nil value for its interpreter. The nil test is:
-
-```c
-int x_obj_isnil(x_obj_t *p_base, x_obj_t *p_obj)
-{
-    return p_obj == p_base || p_obj == NULL;
-}
-```
-
-Any primitive that returns "nothing" returns `p_base`. Any predicate that fails returns `p_base`. Empty lists terminate at `p_base`. This means nil is not a global constant -- it is the specific base object of the interpreter instance that produced the value. Two separate interpreters (created via `make-base`) have distinct nils.
-
-At construction time, the base bootstraps itself: `x_base_make` allocates an atom with `p_base` (initially NULL) as its own nil, then overwrites the atom's datum with the nested context structure. After construction, `p_base` points to a live value that is also the nil sentinel for all operations within that interpreter.
+Nil is `NULL`. The empty list `()` parses to `NULL`, and `x_obj_isnil` checks `p_obj == NULL`. The base object `p_base` is the execution context only -- it is not nil.
 
 ### The Object Model
 
@@ -148,7 +155,7 @@ stdin -> buffer -> tokenizer -> s-expression reader -> evaluator -> writer -> st
 
 2. **Buffer.** A fixed-size `char[]` buffer (`X_CLI_BUFFER_SIZE`, 256 bytes) is wrapped in a buffer type object and attached to the base at `x_base_field_buffer`. The buffer feeds single characters to the tokenizer.
 
-3. **Tokenizer.** `x_token_read` iterates the registered type list. Each type provides an `analyse` method that inspects the buffer to determine if the upcoming bytes match that type, and a `delimit` method that determines token boundaries. The tokenizer dispatches to the first type whose analyse method matches.
+3. **Tokenizer.** `x_token_read` iterates the registered type list. Each type provides an `analyse` method that inspects the buffer to determine if the upcoming bytes match that type, and a `delimit` method that determines token boundaries. The tokenizer dispatches to the highest-scoring type. In the x/and and x/or dialects, analyser functions for numeric types are compiled to native machine code at load time via the JIT compiler, significantly accelerating tokenization.
 
 4. **S-expression reader.** `x_sexp_read` delegates to `x_token_read`. Pair/list syntax is handled by `x_sexp_pair_read` and `x_sexp_list_read`, which recursively call the token reader for sub-expressions. The reader produces a tree of atoms and pairs.
 
@@ -158,22 +165,28 @@ stdin -> buffer -> tokenizer -> s-expression reader -> evaluator -> writer -> st
 
 The REPL loop in `x_cli.c` runs these stages in sequence: prompt, read, eval, print, repeat until EOF.
 
-### Personality System
+### Dialect System
 
-Language semantics are library files that alias x-lang primitives to match another language's naming conventions. The interpreter core has no knowledge of Scheme or Kernel.
+The library is composed into dialects that control what capabilities are loaded. Each dialect includes all of the previous:
 
-**Scheme personality** (`lib/scm.x`): aliases `fn` to `lambda`, `do` to `begin`, `pair` to `cons`, `first`/`rest` to `car`/`cdr`, `lit` to `quote`, `match` to `cond`, etc. Adds `#f` as an alias for `()`. Implements `define` as a wrapper around `def` that supports both variable and function shorthand forms.
+**x-lang** (`lib/x.x` / `lib/x-core.x`): The core dialect. Bootstraps 25 modules providing core operations, combinators, list processing, strings, vectors, promises, quasiquote, and a REPL. No numeric tower or system access.
 
-**Kernel personality** (`lib/krn.x`): aliases `op` to `$vau` (the fundamental Kernel abstraction). Implements `$define!` as an operative. Derives applicatives from operatives via `wrap`. In Kernel, operatives are first-class and applicatives are the derived form -- the inverse of Scheme's model.
+**x/and** (`lib/x-and.x`): Stable full-stack dialect. Adds POSIX wrappers, hash tables, the JIT compiler, and a numeric tower (bignum, float, rational, complex). Each numeric type's tokenizer analyser is compiled to native code immediately after loading, so subsequent source files are parsed through fast compiled analysers rather than interpreted ones.
 
-Both personalities are loaded by concatenation before the program source:
+**x/or** (`lib/x-or.x`): Experimental dialect. Everything in x/and plus raw syscall lookup tables, file I/O, socket constants, car/cdr composition helpers, character constants, and I/O handle constants.
+
+Dialects are selected via the shell wrapper's `-l` flag:
 
 ```sh
-cat lib/x.x lib/scm.x - | ./x
+sh x.sh              # x-lang
+sh x.sh -l x-and     # x/and
+sh x.sh -l x-or      # x/or
 ```
 
-The `-` connects stdin for interactive use after library loading. Without any personality file, the bare interpreter exposes only x-lang primitives.
+Language personalities (R5RS Scheme, R7RS Scheme, Kernel, ASH shell, sweet expressions) are loaded as additional libraries on top of a dialect. The interpreter core has no knowledge of any specific language. Without any library, the bare interpreter exposes only C-level primitives.
 
-### No File I/O
+### I/O Model
 
-The interpreter has no open, close, read-file, or write-file primitives. Its only I/O is reading bytes from stdin and writing bytes to stdout/stderr via POSIX `read`/`write` syscalls on the file descriptors stored in the base object. All code loading happens externally through the shell. This keeps the interpreter minimal and confines filesystem interaction to the host environment.
+The C core has no file-open or file-close primitives. Its only I/O is reading bytes from stdin and writing bytes to stdout/stderr via POSIX `read`/`write` syscalls on the file descriptors stored in the base object. Code loading happens externally through shell concatenation.
+
+The x/and and x/or dialects extend this via the FFI: `lib/x/sys/posix.x` wraps fork, exec, pipe, dup2, wait, open, close, read, write, chdir, getenv, and setenv. `lib/x/sys/file.x` (x/or only) provides higher-level file I/O with symbolic mode flags. This keeps the C core minimal while still supporting full system access when needed.

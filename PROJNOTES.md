@@ -11,38 +11,35 @@ Revision:    6 (2026-03-21)
 
 ### X-Expressions (x-expr) -- Computational Expressions Library
 
-- Simple
-- Minimalist
-- Thread-safe
-- Dynamic type system
-- Type specific evaluators
+**Status: Implemented** (`ext/x-expr/`)
+
+- Simple, minimalist, thread-safe
+- Dynamic type system with type-specific evaluators
 - Multiple independent environments
-- Metacircular evaluator
-- Reflective
-- ANSI / Standard C
-- No external dependencies
+- Metacircular evaluator, reflective
+- ANSI / Standard C, no external dependencies
 
 
-### X-Lang (x-lang) -- Minimalist Dialect
+### X-Lang (xe/xenon) -- Minimalist Dialect
 
-Foundational / Scripting
+**Status: Implemented** (v0.2.0)
 
-- Simple
-- Minimalist
-- Thread-safe
-- Lisp1
-- Metacircular evaluator
-- Dynamic type system
-- Type specific evaluators
-- Reflective
-- Multiple independent environments
-- Embeddable
-- Bootstrap/library
-- ANSI / Standard C
-- No external dependencies
+- Foundational / Scripting
+- Lisp1 with fexpr evaluation model
+- 50+ modular library files
+- Module system (provide/import)
+- JIT compiler (x86_64, ARM64)
+- Numeric tower (bignum, float, rational, complex)
+- POSIX via FFI, regex, vectors, hash tables
+- Self-hosted tools (lint, fmt, cov, profile, doc)
+- Three dialects: x-lang (core), x/and (stable), x/or (experimental)
+- Language personalities: R5RS, R7RS, Kernel, ASH, Sweet
+- ANSI / Standard C, no external dependencies
 
 
-### X/OR (x-or) -- Midsize/Unstable Dialect
+### Neon (ne/neon) -- Midsize/Unstable Dialect
+
+**Status: Aspirational**
 
 Experimental / Hacking
 
@@ -54,7 +51,9 @@ Experimental / Hacking
 - Modules
 
 
-### X/AND (x-and) -- Maximal/Stable X-Lang Dialect
+### Helium (he/helium) -- Maximal/Stable X-Lang Dialect
+
+**Status: Aspirational**
 
 Hardened / Full Stack
 
@@ -70,10 +69,14 @@ Hardened / Full Stack
 
 ### X-Tools System Tools
 
-- Built with X-Pro Lisp
+**Status: Partially Implemented**
 
-- Document generator
-- Package manager(s)
-- Editor
-- Make
-- C Compiler
+- Document generator (implemented: `lib/x/doc/`)
+- Linter (implemented: `lib/x/tool/lint.x`)
+- Formatter (implemented: `lib/x/tool/fmt.x`)
+- Coverage analyzer (implemented: `lib/x/tool/cov.x`)
+- Profiler (implemented: `lib/x/tool/profile.x`)
+- Package manager(s) (aspirational)
+- Editor (aspirational)
+- Make (aspirational)
+- C Compiler (aspirational)
