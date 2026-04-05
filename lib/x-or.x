@@ -23,8 +23,9 @@
   (pair "lib/x/num/float.x"
   (pair "lib/x/num/rational.x"
   (pair "lib/x/num/complex.x"
+  (pair "lib/x/sys/ansi.x"
   (pair "lib/x/or.x"
-    (first %include-list-cell)))))))))))
+    (first %include-list-cell))))))))))))
 ; Load compiler infrastructure (needed for analyser compilation + caching)
 (include "lib/x/sys/posix.x")
 (include "lib/x/core/hash.x")
@@ -96,6 +97,10 @@
 
 ; Load x-or extensions (parsed through all compiled analysers)
 (include "lib/x/or.x")
+
+; ANSI color support (terminal detection + REPL highlighting)
+(include "lib/x/sys/ansi.x")
+
 (set! %lang-name "x-or")
 (set! %lang-version x-lib-version)
 (%banner)

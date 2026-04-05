@@ -41,6 +41,8 @@
 
 (def %c-free (%resolve "free"))
 
+(def %c-isatty (%resolve "isatty"))
+
 (note "Process Control")
 
 ; --- Simple wrappers (ptr-call auto-converts string args to char*) ---
@@ -167,6 +169,13 @@
   (returns STRING "Variable value, or nil if not set")
   "Get the value of an environment variable.")
 
+(doc (def sh-isatty
+  (fn (_ (param fd NUMBER "File descriptor to test"))
+    (= 1 (ptr-call %c-isatty fd))))
+  (returns BOOLEAN "True if fd refers to a terminal")
+  (example "(sh-isatty 1)" "#t")
+  "Test whether a file descriptor refers to a terminal (TTY).")
+
 (note "General utilities")
 
 (doc (def fd-write
@@ -183,7 +192,7 @@
 
 (doc (provide x/sys/posix
   sh-fork sh-getpid sh-close sh-dup2 sh-chdir sh-exit
-  sh-setenv sh-getenv sh-open-read sh-open-write sh-open-append
+  sh-setenv sh-getenv sh-isatty sh-open-read sh-open-write sh-open-append
   sh-pipe sh-wait sh-exec fd-write file-exists?)
   (note "Provides fork, exec, pipe, dup2, wait, open, close, chdir, getenv, setenv.")
   "POSIX system call wrappers via FFI.")

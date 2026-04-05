@@ -241,12 +241,24 @@
 ; note: (note text...) -> no-op, returns nil (standalone section marker)
 (def note (op %note-args e ()))
 
+; --- Color stubs (overridden by x/sys/ansi.x when loaded) ---
+
+(def %c-reset "")
+(def %c-bold "")
+(def %c-dim "")
+(def %c-name "")
+(def %c-type "")
+(def %c-param "")
+(def %c-example "")
+(def %c-error "")
+(def %c-module "")
+
 ; --- Display helpers ---
 
 (def %display-notes
   (fn (_ notes)
     (%doc-for-each
-      (fn (_ n) (display "  ") (display n) (newline))
+      (fn (_ n) (display "  ") (display %c-dim) (display n) (display %c-reset) (newline))
       notes)))
 
 (def %display-params
@@ -254,10 +266,10 @@
     (if (null? ps) ()
       (do
         (display "  ")
-        (display (first (first ps)))
+        (display %c-param) (display (first (first ps))) (display %c-reset)
         (if (not (null? (first (rest (first ps)))))
           (do (display " : ")
-              (display (first (rest (first ps))))))
+              (display %c-type) (display (first (rest (first ps)))) (display %c-reset)))
         (if (not (str=? (first (rest (rest (first ps)))) ""))
           (do (display " -- ")
               (display (first (rest (rest (first ps)))))))
@@ -268,7 +280,7 @@
   (fn (_ ret)
     (if (not (null? ret))
       (do (display "  => ")
-          (display (first ret))
+          (display %c-type) (display (first ret)) (display %c-reset)
           (if (not (str=? (first (rest ret)) ""))
             (do (display " -- ")
                 (display (first (rest ret)))))
@@ -278,8 +290,7 @@
   (fn (_ examples)
     (%doc-for-each
       (fn (_ ex)
-        (display "  > ")
-        (display (first ex))
+        (display "  ") (display %c-example) (display "> ") (display (first ex)) (display %c-reset)
         (display " => ")
         (display (rest ex))
         (newline))
@@ -311,13 +322,13 @@
 
 (def %display-doc
   (fn (_ entry)
-    (display (%doc-entry-name entry))
+    (display %c-name) (display (%doc-entry-name entry)) (display %c-reset)
     (display ": ")
     (display (%doc-entry-desc entry))
     (newline)
     (def %mod (%module-for-sym (%doc-entry-name entry)))
     (if (not (null? %mod))
-      (do (display "  module: ") (display %mod) (newline)))
+      (do (display "  module: ") (display %c-module) (display %mod) (display %c-reset) (newline)))
     (%display-notes (%doc-entry-notes entry))
     (%display-params (%doc-entry-params entry))
     (%display-returns (%doc-entry-returns entry))
@@ -394,8 +405,8 @@
               (do
                 (def %doc-entry (%doc-lookup %h-name))
                 (if (null? %doc-entry)
-                  (do (display "No documentation for ")
-                      (display %h-name) (newline))
+                  (do (display %c-error) (display "No documentation for ")
+                      (display %h-name) (display %c-reset) (newline))
                   (%display-doc %doc-entry))))))))))
 
 ; apropos: search doc registry by name substring

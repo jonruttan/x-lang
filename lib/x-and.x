@@ -23,8 +23,9 @@
   (pair "lib/x/num/float.x"
   (pair "lib/x/num/rational.x"
   (pair "lib/x/num/complex.x"
+  (pair "lib/x/sys/ansi.x"
   (pair "lib/x/and.x"
-    (first %include-list-cell)))))))))))
+    (first %include-list-cell))))))))))))
 ; Load compiler infrastructure FIRST (before numeric tower)
 (include "lib/x/sys/posix.x")
 (include "lib/x/core/hash.x")
@@ -98,6 +99,10 @@
 
 ; Load x-and module (parsed through all compiled analysers)
 (include "lib/x/and.x")
+
+; ANSI color support (terminal detection + REPL highlighting)
+(include "lib/x/sys/ansi.x")
+
 (set! %lang-name "x-and")
 (set! %lang-version x-lib-version)
 (%banner)
