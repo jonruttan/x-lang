@@ -5,7 +5,7 @@
 
 ; Map: square every element
 (display "squares: ")
-(write (map (fn (x) (* x x)) (list 1 2 3 4 5)))
+(write (map (fn (_ x) (* x x)) (list 1 2 3 4 5)))
 (newline)
 
 ; Filter: keep only even numbers
@@ -24,8 +24,8 @@
 (newline)
 
 ; Compose: build a pipeline
-(def add1 (fn (x) (+ x 1)))
-(def double (fn (x) (* x 2)))
+(def add1 (fn (_ x) (+ x 1)))
+(def double (fn (_ x) (* x 2)))
 (def add1-then-double (compose double add1))
 (display "compose: ")
 (display (add1-then-double 5))

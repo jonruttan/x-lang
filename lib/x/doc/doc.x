@@ -236,7 +236,7 @@
           (def %params (%doc-reverse (first %doc-params-acc)))
           (%doc-register! %name (%doc-find-last-string %doc-meta)
             %ret %params %exs %refs %nts)
-          (tail-eval (list (lit def) %name %clean-value) e))))))
+          (tail-eval (list (first def-form) %name %clean-value) e))))))
 
 ; note: (note text...) -> no-op, returns nil (standalone section marker)
 (def note (op %note-args e ()))

@@ -22,7 +22,7 @@
             (self (first t))
             (self (rest t))))))))
 
-(def quasi
+(doc (def quasi
   (op args
     e
     (if (eq? (first args) %expanded)
@@ -30,5 +30,11 @@
       (%seq
         (def %t (%quasi-compile (first args)))
         (%seq (%rewrite args %expanded (pair %t ())) (eval %t))))))
+  (param args ANY "Template expression with optional unquote/unquote-splicing")
+  (returns ANY "Expanded template with substitutions")
+  (note "Compile-on-first-use: the template is compiled to a pair/lit/append tree on first evaluation, then cached.")
+  (example "(def x 1) (quasi (a ,x b))" "(a 1 b)")
+  "Quasiquote: template with unquote and splicing.")
 
-(provide x/core/quasi quasi)
+(doc (provide x/core/quasi quasi)
+  "Quasiquote: template with unquote and splicing.")

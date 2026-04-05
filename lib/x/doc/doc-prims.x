@@ -135,30 +135,33 @@
 
 (note "Arithmetic")
 
-(doc + "Add two integers."
-  (param a INT "First operand")
-  (param b INT "Second operand")
-  (returns INT "Sum"))
+(doc + "Variadic addition. Returns the sum of all arguments."
+  (param args NUMBER "Zero or more numbers")
+  (returns NUMBER "Sum of all arguments, or 0 with no arguments")
+  (example "(+ 1 2 3)" "6")
+  (example "(+)" "0"))
 
-(doc - "Subtract two integers."
-  (param a INT "First operand")
-  (param b INT "Second operand")
-  (returns INT "Difference"))
+(doc - "Variadic subtraction. With one argument, negates. With multiple, folds left."
+  (param args NUMBER "One or more numbers")
+  (returns NUMBER "Difference, or negation with one argument")
+  (example "(- 10 3 2)" "5")
+  (example "(- 5)" "-5"))
 
-(doc * "Multiply two integers."
-  (param a INT "First operand")
-  (param b INT "Second operand")
-  (returns INT "Product"))
+(doc * "Variadic multiplication. Returns the product of all arguments."
+  (param args NUMBER "Zero or more numbers")
+  (returns NUMBER "Product of all arguments, or 1 with no arguments")
+  (example "(* 2 3 4)" "24")
+  (example "(*)" "1"))
 
-(doc / "Integer division."
-  (param a INT "Dividend")
-  (param b INT "Divisor")
-  (returns INT "Quotient"))
+(doc / "Variadic integer division. Folds left."
+  (param args NUMBER "One or more numbers")
+  (returns NUMBER "Quotient from left fold")
+  (example "(/ 100 5 2)" "10"))
 
-(doc % "Integer modulo."
-  (param a INT "Dividend")
-  (param b INT "Divisor")
-  (returns INT "Remainder"))
+(doc % "Variadic modulo. Folds left."
+  (param args NUMBER "Two or more numbers")
+  (returns NUMBER "Remainder from left fold")
+  (example "(% 10 3)" "1"))
 
 (doc ~ "Bitwise NOT."
   (param n INT "Integer")

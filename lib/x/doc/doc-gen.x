@@ -21,6 +21,8 @@
   (if (pair? tok) (doc-sym-is? (first tok) "note") ())))
 (def doc-def-form? (fn (_ tok)
   (if (pair? tok) (doc-sym-is? (first tok) "def") ())))
+(def doc-set-form? (fn (_ tok)
+  (if (pair? tok) (doc-sym-is? (first tok) "set!") ())))
 (def doc-param-form? (fn (_ tok)
   (if (pair? tok) (doc-sym-is? (first tok) "param") ())))
 (def doc-provide-form? (fn (_ tok)
@@ -61,7 +63,7 @@
   (fn (_ form)
     (def %second (first (rest form)))
     (def %meta (rest (rest form)))
-    (if (doc-def-form? %second)
+    (if (or (doc-def-form? %second) (doc-set-form? %second))
       (do
         (def %name (first (rest %second)))
         (def %value (if (null? (rest (rest %second))) ()
@@ -235,7 +237,7 @@
           (do (if (not (null? (rest %tok)))
                 (do (display "## ") (display (first (rest %tok))) (newline) (newline)))
               (self %rest prims-alist seen))
-        (if (doc-def-form? %tok)
+        (if (or (doc-def-form? %tok) (doc-set-form? %tok))
           (do
             (def %dname (first (rest %tok)))
             (def %dname-str (symbol->str %dname))
@@ -296,7 +298,7 @@
   "Walk a token tree, extracting and emitting all documentation as Markdown.")
 
 (doc (provide x/doc/doc-gen
-  doc-sym-is? doc-form? doc-note-form? doc-def-form? doc-param-form?
+  doc-sym-is? doc-form? doc-note-form? doc-def-form? doc-set-form? doc-param-form?
   doc-provide-form? doc-find-last-string doc-extract-params
   doc-extract-meta-type doc-extract doc-emit-heading doc-emit-param
   doc-emit-entry doc-walk)

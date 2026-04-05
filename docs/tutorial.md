@@ -78,27 +78,27 @@ The pair is the fundamental compound structure. A list is a chain of pairs termi
 
 ```
 > (def x 10)
-> (def double (fn (n) (* n 2)))
+> (def double (fn (_ n) (* n 2)))
 > (double x)
 20
 ```
 
 ### Functions
 
-`fn` creates an applicative (a function that evaluates its arguments):
+`fn` creates an applicative (a function that evaluates its arguments). The first parameter is always the self-reference (conventionally `_`), followed by the actual parameters:
 
 ```
-> (def square (fn (n) (* n n)))
+> (def square (fn (_ n) (* n n)))
 > (square 5)
 25
 > (def factorial
-    (fn (n)
-      (if (<= n 1) 1 (* n (factorial (- n 1))))))
+    (fn (self n)
+      (if (<= n 1) 1 (* n (self (- n 1))))))
 > (factorial 10)
 3628800
 ```
 
-The first parameter after the parameter list is always `_` (the self-reference, used for anonymous recursion) but can be omitted in simple cases.
+The self-reference enables anonymous recursion — name it `self` (or anything) to call the function from within its own body, or `_` when not needed.
 
 ### Conditionals
 
@@ -163,9 +163,9 @@ x-lang's evaluation model is distinctive. All C-level primitives are **fexprs**:
 The standard library provides a rich set of list operations:
 
 ```
-> (map (fn (x) (* x x)) (list 1 2 3 4 5))
+> (map (fn (_ x) (* x x)) (list 1 2 3 4 5))
 (1 4 9 16 25)
-> (filter (fn (x) (> x 2)) (list 1 2 3 4 5))
+> (filter (fn (_ x) (> x 2)) (list 1 2 3 4 5))
 (3 4 5)
 > (fold + 0 (list 1 2 3 4 5))
 15
