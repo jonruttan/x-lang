@@ -16,7 +16,10 @@
     (if (null? %r)
       ()
       (%seq
-        (guard (err (display "Error: ") (display err) (newline))
+        (guard (err
+            (%stderr "Error: ")
+            (%stderr (if (str? err) err (symbol->str err)))
+            (%stderr "\n"))
           (%repl-print (eval! %r)))
         (repl)))))
   (note "Customizable via %repl-prompt (default \"> \") and %repl-print.")
