@@ -126,6 +126,88 @@
     ; Default (regex, custom types, etc.): write without color
     (write obj))))))))))))
 
+; --- Source code syntax highlighting ---
+;
+; Tokenizes a code string on the current base, then walks the token
+; tree with keyword-aware coloring. Keywords (special forms) get bold
+; magenta; regular symbols get blue; numbers/strings/chars/bools get
+; their LSP semantic token colors.
+
+(def %c-keyword  (str-append (%sgr "1") (%sgr "35")))
+
+; Keyword set — x-lang special forms and core operatives
+(def %keywords
+  (list (lit def) (lit fn) (lit op) (lit if) (lit let) (lit do)
+        (lit match) (lit guard) (lit set!) (lit lit) (lit quasi)
+        (lit import) (lit include) (lit provide)
+        (lit and) (lit or) (lit not)
+        (lit apply) (lit eval) (lit begin)
+        (lit when) (lit unless) (lit let*) (lit letrec)
+        (lit cond) (lit case) (lit doc) (lit note)))
+
+(def %keyword?
+  (fn (self sym)
+    (def %go
+      (fn (self lst)
+        (if (null? lst) #f
+          (if (eq? (first lst) sym) #t
+            (self (rest lst))))))
+    (%go %keywords)))
+
+; Forward declaration for mutual recursion
+(def %ansi-write-code ())
+
+(def %ansi-write-code-list
+  (fn (self obj)
+    (if (null? (first obj))
+      (do (display %c-nil-val) (display "()") (display ansi-reset))
+      (%ansi-write-code (first obj)))
+    (if (null? (rest obj))
+      ()
+      (if (not (pair? (rest obj)))
+        (do (display " . ") (%ansi-write-code (rest obj)))
+        (do (display " ") (self (rest obj)))))))
+
+(set! %ansi-write-code
+  (fn (self obj)
+    (if (null? obj)
+      (do (display %c-nil-val) (display "()") (display ansi-reset))
+    (if (eq? obj #t)
+      (do (display %c-bool) (display "#t") (display ansi-reset))
+    (if (eq? obj #f)
+      (do (display %c-bool) (display "#f") (display ansi-reset))
+    (if (pair? obj)
+      (do (display "(") (%ansi-write-code-list obj) (display ")"))
+    (if (number? obj)
+      (do (display %c-number) (write obj) (display ansi-reset))
+    (if (str? obj)
+      (do (display %c-string) (write obj) (display ansi-reset))
+    (if (symbol? obj)
+      (if (%keyword? obj)
+        (do (display %c-keyword) (display obj) (display ansi-reset))
+        (do (display %c-symbol) (display obj) (display ansi-reset)))
+    (if (char? obj)
+      (do (display %c-char) (write obj) (display ansi-reset))
+    (write obj)))))))))))
+
+(doc (def ansi-highlight
+  (fn (_ (param code STRING "Source code string to highlight"))
+    (if (not %ansi?)
+      (display code)
+      (do
+        (def %toks (token-read-string (%base) code))
+        (def %go
+          (fn (self toks first?)
+            (if (null? toks) ()
+              (do
+                (if first? () (display " "))
+                (%ansi-write-code (first toks))
+                (self (rest toks) ())))))
+        (%go %toks #t)))))
+  (returns ANY "Displays highlighted code to stdout")
+  (example "(ansi-highlight \"(def x 42)\")" "(def x 42)")
+  "Syntax-highlight a code string and display it. Keywords in bold magenta, symbols in blue, numbers in yellow, strings in green.")
+
 ; --- REPL integration ---
 
 (def %saved-repl-print %repl-print)
@@ -156,14 +238,15 @@
     (set! %c-param   ansi-yellow)
     (set! %c-example ansi-cyan)
     (set! %c-error   ansi-bold-red)
-    (set! %c-module  ansi-bold)))
+    (set! %c-module  ansi-bold)
+    (set! %highlight-code ansi-highlight)))
 
 ; --- Activate REPL highlighting ---
 
 (ansi-enable-repl)
 
 (doc (provide x/sys/ansi
-  ansi? ansi-wrap ansi-enable-repl ansi-disable-repl
+  ansi? ansi-wrap ansi-highlight ansi-enable-repl ansi-disable-repl
   ansi-reset ansi-bold ansi-dim
   ansi-red ansi-green ansi-yellow ansi-blue ansi-magenta ansi-cyan
   ansi-bold-cyan ansi-bold-green ansi-bold-yellow ansi-bold-red ansi-bold-blue)

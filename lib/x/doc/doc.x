@@ -253,6 +253,9 @@
 (def %c-error "")
 (def %c-module "")
 
+; Code highlighting stub (overridden by x/sys/ansi.x when loaded)
+(def %highlight-code display)
+
 ; --- Display helpers ---
 
 (def %display-notes
@@ -290,7 +293,8 @@
   (fn (_ examples)
     (%doc-for-each
       (fn (_ ex)
-        (display "  ") (display %c-example) (display "> ") (display (first ex)) (display %c-reset)
+        (display "  > ")
+        (%highlight-code (first ex))
         (display " => ")
         (display (rest ex))
         (newline))
