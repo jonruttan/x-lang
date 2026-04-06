@@ -4,6 +4,10 @@
 ; When stdout is not a terminal, or NO_COLOR is set, or TERM is "dumb",
 ; all color constants are empty strings — zero-cost no-ops.
 ;
+; Color scheme follows LSP semantic token types mapped to standard ANSI:
+;   number=yellow, string=green, variable/symbol=blue, keyword=bold-red,
+;   function=cyan, string.escape/char=magenta, regexp=red, nil=dim
+;
 ; Requires: posix.x (sh-isatty, sh-getenv), type.x (type-push-write)
 
 (import x/sys/posix)
@@ -48,6 +52,7 @@
 (def ansi-bold-green   (str-append (%sgr "1") (%sgr "32")))
 (def ansi-bold-yellow  (str-append (%sgr "1") (%sgr "33")))
 (def ansi-bold-red     (str-append (%sgr "1") (%sgr "31")))
+(def ansi-bold-blue    (str-append (%sgr "1") (%sgr "34")))
 
 ; --- Helpers ---
 
@@ -55,7 +60,6 @@
   (fn (_ (param style STRING "ANSI escape sequence") (param text STRING "Text to wrap"))
     (str-append style (str-append text ansi-reset))))
   (returns STRING "Text wrapped in ANSI codes, or plain text if colors disabled")
-  (example "(ansi-wrap ansi-red \"error\")" "\"\\x1b[31merror\\x1b[0m\"")
   "Wrap text in an ANSI style code with automatic reset.")
 
 (doc (def ansi?
@@ -63,13 +67,66 @@
   (returns BOOLEAN "True if ANSI color output is enabled")
   "Check whether ANSI color support is active.")
 
-; --- REPL syntax highlighting via type-push-write ---
+; --- LSP semantic token colors ---
+; number=yellow, string=green, symbol=blue, char=magenta,
+; keyword/bool=bold-red, function=cyan, regexp=red, nil=dim
 
-; --- REPL colorized print ---
+(def %c-number   ansi-yellow)
+(def %c-string   ansi-green)
+(def %c-symbol   ansi-blue)
+(def %c-char     ansi-magenta)
+(def %c-bool     ansi-bold-red)
+(def %c-nil-val  ansi-dim)
+(def %c-function ansi-cyan)
+(def %c-regexp   ansi-red)
+(def %c-punct    "")
+
+; --- Syntax-highlighted recursive writer ---
 ;
-; Override %repl-print to wrap output in a dim color.
-; This is simpler and safer than pushing type write handlers,
-; which require calling C function pointers from x-lang closures.
+; Walks the value structure, emitting ANSI codes per type.
+; Uses (write obj) for atomic values (delegates to C handlers),
+; and (display ...) for color codes (bypasses type dispatch).
+
+; Forward declaration for mutual recursion
+(def %ansi-write ())
+
+(def %ansi-write-list
+  (fn (self obj)
+    (if (null? (first obj))
+      (do (display %c-nil-val) (display "()") (display ansi-reset))
+      (%ansi-write (first obj)))
+    (if (null? (rest obj))
+      ()
+      (if (not (pair? (rest obj)))
+        ; Dotted pair
+        (do (display " . ") (%ansi-write (rest obj)))
+        ; Continue list
+        (do (display " ") (self (rest obj)))))))
+
+(set! %ansi-write
+  (fn (self obj)
+    (if (null? obj)
+      (do (display %c-nil-val) (display "()") (display ansi-reset))
+    (if (eq? obj #t)
+      (do (display %c-bool) (display "#t") (display ansi-reset))
+    (if (eq? obj #f)
+      (do (display %c-bool) (display "#f") (display ansi-reset))
+    (if (pair? obj)
+      (do (display "(") (%ansi-write-list obj) (display ")"))
+    (if (number? obj)
+      (do (display %c-number) (write obj) (display ansi-reset))
+    (if (str? obj)
+      (do (display %c-string) (write obj) (display ansi-reset))
+    (if (symbol? obj)
+      (do (display %c-symbol) (write obj) (display ansi-reset))
+    (if (char? obj)
+      (do (display %c-char) (write obj) (display ansi-reset))
+    (if (procedure? obj)
+      (do (display %c-function) (write obj) (display ansi-reset))
+    ; Default (regex, custom types, etc.): write without color
+    (write obj))))))))))))
+
+; --- REPL integration ---
 
 (def %saved-repl-print %repl-print)
 
@@ -78,10 +135,9 @@
     (if (not %ansi?) ()
       (set! %repl-print
         (fn (_ result)
-          (if (null? result) ()
-            (do (display ansi-cyan) (write result) (display ansi-reset)))
+          (if (null? result) () (%ansi-write result))
           (newline))))))
-  "Enable ANSI-colored REPL output (cyan for results).")
+  "Enable syntax-highlighted REPL output using LSP semantic token colors.")
 
 (doc (def ansi-disable-repl
   (fn (_ )
@@ -110,7 +166,8 @@
   ansi? ansi-wrap ansi-enable-repl ansi-disable-repl
   ansi-reset ansi-bold ansi-dim
   ansi-red ansi-green ansi-yellow ansi-blue ansi-magenta ansi-cyan
-  ansi-bold-cyan ansi-bold-green ansi-bold-yellow ansi-bold-red)
+  ansi-bold-cyan ansi-bold-green ansi-bold-yellow ansi-bold-red ansi-bold-blue)
+  (note "Color scheme: LSP semantic tokens — number=yellow, string=green, symbol=blue, char=magenta, bool=bold-red, function=cyan.")
   (note "Respects NO_COLOR environment variable and TERM=dumb.")
   (note "Pass --no-color on command line to disable.")
-  "ANSI terminal color constants and REPL syntax highlighting.")
+  "ANSI terminal color support with syntax-highlighted REPL output.")
