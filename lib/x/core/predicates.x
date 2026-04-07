@@ -27,5 +27,9 @@
       ((type? x %type-prim) #t)
       (#t #f))))
 
+; Source line of an object (0 if no metadata)
+(def line-of (fn (_ obj) (obj-meta-ref obj 0)))
+
 (provide x/core/predicates
-  null? pair? not atom? number? str? symbol? char? procedure?)
+  null? pair? not atom? number? str? symbol? char? procedure?
+  line-of)

@@ -17,7 +17,13 @@
       ()
       (%seq
         (guard (err
-            (%stderr "Error: ")
+            (def %line (error-line))
+            (%stderr "Error")
+            (if (> %line 0)
+              (%seq (%stderr " [line ")
+                (%seq (%stderr (number->str %line)) (%stderr "]")))
+              ())
+            (%stderr ": ")
             (%stderr (if (str? err) err (symbol->str err)))
             (%stderr "\n"))
           (%repl-print (eval! %r)))
