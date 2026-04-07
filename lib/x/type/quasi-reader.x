@@ -11,9 +11,15 @@
 ; Requires: quasi.x, intrinsics.x (buffer-len, buffer-unread, score-set),
 ;           token-read, buffer-last-char primitives (from C)
 
-; --- Unquote analyser states ---
-; State 2: after comma, check for @ (splice) or accept as plain unquote
-; Returns score to signal acceptance to the tokenizer dispatch loop.
+; --- Analyser states ---
+; Single-char accept: unread the lookahead char, score, accept.
+; Used by backtick (always single-char) after the entry matches.
+
+(def %quasi-accept
+  (fn (_ buffer score chr)
+    (%seq (buffer-unread buffer) (score-set score 1 buffer))))
+
+; After comma, check for @ (splice) or accept as plain unquote.
 
 (def %unquote-after-comma
   (fn (_ buffer score chr)
@@ -23,6 +29,7 @@
 
 ; --- Register QUASI-READ type (backtick) ---
 
+(def %quasi-read-atom
 (make-type
   "QUASI-READ"
   (list
@@ -30,9 +37,7 @@
     (pair
       (lit analyse)
       (fn (_ buffer score chr)
-        (if (= chr 96)
-          (score-set score 1 buffer)
-          ())))
+        (if (= chr 96) %quasi-accept ())))
     (pair
       (lit delimit)
       (fn (_ buffer . rest)
@@ -43,10 +48,11 @@
       (lit read)
       (fn (_ . args)
         (pair (lit quasi)
-          (pair (token-read (first args)) ()))))))
+          (pair (token-read (first args)) ())))))))
 
 ; --- Register UNQUOTE-READ type (comma, comma-at) ---
 
+(def %unquote-read-atom
 (make-type
   "UNQUOTE-READ"
   (list
@@ -70,6 +76,8 @@
           (pair (lit unquote)
             (pair (token-read (first args)) ()))
           (pair (lit unquote-splicing)
-            (pair (token-read (first args)) ())))))))
+            (pair (token-read (first args)) ()))))))))
 
-(provide x/type/quasi-reader)
+(provide x/type/quasi-reader
+  %quasi-read-atom %unquote-read-atom
+  %quasi-accept %unquote-after-comma)

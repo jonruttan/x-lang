@@ -31,6 +31,26 @@
 (include "lib/x/core/hash.x")
 (include "lib/x/tool/compile.x")
 
+; --- Compile quasi-reader analysers (loaded by x-core.x) ---
+
+(set! %compile-fvars
+  (list (pair (lit %quasi-accept) %quasi-accept)))
+(type-push-analyse (type-by-atom %quasi-read-atom)
+  (compile
+    (lit (fn (_ buffer score chr)
+      (if (= chr 96) %quasi-accept ())))
+    %compile-fvars))
+(set! %compile-fvars ())
+
+(set! %compile-fvars
+  (list (pair (lit %unquote-after-comma) %unquote-after-comma)))
+(type-push-analyse (type-by-atom %unquote-read-atom)
+  (compile
+    (lit (fn (_ buffer score chr)
+      (if (= chr 44) %unquote-after-comma ())))
+    %compile-fvars))
+(set! %compile-fvars ())
+
 ; --- Load numeric tower with immediate analyser compilation ---
 
 ; 1. Bignum + int-capped
