@@ -517,8 +517,18 @@
                   (self (pair (str "\n" line) lines) #t)
                   ; Dedent to col 0 — end of block, include this line
                   (apply str (reverse (pair (str "\n" line) lines))))
-                ; First line or not yet indented
-                (self (pair (str "\n" line) lines) has-indent)))))))
+                ; First line — check if it needs continuation
+                (if has-indent
+                  ; Indented line — accumulate
+                  (self (pair (str "\n" line) lines) #t)
+                  (if (null? lines)
+                    ; First line, no indent — return immediately unless it's TO
+                    (if (if (>= (str-length line) 3)
+                          (str=? (str-upcase (substring line 0 3)) "TO ") #f)
+                      (self (pair (str "\n" line) ()) #t)  ; TO needs body
+                      (str "\n" line))  ; Single line — return now
+                    (apply str (reverse (pair (str "\n" line) lines)))))))))))
+
     (%rb () #f)))
 
 (def logo-repl
