@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turtle Graphics</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: system-ui, sans-serif; background: #fafafa; display: flex; flex-direction: column; height: 100vh; }
+.canvas-wrap { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 16px; }
+svg { width: 100%; height: 100%; background: #fff; border: 1px solid #ddd; }
+.controls { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #f0f0f0; border-top: 1px solid #ddd; }
+button { font: inherit; font-size: 14px; padding: 4px 14px; cursor: pointer; border: 1px solid #bbb; border-radius: 3px; background: #fff; }
+button:hover { background: #e8e8e8; }
+button:active { background: #ddd; }
+label { font-size: 13px; color: #555; }
+input[type=range] { width: 120px; }
+.speed-val { font-size: 13px; color: #555; min-width: 2.5em; }
+</style>
+</head>
+<body>
+
+<div class="canvas-wrap">
+  <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+
+<div class="controls">
+  <button id="playBtn">Play</button>
+  <button id="resetBtn">Reset</button>
+  <label>Speed</label>
+  <input type="range" id="speedSlider" min="1" max="200" value="30">
+  <span class="speed-val" id="speedVal">30</span>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // --- Segment data ---
+  // Each segment: { x1, y1, x2, y2, pen: bool, heading: degrees }
+  // Heading convention: 0 = north (up), positive = clockwise
+  // Coordinates: SVG (y increases downward)
+  // heading = turtle's heading AFTER this segment (including any subsequent turns)
+
+  // Sample: square + pen-up move + triangle
+  var SAMPLE_SEGMENTS = (function () {
+    var segs = [];
+    var x = 0, y = 0, heading = 0;
+    var pen = true;
+
+    function forward(dist) {
+      var rad = heading * Math.PI / 180;
+      var x2 = x + dist * Math.sin(rad);
+      var y2 = y - dist * Math.cos(rad);
+      segs.push({ x1: x, y1: y, x2: x2, y2: y2, pen: pen, heading: heading });
+      x = x2; y = y2;
+    }
+    function right(deg) {
+      heading = ((heading + deg) % 360 + 360) % 360;
+      // Update heading on the last segment so cursor faces correctly after turns
+      if (segs.length) segs[segs.length - 1].heading = heading;
+    }
+
+    // REPEAT 4 [ FORWARD 100 RIGHT 90 ]
+    for (var i = 0; i < 4; i++) { forward(100); right(90); }
+    // PENUP  FORWARD 50  PENDOWN
+    pen = false; forward(50); pen = true;
+    // REPEAT 3 [ FORWARD 80 RIGHT 120 ]
+    for (var j = 0; j < 3; j++) { forward(80); right(120); }
+
+    return segs;
+  })();
+
+  // Use embedded data or override via window.TURTLE_SEGMENTS
+  var segments = window.TURTLE_SEGMENTS || SAMPLE_SEGMENTS;
+
+  // --- SVG setup ---
+  var svg = document.getElementById('canvas');
+  var ns = 'http://www.w3.org/2000/svg';
+
+  // Compute bounding box
+  function computeViewBox(segs) {
+    if (!segs.length) return { x: -100, y: -100, w: 200, h: 200 };
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (var i = 0; i < segs.length; i++) {
+      var s = segs[i];
+      minX = Math.min(minX, s.x1, s.x2);
+      minY = Math.min(minY, s.y1, s.y2);
+      maxX = Math.max(maxX, s.x1, s.x2);
+      maxY = Math.max(maxY, s.y1, s.y2);
+    }
+    var pad = Math.max(maxX - minX, maxY - minY) * 0.1 + 20;
+    return { x: minX - pad, y: minY - pad, w: maxX - minX + 2 * pad, h: maxY - minY + 2 * pad };
+  }
+
+  // Create SVG line elements (hidden initially)
+  var lines = [];
+  function buildLines() {
+    // Clear existing
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    lines = [];
+
+    // Defs for turtle cursor
+    var defs = document.createElementNS(ns, 'defs');
+    var marker = document.createElementNS(ns, 'g');
+    marker.id = 'turtle';
+    // Turtle triangle: points north, 12px tall, 8px wide
+    var tri = document.createElementNS(ns, 'polygon');
+    tri.setAttribute('points', '0,-7 4,5 -4,5');
+    tri.setAttribute('fill', 'rgba(0,160,0,0.7)');
+    tri.setAttribute('stroke', '#060');
+    tri.setAttribute('stroke-width', '0.5');
+    marker.appendChild(tri);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    // Lines group
+    var linesGroup = document.createElementNS(ns, 'g');
+    linesGroup.id = 'lines';
+    linesGroup.setAttribute('stroke', '#222');
+    linesGroup.setAttribute('stroke-width', '1.5');
+    linesGroup.setAttribute('stroke-linecap', 'round');
+    svg.appendChild(linesGroup);
+
+    for (var i = 0; i < segments.length; i++) {
+      var s = segments[i];
+      if (s.pen) {
+        var line = document.createElementNS(ns, 'line');
+        line.setAttribute('x1', s.x1);
+        line.setAttribute('y1', s.y1);
+        line.setAttribute('x2', s.x2);
+        line.setAttribute('y2', s.y2);
+        line.style.display = 'none';
+        linesGroup.appendChild(line);
+        lines.push({ el: line, idx: i });
+      }
+    }
+
+    // Turtle cursor (use element)
+    var cursor = document.createElementNS(ns, 'use');
+    cursor.setAttribute('href', '#turtle');
+    cursor.id = 'cursor';
+    svg.appendChild(cursor);
+
+    // Set viewBox
+    var vb = computeViewBox(segments);
+    svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
+
+    // Scale stroke width relative to viewBox
+    var scale = Math.max(vb.w, vb.h) / 500;
+    linesGroup.setAttribute('stroke-width', Math.max(0.5, 1.5 * scale));
+    tri.setAttribute('stroke-width', Math.max(0.3, 0.5 * scale));
+    // Scale turtle size
+    var tscale = Math.max(0.5, scale);
+    marker.setAttribute('transform', 'scale(' + tscale + ')');
+  }
+
+  // --- Animation state ---
+  var playing = false;
+  var segIndex = 0;       // current segment index (into segments[])
+  var segProgress = 0;    // 0..1 within current segment
+  var lineMap = {};       // segIndex -> line element index
+  var speed = 30;         // segments per second
+  var lastTime = 0;
+  var animId = null;
+
+  function buildLineMap() {
+    lineMap = {};
+    for (var i = 0; i < lines.length; i++) {
+      lineMap[lines[i].idx] = i;
+    }
+  }
+
+  // Position the turtle cursor
+  function positionTurtle(x, y, heading) {
+    var cursor = document.getElementById('cursor');
+    if (!cursor) return;
+    cursor.setAttribute('transform', 'translate(' + x + ',' + y + ') rotate(' + heading + ')');
+  }
+
+  // Show lines up to (but not including) segment segIdx, plus partial current
+  function renderFrame() {
+    // Show all completed lines
+    for (var i = 0; i < lines.length; i++) {
+      var li = lines[i];
+      if (li.idx < segIndex) {
+        li.el.style.display = '';
+        // Reset to full segment
+        var s = segments[li.idx];
+        li.el.setAttribute('x2', s.x2);
+        li.el.setAttribute('y2', s.y2);
+      } else if (li.idx === segIndex && segments[li.idx].pen) {
+        // Partial current segment
+        li.el.style.display = '';
+        var seg = segments[segIndex];
+        var cx = seg.x1 + (seg.x2 - seg.x1) * segProgress;
+        var cy = seg.y1 + (seg.y2 - seg.y1) * segProgress;
+        li.el.setAttribute('x2', cx);
+        li.el.setAttribute('y2', cy);
+      } else {
+        li.el.style.display = 'none';
+      }
+    }
+
+    // Position turtle — use heading from segment data
+    if (segIndex < segments.length) {
+      var seg = segments[segIndex];
+      var tx = seg.x1 + (seg.x2 - seg.x1) * segProgress;
+      var ty = seg.y1 + (seg.y2 - seg.y1) * segProgress;
+      // During animation, face the movement direction (heading before any post-turn)
+      var dx = seg.x2 - seg.x1;
+      var dy = seg.y2 - seg.y1;
+      var moveAngle = Math.atan2(dx, -dy) * 180 / Math.PI;
+      positionTurtle(tx, ty, moveAngle);
+    } else if (segments.length > 0) {
+      var last = segments[segments.length - 1];
+      positionTurtle(last.x2, last.y2, last.heading);
+    } else {
+      positionTurtle(0, 0, 0);
+    }
+  }
+
+  function segmentLength(s) {
+    var dx = s.x2 - s.x1;
+    var dy = s.y2 - s.y1;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // Compute total path length for uniform speed
+  var totalLength = 0;
+  var segLengths = [];
+  function computeLengths() {
+    totalLength = 0;
+    segLengths = [];
+    for (var i = 0; i < segments.length; i++) {
+      var l = segmentLength(segments[i]);
+      segLengths.push(l);
+      totalLength += l;
+    }
+  }
+
+  function animate(timestamp) {
+    if (!playing) return;
+    if (!lastTime) lastTime = timestamp;
+
+    var dt = (timestamp - lastTime) / 1000; // seconds
+    lastTime = timestamp;
+
+    if (segIndex >= segments.length) {
+      playing = false;
+      playBtn.textContent = 'Play';
+      renderFrame();
+      return;
+    }
+
+    // Advance: speed = units per second (in coordinate space)
+    // Multiply speed slider value by a base rate
+    var rate = speed * 5; // pixels per second
+    var advance = rate * dt;
+
+    while (advance > 0 && segIndex < segments.length) {
+      var sl = segLengths[segIndex] || 1;
+      var remaining = (1 - segProgress) * sl;
+      if (advance >= remaining) {
+        advance -= remaining;
+        segProgress = 1;
+        segIndex++;
+        segProgress = 0;
+      } else {
+        segProgress += advance / sl;
+        advance = 0;
+      }
+    }
+
+    renderFrame();
+    animId = requestAnimationFrame(animate);
+  }
+
+  // --- Controls ---
+  var playBtn = document.getElementById('playBtn');
+  var resetBtn = document.getElementById('resetBtn');
+  var speedSlider = document.getElementById('speedSlider');
+  var speedVal = document.getElementById('speedVal');
+
+  playBtn.addEventListener('click', function () {
+    if (segIndex >= segments.length) {
+      // Reset if finished
+      segIndex = 0;
+      segProgress = 0;
+    }
+    playing = !playing;
+    playBtn.textContent = playing ? 'Pause' : 'Play';
+    if (playing) {
+      lastTime = 0;
+      animId = requestAnimationFrame(animate);
+    } else if (animId) {
+      cancelAnimationFrame(animId);
+    }
+  });
+
+  resetBtn.addEventListener('click', function () {
+    playing = false;
+    playBtn.textContent = 'Play';
+    if (animId) cancelAnimationFrame(animId);
+    segIndex = 0;
+    segProgress = 0;
+    renderFrame();
+  });
+
+  speedSlider.addEventListener('input', function () {
+    speed = parseInt(this.value, 10);
+    speedVal.textContent = speed;
+  });
+
+  // --- Load data from server if available ---
+  function loadSegments(data) {
+    segments = data;
+    computeLengths();
+    buildLines();
+    buildLineMap();
+    segIndex = 0;
+    segProgress = 0;
+    renderFrame();
+  }
+
+  // Add new segments incrementally — no rebuild, no flash
+  function loadNewSegments(data) {
+    var prevCount = segments.length;
+    segments = data;
+    computeLengths();
+
+    // Add SVG lines for new pen-down segments only
+    var linesGroup = document.getElementById('lines');
+    for (var i = prevCount; i < segments.length; i++) {
+      var s = segments[i];
+      if (s.pen) {
+        var line = document.createElementNS(ns, 'line');
+        line.setAttribute('x1', s.x1);
+        line.setAttribute('y1', s.y1);
+        line.setAttribute('x2', s.x2);
+        line.setAttribute('y2', s.y2);
+        line.style.display = 'none';
+        linesGroup.appendChild(line);
+        lines.push({ el: line, idx: i });
+      }
+    }
+    buildLineMap();
+
+    // Update viewBox to fit all segments
+    var vb = computeViewBox(segments);
+    svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
+    var scale = Math.max(vb.w, vb.h) / 500;
+    linesGroup.setAttribute('stroke-width', Math.max(0.5, 1.5 * scale));
+
+    // Stop current animation, jump to end of old segments
+    if (animId) cancelAnimationFrame(animId);
+    segIndex = prevCount;
+    segProgress = 0;
+    renderFrame();
+
+    // Auto-play the new ones
+    if (prevCount < data.length) {
+      playing = true;
+      playBtn.textContent = 'Pause';
+      lastTime = 0;
+      animId = requestAnimationFrame(animate);
+    }
+  }
+
+  // Load segments — poll for changes when served from a live endpoint
+  if (window.TURTLE_ENDPOINT) {
+    var lastFingerprint = '';
+    function fingerprint(data) {
+      if (!data.length) return '0';
+      var last = data[data.length - 1];
+      return data.length + ',' + last.heading + ',' + last.x2 + ',' + last.y2;
+    }
+    function poll() {
+      fetch(window.TURTLE_ENDPOINT)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var fp = fingerprint(data);
+          if (fp !== lastFingerprint) {
+            var first = lastFingerprint === '';
+            var countChanged = data.length !== segments.length;
+            lastFingerprint = fp;
+            if (first || data.length < segments.length) {
+              // First load or clearscreen — full rebuild
+              loadSegments(data);
+            } else if (countChanged) {
+              loadNewSegments(data);
+            } else {
+              // Same count but heading changed (turn command) — update cursor
+              segments = data;
+              renderFrame();
+            }
+          }
+        })
+        .catch(function () {});
+    }
+    poll();
+    setInterval(poll, 500);
+  } else {
+    loadSegments(segments);
+  }
+})();
+</script>
+</body>
+</html>

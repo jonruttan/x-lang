@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "logo",
+      "runtimeExecutable": "./x.sh",
+      "runtimeArgs": ["-l", "logo"],
+      "port": 8080
+    }
+  ]
+}
