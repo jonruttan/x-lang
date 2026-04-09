@@ -99,22 +99,36 @@
       (token-accept buffer score chr))))
 
 (def %logo ())
+(def %logo-indent ())
 (def %logo-block ())
 (def logo-process-tokens ())
+(def logo-process-to ())
+
+; Detect whitespace type: has delimit handler, no read handler
+(def %is-ws-type?
+  (fn (_ entry)
+    (def io (type-io (rest entry)))
+    ; IO: (analyse-cell (delimit-cell (read-cell ...)))
+    (def delimit (first (first (rest io))))
+    (def read-h (first (first (rest (rest io)))))
+    (if (null? delimit) #f (null? read-h))))
 
 ; Build the Logo tokenizer base.
-; Starts from make-base (full types), removes SYMBOL, adds Logo types.
+; Starts from make-base (full types), removes SYMBOL and WHITESPACE,
+; adds Logo-specific types including indent-aware whitespace.
 (def %logo-base
   (let ((base (make-base)))
     (def %cell (first (first (first (rest (first base))))))
     (def %sym-name (type-of (lit x)))
-    ; Remove SYMBOL type — Logo words replace it
+    ; Remove SYMBOL and WHITESPACE types
     (def %filter
       (fn (self al)
         (if (null? al) ()
           (if (eq? (first (first al)) %sym-name)
             (self (rest al))
-            (pair (first al) (self (rest al)))))))
+            (if (%is-ws-type? (first al))
+              (self (rest al))
+              (pair (first al) (self (rest al))))))))
     (set-first! %cell (%filter (first %cell)))
 
     ; Register Logo types on the new base
@@ -162,7 +176,90 @@
           (pair (lit write)
             (fn (_ self) (display (first self)))))))
 
+    ; LOGO-WS: spaces and tabs only (not newlines), discard
+    (base-make-type base "LOGO-WS"
+      (list
+        (pair (lit analyse)
+          (fn (self buffer score chr)
+            (if (if (= chr 32) #t (= chr 9))  ; space or tab
+              self
+              (if (> (- (buffer-len buffer) 1) 0)
+                (do (buffer-unread buffer)
+                    (score-set score 1 buffer))
+                ()))))
+        (pair (lit delimit)
+          (fn (_ buffer score chr)
+            (if (if (= chr 32) #t (= chr 9))
+              (do (buffer-unread buffer) buffer)
+              ())))))
+
+    ; LOGO-NEWLINE: bare newline (discard). Matches \n not followed by
+    ; indent+word (those are handled by LOGO-INDENT which scores higher).
+    (base-make-type base "LOGO-NEWLINE"
+      (list
+        (pair (lit first-chars) "\n")
+        (pair (lit analyse)
+          (make-char-state 10 token-accept ()))))
+
+    ; LOGO-INDENT: \n + spaces/tabs + word → indented Logo word
+    ; Scores higher than LOGO-NEWLINE (longer match) when a word follows.
+    (def %indent-after-nl
+      ; State: consuming spaces/tabs after newline
+      (fn (self buffer score chr)
+        (if (if (= chr 32) #t (= chr 9))
+          self  ; more whitespace
+          (if (%logo-alpha? chr)
+            %logo-word-continue  ; transition to word matching
+            ; No word — fail (LOGO-NEWLINE will handle bare newline)
+            ()))))
+
+    (set! %logo-indent
+      (base-make-type base "LOGO-INDENT"
+        (list
+          (pair (lit first-chars) "\n")
+          (pair (lit analyse)
+            (fn (_ buffer score chr)
+              (if (= chr 10) %indent-after-nl ())))
+          (pair (lit read)
+            (fn (_ . read-args)
+              (def text (buffer-token (first read-args)))
+              ; text = "\n    WORD" — count indent, extract word
+              (def len (str-length text))
+              (def %count-indent
+                (fn (self i)
+                  (if (>= i len) i
+                    (if (if (char=? (text i) #\space) #t
+                          (char=? (text i) #\tab))
+                      (self (+ i 1))
+                      i))))
+              (def indent-end (%count-indent 1))  ; skip \n at pos 0
+              (def indent (- indent-end 1))       ; indent level
+              (def word (substring text indent-end len))
+              (make-instance %logo-indent (pair indent word))))
+          (pair (lit write)
+            (fn (_ self)
+              (display (first (rest (first self))))  ; word part
+              )))))
+
     base))
+
+; Tag for blocks created by the indent pre-processor (can't use make-instance
+; on the main base for types registered on the Logo base).
+(def %indent-block-tag (pair (lit indent-block) ()))
+
+(def %is-block?
+  (fn (_ tok)
+    (if (type? tok %logo-block) #t
+      (if (pair? tok) (eq? (first tok) %indent-block-tag) #f))))
+
+(def %block-contents
+  (fn (_ tok)
+    (if (type? tok %logo-block) (first tok)
+      (rest tok))))  ; tagged pair: (tag . contents)
+
+(def %make-indent-block
+  (fn (_ tokens)
+    (pair %indent-block-tag tokens)))
 
 ; ============================================================
 ; Command dispatch (token-list based)
@@ -203,13 +300,28 @@
             (self (rest cmds))))))
     (%find %logo-commands)))
 
+; Logo variable stack — for procedure parameters (dynamic scoping)
+(def %logo-vars ())
+
+; Extract the word string from a Logo or Logo-indent token
+(def %logo-word
+  (fn (_ tok)
+    (if (type? tok %logo) (first tok)
+      (if (type? tok %logo-indent) (rest (first tok))
+        ()))))
+
 (def %logo-eval-tok
   (fn (_ tok)
-    (if (type? tok %logo)
-      (eval (str->symbol (first tok)))
-      (if (type? tok %logo-block)
+    (def word (%logo-word tok))
+    (if (null? word)
+      (if (%is-block? tok)
         tok
-        (eval! tok)))))
+        (eval! tok))
+      ; Logo word — check variable stack, then x-lang env
+      (let ((var (assoc word %logo-vars str=?)))
+        (if (null? var)
+          (eval (str->symbol word))
+          (rest var))))))
 
 (def %logo-consume-arg
   (fn (_ tokens)
@@ -221,9 +333,12 @@
     (if (null? tokens) ()
       (let ((tok (first tokens))
             (remaining (rest tokens)))
-        (if (type? tok %logo)
-          (let ((word (first tok)))
-            (def entry (%logo-lookup word))
+        (def word (%logo-word tok))
+        (if (null? word)
+          ; Non-word token — skip
+          (logo-process-tokens remaining)
+          ; Logo word (plain or indented) — dispatch
+          (let ((entry (%logo-lookup word)))
             (if (null? entry)
               (logo-process-tokens remaining)
               (let ((arity (first (rest entry)))
@@ -243,7 +358,7 @@
                             (fn (self i)
                               (if (> i 0)
                                 (do
-                                  (logo-process-tokens (first block))
+                                  (logo-process-tokens (%block-contents block))
                                   (self (- i 1)))
                                 ())))
                           (%rep count)
@@ -252,38 +367,41 @@
                         (logo-process-to remaining)
                         (do
                           (error (str "Unknown special: " word))
-                          (logo-process-tokens remaining)))))))))
-          (logo-process-tokens remaining))))))
+                          (logo-process-tokens remaining)))))))))))))))
 
-(def logo-process-to
+
+(set! logo-process-to
   (fn (_ tokens)
     (if (null? tokens) (error "TO: expected name")
       (let ((name-tok (first tokens))
             (rest-toks (rest tokens)))
-        (def name (str-upcase (first name-tok)))
+        (def name (str-upcase (%logo-word name-tok)))
         (def %read-params
           (fn (self params toks)
             (if (null? toks) (error "TO: expected [ body ]")
               (let ((tok (first toks)))
-                (if (type? tok %logo-block)
+                (if (%is-block? tok)
                   (list params tok (rest toks))
-                  (self (pair (first tok) params) (rest toks)))))))
+                  (self (pair (%logo-word tok) params) (rest toks)))))))
         (def result (%read-params () rest-toks))
         (def param-names (reverse (first result)))
         (def body (first (rest result)))
         (def remaining (first (rest (rest result))))
         (def proc
-          (fn logo-user-proc args
-            (def %bind-params
+          (fn (_ . logo-args)
+            ; Push params onto Logo variable stack
+            (def saved-vars %logo-vars)
+            (def %push
               (fn (self names vals)
                 (if (null? names) ()
                   (do
-                    (eval (list (lit def)
-                      (str->symbol (first names))
-                      (list (lit lit) (first vals))))
+                    (set! %logo-vars
+                      (pair (pair (first names) (first vals)) %logo-vars))
                     (self (rest names) (rest vals))))))
-            (%bind-params param-names args)
-            (logo-process-tokens (first body))))
+            (%push param-names logo-args)
+            (logo-process-tokens (%block-contents body))
+            ; Restore variable stack
+            (set! %logo-vars saved-vars)))
         (set! %logo-commands
           (pair (list name (length param-names) proc) %logo-commands))
         (logo-process-tokens remaining)))))
@@ -305,30 +423,122 @@
     (%rl ())))
 
 ; ============================================================
-; Logo REPL — tokenizes with the Logo base, executes on the main base
+; Indent-to-blocks pre-processor
+; ============================================================
+; Converts indent tokens into LOGO-BLOCK instances so the existing
+; logo-process-tokens handles them. Works by tracking indent level
+; on a stack.
+
+(def %logo-indent-to-blocks
+  (fn (_ tokens)
+    ; Stack entries: (indent-level . accumulated-tokens-reversed)
+
+    ; Pop stack levels deeper than target, wrapping each in a block
+    (def %pop-to
+      (fn (self target stack)
+        (if (null? (rest stack)) stack
+          (if (<= (first (first stack)) target)
+            stack
+            (let ((top (first stack))
+                  (parent (first (rest stack)))
+                  (rest-stack (rest (rest stack))))
+              (def block (%make-indent-block (reverse (rest top))))
+              (self target
+                (pair (pair (first parent) (pair block (rest parent)))
+                      rest-stack)))))))
+
+    ; Flush entire stack into nested blocks
+    (def %flush-stack
+      (fn (self stack)
+        (if (null? (rest stack))
+          (reverse (rest (first stack)))
+          (let ((top (first stack))
+                (parent (first (rest stack)))
+                (rest-stack (rest (rest stack))))
+            (def block (%make-indent-block (reverse (rest top))))
+            (self (pair (pair (first parent) (pair block (rest parent)))
+                        rest-stack))))))
+
+    ; Walk tokens, collect into nested blocks based on indent level
+    (def %process
+      (fn (self toks stack)
+        (if (null? toks)
+          (%flush-stack stack)
+          (let ((tok (first toks))
+                (rest-toks (rest toks)))
+            (if (type? tok %logo-indent)
+              (let ((indent (first (first tok)))
+                    (word (rest (first tok))))
+                (def new-stack (%pop-to indent stack))
+                (def top (first new-stack))
+                (if (= (first top) indent)
+                  ; Same level — add to current accumulator (keep indent token)
+                  (self rest-toks
+                    (pair (pair indent (pair tok (rest top)))
+                          (rest new-stack)))
+                  ; Deeper level — push new
+                  (self rest-toks
+                    (pair (pair indent (list tok)) new-stack))))
+              (let ((top (first stack)))
+                (self rest-toks
+                  (pair (pair (first top) (pair tok (rest top)))
+                        (rest stack)))))))))
+
+    (%process tokens (list (pair 0 ())))))
+
+; ============================================================
+; Logo REPL — reads blocks, tokenizes, pre-processes indentation
 ; ============================================================
 
 (def %logo-prompt "? ")
 (def %logo-on-exit ())
 
+; Read a block: accumulate lines until blank line or dedent to col 0
+; after seeing indented lines.
+(def %read-block
+  (fn ()
+    (def %rb
+      (fn (self lines saw-indent)
+        (def line (%read-line))
+        (if (null? line)
+          ; EOF
+          (if (null? lines) () (apply str (reverse lines)))
+          (if (str=? line "")
+            ; Blank line — skip if no content yet, end block otherwise
+            (if (null? lines)
+              (self () #f)  ; Skip leading blank lines
+              (apply str (reverse lines)))
+            ; Non-empty line
+            (let ((has-indent (if (char=? (line 0) #\space) #t
+                               (if (char=? (line 0) #\tab) #t #f))))
+              (if (if saw-indent #t #f)
+                (if has-indent
+                  ; Still indented — continue
+                  (self (pair (str "\n" line) lines) #t)
+                  ; Dedent to col 0 — end of block, include this line
+                  (apply str (reverse (pair (str "\n" line) lines))))
+                ; First line or not yet indented
+                (self (pair (str "\n" line) lines) has-indent)))))))
+    (%rb () #f)))
+
 (def logo-repl
   (op ()
     ()
     (display %logo-prompt)
-    (def line (%read-line))
-    (if (null? line)
+    (def block (%read-block))
+    (if (null? block)
       ; EOF — call exit handler if set
       (if (null? %logo-on-exit) () (%logo-on-exit))
       (do
-        (if (str=? line "") ()
-          (guard (err
-              (%stderr "Error: ")
-              (%stderr (if (str? err) err
-                        (if (number? err) (number->str err)
-                          (symbol->str err))))
-              (%stderr "\n"))
-            (def tokens (token-read-string %logo-base (str line " ")))
-            (logo-process-tokens tokens)))
+        (guard (err
+            (%stderr "Error: ")
+            (%stderr (if (str? err) err
+                      (if (number? err) (number->str err)
+                        (symbol->str err))))
+            (%stderr "\n"))
+          (def tokens (token-read-string %logo-base (str block " ")))
+          (def processed (%logo-indent-to-blocks tokens))
+          (logo-process-tokens processed))
         (logo-repl)))))
 
 ; ============================================================
