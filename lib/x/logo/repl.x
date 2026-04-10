@@ -20,7 +20,7 @@
     (%rl ())))
 
 ; ============================================================
-; Bracket counting
+; Balance checking
 ; ============================================================
 
 (def %count-brackets
@@ -38,52 +38,50 @@
   (fn (_ line)
     (if (str=? line "") #f
       (if (char=? (line 0) #\space) #t
-        (if (char=? (line 0) #\tab) #t #f)))))
+        (char=? (line 0) #\tab)))))
+
+; Probe: try processing accumulated input.
+; If it succeeds, the input was complete.
+; If it errors, the input is incomplete — keep reading.
+(def %is-complete?
+  (fn (_ text depth)
+    (if (> depth 0) #f
+      (guard (err #f)
+        (def tokens (token-read-string %logo-base (str text " ")))
+        (def processed (%logo-indent-to-blocks tokens))
+        (logo-process-tokens processed)
+        #t))))
 
 ; ============================================================
 ; Block reader
 ; ============================================================
-; Rule: keep reading while there's an unmatched [ or the line is indented.
-; After a col-0 balanced first line, peek ahead — if next line is indented,
-; continue reading (it's the start of a multi-line block).
-
-(def %repl-lookahead ())
 
 (def %read-block
   (fn ()
     (def %rb
       (fn (self lines depth)
-        ; Use lookahead if available
-        (def line
-          (if (null? %repl-lookahead) (%read-line)
-            (let ((l %repl-lookahead))
-              (set! %repl-lookahead ())
-              l)))
+        (def line (%read-line))
         (if (null? line)
           ; EOF
           (if (null? lines) () (apply str (reverse lines)))
           (if (str=? line "")
             ; Blank line
-            (if (> depth 0)
-              (self lines depth)          ; open bracket — keep reading
-              (if (null? lines)
-                (self () 0)               ; skip leading blanks
+            (if (null? lines)
+              (self () 0)
+              (if (> depth 0)
+                (self lines depth)
                 (apply str (reverse lines))))
             ; Non-empty line
-            (let ((new-depth (+ depth (%count-brackets line))))
-              (def new-lines (pair (str "\n" line) lines))
+            (let ((new-depth (+ depth (%count-brackets line)))
+                  (new-lines (pair (str "\n" line) lines)))
               (if (> new-depth 0)
-                ; Open bracket — keep reading
                 (self new-lines new-depth)
                 (if (%is-indented? line)
-                  ; Indented — keep reading
                   (self new-lines new-depth)
-                  ; Col 0, balanced
-                  (if (null? lines)
-                    ; First line, balanced — return immediately
+                  ; Col 0, balanced — probe for completeness
+                  (if (%is-complete? (apply str (reverse new-lines)) new-depth)
                     (apply str (reverse new-lines))
-                    ; Continuation at col 0 — done
-                    (apply str (reverse new-lines))))))))))
+                    (self new-lines new-depth)))))))))
     (%rb () 0)))
 
 ; ============================================================
@@ -108,9 +106,8 @@
                       (if (number? err) (number->str err)
                         (symbol->str err))))
             (%stderr "\n"))
-          (def tokens (token-read-string %logo-base (str block " ")))
-          (def processed (%logo-indent-to-blocks tokens))
-          (logo-process-tokens processed)
+          ; Block already executed by %is-complete? probe —
+          ; no need to process again
           (if (null? %logo-on-command) () (%logo-on-command)))
         (logo-repl)))))
 
