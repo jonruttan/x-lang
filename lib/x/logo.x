@@ -24,7 +24,8 @@
       (do (sh-close 0) (sh-open-read "/dev/null") (turtle-serve %logo-port))
       pid)))
 
-; --- Hook: append each segment to file as it's drawn ---
+; --- Hooks: append segments, clear file on clearscreen ---
 (set! %turtle-on-segment %segment-append)
+(set! %turtle-on-clear %segments-clear)
 
 (display "http://localhost:") (display %logo-port) (newline)

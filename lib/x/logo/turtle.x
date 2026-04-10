@@ -72,13 +72,16 @@
 (def turtle-penup   (fn () (set! %turtle-pen #f)))
 (def turtle-pendown (fn () (set! %turtle-pen #t)))
 
+(def %turtle-on-clear ())
+
 (def turtle-clearscreen
   (fn ()
     (set! %turtle-x (exact->inexact 0))
     (set! %turtle-y (exact->inexact 0))
     (set! %turtle-heading (exact->inexact 0))
     (set! %turtle-pen #t)
-    (set! %turtle-segments ())))
+    (set! %turtle-segments ())
+    (if (null? %turtle-on-clear) () (%turtle-on-clear))))
 
 ; ============================================================
 ; Logo tokenizer base
