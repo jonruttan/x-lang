@@ -57,13 +57,13 @@
 
 (def turtle-right
   (fn (_ n)
-    (%turtle-emit (exact->inexact 0))
-    (set! %turtle-heading (f+ %turtle-heading (%as-float n)))))
+    (set! %turtle-heading (f+ %turtle-heading (%as-float n)))
+    (%turtle-emit (exact->inexact 0))))
 
 (def turtle-left
   (fn (_ n)
-    (%turtle-emit (exact->inexact 0))
-    (set! %turtle-heading (f- %turtle-heading (%as-float n)))))
+    (set! %turtle-heading (f- %turtle-heading (%as-float n)))
+    (%turtle-emit (exact->inexact 0))))
 
 (def turtle-penup   (fn () (set! %turtle-pen #f)))
 (def turtle-pendown (fn () (set! %turtle-pen #t)))
