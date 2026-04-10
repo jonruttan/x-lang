@@ -20,38 +20,82 @@
     (%rl ())))
 
 ; ============================================================
+; Bracket counting
+; ============================================================
+
+(def %count-brackets
+  (fn (_ line)
+    (def %cb
+      (fn (self i depth)
+        (if (>= i (str-length line)) depth
+          (self (+ i 1)
+            (if (char=? (line i) #\[) (+ depth 1)
+              (if (char=? (line i) #\]) (- depth 1)
+                depth))))))
+    (%cb 0 0)))
+
+(def %is-indented?
+  (fn (_ line)
+    (if (str=? line "") #f
+      (if (char=? (line 0) #\space) #t
+        (if (char=? (line 0) #\tab) #t #f)))))
+
+; ============================================================
 ; Block reader
 ; ============================================================
-; Accumulates lines until blank line or dedent to col 0.
-; Single unindented lines return immediately (no double-enter).
-; TO definitions wait for an indented body.
+; Rule: keep reading while there's an unmatched [ or the line is indented.
+; After a col-0 balanced first line, peek ahead — if next line is indented,
+; continue reading (it's the start of a multi-line block).
+
+(def %repl-lookahead ())
 
 (def %read-block
   (fn ()
     (def %rb
-      (fn (self lines saw-indent)
-        (def line (%read-line))
+      (fn (self lines depth)
+        ; Use lookahead if available
+        (def line
+          (if (null? %repl-lookahead) (%read-line)
+            (let ((l %repl-lookahead))
+              (set! %repl-lookahead ())
+              l)))
         (if (null? line)
+          ; EOF
           (if (null? lines) () (apply str (reverse lines)))
           (if (str=? line "")
-            (if (null? lines)
-              (self () #f)
-              (apply str (reverse lines)))
-            (let ((has-indent (if (char=? (line 0) #\space) #t
-                               (if (char=? (line 0) #\tab) #t #f))))
-              (if (if saw-indent #t #f)
-                (if has-indent
-                  (self (pair (str "\n" line) lines) #t)
-                  (apply str (reverse (pair (str "\n" line) lines))))
-                (if has-indent
-                  (self (pair (str "\n" line) lines) #t)
+            ; Blank line
+            (if (> depth 0)
+              (self lines depth)          ; open bracket — keep reading
+              (if (null? lines)
+                (self () 0)               ; skip leading blanks
+                (apply str (reverse lines))))
+            ; Non-empty line
+            (let ((new-depth (+ depth (%count-brackets line))))
+              (def new-lines (pair (str "\n" line) lines))
+              (if (> new-depth 0)
+                ; Open bracket — keep reading
+                (self new-lines new-depth)
+                (if (%is-indented? line)
+                  ; Indented — keep reading
+                  (self new-lines new-depth)
+                  ; Col 0, balanced
                   (if (null? lines)
-                    (if (if (>= (str-length line) 3)
-                          (str=? (str-upcase (substring line 0 3)) "TO ") #f)
-                      (self (pair (str "\n" line) ()) #t)
-                      (str "\n" line))
-                    (apply str (reverse (pair (str "\n" line) lines)))))))))))
-    (%rb () #f)))
+                    ; First line — peek ahead for indented continuation
+                    (let ((next (%read-line)))
+                      (if (null? next)
+                        (apply str (reverse new-lines))
+                        (if (str=? next "")
+                          (apply str (reverse new-lines))
+                          (if (%is-indented? next)
+                            ; Next is indented — multi-line block, continue
+                            (self (pair (str "\n" next) new-lines)
+                                  (+ new-depth (%count-brackets next)))
+                            ; Next is col 0 — save for next call, return first
+                            (do (set! %repl-lookahead next)
+                                (apply str (reverse new-lines)))))))
+                    ; Continuation at col 0 — done
+                    (apply str (reverse new-lines))))))))))
+    (%rb () 0)))
 
 ; ============================================================
 ; REPL
