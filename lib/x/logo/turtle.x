@@ -328,6 +328,17 @@
     (if (null? tokens) (error "Expected argument")
       (pair (%logo-eval-tok (first tokens)) (rest tokens)))))
 
+; Consume N arguments, return (args-list . remaining-tokens)
+(def %logo-consume-n-args
+  (fn (_ n tokens)
+    (def %consume
+      (fn (self i toks acc)
+        (if (= i 0)
+          (pair (reverse acc) toks)
+          (let ((r (%logo-consume-arg toks)))
+            (self (- i 1) (rest r) (pair (first r) acc))))))
+    (%consume n tokens ())))
+
 (set! logo-process-tokens
   (fn (_ tokens)
     (if (null? tokens) ()
@@ -345,10 +356,11 @@
                     (handler (first (rest (rest entry)))))
                 (if (= arity 0)
                   (do (handler) (logo-process-tokens remaining))
-                  (if (= arity 1)
-                    (let ((r (%logo-consume-arg remaining)))
-                      (handler (first r))
-                      (logo-process-tokens (rest r)))
+                  (if (>= arity 1)
+                    ; General N-arity: consume N args, call handler
+                    (let ((result (%logo-consume-n-args arity remaining)))
+                      (apply handler (first result))
+                      (logo-process-tokens (rest result)))
                     (if (str=? (str-upcase word) "REPEAT")
                       (let ((r1 (%logo-consume-arg remaining)))
                         (let ((r2 (%logo-consume-arg (rest r1))))
@@ -492,6 +504,7 @@
 
 (def %logo-prompt "? ")
 (def %logo-on-exit ())
+(def %logo-on-command ())
 
 ; Read a block: accumulate lines until blank line or dedent to col 0
 ; after seeing indented lines.
@@ -548,7 +561,8 @@
             (%stderr "\n"))
           (def tokens (token-read-string %logo-base (str block " ")))
           (def processed (%logo-indent-to-blocks tokens))
-          (logo-process-tokens processed))
+          (logo-process-tokens processed)
+          (if (null? %logo-on-command) () (%logo-on-command)))
         (logo-repl)))))
 
 ; ============================================================

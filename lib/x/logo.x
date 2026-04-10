@@ -24,13 +24,8 @@
       (do (sh-close 0) (sh-open-read "/dev/null") (turtle-serve %logo-port))
       pid)))
 
-; --- Hook: write segments after each Logo command ---
-(def %orig-process logo-process-tokens)
-(set! logo-process-tokens
-  (fn (_ tokens)
-    (def result (%orig-process tokens))
-    (%segments-write)
-    result))
+; --- Hook: write segments after each REPL command ---
+(set! %logo-on-command %segments-write)
 
 ; Register SHOW as a command (immediate browser update)
 (set! %logo-commands
