@@ -132,21 +132,28 @@
 ; File reading
 ; ============================================================
 
+(def %slurp-chunk 1048576)  ; 1MB chunks
+
 (def %slurp
   (fn (_ path)
     (def fd (sh-open-read path))
-    (if (< fd 0) (error (str "Cannot open: " path))
+    (if (< fd 0) ""
       (do
-        (def buf (int->ptr (ptr-call %c-malloc 131072)))
-        (def n (ptr-call %c-read fd buf 131071))
+        ; Read in chunks, accumulate strings
+        (def %read-all
+          (fn (self acc)
+            (def buf (int->ptr (ptr-call %c-malloc %slurp-chunk)))
+            (def n (ptr-call %c-read fd buf (- %slurp-chunk 1)))
+            (if (<= n 0)
+              (do (ptr-call %c-free buf) acc)
+              (do
+                (ptr-set1! buf n 0)
+                (def chunk (ptr->str buf))
+                (ptr-call %c-free buf)
+                (self (str acc chunk))))))
+        (def content (%read-all ""))
         (sh-close fd)
-        (if (<= n 0)
-          (do (ptr-call %c-free buf) "")
-          (do
-            (ptr-set1! buf n 0)
-            (def content (ptr->str buf))
-            (ptr-call %c-free buf)
-            content))))))
+        content))))
 
 ; ============================================================
 ; Segment JSON output to string
