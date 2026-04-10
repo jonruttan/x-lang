@@ -232,26 +232,45 @@
     (if (>= fd 0) (sh-close fd))
     (set! %segments-fd (sh-open-append %segments-path))))
 
-; Read segments file and wrap as JSON array for the viewer.
-; If after > 0, skip that many lines (segments already sent).
-(def %segments-json
-  (fn (_ after)
+; Segment reader: keeps file fd open and tracks byte offset.
+; Only reads new bytes appended since last call.
+(def %seg-read-fd -1)
+(def %seg-read-offset 0)
+
+(def %segments-json-incremental
+  (fn ()
+    ; Open on first call
+    (if (< %seg-read-fd 0)
+      (set! %seg-read-fd (sh-open-read %segments-path)))
+    (if (< %seg-read-fd 0) "[]"
+      (do
+        ; Read new bytes from current position
+        (def buf (int->ptr (ptr-call %c-malloc 65536)))
+        (def n (ptr-call %c-read %seg-read-fd buf 65535))
+        (if (<= n 0)
+          (do (ptr-call %c-free buf) "[]")
+          (do
+            (ptr-set1! buf n 0)
+            (def chunk (ptr->str buf))
+            (ptr-call %c-free buf)
+            (set! %seg-read-offset (+ %seg-read-offset n))
+            ; Wrap as JSON array
+            (if (str=? chunk "") "[]"
+              (str "[" (substring chunk 0 (- (str-length chunk) 2)) "]")))))))
+
+; Full read — used for clearscreen detection
+(def %segments-json-full
+  (fn ()
     (def content (%slurp %segments-path))
     (if (str=? content "") "[]"
-      (if (= after 0)
-        (str "[" (substring content 0 (- (str-length content) 2)) "]")
-        ; Skip 'after' lines
-        (do
-          (def %skip-lines
-            (fn (self i n)
-              (if (= n 0) i
-                (if (>= i (str-length content)) i
-                  (if (char=? (content i) #\newline)
-                    (self (+ i 1) (- n 1))
-                    (self (+ i 1) n))))))
-          (def start (%skip-lines 0 after))
-          (if (>= start (str-length content)) "[]"
-            (str "[" (substring content start (- (str-length content) 2)) "]")))))))
+      (str "[" (substring content 0 (- (str-length content) 2)) "]"))))
+
+; Reset reader (after clearscreen)
+(def %seg-reader-reset
+  (fn ()
+    (if (>= %seg-read-fd 0) (sh-close %seg-read-fd))
+    (set! %seg-read-fd -1)
+    (set! %seg-read-offset 0)))
 
 ; Write all current segments (full rewrite — used for initial state only)
 (def %segments-write
@@ -301,8 +320,12 @@
               ; Dispatch
               (def response
                 (if (str=? path "/segments")
-                  (%http-response "200 OK" "application/json"
-                    (%segments-json (%http-after-param request)))
+                  (let ((after (%http-after-param request)))
+                    (if (> after 0)
+                      (%http-response "200 OK" "application/json"
+                        (%segments-json-incremental))
+                      (%http-response "200 OK" "application/json"
+                        (do (%seg-reader-reset) (%segments-json-full)))))
                   (if (str=? path "/")
                     (%http-response "200 OK" "text/html; charset=utf-8" html-page)
                     (%http-response "404 Not Found" "text/plain" "Not found"))))
