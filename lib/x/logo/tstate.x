@@ -5,10 +5,11 @@
 (import x/num/float)
 
 ; ============================================================
-; Turtle visibility
+; Turtle visibility and scale
 ; ============================================================
 
 (def %turtle-visible #t)
+(def %turtle-scale (exact->inexact 1))
 
 ; ============================================================
 ; Register extended turtle commands
@@ -102,6 +103,16 @@
             (#t (self (rest l))))))
       (%search (%block-contents lst))))
   %logo-functions))
+
+; GROW and S.FORWARD
+(set! %logo-commands
+  (pair (list "GROW"      1 (fn (_ factor)
+          (set! %turtle-scale (f* %turtle-scale (%as-float factor)))))
+  (pair (list "S.FORWARD" 1 (fn (_ dist)
+          (turtle-forward (f* (%as-float dist) %turtle-scale))))
+  (pair (list "S.FD"      1 (fn (_ dist)
+          (turtle-forward (f* (%as-float dist) %turtle-scale))))
+  %logo-commands))))
 
 (provide x/logo/tstate
   turtle-setxy turtle-home turtle-distance turtle-towards

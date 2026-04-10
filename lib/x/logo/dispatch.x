@@ -34,7 +34,8 @@
     (list "STOP"    -1 ())
     (list "RETURN"  -1 ())
     (list "PRINT"   -1 ())
-    (list "TYPE"    -1 ())))
+    (list "TYPE"    -1 ())
+    (list "EXECUTE" -1 ())))
 
 ; ============================================================
 ; Variable management
@@ -219,6 +220,12 @@
         (let ((r (%logo-consume-arg remaining)))
           (%logo-print-value (first r))
           (logo-process-tokens (rest r))))
+      ((str=? uword "EXECUTE")
+        (let ((r (%logo-consume-arg remaining)))
+          (def code (first r))
+          (logo-process-tokens
+            (token-read-string %logo-base (str code " ")))
+          (logo-process-tokens (rest r))))
       (#t (error (str "Unknown special: " uword))))))
 
 ; ============================================================
@@ -240,19 +247,37 @@
                 (self))))
           (%loop)
           (logo-process-tokens (rest r)))
-        ; REPEAT count [block]
+        ; REPEAT count [block] or REPEAT [block] UNTIL cond
         (let ((r1 (%logo-consume-arg tokens)))
-          (let ((r2 (%logo-consume-arg (rest r1))))
-            (def count (%as-int (first r1)))
-            (def block (first r2))
-            (def %rep
-              (fn (self i)
-                (if (> i 0)
-                  (do (logo-process-tokens (%block-contents block))
-                      (self (- i 1)))
-                  ())))
-            (%rep count)
-            (logo-process-tokens (rest r2))))))))
+          (if (%is-block? (first r1))
+            ; REPEAT [block] UNTIL cond
+            (let ((block (first r1))
+                  (after-block (rest r1)))
+              (if (not (%logo-word=? (first after-block) "UNTIL"))
+                (error "REPEAT: expected UNTIL after block")
+                (let ((cond-tokens (rest after-block)))
+                  (def %loop
+                    (fn (self)
+                      (guard (err
+                          (if (%is-stop? err) () (error err)))
+                        (logo-process-tokens (%block-contents block))
+                        (let ((cr (%logo-parse-expr cond-tokens)))
+                          (if (first cr)
+                            (logo-process-tokens (rest cr))
+                            (self))))))
+                  (%loop))))
+            ; REPEAT count [block]
+            (let ((r2 (%logo-consume-arg (rest r1))))
+              (def count (%as-int (first r1)))
+              (def block (first r2))
+              (def %rep
+                (fn (self i)
+                  (if (> i 0)
+                    (do (logo-process-tokens (%block-contents block))
+                        (self (- i 1)))
+                    ())))
+              (%rep count)
+              (logo-process-tokens (rest r2)))))))))
 
 ; ============================================================
 ; Consume one command from token list, return (cmd-tokens . rest)
