@@ -148,9 +148,6 @@
   (fn (_ val)
     (match
       ((null? val)   (display "()"))
-      ((float? val)  (display (float->str val)))
-      ((number? val) (display val))
-      ((str? val)    (display val))
       ((eq? val #t)  (display "TRUE"))
       ((eq? val #f)  (display "FALSE"))
       (#t            (display val)))))

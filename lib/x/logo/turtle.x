@@ -14,6 +14,8 @@
 (import x/logo/types)
 (import x/logo/expr)
 (import x/logo/dispatch)
+(import x/logo/math)
+(import x/logo/tstate)
 (import x/logo/indent)
 (import x/logo/repl)
 (import x/logo/json)
