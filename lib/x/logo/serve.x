@@ -164,16 +164,18 @@
 (def %segments-path "/tmp/turtle-segments.ndjson")
 
 ; Format one segment as a JSON line: {"x":..,"y":..,"h":..,"d":..,"p":1}
+(def %fstr (fn (_ v) (write-to-str v)))
+
 (def %segment-json-line
   (fn (_ seg)
     (def s1 (rest seg))
     (def s2 (rest s1))
     (def s3 (rest s2))
     (def s4 (rest s3))
-    (str "{\"x\":" (first seg)
-         ",\"y\":" (first s1)
-         ",\"h\":" (first s2)
-         ",\"d\":" (first s3)
+    (str "{\"x\":" (%fstr (first seg))
+         ",\"y\":" (%fstr (first s1))
+         ",\"h\":" (%fstr (first s2))
+         ",\"d\":" (%fstr (first s3))
          ",\"p\":" (if (first s4) "1" "0") "},\n")))
 
 ; Keep the file open — one write per segment, no open/close overhead
