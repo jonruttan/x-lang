@@ -320,12 +320,7 @@ input[type=range] { width: 120px; }
     buildLineMap();
     segIndex = 0;
     segProgress = 0;
-    if (!data.length) {
-      // No segments — show cursor at origin
-      positionTurtle(0, 0, 0);
-    } else {
-      renderFrame();
-    }
+    renderFrame();
   }
 
   // Add new segments incrementally — no rebuild, no flash
@@ -390,10 +385,12 @@ input[type=range] { width: 120px; }
             var countChanged = data.length !== segments.length;
             lastFingerprint = fp;
             if (first || data.length < segments.length) {
+              // First load or clearscreen — full rebuild
               loadSegments(data);
             } else if (countChanged) {
               loadNewSegments(data);
             } else {
+              // Same count but heading changed (turn command) — update cursor
               segments = data;
               renderFrame();
             }
