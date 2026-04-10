@@ -28,6 +28,7 @@
 
 ; Hook called after each new segment — set by server
 (def %turtle-on-segment ())
+(def %turtle-heading-dirty #f)
 
 (def turtle-forward
   (fn (_ n)
@@ -39,27 +40,32 @@
     (set! %turtle-segments (pair seg %turtle-segments))
     (set! %turtle-x nx)
     (set! %turtle-y ny)
+    (set! %turtle-heading-dirty #f)
     (if (null? %turtle-on-segment) () (%turtle-on-segment seg))))
 
 (def turtle-back
   (fn (_ n) (turtle-forward (- n))))
 
-; Notify the browser of heading changes without adding to segment list
-(def %emit-heading-update
-  (fn ()
-    (if (null? %turtle-on-segment) ()
-      (%turtle-on-segment
-        (list %turtle-x %turtle-y %turtle-x %turtle-y #f %turtle-heading)))))
-
 (def turtle-right
   (fn (_ n)
     (set! %turtle-heading (f+ %turtle-heading (%as-float n)))
-    (%emit-heading-update)))
+    (set! %turtle-heading-dirty #t)))
 
 (def turtle-left
   (fn (_ n)
     (set! %turtle-heading (f- %turtle-heading (%as-float n)))
-    (%emit-heading-update)))
+    (set! %turtle-heading-dirty #t)))
+
+; Flush heading to browser if dirty (call from REPL after command completes)
+(def %turtle-flush-heading
+  (fn ()
+    (if %turtle-heading-dirty
+      (do
+        (set! %turtle-heading-dirty #f)
+        (if (null? %turtle-on-segment) ()
+          (%turtle-on-segment
+            (list %turtle-x %turtle-y %turtle-x %turtle-y #f %turtle-heading))))
+      ())))
 
 (def turtle-penup   (fn () (set! %turtle-pen #f)))
 (def turtle-pendown (fn () (set! %turtle-pen #t)))
@@ -80,4 +86,5 @@
   %as-float %as-int
   turtle-forward turtle-back turtle-right turtle-left
   turtle-penup turtle-pendown turtle-clearscreen
-  %turtle-on-segment %turtle-on-clear)
+  %turtle-on-segment %turtle-on-clear
+  %turtle-flush-heading %turtle-heading-dirty)

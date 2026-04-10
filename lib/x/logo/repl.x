@@ -111,6 +111,7 @@
             (%stderr "\n"))
           ; Block already executed by %is-complete? probe —
           ; no need to process again
+          (%turtle-flush-heading)
           (if (null? %logo-on-command) () (%logo-on-command)))
         (logo-repl)))))
 
