@@ -369,36 +369,29 @@ input[type=range] { width: 120px; }
 
   // Load segments — poll for changes when served from a live endpoint
   if (window.TURTLE_ENDPOINT) {
-    var segmentCount = 0;
+    var lastFingerprint = '';
+    function fingerprint(data) {
+      if (!data.length) return '0';
+      var last = data[data.length - 1];
+      return data.length + ',' + last.heading + ',' + last.x2 + ',' + last.y2;
+    }
     function poll() {
-      var url = window.TURTLE_ENDPOINT;
-      if (segmentCount > 0) url += '?after=' + segmentCount;
-      fetch(url)
+      fetch(window.TURTLE_ENDPOINT)
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          if (!data.length && segmentCount > 0) {
-            // No new data — check if clearscreen happened
-            fetch(window.TURTLE_ENDPOINT)
-              .then(function (r) { return r.json(); })
-              .then(function (full) {
-                if (full.length < segmentCount) {
-                  segmentCount = full.length;
-                  loadSegments(full);
-                }
-              });
-            return;
-          }
-          if (segmentCount === 0) {
-            // First load or clearscreen — full rebuild
-            segmentCount = data.length;
-            loadSegments(data);
-          } else if (data.length > 0) {
-            // Append new segments only
-            for (var i = 0; i < data.length; i++) {
-              segments.push(data[i]);
+          var fp = fingerprint(data);
+          if (fp !== lastFingerprint) {
+            var first = lastFingerprint === '';
+            var countChanged = data.length !== segments.length;
+            lastFingerprint = fp;
+            if (first || data.length < segments.length) {
+              loadSegments(data);
+            } else if (countChanged) {
+              loadNewSegments(data);
+            } else {
+              segments = data;
+              renderFrame();
             }
-            segmentCount = segments.length;
-            loadNewSegments(segments);
           }
         })
         .catch(function () {});
