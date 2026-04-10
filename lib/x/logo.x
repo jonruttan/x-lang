@@ -28,4 +28,9 @@
 (set! %turtle-on-segment %segment-append)
 (set! %turtle-on-clear %segments-clear)
 
+; Kill server child when REPL exits
+(set! %logo-on-exit
+  (fn ()
+    (ptr-call (dlsym (dlopen () 1) "kill") %server-pid 15)))
+
 (display "http://localhost:") (display %logo-port) (newline)
