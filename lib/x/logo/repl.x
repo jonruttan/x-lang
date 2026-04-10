@@ -70,7 +70,10 @@
               (self () 0)
               (if (> depth 0)
                 (self lines depth)
-                (apply str (reverse lines))))
+                ; Balanced — probe for completeness
+                (if (%is-complete? (apply str (reverse lines)) depth)
+                  (apply str (reverse lines))
+                  (self lines depth))))
             ; Non-empty line
             (let ((new-depth (+ depth (%count-brackets line)))
                   (new-lines (pair (str "\n" line) lines)))
