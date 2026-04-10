@@ -44,22 +44,22 @@
 (def turtle-back
   (fn (_ n) (turtle-forward (- n))))
 
-(def %update-last-heading
+; Notify the browser of heading changes without adding to segment list
+(def %emit-heading-update
   (fn ()
-    (if (null? %turtle-segments) ()
-      (set-first!
-        (rest (rest (rest (rest (rest (first %turtle-segments))))))
-        %turtle-heading))))
+    (if (null? %turtle-on-segment) ()
+      (%turtle-on-segment
+        (list %turtle-x %turtle-y %turtle-x %turtle-y #f %turtle-heading)))))
 
 (def turtle-right
   (fn (_ n)
     (set! %turtle-heading (f+ %turtle-heading (%as-float n)))
-    (%update-last-heading)))
+    (%emit-heading-update)))
 
 (def turtle-left
   (fn (_ n)
     (set! %turtle-heading (f- %turtle-heading (%as-float n)))
-    (%update-last-heading)))
+    (%emit-heading-update)))
 
 (def turtle-penup   (fn () (set! %turtle-pen #f)))
 (def turtle-pendown (fn () (set! %turtle-pen #t)))
