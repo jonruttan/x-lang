@@ -100,22 +100,52 @@
 ; ============================================================
 
 ; Extract the request path from an HTTP request string.
-; "GET /path HTTP/1.1\r\n..." → "/path"
+; "GET /path?query HTTP/1.1\r\n..." → "/path"
 (def %http-path
   (fn (_ request)
     (if (null? request) "/"
       (do
-        ; Find space after method
         (def %find-space
           (fn (self i)
             (if (>= i (str-length request)) 0
               (if (char=? (request i) #\space) i
                 (self (+ i 1))))))
         (def start (+ (%find-space 0) 1))
-        ; Find space before HTTP version
         (def end (%find-space start))
         (if (>= start end) "/"
-          (substring request start end))))))
+          (do
+            (def full (substring request start end))
+            ; Strip query string
+            (def %find-q
+              (fn (self i)
+                (if (>= i (str-length full)) (str-length full)
+                  (if (char=? (full i) #\?) i
+                    (self (+ i 1))))))
+            (substring full 0 (%find-q 0))))))))
+
+; Extract query parameter "after" from request URL
+; "GET /segments?after=5 ..." → 5, or 0 if not present
+(def %http-after-param
+  (fn (_ request)
+    (if (null? request) 0
+      (do
+        (def %find-str
+          (fn (self s i)
+            (if (>= i (- (str-length request) (str-length s))) -1
+              (if (str=? (substring request i (+ i (str-length s))) s) i
+                (self s (+ i 1))))))
+        (def pos (%find-str "after=" 0))
+        (if (< pos 0) 0
+          (do
+            (def start (+ pos 6))
+            (def %read-num
+              (fn (self i acc)
+                (if (>= i (str-length request)) acc
+                  (let ((ch (char->integer (request i))))
+                    (if (and (>= ch 48) (<= ch 57))
+                      (self (+ i 1) (+ (* acc 10) (- ch 48)))
+                      acc)))))
+            (%read-num start 0)))))))
 
 ; Build an HTTP response string.
 (def %http-response
@@ -202,12 +232,26 @@
     (if (>= fd 0) (sh-close fd))
     (set! %segments-fd (sh-open-append %segments-path))))
 
-; Read segments file and wrap as JSON array for the viewer
+; Read segments file and wrap as JSON array for the viewer.
+; If after > 0, skip that many lines (segments already sent).
 (def %segments-json
-  (fn ()
+  (fn (_ after)
     (def content (%slurp %segments-path))
     (if (str=? content "") "[]"
-      (str "[" (substring content 0 (- (str-length content) 2)) "]"))))
+      (if (= after 0)
+        (str "[" (substring content 0 (- (str-length content) 2)) "]")
+        ; Skip 'after' lines
+        (do
+          (def %skip-lines
+            (fn (self i n)
+              (if (= n 0) i
+                (if (>= i (str-length content)) i
+                  (if (char=? (content i) #\newline)
+                    (self (+ i 1) (- n 1))
+                    (self (+ i 1) n))))))
+          (def start (%skip-lines 0 after))
+          (if (>= start (str-length content)) "[]"
+            (str "[" (substring content start (- (str-length content) 2)) "]")))))))
 
 ; Write all current segments (full rewrite — used for initial state only)
 (def %segments-write
@@ -257,7 +301,8 @@
               ; Dispatch
               (def response
                 (if (str=? path "/segments")
-                  (%http-response "200 OK" "application/json" (%segments-json))
+                  (%http-response "200 OK" "application/json"
+                    (%segments-json (%http-after-param request)))
                   (if (str=? path "/")
                     (%http-response "200 OK" "text/html; charset=utf-8" html-page)
                     (%http-response "404 Not Found" "text/plain" "Not found"))))
