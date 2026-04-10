@@ -320,7 +320,12 @@ input[type=range] { width: 120px; }
     buildLineMap();
     segIndex = 0;
     segProgress = 0;
-    renderFrame();
+    if (!data.length) {
+      // No segments — show cursor at origin
+      positionTurtle(0, 0, 0);
+    } else {
+      renderFrame();
+    }
   }
 
   // Add new segments incrementally — no rebuild, no flash
