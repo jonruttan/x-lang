@@ -168,18 +168,27 @@
     (str "{\"x1\":" x1 ",\"y1\":" y1 ",\"x2\":" x2 ",\"y2\":" y2
          ",\"pen\":" (if pen "true" "false") ",\"heading\":" hdg "},\n")))
 
-; Append one segment line to the file
+; Keep the file open — one write per segment, no open/close overhead
+(def %segments-fd -1)
+
+(def %segments-open
+  (fn ()
+    (if (>= %segments-fd 0) () ; already open
+      (set! %segments-fd (sh-open-append %segments-path)))))
+
+; Append one segment line (single write syscall)
 (def %segment-append
   (fn (_ seg)
-    (def fd (sh-open-append %segments-path))
-    (if (< fd 0) ()
-      (do (fd-write fd (%segment-json-line seg)) (sh-close fd)))))
+    (%segments-open)
+    (fd-write %segments-fd (%segment-json-line seg))))
 
-; Clear the segments file (for clearscreen)
+; Clear the segments file (close, truncate, reopen)
 (def %segments-clear
   (fn ()
+    (if (>= %segments-fd 0) (sh-close %segments-fd))
     (def fd (sh-open-write %segments-path))
-    (if (< fd 0) () (sh-close fd))))
+    (if (>= fd 0) (sh-close fd))
+    (set! %segments-fd (sh-open-append %segments-path))))
 
 ; Read segments file and wrap as JSON array for the viewer
 (def %segments-json
