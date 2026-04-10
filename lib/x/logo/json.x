@@ -1,4 +1,5 @@
 ; json.x -- Turtle segment JSON output
+; Format: {"x":..,"y":..,"h":..,"d":..,"p":1}
 (import x/logo/state)
 
 ; ============================================================
@@ -15,19 +16,11 @@
           (do
             (if first? () (display ","))
             (def s (first segs))
-            (def x1 (first s))
-            (def y1 (first (rest s)))
-            (def x2 (first (rest (rest s))))
-            (def y2 (first (rest (rest (rest s)))))
-            (def pen (first (rest (rest (rest (rest s))))))
-            (def hdg (first (rest (rest (rest (rest (rest s)))))))
-            (display "\n{\"x1\":") (display x1)
-            (display ",\"y1\":") (display y1)
-            (display ",\"x2\":") (display x2)
-            (display ",\"y2\":") (display y2)
-            (display ",\"pen\":")
-            (display (if pen "true" "false"))
-            (display ",\"heading\":") (display hdg)
+            (display "\n{\"x\":") (display (first s))
+            (display ",\"y\":") (display (first (rest s)))
+            (display ",\"h\":") (display (first (rest (rest s))))
+            (display ",\"d\":") (display (first (rest (rest (rest s)))))
+            (display ",\"p\":") (display (if (first (rest (rest (rest (rest s))))) "1" "0"))
             (display "}")
             (self (rest segs) #f)))))
     (%out segs #t)
@@ -42,18 +35,11 @@
     (def segs (reverse %turtle-segments))
     (def %seg-json
       (fn (_ s)
-        (def x1 (write-to-str (first s)))
-        (def y1 (write-to-str (first (rest s))))
-        (def x2 (write-to-str (first (rest (rest s)))))
-        (def y2 (write-to-str (first (rest (rest (rest s))))))
-        (def pen (first (rest (rest (rest (rest s))))))
-        (def hdg (write-to-str (first (rest (rest (rest (rest (rest s))))))))
-        (str "{\"x1\":" x1
-             ",\"y1\":" y1
-             ",\"x2\":" x2
-             ",\"y2\":" y2
-             ",\"pen\":" (if pen "true" "false")
-             ",\"heading\":" hdg "}")))
+        (str "{\"x\":" (write-to-str (first s))
+             ",\"y\":" (write-to-str (first (rest s)))
+             ",\"h\":" (write-to-str (first (rest (rest s))))
+             ",\"d\":" (write-to-str (first (rest (rest (rest s)))))
+             ",\"p\":" (if (first (rest (rest (rest (rest s))))) "1" "0") "}")))
     (def %join
       (fn (self segs first?)
         (if (null? segs) ""

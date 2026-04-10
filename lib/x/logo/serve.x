@@ -163,22 +163,18 @@
 ; Parent appends lines, server child reads and wraps in [...].
 (def %segments-path "/tmp/turtle-segments.ndjson")
 
-; Format one segment as a JSON line — uses float->str directly (no write buffer overhead)
-(def %fstr (fn (_ v) (float->str (first v))))
-
+; Format one segment as a JSON line: {"x":..,"y":..,"h":..,"d":..,"p":1}
 (def %segment-json-line
   (fn (_ seg)
     (def s1 (rest seg))
     (def s2 (rest s1))
     (def s3 (rest s2))
     (def s4 (rest s3))
-    (def s5 (rest s4))
-    (str "{\"x1\":" (%fstr (first seg))
-         ",\"y1\":" (%fstr (first s1))
-         ",\"x2\":" (%fstr (first s2))
-         ",\"y2\":" (%fstr (first s3))
-         ",\"pen\":" (if (first s4) "true" "false")
-         ",\"heading\":" (%fstr (first s5)) "},\n")))
+    (str "{\"x\":" (first seg)
+         ",\"y\":" (first s1)
+         ",\"h\":" (first s2)
+         ",\"d\":" (first s3)
+         ",\"p\":" (if (first s4) "1" "0") "},\n")))
 
 ; Keep the file open — one write per segment, no open/close overhead
 (def %segments-fd -1)

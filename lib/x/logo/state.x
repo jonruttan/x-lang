@@ -23,49 +23,47 @@
   (fn (_ n) (if (float? n) (inexact->exact n) n)))
 
 ; ============================================================
-; Movement
+; Segment emission
 ; ============================================================
 
-; Hook called after each new segment — set by server
+; Hook called after each entry — set by server
 (def %turtle-on-segment ())
-(def %turtle-heading-dirty #f)
+
+; Segment format: (x y h d p)
+;   x,y = position BEFORE this step
+;   h   = heading BEFORE this step
+;   d   = distance moved (0 for pure turns)
+;   p   = pen state (#t/#f)
+(def %turtle-emit
+  (fn (_ dist)
+    (def seg (list %turtle-x %turtle-y %turtle-heading dist %turtle-pen))
+    (set! %turtle-segments (pair seg %turtle-segments))
+    (if (null? %turtle-on-segment) () (%turtle-on-segment seg))))
+
+; ============================================================
+; Movement
+; ============================================================
 
 (def turtle-forward
   (fn (_ n)
     (def dist (%as-float n))
+    (%turtle-emit dist)
     (def rad (%deg->rad %turtle-heading))
-    (def nx (f+ %turtle-x (f* dist (fsin rad))))
-    (def ny (f- %turtle-y (f* dist (fcos rad))))
-    (def seg (list %turtle-x %turtle-y nx ny %turtle-pen %turtle-heading))
-    (set! %turtle-segments (pair seg %turtle-segments))
-    (set! %turtle-x nx)
-    (set! %turtle-y ny)
-    (set! %turtle-heading-dirty #f)
-    (if (null? %turtle-on-segment) () (%turtle-on-segment seg))))
+    (set! %turtle-x (f+ %turtle-x (f* dist (fsin rad))))
+    (set! %turtle-y (f- %turtle-y (f* dist (fcos rad))))))
 
 (def turtle-back
   (fn (_ n) (turtle-forward (- n))))
 
 (def turtle-right
   (fn (_ n)
-    (set! %turtle-heading (f+ %turtle-heading (%as-float n)))
-    (set! %turtle-heading-dirty #t)))
+    (%turtle-emit (exact->inexact 0))
+    (set! %turtle-heading (f+ %turtle-heading (%as-float n)))))
 
 (def turtle-left
   (fn (_ n)
-    (set! %turtle-heading (f- %turtle-heading (%as-float n)))
-    (set! %turtle-heading-dirty #t)))
-
-; Flush heading to browser if dirty (call from REPL after command completes)
-(def %turtle-flush-heading
-  (fn ()
-    (if %turtle-heading-dirty
-      (do
-        (set! %turtle-heading-dirty #f)
-        (if (null? %turtle-on-segment) ()
-          (%turtle-on-segment
-            (list %turtle-x %turtle-y %turtle-x %turtle-y #f %turtle-heading))))
-      ())))
+    (%turtle-emit (exact->inexact 0))
+    (set! %turtle-heading (f- %turtle-heading (%as-float n)))))
 
 (def turtle-penup   (fn () (set! %turtle-pen #f)))
 (def turtle-pendown (fn () (set! %turtle-pen #t)))
@@ -86,5 +84,4 @@
   %as-float %as-int
   turtle-forward turtle-back turtle-right turtle-left
   turtle-penup turtle-pendown turtle-clearscreen
-  %turtle-on-segment %turtle-on-clear
-  %turtle-flush-heading %turtle-heading-dirty)
+  %turtle-on-segment %turtle-on-clear)

@@ -231,7 +231,7 @@
 (length %turtle-segments)
 ```
 ---
-    4
+    8
 
 ### case insensitive lookup
 
@@ -257,7 +257,7 @@
 (length %turtle-segments)
 ```
 ---
-    4
+    8
 
 ### multi-parameter procedure
 
@@ -270,7 +270,7 @@
 (length %turtle-segments)
 ```
 ---
-    10
+    20
 
 ## indent preprocessing
 
@@ -302,7 +302,7 @@
 (length %turtle-segments)
 ```
 ---
-    4
+    8
 
 ## JSON output
 
@@ -314,4 +314,4 @@
 (turtle-json-str)
 ```
 ---
-    "[\n{\"x1\":0,\"y1\":0,\"x2\":0,\"y2\":-100,\"pen\":true,\"heading\":0}\n]\n"
+    "[\n{\"x\":0,\"y\":0,\"h\":0,\"d\":100,\"p\":1}\n]\n"

@@ -37,41 +37,43 @@ input[type=range] { width: 120px; }
   'use strict';
 
   // --- Segment data ---
-  // Each segment: { x1, y1, x2, y2, pen: bool, heading: degrees }
-  // Heading convention: 0 = north (up), positive = clockwise
-  // Coordinates: SVG (y increases downward)
-  // heading = turtle's heading AFTER this segment (including any subsequent turns)
+  // Each entry: { x, y, h, d, p }
+  //   x, y = position BEFORE this step
+  //   h    = heading BEFORE this step (degrees, 0=north, clockwise)
+  //   d    = distance moved (0 for pure turns)
+  //   p    = pen state (1=down, 0=up)
+  // Browser computes endpoint: x2 = x + d*sin(h), y2 = y - d*cos(h)
+
+  // Compute endpoint from turtle-centric segment
+  function segEnd(s) {
+    var rad = s.h * Math.PI / 180;
+    return { x: s.x + s.d * Math.sin(rad), y: s.y - s.d * Math.cos(rad) };
+  }
 
   // Sample: square + pen-up move + triangle
   var SAMPLE_SEGMENTS = (function () {
     var segs = [];
-    var x = 0, y = 0, heading = 0;
-    var pen = true;
+    var x = 0, y = 0, h = 0;
+    var p = 1;
 
     function forward(dist) {
-      var rad = heading * Math.PI / 180;
-      var x2 = x + dist * Math.sin(rad);
-      var y2 = y - dist * Math.cos(rad);
-      segs.push({ x1: x, y1: y, x2: x2, y2: y2, pen: pen, heading: heading });
-      x = x2; y = y2;
+      segs.push({ x: x, y: y, h: h, d: dist, p: p });
+      var rad = h * Math.PI / 180;
+      x += dist * Math.sin(rad);
+      y -= dist * Math.cos(rad);
     }
     function right(deg) {
-      heading = ((heading + deg) % 360 + 360) % 360;
-      // Update heading on the last segment so cursor faces correctly after turns
-      if (segs.length) segs[segs.length - 1].heading = heading;
+      segs.push({ x: x, y: y, h: h, d: 0, p: 0 });
+      h = ((h + deg) % 360 + 360) % 360;
     }
 
-    // REPEAT 4 [ FORWARD 100 RIGHT 90 ]
     for (var i = 0; i < 4; i++) { forward(100); right(90); }
-    // PENUP  FORWARD 50  PENDOWN
-    pen = false; forward(50); pen = true;
-    // REPEAT 3 [ FORWARD 80 RIGHT 120 ]
+    p = 0; forward(50); p = 1;
     for (var j = 0; j < 3; j++) { forward(80); right(120); }
 
     return segs;
   })();
 
-  // Use embedded data or override via window.TURTLE_SEGMENTS
   var segments = window.TURTLE_SEGMENTS || SAMPLE_SEGMENTS;
 
   // --- SVG setup ---
@@ -83,11 +85,11 @@ input[type=range] { width: 120px; }
     if (!segs.length) return { x: -100, y: -100, w: 200, h: 200 };
     var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (var i = 0; i < segs.length; i++) {
-      var s = segs[i];
-      minX = Math.min(minX, s.x1, s.x2);
-      minY = Math.min(minY, s.y1, s.y2);
-      maxX = Math.max(maxX, s.x1, s.x2);
-      maxY = Math.max(maxY, s.y1, s.y2);
+      var s = segs[i], e = segEnd(s);
+      minX = Math.min(minX, s.x, e.x);
+      minY = Math.min(minY, s.y, e.y);
+      maxX = Math.max(maxX, s.x, e.x);
+      maxY = Math.max(maxY, s.y, e.y);
     }
     var pad = Math.max(maxX - minX, maxY - minY) * 0.1 + 20;
     return { x: minX - pad, y: minY - pad, w: maxX - minX + 2 * pad, h: maxY - minY + 2 * pad };
@@ -124,12 +126,13 @@ input[type=range] { width: 120px; }
 
     for (var i = 0; i < segments.length; i++) {
       var s = segments[i];
-      if (s.pen) {
+      if (s.p && s.d !== 0) {
+        var e = segEnd(s);
         var line = document.createElementNS(ns, 'line');
-        line.setAttribute('x1', s.x1);
-        line.setAttribute('y1', s.y1);
-        line.setAttribute('x2', s.x2);
-        line.setAttribute('y2', s.y2);
+        line.setAttribute('x1', s.x);
+        line.setAttribute('y1', s.y);
+        line.setAttribute('x2', e.x);
+        line.setAttribute('y2', e.y);
         line.style.display = 'none';
         linesGroup.appendChild(line);
         lines.push({ el: line, idx: i });
@@ -186,15 +189,15 @@ input[type=range] { width: 120px; }
       if (li.idx < segIndex) {
         li.el.style.display = '';
         // Reset to full segment
-        var s = segments[li.idx];
-        li.el.setAttribute('x2', s.x2);
-        li.el.setAttribute('y2', s.y2);
-      } else if (li.idx === segIndex && segments[li.idx].pen) {
+        var s = segments[li.idx], e = segEnd(s);
+        li.el.setAttribute('x2', e.x);
+        li.el.setAttribute('y2', e.y);
+      } else if (li.idx === segIndex && segments[li.idx].p && segments[li.idx].d !== 0) {
         // Partial current segment
         li.el.style.display = '';
-        var seg = segments[segIndex];
-        var cx = seg.x1 + (seg.x2 - seg.x1) * segProgress;
-        var cy = seg.y1 + (seg.y2 - seg.y1) * segProgress;
+        var seg = segments[segIndex], end = segEnd(seg);
+        var cx = seg.x + (end.x - seg.x) * segProgress;
+        var cy = seg.y + (end.y - seg.y) * segProgress;
         li.el.setAttribute('x2', cx);
         li.el.setAttribute('y2', cy);
       } else {
@@ -202,28 +205,29 @@ input[type=range] { width: 120px; }
       }
     }
 
-    // Position turtle — use heading from segment data
+    // Position turtle cursor
     if (segIndex < segments.length) {
       var seg = segments[segIndex];
-      var tx = seg.x1 + (seg.x2 - seg.x1) * segProgress;
-      var ty = seg.y1 + (seg.y2 - seg.y1) * segProgress;
-      // During animation, face the movement direction (heading before any post-turn)
-      var dx = seg.x2 - seg.x1;
-      var dy = seg.y2 - seg.y1;
-      var moveAngle = Math.atan2(dx, -dy) * 180 / Math.PI;
-      positionTurtle(tx, ty, moveAngle);
+      if (seg.d === 0) {
+        // Pure turn — cursor at position, facing heading
+        positionTurtle(seg.x, seg.y, seg.h);
+      } else {
+        var end = segEnd(seg);
+        var tx = seg.x + (end.x - seg.x) * segProgress;
+        var ty = seg.y + (end.y - seg.y) * segProgress;
+        positionTurtle(tx, ty, seg.h);
+      }
     } else if (segments.length > 0) {
-      var last = segments[segments.length - 1];
-      positionTurtle(last.x2, last.y2, last.heading);
+      // Animation done — cursor at final position
+      var last = segments[segments.length - 1], e = segEnd(last);
+      positionTurtle(e.x, e.y, last.h);
     } else {
       positionTurtle(0, 0, 0);
     }
   }
 
   function segmentLength(s) {
-    var dx = s.x2 - s.x1;
-    var dy = s.y2 - s.y1;
-    return Math.sqrt(dx * dx + dy * dy);
+    return Math.abs(s.d);
   }
 
   // Compute total path length for uniform speed
@@ -259,11 +263,16 @@ input[type=range] { width: 120px; }
     var advance = rate * dt;
 
     while (advance > 0 && segIndex < segments.length) {
-      var sl = segLengths[segIndex] || 1;
+      // Skip zero-distance entries (turns) instantly
+      if (segments[segIndex].d === 0) {
+        segIndex++;
+        segProgress = 0;
+        continue;
+      }
+      var sl = segLengths[segIndex];
       var remaining = (1 - segProgress) * sl;
       if (advance >= remaining) {
         advance -= remaining;
-        segProgress = 1;
         segIndex++;
         segProgress = 0;
       } else {
@@ -333,12 +342,13 @@ input[type=range] { width: 120px; }
     var linesGroup = document.getElementById('lines');
     for (var i = prevCount; i < segments.length; i++) {
       var s = segments[i];
-      if (s.pen) {
+      if (s.p && s.d !== 0) {
+        var e = segEnd(s);
         var line = document.createElementNS(ns, 'line');
-        line.setAttribute('x1', s.x1);
-        line.setAttribute('y1', s.y1);
-        line.setAttribute('x2', s.x2);
-        line.setAttribute('y2', s.y2);
+        line.setAttribute('x1', s.x);
+        line.setAttribute('y1', s.y);
+        line.setAttribute('x2', e.x);
+        line.setAttribute('y2', e.y);
         line.style.display = 'none';
         linesGroup.appendChild(line);
         lines.push({ el: line, idx: i });
@@ -373,7 +383,7 @@ input[type=range] { width: 120px; }
     function fingerprint(data) {
       if (!data.length) return '0';
       var last = data[data.length - 1];
-      return data.length + ',' + last.heading + ',' + last.x2 + ',' + last.y2;
+      return data.length + ',' + last.h + ',' + last.x + ',' + last.y;
     }
     function poll() {
       fetch(window.TURTLE_ENDPOINT)
