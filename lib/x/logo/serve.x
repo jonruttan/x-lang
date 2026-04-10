@@ -166,7 +166,7 @@
     (def pen (first (rest (rest (rest (rest seg))))))
     (def hdg (write-to-str (first (rest (rest (rest (rest (rest seg))))))))
     (str "{\"x1\":" x1 ",\"y1\":" y1 ",\"x2\":" x2 ",\"y2\":" y2
-         ",\"pen\":" (if pen "true" "false") ",\"heading\":" hdg "}\n")))
+         ",\"pen\":" (if pen "true" "false") ",\"heading\":" hdg "},\n")))
 
 ; Append one segment line to the file
 (def %segment-append
@@ -186,7 +186,7 @@
   (fn ()
     (def content (%slurp %segments-path))
     (if (str=? content "") "[]"
-      (str "[" (substring content 0 (- (str-length content) 1)) "]"))))
+      (str "[" (substring content 0 (- (str-length content) 2)) "]"))))
 
 ; Write all current segments (full rewrite — used for initial state only)
 (def %segments-write
