@@ -34,17 +34,20 @@
 ; Turtle movement
 ; ============================================================
 
+; Hook called after each new segment — set by server for append-only writes
+(def %turtle-on-segment ())
+
 (def turtle-forward
   (fn (_ n)
     (def dist (%as-float n))
     (def rad (%deg->rad %turtle-heading))
     (def nx (f+ %turtle-x (f* dist (fsin rad))))
     (def ny (f- %turtle-y (f* dist (fcos rad))))
-    (set! %turtle-segments
-      (pair (list %turtle-x %turtle-y nx ny %turtle-pen %turtle-heading)
-            %turtle-segments))
+    (def seg (list %turtle-x %turtle-y nx ny %turtle-pen %turtle-heading))
+    (set! %turtle-segments (pair seg %turtle-segments))
     (set! %turtle-x nx)
-    (set! %turtle-y ny)))
+    (set! %turtle-y ny)
+    (if (null? %turtle-on-segment) () (%turtle-on-segment seg))))
 
 (def turtle-back
   (fn (_ n) (turtle-forward (- n))))

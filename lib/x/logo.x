@@ -24,12 +24,7 @@
       (do (sh-close 0) (sh-open-read "/dev/null") (turtle-serve %logo-port))
       pid)))
 
-; --- Hook: write segments after each REPL command ---
-(set! %logo-on-command %segments-write)
-
-; Register SHOW as a command (immediate browser update)
-(set! %logo-commands
-  (pair (list "SHOW" 0 (fn () (%segments-write)))
-    %logo-commands))
+; --- Hook: append each segment to file as it's drawn ---
+(set! %turtle-on-segment %segment-append)
 
 (display "http://localhost:") (display %logo-port) (newline)

@@ -152,22 +152,55 @@
 ; Segment JSON output to string
 ; ============================================================
 
-; Segments file path — shared between parent (writer) and server (reader)
-(def %segments-path "/tmp/turtle-segments.json")
+; Segments file — newline-delimited JSON (one segment per line).
+; Parent appends lines, server child reads and wraps in [...].
+(def %segments-path "/tmp/turtle-segments.ndjson")
 
-; Read segments from file (server child reads parent's updates)
+; Format one segment as a JSON line
+(def %segment-json-line
+  (fn (_ seg)
+    (def x1 (write-to-str (first seg)))
+    (def y1 (write-to-str (first (rest seg))))
+    (def x2 (write-to-str (first (rest (rest seg)))))
+    (def y2 (write-to-str (first (rest (rest (rest seg))))))
+    (def pen (first (rest (rest (rest (rest seg))))))
+    (def hdg (write-to-str (first (rest (rest (rest (rest (rest seg))))))))
+    (str "{\"x1\":" x1 ",\"y1\":" y1 ",\"x2\":" x2 ",\"y2\":" y2
+         ",\"pen\":" (if pen "true" "false") ",\"heading\":" hdg "}\n")))
+
+; Append one segment line to the file
+(def %segment-append
+  (fn (_ seg)
+    (def fd (sh-open-append %segments-path))
+    (if (< fd 0) ()
+      (do (fd-write fd (%segment-json-line seg)) (sh-close fd)))))
+
+; Clear the segments file (for clearscreen)
+(def %segments-clear
+  (fn ()
+    (def fd (sh-open-write %segments-path))
+    (if (< fd 0) () (sh-close fd))))
+
+; Read segments file and wrap as JSON array for the viewer
 (def %segments-json
   (fn ()
     (def content (%slurp %segments-path))
-    (if (str=? content "") "[]" content)))
+    (if (str=? content "") "[]"
+      (str "[" (substring content 0 (- (str-length content) 1)) "]"))))
 
-; Write current segments to file
+; Write all current segments (full rewrite — used for initial state only)
 (def %segments-write
   (fn ()
     (def fd (sh-open-write %segments-path))
     (if (< fd 0) ()
       (do
-        (fd-write fd (turtle-json-str))
+        (def segs (reverse %turtle-segments))
+        (def %wr
+          (fn (self s)
+            (if (null? s) ()
+              (do (fd-write fd (%segment-json-line (first s)))
+                  (self (rest s))))))
+        (%wr segs)
         (sh-close fd)))))
 
 ; ============================================================
