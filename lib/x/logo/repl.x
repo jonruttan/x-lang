@@ -80,19 +80,8 @@
                   (self new-lines new-depth)
                   ; Col 0, balanced
                   (if (null? lines)
-                    ; First line — peek ahead for indented continuation
-                    (let ((next (%read-line)))
-                      (if (null? next)
-                        (apply str (reverse new-lines))
-                        (if (str=? next "")
-                          (apply str (reverse new-lines))
-                          (if (%is-indented? next)
-                            ; Next is indented — multi-line block, continue
-                            (self (pair (str "\n" next) new-lines)
-                                  (+ new-depth (%count-brackets next)))
-                            ; Next is col 0 — save for next call, return first
-                            (do (set! %repl-lookahead next)
-                                (apply str (reverse new-lines)))))))
+                    ; First line, balanced — return immediately
+                    (apply str (reverse new-lines))
                     ; Continuation at col 0 — done
                     (apply str (reverse new-lines))))))))))
     (%rb () 0)))
