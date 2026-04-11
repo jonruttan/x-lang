@@ -182,8 +182,7 @@ input[type=range] { width: 120px; }
     svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
     var scale = Math.max(vb.w, vb.h) / 500;
     linesGroup.setAttribute('stroke-width', Math.max(0.5, 1.5 * scale));
-    tri.setAttribute('stroke-width', Math.max(0.3, 0.5 * scale));
-    marker.setAttribute('transform', 'scale(' + Math.max(0.5, scale) + ')');
+    tri.setAttribute('stroke-width', '0.5');
   }
 
   // --- Animation ---
@@ -203,7 +202,12 @@ input[type=range] { width: 120px; }
   function positionTurtle(x, y, heading) {
     var cursor = document.getElementById('cursor');
     if (!cursor) return;
-    cursor.setAttribute('transform', 'translate(' + x + ',' + y + ') rotate(' + heading + ')');
+    // Scale cursor to constant screen size regardless of viewBox
+    var vb = svg.viewBox.baseVal;
+    var s = Math.max(vb.width, vb.height) / 500;
+    s = Math.max(0.5, s);
+    cursor.setAttribute('transform',
+      'translate(' + x + ',' + y + ') scale(' + s + ') rotate(' + heading + ')');
   }
 
   function renderFrame() {
@@ -329,8 +333,29 @@ input[type=range] { width: 120px; }
   function loadNewBytecode(bc) {
     var prevCount = instrs.length;
     instrs = parseBytecode(bc);
-    buildSVG();
+
+    // Add SVG lines for new pen-down instructions only
+    var linesGroup = document.getElementById('lines');
+    for (var i = prevCount; i < instrs.length; i++) {
+      var s = instrs[i];
+      if (s.pen && s.dist > 0) {
+        var line = document.createElementNS(ns, 'line');
+        line.setAttribute('x1', s.x);
+        line.setAttribute('y1', s.y);
+        line.setAttribute('x2', s.x2);
+        line.setAttribute('y2', s.y2);
+        line.style.display = 'none';
+        linesGroup.appendChild(line);
+        lines.push({ el: line, idx: i });
+      }
+    }
     buildLineMap();
+
+    // Update viewBox
+    var vb = computeViewBox(instrs);
+    svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
+    var scale = Math.max(vb.w, vb.h) / 500;
+    linesGroup.setAttribute('stroke-width', Math.max(0.5, 1.5 * scale));
 
     if (animId) cancelAnimationFrame(animId);
     instrIndex = prevCount;
