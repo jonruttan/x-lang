@@ -394,25 +394,27 @@ input[type=range] { width: 120px; }
       lines[j].el.setAttribute('stroke-width', Math.max(0.3, lines[j].width * scale));
     }
 
-    if (animId) cancelAnimationFrame(animId);
-    instrIndex = prevCount;
-    instrProgress = 0;
-
     if (prevCount < instrs.length) {
       if (speed >= 150) {
         // Fast enough — show immediately, no animation
+        if (animId) cancelAnimationFrame(animId);
         instrIndex = instrs.length;
+        instrProgress = 0;
         lastRenderedLine = -1;
         renderFrame();
-      } else {
+        playing = false;
+        playBtn.textContent = 'Play';
+      } else if (!playing) {
+        // Start animation from where old content ended
+        instrIndex = prevCount;
+        instrProgress = 0;
         renderFrame();
         playing = true;
         playBtn.textContent = 'Pause';
         lastTime = 0;
         animId = requestAnimationFrame(animate);
       }
-    } else {
-      renderFrame();
+      // If already playing, just let it continue — new instrs are appended
     }
   }
 
