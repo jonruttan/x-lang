@@ -2,6 +2,33 @@
 (import x/logo/state)
 (import x/logo/types)
 (import x/logo/expr)
+(import x/logo/indent)
+(import x/sys/posix)
+
+; ============================================================
+; File reader (uses read-char with stdin redirection)
+; ============================================================
+
+(def %c-read (dlsym (dlopen () 1) "read"))
+(def %c-malloc (dlsym (dlopen () 1) "malloc"))
+(def %c-free (dlsym (dlopen () 1) "free"))
+
+(def %logo-slurp-file
+  (fn (_ path)
+    (def fd (sh-open-read path))
+    (if (< fd 0) (error (str "Cannot open: " path)))
+    (def bufsize 65536)
+    (def buf (int->ptr (ptr-call %c-malloc bufsize)))
+    (def %read-all
+      (fn (self acc)
+        (def n (ptr-call %c-read fd buf (- bufsize 1)))
+        (if (<= n 0) acc
+          (do (ptr-set! buf n 0 1)
+              (self (str acc (ptr->str buf)))))))
+    (def content (%read-all ""))
+    (ptr-call %c-free buf)
+    (sh-close fd)
+    content))
 
 ; ============================================================
 ; Command table
@@ -23,8 +50,6 @@
     (list "PD"      0 (fn () (turtle-pendown)))
     (list "CLEARSCREEN" 0 (fn () (turtle-clearscreen)))
     (list "CS"      0 (fn () (turtle-clearscreen)))
-    (list "SETHEADING" 1 (fn (_ n) (set! %turtle-heading (%as-float n))))
-    (list "SETH"    1 (fn (_ n) (set! %turtle-heading (%as-float n))))
     (list "HEADING" 0 (fn () %turtle-heading))
     (list "XCOR"    0 (fn () %turtle-x))
     (list "YCOR"    0 (fn () %turtle-y))
@@ -35,7 +60,8 @@
     (list "RETURN"  -1 ())
     (list "PRINT"   -1 ())
     (list "TYPE"    -1 ())
-    (list "EXECUTE" -1 ())))
+    (list "EXECUTE" -1 ())
+    (list "LOAD"    -1 ())))
 
 ; ============================================================
 ; Variable management
@@ -225,6 +251,13 @@
           (def code (first r))
           (logo-process-tokens
             (token-read-string %logo-base (str code " ")))
+          (logo-process-tokens (rest r))))
+      ((str=? uword "LOAD")
+        (let ((r (%logo-consume-arg remaining)))
+          (def filename (first r))
+          (def content (%logo-slurp-file filename))
+          (def tokens (token-read-string %logo-base (str content " ")))
+          (logo-process-tokens (%logo-indent-to-blocks tokens))
           (logo-process-tokens (rest r))))
       (#t (error (str "Unknown special: " uword))))))
 
