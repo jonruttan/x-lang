@@ -140,8 +140,12 @@ input[type=range] { width: 120px; }
       maxX = Math.max(maxX, s.x, s.x2);
       maxY = Math.max(maxY, s.y, s.y2);
     }
-    var pad = Math.max(maxX - minX, maxY - minY) * 0.1 + 20;
-    return { x: minX - pad, y: minY - pad, w: maxX - minX + 2*pad, h: maxY - minY + 2*pad };
+    // Use a square viewBox so aspect ratio doesn't distort
+    var size = Math.max(maxX - minX, maxY - minY, 100);
+    var cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    var pad = size * 0.1 + 20;
+    var half = size / 2 + pad;
+    return { x: cx - half, y: cy - half, w: half * 2, h: half * 2 };
   }
 
   // Build SVG elements from instructions
@@ -393,33 +397,12 @@ input[type=range] { width: 120px; }
     }
   }
 
-  // Cached viewBox bounds — only update SVG when they grow
-  var cachedVB = { x: -100, y: -100, w: 200, h: 200 };
-
-  function updateViewBoxIfNeeded() {
-    // Only resize when content would be clipped (outside current view)
-    // Add 50% padding when resizing so it doesn't resize again immediately
-    var needsUpdate = false;
-    var minX = cachedVB.x, minY = cachedVB.y;
-    var maxX = cachedVB.x + cachedVB.w, maxY = cachedVB.y + cachedVB.h;
-
-    for (var i = 0; i < instrs.length; i++) {
-      var s = instrs[i];
-      if (s.x2 < minX || s.x2 > maxX || s.y2 < minY || s.y2 > maxY ||
-          s.x < minX || s.x > maxX || s.y < minY || s.y > maxY) {
-        needsUpdate = true;
-        break;
-      }
-    }
-
-    if (needsUpdate) {
-      var vb = computeViewBox(instrs);
-      cachedVB = vb;
-      svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
-      var scale = Math.max(vb.w, vb.h) / 500;
-      for (var j = 0; j < lines.length; j++) {
-        lines[j].el.setAttribute('stroke-width', Math.max(0.3, lines[j].width * scale));
-      }
+  function updateViewBox() {
+    var vb = computeViewBox(instrs);
+    svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
+    var scale = Math.max(vb.w, vb.h) / 500;
+    for (var j = 0; j < lines.length; j++) {
+      lines[j].el.setAttribute('stroke-width', Math.max(0.3, lines[j].width * scale));
     }
   }
 
@@ -446,7 +429,7 @@ input[type=range] { width: 120px; }
       }
     }
     buildLineMap();
-    updateViewBoxIfNeeded();
+    updateViewBox();
 
     if (prevCount < instrs.length) {
       if (speed >= 150) {
