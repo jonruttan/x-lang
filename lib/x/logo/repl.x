@@ -62,8 +62,10 @@
       (fn (self lines depth)
         (def line (%read-line))
         (if (null? line)
-          ; EOF
-          (if (null? lines) () (apply str (reverse lines)))
+          ; EOF — if caused by ctrl-c, retry
+          (if (sigint-check)
+            (do (sigint-clear) (self lines depth))
+            (if (null? lines) () (apply str (reverse lines))))
           (if (str=? line "")
             ; Blank line
             (if (null? lines)
