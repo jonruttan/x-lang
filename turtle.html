@@ -398,7 +398,8 @@ input[type=range] { width: 120px; }
   }
 
   function updateViewBox() {
-    var vb = computeViewBox(instrs);
+    var drawn = instrs.slice(0, instrIndex + 1);
+    var vb = computeViewBox(drawn);
     svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
     var scale = Math.max(vb.w, vb.h) / 500;
     for (var j = 0; j < lines.length; j++) {
