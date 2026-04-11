@@ -414,9 +414,6 @@ input[type=range] { width: 120px; }
 
     if (needsUpdate) {
       var vb = computeViewBox(instrs);
-      // Add 50% extra padding so we don't resize on every step
-      var padX = vb.w * 0.25, padY = vb.h * 0.25;
-      vb.x -= padX; vb.y -= padY; vb.w += padX * 2; vb.h += padY * 2;
       cachedVB = vb;
       svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
       var scale = Math.max(vb.w, vb.h) / 500;
