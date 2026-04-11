@@ -210,23 +210,28 @@ input[type=range] { width: 120px; }
       'translate(' + x + ',' + y + ') scale(' + s + ') rotate(' + heading + ')');
   }
 
+  var lastRenderedLine = -1;  // index into lines[] of last fully shown line
+
   function renderFrame() {
-    // Show/hide lines based on animation progress
-    for (var i = 0; i < lines.length; i++) {
-      var li = lines[i];
-      if (li.idx < instrIndex) {
-        li.el.style.display = '';
-        var s = instrs[li.idx];
-        li.el.setAttribute('x2', s.x2);
-        li.el.setAttribute('y2', s.y2);
-      } else if (li.idx === instrIndex && instrs[li.idx].pen && instrs[li.idx].dist > 0) {
-        li.el.style.display = '';
-        var s = instrs[instrIndex];
-        li.el.setAttribute('x2', s.x + (s.x2 - s.x) * instrProgress);
-        li.el.setAttribute('y2', s.y + (s.y2 - s.y) * instrProgress);
-      } else {
-        li.el.style.display = 'none';
-      }
+    // Show newly completed lines (incremental — no full scan)
+    var targetLine = lineMap[instrIndex] !== undefined ? lineMap[instrIndex] : lines.length;
+    while (lastRenderedLine + 1 < targetLine) {
+      lastRenderedLine++;
+      var li = lines[lastRenderedLine];
+      li.el.style.display = '';
+      var s = instrs[li.idx];
+      li.el.setAttribute('x2', s.x2);
+      li.el.setAttribute('y2', s.y2);
+    }
+
+    // Handle current partial line
+    var curLineIdx = lineMap[instrIndex];
+    if (curLineIdx !== undefined && instrs[instrIndex].pen && instrs[instrIndex].dist > 0) {
+      var li = lines[curLineIdx];
+      li.el.style.display = '';
+      var s = instrs[instrIndex];
+      li.el.setAttribute('x2', s.x + (s.x2 - s.x) * instrProgress);
+      li.el.setAttribute('y2', s.y + (s.y2 - s.y) * instrProgress);
     }
 
     // Position cursor
@@ -310,6 +315,8 @@ input[type=range] { width: 120px; }
     playing = false;
     playBtn.textContent = 'Play';
     if (animId) cancelAnimationFrame(animId);
+    for (var i = 0; i < lines.length; i++) lines[i].el.style.display = 'none';
+    lastRenderedLine = -1;
     instrIndex = 0;
     instrProgress = 0;
     renderFrame();
@@ -325,6 +332,7 @@ input[type=range] { width: 120px; }
     instrs = parseBytecode(bc);
     buildSVG();
     buildLineMap();
+    lastRenderedLine = -1;
     instrIndex = 0;
     instrProgress = 0;
     renderFrame();
