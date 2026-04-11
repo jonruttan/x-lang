@@ -266,8 +266,30 @@ input[type=range] { width: 120px; }
       return;
     }
 
-    // Speed 200 = instant, speed 1 = slow. Scale exponentially.
-    var rate = speed >= 200 ? Infinity : Math.pow(10, speed / 40);
+    // Slider maps to replay duration: 200=instant, 1=60 seconds
+    // Compute rate from total distance so slider feels consistent
+    var totalDist = 0;
+    for (var k = 0; k < instrs.length; k++) totalDist += instrs[k].dist;
+    if (totalDist === 0) totalDist = 1;
+    if (speed >= 200) {
+      // Instant — show everything
+      instrIndex = instrs.length;
+      instrProgress = 0;
+      lastRenderedLine = -1;
+      for (var k = 0; k < lines.length; k++) {
+        lines[k].el.style.display = '';
+        var sk = instrs[lines[k].idx];
+        lines[k].el.setAttribute('x2', sk.x2);
+        lines[k].el.setAttribute('y2', sk.y2);
+      }
+      playing = false;
+      playBtn.textContent = 'Play';
+      renderFrame();
+      return;
+    }
+    // speed 1 = 60s replay, speed 100 = 1s, speed 199 = ~0.05s
+    var replaySeconds = 60 / speed;
+    var rate = totalDist / replaySeconds;
     var advance = rate * dt;
 
     while (advance > 0 && instrIndex < instrs.length) {
