@@ -12,24 +12,24 @@
 (def %turtle-scale (exact->inexact 1))
 
 ; ============================================================
-; Register extended turtle commands
+; Extended movement commands (emit bytecodes)
 ; ============================================================
 
-; SETXY: move to absolute position (draws if pen down)
+; SETXY: move to absolute position
 (def turtle-setxy
   (fn (_ x y)
     (def nx (%as-float x))
     (def ny (%as-float y))
-    (def seg (list %turtle-x %turtle-y nx ny %turtle-pen %turtle-heading))
-    (set! %turtle-segments (pair seg %turtle-segments))
+    (%bc-emit-2 "M" nx ny)
     (set! %turtle-x nx)
-    (set! %turtle-y ny)
-    (if (null? %turtle-on-segment) () (%turtle-on-segment seg))))
+    (set! %turtle-y ny)))
 
 ; HOME: return to origin, heading 0
 (def turtle-home
   (fn ()
-    (turtle-setxy 0 0)
+    (%bc-emit-0 "O")
+    (set! %turtle-x (exact->inexact 0))
+    (set! %turtle-y (exact->inexact 0))
     (set! %turtle-heading (exact->inexact 0))))
 
 ; DISTANCE: distance from turtle to a point (x, y)
@@ -73,16 +73,21 @@
   (pair (list "ST"          0 (fn () (set! %turtle-visible #t)))
   (pair (list "SETX"        1 (fn (_ x) (turtle-setxy x %turtle-y)))
   (pair (list "SETY"        1 (fn (_ y) (turtle-setxy %turtle-x y)))
-  %logo-commands)))))))))
+  (pair (list "SETHEADING"  1 (fn (_ n)
+          (set! %turtle-heading (%as-float n))
+          (%bc-emit-1 "H" (%as-float n))))
+  (pair (list "SETH"        1 (fn (_ n)
+          (set! %turtle-heading (%as-float n))
+          (%bc-emit-1 "H" (%as-float n))))
+  %logo-commands)))))))))))
 
-; Register state query functions (0-arg, return values)
+; Register state query functions
 (set! %logo-functions
   (pair (list "DISTANCE"      2 (fn (_ x y) (turtle-distance x y)))
   (pair (list "TOWARDS"       2 (fn (_ x y) (turtle-towards x y)))
   (pair (list "TURTLE.STATE"  turtle-state)
   %logo-functions))))
 
-; SETTURTLE takes a list — register as command
 (set! %logo-commands
   (pair (list "SETTURTLE" 1 (fn (_ state) (turtle-setturtle state)))
   (pair (list "FACE"      2 (fn (_ x y)
@@ -91,7 +96,7 @@
           (turtle-left turn)))
   %logo-commands)))
 
-; MEMBER function (list membership test)
+; MEMBER function
 (set! %logo-functions
   (pair (list "MEMBER" 2
     (fn (_ item lst)

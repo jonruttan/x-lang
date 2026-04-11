@@ -1,51 +1,37 @@
-; json.x -- Turtle segment JSON output
-; Format: {"x":..,"y":..,"h":..,"d":..,"p":1}
+; json.x -- Turtle bytecode and JSON output
 (import x/logo/state)
 
 ; ============================================================
-; Stream output (to stdout)
+; Bytecode JSON array string (for static embedding)
 ; ============================================================
 
-(def turtle-json
+(def turtle-bc-str
   (fn ()
-    (display "[")
-    (def segs (reverse %turtle-segments))
-    (def %out
-      (fn (self segs first?)
-        (if (null? segs) ()
-          (do
-            (if first? () (display ","))
-            (def s (first segs))
-            (display "\n{\"x\":") (display (first s))
-            (display ",\"y\":") (display (first (rest s)))
-            (display ",\"h\":") (display (first (rest (rest s))))
-            (display ",\"d\":") (display (first (rest (rest (rest s)))))
-            (display ",\"p\":") (display (if (first (rest (rest (rest (rest s))))) "1" "0"))
-            (display "}")
-            (self (rest segs) #f)))))
-    (%out segs #t)
-    (display "\n]\n")))
+    (def bc (reverse %turtle-bc))
+    (def %fstr (fn (_ v) (write-to-str v)))
+    (def %build
+      (fn (self items acc first?)
+        (if (null? items) acc
+          (let ((item (first items)))
+            (def sep (if first? "" ","))
+            (def s
+              (if (str? item)
+                (str sep "\"" item "\"")
+                (str sep (%fstr item))))
+            (self (rest items) (str acc s) #f)))))
+    (str "[" (%build bc "" #t) "]")))
 
 ; ============================================================
-; String output (returns JSON string, no stdout)
+; Legacy: segment JSON (kept for backward compatibility)
 ; ============================================================
 
 (def turtle-json-str
   (fn ()
-    (def segs (reverse %turtle-segments))
-    (def %seg-json
-      (fn (_ s)
-        (str "{\"x\":" (write-to-str (first s))
-             ",\"y\":" (write-to-str (first (rest s)))
-             ",\"h\":" (write-to-str (first (rest (rest s))))
-             ",\"d\":" (write-to-str (first (rest (rest (rest s)))))
-             ",\"p\":" (if (first (rest (rest (rest (rest s))))) "1" "0") "}")))
-    (def %join
-      (fn (self segs first?)
-        (if (null? segs) ""
-          (str (if first? "" ",\n")
-               (%seg-json (first segs))
-               (self (rest segs) #f)))))
-    (str "[\n" (%join segs #t) "\n]\n")))
+    (turtle-bc-str)))
 
-(provide x/logo/json turtle-json turtle-json-str)
+(def turtle-json
+  (fn ()
+    (display (turtle-bc-str))
+    (newline)))
+
+(provide x/logo/json turtle-json turtle-json-str turtle-bc-str)

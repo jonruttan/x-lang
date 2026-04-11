@@ -36,69 +36,102 @@ input[type=range] { width: 120px; }
 (function () {
   'use strict';
 
-  // --- Segment data ---
-  // Each entry: { x, y, h, d, p }
-  //   x, y = position BEFORE this step
-  //   h    = heading BEFORE this step (degrees, 0=north, clockwise)
-  //   d    = distance moved (0 for pure turns)
-  //   p    = pen state (1=down, 0=up)
-  // Browser computes endpoint: x2 = x + d*sin(h), y2 = y - d*cos(h)
+  // --- Bytecode format ---
+  // Flat JSON array: ["F",100,"R",90,"U","F",50,"D","F",80,"R",120]
+  // Opcodes: F(dist) B(dist) R(deg) L(deg) U D C H(deg) M(x,y) O
+  // The browser IS the turtle — it interprets bytecodes and renders SVG.
 
-  // Compute endpoint from turtle-centric segment
-  function segEnd(s) {
-    var rad = s.h * Math.PI / 180;
-    return { x: s.x + s.d * Math.sin(rad), y: s.y - s.d * Math.cos(rad) };
+  // Opcode argument counts
+  var OPARGS = { F:1, B:1, R:1, L:1, U:0, D:0, C:0, H:1, M:2, O:0 };
+
+  // Sample bytecode: square + pen-up move + triangle
+  var SAMPLE_BC = [
+    "F",100,"R",90,"F",100,"R",90,"F",100,"R",90,"F",100,"R",90,
+    "U","F",50,"D",
+    "F",80,"R",120,"F",80,"R",120,"F",80,"R",120
+  ];
+
+  // Parse flat array into instruction objects: [{op, args, x, y, h, dist}]
+  function parseBytecode(bc) {
+    var instrs = [];
+    var x = 0, y = 0, h = 0, pen = true;
+    var i = 0;
+    while (i < bc.length) {
+      var op = bc[i++];
+      var nargs = OPARGS[op] || 0;
+      var args = [];
+      for (var j = 0; j < nargs; j++) args.push(bc[i++]);
+
+      // Record state BEFORE this instruction
+      var instr = { op: op, args: args, x: x, y: y, h: h, pen: pen, dist: 0 };
+
+      // Execute to compute next state and distance
+      switch (op) {
+        case 'F': {
+          var d = args[0];
+          var rad = h * Math.PI / 180;
+          x += d * Math.sin(rad);
+          y -= d * Math.cos(rad);
+          instr.dist = Math.abs(d);
+          break;
+        }
+        case 'B': {
+          var d = -args[0];
+          var rad = h * Math.PI / 180;
+          x += d * Math.sin(rad);
+          y -= d * Math.cos(rad);
+          instr.dist = Math.abs(d);
+          break;
+        }
+        case 'R': h += args[0]; break;
+        case 'L': h -= args[0]; break;
+        case 'U': pen = false; break;
+        case 'D': pen = true; break;
+        case 'C': x = 0; y = 0; h = 0; pen = true; break;
+        case 'H': h = args[0]; break;
+        case 'M': {
+          var dx = args[0] - x, dy = args[1] - y;
+          instr.dist = Math.sqrt(dx*dx + dy*dy);
+          x = args[0]; y = args[1];
+          break;
+        }
+        case 'O': {
+          instr.dist = Math.sqrt(x*x + y*y);
+          x = 0; y = 0; h = 0;
+          break;
+        }
+      }
+      // Record state AFTER for endpoint computation
+      instr.x2 = x; instr.y2 = y; instr.h2 = h;
+      instrs.push(instr);
+    }
+    return instrs;
   }
-
-  // Sample: square + pen-up move + triangle
-  var SAMPLE_SEGMENTS = (function () {
-    var segs = [];
-    var x = 0, y = 0, h = 0;
-    var p = 1;
-
-    function forward(dist) {
-      segs.push({ x: x, y: y, h: h, d: dist, p: p });
-      var rad = h * Math.PI / 180;
-      x += dist * Math.sin(rad);
-      y -= dist * Math.cos(rad);
-    }
-    function right(deg) {
-      segs.push({ x: x, y: y, h: h, d: 0, p: 0 });
-      h = ((h + deg) % 360 + 360) % 360;
-    }
-
-    for (var i = 0; i < 4; i++) { forward(100); right(90); }
-    p = 0; forward(50); p = 1;
-    for (var j = 0; j < 3; j++) { forward(80); right(120); }
-
-    return segs;
-  })();
-
-  var segments = window.TURTLE_SEGMENTS || SAMPLE_SEGMENTS;
 
   // --- SVG setup ---
   var svg = document.getElementById('canvas');
   var ns = 'http://www.w3.org/2000/svg';
 
-  // Compute bounding box
-  function computeViewBox(segs) {
-    if (!segs.length) return { x: -100, y: -100, w: 200, h: 200 };
-    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (var i = 0; i < segs.length; i++) {
-      var s = segs[i], e = segEnd(s);
-      minX = Math.min(minX, s.x, e.x);
-      minY = Math.min(minY, s.y, e.y);
-      maxX = Math.max(maxX, s.x, e.x);
-      maxY = Math.max(maxY, s.y, e.y);
+  // Compute bounding box from instructions
+  function computeViewBox(instrs) {
+    if (!instrs.length) return { x: -100, y: -100, w: 200, h: 200 };
+    var minX = 0, minY = 0, maxX = 0, maxY = 0;
+    for (var i = 0; i < instrs.length; i++) {
+      var s = instrs[i];
+      minX = Math.min(minX, s.x, s.x2);
+      minY = Math.min(minY, s.y, s.y2);
+      maxX = Math.max(maxX, s.x, s.x2);
+      maxY = Math.max(maxY, s.y, s.y2);
     }
     var pad = Math.max(maxX - minX, maxY - minY) * 0.1 + 20;
-    return { x: minX - pad, y: minY - pad, w: maxX - minX + 2 * pad, h: maxY - minY + 2 * pad };
+    return { x: minX - pad, y: minY - pad, w: maxX - minX + 2*pad, h: maxY - minY + 2*pad };
   }
 
-  // Create SVG line elements (hidden initially)
+  // Build SVG elements from instructions
   var lines = [];
-  function buildLines() {
-    // Clear existing
+  var instrs = [];
+
+  function buildSVG() {
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     lines = [];
 
@@ -106,7 +139,6 @@ input[type=range] { width: 120px; }
     var defs = document.createElementNS(ns, 'defs');
     var marker = document.createElementNS(ns, 'g');
     marker.id = 'turtle';
-    // Turtle triangle: points north, 12px tall, 8px wide
     var tri = document.createElementNS(ns, 'polygon');
     tri.setAttribute('points', '0,-7 4,5 -4,5');
     tri.setAttribute('fill', 'rgba(0,160,0,0.7)');
@@ -124,159 +156,123 @@ input[type=range] { width: 120px; }
     linesGroup.setAttribute('stroke-linecap', 'round');
     svg.appendChild(linesGroup);
 
-    for (var i = 0; i < segments.length; i++) {
-      var s = segments[i];
-      if (s.p && s.d !== 0) {
-        var e = segEnd(s);
+    // Create line elements for pen-down forward/back/move instructions
+    for (var i = 0; i < instrs.length; i++) {
+      var s = instrs[i];
+      if (s.pen && s.dist > 0) {
         var line = document.createElementNS(ns, 'line');
         line.setAttribute('x1', s.x);
         line.setAttribute('y1', s.y);
-        line.setAttribute('x2', e.x);
-        line.setAttribute('y2', e.y);
+        line.setAttribute('x2', s.x2);
+        line.setAttribute('y2', s.y2);
         line.style.display = 'none';
         linesGroup.appendChild(line);
         lines.push({ el: line, idx: i });
       }
     }
 
-    // Turtle cursor (use element)
+    // Cursor
     var cursor = document.createElementNS(ns, 'use');
     cursor.setAttribute('href', '#turtle');
     cursor.id = 'cursor';
     svg.appendChild(cursor);
 
-    // Set viewBox
-    var vb = computeViewBox(segments);
+    // ViewBox
+    var vb = computeViewBox(instrs);
     svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
-
-    // Scale stroke width relative to viewBox
     var scale = Math.max(vb.w, vb.h) / 500;
     linesGroup.setAttribute('stroke-width', Math.max(0.5, 1.5 * scale));
     tri.setAttribute('stroke-width', Math.max(0.3, 0.5 * scale));
-    // Scale turtle size
-    var tscale = Math.max(0.5, scale);
-    marker.setAttribute('transform', 'scale(' + tscale + ')');
+    marker.setAttribute('transform', 'scale(' + Math.max(0.5, scale) + ')');
   }
 
-  // --- Animation state ---
+  // --- Animation ---
   var playing = false;
-  var segIndex = 0;       // current segment index (into segments[])
-  var segProgress = 0;    // 0..1 within current segment
-  var lineMap = {};       // segIndex -> line element index
-  var speed = 30;         // segments per second
+  var instrIndex = 0;
+  var instrProgress = 0;
+  var lineMap = {};
+  var speed = 30;
   var lastTime = 0;
   var animId = null;
 
   function buildLineMap() {
     lineMap = {};
-    for (var i = 0; i < lines.length; i++) {
-      lineMap[lines[i].idx] = i;
-    }
+    for (var i = 0; i < lines.length; i++) lineMap[lines[i].idx] = i;
   }
 
-  // Position the turtle cursor
   function positionTurtle(x, y, heading) {
     var cursor = document.getElementById('cursor');
     if (!cursor) return;
     cursor.setAttribute('transform', 'translate(' + x + ',' + y + ') rotate(' + heading + ')');
   }
 
-  // Show lines up to (but not including) segment segIdx, plus partial current
   function renderFrame() {
-    // Show all completed lines
+    // Show/hide lines based on animation progress
     for (var i = 0; i < lines.length; i++) {
       var li = lines[i];
-      if (li.idx < segIndex) {
+      if (li.idx < instrIndex) {
         li.el.style.display = '';
-        // Reset to full segment
-        var s = segments[li.idx], e = segEnd(s);
-        li.el.setAttribute('x2', e.x);
-        li.el.setAttribute('y2', e.y);
-      } else if (li.idx === segIndex && segments[li.idx].p && segments[li.idx].d !== 0) {
-        // Partial current segment
+        var s = instrs[li.idx];
+        li.el.setAttribute('x2', s.x2);
+        li.el.setAttribute('y2', s.y2);
+      } else if (li.idx === instrIndex && instrs[li.idx].pen && instrs[li.idx].dist > 0) {
         li.el.style.display = '';
-        var seg = segments[segIndex], end = segEnd(seg);
-        var cx = seg.x + (end.x - seg.x) * segProgress;
-        var cy = seg.y + (end.y - seg.y) * segProgress;
-        li.el.setAttribute('x2', cx);
-        li.el.setAttribute('y2', cy);
+        var s = instrs[instrIndex];
+        li.el.setAttribute('x2', s.x + (s.x2 - s.x) * instrProgress);
+        li.el.setAttribute('y2', s.y + (s.y2 - s.y) * instrProgress);
       } else {
         li.el.style.display = 'none';
       }
     }
 
-    // Position turtle cursor
-    if (segIndex < segments.length) {
-      var seg = segments[segIndex];
-      if (seg.d === 0) {
-        // Pure turn — cursor at position, facing heading
-        positionTurtle(seg.x, seg.y, seg.h);
+    // Position cursor
+    if (instrIndex < instrs.length) {
+      var s = instrs[instrIndex];
+      if (s.dist === 0) {
+        positionTurtle(s.x, s.y, s.h2);
       } else {
-        var end = segEnd(seg);
-        var tx = seg.x + (end.x - seg.x) * segProgress;
-        var ty = seg.y + (end.y - seg.y) * segProgress;
-        positionTurtle(tx, ty, seg.h);
+        var tx = s.x + (s.x2 - s.x) * instrProgress;
+        var ty = s.y + (s.y2 - s.y) * instrProgress;
+        positionTurtle(tx, ty, s.h);
       }
-    } else if (segments.length > 0) {
-      // Animation done — cursor at final position
-      var last = segments[segments.length - 1], e = segEnd(last);
-      positionTurtle(e.x, e.y, last.h);
+    } else if (instrs.length > 0) {
+      var last = instrs[instrs.length - 1];
+      positionTurtle(last.x2, last.y2, last.h2);
     } else {
       positionTurtle(0, 0, 0);
-    }
-  }
-
-  function segmentLength(s) {
-    return Math.abs(s.d);
-  }
-
-  // Compute total path length for uniform speed
-  var totalLength = 0;
-  var segLengths = [];
-  function computeLengths() {
-    totalLength = 0;
-    segLengths = [];
-    for (var i = 0; i < segments.length; i++) {
-      var l = segmentLength(segments[i]);
-      segLengths.push(l);
-      totalLength += l;
     }
   }
 
   function animate(timestamp) {
     if (!playing) return;
     if (!lastTime) lastTime = timestamp;
-
-    var dt = (timestamp - lastTime) / 1000; // seconds
+    var dt = (timestamp - lastTime) / 1000;
     lastTime = timestamp;
 
-    if (segIndex >= segments.length) {
+    if (instrIndex >= instrs.length) {
       playing = false;
       playBtn.textContent = 'Play';
       renderFrame();
       return;
     }
 
-    // Advance: speed = units per second (in coordinate space)
-    // Multiply speed slider value by a base rate
-    var rate = speed * 5; // pixels per second
+    var rate = speed * 5;
     var advance = rate * dt;
 
-    while (advance > 0 && segIndex < segments.length) {
-      // Skip zero-distance entries (turns) instantly
-      if (segments[segIndex].d === 0) {
-        segIndex++;
-        segProgress = 0;
+    while (advance > 0 && instrIndex < instrs.length) {
+      if (instrs[instrIndex].dist === 0) {
+        instrIndex++;
+        instrProgress = 0;
         continue;
       }
-      var sl = segLengths[segIndex];
-      var remaining = (1 - segProgress) * sl;
+      var sl = instrs[instrIndex].dist;
+      var remaining = (1 - instrProgress) * sl;
       if (advance >= remaining) {
         advance -= remaining;
-        segIndex++;
-        segProgress = 0;
+        instrIndex++;
+        instrProgress = 0;
       } else {
-        segProgress += advance / sl;
+        instrProgress += advance / sl;
         advance = 0;
       }
     }
@@ -292,10 +288,9 @@ input[type=range] { width: 120px; }
   var speedVal = document.getElementById('speedVal');
 
   playBtn.addEventListener('click', function () {
-    if (segIndex >= segments.length) {
-      // Reset if finished
-      segIndex = 0;
-      segProgress = 0;
+    if (instrIndex >= instrs.length) {
+      instrIndex = 0;
+      instrProgress = 0;
     }
     playing = !playing;
     playBtn.textContent = playing ? 'Pause' : 'Play';
@@ -311,8 +306,8 @@ input[type=range] { width: 120px; }
     playing = false;
     playBtn.textContent = 'Play';
     if (animId) cancelAnimationFrame(animId);
-    segIndex = 0;
-    segProgress = 0;
+    instrIndex = 0;
+    instrProgress = 0;
     renderFrame();
   });
 
@@ -321,55 +316,28 @@ input[type=range] { width: 120px; }
     speedVal.textContent = speed;
   });
 
-  // --- Load data from server if available ---
-  function loadSegments(data) {
-    segments = data;
-    computeLengths();
-    buildLines();
+  // --- Load bytecode ---
+  function loadBytecode(bc) {
+    instrs = parseBytecode(bc);
+    buildSVG();
     buildLineMap();
-    segIndex = 0;
-    segProgress = 0;
+    instrIndex = 0;
+    instrProgress = 0;
     renderFrame();
   }
 
-  // Add new segments incrementally — no rebuild, no flash
-  function loadNewSegments(data) {
-    var prevCount = segments.length;
-    segments = data;
-    computeLengths();
-
-    // Add SVG lines for new pen-down segments only
-    var linesGroup = document.getElementById('lines');
-    for (var i = prevCount; i < segments.length; i++) {
-      var s = segments[i];
-      if (s.p && s.d !== 0) {
-        var e = segEnd(s);
-        var line = document.createElementNS(ns, 'line');
-        line.setAttribute('x1', s.x);
-        line.setAttribute('y1', s.y);
-        line.setAttribute('x2', e.x);
-        line.setAttribute('y2', e.y);
-        line.style.display = 'none';
-        linesGroup.appendChild(line);
-        lines.push({ el: line, idx: i });
-      }
-    }
+  function loadNewBytecode(bc) {
+    var prevCount = instrs.length;
+    instrs = parseBytecode(bc);
+    buildSVG();
     buildLineMap();
 
-    // Update viewBox to fit all segments
-    var vb = computeViewBox(segments);
-    svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
-    var scale = Math.max(vb.w, vb.h) / 500;
-    linesGroup.setAttribute('stroke-width', Math.max(0.5, 1.5 * scale));
-
-    // Stop current animation, jump to end of old segments
     if (animId) cancelAnimationFrame(animId);
-    segIndex = prevCount;
-    segProgress = 0;
+    instrIndex = prevCount;
+    instrProgress = 0;
     renderFrame();
 
-    // Auto-play the new ones
-    if (prevCount < data.length) {
+    if (prevCount < instrs.length) {
       playing = true;
       playBtn.textContent = 'Pause';
       lastTime = 0;
@@ -377,32 +345,20 @@ input[type=range] { width: 120px; }
     }
   }
 
-  // Load segments — poll for changes when served from a live endpoint
+  // --- Polling (live REPL) or static load ---
   if (window.TURTLE_ENDPOINT) {
-    var lastFingerprint = '';
-    function fingerprint(data) {
-      if (!data.length) return '0';
-      var last = data[data.length - 1];
-      return data.length + ',' + last.h + ',' + last.x + ',' + last.y;
-    }
+    var lastLen = 0;
     function poll() {
       fetch(window.TURTLE_ENDPOINT)
         .then(function (r) { return r.json(); })
-        .then(function (data) {
-          var fp = fingerprint(data);
-          if (fp !== lastFingerprint) {
-            var first = lastFingerprint === '';
-            var countChanged = data.length !== segments.length;
-            lastFingerprint = fp;
-            if (first || data.length < segments.length) {
-              // First load or clearscreen — full rebuild
-              loadSegments(data);
-            } else if (countChanged) {
-              loadNewSegments(data);
+        .then(function (bc) {
+          if (bc.length !== lastLen) {
+            if (bc.length < lastLen || lastLen === 0) {
+              lastLen = bc.length;
+              loadBytecode(bc);
             } else {
-              // Same count but heading changed (turn command) — update cursor
-              segments = data;
-              renderFrame();
+              lastLen = bc.length;
+              loadNewBytecode(bc);
             }
           }
         })
@@ -411,7 +367,7 @@ input[type=range] { width: 120px; }
     poll();
     setInterval(poll, 100);
   } else {
-    loadSegments(segments);
+    loadBytecode(window.TURTLE_BC || SAMPLE_BC);
   }
 })();
 </script>

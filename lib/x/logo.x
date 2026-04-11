@@ -14,8 +14,8 @@
 ; --- Fork the server, continue with the REPL in the parent ---
 (def %logo-port 8080)
 
-; Write empty segments file before starting
-(%segments-write)
+; Write empty bytecode file before starting
+(%bc-write)
 
 ; Fork server — must be one expression so child doesn't race for the pipe
 (def %server-pid
@@ -24,9 +24,9 @@
       (do (sh-close 0) (sh-open-read "/dev/null") (turtle-serve %logo-port))
       pid)))
 
-; --- Hooks: append segments, clear file on clearscreen ---
-(set! %turtle-on-segment %segment-append)
-(set! %turtle-on-clear %segments-clear)
+; --- Hooks: append bytecodes, clear file on clearscreen ---
+(set! %turtle-on-bc %bc-append)
+(set! %turtle-on-clear %bc-clear)
 
 ; Kill server child when REPL exits
 (set! %logo-on-exit

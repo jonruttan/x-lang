@@ -156,71 +156,55 @@
         content))))
 
 ; ============================================================
-; Segment JSON output to string
+; Bytecode file — flat JSON array entries, one per line
 ; ============================================================
 
-; Segments file — newline-delimited JSON (one segment per line).
-; Parent appends lines, server child reads and wraps in [...].
-(def %segments-path "/tmp/turtle-segments.ndjson")
-
-; Format one segment as a JSON line: {"x":..,"y":..,"h":..,"d":..,"p":1}
+(def %bc-path "/tmp/turtle.bc")
+(def %bc-fd -1)
 (def %fstr (fn (_ v) (write-to-str v)))
 
-(def %segment-json-line
-  (fn (_ seg)
-    (def s1 (rest seg))
-    (def s2 (rest s1))
-    (def s3 (rest s2))
-    (def s4 (rest s3))
-    (str "{\"x\":" (%fstr (first seg))
-         ",\"y\":" (%fstr (first s1))
-         ",\"h\":" (%fstr (first s2))
-         ",\"d\":" (%fstr (first s3))
-         ",\"p\":" (if (first s4) "1" "0") "},\n")))
-
-; Keep the file open — one write per segment, no open/close overhead
-(def %segments-fd -1)
-
-(def %segments-open
+(def %bc-open
   (fn ()
-    (if (>= %segments-fd 0) () ; already open
-      (set! %segments-fd (sh-open-append %segments-path)))))
+    (if (>= %bc-fd 0) ()
+      (set! %bc-fd (sh-open-append %bc-path)))))
 
-; Append one segment line (single write syscall)
-(def %segment-append
-  (fn (_ seg)
-    (%segments-open)
-    (fd-write %segments-fd (%segment-json-line seg))))
+; Append one bytecode entry to the file
+; 0-arg: writes "OP" + comma + newline
+; 1-arg: writes "OP",val + comma + newline
+; 2-arg: writes "OP",a,b + comma + newline
+(def %bc-append
+  (fn (_ . args)
+    (%bc-open)
+    (def op (first args))
+    (def rest-args (rest args))
+    (fd-write %bc-fd
+      (if (null? rest-args)
+        (str "\"" op "\",\n")
+        (if (null? (rest rest-args))
+          (str "\"" op "\"," (%fstr (first rest-args)) ",\n")
+          (str "\"" op "\"," (%fstr (first rest-args))
+               "," (%fstr (first (rest rest-args))) ",\n"))))))
 
-; Clear the segments file (close, truncate, reopen)
-(def %segments-clear
+; Clear bytecode file
+(def %bc-clear
   (fn ()
-    (if (>= %segments-fd 0) (sh-close %segments-fd))
-    (def fd (sh-open-write %segments-path))
+    (if (>= %bc-fd 0) (sh-close %bc-fd))
+    (def fd (sh-open-write %bc-path))
     (if (>= fd 0) (sh-close fd))
-    (set! %segments-fd (sh-open-append %segments-path))))
+    (set! %bc-fd (sh-open-append %bc-path))))
 
-; Read segments file and wrap as JSON array for the viewer
-(def %segments-json
+; Read bytecode file and wrap as JSON array
+(def %bc-json
   (fn ()
-    (def content (%slurp %segments-path))
+    (def content (%slurp %bc-path))
     (if (str=? content "") "[]"
       (str "[" (substring content 0 (- (str-length content) 2)) "]"))))
 
-; Write all current segments (full rewrite — used for initial state only)
-(def %segments-write
+; Write initial empty bytecode file
+(def %bc-write
   (fn ()
-    (def fd (sh-open-write %segments-path))
-    (if (< fd 0) ()
-      (do
-        (def segs (reverse %turtle-segments))
-        (def %wr
-          (fn (self s)
-            (if (null? s) ()
-              (do (fd-write fd (%segment-json-line (first s)))
-                  (self (rest s))))))
-        (%wr segs)
-        (sh-close fd)))))
+    (def fd (sh-open-write %bc-path))
+    (if (>= fd 0) (sh-close fd))))
 
 ; ============================================================
 ; Server
@@ -234,7 +218,7 @@
       (error "Could not read turtle.html"))
     ; Inject the endpoint script before </body>
     (def html-page
-      (str "<script>window.TURTLE_ENDPOINT='/segments';</script>\n"
+      (str "<script>window.TURTLE_ENDPOINT='/bc';</script>\n"
            html-template))
     ; Create server socket
     (def server-fd (%make-server-socket port))
@@ -254,8 +238,8 @@
               (def path (%http-path request))
               ; Dispatch
               (def response
-                (if (str=? path "/segments")
-                  (%http-response "200 OK" "application/json" (%segments-json))
+                (if (str=? path "/bc")
+                  (%http-response "200 OK" "application/json" (%bc-json))
                   (if (str=? path "/")
                     (%http-response "200 OK" "text/html; charset=utf-8" html-page)
                     (%http-response "404 Not Found" "text/plain" "Not found"))))
@@ -266,4 +250,4 @@
             (self)))))
     (%serve-loop)))
 
-(provide x/logo/serve turtle-serve %segments-write)
+(provide x/logo/serve turtle-serve %bc-write)

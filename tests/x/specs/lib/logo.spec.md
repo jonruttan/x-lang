@@ -37,15 +37,15 @@
 ---
     (0 -100)
 
-### creates one segment
+### creates bytecode entries
 
 ```scheme
 (turtle-clearscreen)
 (turtle-forward 50)
-(length %turtle-segments)
+(length %turtle-bc)
 ```
 ---
-    1
+    2
 
 ## turtle-back
 
@@ -108,17 +108,17 @@
 ---
     #t
 
-### pen-up forward creates segment with pen=#f
+### pen-up forward emits U then F bytecodes
 
 ```scheme
 (turtle-clearscreen)
 (turtle-penup)
 (turtle-forward 50)
-(def seg (first %turtle-segments))
-(first (rest (rest (rest (rest seg)))))
+(def bc (reverse %turtle-bc))
+(first bc)
 ```
 ---
-    #f
+    "U"
 
 ## turtle-clearscreen
 
@@ -147,7 +147,7 @@
 ```scheme
 (turtle-forward 100)
 (turtle-clearscreen)
-(length %turtle-segments)
+(length %turtle-bc)
 ```
 ---
     0
@@ -217,10 +217,10 @@
 (turtle-clearscreen)
 (def toks (token-read-string %logo-base "fd 100 "))
 (logo-process-tokens toks)
-(length %turtle-segments)
+(length %turtle-bc)
 ```
 ---
-    1
+    2
 
 ### repeat draws square
 
@@ -228,10 +228,10 @@
 (turtle-clearscreen)
 (def toks (token-read-string %logo-base "repeat 4 [ fd 100 rt 90 ] "))
 (logo-process-tokens toks)
-(length %turtle-segments)
+(length %turtle-bc)
 ```
 ---
-    8
+    16
 
 ### case insensitive lookup
 
@@ -239,10 +239,10 @@
 (turtle-clearscreen)
 (def toks (token-read-string %logo-base "Forward 50 "))
 (logo-process-tokens toks)
-(length %turtle-segments)
+(length %turtle-bc)
 ```
 ---
-    1
+    2
 
 ## TO procedure definition
 
@@ -254,10 +254,10 @@
 (logo-process-tokens t1)
 (def t2 (token-read-string %logo-base "sq 60 "))
 (logo-process-tokens t2)
-(length %turtle-segments)
+(length %turtle-bc)
 ```
 ---
-    8
+    16
 
 ### multi-parameter procedure
 
@@ -267,10 +267,10 @@
 (logo-process-tokens t1)
 (def t2 (token-read-string %logo-base "arcr 1 10 "))
 (logo-process-tokens t2)
-(length %turtle-segments)
+(length %turtle-bc)
 ```
 ---
-    20
+    40
 
 ## indent preprocessing
 
@@ -299,19 +299,19 @@
 (turtle-clearscreen)
 (def toks (token-read-string %logo-base "\nrepeat 4\n    fd 100\n    rt 90\n "))
 (logo-process-tokens (%logo-indent-to-blocks toks))
-(length %turtle-segments)
+(length %turtle-bc)
 ```
 ---
-    8
+    16
 
 ## JSON output
 
-### single segment JSON
+### bytecode JSON output
 
 ```scheme
 (turtle-clearscreen)
 (turtle-forward 100)
-(turtle-json-str)
+(turtle-bc-str)
 ```
 ---
-    "[\n{\"x\":0,\"y\":0,\"h\":0,\"d\":100,\"p\":1}\n]\n"
+    "[\"F\",100]"
