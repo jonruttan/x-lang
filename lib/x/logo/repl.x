@@ -46,7 +46,11 @@
 (def %is-complete?
   (fn (_ text depth)
     (if (> depth 0) #f
-      (guard (err #f)
+      (guard (err
+          ; Re-throw STOP (from ctrl-c) instead of swallowing it
+          (if (if (atom? err) (str=? (symbol->str err) "STOP") #f)
+            (error err)
+            #f))
         (def tokens (token-read-string %logo-base (str text " ")))
         (def processed (%logo-indent-to-blocks tokens))
         (logo-process-tokens processed)
@@ -60,7 +64,11 @@
   (fn ()
     (def %rb
       (fn (self lines depth)
+        ; Default SIGINT while reading so ctrl-c at prompt exits;
+        ; reinstall handler after so ctrl-c during execution breaks loops
+        (sigint-restore)
         (def line (%read-line))
+        (sigint-install)
         (if (null? line)
           ; EOF — if caused by ctrl-c, retry
           (if (null? lines) () (apply str (reverse lines)))
@@ -98,18 +106,29 @@
 (def logo-repl
   (op ()
     ()
+    ; On first call, reclaim terminal stdin from fd 3 (saved by x.sh
+    ; before the pipe, so stdin survives ctrl-c)
+    (if (sh-isatty 3)
+      (do (sh-dup2 3 0) (sh-close 3))
+      ())
+    (set-first-int! %sigint-flag 0)
     (display %logo-prompt)
     (def block (%read-block))
     (if (null? block)
-      ; EOF — but if ctrl-c caused it, retry instead of exiting
-      (if (null? %logo-on-exit) () (%logo-on-exit))
+      ; EOF or ctrl-c — kill the server child, then exit
+      (do (if (null? %logo-on-exit) () (%logo-on-exit))
+          (newline) (sh-exit 0))
       (do
         (guard (err
-            (%stderr "Error: ")
-            (%stderr (if (str? err) err
-                      (if (number? err) (number->str err)
-                        (symbol->str err))))
-            (%stderr "\n"))
+            (set-first-int! %sigint-flag 0)
+            (if (if (atom? err) (str=? (symbol->str err) "STOP") #f)
+              (display "\n")
+              (%seq
+                (%stderr "Error: ")
+                (%stderr (if (str? err) err
+                          (if (number? err) (number->str err)
+                            (symbol->str err))))
+                (%stderr "\n"))))
           ; Block already executed by %is-complete? probe —
           ; no need to process again
           (if (null? %logo-on-command) () (%logo-on-command)))

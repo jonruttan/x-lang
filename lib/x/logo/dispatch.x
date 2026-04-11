@@ -460,6 +460,7 @@
                   (match
                     ((%is-stop? err) ())
                     ((%is-return? err) (rest err))
+                    ((if (atom? err) (str=? (symbol->str err) "STOP") #f) ())
                     (#t (error err))))
                 (logo-process-tokens (%block-contents body))
                 ()))

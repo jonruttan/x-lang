@@ -40,6 +40,7 @@
     (pair "lib/x/core/alist.x"
     (pair "lib/x/core/arithmetic.x"
     (pair "lib/x/sys/intrinsics.x"
+    (pair "lib/x/sys/posix.x"
     (pair "lib/x/type/char.x"
     (pair "lib/x/type/string.x"
     (pair "lib/x/type/vector.x"
@@ -49,7 +50,7 @@
     (pair "lib/x/type/quasi-reader.x"
     (pair "lib/x/core/repl.x"
     (pair "lib/x/core/banner.x"
-      (first %include-list-cell))))))))))))))))))))))))))))
+      (first %include-list-cell)))))))))))))))))))))))))))))
 
   ; --- Standard modules ---
   (include "lib/x/core/predicates.x")
@@ -81,6 +82,9 @@
   ; Tokenizer helpers
   (include "lib/x/sys/intrinsics.x")
 
+  ; POSIX wrappers (needed by REPL for fd swap on ctrl-c recovery)
+  (include "lib/x/sys/posix.x")
+
   ; Type extensions
   (include "lib/x/core/alist.x")
   (include "lib/x/type/char.x")
@@ -100,6 +104,9 @@
 
   ; Banner
   (include "lib/x/core/banner.x")
+
+  ; Install the SIGINT handler so ctrl-c breaks loops
+  (sigint-install)
 
   ; --- Provide ---
   (doc (provide x/sys/type

@@ -21,7 +21,9 @@ if [ ! -e "$LIB_PATH" ]; then
 	LIB_PATH=/usr/local/share/x/lib/
 fi
 
-file="\"-\""
+# Pipe carries only library content — the REPL reclaims terminal
+# stdin from fd 3 (saved below) before its first read
+file=""
 verbose=""
 xflags=""
 
@@ -96,6 +98,10 @@ do
 	args="$args \"$1\""
 	shift
 done
+
+# Save terminal stdin as fd 3 so x-lang can reclaim it after the pipe
+# (the pipe dies on ctrl-c; fd 3 survives for the REPL)
+exec 3<&0
 
 CMD="cat \"${LIB_PATH}${X_LIB}${X_EXT}\" ${file} | \"$SCRIPT_PATH/x\"$xflags$args"
 

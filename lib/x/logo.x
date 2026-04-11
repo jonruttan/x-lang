@@ -21,7 +21,11 @@
 (def %server-pid
   (let ((pid (sh-fork)))
     (if (= pid 0)
-      (do (sh-close 0) (sh-open-read "/dev/null") (turtle-serve %logo-port))
+      ; Ignore SIGINT in the server child so ctrl-c doesn't throw
+      ; STOP errors in the request handler (SIG_IGN = 1, SIGINT = 2)
+      (do (sh-close 0) (sh-open-read "/dev/null")
+          (ptr-call (dlsym (dlopen () 1) "signal") 2 1)
+          (turtle-serve %logo-port))
       pid)))
 
 ; --- Hooks: append bytecodes, clear file on clearscreen ---
