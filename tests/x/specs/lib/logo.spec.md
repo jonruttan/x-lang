@@ -315,3 +315,301 @@
 ```
 ---
     "[\"F\",100]"
+
+## expressions
+
+### arithmetic precedence
+
+```scheme
+(turtle-clearscreen)
+(def r (%logo-parse-one-expr (token-read-string %logo-base "2 + 3 * 4 ")))
+(first r)
+```
+---
+    14
+
+### parenthesized expression
+
+```scheme
+(def r (%logo-parse-one-expr (token-read-string %logo-base "(2 + 3) * 4 ")))
+(first r)
+```
+---
+    20
+
+### power operator
+
+```scheme
+(def r (%logo-parse-one-expr (token-read-string %logo-base "2 ^ 3 ")))
+(first r)
+```
+---
+    8
+
+### unary minus
+
+```scheme
+(def r (%logo-parse-one-expr (token-read-string %logo-base "-5 ")))
+(first r)
+```
+---
+    -5
+
+### comparison greater
+
+```scheme
+(def r (%logo-parse-one-expr (token-read-string %logo-base "5 > 3 ")))
+(first r)
+```
+---
+    #t
+
+### comparison equal
+
+```scheme
+(def r (%logo-parse-one-expr (token-read-string %logo-base "5 = 5 ")))
+(first r)
+```
+---
+    #t
+
+### string equality
+
+```scheme
+(def r (%logo-parse-one-expr (token-read-string %logo-base "\"hello\" = \"hello\" ")))
+(first r)
+```
+---
+    #t
+
+### variable in expression
+
+```scheme
+(turtle-clearscreen)
+(%logo-var-set! "X" 10)
+(def r (%logo-parse-one-expr (token-read-string %logo-base "x + 5 ")))
+(first r)
+```
+---
+    15
+
+### function call in expression
+
+```scheme
+(def r (%logo-parse-one-expr (token-read-string %logo-base "sqrt(16) ")))
+(first r)
+```
+---
+    4
+
+## control flow
+
+### if then true
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "if 5 > 3 then fd 100 "))
+(length %turtle-bc)
+```
+---
+    2
+
+### if then false
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "if 5 < 3 then fd 100 "))
+(length %turtle-bc)
+```
+---
+    0
+
+### if then else true branch
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "if 5 > 3 then fd 100 else fd 50 "))
+%turtle-x
+```
+---
+    0
+
+### if not
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "if not 5 < 3 then fd 100 "))
+(length %turtle-bc)
+```
+---
+    2
+
+### stop exits procedure
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "to t [ fd 100 stop fd 100 ] "))
+(logo-process-tokens (token-read-string %logo-base "t "))
+(length %turtle-bc)
+```
+---
+    2
+
+### return value from procedure
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "to add a b [ return a + b ] "))
+(def r (%logo-parse-one-expr (token-read-string %logo-base "add(3, 4) ")))
+(first r)
+```
+---
+    7
+
+### repeat until
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "x <- 0 repeat [ x <- x + 1 ] until x > 5 "))
+(def r (%logo-parse-one-expr (token-read-string %logo-base "x ")))
+(first r)
+```
+---
+    6
+
+## assignment
+
+### basic assignment
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "x <- 42 "))
+(def r (%logo-parse-one-expr (token-read-string %logo-base "x ")))
+(first r)
+```
+---
+    42
+
+### assignment with expression
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "x <- 2 + 3 "))
+(def r (%logo-parse-one-expr (token-read-string %logo-base "x ")))
+(first r)
+```
+---
+    5
+
+## math functions
+
+### sqrt
+
+```scheme
+(def r (%logo-parse-one-expr (token-read-string %logo-base "sqrt(144) ")))
+(first r)
+```
+---
+    12
+
+### abs
+
+```scheme
+(def r (%logo-parse-one-expr (token-read-string %logo-base "abs(-7) ")))
+(first r)
+```
+---
+    7
+
+### sin 90
+
+```scheme
+(def r (%logo-parse-one-expr (token-read-string %logo-base "sin(90) ")))
+(first r)
+```
+---
+    1
+
+### cos 0
+
+```scheme
+(def r (%logo-parse-one-expr (token-read-string %logo-base "cos(0) ")))
+(first r)
+```
+---
+    1
+
+### remainder
+
+```scheme
+(def r (%logo-parse-one-expr (token-read-string %logo-base "remainder(17, 5) ")))
+(first r)
+```
+---
+    2
+
+### pi constant
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "x <- pi "))
+(def r (%logo-parse-one-expr (token-read-string %logo-base "x > 3 ")))
+(first r)
+```
+---
+    #t
+
+## turtle state commands
+
+### setxy
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "setxy 100 50 "))
+(list %turtle-x %turtle-y)
+```
+---
+    (100 50)
+
+### home
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "fd 100 home "))
+(list %turtle-x %turtle-y %turtle-heading)
+```
+---
+    (0 0 0)
+
+### distance
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "setxy 3 4 "))
+(def r (%logo-parse-one-expr (token-read-string %logo-base "distance(0, 0) ")))
+(first r)
+```
+---
+    5
+
+## pen color and width
+
+### pencolor sets state
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "pencolor \"red\" "))
+%turtle-pen-color
+```
+---
+    "red"
+
+### penwidth sets state
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "penwidth 3 "))
+%turtle-pen-width
+```
+---
+    3
