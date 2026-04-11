@@ -358,7 +358,7 @@ input[type=range] { width: 120px; }
     // Rebuild lines group in one DOM operation
     buildSVG();
     buildLineMap();
-    cachedVB = { x: -100, y: -100, w: 200, h: 200 };
+
     lastRenderedLine = -1;
     instrIndex = 0;
     instrProgress = 0;
@@ -373,7 +373,7 @@ input[type=range] { width: 120px; }
   // --- Load bytecode ---
   function loadBytecode(bc) {
     resetParseState();
-    cachedVB = { x: -100, y: -100, w: 200, h: 200 };
+
     instrs = parseBytecode(bc);
     buildSVG();
     buildLineMap();
