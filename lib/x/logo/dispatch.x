@@ -97,13 +97,23 @@
 (def %logo-consume-arg
   (fn (_ tokens) (%logo-parse-one-expr tokens)))
 
+; Skip commas and closing parens between args (for grouped arg syntax)
+(def %skip-separators
+  (fn (self toks)
+    (if (null? toks) toks
+      (if (%is-op-str? (first toks) ",")
+        (self (rest toks))
+        (if (%is-paren? (first toks) ")")
+          (self (rest toks))
+          toks)))))
+
 (def %logo-consume-n-args
   (fn (_ n tokens)
     (def %consume
       (fn (self i toks acc)
         (if (= i 0)
-          (pair (reverse acc) toks)
-          (let ((r (%logo-consume-arg toks)))
+          (pair (reverse acc) (%skip-separators toks))
+          (let ((r (%logo-consume-arg (%skip-separators toks))))
             (self (- i 1) (rest r) (pair (first r) acc))))))
     (%consume n tokens ())))
 

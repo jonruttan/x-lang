@@ -117,10 +117,17 @@
           ((%is-block? tok)     (pair tok rest-t))
           ((%is-paren? tok "(")
             (let ((inner (%logo-parse-expr rest-t)))
-              (if (and (not (null? (rest inner)))
-                       (%is-paren? (first (rest inner)) ")"))
-                (pair (first inner) (rest (rest inner)))
-                (error "Expected )"))))
+              (if (null? (rest inner))
+                (error "Expected )")
+                (let ((next (first (rest inner))))
+                  (match
+                    ((%is-paren? next ")")
+                      (pair (first inner) (rest (rest inner))))
+                    ; Comma — return value, skip comma
+                    ; Handles COMMAND (arg1, arg2) syntax
+                    ((%is-op-str? next ",")
+                      (pair (first inner) (rest (rest inner))))
+                    (#t (error "Expected )")))))))
           ((%is-op-str? tok "-")
             (let ((r (%logo-parse-primary rest-t)))
               (pair (if (float? (first r))
