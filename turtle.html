@@ -369,13 +369,28 @@ input[type=range] { width: 120px; }
   // --- Load bytecode ---
   function loadBytecode(bc) {
     resetParseState();
+    cachedVB = { x: -100, y: -100, w: 200, h: 200 };
     instrs = parseBytecode(bc);
     buildSVG();
     buildLineMap();
     lastRenderedLine = -1;
     instrIndex = 0;
     instrProgress = 0;
-    renderFrame();
+    if (animId) cancelAnimationFrame(animId);
+    if (instrs.length > 0) {
+      if (speed >= 150) {
+        instrIndex = instrs.length;
+        renderFrame();
+      } else {
+        renderFrame();
+        playing = true;
+        playBtn.textContent = 'Pause';
+        lastTime = 0;
+        animId = requestAnimationFrame(animate);
+      }
+    } else {
+      renderFrame();
+    }
   }
 
   // Cached viewBox bounds — only update SVG when they grow
