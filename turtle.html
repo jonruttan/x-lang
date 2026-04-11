@@ -210,12 +210,12 @@ input[type=range] { width: 120px; }
       'translate(' + x + ',' + y + ') scale(' + s + ') rotate(' + heading + ')');
   }
 
-  var lastRenderedLine = -1;  // index into lines[] of last fully shown line
+  var lastRenderedLine = -1;
 
   function renderFrame() {
-    // Show newly completed lines (incremental — no full scan)
-    var targetLine = lineMap[instrIndex] !== undefined ? lineMap[instrIndex] : lines.length;
-    while (lastRenderedLine + 1 < targetLine) {
+    // Show completed lines (walk forward from last shown)
+    while (lastRenderedLine + 1 < lines.length &&
+           lines[lastRenderedLine + 1].idx < instrIndex) {
       lastRenderedLine++;
       var li = lines[lastRenderedLine];
       li.el.style.display = '';
@@ -224,10 +224,11 @@ input[type=range] { width: 120px; }
       li.el.setAttribute('y2', s.y2);
     }
 
-    // Handle current partial line
-    var curLineIdx = lineMap[instrIndex];
-    if (curLineIdx !== undefined && instrs[instrIndex].pen && instrs[instrIndex].dist > 0) {
-      var li = lines[curLineIdx];
+    // Partial current line
+    if (lastRenderedLine + 1 < lines.length &&
+        lines[lastRenderedLine + 1].idx === instrIndex &&
+        instrs[instrIndex].dist > 0) {
+      var li = lines[lastRenderedLine + 1];
       li.el.style.display = '';
       var s = instrs[instrIndex];
       li.el.setAttribute('x2', s.x + (s.x2 - s.x) * instrProgress);
@@ -315,7 +316,9 @@ input[type=range] { width: 120px; }
     playing = false;
     playBtn.textContent = 'Play';
     if (animId) cancelAnimationFrame(animId);
-    for (var i = 0; i < lines.length; i++) lines[i].el.style.display = 'none';
+    // Rebuild lines group in one DOM operation instead of hiding 720 elements
+    buildSVG();
+    buildLineMap();
     lastRenderedLine = -1;
     instrIndex = 0;
     instrProgress = 0;
