@@ -106,7 +106,7 @@
     (if (null? block)
       ; EOF — but if ctrl-c caused it, retry instead of exiting
       (if (sigint-check)
-        (do (newline) (logo-repl))
+        (do (sigint-clear) (newline) (logo-repl))
         (if (null? %logo-on-exit) () (%logo-on-exit)))
       (do
         (guard (err
