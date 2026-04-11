@@ -53,12 +53,20 @@ input[type=range] { width: 120px; }
     "F",80,"R",120,"F",80,"R",120,"F",80,"R",120
   ];
 
+  // Parser state — persists across incremental parses
+  var parseState = { x: 0, y: 0, h: 0, pen: true, color: '#222', width: 1, bcLen: 0 };
+
+  function resetParseState() {
+    parseState = { x: 0, y: 0, h: 0, pen: true, color: '#222', width: 1, bcLen: 0 };
+  }
+
   // Parse flat array into instruction objects: [{op, args, x, y, h, dist}]
+  // Starts from parseState.bcLen for incremental parsing.
   function parseBytecode(bc) {
-    var instrs = [];
-    var x = 0, y = 0, h = 0, pen = true;
-    var color = '#222', width = 1;
-    var i = 0;
+    var result = [];
+    var x = parseState.x, y = parseState.y, h = parseState.h, pen = parseState.pen;
+    var color = parseState.color, width = parseState.width;
+    var i = parseState.bcLen;
     while (i < bc.length) {
       var op = bc[i++];
       var nargs = OPARGS[op] || 0;
@@ -108,9 +116,13 @@ input[type=range] { width: 120px; }
       }
       // Record state AFTER for endpoint computation
       instr.x2 = x; instr.y2 = y; instr.h2 = h;
-      instrs.push(instr);
+      result.push(instr);
     }
-    return instrs;
+    // Save state for next incremental parse
+    parseState.x = x; parseState.y = y; parseState.h = h;
+    parseState.pen = pen; parseState.color = color; parseState.width = width;
+    parseState.bcLen = bc.length;
+    return result;
   }
 
   // --- SVG setup ---
@@ -339,9 +351,10 @@ input[type=range] { width: 120px; }
     playing = false;
     playBtn.textContent = 'Play';
     if (animId) cancelAnimationFrame(animId);
-    // Rebuild lines group in one DOM operation instead of hiding 720 elements
+    // Rebuild lines group in one DOM operation
     buildSVG();
     buildLineMap();
+    cachedVB = { x: -100, y: -100, w: 200, h: 200 };
     lastRenderedLine = -1;
     instrIndex = 0;
     instrProgress = 0;
@@ -355,6 +368,7 @@ input[type=range] { width: 120px; }
 
   // --- Load bytecode ---
   function loadBytecode(bc) {
+    resetParseState();
     instrs = parseBytecode(bc);
     buildSVG();
     buildLineMap();
@@ -364,9 +378,28 @@ input[type=range] { width: 120px; }
     renderFrame();
   }
 
+  // Cached viewBox bounds — only update SVG when they grow
+  var cachedVB = { x: -100, y: -100, w: 200, h: 200 };
+
+  function updateViewBoxIfNeeded() {
+    var vb = computeViewBox(instrs);
+    if (vb.x < cachedVB.x || vb.y < cachedVB.y ||
+        vb.x + vb.w > cachedVB.x + cachedVB.w ||
+        vb.y + vb.h > cachedVB.y + cachedVB.h) {
+      cachedVB = vb;
+      svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
+      var scale = Math.max(vb.w, vb.h) / 500;
+      for (var j = 0; j < lines.length; j++) {
+        lines[j].el.setAttribute('stroke-width', Math.max(0.3, lines[j].width * scale));
+      }
+    }
+  }
+
   function loadNewBytecode(bc) {
     var prevCount = instrs.length;
-    instrs = parseBytecode(bc);
+    // Incremental parse — only new bytecodes
+    var newInstrs = parseBytecode(bc);
+    for (var k = 0; k < newInstrs.length; k++) instrs.push(newInstrs[k]);
 
     // Add SVG lines for new pen-down instructions only
     var linesGroup = document.getElementById('lines');
@@ -385,18 +418,11 @@ input[type=range] { width: 120px; }
       }
     }
     buildLineMap();
-
-    // Update viewBox and line widths
-    var vb = computeViewBox(instrs);
-    svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
-    var scale = Math.max(vb.w, vb.h) / 500;
-    for (var j = 0; j < lines.length; j++) {
-      lines[j].el.setAttribute('stroke-width', Math.max(0.3, lines[j].width * scale));
-    }
+    updateViewBoxIfNeeded();
 
     if (prevCount < instrs.length) {
       if (speed >= 150) {
-        // Fast enough — show immediately, no animation
+        // Show immediately
         if (animId) cancelAnimationFrame(animId);
         instrIndex = instrs.length;
         instrProgress = 0;
@@ -414,7 +440,6 @@ input[type=range] { width: 120px; }
         lastTime = 0;
         animId = requestAnimationFrame(animate);
       }
-      // If already playing, just let it continue — new instrs are appended
     }
   }
 
