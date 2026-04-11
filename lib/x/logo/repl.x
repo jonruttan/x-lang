@@ -46,7 +46,9 @@
 (def %is-complete?
   (fn (_ text depth)
     (if (> depth 0) #f
-      (guard (err #f)
+      (guard (err
+          ; If ctrl-c broke a loop, still treat as complete
+          (if (sigint-check) (do (sigint-clear) #t) #f))
         (def tokens (token-read-string %logo-base (str text " ")))
         (def processed (%logo-indent-to-blocks tokens))
         (logo-process-tokens processed)
