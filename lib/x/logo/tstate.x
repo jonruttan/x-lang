@@ -71,6 +71,10 @@
   (pair (list "HT"          0 (fn () (set! %turtle-visible #f)))
   (pair (list "SHOWTURTLE"  0 (fn () (set! %turtle-visible #t)))
   (pair (list "ST"          0 (fn () (set! %turtle-visible #t)))
+  (pair (list "PENCOLOR"    1 (fn (_ c) (turtle-pencolor c)))
+  (pair (list "PC"          1 (fn (_ c) (turtle-pencolor c)))
+  (pair (list "PENWIDTH"    1 (fn (_ w) (turtle-penwidth w)))
+  (pair (list "PW"          1 (fn (_ w) (turtle-penwidth w)))
   (pair (list "SETX"        1 (fn (_ x) (turtle-setxy x %turtle-y)))
   (pair (list "SETY"        1 (fn (_ y) (turtle-setxy %turtle-x y)))
   (pair (list "SETHEADING"  1 (fn (_ n)
@@ -79,7 +83,7 @@
   (pair (list "SETH"        1 (fn (_ n)
           (set! %turtle-heading (%as-float n))
           (%bc-emit-1 "H" (%as-float n))))
-  %logo-commands)))))))))))
+  %logo-commands)))))))))))))))
 
 ; Register state query functions
 (set! %logo-functions

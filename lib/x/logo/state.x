@@ -9,6 +9,8 @@
 (def %turtle-y (exact->inexact 0))
 (def %turtle-heading (exact->inexact 0))
 (def %turtle-pen #t)
+(def %turtle-pen-color "#222")
+(def %turtle-pen-width (exact->inexact 1))
 (def %turtle-bc ())    ; bytecode list (reversed, newest first)
 
 (def %deg->rad
@@ -77,6 +79,16 @@
 (def turtle-penup   (fn () (set! %turtle-pen #f) (%bc-emit-0 "U")))
 (def turtle-pendown (fn () (set! %turtle-pen #t) (%bc-emit-0 "D")))
 
+(def turtle-pencolor
+  (fn (_ color)
+    (set! %turtle-pen-color color)
+    (%bc-emit-1 "K" color)))
+
+(def turtle-penwidth
+  (fn (_ width)
+    (set! %turtle-pen-width (%as-float width))
+    (%bc-emit-1 "W" (%as-float width))))
+
 (def %turtle-on-clear ())
 
 (def turtle-clearscreen
@@ -85,6 +97,8 @@
     (set! %turtle-y (exact->inexact 0))
     (set! %turtle-heading (exact->inexact 0))
     (set! %turtle-pen #t)
+    (set! %turtle-pen-color "#222")
+    (set! %turtle-pen-width (exact->inexact 1))
     (set! %turtle-bc ())
     (if (null? %turtle-on-clear) () (%turtle-on-clear))))
 
@@ -93,6 +107,7 @@
   %turtle-x %turtle-y %turtle-heading %turtle-pen %turtle-bc
   %as-float %as-int
   turtle-forward turtle-back turtle-right turtle-left
-  turtle-penup turtle-pendown turtle-clearscreen
+  turtle-penup turtle-pendown turtle-pencolor turtle-penwidth
+  turtle-clearscreen
   %turtle-on-bc %turtle-on-clear
   %bc-emit-0 %bc-emit-1 %bc-emit-2)

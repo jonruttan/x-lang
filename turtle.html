@@ -42,12 +42,14 @@ input[type=range] { width: 120px; }
   // The browser IS the turtle — it interprets bytecodes and renders SVG.
 
   // Opcode argument counts
-  var OPARGS = { F:1, B:1, R:1, L:1, U:0, D:0, C:0, H:1, M:2, O:0 };
+  var OPARGS = { F:1, B:1, R:1, L:1, U:0, D:0, C:0, H:1, M:2, O:0, K:1, W:1 };
 
   // Sample bytecode: square + pen-up move + triangle
   var SAMPLE_BC = [
+    "K","#2255cc","W",2,
     "F",100,"R",90,"F",100,"R",90,"F",100,"R",90,"F",100,"R",90,
     "U","F",50,"D",
+    "K","#cc2222",
     "F",80,"R",120,"F",80,"R",120,"F",80,"R",120
   ];
 
@@ -55,6 +57,7 @@ input[type=range] { width: 120px; }
   function parseBytecode(bc) {
     var instrs = [];
     var x = 0, y = 0, h = 0, pen = true;
+    var color = '#222', width = 1;
     var i = 0;
     while (i < bc.length) {
       var op = bc[i++];
@@ -63,7 +66,7 @@ input[type=range] { width: 120px; }
       for (var j = 0; j < nargs; j++) args.push(bc[i++]);
 
       // Record state BEFORE this instruction
-      var instr = { op: op, args: args, x: x, y: y, h: h, pen: pen, dist: 0 };
+      var instr = { op: op, args: args, x: x, y: y, h: h, pen: pen, dist: 0, color: color, width: width };
 
       // Execute to compute next state and distance
       switch (op) {
@@ -100,6 +103,8 @@ input[type=range] { width: 120px; }
           x = 0; y = 0; h = 0;
           break;
         }
+        case 'K': color = args[0]; break;
+        case 'W': width = args[0]; break;
       }
       // Record state AFTER for endpoint computation
       instr.x2 = x; instr.y2 = y; instr.h2 = h;
@@ -151,8 +156,6 @@ input[type=range] { width: 120px; }
     // Lines group
     var linesGroup = document.createElementNS(ns, 'g');
     linesGroup.id = 'lines';
-    linesGroup.setAttribute('stroke', '#222');
-    linesGroup.setAttribute('stroke-width', '1.5');
     linesGroup.setAttribute('stroke-linecap', 'round');
     svg.appendChild(linesGroup);
 
@@ -165,9 +168,10 @@ input[type=range] { width: 120px; }
         line.setAttribute('y1', s.y);
         line.setAttribute('x2', s.x2);
         line.setAttribute('y2', s.y2);
+        line.setAttribute('stroke', s.color);
         line.style.display = 'none';
         linesGroup.appendChild(line);
-        lines.push({ el: line, idx: i });
+        lines.push({ el: line, idx: i, width: s.width });
       }
     }
 
@@ -181,7 +185,10 @@ input[type=range] { width: 120px; }
     var vb = computeViewBox(instrs);
     svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
     var scale = Math.max(vb.w, vb.h) / 500;
-    linesGroup.setAttribute('stroke-width', Math.max(0.5, 1.5 * scale));
+    // Scale line widths relative to viewBox
+    for (var j = 0; j < lines.length; j++) {
+      lines[j].el.setAttribute('stroke-width', Math.max(0.3, lines[j].width * scale));
+    }
     tri.setAttribute('stroke-width', '0.5');
   }
 
@@ -378,18 +385,21 @@ input[type=range] { width: 120px; }
         line.setAttribute('y1', s.y);
         line.setAttribute('x2', s.x2);
         line.setAttribute('y2', s.y2);
+        line.setAttribute('stroke', s.color);
         line.style.display = 'none';
         linesGroup.appendChild(line);
-        lines.push({ el: line, idx: i });
+        lines.push({ el: line, idx: i, width: s.width });
       }
     }
     buildLineMap();
 
-    // Update viewBox
+    // Update viewBox and line widths
     var vb = computeViewBox(instrs);
     svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
     var scale = Math.max(vb.w, vb.h) / 500;
-    linesGroup.setAttribute('stroke-width', Math.max(0.5, 1.5 * scale));
+    for (var j = 0; j < lines.length; j++) {
+      lines[j].el.setAttribute('stroke-width', Math.max(0.3, lines[j].width * scale));
+    }
 
     if (animId) cancelAnimationFrame(animId);
     instrIndex = prevCount;
