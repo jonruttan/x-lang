@@ -97,11 +97,6 @@ do
 	shift
 done
 
-# Save original stdin as fd 3 before the pipe replaces it.
-# After library load, x-lang can dup2 fd 3 onto fd 0 to restore
-# the real terminal input (survives ctrl-c, unlike the pipe).
-exec 3<&0
-
 CMD="cat \"${LIB_PATH}${X_LIB}${X_EXT}\" ${file} | \"$SCRIPT_PATH/x\"$xflags$args"
 
 if [ "$verbose" ]; then
