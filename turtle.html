@@ -273,13 +273,8 @@ input[type=range] { width: 120px; }
       return;
     }
 
-    // Slider maps to replay duration: 200=instant, 1=60 seconds
-    // Compute rate from total distance so slider feels consistent
-    var totalDist = 0;
-    for (var k = 0; k < instrs.length; k++) totalDist += instrs[k].dist;
-    if (totalDist === 0) totalDist = 1;
+    // Speed: quadratic scaling. 1=1px/s, 50=2500px/s, 100=10Kpx/s, 200=instant
     if (speed >= 200) {
-      // Instant — show everything
       instrIndex = instrs.length;
       instrProgress = 0;
       lastRenderedLine = -1;
@@ -294,9 +289,7 @@ input[type=range] { width: 120px; }
       renderFrame();
       return;
     }
-    // speed 1 = 60s replay, speed 100 = 1s, speed 199 = ~0.05s
-    var replaySeconds = 60 / speed;
-    var rate = totalDist / replaySeconds;
+    var rate = speed * speed;
     var advance = rate * dt;
 
     while (advance > 0 && instrIndex < instrs.length) {
