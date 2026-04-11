@@ -397,13 +397,22 @@ input[type=range] { width: 120px; }
     if (animId) cancelAnimationFrame(animId);
     instrIndex = prevCount;
     instrProgress = 0;
-    renderFrame();
 
     if (prevCount < instrs.length) {
-      playing = true;
-      playBtn.textContent = 'Pause';
-      lastTime = 0;
-      animId = requestAnimationFrame(animate);
+      if (speed >= 150) {
+        // Fast enough — show immediately, no animation
+        instrIndex = instrs.length;
+        lastRenderedLine = -1;
+        renderFrame();
+      } else {
+        renderFrame();
+        playing = true;
+        playBtn.textContent = 'Pause';
+        lastTime = 0;
+        animId = requestAnimationFrame(animate);
+      }
+    } else {
+      renderFrame();
     }
   }
 
