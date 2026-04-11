@@ -354,15 +354,6 @@
 (def %cmd-arity   (fn (_ entry) (first (rest entry))))
 (def %cmd-handler (fn (_ entry) (first (rest (rest entry)))))
 
-; Read one token from a buffer using the Logo base's type registry
-(def %logo-token-read
-  (fn (_ buf)
-    (base-eval %logo-base (list (lit token-read) buf))))
-
-; Create a buffer from a string for Logo tokenization
-(def %logo-make-buffer
-  (fn (_ str)
-    (make-string-buffer %logo-base str)))
 
 (provide x/logo/types
   %logo-base %logo %logo-indent %logo-block %logo-op %logo-string
@@ -370,5 +361,4 @@
   %logo-op-str %is-op? %is-string? %logo-string-val %is-paren?
   %logo-alpha? logo-process-tokens logo-process-to
   %logo-vars %logo-commands
-  %logo-token-read %logo-make-buffer
   %alist-find %cmd-name %cmd-arity %cmd-handler)

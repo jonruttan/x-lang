@@ -46,9 +46,7 @@
 (def %is-complete?
   (fn (_ text depth)
     (if (> depth 0) #f
-      (guard (err
-          ; If ctrl-c broke a loop, still treat as complete
-          (if (sigint-check) (do (sigint-clear) #t) #f))
+      (guard (err #f)
         (def tokens (token-read-string %logo-base (str text " ")))
         (def processed (%logo-indent-to-blocks tokens))
         (logo-process-tokens processed)
@@ -65,9 +63,7 @@
         (def line (%read-line))
         (if (null? line)
           ; EOF — if caused by ctrl-c, retry
-          (if (sigint-check)
-            (do (sigint-clear) (self lines depth))
-            (if (null? lines) () (apply str (reverse lines))))
+          (if (null? lines) () (apply str (reverse lines)))
           (if (str=? line "")
             ; Blank line
             (if (null? lines)
@@ -95,9 +91,6 @@
 ; REPL
 ; ============================================================
 
-; Install ctrl-c handler so it breaks loops instead of killing the process
-(sigint-install)
-
 (def %logo-prompt "? ")
 (def %logo-on-exit ())
 (def %logo-on-command ())
@@ -109,9 +102,7 @@
     (def block (%read-block))
     (if (null? block)
       ; EOF — but if ctrl-c caused it, retry instead of exiting
-      (if (sigint-check)
-        (do (sigint-clear) (newline) (logo-repl))
-        (if (null? %logo-on-exit) () (%logo-on-exit)))
+      (if (null? %logo-on-exit) () (%logo-on-exit))
       (do
         (guard (err
             (%stderr "Error: ")

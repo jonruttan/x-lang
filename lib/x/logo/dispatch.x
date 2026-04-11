@@ -195,7 +195,6 @@
 (set! logo-process-tokens
   (fn (_ tokens)
     (if (null? tokens) ()
-      (if (sigint-check) (error %logo-stop-tag)
       (let ((tok (first tokens))
             (remaining (rest tokens)))
         (def word (%logo-word tok))
@@ -208,7 +207,7 @@
               (%logo-var-set! word (first r))
               (logo-process-tokens (rest r))))
           (#t
-            (%logo-dispatch word remaining))))))))
+            (%logo-dispatch word remaining)))))))
 
 (set! %logo-dispatch
   (fn (_ word remaining)
