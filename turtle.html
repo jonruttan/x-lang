@@ -416,6 +416,9 @@ input[type=range] { width: 120px; }
     }
   }
 
+  // Show turtle at origin immediately
+  loadBytecode([]);
+
   // --- Polling (live REPL) or static load ---
   if (window.TURTLE_ENDPOINT) {
     var lastLen = 0;
