@@ -266,7 +266,8 @@ input[type=range] { width: 120px; }
       return;
     }
 
-    var rate = speed * 5;
+    // Speed 200 = instant, speed 1 = slow. Scale exponentially.
+    var rate = speed >= 200 ? Infinity : Math.pow(10, speed / 40);
     var advance = rate * dt;
 
     while (advance > 0 && instrIndex < instrs.length) {
