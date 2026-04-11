@@ -613,3 +613,168 @@
 ```
 ---
     3
+
+## repeat forever
+
+### stop breaks repeat forever
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "to limited [ repeat forever [ fd 10 stop ] ] "))
+(logo-process-tokens (token-read-string %logo-base "limited "))
+(length %turtle-bc)
+```
+---
+    2
+
+## comma-separated args
+
+### two args in parens
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "to add a b [ return a + b ] "))
+(def r (%logo-parse-one-expr (token-read-string %logo-base "add(2 + 3, 10) ")))
+(first r)
+```
+---
+    15
+
+### three args in parens
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "to sum3 a b c [ return a + b + c ] "))
+(def r (%logo-parse-one-expr (token-read-string %logo-base "sum3(1, 2, 3) ")))
+(first r)
+```
+---
+    6
+
+## recursive procedures
+
+### euclid gcd
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "to euclid n r [ if n = r then return n if n > r then return euclid(n - r, r) if n < r then return euclid(n, r - n) ] "))
+(def r (%logo-parse-one-expr (token-read-string %logo-base "euclid(360, 144) ")))
+(first r)
+```
+---
+    72
+
+### factorial
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "to fact n [ if n <= 1 then return 1 return n * fact(n - 1) ] "))
+(def r (%logo-parse-one-expr (token-read-string %logo-base "fact(6) ")))
+(first r)
+```
+---
+    720
+
+## if else
+
+### else branch executes when false
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "if 1 > 5 then fd 100 else fd 50 "))
+%turtle-y
+```
+---
+    -50
+
+## execute
+
+### execute runs string as logo
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "execute \"fd 100\" "))
+(length %turtle-bc)
+```
+---
+    2
+
+## member
+
+### member finds element in list
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "to test.member [ return member(3, [1 2 3 4]) ] "))
+(def r (%logo-parse-one-expr (token-read-string %logo-base "test.member() ")))
+(first r)
+```
+---
+    #t
+
+### member returns false for missing
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "to test.nomember [ return member(9, [1 2 3]) ] "))
+(def r (%logo-parse-one-expr (token-read-string %logo-base "test.nomember() ")))
+(first r)
+```
+---
+    #f
+
+## setheading
+
+### seth sets absolute heading
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "seth 180 "))
+%turtle-heading
+```
+---
+    180
+
+## bytecode format
+
+### forward emits F bytecode
+
+```scheme
+(turtle-clearscreen)
+(turtle-forward 100)
+(first (reverse %turtle-bc))
+```
+---
+    "F"
+
+### right emits R bytecode
+
+```scheme
+(turtle-clearscreen)
+(turtle-right 90)
+(first (reverse %turtle-bc))
+```
+---
+    "R"
+
+### pencolor emits K bytecode
+
+```scheme
+(turtle-clearscreen)
+(turtle-pencolor "red")
+(first (reverse %turtle-bc))
+```
+---
+    "K"
+
+## grow and scaled forward
+
+### grow scales s.forward
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (token-read-string %logo-base "grow 2 s.fd 50 "))
+%turtle-y
+```
+---
+    -100
