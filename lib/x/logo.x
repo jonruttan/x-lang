@@ -33,4 +33,14 @@
   (fn ()
     (ptr-call (dlsym (dlopen () 1) "kill") %server-pid 15)))
 
+; Reopen stdin from /dev/tty so the REPL reads directly from the terminal.
+; x.sh loads this file via "cat lib/logo.x - | ./x" — a pipe. If the user
+; presses ctrl-c, the shell kills cat, closing the pipe permanently. By
+; switching the input fd to /dev/tty after the library has loaded, the REPL
+; is no longer reading from the pipe. The terminal fd survives ctrl-c.
+(def %files (rest (first (first (rest (first (%base)))))))
+(def %filein (first %files))
+(def %tty-fd (sh-open-read "/dev/tty"))
+(if (>= %tty-fd 0) (set-first-int! %filein %tty-fd))
+
 (display "http://localhost:") (display %logo-port) (newline)
