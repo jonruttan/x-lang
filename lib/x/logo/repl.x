@@ -91,6 +91,9 @@
 ; REPL
 ; ============================================================
 
+; Install ctrl-c handler so it breaks loops instead of killing the process
+(sigint-install)
+
 (def %logo-prompt "? ")
 (def %logo-on-exit ())
 (def %logo-on-command ())
