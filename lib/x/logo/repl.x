@@ -104,7 +104,10 @@
     (display %logo-prompt)
     (def block (%read-block))
     (if (null? block)
-      (if (null? %logo-on-exit) () (%logo-on-exit))
+      ; EOF — but if ctrl-c caused it, retry instead of exiting
+      (if (sigint-check)
+        (do (newline) (logo-repl))
+        (if (null? %logo-on-exit) () (%logo-on-exit)))
       (do
         (guard (err
             (%stderr "Error: ")
