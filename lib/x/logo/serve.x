@@ -213,7 +213,7 @@
 (def turtle-serve
   (fn (_ port)
     ; Read the HTML template
-    (def html-template (%slurp "turtle.html"))
+    (def html-template (%slurp "lib/x/logo/viewer.html"))
     (if (str=? html-template "")
       (error "Could not read turtle.html"))
     ; Inject the endpoint script before </body>
