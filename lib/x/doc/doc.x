@@ -196,7 +196,39 @@
           (def %clean-params (%doc-strip-params (first (rest fn-form))))
           (pair (lit fn) (pair %clean-params (rest (rest fn-form)))))))))
 
-; --- Main doc operative ---
+; --- Lazy doc: stash at load, process on first help/apropos/modules ---
+;
+; Loading ~100 (doc ...) forms through the full metadata processor adds
+; ~1s of startup. The fast path below just strips (param ...) forms from
+; fn signatures (needed for the fn to actually work) and stashes the raw
+; metadata. %doc-commit! walks the stash and fills the registry the first
+; time anything reads it.
+
+(def %doc-pending-cell (pair () ()))
+
+; Fast param strip: extract just the names, skip accumulation into
+; %doc-params-acc (the commit phase re-runs %doc-strip-fn to collect it).
+(def %doc-strip-params-fast
+  (fn (self ps)
+    (if (null? ps) ()
+      (if (not (pair? ps)) ps
+        (if (eq? (first ps) (lit param))
+          (first (rest ps))
+          (if (pair? (first ps))
+            (if (eq? (first (first ps)) (lit param))
+              (pair (first (rest (first ps))) (self (rest ps)))
+              (pair (first ps) (self (rest ps))))
+            (pair (first ps) (self (rest ps)))))))))
+
+(def %doc-strip-fn-fast
+  (fn (_ fn-form)
+    (if (not (pair? fn-form)) fn-form
+      (if (not (eq? (first fn-form) (lit fn))) fn-form
+        (pair (lit fn)
+          (pair (%doc-strip-params-fast (first (rest fn-form)))
+                (rest (rest fn-form))))))))
+
+; --- Main doc operative (fast path) ---
 ;
 ; Three modes:
 ;   (doc (def name value) [meta...] "desc")      — wraps def
@@ -206,37 +238,71 @@
 (def doc
   (op (def-form . %doc-meta) e
     (if (not (pair? def-form))
-      ; --- Bare symbol: just register docs ---
+      ; bare symbol
       (do
-        (%doc-reset-pending!)
-        (%doc-process-meta %doc-meta)
-        (%doc-collect-and-register! def-form (%doc-find-last-string %doc-meta))
+        (set-first! %doc-pending-cell
+          (pair (pair (lit %bare) (pair def-form %doc-meta))
+                (first %doc-pending-cell)))
         def-form)
-      ; --- Pair: check if def or provide ---
       (if (eq? (first def-form) (lit provide))
-        ; --- Provide-wrapping: register module docs, eval provide ---
+        ; provide-wrap
         (do
-          (def %mod-name (first (rest def-form)))
-          (%doc-reset-pending!)
-          (%doc-process-meta %doc-meta)
-          (%doc-collect-and-register! %mod-name (%doc-find-last-string %doc-meta))
+          (set-first! %doc-pending-cell
+            (pair (pair (lit %provide) (pair def-form %doc-meta))
+                  (first %doc-pending-cell)))
           (tail-eval def-form e))
-        ; --- Def-wrapping: extract, strip params, eval ---
+        ; def-wrap: strip fast, stash full form for later re-strip, eval
         (do
           (def %name (first (rest def-form)))
           (def %value (first (rest (rest def-form))))
-          (%doc-reset-pending!)
-          (%doc-process-meta %doc-meta)
-          (def %ret (first %doc-pending-returns))
-          (def %exs (%doc-reverse (first %doc-pending-examples)))
-          (def %refs (%doc-reverse (first %doc-pending-sees)))
-          (def %nts (%doc-reverse (first %doc-pending-notes)))
-          (set-first! %doc-params-acc ())
-          (def %clean-value (%doc-strip-fn %value))
-          (def %params (%doc-reverse (first %doc-params-acc)))
-          (%doc-register! %name (%doc-find-last-string %doc-meta)
-            %ret %params %exs %refs %nts)
-          (tail-eval (list (first def-form) %name %clean-value) e))))))
+          (set-first! %doc-pending-cell
+            (pair (pair (lit %def) (pair def-form %doc-meta))
+                  (first %doc-pending-cell)))
+          (tail-eval
+            (list (first def-form) %name (%doc-strip-fn-fast %value))
+            e))))))
+
+; Commit one stashed entry into the registry (reproduces original doc logic).
+(def %doc-commit-entry!
+  (fn (_ kind form meta)
+    (if (eq? kind (lit %bare))
+      (do
+        (%doc-reset-pending!)
+        (%doc-process-meta meta)
+        (%doc-collect-and-register! form (%doc-find-last-string meta)))
+    (if (eq? kind (lit %provide))
+      (do
+        (%doc-reset-pending!)
+        (%doc-process-meta meta)
+        (%doc-collect-and-register! (first (rest form))
+          (%doc-find-last-string meta)))
+      ; %def
+      (do
+        (def %value (first (rest (rest form))))
+        (%doc-reset-pending!)
+        (%doc-process-meta meta)
+        (set-first! %doc-params-acc ())
+        (%doc-strip-fn %value)
+        (%doc-collect-and-register! (first (rest form))
+          (%doc-find-last-string meta)))))))
+
+(def %doc-commit!
+  (fn (_ )
+    (def %pending (first %doc-pending-cell))
+    (if (null? %pending) ()
+      (do
+        (set-first! %doc-pending-cell ())
+        (def %go
+          (fn (self lst)
+            (if (null? lst) ()
+              (do
+                (def %e (first lst))
+                (%doc-commit-entry! (first %e)
+                  (first (rest %e)) (rest (rest %e)))
+                (self (rest lst))))))
+        ; Stash order is most-recent-first; reverse so older entries
+        ; are registered first (mirrors load order).
+        (%go (%doc-reverse %pending))))))
 
 ; note: (note text...) -> no-op, returns nil (standalone section marker)
 (def note (op %note-args e ()))
@@ -396,6 +462,7 @@
 ;   (help name)  -> module listing OR individual doc
 (def help
   (op args e
+    (%doc-commit!)
     (if (null? args)
       (%display-overview)
       (do
@@ -416,6 +483,7 @@
 ; apropos: search doc registry by name substring
 (def apropos
   (op (pattern) e
+    (%doc-commit!)
     (def %pat (eval pattern e))
     (def %search
       (fn (self entries)
@@ -457,6 +525,7 @@
 ; modules: list all known modules with load status
 (def modules
   (fn (_ )
+    (%doc-commit!)
     (display "Modules:") (newline)
     (def %show
       (fn (self paths)
