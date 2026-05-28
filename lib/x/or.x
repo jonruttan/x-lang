@@ -1,26 +1,29 @@
 ; or.x -- x/or: Experimental/Hacking dialect
 ;
-; Built on x-lang. Imports the full toolbox: compiler, POSIX, numeric
-; tower, regex, plus system-level extensions (syscall, file, socket).
+; Built on x-lang.  Pulls in the heavy toolbox eagerly (compiler comes in
+; transitively via lib/x-or.x, POSIX FFI, numeric tower, regex).
+; The system-level extensions (syscall table, file I/O, sockets) are
+; deferred -- nothing in this dialect uses them by default, so leave
+; them as opt-in `(include …)` calls for code that does.
 
 ; --- Heavy imports ---
 (import x/sys/posix)
 (import x/core/hash)
-(import x/tool/compile)
 (import x/num/bignum)
 (import x/type/regex)
+; x/tool/compile is already loaded by lib/x-or.x; no need to re-import.
 
-; --- System extensions ---
-(include "lib/x/platform/syscall.x")
-(include "lib/x/sys/file.x")
-(include "lib/x/platform/socket.x")
+; --- Opt-in system extensions ---
+; (include "lib/x/platform/syscall.x")  ; needed by (system …) below
+; (include "lib/x/sys/file.x")
+; (include "lib/x/platform/socket.x")
 
 ; --- Character constants ---
-(def #newline (substring "\n" 0 1))
+(def #newline "\n")
 (def #nl #newline)
-(def #cr (substring "\r" 0 1))
-(def #esc (substring "\x1b" 0 1))
-(def #0 (substring "" 0 1))
+(def #cr "\r")
+(def #esc "\x1b")
+(def #0 "")
 (def #crnl (str-append #cr #nl))
 
 ; --- I/O constants ---
@@ -115,6 +118,7 @@
   cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr
   system do-loop)
   (note "Experimental/unstable dialect with full toolbox.")
-  (note "Includes compiler, POSIX, syscall, file I/O, sockets.")
+  (note "Includes compiler and POSIX FFI.")
   (note "Extends arithmetic with bignum, float, rational, complex, regex.")
+  (note "Syscall table, file I/O, and sockets are opt-in -- include them yourself if you call (system …) or use these subsystems.")
   "x/or: Experimental hacking dialect built on x-lang.")

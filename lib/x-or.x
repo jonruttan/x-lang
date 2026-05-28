@@ -27,9 +27,31 @@
   (pair "lib/x/or.x"
     (first %include-list-cell))))))))))))
 ; Load compiler infrastructure (needed for analyser compilation + caching)
-(include "lib/x/sys/posix.x")
+; (posix.x already loaded by x-core.x)
 (include "lib/x/core/hash.x")
 (include "lib/x/tool/compile.x")
+
+; --- Compile quasi-reader analysers (loaded by x-core.x) ---
+; Quasi/unquote analysers run on every char during tokenizing. Keeping
+; them as fn closures makes every subsequent file parse ~20% slower.
+
+(set! %compile-fvars
+  (list (pair (lit %quasi-accept) %quasi-accept)))
+(type-push-analyse (type-by-atom %quasi-read-atom)
+  (compile
+    (lit (fn (_ buffer score chr)
+      (if (= chr 96) %quasi-accept ())))
+    %compile-fvars))
+(set! %compile-fvars ())
+
+(set! %compile-fvars
+  (list (pair (lit %unquote-after-comma) %unquote-after-comma)))
+(type-push-analyse (type-by-atom %unquote-read-atom)
+  (compile
+    (lit (fn (_ buffer score chr)
+      (if (= chr 44) %unquote-after-comma ())))
+    %compile-fvars))
+(set! %compile-fvars ())
 
 ; --- Load numeric tower with immediate analyser compilation ---
 ; Each type's analyser is compiled right after loading, so subsequent

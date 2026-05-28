@@ -27,7 +27,7 @@
   (pair "lib/x/and.x"
     (first %include-list-cell))))))))))))
 ; Load compiler infrastructure FIRST (before numeric tower)
-(include "lib/x/sys/posix.x")
+; (posix.x already loaded by x-core.x)
 (include "lib/x/core/hash.x")
 (include "lib/x/tool/compile.x")
 
