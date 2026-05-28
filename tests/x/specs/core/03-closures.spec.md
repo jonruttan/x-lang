@@ -97,7 +97,7 @@
 ### can eval args explicitly
 
 ```scheme
-(do (def my-op (op (x) e (eval x))) (def a 42) (my-op a))
+(do (def my-op (op (x) e (eval x e))) (def a 42) (my-op a))
 ```
 ---
     42
@@ -146,7 +146,7 @@
 ### implements define sugar
 
 ```scheme
-(do (def define (op (name-or-form . body) e (if (pair? name-or-form) (eval (list (lit def) (first name-or-form) (pair (lit fn) (pair (pair (lit _) (rest name-or-form)) body)))) (eval (list (lit def) name-or-form (first body)))))) (define (square x) (* x x)) (square 5))
+(do (def define (op (name-or-form . body) e (if (pair? name-or-form) (tail-eval (list (lit def) (first name-or-form) (pair (lit fn) (pair (pair (lit _) (rest name-or-form)) body))) e) (tail-eval (list (lit def) name-or-form (first body)) e)))) (define (square x) (* x x)) (square 5))
 ```
 ---
     25
@@ -154,7 +154,7 @@
 ### define sugar with simple binding
 
 ```scheme
-(do (def define (op (name-or-form . body) e (if (pair? name-or-form) (eval (list (lit def) (first name-or-form) (pair (lit fn) (pair (rest name-or-form) body)))) (eval (list (lit def) name-or-form (first body)))))) (define pi 314) pi)
+(do (def define (op (name-or-form . body) e (if (pair? name-or-form) (tail-eval (list (lit def) (first name-or-form) (pair (lit fn) (pair (rest name-or-form) body))) e) (tail-eval (list (lit def) name-or-form (first body)) e)))) (define pi 314) pi)
 ```
 ---
     314

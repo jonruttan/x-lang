@@ -26,10 +26,14 @@
   (op args
     e
     (if (eq? (first args) %expanded)
-      (eval (first (rest args)))
+      ; tail-eval (not eval) in e: ops are lexically scoped, so the
+      ; quasi expansion must be evaluated in the caller's env to resolve
+      ; unquoted references.  eval-with-env save/restores env around its
+      ; eval and does not propagate to TCO continuations.
+      (tail-eval (first (rest args)) e)
       (%seq
         (def %t (%quasi-compile (first args)))
-        (%seq (%rewrite args %expanded (pair %t ())) (eval %t))))))
+        (%seq (%rewrite args %expanded (pair %t ())) (tail-eval %t e))))))
   (param args ANY "Template expression with optional unquote/unquote-splicing")
   (returns ANY "Expanded template with substitutions")
   (note "Compile-on-first-use: the template is compiled to a pair/lit/append tree on first evaluation, then cached.")
