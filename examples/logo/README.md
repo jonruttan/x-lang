@@ -86,7 +86,7 @@ Infix arithmetic with standard precedence:
 
 ```logo
 FD 2 + 3 * 4            ; = 14
-FD (2 + 3) * 4           ; = 20
+FD (2 + 3) * 4          ; = 20
 X <- SIDE + 1
 POLYSPI (SIDE + 1, ANGLE)
 ```
