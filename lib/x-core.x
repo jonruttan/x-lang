@@ -105,8 +105,14 @@
   ; Banner
   (include "lib/x/core/banner.x")
 
-  ; Install the SIGINT handler so ctrl-c breaks loops
-  (sigint-install)
+  ; Install the SIGINT handler so ctrl-c breaks loops.  On builds without
+  ; signal support these primitives are absent; fall back to inert no-ops so
+  ; the REPL still loads (%sigint-flag becomes an unused settable cell).
+  (guard (%e
+      (def sigint-install (fn () ()))
+      (def sigint-restore (fn () ()))
+      (def %sigint-flag (list 0)))
+    (sigint-install))
 
   ; --- Provide ---
   (doc (provide x/sys/type
