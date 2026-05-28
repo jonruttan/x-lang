@@ -314,17 +314,17 @@ The base object uses the same nested-list contract pattern as types. It holds th
 #### Field Accessor Macros
 
 ```c
-x_base_field_type_alist(X)     /* type registry              */
+x_interp_field_type_alist(X)     /* type registry              */
 x_base_field_filein(X)         /* stdin file descriptor       */
 x_base_field_fileout(X)        /* stdout file descriptor      */
 x_base_field_fileerr(X)        /* stderr file descriptor      */
-x_base_field_env_alist(X)      /* environment bindings        */
-x_base_field_eval_list(X)      /* expression list             */
+x_interp_field_env_alist(X)      /* environment bindings        */
+x_interp_field_eval_list(X)      /* expression list             */
 x_base_field_buffer(X)         /* input buffer                */
-x_base_field_token_cache(X)    /* token cache                 */
-x_base_field_error_handler(X)  /* error handler (setjmp)      */
-x_base_field_tco_expr(X)       /* TCO expression register     */
-x_base_field_tco_env(X)        /* TCO environment register    */
+x_interp_field_token_cache(X)    /* token cache                 */
+x_interp_field_error_handler(X)  /* error handler (setjmp)      */
+x_interp_field_tco_expr(X)       /* TCO expression register     */
+x_interp_field_tco_env(X)        /* TCO environment register    */
 ```
 
 #### Properties

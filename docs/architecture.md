@@ -18,39 +18,20 @@ Each layer expands capabilities without modifying those below it.
 
 ### The Base Object
 
-The base object (`p_base`) is the interpreter's root context. It is a nested linked list split into a "hot" path (environment and control flow, accessed on every eval) and a "cold" path (I/O, metadata, GC hooks, accessed less frequently). Every leaf field is either stack-wrapped `(current . saved)` for dynamic push/pop, or a direct value.
+The base object (`p_base`) is the interpreter's root context: a pair tree built from the same atoms and pairs as every other value (there is no struct). x-expr supplies a skeleton -- the I/O and metadata groups, profile counters, hooks, and heap-group -- and this project fills the environment/control half x-expr leaves nil and appends a few fields of its own. Every leaf is either a stack cell `(current . saved)` for dynamic push/pop, or a direct value.
 
 ```
-base-data
-+-- first: hot (env + ctrl)
-|   +-- first: env-group
-|   |   +-- first: env-alist              [S] (current . saved)
-|   |   +-- rest: env-aux
-|   |       +-- first: env-local-boundary [D] direct pointer
-|   |       +-- rest: env-bst
-|   |           +-- first: env-global-tree [D] direct pointer
-|   |           +-- rest: shadow-list      [D] direct list
-|   +-- rest: ctrl-group
-|       +-- first: ctrl-head
-|       |   +-- first: save-stack         [D] direct stack
-|       |   +-- rest: error-handler       [S] (current . saved)
-|       +-- rest: tco
-|           +-- first: tco-expr           [S] (current . saved)
-|           +-- rest: tco-env             [S] (current . saved)
-+-- rest: cold (io + meta)
-    +-- first: io-group
-    |   +-- first: io-head
-    |   |   +-- first: type-alist         [S] (current . saved)
-    |   |   +-- rest: files (filein, fileout, fileerr, write-buf, buffer)
-    |   +-- rest: io-state
-    |       +-- first: line               [S]
-    |       +-- rest: booleans (true, false)
-    +-- rest: meta-group
-        +-- first: profile counters (evals, tco, assoc, bst, gc, ...)
-        +-- rest: heap-group, eval-list, token-cache, gc-hooks
+base = x_base(p_base)
+  first: env + ctrl              (x-expr leaves nil; filled here)
+    env    env-alist, env-local-boundary, env-global-tree, shadow-list
+    ctrl   save-stack, error-handler, tco-expr, tco-env
+  rest:  io + meta               (x-expr skeleton)
+    io     type-alist, line, true, false  (+ x-expr's file handles)
+    meta   profile counters, eval-list, token-cache,
+           mark-hooks, free-hooks, mark-roots, sigint
 ```
 
-Field access is via nested `first`/`rest` traversal. The macro `x_base_field_env_alist(X)` expands to `x_firstobj(x_firstobj(x_base_hot(X)))`. There is no struct -- the base is the same pair/atom material as every other value. The authoritative layout with all fields and annotations is in `include/x-base-typesystem.h`.
+Field access is via nested `first`/`rest` traversal, expressed with the `x_<binary>` accessor family (`x_0` = first, `x_1` = rest, read left-to-right outer-to-inner). For example `x_interp_field_env_alist(X)` resolves to `first(first(first(base)))`. The authoritative layout, including which fields are stack cells versus direct values, is in `include/x-interp.h`.
 
 #### Nil
 
