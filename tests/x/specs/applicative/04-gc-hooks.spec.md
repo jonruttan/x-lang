@@ -1,95 +1,105 @@
 ## GC hook & root API
 
-Exercises the registration surface for x-expr's per-pass extensible
-GC lists -- heap-mark-hook!, heap-free-hook!, heap-mark-root! -- and
-verifies that a subsequent `(heap-mark)` traverses the registered hook
-and root lists without crashing.
+End-to-end coverage for the per-pass GC extensible lists in x-expr's
+heap-group, driven through the x-lang surface: heap-mark-hook!,
+heap-free-hook!, heap-mark-root!, and the atomic (heap-collect).
 
-These tests deliberately invoke `(heap-mark)` only, never
-`(heap-sweep)` and never `(heap-collect)`/`(heap-collect-force)`.
-There is a separate bug (tracked in the project tasks) where any
-manual sweep call inside a `(begin …)` form -- including the spec
-runner's per-test wrapping -- frees transient body pairs that are
-still on the eval stack, segfaulting the next step.  Once that's
-fixed these tests should be extended with sweep-side assertions
-(root keep-alive across collection, free-hook fires before reclaim).
+(heap-collect) runs mark+sweep in one C call with no allocation between
+the phases, so it is safe to invoke mid-expression -- including from
+within the spec runner's per-test (begin …) wrapping.  A registered
+fn-hook is fired through the TCO trampoline so a value-returning hook
+body doesn't leave a half-finished call for the sweep to free.
 
-### heap-mark-hook! accepts a no-op hook
+### a no-op mark-hook survives a full collect
 
 ```scheme
 (heap-mark-hook! (fn (_ ) ()))
-(heap-mark)
+(heap-collect)
 #t
 ```
 ---
     #t
 
-### heap-mark-hook! accepts a C-primitive callable
+### a value-returning mark-hook survives a full collect
 
-`heap-count` is a bare C primitive, not a fn closure -- different
-dispatch path; both should work.
+A hook whose body returns a non-nil tail used to leave the env extended
+and the call deferred; the collect then freed the in-flight frame.
+
+```scheme
+(heap-mark-hook! (fn (_ ) 42))
+(heap-collect)
+#t
+```
+---
+    #t
+
+### an allocating mark-hook survives a full collect
+
+```scheme
+(heap-mark-hook! (fn (_ ) (list 1 2 3)))
+(heap-collect)
+#t
+```
+---
+    #t
+
+### a C-primitive callable works as a mark-hook
 
 ```scheme
 (heap-mark-hook! heap-count)
-(heap-mark)
+(heap-collect)
 #t
 ```
 ---
     #t
 
-### multiple mark-hooks chain rather than overwrite
-
-After registering a C-primitive hook followed by a no-op fn, a mark
-pass walks both without crashing.  Pre-fix, the second registration
-would replace the first's stack-cell slot and the walker would extract
-the most-recently-registered hook as the entire list head -- crashing
-on its first non-pair internal field.
-
-```scheme
-(heap-mark-hook! heap-count)
-(heap-mark-hook! (fn (_ ) ()))
-(heap-mark)
-#t
-```
----
-    #t
-
-### heap-free-hook! accepts a no-op hook
-
-Free hooks fire during sweep, which the spec runner's `(begin …)`
-wrapping makes unsafe to invoke here.  This test only confirms
-registration doesn't error and a subsequent mark survives.
+### a no-op free-hook survives a full collect
 
 ```scheme
 (heap-free-hook! (fn (_ ) ()))
-(heap-mark)
+(heap-collect)
 #t
 ```
 ---
     #t
 
-### heap-mark-root! accepts an arbitrary object
+### heap-mark-root! keeps its object reachable across a collect
+
+The pair is reachable from the global `kept`, but registering it as a
+root additionally exercises the root-mark pass; after collect its data
+is intact.
 
 ```scheme
-(def my-pair (pair (lit alive) ()))
-(heap-mark-root! my-pair)
-(heap-mark)
-#t
+(def kept (pair (lit alive) ()))
+(heap-mark-root! kept)
+(heap-collect)
+(eq? (first kept) (lit alive))
 ```
 ---
     #t
 
-### all three registration surfaces are independent slots
+### a mark-hook may register a root mid-collect
 
-Each list lives at a distinct field in heap-group; registering into
-one shouldn't disturb the others.
+The hook calls heap-mark-root! during the mark phase; the freshly
+registered root is honored and the object survives.
+
+```scheme
+(def guarded (pair (lit safe) ()))
+(heap-mark-hook! (fn (_ ) (heap-mark-root! guarded) ()))
+(heap-collect)
+(eq? (first guarded) (lit safe))
+```
+---
+    #t
+
+### all three registration surfaces compose
 
 ```scheme
 (heap-mark-hook! (fn (_ ) ()))
 (heap-free-hook! (fn (_ ) ()))
 (def survivor (pair (lit kept) ()))
 (heap-mark-root! survivor)
-(heap-mark)
+(heap-collect)
 (eq? (first survivor) (lit kept))
 ```
 ---

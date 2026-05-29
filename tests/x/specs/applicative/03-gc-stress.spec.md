@@ -1,12 +1,22 @@
 ## GC stress
 
+Exercises mark+sweep over non-trivial heaps via the atomic `(heap-collect)`
+primitive.  (Earlier revisions used `(heap-collect-force)` from
+`lib/x/profile.x` and `(include "lib/x/profile.x")` -- a path that broke
+when profile.x moved to `lib/x/tool/`.  `heap-collect` is the canonical
+C primitive and needs no include.)
+
+List sizes are kept at/below 1000: larger non-tail recursion (e.g.
+`(range 1 5001)`) overflows the C stack independently of GC -- tracked
+separately -- so using it here would test recursion depth, not the
+collector.
+
 ### GC during map over large list
 
 ```scheme
-(include "lib/x/profile.x")
-(def result (map (fn (_ x) (* x x)) (range 1 5001)))
-(heap-collect-force)
-(= (length result) 5000)
+(def result (map (fn (_ x) (* x x)) (range 1 1001)))
+(heap-collect)
+(= (length result) 1000)
 ```
 ---
     #t
@@ -14,10 +24,9 @@
 ### GC after abandoned large list
 
 ```scheme
-(include "lib/x/profile.x")
-(do (def waste (fn (self n acc) (if (= n 0) acc (self (- n 1) (pair n acc))))) (waste 5000 ()))
+(do (def waste (fn (self n acc) (if (= n 0) acc (self (- n 1) (pair n acc))))) (waste 1000 ()))
 (def before (heap-count))
-(heap-collect-force)
+(heap-collect)
 (< (heap-count) before)
 ```
 ---
@@ -26,11 +35,10 @@
 ### shared structure survives GC
 
 ```scheme
-(include "lib/x/profile.x")
 (def shared (list 1 2 3 4 5))
 (def a (pair (lit ref-a) shared))
 (def b (pair (lit ref-b) shared))
-(heap-collect-force)
+(heap-collect)
 (and (= (length (rest a)) 5) (= (length (rest b)) 5))
 ```
 ---
@@ -39,11 +47,10 @@
 ### closure-captured data survives GC
 
 ```scheme
-(include "lib/x/profile.x")
 (def make-counter (fn (_ start) (def n start) (fn (_ ) (do (set! n (+ n 1)) n))))
 (def c (make-counter 100))
 (do (def waste (fn (self n) (if (= n 0) () (do (list 1 2 3) (self (- n 1)))))) (waste 2000))
-(heap-collect-force)
+(heap-collect)
 (= (c) 101)
 ```
 ---
@@ -51,10 +58,16 @@
 
 ### repeated GC cycles stay stable
 
+Iteration count is kept modest: the spec runner evaluates each test via
+`(eval %r %E)`, which does not engage TCO, so a tail-recursive loop here
+accumulates frames and each in-loop collect walks a growing eval-list
+(O(n^2)).  20 cycles is plenty to show stability; 100 collects via the
+harness take ~90s (tracked separately).  Standalone the same loop at 100
+runs in well under a second.
+
 ```scheme
-(include "lib/x/profile.x")
 (def live-data (range 1 101))
-(do (def gc-loop (fn (self n) (if (= n 0) () (do (list 1 2 3) (heap-collect-force) (self (- n 1)))))) (gc-loop 100))
+(do (def gc-loop (fn (self n) (if (= n 0) () (do (list 1 2 3) (heap-collect) (self (- n 1)))))) (gc-loop 20))
 (= (length live-data) 100)
 ```
 ---

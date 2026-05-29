@@ -1,13 +1,20 @@
 ; gc.x -- Garbage collection hooks
 ;
-; heap-mark-hook!, heap-free-hook!, heap-mark-root! are C primitives
-; bound by src/x-prim/io.c (x_prim_io_register).  The underlying lists
-; live in x-expr's heap-group; see ext/x-expr/include/x-base.h
-; (x_base_field_heap_{mark,free}_hooks, x_base_field_heap_mark_roots).
+; heap-collect, heap-mark-hook!, heap-free-hook!, heap-mark-root! are all
+; C primitives bound by src/x-prim/io.c (x_prim_io_register).  The
+; underlying hook/root lists live in x-expr's heap-group; see
+; ext/x-expr/include/x-base.h (x_base_field_heap_{mark,free}_hooks,
+; x_base_field_heap_mark_roots).
 ;
-; This file just wires heap-collect and re-exports the primitives.
-
-(def heap-collect (fn (_ ) (applicative heap-mark heap-sweep) ()))
+; heap-collect runs an atomic mark+sweep in one C call.  It MUST be atomic:
+; mark and sweep cannot straddle an allocation, or the sweep frees the
+; eval-list cell the evaluator is mid-traversal on (the env/ctrl/extras
+; base-tree cells and eval-list scratch cells are X_OBJ_FLAG_NONE, kept
+; alive only by marking).  The old (applicative heap-mark heap-sweep)
+; definition was non-atomic and crashed when invoked mid-expression; the
+; raw (heap-mark)/(heap-sweep) primitives remain exposed but are low-level.
+;
+; This file just re-exports the C primitives for module import.
 
 (provide x/sys/gc
   heap-collect heap-mark-root! heap-mark-hook! heap-free-hook!)
