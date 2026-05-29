@@ -140,6 +140,14 @@
 ---
     ""
 
+### reverses by code point
+
+```scheme
+(str-reverse "héllo€")
+```
+---
+    "€olléh"
+
 
 ## str
 
@@ -220,6 +228,56 @@
 ```
 ---
     3
+
+### decodes UTF-8 code points
+
+```scheme
+(str->list "$¢€")
+```
+---
+    (#\$ #\¢ #\€)
+
+### code points carry the right integer values
+
+```scheme
+(map char->integer (str->list "$¢€"))
+```
+---
+    (36 162 8364)
+
+### round-trips through list->str
+
+```scheme
+(list->str (str->list "$¢£¥€¤"))
+```
+---
+    "$¢£¥€¤"
+
+## utf8-length
+
+### counts code points, not bytes
+
+```scheme
+(utf8-length "$¢£¥€¤")
+```
+---
+    6
+
+### agrees with str-length for ASCII
+
+```scheme
+(utf8-length "hello")
+```
+---
+    5
+
+### empty string is zero
+
+```scheme
+(utf8-length "")
+```
+---
+    0
 
 ## str-upcase
 

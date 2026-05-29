@@ -103,26 +103,65 @@
 
 (doc (def str-reverse
   (fn (_ (param s STRING "String to reverse"))
-    (def len (str-length s))
-    (def go
-      (fn (self i acc)
-        (if (< i 0)
-          acc
-          (self (- i 1) (str-append acc (substring s i (+ i 1)))))))
-    (go (- len 1) "")))
+    (list->str (reverse (str->list s)))))
   (returns STRING "Reversed string")
-  "Reverse a string.")
+  "Reverse a string by Unicode code point.")
 
 ; --- Conversion ---
 
 (note "Conversion")
 
+; Strings are stored as UTF-8 byte arrays, so str-length and str-ref (and
+; substring) are byte-level.  The helpers below decode those bytes into
+; Unicode code points, keeping the code-point logic in the x-lang library.
+
+; Number of bytes in the UTF-8 sequence introduced by lead byte b (0-255).
+(def %utf8-seq-len
+  (fn (_ b)
+    (cond
+      ((< b 192) 1)      ; 0xxxxxxx ASCII (or a stray continuation byte)
+      ((< b 224) 2)      ; 110xxxxx
+      ((< b 240) 3)      ; 1110xxxx
+      (#t 4))))          ; 11110xxx
+
+; Decode the code point at byte index i; returns (code-point . next-index).
+; Shifted parts occupy disjoint bit ranges, so | combines them losslessly.
+(def %utf8-decode-at
+  (fn (_ s i)
+    (def b0 (char->integer (str-ref s i)))
+    (def n (%utf8-seq-len b0))
+    ; low 6 bits of the continuation byte at offset k
+    (def cont (fn (_ k) (& (char->integer (str-ref s (+ i k))) 63)))
+    (pair
+      (cond
+        ((= n 1) b0)
+        ((= n 2) (| (<< (& b0 31) 6) (cont 1)))
+        ((= n 3) (| (| (<< (& b0 15) 12) (<< (cont 1) 6)) (cont 2)))
+        (#t      (| (| (| (<< (& b0 7) 18) (<< (cont 1) 12))
+                       (<< (cont 2) 6)) (cont 3))))
+      (+ i n))))
+
 (doc (def str->list
   (fn (_ (param s STRING "String to convert"))
-    (let go ((i (- (str-length s) 1)) (acc ()))
-      (if (< i 0) acc (go (- i 1) (pair (str-ref s i) acc))))))
-  (returns LIST "List of characters")
-  "Convert a string to a list of characters.")
+    (def len (str-length s))
+    (let go ((i 0) (acc ()))
+      (if (>= i len)
+        (reverse acc)
+        (do
+          (def d (%utf8-decode-at s i))
+          (go (rest d) (pair (integer->char (first d)) acc)))))))
+  (returns LIST "List of characters (one per Unicode code point)")
+  "Convert a string to a list of characters, decoding UTF-8 code points.")
+
+(doc (def utf8-length
+  (fn (_ (param s STRING "String to measure"))
+    (def len (str-length s))
+    (let go ((i 0) (count 0))
+      (if (>= i len)
+        count
+        (go (+ i (%utf8-seq-len (char->integer (str-ref s i)))) (+ count 1))))))
+  (returns INT "Number of Unicode code points")
+  "Count the Unicode code points in a string (str-length counts bytes).")
 
 ; --- Case conversion ---
 
@@ -255,7 +294,7 @@
 
 (doc (provide x/type/string
   str make-str str-pad-left str-empty? str-join str-repeat str-contains?
-  str-starts? str-ends? str-reverse str->list
+  str-starts? str-ends? str-reverse str->list utf8-length
   str-upcase str-downcase
   str<? str>? str<=? str>=?
   str-ci=? str-ci<? str-ci>? str-ci<=? str-ci>=?
