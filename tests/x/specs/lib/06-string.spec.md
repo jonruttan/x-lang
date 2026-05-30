@@ -253,32 +253,6 @@
 ---
     "$¢£¥€¤"
 
-## utf8-length
-
-### counts code points, not bytes
-
-```scheme
-(utf8-length "$¢£¥€¤")
-```
----
-    6
-
-### agrees with str-length for ASCII
-
-```scheme
-(utf8-length "hello")
-```
----
-    5
-
-### empty string is zero
-
-```scheme
-(utf8-length "")
-```
----
-    0
-
 ## str-upcase
 
 ### uppercases a string

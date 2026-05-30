@@ -153,16 +153,6 @@
   (returns LIST "List of characters (one per Unicode code point)")
   "Convert a string to a list of characters, decoding UTF-8 code points.")
 
-(doc (def utf8-length
-  (fn (_ (param s STRING "String to measure"))
-    (def len (str-length s))
-    (let go ((i 0) (count 0))
-      (if (>= i len)
-        count
-        (go (+ i (%utf8-seq-len (char->integer (str-ref s i)))) (+ count 1))))))
-  (returns INT "Number of Unicode code points")
-  "Count the Unicode code points in a string (str-length counts bytes).")
-
 ; --- Case conversion ---
 
 (note "Case conversion")
@@ -294,7 +284,7 @@
 
 (doc (provide x/type/string
   str make-str str-pad-left str-empty? str-join str-repeat str-contains?
-  str-starts? str-ends? str-reverse str->list utf8-length
+  str-starts? str-ends? str-reverse str->list
   str-upcase str-downcase
   str<? str>? str<=? str>=?
   str-ci=? str-ci<? str-ci>? str-ci<=? str-ci>=?
