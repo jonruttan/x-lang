@@ -3,6 +3,9 @@
 ; Defines type-checking predicates using only C primitives.
 ; No library dependencies.
 
+; same? (identity) and eq? (value equality) are C primitives. eq? compares
+; immediate scalars (int, char) by value and falls back to identity, so it
+; still covers nil, booleans, and interned symbols too.
 (def null? (fn (_ x) (eq? x ())))
 
 (def %type-pair (type-of (pair 1 2)))

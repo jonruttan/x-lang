@@ -16,6 +16,80 @@
 ---
     #t
 
+### value-compares equal integers
+
+```scheme
+(eq? 5 5)
+```
+---
+    #t
+
+### distinguishes unequal integers
+
+```scheme
+(if (eq? 1 2) "y" "n")
+```
+---
+    "n"
+
+### value-compares equal characters
+
+```scheme
+(eq? #\a #\a)
+```
+---
+    #t
+
+### nil and booleans compare equal
+
+```scheme
+(list (eq? () ()) (eq? #t #t) (eq? #f #f))
+```
+---
+    (#t #t #t)
+
+### distinct pairs are not eq? (no deep compare)
+
+```scheme
+(if (eq? (list 1) (list 1)) "y" "n")
+```
+---
+    "n"
+
+## same?
+
+### identical object is same?
+
+```scheme
+(do (def x (list 1)) (same? x x))
+```
+---
+    #t
+
+### interned symbols are same?
+
+```scheme
+(same? (lit a) (lit a))
+```
+---
+    #t
+
+### equal integers are NOT same?
+
+```scheme
+(if (same? 5 5) "y" "n")
+```
+---
+    "n"
+
+### nil is same? to nil
+
+```scheme
+(same? () ())
+```
+---
+    #t
+
 ## =
 
 ### returns #t for equal integers
