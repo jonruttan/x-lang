@@ -96,11 +96,14 @@ Mutually tail-recursive functions MUST also run in constant stack space.
 
 `(lit expr) -> expr`
 
-Returns `expr` unevaluated. This is the quoting primitive.
+Returns `expr` unevaluated. This is the quoting primitive. The reader provides
+`'expr` as shorthand for `(lit expr)` (see `core/17-quote-reader.spec.md`).
 
 ```
 (lit (+ 1 2)) -> (+ 1 2)
 (lit abc) -> abc
+'abc -> abc
+'(1 2 3) -> (1 2 3)
 ```
 
 ### `pair`

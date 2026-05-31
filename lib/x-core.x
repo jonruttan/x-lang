@@ -45,12 +45,14 @@
     (pair "lib/x/type/string.x"
     (pair "lib/x/type/vector.x"
     (pair "lib/x/type/promise.x"
+    (pair "lib/x/type/object.x"
     (pair "lib/x/sys/token.x"
     (pair "lib/x/core/quasi.x"
     (pair "lib/x/type/quasi-reader.x"
+    (pair "lib/x/type/lit-reader.x"
     (pair "lib/x/core/repl.x"
     (pair "lib/x/core/banner.x"
-      (first %include-list-cell)))))))))))))))))))))))))))))
+      (first %include-list-cell)))))))))))))))))))))))))))))))
 
   ; --- Standard modules ---
   (include "lib/x/core/predicates.x")
@@ -91,6 +93,7 @@
   (include "lib/x/type/string.x")
   (include "lib/x/type/vector.x")
   (include "lib/x/type/promise.x")
+  (include "lib/x/type/object.x")
   (include "lib/x/sys/token.x")
 
   ; Quasi-quoting
@@ -98,6 +101,9 @@
 
   ; Quasi-quote reader syntax (backtick, comma, comma-at)
   (include "lib/x/type/quasi-reader.x")
+
+  ; Quote reader syntax (apostrophe expr to lit expr)
+  (include "lib/x/type/lit-reader.x")
 
   ; REPL
   (include "lib/x/core/repl.x")

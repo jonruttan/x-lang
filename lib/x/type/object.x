@@ -1,0 +1,359 @@
+; object.x -- Object-oriented class system (message passing, single inheritance)
+(import x/core/alist)
+;
+; CLASSES ARE OBJECTS. A class is a callable %class object; an instance is a
+; callable %object. Dispatch mirrors one level up:
+;
+;            (obj name ...)                 (Class name ...)
+;   method   instance method (from class)   static method
+;   field    instance field get/set         class-wide member get/set
+;   self     the instance                   the class
+;
+; A class's data is an alist:
+;   ((name . N) (fields . IF) (methods . IM) (parent . P)
+;    (s-methods . SM) (statics . STATICS-BOX))
+; -- IF/IM/P are the instance template; SM are static methods; STATICS-BOX is a
+; one-cell mutable box holding the class-wide member alist. An instance's slot 0
+; holds (class . field-box); the field-box is a one-cell mutable alist.
+;
+; Selectors are literal -- both dispatch handlers are OPERATIVES, so (obj name)
+; needs no quote, while args evaluate in the caller's env.
+
+(note "Accessors (internal plumbing)")
+
+(def %obj-class  (fn (_ inst) (first (first inst))))   ; an instance's class object
+(def %obj-box    (fn (_ inst) (rest  (first inst))))   ; instance field box
+(def %obj-fields (fn (_ inst) (first (%obj-box inst))))
+(def %class-data (fn (_ c) (first c)))                 ; a class object's alist
+
+; Raw field accessors injected into every instance-method body (closing over
+; `self`), so a method can bypass a same-named override to reach a field's
+; storage -- the "private data" pattern. Method-local only.
+;   (field 'name) / (set-field! 'name v)
+(def %method-raw-bindings
+  (lit
+    ((field      (fn (_ n) (assoc-get n (%obj-fields self))))
+     (set-field! (fn (_ n v)
+                   (set-first! (%obj-box self) (assoc-put n v (%obj-fields self)))
+                   v)))))
+
+(note "Member lookup (walks the single-inheritance parent chain)")
+
+; Look `selector` up in table `key` (methods | s-methods) along the class chain.
+(def %lookup
+  (fn (loop class key selector)
+    (if (null? class)
+      ()
+      (let ((data (%class-data class)))
+        (let ((hit (assoc-get selector (assoc-get key data))))
+          (if (null? hit)
+            (loop (assoc-get (lit parent) data) key selector)
+            hit))))))
+
+; Unwrap a quoted 'x (i.e. (lit x)) to the bare symbol x, so (obj x) and (obj 'x)
+; both name the member x.
+(def %selector
+  (fn (_ s)
+    (if (if (pair? s) (eq? (first s) (lit lit)) #f)
+      (first (rest s))
+      s)))
+
+; Build an instance: instance fields (across the chain) initialised from inits.
+(def %instantiate
+  (fn (_ class inits e)
+    (make-instance %object
+      (list class (%init-fields (%all-fields class) inits e)))))
+
+(note "Dispatch handlers")
+
+; Instance dispatch: a method (from the instance's class) wins; otherwise the
+; member is an instance field that (obj f) reads and (obj f v) writes.
+(def %object-dispatch
+  (op (self sel-raw . rest) e
+    (let ((selector (%selector sel-raw)))
+      (let ((method (%lookup (%obj-class self) (lit methods) selector)))
+        (match
+          ((not (null? method))
+            (apply method (pair self (map (fn (_ a) (eval a e)) rest))))
+          ((assoc-has? selector (%obj-fields self))
+            (match
+              ((null? rest) (assoc-get selector (%obj-fields self)))
+              (#t (let ((v (eval (first rest) e)))
+                    (set-first! (%obj-box self) (assoc-put selector v (%obj-fields self)))
+                    v))))
+          (#t (error "object: no such member")))))))
+
+(def %class-statics-box (fn (_ class) (assoc-get (lit statics) (%class-data class))))
+(def %class-statics     (fn (_ class) (first (%class-statics-box class))))
+
+; Class dispatch: a static method wins; (Class new ...) builds an instance;
+; otherwise the member is a class-wide field that (Class f) reads, (Class f v) sets.
+(def %class-dispatch
+  (op (self sel-raw . rest) e
+    (let ((selector (%selector sel-raw)))
+      (let ((method (%lookup self (lit s-methods) selector)))
+        (match
+          ((not (null? method))
+            (apply method (pair self (map (fn (_ a) (eval a e)) rest))))
+          ((eq? selector (lit new))
+            (%instantiate self rest e))
+          ((assoc-has? selector (%class-statics self))
+            (match
+              ((null? rest) (assoc-get selector (%class-statics self)))
+              (#t (let ((v (eval (first rest) e)))
+                    (set-first! (%class-statics-box self) (assoc-put selector v (%class-statics self)))
+                    v))))
+          (#t (error "object: no such static member")))))))
+
+(note "Write handlers")
+
+(def %write-fields
+  (fn (loop al)
+    (if (not (null? al))
+      (do
+        (display " ")
+        (display (first (first al)))
+        (display "=")
+        (write (rest (first al)))
+        (loop (rest al))))))
+
+(def %object-write
+  (fn (_ self)
+    (display "#<")
+    (display (class-name self))
+    (%write-fields (%obj-fields self))
+    (display ">")))
+
+(def %class-write
+  (fn (_ self)
+    (display "#<class ")
+    (display (class-name self))
+    (display ">")))
+
+(def %object (make-type "OBJECT" (list (pair (lit call) %object-dispatch) (pair (lit write) %object-write))))
+(def %class  (make-type "CLASS"  (list (pair (lit call) %class-dispatch)  (pair (lit write) %class-write))))
+
+(note "Inheritance")
+
+(doc (def super
+  (op (self-expr sel-raw . rest) e
+    (let ((inst (eval self-expr e)) (selector (%selector sel-raw)))
+      (if (not (object? inst))
+        (error "object: super works only inside an instance method")
+        ; %super-class is the parent of the class that DEFINED this method (bound by
+        ; def-class in the method's scope), so super resolves to the right level even
+        ; when the method is inherited by a deeper subclass -- no self-recursion.
+        (let ((method (%lookup (eval (lit %super-class) e) (lit methods) selector)))
+          (if (null? method)
+            (error "object: super has no parent method")
+            (apply method (pair inst (map (fn (_ a) (eval a e)) rest)))))))))
+  (note "Selector is literal: (super self method args...). Instance methods only.")
+  (note "Resolves from the parent of the method's DEFINING class, so it is correct")
+  (note "through multi-level inheritance.")
+  (example "(super self total)" "the parent total method's result")
+  (see def-class)
+  "Invoke the parent class's version of a method.")
+
+(note "Predicates and introspection")
+
+(doc (def object? (fn (_ (param x ANY "Value to test")) (type? x %object)))
+  (returns BOOL "True if x is an object instance")
+  (see class?)
+  "Test whether a value is an object instance.")
+
+(doc (def class? (fn (_ (param x ANY "Value to test")) (type? x %class)))
+  (returns BOOL "True if x is a class")
+  (see object?)
+  "Test whether a value is a class.")
+
+(doc (def class-of
+  (fn (_ (param inst OBJECT "Instance"))
+    (if (object? inst) (%obj-class inst) (error "class-of: not an instance"))))
+  (returns CLASS "The class an instance belongs to")
+  (see class-name)
+  "Return the class an instance belongs to (itself a callable class object).")
+
+(doc (def class-name
+  (fn (_ (param x ANY "An instance or a class"))
+    (assoc-get (lit name) (%class-data (if (class? x) x (%obj-class x))))))
+  (returns SYMBOL "The class name")
+  (see class-of)
+  "Return the name symbol of a class, or of an instance's class.")
+
+(def %class-ancestor?
+  (fn (loop c target)
+    (if (null? c)
+      #f
+      (if (same? c target)                 ; class identity, not value equality
+        #t
+        (loop (assoc-get (lit parent) (%class-data c)) target)))))
+
+(doc (def instance-of?
+  (fn (_ (param inst OBJECT "Instance") (param class CLASS "Class"))
+    (%class-ancestor? (%obj-class inst) class)))
+  (returns BOOL "True if inst is a class or one of its subclasses")
+  (see object?)
+  "Test whether an instance belongs to a class or any of its descendants.")
+
+(note "Class definition")
+
+(def %make-class
+  (fn (_ name fields methods parent s-methods statics)
+    (make-instance %class
+      (list
+        (pair (lit name) name)
+        (pair (lit fields) fields)
+        (pair (lit methods) methods)
+        (pair (lit parent) parent)
+        (pair (lit s-methods) s-methods)
+        (pair (lit statics) (list statics))))))   ; statics in a one-cell mutable box
+
+; Find a top-level body form whose head is `tag`, returning its rest (or ()).
+(def %find-form
+  (fn (loop body tag)
+    (if (null? body)
+      ()
+      (if (eq? (first (first body)) tag)
+        (rest (first body))
+        (loop (rest body) tag)))))
+
+; Build a method closure from (NAME (self . params) body...). The body is wrapped
+; in a let binding %super-class (the parent of the defining class, used by super)
+; and, for instance methods (raw? true), the raw field/set-field! accessors.
+(def %make-method
+  (fn (_ form raw? parent e)
+    (eval
+      (list (lit fn)
+        (pair (lit recur) (first (rest (rest form))))   ; (recur . user-params)
+        (pair (lit let)
+          (pair (pair (list (lit %super-class) parent)
+                  (if raw? %method-raw-bindings ()))
+                (rest (rest (rest form))))))
+      e)))
+
+; Collect the (method ...) forms in `forms` into a methods alist. raw? injects the
+; raw accessors (instance methods); parent is the defining class's parent (for super).
+(def %collect-methods
+  (fn (loop forms raw? parent e)
+    (if (null? forms)
+      ()
+      (if (eq? (first (first forms)) (lit method))
+        (pair (pair (first (rest (first forms))) (%make-method (first forms) raw? parent e))
+              (loop (rest forms) raw? parent e))
+        (loop (rest forms) raw? parent e)))))
+
+; Collect the non-method (NAME value) forms in `forms` into a member alist,
+; evaluating each value in e.
+(def %collect-members
+  (fn (loop forms e)
+    (if (null? forms)
+      ()
+      (if (eq? (first (first forms)) (lit method))
+        (loop (rest forms) e)
+        (pair (pair (first (first forms)) (eval (first (rest (first forms))) e))
+              (loop (rest forms) e))))))
+
+(def %resolve-parent
+  (fn (_ parent e)
+    (if (null? parent)
+      ()
+      (eval (first (rest parent)) e))))
+
+; A body form must be a list headed by fields, method, or static.
+(def %valid-head?
+  (fn (_ form)
+    (if (pair? form)
+      (let ((h (first form)))
+        (if (eq? h (lit fields)) #t
+        (if (eq? h (lit method)) #t
+        (if (eq? h (lit static)) #t #f))))
+      #f)))
+
+(def %validate-body
+  (fn (loop body)
+    (if (null? body)
+      ()
+      (do
+        (if (%valid-head? (first body))
+          ()
+          (error "def-class: unknown body form -- use (fields ...), (method ...), or (static ...)"))
+        (loop (rest body))))))
+
+; Resolve the parent once, validate the body, and build the class object. Kept out
+; of the def-class op body so the op's tail stays the bare tail-eval (see below).
+(def %build-class
+  (fn (_ name parent body e)
+    (do
+      (%validate-body body)
+      (let ((p (%resolve-parent parent e))
+            (sblock (%find-form body (lit static))))
+        (%make-class
+          name
+          (%find-form body (lit fields))
+          (%collect-methods body #t p e)       ; instance methods: raw access + super
+          p
+          (%collect-methods sblock #f p e)      ; static methods
+          (%collect-members sblock e))))))
+
+(doc (def def-class
+  (op (name parent . body)
+    e
+    ; tail-eval must be the op's direct tail so the (def NAME ...) it runs persists
+    ; in the caller's env even under (eval form env) (e.g. the spec harness), not
+    ; only the REPL's eval!. %build-class does the work (validate, resolve, build).
+    (tail-eval
+      (list (lit def) name (list (lit lit) (%build-class name parent body e)))
+      e)))
+  (note "Names are literal (no quotes). Body forms:")
+  (note "  (fields f...)                          instance fields")
+  (note "  (method NAME (self . args) body...)    instance method")
+  (note "  (static (member val)... (method ...))  class-wide members + static methods")
+  (note "A method shadows a field of the same name. Parent: () or (extends Class).")
+  (note "Inside a method, (self f) accesses members; (field 'f)/(set-field! 'f v) are raw.")
+  (example "(do (def-class C () (static (n 7) (method get (self) (self n)))) (C get))" "7")
+  (see new)
+  "Define a class (a callable class object) with fields, methods, and statics.")
+
+(doc (def new
+  (op (class-expr . inits)
+    e
+    (%instantiate (eval class-expr e) inits e)))
+  (note "Equivalent to (Class new field val ...). Field names literal, values evaluated.")
+  (example "(do (def-class P () (fields x)) ((new P x 5) x))" "5")
+  (see def-class)
+  "Construct an instance of a class.")
+
+; All instance field names across the inheritance chain, parent fields first.
+(def %all-fields
+  (fn (loop class)
+    (if (null? class)
+      ()
+      (append (loop (assoc-get (lit parent) (%class-data class)))
+              (assoc-get (lit fields) (%class-data class))))))
+
+; Look a field name up in a flat init list (name value name value ...),
+; evaluating the matched value in the caller's env e.
+(def %init-get
+  (fn (loop key inits e)
+    (if (null? inits)
+      ()
+      (if (eq? key (first inits))
+        (eval (first (rest inits)) e)
+        (loop key (rest (rest inits)) e)))))
+
+(def %init-fields
+  (fn (loop fields inits e)
+    (if (null? fields)
+      ()
+      (pair (pair (first fields) (%init-get (first fields) inits e))
+            (loop (rest fields) inits e)))))
+
+(doc (provide x/type/object
+  def-class new super
+  object? class? class-of class-name instance-of?)
+  (note "Instances: (obj name args...) -- method wins, else field (obj f)/(obj f v).")
+  (note "Classes are callable: (Class name args...) -- static method, (Class new ...) to")
+  (note "instantiate, else class-wide member (Class f)/(Class f v). Use classes as")
+  (note "namespaces of static methods. Raw field access in methods: (field 'f)/(set-field! 'f v).")
+  (example "(do (def-class P () (fields x) (method get (self) (self x))) ((new P x 5) get))" "5")
+  "Object-oriented class system: classes-as-objects, message passing, single inheritance.")

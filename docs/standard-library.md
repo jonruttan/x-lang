@@ -14,7 +14,7 @@ This document covers the core functions loaded by `lib/x.x` (the base x-lang dia
 |----------|------|----------|
 | Boot | `lib/x/boot/` | Operatives, data constructors, strings, module system |
 | Core | `lib/x/core/` | Combinators, lists (60+ functions), logic, math, syntax, control, quasiquote, REPL |
-| Types | `lib/x/type/` | Characters, strings, vectors, promises, regex |
+| Types | `lib/x/type/` | Characters, strings, vectors, promises, regex, objects |
 | Numeric | `lib/x/num/` | Bignum, float, rational, complex, tower helpers |
 | System | `lib/x/sys/` | POSIX, FFI, tokenizer, type system, conversions, GC, file I/O |
 | Tools | `lib/x/tool/` | Linter, formatter, coverage, profiler, compiler, assembler |
@@ -885,4 +885,88 @@ Converts a list to a vector.
 Creates a vector of length `n` with every element set to `fill`.
 ```
 (make-vector 3 0) -> #(0 0 0)
+```
+
+## 17. Objects
+
+Message-passing classes with single inheritance, mutable fields, and encapsulated
+access, built on the `make-type` mechanism. Send a message by applying an instance
+to a **literal** member name (no quote): `(obj name args...)`. A method named
+`name` wins; otherwise `name` is a field — `(obj f)` reads it, `(obj f v)` writes
+it. From outside, dispatch is the only way in. **Classes are objects too:**
+`(Class name args...)` calls a static method, `(Class member)` / `(Class member val)`
+reads/writes a class-wide member, and `(Class new field val...)` builds an instance.
+See the [Object System](object-system.md) guide for the full walkthrough.
+
+### `def-class`
+`(def-class name parent (fields ...) (method m (self . args) body...) (static ...))`
+Defines a class bound to `name`. `parent` is `()` for none, or `(extends Class)`
+for single inheritance. Names are literal (`def-class` is an operative). An optional
+`(static (member val)... (method ...)...)` block adds class-wide members and static
+methods (inherited by subclasses; `self` is the class inside them).
+```
+(do
+  (def-class Math () (static (base 10) (method scaled (self n) (* n (self base)))))
+  (list (Math scaled 3) (Math base))) -> (30 10)
+```
+
+### `new`
+`(new class field value ...) -> object`
+Constructs an instance; field names are literal, values are evaluated. Unset
+fields default to nil.
+```
+(new Point x 1 y 2) -> #<Point x=1 y=2>
+```
+
+### member access
+`(obj name)` / `(obj name value)`
+Reads or writes member `name`: a method named `name` is called, otherwise the
+field is read/written.
+```
+(do (def-class P () (fields n)) (def p (new P n 5)) (p n 10) (p n)) -> 10
+```
+
+### static access
+`(Class name)` / `(Class name value)`
+A static method named `name` is called, else `name` is a class-wide member that is
+read or written. `(Class new field val...)` constructs an instance.
+```
+(do (def-class C () (static (n 7) (method get (self) (self n)))) (list (C get) (C n))) -> (7 7)
+```
+
+### `super`
+`(super self name args...) -> value`
+Invokes the parent class's version of a method. Resolves from the parent of the
+method's **defining** class (fixed at `def-class` time), so it chains correctly
+through multi-level inheritance. Only valid inside an instance method.
+
+### `field` / `set-field!` — inside methods only
+`(field 'name)` / `(set-field! 'name value)`
+Raw field access that bypasses a same-named method override (the private-data
+pattern). Bound only inside method bodies; not available to external code.
+
+### `object?`
+`(object? x) -> boolean`
+Returns `#t` if `x` is an object instance.
+```
+(object? (new Point x 1 y 2)) -> #t
+```
+
+### `class?`
+`(class? x) -> boolean`
+Returns `#t` if `x` is a class (a callable class object).
+
+### `class-of`
+`(class-of inst) -> class`
+Returns the (callable) class an instance belongs to.
+
+### `class-name`
+`(class-name x) -> symbol`
+Returns the name symbol of a class, or of an instance's class.
+
+### `instance-of?`
+`(instance-of? inst class) -> boolean`
+Returns `#t` if `inst` is an instance of `class` or any of its subclasses.
+```
+(instance-of? (new Point x 1 y 2) Point) -> #t
 ```

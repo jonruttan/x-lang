@@ -287,6 +287,20 @@ Returns the type name of any object as a string.
 
 The `call` handler enables `(v 0)` indexing. The `write` handler produces `#(1 2 3)` output. The type integrates into the evaluator and printer without any C code changes.
 
+#### Example: Object System
+
+The standard library's object system (`lib/x/type/object.x`) is the richest use of `make-type`. It defines two callable types — `%object` (instances) and `%class` (classes) — each with an **operative** `call` handler, so `(obj name args...)` reaches the handler with the receiver as `self` and `name` *unevaluated* (a literal selector, no quote needed). The handler looks `name` up as a method (walking the parent chain for inheritance); finding none, it falls back to a field get/set.
+
+```
+(def-class Point ()
+  (fields x y)
+  (method sum (self) (+ (self x) (self y))))
+
+(p sum)              ; dispatches through the %object call handler (no quote)
+```
+
+A class is itself a callable `%class` object — `(Class static-method …)` dispatches its statics — wrapping a descriptor alist; each instance carries its class plus a mutable field box, and external code reaches either only through dispatch. Because it all rides on the type system's existing `call` hook, the whole class system — single inheritance, `super`, static methods and class-wide members, encapsulation — needs no C code. See the [Object System](object-system.md) guide for the full API.
+
 ---
 
 ### The Base Object

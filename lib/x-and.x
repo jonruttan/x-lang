@@ -51,6 +51,16 @@
     %compile-fvars))
 (set! %compile-fvars ())
 
+; Quote reader: 'expr -> (lit expr) (loaded by x-core.x)
+(set! %compile-fvars
+  (list (pair (lit %lit-accept) %lit-accept)))
+(type-push-analyse (type-by-atom %lit-read-atom)
+  (compile
+    (lit (fn (_ buffer score chr)
+      (if (= chr 39) %lit-accept ())))
+    %compile-fvars))
+(set! %compile-fvars ())
+
 ; --- Load numeric tower with immediate analyser compilation ---
 
 ; 1. Bignum + int-capped
