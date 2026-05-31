@@ -13,9 +13,11 @@
 ;             byte ref, which is wrong for a variable-width view. O(n) is
 ;             inherent to random access in a variable-width encoding; prefer
 ;             ->list / cursor traversal when visiting every element.
+;   char->bytes : encode a code point to its 1-4 UTF-8 bytes (inverse of step),
+;             so Seq's derived ->str round-trips: (Utf8 ->str (Utf8 ->list s)) = s.
 ;
-; step decodes one UTF-8 sequence per element via the shared codec (x/codec/utf8),
-; the single home for the byte<->code-point transform (str->list uses it too).
+; step/char->bytes use the shared codec (x/codec/utf8), the single home for the
+; byte<->code-point transform (str->list/list->str use it too).
 
 (def-class Utf8 (extends Str)
   (static
@@ -30,6 +32,8 @@
         (let ((d (utf8-decode v cur)))
           (if (= n 0)
             (integer->char (first d))
-            (loop (rest d) (- n 1))))))))
+            (loop (rest d) (- n 1))))))
+    ; encode: a code point -> its UTF-8 bytes (inverse of step)
+    (method char->bytes (self el) (utf8-encode (char->integer el)))))
 
 (provide x/protocol/str/utf8 Utf8)

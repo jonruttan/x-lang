@@ -15,6 +15,12 @@
 ; opaque: a byte offset for strings, but it could be a (chunk . pos) for PNG or
 ; a frame index for WAV. Indexed O(1) ref is intentionally NOT in the contract,
 ; because it doesn't exist for variable-width or streamed formats.
+;
+; ENCODE (the inverse direction) is one more primitive + one derived method:
+;   (self char->bytes el)  -> list of byte values (0-255) for one element
+;   (self ->str elements)  -> string, derived from char->bytes (built here)
+; So ->str is the dual of ->list, and a subclass is fully bidirectional once it
+; supplies char->bytes. Encoding stays in the codec layer the subclass calls.
 
 (def-class Seq ()
   (static
@@ -50,6 +56,19 @@
       (let loop ((cur (self start v)) (a acc))
         (if (self done? v cur) a
           (let ((s (self step v cur)))
-            (loop (rest s) (f a (first s)))))))))
+            (loop (rest s) (f a (first s)))))))
+
+    ; --- encode direction (inverse of ->list) ---
+    ; Contract: a subclass that can serialize supplies char->bytes.
+    (method char->bytes (self el) (error "Seq: char->bytes is abstract"))
+
+    ; Derived: encode a list of elements to a string, via char->bytes +
+    ; the byte-packer. Dual of ->list, so (->str (->list v)) round-trips.
+    ; fold here is fold-left: (fold f acc lst), callback (f acc element).
+    (method ->str (self elements)
+      (bytes->str
+        (map integer->char
+          (fold (fn (_ acc el) (append acc (self char->bytes el)))
+                () elements))))))
 
 (provide x/protocol/seq Seq)

@@ -14,6 +14,10 @@
 
     ; bytes are randomly indexable, so expose the O(1) fast paths Seq lacks
     (method length (self v)     (str-length v))   ; overrides Seq's cursor walk
-    (method ref    (self v i)   (str-ref v i))))
+    (method ref    (self v i)   (str-ref v i))
+
+    ; encode: a byte element is itself one byte (its low 8 bits). Makes
+    ; (Str ->str (Str ->list s)) an identity on the byte view.
+    (method char->bytes (self el) (list (& (char->integer el) 255)))))
 
 (provide x/protocol/str/str Str)

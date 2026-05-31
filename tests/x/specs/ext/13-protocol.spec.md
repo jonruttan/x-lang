@@ -113,3 +113,39 @@ a string; `Utf8` overrides one primitive (`step`) to walk code points.
 ```
 ---
     131
+
+## encode (->str, the inverse of ->list)
+
+### ->str encodes code-point characters to a UTF-8 string
+
+```x
+(do (import x/protocol/str/utf8) (Utf8 ->str (list #\$ #\¢ #\€)))
+```
+---
+    "$¢€"
+
+### ->str round-trips ->list for any UTF-8 string
+
+```x
+(do
+  (import x/protocol/str/utf8)
+  (str=? (Utf8 ->str (Utf8 ->list "$¢£¥€¤")) "$¢£¥€¤"))
+```
+---
+    #t
+
+### the byte view round-trips too (identity on bytes)
+
+```x
+(do (import x/protocol/str/utf8) (Str ->str (Str ->list "abc")))
+```
+---
+    "abc"
+
+### char->bytes gives a code point's UTF-8 bytes
+
+```x
+(do (import x/protocol/str/utf8) (Utf8 char->bytes #\€))
+```
+---
+    (226 130 172)
