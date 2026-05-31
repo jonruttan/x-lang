@@ -40,6 +40,11 @@
 (def type-write-cell
   (fn (_ t) (rest (rest (rest (type-io t))))))
 
+; Get the display-stack cell from a type struct (one past write in the IO group:
+; (analyse (delimit (read (write (display (error)))))))
+(def type-display-cell
+  (fn (_ t) (rest (rest (rest (rest (type-io t)))))))
+
 ; Get the analyse-stack cell from a type struct
 (def type-analyse-cell
   (fn (_ t) (type-io t)))
@@ -65,6 +70,12 @@
   (fn (_ ts)
     (let ((c (type-write-cell ts)))
       (set-first! c (rest (first c))))))
+
+; Push a handler onto a type's display stack
+(def type-push-display
+  (fn (_ ts handler)
+    (let ((c (type-display-cell ts)))
+      (set-first! c (pair handler (first c))))))
 
 ; Push a handler onto a type's analyse stack
 (def type-push-analyse

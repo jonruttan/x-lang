@@ -94,6 +94,8 @@
   ; protocol class's (import x/codec/utf8) become no-ops instead of reloading it.
   (include-once "lib/x/codec/utf8.x")
   (include "lib/x/type/string.x")
+  ; UTF-8-aware CHARACTER write/display handlers (shadow the C byte fallback)
+  (include "lib/x/type/char-io.x")
   (include "lib/x/type/vector.x")
   (include "lib/x/type/promise.x")
   (include "lib/x/type/object.x")
