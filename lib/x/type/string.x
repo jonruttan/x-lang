@@ -4,6 +4,22 @@
 (import x/core/syntax)
 (import x/codec/utf8)
 
+; list->str: list of code-point CHARACTERs -> UTF-8 string.
+;
+; The C primitive of this name is the dumb byte-packer (one low byte per char),
+; exposed here as bytes->str. We redefine list->str on top of it to be code-point
+; aware: each character is UTF-8 encoded to its 1-4 bytes via the shared codec
+; (x/codec/utf8), the bytes are concatenated, then byte-packed. This is the exact
+; inverse of str->list, so (list->str (str->list s)) round-trips any UTF-8 string.
+; Keeping the encoding here (not in C) is the "no UTF-8 in C" split: C packs
+; bytes; the x-lang layer owns the byte<->code-point transform.
+(def list->str
+  (fn (_ chars)
+    (bytes->str
+      (map integer->char
+        (fold (fn (_ acc ch) (append acc (utf8-encode (char->integer ch))))
+              () chars)))))
+
 (note "Construction")
 
 (doc (def str
