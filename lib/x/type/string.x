@@ -2,6 +2,7 @@
 (import x/type/char)
 (import x/core/list)
 (import x/core/syntax)
+(import x/codec/utf8)
 
 (note "Construction")
 
@@ -112,34 +113,9 @@
 (note "Conversion")
 
 ; Strings are stored as UTF-8 byte arrays, so str-length and str-ref (and
-; substring) are byte-level.  The helpers below decode those bytes into
-; Unicode code points, keeping the code-point logic in the x-lang library.
-
-; Number of bytes in the UTF-8 sequence introduced by lead byte b (0-255).
-(def %utf8-seq-len
-  (fn (_ b)
-    (cond
-      ((< b 192) 1)      ; 0xxxxxxx ASCII (or a stray continuation byte)
-      ((< b 224) 2)      ; 110xxxxx
-      ((< b 240) 3)      ; 1110xxxx
-      (#t 4))))          ; 11110xxx
-
-; Decode the code point at byte index i; returns (code-point . next-index).
-; Shifted parts occupy disjoint bit ranges, so | combines them losslessly.
-(def %utf8-decode-at
-  (fn (_ s i)
-    (def b0 (char->integer (str-ref s i)))
-    (def n (%utf8-seq-len b0))
-    ; low 6 bits of the continuation byte at offset k
-    (def cont (fn (_ k) (& (char->integer (str-ref s (+ i k))) 63)))
-    (pair
-      (cond
-        ((= n 1) b0)
-        ((= n 2) (| (<< (& b0 31) 6) (cont 1)))
-        ((= n 3) (| (| (<< (& b0 15) 12) (<< (cont 1) 6)) (cont 2)))
-        (#t      (| (| (| (<< (& b0 7) 18) (<< (cont 1) 12))
-                       (<< (cont 2) 6)) (cont 3))))
-      (+ i n))))
+; substring) are byte-level.  str->list decodes those bytes into Unicode code
+; points using the shared UTF-8 codec (x/codec/utf8) -- the single home for the
+; byte<->code-point transform, also used by the Utf8 protocol class.
 
 (doc (def str->list
   (fn (_ (param s STRING "String to convert"))
@@ -148,7 +124,7 @@
       (if (>= i len)
         (reverse acc)
         (do
-          (def d (%utf8-decode-at s i))
+          (def d (utf8-decode s i))
           (go (rest d) (pair (integer->char (first d)) acc)))))))
   (returns LIST "List of characters (one per Unicode code point)")
   "Convert a string to a list of characters, decoding UTF-8 code points.")

@@ -90,6 +90,9 @@
   ; Type extensions
   (include "lib/x/core/alist.x")
   (include "lib/x/type/char.x")
+  ; include-once (not include): registers the path so string.x's and the Utf8
+  ; protocol class's (import x/codec/utf8) become no-ops instead of reloading it.
+  (include-once "lib/x/codec/utf8.x")
   (include "lib/x/type/string.x")
   (include "lib/x/type/vector.x")
   (include "lib/x/type/promise.x")
