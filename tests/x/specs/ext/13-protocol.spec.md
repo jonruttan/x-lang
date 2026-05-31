@@ -58,6 +58,32 @@ a string; `Utf8` overrides one primitive (`step`) to walk code points.
 ---
     5
 
+### ref returns the i-th code point (O(n) index)
+
+```x
+(do (import x/protocol/str/utf8) (Utf8 ref "$¢£¥€¤" 1))
+```
+---
+    #\¢
+
+### ref reaches a later multi-byte code point
+
+```x
+(do (import x/protocol/str/utf8) (Utf8 ref "$¢£¥€¤" 4))
+```
+---
+    #\€
+
+### code-point ref differs from the byte-level str-ref
+
+```x
+(do
+  (import x/protocol/str/utf8)
+  (list (Utf8 ref "¢" 0) (str-ref "¢" 0)))
+```
+---
+    (#\¢ #\Â)
+
 ## polymorphism
 
 ### the same derived ->list walks bytes or code points by class

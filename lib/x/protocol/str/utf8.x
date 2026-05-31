@@ -9,8 +9,10 @@
 ;   step    : consume a multi-byte sequence instead of a single byte
 ;   length  : fall back to Seq's cursor count (code points), because Str's O(1)
 ;             byte length is the wrong answer for a code-point view
-; It cannot inherit Str's O(1) ref, so it simply doesn't offer one (indexed
-; access is O(n) for variable-width encodings -- a non-capability, by design).
+;   ref     : decode to the i-th CODE POINT (O(n) walk), replacing Str's O(1)
+;             byte ref, which is wrong for a variable-width view. O(n) is
+;             inherent to random access in a variable-width encoding; prefer
+;             ->list / cursor traversal when visiting every element.
 ;
 ; step decodes one UTF-8 sequence per element via the shared codec (x/codec/utf8),
 ; the single home for the byte<->code-point transform (str->list uses it too).
@@ -20,6 +22,14 @@
     (method length (self v) (self count v))   ; code points, via Seq's cursor walk
     (method step (self v cur)
       (let ((d (utf8-decode v cur)))
-        (pair (integer->char (first d)) (rest d))))))
+        (pair (integer->char (first d)) (rest d))))
+    ; O(n) code-point index: walk i sequences from the start, decode the i-th.
+    ; Overrides Str's O(1) byte ref, which is wrong for a variable-width view.
+    (method ref (self v i)
+      (let loop ((cur (self start v)) (n i))
+        (let ((d (utf8-decode v cur)))
+          (if (= n 0)
+            (integer->char (first d))
+            (loop (rest d) (- n 1))))))))
 
 (provide x/protocol/str/utf8 Utf8)
