@@ -96,6 +96,8 @@
   (include "lib/x/type/string.x")
   ; UTF-8-aware CHARACTER write/display handlers (shadow the C byte fallback)
   (include "lib/x/type/char-io.x")
+  ; UTF-8-aware bare string indexing ((s i) -> code point; str-ref stays byte)
+  (include "lib/x/type/str-index.x")
   (include "lib/x/type/vector.x")
   (include "lib/x/type/promise.x")
   (include "lib/x/type/object.x")

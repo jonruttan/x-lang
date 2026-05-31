@@ -260,3 +260,72 @@
 ---
     8
 
+## code-point indexing (bare string call)
+
+The bare string call indexes by Unicode code point; the named str-ref /
+str-length / substring stay byte-level.
+
+### bare (s i) returns the i-th code point
+
+```scheme
+("$¢£¥€¤" 1)
+```
+---
+    #\¢
+
+### bare (s i) reaches a later multi-byte code point
+
+```scheme
+("$¢£¥€¤" 4)
+```
+---
+    #\€
+
+### str-ref stays byte-level
+
+```scheme
+(str-ref "$¢£¥€¤" 1)
+```
+---
+    #\Â
+
+### bare (s) counts code points
+
+```scheme
+("$¢£¥€¤")
+```
+---
+    6
+
+### str-length stays byte count
+
+```scheme
+(str-length "$¢£¥€¤")
+```
+---
+    12
+
+### bare two-arg call is a code-point substring
+
+```scheme
+("$¢£¥€¤" 1 3)
+```
+---
+    "¢£¥"
+
+### str=? compares correctly across multi-byte strings
+
+```scheme
+(if (str=? "héllo€" "héllo€") (if (str=? "héllo€" "héllo!") "wrong" "ok") "wrong")
+```
+---
+    "ok"
+
+### ASCII bare index still works
+
+```scheme
+("hello" 1)
+```
+---
+    #\e
+
