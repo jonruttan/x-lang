@@ -504,11 +504,6 @@
   (param b STRING "Second string")
   (returns BOOLEAN "t if equal"))
 
-(doc make-str "Create a string of repeated characters."
-  (param n INT "Length")
-  (param c CHAR "Fill character")
-  (returns STRING "A new string"))
-
 (doc gcd "Greatest common divisor."
   (param a INT "First integer")
   (param b INT "Second integer")

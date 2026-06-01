@@ -439,7 +439,7 @@
         (def result (%read-params () rest-toks))
         ; Upcase param names once at definition time
         (def param-names
-          (map str-upcase (reverse (first result))))
+          (map (fn (_ w) (Str upcase w)) (reverse (first result))))
         (def body (first (rest result)))
         (def remaining (first (rest (rest result))))
         (def n-params (length param-names))

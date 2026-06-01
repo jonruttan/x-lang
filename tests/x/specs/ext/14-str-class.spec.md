@@ -237,7 +237,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ---
     (3 1)
 
-## str-* library (active protocol)
+## byte accessors (always byte-level)
 
 ### str-length is byte-level (the raw octet accessor)
 
@@ -247,6 +247,14 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ---
     6
 
+### str-ref is byte-level
+
+```x
+(char->integer (str-ref "$¢€" 1))
+```
+---
+    194
+
 ### str->list decodes code points (active protocol)
 
 ```x
@@ -255,18 +263,20 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ---
     (36 162 8364)
 
-### str-upcase keeps non-ASCII intact
+## active protocol via Str
+
+### Str upcase keeps non-ASCII intact
 
 ```x
-(str-upcase "café")
+(Str upcase "café")
 ```
 ---
     "CAFé"
 
-### str-split by separator
+### Str split by separator
 
 ```x
-(str-split "," "a,b,c")
+(Str split "," "a,b,c")
 ```
 ---
     ("a" "b" "c")

@@ -71,7 +71,7 @@
         (sigint-install)
         (if (null? line)
           ; EOF — if caused by ctrl-c, retry
-          (if (null? lines) () (apply str (reverse lines)))
+          (if (null? lines) () (Str join "" (reverse lines)))
           (if (str=? line "")
             ; Blank line
             (if (null? lines)
@@ -79,8 +79,8 @@
               (if (> depth 0)
                 (self lines depth)
                 ; Balanced — probe for completeness
-                (if (%is-complete? (apply str (reverse lines)) depth)
-                  (apply str (reverse lines))
+                (if (%is-complete? (Str join "" (reverse lines)) depth)
+                  (Str join "" (reverse lines))
                   (self lines depth))))
             ; Non-empty line
             (let ((new-depth (+ depth (%count-brackets line)))
@@ -90,8 +90,8 @@
                 (if (%is-indented? line)
                   (self new-lines new-depth)
                   ; Col 0, balanced — probe for completeness
-                  (if (%is-complete? (apply str (reverse new-lines)) new-depth)
-                    (apply str (reverse new-lines))
+                  (if (%is-complete? (Str join "" (reverse new-lines)) new-depth)
+                    (Str join "" (reverse new-lines))
                     (self new-lines new-depth)))))))))
     (%rb () 0)))
 
