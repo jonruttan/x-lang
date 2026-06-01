@@ -16,10 +16,10 @@
             (def sep (if first? "" ","))
             (def s
               (if (str? item)
-                (str sep "\"" item "\"")
-                (str sep (%fstr item))))
-            (self (rest items) (str acc s) #f)))))
-    (str "[" (%build bc "" #t) "]")))
+                (Str append sep "\"" item "\"")
+                (Str append sep (%fstr item))))
+            (self (rest items) (Str append acc s) #f)))))
+    (Str append "[" (%build bc "" #t) "]")))
 
 ; ============================================================
 ; Legacy: segment JSON (kept for backward compatibility)

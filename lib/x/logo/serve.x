@@ -120,7 +120,7 @@
 ; Build an HTTP response string.
 (def %http-response
   (fn (_ status content-type body)
-    (str "HTTP/1.1 " status "\r\n"
+    (Str append "HTTP/1.1 " status "\r\n"
          "Content-Type: " content-type "\r\n"
          "Content-Length: " (number->str (str-length body)) "\r\n"
          "Access-Control-Allow-Origin: *\r\n"
@@ -150,7 +150,7 @@
                 (ptr-set1! buf n 0)
                 (def chunk (ptr->str buf))
                 (ptr-call %c-free buf)
-                (self (str acc chunk))))))
+                (self (Str append acc chunk))))))
         (def content (%read-all ""))
         (sh-close fd)
         content))))
@@ -179,10 +179,10 @@
     (def rest-args (rest args))
     (fd-write %bc-fd
       (if (null? rest-args)
-        (str "\"" op "\",\n")
+        (Str append "\"" op "\",\n")
         (if (null? (rest rest-args))
-          (str "\"" op "\"," (%fstr (first rest-args)) ",\n")
-          (str "\"" op "\"," (%fstr (first rest-args))
+          (Str append "\"" op "\"," (%fstr (first rest-args)) ",\n")
+          (Str append "\"" op "\"," (%fstr (first rest-args))
                "," (%fstr (first (rest rest-args))) ",\n"))))))
 
 ; Clear bytecode file
@@ -198,7 +198,7 @@
   (fn ()
     (def content (%slurp %bc-path))
     (if (str=? content "") "[]"
-      (str "[" (substring content 0 (- (str-length content) 2)) "]"))))
+      (Str append "[" (substring content 0 (- (str-length content) 2)) "]"))))
 
 ; Write initial empty bytecode file
 (def %bc-write
@@ -218,7 +218,7 @@
       (error "Could not read turtle.html"))
     ; Inject the endpoint script before </body>
     (def html-page
-      (str "<script>window.TURTLE_ENDPOINT='/bc';</script>\n"
+      (Str append "<script>window.TURTLE_ENDPOINT='/bc';</script>\n"
            html-template))
     ; Create server socket
     (def server-fd (%make-server-socket port))

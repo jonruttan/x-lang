@@ -1,5 +1,5 @@
 ; hash.x -- FNV-1a hash function
-(import x/type/string)
+(import x/type/str)
 ;
 ; FNV-1a 64-bit hash operating on strings.
 ; Returns an integer suitable for use as a cache key.
@@ -32,8 +32,8 @@
   (fn (_ (param n INTEGER "64-bit signed hash value"))
     (def %lo (& n 4294967295))
     (def %hi (& (>> n 32) 4294967295))
-    (str-append (str-pad-left (convert %hi %string 16) 8 ("0" 0))
-                   (str-pad-left (convert %lo %string 16) 8 ("0" 0)))))
+    (str-append (Str pad-left (convert %hi %string 16) 8 ("0" 0))
+                   (Str pad-left (convert %lo %string 16) 8 ("0" 0)))))
   (returns STRING "16-character hexadecimal string")
   "Convert a 64-bit signed integer to a 16-character unsigned hex string.")
 

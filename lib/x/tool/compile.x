@@ -1,6 +1,6 @@
 ; compile.x -- Runtime compiler: x-lang to native code
 (import x/core/list)
-(import x/type/string)
+(import x/type/str)
 (import x/sys/posix)
 (import x/core/hash)
 ;
@@ -27,12 +27,12 @@
 ; --- Platform-specific cc flags ---
 
 (def %compile-cc-flags
-  (if (str-contains? "darwin" x-machine)
+  (if (Str contains? "darwin" x-machine)
     (list "-bundle" "-undefined" "dynamic_lookup")
     (list "-shared" "-fPIC")))
 
 (def %compile-ext
-  (if (str-contains? "darwin" x-machine) ".bundle" ".so"))
+  (if (Str contains? "darwin" x-machine) ".bundle" ".so"))
 
 ; --- Multi-arg string concatenation ---
 
@@ -44,7 +44,7 @@
 (def %c-args-ref
   (fn (self n)
     (if (= n 0) "p_args"
-      (str "x_restobj(" (self (- n 1)) ")"))))
+      (Str append "x_restobj(" (self (- n 1)) ")"))))
 
 ; Generate parameter declarations at function entry
 (def %c-param-decls
@@ -52,7 +52,7 @@
     (def %go
       (fn (self ps i)
         (if (null? ps) ""
-          (str "    x_obj_t *p_" (convert (first ps) %string)
+          (Str append "    x_obj_t *p_" (convert (first ps) %string)
                " = x_firstobj(" (%c-args-ref i) ");\n"
                (self (rest ps) (+ i 1))))))
     (%go params 0)))
@@ -103,15 +103,15 @@
 (def %compile-symbol-write
   (fn (_ sym)
     (if (memq sym %compile-params)
-      (display (str "p_" (convert sym %string)))
+      (display (Str append "p_" (convert sym %string)))
       (let ((fv-entry (%compile-fvar-lookup sym)))
         (if (null? fv-entry)
-          (error (str "compile: free variable: " (convert sym %string)))
+          (error (Str append "compile: free variable: " (convert sym %string)))
           (let ((fv-val (rest fv-entry)))
             (if (null? fv-val)
               (display "NULL")
               ; Emit table lookup: x_fvar_table[N] (cacheable, patched at load)
-              (display (str "x_fvar_table["
+              (display (Str append "x_fvar_table["
                 (convert (%compile-fvar-index sym) %string) "]")))))))))
 ; INT: emit integer literal
 (def %compile-int-write
@@ -180,13 +180,13 @@
   (fn (_ args)
     (let ((inner-params (first args))
           (inner-body (first (rest args)))
-          (fn-name (str "fn_" (convert (+ 1 (length (first %compile-fns))) %string))))
+          (fn-name (Str append "fn_" (convert (+ 1 (length (first %compile-fns))) %string))))
       ; Add this fn to the list
       (set-first! %compile-fns
         (pair (list fn-name inner-params inner-body)
               (first %compile-fns)))
       ; Return pointer to the static prim object
-      (display (str "(x_obj_t *)" fn-name "_prim")))))
+      (display (Str append "(x_obj_t *)" fn-name "_prim")))))
 
 ; (or a b ...) => short-circuit logical OR
 (def %cw-or
@@ -485,7 +485,7 @@
       (let ((entry (assq (first lst) compile-emitters)))
         (if entry
           ((rest entry) (rest lst))
-          (error (str "compile: unsupported form: "
+          (error (Str append "compile: unsupported form: "
             (convert (first lst) %string))))))))
 
 ; --- Generate C via write-to-str ---
@@ -499,7 +499,7 @@
 ; Generate a complete C function
 (def %generate-fn
   (fn (_ name params body)
-    (str "x_obj_t *" name "(x_obj_t *p_base, x_obj_t *p_args) {\n"
+    (Str append "x_obj_t *" name "(x_obj_t *p_base, x_obj_t *p_args) {\n"
          (%c-param-decls params)
          "    return " (%generate-fn-body params body) ";\n"
          "}\n\n")))
@@ -509,13 +509,13 @@
 ; Generate forward declaration for a nested fn
 (def %generate-fwd-decl
   (fn (_ name)
-    (str "x_obj_t *" name "(x_obj_t *p_base, x_obj_t *p_args);\n"
+    (Str append "x_obj_t *" name "(x_obj_t *p_base, x_obj_t *p_args);\n"
          "extern x_obj_t " name "_prim[];\n")))
 
 ; Generate static prim object for a nested fn
 (def %generate-static-prim
   (fn (_ name)
-    (str "x_obj_t " name "_prim[] = {\n"
+    (Str append "x_obj_t " name "_prim[] = {\n"
          "    { .v = NULL }, { .v = NULL }, { .fn = " name " }, { .v = NULL }\n"
          "};\n\n")))
 
@@ -539,7 +539,7 @@
                     (def %entry (first lst))
                     (def %name (first %entry))
                     (set! %nested-c
-                      (str %nested-c
+                      (Str append %nested-c
                         (%generate-fn %name
                           (first (rest %entry))
                           (first (rest (rest %entry))))))
@@ -558,8 +558,8 @@
         (if (null? lst) ()
           (do
             (def %name (first (first lst)))
-            (set! %all-fwd (str %all-fwd (%generate-fwd-decl %name)))
-            (set! %all-prims (str %all-prims (%generate-static-prim %name)))
+            (set! %all-fwd (Str append %all-fwd (%generate-fwd-decl %name)))
+            (set! %all-prims (Str append %all-prims (%generate-static-prim %name)))
             (self (rest lst))))))
     (%gen-decls (first %compile-fns))
     (pair %all-fwd %all-prims)))
@@ -574,7 +574,7 @@
       (def %main-c (%generate-fn "fn_0" params body))
       (def %nested-c (%generate-nested-fns))
       (def %decls (%generate-declarations))
-      (str "#include \"x-obj.h\"\n"
+      (Str append "#include \"x-obj.h\"\n"
            "#include \"x-type/buffer.h\"\n\n"
            (if (null? %compile-fvars) ""
              "x_obj_t *x_fvar_table[64];\n\n")
@@ -633,7 +633,7 @@
 (def %compile-cc
   (fn (_ src-path lib-path)
     (def %cc-cmd
-      (fold (fn (_ acc s) (str acc " " s))
+      (fold (fn (_ acc s) (Str append acc " " s))
         "cc"
         (append %compile-cc-flags
           (list "-O2" "-DX_HEAP" "-DX_TYPE" "-Wno-unused-value"
@@ -641,13 +641,13 @@
                 "-o" lib-path src-path))))
     (def %cc-status (ptr-call %c-system %cc-cmd))
     (if (not (= %cc-status 0))
-      (error (str "compile: cc failed with status " (convert %cc-status %string))))))
+      (error (Str append "compile: cc failed with status " (convert %cc-status %string))))))
 
 (def %patch-nested-prims
   (fn (self lib fns prim-type-val)
     (if (null? fns) ()
       (do
-        (def %prim-sym (str (first (first fns)) "_prim"))
+        (def %prim-sym (Str append (first (first fns)) "_prim"))
         (def %prim-ptr (dlsym lib %prim-sym))
         (if (not (null? %prim-ptr))
           (ptr-set-word! %prim-ptr %type-offset prim-type-val))
@@ -732,7 +732,7 @@
     ; Cache lookup: hash the expression to get a stable filename
     (def %expr-key (write-to-str expr))
     (def %cache-hash (hash->hex (fnv-1a %expr-key)))
-    (def %cache-path (str %compile-cache-dir %cache-hash compile-ext))
+    (def %cache-path (Str append %compile-cache-dir %cache-hash compile-ext))
 
     ; Try loading from cache (fvar table is patched after load)
     (def %cached (%compile-cache-load %cache-path (list (list))))
@@ -748,7 +748,7 @@
       (do
         (set! %compile-id (+ %compile-id 1))
         (def %id (convert %compile-id %string))
-        (def %src-path (str "/tmp/x-compile-" %id ".c"))
+        (def %src-path (Str append "/tmp/x-compile-" %id ".c"))
 
         (compile-write %src-path (compile-to-c expr fvars))
         (compile-cc %src-path %cache-path)
@@ -776,11 +776,11 @@
     (set! %compile-fvars fvars)
     (set! %compile-id (+ %compile-id 1))
     (def %id (convert %compile-id %string))
-    (def %src-path (str "/tmp/x-compile-" %id ".c"))
+    (def %src-path (Str append "/tmp/x-compile-" %id ".c"))
 
     (def %expr-key (write-to-str expr))
     (def %cache-hash (hash->hex (fnv-1a %expr-key)))
-    (def %cache-path (str %compile-cache-dir %cache-hash compile-ext))
+    (def %cache-path (Str append %compile-cache-dir %cache-hash compile-ext))
 
     (compile-write %src-path (compile-to-c expr fvars))
     (compile-cc %src-path %cache-path)
@@ -822,17 +822,17 @@
     (def %resolve-all
       (fn (self lib i n)
         (if (= i n) ()
-          (let ((name (str "batch_" (convert i %string))))
+          (let ((name (Str append "batch_" (convert i %string))))
             (def %fn (dlsym lib name))
             (if (null? %fn)
-              (error (str "compile-batch: dlsym failed for " name)))
+              (error (Str append "compile-batch: dlsym failed for " name)))
             (type-cast! %fn first)
             (pair %fn (self lib (+ i 1) n))))))
 
     ; Cache lookup
     (def %batch-key (write-to-str exprs))
     (def %batch-hash (hash->hex (fnv-1a %batch-key)))
-    (def %cache-path (str %compile-cache-dir %batch-hash compile-ext))
+    (def %cache-path (Str append %compile-cache-dir %batch-hash compile-ext))
 
     (if (file-exists? %cache-path)
       ; Cache hit: load and patch fvar table
@@ -848,7 +848,7 @@
       (do
         (set! %compile-id (+ %compile-id 1))
         (def %id (convert %compile-id %string))
-        (def %src-path (str "/tmp/x-compile-" %id ".c"))
+        (def %src-path (Str append "/tmp/x-compile-" %id ".c"))
 
         (%compile-push-writers)
 
@@ -860,18 +860,18 @@
                   (error "compile-batch: each expression must be (fn ...)"))
                 (let ((params (first (rest expr)))
                       (body (first (rest (rest expr))))
-                      (name (str "batch_" (convert i %string))))
+                      (name (Str append "batch_" (convert i %string))))
                   (set! %compile-fns (list (list)))
                   (def %fn-c
-                    (str "x_obj_t *" name
+                    (Str append "x_obj_t *" name
                          "(x_obj_t *p_base, x_obj_t *p_args) {\n"
                          (%c-param-decls params)
                          "    return " (%generate-fn-body params body) ";\n"
                          "}\n\n"))
-                  (self (rest es) (+ i 1) (str acc %fn-c)))))))
+                  (self (rest es) (+ i 1) (Str append acc %fn-c)))))))
 
         (def %c-source
-          (str "#include \"x-obj.h\"\n"
+          (Str append "#include \"x-obj.h\"\n"
                "#include \"x-type/buffer.h\"\n\n"
                (if (null? %compile-fvars) ""
                  "x_obj_t *x_fvar_table[64];\n\n")

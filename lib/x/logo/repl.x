@@ -51,7 +51,7 @@
           (if (if (atom? err) (str=? (symbol->str err) "STOP") #f)
             (error err)
             #f))
-        (def tokens (token-read-string %logo-base (str text " ")))
+        (def tokens (token-read-string %logo-base (Str append text " ")))
         (def processed (%logo-indent-to-blocks tokens))
         (logo-process-tokens processed)
         #t))))
@@ -84,7 +84,7 @@
                   (self lines depth))))
             ; Non-empty line
             (let ((new-depth (+ depth (%count-brackets line)))
-                  (new-lines (pair (str "\n" line) lines)))
+                  (new-lines (pair (Str append "\n" line) lines)))
               (if (> new-depth 0)
                 (self new-lines new-depth)
                 (if (%is-indented? line)

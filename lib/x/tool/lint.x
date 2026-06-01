@@ -5,7 +5,7 @@
 ; enumeration of C primitives or library defs needed.
 (import x/core/list)
 (import x/core/alist)
-(import x/type/string)
+(import x/type/str)
 
 ; Snapshot the current env-alist — everything defined before
 ; the target file (C primitives + standard library).
@@ -168,7 +168,7 @@
 (doc (def lint-unused (fn (_ defs uses lib-mode)
   (if lib-mode ()
     (filter (fn (_ sym)
-      (if (str-starts? "%" (convert sym %string)) ()
+      (if (Str starts? "%" (convert sym %string)) ()
         (if (assoc-has? sym uses) () #t)))
       defs))))
   (param defs LIST "Defined symbols from lint-forms")

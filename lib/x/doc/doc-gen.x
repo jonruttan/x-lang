@@ -3,7 +3,7 @@
 ; Extracts (doc ...) and (note ...) forms from token trees
 ; and emits Markdown. Works with tokens from make-base + token-read-string.
 (import x/core/list)
-(import x/type/string)
+(import x/type/str)
 
 ; --- Predicates (cross-base: use str=? not eq?) ---
 
@@ -264,7 +264,7 @@
         ; Back navigation — count slashes to determine depth
         (def %depth
           (fold (fn (_ acc ch) (if (= ch (integer->char 47)) (+ acc 1) acc))
-            0 (str->list %mod-name)))
+            0 (Str ->list %mod-name)))
         (def %back
           (fold (fn (_ acc x) (str-append acc "../"))
             "" (range 0 %depth)))

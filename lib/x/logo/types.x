@@ -1,7 +1,7 @@
 ; types.x -- Logo tokenizer base and type definitions
 (import x/logo/state)
 (import x/sys/token)
-(import x/type/string)
+(import x/type/str)
 
 ; ============================================================
 ; Type helpers
@@ -333,7 +333,7 @@
 ; Case-insensitive alist lookup by first element
 (def %alist-find
   (fn (_ name alist)
-    (def uname (str-upcase name))
+    (def uname (Str upcase name))
     (def %find
       (fn (self entries)
         (match
@@ -347,7 +347,7 @@
   (fn (_ tok keyword)
     (let ((w (%logo-word tok)))
       (and (not (null? w))
-           (str=? (str-upcase w) keyword)))))
+           (str=? (Str upcase w) keyword)))))
 
 ; Command entry accessors
 (def %cmd-name    (fn (_ entry) (first entry)))

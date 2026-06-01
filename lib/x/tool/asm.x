@@ -1,10 +1,10 @@
 ; asm.x -- Data-driven assembler: JIT machine code generation
 (import x/core/list)
-(import x/type/string)
+(import x/type/str)
 
 ; --- Platform detection ---
-(def %asm-darwin? (str-contains? "darwin" x-machine))
-(def %asm-arm64? (str-contains? "arm64" x-machine))
+(def %asm-darwin? (Str contains? "darwin" x-machine))
+(def %asm-arm64? (Str contains? "arm64" x-machine))
 
 ; --- Syscall numbers ---
 (def %SYS-mmap     (if %asm-darwin? 197 9))
@@ -122,12 +122,12 @@
     (def table (nth 0 arch))
     (def encode (nth 1 arch))
     (def entry (assq mnemonic table))
-    (if (null? entry) (error (str "asm: unknown mnemonic: " (symbol->str mnemonic))))
+    (if (null? entry) (error (Str append "asm: unknown mnemonic: " (symbol->str mnemonic))))
     ; Match operand signature
     (def sig (if (null? args) (lit ||) (%args-sig args)))
     (def variant (assq sig (rest entry)))
     (if (null? variant)
-      (error (str "asm: no variant " (symbol->str sig) " for " (symbol->str mnemonic))))
+      (error (Str append "asm: no variant " (symbol->str sig) " for " (symbol->str mnemonic))))
     (encode asm (rest variant) args)))
 
 (def asm-label!
@@ -159,7 +159,7 @@
         (def lname  (nth 3 patch))
         (def target-entry (assq lname labels))
         (if (null? target-entry)
-          (error (str "asm: unresolved label: " (symbol->str lname))))
+          (error (Str append "asm: unresolved label: " (symbol->str lname))))
         (def target (rest target-entry))
         (if (not (null? resolver))
           (resolver buf-ptr offset width ptype target)

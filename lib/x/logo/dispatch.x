@@ -16,7 +16,7 @@
 (def %logo-slurp-file
   (fn (_ path)
     (def fd (sh-open-read path))
-    (if (< fd 0) (error (str "Cannot open: " path)))
+    (if (< fd 0) (error (Str append "Cannot open: " path)))
     (def bufsize 65536)
     (def buf (int->ptr (ptr-call %c-malloc bufsize)))
     (def %read-all
@@ -24,7 +24,7 @@
         (def n (ptr-call %c-read fd buf (- bufsize 1)))
         (if (<= n 0) acc
           (do (ptr-set! buf n 0 1)
-              (self (str acc (ptr->str buf)))))))
+              (self (Str append acc (ptr->str buf)))))))
     (def content (%read-all ""))
     (ptr-call %c-free buf)
     (sh-close fd)
@@ -69,7 +69,7 @@
 
 (def %logo-var-set!
   (fn (_ name value)
-    (def uname (str-upcase name))
+    (def uname (Str upcase name))
     (def %update
       (fn (self vars)
         (match
@@ -235,7 +235,7 @@
               (apply handler (first result))
               (logo-process-tokens (rest result))))
           (#t
-            (%logo-dispatch-special (str-upcase word) remaining)))))))
+            (%logo-dispatch-special (Str upcase word) remaining)))))))
 
 (set! %logo-dispatch-special
   (fn (_ uword remaining)
@@ -260,16 +260,16 @@
         (let ((r (%logo-consume-arg remaining)))
           (def code (first r))
           (logo-process-tokens
-            (token-read-string %logo-base (str code " ")))
+            (token-read-string %logo-base (Str append code " ")))
           (logo-process-tokens (rest r))))
       ((str=? uword "LOAD")
         (let ((r (%logo-consume-arg remaining)))
           (def filename (first r))
           (def content (%logo-slurp-file filename))
-          (def tokens (token-read-string %logo-base (str content " ")))
+          (def tokens (token-read-string %logo-base (Str append content " ")))
           (logo-process-tokens (%logo-indent-to-blocks tokens))
           (logo-process-tokens (rest r))))
-      (#t (error (str "Unknown special: " uword))))))
+      (#t (error (Str append "Unknown special: " uword))))))
 
 ; ============================================================
 ; REPEAT
@@ -343,7 +343,7 @@
                     ((= arity 0)  (pair (list tok) rest-t))
                     ((>= arity 1) (%consume-word-and-expr tok rest-t))
                     (#t
-                      (let ((uword (str-upcase word)))
+                      (let ((uword (Str upcase word)))
                         (match
                           ((str=? uword "STOP")   (pair (list tok) rest-t))
                           ((str=? uword "RETURN") (%consume-word-and-expr tok rest-t))
@@ -361,9 +361,9 @@
   (fn (_ tokens)
     (def first-word (%logo-word (first tokens)))
     (def has-not (and (not (null? first-word))
-                      (str=? (str-upcase first-word) "NOT")))
+                      (str=? (Str upcase first-word) "NOT")))
     (def has-either (and (not (null? first-word))
-                         (str=? (str-upcase first-word) "EITHER")))
+                         (str=? (Str upcase first-word) "EITHER")))
     (def cond-tokens
       (if (or has-not has-either) (rest tokens) tokens))
     (def cond-result (%logo-parse-expr cond-tokens))
@@ -425,7 +425,7 @@
     (if (null? tokens) (error "TO: expected name")
       (let ((name-tok (first tokens))
             (rest-toks (rest tokens)))
-        (def name (str-upcase (%logo-word name-tok)))
+        (def name (Str upcase (%logo-word name-tok)))
         (def %read-params
           (fn (self params toks)
             (if (null? toks) (error "TO: expected [ body ]")

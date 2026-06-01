@@ -2,7 +2,7 @@
 ;
 ; Data-driven pretty printer for x-lang s-expressions.
 ; Uses write-to-str for width estimation (C speed).
-(import x/type/string)
+(import x/type/str)
 
 ; --- Construct table helpers ---
 
@@ -64,7 +64,7 @@
 
 ; --- Pretty printer ---
 
-(def %spaces (fn (_ n) (display (str-repeat " " n))))
+(def %spaces (fn (_ n) (display (Str repeat " " n))))
 
 ; Forward declarations
 (def fmt-expr ())

@@ -58,7 +58,7 @@
       ((str=? op ">=") (>= (%as-float left) (%as-float right)))
       ((str=? op "<=") (<= (%as-float left) (%as-float right)))
       ((str=? op "<>") (if (str? left) (not (str=? left right)) (not (= left right))))
-      (#t (error (str "Unknown operator: " op))))))
+      (#t (error (Str append "Unknown operator: " op))))))
 
 ; ============================================================
 ; Expression parser (returns (value . remaining-tokens))
@@ -90,7 +90,7 @@
         (pair (apply (%cmd-handler fn-entry) args) (rest args-result))
         (let ((cmd (%logo-lookup word)))
           (if (null? cmd)
-            (error (str "Unknown function: " word))
+            (error (Str append "Unknown function: " word))
             (pair (apply (%cmd-handler cmd) args) (rest args-result))))))))
 
 (set! %logo-resolve-value
@@ -103,7 +103,7 @@
             (let ((cmd (%logo-lookup word)))
               (if (and (not (null? cmd)) (= (%cmd-arity cmd) 0))
                 (pair ((%cmd-handler cmd)) rest-t)
-                (error (str "Undefined: " word))))))))))
+                (error (Str append "Undefined: " word))))))))))
 
 (set! %logo-parse-primary
   (fn (_ tokens)
@@ -138,7 +138,7 @@
             (let ((raw-word (%logo-word tok)))
               (if (null? raw-word)
                 (error "Unexpected token in expression")
-                (%logo-resolve-word (str-upcase raw-word) rest-t)))))))))
+                (%logo-resolve-word (Str upcase raw-word) rest-t)))))))))
 
 ; Parse function arguments: expr, expr, ... )
 (set! %logo-parse-fn-args
