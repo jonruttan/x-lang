@@ -46,13 +46,17 @@
     (pair "lib/x/type/vector.x"
     (pair "lib/x/type/promise.x"
     (pair "lib/x/type/object.x"
+    (pair "lib/x/protocol/seq.x"
+    (pair "lib/x/protocol/str/str8.x"
+    (pair "lib/x/protocol/str/utf8.x"
+    (pair "lib/x/type/str.x"
     (pair "lib/x/sys/token.x"
     (pair "lib/x/core/quasi.x"
     (pair "lib/x/type/quasi-reader.x"
     (pair "lib/x/type/lit-reader.x"
     (pair "lib/x/core/repl.x"
     (pair "lib/x/core/banner.x"
-      (first %include-list-cell)))))))))))))))))))))))))))))))
+      (first %include-list-cell)))))))))))))))))))))))))))))))))))
 
   ; --- Standard modules ---
   (include "lib/x/core/predicates.x")
@@ -103,6 +107,14 @@
   (include "lib/x/type/vector.x")
   (include "lib/x/type/promise.x")
   (include "lib/x/type/object.x")
+  ; String library: the protocol classes (Str8/StrUTF8) + the active-protocol
+  ; str-* API. Loaded AFTER the object system they are built on. (The low-level
+  ; list<->string conversions in type/string.x already loaded earlier, before
+  ; objects, for boot code that needs them.)
+  (include "lib/x/protocol/seq.x")
+  (include "lib/x/protocol/str/str8.x")
+  (include "lib/x/protocol/str/utf8.x")
+  (include "lib/x/type/str.x")
   (include "lib/x/sys/token.x")
 
   ; Quasi-quoting

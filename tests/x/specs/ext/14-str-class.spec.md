@@ -1,18 +1,26 @@
 # String classes (Str8 / StrUTF8 / Str)
 
-`Str8` (8-bit bytes) and `StrUTF8` (UTF-8 code points) each expose the full
-string suite as static methods: `(Str8 append a b)`, `(StrUTF8 length s)`, etc.
-The suite is written once on `Str8`; `StrUTF8` overrides only the primitives
-(length / index / sub / step / char->bytes) and inherits the rest with
-code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
-`Utf8` is an alias for `StrUTF8`; method `ref` is an alias for `index`.
+Two string protocols, each exposing the full string suite as static methods:
 
-## protocols (Str8 / StrUTF8 / Str)
+- `Str8` -- 8-bit bytes. `(Str8 index s i)` is always a byte; O(1).
+- `StrUTF8` -- UTF-8 code points. `(StrUTF8 index s i)` is always a code point.
+
+The suite (append, join, contains?, split, trim, =?, <?, upcase, reverse, ...)
+is written once on `Str8` through self primitives; `StrUTF8` overrides only the
+primitives (`length` / `index` / `sub` / `step` / `char->bytes`) and inherits
+the rest with code-point behaviour.
+
+`Str` names the ACTIVE protocol -- code points by default (`Str = StrUTF8`), so
+the bare string call `(s i)`, the `str-*` library, and `str->list` are all
+code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliases
+`index`. The classes are preloaded, so no import is needed.
+
+## protocols
 
 ### Str8 index is always a byte
 
 ```x
-(do (import x/protocol/str/utf8) (char->integer (Str8 index "$¢€" 1)))
+(char->integer (Str8 index "$¢€" 1))
 ```
 ---
     194
@@ -20,43 +28,49 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### StrUTF8 index is always a code point
 
 ```x
-(do (import x/protocol/str/utf8) (char->integer (StrUTF8 index "$¢€" 1)))
+(char->integer (StrUTF8 index "$¢€" 1))
 ```
 ---
     162
 
-### Str (ambient) indexes by byte today
+### Str (active) is code points by default
 
 ```x
-(do (import x/protocol/str/utf8) (char->integer (Str index "$¢€" 1)))
+(char->integer (Str index "$¢€" 1))
 ```
 ---
-    194
+    162
 
-### Str8 length counts bytes, StrUTF8 length counts code points
+### Str8 length counts bytes; StrUTF8 length counts code points
 
 ```x
-(do (import x/protocol/str/utf8) (list (Str8 length "$¢€") (StrUTF8 length "$¢€")))
+(list (Str8 length "$¢€") (StrUTF8 length "$¢€"))
 ```
 ---
     (6 3)
 
-### the byte primitives are handler-immune (always byte)
+### Str (active) length is code points by default
 
 ```x
-(do (char->integer (str-byte-ref "$¢€" 1)))
+(Str length "$¢€")
+```
+---
+    3
+
+### str-byte-* primitives are always byte (handler-immune)
+
+```x
+(char->integer (str-byte-ref "$¢€" 1))
 ```
 ---
     194
 
-## Str (byte view via Str8)
-
-## Str (byte view)
+## Str8 (byte view)
 
 ### append concatenates
 
 ```x
-(do (import x/protocol/str/str) (Str append "he" "llo" "!"))
+(Str8 append "he" "llo" "!")
 ```
 ---
     "hello!"
@@ -64,7 +78,7 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### empty? on empty string
 
 ```x
-(do (import x/protocol/str/str) (Str empty? ""))
+(Str8 empty? "")
 ```
 ---
     #t
@@ -72,23 +86,15 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### make builds a repeated-char string
 
 ```x
-(do (import x/protocol/str/str) (Str make 3 ("x" 0)))
+(Str8 make 3 ("x" 0))
 ```
 ---
     "xxx"
 
-### length counts bytes
-
-```x
-(do (import x/protocol/str/str) (Str length "$¢€"))
-```
----
-    6
-
 ### join with separator
 
 ```x
-(do (import x/protocol/str/str) (Str join ", " (list "a" "b" "c")))
+(Str8 join ", " (list "a" "b" "c"))
 ```
 ---
     "a, b, c"
@@ -96,7 +102,7 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### contains? finds a substring
 
 ```x
-(do (import x/protocol/str/str) (Str contains? "ll" "hello"))
+(Str8 contains? "ll" "hello")
 ```
 ---
     #t
@@ -104,7 +110,7 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### starts? checks a prefix
 
 ```x
-(do (import x/protocol/str/str) (Str starts? "he" "hello"))
+(Str8 starts? "he" "hello")
 ```
 ---
     #t
@@ -112,7 +118,7 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### ends? checks a suffix
 
 ```x
-(do (import x/protocol/str/str) (Str ends? "lo" "hello"))
+(Str8 ends? "lo" "hello")
 ```
 ---
     #t
@@ -120,7 +126,7 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### <? lexicographic order
 
 ```x
-(do (import x/protocol/str/str) (Str <? "abc" "abd"))
+(Str8 <? "abc" "abd")
 ```
 ---
     #t
@@ -128,7 +134,7 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### ci=? ignores case
 
 ```x
-(do (import x/protocol/str/str) (Str ci=? "Hello" "hello"))
+(Str8 ci=? "Hello" "hello")
 ```
 ---
     #t
@@ -136,7 +142,7 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### trim removes surrounding whitespace
 
 ```x
-(do (import x/protocol/str/str) (Str trim "  hi  "))
+(Str8 trim "  hi  ")
 ```
 ---
     "hi"
@@ -144,7 +150,7 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### split on a separator
 
 ```x
-(do (import x/protocol/str/str) (Str split "," "a,b,c"))
+(Str8 split "," "a,b,c")
 ```
 ---
     ("a" "b" "c")
@@ -152,7 +158,7 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### pad-left to a width
 
 ```x
-(do (import x/protocol/str/str) (Str pad-left "hi" 5 ("." 0)))
+(Str8 pad-left "hi" 5 ("." 0))
 ```
 ---
     "...hi"
@@ -160,17 +166,17 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### reverse by byte
 
 ```x
-(do (import x/protocol/str/str) (Str reverse "abc"))
+(Str8 reverse "abc")
 ```
 ---
     "cba"
 
-## Utf8 (code-point view)
+## StrUTF8 (code-point view)
 
 ### length counts code points, not bytes
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 length "$¢€"))
+(StrUTF8 length "$¢€")
 ```
 ---
     3
@@ -178,7 +184,7 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### ref returns the i-th code point
 
 ```x
-(do (import x/protocol/str/utf8) (char->integer (Utf8 ref "$¢€" 1)))
+(char->integer (StrUTF8 ref "$¢€" 1))
 ```
 ---
     162
@@ -186,7 +192,7 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### reverse reorders whole code points
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 reverse "a¢€"))
+(StrUTF8 reverse "a¢€")
 ```
 ---
     "€¢a"
@@ -194,7 +200,7 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### make repeats a multi-byte character
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 length (Utf8 make 2 #\€)))
+(StrUTF8 length (StrUTF8 make 2 #\€))
 ```
 ---
     2
@@ -202,7 +208,7 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### empty-separator split yields one piece per code point
 
 ```x
-(do (import x/protocol/str/utf8) (length (Utf8 split "" "a¢€")))
+(length (StrUTF8 split "" "a¢€"))
 ```
 ---
     3
@@ -210,7 +216,7 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### append then count code points
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 length (Utf8 append "a" "¢" "€")))
+(StrUTF8 length (StrUTF8 append "a" "¢" "€"))
 ```
 ---
     3
@@ -218,7 +224,7 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### contains? works on multi-byte content
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 contains? "¢" "a¢€"))
+(StrUTF8 contains? "¢" "a¢€")
 ```
 ---
     #t
@@ -226,9 +232,41 @@ code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
 ### the same method differs by class: length
 
 ```x
-(do
-  (import x/protocol/str/utf8)
-  (list (Str length "€") (Utf8 length "€")))
+(list (Str8 length "€") (StrUTF8 length "€"))
 ```
 ---
     (3 1)
+
+## str-* library (active protocol)
+
+### str-length is byte-level (the raw octet accessor)
+
+```x
+(str-length "$¢€")
+```
+---
+    6
+
+### str->list decodes code points (active protocol)
+
+```x
+(map char->integer (str->list "$¢€"))
+```
+---
+    (36 162 8364)
+
+### str-upcase keeps non-ASCII intact
+
+```x
+(str-upcase "café")
+```
+---
+    "CAFé"
+
+### str-split by separator
+
+```x
+(str-split "," "a,b,c")
+```
+---
+    ("a" "b" "c")

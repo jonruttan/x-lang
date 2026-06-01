@@ -3,15 +3,15 @@
 `Seq` is a base class whose derived operations (`count`, `->list`, `each`,
 `fold`) are written once in terms of three cursor primitives (`start`, `done?`,
 `step`). Subclasses supply only the primitives; the derived API is polymorphic
-through static-method dispatch (`self` is the class). `Str` is the byte view of
-a string; `Utf8` overrides one primitive (`step`) to walk code points.
+through static-method dispatch (`self` is the class). `Str8` is the byte view of
+a string; `StrUTF8` overrides the primitives to walk code points.
 
-## byte view (Str)
+## byte view (Str8)
 
 ### length counts bytes
 
 ```x
-(do (import x/protocol/str/str) (Str length "$¢€"))
+(do (import x/protocol/str/str8) (Str8 length "$¢€"))
 ```
 ---
     6
@@ -19,7 +19,7 @@ a string; `Utf8` overrides one primitive (`step`) to walk code points.
 ### ->list yields one character per byte
 
 ```x
-(do (import x/protocol/str/str) (length (Str ->list "$¢€")))
+(do (import x/protocol/str/str8) (length (Str8 ->list "$¢€")))
 ```
 ---
     6
@@ -27,7 +27,7 @@ a string; `Utf8` overrides one primitive (`step`) to walk code points.
 ### ref is O(1) indexed access
 
 ```x
-(do (import x/protocol/str/str) (Str ref "ABC" 1))
+(do (import x/protocol/str/str8) (Str8 ref "ABC" 1))
 ```
 ---
     #\B
@@ -91,7 +91,7 @@ a string; `Utf8` overrides one primitive (`step`) to walk code points.
 ```x
 (do
   (import x/protocol/str/utf8)
-  (list (length (Str ->list "€")) (length (Utf8 ->list "€"))))
+  (list (length (Str8 ->list "€")) (length (Utf8 ->list "€"))))
 ```
 ---
     (3 1)
@@ -99,10 +99,10 @@ a string; `Utf8` overrides one primitive (`step`) to walk code points.
 ### count is inherited from Seq and dispatches to the subclass step
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 count "héllo"))
+(do (import x/protocol/str/utf8) (Utf8 count "$¢€"))
 ```
 ---
-    5
+    3
 
 ### fold is inherited and threads an accumulator
 

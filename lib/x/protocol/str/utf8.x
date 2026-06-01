@@ -1,5 +1,5 @@
 ; str/utf8.x -- StrUTF8: the UTF-8 code-point string class
-(import x/protocol/str/str)
+(import x/protocol/str/str8)
 (import x/codec/utf8)
 
 ; StrUTF8 reinterprets the SAME bytes as Str8, but one whole UTF-8 sequence per
@@ -44,4 +44,11 @@
 ; Utf8 = alias for the UTF-8 protocol class.
 (def Utf8 StrUTF8)
 
-(provide x/protocol/str/utf8 StrUTF8 Utf8)
+; Str = the AMBIENT string protocol. The default is UTF-8 (code points): the
+; bare string call (s i), the str-* API, and str->list all work in code points
+; out of the box. Str8 and StrUTF8 always name their fixed protocols; rebind
+; Str (e.g. (def Str Str8)) to change the active protocol for the whole str-*
+; library at once.
+(def Str StrUTF8)
+
+(provide x/protocol/str/utf8 StrUTF8 Utf8 Str)

@@ -1,4 +1,4 @@
-; str/str.x -- Str8: the 8-bit (byte) string class + the full string suite
+; str/str8.x -- Str8: the 8-bit (byte) string class + the full string suite
 (import x/protocol/seq)
 
 ; Str8 treats a STRING as its raw bytes (8-bit chars, 0-255), with no encoding
@@ -152,9 +152,4 @@
                   (pair (self sub s start (- i start)) acc))
               (go start (+ i 1) acc))))))))
 
-; Str = the AMBIENT string protocol. Today the ambient protocol is 8-bit, so
-; Str is Str8. (When/if a different default protocol is installed, Str maps to
-; it; Str8 and StrUTF8 always name their fixed protocols.)
-(def Str Str8)
-
-(provide x/protocol/str/str Str8 Str)
+(provide x/protocol/str/str8 Str8)
