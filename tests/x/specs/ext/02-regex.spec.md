@@ -815,7 +815,7 @@
 ### replace with function
 
 ```scheme
-(regex-replace #/[a-z]+/ "hello123" (fn (_ s) (Str upcase s)))
+(regex-replace #/[a-z]+/ "hello123" (method-ref Str upcase))
 ```
 ---
     "HELLO123"
@@ -823,7 +823,7 @@
 ### replace-all with function
 
 ```scheme
-(regex-replace-all #/[a-z]+/ "hello123world" (fn (_ s) (Str upcase s)))
+(regex-replace-all #/[a-z]+/ "hello123world" (method-ref Str upcase))
 ```
 ---
     "HELLO123WORLD"

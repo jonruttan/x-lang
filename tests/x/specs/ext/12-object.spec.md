@@ -368,3 +368,47 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ```
 ---
     (lit not-inst)
+
+## method-ref (method as a value)
+
+### a static method becomes a callable usable with map
+
+```x
+(do
+  (def-class M () (static (method dbl (self n) (* n 2))))
+  (map (method-ref M dbl) (list 1 2 3)))
+```
+---
+    (2 4 6)
+
+### method-ref forwards multiple args
+
+```x
+(do
+  (def-class M () (static (method add3 (self a b c) (+ a b c))))
+  ((method-ref M add3) 10 20 30))
+```
+---
+    60
+
+### method-ref works on an instance method
+
+```x
+(do
+  (def-class P () (fields x) (method get (self) (self x)))
+  ((method-ref (new P x 7) get)))
+```
+---
+    7
+
+### a bare zero-arg static call still runs (not turned into a value)
+
+```x
+(do
+  (def-class K () (static (n 0) (method bump (self) (self n (+ (self n) 1)))))
+  (K bump)
+  (K bump)
+  (K n))
+```
+---
+    2

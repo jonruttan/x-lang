@@ -154,6 +154,30 @@
   (see def-class)
   "Invoke the parent class's version of a method.")
 
+; method-ref: turn a method into a first-class function value -- the complement
+; of a bare (Target sel ...) call. (method-ref Target sel) evaluates Target (a
+; class or instance) and the literal selector sel, and returns a closure that,
+; when applied, re-drives the normal dispatch: (Target sel . args). It does NOT
+; introspect the method tables -- it just defers the call -- so it works for
+; static methods, instance methods, and members uniformly, with any arity.
+;   (map (method-ref Str upcase) lst)
+;   (regex-replace rx s (method-ref Str upcase))
+; Each captured value (target, selector, and every applied arg) is spliced as a
+; (lit V) literal so the rebuilt call dispatches on the values, not re-evaluation.
+(doc (def method-ref
+  (op (target-expr sel) e
+    (let ((target (eval target-expr e)))
+      (fn (_ . args)
+        (eval
+          (pair (list (lit lit) target)
+            (pair (list (lit lit) sel)
+              (map (fn (_ a) (list (lit lit) a)) args)))
+          e)))))
+  (note "Selector is literal: (method-ref Class method). Works for static and instance methods.")
+  (example "(map (method-ref Str upcase) (list \"a\" \"b\"))" "(\"A\" \"B\")")
+  (see def-class)
+  "Make a class/instance method usable as a first-class function value.")
+
 (note "Predicates and introspection")
 
 (doc (def object? (fn (_ (param x ANY "Value to test")) (type? x %object)))
@@ -441,7 +465,7 @@
             (loop (rest fields) inits e)))))
 
 (doc (provide x/type/object
-  def-class new super
+  def-class new super method-ref
   object? class? class-of class-name instance-of?)
   (note "Instances: (obj name args...) -- method wins, else field (obj f)/(obj f v).")
   (note "Classes are callable: (Class name args...) -- static method, (Class new ...) to")
