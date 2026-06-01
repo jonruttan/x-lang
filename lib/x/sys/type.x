@@ -36,6 +36,10 @@
 (def type-cvt
   (fn (_ t) (first (rest (rest (rest (rest t)))))))
 
+; Navigate to PROC group (4th element): (call-stack eval-stack)
+(def type-proc
+  (fn (_ t) (first (rest (rest (rest t))))))
+
 ; Get the write-stack cell from a type struct
 (def type-write-cell
   (fn (_ t) (rest (rest (rest (type-io t))))))
@@ -75,6 +79,21 @@
 (def type-push-display
   (fn (_ ts handler)
     (let ((c (type-display-cell ts)))
+      (set-first! c (pair handler (first c))))))
+
+; The call-stack cell of a type (proc group, first element).
+(def type-call-cell
+  (fn (_ t) (type-proc t)))
+
+; The current (top) call handler -- capture before pushing to delegate to it.
+(def type-call-top
+  (fn (_ ts) (first (first (type-call-cell ts)))))
+
+; Push a handler onto a type's call stack (overrides how (obj ...) dispatches).
+; A pushed (fn (_ obj . args) ...) is invoked via the procedure-call path.
+(def type-push-call
+  (fn (_ ts handler)
+    (let ((c (type-call-cell ts)))
       (set-first! c (pair handler (first c))))))
 
 ; Push a handler onto a type's analyse stack

@@ -34,6 +34,34 @@
         (| (| (| (<< (& b0 7) 18) (<< (cont 1) 12)) (<< (cont 2) 6)) (cont 3)))))
       (+ i n))))
 
+; --- Allocation-light accessors (no pair, no inner closure) ---
+;
+; utf8-decode conses a (cp . next) pair and builds a `cont` closure per call.
+; That allocation is unsafe inside tokenizer reader callbacks (it can trigger GC
+; mid-parse -- see project memory). These two split the same computation so a
+; caller takes only the part it needs with NOTHING heap-allocated in the body:
+; just str-ref reads and bitwise ops. Continuation reads are inlined (no helper).
+
+; Byte width of the sequence at byte index i (1-4). No allocation.
+(def utf8-width (fn (_ s i) (utf8-seq-len (char->integer (str-ref s i)))))
+
+; Code point at byte index i. No allocation (continuation bytes inlined).
+(def utf8-cp-at
+  (fn (_ s i)
+    (def b0 (char->integer (str-ref s i)))
+    (if (< b0 128) b0
+    (if (< b0 224)
+      (| (<< (& b0 31) 6)
+         (& (char->integer (str-ref s (+ i 1))) 63))
+    (if (< b0 240)
+      (| (| (<< (& b0 15) 12)
+            (<< (& (char->integer (str-ref s (+ i 1))) 63) 6))
+         (& (char->integer (str-ref s (+ i 2))) 63))
+      (| (| (| (<< (& b0 7) 18)
+               (<< (& (char->integer (str-ref s (+ i 1))) 63) 12))
+            (<< (& (char->integer (str-ref s (+ i 2))) 63) 6))
+         (& (char->integer (str-ref s (+ i 3))) 63)))))))
+
 ; Encode code point cp as a list of its 1-4 UTF-8 byte values (0-255). Out-of-
 ; range code points emit U+FFFD (the replacement character), matching the C
 ; encoder this replaces. Returns bare integers, not CHARACTERs: callers map
@@ -56,4 +84,5 @@
             (| 128 (& (>> cp 6) 63))
             (| 128 (& cp 63)))))))))
 
-(provide x/codec/utf8 utf8-seq-len utf8-decode utf8-encode)
+(provide x/codec/utf8
+  utf8-seq-len utf8-decode utf8-encode utf8-width utf8-cp-at)
