@@ -81,6 +81,14 @@
 ---
     (lit caught)
 
+### the error names the offending symbol
+
+```scheme
+(guard (e (symbol->str e)) no-such-var)
+```
+---
+    "Unbound SYMBOL 'no-such-var'"
+
 ## recursive definitions
 
 ### computes fact(0)
