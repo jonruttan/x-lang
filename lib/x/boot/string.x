@@ -6,23 +6,32 @@
 (def not (fn (_ x) (match (x #f) (#t #t))))
 (def list (fn (_ . args) args))
 
-(def str-ref (fn (_ s i) (s i)))
-(def str-length (fn (_ s) (s)))
-(def substring (fn (_ s start end) (s start (- end start))))
+; str-ref / str-length / substring are the BYTE accessors (current "raw"
+; protocol). They bind to the str-byte-* C primitives, NOT the ambient (s i)
+; call -- so they stay byte-level even when a code-point handler is pushed on
+; the string call, and every caller built on them (str=?, str->number, readers)
+; stays byte-safe automatically. Use the bare (s i) call for the ambient
+; protocol, or the Str8 / StrUTF8 classes for an explicit one.
+(def str-ref str-byte-ref)
+(def str-length str-byte-len)
+(def substring (fn (_ s start end) (str-byte-sub s start (- end start))))
 (def newline (fn (_ ) (display "\n")))
 
-; str=?: string equality using character comparison
+; str=?: string equality, compared by BYTES (str-byte-*). Byte equality is the
+; same answer as code-point equality, and staying byte keeps it O(n) and immune
+; to any pushed string-call handler.
 (def %str-eq-loop
   (fn (self a b i len)
     (match
       ((= i len) #t)
-      ((= (char->integer (a i)) (char->integer (b i)))
+      ((= (char->integer (str-byte-ref a i)) (char->integer (str-byte-ref b i)))
         (self a b (+ i 1) len))
       (#t #f))))
 (def str=?
   (fn (_ a b)
     (match
-      ((= (a) (b)) (%str-eq-loop a b 0 (a)))
+      ((= (str-byte-len a) (str-byte-len b))
+        (%str-eq-loop a b 0 (str-byte-len a)))
       (#t #f))))
 
 ; number->str: (number->str n [radix]) -> string
@@ -39,40 +48,42 @@
         (do
           (def rem (%n2s% n radix))
           (match
-            ((< n radix) (list->str (list (%d rem))))
+            ((< n radix) (list->str (list (str-byte-ref %d rem))))
             (#t (str-append
                   (self (%n2s/ n radix) radix)
-                  (list->str (list (%d rem)))))))))))
+                  (list->str (list (str-byte-ref %d rem)))))))))))
 
 ; str->number: (str->number str [radix]) -> integer or ()
+; str->number parses an ASCII numeric string; all indexing is byte-level
+; (str-byte-*) since digits/signs are single bytes.
 (def str->number
   (fn (_ s . rest)
     (def radix (match ((eq? rest ()) 10) (#t (first rest))))
-    (def len (s))
+    (def len (str-byte-len s))
     (match
       ((= len 0) ())
       (#t
         (do
-          (def %0 (char->integer ("0" 0)))
+          (def %0 (char->integer (str-byte-ref "0" 0)))
           (def %digit
             (fn (_ ch)
               (def c (char->integer ch))
               (match
                 ((match ((not (< c %0)) (not (< (+ %0 9) c))) (#t #f))
                   (- c %0))
-                ((match ((not (< c (char->integer ("a" 0))))
-                         (not (< (+ (char->integer ("a" 0)) 25) c))) (#t #f))
-                  (+ 10 (- c (char->integer ("a" 0)))))
-                ((match ((not (< c (char->integer ("A" 0))))
-                         (not (< (+ (char->integer ("A" 0)) 25) c))) (#t #f))
-                  (+ 10 (- c (char->integer ("A" 0)))))
+                ((match ((not (< c (char->integer (str-byte-ref "a" 0))))
+                         (not (< (+ (char->integer (str-byte-ref "a" 0)) 25) c))) (#t #f))
+                  (+ 10 (- c (char->integer (str-byte-ref "a" 0)))))
+                ((match ((not (< c (char->integer (str-byte-ref "A" 0))))
+                         (not (< (+ (char->integer (str-byte-ref "A" 0)) 25) c))) (#t #f))
+                  (+ 10 (- c (char->integer (str-byte-ref "A" 0)))))
                 (#t ()))))
-          (def c0 (char->integer (s 0)))
-          (def neg (= c0 (char->integer ("-" 0))))
+          (def c0 (char->integer (str-byte-ref s 0)))
+          (def neg (= c0 (char->integer (str-byte-ref "-" 0))))
           (def start
             (match
               (neg 1)
-              ((= c0 (char->integer ("+" 0))) 1)
+              ((= c0 (char->integer (str-byte-ref "+" 0))) 1)
               (#t 0)))
           (match
             ((= start len) ())
@@ -84,7 +95,7 @@
                       ((= i len) acc)
                       (#t
                         (do
-                          (def d (%digit (s i)))
+                          (def d (%digit (str-byte-ref s i)))
                           (match
                             ((eq? d ()) ())
                             ((< d radix) (self (+ i 1) (+ (* acc radix) d)))

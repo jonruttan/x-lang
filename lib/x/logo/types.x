@@ -187,8 +187,8 @@
               (def %count-indent
                 (fn (self i)
                   (if (>= i len) i
-                    (if (or (char=? (text i) #\space)
-                            (char=? (text i) #\tab))
+                    (if (or (char=? (str-ref text i) #\space)
+                            (char=? (str-ref text i) #\tab))
                       (self (+ i 1))
                       i))))
               (def indent-end (%count-indent 1))

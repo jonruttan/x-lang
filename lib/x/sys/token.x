@@ -98,11 +98,13 @@
   (fn (_ (param s STRING "Literal string to match")
        (param next CALLABLE "Called after full match")
        (param fail CALLABLE "Called on mismatch (or nil to reject)"))
+    ; byte-level literal match: str-ref is the byte accessor (immune to any
+    ; pushed code-point handler), so this is safe inside the tokenizer.
     (def len (str-length s))
     (def %build
       (fn (self i)
         (if (= i len) next
-          (make-char-state (char->integer (s i))
+          (make-char-state (char->integer (str-ref s i))
             (self (+ i 1))
             fail))))
     (%build 0)))

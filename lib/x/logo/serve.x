@@ -109,7 +109,7 @@
         (def %find-space
           (fn (self i)
             (if (>= i (str-length request)) 0
-              (if (char=? (request i) #\space) i
+              (if (char=? (str-ref request i) #\space) i
                 (self (+ i 1))))))
         (def start (+ (%find-space 0) 1))
         ; Find space before HTTP version
