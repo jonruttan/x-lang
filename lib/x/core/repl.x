@@ -2,7 +2,9 @@
 ;
 ; Requires: operatives.x (if, do), string.x (newline, display)
 
-(def %repl-read read)
+; repl-read resets the source-line counter before reading, so error lines are
+; relative to the current input rather than the whole boot+session stream.
+(def %repl-read repl-read)
 (def %repl-prompt "> ")
 (def %repl-print
   (fn (_ result)
@@ -34,10 +36,14 @@
               ; flat (%seq a b c ...) would silently run only the first two and
               ; drop the rest.  Build the whole line as one string and emit it
               ; with a single binary %seq (message + newline).
+              ; repl-read numbers lines relative to this input (line 1 = first
+              ; line), so only show [line N] for N > 1 -- i.e. a multi-line
+              ; entry where the line helps locate the error.  A one-liner just
+              ; says "Error: ...".
               (%seq
                 (%stderr
                   (str-append
-                    (if (> (error-line) 0)
+                    (if (> (error-line) 1)
                       (str-append "Error [line "
                         (str-append (number->str (error-line)) "]: "))
                       "Error: ")
