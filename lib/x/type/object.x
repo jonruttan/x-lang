@@ -217,30 +217,111 @@
         (rest (first body))
         (loop (rest body) tag)))))
 
+; --- Method documentation ---
+; A method may carry an optional leading (doc "desc" (param ...) (returns ...)
+; (example ...) ...) as its FIRST body form, and annotate its parameters inline:
+;   (method upcase (self (param s STRING "the string"))
+;     (doc "Uppercase ASCII" (returns STRING "uppercased"))
+;     BODY...)
+; The doc is registered under the symbol  Class/method  (e.g. Str8/upcase) so
+; (help Class method) finds it. The (doc ...) form and inline (param ...) are
+; stripped before the method closure is built. We stash a %bare pending entry
+; on the shared doc pipeline (same path the top-level `doc` op uses), so it
+; rides the normal lazy %doc-commit! -- no new registry machinery.
+
+; #t if the first body form is a (doc ...) clause.
+(def %method-has-doc?
+  (fn (_ form)
+    (let ((body (rest (rest (rest form)))))
+      (if (null? body) #f
+        (if (pair? (first body)) (eq? (first (first body)) (lit doc)) #f)))))
+
+; Compose the doc key symbol: Class/method.
+(def %method-doc-key
+  (fn (_ class-name method-name)
+    (str->symbol (str-append (symbol->str class-name)
+                   (str-append "/" (symbol->str method-name))))))
+
+; Stash a method's (doc "desc" meta...) as a %bare pending entry. The doc clause
+; is (doc DESC META...); DESC may be absent. Inline (param ...) forms from the
+; signature are appended to the meta so help shows the parameters too.
+(def %stash-method-doc!
+  (fn (_ class-name form)
+    (let ((mname (first (rest form)))
+          (sig   (first (rest (rest form))))
+          (dform (first (rest (rest (rest form))))))   ; (doc DESC meta...)
+      (let ((dargs (rest dform)))
+        ; description = leading string (or ""); meta = the rest + inline params
+        (let ((desc (if (null? dargs) ""
+                      (if (str? (first dargs)) (first dargs) "")))
+              (meta (if (null? dargs) ()
+                      (if (str? (first dargs)) (rest dargs) dargs))))
+          (set-first! %doc-pending-cell
+            (pair (pair (lit %bare)
+                     (pair (%method-doc-key class-name mname)
+                           (pair desc (append meta (%sig-params sig)))))
+                  (first %doc-pending-cell))))))))
+
+; Extract the inline (param ...) forms from a method signature (self . params).
+(def %sig-params
+  (fn (loop sig)
+    (if (null? sig) ()
+      (if (pair? sig)
+        (if (if (pair? (first sig)) (eq? (first (first sig)) (lit param)) #f)
+          (pair (first sig) (loop (rest sig)))
+          (loop (rest sig)))
+        ()))))
+
+; Strip inline (param name TYPE "desc") annotations from a signature, leaving
+; the bare parameter names the fn closure needs.
+(def %strip-sig-params
+  (fn (loop sig)
+    (if (null? sig) ()
+      (if (pair? sig)
+        (pair
+          (if (if (pair? (first sig)) (eq? (first (first sig)) (lit param)) #f)
+            (first (rest (first sig)))    ; (param NAME ...) -> NAME
+            (first sig))
+          (loop (rest sig)))
+        sig))))   ; dotted-rest tail passes through
+
 ; Build a method closure from (NAME (self . params) body...). The body is wrapped
 ; in a let binding %super-class (the parent of the defining class, used by super)
 ; and, for instance methods (raw? true), the raw field/set-field! accessors.
+; A leading (doc ...) body form and inline (param ...) signature annotations are
+; stripped here (their registration happens in %collect-methods).
 (def %make-method
   (fn (_ form raw? parent e)
-    (eval
-      (list (lit fn)
-        (pair (lit recur) (first (rest (rest form))))   ; (recur . user-params)
-        (pair (lit let)
-          (pair (pair (list (lit %super-class) parent)
-                  (if raw? %method-raw-bindings ()))
-                (rest (rest (rest form))))))
-      e)))
+    (let ((sig  (%strip-sig-params (first (rest (rest form)))))
+          (body (if (%method-has-doc? form)
+                  (rest (rest (rest (rest form))))     ; drop leading (doc ...)
+                  (rest (rest (rest form))))))
+      (eval
+        (list (lit fn)
+          (pair (lit recur) sig)                       ; (recur . user-params)
+          (pair (lit let)
+            (pair (pair (list (lit %super-class) parent)
+                    (if raw? %method-raw-bindings ()))
+                  body)))
+        e))))
 
 ; Collect the (method ...) forms in `forms` into a methods alist. raw? injects the
-; raw accessors (instance methods); parent is the defining class's parent (for super).
+; raw accessors (instance methods); parent is the defining class's parent (for
+; super). class-name keys any per-method docs. Registers a doc entry for each
+; documented method as a side effect.
 (def %collect-methods
-  (fn (loop forms raw? parent e)
+  (fn (loop class-name forms raw? parent e)
     (if (null? forms)
       ()
       (if (eq? (first (first forms)) (lit method))
-        (pair (pair (first (rest (first forms))) (%make-method (first forms) raw? parent e))
-              (loop (rest forms) raw? parent e))
-        (loop (rest forms) raw? parent e)))))
+        (do
+          (if (%method-has-doc? (first forms))
+            (%stash-method-doc! class-name (first forms))
+            ())
+          (pair (pair (first (rest (first forms)))
+                      (%make-method (first forms) raw? parent e))
+                (loop class-name (rest forms) raw? parent e)))
+        (loop class-name (rest forms) raw? parent e)))))
 
 ; Collect the non-method (NAME value) forms in `forms` into a member alist,
 ; evaluating each value in e.
@@ -290,9 +371,9 @@
         (%make-class
           name
           (%find-form body (lit fields))
-          (%collect-methods body #t p e)       ; instance methods: raw access + super
+          (%collect-methods name body #t p e)       ; instance methods: raw access + super
           p
-          (%collect-methods sblock #f p e)      ; static methods
+          (%collect-methods name sblock #f p e)      ; static methods
           (%collect-members sblock e))))))
 
 (doc (def def-class

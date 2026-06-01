@@ -120,7 +120,11 @@
 
     ; --- transformation ---
     (method reverse  (self s) (self ->str (reverse (self ->list s))))
-    (method upcase   (self s) (self ->str (map char-upcase   (self ->list s))))
+    (method upcase (self (param s STRING "String to convert"))
+      (doc "Uppercase the ASCII letters of s; other characters pass through."
+        (returns STRING "s with a-z mapped to A-Z")
+        (example "(Str8 upcase \"café\")" "\"CAFé\""))
+      (self ->str (map char-upcase (self ->list s))))
     (method downcase (self s) (self ->str (map char-downcase (self ->list s))))
 
     ; --- trimming (whitespace is ASCII; element scanning is correct) ---

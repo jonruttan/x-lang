@@ -465,6 +465,17 @@
     (%doc-commit!)
     (if (null? args)
       (%display-overview)
+      (if (not (null? (rest args)))
+        ; (help Class method) -> look up the composed key Class/method
+        (do
+          (def %mk (str->symbol
+                     (str-append (symbol->str (first args))
+                       (str-append "/" (symbol->str (first (rest args)))))))
+          (def %me (%doc-lookup %mk))
+          (if (null? %me)
+            (do (display %c-error) (display "No documentation for ")
+                (display %mk) (display %c-reset) (newline))
+            (%display-doc %me)))
       (do
         (def %h-name (first args))
         (if (eq? %h-name (lit modules))
@@ -478,7 +489,7 @@
                 (if (null? %doc-entry)
                   (do (display %c-error) (display "No documentation for ")
                       (display %h-name) (display %c-reset) (newline))
-                  (%display-doc %doc-entry))))))))))
+                  (%display-doc %doc-entry)))))))))))
 
 ; apropos: search doc registry by name substring
 (def apropos
