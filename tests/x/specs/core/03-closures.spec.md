@@ -303,3 +303,29 @@
 ---
     3
 
+## arity
+
+### too few args: missing params bind to nil (not a crash)
+
+```scheme
+((fn (_ a b) (list a b)) 1)
+```
+---
+    (1 ())
+
+### a missing param is usable as nil
+
+```scheme
+((fn (_ a b) (null? b)) 1)
+```
+---
+    #t
+
+### surplus args are ignored once params run out
+
+```scheme
+((fn (_ a) a) 1 2 3)
+```
+---
+    1
+
