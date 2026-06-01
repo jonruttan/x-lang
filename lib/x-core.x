@@ -96,8 +96,12 @@
   (include "lib/x/type/string.x")
   ; UTF-8-aware CHARACTER write/display handlers (shadow the C byte fallback)
   (include "lib/x/type/char-io.x")
-  ; UTF-8-aware bare string indexing ((s i) -> code point; str-ref stays byte)
-  (include "lib/x/type/str-index.x")
+  ; UTF-8-aware bare string indexing ((s i) -> code point) is staged in
+  ; str-index.x but DISABLED: it pushes an allocating x-lang handler on the
+  ; string call, which trips GC inside the tokenizer (logo/float readers bare-
+  ; index strings) and hangs. Re-enabled only once readers move to an explicit
+  ; byte accessor (Str8) so they no longer touch the ambient (s i).
+  ; (include "lib/x/type/str-index.x")
   (include "lib/x/type/vector.x")
   (include "lib/x/type/promise.x")
   (include "lib/x/type/object.x")
