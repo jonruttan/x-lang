@@ -1,39 +1,47 @@
-; str/utf8.x -- Utf8: the code-point view of a UTF-8 string
+; str/utf8.x -- StrUTF8: the UTF-8 code-point string class
 (import x/protocol/str/str)
 (import x/codec/utf8)
 
-; Utf8 reinterprets the SAME bytes Str walks, but one whole UTF-8 sequence per
-; element, yielding the decoded code point as a CHARACTER. It reuses Str's byte
-; cursor unchanged -- start (0) and done? (>= byte-length) are inherited -- and
-; overrides only:
-;   step    : consume a multi-byte sequence instead of a single byte
-;   length  : fall back to Seq's cursor count (code points), because Str's O(1)
-;             byte length is the wrong answer for a code-point view
-;   ref     : decode to the i-th CODE POINT (O(n) walk), replacing Str's O(1)
-;             byte ref, which is wrong for a variable-width view. O(n) is
-;             inherent to random access in a variable-width encoding; prefer
-;             ->list / cursor traversal when visiting every element.
-;   char->bytes : encode a code point to its 1-4 UTF-8 bytes (inverse of step),
-;             so Seq's derived ->str round-trips: (Utf8 ->str (Utf8 ->list s)) = s.
-;
-; step/char->bytes use the shared codec (x/codec/utf8), the single home for the
-; byte<->code-point transform (str->list/list->str use it too).
+; StrUTF8 reinterprets the SAME bytes as Str8, but one whole UTF-8 sequence per
+; element, yielding the decoded code point as a CHARACTER. It inherits the full
+; string suite from Str8 (append, join, contains?, split, trim, =?, <?, ...) --
+; written once through self primitives -- and overrides ONLY the primitives that
+; change with the encoding:
+;   length      : code-point count (cursor walk), not Str8's O(1) byte length
+;   index       : decode to the i-th CODE POINT (O(n) walk)
+;   sub         : substring of `len` CODE POINTS from code-point offset `start`
+;   step        : consume one UTF-8 sequence per element
+;   char->bytes : encode a code point to its 1-4 UTF-8 bytes (inverse of step)
+; All byte access goes through the inherited Str8 byte primitives + the shared
+; codec (x/codec/utf8); index/sub are O(n) (inherent to variable-width random
+; access -- prefer ->list / cursor traversal to visit every element).
 
-(def-class Utf8 (extends Str)
+; Byte offset of code-point index k: advance k whole sequences from byte `from`.
+(def %u8-byte-offset
+  (fn (self s k from)
+    (if (= k 0) from
+      (self s (- k 1) (rest (utf8-decode s from))))))
+
+(def-class StrUTF8 (extends Str8)
   (static
     (method length (self v) (self count v))   ; code points, via Seq's cursor walk
+
+    (method index (self v i)
+      (integer->char (first (utf8-decode v (%u8-byte-offset v i 0)))))
+
+    (method sub (self v start len)
+      (def b0 (%u8-byte-offset v start 0))
+      (def b1 (%u8-byte-offset v len b0))
+      (str-byte-sub v b0 (- b1 b0)))
+
     (method step (self v cur)
       (let ((d (utf8-decode v cur)))
         (pair (integer->char (first d)) (rest d))))
-    ; O(n) code-point index: walk i sequences from the start, decode the i-th.
-    ; Overrides Str's O(1) byte ref, which is wrong for a variable-width view.
-    (method ref (self v i)
-      (let loop ((cur (self start v)) (n i))
-        (let ((d (utf8-decode v cur)))
-          (if (= n 0)
-            (integer->char (first d))
-            (loop (rest d) (- n 1))))))
+
     ; encode: a code point -> its UTF-8 bytes (inverse of step)
     (method char->bytes (self el) (utf8-encode (char->integer el)))))
 
-(provide x/protocol/str/utf8 Utf8)
+; Utf8 = alias for the UTF-8 protocol class.
+(def Utf8 StrUTF8)
+
+(provide x/protocol/str/utf8 StrUTF8 Utf8)

@@ -1,10 +1,55 @@
-# String classes (Str / Utf8)
+# String classes (Str8 / StrUTF8 / Str)
 
-`Str` (8-bit bytes, no encoding protocol) and `Utf8` (code points) each expose
-the full string suite as static methods: `(Str append a b)`, `(Utf8 length s)`,
-etc. The suite is written once on `Str`; `Utf8` overrides only the primitives
-(length / ref / step / char->bytes) and inherits the rest with code-point
-behaviour.
+`Str8` (8-bit bytes) and `StrUTF8` (UTF-8 code points) each expose the full
+string suite as static methods: `(Str8 append a b)`, `(StrUTF8 length s)`, etc.
+The suite is written once on `Str8`; `StrUTF8` overrides only the primitives
+(length / index / sub / step / char->bytes) and inherits the rest with
+code-point behaviour. `Str` names the ambient protocol (currently `Str8`);
+`Utf8` is an alias for `StrUTF8`; method `ref` is an alias for `index`.
+
+## protocols (Str8 / StrUTF8 / Str)
+
+### Str8 index is always a byte
+
+```x
+(do (import x/protocol/str/utf8) (char->integer (Str8 index "$¢€" 1)))
+```
+---
+    194
+
+### StrUTF8 index is always a code point
+
+```x
+(do (import x/protocol/str/utf8) (char->integer (StrUTF8 index "$¢€" 1)))
+```
+---
+    162
+
+### Str (ambient) indexes by byte today
+
+```x
+(do (import x/protocol/str/utf8) (char->integer (Str index "$¢€" 1)))
+```
+---
+    194
+
+### Str8 length counts bytes, StrUTF8 length counts code points
+
+```x
+(do (import x/protocol/str/utf8) (list (Str8 length "$¢€") (StrUTF8 length "$¢€")))
+```
+---
+    (6 3)
+
+### the byte primitives are handler-immune (always byte)
+
+```x
+(do (char->integer (str-byte-ref "$¢€" 1)))
+```
+---
+    194
+
+## Str (byte view via Str8)
 
 ## Str (byte view)
 
