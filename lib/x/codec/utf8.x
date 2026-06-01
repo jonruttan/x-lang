@@ -1,7 +1,7 @@
 ; codec/utf8.x -- UTF-8 byte <-> code-point codec (protocol-agnostic primitives)
 ;
 ; The single shared UTF-8 transform, used by both the boot string layer
-; (str->list in x/type/string) and the protocol layer (the Utf8 class in
+; (str->list in x/type/str-utf8) and the protocol layer (the Utf8 class in
 ; x/protocol/str/utf8). Pure functions over the byte-level string primitives
 ; (str-ref / str-length operate on bytes) plus bitwise ops -- no object system,
 ; so it loads at boot, below everything that consumes it.

@@ -2,9 +2,8 @@
 (import x/protocol/seq)
 
 ; Str8 treats a STRING as its raw bytes (8-bit chars, 0-255), with no encoding
-; protocol. It provides the whole string suite (the methods x/type/string.x
-; offers, minus the str- prefix) as static methods: (Str8 append a b),
-; (Str8 index s i), (Str8 length s), (Str8 upcase s), ...
+; protocol. It provides the whole string suite as static methods:
+; (Str8 append a b), (Str8 index s i), (Str8 length s), (Str8 upcase s), ...
 ;
 ; Three string PROTOCOLS:
 ;   Str8     -- always 8-bit bytes (this class)

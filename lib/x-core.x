@@ -42,7 +42,7 @@
     (pair "lib/x/sys/intrinsics.x"
     (pair "lib/x/sys/posix.x"
     (pair "lib/x/type/char.x"
-    (pair "lib/x/type/string.x"
+    (pair "lib/x/type/str-utf8.x"
     (pair "lib/x/type/vector.x"
     (pair "lib/x/type/promise.x"
     (pair "lib/x/type/object.x"
@@ -94,23 +94,24 @@
   ; Type extensions
   (include "lib/x/core/alist.x")
   (include "lib/x/type/char.x")
-  ; include-once (not include): registers the path so string.x's and the Utf8
+  ; include-once (not include): registers the path so str-utf8.x's and the Utf8
   ; protocol class's (import x/codec/utf8) become no-ops instead of reloading it.
   (include-once "lib/x/codec/utf8.x")
-  (include "lib/x/type/string.x")
+  ; Low-level UTF-8 code-point layer for the STRING type: the list<->str
+  ; transforms (needed by char-io / number->str / convert) plus the bare (s i)
+  ; -> code-point handler. Safe here -- str-ref/str-length/substring stay pinned
+  ; to the byte primitives, and every reader/tokenizer/loader that needs bytes
+  ; uses them (not the ambient (s i) call).
+  (include "lib/x/type/str-utf8.x")
   ; UTF-8-aware CHARACTER write/display handlers (shadow the C byte fallback)
   (include "lib/x/type/char-io.x")
-  ; UTF-8-aware bare string indexing: (s i) -> code point. Safe now that
-  ; str-ref/str-length/substring are pinned to the byte primitives and every
-  ; reader/tokenizer/loader that needs bytes uses them (not the ambient call).
-  (include "lib/x/type/str-index.x")
   (include "lib/x/type/vector.x")
   (include "lib/x/type/promise.x")
   (include "lib/x/type/object.x")
-  ; String library: the protocol classes (Str8/StrUTF8) + the active-protocol
-  ; str-* API. Loaded AFTER the object system they are built on. (The low-level
-  ; list<->string conversions in type/string.x already loaded earlier, before
-  ; objects, for boot code that needs them.)
+  ; String library: the protocol classes (Str8/StrUTF8) + the Str entry point.
+  ; Loaded AFTER the object system they are built on. (The low-level code-point
+  ; layer in type/str-utf8.x already loaded earlier, before objects, for boot
+  ; code that needs the list<->string conversions.)
   (include "lib/x/protocol/seq.x")
   (include "lib/x/protocol/str/str8.x")
   (include "lib/x/protocol/str/utf8.x")
