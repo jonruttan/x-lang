@@ -74,7 +74,7 @@ Test specs are markdown files in `tests/x/specs/` organized by category: core la
 
 - **Fexpr foundation** — All primitives receive unevaluated arguments. `fn` provides applicative semantics; `op` creates user-level fexprs with access to the caller's environment.
 - **Adaptive type system** — Define new types at runtime with `make-type`. Each type carries dispatch methods for call, eval, write, read, convert, and more.
-- **Object system** — Classes are callable objects with message-passing dispatch (no quoting), single inheritance and `super`, encapsulated mutable fields, and a `(static …)` block for static methods and class-wide members — so a class doubles as a namespace. All in x-lang, on `make-type`.
+- **Object system** — Classes are callable objects with message-passing dispatch (no quoting), single inheritance and `super`, encapsulated mutable members, and a `(static …)` block for static methods and class-wide members — so a class doubles as a namespace. All in x-lang, on `make-type`.
 - **Module system** — `provide`/`import` with deduplication. Modules are auto-discovered.
 - **Numeric tower** — Arbitrary-precision integers, IEEE 754 floats, exact rationals, complex numbers with automatic promotion.
 - **JIT compiler** — Compiles x-lang functions to native x86_64/ARM64 machine code via a data-driven assembler with mmap execution.

@@ -439,7 +439,7 @@
         (if (if (null? %v) #f
               (if (class? %v)
                 (str=? (symbol->str sym) (symbol->str (class-name %v))) #f))
-          (%display-class-methods %v "    ")
+          (%display-class-sections %v "    ")
           ()))
       (rest entry))))
 
@@ -485,40 +485,90 @@
         (def %e (%doc-lookup %k))
         (if (null? %e) (self (class-parent c) method-str) %e)))))
 
-; Given a class VALUE, list its methods and the ones it inherits, walking the
-; parent chain MOST-DERIVED FIRST. Each method appears once, shown by its bare
-; name (no Class/ prefix); an override hides the inherited definition it shadows.
-(def %display-class-methods
-  (fn (_ cls indent)
-    ; List class c's documented methods whose bare name is not yet in `seen`;
-    ; print each (bare name + desc) and return the extended seen-list.
-    (def %list-one
-      (fn (_ c seen)
-        (def %prefix (str-append (symbol->str (class-name c)) "/"))
-        (def %plen (str-length %prefix))
-        (def %walk
-          (fn (self entries acc)
-            (if (null? entries) acc
-              (do
-                (def %nm (symbol->str (%doc-entry-name (first entries))))
-                (def %match? (if (< (str-length %nm) %plen) #f
-                               (str=? (substring %nm 0 %plen) %prefix)))
-                ; bare method name = the key with its "<class>/" prefix removed
-                (def %bare (if %match? (substring %nm %plen (str-length %nm)) ""))
-                (if (if %match? (not (%member-str? %bare acc)) #f)
-                  (do
-                    (display indent) (display %c-name) (display %bare) (display %c-reset)
-                    (if (not (str=? (%doc-entry-desc (first entries)) ""))
-                      (do (display " -- ") (display (%doc-entry-desc (first entries)))))
-                    (newline)
-                    (self (rest entries) (pair %bare acc)))
-                  (self (rest entries) acc))))))
-        (%walk (first %doc-registry-cell) seen)))
-    (def %walk-chain
-      (fn (self c seen)
-        (if (null? c) ()
-          (self (class-parent c) (%list-one c seen)))))
-    (%walk-chain cls ())))
+; --- Class help: members/methods grouped static vs instance, sorted, merged ---
+
+; Lexicographic byte compare of two strings (sorts member/method names).
+(def %str<?
+  (fn (loop a b i)
+    (if (>= i (str-length a)) (< (str-length a) (str-length b))
+      (if (>= i (str-length b)) #f
+        (let ((ca (char->integer (str-ref a i)))
+              (cb (char->integer (str-ref b i))))
+          (if (< ca cb) #t (if (> ca cb) #f (loop a b (+ i 1)))))))))
+
+; #t if symbol x is in the list of symbols lst.
+(def %member-sym?
+  (fn (loop x lst)
+    (if (null? lst) #f
+      (if (eq? x (first lst)) #t (loop x (rest lst))))))
+
+; Description registered under "<class-str>/name", or "" if undocumented.
+(def %doc-desc-for
+  (fn (_ class-str name)
+    (let ((e (%doc-lookup (str->symbol
+               (str-append class-str (str-append "/" (symbol->str name)))))))
+      (if (null? e) "" (%doc-entry-desc e)))))
+
+; Make (name . desc) for each name in `names` not already in `seen`.
+(def %section-here
+  (fn (loop cstr seen names)
+    (if (null? names) ()
+      (if (%member-sym? (first names) seen)
+        (loop cstr seen (rest names))
+        (pair (pair (first names) (%doc-desc-for cstr (first names)))
+              (loop cstr seen (rest names)))))))
+
+; Walk the inheritance chain MOST-DERIVED FIRST, collecting one category's
+; (name . desc) entries (via `accessor`: class -> own name list); a subclass
+; override hides the inherited entry of the same name.
+(def %section-walk
+  (fn (loop c accessor seen)
+    (if (null? c) ()
+      (append (%section-here (symbol->str (class-name c)) seen (accessor c))
+              (loop (class-parent c) accessor (append (accessor c) seen))))))
+
+; The merged, sorted (name . desc) entries for one category of a class.
+(def %class-section-entries
+  (fn (_ cls accessor)
+    (sort (fn (_ a b) (%str<? (symbol->str (first a)) (symbol->str (first b)) 0))
+          (%section-walk cls accessor ()))))
+
+; Print "name -- desc" (desc omitted when empty) for each entry at `indent`.
+(def %display-entries
+  (fn (loop entries indent)
+    (if (null? entries) ()
+      (do
+        (display indent) (display %c-name)
+        (display (symbol->str (first (first entries)))) (display %c-reset)
+        (if (not (str=? (rest (first entries)) ""))
+          (do (display " -- ") (display (rest (first entries)))))
+        (newline)
+        (loop (rest entries) indent)))))
+
+; Print a labelled section (header + entries), or nothing when empty.
+(def %display-section
+  (fn (_ label entries indent)
+    (if (null? entries) ()
+      (do
+        (display indent) (display label) (newline)
+        (%display-entries entries (str-append indent "  "))))))
+
+; Print a class's members + methods, grouped static vs instance, at `base` indent.
+; Empty sections are hidden; inheritance is merged + sorted within each section.
+(def %display-class-sections
+  (fn (_ cls base)
+    (let ((s-mem  (%class-section-entries cls class-static-members))
+          (s-meth (%class-section-entries cls class-static-methods))
+          (i-mem  (%class-section-entries cls class-members))
+          (i-meth (%class-section-entries cls class-methods)))
+      (do
+        (if (if (null? s-mem) (null? s-meth) #f) ()    ; static: only if non-empty
+          (do
+            (display base) (display "static:") (newline)
+            (%display-section "members:" s-mem  (str-append base "  "))
+            (%display-section "methods:" s-meth (str-append base "  "))))
+        (%display-section "members:" i-mem  base)
+        (%display-section "methods:" i-meth base)))))
 
 ; help: multi-dispatch
 ;   (help)       -> overview
@@ -564,8 +614,8 @@
                     (if (if (null? %maybe-class) #f (class? %maybe-class))
                       (do
                         (display %c-name) (display (class-name %maybe-class))
-                        (display %c-reset) (display " methods:") (newline)
-                        (%display-class-methods %maybe-class "  "))
+                        (display %c-reset) (newline)
+                        (%display-class-sections %maybe-class "  "))
                       (do (display %c-error) (display "No documentation for ")
                           (display %h-name) (display %c-reset) (newline))))))))))))))
 

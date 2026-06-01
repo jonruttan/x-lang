@@ -10,7 +10,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class Point () (fields x y)
+  (def-class Point () x y
     (method dist (self) (+ (self x) (self y))))
   (def p (new Point x 3 y 4))
   (p dist))
@@ -22,7 +22,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class Box () (fields v))
+  (def-class Box () v)
   (null? ((new Box) v)))
 ```
 ---
@@ -32,7 +32,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class P () (fields x))
+  (def-class P () x)
   (def p (new P x 5))
   (p x 10)
   (p x))
@@ -46,7 +46,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class Counter () (fields n)
+  (def-class Counter () n
     (method bump (self) (self n (+ (self n) 1)))
     (method val (self) (self n)))
   (def c (new Counter n 0))
@@ -64,9 +64,9 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class Secret () (fields code)
+  (def-class Secret () code
     (method code (self) 'hidden)            ; public getter hides the field
-    (method raw (self) (field 'code)))      ; method-internal raw access
+    (method raw (self) (member 'code)))      ; method-internal raw access
   (def s (new Secret code 42))
   (list (s code) (s raw)))
 ```
@@ -77,9 +77,9 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class P () (fields x))
+  (def-class P () x)
   (def p (new P x 5))
-  (guard (e 'blocked) (%field p 'x)))
+  (guard (e 'blocked) (%member p 'x)))
 ```
 ---
     (lit blocked)
@@ -90,8 +90,8 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class A () (fields) (method greet (self) 42))
-  (def-class B (extends A) (fields))
+  (def-class A () (method greet (self) 42))
+  (def-class B (extends A))
   ((new B) greet))
 ```
 ---
@@ -101,9 +101,9 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class A () (fields v)
+  (def-class A () v
     (method total (self) (self v)))
-  (def-class B (extends A) (fields w)
+  (def-class B (extends A) w
     (method total (self) (+ (super self total) (self w))))
   ((new B v 10 w 5) total))
 ```
@@ -116,8 +116,8 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class A () (fields))
-  (def-class B (extends A) (fields))
+  (def-class A ())
+  (def-class B (extends A))
   (list (object? (new A)) (instance-of? (new B) A) (instance-of? (new A) B)))
 ```
 ---
@@ -127,7 +127,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class Widget () (fields))
+  (def-class Widget ())
   (class-name (new Widget)))
 ```
 ---
@@ -137,8 +137,8 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class A () (fields))
-  (def-class B (extends A) (fields))
+  (def-class A ())
+  (def-class B (extends A))
   (list (same? (class-parent B) A) (null? (class-parent A))))
 ```
 ---
@@ -150,7 +150,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class Point () (fields x y))
+  (def-class Point () x y)
   (write (new Point x 1 y 2)))
 ```
 ---
@@ -188,7 +188,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class P () (fields x) (method g (self) (self x)))
+  (def-class P () x (method g (self) (self x)))
   ((P new x 7) g))
 ```
 ---
@@ -199,7 +199,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ```x
 (do
   (def-class Base () (static (method greet (self) 'hi)))
-  (def-class Sub (extends Base) (fields))
+  (def-class Sub (extends Base))
   (Sub greet))
 ```
 ---
@@ -209,7 +209,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class Widget () (fields))
+  (def-class Widget ())
   (list (class? Widget) (class? (new Widget)) (class-name Widget)))
 ```
 ---
@@ -221,7 +221,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class P () (fields x))
+  (def-class P () x)
   (guard (e 'no-member) ((new P x 1) bogus)))
 ```
 ---
@@ -253,7 +253,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class P () (fields x))
+  (def-class P () x)
   (def p (new P x 9))
   (list (p x) (p 'x)))
 ```
@@ -264,7 +264,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class P () (fields x))
+  (def-class P () x)
   (def a (new P x 1))
   (def b (new P x 2))
   (a x 100)
@@ -277,7 +277,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class P () (fields x)
+  (def-class P () x
     (method double (self) (* 2 (self get)))
     (method get (self) (self x)))
   ((new P x 5) double))
@@ -285,13 +285,13 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ---
     10
 
-### method-internal (set-field! 'f v) writes the field raw
+### method-internal (set-member! 'f v) writes the member raw
 
 ```x
 (do
-  (def-class P () (fields x)
-    (method reset (self) (set-field! 'x 0) self)
-    (method get (self) (field 'x)))
+  (def-class P () x
+    (method reset (self) (set-member! 'x 0) self)
+    (method get (self) (member 'x)))
   (def p (new P x 99))
   (p reset)
   (p get))
@@ -306,8 +306,8 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ```x
 (do
   (def-class A () (method who (self) 'a))
-  (def-class B (extends A) (fields))
-  (def-class C (extends B) (fields))
+  (def-class B (extends A))
+  (def-class C (extends B))
   (def c (new C))
   (list (c who) (instance-of? c A)))
 ```
@@ -336,15 +336,48 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ---
     ("x-lang" (lit lang))
 
+## member defaults and descriptions
+
+### an instance member's value defaults to its declaration
+
+```x
+(do
+  (def-class C () (n 5))
+  ((new C) n))
+```
+---
+    5
+
+### new overrides a member's default
+
+```x
+(do
+  (def-class C () (n 5))
+  ((new C n 9) n))
+```
+---
+    9
+
+### a member description does not affect its value
+
+```x
+(do
+  (def-class C () (n 5 "the running count"))
+  (def-class K () (static (LIMIT 100 "max before reset")))
+  (list ((new C) n) (K LIMIT)))
+```
+---
+    (5 100)
+
 ## super correctness
 
 ### super from an inherited method resolves to the defining class's parent
 
 ```x
 (do
-  (def-class A () (fields) (method m (self) 1))
-  (def-class B (extends A) (fields) (method m (self) (+ 10 (super self m))))
-  (def-class C (extends B) (fields))
+  (def-class A () (method m (self) 1))
+  (def-class B (extends A) (method m (self) (+ 10 (super self m))))
+  (def-class C (extends B))
   ((new C) m))
 ```
 ---
@@ -362,10 +395,10 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ## validation and guards
 
-### an unknown def-class body form is an error
+### the removed (fields ...) wrapper is a helpful error
 
 ```x
-(guard (e 'bad-form) (def-class P () (feilds x)))
+(guard (e 'bad-form) (def-class P () (fields x)))
 ```
 ---
     (lit bad-form)
@@ -374,7 +407,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class C () (fields))
+  (def-class C ())
   (guard (e 'not-inst) (class-of C)))
 ```
 ---
@@ -406,7 +439,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 
 ```x
 (do
-  (def-class P () (fields x) (method get (self) (self x)))
+  (def-class P () x (method get (self) (self x)))
   ((method-ref (new P x 7) get)))
 ```
 ---

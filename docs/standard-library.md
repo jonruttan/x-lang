@@ -889,21 +889,23 @@ Creates a vector of length `n` with every element set to `fill`.
 
 ## 17. Objects
 
-Message-passing classes with single inheritance, mutable fields, and encapsulated
+Message-passing classes with single inheritance, mutable members, and encapsulated
 access, built on the `make-type` mechanism. Send a message by applying an instance
 to a **literal** member name (no quote): `(obj name args...)`. A method named
-`name` wins; otherwise `name` is a field — `(obj f)` reads it, `(obj f v)` writes
+`name` wins; otherwise `name` is a member — `(obj m)` reads it, `(obj m v)` writes
 it. From outside, dispatch is the only way in. **Classes are objects too:**
 `(Class name args...)` calls a static method, `(Class member)` / `(Class member val)`
-reads/writes a class-wide member, and `(Class new field val...)` builds an instance.
+reads/writes a class-wide member, and `(Class new member val...)` builds an instance.
 See the [Object System](object-system.md) guide for the full walkthrough.
 
 ### `def-class`
-`(def-class name parent (fields ...) (method m (self . args) body...) (static ...))`
+`(def-class name parent member... (method m (self . args) body...) (static ...))`
 Defines a class bound to `name`. `parent` is `()` for none, or `(extends Class)`
-for single inheritance. Names are literal (`def-class` is an operative). An optional
-`(static (member val)... (method ...)...)` block adds class-wide members and static
-methods (inherited by subclasses; `self` is the class inside them).
+for single inheritance. Names are literal (`def-class` is an operative). Members are
+declared directly (no wrapper) as `name`, `(name default)`, or `(name default "desc")`;
+a `method`-headed form is a method. An optional `(static (member val)... (method ...)...)`
+block adds class-wide members and static methods (inherited by subclasses; `self` is
+the class inside them).
 ```
 (do
   (def-class Math () (static (base 10) (method scaled (self n) (* n (self base)))))
@@ -912,8 +914,8 @@ methods (inherited by subclasses; `self` is the class inside them).
 
 ### `new`
 `(new class field value ...) -> object`
-Constructs an instance; field names are literal, values are evaluated. Unset
-fields default to nil.
+Constructs an instance; member names are literal, values are evaluated. Unset
+members take their declared default (nil if none).
 ```
 (new Point x 1 y 2) -> #<Point x=1 y=2>
 ```
@@ -921,15 +923,15 @@ fields default to nil.
 ### member access
 `(obj name)` / `(obj name value)`
 Reads or writes member `name`: a method named `name` is called, otherwise the
-field is read/written.
+member is read/written.
 ```
-(do (def-class P () (fields n)) (def p (new P n 5)) (p n 10) (p n)) -> 10
+(do (def-class P () n) (def p (new P n 5)) (p n 10) (p n)) -> 10
 ```
 
 ### static access
 `(Class name)` / `(Class name value)`
 A static method named `name` is called, else `name` is a class-wide member that is
-read or written. `(Class new field val...)` constructs an instance.
+read or written. `(Class new member val...)` constructs an instance.
 ```
 (do (def-class C () (static (n 7) (method get (self) (self n)))) (list (C get) (C n))) -> (7 7)
 ```
@@ -940,9 +942,9 @@ Invokes the parent class's version of a method. Resolves from the parent of the
 method's **defining** class (fixed at `def-class` time), so it chains correctly
 through multi-level inheritance. Only valid inside an instance method.
 
-### `field` / `set-field!` — inside methods only
-`(field 'name)` / `(set-field! 'name value)`
-Raw field access that bypasses a same-named method override (the private-data
+### `member` / `set-member!` — inside methods only
+`(member 'name)` / `(set-member! 'name value)`
+Raw member access that bypasses a same-named method override (the private-data
 pattern). Bound only inside method bodies; not available to external code.
 
 ### `object?`
