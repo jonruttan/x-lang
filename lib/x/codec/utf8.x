@@ -84,5 +84,6 @@
             (| 128 (& (>> cp 6) 63))
             (| 128 (& cp 63)))))))))
 
-(provide x/codec/utf8
+(doc (provide x/codec/utf8
   utf8-seq-len utf8-decode utf8-encode utf8-width utf8-cp-at)
+  "UTF-8 codec: convert between bytes and Unicode code points (protocol-agnostic primitives).")

@@ -24,4 +24,5 @@
           (display " on x-lang")
           (newline))))))
 
-(provide x/core/banner)
+(doc (provide x/core/banner)
+  "Startup banner printed when the REPL launches.")

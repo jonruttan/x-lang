@@ -53,4 +53,5 @@
   (type-push-display ct %char-display)
   (type-push-write   ct %char-write))
 
-(provide x/type/char-io)
+(doc (provide x/type/char-io)
+  "UTF-8-aware write/display handlers for CHARACTER values, so a code point renders as its glyph.")

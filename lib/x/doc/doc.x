@@ -466,39 +466,59 @@
         (newline))
       (first %module-registry-cell))))
 
-; List registry entries whose key is "<cls-name>/method" (one class's methods).
-; Registry-name based: no eval, just prefix-match the documented keys.
-(def %list-methods-of
-  (fn (_ cls-name-str indent)
-    (def %prefix (str-append cls-name-str "/"))
-    (def %plen (str-length %prefix))
-    (def %walk
-      (fn (self entries)
-        (if (null? entries) ()
-          (do
-            (def %nm (symbol->str (%doc-entry-name (first entries))))
-            ; starts-with %prefix? (guard the substring against short names)
-            (if (if (< (str-length %nm) %plen) #f
-                  (str=? (substring %nm 0 %plen) %prefix))
-              (do
-                (display indent) (display %c-name)
-                (display (%doc-entry-name (first entries))) (display %c-reset)
-                (if (not (str=? (%doc-entry-desc (first entries)) ""))
-                  (do (display " -- ") (display (%doc-entry-desc (first entries)))))
-                (newline)))
-            (self (rest entries))))))
-    (%walk (first %doc-registry-cell))))
+; True if the string x appears in the list of strings lst.
+(def %member-str?
+  (fn (self x lst)
+    (if (null? lst) #f
+      (if (str=? x (first lst)) #t
+        (self x (rest lst))))))
 
-; Given a class VALUE, list its documented methods plus those it inherits,
-; walking the parent chain so an override and the method it shadows both show.
+; Walk a class's chain looking up "<class>/method" docs; return the first hit
+; (most-derived wins), or nil. Lets (help Class method) find inherited methods.
+(def %find-method-doc
+  (fn (self c method-str)
+    (if (null? c) ()
+      (do
+        (def %k (str->symbol
+                  (str-append (symbol->str (class-name c))
+                    (str-append "/" method-str))))
+        (def %e (%doc-lookup %k))
+        (if (null? %e) (self (class-parent c) method-str) %e)))))
+
+; Given a class VALUE, list its methods and the ones it inherits, walking the
+; parent chain MOST-DERIVED FIRST. Each method appears once, shown by its bare
+; name (no Class/ prefix); an override hides the inherited definition it shadows.
 (def %display-class-methods
   (fn (_ cls indent)
+    ; List class c's documented methods whose bare name is not yet in `seen`;
+    ; print each (bare name + desc) and return the extended seen-list.
+    (def %list-one
+      (fn (_ c seen)
+        (def %prefix (str-append (symbol->str (class-name c)) "/"))
+        (def %plen (str-length %prefix))
+        (def %walk
+          (fn (self entries acc)
+            (if (null? entries) acc
+              (do
+                (def %nm (symbol->str (%doc-entry-name (first entries))))
+                (def %match? (if (< (str-length %nm) %plen) #f
+                               (str=? (substring %nm 0 %plen) %prefix)))
+                ; bare method name = the key with its "<class>/" prefix removed
+                (def %bare (if %match? (substring %nm %plen (str-length %nm)) ""))
+                (if (if %match? (not (%member-str? %bare acc)) #f)
+                  (do
+                    (display indent) (display %c-name) (display %bare) (display %c-reset)
+                    (if (not (str=? (%doc-entry-desc (first entries)) ""))
+                      (do (display " -- ") (display (%doc-entry-desc (first entries)))))
+                    (newline)
+                    (self (rest entries) (pair %bare acc)))
+                  (self (rest entries) acc))))))
+        (%walk (first %doc-registry-cell) seen)))
     (def %walk-chain
-      (fn (self c)
+      (fn (self c seen)
         (if (null? c) ()
-          (do (%list-methods-of (symbol->str (class-name c)) indent)
-              (self (class-parent c))))))
-    (%walk-chain cls)))
+          (self (class-parent c) (%list-one c seen)))))
+    (%walk-chain cls ())))
 
 ; help: multi-dispatch
 ;   (help)       -> overview
@@ -509,15 +529,22 @@
     (if (null? args)
       (%display-overview)
       (if (not (null? (rest args)))
-        ; (help Class method) -> look up the composed key Class/method
+        ; (help Class method) -> walk Class's chain for the method doc, so an
+        ; inherited method (keyed under the ancestor that defines it) is found.
         (do
-          (def %mk (str->symbol
-                     (str-append (symbol->str (first args))
-                       (str-append "/" (symbol->str (first (rest args)))))))
-          (def %me (%doc-lookup %mk))
+          (def %cls-arg (first args))
+          (def %meth-str (symbol->str (first (rest args))))
+          (def %maybe-cls (guard (_ ()) (eval %cls-arg e)))
+          (def %me
+            (if (if (null? %maybe-cls) #f (class? %maybe-cls))
+              (%find-method-doc %maybe-cls %meth-str)
+              (%doc-lookup (str->symbol
+                (str-append (symbol->str %cls-arg)
+                  (str-append "/" %meth-str))))))
           (if (null? %me)
             (do (display %c-error) (display "No documentation for ")
-                (display %mk) (display %c-reset) (newline))
+                (display %cls-arg) (display " ") (display (first (rest args)))
+                (display %c-reset) (newline))
             (%display-doc %me)))
       (do
         (def %h-name (first args))

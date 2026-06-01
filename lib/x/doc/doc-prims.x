@@ -605,5 +605,16 @@
 
 (doc modules "List all known modules with load status and descriptions.")
 
+; === Pre-doc module descriptions ===
+; These modules are included before x/doc/doc.x exists, so they cannot wrap
+; their own (provide ...) in (doc ...). Their descriptions are registered here
+; instead, keyed by module name -- the same key %display-overview looks up.
+(doc x/core/predicates
+  "Type predicates (null?, pair?, number?, str?, symbol?, char?, ...) built from C primitives.")
+(doc x/core/control
+  "Core control flow: if and let, as operatives built on match.")
+(doc x/sys/gc
+  "Garbage collection control: trigger a collection and install mark/free/root hooks.")
+
 (doc (provide x/doc/doc-prims)
   "Retroactive documentation for C primitives, boot forms, and type system functions.")

@@ -261,4 +261,6 @@
                   (pair (self sub s start (- i start)) acc))
               (go start (+ i 1) acc))))))))
 
-(provide x/protocol/str/str8 Str8)
+(doc (provide x/protocol/str/str8 Str8)
+  (note "The 8-bit byte view. Use (Str8 length s), (Str8 upcase s), etc.; (help Str8) lists every method, (help Str8 method) shows one.")
+  "Str8: the 8-bit byte string protocol (a Seq subclass) with the full string method suite.")

@@ -31,4 +31,5 @@
         (fold %int- (first args) (rest args))))))
 (set! % (fn (_ . args) (fold modulo-int (first args) (rest args))))
 
-(provide x/core/arithmetic modulo-int)
+(doc (provide x/core/arithmetic modulo-int)
+  "Variadic +, -, *, / folded over the binary C primitives, plus modulo-int.")

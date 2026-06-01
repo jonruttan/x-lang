@@ -37,4 +37,7 @@
       (eval (pair (lit fn) (pair (pair (lit _) (%let-params bindings)) body)) e)
       (%let-vals bindings e))))
 
+; NOTE: this module loads before the doc system (x/doc/doc.x), so it cannot
+; wrap its provide in (doc ...). Its module description is registered
+; retroactively in x/doc/doc-prims.x.
 (provide x/core/control if let)

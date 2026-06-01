@@ -56,4 +56,5 @@
         (%cp-ref s (first vals))
         (%cp-substring s (first vals) (first (rest vals)))))))
 
-(provide x/type/str-index)
+(doc (provide x/type/str-index)
+  "UTF-8-aware bare string indexing: (s), (s i) and (s a n) follow the code-point protocol.")

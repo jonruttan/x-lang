@@ -78,6 +78,7 @@
           (pair (lit unquote-splicing)
             (pair (token-read (first args)) ()))))))))
 
-(provide x/type/quasi-reader
+(doc (provide x/type/quasi-reader
   %quasi-read-atom %unquote-read-atom
   %quasi-accept %unquote-after-comma)
+  "Reader syntax for quasiquote: backtick, comma and comma-at expand to quasi/unquote forms.")

@@ -16,5 +16,8 @@
 ;
 ; This file just re-exports the C primitives for module import.
 
+; NOTE: this module loads before the doc system (x/doc/doc.x), so it cannot
+; wrap its provide in (doc ...). Its module description is registered
+; retroactively in x/doc/doc-prims.x.
 (provide x/sys/gc
   heap-collect heap-mark-root! heap-mark-hook! heap-free-hook!)
