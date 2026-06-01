@@ -204,6 +204,13 @@
   (see class-of)
   "Return the name symbol of a class, or of an instance's class.")
 
+(doc (def class-parent
+  (fn (_ (param c CLASS "A class"))
+    (assoc-get (lit parent) (%class-data c))))
+  (returns CLASS "The parent class, or nil for a root class")
+  (see class-name)
+  "Return a class's parent class (the one it extends), or nil if it has none.")
+
 (def %class-ancestor?
   (fn (loop c target)
     (if (null? c)
@@ -466,7 +473,7 @@
 
 (doc (provide x/type/object
   def-class new super method-ref
-  object? class? class-of class-name instance-of?)
+  object? class? class-of class-name class-parent instance-of?)
   (note "Instances: (obj name args...) -- method wins, else field (obj f)/(obj f v).")
   (note "Classes are callable: (Class name args...) -- static method, (Class new ...) to")
   (note "instantiate, else class-wide member (Class f)/(Class f v). Use classes as")

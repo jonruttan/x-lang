@@ -410,7 +410,7 @@
 (def %module-lookup (fn (_ name) (%registry-find %module-registry-cell name)))
 
 (def %display-module
-  (fn (_ entry)
+  (fn (_ entry e)
     (def %mod-name (first entry))
     (def %mod-doc (%doc-lookup %mod-name))
     (display %mod-name)
@@ -431,7 +431,16 @@
         (if (not (null? %e))
           (do (display " -- ")
               (display (%doc-entry-desc %e))))
-        (newline))
+        (newline)
+        ; if sym names a class, expand its documented methods underneath.
+        ; Only expand under the class's CANONICAL name, so aliases (e.g. Utf8,
+        ; Str -> StrUTF8) stay collapsed instead of repeating the whole list.
+        (def %v (guard (_ ()) (eval sym e)))
+        (if (if (null? %v) #f
+              (if (class? %v)
+                (str=? (symbol->str sym) (symbol->str (class-name %v))) #f))
+          (%display-class-methods %v "    ")
+          ()))
       (rest entry))))
 
 (def %display-overview
@@ -457,9 +466,43 @@
         (newline))
       (first %module-registry-cell))))
 
+; List registry entries whose key is "<cls-name>/method" (one class's methods).
+; Registry-name based: no eval, just prefix-match the documented keys.
+(def %list-methods-of
+  (fn (_ cls-name-str indent)
+    (def %prefix (str-append cls-name-str "/"))
+    (def %plen (str-length %prefix))
+    (def %walk
+      (fn (self entries)
+        (if (null? entries) ()
+          (do
+            (def %nm (symbol->str (%doc-entry-name (first entries))))
+            ; starts-with %prefix? (guard the substring against short names)
+            (if (if (< (str-length %nm) %plen) #f
+                  (str=? (substring %nm 0 %plen) %prefix))
+              (do
+                (display indent) (display %c-name)
+                (display (%doc-entry-name (first entries))) (display %c-reset)
+                (if (not (str=? (%doc-entry-desc (first entries)) ""))
+                  (do (display " -- ") (display (%doc-entry-desc (first entries)))))
+                (newline)))
+            (self (rest entries))))))
+    (%walk (first %doc-registry-cell))))
+
+; Given a class VALUE, list its documented methods plus those it inherits,
+; walking the parent chain so an override and the method it shadows both show.
+(def %display-class-methods
+  (fn (_ cls indent)
+    (def %walk-chain
+      (fn (self c)
+        (if (null? c) ()
+          (do (%list-methods-of (symbol->str (class-name c)) indent)
+              (self (class-parent c))))))
+    (%walk-chain cls)))
+
 ; help: multi-dispatch
 ;   (help)       -> overview
-;   (help name)  -> module listing OR individual doc
+;   (help name)  -> module listing OR individual doc OR a class's methods
 (def help
   (op args e
     (%doc-commit!)
@@ -483,13 +526,21 @@
           (do
             (def %mod (%module-lookup %h-name))
             (if (not (null? %mod))
-              (%display-module %mod)
+              (%display-module %mod e)
               (do
                 (def %doc-entry (%doc-lookup %h-name))
-                (if (null? %doc-entry)
-                  (do (display %c-error) (display "No documentation for ")
-                      (display %h-name) (display %c-reset) (newline))
-                  (%display-doc %doc-entry)))))))))))
+                (if (not (null? %doc-entry))
+                  (%display-doc %doc-entry)
+                  (do
+                    ; maybe %h-name names a class -> list its (inherited) methods
+                    (def %maybe-class (guard (_ ()) (eval %h-name e)))
+                    (if (if (null? %maybe-class) #f (class? %maybe-class))
+                      (do
+                        (display %c-name) (display (class-name %maybe-class))
+                        (display %c-reset) (display " methods:") (newline)
+                        (%display-class-methods %maybe-class "  "))
+                      (do (display %c-error) (display "No documentation for ")
+                          (display %h-name) (display %c-reset) (newline))))))))))))))
 
 ; apropos: search doc registry by name substring
 (def apropos

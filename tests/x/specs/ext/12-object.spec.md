@@ -133,6 +133,17 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ---
     (lit Widget)
 
+### class-parent returns the extended class, nil at the root
+
+```x
+(do
+  (def-class A () (fields))
+  (def-class B (extends A) (fields))
+  (list (same? (class-parent B) A) (null? (class-parent A))))
+```
+---
+    (#t #t)
+
 ## write handler
 
 ### instances print as #<Class field=value ...>
