@@ -24,22 +24,39 @@
 
 (def-class StrUTF8 (extends Str8)
   (static
-    (method length (self v) (self count v))   ; code points, via Seq's cursor walk
+    (method length (self (param v STRING "String to measure"))
+      (doc "Number of UTF-8 CODE POINTS in v (not bytes), via a cursor walk."
+        (returns INT "Code-point count of v")
+        (example "(StrUTF8 length \"$¢€\")" "3"))
+      (self count v))   ; code points, via Seq's cursor walk
 
-    (method index (self v i)
+    (method index (self (param v STRING "String to index") (param i INT "Code-point position (0-based)"))
+      (doc "The i-th CODE POINT of v as a CHARACTER, found by an O(n) UTF-8 walk."
+        (returns CHAR "Code point at position i")
+        (example "(StrUTF8 index \"$¢€\" 1)" "#\\¢"))
       (integer->char (first (utf8-decode v (%u8-byte-offset v i 0)))))
 
-    (method sub (self v start len)
+    (method sub (self (param v STRING "Source string") (param start INT "Start code-point offset (0-based)") (param len INT "Number of code points"))
+      (doc "Substring of len CODE POINTS starting at code-point offset start (O(n) walk)."
+        (returns STRING "The len-code-point slice of v from start")
+        (example "(StrUTF8 sub \"$¢€\" 1 1)" "\"¢\""))
       (def b0 (%u8-byte-offset v start 0))
       (def b1 (%u8-byte-offset v len b0))
       (str-byte-sub v b0 (- b1 b0)))
 
-    (method step (self v cur)
+    (method step (self (param v STRING "String being traversed") (param cur INT "Current byte offset of the cursor"))
+      (doc "Cursor step: decode one UTF-8 sequence at byte offset cur, yielding (CODE-POINT . next-byte-offset)."
+        (returns PAIR "Pair of the decoded code point (CHARACTER) and the next byte offset")
+        (example "(StrUTF8 step \"$¢\" 1)" "(#\\¢ . 3)"))
       (let ((d (utf8-decode v cur)))
         (pair (integer->char (first d)) (rest d))))
 
     ; encode: a code point -> its UTF-8 bytes (inverse of step)
-    (method char->bytes (self el) (utf8-encode (char->integer el)))))
+    (method char->bytes (self (param el CHAR "Code point to encode"))
+      (doc "Encode one CODE POINT to its 1-4 UTF-8 bytes (inverse of step)."
+        (returns LIST "List of the UTF-8 byte values (integers) for el")
+        (example "(StrUTF8 char->bytes (integer->char 162))" "(194 162)"))
+      (utf8-encode (char->integer el)))))
 
 ; Utf8 = alias for the UTF-8 protocol class.
 (def Utf8 StrUTF8)

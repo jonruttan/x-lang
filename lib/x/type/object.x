@@ -263,13 +263,18 @@
                   (first %doc-pending-cell))))))))
 
 ; Extract the inline (param ...) forms from a method signature (self . params).
+; A variadic tail is written dotted -- (self . (param args ...)) or
+; (self k . (param rest ...)) -- so the (param ...) form can arrive as `sig`
+; itself (the improper tail), not only as a list element; collect it either way.
 (def %sig-params
   (fn (loop sig)
     (if (null? sig) ()
       (if (pair? sig)
-        (if (if (pair? (first sig)) (eq? (first (first sig)) (lit param)) #f)
-          (pair (first sig) (loop (rest sig)))
-          (loop (rest sig)))
+        (if (eq? (first sig) (lit param))
+          (list sig)                                   ; dotted (param ...) tail
+          (if (if (pair? (first sig)) (eq? (first (first sig)) (lit param)) #f)
+            (pair (first sig) (loop (rest sig)))
+            (loop (rest sig))))
         ()))))
 
 ; Strip inline (param name TYPE "desc") annotations from a signature, leaving
@@ -278,11 +283,17 @@
   (fn (loop sig)
     (if (null? sig) ()
       (if (pair? sig)
-        (pair
-          (if (if (pair? (first sig)) (eq? (first (first sig)) (lit param)) #f)
-            (first (rest (first sig)))    ; (param NAME ...) -> NAME
-            (first sig))
-          (loop (rest sig)))
+        ; A dotted (param ...) tail arrives as `sig` itself (e.g. the rest in
+        ; (self . (param args ...))); strip it to its NAME as the improper tail
+        ; so the fn keeps its variadic arg, rather than splicing param/TYPE/desc
+        ; in as extra fixed parameters.
+        (if (eq? (first sig) (lit param))
+          (first (rest sig))              ; dotted (param NAME ...) tail -> NAME
+          (pair
+            (if (if (pair? (first sig)) (eq? (first (first sig)) (lit param)) #f)
+              (first (rest (first sig)))    ; (param NAME ...) -> NAME
+              (first sig))
+            (loop (rest sig))))
         sig))))   ; dotted-rest tail passes through
 
 ; Build a method closure from (NAME (self . params) body...). The body is wrapped
