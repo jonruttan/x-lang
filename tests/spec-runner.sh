@@ -72,11 +72,13 @@ _N=0
 # shift run-to-run. The bottleneck is MEMORY BANDWIDTH, not CPU: each ./x's lib
 # load is allocation-heavy, so one job per core thrashes the memory subsystem and
 # slows the heaviest spec ~10x (compile.x load: ~6s -> >60s) until it trips the
-# timeout. Default to HALF the cores (min 2) to leave bandwidth headroom;
-# override with PARALLEL_JOBS (e.g. =1 serial, or higher on a big-memory box).
+# timeout. One job per core flakes; ~2/3 of the cores leaves enough bandwidth
+# headroom to stay stable while recovering ~10% over half (verified: 2/2 clean
+# runs at 8 on a 12-core box, ~245s vs ~270s). Override with PARALLEL_JOBS
+# (=1 serial; lower it on a memory-constrained box like a Pi).
 _cpus=$( (command -v nproc >/dev/null 2>&1 && nproc) || sysctl -n hw.ncpu 2>/dev/null )
 case "$_cpus" in ''|*[!0-9]*) _cpus=4 ;; esac
-_cpus=$(( _cpus / 2 ))
+_cpus=$(( _cpus * 2 / 3 ))
 [ "$_cpus" -lt 2 ] && _cpus=2
 : "${PARALLEL_JOBS:=$_cpus}"
 
