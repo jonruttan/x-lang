@@ -80,6 +80,16 @@
 ---
     10
 
+## iter (class instances)
+
+### iterates a def-class instance as name/value pairs
+
+```scheme
+(do (def-class Pt () (x 0) (y 0)) (def p (new Pt x 3 y 4)) (iter->list (iter p)))
+```
+---
+    (((lit x) . 3) ((lit y) . 4))
+
 ## make-iter
 
 ### builds an iterator from a custom step function

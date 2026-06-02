@@ -8,6 +8,7 @@
 ; iterator, and add a few consumers.
 
 (import x/core/list)
+(import x/type/object)
 
 ; --- Per-type iterator constructors (the values pushed onto the iter slot) ---
 
@@ -44,6 +45,11 @@
 (type-push-iter (type-by-atom (type-of (list 1))) %list-iter)
 (type-push-iter (type-by-atom (type-of (vector 1))) %vector-iter)
 (type-push-iter (type-by-atom (type-of "x")) %str-iter)
+
+; def-class instances (all share the %object type): iterate the member alist as
+; (name . value) pairs.  %object / %obj-fields are object.x internals.
+(def %object-iter (fn (_ inst) (%list-iter (%obj-fields inst))))
+(type-push-iter (type-by-atom %object) %object-iter)
 
 ; The empty list is nil, which has no type for the C iter prim to dispatch on
 ; (it would deref a null type).  Shadow iter so (iter ()) yields an empty
