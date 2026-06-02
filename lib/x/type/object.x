@@ -60,10 +60,12 @@
       s)))
 
 ; Build an instance: instance fields (across the chain) initialised from inits.
+; eval? selects how supplied values are treated (see %init-fields): #t = code
+; evaluated in e (the new ops), #f = data used as-is (new-from).
 (def %instantiate
-  (fn (_ class inits e)
+  (fn (_ class inits e eval?)
     (make-instance %object
-      (list class (%init-fields (%all-fields class) inits e)))))
+      (list class (%init-fields (%all-fields class) inits e eval?)))))
 
 (note "Dispatch handlers")
 
@@ -96,8 +98,8 @@
         (match
           ((not (null? method))
             (apply method (pair self (map (fn (_ a) (eval a e)) rest))))
-          ((eq? selector (lit new))
-            (%instantiate self rest e))
+          ((eq? selector (lit new))                       ; (Class new k v ...): values are code
+            (%instantiate self rest e #t))
           ((assoc-has? selector (%class-statics self))
             (match
               ((null? rest) (assoc-get selector (%class-statics self)))
@@ -499,11 +501,26 @@
 (doc (def new
   (op (class-expr . inits)
     e
-    (%instantiate (eval class-expr e) inits e)))
-  (note "Equivalent to (Class new member val ...). Member names literal, values evaluated.")
+    (%instantiate (eval class-expr e) inits e #t)))
+  (note "Inline construction: member names are literal (bare, not quoted) and")
+  (note "values are expressions, evaluated in the caller's env:")
+  (note "  (new C name val name val ...)   plist form -- the usual one")
+  (note "  (new C (name . val) ...)        dotted-alist form (val is an expression)")
+  (note "For a computed/quoted store (a list of ready values) use new-from.")
   (example "(do (def-class P () x) ((new P x 5) x))" "5")
-  (see def-class)
-  "Construct an instance of a class.")
+  (see new-from)
+  "Construct an instance inline; names literal, values evaluated.")
+
+(doc (def new-from
+  (fn (_ (param class CLASS "The class to instantiate")
+       (param store LIST "Ready-value store: alist ((k . v) ...) or plist (k v ...)"))
+    (%instantiate class store () #f)))
+  (note "Data counterpart to new: the store is evaluated (new-from is a fn) and its")
+  (note "values are used as-is, not re-evaluated -- so pass a quoted list, a variable,")
+  (note "or a built alist/plist.  Unknown keys fall back to declared defaults.")
+  (example "(do (def-class P () x y) ((new-from P (lit (x 1 y 2))) x))" "1")
+  (see new)
+  "Instantiate a class from a computed option store (alist or plist) of values.")
 
 ; Reject entries from alist `al` whose name is already a key in `known`.
 (def %reject-known
@@ -524,24 +541,27 @@
         (append own
           (%reject-known (loop (assoc-get (lit parent) (%class-data class))) own))))))
 
-; Build the instance field box: each member takes its init value if `new` supplied
-; one -- as a flat plist `name val name val ...` OR an alist `((name . val) ...)`
-; -- otherwise its declared default.  Init values are forms, evaluated in the
-; caller's env e; an absent key (%opt-cell returns ()) falls back to the member's
-; declared default, which is already a value.  null? on the box distinguishes a
+; Build the instance field box: each member takes its init value if supplied --
+; from a flat plist `name val ...` OR an alist `((name . val) ...)` -- otherwise
+; its declared default.  eval? selects how a supplied value is treated: #t (the
+; (new ...) ops, whose values are code) evaluates it in caller env e; #f (new-from,
+; whose store is data) uses it as-is.  An absent key (%opt-cell returns ()) falls
+; back to the declared default, already a value; null? on the box distinguishes a
 ; supplied 0/nil from a missing key.
 (def %init-fields
-  (fn (loop members inits e)
+  (fn (loop members inits e eval?)
     (if (null? members)
       ()
       (let* ((name (first (first members)))
              (default (rest (first members)))
              (cell (%opt-cell name inits)))
-        (pair (pair name (if (null? cell) default (eval (first cell) e)))
-              (loop (rest members) inits e))))))
+        (pair (pair name
+                (if (null? cell) default
+                  (if eval? (eval (first cell) e) (first cell))))
+              (loop (rest members) inits e eval?))))))
 
 (doc (provide x/type/object
-  def-class new super method-ref
+  def-class new new-from super method-ref
   object? class? class-of class-name class-parent instance-of?
   class-members class-methods class-static-members class-static-methods)
   (note "Instances: (obj name args...) -- method wins, else member (obj m)/(obj m v).")

@@ -456,3 +456,81 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ```
 ---
     2
+
+## new-from -- construct from a data store
+
+`new-from` is the applicative counterpart to the `new` operative: its store is
+evaluated (it is a `fn` arg) and the values are used as-is, never re-evaluated.
+It accepts an alist `((k . v) ...)` or a flat plist `(k v ...)`.
+
+### new-from reads a quoted plist
+
+```x
+(do
+  (def-class Point () x y)
+  (def p (new-from Point '(x 3 y 4)))
+  (list (p x) (p y)))
+```
+---
+    (3 4)
+
+### new-from reads a quoted alist
+
+```x
+(do
+  (def-class Point () x y)
+  (def p (new-from Point '((x . 3) (y . 4))))
+  (list (p x) (p y)))
+```
+---
+    (3 4)
+
+### new-from uses values as-is (no re-evaluation)
+
+```x
+(do
+  (def-class Box () v)
+  ((new-from Box (list (lit v) (list 1 2 3))) v))
+```
+---
+    (1 2 3)
+
+### new-from falls back to declared defaults for absent keys
+
+```x
+(do
+  (def-class Point () (x 0) (y 0))
+  ((new-from Point '(x 7)) y))
+```
+---
+    0
+
+### new also accepts a dotted-alist inline form
+
+```x
+(do
+  (def-class Point () x y)
+  ((new Point (x . 3) (y . 4)) x))
+```
+---
+    3
+
+### quoting new's member names errors cleanly (use bare names)
+
+```x
+(do
+  (def-class Point () x y)
+  (guard (e (lit caught)) (new Point 'x 1 'y 2)))
+```
+---
+    (lit caught)
+
+### a malformed new-from store errors cleanly (caught, not a crash)
+
+```x
+(do
+  (def-class Point () x y)
+  (guard (e (lit caught)) (new-from Point 'notalist)))
+```
+---
+    (lit caught)
