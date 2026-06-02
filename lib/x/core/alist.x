@@ -137,10 +137,94 @@
   (returns LIST "Alist with selected values transformed")
   "Apply per-key transform functions to values in an alist.")
 
+(note "Option stores")
+
+; An "option store" is either an alist ((k . v) ...) or a flat plist
+; (k v k v ...).  %opt-cell walks one looking for `key`: the head of each step
+; reveals the layout -- an alist entry is a pair, a plist key is a bare symbol,
+; and keys are always symbols, so a key is never mistaken for an entry.  It
+; returns a one-element box (value) when present, or () when absent, so callers
+; test presence with null? (pair vs nil).  A box, NOT a value-sentinel: eq? on a
+; sentinel cannot be trusted to differ from a stored 0/nil/#f.  Keys compared
+; with eq?, as everywhere else in this module.
+(def %opt-cell
+  (fn (loop key store)
+    (match
+      ((null? store) ())
+      ((pair? (first store))                              ; alist entry (k . v)
+        (if (eq? key (first (first store)))
+          (list (rest (first store)))
+          (loop key (rest store))))
+      (#t                                                 ; plist cell: k then v
+        (if (eq? key (first store))
+          (list (first (rest store)))
+          (loop key (rest (rest store))))))))
+
+(doc (def opt-get-or
+  (fn (_ (param d ANY "Default value if key is absent")
+       (param key SYMBOL "Key to look up")
+       (param store LIST "Option store: alist or flat plist"))
+    (let ((c (%opt-cell key store)))
+      (if (null? c) d (first c)))))
+  (returns ANY "Stored value, or the default")
+  (example "(opt-get-or 0 (lit b) (lit (a 1)))" "0")
+  "Look up a key in an option store (alist or plist); return a default if absent.")
+
+(doc (def opt-get-or-else
+  (fn (_ (param thunk CALLABLE "Nullary function producing the default")
+       (param key SYMBOL "Key to look up")
+       (param store LIST "Option store: alist or flat plist"))
+    (let ((c (%opt-cell key store)))
+      (if (null? c) (thunk) (first c)))))
+  (returns ANY "Stored value, or (thunk) when the key is absent")
+  "Like opt-get-or but the default is lazy: thunk runs only when the key is absent.")
+
+; Compile one let-opts binding spec into the (name value-form) pair that let*
+; expects.  The default is wrapped in a (fn () ...) thunk so opt-get-or-else
+; evaluates it only when the option is absent -- a present option never runs its
+; default expression.  %opt-get-form builds that lazy lookup form; %opt-binding
+; dispatches on spec shape:
+;   symbol         -> default (), key = name
+;   (name default) -> key = name
+;   (name key def) -> explicit lookup key, distinct from the bound name
+(def %opt-get-form
+  (fn (_ key default)
+    (list (lit opt-get-or-else)
+          (list (lit fn) () default)                      ; (fn () DEFAULT) -- lazy
+          (list (lit lit) key)                            ; 'KEY
+          (lit %opts))))
+
+(def %opt-binding
+  (fn (_ b)
+    (match
+      ((symbol? b)             (list b (%opt-get-form b ())))
+      ((null? (rest (rest b))) (list (first b) (%opt-get-form (first b) (first (rest b)))))
+      (#t                      (list (first b)
+                                 (%opt-get-form (first (rest b)) (first (rest (rest b)))))))))
+
+(doc (def let-opts
+  (op (src bindings . body)
+    e
+    ; Expand to let*: %opts holds the evaluated source once and is visible to
+    ; every lookup, and the option bindings stay local to body.  (let, unlike the
+    ; older do+def expansion, does not leak the bindings into the caller frame e.)
+    (tail-eval
+      (pair (lit let*)
+        (pair (pair (list (lit %opts) src) (map %opt-binding bindings))
+              body))
+      e)))
+  (note "Each binding is name | (name default) | (name key default). Defaults are")
+  (note "lazy (run only when the option is absent) and may reference earlier bindings.")
+  (note "The source evaluates to an alist ((k . v) ...) or a flat plist (k v ...).")
+  (example "(let-opts (lit (a 1)) ((a 0) (b 0)) (+ a b))" "1")
+  (see opt-get-or)
+  "Bind locals from an option store (alist or plist) with lazy per-binding defaults.")
+
 (doc (provide x/core/alist
   assoc-get assoc-get-or assoc-has? assoc-del assoc-put
   assoc-keys assoc-vals assoc-map assoc-filter assoc-merge
-  assoc-pick assoc-omit from-pairs to-pairs evolve)
+  assoc-pick assoc-omit from-pairs to-pairs evolve
+  opt-get-or opt-get-or-else let-opts)
   (note "Alist format is ((key . val) ...). Keys compared with eq?.")
   (example "(assoc-get (lit x) '((x . 1) (y . 2)))" "1")
   "Association list operations.")

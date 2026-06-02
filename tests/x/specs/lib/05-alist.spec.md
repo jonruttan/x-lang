@@ -204,3 +204,137 @@
 ---
     2
 
+## opt-get-or
+
+### returns the value for a present key (plist)
+
+```scheme
+(opt-get-or 99 (lit a) (list (lit a) 1))
+```
+---
+    1
+
+### returns the default for a missing key
+
+```scheme
+(opt-get-or 99 (lit z) (list (lit a) 1))
+```
+---
+    99
+
+### reads from an alist store
+
+```scheme
+(opt-get-or 99 (lit a) (list (pair (lit a) 1)))
+```
+---
+    1
+
+### keeps a present 0 instead of the default
+
+```scheme
+(opt-get-or 99 (lit a) (list (lit a) 0))
+```
+---
+    0
+
+## opt-get-or-else
+
+### returns the value for a present key
+
+```scheme
+(opt-get-or-else (fn () 99) (lit a) (list (lit a) 1))
+```
+---
+    1
+
+### calls the thunk for a missing key
+
+```scheme
+(opt-get-or-else (fn () 99) (lit z) (list (lit a) 1))
+```
+---
+    99
+
+### does not run the thunk when the key is present
+
+```scheme
+(opt-get-or-else (fn () (error "boom")) (lit a) (list (lit a) 1))
+```
+---
+    1
+
+### keeps a present 0 without calling the thunk
+
+```scheme
+(opt-get-or-else (fn () 99) (lit a) (list (lit a) 0))
+```
+---
+    0
+
+## let-opts
+
+### binds from a plist source with defaults
+
+```scheme
+(let-opts (list (lit a) 1) ((a 0) (b 9)) (list a b))
+```
+---
+    (1 9)
+
+### binds from an alist source
+
+```scheme
+(let-opts (list (pair (lit a) 1)) ((a 0)) a)
+```
+---
+    1
+
+### default is lazy: not evaluated when the option is present
+
+```scheme
+(let-opts (list (lit a) 1) ((a (error "boom"))) a)
+```
+---
+    1
+
+### (name key default) binds a renamed key when present
+
+```scheme
+(let-opts (list (lit bg-color) "red") ((bg bg-color "black")) bg)
+```
+---
+    "red"
+
+### (name key default) uses the default when the renamed key is absent
+
+```scheme
+(let-opts () ((bg bg-color "black")) bg)
+```
+---
+    "black"
+
+### a bare name defaults to nil
+
+```scheme
+(let-opts (list (lit x) 5) (x y) (list x (null? y)))
+```
+---
+    (5 #t)
+
+### a later default can reference an earlier binding
+
+```scheme
+(let-opts () ((w 10) (h (* w 2))) h)
+```
+---
+    20
+
+### keeps a present 0 instead of the default
+
+```scheme
+(let-opts (list (lit a) 0) ((a 99)) a)
+```
+---
+    0
+
