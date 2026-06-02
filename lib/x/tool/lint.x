@@ -1,182 +1,281 @@
-; lint.x -- AST linter library (def/use analysis)
+; lint.x -- AST linter via the type-system write stacks (def/use analysis)
 ;
-; Reports undefined symbol references and unused bindings.
-; Uses x-lang's own env-alist for "known" symbols — no manual
-; enumeration of C primitives or library defs needed.
+; Drives the interpreter's own traversal: analysis handlers are pushed onto the
+; LIST and SYMBOL write stacks and the tree is walked with write-to-str -- type
+; dispatch visits every node and nothing is executed.
+;
+; All symbol comparison is by NAME (string), captured fresh during the walk.
+; Symbols read in one reader session can't be eq?-compared with symbols from
+; another (different interns; GC relocates/frees heap objects across reader
+; calls -- eq? would dereference a stale pointer and crash).  So every symbol is
+; converted to its name string at the moment it is encountered, and only those
+; strings are compared/stored.  lint-forms returns (defs uses issues) as NAME
+; STRINGS; lint-has? tests membership.
 (import x/core/list)
 (import x/core/alist)
 (import x/type/str)
+(import x/sys/type)
 
-; Snapshot the current env-alist — everything defined before
-; the target file (C primitives + standard library).
-(def %known-env
-  (first (first (first (rest (rest (first (%base))))))))
+; Type structs we attach handlers to (LIST = forms, SYMBOL = references).
+(def %lint-list-type   (type-by-atom (type-of (list 1))))
+(def %lint-symbol-type (type-by-atom (type-of (lit a))))
 
-; --- AST walking: collect symbol uses ---
+; The env-alist (primitives + stdlib) = the "known" symbols.  NOTE: this deep
+; dig is base-layout dependent and currently returns a non-list in some contexts
+; (the layout drifted; profile.x/cov.x share the problem) -- so %env-known? walks
+; it lazily, by NAME, and guards against a non-list so the linter still loads.
+; Converting the live env keys on demand is GC-safe (they are current bindings).
+(def %known-env (first (first (first (rest (rest (first (%base))))))))
+(def %env-known? (fn (self name env)
+  (if (pair? env)
+    (if (if (pair? (first env))
+          (if (symbol? (first (first env)))
+            (str=? (convert (first (first env)) %string) name) #f)
+          #f)
+      #t
+      (self name (rest env)))
+    ())))
 
-; Forward declarations for mutual recursion
-(def %walk ())
-(def %walk-pair ())
-(def %walk-list ())
+; --- Analysis state (boxes; all values are NAME STRINGS) ---
+(def %lint-scope  (list ()))    ; names in lexical scope
+(def %lint-uses   (list ()))    ; names referenced (unique)
+(def %lint-issues (list ()))    ; op names where first/rest hit a literal non-list
 
+; Swappable hooks -- tools/lint.x overrides these for data-driven, construct-
+; table dispatch.  Forward-declared; defaults set below once the helpers exist.
+(def %lint-binds? ())      ; form -> truthy if it binds a name in a sequence
+(def %lint-bound-name ())  ; form -> the bound name (a STRING)
+(def %lint-dispatch ())    ; form -> () : scope-aware analysis of one list form
+
+; str=? membership over a list of name strings.
+(def %name-member? (fn (self name names)
+  (if (null? names) ()
+    (if (str=? name (first names)) #t (self name (rest names))))))
+
+; --- Scope helpers (scope holds name strings) ---
 (def %add-params (fn (self params scope)
   (if (null? params) scope
-    (if (symbol? params)
-      (pair params scope)
+    (if (symbol? params) (pair (convert params %string) scope)
       (if (pair? params)
-        (self (rest params) (pair (first params) scope))
+        (self (rest params) (pair (convert (first params) %string) scope))
         scope)))))
 
-; Walk a list of sequential forms, accumulating defs into scope
-(set! %walk-list (fn (_ forms scope uses)
-  (if (null? forms) uses
+(def %scope-add! (fn (_ name) (set-first! %lint-scope (pair name (first %lint-scope)))))
+
+; --- Traversal core ---
+
+; Walk one form: write dispatches a list to the list handler, a symbol to the
+; symbol handler, anything else to its own (harmless) writer.  nil is skipped.
+(def %lint-form (fn (_ form) (if (null? form) () (do (write form) ()))))
+
+; Walk a body/clause sequence; a leading binding form adds its name for the rest.
+(def %lint-seq (fn (self forms)
+  (if (null? forms) ()
     (if (pair? forms)
-      (do (def form (first forms))
-          (def new-uses (%walk form scope uses))
-          ; If form is (def name ...), add name to scope for rest
-          (def new-scope
-            (if (if (pair? form) (eq? (first form) (lit def)) ())
-              (pair (first (rest form)) scope)
-              scope))
-          (%walk-list (rest forms) new-scope new-uses))
-      (%walk forms scope uses)))))
+      (do (%lint-form (first forms))
+          (if (%lint-binds? (first forms))
+            (%scope-add! (%lint-bound-name (first forms)))
+            ())
+          (self (rest forms)))
+      (%lint-form forms)))))
 
-; (fn (_ params...) body...)
-(def %walk-fn (fn (_ form scope uses)
-  (def params (first (rest form)))
-  (%walk-list (rest (rest form)) (%add-params params scope) uses)))
+; --- first/rest argument check ---
 
-; (op (_ params env) body...)
-(def %walk-op (fn (_ form scope uses)
-  (def params (first (rest form)))
-  (def env-param (first (rest (rest form))))
-  (%walk-list (rest (rest (rest form)))
-    (pair env-param (%add-params params scope)) uses)))
+; True when arg is a quoted non-list literal: (lit X) with X neither pair nor
+; nil -- exactly (first 'sym) / (rest 'sym), the static form of the crash.
+; Compared by name (the head symbol is fresh -- it is part of the walked form).
+(def %lint-literal-non-list? (fn (_ arg)
+  (if (pair? arg)
+    (if (if (symbol? (first arg)) (str=? (convert (first arg) %string) "lit") #f)
+      (let ((x (first (rest arg))))
+        (if (null? x) #f (if (pair? x) #f #t)))
+      #f)
+    #f)))
 
-; (let ((name val) ...) body...) or (let name ((var init) ...) body...)
-(def %walk-let-bindings (fn (self bindings scope uses)
-  (if (null? bindings)
-    (list scope uses)
-    (do (def b (first bindings))
-        (def new-uses (%walk (first (rest b)) scope uses))
-        (self (rest bindings)
-          (pair (first b) scope) new-uses)))))
+(def %lint-first-rest (fn (_ form)
+  (if (%lint-literal-non-list? (first (rest form)))
+    (set-first! %lint-issues
+      (pair (convert (first form) %string) (first %lint-issues)))
+    ())
+  (%lint-seq form)))            ; record use of first/rest + recurse into the arg
 
-(def %walk-let (fn (_ form scope uses)
-  (def first-arg (first (rest form)))
-  (if (symbol? first-arg)
-    ; Named let: (let name ((var init) ...) body...)
-    (do (def result
-          (%walk-let-bindings (first (rest (rest form)))
-            (pair first-arg scope) uses))
-        (%walk-list (rest (rest (rest form)))
-          (first result) (first (rest result))))
-    ; Regular let: (let ((var init) ...) body...)
-    (do (def result (%walk-let-bindings first-arg scope uses))
-        (%walk-list (rest (rest form))
-          (first result) (first (rest result)))))))
+; --- Per-form handlers (scope-aware; scope holds name strings) ---
 
-; (def name val) or (define (name params...) body...)
-(def %walk-def (fn (_ form scope uses)
+(def %lint-fn (fn (_ form)
+  (def saved (first %lint-scope))
+  (set-first! %lint-scope (%add-params (first (rest form)) saved))
+  (%lint-seq (rest (rest form)))
+  (set-first! %lint-scope saved)))
+
+(def %lint-op (fn (_ form)
+  (def saved (first %lint-scope))
+  (set-first! %lint-scope
+    (pair (convert (first (rest (rest form))) %string)
+          (%add-params (first (rest form)) saved)))
+  (%lint-seq (rest (rest (rest form))))
+  (set-first! %lint-scope saved)))
+
+(def %lint-let-bindings (fn (self bindings)
+  (if (null? bindings) ()
+    (do (%lint-form (first (rest (first bindings))))   ; init in current scope
+        (%scope-add! (convert (first (first bindings)) %string))
+        (self (rest bindings))))))
+
+(def %lint-let (fn (_ form)
+  (def saved (first %lint-scope))
+  (def a (first (rest form)))
+  (if (symbol? a)
+    (do (%scope-add! (convert a %string))              ; named let
+        (%lint-let-bindings (first (rest (rest form))))
+        (%lint-seq (rest (rest (rest form)))))
+    (do (%lint-let-bindings a)                         ; regular let
+        (%lint-seq (rest (rest form)))))
+  (set-first! %lint-scope saved)))
+
+(def %lint-def (fn (_ form)
   (def name-part (first (rest form)))
   (if (pair? name-part)
-    ; Compound: (define (name params...) body...)
-    (%walk-list (rest (rest form))
-      (%add-params (rest name-part) (pair (first name-part) scope))
-      uses)
-    ; Simple: (def name val)
-    (%walk (first (rest (rest form))) (pair name-part scope) uses))))
+    (do (def saved (first %lint-scope))                ; (def (name params) body)
+        (%scope-add! (convert (first name-part) %string))
+        (set-first! %lint-scope (%add-params (rest name-part) (first %lint-scope)))
+        (%lint-seq (rest (rest form)))
+        (set-first! %lint-scope saved))
+    (do (%scope-add! (convert name-part %string))      ; (def name val): self-ref ok
+        (%lint-form (first (rest (rest form))))))))
 
-; (set! name val)
-(def %walk-set (fn (_ form scope uses)
-  (%walk (first (rest (rest form))) scope
-    (%walk (first (rest form)) scope uses))))
+(def %lint-set (fn (_ form)
+  (%lint-form (first (rest form)))
+  (%lint-form (first (rest (rest form))))))
 
-; (guard (var handler) body...)
-(def %walk-guard (fn (_ form scope uses)
+(def %lint-guard (fn (_ form)
   (def clause (first (rest form)))
-  (%walk-list (rest (rest form)) scope
-    (%walk (first (rest clause)) (pair (first clause) scope) uses))))
+  (def saved (first %lint-scope))
+  (%scope-add! (convert (first clause) %string))       ; error var for the handler
+  (%lint-form (first (rest clause)))
+  (set-first! %lint-scope saved)
+  (%lint-seq (rest (rest form)))))                     ; body in outer scope
 
-; Walk quasiquote -- only walk unquoted parts
-(def %walk-quasi (fn (self form scope uses)
-  (if (null? form) uses
+(def %lint-quasi (fn (self form)
+  (if (null? form) ()
     (if (pair? form)
-      (if (eq? (first form) (lit unquote))
-        (%walk (first (rest form)) scope uses)
-        (if (eq? (first form) (lit unquote-splicing))
-          (%walk (first (rest form)) scope uses)
-          (self (rest form) scope
-            (self (first form) scope uses))))
-      uses))))
+      (if (if (symbol? (first form)) (str=? (convert (first form) %string) "unquote") #f)
+          (%lint-form (first (rest form)))
+        (if (if (symbol? (first form)) (str=? (convert (first form) %string) "unquote-splicing") #f)
+            (%lint-form (first (rest form)))
+          (do (self (first form)) (self (rest form)))))
+      ()))))
 
-; Walk a pair -- dispatches on head symbol
-(set! %walk-pair (fn (_ form scope uses)
+; --- Default hook implementations (tools/lint.x overrides these) ---
+
+(set! %lint-binds? (fn (_ form)
+  (if (if (pair? form) (symbol? (first form)) ())
+    (str=? (convert (first form) %string) "def")
+    ())))
+
+(set! %lint-bound-name (fn (_ form)
+  (let ((np (first (rest form))))
+    (convert (if (pair? np) (first np) np) %string))))
+
+; Hardcoded special forms (by name); everything else is a function call.
+(set! %lint-dispatch (fn (_ form)
   (def head (first form))
-  (if (eq? head (lit fn))    (%walk-fn form scope uses)
-  (if (eq? head (lit op))    (%walk-op form scope uses)
-  (if (eq? head (lit let))   (%walk-let form scope uses)
-  (if (eq? head (lit def))   (%walk-def form scope uses)
-  (if (eq? head (lit set!))  (%walk-set form scope uses)
-  (if (eq? head (lit guard)) (%walk-guard form scope uses)
-  (if (eq? head (lit quasi)) (%walk-quasi (rest form) scope uses)
-  (if (eq? head (lit lit))   uses
-  (if (eq? head (lit if))    (%walk-list (rest form) scope uses)
-  (if (eq? head (lit do))    (%walk-list (rest form) scope uses)
-  (if (eq? head (lit match)) (%walk-list (rest form) scope uses)
-    ; Default: walk all subforms (function call)
-    (%walk-list form scope uses))))))))))))))
+  (if (not (symbol? head)) (%lint-seq form)
+    (let ((h (convert head %string)))
+      (match
+        ((str=? h "fn")    (%lint-fn form))
+        ((str=? h "op")    (%lint-op form))
+        ((str=? h "let")   (%lint-let form))
+        ((str=? h "def")   (%lint-def form))
+        ((str=? h "set!")  (%lint-set form))
+        ((str=? h "guard") (%lint-guard form))
+        ((str=? h "quasi") (%lint-quasi (rest form)))
+        ((str=? h "lit")   ())
+        ((str=? h "if")    (%lint-seq (rest form)))
+        ((str=? h "do")    (%lint-seq (rest form)))
+        ((str=? h "match") (%lint-seq (rest form)))
+        ((str=? h "first") (%lint-first-rest form))
+        ((str=? h "rest")  (%lint-first-rest form))
+        (#t                (%lint-seq form)))))))
 
-; Walk an AST form, collecting symbol uses
-(set! %walk (fn (_ form scope uses)
-  (if (null? form) uses
-    (if (symbol? form)
-      (if (includes? form scope) uses
-        (if (assoc-has? form uses) uses
-          (assoc-put form #t uses)))
-      (if (pair? form)
-        (%walk-pair form scope uses)
-        uses)))))
+; --- The write handlers ---
+
+; SYMBOL: record its NAME unless bound or already seen.
+(def %lint-symbol-handler (fn (_ sym)
+  (let ((name (convert sym %string)))
+    (if (%name-member? name (first %lint-scope)) ()
+      (if (%name-member? name (first %lint-uses)) ()
+        (set-first! %lint-uses (pair name (first %lint-uses))))))
+  ()))
+
+; LIST: delegate to the (swappable) dispatch; return nil (output is unused).
+(def %lint-list-handler (fn (_ form) (%lint-dispatch form) ()))
+
+(def %lint-push (fn (_)
+  (type-push-write %lint-list-type %lint-list-handler)
+  (type-push-write %lint-symbol-type %lint-symbol-handler)))
+
+(def %lint-pop (fn (_)
+  (type-pop-write %lint-list-type)
+  (type-pop-write %lint-symbol-type)))
 
 ; --- Analysis entry points ---
 
-(doc (def lint-forms (fn (self forms defs uses)
-  (if (null? forms) (list defs uses)
+(def %lint-top (fn (self forms defs)
+  (if (null? forms) defs
     (do (def form (first forms))
         (def new-defs
-          (if (if (pair? form) (eq? (first form) (lit def)) ())
-            (pair (first (rest form)) defs)
-            defs))
-        (def new-uses (%walk form () uses))
-        (self (rest forms) new-defs new-uses)))))
+          (if (%lint-binds? form) (pair (%lint-bound-name form) defs) defs))
+        (set-first! %lint-scope ())
+        (write-to-str form)                            ; drive the walk (string discarded)
+        (self (rest forms) new-defs)))))
+
+(doc (def lint-forms (fn (_ forms defs uses)
+  (set-first! %lint-uses uses)
+  (set-first! %lint-issues ())
+  (set-first! %lint-scope ())
+  (%lint-push)
+  (def result-defs (%lint-top forms defs))
+  (%lint-pop)
+  (list result-defs (first %lint-uses) (first %lint-issues))))
   (param forms LIST "List of top-level forms to analyze")
-  (param defs LIST "Accumulator for defined symbols")
-  (param uses ALIST "Accumulator for used symbols")
-  (returns LIST "(defs uses) pair")
-  "Walk top-level forms, collecting definitions and symbol uses.")
+  (param defs LIST "Accumulator for defined symbol NAMES")
+  (param uses LIST "Accumulator for used symbol NAMES")
+  (returns LIST "(defs uses issues) -- all NAME STRINGS; issues are op names for first/rest on a literal non-list")
+  "Walk top-level forms via the write stacks, collecting def/use names and first/rest issues.")
 
 (doc (def lint-undefined (fn (_ defs uses)
-  (filter (fn (_ sym)
-    (if (includes? sym defs) ()
-      (if (assoc-has? sym %known-env) () #t)))
-    (assoc-keys uses))))
-  (param defs LIST "Defined symbols from lint-forms")
-  (param uses ALIST "Used symbols from lint-forms")
-  (returns LIST "Symbols used but not defined")
-  "Compute undefined symbols: used but not in env or file defs.")
+  (filter (fn (_ name)
+    (if (%name-member? name defs) ()
+      (if (%env-known? name %known-env) () #t)))
+    uses)))
+  (param defs LIST "Defined names from lint-forms")
+  (param uses LIST "Used names from lint-forms")
+  (returns LIST "Names used but not defined")
+  "Compute undefined names: used but not in env or file defs.")
 
 (doc (def lint-unused (fn (_ defs uses lib-mode)
   (if lib-mode ()
-    (filter (fn (_ sym)
-      (if (Str starts? "%" (convert sym %string)) ()
-        (if (assoc-has? sym uses) () #t)))
+    (filter (fn (_ name)
+      (if (Str starts? "%" name) ()
+        (if (%name-member? name uses) () #t)))
       defs))))
-  (param defs LIST "Defined symbols from lint-forms")
-  (param uses ALIST "Used symbols from lint-forms")
+  (param defs LIST "Defined names from lint-forms")
+  (param uses LIST "Used names from lint-forms")
   (param lib-mode BOOLEAN "If true, skip unused check")
-  (returns LIST "Symbols defined but never used")
-  "Compute unused symbols: defined but not referenced. Skips %-prefixed internals.")
+  (returns LIST "Names defined but never used")
+  "Compute unused names: defined but not referenced. Skips %-prefixed internals.")
+
+(doc (def lint-first-rest (fn (_ result) (first (rest (rest result)))))
+  (param result LIST "Result of lint-forms")
+  (returns LIST "Op names (first/rest) applied to a literal non-list")
+  "Extract the first/rest-on-non-list findings from a lint-forms result.")
+
+(doc (def lint-has? (fn (_ name names) (%name-member? name names)))
+  (param name STRING "A symbol name")
+  (param names LIST "A list of names (e.g. from lint-undefined)")
+  (returns BOOL "#t if name is in names")
+  "Test whether a name string is in a names list (string equality).")
 
 (doc (provide x/tool/lint
-  lint-forms lint-undefined lint-unused)
-  "AST linter: def/use analysis for x-lang source.")
+  lint-forms lint-undefined lint-unused lint-first-rest lint-has?)
+  "AST linter via the type-system write stacks: name-based def/use analysis + first/rest checks.")
