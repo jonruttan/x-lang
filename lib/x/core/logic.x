@@ -16,14 +16,21 @@
   (returns ANY "First value satisfying pred")
   "Repeatedly apply f to x until pred is satisfied, then return the value.")
 
+; Deep structural equality. eq? is a raw scalar compare (it reads slot 0, which is
+; the value for an atom but the car for a pair), so it cannot compare compounds --
+; that is what equal? is for. Pairs are compared element-wise here (recursively);
+; the final eq? branch only sees non-number/non-string atoms (symbols, chars,
+; bools, nil), where the raw scalar compare is correct. self is the recursion.
 (doc (def equal?
-  (fn (_ (param a ANY "First value") (param b ANY "Second value"))
+  (fn (self (param a ANY "First value") (param b ANY "Second value"))
     (match
       ((and (number? a) (number? b)) (= a b))
       ((and (str? a) (str? b)) (str=? a b))
+      ((and (pair? a) (pair? b)) (and (self (first a) (first b)) (self (rest a) (rest b))))
+      ((or (pair? a) (pair? b)) #f)
       (#t (eq? a b)))))
   (returns BOOLEAN "True if a and b are structurally equal")
-  "Structural equality: compares numbers by value, strings by content, else by identity.")
+  "Structural equality: numbers by value, strings by content, pairs element-wise (deep), else identity.")
 
 ; --- Derived comparisons ---
 
