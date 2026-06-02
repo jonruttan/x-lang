@@ -28,8 +28,13 @@ ANSI_GREEN="\033[1;32m"
 
 # Detect timeout command (prevents runaway tests from OOM-killing the machine).
 # Linux: timeout, macOS: gtimeout (from coreutils), fallback: none.
-# Short timeout for unit tests, long for applicative (stress) tests.
-# Personality runners can override TIMEOUT_UNIT_SECS / TIMEOUT_APPL_SECS.
+# This is a COARSE whole-process backstop, not the runaway guard -- per-test
+# speed-regression detection (MAX_TEST_SECS, default 10s) catches real hangs much
+# sooner. So the unit timeout is generous on purpose: it must absorb a heavy
+# spec's lib load (e.g. compile.x is ~6s warm / ~20s cold) plus parallel
+# contention without a false kill (a too-tight 30s killed the compile spec under
+# load). Long timeout for applicative (stress) tests. Personality runners can
+# override TIMEOUT_UNIT_SECS / TIMEOUT_APPL_SECS.
 _TIMEOUT_BIN=""
 if command -v timeout >/dev/null 2>&1; then
   _TIMEOUT_BIN="timeout"
@@ -39,7 +44,7 @@ fi
 TIMEOUT_UNIT=""
 TIMEOUT_APPL=""
 if [ -n "$_TIMEOUT_BIN" ]; then
-  TIMEOUT_UNIT="$_TIMEOUT_BIN ${TIMEOUT_UNIT_SECS:-30}"
+  TIMEOUT_UNIT="$_TIMEOUT_BIN ${TIMEOUT_UNIT_SECS:-60}"
   TIMEOUT_APPL="$_TIMEOUT_BIN ${TIMEOUT_APPL_SECS:-120}"
 fi
 
@@ -63,12 +68,16 @@ _TMPDIR=$(mktemp -d)
 _N=0
 
 # Cap concurrent jobs in PARALLEL mode. Without a cap the loop forks one job per
-# spec file (dozens) at once; on a typical box that oversubscribes the CPUs and
-# starves each ./x's lib load past the per-test timeout, producing spurious
-# "empty output" failures that shift run-to-run. Default to the CPU count;
-# override with PARALLEL_JOBS (e.g. =2 on a low-RAM Pi).
+# spec file (dozens) at once, producing spurious "empty output" failures that
+# shift run-to-run. The bottleneck is MEMORY BANDWIDTH, not CPU: each ./x's lib
+# load is allocation-heavy, so one job per core thrashes the memory subsystem and
+# slows the heaviest spec ~10x (compile.x load: ~6s -> >60s) until it trips the
+# timeout. Default to HALF the cores (min 2) to leave bandwidth headroom;
+# override with PARALLEL_JOBS (e.g. =1 serial, or higher on a big-memory box).
 _cpus=$( (command -v nproc >/dev/null 2>&1 && nproc) || sysctl -n hw.ncpu 2>/dev/null )
 case "$_cpus" in ''|*[!0-9]*) _cpus=4 ;; esac
+_cpus=$(( _cpus / 2 ))
+[ "$_cpus" -lt 2 ] && _cpus=2
 : "${PARALLEL_JOBS:=$_cpus}"
 
 # _throttle PID: record a just-launched background job and, once PARALLEL_JOBS
