@@ -61,6 +61,31 @@ PENDING_COUNT=0
 # Counters are collected from temp files after all jobs finish.
 _TMPDIR=$(mktemp -d)
 _N=0
+
+# Cap concurrent jobs in PARALLEL mode. Without a cap the loop forks one job per
+# spec file (dozens) at once; on a typical box that oversubscribes the CPUs and
+# starves each ./x's lib load past the per-test timeout, producing spurious
+# "empty output" failures that shift run-to-run. Default to the CPU count;
+# override with PARALLEL_JOBS (e.g. =2 on a low-RAM Pi).
+_cpus=$( (command -v nproc >/dev/null 2>&1 && nproc) || sysctl -n hw.ncpu 2>/dev/null )
+case "$_cpus" in ''|*[!0-9]*) _cpus=4 ;; esac
+: "${PARALLEL_JOBS:=$_cpus}"
+
+# _throttle PID: record a just-launched background job and, once PARALLEL_JOBS
+# are in flight, block on the oldest before returning. POSIX-portable (no
+# `wait -n`): PIDs are tracked FIFO in _jobs_pids.
+_jobs_running=0
+_jobs_pids=""
+_throttle() {
+  _jobs_pids="${_jobs_pids}$1 "
+  _jobs_running=$((_jobs_running + 1))
+  if [ "$_jobs_running" -ge "$PARALLEL_JOBS" ]; then
+    wait "${_jobs_pids%% *}" 2>/dev/null
+    _jobs_pids="${_jobs_pids#* }"
+    _jobs_running=$((_jobs_running - 1))
+  fi
+}
+
 for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
   [ -f "$_spec" ] || continue
   case "$_spec" in */applicative/*) continue ;; esac
@@ -80,6 +105,7 @@ for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
           -v SPEC_ID="$_I" \
           -f "$RUNNER" "$_spec"
     ) &
+    _throttle "$!"
   else
     awk -v X_BIN="$X_BIN" \
         -v LANG_LIB="$LANG_LIB" \
@@ -93,7 +119,7 @@ for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
         -f "$RUNNER" "$_spec"
   fi
   _t1=$(date +%s); _dt=$((_t1 - _t0))
-  if [ "$_dt" -gt 0 ]; then
+  if [ -z "$PARALLEL" ] && [ "$_dt" -gt 0 ]; then
     printf " [%s: %ds]" "$(basename "$_spec" .spec.md)" "$_dt"
   fi
 done
@@ -118,6 +144,7 @@ if [ -n "$STRESS" ] && [ -d "$SPEC_PATH/applicative" ]; then
             -v SPEC_ID="$_I" \
             -f "$RUNNER" "$_spec"
       ) &
+      _throttle "$!"
     else
       awk -v X_BIN="$X_BIN" \
           -v LANG_LIB="$LANG_LIB" \
@@ -131,7 +158,7 @@ if [ -n "$STRESS" ] && [ -d "$SPEC_PATH/applicative" ]; then
           -f "$RUNNER" "$_spec"
     fi
     _t1=$(date +%s); _dt=$((_t1 - _t0))
-    if [ "$_dt" -gt 0 ]; then
+    if [ -z "$PARALLEL" ] && [ "$_dt" -gt 0 ]; then
       printf " [%s: %ds]" "$(basename "$_spec" .spec.md)" "$_dt"
     fi
   done
