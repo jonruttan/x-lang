@@ -150,11 +150,20 @@
 (def %opt-cell
   (fn (loop key store)
     (match
-      ((null? store) ())
+      ((null? store) ())                                 ; empty store -> absent
+      ; Guards: first/rest are unchecked (UB on a non-pair -- segfaults on
+      ; 32-bit), so a malformed store must be rejected before we walk it.  A
+      ; non-list store (e.g. (first args) that yielded a bare symbol) and a
+      ; plist key with no value cell (odd length, or the pair-valued "keys"
+      ; you get from quoting names) both error cleanly instead of crashing.
+      ((not (pair? store))
+        (error "opt store: expected an alist or plist"))
       ((pair? (first store))                              ; alist entry (k . v)
         (if (eq? key (first (first store)))
           (list (rest (first store)))
           (loop key (rest store))))
+      ((not (pair? (rest store)))                         ; plist key, no value
+        (error "opt store: key without a value (use bare names, not quoted)"))
       (#t                                                 ; plist cell: k then v
         (if (eq? key (first store))
           (list (first (rest store)))
