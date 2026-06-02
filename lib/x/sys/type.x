@@ -102,6 +102,18 @@
     (let ((c (type-analyse-cell ts)))
       (set-first! c (pair handler (first c))))))
 
+; Get the iter-stack cell from a type struct (iter group: 7th element, past io).
+(def type-iter-cell
+  (fn (_ t) (first (rest (rest (rest (rest (rest (rest t)))))))))
+
+; Push a handler onto a type's iter stack -- sets how (iter obj) builds an
+; iterator for this type.  The handler is (fn (_ obj) -> iterator), e.g. via
+; make-iter; (iter obj) calls it with the object.
+(def type-push-iter
+  (fn (_ ts handler)
+    (let ((c (type-iter-cell ts)))
+      (set-first! c (pair handler (first c))))))
+
 ; --- Type casting ---
 
 ; Offset to type tag in object layout

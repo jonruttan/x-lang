@@ -116,6 +116,9 @@
   (include "lib/x/protocol/str/str8.x")
   (include "lib/x/protocol/str/utf8.x")
   (include "lib/x/type/str.x")
+  ; Iterator protocol: wire the iter slot on list/vector/string + consumers
+  ; (after all the sequence types above are registered).
+  (include "lib/x/type/iter.x")
   (include "lib/x/sys/token.x")
 
   ; Quasi-quoting
@@ -146,7 +149,8 @@
   (doc (provide x/sys/type
     type-alist type-by-atom type-io type-cvt
     type-write-cell type-analyse-cell type-from-cell type-to-cell
-    type-push-write type-pop-write type-push-analyse type-cast!)
+    type-push-write type-pop-write type-push-analyse type-iter-cell
+    type-push-iter type-cast!)
     "Type system reflection and manipulation.")
   (doc (provide x/core
     null? if let do begin not atom? list convert number->str str->number
