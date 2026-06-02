@@ -797,8 +797,16 @@
       (%compile-patch-fvars %lib fvars))
     %fn))
 
-; --- JIT assembler (lazy-loaded by compile-cache.x) ---
-(include "lib/x/tool/asm-compile.x")
+; --- JIT assembler: lazy-loaded on first pure-JIT use ---
+; The assembler toolchain (asm-compile.x -> asm.x -> host platform) is ~900 lines,
+; about half of compile.x's parse cost, and only the pure-JIT path needs it --
+; compile-to-c and the C-compiler path never do. So ship a stub that loads the
+; toolchain on first call via include-once (an op, so its top-level defs bind
+; globally and REPLACE this stub with the real compile-asm), then dispatches.
+(def compile-asm
+  (fn (_ expr)
+    (include-once "lib/x/tool/asm-compile.x")
+    (compile-asm expr)))
 
 ; --- Default compile: JIT assembler with C compiler fallback ---
 
