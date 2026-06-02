@@ -524,30 +524,20 @@
         (append own
           (%reject-known (loop (assoc-get (lit parent) (%class-data class))) own))))))
 
-; True if `key` appears in a flat init list (name value name value ...).
-(def %init-has?
-  (fn (loop key inits)
-    (if (null? inits)
-      #f
-      (if (eq? key (first inits)) #t (loop key (rest (rest inits)))))))
-
-; Look a name up in a flat init list, evaluating the matched value in e.
-(def %init-get
-  (fn (loop key inits e)
-    (if (null? inits)
-      ()
-      (if (eq? key (first inits))
-        (eval (first (rest inits)) e)
-        (loop key (rest (rest inits)) e)))))
-
 ; Build the instance field box: each member takes its init value if `new` supplied
-; one, otherwise its declared default.
+; one -- as a flat plist `name val name val ...` OR an alist `((name . val) ...)`
+; -- otherwise its declared default.  Init values are forms, evaluated in the
+; caller's env e; an absent key (%opt-cell returns ()) falls back to the member's
+; declared default, which is already a value.  null? on the box distinguishes a
+; supplied 0/nil from a missing key.
 (def %init-fields
   (fn (loop members inits e)
     (if (null? members)
       ()
-      (let ((name (first (first members))) (default (rest (first members))))
-        (pair (pair name (if (%init-has? name inits) (%init-get name inits e) default))
+      (let* ((name (first (first members)))
+             (default (rest (first members)))
+             (cell (%opt-cell name inits)))
+        (pair (pair name (if (null? cell) default (eval (first cell) e)))
               (loop (rest members) inits e))))))
 
 (doc (provide x/type/object
