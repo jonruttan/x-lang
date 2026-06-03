@@ -353,3 +353,27 @@
 ```
 ---
     #t
+
+## lint: guard error var
+
+### flags an unused guard error var
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list '(guard (e 1) (foo))) () ()))
+  (display (lint-has? "e" (lint-warnings-of "unused" %r))))
+```
+---
+    #t
+
+### does not flag an error var used in a later handler form
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list '(guard (e (bar) (baz e)) (foo))) () ()))
+  (display (null? (lint-warnings-of "unused" %r))))
+```
+---
+    #t

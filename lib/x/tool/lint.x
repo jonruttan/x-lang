@@ -337,8 +337,14 @@
   (def clause (first (rest form)))
   (def saved (first %lint-scope))
   (%scope-add! (convert (first clause) %string))       ; error var for the handler
-  (%lint-form (first (rest clause)))
-  (%frame-unused! saved)                               ; error var never used (prefer `_`)
+  (def evar (first (first %lint-scope)))               ; its (name . used-box) entry
+  (%lint-seq (rest clause))                            ; walk ALL handler forms
+  ; Check only the error var.  A handler may `def` names that leak to the
+  ; enclosing scope and are used by the body or elsewhere (e.g. fallback
+  ; stubs); those are not locals, so reporting them unused would be wrong --
+  ; only the error var's scope is truly the handler.
+  (if (str=? (first evar) "_") ()
+    (if (first (rest evar)) () (%warn! "unused" (first evar))))
   (set-first! %lint-scope saved)
   (%lint-seq (rest (rest form)))))                     ; body in outer scope
 
