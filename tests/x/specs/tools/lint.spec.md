@@ -179,3 +179,39 @@
 ```
 ---
     #t
+
+## lint: pedantic checks (shadowing / malformed)
+
+### flags a parameter that shadows a global
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %f (list (lit def) (lit f) (list (lit fn) (list (lit _) (lit list)) (lit list))))
+  (def %r (lint-forms (list %f) () ()))
+  (display (lint-has? "list" (lint-warnings-of "shadow" %r))))
+```
+---
+    #t
+
+### flags a malformed if (missing branches)
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list (list (lit if) (lit c))) () ()))
+  (display (null? (lint-warnings-of "malformed" %r))))
+```
+---
+    #f
+
+### does not flag a well-formed if
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list (list (lit if) (lit c) 1 2)) () ()))
+  (display (null? (lint-warnings-of "malformed" %r))))
+```
+---
+    #t

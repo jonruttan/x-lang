@@ -68,11 +68,18 @@
       (convert (first p) %string))          ; other pair -> its head
     (convert p %string))))                  ; bare symbol
 
+; Add one parameter name to scope, warning if it shadows a known global
+; (e.g. a param named `list` or `first` hiding the primitive).  `_` (the
+; conventional ignore / self slot) is never flagged.
+(def %add-param-name (fn (_ pn scope)
+  (if (if (str=? pn "_") #f (%env-known? pn)) (%warn! "shadow" pn) ())
+  (pair pn scope)))
+
 (def %add-params (fn (self params scope)
   (if (null? params) scope
-    (if (symbol? params) (pair (convert params %string) scope)
+    (if (symbol? params) (%add-param-name (convert params %string) scope)
       (if (pair? params)
-        (self (rest params) (pair (%param-name (first params)) scope))
+        (self (rest params) (%add-param-name (%param-name (first params)) scope))
         scope)))))
 
 (def %scope-add! (fn (_ name) (set-first! %lint-scope (pair name (first %lint-scope)))))
@@ -322,6 +329,27 @@
     (if (symbol? (first head)) (str=? (convert (first head) %string) "lit") #f)
     (if (symbol? head) #f #t))))
 
+; --- Malformed core form check ---
+; Minimum total length for forms whose structure is required.  x-lang is
+; lenient at runtime (a missing piece just becomes nil), so a structurally
+; short core form is a silent mistake.
+(def %lint-min-len (fn (_ h)
+  (if (str=? h "if") 3              ; (if cond then [else])
+    (if (str=? h "def") 3           ; (def name value)
+      (if (str=? h "set!") 3        ; (set! name value)
+        (if (str=? h "fn") 2        ; (fn params [body...])
+          (if (str=? h "op") 3      ; (op params env [body...])
+            (if (str=? h "let") 2   ; (let bindings [body...])
+              0))))))))             ; 0 = no minimum
+
+(def %lint-check-malformed (fn (_ form)
+  (if (if (pair? form) (symbol? (first form)) #f)
+    (let ((mn (%lint-min-len (convert (first form) %string))))
+      (if (if (= mn 0) #f (< (length form) mn))
+        (%warn! "malformed" (convert (first form) %string))
+        ()))
+    ())))
+
 ; --- The write handlers ---
 
 ; SYMBOL: record its NAME unless bound or already seen.
@@ -340,6 +368,7 @@
     (%warn! "call-nonfn" (guard (_ "?") (convert (first form) %string)))
     ())
   (%lint-check-arity form)
+  (%lint-check-malformed form)
   (%lint-dispatch form) ()))
 
 (def %lint-push (fn (_)
