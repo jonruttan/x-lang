@@ -51,7 +51,7 @@
 
 ; --- File I/O functions ---
 
-(doc (def fopen (fn (pathname mode)
+(doc (def fopen (fn (_ pathname mode)
   (if (symbol? mode)
     (set! mode (first (assoc-get mode file-modes))))
   (syscall (syscall-id (lit open)) pathname mode)))
@@ -60,13 +60,13 @@
   (returns INTEGER "File descriptor, or negative on error")
   "Open a file, returning a file descriptor.")
 
-(doc (def fclose (fn (fd)
+(doc (def fclose (fn (_ fd)
   (syscall (syscall-id (lit close)) fd)))
   (param fd INTEGER "File descriptor to close")
   (returns INTEGER "0 on success, negative on error")
   "Close a file descriptor.")
 
-(doc (def fread (fn (fd buffer size)
+(doc (def fread (fn (_ fd buffer size)
   (syscall (syscall-id (lit read)) fd buffer size)))
   (param fd INTEGER "File descriptor to read from")
   (param buffer STRING "Buffer to read into")
@@ -74,7 +74,7 @@
   (returns INTEGER "Bytes read, 0 at EOF, negative on error")
   "Read bytes from a file descriptor into a buffer.")
 
-(doc (def fwrite (fn (fd buffer size)
+(doc (def fwrite (fn (_ fd buffer size)
   (syscall (syscall-id (lit write)) fd buffer size)))
   (param fd INTEGER "File descriptor to write to")
   (param buffer STRING "Data to write")
@@ -82,7 +82,7 @@
   (returns INTEGER "Bytes written, or negative on error")
   "Write bytes from a buffer to a file descriptor.")
 
-(doc (def fgetc (fn (fd)
+(doc (def fgetc (fn (_ fd)
   (let ((buffer (make-str 1)))
     (let ((bytes-read (fread fd buffer 1)))
       (if (<= bytes-read 0)
