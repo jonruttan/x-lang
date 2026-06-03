@@ -21,8 +21,7 @@
     (def %enc
       (fn (self flds w)
         (if (null? flds) w
-          (do
-            (def f (first flds))
+          (let ((f (first flds)))
             (def idx   (nth 0 f))
             (def pos   (nth 1 f))
             (def width (nth 2 f))
@@ -247,13 +246,11 @@
     (def rel (>> (- target offset) 2))
     (if (eq? ptype (lit arm64-rel))
       ; B/BL: imm26 at [25:0]
-      (do
-        (def mask (- (<< 1 26) 1))
+      (let ((mask (- (<< 1 26) 1)))
         (ptr-set! buf-ptr offset (| (& word (~ mask)) (& rel mask)) 4))
       (if (eq? ptype (lit arm64-rel19))
         ; CBZ/CBNZ/B.cond: imm19 at [23:5]
-        (do
-          (def mask (<< (- (<< 1 19) 1) 5))
+        (let ((mask (<< (- (<< 1 19) 1) 5)))
           (ptr-set! buf-ptr offset (| (& word (~ mask)) (& (<< (& rel (- (<< 1 19) 1)) 5) mask)) 4))
         ; Generic fallback
         (ptr-set! buf-ptr offset (- target (+ offset width)) width)))))

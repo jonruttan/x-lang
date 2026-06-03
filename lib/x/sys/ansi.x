@@ -194,15 +194,14 @@
   (fn (_ (param code STRING "Source code string to highlight"))
     (if (not %ansi?)
       (display code)
-      (do
-        (def %toks (token-read-string (%base) code))
-        (def %go
-          (fn (self toks first?)
-            (if (null? toks) ()
-              (do
-                (if first? () (display " "))
-                (%ansi-write-code (first toks))
-                (self (rest toks) ())))))
+      (let ((%toks (token-read-string (%base) code))
+            (%go
+              (fn (self toks first?)
+                (if (null? toks) ()
+                  (do
+                    (if first? () (display " "))
+                    (%ansi-write-code (first toks))
+                    (self (rest toks) ()))))))
         (%go %toks #t)))))
   (returns ANY "Displays highlighted code to stdout")
   (example "(ansi-highlight \"(def x 42)\")" "(def x 42)")

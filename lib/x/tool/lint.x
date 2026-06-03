@@ -40,6 +40,7 @@
 (def %lint-scope  (list ()))    ; names in lexical scope
 (def %lint-uses   (list ()))    ; names referenced (unique)
 (def %lint-issues (list ()))    ; op names where first/rest hit a literal non-list
+(def %lint-leaks  (list ()))    ; def names that bind in tail position (leak to global)
 
 ; Swappable hooks -- tools/lint.x overrides these for data-driven, construct-
 ; table dispatch.  Forward-declared; defaults set below once the helpers exist.
@@ -99,12 +100,54 @@
     ())
   (%lint-seq form)))            ; record use of first/rest + recurse into the arg
 
+; --- def-in-tail-position leak check ---
+;
+; A `def` in a fn/op body's TAIL position binds GLOBALLY, not locally: TCO pops
+; the closure frame before the tail runs, so `def` sees an empty save-stack and
+; writes to the global BST -- silently clobbering any caller variable of the
+; same name.  The fix is always `let`.  From each fn/op body's last form we
+; descend the "leak zone" -- through `do` (every form), `if`/`when`/`unless`
+; (branches) and `match` (clause results) -- recording each `def` found.  We
+; STOP at `let`/`fn`/`op`/`guard`/calls: those push a fresh frame, ending the
+; zone (their inner defs are local again).
+
+; Last element of a list (the tail/return form of a body).
+(def %last (fn (self xs)
+  (if (pair? xs) (if (pair? (rest xs)) (self (rest xs)) (first xs)) xs)))
+
+(def %lint-leak! (fn (_ form)
+  (set-first! %lint-leaks (pair (%lint-bound-name form) (first %lint-leaks)))))
+
+(def %lint-leak-scan (fn (_ form)
+  (if (if (pair? form) (symbol? (first form)) ())
+    (let ((h (convert (first form) %string)))
+      (match
+        ((str=? h "def")    (%lint-leak! form))
+        ((str=? h "do")     (%lint-leak-list (rest form)))
+        ((str=? h "if")     (%lint-leak-list (rest (rest form))))      ; then/else
+        ((str=? h "when")   (%lint-leak-list (rest (rest form))))
+        ((str=? h "unless") (%lint-leak-list (rest (rest form))))
+        ((str=? h "match")  (%lint-leak-clauses (rest form)))
+        (#t ())))                                                       ; zone ends
+    ()))) ; non-list / non-symbol head: nothing to flag
+
+(def %lint-leak-list (fn (self forms)
+  (if (pair? forms) (do (%lint-leak-scan (first forms)) (self (rest forms))) ())))
+
+; match clause = (test result); the result form is in tail position.
+(def %lint-leak-clauses (fn (self clauses)
+  (if (pair? clauses)
+    (do (if (pair? (first clauses)) (%lint-leak-scan (first (rest (first clauses)))) ())
+        (self (rest clauses)))
+    ())))
+
 ; --- Per-form handlers (scope-aware; scope holds name strings) ---
 
 (def %lint-fn (fn (_ form)
   (def saved (first %lint-scope))
   (set-first! %lint-scope (%add-params (first (rest form)) saved))
   (%lint-seq (rest (rest form)))
+  (%lint-leak-scan (%last (rest (rest form))))   ; flag def in the body's tail
   (set-first! %lint-scope saved)))
 
 (def %lint-op (fn (_ form)
@@ -113,6 +156,7 @@
     (pair (convert (first (rest (rest form))) %string)
           (%add-params (first (rest form)) saved)))
   (%lint-seq (rest (rest (rest form))))
+  (%lint-leak-scan (%last (rest (rest (rest form)))))   ; flag def in the body's tail
   (set-first! %lint-scope saved)))
 
 (def %lint-let-bindings (fn (self bindings)
@@ -127,18 +171,21 @@
   (if (symbol? a)
     (do (%scope-add! (convert a %string))              ; named let
         (%lint-let-bindings (first (rest (rest form))))
-        (%lint-seq (rest (rest (rest form)))))
+        (%lint-seq (rest (rest (rest form))))
+        (%lint-leak-scan (%last (rest (rest (rest form))))))  ; let body has its own tail
     (do (%lint-let-bindings a)                         ; regular let
-        (%lint-seq (rest (rest form)))))
+        (%lint-seq (rest (rest form)))
+        (%lint-leak-scan (%last (rest (rest form))))))
   (set-first! %lint-scope saved)))
 
 (def %lint-def (fn (_ form)
   (def name-part (first (rest form)))
   (if (pair? name-part)
-    (do (def saved (first %lint-scope))                ; (def (name params) body)
+    (let ((saved (first %lint-scope)))                 ; (def (name params) body)
         (%scope-add! (convert (first name-part) %string))
         (set-first! %lint-scope (%add-params (rest name-part) (first %lint-scope)))
         (%lint-seq (rest (rest form)))
+        (%lint-leak-scan (%last (rest (rest form))))   ; def-form body has its own tail
         (set-first! %lint-scope saved))
     (do (%scope-add! (convert name-part %string))      ; (def name val): self-ref ok
         (%lint-form (first (rest (rest form))))))))
@@ -222,26 +269,29 @@
 
 (def %lint-top (fn (self forms defs)
   (if (null? forms) defs
-    (do (def form (first forms))
-        (def new-defs
-          (if (%lint-binds? form) (pair (%lint-bound-name form) defs) defs))
-        (set-first! %lint-scope ())
-        (write-to-str form)                            ; drive the walk (string discarded)
-        (self (rest forms) new-defs)))))
+    ; `let`, not `def`: this is %lint-top's tail, so a `def` here would itself
+    ; leak (the very bug we detect).  We dogfood the fix.
+    (let ((form (first forms))
+          (new-defs (if (%lint-binds? (first forms))
+                      (pair (%lint-bound-name (first forms)) defs) defs)))
+      (set-first! %lint-scope ())
+      (write-to-str form)                              ; drive the walk (string discarded)
+      (self (rest forms) new-defs)))))
 
 (doc (def lint-forms (fn (_ forms defs uses)
   (set-first! %lint-uses uses)
   (set-first! %lint-issues ())
+  (set-first! %lint-leaks ())
   (set-first! %lint-scope ())
   (%lint-push)
   (def result-defs (%lint-top forms defs))
   (%lint-pop)
-  (list result-defs (first %lint-uses) (first %lint-issues))))
+  (list result-defs (first %lint-uses) (first %lint-issues) (first %lint-leaks))))
   (param forms LIST "List of top-level forms to analyze")
   (param defs LIST "Accumulator for defined symbol NAMES")
   (param uses LIST "Accumulator for used symbol NAMES")
-  (returns LIST "(defs uses issues) -- all NAME STRINGS; issues are op names for first/rest on a literal non-list")
-  "Walk top-level forms via the write stacks, collecting def/use names and first/rest issues.")
+  (returns LIST "(defs uses issues leaks) -- all NAME STRINGS; issues are op names for first/rest on a literal non-list; leaks are def names that bind in tail position")
+  "Walk top-level forms via the write stacks, collecting def/use names, first/rest issues, and tail-position def leaks.")
 
 (doc (def lint-undefined (fn (_ defs uses)
   (filter (fn (_ name)
@@ -270,6 +320,11 @@
   (returns LIST "Op names (first/rest) applied to a literal non-list")
   "Extract the first/rest-on-non-list findings from a lint-forms result.")
 
+(doc (def lint-leaks (fn (_ result) (first (rest (rest (rest result))))))
+  (param result LIST "Result of lint-forms")
+  (returns LIST "Def names that bind in tail position (leak to global; use let)")
+  "Extract the tail-position-def leak findings from a lint-forms result.")
+
 (doc (def lint-has? (fn (_ name names) (%name-member? name names)))
   (param name STRING "A symbol name")
   (param names LIST "A list of names (e.g. from lint-undefined)")
@@ -277,5 +332,5 @@
   "Test whether a name string is in a names list (string equality).")
 
 (doc (provide x/tool/lint
-  lint-forms lint-undefined lint-unused lint-first-rest lint-has?)
-  "AST linter via the type-system write stacks: name-based def/use analysis + first/rest checks.")
+  lint-forms lint-undefined lint-unused lint-first-rest lint-leaks lint-has?)
+  "AST linter via the type-system write stacks: name-based def/use analysis + first/rest + tail-def-leak checks.")

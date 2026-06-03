@@ -45,8 +45,7 @@
       ((= n 0) "0")
       ((< n 0) (str-append "-" (self (- 0 n) radix)))
       (#t
-        (do
-          (def rem (%n2s% n radix))
+        (let ((rem (%n2s% n radix)))
           (match
             ((< n radix) (list->str (list (str-byte-ref %d rem))))
             (#t (str-append
@@ -63,8 +62,7 @@
     (match
       ((= len 0) ())
       (#t
-        (do
-          (def %0 (char->integer (str-byte-ref "0" 0)))
+        (let ((%0 (char->integer (str-byte-ref "0" 0))))
           (def %digit
             (fn (_ ch)
               (def c (char->integer ch))
@@ -88,19 +86,17 @@
           (match
             ((= start len) ())
             (#t
-              (do
-                (def %parse
-                  (fn (self i acc)
-                    (match
-                      ((= i len) acc)
-                      (#t
-                        (do
-                          (def d (%digit (str-byte-ref s i)))
-                          (match
-                            ((eq? d ()) ())
-                            ((< d radix) (self (+ i 1) (+ (* acc radix) d)))
-                            (#t ())))))))
-                (def result (%parse start 0))
+              (let* ((%parse
+                      (fn (self i acc)
+                        (match
+                          ((= i len) acc)
+                          (#t
+                            (let ((d (%digit (str-byte-ref s i))))
+                              (match
+                                ((eq? d ()) ())
+                                ((< d radix) (self (+ i 1) (+ (* acc radix) d)))
+                                (#t ())))))))
+                     (result (%parse start 0)))
                 (match
                   ((eq? result ()) ())
                   (neg (- 0 result))

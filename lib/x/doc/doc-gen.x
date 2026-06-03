@@ -64,7 +64,7 @@
     (def %second (first (rest form)))
     (def %meta (rest (rest form)))
     (if (or (doc-def-form? %second) (doc-set-form? %second))
-      (do
+      (let ()  ; scoped: def in tail position would leak to global
         (def %name (first (rest %second)))
         (def %value (if (null? (rest (rest %second))) ()
                       (first (rest (rest %second)))))
@@ -81,7 +81,7 @@
         (def %notes (doc-extract-meta-type %meta "note" ()))
         (list %name %desc %fn-params %returns %examples %sees %notes))
       (if (doc-provide-form? %second)
-        (do (def %name (first (rest %second)))
+        (let () (def %name (first (rest %second)))
             (def %desc (doc-find-last-string %meta))
             (list %name %desc
               (doc-extract-meta-type %meta "param" ())
@@ -89,7 +89,7 @@
               (doc-extract-meta-type %meta "example" ())
               (doc-extract-meta-type %meta "see" ())
               (doc-extract-meta-type %meta "note" ())))
-        (do (def %desc (doc-find-last-string %meta))
+        (let () (def %desc (doc-find-last-string %meta))
             (list %second %desc
               (doc-extract-meta-type %meta "param" ())
               (doc-extract-meta-type %meta "returns" ())
@@ -169,7 +169,7 @@
     (if (null? tokens) ()
       (let ((tok (first tokens)))
         (if (doc-form? tok)
-          (do
+          (let ()
             (def %info (doc-extract tok))
             (def %name (nth 0 %info))
             (if (symbol? %name)
@@ -220,13 +220,13 @@
 (def %doc-walk-body-with-prims
   (fn (self tokens prims-alist seen)
     (if (null? tokens) ()
-      (do
+      (let ()
         (def %tok (first tokens))
         (def %rest (rest tokens))
         (if (doc-form? %tok)
           (if (doc-provide-form? (first (rest %tok)))
             (self %rest prims-alist seen)
-            (do
+            (let ()
               (def %info (doc-extract %tok))
               (def %name-str (symbol->str (nth 0 %info)))
               (if (%doc-seen-has? seen %name-str)
@@ -238,14 +238,14 @@
                 (do (display "## ") (display (first (rest %tok))) (newline) (newline)))
               (self %rest prims-alist seen))
         (if (or (doc-def-form? %tok) (doc-set-form? %tok))
-          (do
+          (let ()
             (def %dname (first (rest %tok)))
             (def %dname-str (symbol->str %dname))
             (if (str=? (substring %dname-str 0 1) "%")
               (self %rest prims-alist seen)
               (if (%doc-seen-has? seen %dname-str)
                 (self %rest prims-alist seen)
-                (do
+                (let ()
                   (def %prims-entry (doc-lookup-alist prims-alist %dname-str))
                   (if (not (null? %prims-entry))
                     (doc-emit-entry %prims-entry)
@@ -259,7 +259,7 @@
   (fn (_ tokens)
     (def %provide (%doc-find-provide tokens))
     (if (not (null? %provide))
-      (do
+      (let ()
         (def %mod-name (symbol->str (nth 0 %provide)))
         ; Back navigation — count slashes to determine depth
         (def %depth

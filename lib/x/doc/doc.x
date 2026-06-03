@@ -113,14 +113,14 @@
     (if (null? ps) ()
       (if (not (pair? ps)) ps
         (if (eq? (first ps) (lit param))
-          (do
+          (let ()  ; scoped: def in tail position would leak to global
             (def %info (%doc-extract-param ps))
             (set-first! %doc-params-acc
               (pair %info (first %doc-params-acc)))
             (first %info))
           (if (pair? (first ps))
             (if (eq? (first (first ps)) (lit param))
-              (do
+              (let ()
                 (def %info (%doc-extract-param (first ps)))
                 (set-first! %doc-params-acc
                   (pair %info (first %doc-params-acc)))
@@ -140,7 +140,7 @@
     (if (null? forms) ()
       (do
         (if (pair? (first forms))
-          (do
+          (let ()
             (def %form (first forms))
             (def %tag (first %form))
             (if (eq? %tag (lit returns))
@@ -191,7 +191,7 @@
   (fn (_ fn-form)
     (if (not (pair? fn-form)) fn-form
       (if (not (eq? (first fn-form) (lit fn))) fn-form
-        (do
+        (let ()
           (set-first! %doc-params-acc ())
           (def %clean-params (%doc-strip-params (first (rest fn-form))))
           (pair (lit fn) (pair %clean-params (rest (rest fn-form)))))))))
@@ -251,15 +251,19 @@
             (pair (pair (lit %provide) (pair def-form %doc-meta))
                   (first %doc-pending-cell)))
           (tail-eval def-form e))
-        ; def-wrap: strip fast, stash full form for later re-strip, eval
+        ; def-wrap: strip fast, stash full form for later re-strip, eval.
+        ; NOTE: keep this a `do`, not a frame-introducing `let`/`let ()`, and
+        ; inline name/value rather than `def`-ing them: this is an OPERATIVE
+        ; whose final `tail-eval` must run in the op's own tail so it defines
+        ; the symbol in the caller's env `e`.  A `let` frame here breaks that
+        ; tail-eval (lib defs get mis-scoped).  Inlining keeps it leak-free.
         (do
-          (def %name (first (rest def-form)))
-          (def %value (first (rest (rest def-form))))
           (set-first! %doc-pending-cell
             (pair (pair (lit %def) (pair def-form %doc-meta))
                   (first %doc-pending-cell)))
           (tail-eval
-            (list (first def-form) %name (%doc-strip-fn-fast %value))
+            (list (first def-form) (first (rest def-form))
+                  (%doc-strip-fn-fast (first (rest (rest def-form)))))
             e))))))
 
 ; Commit one stashed entry into the registry (reproduces original doc logic).
@@ -277,7 +281,7 @@
         (%doc-collect-and-register! (first (rest form))
           (%doc-find-last-string meta)))
       ; %def
-      (do
+      (let ()
         (def %value (first (rest (rest form))))
         (%doc-reset-pending!)
         (%doc-process-meta meta)
@@ -290,12 +294,12 @@
   (fn (_ )
     (def %pending (first %doc-pending-cell))
     (if (null? %pending) ()
-      (do
+      (let ()
         (set-first! %doc-pending-cell ())
         (def %go
           (fn (self lst)
             (if (null? lst) ()
-              (do
+              (let ()
                 (def %e (first lst))
                 (%doc-commit-entry! (first %e)
                   (first (rest %e)) (rest (rest %e)))
@@ -481,7 +485,7 @@
 (def %find-method-doc
   (fn (self c method-str)
     (if (null? c) ()
-      (do
+      (let ()
         (def %k (str->symbol
                   (str-append (symbol->str (class-name c))
                     (str-append "/" method-str))))
@@ -584,7 +588,7 @@
       (if (not (null? (rest args)))
         ; (help Class method) -> walk Class's chain for the method doc, so an
         ; inherited method (keyed under the ancestor that defines it) is found.
-        (do
+        (let ()
           (def %cls-arg (first args))
           (def %meth-str (symbol->str (first (rest args))))
           (def %maybe-cls (guard (_ ()) (eval %cls-arg e)))
@@ -599,19 +603,19 @@
                 (display %cls-arg) (display " ") (display (first (rest args)))
                 (display %c-reset) (newline))
             (%display-doc %me)))
-      (do
+      (let ()
         (def %h-name (first args))
         (if (eq? %h-name (lit modules))
           (modules)
-          (do
+          (let ()
             (def %mod (%module-lookup %h-name))
             (if (not (null? %mod))
               (%display-module %mod e)
-              (do
+              (let ()
                 (def %doc-entry (%doc-lookup %h-name))
                 (if (not (null? %doc-entry))
                   (%display-doc %doc-entry)
-                  (do
+                  (let ()
                     ; maybe %h-name names a class -> list its (inherited) methods
                     (def %maybe-class (guard (_ ()) (eval %h-name e)))
                     (if (if (null? %maybe-class) #f (class? %maybe-class))
@@ -654,7 +658,7 @@
     (if (< %len 7) ()
       (if (not (str=? (substring path 0 4) "lib/")) ()
         (if (not (str=? (substring path (- %len 2) %len) ".x")) ()
-          (do
+          (let ()
             (def %inner (substring path 4 (- %len 2)))
             (if (not (str=? (substring %inner 0 2) "x/")) ()
               (str->symbol %inner))))))))
@@ -672,14 +676,14 @@
     (def %show
       (fn (self paths)
         (if (not (null? paths))
-          (do
+          (let ()
             (def %name (%path->module-name (first paths)))
             (if (not (null? %name))
               (do
                 (display "  ")
                 (display %name)
                 (if (%module-is-loaded? %name)
-                  (do
+                  (let ()
                     (display "  [loaded]")
                     (def %md (%doc-lookup %name))
                     (if (not (null? %md))

@@ -75,14 +75,13 @@
         (match
           ((eq? remaining ()) ())
           (#t
-            (do
-              (def %sym (first remaining))
-              (def %found
-                (fn (self lst)
-                  (match
-                    ((eq? lst ()) #f)
-                    ((eq? (first lst) %sym) #t)
-                    (#t (self (rest lst))))))
+            (let* ((%sym (first remaining))
+                   (%found
+                    (fn (self lst)
+                      (match
+                        ((eq? lst ()) #f)
+                        ((eq? (first lst) %sym) #t)
+                        (#t (self (rest lst)))))))
               (match
                 ((%found exports) (self (rest remaining)))
                 (#t (error (str-append "import: symbol not exported by "
@@ -96,8 +95,7 @@
     (match
       ((eq? syms ()) ())
       (#t
-        (do
-          (def %entry (%module-find name))
+        (let ((%entry (%module-find name)))
           (match
             ((eq? %entry ()) ())
             (#t (%module-check-imports name syms (rest %entry)))))))))

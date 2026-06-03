@@ -48,8 +48,7 @@
     (let go ((i 0) (acc ()))
       (if (>= i len)
         (reverse acc)
-        (do
-          (def d (utf8-decode s i))
+        (let ((d (utf8-decode s i)))
           (go (rest d) (pair (integer->char (first d)) acc)))))))
   (param s STRING "String to decode")
   (returns LIST "List of CHARACTERs, one per Unicode code point")

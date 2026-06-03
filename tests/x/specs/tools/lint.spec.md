@@ -85,3 +85,45 @@
 ```
 ---
     #t
+
+## lint: tail-position def leak check
+
+### flags a def inside a tail-position do
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %f (list (lit fn) (list (lit _) (lit x))
+            (list (lit do) (list (lit def) (lit y) 1) (lit x))))
+  (def %r (lint-forms (list %f) () ()))
+  (display (lint-has? "y" (lint-leaks %r))))
+```
+---
+    #t
+
+### does not flag a non-tail def (it binds locally)
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %f (list (lit fn) (list (lit _) (lit x))
+            (list (lit def) (lit y) 1) (lit x)))
+  (def %r (lint-forms (list %f) () ()))
+  (display (null? (lint-leaks %r))))
+```
+---
+    #t
+
+### flags a def inside a tail if-branch
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %f (list (lit fn) (list (lit _) (lit x))
+            (list (lit if) (lit c)
+              (list (lit do) (list (lit def) (lit z) 1) 2) 3)))
+  (def %r (lint-forms (list %f) () ()))
+  (display (lint-has? "z" (lint-leaks %r))))
+```
+---
+    #t

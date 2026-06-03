@@ -95,18 +95,22 @@
         (first alist)
         (self (rest alist) key)))))
 
+; Locals are bound with `let`, NOT `def`.  This body sits in the fn's tail
+; position, and a `def` in a tail context runs *after* TCO has popped the
+; closure frame -- so `def` would see an empty save-stack and bind GLOBALLY,
+; silently clobbering any caller variable of the same name (e.g. a caller's
+; `entry`).  `let` binds through parameters (a real frame), so source/entry/etc.
+; stay local.  (See the def-in-tail-`do` scope hazard.)
 (def convert
   (fn (_ val target . extra)
     (if (null? val) ()
       (if (eq? (type-of val) target) val
-        (do
-          (def source (type-of val))
-          (def target-ts (type-by-atom target))
-          (def entry ())
+        (let ((source (type-of val))
+              (target-ts (type-by-atom target))
+              (entry ()))
           ; Exact match: source in target's from-alist
           (if (null? target-ts) ()
-            (do
-              (def from-al (first (type-from-cell target-ts)))
+            (let ((from-al (first (type-from-cell target-ts))))
               (if (null? from-al) ()
                 (do
                   (if (null? source) ()
@@ -118,11 +122,9 @@
           ; Outbound: target in source's to-alist
           (if (null? entry)
             (if (null? source) ()
-              (do
-                (def source-ts (type-by-atom source))
+              (let ((source-ts (type-by-atom source)))
                 (if (null? source-ts) ()
-                  (do
-                    (def to-al (first (type-to-cell source-ts)))
+                  (let ((to-al (first (type-to-cell source-ts))))
                     (if (null? to-al) ()
                       (set! entry (%alist-find to-al target)))))))
             ())

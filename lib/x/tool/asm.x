@@ -164,10 +164,9 @@
         (if (not (null? resolver))
           (resolver buf-ptr offset width ptype target)
           ; Generic fallback: relative offset
-          (do
-            (def val (if (eq? ptype (lit rel))
+          (let ((val (if (eq? ptype (lit rel))
                        (- target (+ offset width))
-                       target))
+                       target)))
             (ptr-set! buf-ptr offset val width))))
       patches)
     ; Make executable (includes icache flush on ARM)

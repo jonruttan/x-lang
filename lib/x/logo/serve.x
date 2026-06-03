@@ -84,7 +84,7 @@
     (def n (ptr-call %c-read fd buf maxlen))
     (if (<= n 0)
       (do (ptr-call %c-free buf) ())
-      (do
+      (let ()
         (ptr-set1! buf n 0)
         (def s (ptr->str buf))
         (ptr-call %c-free buf)
@@ -104,16 +104,14 @@
 (def %http-path
   (fn (_ request)
     (if (null? request) "/"
-      (do
-        ; Find space after method
-        (def %find-space
-          (fn (self i)
-            (if (>= i (str-length request)) 0
-              (if (char=? (str-ref request i) #\space) i
-                (self (+ i 1))))))
-        (def start (+ (%find-space 0) 1))
-        ; Find space before HTTP version
-        (def end (%find-space start))
+      ; let*, not def-in-do: this is the tail, so def would leak to global
+      (let* ((%find-space
+              (fn (self i)
+                (if (>= i (str-length request)) 0
+                  (if (char=? (str-ref request i) #\space) i
+                    (self (+ i 1))))))
+             (start (+ (%find-space 0) 1))
+             (end (%find-space start)))
         (if (>= start end) "/"
           (substring request start end))))))
 
@@ -138,19 +136,18 @@
   (fn (_ path)
     (def fd (sh-open-read path))
     (if (< fd 0) ""
-      (do
-        ; Read in chunks, accumulate strings
-        (def %read-all
-          (fn (self acc)
-            (def buf (int->ptr (ptr-call %c-malloc %slurp-chunk)))
-            (def n (ptr-call %c-read fd buf (- %slurp-chunk 1)))
-            (if (<= n 0)
-              (do (ptr-call %c-free buf) acc)
-              (do
-                (ptr-set1! buf n 0)
-                (def chunk (ptr->str buf))
-                (ptr-call %c-free buf)
-                (self (Str append acc chunk))))))
+      ; let, not def-in-do: this is the tail (def would leak to global)
+      (let ((%read-all
+             (fn (self acc)
+               (def buf (int->ptr (ptr-call %c-malloc %slurp-chunk)))
+               (def n (ptr-call %c-read fd buf (- %slurp-chunk 1)))
+               (if (<= n 0)
+                 (do (ptr-call %c-free buf) acc)
+                 (do
+                   (ptr-set1! buf n 0)
+                   (let ((chunk (ptr->str buf)))
+                     (ptr-call %c-free buf)
+                     (self (Str append acc chunk))))))))
         (def content (%read-all ""))
         (sh-close fd)
         content))))

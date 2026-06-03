@@ -8,7 +8,7 @@
 
 (def %fmt-build-lookup (fn (self entries acc)
   (if (null? entries) acc
-    (do (def entry (first entries))
+    (let ((entry (first entries)))
         (self (rest entries)
           (pair (pair (first entry) (rest entry)) acc))))))
 
@@ -83,15 +83,15 @@
 ; Layout strategies
 (def %fmt-head-1 (fn (_ head rest-forms col)
   (if (null? rest-forms) (write (pair head rest-forms))
-    (do (display "(") (write head) (display " ")
-        (def head-width (+ 2 (str-length (convert head %string))))
+    (let ((head-width (+ 2 (str-length (convert head %string)))))
+        (display "(") (write head) (display " ")
         (fmt-expr (first rest-forms) (+ col head-width))
         (fmt-body (rest rest-forms) (+ col 2))
         (display ")")))))
 
 (def %fmt-head-kw (fn (_ head rest-forms col)
-  (do (display "(") (write head) (display " ")
-      (def head-width (+ 2 (str-length (convert head %string))))
+  (let ((head-width (+ 2 (str-length (convert head %string)))))
+      (display "(") (write head) (display " ")
       (fmt-expr (first rest-forms) (+ col head-width))
       (fmt-body (rest rest-forms) (+ col 2))
       (display ")"))))
@@ -112,8 +112,8 @@
   (def rest-forms (rest form))
   (if (< (fmt-width form) 60)
     (write form)
-    (do (def props (if (symbol? head) (fmt-lookup head table) ()))
-        (def fmt-type (if (null? props) () (fmt-get-prop (lit fmt) props)))
+    (let* ((props (if (symbol? head) (fmt-lookup head table) ()))
+           (fmt-type (if (null? props) () (fmt-get-prop (lit fmt) props))))
         (if (eq? fmt-type (lit head-1))  (%fmt-head-1 head rest-forms col)
         (if (eq? fmt-type (lit head-kw)) (%fmt-head-kw head rest-forms col)
         (if (eq? fmt-type (lit body))    (%fmt-body-only head rest-forms col)
@@ -135,7 +135,7 @@
 (doc (def fmt-tokens (fn (_ tokens table)
   (def %go (fn (self toks first-token)
     (if (null? toks) ()
-      (do (def tok (first toks))
+      (let ((tok (first toks)))
           (if first-token ()
             (if (fmt-comment? tok) ()
               (display "\n")))

@@ -68,7 +68,7 @@
     (if (%int< la lb) -1
       (if (%int< lb la) 1
         ; Same length: compare from MSB
-        (do
+        (let ()  ; scoped: def in tail position would leak to global
           (def %cmp-rev
             (fn (self ra rb)
               (if (null? ra) 0
@@ -84,7 +84,7 @@
   (fn (self a b carry)
     (if (if (null? a) (if (null? b) (%int= carry 0) #f) #f)
       ()
-      (do
+      (let ()
         (def s (%int+ (%int+ (if (null? a) 0 (first a))
                               (if (null? b) 0 (first b)))
                        carry))
@@ -97,7 +97,7 @@
 (def %limb-sub
   (fn (self a b borrow)
     (if (null? a) ()
-      (do
+      (let ()
         (def d (%int- (%int- (first a) (if (null? b) 0 (first b))) borrow))
         (if (%int< d 0)
           (pair (%int+ d %bignum-base)
@@ -110,7 +110,7 @@
   (fn (self b limb carry)
     (if (null? b)
       (if (%int= carry 0) () (list carry))
-      (do
+      (let ()
         (def p (%int+ (%int* (first b) limb) carry))
         (pair (modulo-int p %bignum-base)
               (self (rest b) limb (%int/ p %bignum-base)))))))
@@ -131,7 +131,7 @@
     (def %div-go
       (fn (self ra rem qacc)
         (if (null? ra) (pair (reverse qacc) rem)
-          (do
+          (let ()
             (def cur (%int+ (%int* rem %bignum-base) (first ra)))
             (self (rest ra) (modulo-int cur divisor)
                      (pair (%int/ cur divisor) qacc))))))
@@ -143,12 +143,12 @@
   (fn (_ a b)
     ; Single-limb divisor: fast path
     (if (null? (rest b))
-      (do
+      (let ()
         (def r (%limb-divmod1 a (first b)))
         (pair (first r) (list (rest r))))
       ; Multi-limb: repeated subtraction with estimate
       ; Process from MSB, estimate quotient digit, subtract
-      (do
+      (let ()
         (def %top-limb
           (fn (_ lst) (first (reverse lst))))
         (def blen (length b))
@@ -162,7 +162,7 @@
               (if (%int= c 0)
                 (pair (reverse (pair 1 qdigits)) (list 0))
                 ; Estimate: use top limbs
-                (do
+                (let ()
                   (def rlen (length rem))
                   (def rtop (%top-limb rem))
                   ; Estimate quotient as rtop / (btop + 1) to be safe
@@ -227,7 +227,7 @@
       (fn (self pos acc)
         (if (not (%int< 0 pos))
           acc
-          (do
+          (let ()
             (def cs (if (%int< (%int- pos %bignum-digits-per-limb) 0)
                       0 (%int- pos %bignum-digits-per-limb)))
             (def lm (str->number (substring digit-str cs pos)))
@@ -274,7 +274,7 @@
       0
       ; If few enough limbs to possibly fit in native int, try demotion
       (if (not (%int< (%int* %word-size 2) (%int* (length nl) %bignum-digits-per-limb)))
-        (do
+        (let ()
           (def val (%bignum-to-int sign nl))
           ; Verify it round-trips (didn't overflow)
           (def rt (%bignum-from-int val))
@@ -298,7 +298,7 @@
 (def %ensure-big
   (fn (_ x)
     (if (bignum? x) x
-      (do
+      (let ()
         (def r (%bignum-from-int x))
         (make-instance %bignum r)))))
 
@@ -315,7 +315,7 @@
       ; Same sign: add magnitudes
       (%make-bignum sa (%limb-add la lb 0))
       ; Different signs: subtract smaller from larger
-      (do
+      (let ()
         (def c (%limb-cmp la lb))
         (if (%int= c 0) 0
           (if (%int< 0 c)
@@ -373,7 +373,7 @@
     (if (%int< sa sb) #t
       (if (%int< sb sa) #f
         ; Same sign
-        (do
+        (let ()
           (def c (%limb-cmp (%big-limbs a) (%big-limbs b)))
           (if (%int= sa 1)
             (%int< c 0)

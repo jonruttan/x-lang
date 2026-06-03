@@ -260,10 +260,10 @@
       ((eq? tag (lit lazy-opt))
         (do (self (first (rest node))) (display "??")))
       ((eq? tag (lit repeat))
-        (do (self (first (rest node)))
+        (let ((mx (first (rest (rest (rest node))))))
+            (self (first (rest node)))
             (display "{")
             (display (first (rest (rest node))))
-            (def mx (first (rest (rest (rest node)))))
             (if (= mx 999999999)
               (display ",")
               (if (not (= mx (first (rest (rest node)))))
@@ -273,8 +273,7 @@
 (def %regex-write-class
   (fn (self entries)
     (if (not (null? entries))
-      (do
-        (def e (first entries))
+      (let ((e (first entries)))
         (if (pair? e)
           (do (display (convert (first e) %char))
               (display "-")
@@ -573,8 +572,7 @@
       (fn (self pos acc)
         (def m (regex-find-at rx str pos))
         (if (null? m) (reverse acc)
-          (do
-            (def start (first m))
+          (let ((start (first m)))
             (def end (first (rest m)))
             ; Advance by at least 1 to avoid infinite loop on zero-width matches
             (def next (if (= start end) (+ end 1) end))
@@ -592,8 +590,7 @@
       (fn (self pos acc)
         (def m (regex-find-at rx str pos))
         (if (null? m) (reverse acc)
-          (do
-            (def start (first m))
+          (let ((start (first m)))
             (def end (first (rest m)))
             (def next (if (= start end) (+ end 1) end))
             (self next (pair m acc))))))
@@ -620,8 +617,7 @@
   (fn (_ (param rx REGEX "Compiled regex") (param str STRING "Input string") (param rep ANY "Replacement string or function"))
     (def m (regex-search rx str))
     (if (null? m) str
-      (do
-        (def matched (substring str (first m) (first (rest m))))
+      (let ((matched (substring str (first m) (first (rest m)))))
         (str-append
           (substring str 0 (first m))
           (str-append (%regex-get-replacement rep matched)
@@ -638,8 +634,7 @@
         (def m (regex-find-at rx str pos))
         (if (null? m)
           (str-append acc (substring str pos len))
-          (do
-            (def start (first m))
+          (let ((start (first m)))
             (def end (first (rest m)))
             (def matched (substring str start end))
             (def next (if (= start end) (+ end 1) end))
@@ -662,8 +657,7 @@
         (def m (regex-find-at rx str pos))
         (if (null? m)
           (reverse (pair (substring str pos len) acc))
-          (do
-            (def start (first m))
+          (let ((start (first m)))
             (def end (first (rest m)))
             (def next (if (= start end) (+ end 1) end))
             (self next (pair (substring str pos start) acc))))))

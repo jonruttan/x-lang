@@ -531,11 +531,11 @@
         (def %current (first %compile-fns))
         (def %len (length %current))
         (if (= %len processed) %nested-c
-          (do
+          (let ()  ; scoped: def in tail position would leak to global
             (def %gen-new
               (fn (self lst n)
                 (if (= n 0) ()
-                  (do
+                  (let ()
                     (def %entry (first lst))
                     (def %name (first %entry))
                     (set! %nested-c
@@ -556,7 +556,7 @@
     (def %gen-decls
       (fn (self lst)
         (if (null? lst) ()
-          (do
+          (let ()
             (def %name (first (first lst)))
             (set! %all-fwd (Str append %all-fwd (%generate-fwd-decl %name)))
             (set! %all-prims (Str append %all-prims (%generate-static-prim %name)))
@@ -613,7 +613,7 @@
     (if (null? fvars) ()
       (let ((tbl (dlsym lib "x_fvar_table")))
         (if (null? tbl) ()
-          (do
+          (let ()
             (def %patch-go
               (fn (self fvs i)
                 (if (null? fvs) ()
@@ -646,7 +646,7 @@
 (def %patch-nested-prims
   (fn (self lib fns prim-type-val)
     (if (null? fns) ()
-      (do
+      (let ()
         (def %prim-sym (Str append (first (first fns)) "_prim"))
         (def %prim-ptr (dlsym lib %prim-sym))
         (if (not (null? %prim-ptr))
@@ -660,7 +660,7 @@
         (if (null? lib) ()
           (let ((fn-ptr (dlsym lib "fn_0")))
             (if (null? fn-ptr) ()
-              (do
+              (let ()
                 (type-cast! fn-ptr first)
                 (def %prim-type-val (ptr-ref-word (convert first %ptr) %type-offset))
                 (%patch-nested-prims lib (first fns-holder) %prim-type-val)
@@ -745,7 +745,7 @@
         %cached)
 
       ; Cache miss: generate, write, compile, load
-      (do
+      (let ()
         (set! %compile-id (+ %compile-id 1))
         (def %id (convert %compile-id %string))
         (def %src-path (Str append "/tmp/x-compile-" %id ".c"))
@@ -853,7 +853,7 @@
           ()))
 
       ; Cache miss: generate, compile, cache, load
-      (do
+      (let ()
         (set! %compile-id (+ %compile-id 1))
         (def %id (convert %compile-id %string))
         (def %src-path (Str append "/tmp/x-compile-" %id ".c"))

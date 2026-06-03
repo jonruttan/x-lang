@@ -116,8 +116,7 @@
           (asm-emit! asm (lit mov) x0 (imm 0))
           (asm-load-imm64! asm x0 (ptr->int (obj->ptr val)))))
       ; Not a fvar: load from params
-      (do
-        (def idx (%find params 0))
+      (let ((idx (%find params 0)))
         (asm-emit! asm (lit mov) x0 x20)
         (def %skip
           (fn (self n)
@@ -314,9 +313,8 @@
                   ())))))))
 
     (if (and (pair? test-expr) (not (null? (%cmp-branch (first test-expr)))))
-      (do
-        (def cmp-op (first test-expr))
-        (def cmp-args (rest test-expr))
+      (let ((cmp-op (first test-expr))
+            (cmp-args (rest test-expr)))
         (%asm-compile-expr asm (first cmp-args) params)
         (%emit-u32-le! asm %PUSH)
         (%asm-compile-expr asm (first (rest cmp-args)) params)
