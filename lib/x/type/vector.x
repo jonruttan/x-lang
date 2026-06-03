@@ -42,7 +42,6 @@
                   (recur (+ i 1) #t)))))
           (write-vec 0 #f)
           (display ")")))
-      (pair (lit first-chars) "#")
       (pair
         (lit analyse)
         (fn (_ buffer score chr)

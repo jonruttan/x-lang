@@ -102,7 +102,6 @@
     ; LOGO-CLOSE
     (base-make-type base "LOGO-CLOSE"
       (list
-        (pair (lit first-chars) "]")
         (pair (lit analyse)
           (make-char-state (char->integer #\]) token-accept ()))
         (pair (lit read) (fn (_ . args) %logo-block-close))))
@@ -110,7 +109,6 @@
     ; LOGO-OPEN
     (base-make-type base "LOGO-OPEN"
       (list
-        (pair (lit first-chars) "[")
         (pair (lit analyse)
           (make-char-state (char->integer #\[) token-accept ()))
         (pair (lit read)
@@ -130,7 +128,6 @@
     (set! %logo
       (base-make-type base "LOGO"
         (list
-          (pair (lit first-chars) "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
           (pair (lit analyse)
             (fn (_ buffer score chr)
               (if (%logo-alpha? chr) %logo-word-continue ())))
@@ -160,7 +157,6 @@
     ; LOGO-NEWLINE: bare newline, discard
     (base-make-type base "LOGO-NEWLINE"
       (list
-        (pair (lit first-chars) "\n")
         (pair (lit analyse)
           (make-char-state 10 token-accept ()))))
 
@@ -176,7 +172,6 @@
     (set! %logo-indent
       (base-make-type base "LOGO-INDENT"
         (list
-          (pair (lit first-chars) "\n")
           (pair (lit analyse)
             (fn (_ buffer score chr)
               (if (= chr 10) %indent-after-nl ())))
@@ -203,7 +198,6 @@
     (set! %logo-op
       (base-make-type base "LOGO-OP"
         (list
-          (pair (lit first-chars) "+-*/^=><,")
           (pair (lit analyse)
             (fn (_ buffer score chr)
               ; Single-char: + - * / ^ = ,
@@ -224,14 +218,12 @@
     ; LOGO-PAREN: ( and )
     (base-make-type base "LOGO-PAREN-OPEN"
       (list
-        (pair (lit first-chars) "(")
         (pair (lit analyse)
           (make-char-state 40 token-accept ()))
         (pair (lit read) (fn (_ . args) (pair %logo-paren-tag "(")))))
 
     (base-make-type base "LOGO-PAREN-CLOSE"
       (list
-        (pair (lit first-chars) ")")
         (pair (lit analyse)
           (make-char-state 41 token-accept ()))
         (pair (lit read) (fn (_ . args) (pair %logo-paren-tag ")")))))
@@ -246,7 +238,6 @@
     (set! %logo-string
       (base-make-type base "LOGO-STRING"
         (list
-          (pair (lit first-chars) "\"")
           (pair (lit analyse)
             (fn (_ buffer score chr)
               (if (= chr 34) %string-body ())))
@@ -262,7 +253,6 @@
     ; LOGO-SEMI: ; comment to end of line (discard)
     (base-make-type base "LOGO-SEMI"
       (list
-        (pair (lit first-chars) ";")
         (pair (lit analyse)
           (fn (_ buffer score chr)
             (if (= chr 59)

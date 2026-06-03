@@ -292,7 +292,7 @@
   (param name STRING "Type name")
   (param handlers LIST "Alist of handler functions")
   (returns ATOM "Type handle")
-  (note "Handlers: call, eval, write, display, read, analyse, first-chars, from, to, iter.")
+  (note "Handlers: call, eval, write, display, read, analyse, from, to, iter.")
   (see make-instance) (see type?) (see type-of))
 
 (doc make-instance "Create an instance of a custom type."

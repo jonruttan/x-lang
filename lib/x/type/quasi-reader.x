@@ -33,7 +33,6 @@
 (make-type
   "QUASI-READ"
   (list
-    (pair (lit first-chars) "`")
     (pair
       (lit analyse)
       (fn (_ buffer score chr)
@@ -56,7 +55,6 @@
 (make-type
   "UNQUOTE-READ"
   (list
-    (pair (lit first-chars) ",")
     (pair
       (lit analyse)
       (fn (_ buffer score chr)

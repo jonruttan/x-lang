@@ -493,7 +493,6 @@
           (display "#/")
           (%regex-write (first self))
           (display "/")))
-      (pair (lit first-chars) "#")
       (pair
         (lit analyse)
         (fn (_ buffer score chr)

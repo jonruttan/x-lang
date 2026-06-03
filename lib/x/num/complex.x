@@ -148,7 +148,6 @@
             (if (not (%real< im 0)) (display "+"))
             (display im)
             (display "i"))))
-      (pair (lit first-chars) "0123456789")
       (pair
         (lit analyse)
         (fn (_ buffer score chr)

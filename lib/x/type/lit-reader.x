@@ -26,7 +26,6 @@
 (make-type
   "LIT-READ"
   (list
-    (pair (lit first-chars) "'")
     (pair
       (lit analyse)
       (fn (_ buffer score chr)

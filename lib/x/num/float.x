@@ -89,7 +89,6 @@
       (pair
         (lit write)
         (fn (_ self) (display (float->str (first self)))))
-      (pair (lit first-chars) "0123456789")
       (pair
         (lit analyse)
         (fn (_ buffer score chr)

@@ -540,7 +540,6 @@
     (list
       (pair (lit write)
         (fn (_ self) (display (%bignum-to-string (first (first self)) (rest (first self))))))
-      (pair (lit first-chars) "0123456789-+")
       (pair (lit analyse) %big-analyse)
       (pair (lit read) (fn (_ . args) (%bignum-read (first args))))
       (pair (lit from)
