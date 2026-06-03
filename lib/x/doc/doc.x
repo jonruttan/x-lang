@@ -445,7 +445,7 @@
 
 (def %display-overview
   (fn (_ )
-    (display "x-lang help system") (newline)
+    (display %c-bold) (display "x-lang help system") (display %c-reset) (newline)
     (newline)
     (display "  (help)          show this overview") (newline)
     (display "  (help name)     docs for a function or operative") (newline)
@@ -453,18 +453,21 @@
     (display "  (modules)       list all available modules") (newline)
     (display "  (apropos \"str\") search by name substring") (newline)
     (newline)
-    (display "Modules:") (newline)
+    (display %c-bold) (display "Modules:") (display %c-reset) (newline)
     (%doc-for-each
       (fn (_ m)
         (display "  ")
-        (display (first m))
+        (display %c-name) (display (first m)) (display %c-reset)
         ; Show module description if available
         (def %md (%doc-lookup (first m)))
         (if (not (null? %md))
           (if (not (str=? (%doc-entry-desc %md) ""))
             (do (display " -- ") (display (%doc-entry-desc %md)))))
         (newline))
-      (first %module-registry-cell))))
+      ; alphabetical by module name (Str8/sort are global, resolved at call time)
+      (sort
+        (fn (_ a b) (Str8 <? (symbol->str (first a)) (symbol->str (first b))))
+        (first %module-registry-cell)))))
 
 ; True if the string x appears in the list of strings lst.
 (def %member-str?

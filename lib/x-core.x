@@ -133,6 +133,12 @@
   ; REPL
   (include "lib/x/core/repl.x")
 
+  ; ANSI colour: syntax-highlighted REPL output + colourised help.  Loaded
+  ; after repl.x (it wraps %repl-print) and doc.x (it sets the %c-* help
+  ; colours).  All colours are empty no-ops unless stdout is a TTY and
+  ; NO_COLOR/TERM=dumb/--no-color do not disable them.
+  (include "lib/x/sys/ansi.x")
+
   ; Banner
   (include "lib/x/core/banner.x")
 
