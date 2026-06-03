@@ -77,21 +77,109 @@
       (convert (first p) %string))          ; other pair -> its head
     (convert p %string))))                  ; bare symbol
 
-; Add one parameter name to scope, warning if it shadows a known global
-; (e.g. a param named `list` or `first` hiding the primitive).  `_` (the
-; conventional ignore / self slot) is never flagged.
+; Does scope (a list of (name . used-box) entries) already bind this name?
+(def %scope-has-name? (fn (self pn scope)
+  (if (null? scope) ()
+    (if (str=? pn (first (first scope))) #t
+      (self pn (rest scope))))))
+
+; Warn "shadow" when nm shadows an ENCLOSING LOCAL already present in `scope`
+; (an outer param/let-var, or an earlier param of the same list -- a duplicate).
+; We deliberately do NOT warn for shadowing a global: param names like
+; `rest`/`name`/`op` routinely and harmlessly shadow library functions, and
+; flagging every one drowned the signal.  Lexical shadows -- an inner binding
+; hiding an outer one of the same name -- are the actual footgun.  `_` and
+; `self` are conventional self-slot names that nested scopes reuse on purpose,
+; so they are never flagged.
+(def %shadow-check! (fn (_ nm scope)
+  (if (if (if (str=? nm "_") #t (str=? nm "self")) #f (%scope-has-name? nm scope))
+    (%warn! "shadow" nm) ())))
+
+; Add one parameter to scope as a (name . used-box) entry, checking for shadows
+; against the params/enclosing bindings accumulated so far.
 (def %add-param-name (fn (_ pn scope)
-  (if (if (str=? pn "_") #f (%env-known? pn)) (%warn! "shadow" pn) ())
-  (pair pn scope)))
+  (%shadow-check! pn scope)
+  (pair (pair pn (list #f)) scope)))
+
+; A REST param (`. rest` / variadic) collects "any extra args"; uniform
+; signatures routinely accept one and ignore it, so an unused rest param is not
+; a finding.  We still shadow-check it, but pre-mark its used-box #t so it is
+; never reported unused (and, being the last/trailing slot, it does not mask a
+; genuine trailing-unused fixed param -- there is none after a rest).
+(def %add-rest-name (fn (_ pn scope)
+  (%shadow-check! pn scope)
+  (pair (pair pn (list #t)) scope)))
 
 (def %add-params (fn (self params scope)
   (if (null? params) scope
-    (if (symbol? params) (%add-param-name (convert params %string) scope)
+    (if (symbol? params) (%add-rest-name (convert params %string) scope)   ; improper tail = rest
       (if (pair? params)
-        (self (rest params) (%add-param-name (%param-name (first params)) scope))
+        ; A bare `param` symbol is the flattened remnant of an inline-doc rest
+        ; param `. (param NAME TYPE "desc")` (the reader flattens `. (list)`):
+        ; the NEXT element is the real rest-param name; add it and stop, since
+        ; everything after is doc metadata (TYPE, description), not params.
+        (if (if (symbol? (first params)) (str=? (convert (first params) %string) "param") #f)
+          (if (pair? (rest params))
+            (%add-rest-name (%param-name (first (rest params))) scope)
+            scope)
+          (self (rest params) (%add-param-name (%param-name (first params)) scope)))
         scope)))))
 
-(def %scope-add! (fn (_ name) (set-first! %lint-scope (pair name (first %lint-scope)))))
+(def %scope-add! (fn (_ name)
+  (set-first! %lint-scope (pair (pair name (list #f)) (first %lint-scope)))))
+
+; A reference resolved to a local: find it in scope, flip its used-box to #t,
+; and return #t.  Return () when name is not a local (a free/global reference).
+; This is how we learn which locals are actually used.  Walks from the head, so
+; the INNERMOST binding of a shadowed name is the one marked (lexically correct).
+(def %scope-mark-used! (fn (self name scope)
+  (if (null? scope) ()
+    (if (str=? name (first (first scope)))
+      (do (set-first! (rest (first scope)) #t) #t)
+      (self name (rest scope))))))
+
+; When a scope frame closes, the entries added since `saved` are this frame's
+; own locals (the prefix of the scope list before `saved`).  Warn "unused" for
+; any whose used-box is still #f.  We find the prefix by LENGTH difference, not
+; by eq? on the `saved` tail: GC can relocate heap pairs between write-stack
+; callbacks, so pointer identity is unsafe.  `_` is exempt.
+(def %check-unused! (fn (self entries n)
+  (if (if (> n 0) (pair? entries) #f)
+    (do (if (if (str=? (first (first entries)) "_") #f
+              (not (first (rest (first entries)))))
+          (%warn! "unused" (first (first entries))) ())
+        (self (rest entries) (- n 1)))
+    ())))
+
+(def %frame-unused! (fn (_ saved)
+  (%check-unused! (first %lint-scope)
+    (- (length (first %lint-scope)) (length saved)))))
+
+; Parameters are POSITIONAL: a middle unused param cannot be dropped without
+; shifting the ones after it, and fixed-signature callbacks (e.g. a reader's
+; (_ buffer score chr)) must declare slots they don't all use.  So we flag only
+; TRAILING unused params -- walking from the last param backward (entries are in
+; reverse source order) and stopping at the first one that IS used.  `_` is
+; never flagged but does not stop the scan (an ignored trailing slot is fine).
+(def %check-trailing-unused! (fn (self entries n)
+  (if (if (> n 0) (pair? entries) #f)
+    (if (first (rest (first entries)))            ; used -> earlier params are positional; stop
+      ()
+      (do (if (str=? (first (first entries)) "_") ()
+            (%warn! "unused" (first (first entries))))
+          (self (rest entries) (- n 1))))
+    ())))
+
+; Does `form` reference a symbol named `name` (recursively, skipping (lit ...)
+; data)?  Used to recognise the rebind idiom (let ((x (f x))) ...): a let-var
+; whose init mentions the name it shadows is a deliberate refinement, not an
+; accidental hide, so it should not be flagged as a shadow.
+(def %form-mentions? (fn (self name form)
+  (if (pair? form)
+    (if (if (symbol? (first form)) (str=? (convert (first form) %string) "lit") #f)
+      #f
+      (if (self name (first form)) #t (self name (rest form))))
+    (if (symbol? form) (str=? (convert form %string) name) #f))))
 
 ; --- Traversal core ---
 
@@ -105,7 +193,12 @@
     (if (pair? forms)
       (do (%lint-form (first forms))
           (if (%lint-binds? (first forms))
-            (%scope-add! (%lint-bound-name (first forms)))
+            (let ((bn (%lint-bound-name (first forms))))
+              ; %lint-def already added this name to the persistent scope (its
+              ; else-branch does no save/restore).  Re-adding would create a
+              ; second box that nothing marks -> a phantom "unused".  Only add
+              ; when it is not already in scope.
+              (if (%scope-has-name? bn (first %lint-scope)) () (%scope-add! bn)))
             ())
           (self (rest forms)))
       (%lint-form forms)))))
@@ -176,23 +269,38 @@
 (def %lint-fn (fn (_ form)
   (def saved (first %lint-scope))
   (set-first! %lint-scope (%add-params (first (rest form)) saved))
+  (def params (first %lint-scope))               ; param entries (boxes shared with scope)
+  (def nparams (- (length params) (length saved)))
   (%lint-seq (rest (rest form)))
   (%lint-leak-scan (%last (rest (rest form))))   ; flag def in the body's tail
+  (%check-unused! (first %lint-scope)            ; body-level defs above params: any unused is dead
+    (- (length (first %lint-scope)) (length params)))
+  (%check-trailing-unused! params nparams)       ; params: only trailing unused (positional)
   (set-first! %lint-scope saved)))
 
 (def %lint-op (fn (_ form)
   (def saved (first %lint-scope))
   (set-first! %lint-scope
-    (pair (convert (first (rest (rest form))) %string)
+    (pair (pair (convert (first (rest (rest form))) %string) (list #f))   ; env var entry
           (%add-params (first (rest form)) saved)))
+  (def params (first %lint-scope))                      ; params + env var (boxes shared)
+  (def nparams (- (length params) (length saved)))
   (%lint-seq (rest (rest (rest form))))
   (%lint-leak-scan (%last (rest (rest (rest form)))))   ; flag def in the body's tail
+  (%check-unused! (first %lint-scope)
+    (- (length (first %lint-scope)) (length params)))
+  (%check-trailing-unused! params nparams)
   (set-first! %lint-scope saved)))
 
 (def %lint-let-bindings (fn (self bindings)
   (if (null? bindings) ()
     (do (%lint-form (first (rest (first bindings))))   ; init in current scope
-        (%scope-add! (convert (first (first bindings)) %string))
+        (let ((vn (convert (first (first bindings)) %string)))
+          ; skip the rebind idiom (let ((x (f x))) ..): init mentions x -> a
+          ; deliberate refinement, not an accidental hide
+          (if (%form-mentions? vn (first (rest (first bindings)))) ()
+            (%shadow-check! vn (first %lint-scope)))   ; let-var hiding an enclosing local
+          (%scope-add! vn))
         (self (rest bindings))))))
 
 (def %lint-let (fn (_ form)
@@ -206,6 +314,7 @@
     (do (%lint-let-bindings a)                         ; regular let
         (%lint-seq (rest (rest form)))
         (%lint-leak-scan (%last (rest (rest form))))))
+  (%frame-unused! saved)                               ; flag let-bindings never referenced
   (set-first! %lint-scope saved)))
 
 (def %lint-def (fn (_ form)
@@ -229,6 +338,7 @@
   (def saved (first %lint-scope))
   (%scope-add! (convert (first clause) %string))       ; error var for the handler
   (%lint-form (first (rest clause)))
+  (%frame-unused! saved)                               ; error var never used (prefer `_`)
   (set-first! %lint-scope saved)
   (%lint-seq (rest (rest form)))))                     ; body in outer scope
 
@@ -375,7 +485,7 @@
 ; SYMBOL: record its NAME unless bound or already seen.
 (def %lint-symbol-handler (fn (_ sym)
   (let ((name (convert sym %string)))
-    (if (%name-member? name (first %lint-scope)) ()
+    (if (%scope-mark-used! name (first %lint-scope)) ()   ; local ref -> mark its box used
       (if (%name-member? name (first %lint-uses)) ()
         (set-first! %lint-uses (pair name (first %lint-uses))))))
   ()))
@@ -430,8 +540,8 @@
   (param forms LIST "List of top-level forms to analyze")
   (param defs LIST "Accumulator for defined symbol NAMES")
   (param uses LIST "Accumulator for used symbol NAMES")
-  (returns LIST "(defs uses issues leaks warnings) -- defs/uses/issues/leaks are NAME STRINGS; warnings are (kind . name) pairs for arity / call-nonfn / dup-def")
-  "Walk top-level forms via the write stacks, collecting def/use names, first/rest issues, tail-position def leaks, and pedantic warnings (arity, non-callable calls, duplicate defs).")
+  (returns LIST "(defs uses issues leaks warnings) -- defs/uses/issues/leaks are NAME STRINGS; warnings are (kind . name) pairs for arity / call-nonfn / dup-def / malformed / shadow / unused")
+  "Walk top-level forms via the write stacks, collecting def/use names, first/rest issues, tail-position def leaks, and pedantic warnings (arity, non-callable calls, duplicate defs, malformed forms, lexical shadows, and unused locals).")
 
 (doc (def lint-undefined (fn (_ defs uses)
   (filter (fn (_ name)
@@ -473,7 +583,7 @@
 (doc (def lint-warnings-of (fn (_ kind result)
   (map (fn (_ w) (rest w))
     (filter (fn (_ w) (str=? (first w) kind)) (lint-warnings result)))))
-  (param kind STRING "Warning kind: arity | call-nonfn | dup-def")
+  (param kind STRING "Warning kind: arity | call-nonfn | dup-def | malformed | shadow | unused")
   (param result LIST "Result of lint-forms")
   (returns LIST "The names for warnings of that kind")
   "Filter pedantic warnings to one kind, returning their names.")

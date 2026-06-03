@@ -180,16 +180,59 @@
 ---
     #t
 
-## lint: pedantic checks (shadowing / malformed)
+## lint: pedantic checks (lexical shadow / malformed)
 
-### flags a parameter that shadows a global
+### flags a lexical shadow (inner binding hides an outer local)
 
 ```scheme
 (do
   (include "lib/x/tool/lint.x")
-  (def %f (list (lit def) (lit f) (list (lit fn) (list (lit _) (lit list)) (lit list))))
-  (def %r (lint-forms (list %f) () ()))
-  (display (lint-has? "list" (lint-warnings-of "shadow" %r))))
+  (def %r (lint-forms (list '(def f (fn (_ x) (fn (_ x) x)))) () ()))
+  (display (lint-has? "x" (lint-warnings-of "shadow" %r))))
+```
+---
+    #t
+
+### flags a let-binding that shadows a param
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list '(def f (fn (_ x) (let ((x 1)) x)))) () ()))
+  (display (lint-has? "x" (lint-warnings-of "shadow" %r))))
+```
+---
+    #t
+
+### does not flag shadowing a global (de-noised)
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list '(def f (fn (_ list) list))) () ()))
+  (display (null? (lint-warnings-of "shadow" %r))))
+```
+---
+    #t
+
+### does not flag the rebind idiom (init mentions the shadowed name)
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list '(def f (fn (_ lst) (let ((lst (rest lst))) lst)))) () ()))
+  (display (null? (lint-warnings-of "shadow" %r))))
+```
+---
+    #t
+
+### does not flag self/_ shadows (conventional self slots)
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list '(def f (fn (self x) (fn (self y) (self y))))) () ()))
+  (display (null? (lint-warnings-of "shadow" %r))))
 ```
 ---
     #t
@@ -239,6 +282,74 @@
   (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list (list (lit foo) (list "0" 0))) () ()))
   (display (null? (lint-warnings-of "call-nonfn" %r))))
+```
+---
+    #t
+
+## lint: unused locals (params / let-bindings)
+
+### flags a trailing unused parameter
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list '(def f (fn (_ x y) x))) () ()))
+  (display (lint-has? "y" (lint-warnings-of "unused" %r))))
+```
+---
+    #t
+
+### does not flag a positional (non-trailing) unused parameter
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list '(def f (fn (_ x y) y))) () ()))
+  (display (null? (lint-warnings-of "unused" %r))))
+```
+---
+    #t
+
+### does not flag an unused rest parameter
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list '(def f (fn (_ x . more) x))) () ()))
+  (display (null? (lint-warnings-of "unused" %r))))
+```
+---
+    #t
+
+### does not flag _ (the ignore slot)
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list '(def f (fn (_ x) x))) () ()))
+  (display (null? (lint-warnings-of "unused" %r))))
+```
+---
+    #t
+
+### flags an unused let-binding
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list '(let ((b 1) (c 2)) b)) () ()))
+  (display (lint-has? "c" (lint-warnings-of "unused" %r))))
+```
+---
+    #t
+
+### does not flag a used let-binding
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list '(let ((b 1) (c 2)) (foo b c))) () ()))
+  (display (null? (lint-warnings-of "unused" %r))))
 ```
 ---
     #t

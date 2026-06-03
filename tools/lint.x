@@ -135,6 +135,22 @@
         (for-each (fn (_ s) (%stderr "  ") (%stderr s) (%stderr "\n"))
           %unused)))
 
+  ; Pedantic warnings (advisory -- shown but do not fail the lint): arity,
+  ; call-nonfn, dup-def, malformed, shadow (lexical), unused (local).  Grouped
+  ; by kind, discovered from the results so a new kind needs no change here.
+  (def %warnings (lint-warnings %result))
+  (def %uniq-kinds (fn (self ws acc)
+    (if (null? ws) acc
+      (let ((k (first (first ws))))
+        (self (rest ws) (if (lint-has? k acc) acc (pair k acc)))))))
+  (def %show-kind (fn (_ k)
+    (%stderr "  ") (%stderr k) (%stderr ": ")
+    (for-each (fn (_ s) (%stderr s) (%stderr " ")) (lint-warnings-of k %result))
+    (%stderr "\n")))
+  (if (null? %warnings) ()
+    (do (%stderr "Warnings:\n")
+        (for-each %show-kind (%uniq-kinds %warnings ()))))
+
   (if (and (null? %undefined) (null? %unused))
     (display "ok\n")
     (error (lit lint-failed))))
