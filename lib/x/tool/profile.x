@@ -86,7 +86,7 @@
 
 (doc (def heap-collect-force
   (op ()
-    %hcf-e
+    _
     (def %hcf-before (heap-count))
     (%heap-collect-prim)
     (def %hcf-after (heap-count))
@@ -98,7 +98,7 @@
 
 (doc (def heap-collect
   (op ()
-    %hc-e
+    _
     (if (> (- (alloc-count) %hc-last-allocs) %hc-last-surviving)
       (heap-collect-force)
       0)))

@@ -121,12 +121,6 @@
 ; Counted repetition: match inner between min and max times
 (def regex-exec-repeat
   (fn (_ inner min max rest-nodes str pos end)
-    ; Match inner exactly n times from pos
-    (def match-n
-      (fn (self n p)
-        (if (= n 0) p
-          (let ((next (regex-exec-one inner str p end)))
-            (if (null? next) () (self (- n 1) next))))))
     ; Collect positions from min to max matches (greedy)
     (def collect-from
       (fn (self count p)
@@ -471,7 +465,7 @@
       (#t self))))
 
 (set! %regex-scan-escape
-  (fn (_ buffer score chr)
+  (fn (_ _ _ _)
     %regex-scan-body))
 
 ; --- Type definition ---
@@ -497,8 +491,8 @@
         (lit analyse)
         (fn (_ buffer score chr)
           (if (= chr #\#)
-            (fn (_ buffer score chr)
-              (if (= chr #\/) %regex-scan-body ()))
+            (fn (_ buf sc c0)
+              (if (= c0 #\/) %regex-scan-body ()))
             ())))
       (pair (lit read)
         (fn (_ . args)

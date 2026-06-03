@@ -47,7 +47,7 @@
 
 (doc (def length
   (fn (_ (param lst LIST "List or iterable"))
-    (fold (fn (_ acc x) (+ acc 1)) 0 lst)))
+    (fold (fn (_ acc _) (+ acc 1)) 0 lst)))
   "Return the number of elements.")
 
 (doc (def nth
@@ -279,11 +279,11 @@
        (param lst LIST "List or iterable"))
     (let ((lst (as-list lst)))
       (def go
-        (fn (self i lst)
+        (fn (self i xs)
           (match
-            ((null? lst) (- 0 1))
-            ((pred (first lst)) i)
-            (#t (self (+ i 1) (rest lst))))))
+            ((null? xs) (- 0 1))
+            ((pred (first xs)) i)
+            (#t (self (+ i 1) (rest xs))))))
       (go 0 lst))))
   (returns INT "Index, or -1 if not found")
   "Return the index of the first element satisfying a predicate.")
@@ -434,12 +434,12 @@
   (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List"))
     (def go
-      (fn (self lst yes no)
+      (fn (self xs yes no)
         (match
-          ((null? lst) (list (reverse yes) (reverse no)))
-          ((pred (first lst))
-            (self (rest lst) (pair (first lst) yes) no))
-          (#t (self (rest lst) yes (pair (first lst) no))))))
+          ((null? xs) (list (reverse yes) (reverse no)))
+          ((pred (first xs))
+            (self (rest xs) (pair (first xs) yes) no))
+          (#t (self (rest xs) yes (pair (first xs) no))))))
     (go lst () ())))
   "Split a list into elements that match and don't match a predicate.")
 
@@ -473,15 +473,15 @@
             (pair (first a) (self (rest a) b)))
           (#t (pair (first b) (self a (rest b)))))))
     (def split
-      (fn (self lst a b)
+      (fn (self xs a b)
         (match
-          ((null? lst) (list a b))
-          ((null? (rest lst)) (list (pair (first lst) a) b))
+          ((null? xs) (list a b))
+          ((null? (rest xs)) (list (pair (first xs) a) b))
           (#t
             (self
-              (rest (rest lst))
-              (pair (first lst) a)
-              (pair (first (rest lst)) b))))))
+              (rest (rest xs))
+              (pair (first xs) a)
+              (pair (first (rest xs)) b))))))
     (if (or (null? lst) (null? (rest lst)))
       lst
       (let ((halves (split lst () ())))

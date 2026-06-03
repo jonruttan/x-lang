@@ -52,7 +52,7 @@
     (str-append "lib/"
       (str-append (symbol->str name) ".x"))))
 (def provide
-  (op (name . syms) e
+  (op (name . syms) _
     (%module-register! name syms)
     ()))
 
@@ -90,7 +90,7 @@
     (%check syms)))
 
 (def import
-  (op (name . syms) e
+  (op (name . syms) _
     (include-once (%module-resolve name))
     (match
       ((eq? syms ()) ())

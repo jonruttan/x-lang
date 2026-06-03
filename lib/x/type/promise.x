@@ -7,7 +7,7 @@
   (make-type
     (lit PROMISE)
     (list
-      (pair (lit write) (fn (_ self) (display "#<promise>"))))))
+      (pair (lit write) (fn (_ _) (display "#<promise>"))))))
 
 (note "Predicates")
 

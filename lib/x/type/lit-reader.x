@@ -17,7 +17,7 @@
 
 ; Single-char accept: unread the lookahead char, score, accept.
 (def %lit-accept
-  (fn (_ buffer score chr)
+  (fn (_ buffer score _)
     (%seq (buffer-unread buffer) (score-set score 1 buffer))))
 
 ; --- Register LIT-READ type (single quote) ---

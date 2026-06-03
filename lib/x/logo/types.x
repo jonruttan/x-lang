@@ -96,7 +96,7 @@
     (set! %logo-block
       (base-make-type base "LOGO-BLOCK"
         (list
-          (pair (lit write) (fn (_ self) (display "[ ... ]")))
+          (pair (lit write) (fn (_ _) (display "[ ... ]")))
           (pair (lit eval) (fn (_ self) (logo-process-tokens (first self)))))))
 
     ; LOGO-CLOSE
@@ -256,9 +256,9 @@
         (pair (lit analyse)
           (fn (_ buffer score chr)
             (if (= chr 59)
-              (fn (self buffer score chr2)
+              (fn (self buf sc chr2)
                 (if (= chr2 10)
-                  (token-accept buffer score chr2)
+                  (token-accept buf sc chr2)
                   self))
               ())))))
 

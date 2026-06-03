@@ -145,7 +145,7 @@
   ; Install the SIGINT handler so ctrl-c breaks loops.  On builds without
   ; signal support these primitives are absent; fall back to inert no-ops so
   ; the REPL still loads (%sigint-flag becomes an unused settable cell).
-  (guard (%e
+  (guard (_
       (def sigint-install (fn () ()))
       (def sigint-restore (fn () ()))
       (def %sigint-flag (list 0)))

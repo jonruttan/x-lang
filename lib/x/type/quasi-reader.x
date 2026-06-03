@@ -16,7 +16,7 @@
 ; Used by backtick (always single-char) after the entry matches.
 
 (def %quasi-accept
-  (fn (_ buffer score chr)
+  (fn (_ buffer score _)
     (%seq (buffer-unread buffer) (score-set score 1 buffer))))
 
 ; After comma, check for @ (splice) or accept as plain unquote.

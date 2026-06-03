@@ -82,13 +82,13 @@
           (if (and (>= chr 48) (<= chr 57))
             %rat-numer
             (if (= chr 45)
-              (fn (_ buffer score chr)
-                (if (and (>= chr 48) (<= chr 57))
+              (fn (_ buf sc c0)
+                (if (and (>= c0 48) (<= c0 57))
                   %rat-numer
                   ()))
               (if (= chr 43)
-                (fn (_ buffer score chr)
-                  (if (and (>= chr 48) (<= chr 57))
+                (fn (_ buf sc c0)
+                  (if (and (>= c0 48) (<= c0 57))
                     %rat-numer
                     ()))
                 ())))))

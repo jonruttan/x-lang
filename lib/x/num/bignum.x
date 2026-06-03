@@ -119,10 +119,10 @@
 (def %limb-mul
   (fn (_ a b)
     (def %mul-go
-      (fn (self a shift acc)
-        (if (null? a) acc
-          (self (rest a) (pair 0 shift)
-            (%limb-add acc (append shift (%limb-mul1 b (first a) 0)) 0)))))
+      (fn (self as shift acc)
+        (if (null? as) acc
+          (self (rest as) (pair 0 shift)
+            (%limb-add acc (append shift (%limb-mul1 b (first as) 0)) 0)))))
     (%mul-go a () (list 0))))
 
 ; Divide limb list by single limb, return (quotient-limbs . remainder)

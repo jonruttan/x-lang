@@ -4,20 +4,20 @@
 (note "Terminators")
 
 (doc (def token-accept
-  (fn (_ (param buffer ANY "Token buffer") (param score ANY "Score atom") (param chr ANY "Current character"))
+  (fn (_ (param buffer ANY "Token buffer") (param score ANY "Score atom") _)
     (buffer-unread buffer)
     (score-set score 1 buffer)))
   (returns ANY "Score object (signals match)")
   "Accept the current token, rewinding the last character. Standard terminator for states.")
 
 (doc (def token-accept-inclusive
-  (fn (_ (param buffer ANY "Token buffer") (param score ANY "Score atom") (param chr ANY "Current character"))
+  (fn (_ (param buffer ANY "Token buffer") (param score ANY "Score atom") _)
     (score-set score 1 buffer)))
   (returns ANY "Score object (signals match)")
   "Accept the current token including the current character.")
 
 (doc (def token-reject
-  (fn (_ (param buffer ANY "Token buffer") (param score ANY "Score atom") (param chr ANY "Current character"))
+  (fn (_ _ _ _)
     ()))
   (returns NIL "Nil (signals no match)")
   "Reject the current token. Returns nil to signal no match.")

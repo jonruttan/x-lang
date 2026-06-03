@@ -67,8 +67,8 @@
 (def %libm
   (let ((h (dlopen "libm.so.6" 1)))
     (if h h
-      (let ((h (dlopen "libm.dylib" 1)))
-        (if h h
+      (let ((h2 (dlopen "libm.dylib" 1)))
+        (if h2 h2
           (dlopen () 1))))))
 
 (def %strtod (dlsym %libm "strtod"))

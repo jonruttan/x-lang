@@ -309,7 +309,7 @@
         (%go (%doc-reverse %pending))))))
 
 ; note: (note text...) -> no-op, returns nil (standalone section marker)
-(def note (op %note-args e ()))
+(def note (op %note-args _ ()))
 
 ; --- Color stubs (overridden by x/sys/ansi.x when loaded) ---
 

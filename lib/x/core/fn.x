@@ -6,7 +6,7 @@
   (returns ANY "The input value unchanged")
   "Return the given value unchanged.")
 
-(doc (def const (fn (_ (param x ANY "Value to capture")) (fn (_ y) x)))
+(doc (def const (fn (_ (param x ANY "Value to capture")) (fn (_ _) x)))
   (returns CALLABLE "A function that always returns x")
   "Return a function that always returns x, ignoring its argument.")
 

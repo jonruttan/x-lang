@@ -103,7 +103,7 @@
 ; --- Markdown output ---
 
 (def doc-emit-heading (fn (_ level text)
-  (for-each (fn (_ x) (display "#")) (range 0 level))
+  (for-each (fn (_ _) (display "#")) (range 0 level))
   (display " ") (display text) (newline) (newline)))
 
 (def doc-emit-param (fn (_ p)
@@ -266,7 +266,7 @@
           (fold (fn (_ acc ch) (if (= ch (integer->char 47)) (+ acc 1) acc))
             0 (Str ->list %mod-name)))
         (def %back
-          (fold (fn (_ acc x) (str-append acc "../"))
+          (fold (fn (_ acc _) (str-append acc "../"))
             "" (range 0 %depth)))
         (display "[← Index](") (display %back) (display "index.md)")
         (newline) (newline)

@@ -36,7 +36,7 @@
       (list 0 0)
       (if (not (%cov-is-cons? expr))
         (list 0 0)
-        (guard (err (list 0 0))
+        (guard (_ (list 0 0))
           (let ((left (self (first expr) (+ depth 1)))
                 (right (self (rest expr) (+ depth 1)))
                 (cov (if (cov-covered? expr) 1 0)))
@@ -75,7 +75,7 @@
   (fn (self alist n tsv-mode)
     (if (or (null? alist) (> n 5000)) ()
       (do
-        (guard (err ())
+        (guard (_ ())
           (let ((name (first (first alist)))
                 (val (rest (first alist))))
             (if (and (symbol? name) (procedure? val) (not (null? val)))

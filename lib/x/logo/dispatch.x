@@ -125,9 +125,9 @@
 (def %take-until
   (fn (_ toks stop)
     (def %go
-      (fn (self toks acc)
-        (if (eq? toks stop) (reverse acc)
-          (self (rest toks) (pair (first toks) acc)))))
+      (fn (self ts acc)
+        (if (eq? ts stop) (reverse acc)
+          (self (rest ts) (pair (first ts) acc)))))
     (%go toks ())))
 
 (def %skip-one-expr ())

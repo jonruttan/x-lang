@@ -403,7 +403,6 @@
     (def fn-params (first (rest expr)))
     (def fn-body (first (rest (rest expr))))
     (def params (rest fn-params))  ; skip self (_)
-    (def nparams (length params))
 
     ; Allocate trampoline cell for self-recursion
     (def c-malloc (dlsym (dlopen () 1) "malloc"))
