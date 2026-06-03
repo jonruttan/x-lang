@@ -464,9 +464,9 @@
           (if (not (str=? (%doc-entry-desc %md) ""))
             (do (display " -- ") (display (%doc-entry-desc %md)))))
         (newline))
-      ; alphabetical by module name (Str8/sort are global, resolved at call time)
+      ; alphabetical by module name (str<? and sort are global C/lib primitives)
       (sort
-        (fn (_ a b) (Str8 <? (symbol->str (first a)) (symbol->str (first b))))
+        (fn (_ a b) (str<? (symbol->str (first a)) (symbol->str (first b))))
         (first %module-registry-cell)))))
 
 ; True if the string x appears in the list of strings lst.
