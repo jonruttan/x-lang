@@ -235,7 +235,7 @@ Creates a new type at runtime. `name` is a string. `handlers` is an association 
     (pair (lit write) (fn (self) ...))))
 ```
 
-Supported handler keys: `call`, `eval`, `from`, `to`, `analyse`, `delimit`, `write`, `length`.
+Supported handler keys: `call`, `eval`, `from`, `to`, `analyse`, `delimit`, `write`, `length`, `iter`. The `iter` handler is `(fn (_ obj) -> iterator)`; it makes `(iter obj)` build an iterator over the type's values (see the Iterators section of the standard library).
 
 Returns a type handle (the name atom) used to create instances and check types.
 

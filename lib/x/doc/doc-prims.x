@@ -316,14 +316,53 @@
 (doc make-base "Create a new base object (execution context)."
   (returns BASE "A fresh base with types and primitives"))
 
-(doc iter "Create an iterator for a value."
-  (param val ANY "Iterable value")
-  (returns CALLABLE "Iterator function: () -> next value or nil"))
+(doc iter "Build an iterator over an iterable -- a list, vector, string, or def-class instance (instances yield (name . value) pairs). Drive it with iter-next / iter-empty?."
+  (param val ANY "An iterable; () yields an empty iterator")
+  (returns ANY "An iterator object")
+  (see make-iter) (see iter-next) (see iter-empty?))
+
+(doc make-iter "Build an iterator from a step function and an initial state. iter-next calls (step iter): the step reads the current item from the iterator's state, advances it, and returns the item; the state becoming nil marks exhaustion."
+  (param step CALLABLE "(self iter) -> next item, advancing iter's state")
+  (param state ANY "Initial iteration state, e.g. a list cursor")
+  (returns ANY "An iterator object")
+  (see iter) (see iter-next))
+
+(doc iter-next "Advance an iterator, returning its next element."
+  (param it ANY "An iterator")
+  (returns ANY "The next element")
+  (see iter-empty?))
+
+(doc iter-empty? "Test whether an iterator is exhausted (no elements remain)."
+  (param it ANY "An iterator")
+  (returns BOOLEAN "t when the iterator is empty"))
 
 (doc token-read-string "Tokenize a string using a base's type system."
   (param base BASE "Base object with type alist")
   (param s STRING "Source string to tokenize")
   (returns LIST "List of parsed tokens"))
+
+(note "Tokenizer buffers (low-level; for custom readers built via make-type)")
+
+(doc buffer-reset "Empty a tokenizer buffer: reset its read and write cursors to the base."
+  (param buffer ANY "A tokenizer buffer")
+  (returns ANY "The buffer"))
+
+(doc buffer-retain "Compact a buffer's unread data to the front, freeing consumed space."
+  (param buffer ANY "A tokenizer buffer")
+  (returns ANY "The buffer"))
+
+(doc buffer-append "Append one character at a buffer's write cursor."
+  (param buffer ANY "A tokenizer buffer")
+  (param ch CHAR "Character to write")
+  (returns ANY "The buffer"))
+
+(doc buffer-read "Read one character into a buffer, extending from the input channel if it is exhausted."
+  (param buffer ANY "A tokenizer buffer")
+  (returns ANY "The buffer, or () at EOF"))
+
+(doc buffer-read-text "Like buffer-read, but a NUL character counts as end-of-input."
+  (param buffer ANY "A tokenizer buffer")
+  (returns ANY "The buffer, or () at EOF/NUL"))
 
 ; === FFI ===
 

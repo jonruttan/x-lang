@@ -14,7 +14,7 @@ This document covers the core functions loaded by `lib/x.x` (the base x-lang dia
 |----------|------|----------|
 | Boot | `lib/x/boot/` | Operatives, data constructors, strings, module system |
 | Core | `lib/x/core/` | Combinators, lists (60+ functions), logic, math, syntax, control, quasiquote, REPL |
-| Types | `lib/x/type/` | Characters, strings, vectors, promises, regex, objects |
+| Types | `lib/x/type/` | Characters, strings, vectors, promises, regex, objects, iterators |
 | Numeric | `lib/x/num/` | Bignum, float, rational, complex, tower helpers |
 | System | `lib/x/sys/` | POSIX, FFI, tokenizer, type system, conversions, GC, file I/O |
 | Tools | `lib/x/tool/` | Linter, formatter, coverage, profiler, compiler, assembler |
@@ -971,4 +971,50 @@ Returns the name symbol of a class, or of an instance's class.
 Returns `#t` if `inst` is an instance of `class` or any of its subclasses.
 ```
 (instance-of? (new Point x 1 y 2) Point) -> #t
+```
+
+---
+
+## 18. Iterators
+
+Lazy traversal of sequences. `(iter seq)` builds an iterator over a list, vector, string, or `def-class` instance; drive it with `iter-next` / `iter-empty?`, or consume it with the helpers below. Build a custom iterator from any step logic with `make-iter`. An iterator is `[step-fn . state]`: `iter-next` calls `(step it)`, which reads the current item from the state, advances it, and returns the item; the state becoming `()` marks exhaustion.
+
+### `iter`
+`(iter seq) -> iterator`
+Builds an iterator over an iterable — a list, vector, string, or class instance (instances yield `(name . value)` pairs). The empty list yields an empty iterator.
+```
+(iter->list (iter (vector 1 2 3))) -> (1 2 3)
+```
+
+### `make-iter`
+`(make-iter step state) -> iterator`
+Builds an iterator from a step function `(fn (self it) ...)` and an initial state. The step reads the current item from the iterator's state, advances it (e.g. with `set-rest!`), and returns the item; a `()` state means exhausted.
+
+### `iter-next`
+`(iter-next it) -> element`
+Advances an iterator, returning its next element. (Check `iter-empty?` first.)
+
+### `iter-empty?`
+`(iter-empty? it) -> bool`
+Reports whether an iterator is exhausted.
+```
+(do (def it (iter (list 1))) (def a (iter-empty? it)) (iter-next it) (list a (iter-empty? it))) -> (#f #t)
+```
+
+### `iter->list`
+`(iter->list it) -> list`
+Drains an iterator into a list.
+```
+(iter->list (iter "abc")) -> (#\a #\b #\c)
+```
+
+### `iter-for-each`
+`(iter-for-each f it) -> ()`
+Applies `f` to each remaining element, for side effects.
+
+### `iter-fold`
+`(iter-fold f acc it) -> acc`
+Left-folds `(f acc element)` over the remaining elements.
+```
+(iter-fold + 0 (iter (list 1 2 3 4))) -> 10
 ```

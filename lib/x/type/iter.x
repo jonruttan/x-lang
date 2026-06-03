@@ -95,5 +95,7 @@
 (doc (provide x/type/iter
   iter make-iter iter-next iter-empty?
   iter->list iter-for-each iter-fold)
-  (note "(iter seq) works for lists, vectors, and strings.")
-  "Iterator protocol: build with (iter seq) or make-iter, drive with iter-next /")
+  (note "(iter seq) works for lists, vectors, strings, and def-class instances")
+  (note "(those yield (name . value) pairs); empty sequences give an empty iterator.")
+  (example "(iter->list (iter (vector 1 2 3)))" "(1 2 3)")
+  "Iterator protocol: build an iterator with (iter seq) or make-iter, drive it with iter-next / iter-empty?, and consume it with iter->list / iter-for-each / iter-fold.")
