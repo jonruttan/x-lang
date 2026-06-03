@@ -31,35 +31,44 @@
 (include "lib/x/core/hash.x")
 (include "lib/x/tool/compile.x")
 
-; --- Compile quasi-reader analysers (loaded by x-core.x) ---
+; --- Compile the quote-family analysers and swap them into the symbol
+;     type's analyse list.  x-core.x (lit-reader.x) installed interpreted
+;     versions; these run on every char while tokenizing, so compiling them
+;     keeps subsequent files parsing fast. ---
 
 (set! %compile-fvars
   (list (pair (lit %quasi-accept) %quasi-accept)))
-(type-push-analyse (type-by-atom %quasi-read-atom)
+(def %c-quasi-analyse
   (compile
     (lit (fn (_ buffer score chr)
       (if (= chr 96) %quasi-accept ())))
     %compile-fvars))
-(set! %compile-fvars ())
 
 (set! %compile-fvars
   (list (pair (lit %unquote-after-comma) %unquote-after-comma)))
-(type-push-analyse (type-by-atom %unquote-read-atom)
+(def %c-unquote-analyse
   (compile
     (lit (fn (_ buffer score chr)
       (if (= chr 44) %unquote-after-comma ())))
     %compile-fvars))
-(set! %compile-fvars ())
 
-; Quote reader: 'expr -> (lit expr) (loaded by x-core.x)
 (set! %compile-fvars
   (list (pair (lit %lit-accept) %lit-accept)))
-(type-push-analyse (type-by-atom %lit-read-atom)
+(def %c-lit-analyse
   (compile
     (lit (fn (_ buffer score chr)
       (if (= chr 39) %lit-accept ())))
     %compile-fvars))
 (set! %compile-fvars ())
+
+; Swap the compiled analysers in for the interpreted handlers.  The symbol
+; type's analyse list (from lit-reader.x) is (lit quasi unquote <C symbol
+; analyse>); the C catch-all tail stays as is.
+(def %sym-analyse-list
+  (first (first (type-analyse-cell (type-by-atom (type-of "x"))))))
+(set-first! %sym-analyse-list %c-lit-analyse)
+(set-first! (rest %sym-analyse-list) %c-quasi-analyse)
+(set-first! (rest (rest %sym-analyse-list)) %c-unquote-analyse)
 
 ; --- Load numeric tower with immediate analyser compilation ---
 

@@ -1,51 +1,62 @@
-; lit-reader.x -- Reader syntax for quote: 'expr reads as (lit expr)
+; lit-reader.x -- quote (') reader macro, plus the wiring that places the
+; quote family (lit / quasi / unquote) onto the symbol type.
 ;
-; Registers one tokenizer type via make-type:
-;   LIT-READ -- matches ' (apostrophe), reads next expr, wraps in (lit expr)
+;   'expr -> (lit expr)
 ;
-; Mirrors quasi-reader.x. The analyse handler is kept JIT-compatible -- only
-; integer char compares and nested `if`, no cond/convert/eq?-on-heap -- so the
-; x/and and x/or dialects can compile it to native code (see lib/x-and.x,
-; lib/x-or.x). Interpreted, it runs on every char while tokenizing and slows
-; parsing; compiled, that cost disappears.
+; Loading last, this file assembles the symbol type's reader slots:
+;   analyse: a list (lit quasi unquote <C symbol analyse>) the tokenizer
+;            scores in turn -- the C symbol analyse is the catch-all tail.
+;   read:    a list (lit quasi unquote <C symbol read>); each macro read
+;            self-selects on its leading char and declines otherwise.
+;   delimit: one combined handler so ' ` , terminate an adjacent token
+;            (foo'bar reads as foo then 'bar).
 ;
-; The delimit hook makes ' terminate an adjacent token, so foo'bar reads as
-; foo then 'bar (' is a terminating macro char, as in standard Lisp).
-;
-; Requires: intrinsics.x (buffer-unread, score-set), token-read,
-;           buffer-last-char primitives (from C). `lit` is a core special form.
+; Requires: quasi-reader.x, intrinsics.x, str.x, char.x, x/sys/type.
 
-; Single-char accept: unread the lookahead char, score, accept.
 (def %lit-accept
   (fn (_ buffer score _)
     (%seq (buffer-unread buffer) (score-set score 1 buffer))))
 
-; --- Register LIT-READ type (single quote) ---
+(def %lit-analyse
+  (fn (_ buffer score chr) (if (= chr 39) %lit-accept ())))
 
-(def %lit-read-atom
-(make-type
-  "LIT-READ"
-  (list
-    (pair
-      (lit analyse)
-      (fn (_ buffer score chr)
-        (if (= chr 39) %lit-accept ())))
-    (pair
-      (lit delimit)
-      (fn (_ buffer . rest)
-        (if (= (buffer-last-char buffer) 39)
-          (%seq (buffer-unread buffer) buffer)
-          ())))
-    (pair
-      (lit read)
-      (fn (_ . args)
-        (pair (lit lit)
-          (pair (token-read (first args)) ())))))))
+(def %lit-read
+  (fn (_ buffer . rest)
+    (if (= (buffer-last-char buffer) 39)
+      (pair (lit lit) (pair (token-read buffer) ()))
+      ())))
+
+; ' ` , each terminate an adjacent token.  Nested if (no cond/or) and no
+; binding keep it allocation-free on the per-char delimiter path.
+(def %macro-delimit
+  (fn (_ buffer . rest)
+    (if (if (= (buffer-last-char buffer) 39) #t
+          (if (= (buffer-last-char buffer) 96) #t
+            (= (buffer-last-char buffer) 44)))
+      (%seq (buffer-unread buffer) buffer)
+      ())))
+
+; --- Place the readers on the symbol type ---
+; Each slot becomes a list: the macro handlers followed by the type's
+; existing C handler (captured as the list tail), which the tokenizer's
+; analyse/read loops iterate.
+
+(def %sym-type (type-by-atom (type-of "x")))
+
+(type-push-analyse %sym-type
+  (list %lit-analyse %quasi-analyse %unquote-analyse
+        (first (first (type-analyse-cell %sym-type)))))
+
+(type-push-read %sym-type
+  (list %lit-read %quasi-read %unquote-read
+        (first (first (type-read-cell %sym-type)))))
+
+(type-push-delimit %sym-type %macro-delimit)
 
 (doc (provide x/type/lit-reader
-  %lit-read-atom %lit-accept)
-  (note "'sym is a symbol, '(a b) a literal list, ''x nests. ' also terminates an")
-  (note "adjacent token: foo'bar reads as foo then 'bar. The x/and and x/or dialects")
-  (note "JIT-compile the reader so it does not slow tokenizing.")
+  %lit-analyse %lit-read %lit-accept %macro-delimit)
+  (note "'sym is a symbol, '(a b) a literal list, ''x nests; ' also terminates")
+  (note "an adjacent token: foo'bar reads as foo then 'bar.")
   (example "'(1 2 3)" "(1 2 3)")
-  "Quote reader: 'expr is reader shorthand for (lit expr).")
+  "Quote reader ('expr -> (lit expr)) plus the wiring that puts the quote family
+of readers on the symbol type.")

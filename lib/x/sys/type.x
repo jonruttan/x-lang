@@ -102,6 +102,26 @@
     (let ((c (type-analyse-cell ts)))
       (set-first! c (pair handler (first c))))))
 
+; Get the delimit-stack cell from a type struct (io group, 2nd element)
+(def type-delimit-cell
+  (fn (_ t) (rest (type-io t))))
+
+; Get the read-stack cell from a type struct (io group, 3rd element)
+(def type-read-cell
+  (fn (_ t) (rest (rest (type-io t)))))
+
+; Push a handler onto a type's delimit stack
+(def type-push-delimit
+  (fn (_ ts handler)
+    (let ((c (type-delimit-cell ts)))
+      (set-first! c (pair handler (first c))))))
+
+; Push a handler onto a type's read stack
+(def type-push-read
+  (fn (_ ts handler)
+    (let ((c (type-read-cell ts)))
+      (set-first! c (pair handler (first c))))))
+
 ; Get the iter-stack cell from a type struct (iter group: 7th element, past io).
 (def type-iter-cell
   (fn (_ t) (first (rest (rest (rest (rest (rest (rest t)))))))))
