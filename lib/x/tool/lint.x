@@ -54,6 +54,15 @@
   (if (null? names) ()
     (if (str=? name (first names)) #t (self name (rest names))))))
 
+; Unwrap (doc DEFN meta...) -> DEFN so def-name and arity collection see the
+; real (def ...) / (set! ...) underneath.  Most lib functions are doc-wrapped;
+; without this the linter is blind to their definitions -- arity can't check
+; them and in-file self-references look "undefined".
+(def %lint-unwrap-doc (fn (_ form)
+  (if (if (pair? form) (symbol? (first form)) #f)
+    (if (str=? (convert (first form) %string) "doc") (first (rest form)) form)
+    form)))
+
 ; --- Scope helpers (scope holds name strings) ---
 
 ; The NAME of one parameter slot.  A slot is normally a bare symbol, but the
@@ -280,14 +289,22 @@
     (if (str=? (first (first alist)) name) (first alist)
       (self name (rest alist))))))
 
-(def %params-arity (fn (self params n)   ; -> (proper-count . improper?)
+(def %params-arity (fn (self params n)   ; -> (proper-count . variadic?)
   (if (null? params) (pair n #f)
-    (if (pair? params) (self (rest params) (+ n 1))
-      (pair n #t)))))
+    (if (pair? params)
+      ; A bare `param` symbol element is the flattened remnant of an inline-doc
+      ; rest param `. (param NAME ...)` (the reader flattens `. (list)`), so the
+      ; rest is variadic.  (A param literally named `param` is vanishingly rare.)
+      (if (if (symbol? (first params)) (str=? (convert (first params) %string) "param") #f)
+        (pair n #t)
+        (self (rest params) (+ n 1)))
+      (pair n #t))))) ; bare symbol tail -> rest param
 
 (def %fn-arity (fn (_ fn-form)           ; (fn PARAMS body) -> (callable-min . variadic?)
+  ; A fn's first param is the implicit self, so callable = params - 1 -- except
+  ; (fn () ...) has NO self slot, so floor at 0 (0 params -> 0 callable, not -1).
   (let ((pa (%params-arity (first (rest fn-form)) 0)))
-    (pair (- (first pa) 1) (rest pa)))))
+    (pair (if (< (first pa) 1) 0 (- (first pa) 1)) (rest pa)))))
 
 (def %arity-record (fn (_ name val)
   (if (if (pair? val) (symbol? (first val)) #f)
@@ -300,7 +317,7 @@
 ; Pre-pass over top-level (def NAME (fn ..)) / (set! NAME (fn ..)).
 (def %arity-collect (fn (self forms)
   (if (pair? forms)
-    (do (let ((f (first forms)))
+    (do (let ((f (%lint-unwrap-doc (first forms))))
           (if (if (pair? f) (symbol? (first f)) #f)
             (if (if (str=? (convert (first f) %string) "def") #t
                   (str=? (convert (first f) %string) "set!"))
@@ -322,12 +339,15 @@
           (%warn! "arity" (first entry))
           ()))))))
 
-; A code form whose head is a literal (number/string/char/nil) or (lit ...)
-; calls a non-function -- a guaranteed runtime error.
+; A code form whose head is a (lit ...) form calls a non-function (it
+; evaluates to a symbol/value, not a procedure) -- a clear bug.  We do NOT
+; flag a bare-literal head (number/string/char): such a list is usually DATA
+; passed unevaluated to an operative (e.g. ("0" 0) as a pad spec), which the
+; linter cannot distinguish from a call.
 (def %lint-noncallable? (fn (_ head)
   (if (pair? head)
     (if (symbol? (first head)) (str=? (convert (first head) %string) "lit") #f)
-    (if (symbol? head) #f #t))))
+    #f)))
 
 ; --- Malformed core form check ---
 ; Minimum total length for forms whose structure is required.  x-lang is
@@ -385,8 +405,9 @@
   (if (null? forms) defs
     ; `let`, not `def`: this is %lint-top's tail, so a `def` here would itself
     ; leak (the very bug we detect).  We dogfood the fix.
-    (let ((form (first forms))
-          (nm (if (%lint-binds? (first forms)) (%lint-bound-name (first forms)) ())))
+    (let* ((form (first forms))
+           (eff (%lint-unwrap-doc form))               ; see through (doc (def ..) ..)
+           (nm (if (%lint-binds? eff) (%lint-bound-name eff) ())))
       (if (if (null? nm) #f (%name-member? nm defs))
         (%warn! "dup-def" nm) ())                      ; same top-level name defined twice
       (set-first! %lint-scope ())

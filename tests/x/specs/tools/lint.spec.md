@@ -215,3 +215,30 @@
 ```
 ---
     #t
+
+## lint: false-positive regressions (found by hardening)
+
+### does not flag a 0-arg fn (empty params) called with no args
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %fs (list
+    (list (lit def) (lit f) (list (lit fn) () 1))
+    (list (lit f))))
+  (def %r (lint-forms %fs () ()))
+  (display (null? (lint-warnings-of "arity" %r))))
+```
+---
+    #t
+
+### does not flag a data list with a literal head (operative argument)
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list (list (lit foo) (list "0" 0))) () ()))
+  (display (null? (lint-warnings-of "call-nonfn" %r))))
+```
+---
+    #t
