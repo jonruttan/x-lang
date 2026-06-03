@@ -376,6 +376,25 @@
       (fn (_ ref) (display "  See: ") (display ref) (newline))
       sees)))
 
+; Print a coloured name at an indent: `<indent>%c-name<name>%c-reset`.  name
+; may be a symbol or string -- display renders either bare.  No newline, so a
+; caller can append a description (%display-entry-line) or another suffix (e.g.
+; modules' load status).
+(def %display-name
+  (fn (_ indent name)
+    (display indent) (display %c-name) (display name) (display %c-reset)))
+
+; Print one "<name> -- <desc>" listing line (description omitted when empty),
+; then a newline.  The single formatter every name+desc listing routes through
+; -- module exports, apropos hits, class members, the overview -- so colour and
+; layout cannot drift apart between them.
+(def %display-entry-line
+  (fn (_ indent name desc)
+    (%display-name indent name)
+    (if (not (str=? desc ""))
+      (do (display " -- ") (display desc)))
+    (newline)))
+
 ; --- Display ---
 
 ; Find which module exports a given symbol
@@ -417,11 +436,8 @@
   (fn (_ entry e)
     (def %mod-name (first entry))
     (def %mod-doc (%doc-lookup %mod-name))
-    (display %mod-name)
-    (if (not (null? %mod-doc))
-      (if (not (str=? (%doc-entry-desc %mod-doc) ""))
-        (do (display " -- ") (display (%doc-entry-desc %mod-doc)))))
-    (newline)
+    (%display-entry-line "" %mod-name
+      (if (null? %mod-doc) "" (%doc-entry-desc %mod-doc)))
     (if (not (null? %mod-doc))
       (do
         (%display-notes (%doc-entry-notes %mod-doc))
@@ -430,12 +446,8 @@
     (%doc-for-each
       (fn (_ sym)
         (def %e (%doc-lookup sym))
-        (display "  ")
-        (display sym)
-        (if (not (null? %e))
-          (do (display " -- ")
-              (display (%doc-entry-desc %e))))
-        (newline)
+        (%display-entry-line "  " sym
+          (if (null? %e) "" (%doc-entry-desc %e)))
         ; if sym names a class, expand its documented methods underneath.
         ; Only expand under the class's CANONICAL name, so aliases (e.g. Utf8,
         ; Str -> StrUTF8) stay collapsed instead of repeating the whole list.
@@ -445,7 +457,9 @@
                 (str=? (symbol->str sym) (symbol->str (class-name %v))) #f))
           (%display-class-sections %v "    ")
           ()))
-      (rest entry))))
+      ; exports sorted alphabetically, matching the (help) overview
+      (sort (fn (_ a b) (str<? (symbol->str a) (symbol->str b)))
+            (rest entry)))))
 
 (def %display-overview
   (fn (_ )
@@ -460,14 +474,9 @@
     (display %c-bold) (display "Modules:") (display %c-reset) (newline)
     (%doc-for-each
       (fn (_ m)
-        (display "  ")
-        (display %c-name) (display (first m)) (display %c-reset)
-        ; Show module description if available
         (def %md (%doc-lookup (first m)))
-        (if (not (null? %md))
-          (if (not (str=? (%doc-entry-desc %md) ""))
-            (do (display " -- ") (display (%doc-entry-desc %md)))))
-        (newline))
+        (%display-entry-line "  " (first m)
+          (if (null? %md) "" (%doc-entry-desc %md))))
       ; alphabetical by module name (str<? and sort are global C/lib primitives)
       (sort
         (fn (_ a b) (str<? (symbol->str (first a)) (symbol->str (first b))))
@@ -545,11 +554,8 @@
   (fn (loop entries indent)
     (if (null? entries) ()
       (do
-        (display indent) (display %c-name)
-        (display (symbol->str (first (first entries)))) (display %c-reset)
-        (if (not (str=? (rest (first entries)) ""))
-          (do (display " -- ") (display (rest (first entries)))))
-        (newline)
+        (%display-entry-line indent
+          (symbol->str (first (first entries))) (rest (first entries)))
         (loop (rest entries) indent)))))
 
 ; Print a labelled section (header + entries), or nothing when empty.
@@ -637,14 +643,12 @@
           (do
             (if (%doc-str-contains? %pat
                   (symbol->str (first (first entries))))
-              (do (display "  ")
-                  (display (first (first entries)))
-                  (if (not (str=? (first (rest (first entries))) ""))
-                    (do (display " -- ")
-                        (display (first (rest (first entries))))))
-                  (newline)))
+              (%display-entry-line "  " (first (first entries))
+                (first (rest (first entries)))))
             (self (rest entries))))))
-    (%search (first %doc-registry-cell))))
+    ; results sorted by name, matching the (help) overview
+    (%search (sort (fn (_ a b) (str<? (symbol->str (first a)) (symbol->str (first b))))
+                   (first %doc-registry-cell)))))
 
 ; --- Module discovery ---
 
@@ -672,7 +676,7 @@
 (def modules
   (fn (_ )
     (%doc-commit!)
-    (display "Modules:") (newline)
+    (display %c-bold) (display "Modules:") (display %c-reset) (newline)
     (def %show
       (fn (self paths)
         (if (not (null? paths))
@@ -680,8 +684,7 @@
             (def %name (%path->module-name (first paths)))
             (if (not (null? %name))
               (do
-                (display "  ")
-                (display %name)
+                (%display-name "  " %name)
                 (if (%module-is-loaded? %name)
                   (let ()
                     (display "  [loaded]")
@@ -692,7 +695,9 @@
                   (display "  [available]"))
                 (newline)))
             (self (rest paths))))))
-    (%show (first %include-list-cell))))
+    ; sorted by path (== module order); sort is non-destructive, so the
+    ; live include/load queue is left untouched
+    (%show (sort (fn (_ a b) (str<? a b)) (first %include-list-cell)))))
 
 (doc (provide x/doc/doc doc note help apropos modules)
   (note "doc wraps def or provide for metadata. help for REPL lookup. apropos for search.")
