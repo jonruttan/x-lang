@@ -127,3 +127,55 @@
 ```
 ---
     #t
+
+## lint: pedantic checks (arity / non-callable / duplicate def)
+
+### flags a call with the wrong number of arguments
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %fs (list
+    (list (lit def) (lit f) (list (lit fn) (list (lit _) (lit x) (lit y)) (lit x)))
+    (list (lit f) 1)))
+  (def %r (lint-forms %fs () ()))
+  (display (lint-has? "f" (lint-warnings-of "arity" %r))))
+```
+---
+    #t
+
+### does not flag a correct-arity call
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %fs (list
+    (list (lit def) (lit f) (list (lit fn) (list (lit _) (lit x)) (lit x)))
+    (list (lit f) 1)))
+  (def %r (lint-forms %fs () ()))
+  (display (null? (lint-warnings-of "arity" %r))))
+```
+---
+    #t
+
+### flags calling a non-callable (lit ...) head
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list (list (list (lit lit) (lit g)) 1)) () ()))
+  (display (null? (lint-warnings-of "call-nonfn" %r))))
+```
+---
+    #f
+
+### flags a duplicate top-level def
+
+```scheme
+(do
+  (include "lib/x/tool/lint.x")
+  (def %r (lint-forms (list (list (lit def) (lit a) 1) (list (lit def) (lit a) 2)) () ()))
+  (display (lint-has? "a" (lint-warnings-of "dup-def" %r))))
+```
+---
+    #t

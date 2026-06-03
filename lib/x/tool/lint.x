@@ -35,6 +35,14 @@
 (def %lint-issues (list ()))    ; op names where first/rest hit a literal non-list
 (def %lint-leaks  (list ()))    ; def names that bind in tail position (leak to global)
 
+; --- Pedantic findings (kind . name) pairs; one bag for all the extra checks ---
+; x-lang does not enforce arity (missing args -> nil, extra -> ignored) and
+; silently overwrites redefinitions, so these mistakes never error at runtime;
+; the linter is the only thing that catches them.
+(def %lint-warn (list ()))
+(def %warn! (fn (_ kind name)
+  (set-first! %lint-warn (pair (pair kind name) (first %lint-warn)))))
+
 ; Swappable hooks -- tools/lint.x overrides these for data-driven, construct-
 ; table dispatch.  Forward-declared; defaults set below once the helpers exist.
 (def %lint-binds? ())      ; form -> truthy if it binds a name in a sequence
@@ -250,6 +258,70 @@
         ((str=? h "rest")  (%lint-first-rest form))
         (#t                (%lint-seq form)))))))
 
+; --- Arity + non-callable checks ---
+;
+; x-lang fn calls are lenient: missing args bind to nil, extra are ignored, so
+; a wrong-arity call never errors -- only the linter catches it.  We collect
+; arities of file-local named fns in a pre-pass and flag mismatching calls.  A
+; fn's first param is the implicit self, so callable arity = (proper params) -
+; 1; an improper tail (. rest) means variadic (a minimum only).
+
+(def %lint-arity (list ()))   ; alist: (name . (min . variadic?))
+
+(def %alist-find-name (fn (self name alist)
+  (if (null? alist) ()
+    (if (str=? (first (first alist)) name) (first alist)
+      (self name (rest alist))))))
+
+(def %params-arity (fn (self params n)   ; -> (proper-count . improper?)
+  (if (null? params) (pair n #f)
+    (if (pair? params) (self (rest params) (+ n 1))
+      (pair n #t)))))
+
+(def %fn-arity (fn (_ fn-form)           ; (fn PARAMS body) -> (callable-min . variadic?)
+  (let ((pa (%params-arity (first (rest fn-form)) 0)))
+    (pair (- (first pa) 1) (rest pa)))))
+
+(def %arity-record (fn (_ name val)
+  (if (if (pair? val) (symbol? (first val)) #f)
+    (if (if (str=? (convert (first val) %string) "fn") (symbol? name) #f)
+      (set-first! %lint-arity
+        (pair (pair (convert name %string) (%fn-arity val)) (first %lint-arity)))
+      ())
+    ())))
+
+; Pre-pass over top-level (def NAME (fn ..)) / (set! NAME (fn ..)).
+(def %arity-collect (fn (self forms)
+  (if (pair? forms)
+    (do (let ((f (first forms)))
+          (if (if (pair? f) (symbol? (first f)) #f)
+            (if (if (str=? (convert (first f) %string) "def") #t
+                  (str=? (convert (first f) %string) "set!"))
+              (%arity-record (first (rest f)) (first (rest (rest f))))
+              ())
+            ()))
+        (self (rest forms)))
+    ())))
+
+(def %lint-check-arity (fn (_ form)
+  (let ((entry (if (if (pair? form) (symbol? (first form)) #f)
+                 (%alist-find-name (convert (first form) %string) (first %lint-arity))
+                 ())))
+    (if (null? entry) ()
+      (let ((nargs (- (length form) 1))
+            (mn (first (rest entry)))
+            (vararg (rest (rest entry))))
+        (if (if vararg (< nargs mn) (not (= nargs mn)))
+          (%warn! "arity" (first entry))
+          ()))))))
+
+; A code form whose head is a literal (number/string/char/nil) or (lit ...)
+; calls a non-function -- a guaranteed runtime error.
+(def %lint-noncallable? (fn (_ head)
+  (if (pair? head)
+    (if (symbol? (first head)) (str=? (convert (first head) %string) "lit") #f)
+    (if (symbol? head) #f #t))))
+
 ; --- The write handlers ---
 
 ; SYMBOL: record its NAME unless bound or already seen.
@@ -260,8 +332,15 @@
         (set-first! %lint-uses (pair name (first %lint-uses))))))
   ()))
 
-; LIST: delegate to the (swappable) dispatch; return nil (output is unused).
-(def %lint-list-handler (fn (_ form) (%lint-dispatch form) ()))
+; LIST: run the head/arity checks, then delegate to the (swappable) dispatch.
+; Doing the checks here (not in %lint-dispatch) means both the lib's default
+; dispatch and tools/lint.x's construct-table override get them for free.
+(def %lint-list-handler (fn (_ form)
+  (if (%lint-noncallable? (first form))
+    (%warn! "call-nonfn" (guard (_ "?") (convert (first form) %string)))
+    ())
+  (%lint-check-arity form)
+  (%lint-dispatch form) ()))
 
 (def %lint-push (fn (_)
   (type-push-write %lint-list-type %lint-list-handler)
@@ -278,26 +357,31 @@
     ; `let`, not `def`: this is %lint-top's tail, so a `def` here would itself
     ; leak (the very bug we detect).  We dogfood the fix.
     (let ((form (first forms))
-          (new-defs (if (%lint-binds? (first forms))
-                      (pair (%lint-bound-name (first forms)) defs) defs)))
+          (nm (if (%lint-binds? (first forms)) (%lint-bound-name (first forms)) ())))
+      (if (if (null? nm) #f (%name-member? nm defs))
+        (%warn! "dup-def" nm) ())                      ; same top-level name defined twice
       (set-first! %lint-scope ())
       (write-to-str form)                              ; drive the walk (string discarded)
-      (self (rest forms) new-defs)))))
+      (self (rest forms) (if (null? nm) defs (pair nm defs)))))))
 
 (doc (def lint-forms (fn (_ forms defs uses)
   (set-first! %lint-uses uses)
   (set-first! %lint-issues ())
   (set-first! %lint-leaks ())
+  (set-first! %lint-warn ())
+  (set-first! %lint-arity ())
   (set-first! %lint-scope ())
+  (%arity-collect forms)                             ; pre-pass: file-local fn arities
   (%lint-push)
   (def result-defs (%lint-top forms defs))
   (%lint-pop)
-  (list result-defs (first %lint-uses) (first %lint-issues) (first %lint-leaks))))
+  (list result-defs (first %lint-uses) (first %lint-issues)
+        (first %lint-leaks) (first %lint-warn))))
   (param forms LIST "List of top-level forms to analyze")
   (param defs LIST "Accumulator for defined symbol NAMES")
   (param uses LIST "Accumulator for used symbol NAMES")
-  (returns LIST "(defs uses issues leaks) -- all NAME STRINGS; issues are op names for first/rest on a literal non-list; leaks are def names that bind in tail position")
-  "Walk top-level forms via the write stacks, collecting def/use names, first/rest issues, and tail-position def leaks.")
+  (returns LIST "(defs uses issues leaks warnings) -- defs/uses/issues/leaks are NAME STRINGS; warnings are (kind . name) pairs for arity / call-nonfn / dup-def")
+  "Walk top-level forms via the write stacks, collecting def/use names, first/rest issues, tail-position def leaks, and pedantic warnings (arity, non-callable calls, duplicate defs).")
 
 (doc (def lint-undefined (fn (_ defs uses)
   (filter (fn (_ name)
@@ -331,6 +415,19 @@
   (returns LIST "Def names that bind in tail position (leak to global; use let)")
   "Extract the tail-position-def leak findings from a lint-forms result.")
 
+(doc (def lint-warnings (fn (_ result) (first (rest (rest (rest (rest result)))))))
+  (param result LIST "Result of lint-forms")
+  (returns LIST "Pedantic findings as (kind . name) pairs")
+  "Extract all pedantic warnings (arity, call-nonfn, dup-def, ...) from a result.")
+
+(doc (def lint-warnings-of (fn (_ kind result)
+  (map (fn (_ w) (rest w))
+    (filter (fn (_ w) (str=? (first w) kind)) (lint-warnings result)))))
+  (param kind STRING "Warning kind: arity | call-nonfn | dup-def")
+  (param result LIST "Result of lint-forms")
+  (returns LIST "The names for warnings of that kind")
+  "Filter pedantic warnings to one kind, returning their names.")
+
 (doc (def lint-has? (fn (_ name names) (%name-member? name names)))
   (param name STRING "A symbol name")
   (param names LIST "A list of names (e.g. from lint-undefined)")
@@ -338,5 +435,6 @@
   "Test whether a name string is in a names list (string equality).")
 
 (doc (provide x/tool/lint
-  lint-forms lint-undefined lint-unused lint-first-rest lint-leaks lint-has?)
-  "AST linter via the type-system write stacks: name-based def/use analysis + first/rest + tail-def-leak checks.")
+  lint-forms lint-undefined lint-unused lint-first-rest lint-leaks
+  lint-warnings lint-warnings-of lint-has?)
+  "AST linter via the type-system write stacks: name-based def/use analysis + first/rest + tail-def-leak + pedantic (arity / non-callable / duplicate-def) checks.")
