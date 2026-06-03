@@ -20,21 +20,14 @@
 (def %lint-list-type   (type-by-atom (type-of (list 1))))
 (def %lint-symbol-type (type-by-atom (type-of (lit a))))
 
-; The env-alist (primitives + stdlib) = the "known" symbols.  NOTE: this deep
-; dig is base-layout dependent and currently returns a non-list in some contexts
-; (the layout drifted; profile.x/cov.x share the problem) -- so %env-known? walks
-; it lazily, by NAME, and guards against a non-list so the linter still loads.
-; Converting the live env keys on demand is GC-safe (they are current bindings).
-(def %known-env (first (first (first (rest (rest (first (%base))))))))
-(def %env-known? (fn (self name env)
-  (if (pair? env)
-    (if (if (pair? (first env))
-          (if (symbol? (first (first env)))
-            (str=? (convert (first (first env)) %string) name) #f)
-          #f)
-      #t
-      (self name (rest env)))
-    ())))
+; A name is "known" if it resolves to an existing binding -- a C primitive or
+; a library def.  We test by evaluating the interned symbol under a guard:
+; bound -> its value (known), unbound -> the lookup errors -> #f.  (Evaluating
+; a bare symbol is a pure lookup, no side effects.)  This replaces a former
+; base-layout-dependent env-alist dig that broke when the base layout drifted
+; and produced false "undefined" reports for every primitive.
+(def %env-known? (fn (_ name)
+  (guard (_ #f) (do (eval! (str->symbol name)) #t))))
 
 ; --- Analysis state (boxes; all values are NAME STRINGS) ---
 (def %lint-scope  (list ()))    ; names in lexical scope
@@ -54,11 +47,24 @@
     (if (str=? name (first names)) #t (self name (rest names))))))
 
 ; --- Scope helpers (scope holds name strings) ---
+
+; The NAME of one parameter slot.  A slot is normally a bare symbol, but the
+; doc DSL lets a fn inline its param docs: (fn (self (param p TYPE "d") ...) ..)
+; -- there the real name is the 2nd element of the (param ...) form.  Without
+; this, the whole (param ...) form gets stringified and the actual parameter
+; is never added to scope (so its uses look "undefined").
+(def %param-name (fn (_ p)
+  (if (pair? p)
+    (if (if (symbol? (first p)) (str=? (convert (first p) %string) "param") #f)
+      (convert (first (rest p)) %string)   ; (param NAME TYPE "desc") -> NAME
+      (convert (first p) %string))          ; other pair -> its head
+    (convert p %string))))                  ; bare symbol
+
 (def %add-params (fn (self params scope)
   (if (null? params) scope
     (if (symbol? params) (pair (convert params %string) scope)
       (if (pair? params)
-        (self (rest params) (pair (convert (first params) %string) scope))
+        (self (rest params) (pair (%param-name (first params)) scope))
         scope)))))
 
 (def %scope-add! (fn (_ name) (set-first! %lint-scope (pair name (first %lint-scope)))))
@@ -296,7 +302,7 @@
 (doc (def lint-undefined (fn (_ defs uses)
   (filter (fn (_ name)
     (if (%name-member? name defs) ()
-      (if (%env-known? name %known-env) () #t)))
+      (if (%env-known? name) () #t)))
     uses)))
   (param defs LIST "Defined names from lint-forms")
   (param uses LIST "Used names from lint-forms")

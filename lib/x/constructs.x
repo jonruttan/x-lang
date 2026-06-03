@@ -47,4 +47,16 @@
   (time    (fmt . call)    (scope . none)        (branch . none))
   (when    (fmt . head-1)  (scope . none)        (branch . cond))
   (unless  (fmt . head-1)  (scope . none)        (branch . cond))
+  ; Module system + doc DSL: their arguments are module paths, type names,
+  ; and strings -- NOT value references -- so the linter must skip them (scope
+  ; skip) to avoid false "undefined" reports.  fmt is `call` (default layout),
+  ; so adding these does not change the formatter.  `doc` is intentionally
+  ; absent: it wraps a real (def ...) the linter should still walk.
+  (import  (fmt . call)    (scope . skip)        (branch . none))
+  (provide (fmt . call)    (scope . skip)        (branch . none))
+  (param   (fmt . call)    (scope . skip)        (branch . none))
+  (returns (fmt . call)    (scope . skip)        (branch . none))
+  (example (fmt . call)    (scope . skip)        (branch . none))
+  (see     (fmt . call)    (scope . skip)        (branch . none))
+  (note    (fmt . call)    (scope . skip)        (branch . none))
 )

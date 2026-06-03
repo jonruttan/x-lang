@@ -1,17 +1,18 @@
-; lint.x -- x-lang AST linter (def/use analysis)
+; lint.x -- x-lang AST linter (def/use analysis), data-driven.
 ;
-; Data-driven: reads construct declarations from XEON files
-; to know how each form affects scope (bindings, params, etc.).
-; No hardcoded form names -- each language ships its own declarations.
+; Reads construct declarations (XEON) to know how each form affects scope --
+; no hardcoded form names; each language ships its own declarations.  Built on
+; the write-stack linter (x/tool/lint): it overrides that linter's swappable
+; hooks (%lint-binds?, %lint-dispatch) with construct-table versions and reuses
+; lint-forms, rather than re-implementing the walk.
 ;
-; Uses x-lang's own env-alist for "known" symbols -- no manual
-; enumeration of C primitives or library defs needed.
+; Uses x-lang's own env-alist for "known" symbols -- no manual enumeration of
+; C primitives or library defs.
 ;
-; Input order on stdin: constructs.x, lang-constructs (or ()),
-; then optional %lint-lib flag, then target file forms.
+; Input order on stdin: constructs.x, lang-constructs (or ()), then optional
+; %lint-lib flag, then target file forms.
 
 (do
-  ; Import the linter library (defines %walk helpers, lint-forms, etc.)
   (import x/tool/lint)
 
   ; --- Load construct declarations ---
@@ -22,12 +23,23 @@
     (if (null? %lang-constructs) %constructs
       (append %constructs %lang-constructs)))
 
-  ; Build lookup alist: ((name-string . props) ...)
+  ; Convert each prop's key AND value to a string at BUILD time -- the construct
+  ; symbols are fresh here (just read), so this is safe; comparing them later by
+  ; eq? would dereference GC-relocated pointers and crash (the x/tool/lint rule).
+  (def %props->str (fn (self props)
+    (if (null? props) ()
+      (if (pair? (first props))
+        (pair (pair (if (symbol? (first (first props))) (convert (first (first props)) %string) "")
+                    (if (symbol? (rest (first props)))  (convert (rest (first props)) %string)  ""))
+              (self (rest props)))
+        (self (rest props))))))
+
+  ; Build lookup alist: ((name-string . string-props) ...)
   (def %build-lookup (fn (_ entries acc)
     (if (null? entries) acc
-      (do (def entry (first entries))
+      (let () (def entry (first entries))   ; scoped: tail-position defs would leak
           (def name (convert (first entry) %string))
-          (def props (rest entry))
+          (def props (%props->str (rest entry)))
           (%build-lookup (rest entries)
             (pair (pair name props) acc))))))
   (def %scope-table (%build-lookup %all-constructs ()))
@@ -35,7 +47,7 @@
   ; Lookup helper using string=? for cross-base symbol comparison
   (def %scope-find (fn (_ key table)
     (if (null? table) ()
-      (if (string=? key (first (first table)))
+      (if (str=? key (first (first table)))
         (first table)
         (%scope-find key (rest table))))))
   (def %scope-lookup (fn (_ name)
@@ -43,98 +55,66 @@
     (if (null? entry) ()
       (rest entry))))
 
-  ; Get a property value from a property list
+  ; Get a property value (string) by string key from a string-prop list.
   (def %get-prop (fn (_ key props)
     (if (null? props) ()
       (if (pair? (first props))
-        (if (eq? (first (first props)) key)
+        (if (str=? (first (first props)) key)
           (rest (first props))
           (%get-prop key (rest props)))
         (%get-prop key (rest props))))))
 
-  ; --- Data-driven scope dispatch ---
-  ; Override %walk-pair with construct-table-driven version.
+  ; --- Override the linter's hooks with construct-table-driven versions ---
 
-  (set! %walk-pair (fn (_ form scope uses)
+  ; A form introduces a binding (for sequence/top-level scope) when its head
+  ; declares scope=bind.  (Replaces the old hardcoded (lit def) detection.)
+  (set! %lint-binds? (fn (_ form)
+    (if (if (pair? form) (symbol? (first form)) ())
+      (let ((p (%scope-lookup (first form))))
+        (if (null? p) ()
+          (let ((st (%get-prop "scope" p)))
+            (if (null? st) () (str=? st "bind")))))
+      ())))
+
+  ; Look up the head's scope-type and route to the matching analyser from the
+  ; library.  (Replaces the old %walk-pair override; same scope semantics, but
+  ; driven through the write-stack handlers.)  first/rest still get the literal
+  ; non-list check; unknown forms are treated as function calls.
+  (set! %lint-dispatch (fn (_ form)
     (def head (first form))
-    (if (not (symbol? head)) (%walk-list form scope uses)
-      (do (def props (%scope-lookup head))
-          (def scope-type
-            (if (null? props) () (%get-prop (lit scope) props)))
-          (if (eq? scope-type (lit bind))       (%walk-def form scope uses)
-          (if (eq? scope-type (lit bind-set))   (%walk-set form scope uses)
-          (if (eq? scope-type (lit params))     (%walk-fn form scope uses)
-          (if (eq? scope-type (lit params-env)) (%walk-op form scope uses)
-          (if (eq? scope-type (lit let))        (%walk-let form scope uses)
-          (if (eq? scope-type (lit guard))      (%walk-guard form scope uses)
-          (if (eq? scope-type (lit quasi))
-            (%walk-quasi (first (rest form)) scope uses)
-          (if (eq? scope-type (lit skip))       uses
-            (%walk-list form scope uses)))))))))))))
+    (if (not (symbol? head)) (%lint-seq form)
+      (let ((h (convert head %string))
+            (props (%scope-lookup head)))
+        (let ((st (if (null? props) ""
+                    (let ((s (%get-prop "scope" props))) (if (null? s) "" s)))))
+          (match
+            ((str=? st "bind")       (%lint-def form))
+            ((str=? st "bind-set")   (%lint-set form))
+            ((str=? st "params")     (%lint-fn form))
+            ((str=? st "params-env") (%lint-op form))
+            ((str=? st "let")        (%lint-let form))
+            ((str=? st "guard")      (%lint-guard form))
+            ((str=? st "quasi")      (%lint-quasi (rest form)))
+            ((str=? st "skip")       ())
+            ((str=? h "first")       (%lint-first-rest form))
+            ((str=? h "rest")        (%lint-first-rest form))
+            (#t                      (%lint-seq form))))))))
 
-  ; Override %walk-list to use data-driven binding detection.
-  ; The version in lint-lib.x hardcodes (lit def); this one uses
-  ; the construct table to detect any scope=bind form.
-  (set! %walk-list (fn (_ forms scope uses)
-    (if (null? forms) uses
-      (if (pair? forms)
-        (do (def form (first forms))
-            (def new-uses (%walk form scope uses))
-            (def new-scope
-              (if (if (pair? form) (if (symbol? (first form))
-                    (do (def p (%scope-lookup (first form)))
-                        (if (null? p) ()
-                          (eq? (%get-prop (lit scope) p) (lit bind))))
-                    ()) ())
-                (do (def np (first (rest form)))
-                    (pair (if (pair? np) (first np) np) scope))
-                scope))
-            (%walk-list (rest forms) new-scope new-uses))
-        (%walk forms scope uses)))))
+  ; --- Read target forms, analyze via lint-forms ---
 
-  ; --- Check if a form creates a top-level binding ---
-  ; Data-driven: any form with scope=bind creates a definition.
-
-  (def %is-def? (fn (_ form)
-    (if (not (pair? form)) ()
-      (if (not (symbol? (first form))) ()
-        (do (def props (%scope-lookup (first form)))
-            (if (null? props) ()
-              (eq? (%get-prop (lit scope) props) (lit bind))))))))
-
-  ; Extract the bound name from a def form.
-  ; Handles (def name val) and (define (name args...) body...).
-  (def %def-name (fn (_ form)
-    (def name-part (first (rest form)))
-    (if (pair? name-part) (first name-part) name-part)))
-
-  ; --- Main: read target file, analyze ---
-
-  ; First form may be a mode flag: %lint-lib suppresses unused warnings
+  ; First form may be a mode flag: %lint-lib suppresses unused warnings.
   (def %first-form (read))
   (def %lib-mode (eq? %first-form (lit %lint-lib)))
 
-  (def %lint-file (fn (_ defs uses)
+  ; Slurp remaining forms (order is irrelevant -- defs/uses are sets).
+  (def %read-all (fn (self acc)
     (def form (read))
-    (if (null? form) (list defs uses)
-      (do (def new-defs
-            (if (%is-def? form)
-              (pair (%def-name form) defs)
-              defs))
-          (def new-uses (%walk form () uses))
-          (%lint-file new-defs new-uses)))))
+    (if (null? form) acc (self (pair form acc)))))
+  (def %forms-rev (%read-all ()))
+  (def %forms
+    (if %lib-mode %forms-rev (pair %first-form %forms-rev)))
 
-  ; If first form wasn't the mode flag, analyze it too
-  (def %init-defs
-    (if %lib-mode ()
-      (if (%is-def? %first-form)
-        (list (%def-name %first-form))
-        ())))
-  (def %init-uses
-    (if %lib-mode ()
-      (%walk %first-form () ())))
-
-  (def %result (%lint-file %init-defs %init-uses))
+  (def %result (lint-forms %forms () ()))
   (def %defs (first %result))
   (def %uses (first (rest %result)))
 
