@@ -3,7 +3,7 @@
 ; Navigate the type struct layout:
 ;   (name (data (heap (proc (cvt (io (iter)))))))
 ; IO layout:
-;   (analyse (delimit (read (write (display (error))))))
+;   (analyse (delimit (read (write (display)))))
 ; CVT layout:
 ;   (from (to))
 ;
