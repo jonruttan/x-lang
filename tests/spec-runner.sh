@@ -26,15 +26,16 @@ ANSI_RESET="\033[0m"
 ANSI_RED="\033[1;31m"
 ANSI_GREEN="\033[1;32m"
 
-# Detect timeout command (prevents runaway tests from OOM-killing the machine).
-# Linux: timeout, macOS: gtimeout (from coreutils), fallback: none.
-# This is a COARSE whole-process backstop, not the runaway guard -- per-test
-# speed-regression detection (MAX_TEST_SECS, default 10s) catches real hangs much
-# sooner. So the unit timeout is generous on purpose: it must absorb a heavy
-# spec's lib load (e.g. compile.x is ~6s warm / ~20s cold) plus parallel
-# contention without a false kill (a too-tight 30s killed the compile spec under
-# load). Long timeout for applicative (stress) tests. Personality runners can
-# override TIMEOUT_UNIT_SECS / TIMEOUT_APPL_SECS.
+# Detect timeout command. This whole-process timeout IS the runaway guard: it
+# kills a hung/runaway interpreter before it can OOM-lock the machine, and the
+# AWK runner now reports every test the kill interrupted as a failure (a missing
+# result is a failure), so a runaway turns the suite red instead of hanging or
+# silently passing. Linux: timeout, macOS: gtimeout (from coreutils), else none.
+# The timeout is generous on purpose: it must absorb a heavy spec's lib load
+# (e.g. compile.x is ~6s warm / ~20s cold) plus parallel contention without a
+# false kill (a too-tight 30s killed the compile spec under load). Longer
+# timeout for applicative (stress) tests. Personality runners can override
+# TIMEOUT_UNIT_SECS / TIMEOUT_APPL_SECS.
 _TIMEOUT_BIN=""
 if command -v timeout >/dev/null 2>&1; then
   _TIMEOUT_BIN="timeout"
@@ -47,12 +48,6 @@ if [ -n "$_TIMEOUT_BIN" ]; then
   TIMEOUT_UNIT="$_TIMEOUT_BIN ${TIMEOUT_UNIT_SECS:-60}"
   TIMEOUT_APPL="$_TIMEOUT_BIN ${TIMEOUT_APPL_SECS:-120}"
 fi
-
-# Speed regression detection (per-test).
-# MAX_TEST_SECS: abort if any single test exceeds this (0=disable, default 10).
-# SLOW_STREAK: abort after N consecutive tests taking >=1s each (0=disable, default 5).
-: "${MAX_TEST_SECS:=10}"
-: "${SLOW_STREAK:=5}"
 
 # Derive project root from X_BIN (always at project root).
 RUNNER="$(cd "$(dirname "$X_BIN")" && pwd)/tests/spec-runner.awk"
@@ -110,8 +105,6 @@ for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
           -v REPL_CMD="${REPL_CMD:-(repl)}" \
           -v READ_FN="${READ_FN:-read}" \
           -v TIMEOUT_CMD="$TIMEOUT_UNIT" \
-          -v MAX_TEST_SECS="$MAX_TEST_SECS" \
-          -v SLOW_STREAK="$SLOW_STREAK" \
           -v TMPDIR="$_TMPDIR" \
           -v SPEC_ID="$_I" \
           -f "$RUNNER" "$_spec"
@@ -123,8 +116,6 @@ for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
         -v REPL_CMD="${REPL_CMD:-(repl)}" \
         -v READ_FN="${READ_FN:-read}" \
         -v TIMEOUT_CMD="$TIMEOUT_UNIT" \
-        -v MAX_TEST_SECS="$MAX_TEST_SECS" \
-        -v SLOW_STREAK="$SLOW_STREAK" \
         -v TMPDIR="$_TMPDIR" \
         -v SPEC_ID="$_I" \
         -f "$RUNNER" "$_spec"
@@ -149,8 +140,6 @@ if [ -n "$STRESS" ] && [ -d "$SPEC_PATH/applicative" ]; then
             -v REPL_CMD="${REPL_CMD:-(repl)}" \
             -v READ_FN="${READ_FN:-read}" \
             -v TIMEOUT_CMD="$TIMEOUT_APPL" \
-            -v MAX_TEST_SECS="$MAX_TEST_SECS" \
-            -v SLOW_STREAK="$SLOW_STREAK" \
             -v TMPDIR="$_TMPDIR" \
             -v SPEC_ID="$_I" \
             -f "$RUNNER" "$_spec"
@@ -162,8 +151,6 @@ if [ -n "$STRESS" ] && [ -d "$SPEC_PATH/applicative" ]; then
           -v REPL_CMD="${REPL_CMD:-(repl)}" \
           -v READ_FN="${READ_FN:-read}" \
           -v TIMEOUT_CMD="$TIMEOUT_APPL" \
-          -v MAX_TEST_SECS="$MAX_TEST_SECS" \
-          -v SLOW_STREAK="$SLOW_STREAK" \
           -v TMPDIR="$_TMPDIR" \
           -v SPEC_ID="$_I" \
           -f "$RUNNER" "$_spec"
@@ -177,58 +164,40 @@ fi
 
 wait
 
-# Collect counts and timing.
+# Collect counts. A missing .cnt means that spec's AWK job died before writing
+# results (OOM-kill, crash): reset the temps so a dead job can't silently carry
+# the previous spec's counts, surface it loudly, and force a non-zero exit -- a
+# lost spec must never read as success.
 _I=0
-_TOTAL_LOAD_MS=0
-_TOTAL_TEST_MS=0
-_SLOWEST_TEST=""
-_SLOWEST_MS=0
+_MISSING=0
 while [ "$_I" -lt "$_N" ]; do
-  read _T _F _P < "$_TMPDIR/spec-$_I.cnt"
+  _T=0; _F=0; _P=0
+  if [ -f "$_TMPDIR/spec-$_I.cnt" ]; then
+    read -r _T _F _P < "$_TMPDIR/spec-$_I.cnt"
+  else
+    _MISSING=$((_MISSING + 1))
+    printf '\n%bWARNING: spec job %d produced no results (killed? OOM?)%b\n' \
+      "$ANSI_RED" "$_I" "$ANSI_RESET" >&2
+  fi
   TEST_COUNT=$((TEST_COUNT + _T))
   FAIL_COUNT=$((FAIL_COUNT + _F))
   PENDING_COUNT=$((PENDING_COUNT + _P))
-  # Aggregate timing if available
-  if [ -f "$_TMPDIR/spec-$_I.time" ]; then
-    while IFS='	' read -r _COL1 _COL2 _COL3; do
-      if [ "$_COL1" = "load" ]; then
-        _TOTAL_LOAD_MS=$((_TOTAL_LOAD_MS + _COL2))
-      else
-        _MS="${_COL3:-0}"
-        _TOTAL_TEST_MS=$((_TOTAL_TEST_MS + _MS))
-        if [ "$_MS" -gt "$_SLOWEST_MS" ] 2>/dev/null; then
-          _SLOWEST_MS="$_MS"
-          _SLOWEST_TEST="$_COL1: $_COL2"
-        fi
-      fi
-    done < "$_TMPDIR/spec-$_I.time"
-  fi
   _I=$((_I+1))
 done
 rm -rf "$_TMPDIR"
 
 # Summary.
-if [ "$FAIL_COUNT" -gt 0 ]; then
+if [ "$FAIL_COUNT" -gt 0 ] || [ "$_MISSING" -gt 0 ]; then
   SUMMARY_COLOR="$ANSI_RED"
 else
   SUMMARY_COLOR="$ANSI_GREEN"
 fi
-_LOAD_S=$((_TOTAL_LOAD_MS / 1000))
-_LOAD_FRAC=$(( (_TOTAL_LOAD_MS % 1000) / 100 ))
-_TEST_S=$((_TOTAL_TEST_MS / 1000))
-_TEST_FRAC=$(( (_TOTAL_TEST_MS % 1000) / 100 ))
-_SLOW_S=$((_SLOWEST_MS / 1000))
-_SLOW_FRAC=$(( (_SLOWEST_MS % 1000) / 100 ))
 printf '\n\n%b%d tests, %d failed, %d pending%b' \
   "$SUMMARY_COLOR" "$TEST_COUNT" "$FAIL_COUNT" "$PENDING_COUNT" "$ANSI_RESET"
-if [ "$_TOTAL_LOAD_MS" -gt 0 ] 2>/dev/null; then
-  printf ' (load: %d.%ds, test: %d.%ds' "$_LOAD_S" "$_LOAD_FRAC" "$_TEST_S" "$_TEST_FRAC"
-  if [ "$_SLOWEST_MS" -gt 0 ] 2>/dev/null; then
-    printf ', slowest: %d.%ds %s' "$_SLOW_S" "$_SLOW_FRAC" "$_SLOWEST_TEST"
-  fi
-  printf ')'
+if [ "$_MISSING" -gt 0 ]; then
+  printf '%b (%d spec job(s) produced no results)%b' "$ANSI_RED" "$_MISSING" "$ANSI_RESET"
 fi
 printf '\n'
 
-# Exit non-zero on failure.
-[ "$FAIL_COUNT" -eq 0 ]
+# Exit non-zero on failure (or if any spec job vanished).
+[ "$FAIL_COUNT" -eq 0 ] && [ "$_MISSING" -eq 0 ]

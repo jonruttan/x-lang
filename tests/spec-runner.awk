@@ -18,8 +18,6 @@
 #   LANG_LIB -- default library file path
 #   TMPDIR   -- temp directory for scratch files
 #   SPEC_ID  -- unique integer for temp file namespacing
-#   MAX_TEST_SECS -- per-test time limit (default 10, 0=disable)
-#   SLOW_STREAK   -- consecutive slow-test limit (default 5, 0=disable)
 #
 # Tests are collected during parsing, then run in a single interpreter
 # invocation per spec file (or per library group if @lib changes).
@@ -47,16 +45,7 @@ BEGIN {
 
 	RED = "\033[1;31m"; GREEN = "\033[1;32m"
 	BLUE = "\033[1;34m"; RESET = "\033[0m"
-
-	# Regression detection defaults
-	max_test_secs = (MAX_TEST_SECS != "") ? MAX_TEST_SECS + 0 : 10
-	slow_streak_limit = (SLOW_STREAK != "") ? SLOW_STREAK + 0 : 5
-	slow_streak = 0
-	completed = 0
 }
-
-function now() { srand(); return srand() }
-# Timing uses interpreter (clock) primitive via <<SEP:us>> markers
 
 function q(s,    _s) {
 	_s = s
@@ -68,33 +57,6 @@ function strip(s) {
 	if (substr(s, 1, 4) == "    ") return substr(s, 5)
 	if (substr(s, 1, 1) == "\t") return substr(s, 2)
 	return s
-}
-
-function abort_regression(reason) {
-	printf "\n\n%s*** SPEED REGRESSION: %s ***%s\n", RED, reason, RESET
-	printf "Aborting -- %d of %d tests completed before regression detected.\n", \
-		completed, tests
-	# Write counts so shell wrapper doesn't error on missing file
-	countfile = TMPDIR "/spec-" SPEC_ID ".cnt"
-	printf "%d %d %d\n", tests, fails + (tests - completed), pending > countfile
-	close(countfile)
-	exit 1
-}
-
-function check_regression(dt_ms, tidx,    dt_s) {
-	completed++
-	dt_s = int(dt_ms / 1000)
-	if (dt_s > 0) {
-		slow_streak++
-		if (max_test_secs > 0 && dt_s > max_test_secs)
-			abort_regression(sprintf("test \"%s\" took %ds (limit: %ds)", \
-				t_name[tidx], dt_s, max_test_secs))
-		if (slow_streak_limit > 0 && slow_streak >= slow_streak_limit)
-			abort_regression(sprintf("%d consecutive tests took >=1s each", \
-				slow_streak))
-	} else {
-		slow_streak = 0
-	}
 }
 
 function collect() {
@@ -126,7 +88,7 @@ function collect() {
 	state = 0
 }
 
-function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
+function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, got, boundary_done) {
 	if (repl_cmd == " ") {
 		# Direct mode: feed tests to the personality REPL without
 		# %T harness or (begin ...) wrapper.  Used by Sweet where
@@ -163,60 +125,59 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output) {
 
 	tidx = from
 	output = ""
-	load_time_ms = 0
 	while ((cmd | getline line) > 0) {
 		# Strip REPL prompts (> and $ prefixes, looping)
 		while (substr(line, 1, 2) == "> " || substr(line, 1, 2) == "$ ")
 			line = substr(line, 3)
 		if (line == "<<SEP>>") {
-			dt_ms = 0
-			dt = int(dt_ms / 1000)
-			t_time_ms[tidx] = dt_ms
 			if (output == t_expect[tidx]) {
-				if (dt > 0)
-					printf "%s%s.%s(%ds)", t_unit_hdr[tidx], GREEN, RESET, dt
-				else
-					printf "%s%s.%s", t_unit_hdr[tidx], GREEN, RESET
+				printf "%s%s.%s", t_unit_hdr[tidx], GREEN, RESET
 			} else {
 				fails++
-				printf "%s\n%sFAIL: %s: %s\n  expected: %s\n  got:      %s%s", \
+				printf "%s\n%sFAIL: %s: %s\n  expected: %s\n  got:      %s%s\n", \
 					t_unit_hdr[tidx], RED, t_unit[tidx], t_name[tidx], \
 					t_expect[tidx], output, RESET
-				if (dt > 0) printf "(%ds)", dt
-				printf "\n"
 			}
-			check_regression(dt_ms, tidx)
 			tidx++
 			output = ""
 		} else if (line != "") {
 			output = line
 		}
 	}
-	close(cmd)
+	cmd_status = close(cmd)
 
-	# Safety fallback: final test without separator (shouldn't happen)
-	if (tidx <= to) {
-		dt_ms = 0
-		dt = 0
-		t_time_ms[tidx] = dt_ms
-		if (output == t_expect[tidx]) {
-			if (dt > 0)
-				printf "%s%s.%s(%ds)", t_unit_hdr[tidx], GREEN, RESET, dt
-			else
-				printf "%s%s.%s", t_unit_hdr[tidx], GREEN, RESET
+	# Account for tests with no <<SEP>> separator of their own.  Standard mode
+	# emits a trailing separator after the last test, so a healthy run leaves
+	# tidx == to+1 and this loop never runs.  Direct mode (Sweet) emits no
+	# trailing separator, so its final test legitimately ends at EOF and is
+	# COMPARED here (the first, "boundary" iteration).  Anything past that first
+	# test is the interpreter dying mid-batch (segfault / timeout-kill / OOM):
+	# those tests produced no result, and a missing result is a FAILURE, never a
+	# silent pass -- surfacing it is the whole point of the harness.  (Before:
+	# only the boundary test was handled and the rest of the batch was dropped
+	# from the counts, so a crash made the tail of a spec file read as passing.
+	# cmd_status is the pipeline exit code where the awk reports it -- 0 on the
+	# one-true-awk, the real code on gawk/mawk.)
+	boundary_done = 0
+	while (tidx <= to) {
+		if (!boundary_done && output == t_expect[tidx]) {
+			printf "%s%s.%s", t_unit_hdr[tidx], GREEN, RESET
 		} else {
 			fails++
-			printf "%s\n%sFAIL: %s: %s\n  expected: %s\n  got:      %s%s", \
+			if (!boundary_done && output != "")
+				got = output       # boundary test interrupted -- show partial output
+			else {
+				got = "<no result -- interpreter died mid-batch"
+				if (cmd_status > 0) got = got " (exit " cmd_status ")"
+				got = got ">"
+			}
+			printf "%s\n%sFAIL: %s: %s\n  expected: %s\n  got:      %s%s\n", \
 				t_unit_hdr[tidx], RED, t_unit[tidx], t_name[tidx], \
-				t_expect[tidx], output, RESET
-			if (dt > 0) printf "(%ds)", dt
-			printf "\n"
+				t_expect[tidx], got, RESET
 		}
-		check_regression(dt_ms, tidx)
+		boundary_done = 1
+		tidx++
 	}
-
-	# Record load time for this batch
-	batch_load_ms = load_time_ms
 }
 
 function batch_run(    i, batch_start, cur_lib) {
@@ -324,12 +285,4 @@ END {
 	countfile = TMPDIR "/spec-" SPEC_ID ".cnt"
 	printf "%d %d %d\n", tests, fails, pending > countfile
 	close(countfile)
-
-	# Write timing data: load_ms then per-test ms
-	timefile = TMPDIR "/spec-" SPEC_ID ".time"
-	printf "load %d\n", batch_load_ms > timefile
-	for (i = 1; i <= tc; i++) {
-		printf "%s\t%s\t%d\n", t_unit[i], t_name[i], t_time_ms[i] > timefile
-	}
-	close(timefile)
 }
