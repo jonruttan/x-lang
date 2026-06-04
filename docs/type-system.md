@@ -301,6 +301,38 @@ The standard library's object system (`lib/x/type/object.x`) is the richest use 
 
 A class is itself a callable `%class` object — `(Class static-method …)` dispatches its statics — wrapping a descriptor alist; each instance carries its class plus a mutable member box, and external code reaches either only through dispatch. Because it all rides on the type system's existing `call` hook, the whole class system — single inheritance, `super`, static methods and class-wide members, encapsulation — needs no C code. See the [Object System](object-system.md) guide for the full API.
 
+#### Performance: compiling analysers
+
+A custom type's `analyse` handler is the tokenizer's hot path — it is invoked for **every token of every source file** parsed while the type is registered, to decide whether the token belongs to this type. An interpreted `(fn …)` closure there costs a full `x_eval` per call, so registering several interpreted analysers makes *all* subsequent parsing dramatically slower (measured at **up to ~20× on symbol-heavy input** with the numeric tower's analysers left interpreted).
+
+The fix is to **JIT-compile the analyser to native code** with `compile`, then install the compiled version. An analyser has the shape `(fn (_ buffer score chr) → next-state-fn | ())`: given the current byte `chr`, it returns a state function to continue scanning, or `()` to decline. `compile` takes the analyser as a quoted `(fn …)` AST plus an **fvar table** binding any free variables the body references (the state functions it transitions to). Pure expressions use the JIT assembler; expressions with fvars use the C-compiler-with-cache path.
+
+```
+; Compile + install the int-capped analyser (digits, with +/- sign)
+(set! %compile-fvars
+  (list (pair (lit %int-capped-sign)   %int-capped-sign)
+        (pair (lit %int-capped-digits) %int-capped-digits)))
+(type-push-analyse (type-by-atom (type-of 0))
+  (compile
+    (lit (fn (_ buffer score chr)
+      (if (< chr 48)
+        (if (or (= chr 45) (= chr 43)) %int-capped-sign ())   ; sign
+        (if (< chr 58) %int-capped-digits ()))))              ; digit
+    %compile-fvars))
+(set! %compile-fvars ())
+```
+
+Two install idioms:
+
+- **`(type-push-analyse type compiled)`** — prepend a compiled analyser onto a type's analyse stack (used for each numeric type right after its module loads).
+- **`(set-first! slot compiled)`** on a cell of `(type-analyse-cell …)` — replace an existing interpreted handler in place (used to swap the symbol type's compiled `lit`/`quasi`/`unquote` analysers in for the interpreted ones from `lit-reader.x`).
+
+Do the compilation **incrementally, right after each type's module loads**, so subsequent source files are parsed through the already-compiled (fast) analysers rather than interpreted ones.
+
+Worked examples live in the tower-loading libraries: `lib/x-and.x` and `lib/x-or.x` (interactive dialects) and `lib/x-base.x` (non-interactive) all compile the quote-family and numeric-tower analysers this way. See [Dialects](dialects.md) for the dialect-level view.
+
+> **Note:** `compile`'s fvar path shells out to the host C compiler and caches the resulting shared object by expression hash, so the *first* load against a cold cache pays the `cc` cost; later loads reuse the cached `.so`.
+
 ---
 
 ### The Base Object
