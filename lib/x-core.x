@@ -119,6 +119,9 @@
   ; Iterator protocol: wire the iter slot on list/vector/string + consumers
   ; (after all the sequence types above are registered).
   (include "lib/x/type/iter.x")
+  ; Catalog -> object-system bridge: a class per catalog namespace (transitional,
+  ; as the object system supersedes the flat catalog + bare-name registration).
+  (include "lib/x/type/catalog.x")
   (include "lib/x/sys/token.x")
 
   ; Quasi-quoting
