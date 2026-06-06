@@ -62,12 +62,15 @@
         (lit to)
         (list
           (pair (type-of (pair 1 ()))
-            (fn (_ self)
-              (def len (obj-ref self 0))
+            ; Outer param is `v` (not `self`): build's first param is the
+            ; auto-bound self (for recursion), so naming the vector `self`
+            ; here would shadow it and (obj-ref self ...) would read the fn.
+            (fn (_ v)
+              (def len (obj-ref v 0))
               (def build
                 (fn (self i acc)
                   (if (< i 0) acc
-                    (self (- i 1) (pair (obj-ref self (+ i 1)) acc)))))
+                    (self (- i 1) (pair (obj-ref v (+ i 1)) acc)))))
               (build (- len 1) ())))))
       (pair
         (lit iter)

@@ -37,7 +37,7 @@
 ### child binding not visible in parent
 
 ```scheme
-(do (def b (make-base)) (base-eval b (lit (def x 42))) (guard (e (lit isolated)) x))
+(do (def b (make-base)) (base-eval b (lit (def cx 42))) (guard (e (lit isolated)) cx))
 ```
 ---
     (lit isolated)

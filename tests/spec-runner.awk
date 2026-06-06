@@ -97,8 +97,11 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 		printf "" > tmpfile
 		for (i = from; i <= to; i++) {
 			if (i > from) {
+				# heap-collect = real GC between snippets (OOM guard).
+				# No (%profile-dump) here: its heap-count is an O(heap)
+				# chain walk (~1.9s/call on the numeric-tower heap) whose
+				# output went to discarded stderr -- pure waste.
 				printf "(heap-collect)\n" > tmpfile
-				printf "(%%profile-dump)\n" > tmpfile
 				printf "(display \"<<SEP>>\\n\")\n" > tmpfile
 			}
 			printf "%s\n", t_input[i] > tmpfile
@@ -106,11 +109,21 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 		close(tmpfile)
 	} else {
 		# Standard mode: %T harness with (begin ...) wrapping.
-		printf "(def %%T (op () %%E (def %%r (%s)) (if (eq? %%r (lit %%END%%)) () (%%seq (guard (err (display \"Error: \") (display err) (newline)) (%%repl-print (eval %%r %%E))) (%%T)))))\n", read_fn > tmpfile
+		# Snippets eval via eval! (current-env, REPL/standalone semantics),
+		# NOT two-arg (eval %r %E): the latter's save/restore reverts the
+		# global BST after each snippet, discarding top-level defs -- so a
+		# self-referential def (e.g. a type whose converter calls
+		# (make-instance %t)) can't resolve %t.  eval! is TCO-capable, so
+		# deep tail-recursion specs still pass.
+		printf "(def %%T (op () %%E (def %%r (%s)) (if (eq? %%r (lit %%END%%)) () (%%seq (guard (err (display \"Error: \") (display err) (newline)) (%%repl-print (eval! %%r))) (%%T)))))\n", read_fn > tmpfile
 		printf "%s\n", "(%T)" > tmpfile
 		for (i = from; i <= to; i++) {
+			# Inter-snippet separator only.  No (%profile-dump): its
+			# heap-count is an O(heap) chain walk (~1.9s/call on the
+			# numeric-tower heap) whose output went to discarded stderr
+			# -- ~120s of pure waste per heavy-lib (x-base/complex/...) spec.
 			if (i > from)
-				printf "(%%profile-dump) (display \"<<SEP>>\\n\")\n" > tmpfile
+				printf "(display \"<<SEP>>\\n\")\n" > tmpfile
 			printf "(begin %s)\n", t_input[i] > tmpfile
 		}
 		printf "(display \"<<SEP>>\\n\")\n" > tmpfile

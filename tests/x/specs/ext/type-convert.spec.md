@@ -210,7 +210,7 @@
 (write-to-str (lit foo))
 ```
 ---
-    "foo"
+    "(lit foo)"
 
 ### boolean to string
 
