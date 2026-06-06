@@ -36,9 +36,9 @@
 (doc (def time
   (op args
     e
-    (let ((t0 (clock)))
+    (let ((t0 (Sys clock)))
       (let ((result (eval (first args) e)))
-        (display (- (clock) t0))
+        (display (- (Sys clock) t0))
         (display " us\n")
         result))))
   (param args ANY "Expression to time")
