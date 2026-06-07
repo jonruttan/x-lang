@@ -116,11 +116,12 @@
   (include "lib/x/protocol/str/str8.x")
   (include "lib/x/protocol/str/utf8.x")
   (include "lib/x/type/str.x")
-  ; Iterator protocol: wire the iter slot on list/vector/string + consumers
-  ; (after all the sequence types above are registered).
+  ; Iterator protocol: defines the Iter class + wires the iter slot on the
+  ; sequence types (registered above) + consumers.
   (include "lib/x/type/iter.x")
   ; Catalog -> object-system bridge: a class per catalog namespace (transitional,
   ; as the object system supersedes the flat catalog + bare-name registration).
+  ; After iter.x, so it folds onto the real Iter class rather than projecting one.
   (include "lib/x/type/catalog.x")
   (include "lib/x/sys/token.x")
 

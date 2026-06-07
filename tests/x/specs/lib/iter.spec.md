@@ -45,7 +45,7 @@
 ### reports exhaustion across a step
 
 ```scheme
-(do (def it (iter (list 1))) (def before (iter-empty? it)) (iter-next it) (list before (iter-empty? it)))
+(do (def it (iter (list 1))) (def before (Iter empty? it)) (Iter next it) (list before (Iter empty? it)))
 ```
 ---
     (#f #t)
@@ -55,7 +55,7 @@
 ### advances element by element
 
 ```scheme
-(do (def it (iter (list 7 8 9))) (list (iter-next it) (iter-next it) (iter-next it)))
+(do (def it (iter (list 7 8 9))) (list (Iter next it) (Iter next it) (Iter next it)))
 ```
 ---
     (7 8 9)
@@ -95,7 +95,7 @@
 ### builds an iterator from a custom step function
 
 ```scheme
-(do (def it (make-iter (fn (self it) (if (null? (rest it)) () (do (def v (first (rest it))) (set-rest! it (rest (rest it))) v))) (list 5 6))) (iter->list it))
+(do (def it (Iter make (fn (self it) (if (null? (rest it)) () (do (def v (first (rest it))) (set-rest! it (rest (rest it))) v))) (list 5 6))) (iter->list it))
 ```
 ---
     (5 6)
