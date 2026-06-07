@@ -95,6 +95,8 @@ _throttle() {
 for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
   [ -f "$_spec" ] || continue
   case "$_spec" in */applicative/*) continue ;; esac
+  # SPECS (a glob pattern, e.g. '*list*') narrows the run for fast iteration; unset = all.
+  [ -n "$SPECS" ] && { case "$_spec" in $SPECS) : ;; *) continue ;; esac; }
   _I=$_N
   _N=$((_N+1))
   _t0=$(date +%s)
