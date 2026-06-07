@@ -149,7 +149,7 @@
 ### sums a list
 
 ```scheme
-(sum (list 1 2 3 4))
+(List sum (list 1 2 3 4))
 ```
 ---
     10
@@ -157,7 +157,7 @@
 ### sum of empty is zero
 
 ```scheme
-(sum ())
+(List sum ())
 ```
 ---
     0

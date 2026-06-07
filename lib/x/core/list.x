@@ -113,29 +113,9 @@
 
 (note "Combinators")
 
-(doc (def sum (fn (_ (param lst LIST "List of numbers")) (fold + 0 lst)))
-  (returns INT "Sum")
-  "Sum all elements of a list.")
-
 (note "Search")
 
-
-(doc (def count
-  (fn (_ (param pred CALLABLE "Predicate function")
-       (param lst LIST "List or iterable"))
-    (fold (fn (_ acc x) (if (pred x) (+ acc 1) acc)) 0 lst)))
-  (returns INT "Count of matching elements")
-  "Count elements satisfying a predicate.")
-
 (note "Slicing")
-
-(doc (def drop
-  (fn (self (param n INT "Number of elements to skip")
-       (param lst LIST "List"))
-    (if (or (<= n 0) (null? lst))
-      lst
-      (self (- n 1) (rest lst)))))
-  "Drop the first n elements of a list.")
 
 (note "Generators")
 
@@ -175,23 +155,7 @@
 
 (note "Membership")
 
-(doc (def member
-  (fn (self (param x ANY "Value to search for")
-       (param lst LIST "List"))
-    (if (null? lst) #f
-      (if (equal? x (first lst)) lst
-        (self x (rest lst))))))
-  "Find first occurrence by equality (equal?). Returns the tail from match, or #f.")
-
 (note "Association")
-
-(doc (def assoc
-  (fn (self (param key ANY "Key to search for")
-       (param alist LIST "Association list"))
-    (if (null? alist) #f
-      (if (equal? key (first (first alist))) (first alist)
-        (self key (rest alist))))))
-  "Look up a key in an alist by equality (equal?).")
 
 ; --- Convenience aliases ---
 
@@ -208,13 +172,13 @@
 (doc (provide x/core/list
   as-list fold length append reverse
   map filter for-each
-  sum
-  count
-  drop
+  
+  
+  
   
   sort
   
-  member assoc
+  
   else str-copy)
   (note "Accepts any iterable (lists, vectors, custom iterables). Ramda-inspired functional style.")
   (example "(map inc '(1 2 3))" "(2 3 4)")

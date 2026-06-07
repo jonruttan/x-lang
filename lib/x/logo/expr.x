@@ -95,7 +95,7 @@
 
 (set! %logo-resolve-value
   (fn (_ word rest-t)
-    (let ((var (assoc word %logo-vars str=?)))
+    (let ((var (List assoc word %logo-vars str=?)))
       (if (not (null? var)) (pair (rest var) rest-t)
         (let ((fn-entry (%logo-fn-lookup word)))
           (if (and (not (null? fn-entry)) (null? (rest (rest fn-entry))))

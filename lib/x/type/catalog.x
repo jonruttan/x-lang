@@ -63,7 +63,7 @@
 ; set-first! on a typed class object is unchecked and corrupts the heap.
 (def %catalog-fold!
   (fn (_ class ns)
-    (let ((entry (assoc (lit s-methods) (%class-data class))))
+    (let ((entry (List assoc (lit s-methods) (%class-data class))))
       (let ((adds (filter (fn (_ e) (null? (%lookup class (lit s-methods) (first e))))
                           (%catalog-statics ns))))
         (set-rest! entry (append adds (rest entry)))))))

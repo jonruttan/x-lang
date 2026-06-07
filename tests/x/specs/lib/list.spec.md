@@ -415,7 +415,7 @@
 ### counts matching elements
 
 ```scheme
-(count even? (list 1 2 3 4 5 6))
+(List count even? (list 1 2 3 4 5 6))
 ```
 ---
     3
@@ -423,7 +423,7 @@
 ### returns zero for no matches
 
 ```scheme
-(count negative? (list 1 2 3))
+(List count negative? (list 1 2 3))
 ```
 ---
     0
@@ -459,7 +459,7 @@
 ### drops first n elements
 
 ```scheme
-(drop 2 (list 1 2 3 4))
+(List drop 2 (list 1 2 3 4))
 ```
 ---
     (3 4)
@@ -467,7 +467,7 @@
 ### drops zero
 
 ```scheme
-(drop 0 (list 1 2 3))
+(List drop 0 (list 1 2 3))
 ```
 ---
     (1 2 3)
@@ -900,7 +900,7 @@
 ### finds element by equal?
 
 ```scheme
-(member 3 (list 1 2 3 4 5))
+(List member 3 (list 1 2 3 4 5))
 ```
 ---
     (3 4 5)
@@ -908,7 +908,7 @@
 ### returns false when not found
 
 ```scheme
-(if (member 6 (list 1 2 3)) "y" "n")
+(if (List member 6 (list 1 2 3)) "y" "n")
 ```
 ---
     "n"
@@ -936,7 +936,7 @@
 ### finds by equal?
 
 ```scheme
-(rest (assoc 2 (list (pair 1 10) (pair 2 20) (pair 3 30))))
+(rest (List assoc 2 (list (pair 1 10) (pair 2 20) (pair 3 30))))
 ```
 ---
     20
@@ -944,7 +944,7 @@
 ### returns false when not found
 
 ```scheme
-(if (assoc 9 (list (pair 1 10))) "y" "n")
+(if (List assoc 9 (list (pair 1 10))) "y" "n")
 ```
 ---
     "n"
