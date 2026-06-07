@@ -129,43 +129,10 @@
 
 (note "Predicates")
 
-(doc (def any?
-  (fn (self (param pred CALLABLE "Predicate function")
-       (param lst LIST "List or iterable"))
-    (let ((lst (as-list lst)))
-      (match
-        ((null? lst) #f)
-        ((pred (first lst)) #t)
-        (#t (self pred (rest lst)))))))
-  "Return #t if any element satisfies the predicate.")
-
-(doc (def every?
-  (fn (self (param pred CALLABLE "Predicate function")
-       (param lst LIST "List or iterable"))
-    (let ((lst (as-list lst)))
-      (match
-        ((null? lst) #t)
-        ((not (pred (first lst))) #f)
-        (#t (self pred (rest lst)))))))
-  "Return #t if all elements satisfy the predicate.")
-
-(doc (def none?
-  (fn (_ (param pred CALLABLE "Predicate function")
-       (param lst LIST "List or iterable"))
-    (not (any? pred lst))))
-  "Return #t if no element satisfies the predicate.")
-
 (doc (def empty? (fn (_ (param lst LIST "List")) (null? lst)))
   "Return #t if the list is empty.")
 
 (note "Combinators")
-
-(doc (def reject
-  (fn (_ (param pred CALLABLE "Predicate function")
-       (param lst LIST "List"))
-    (filter (List complement pred) lst)))
-  (returns LIST "Filtered list")
-  "Return elements that do NOT satisfy a predicate.")
 
 (doc (def sum (fn (_ (param lst LIST "List of numbers")) (fold + 0 lst)))
   (returns INT "Sum")
@@ -182,17 +149,6 @@
         ((pred (first lst)) (first lst))
         (#t (self pred (rest lst)))))))
   "Return the first element satisfying a predicate, or nil.")
-
-(doc (def includes?
-  (fn (self (param x ANY "Value to search for")
-       (param lst LIST "List or iterable"))
-    (let ((lst (as-list lst)))
-      (match
-        ((null? lst) #f)
-        ((equal? x (first lst)) #t)
-        (#t (self x (rest lst)))))))
-  (returns BOOLEAN "t if found")
-  "Test if a list contains a value.")
 
 (doc (def count
   (fn (_ (param pred CALLABLE "Predicate function")
@@ -295,9 +251,9 @@
 
 (doc (provide x/core/list
   as-list fold length nth last init append reverse
-  map filter for-each any? every? none? empty?
-  reject sum
-  find includes? count
+  map filter for-each empty?
+  sum
+  find count
   take drop
   
   sort

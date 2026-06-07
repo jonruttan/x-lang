@@ -233,7 +233,7 @@
 ### removes matching elements
 
 ```scheme
-(reject even? (list 1 2 3 4))
+(List reject even? (list 1 2 3 4))
 ```
 ---
     (1 3)
@@ -271,7 +271,7 @@
 ### returns #t when one matches
 
 ```scheme
-(any? even? (list 1 2 3))
+(List any? even? (list 1 2 3))
 ```
 ---
     #t
@@ -279,7 +279,7 @@
 ### returns nil when none match
 
 ```scheme
-(if (any? negative? (list 1 2 3)) "y" "n")
+(if (List any? negative? (list 1 2 3)) "y" "n")
 ```
 ---
     "n"
@@ -289,7 +289,7 @@
 ### returns #t when all match
 
 ```scheme
-(every? positive? (list 1 2 3))
+(List every? positive? (list 1 2 3))
 ```
 ---
     #t
@@ -297,7 +297,7 @@
 ### returns nil when one fails
 
 ```scheme
-(if (every? even? (list 2 3 4)) "y" "n")
+(if (List every? even? (list 2 3 4)) "y" "n")
 ```
 ---
     "n"
@@ -307,7 +307,7 @@
 ### returns #t when none match
 
 ```scheme
-(none? negative? (list 1 2 3))
+(List none? negative? (list 1 2 3))
 ```
 ---
     #t
@@ -315,7 +315,7 @@
 ### returns nil when one matches
 
 ```scheme
-(if (none? even? (list 1 2 3)) "y" "n")
+(if (List none? even? (list 1 2 3)) "y" "n")
 ```
 ---
     "n"
@@ -397,7 +397,7 @@
 ### finds element in list
 
 ```scheme
-(includes? 3 (list 1 2 3))
+(List includes? 3 (list 1 2 3))
 ```
 ---
     #t
@@ -405,7 +405,7 @@
 ### returns nil when not found
 
 ```scheme
-(if (includes? 9 (list 1 2 3)) "y" "n")
+(if (List includes? 9 (list 1 2 3)) "y" "n")
 ```
 ---
     "n"

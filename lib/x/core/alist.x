@@ -97,7 +97,7 @@
 (doc (def assoc-pick
   (fn (_ (param keys LIST "List of keys to keep")
        (param alist LIST "Association list"))
-    (filter (fn (_ entry) (includes? (first entry) keys)) alist)))
+    (filter (fn (_ entry) (List includes? (first entry) keys)) alist)))
   (returns LIST "Alist containing only the selected keys")
   "Select entries whose keys appear in a given list.")
 
@@ -105,7 +105,7 @@
   (fn (_ (param keys LIST "List of keys to exclude")
        (param alist LIST "Association list"))
     (filter
-      (fn (_ entry) (not (includes? (first entry) keys)))
+      (fn (_ entry) (not (List includes? (first entry) keys)))
       alist)))
   (returns LIST "Alist without the excluded keys")
   "Remove entries whose keys appear in a given list.")
