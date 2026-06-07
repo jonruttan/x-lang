@@ -77,7 +77,7 @@
       (let ((method (%lookup (%obj-class self) (lit methods) selector)))
         (match
           ((not (null? method))
-            (apply method (pair self (map (fn (_ a) (eval a e)) rest))))
+            (apply method (pair self (%map1 (fn (_ a) (eval a e)) rest))))
           ((assoc-has? selector (%obj-fields self))
             (match
               ((null? rest) (assoc-get selector (%obj-fields self)))
@@ -97,7 +97,7 @@
       (let ((method (%lookup self (lit s-methods) selector)))
         (match
           ((not (null? method))
-            (apply method (pair self (map (fn (_ a) (eval a e)) rest))))
+            (apply method (pair self (%map1 (fn (_ a) (eval a e)) rest))))
           ((eq? selector (lit new))                       ; (Class new k v ...): values are code
             (%instantiate self rest e #t))
           ((assoc-has? selector (%class-statics self))
@@ -149,7 +149,7 @@
         (let ((method (%lookup (eval (lit %super-class) e) (lit methods) selector)))
           (if (null? method)
             (error "object: super has no parent method")
-            (apply method (pair inst (map (fn (_ a) (eval a e)) rest)))))))))
+            (apply method (pair inst (%map1 (fn (_ a) (eval a e)) rest)))))))))
   (note "Selector is literal: (super self method args...). Instance methods only.")
   (note "Resolves from the parent of the method's DEFINING class, so it is correct")
   (note "through multi-level inheritance.")
@@ -174,7 +174,7 @@
         (eval
           (pair (list (lit lit) target)
             (pair (list (lit lit) sel)
-              (map (fn (_ a) (list (lit lit) a)) args)))
+              (%map1 (fn (_ a) (list (lit lit) a)) args)))
           e)))))
   (note "Selector is literal: (method-ref Class method). Works for static and instance methods.")
   (example "(map (method-ref Str upcase) (list \"a\" \"b\"))" "(\"A\" \"B\")")
@@ -319,7 +319,7 @@
           (set-first! %doc-pending-cell
             (pair (pair (lit %bare)
                      (pair (%method-doc-key class-name mname)
-                           (pair desc (append meta (%sig-params sig)))))
+                           (pair desc (%append2 meta (%sig-params sig)))))
                   (first %doc-pending-cell))))))))
 
 ; Stash a member's description as a %bare pending doc entry, keyed Class/NAME
@@ -538,7 +538,7 @@
     (if (null? class)
       ()
       (let ((own (assoc-get (lit fields) (%class-data class))))
-        (append own
+        (%append2 own
           (%reject-known (loop (assoc-get (lit parent) (%class-data class))) own))))))
 
 ; Build the instance field box: each member takes its init value if supplied --
