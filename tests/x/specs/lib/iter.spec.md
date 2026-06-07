@@ -3,7 +3,7 @@
 ### iterates a list
 
 ```scheme
-(iter->list (iter (list 1 2 3)))
+(Iter ->list (Iter new (list 1 2 3)))
 ```
 ---
     (1 2 3)
@@ -11,7 +11,7 @@
 ### iterates a vector
 
 ```scheme
-(iter->list (iter (vector 10 20 30)))
+(Iter ->list (Iter new (vector 10 20 30)))
 ```
 ---
     (10 20 30)
@@ -19,7 +19,7 @@
 ### iterates a string by code point
 
 ```scheme
-(iter->list (iter "abc"))
+(Iter ->list (Iter new "abc"))
 ```
 ---
     (#\a #\b #\c)
@@ -27,7 +27,7 @@
 ### empty list yields an empty iterator
 
 ```scheme
-(null? (iter->list (iter (list))))
+(null? (Iter ->list (Iter new (list))))
 ```
 ---
     #t
@@ -35,7 +35,7 @@
 ### empty vector yields an empty iterator
 
 ```scheme
-(null? (iter->list (iter (vector))))
+(null? (Iter ->list (Iter new (vector))))
 ```
 ---
     #t
@@ -45,7 +45,7 @@
 ### reports exhaustion across a step
 
 ```scheme
-(do (def it (iter (list 1))) (def before (Iter empty? it)) (Iter next it) (list before (Iter empty? it)))
+(do (def it (Iter new (list 1))) (def before (Iter empty? it)) (Iter next it) (list before (Iter empty? it)))
 ```
 ---
     (#f #t)
@@ -55,7 +55,7 @@
 ### advances element by element
 
 ```scheme
-(do (def it (iter (list 7 8 9))) (list (Iter next it) (Iter next it) (Iter next it)))
+(do (def it (Iter new (list 7 8 9))) (list (Iter next it) (Iter next it) (Iter next it)))
 ```
 ---
     (7 8 9)
@@ -65,7 +65,7 @@
 ### left-folds the remaining elements
 
 ```scheme
-(iter-fold + 0 (iter (list 1 2 3 4)))
+(Iter fold + 0 (Iter new (list 1 2 3 4)))
 ```
 ---
     10
@@ -75,7 +75,7 @@
 ### visits every element
 
 ```scheme
-(do (def %acc (list 0)) (iter-for-each (fn (_ x) (set-first! %acc (+ (first %acc) x))) (iter (vector 1 2 3 4))) (first %acc))
+(do (def %acc (list 0)) (Iter for-each (fn (_ x) (set-first! %acc (+ (first %acc) x))) (Iter new (vector 1 2 3 4))) (first %acc))
 ```
 ---
     10
@@ -85,7 +85,7 @@
 ### iterates a def-class instance as name/value pairs
 
 ```scheme
-(do (def-class Pt () (x 0) (y 0)) (def p (new Pt x 3 y 4)) (iter->list (iter p)))
+(do (def-class Pt () (x 0) (y 0)) (def p (new Pt x 3 y 4)) (Iter ->list (Iter new p)))
 ```
 ---
     (((lit x) . 3) ((lit y) . 4))
@@ -95,7 +95,7 @@
 ### builds an iterator from a custom step function
 
 ```scheme
-(do (def it (Iter make (fn (self it) (if (null? (rest it)) () (do (def v (first (rest it))) (set-rest! it (rest (rest it))) v))) (list 5 6))) (iter->list it))
+(do (def it (Iter make (fn (self it) (if (null? (rest it)) () (do (def v (first (rest it))) (set-rest! it (rest (rest it))) v))) (list 5 6))) (Iter ->list it))
 ```
 ---
     (5 6)

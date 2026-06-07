@@ -4,7 +4,7 @@
 (doc (def as-list
   (fn (_ x)
     (if (or (null? x) (pair? x)) x
-      (let ((it (iter x)))
+      (let ((it (Iter new x)))
         (def %go (fn (self )
           (let ((v (it)))
             (if (null? v) () (pair v (self))))))
@@ -139,7 +139,7 @@
     (if (null? lst) ()
       (if (pair? lst)
         (do (f (first lst)) (self f (rest lst)))
-        (let ((it (iter lst)))
+        (let ((it (Iter new lst)))
           (def %iter-loop
             (fn (self )
               (let ((val (it)))
