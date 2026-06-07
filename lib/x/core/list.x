@@ -33,16 +33,6 @@
     (let ((lst (as-list lst))) (fold f (first lst) (rest lst)))))
   "Fold without an initial value; uses the first element.")
 
-(doc (def scan
-  (fn (self (param f CALLABLE "Binary function")
-       (param init ANY "Initial accumulator value")
-       (param lst LIST "List or iterable"))
-    (let ((lst (as-list lst)))
-      (if (null? lst)
-        (list init)
-        (pair init (self f (f init (first lst)) (rest lst)))))))
-  "Like fold, but returns a list of all intermediate values.")
-
 (note "Basics")
 
 (doc (def length
@@ -74,12 +64,6 @@
 
 (doc (def append (fn (_ . args) (fold %append2 () args)))
   "Concatenate zero or more lists.")
-
-(doc (def prepend
-  (fn (_ (param x ANY "Element to prepend")
-       (param lst LIST "List"))
-    (pair x lst)))
-  "Add an element to the front of a list.")
 
 (doc (def reverse
   (fn (_ (param lst LIST "List or iterable"))
@@ -157,15 +141,6 @@
             (apply f (%map1 first lsts))
             (apply self f (%map1 rest lsts))))))))
   "Apply a function to each element for side effects.")
-
-(doc (def flat-map
-  (fn (self (param f CALLABLE "Function returning a list")
-       (param lst LIST "List or iterable"))
-    (let ((lst (as-list lst)))
-      (if (null? lst)
-        ()
-        (%append2 (f (first lst)) (self f (rest lst)))))))
-  "Map then flatten one level.")
 
 (note "Predicates")
 
@@ -388,17 +363,6 @@
   (returns LIST "List of results")
   "Apply a function to each index 0..n-1, collecting results.")
 
-(doc (def unfold
-  (fn (self (param pred CALLABLE "Stop predicate: seed -> boolean")
-       (param f CALLABLE "Value function: seed -> element")
-       (param g CALLABLE "Step function: seed -> next-seed")
-       (param seed ANY "Initial seed value"))
-    (if (pred seed)
-      ()
-      (pair (f seed) (self pred f g (g seed))))))
-  (returns LIST "Generated list")
-  "Build a list by repeatedly applying step and value functions to a seed.")
-
 (doc (def iterate
   (fn (self (param f CALLABLE "Step function")
        (param n INT "Number of iterations")
@@ -416,49 +380,7 @@
   (returns LIST "List of pairs")
   "Pair up corresponding elements from two lists.")
 
-(doc (def zip-with
-  (fn (self (param f CALLABLE "Combining function")
-       (param a LIST "First list")
-       (param b LIST "Second list"))
-    (if (or (null? a) (null? b))
-      ()
-      (pair
-        (f (first a) (first b))
-        (self f (rest a) (rest b))))))
-  (returns LIST "Combined list")
-  "Combine corresponding elements from two lists using a function.")
-
 (note "Transformation")
-
-(doc (def partition
-  (fn (_ (param pred CALLABLE "Predicate function")
-       (param lst LIST "List"))
-    (def go
-      (fn (self xs yes no)
-        (match
-          ((null? xs) (list (reverse yes) (reverse no)))
-          ((pred (first xs))
-            (self (rest xs) (pair (first xs) yes) no))
-          (#t (self (rest xs) yes (pair (first xs) no))))))
-    (go lst () ())))
-  "Split a list into elements that match and don't match a predicate.")
-
-(doc (def group-by
-  (fn (_ (param f CALLABLE "Key function: element -> group key")
-       (param lst LIST "List"))
-    (def add-to-group
-      (fn (self alist key val)
-        (match
-          ((null? alist) (list (pair key (list val))))
-          ((eq? (first (first alist)) key)
-            (pair
-              (pair key (append (rest (first alist)) (list val)))
-              (rest alist)))
-          (#t
-            (pair (first alist) (self (rest alist) key val))))))
-    (fold (fn (_ acc x) (add-to-group acc (f x) x)) () lst)))
-  (returns LIST "Alist of (key . elements)")
-  "Group list elements by a key function.")
 
 (doc (def sort
   (fn (self (param cmp CALLABLE "Comparison: (a b) -> #t if a comes first")
@@ -490,13 +412,6 @@
           (self cmp (first (rest halves)))))))))
   "Merge sort a list using a comparison function.")
 
-
-(doc (def sort-by
-  (fn (_ (param f CALLABLE "Key function: element -> comparable value")
-       (param lst LIST "List"))
-    (sort (fn (_ a b) (< (f a) (f b))) lst)))
-  "Sort by a key function (ascending).")
-
 (doc (def uniq
   (fn (self (param lst LIST "Sorted list"))
     (match
@@ -505,17 +420,6 @@
       ((equal? (first lst) (first (rest lst))) (self (rest lst)))
       (#t (pair (first lst) (self (rest lst)))))))
   "Remove consecutive duplicates from a sorted list.")
-
-(doc (def uniq-by
-  (fn (self (param f CALLABLE "Key function")
-       (param lst LIST "Sorted list"))
-    (match
-      ((null? lst) ())
-      ((null? (rest lst)) lst)
-      ((equal? (f (first lst)) (f (first (rest lst))))
-        (self f (rest lst)))
-      (#t (pair (first lst) (self f (rest lst)))))))
-  "Remove consecutive duplicates by key function.")
 
 (doc (def intersperse
   (fn (self (param sep ANY "Separator element")
@@ -526,14 +430,6 @@
       (#t
         (pair (first lst) (pair sep (self sep (rest lst))))))))
   "Insert a separator between each element.")
-
-(doc (def transpose
-  (fn (self (param lsts LIST "List of lists"))
-    (if (or (null? lsts) (any? null? lsts))
-      ()
-      (pair (map first lsts) (self (map rest lsts))))))
-  (returns LIST "Transposed list of lists")
-  "Transpose rows and columns of a list of lists.")
 
 (doc (def update
   (fn (self (param n INT "Index to update")
@@ -655,13 +551,13 @@
   "Return a copy of a string (Scheme compatibility).")
 
 (doc (provide x/core/list
-  as-list fold reduce scan length nth last init append prepend reverse flatten
-  map filter for-each flat-map any? every? none? empty?
+  as-list fold reduce length nth last init append reverse flatten
+  map filter for-each any? every? none? empty?
   complement partial juxt both either all-pass any-pass reject concat sum product
   find find-index index-of includes? count
   take drop take-while drop-while split-at slice
-  range repeat times unfold iterate zip zip-with
-  partition group-by sort sort-by uniq uniq-by intersperse transpose
+  range repeat times iterate zip
+  sort uniq intersperse
   update insert remove adjust
   list? memq member assq assoc
   second third else list-ref list-tail str-copy)

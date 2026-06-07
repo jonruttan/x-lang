@@ -49,7 +49,7 @@
 ### returns intermediate values
 
 ```scheme
-(scan + 0 (list 1 2 3))
+(List scan + 0 (list 1 2 3))
 ```
 ---
     (0 1 3 6)
@@ -141,7 +141,7 @@
 ### adds to front
 
 ```scheme
-(prepend 0 (list 1 2))
+(List prepend 0 (list 1 2))
 ```
 ---
     (0 1 2)
@@ -243,7 +243,7 @@
 ### maps and flattens
 
 ```scheme
-(flat-map (fn (_ x) (list x (* x 10))) (list 1 2 3))
+(List flat-map (fn (_ x) (list x (* x 10))) (list 1 2 3))
 ```
 ---
     (1 10 2 20 3 30)
@@ -579,7 +579,7 @@
 ### builds a list from seed
 
 ```scheme
-(unfold (fn (_ x) (> x 5)) identity inc 1)
+(List unfold (fn (_ x) (> x 5)) identity inc 1)
 ```
 ---
     (1 2 3 4 5)
@@ -617,7 +617,7 @@
 ### zips with combining function
 
 ```scheme
-(zip-with + (list 1 2 3) (list 10 20 30))
+(List zip-with + (list 1 2 3) (list 10 20 30))
 ```
 ---
     (11 22 33)
@@ -627,7 +627,7 @@
 ### splits by predicate
 
 ```scheme
-(partition even? (list 1 2 3 4 5 6))
+(List partition even? (list 1 2 3 4 5 6))
 ```
 ---
     ((2 4 6) (1 3 5))
@@ -637,7 +637,7 @@
 ### groups by key function
 
 ```scheme
-(length (group-by even? (list 1 2 3 4 5)))
+(length (List group-by even? (list 1 2 3 4 5)))
 ```
 ---
     2
@@ -681,7 +681,7 @@
 ### sorts by key function
 
 ```scheme
-(sort-by abs (list 3 -1 -2))
+(List sort-by abs (list 3 -1 -2))
 ```
 ---
     (-1 -2 3)
@@ -709,7 +709,7 @@
 ### removes consecutive duplicates by key
 
 ```scheme
-(length (uniq-by abs (list 1 -1 2 -2 3)))
+(length (List uniq-by abs (list 1 -1 2 -2 3)))
 ```
 ---
     3
@@ -831,7 +831,7 @@
 ### transposes a matrix
 
 ```scheme
-(transpose (list (list 1 2 3) (list 4 5 6)))
+(List transpose (list (list 1 2 3) (list 4 5 6)))
 ```
 ---
     ((1 4) (2 5) (3 6))
