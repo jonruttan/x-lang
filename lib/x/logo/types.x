@@ -78,7 +78,7 @@
 ; ============================================================
 
 (def %logo-base
-  (let ((base (make-base)))
+  (let ((base (Base make)))
     (def %cell (first (first (first (rest (first base))))))
     (def %int-name (type-of 0))
     (def %float-name (type-of (exact->inexact 0)))
@@ -94,20 +94,20 @@
 
     ; LOGO-BLOCK
     (set! %logo-block
-      (base-make-type base "LOGO-BLOCK"
+      (Base make-type base "LOGO-BLOCK"
         (list
           (pair (lit write) (fn (_ _) (display "[ ... ]")))
           (pair (lit eval) (fn (_ self) (logo-process-tokens (first self)))))))
 
     ; LOGO-CLOSE
-    (base-make-type base "LOGO-CLOSE"
+    (Base make-type base "LOGO-CLOSE"
       (list
         (pair (lit analyse)
           (make-char-state (char->integer #\]) token-accept ()))
         (pair (lit read) (fn (_ . args) %logo-block-close))))
 
     ; LOGO-OPEN
-    (base-make-type base "LOGO-OPEN"
+    (Base make-type base "LOGO-OPEN"
       (list
         (pair (lit analyse)
           (make-char-state (char->integer #\[) token-accept ()))
@@ -126,7 +126,7 @@
 
     ; LOGO (word type)
     (set! %logo
-      (base-make-type base "LOGO"
+      (Base make-type base "LOGO"
         (list
           (pair (lit analyse)
             (fn (_ buffer score chr)
@@ -138,7 +138,7 @@
             (fn (_ self) (display (first self)))))))
 
     ; LOGO-WS: spaces and tabs only, discard
-    (base-make-type base "LOGO-WS"
+    (Base make-type base "LOGO-WS"
       (list
         (pair (lit analyse)
           (fn (self buffer score chr)
@@ -155,7 +155,7 @@
               ())))))
 
     ; LOGO-NEWLINE: bare newline, discard
-    (base-make-type base "LOGO-NEWLINE"
+    (Base make-type base "LOGO-NEWLINE"
       (list
         (pair (lit analyse)
           (make-char-state 10 token-accept ()))))
@@ -170,7 +170,7 @@
             ()))))
 
     (set! %logo-indent
-      (base-make-type base "LOGO-INDENT"
+      (Base make-type base "LOGO-INDENT"
         (list
           (pair (lit analyse)
             (fn (_ buffer score chr)
@@ -196,7 +196,7 @@
 
     ; LOGO-OP: operators and <- assignment
     (set! %logo-op
-      (base-make-type base "LOGO-OP"
+      (Base make-type base "LOGO-OP"
         (list
           (pair (lit analyse)
             (fn (_ buffer score chr)
@@ -216,13 +216,13 @@
             (fn (_ self) (display (first self)))))))
 
     ; LOGO-PAREN: ( and )
-    (base-make-type base "LOGO-PAREN-OPEN"
+    (Base make-type base "LOGO-PAREN-OPEN"
       (list
         (pair (lit analyse)
           (make-char-state 40 token-accept ()))
         (pair (lit read) (fn (_ . args) (pair %logo-paren-tag "(")))))
 
-    (base-make-type base "LOGO-PAREN-CLOSE"
+    (Base make-type base "LOGO-PAREN-CLOSE"
       (list
         (pair (lit analyse)
           (make-char-state 41 token-accept ()))
@@ -236,7 +236,7 @@
           (if (= chr 10) () self))))
 
     (set! %logo-string
-      (base-make-type base "LOGO-STRING"
+      (Base make-type base "LOGO-STRING"
         (list
           (pair (lit analyse)
             (fn (_ buffer score chr)
@@ -251,7 +251,7 @@
               (display "\"") (display (first self)) (display "\""))))))
 
     ; LOGO-SEMI: ; comment to end of line (discard)
-    (base-make-type base "LOGO-SEMI"
+    (Base make-type base "LOGO-SEMI"
       (list
         (pair (lit analyse)
           (fn (_ buffer score chr)

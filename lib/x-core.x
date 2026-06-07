@@ -119,9 +119,11 @@
   ; Iterator protocol: defines the Iter class + wires the iter slot on the
   ; sequence types (registered above) + consumers.
   (include "lib/x/type/iter.x")
+  ; Base: execution-context objects via the Base class.
+  (include "lib/x/type/base.x")
   ; Catalog -> object-system bridge: a class per catalog namespace (transitional,
   ; as the object system supersedes the flat catalog + bare-name registration).
-  ; After iter.x, so it folds onto the real Iter class rather than projecting one.
+  ; After the real classes above, so it folds onto them rather than projecting.
   (include "lib/x/type/catalog.x")
   (include "lib/x/sys/token.x")
 
