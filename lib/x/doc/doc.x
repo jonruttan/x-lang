@@ -458,7 +458,7 @@
           (%display-class-sections %v "    ")
           ()))
       ; exports sorted alphabetically, matching the (help) overview
-      (sort (fn (_ a b) (str<? (symbol->str a) (symbol->str b)))
+      (List sort (fn (_ a b) (str<? (symbol->str a) (symbol->str b)))
             (rest entry)))))
 
 (def %display-overview
@@ -546,7 +546,7 @@
 ; The merged, sorted (name . desc) entries for one category of a class.
 (def %class-section-entries
   (fn (_ cls accessor)
-    (sort (fn (_ a b) (%str<? (symbol->str (first a)) (symbol->str (first b)) 0))
+    (List sort (fn (_ a b) (%str<? (symbol->str (first a)) (symbol->str (first b)) 0))
           (%section-walk cls accessor ()))))
 
 ; Print "name -- desc" (desc omitted when empty) for each entry at `indent`.
@@ -647,7 +647,7 @@
                 (first (rest (first entries)))))
             (self (rest entries))))))
     ; results sorted by name, matching the (help) overview
-    (%search (sort (fn (_ a b) (str<? (symbol->str (first a)) (symbol->str (first b))))
+    (%search (List sort (fn (_ a b) (str<? (symbol->str (first a)) (symbol->str (first b))))
                    (first %doc-registry-cell)))))
 
 ; --- Module discovery ---
@@ -697,7 +697,7 @@
             (self (rest paths))))))
     ; sorted by path (== module order); sort is non-destructive, so the
     ; live include/load queue is left untouched
-    (%show (sort (fn (_ a b) (str<? a b)) (first %include-list-cell)))))
+    (%show (List sort (fn (_ a b) (str<? a b)) (first %include-list-cell)))))
 
 (doc (provide x/doc/doc doc note help apropos modules)
   (note "doc wraps def or provide for metadata. help for REPL lookup. apropos for search.")

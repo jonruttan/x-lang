@@ -121,36 +121,6 @@
 
 (note "Transformation")
 
-(doc (def sort
-  (fn (self (param cmp CALLABLE "Comparison: (a b) -> #t if a comes first")
-       (param lst LIST "List or iterable"))
-    (let ((lst (as-list lst)))
-    (def merge
-      (fn (self a b)
-        (match
-          ((null? a) b)
-          ((null? b) a)
-          ((cmp (first a) (first b))
-            (pair (first a) (self (rest a) b)))
-          (#t (pair (first b) (self a (rest b)))))))
-    (def split
-      (fn (self xs a b)
-        (match
-          ((null? xs) (list a b))
-          ((null? (rest xs)) (list (pair (first xs) a) b))
-          (#t
-            (self
-              (rest (rest xs))
-              (pair (first xs) a)
-              (pair (first (rest xs)) b))))))
-    (if (or (null? lst) (null? (rest lst)))
-      lst
-      (let ((halves (split lst () ())))
-        (merge
-          (self cmp (first halves))
-          (self cmp (first (rest halves)))))))))
-  "Merge sort a list using a comparison function.")
-
 (note "Type predicate")
 
 (note "Membership")
@@ -176,7 +146,7 @@
   
   
   
-  sort
+  
   
   
   else str-copy)

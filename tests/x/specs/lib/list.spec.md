@@ -647,7 +647,7 @@
 ### sorts ascending
 
 ```scheme
-(sort < (list 5 3 1 4 2))
+(List sort < (list 5 3 1 4 2))
 ```
 ---
     (1 2 3 4 5)
@@ -655,7 +655,7 @@
 ### sorts descending
 
 ```scheme
-(sort > (list 1 3 2))
+(List sort > (list 1 3 2))
 ```
 ---
     (3 2 1)
@@ -663,7 +663,7 @@
 ### sorts single element
 
 ```scheme
-(sort < (list 1))
+(List sort < (list 1))
 ```
 ---
     (1)
@@ -671,7 +671,7 @@
 ### sorts empty
 
 ```scheme
-(null? (sort < ()))
+(null? (List sort < ()))
 ```
 ---
     #t
