@@ -107,7 +107,7 @@
 ### partially applies one argument
 
 ```scheme
-((partial * 3) 4)
+((List partial * 3) 4)
 ```
 ---
     12
@@ -115,7 +115,7 @@
 ### partially applies with subtract
 
 ```scheme
-((partial - 100) 30)
+((List partial - 100) 30)
 ```
 ---
     70

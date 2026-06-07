@@ -39,7 +39,7 @@
 ### reduces without initial value
 
 ```scheme
-(reduce + (list 1 2 3 4))
+(List reduce + (list 1 2 3 4))
 ```
 ---
     10
@@ -169,7 +169,7 @@
 ### flattens nested lists
 
 ```scheme
-(flatten (list 1 (list 2 (list 3))))
+(List flatten (list 1 (list 2 (list 3))))
 ```
 ---
     (1 2 3)
@@ -177,7 +177,7 @@
 ### flat list unchanged
 
 ```scheme
-(flatten (list 1 2 3))
+(List flatten (list 1 2 3))
 ```
 ---
     (1 2 3)
@@ -253,7 +253,7 @@
 ### concatenates multiple lists
 
 ```scheme
-(concat (list 1) (list 2 3) (list 4))
+(List concat (list 1) (list 2 3) (list 4))
 ```
 ---
     (1 2 3 4)
@@ -261,7 +261,7 @@
 ### concatenates with empty
 
 ```scheme
-(concat () (list 1) ())
+(List concat () (list 1) ())
 ```
 ---
     (1)

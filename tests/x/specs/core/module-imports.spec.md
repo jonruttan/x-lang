@@ -25,7 +25,7 @@
 ### all listed symbols are valid
 
 ```scheme
-(import x/core/list map filter fold reduce length nth)
+(import x/core/list map filter fold length nth)
 ```
 ---
 

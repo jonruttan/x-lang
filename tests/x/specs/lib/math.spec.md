@@ -167,7 +167,7 @@
 ### multiplies a list
 
 ```scheme
-(product (list 1 2 3 4))
+(List product (list 1 2 3 4))
 ```
 ---
     24
@@ -175,7 +175,7 @@
 ### product of empty is one
 
 ```scheme
-(product ())
+(List product ())
 ```
 ---
     1

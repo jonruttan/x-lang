@@ -27,12 +27,6 @@
   (example "(fold + 0 '(1 2 3))" "6")
   "Fold a function over a list from the left.")
 
-(doc (def reduce
-  (fn (_ (param f CALLABLE "Binary function")
-       (param lst LIST "Non-empty list or iterable"))
-    (let ((lst (as-list lst))) (fold f (first lst) (rest lst)))))
-  "Fold without an initial value; uses the first element.")
-
 (note "Basics")
 
 (doc (def length
@@ -69,15 +63,6 @@
   (fn (_ (param lst LIST "List or iterable"))
     (fold (fn (_ acc x) (pair x acc)) () lst)))
   "Reverse a list.")
-
-(doc (def flatten
-  (fn (self (param lst LIST "Nested list"))
-    (match
-      ((null? lst) ())
-      ((pair? (first lst))
-        (%append2 (self (first lst)) (self (rest lst))))
-      (#t (pair (first lst) (self (rest lst)))))))
-  "Recursively flatten nested lists into a single list.")
 
 (note "Iteration")
 
@@ -175,12 +160,6 @@
 
 (note "Combinators")
 
-(doc (def partial
-  (fn (_ (param f CALLABLE "Function to partially apply") . (param bound ANY "Bound arguments"))
-    (fn (_ . args) (apply f (append bound args)))))
-  (returns CALLABLE "Partially applied function")
-  "Partially apply a function with leading arguments.")
-
 (doc (def reject
   (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List"))
@@ -188,17 +167,9 @@
   (returns LIST "Filtered list")
   "Return elements that do NOT satisfy a predicate.")
 
-(doc (def concat (fn (_ . lsts) (apply append lsts)))
-  (returns LIST "Concatenated list")
-  "Concatenate all argument lists into one.")
-
 (doc (def sum (fn (_ (param lst LIST "List of numbers")) (fold + 0 lst)))
   (returns INT "Sum")
   "Sum all elements of a list.")
-
-(doc (def product (fn (_ (param lst LIST "List of numbers")) (fold * 1 lst)))
-  (returns INT "Product")
-  "Multiply all elements of a list.")
 
 (note "Search")
 
@@ -312,32 +283,10 @@
 
 ; --- Convenience aliases ---
 
-(doc (def second (fn (_ x) (first (rest x))))
-  (param x LIST "A list with at least two elements")
-  (returns ANY "The second element")
-  "Return the second element of a list.")
-
-(doc (def third (fn (_ x) (first (rest (rest x)))))
-  (param x LIST "A list with at least three elements")
-  (returns ANY "The third element")
-  "Return the third element of a list.")
-
 (doc (def else #t)
   "Alias for #t, for use as the default clause in cond/case.")
 
 ; --- Compatibility aliases ---
-
-(doc (def list-ref (fn (_ lst n) (nth n lst)))
-  (param lst LIST "List to index")
-  (param n INTEGER "Zero-based index")
-  (returns ANY "The element at index n")
-  "Return the nth element of a list (Scheme compatibility).")
-
-(doc (def list-tail (fn (_ lst n) (drop n lst)))
-  (param lst LIST "List to take tail of")
-  (param n INTEGER "Number of elements to skip")
-  (returns LIST "The remaining list after dropping n elements")
-  "Return the tail of a list after n elements (Scheme compatibility).")
 
 (doc (def str-copy (fn (_ s) (substring s 0 (str-length s))))
   (param s STRING "String to copy")
@@ -345,16 +294,16 @@
   "Return a copy of a string (Scheme compatibility).")
 
 (doc (provide x/core/list
-  as-list fold reduce length nth last init append reverse flatten
+  as-list fold length nth last init append reverse
   map filter for-each any? every? none? empty?
-  partial reject concat sum product
+  reject sum
   find includes? count
   take drop
   
   sort
   
   list? member assoc
-  second third else list-ref list-tail str-copy)
+  else str-copy)
   (note "Accepts any iterable (lists, vectors, custom iterables). Ramda-inspired functional style.")
   (example "(map inc '(1 2 3))" "(2 3 4)")
   "List processing: map, filter, fold, sort, and 60+ functions.")
