@@ -313,9 +313,6 @@
   (param type ATOM "Type handle")
   (returns STRING "Type name"))
 
-(doc make-base "Create a new base object (execution context)."
-  (returns BASE "A fresh base with types and primitives"))
-
 (doc token-read-string "Tokenize a string using a base's type system."
   (param base BASE "Base object with type alist")
   (param s STRING "Source string to tokenize")

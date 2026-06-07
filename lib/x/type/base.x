@@ -17,3 +17,10 @@
     (method bind      (self target name val) (%b-bind target name val))
     (method make-type (self target name h)   (%b-make-type target name h))
     (method make-tok  (self)                 (%b-make-tok))))
+
+(doc (provide x/type/base Base)
+  (note "(Base make) -> a fresh execution-context (base) object.")
+  (note "(Base eval target expr) evaluates expr inside target, isolated from the outer env.")
+  (note "(Base bind target name val); (Base make-type target name handlers); (Base make-tok).")
+  (example "(let ((b (Base make))) (Base eval b (lit (+ 1 2))))" "3")
+  "Base: execution-context / sandbox objects, via the Base class.")
