@@ -525,8 +525,8 @@
 
 (def syscall-id
   (fn (_ call)
-    (let ((n (index-of call x86_64-syscall-names)))
-      (if (>= n 0) n (index-of call i386-syscall-names)))))
+    (let ((n (List index-of call x86_64-syscall-names)))
+      (if (>= n 0) n (List index-of call i386-syscall-names)))))
 
 (doc (provide x/platform/syscall syscall-id x86_64-syscall-names i386-syscall-names)
   "Syscall number tables for x86_64 and i386/BSD. Maps symbolic names to syscall numbers.")

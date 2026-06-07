@@ -88,7 +88,7 @@
         (returns STRING "k-element string of the fill character")
         (example "(Str8 make 3 (\" \" 0))" "\"   \""))
       (def ch (if (null? rest) (" " 0) (first rest)))
-      (self ->str (repeat ch k)))
+      (self ->str (List repeat ch k)))
 
     ; --- predicates ---
     (method empty? (self (param s STRING "String to test"))

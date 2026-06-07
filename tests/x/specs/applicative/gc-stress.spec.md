@@ -7,14 +7,14 @@ when profile.x moved to `lib/x/tool/`.  `heap-collect` is the canonical
 C primitive and needs no include.)
 
 List sizes are kept at/below 1000: larger non-tail recursion (e.g.
-`(range 1 5001)`) overflows the C stack independently of GC -- tracked
+`(List range 1 5001)`) overflows the C stack independently of GC -- tracked
 separately -- so using it here would test recursion depth, not the
 collector.
 
 ### GC during map over large list
 
 ```scheme
-(def result (map (fn (_ x) (* x x)) (range 1 1001)))
+(def result (map (fn (_ x) (* x x)) (List range 1 1001)))
 (heap-collect)
 (= (length result) 1000)
 ```
@@ -66,7 +66,7 @@ harness take ~90s (tracked separately).  Standalone the same loop at 100
 runs in well under a second.
 
 ```scheme
-(def live-data (range 1 101))
+(def live-data (List range 1 101))
 (do (def gc-loop (fn (self n) (if (= n 0) () (do (list 1 2 3) (heap-collect) (self (- n 1)))))) (gc-loop 20))
 (= (length live-data) 100)
 ```

@@ -89,7 +89,7 @@
 ### negates a predicate
 
 ```scheme
-((complement even?) 3)
+((List complement even?) 3)
 ```
 ---
     #t
@@ -97,7 +97,7 @@
 ### negates a true result
 
 ```scheme
-(if ((complement even?) 4) "odd" "even")
+(if ((List complement even?) 4) "odd" "even")
 ```
 ---
     "even"
@@ -125,7 +125,7 @@
 ### applies multiple functions
 
 ```scheme
-((juxt inc dec) 5)
+((List juxt inc dec) 5)
 ```
 ---
     (6 4)
@@ -135,7 +135,7 @@
 ### returns #t when both pass
 
 ```scheme
-((both positive? even?) 4)
+((List both positive? even?) 4)
 ```
 ---
     #t
@@ -143,7 +143,7 @@
 ### returns nil when one fails
 
 ```scheme
-(if ((both positive? even?) 3) "y" "n")
+(if ((List both positive? even?) 3) "y" "n")
 ```
 ---
     "n"
@@ -153,7 +153,7 @@
 ### returns #t when one passes
 
 ```scheme
-((either positive? even?) -2)
+((List either positive? even?) -2)
 ```
 ---
     #t
@@ -161,7 +161,7 @@
 ### returns nil when both fail
 
 ```scheme
-(if ((either positive? even?) -3) "y" "n")
+(if ((List either positive? even?) -3) "y" "n")
 ```
 ---
     "n"
@@ -171,7 +171,7 @@
 ### all predicates pass
 
 ```scheme
-((all-pass (list positive? even?)) 4)
+((List all-pass (list positive? even?)) 4)
 ```
 ---
     #t
@@ -179,7 +179,7 @@
 ### fails when one fails
 
 ```scheme
-(if ((all-pass (list positive? even?)) 3) "y" "n")
+(if ((List all-pass (list positive? even?)) 3) "y" "n")
 ```
 ---
     "n"
@@ -189,7 +189,7 @@
 ### one predicate passes
 
 ```scheme
-((any-pass (list negative? even?)) 4)
+((List any-pass (list negative? even?)) 4)
 ```
 ---
     #t
@@ -197,7 +197,7 @@
 ### fails when all fail
 
 ```scheme
-(if ((any-pass (list negative? even?)) 3) "y" "n")
+(if ((List any-pass (list negative? even?)) 3) "y" "n")
 ```
 ---
     "n"

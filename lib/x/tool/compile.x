@@ -102,7 +102,7 @@
 ; SYMBOL: emit C variable reference
 (def %compile-symbol-write
   (fn (_ sym)
-    (if (memq sym %compile-params)
+    (if (List memq sym %compile-params)
       (display (Str append "p_" (convert sym %string)))
       (let ((fv-entry (%compile-fvar-lookup sym)))
         (if (null? fv-entry)
@@ -482,7 +482,7 @@
   (fn (_ lst)
     (if (null? lst)
       (display "NULL")
-      (let ((entry (assq (first lst) compile-emitters)))
+      (let ((entry (List assq (first lst) compile-emitters)))
         (if entry
           ((rest entry) (rest lst))
           (error (Str append "compile: unsupported form: "

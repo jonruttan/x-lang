@@ -361,7 +361,7 @@
 ### returns index of first match
 
 ```scheme
-(find-index even? (list 1 3 4 6))
+(List find-index even? (list 1 3 4 6))
 ```
 ---
     2
@@ -369,7 +369,7 @@
 ### returns -1 when not found
 
 ```scheme
-(find-index negative? (list 1 2 3))
+(List find-index negative? (list 1 2 3))
 ```
 ---
     -1
@@ -379,7 +379,7 @@
 ### finds element index
 
 ```scheme
-(index-of 30 (list 10 20 30))
+(List index-of 30 (list 10 20 30))
 ```
 ---
     2
@@ -387,7 +387,7 @@
 ### returns -1 when not found
 
 ```scheme
-(index-of 99 (list 10 20 30))
+(List index-of 99 (list 10 20 30))
 ```
 ---
     -1
@@ -477,7 +477,7 @@
 ### takes while predicate holds
 
 ```scheme
-(take-while positive? (list 1 2 -3 4))
+(List take-while positive? (list 1 2 -3 4))
 ```
 ---
     (1 2)
@@ -485,7 +485,7 @@
 ### takes nothing when first fails
 
 ```scheme
-(null? (take-while negative? (list 1 2 3)))
+(null? (List take-while negative? (list 1 2 3)))
 ```
 ---
     #t
@@ -495,7 +495,7 @@
 ### drops while predicate holds
 
 ```scheme
-(drop-while positive? (list 1 2 -3 4))
+(List drop-while positive? (list 1 2 -3 4))
 ```
 ---
     (-3 4)
@@ -505,7 +505,7 @@
 ### splits list at index
 
 ```scheme
-(split-at 2 (list 1 2 3 4))
+(List split-at 2 (list 1 2 3 4))
 ```
 ---
     ((1 2) (3 4))
@@ -515,7 +515,7 @@
 ### extracts sublist
 
 ```scheme
-(slice 1 3 (list 10 20 30 40 50))
+(List slice 1 3 (list 10 20 30 40 50))
 ```
 ---
     (20 30)
@@ -525,7 +525,7 @@
 ### generates ascending range
 
 ```scheme
-(range 0 5)
+(List range 0 5)
 ```
 ---
     (0 1 2 3 4)
@@ -533,7 +533,7 @@
 ### empty when start >= end
 
 ```scheme
-(null? (range 5 5))
+(null? (List range 5 5))
 ```
 ---
     #t
@@ -543,7 +543,7 @@
 ### repeats a value
 
 ```scheme
-(repeat 0 3)
+(List repeat 0 3)
 ```
 ---
     (0 0 0)
@@ -551,7 +551,7 @@
 ### repeats zero times
 
 ```scheme
-(null? (repeat 0 0))
+(null? (List repeat 0 0))
 ```
 ---
     #t
@@ -561,7 +561,7 @@
 ### calls function n times
 
 ```scheme
-(times identity 4)
+(List times identity 4)
 ```
 ---
     (0 1 2 3)
@@ -569,7 +569,7 @@
 ### applies function to indices
 
 ```scheme
-(times (fn (_ i) (* i i)) 4)
+(List times (fn (_ i) (* i i)) 4)
 ```
 ---
     (0 1 4 9)
@@ -589,7 +589,7 @@
 ### generates repeated applications
 
 ```scheme
-(iterate (fn (_ x) (* x 2)) 4 1)
+(List iterate (fn (_ x) (* x 2)) 4 1)
 ```
 ---
     (1 2 4 8)
@@ -599,7 +599,7 @@
 ### zips two lists
 
 ```scheme
-(zip (list 1 2 3) (list 4 5 6))
+(List zip (list 1 2 3) (list 4 5 6))
 ```
 ---
     ((1 4) (2 5) (3 6))
@@ -607,7 +607,7 @@
 ### stops at shorter list
 
 ```scheme
-(zip (list 1 2) (list 3 4 5))
+(List zip (list 1 2) (list 3 4 5))
 ```
 ---
     ((1 3) (2 4))
@@ -691,7 +691,7 @@
 ### removes consecutive duplicates
 
 ```scheme
-(uniq (list 1 1 2 2 3 3))
+(List uniq (list 1 1 2 2 3 3))
 ```
 ---
     (1 2 3)
@@ -699,7 +699,7 @@
 ### keeps non-consecutive duplicates
 
 ```scheme
-(uniq (list 1 2 1 2))
+(List uniq (list 1 2 1 2))
 ```
 ---
     (1 2 1 2)
@@ -719,7 +719,7 @@
 ### inserts separator between elements
 
 ```scheme
-(intersperse 0 (list 1 2 3))
+(List intersperse 0 (list 1 2 3))
 ```
 ---
     (1 0 2 0 3)
@@ -727,7 +727,7 @@
 ### single element unchanged
 
 ```scheme
-(intersperse 0 (list 1))
+(List intersperse 0 (list 1))
 ```
 ---
     (1)
@@ -841,7 +841,7 @@
 ### updates element at index
 
 ```scheme
-(update 1 99 (list 10 20 30))
+(List update 1 99 (list 10 20 30))
 ```
 ---
     (10 99 30)
@@ -851,7 +851,7 @@
 ### inserts at index
 
 ```scheme
-(insert 1 99 (list 10 20 30))
+(List insert 1 99 (list 10 20 30))
 ```
 ---
     (10 99 20 30)
@@ -861,7 +861,7 @@
 ### removes n elements at start index
 
 ```scheme
-(remove 1 2 (list 10 20 30 40))
+(List remove 1 2 (list 10 20 30 40))
 ```
 ---
     (10 40)
@@ -871,7 +871,7 @@
 ### applies function at index
 
 ```scheme
-(adjust 1 inc (list 10 20 30))
+(List adjust 1 inc (list 10 20 30))
 ```
 ---
     (10 21 30)
@@ -882,7 +882,7 @@
 ### finds element by identity
 
 ```scheme
-(first (memq (lit c) (list (lit a) (lit b) (lit c) (lit d))))
+(first (List memq (lit c) (list (lit a) (lit b) (lit c) (lit d))))
 ```
 ---
     (lit c)
@@ -890,7 +890,7 @@
 ### returns false when not found
 
 ```scheme
-(if (memq 6 (list 1 2 3)) "y" "n")
+(if (List memq 6 (list 1 2 3)) "y" "n")
 ```
 ---
     "n"
@@ -918,7 +918,7 @@
 ### finds by identity
 
 ```scheme
-(rest (assq (lit b) (list (pair (lit a) 1) (pair (lit b) 2) (pair (lit c) 3))))
+(rest (List assq (lit b) (list (pair (lit a) 1) (pair (lit b) 2) (pair (lit c) 3))))
 ```
 ---
     2
@@ -926,7 +926,7 @@
 ### returns false when not found
 
 ```scheme
-(if (assq (lit z) (list (pair (lit a) 1))) "y" "n")
+(if (List assq (lit z) (list (pair (lit a) 1))) "y" "n")
 ```
 ---
     "n"

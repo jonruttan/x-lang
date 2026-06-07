@@ -4,7 +4,7 @@
 ; Socket call identifiers
 ; Usage: (socketcall-id (lit socket)) => 1
 (def socketcall-id (fn (call)
-  (index-of call (list
+  (List index-of call (list
     (lit none) (lit socket) (lit bind) (lit connect)
     (lit listen) (lit accept) (lit getsockname) (lit getpeername)
     (lit socketpair) (lit send) (lit recv) (lit sendto)
@@ -14,7 +14,7 @@
 ; Protocol family identifiers
 ; Usage: (protocol-format-id (lit inet)) => 2
 (def protocol-format-id (fn (pf)
-  (index-of pf (list
+  (List index-of pf (list
     (lit unspec) (lit local) (lit inet) (lit ax25) (lit ipx)
     (lit appletalk) (lit netrom) (lit bridge) (lit atmpvc) (lit x25)
     (lit inet6) (lit rose) (lit decnet) (lit netbeui) (lit security)
@@ -27,7 +27,7 @@
 ; Socket type identifiers
 ; Usage: (sock-id (lit stream)) => 1
 (def sock-id (fn (sock)
-  (index-of sock (list
+  (List index-of sock (list
     (lit none) (lit stream) (lit dgram) (lit raw) (lit rdm)
     (lit seqpacket) (lit dccp) () () () (lit packet)))))
 

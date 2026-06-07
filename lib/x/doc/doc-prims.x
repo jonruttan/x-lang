@@ -460,7 +460,7 @@
 (doc time "Time an expression's evaluation in microseconds."
   (param expr ANY "Expression to time")
   (returns ANY "Result of expr (prints elapsed time as side effect)")
-  (example "(time (fold + 0 (range 0 1000)))" "499500"))
+  (example "(time (fold + 0 (List range 0 1000)))" "499500"))
 
 (doc convert "Convert a value between types."
   (param val ANY "Value to convert")
