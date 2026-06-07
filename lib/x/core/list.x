@@ -129,14 +129,6 @@
 
 (note "Slicing")
 
-(doc (def take
-  (fn (self (param n INT "Number of elements")
-       (param lst LIST "List"))
-    (if (or (<= n 0) (null? lst))
-      ()
-      (pair (first lst) (self (- n 1) (rest lst))))))
-  "Take the first n elements of a list.")
-
 (doc (def drop
   (fn (self (param n INT "Number of elements to skip")
        (param lst LIST "List"))
@@ -218,7 +210,7 @@
   map filter for-each
   sum
   count
-  take drop
+  drop
   
   sort
   

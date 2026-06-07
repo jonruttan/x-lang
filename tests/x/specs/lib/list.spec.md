@@ -433,7 +433,7 @@
 ### takes first n elements
 
 ```scheme
-(take 2 (list 1 2 3 4))
+(List take 2 (list 1 2 3 4))
 ```
 ---
     (1 2)
@@ -441,7 +441,7 @@
 ### takes zero
 
 ```scheme
-(null? (take 0 (list 1 2 3)))
+(null? (List take 0 (list 1 2 3)))
 ```
 ---
     #t
@@ -449,7 +449,7 @@
 ### takes more than available
 
 ```scheme
-(take 5 (list 1 2))
+(List take 5 (list 1 2))
 ```
 ---
     (1 2)
