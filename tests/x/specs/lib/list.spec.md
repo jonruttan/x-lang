@@ -77,7 +77,7 @@
 ### gets element at index
 
 ```scheme
-(nth 1 (list 10 20 30))
+(List nth 1 (list 10 20 30))
 ```
 ---
     20
@@ -85,7 +85,7 @@
 ### gets first element
 
 ```scheme
-(nth 0 (list 10 20 30))
+(List nth 0 (list 10 20 30))
 ```
 ---
     10
@@ -95,7 +95,7 @@
 ### returns last element
 
 ```scheme
-(last (list 1 2 3))
+(List last (list 1 2 3))
 ```
 ---
     3
@@ -103,7 +103,7 @@
 ### returns only element
 
 ```scheme
-(last (list 42))
+(List last (list 42))
 ```
 ---
     42
@@ -113,7 +113,7 @@
 ### returns all but last
 
 ```scheme
-(init (list 1 2 3))
+(List init (list 1 2 3))
 ```
 ---
     (1 2)
@@ -325,7 +325,7 @@
 ### true for empty list
 
 ```scheme
-(empty? ())
+(List empty? ())
 ```
 ---
     #t
@@ -333,7 +333,7 @@
 ### false for non-empty
 
 ```scheme
-(if (empty? (list 1)) "y" "n")
+(if (List empty? (list 1)) "y" "n")
 ```
 ---
     "n"

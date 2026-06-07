@@ -34,24 +34,6 @@
     (fold (fn (_ acc _) (+ acc 1)) 0 lst)))
   "Return the number of elements.")
 
-(doc (def nth
-  (fn (self (param n INT "Zero-based index")
-       (param lst LIST "List"))
-    (if (= n 0) (first lst) (self (- n 1) (rest lst)))))
-  "Return the element at index n (zero-based).")
-
-(doc (def last
-  (fn (self (param lst LIST "Non-empty list"))
-    (if (null? (rest lst)) (first lst) (self (rest lst)))))
-  "Return the last element of a list.")
-
-(doc (def init
-  (fn (self (param lst LIST "Non-empty list"))
-    (if (null? (rest lst))
-      ()
-      (pair (first lst) (self (rest lst))))))
-  "Return all elements except the last.")
-
 (def %append2
   (fn (self a b)
     (if (null? a) b (pair (first a) (self (rest a) b)))))
@@ -128,9 +110,6 @@
   "Apply a function to each element for side effects.")
 
 (note "Predicates")
-
-(doc (def empty? (fn (_ (param lst LIST "List")) (null? lst)))
-  "Return #t if the list is empty.")
 
 (note "Combinators")
 
@@ -211,12 +190,6 @@
 
 (note "Type predicate")
 
-(doc (def list?
-  (fn (self (param x ANY "Value to test"))
-    (if (null? x) #t (if (pair? x) (self (rest x)) #f))))
-  (returns BOOLEAN "t if proper list")
-  "Test if a value is a proper list.")
-
 (note "Membership")
 
 (doc (def member
@@ -250,15 +223,15 @@
   "Return a copy of a string (Scheme compatibility).")
 
 (doc (provide x/core/list
-  as-list fold length nth last init append reverse
-  map filter for-each empty?
+  as-list fold length append reverse
+  map filter for-each
   sum
   find count
   take drop
   
   sort
   
-  list? member assoc
+  member assoc
   else str-copy)
   (note "Accepts any iterable (lists, vectors, custom iterables). Ramda-inspired functional style.")
   (example "(map inc '(1 2 3))" "(2 3 4)")

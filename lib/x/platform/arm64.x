@@ -22,13 +22,13 @@
       (fn (self flds w)
         (if (null? flds) w
           (let ((f (first flds)))
-            (def idx   (nth 0 f))
-            (def pos   (nth 1 f))
-            (def width (nth 2 f))
-            (def sh    (nth 3 f))
-            (def arg (nth idx args))
+            (def idx   (List nth 0 f))
+            (def pos   (List nth 1 f))
+            (def width (List nth 2 f))
+            (def sh    (List nth 3 f))
+            (def arg (List nth idx args))
             ; Field may have 5th element: sub-index into operand
-            (def sub (if (> (length f) 4) (nth 4 f) 0))
+            (def sub (if (> (length f) 4) (List nth 4 f) 0))
             (def val
               (if (eq? (%op-type arg) (lit label))
                 (do
@@ -37,7 +37,7 @@
                   0)
                 (if (= sub 0)
                   (%op-value arg)
-                  (nth (+ sub 1) arg))))
+                  (List nth (+ sub 1) arg))))
             (def mask (- (<< 1 width) 1))
             (def bits (<< (& (>> val sh) mask) pos))
             (self (rest flds) (| w bits))))))
@@ -46,8 +46,8 @@
 ; --- MOVZ encoder: load 16-bit immediate into register ---
 (def %arm64-encode-movz
   (fn (_ asm descriptor args)
-    (def rd (%op-value (nth 0 args)))
-    (def val (%op-value (nth 1 args)))
+    (def rd (%op-value (List nth 0 args)))
+    (def val (%op-value (List nth 1 args)))
     ; MOVZ X<d>, #<imm16> = 0xD2800000 | (imm16 << 5) | Rd
     (def word (| 3531603968 (| (<< (& val 65535) 5) (& rd 31))))
     (%emit-u32-le! asm word)))
