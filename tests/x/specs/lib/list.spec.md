@@ -343,7 +343,7 @@
 ### finds first match
 
 ```scheme
-(find even? (list 1 3 4 6))
+(List find even? (list 1 3 4 6))
 ```
 ---
     4
@@ -351,7 +351,7 @@
 ### returns nil when not found
 
 ```scheme
-(null? (find negative? (list 1 2 3)))
+(null? (List find negative? (list 1 2 3)))
 ```
 ---
     #t
