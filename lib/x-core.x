@@ -121,6 +121,9 @@
   (include "lib/x/type/iter.x")
   ; Base: execution-context objects via the Base class.
   (include "lib/x/type/base.x")
+  ; List: list/sequence operations as the List class (core/list.x holds the
+  ; low-level impl + %-helpers; functions migrate onto this class over time).
+  (include "lib/x/type/list.x")
   ; Catalog -> object-system bridge: a class per catalog namespace (transitional,
   ; as the object system supersedes the flat catalog + bare-name registration).
   ; After the real classes above, so it folds onto them rather than projecting.
