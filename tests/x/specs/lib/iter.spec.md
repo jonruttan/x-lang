@@ -11,7 +11,7 @@
 ### iterates a vector
 
 ```scheme
-(Iter ->list (Iter new (vector 10 20 30)))
+(Iter ->list (Iter new (Vector of 10 20 30)))
 ```
 ---
     (10 20 30)
@@ -35,7 +35,7 @@
 ### empty vector yields an empty iterator
 
 ```scheme
-(null? (Iter ->list (Iter new (vector))))
+(null? (Iter ->list (Iter new (Vector of))))
 ```
 ---
     #t
@@ -75,7 +75,7 @@
 ### visits every element
 
 ```scheme
-(do (def %acc (list 0)) (Iter for-each (fn (_ x) (set-first! %acc (+ (first %acc) x))) (Iter new (vector 1 2 3 4))) (first %acc))
+(do (def %acc (list 0)) (Iter for-each (fn (_ x) (set-first! %acc (+ (first %acc) x))) (Iter new (Vector of 1 2 3 4))) (first %acc))
 ```
 ---
     10

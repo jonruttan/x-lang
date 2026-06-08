@@ -65,7 +65,7 @@
 ### returns VECTOR for a vector
 
 ```scheme
-(type-name (vector 1))
+(type-name (Vector of 1))
 ```
 ---
     "VECTOR"

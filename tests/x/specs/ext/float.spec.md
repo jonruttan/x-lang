@@ -689,7 +689,7 @@
 ### float in vector
 
 ```scheme
-(vector 1.5 2.5 3.5)
+(Vector of 1.5 2.5 3.5)
 ```
 ---
     #(1.5 2.5 3.5)

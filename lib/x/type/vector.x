@@ -1,5 +1,11 @@
-; vector.x -- Vector type with #() reader syntax
+; vector.x -- Vector type (#() reader) + the Vector class for its operations.
+;
+; The %vector TYPE machinery (reader/write/iter/call slots) is type infrastructure
+; and stays as module-level defs. The 7 public operations are homed on the Vector
+; class. Loads after object.x (relocated in x-core.x) so def-class is available;
+; nothing before object.x uses vectors or #() literals.
 (import x/core/list)
+(import x/type/object)
 ; N+1 slot objects: slot 0 = length, slots 1..N = elements.
 
 ; Fill a vector's slots from a list (shared helper)
@@ -86,60 +92,51 @@
 
 (set! %vector-read (fn (_ . args) (%vector-from-list %vector (read))))
 
-(note "Constructors")
+(def-class Vector ()
+  (static
+    ; --- Constructors ---
+    (method of (self . args)
+      (doc "Create a vector from the given arguments."
+        (returns VECTOR "New vector containing the arguments")
+        (example "(Vector of 1 2 3)" "#(1 2 3)"))
+      (%vector-from-list %vector args))
+    (method make (self (param n INT "Number of elements")
+                       (param fill ANY "Value to fill each slot with"))
+      (doc "Create a vector of length n, with every element set to fill."
+        (returns VECTOR "New vector of length n filled with fill"))
+      (def v (make-obj %vector (+ n 1)))
+      (obj-set! v 0 n)
+      (def loop
+        (fn (self i)
+          (if (<= i n)
+            (do (obj-set! v i fill) (self (+ i 1))))))
+      (loop 1)
+      v)
+    ; --- Predicate ---
+    (method vector? (self (param x ANY "Value to test"))
+      (doc "Test whether a value is a vector." (returns BOOL "True if x is a vector"))
+      (type? x %vector))
+    ; --- Access ---
+    (method ref (self (param v VECTOR "Vector") (param i INT "Zero-based index"))
+      (doc "Return the element at index i of a vector." (returns ANY "Element at index i"))
+      (obj-ref v (+ i 1)))
+    (method length (self (param v VECTOR "Vector"))
+      (doc "Return the number of elements in a vector." (returns INT "Number of elements"))
+      (obj-ref v 0))
+    ; --- Conversion ---
+    (method ->list (self (param v VECTOR "Vector to convert"))
+      (doc "Convert a vector to a list." (returns LIST "List of the vector's elements"))
+      (def len (obj-ref v 0))
+      (def build
+        (fn (self i acc)
+          (if (< i 0) acc
+            (self (- i 1) (pair (obj-ref v (+ i 1)) acc)))))
+      (build (- len 1) ()))
+    (method from-list (self (param lst LIST "List to convert"))
+      (doc "Convert a list to a vector." (returns VECTOR "New vector containing the list's elements"))
+      (%vector-from-list %vector lst))))
 
-(doc (def vector (fn (_ . args) (%vector-from-list %vector args)))
-  (returns VECTOR "New vector containing the arguments")
-  "Create a vector from the given arguments.")
-
-(doc (def make-vector
-  (fn (_ (param n INT "Number of elements")
-       (param fill ANY "Value to fill each slot with"))
-    (def v (make-obj %vector (+ n 1)))
-    (obj-set! v 0 n)
-    (def loop
-      (fn (self i)
-        (if (<= i n)
-          (do (obj-set! v i fill) (self (+ i 1))))))
-    (loop 1)
-    v))
-  (returns VECTOR "New vector of length n filled with fill")
-  "Create a vector of length n, with every element set to fill.")
-
-(note "Predicates")
-
-(doc (def vector? (fn (_ (param x ANY "Value to test")) (type? x %vector)))
-  (returns BOOL "True if x is a vector")
-  "Test whether a value is a vector.")
-
-(note "Access")
-
-(doc (def vector-ref (fn (_ (param v VECTOR "Vector") (param i INT "Zero-based index")) (obj-ref v (+ i 1))))
-  (returns ANY "Element at index i")
-  "Return the element at index i of a vector.")
-
-(doc (def vector-length (fn (_ (param v VECTOR "Vector")) (obj-ref v 0)))
-  (returns INT "Number of elements")
-  "Return the number of elements in a vector.")
-
-(note "Conversion")
-
-(doc (def vector->list (fn (_ (param v VECTOR "Vector to convert"))
-  (def len (obj-ref v 0))
-  (def build
-    (fn (self i acc)
-      (if (< i 0) acc
-        (self (- i 1) (pair (obj-ref v (+ i 1)) acc)))))
-  (build (- len 1) ())))
-  (returns LIST "List of the vector's elements")
-  "Convert a vector to a list.")
-
-(doc (def list->vector (fn (_ (param lst LIST "List to convert"))
-  (%vector-from-list %vector lst)))
-  (returns VECTOR "New vector containing the list's elements")
-  "Convert a list to a vector.")
-
-(doc (provide x/type/vector vector vector? vector-ref vector-length vector->list list->vector make-vector)
-  (note "Literal syntax: #(1 2 3). Supports negative indexing.")
-  (example "(vector-ref #(10 20 30) 1)" "20")
-  "Fixed-size indexed vectors.")
+(doc (provide x/type/vector Vector)
+  (note "Literal syntax: #(1 2 3), with negative indexing via the vector's call slot.")
+  (example "(Vector ref (Vector of 10 20 30) 1)" "20")
+  "Fixed-size indexed vectors; operations homed on the Vector class.")

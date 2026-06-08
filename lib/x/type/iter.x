@@ -9,6 +9,7 @@
 
 (import x/core/list)
 (import x/type/object)
+(import x/type/vector)
 
 ; The C iter prims, captured from the catalog (the `iter` namespace is
 ; de-registered, so they have no bare names).  Applicative -- the methods call
@@ -63,13 +64,13 @@
             (ref (first st) i))))
       (if (eq? len 0) () (pair seq 0)))))
 
-(def %vector-iter (fn (_ v) (%index-iter v (vector-length v) vector-ref)))
+(def %vector-iter (fn (_ v) (%index-iter v (Vector length v) (fn (_ vv ii) (Vector ref vv ii)))))
 (def %str-iter (fn (_ s) (%list-iter (str->list s))))
 
 ; --- Wire the iter slot on each sequence type ------------------------------
 
 (type-push-iter (type-by-atom (type-of (list 1))) %list-iter)
-(type-push-iter (type-by-atom (type-of (vector 1))) %vector-iter)
+(type-push-iter (type-by-atom (type-of (Vector of 1))) %vector-iter)
 (type-push-iter (type-by-atom (type-of "x")) %str-iter)
 ; def-class instances (all share the %object type): iterate the member alist as
 ; (name . value) pairs.  %object / %obj-fields are object.x internals.
@@ -79,5 +80,5 @@
 (doc (provide x/type/iter Iter)
   (note "(Iter new seq) iterates lists, vectors, strings, and def-class instances")
   (note "(instances yield (name . value) pairs); empty sequences give an empty iterator.")
-  (example "(Iter ->list (Iter new (vector 1 2 3)))" "(1 2 3)")
+  (example "(Iter ->list (Iter new (Vector of 1 2 3)))" "(1 2 3)")
   "Iterator protocol as the Iter class: build/new/make, drive next/empty?, consume ->list/for-each/fold.")

@@ -3,7 +3,7 @@
 ### creates a vector from arguments
 
 ```scheme
-(write (vector 1 2 3))
+(write (Vector of 1 2 3))
 ```
 ---
     #(1 2 3)
@@ -11,7 +11,7 @@
 ### creates a single-element vector
 
 ```scheme
-(write (vector 42))
+(write (Vector of 42))
 ```
 ---
     #(42)
@@ -19,7 +19,7 @@
 ### creates an empty vector
 
 ```scheme
-(write (vector))
+(write (Vector of))
 ```
 ---
     #()
@@ -29,7 +29,7 @@
 ### indexes from the start
 
 ```scheme
-((vector 10 20 30) 1)
+((Vector of 10 20 30) 1)
 ```
 ---
     20
@@ -37,7 +37,7 @@
 ### indexes first element
 
 ```scheme
-((vector 10 20 30) 0)
+((Vector of 10 20 30) 0)
 ```
 ---
     10
@@ -45,7 +45,7 @@
 ### indexes last element
 
 ```scheme
-((vector 10 20 30) 2)
+((Vector of 10 20 30) 2)
 ```
 ---
     30
@@ -53,7 +53,7 @@
 ### indexes from the end with negative
 
 ```scheme
-((vector 10 20 30) -1)
+((Vector of 10 20 30) -1)
 ```
 ---
     30
@@ -63,7 +63,7 @@
 ### returns #t for a vector
 
 ```scheme
-(vector? (vector 1))
+(Vector vector? (Vector of 1))
 ```
 ---
     #t
@@ -71,7 +71,7 @@
 ### returns nil for a list
 
 ```scheme
-(if (vector? (list 1)) "yes" "no")
+(if (Vector vector? (list 1)) "yes" "no")
 ```
 ---
     "no"
@@ -79,7 +79,7 @@
 ### returns nil for an integer
 
 ```scheme
-(if (vector? 42) "yes" "no")
+(if (Vector vector? 42) "yes" "no")
 ```
 ---
     "no"
@@ -89,7 +89,7 @@
 ### retrieves element by index
 
 ```scheme
-(vector-ref (vector 10 20 30) 1)
+(Vector ref (Vector of 10 20 30) 1)
 ```
 ---
     20
@@ -99,7 +99,7 @@
 ### returns the length of a vector
 
 ```scheme
-(vector-length (vector 1 2 3))
+(Vector length (Vector of 1 2 3))
 ```
 ---
     3
@@ -107,7 +107,7 @@
 ### returns 0 for empty vector
 
 ```scheme
-(vector-length (vector))
+(Vector length (Vector of))
 ```
 ---
     0
@@ -117,7 +117,7 @@
 ### converts a vector to a list
 
 ```scheme
-(vector->list (vector 1 2 3))
+(Vector ->list (Vector of 1 2 3))
 ```
 ---
     (1 2 3)
@@ -127,7 +127,7 @@
 ### converts a list to a vector
 
 ```scheme
-(write (list->vector (list 4 5 6)))
+(write (Vector from-list (list 4 5 6)))
 ```
 ---
     #(4 5 6)
@@ -137,7 +137,7 @@
 ### creates a vector of repeated values
 
 ```scheme
-(write (make-vector 3 0))
+(write (Vector make 3 0))
 ```
 ---
     #(0 0 0)
@@ -145,7 +145,7 @@
 ### creates a vector with custom fill
 
 ```scheme
-(write (make-vector 2 7))
+(write (Vector make 2 7))
 ```
 ---
     #(7 7)
@@ -153,7 +153,7 @@
 ### creates an empty vector with make-vector
 
 ```scheme
-(write (make-vector 0 0))
+(write (Vector make 0 0))
 ```
 ---
     #()
@@ -161,7 +161,7 @@
 ### write separates elements with spaces
 
 ```scheme
-(write (vector 1 2))
+(write (Vector of 1 2))
 ```
 ---
     #(1 2)

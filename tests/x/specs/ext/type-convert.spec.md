@@ -471,7 +471,7 @@
 ### converts list to vector
 
 ```scheme
-(vector? (convert (list 1 2 3) %vector))
+(Vector vector? (convert (list 1 2 3) %vector))
 ```
 ---
     #t
@@ -479,7 +479,7 @@
 ### converted vector has correct contents
 
 ```scheme
-(vector->list (convert (list 1 2 3) %vector))
+(Vector ->list (convert (list 1 2 3) %vector))
 ```
 ---
     (1 2 3)
@@ -529,7 +529,7 @@
 ### vector to list via convert
 
 ```scheme
-(convert (vector 1 2 3) (type-of (pair 1 ())))
+(convert (Vector of 1 2 3) (type-of (pair 1 ())))
 ```
 ---
     (1 2 3)

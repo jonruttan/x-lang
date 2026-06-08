@@ -104,12 +104,14 @@
   (include "lib/x/type/str-utf8.x")
   ; UTF-8-aware CHARACTER write/display handlers (shadow the C byte fallback)
   (include "lib/x/type/char-io.x")
-  (include "lib/x/type/vector.x")
   (include "lib/x/type/promise.x")
   (include "lib/x/type/object.x")
   ; Fn: function combinators (the Fn class). Moved here from the early core block
   ; -- it needs def-class, and nothing loaded before object.x references it.
   (include "lib/x/core/fn.x")
+  ; Vector: #() type machinery + the Vector class. Needs def-class; relocated past
+  ; object.x from the early block -- nothing before it uses vectors or #() literals.
+  (include "lib/x/type/vector.x")
   ; String library: the protocol classes (Str8/StrUTF8) + the Str entry point.
   ; Loaded AFTER the object system they are built on. (The low-level code-point
   ; layer in type/str-utf8.x already loaded earlier, before objects, for boot
