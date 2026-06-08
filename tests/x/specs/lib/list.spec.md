@@ -561,7 +561,7 @@
 ### calls function n times
 
 ```scheme
-(List times identity 4)
+(List times (fn (_ i) i) 4)
 ```
 ---
     (0 1 2 3)
@@ -579,7 +579,7 @@
 ### builds a list from seed
 
 ```scheme
-(List unfold (fn (_ x) (> x 5)) identity inc 1)
+(List unfold (fn (_ x) (> x 5)) (fn (_ x) x) inc 1)
 ```
 ---
     (1 2 3 4 5)

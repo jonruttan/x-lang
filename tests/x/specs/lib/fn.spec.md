@@ -3,7 +3,7 @@
 ### returns its argument
 
 ```scheme
-(identity 42)
+(Fn identity 42)
 ```
 ---
     42
@@ -11,7 +11,7 @@
 ### returns a list
 
 ```scheme
-(identity (list 1 2))
+(Fn identity (list 1 2))
 ```
 ---
     (1 2)
@@ -21,7 +21,7 @@
 ### returns a constant function
 
 ```scheme
-((const 5) 99)
+((Fn const 5) 99)
 ```
 ---
     5
@@ -31,7 +31,7 @@
 ### composes two functions
 
 ```scheme
-((compose inc inc) 3)
+((Fn compose inc inc) 3)
 ```
 ---
     5
@@ -39,7 +39,7 @@
 ### applies right-to-left
 
 ```scheme
-((compose (fn (_ x) (* x 2)) inc) 3)
+((Fn compose (fn (_ x) (* x 2)) inc) 3)
 ```
 ---
     8
@@ -49,7 +49,7 @@
 ### pipes two functions left-to-right
 
 ```scheme
-((pipe inc (fn (_ x) (* x 2))) 3)
+((Fn pipe inc (fn (_ x) (* x 2))) 3)
 ```
 ---
     8
@@ -59,7 +59,7 @@
 ### partially applies first argument
 
 ```scheme
-((curry + 10) 5)
+((Fn curry + 10) 5)
 ```
 ---
     15
@@ -69,7 +69,7 @@
 ### swaps argument order
 
 ```scheme
-((flip -) 3 10)
+((Fn flip -) 3 10)
 ```
 ---
     7
@@ -79,7 +79,7 @@
 ### returns original value
 
 ```scheme
-((tap identity) 42)
+((Fn tap (fn (_ x) x)) 42)
 ```
 ---
     42
