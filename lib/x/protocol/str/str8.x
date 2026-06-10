@@ -106,8 +106,8 @@
         (cond
           ((= i la) (< i lb))
           ((= i lb) #f)
-          ((char<? (self index a i) (self index b i)) #t)
-          ((char>? (self index a i) (self index b i)) #f)
+          ((Char <? (self index a i) (self index b i)) #t)
+          ((Char >? (self index a i) (self index b i)) #f)
           (#t (go (+ i 1) la lb)))))
     (method >?  (self (param a STRING "First string") (param b STRING "Second string"))
       (doc "True if a sorts after b in element (byte) order."
@@ -211,12 +211,12 @@
       (doc "Uppercase the ASCII letters of s; other characters pass through."
         (returns STRING "s with a-z mapped to A-Z")
         (example "(Str8 upcase \"café\")" "\"CAFé\""))
-      (self ->str (map char-upcase (self ->list s))))
+      (self ->str (map (fn (_ c) (Char upcase c)) (self ->list s))))
     (method downcase (self (param s STRING "String to convert"))
       (doc "Lowercase the ASCII letters of s; other characters pass through."
         (returns STRING "s with A-Z mapped to a-z")
         (example "(Str8 downcase \"ABC\")" "\"abc\""))
-      (self ->str (map char-downcase (self ->list s))))
+      (self ->str (map (fn (_ c) (Char downcase c)) (self ->list s))))
 
     ; --- trimming (whitespace is ASCII; element scanning is correct) ---
     (method trim-left (self (param s STRING "String to trim"))
@@ -225,7 +225,7 @@
         (example "(Str8 trim-left \"  hi\")" "\"hi\""))
       (let go ((i 0) (n (self length s)))
         (if (= i n) ""
-          (if (char-whitespace? (self index s i))
+          (if (Char whitespace? (self index s i))
             (go (+ i 1) n)
             (self sub s i (- n i))))))
     (method trim-right (self (param s STRING "String to trim"))
@@ -234,7 +234,7 @@
         (example "(Str8 trim-right \"hi  \")" "\"hi\""))
       (let go ((i (- (self length s) 1)))
         (if (< i 0) ""
-          (if (char-whitespace? (self index s i))
+          (if (Char whitespace? (self index s i))
             (go (- i 1))
             (self sub s 0 (+ i 1))))))
     (method trim (self (param s STRING "String to trim"))

@@ -31,7 +31,7 @@
     (let ((cs (symbol->str s)))
       (str->symbol
         (str-append
-          (list->str (list (char-upcase (str-ref cs 0))))
+          (list->str (list (Char upcase (str-ref cs 0))))
           (substring cs 1 (str-length cs)))))))
 
 ; Target-class overrides: a namespace whose prims attach to a class other than

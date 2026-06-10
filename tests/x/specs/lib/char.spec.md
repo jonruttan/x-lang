@@ -3,7 +3,7 @@
 ### lowercase letter
 
 ```scheme
-(char-alphabetic? ("a" 0))
+(Char alphabetic? ("a" 0))
 ```
 ---
     #t
@@ -11,7 +11,7 @@
 ### uppercase letter
 
 ```scheme
-(char-alphabetic? ("Z" 0))
+(Char alphabetic? ("Z" 0))
 ```
 ---
     #t
@@ -19,7 +19,7 @@
 ### digit is not alphabetic
 
 ```scheme
-(char-alphabetic? ("5" 0))
+(Char alphabetic? ("5" 0))
 ```
 ---
     #f
@@ -29,7 +29,7 @@
 ### digit
 
 ```scheme
-(char-numeric? ("7" 0))
+(Char numeric? ("7" 0))
 ```
 ---
     #t
@@ -37,7 +37,7 @@
 ### letter is not numeric
 
 ```scheme
-(char-numeric? ("x" 0))
+(Char numeric? ("x" 0))
 ```
 ---
     #f
@@ -47,7 +47,7 @@
 ### space
 
 ```scheme
-(char-whitespace? (" " 0))
+(Char whitespace? (" " 0))
 ```
 ---
     #t
@@ -55,7 +55,7 @@
 ### tab
 
 ```scheme
-(char-whitespace? ("\t" 0))
+(Char whitespace? ("\t" 0))
 ```
 ---
     #t
@@ -63,7 +63,7 @@
 ### letter is not whitespace
 
 ```scheme
-(char-whitespace? ("a" 0))
+(Char whitespace? ("a" 0))
 ```
 ---
     #f
@@ -73,7 +73,7 @@
 ### uppercase
 
 ```scheme
-(char-upper-case? ("A" 0))
+(Char upper-case? ("A" 0))
 ```
 ---
     #t
@@ -81,7 +81,7 @@
 ### lowercase is not upper
 
 ```scheme
-(char-upper-case? ("a" 0))
+(Char upper-case? ("a" 0))
 ```
 ---
     #f
@@ -91,7 +91,7 @@
 ### lowercase
 
 ```scheme
-(char-lower-case? ("a" 0))
+(Char lower-case? ("a" 0))
 ```
 ---
     #t
@@ -99,7 +99,7 @@
 ### uppercase is not lower
 
 ```scheme
-(char-lower-case? ("A" 0))
+(Char lower-case? ("A" 0))
 ```
 ---
     #f
@@ -109,7 +109,7 @@
 ### uppercases lowercase
 
 ```scheme
-(= (char-upcase ("a" 0)) ("A" 0))
+(= (Char upcase ("a" 0)) ("A" 0))
 ```
 ---
     #t
@@ -117,7 +117,7 @@
 ### uppercase unchanged
 
 ```scheme
-(= (char-upcase ("Z" 0)) ("Z" 0))
+(= (Char upcase ("Z" 0)) ("Z" 0))
 ```
 ---
     #t
@@ -127,7 +127,7 @@
 ### lowercases uppercase
 
 ```scheme
-(= (char-downcase ("A" 0)) ("a" 0))
+(= (Char downcase ("A" 0)) ("a" 0))
 ```
 ---
     #t
@@ -137,7 +137,7 @@
 ### equal chars
 
 ```scheme
-(char=? ("a" 0) ("a" 0))
+(Char =? ("a" 0) ("a" 0))
 ```
 ---
     #t
@@ -145,7 +145,7 @@
 ### unequal chars
 
 ```scheme
-(char=? ("a" 0) ("b" 0))
+(Char =? ("a" 0) ("b" 0))
 ```
 ---
     #f
@@ -155,7 +155,7 @@
 ### less than
 
 ```scheme
-(char<? ("a" 0) ("b" 0))
+(Char <? ("a" 0) ("b" 0))
 ```
 ---
     #t
@@ -163,7 +163,7 @@
 ### not less
 
 ```scheme
-(char<? ("b" 0) ("a" 0))
+(Char <? ("b" 0) ("a" 0))
 ```
 ---
     #f
@@ -173,7 +173,7 @@
 ### case insensitive equal
 
 ```scheme
-(char-ci=? ("a" 0) ("A" 0))
+(Char ci=? ("a" 0) ("A" 0))
 ```
 ---
     #t
@@ -181,7 +181,7 @@
 ### case insensitive unequal
 
 ```scheme
-(char-ci=? ("a" 0) ("b" 0))
+(Char ci=? ("a" 0) ("b" 0))
 ```
 ---
     #f
@@ -191,7 +191,7 @@
 ### greater than
 
 ```scheme
-(char>? ("b" 0) ("a" 0))
+(Char >? ("b" 0) ("a" 0))
 ```
 ---
     #t
@@ -199,7 +199,7 @@
 ### not greater
 
 ```scheme
-(if (char>? ("a" 0) ("b" 0)) "y" "n")
+(if (Char >? ("a" 0) ("b" 0)) "y" "n")
 ```
 ---
     "n"
@@ -209,7 +209,7 @@
 ### less or equal
 
 ```scheme
-(char<=? ("a" 0) ("a" 0))
+(Char <=? ("a" 0) ("a" 0))
 ```
 ---
     #t
@@ -219,7 +219,7 @@
 ### greater or equal
 
 ```scheme
-(char>=? ("z" 0) ("z" 0))
+(Char >=? ("z" 0) ("z" 0))
 ```
 ---
     #t
@@ -229,7 +229,7 @@
 ### case insensitive less
 
 ```scheme
-(char-ci<? ("a" 0) ("B" 0))
+(Char ci<? ("a" 0) ("B" 0))
 ```
 ---
     #t
@@ -239,7 +239,7 @@
 ### case insensitive greater
 
 ```scheme
-(char-ci>? ("B" 0) ("a" 0))
+(Char ci>? ("B" 0) ("a" 0))
 ```
 ---
     #t
@@ -249,7 +249,7 @@
 ### case insensitive less or equal
 
 ```scheme
-(char-ci<=? ("a" 0) ("A" 0))
+(Char ci<=? ("a" 0) ("A" 0))
 ```
 ---
     #t
@@ -259,7 +259,7 @@
 ### case insensitive greater or equal
 
 ```scheme
-(char-ci>=? ("A" 0) ("a" 0))
+(Char ci>=? ("A" 0) ("a" 0))
 ```
 ---
     #t

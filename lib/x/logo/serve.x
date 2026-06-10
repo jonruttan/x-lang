@@ -108,7 +108,7 @@
       (let* ((%find-space
               (fn (self i)
                 (if (>= i (str-length request)) 0
-                  (if (char=? (str-ref request i) #\space) i
+                  (if (Char =? (str-ref request i) #\space) i
                     (self (+ i 1))))))
              (start (+ (%find-space 0) 1))
              (end (%find-space start)))

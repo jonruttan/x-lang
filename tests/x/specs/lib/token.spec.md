@@ -53,7 +53,7 @@
 ### returns a function
 
 ```scheme
-(procedure? (make-pred-state char-alphabetic? token-accept))
+(procedure? (make-pred-state (fn (_ c) (Char alphabetic? c)) token-accept))
 ```
 ---
     #t
@@ -93,7 +93,7 @@
 ### returns a function for n=3
 
 ```scheme
-(procedure? (make-count-state 3 char-numeric? token-accept))
+(procedure? (make-count-state 3 (fn (_ c) (Char numeric? c)) token-accept))
 ```
 ---
     #t
@@ -101,7 +101,7 @@
 ### returns done directly for n=0
 
 ```scheme
-(eq? (make-count-state 0 char-numeric? token-accept) token-accept)
+(eq? (make-count-state 0 (fn (_ c) (Char numeric? c)) token-accept) token-accept)
 ```
 ---
     #t
@@ -111,7 +111,7 @@
 ### returns a function
 
 ```scheme
-(procedure? (make-min-state 1 char-numeric? token-accept))
+(procedure? (make-min-state 1 (fn (_ c) (Char numeric? c)) token-accept))
 ```
 ---
     #t

@@ -92,7 +92,6 @@
 
   ; Type extensions
   (include "lib/x/core/alist.x")
-  (include "lib/x/type/char.x")
   ; include-once (not include): registers the path so str-utf8.x's and the Utf8
   ; protocol class's (import x/codec/utf8) become no-ops instead of reloading it.
   (include-once "lib/x/codec/utf8.x")
@@ -112,6 +111,9 @@
   ; Vector: #() type machinery + the Vector class. Needs def-class; relocated past
   ; object.x from the early block -- nothing before it uses vectors or #() literals.
   (include "lib/x/type/vector.x")
+  ; Char: classification / case / comparison (the Char class). Needs def-class; the
+  ; pre-object string layer uses char->integer, not these, so it relocated here.
+  (include "lib/x/type/char.x")
   ; String library: the protocol classes (Str8/StrUTF8) + the Str entry point.
   ; Loaded AFTER the object system they are built on. (The low-level code-point
   ; layer in type/str-utf8.x already loaded earlier, before objects, for boot
@@ -169,7 +171,7 @@
     type-alist type-by-atom type-io type-cvt
     type-write-cell type-analyse-cell type-from-cell type-to-cell
     type-push-write type-pop-write type-push-analyse type-iter-cell
-    type-push-iter type-cast!)
+    type-push-iter type-ops-cell type-push-op type-cast!)
     "Type system reflection and manipulation.")
   (doc (provide x/core
     null? if let do begin not atom? list convert number->str str->number

@@ -65,7 +65,7 @@
         self
         (done buffer score chr)))))
   (returns CALLABLE "Analyzer state that loops while predicate holds")
-  (example "(make-pred-state char-alphabetic? token-accept)" "match letters")
+  (example "(make-pred-state (fn (_ c) (Char alphabetic? c)) token-accept)" "match letters")
   "Create a state that loops while pred returns truthy, then calls done.")
 
 (doc (def make-range-state
@@ -125,7 +125,7 @@
               ())))))
     (%build n)))
   (returns CALLABLE "State that matches exactly n characters satisfying pred")
-  (example "(make-count-state 4 char-numeric? token-accept)" "match exactly 4 digits")
+  (example "(make-count-state 4 (fn (_ c) (Char numeric? c)) token-accept)" "match exactly 4 digits")
   "Match exactly n characters satisfying pred, then call done. Rejects if fewer match.")
 
 (doc (def make-min-state
@@ -134,7 +134,7 @@
        (param done CALLABLE "Called after n+ matches on non-matching char"))
     (make-count-state n pred (make-pred-state pred done))))
   (returns CALLABLE "State that matches n or more characters satisfying pred")
-  (example "(make-min-state 1 char-numeric? token-accept)" "match 1+ digits")
+  (example "(make-min-state 1 (fn (_ c) (Char numeric? c)) token-accept)" "match 1+ digits")
   "Match at least n characters satisfying pred, then loop more, calling done when pred fails.")
 
 (doc (def make-optional-char

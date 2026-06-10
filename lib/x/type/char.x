@@ -1,113 +1,71 @@
-; char.x -- Character predicates and case conversion
+; char.x -- Char: character classification, case conversion, comparison.
+;
+; Plain functions homed on the Char class. Relocated past object.x (needs
+; def-class); the pre-object string layer uses the char->integer C primitive,
+; not these, so nothing before object.x references the Char class.
 
-; --- Classification ---
+(import x/type/object)
 
-(note "Classification")
+(def-class Char ()
+  (static
+    ; --- Classification ---
+    (method alphabetic? (self (param c CHAR "Character to test"))
+      (doc "Test whether a character is alphabetic." (returns BOOL "True if c is a letter A-Z or a-z"))
+      (let ((n (char->integer c)))
+        (or (and (>= n 65) (<= n 90)) (and (>= n 97) (<= n 122)))))
+    (method numeric? (self (param c CHAR "Character to test"))
+      (doc "Test whether a character is a digit." (returns BOOL "True if c is a digit 0-9"))
+      (let ((n (char->integer c))) (and (>= n 48) (<= n 57))))
+    (method whitespace? (self (param c CHAR "Character to test"))
+      (doc "Test whether a character is whitespace (space, tab, newline, CR, FF)." (returns BOOL "True if c is whitespace"))
+      (let ((n (char->integer c)))
+        (or (= n 32) (= n 9) (= n 10) (= n 13) (= n 12))))
+    (method upper-case? (self (param c CHAR "Character to test"))
+      (doc "Test whether a character is uppercase." (returns BOOL "True if c is uppercase A-Z"))
+      (let ((n (char->integer c))) (and (>= n 65) (<= n 90))))
+    (method lower-case? (self (param c CHAR "Character to test"))
+      (doc "Test whether a character is lowercase." (returns BOOL "True if c is lowercase a-z"))
+      (let ((n (char->integer c))) (and (>= n 97) (<= n 122))))
+    ; --- Case conversion ---
+    (method upcase (self (param c CHAR "Character to convert"))
+      (doc "Convert a character to uppercase." (returns CHAR "Uppercase version of c, or c unchanged"))
+      (if (Char lower-case? c) (integer->char (- (char->integer c) 32)) c))
+    (method downcase (self (param c CHAR "Character to convert"))
+      (doc "Convert a character to lowercase." (returns CHAR "Lowercase version of c, or c unchanged"))
+      (if (Char upper-case? c) (integer->char (+ (char->integer c) 32)) c))
+    ; --- Comparisons (by code point) ---
+    (method =? (self (param a CHAR "First character") (param b CHAR "Second character"))
+      (doc "Test whether two characters are equal." (returns BOOL "True if characters are equal"))
+      (= (char->integer a) (char->integer b)))
+    (method <? (self (param a CHAR "First character") (param b CHAR "Second character"))
+      (doc "Test whether a character is less than another by code point." (returns BOOL "True if a comes before b"))
+      (< (char->integer a) (char->integer b)))
+    (method >? (self (param a CHAR "First character") (param b CHAR "Second character"))
+      (doc "Test whether a character is greater than another by code point." (returns BOOL "True if a comes after b"))
+      (> (char->integer a) (char->integer b)))
+    (method <=? (self (param a CHAR "First character") (param b CHAR "Second character"))
+      (doc "Test whether a character is less than or equal to another." (returns BOOL "True if a is equal to or comes before b"))
+      (<= (char->integer a) (char->integer b)))
+    (method >=? (self (param a CHAR "First character") (param b CHAR "Second character"))
+      (doc "Test whether a character is greater than or equal to another." (returns BOOL "True if a is equal to or comes after b"))
+      (>= (char->integer a) (char->integer b)))
+    ; --- Case-insensitive comparisons ---
+    (method ci=? (self (param a CHAR "First character") (param b CHAR "Second character"))
+      (doc "Case-insensitive character equality." (returns BOOL "True if characters are equal ignoring case"))
+      (Char =? (Char downcase a) (Char downcase b)))
+    (method ci<? (self (param a CHAR "First character") (param b CHAR "Second character"))
+      (doc "Case-insensitive character less-than." (returns BOOL "True if a < b ignoring case"))
+      (Char <? (Char downcase a) (Char downcase b)))
+    (method ci>? (self (param a CHAR "First character") (param b CHAR "Second character"))
+      (doc "Case-insensitive character greater-than." (returns BOOL "True if a > b ignoring case"))
+      (Char >? (Char downcase a) (Char downcase b)))
+    (method ci<=? (self (param a CHAR "First character") (param b CHAR "Second character"))
+      (doc "Case-insensitive character less-than-or-equal." (returns BOOL "True if a <= b ignoring case"))
+      (Char <=? (Char downcase a) (Char downcase b)))
+    (method ci>=? (self (param a CHAR "First character") (param b CHAR "Second character"))
+      (doc "Case-insensitive character greater-than-or-equal." (returns BOOL "True if a >= b ignoring case"))
+      (Char >=? (Char downcase a) (Char downcase b)))))
 
-(doc (def char-alphabetic?
-  (fn (_ (param c CHAR "Character to test"))
-    (let ((n (char->integer c)))
-      (or (and (>= n 65) (<= n 90)) (and (>= n 97) (<= n 122))))))
-  (returns BOOL "True if c is a letter A-Z or a-z")
-  "Test whether a character is alphabetic.")
-
-(doc (def char-numeric?
-  (fn (_ (param c CHAR "Character to test"))
-    (let ((n (char->integer c))) (and (>= n 48) (<= n 57)))))
-  (returns BOOL "True if c is a digit 0-9")
-  "Test whether a character is a digit.")
-
-(doc (def char-whitespace?
-  (fn (_ (param c CHAR "Character to test"))
-    (let ((n (char->integer c)))
-      (or (= n 32) (= n 9) (= n 10) (= n 13) (= n 12)))))
-  (returns BOOL "True if c is whitespace")
-  "Test whether a character is whitespace (space, tab, newline, CR, FF).")
-
-(doc (def char-upper-case?
-  (fn (_ (param c CHAR "Character to test"))
-    (let ((n (char->integer c))) (and (>= n 65) (<= n 90)))))
-  (returns BOOL "True if c is uppercase A-Z")
-  "Test whether a character is uppercase.")
-
-(doc (def char-lower-case?
-  (fn (_ (param c CHAR "Character to test"))
-    (let ((n (char->integer c))) (and (>= n 97) (<= n 122)))))
-  (returns BOOL "True if c is lowercase a-z")
-  "Test whether a character is lowercase.")
-
-; --- Case conversion ---
-
-(note "Case conversion")
-
-(doc (def char-upcase
-  (fn (_ (param c CHAR "Character to convert"))
-    (if (char-lower-case? c)
-      (integer->char (- (char->integer c) 32))
-      c)))
-  (returns CHAR "Uppercase version of c, or c unchanged")
-  "Convert a character to uppercase.")
-
-(doc (def char-downcase
-  (fn (_ (param c CHAR "Character to convert"))
-    (if (char-upper-case? c)
-      (integer->char (+ (char->integer c) 32))
-      c)))
-  (returns CHAR "Lowercase version of c, or c unchanged")
-  "Convert a character to lowercase.")
-
-; --- Comparisons ---
-
-(note "Comparisons")
-
-(doc (def char=? (fn (_ (param a CHAR "First character") (param b CHAR "Second character")) (= (char->integer a) (char->integer b))))
-  (returns BOOL "True if characters are equal")
-  "Test whether two characters are equal.")
-
-(doc (def char<? (fn (_ (param a CHAR "First character") (param b CHAR "Second character")) (< (char->integer a) (char->integer b))))
-  (returns BOOL "True if a comes before b")
-  "Test whether a character is less than another by code point.")
-
-(doc (def char>? (fn (_ (param a CHAR "First character") (param b CHAR "Second character")) (> (char->integer a) (char->integer b))))
-  (returns BOOL "True if a comes after b")
-  "Test whether a character is greater than another by code point.")
-
-(doc (def char<=? (fn (_ (param a CHAR "First character") (param b CHAR "Second character")) (<= (char->integer a) (char->integer b))))
-  (returns BOOL "True if a is equal to or comes before b")
-  "Test whether a character is less than or equal to another.")
-
-(doc (def char>=? (fn (_ (param a CHAR "First character") (param b CHAR "Second character")) (>= (char->integer a) (char->integer b))))
-  (returns BOOL "True if a is equal to or comes after b")
-  "Test whether a character is greater than or equal to another.")
-
-; --- Case-insensitive comparisons ---
-
-(note "Case-insensitive comparisons")
-
-(doc (def char-ci=? (fn (_ (param a CHAR "First character") (param b CHAR "Second character")) (char=? (char-downcase a) (char-downcase b))))
-  (returns BOOL "True if characters are equal ignoring case")
-  "Case-insensitive character equality.")
-
-(doc (def char-ci<? (fn (_ (param a CHAR "First character") (param b CHAR "Second character")) (char<? (char-downcase a) (char-downcase b))))
-  (returns BOOL "True if a < b ignoring case")
-  "Case-insensitive character less-than.")
-
-(doc (def char-ci>? (fn (_ (param a CHAR "First character") (param b CHAR "Second character")) (char>? (char-downcase a) (char-downcase b))))
-  (returns BOOL "True if a > b ignoring case")
-  "Case-insensitive character greater-than.")
-
-(doc (def char-ci<=? (fn (_ (param a CHAR "First character") (param b CHAR "Second character")) (char<=? (char-downcase a) (char-downcase b))))
-  (returns BOOL "True if a <= b ignoring case")
-  "Case-insensitive character less-than-or-equal.")
-
-(doc (def char-ci>=? (fn (_ (param a CHAR "First character") (param b CHAR "Second character")) (char>=? (char-downcase a) (char-downcase b))))
-  (returns BOOL "True if a >= b ignoring case")
-  "Case-insensitive character greater-than-or-equal.")
-
-(doc (provide x/type/char
-  char-alphabetic? char-numeric? char-whitespace?
-  char-upper-case? char-lower-case? char-upcase char-downcase
-  char=? char<? char>? char<=? char>=?
-  char-ci=? char-ci<? char-ci>? char-ci<=? char-ci>=?)
-  (note "ASCII only.")
-  "Character classification and case conversion.")
+(doc (provide x/type/char Char)
+  (note "ASCII only. Classification, case conversion, and comparison homed on the Char class.")
+  "Character operations as the Char class.")
