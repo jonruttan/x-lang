@@ -284,6 +284,9 @@
 (doc gc-pin! "Pin an object to prevent garbage collection."
   (param obj ANY "Object to pin"))
 
+(doc alloc-limit! "Set the allocation ceiling (runaway-memory guard): the process stops rather than allocate past n objects. 0 disables."
+  (param n INT "Object-count ceiling; 0 = unlimited"))
+
 ; === Type system ===
 
 (note "Type system")
@@ -620,6 +623,60 @@
   (param str STRING "Substring to search for"))
 
 (doc modules "List all known modules with load status and descriptions.")
+
+; === Primitives catalog (the registry protocol) ===
+
+(note "Primitives catalog")
+
+(doc prims "The primitives catalog: an alist of (ns . ((method . impl) ...)) domains."
+  (note "The registry of stable implementation identities; modules fetch dependencies")
+  (note "from it at load instead of assuming ambient global names.")
+  (returns LIST "The live catalog alist")
+  (see prim-ref))
+
+(doc prim-domain "The method alist filed under a catalog namespace, or nil."
+  (param ns SYMBOL "Namespace symbol, e.g. (lit int)")
+  (returns LIST "((method . impl) ...) for the namespace, or nil")
+  (see prims))
+
+(doc prim-ref "Fetch the implementation filed under ns/method, or nil."
+  (note "The consumer half of the registry protocol. Fetch at module load and")
+  (note "cache in a lexical (hot paths) or call inline (cold paths).")
+  (param ns SYMBOL "Namespace symbol, e.g. (lit iter)")
+  (param method SYMBOL "Method symbol, e.g. (lit next)")
+  (returns ANY "The registered implementation, or nil if absent")
+  (example "(prim-ref (lit int) (lit +))" "#<prim>")
+  (see prim-reg!))
+
+(doc prim-reg! "File an x-lang value into the catalog under ns/method."
+  (note "The producer half of the registry protocol: library implementations register")
+  (note "under the same stable identities as C prims. Registration prepends, so a")
+  (note "re-registration shadows the older entry on lookup. Returns nil.")
+  (param ns SYMBOL "Namespace symbol, e.g. (lit float)")
+  (param method SYMBOL "Method symbol, e.g. (lit +)")
+  (param value ANY "The implementation to register (fn, op, or any value)")
+  (example "(do (prim-reg! (lit float) (lit +) %f+) (prim-ref (lit float) (lit +)))" "#<fn>")
+  (see prim-ref))
+
+(doc use "Define a namespace's catalog methods into the env as ns/method names."
+  (note "Qualified fetch+define for interactive/bulk use: (use (lit int)) defines int/+,")
+  (note "int/-, ... Idempotent: never clobbers an existing binding.")
+  (param ns SYMBOL "Namespace symbol whose methods to define")
+  (see prim-ref))
+
+; === Generic-operator dispatch (type ops group) ===
+
+(note "Generic-operator dispatch")
+
+(doc type-push-op "Register a binary generic-operator handler on a type."
+  (note "(type-push-op ts (lit +) (fn (_ a b) ...)) -- the C operators (+ - * / % = <)")
+  (note "dispatch here when exactly one operand is a typed instance; the handler")
+  (note "receives the raw operands and owns coercing the plain side. Replaces")
+  (note "set!-wrapping the global operators: types register ops; nothing wraps")
+  (note "ambient names.")
+  (param ts LIST "Type struct (from type-by-atom)")
+  (param op-sym SYMBOL "Operator symbol: + - * / % = <")
+  (param handler CALLABLE "Binary handler (fn (_ a b) ...)"))
 
 ; === Pre-doc module descriptions ===
 ; These modules are included before x/doc/doc.x exists, so they cannot wrap

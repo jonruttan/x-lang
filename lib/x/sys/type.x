@@ -1,7 +1,7 @@
 ; type.x -- Type system reflection utilities
 ;
 ; Navigate the type struct layout:
-;   (name (data (heap (proc (cvt (io (iter)))))))
+;   (name (data (heap (proc (cvt (io (iter (ops))))))))
 ; IO layout:
 ;   (analyse (delimit (read (write (display)))))
 ; CVT layout:
@@ -133,6 +133,25 @@
   (fn (_ ts handler)
     (let ((c (type-iter-cell ts)))
       (set-first! c (pair handler (first c))))))
+
+; --- Generic-operator dispatch (ops group: 8th element, past iter) ---
+
+; Get the ops cell (the ((op-sym . handler) ...) alist stack cell)
+(def type-ops-cell
+  (fn (_ t) (first (first (rest (rest (rest (rest (rest (rest (rest t)))))))))))
+
+; Register a binary generic-operator handler for op-sym on a type:
+;   (type-push-op ts (lit +) (fn (_ a b) ...))
+; The C operators (+ - * / % = <) dispatch here when EXACTLY ONE operand is a
+; typed instance; the handler receives the raw operands and owns coercing the
+; plain side. (Mixed typed/typed dispatch is an open design question -- the
+; cvt from-alists declare the cross-type relation.) Prepend semantics: a
+; re-registration shadows the older handler. This replaces set!-wrapping the
+; global operators -- types register ops; nothing wraps ambient names.
+(def type-push-op
+  (fn (_ ts op-sym handler)
+    (let ((c (type-ops-cell ts)))
+      (set-first! c (pair (pair op-sym handler) (first c))))))
 
 ; --- Type casting ---
 
