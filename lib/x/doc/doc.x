@@ -477,8 +477,8 @@
         (def %md (%doc-lookup (first m)))
         (%display-entry-line "  " (first m)
           (if (null? %md) "" (%doc-entry-desc %md))))
-      ; alphabetical by module name (str<? and sort are global C/lib primitives)
-      (sort
+      ; alphabetical by module name (sort is a List method now; str<? is a C primitive)
+      (List sort
         (fn (_ a b) (str<? (symbol->str (first a)) (symbol->str (first b))))
         (first %module-registry-cell)))))
 
