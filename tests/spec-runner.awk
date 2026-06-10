@@ -134,7 +134,10 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 	# Run single interpreter invocation (no REPL needed)
 	# TIMEOUT_CMD (e.g. "timeout 30") prevents runaway tests from OOM-killing.
 	timeout_pfx = (TIMEOUT_CMD != "") ? TIMEOUT_CMD " " : ""
-	cmd = "{ cat " q(blib) "; cat " q(tmpfile) "; } | " timeout_pfx q(X_BIN) " 2>/dev/null"
+	# Arm the interpreter's runaway-memory guard before the library loads (the
+	# interpreter reads no environment -- no stdlib).  The pipeline's shell
+	# expands $X_ALLOC_LIMIT_OBJS (exported by spec-runner.sh; 0/unset disables).
+	cmd = "{ echo \"(alloc-limit! ${X_ALLOC_LIMIT_OBJS:-0})\"; cat " q(blib) "; cat " q(tmpfile) "; } | " timeout_pfx q(X_BIN) " 2>/dev/null"
 
 	tidx = from
 	output = ""

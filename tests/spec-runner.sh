@@ -49,6 +49,44 @@ if [ -n "$_TIMEOUT_BIN" ]; then
   TIMEOUT_APPL="$_TIMEOUT_BIN ${TIMEOUT_APPL_SECS:-120}"
 fi
 
+# Memory runaway guard (complements the wall-time timeout above). The timeout
+# bounds CPU/wall-time; this bounds MEMORY: the interpreter stops a runaway ./x
+# once its allocated-object count reaches the ceiling, instead of allocating
+# until the machine locks up or reboots. Portable: the interpreter limits
+# itself, so it works identically on macOS (where `ulimit -v` is a no-op for
+# address space) and the Pi. The interpreter reads no environment (no stdlib
+# dependency), so spec-runner.awk feeds `(alloc-limit! $X_ALLOC_LIMIT_OBJS)`
+# ahead of each library load, arming the guard before the load burst. Override
+# per box; 0 disables.
+#
+# This is a RUNAWAY ceiling, not a tight bound. There is no auto-GC, so a batch
+# accumulates all its parse-time and per-snippet garbage until the process
+# exits, and the ceiling must clear the heaviest LEGIT batch. Binding case
+# (measured against a green suite): the logo spec -- its test lib alone loads
+# ~98M objects and the 72-test batch crosses 150M (fails at 150M, passes at
+# 250M); ext/complex peaks ~130M. The default is 300M (~14 GB at ~48 B/obj on
+# a 64-bit box): ~2x the heaviest batch, so it trips only a genuinely unbounded
+# loop -- which would otherwise grow without limit -- before it eats the
+# machine. RE-MEASURE when heavy batches change: a too-low ceiling fails good
+# specs (died mid-batch), which is exactly how 150M failed once logo went
+# green. LOWER it on a small-RAM box (a 512 MB Pi wants a few M -- the guard
+# then stops the tower/logo loads themselves, turning a lockup into a failed
+# spec). NOTE: a per-process guard cannot fix memory exhaustion from many heavy
+# specs loading in PARALLEL; for that lower PARALLEL_JOBS.
+export X_ALLOC_LIMIT_OBJS="${X_ALLOC_LIMIT_OBJS:-300000000}"
+
+# Fail OPEN on a malformed value: a non-numeric limit (e.g. "150M") would
+# otherwise tokenize as two forms -- (alloc-limit! 150 M) -- arming a
+# 150-object limit that kills every test process at startup.
+case "$X_ALLOC_LIMIT_OBJS" in
+  ''|*[!0-9]*)
+    printf '%bWARNING: X_ALLOC_LIMIT_OBJS="%s" is not a whole number; memory guard disabled%b\n' \
+      "$ANSI_RED" "$X_ALLOC_LIMIT_OBJS" "$ANSI_RESET" >&2
+    X_ALLOC_LIMIT_OBJS=0
+    export X_ALLOC_LIMIT_OBJS
+    ;;
+esac
+
 # Derive project root from X_BIN (always at project root).
 RUNNER="$(cd "$(dirname "$X_BIN")" && pwd)/tests/spec-runner.awk"
 
