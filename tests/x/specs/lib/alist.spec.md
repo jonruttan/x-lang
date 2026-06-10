@@ -129,7 +129,7 @@
 ### applies function to all values
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-get (lit a) (assoc-map inc al)))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-get (lit a) (assoc-map (method-ref Num inc) al)))
 ```
 ---
     2
@@ -199,7 +199,7 @@
 ### transforms values by matching keys
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-get (lit a) (evolve (list (pair (lit a) inc)) al)))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-get (lit a) (evolve (list (pair (lit a) (method-ref Num inc))) al)))
 ```
 ---
     2

@@ -187,7 +187,7 @@
 ### applies function to each
 
 ```scheme
-(map inc (list 1 2 3))
+(map (method-ref Num inc) (list 1 2 3))
 ```
 ---
     (2 3 4)
@@ -195,7 +195,7 @@
 ### maps over empty
 
 ```scheme
-(null? (map inc ()))
+(null? (map (method-ref Num inc) ()))
 ```
 ---
     #t
@@ -205,7 +205,7 @@
 ### keeps matching elements
 
 ```scheme
-(filter even? (list 1 2 3 4))
+(filter (method-ref Num even?) (list 1 2 3 4))
 ```
 ---
     (2 4)
@@ -213,7 +213,7 @@
 ### filters to empty
 
 ```scheme
-(null? (filter negative? (list 1 2 3)))
+(null? (filter (method-ref Num negative?) (list 1 2 3)))
 ```
 ---
     #t
@@ -233,7 +233,7 @@
 ### removes matching elements
 
 ```scheme
-(List reject even? (list 1 2 3 4))
+(List reject (method-ref Num even?) (list 1 2 3 4))
 ```
 ---
     (1 3)
@@ -271,7 +271,7 @@
 ### returns #t when one matches
 
 ```scheme
-(List any? even? (list 1 2 3))
+(List any? (method-ref Num even?) (list 1 2 3))
 ```
 ---
     #t
@@ -279,7 +279,7 @@
 ### returns nil when none match
 
 ```scheme
-(if (List any? negative? (list 1 2 3)) "y" "n")
+(if (List any? (method-ref Num negative?) (list 1 2 3)) "y" "n")
 ```
 ---
     "n"
@@ -289,7 +289,7 @@
 ### returns #t when all match
 
 ```scheme
-(List every? positive? (list 1 2 3))
+(List every? (method-ref Num positive?) (list 1 2 3))
 ```
 ---
     #t
@@ -297,7 +297,7 @@
 ### returns nil when one fails
 
 ```scheme
-(if (List every? even? (list 2 3 4)) "y" "n")
+(if (List every? (method-ref Num even?) (list 2 3 4)) "y" "n")
 ```
 ---
     "n"
@@ -307,7 +307,7 @@
 ### returns #t when none match
 
 ```scheme
-(List none? negative? (list 1 2 3))
+(List none? (method-ref Num negative?) (list 1 2 3))
 ```
 ---
     #t
@@ -315,7 +315,7 @@
 ### returns nil when one matches
 
 ```scheme
-(if (List none? even? (list 1 2 3)) "y" "n")
+(if (List none? (method-ref Num even?) (list 1 2 3)) "y" "n")
 ```
 ---
     "n"
@@ -343,7 +343,7 @@
 ### finds first match
 
 ```scheme
-(List find even? (list 1 3 4 6))
+(List find (method-ref Num even?) (list 1 3 4 6))
 ```
 ---
     4
@@ -351,7 +351,7 @@
 ### returns nil when not found
 
 ```scheme
-(null? (List find negative? (list 1 2 3)))
+(null? (List find (method-ref Num negative?) (list 1 2 3)))
 ```
 ---
     #t
@@ -361,7 +361,7 @@
 ### returns index of first match
 
 ```scheme
-(List find-index even? (list 1 3 4 6))
+(List find-index (method-ref Num even?) (list 1 3 4 6))
 ```
 ---
     2
@@ -369,7 +369,7 @@
 ### returns -1 when not found
 
 ```scheme
-(List find-index negative? (list 1 2 3))
+(List find-index (method-ref Num negative?) (list 1 2 3))
 ```
 ---
     -1
@@ -415,7 +415,7 @@
 ### counts matching elements
 
 ```scheme
-(List count even? (list 1 2 3 4 5 6))
+(List count (method-ref Num even?) (list 1 2 3 4 5 6))
 ```
 ---
     3
@@ -423,7 +423,7 @@
 ### returns zero for no matches
 
 ```scheme
-(List count negative? (list 1 2 3))
+(List count (method-ref Num negative?) (list 1 2 3))
 ```
 ---
     0
@@ -477,7 +477,7 @@
 ### takes while predicate holds
 
 ```scheme
-(List take-while positive? (list 1 2 -3 4))
+(List take-while (method-ref Num positive?) (list 1 2 -3 4))
 ```
 ---
     (1 2)
@@ -485,7 +485,7 @@
 ### takes nothing when first fails
 
 ```scheme
-(null? (List take-while negative? (list 1 2 3)))
+(null? (List take-while (method-ref Num negative?) (list 1 2 3)))
 ```
 ---
     #t
@@ -495,7 +495,7 @@
 ### drops while predicate holds
 
 ```scheme
-(List drop-while positive? (list 1 2 -3 4))
+(List drop-while (method-ref Num positive?) (list 1 2 -3 4))
 ```
 ---
     (-3 4)
@@ -579,7 +579,7 @@
 ### builds a list from seed
 
 ```scheme
-(List unfold (fn (_ x) (> x 5)) (fn (_ x) x) inc 1)
+(List unfold (fn (_ x) (> x 5)) (fn (_ x) x) (method-ref Num inc) 1)
 ```
 ---
     (1 2 3 4 5)
@@ -627,7 +627,7 @@
 ### splits by predicate
 
 ```scheme
-(List partition even? (list 1 2 3 4 5 6))
+(List partition (method-ref Num even?) (list 1 2 3 4 5 6))
 ```
 ---
     ((2 4 6) (1 3 5))
@@ -637,7 +637,7 @@
 ### groups by key function
 
 ```scheme
-(length (List group-by even? (list 1 2 3 4 5)))
+(length (List group-by (method-ref Num even?) (list 1 2 3 4 5)))
 ```
 ---
     2
@@ -681,7 +681,7 @@
 ### sorts by key function
 
 ```scheme
-(List sort-by abs (list 3 -1 -2))
+(List sort-by (method-ref Num abs) (list 3 -1 -2))
 ```
 ---
     (-1 -2 3)
@@ -709,7 +709,7 @@
 ### removes consecutive duplicates by key
 
 ```scheme
-(length (List uniq-by abs (list 1 -1 2 -2 3)))
+(length (List uniq-by (method-ref Num abs) (list 1 -1 2 -2 3)))
 ```
 ---
     3
@@ -803,7 +803,7 @@
 ### single-list backward compat
 
 ```scheme
-(map inc (list 1 2 3))
+(map (method-ref Num inc) (list 1 2 3))
 ```
 ---
     (2 3 4)
@@ -871,7 +871,7 @@
 ### applies function at index
 
 ```scheme
-(List adjust 1 inc (list 10 20 30))
+(List adjust 1 (method-ref Num inc) (list 10 20 30))
 ```
 ---
     (10 21 30)

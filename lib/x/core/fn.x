@@ -18,7 +18,7 @@
     (method compose (self (param f CALLABLE "Outer function") (param g CALLABLE "Inner function"))
       (doc "Right-to-left composition: (Fn compose f g) applies g then f."
         (returns CALLABLE "Composed function f(g(x))")
-        (example "((Fn compose inc inc) 1)" "3"))
+        (example "((Fn compose (method-ref Num inc) (method-ref Num inc)) 1)" "3"))
       (fn (_ x) (f (g x))))
     (method pipe (self (param f CALLABLE "First function") (param g CALLABLE "Second function"))
       (doc "Left-to-right composition: (Fn pipe f g) applies f then g."
@@ -39,5 +39,5 @@
 
 (doc (provide x/core/fn Fn)
   (note "Function combinators as static methods: (Fn compose f g), (Fn flip f), (Fn tap f).")
-  (example "((Fn compose inc inc) 1)" "3")
+  (example "((Fn compose (method-ref Num inc) (method-ref Num inc)) 1)" "3")
   "Higher-order function combinators, homed on the Fn class.")

@@ -88,7 +88,7 @@
         (def s (%int+ (%int+ (if (null? a) 0 (first a))
                               (if (null? b) 0 (first b)))
                        carry))
-        (pair (modulo-int s %bignum-base)
+        (pair (%int% s %bignum-base)
               (self (if (null? a) () (rest a))
                          (if (null? b) () (rest b))
                          (%int/ s %bignum-base)))))))
@@ -112,7 +112,7 @@
       (if (%int= carry 0) () (list carry))
       (let ()
         (def p (%int+ (%int* (first b) limb) carry))
-        (pair (modulo-int p %bignum-base)
+        (pair (%int% p %bignum-base)
               (self (rest b) limb (%int/ p %bignum-base)))))))
 
 ; Schoolbook multiply: a * b
@@ -133,7 +133,7 @@
         (if (null? ra) (pair (reverse qacc) rem)
           (let ()
             (def cur (%int+ (%int* rem %bignum-base) (first ra)))
-            (self (rest ra) (modulo-int cur divisor)
+            (self (rest ra) (%int% cur divisor)
                      (pair (%int/ cur divisor) qacc))))))
     (%div-go (reverse a) 0 ())))
 
@@ -259,7 +259,7 @@
       (fn (self m acc)
         (if (%int= m 0) (if (null? acc) (list 0) acc)
           (self (%int/ m %bignum-base)
-               (pair (modulo-int m %bignum-base) acc)))))
+               (pair (%int% m %bignum-base) acc)))))
     (pair sign (reverse (%go mag ())))))
 
 ; Forward declare %bignum and reader
@@ -485,7 +485,7 @@
   (fn (_ a b)
     (if (bignum? a) (big% a (%ensure-big b))
       (if (bignum? b) (big% (%ensure-big a) b)
-        (modulo-int a b)))))
+        (%int% a b)))))
 
 (doc < "Compare numbers, promoting to bignum when needed."
   (param a INTEGER|BIGNUM "Left operand")

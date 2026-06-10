@@ -77,7 +77,6 @@
   ; Core library
   (include "lib/x/core/logic.x")
   (include "lib/x/core/list.x")
-  (include "lib/x/core/math.x")
   (include "lib/x/core/syntax.x")
   (include "lib/x/num/tower.x")
 
@@ -108,6 +107,9 @@
   ; Fn: function combinators (the Fn class). Moved here from the early core block
   ; -- it needs def-class, and nothing loaded before object.x references it.
   (include "lib/x/core/fn.x")
+  ; Num: integer math utilities + number predicates (the Num class). Relocated
+  ; past object.x -- nothing loaded before the object system calls these.
+  (include "lib/x/core/math.x")
   ; Vector: #() type machinery + the Vector class. Needs def-class; relocated past
   ; object.x from the early block -- nothing before it uses vectors or #() literals.
   (include "lib/x/type/vector.x")

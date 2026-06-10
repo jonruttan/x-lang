@@ -3,7 +3,7 @@
 ### increments by one
 
 ```scheme
-(inc 5)
+(Num inc 5)
 ```
 ---
     6
@@ -13,7 +13,7 @@
 ### decrements by one
 
 ```scheme
-(dec 5)
+(Num dec 5)
 ```
 ---
     4
@@ -23,7 +23,7 @@
 ### negates positive
 
 ```scheme
-(negate 5)
+(Num negate 5)
 ```
 ---
     -5
@@ -31,7 +31,7 @@
 ### negates negative
 
 ```scheme
-(negate -3)
+(Num negate -3)
 ```
 ---
     3
@@ -41,7 +41,7 @@
 ### positive stays positive
 
 ```scheme
-(abs 5)
+(Num abs 5)
 ```
 ---
     5
@@ -49,7 +49,7 @@
 ### negative becomes positive
 
 ```scheme
-(abs -5)
+(Num abs -5)
 ```
 ---
     5
@@ -57,7 +57,7 @@
 ### zero stays zero
 
 ```scheme
-(abs 0)
+(Num abs 0)
 ```
 ---
     0
@@ -67,7 +67,7 @@
 ### returns smaller
 
 ```scheme
-(min 3 7)
+(Num min 3 7)
 ```
 ---
     3
@@ -75,7 +75,7 @@
 ### returns smaller when first is larger
 
 ```scheme
-(min 7 3)
+(Num min 7 3)
 ```
 ---
     3
@@ -85,7 +85,7 @@
 ### returns larger
 
 ```scheme
-(max 3 7)
+(Num max 3 7)
 ```
 ---
     7
@@ -93,7 +93,7 @@
 ### returns larger when first is larger
 
 ```scheme
-(max 7 3)
+(Num max 7 3)
 ```
 ---
     7
@@ -103,7 +103,7 @@
 ### clamps below minimum
 
 ```scheme
-(clamp 0 10 -5)
+(Num clamp 0 10 -5)
 ```
 ---
     0
@@ -111,7 +111,7 @@
 ### clamps above maximum
 
 ```scheme
-(clamp 0 10 15)
+(Num clamp 0 10 15)
 ```
 ---
     10
@@ -119,7 +119,7 @@
 ### passes through in range
 
 ```scheme
-(clamp 0 10 5)
+(Num clamp 0 10 5)
 ```
 ---
     5
@@ -129,7 +129,7 @@
 ### returns min by key function
 
 ```scheme
-(min-by abs 3 -5)
+(Num min-by (method-ref Num abs) 3 -5)
 ```
 ---
     3
@@ -139,7 +139,7 @@
 ### returns max by key function
 
 ```scheme
-(max-by abs 3 -5)
+(Num max-by (method-ref Num abs) 3 -5)
 ```
 ---
     -5
@@ -185,7 +185,7 @@
 ### true for zero
 
 ```scheme
-(zero? 0)
+(Num zero? 0)
 ```
 ---
     #t
@@ -193,7 +193,7 @@
 ### false for non-zero
 
 ```scheme
-(if (zero? 5) "y" "n")
+(if (Num zero? 5) "y" "n")
 ```
 ---
     "n"
@@ -203,7 +203,7 @@
 ### true for positive
 
 ```scheme
-(positive? 5)
+(Num positive? 5)
 ```
 ---
     #t
@@ -211,7 +211,7 @@
 ### false for negative
 
 ```scheme
-(if (positive? -1) "y" "n")
+(if (Num positive? -1) "y" "n")
 ```
 ---
     "n"
@@ -221,7 +221,7 @@
 ### true for negative
 
 ```scheme
-(negative? -5)
+(Num negative? -5)
 ```
 ---
     #t
@@ -229,7 +229,7 @@
 ### false for positive
 
 ```scheme
-(if (negative? 1) "y" "n")
+(if (Num negative? 1) "y" "n")
 ```
 ---
     "n"
@@ -239,7 +239,7 @@
 ### true for even
 
 ```scheme
-(even? 4)
+(Num even? 4)
 ```
 ---
     #t
@@ -247,7 +247,7 @@
 ### false for odd
 
 ```scheme
-(if (even? 3) "y" "n")
+(if (Num even? 3) "y" "n")
 ```
 ---
     "n"
@@ -257,7 +257,7 @@
 ### true for odd
 
 ```scheme
-(odd? 3)
+(Num odd? 3)
 ```
 ---
     #t
@@ -265,7 +265,7 @@
 ### false for even
 
 ```scheme
-(if (odd? 4) "y" "n")
+(if (Num odd? 4) "y" "n")
 ```
 ---
     "n"
@@ -276,7 +276,7 @@
 ### two numbers
 
 ```scheme
-(gcd 12 8)
+(Num gcd 12 8)
 ```
 ---
     4
@@ -284,7 +284,7 @@
 ### coprime
 
 ```scheme
-(gcd 7 13)
+(Num gcd 7 13)
 ```
 ---
     1
@@ -292,7 +292,7 @@
 ### variadic
 
 ```scheme
-(gcd 12 8 6)
+(Num gcd 12 8 6)
 ```
 ---
     2
@@ -302,7 +302,7 @@
 ### two numbers
 
 ```scheme
-(lcm 4 6)
+(Num lcm 4 6)
 ```
 ---
     12
@@ -310,7 +310,7 @@
 ### variadic
 
 ```scheme
-(lcm 2 3 4)
+(Num lcm 2 3 4)
 ```
 ---
     12
@@ -320,7 +320,7 @@
 ### power of two
 
 ```scheme
-(expt 2 10)
+(Num expt 2 10)
 ```
 ---
     1024
@@ -328,7 +328,7 @@
 ### zero exponent
 
 ```scheme
-(expt 5 0)
+(Num expt 5 0)
 ```
 ---
     1
@@ -336,7 +336,7 @@
 ### base one
 
 ```scheme
-(expt 1 100)
+(Num expt 1 100)
 ```
 ---
     1

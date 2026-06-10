@@ -81,7 +81,7 @@
         (pair (lit %big-digits) %big-digits)
         (pair (lit %int-capped-digits) %int-capped-digits)
         (pair (lit %int-capped-sign) %int-capped-sign)))
-(type-push-analyse (type-by-atom (type-of (expt 2 64)))
+(type-push-analyse (type-by-atom (type-of (Num expt 2 64)))
   (compile
     (lit (fn (_ buffer score chr)
       (if (< chr 48)

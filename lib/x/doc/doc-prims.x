@@ -523,16 +523,6 @@
   (param b STRING "Second string")
   (returns BOOLEAN "t if equal"))
 
-(doc gcd "Greatest common divisor."
-  (param a INT "First integer")
-  (param b INT "Second integer")
-  (returns INT "GCD"))
-
-(doc lcm "Least common multiple."
-  (param a INT "First integer")
-  (param b INT "Second integer")
-  (returns INT "LCM"))
-
 (doc heap-collect "Run a full garbage collection cycle."
   (returns INT "Number of freed objects"))
 

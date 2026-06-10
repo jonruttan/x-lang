@@ -82,7 +82,7 @@
 ### map 5000 elements completes
 
 ```scheme
-(= (length (map inc (List range 1 5001))) 5000)
+(= (length (map (method-ref Num inc) (List range 1 5001))) 5000)
 ```
 ---
     #t

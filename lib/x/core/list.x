@@ -151,5 +151,5 @@
   
   else str-copy)
   (note "Accepts any iterable (lists, vectors, custom iterables). Ramda-inspired functional style.")
-  (example "(map inc '(1 2 3))" "(2 3 4)")
+  (example "(map (method-ref Num inc) '(1 2 3))" "(2 3 4)")
   "List processing: map, filter, fold, sort, and 60+ functions.")
