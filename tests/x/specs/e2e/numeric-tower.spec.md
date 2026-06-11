@@ -23,7 +23,7 @@
 ### multiply overflow promotes
 
 ```scheme
-(bignum? (* 999999999999 999999999999))
+(Bignum bignum? (* 999999999999 999999999999))
 ```
 ---
     #t
@@ -31,7 +31,7 @@
 ### add overflow promotes
 
 ```scheme
-(bignum? (+ 4611686018427387904 4611686018427387904))
+(Bignum bignum? (+ 4611686018427387904 4611686018427387904))
 ```
 ---
     #t

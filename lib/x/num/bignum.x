@@ -125,12 +125,16 @@
             (%limb-add acc (append shift (%limb-mul1 b (first as) 0)) 0)))))
     (%mul-go a () (list 0))))
 
-; Divide limb list by single limb, return (quotient-limbs . remainder)
+; Divide limb list by single limb, return (quotient-limbs . remainder).
+; The walk is MSB-first (over (reverse a)), so prepending each quotient digit
+; leaves qacc LSB-first -- ALREADY the limb storage order. Do not reverse it:
+; a reverse here flips multi-limb quotients (latent for ages -- single-limb
+; quotients, the only spec'd case, are order-immune).
 (def %limb-divmod1
   (fn (_ a divisor)
     (def %div-go
       (fn (self ra rem qacc)
-        (if (null? ra) (pair (reverse qacc) rem)
+        (if (null? ra) (pair qacc rem)
           (let ()
             (def cur (%int+ (%int* rem %bignum-base) (first ra)))
             (self (rest ra) (%int% cur divisor)
@@ -288,25 +292,23 @@
 
 (note "Predicates")
 
-(doc (def bignum? (fn (_ (param x ANY "Value to test")) (type? x %bignum)))
-  (returns BOOLEAN "True if x is a bignum")
-  "Test whether a value is an arbitrary-precision integer.")
+; Private predicate; the public API is (Bignum bignum? x).
+(def %bignum? (fn (_ x) (type? x %bignum)))
 
 (def %big-sign (fn (_ x) (first (first x))))
 (def %big-limbs (fn (_ x) (rest (first x))))
 
 (def %ensure-big
   (fn (_ x)
-    (if (bignum? x) x
+    (if (%bignum? x) x
       (let ()
         (def r (%bignum-from-int x))
         (make-instance %bignum r)))))
 
 (note "Arithmetic")
 
-(doc (def big+
-  (fn (_ (param a BIGNUM "First operand")
-       (param b BIGNUM "Second operand"))
+(def %big-add
+  (fn (_ a b)
     (def sa (%big-sign a))
     (def sb (%big-sign b))
     (def la (%big-limbs a))
@@ -321,53 +323,38 @@
           (if (%int< 0 c)
             (%make-bignum sa (%limb-sub la lb 0))
             (%make-bignum sb (%limb-sub lb la 0))))))))
-  (returns INTEGER|BIGNUM "Sum, demoted to integer if it fits")
-  "Add two bignums.")
 
-(doc (def big-
-  (fn (_ (param a BIGNUM "First operand")
-       (param b BIGNUM "Second operand"))
+(def %big-sub
+  (fn (_ a b)
     ; Negate b's sign and add
     (def sb (%int* -1 (%big-sign b)))
     (def nb (make-instance %bignum (pair sb (%big-limbs b))))
-    (big+ a nb)))
-  (returns INTEGER|BIGNUM "Difference, demoted to integer if it fits")
-  "Subtract two bignums.")
+    (%big-add a nb)))
 
-(doc (def big*
-  (fn (_ (param a BIGNUM "First operand")
-       (param b BIGNUM "Second operand"))
+(def %big-mul
+  (fn (_ a b)
     (def sa (%big-sign a))
     (def sb (%big-sign b))
     (def sign (%int* sa sb))
     (%make-bignum sign (%limb-mul (%big-limbs a) (%big-limbs b)))))
-  (returns INTEGER|BIGNUM "Product, demoted to integer if it fits")
-  "Multiply two bignums.")
 
-(doc (def big/
-  (fn (_ (param a BIGNUM "Dividend")
-       (param b BIGNUM "Divisor"))
+(def %big-div
+  (fn (_ a b)
     (def sa (%big-sign a))
     (def sb (%big-sign b))
     (def sign (%int* sa sb))
     (def r (%limb-divmod (%big-limbs a) (%big-limbs b)))
     (%make-bignum sign (first r))))
-  (returns INTEGER|BIGNUM "Quotient (truncated), demoted to integer if it fits")
-  "Divide two bignums (truncating division).")
 
-(doc (def big%
-  (fn (_ (param a BIGNUM "Dividend")
-       (param b BIGNUM "Divisor"))
+(def %big-mod
+  (fn (_ a b)
     (def r (%limb-divmod (%big-limbs a) (%big-limbs b)))
     (%make-bignum (%big-sign a) (rest r))))
-  (returns INTEGER|BIGNUM "Remainder, demoted to integer if it fits")
-  "Compute the remainder of bignum division.")
 
 (note "Comparison")
 
-(doc (def big<
-  (fn (_ (param a BIGNUM "Left operand")
-       (param b BIGNUM "Right operand"))
+(def %big-lt
+  (fn (_ a b)
     (def sa (%big-sign a))
     (def sb (%big-sign b))
     (if (%int< sa sb) #t
@@ -378,40 +365,38 @@
           (if (%int= sa 1)
             (%int< c 0)
             (%int< 0 c)))))))
-  (returns BOOLEAN "True if a < b")
-  "Test whether bignum a is less than bignum b.")
 
-(doc (def big=
-  (fn (_ (param a BIGNUM "Left operand")
-       (param b BIGNUM "Right operand"))
+(def %big-eq
+  (fn (_ a b)
     (if (not (%int= (%big-sign a) (%big-sign b))) #f
       (%int= 0 (%limb-cmp (%big-limbs a) (%big-limbs b))))))
-  (returns BOOLEAN "True if a equals b")
-  "Test whether two bignums are equal.")
 
 ; --- Overflow detection for integer operations ---
 
 (def %int-abs (fn (_ n) (if (%int< n 0) (%int- 0 n) n)))
 
-(doc (def would-overflow-add?
-  (fn (_ (param a INTEGER "First operand") (param b INTEGER "Second operand"))
+(def %would-overflow-add?
+  (fn (_ a b)
     (if (%int< 0 a)
       (if (%int< 0 b) (%int< (%int- %long-max a) b) #f)
       (if (%int< b 0)
         (%int< a (%int- (%int+ (%int- 0 %long-max) 1) (%int- 0 b)))
         #f))))
-  (returns BOOLEAN "True if a + b would overflow native integer")
-  "Test whether addition of two native integers would overflow.")
 
-(doc (def would-overflow-mul?
-  (fn (_ (param a INTEGER "First operand") (param b INTEGER "Second operand"))
+(def %would-overflow-mul?
+  (fn (_ a b)
     (if (%int= a 0) #f
       (if (%int= b 0) #f
         (%int< (%int/ %long-max (%int-abs a)) (%int-abs b))))))
-  (returns BOOLEAN "True if a * b would overflow native integer")
-  "Test whether multiplication of two native integers would overflow.")
 
 (note "Operator Overrides")
+
+; ONE variadic layer per dialect, folded over the DISPATCHING C binaries
+; (%int+ etc. are x_prim_sum & co., whose typed-operand path routes bignum --
+; and later float/complex -- through the type ops registered below). The only
+; semantics the binary dispatch cannot see is INT OVERFLOW PROMOTION: both
+; operands are plain ints, so these folds check %would-overflow-* and promote.
+; Binary % < = need no wrapper at all: the C prims dispatch directly.
 
 (doc + "Add numbers, promoting to bignum on overflow."
   (param args INTEGER|BIGNUM "Numbers to add")
@@ -421,11 +406,11 @@
     (if (null? args) 0
       (fold
         (fn (_ acc x)
-          (if (bignum? acc) (big+ acc (%ensure-big x))
-            (if (bignum? x) (big+ (%ensure-big acc) x)
-              (if (would-overflow-add? acc x)
-                (big+ (%ensure-big acc) (%ensure-big x))
-                (%int+ acc x)))))
+          (if (if (%int-number? acc) (%int-number? x) #f)
+            (if (%would-overflow-add? acc x)
+              (%big-add (%ensure-big acc) (%ensure-big x))
+              (%int+ acc x))
+            (%int+ acc x)))
         (first args) (rest args)))))
 
 (doc - "Subtract numbers, promoting to bignum on overflow. Unary form negates."
@@ -436,17 +421,17 @@
     (if (null? args) 0
       (if (null? (rest args))
         ; Unary negation
-        (if (bignum? (first args))
+        (if (%bignum? (first args))
           (%make-bignum (%int* -1 (%big-sign (first args)))
                         (%big-limbs (first args)))
           (%int- (first args)))
         (fold
           (fn (_ acc x)
-            (if (bignum? acc) (big- acc (%ensure-big x))
-              (if (bignum? x) (big- (%ensure-big acc) x)
-                (if (would-overflow-add? acc (%int- 0 x))
-                  (big- (%ensure-big acc) (%ensure-big x))
-                  (%int- acc x)))))
+            (if (if (%int-number? acc) (%int-number? x) #f)
+              (if (%would-overflow-add? acc (%int- 0 x))
+                (%big-sub (%ensure-big acc) (%ensure-big x))
+                (%int- acc x))
+              (%int- acc x)))
           (first args) (rest args))))))
 
 (doc * "Multiply numbers, promoting to bignum on overflow."
@@ -457,55 +442,21 @@
     (if (null? args) 1
       (fold
         (fn (_ acc x)
-          (if (bignum? acc) (big* acc (%ensure-big x))
-            (if (bignum? x) (big* (%ensure-big acc) x)
-              (if (would-overflow-mul? acc x)
-                (big* (%ensure-big acc) (%ensure-big x))
-                (%int* acc x)))))
+          (if (if (%int-number? acc) (%int-number? x) #f)
+            (if (%would-overflow-mul? acc x)
+              (%big-mul (%ensure-big acc) (%ensure-big x))
+              (%int* acc x))
+            (%int* acc x)))
         (first args) (rest args)))))
 
-(doc / "Divide numbers, promoting to bignum when needed."
+(doc / "Divide numbers; bignum operands dispatch through the type ops."
   (param args INTEGER|BIGNUM "Numbers to divide")
   (returns INTEGER|BIGNUM "Quotient"))
 (set! /
   (fn (_ . args)
     (if (null? args) 1
-      (fold
-        (fn (_ acc x)
-          (if (bignum? acc) (big/ acc (%ensure-big x))
-            (if (bignum? x) (big/ (%ensure-big acc) x)
-              (%int/ acc x))))
+      (fold (fn (_ acc x) (%int/ acc x))
         (first args) (rest args)))))
-
-(doc % "Compute remainder, promoting to bignum when needed."
-  (param a INTEGER|BIGNUM "Dividend")
-  (param b INTEGER|BIGNUM "Divisor")
-  (returns INTEGER|BIGNUM "Remainder"))
-(set! %
-  (fn (_ a b)
-    (if (bignum? a) (big% a (%ensure-big b))
-      (if (bignum? b) (big% (%ensure-big a) b)
-        (%int% a b)))))
-
-(doc < "Compare numbers, promoting to bignum when needed."
-  (param a INTEGER|BIGNUM "Left operand")
-  (param b INTEGER|BIGNUM "Right operand")
-  (returns BOOLEAN "True if a < b"))
-(set! <
-  (fn (_ a b)
-    (if (bignum? a) (big< a (%ensure-big b))
-      (if (bignum? b) (big< (%ensure-big a) b)
-        (%int< a b)))))
-
-(doc = "Test equality, promoting to bignum when needed."
-  (param a INTEGER|BIGNUM "Left operand")
-  (param b INTEGER|BIGNUM "Right operand")
-  (returns BOOLEAN "True if a equals b"))
-(set! =
-  (fn (_ a b)
-    (if (bignum? a) (big= a (%ensure-big b))
-      (if (bignum? b) (big= (%ensure-big a) b)
-        (%int= a b)))))
 
 ; --- Type registration ---
 
@@ -595,7 +546,59 @@
 
 (type-push-analyse %int-type %int-capped-analyse)
 
-(doc (provide x/num/bignum bignum? big+ big- big* big/ big% big< big=
-  would-overflow-add? would-overflow-mul?)
-  (note "Auto-promotes when integers exceed native range. Extends +,-,*,/,%,<,=.")
-  "Arbitrary-precision integers.")
+; --- Type ops: the generic operators dispatch here for bignum operands ---
+; Handlers receive raw operands; the non-bignum side is always an int (a wider
+; type would have absorbed the bignum via its from-declaration), so %ensure-big
+; covers the coercion.
+
+(def %bignum-ts (type-by-atom %bignum))
+(type-push-op %bignum-ts (lit +) (fn (_ a b) (%big-add (%ensure-big a) (%ensure-big b))))
+(type-push-op %bignum-ts (lit -) (fn (_ a b) (%big-sub (%ensure-big a) (%ensure-big b))))
+(type-push-op %bignum-ts (lit *) (fn (_ a b) (%big-mul (%ensure-big a) (%ensure-big b))))
+(type-push-op %bignum-ts (lit /) (fn (_ a b) (%big-div (%ensure-big a) (%ensure-big b))))
+(type-push-op %bignum-ts (lit %) (fn (_ a b) (%big-mod (%ensure-big a) (%ensure-big b))))
+(type-push-op %bignum-ts (lit <) (fn (_ a b) (%big-lt (%ensure-big a) (%ensure-big b))))
+(type-push-op %bignum-ts (lit =) (fn (_ a b) (%big-eq (%ensure-big a) (%ensure-big b))))
+
+(import x/type/object)
+
+(def-class Bignum ()
+  (static
+    (method bignum? (self (param x ANY "Value to test"))
+      (doc "Test whether a value is an arbitrary-precision integer."
+        (returns BOOLEAN "True if x is a bignum"))
+      (%bignum? x))
+    (method + (self (param a INTEGER|BIGNUM "First operand") (param b INTEGER|BIGNUM "Second operand"))
+      (doc "Add two bignums (ints coerce)." (returns INTEGER|BIGNUM "Sum, demoted to integer if it fits"))
+      (%big-add (%ensure-big a) (%ensure-big b)))
+    (method - (self (param a INTEGER|BIGNUM "First operand") (param b INTEGER|BIGNUM "Second operand"))
+      (doc "Subtract two bignums (ints coerce)." (returns INTEGER|BIGNUM "Difference, demoted to integer if it fits"))
+      (%big-sub (%ensure-big a) (%ensure-big b)))
+    (method * (self (param a INTEGER|BIGNUM "First operand") (param b INTEGER|BIGNUM "Second operand"))
+      (doc "Multiply two bignums (ints coerce)." (returns INTEGER|BIGNUM "Product, demoted to integer if it fits"))
+      (%big-mul (%ensure-big a) (%ensure-big b)))
+    (method / (self (param a INTEGER|BIGNUM "Dividend") (param b INTEGER|BIGNUM "Divisor"))
+      (doc "Divide two bignums (truncating; ints coerce)." (returns INTEGER|BIGNUM "Quotient, demoted to integer if it fits"))
+      (%big-div (%ensure-big a) (%ensure-big b)))
+    (method % (self (param a INTEGER|BIGNUM "Dividend") (param b INTEGER|BIGNUM "Divisor"))
+      (doc "Remainder of bignum division (ints coerce)." (returns INTEGER|BIGNUM "Remainder, demoted to integer if it fits"))
+      (%big-mod (%ensure-big a) (%ensure-big b)))
+    (method < (self (param a INTEGER|BIGNUM "Left operand") (param b INTEGER|BIGNUM "Right operand"))
+      (doc "Test whether a is less than b (ints coerce)." (returns BOOLEAN "True if a < b"))
+      (%big-lt (%ensure-big a) (%ensure-big b)))
+    (method = (self (param a INTEGER|BIGNUM "Left operand") (param b INTEGER|BIGNUM "Right operand"))
+      (doc "Test whether a equals b (ints coerce)." (returns BOOLEAN "True if a equals b"))
+      (%big-eq (%ensure-big a) (%ensure-big b)))
+    (method would-overflow-add? (self (param a INTEGER "First operand") (param b INTEGER "Second operand"))
+      (doc "Test whether addition of two native integers would overflow."
+        (returns BOOLEAN "True if a + b would overflow native integer"))
+      (%would-overflow-add? a b))
+    (method would-overflow-mul? (self (param a INTEGER "First operand") (param b INTEGER "Second operand"))
+      (doc "Test whether multiplication of two native integers would overflow."
+        (returns BOOLEAN "True if a * b would overflow native integer"))
+      (%would-overflow-mul? a b))))
+
+(doc (provide x/num/bignum Bignum)
+  (note "Auto-promotes when integers exceed native range; the generic operators")
+  (note "dispatch bignum operands through the type ops. API: (Bignum + a b), ...")
+  "Arbitrary-precision integers, homed on the Bignum class.")

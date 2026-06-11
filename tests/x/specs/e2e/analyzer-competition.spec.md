@@ -5,7 +5,7 @@
 ### small number stays integer
 
 ```scheme
-(if (bignum? 42) "big" "int")
+(if (Bignum bignum? 42) "big" "int")
 ```
 ---
     "int"
@@ -13,7 +13,7 @@
 ### large number becomes bignum
 
 ```scheme
-(if (bignum? 99999999999999999999) "big" "int")
+(if (Bignum bignum? 99999999999999999999) "big" "int")
 ```
 ---
     "big"
@@ -109,7 +109,7 @@
 ### chained promotions
 
 ```scheme
-(do (def x (* 999999999999 999999999999)) (bignum? x))
+(do (def x (* 999999999999 999999999999)) (Bignum bignum? x))
 ```
 ---
     #t
