@@ -87,9 +87,9 @@
 (doc (def heap-collect-force
   (op ()
     _
-    (def %hcf-before (heap-count))
+    (def %hcf-before (Heap count))
     (%heap-collect-prim)
-    (def %hcf-after (heap-count))
+    (def %hcf-after (Heap count))
     (set! %hc-last-allocs (alloc-count))
     (set! %hc-last-surviving %hcf-after)
     (- %hcf-before %hcf-after)))
@@ -119,7 +119,7 @@
     (%stderr " gc-runs=")  (%stderr (gc-runs-count))
     (%stderr " bst-hits=") (%stderr (bst-hits-count))
     (%stderr " bst-misses=") (%stderr (bst-misses-count))
-    (%stderr " heap=")     (%stderr (heap-count))
+    (%stderr " heap=")     (%stderr (Heap count))
     (%stderr "\n")))
   "Dump all profile counters to stderr.")
 

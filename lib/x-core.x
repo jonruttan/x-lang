@@ -62,7 +62,6 @@
   ; --- Standard modules ---
   (include "lib/x/core/predicates.x")
   (include "lib/x/core/control.x")
-  (include "lib/x/sys/gc.x")
 
   ; Type system internals (before doc, cannot use provide)
   (include "lib/x/sys/type.x")
@@ -86,9 +85,6 @@
 
   ; Tokenizer helpers
   (include "lib/x/sys/intrinsics.x")
-
-  ; POSIX wrappers (needed by REPL for fd swap on ctrl-c recovery)
-  (include "lib/x/sys/posix.x")
 
   ; Type extensions
   (include "lib/x/core/alist.x")
@@ -116,6 +112,13 @@
   ; Assoc: the association-list API (the Assoc class). core/alist.x keeps the
   ; bootstrap five the object system runs on; this class delegates to them.
   (include "lib/x/type/assoc.x")
+  ; Heap: GC control (the Heap class; methods fetch the C prims from the
+  ; catalog). Relocated from the early block -- the heap-* bare C names are
+  ; bound by registration regardless of where this module loads.
+  (include "lib/x/sys/gc.x")
+  ; Sys: POSIX wrappers (the Sys class). Relocated -- every caller (the REPL's
+  ; ctrl-c fd recovery, ansi, logo, tools) loads after the object system.
+  (include "lib/x/sys/posix.x")
   ; Vector: #() type machinery + the Vector class. Needs def-class; relocated past
   ; object.x from the early block -- nothing before it uses vectors or #() literals.
   (include "lib/x/type/vector.x")

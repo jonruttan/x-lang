@@ -676,8 +676,6 @@
   "Type predicates (null?, pair?, number?, str?, symbol?, char?, ...) built from C primitives.")
 (doc x/core/control
   "Core control flow: if and let, as operatives built on match.")
-(doc x/sys/gc
-  "Garbage collection control: trigger a collection and install mark/free/root hooks.")
 
 (doc (provide x/doc/doc-prims)
   "Retroactive documentation for C primitives, boot forms, and type system functions.")
