@@ -28,8 +28,8 @@
 ;            none    = no branches
 
 (
-  (def     (fmt . head-1)  (scope . bind)       (branch . none))
-  (set!     (fmt . head-1)  (scope . bind-set)    (branch . none))
+  (def     (fmt . head-1)  (scope . bind)        (branch . none))
+  (set!    (fmt . head-1)  (scope . bind-set)    (branch . none))
   (fn      (fmt . head-kw) (scope . params)      (branch . none))
   (op      (fmt . head-kw) (scope . params-env)  (branch . none))
   (if      (fmt . head-1)  (scope . none)        (branch . cond))
