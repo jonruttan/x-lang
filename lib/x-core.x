@@ -102,7 +102,6 @@
   (include "lib/x/type/str-utf8.x")
   ; UTF-8-aware CHARACTER write/display handlers (shadow the C byte fallback)
   (include "lib/x/type/char-io.x")
-  (include "lib/x/type/promise.x")
   (include "lib/x/type/object.x")
   ; Fn: function combinators (the Fn class). Moved here from the early core block
   ; -- it needs def-class, and nothing loaded before object.x references it.
@@ -110,6 +109,9 @@
   ; Num: integer math utilities + number predicates (the Num class). Relocated
   ; past object.x -- nothing loaded before the object system calls these.
   (include "lib/x/core/math.x")
+  ; Promise: the delay form + the Promise class. Relocated past object.x --
+  ; nothing loaded before the object system uses promises.
+  (include "lib/x/type/promise.x")
   ; Vector: #() type machinery + the Vector class. Needs def-class; relocated past
   ; object.x from the early block -- nothing before it uses vectors or #() literals.
   (include "lib/x/type/vector.x")

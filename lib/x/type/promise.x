@@ -2,20 +2,16 @@
 ;
 ; delay creates a promise that captures an expression and its environment.
 ; force evaluates the promise (once), caching the result for subsequent forces.
+; delay stays a global operative (a form); the operations home on the Promise
+; class. Loads after object.x (needs def-class); nothing earlier uses promises.
+
+(import x/type/object)
 
 (def %promise
   (make-type
     (lit PROMISE)
     (list
       (pair (lit write) (fn (_ _) (display "#<promise>"))))))
-
-(note "Predicates")
-
-(doc (def promise? (fn (_ (param x ANY "Value to test")) (type? x %promise)))
-  (returns BOOL "True if x is a promise")
-  "Test whether a value is a promise.")
-
-(note "Construction and evaluation")
 
 (doc (def delay
   (op (expr)
@@ -32,11 +28,18 @@
               val)))))))
   "Create a promise that delays evaluation of an expression until forced.")
 
-(doc (def force (fn (_ (param p ANY "Promise or value")) (if (promise? p) ((first p)) p)))
-  (returns ANY "The forced value, or p itself if not a promise")
-  "Force a promise, returning its cached value. Non-promises pass through.")
+(def-class Promise ()
+  (static
+    (method promise? (self (param x ANY "Value to test"))
+      (doc "Test whether a value is a promise." (returns BOOL "True if x is a promise"))
+      (type? x %promise))
+    (method force (self (param p ANY "Promise or value"))
+      (doc "Force a promise, returning its cached value. Non-promises pass through."
+        (returns ANY "The forced value, or p itself if not a promise")
+        (example "(Promise force (delay (+ 1 2)))" "3"))
+      (if (Promise promise? p) ((first p)) p))))
 
-(doc (provide x/type/promise promise? delay force)
+(doc (provide x/type/promise Promise delay)
   (note "Promises are memoized -- forced only once.")
-  (example "(force (delay (+ 1 2)))" "3")
-  "Lazy evaluation with delay/force.")
+  (example "(Promise force (delay (+ 1 2)))" "3")
+  "Lazy evaluation: the delay form plus the Promise class.")

@@ -5,7 +5,7 @@
 ### delay creates a promise
 
 ```x
-(promise? (delay 42))
+(Promise promise? (delay 42))
 ```
 ---
     #t
@@ -13,7 +13,7 @@
 ### non-promise values
 
 ```x
-(list (promise? 42) (promise? "hello") (promise? (fn (_ x) x)))
+(list (Promise promise? 42) (Promise promise? "hello") (Promise promise? (fn (_ x) x)))
 ```
 ---
     (#f #f #f)
@@ -23,7 +23,7 @@
 ### force evaluates delayed expression
 
 ```x
-(force (delay (+ 1 2)))
+(Promise force (delay (+ 1 2)))
 ```
 ---
     3
@@ -31,7 +31,7 @@
 ### force on non-promise returns value
 
 ```x
-(force 42)
+(Promise force 42)
 ```
 ---
     42
@@ -39,7 +39,7 @@
 ### force on list returns list
 
 ```x
-(force (list 1 2 3))
+(Promise force (list 1 2 3))
 ```
 ---
     (1 2 3)
@@ -51,7 +51,7 @@
 ```x
 (def count 0)
 (def p (delay (do (set! count (+ count 1)) count)))
-(list (force p) (force p) count)
+(list (Promise force p) (Promise force p) count)
 ```
 ---
     (1 1 1)
@@ -63,8 +63,8 @@
   (let ((p (delay (do (set! count (+ count 1)) count))))
     (let loop ((i 0))
       (if (= i 100)
-        (list (force p) count)
-        (do (force p) (loop (+ i 1)))))))
+        (list (Promise force p) count)
+        (do (Promise force p) (loop (+ i 1)))))))
 ```
 ---
     (1 1)
