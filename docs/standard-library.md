@@ -25,159 +25,161 @@ This document covers the core functions loaded by `lib/x.x` (the base x-lang dia
 
 ## 1. Functional Combinators
 
-### `identity`
-`(identity x) -> x`
+Homed on the `Fn` class — call as `(Fn <method> ...)`. To pass a combinator itself as a value, wrap it, e.g. `(method-ref Fn identity)`.
+
+### `Fn identity`
+`(Fn identity x) -> x`
 Returns its argument unchanged.
 ```
-(identity 42) -> 42
+(Fn identity 42) -> 42
 ```
 
-### `const`
-`(const x) -> (fn (y) x)`
+### `Fn const`
+`(Fn const x) -> (fn (y) x)`
 Returns a function that always returns `x`, ignoring its argument.
 ```
-((const 5) 99) -> 5
+((Fn const 5) 99) -> 5
 ```
 
-### `compose`
-`(compose f g) -> (fn (x) (f (g x)))`
+### `Fn compose`
+`(Fn compose f g) -> (fn (x) (f (g x)))`
 Returns a function that applies `g` then `f` (right-to-left composition).
 ```
-((compose inc inc) 3) -> 5
+((Fn compose (method-ref Num inc) (method-ref Num inc)) 3) -> 5
 ```
 
-### `pipe`
-`(pipe f g) -> (fn (x) (g (f x)))`
+### `Fn pipe`
+`(Fn pipe f g) -> (fn (x) (g (f x)))`
 Returns a function that applies `f` then `g` (left-to-right composition).
 ```
-((pipe inc inc) 3) -> 5
+((Fn pipe (method-ref Num inc) (method-ref Num inc)) 3) -> 5
 ```
 
-### `curry`
-`(curry f x) -> (fn (y) (f x y))`
+### `Fn curry`
+`(Fn curry f x) -> (fn (y) (f x y))`
 Partially applies a two-argument function by fixing its first argument.
 ```
-((curry + 10) 5) -> 15
+((Fn curry + 10) 5) -> 15
 ```
 
-### `flip`
-`(flip f) -> (fn (a b) (f b a))`
+### `Fn flip`
+`(Fn flip f) -> (fn (a b) (f b a))`
 Returns a function that calls `f` with its two arguments reversed.
 ```
-((flip -) 1 10) -> 9
+((Fn flip -) 1 10) -> 9
 ```
 
-### `tap`
-`(tap f) -> (fn (x) ...x)`
+### `Fn tap`
+`(Fn tap f) -> (fn (x) ...x)`
 Returns a function that applies `f` to its argument for side effects, then returns the argument.
 ```
-((tap print) 42) -> 42
+((Fn tap print) 42) -> 42
 ```
 
 ---
 
 ## 2. Math
 
-### `inc`
-`(inc n) -> number`
+### `Num inc`
+`(Num inc n) -> number`
 Increments a number by one.
 ```
-(inc 5) -> 6
+(Num inc 5) -> 6
 ```
 
-### `dec`
-`(dec n) -> number`
+### `Num dec`
+`(Num dec n) -> number`
 Decrements a number by one.
 ```
-(dec 5) -> 4
+(Num dec 5) -> 4
 ```
 
-### `negate`
-`(negate n) -> number`
+### `Num negate`
+`(Num negate n) -> number`
 Returns the arithmetic negation of a number.
 ```
-(negate 7) -> -7
+(Num negate 7) -> -7
 ```
 
-### `abs`
-`(abs n) -> number`
+### `Num abs`
+`(Num abs n) -> number`
 Returns the absolute value of a number.
 ```
-(abs -3) -> 3
+(Num abs -3) -> 3
 ```
 
-### `min`
-`(min a b) -> number`
+### `Num min`
+`(Num min a b) -> number`
 Returns the smaller of two numbers.
 ```
-(min 3 7) -> 3
+(Num min 3 7) -> 3
 ```
 
-### `max`
-`(max a b) -> number`
+### `Num max`
+`(Num max a b) -> number`
 Returns the larger of two numbers.
 ```
-(max 3 7) -> 7
+(Num max 3 7) -> 7
 ```
 
-### `clamp`
-`(clamp lo hi n) -> number`
+### `Num clamp`
+`(Num clamp lo hi n) -> number`
 Clamps a number to the inclusive range `[lo, hi]`.
 ```
-(clamp 0 10 15) -> 10
+(Num clamp 0 10 15) -> 10
 ```
 
-### `min-by`
-`(min-by f a b) -> a | b`
+### `Num min-by`
+`(Num min-by f a b) -> a | b`
 Returns whichever of `a` or `b` is smaller when compared by applying `f`.
 ```
-(min-by abs -5 3) -> 3
+(Num min-by (method-ref Num abs) -5 3) -> 3
 ```
 
-### `max-by`
-`(max-by f a b) -> a | b`
+### `Num max-by`
+`(Num max-by f a b) -> a | b`
 Returns whichever of `a` or `b` is larger when compared by applying `f`.
 ```
-(max-by abs -5 3) -> -5
+(Num max-by (method-ref Num abs) -5 3) -> -5
 ```
 
 ---
 
 ## 3. Number Predicates
 
-### `zero?`
-`(zero? n) -> boolean`
+### `Num zero?`
+`(Num zero? n) -> boolean`
 Returns `#t` if the number is zero.
 ```
-(zero? 0) -> #t
+(Num zero? 0) -> #t
 ```
 
-### `positive?`
-`(positive? n) -> boolean`
+### `Num positive?`
+`(Num positive? n) -> boolean`
 Returns `#t` if the number is greater than zero.
 ```
-(positive? 5) -> #t
+(Num positive? 5) -> #t
 ```
 
-### `negative?`
-`(negative? n) -> boolean`
+### `Num negative?`
+`(Num negative? n) -> boolean`
 Returns `#t` if the number is less than zero.
 ```
-(negative? -3) -> #t
+(Num negative? -3) -> #t
 ```
 
-### `even?`
-`(even? n) -> boolean`
+### `Num even?`
+`(Num even? n) -> boolean`
 Returns `#t` if the number is even.
 ```
-(even? 4) -> #t
+(Num even? 4) -> #t
 ```
 
-### `odd?`
-`(odd? n) -> boolean`
+### `Num odd?`
+`(Num odd? n) -> boolean`
 Returns `#t` if the number is odd.
 ```
-(odd? 3) -> #t
+(Num odd? 3) -> #t
 ```
 
 ---
@@ -186,23 +188,23 @@ Returns `#t` if the number is odd.
 
 ### `boolean?`
 `(boolean? x) -> boolean`
-Returns `#t` if `x` is `#t` or `()` (the two canonical boolean values).
+Returns `#t` if `x` is `#t` or `#f`.
 ```
 (boolean? #t) -> #t
 ```
 
-### `default-to`
-`(default-to d x) -> x | d`
+### `Fn default-to`
+`(Fn default-to d x) -> x | d`
 Returns `x` unless it is nil, in which case returns the default value `d`.
 ```
-(default-to 0 ()) -> 0
+(Fn default-to 0 ()) -> 0
 ```
 
-### `until`
-`(until pred f x) -> value`
+### `Fn until`
+`(Fn until pred f x) -> value`
 Repeatedly applies `f` to `x` until `pred` returns true, then returns the value.
 ```
-(until (fn (n) (> n 10)) inc 1) -> 11
+(Fn until (fn (_ n) (> n 10)) (method-ref Num inc) 1) -> 11
 ```
 
 ### `equal?`
@@ -223,18 +225,18 @@ Left fold: reduces a list to a single value by applying `f` to the accumulator a
 (fold + 0 (list 1 2 3)) -> 6
 ```
 
-### `reduce`
-`(reduce f lst) -> value`
+### `List reduce`
+`(List reduce f lst) -> value`
 Left fold using the first element as the initial accumulator.
 ```
-(reduce + (list 1 2 3)) -> 6
+(List reduce + (list 1 2 3)) -> 6
 ```
 
-### `scan`
-`(scan f init lst) -> list`
+### `List scan`
+`(List scan f init lst) -> list`
 Like `fold`, but collects all intermediate accumulator values into a list.
 ```
-(scan + 0 (list 1 2 3)) -> (0 1 3 6)
+(List scan + 0 (list 1 2 3)) -> (0 1 3 6)
 ```
 
 ---
@@ -248,25 +250,25 @@ Returns the number of elements in a list.
 (length (list 1 2 3)) -> 3
 ```
 
-### `nth`
-`(nth n lst) -> value`
+### `List nth`
+`(List nth n lst) -> value`
 Returns the element at zero-based index `n`.
 ```
-(nth 1 (list 10 20 30)) -> 20
+(List nth 1 (list 10 20 30)) -> 20
 ```
 
-### `last`
-`(last lst) -> value`
+### `List last`
+`(List last lst) -> value`
 Returns the last element of a list.
 ```
-(last (list 1 2 3)) -> 3
+(List last (list 1 2 3)) -> 3
 ```
 
-### `init`
-`(init lst) -> list`
+### `List init`
+`(List init lst) -> list`
 Returns all elements except the last.
 ```
-(init (list 1 2 3)) -> (1 2)
+(List init (list 1 2 3)) -> (1 2)
 ```
 
 ### `append`
@@ -276,11 +278,11 @@ Concatenates two lists.
 (append (list 1 2) (list 3 4)) -> (1 2 3 4)
 ```
 
-### `prepend`
-`(prepend x lst) -> list`
+### `List prepend`
+`(List prepend x lst) -> list`
 Adds an element to the front of a list.
 ```
-(prepend 0 (list 1 2)) -> (0 1 2)
+(List prepend 0 (list 1 2)) -> (0 1 2)
 ```
 
 ### `reverse`
@@ -290,11 +292,11 @@ Returns a list with elements in reverse order.
 (reverse (list 1 2 3)) -> (3 2 1)
 ```
 
-### `flatten`
-`(flatten lst) -> list`
+### `List flatten`
+`(List flatten lst) -> list`
 Recursively flattens nested lists into a single flat list.
 ```
-(flatten (list 1 (list 2 (list 3)))) -> (1 2 3)
+(List flatten (list 1 (list 2 (list 3)))) -> (1 2 3)
 ```
 
 ---
@@ -305,14 +307,14 @@ Recursively flattens nested lists into a single flat list.
 `(map f lst) -> list`
 Applies `f` to each element and returns a list of results.
 ```
-(map inc (list 1 2 3)) -> (2 3 4)
+(map (method-ref Num inc) (list 1 2 3)) -> (2 3 4)
 ```
 
 ### `filter`
 `(filter pred lst) -> list`
 Returns a list of elements for which `pred` returns true.
 ```
-(filter even? (list 1 2 3 4)) -> (2 4)
+(filter (method-ref Num even?) (list 1 2 3 4)) -> (2 4)
 ```
 
 ### `for-each`
@@ -322,350 +324,350 @@ Applies `f` to each element for side effects only.
 (for-each print (list 1 2 3)) -> ()
 ```
 
-### `flat-map`
-`(flat-map f lst) -> list`
+### `List flat-map`
+`(List flat-map f lst) -> list`
 Maps `f` over the list and flattens one level of nesting from the results.
 ```
-(flat-map (fn (x) (list x x)) (list 1 2)) -> (1 1 2 2)
+(List flat-map (fn (x) (list x x)) (list 1 2)) -> (1 1 2 2)
 ```
 
 ---
 
 ## 8. List Predicates
 
-### `any?`
-`(any? pred lst) -> boolean`
+### `List any?`
+`(List any? pred lst) -> boolean`
 Returns `#t` if `pred` is true for at least one element.
 ```
-(any? even? (list 1 3 4)) -> #t
+(List any? even? (list 1 3 4)) -> #t
 ```
 
-### `every?`
-`(every? pred lst) -> boolean`
+### `List every?`
+`(List every? pred lst) -> boolean`
 Returns `#t` if `pred` is true for all elements.
 ```
-(every? even? (list 2 4 6)) -> #t
+(List every? even? (list 2 4 6)) -> #t
 ```
 
-### `none?`
-`(none? pred lst) -> boolean`
+### `List none?`
+`(List none? pred lst) -> boolean`
 Returns `#t` if `pred` is false for all elements.
 ```
-(none? even? (list 1 3 5)) -> #t
+(List none? even? (list 1 3 5)) -> #t
 ```
 
-### `empty?`
-`(empty? lst) -> boolean`
+### `List empty?`
+`(List empty? lst) -> boolean`
 Returns `#t` if the list is nil.
 ```
-(empty? ()) -> #t
+(List empty? ()) -> #t
 ```
 
 ---
 
 ## 9. Higher-Order Combinators
 
-### `complement`
-`(complement pred) -> function`
+### `List complement`
+`(List complement pred) -> function`
 Returns a function that negates the result of `pred`.
 ```
-((complement even?) 3) -> #t
+((List complement even?) 3) -> #t
 ```
 
-### `partial`
-`(partial f . bound) -> function`
+### `List partial`
+`(List partial f . bound) -> function`
 Returns a function with the leading arguments of `f` pre-filled.
 ```
-((partial + 10) 5) -> 15
+((List partial + 10) 5) -> 15
 ```
 
-### `juxt`
-`(juxt . fns) -> function`
+### `List juxt`
+`(List juxt . fns) -> function`
 Returns a function that applies each of `fns` to its arguments and collects the results in a list.
 ```
-((juxt inc dec) 5) -> (6 4)
+((List juxt (method-ref Num inc) (method-ref Num dec)) 5) -> (6 4)
 ```
 
-### `both`
-`(both f g) -> function`
+### `List both`
+`(List both f g) -> function`
 Returns a predicate that is true when both `f` and `g` return true.
 ```
-((both positive? even?) 4) -> #t
+((List both positive? even?) 4) -> #t
 ```
 
-### `either`
-`(either f g) -> function`
+### `List either`
+`(List either f g) -> function`
 Returns a predicate that is true when either `f` or `g` returns true.
 ```
-((either positive? even?) -2) -> #t
+((List either positive? even?) -2) -> #t
 ```
 
-### `all-pass`
-`(all-pass preds) -> function`
+### `List all-pass`
+`(List all-pass preds) -> function`
 Returns a predicate that is true when all predicates in the list pass.
 ```
-((all-pass (list positive? even?)) 4) -> #t
+((List all-pass (list positive? even?)) 4) -> #t
 ```
 
-### `any-pass`
-`(any-pass preds) -> function`
+### `List any-pass`
+`(List any-pass preds) -> function`
 Returns a predicate that is true when any predicate in the list passes.
 ```
-((any-pass (list positive? even?)) -2) -> #t
+((List any-pass (list positive? even?)) -2) -> #t
 ```
 
-### `reject`
-`(reject pred lst) -> list`
-Returns elements for which `pred` is false (complement of `filter`).
+### `List reject`
+`(List reject pred lst) -> list`
+Returns elements for which `pred` is false (List complement of `filter`).
 ```
-(reject even? (list 1 2 3 4)) -> (1 3)
+(List reject even? (list 1 2 3 4)) -> (1 3)
 ```
 
-### `concat`
-`(concat . lsts) -> list`
+### `List concat`
+`(List concat . lsts) -> list`
 Concatenates zero or more lists into one.
 ```
-(concat (list 1 2) (list 3) (list 4 5)) -> (1 2 3 4 5)
+(List concat (list 1 2) (list 3) (list 4 5)) -> (1 2 3 4 5)
 ```
 
-### `sum`
-`(sum lst) -> number`
+### `List sum`
+`(List sum lst) -> number`
 Returns the sum of all numbers in a list.
 ```
-(sum (list 1 2 3)) -> 6
+(List sum (list 1 2 3)) -> 6
 ```
 
-### `product`
-`(product lst) -> number`
+### `List product`
+`(List product lst) -> number`
 Returns the product of all numbers in a list.
 ```
-(product (list 2 3 4)) -> 24
+(List product (list 2 3 4)) -> 24
 ```
 
 ---
 
 ## 10. List Search
 
-### `find`
-`(find pred lst) -> value | ()`
+### `List find`
+`(List find pred lst) -> value | ()`
 Returns the first element matching `pred`, or `()` if none found.
 ```
-(find even? (list 1 3 4 6)) -> 4
+(List find even? (list 1 3 4 6)) -> 4
 ```
 
-### `find-index`
-`(find-index pred lst) -> number`
+### `List find-index`
+`(List find-index pred lst) -> number`
 Returns the zero-based index of the first element matching `pred`, or `-1` if none found.
 ```
-(find-index even? (list 1 3 4)) -> 2
+(List find-index even? (list 1 3 4)) -> 2
 ```
 
-### `index-of`
-`(index-of x lst) -> number`
+### `List index-of`
+`(List index-of x lst) -> number`
 Returns the zero-based index of the first element equal to `x`, or `-1` if not found.
 ```
-(index-of 3 (list 1 2 3 4)) -> 2
+(List index-of 3 (list 1 2 3 4)) -> 2
 ```
 
-### `includes?`
-`(includes? x lst) -> boolean`
+### `List includes?`
+`(List includes? x lst) -> boolean`
 Returns `#t` if `x` is found in the list using structural equality.
 ```
-(includes? 3 (list 1 2 3)) -> #t
+(List includes? 3 (list 1 2 3)) -> #t
 ```
 
-### `count`
-`(count pred lst) -> number`
+### `List count`
+`(List count pred lst) -> number`
 Returns the number of elements for which `pred` returns true.
 ```
-(count even? (list 1 2 3 4)) -> 2
+(List count even? (list 1 2 3 4)) -> 2
 ```
 
 ---
 
 ## 11. List Slicing
 
-### `take`
-`(take n lst) -> list`
+### `List take`
+`(List take n lst) -> list`
 Returns the first `n` elements of a list.
 ```
-(take 2 (list 1 2 3 4)) -> (1 2)
+(List take 2 (list 1 2 3 4)) -> (1 2)
 ```
 
-### `drop`
-`(drop n lst) -> list`
+### `List drop`
+`(List drop n lst) -> list`
 Returns the list with the first `n` elements removed.
 ```
-(drop 2 (list 1 2 3 4)) -> (3 4)
+(List drop 2 (list 1 2 3 4)) -> (3 4)
 ```
 
-### `take-while`
-`(take-while pred lst) -> list`
+### `List take-while`
+`(List take-while pred lst) -> list`
 Returns the longest prefix of elements for which `pred` holds.
 ```
-(take-while odd? (list 1 3 4 5)) -> (1 3)
+(List take-while odd? (list 1 3 4 5)) -> (1 3)
 ```
 
-### `drop-while`
-`(drop-while pred lst) -> list`
+### `List drop-while`
+`(List drop-while pred lst) -> list`
 Drops the longest prefix of elements for which `pred` holds.
 ```
-(drop-while odd? (list 1 3 4 5)) -> (4 5)
+(List drop-while odd? (list 1 3 4 5)) -> (4 5)
 ```
 
-### `split-at`
-`(split-at n lst) -> (list list)`
+### `List split-at`
+`(List split-at n lst) -> (list list)`
 Splits a list at index `n`, returning a pair of the taken and dropped portions.
 ```
-(split-at 2 (list 1 2 3 4)) -> ((1 2) (3 4))
+(List split-at 2 (list 1 2 3 4)) -> ((1 2) (3 4))
 ```
 
-### `slice`
-`(slice start end lst) -> list`
+### `List slice`
+`(List slice start end lst) -> list`
 Returns elements from index `start` up to (but not including) `end`.
 ```
-(slice 1 3 (list 10 20 30 40)) -> (20 30)
+(List slice 1 3 (list 10 20 30 40)) -> (20 30)
 ```
 
 ---
 
 ## 12. List Generators
 
-### `range`
-`(range start end) -> list`
+### `List range`
+`(List range start end) -> list`
 Generates a list of integers from `start` up to (but not including) `end`.
 ```
-(range 0 5) -> (0 1 2 3 4)
+(List range 0 5) -> (0 1 2 3 4)
 ```
 
-### `repeat`
-`(repeat x n) -> list`
+### `List repeat`
+`(List repeat x n) -> list`
 Returns a list containing `x` repeated `n` times.
 ```
-(repeat 0 3) -> (0 0 0)
+(List repeat 0 3) -> (0 0 0)
 ```
 
-### `times`
-`(times f n) -> list`
+### `List times`
+`(List times f n) -> list`
 Calls `f` with each index from `0` to `n-1` and collects the results.
 ```
-(times identity 4) -> (0 1 2 3)
+(List times (method-ref Fn identity) 4) -> (0 1 2 3)
 ```
 
-### `unfold`
-`(unfold pred f g seed) -> list`
+### `List unfold`
+`(List unfold pred f g seed) -> list`
 Builds a list by repeatedly applying `f` (value) and `g` (next seed) until `pred` returns true.
 ```
-(unfold (fn (x) (> x 3)) identity inc 1) -> (1 2 3)
+(List unfold (fn (_ x) (> x 3)) (method-ref Fn identity) (method-ref Num inc) 1) -> (1 2 3)
 ```
 
-### `iterate`
-`(iterate f n x) -> list`
+### `List iterate`
+`(List iterate f n x) -> list`
 Returns a list of `n` values starting with `x`, each subsequent value produced by applying `f`.
 ```
-(iterate inc 4 0) -> (0 1 2 3)
+(List iterate (method-ref Num inc) 4 0) -> (0 1 2 3)
 ```
 
-### `zip`
-`(zip a b) -> list`
+### `List zip`
+`(List zip a b) -> list`
 Pairs corresponding elements from two lists into a list of two-element lists.
 ```
-(zip (list 1 2 3) (list 4 5 6)) -> ((1 4) (2 5) (3 6))
+(List zip (list 1 2 3) (list 4 5 6)) -> ((1 4) (2 5) (3 6))
 ```
 
-### `zip-with`
-`(zip-with f a b) -> list`
+### `List zip-with`
+`(List zip-with f a b) -> list`
 Combines corresponding elements from two lists using `f`.
 ```
-(zip-with + (list 1 2 3) (list 10 20 30)) -> (11 22 33)
+(List zip-with + (list 1 2 3) (list 10 20 30)) -> (11 22 33)
 ```
 
 ---
 
 ## 13. List Transformation
 
-### `partition`
-`(partition pred lst) -> (list list)`
+### `List partition`
+`(List partition pred lst) -> (list list)`
 Splits a list into two lists: elements satisfying `pred` and elements that do not.
 ```
-(partition even? (list 1 2 3 4)) -> ((2 4) (1 3))
+(List partition even? (list 1 2 3 4)) -> ((2 4) (1 3))
 ```
 
-### `group-by`
-`(group-by f lst) -> alist`
+### `List group-by`
+`(List group-by f lst) -> alist`
 Groups elements into an association list keyed by the result of applying `f`.
 ```
-(group-by even? (list 1 2 3 4)) -> ((() 1 3) (#t 2 4))
+(List group-by even? (list 1 2 3 4)) -> ((() 1 3) (#t 2 4))
 ```
 
-### `sort`
-`(sort cmp lst) -> list`
+### `List sort`
+`(List sort cmp lst) -> list`
 Sorts a list using merge sort, where `cmp` is a two-argument comparison predicate.
 ```
-(sort < (list 3 1 2)) -> (1 2 3)
+(List sort < (list 3 1 2)) -> (1 2 3)
 ```
 
-### `sort-by`
-`(sort-by f lst) -> list`
+### `List sort-by`
+`(List sort-by f lst) -> list`
 Sorts a list by comparing the results of applying `f` to each element.
 ```
-(sort-by abs (list -3 1 -2)) -> (1 -2 -3)
+(List sort-by (method-ref Num abs) (list -3 1 -2)) -> (1 -2 -3)
 ```
 
-### `uniq`
-`(uniq lst) -> list`
+### `List uniq`
+`(List uniq lst) -> list`
 Removes consecutive duplicate elements (the list should be sorted for full deduplication).
 ```
-(uniq (list 1 1 2 2 3)) -> (1 2 3)
+(List uniq (list 1 1 2 2 3)) -> (1 2 3)
 ```
 
-### `uniq-by`
-`(uniq-by f lst) -> list`
+### `List uniq-by`
+`(List uniq-by f lst) -> list`
 Removes consecutive elements that are equal after applying `f`.
 ```
-(uniq-by abs (list 1 -1 2 -2 3)) -> (1 2 3)
+(List uniq-by (method-ref Num abs) (list 1 -1 2 -2 3)) -> (1 2 3)
 ```
 
-### `intersperse`
-`(intersperse sep lst) -> list`
+### `List intersperse`
+`(List intersperse sep lst) -> list`
 Inserts `sep` between every pair of adjacent elements.
 ```
-(intersperse 0 (list 1 2 3)) -> (1 0 2 0 3)
+(List intersperse 0 (list 1 2 3)) -> (1 0 2 0 3)
 ```
 
-### `transpose`
-`(transpose lsts) -> list`
+### `List transpose`
+`(List transpose lsts) -> list`
 Transposes a list of lists (swaps rows and columns).
 ```
-(transpose (list (list 1 2) (list 3 4))) -> ((1 3) (2 4))
+(List transpose (list (list 1 2) (list 3 4))) -> ((1 3) (2 4))
 ```
 
-### `update`
-`(update n val lst) -> list`
+### `List update`
+`(List update n val lst) -> list`
 Returns a new list with the element at index `n` replaced by `val`.
 ```
-(update 1 99 (list 1 2 3)) -> (1 99 3)
+(List update 1 99 (list 1 2 3)) -> (1 99 3)
 ```
 
-### `insert`
-`(insert n val lst) -> list`
+### `List insert`
+`(List insert n val lst) -> list`
 Returns a new list with `val` inserted at index `n`.
 ```
-(insert 1 99 (list 1 2 3)) -> (1 99 2 3)
+(List insert 1 99 (list 1 2 3)) -> (1 99 2 3)
 ```
 
-### `remove`
-`(remove start n lst) -> list`
+### `List remove`
+`(List remove start n lst) -> list`
 Returns a new list with `n` elements removed starting at index `start`.
 ```
-(remove 1 2 (list 1 2 3 4)) -> (1 4)
+(List remove 1 2 (list 1 2 3 4)) -> (1 4)
 ```
 
-### `adjust`
-`(adjust n f lst) -> list`
+### `List adjust`
+`(List adjust n f lst) -> list`
 Returns a new list with the element at index `n` transformed by `f`.
 ```
-(adjust 1 inc (list 10 20 30)) -> (10 21 30)
+(List adjust 1 (method-ref Num inc) (list 10 20 30)) -> (10 21 30)
 ```
 
 ---
@@ -674,217 +676,217 @@ Returns a new list with the element at index `n` transformed by `f`.
 
 Association lists (alists) are lists of pairs `((key . val) ...)` where keys are compared with `eq?` (symbol/pointer equality).
 
-### `aget`
-`(aget key alist) -> value | ()`
+### `assoc-get`
+`(assoc-get key alist) -> value | ()`
 Looks up `key` in the alist, returning its value or `()` if not found.
 ```
-(aget 'b (list (pair 'a 1) (pair 'b 2))) -> 2
+(assoc-get 'b (list (pair 'a 1) (pair 'b 2))) -> 2
 ```
 
-### `aget-or`
-`(aget-or d key alist) -> value`
-Like `aget`, but returns default `d` if the key is not found.
+### `Assoc get-or`
+`(Assoc get-or d key alist) -> value`
+Like `assoc-get`, but returns default `d` if the key is not found.
 ```
-(aget-or 0 'z (list (pair 'a 1))) -> 0
+(Assoc get-or 0 'z (list (pair 'a 1))) -> 0
 ```
 
-### `ahas?`
-`(ahas? key alist) -> boolean`
+### `assoc-has?`
+`(assoc-has? key alist) -> boolean`
 Returns `#t` if the alist contains an entry for `key`.
 ```
-(ahas? 'a (list (pair 'a 1))) -> #t
+(assoc-has? 'a (list (pair 'a 1))) -> #t
 ```
 
-### `adel`
-`(adel key alist) -> alist`
+### `assoc-del`
+`(assoc-del key alist) -> alist`
 Returns a new alist with all entries for `key` removed.
 ```
-(adel 'a (list (pair 'a 1) (pair 'b 2))) -> ((b . 2))
+(assoc-del 'a (list (pair 'a 1) (pair 'b 2))) -> ((b . 2))
 ```
 
-### `aset`
-`(aset key val alist) -> alist`
+### `assoc-put`
+`(assoc-put key val alist) -> alist`
 Sets `key` to `val` in the alist, replacing any existing entry for that key.
 ```
-(aset 'a 99 (list (pair 'a 1) (pair 'b 2))) -> ((a . 99) (b . 2))
+(assoc-put 'a 99 (list (pair 'a 1) (pair 'b 2))) -> ((a . 99) (b . 2))
 ```
 
-### `akeys`
-`(akeys alist) -> list`
+### `assoc-keys`
+`(assoc-keys alist) -> list`
 Returns a list of all keys in the alist.
 ```
-(akeys (list (pair 'a 1) (pair 'b 2))) -> (a b)
+(assoc-keys (list (pair 'a 1) (pair 'b 2))) -> (a b)
 ```
 
-### `avals`
-`(avals alist) -> list`
+### `Assoc vals`
+`(Assoc vals alist) -> list`
 Returns a list of all values in the alist.
 ```
-(avals (list (pair 'a 1) (pair 'b 2))) -> (1 2)
+(Assoc vals (list (pair 'a 1) (pair 'b 2))) -> (1 2)
 ```
 
-### `amap`
-`(amap f alist) -> alist`
+### `Assoc map`
+`(Assoc map f alist) -> alist`
 Applies `f` to each value in the alist, preserving keys.
 ```
-(amap inc (list (pair 'a 1) (pair 'b 2))) -> ((a . 2) (b . 3))
+(Assoc map (method-ref Num inc) (list (pair 'a 1) (pair 'b 2))) -> ((a . 2) (b . 3))
 ```
 
-### `afilter`
-`(afilter pred alist) -> alist`
+### `Assoc filter`
+`(Assoc filter pred alist) -> alist`
 Filters alist entries by a predicate applied to each `(key . val)` pair.
 ```
-(afilter (fn (e) (> (rest e) 1)) (list (pair 'a 1) (pair 'b 2))) -> ((b . 2))
+(Assoc filter (fn (_ e) (> (rest e) 1)) (list (pair 'a 1) (pair 'b 2))) -> ((b . 2))
 ```
 
-### `amerge`
-`(amerge a b) -> alist`
+### `Assoc merge`
+`(Assoc merge a b) -> alist`
 Merges alist `b` into `a`, keeping entries from `a` when keys collide.
 ```
-(amerge (list (pair 'a 1)) (list (pair 'a 9) (pair 'b 2))) -> ((a . 1) (b . 2))
+(Assoc merge (list (pair 'a 1)) (list (pair 'a 9) (pair 'b 2))) -> ((a . 1) (b . 2))
 ```
 
-### `apick`
-`(apick keys alist) -> alist`
+### `Assoc pick`
+`(Assoc pick keys alist) -> alist`
 Returns only the entries whose keys appear in the `keys` list.
 ```
-(apick (list 'a) (list (pair 'a 1) (pair 'b 2))) -> ((a . 1))
+(Assoc pick (list 'a) (list (pair 'a 1) (pair 'b 2))) -> ((a . 1))
 ```
 
-### `aomit`
-`(aomit keys alist) -> alist`
+### `Assoc omit`
+`(Assoc omit keys alist) -> alist`
 Returns the alist with entries for the given keys removed.
 ```
-(aomit (list 'a) (list (pair 'a 1) (pair 'b 2))) -> ((b . 2))
+(Assoc omit (list 'a) (list (pair 'a 1) (pair 'b 2))) -> ((b . 2))
 ```
 
-### `from-pairs`
-`(from-pairs lst) -> alist`
+### `Assoc from-pairs`
+`(Assoc from-pairs lst) -> alist`
 Converts a list of two-element lists into an alist of dotted pairs.
 ```
-(from-pairs (list (list 'a 1) (list 'b 2))) -> ((a . 1) (b . 2))
+(Assoc from-pairs (list (list 'a 1) (list 'b 2))) -> ((a . 1) (b . 2))
 ```
 
-### `to-pairs`
-`(to-pairs alist) -> list`
+### `Assoc to-pairs`
+`(Assoc to-pairs alist) -> list`
 Converts an alist of dotted pairs into a list of two-element lists.
 ```
-(to-pairs (list (pair 'a 1) (pair 'b 2))) -> ((a 1) (b 2))
+(Assoc to-pairs (list (pair 'a 1) (pair 'b 2))) -> ((a 1) (b 2))
 ```
 
-### `evolve`
-`(evolve fns alist) -> alist`
+### `Assoc evolve`
+`(Assoc evolve fns alist) -> alist`
 Applies transformation functions from the `fns` alist to matching keys in the data alist.
 ```
-(evolve (list (pair 'a inc)) (list (pair 'a 1) (pair 'b 2))) -> ((a . 2) (b . 2))
+(Assoc evolve (list (pair 'a (method-ref Num inc))) (list (pair 'a 1) (pair 'b 2))) -> ((a . 2) (b . 2))
 ```
 
 ---
 
 ## 15. String Utilities
 
-### `string-empty?`
-`(string-empty? s) -> boolean`
+### `Str empty?`
+`(Str empty? s) -> boolean`
 Returns `#t` if the string has zero length.
 ```
-(string-empty? "") -> #t
+(Str empty? "") -> #t
 ```
 
-### `string-join`
-`(string-join sep lst) -> string`
+### `Str join`
+`(Str join sep lst) -> string`
 Joins a list of strings with `sep` between each pair.
 ```
-(string-join ", " (list "a" "b" "c")) -> "a, b, c"
+(Str join ", " (list "a" "b" "c")) -> "a, b, c"
 ```
 
-### `string-repeat`
-`(string-repeat s n) -> string`
+### `Str repeat`
+`(Str repeat s n) -> string`
 Returns the string `s` repeated `n` times.
 ```
-(string-repeat "ab" 3) -> "ababab"
+(Str repeat "ab" 3) -> "ababab"
 ```
 
-### `string-contains?`
-`(string-contains? sub s) -> boolean`
+### `Str contains?`
+`(Str contains? sub s) -> boolean`
 Returns `#t` if `sub` is found anywhere within `s`.
 ```
-(string-contains? "ell" "hello") -> #t
+(Str contains? "ell" "hello") -> #t
 ```
 
-### `string-starts?`
-`(string-starts? pfx s) -> boolean`
+### `Str starts?`
+`(Str starts? pfx s) -> boolean`
 Returns `#t` if `s` starts with the prefix `pfx`.
 ```
-(string-starts? "he" "hello") -> #t
+(Str starts? "he" "hello") -> #t
 ```
 
-### `string-ends?`
-`(string-ends? sfx s) -> boolean`
+### `Str ends?`
+`(Str ends? sfx s) -> boolean`
 Returns `#t` if `s` ends with the suffix `sfx`.
 ```
-(string-ends? "lo" "hello") -> #t
+(Str ends? "lo" "hello") -> #t
 ```
 
-### `string-reverse`
-`(string-reverse s) -> string`
+### `Str reverse`
+`(Str reverse s) -> string`
 Returns the string with characters in reverse order.
 ```
-(string-reverse "hello") -> "olleh"
+(Str reverse "hello") -> "olleh"
 ```
 
 ---
 
 ## 16. Vectors
 
-Vectors are fixed-size, indexed collections backed by lists, created via the `make-type` mechanism. They display as `#(...)`.
+Vectors are fixed-size, indexed collections backed by lists, created via the `make-type` mechanism. They display as `#(...)`. Operations are homed on the `Vector` class (the `#(...)` literal reader and negative-index `(v i)` access are unchanged).
 
-### `vector`
-`(vector . args) -> vector`
+### `Vector of`
+`(Vector of . args) -> vector`
 Creates a new vector from the given arguments.
 ```
-(vector 1 2 3) -> #(1 2 3)
+(Vector of 1 2 3) -> #(1 2 3)
 ```
 
-### `vector?`
-`(vector? x) -> boolean`
+### `Vector vector?`
+`(Vector vector? x) -> boolean`
 Returns `#t` if `x` is a vector.
 ```
-(vector? (vector 1 2)) -> #t
+(Vector vector? (Vector of 1 2)) -> #t
 ```
 
-### `vector-ref`
-`(vector-ref v i) -> value`
+### `Vector ref`
+`(Vector ref v i) -> value`
 Returns the element at zero-based index `i` from vector `v`.
 ```
-(vector-ref (vector 10 20 30) 1) -> 20
+(Vector ref (Vector of 10 20 30) 1) -> 20
 ```
 
-### `vector-length`
-`(vector-length v) -> number`
+### `Vector length`
+`(Vector length v) -> number`
 Returns the number of elements in the vector.
 ```
-(vector-length (vector 1 2 3)) -> 3
+(Vector length (Vector of 1 2 3)) -> 3
 ```
 
-### `vector->list`
-`(vector->list v) -> list`
+### `Vector ->list`
+`(Vector ->list v) -> list`
 Converts a vector to a list.
 ```
-(vector->list (vector 1 2 3)) -> (1 2 3)
+(Vector ->list (Vector of 1 2 3)) -> (1 2 3)
 ```
 
-### `list->vector`
-`(list->vector lst) -> vector`
+### `Vector from-list`
+`(Vector from-list lst) -> vector`
 Converts a list to a vector.
 ```
-(list->vector (list 1 2 3)) -> #(1 2 3)
+(Vector from-list (list 1 2 3)) -> #(1 2 3)
 ```
 
-### `make-vector`
-`(make-vector n fill) -> vector`
+### `Vector make`
+`(Vector make n fill) -> vector`
 Creates a vector of length `n` with every element set to `fill`.
 ```
-(make-vector 3 0) -> #(0 0 0)
+(Vector make 3 0) -> #(0 0 0)
 ```
 
 ## 17. Objects
@@ -903,7 +905,7 @@ See the [Object System](object-system.md) guide for the full walkthrough.
 Defines a class bound to `name`. `parent` is `()` for none, or `(extends Class)`
 for single inheritance. Names are literal (`def-class` is an operative). Members are
 declared directly (no wrapper) as `name`, `(name default)`, or `(name default "desc")`;
-a `method`-headed form is a method. An optional `(static (member val)... (method ...)...)`
+a `method`-headed form is a method. An optional `(static (List member val)... (method ...)...)`
 block adds class-wide members and static methods (inherited by subclasses; `self` is
 the class inside them).
 ```
@@ -977,44 +979,44 @@ Returns `#t` if `inst` is an instance of `class` or any of its subclasses.
 
 ## 18. Iterators
 
-Lazy traversal of sequences. `(iter seq)` builds an iterator over a list, vector, string, or `def-class` instance; drive it with `iter-next` / `iter-empty?`, or consume it with the helpers below. Build a custom iterator from any step logic with `make-iter`. An iterator is `[step-fn . state]`: `iter-next` calls `(step it)`, which reads the current item from the state, advances it, and returns the item; the state becoming `()` marks exhaustion.
+Lazy traversal of sequences, homed on the `Iter` class. `(Iter new seq)` builds an iterator over a list, vector, string, or `def-class` instance; drive it with `(Iter next it)` / `(Iter empty? it)`, or consume it with the methods below. Build a custom iterator from any step logic with `(Iter make step state)`. An iterator is `[step-fn . state]`: `Iter next` calls `(step it)`, which reads the current item from the state, advances it, and returns the item; the state becoming `()` marks exhaustion.
 
-### `iter`
-`(iter seq) -> iterator`
+### `Iter new`
+`(Iter new seq) -> iterator`
 Builds an iterator over an iterable — a list, vector, string, or class instance (instances yield `(name . value)` pairs). The empty list yields an empty iterator.
 ```
-(iter->list (iter (vector 1 2 3))) -> (1 2 3)
+(Iter ->list (Iter new (Vector of 1 2 3))) -> (1 2 3)
 ```
 
-### `make-iter`
-`(make-iter step state) -> iterator`
+### `Iter make`
+`(Iter make step state) -> iterator`
 Builds an iterator from a step function `(fn (self it) ...)` and an initial state. The step reads the current item from the iterator's state, advances it (e.g. with `set-rest!`), and returns the item; a `()` state means exhausted.
 
-### `iter-next`
-`(iter-next it) -> element`
-Advances an iterator, returning its next element. (Check `iter-empty?` first.)
+### `Iter next`
+`(Iter next it) -> element`
+Advances an iterator, returning its next element. (Check `Iter empty?` first.)
 
-### `iter-empty?`
-`(iter-empty? it) -> bool`
+### `Iter empty?`
+`(Iter empty? it) -> bool`
 Reports whether an iterator is exhausted.
 ```
-(do (def it (iter (list 1))) (def a (iter-empty? it)) (iter-next it) (list a (iter-empty? it))) -> (#f #t)
+(do (def it (Iter new (list 1))) (def a (Iter empty? it)) (Iter next it) (list a (Iter empty? it))) -> (#f #t)
 ```
 
-### `iter->list`
-`(iter->list it) -> list`
+### `Iter ->list`
+`(Iter ->list it) -> list`
 Drains an iterator into a list.
 ```
-(iter->list (iter "abc")) -> (#\a #\b #\c)
+(Iter ->list (Iter new "abc")) -> (#\a #\b #\c)
 ```
 
-### `iter-for-each`
-`(iter-for-each f it) -> ()`
+### `Iter for-each`
+`(Iter for-each f it) -> ()`
 Applies `f` to each remaining element, for side effects.
 
-### `iter-fold`
-`(iter-fold f acc it) -> acc`
+### `Iter fold`
+`(Iter fold f acc it) -> acc`
 Left-folds `(f acc element)` over the remaining elements.
 ```
-(iter-fold + 0 (iter (list 1 2 3 4))) -> 10
+(Iter fold + 0 (Iter new (list 1 2 3 4))) -> 10
 ```

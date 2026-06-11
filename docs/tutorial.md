@@ -169,9 +169,9 @@ The standard library provides a rich set of list operations:
 (3 4 5)
 > (fold + 0 (list 1 2 3 4 5))
 15
-> (sort < (list 3 1 4 1 5 9))
+> (List sort < (list 3 1 4 1 5 9))
 (1 1 3 4 5 9)
-> (zip (list 1 2 3) (list "a" "b" "c"))
+> (List zip (list 1 2 3) (list "a" "b" "c"))
 ((1 "a") (2 "b") (3 "c"))
 ```
 
@@ -181,7 +181,7 @@ Load additional capabilities with `import`:
 
 ```
 > (import x/type/vector)
-> (def v (make-vector 3 0))
+> (def v (Vector make 3 0))
 > v
 #(0 0 0)
 ```
@@ -189,7 +189,7 @@ Load additional capabilities with `import`:
 In the x/and dialect, the numeric tower is pre-loaded:
 
 ```
-> (expt 2 100)
+> (Num expt 2 100)
 1267650600228229401496703205376
 > (+ 1/3 1/6)
 1/2
