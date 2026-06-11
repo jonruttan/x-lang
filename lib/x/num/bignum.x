@@ -420,11 +420,12 @@
   (fn (_ . args)
     (if (null? args) 0
       (if (null? (rest args))
-        ; Unary negation
-        (if (%bignum? (first args))
-          (%make-bignum (%int* -1 (%big-sign (first args)))
-                        (%big-limbs (first args)))
-          (%int- (first args)))
+        ; Unary negation: plain ints negate directly; typed values (bignum,
+        ; rational, float, ...) negate via the dispatching binary (- 0 x),
+        ; which routes to the type's own - handler.
+        (if (%int-number? (first args))
+          (%int- (first args))
+          (%int- 0 (first args)))
         (fold
           (fn (_ acc x)
             (if (if (%int-number? acc) (%int-number? x) #f)

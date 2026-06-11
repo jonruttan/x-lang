@@ -97,7 +97,7 @@
 ### rational? on rational
 
 ```scheme
-(null? (rational? 3/4))
+(null? (Rational rational? 3/4))
 ```
 ---
     #f
@@ -105,7 +105,7 @@
 ### rational? on integer
 
 ```scheme
-(null? (rational? 42))
+(null? (Rational rational? 42))
 ```
 ---
     #f
@@ -113,7 +113,7 @@
 ### exact? on rational
 
 ```scheme
-(null? (exact? 3/4))
+(null? (Rational exact? 3/4))
 ```
 ---
     #f
@@ -121,7 +121,7 @@
 ### exact? on integer
 
 ```scheme
-(null? (exact? 42))
+(null? (Rational exact? 42))
 ```
 ---
     #f
@@ -131,7 +131,7 @@
 ### numerator of rational
 
 ```scheme
-(numerator 3/4)
+(Rational numerator 3/4)
 ```
 ---
     3
@@ -139,7 +139,7 @@
 ### denominator of rational
 
 ```scheme
-(denominator 3/4)
+(Rational denominator 3/4)
 ```
 ---
     4
@@ -147,7 +147,7 @@
 ### numerator of integer
 
 ```scheme
-(numerator 5)
+(Rational numerator 5)
 ```
 ---
     5
@@ -155,7 +155,7 @@
 ### denominator of integer
 
 ```scheme
-(denominator 5)
+(Rational denominator 5)
 ```
 ---
     1
@@ -165,7 +165,7 @@
 ### rat+ basic
 
 ```scheme
-(rat+ 1/3 1/6)
+(Rational + 1/3 1/6)
 ```
 ---
     1/2
@@ -173,7 +173,7 @@
 ### rat- basic
 
 ```scheme
-(rat- 3/4 1/4)
+(Rational - 3/4 1/4)
 ```
 ---
     1/2
@@ -181,7 +181,7 @@
 ### rat* basic
 
 ```scheme
-(rat* 2/3 3/5)
+(Rational * 2/3 3/5)
 ```
 ---
     2/5
@@ -189,7 +189,7 @@
 ### rat/ basic
 
 ```scheme
-(rat/ 1/2 1/3)
+(Rational / 1/2 1/3)
 ```
 ---
     3/2
@@ -257,7 +257,7 @@
 ### rat< true
 
 ```scheme
-(null? (rat< 1/3 1/2))
+(null? (Rational < 1/3 1/2))
 ```
 ---
     #f
@@ -265,7 +265,7 @@
 ### rat< false
 
 ```scheme
-(if (rat< 1/2 1/3) "yes" "no")
+(if (Rational < 1/2 1/3) "yes" "no")
 ```
 ---
     "no"
@@ -273,7 +273,7 @@
 ### rat= true
 
 ```scheme
-(if (rat= 2/4 1/2) "yes" "no")
+(if (Rational = 2/4 1/2) "yes" "no")
 ```
 ---
     "yes"
@@ -281,7 +281,7 @@
 ### rat= false
 
 ```scheme
-(if (rat= 1/3 1/2) "yes" "no")
+(if (Rational = 1/3 1/2) "yes" "no")
 ```
 ---
     "no"
@@ -341,7 +341,7 @@
 ### extracts numerator
 
 ```scheme
-(numerator 3/4)
+(Rational numerator 3/4)
 ```
 ---
     3
@@ -349,7 +349,7 @@
 ### integer numerator is itself
 
 ```scheme
-(numerator 5)
+(Rational numerator 5)
 ```
 ---
     5
@@ -359,7 +359,7 @@
 ### extracts denominator
 
 ```scheme
-(denominator 3/4)
+(Rational denominator 3/4)
 ```
 ---
     4
@@ -367,7 +367,7 @@
 ### integer denominator is one
 
 ```scheme
-(denominator 5)
+(Rational denominator 5)
 ```
 ---
     1
