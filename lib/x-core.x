@@ -36,7 +36,6 @@
     (pair "lib/x/core/list.x"
     (pair "lib/x/core/math.x"
     (pair "lib/x/core/syntax.x"
-    (pair "lib/x/num/tower.x"
     (pair "lib/x/core/alist.x"
     (pair "lib/x/type/assoc.x"
     (pair "lib/x/core/arithmetic.x"
@@ -57,7 +56,7 @@
     (pair "lib/x/type/lit-reader.x"
     (pair "lib/x/core/repl.x"
     (pair "lib/x/core/banner.x"
-      (first %include-list-cell))))))))))))))))))))))))))))))))))))
+      (first %include-list-cell)))))))))))))))))))))))))))))))))))
 
   ; --- Standard modules ---
   (include "lib/x/core/predicates.x")
@@ -78,7 +77,6 @@
   (include "lib/x/core/logic.x")
   (include "lib/x/core/list.x")
   (include "lib/x/core/syntax.x")
-  (include "lib/x/num/tower.x")
 
   ; Variadic arithmetic
   (include "lib/x/core/arithmetic.x")

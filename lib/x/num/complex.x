@@ -1,7 +1,7 @@
 ; complex.x -- Complex number type
 (import x/num/float)
 (import x/num/rational)
-(import x/num/tower)
+(import x/type/object)
 ;
 ; Complex values are stored as (real-part . imag-part) pairs.
 ; Components can be any real number type (integer, rational, float).
@@ -168,88 +168,48 @@
 
 (note "Arithmetic")
 
-(doc (def complex+
-  (fn (_ (param a COMPLEX|NUMBER "First operand")
-       (param b COMPLEX|NUMBER "Second operand"))
+(def %cx-add
+  (fn (_ a b)
     (%make-complex
       (%real+ (%complex-re a) (%complex-re b))
       (%real+ (%complex-im a) (%complex-im b)))))
-  (returns COMPLEX|NUMBER "Sum, collapsed to real if imaginary part is zero")
-  "Add two complex numbers.")
 
-(doc (def complex-
-  (fn (_ (param a COMPLEX|NUMBER "First operand")
-       (param b COMPLEX|NUMBER "Second operand"))
+(def %cx-sub
+  (fn (_ a b)
     (%make-complex
       (%real- (%complex-re a) (%complex-re b))
       (%real- (%complex-im a) (%complex-im b)))))
-  (returns COMPLEX|NUMBER "Difference, collapsed to real if imaginary part is zero")
-  "Subtract two complex numbers.")
 
-(doc (def complex*
-  (fn (_ (param a COMPLEX|NUMBER "First operand")
-       (param b COMPLEX|NUMBER "Second operand"))
+(def %cx-mul
+  (fn (_ a b)
     (let ((ar (%complex-re a)) (ai (%complex-im a))
           (br (%complex-re b)) (bi (%complex-im b)))
       (%make-complex
         (%real- (%real* ar br) (%real* ai bi))
         (%real+ (%real* ar bi) (%real* ai br))))))
-  (returns COMPLEX|NUMBER "Product, collapsed to real if imaginary part is zero")
-  "Multiply two complex numbers.")
 
-(doc (def complex/
-  (fn (_ (param a COMPLEX|NUMBER "Dividend")
-       (param b COMPLEX|NUMBER "Divisor"))
+(def %cx-div
+  (fn (_ a b)
     (let ((ar (%complex-re a)) (ai (%complex-im a))
           (br (%complex-re b)) (bi (%complex-im b)))
       (let ((denom (%real+ (%real* br br) (%real* bi bi))))
         (%make-complex
           (%real/ (%real+ (%real* ar br) (%real* ai bi)) denom)
           (%real/ (%real- (%real* ai br) (%real* ar bi)) denom))))))
-  (returns COMPLEX|NUMBER "Quotient, collapsed to real if imaginary part is zero")
-  "Divide two complex numbers.")
 
-(doc (def complex=
-  (fn (_ (param a COMPLEX|NUMBER "Left operand")
-       (param b COMPLEX|NUMBER "Right operand"))
+(def %cx-eq
+  (fn (_ a b)
     (if (%real= (%complex-re a) (%complex-re b))
       (%real= (%complex-im a) (%complex-im b))
       ())))
-  (returns BOOLEAN "True if both real and imaginary parts are equal")
-  "Test whether two complex numbers are equal.")
 ; --- R5RS constructors and accessors ---
 
 (note "Constructors and Accessors")
 
-(doc (def make-rectangular
-  (fn (_ (param re NUMBER "Real part")
-       (param im NUMBER "Imaginary part"))
-    (%make-complex re im)))
-  (returns COMPLEX|NUMBER "Complex number, or real if imaginary part is zero")
-  "Construct a complex number from rectangular coordinates.")
+; Constructors/accessors live on the Complex class below.
 
-(doc (def make-polar
-  (fn (_ (param mag NUMBER "Magnitude")
-       (param ang NUMBER "Angle in radians"))
-    (let ((fang (%exact->inexact ang)) (fmag (%exact->inexact mag)))
-      (%make-complex
-        (%f-mul fmag (%fcos fang))
-        (%f-mul fmag (%fsin fang))))))
-  (returns COMPLEX|NUMBER "Complex number from polar coordinates")
-  "Construct a complex number from polar coordinates (magnitude and angle).")
-
-(doc real-part "Return the real part of a complex number, or the number itself for reals."
-  (param z COMPLEX|NUMBER "Complex or real number")
-  (returns NUMBER "Real part"))
-(def real-part %complex-re)
-
-(doc imag-part "Return the imaginary part of a complex number, or 0 for reals."
-  (param z COMPLEX|NUMBER "Complex or real number")
-  (returns NUMBER "Imaginary part"))
-(def imag-part %complex-im)
-
-(doc (def magnitude
-  (fn (_ (param z COMPLEX|NUMBER "Complex or real number"))
+(def %cx-magnitude
+  (fn (_ z)
     (if (%complex? z)
       (let ((re (%exact->inexact (%complex-re z)))
             (im (%exact->inexact (%complex-im z))))
@@ -257,59 +217,30 @@
       (if (%real< z 0)
         (%exact->inexact (%real- 0 z))
         (%exact->inexact z)))))
-  (returns FLOAT "Absolute value (distance from origin)")
-  "Return the magnitude (absolute value) of a complex or real number.")
 
-(doc (def angle
-  (fn (_ (param z COMPLEX|NUMBER "Complex or real number"))
+(def %cx-angle
+  (fn (_ z)
     (if (%complex? z)
       (%fatan2
         (%exact->inexact (%complex-im z))
         (%exact->inexact (%complex-re z)))
       (if (%real< z 0) %pi (%exact->inexact 0)))))
-  (returns FLOAT "Angle in radians")
-  "Return the angle (argument) of a complex number in radians.")
-; --- Operator promotion: add complex layer ---
+; --- Type ops: the generic operators dispatch complex operands here ---
+; Complex absorbs every real type via its from-declarations (int, float,
+; rational), so the other side of a mixed pair always coerces with
+; %ensure-complex. No < handler: complexes are unordered.
 
 (note "Operator Overrides")
 
 (def %ensure-complex (fn (_ x) (if (%complex? x) x (%make-complex x 0))))
 
-; Use numeric tower factories for +, *
-(set! + (%make-fold-op %complex? complex+ %ensure-complex %real+ 0))
-(set! * (%make-fold-op %complex? complex* %ensure-complex %real* 1))
+(def %complex-ts (type-by-atom %complex))
+(type-push-op %complex-ts (lit +) (fn (_ a b) (%cx-add (%ensure-complex a) (%ensure-complex b))))
+(type-push-op %complex-ts (lit -) (fn (_ a b) (%cx-sub (%ensure-complex a) (%ensure-complex b))))
+(type-push-op %complex-ts (lit *) (fn (_ a b) (%cx-mul (%ensure-complex a) (%ensure-complex b))))
+(type-push-op %complex-ts (lit /) (fn (_ a b) (%cx-div (%ensure-complex a) (%ensure-complex b))))
+(type-push-op %complex-ts (lit =) (fn (_ a b) (%cx-eq (%ensure-complex a) (%ensure-complex b))))
 
-; = uses factory
-(set! = (%make-cmp-op %complex? complex= %ensure-complex %real=))
-
-; / and - need unary special cases
-(set! /
-  (fn (_ . args)
-    (if (null? args) 1
-      (if (null? (rest args))
-        (if (%complex? (first args))
-          (complex/ (%make-complex 1 0) (first args))
-          (%real/ 1 (first args)))
-        (fold
-          (fn (_ acc x)
-            (if (%complex? acc) (complex/ acc (%ensure-complex x))
-              (if (%complex? x) (complex/ (%ensure-complex acc) x)
-                (%real/ acc x))))
-          (first args) (rest args))))))
-
-(set! -
-  (fn (_ . args)
-    (if (null? args) 0
-      (if (null? (rest args))
-        (if (%complex? (first args))
-          (complex- (%make-complex 0 0) (first args))
-          (%real- (first args)))
-        (fold
-          (fn (_ acc x)
-            (if (%complex? acc) (complex- acc (%ensure-complex x))
-              (if (%complex? x) (complex- (%ensure-complex acc) x)
-                (%real- acc x))))
-          (first args) (rest args))))))
 ; --- Predicates ---
 
 (note "Predicates")
@@ -338,9 +269,57 @@
       (if (%float? x) #t
         (%int-number? x)))))
 
-(doc (provide x/num/complex
-  complex? complex+ complex- complex* complex/ complex=
-  make-rectangular make-polar real-part imag-part magnitude angle)
+(def-class Complex ()
+  (static
+    (method complex? (self (param x ANY "Value to test"))
+      (doc "Test whether a value is any numeric type (alias for number?)."
+        (returns BOOLEAN "True if x is a number"))
+      (number? x))
+    (method make-rectangular (self (param re NUMBER "Real part") (param im NUMBER "Imaginary part"))
+      (doc "Construct a complex number from rectangular coordinates."
+        (returns COMPLEX|NUMBER "Complex number, or real if imaginary part is zero"))
+      (%make-complex re im))
+    (method make-polar (self (param mag NUMBER "Magnitude") (param ang NUMBER "Angle in radians"))
+      (doc "Construct a complex number from polar coordinates (magnitude and angle)."
+        (returns COMPLEX|NUMBER "Complex number from polar coordinates"))
+      (let ((fang (%exact->inexact ang)) (fmag (%exact->inexact mag)))
+        (%make-complex
+          (%f-mul fmag (%fcos fang))
+          (%f-mul fmag (%fsin fang)))))
+    (method real-part (self (param z COMPLEX|NUMBER "Complex or real number"))
+      (doc "Return the real part of a complex number, or the number itself for reals."
+        (returns NUMBER "Real part"))
+      (%complex-re z))
+    (method imag-part (self (param z COMPLEX|NUMBER "Complex or real number"))
+      (doc "Return the imaginary part of a complex number, or 0 for reals."
+        (returns NUMBER "Imaginary part"))
+      (%complex-im z))
+    (method magnitude (self (param z COMPLEX|NUMBER "Complex or real number"))
+      (doc "Return the magnitude (absolute value) of a complex or real number."
+        (returns FLOAT "Absolute value (distance from origin)"))
+      (%cx-magnitude z))
+    (method angle (self (param z COMPLEX|NUMBER "Complex or real number"))
+      (doc "Return the angle (argument) of a complex number in radians."
+        (returns FLOAT "Angle in radians"))
+      (%cx-angle z))
+    (method + (self (param a COMPLEX|NUMBER "First operand") (param b COMPLEX|NUMBER "Second operand"))
+      (doc "Add two complex numbers (reals coerce)." (returns COMPLEX|NUMBER "Sum, collapsed to real if imaginary part is zero"))
+      (%cx-add (%ensure-complex a) (%ensure-complex b)))
+    (method - (self (param a COMPLEX|NUMBER "First operand") (param b COMPLEX|NUMBER "Second operand"))
+      (doc "Subtract two complex numbers (reals coerce)." (returns COMPLEX|NUMBER "Difference, collapsed to real if imaginary part is zero"))
+      (%cx-sub (%ensure-complex a) (%ensure-complex b)))
+    (method * (self (param a COMPLEX|NUMBER "First operand") (param b COMPLEX|NUMBER "Second operand"))
+      (doc "Multiply two complex numbers (reals coerce)." (returns COMPLEX|NUMBER "Product, collapsed to real if imaginary part is zero"))
+      (%cx-mul (%ensure-complex a) (%ensure-complex b)))
+    (method / (self (param a COMPLEX|NUMBER "Dividend") (param b COMPLEX|NUMBER "Divisor"))
+      (doc "Divide two complex numbers (reals coerce)." (returns COMPLEX|NUMBER "Quotient, collapsed to real if imaginary part is zero"))
+      (%cx-div (%ensure-complex a) (%ensure-complex b)))
+    (method = (self (param a COMPLEX|NUMBER "Left operand") (param b COMPLEX|NUMBER "Right operand"))
+      (doc "Test whether two complex numbers are equal (reals coerce)."
+        (returns BOOLEAN "True if both real and imaginary parts are equal"))
+      (%cx-eq (%ensure-complex a) (%ensure-complex b)))))
+
+(doc (provide x/num/complex Complex)
   (note "Literal syntax: a+bi, a-bi (e.g. 3+4i, 0+1i, 2-3i)")
   (note "Extends arithmetic operators (+, -, *, /, =) with complex promotion.")
   (example "3+4i" "3+4i")

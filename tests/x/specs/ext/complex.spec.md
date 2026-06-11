@@ -7,7 +7,7 @@
 ### integer real and imaginary
 
 ```scheme
-(real-part 3+4i)
+(Complex real-part 3+4i)
 ```
 ---
     3
@@ -15,7 +15,7 @@
 ### imaginary part of literal
 
 ```scheme
-(imag-part 3+4i)
+(Complex imag-part 3+4i)
 ```
 ---
     4
@@ -23,7 +23,7 @@
 ### negative imaginary
 
 ```scheme
-(imag-part 1-3i)
+(Complex imag-part 1-3i)
 ```
 ---
     -3
@@ -39,7 +39,7 @@
 ### pure imaginary
 
 ```scheme
-(imag-part 5i)
+(Complex imag-part 5i)
 ```
 ---
     5
@@ -47,7 +47,7 @@
 ### pure imaginary real part is zero
 
 ```scheme
-(real-part 5i)
+(Complex real-part 5i)
 ```
 ---
     0
@@ -73,7 +73,7 @@
 ### constructs complex from real and imaginary parts
 
 ```scheme
-(real-part (make-rectangular 3 4))
+(Complex real-part (Complex make-rectangular 3 4))
 ```
 ---
     3
@@ -81,7 +81,7 @@
 ### imaginary part is accessible
 
 ```scheme
-(imag-part (make-rectangular 3 4))
+(Complex imag-part (Complex make-rectangular 3 4))
 ```
 ---
     4
@@ -91,7 +91,7 @@
 ### real-part of integer is itself
 
 ```scheme
-(real-part 5)
+(Complex real-part 5)
 ```
 ---
     5
@@ -99,7 +99,7 @@
 ### imag-part of integer is zero
 
 ```scheme
-(imag-part 5)
+(Complex imag-part 5)
 ```
 ---
     0
@@ -109,7 +109,7 @@
 ### complex addition
 
 ```scheme
-(real-part (complex+ (make-rectangular 1 2) (make-rectangular 3 4)))
+(Complex real-part (Complex + (Complex make-rectangular 1 2) (Complex make-rectangular 3 4)))
 ```
 ---
     4
@@ -117,7 +117,7 @@
 ### complex addition imaginary
 
 ```scheme
-(imag-part (complex+ (make-rectangular 1 2) (make-rectangular 3 4)))
+(Complex imag-part (Complex + (Complex make-rectangular 1 2) (Complex make-rectangular 3 4)))
 ```
 ---
     6
@@ -125,7 +125,7 @@
 ### complex subtraction
 
 ```scheme
-(real-part (complex- (make-rectangular 5 7) (make-rectangular 2 3)))
+(Complex real-part (Complex - (Complex make-rectangular 5 7) (Complex make-rectangular 2 3)))
 ```
 ---
     3
@@ -133,7 +133,7 @@
 ### complex multiplication real part
 
 ```scheme
-(real-part (complex* (make-rectangular 1 2) (make-rectangular 3 4)))
+(Complex real-part (Complex * (Complex make-rectangular 1 2) (Complex make-rectangular 3 4)))
 ```
 ---
     -5
@@ -141,7 +141,7 @@
 ### complex equality
 
 ```scheme
-(complex= (make-rectangular 1 2) (make-rectangular 1 2))
+(Complex = (Complex make-rectangular 1 2) (Complex make-rectangular 1 2))
 ```
 ---
     #t
@@ -149,7 +149,7 @@
 ### complex inequality
 
 ```scheme
-(complex= (make-rectangular 1 2) (make-rectangular 1 3))
+(Complex = (Complex make-rectangular 1 2) (Complex make-rectangular 1 3))
 ```
 ---
     #f
@@ -159,7 +159,7 @@
 ### magnitude of 3+4i is 5
 
 ```scheme
-(= (magnitude (make-rectangular 3 4)) 5)
+(= (Complex magnitude (Complex make-rectangular 3 4)) 5)
 ```
 ---
     #t
@@ -167,7 +167,7 @@
 ### magnitude of negative real
 
 ```scheme
-(= (magnitude -7) 7)
+(= (Complex magnitude -7) 7)
 ```
 ---
     #t
@@ -175,7 +175,7 @@
 ### angle of positive real is zero
 
 ```scheme
-(= (angle 5) 0)
+(= (Complex angle 5) 0)
 ```
 ---
     #t
@@ -183,7 +183,7 @@
 ### angle of negative real is pi
 
 ```scheme
-(= (angle -1) %pi)
+(= (Complex angle -1) %pi)
 ```
 ---
     #t
@@ -191,7 +191,7 @@
 ### angle of pure imaginary
 
 ```scheme
-(= (angle (make-rectangular 0 1)) (Float / %pi 2.0))
+(= (Complex angle (Complex make-rectangular 0 1)) (Float / %pi 2.0))
 ```
 ---
     #t
@@ -201,7 +201,7 @@
 ### complex division real part
 
 ```scheme
-(real-part (complex/ (make-rectangular 4 2) (make-rectangular 2 0)))
+(Complex real-part (Complex / (Complex make-rectangular 4 2) (Complex make-rectangular 2 0)))
 ```
 ---
     2
@@ -209,7 +209,7 @@
 ### complex division of conjugates
 
 ```scheme
-(= (real-part (complex/ (make-rectangular 1 1) (make-rectangular 1 -1))) 0)
+(= (Complex real-part (Complex / (Complex make-rectangular 1 1) (Complex make-rectangular 1 -1))) 0)
 ```
 ---
     #t
@@ -217,7 +217,7 @@
 ### complex division imaginary part
 
 ```scheme
-(= (imag-part (complex/ (make-rectangular 1 1) (make-rectangular 1 -1))) 1)
+(= (Complex imag-part (Complex / (Complex make-rectangular 1 1) (Complex make-rectangular 1 -1))) 1)
 ```
 ---
     #t
@@ -227,7 +227,7 @@
 ### make-polar with zero angle
 
 ```scheme
-(real-part (make-polar 5 0))
+(Complex real-part (Complex make-polar 5 0))
 ```
 ---
     5
@@ -245,7 +245,7 @@
 ### complex with zero imaginary is real
 
 ```scheme
-(Float real? (make-rectangular 5 0))
+(Float real? (Complex make-rectangular 5 0))
 ```
 ---
     #t
@@ -253,7 +253,7 @@
 ### complex with nonzero imaginary is not real
 
 ```scheme
-(Float real? (make-rectangular 1 2))
+(Float real? (Complex make-rectangular 1 2))
 ```
 ---
     #f
@@ -263,7 +263,7 @@
 ### complex is complex
 
 ```scheme
-(complex? (make-rectangular 1 2))
+(Complex complex? (Complex make-rectangular 1 2))
 ```
 ---
     #t
@@ -271,7 +271,7 @@
 ### integer is also complex (numeric tower)
 
 ```scheme
-(complex? 42)
+(Complex complex? 42)
 ```
 ---
     #t
