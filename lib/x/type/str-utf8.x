@@ -35,7 +35,7 @@
   (fn (_ chars)
     (bytes->str
       (map integer->char
-        (fold (fn (_ acc ch) (append acc (utf8-encode (char->integer ch))))
+        (fold (fn (_ acc ch) (append acc (%utf8-encode (char->integer ch))))
               () chars)))))
   (param chars LIST "List of CHARACTERs (Unicode code points)")
   (returns STRING "UTF-8 string encoding each code point")
@@ -48,7 +48,7 @@
     (let go ((i 0) (acc ()))
       (if (>= i len)
         (reverse acc)
-        (let ((d (utf8-decode s i)))
+        (let ((d (%utf8-decode s i)))
           (go (rest d) (pair (integer->char (first d)) acc)))))))
   (param s STRING "String to decode")
   (returns LIST "List of CHARACTERs, one per Unicode code point")
@@ -59,7 +59,7 @@
 ;
 ; ALLOCATION DISCIPLINE: the bare call may run inside tokenizer callbacks, where
 ; heap allocation can trip GC mid-parse. The code-point walk uses ONLY the
-; no-alloc codec accessors (utf8-width / utf8-cp-at) -- never utf8-decode (which
+; no-alloc codec accessors (%utf8-width / utf8-cp-at) -- never %utf8-decode (which
 ; conses a pair) -- and plain integer recursion, so it allocates no more than
 ; the one result object the byte path already made.
 
@@ -69,12 +69,12 @@
 (def %cp-byte-offset
   (fn (self s k from)
     (if (= k 0) from
-      (self s (- k 1) (+ from (utf8-width s from))))))
+      (self s (- k 1) (+ from (%utf8-width s from))))))
 
 (def %cp-count
   (fn (self s len i n)
     (if (>= i len) n
-      (self s len (+ i (utf8-width s i)) (+ n 1)))))
+      (self s len (+ i (%utf8-width s i)) (+ n 1)))))
 
 ; i-th code point. Negative i counts from the end (matches the old byte path:
 ; the C call added the length to a negative index). Only the negative case pays
@@ -82,7 +82,7 @@
 (def %cp-ref
   (fn (_ s i)
     (def k (if (< i 0) (+ i (%cp-count s (str-byte-len s) 0 0)) i))
-    (integer->char (utf8-cp-at s (%cp-byte-offset s k 0)))))
+    (integer->char (%utf8-cp-at s (%cp-byte-offset s k 0)))))
 
 (def %cp-substring
   (fn (_ s start len)

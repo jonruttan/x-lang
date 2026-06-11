@@ -12,7 +12,7 @@
 ; (see the tokenizer-callback constraints in project memory).
 
 ; Number of bytes in the UTF-8 sequence introduced by lead byte b (0-255).
-(def utf8-seq-len
+(def %utf8-seq-len
   (fn (_ b)
     (if (< b 192) 1        ; 0xxxxxxx  ASCII (or a stray continuation byte)
     (if (< b 224) 2        ; 110xxxxx
@@ -22,10 +22,10 @@
 ; Decode the UTF-8 sequence at byte index i of s -> (code-point . next-index).
 ; The shifted lead/continuation parts occupy disjoint bit ranges, so | merges
 ; them losslessly.
-(def utf8-decode
+(def %utf8-decode
   (fn (_ s i)
     (def b0 (char->integer (str-ref s i)))
-    (def n (utf8-seq-len b0))
+    (def n (%utf8-seq-len b0))
     (def cont (fn (_ k) (& (char->integer (str-ref s (+ i k))) 63)))   ; low 6 bits
     (pair
       (if (= n 1) b0
@@ -43,10 +43,10 @@
 ; just str-ref reads and bitwise ops. Continuation reads are inlined (no helper).
 
 ; Byte width of the sequence at byte index i (1-4). No allocation.
-(def utf8-width (fn (_ s i) (utf8-seq-len (char->integer (str-ref s i)))))
+(def %utf8-width (fn (_ s i) (%utf8-seq-len (char->integer (str-ref s i)))))
 
 ; Code point at byte index i. No allocation (continuation bytes inlined).
-(def utf8-cp-at
+(def %utf8-cp-at
   (fn (_ s i)
     (def b0 (char->integer (str-ref s i)))
     (if (< b0 128) b0
@@ -66,7 +66,7 @@
 ; range code points emit U+FFFD (the replacement character), matching the C
 ; encoder this replaces. Returns bare integers, not CHARACTERs: callers map
 ; integer->char to byte-pack via list->str, or use the bytes directly.
-(def utf8-encode
+(def %utf8-encode
   (fn (self cp)
     (if (if (< cp 0) #t (> cp 1114111))   ; out of range -> U+FFFD
       (self 65533)
@@ -84,6 +84,8 @@
             (| 128 (& (>> cp 6) 63))
             (| 128 (& cp 63)))))))))
 
-(doc (provide x/codec/utf8
-  utf8-seq-len utf8-decode utf8-encode utf8-width utf8-cp-at)
-  "UTF-8 codec: convert between bytes and Unicode code points (protocol-agnostic primitives).")
+(doc (provide x/codec/utf8)
+  (note "Internals are %-private (they also run inside tokenizer callbacks, where")
+  (note "class dispatch is forbidden). The public API is on the Utf8 class:")
+  (note "(Utf8 decode s i), (Utf8 encode cp), (Utf8 width s i), ...")
+  "UTF-8 codec: byte <-> code-point primitives (module-private; surfaced on Utf8).")

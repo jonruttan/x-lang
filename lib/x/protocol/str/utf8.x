@@ -20,7 +20,7 @@
 (def %u8-byte-offset
   (fn (self s k from)
     (if (= k 0) from
-      (self s (- k 1) (rest (utf8-decode s from))))))
+      (self s (- k 1) (rest (%utf8-decode s from))))))
 
 (def-class StrUTF8 (extends Str8)
   (static
@@ -34,7 +34,7 @@
       (doc "The i-th CODE POINT of v as a CHARACTER, found by an O(n) UTF-8 walk."
         (returns CHAR "Code point at position i")
         (example "(StrUTF8 index \"$¢€\" 1)" "#\\¢"))
-      (integer->char (first (utf8-decode v (%u8-byte-offset v i 0)))))
+      (integer->char (first (%utf8-decode v (%u8-byte-offset v i 0)))))
 
     (method sub (self (param v STRING "Source string") (param start INT "Start code-point offset (0-based)") (param len INT "Number of code points"))
       (doc "Substring of len CODE POINTS starting at code-point offset start (O(n) walk)."
@@ -48,7 +48,7 @@
       (doc "Cursor step: decode one UTF-8 sequence at byte offset cur, yielding (CODE-POINT . next-byte-offset)."
         (returns PAIR "Pair of the decoded code point (CHARACTER) and the next byte offset")
         (example "(StrUTF8 step \"$¢\" 1)" "(#\\¢ . 3)"))
-      (let ((d (utf8-decode v cur)))
+      (let ((d (%utf8-decode v cur)))
         (pair (integer->char (first d)) (rest d))))
 
     ; encode: a code point -> its UTF-8 bytes (inverse of step)
@@ -56,7 +56,30 @@
       (doc "Encode one CODE POINT to its 1-4 UTF-8 bytes (inverse of step)."
         (returns LIST "List of the UTF-8 byte values (integers) for el")
         (example "(StrUTF8 char->bytes (integer->char 162))" "(194 162)"))
-      (utf8-encode (char->integer el)))))
+      (%utf8-encode (char->integer el)))
+
+    ; --- The byte <-> code-point codec (x/codec/utf8 surfaces here) ---
+    (method seq-len (self (param b INT "Lead byte value (0-255)"))
+      (doc "Number of bytes in the UTF-8 sequence introduced by lead byte b."
+        (returns INT "Sequence length 1-4"))
+      (%utf8-seq-len b))
+    (method decode (self (param s STRING "Byte string") (param i INT "Byte index of a sequence start"))
+      (doc "Decode the UTF-8 sequence at byte index i."
+        (returns PAIR "(code-point . next-byte-index)"))
+      (%utf8-decode s i))
+    (method encode (self (param cp INT "Code point to encode"))
+      (doc "Encode a code point as a list of its 1-4 UTF-8 byte values. Out-of-range emits U+FFFD."
+        (returns LIST "UTF-8 byte values (integers)")
+        (example "(Utf8 encode 162)" "(194 162)"))
+      (%utf8-encode cp))
+    (method width (self (param s STRING "Byte string") (param i INT "Byte index of a sequence start"))
+      (doc "Byte width of the UTF-8 sequence at byte index i. Allocation-free."
+        (returns INT "Sequence length 1-4"))
+      (%utf8-width s i))
+    (method cp-at (self (param s STRING "Byte string") (param i INT "Byte index of a sequence start"))
+      (doc "Code point at byte index i. Allocation-free (no pair, no closure)."
+        (returns INT "Decoded code point"))
+      (%utf8-cp-at s i))))
 
 ; Utf8 = alias for the UTF-8 protocol class.
 (def Utf8 StrUTF8)
