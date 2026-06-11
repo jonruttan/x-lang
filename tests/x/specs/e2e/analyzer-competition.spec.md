@@ -31,7 +31,7 @@
 ### integer without dot
 
 ```scheme
-(if (float? 42) "float" "int")
+(if (Float float? 42) "float" "int")
 ```
 ---
     "int"
@@ -39,7 +39,7 @@
 ### float with dot
 
 ```scheme
-(float? 1.5)
+(Float float? 1.5)
 ```
 ---
     #t
@@ -47,7 +47,7 @@
 ### float zero
 
 ```scheme
-(float? 0.0)
+(Float float? 0.0)
 ```
 ---
     #t
@@ -101,7 +101,7 @@
 ### arithmetic preserves types
 
 ```scheme
-(do (def a 42) (def b 1.5) (def c 1/3) (float? (+ a b)))
+(do (def a 42) (def b 1.5) (def c 1/3) (Float float? (+ a b)))
 ```
 ---
     #t

@@ -81,7 +81,7 @@
   (let ((base (Base make)))
     (def %cell (first (first (first (rest (first base))))))
     (def %int-name (type-of 0))
-    (def %float-name (type-of (exact->inexact 0)))
+    (def %float-name (type-of (Float exact->inexact 0)))
     ; Keep only INTEGER and FLOAT from the base
     (def %filter
       (fn (self al)

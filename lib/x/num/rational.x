@@ -114,9 +114,9 @@
             (fn (_ self) (%int/ (first (first self)) (rest (first self)))))
           (pair %float
             (fn (_ self)
-              (f/
-                (make-instance %float (int->float (first (first self))))
-                (make-instance %float (int->float (rest (first self)))))))
+              (%f-div
+                (make-instance %float (%int->float (first (first self))))
+                (make-instance %float (%int->float (rest (first self)))))))
           (pair (type-of "")
             (fn (_ self)
               (str-append
@@ -194,9 +194,9 @@
   (pair
     (pair %rational
       (fn (_ self)
-        (f/
-          (make-instance %float (int->float (first (first self))))
-          (make-instance %float (int->float (rest (first self)))))))
+        (%f-div
+          (make-instance %float (%int->float (first (first self))))
+          (make-instance %float (%int->float (rest (first self)))))))
     (first %float-from-cell)))
 
 (def %rat? (fn (_ x) (type? x %rational)))

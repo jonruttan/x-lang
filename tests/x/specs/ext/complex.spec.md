@@ -191,7 +191,7 @@
 ### angle of pure imaginary
 
 ```scheme
-(= (angle (make-rectangular 0 1)) (f/ %pi 2.0))
+(= (angle (make-rectangular 0 1)) (Float / %pi 2.0))
 ```
 ---
     #t
@@ -237,7 +237,7 @@
 ### integer is real
 
 ```scheme
-(real? 42)
+(Float real? 42)
 ```
 ---
     #t
@@ -245,7 +245,7 @@
 ### complex with zero imaginary is real
 
 ```scheme
-(real? (make-rectangular 5 0))
+(Float real? (make-rectangular 5 0))
 ```
 ---
     #t
@@ -253,7 +253,7 @@
 ### complex with nonzero imaginary is not real
 
 ```scheme
-(real? (make-rectangular 1 2))
+(Float real? (make-rectangular 1 2))
 ```
 ---
     #f

@@ -9,10 +9,10 @@
 ; ============================================================
 
 (def %deg->rad
-  (fn (_ deg) (f/ (f* (%as-float deg) %pi) (exact->inexact 180))))
+  (fn (_ deg) (Float / (Float * (%as-float deg) %pi) (Float exact->inexact 180))))
 
 (def %rad->deg
-  (fn (_ rad) (f/ (f* rad (exact->inexact 180)) %pi)))
+  (fn (_ rad) (Float / (Float * rad (Float exact->inexact 180)) %pi)))
 
 ; ============================================================
 ; LFSR random number generator (pure x-lang, no C dependency)
@@ -41,20 +41,20 @@
 (set! %logo-functions
   (list
     ; 1-arg math functions
-    (list "SQRT"      1 (fn (_ x) (fsqrt (%as-float x))))
-    (list "ABS"       1 (fn (_ x) (if (float? x) (fabs x) (if (< x 0) (- x) x))))
-    (list "SIN"       1 (fn (_ x) (fsin (%deg->rad x))))
-    (list "COS"       1 (fn (_ x) (fcos (%deg->rad x))))
-    (list "TAN"       1 (fn (_ x) (ftan (%deg->rad x))))
-    (list "ARCTAN"    1 (fn (_ x) (%rad->deg (fatan (%as-float x)))))
-    (list "ROUND"     1 (fn (_ x) (inexact->exact (fround (%as-float x)))))
-    (list "INT"       1 (fn (_ x) (inexact->exact (ffloor (%as-float x)))))
+    (list "SQRT"      1 (fn (_ x) (Float sqrt (%as-float x))))
+    (list "ABS"       1 (fn (_ x) (if (Float float? x) (Float abs x) (if (< x 0) (- x) x))))
+    (list "SIN"       1 (fn (_ x) (Float sin (%deg->rad x))))
+    (list "COS"       1 (fn (_ x) (Float cos (%deg->rad x))))
+    (list "TAN"       1 (fn (_ x) (Float tan (%deg->rad x))))
+    (list "ARCTAN"    1 (fn (_ x) (%rad->deg (Float atan (%as-float x)))))
+    (list "ROUND"     1 (fn (_ x) (Float inexact->exact (Float round (%as-float x)))))
+    (list "INT"       1 (fn (_ x) (Float inexact->exact (Float floor (%as-float x)))))
     (list "NOT"       1 (fn (_ x) (not x)))
 
     ; 2-arg math functions
     (list "REMAINDER" 2 (fn (_ a b) (% a b)))
     (list "RAND"      2 (fn (_ low high) (%logo-rand low high)))
-    (list "POWER"     2 (fn (_ base exp) (fexp (f* (%as-float exp) (flog (%as-float base))))))
+    (list "POWER"     2 (fn (_ base exp) (Float exp (Float * (%as-float exp) (Float log (%as-float base))))))
 
     ))
 

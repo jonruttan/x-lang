@@ -37,7 +37,7 @@
 ### float? true for float
 
 ```scheme
-(float? 3.14)
+(Float float? 3.14)
 ```
 ---
     #t
@@ -45,7 +45,7 @@
 ### float? false for integer
 
 ```scheme
-(float? 42)
+(Float float? 42)
 ```
 ---
     #f
@@ -53,7 +53,7 @@
 ### float? false for string
 
 ```scheme
-(float? "3.14")
+(Float float? "3.14")
 ```
 ---
     #f
@@ -71,7 +71,7 @@
 ### convert result is float
 
 ```scheme
-(float? (convert 42 %float))
+(Float float? (convert 42 %float))
 ```
 ---
     #t
@@ -87,7 +87,7 @@
 ### convert string to float
 
 ```scheme
-(float? (convert "3.14" %float))
+(Float float? (convert "3.14" %float))
 ```
 ---
     #t
@@ -121,7 +121,7 @@
 ### exact->inexact converts int
 
 ```scheme
-(exact->inexact 5)
+(Float exact->inexact 5)
 ```
 ---
     5
@@ -129,7 +129,7 @@
 ### exact->inexact result is float
 
 ```scheme
-(float? (exact->inexact 5))
+(Float float? (Float exact->inexact 5))
 ```
 ---
     #t
@@ -137,7 +137,7 @@
 ### exact->inexact float identity
 
 ```scheme
-(def x 3.14) (eq? (exact->inexact x) x)
+(def x 3.14) (eq? (Float exact->inexact x) x)
 ```
 ---
     #t
@@ -145,7 +145,7 @@
 ### inexact->exact truncates
 
 ```scheme
-(inexact->exact 3.14)
+(Float inexact->exact 3.14)
 ```
 ---
     3
@@ -153,7 +153,7 @@
 ### inexact->exact rounds toward zero
 
 ```scheme
-(inexact->exact 9.99)
+(Float inexact->exact 9.99)
 ```
 ---
     9
@@ -161,7 +161,7 @@
 ### str->float and back
 
 ```scheme
-(float->str (str->float "2.718"))
+(Float ->str (Float from-str "2.718"))
 ```
 ---
     "2.718"
@@ -169,17 +169,17 @@
 ### int->float and back
 
 ```scheme
-(float->int (int->float 42))
+(Float ->int (Float from-int 42))
 ```
 ---
     42
 
-## float arithmetic (f+ f- f* f/)
+## float arithmetic (Float + f- f* f/)
 
 ### f+ addition
 
 ```scheme
-(f+ 1.5 2.5)
+(Float + 1.5 2.5)
 ```
 ---
     4
@@ -187,7 +187,7 @@
 ### f- subtraction
 
 ```scheme
-(f- 10.0 3.5)
+(Float - 10.0 3.5)
 ```
 ---
     6.5
@@ -195,7 +195,7 @@
 ### f* multiplication
 
 ```scheme
-(f* 3.0 4.0)
+(Float * 3.0 4.0)
 ```
 ---
     12
@@ -203,7 +203,7 @@
 ### f/ division
 
 ```scheme
-(f/ 10.0 4.0)
+(Float / 10.0 4.0)
 ```
 ---
     2.5
@@ -211,7 +211,7 @@
 ### f/ non-integer result
 
 ```scheme
-(f/ 1.0 3.0)
+(Float / 1.0 3.0)
 ```
 ---
     0.333333333333333
@@ -319,7 +319,7 @@
 ### f< true
 
 ```scheme
-(f< 1.5 2.5)
+(Float < 1.5 2.5)
 ```
 ---
     #t
@@ -327,7 +327,7 @@
 ### f< false
 
 ```scheme
-(f< 2.5 1.5)
+(Float < 2.5 1.5)
 ```
 ---
     #f
@@ -335,7 +335,7 @@
 ### f= true
 
 ```scheme
-(f= 1.0 1.0)
+(Float = 1.0 1.0)
 ```
 ---
     #t
@@ -343,7 +343,7 @@
 ### f= false
 
 ```scheme
-(f= 1.0 2.0)
+(Float = 1.0 2.0)
 ```
 ---
     #f
@@ -435,7 +435,7 @@
 ### fsin of 0
 
 ```scheme
-(fsin (exact->inexact 0))
+(Float sin (Float exact->inexact 0))
 ```
 ---
     0
@@ -443,7 +443,7 @@
 ### fcos of 0
 
 ```scheme
-(fcos (exact->inexact 0))
+(Float cos (Float exact->inexact 0))
 ```
 ---
     1
@@ -451,7 +451,7 @@
 ### fsqrt of 4
 
 ```scheme
-(fsqrt 4.0)
+(Float sqrt 4.0)
 ```
 ---
     2
@@ -459,7 +459,7 @@
 ### fsqrt of 2
 
 ```scheme
-(fsqrt 2.0)
+(Float sqrt 2.0)
 ```
 ---
     1.4142135623731
@@ -467,7 +467,7 @@
 ### fabs positive
 
 ```scheme
-(fabs 3.14)
+(Float abs 3.14)
 ```
 ---
     3.14
@@ -475,7 +475,7 @@
 ### fabs negative
 
 ```scheme
-(fabs (- 3.14))
+(Float abs (- 3.14))
 ```
 ---
     3.14
@@ -483,7 +483,7 @@
 ### ffloor
 
 ```scheme
-(ffloor 3.7)
+(Float floor 3.7)
 ```
 ---
     3
@@ -491,7 +491,7 @@
 ### fceil
 
 ```scheme
-(fceil 3.2)
+(Float ceil 3.2)
 ```
 ---
     4
@@ -499,7 +499,7 @@
 ### fround
 
 ```scheme
-(fround 3.5)
+(Float round 3.5)
 ```
 ---
     4
@@ -507,7 +507,7 @@
 ### fexp of 0
 
 ```scheme
-(fexp (exact->inexact 0))
+(Float exp (Float exact->inexact 0))
 ```
 ---
     1
@@ -515,7 +515,7 @@
 ### flog of 1
 
 ```scheme
-(flog 1.0)
+(Float log 1.0)
 ```
 ---
     0
@@ -523,7 +523,7 @@
 ### fpow 2^10
 
 ```scheme
-(fpow 2.0 10.0)
+(Float pow 2.0 10.0)
 ```
 ---
     1024
@@ -591,7 +591,7 @@
 ### integer? true for int
 
 ```scheme
-(integer? 42)
+(Float integer? 42)
 ```
 ---
     #t
@@ -599,7 +599,7 @@
 ### integer? false for float
 
 ```scheme
-(integer? 3.14)
+(Float integer? 3.14)
 ```
 ---
     #f
@@ -607,7 +607,7 @@
 ### float? true for float
 
 ```scheme
-(float? 3.14)
+(Float float? 3.14)
 ```
 ---
     #t
@@ -615,7 +615,7 @@
 ### float? false for int
 
 ```scheme
-(float? 42)
+(Float float? 42)
 ```
 ---
     #f
@@ -623,7 +623,7 @@
 ### inexact? true for float
 
 ```scheme
-(inexact? 3.14)
+(Float inexact? 3.14)
 ```
 ---
     #t
@@ -631,7 +631,7 @@
 ### inexact? false for int
 
 ```scheme
-(inexact? 42)
+(Float inexact? 42)
 ```
 ---
     #f
@@ -699,7 +699,7 @@
 ### very small float
 
 ```scheme
-(> 0.001 (exact->inexact 0))
+(> 0.001 (Float exact->inexact 0))
 ```
 ---
     #t
@@ -715,7 +715,7 @@
 ### float zero
 
 ```scheme
-(f= 0.0 (exact->inexact 0))
+(Float = 0.0 (Float exact->inexact 0))
 ```
 ---
     #t

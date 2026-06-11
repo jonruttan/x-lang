@@ -9,7 +9,7 @@
 ; ============================================================
 
 (def %turtle-visible #t)
-(def %turtle-scale (exact->inexact 1))
+(def %turtle-scale (Float exact->inexact 1))
 
 ; ============================================================
 ; Extended movement commands (emit bytecodes)
@@ -28,24 +28,24 @@
 (def turtle-home
   (fn ()
     (%bc-emit-0 "O")
-    (set! %turtle-x (exact->inexact 0))
-    (set! %turtle-y (exact->inexact 0))
-    (set! %turtle-heading (exact->inexact 0))))
+    (set! %turtle-x (Float exact->inexact 0))
+    (set! %turtle-y (Float exact->inexact 0))
+    (set! %turtle-heading (Float exact->inexact 0))))
 
 ; DISTANCE: distance from turtle to a point (x, y)
 (def turtle-distance
   (fn (_ px py)
-    (def dx (f- (%as-float px) %turtle-x))
-    (def dy (f- (%as-float py) %turtle-y))
-    (fsqrt (f+ (f* dx dx) (f* dy dy)))))
+    (def dx (Float - (%as-float px) %turtle-x))
+    (def dy (Float - (%as-float py) %turtle-y))
+    (Float sqrt (Float + (Float * dx dx) (Float * dy dy)))))
 
 ; TOWARDS: heading from turtle toward point (x, y), in degrees
 (def turtle-towards
   (fn (_ px py)
-    (def dx (f- (%as-float px) %turtle-x))
-    (def dy (f- %turtle-y (%as-float py)))
-    (def rad (fatan2 dx dy))
-    (f/ (f* rad (exact->inexact 180)) %pi)))
+    (def dx (Float - (%as-float px) %turtle-x))
+    (def dy (Float - %turtle-y (%as-float py)))
+    (def rad (Float atan2 dx dy))
+    (Float / (Float * rad (Float exact->inexact 180)) %pi)))
 
 ; TURTLE.STATE: return current state as list
 (def turtle-state
@@ -96,7 +96,7 @@
   (pair (list "SETTURTLE" 1 (fn (_ state) (turtle-setturtle state)))
   (pair (list "FACE"      2 (fn (_ x y)
           (def bearing (turtle-towards x y))
-          (def turn (f- bearing %turtle-heading))
+          (def turn (Float - bearing %turtle-heading))
           (turtle-left turn)))
   %logo-commands)))
 
@@ -116,11 +116,11 @@
 ; GROW and S.FORWARD
 (set! %logo-commands
   (pair (list "GROW"      1 (fn (_ factor)
-          (set! %turtle-scale (f* %turtle-scale (%as-float factor)))))
+          (set! %turtle-scale (Float * %turtle-scale (%as-float factor)))))
   (pair (list "S.FORWARD" 1 (fn (_ dist)
-          (turtle-forward (f* (%as-float dist) %turtle-scale))))
+          (turtle-forward (Float * (%as-float dist) %turtle-scale))))
   (pair (list "S.FD"      1 (fn (_ dist)
-          (turtle-forward (f* (%as-float dist) %turtle-scale))))
+          (turtle-forward (Float * (%as-float dist) %turtle-scale))))
   %logo-commands))))
 
 (provide x/logo/tstate

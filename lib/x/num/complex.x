@@ -116,7 +116,7 @@
 (def %cx-parse-num
   (fn (_ s)
     (if (%cx-find-char s 0 (str-length s) 46)
-      (make-instance %float (str->float s))
+      (make-instance %float (%str->float s))
       (convert s %int))))
 
 (set! %cx-read
@@ -231,10 +231,10 @@
 (doc (def make-polar
   (fn (_ (param mag NUMBER "Magnitude")
        (param ang NUMBER "Angle in radians"))
-    (let ((fang (exact->inexact ang)) (fmag (exact->inexact mag)))
+    (let ((fang (%exact->inexact ang)) (fmag (%exact->inexact mag)))
       (%make-complex
-        (f* fmag (fcos fang))
-        (f* fmag (fsin fang))))))
+        (%f-mul fmag (%fcos fang))
+        (%f-mul fmag (%fsin fang))))))
   (returns COMPLEX|NUMBER "Complex number from polar coordinates")
   "Construct a complex number from polar coordinates (magnitude and angle).")
 
@@ -251,22 +251,22 @@
 (doc (def magnitude
   (fn (_ (param z COMPLEX|NUMBER "Complex or real number"))
     (if (%complex? z)
-      (let ((re (exact->inexact (%complex-re z)))
-            (im (exact->inexact (%complex-im z))))
-        (fsqrt (f+ (f* re re) (f* im im))))
+      (let ((re (%exact->inexact (%complex-re z)))
+            (im (%exact->inexact (%complex-im z))))
+        (%fsqrt (%f-add (%f-mul re re) (%f-mul im im))))
       (if (%real< z 0)
-        (exact->inexact (%real- 0 z))
-        (exact->inexact z)))))
+        (%exact->inexact (%real- 0 z))
+        (%exact->inexact z)))))
   (returns FLOAT "Absolute value (distance from origin)")
   "Return the magnitude (absolute value) of a complex or real number.")
 
 (doc (def angle
   (fn (_ (param z COMPLEX|NUMBER "Complex or real number"))
     (if (%complex? z)
-      (fatan2
-        (exact->inexact (%complex-im z))
-        (exact->inexact (%complex-re z)))
-      (if (%real< z 0) %pi (exact->inexact 0)))))
+      (%fatan2
+        (%exact->inexact (%complex-im z))
+        (%exact->inexact (%complex-re z)))
+      (if (%real< z 0) %pi (%exact->inexact 0)))))
   (returns FLOAT "Angle in radians")
   "Return the angle (argument) of a complex number in radians.")
 ; --- Operator promotion: add complex layer ---
@@ -321,7 +321,7 @@
   (fn (_ x)
     (if (%complex? x) #t
       (if (%rat? x) #t
-        (if (float? x) #t
+        (if (%float? x) #t
           (%int-number? x))))))
 
 (doc complex? "Test whether a value is any numeric type (alias for number?)."
@@ -335,7 +335,7 @@
 (set! real?
   (fn (_ x)
     (if (%rat? x) #t
-      (if (float? x) #t
+      (if (%float? x) #t
         (%int-number? x)))))
 
 (doc (provide x/num/complex

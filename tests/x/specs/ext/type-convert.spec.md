@@ -157,7 +157,7 @@
 ### type-of key matches int for int convert
 
 ```scheme
-(float? (convert 42 %float))
+(Float float? (convert 42 %float))
 ```
 ---
     #t
@@ -165,7 +165,7 @@
 ### type-of key matches string for float
 
 ```scheme
-(float? (convert "3.14" %float))
+(Float float? (convert "3.14" %float))
 ```
 ---
     #t
@@ -325,7 +325,7 @@
 ### exact match result has target type
 
 ```scheme
-(float? (convert 42 %float))
+(Float float? (convert 42 %float))
 ```
 ---
     #t
@@ -357,7 +357,7 @@
 ### convert zero result is float
 
 ```scheme
-(float? (convert 0 %float))
+(Float float? (convert 0 %float))
 ```
 ---
     #t
@@ -445,7 +445,7 @@
 ### converts string to float
 
 ```scheme
-(float? (convert "3.14" %float))
+(Float float? (convert "3.14" %float))
 ```
 ---
     #t
@@ -461,7 +461,7 @@
 ### converts integer string to float
 
 ```scheme
-(float? (convert "42" %float))
+(Float float? (convert "42" %float))
 ```
 ---
     #t
@@ -497,7 +497,7 @@
 ### float to int via convert
 
 ```scheme
-(def x (convert 3.14 (type-of 42))) (integer? x)
+(def x (convert 3.14 (type-of 42))) (Float integer? x)
 ```
 ---
     #t

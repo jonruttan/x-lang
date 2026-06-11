@@ -144,7 +144,7 @@
         (def after-primary
           (match
             ((number? tok) rest-t)
-            ((float? tok)  rest-t)
+            ((Float float? tok)  rest-t)
             ((%is-string? tok) rest-t)
             ((%is-block? tok)  rest-t)
             ((%is-paren? tok "(") (%skip-parens rest-t 1))

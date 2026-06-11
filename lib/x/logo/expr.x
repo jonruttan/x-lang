@@ -41,17 +41,17 @@
 
 (def %op-apply
   (fn (_ op left right)
-    (def %float? (or (float? left) (float? right)))
+    (def %float? (or (Float float? left) (Float float? right)))
     (match
-      ((str=? op "+") (if %float? (f+ (%as-float left) (%as-float right)) (+ left right)))
-      ((str=? op "-") (if %float? (f- (%as-float left) (%as-float right)) (- left right)))
-      ((str=? op "*") (if %float? (f* (%as-float left) (%as-float right)) (* left right)))
-      ((str=? op "/") (f/ (%as-float left) (%as-float right)))
-      ((str=? op "^") (fexp (f* (%as-float right) (flog (%as-float left)))))
+      ((str=? op "+") (if %float? (Float + (%as-float left) (%as-float right)) (+ left right)))
+      ((str=? op "-") (if %float? (Float - (%as-float left) (%as-float right)) (- left right)))
+      ((str=? op "*") (if %float? (Float * (%as-float left) (%as-float right)) (* left right)))
+      ((str=? op "/") (Float / (%as-float left) (%as-float right)))
+      ((str=? op "^") (Float exp (Float * (%as-float right) (Float log (%as-float left)))))
       ((str=? op "=")
         (match
           ((str? left)  (str=? left right))
-          ((float? left) (f= left (%as-float right)))
+          ((Float float? left) (Float = left (%as-float right)))
           (#t (= left right))))
       ((str=? op ">")  (> (%as-float left) (%as-float right)))
       ((str=? op "<")  (< (%as-float left) (%as-float right)))
@@ -112,7 +112,7 @@
             (rest-t (rest tokens)))
         (match
           ((number? tok)        (pair tok rest-t))
-          ((float? tok)         (pair tok rest-t))
+          ((Float float? tok)         (pair tok rest-t))
           ((%is-string? tok)    (pair (%logo-string-val tok) rest-t))
           ((%is-block? tok)     (pair tok rest-t))
           ((%is-paren? tok "(")
@@ -130,8 +130,8 @@
                     (#t (error "Expected )")))))))
           ((%is-op-str? tok "-")
             (let ((r (%logo-parse-primary rest-t)))
-              (pair (if (float? (first r))
-                      (f* (exact->inexact -1) (first r))
+              (pair (if (Float float? (first r))
+                      (Float * (Float exact->inexact -1) (first r))
                       (- (first r)))
                     (rest r))))
           (#t

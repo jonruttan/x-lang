@@ -57,7 +57,7 @@
 ### int plus float promotes
 
 ```scheme
-(float? (+ 1 1.5))
+(Float float? (+ 1 1.5))
 ```
 ---
     #t
@@ -65,7 +65,7 @@
 ### float times float
 
 ```scheme
-(float? (* 2.0 3.0))
+(Float float? (* 2.0 3.0))
 ```
 ---
     #t
@@ -73,7 +73,7 @@
 ### float plus bignum promotes to float
 
 ```scheme
-(float? (+ 1.0 99999999999999999999))
+(Float float? (+ 1.0 99999999999999999999))
 ```
 ---
     #t

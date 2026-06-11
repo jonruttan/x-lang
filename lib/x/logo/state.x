@@ -5,24 +5,24 @@
 ; State
 ; ============================================================
 
-(def %turtle-x (exact->inexact 0))
-(def %turtle-y (exact->inexact 0))
-(def %turtle-heading (exact->inexact 0))
+(def %turtle-x (Float exact->inexact 0))
+(def %turtle-y (Float exact->inexact 0))
+(def %turtle-heading (Float exact->inexact 0))
 (def %turtle-pen #t)
 (def %turtle-pen-color "#222")
-(def %turtle-pen-width (exact->inexact 1))
+(def %turtle-pen-width (Float exact->inexact 1))
 (def %turtle-bc ())    ; bytecode list (reversed, newest first)
 
 (def %deg->rad
   (fn (_ deg)
-    (f/ (f* (if (float? deg) deg (exact->inexact deg)) %pi)
-        (exact->inexact 180))))
+    (Float / (Float * (if (Float float? deg) deg (Float exact->inexact deg)) %pi)
+        (Float exact->inexact 180))))
 
 (def %as-float
-  (fn (_ n) (if (float? n) n (exact->inexact n))))
+  (fn (_ n) (if (Float float? n) n (Float exact->inexact n))))
 
 (def %as-int
-  (fn (_ n) (if (float? n) (inexact->exact n) n)))
+  (fn (_ n) (if (Float float? n) (Float inexact->exact n) n)))
 
 ; ============================================================
 ; Bytecode emission
@@ -58,8 +58,8 @@
     (def dist (%as-float n))
     (%bc-emit-1 "F" dist)
     (def rad (%deg->rad %turtle-heading))
-    (set! %turtle-x (f+ %turtle-x (f* dist (fsin rad))))
-    (set! %turtle-y (f- %turtle-y (f* dist (fcos rad))))))
+    (set! %turtle-x (Float + %turtle-x (Float * dist (Float sin rad))))
+    (set! %turtle-y (Float - %turtle-y (Float * dist (Float cos rad))))))
 
 (def turtle-back
   (fn (_ n) (turtle-forward (- n))))
@@ -67,13 +67,13 @@
 (def turtle-right
   (fn (_ n)
     (def deg (%as-float n))
-    (set! %turtle-heading (f+ %turtle-heading deg))
+    (set! %turtle-heading (Float + %turtle-heading deg))
     (%bc-emit-1 "R" deg)))
 
 (def turtle-left
   (fn (_ n)
     (def deg (%as-float n))
-    (set! %turtle-heading (f- %turtle-heading deg))
+    (set! %turtle-heading (Float - %turtle-heading deg))
     (%bc-emit-1 "L" deg)))
 
 (def turtle-penup   (fn () (set! %turtle-pen #f) (%bc-emit-0 "U")))
@@ -93,12 +93,12 @@
 
 (def turtle-clearscreen
   (fn ()
-    (set! %turtle-x (exact->inexact 0))
-    (set! %turtle-y (exact->inexact 0))
-    (set! %turtle-heading (exact->inexact 0))
+    (set! %turtle-x (Float exact->inexact 0))
+    (set! %turtle-y (Float exact->inexact 0))
+    (set! %turtle-heading (Float exact->inexact 0))
     (set! %turtle-pen #t)
     (set! %turtle-pen-color "#222")
-    (set! %turtle-pen-width (exact->inexact 1))
+    (set! %turtle-pen-width (Float exact->inexact 1))
     (set! %turtle-bc ())
     (if (null? %turtle-on-clear) () (%turtle-on-clear))))
 
