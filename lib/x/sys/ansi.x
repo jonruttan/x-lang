@@ -1,17 +1,22 @@
-; ansi.x -- ANSI terminal color support
+; ansi.x -- Ansi: terminal color support, homed on the Ansi class.
 ;
-; Detects terminal capabilities and provides color constants.
-; When stdout is not a terminal, or NO_COLOR is set, or TERM is "dumb",
-; all color constants are empty strings — zero-cost no-ops.
+; Detects terminal capabilities; the color codes live as Ansi static MEMBERS
+; (computed once at class definition -- empty strings when color is off, so
+; every use is a zero-cost no-op). When stdout is not a terminal, or NO_COLOR
+; is set, or TERM is "dumb", or --no-color was passed, color is off.
 ;
 ; Color scheme follows LSP semantic token types mapped to standard ANSI:
 ;   number=yellow, string=green, variable/symbol=blue, keyword=bold-red,
 ;   function=cyan, string.escape/char=magenta, regexp=red, nil=dim
 ;
-; Requires: posix.x (Sys isatty, sh-getenv), type.x (type-push-write)
+; Load-time wiring (by design, the module's integration job): fills doc.x's
+; %c-* color stubs and installs the syntax-highlighted REPL printer.
+;
+; Requires: posix.x (Sys isatty/getenv), type.x (type-push-write)
 
 (import x/sys/posix)
 (import x/sys/type)
+(import x/type/object)
 
 ; --- Terminal detection ---
 
@@ -34,52 +39,74 @@
 (def %esc "\x1b")
 (def %sgr (fn (_ code) (if %ansi? (str-append %esc (str-append "[" (str-append code "m"))) "")))
 
-; --- Color constants ---
+; --- The Ansi class: color members + operations ---
+; Members evaluate once, here, at class definition. Methods referencing the
+; %-helpers below resolve them at call time (deferred, the List precedent).
 
-(def ansi-reset   (%sgr "0"))
-(def ansi-bold    (%sgr "1"))
-(def ansi-dim     (%sgr "2"))
-(def ansi-red     (%sgr "31"))
-(def ansi-green   (%sgr "32"))
-(def ansi-yellow  (%sgr "33"))
-(def ansi-blue    (%sgr "34"))
-(def ansi-magenta (%sgr "35"))
-(def ansi-cyan    (%sgr "36"))
-
-; --- Compound styles ---
-
-(def ansi-bold-cyan    (str-append (%sgr "1") (%sgr "36")))
-(def ansi-bold-green   (str-append (%sgr "1") (%sgr "32")))
-(def ansi-bold-yellow  (str-append (%sgr "1") (%sgr "33")))
-(def ansi-bold-red     (str-append (%sgr "1") (%sgr "31")))
-(def ansi-bold-blue    (str-append (%sgr "1") (%sgr "34")))
-
-; --- Helpers ---
-
-(doc (def ansi-wrap
-  (fn (_ (param style STRING "ANSI escape sequence") (param text STRING "Text to wrap"))
-    (str-append style (str-append text ansi-reset))))
-  (returns STRING "Text wrapped in ANSI codes, or plain text if colors disabled")
-  "Wrap text in an ANSI style code with automatic reset.")
-
-(doc (def ansi?
-  (fn (_ ) %ansi?))
-  (returns BOOLEAN "True if ANSI color output is enabled")
-  "Check whether ANSI color support is active.")
+(def-class Ansi ()
+  (static
+    (reset   (%sgr "0")  "Reset all attributes")
+    (bold    (%sgr "1")  "Bold")
+    (dim     (%sgr "2")  "Dim")
+    (red     (%sgr "31") "Red foreground")
+    (green   (%sgr "32") "Green foreground")
+    (yellow  (%sgr "33") "Yellow foreground")
+    (blue    (%sgr "34") "Blue foreground")
+    (magenta (%sgr "35") "Magenta foreground")
+    (cyan    (%sgr "36") "Cyan foreground")
+    (bold-cyan   (str-append (%sgr "1") (%sgr "36")) "Bold cyan foreground")
+    (bold-green  (str-append (%sgr "1") (%sgr "32")) "Bold green foreground")
+    (bold-yellow (str-append (%sgr "1") (%sgr "33")) "Bold yellow foreground")
+    (bold-red    (str-append (%sgr "1") (%sgr "31")) "Bold red foreground")
+    (bold-blue   (str-append (%sgr "1") (%sgr "34")) "Bold blue foreground")
+    (method enabled? (self)
+      (doc "Check whether ANSI color support is active."
+        (returns BOOLEAN "True if ANSI color output is enabled"))
+      %ansi?)
+    (method wrap (self (param style STRING "ANSI escape sequence") (param text STRING "Text to wrap"))
+      (doc "Wrap text in an ANSI style code with automatic reset."
+        (returns STRING "Text wrapped in ANSI codes, or plain text if colors disabled"))
+      (str-append style (str-append text (Ansi reset))))
+    (method highlight (self (param code STRING "Source code string to highlight"))
+      (doc "Syntax-highlight a code string and display it. Keywords in bold magenta, symbols in blue, numbers in yellow, strings in green."
+        (returns ANY "Displays highlighted code to stdout")
+        (example "(Ansi highlight \"(def x 42)\")" "(def x 42)"))
+      (if (not %ansi?)
+        (display code)
+        (let ((%toks (token-read-string (%base) code))
+              (%go
+                (fn (self toks first?)
+                  (if (null? toks) ()
+                    (do
+                      (if first? () (display " "))
+                      (%ansi-write-code (first toks))
+                      (self (rest toks) ()))))))
+          (%go %toks #t))))
+    (method enable-repl (self)
+      (doc "Enable syntax-highlighted REPL output using LSP semantic token colors.")
+      (if (not %ansi?) ()
+        (set! %repl-print
+          (fn (_ result)
+            (if (null? result) () (%ansi-write result))
+            (newline)))))
+    (method disable-repl (self)
+      (doc "Restore plain REPL output.")
+      (set! %repl-print %saved-repl-print))))
 
 ; --- LSP semantic token colors ---
 ; number=yellow, string=green, symbol=blue, char=magenta,
 ; keyword/bool=bold-red, function=cyan, regexp=red, nil=dim
 
-(def %c-number   ansi-yellow)
-(def %c-string   ansi-green)
-(def %c-symbol   ansi-blue)
-(def %c-char     ansi-magenta)
-(def %c-bool     ansi-bold-red)
-(def %c-nil-val  ansi-dim)
-(def %c-function ansi-cyan)
-(def %c-regexp   ansi-red)
+(def %c-number   (Ansi yellow))
+(def %c-string   (Ansi green))
+(def %c-symbol   (Ansi blue))
+(def %c-char     (Ansi magenta))
+(def %c-bool     (Ansi bold-red))
+(def %c-nil-val  (Ansi dim))
+(def %c-function (Ansi cyan))
+(def %c-regexp   (Ansi red))
 (def %c-punct    "")
+(def %c-rst      (Ansi reset))
 
 ; --- Syntax-highlighted recursive writer ---
 ;
@@ -93,7 +120,7 @@
 (def %ansi-write-list
   (fn (self obj)
     (if (null? (first obj))
-      (do (display %c-nil-val) (display "()") (display ansi-reset))
+      (do (display %c-nil-val) (display "()") (display %c-rst))
       (%ansi-write (first obj)))
     (if (null? (rest obj))
       ()
@@ -106,23 +133,23 @@
 (set! %ansi-write
   (fn (self obj)
     (if (null? obj)
-      (do (display %c-nil-val) (display "()") (display ansi-reset))
+      (do (display %c-nil-val) (display "()") (display %c-rst))
     (if (eq? obj #t)
-      (do (display %c-bool) (display "#t") (display ansi-reset))
+      (do (display %c-bool) (display "#t") (display %c-rst))
     (if (eq? obj #f)
-      (do (display %c-bool) (display "#f") (display ansi-reset))
+      (do (display %c-bool) (display "#f") (display %c-rst))
     (if (pair? obj)
       (do (display "(") (%ansi-write-list obj) (display ")"))
     (if (number? obj)
-      (do (display %c-number) (write obj) (display ansi-reset))
+      (do (display %c-number) (write obj) (display %c-rst))
     (if (str? obj)
-      (do (display %c-string) (write obj) (display ansi-reset))
+      (do (display %c-string) (write obj) (display %c-rst))
     (if (symbol? obj)
-      (do (display %c-symbol) (write obj) (display ansi-reset))
+      (do (display %c-symbol) (write obj) (display %c-rst))
     (if (char? obj)
-      (do (display %c-char) (write obj) (display ansi-reset))
+      (do (display %c-char) (write obj) (display %c-rst))
     (if (procedure? obj)
-      (do (display %c-function) (write obj) (display ansi-reset))
+      (do (display %c-function) (write obj) (display %c-rst))
     ; Default (regex, custom types, etc.): write without color
     (write obj))))))))))))
 
@@ -160,7 +187,7 @@
 (def %ansi-write-code-list
   (fn (self obj)
     (if (null? (first obj))
-      (do (display %c-nil-val) (display "()") (display ansi-reset))
+      (do (display %c-nil-val) (display "()") (display %c-rst))
       (%ansi-write-code (first obj)))
     (if (null? (rest obj))
       ()
@@ -171,85 +198,50 @@
 (set! %ansi-write-code
   (fn (self obj)
     (if (null? obj)
-      (do (display %c-nil-val) (display "()") (display ansi-reset))
+      (do (display %c-nil-val) (display "()") (display %c-rst))
     (if (eq? obj #t)
-      (do (display %c-bool) (display "#t") (display ansi-reset))
+      (do (display %c-bool) (display "#t") (display %c-rst))
     (if (eq? obj #f)
-      (do (display %c-bool) (display "#f") (display ansi-reset))
+      (do (display %c-bool) (display "#f") (display %c-rst))
     (if (pair? obj)
       (do (display "(") (%ansi-write-code-list obj) (display ")"))
     (if (number? obj)
-      (do (display %c-number) (write obj) (display ansi-reset))
+      (do (display %c-number) (write obj) (display %c-rst))
     (if (str? obj)
-      (do (display %c-string) (write obj) (display ansi-reset))
+      (do (display %c-string) (write obj) (display %c-rst))
     (if (symbol? obj)
       (if (%keyword? obj)
-        (do (display %c-keyword) (display obj) (display ansi-reset))
-        (do (display %c-symbol) (display obj) (display ansi-reset)))
+        (do (display %c-keyword) (display obj) (display %c-rst))
+        (do (display %c-symbol) (display obj) (display %c-rst)))
     (if (char? obj)
-      (do (display %c-char) (write obj) (display ansi-reset))
+      (do (display %c-char) (write obj) (display %c-rst))
     (write obj)))))))))))
-
-(doc (def ansi-highlight
-  (fn (_ (param code STRING "Source code string to highlight"))
-    (if (not %ansi?)
-      (display code)
-      (let ((%toks (token-read-string (%base) code))
-            (%go
-              (fn (self toks first?)
-                (if (null? toks) ()
-                  (do
-                    (if first? () (display " "))
-                    (%ansi-write-code (first toks))
-                    (self (rest toks) ()))))))
-        (%go %toks #t)))))
-  (returns ANY "Displays highlighted code to stdout")
-  (example "(ansi-highlight \"(def x 42)\")" "(def x 42)")
-  "Syntax-highlight a code string and display it. Keywords in bold magenta, symbols in blue, numbers in yellow, strings in green.")
 
 ; --- REPL integration ---
 
 (def %saved-repl-print %repl-print)
 
-(doc (def ansi-enable-repl
-  (fn (_ )
-    (if (not %ansi?) ()
-      (set! %repl-print
-        (fn (_ result)
-          (if (null? result) () (%ansi-write result))
-          (newline))))))
-  "Enable syntax-highlighted REPL output using LSP semantic token colors.")
-
-(doc (def ansi-disable-repl
-  (fn (_ )
-    (set! %repl-print %saved-repl-print)))
-  "Restore plain REPL output.")
-
 ; --- Set doc.x color variables (doc.x defines stubs as "") ---
 
 (if %ansi?
   (do
-    (set! %c-reset   ansi-reset)
-    (set! %c-bold    ansi-bold)
-    (set! %c-dim     ansi-dim)
-    (set! %c-name    ansi-bold-cyan)
-    (set! %c-type    ansi-green)
-    (set! %c-param   ansi-yellow)
-    (set! %c-example ansi-cyan)
-    (set! %c-error   ansi-bold-red)
-    (set! %c-module  ansi-bold)
-    (set! %highlight-code ansi-highlight)))
+    (set! %c-reset   (Ansi reset))
+    (set! %c-bold    (Ansi bold))
+    (set! %c-dim     (Ansi dim))
+    (set! %c-name    (Ansi bold-cyan))
+    (set! %c-type    (Ansi green))
+    (set! %c-param   (Ansi yellow))
+    (set! %c-example (Ansi cyan))
+    (set! %c-error   (Ansi bold-red))
+    (set! %c-module  (Ansi bold))
+    (set! %highlight-code (method-ref Ansi highlight))))
 
 ; --- Activate REPL highlighting ---
 
-(ansi-enable-repl)
+(Ansi enable-repl)
 
-(doc (provide x/sys/ansi
-  ansi? ansi-wrap ansi-highlight ansi-enable-repl ansi-disable-repl
-  ansi-reset ansi-bold ansi-dim
-  ansi-red ansi-green ansi-yellow ansi-blue ansi-magenta ansi-cyan
-  ansi-bold-cyan ansi-bold-green ansi-bold-yellow ansi-bold-red ansi-bold-blue)
+(doc (provide x/sys/ansi Ansi)
   (note "Color scheme: LSP semantic tokens — number=yellow, string=green, symbol=blue, char=magenta, bool=bold-red, function=cyan.")
-  (note "Respects NO_COLOR environment variable and TERM=dumb.")
-  (note "Pass --no-color on command line to disable.")
-  "ANSI terminal color support with syntax-highlighted REPL output.")
+  (note "Colors are Ansi static members ((Ansi red), (Ansi bold-cyan), ...); empty strings when color is off.")
+  (note "Respects NO_COLOR and TERM=dumb; pass --no-color to disable.")
+  "ANSI terminal color support, homed on the Ansi class.")
