@@ -79,6 +79,50 @@
 ---
     #t
 
+### same type on both sides dispatches its handler
+
+```scheme
+(do
+  (def %t7 (make-type "OPSPEC7" (list)))
+  (def %ts7 (type-by-atom %t7))
+  (type-push-op %ts7 (lit +) (fn (_ a b) (lit same-type)))
+  (+ (make-instance %t7 1) (make-instance %t7 2)))
+```
+---
+    (lit same-type)
+
+### the from-relation decides mixed types (absorber wins)
+
+```scheme
+(do
+  (def %lo2 (make-type "OPSLO2" (list)))
+  (def %hi2 (make-type "OPSHI2"
+    (list (pair (lit from) (list (pair %lo2 (fn (_ v) v)))))))
+  (def %lo2-ts (type-by-atom %lo2))
+  (def %hi2-ts (type-by-atom %hi2))
+  (type-push-op %lo2-ts (lit *) (fn (_ a b) (lit lo2)))
+  (type-push-op %hi2-ts (lit *) (fn (_ a b) (lit hi2)))
+  (* (make-instance %lo2 1) (make-instance %hi2 1)))
+```
+---
+    (lit hi2)
+
+### the from-relation is order-independent
+
+```scheme
+(do
+  (def %lo3 (make-type "OPSLO3" (list)))
+  (def %hi3 (make-type "OPSHI3"
+    (list (pair (lit from) (list (pair %lo3 (fn (_ v) v)))))))
+  (def %lo3-ts (type-by-atom %lo3))
+  (def %hi3-ts (type-by-atom %hi3))
+  (type-push-op %lo3-ts (lit *) (fn (_ a b) (lit lo3)))
+  (type-push-op %hi3-ts (lit *) (fn (_ a b) (lit hi3)))
+  (* (make-instance %hi3 1) (make-instance %lo3 1)))
+```
+---
+    (lit hi3)
+
 ### eq? keeps identity semantics (never dispatches)
 
 ```scheme
