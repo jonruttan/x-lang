@@ -29,7 +29,7 @@
 ### returns value when non-nil
 
 ```scheme
-(default-to 0 42)
+(Fn default-to 0 42)
 ```
 ---
     42
@@ -37,7 +37,7 @@
 ### returns default when nil
 
 ```scheme
-(default-to 0 ())
+(Fn default-to 0 ())
 ```
 ---
     0
@@ -47,7 +47,7 @@
 ### iterates until predicate holds
 
 ```scheme
-(until (fn (_ x) (> x 10)) (method-ref Num inc) 1)
+(Fn until (fn (_ x) (> x 10)) (method-ref Num inc) 1)
 ```
 ---
     11
@@ -115,7 +115,7 @@
 ### returns immediately when predicate holds
 
 ```scheme
-(until (fn (_ x) (> x 10)) (method-ref Num inc) 15)
+(Fn until (fn (_ x) (> x 10)) (method-ref Num inc) 15)
 ```
 ---
     15

@@ -35,7 +35,17 @@
     (method tap (self (param f CALLABLE "Side-effect function"))
       (doc "Call f on the argument for side effects, then return the argument."
         (returns CALLABLE "Function applying f then returning its argument"))
-      (fn (_ x) (f x) x))))
+      (fn (_ x) (f x) x))
+    (method default-to (self (param d ANY "Default value") (param x ANY "Value to check"))
+      (doc "Return x if non-nil, otherwise return the default d."
+        (returns ANY "x if non-nil, otherwise d"))
+      (if (null? x) d x))
+    (method until (self (param pred CALLABLE "Predicate to stop on")
+                        (param f CALLABLE "Transformation function")
+                        (param x ANY "Initial value"))
+      (doc "Repeatedly apply f to x until pred is satisfied, then return the value."
+        (returns ANY "First value satisfying pred"))
+      (if (pred x) x (recur self pred f (f x))))))
 
 (doc (provide x/core/fn Fn)
   (note "Function combinators as static methods: (Fn compose f g), (Fn flip f), (Fn tap f).")

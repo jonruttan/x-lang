@@ -4,17 +4,7 @@
   (returns BOOLEAN "True if x is #t or #f")
   "Test whether a value is a boolean.")
 
-(doc (def default-to (fn (_ (param d ANY "Default value") (param x ANY "Value to check")) (if (null? x) d x)))
-  (returns ANY "x if non-nil, otherwise d")
-  "Return x if non-nil, otherwise return the default d.")
-
-(doc (def until
-  (fn (self (param pred CALLABLE "Predicate to stop on")
-       (param f CALLABLE "Transformation function")
-       (param x ANY "Initial value"))
-    (if (pred x) x (self pred f (f x)))))
-  (returns ANY "First value satisfying pred")
-  "Repeatedly apply f to x until pred is satisfied, then return the value.")
+; default-to and until live on the Fn class (combinators).
 
 ; Deep structural equality. eq? is a raw scalar compare (it reads slot 0, which is
 ; the value for an atom but the car for a pair), so it cannot compare compounds --
@@ -46,5 +36,7 @@
   (returns BOOLEAN "True if a is greater than or equal to b")
   "Test whether a is greater than or equal to b.")
 
-(doc (provide x/core/logic boolean? default-to until equal? > <= >=)
+(doc (provide x/core/logic boolean? equal? > <= >=)
+  (note "boolean? stays with the type-predicate cohort transitionally; equal?/>/<=/>= are")
+  (note "keep-list operators. default-to and until live on the Fn class.")
   "Boolean logic, structural equality, and derived comparisons.")
