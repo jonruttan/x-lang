@@ -13,7 +13,8 @@
 ; Registered conversions:
 ;   INT  <- char (char->integer), string (str->number), ptr (ptr->int)
 ;   CHAR <- int (integer->char)
-;   STR  <- int (number->str), symbol (symbol->str), list (list->str)
+;   STR  <- int (number->str), symbol (symbol->str), list (list->str),
+;           ptr (ptr->str)
 ;   SYM  <- string (str->symbol)
 ;   PTR  <- int (int->ptr), string (str->ptr), any (obj->ptr)
 ;
@@ -64,7 +65,8 @@
   (list
     (pair %int (fn (_ v . extra) (integer->char v)))))
 
-; STRING: from int, symbol, list (nil type-of)
+; STRING: from int, symbol, list (nil type-of), ptr (copies the C string,
+; so FFI results like getenv survive; inverse of PTR <- string below)
 (%type-set-from! (type-by-atom %string)
   (list
     (pair %int    (fn (_ v . extra)
@@ -72,7 +74,8 @@
                       (number->str v)
                       (number->str v (first extra)))))
     (pair %symbol (fn (_ v . extra) (symbol->str v)))
-    (pair %pair   (fn (_ v . extra) (list->str v)))))
+    (pair %pair   (fn (_ v . extra) (list->str v)))
+    (pair %ptr    (fn (_ v . extra) (ptr->str v)))))
 
 ; SYMBOL: from string
 (%type-set-from! (type-by-atom %symbol)

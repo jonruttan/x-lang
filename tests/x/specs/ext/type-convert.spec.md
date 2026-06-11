@@ -466,6 +466,24 @@
 ---
     #t
 
+## convert ptr to string
+
+### copies the C string back (FFI getenv path)
+
+```scheme
+(do (def s "hello") (convert (convert s %ptr) %string))
+```
+---
+    "hello"
+
+### copy is a new string, not the source
+
+```scheme
+(do (def s "hello") (not (eq? (convert (convert s %ptr) %string) s)))
+```
+---
+    #t
+
 ## convert list to vector
 
 ### converts list to vector

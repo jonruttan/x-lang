@@ -61,6 +61,24 @@
 ---
     0
 
+### roundtrips through getenv
+
+```scheme
+(do (Sys setenv "X_SPEC_RT_VAR" "ok") (Sys getenv "X_SPEC_RT_VAR"))
+```
+---
+    "ok"
+
+### overwrites an existing value
+
+```scheme
+(do (Sys setenv "X_SPEC_RT_VAR" "first")
+    (Sys setenv "X_SPEC_RT_VAR" "second")
+    (Sys getenv "X_SPEC_RT_VAR"))
+```
+---
+    "second"
+
 ## sh-open-write / sh-close
 
 ### opens and closes without error
