@@ -4,19 +4,13 @@
 
 (import x/type/object)
 
-(def %b-make      (prim-ref (lit base) (lit make)))
-(def %b-eval      (prim-ref (lit base) (lit eval)))
-(def %b-bind      (prim-ref (lit base) (lit bind)))
-(def %b-make-type (prim-ref (lit base) (lit make-type)))
-(def %b-make-tok  (prim-ref (lit base) (lit make-tok)))
-
 (def-class Base ()
   (static
-    (method make      (self)                 (%b-make))
-    (method eval      (self target expr)     (%b-eval target expr))
-    (method bind      (self target name val) (%b-bind target name val))
-    (method make-type (self target name h)   (%b-make-type target name h))
-    (method make-tok  (self)                 (%b-make-tok))))
+    (method make      (self)                 ((prim-ref (lit base) (lit make))))
+    (method eval      (self target expr)     ((prim-ref (lit base) (lit eval)) target expr))
+    (method bind      (self target name val) ((prim-ref (lit base) (lit bind)) target name val))
+    (method make-type (self target name h)   ((prim-ref (lit base) (lit make-type)) target name h))
+    (method make-tok  (self)                 ((prim-ref (lit base) (lit make-tok))))))
 
 (doc (provide x/type/base Base)
   (note "(Base make) -> a fresh execution-context (base) object.")
