@@ -29,7 +29,7 @@
 ### returns value when key exists
 
 ```scheme
-(do (def al (list (pair (lit a) 1))) (assoc-get-or 99 (lit a) al))
+(do (def al (list (pair (lit a) 1))) (Assoc get-or 99 (lit a) al))
 ```
 ---
     1
@@ -37,7 +37,7 @@
 ### returns default when key missing
 
 ```scheme
-(do (def al (list (pair (lit a) 1))) (assoc-get-or 99 (lit z) al))
+(do (def al (list (pair (lit a) 1))) (Assoc get-or 99 (lit z) al))
 ```
 ---
     99
@@ -119,7 +119,7 @@
 ### returns list of values
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-vals al))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (Assoc vals al))
 ```
 ---
     (1 2)
@@ -129,7 +129,7 @@
 ### applies function to all values
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-get (lit a) (assoc-map (method-ref Num inc) al)))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-get (lit a) (Assoc map (method-ref Num inc) al)))
 ```
 ---
     2
@@ -139,7 +139,7 @@
 ### filters entries by predicate
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (length (assoc-filter (fn (_ e) (> (rest e) 1)) al)))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (length (Assoc filter (fn (_ e) (> (rest e) 1)) al)))
 ```
 ---
     1
@@ -149,7 +149,7 @@
 ### merges two alists
 
 ```scheme
-(do (def a (list (pair (lit x) 1))) (def b (list (pair (lit y) 2))) (length (assoc-merge a b)))
+(do (def a (list (pair (lit x) 1))) (def b (list (pair (lit y) 2))) (length (Assoc merge a b)))
 ```
 ---
     2
@@ -159,7 +159,7 @@
 ### selects entries by key list
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2) (pair (lit c) 3))) (length (assoc-pick (list (lit a) (lit c)) al)))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2) (pair (lit c) 3))) (length (Assoc pick (list (lit a) (lit c)) al)))
 ```
 ---
     2
@@ -169,7 +169,7 @@
 ### removes entries by key list
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2) (pair (lit c) 3))) (length (assoc-omit (list (lit a)) al)))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2) (pair (lit c) 3))) (length (Assoc omit (list (lit a)) al)))
 ```
 ---
     2
@@ -179,7 +179,7 @@
 ### converts list of lists to alist
 
 ```scheme
-(do (def al (from-pairs (list (list (lit a) 1) (list (lit b) 2)))) (assoc-get (lit a) al))
+(do (def al (Assoc from-pairs (list (list (lit a) 1) (list (lit b) 2)))) (assoc-get (lit a) al))
 ```
 ---
     1
@@ -189,7 +189,7 @@
 ### converts alist to list of lists
 
 ```scheme
-(do (def al (list (pair (lit a) 1))) (first (first (to-pairs al))))
+(do (def al (list (pair (lit a) 1))) (first (first (Assoc to-pairs al))))
 ```
 ---
     (lit a)
@@ -199,7 +199,7 @@
 ### transforms values by matching keys
 
 ```scheme
-(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-get (lit a) (evolve (list (pair (lit a) (method-ref Num inc))) al)))
+(do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-get (lit a) (Assoc evolve (list (pair (lit a) (method-ref Num inc))) al)))
 ```
 ---
     2
@@ -209,7 +209,7 @@
 ### returns the value for a present key (plist)
 
 ```scheme
-(opt-get-or 99 (lit a) (list (lit a) 1))
+(Assoc opt-get-or 99 (lit a) (list (lit a) 1))
 ```
 ---
     1
@@ -217,7 +217,7 @@
 ### returns the default for a missing key
 
 ```scheme
-(opt-get-or 99 (lit z) (list (lit a) 1))
+(Assoc opt-get-or 99 (lit z) (list (lit a) 1))
 ```
 ---
     99
@@ -225,7 +225,7 @@
 ### reads from an alist store
 
 ```scheme
-(opt-get-or 99 (lit a) (list (pair (lit a) 1)))
+(Assoc opt-get-or 99 (lit a) (list (pair (lit a) 1)))
 ```
 ---
     1
@@ -233,7 +233,7 @@
 ### keeps a present 0 instead of the default
 
 ```scheme
-(opt-get-or 99 (lit a) (list (lit a) 0))
+(Assoc opt-get-or 99 (lit a) (list (lit a) 0))
 ```
 ---
     0
@@ -243,7 +243,7 @@
 ### returns the value for a present key
 
 ```scheme
-(opt-get-or-else (fn () 99) (lit a) (list (lit a) 1))
+(Assoc opt-get-or-else (fn () 99) (lit a) (list (lit a) 1))
 ```
 ---
     1
@@ -251,7 +251,7 @@
 ### calls the thunk for a missing key
 
 ```scheme
-(opt-get-or-else (fn () 99) (lit z) (list (lit a) 1))
+(Assoc opt-get-or-else (fn () 99) (lit z) (list (lit a) 1))
 ```
 ---
     99
@@ -259,7 +259,7 @@
 ### does not run the thunk when the key is present
 
 ```scheme
-(opt-get-or-else (fn () (error "boom")) (lit a) (list (lit a) 1))
+(Assoc opt-get-or-else (fn () (error "boom")) (lit a) (list (lit a) 1))
 ```
 ---
     1
@@ -267,7 +267,7 @@
 ### keeps a present 0 without calling the thunk
 
 ```scheme
-(opt-get-or-else (fn () 99) (lit a) (list (lit a) 0))
+(Assoc opt-get-or-else (fn () 99) (lit a) (list (lit a) 0))
 ```
 ---
     0

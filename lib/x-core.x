@@ -38,6 +38,7 @@
     (pair "lib/x/core/syntax.x"
     (pair "lib/x/num/tower.x"
     (pair "lib/x/core/alist.x"
+    (pair "lib/x/type/assoc.x"
     (pair "lib/x/core/arithmetic.x"
     (pair "lib/x/sys/intrinsics.x"
     (pair "lib/x/sys/posix.x"
@@ -56,7 +57,7 @@
     (pair "lib/x/type/lit-reader.x"
     (pair "lib/x/core/repl.x"
     (pair "lib/x/core/banner.x"
-      (first %include-list-cell)))))))))))))))))))))))))))))))))))
+      (first %include-list-cell))))))))))))))))))))))))))))))))))))
 
   ; --- Standard modules ---
   (include "lib/x/core/predicates.x")
@@ -112,6 +113,9 @@
   ; Promise: the delay form + the Promise class. Relocated past object.x --
   ; nothing loaded before the object system uses promises.
   (include "lib/x/type/promise.x")
+  ; Assoc: the association-list API (the Assoc class). core/alist.x keeps the
+  ; bootstrap five the object system runs on; this class delegates to them.
+  (include "lib/x/type/assoc.x")
   ; Vector: #() type machinery + the Vector class. Needs def-class; relocated past
   ; object.x from the early block -- nothing before it uses vectors or #() literals.
   (include "lib/x/type/vector.x")

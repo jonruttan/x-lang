@@ -1,8 +1,15 @@
-; alist.x -- Association list operations
+; alist.x -- Association-list bootstrap layer
 (import x/core/list)
 ;
 ; Alists: ((key1 . val1) (key2 . val2) ...)
 ; Keys compared with eq? (symbol pointer equality)
+;
+; This file is the BOOTSTRAP layer: the five operations the object system
+; itself runs on (object.x dispatches members through assoc-get/assoc-put/
+; assoc-has?/assoc-keys, and assoc-put needs assoc-del), plus the let-opts
+; form and its %-private runtime support. It loads before object.x, so it
+; cannot reference classes. The full association API homes on the Assoc
+; class (lib/x/type/assoc.x), which delegates to this layer.
 
 (note "Lookup")
 
@@ -14,16 +21,8 @@
       ((eq? key (first (first alist))) (rest (first alist)))
       (#t (self key (rest alist))))))
   (returns ANY "Value associated with key, or nil if not found")
+  (note "Bootstrap layer: the object system dispatches through this. Class API: (Assoc get ...).")
   "Look up a key in an alist, returning its value or nil.")
-
-(doc (def assoc-get-or
-  (fn (_ (param d ANY "Default value if key is absent")
-       (param key SYMBOL "Key to look up")
-       (param alist LIST "Association list"))
-    (def result (assoc-get key alist))
-    (if (null? result) d result)))
-  (returns ANY "Value associated with key, or the default")
-  "Look up a key in an alist, returning a default if not found.")
 
 (doc (def assoc-has?
   (fn (self (param key SYMBOL "Key to check")
@@ -33,6 +32,7 @@
       ((eq? key (first (first alist))) #t)
       (#t (self key (rest alist))))))
   (returns BOOL "True if key is present")
+  (note "Bootstrap layer: the object system dispatches through this. Class API: (Assoc has? ...).")
   "Test whether a key exists in an alist.")
 
 (note "Modification")
@@ -45,6 +45,7 @@
       ((eq? key (first (first alist))) (self key (rest alist)))
       (#t (pair (first alist) (self key (rest alist)))))))
   (returns LIST "Alist without the given key")
+  (note "Bootstrap layer. Class API: (Assoc del ...).")
   "Remove all entries for a key from an alist.")
 
 (doc (def assoc-put
@@ -53,89 +54,15 @@
        (param alist LIST "Association list"))
     (pair (pair key val) (assoc-del key alist))))
   (returns LIST "Alist with the key set to val")
+  (note "Bootstrap layer: the object system dispatches through this. Class API: (Assoc put ...).")
   "Set a key-value pair, replacing any existing entry for that key.")
 
 (note "Extraction")
 
 (doc (def assoc-keys (fn (_ (param alist LIST "Association list")) (map first alist)))
   (returns LIST "List of keys")
+  (note "Bootstrap layer: the object system's introspection uses this. Class API: (Assoc keys ...).")
   "Return all keys from an alist.")
-
-(doc (def assoc-vals (fn (_ (param alist LIST "Association list")) (map rest alist)))
-  (returns LIST "List of values")
-  "Return all values from an alist.")
-
-(note "Transformation")
-
-(doc (def assoc-map
-  (fn (_ (param f CALLABLE "Function applied to each value")
-       (param alist LIST "Association list"))
-    (map
-      (fn (_ entry) (pair (first entry) (f (rest entry))))
-      alist)))
-  (returns LIST "New alist with transformed values")
-  "Apply a function to every value in an alist, preserving keys.")
-
-(doc (def assoc-filter
-  (fn (_ (param pred CALLABLE "Predicate: (entry) -> bool")
-       (param alist LIST "Association list"))
-    (filter pred alist)))
-  (returns LIST "Filtered alist")
-  "Keep only entries satisfying a predicate.")
-
-(doc (def assoc-merge
-  (fn (_ (param a LIST "Base alist (takes priority)")
-       (param b LIST "Alist to merge in"))
-    (fold
-      (fn (_ acc entry)
-        (if (assoc-has? (first entry) acc) acc (pair entry acc)))
-      a
-      b)))
-  (returns LIST "Merged alist; entries in a shadow those in b")
-  "Merge two alists; keys in the first take priority.")
-
-(doc (def assoc-pick
-  (fn (_ (param keys LIST "List of keys to keep")
-       (param alist LIST "Association list"))
-    (filter (fn (_ entry) (List includes? (first entry) keys)) alist)))
-  (returns LIST "Alist containing only the selected keys")
-  "Select entries whose keys appear in a given list.")
-
-(doc (def assoc-omit
-  (fn (_ (param keys LIST "List of keys to exclude")
-       (param alist LIST "Association list"))
-    (filter
-      (fn (_ entry) (not (List includes? (first entry) keys)))
-      alist)))
-  (returns LIST "Alist without the excluded keys")
-  "Remove entries whose keys appear in a given list.")
-
-(note "Conversion")
-
-(doc (def from-pairs
-  (fn (_ (param lst LIST "List of two-element lists"))
-    (map (fn (_ p) (pair (first p) (first (rest p)))) lst)))
-  (returns LIST "Association list")
-  "Convert a list of (key value) lists into an alist of dotted pairs.")
-
-(doc (def to-pairs
-  (fn (_ (param alist LIST "Association list"))
-    (map (fn (_ entry) (list (first entry) (rest entry))) alist)))
-  (returns LIST "List of two-element lists")
-  "Convert an alist of dotted pairs into a list of (key value) lists.")
-
-(doc (def evolve
-  (fn (_ (param fns LIST "Alist of key -> transform function")
-       (param alist LIST "Association list to transform"))
-    (map
-      (fn (_ entry)
-        (def transform (assoc-get (first entry) fns))
-        (if (null? transform)
-          entry
-          (pair (first entry) (transform (rest entry)))))
-      alist)))
-  (returns LIST "Alist with selected values transformed")
-  "Apply per-key transform functions to values in an alist.")
 
 (note "Option stores")
 
@@ -169,27 +96,16 @@
           (list (first (rest store)))
           (loop key (rest (rest store))))))))
 
-(doc (def opt-get-or
-  (fn (_ (param d ANY "Default value if key is absent")
-       (param key SYMBOL "Key to look up")
-       (param store LIST "Option store: alist or flat plist"))
-    (let ((c (%opt-cell key store)))
-      (if (null? c) d (first c)))))
-  (returns ANY "Stored value, or the default")
-  (example "(opt-get-or 0 (lit b) (lit (a 1)))" "0")
-  "Look up a key in an option store (alist or plist); return a default if absent.")
-
-(doc (def opt-get-or-else
-  (fn (_ (param thunk CALLABLE "Nullary function producing the default")
-       (param key SYMBOL "Key to look up")
-       (param store LIST "Option store: alist or flat plist"))
+; let-opts' runtime lookup hook: the expansion below references this %-private
+; by name, so it must stay a global def in the bootstrap layer.  The public API
+; is (Assoc opt-get-or ...) / (Assoc opt-get-or-else ...), which delegate here.
+(def %opt-get-or-else
+  (fn (_ thunk key store)
     (let ((c (%opt-cell key store)))
       (if (null? c) (thunk) (first c)))))
-  (returns ANY "Stored value, or (thunk) when the key is absent")
-  "Like opt-get-or but the default is lazy: thunk runs only when the key is absent.")
 
 ; Compile one let-opts binding spec into the (name value-form) pair that let*
-; expects.  The default is wrapped in a (fn () ...) thunk so opt-get-or-else
+; expects.  The default is wrapped in a (fn () ...) thunk so %opt-get-or-else
 ; evaluates it only when the option is absent -- a present option never runs its
 ; default expression.  %opt-get-form builds that lazy lookup form; %opt-binding
 ; dispatches on spec shape:
@@ -198,7 +114,7 @@
 ;   (name key def) -> explicit lookup key, distinct from the bound name
 (def %opt-get-form
   (fn (_ key default)
-    (list (lit opt-get-or-else)
+    (list (lit %opt-get-or-else)
           (list (lit fn) () default)                      ; (fn () DEFAULT) -- lazy
           (list (lit lit) key)                            ; 'KEY
           (lit %opts))))
@@ -226,14 +142,12 @@
   (note "lazy (run only when the option is absent) and may reference earlier bindings.")
   (note "The source evaluates to an alist ((k . v) ...) or a flat plist (k v ...).")
   (example "(let-opts (lit (a 1)) ((a 0) (b 0)) (+ a b))" "1")
-  (see opt-get-or)
+  (see assoc-get)
   "Bind locals from an option store (alist or plist) with lazy per-binding defaults.")
 
 (doc (provide x/core/alist
-  assoc-get assoc-get-or assoc-has? assoc-del assoc-put
-  assoc-keys assoc-vals assoc-map assoc-filter assoc-merge
-  assoc-pick assoc-omit from-pairs to-pairs evolve
-  opt-get-or opt-get-or-else let-opts)
-  (note "Alist format is ((key . val) ...). Keys compared with eq?.")
+  assoc-get assoc-has? assoc-del assoc-put assoc-keys let-opts)
+  (note "The bootstrap layer the object system runs on, plus the let-opts form.")
+  (note "The full association API is the Assoc class: (Assoc merge a b), (Assoc map f al), ...")
   (example "(assoc-get (lit x) '((x . 1) (y . 2)))" "1")
-  "Association list operations.")
+  "Association-list bootstrap: get/has?/del/put/keys and let-opts.")
