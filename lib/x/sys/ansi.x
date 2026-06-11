@@ -8,15 +8,15 @@
 ;   number=yellow, string=green, variable/symbol=blue, keyword=bold-red,
 ;   function=cyan, string.escape/char=magenta, regexp=red, nil=dim
 ;
-; Requires: posix.x (sh-isatty, sh-getenv), type.x (type-push-write)
+; Requires: posix.x (Sys isatty, sh-getenv), type.x (type-push-write)
 
 (import x/sys/posix)
 (import x/sys/type)
 
 ; --- Terminal detection ---
 
-(def %no-color-env (sh-getenv "NO_COLOR"))
-(def %term-env (sh-getenv "TERM"))
+(def %no-color-env (Sys getenv "NO_COLOR"))
+(def %term-env (Sys getenv "TERM"))
 (def %no-color-arg
   (fold
     (fn (_ acc a) (or acc (str=? a "--no-color")))
@@ -24,7 +24,7 @@
     args))
 
 (def %ansi?
-  (and (sh-isatty 1)
+  (and (Sys isatty 1)
        (null? %no-color-env)
        (not (and (not (null? %term-env)) (str=? %term-env "dumb")))
        (not %no-color-arg)))

@@ -15,7 +15,7 @@
 
 (def %logo-slurp-file
   (fn (_ path)
-    (def fd (sh-open-read path))
+    (def fd (Sys open-read path))
     (if (< fd 0) (error (Str append "Cannot open: " path)))
     (def bufsize 65536)
     (def buf (int->ptr (ptr-call %c-malloc bufsize)))
@@ -27,7 +27,7 @@
               (self (Str append acc (ptr->str buf)))))))
     (def content (%read-all ""))
     (ptr-call %c-free buf)
-    (sh-close fd)
+    (Sys close fd)
     content))
 
 ; ============================================================

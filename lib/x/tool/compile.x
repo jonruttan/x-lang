@@ -11,7 +11,7 @@
 ; via normal type dispatch, each type emitting its own C representation.
 ; The result is compiled with cc, loaded via dlopen/dlsym.
 
-; --- libc resolves (fd-write and file-exists? now in posix.x) ---
+; --- libc resolves (fd-write / file-exists? live on the Sys class) ---
 
 (def %c-unlink (%resolve "unlink"))
 (def %c-system (%resolve "system"))
@@ -655,7 +655,7 @@
 
 (def %compile-cache-load
   (fn (_ cache-path fns-holder)
-    (if (not (file-exists? cache-path)) ()
+    (if (not (Sys file-exists? cache-path)) ()
       (let ((lib (dlopen cache-path 1)))
         (if (null? lib) ()
           (let ((fn-ptr (dlsym lib "fn_0")))
@@ -683,9 +683,9 @@
 
 (def compile-write
   (fn (_ path source)
-    (def fd (sh-open-write path))
-    (fd-write fd source)
-    (sh-close fd)
+    (def fd (Sys open-write path))
+    (Sys fd-write fd source)
+    (Sys close fd)
     path))
 (doc compile-write "Write a string to a file. Returns the path."
   (param path STRING "Output file path")
@@ -842,7 +842,7 @@
     (def %batch-hash (Hash hash->hex (Hash fnv-1a %batch-key)))
     (def %cache-path (Str append %compile-cache-dir %batch-hash compile-ext))
 
-    (if (file-exists? %cache-path)
+    (if (Sys file-exists? %cache-path)
       ; Cache hit: load and patch fvar table
       (let ((lib (dlopen %cache-path 1)))
         (if (not (null? lib))

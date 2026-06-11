@@ -134,7 +134,7 @@
 
 (def %slurp
   (fn (_ path)
-    (def fd (sh-open-read path))
+    (def fd (Sys open-read path))
     (if (< fd 0) ""
       ; let, not def-in-do: this is the tail (def would leak to global)
       (let ((%read-all
@@ -149,7 +149,7 @@
                      (ptr-call %c-free buf)
                      (self (Str append acc chunk))))))))
         (def content (%read-all ""))
-        (sh-close fd)
+        (Sys close fd)
         content))))
 
 ; ============================================================
@@ -163,7 +163,7 @@
 (def %bc-open
   (fn ()
     (if (>= %bc-fd 0) ()
-      (set! %bc-fd (sh-open-append %bc-path)))))
+      (set! %bc-fd (Sys open-append %bc-path)))))
 
 ; Append one bytecode entry to the file
 ; 0-arg: writes "OP" + comma + newline
@@ -174,7 +174,7 @@
     (%bc-open)
     (def op (first args))
     (def rest-args (rest args))
-    (fd-write %bc-fd
+    (Sys fd-write %bc-fd
       (if (null? rest-args)
         (Str append "\"" op "\",\n")
         (if (null? (rest rest-args))
@@ -185,10 +185,10 @@
 ; Clear bytecode file
 (def %bc-clear
   (fn ()
-    (if (>= %bc-fd 0) (sh-close %bc-fd))
-    (def fd (sh-open-write %bc-path))
-    (if (>= fd 0) (sh-close fd))
-    (set! %bc-fd (sh-open-append %bc-path))))
+    (if (>= %bc-fd 0) (Sys close %bc-fd))
+    (def fd (Sys open-write %bc-path))
+    (if (>= fd 0) (Sys close fd))
+    (set! %bc-fd (Sys open-append %bc-path))))
 
 ; Read bytecode file and wrap as JSON array
 (def %bc-json
@@ -200,8 +200,8 @@
 ; Write initial empty bytecode file
 (def %bc-write
   (fn ()
-    (def fd (sh-open-write %bc-path))
-    (if (>= fd 0) (sh-close fd))))
+    (def fd (Sys open-write %bc-path))
+    (if (>= fd 0) (Sys close fd))))
 
 ; ============================================================
 ; Server

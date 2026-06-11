@@ -1,10 +1,11 @@
-; posix.x -- POSIX function wrappers via FFI (dlsym + ptr-call)
+; posix.x -- Sys: POSIX system calls as static methods, via FFI (dlsym + ptr-call)
 (import x/core/list)
+(import x/type/object)
 ;
-; Replaces C shell primitives with pure x-lang using the FFI layer.
-; Provides: sh-fork, sh-exec, sh-pipe, sh-dup2, sh-wait, sh-open-read,
-;   sh-open-write, sh-open-append, sh-close, sh-chdir, sh-getenv,
-;   sh-setenv, sh-getpid, sh-exit
+; Pure x-lang over the FFI layer; the libc resolves stay %-private. Loads after
+; object.x (needs def-class) -- every caller (repl, ansi, logo, tools) is
+; post-object.
+
 ; --- Resolve libc functions ---
 
 (def %libc (dlopen () 1))
@@ -43,156 +44,95 @@
 
 (def %c-isatty (%resolve "isatty"))
 
-(note "Process Control")
+(def-class Sys ()
+  (static
+    ; --- Process control ---
+    (method fork (self)
+      (doc "Fork the current process." (returns INTEGER "PID of child in parent, 0 in child, -1 on error"))
+      (ptr-call %c-fork))
+    (method getpid (self)
+      (doc "Return the current process ID." (returns INTEGER "Process ID"))
+      (ptr-call %c-getpid))
+    (method exit (self (param status INTEGER "Exit status code"))
+      (doc "Terminate the process with the given exit status.")
+      (ptr-call %c-exit status))
+    (method wait (self (param pid INTEGER "Process ID to wait for"))
+      (doc "Wait for a child process and return its exit status."
+        (returns INTEGER "Exit status of the child process"))
+      (let ((buf (convert (ptr-call %c-malloc 4) %ptr)))
+        (ptr-call %c-waitpid pid buf 0)
+        (let ((raw (ptr-ref buf 0 4)))
+          (ptr-call %c-free buf)
+          (/ (% raw 65536) 256))))
+    (method exec (self (param name STRING "Program name") (param args LIST "List of argument strings"))
+      (doc "Replace the current process with the named program. Does not return on success.")
+      (let ((all (pair name args)))
+        (let ((n (length all)))
+          (let ((argv (convert (ptr-call %c-malloc (* (+ n 1) %word-size)) %ptr)))
+            (def %fill
+              (fn (self lst i)
+                (if (null? lst)
+                  (ptr-set-word! argv (* i %word-size) 0)
+                  (do
+                    (ptr-set-word!
+                      argv
+                      (* i %word-size)
+                      (convert (convert (first lst) %ptr) %int))
+                    (self (rest lst) (+ i 1))))))
+            (%fill all 0)
+            (ptr-call %c-execvp name argv)))))
+    ; --- File descriptors ---
+    (method close (self (param fd INTEGER "File descriptor to close"))
+      (doc "Close a file descriptor." (returns INTEGER "0 on success, -1 on error"))
+      (ptr-call %c-close fd))
+    (method dup2 (self (param old INTEGER "Source file descriptor") (param new INTEGER "Target file descriptor"))
+      (doc "Duplicate a file descriptor onto another." (returns INTEGER "New file descriptor, or -1 on error"))
+      (ptr-call %c-dup2 old new))
+    (method pipe (self)
+      (doc "Create a pipe and return a pair of file descriptors." (returns PAIR "Pair of (read-fd . write-fd)"))
+      (let ((buf (convert (ptr-call %c-malloc 8) %ptr)))
+        (ptr-call %c-pipe buf)
+        (let ((r (ptr-ref buf 0 4)) (w (ptr-ref buf 4 4)))
+          (ptr-call %c-free buf)
+          (pair r w))))
+    ; --- File I/O (O_* flags are platform constants bound by the FFI layer) ---
+    (method open-read (self (param path STRING "File path to open"))
+      (doc "Open a file for reading." (returns INTEGER "File descriptor, or -1 on error"))
+      (ptr-call %c-open path %O_RDONLY))
+    (method open-write (self (param path STRING "File path to open"))
+      (doc "Open a file for writing, creating or truncating it." (returns INTEGER "File descriptor, or -1 on error"))
+      (let ((fd (ptr-call %c-open path (+ %O_WRONLY (+ %O_CREAT %O_TRUNC)) 438)))
+        (if (>= fd 0) (ptr-call %c-fchmod fd 438))
+        fd))
+    (method open-append (self (param path STRING "File path to open"))
+      (doc "Open a file for appending, creating it if necessary." (returns INTEGER "File descriptor, or -1 on error"))
+      (let ((fd (ptr-call %c-open path (+ %O_WRONLY (+ %O_CREAT %O_APPEND)) 438)))
+        (if (>= fd 0) (ptr-call %c-fchmod fd 438))
+        fd))
+    (method fd-write (self (param fd NUMBER "File descriptor") (param s STRING "String to write"))
+      (doc "Write a string to a file descriptor." (returns NUMBER "Bytes written"))
+      (ptr-call (%resolve "write") fd s (str-length s)))
+    (method file-exists? (self (param path STRING "File path to check"))
+      (doc "Check if a file exists (via access with F_OK=0)." (returns BOOLEAN "True if file exists"))
+      (= (ptr-call (%resolve "access") path 0) 0))
+    ; --- Environment ---
+    (method chdir (self (param path STRING "Directory path"))
+      (doc "Change the current working directory." (returns INTEGER "0 on success, -1 on error"))
+      (ptr-call %c-chdir path))
+    (method setenv (self (param name STRING "Variable name") (param val STRING "Variable value"))
+      (doc "Set an environment variable, overwriting any existing value." (returns INTEGER "0 on success, -1 on error"))
+      (ptr-call %c-setenv name val 1))
+    (method getenv (self (param name STRING "Variable name"))
+      (doc "Get the value of an environment variable." (returns STRING "Variable value, or nil if not set"))
+      (let ((result (ptr-call %c-getenv name)))
+        (if (= result 0) () (convert (convert result %ptr) %string))))
+    (method isatty (self (param fd NUMBER "File descriptor to test"))
+      (doc "Test whether a file descriptor refers to a terminal (TTY)."
+        (returns BOOLEAN "True if fd refers to a terminal")
+        (example "(Sys isatty 1)" "#t"))
+      (= 1 (ptr-call %c-isatty fd)))))
 
-; --- Simple wrappers (ptr-call auto-converts string args to char*) ---
-
-(doc (def sh-fork (fn (_ ) (ptr-call %c-fork)))
-  (returns INTEGER "PID of child in parent, 0 in child, -1 on error")
-  "Fork the current process.")
-
-(doc (def sh-getpid (fn (_ ) (ptr-call %c-getpid)))
-  (returns INTEGER "Process ID")
-  "Return the current process ID.")
-
-(doc (def sh-exit
-  (fn (_ (param status INTEGER "Exit status code"))
-    (ptr-call %c-exit status)))
-  "Terminate the process with the given exit status.")
-
-; --- waitpid: allocate int for status, wait, extract exit code ---
-
-(doc (def sh-wait
-  (fn (_ (param pid INTEGER "Process ID to wait for"))
-    (let ((buf (convert (ptr-call %c-malloc 4) %ptr)))
-      (ptr-call %c-waitpid pid buf 0)
-      (let ((raw (ptr-ref buf 0 4)))
-        (ptr-call %c-free buf)
-        (/ (% raw 65536) 256)))))
-  (returns INTEGER "Exit status of the child process")
-  "Wait for a child process and return its exit status.")
-
-; --- exec: build C argv array, call execvp ---
-
-(doc (def sh-exec
-  (fn (_ (param name STRING "Program name") (param args LIST "List of argument strings"))
-    (let ((all (pair name args)))
-      (let ((n (length all)))
-        (let ((argv (convert (ptr-call %c-malloc (* (+ n 1) %word-size)) %ptr)))
-          (def %fill
-            (fn (self lst i)
-              (if (null? lst)
-                (ptr-set-word! argv (* i %word-size) 0)
-                (do
-                  (ptr-set-word!
-                    argv
-                    (* i %word-size)
-                    (convert (convert (first lst) %ptr) %int))
-                  (self (rest lst) (+ i 1))))))
-          (%fill all 0)
-          (ptr-call %c-execvp name argv))))))
-  "Replace the current process with the named program. Does not return on success.")
-
-(note "File Descriptors")
-
-(doc (def sh-close
-  (fn (_ (param fd INTEGER "File descriptor to close"))
-    (ptr-call %c-close fd)))
-  (returns INTEGER "0 on success, -1 on error")
-  "Close a file descriptor.")
-
-(doc (def sh-dup2
-  (fn (_ (param old INTEGER "Source file descriptor") (param new INTEGER "Target file descriptor"))
-    (ptr-call %c-dup2 old new)))
-  (returns INTEGER "New file descriptor, or -1 on error")
-  "Duplicate a file descriptor onto another.")
-
-; --- pipe: allocate int[2], call pipe(), read back fds ---
-
-(doc (def sh-pipe
-  (fn (_ )
-    (let ((buf (convert (ptr-call %c-malloc 8) %ptr)))
-      (ptr-call %c-pipe buf)
-      (let ((r (ptr-ref buf 0 4)) (w (ptr-ref buf 4 4)))
-        (ptr-call %c-free buf)
-        (pair r w)))))
-  (returns PAIR "Pair of (read-fd . write-fd)")
-  "Create a pipe and return a pair of file descriptors.")
-
-(note "File I/O")
-
-; --- open variants ---
-; O_* flags are platform constants bound by the FFI layer
-
-(doc (def sh-open-read
-  (fn (_ (param path STRING "File path to open"))
-    (ptr-call %c-open path %O_RDONLY)))
-  (returns INTEGER "File descriptor, or -1 on error")
-  "Open a file for reading.")
-
-(doc (def sh-open-write
-  (fn (_ (param path STRING "File path to open"))
-    (let ((fd (ptr-call %c-open path (+ %O_WRONLY (+ %O_CREAT %O_TRUNC)) 438)))
-      (if (>= fd 0) (ptr-call %c-fchmod fd 438))
-      fd)))
-  (returns INTEGER "File descriptor, or -1 on error")
-  "Open a file for writing, creating or truncating it.")
-
-(doc (def sh-open-append
-  (fn (_ (param path STRING "File path to open"))
-    (let ((fd (ptr-call %c-open path (+ %O_WRONLY (+ %O_CREAT %O_APPEND)) 438)))
-      (if (>= fd 0) (ptr-call %c-fchmod fd 438))
-      fd)))
-  (returns INTEGER "File descriptor, or -1 on error")
-  "Open a file for appending, creating it if necessary.")
-
-(note "Environment")
-
-(doc (def sh-chdir
-  (fn (_ (param path STRING "Directory path"))
-    (ptr-call %c-chdir path)))
-  (returns INTEGER "0 on success, -1 on error")
-  "Change the current working directory.")
-
-(doc (def sh-setenv
-  (fn (_ (param name STRING "Variable name") (param val STRING "Variable value"))
-    (ptr-call %c-setenv name val 1)))
-  (returns INTEGER "0 on success, -1 on error")
-  "Set an environment variable, overwriting any existing value.")
-
-; --- getenv: returns char*, convert to string (or () if NULL) ---
-
-(doc (def sh-getenv
-  (fn (_ (param name STRING "Variable name"))
-    (let ((result (ptr-call %c-getenv name)))
-      (if (= result 0) () (convert (convert result %ptr) %string)))))
-  (returns STRING "Variable value, or nil if not set")
-  "Get the value of an environment variable.")
-
-(doc (def sh-isatty
-  (fn (_ (param fd NUMBER "File descriptor to test"))
-    (= 1 (ptr-call %c-isatty fd))))
-  (returns BOOLEAN "True if fd refers to a terminal")
-  (example "(sh-isatty 1)" "#t")
-  "Test whether a file descriptor refers to a terminal (TTY).")
-
-(note "General utilities")
-
-(doc (def fd-write
-  (fn (_ (param fd NUMBER "File descriptor") (param s STRING "String to write"))
-    (ptr-call (%resolve "write") fd s (str-length s))))
-  (returns NUMBER "Bytes written")
-  "Write a string to a file descriptor.")
-
-(doc (def file-exists?
-  (fn (_ (param path STRING "File path to check"))
-    (= (ptr-call (%resolve "access") path 0) 0)))
-  (returns BOOLEAN "True if file exists")
-  "Check if a file exists (via access with F_OK=0).")
-
-(doc (provide x/sys/posix
-  sh-fork sh-getpid sh-close sh-dup2 sh-chdir sh-exit
-  sh-setenv sh-getenv sh-isatty sh-open-read sh-open-write sh-open-append
-  sh-pipe sh-wait sh-exec fd-write file-exists?)
-  (note "Provides fork, exec, pipe, dup2, wait, open, close, chdir, getenv, setenv.")
-  "POSIX system call wrappers via FFI.")
+(doc (provide x/sys/posix Sys)
+  (note "POSIX via the Sys class: (Sys fork), (Sys exec name args), (Sys pipe),")
+  (note "(Sys open-read path), (Sys getenv name), (Sys isatty fd), ...")
+  "POSIX system call wrappers, homed on the Sys class.")

@@ -19,11 +19,11 @@
 
 ; Fork server — must be one expression so child doesn't race for the pipe
 (def %server-pid
-  (let ((pid (sh-fork)))
+  (let ((pid (Sys fork)))
     (if (= pid 0)
       ; Ignore SIGINT in the server child so ctrl-c doesn't throw
       ; STOP errors in the request handler (SIG_IGN = 1, SIGINT = 2)
-      (do (sh-close 0) (sh-open-read "/dev/null")
+      (do (Sys close 0) (Sys open-read "/dev/null")
           (ptr-call (dlsym (dlopen () 1) "signal") 2 1)
           (turtle-serve %logo-port))
       pid)))

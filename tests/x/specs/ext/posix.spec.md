@@ -5,10 +5,10 @@
 ### writes to file descriptor
 
 ```scheme
-(do (def fd (sh-open-write "/tmp/x-test-fd.txt"))
-    (fd-write fd "hello")
-    (sh-close fd)
-    (file-exists? "/tmp/x-test-fd.txt"))
+(do (def fd (Sys open-write "/tmp/x-test-fd.txt"))
+    (Sys fd-write fd "hello")
+    (Sys close fd)
+    (Sys file-exists? "/tmp/x-test-fd.txt"))
 ```
 ---
     #t
@@ -18,7 +18,7 @@
 ### returns true for existing file
 
 ```scheme
-(file-exists? "lib/x-core.x")
+(Sys file-exists? "lib/x-core.x")
 ```
 ---
     #t
@@ -26,7 +26,7 @@
 ### returns false for missing file
 
 ```scheme
-(file-exists? "/tmp/x-nonexistent-file-999")
+(Sys file-exists? "/tmp/x-nonexistent-file-999")
 ```
 ---
     #f
@@ -36,38 +36,38 @@
 ### returns a positive integer
 
 ```scheme
-(> (sh-getpid) 0)
+(> (Sys getpid) 0)
 ```
 ---
     #t
 
-## sh-getenv
+## getenv
 
-### is a function
+### reads an unset variable as nil
 
 ```scheme
-(procedure? sh-getenv)
+(null? (Sys getenv "X_SPEC_UNSET_VAR_42"))
 ```
 ---
     #t
 
-## sh-setenv
+## setenv
 
-### is a function
+### reports success
 
 ```scheme
-(procedure? sh-setenv)
+(Sys setenv "X_SPEC_VAR_42" "ok")
 ```
 ---
-    #t
+    0
 
 ## sh-open-write / sh-close
 
 ### opens and closes without error
 
 ```scheme
-(do (def fd (sh-open-write "/tmp/x-test-open.txt"))
-    (sh-close fd)
+(do (def fd (Sys open-write "/tmp/x-test-open.txt"))
+    (Sys close fd)
     #t)
 ```
 ---
@@ -78,9 +78,9 @@
 ### opens readable file
 
 ```scheme
-(do (def fd (sh-open-read "lib/x-core.x"))
+(do (def fd (Sys open-read "lib/x-core.x"))
     (def ok (> fd 0))
-    (sh-close fd)
+    (Sys close fd)
     ok)
 ```
 ---

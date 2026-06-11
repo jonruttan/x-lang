@@ -108,8 +108,8 @@
     ()
     ; On first call, reclaim terminal stdin from fd 3 (saved by x.sh
     ; before the pipe, so stdin survives ctrl-c)
-    (if (sh-isatty 3)
-      (do (sh-dup2 3 0) (sh-close 3))
+    (if (Sys isatty 3)
+      (do (Sys dup2 3 0) (Sys close 3))
       ())
     (set-first-int! %sigint-flag 0)
     (display %logo-prompt)
@@ -117,7 +117,7 @@
     (if (null? block)
       ; EOF or ctrl-c — kill the server child, then exit
       (do (if (null? %logo-on-exit) () (%logo-on-exit))
-          (newline) (sh-exit 0))
+          (newline) (Sys exit 0))
       (do
         (guard (err
             (set-first-int! %sigint-flag 0)

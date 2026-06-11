@@ -91,7 +91,7 @@
 
 ```scheme
 (do (compile-write "/tmp/x-test-write.txt" "hello")
-    (file-exists? "/tmp/x-test-write.txt"))
+    (Sys file-exists? "/tmp/x-test-write.txt"))
 ```
 ---
     #t
