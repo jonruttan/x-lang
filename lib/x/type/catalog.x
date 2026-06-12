@@ -26,11 +26,15 @@
 ;      " "
 
 ; Namespace symbol -> CamelCase class-name symbol (int -> Int, io -> Io).
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-append (prim-ref (lit str) (lit append)))
+(def %str->symbol (prim-ref (lit str) (lit ->sym)))
+
 (def %capitalize
   (fn (_ s)
     (let ((cs (symbol->str s)))
-      (str->symbol
-        (str-append
+      (%str->symbol
+        (%str-append
           (list->str (list (Char upcase (str-ref cs 0))))
           (substring cs 1 (str-length cs)))))))
 

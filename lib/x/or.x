@@ -8,6 +8,9 @@
 
 ; --- Heavy imports ---
 (import x/sys/posix)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-append (prim-ref (lit str) (lit append)))
+
 (import x/core/hash)
 (import x/num/bignum)
 (import x/type/regex)
@@ -24,7 +27,7 @@
 (def #cr "\r")
 (def #esc "\x1b")
 (def #0 "")
-(def #crnl (str-append #cr #nl))
+(def #crnl (%str-append #cr #nl))
 
 ; --- I/O constants ---
 (def stdin 0)

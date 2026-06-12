@@ -4,6 +4,9 @@
 
 ; repl-read resets the source-line counter before reading, so error lines are
 ; relative to the current input rather than the whole boot+session stream.
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-append (prim-ref (lit str) (lit append)))
+
 (def %repl-read repl-read)
 (def %repl-prompt "> ")
 (def %repl-print
@@ -42,10 +45,10 @@
               ; says "Error: ...".
               (%seq
                 (%stderr
-                  (str-append
+                  (%str-append
                     (if (> (error-line) 1)
-                      (str-append "Error [line "
-                        (str-append (number->str (error-line)) "]: "))
+                      (%str-append "Error [line "
+                        (%str-append (number->str (error-line)) "]: "))
                       "Error: ")
                     (if (str? err) err (symbol->str err))))
                 (%stderr "\n"))))

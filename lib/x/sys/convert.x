@@ -32,8 +32,8 @@
 ;   CHAR <- int (integer->char)
 ;   STR  <- int (number->str), symbol (symbol->str), list (list->str),
 ;           ptr (ptr->str)
-;   SYM  <- string (str->symbol)
-;   PTR  <- int (int->ptr), string (str->ptr), any (obj->ptr)
+;   SYM  <- string (%str->symbol)
+;   PTR  <- int (int->ptr), string (%str->ptr), any (obj->ptr)
 ;
 ; Examples:
 ;   (Convert to 65 %char)        -> #\A
@@ -42,6 +42,10 @@
 ;   (Convert to "ff" %int 16)    -> 255 (hex parse)
 
 (import x/type/object)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str->symbol (prim-ref (lit str) (lit ->sym)))
+(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-from-cell (prim-ref (lit type) (lit from-cell)))
@@ -98,14 +102,14 @@
 ; SYMBOL: from string
 (%type-set-from! (%type-by-atom %symbol)
   (list
-    (pair %string (fn (_ v . extra) (str->symbol v)))))
+    (pair %string (fn (_ v . extra) (%str->symbol v)))))
 
 ; PTR: from int, string, any (obj->ptr as wildcard -- the totality pattern:
 ; PTR opts out of the miss policy by accepting every source type)
 (%type-set-from! (%type-by-atom %ptr)
   (list
     (pair %int    (fn (_ v . extra) (int->ptr v)))
-    (pair %string (fn (_ v . extra) (str->ptr v)))
+    (pair %string (fn (_ v . extra) (%str->ptr v)))
     (pair %ptr    (fn (_ v . extra) v))
     (pair #t (fn (_ v . extra) (obj->ptr v)))))
 

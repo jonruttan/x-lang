@@ -15,6 +15,9 @@
 ; Requires: posix.x (Sys isatty/getenv), type.x (%type-push-write)
 
 (import x/sys/posix)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-append (prim-ref (lit str) (lit append)))
+
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-push-write (prim-ref (lit type) (lit push-write)))
 
@@ -40,7 +43,7 @@
 ; --- Escape sequence builder ---
 
 (def %esc "\x1b")
-(def %sgr (fn (_ code) (if %ansi? (str-append %esc (str-append "[" (str-append code "m"))) "")))
+(def %sgr (fn (_ code) (if %ansi? (%str-append %esc (%str-append "[" (%str-append code "m"))) "")))
 
 ; --- The Ansi class: color members + operations ---
 ; Members evaluate once, here, at class definition. Methods referencing the
@@ -57,11 +60,11 @@
     (blue    (%sgr "34") "Blue foreground")
     (magenta (%sgr "35") "Magenta foreground")
     (cyan    (%sgr "36") "Cyan foreground")
-    (bold-cyan   (str-append (%sgr "1") (%sgr "36")) "Bold cyan foreground")
-    (bold-green  (str-append (%sgr "1") (%sgr "32")) "Bold green foreground")
-    (bold-yellow (str-append (%sgr "1") (%sgr "33")) "Bold yellow foreground")
-    (bold-red    (str-append (%sgr "1") (%sgr "31")) "Bold red foreground")
-    (bold-blue   (str-append (%sgr "1") (%sgr "34")) "Bold blue foreground")
+    (bold-cyan   (%str-append (%sgr "1") (%sgr "36")) "Bold cyan foreground")
+    (bold-green  (%str-append (%sgr "1") (%sgr "32")) "Bold green foreground")
+    (bold-yellow (%str-append (%sgr "1") (%sgr "33")) "Bold yellow foreground")
+    (bold-red    (%str-append (%sgr "1") (%sgr "31")) "Bold red foreground")
+    (bold-blue   (%str-append (%sgr "1") (%sgr "34")) "Bold blue foreground")
     (method enabled? (self)
       (doc "Check whether ANSI color support is active."
         (returns BOOLEAN "True if ANSI color output is enabled"))
@@ -69,7 +72,7 @@
     (method wrap (self (param style STRING "ANSI escape sequence") (param text STRING "Text to wrap"))
       (doc "Wrap text in an ANSI style code with automatic reset."
         (returns STRING "Text wrapped in ANSI codes, or plain text if colors disabled"))
-      (str-append style (str-append text (Ansi reset))))
+      (%str-append style (%str-append text (Ansi reset))))
     (method highlight (self (param code STRING "Source code string to highlight"))
       (doc "Syntax-highlight a code string and display it. Keywords in bold magenta, symbols in blue, numbers in yellow, strings in green."
         (returns ANY "Displays highlighted code to stdout")
@@ -163,7 +166,7 @@
 ; magenta; regular symbols get blue; numbers/strings/chars/bools get
 ; their LSP semantic token colors.
 
-(def %c-keyword  (str-append (%sgr "1") (%sgr "35")))
+(def %c-keyword  (%str-append (%sgr "1") (%sgr "35")))
 
 ; Keyword set — x-lang special forms and core operatives
 (def %keywords

@@ -4,6 +4,9 @@
 ; Last bootstrap file — after this, normal modules can use provide/import.
 
 ; Extend base tree: add include-list cell under io-state
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-append (prim-ref (lit str) (lit append)))
+
 (def %io-state (rest (first (rest (first (%base))))))
 (def %false-stack (rest (rest %io-state)))
 (set-rest! %false-stack (pair () ()))
@@ -49,8 +52,8 @@
             (first %module-registry-cell)))))
 (def %module-resolve
   (fn (_ name)
-    (str-append "lib/"
-      (str-append (symbol->str name) ".x"))))
+    (%str-append "lib/"
+      (%str-append (symbol->str name) ".x"))))
 (def provide
   (op (name . syms) _
     (%module-register! name syms)
@@ -84,9 +87,9 @@
                         (#t (self (rest lst)))))))
               (match
                 ((%found exports) (self (rest remaining)))
-                (#t (error (str-append "import: symbol not exported by "
-                      (str-append (symbol->str name)
-                        (str-append ": " (symbol->str %sym))))))))))))
+                (#t (error (%str-append "import: symbol not exported by "
+                      (%str-append (symbol->str name)
+                        (%str-append ": " (symbol->str %sym))))))))))))
     (%check syms)))
 
 (def import

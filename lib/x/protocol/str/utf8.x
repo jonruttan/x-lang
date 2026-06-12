@@ -1,5 +1,8 @@
 ; str/utf8.x -- StrUTF8: the UTF-8 code-point string class
 (import x/protocol/str/str8)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
+
 (import x/codec/utf8)
 
 ; StrUTF8 reinterprets the SAME bytes as Str8, but one whole UTF-8 sequence per
@@ -42,7 +45,7 @@
         (example "(StrUTF8 sub \"$¢€\" 1 1)" "\"¢\""))
       (def b0 (%u8-byte-offset v start 0))
       (def b1 (%u8-byte-offset v len b0))
-      (str-byte-sub v b0 (- b1 b0)))
+      (%str-byte-sub v b0 (- b1 b0)))
 
     (method step (self (param v STRING "String being traversed") (param cur INT "Current byte offset of the cursor"))
       (doc "Cursor step: decode one UTF-8 sequence at byte offset cur, yielding (CODE-POINT . next-byte-offset)."

@@ -1,5 +1,11 @@
 ; str/str8.x -- Str8: the 8-bit (byte) string class + the full string suite
 (import x/protocol/seq)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-append (prim-ref (lit str) (lit append)))
+(def %str-byte-len (prim-ref (lit str) (lit byte-len)))
+(def %str-byte-ref (prim-ref (lit str) (lit byte-ref)))
+(def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
+
 
 ; Str8 treats a STRING as its raw bytes (8-bit chars, 0-255), with no encoding
 ; protocol. It provides the whole string suite as static methods:
@@ -28,17 +34,17 @@
       (doc "Number of bytes in v (the 8-bit element count)."
         (returns INT "Byte length of v")
         (example "(Str8 length \"abc\")" "3"))
-      (str-byte-len v))
+      (%str-byte-len v))
     (method index  (self (param v STRING "String to index") (param i INT "Byte position (0-based)"))
       (doc "The i-th byte of v as a CHARACTER (code 0-255)."
         (returns CHAR "Byte at position i")
         (example "(Str8 index \"abc\" 0)" "#\\a"))
-      (str-byte-ref v i))
+      (%str-byte-ref v i))
     (method sub    (self (param v STRING "Source string") (param st INT "Start byte offset (0-based)") (param len INT "Number of bytes"))
       (doc "Substring of len bytes starting at byte offset st."
         (returns STRING "The len-byte slice of v from st")
         (example "(Str8 sub \"hello\" 1 3)" "\"ell\""))
-      (str-byte-sub v st len))
+      (%str-byte-sub v st len))
     (method ref    (self (param v STRING "String to index") (param i INT "Byte position (0-based)"))
       (doc "Alias for index: the i-th byte of v as a CHARACTER."
         (returns CHAR "Byte at position i")
@@ -51,7 +57,7 @@
     ; via count -> done?, an infinite recursion. start/done? are inherited
     ; unchanged by StrUTF8; only step advances differently.
     (method start (self v)     0)
-    (method done? (self v cur) (>= cur (str-byte-len v)))
+    (method done? (self v cur) (>= cur (%str-byte-len v)))
     (method step  (self v cur) (pair (self index v cur) (+ cur 1)))
 
     ; encode: one byte element is its own low byte. Makes
@@ -82,7 +88,7 @@
       (doc "Concatenate all argument strings, left to right."
         (returns STRING "The arguments joined end to end")
         (example "(Str8 append \"ab\" \"cd\" \"ef\")" "\"abcdef\""))
-      (fold str-append "" args))
+      (fold %str-append "" args))
     (method make   (self (param k INT "Number of elements") . (param rest CHAR "Fill character (default space)"))
       (doc "A string of k copies of the fill character (space if omitted)."
         (returns STRING "k-element string of the fill character")
@@ -160,13 +166,13 @@
       (match
         ((null? lst) "")
         ((null? (rest lst)) (first lst))
-        (#t (fold (fn (_ acc s) (str-append acc (str-append sep s)))
+        (#t (fold (fn (_ acc s) (%str-append acc (%str-append sep s)))
                   (first lst) (rest lst)))))
     (method repeat (self (param s STRING "String to repeat") (param n INT "Number of copies"))
       (doc "Concatenate n copies of s (empty string when n <= 0)."
         (returns STRING "s repeated n times")
         (example "(Str8 repeat \"ab\" 3)" "\"ababab\""))
-      (if (<= n 0) "" (str-append s (self repeat s (- n 1)))))
+      (if (<= n 0) "" (%str-append s (self repeat s (- n 1)))))
 
     ; --- padding (to n ELEMENTS) ---
     (method pad-left (self (param s STRING "String to pad") (param n INT "Target element width") (param ch CHAR "Padding character"))
@@ -175,7 +181,7 @@
         (example "(Str8 pad-left \"42\" 5 (\"0\" 0))" "\"00042\""))
       (def len (self length s))
       (if (not (< len n)) s
-        (str-append (self make (- n len) ch) s)))
+        (%str-append (self make (- n len) ch) s)))
 
     ; --- searching ---
     (method contains? (self (param sub STRING "Substring to search for") (param s STRING "String to search in"))

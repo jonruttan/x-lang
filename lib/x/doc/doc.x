@@ -24,6 +24,11 @@
 ; --- Helpers ---
 
 ; Local reverse (list.x not yet loaded)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-append (prim-ref (lit str) (lit append)))
+(def %str->symbol (prim-ref (lit str) (lit ->sym)))
+(def %str-lt (prim-ref (lit str) (lit <?)))
+
 (def %doc-reverse
   (fn (_ lst)
     (def %rv
@@ -458,7 +463,7 @@
           (%display-class-sections %v "    ")
           ()))
       ; exports sorted alphabetically, matching the (help) overview
-      (List sort (fn (_ a b) (str<? (symbol->str a) (symbol->str b)))
+      (List sort (fn (_ a b) (%str-lt (symbol->str a) (symbol->str b)))
             (rest entry)))))
 
 (def %display-overview
@@ -477,9 +482,9 @@
         (def %md (%doc-lookup (first m)))
         (%display-entry-line "  " (first m)
           (if (null? %md) "" (%doc-entry-desc %md))))
-      ; alphabetical by module name (sort is a List method now; str<? is a C primitive)
+      ; alphabetical by module name (sort is a List method now; %str-lt is a C primitive)
       (List sort
-        (fn (_ a b) (str<? (symbol->str (first a)) (symbol->str (first b))))
+        (fn (_ a b) (%str-lt (symbol->str (first a)) (symbol->str (first b))))
         (first %module-registry-cell)))))
 
 ; True if the string x appears in the list of strings lst.
@@ -495,9 +500,9 @@
   (fn (self c method-str)
     (if (null? c) ()
       (let ()
-        (def %k (str->symbol
-                  (str-append (symbol->str (class-name c))
-                    (str-append "/" method-str))))
+        (def %k (%str->symbol
+                  (%str-append (symbol->str (class-name c))
+                    (%str-append "/" method-str))))
         (def %e (%doc-lookup %k))
         (if (null? %e) (self (class-parent c) method-str) %e)))))
 
@@ -521,8 +526,8 @@
 ; Description registered under "<class-str>/name", or "" if undocumented.
 (def %doc-desc-for
   (fn (_ class-str name)
-    (let ((e (%doc-lookup (str->symbol
-               (str-append class-str (str-append "/" (symbol->str name)))))))
+    (let ((e (%doc-lookup (%str->symbol
+               (%str-append class-str (%str-append "/" (symbol->str name)))))))
       (if (null? e) "" (%doc-entry-desc e)))))
 
 ; Make (name . desc) for each name in `names` not already in `seen`.
@@ -564,7 +569,7 @@
     (if (null? entries) ()
       (do
         (display indent) (display label) (newline)
-        (%display-entries entries (str-append indent "  "))))))
+        (%display-entries entries (%str-append indent "  "))))))
 
 ; Print a class's members + methods, grouped static vs instance, at `base` indent.
 ; Empty sections are hidden; inheritance is merged + sorted within each section.
@@ -578,8 +583,8 @@
         (if (if (null? s-mem) (null? s-meth) #f) ()    ; static: only if non-empty
           (do
             (display base) (display "static:") (newline)
-            (%display-section "members:" s-mem  (str-append base "  "))
-            (%display-section "methods:" s-meth (str-append base "  "))))
+            (%display-section "members:" s-mem  (%str-append base "  "))
+            (%display-section "methods:" s-meth (%str-append base "  "))))
         (%display-section "members:" i-mem  base)
         (%display-section "methods:" i-meth base)))))
 
@@ -601,9 +606,9 @@
           (def %me
             (if (if (null? %maybe-cls) #f (class? %maybe-cls))
               (%find-method-doc %maybe-cls %meth-str)
-              (%doc-lookup (str->symbol
-                (str-append (symbol->str %cls-arg)
-                  (str-append "/" %meth-str))))))
+              (%doc-lookup (%str->symbol
+                (%str-append (symbol->str %cls-arg)
+                  (%str-append "/" %meth-str))))))
           (if (null? %me)
             (do (display %c-error) (display "No documentation for ")
                 (display %cls-arg) (display " ") (display (first (rest args)))
@@ -647,7 +652,7 @@
                 (first (rest (first entries)))))
             (self (rest entries))))))
     ; results sorted by name, matching the (help) overview
-    (%search (List sort (fn (_ a b) (str<? (symbol->str (first a)) (symbol->str (first b))))
+    (%search (List sort (fn (_ a b) (%str-lt (symbol->str (first a)) (symbol->str (first b))))
                    (first %doc-registry-cell)))))
 
 ; --- Module discovery ---
@@ -665,7 +670,7 @@
           (let ()
             (def %inner (substring path 4 (- %len 2)))
             (if (not (str=? (substring %inner 0 2) "x/")) ()
-              (str->symbol %inner))))))))
+              (%str->symbol %inner))))))))
 
 ; Check if module name is in the loaded registry
 (def %module-is-loaded?
@@ -697,7 +702,7 @@
             (self (rest paths))))))
     ; sorted by path (== module order); sort is non-destructive, so the
     ; live include/load queue is left untouched
-    (%show (List sort (fn (_ a b) (str<? a b)) (first %include-list-cell)))))
+    (%show (List sort (fn (_ a b) (%str-lt a b)) (first %include-list-cell)))))
 
 (doc (provide x/doc/doc doc note help apropos modules)
   (note "doc wraps def or provide for metadata. help for REPL lookup. apropos for search.")

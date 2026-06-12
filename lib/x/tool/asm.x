@@ -1,5 +1,9 @@
 ; asm.x -- Data-driven assembler: JIT machine code generation
 (import x/core/list)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-append (prim-ref (lit str) (lit append)))
+(def %str->symbol (prim-ref (lit str) (lit ->sym)))
+
 (import x/type/str)
 
 ; --- Platform detection ---
@@ -60,8 +64,8 @@
 ; Build signature symbol from operand list: (reg _) (reg _) (imm _) -> rri
 (def %args-sig
   (fn (_ args)
-    (str->symbol
-      (fold (fn (_ acc op) (str-append acc (%op-sig op))) "" args))))
+    (%str->symbol
+      (fold (fn (_ acc op) (%str-append acc (%op-sig op))) "" args))))
 
 ; --- Buffer byte emitters ---
 (def %emit-u8!

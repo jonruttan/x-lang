@@ -223,15 +223,6 @@
 
 (note "Strings")
 
-(doc str-append "Concatenate two strings."
-  (param a STRING "First string")
-  (param b STRING "Second string")
-  (returns STRING "Concatenated string"))
-
-(doc str->symbol "Convert a string to a symbol (interned)."
-  (param s STRING "A string")
-  (returns SYMBOL "An interned symbol"))
-
 (doc symbol->str "Convert a symbol to a string."
   (param sym SYMBOL "A symbol")
   (returns STRING "The symbol's name"))

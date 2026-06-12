@@ -1,5 +1,9 @@
 ; object.x -- Object-oriented class system (message passing, single inheritance)
 (import x/core/alist)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-append (prim-ref (lit str) (lit append)))
+(def %str->symbol (prim-ref (lit str) (lit ->sym)))
+
 ;
 ; CLASSES ARE OBJECTS. A class is a callable %class object; an instance is a
 ; callable %object. Dispatch mirrors one level up:
@@ -299,8 +303,8 @@
 ; Compose the doc key symbol: Class/method.
 (def %method-doc-key
   (fn (_ class-name method-name)
-    (str->symbol (str-append (symbol->str class-name)
-                   (str-append "/" (symbol->str method-name))))))
+    (%str->symbol (%str-append (symbol->str class-name)
+                   (%str-append "/" (symbol->str method-name))))))
 
 ; Stash a method's (doc "desc" meta...) as a %bare pending entry. The doc clause
 ; is (doc DESC META...); DESC may be absent. Inline (param ...) forms from the

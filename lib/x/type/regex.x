@@ -11,6 +11,9 @@
 ; context and must not go through class dispatch. The Regex class wraps them.
 
 (import x/type/object)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-append (prim-ref (lit str) (lit append)))
+
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
 
@@ -586,9 +589,9 @@
       (def m (Regex search rx str))
       (if (null? m) str
         (let ((matched (substring str (first m) (first (rest m)))))
-          (str-append
+          (%str-append
             (substring str 0 (first m))
-            (str-append (%regex-get-replacement rep matched)
+            (%str-append (%regex-get-replacement rep matched)
               (substring str (first (rest m)) (str-length str)))))))
     (method replace-all (self (param rx REGEX "Compiled regex") (param str STRING "Input string") (param rep ANY "Replacement string or function"))
       (doc "Replace all matches. rep can be a string or a function that receives each matched text." (returns STRING "String with all matches replaced")
@@ -598,14 +601,14 @@
         (fn (self pos acc)
           (def m (Regex find-at rx str pos))
           (if (null? m)
-            (str-append acc (substring str pos len))
+            (%str-append acc (substring str pos len))
             (let ((start (first m)))
               (def end (first (rest m)))
               (def matched (substring str start end))
               (def next (if (= start end) (+ end 1) end))
               (self next
-                (str-append acc
-                  (str-append (substring str pos start)
+                (%str-append acc
+                  (%str-append (substring str pos start)
                     (%regex-get-replacement rep matched))))))))
       (%go 0 ""))
     (method split (self (param rx REGEX "Compiled regex") (param str STRING "Input string"))

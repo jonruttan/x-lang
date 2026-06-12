@@ -3,6 +3,9 @@
 ; Extracts (doc ...) and (note ...) forms from token trees
 ; and emits Markdown. Works with tokens from make-base + token-read-string.
 (import x/core/list)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-append (prim-ref (lit str) (lit append)))
+
 (import x/type/str)
 
 ; --- Predicates (cross-base: use str=? not eq?) ---
@@ -266,7 +269,7 @@
           (fold (fn (_ acc ch) (if (= ch (integer->char 47)) (+ acc 1) acc))
             0 (Str ->list %mod-name)))
         (def %back
-          (fold (fn (_ acc _) (str-append acc "../"))
+          (fold (fn (_ acc _) (%str-append acc "../"))
             "" (List range 0 %depth)))
         (display "[← Index](") (display %back) (display "index.md)")
         (newline) (newline)

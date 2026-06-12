@@ -60,7 +60,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### str-byte-* primitives are always byte (handler-immune)
 
 ```x
-(char->integer (str-byte-ref "$¢€" 1))
+(char->integer (Str8 index "$¢€" 1))
 ```
 ---
     194

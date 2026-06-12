@@ -1,5 +1,8 @@
 ; rational.x -- Rational number type (exact fractions)
 (import x/num/float)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-append (prim-ref (lit str) (lit append)))
+
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-from-cell (prim-ref (lit type) (lit from-cell)))
@@ -127,8 +130,8 @@
                 (make-instance %float (%int->float (rest (first self)))))))
           (pair (type-of "")
             (fn (_ self)
-              (str-append
-                (str-append (%cvt (first (first self)) %string) "/")
+              (%str-append
+                (%str-append (%cvt (first (first self)) %string) "/")
                 (%cvt (rest (first self)) %string)))))))))
 ; --- Predicates ---
 

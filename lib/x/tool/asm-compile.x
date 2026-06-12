@@ -1,6 +1,9 @@
 ; asm-compile.x -- JIT compiler: x-lang expressions to native machine code
 ; Produces proper x-lang prims that work with map, fold, closures, etc.
 (import x/core/list)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str->symbol (prim-ref (lit str) (lit ->sym)))
+
 (import x/tool/asm)
 
 ; --- Resolve JIT runtime helpers (non-variadic wrappers in jit.c) ---
@@ -77,7 +80,7 @@
 (def %asm-genlabel
   (fn (_ prefix)
     (set! %asm-label-counter (+ %asm-label-counter 1))
-    (str->symbol (Str append prefix (number->str %asm-label-counter)))))
+    (%str->symbol (Str append prefix (number->str %asm-label-counter)))))
 
 ; --- Code generation ---
 ; Convention: result always in x0 as a RAW INTEGER.

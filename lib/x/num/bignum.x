@@ -7,6 +7,9 @@
 ;
 ; Promotion chain: integer -> bignum -> rational -> float -> complex
 (import x/core/list)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-append (prim-ref (lit str) (lit append)))
+
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-push-analyse (prim-ref (lit type) (lit push-analyse)))
@@ -204,7 +207,7 @@
 (def %bignum-pad
   (fn (self s n)
     (if (not (%int< (str-length s) n)) s
-      (self (str-append "0" s) n))))
+      (self (%str-append "0" s) n))))
 
 ; Limb list to decimal string
 (def %bignum-to-string
@@ -215,10 +218,10 @@
     (def %tail
       (fn (self lst)
         (if (null? lst) ""
-          (str-append
+          (%str-append
             (%bignum-pad (number->str (first lst)) %bignum-digits-per-limb)
             (self (rest lst))))))
-    (str-append prefix (str-append head-str (%tail (rest %rev))))))
+    (%str-append prefix (%str-append head-str (%tail (rest %rev))))))
 
 ; Parse decimal string to (sign . normalized-limb-list)
 (def %bignum-parse-digits

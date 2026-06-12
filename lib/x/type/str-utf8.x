@@ -21,6 +21,10 @@
 ; point transform, via the shared codec (x/codec/utf8).
 
 (import x/type/char)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-byte-len (prim-ref (lit str) (lit byte-len)))
+(def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
+
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
@@ -85,21 +89,21 @@
 ; for the extra code-point count walk.
 (def %cp-ref
   (fn (_ s i)
-    (def k (if (< i 0) (+ i (%cp-count s (str-byte-len s) 0 0)) i))
+    (def k (if (< i 0) (+ i (%cp-count s (%str-byte-len s) 0 0)) i))
     (integer->char (%utf8-cp-at s (%cp-byte-offset s k 0)))))
 
 (def %cp-substring
   (fn (_ s start len)
     (def b0 (%cp-byte-offset s start 0))
     (def b1 (%cp-byte-offset s len b0))
-    (str-byte-sub s b0 (- b1 b0))))
+    (%str-byte-sub s b0 (- b1 b0))))
 
 ; --- push the code-point call handler over the byte default ---
 ; (fn (_ s . vals)): s is the string, vals the (already-evaluated) index args.
 (%type-push-call %str-type
   (fn (_ s . vals)
     (if (null? vals)
-      (%cp-count s (str-byte-len s) 0 0)
+      (%cp-count s (%str-byte-len s) 0 0)
       (if (null? (rest vals))
         (%cp-ref s (first vals))
         (%cp-substring s (first vals) (first (rest vals)))))))

@@ -12,6 +12,9 @@
 ; strings are compared/stored.  lint-forms returns (defs uses issues) as NAME
 ; STRINGS; lint-has? tests membership.
 (import x/core/list)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str->symbol (prim-ref (lit str) (lit ->sym)))
+
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-push-write (prim-ref (lit type) (lit push-write)))
@@ -35,7 +38,7 @@
 ; base-layout-dependent env-alist dig that broke when the base layout drifted
 ; and produced false "undefined" reports for every primitive.
 (def %env-known? (fn (_ name)
-  (guard (_ #f) (do (eval! (str->symbol name)) #t))))
+  (guard (_ #f) (do (eval! (%str->symbol name)) #t))))
 
 ; --- Analysis state (boxes; all values are NAME STRINGS) ---
 (def %lint-scope  (list ()))    ; names in lexical scope

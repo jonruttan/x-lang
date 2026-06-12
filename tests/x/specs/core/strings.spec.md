@@ -34,12 +34,12 @@
 ---
     #\l
 
-## str-append
+## Str8 append
 
 ### concatenates two strings
 
 ```scheme
-(str-append "hello" " world")
+(Str8 append "hello" " world")
 ```
 ---
     "hello world"
@@ -47,7 +47,7 @@
 ### appends to empty string
 
 ```scheme
-(str-append "" "abc")
+(Str8 append "" "abc")
 ```
 ---
     "abc"
@@ -255,7 +255,7 @@
 ### builds string from parts
 
 ```scheme
-(str-length (str-append "abc" "defgh"))
+(str-length (Str8 append "abc" "defgh"))
 ```
 ---
     8

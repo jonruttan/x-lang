@@ -402,8 +402,8 @@ error value to `var` and evaluates `handler-body` instead. Handlers nest.
 Nested guards:
 
 ```
-(guard (e (str-append "outer: " e))
-  (guard (e (error (str-append "re: " e)))
+(guard (e (Str8 append "outer: " e))
+  (guard (e (error (Str8 append "re: " e)))
     (error "inner"))) -> "outer: re: inner"
 ```
 
@@ -750,15 +750,15 @@ undefined.
 (str-ref "hello" 4) -> o
 ```
 
-### `str-append`
+### `Str8 append`
 
-`(str-append str1 str2) -> string`
+`(Str8 append str1 str2 ...) -> string` (ns `str` is de-registered: the class -- or `(prim-ref (lit str) (lit append))` for load-time/hot fetches -- is the surface)
 
 Concatenates exactly two strings. For multiple strings, use `Str append` (variadic).
 
 ```
-(str-append "hello" " world") -> "hello world"
-(str-append "" "x") -> "x"
+(Str8 append "hello" " world") -> "hello world"
+(Str8 append "" "x") -> "x"
 ```
 
 ### `substring`
@@ -784,14 +784,14 @@ String content equality.
 (str=? "abc" "xyz") -> #f
 ```
 
-### `str->symbol`
+### `Str8 ->sym`
 
-`(str->symbol str) -> symbol`
+`(Str8 ->sym str) -> symbol`
 
 Converts a string to an interned symbol.
 
 ```
-(str->symbol "hello") -> hello
+(Str8 ->sym "hello") -> hello
 ```
 
 ### `symbol->str`
@@ -965,7 +965,7 @@ The `write` function re-escapes special characters so that the output is a valid
 string literal: `(write "\n")` prints `"\n"`, not a raw newline.
 
 Note: `\0` produces a null byte, which terminates the string for all operations
-that use byte-length (e.g., `str-length`, `str-append`).
+that use byte-length (e.g., `str-length`, `(Str8 append)`).
 
 ```
 "hello" -> "hello"

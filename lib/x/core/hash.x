@@ -5,6 +5,9 @@
 ; available when this loads.
 
 (import x/type/object)
+; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
+(def %str-append (prim-ref (lit str) (lit append)))
+
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
 
@@ -32,7 +35,7 @@
         (returns STRING "16-character hexadecimal string"))
       (def %lo (& n 4294967295))
       (def %hi (& (>> n 32) 4294967295))
-      (str-append (Str pad-left (%cvt %hi %string 16) 8 ("0" 0))
+      (%str-append (Str pad-left (%cvt %hi %string 16) 8 ("0" 0))
                   (Str pad-left (%cvt %lo %string 16) 8 ("0" 0))))))
 
 (doc (provide x/core/hash Hash)
