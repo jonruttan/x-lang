@@ -6,6 +6,9 @@
 ; --- Platform detection ---
 
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+(def %obj-ref (prim-ref (lit obj) (lit ref)))
+
 (def %cvt (prim-ref (lit convert) (lit to)))
 
 (def %cov-word-size
@@ -56,7 +59,7 @@
 (doc (def cov-check-fn
   (fn (_ name val tsv-mode)
     (if (not (str=? (type-name val) "PROCEDURE")) ()
-      (let ((body (obj-ref val 1)))
+      (let ((body (%obj-ref val 1)))
         (let ((counts (cov-count-tree body 0)))
           (let ((cov (first counts))
                 (total (first (rest counts))))

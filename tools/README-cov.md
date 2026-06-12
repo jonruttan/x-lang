@@ -48,8 +48,9 @@ sh tools/cov.sh /tmp/test.x
 
 ## x-lang Flag Access
 
-All flag operations are pure x-lang, built on two C primitives:
-- `obj->ptr` -- returns a raw pointer to any object's base array
+All flag operations are pure x-lang, built on two C primitives (ns `obj` is
+de-registered: fetch with `(prim-ref (lit obj) (lit ->ptr))` or use the Obj class):
+- `(Obj ->ptr)` -- returns a raw pointer to any object's base array
 - `ptr-ref-word` -- reads `sizeof(long)` bytes from a pointer at an offset
 
 ```scheme
@@ -58,7 +59,7 @@ All flag operations are pure x-lang, built on two C primitives:
 (def %flags-offset (* 2 word-size))
 
 (def obj-flags (fn (obj)
-  (ptr-ref-word (obj->ptr obj) %flags-offset)))
+  (ptr-ref-word (Obj ->ptr obj) %flags-offset)))
 ```
 
 ## Limitations

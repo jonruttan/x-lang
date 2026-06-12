@@ -1,6 +1,10 @@
 ; asm-compile.x -- JIT compiler: x-lang expressions to native machine code
 ; Produces proper x-lang prims that work with map, fold, closures, etc.
 (import x/core/list)
+; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+(def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
+(def %make-callable (prim-ref (lit obj) (lit make-callable)))
+
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str->symbol (prim-ref (lit str) (lit ->sym)))
 
@@ -117,7 +121,7 @@
       (let ((val (rest fv-entry)))
         (if (null? val)
           (asm-emit! asm (lit mov) x0 (imm 0))
-          (asm-load-imm64! asm x0 (ptr->int (obj->ptr val)))))
+          (asm-load-imm64! asm x0 (ptr->int (%obj->ptr val)))))
       ; Not a fvar: load from params
       (let ((idx (%find params 0)))
         (asm-emit! asm (lit mov) x0 x20)
@@ -440,7 +444,7 @@
     (set! %compile-fvars ())
 
     ; Create proper x-lang prim from the raw function pointer
-    (make-callable raw-fn)))
+    (%make-callable raw-fn)))
 (doc compile-asm
   (returns CALLABLE "X-lang callable prim")
   "JIT compile an x-lang (fn ...) expression to a native prim.

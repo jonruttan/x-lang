@@ -6,6 +6,9 @@
 ; same? (identity) and eq? (value equality) are C primitives. eq? compares
 ; immediate scalars (int, char) by value and falls back to identity, so it
 ; still covers nil, booleans, and interned symbols too.
+; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+(def %obj-meta-ref (prim-ref (lit obj) (lit meta-ref)))
+
 (def null? (fn (_ x) (eq? x ())))
 
 (def %type-pair (type-of (pair 1 2)))
@@ -31,7 +34,7 @@
       (#t #f))))
 
 ; Source line of an object (0 if no metadata)
-(def line-of (fn (_ obj) (obj-meta-ref obj 0)))
+(def line-of (fn (_ obj) (%obj-meta-ref obj 0)))
 
 ; NOTE: this module loads before the doc system (x/doc/doc.x), so it cannot
 ; wrap its provide in (doc ...). Its module description is registered

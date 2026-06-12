@@ -17,6 +17,9 @@
 ; Loads before doc.x so cannot use (doc ...) or (note ...); the Type class
 ; carries the documentation.
 
+; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+(def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
+
 ; --- Type struct navigation ---
 
 ; Return the interpreter's type alist from the base object
@@ -172,8 +175,8 @@
 ; Overwrite an object's type tag with the type of another object
 (def %type-cast!
   (fn (_ obj type-src)
-    (def %dst-ptr (obj->ptr obj))
-    (def %src-ptr (obj->ptr type-src))
+    (def %dst-ptr (%obj->ptr obj))
+    (def %src-ptr (%obj->ptr type-src))
     (def %type-val (ptr-ref-word %src-ptr %type-offset))
     (ptr-set-word! %dst-ptr %type-offset %type-val)
     obj))

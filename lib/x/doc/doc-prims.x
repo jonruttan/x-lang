@@ -342,10 +342,6 @@
   (param args STRING "Arguments (variadic)")
   (returns INT "Return value"))
 
-(doc obj->ptr "Get the raw pointer of an x-lang object."
-  (param obj ANY "Any object")
-  (returns PTR "Raw pointer"))
-
 (doc ptr->int "Convert a pointer to an integer."
   (param p PTR "A pointer")
   (returns INT "Integer representation"))

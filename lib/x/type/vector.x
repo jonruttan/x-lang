@@ -5,6 +5,11 @@
 ; class. Loads after object.x (relocated in x-core.x) so def-class is available;
 ; nothing before object.x uses vectors or #() literals.
 (import x/core/list)
+; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+(def %make-obj (prim-ref (lit obj) (lit make)))
+(def %obj-ref (prim-ref (lit obj) (lit ref)))
+(def %obj-set! (prim-ref (lit obj) (lit set!)))
+
 (import x/type/object)
 ; N+1 slot objects: slot 0 = length, slots 1..N = elements.
 
@@ -12,11 +17,11 @@
 (def %vector-from-list
   (fn (_ type lst)
     (def len (length lst))
-    (def v (make-obj type (+ len 1)))
-    (obj-set! v 0 len)
+    (def v (%make-obj type (+ len 1)))
+    (%obj-set! v 0 len)
     (def go (fn (self l i)
       (if (not (null? l))
-        (do (obj-set! v (+ i 1) (first l)) (self (rest l) (+ i 1))))))
+        (do (%obj-set! v (+ i 1) (first l)) (self (rest l) (+ i 1))))))
     (go lst 0)
     v))
 
@@ -32,19 +37,19 @@
         (fn (_ self . args)
           (def i (first args))
           (if (< i 0)
-            (obj-ref self (+ (obj-ref self 0) i 1))
-            (obj-ref self (+ i 1)))))
+            (%obj-ref self (+ (%obj-ref self 0) i 1))
+            (%obj-ref self (+ i 1)))))
       (pair
         (lit write)
         (fn (_ self)
           (display "#(")
-          (def len (obj-ref self 0))
+          (def len (%obj-ref self 0))
           (def write-vec
             (fn (recur i sep)
               (if (< i len)
                 (do
                   (if sep (display " "))
-                  (write (obj-ref self (+ i 1)))
+                  (write (%obj-ref self (+ i 1)))
                   (recur (+ i 1) #t)))))
           (write-vec 0 #f)
           (display ")")))
@@ -70,22 +75,22 @@
           (pair (type-of (pair 1 ()))
             ; Outer param is `v` (not `self`): build's first param is the
             ; auto-bound self (for recursion), so naming the vector `self`
-            ; here would shadow it and (obj-ref self ...) would read the fn.
+            ; here would shadow it and (%obj-ref self ...) would read the fn.
             (fn (_ v)
-              (def len (obj-ref v 0))
+              (def len (%obj-ref v 0))
               (def build
                 (fn (self i acc)
                   (if (< i 0) acc
-                    (self (- i 1) (pair (obj-ref v (+ i 1)) acc)))))
+                    (self (- i 1) (pair (%obj-ref v (+ i 1)) acc)))))
               (build (- len 1) ())))))
       (pair
         (lit iter)
         (fn (_ self)
-          (def len (obj-ref self 0))
+          (def len (%obj-ref self 0))
           (def i 0)
           (fn (_ )
             (if (< i len)
-              (let ((val (obj-ref self (+ i 1))))
+              (let ((val (%obj-ref self (+ i 1))))
                 (set! i (+ i 1))
                 val)
               ())))))))
@@ -104,12 +109,12 @@
                        (param fill ANY "Value to fill each slot with"))
       (doc "Create a vector of length n, with every element set to fill."
         (returns VECTOR "New vector of length n filled with fill"))
-      (def v (make-obj %vector (+ n 1)))
-      (obj-set! v 0 n)
+      (def v (%make-obj %vector (+ n 1)))
+      (%obj-set! v 0 n)
       (def loop
         (fn (self i)
           (if (<= i n)
-            (do (obj-set! v i fill) (self (+ i 1))))))
+            (do (%obj-set! v i fill) (self (+ i 1))))))
       (loop 1)
       v)
     ; --- Predicate ---
@@ -119,18 +124,18 @@
     ; --- Access ---
     (method ref (self (param v VECTOR "Vector") (param i INT "Zero-based index"))
       (doc "Return the element at index i of a vector." (returns ANY "Element at index i"))
-      (obj-ref v (+ i 1)))
+      (%obj-ref v (+ i 1)))
     (method length (self (param v VECTOR "Vector"))
       (doc "Return the number of elements in a vector." (returns INT "Number of elements"))
-      (obj-ref v 0))
+      (%obj-ref v 0))
     ; --- Conversion ---
     (method ->list (self (param v VECTOR "Vector to convert"))
       (doc "Convert a vector to a list." (returns LIST "List of the vector's elements"))
-      (def len (obj-ref v 0))
+      (def len (%obj-ref v 0))
       (def build
         (fn (self i acc)
           (if (< i 0) acc
-            (self (- i 1) (pair (obj-ref v (+ i 1)) acc)))))
+            (self (- i 1) (pair (%obj-ref v (+ i 1)) acc)))))
       (build (- len 1) ()))
     (method from-list (self (param lst LIST "List to convert"))
       (doc "Convert a list to a vector." (returns VECTOR "New vector containing the list's elements"))

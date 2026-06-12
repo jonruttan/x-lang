@@ -1,5 +1,10 @@
 ; asm.x -- Data-driven assembler: JIT machine code generation
 (import x/core/list)
+; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+(def %make-obj (prim-ref (lit obj) (lit make)))
+(def %obj-ref (prim-ref (lit obj) (lit ref)))
+(def %obj-set! (prim-ref (lit obj) (lit set!)))
+
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
 (def %str->symbol (prim-ref (lit str) (lit ->sym)))
@@ -70,9 +75,9 @@
 ; --- Buffer byte emitters ---
 (def %emit-u8!
   (fn (_ asm byte)
-    (def pos (obj-ref asm 1))
-    (ptr-set! (obj-ref asm 0) pos (& byte 255) 1)
-    (obj-set! asm 1 (+ pos 1))))
+    (def pos (%obj-ref asm 1))
+    (ptr-set! (%obj-ref asm 0) pos (& byte 255) 1)
+    (%obj-set! asm 1 (+ pos 1))))
 
 (def %emit-u32-le!
   (fn (_ asm val)
@@ -94,7 +99,7 @@
       (pair (lit write)
         (fn (_ self)
           (display "<asm pos=")
-          (display (obj-ref self 1))
+          (display (%obj-ref self 1))
           (display ">")))
       (pair (lit call)
         (fn (_ self . args)
@@ -111,18 +116,18 @@
     (def cap (if (null? rest) 4096 (first rest)))
     (def ptr (%asm-mmap cap))
     (if (null? ptr) (error "asm-new: mmap failed"))
-    (def a (make-obj %asm-type 6))
-    (obj-set! a 0 ptr)      ; buf-ptr (from ptr-call, PTR type)
-    (obj-set! a 1 0)        ; buf-pos
-    (obj-set! a 2 cap)      ; buf-cap
-    (obj-set! a 3 ())       ; labels
-    (obj-set! a 4 ())       ; patches
-    (obj-set! a 5 %arch)    ; (table . encoder)
+    (def a (%make-obj %asm-type 6))
+    (%obj-set! a 0 ptr)      ; buf-ptr (from ptr-call, PTR type)
+    (%obj-set! a 1 0)        ; buf-pos
+    (%obj-set! a 2 cap)      ; buf-cap
+    (%obj-set! a 3 ())       ; labels
+    (%obj-set! a 4 ())       ; patches
+    (%obj-set! a 5 %arch)    ; (table . encoder)
     a))
 
 (def asm-emit!
   (fn (_ asm mnemonic . args)
-    (def arch (obj-ref asm 5))
+    (def arch (%obj-ref asm 5))
     (def table (List nth 0 arch))
     (def encode (List nth 1 arch))
     (def entry (List assq mnemonic table))
@@ -136,24 +141,24 @@
 
 (def asm-label!
   (fn (_ asm name)
-    (obj-set! asm 3 (pair (pair name (obj-ref asm 1)) (obj-ref asm 3)))))
+    (%obj-set! asm 3 (pair (pair name (%obj-ref asm 1)) (%obj-ref asm 3)))))
 
 (def asm-patch!
   (fn (_ asm width type label-name)
-    (def offset (obj-ref asm 1))
-    (obj-set! asm 4
-      (pair (list offset width type label-name) (obj-ref asm 4)))))
+    (def offset (%obj-ref asm 1))
+    (%obj-set! asm 4
+      (pair (list offset width type label-name) (%obj-ref asm 4)))))
 
 (def asm-pos
-  (fn (_ asm) (obj-ref asm 1)))
+  (fn (_ asm) (%obj-ref asm 1)))
 
 (def asm-finalize!
   (fn (_ asm)
-    (def labels (obj-ref asm 3))
-    (def patches (obj-ref asm 4))
-    (def buf-ptr (obj-ref asm 0))
+    (def labels (%obj-ref asm 3))
+    (def patches (%obj-ref asm 4))
+    (def buf-ptr (%obj-ref asm 0))
     ; Resolve patches (arch-specific resolver in slot 2 of arch)
-    (def arch (obj-ref asm 5))
+    (def arch (%obj-ref asm 5))
     (def resolver (if (> (length arch) 2) (List nth 2 arch) ()))
     (for-each
       (fn (_ patch)
@@ -174,13 +179,13 @@
             (ptr-set! buf-ptr offset val width))))
       patches)
     ; Make executable (includes icache flush on ARM)
-    (%asm-mprotect-rx! buf-ptr (obj-ref asm 2))
+    (%asm-mprotect-rx! buf-ptr (%obj-ref asm 2))
     ; Return the pointer (callable via ptr-call)
     buf-ptr))
 
 (def asm-free!
   (fn (_ asm)
-    (%asm-munmap (obj-ref asm 0) (obj-ref asm 2))
+    (%asm-munmap (%obj-ref asm 0) (%obj-ref asm 2))
     ()))
 
 ; --- Load architecture ---

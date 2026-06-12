@@ -11,6 +11,10 @@
 ; Input order on stdin: constructs.x, lang-constructs (or ()),
 ; then quoted source string.
 
+; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+(def %obj-meta-count! (prim-ref (lit obj) (lit meta-count!)))
+(def %obj-meta-ref (prim-ref (lit obj) (lit meta-ref)))
+
 (do
   ; --- Load construct declarations ---
 
@@ -72,7 +76,7 @@
 
   ; --- Enable extra metadata for line tracking ---
 
-  (obj-meta-count! 1)
+  (%obj-meta-count! 1)
 
   ; --- Tokenize input ---
 
@@ -102,7 +106,7 @@
     (if (%marked? form)
       (set! %covered-branches (+ %covered-branches 1))
       (set! %uncovered
-        (pair (list kind form (obj-meta-ref form 0)) %uncovered)))))
+        (pair (list kind form (%obj-meta-ref form 0)) %uncovered)))))
 
   ; --- Per-type branch evaluators ---
 
