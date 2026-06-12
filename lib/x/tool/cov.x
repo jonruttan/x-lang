@@ -5,8 +5,11 @@
 
 ; --- Platform detection ---
 
+; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+(def %cvt (prim-ref (lit convert) (lit to)))
+
 (def %cov-word-size
-  (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
+  (if (> (%cvt (%cvt 4294967296 %ptr) %int) 0) 8 4))
 (def %cov-flags-offset (* 2 %cov-word-size))
 
 ; --- Object flag inspection ---
@@ -14,7 +17,7 @@
 (def %cov-obj-flags
   (fn (_ obj)
     (if (null? obj) 0
-      (ptr-ref-word (convert obj %ptr) %cov-flags-offset))))
+      (ptr-ref-word (%cvt obj %ptr) %cov-flags-offset))))
 
 (doc (def cov-covered?
   (fn (_ obj) (> (& (%cov-obj-flags obj) 2) 0)))
@@ -92,7 +95,7 @@
   (fn (self alist)
     (if (null? alist) ()
       (if (and (symbol? (first (first alist)))
-               (str=? (convert (first (first alist)) %string)
+               (str=? (%cvt (first (first alist)) %string)
                           "%cov-library-end"))
         (rest alist)
         (self (rest alist))))))

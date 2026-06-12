@@ -1,5 +1,8 @@
 ; compile.x -- Runtime compiler: x-lang to native code
 (import x/core/list)
+; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+(def %cvt (prim-ref (lit convert) (lit to)))
+
 (import x/type/str)
 (import x/sys/posix)
 (import x/core/hash)
@@ -52,7 +55,7 @@
     (def %go
       (fn (self ps i)
         (if (null? ps) ""
-          (Str append "    x_obj_t *p_" (convert (first ps) %string)
+          (Str append "    x_obj_t *p_" (%cvt (first ps) %string)
                " = x_firstobj(" (%c-args-ref i) ");\n"
                (self (rest ps) (+ i 1))))))
     (%go params 0)))
@@ -103,20 +106,20 @@
 (def %compile-symbol-write
   (fn (_ sym)
     (if (List memq sym %compile-params)
-      (display (Str append "p_" (convert sym %string)))
+      (display (Str append "p_" (%cvt sym %string)))
       (let ((fv-entry (%compile-fvar-lookup sym)))
         (if (null? fv-entry)
-          (error (Str append "compile: free variable: " (convert sym %string)))
+          (error (Str append "compile: free variable: " (%cvt sym %string)))
           (let ((fv-val (rest fv-entry)))
             (if (null? fv-val)
               (display "NULL")
               ; Emit table lookup: x_fvar_table[N] (cacheable, patched at load)
               (display (Str append "x_fvar_table["
-                (convert (%compile-fvar-index sym) %string) "]")))))))))
+                (%cvt (%compile-fvar-index sym) %string) "]")))))))))
 ; INT: emit integer literal
 (def %compile-int-write
   (fn (_ n)
-    (display (convert n %string))))
+    (display (%cvt n %string))))
 
 ; LIST: inspect operator, dispatch to form-specific C emission
 ; Sub-expressions are emitted by calling write on them (recurses through
@@ -150,7 +153,7 @@
     (display "(x_firstint(")
     (%cw-emit (first args))
     (display ") = ")
-    (display (convert (first (rest args)) %string))
+    (display (%cvt (first (rest args)) %string))
     (display " * x_bufferlen(")
     (%cw-emit (first (rest (rest args))))
     (display "), ")
@@ -180,7 +183,7 @@
   (fn (_ args)
     (let ((inner-params (first args))
           (inner-body (first (rest args)))
-          (fn-name (Str append "fn_" (convert (+ 1 (length (first %compile-fns))) %string))))
+          (fn-name (Str append "fn_" (%cvt (+ 1 (length (first %compile-fns))) %string))))
       ; Add this fn to the list
       (set-first! %compile-fns
         (pair (list fn-name inner-params inner-body)
@@ -226,7 +229,7 @@
     (display "(x_atomint(")
     (%cw-emit (first args))
     (display ") += ")
-    (display (convert (first (rest args)) %string))
+    (display (%cvt (first (rest args)) %string))
     (display ", ")
     (%cw-emit (first args))
     (display ")")))
@@ -237,7 +240,7 @@
     (display "(x_atomint(")
     (%cw-emit (first args))
     (display ") = ")
-    (display (convert (first (rest args)) %string))
+    (display (%cvt (first (rest args)) %string))
     (display ", ")
     (%cw-emit (first args))
     (display ")")))
@@ -255,7 +258,7 @@
 (def %cw-int-operand
   (fn (_ x)
     (if (number? x)
-      (display (convert x %string))
+      (display (%cvt x %string))
       (do (display "x_atomint(") (%cw-emit x) (display ")")))))
 
 ; Build a binary comparison emitter for a given C operator string
@@ -486,7 +489,7 @@
         (if entry
           ((rest entry) (rest lst))
           (error (Str append "compile: unsupported form: "
-            (convert (first lst) %string))))))))
+            (%cvt (first lst) %string))))))))
 
 ; --- Generate C via write-to-str ---
 
@@ -620,7 +623,7 @@
                   (do
                     (ptr-set-word! tbl (* i %word-size)
                       (if (null? (rest (first fvs))) 0
-                        (convert (convert (rest (first fvs)) %ptr) %int)))
+                        (%cvt (%cvt (rest (first fvs)) %ptr) %int)))
                     (self (rest fvs) (+ i 1))))))
             (%patch-go fvars 0)))))))
 
@@ -641,7 +644,7 @@
                 "-o" lib-path src-path))))
     (def %cc-status (ptr-call %c-system %cc-cmd))
     (if (not (= %cc-status 0))
-      (error (Str append "compile: cc failed with status " (convert %cc-status %string))))))
+      (error (Str append "compile: cc failed with status " (%cvt %cc-status %string))))))
 
 (def %patch-nested-prims
   (fn (self lib fns prim-type-val)
@@ -662,7 +665,7 @@
             (if (null? fn-ptr) ()
               (let ()
                 (type-cast! fn-ptr first)
-                (def %prim-type-val (ptr-ref-word (convert first %ptr) %type-offset))
+                (def %prim-type-val (ptr-ref-word (%cvt first %ptr) %type-offset))
                 (%patch-nested-prims lib (first fns-holder) %prim-type-val)
                 fn-ptr))))))))
 
@@ -747,7 +750,7 @@
       ; Cache miss: generate, write, compile, load
       (let ()
         (set! %compile-id (+ %compile-id 1))
-        (def %id (convert %compile-id %string))
+        (def %id (%cvt %compile-id %string))
         (def %src-path (Str append "/tmp/x-compile-" %id ".c"))
 
         (compile-write %src-path (compile-to-c expr fvars))
@@ -759,7 +762,7 @@
         (def %fn (dlsym %lib "fn_0"))
         (if (null? %fn) (error "compile: dlsym failed for fn_0"))
         (type-cast! %fn first)
-        (def %prim-type-val (ptr-ref-word (convert first %ptr) %type-offset))
+        (def %prim-type-val (ptr-ref-word (%cvt first %ptr) %type-offset))
         (%patch-nested-prims %lib (first (list (list))) %prim-type-val)
         ; Patch fvar table
         (if (not (null? fvars))
@@ -775,7 +778,7 @@
   (fn (_ expr fvars)
     (set! %compile-fvars fvars)
     (set! %compile-id (+ %compile-id 1))
-    (def %id (convert %compile-id %string))
+    (def %id (%cvt %compile-id %string))
     (def %src-path (Str append "/tmp/x-compile-" %id ".c"))
 
     (def %expr-key (write-to-str expr))
@@ -791,7 +794,7 @@
     (def %fn (dlsym %lib "fn_0"))
     (if (null? %fn) (error "compile: dlsym failed for fn_0"))
     (type-cast! %fn first)
-    (def %prim-type-val (ptr-ref-word (convert first %ptr) %type-offset))
+    (def %prim-type-val (ptr-ref-word (%cvt first %ptr) %type-offset))
     (%patch-nested-prims %lib (first (list (list))) %prim-type-val)
     (if (not (null? fvars))
       (%compile-patch-fvars %lib fvars))
@@ -830,7 +833,7 @@
     (def %resolve-all
       (fn (self lib i n)
         (if (= i n) ()
-          (let ((name (Str append "batch_" (convert i %string))))
+          (let ((name (Str append "batch_" (%cvt i %string))))
             (def %fn (dlsym lib name))
             (if (null? %fn)
               (error (Str append "compile-batch: dlsym failed for " name)))
@@ -855,7 +858,7 @@
       ; Cache miss: generate, compile, cache, load
       (let ()
         (set! %compile-id (+ %compile-id 1))
-        (def %id (convert %compile-id %string))
+        (def %id (%cvt %compile-id %string))
         (def %src-path (Str append "/tmp/x-compile-" %id ".c"))
 
         (%compile-push-writers)
@@ -868,7 +871,7 @@
                   (error "compile-batch: each expression must be (fn ...)"))
                 (let ((params (first (rest expr)))
                       (body (first (rest (rest expr))))
-                      (name (Str append "batch_" (convert i %string))))
+                      (name (Str append "batch_" (%cvt i %string))))
                   (set! %compile-fns (list (list)))
                   (def %fn-c
                     (Str append "x_obj_t *" name

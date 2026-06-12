@@ -1,5 +1,8 @@
 ; float.x -- Floating-point type with IEEE 754 bit-pattern storage
 (import x/type/object)
+; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+(def %cvt (prim-ref (lit convert) (lit to)))
+
 ;
 ; Float values are stored as IEEE 754 double bit patterns inside integers.
 ; The tokenizer's competitive scoring system ensures "3.14" (score 4)
@@ -108,7 +111,7 @@
 
 (def %float? (fn (_ x) (type? x %float)))
 
-(def %exact->inexact (fn (_ x) (convert x %float)))
+(def %exact->inexact (fn (_ x) (%cvt x %float)))
 
 (def %inexact->exact (fn (_ x) (%float->int (first x))))
 
@@ -209,7 +212,7 @@
 
 (def %e (%fexp (%exact->inexact 1)))
 
-(def %ensure-float (fn (_ x) (convert x %float)))
+(def %ensure-float (fn (_ x) (%cvt x %float)))
 
 ; --- Type ops: the generic operators dispatch float operands here ---
 ; %ensure-float goes through the cvt from-alist, so the other side may be an

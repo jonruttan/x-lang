@@ -1,5 +1,8 @@
 ; complex.x -- Complex number type
 (import x/num/float)
+; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+(def %cvt (prim-ref (lit convert) (lit to)))
+
 (import x/num/rational)
 (import x/type/object)
 ;
@@ -109,7 +112,7 @@
 (def %cx-find-char
   (fn (self s i len ch)
     (if (>= i len) ()
-      (if (= (convert (str-ref s i) %int) ch)
+      (if (= (%cvt (str-ref s i) %int) ch)
         i
         (self s (%int+ i 1) len ch)))))
 
@@ -117,7 +120,7 @@
   (fn (_ s)
     (if (%cx-find-char s 0 (str-length s) 46)
       (make-instance %float (%str->float s))
-      (convert s %int))))
+      (%cvt s %int))))
 
 (set! %cx-read
   (fn (_ . args)

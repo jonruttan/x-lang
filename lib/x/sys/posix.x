@@ -1,5 +1,8 @@
 ; posix.x -- Sys: POSIX system calls as static methods, via FFI (dlsym + ptr-call)
 (import x/core/list)
+; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+(def %cvt (prim-ref (lit convert) (lit to)))
+
 (import x/type/object)
 ;
 ; Pure x-lang over the FFI layer; the libc resolves stay %-private. Loads after
@@ -59,7 +62,7 @@
     (method wait (self (param pid INTEGER "Process ID to wait for"))
       (doc "Wait for a child process and return its exit status."
         (returns INTEGER "Exit status of the child process"))
-      (let ((buf (convert (ptr-call %c-malloc 4) %ptr)))
+      (let ((buf (%cvt (ptr-call %c-malloc 4) %ptr)))
         (ptr-call %c-waitpid pid buf 0)
         (let ((raw (ptr-ref buf 0 4)))
           (ptr-call %c-free buf)
@@ -68,7 +71,7 @@
       (doc "Replace the current process with the named program. Does not return on success.")
       (let ((all (pair name args)))
         (let ((n (length all)))
-          (let ((argv (convert (ptr-call %c-malloc (* (+ n 1) %word-size)) %ptr)))
+          (let ((argv (%cvt (ptr-call %c-malloc (* (+ n 1) %word-size)) %ptr)))
             (def %fill
               (fn (self lst i)
                 (if (null? lst)
@@ -77,7 +80,7 @@
                     (ptr-set-word!
                       argv
                       (* i %word-size)
-                      (convert (convert (first lst) %ptr) %int))
+                      (%cvt (%cvt (first lst) %ptr) %int))
                     (self (rest lst) (+ i 1))))))
             (%fill all 0)
             (ptr-call %c-execvp name argv)))))
@@ -90,7 +93,7 @@
       (ptr-call %c-dup2 old new))
     (method pipe (self)
       (doc "Create a pipe and return a pair of file descriptors." (returns PAIR "Pair of (read-fd . write-fd)"))
-      (let ((buf (convert (ptr-call %c-malloc 8) %ptr)))
+      (let ((buf (%cvt (ptr-call %c-malloc 8) %ptr)))
         (ptr-call %c-pipe buf)
         (let ((r (ptr-ref buf 0 4)) (w (ptr-ref buf 4 4)))
           (ptr-call %c-free buf)
@@ -125,7 +128,7 @@
     (method getenv (self (param name STRING "Variable name"))
       (doc "Get the value of an environment variable." (returns STRING "Variable value, or nil if not set"))
       (let ((result (ptr-call %c-getenv name)))
-        (if (= result 0) () (convert (convert result %ptr) %string))))
+        (if (= result 0) () (%cvt (%cvt result %ptr) %string))))
     (method isatty (self (param fd NUMBER "File descriptor to test"))
       (doc "Test whether a file descriptor refers to a terminal (TTY)."
         (returns BOOLEAN "True if fd refers to a terminal")

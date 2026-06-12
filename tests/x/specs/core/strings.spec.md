@@ -101,7 +101,7 @@
 ### converts string to symbol
 
 ```scheme
-(convert "hello" %symbol)
+(Convert to "hello" %symbol)
 ```
 ---
     (lit hello)
@@ -109,7 +109,7 @@
 ### interned equality
 
 ```scheme
-(eq? (convert "hello" %symbol) (lit hello))
+(eq? (Convert to "hello" %symbol) (lit hello))
 ```
 ---
     #t
@@ -119,7 +119,7 @@
 ### converts symbol to string
 
 ```scheme
-(convert (lit hello) %string)
+(Convert to (lit hello) %string)
 ```
 ---
     "hello"
@@ -127,7 +127,7 @@
 ### round-trip string/symbol/string
 
 ```scheme
-(convert (convert "test" %symbol) %string)
+(Convert to (Convert to "test" %symbol) %string)
 ```
 ---
     "test"
@@ -137,7 +137,7 @@
 ### converts positive number
 
 ```scheme
-(convert 42 %string)
+(Convert to 42 %string)
 ```
 ---
     "42"
@@ -145,7 +145,7 @@
 ### converts zero
 
 ```scheme
-(convert 0 %string)
+(Convert to 0 %string)
 ```
 ---
     "0"
@@ -153,7 +153,7 @@
 ### converts negative number
 
 ```scheme
-(convert -7 %string)
+(Convert to -7 %string)
 ```
 ---
     "-7"
@@ -163,7 +163,7 @@
 ### parses positive number
 
 ```scheme
-(convert "42" %int)
+(Convert to "42" %int)
 ```
 ---
     42
@@ -171,7 +171,7 @@
 ### parses negative number
 
 ```scheme
-(convert "-5" %int)
+(Convert to "-5" %int)
 ```
 ---
     -5
@@ -179,7 +179,7 @@
 ### parses zero
 
 ```scheme
-(convert "0" %int)
+(Convert to "0" %int)
 ```
 ---
     0
@@ -229,7 +229,7 @@
 ### hex escape produces correct byte
 
 ```scheme
-(= (convert (str-ref "\x41" 0) %int) 65)
+(= (Convert to (str-ref "\x41" 0) %int) 65)
 ```
 ---
     #t
@@ -247,7 +247,7 @@
 ### round-trips number/string/number
 
 ```scheme
-(convert (convert 99 %string) %int)
+(Convert to (Convert to 99 %string) %int)
 ```
 ---
     99

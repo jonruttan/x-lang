@@ -5,6 +5,9 @@
 ; available when this loads.
 
 (import x/type/object)
+; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+(def %cvt (prim-ref (lit convert) (lit to)))
+
 (import x/type/str)
 
 ; FNV-1a 64-bit constants. Offset basis 14695981039346656037 (unsigned) =
@@ -22,15 +25,15 @@
         (fn (self i h)
           (if (%int= i %len) h
             (self (%int+ i 1)
-              (%int* (^ h (convert (str-ref s i) %int)) %fnv-prime)))))
+              (%int* (^ h (%cvt (str-ref s i) %int)) %fnv-prime)))))
       (%go 0 %fnv-offset))
     (method hash->hex (self (param n INTEGER "64-bit signed hash value"))
       (doc "Convert a 64-bit signed integer to a 16-character unsigned hex string."
         (returns STRING "16-character hexadecimal string"))
       (def %lo (& n 4294967295))
       (def %hi (& (>> n 32) 4294967295))
-      (str-append (Str pad-left (convert %hi %string 16) 8 ("0" 0))
-                  (Str pad-left (convert %lo %string 16) 8 ("0" 0))))))
+      (str-append (Str pad-left (%cvt %hi %string 16) 8 ("0" 0))
+                  (Str pad-left (%cvt %lo %string 16) 8 ("0" 0))))))
 
 (doc (provide x/core/hash Hash)
   (example "(Hash hash->hex (Hash fnv-1a \"hello\"))" "a430d84680aabd0b")

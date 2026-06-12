@@ -1,5 +1,8 @@
 ; rational.x -- Rational number type (exact fractions)
 (import x/num/float)
+; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+(def %cvt (prim-ref (lit convert) (lit to)))
+
 ;
 ; Rational values are stored as (numerator . denominator) pairs,
 ; auto-reduced via GCD on construction. The tokenizer matches
@@ -23,7 +26,7 @@
 (def %rat-find-slash
   (fn (self s i len)
     (if (>= i len) ()
-      (if (= (convert (str-ref s i) %int) 47)
+      (if (= (%cvt (str-ref s i) %int) 47)
         i
         (self s (%int+ i 1) len)))))
 ; --- Constructor: auto-reduce and normalize sign ---
@@ -103,8 +106,8 @@
               (let ((pos (%rat-find-slash value 0 (str-length value))))
                 (if pos
                   (%make-rational
-                    (convert (substring value 0 pos) %int)
-                    (convert
+                    (%cvt (substring value 0 pos) %int)
+                    (%cvt
                       (substring value (%int+ pos 1) (str-length value)) %int))
                   ()))))))
       (pair
@@ -120,8 +123,8 @@
           (pair (type-of "")
             (fn (_ self)
               (str-append
-                (str-append (convert (first (first self)) %string) "/")
-                (convert (rest (first self)) %string)))))))))
+                (str-append (%cvt (first (first self)) %string) "/")
+                (%cvt (rest (first self)) %string)))))))))
 ; --- Predicates ---
 
 (note "Predicates")
@@ -251,8 +254,8 @@
       (let ((pos (%rat-find-slash tok 0 (str-length tok))))
         (if pos
           (%make-rational
-            (convert (substring tok 0 pos) %int)
-            (convert
+            (%cvt (substring tok 0 pos) %int)
+            (%cvt
               (substring tok (%int+ pos 1) (str-length tok)) %int))
           ())))))
 

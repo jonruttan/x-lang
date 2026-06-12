@@ -11,6 +11,9 @@
 ; context and must not go through class dispatch. The Regex class wraps them.
 
 (import x/type/object)
+; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+(def %cvt (prim-ref (lit convert) (lit to)))
+
 
 ; --- Matcher ---
 ; Forward-declare for mutual recursion
@@ -231,7 +234,7 @@
             ((= ch #\{) (do (display "\\") (display "{")))
             ((= ch #\^) (do (display "\\") (display "^")))
             ((= ch #\$) (do (display "\\") (display "$")))
-            (#t (display (convert ch %char))))))
+            (#t (display (%cvt ch %char))))))
       ((eq? tag (lit any)) (display "."))
       ((eq? tag (lit star))
         (do (self (first (rest node))) (display "*")))
@@ -275,10 +278,10 @@
     (if (not (null? entries))
       (let ((e (first entries)))
         (if (pair? e)
-          (do (display (convert (first e) %char))
+          (do (display (%cvt (first e) %char))
               (display "-")
-              (display (convert (rest e) %char)))
-          (display (convert e %char)))
+              (display (%cvt (rest e) %char)))
+          (display (%cvt e %char)))
         (self (rest entries))))))
 
 (def %regex-write

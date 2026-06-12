@@ -63,7 +63,7 @@
 ### convert int to float
 
 ```scheme
-(convert 42 %float)
+(Convert to 42 %float)
 ```
 ---
     42
@@ -71,7 +71,7 @@
 ### convert result is float
 
 ```scheme
-(Float float? (convert 42 %float))
+(Float float? (Convert to 42 %float))
 ```
 ---
     #t
@@ -79,7 +79,7 @@
 ### convert float to float is identity
 
 ```scheme
-(def x 3.14) (eq? (convert x %float) x)
+(def x 3.14) (eq? (Convert to x %float) x)
 ```
 ---
     #t
@@ -87,7 +87,7 @@
 ### convert string to float
 
 ```scheme
-(Float float? (convert "3.14" %float))
+(Float float? (Convert to "3.14" %float))
 ```
 ---
     #t
@@ -95,7 +95,7 @@
 ### convert nil returns nil
 
 ```scheme
-(null? (convert () %float))
+(null? (Convert to () %float))
 ```
 ---
     #t
@@ -103,7 +103,7 @@
 ### convert negative int
 
 ```scheme
-(convert -5 %float)
+(Convert to -5 %float)
 ```
 ---
     -5
@@ -111,7 +111,7 @@
 ### convert zero
 
 ```scheme
-(convert 0 %float)
+(Convert to 0 %float)
 ```
 ---
     0

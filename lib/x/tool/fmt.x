@@ -3,6 +3,9 @@
 ; Data-driven pretty printer for x-lang s-expressions.
 ; Uses write-to-str for width estimation (C speed).
 (import x/type/str)
+; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
+(def %cvt (prim-ref (lit convert) (lit to)))
+
 
 ; --- Construct table helpers ---
 
@@ -20,8 +23,8 @@
 
 (def %fmt-find (fn (self key table)
   (if (null? table) ()
-    (if (str=? (convert key %string)
-                  (convert (first (first table)) %string))
+    (if (str=? (%cvt key %string)
+                  (%cvt (first (first table)) %string))
       (first table)
       (self key (rest table))))))
 
@@ -83,14 +86,14 @@
 ; Layout strategies
 (def %fmt-head-1 (fn (_ head rest-forms col)
   (if (null? rest-forms) (write (pair head rest-forms))
-    (let ((head-width (+ 2 (str-length (convert head %string)))))
+    (let ((head-width (+ 2 (str-length (%cvt head %string)))))
         (display "(") (write head) (display " ")
         (fmt-expr (first rest-forms) (+ col head-width))
         (fmt-body (rest rest-forms) (+ col 2))
         (display ")")))))
 
 (def %fmt-head-kw (fn (_ head rest-forms col)
-  (let ((head-width (+ 2 (str-length (convert head %string)))))
+  (let ((head-width (+ 2 (str-length (%cvt head %string)))))
       (display "(") (write head) (display " ")
       (fmt-expr (first rest-forms) (+ col head-width))
       (fmt-body (rest rest-forms) (+ col 2))

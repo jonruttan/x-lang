@@ -64,7 +64,6 @@
 
   ; Type system internals (before doc, cannot use provide)
   (include "lib/x/sys/type.x")
-  (include "lib/x/sys/convert.x")
 
   ; Documentation system
   (include "lib/x/doc/doc.x")
@@ -98,6 +97,12 @@
   ; UTF-8-aware CHARACTER write/display handlers (shadow the C byte fallback)
   (include "lib/x/type/char-io.x")
   (include "lib/x/type/object.x")
+  ; Convert: the conversion dispatcher (registered in the catalog as
+  ; (convert . to)) + the Convert class with the no-match policy member.
+  ; Relocated past object.x from the early type-internals block -- it needs
+  ; def-class + doc, and every caller (tower, regex, posix, hash, tools)
+  ; loads later still.
+  (include "lib/x/sys/convert.x")
   ; Fn: function combinators (the Fn class). Moved here from the early core block
   ; -- it needs def-class, and nothing loaded before object.x references it.
   (include "lib/x/core/fn.x")
@@ -183,7 +188,7 @@
     type-push-iter type-ops-cell type-push-op type-cast!)
     "Type system reflection and manipulation.")
   (doc (provide x/core
-    null? if let do begin not atom? list convert number->str str->number
+    null? if let do begin not atom? list number->str str->number
     str=? str-ref str-length substring
     newline heap-collect heap-mark-root! heap-mark-hook!
     heap-free-hook! include-once require-once provide import

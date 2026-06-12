@@ -307,7 +307,7 @@
 ### convert int to rational
 
 ```scheme
-(convert 5 %rational)
+(Convert to 5 %rational)
 ```
 ---
     5
@@ -315,7 +315,7 @@
 ### convert string to rational
 
 ```scheme
-(convert "3/4" %rational)
+(Convert to "3/4" %rational)
 ```
 ---
     3/4
@@ -323,7 +323,7 @@
 ### convert rational to int
 
 ```scheme
-(convert 3/4 (type-of 42))
+(Convert to 3/4 (type-of 42))
 ```
 ---
     0
@@ -331,7 +331,7 @@
 ### convert rational to string
 
 ```scheme
-(convert 3/4 (type-of ""))
+(Convert to 3/4 (type-of ""))
 ```
 ---
     "3/4"

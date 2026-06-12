@@ -465,11 +465,6 @@
   (returns ANY "Result of expr (prints elapsed time as side effect)")
   (example "(time (fold + 0 (List range 0 1000)))" "499500"))
 
-(doc convert "Convert a value between types."
-  (param val ANY "Value to convert")
-  (param type ATOM "Target type handle")
-  (returns ANY "Converted value"))
-
 (doc newline "Display a newline character.")
 
 (doc quasi "Quasiquote: template with unquote and splicing."

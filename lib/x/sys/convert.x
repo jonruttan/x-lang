@@ -1,12 +1,29 @@
-; convert.x -- Generic type conversion dispatch
+; convert.x -- Generic type conversion: the registered dispatcher + the
+; Convert class.
 ;
-; Provides (convert value target-type . extra-args) for core types.
-; Loads before doc.x so cannot use (doc ...) annotations.
+; Three concerns, one mechanism each:
+;   - The TYPE SYSTEM carries the data: each type struct's cvt group holds a
+;     from-alist (source-type -> converter) and a to-alist (target-type ->
+;     converter), set with the %type-set-from!/%type-set-to! helpers below.
+;   - The CATALOG carries the implementation: %convert-to is registered as
+;     (convert . to); hot consumers (the tower's coercions, reader and write
+;     handlers) fetch-and-cache it at module load:
+;       (def %cvt (prim-ref (lit convert) (lit to)))
+;   - The Convert CLASS is the API: (Convert to val target . extra) for cold
+;     call sites, and the no-match POLICY as the class-wide member `missing`.
 ;
-; The convert function looks up a converter in two places:
-;   1. Target type's "from" alist — keyed by source type handle
-;   2. Source type's "to" alist — keyed by target type handle
-;   3. Wildcard (#t) in from-alist as fallback
+; The no-match policy is the dialect's call, not the mechanism's (SoC):
+;   (Convert missing)                      -- read the handler
+;   (Convert missing (fn (_ v tgt) ...))   -- set it: raise, coerce, log, ...
+; The default handler returns () -- the historical contract. A type wanting
+; totality instead registers a #t wildcard in its own from-alist (see PTR
+; below); the wildcard dispatches as a conversion, so it wins over the miss
+; handler.
+;
+; Lookup order: identity (already the target type), exact source match in the
+; target's from-alist, the target's #t wildcard, target match in the source's
+; to-alist, then (Convert missing). A nil VALUE converts to nil (absence stays
+; absence; see the nil-handling specs).
 ;
 ; Type handles: %int, %char, %string, %symbol, %ptr, %pair
 ;
@@ -19,16 +36,12 @@
 ;   PTR  <- int (int->ptr), string (str->ptr), any (obj->ptr)
 ;
 ; Examples:
-;   (convert 65 %char)           -> #\A
-;   (convert #\A %int)           -> 65
-;   (convert 42 %string)         -> "42"
-;   (convert 255 %string 16)     -> "ff"
-;   (convert "42" %int)          -> 42
-;   (convert "ff" %int 16)       -> 255 (hex parse)
-;   (convert (lit foo) %string)  -> "foo"
-;
-; Exports: convert
-; Registered by x-core.x after module system loads (no provide).
+;   (Convert to 65 %char)        -> #\A
+;   (Convert to #\A %int)        -> 65
+;   (Convert to 255 %string 16)  -> "ff"
+;   (Convert to "ff" %int 16)    -> 255 (hex parse)
+
+(import x/type/object)
 
 ; --- Type navigation via type.x (loaded before us) ---
 
@@ -82,7 +95,8 @@
   (list
     (pair %string (fn (_ v . extra) (str->symbol v)))))
 
-; PTR: from int, string, any (obj->ptr as wildcard)
+; PTR: from int, string, any (obj->ptr as wildcard -- the totality pattern:
+; PTR opts out of the miss policy by accepting every source type)
 (%type-set-from! (type-by-atom %ptr)
   (list
     (pair %int    (fn (_ v . extra) (int->ptr v)))
@@ -90,7 +104,7 @@
     (pair %ptr    (fn (_ v . extra) v))
     (pair #t (fn (_ v . extra) (obj->ptr v)))))
 
-; --- convert dispatch (replaces C primitive) ---
+; --- The dispatcher ---
 (def %alist-find
   (fn (self alist key)
     (if (null? alist) ()
@@ -104,7 +118,7 @@
 ; silently clobbering any caller variable of the same name (e.g. a caller's
 ; `entry`).  `let` binds through parameters (a real frame), so source/entry/etc.
 ; stay local.  (See the def-in-tail-`do` scope hazard.)
-(def convert
+(def %convert-to
   (fn (_ val target . extra)
     (if (null? val) ()
       (if (eq? (type-of val) target) val
@@ -131,6 +145,28 @@
                     (if (null? to-al) ()
                       (set! entry (%alist-find to-al target)))))))
             ())
-          ; Call converter: (fn (_ . val) . extra)
-          (if (null? entry) ()
+          ; Call converter: (fn (_ . val) . extra); a miss is the dialect's
+          ; policy, not ours -- read it off the class (cold path only).
+          (if (null? entry)
+            ((Convert missing) val target)
             (apply (rest entry) (pair val extra))))))))
+
+; Register the implementation: consumers fetch (convert . to) from the
+; catalog instead of assuming an ambient name.
+(prim-reg! (lit convert) (lit to) %convert-to)
+
+; --- The API ---
+(def-class Convert ()
+  (static
+    (missing (fn (_ val target) ())
+      "No-match policy handler (fn (_ val target)). The dialect sets it -- raise, coerce, log, ... Default returns nil.")
+    (method to (self (param val ANY "Value to convert")
+                     (param target ANY "Target type handle (e.g. (type-of 0))")
+                     . (param extra ANY "Converter-specific arguments (e.g. a radix)"))
+      (doc "Convert VAL to the TARGET type via the type system's registered conversions."
+        (returns ANY "The converted value; on no registered conversion, (Convert missing)'s result (default nil)"))
+      (apply %convert-to (pair val (pair target extra))))))
+
+(doc (provide x/sys/convert Convert)
+  (note "Hot consumers fetch the dispatcher from the catalog: (prim-ref (lit convert) (lit to)). The no-match policy is the (Convert missing) member.")
+  "Generic type conversion: the Convert class over the type system's from/to alists.")

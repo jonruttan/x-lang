@@ -417,7 +417,7 @@
 ### converts lowercase letter
 
 ```scheme
-(convert #\a %int)
+(Convert to #\a %int)
 ```
 ---
     97
@@ -425,7 +425,7 @@
 ### converts uppercase letter
 
 ```scheme
-(convert #\A %int)
+(Convert to #\A %int)
 ```
 ---
     65
@@ -433,7 +433,7 @@
 ### converts digit character
 
 ```scheme
-(convert #\0 %int)
+(Convert to #\0 %int)
 ```
 ---
     48
@@ -443,7 +443,7 @@
 ### converts code point to character
 
 ```scheme
-(convert 65 %char)
+(Convert to 65 %char)
 ```
 ---
     #\A
@@ -451,7 +451,7 @@
 ### round-trips char/integer
 
 ```scheme
-(= (convert (convert 97 %char) %int) 97)
+(= (Convert to (Convert to 97 %char) %int) 97)
 ```
 ---
     #t

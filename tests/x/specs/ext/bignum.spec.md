@@ -151,7 +151,7 @@
 ### adds two bignums
 
 ```scheme
-(write (Bignum + (convert 100 %bignum) (convert 200 %bignum)))
+(write (Bignum + (Convert to 100 %bignum) (Convert to 200 %bignum)))
 ```
 ---
     300
@@ -159,7 +159,7 @@
 ### adds large bignums
 
 ```scheme
-(write (Bignum + (convert 999999999999999999 %bignum) (convert 1 %bignum)))
+(write (Bignum + (Convert to 999999999999999999 %bignum) (Convert to 1 %bignum)))
 ```
 ---
     1000000000000000000
@@ -169,7 +169,7 @@
 ### subtracts bignums
 
 ```scheme
-(write (Bignum - (convert 1000 %bignum) (convert 1 %bignum)))
+(write (Bignum - (Convert to 1000 %bignum) (Convert to 1 %bignum)))
 ```
 ---
     999
@@ -179,7 +179,7 @@
 ### multiplies bignums
 
 ```scheme
-(write (Bignum * (convert 12345 %bignum) (convert 6789 %bignum)))
+(write (Bignum * (Convert to 12345 %bignum) (Convert to 6789 %bignum)))
 ```
 ---
     83810205
@@ -187,7 +187,7 @@
 ### large multiply
 
 ```scheme
-(Bignum bignum? (Bignum * (convert 999999999 %bignum) (convert 999999999 %bignum)))
+(Bignum bignum? (Bignum * (Convert to 999999999 %bignum) (Convert to 999999999 %bignum)))
 ```
 ---
     #t
@@ -197,7 +197,7 @@
 ### divides bignums
 
 ```scheme
-(write (Bignum / (convert 100 %bignum) (convert 7 %bignum)))
+(write (Bignum / (Convert to 100 %bignum) (Convert to 7 %bignum)))
 ```
 ---
     14
@@ -205,7 +205,7 @@
 ### divides with a multi-limb quotient
 
 ```scheme
-(write (Bignum / (convert 99999999999999999999 %bignum) (convert 7 %bignum)))
+(write (Bignum / (Convert to 99999999999999999999 %bignum) (Convert to 7 %bignum)))
 ```
 ---
     14285714285714285714
@@ -223,7 +223,7 @@
 ### less than
 
 ```scheme
-(Bignum < (convert 1 %bignum) (convert 2 %bignum))
+(Bignum < (Convert to 1 %bignum) (Convert to 2 %bignum))
 ```
 ---
     #t
@@ -231,7 +231,7 @@
 ### not less than
 
 ```scheme
-(Bignum < (convert 2 %bignum) (convert 1 %bignum))
+(Bignum < (Convert to 2 %bignum) (Convert to 1 %bignum))
 ```
 ---
     #f
@@ -241,7 +241,7 @@
 ### equal
 
 ```scheme
-(Bignum = (convert 42 %bignum) (convert 42 %bignum))
+(Bignum = (Convert to 42 %bignum) (Convert to 42 %bignum))
 ```
 ---
     #t
@@ -249,7 +249,7 @@
 ### not equal
 
 ```scheme
-(Bignum = (convert 1 %bignum) (convert 2 %bignum))
+(Bignum = (Convert to 1 %bignum) (Convert to 2 %bignum))
 ```
 ---
     #f
