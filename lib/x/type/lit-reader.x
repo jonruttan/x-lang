@@ -13,6 +13,14 @@
 ;
 ; Requires: quasi-reader.x, intrinsics.x, str.x, char.x, x/sys/type.
 
+; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(def %type-analyse-cell (prim-ref (lit type) (lit analyse-cell)))
+(def %type-push-analyse (prim-ref (lit type) (lit push-analyse)))
+(def %type-read-cell (prim-ref (lit type) (lit read-cell)))
+(def %type-push-delimit (prim-ref (lit type) (lit push-delimit)))
+(def %type-push-read (prim-ref (lit type) (lit push-read)))
+
 (def %lit-accept
   (fn (_ buffer score _)
     (%seq (buffer-unread buffer) (score-set score 1 buffer))))
@@ -41,17 +49,17 @@
 ; existing C handler (captured as the list tail), which the tokenizer's
 ; analyse/read loops iterate.
 
-(def %sym-type (type-by-atom (type-of "x")))
+(def %sym-type (%type-by-atom (type-of "x")))
 
-(type-push-analyse %sym-type
+(%type-push-analyse %sym-type
   (list %lit-analyse %quasi-analyse %unquote-analyse
-        (first (first (type-analyse-cell %sym-type)))))
+        (first (first (%type-analyse-cell %sym-type)))))
 
-(type-push-read %sym-type
+(%type-push-read %sym-type
   (list %lit-read %quasi-read %unquote-read
-        (first (first (type-read-cell %sym-type)))))
+        (first (first (%type-read-cell %sym-type)))))
 
-(type-push-delimit %sym-type %macro-delimit)
+(%type-push-delimit %sym-type %macro-delimit)
 
 (doc (provide x/type/lit-reader
   %lit-analyse %lit-read %lit-accept %macro-delimit)

@@ -8,6 +8,10 @@
 ; current item and advances the state; a nil state marks exhaustion.
 
 (import x/core/list)
+; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(def %type-push-iter (prim-ref (lit type) (lit push-iter)))
+
 (import x/type/object)
 (import x/type/vector)
 
@@ -69,13 +73,13 @@
 
 ; --- Wire the iter slot on each sequence type ------------------------------
 
-(type-push-iter (type-by-atom (type-of (list 1))) %list-iter)
-(type-push-iter (type-by-atom (type-of (Vector of 1))) %vector-iter)
-(type-push-iter (type-by-atom (type-of "x")) %str-iter)
+(%type-push-iter (%type-by-atom (type-of (list 1))) %list-iter)
+(%type-push-iter (%type-by-atom (type-of (Vector of 1))) %vector-iter)
+(%type-push-iter (%type-by-atom (type-of "x")) %str-iter)
 ; def-class instances (all share the %object type): iterate the member alist as
 ; (name . value) pairs.  %object / %obj-fields are object.x internals.
 (def %object-iter (fn (_ inst) (%list-iter (%obj-fields inst))))
-(type-push-iter (type-by-atom %object) %object-iter)
+(%type-push-iter (%type-by-atom %object) %object-iter)
 
 (doc (provide x/type/iter Iter)
   (note "(Iter new seq) iterates lists, vectors, strings, and def-class instances")

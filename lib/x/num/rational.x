@@ -1,5 +1,10 @@
 ; rational.x -- Rational number type (exact fractions)
 (import x/num/float)
+; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(def %type-from-cell (prim-ref (lit type) (lit from-cell)))
+(def %type-push-op (prim-ref (lit type) (lit push-op)))
+
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
 
@@ -192,7 +197,7 @@
 ; Float absorbs rationals under the from-relation: declare the conversion on
 ; float's from-alist (the same late-registration precedent float.x uses for
 ; bignum). rational -> float = numerator/denominator in float space.
-(def %float-from-cell (type-from-cell (type-by-atom %float)))
+(def %float-from-cell (%type-from-cell (%type-by-atom %float)))
 (set-first! %float-from-cell
   (pair
     (pair %rational
@@ -211,13 +216,13 @@
 ; The non-rational side is an int (float absorbs rationals via from; bignum
 ; and rational do not declare each other, so that mix falls through -- as
 ; before this conversion).
-(def %rational-ts (type-by-atom %rational))
-(type-push-op %rational-ts (lit +) (fn (_ a b) (%rat-add (%ensure-rat a) (%ensure-rat b))))
-(type-push-op %rational-ts (lit -) (fn (_ a b) (%rat-sub (%ensure-rat a) (%ensure-rat b))))
-(type-push-op %rational-ts (lit *) (fn (_ a b) (%rat-mul (%ensure-rat a) (%ensure-rat b))))
-(type-push-op %rational-ts (lit /) (fn (_ a b) (%rat-div (%ensure-rat a) (%ensure-rat b))))
-(type-push-op %rational-ts (lit <) (fn (_ a b) (%rat-lt (%ensure-rat a) (%ensure-rat b))))
-(type-push-op %rational-ts (lit =) (fn (_ a b) (%rat-eq (%ensure-rat a) (%ensure-rat b))))
+(def %rational-ts (%type-by-atom %rational))
+(%type-push-op %rational-ts (lit +) (fn (_ a b) (%rat-add (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-ts (lit -) (fn (_ a b) (%rat-sub (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-ts (lit *) (fn (_ a b) (%rat-mul (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-ts (lit /) (fn (_ a b) (%rat-div (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-ts (lit <) (fn (_ a b) (%rat-lt (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-ts (lit =) (fn (_ a b) (%rat-eq (%ensure-rat a) (%ensure-rat b))))
 
 ; Integer division that produces rational when not exact
 (def %exact-div

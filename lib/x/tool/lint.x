@@ -12,6 +12,11 @@
 ; strings are compared/stored.  lint-forms returns (defs uses issues) as NAME
 ; STRINGS; lint-has? tests membership.
 (import x/core/list)
+; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(def %type-push-write (prim-ref (lit type) (lit push-write)))
+(def %type-pop-write (prim-ref (lit type) (lit pop-write)))
+
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
 
@@ -20,8 +25,8 @@
 (import x/sys/type)
 
 ; Type structs we attach handlers to (LIST = forms, SYMBOL = references).
-(def %lint-list-type   (type-by-atom (type-of (list 1))))
-(def %lint-symbol-type (type-by-atom (type-of (lit a))))
+(def %lint-list-type   (%type-by-atom (type-of (list 1))))
+(def %lint-symbol-type (%type-by-atom (type-of (lit a))))
 
 ; A name is "known" if it resolves to an existing binding -- a C primitive or
 ; a library def.  We test by evaluating the interned symbol under a guard:
@@ -511,12 +516,12 @@
   (%lint-dispatch form) ()))
 
 (def %lint-push (fn (_)
-  (type-push-write %lint-list-type %lint-list-handler)
-  (type-push-write %lint-symbol-type %lint-symbol-handler)))
+  (%type-push-write %lint-list-type %lint-list-handler)
+  (%type-push-write %lint-symbol-type %lint-symbol-handler)))
 
 (def %lint-pop (fn (_)
-  (type-pop-write %lint-list-type)
-  (type-pop-write %lint-symbol-type)))
+  (%type-pop-write %lint-list-type)
+  (%type-pop-write %lint-symbol-type)))
 
 ; --- Analysis entry points ---
 

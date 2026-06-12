@@ -12,9 +12,12 @@
 ; Load-time wiring (by design, the module's integration job): fills doc.x's
 ; %c-* color stubs and installs the syntax-highlighted REPL printer.
 ;
-; Requires: posix.x (Sys isatty/getenv), type.x (type-push-write)
+; Requires: posix.x (Sys isatty/getenv), type.x (%type-push-write)
 
 (import x/sys/posix)
+; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+(def %type-push-write (prim-ref (lit type) (lit push-write)))
+
 (import x/sys/type)
 (import x/type/object)
 

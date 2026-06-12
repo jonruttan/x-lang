@@ -11,6 +11,11 @@
 ; shadow the C fallback before any non-ASCII character is printed.
 
 (import x/codec/utf8)
+; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(def %type-push-write (prim-ref (lit type) (lit push-write)))
+(def %type-push-display (prim-ref (lit type) (lit push-display)))
+
 
 ; The code point's UTF-8 byte string -- a CHARACTER is a 1-code-point string.
 ; list->str (x/type/str-utf8) already encodes a code-point char to its bytes.
@@ -49,9 +54,9 @@
 
 ; --- install (push over the C fallback) ---
 
-(let ((ct (type-by-atom (type-of (integer->char 0)))))
-  (type-push-display ct %char-display)
-  (type-push-write   ct %char-write))
+(let ((ct (%type-by-atom (type-of (integer->char 0)))))
+  (%type-push-display ct %char-display)
+  (%type-push-write   ct %char-write))
 
 (doc (provide x/type/char-io)
   "UTF-8-aware write/display handlers for CHARACTER values, so a code point renders as its glyph.")

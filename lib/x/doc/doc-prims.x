@@ -540,58 +540,6 @@
 (doc current-line "Return the current source line number."
   (returns INTEGER "Line number in the current input"))
 
-; === Type system (x/sys/type) ===
-; These load before doc.x, so docs are registered here retroactively.
-
-(note "Type system")
-
-(doc type-alist "Return the interpreter's type alist from the base object."
-  (returns LIST "Alist of (name . type-struct) pairs"))
-
-(doc type-by-atom "Look up a type struct by its handle atom (from type-of)."
-  (param handle ATOM "Type handle returned by type-of")
-  (returns LIST "The type struct, or () if not found"))
-
-(doc type-io "Navigate to a type struct's IO group (analyse, delimit, read, write, display, error)."
-  (param t LIST "Type struct")
-  (returns LIST "IO group"))
-
-(doc type-cvt "Navigate to a type struct's conversion group (from, to)."
-  (param t LIST "Type struct")
-  (returns LIST "Conversion group"))
-
-(doc type-write-cell "Get the write-handler stack cell from a type struct."
-  (param t LIST "Type struct")
-  (returns LIST "Stack cell for write handlers"))
-
-(doc type-analyse-cell "Get the analyse-handler stack cell from a type struct."
-  (param t LIST "Type struct")
-  (returns LIST "Stack cell for analyse handlers"))
-
-(doc type-from-cell "Get the from-conversion cell from a type struct."
-  (param t LIST "Type struct")
-  (returns LIST "Alist of source-type to converter function"))
-
-(doc type-to-cell "Get the to-conversion cell from a type struct."
-  (param t LIST "Type struct")
-  (returns LIST "Alist of target-type to converter function"))
-
-(doc type-push-write "Push a write handler onto a type's write stack."
-  (param ts LIST "Type struct")
-  (param handler CALLABLE "Write handler function"))
-
-(doc type-pop-write "Pop the top write handler from a type's write stack."
-  (param ts LIST "Type struct"))
-
-(doc type-push-analyse "Push an analyse handler onto a type's analyse stack."
-  (param ts LIST "Type struct")
-  (param handler CALLABLE "Analyse handler function"))
-
-(doc type-cast! "Overwrite an object's type tag with the type of another object."
-  (param obj ANY "Object to retype")
-  (param type-src ANY "Object whose type to copy")
-  (returns ANY "The retyped object"))
-
 ; === Documentation system (x/doc/doc) ===
 
 (doc doc "Attach documentation metadata to a definition, provide, or bare symbol."
@@ -648,20 +596,6 @@
   (note "int/-, ... Idempotent: never clobbers an existing binding.")
   (param ns SYMBOL "Namespace symbol whose methods to define")
   (see prim-ref))
-
-; === Generic-operator dispatch (type ops group) ===
-
-(note "Generic-operator dispatch")
-
-(doc type-push-op "Register a binary generic-operator handler on a type."
-  (note "(type-push-op ts (lit +) (fn (_ a b) ...)) -- the C operators (+ - * / % = <)")
-  (note "dispatch here when exactly one operand is a typed instance; the handler")
-  (note "receives the raw operands and owns coercing the plain side. Replaces")
-  (note "set!-wrapping the global operators: types register ops; nothing wraps")
-  (note "ambient names.")
-  (param ts LIST "Type struct (from type-by-atom)")
-  (param op-sym SYMBOL "Operator symbol: + - * / % = <")
-  (param handler CALLABLE "Binary handler (fn (_ a b) ...)"))
 
 ; === Pre-doc module descriptions ===
 ; These modules are included before x/doc/doc.x exists, so they cannot wrap

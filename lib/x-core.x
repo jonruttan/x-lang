@@ -29,6 +29,7 @@
     (pair "lib/x/doc/doc.x"
     (pair "lib/x/doc/doc-prims.x"
     (pair "lib/x/sys/type.x"
+    (pair "lib/x/type/type.x"
     (pair "lib/x/sys/convert.x"
     (pair "lib/x/core/boolean.x"
     (pair "lib/x/core/fn.x"
@@ -56,7 +57,7 @@
     (pair "lib/x/type/lit-reader.x"
     (pair "lib/x/core/repl.x"
     (pair "lib/x/core/banner.x"
-      (first %include-list-cell)))))))))))))))))))))))))))))))))))
+      (first %include-list-cell))))))))))))))))))))))))))))))))))))
 
   ; --- Standard modules ---
   (include "lib/x/core/predicates.x")
@@ -103,6 +104,10 @@
   ; def-class + doc, and every caller (tower, regex, posix, hash, tools)
   ; loads later still.
   (include "lib/x/sys/convert.x")
+  ; Type: the type-system reflection API (the Type class). The mechanism stays
+  ; in sys/type.x (pre-object, %-private, filed under catalog ns `type`);
+  ; this class presents it and carries the docs.
+  (include "lib/x/type/type.x")
   ; Fn: function combinators (the Fn class). Moved here from the early core block
   ; -- it needs def-class, and nothing loaded before object.x references it.
   (include "lib/x/core/fn.x")
@@ -181,12 +186,9 @@
     (sigint-install))
 
   ; --- Provide ---
-  (doc (provide x/sys/type
-    type-alist type-by-atom type-io type-cvt
-    type-write-cell type-analyse-cell type-from-cell type-to-cell
-    type-push-write type-pop-write type-push-analyse type-iter-cell
-    type-push-iter type-ops-cell type-push-op type-cast!)
-    "Type system reflection and manipulation.")
+  (doc (provide x/sys/type)
+    (note "The reflection helpers are %-private here and filed under catalog ns `type`; the API is the Type class (x/type/type).")
+    "Type system mechanism: struct navigation and handler-stack wiring, registered in the catalog.")
   (doc (provide x/core
     null? if let do begin not atom? list number->str str->number
     str=? str-ref str-length substring

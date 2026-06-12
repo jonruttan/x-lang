@@ -1,5 +1,11 @@
 ; compile.x -- Runtime compiler: x-lang to native code
 (import x/core/list)
+; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(def %type-push-write (prim-ref (lit type) (lit push-write)))
+(def %type-pop-write (prim-ref (lit type) (lit pop-write)))
+(def %type-cast! (prim-ref (lit type) (lit cast!)))
+
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
 
@@ -91,9 +97,9 @@
 ; --- Type system access (via type.x) ---
 
 ; Cache type structs at load time using representative objects
-(def %list-type (type-by-atom (type-of (list 1))))
-(def %symbol-type (type-by-atom (type-of (lit a))))
-(def %int-type (type-by-atom (type-of 0)))
+(def %list-type (%type-by-atom (type-of (list 1))))
+(def %symbol-type (%type-by-atom (type-of (lit a))))
+(def %int-type (%type-by-atom (type-of 0)))
 
 ; --- C-emitting write handlers ---
 ;
@@ -590,15 +596,15 @@
 
 (def %compile-push-writers
   (fn (_ )
-    (type-push-write %list-type %compile-list-write)
-    (type-push-write %symbol-type %compile-symbol-write)
-    (type-push-write %int-type %compile-int-write)))
+    (%type-push-write %list-type %compile-list-write)
+    (%type-push-write %symbol-type %compile-symbol-write)
+    (%type-push-write %int-type %compile-int-write)))
 
 (def %compile-pop-writers
   (fn (_ )
-    (type-pop-write %list-type)
-    (type-pop-write %symbol-type)
-    (type-pop-write %int-type)))
+    (%type-pop-write %list-type)
+    (%type-pop-write %symbol-type)
+    (%type-pop-write %int-type)))
 
 (doc (def compile-with-writers
   (fn (_ (param thunk CALLABLE "Zero-arg function to call with C emitters active"))
@@ -627,7 +633,7 @@
                     (self (rest fvs) (+ i 1))))))
             (%patch-go fvars 0)))))))
 
-; type-cast! moved to type.x
+; %type-cast! moved to type.x
 
 ; --- Exposed pipeline stages ---
 
@@ -664,7 +670,7 @@
           (let ((fn-ptr (dlsym lib "fn_0")))
             (if (null? fn-ptr) ()
               (let ()
-                (type-cast! fn-ptr first)
+                (%type-cast! fn-ptr first)
                 (def %prim-type-val (ptr-ref-word (%cvt first %ptr) %type-offset))
                 (%patch-nested-prims lib (first fns-holder) %prim-type-val)
                 fn-ptr))))))))
@@ -708,7 +714,7 @@
     (if (null? %lib) (error "compile-load: dlopen failed"))
     (def %fn (dlsym %lib "fn_0"))
     (if (null? %fn) (error "compile-load: dlsym failed for fn_0"))
-    (type-cast! %fn first)
+    (%type-cast! %fn first)
     %fn))
 (doc compile-load "Load a compiled shared library and return fn_0 as a callable primitive."
   (param lib-path STRING "Path to shared library")
@@ -761,7 +767,7 @@
         (if (null? %lib) (error "compile: dlopen failed"))
         (def %fn (dlsym %lib "fn_0"))
         (if (null? %fn) (error "compile: dlsym failed for fn_0"))
-        (type-cast! %fn first)
+        (%type-cast! %fn first)
         (def %prim-type-val (ptr-ref-word (%cvt first %ptr) %type-offset))
         (%patch-nested-prims %lib (first (list (list))) %prim-type-val)
         ; Patch fvar table
@@ -793,7 +799,7 @@
     (if (null? %lib) (error "compile: dlopen failed"))
     (def %fn (dlsym %lib "fn_0"))
     (if (null? %fn) (error "compile: dlsym failed for fn_0"))
-    (type-cast! %fn first)
+    (%type-cast! %fn first)
     (def %prim-type-val (ptr-ref-word (%cvt first %ptr) %type-offset))
     (%patch-nested-prims %lib (first (list (list))) %prim-type-val)
     (if (not (null? fvars))
@@ -837,7 +843,7 @@
             (def %fn (dlsym lib name))
             (if (null? %fn)
               (error (Str append "compile-batch: dlsym failed for " name)))
-            (type-cast! %fn first)
+            (%type-cast! %fn first)
             (pair %fn (self lib (+ i 1) n))))))
 
     ; Cache lookup

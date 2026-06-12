@@ -7,6 +7,11 @@
 ;
 ; Promotion chain: integer -> bignum -> rational -> float -> complex
 (import x/core/list)
+; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(def %type-push-analyse (prim-ref (lit type) (lit push-analyse)))
+(def %type-push-op (prim-ref (lit type) (lit push-op)))
+
 
 ; --- Platform constants ---
 
@@ -519,7 +524,7 @@
 ; that rejects numbers with too many digits for native int
 
 ; Type struct navigation via type.x (available from x-core.x boot)
-(def %int-type (type-by-atom (type-of 0)))
+(def %int-type (%type-by-atom (type-of 0)))
 
 (def %int-capped-digits ())
 (set! %int-capped-digits
@@ -545,21 +550,21 @@
         %int-capped-sign
         ()))))
 
-(type-push-analyse %int-type %int-capped-analyse)
+(%type-push-analyse %int-type %int-capped-analyse)
 
 ; --- Type ops: the generic operators dispatch here for bignum operands ---
 ; Handlers receive raw operands; the non-bignum side is always an int (a wider
 ; type would have absorbed the bignum via its from-declaration), so %ensure-big
 ; covers the coercion.
 
-(def %bignum-ts (type-by-atom %bignum))
-(type-push-op %bignum-ts (lit +) (fn (_ a b) (%big-add (%ensure-big a) (%ensure-big b))))
-(type-push-op %bignum-ts (lit -) (fn (_ a b) (%big-sub (%ensure-big a) (%ensure-big b))))
-(type-push-op %bignum-ts (lit *) (fn (_ a b) (%big-mul (%ensure-big a) (%ensure-big b))))
-(type-push-op %bignum-ts (lit /) (fn (_ a b) (%big-div (%ensure-big a) (%ensure-big b))))
-(type-push-op %bignum-ts (lit %) (fn (_ a b) (%big-mod (%ensure-big a) (%ensure-big b))))
-(type-push-op %bignum-ts (lit <) (fn (_ a b) (%big-lt (%ensure-big a) (%ensure-big b))))
-(type-push-op %bignum-ts (lit =) (fn (_ a b) (%big-eq (%ensure-big a) (%ensure-big b))))
+(def %bignum-ts (%type-by-atom %bignum))
+(%type-push-op %bignum-ts (lit +) (fn (_ a b) (%big-add (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bignum-ts (lit -) (fn (_ a b) (%big-sub (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bignum-ts (lit *) (fn (_ a b) (%big-mul (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bignum-ts (lit /) (fn (_ a b) (%big-div (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bignum-ts (lit %) (fn (_ a b) (%big-mod (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bignum-ts (lit <) (fn (_ a b) (%big-lt (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bignum-ts (lit =) (fn (_ a b) (%big-eq (%ensure-big a) (%ensure-big b))))
 
 (import x/type/object)
 

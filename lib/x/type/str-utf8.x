@@ -21,6 +21,10 @@
 ; point transform, via the shared codec (x/codec/utf8).
 
 (import x/type/char)
+; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(def %type-push-call (prim-ref (lit type) (lit push-call)))
+
 (import x/core/list)
 (import x/codec/utf8)
 
@@ -63,7 +67,7 @@
 ; conses a pair) -- and plain integer recursion, so it allocates no more than
 ; the one result object the byte path already made.
 
-(def %str-type (type-by-atom (type-of "x")))
+(def %str-type (%type-by-atom (type-of "x")))
 
 ; Byte offset of code-point index k: advance k whole sequences from byte `from`.
 (def %cp-byte-offset
@@ -92,7 +96,7 @@
 
 ; --- push the code-point call handler over the byte default ---
 ; (fn (_ s . vals)): s is the string, vals the (already-evaluated) index args.
-(type-push-call %str-type
+(%type-push-call %str-type
   (fn (_ s . vals)
     (if (null? vals)
       (%cp-count s (str-byte-len s) 0 0)

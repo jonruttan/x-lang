@@ -1,5 +1,8 @@
 ; types.x -- Logo tokenizer base and type definitions
 (import x/logo/state)
+; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+(def %type-io (prim-ref (lit type) (lit io)))
+
 (import x/sys/token)
 (import x/type/str)
 
@@ -45,7 +48,7 @@
 
 (def %is-ws-type?
   (fn (_ entry)
-    (def io (type-io (rest entry)))
+    (def io (%type-io (rest entry)))
     (def delimit (first (first (rest io))))
     (def read-h (first (first (rest (rest io)))))
     (if (null? delimit) #f (null? read-h))))

@@ -1,5 +1,10 @@
 ; float.x -- Floating-point type with IEEE 754 bit-pattern storage
 (import x/type/object)
+; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(def %type-from-cell (prim-ref (lit type) (lit from-cell)))
+(def %type-push-op (prim-ref (lit type) (lit push-op)))
+
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
 
@@ -220,13 +225,13 @@
 ; is gone: bignum owns the + - * int-overflow policy, rational owns /, and the
 ; binary C operators dispatch everything typed.
 
-(def %float-ts (type-by-atom %float))
-(type-push-op %float-ts (lit +) (fn (_ a b) (%f-add (%ensure-float a) (%ensure-float b))))
-(type-push-op %float-ts (lit -) (fn (_ a b) (%f-sub (%ensure-float a) (%ensure-float b))))
-(type-push-op %float-ts (lit *) (fn (_ a b) (%f-mul (%ensure-float a) (%ensure-float b))))
-(type-push-op %float-ts (lit /) (fn (_ a b) (%f-div (%ensure-float a) (%ensure-float b))))
-(type-push-op %float-ts (lit <) (fn (_ a b) (%f-lt (%ensure-float a) (%ensure-float b))))
-(type-push-op %float-ts (lit =) (fn (_ a b) (%f-eq (%ensure-float a) (%ensure-float b))))
+(def %float-ts (%type-by-atom %float))
+(%type-push-op %float-ts (lit +) (fn (_ a b) (%f-add (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-ts (lit -) (fn (_ a b) (%f-sub (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-ts (lit *) (fn (_ a b) (%f-mul (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-ts (lit /) (fn (_ a b) (%f-div (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-ts (lit <) (fn (_ a b) (%f-lt (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-ts (lit =) (fn (_ a b) (%f-eq (%ensure-float a) (%ensure-float b))))
 
 (note "R7RS Predicates")
 
@@ -251,7 +256,7 @@
 ; --- Bignum -> float conversion (registered late, after f+/f* are defined) ---
 (if (not (null? %bignum))
   (do
-    (def %from-cell (type-from-cell (type-by-atom %float)))
+    (def %from-cell (%type-from-cell (%type-by-atom %float)))
     (set-first! %from-cell
       (pair
         (pair %bignum

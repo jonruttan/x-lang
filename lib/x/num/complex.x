@@ -1,5 +1,9 @@
 ; complex.x -- Complex number type
 (import x/num/float)
+; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(def %type-push-op (prim-ref (lit type) (lit push-op)))
+
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
 
@@ -237,12 +241,12 @@
 
 (def %ensure-complex (fn (_ x) (if (%complex? x) x (%make-complex x 0))))
 
-(def %complex-ts (type-by-atom %complex))
-(type-push-op %complex-ts (lit +) (fn (_ a b) (%cx-add (%ensure-complex a) (%ensure-complex b))))
-(type-push-op %complex-ts (lit -) (fn (_ a b) (%cx-sub (%ensure-complex a) (%ensure-complex b))))
-(type-push-op %complex-ts (lit *) (fn (_ a b) (%cx-mul (%ensure-complex a) (%ensure-complex b))))
-(type-push-op %complex-ts (lit /) (fn (_ a b) (%cx-div (%ensure-complex a) (%ensure-complex b))))
-(type-push-op %complex-ts (lit =) (fn (_ a b) (%cx-eq (%ensure-complex a) (%ensure-complex b))))
+(def %complex-ts (%type-by-atom %complex))
+(%type-push-op %complex-ts (lit +) (fn (_ a b) (%cx-add (%ensure-complex a) (%ensure-complex b))))
+(%type-push-op %complex-ts (lit -) (fn (_ a b) (%cx-sub (%ensure-complex a) (%ensure-complex b))))
+(%type-push-op %complex-ts (lit *) (fn (_ a b) (%cx-mul (%ensure-complex a) (%ensure-complex b))))
+(%type-push-op %complex-ts (lit /) (fn (_ a b) (%cx-div (%ensure-complex a) (%ensure-complex b))))
+(%type-push-op %complex-ts (lit =) (fn (_ a b) (%cx-eq (%ensure-complex a) (%ensure-complex b))))
 
 ; --- Predicates ---
 

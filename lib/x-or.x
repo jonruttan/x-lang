@@ -13,6 +13,11 @@
 ;      " "
 ; Load core first (fast, no numeric tower)
 (include "lib/x-core.x")
+; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(def %type-analyse-cell (prim-ref (lit type) (lit analyse-cell)))
+(def %type-push-analyse (prim-ref (lit type) (lit push-analyse)))
+
 ; Pre-register all heavy module paths
 (set-first! %include-list-cell
   (pair "lib/x/sys/posix.x"
@@ -65,7 +70,7 @@
 ; type's analyse list (from lit-reader.x) is (lit quasi unquote <C symbol
 ; analyse>); the C catch-all tail stays as is.
 (def %sym-analyse-list
-  (first (first (type-analyse-cell (type-by-atom (type-of "x"))))))
+  (first (first (%type-analyse-cell (%type-by-atom (type-of "x"))))))
 (set-first! %sym-analyse-list %c-lit-analyse)
 (set-first! (rest %sym-analyse-list) %c-quasi-analyse)
 (set-first! (rest (rest %sym-analyse-list)) %c-unquote-analyse)
@@ -81,14 +86,14 @@
         (pair (lit %big-digits) %big-digits)
         (pair (lit %int-capped-digits) %int-capped-digits)
         (pair (lit %int-capped-sign) %int-capped-sign)))
-(type-push-analyse (type-by-atom (type-of (Num expt 2 64)))
+(%type-push-analyse (%type-by-atom (type-of (Num expt 2 64)))
   (compile
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
         (if (or (= chr 45) (= chr 43)) %big-sign-state ())
         (if (< chr 58) %big-digits ()))))
     %big-fvars))
-(type-push-analyse (type-by-atom (type-of 0))
+(%type-push-analyse (%type-by-atom (type-of 0))
   (compile
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
@@ -103,7 +108,7 @@
 (include "lib/x/num/float.x")
 (def %float-fvars
   (list (pair (lit %float-int-digits) %float-int-digits)))
-(type-push-analyse (type-by-atom (type-of 1.0))
+(%type-push-analyse (%type-by-atom (type-of 1.0))
   (compile
     (lit (fn (_ buffer score chr)
       (if (< chr 48) () (if (< chr 58) %float-int-digits ()))))
@@ -116,7 +121,7 @@
         (pair (lit %rat-sign)
           (fn (_ buffer score chr)
             (if (< chr 48) () (if (< chr 58) %rat-numer ()))))))
-(type-push-analyse (type-by-atom (type-of 1/2))
+(%type-push-analyse (%type-by-atom (type-of 1/2))
   (compile
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
@@ -128,7 +133,7 @@
 (include "lib/x/num/complex.x")
 (def %cx-fvars
   (list (pair (lit %cx-real-int) %cx-real-int)))
-(type-push-analyse (type-by-atom (type-of 1+1i))
+(%type-push-analyse (%type-by-atom (type-of 1+1i))
   (compile
     (lit (fn (_ buffer score chr)
       (if (< chr 48) () (if (< chr 58) %cx-real-int ()))))
