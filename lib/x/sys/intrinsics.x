@@ -13,14 +13,16 @@
     (display msg)
     (set-first-int! %fo %s)))
 
-; Quick profile dump to stderr (alloc-count + heap-count)
+; Quick profile dump to stderr (alloc-count + heap object count).
+; ns `heap` is de-registered (R5): fetch the prim from the catalog.
+(def %heap-count (prim-ref (lit heap) (lit count)))
 (def %profile-dump
   (fn (_ )
     (%stderr
       (first-int
         (first (first (first (first (rest (rest (first (%base))))))))))
     (%stderr " ")
-    (%stderr (heap-count))
+    (%stderr (%heap-count))
     (%stderr "\n")
     ()))
 

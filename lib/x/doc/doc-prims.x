@@ -272,18 +272,6 @@
 
 (note "Memory management")
 
-(doc heap-mark "Mark all reachable objects in the heap."
-  (returns INT "Number of marked objects"))
-
-(doc heap-sweep "Sweep unmarked objects from the heap."
-  (returns INT "Number of freed objects"))
-
-(doc heap-count "Return the number of live objects on the heap."
-  (returns INT "Object count"))
-
-(doc gc-pin! "Pin an object to prevent garbage collection."
-  (param obj ANY "Object to pin"))
-
 (doc alloc-limit! "Set the allocation ceiling (runaway-memory guard): the process stops rather than allocate past n objects. 0 disables."
   (param n INT "Object-count ceiling; 0 = unlimited"))
 
@@ -518,17 +506,6 @@
   (param b STRING "Second string")
   (returns BOOLEAN "t if equal"))
 
-(doc heap-collect "Run a full garbage collection cycle."
-  (returns INT "Number of freed objects"))
-
-(doc heap-mark-root! "Register a GC root object that will always be marked during collection."
-  (param obj ANY "Object to protect from GC"))
-
-(doc heap-mark-hook! "Register a callback to run during the GC mark phase."
-  (param fn CALLABLE "Function called during mark"))
-
-(doc heap-free-hook! "Register a callback to run during the GC free phase."
-  (param fn CALLABLE "Function called when objects are freed"))
 
 (doc require-once "Include a file only if it has not been loaded before. Alias for include-once."
   (param path STRING "File path to include")

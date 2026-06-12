@@ -155,7 +155,7 @@
 ### returns nil
 
 ```scheme
-(null? (heap-collect))
+(null? (Heap collect))
 ```
 ---
     #t

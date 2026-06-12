@@ -1,10 +1,8 @@
 ## GC stress
 
-Exercises mark+sweep over non-trivial heaps via the atomic `(heap-collect)`
-primitive.  (Earlier revisions used `(heap-collect-force)` from
-`lib/x/profile.x` and `(include "lib/x/profile.x")` -- a path that broke
-when profile.x moved to `lib/x/tool/`.  `heap-collect` is the canonical
-C primitive and needs no include.)
+Exercises mark+sweep over non-trivial heaps via the atomic `(Heap collect)`
+(ns `heap` is de-registered: the class -- or a catalog fetch -- is the only
+surface; the bare `heap-collect` name no longer exists).
 
 List sizes are kept at/below 1000: larger non-tail recursion (e.g.
 `(List range 1 5001)`) overflows the C stack independently of GC -- tracked
@@ -15,7 +13,7 @@ collector.
 
 ```scheme
 (def result (map (fn (_ x) (* x x)) (List range 1 1001)))
-(heap-collect)
+(Heap collect)
 (= (length result) 1000)
 ```
 ---
@@ -25,9 +23,9 @@ collector.
 
 ```scheme
 (do (def waste (fn (self n acc) (if (= n 0) acc (self (- n 1) (pair n acc))))) (waste 1000 ()))
-(def before (heap-count))
-(heap-collect)
-(< (heap-count) before)
+(def before (Heap count))
+(Heap collect)
+(< (Heap count) before)
 ```
 ---
     #t
@@ -38,7 +36,7 @@ collector.
 (def shared (list 1 2 3 4 5))
 (def a (pair (lit ref-a) shared))
 (def b (pair (lit ref-b) shared))
-(heap-collect)
+(Heap collect)
 (and (= (length (rest a)) 5) (= (length (rest b)) 5))
 ```
 ---
@@ -50,7 +48,7 @@ collector.
 (def make-counter (fn (_ start) (def n start) (fn (_ ) (do (set! n (+ n 1)) n))))
 (def c (make-counter 100))
 (do (def waste (fn (self n) (if (= n 0) () (do (list 1 2 3) (self (- n 1)))))) (waste 2000))
-(heap-collect)
+(Heap collect)
 (= (c) 101)
 ```
 ---
@@ -67,7 +65,7 @@ runs in well under a second.
 
 ```scheme
 (def live-data (List range 1 101))
-(do (def gc-loop (fn (self n) (if (= n 0) () (do (list 1 2 3) (heap-collect) (self (- n 1)))))) (gc-loop 20))
+(do (def gc-loop (fn (self n) (if (= n 0) () (do (list 1 2 3) (Heap collect) (self (- n 1)))))) (gc-loop 20))
 (= (length live-data) 100)
 ```
 ---

@@ -2,9 +2,9 @@
 ;
 ; The underlying operations are C primitives (src/x-prim/io.c, catalog ns
 ; `heap`); the methods fetch them from the registry -- cold operations, so
-; inline (prim-ref ...) per the caching rule. The transitional bare names
-; (heap-collect, ...) remain C-bound until the `heap` namespace is
-; de-registered (R5); new code uses the class.
+; inline (prim-ref ...) per the caching rule. The `heap` namespace is
+; DE-REGISTERED (R5): no bare heap-* names exist; the class (or a catalog
+; fetch, for pre-object/hook callers) is the only surface.
 ;
 ; heap-collect runs an atomic mark+sweep in one C call. It MUST be atomic:
 ; mark and sweep cannot straddle an allocation, or the sweep frees the
@@ -19,7 +19,7 @@
   (static
     (method collect (self)
       (doc "Run a full, atomic garbage collection (mark + sweep in one C call)."
-        (returns INT "Number of freed objects"))
+        (returns ANY "nil (count freed objects via (Heap count) deltas; see x/tool/profile)"))
       ((prim-ref (lit heap) (lit collect))))
     (method count (self)
       (doc "Count live heap objects." (returns INT "Number of objects on the heap"))
@@ -51,5 +51,5 @@
       ((prim-ref (lit heap) (lit pin!)) obj))))
 
 (doc (provide x/sys/gc Heap)
-  (note "GC control homed on the Heap class; the heap-* bare C names remain transitionally.")
+  (note "GC control homed on the Heap class; ns `heap` is de-registered -- no bare names.")
   "Garbage collection control: collect/count/limit! and the mark/free/root hooks, on the Heap class.")

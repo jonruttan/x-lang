@@ -80,7 +80,10 @@
 
 ; --- Heap collection ---
 
-(def %heap-collect-prim heap-collect)
+; ns `heap` is de-registered (R5): fetch the raw collector from the catalog.
+; The instrumented heap-collect / heap-collect-force ops below are this
+; tool's own exports, defined fresh (nothing bare to shadow anymore).
+(def %heap-collect-prim (prim-ref (lit heap) (lit collect)))
 (def %hc-last-allocs 0)
 (def %hc-last-surviving 10000)
 
