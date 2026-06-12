@@ -76,6 +76,22 @@
 ---
     3
 
+### binds variadic args as the self-passed list
+
+```scheme
+(rest ((fn args args) 1 2))
+```
+---
+    (1 2)
+
+### variadic args survive the binding frame
+
+```scheme
+(rest (((fn args (fn (_) args)) 7)))
+```
+---
+    (7)
+
 ## op
 
 ### creates an operative
