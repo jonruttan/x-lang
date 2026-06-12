@@ -130,3 +130,36 @@
 ```
 ---
     #t
+## Type name
+
+### resolves a built-in handle (the documented handle form)
+
+```scheme
+(Type name (Type of 42))
+```
+---
+    "INTEGER"
+
+### resolves a custom handle
+
+```scheme
+(do (def %t (Type make "NAMED-T" (list))) (Type name %t))
+```
+---
+    "NAMED-T"
+
+### object form returns the object's type name
+
+```scheme
+(Type name "hello")
+```
+---
+    "STRING"
+
+### a plain symbol is an object, not a handle
+
+```scheme
+(Type name (lit foo))
+```
+---
+    "SYMBOL"
