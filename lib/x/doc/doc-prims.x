@@ -295,34 +295,6 @@
   (param type ATOM "Type handle")
   (returns STRING "Type name"))
 
-(doc token-read-string "Tokenize a string using a base's type system."
-  (param base BASE "Base object with type alist")
-  (param s STRING "Source string to tokenize")
-  (returns LIST "List of parsed tokens"))
-
-(note "Tokenizer buffers (low-level; for custom readers built via make-type)")
-
-(doc buffer-reset "Empty a tokenizer buffer: reset its read and write cursors to the base."
-  (param buffer ANY "A tokenizer buffer")
-  (returns ANY "The buffer"))
-
-(doc buffer-retain "Compact a buffer's unread data to the front, freeing consumed space."
-  (param buffer ANY "A tokenizer buffer")
-  (returns ANY "The buffer"))
-
-(doc buffer-append "Append one character at a buffer's write cursor."
-  (param buffer ANY "A tokenizer buffer")
-  (param ch CHAR "Character to write")
-  (returns ANY "The buffer"))
-
-(doc buffer-read "Read one character into a buffer, extending from the input channel if it is exhausted."
-  (param buffer ANY "A tokenizer buffer")
-  (returns ANY "The buffer, or () at EOF"))
-
-(doc buffer-read-text "Like buffer-read, but a NUL character counts as end-of-input."
-  (param buffer ANY "A tokenizer buffer")
-  (returns ANY "The buffer, or () at EOF/NUL"))
-
 ; === FFI ===
 
 (note "Foreign function interface")

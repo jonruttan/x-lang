@@ -5,6 +5,10 @@
 ;
 ; Input order on stdin: constructs.x, lang-constructs (or ()), then quoted source string.
 
+; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(def %buffer-token (prim-ref (lit buf) (lit tok)))
+(def %token-read-string (prim-ref (lit tok) (lit read-str)))
+
 (do
   (import x/tool/fmt)
 
@@ -22,7 +26,7 @@
 
   ; Reader that keeps the comment text as a token
   (def %fmt-comment-reader (fn (_ . args)
-    (list (lit %comment) (buffer-token (first args)))))
+    (list (lit %comment) (%buffer-token (first args)))))
 
   ; Navigate type struct: entry = (handle . type-struct)
   ; type-struct has 7 elements, io is the 7th
@@ -48,7 +52,7 @@
   ; --- Read input string and tokenize ---
 
   (def %input (read))
-  (def %tokens (token-read-string %fmt-base %input))
+  (def %tokens (%token-read-string %fmt-base %input))
 
   ; --- Format ---
 

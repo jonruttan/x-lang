@@ -1,5 +1,8 @@
 ; complex.x -- Complex number type
 (import x/num/float)
+; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(def %buffer-token (prim-ref (lit buf) (lit tok)))
+
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-push-op (prim-ref (lit type) (lit push-op)))
@@ -128,7 +131,7 @@
 
 (set! %cx-read
   (fn (_ . args)
-    (let ((tok (buffer-token (first args))))
+    (let ((tok (%buffer-token (first args))))
       (let ((len (str-length tok)))
         (let ((body (substring tok 0 (%int- len 1))))
           (let ((blen (%int- len 1)))

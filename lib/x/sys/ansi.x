@@ -15,6 +15,9 @@
 ; Requires: posix.x (Sys isatty/getenv), type.x (%type-push-write)
 
 (import x/sys/posix)
+; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(def %token-read-string (prim-ref (lit tok) (lit read-str)))
+
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
 
@@ -79,7 +82,7 @@
         (example "(Ansi highlight \"(def x 42)\")" "(def x 42)"))
       (if (not %ansi?)
         (display code)
-        (let ((%toks (token-read-string (%base) code))
+        (let ((%toks (%token-read-string (%base) code))
               (%go
                 (fn (self toks first?)
                   (if (null? toks) ()

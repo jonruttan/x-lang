@@ -12,6 +12,9 @@
 ; then quoted source string.
 
 ; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
+; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(def %token-read-string (prim-ref (lit tok) (lit read-str)))
+
 (def %obj-meta-count! (prim-ref (lit obj) (lit meta-count!)))
 (def %obj-meta-ref (prim-ref (lit obj) (lit meta-ref)))
 
@@ -81,7 +84,7 @@
   ; --- Tokenize input ---
 
   (def %input (read))
-  (def %tokens (token-read-string (%base) %input))
+  (def %tokens (%token-read-string (%base) %input))
 
   ; --- Evaluate all top-level forms ---
 

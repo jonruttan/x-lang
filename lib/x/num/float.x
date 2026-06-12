@@ -1,5 +1,8 @@
 ; float.x -- Floating-point type with IEEE 754 bit-pattern storage
 (import x/type/object)
+; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(def %buffer-token (prim-ref (lit buf) (lit tok)))
+
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-from-cell (prim-ref (lit type) (lit from-cell)))
@@ -151,13 +154,13 @@
   (fn (_ a b) (ffi-call "d=d" () (first a) (first b))))
 
 ; Reader: called by tokenizer after successful analyse
-; Uses buffer-token to extract consumed text, then strtod to parse
+; Uses %buffer-token to extract consumed text, then strtod to parse
 
 (set! %float-read
   (fn (_ . args)
     (make-instance
       %float
-      (ffi-call "s0->d" %strtod (buffer-token (first args))))))
+      (ffi-call "s0->d" %strtod (%buffer-token (first args))))))
 
 (note "Math Functions")
 

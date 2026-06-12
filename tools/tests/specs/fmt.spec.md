@@ -5,7 +5,7 @@
 ```scheme
 (do
   (def %base (make-base))
-  (def %tokens (token-read-string %base "(+ 1 2)"))
+  (def %tokens (Tok read-str %base "(+ 1 2)"))
   (display (length %tokens))
   (display " ")
   (display (length (first %tokens))))
@@ -18,7 +18,7 @@
 ```scheme
 (do
   (def %base (make-base))
-  (def %tokens (token-read-string %base "(def x 1)\n(def y 2)"))
+  (def %tokens (Tok read-str %base "(def x 1)\n(def y 2)"))
   (display (length %tokens)))
 ```
 ---
@@ -29,7 +29,7 @@
 ```scheme
 (do
   (def %base (make-base))
-  (def %tokens (token-read-string %base "(if (> x 0) x (- 0 x))"))
+  (def %tokens (Tok read-str %base "(if (> x 0) x (- 0 x))"))
   (def %form (first %tokens))
   (display (first %form))
   (display " ")
@@ -43,7 +43,7 @@
 ```scheme
 (do
   (def %base (make-base))
-  (def %tokens (token-read-string %base "(display \"hello\")"))
+  (def %tokens (Tok read-str %base "(display \"hello\")"))
   (def %form (first %tokens))
   (display (first %form))
   (display " ")
@@ -57,7 +57,7 @@
 ```scheme
 (do
   (def %base (make-base))
-  (def %tokens (token-read-string %base "()"))
+  (def %tokens (Tok read-str %base "()"))
   (display (null? %tokens)))
 ```
 ---
@@ -68,7 +68,7 @@
 ```scheme
 (do
   (def %base (make-base))
-  (def %tokens (token-read-string %base "42\n"))
+  (def %tokens (Tok read-str %base "42\n"))
   (display (first %tokens)))
 ```
 ---
@@ -79,7 +79,7 @@
 ```scheme
 (do
   (def %base (make-base))
-  (def %tokens (token-read-string %base "#\\a\n"))
+  (def %tokens (Tok read-str %base "#\\a\n"))
   (display (char? (first %tokens))))
 ```
 ---
@@ -90,7 +90,7 @@
 ```scheme
 (do
   (def %base (make-base))
-  (def %tokens (token-read-string %base "(def x (+ 1 2))"))
+  (def %tokens (Tok read-str %base "(def x (+ 1 2))"))
   (def %form (first %tokens))
   (display (first %form))
   (display " ")

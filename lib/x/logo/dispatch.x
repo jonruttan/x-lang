@@ -1,5 +1,8 @@
 ; dispatch.x -- Logo command dispatch and interpreter
 (import x/logo/state)
+; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(def %token-read-string (prim-ref (lit tok) (lit read-str)))
+
 (import x/logo/types)
 (import x/logo/expr)
 (import x/logo/indent)
@@ -260,13 +263,13 @@
         (let ((r (%logo-consume-arg remaining)))
           (def code (first r))
           (logo-process-tokens
-            (token-read-string %logo-base (Str append code " ")))
+            (%token-read-string %logo-base (Str append code " ")))
           (logo-process-tokens (rest r))))
       ((str=? uword "LOAD")
         (let ((r (%logo-consume-arg remaining)))
           (def filename (first r))
           (def content (%logo-slurp-file filename))
-          (def tokens (token-read-string %logo-base (Str append content " ")))
+          (def tokens (%token-read-string %logo-base (Str append content " ")))
           (logo-process-tokens (%logo-indent-to-blocks tokens))
           (logo-process-tokens (rest r))))
       (#t (error (Str append "Unknown special: " uword))))))

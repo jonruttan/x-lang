@@ -115,7 +115,7 @@
 ### bare base produces no tokens
 
 ```scheme
-(null? (token-read-string (Base make-tok) "hello"))
+(null? (Tok read-str (Base make-tok) "hello"))
 ```
 ---
     #t
@@ -126,14 +126,15 @@
 
 ```scheme
 (do (def %tb1 (Base make-tok))
-    (def %tb1-r (fn (_ . args) (list (lit word) (buffer-token (first args)))))
+    (def %buf-tok (prim-ref (lit buf) (lit tok)))
+    (def %tb1-r (fn (_ . args) (list (lit word) (%buf-tok (first args)))))
     (def %tb1-a ()) (set! %tb1-a (fn (_ buffer score chr)
       (if (or (= chr 32) (= chr 10)) (do (buffer-unread buffer) (score-set score (- 0 1) buffer))
         %tb1-a)))
     (Base make-type %tb1 "WORD" (list (pair (lit analyse) (fn (_ buffer score chr)
       (if (and (>= chr 33) (<= chr 126)) (do (score-set score (- 0 1) buffer) %tb1-a) ())))
       (pair (lit read) %tb1-r)))
-    (first (first (token-read-string %tb1 "hello"))))
+    (first (first (Tok read-str %tb1 "hello"))))
 ```
 ---
     (lit word)
@@ -142,7 +143,8 @@
 
 ```scheme
 (do (def %tb2 (Base make-tok))
-    (def %tb2-r (fn (_ . args) (list (lit word) (buffer-token (first args)))))
+    (def %buf-tok (prim-ref (lit buf) (lit tok)))
+    (def %tb2-r (fn (_ . args) (list (lit word) (%buf-tok (first args)))))
     (def %tb2-a ()) (set! %tb2-a (fn (_ buffer score chr)
       (if (or (= chr 32) (= chr 10)) (do (buffer-unread buffer) (score-set score (- 0 1) buffer))
         %tb2-a)))
@@ -151,7 +153,7 @@
       (pair (lit read) %tb2-r)))
     (Base make-type %tb2 "WS" (list (pair (lit analyse) (fn (_ buffer score chr)
       (if (= chr 32) (score-set score (- 0 1) buffer) ())))))
-    (length (token-read-string %tb2 "hello world")))
+    (length (Tok read-str %tb2 "hello world")))
 ```
 ---
     2
@@ -160,14 +162,15 @@
 
 ```scheme
 (do (def %tb3 (Base make-tok))
-    (def %tb3-r (fn (_ . args) (buffer-token (first args))))
+    (def %buf-tok (prim-ref (lit buf) (lit tok)))
+    (def %tb3-r (fn (_ . args) (%buf-tok (first args))))
     (def %tb3-body ()) (set! %tb3-body (fn (_ buffer score chr)
       (if (or (= chr 32) (= chr 10)) (do (buffer-unread buffer) (score-set score (- 0 1) buffer))
         %tb3-body)))
     (Base make-type %tb3 "ALL" (list (pair (lit analyse) (fn (_ buffer score chr)
       (if (and (>= chr 33) (<= chr 126)) (do (score-set score (- 0 1) buffer) %tb3-body) ())))
       (pair (lit read) %tb3-r)))
-    (str-length (first (token-read-string %tb3 "hello"))))
+    (str-length (first (Tok read-str %tb3 "hello"))))
 ```
 ---
     5
@@ -176,7 +179,8 @@
 
 ```scheme
 (do (def %tb4 (Base make-tok))
-    (def %tb4-r (fn (_ . args) (buffer-token (first args))))
+    (def %buf-tok (prim-ref (lit buf) (lit tok)))
+    (def %tb4-r (fn (_ . args) (%buf-tok (first args))))
     (def %tb4-body ()) (set! %tb4-body (fn (_ buffer score chr)
       (if (= chr 10)
         (do (buffer-unread buffer) (score-set score 1 buffer))
@@ -184,7 +188,7 @@
     (Base make-type %tb4 "LINE" (list (pair (lit analyse) (fn (_ buffer score chr)
       (if (and (>= chr 32) (<= chr 126)) (do (score-set score 1 buffer) %tb4-body) ())))
       (pair (lit read) %tb4-r)))
-    (str-length (first (token-read-string %tb4 "hello\n"))))
+    (str-length (first (Tok read-str %tb4 "hello\n"))))
 ```
 ---
     5
@@ -193,7 +197,8 @@
 
 ```scheme
 (do (def %tb5 (Base make-tok))
-    (def %tb5-r (fn (_ . args) (list (lit tok) (buffer-token (first args)))))
+    (def %buf-tok (prim-ref (lit buf) (lit tok)))
+    (def %tb5-r (fn (_ . args) (list (lit tok) (%buf-tok (first args)))))
     (def %tb5-body ()) (set! %tb5-body (fn (_ buffer score chr)
       (if (= chr 32) (do (buffer-unread buffer) (score-set score (- 0 1) buffer))
         %tb5-body)))
@@ -202,7 +207,7 @@
       (pair (lit read) %tb5-r)))
     (Base make-type %tb5 "WS" (list (pair (lit analyse) (fn (_ buffer score chr)
       (if (= chr 32) (score-set score (- 0 1) buffer) ())))))
-    (first (first (token-read-string %tb5 "abc def"))))
+    (first (first (Tok read-str %tb5 "abc def"))))
 ```
 ---
     (lit tok)
@@ -211,7 +216,7 @@
 
 ```scheme
 (do (def %tb6 (Base make))
-    (def %tb6-r (fn (_ . args) (list (lit %comment) (buffer-token (first args)))))
+    (def %tb6-r (fn (_ . args) (list (lit %comment) (%buf-tok (first args)))))
     (def %tb6-body ()) (set! %tb6-body (fn (_ buffer score chr)
       (if (= chr 10) (score-set score 1 buffer) %tb6-body)))
     (Base make-type %tb6 "FMT-COMMENT" (list (pair (lit analyse) (fn (_ buffer score chr)
@@ -219,7 +224,7 @@
       (pair (lit read) %tb6-r)))
     (def %tb6-ta (first (first (first (first (rest (first %tb6)))))))
     (set-first! (first (first (first (rest (first %tb6))))) (append (rest %tb6-ta) (list (first %tb6-ta))))
-    (def %tb6-tokens (token-read-string %tb6 "; hi\n(+ 1 2)"))
+    (def %tb6-tokens (Tok read-str %tb6 "; hi\n(+ 1 2)"))
     (first (first %tb6-tokens)))
 ```
 ---
@@ -230,7 +235,7 @@
 ### make-base includes sexp types
 
 ```scheme
-(first (token-read-string (Base make) "(+ 1 2)"))
+(first (Tok read-str (Base make) "(+ 1 2)"))
 ```
 ---
     ((lit +) 1 2)
@@ -238,7 +243,7 @@
 ### multi-token sexp input
 
 ```scheme
-(length (token-read-string (Base make) "(+ 1 2) (* 3 4)"))
+(length (Tok read-str (Base make) "(+ 1 2) (* 3 4)"))
 ```
 ---
     2
@@ -271,6 +276,7 @@
 
 ```scheme
 (do (def %tb9 (Base make-tok))
+    (def %buf-tok (prim-ref (lit buf) (lit tok)))
     (def %tb9-r1 (fn (_ . args) (lit first-type)))
     (def %tb9-r2 (fn (_ . args) (lit second-type)))
     (Base make-type %tb9 "T1" (list (pair (lit analyse) (fn (_ buffer score chr)
@@ -279,7 +285,7 @@
     (Base make-type %tb9 "T2" (list (pair (lit analyse) (fn (_ buffer score chr)
       (if (and (>= chr 97) (<= chr 122)) (score-set score 1 buffer) ())))
       (pair (lit read) %tb9-r2)))
-    (first (token-read-string %tb9 "x")))
+    (first (Tok read-str %tb9 "x")))
 ```
 ---
     (lit first-type)

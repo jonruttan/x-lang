@@ -158,7 +158,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(def toks (token-read-string %logo-base "FD "))
+(def toks (Tok read-str %logo-base "FD "))
 (type? (first toks) %logo)
 ```
 ---
@@ -167,7 +167,7 @@
 ### tokenizes lowercase word
 
 ```scheme
-(def toks (token-read-string %logo-base "fd "))
+(def toks (Tok read-str %logo-base "fd "))
 (type? (first toks) %logo)
 ```
 ---
@@ -176,7 +176,7 @@
 ### tokenizes mixed case
 
 ```scheme
-(def toks (token-read-string %logo-base "Forward "))
+(def toks (Tok read-str %logo-base "Forward "))
 (%logo-word (first toks))
 ```
 ---
@@ -185,7 +185,7 @@
 ### tokenizes number
 
 ```scheme
-(def toks (token-read-string %logo-base "100 "))
+(def toks (Tok read-str %logo-base "100 "))
 (first toks)
 ```
 ---
@@ -194,7 +194,7 @@
 ### tokenizes brackets into block
 
 ```scheme
-(def toks (token-read-string %logo-base "[ fd 100 ] "))
+(def toks (Tok read-str %logo-base "[ fd 100 ] "))
 (%is-block? (first toks))
 ```
 ---
@@ -203,7 +203,7 @@
 ### block contains tokens
 
 ```scheme
-(def toks (token-read-string %logo-base "[ fd 100 ] "))
+(def toks (Tok read-str %logo-base "[ fd 100 ] "))
 (length (%block-contents (first toks)))
 ```
 ---
@@ -215,7 +215,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(def toks (token-read-string %logo-base "fd 100 "))
+(def toks (Tok read-str %logo-base "fd 100 "))
 (logo-process-tokens toks)
 (length %turtle-bc)
 ```
@@ -226,7 +226,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(def toks (token-read-string %logo-base "repeat 4 [ fd 100 rt 90 ] "))
+(def toks (Tok read-str %logo-base "repeat 4 [ fd 100 rt 90 ] "))
 (logo-process-tokens toks)
 (length %turtle-bc)
 ```
@@ -237,7 +237,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(def toks (token-read-string %logo-base "Forward 50 "))
+(def toks (Tok read-str %logo-base "Forward 50 "))
 (logo-process-tokens toks)
 (length %turtle-bc)
 ```
@@ -250,9 +250,9 @@
 
 ```scheme
 (turtle-clearscreen)
-(def t1 (token-read-string %logo-base "to sq size [ repeat 4 [ fd size rt 90 ] ] "))
+(def t1 (Tok read-str %logo-base "to sq size [ repeat 4 [ fd size rt 90 ] ] "))
 (logo-process-tokens t1)
-(def t2 (token-read-string %logo-base "sq 60 "))
+(def t2 (Tok read-str %logo-base "sq 60 "))
 (logo-process-tokens t2)
 (length %turtle-bc)
 ```
@@ -263,9 +263,9 @@
 
 ```scheme
 (turtle-clearscreen)
-(def t1 (token-read-string %logo-base "to arcr r deg [ repeat deg [ fd r rt 1 ] ] "))
+(def t1 (Tok read-str %logo-base "to arcr r deg [ repeat deg [ fd r rt 1 ] ] "))
 (logo-process-tokens t1)
-(def t2 (token-read-string %logo-base "arcr 1 10 "))
+(def t2 (Tok read-str %logo-base "arcr 1 10 "))
 (logo-process-tokens t2)
 (length %turtle-bc)
 ```
@@ -277,7 +277,7 @@
 ### flat tokens pass through
 
 ```scheme
-(def toks (token-read-string %logo-base "fd 100 rt 90 "))
+(def toks (Tok read-str %logo-base "fd 100 rt 90 "))
 (length (%logo-indent-to-blocks toks))
 ```
 ---
@@ -286,7 +286,7 @@
 ### indentation creates block
 
 ```scheme
-(def toks (token-read-string %logo-base "\nrepeat 4\n    fd 100\n    rt 90\n "))
+(def toks (Tok read-str %logo-base "\nrepeat 4\n    fd 100\n    rt 90\n "))
 (def processed (%logo-indent-to-blocks toks))
 (length processed)
 ```
@@ -297,7 +297,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(def toks (token-read-string %logo-base "\nrepeat 4\n    fd 100\n    rt 90\n "))
+(def toks (Tok read-str %logo-base "\nrepeat 4\n    fd 100\n    rt 90\n "))
 (logo-process-tokens (%logo-indent-to-blocks toks))
 (length %turtle-bc)
 ```
@@ -322,7 +322,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(def r (%logo-parse-one-expr (token-read-string %logo-base "2 + 3 * 4 ")))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "2 + 3 * 4 ")))
 (first r)
 ```
 ---
@@ -331,7 +331,7 @@
 ### parenthesized expression
 
 ```scheme
-(def r (%logo-parse-one-expr (token-read-string %logo-base "(2 + 3) * 4 ")))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "(2 + 3) * 4 ")))
 (first r)
 ```
 ---
@@ -340,7 +340,7 @@
 ### power operator
 
 ```scheme
-(def r (%logo-parse-one-expr (token-read-string %logo-base "2 ^ 3 ")))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "2 ^ 3 ")))
 (first r)
 ```
 ---
@@ -349,7 +349,7 @@
 ### unary minus
 
 ```scheme
-(def r (%logo-parse-one-expr (token-read-string %logo-base "-5 ")))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "-5 ")))
 (first r)
 ```
 ---
@@ -358,7 +358,7 @@
 ### comparison greater
 
 ```scheme
-(def r (%logo-parse-one-expr (token-read-string %logo-base "5 > 3 ")))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "5 > 3 ")))
 (first r)
 ```
 ---
@@ -367,7 +367,7 @@
 ### comparison equal
 
 ```scheme
-(def r (%logo-parse-one-expr (token-read-string %logo-base "5 = 5 ")))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "5 = 5 ")))
 (first r)
 ```
 ---
@@ -376,7 +376,7 @@
 ### string equality
 
 ```scheme
-(def r (%logo-parse-one-expr (token-read-string %logo-base "\"hello\" = \"hello\" ")))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "\"hello\" = \"hello\" ")))
 (first r)
 ```
 ---
@@ -387,7 +387,7 @@
 ```scheme
 (turtle-clearscreen)
 (%logo-var-set! "X" 10)
-(def r (%logo-parse-one-expr (token-read-string %logo-base "x + 5 ")))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "x + 5 ")))
 (first r)
 ```
 ---
@@ -396,7 +396,7 @@
 ### function call in expression
 
 ```scheme
-(def r (%logo-parse-one-expr (token-read-string %logo-base "sqrt(16) ")))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "sqrt(16) ")))
 (first r)
 ```
 ---
@@ -408,7 +408,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "if 5 > 3 then fd 100 "))
+(logo-process-tokens (Tok read-str %logo-base "if 5 > 3 then fd 100 "))
 (length %turtle-bc)
 ```
 ---
@@ -418,7 +418,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "if 5 < 3 then fd 100 "))
+(logo-process-tokens (Tok read-str %logo-base "if 5 < 3 then fd 100 "))
 (length %turtle-bc)
 ```
 ---
@@ -428,7 +428,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "if 5 > 3 then fd 100 else fd 50 "))
+(logo-process-tokens (Tok read-str %logo-base "if 5 > 3 then fd 100 else fd 50 "))
 %turtle-x
 ```
 ---
@@ -438,7 +438,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "if not 5 < 3 then fd 100 "))
+(logo-process-tokens (Tok read-str %logo-base "if not 5 < 3 then fd 100 "))
 (length %turtle-bc)
 ```
 ---
@@ -448,8 +448,8 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "to t [ fd 100 stop fd 100 ] "))
-(logo-process-tokens (token-read-string %logo-base "t "))
+(logo-process-tokens (Tok read-str %logo-base "to t [ fd 100 stop fd 100 ] "))
+(logo-process-tokens (Tok read-str %logo-base "t "))
 (length %turtle-bc)
 ```
 ---
@@ -459,8 +459,8 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "to add a b [ return a + b ] "))
-(def r (%logo-parse-one-expr (token-read-string %logo-base "add(3, 4) ")))
+(logo-process-tokens (Tok read-str %logo-base "to add a b [ return a + b ] "))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "add(3, 4) ")))
 (first r)
 ```
 ---
@@ -470,8 +470,8 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "x <- 0 repeat [ x <- x + 1 ] until x > 5 "))
-(def r (%logo-parse-one-expr (token-read-string %logo-base "x ")))
+(logo-process-tokens (Tok read-str %logo-base "x <- 0 repeat [ x <- x + 1 ] until x > 5 "))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "x ")))
 (first r)
 ```
 ---
@@ -483,8 +483,8 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "x <- 42 "))
-(def r (%logo-parse-one-expr (token-read-string %logo-base "x ")))
+(logo-process-tokens (Tok read-str %logo-base "x <- 42 "))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "x ")))
 (first r)
 ```
 ---
@@ -494,8 +494,8 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "x <- 2 + 3 "))
-(def r (%logo-parse-one-expr (token-read-string %logo-base "x ")))
+(logo-process-tokens (Tok read-str %logo-base "x <- 2 + 3 "))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "x ")))
 (first r)
 ```
 ---
@@ -506,7 +506,7 @@
 ### sqrt
 
 ```scheme
-(def r (%logo-parse-one-expr (token-read-string %logo-base "sqrt(144) ")))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "sqrt(144) ")))
 (first r)
 ```
 ---
@@ -515,7 +515,7 @@
 ### abs
 
 ```scheme
-(def r (%logo-parse-one-expr (token-read-string %logo-base "abs(-7) ")))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "abs(-7) ")))
 (first r)
 ```
 ---
@@ -524,7 +524,7 @@
 ### sin 90
 
 ```scheme
-(def r (%logo-parse-one-expr (token-read-string %logo-base "sin(90) ")))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "sin(90) ")))
 (first r)
 ```
 ---
@@ -533,7 +533,7 @@
 ### cos 0
 
 ```scheme
-(def r (%logo-parse-one-expr (token-read-string %logo-base "cos(0) ")))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "cos(0) ")))
 (first r)
 ```
 ---
@@ -542,7 +542,7 @@
 ### remainder
 
 ```scheme
-(def r (%logo-parse-one-expr (token-read-string %logo-base "remainder(17, 5) ")))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "remainder(17, 5) ")))
 (first r)
 ```
 ---
@@ -552,8 +552,8 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "x <- pi "))
-(def r (%logo-parse-one-expr (token-read-string %logo-base "x > 3 ")))
+(logo-process-tokens (Tok read-str %logo-base "x <- pi "))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "x > 3 ")))
 (first r)
 ```
 ---
@@ -565,7 +565,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "setxy 100 50 "))
+(logo-process-tokens (Tok read-str %logo-base "setxy 100 50 "))
 (list %turtle-x %turtle-y)
 ```
 ---
@@ -575,7 +575,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "fd 100 home "))
+(logo-process-tokens (Tok read-str %logo-base "fd 100 home "))
 (list %turtle-x %turtle-y %turtle-heading)
 ```
 ---
@@ -585,8 +585,8 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "setxy 3 4 "))
-(def r (%logo-parse-one-expr (token-read-string %logo-base "distance(0, 0) ")))
+(logo-process-tokens (Tok read-str %logo-base "setxy 3 4 "))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "distance(0, 0) ")))
 (first r)
 ```
 ---
@@ -598,7 +598,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "pencolor \"red\" "))
+(logo-process-tokens (Tok read-str %logo-base "pencolor \"red\" "))
 %turtle-pen-color
 ```
 ---
@@ -608,7 +608,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "penwidth 3 "))
+(logo-process-tokens (Tok read-str %logo-base "penwidth 3 "))
 %turtle-pen-width
 ```
 ---
@@ -620,8 +620,8 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "to limited [ repeat forever [ fd 10 stop ] ] "))
-(logo-process-tokens (token-read-string %logo-base "limited "))
+(logo-process-tokens (Tok read-str %logo-base "to limited [ repeat forever [ fd 10 stop ] ] "))
+(logo-process-tokens (Tok read-str %logo-base "limited "))
 (length %turtle-bc)
 ```
 ---
@@ -633,8 +633,8 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "to add a b [ return a + b ] "))
-(def r (%logo-parse-one-expr (token-read-string %logo-base "add(2 + 3, 10) ")))
+(logo-process-tokens (Tok read-str %logo-base "to add a b [ return a + b ] "))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "add(2 + 3, 10) ")))
 (first r)
 ```
 ---
@@ -644,8 +644,8 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "to sum3 a b c [ return a + b + c ] "))
-(def r (%logo-parse-one-expr (token-read-string %logo-base "sum3(1, 2, 3) ")))
+(logo-process-tokens (Tok read-str %logo-base "to sum3 a b c [ return a + b + c ] "))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "sum3(1, 2, 3) ")))
 (first r)
 ```
 ---
@@ -657,8 +657,8 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "to euclid n r [ if n = r then return n if n > r then return euclid(n - r, r) if n < r then return euclid(n, r - n) ] "))
-(def r (%logo-parse-one-expr (token-read-string %logo-base "euclid(360, 144) ")))
+(logo-process-tokens (Tok read-str %logo-base "to euclid n r [ if n = r then return n if n > r then return euclid(n - r, r) if n < r then return euclid(n, r - n) ] "))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "euclid(360, 144) ")))
 (first r)
 ```
 ---
@@ -668,8 +668,8 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "to fact n [ if n <= 1 then return 1 return n * fact(n - 1) ] "))
-(def r (%logo-parse-one-expr (token-read-string %logo-base "fact(6) ")))
+(logo-process-tokens (Tok read-str %logo-base "to fact n [ if n <= 1 then return 1 return n * fact(n - 1) ] "))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "fact(6) ")))
 (first r)
 ```
 ---
@@ -681,7 +681,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "if 1 > 5 then fd 100 else fd 50 "))
+(logo-process-tokens (Tok read-str %logo-base "if 1 > 5 then fd 100 else fd 50 "))
 %turtle-y
 ```
 ---
@@ -693,7 +693,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "execute \"fd 100\" "))
+(logo-process-tokens (Tok read-str %logo-base "execute \"fd 100\" "))
 (length %turtle-bc)
 ```
 ---
@@ -705,8 +705,8 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "to test.member [ return member(3, [1 2 3 4]) ] "))
-(def r (%logo-parse-one-expr (token-read-string %logo-base "test.member() ")))
+(logo-process-tokens (Tok read-str %logo-base "to test.member [ return member(3, [1 2 3 4]) ] "))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "test.member() ")))
 (first r)
 ```
 ---
@@ -716,8 +716,8 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "to test.nomember [ return member(9, [1 2 3]) ] "))
-(def r (%logo-parse-one-expr (token-read-string %logo-base "test.nomember() ")))
+(logo-process-tokens (Tok read-str %logo-base "to test.nomember [ return member(9, [1 2 3]) ] "))
+(def r (%logo-parse-one-expr (Tok read-str %logo-base "test.nomember() ")))
 (first r)
 ```
 ---
@@ -729,7 +729,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "seth 180 "))
+(logo-process-tokens (Tok read-str %logo-base "seth 180 "))
 %turtle-heading
 ```
 ---
@@ -773,7 +773,7 @@
 
 ```scheme
 (turtle-clearscreen)
-(logo-process-tokens (token-read-string %logo-base "grow 2 s.fd 50 "))
+(logo-process-tokens (Tok read-str %logo-base "grow 2 s.fd 50 "))
 %turtle-y
 ```
 ---

@@ -83,7 +83,7 @@
 ```scheme
 (do
   (Obj meta-count! 3)
-  (def %tokens (token-read-string (%base) "(+ 1 2)\n"))
+  (def %tokens (Tok read-str (%base) "(+ 1 2)\n"))
   (display (Obj meta-ref (first %tokens) 0)))
 ```
 ---
@@ -94,7 +94,7 @@
 ```scheme
 (do
   (Obj meta-count! 3)
-  (def %tokens (token-read-string (%base) "(+ 1 2)\n(- 3 4)\n"))
+  (def %tokens (Tok read-str (%base) "(+ 1 2)\n(- 3 4)\n"))
   (display (Obj meta-ref (first %tokens) 0))
   (display " ")
   (display (Obj meta-ref (first (rest %tokens)) 0)))
@@ -107,7 +107,7 @@
 ```scheme
 (do
   (Obj meta-count! 3)
-  (def %tokens (token-read-string (%base) "(if t\n  1\n  2)\n"))
+  (def %tokens (Tok read-str (%base) "(if t\n  1\n  2)\n"))
   (def %form (first %tokens))
   (def %then (first (rest (rest %form))))
   (def %else (first (rest (rest (rest %form)))))

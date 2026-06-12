@@ -1,5 +1,8 @@
 ; rational.x -- Rational number type (exact fractions)
 (import x/num/float)
+; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(def %buffer-token (prim-ref (lit buf) (lit tok)))
+
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
 
@@ -258,7 +261,7 @@
 
 (set! %rational-read
   (fn (_ . args)
-    (let ((tok (buffer-token (first args))))
+    (let ((tok (%buffer-token (first args))))
       (let ((pos (%rat-find-slash tok 0 (str-length tok))))
         (if pos
           (%make-rational

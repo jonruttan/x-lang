@@ -11,6 +11,9 @@
 ; context and must not go through class dispatch. The Regex class wraps them.
 
 (import x/type/object)
+; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(def %buffer-token (prim-ref (lit buf) (lit tok)))
+
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
 
@@ -508,7 +511,7 @@
             ())))
       (pair (lit read)
         (fn (_ . args)
-          (def tok (buffer-token (first args)))
+          (def tok (%buffer-token (first args)))
           ; Strip #/ prefix and / suffix
           (def pattern (substring tok 2 (- (str-length tok) 1)))
           (make-instance %regex (%regex-parse pattern)))))))

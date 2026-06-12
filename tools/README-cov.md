@@ -34,7 +34,7 @@ sh tools/cov.sh /tmp/test.x
    ```
    Every expression that passes through `eval` gets bit 0x2 set on its flags field.
 
-2. **Tokenization**: The reporter (`cov.x`) reads the source file as a string, tokenizes it with `token-read-string` using the current base (`(%base)`) so symbols are interned correctly.
+2. **Tokenization**: The reporter (`cov.x`) reads the source file as a string, tokenizes it with `(Tok read-str)` using the current base (`(%base)`) so symbols are interned correctly.
 
 3. **Evaluation**: An operative loop evaluates each top-level form. Operatives (not fn closures) are used because closures create scoped environments that discard `def` effects after return.
 

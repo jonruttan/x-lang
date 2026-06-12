@@ -10,11 +10,16 @@
 ; returns () to decline, so the symbol reader -- the list tail -- handles
 ; everything else.
 ;
-; Requires: intrinsics.x (buffer-*, score-set), token-read, str.x, char.x.
+; Requires: intrinsics.x (buffer-*, score-set), %token-read, str.x, char.x.
 
 ; --- analyser accept states ---
 
 ; Single-char accept: unread the lookahead char, score one, accept.
+; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(def %buffer-token (prim-ref (lit buf) (lit tok)))
+(def %buffer-last-char (prim-ref (lit buf) (lit last-char)))
+(def %token-read (prim-ref (lit tok) (lit read)))
+
 (def %quasi-accept
   (fn (_ buffer score _)
     (%seq (buffer-unread buffer) (score-set score 1 buffer))))
@@ -41,17 +46,17 @@
 
 (def %quasi-read
   (fn (_ buffer . rest)
-    (if (= (buffer-last-char buffer) 96)
-      (pair (lit quasi) (pair (token-read buffer) ()))
+    (if (= (%buffer-last-char buffer) 96)
+      (pair (lit quasi) (pair (%token-read buffer) ()))
       ())))
 
 (def %unquote-read
   (fn (_ buffer . rest)
-    (if (= (buffer-last-char buffer) 44)
-      (pair (lit unquote) (pair (token-read buffer) ()))
-      (if (= (buffer-last-char buffer) 64)
-        (if (= (char->integer (str-ref (buffer-token buffer) 0)) 44)
-          (pair (lit unquote-splicing) (pair (token-read buffer) ()))
+    (if (= (%buffer-last-char buffer) 44)
+      (pair (lit unquote) (pair (%token-read buffer) ()))
+      (if (= (%buffer-last-char buffer) 64)
+        (if (= (char->integer (str-ref (%buffer-token buffer) 0)) 44)
+          (pair (lit unquote-splicing) (pair (%token-read buffer) ()))
           ())
         ()))))
 

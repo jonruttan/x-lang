@@ -1,5 +1,8 @@
 ; repl.x -- Logo REPL with multiline block reading
 (import x/logo/types)
+; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(def %token-read-string (prim-ref (lit tok) (lit read-str)))
+
 (import x/logo/dispatch)
 (import x/logo/indent)
 
@@ -51,7 +54,7 @@
           (if (if (atom? err) (str=? (symbol->str err) "STOP") #f)
             (error err)
             #f))
-        (def tokens (token-read-string %logo-base (Str append text " ")))
+        (def tokens (%token-read-string %logo-base (Str append text " ")))
         (def processed (%logo-indent-to-blocks tokens))
         (logo-process-tokens processed)
         #t))))

@@ -3,6 +3,9 @@
 ; Data-driven pretty printer for x-lang s-expressions.
 ; Uses write-to-str for width estimation (C speed).
 (import x/type/str)
+; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(def %token-read-string (prim-ref (lit tok) (lit read-str)))
+
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
 
@@ -148,7 +151,7 @@
             (display "\n"))
           (self (rest toks) ())))))
   (%go tokens t)))
-  (param tokens LIST "Token list from token-read-string")
+  (param tokens LIST "Token list from %token-read-string")
   (param table ALIST "Formatter table from fmt-build-table")
   "Format a list of top-level tokens with the given construct table.")
 

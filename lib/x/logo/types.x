@@ -1,5 +1,9 @@
 ; types.x -- Logo tokenizer base and type definitions
 (import x/logo/state)
+; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(def %buffer-token (prim-ref (lit buf) (lit tok)))
+(def %token-read (prim-ref (lit tok) (lit read)))
+
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-io (prim-ref (lit type) (lit io)))
 
@@ -119,7 +123,7 @@
             (def buf (first args))
             (def %rb
               (fn (self acc)
-                (def tok (token-read buf))
+                (def tok (%token-read buf))
                 (if (null? tok)
                   (make-instance %logo-block (reverse acc))
                   (if (eq? tok %logo-block-close)
@@ -136,7 +140,7 @@
               (if (%logo-alpha? chr) %logo-word-continue ())))
           (pair (lit read)
             (fn (_ . args)
-              (make-instance %logo (buffer-token (first args)))))
+              (make-instance %logo (%buffer-token (first args)))))
           (pair (lit write)
             (fn (_ self) (display (first self)))))))
 
@@ -180,7 +184,7 @@
               (if (= chr 10) %indent-after-nl ())))
           (pair (lit read)
             (fn (_ . read-args)
-              (def text (buffer-token (first read-args)))
+              (def text (%buffer-token (first read-args)))
               (def len (str-length text))
               (def %count-indent
                 (fn (self i)
@@ -214,7 +218,7 @@
                     ())))))
           (pair (lit read)
             (fn (_ . args)
-              (make-instance %logo-op (buffer-token (first args)))))
+              (make-instance %logo-op (%buffer-token (first args)))))
           (pair (lit write)
             (fn (_ self) (display (first self)))))))
 
@@ -246,7 +250,7 @@
               (if (= chr 34) %string-body ())))
           (pair (lit read)
             (fn (_ . args)
-              (def text (buffer-token (first args)))
+              (def text (%buffer-token (first args)))
               (def len (str-length text))
               (make-instance %logo-string (substring text 1 (- len 1)))))
           (pair (lit write)

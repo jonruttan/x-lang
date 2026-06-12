@@ -7,6 +7,9 @@
 ;
 ; Promotion chain: integer -> bignum -> rational -> float -> complex
 (import x/core/list)
+; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(def %buffer-token (prim-ref (lit buf) (lit tok)))
+
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
 
@@ -520,7 +523,7 @@
 ; --- Reader (set after make-type so closure captures the real %bignum) ---
 (set! %bignum-read
   (fn (_ . args)
-    (make-instance %bignum (%bignum-parse-digits (buffer-token (first args))))))
+    (make-instance %bignum (%bignum-parse-digits (%buffer-token (first args))))))
 
 ; --- Cap the integer analyser ---
 ; Push a capped analyser onto the integer type's analyse stack

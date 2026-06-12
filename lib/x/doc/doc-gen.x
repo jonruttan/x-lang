@@ -1,8 +1,11 @@
 ; doc-gen.x -- Markdown documentation generator library
 ;
 ; Extracts (doc ...) and (note ...) forms from token trees
-; and emits Markdown. Works with tokens from make-base + token-read-string.
+; and emits Markdown. Works with tokens from make-base + %token-read-string.
 (import x/core/list)
+; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(def %token-read-string (prim-ref (lit tok) (lit read-str)))
+
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
 
@@ -297,7 +300,7 @@
 (doc (def doc-walk
   (fn (_ tokens)
     (doc-walk-with-prims tokens ())))
-  (param tokens LIST "Token list from token-read-string")
+  (param tokens LIST "Token list from %token-read-string")
   "Walk a token tree, extracting and emitting all documentation as Markdown.")
 
 (doc (provide x/doc/doc-gen

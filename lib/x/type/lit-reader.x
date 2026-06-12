@@ -14,6 +14,10 @@
 ; Requires: quasi-reader.x, intrinsics.x, str.x, char.x, x/sys/type.
 
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
+; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+(def %buffer-last-char (prim-ref (lit buf) (lit last-char)))
+(def %token-read (prim-ref (lit tok) (lit read)))
+
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-analyse-cell (prim-ref (lit type) (lit analyse-cell)))
 (def %type-push-analyse (prim-ref (lit type) (lit push-analyse)))
@@ -30,17 +34,17 @@
 
 (def %lit-read
   (fn (_ buffer . rest)
-    (if (= (buffer-last-char buffer) 39)
-      (pair (lit lit) (pair (token-read buffer) ()))
+    (if (= (%buffer-last-char buffer) 39)
+      (pair (lit lit) (pair (%token-read buffer) ()))
       ())))
 
 ; ' ` , each terminate an adjacent token.  Nested if (no cond/or) and no
 ; binding keep it allocation-free on the per-char delimiter path.
 (def %macro-delimit
   (fn (_ buffer . rest)
-    (if (if (= (buffer-last-char buffer) 39) #t
-          (if (= (buffer-last-char buffer) 96) #t
-            (= (buffer-last-char buffer) 44)))
+    (if (if (= (%buffer-last-char buffer) 39) #t
+          (if (= (%buffer-last-char buffer) 96) #t
+            (= (%buffer-last-char buffer) 44)))
       (%seq (buffer-unread buffer) buffer)
       ())))
 
