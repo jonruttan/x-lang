@@ -6,8 +6,12 @@
 ; relative to the current input rather than the whole boot+session stream.
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
+; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+(def %error-line (prim-ref (lit io) (lit error-line)))
 
-(def %repl-read repl-read)
+
+; ns `io` is de-registered (R5): fetch the REPL reader from the catalog.
+(def %repl-read (prim-ref (lit io) (lit repl-read)))
 (def %repl-prompt "> ")
 (def %repl-print
   (fn (_ result)
@@ -46,9 +50,9 @@
               (%seq
                 (%stderr
                   (%str-append
-                    (if (> (error-line) 1)
+                    (if (> (%error-line) 1)
                       (%str-append "Error [line "
-                        (%str-append (number->str (error-line)) "]: "))
+                        (%str-append (number->str (%error-line)) "]: "))
                       "Error: ")
                     (if (str? err) err (symbol->str err))))
                 (%stderr "\n"))))

@@ -235,29 +235,18 @@
 
 (note "I/O")
 
+; write/display stay bare (the keep-list); their entries remain here. The rest
+; of ns `io` (read, read-char, write-to-str, display-to-str, error-line,
+; repl-read) is de-registered (R5) -- the Io class (lib/x/type/io.x) docs them.
 (doc write "Write a value in machine-readable form."
   (param val ANY "Value to write")
   (note "Strings are quoted, characters show read syntax. Use for serialization.")
-  (see display) (see write-to-str))
+  (see display))
 
 (doc display "Display a value in human-readable form."
   (param val ANY "Value to display")
   (note "Strings are unquoted, characters are bare. Use for user output.")
-  (see write) (see display-to-str))
-
-(doc read "Read and parse one expression from stdin."
-  (returns ANY "Parsed expression"))
-
-(doc read-char "Read one character from stdin."
-  (returns CHAR "A character, or nil at EOF"))
-
-(doc write-to-str "Capture write output as a string."
-  (param val ANY "Value to write")
-  (returns STRING "The written representation"))
-
-(doc display-to-str "Capture display output as a string."
-  (param val ANY "Value to display")
-  (returns STRING "The displayed representation"))
+  (see write))
 
 ; === Memory ===
 

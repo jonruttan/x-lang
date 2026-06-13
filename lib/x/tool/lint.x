@@ -28,6 +28,9 @@
 
 (import x/core/alist)
 (import x/type/str)
+; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+(def %write-to-str (prim-ref (lit io) (lit write-to-str)))
+
 (import x/sys/type)
 
 ; Type structs we attach handlers to (LIST = forms, SYMBOL = references).
@@ -541,7 +544,7 @@
       (if (if (null? nm) #f (%name-member? nm defs))
         (%warn! "dup-def" nm) ())                      ; same top-level name defined twice
       (set-first! %lint-scope ())
-      (write-to-str form)                              ; drive the walk (string discarded)
+      (%write-to-str form)                              ; drive the walk (string discarded)
       (self (rest forms) (if (null? nm) defs (pair nm defs)))))))
 
 (doc (def lint-forms (fn (_ forms defs uses)

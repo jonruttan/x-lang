@@ -507,7 +507,7 @@ Returns `#t` if `x` evaluates to a callable (closure or C primitive); `#f` other
 Returns `#t` if `x` evaluates to a character object; `#f` otherwise.
 
 ```
-(char? (read-char)) -> #t
+(char? (Io read-char)) -> #t
 (char? 42) -> #f
 ```
 
@@ -600,24 +600,24 @@ Outputs a newline character to stdout. Takes no arguments. Returns `()`.
 (newline) -> ()  ; prints \n
 ```
 
-### `read`
+### `Io read`
 
-`(read) -> obj`
+`(Io read) -> obj`
 
 Reads and parses one s-expression from stdin. Returns the parsed object.
 
 ```
-(read) -> <parsed s-expression from stdin>
+(Io read) -> <parsed s-expression from stdin>
 ```
 
-### `read-char`
+### `Io read-char`
 
-`(read-char) -> char | ()`
+`(Io read-char) -> char | ()`
 
 Reads a single character from stdin. Returns a character object, or `()` on end-of-input.
 
 ```
-(read-char) -> <char>
+(Io read-char) -> <char>
 ```
 
 ---

@@ -17,6 +17,9 @@
 (def %make-type (prim-ref (lit type) (lit make)))
 (def %type-of (prim-ref (lit type) (lit of)))
 (def %type? (prim-ref (lit type) (lit ?)))
+; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+(def %write-to-str (prim-ref (lit io) (lit write-to-str)))
+
 
 ;
 ; Complex values are stored as (real-part . imag-part) pairs.
@@ -179,7 +182,7 @@
         (lit to)
         (list
           (pair (%type-of "")
-            (fn (_ self) (write-to-str self))))))))
+            (fn (_ self) (%write-to-str self))))))))
 ; --- Arithmetic ---
 
 (note "Arithmetic")

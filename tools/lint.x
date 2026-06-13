@@ -12,13 +12,16 @@
 ; Input order on stdin: constructs.x, lang-constructs (or ()), then optional
 ; %lint-lib flag, then target file forms.
 
+; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+(def %read (prim-ref (lit io) (lit read)))
+
 (do
   (import x/tool/lint)
 
   ; --- Load construct declarations ---
 
-  (def %constructs (read))
-  (def %lang-constructs (read))
+  (def %constructs (%read))
+  (def %lang-constructs (%read))
   (def %all-constructs
     (if (null? %lang-constructs) %constructs
       (append %constructs %lang-constructs)))
@@ -103,12 +106,12 @@
   ; --- Read target forms, analyze via lint-forms ---
 
   ; First form may be a mode flag: %lint-lib suppresses unused warnings.
-  (def %first-form (read))
+  (def %first-form (%read))
   (def %lib-mode (eq? %first-form (lit %lint-lib)))
 
   ; Slurp remaining forms (order is irrelevant -- defs/uses are sets).
   (def %read-all (fn (self acc)
-    (def form (read))
+    (def form (%read))
     (if (null? form) acc (self (pair form acc)))))
   (def %forms-rev (%read-all ()))
   (def %forms

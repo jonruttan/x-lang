@@ -15,6 +15,9 @@
 (def %make-type (prim-ref (lit type) (lit make)))
 (def %type-of (prim-ref (lit type) (lit of)))
 (def %type? (prim-ref (lit type) (lit ?)))
+; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+(def %read (prim-ref (lit io) (lit read)))
+
 
 ; N+1 slot objects: slot 0 = length, slots 1..N = elements.
 
@@ -100,7 +103,7 @@
                 val)
               ())))))))
 
-(set! %vector-read (fn (_ . args) (%vector-from-list %vector (read))))
+(set! %vector-read (fn (_ . args) (%vector-from-list %vector (%read))))
 
 (def-class Vector ()
   (static

@@ -8,13 +8,16 @@
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref (lit buf) (lit tok)))
 (def %token-read-string (prim-ref (lit tok) (lit read-str)))
+; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+(def %read (prim-ref (lit io) (lit read)))
+
 
 (do
   (import x/tool/fmt)
 
   ; --- Load construct declarations ---
-  (def %constructs (read))
-  (def %lang-constructs (read))
+  (def %constructs (%read))
+  (def %lang-constructs (%read))
   (def %all-constructs
     (if (null? %lang-constructs) %constructs
       (append %constructs %lang-constructs)))
@@ -51,7 +54,7 @@
 
   ; --- Read input string and tokenize ---
 
-  (def %input (read))
+  (def %input (%read))
   (def %tokens (%token-read-string %fmt-base %input))
 
   ; --- Format ---

@@ -15,6 +15,9 @@
 (def %ptr-set-word! (prim-ref (lit ptr) (lit set-word!)))
 (def %dlopen (prim-ref (lit ffi) (lit dlopen)))
 (def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+(def %write-to-str (prim-ref (lit io) (lit write-to-str)))
+
 
 
 ; --- Resolve JIT runtime helpers (non-variadic wrappers in jit.c) ---
@@ -109,7 +112,7 @@
           (%asm-compile-param asm expr params)
           (if (pair? expr)
             (%asm-compile-call asm expr params)
-            (error (Str append "asm-compile: unsupported: " (write-to-str expr)))))))))
+            (error (Str append "asm-compile: unsupported: " (%write-to-str expr)))))))))
 
 ; Compile parameter access from x-lang args list
 ; p_args = (self arg0 arg1 ...) — walk rest N+1 times, first, eval, atomint

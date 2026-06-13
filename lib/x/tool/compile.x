@@ -20,6 +20,9 @@
 (def %ptr-set-word! (prim-ref (lit ptr) (lit set-word!)))
 (def %dlopen (prim-ref (lit ffi) (lit dlopen)))
 (def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+(def %write-to-str (prim-ref (lit io) (lit write-to-str)))
+
 
 
 ;
@@ -513,7 +516,7 @@
 (def %generate-fn-body
   (fn (_ params body)
     (set! %compile-params params)
-    (write-to-str body)))
+    (%write-to-str body)))
 
 ; Generate a complete C function
 (def %generate-fn
@@ -749,7 +752,7 @@
     (set! %compile-fvars fvars)
 
     ; Cache lookup: hash the expression to get a stable filename
-    (def %expr-key (write-to-str expr))
+    (def %expr-key (%write-to-str expr))
     (def %cache-hash (Hash hash->hex (Hash fnv-1a %expr-key)))
     (def %cache-path (Str append %compile-cache-dir %cache-hash compile-ext))
 
@@ -797,7 +800,7 @@
     (def %id (%cvt %compile-id %string))
     (def %src-path (Str append "/tmp/x-compile-" %id ".c"))
 
-    (def %expr-key (write-to-str expr))
+    (def %expr-key (%write-to-str expr))
     (def %cache-hash (Hash hash->hex (Hash fnv-1a %expr-key)))
     (def %cache-path (Str append %compile-cache-dir %cache-hash compile-ext))
 
@@ -857,7 +860,7 @@
             (pair %fn (self lib (+ i 1) n))))))
 
     ; Cache lookup
-    (def %batch-key (write-to-str exprs))
+    (def %batch-key (%write-to-str exprs))
     (def %batch-hash (Hash hash->hex (Hash fnv-1a %batch-key)))
     (def %cache-path (Str append %compile-cache-dir %batch-hash compile-ext))
 

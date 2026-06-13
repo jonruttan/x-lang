@@ -143,7 +143,7 @@ for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
       awk -v X_BIN="$X_BIN" \
           -v LANG_LIB="$LANG_LIB" \
           -v REPL_CMD="${REPL_CMD:-(repl)}" \
-          -v READ_FN="${READ_FN:-read}" \
+          -v READ_FN="${READ_FN:-Io read}" \
           -v TIMEOUT_CMD="$TIMEOUT_UNIT" \
           -v TMPDIR="$_TMPDIR" \
           -v SPEC_ID="$_I" \
@@ -154,7 +154,7 @@ for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
     awk -v X_BIN="$X_BIN" \
         -v LANG_LIB="$LANG_LIB" \
         -v REPL_CMD="${REPL_CMD:-(repl)}" \
-        -v READ_FN="${READ_FN:-read}" \
+        -v READ_FN="${READ_FN:-Io read}" \
         -v TIMEOUT_CMD="$TIMEOUT_UNIT" \
         -v TMPDIR="$_TMPDIR" \
         -v SPEC_ID="$_I" \
@@ -178,7 +178,7 @@ if [ -n "$STRESS" ] && [ -d "$SPEC_PATH/applicative" ]; then
         awk -v X_BIN="$X_BIN" \
             -v LANG_LIB="$LANG_LIB" \
             -v REPL_CMD="${REPL_CMD:-(repl)}" \
-            -v READ_FN="${READ_FN:-read}" \
+            -v READ_FN="${READ_FN:-Io read}" \
             -v TIMEOUT_CMD="$TIMEOUT_APPL" \
             -v TMPDIR="$_TMPDIR" \
             -v SPEC_ID="$_I" \
@@ -189,7 +189,7 @@ if [ -n "$STRESS" ] && [ -d "$SPEC_PATH/applicative" ]; then
       awk -v X_BIN="$X_BIN" \
           -v LANG_LIB="$LANG_LIB" \
           -v REPL_CMD="${REPL_CMD:-(repl)}" \
-          -v READ_FN="${READ_FN:-read}" \
+          -v READ_FN="${READ_FN:-Io read}" \
           -v TIMEOUT_CMD="$TIMEOUT_APPL" \
           -v TMPDIR="$_TMPDIR" \
           -v SPEC_ID="$_I" \

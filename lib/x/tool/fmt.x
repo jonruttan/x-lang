@@ -8,6 +8,9 @@
 
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
+; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+(def %write-to-str (prim-ref (lit io) (lit write-to-str)))
+
 
 
 ; --- Construct table helpers ---
@@ -63,7 +66,7 @@
 
 (doc (def fmt-width (fn (_ form)
   (if (fmt-comment? form) 80
-    (str-length (write-to-str form)))))
+    (str-length (%write-to-str form)))))
   (param form ANY "Form to measure")
   (returns INTEGER "Estimated display width in characters")
   "Estimate the display width of a form using write-to-str.")

@@ -175,7 +175,7 @@
 ### integer to string
 
 ```scheme
-(write-to-str 42)
+(Io write-to-str 42)
 ```
 ---
     "42"
@@ -183,7 +183,7 @@
 ### negative integer to string
 
 ```scheme
-(write-to-str -7)
+(Io write-to-str -7)
 ```
 ---
     "-7"
@@ -191,7 +191,7 @@
 ### zero to string
 
 ```scheme
-(write-to-str 0)
+(Io write-to-str 0)
 ```
 ---
     "0"
@@ -199,7 +199,7 @@
 ### string to quoted string
 
 ```scheme
-(write-to-str "hello")
+(Io write-to-str "hello")
 ```
 ---
     "\"hello\""
@@ -207,7 +207,7 @@
 ### symbol to string
 
 ```scheme
-(write-to-str (lit foo))
+(Io write-to-str (lit foo))
 ```
 ---
     "(lit foo)"
@@ -215,7 +215,7 @@
 ### boolean to string
 
 ```scheme
-(write-to-str #t)
+(Io write-to-str #t)
 ```
 ---
     "#t"
@@ -223,7 +223,7 @@
 ### nil to "()" string
 
 ```scheme
-(write-to-str ())
+(Io write-to-str ())
 ```
 ---
     "()"
@@ -231,7 +231,7 @@
 ### pair to string
 
 ```scheme
-(write-to-str (pair 1 2))
+(Io write-to-str (pair 1 2))
 ```
 ---
     "(1 . 2)"
@@ -239,7 +239,7 @@
 ### list to string
 
 ```scheme
-(write-to-str (list 1 2 3))
+(Io write-to-str (list 1 2 3))
 ```
 ---
     "(1 2 3)"
@@ -247,7 +247,7 @@
 ### char to string
 
 ```scheme
-(write-to-str #\a)
+(Io write-to-str #\a)
 ```
 ---
     "#\\a"
@@ -255,7 +255,7 @@
 ### float to string
 
 ```scheme
-(write-to-str 3.14)
+(Io write-to-str 3.14)
 ```
 ---
     "3.14"
@@ -263,7 +263,7 @@
 ### nested list to string
 
 ```scheme
-(write-to-str (list (list 1 2) 3))
+(Io write-to-str (list (list 1 2) 3))
 ```
 ---
     "((1 2) 3)"
@@ -271,7 +271,7 @@
 ### returns a string type
 
 ```scheme
-(str? (write-to-str 42))
+(str? (Io write-to-str 42))
 ```
 ---
     #t
@@ -466,7 +466,7 @@
 ### converted string float has correct value
 
 ```scheme
-(write-to-str (Convert to "3.14" %float))
+(Io write-to-str (Convert to "3.14" %float))
 ```
 ---
     "3.14"

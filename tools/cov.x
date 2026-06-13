@@ -21,12 +21,15 @@
 
 (def %obj-meta-count! (prim-ref (lit obj) (lit meta-count!)))
 (def %obj-meta-ref (prim-ref (lit obj) (lit meta-ref)))
+; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+(def %read (prim-ref (lit io) (lit read)))
+
 
 (do
   ; --- Load construct declarations ---
 
-  (def %constructs (read))
-  (def %lang-constructs (read))
+  (def %constructs (%read))
+  (def %lang-constructs (%read))
   (def %all-constructs
     (if (null? %lang-constructs) %constructs
       (append %constructs %lang-constructs)))
@@ -87,7 +90,7 @@
 
   ; --- Tokenize input ---
 
-  (def %input (read))
+  (def %input (%read))
   (def %tokens (%token-read-string (%base) %input))
 
   ; --- Evaluate all top-level forms ---

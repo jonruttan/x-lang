@@ -17,6 +17,9 @@
 (def %ptr-set! (prim-ref (lit ptr) (lit set!)))
 (def %dlopen (prim-ref (lit ffi) (lit dlopen)))
 (def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+(def %write-to-str (prim-ref (lit io) (lit write-to-str)))
+
 
 
 ; ============================================================
@@ -165,7 +168,7 @@
 
 (def %bc-path "/tmp/turtle.bc")
 (def %bc-fd -1)
-(def %fstr (fn (_ v) (write-to-str v)))
+(def %fstr (fn (_ v) (%write-to-str v)))
 
 (def %bc-open
   (fn ()

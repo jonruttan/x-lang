@@ -101,7 +101,7 @@
 ### executes body with writers pushed
 
 ```scheme
-(str? (compile-with-writers (fn (_) (write-to-str 42))))
+(str? (compile-with-writers (fn (_) (Io write-to-str 42))))
 ```
 ---
     #t

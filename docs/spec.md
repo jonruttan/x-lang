@@ -862,16 +862,16 @@ Returns `()`.
 
 Outputs a newline character.
 
-### `read`
+### `Io read`
 
-`(read) -> obj`
+`(Io read) -> obj`
 
 Reads and parses one s-expression from stdin. Behavior at EOF is
 implementation-dependent.
 
-### `read-char`
+### `Io read-char`
 
-`(read-char) -> char | ()`
+`(Io read-char) -> char | ()`
 
 Reads a single character from stdin. Returns `()` on end-of-input.
 

@@ -9,13 +9,16 @@
 
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %token-read-string (prim-ref (lit tok) (lit read-str)))
+; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+(def %read (prim-ref (lit io) (lit read)))
+
 
 (do
   (import x/doc/doc-gen)
 
   ; --- Read inputs ---
-  (def %prims-input (read))
-  (def %source-input (read))
+  (def %prims-input (%read))
+  (def %source-input (%read))
 
   ; --- Tokenize both with a fresh base ---
   (def %doc-base (make-base))

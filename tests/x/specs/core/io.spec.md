@@ -105,25 +105,25 @@
 ### reads an integer
 
 ```scheme
-(do (def x (read)) x) 42
+(do (def x (Io read)) x) 42
 ```
 
 ### reads a symbol
 
 ```scheme
-(do (def x (read)) x) hello
+(do (def x (Io read)) x) hello
 ```
 
 ### reads a list
 
 ```scheme
-(do (def x (read)) x) (1 2 3)
+(do (def x (Io read)) x) (1 2 3)
 ```
 
 ### reads a string
 
 ```scheme
-(do (def x (read)) x) "world"
+(do (def x (Io read)) x) "world"
 ```
 
 ## read-char
@@ -131,13 +131,13 @@
 ### reads a single character
 
 ```scheme
-(do (def c (read-char)) (char? c))
+(do (def c (Io read-char)) (char? c))
 ```
 
 ### returns nil on end of input
 
 ```scheme
-(do (read-char) (null? (read-char)))
+(do (Io read-char) (null? (Io read-char)))
 ```
 
 ## current-line

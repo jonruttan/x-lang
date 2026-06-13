@@ -5,6 +5,9 @@
 
 (import x/logo/dispatch)
 (import x/logo/indent)
+; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
+(def %read-char (prim-ref (lit io) (lit read-char)))
+
 
 ; ============================================================
 ; Line reader
@@ -14,7 +17,7 @@
   (fn ()
     (def %rl
       (fn (self acc)
-        (def ch (read-char))
+        (def ch (%read-char))
         (if (null? ch)
           (if (null? acc) () (list->str (reverse acc)))
           (if (= ch 10)

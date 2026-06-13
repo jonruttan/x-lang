@@ -30,7 +30,7 @@ BEGIN {
 	unit = ""; tname = ""; input_buf = ""; expect_buf = ""
 	lib = LANG_LIB
 	repl_cmd = REPL_CMD ? REPL_CMD : "(repl)"
-	read_fn = READ_FN ? READ_FN : "read"
+	read_fn = READ_FN ? READ_FN : "Io read"
 	unit_hdr = ""
 	tmpfile = TMPDIR "/spec-" SPEC_ID ".tmp"
 	tc = 0
