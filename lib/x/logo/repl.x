@@ -7,6 +7,9 @@
 (import x/logo/indent)
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
 (def %read-char (prim-ref (lit io) (lit read-char)))
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %integer->char (prim-ref (lit int) (lit ->char)))
+
 
 
 ; ============================================================
@@ -22,7 +25,7 @@
           (if (null? acc) () (list->str (reverse acc)))
           (if (= ch 10)
             (list->str (reverse acc))
-            (self (pair (integer->char ch) acc))))))
+            (self (pair (%integer->char ch) acc))))))
     (%rl ())))
 
 ; ============================================================

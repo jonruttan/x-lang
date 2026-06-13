@@ -27,6 +27,10 @@
 (def %type-of (prim-ref (lit type) (lit of)))
 
 (def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %char->integer (prim-ref (lit char) (lit ->int)))
+(def %integer->char (prim-ref (lit int) (lit ->char)))
+
 
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
@@ -45,8 +49,8 @@
 (doc (def list->str
   (fn (_ chars)
     (bytes->str
-      (map integer->char
-        (fold (fn (_ acc ch) (append acc (%utf8-encode (char->integer ch))))
+      (map %integer->char
+        (fold (fn (_ acc ch) (append acc (%utf8-encode (%char->integer ch))))
               () chars)))))
   (param chars LIST "List of CHARACTERs (Unicode code points)")
   (returns STRING "UTF-8 string encoding each code point")
@@ -60,7 +64,7 @@
       (if (>= i len)
         (reverse acc)
         (let ((d (%utf8-decode s i)))
-          (go (rest d) (pair (integer->char (first d)) acc)))))))
+          (go (rest d) (pair (%integer->char (first d)) acc)))))))
   (param s STRING "String to decode")
   (returns LIST "List of CHARACTERs, one per Unicode code point")
   (example "(str->list \"$¢€\")" "(#\\$ #\\¢ #\\€)")
@@ -93,7 +97,7 @@
 (def %cp-ref
   (fn (_ s i)
     (def k (if (< i 0) (+ i (%cp-count s (%str-byte-len s) 0 0)) i))
-    (integer->char (%utf8-cp-at s (%cp-byte-offset s k 0)))))
+    (%integer->char (%utf8-cp-at s (%cp-byte-offset s k 0)))))
 
 (def %cp-substring
   (fn (_ s start len)

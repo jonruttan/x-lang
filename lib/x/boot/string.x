@@ -8,6 +8,9 @@
 (def %str-byte-len (prim-ref (lit str) (lit byte-len)))
 (def %str-byte-ref (prim-ref (lit str) (lit byte-ref)))
 (def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %char->integer (prim-ref (lit char) (lit ->int)))
+
 
 (def not (fn (_ x) (match (x #f) (#t #t))))
 (def list (fn (_ . args) args))
@@ -30,7 +33,7 @@
   (fn (self a b i len)
     (match
       ((= i len) #t)
-      ((= (char->integer (%str-byte-ref a i)) (char->integer (%str-byte-ref b i)))
+      ((= (%char->integer (%str-byte-ref a i)) (%char->integer (%str-byte-ref b i)))
         (self a b (+ i 1) len))
       (#t #f))))
 (def str=?
@@ -68,26 +71,26 @@
     (match
       ((= len 0) ())
       (#t
-        (let ((%0 (char->integer (%str-byte-ref "0" 0))))
+        (let ((%0 (%char->integer (%str-byte-ref "0" 0))))
           (def %digit
             (fn (_ ch)
-              (def c (char->integer ch))
+              (def c (%char->integer ch))
               (match
                 ((match ((not (< c %0)) (not (< (+ %0 9) c))) (#t #f))
                   (- c %0))
-                ((match ((not (< c (char->integer (%str-byte-ref "a" 0))))
-                         (not (< (+ (char->integer (%str-byte-ref "a" 0)) 25) c))) (#t #f))
-                  (+ 10 (- c (char->integer (%str-byte-ref "a" 0)))))
-                ((match ((not (< c (char->integer (%str-byte-ref "A" 0))))
-                         (not (< (+ (char->integer (%str-byte-ref "A" 0)) 25) c))) (#t #f))
-                  (+ 10 (- c (char->integer (%str-byte-ref "A" 0)))))
+                ((match ((not (< c (%char->integer (%str-byte-ref "a" 0))))
+                         (not (< (+ (%char->integer (%str-byte-ref "a" 0)) 25) c))) (#t #f))
+                  (+ 10 (- c (%char->integer (%str-byte-ref "a" 0)))))
+                ((match ((not (< c (%char->integer (%str-byte-ref "A" 0))))
+                         (not (< (+ (%char->integer (%str-byte-ref "A" 0)) 25) c))) (#t #f))
+                  (+ 10 (- c (%char->integer (%str-byte-ref "A" 0)))))
                 (#t ()))))
-          (def c0 (char->integer (%str-byte-ref s 0)))
-          (def neg (= c0 (char->integer (%str-byte-ref "-" 0))))
+          (def c0 (%char->integer (%str-byte-ref s 0)))
+          (def neg (= c0 (%char->integer (%str-byte-ref "-" 0))))
           (def start
             (match
               (neg 1)
-              ((= c0 (char->integer (%str-byte-ref "+" 0))) 1)
+              ((= c0 (%char->integer (%str-byte-ref "+" 0))) 1)
               (#t 0)))
           (match
             ((= start len) ())

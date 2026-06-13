@@ -4,6 +4,10 @@
 (def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
 
 (import x/codec/utf8)
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %char->integer (prim-ref (lit char) (lit ->int)))
+(def %integer->char (prim-ref (lit int) (lit ->char)))
+
 
 ; StrUTF8 reinterprets the SAME bytes as Str8, but one whole UTF-8 sequence per
 ; element, yielding the decoded code point as a CHARACTER. It inherits the full
@@ -37,7 +41,7 @@
       (doc "The i-th CODE POINT of v as a CHARACTER, found by an O(n) UTF-8 walk."
         (returns CHAR "Code point at position i")
         (example "(StrUTF8 index \"$¢€\" 1)" "#\\¢"))
-      (integer->char (first (%utf8-decode v (%u8-byte-offset v i 0)))))
+      (%integer->char (first (%utf8-decode v (%u8-byte-offset v i 0)))))
 
     (method sub (self (param v STRING "Source string") (param start INT "Start code-point offset (0-based)") (param len INT "Number of code points"))
       (doc "Substring of len CODE POINTS starting at code-point offset start (O(n) walk)."
@@ -52,14 +56,14 @@
         (returns PAIR "Pair of the decoded code point (CHARACTER) and the next byte offset")
         (example "(StrUTF8 step \"$¢\" 1)" "(#\\¢ . 3)"))
       (let ((d (%utf8-decode v cur)))
-        (pair (integer->char (first d)) (rest d))))
+        (pair (%integer->char (first d)) (rest d))))
 
     ; encode: a code point -> its UTF-8 bytes (inverse of step)
     (method char->bytes (self (param el CHAR "Code point to encode"))
       (doc "Encode one CODE POINT to its 1-4 UTF-8 bytes (inverse of step)."
         (returns LIST "List of the UTF-8 byte values (integers) for el")
         (example "(StrUTF8 char->bytes (integer->char 162))" "(194 162)"))
-      (%utf8-encode (char->integer el)))
+      (%utf8-encode (%char->integer el)))
 
     ; --- The byte <-> code-point codec (x/codec/utf8 surfaces here) ---
     (method seq-len (self (param b INT "Lead byte value (0-255)"))

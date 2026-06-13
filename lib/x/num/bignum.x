@@ -22,6 +22,9 @@
 (def %make-type (prim-ref (lit type) (lit make)))
 (def %type-of (prim-ref (lit type) (lit of)))
 (def %type? (prim-ref (lit type) (lit ?)))
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %char->integer (prim-ref (lit char) (lit ->int)))
+
 
 
 
@@ -237,10 +240,10 @@
   (fn (_ s)
     (def len (str-length s))
     (def neg (if (%int< 0 len)
-               (if (%int= (char->integer (str-ref s 0)) 45) #t #f) #f))
+               (if (%int= (%char->integer (str-ref s 0)) 45) #t #f) #f))
     (def start (if neg 1
                  (if (if (%int< 0 len)
-                       (%int= (char->integer (str-ref s 0)) 43) #f) 1 0)))
+                       (%int= (%char->integer (str-ref s 0)) 43) #f) 1 0)))
     (def sign (if neg -1 1))
     (def digit-str (if (%int= start 0) s (substring s start len)))
     (def dlen (str-length digit-str))

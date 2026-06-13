@@ -17,6 +17,10 @@
 (def %type-push-display (prim-ref (lit type) (lit push-display)))
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %type-of (prim-ref (lit type) (lit of)))
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %char->integer (prim-ref (lit char) (lit ->int)))
+(def %integer->char (prim-ref (lit int) (lit ->char)))
+
 
 
 
@@ -50,14 +54,14 @@
 (def %char-write
   (fn (_ ch)
     (display "#\\")
-    (let ((name (%char-name (char->integer ch))))
+    (let ((name (%char-name (%char->integer ch))))
       (if (null? name)
         (display (%char->str ch))   ; glyph: the char's UTF-8 bytes
         (display name)))))          ; named: #\newline etc.
 
 ; --- install (push over the C fallback) ---
 
-(let ((ct (%type-by-atom (%type-of (integer->char 0)))))
+(let ((ct (%type-by-atom (%type-of (%integer->char 0)))))
   (%type-push-display ct %char-display)
   (%type-push-write   ct %char-write))
 

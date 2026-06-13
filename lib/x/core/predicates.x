@@ -11,6 +11,9 @@
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %type-of (prim-ref (lit type) (lit of)))
 (def %type? (prim-ref (lit type) (lit ?)))
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %integer->char (prim-ref (lit int) (lit ->char)))
+
 
 
 (def null? (fn (_ x) (eq? x ())))
@@ -19,7 +22,7 @@
 (def %type-int (%type-of 0))
 (def %type-str (%type-of ""))
 (def %type-sym (%type-of (lit a)))
-(def %type-char (%type-of (integer->char 0)))
+(def %type-char (%type-of (%integer->char 0)))
 (def %type-proc (%type-of (fn (_ ) ())))
 (def %type-prim (%type-of eq?))
 

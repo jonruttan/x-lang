@@ -9,6 +9,9 @@
 (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
 (def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
 (def %ptr-set-word! (prim-ref (lit ptr) (lit set-word!)))
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
+
 
 
 (def set-first! (fn (_ p v) (%obj-set! p 0 v) p))
@@ -17,7 +20,7 @@
 ; %word-size and %data-offset computed once at boot
 (def %word-size
   (match
-    ((< 0 (%ptr->int (int->ptr 4294967296))) 8)
+    ((< 0 (%ptr->int (%int->ptr 4294967296))) 8)
     (#t 4)))
 (def %data-offset (* %word-size 3))
 

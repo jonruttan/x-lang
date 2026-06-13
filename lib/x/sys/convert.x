@@ -44,6 +44,11 @@
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %type-of (prim-ref (lit type) (lit of)))
 
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %char->integer (prim-ref (lit char) (lit ->int)))
+(def %integer->char (prim-ref (lit int) (lit ->char)))
+(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
+
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
 (def %ptr->str (prim-ref (lit ptr) (lit ->str)))
@@ -74,10 +79,10 @@
 
 ; --- Type handles ---
 (def %int    (%type-of 0))
-(def %char   (%type-of (integer->char 0)))
+(def %char   (%type-of (%integer->char 0)))
 (def %string (%type-of ""))
 (def %symbol (%type-of (lit x)))
-(def %ptr    (%type-of (int->ptr 0)))
+(def %ptr    (%type-of (%int->ptr 0)))
 (def %pair   (%type-of (list 0)))
 
 ; --- Register from alists (inbound conversions) ---
@@ -85,7 +90,7 @@
 ; INT: from char, string, ptr
 (%type-set-from! (%type-by-atom %int)
   (list
-    (pair %char   (fn (_ v . extra) (char->integer v)))
+    (pair %char   (fn (_ v . extra) (%char->integer v)))
     (pair %string (fn (_ v . extra)
                     (if (null? extra)
                       (str->number v)
@@ -95,7 +100,7 @@
 ; CHAR: from int
 (%type-set-from! (%type-by-atom %char)
   (list
-    (pair %int (fn (_ v . extra) (integer->char v)))))
+    (pair %int (fn (_ v . extra) (%integer->char v)))))
 
 ; STRING: from int, symbol, list (nil type-of), ptr (copies the C string,
 ; so FFI results like getenv survive; inverse of PTR <- string below)
@@ -118,7 +123,7 @@
 ; PTR opts out of the miss policy by accepting every source type)
 (%type-set-from! (%type-by-atom %ptr)
   (list
-    (pair %int    (fn (_ v . extra) (int->ptr v)))
+    (pair %int    (fn (_ v . extra) (%int->ptr v)))
     (pair %string (fn (_ v . extra) (%str->ptr v)))
     (pair %ptr    (fn (_ v . extra) v))
     (pair #t (fn (_ v . extra) (%obj->ptr v)))))

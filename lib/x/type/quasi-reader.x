@@ -19,6 +19,9 @@
 (def %buffer-token (prim-ref (lit buf) (lit tok)))
 (def %buffer-last-char (prim-ref (lit buf) (lit last-char)))
 (def %token-read (prim-ref (lit tok) (lit read)))
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %char->integer (prim-ref (lit char) (lit ->int)))
+
 
 (def %quasi-accept
   (fn (_ buffer score _)
@@ -55,7 +58,7 @@
     (if (= (%buffer-last-char buffer) 44)
       (pair (lit unquote) (pair (%token-read buffer) ()))
       (if (= (%buffer-last-char buffer) 64)
-        (if (= (char->integer (str-ref (%buffer-token buffer) 0)) 44)
+        (if (= (%char->integer (str-ref (%buffer-token buffer) 0)) 44)
           (pair (lit unquote-splicing) (pair (%token-read buffer) ()))
           ())
         ()))))

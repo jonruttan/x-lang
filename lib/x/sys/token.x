@@ -1,5 +1,8 @@
 ; token.x -- Composable tokenizer state builders
 (import x/type/char)
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %char->integer (prim-ref (lit char) (lit ->int)))
+
 
 (note "Terminators")
 
@@ -104,7 +107,7 @@
     (def %build
       (fn (self i)
         (if (= i len) next
-          (make-char-state (char->integer (str-ref s i))
+          (make-char-state (%char->integer (str-ref s i))
             (self (+ i 1))
             fail))))
     (%build 0)))

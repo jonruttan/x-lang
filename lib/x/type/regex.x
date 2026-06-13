@@ -23,6 +23,9 @@
 (def %make-type (prim-ref (lit type) (lit make)))
 (def %make-instance (prim-ref (lit type) (lit make-instance)))
 (def %type? (prim-ref (lit type) (lit ?)))
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %char->integer (prim-ref (lit char) (lit ->int)))
+
 
 
 
@@ -43,7 +46,7 @@
 ; Character class membership: check if chr (char) matches any entry (int codes)
 (def %regex-class-match
   (fn (self entries chr)
-    (def c (char->integer chr))
+    (def c (%char->integer chr))
     (if (null? entries) #f
       (let ((e (first entries)))
         (if (pair? e)
@@ -209,16 +212,16 @@
             (if (= pos 0) (%regex-exec rest-nodes str pos end) ()))
           ((eq? tag (lit anchor-word-boundary))
             (let ((left-word (if (= pos 0) #f
-                    (%regex-is-word-char (char->integer (str-ref str (- pos 1))))))
+                    (%regex-is-word-char (%char->integer (str-ref str (- pos 1))))))
                   (right-word (if (= pos end) #f
-                    (%regex-is-word-char (char->integer (str-ref str pos))))))
+                    (%regex-is-word-char (%char->integer (str-ref str pos))))))
               (if (eq? left-word right-word) ()
                 (%regex-exec rest-nodes str pos end))))
           ((eq? tag (lit anchor-not-word-boundary))
             (let ((left-word (if (= pos 0) #f
-                    (%regex-is-word-char (char->integer (str-ref str (- pos 1))))))
+                    (%regex-is-word-char (%char->integer (str-ref str (- pos 1))))))
                   (right-word (if (= pos end) #f
-                    (%regex-is-word-char (char->integer (str-ref str pos))))))
+                    (%regex-is-word-char (%char->integer (str-ref str pos))))))
               (if (eq? left-word right-word)
                 (%regex-exec rest-nodes str pos end) ())))
           ((eq? tag (lit anchor-end))
@@ -380,22 +383,22 @@
     (def %go
       (fn (self i acc)
         (if (>= i end) (pair (pair tag (reverse acc)) i)
-          (let ((ch (char->integer (str-ref s i))))
+          (let ((ch (%char->integer (str-ref s i))))
             (match
               ((= ch #\])
                 (pair (pair tag (reverse acc)) (+ i 1)))
               ; Escape inside class: \d \w \s etc. expand to ranges/literals
               ((= ch #\\)
                 (if (>= (+ i 1) end) (self (+ i 1) (pair ch acc))
-                  (let ((esc (char->integer (str-ref s (+ i 1)))))
+                  (let ((esc (%char->integer (str-ref s (+ i 1)))))
                     (match
                       ((= esc #\d) (self (+ i 2) (pair (pair 48 57) acc)))
                       ((= esc #\w) (self (+ i 2) (pair 95 (pair (pair 97 122) (pair (pair 65 90) (pair (pair 48 57) acc))))))
                       ((= esc #\s) (self (+ i 2) (pair 13 (pair 10 (pair 9 (pair 32 acc))))))
                       (#t (self (+ i 2) (pair esc acc)))))))
               ; Range: a-z
-              ((and (< (+ i 2) end) (= (char->integer (str-ref s (+ i 1))) #\-))
-                (let ((hi (char->integer (str-ref s (+ i 2)))))
+              ((and (< (+ i 2) end) (= (%char->integer (str-ref s (+ i 1))) #\-))
+                (let ((hi (%char->integer (str-ref s (+ i 2)))))
                   (self (+ i 3) (pair (pair ch hi) acc))))
               (#t (self (+ i 1) (pair ch acc))))))))
     (%go start ())))

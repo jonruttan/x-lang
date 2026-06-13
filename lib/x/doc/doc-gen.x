@@ -10,6 +10,9 @@
 (def %str-append (prim-ref (lit str) (lit append)))
 
 (import x/type/str)
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %integer->char (prim-ref (lit int) (lit ->char)))
+
 
 ; --- Predicates (cross-base: use str=? not eq?) ---
 
@@ -269,7 +272,7 @@
         (def %mod-name (symbol->str (List nth 0 %provide)))
         ; Back navigation — count slashes to determine depth
         (def %depth
-          (fold (fn (_ acc ch) (if (= ch (integer->char 47)) (+ acc 1) acc))
+          (fold (fn (_ acc ch) (if (= ch (%integer->char 47)) (+ acc 1) acc))
             0 (Str ->list %mod-name)))
         (def %back
           (fold (fn (_ acc _) (%str-append acc "../"))

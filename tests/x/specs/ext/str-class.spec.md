@@ -20,7 +20,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### Str8 index is always a byte
 
 ```x
-(char->integer (Str8 index "$¢€" 1))
+(Char ->int (Str8 index "$¢€" 1))
 ```
 ---
     194
@@ -28,7 +28,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### StrUTF8 index is always a code point
 
 ```x
-(char->integer (StrUTF8 index "$¢€" 1))
+(Char ->int (StrUTF8 index "$¢€" 1))
 ```
 ---
     162
@@ -36,7 +36,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### Str (active) is code points by default
 
 ```x
-(char->integer (Str index "$¢€" 1))
+(Char ->int (Str index "$¢€" 1))
 ```
 ---
     162
@@ -60,7 +60,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### str-byte-* primitives are always byte (handler-immune)
 
 ```x
-(char->integer (Str8 index "$¢€" 1))
+(Char ->int (Str8 index "$¢€" 1))
 ```
 ---
     194
@@ -184,7 +184,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### ref returns the i-th code point
 
 ```x
-(char->integer (StrUTF8 ref "$¢€" 1))
+(Char ->int (StrUTF8 ref "$¢€" 1))
 ```
 ---
     162
@@ -250,7 +250,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### str-ref is byte-level
 
 ```x
-(char->integer (str-ref "$¢€" 1))
+(Char ->int (str-ref "$¢€" 1))
 ```
 ---
     194
@@ -258,7 +258,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### str->list decodes code points (active protocol)
 
 ```x
-(map char->integer (str->list "$¢€"))
+(map (method-ref Char ->int) (str->list "$¢€"))
 ```
 ---
     (36 162 8364)

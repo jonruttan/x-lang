@@ -13,6 +13,9 @@
 (def %ptr-set! (prim-ref (lit ptr) (lit set!)))
 (def %dlopen (prim-ref (lit ffi) (lit dlopen)))
 (def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
+
 
 
 ; ============================================================
@@ -28,7 +31,7 @@
     (def fd (Sys open-read path))
     (if (< fd 0) (error (Str append "Cannot open: " path)))
     (def bufsize 65536)
-    (def buf (int->ptr (%ptr-call %c-malloc bufsize)))
+    (def buf (%int->ptr (%ptr-call %c-malloc bufsize)))
     (def %read-all
       (fn (self acc)
         (def n (%ptr-call %c-read fd buf (- bufsize 1)))

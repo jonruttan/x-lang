@@ -14,6 +14,9 @@
 (def %make-type (prim-ref (lit type) (lit make)))
 (def %type-of (prim-ref (lit type) (lit of)))
 (def %type? (prim-ref (lit type) (lit ?)))
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %char->integer (prim-ref (lit char) (lit ->int)))
+
 
 
 ; ============================================================
@@ -116,14 +119,14 @@
     (Base make-type base "LOGO-CLOSE"
       (list
         (pair (lit analyse)
-          (make-char-state (char->integer #\]) token-accept ()))
+          (make-char-state (%char->integer #\]) token-accept ()))
         (pair (lit read) (fn (_ . args) %logo-block-close))))
 
     ; LOGO-OPEN
     (Base make-type base "LOGO-OPEN"
       (list
         (pair (lit analyse)
-          (make-char-state (char->integer #\[) token-accept ()))
+          (make-char-state (%char->integer #\[) token-accept ()))
         (pair (lit read)
           (fn (_ . args)
             (def buf (first args))

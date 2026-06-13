@@ -19,6 +19,9 @@
 (def %dlsym (prim-ref (lit ffi) (lit dlsym)))
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
 (def %write-to-str (prim-ref (lit io) (lit write-to-str)))
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
+
 
 
 
@@ -58,7 +61,7 @@
 ; Returns a ptr that must be freed after bind.
 (def %make-sockaddr-in
   (fn (_ port)
-    (def addr (int->ptr (%ptr-call %c-malloc 16)))
+    (def addr (%int->ptr (%ptr-call %c-malloc 16)))
     (%ptr-call %c-memset addr 0 16)
     (ptr-set1! addr 0 16)               ; sin_len (macOS)
     (ptr-set1! addr 1 %AF_INET)         ; sin_family
@@ -73,7 +76,7 @@
     (def fd (%ptr-call %c-socket %AF_INET %SOCK_STREAM 0))
     (if (< fd 0) (error "socket() failed"))
     ; Set SO_REUSEADDR
-    (def optval (int->ptr (%ptr-call %c-malloc 4)))
+    (def optval (%int->ptr (%ptr-call %c-malloc 4)))
     (ptr-set1! optval 0 1) (ptr-set1! optval 1 0)
     (ptr-set1! optval 2 0) (ptr-set1! optval 3 0)
     (%ptr-call %c-setsockopt fd %SOL_SOCKET %SO_REUSEADDR optval 4)
@@ -90,7 +93,7 @@
 ; Read up to n bytes from fd into a new string.
 (def %fd-read-string
   (fn (_ fd maxlen)
-    (def buf (int->ptr (%ptr-call %c-malloc (+ maxlen 1))))
+    (def buf (%int->ptr (%ptr-call %c-malloc (+ maxlen 1))))
     (def n (%ptr-call %c-read fd buf maxlen))
     (if (<= n 0)
       (do (%ptr-call %c-free buf) ())
@@ -149,7 +152,7 @@
       ; let, not def-in-do: this is the tail (def would leak to global)
       (let ((%read-all
              (fn (self acc)
-               (def buf (int->ptr (%ptr-call %c-malloc %slurp-chunk)))
+               (def buf (%int->ptr (%ptr-call %c-malloc %slurp-chunk)))
                (def n (%ptr-call %c-read fd buf (- %slurp-chunk 1)))
                (if (<= n 0)
                  (do (%ptr-call %c-free buf) acc)

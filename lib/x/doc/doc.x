@@ -28,6 +28,9 @@
 (def %str-append (prim-ref (lit str) (lit append)))
 (def %str->symbol (prim-ref (lit str) (lit ->sym)))
 (def %str-lt (prim-ref (lit str) (lit <?)))
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %char->integer (prim-ref (lit char) (lit ->int)))
+
 
 (def %doc-reverse
   (fn (_ lst)
@@ -513,8 +516,8 @@
   (fn (loop a b i)
     (if (>= i (str-length a)) (< (str-length a) (str-length b))
       (if (>= i (str-length b)) #f
-        (let ((ca (char->integer (str-ref a i)))
-              (cb (char->integer (str-ref b i))))
+        (let ((ca (%char->integer (str-ref a i)))
+              (cb (%char->integer (str-ref b i))))
           (if (< ca cb) #t (if (> ca cb) #f (loop a b (+ i 1)))))))))
 
 ; #t if symbol x is in the list of symbols lst.

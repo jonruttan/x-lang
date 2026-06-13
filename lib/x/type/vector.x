@@ -17,6 +17,9 @@
 (def %type? (prim-ref (lit type) (lit ?)))
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
 (def %read (prim-ref (lit io) (lit read)))
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %char->integer (prim-ref (lit char) (lit ->int)))
+
 
 
 ; N+1 slot objects: slot 0 = length, slots 1..N = elements.
@@ -64,9 +67,9 @@
       (pair
         (lit analyse)
         (fn (_ buffer score chr)
-          (if (= chr (char->integer #\#))
+          (if (= chr (%char->integer #\#))
             (fn (_ buf sc c0)
-              (if (= c0 (char->integer #\())
+              (if (= c0 (%char->integer #\())
                 (do (buffer-unread buf) (score-set sc 1 buf))
                 ()))
             ())))

@@ -5,6 +5,9 @@
 (def %str-byte-len (prim-ref (lit str) (lit byte-len)))
 (def %str-byte-ref (prim-ref (lit str) (lit byte-ref)))
 (def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
+; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
+(def %char->integer (prim-ref (lit char) (lit ->int)))
+
 
 
 ; Str8 treats a STRING as its raw bytes (8-bit chars, 0-255), with no encoding
@@ -62,7 +65,7 @@
 
     ; encode: one byte element is its own low byte. Makes
     ; (Str8 ->str (Str8 ->list s)) an identity on the byte view.
-    (method char->bytes (self el) (list (& (char->integer el) 255)))
+    (method char->bytes (self el) (list (& (%char->integer el) 255)))
 
     ; --- equality (byte equality; correct code-point equality for UTF-8 too) ---
     (method =? (self (param a STRING "First string") (param b STRING "Second string"))
@@ -72,8 +75,8 @@
       (if (= (self length a) (self length b))
         (let go ((i 0) (n (self length a)))
           (if (= i n) #t
-            (if (= (char->integer (self index a i))
-                   (char->integer (self index b i)))
+            (if (= (%char->integer (self index a i))
+                   (%char->integer (self index b i)))
               (go (+ i 1) n) #f)))
         #f))
 

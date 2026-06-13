@@ -120,7 +120,7 @@
 ### the apostrophe character literal still reads
 
 ```scheme
-(char->integer #\')
+(Char ->int #\')
 ```
 ---
     39

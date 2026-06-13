@@ -109,7 +109,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ```x
 (do
   (import x/protocol/str/utf8)
-  (Utf8 fold "AB" (fn (_ a c) (+ a (char->integer c))) 0))
+  (Utf8 fold "AB" (fn (_ a c) (+ a (Char ->int c))) 0))
 ```
 ---
     131

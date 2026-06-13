@@ -1,5 +1,7 @@
 ; seq.x -- Seq: the base sequence protocol (cursor-based traversal)
 (import x/type/object)
+; Fetch the int->char cast from the catalog (ns `int` utility member de-registered, R5).
+(def %integer->char (prim-ref (lit int) (lit ->char)))
 
 ; A Seq subclass describes how to walk some in-memory value V as a sequence of
 ; elements. A subclass supplies just three cursor primitives:
@@ -96,7 +98,7 @@
         (returns STRING "The encoded string")
         (example "(Str8 ->str (list #\\h #\\i))" "\"hi\""))
       (bytes->str
-        (map integer->char
+        (map %integer->char
           (fold (fn (_ acc el) (append acc (self char->bytes el)))
                 () elements))))))
 

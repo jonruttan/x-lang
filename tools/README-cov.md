@@ -55,7 +55,7 @@ de-registered: fetch with `(prim-ref (lit obj) (lit ->ptr))` or use the Obj clas
 
 ```scheme
 (def word-size
-  (if (> (Ptr ->int (int->ptr 4294967296)) 0) 8 4))
+  (if (> (Ptr ->int (Ptr from-int 4294967296)) 0) 8 4))
 (def %flags-offset (* 2 word-size))
 
 (def obj-flags (fn (obj)

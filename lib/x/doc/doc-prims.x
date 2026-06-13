@@ -211,13 +211,9 @@
   (param b INT "Second number")
   (returns BOOLEAN "t if a < b"))
 
-(doc char->integer "Convert a character to its integer code point."
-  (param c CHAR "A character")
-  (returns INT "Code point"))
-
-(doc integer->char "Convert an integer code point to a character."
-  (param n INT "Code point")
-  (returns CHAR "A character"))
+; char->integer (ns char) and integer->char (ns int) are de-registered (R5);
+; the Char class (->int / from-int) carries their docs. Reader-hot consumers
+; fetch the prim directly.
 
 ; === Strings ===
 
@@ -266,11 +262,8 @@
 
 ; dlopen/dlsym/ffi-call (ns ffi) and ptr-call/ptr->int/... (ns ptr) are
 ; de-registered (R5); the Ffi and Ptr classes (lib/x/type/ptr.x) carry their
-; docs. int->ptr remains bare (ns int) until the int-utility flip.
-
-(doc int->ptr "Convert an integer to a pointer."
-  (param n INT "Integer value")
-  (returns PTR "A pointer"))
+; docs. int->ptr (ns int) is de-registered (R5) too -- (Ptr from-int) is the
+; surface; reader/hot callers fetch (prim-ref (lit int) (lit ->ptr)).
 
 ; === Continuations ===
 
