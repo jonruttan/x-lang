@@ -19,6 +19,10 @@
 
 ; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
 (def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
+; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+(def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
+(def %ptr-set-word! (prim-ref (lit ptr) (lit set-word!)))
+
 
 ; --- Type struct navigation ---
 
@@ -177,8 +181,8 @@
   (fn (_ obj type-src)
     (def %dst-ptr (%obj->ptr obj))
     (def %src-ptr (%obj->ptr type-src))
-    (def %type-val (ptr-ref-word %src-ptr %type-offset))
-    (ptr-set-word! %dst-ptr %type-offset %type-val)
+    (def %type-val (%ptr-ref-word %src-ptr %type-offset))
+    (%ptr-set-word! %dst-ptr %type-offset %type-val)
     obj))
 
 ; --- File everything in the catalog (ns type) ---

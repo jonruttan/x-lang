@@ -11,6 +11,13 @@
 (def %str->symbol (prim-ref (lit str) (lit ->sym)))
 
 (import x/type/str)
+; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+(def %ptr-call (prim-ref (lit ptr) (lit call)))
+(def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+(def %ptr-set! (prim-ref (lit ptr) (lit set!)))
+(def %dlopen (prim-ref (lit ffi) (lit dlopen)))
+(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+
 
 ; --- Platform detection ---
 (def %asm-darwin? (Str contains? "darwin" x-machine))
@@ -28,27 +35,27 @@
     (| 2 32)))    ; MAP_PRIVATE|MAP_ANON (Linux)
 
 ; --- Memory management via C library (more portable than raw syscalls) ---
-(def %libc (dlopen () 1))
-(def %c-mmap     (dlsym %libc "mmap"))
-(def %c-mprotect (dlsym %libc "mprotect"))
-(def %c-munmap   (dlsym %libc "munmap"))
-(def %c-icache   (dlsym %libc "sys_icache_invalidate"))
+(def %libc (%dlopen () 1))
+(def %c-mmap     (%dlsym %libc "mmap"))
+(def %c-mprotect (%dlsym %libc "mprotect"))
+(def %c-munmap   (%dlsym %libc "munmap"))
+(def %c-icache   (%dlsym %libc "sys_icache_invalidate"))
 
 (def %asm-mmap
   (fn (_ size)
-    (ptr-call %c-mmap 0 size 3 %MAP-FLAGS -1 0)))  ; PROT_READ|PROT_WRITE=3
+    (%ptr-call %c-mmap 0 size 3 %MAP-FLAGS -1 0)))  ; PROT_READ|PROT_WRITE=3
 
 (def %asm-mprotect-rx!
   (fn (_ ptr size)
     ; Flush icache on ARM (no-op if unavailable)
     (if (not (null? %c-icache))
-      (ptr-call %c-icache (ptr->int ptr) size) ())
+      (%ptr-call %c-icache (%ptr->int ptr) size) ())
     ; Switch to read+execute
-    (ptr-call %c-mprotect (ptr->int ptr) size 5)))  ; PROT_READ|PROT_EXEC=5
+    (%ptr-call %c-mprotect (%ptr->int ptr) size 5)))  ; PROT_READ|PROT_EXEC=5
 
 (def %asm-munmap
   (fn (_ ptr size)
-    (ptr-call %c-munmap (ptr->int ptr) size)))
+    (%ptr-call %c-munmap (%ptr->int ptr) size)))
 
 ; --- Operand constructors ---
 (def reg   (fn (_ n)        (list (lit reg) n)))
@@ -77,7 +84,7 @@
 (def %emit-u8!
   (fn (_ asm byte)
     (def pos (%obj-ref asm 1))
-    (ptr-set! (%obj-ref asm 0) pos (& byte 255) 1)
+    (%ptr-set! (%obj-ref asm 0) pos (& byte 255) 1)
     (%obj-set! asm 1 (+ pos 1))))
 
 (def %emit-u32-le!
@@ -177,7 +184,7 @@
           (let ((val (if (eq? ptype (lit rel))
                        (- target (+ offset width))
                        target)))
-            (ptr-set! buf-ptr offset val width))))
+            (%ptr-set! buf-ptr offset val width))))
       patches)
     ; Make executable (includes icache flush on ARM)
     (%asm-mprotect-rx! buf-ptr (%obj-ref asm 2))

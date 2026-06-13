@@ -51,15 +51,15 @@ sh tools/cov.sh /tmp/test.x
 All flag operations are pure x-lang, built on two C primitives (ns `obj` is
 de-registered: fetch with `(prim-ref (lit obj) (lit ->ptr))` or use the Obj class):
 - `(Obj ->ptr)` -- returns a raw pointer to any object's base array
-- `ptr-ref-word` -- reads `sizeof(long)` bytes from a pointer at an offset
+- `(Ptr ref-word)` -- reads `sizeof(long)` bytes from a pointer at an offset
 
 ```scheme
 (def word-size
-  (if (> (ptr->int (int->ptr 4294967296)) 0) 8 4))
+  (if (> (Ptr ->int (int->ptr 4294967296)) 0) 8 4))
 (def %flags-offset (* 2 word-size))
 
 (def obj-flags (fn (obj)
-  (ptr-ref-word (Obj ->ptr obj) %flags-offset)))
+  (Ptr ref-word (Obj ->ptr obj) %flags-offset)))
 ```
 
 ## Limitations

@@ -275,24 +275,9 @@
 
 (note "Foreign function interface")
 
-(doc dlopen "Load a shared library."
-  (param path STRING "Library file path")
-  (param mode INT "dlopen mode flags")
-  (returns PTR "Library handle"))
-
-(doc dlsym "Look up a symbol in a loaded library."
-  (param lib PTR "Library handle from dlopen")
-  (param name STRING "Symbol name")
-  (returns PTR "Function or data pointer"))
-
-(doc ptr-call "Call a C function pointer with string args."
-  (param ptr PTR "Function pointer")
-  (param args STRING "Arguments (variadic)")
-  (returns INT "Return value"))
-
-(doc ptr->int "Convert a pointer to an integer."
-  (param p PTR "A pointer")
-  (returns INT "Integer representation"))
+; dlopen/dlsym/ffi-call (ns ffi) and ptr-call/ptr->int/... (ns ptr) are
+; de-registered (R5); the Ffi and Ptr classes (lib/x/type/ptr.x) carry their
+; docs. int->ptr remains bare (ns int) until the int-utility flip.
 
 (doc int->ptr "Convert an integer to a pointer."
   (param n INT "Integer value")

@@ -15,6 +15,11 @@
 (def %make-type (prim-ref (lit type) (lit make)))
 (def %type-of (prim-ref (lit type) (lit of)))
 (def %type? (prim-ref (lit type) (lit ?)))
+; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+(def %dlopen (prim-ref (lit ffi) (lit dlopen)))
+(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+(def %ffi-call (prim-ref (lit ffi) (lit call)))
+
 
 
 ;
@@ -34,13 +39,13 @@
 ; These use generic ffi-call conventions (no function pointer needed)
 
 (def %float->str
-  (fn (_ bits) (ffi-call "d->s" () bits)))
+  (fn (_ bits) (%ffi-call "d->s" () bits)))
 
 (def %int->float
-  (fn (_ n) (ffi-call "i->d" () n)))
+  (fn (_ n) (%ffi-call "i->d" () n)))
 
 (def %float->int
-  (fn (_ bits) (ffi-call "d->i" () bits)))
+  (fn (_ bits) (%ffi-call "d->i" () bits)))
 
 ; State machine for tokenizer: matches [0-9]+\.[0-9]+
 ; Uses intrinsic scoring — score computed from buffer length.
@@ -73,16 +78,16 @@
 ; Try libm.so.6 (Linux), libm.dylib (macOS), then fall back to current process
 
 (def %libm
-  (let ((h (dlopen "libm.so.6" 1)))
+  (let ((h (%dlopen "libm.so.6" 1)))
     (if h h
-      (let ((h2 (dlopen "libm.dylib" 1)))
+      (let ((h2 (%dlopen "libm.dylib" 1)))
         (if h2 h2
-          (dlopen () 1))))))
+          (%dlopen () 1))))))
 
-(def %strtod (dlsym %libm "strtod"))
+(def %strtod (%dlsym %libm "strtod"))
 
 (def %str->float
-  (fn (_ s) (ffi-call "s0->d" %strtod s)))
+  (fn (_ s) (%ffi-call "s0->d" %strtod s)))
 
 ; Float type with tokenizer, display, and alist-based convert
 
@@ -135,29 +140,29 @@
 
 (def %f-add
   (fn (_ a b)
-    (%make-instance %float (ffi-call "d+d" () (first a) (first b)))))
+    (%make-instance %float (%ffi-call "d+d" () (first a) (first b)))))
 
 (def %f-sub
   (fn (_ a b)
-    (%make-instance %float (ffi-call "d-d" () (first a) (first b)))))
+    (%make-instance %float (%ffi-call "d-d" () (first a) (first b)))))
 
 (def %f-mul
   (fn (_ a b)
-    (%make-instance %float (ffi-call "d*d" () (first a) (first b)))))
+    (%make-instance %float (%ffi-call "d*d" () (first a) (first b)))))
 
 (def %f-div
   (fn (_ a b)
-    (%make-instance %float (ffi-call "d/d" () (first a) (first b)))))
+    (%make-instance %float (%ffi-call "d/d" () (first a) (first b)))))
 
 (note "Comparisons")
 
 ; --- Comparisons ---
 
 (def %f-lt
-  (fn (_ a b) (ffi-call "d<d" () (first a) (first b))))
+  (fn (_ a b) (%ffi-call "d<d" () (first a) (first b))))
 
 (def %f-eq
-  (fn (_ a b) (ffi-call "d=d" () (first a) (first b))))
+  (fn (_ a b) (%ffi-call "d=d" () (first a) (first b))))
 
 ; Reader: called by tokenizer after successful analyse
 ; Uses %buffer-token to extract consumed text, then strtod to parse
@@ -166,7 +171,7 @@
   (fn (_ . args)
     (%make-instance
       %float
-      (ffi-call "s0->d" %strtod (%buffer-token (first args))))))
+      (%ffi-call "s0->d" %strtod (%buffer-token (first args))))))
 
 (note "Math Functions")
 
@@ -174,17 +179,17 @@
 
 (def %libm-d
   (fn (_ name)
-    (let ((sym (dlsym %libm name)))
+    (let ((sym (%dlsym %libm name)))
       (fn (_ x)
-        (%make-instance %float (ffi-call "d->d" sym (first x)))))))
+        (%make-instance %float (%ffi-call "d->d" sym (first x)))))))
 
 (def %libm-dd
   (fn (_ name)
-    (let ((sym (dlsym %libm name)))
+    (let ((sym (%dlsym %libm name)))
       (fn (_ a b)
         (%make-instance
           %float
-          (ffi-call "dd->d" sym (first a) (first b)))))))
+          (%ffi-call "dd->d" sym (first a) (first b)))))))
 
 (def %fsin (%libm-d "sin"))
 

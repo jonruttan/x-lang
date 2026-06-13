@@ -1,6 +1,10 @@
 ; asm/arm64.x -- ARM64 opcode table and fixed-width encoder
 
 ; --- Register aliases ---
+; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+(def %ptr-ref (prim-ref (lit ptr) (lit ref)))
+(def %ptr-set! (prim-ref (lit ptr) (lit set!)))
+
 (def x0  (reg 0))  (def x1  (reg 1))  (def x2  (reg 2))  (def x3  (reg 3))
 (def x4  (reg 4))  (def x5  (reg 5))  (def x6  (reg 6))  (def x7  (reg 7))
 (def x8  (reg 8))  (def x9  (reg 9))  (def x10 (reg 10)) (def x11 (reg 11))
@@ -242,18 +246,18 @@
 ; For B/BL: imm26 = (target - offset) >> 2, OR'd into low 26 bits
 (def %arm64-patch
   (fn (_ buf-ptr offset width ptype target)
-    (def word (ptr-ref buf-ptr offset 4))
+    (def word (%ptr-ref buf-ptr offset 4))
     (def rel (>> (- target offset) 2))
     (if (eq? ptype (lit arm64-rel))
       ; B/BL: imm26 at [25:0]
       (let ((mask (- (<< 1 26) 1)))
-        (ptr-set! buf-ptr offset (| (& word (~ mask)) (& rel mask)) 4))
+        (%ptr-set! buf-ptr offset (| (& word (~ mask)) (& rel mask)) 4))
       (if (eq? ptype (lit arm64-rel19))
         ; CBZ/CBNZ/B.cond: imm19 at [23:5]
         (let ((mask (<< (- (<< 1 19) 1) 5)))
-          (ptr-set! buf-ptr offset (| (& word (~ mask)) (& (<< (& rel (- (<< 1 19) 1)) 5) mask)) 4))
+          (%ptr-set! buf-ptr offset (| (& word (~ mask)) (& (<< (& rel (- (<< 1 19) 1)) 5) mask)) 4))
         ; Generic fallback
-        (ptr-set! buf-ptr offset (- target (+ offset width)) width)))))
+        (%ptr-set! buf-ptr offset (- target (+ offset width)) width)))))
 
 ; --- Export architecture: (table . encoder . resolver) ---
 (set! %arch (list %arm64-table %arm64-dispatch %arm64-patch))

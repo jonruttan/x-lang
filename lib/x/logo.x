@@ -10,6 +10,11 @@
 (import x/logo/turtle)
 (import x/sys/posix)
 (import x/logo/serve)
+; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+(def %ptr-call (prim-ref (lit ptr) (lit call)))
+(def %dlopen (prim-ref (lit ffi) (lit dlopen)))
+(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+
 
 ; --- Fork the server, continue with the REPL in the parent ---
 (def %logo-port 8080)
@@ -24,7 +29,7 @@
       ; Ignore SIGINT in the server child so ctrl-c doesn't throw
       ; STOP errors in the request handler (SIG_IGN = 1, SIGINT = 2)
       (do (Sys close 0) (Sys open-read "/dev/null")
-          (ptr-call (dlsym (dlopen () 1) "signal") 2 1)
+          (%ptr-call (%dlsym (%dlopen () 1) "signal") 2 1)
           (turtle-serve %logo-port))
       pid)))
 
@@ -35,6 +40,6 @@
 ; Kill server child when REPL exits
 (set! %logo-on-exit
   (fn ()
-    (ptr-call (dlsym (dlopen () 1) "kill") %server-pid 15)))
+    (%ptr-call (%dlsym (%dlopen () 1) "kill") %server-pid 15)))
 
 (display "http://localhost:") (display %logo-port) (newline)

@@ -13,6 +13,10 @@
 
 ; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
+; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` de-registered, R5).
+(def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
+(def %ptr-set-word! (prim-ref (lit ptr) (lit set-word!)))
+
 (def %token-read-string (prim-ref (lit tok) (lit read-str)))
 
 (def %obj-meta-count! (prim-ref (lit obj) (lit meta-count!)))
@@ -66,10 +70,10 @@
   (def %cov-bit 2)
 
   (def obj-flags (fn (_ obj)
-    (ptr-ref-word (convert obj %ptr) %flags-offset)))
+    (%ptr-ref-word (convert obj %ptr) %flags-offset)))
 
   (def obj-flag-set (fn (_ obj bit)
-    (ptr-set-word! (convert obj %ptr) %flags-offset
+    (%ptr-set-word! (convert obj %ptr) %flags-offset
       (| (obj-flags obj) bit))
     obj))
 

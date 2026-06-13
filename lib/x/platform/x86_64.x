@@ -1,6 +1,9 @@
 ; asm/x86_64.x -- x86_64 opcode table and variable-length encoder
 
 ; --- Register aliases (hardware encoding numbers) ---
+; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+(def %ptr-set! (prim-ref (lit ptr) (lit set!)))
+
 (def rax (reg 0))  (def rcx (reg 1))  (def rdx (reg 2))  (def rbx (reg 3))
 (def rsp (reg 4))  (def rbp (reg 5))  (def rsi (reg 6))  (def rdi (reg 7))
 (def r8  (reg 8))  (def r9  (reg 9))  (def r10 (reg 10)) (def r11 (reg 11))
@@ -146,7 +149,7 @@
 (def %x86_64-patch
   (fn (_ buf-ptr offset width ptype target)
     (def val (- target (+ offset width)))
-    (ptr-set! buf-ptr offset val width)))
+    (%ptr-set! buf-ptr offset val width)))
 
 ; --- Export architecture ---
 (set! %arch (list %x86_64-table %x86_64-encode %x86_64-patch))

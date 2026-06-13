@@ -12,6 +12,9 @@
 (def %cvt (prim-ref (lit convert) (lit to)))
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %type-name (prim-ref (lit type) (lit name)))
+; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+(def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
+
 
 
 (def %cov-word-size
@@ -23,7 +26,7 @@
 (def %cov-obj-flags
   (fn (_ obj)
     (if (null? obj) 0
-      (ptr-ref-word (%cvt obj %ptr) %cov-flags-offset))))
+      (%ptr-ref-word (%cvt obj %ptr) %cov-flags-offset))))
 
 (doc (def cov-covered?
   (fn (_ obj) (> (& (%cov-obj-flags obj) 2) 0)))

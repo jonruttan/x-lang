@@ -14,6 +14,13 @@
 (import x/core/hash)
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %type-of (prim-ref (lit type) (lit of)))
+; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+(def %ptr-call (prim-ref (lit ptr) (lit call)))
+(def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
+(def %ptr-set-word! (prim-ref (lit ptr) (lit set-word!)))
+(def %dlopen (prim-ref (lit ffi) (lit dlopen)))
+(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+
 
 ;
 ; (compile '(fn (_ params...) body))  =>  <prim>
@@ -623,14 +630,14 @@
 (def %compile-patch-fvars
   (fn (_ lib fvars)
     (if (null? fvars) ()
-      (let ((tbl (dlsym lib "x_fvar_table")))
+      (let ((tbl (%dlsym lib "x_fvar_table")))
         (if (null? tbl) ()
           (let ()
             (def %patch-go
               (fn (self fvs i)
                 (if (null? fvs) ()
                   (do
-                    (ptr-set-word! tbl (* i %word-size)
+                    (%ptr-set-word! tbl (* i %word-size)
                       (if (null? (rest (first fvs))) 0
                         (%cvt (%cvt (rest (first fvs)) %ptr) %int)))
                     (self (rest fvs) (+ i 1))))))
@@ -651,7 +658,7 @@
           (list "-O2" "-DX_HEAP" "-DX_TYPE" "-Wno-unused-value"
                 "-Iext/x-expr/include" "-I./include"
                 "-o" lib-path src-path))))
-    (def %cc-status (ptr-call %c-system %cc-cmd))
+    (def %cc-status (%ptr-call %c-system %cc-cmd))
     (if (not (= %cc-status 0))
       (error (Str append "compile: cc failed with status " (%cvt %cc-status %string))))))
 
@@ -660,21 +667,21 @@
     (if (null? fns) ()
       (let ()
         (def %prim-sym (Str append (first (first fns)) "_prim"))
-        (def %prim-ptr (dlsym lib %prim-sym))
+        (def %prim-ptr (%dlsym lib %prim-sym))
         (if (not (null? %prim-ptr))
-          (ptr-set-word! %prim-ptr %type-offset prim-type-val))
+          (%ptr-set-word! %prim-ptr %type-offset prim-type-val))
         (self lib (rest fns) prim-type-val)))))
 
 (def %compile-cache-load
   (fn (_ cache-path fns-holder)
     (if (not (Sys file-exists? cache-path)) ()
-      (let ((lib (dlopen cache-path 1)))
+      (let ((lib (%dlopen cache-path 1)))
         (if (null? lib) ()
-          (let ((fn-ptr (dlsym lib "fn_0")))
+          (let ((fn-ptr (%dlsym lib "fn_0")))
             (if (null? fn-ptr) ()
               (let ()
                 (%type-cast! fn-ptr first)
-                (def %prim-type-val (ptr-ref-word (%cvt first %ptr) %type-offset))
+                (def %prim-type-val (%ptr-ref-word (%cvt first %ptr) %type-offset))
                 (%patch-nested-prims lib (first fns-holder) %prim-type-val)
                 fn-ptr))))))))
 
@@ -713,9 +720,9 @@
 
 (def compile-load
   (fn (_ lib-path)
-    (def %lib (dlopen lib-path 1))
+    (def %lib (%dlopen lib-path 1))
     (if (null? %lib) (error "compile-load: dlopen failed"))
-    (def %fn (dlsym %lib "fn_0"))
+    (def %fn (%dlsym %lib "fn_0"))
     (if (null? %fn) (error "compile-load: dlsym failed for fn_0"))
     (%type-cast! %fn first)
     %fn))
@@ -752,7 +759,7 @@
       (do
         ; Patch fvar table with current runtime pointers
         (if (not (null? fvars))
-          (let ((lib (dlopen %cache-path 1)))
+          (let ((lib (%dlopen %cache-path 1)))
             (%compile-patch-fvars lib fvars)))
         %cached)
 
@@ -764,14 +771,14 @@
 
         (compile-write %src-path (compile-to-c expr fvars))
         (compile-cc %src-path %cache-path)
-        (ptr-call %c-unlink %src-path)
+        (%ptr-call %c-unlink %src-path)
 
-        (def %lib (dlopen %cache-path 1))
+        (def %lib (%dlopen %cache-path 1))
         (if (null? %lib) (error "compile: dlopen failed"))
-        (def %fn (dlsym %lib "fn_0"))
+        (def %fn (%dlsym %lib "fn_0"))
         (if (null? %fn) (error "compile: dlsym failed for fn_0"))
         (%type-cast! %fn first)
-        (def %prim-type-val (ptr-ref-word (%cvt first %ptr) %type-offset))
+        (def %prim-type-val (%ptr-ref-word (%cvt first %ptr) %type-offset))
         (%patch-nested-prims %lib (first (list (list))) %prim-type-val)
         ; Patch fvar table
         (if (not (null? fvars))
@@ -796,14 +803,14 @@
 
     (compile-write %src-path (compile-to-c expr fvars))
     (compile-cc %src-path %cache-path)
-    (ptr-call %c-unlink %src-path)
+    (%ptr-call %c-unlink %src-path)
 
-    (def %lib (dlopen %cache-path 1))
+    (def %lib (%dlopen %cache-path 1))
     (if (null? %lib) (error "compile: dlopen failed"))
-    (def %fn (dlsym %lib "fn_0"))
+    (def %fn (%dlsym %lib "fn_0"))
     (if (null? %fn) (error "compile: dlsym failed for fn_0"))
     (%type-cast! %fn first)
-    (def %prim-type-val (ptr-ref-word (%cvt first %ptr) %type-offset))
+    (def %prim-type-val (%ptr-ref-word (%cvt first %ptr) %type-offset))
     (%patch-nested-prims %lib (first (list (list))) %prim-type-val)
     (if (not (null? fvars))
       (%compile-patch-fvars %lib fvars))
@@ -843,7 +850,7 @@
       (fn (self lib i n)
         (if (= i n) ()
           (let ((name (Str append "batch_" (%cvt i %string))))
-            (def %fn (dlsym lib name))
+            (def %fn (%dlsym lib name))
             (if (null? %fn)
               (error (Str append "compile-batch: dlsym failed for " name)))
             (%type-cast! %fn first)
@@ -856,7 +863,7 @@
 
     (if (Sys file-exists? %cache-path)
       ; Cache hit: load and patch fvar table
-      (let ((lib (dlopen %cache-path 1)))
+      (let ((lib (%dlopen %cache-path 1)))
         (if (not (null? lib))
           (do
             (if (not (null? %compile-fvars))
@@ -901,9 +908,9 @@
 
         (compile-write %src-path %c-source)
         (compile-cc %src-path %cache-path)
-        (ptr-call %c-unlink %src-path)
+        (%ptr-call %c-unlink %src-path)
 
-        (def %lib (dlopen %cache-path 1))
+        (def %lib (%dlopen %cache-path 1))
         (if (null? %lib) (error "compile-batch: dlopen failed"))
 
         ; Patch fvar table with current runtime pointers

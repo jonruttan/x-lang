@@ -11,13 +11,20 @@
 ;   ; Open http://localhost:8080 in browser
 
 (import x/sys/posix)
+; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+(def %ptr-call (prim-ref (lit ptr) (lit call)))
+(def %ptr->str (prim-ref (lit ptr) (lit ->str)))
+(def %ptr-set! (prim-ref (lit ptr) (lit set!)))
+(def %dlopen (prim-ref (lit ffi) (lit dlopen)))
+(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+
 
 ; ============================================================
 ; Resolve libc socket functions
 ; ============================================================
 
-(def %libc (dlopen () 1))
-(def %resolve (fn (_ name) (dlsym %libc name)))
+(def %libc (%dlopen () 1))
+(def %resolve (fn (_ name) (%dlsym %libc name)))
 
 (def %c-socket   (%resolve "socket"))
 (def %c-bind     (%resolve "bind"))
@@ -32,7 +39,7 @@
 (def %c-memset   (%resolve "memset"))
 
 ; Convenience: write one byte at offset
-(def ptr-set1! (fn (_ ptr offset val) (ptr-set! ptr offset val 1)))
+(def ptr-set1! (fn (_ ptr offset val) (%ptr-set! ptr offset val 1)))
 
 ; Platform constants (macOS / Darwin)
 (def %AF_INET 2)
@@ -48,8 +55,8 @@
 ; Returns a ptr that must be freed after bind.
 (def %make-sockaddr-in
   (fn (_ port)
-    (def addr (int->ptr (ptr-call %c-malloc 16)))
-    (ptr-call %c-memset addr 0 16)
+    (def addr (int->ptr (%ptr-call %c-malloc 16)))
+    (%ptr-call %c-memset addr 0 16)
     (ptr-set1! addr 0 16)               ; sin_len (macOS)
     (ptr-set1! addr 1 %AF_INET)         ; sin_family
     (ptr-set1! addr 2 (/ port 256))     ; sin_port high byte (network order)
@@ -60,40 +67,40 @@
 ; Create a TCP server socket, bind, listen. Returns the fd.
 (def %make-server-socket
   (fn (_ port)
-    (def fd (ptr-call %c-socket %AF_INET %SOCK_STREAM 0))
+    (def fd (%ptr-call %c-socket %AF_INET %SOCK_STREAM 0))
     (if (< fd 0) (error "socket() failed"))
     ; Set SO_REUSEADDR
-    (def optval (int->ptr (ptr-call %c-malloc 4)))
+    (def optval (int->ptr (%ptr-call %c-malloc 4)))
     (ptr-set1! optval 0 1) (ptr-set1! optval 1 0)
     (ptr-set1! optval 2 0) (ptr-set1! optval 3 0)
-    (ptr-call %c-setsockopt fd %SOL_SOCKET %SO_REUSEADDR optval 4)
-    (ptr-call %c-free optval)
+    (%ptr-call %c-setsockopt fd %SOL_SOCKET %SO_REUSEADDR optval 4)
+    (%ptr-call %c-free optval)
     ; Bind
     (def addr (%make-sockaddr-in port))
-    (def result (ptr-call %c-bind fd addr 16))
-    (ptr-call %c-free addr)
+    (def result (%ptr-call %c-bind fd addr 16))
+    (%ptr-call %c-free addr)
     (if (< result 0) (error "bind() failed"))
     ; Listen
-    (if (< (ptr-call %c-listen fd 5) 0) (error "listen() failed"))
+    (if (< (%ptr-call %c-listen fd 5) 0) (error "listen() failed"))
     fd))
 
 ; Read up to n bytes from fd into a new string.
 (def %fd-read-string
   (fn (_ fd maxlen)
-    (def buf (int->ptr (ptr-call %c-malloc (+ maxlen 1))))
-    (def n (ptr-call %c-read fd buf maxlen))
+    (def buf (int->ptr (%ptr-call %c-malloc (+ maxlen 1))))
+    (def n (%ptr-call %c-read fd buf maxlen))
     (if (<= n 0)
-      (do (ptr-call %c-free buf) ())
+      (do (%ptr-call %c-free buf) ())
       (let ()
         (ptr-set1! buf n 0)
-        (def s (ptr->str buf))
-        (ptr-call %c-free buf)
+        (def s (%ptr->str buf))
+        (%ptr-call %c-free buf)
         s))))
 
 ; Write a string to fd.
 (def %fd-write-all
   (fn (_ fd s)
-    (ptr-call %c-write fd s (str-length s))))
+    (%ptr-call %c-write fd s (str-length s))))
 
 ; ============================================================
 ; HTTP helpers
@@ -139,14 +146,14 @@
       ; let, not def-in-do: this is the tail (def would leak to global)
       (let ((%read-all
              (fn (self acc)
-               (def buf (int->ptr (ptr-call %c-malloc %slurp-chunk)))
-               (def n (ptr-call %c-read fd buf (- %slurp-chunk 1)))
+               (def buf (int->ptr (%ptr-call %c-malloc %slurp-chunk)))
+               (def n (%ptr-call %c-read fd buf (- %slurp-chunk 1)))
                (if (<= n 0)
-                 (do (ptr-call %c-free buf) acc)
+                 (do (%ptr-call %c-free buf) acc)
                  (do
                    (ptr-set1! buf n 0)
-                   (let ((chunk (ptr->str buf)))
-                     (ptr-call %c-free buf)
+                   (let ((chunk (%ptr->str buf)))
+                     (%ptr-call %c-free buf)
                      (self (Str append acc chunk))))))))
         (def content (%read-all ""))
         (Sys close fd)
@@ -225,7 +232,7 @@
     ; Accept loop
     (def %serve-loop
       (fn (self)
-        (def client-fd (ptr-call %c-accept server-fd 0 0))
+        (def client-fd (%ptr-call %c-accept server-fd 0 0))
         (if (< client-fd 0) (self)  ; Accept failed, retry
           (do
             (guard (err
@@ -243,7 +250,7 @@
               ; Send response
               (%fd-write-all client-fd response))
             ; Close client connection
-            (ptr-call %c-close client-fd)
+            (%ptr-call %c-close client-fd)
             (self)))))
     (%serve-loop)))
 

@@ -28,10 +28,10 @@
 ; Type handles: %int, %char, %string, %symbol, %ptr, %pair
 ;
 ; Registered conversions:
-;   INT  <- char (char->integer), string (str->number), ptr (ptr->int)
+;   INT  <- char (char->integer), string (str->number), ptr (%ptr->int)
 ;   CHAR <- int (integer->char)
 ;   STR  <- int (number->str), symbol (symbol->str), list (list->str),
-;           ptr (ptr->str)
+;           ptr (%ptr->str)
 ;   SYM  <- string (%str->symbol)
 ;   PTR  <- int (int->ptr), string (%str->ptr), any (%obj->ptr)
 ;
@@ -43,6 +43,10 @@
 
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %type-of (prim-ref (lit type) (lit of)))
+
+; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+(def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+(def %ptr->str (prim-ref (lit ptr) (lit ->str)))
 
 (import x/type/object)
 ; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
@@ -86,7 +90,7 @@
                     (if (null? extra)
                       (str->number v)
                       (str->number v (first extra)))))
-    (pair %ptr    (fn (_ v . extra) (ptr->int v)))))
+    (pair %ptr    (fn (_ v . extra) (%ptr->int v)))))
 
 ; CHAR: from int
 (%type-set-from! (%type-by-atom %char)
@@ -103,7 +107,7 @@
                       (number->str v (first extra)))))
     (pair %symbol (fn (_ v . extra) (symbol->str v)))
     (pair %pair   (fn (_ v . extra) (list->str v)))
-    (pair %ptr    (fn (_ v . extra) (ptr->str v)))))
+    (pair %ptr    (fn (_ v . extra) (%ptr->str v)))))
 
 ; SYMBOL: from string
 (%type-set-from! (%type-by-atom %symbol)

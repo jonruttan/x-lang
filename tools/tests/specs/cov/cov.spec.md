@@ -24,7 +24,7 @@
     (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def %p (pair 1 2))
-  (display (number? (ptr-ref-word (convert %p %ptr) %flags-offset))))
+  (display (number? (Ptr ref-word (convert %p %ptr) %flags-offset))))
 ```
 ---
     t
@@ -37,9 +37,9 @@
     (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def %p (pair 1 2))
-  (ptr-set-word! (convert %p %ptr) %flags-offset
-    (| (ptr-ref-word (convert %p %ptr) %flags-offset) 2))
-  (display (> (& (ptr-ref-word (convert %p %ptr) %flags-offset) 2) 0)))
+  (Ptr set-word! (convert %p %ptr) %flags-offset
+    (| (Ptr ref-word (convert %p %ptr) %flags-offset) 2))
+  (display (> (& (Ptr ref-word (convert %p %ptr) %flags-offset) 2) 0)))
 ```
 ---
     t
@@ -54,7 +54,7 @@
     (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (obj)
-    (ptr-ref-word (convert obj %ptr) %flags-offset)))
+    (Ptr ref-word (convert obj %ptr) %flags-offset)))
   (def %tokens (Tok read-str (%base) "(+ 1 2)\n"))
   (def %form (first %tokens))
   (eval %form)
@@ -71,7 +71,7 @@
     (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (obj)
-    (ptr-ref-word (convert obj %ptr) %flags-offset)))
+    (Ptr ref-word (convert obj %ptr) %flags-offset)))
   (def %tokens (Tok read-str (%base) "(if t 1 2)\n"))
   (def %form (first %tokens))
   (def %then (first (rest (rest %form))))
@@ -92,7 +92,7 @@
     (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (obj)
-    (ptr-ref-word (convert obj %ptr) %flags-offset)))
+    (Ptr ref-word (convert obj %ptr) %flags-offset)))
   (def %tokens (Tok read-str (%base) "(if t (+ 1 1) (+ 2 2))\n"))
   (def %form (first %tokens))
   (def %else (first (rest (rest (rest %form)))))
@@ -110,7 +110,7 @@
     (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (obj)
-    (ptr-ref-word (convert obj %ptr) %flags-offset)))
+    (Ptr ref-word (convert obj %ptr) %flags-offset)))
   (def %marked? (fn (obj)
     (if (null? obj) t
       (> (& (obj-flags obj) 2) 0))))
@@ -145,7 +145,7 @@
     (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (obj)
-    (ptr-ref-word (convert obj %ptr) %flags-offset)))
+    (Ptr ref-word (convert obj %ptr) %flags-offset)))
   (def %tokens (Tok read-str (%base)
     "(def f (fn (x) (if (< x 0) (- 0 x) (+ x 1))))\n(f 5)\n"))
   (def %def-form (first %tokens))
@@ -173,9 +173,9 @@
     (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (obj)
-    (ptr-ref-word (convert obj %ptr) %flags-offset)))
+    (Ptr ref-word (convert obj %ptr) %flags-offset)))
   (def %p (pair 1 2))
-  (ptr-set-word! (convert %p %ptr) %flags-offset
+  (Ptr set-word! (convert %p %ptr) %flags-offset
     (| (obj-flags %p) 2))
   ; Force some allocations to trigger GC
   (def %junk (map (fn (x) (pair x x)) (list 1 2 3 4 5 6 7 8 9 10)))

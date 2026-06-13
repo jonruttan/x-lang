@@ -32,6 +32,7 @@
     (pair "lib/x/type/type.x"
     (pair "lib/x/type/obj.x"
     (pair "lib/x/type/buf.x"
+    (pair "lib/x/type/ptr.x"
     (pair "lib/x/sys/convert.x"
     (pair "lib/x/core/boolean.x"
     (pair "lib/x/core/fn.x"
@@ -59,7 +60,7 @@
     (pair "lib/x/type/lit-reader.x"
     (pair "lib/x/core/repl.x"
     (pair "lib/x/core/banner.x"
-      (first %include-list-cell))))))))))))))))))))))))))))))))))))))
+      (first %include-list-cell)))))))))))))))))))))))))))))))))))))))
 
   ; --- Standard modules ---
   (include "lib/x/core/predicates.x")
@@ -116,6 +117,9 @@
   ; Buf + Tok: the tokenizer buffer / token-stream API. ns buf/tok are
   ; de-registered; reader-hot modules fetch-and-cache the prims.
   (include "lib/x/type/buf.x")
+  ; Ptr + Ffi: the raw-pointer / foreign-function surface. ns ptr/ffi are
+  ; de-registered; low-level/hot callers fetch-and-cache the prims.
+  (include "lib/x/type/ptr.x")
   ; Fn: function combinators (the Fn class). Moved here from the early core block
   ; -- it needs def-class, and nothing loaded before object.x references it.
   (include "lib/x/core/fn.x")

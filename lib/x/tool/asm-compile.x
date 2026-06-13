@@ -9,20 +9,27 @@
 (def %str->symbol (prim-ref (lit str) (lit ->sym)))
 
 (import x/tool/asm)
+; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
+(def %ptr-call (prim-ref (lit ptr) (lit call)))
+(def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+(def %ptr-set-word! (prim-ref (lit ptr) (lit set-word!)))
+(def %dlopen (prim-ref (lit ffi) (lit dlopen)))
+(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+
 
 ; --- Resolve JIT runtime helpers (non-variadic wrappers in jit.c) ---
-(def %jit-lib (dlopen () 1))
-(def %jit-mkint    (ptr->int (dlsym %jit-lib "jit_mkint")))
-(def %jit-mkpair   (ptr->int (dlsym %jit-lib "jit_mkpair")))
-(def %jit-firstobj (ptr->int (dlsym %jit-lib "jit_firstobj")))
-(def %jit-restobj  (ptr->int (dlsym %jit-lib "jit_restobj")))
-(def %jit-atomint  (ptr->int (dlsym %jit-lib "jit_atomint")))
-(def %jit-eval-arg (ptr->int (dlsym %jit-lib "jit_eval_arg")))
-(def %jit-build-args (ptr->int (dlsym %jit-lib "jit_build_args")))
-(def %jit-make-callable (dlsym %jit-lib "jit_make_prim"))
-(def %jit-score-set (ptr->int (dlsym %jit-lib "jit_score_set")))
-(def %jit-buffer-unread (ptr->int (dlsym %jit-lib "jit_buffer_unread")))
-(def %jit-buffer-len (ptr->int (dlsym %jit-lib "jit_buffer_len")))
+(def %jit-lib (%dlopen () 1))
+(def %jit-mkint    (%ptr->int (%dlsym %jit-lib "jit_mkint")))
+(def %jit-mkpair   (%ptr->int (%dlsym %jit-lib "jit_mkpair")))
+(def %jit-firstobj (%ptr->int (%dlsym %jit-lib "jit_firstobj")))
+(def %jit-restobj  (%ptr->int (%dlsym %jit-lib "jit_restobj")))
+(def %jit-atomint  (%ptr->int (%dlsym %jit-lib "jit_atomint")))
+(def %jit-eval-arg (%ptr->int (%dlsym %jit-lib "jit_eval_arg")))
+(def %jit-build-args (%ptr->int (%dlsym %jit-lib "jit_build_args")))
+(def %jit-make-callable (%dlsym %jit-lib "jit_make_prim"))
+(def %jit-score-set (%ptr->int (%dlsym %jit-lib "jit_score_set")))
+(def %jit-buffer-unread (%ptr->int (%dlsym %jit-lib "jit_buffer_unread")))
+(def %jit-buffer-len (%ptr->int (%dlsym %jit-lib "jit_buffer_len")))
 
 ; Stack push/pop constants
 (def %PUSH 4162785248)   ; STR x0, [sp, #-16]!
@@ -121,7 +128,7 @@
       (let ((val (rest fv-entry)))
         (if (null? val)
           (asm-emit! asm (lit mov) x0 (imm 0))
-          (asm-load-imm64! asm x0 (ptr->int (%obj->ptr val)))))
+          (asm-load-imm64! asm x0 (%ptr->int (%obj->ptr val)))))
       ; Not a fvar: load from params
       (let ((idx (%find params 0)))
         (asm-emit! asm (lit mov) x0 x20)
@@ -393,7 +400,7 @@
     ; Call self: x0=p_base, x1=p_args
     (asm-emit! asm (lit mov) x1 x0)           ; p_args
     (asm-emit! asm (lit mov) x0 x19)          ; p_base
-    (asm-load-imm64! asm x8 (ptr->int %asm-self-cell))
+    (asm-load-imm64! asm x8 (%ptr->int %asm-self-cell))
     (asm-emit! asm (lit ldr) x8 (mem x8 0))
     (asm-emit! asm (lit blr) x8)
 
@@ -412,9 +419,9 @@
     (def params (rest fn-params))  ; skip self (_)
 
     ; Allocate trampoline cell for self-recursion
-    (def c-malloc (dlsym (dlopen () 1) "malloc"))
-    (def self-cell (ptr-call c-malloc 8))
-    (ptr-set-word! self-cell 0 0)
+    (def c-malloc (%dlsym (%dlopen () 1) "malloc"))
+    (def self-cell (%ptr-call c-malloc 8))
+    (%ptr-set-word! self-cell 0 0)
     (set! %asm-self-cell self-cell)
 
     (def asm (asm-new))
@@ -439,7 +446,7 @@
     (def raw-fn (asm-finalize! asm))
 
     ; Patch trampoline with actual address
-    (ptr-set-word! self-cell 0 (ptr->int raw-fn))
+    (%ptr-set-word! self-cell 0 (%ptr->int raw-fn))
     (set! %asm-self-cell ())
     (set! %compile-fvars ())
 
