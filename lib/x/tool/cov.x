@@ -10,6 +10,9 @@
 (def %obj-ref (prim-ref (lit obj) (lit ref)))
 
 (def %cvt (prim-ref (lit convert) (lit to)))
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %type-name (prim-ref (lit type) (lit name)))
+
 
 (def %cov-word-size
   (if (> (%cvt (%cvt 4294967296 %ptr) %int) 0) 8 4))
@@ -31,7 +34,7 @@
 (def %cov-is-cons?
   (fn (_ x)
     (if (null? x) #f
-      (let ((tn (type-name x)))
+      (let ((tn (%type-name x)))
         (or (str=? tn "LIST") (str=? tn "PAIR"))))))
 
 ; --- AST coverage counting ---
@@ -58,7 +61,7 @@
 
 (doc (def cov-check-fn
   (fn (_ name val tsv-mode)
-    (if (not (str=? (type-name val) "PROCEDURE")) ()
+    (if (not (str=? (%type-name val) "PROCEDURE")) ()
       (let ((body (%obj-ref val 1)))
         (let ((counts (cov-count-tree body 0)))
           (let ((cov (first counts))

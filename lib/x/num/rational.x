@@ -13,6 +13,12 @@
 
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %make-instance (prim-ref (lit type) (lit make-instance)))
+(def %make-type (prim-ref (lit type) (lit make)))
+(def %type-of (prim-ref (lit type) (lit of)))
+(def %type? (prim-ref (lit type) (lit ?)))
+
 
 ;
 ; Rational values are stored as (numerator . denominator) pairs,
@@ -49,10 +55,10 @@
         (let ((rn (%int/ n g)) (rd (%int/ d g)))
           ; Normalize: denominator always positive
           (if (%int< rd 0)
-            (make-instance %rational (pair (%int- 0 rn) (%int- 0 rd)))
+            (%make-instance %rational (pair (%int- 0 rn) (%int- 0 rd)))
             ; Reduce to integer if denominator is 1
             (if (%int= rd 1) rn
-              (make-instance %rational (pair rn rd)))))))))
+              (%make-instance %rational (pair rn rd)))))))))
 ; --- Tokenizer state machine: [+-]?[0-9]+/[0-9]+ ---
 ; After '/' — must see at least one digit
 
@@ -81,7 +87,7 @@
 ; --- Rational type ---
 
 (set! %rational
-  (make-type
+  (%make-type
     "RATIONAL"
     (list
       (pair
@@ -110,9 +116,9 @@
       (pair
         (lit from)
         (list
-          (pair (type-of 42) (fn (_ value) (%make-rational value 1)))
+          (pair (%type-of 42) (fn (_ value) (%make-rational value 1)))
           (pair
-            (type-of "")
+            (%type-of "")
             (fn (_ value)
               (let ((pos (%rat-find-slash value 0 (str-length value))))
                 (if pos
@@ -124,14 +130,14 @@
       (pair
         (lit to)
         (list
-          (pair (type-of 42)
+          (pair (%type-of 42)
             (fn (_ self) (%int/ (first (first self)) (rest (first self)))))
           (pair %float
             (fn (_ self)
               (%f-div
-                (make-instance %float (%int->float (first (first self))))
-                (make-instance %float (%int->float (rest (first self)))))))
-          (pair (type-of "")
+                (%make-instance %float (%int->float (first (first self))))
+                (%make-instance %float (%int->float (rest (first self)))))))
+          (pair (%type-of "")
             (fn (_ self)
               (%str-append
                 (%str-append (%cvt (first (first self)) %string) "/")
@@ -141,11 +147,11 @@
 (note "Predicates")
 
 ; Private predicates/accessors; the public API is the Rational class.
-(def %rational? (fn (_ x) (if (type? x %rational) #t (%int-number? x))))
+(def %rational? (fn (_ x) (if (%type? x %rational) #t (%int-number? x))))
 (def %numer-of
-  (fn (_ x) (if (type? x %rational) (first (first x)) x)))
+  (fn (_ x) (if (%type? x %rational) (first (first x)) x)))
 (def %denom-of
-  (fn (_ x) (if (type? x %rational) (rest (first x)) 1)))
+  (fn (_ x) (if (%type? x %rational) (rest (first x)) 1)))
 
 ; --- Arithmetic ---
 
@@ -209,11 +215,11 @@
     (pair %rational
       (fn (_ self)
         (%f-div
-          (make-instance %float (%int->float (first (first self))))
-          (make-instance %float (%int->float (rest (first self)))))))
+          (%make-instance %float (%int->float (first (first self))))
+          (%make-instance %float (%int->float (rest (first self)))))))
     (first %float-from-cell)))
 
-(def %rat? (fn (_ x) (type? x %rational)))
+(def %rat? (fn (_ x) (%type? x %rational)))
 
 (def %ensure-rat
   (fn (_ x) (if (%rat? x) x (%make-rational x 1))))

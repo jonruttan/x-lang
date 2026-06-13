@@ -159,7 +159,7 @@
 ```scheme
 (turtle-clearscreen)
 (def toks (Tok read-str %logo-base "FD "))
-(type? (first toks) %logo)
+(Type ? (first toks) %logo)
 ```
 ---
     #t
@@ -168,7 +168,7 @@
 
 ```scheme
 (def toks (Tok read-str %logo-base "fd "))
-(type? (first toks) %logo)
+(Type ? (first toks) %logo)
 ```
 ---
     #t

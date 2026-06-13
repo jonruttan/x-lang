@@ -4,6 +4,9 @@
 ; Flat tokens pass through unchanged; indented tokens are
 ; grouped into blocks based on indent level.
 (import x/logo/types)
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %type? (prim-ref (lit type) (lit ?)))
+
 
 (def %logo-indent-to-blocks
   (fn (_ tokens)
@@ -39,7 +42,7 @@
           (%flush-stack stack)
           (let ((tok (first toks))
                 (rest-toks (rest toks)))
-            (if (type? tok %logo-indent)
+            (if (%type? tok %logo-indent)
               (let ((indent (first (first tok))))
                 (def new-stack (%pop-to indent stack))
                 (def top (first new-stack))

@@ -4,6 +4,7 @@
 (def %make-obj (prim-ref (lit obj) (lit make)))
 (def %obj-ref (prim-ref (lit obj) (lit ref)))
 (def %obj-set! (prim-ref (lit obj) (lit set!)))
+(def %make-type (prim-ref (lit type) (lit make)))
 
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
@@ -94,7 +95,7 @@
 ; --- Assembler type ---
 ; 6 slots: buf-addr buf-pos buf-cap labels patches arch
 (def %asm-type
-  (make-type "ASM"
+  (%make-type "ASM"
     (list
       (pair (lit write)
         (fn (_ self)

@@ -511,15 +511,15 @@ Returns `#t` if `x` evaluates to a character object; `#f` otherwise.
 (char? 42) -> #f
 ```
 
-### `type?`
+### `Type ?`
 
-`(type? obj type-handle) -> #t | #f`
+`(Type ? obj type-handle) -> #t | #f`
 
-Returns `#t` if the runtime type of `obj` matches `type-handle` (as returned by `make-type`); `#f` otherwise. Returns `#f` for nil or objects without a type.
+Returns `#t` if the runtime type of `obj` matches `type-handle` (as returned by `(Type make …)`); `#f` otherwise. Returns `#f` for nil or objects without a type.
 
 ```
-(def my-t (make-type "my-type" (list)))
-(type? (make-instance my-t 42) my-t) -> #t
+(def my-t (Type make "my-type" (list)))
+(Type ? (Type make-instance my-t 42) my-t) -> #t
 ```
 
 ---
@@ -801,42 +801,53 @@ Binds `name` to `value` in the target `base` environment. List values are rewrit
 
 ### Types
 
-### `make-type`
+These are C primitives filed in the catalog under namespace `type`; the bare
+names are **de-registered** (R5). The surface is the `Type` class (methods
+`make`, `make-instance`, `?`, `of`, `name`); load-time/hot code fetches via
+`(prim-ref (lit type) (lit make))` etc.
 
-`(make-type name handlers) -> type-handle`
+### `Type make`
 
-Creates a new runtime type with string `name` and an association list of `handlers`. Supported handler keys are `call`, `write`, and `length`, each mapping to a closure. Returns a type handle atom used to create instances and check types.
+`(Type make name handlers) -> type-handle`
+
+Creates a new runtime type with string `name` and an association list of `handlers`. Supported handler keys include `call`, `write`, `analyse`, `read`, `iter`, `from`, `to`, and `ops`, each mapping to a closure. Returns a type handle atom used to create instances and check types.
 
 ```
-(def my-type (make-type "my-type" (list (pair (lit call) (fn (obj args) args))))) -> <type-handle>
+(def my-type (Type make "my-type" (list (pair (lit call) (fn (obj args) args))))) -> <type-handle>
 ```
 
-### `make-instance`
+### `Type make-instance`
 
-`(make-instance type-handle data) -> instance`
+`(Type make-instance type-handle data) -> instance`
 
 Creates a new instance of the runtime type identified by `type-handle`, storing `data` as its contents. Returns `()` if the type handle is not registered.
 
 ```
-(def my-t (make-type "my-type" (list)))
-(make-instance my-t 42) -> <instance>
+(def my-t (Type make "my-type" (list)))
+(Type make-instance my-t 42) -> <instance>
 ```
 
-### `type?`
+### `Type ?`
 
-`(type? obj type-handle) -> #t | #f`
+`(Type ? obj type-handle) -> #t | #f`
 
 Returns `#t` if the runtime type of `obj` matches `type-handle`; `#f` otherwise. Returns `#f` for nil or objects without a type. Documented above in Predicates.
 
-### `type-name`
+### `Type of`
 
-`(type-name obj) -> string | ()`
+`(Type of value) -> type-handle | ()`
 
-Returns the name string of `obj`'s runtime type. Returns `()` if `obj` is nil or has no type.
+Returns the runtime type handle of `value` (`()` for nil). The handle is the interned name atom; conversions and dispatch key on it.
+
+### `Type name`
+
+`(Type name obj-or-handle) -> string | ()`
+
+Returns the name string of `obj`'s runtime type, or of a type handle directly. Returns `()` if `obj` is nil or has no type.
 
 ```
-(def my-t (make-type "my-type" (list)))
-(type-name (make-instance my-t 42)) -> "my-type"
+(def my-t (Type make "my-type" (list)))
+(Type name (Type make-instance my-t 42)) -> "my-type"
 ```
 
 ---

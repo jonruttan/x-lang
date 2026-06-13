@@ -17,6 +17,12 @@
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-push-analyse (prim-ref (lit type) (lit push-analyse)))
 (def %type-push-op (prim-ref (lit type) (lit push-op)))
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %make-instance (prim-ref (lit type) (lit make-instance)))
+(def %make-type (prim-ref (lit type) (lit make)))
+(def %type-of (prim-ref (lit type) (lit of)))
+(def %type? (prim-ref (lit type) (lit ?)))
+
 
 
 ; --- Platform constants ---
@@ -253,7 +259,7 @@
 (def %bignum-from-string
   (fn (_ s)
     (def parsed (%bignum-parse-digits s))
-    (make-instance %bignum parsed)))
+    (%make-instance %bignum parsed)))
 
 ; --- Constructor with auto-demotion ---
 
@@ -296,15 +302,15 @@
           (if (if (%int= sign (first rt))
                 (%int= 0 (%limb-cmp nl (rest rt))) #f)
             val
-            (make-instance %bignum (pair sign nl))))
-        (make-instance %bignum (pair sign nl))))))
+            (%make-instance %bignum (pair sign nl))))
+        (%make-instance %bignum (pair sign nl))))))
 
 ; --- Signed operations ---
 
 (note "Predicates")
 
 ; Private predicate; the public API is (Bignum bignum? x).
-(def %bignum? (fn (_ x) (type? x %bignum)))
+(def %bignum? (fn (_ x) (%type? x %bignum)))
 
 (def %big-sign (fn (_ x) (first (first x))))
 (def %big-limbs (fn (_ x) (rest (first x))))
@@ -314,7 +320,7 @@
     (if (%bignum? x) x
       (let ()
         (def r (%bignum-from-int x))
-        (make-instance %bignum r)))))
+        (%make-instance %bignum r)))))
 
 (note "Arithmetic")
 
@@ -339,7 +345,7 @@
   (fn (_ a b)
     ; Negate b's sign and add
     (def sb (%int* -1 (%big-sign b)))
-    (def nb (make-instance %bignum (pair sb (%big-limbs b))))
+    (def nb (%make-instance %bignum (pair sb (%big-limbs b))))
     (%big-add a nb)))
 
 (def %big-mul
@@ -499,7 +505,7 @@
         ()))))
 
 (set! %bignum
-  (make-type "BIGNUM"
+  (%make-type "BIGNUM"
     (list
       (pair (lit write)
         (fn (_ self) (display (%bignum-to-string (first (first self)) (rest (first self))))))
@@ -507,30 +513,30 @@
       (pair (lit read) (fn (_ . args) (%bignum-read (first args))))
       (pair (lit from)
         (list
-          (pair (type-of 42)
+          (pair (%type-of 42)
             (fn (_ value)
               (def r (%bignum-from-int value))
-              (make-instance %bignum r)))
-          (pair (type-of "")
+              (%make-instance %bignum r)))
+          (pair (%type-of "")
             (fn (_ value) (%bignum-from-string value)))))
       (pair (lit to)
         (list
-          (pair (type-of 42)
+          (pair (%type-of 42)
             (fn (_ self) (%bignum-to-int (first (first self)) (rest (first self)))))
-          (pair (type-of "")
+          (pair (%type-of "")
             (fn (_ self) (%bignum-to-string (first (first self)) (rest (first self))))))))))
 
 ; --- Reader (set after make-type so closure captures the real %bignum) ---
 (set! %bignum-read
   (fn (_ . args)
-    (make-instance %bignum (%bignum-parse-digits (%buffer-token (first args))))))
+    (%make-instance %bignum (%bignum-parse-digits (%buffer-token (first args))))))
 
 ; --- Cap the integer analyser ---
 ; Push a capped analyser onto the integer type's analyse stack
 ; that rejects numbers with too many digits for native int
 
 ; Type struct navigation via type.x (available from x-core.x boot)
-(def %int-type (%type-by-atom (type-of 0)))
+(def %int-type (%type-by-atom (%type-of 0)))
 
 (def %int-capped-digits ())
 (set! %int-capped-digits

@@ -13,7 +13,7 @@
 ### finds integer type
 
 ```scheme
-(not (null? (Type by-atom (type-of 42))))
+(not (null? (Type by-atom (Type of 42))))
 ```
 ---
     #t
@@ -21,7 +21,7 @@
 ### finds string type
 
 ```scheme
-(not (null? (Type by-atom (type-of "hello"))))
+(not (null? (Type by-atom (Type of "hello"))))
 ```
 ---
     #t
@@ -29,7 +29,7 @@
 ### finds symbol type
 
 ```scheme
-(not (null? (Type by-atom (type-of (lit foo)))))
+(not (null? (Type by-atom (Type of (lit foo)))))
 ```
 ---
     #t
@@ -47,7 +47,7 @@
 ### returns non-nil for integer type
 
 ```scheme
-(not (null? (Type io (Type by-atom (type-of 42)))))
+(not (null? (Type io (Type by-atom (Type of 42)))))
 ```
 ---
     #t
@@ -57,7 +57,7 @@
 ### returns non-nil for integer type
 
 ```scheme
-(not (null? (Type cvt (Type by-atom (type-of 42)))))
+(not (null? (Type cvt (Type by-atom (Type of 42)))))
 ```
 ---
     #t
@@ -67,7 +67,7 @@
 ### returns non-nil
 
 ```scheme
-(not (null? (Type write-cell (Type by-atom (type-of 42)))))
+(not (null? (Type write-cell (Type by-atom (Type of 42)))))
 ```
 ---
     #t
@@ -77,7 +77,7 @@
 ### returns non-nil
 
 ```scheme
-(not (null? (Type analyse-cell (Type by-atom (type-of 42)))))
+(not (null? (Type analyse-cell (Type by-atom (Type of 42)))))
 ```
 ---
     #t
@@ -87,7 +87,7 @@
 ### returns conversion data for string type
 
 ```scheme
-(not (null? (Type from-cell (Type by-atom (type-of "")))))
+(not (null? (Type from-cell (Type by-atom (Type of "")))))
 ```
 ---
     #t
@@ -97,7 +97,7 @@
 ### returns conversion data for integer type
 
 ```scheme
-(not (null? (Type to-cell (Type by-atom (type-of 42)))))
+(not (null? (Type to-cell (Type by-atom (Type of 42)))))
 ```
 ---
     #t
@@ -107,7 +107,7 @@
 ### push adds handler, pop removes it
 
 ```scheme
-(do (def ts (Type by-atom (type-of 42)))
+(do (def ts (Type by-atom (Type of 42)))
     (def before (first (Type write-cell ts)))
     (Type push-write ts (fn (_ x) x))
     (def during (first (Type write-cell ts)))
@@ -124,9 +124,9 @@
 
 ```scheme
 (do (def a (pair 1 2))
-    (def orig-type (type-of a))
+    (def orig-type (Type of a))
     (Type cast! a "hello")
-    (eq? (type-of a) (type-of "hello")))
+    (eq? (Type of a) (Type of "hello")))
 ```
 ---
     #t

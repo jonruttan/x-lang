@@ -15,6 +15,9 @@
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-push-write (prim-ref (lit type) (lit push-write)))
 (def %type-push-display (prim-ref (lit type) (lit push-display)))
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %type-of (prim-ref (lit type) (lit of)))
+
 
 
 ; The code point's UTF-8 byte string -- a CHARACTER is a 1-code-point string.
@@ -54,7 +57,7 @@
 
 ; --- install (push over the C fallback) ---
 
-(let ((ct (%type-by-atom (type-of (integer->char 0)))))
+(let ((ct (%type-by-atom (%type-of (integer->char 0)))))
   (%type-push-display ct %char-display)
   (%type-push-write   ct %char-write))
 

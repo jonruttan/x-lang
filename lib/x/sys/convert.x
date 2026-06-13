@@ -41,6 +41,9 @@
 ;   (Convert to 255 %string 16)  -> "ff"
 ;   (Convert to "ff" %int 16)    -> 255 (hex parse)
 
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %type-of (prim-ref (lit type) (lit of)))
+
 (import x/type/object)
 ; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
 (def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
@@ -66,12 +69,12 @@
   (fn (_ ts alist) (set-first! (%type-to-cell ts) alist)))
 
 ; --- Type handles ---
-(def %int    (type-of 0))
-(def %char   (type-of (integer->char 0)))
-(def %string (type-of ""))
-(def %symbol (type-of (lit x)))
-(def %ptr    (type-of (int->ptr 0)))
-(def %pair   (type-of (list 0)))
+(def %int    (%type-of 0))
+(def %char   (%type-of (integer->char 0)))
+(def %string (%type-of ""))
+(def %symbol (%type-of (lit x)))
+(def %ptr    (%type-of (int->ptr 0)))
+(def %pair   (%type-of (list 0)))
 
 ; --- Register from alists (inbound conversions) ---
 
@@ -133,8 +136,8 @@
 (def %convert-to
   (fn (_ val target . extra)
     (if (null? val) ()
-      (if (eq? (type-of val) target) val
-        (let ((source (type-of val))
+      (if (eq? (%type-of val) target) val
+        (let ((source (%type-of val))
               (target-ts (%type-by-atom target))
               (entry ()))
           ; Exact match: source in target's from-alist
@@ -173,7 +176,7 @@
     (missing (fn (_ val target) ())
       "No-match policy handler (fn (_ val target)). The dialect sets it -- raise, coerce, log, ... Default returns nil.")
     (method to (self (param val ANY "Value to convert")
-                     (param target ANY "Target type handle (e.g. (type-of 0))")
+                     (param target ANY "Target type handle (e.g. (%type-of 0))")
                      . (param extra ANY "Converter-specific arguments (e.g. a radix)"))
       (doc "Convert VAL to the TARGET type via the type system's registered conversions."
         (returns ANY "The converted value; on no registered conversion, (Convert missing)'s result (default nil)"))

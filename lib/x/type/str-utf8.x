@@ -23,6 +23,9 @@
 (import x/type/char)
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-byte-len (prim-ref (lit str) (lit byte-len)))
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %type-of (prim-ref (lit type) (lit of)))
+
 (def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
 
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
@@ -71,7 +74,7 @@
 ; conses a pair) -- and plain integer recursion, so it allocates no more than
 ; the one result object the byte path already made.
 
-(def %str-type (%type-by-atom (type-of "x")))
+(def %str-type (%type-by-atom (%type-of "x")))
 
 ; Byte offset of code-point index k: advance k whole sequences from byte `from`.
 (def %cp-byte-offset

@@ -1059,57 +1059,57 @@ is the tail.
 
 ### `make-type`
 
-`(make-type name handlers) -> type-handle`
+`(Type make name handlers) -> type-handle`
 
 Creates a new runtime type with string `name` and an alist of `handlers`.
 Supported handler keys: `call`, `write`, `length`, `analyse`, `delimit`.
 Returns a type handle used with `make-instance` and `type?`.
 
 ```
-(def my-t (make-type "MY-T" (list)))
+(def my-t (Type make "MY-T" (list)))
 ```
 
 ### `make-instance`
 
-`(make-instance type-handle data) -> instance`
+`(Type make-instance type-handle data) -> instance`
 
 Creates a new instance of the type. Data is stored and accessible via
 `(first instance)`.
 
 ```
-(def my-t (make-type "MY-T" (list)))
-(def obj (make-instance my-t 42))
+(def my-t (Type make "MY-T" (list)))
+(def obj (Type make-instance my-t 42))
 (first obj) -> 42
 ```
 
 Custom type instances self-evaluate:
 
 ```
-(def obj (make-instance my-t 42))
+(def obj (Type make-instance my-t 42))
 obj -> <instance>
 ```
 
 ### `type?`
 
-`(type? obj type-handle) -> #t | #f`
+`(Type ? obj type-handle) -> #t | #f`
 
 Returns `#t` if `obj`'s runtime type matches `type-handle`.
 
 ```
-(type? obj my-t) -> #t
-(type? 42 my-t) -> #f
+(Type ? obj my-t) -> #t
+(Type ? 42 my-t) -> #f
 ```
 
 ### `type-name`
 
-`(type-name obj) -> string | ()`
+`(Type name obj) -> string | ()`
 
 Returns the name string of `obj`'s type, or `()` if no type.
 
 ```
-(type-name obj) -> "MY-T"
-(type-name 42) -> "INTEGER"
-(type-name "hi") -> "STRING"
+(Type name obj) -> "MY-T"
+(Type name 42) -> "INTEGER"
+(Type name "hi") -> "STRING"
 ```
 
 ### `score-match`
@@ -1129,9 +1129,9 @@ When a typed instance is called as a function, the `call` handler is invoked
 with the instance as `self` followed by the arguments.
 
 ```
-(def counter-t (make-type "COUNTER"
+(def counter-t (Type make "COUNTER"
   (list (pair (lit call) (fn (self . args) (first self))))))
-(def c (make-instance counter-t 42))
+(def c (Type make-instance counter-t 42))
 (c) -> 42
 ```
 
@@ -1141,7 +1141,7 @@ When `write` or `display` outputs a typed instance, the `write` handler is
 called with the instance as `self`.
 
 ```
-(def my-t (make-type "SHOW"
+(def my-t (Type make "SHOW"
   (list (pair (lit write) (fn (self) (display "[") (display (first self)) (display "]"))))))
 ```
 
@@ -2375,5 +2375,5 @@ The `*` quantifier is greedy but backtracks to find a match.
 ### `type-name`
 
 ```
-(type-name #/abc/) -> "REGEX"
+(Type name #/abc/) -> "REGEX"
 ```

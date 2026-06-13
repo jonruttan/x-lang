@@ -12,6 +12,12 @@
 
 (import x/num/rational)
 (import x/type/object)
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %make-instance (prim-ref (lit type) (lit make-instance)))
+(def %make-type (prim-ref (lit type) (lit make)))
+(def %type-of (prim-ref (lit type) (lit of)))
+(def %type? (prim-ref (lit type) (lit ?)))
+
 ;
 ; Complex values are stored as (real-part . imag-part) pairs.
 ; Components can be any real number type (integer, rational, float).
@@ -26,7 +32,7 @@
   (fn (_ re im)
     (if (if (%int-number? im) (%int= im 0) ())
       re
-      (make-instance %complex (pair re im)))))
+      (%make-instance %complex (pair re im)))))
 ; --- Save current (real-number-aware) operators ---
 
 (def %real+ +)
@@ -37,7 +43,7 @@
 (def %real< <)
 ; --- Accessors ---
 
-(def %complex? (fn (_ x) (type? x %complex)))
+(def %complex? (fn (_ x) (%type? x %complex)))
 
 (def %complex-re
   (fn (_ x) (if (%complex? x) (first (first x)) x)))
@@ -126,7 +132,7 @@
 (def %cx-parse-num
   (fn (_ s)
     (if (%cx-find-char s 0 (str-length s) 46)
-      (make-instance %float (%str->float s))
+      (%make-instance %float (%str->float s))
       (%cvt s %int))))
 
 (set! %cx-read
@@ -147,7 +153,7 @@
 ; --- Type definition ---
 
 (set! %complex
-  (make-type
+  (%make-type
     "COMPLEX"
     (list
       (pair
@@ -166,13 +172,13 @@
       (pair
         (lit from)
         (list
-          (pair (type-of 42) (fn (_ value) (%make-complex value 0)))
+          (pair (%type-of 42) (fn (_ value) (%make-complex value 0)))
           (pair %float (fn (_ value) (%make-complex value 0)))
           (pair %rational (fn (_ value) (%make-complex value 0)))))
       (pair
         (lit to)
         (list
-          (pair (type-of "")
+          (pair (%type-of "")
             (fn (_ self) (write-to-str self))))))))
 ; --- Arithmetic ---
 

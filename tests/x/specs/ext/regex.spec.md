@@ -469,7 +469,7 @@
 ### returns REGEX for a regex
 
 ```scheme
-(type-name #/abc/)
+(Type name #/abc/)
 ```
 ---
     "REGEX"

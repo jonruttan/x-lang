@@ -268,32 +268,8 @@
 
 ; === Type system ===
 
-(note "Type system")
-
-(doc make-type "Create a new custom type with handlers."
-  (param name STRING "Type name")
-  (param handlers LIST "Alist of handler functions")
-  (returns ATOM "Type handle")
-  (note "Handlers: call, eval, write, display, read, analyse, from, to, iter.")
-  (see make-instance) (see type?) (see type-of))
-
-(doc make-instance "Create an instance of a custom type."
-  (param type ATOM "Type handle from make-type")
-  (param data ANY "Instance data")
-  (returns ANY "A new type instance"))
-
-(doc type? "Test if a value is an instance of a type."
-  (param type ATOM "Type handle")
-  (param val ANY "Value to test")
-  (returns BOOLEAN "t if val is of the given type"))
-
-(doc type-of "Return the type handle of a value."
-  (param val ANY "Any value")
-  (returns ATOM "Type handle"))
-
-(doc type-name "Return the name string of a type handle."
-  (param type ATOM "Type handle")
-  (returns STRING "Type name"))
+; Type system: make/make-instance/?/of/name are de-registered (ns `type`, R5);
+; the Type class (lib/x/type/type.x) carries their docs.
 
 ; === FFI ===
 

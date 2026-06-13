@@ -6,9 +6,14 @@
 ; class. Loads after object.x (needs def-class); nothing earlier uses promises.
 
 (import x/type/object)
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %make-type (prim-ref (lit type) (lit make)))
+(def %make-instance (prim-ref (lit type) (lit make-instance)))
+(def %type? (prim-ref (lit type) (lit ?)))
+
 
 (def %promise
-  (make-type
+  (%make-type
     (lit PROMISE)
     (list
       (pair (lit write) (fn (_ _) (display "#<promise>"))))))
@@ -17,7 +22,7 @@
   (op (expr)
     env
     (let ((forced #f) (result #f))
-      (make-instance
+      (%make-instance
         %promise
         (fn (_ )
           (if forced
@@ -32,7 +37,7 @@
   (static
     (method promise? (self (param x ANY "Value to test"))
       (doc "Test whether a value is a promise." (returns BOOL "True if x is a promise"))
-      (type? x %promise))
+      (%type? x %promise))
     (method force (self (param p ANY "Promise or value"))
       (doc "Force a promise, returning its cached value. Non-promises pass through."
         (returns ANY "The forced value, or p itself if not a promise")

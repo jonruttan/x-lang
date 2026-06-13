@@ -5,6 +5,9 @@
 
 (import x/logo/state)
 (import x/logo/types)
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %type? (prim-ref (lit type) (lit ?)))
+
 
 ; ============================================================
 ; Function registry (SQRT, ABS, SIN, COS, etc.)
@@ -24,12 +27,12 @@
 
 (def %is-op-str?
   (fn (_ tok s)
-    (and (type? tok %logo-op)
+    (and (%type? tok %logo-op)
          (str=? (first tok) s))))
 
 (def %op-precedence
   (fn (_ tok)
-    (if (not (type? tok %logo-op)) -1
+    (if (not (%type? tok %logo-op)) -1
       (let ((s (first tok)))
         (match
           ((str=? s "=")  1) ((str=? s ">")  1) ((str=? s "<")  1)

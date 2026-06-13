@@ -12,6 +12,9 @@
 (import x/type/str)
 (import x/sys/posix)
 (import x/core/hash)
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %type-of (prim-ref (lit type) (lit of)))
+
 ;
 ; (compile '(fn (_ params...) body))  =>  <prim>
 ;
@@ -97,9 +100,9 @@
 ; --- Type system access (via type.x) ---
 
 ; Cache type structs at load time using representative objects
-(def %list-type (%type-by-atom (type-of (list 1))))
-(def %symbol-type (%type-by-atom (type-of (lit a))))
-(def %int-type (%type-by-atom (type-of 0)))
+(def %list-type (%type-by-atom (%type-of (list 1))))
+(def %symbol-type (%type-by-atom (%type-of (lit a))))
+(def %int-type (%type-by-atom (%type-of 0)))
 
 ; --- C-emitting write handlers ---
 ;

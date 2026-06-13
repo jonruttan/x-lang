@@ -223,13 +223,13 @@ The evaluator, call mechanism, writer, and length calculator all follow the same
 #### `make-type`
 
 ```
-(make-type name handlers) → type-handle
+(Type make name handlers) → type-handle
 ```
 
 Creates a new type at runtime. `name` is a string. `handlers` is an association list mapping method names to closures:
 
 ```
-(make-type "VECTOR"
+(Type make "VECTOR"
   (list
     (pair (lit call) (fn (self . args) ...))
     (pair (lit write) (fn (self) ...))))
@@ -242,7 +242,7 @@ Returns a type handle (the name atom) used to create instances and check types.
 #### `make-instance`
 
 ```
-(make-instance type-handle data) → instance
+(Type make-instance type-handle data) → instance
 ```
 
 Creates an instance of a runtime-defined type. The instance stores `data` and dispatches through the type's registered handlers.
@@ -250,7 +250,7 @@ Creates an instance of a runtime-defined type. The instance stores `data` and di
 #### `type?`
 
 ```
-(type? obj type-handle) → #t or ()
+(Type ? obj type-handle) → #t or ()
 ```
 
 Tests whether `obj` is an instance of the type identified by `type-handle`.
@@ -258,7 +258,7 @@ Tests whether `obj` is an instance of the type identified by `type-handle`.
 #### `type-name`
 
 ```
-(type-name obj) → string
+(Type name obj) → string
 ```
 
 Returns the type name of any object as a string.
@@ -266,7 +266,7 @@ Returns the type name of any object as a string.
 #### Example: Vectors
 
 ```
-(def %vector (make-type "VECTOR"
+(def %vector (Type make "VECTOR"
   (list
     (pair (lit call) (fn (self . args)
       ((first self) (first args))))
@@ -280,8 +280,8 @@ Returns the type name of any object as a string.
       (write-vec (first self) ())
       (display ")"))))))
 
-(def vector (fn args (make-instance %vector args)))
-(def vector? (fn (x) (type? x %vector)))
+(def vector (fn args (Type make-instance %vector args)))
+(def vector? (fn (x) (Type ? x %vector)))
 (def vector-ref (fn (v i) (v i)))
 ```
 
@@ -316,7 +316,7 @@ The fix is to **JIT-compile the analyser to native code** with `compile`, then i
 (set! %compile-fvars
   (list (pair (lit %int-capped-sign)   %int-capped-sign)
         (pair (lit %int-capped-digits) %int-capped-digits)))
-(%type-push-analyse (%type-by-atom (type-of 0))
+(%type-push-analyse (%type-by-atom (Type of 0))
   (compile
     (lit (fn (_ buffer score chr)
       (if (< chr 48)

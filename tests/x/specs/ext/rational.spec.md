@@ -323,7 +323,7 @@
 ### convert rational to int
 
 ```scheme
-(Convert to 3/4 (type-of 42))
+(Convert to 3/4 (Type of 42))
 ```
 ---
     0
@@ -331,7 +331,7 @@
 ### convert rational to string
 
 ```scheme
-(Convert to 3/4 (type-of ""))
+(Convert to 3/4 (Type of ""))
 ```
 ---
     "3/4"

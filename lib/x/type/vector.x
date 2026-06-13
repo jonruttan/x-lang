@@ -11,6 +11,11 @@
 (def %obj-set! (prim-ref (lit obj) (lit set!)))
 
 (import x/type/object)
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %make-type (prim-ref (lit type) (lit make)))
+(def %type-of (prim-ref (lit type) (lit of)))
+(def %type? (prim-ref (lit type) (lit ?)))
+
 ; N+1 slot objects: slot 0 = length, slots 1..N = elements.
 
 ; Fill a vector's slots from a list (shared helper)
@@ -29,7 +34,7 @@
 
 (def %vector ())
 (set! %vector
-  (make-type
+  (%make-type
     "VECTOR"
     (list
       (pair
@@ -67,12 +72,12 @@
         (lit from)
         (list
           (pair
-            (type-of (pair 1 ()))
+            (%type-of (pair 1 ()))
             (fn (_ value) (%vector-from-list %vector value)))))
       (pair
         (lit to)
         (list
-          (pair (type-of (pair 1 ()))
+          (pair (%type-of (pair 1 ()))
             ; Outer param is `v` (not `self`): build's first param is the
             ; auto-bound self (for recursion), so naming the vector `self`
             ; here would shadow it and (%obj-ref self ...) would read the fn.
@@ -120,7 +125,7 @@
     ; --- Predicate ---
     (method vector? (self (param x ANY "Value to test"))
       (doc "Test whether a value is a vector." (returns BOOL "True if x is a vector"))
-      (type? x %vector))
+      (%type? x %vector))
     ; --- Access ---
     (method ref (self (param v VECTOR "Vector") (param i INT "Zero-based index"))
       (doc "Return the element at index i of a vector." (returns ANY "Element at index i"))

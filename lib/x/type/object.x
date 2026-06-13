@@ -3,6 +3,11 @@
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
 (def %str->symbol (prim-ref (lit str) (lit ->sym)))
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %make-type (prim-ref (lit type) (lit make)))
+(def %make-instance (prim-ref (lit type) (lit make-instance)))
+(def %type? (prim-ref (lit type) (lit ?)))
+
 
 ;
 ; CLASSES ARE OBJECTS. A class is a callable %class object; an instance is a
@@ -68,7 +73,7 @@
 ; evaluated in e (the new ops), #f = data used as-is (new-from).
 (def %instantiate
   (fn (_ class inits e eval?)
-    (make-instance %object
+    (%make-instance %object
       (list class (%init-fields (%all-fields class) inits e eval?)))))
 
 (note "Dispatch handlers")
@@ -137,8 +142,8 @@
     (display (class-name self))
     (display ">")))
 
-(def %object (make-type "OBJECT" (list (pair (lit call) %object-dispatch) (pair (lit write) %object-write))))
-(def %class  (make-type "CLASS"  (list (pair (lit call) %class-dispatch)  (pair (lit write) %class-write))))
+(def %object (%make-type "OBJECT" (list (pair (lit call) %object-dispatch) (pair (lit write) %object-write))))
+(def %class  (%make-type "CLASS"  (list (pair (lit call) %class-dispatch)  (pair (lit write) %class-write))))
 
 (note "Inheritance")
 
@@ -187,12 +192,12 @@
 
 (note "Predicates and introspection")
 
-(doc (def object? (fn (_ (param x ANY "Value to test")) (type? x %object)))
+(doc (def object? (fn (_ (param x ANY "Value to test")) (%type? x %object)))
   (returns BOOL "True if x is an object instance")
   (see class?)
   "Test whether a value is an object instance.")
 
-(doc (def class? (fn (_ (param x ANY "Value to test")) (type? x %class)))
+(doc (def class? (fn (_ (param x ANY "Value to test")) (%type? x %class)))
   (returns BOOL "True if x is a class")
   (see object?)
   "Test whether a value is a class.")
@@ -263,7 +268,7 @@
 
 (def %make-class
   (fn (_ name fields methods parent s-methods statics)
-    (make-instance %class
+    (%make-instance %class
       (list
         (pair (lit name) name)
         (pair (lit fields) fields)

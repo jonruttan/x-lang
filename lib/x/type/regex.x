@@ -19,6 +19,11 @@
 
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %make-type (prim-ref (lit type) (lit make)))
+(def %make-instance (prim-ref (lit type) (lit make-instance)))
+(def %type? (prim-ref (lit type) (lit ?)))
+
 
 
 ; --- Matcher ---
@@ -486,7 +491,7 @@
 ; --- Type definition ---
 
 (set! %regex
-  (make-type
+  (%make-type
     "REGEX"
     (list
       (pair
@@ -514,10 +519,10 @@
           (def tok (%buffer-token (first args)))
           ; Strip #/ prefix and / suffix
           (def pattern (substring tok 2 (- (str-length tok) 1)))
-          (make-instance %regex (%regex-parse pattern)))))))
+          (%make-instance %regex (%regex-parse pattern)))))))
 
 (set! %regex-read
-  (fn (_ . args) (make-instance %regex (first args))))
+  (fn (_ . args) (%make-instance %regex (first args))))
 
 (def %regex-get-replacement
   (fn (_ rep matched)
@@ -527,7 +532,7 @@
   (static
     (method regex? (self (param x ANY "Value to test"))
       (doc "Test whether a value is a regex." (returns BOOLEAN "True if x is a regex"))
-      (type? x %regex))
+      (%type? x %regex))
     (method match (self (param rx REGEX "Compiled regex") (param str STRING "Input string"))
       (doc "Test whether a regex matches an entire string." (returns BOOLEAN "True if regex matches the entire string"))
       (def end (str-length str))

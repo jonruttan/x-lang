@@ -23,6 +23,9 @@
 (def %type-push-analyse (prim-ref (lit type) (lit push-analyse)))
 (def %type-read-cell (prim-ref (lit type) (lit read-cell)))
 (def %type-push-delimit (prim-ref (lit type) (lit push-delimit)))
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %type-of (prim-ref (lit type) (lit of)))
+
 (def %type-push-read (prim-ref (lit type) (lit push-read)))
 
 (def %lit-accept
@@ -53,7 +56,7 @@
 ; existing C handler (captured as the list tail), which the tokenizer's
 ; analyse/read loops iterate.
 
-(def %sym-type (%type-by-atom (type-of "x")))
+(def %sym-type (%type-by-atom (%type-of "x")))
 
 (%type-push-analyse %sym-type
   (list %lit-analyse %quasi-analyse %unquote-analyse

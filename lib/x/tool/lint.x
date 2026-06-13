@@ -22,14 +22,17 @@
 
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %type-of (prim-ref (lit type) (lit of)))
+
 
 (import x/core/alist)
 (import x/type/str)
 (import x/sys/type)
 
 ; Type structs we attach handlers to (LIST = forms, SYMBOL = references).
-(def %lint-list-type   (%type-by-atom (type-of (list 1))))
-(def %lint-symbol-type (%type-by-atom (type-of (lit a))))
+(def %lint-list-type   (%type-by-atom (%type-of (list 1))))
+(def %lint-symbol-type (%type-by-atom (%type-of (lit a))))
 
 ; A name is "known" if it resolves to an existing binding -- a C primitive or
 ; a library def.  We test by evaluating the interned symbol under a guard:

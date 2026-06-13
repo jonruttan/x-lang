@@ -10,6 +10,12 @@
 
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %make-instance (prim-ref (lit type) (lit make-instance)))
+(def %make-type (prim-ref (lit type) (lit make)))
+(def %type-of (prim-ref (lit type) (lit of)))
+(def %type? (prim-ref (lit type) (lit ?)))
+
 
 ;
 ; Float values are stored as IEEE 754 double bit patterns inside integers.
@@ -82,7 +88,7 @@
 
 (def %float ())
 (set! %float
-  (make-type
+  (%make-type
     "FLOAT"
     (list
       (pair
@@ -99,25 +105,25 @@
         (lit from)
         (list
           (pair
-            (type-of 42)
-            (fn (_ value) (make-instance %float (%int->float value))))
+            (%type-of 42)
+            (fn (_ value) (%make-instance %float (%int->float value))))
           (pair
-            (type-of "")
-            (fn (_ value) (make-instance %float (%str->float value))))
+            (%type-of "")
+            (fn (_ value) (%make-instance %float (%str->float value))))
 ))
       (pair
         (lit to)
         (list
-          (pair (type-of 42) (fn (_ self) (%float->int (first self))))
+          (pair (%type-of 42) (fn (_ self) (%float->int (first self))))
           (pair
-            (type-of "")
+            (%type-of "")
             (fn (_ self) (%float->str (first self)))))))))
 
 (note "Predicates")
 
 ; --- Predicates and constructors ---
 
-(def %float? (fn (_ x) (type? x %float)))
+(def %float? (fn (_ x) (%type? x %float)))
 
 (def %exact->inexact (fn (_ x) (%cvt x %float)))
 
@@ -129,19 +135,19 @@
 
 (def %f-add
   (fn (_ a b)
-    (make-instance %float (ffi-call "d+d" () (first a) (first b)))))
+    (%make-instance %float (ffi-call "d+d" () (first a) (first b)))))
 
 (def %f-sub
   (fn (_ a b)
-    (make-instance %float (ffi-call "d-d" () (first a) (first b)))))
+    (%make-instance %float (ffi-call "d-d" () (first a) (first b)))))
 
 (def %f-mul
   (fn (_ a b)
-    (make-instance %float (ffi-call "d*d" () (first a) (first b)))))
+    (%make-instance %float (ffi-call "d*d" () (first a) (first b)))))
 
 (def %f-div
   (fn (_ a b)
-    (make-instance %float (ffi-call "d/d" () (first a) (first b)))))
+    (%make-instance %float (ffi-call "d/d" () (first a) (first b)))))
 
 (note "Comparisons")
 
@@ -158,7 +164,7 @@
 
 (set! %float-read
   (fn (_ . args)
-    (make-instance
+    (%make-instance
       %float
       (ffi-call "s0->d" %strtod (%buffer-token (first args))))))
 
@@ -170,13 +176,13 @@
   (fn (_ name)
     (let ((sym (dlsym %libm name)))
       (fn (_ x)
-        (make-instance %float (ffi-call "d->d" sym (first x)))))))
+        (%make-instance %float (ffi-call "d->d" sym (first x)))))))
 
 (def %libm-dd
   (fn (_ name)
     (let ((sym (dlsym %libm name)))
       (fn (_ a b)
-        (make-instance
+        (%make-instance
           %float
           (ffi-call "dd->d" sym (first a) (first b)))))))
 

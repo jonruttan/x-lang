@@ -22,6 +22,9 @@
 (def %i-next   (prim-ref (lit iter) (lit next)))
 (def %i-empty? (prim-ref (lit iter) (lit empty?)))
 (def %i-new    (prim-ref (lit iter) (lit new)))
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %type-of (prim-ref (lit type) (lit of)))
+
 
 ; List step: the state cell IS the remaining list; step reads the head and
 ; advances by mutating the iterator's own rest (the original list is untouched).
@@ -73,9 +76,9 @@
 
 ; --- Wire the iter slot on each sequence type ------------------------------
 
-(%type-push-iter (%type-by-atom (type-of (list 1))) %list-iter)
-(%type-push-iter (%type-by-atom (type-of (Vector of 1))) %vector-iter)
-(%type-push-iter (%type-by-atom (type-of "x")) %str-iter)
+(%type-push-iter (%type-by-atom (%type-of (list 1))) %list-iter)
+(%type-push-iter (%type-by-atom (%type-of (Vector of 1))) %vector-iter)
+(%type-push-iter (%type-by-atom (%type-of "x")) %str-iter)
 ; def-class instances (all share the %object type): iterate the member alist as
 ; (name . value) pairs.  %object / %obj-fields are object.x internals.
 (def %object-iter (fn (_ inst) (%list-iter (%obj-fields inst))))

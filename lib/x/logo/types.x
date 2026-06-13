@@ -9,6 +9,12 @@
 
 (import x/sys/token)
 (import x/type/str)
+; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
+(def %make-instance (prim-ref (lit type) (lit make-instance)))
+(def %make-type (prim-ref (lit type) (lit make)))
+(def %type-of (prim-ref (lit type) (lit of)))
+(def %type? (prim-ref (lit type) (lit ?)))
+
 
 ; ============================================================
 ; Type helpers
@@ -87,8 +93,8 @@
 (def %logo-base
   (let ((base (Base make)))
     (def %cell (first (first (first (rest (first base))))))
-    (def %int-name (type-of 0))
-    (def %float-name (type-of (Float exact->inexact 0)))
+    (def %int-name (%type-of 0))
+    (def %float-name (%type-of (Float exact->inexact 0)))
     ; Keep only INTEGER and FLOAT from the base
     (def %filter
       (fn (self al)
@@ -125,9 +131,9 @@
               (fn (self acc)
                 (def tok (%token-read buf))
                 (if (null? tok)
-                  (make-instance %logo-block (reverse acc))
+                  (%make-instance %logo-block (reverse acc))
                   (if (eq? tok %logo-block-close)
-                    (make-instance %logo-block (reverse acc))
+                    (%make-instance %logo-block (reverse acc))
                     (self (pair tok acc))))))
             (%rb ())))))
 
@@ -140,7 +146,7 @@
               (if (%logo-alpha? chr) %logo-word-continue ())))
           (pair (lit read)
             (fn (_ . args)
-              (make-instance %logo (%buffer-token (first args)))))
+              (%make-instance %logo (%buffer-token (first args)))))
           (pair (lit write)
             (fn (_ self) (display (first self)))))))
 
@@ -196,7 +202,7 @@
               (def indent-end (%count-indent 1))
               (def indent (- indent-end 1))
               (def word (substring text indent-end len))
-              (make-instance %logo-indent (pair indent word))))
+              (%make-instance %logo-indent (pair indent word))))
           (pair (lit write)
             (fn (_ self)
               (display (first (rest (first self)))))))))
@@ -218,7 +224,7 @@
                     ())))))
           (pair (lit read)
             (fn (_ . args)
-              (make-instance %logo-op (%buffer-token (first args)))))
+              (%make-instance %logo-op (%buffer-token (first args)))))
           (pair (lit write)
             (fn (_ self) (display (first self)))))))
 
@@ -252,7 +258,7 @@
             (fn (_ . args)
               (def text (%buffer-token (first args)))
               (def len (str-length text))
-              (make-instance %logo-string (substring text 1 (- len 1)))))
+              (%make-instance %logo-string (substring text 1 (- len 1)))))
           (pair (lit write)
             (fn (_ self)
               (display "\"") (display (first self)) (display "\""))))))
@@ -280,14 +286,14 @@
 (def %is-block?
   (fn (_ tok)
     (match
-      ((type? tok %logo-block) #t)
+      ((%type? tok %logo-block) #t)
       ((pair? tok) (eq? (first tok) %indent-block-tag))
       (#t #f))))
 
 (def %block-contents
   (fn (_ tok)
     (match
-      ((type? tok %logo-block) (first tok))
+      ((%type? tok %logo-block) (first tok))
       (#t (rest tok)))))
 
 (def %make-indent-block
@@ -297,21 +303,21 @@
 (def %logo-word
   (fn (_ tok)
     (match
-      ((type? tok %logo)        (first tok))
-      ((type? tok %logo-indent) (rest (first tok)))
+      ((%type? tok %logo)        (first tok))
+      ((%type? tok %logo-indent) (rest (first tok)))
       (#t ()))))
 
 (def %logo-op-str
   (fn (_ tok)
-    (if (type? tok %logo-op) (first tok) ())))
+    (if (%type? tok %logo-op) (first tok) ())))
 
 (def %is-op?
   (fn (_ tok)
-    (type? tok %logo-op)))
+    (%type? tok %logo-op)))
 
 (def %is-string?
   (fn (_ tok)
-    (type? tok %logo-string)))
+    (%type? tok %logo-string)))
 
 (def %logo-string-val
   (fn (_ tok)

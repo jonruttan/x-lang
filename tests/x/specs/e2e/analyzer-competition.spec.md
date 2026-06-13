@@ -57,7 +57,7 @@
 ### bare integer is not rational type
 
 ```scheme
-(if (type? 42 %rational) "rat" "int")
+(if (Type ? 42 %rational) "rat" "int")
 ```
 ---
     "int"
@@ -65,7 +65,7 @@
 ### slash notation is rational
 
 ```scheme
-(type? 3/4 %rational)
+(Type ? 3/4 %rational)
 ```
 ---
     #t
