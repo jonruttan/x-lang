@@ -176,7 +176,7 @@
     (missing (fn (_ val target) ())
       "No-match policy handler (fn (_ val target)). The dialect sets it -- raise, coerce, log, ... Default returns nil.")
     (method to (self (param val ANY "Value to convert")
-                     (param target ANY "Target type handle (e.g. (%type-of 0))")
+                     (param target ANY "Target type handle (e.g. (Type of 0))")
                      . (param extra ANY "Converter-specific arguments (e.g. a radix)"))
       (doc "Convert VAL to the TARGET type via the type system's registered conversions."
         (returns ANY "The converted value; on no registered conversion, (Convert missing)'s result (default nil)"))
