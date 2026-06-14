@@ -397,6 +397,10 @@
       (doc "Compute the arc tangent of y/x, using signs to determine the quadrant." (returns FLOAT "Angle in radians"))
       (%fatan2 y x))))
 
+; Value dispatch (receiver-first): (3.14 float?) -> (Float float? 3.14).
+(def %type-push-call (prim-ref (lit type) (lit push-call)))
+(%type-push-call (%type-by-atom %float) (%class-call-handler Float))
+
 (doc (provide x/num/float Float)
   (note "Literal syntax: 3.14. The generic operators dispatch float operands")
   (note "through the type ops; mixed operands resolve by the from-relation.")

@@ -117,6 +117,25 @@
                     v))))
           (#t (error "object: no such static member")))))))
 
+; --- Value-to-class call dispatch ---
+; Build a TYPE call handler so an instance, called as (inst method . args),
+; dispatches to a bound CLASS's static method with the instance as the FIRST
+; positional argument (the receiver) -- so (1/2 numerator) -> (Rational
+; numerator 1/2) and (1/2 - 1/3) -> (Rational - 1/2 1/3), reading as
+; value.method(args).  Install on the type's call slot via type-push-call:
+;   (%type-push-call (%type-by-atom %rational) (%class-call-handler Rational))
+; An `op` (not fn) so the method selector stays unevaluated while the remaining
+; args evaluate in the caller's env -- mirrors %class-dispatch.
+(def %class-call-handler
+  (fn (_ class)
+    (op (obj sel-raw . rest) e
+      (let ((m (%lookup class (lit s-methods) (%selector sel-raw))))
+        (if (null? m)
+          (error (%str-append "object: no such method "
+                   (symbol->str (%selector sel-raw))))
+          (apply m (pair class
+                     (pair obj (%map1 (fn (_ a) (eval a e)) rest)))))))))
+
 (note "Write handlers")
 
 (def %write-fields

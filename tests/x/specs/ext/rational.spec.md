@@ -371,3 +371,45 @@
 ```
 ---
     1
+
+## value dispatch (the value calls its class, receiver-first)
+
+### numerator via the value
+
+```scheme
+(1/2 numerator)
+```
+---
+    1
+
+### denominator via the value
+
+```scheme
+(3/4 denominator)
+```
+---
+    4
+
+### predicate via the value
+
+```scheme
+(1/3 rational?)
+```
+---
+    #t
+
+### binary op is receiver-first (1/2 - 1/3 = 1/6, not 1/3 - 1/2)
+
+```scheme
+(1/2 - 1/3)
+```
+---
+    1/6
+
+### unknown method errors
+
+```scheme
+(guard (e "no-such") (1/2 bogus))
+```
+---
+    "no-such"
