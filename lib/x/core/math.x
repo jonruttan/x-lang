@@ -86,6 +86,13 @@
           (recur self (* base base) (/ exp 2))
           (* base (recur self base (- exp 1))))))))
 
+; Value dispatch (receiver-first): an integer calls Num's static methods --
+; (6 even?) -> (Num even? 6); (12 gcd 8) -> (Num gcd 12 8).
+(def %type-of (prim-ref (lit type) (lit of)))
+(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(def %type-push-call (prim-ref (lit type) (lit push-call)))
+(%type-push-call (%type-by-atom (%type-of 0)) (%class-call-handler Num))
+
 (doc (provide x/core/math Num)
   (example "(Num clamp 0 10 15)" "10")
   "Integer arithmetic utilities and number predicates, homed on the Num class.")

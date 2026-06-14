@@ -128,13 +128,23 @@
 ; args evaluate in the caller's env -- mirrors %class-dispatch.
 (def %class-call-handler
   (fn (_ class)
-    (op (obj sel-raw . rest) e
-      (let ((m (%lookup class (lit s-methods) (%selector sel-raw))))
-        (if (null? m)
-          (error (%str-append "object: no such method "
-                   (symbol->str (%selector sel-raw))))
-          (apply m (pair class
-                     (pair obj (%map1 (fn (_ a) (eval a e)) rest)))))))))
+    (op (obj . args) e
+      ; A method call has a SYMBOL selector as its first arg ((1/2 numerator)).
+      ; Anything else is a data list whose head happens to be a value of this
+      ; type, re-evaluated as a call -- (1/2 1/3), or a bare (1) -- where the
+      ; receiver-first dispatch must NOT fire; reproduce the data form so the
+      ; list passes through unchanged, exactly as a non-callable head would.
+      ; (x_prim_iter re-evaluates the list it iterates, which is why this path
+      ; exists at all.)
+      (if (null? args)
+        (list obj)
+        (let ((sel (%selector (first args))))
+          (if (symbol? sel)
+            (let ((m (%lookup class (lit s-methods) sel)))
+              (if (null? m)
+                (error (%str-append "object: no such method " (symbol->str sel)))
+                (apply m (pair class (pair obj (%map1 (fn (_ a) (eval a e)) (rest args)))))))
+            (pair obj (%map1 (fn (_ a) (eval a e)) args))))))))
 
 (note "Write handlers")
 

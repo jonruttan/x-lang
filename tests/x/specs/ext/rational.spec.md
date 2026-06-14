@@ -413,3 +413,21 @@
 ```
 ---
     "no-such"
+
+## value dispatch does not break data lists (regression)
+
+### iterate a list of rationals (re-evaluated data list must pass through)
+
+```scheme
+(Iter ->list (Iter new (list 1/2 1/3 1/4)))
+```
+---
+    (1/2 1/3 1/4)
+
+### a single-element rational list iterates
+
+```scheme
+(Iter ->list (Iter new (list 3/4)))
+```
+---
+    (3/4)
