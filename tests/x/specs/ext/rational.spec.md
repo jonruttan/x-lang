@@ -372,7 +372,7 @@
 ---
     1
 
-## value dispatch (the value calls its class, receiver-first)
+## value dispatch (the value calls its class, subject-last)
 
 ### numerator via the value
 
@@ -398,13 +398,21 @@
 ---
     #t
 
-### binary op is receiver-first (1/2 - 1/3 = 1/6, not 1/3 - 1/2)
+### commutative op reads naturally (the receiver is appended last)
+
+```scheme
+(1/2 + 1/3)
+```
+---
+    5/6
+
+### a non-commutative op is subject-last too ((1/2 - 1/3) -> (- 1/3 1/2))
 
 ```scheme
 (1/2 - 1/3)
 ```
 ---
-    1/6
+    -1/6
 
 ### unknown method errors
 

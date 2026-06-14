@@ -122,23 +122,24 @@
 
 ; --- Value-to-class call dispatch ---
 ; Build a TYPE call handler so an instance, called as (inst method . args),
-; dispatches to a bound CLASS's static method with the instance as the FIRST
-; positional argument (the receiver) -- so (1/2 numerator) -> (Rational
-; numerator 1/2) and (1/2 - 1/3) -> (Rational - 1/2 1/3), reading as
-; value.method(args).  Install on the type's call slot via type-push-call:
-;   (%type-push-call (%type-by-atom %rational) (%class-call-handler Rational))
-; An `op` (not fn) so the method selector stays unevaluated while the remaining
-; args evaluate in the caller's env -- mirrors %class-dispatch.
+; dispatches to a bound CLASS's static method with the instance as the LAST
+; positional argument -- the SUBJECT-LAST convention that matches the library's
+; Ramda-style data-last methods. So (1/2 numerator) -> (Rational numerator 1/2),
+; ("a,b,c" split ",") -> (Str8 split "," "a,b,c"), (lst map f) -> (List map f
+; lst). Commutative ops read naturally ((1/2 + 1/3) -> (Rational + 1/3 1/2) ->
+; 5/6); non-commutative ones are subject-last too (use the prefix (- a b) form).
+; Install via type-push-call: (%type-push-call (%type-by-atom %rational)
+; (%class-call-handler Rational)). An `op` (not fn) so the method selector stays
+; unevaluated while the remaining args evaluate in the caller's env.
 (def %class-call-handler
   (fn (_ class)
     (op (obj . args) e
       ; A method call has a SYMBOL selector as its first arg ((1/2 numerator)).
       ; Anything else is a data list whose head happens to be a value of this
-      ; type, re-evaluated as a call -- (1/2 1/3), or a bare (1) -- where the
-      ; receiver-first dispatch must NOT fire; reproduce the data form so the
-      ; list passes through unchanged, exactly as a non-callable head would.
-      ; (x_prim_iter re-evaluates the list it iterates, which is why this path
-      ; exists at all.)
+      ; type, re-evaluated as a call -- (1/2 1/3), or a bare (1) -- where dispatch
+      ; must NOT fire; reproduce the data form so the list passes through
+      ; unchanged, exactly as a non-callable head would. (x_prim_iter
+      ; re-evaluates the list it iterates, which is why this path exists.)
       (if (null? args)
         (list obj)
         (let ((sel (%selector (first args))))
@@ -146,15 +147,16 @@
             (let ((m (%lookup class (lit s-methods) sel)))
               (if (null? m)
                 (error (%str-append "object: no such method " (symbol->str sel)))
-                (apply m (pair class (pair obj (%map1 (fn (_ a) (eval a e)) (rest args)))))))
+                (apply m (pair class (append (%map1 (fn (_ a) (eval a e)) (rest args)) (list obj))))))
             (pair obj (%map1 (fn (_ a) (eval a e)) args))))))))
 
 ; Variant for types that ALREADY have a call handler (indexing/matching): a
-; SYMBOL selector dispatches to the class method; anything else DELEGATES to the
-; PRIOR handler (captured at install), so the existing call form keeps working.
-; So a string gets both ("hi" index 0) (method) and ("hi" 0) (code point), a
-; vector both (v ref 0) and (v 0). Install with %bind-call-over! (below), which
-; captures the current top handler before pushing this one.
+; SYMBOL selector dispatches to the class method (subject-LAST, as above);
+; anything else DELEGATES to the PRIOR handler (captured at install), so the
+; existing call form keeps working. So a string gets both ("hi" split ",")
+; (method) and ("hi" 0) (code point); a vector both (v ->list) and (v 0).
+; Install with %bind-call-over! (below), which captures the current top handler
+; before pushing this one.
 (def %class-call-handler-over
   (fn (_ class prior)
     (op (obj . args) e
@@ -165,11 +167,11 @@
             (let ((m (%lookup class (lit s-methods) sel)))
               (if (null? m)
                 (error (%str-append "object: no such method " (symbol->str sel)))
-                (apply m (pair class (pair obj (%map1 (fn (_ a) (eval a e)) (rest args)))))))
+                (apply m (pair class (append (%map1 (fn (_ a) (eval a e)) (rest args)) (list obj))))))
             (apply prior (pair obj (%map1 (fn (_ a) (eval a e)) args)))))))))
 
 ; Install value-to-class method dispatch OVER a type's existing call handler:
-; symbol selector -> the class's static method (receiver-first); anything else
+; symbol selector -> the class's static method (subject-last); anything else
 ; falls through to whatever the type's call slot did before.
 (def %bind-call-over!
   (fn (_ type-handle class)

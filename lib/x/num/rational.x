@@ -315,7 +315,7 @@
       (doc "Test whether a equals b (ints coerce)." (returns BOOLEAN "True if a equals b"))
       (%rat-eq (%ensure-rat a) (%ensure-rat b)))))
 
-; Make a rational VALUE dispatch its calls to the Rational class (receiver-first):
+; Make a rational VALUE dispatch its calls to the Rational class (subject-last):
 ; (1/2 numerator) -> (Rational numerator 1/2); (1/2 - 1/3) -> (Rational - 1/2 1/3).
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
 (%type-push-call (%type-by-atom %rational) (%class-call-handler Rational))

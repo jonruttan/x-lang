@@ -281,15 +281,23 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ---
     ("a" "b" "c")
 
-## value dispatch (method form + preserved code-point call)
+## value dispatch (subject-last method form + preserved code-point call)
 
-### method form: a string dispatches to Str
+### method form: a string dispatches to Str, appended as the subject (last arg)
 
 ```scheme
-("hello" index 1)
+("a,b,c" split ",")
 ```
 ---
-    #\e
+    ("a" "b" "c")
+
+### another combinator: contains?
+
+```scheme
+("hello" contains? "ell")
+```
+---
+    #t
 
 ### the bare (s i) code-point call still works
 

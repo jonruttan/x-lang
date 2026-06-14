@@ -44,7 +44,7 @@
         (example "(Promise force (delay (+ 1 2)))" "3"))
       (if (Promise promise? p) ((first p)) p))))
 
-; Value dispatch (receiver-first): a promise calls Promise's static methods --
+; Value dispatch (subject-last): a promise calls Promise's static methods --
 ; ((delay (+ 1 2)) force) -> (Promise force (delay (+ 1 2))).
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-push-call (prim-ref (lit type) (lit push-call)))

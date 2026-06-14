@@ -167,15 +167,15 @@
     #(1 2)
 
 
-## value dispatch (method form + preserved index call)
+## value dispatch (subject-last method form + preserved index call)
 
-### method form
+### method form: a vector dispatches to Vector (subject appended last)
 
 ```scheme
-((Vector of 10 20 30) ref 2)
+((Vector of 1 2 3) ->list)
 ```
 ---
-    30
+    (1 2 3)
 
 ### bare index call still works
 

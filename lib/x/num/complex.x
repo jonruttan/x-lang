@@ -338,7 +338,7 @@
         (returns BOOLEAN "True if both real and imaginary parts are equal"))
       (%cx-eq (%ensure-complex a) (%ensure-complex b)))))
 
-; Value dispatch (receiver-first): (1+2i real-part) -> (Complex real-part 1+2i).
+; Value dispatch (subject-last): (1+2i real-part) -> (Complex real-part 1+2i).
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
 (%type-push-call (%type-by-atom %complex) (%class-call-handler Complex))
 

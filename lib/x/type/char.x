@@ -78,7 +78,7 @@
       (doc "Case-insensitive character greater-than-or-equal." (returns BOOL "True if a >= b ignoring case"))
       (Char >=? (Char downcase a) (Char downcase b)))))
 
-; Value dispatch (receiver-first): a character calls Char's static methods --
+; Value dispatch (subject-last): a character calls Char's static methods --
 ; (#\a upcase) -> (Char upcase #\a); (#\a ->int) -> (Char ->int #\a).
 (def %type-of (prim-ref (lit type) (lit of)))
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))

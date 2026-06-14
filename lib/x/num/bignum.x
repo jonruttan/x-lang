@@ -619,7 +619,7 @@
         (returns BOOLEAN "True if a * b would overflow native integer"))
       (%would-overflow-mul? a b))))
 
-; Value dispatch (receiver-first): (big bignum?) -> (Bignum bignum? big).
+; Value dispatch (subject-last): (big bignum?) -> (Bignum bignum? big).
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
 (%type-push-call (%type-by-atom %bignum) (%class-call-handler Bignum))
 
