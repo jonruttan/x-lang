@@ -140,7 +140,13 @@
       (doc "Test whether a file descriptor refers to a terminal (TTY)."
         (returns BOOLEAN "True if fd refers to a terminal")
         (example "(Sys isatty 1)" "#t"))
-      (= 1 (%ptr-call %c-isatty fd)))))
+      (= 1 (%ptr-call %c-isatty fd)))
+    ; clock was previously reached via the catalog auto-class (ns sys); authored
+    ; here as the catalog bridge retires (R4). Cold path -> inline prim-ref.
+    (method clock (self)
+      (doc "Current process CPU time in microseconds (for timing / the `time` form)."
+        (returns INT "Microseconds of CPU time consumed"))
+      ((prim-ref (lit sys) (lit clock))))))
 
 (doc (provide x/sys/posix Sys)
   (note "POSIX via the Sys class: (Sys fork), (Sys exec name args), (Sys pipe),")
