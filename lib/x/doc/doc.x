@@ -637,26 +637,49 @@
                         (display %c-name) (display (class-name %maybe-class))
                         (display %c-reset) (newline)
                         (%display-class-sections %maybe-class "  "))
-                      (do (display %c-error) (display "No documentation for ")
-                          (display %h-name) (display %c-reset) (newline))))))))))))))
+                      ; Not a binding/module/doc/class. It may still be a METHOD
+                      ; name on some class (e.g. upcase on Char/Str8) -- surface
+                      ; those rather than a bare "no documentation".
+                      (let ()
+                        (def %hits (%apropos-matches (symbol->str %h-name)))
+                        (if (null? %hits)
+                          (do (display %c-error) (display "No documentation for ")
+                              (display %h-name) (display %c-reset) (newline))
+                          (do (display "No top-level doc for ") (display %h-name)
+                              (display "; documented methods matching it:") (newline)
+                              (%apropos-show %hits))))))))))))))))
 
-; apropos: search doc registry by name substring
+; Doc-registry entries whose name CONTAINS pat (a string), sorted by name.
+; Shared by apropos and help's name-not-found fallback.
+(def %apropos-matches
+  (fn (_ pat)
+    (def %go
+      (fn (self entries acc)
+        (if (null? entries) acc
+          (self (rest entries)
+            (if (%doc-str-contains? pat (symbol->str (first (first entries))))
+              (pair (first entries) acc)
+              acc)))))
+    (List sort (fn (_ a b) (%str-lt (symbol->str (first a)) (symbol->str (first b))))
+          (%go (first %doc-registry-cell) ()))))
+
+; Display matching (name . doc) entries one per line.
+(def %apropos-show
+  (fn (self entries)
+    (if (null? entries) ()
+      (do
+        (%display-entry-line "  " (first (first entries)) (first (rest (first entries))))
+        (self (rest entries))))))
+
+; apropos: search the doc registry by name substring. The pattern may be a
+; bare symbol ((apropos upcase)), a string ((apropos "upcase")), or any
+; expression that evaluates to one ((apropos (lit upcase))).
 (def apropos
   (op (pattern) e
     (%doc-commit!)
-    (def %pat (eval pattern e))
-    (def %search
-      (fn (self entries)
-        (if (null? entries) ()
-          (do
-            (if (%doc-str-contains? %pat
-                  (symbol->str (first (first entries))))
-              (%display-entry-line "  " (first (first entries))
-                (first (rest (first entries)))))
-            (self (rest entries))))))
-    ; results sorted by name, matching the (help) overview
-    (%search (List sort (fn (_ a b) (%str-lt (symbol->str (first a)) (symbol->str (first b))))
-                   (first %doc-registry-cell)))))
+    (def %raw (if (symbol? pattern) pattern (eval pattern e)))
+    (def %pat (if (symbol? %raw) (symbol->str %raw) %raw))
+    (%apropos-show (%apropos-matches %pat))))
 
 ; --- Module discovery ---
 
