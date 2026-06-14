@@ -984,3 +984,21 @@
 ---
     #f
 
+
+## value dispatch (method form + preserved match call)
+
+### method form
+
+```scheme
+(if (null? (Regex match #/a+/ "aaa")) "no" "yes")
+```
+---
+    "yes"
+
+### bare match call still works
+
+```scheme
+(if (null? (#/a+/ "aaa")) "no" "yes")
+```
+---
+    "yes"

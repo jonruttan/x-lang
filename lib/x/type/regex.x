@@ -647,6 +647,10 @@
       (doc "Parse a regex pattern string into an executable AST." (returns LIST "AST node list"))
       (%regex-parse pattern))))
 
+; Value dispatch over the existing match call handler: (rx match s) / (rx find s)
+; dispatch to Regex methods; (rx "input") still runs the bare match.
+(%bind-call-over! (Type of #/x/) Regex)
+
 (doc (provide x/type/regex Regex)
   (note "Syntax: #/pattern/. Supports: . * + ? \\ [class] [^neg] (group) | alternation ^ $ anchors {n,m} repetition \\d \\w \\s.")
   (example "(Regex find #/[0-9]+/ \"abc123def\")" "\"123\"")

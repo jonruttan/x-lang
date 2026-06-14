@@ -7,6 +7,9 @@
 (def %make-type (prim-ref (lit type) (lit make)))
 (def %make-instance (prim-ref (lit type) (lit make-instance)))
 (def %type? (prim-ref (lit type) (lit ?)))
+(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(def %type-call-top (prim-ref (lit type) (lit call-top)))
+(def %type-push-call (prim-ref (lit type) (lit push-call)))
 
 
 ;
@@ -145,6 +148,33 @@
                 (error (%str-append "object: no such method " (symbol->str sel)))
                 (apply m (pair class (pair obj (%map1 (fn (_ a) (eval a e)) (rest args)))))))
             (pair obj (%map1 (fn (_ a) (eval a e)) args))))))))
+
+; Variant for types that ALREADY have a call handler (indexing/matching): a
+; SYMBOL selector dispatches to the class method; anything else DELEGATES to the
+; PRIOR handler (captured at install), so the existing call form keeps working.
+; So a string gets both ("hi" index 0) (method) and ("hi" 0) (code point), a
+; vector both (v ref 0) and (v 0). Install with %bind-call-over! (below), which
+; captures the current top handler before pushing this one.
+(def %class-call-handler-over
+  (fn (_ class prior)
+    (op (obj . args) e
+      (if (null? args)
+        (apply prior (list obj))
+        (let ((sel (%selector (first args))))
+          (if (symbol? sel)
+            (let ((m (%lookup class (lit s-methods) sel)))
+              (if (null? m)
+                (error (%str-append "object: no such method " (symbol->str sel)))
+                (apply m (pair class (pair obj (%map1 (fn (_ a) (eval a e)) (rest args)))))))
+            (apply prior (pair obj (%map1 (fn (_ a) (eval a e)) args)))))))))
+
+; Install value-to-class method dispatch OVER a type's existing call handler:
+; symbol selector -> the class's static method (receiver-first); anything else
+; falls through to whatever the type's call slot did before.
+(def %bind-call-over!
+  (fn (_ type-handle class)
+    (let ((ts (%type-by-atom type-handle)))
+      (%type-push-call ts (%class-call-handler-over class (%type-call-top ts))))))
 
 (note "Write handlers")
 

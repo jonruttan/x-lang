@@ -152,6 +152,10 @@
       (doc "Convert a list to a vector." (returns VECTOR "New vector containing the list's elements"))
       (%vector-from-list %vector lst))))
 
+; Value dispatch over the existing index call handler: (v ref 0) / (v ->list)
+; dispatch to Vector methods; (v 0) still indexes.
+(%bind-call-over! (Type of (Vector of 1)) Vector)
+
 (doc (provide x/type/vector Vector)
   (note "Literal syntax: #(1 2 3), with negative indexing via the vector's call slot.")
   (example "(Vector ref (Vector of 10 20 30) 1)" "20")

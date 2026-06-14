@@ -166,3 +166,21 @@
 ---
     #(1 2)
 
+
+## value dispatch (method form + preserved index call)
+
+### method form
+
+```scheme
+((Vector of 10 20 30) ref 2)
+```
+---
+    30
+
+### bare index call still works
+
+```scheme
+((Vector of 10 20 30) 1)
+```
+---
+    20

@@ -98,6 +98,10 @@
 ; library at once.
 (def Str StrUTF8)
 
+; Value dispatch over the existing code-point call handler: ("hi" index 0) and
+; ("hi" upcase) dispatch to Str methods; ("hi" 0) still does code-point access.
+(%bind-call-over! (Type of "x") Str)
+
 (doc (provide x/protocol/str/utf8 StrUTF8 Utf8 Str)
   (note "The UTF-8 code-point view (a Str8 subclass). Utf8 and Str are aliases for StrUTF8; Str names the active protocol. (help StrUTF8) lists every method.")
   "StrUTF8: the UTF-8 code-point string protocol, overriding Str8's element access for code points.")

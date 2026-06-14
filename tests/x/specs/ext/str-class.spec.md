@@ -280,3 +280,21 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ```
 ---
     ("a" "b" "c")
+
+## value dispatch (method form + preserved code-point call)
+
+### method form: a string dispatches to Str
+
+```scheme
+("hello" index 1)
+```
+---
+    #\e
+
+### the bare (s i) code-point call still works
+
+```scheme
+("hi" 0)
+```
+---
+    #\h
