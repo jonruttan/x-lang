@@ -3,6 +3,7 @@
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
 (def %str->symbol (prim-ref (lit str) (lit ->sym)))
+(def %display-to-str (prim-ref (lit io) (lit display-to-str)))  ; render a bad init key in errors
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %make-type (prim-ref (lit type) (lit make)))
 (def %make-instance (prim-ref (lit type) (lit make-instance)))
@@ -71,13 +72,41 @@
       (first (rest s))
       s)))
 
+; Reject an init key that names no declared member, so (new Cell 1 2) -- where 1
+; is read as a member name -- fails loudly instead of silently using defaults.
+; `fields` is the %all-fields alist (member name . default).
+(def %check-init-key
+  (fn (_ key fields class)
+    (if (assoc-has? key fields) ()
+      (error (%str-append "new: " (%str-append (%display-to-str key)
+        (%str-append " is not a member of " (%display-to-str (class-name class)))))))))
+
+; Walk an init store (plist `name val ...` OR alist `((name . val) ...)`),
+; checking every key, before %init-fields uses it. Mirrors %opt-cell's walk and
+; its malformed-store guards so the two agree on what counts as a key.
+(def %check-init-keys
+  (fn (loop store fields class)
+    (match
+      ((null? store) ())
+      ((not (pair? store)) (error "new: init store must be an alist or plist"))
+      ((pair? (first store))                              ; alist entry (k . v)
+        (do (%check-init-key (first (first store)) fields class)
+            (loop (rest store) fields class)))
+      ((not (pair? (rest store)))                         ; plist key with no value
+        (error "new: init key without a value (use bare member names)"))
+      (#t                                                 ; plist cell: k then v
+        (do (%check-init-key (first store) fields class)
+            (loop (rest (rest store)) fields class))))))
+
 ; Build an instance: instance fields (across the chain) initialised from inits.
 ; eval? selects how supplied values are treated (see %init-fields): #t = code
 ; evaluated in e (the new ops), #f = data used as-is (new-from).
 (def %instantiate
   (fn (_ class inits e eval?)
-    (%make-instance %object
-      (list class (%init-fields (%all-fields class) inits e eval?)))))
+    (let ((fields (%all-fields class)))
+      (%check-init-keys inits fields class)
+      (%make-instance %object
+        (list class (%init-fields fields inits e eval?))))))
 
 (note "Dispatch handlers")
 
