@@ -626,21 +626,26 @@
             (if (not (null? %mod))
               (%display-module %mod e)
               (let ()
-                (def %doc-entry (%doc-lookup %h-name))
-                (if (not (null? %doc-entry))
-                  (%display-doc %doc-entry)
+                ; A class is shown as its summary (the body-level (doc ...), if any)
+                ; ABOVE its member/method sections -- so detect class BEFORE the
+                ; generic doc-lookup, which would otherwise show the summary alone.
+                (def %maybe-class (guard (_ ()) (eval %h-name e)))
+                (if (if (null? %maybe-class) #f (class? %maybe-class))
                   (let ()
-                    ; maybe %h-name names a class -> list its (inherited) methods
-                    (def %maybe-class (guard (_ ()) (eval %h-name e)))
-                    (if (if (null? %maybe-class) #f (class? %maybe-class))
-                      (do
-                        (display %c-name) (display (class-name %maybe-class))
-                        (display %c-reset) (newline)
-                        (%display-class-sections %maybe-class "  "))
-                      ; Not a binding/module/doc/class. It may still be a METHOD
-                      ; name on some class (e.g. upcase on Char/Str8) -- surface
-                      ; those rather than a bare "no documentation".
+                    (def %cdoc (%doc-lookup %h-name))
+                    (if (null? %cdoc)
+                      (do (display %c-name) (display (class-name %maybe-class))
+                          (display %c-reset) (newline))
+                      (%display-doc %cdoc))
+                    (%display-class-sections %maybe-class "  "))
+                  (let ()
+                    (def %doc-entry (%doc-lookup %h-name))
+                    (if (not (null? %doc-entry))
+                      (%display-doc %doc-entry)
                       (let ()
+                        ; Not a binding/module/doc/class. It may still be a METHOD
+                        ; name on some class (e.g. upcase on Char/Str8) -- surface
+                        ; those rather than a bare "no documentation".
                         (def %hits (%apropos-matches (symbol->str %h-name)))
                         (if (null? %hits)
                           (do (display %c-error) (display "No documentation for ")

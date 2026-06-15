@@ -443,6 +443,28 @@
                      (pair desc ())))
             (first %doc-pending-cell)))))
 
+; The class-level (doc "desc" meta...) form in a class body, or () if absent.
+; pair?-guarded so bare-symbol members (links, north, ...) never reach an
+; unchecked (first symbol) -- which is silently wrong on 64-bit, a crash on 32-bit.
+(def %find-doc-form
+  (fn (loop body)
+    (if (null? body) ()
+      (if (if (pair? (first body)) (eq? (first (first body)) (lit doc)) #f)
+        (first body)
+        (loop (rest body))))))
+
+; Stash a class-level (doc "desc" meta...) under the bare class name, so
+; (help Class) shows a summary above the member/method sections. DESC may be
+; absent; meta (note/see/example) rides through like a method's doc.
+(def %stash-class-doc!
+  (fn (_ class-name dform)
+    (let ((dargs (rest dform)))
+      (let ((desc (if (null? dargs) "" (if (str? (first dargs)) (first dargs) "")))
+            (meta (if (null? dargs) () (if (str? (first dargs)) (rest dargs) dargs))))
+        (set-first! %doc-pending-cell
+          (pair (pair (lit %bare) (pair class-name (pair desc meta)))
+                (first %doc-pending-cell)))))))
+
 ; Extract the inline (param ...) forms from a method signature (self . params).
 ; A variadic tail is written dotted -- (self . (param args ...)) or
 ; (self k . (param rest ...)) -- so the (param ...) form can arrive as `sig`
@@ -538,9 +560,11 @@
       ()
       (let ((f (first forms)))
         (if (if (pair? f)
-              (if (eq? (first f) (lit method)) #t (eq? (first f) (lit static)))
+              (if (eq? (first f) (lit method)) #t
+                (if (eq? (first f) (lit static)) #t
+                  (eq? (first f) (lit doc))))         ; class-level (doc ...) -- see %build-class
               #f)
-          (loop class-name (rest forms) e)           ; skip methods + the static block
+          (loop class-name (rest forms) e)           ; skip methods, the static block, the class doc
           (do
             (if (%member-has-desc? f)
               (%stash-member-doc! class-name (%member-name f) (%member-desc f))
@@ -571,7 +595,7 @@
             (error "def-class: the (fields ...) wrapper was removed -- declare members directly, e.g. (def-class C () x y (method m (self) ...))")
             (if (%valid-head? f)
               ()
-              (error "def-class: invalid body form -- expected a member name, (name value), (method ...), or (static ...)"))))
+              (error "def-class: invalid body form -- expected a member name, (name value), (doc ...), (method ...), or (static ...)"))))
         (loop (rest body))))))
 
 ; Resolve the parent once, validate the body, and build the class object. Kept out
@@ -580,6 +604,8 @@
   (fn (_ name parent body e)
     (do
       (%validate-body body)
+      (let ((dform (%find-doc-form body)))           ; class-level (doc ...) -> doc registry
+        (if (null? dform) () (%stash-class-doc! name dform)))
       (let ((p (%resolve-parent parent e))
             (sblock (%find-form body (lit static))))
         (%make-class
@@ -603,6 +629,7 @@
   (note "  NAME | (NAME val) | (NAME val \"desc\")    instance member (val is its default)")
   (note "  (method NAME (self . args) body...)      instance method")
   (note "  (static MEMBER... (method ...)...)       class-wide members + static methods")
+  (note "  (doc \"summary\" (note ..) (see ..) (example ..))   class-level docs, shown by (help Class)")
   (note "A method shadows a member of the same name. Parent: () or (extends Class).")
   (note "Inside a method, (self m) accesses members; (member 'm)/(set-member! 'm v) are raw.")
   (example "(do (def-class C () (static (n 7) (method get (self) (self n)))) (C get))" "7")
