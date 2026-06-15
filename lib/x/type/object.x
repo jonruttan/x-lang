@@ -380,11 +380,15 @@
         (pair (lit statics) (list statics))))))   ; statics in a one-cell mutable box
 
 ; Find a top-level body form whose head is `tag`, returning its rest (or ()).
+; Find the (tag ...) form in a class body, returning its tail (or () if absent).
+; pair?-guarded: a bare-symbol member (links, north, ...) is not a tagged form,
+; and an unchecked (first symbol) is silently wrong on 64-bit / a SIGSEGV on the
+; 32-bit Pi -- so skip non-pairs instead of reading their car. (cf. %find-doc-form)
 (def %find-form
   (fn (loop body tag)
     (if (null? body)
       ()
-      (if (eq? (first (first body)) tag)
+      (if (if (pair? (first body)) (eq? (first (first body)) tag) #f)
         (rest (first body))
         (loop (rest body) tag)))))
 
