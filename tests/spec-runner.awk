@@ -5,7 +5,7 @@
 #
 # @description Batched test runner for .spec.md format
 # @author [Jon Ruttan](jonruttan@gmail.com)
-# @copyright 2024 Jon Ruttan
+# @copyright 2026 Jon Ruttan
 # @license MIT No Attribution (MIT-0)
 #
 #     ., .,
