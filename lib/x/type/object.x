@@ -190,12 +190,12 @@
         (write (rest (first al)))
         (loop (rest al))))))
 
-(def %object-write
-  (fn (_ self)
-    (display "#<")
-    (display (class-name self))
-    (%write-fields (%obj-fields self))
-    (display ">")))
+; An object's write op is not a standalone global -- it lives ON the type
+; (below) and asks the INSTANCE to render itself: a class that defines a `repr`
+; method (returning a string) controls its own printing; otherwise the type's
+; default #<Class field=val ...> dump. (display falls back to write for objects,
+; so `repr` governs both.) This is the type / class / instance triad, no global
+; write function. %write-fields above is the default dump's shared field walker.
 
 (def %class-write
   (fn (_ self)
@@ -203,7 +203,19 @@
     (display (class-name self))
     (display ">")))
 
-(def %object (%make-type "OBJECT" (list (pair (lit call) %object-dispatch) (pair (lit write) %object-write))))
+(def %object
+  (%make-type "OBJECT"
+    (list
+      (pair (lit call) %object-dispatch)
+      (pair (lit write)
+        (fn (_ self)
+          (if (null? (%lookup (%obj-class self) (lit methods) (lit repr)))
+            (do
+              (display "#<")
+              (display (class-name self))
+              (%write-fields (%obj-fields self))
+              (display ">"))
+            (display (self repr))))))))
 (def %class  (%make-type "CLASS"  (list (pair (lit call) %class-dispatch)  (pair (lit write) %class-write))))
 
 (note "Inheritance")

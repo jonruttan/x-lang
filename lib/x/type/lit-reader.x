@@ -51,6 +51,65 @@
       (%seq (buffer-unread buffer) buffer)
       ())))
 
+; --- $"...{expr}..." string interpolation --------------------------------
+; The reader stays trivial:  $X -> (%interp-str X)  (mirroring `X -> (quasi X)).
+; All parsing happens at eval-time in %interp-str, where token-read-string is
+; safe -- NOT inside the GC-sensitive tokenizer loop.  Expands to (Str8 str ...).
+; (display/str themselves live in boot/string.x and the Str8 class respectively.)
+(def %str-append        (prim-ref (lit str)  (lit append)))
+(def %char->int         (prim-ref (lit char) (lit ->int)))
+(def %token-read-string (prim-ref (lit tok)  (lit read-str)))
+
+; Index of byte `code` in s at/after i, else len.
+(def %str-index
+  (fn (self s code i len)
+    (if (>= i len) len
+      (if (= (%char->int (str-ref s i)) code) i
+        (self s code (+ i 1) len)))))
+
+; Interpolated string -> argument list for (Str8 str ...): literal chunks
+; interleaved with parsed hole expressions.  { = 123, } = 125.  A single { opens
+; a hole; {{ and }} are literal braces; a lone } is a literal brace too.
+(def %interp-forms
+  (fn (self s i len)
+    (if (>= i len) ()
+      (let ((o (%str-index s 123 i len))                    ; next {
+            (c (%str-index s 125 i len)))                   ; next }
+        (let ((p (if (< o c) o c)))                         ; whichever brace comes first
+          (if (>= p len)
+            (list (substring s i len))                      ; no more braces: trailing literal
+            (if (= (%char->int (str-ref s p)) 123)
+              ; a {  -- either a hole or a {{ literal
+              (if (and (< (+ p 1) len) (= (%char->int (str-ref s (+ p 1))) 123))
+                (pair (substring s i (+ p 1)) (self s (+ p 2) len))   ; {{ -> literal {
+                (let ((close (%str-index s 125 (+ p 1) len)))         ; hole: { expr }
+                  (pair (substring s i p)                             ; text before {
+                    ; pad with a trailing space so a bare-symbol hole ({x}) terminates its
+                    ; token at end-of-buffer (token-read-string drops an unterminated tail).
+                    (pair (first (%token-read-string (%base) (%str-append (substring s (+ p 1) close) " ")))
+                      (self s (+ close 1) len)))))
+              ; a }  -- }} or a lone }, both literal (one brace either way)
+              (if (and (< (+ p 1) len) (= (%char->int (str-ref s (+ p 1))) 125))
+                (pair (substring s i (+ p 1)) (self s (+ p 2) len))   ; }} -> literal }
+                (pair (substring s i (+ p 1)) (self s (+ p 1) len)))))))))) ; lone } -> literal }
+
+; What  $"..."  expands to. An op so holes evaluate in the CALLER's env.
+(def %interp-str
+  (op (s) e
+    (eval (pair (lit Str8) (pair (lit str) (%interp-forms s 0 (str-length s)))) e)))
+
+; $ (byte 36) reader: one-char token, then wrap the following string.
+(def %interp-accept
+  (fn (_ buffer score _)
+    (%seq (buffer-unread buffer) (score-set score 1 buffer))))
+(def %interp-analyse
+  (fn (_ buffer score chr) (if (= chr 36) %interp-accept ())))
+(def %interp-read
+  (fn (_ buffer . rest)
+    (if (= (%buffer-last-char buffer) 36)
+      (pair (lit %interp-str) (pair (%token-read buffer) ()))
+      ())))
+
 ; --- Place the readers on the symbol type ---
 ; Each slot becomes a list: the macro handlers followed by the type's
 ; existing C handler (captured as the list tail), which the tokenizer's
@@ -59,11 +118,11 @@
 (def %sym-type (%type-by-atom (%type-of "x")))
 
 (%type-push-analyse %sym-type
-  (list %lit-analyse %quasi-analyse %unquote-analyse
+  (list %interp-analyse %lit-analyse %quasi-analyse %unquote-analyse
         (first (first (%type-analyse-cell %sym-type)))))
 
 (%type-push-read %sym-type
-  (list %lit-read %quasi-read %unquote-read
+  (list %interp-read %lit-read %quasi-read %unquote-read
         (first (first (%type-read-cell %sym-type)))))
 
 (%type-push-delimit %sym-type %macro-delimit)

@@ -7,6 +7,9 @@
 (def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
+; display-to-str renders any value the way display would -- used by (Str8 str ...)
+; to coerce non-string arguments (and the target string interpolation expands to).
+(def %display-to-str (prim-ref (lit io) (lit display-to-str)))
 
 
 
@@ -92,6 +95,11 @@
         (returns STRING "The arguments joined end to end")
         (example "(Str8 append \"ab\" \"cd\" \"ef\")" "\"abcdef\""))
       (fold %str-append "" args))
+    (method str (self . (param args ANY "Values to render and concatenate"))
+      (doc "Concatenate values into one string, coercing each via display (so non-strings render too). The target of $\"...{expr}...\" interpolation."
+        (returns STRING "The rendered values joined end to end")
+        (example "(Str8 str \"x=\" 5 \"!\")" "\"x=5!\""))
+      (fold (fn (_ acc x) (%str-append acc (%display-to-str x))) "" args))
     (method make   (self (param k INT "Number of elements") . (param rest CHAR "Fill character (default space)"))
       (doc "A string of k copies of the fill character (space if omitted)."
         (returns STRING "k-element string of the fill character")
