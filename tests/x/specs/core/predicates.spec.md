@@ -378,6 +378,48 @@
 ---
     #f
 
+### false for an operative
+
+```scheme
+(procedure? (op (_ x) x))
+```
+---
+    #f
+
+## operative?
+
+### true for an op
+
+```scheme
+(operative? (op (_ x) x))
+```
+---
+    #t
+
+### false for a fn
+
+```scheme
+(operative? (fn (_ x) x))
+```
+---
+    #f
+
+### false for a builtin
+
+```scheme
+(operative? first)
+```
+---
+    #f
+
+### false for an integer
+
+```scheme
+(operative? 42)
+```
+---
+    #f
+
 ## char?
 
 ### returns #t for a character

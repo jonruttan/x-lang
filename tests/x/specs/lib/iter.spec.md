@@ -99,3 +99,29 @@
 ```
 ---
     (5 6)
+
+## iter?
+
+### true for an iterator
+
+```scheme
+(Iter iter? (Iter new (list 1 2 3)))
+```
+---
+    #t
+
+### false for the underlying list
+
+```scheme
+(if (Iter iter? (list 1 2 3)) "yes" "no")
+```
+---
+    "no"
+
+### false for an integer
+
+```scheme
+(if (Iter iter? 42) "yes" "no")
+```
+---
+    "no"

@@ -25,6 +25,7 @@
 (def %type-char (%type-of (%integer->char 0)))
 (def %type-proc (%type-of (fn (_ ) ())))
 (def %type-prim (%type-of eq?))
+(def %type-op (%type-of (op (_ ) ())))
 
 (def pair? (fn (_ x) (%type? x %type-pair)))
 (def not (fn (_ x) (match (x #f) (#t #t))))
@@ -39,6 +40,9 @@
       ((%type? x %type-proc) #t)
       ((%type? x %type-prim) #t)
       (#t #f))))
+; Operatives (op) are a distinct callable from applicatives: they receive
+; their arguments unevaluated, so procedure? deliberately excludes them.
+(def operative? (fn (_ x) (%type? x %type-op)))
 
 ; Source line of an object (0 if no metadata)
 (def line-of (fn (_ obj) (%obj-meta-ref obj 0)))
@@ -47,5 +51,5 @@
 ; wrap its provide in (doc ...). Its module description is registered
 ; retroactively in x/doc/doc-prims.x.
 (provide x/core/predicates
-  null? pair? not atom? number? str? symbol? char? procedure?
+  null? pair? not atom? number? str? symbol? char? procedure? operative?
   line-of)

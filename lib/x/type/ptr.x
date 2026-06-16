@@ -13,12 +13,22 @@
 
 (import x/type/object)
 
+; Type helpers for ptr? (ns `type` de-registered; fetch from the catalog).
+; The PTR handle is obtained by type-of'ing a null pointer -- not dereferenced.
+(def %type-of (prim-ref (lit type) (lit of)))
+(def %type? (prim-ref (lit type) (lit ?)))
+(def %ptr (%type-of ((prim-ref (lit int) (lit ->ptr)) 0)))
+
 (def-class Ptr ()
   (static
     (method from-int (self (param n INT "Integer address"))
       (doc "Construct a pointer from an integer address (the int->ptr cast)."
         (returns PTR "A pointer to that address"))
       ((prim-ref (lit int) (lit ->ptr)) n))
+    (method ptr? (self (param x ANY "Value to test"))
+      (doc "Test whether a value is a raw pointer."
+        (returns BOOL "True if x is a pointer"))
+      (%type? x %ptr))
     (method ->int (self (param p PTR "A pointer"))
       (doc "The integer (address) representation of a pointer."
         (returns INT "Integer address"))

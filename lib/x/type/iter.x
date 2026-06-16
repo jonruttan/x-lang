@@ -24,6 +24,9 @@
 (def %i-new    (prim-ref (lit iter) (lit new)))
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %type-of (prim-ref (lit type) (lit of)))
+(def %type? (prim-ref (lit type) (lit ?)))
+; The ITER type handle, for iter?: type-of a degenerate iterator.
+(def %iter (%type-of (%i-make () ())))
 
 
 ; List step: the state cell IS the remaining list; step reads the head and
@@ -41,6 +44,10 @@
     (method make   (self step state) (%i-make step state))
     (method next   (self it)         (%i-next it))
     (method empty? (self it)         (%i-empty? it))
+    (method iter? (self (param x ANY "Value to test"))
+      (doc "Test whether a value is an iterator."
+        (returns BOOL "True if x is an iterator"))
+      (%type? x %iter))
     ; nil has no type for the prim to dispatch on, so shadow it to an empty
     ; iterator; everything else uses the prim's per-type slot dispatch.
     (method new    (self x)
