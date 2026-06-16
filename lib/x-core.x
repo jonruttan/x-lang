@@ -165,6 +165,8 @@
   ; List: list/sequence operations as the List class (core/list.x holds the
   ; low-level impl + %-helpers; functions migrate onto this class over time).
   (include "lib/x/type/list.x")
+  ; Gen: lazy generators (unfold-based). Needs object/list/vector, all above.
+  (include "lib/x/type/gen.x")
   (include "lib/x/sys/token.x")
 
   ; Quasi-quoting
