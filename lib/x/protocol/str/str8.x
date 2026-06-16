@@ -11,6 +11,11 @@
 ; to coerce non-string arguments (and the target string interpolation expands to).
 (def %display-to-str (prim-ref (lit io) (lit display-to-str)))
 
+; str: the foundational string constructor. A TYPE constructor, so it's a bare
+; global like `list` (your "types are foundational, classes aren't" line). The
+; Str8 class method (Str8 str ...) and $"..." interpolation delegate to it.
+(def str (fn (_ . args) (fold (fn (_ acc x) (%str-append acc (%display-to-str x))) "" args)))
+
 
 
 ; Str8 treats a STRING as its raw bytes (8-bit chars, 0-255), with no encoding
@@ -99,7 +104,10 @@
       (doc "Concatenate values into one string, coercing each via display (so non-strings render too). The target of $\"...{expr}...\" interpolation."
         (returns STRING "The rendered values joined end to end")
         (example "(Str8 str \"x=\" 5 \"!\")" "\"x=5!\""))
-      (fold (fn (_ acc x) (%str-append acc (%display-to-str x))) "" args))
+      (apply str args))                            ; delegate to the foundational global
+    (method iter (self (param s STRING "String to iterate"))
+      (doc "An iterator over the string's characters." (returns ITER "Character iterator"))
+      (Iter new s))
     (method make   (self (param k INT "Number of elements") . (param rest CHAR "Fill character (default space)"))
       (doc "A string of k copies of the fill character (space if omitted)."
         (returns STRING "k-element string of the fill character")
@@ -277,6 +285,6 @@
                   (pair (self sub s start (- i start)) acc))
               (go start (+ i 1) acc))))))))
 
-(doc (provide x/protocol/str/str8 Str8)
+(doc (provide x/protocol/str/str8 Str8 str)
   (note "The 8-bit byte view. Use (Str8 length s), (Str8 upcase s), etc.; (help Str8) lists every method, (help Str8 method) shows one.")
   "Str8: the 8-bit byte string protocol (a Seq subclass) with the full string method suite.")

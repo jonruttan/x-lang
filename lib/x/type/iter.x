@@ -62,6 +62,11 @@
       (let loop ((acc acc) (it it))
         (if (%i-empty? it) acc (loop (f acc (%i-next it)) it))))))
 
+; iter: the foundational iterator constructor. A TYPE constructor, so a bare
+; global like `list` -- (Iter new x) is the same thing homed on the class, and
+; the sequence classes carry an `iter` method that delegates here too.
+(def iter (fn (_ x) (Iter new x)))
+
 ; --- Per-type iterator constructors (the values pushed onto the iter slot) ---
 
 (def %list-iter (fn (_ lst) (Iter make %list-iter-step lst)))
@@ -91,7 +96,7 @@
 (def %object-iter (fn (_ inst) (%list-iter (%obj-fields inst))))
 (%type-push-iter (%type-by-atom %object) %object-iter)
 
-(doc (provide x/type/iter Iter)
+(doc (provide x/type/iter Iter iter)
   (note "(Iter new seq) iterates lists, vectors, strings, and def-class instances")
   (note "(instances yield (name . value) pairs); empty sequences give an empty iterator.")
   (example "(Iter ->list (Iter new (Vector of 1 2 3)))" "(1 2 3)")

@@ -150,7 +150,10 @@
       (build (- len 1) ()))
     (method from-list (self (param lst LIST "List to convert"))
       (doc "Convert a list to a vector." (returns VECTOR "New vector containing the list's elements"))
-      (%vector-from-list %vector lst))))
+      (%vector-from-list %vector lst))
+    (method iter (self (param v VECTOR "Vector to iterate"))
+      (doc "An iterator over the vector's elements." (returns ITER "Iterator"))
+      (Iter new v))))
 
 ; Value dispatch over the existing index call handler: (v ref 0) / (v ->list)
 ; dispatch to Vector methods; (v 0) still indexes.
