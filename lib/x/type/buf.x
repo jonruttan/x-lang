@@ -10,6 +10,10 @@
 
 (import x/type/object)
 
+; A buffer is a non-owning VIEW over storage someone else owns (a string's
+; bytes, the input channel). It is never constructed here -- the tokenizer hands
+; you one; these methods operate on it. (Hence no (Buf make): a buffer that
+; allocated its own storage would defeat the point.)
 (def-class Buf ()
   (static
     (method tok (self (param buffer ANY "A tokenizer buffer"))
