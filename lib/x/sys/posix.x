@@ -122,6 +122,22 @@
     (method fd-write (self (param fd NUMBER "File descriptor") (param s STRING "String to write"))
       (doc "Write a string to a file descriptor." (returns NUMBER "Bytes written"))
       (%ptr-call (%resolve "write") fd s (str-length s)))
+    (method fd-read (self (param fd NUMBER "File descriptor to read from")
+                          (param n NUMBER "Maximum number of bytes to read"))
+      (doc "Read up to n bytes from a file descriptor (libc read via FFI)."
+        (returns LIST "Byte values (0-255) in read order; () at EOF or on error")
+        (example "(Sys fd-read fd 4)" "(112 9 240 3)"))
+      ; Read into a fresh block, then copy the bytes out before freeing it --
+      ; the same malloc/%ptr-ref/free dance as `pipe`. %ptr-ref returns a signed
+      ; cell, so mask each to a byte. got<=0 (EOF/error) leaves the loop at i<0
+      ; and yields ().
+      (let ((buf (%cvt (%ptr-call %c-malloc n) %ptr)))
+        (let ((got (%ptr-call (%resolve "read") fd buf n)))
+          (let ((bytes (let go ((i (- got 1)) (acc ()))
+                         (if (< i 0) acc
+                           (go (- i 1) (pair (& (%ptr-ref buf i 1) 255) acc))))))
+            (%ptr-call %c-free buf)
+            bytes))))
     (method file-exists? (self (param path STRING "File path to check"))
       (doc "Check if a file exists (via access with F_OK=0)." (returns BOOLEAN "True if file exists"))
       (= (%ptr-call (%resolve "access") path 0) 0))
