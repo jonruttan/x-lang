@@ -67,6 +67,14 @@
 ; the sequence classes carry an `iter` method that delegates here too.
 (def iter (fn (_ x) (Iter new x)))
 
+; Make iterators value-callable, so they read fluently as objects:
+;   (it next)   ((grid each-cell) for-each f)   (it ->list)   (it fold f acc)
+; Subject-last dispatch (as for Str8/Vector/Num) puts the iterator in the
+; trailing `it` parameter -- exactly the shape every Iter consumer already has,
+; so (it for-each f) routes to (Iter for-each f it).
+(def %type-push-call (prim-ref (lit type) (lit push-call)))
+(%type-push-call (%type-by-atom %iter) (%class-call-handler Iter))
+
 ; --- Per-type iterator constructors (the values pushed onto the iter slot) ---
 
 (def %list-iter (fn (_ lst) (Iter make %list-iter-step lst)))
