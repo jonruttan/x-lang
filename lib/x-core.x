@@ -206,7 +206,7 @@
   (doc (provide x/core
     null? if let do begin not atom? list number->str str->number
     str=? str-ref str-length substring
-    newline include-once require-once provide import
+    newline include-once require-once provide import import-path!
     peek-char current-line quasi repl doc note help)
     (note "Built-in forms, module system, REPL, and documentation.")
     "Core language: operatives, string primitives, GC, modules."))
