@@ -455,23 +455,45 @@
                            (pair desc (%append2 meta (%sig-params sig)))))
                   (first %doc-pending-cell))))))))
 
-; Stash a member's description as a %bare pending doc entry, keyed Class/NAME
+; A class body holds two kinds of (doc ...) form, told apart by the first element
+; after `doc`: a STRING is the class summary (doc "..." meta...); a symbol or a
+; (NAME default) declaration is a member's doc (doc NAME "..." meta...). Members
+; thus carry NO positional description -- documentation always decorates, exactly
+; like the top-level `doc` op wraps a (def ...). pair?-guarded so a bare-symbol
+; member (links, north, ...) never reaches an unchecked (first symbol) -- which
+; is silently wrong on 64-bit and a crash on the 32-bit Pi.
+(def %doc-form?
+  (fn (_ f) (if (pair? f) (eq? (first f) (lit doc)) #f)))
+(def %class-doc-form?
+  (fn (_ f)
+    (if (%doc-form? f)
+      (if (null? (rest f)) #f (str? (first (rest f))))
+      #f)))
+(def %member-doc-form?
+  (fn (_ f)
+    (if (%doc-form? f)
+      (if (null? (rest f)) #f (not (str? (first (rest f)))))
+      #f)))
+
+; Stash a member's doc from its (doc DECL "desc" meta...) form, keyed Class/NAME
 ; (same namespace as methods; a same-named method shadows it, matching dispatch).
+; DESC may be absent; meta (see/example/...) rides through like a method's doc.
 (def %stash-member-doc!
-  (fn (_ class-name member-name desc)
-    (set-first! %doc-pending-cell
-      (pair (pair (lit %bare)
-               (pair (%method-doc-key class-name member-name)
-                     (pair desc ())))
-            (first %doc-pending-cell)))))
+  (fn (_ class-name member-name dform)
+    (let ((dargs (rest (rest dform))))               ; skip `doc` and the DECL
+      (let ((desc (if (null? dargs) "" (if (str? (first dargs)) (first dargs) "")))
+            (meta (if (null? dargs) () (if (str? (first dargs)) (rest dargs) dargs))))
+        (set-first! %doc-pending-cell
+          (pair (pair (lit %bare)
+                   (pair (%method-doc-key class-name member-name)
+                         (pair desc meta)))
+                (first %doc-pending-cell)))))))
 
 ; The class-level (doc "desc" meta...) form in a class body, or () if absent.
-; pair?-guarded so bare-symbol members (links, north, ...) never reach an
-; unchecked (first symbol) -- which is silently wrong on 64-bit, a crash on 32-bit.
 (def %find-doc-form
   (fn (loop body)
     (if (null? body) ()
-      (if (if (pair? (first body)) (eq? (first (first body)) (lit doc)) #f)
+      (if (%class-doc-form? (first body))
         (first body)
         (loop (rest body))))))
 
@@ -559,23 +581,24 @@
                 (loop class-name (rest forms) raw? parent e)))
         (loop class-name (rest forms) raw? parent e)))))
 
-; A member declaration is  NAME  |  (NAME value)  |  (NAME value "desc").
+; A member declaration is  NAME  |  (NAME default).  Its doc, if any, comes from
+; a separate (doc DECL "desc" meta...) form (see %member-doc-form? above), so a
+; member never carries a description positionally.
 (def %member-name (fn (_ form) (if (pair? form) (first form) form)))
 (def %member-value
   (fn (_ form e)
     (if (if (pair? form) (not (null? (rest form))) #f)
       (eval (first (rest form)) e)
       ())))                                          ; bare name / (NAME) -> nil default
-(def %member-has-desc?
-  (fn (_ form)
-    (if (pair? form)
-      (if (not (null? (rest form))) (not (null? (rest (rest form)))) #f)
-      #f)))
-(def %member-desc (fn (_ form) (first (rest (rest form)))))
+
+; The member declaration a body form carries: the form itself, or -- for a
+; member-doc form (doc DECL ...) -- the wrapped DECL.
+(def %member-decl
+  (fn (_ f) (if (%member-doc-form? f) (first (rest f)) f)))
 
 ; Collect member declarations from `forms` into a (name . value) alist, skipping
-; (method ...) and (static ...) forms. A trailing description string registers a
-; doc entry under Class/NAME (the same namespace as methods).
+; (method ...), (static ...), and the class summary (doc "..."). A member-doc
+; form (doc DECL "desc" ...) declares its member AND registers the doc.
 (def %collect-members
   (fn (loop class-name forms e)
     (if (null? forms)
@@ -584,14 +607,14 @@
         (if (if (pair? f)
               (if (eq? (first f) (lit method)) #t
                 (if (eq? (first f) (lit static)) #t
-                  (eq? (first f) (lit doc))))         ; class-level (doc ...) -- see %build-class
+                  (%class-doc-form? f)))             ; skip methods, statics, the class doc
               #f)
-          (loop class-name (rest forms) e)           ; skip methods, the static block, the class doc
-          (do
-            (if (%member-has-desc? f)
-              (%stash-member-doc! class-name (%member-name f) (%member-desc f))
+          (loop class-name (rest forms) e)
+          (let ((decl (%member-decl f)))
+            (if (%member-doc-form? f)
+              (%stash-member-doc! class-name (%member-name decl) f)
               ())
-            (pair (pair (%member-name f) (%member-value f e))
+            (pair (pair (%member-name decl) (%member-value decl e))
                   (loop class-name (rest forms) e))))))))
 
 (def %resolve-parent
@@ -648,7 +671,8 @@
       (list (lit def) name (list (lit lit) (%build-class name parent body e)))
       e)))
   (note "Names are literal (no quotes). Body forms (members and methods intermixed):")
-  (note "  NAME | (NAME val) | (NAME val \"desc\")    instance member (val is its default)")
+  (note "  NAME | (NAME default)                    instance member (default optional, nil if omitted)")
+  (note "  (doc DECL \"desc\" meta..)                 document a member; DECL is NAME or (NAME default)")
   (note "  (method NAME (self . args) body...)      instance method")
   (note "  (static MEMBER... (method ...)...)       class-wide members + static methods")
   (note "  (doc \"summary\" (note ..) (see ..) (example ..))   class-level docs, shown by (help Class)")
