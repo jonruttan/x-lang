@@ -89,7 +89,7 @@
 ### retrieves element by index
 
 ```scheme
-(Vector ref (Vector of 10 20 30) 1)
+(Vector ref 1 (Vector of 10 20 30))
 ```
 ---
     20

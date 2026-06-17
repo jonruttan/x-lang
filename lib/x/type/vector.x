@@ -133,7 +133,7 @@
       (doc "Test whether a value is a vector." (returns BOOL "True if x is a vector"))
       (%type? x %vector))
     ; --- Access ---
-    (method ref (self (param v VECTOR "Vector") (param i INT "Zero-based index"))
+    (method ref (self (param i INT "Zero-based index") (param v VECTOR "Vector"))
       (doc "Return the element at index i of a vector." (returns ANY "Element at index i"))
       (%obj-ref v (+ i 1)))
     (method length (self (param v VECTOR "Vector"))
@@ -155,11 +155,13 @@
       (doc "An iterator over the vector's elements." (returns ITER "Iterator"))
       (Iter new v))))
 
-; Value dispatch over the existing index call handler: (v ref 0) / (v ->list)
-; dispatch to Vector methods; (v 0) still indexes.
+; Value dispatch over the existing index call handler. A symbol selector
+; dispatches subject-LAST, so (v ref i) -> (Vector ref i v) and (v ->list) work;
+; (v i) still indexes via the underlying call. `ref` is data-last ((self i v)),
+; matching the library's Ramda data-last convention.
 (%bind-call-over! (Type of (Vector of 1)) Vector)
 
 (doc (provide x/type/vector Vector)
   (note "Literal syntax: #(1 2 3), with negative indexing via the vector's call slot.")
-  (example "(Vector ref (Vector of 10 20 30) 1)" "20")
+  (example "(Vector ref 1 (Vector of 10 20 30))" "20")
   "Fixed-size indexed vectors; operations homed on the Vector class.")
