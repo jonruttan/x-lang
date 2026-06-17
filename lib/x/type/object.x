@@ -219,14 +219,17 @@
         (write (rest (first al)))
         (loop (rest al))))))
 
-; An object's write op is not a standalone global -- it lives ON the type
-; (below) and asks the INSTANCE to render itself: a class that defines a `%repr`
-; method (returning a string) controls its own printing; otherwise the type's
-; default #<Class field=val ...> dump. (display falls back to write for objects,
-; so `%repr` governs both.) This is the type / class / instance triad, no global
-; write function. %write-fields above is the default dump's shared field walker.
-; The `%` marks %repr as a runtime-invoked protocol hook, not an everyday method
-; you call -- the same convention as the %-prefixed machinery throughout the lib.
+; An object's write/display ops are not standalone globals -- they live ON the
+; type (below) and ask the INSTANCE to render itself: the type / class / instance
+; triad, no global print function. %write-fields above is the default dump's
+; field walker.
+;   write   -> a class's %repr method (returning a string) controls inspection;
+;              otherwise the type's default #<Class field=val ...> dump.
+;   display -> a class's %str method (returning a string) gives a human-readable
+;              form (e.g. a Grid's ASCII art); otherwise it falls back to write,
+;              so a class with only %repr prints the same for both (as before).
+; This mirrors Python's __repr__/__str__. The `%` marks both as runtime-invoked
+; protocol hooks, not everyday methods -- the convention used throughout the lib.
 
 (def %class-write
   (fn (_ self)
@@ -234,19 +237,32 @@
     (display (class-name self))
     (display ">")))
 
+; Default dump for a class that defines no %repr.
+(def %object-default-write
+  (fn (_ self)
+    (display "#<")
+    (display (class-name self))
+    (%write-fields (%obj-fields self))
+    (display ">")))
+
+(def %object-write
+  (fn (_ self)
+    (if (null? (%lookup (%obj-class self) (lit methods) (lit %repr)))
+      (%object-default-write self)
+      (display (self %repr)))))
+
+(def %object-display
+  (fn (_ self)
+    (if (null? (%lookup (%obj-class self) (lit methods) (lit %str)))
+      (%object-write self)
+      (display (self %str)))))
+
 (def %object
   (%make-type "OBJECT"
     (list
       (pair (lit call) %object-dispatch)
-      (pair (lit write)
-        (fn (_ self)
-          (if (null? (%lookup (%obj-class self) (lit methods) (lit %repr)))
-            (do
-              (display "#<")
-              (display (class-name self))
-              (%write-fields (%obj-fields self))
-              (display ">"))
-            (display (self %repr))))))))
+      (pair (lit write) %object-write)
+      (pair (lit display) %object-display))))
 (def %class  (%make-type "CLASS"  (list (pair (lit call) %class-dispatch)  (pair (lit write) %class-write))))
 
 (note "Inheritance")
