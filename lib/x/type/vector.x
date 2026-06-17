@@ -128,6 +128,19 @@
             (do (%obj-set! v i fill) (self (+ i 1))))))
       (loop 1)
       v)
+    (method build (self (param n INT "Number of elements")
+                        (param f ANY "Index -> element function, called as (f i) for i in [0, n)"))
+      (doc "Create a vector of length n where element i is (f i). Built in place -- no intermediate list."
+        (returns VECTOR "New vector of length n, element i = (f i)")
+        (example "(Vector build 3 (fn (_ i) (* i i)))" "#(0 1 4)"))
+      (def v (%make-obj %vector (+ n 1)))
+      (%obj-set! v 0 n)
+      (def loop
+        (fn (self i)
+          (if (< i n)
+            (do (%obj-set! v (+ i 1) (f i)) (self (+ i 1))))))
+      (loop 0)
+      v)
     ; --- Predicate ---
     (method vector? (self (param x ANY "Value to test"))
       (doc "Test whether a value is a vector." (returns BOOL "True if x is a vector"))

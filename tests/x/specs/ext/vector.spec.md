@@ -24,6 +24,14 @@
 ---
     #()
 
+### builds a vector from an index function
+
+```scheme
+(write (Vector build 4 (fn (_ i) (* i i))))
+```
+---
+    #(0 1 4 9)
+
 ## vector indexing
 
 ### indexes from the start
