@@ -591,9 +591,18 @@
         (%display-section "members:" i-mem  base)
         (%display-section "methods:" i-meth base)))))
 
+; Resolve an evaluated value to a class for help: the class itself, or -- when
+; the value is an INSTANCE (object?) -- its class (class-of), so (help rng)
+; documents rng's class. Returns () for anything else. (An instance is not a
+; pair? at the x-lang level, so object?/class-of are the correct, safe tests.)
+(def %resolve-class
+  (fn (_ v)
+    (if (class? v) v
+      (if (object? v) (class-of v) ()))))
+
 ; help: multi-dispatch
 ;   (help)       -> overview
-;   (help name)  -> module listing OR individual doc OR a class's methods
+;   (help name)  -> module listing OR individual doc OR a class/instance's docs
 (def help
   (op args e
     (%doc-commit!)
@@ -605,7 +614,7 @@
         (let ()
           (def %cls-arg (first args))
           (def %meth-str (symbol->str (first (rest args))))
-          (def %maybe-cls (guard (_ ()) (eval %cls-arg e)))
+          (def %maybe-cls (%resolve-class (guard (_ ()) (eval %cls-arg e))))
           (def %me
             (if (if (null? %maybe-cls) #f (class? %maybe-cls))
               (%find-method-doc %maybe-cls %meth-str)
@@ -629,15 +638,15 @@
                 ; A class is shown as its summary (the body-level (doc ...), if any)
                 ; ABOVE its member/method sections -- so detect class BEFORE the
                 ; generic doc-lookup, which would otherwise show the summary alone.
-                (def %maybe-class (guard (_ ()) (eval %h-name e)))
-                (if (if (null? %maybe-class) #f (class? %maybe-class))
+                (def %cls (%resolve-class (guard (_ ()) (eval %h-name e))))
+                (if (if (null? %cls) #f (class? %cls))
                   (let ()
-                    (def %cdoc (%doc-lookup %h-name))
+                    (def %cdoc (%doc-lookup (class-name %cls)))
                     (if (null? %cdoc)
-                      (do (display %c-name) (display (class-name %maybe-class))
+                      (do (display %c-name) (display (class-name %cls))
                           (display %c-reset) (newline))
                       (%display-doc %cdoc))
-                    (%display-class-sections %maybe-class "  "))
+                    (%display-class-sections %cls "  "))
                   (let ()
                     (def %doc-entry (%doc-lookup %h-name))
                     (if (not (null? %doc-entry))
