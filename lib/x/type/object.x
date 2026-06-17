@@ -387,7 +387,7 @@
 (note "Class definition")
 
 (def %make-class
-  (fn (_ name fields methods parent s-methods statics)
+  (fn (_ name fields methods parent s-methods statics interface)
     (%make-instance %class
       (list
         (pair (lit name) name)
@@ -395,6 +395,7 @@
         (pair (lit methods) methods)
         (pair (lit parent) parent)
         (pair (lit s-methods) s-methods)
+        (pair (lit interface) interface)           ; declared (interface ...) names, or ()
         (pair (lit statics) (list statics))))))   ; statics in a one-cell mutable box
 
 ; Find a top-level body form whose head is `tag`, returning its rest (or ()).
@@ -607,7 +608,8 @@
         (if (if (pair? f)
               (if (eq? (first f) (lit method)) #t
                 (if (eq? (first f) (lit static)) #t
-                  (%class-doc-form? f)))             ; skip methods, statics, the class doc
+                  (if (eq? (first f) (lit interface)) #t
+                    (%class-doc-form? f))))          ; skip methods, statics, interface, class doc
               #f)
           (loop class-name (rest forms) e)
           (let ((decl (%member-decl f)))
@@ -640,11 +642,68 @@
             (error "def-class: the (fields ...) wrapper was removed -- declare members directly, e.g. (def-class C () x y (method m (self) ...))")
             (if (%valid-head? f)
               ()
-              (error "def-class: invalid body form -- expected a member name, (name value), (doc ...), (method ...), or (static ...)"))))
+              (error "def-class: invalid body form -- expected a member name, (name value), (doc ...), (interface ...), (method ...), or (static ...)"))))
         (loop (rest body))))))
 
-; Resolve the parent once, validate the body, and build the class object. Kept out
-; of the def-class op body so the op's tail stays the bare tail-eval (see below).
+; --- Interface (contract) enforcement --------------------------------------
+; A class declares the methods its concrete subclasses MUST provide:
+;   (interface start done? step ...)
+; Declaring an interface makes the class itself abstract. A CONCRETE subclass --
+; one that declares no (interface ...) of its own -- is checked at def-class time:
+; every method named in an ancestor's interface must have a concrete impl in the
+; chain (a class that lists it among its methods but NOT in its own interface, so
+; the declarer's abstract stub does not count). A miss errors at definition, not
+; cryptically at call time. Classes with no interface in their chain are untouched.
+
+(def %class-interface (fn (_ c) (assoc-get (lit interface) (%class-data c))))
+
+(def %name-in?
+  (fn (loop name names)
+    (if (null? names) #f
+      (if (eq? (first names) name) #t (loop name (rest names))))))
+
+; m is among c's OWN methods -- instance OR static (the string protocol's
+; primitives are static; instance-based interfaces use instance methods).
+(def %defines?
+  (fn (_ c m)
+    (if (%name-in? m (assoc-keys (assoc-get (lit methods) (%class-data c)))) #t
+      (%name-in? m (assoc-keys (assoc-get (lit s-methods) (%class-data c)))))))
+
+; #t if c's chain provides a concrete impl of method m: some class defines m
+; (instance or static) but does NOT list it in its own interface (so the abstract
+; declarer's stub is excluded).
+(def %implements?
+  (fn (loop c m)
+    (if (null? c) #f
+      (if (if (%defines? c m) (not (%name-in? m (%class-interface c))) #f)
+        #t
+        (loop (assoc-get (lit parent) (%class-data c)) m)))))
+
+(def %check-impls!
+  (fn (loop cls reqs)
+    (if (null? reqs) ()
+      (do
+        (if (%implements? cls (first reqs)) ()
+          (error (%str-append (symbol->str (class-name cls))
+            (%str-append ": missing interface method " (symbol->str (first reqs))))))
+        (loop cls (rest reqs))))))
+
+(def %check-ancestors!
+  (fn (loop cls anc)
+    (if (null? anc) ()
+      (do
+        (%check-impls! cls (%class-interface anc))
+        (loop cls (assoc-get (lit parent) (%class-data anc)))))))
+
+(def %check-interface!
+  (fn (_ cls)
+    (if (null? (%class-interface cls))           ; concrete -> enforce inherited interface(s)
+      (%check-ancestors! cls (assoc-get (lit parent) (%class-data cls)))
+      ())))                                      ; declares an interface -> abstract -> skip
+
+; Resolve the parent once, validate the body, build the class object, and enforce
+; any inherited interface. Kept out of the def-class op body so the op's tail
+; stays the bare tail-eval (see below).
 (def %build-class
   (fn (_ name parent body e)
     (do
@@ -653,13 +712,16 @@
         (if (null? dform) () (%stash-class-doc! name dform)))
       (let ((p (%resolve-parent parent e))
             (sblock (%find-form body (lit static))))
-        (%make-class
-          name
-          (%collect-members name body e)             ; instance members (skips methods + static)
-          (%collect-methods name body #t p e)        ; instance methods: raw access + super
-          p
-          (%collect-methods name sblock #f p e)      ; static methods
-          (%collect-members name sblock e))))))      ; static members
+        (let ((cls (%make-class
+                     name
+                     (%collect-members name body e)         ; instance members
+                     (%collect-methods name body #t p e)    ; instance methods: raw access + super
+                     p
+                     (%collect-methods name sblock #f p e)  ; static methods
+                     (%collect-members name sblock e)       ; static members
+                     (%find-form body (lit interface)))))   ; declared interface (or ())
+          (%check-interface! cls)                            ; error if a contract method is unmet
+          cls)))))
 
 (doc (def def-class
   (op (name parent . body)
@@ -675,6 +737,7 @@
   (note "  (doc DECL \"desc\" meta..)                 document a member; DECL is NAME or (NAME default)")
   (note "  (method NAME (self . args) body...)      instance method")
   (note "  (static MEMBER... (method ...)...)       class-wide members + static methods")
+  (note "  (interface NAME...)                      abstract: a concrete subclass must implement each NAME")
   (note "  (doc \"summary\" (note ..) (see ..) (example ..))   class-level docs, shown by (help Class)")
   (note "A method shadows a member of the same name. Parent: () or (extends Class).")
   (note "Inside a method, (self m) accesses members; (member 'm)/(set-member! 'm v) are raw.")

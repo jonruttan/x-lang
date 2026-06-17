@@ -25,6 +25,9 @@
 ; supplies char->bytes. Encoding stays in the codec layer the subclass calls.
 
 (def-class Seq ()
+  ; The contract: a concrete subclass must implement these (checked at def-class).
+  ; start/done?/step drive traversal; char->bytes is needed only to serialize.
+  (interface start done? step char->bytes)
   (static
     ; --- contract: every subclass overrides these three ---
     (method start (self (param v ANY "Value being traversed as a sequence"))
