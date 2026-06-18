@@ -52,9 +52,21 @@
       ())))
 
 ; --- $"...{expr}..." string interpolation --------------------------------
-; The reader stays trivial:  $X -> (%interp-str X)  (mirroring `X -> (quasi X)).
-; All parsing happens at eval-time in %interp-str, where token-read-string is
-; safe -- NOT inside the GC-sensitive tokenizer loop.  Expands to (Str8 str ...).
+; $"a{x}b" parses at READ time into the call (Str8 str "a" x "b"): %interp-read
+; runs the hole parser (%interp-forms) and emits the call directly.  Each hole is
+; thus a plain sub-expression that evaluates in place, in whatever env the literal
+; sits in -- no eval-time wrapper, no operative needed for the caller's scope.
+;
+; Parsing was once DEFERRED to eval time: the literal read as (%interp-str X), an
+; op that re-tokenized the holes on every evaluation, to keep token-read-string
+; out of the GC-sensitive tokenizer loop.  That rationale is now obsolete -- GC is
+; explicit-only (pure allocators never collect), so re-entering the tokenizer from
+; a reader handler is safe (%interp-read already calls token-read for the string
+; itself).  Do NOT move parsing back to eval time: besides re-parsing on every
+; eval, token-read-string's tokenizer re-entry leaves the base's env register
+; dirty, and an if-tail (TCO) position inherits that dirty env -- stranding a
+; later interpolation's variable as Unbound.  Parsing at read time sidesteps it
+; entirely (the env is never touched mid-evaluation).
 ; (display/str themselves live in boot/string.x and the Str8 class respectively.)
 (def %str-append        (prim-ref (lit str)  (lit append)))
 (def %char->int         (prim-ref (lit char) (lit ->int)))
@@ -93,12 +105,7 @@
                 (pair (substring s i (+ p 1)) (self s (+ p 2) len))   ; }} -> literal }
                 (pair (substring s i (+ p 1)) (self s (+ p 1) len)))))))))) ; lone } -> literal }
 
-; What  $"..."  expands to. An op so holes evaluate in the CALLER's env.
-(def %interp-str
-  (op (s) e
-    (eval (pair (lit Str8) (pair (lit str) (%interp-forms s 0 (str-length s)))) e)))
-
-; $ (byte 36) reader: one-char token, then wrap the following string.
+; $ (byte 36) reader: one-char token, then parse the following string.
 (def %interp-accept
   (fn (_ buffer score _)
     (%seq (buffer-unread buffer) (score-set score 1 buffer))))
@@ -107,7 +114,10 @@
 (def %interp-read
   (fn (_ buffer . rest)
     (if (= (%buffer-last-char buffer) 36)
-      (pair (lit %interp-str) (pair (%token-read buffer) ()))
+      ; %token-read consumes the following string token; %interp-forms splits its
+      ; holes now, so we emit (Str8 str <chunk> <expr> ...) directly (see header).
+      (let ((s (%token-read buffer)))
+        (pair (lit Str8) (pair (lit str) (%interp-forms s 0 (str-length s)))))
       ())))
 
 ; --- Place the readers on the symbol type ---
