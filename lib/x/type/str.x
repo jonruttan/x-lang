@@ -24,7 +24,7 @@
 ; C primitives) and are ALWAYS byte-level, independent of the active protocol --
 ; the low-level octet API the readers/tokenizers rely on. str=? is the byte-level
 ; equality primitive. Documented here for discoverability; for the active-protocol
-; element view use the Str methods (e.g. (Str length s), (Str index s i)) or the
+; element view use the Str methods (e.g. (Str length s), (Str index i s)) or the
 ; explicit (Str8 ...) / (StrUTF8 ...).
 
 (doc str-length
@@ -38,7 +38,7 @@
   (param i INT "Byte offset (negative counts from the end)")
   (returns CHAR "The byte at offset i, as a CHARACTER (0-255)")
   (example "(str-ref \"$¢€\" 1)" "#\\Â")
-  "Byte at offset i. For the i-th code point use (StrUTF8 index s i) or the bare (s i).")
+  "Byte at offset i. For the i-th code point use (StrUTF8 index i s) or the bare (s i).")
 
 (doc substring
   (param s STRING "Source string")

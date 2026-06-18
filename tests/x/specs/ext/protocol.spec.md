@@ -27,7 +27,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ### ref is O(1) indexed access
 
 ```x
-(do (import x/protocol/str/str8) (Str8 ref "ABC" 1))
+(do (import x/protocol/str/str8) (Str8 ref 1 "ABC"))
 ```
 ---
     #\B
@@ -61,7 +61,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ### ref returns the i-th code point (O(n) index)
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 ref "$¢£¥€¤" 1))
+(do (import x/protocol/str/utf8) (Utf8 ref 1 "$¢£¥€¤"))
 ```
 ---
     #\¢
@@ -69,7 +69,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ### ref reaches a later multi-byte code point
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 ref "$¢£¥€¤" 4))
+(do (import x/protocol/str/utf8) (Utf8 ref 4 "$¢£¥€¤"))
 ```
 ---
     #\€
@@ -79,7 +79,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ```x
 (do
   (import x/protocol/str/utf8)
-  (list (Utf8 ref "¢" 0) (str-ref "¢" 0)))
+  (list (Utf8 ref 0 "¢") (str-ref "¢" 0)))
 ```
 ---
     (#\¢ #\Â)

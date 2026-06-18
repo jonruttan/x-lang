@@ -37,16 +37,16 @@
         (example "(StrUTF8 length \"$¢€\")" "3"))
       (self count v))   ; code points, via Seq's cursor walk
 
-    (method index (self (param v STRING "String to index") (param i INT "Code-point position (0-based)"))
+    (method index (self (param i INT "Code-point position (0-based)") (param v STRING "String to index"))
       (doc "The i-th CODE POINT of v as a CHARACTER, found by an O(n) UTF-8 walk."
         (returns CHAR "Code point at position i")
-        (example "(StrUTF8 index \"$¢€\" 1)" "#\\¢"))
+        (example "(StrUTF8 index 1 \"$¢€\")" "#\\¢"))
       (%integer->char (first (%utf8-decode v (%u8-byte-offset v i 0)))))
 
-    (method sub (self (param v STRING "Source string") (param start INT "Start code-point offset (0-based)") (param len INT "Number of code points"))
+    (method sub (self (param start INT "Start code-point offset (0-based)") (param len INT "Number of code points") (param v STRING "Source string"))
       (doc "Substring of len CODE POINTS starting at code-point offset start (O(n) walk)."
         (returns STRING "The len-code-point slice of v from start")
-        (example "(StrUTF8 sub \"$¢€\" 1 1)" "\"¢\""))
+        (example "(StrUTF8 sub 1 1 \"$¢€\")" "\"¢\""))
       (def b0 (%u8-byte-offset v start 0))
       (def b1 (%u8-byte-offset v len b0))
       (%str-byte-sub v b0 (- b1 b0)))

@@ -20,7 +20,7 @@
 
 ; Str8 treats a STRING as its raw bytes (8-bit chars, 0-255), with no encoding
 ; protocol. It provides the whole string suite as static methods:
-; (Str8 append a b), (Str8 index s i), (Str8 length s), (Str8 upcase s), ...
+; (Str8 append a b), (Str8 index i s), (Str8 length s), (Str8 upcase s), ...
 ;
 ; Three string PROTOCOLS:
 ;   Str8     -- always 8-bit bytes (this class)
@@ -29,8 +29,8 @@
 ;
 ; The suite is written ONCE here, expressed entirely through SELF primitives:
 ;   (self length s)        -- element count
-;   (self index s i)       -- i-th element (CHARACTER)
-;   (self sub s start len)  -- substring of `len` elements from `start`
+;   (self index i s)       -- i-th element (CHARACTER)
+;   (self sub start len s)  -- substring of `len` elements from `start`
 ;   (self =? a b) (self ->list s) (self ->str l)
 ; so a subclass that overrides only those gets the whole suite in its own
 ; protocol. Str8's primitives bottom out in the str-byte-* C primitives, which
@@ -46,21 +46,21 @@
         (returns INT "Byte length of v")
         (example "(Str8 length \"abc\")" "3"))
       (%str-byte-len v))
-    (method index  (self (param v STRING "String to index") (param i INT "Byte position (0-based)"))
+    (method index  (self (param i INT "Byte position (0-based)") (param v STRING "String to index"))
       (doc "The i-th byte of v as a CHARACTER (code 0-255)."
         (returns CHAR "Byte at position i")
-        (example "(Str8 index \"abc\" 0)" "#\\a"))
+        (example "(Str8 index 0 \"abc\")" "#\\a"))
       (%str-byte-ref v i))
-    (method sub    (self (param v STRING "Source string") (param st INT "Start byte offset (0-based)") (param len INT "Number of bytes"))
+    (method sub    (self (param st INT "Start byte offset (0-based)") (param len INT "Number of bytes") (param v STRING "Source string"))
       (doc "Substring of len bytes starting at byte offset st."
         (returns STRING "The len-byte slice of v from st")
-        (example "(Str8 sub \"hello\" 1 3)" "\"ell\""))
+        (example "(Str8 sub 1 3 \"hello\")" "\"ell\""))
       (%str-byte-sub v st len))
-    (method ref    (self (param v STRING "String to index") (param i INT "Byte position (0-based)"))
+    (method ref    (self (param i INT "Byte position (0-based)") (param v STRING "String to index"))
       (doc "Alias for index: the i-th byte of v as a CHARACTER."
         (returns CHAR "Byte at position i")
-        (example "(Str8 ref \"abc\" 0)" "#\\a"))
-      (self index v i))  ; alias: ref = index
+        (example "(Str8 ref 0 \"abc\")" "#\\a"))
+      (self index i v))  ; alias: ref = index
 
     ; cursor primitives (drive Seq's ->list/each/fold/count).
     ; The cursor is a BYTE offset for every subclass, so done? bounds against the
@@ -69,7 +69,7 @@
     ; unchanged by StrUTF8; only step advances differently.
     (method start (self v)     0)
     (method done? (self v cur) (>= cur (%str-byte-len v)))
-    (method step  (self v cur) (pair (self index v cur) (+ cur 1)))
+    (method step  (self v cur) (pair (self index cur v) (+ cur 1)))
 
     ; encode: one byte element is its own low byte. Makes
     ; (Str8 ->str (Str8 ->list s)) an identity on the byte view.
@@ -83,16 +83,16 @@
       (if (= (self length a) (self length b))
         (let go ((i 0) (n (self length a)))
           (if (= i n) #t
-            (if (= (%char->integer (self index a i))
-                   (%char->integer (self index b i)))
+            (if (= (%char->integer (self index i a))
+                   (%char->integer (self index i b)))
               (go (+ i 1) n) #f)))
         #f))
 
     ; does sub occur in s at element position pos?
-    (method match-at? (self s sub pos)
+    (method match-at? (self sub pos s)
       (def sub-len (self length sub))
       (if (> (+ pos sub-len) (self length s)) #f
-        (self =? (self sub s pos sub-len) sub)))
+        (self =? (self sub pos sub-len s) sub)))
 
     ; --- construction ---
     (method append (self . (param args STRING "Strings to concatenate"))
@@ -131,8 +131,8 @@
         (cond
           ((= i la) (< i lb))
           ((= i lb) #f)
-          ((Char <? (self index a i) (self index b i)) #t)
-          ((Char >? (self index a i) (self index b i)) #f)
+          ((Char <? (self index i a) (self index i b)) #t)
+          ((Char >? (self index i a) (self index i b)) #f)
           (#t (go (+ i 1) la lb)))))
     (method >?  (self (param a STRING "First string") (param b STRING "Second string"))
       (doc "True if a sorts after b in element (byte) order."
@@ -187,17 +187,17 @@
         ((null? (rest lst)) (first lst))
         (#t (fold (fn (_ acc s) (%str-append acc (%str-append sep s)))
                   (first lst) (rest lst)))))
-    (method repeat (self (param s STRING "String to repeat") (param n INT "Number of copies"))
+    (method repeat (self (param n INT "Number of copies") (param s STRING "String to repeat"))
       (doc "Concatenate n copies of s (empty string when n <= 0)."
         (returns STRING "s repeated n times")
-        (example "(Str8 repeat \"ab\" 3)" "\"ababab\""))
-      (if (<= n 0) "" (%str-append s (self repeat s (- n 1)))))
+        (example "(Str8 repeat 3 \"ab\")" "\"ababab\""))
+      (if (<= n 0) "" (%str-append s (self repeat (- n 1) s))))
 
     ; --- padding (to n ELEMENTS) ---
-    (method pad-left (self (param s STRING "String to pad") (param n INT "Target element width") (param ch CHAR "Padding character"))
+    (method pad-left (self (param n INT "Target element width") (param ch CHAR "Padding character") (param s STRING "String to pad"))
       (doc "Left-pad s with ch until it is at least n elements wide."
         (returns STRING "s padded on the left to width n (unchanged if already >= n)")
-        (example "(Str8 pad-left \"42\" 5 (\"0\" 0))" "\"00042\""))
+        (example "(Str8 pad-left 5 (\"0\" 0) \"42\")" "\"00042\""))
       (def len (self length s))
       (if (not (< len n)) s
         (%str-append (self make (- n len) ch) s)))
@@ -211,20 +211,20 @@
       (def sub-len (self length sub))
       (def go (fn (loop i)
         (if (> (+ i sub-len) s-len) #f
-          (if (self match-at? s sub i) #t (loop (+ i 1))))))
+          (if (self match-at? sub i s) #t (loop (+ i 1))))))
       (if (= sub-len 0) #t (go 0)))
     (method starts? (self (param pfx STRING "Prefix to test for") (param s STRING "String to check"))
       (doc "True if s begins with the prefix pfx."
         (returns BOOL "#t when s starts with pfx")
         (example "(Str8 starts? \"he\" \"hello\")" "#t"))
-      (self match-at? s pfx 0))
+      (self match-at? pfx 0 s))
     (method ends?   (self (param sfx STRING "Suffix to test for") (param s STRING "String to check"))
       (doc "True if s ends with the suffix sfx."
         (returns BOOL "#t when s ends with sfx")
         (example "(Str8 ends? \"lo\" \"hello\")" "#t"))
       (def s-len (self length s))
       (def sfx-len (self length sfx))
-      (if (> sfx-len s-len) #f (self match-at? s sfx (- s-len sfx-len))))
+      (if (> sfx-len s-len) #f (self match-at? sfx (- s-len sfx-len) s)))
 
     ; --- transformation ---
     (method reverse  (self (param s STRING "String to reverse"))
@@ -250,18 +250,18 @@
         (example "(Str8 trim-left \"  hi\")" "\"hi\""))
       (let go ((i 0) (n (self length s)))
         (if (= i n) ""
-          (if (Char whitespace? (self index s i))
+          (if (Char whitespace? (self index i s))
             (go (+ i 1) n)
-            (self sub s i (- n i))))))
+            (self sub i (- n i) s)))))
     (method trim-right (self (param s STRING "String to trim"))
       (doc "Remove trailing whitespace from s."
         (returns STRING "s with trailing whitespace removed")
         (example "(Str8 trim-right \"hi  \")" "\"hi\""))
       (let go ((i (- (self length s) 1)))
         (if (< i 0) ""
-          (if (Char whitespace? (self index s i))
+          (if (Char whitespace? (self index i s))
             (go (- i 1))
-            (self sub s 0 (+ i 1))))))
+            (self sub 0 (+ i 1) s)))))
     (method trim (self (param s STRING "String to trim"))
       (doc "Remove both leading and trailing whitespace from s."
         (returns STRING "s with surrounding whitespace removed")
@@ -279,10 +279,10 @@
         (map (fn (_ c) (self ->str (list c))) (self ->list s))
         (let go ((start 0) (i 0) (acc ()))
           (if (> (+ i sep-len) s-len)
-            (reverse (pair (self sub s start (- s-len start)) acc))
-            (if (self =? (self sub s i sep-len) sep)
+            (reverse (pair (self sub start (- s-len start) s) acc))
+            (if (self =? (self sub i sep-len s) sep)
               (go (+ i sep-len) (+ i sep-len)
-                  (pair (self sub s start (- i start)) acc))
+                  (pair (self sub start (- i start) s) acc))
               (go start (+ i 1) acc))))))))
 
 (doc (provide x/protocol/str/str8 Str8 str)

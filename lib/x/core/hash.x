@@ -35,8 +35,8 @@
         (returns STRING "16-character hexadecimal string"))
       (def %lo (& n 4294967295))
       (def %hi (& (>> n 32) 4294967295))
-      (%str-append (Str pad-left (%cvt %hi %string 16) 8 ("0" 0))
-                  (Str pad-left (%cvt %lo %string 16) 8 ("0" 0))))))
+      (%str-append (Str pad-left 8 ("0" 0) (%cvt %hi %string 16))
+                  (Str pad-left 8 ("0" 0) (%cvt %lo %string 16))))))
 
 (doc (provide x/core/hash Hash)
   (example "(Hash hash->hex (Hash fnv-1a \"hello\"))" "a430d84680aabd0b")

@@ -73,7 +73,7 @@
 
 ; --- Pretty printer ---
 
-(def %spaces (fn (_ n) (display (Str repeat " " n))))
+(def %spaces (fn (_ n) (display (Str repeat n " "))))
 
 ; Forward declarations
 (def fmt-expr ())

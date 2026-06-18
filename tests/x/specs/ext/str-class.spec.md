@@ -2,8 +2,8 @@
 
 Two string protocols, each exposing the full string suite as static methods:
 
-- `Str8` -- 8-bit bytes. `(Str8 index s i)` is always a byte; O(1).
-- `StrUTF8` -- UTF-8 code points. `(StrUTF8 index s i)` is always a code point.
+- `Str8` -- 8-bit bytes. `(Str8 index i s)` is always a byte; O(1).
+- `StrUTF8` -- UTF-8 code points. `(StrUTF8 index i s)` is always a code point.
 
 The suite (append, join, contains?, split, trim, =?, <?, upcase, reverse, ...)
 is written once on `Str8` through self primitives; `StrUTF8` overrides only the
@@ -20,7 +20,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### Str8 index is always a byte
 
 ```x
-(Char ->int (Str8 index "$¢€" 1))
+(Char ->int (Str8 index 1 "$¢€"))
 ```
 ---
     194
@@ -28,7 +28,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### StrUTF8 index is always a code point
 
 ```x
-(Char ->int (StrUTF8 index "$¢€" 1))
+(Char ->int (StrUTF8 index 1 "$¢€"))
 ```
 ---
     162
@@ -36,7 +36,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### Str (active) is code points by default
 
 ```x
-(Char ->int (Str index "$¢€" 1))
+(Char ->int (Str index 1 "$¢€"))
 ```
 ---
     162
@@ -60,7 +60,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### str-byte-* primitives are always byte (handler-immune)
 
 ```x
-(Char ->int (Str8 index "$¢€" 1))
+(Char ->int (Str8 index 1 "$¢€"))
 ```
 ---
     194
@@ -158,7 +158,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### pad-left to a width
 
 ```x
-(Str8 pad-left "hi" 5 ("." 0))
+(Str8 pad-left 5 ("." 0) "hi")
 ```
 ---
     "...hi"
@@ -184,7 +184,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### ref returns the i-th code point
 
 ```x
-(Char ->int (StrUTF8 ref "$¢€" 1))
+(Char ->int (StrUTF8 ref 1 "$¢€"))
 ```
 ---
     162
@@ -306,3 +306,11 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ```
 ---
     #\h
+
+### the named accessor now value-dispatches too (data-last -> subject-last)
+
+```scheme
+("abc" index 1)
+```
+---
+    #\b
