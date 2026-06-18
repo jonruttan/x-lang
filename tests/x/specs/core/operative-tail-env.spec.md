@@ -12,6 +12,14 @@ to the caller and restore it, rather than leaking the foreign frame.
 Without the fix, a second interpolation (or any closure-variable reference) after
 an if-tail interpolation reads its variable as Unbound.
 
+Coverage note: with read-time `$"..."` parsing (the shipped default), the
+interpolation cases below no longer route through the eval-time operative, so
+they guard the user-visible behavior via the read-time path. The "pure eval-core"
+cases at the end reproduce the operative-tail wander WITHOUT interpolation -- a
+recursive-build operative (no tokenizer at all) and a `token-read-string`
+operative (the fmt.x class) -- so they isolate `x_op_restore`: each reads Unbound
+if that fix is reverted, independent of how `$"..."` is parsed.
+
 ## env survives an if-tail operative
 
 ### a closure var is still bound after an if-tail interpolation
@@ -55,3 +63,27 @@ an if-tail interpolation reads its variable as Unbound.
 ```
 ---
     "a9b9"
+
+## pure eval-core (no interpolation): isolates x_op_restore
+
+### a recursive-build operative in if-tail leaves the caller's scope intact
+
+```scheme
+(do
+  (def %mk (fn (self n acc) (if (= n 0) acc (self (- n 1) (pair (lit x) acc)))))
+  (def %op (op () e (eval (pair (lit +) (pair 0 (%mk 3 ()))) e)))
+  ((fn (_ x) (do (if #t (%op) 0) x)) 9))
+```
+---
+    9
+
+### a token-read-string operative (the fmt.x class) in if-tail likewise
+
+```scheme
+(do
+  (def %trs (prim-ref (lit tok) (lit read-str)))
+  (def %evalstr (op (s) e (eval (first (%trs (%base) s)) e)))
+  ((fn (_ x) (do (if #t (%evalstr "(+ x 1)") 0) x)) 9))
+```
+---
+    9
