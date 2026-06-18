@@ -1,5 +1,7 @@
-; syscall.x -- x86_64 and i386/BSD syscall tables
+; syscall.x -- x86_64, i386, and Darwin/BSD syscall tables
 (import x/core/list)
+(import x/core/alist)
+(import x/protocol/str/str8)
 
 ; x86_64 syscall name table (267 entries, index = syscall number)
 
@@ -517,16 +519,38 @@
     nil
     vfork
   )))
-; syscall-id: look up a syscall number by name.
+; --- platform detection ---
+; x-machine is the build triple, e.g. "arm64-apple-darwin25.5.0" vs
+; "x86_64-linux-gnu". macOS uses BSD syscall numbers AND different O_* flag
+; values, so the file layer keys off this too.
+(def os-darwin? (Str8 contains? "darwin" x-machine))
 
-; Uses the x86_64 table by default; falls back to i386/BSD.
+; Darwin/BSD syscall numbers (from <sys/syscall.h>). Bare numbers: macOS libc
+; syscall() OR-folds the UNIX class (0x2000000), so the bare BSD number reaches
+; the kernel (verified: syscall(5,...) opens). BSD numbers are sparse, so an
+; alist rather than the index=number lists the Linux tables use. Subset File
+; needs, plus a few common calls.
+(def darwin-syscall-numbers
+  (list
+    (list (lit exit)   1)  (list (lit fork)  2)
+    (list (lit read)   3)  (list (lit write) 4)
+    (list (lit open)   5)  (list (lit close) 6)
+    (list (lit unlink) 10) (list (lit mkdir) 136)
+    (list (lit stat)   188) (list (lit fstat) 189) (list (lit lstat) 190)
+    (list (lit lseek)  199)))
 
-; Returns the index (= syscall number) or -1 if not found.
-
+; syscall-id: look up a syscall number by name. On Darwin, use the BSD alist;
+; elsewhere the x86_64 index table (falling back to i386). Returns the number,
+; or -1 if not found.
 (def syscall-id
   (fn (_ call)
-    (let ((n (List index-of call x86_64-syscall-names)))
-      (if (>= n 0) n (List index-of call i386-syscall-names)))))
+    (if os-darwin?
+      (let ((e (assoc-get call darwin-syscall-numbers)))
+        (if (null? e) (- 0 1) (first e)))
+      (let ((n (List index-of call x86_64-syscall-names)))
+        (if (>= n 0) n (List index-of call i386-syscall-names))))))
 
-(doc (provide x/platform/syscall syscall-id x86_64-syscall-names i386-syscall-names)
-  "Syscall number tables for x86_64 and i386/BSD. Maps symbolic names to syscall numbers.")
+(doc (provide x/platform/syscall
+  syscall-id os-darwin? x86_64-syscall-names i386-syscall-names darwin-syscall-numbers)
+  (note "syscall-id is platform-aware: Darwin -> bare BSD numbers (libc OR-folds the 0x2000000 UNIX class), else Linux x86_64/i386. os-darwin? is the platform flag (from x-machine).")
+  "Syscall number tables for x86_64, i386, and Darwin/BSD. Maps symbolic names to syscall numbers.")

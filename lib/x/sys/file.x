@@ -1,12 +1,39 @@
-; file.x -- File I/O via POSIX syscalls
+; file.x -- File: file I/O via POSIX syscalls, homed on the File class.
 ;
-; Wraps low-level syscalls with symbolic mode flags.
-; Requires x-or dialect (syscall primitive).
+; Wraps low-level syscalls with symbolic mode flags. The open-mode and stat
+; flag tables are exposed as the (File file-modes) / (File stat-flags) methods
+; (evaluate either to see the whole table); the five I/O ops are methods too
+; ((File open), close, read, write, getc).
+;
+; Lifecycle: (File open path mode) hands back a file descriptor (a small
+; non-negative integer); pass it to read/write/getc; (File close fd) releases
+; it. Every op returns the raw syscall result -- a negative value signals an
+; error (the kernel's -errno), (File read) returns 0 at end-of-file.
+;
+;   (let ((fd (File open "/etc/hostname" (lit rdonly))))
+;     (let ((buf (make-str 64)))
+;       (let ((n (File read fd buf 64)))    ; n bytes now live in buf
+;         (File close fd)
+;         n)))
+;
+; Dependencies: this module imports x/platform/syscall for `syscall-id` (the
+; name->number lookup). The actual I/O additionally needs the `syscall` and
+; `make-str` C primitives, which only the x-or dialect provides -- so File
+; loads anywhere but its methods only RUN under x-or.
 (import x/core/list)
 (import x/core/alist)
+(import x/platform/syscall)
+(import x/type/object)
 
-; File open mode flags (Linux O_* constants)
-(doc (def file-modes (list
+; --- The flag tables (module-private data; surfaced via the methods below) ---
+; Static value members can't carry help text, so the tables live here and the
+; (File file-modes)/(File stat-flags) methods expose + document them.
+
+; File open mode flags. The O_* flag VALUES differ by OS (verified: macOS
+; O_CREAT=512 / O_TRUNC=1024 vs Linux 64 / 512), so there is one table per
+; platform and %file-modes picks at load via os-darwin?. (S_* stat flags below
+; are POSIX-standard and identical across Linux/macOS, so they are not split.)
+(def %file-modes-linux (list
   (list (lit accmode)    3)        ; 00000003
   (list (lit rdonly)     0)        ; 00000000
   (list (lit wronly)     1)        ; 00000001
@@ -26,12 +53,31 @@
   (list (lit noatime)    262144)   ; 01000000
   (list (lit cloexec)    524288)   ; 02000000
   (list (lit sync)       1048576)  ; 04000000
-  (list (lit path)       2097152)  ; 010000000
-))
-  "Alist of symbolic file open mode flags to numeric O_* values.")
+  (list (lit path)       2097152)))  ; 010000000
+
+; Darwin/macOS O_* flag values (from <sys/fcntl.h>) -- note the divergence from
+; Linux (creat/trunc/excl especially). Subset File needs plus common flags;
+; Linux-only flags (dsync/direct/largefile/noatime/path/...) are omitted.
+(def %file-modes-darwin (list
+  (list (lit accmode)   3)          ; 0x0003
+  (list (lit rdonly)    0)          ; 0x0000
+  (list (lit wronly)    1)          ; 0x0001
+  (list (lit rdwr)      2)          ; 0x0002
+  (list (lit nonblock)  4)          ; 0x0004
+  (list (lit append)    8)          ; 0x0008
+  (list (lit nofollow)  256)        ; 0x0100
+  (list (lit creat)     512)        ; 0x0200
+  (list (lit trunc)     1024)       ; 0x0400
+  (list (lit excl)      2048)       ; 0x0800
+  (list (lit noctty)    131072)     ; 0x20000
+  (list (lit directory) 1048576)    ; 0x100000
+  (list (lit cloexec)   16777216))) ; 0x1000000
+
+; Select the table for this OS at load (os-darwin? from x/platform/syscall).
+(def %file-modes (if os-darwin? %file-modes-darwin %file-modes-linux))
 
 ; Stat mode flags (Linux S_* constants)
-(doc (def stat-flags (list
+(def %stat-flags (list
   (list (lit ifmt)   61440)  ; 0170000 - these bits determine file type
   (list (lit ifdir)  16384)  ; 0040000 - directory
   (list (lit ifchr)  8192)   ; 0020000 - character device
@@ -45,53 +91,89 @@
   (list (lit isvtx)  512)    ; 01000 - save swapped text (sticky)
   (list (lit iread)  256)    ; 00400 - read by owner
   (list (lit iwrite) 128)    ; 00200 - write by owner
-  (list (lit iexec)  64)     ; 00100 - execute by owner
-))
-  "Alist of stat mode flags to numeric S_* values.")
+  (list (lit iexec)  64)))   ; 00100 - execute by owner
 
-; --- File I/O functions ---
+; Resolve an open-mode argument to a single numeric flag set:
+;   a number   -> passed straight through (e.g. 577)
+;   a symbol   -> looked up in %file-modes (e.g. (lit rdwr) -> 2)
+;   a list     -> each element resolved and bitwise-OR'd together, so callers
+;                 can write (list (lit wronly) (lit creat) (lit trunc)) -> 577
+(def %mode->int
+  (fn (_ mode)
+    (match
+      ((number? mode) mode)
+      ((pair? mode) (fold (fn (_ acc flag) (| acc (%mode->int flag))) 0 mode))
+      (#t (first (assoc-get mode %file-modes))))))
 
-(doc (def fopen (fn (_ pathname mode)
-  (if (symbol? mode)
-    (set! mode (first (assoc-get mode file-modes))))
-  (syscall (syscall-id (lit open)) pathname mode)))
-  (param pathname STRING "File path to open")
-  (param mode ANY "Numeric flags or symbol from file-modes (e.g. rdonly, wronly, rdwr)")
-  (returns INTEGER "File descriptor, or negative on error")
-  "Open a file, returning a file descriptor.")
+(def-class File ()
+  (doc "Blocking file I/O over raw POSIX syscalls (open/close/read/write)."
+    (note "Lifecycle: (File open path mode) -> a file descriptor; thread it through (File read)/(File write)/(File getc); (File close fd) when done.")
+    (note "Return values are the raw syscall results: a negative number is an error (-errno). (File read) returns the byte count, 0 at EOF; (File getc) returns -1 at EOF.")
+    (note "read/write/getc operate on a caller-allocated string buffer (make-str N under x-or): read fills it and returns how many bytes landed; write sends `size` bytes out of it.")
+    (note "(File open)'s mode is flexible: a number passes straight through; a single symbol (rdonly, wronly, ...) resolves via (File file-modes); a list of symbols is OR'd together -- (list (lit wronly) (lit creat) (lit trunc)) is 577. Call (File file-modes) for the full table, or (File stat-flags) for the stat S_* flags.")
+    (note "`syscall-id` is pulled in automatically (imports x/platform/syscall). The methods still need the x-or dialect, which supplies the `syscall` and `make-str` C primitives -- so File only RUNS under x-or.")
+    (example "(let ((fd (File open \"/etc/hostname\" (lit rdonly)))) (let ((buf (make-str 64))) (let ((n (File read fd buf 64))) (File close fd) n)))" "the byte count read into buf, with the fd closed afterward"))
+  (static
+    (method file-modes (self)
+      (doc "The file open-mode table: an alist mapping each symbolic O_* flag name to its numeric Linux value. Use a key as (File open)'s mode argument; OR numeric values together for combined flags."
+        (returns LIST "Alist of (symbol value) for: accmode rdonly wronly rdwr creat excl noctty trunc append nonblock dsync fasync direct largefile directory nofollow noatime cloexec sync path")
+        (example "(File file-modes)" "the full (symbol value) table")
+        (example "(first (assoc-get (lit rdwr) (File file-modes)))" "2"))
+      %file-modes)
 
-(doc (def fclose (fn (_ fd)
-  (syscall (syscall-id (lit close)) fd)))
-  (param fd INTEGER "File descriptor to close")
-  (returns INTEGER "0 on success, negative on error")
-  "Close a file descriptor.")
+    (method stat-flags (self)
+      (doc "The stat mode-flag table: an alist mapping each symbolic S_* name to its numeric Linux value, for decoding a stat result's st_mode (the ifmt bits select the file type; the rest are permission and set-id/sticky bits)."
+        (returns LIST "Alist of (symbol value) for: ifmt ifdir ifchr ifblk ifreg ififo iflnk ifsock isuid isgid isvtx iread iwrite iexec")
+        (example "(File stat-flags)" "the full (symbol value) table")
+        (example "(first (assoc-get (lit ifdir) (File stat-flags)))" "16384"))
+      %stat-flags)
 
-(doc (def fread (fn (_ fd buffer size)
-  (syscall (syscall-id (lit read)) fd buffer size)))
-  (param fd INTEGER "File descriptor to read from")
-  (param buffer STRING "Buffer to read into")
-  (param size INTEGER "Maximum bytes to read")
-  (returns INTEGER "Bytes read, 0 at EOF, negative on error")
-  "Read bytes from a file descriptor into a buffer.")
+    (method open (self (param pathname STRING "File path to open")
+                       (param mode ANY "Open mode -- a number (e.g. 577), one symbol from (File file-modes) (e.g. (lit rdonly)), or a list of symbols OR'd together (e.g. (list (lit wronly) (lit creat) (lit trunc)))")
+                       . (param perm ANY "Permission bits for a newly created file when the mode includes creat; default 0644. Ignored when the file is not created."))
+      (doc "Open a file, returning a file descriptor."
+        (returns INTEGER "File descriptor, or negative on error")
+        (example "(File open \"/etc/hostname\" (lit rdonly))" "a file descriptor opened read-only")
+        (example "(File open \"out.svg\" (list (lit wronly) (lit creat) (lit trunc)))" "an fd opened for writing, new file mode 0644 (577 = O_WRONLY|O_CREAT|O_TRUNC)")
+        (example "(File open \"x\" (lit creat) 511)" "create with mode 0777 (511)"))
+      ; Always pass the 3rd open() arg: the kernel ignores it unless O_CREAT is
+      ; set, so it is harmless for non-creating opens and correct for creating
+      ; ones. 420 = 0644 (rw-r--r--).
+      (syscall (syscall-id (lit open)) pathname (%mode->int mode)
+               (if (null? perm) 420 (first perm))))
 
-(doc (def fwrite (fn (_ fd buffer size)
-  (syscall (syscall-id (lit write)) fd buffer size)))
-  (param fd INTEGER "File descriptor to write to")
-  (param buffer STRING "Data to write")
-  (param size INTEGER "Number of bytes to write")
-  (returns INTEGER "Bytes written, or negative on error")
-  "Write bytes from a buffer to a file descriptor.")
+    (method close (self (param fd INTEGER "File descriptor to close"))
+      (doc "Close a file descriptor."
+        (returns INTEGER "0 on success, negative on error")
+        (example "(File close fd)" "0"))
+      (syscall (syscall-id (lit close)) fd))
 
-(doc (def fgetc (fn (_ fd)
-  (let ((buffer (make-str 1)))
-    (let ((bytes-read (fread fd buffer 1)))
-      (if (<= bytes-read 0)
-        (- 0 1)
-        (str-ref buffer 0))))))
-  (param fd INTEGER "File descriptor to read from")
-  (returns CHAR "Character read, or -1 at EOF")
-  "Read a single character from a file descriptor.")
+    (method read (self (param fd INTEGER "File descriptor to read from")
+                       (param buffer STRING "Buffer to read into")
+                       (param size INTEGER "Maximum bytes to read"))
+      (doc "Read bytes from a file descriptor into a buffer."
+        (returns INTEGER "Bytes read, 0 at EOF, negative on error")
+        (example "(File read fd buf 64)" "bytes read into buf (0 at EOF)"))
+      (syscall (syscall-id (lit read)) fd buffer size))
 
-(doc (provide x/sys/file
-  file-modes stat-flags fopen fclose fread fwrite fgetc)
-  "File I/O via POSIX syscalls with symbolic mode flags.")
+    (method write (self (param fd INTEGER "File descriptor to write to")
+                        (param buffer STRING "Data to write")
+                        (param size INTEGER "Number of bytes to write"))
+      (doc "Write bytes from a buffer to a file descriptor."
+        (returns INTEGER "Bytes written, or negative on error")
+        (example "(File write fd \"hello\" 5)" "5"))
+      (syscall (syscall-id (lit write)) fd buffer size))
+
+    (method getc (self (param fd INTEGER "File descriptor to read from"))
+      (doc "Read a single character from a file descriptor."
+        (returns CHAR "Character read, or -1 at EOF")
+        (example "(File getc fd)" "the next byte as a char, or -1 at EOF"))
+      (let ((buffer (make-str 1)))
+        (let ((bytes-read (File read fd buffer 1)))
+          (if (<= bytes-read 0)
+            (- 0 1)
+            (str-ref buffer 0)))))))
+
+(doc (provide x/sys/file File)
+  (note "Imports x/platform/syscall for syscall-id; the methods additionally need the x-or dialect's syscall/make-str C primitives. Call (File file-modes) / (File stat-flags) for the symbolic flag tables.")
+  "File I/O via POSIX syscalls, homed on the File class.")

@@ -7,13 +7,13 @@
   (def buf (make-string 256))
 
   (def display-file (fn (_ fd)
-    (let ((n (fread fd buf 256)))
+    (let ((n (File read fd buf 256)))
       (if (> n 0)
         (do
           (syscall (syscall-id (lit write)) stdout buf n)
           (display-file fd))))))
 
-  (let ((fd (fopen "lang/x-or/examples/cat.x" (lit rdonly))))
+  (let ((fd (File open "lang/x-or/examples/cat.x" (lit rdonly))))
     (display "=== cat.x ===\n")
     (display-file fd)
-    (fclose fd)))
+    (File close fd)))

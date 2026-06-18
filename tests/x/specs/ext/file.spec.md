@@ -5,17 +5,17 @@ run on a non-Linux dev machine. The `@lib` harness stubs `syscall`/`syscall-id`
 to capture the arguments each function passes instead of performing real I/O.
 
 These cases pin down **argument binding**: the regression they guard against is
-every `file.x` function missing its leading `_` self slot, which silently
-shifted every argument by one (so `fd`/`pathname` bound to the function object
-itself rather than the caller's value).
+every `File` method missing its leading `self` slot, which silently shifted
+every argument by one (so `fd`/`pathname` bound to the method itself rather than
+the caller's value).
 
-## file: fopen argument binding
+## file: (File open) argument binding
 
 ### passes pathname then numeric mode (not shifted by the self slot)
 
 ```scheme
 (do
-  (fopen "/path/x" 577)
+  (File open "/path/x" 577)
   (def c (first %last-syscall))
   (and (str=? (first (rest c)) "/path/x")
        (eq? (first (rest (rest c))) 577)))
@@ -23,23 +23,63 @@ itself rather than the caller's value).
 ---
     #t
 
-### resolves a symbolic mode via file-modes (rdwr -> 2)
+### resolves a symbolic mode via (File file-modes) (rdwr -> 2)
 
 ```scheme
 (do
-  (fopen "/p" (lit rdwr))
+  (File open "/p" (lit rdwr))
   (eq? (first (rest (rest (first %last-syscall)))) 2))
 ```
 ---
     #t
 
-## file: fread / fwrite argument binding
-
-### fread passes fd, buffer, size in order
+### ORs a list of flags together (numeric, platform-independent: 1|2|4 -> 7)
 
 ```scheme
 (do
-  (fread 7 "buf" 3)
+  (File open "/p" (list 1 2 4))
+  (eq? (first (rest (rest (first %last-syscall)))) 7))
+```
+---
+    #t
+
+### ORs a list of stable symbolic flags (rdonly|wronly = 0|1 -> 1, same on every OS)
+
+```scheme
+(do
+  (File open "/p" (list (lit rdonly) (lit wronly)))
+  (eq? (first (rest (rest (first %last-syscall)))) 1))
+```
+---
+    #t
+
+### passes a default permission arg (0644 = 420) as open()'s third argument
+
+```scheme
+(do
+  (File open "/p" (lit creat))
+  (eq? (first (rest (rest (rest (first %last-syscall))))) 420))
+```
+---
+    #t
+
+### accepts an explicit permission arg (0777 = 511)
+
+```scheme
+(do
+  (File open "/p" (lit creat) 511)
+  (eq? (first (rest (rest (rest (first %last-syscall))))) 511))
+```
+---
+    #t
+
+## file: (File read) / (File write) argument binding
+
+### read passes fd, buffer, size in order
+
+```scheme
+(do
+  (File read 7 "buf" 3)
   (def c (first %last-syscall))
   (and (eq? (first (rest c)) 7)
        (str=? (first (rest (rest c))) "buf")
@@ -48,11 +88,11 @@ itself rather than the caller's value).
 ---
     #t
 
-### fwrite passes the write op, fd, and buffer
+### write passes the write op, fd, and buffer
 
 ```scheme
 (do
-  (fwrite 7 "data" 4)
+  (File write 7 "data" 4)
   (def c (first %last-syscall))
   (and (eq? (first c) (lit write))
        (eq? (first (rest c)) 7)
@@ -61,13 +101,13 @@ itself rather than the caller's value).
 ---
     #t
 
-## file: fclose / fgetc argument binding
+## file: (File close) / (File getc) argument binding
 
-### fclose passes the close op and fd
+### close passes the close op and fd
 
 ```scheme
 (do
-  (fclose 9)
+  (File close 9)
   (def c (first %last-syscall))
   (and (eq? (first c) (lit close))
        (eq? (first (rest c)) 9)))
@@ -75,11 +115,11 @@ itself rather than the caller's value).
 ---
     #t
 
-### fgetc reads one byte via fread with the given fd, returns -1 at EOF
+### getc reads one byte via (File read) with the given fd, returns -1 at EOF
 
 ```scheme
 (do
-  (def r (fgetc 5))
+  (def r (File getc 5))
   (and (eq? r (- 0 1))
        (eq? (first (first %last-syscall)) (lit read))
        (eq? (first (rest (first %last-syscall))) 5)))
