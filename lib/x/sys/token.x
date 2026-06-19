@@ -1,124 +1,96 @@
-; token.x -- Composable tokenizer state builders
+; token.x -- Token: composable tokenizer state-machine builders.
+;
+; The builders run at type-build (setup) time, so they are Token methods. The
+; three TERMINATORS (accept/accept-inclusive/reject), however, are invoked
+; per-character INSIDE reader/analyse lambdas, where class dispatch would
+; allocate and risk a GC mid-C-reader-callback. So their logic lives in
+; %-private functions, registered in the catalog under ns `token`; reader-hot
+; callers (logo/types.x) fetch-and-cache them and call the cached refs directly
+; -- no dispatch on the hot path. The Token class methods are the cold-call API.
 (import x/type/char)
+(import x/type/object)
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
 
-
-(note "Terminators")
-
-(doc (def token-accept
-  (fn (_ (param buffer ANY "Token buffer") (param score ANY "Score atom") _)
+; --- Terminators: %-private logic + catalog registration ---
+; States call these to finish: accept (rewind last char), accept-inclusive
+; (keep it), reject (no match). Registered so reader-context consumers fetch
+; raw refs rather than dispatching (Token accept ...) per character.
+(def %tok-accept
+  (fn (_ buffer score chr)
     (buffer-unread buffer)
     (score-set score 1 buffer)))
-  (returns ANY "Score object (signals match)")
-  "Accept the current token, rewinding the last character. Standard terminator for states.")
-
-(doc (def token-accept-inclusive
-  (fn (_ (param buffer ANY "Token buffer") (param score ANY "Score atom") _)
+(def %tok-accept-inclusive
+  (fn (_ buffer score chr)
     (score-set score 1 buffer)))
-  (returns ANY "Score object (signals match)")
-  "Accept the current token including the current character.")
+(def %tok-reject
+  (fn (_ buffer score chr) ()))
 
-(doc (def token-reject
-  (fn (_ _ _ _)
-    ()))
-  (returns NIL "Nil (signals no match)")
-  "Reject the current token. Returns nil to signal no match.")
+(prim-reg! (lit token) (lit accept)           %tok-accept)
+(prim-reg! (lit token) (lit accept-inclusive) %tok-accept-inclusive)
+(prim-reg! (lit token) (lit reject)           %tok-reject)
 
-(note "State Builders")
-
-(doc (def make-digit-state
-  (fn (_ (param done CALLABLE "Called on non-digit: (done buffer score chr)"))
+; --- State builders: %-private logic (cross-reference each other directly) ---
+(def %make-digit-state
+  (fn (_ done)
     (fn (self buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         self
         (done buffer score chr)))))
-  (returns CALLABLE "Analyzer state that loops on digits [0-9]")
-  (example "(make-digit-state token-accept)" "state that consumes digits then accepts")
-  "Create a state that loops while reading digits, then calls done on non-digit.")
 
-(doc (def make-xdigit-state
-  (fn (_ (param done CALLABLE "Called on non-xdigit"))
+(def %make-xdigit-state
+  (fn (_ done)
     (fn (self buffer score chr)
       (if (or (and (>= chr 48) (<= chr 57))
               (and (>= chr 65) (<= chr 70))
               (and (>= chr 97) (<= chr 102)))
         self
         (done buffer score chr)))))
-  (returns CALLABLE "Analyzer state that loops on hex digits [0-9a-fA-F]")
-  "Create a state that loops while reading hex digits, then calls done.")
 
-(doc (def make-char-state
-  (fn (_ (param ch INTEGER "Character code to match")
-       (param next CALLABLE "Called on match")
-       (param fail CALLABLE "Called on non-match (or nil to reject)"))
+(def %make-char-state
+  (fn (_ ch next fail)
     (fn (_ buffer score chr)
       (if (= chr ch)
         next
         (if (null? fail) () (fail buffer score chr))))))
-  (returns CALLABLE "Analyzer state that matches a specific character")
-  (example "(make-char-state 46 frac-state ())" "match '.' then go to frac-state")
-  "Create a state that matches a single character, transitioning to next or fail.")
 
-(doc (def make-pred-state
-  (fn (_ (param pred CALLABLE "Predicate: (pred chr) -> bool")
-       (param done CALLABLE "Called when pred fails"))
+(def %make-pred-state
+  (fn (_ pred done)
     (fn (self buffer score chr)
       (if (pred chr)
         self
         (done buffer score chr)))))
-  (returns CALLABLE "Analyzer state that loops while predicate holds")
-  (example "(make-pred-state (fn (_ c) (Char alphabetic? c)) token-accept)" "match letters")
-  "Create a state that loops while pred returns truthy, then calls done.")
 
-(doc (def make-range-state
-  (fn (_ (param lo INTEGER "Lowest accepted character code")
-       (param hi INTEGER "Highest accepted character code")
-       (param done CALLABLE "Called on out-of-range character"))
+(def %make-range-state
+  (fn (_ lo hi done)
     (fn (self buffer score chr)
       (if (and (>= chr lo) (<= chr hi))
         self
         (done buffer score chr)))))
-  (returns CALLABLE "Analyzer state that loops while character is in [lo, hi]")
-  (example "(make-range-state 65 90 token-accept)" "match uppercase A-Z")
-  "Create a state that loops while character code is in the inclusive range.")
 
-(note "Combinators")
-
-(doc (def make-alt-state
-  (fn (_ (param state-a CALLABLE "First alternative")
-       (param state-b CALLABLE "Second alternative"))
+(def %make-alt-state
+  (fn (_ state-a state-b)
     (fn (_ buffer score chr)
       (def result (state-a buffer score chr))
       (if (null? result)
         (state-b buffer score chr)
         result))))
-  (returns CALLABLE "State that tries a then b")
-  (example "(make-alt-state (make-char-state 43 next ()) (make-char-state 45 next ()))" "match + or -")
-  "Try state-a on the current character. If it rejects, try state-b.")
 
-(doc (def make-str-state
-  (fn (_ (param s STRING "Literal string to match")
-       (param next CALLABLE "Called after full match")
-       (param fail CALLABLE "Called on mismatch (or nil to reject)"))
+(def %make-str-state
+  (fn (_ s next fail)
     ; byte-level literal match: str-ref is the byte accessor (immune to any
     ; pushed code-point handler), so this is safe inside the tokenizer.
     (def len (str-length s))
     (def %build
       (fn (self i)
         (if (= i len) next
-          (make-char-state (%char->integer (str-ref s i))
+          (%make-char-state (%char->integer (str-ref s i))
             (self (+ i 1))
             fail))))
     (%build 0)))
-  (returns CALLABLE "Chain of char-states matching a literal string")
-  (example "(make-str-state \"0x\" hex-digits ())" "match '0x' prefix")
-  "Create a state chain that matches each character of a string in sequence.")
 
-(doc (def make-count-state
-  (fn (_ (param n INTEGER "Exact number of characters to match")
-       (param pred CALLABLE "Predicate: (pred chr) -> bool")
-       (param done CALLABLE "Called after exactly n matches"))
+(def %make-count-state
+  (fn (_ n pred done)
     (def %build
       (fn (self remaining)
         (if (= remaining 0) done
@@ -127,33 +99,109 @@
               (self (- remaining 1))
               ())))))
     (%build n)))
-  (returns CALLABLE "State that matches exactly n characters satisfying pred")
-  (example "(make-count-state 4 (fn (_ c) (Char numeric? c)) token-accept)" "match exactly 4 digits")
-  "Match exactly n characters satisfying pred, then call done. Rejects if fewer match.")
 
-(doc (def make-min-state
-  (fn (_ (param n INTEGER "Minimum number of characters to match")
-       (param pred CALLABLE "Predicate: (pred chr) -> bool")
-       (param done CALLABLE "Called after n+ matches on non-matching char"))
-    (make-count-state n pred (make-pred-state pred done))))
-  (returns CALLABLE "State that matches n or more characters satisfying pred")
-  (example "(make-min-state 1 (fn (_ c) (Char numeric? c)) token-accept)" "match 1+ digits")
-  "Match at least n characters satisfying pred, then loop more, calling done when pred fails.")
+(def %make-min-state
+  (fn (_ n pred done)
+    (%make-count-state n pred (%make-pred-state pred done))))
 
-(doc (def make-optional-char
-  (fn (_ (param ch INTEGER "Character code to optionally match")
-       (param next CALLABLE "Next state (reached whether char matched or not)"))
-    (make-char-state ch next next)))
-  (returns CALLABLE "State that optionally matches a character then continues")
-  (example "(make-optional-char 43 digits)" "optionally match '+' then digits")
-  "Match a character if present, skip if not. Either way, continue to next.")
+(def %make-optional-char
+  (fn (_ ch next)
+    (%make-char-state ch next next)))
 
-(doc (provide x/sys/token
-  token-accept token-accept-inclusive token-reject
-  make-digit-state make-xdigit-state make-char-state
-  make-pred-state make-range-state
-  make-alt-state make-str-state make-count-state
-  make-min-state make-optional-char)
-  (note "States receive (self buffer score chr). Return self to loop, another state to transition, score to accept, nil to reject.")
-  (example "(make-digit-state (make-char-state 46 (make-digit-state token-accept) ()))" "integer.fractional")
-  "Composable tokenizer state machine builders.")
+; --- The Token class: the API over the builders + terminators ---
+(def-class Token ()
+  (doc "Composable tokenizer state-machine builders. A state is (fn (self buffer score chr) ...) returning self to loop, another state to transition, a score to accept, or nil to reject."
+    (note "Terminators (accept/accept-inclusive/reject) run per-character in reader lambdas. Reader-context callers must fetch them raw -- (prim-ref (lit token) (lit accept)) -- and call the cached ref, NOT (Token accept ...) (class dispatch allocates, hazardous mid-reader-callback). The class methods are for cold call sites.")
+    (example "(Token make-digit-state (Token make-char-state 46 (Token make-digit-state acc) ()))" "an integer.fractional matcher (acc = an accept terminator)"))
+  (static
+    ; --- terminators ---
+    (method accept (self (param buffer ANY "Token buffer") (param score ANY "Score atom") (param chr ANY "Current character (ignored)"))
+      (doc "Accept the current token, rewinding the last character. The standard state terminator."
+        (returns ANY "Score object (signals match)"))
+      (%tok-accept buffer score chr))
+    (method accept-inclusive (self (param buffer ANY "Token buffer") (param score ANY "Score atom") (param chr ANY "Current character (ignored)"))
+      (doc "Accept the current token INCLUDING the current character."
+        (returns ANY "Score object (signals match)"))
+      (%tok-accept-inclusive buffer score chr))
+    (method reject (self (param buffer ANY "Token buffer") (param score ANY "Score atom") (param chr ANY "Current character (ignored)"))
+      (doc "Reject the current token. Returns nil to signal no match."
+        (returns NIL "Nil (signals no match)"))
+      (%tok-reject buffer score chr))
+
+    ; --- state builders ---
+    (method make-digit-state (self (param done CALLABLE "Called on non-digit: (done buffer score chr)"))
+      (doc "A state that loops while reading digits [0-9], then calls done on a non-digit."
+        (returns CALLABLE "Analyzer state")
+        (example "(Token make-digit-state done)" "consumes digits then calls done"))
+      (%make-digit-state done))
+
+    (method make-xdigit-state (self (param done CALLABLE "Called on non-xdigit"))
+      (doc "A state that loops while reading hex digits [0-9a-fA-F], then calls done."
+        (returns CALLABLE "Analyzer state"))
+      (%make-xdigit-state done))
+
+    (method make-char-state (self (param ch INTEGER "Character code to match")
+                                  (param next CALLABLE "Reached on match")
+                                  (param fail CALLABLE "Reached on non-match (or nil to reject)"))
+      (doc "A state matching a single character, transitioning to next or fail."
+        (returns CALLABLE "Analyzer state")
+        (example "(Token make-char-state 46 frac-state ())" "match '.' then frac-state"))
+      (%make-char-state ch next fail))
+
+    (method make-pred-state (self (param pred CALLABLE "Predicate: (pred chr) -> bool")
+                                  (param done CALLABLE "Called when pred fails"))
+      (doc "A state that loops while pred returns truthy, then calls done."
+        (returns CALLABLE "Analyzer state")
+        (example "(Token make-pred-state (fn (_ c) (Char alphabetic? c)) done)" "match letters"))
+      (%make-pred-state pred done))
+
+    (method make-range-state (self (param lo INTEGER "Lowest accepted character code")
+                                   (param hi INTEGER "Highest accepted character code")
+                                   (param done CALLABLE "Called on out-of-range character"))
+      (doc "A state that loops while the character is in the inclusive range [lo, hi]."
+        (returns CALLABLE "Analyzer state")
+        (example "(Token make-range-state 65 90 done)" "match uppercase A-Z"))
+      (%make-range-state lo hi done))
+
+    (method make-alt-state (self (param state-a CALLABLE "First alternative")
+                                 (param state-b CALLABLE "Second alternative"))
+      (doc "Try state-a on the current character; if it rejects (nil), try state-b."
+        (returns CALLABLE "Analyzer state")
+        (example "(Token make-alt-state (Token make-char-state 43 next ()) (Token make-char-state 45 next ()))" "match + or -"))
+      (%make-alt-state state-a state-b))
+
+    (method make-str-state (self (param s STRING "Literal string to match")
+                                 (param next CALLABLE "Reached after full match")
+                                 (param fail CALLABLE "Reached on mismatch (or nil to reject)"))
+      (doc "A chain of char-states matching each byte of a literal string in sequence."
+        (returns CALLABLE "Analyzer state")
+        (example "(Token make-str-state \"0x\" hex-digits ())" "match '0x' prefix"))
+      (%make-str-state s next fail))
+
+    (method make-count-state (self (param n INTEGER "Exact number of characters to match")
+                                   (param pred CALLABLE "Predicate: (pred chr) -> bool")
+                                   (param done CALLABLE "Called after exactly n matches"))
+      (doc "Match exactly n characters satisfying pred, then call done. Rejects if fewer match. With n=0, returns done directly."
+        (returns CALLABLE "Analyzer state (or done when n=0)")
+        (example "(Token make-count-state 4 (fn (_ c) (Char numeric? c)) done)" "exactly 4 digits"))
+      (%make-count-state n pred done))
+
+    (method make-min-state (self (param n INTEGER "Minimum number of characters to match")
+                                 (param pred CALLABLE "Predicate: (pred chr) -> bool")
+                                 (param done CALLABLE "Called after n+ matches on a non-matching char"))
+      (doc "Match at least n characters satisfying pred, then loop more, calling done when pred fails."
+        (returns CALLABLE "Analyzer state")
+        (example "(Token make-min-state 1 (fn (_ c) (Char numeric? c)) done)" "1+ digits"))
+      (%make-min-state n pred done))
+
+    (method make-optional-char (self (param ch INTEGER "Character code to optionally match")
+                                     (param next CALLABLE "Next state (reached whether or not ch matched)"))
+      (doc "Match a character if present, skip it if not; either way continue to next."
+        (returns CALLABLE "Analyzer state")
+        (example "(Token make-optional-char 43 digits)" "optionally match '+' then digits"))
+      (%make-optional-char ch next))))
+
+(doc (provide x/sys/token Token)
+  (note "States receive (self buffer score chr): return self to loop, another state to transition, a score to accept, nil to reject.")
+  (note "Terminators registered under catalog ns `token` (accept/accept-inclusive/reject) -- reader-context callers fetch-and-cache them; never dispatch (Token accept ...) per character.")
+  "Composable tokenizer state-machine builders on the Token class.")

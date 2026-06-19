@@ -1,19 +1,26 @@
-## token-accept
+# @lib ../tests/x/lib/token.x
 
-### is a function
+Token (`lib/x/sys/token.x`) is the tokenizer state-builder vocabulary. The
+builders are `Token` methods (called at setup); the terminators (accept /
+accept-inclusive / reject) are registered under catalog ns `token` for
+reader-context callers to fetch. The harness caches `%acc` / `%rej`.
+
+## Token accept
+
+### the accept terminator is a function
 
 ```scheme
-(procedure? token-accept)
+(procedure? %acc)
 ```
 ---
     #t
 
-## token-reject
+## Token reject
 
-### is a function
+### the reject terminator is a function
 
 ```scheme
-(procedure? token-reject)
+(procedure? %rej)
 ```
 ---
     #t
@@ -23,7 +30,7 @@
 ### returns a function
 
 ```scheme
-(procedure? (make-digit-state token-accept))
+(procedure? (Token make-digit-state %acc))
 ```
 ---
     #t
@@ -33,7 +40,7 @@
 ### returns a function
 
 ```scheme
-(procedure? (make-xdigit-state token-accept))
+(procedure? (Token make-xdigit-state %acc))
 ```
 ---
     #t
@@ -43,7 +50,7 @@
 ### returns a function
 
 ```scheme
-(procedure? (make-char-state 65 token-accept ()))
+(procedure? (Token make-char-state 65 %acc ()))
 ```
 ---
     #t
@@ -53,7 +60,7 @@
 ### returns a function
 
 ```scheme
-(procedure? (make-pred-state (fn (_ c) (Char alphabetic? c)) token-accept))
+(procedure? (Token make-pred-state (fn (_ c) (Char alphabetic? c)) %acc))
 ```
 ---
     #t
@@ -63,7 +70,7 @@
 ### returns a function
 
 ```scheme
-(procedure? (make-range-state 48 57 token-accept))
+(procedure? (Token make-range-state 48 57 %acc))
 ```
 ---
     #t
@@ -73,7 +80,7 @@
 ### returns a function
 
 ```scheme
-(procedure? (make-alt-state token-accept token-reject))
+(procedure? (Token make-alt-state %acc %rej))
 ```
 ---
     #t
@@ -83,7 +90,7 @@
 ### returns a function
 
 ```scheme
-(procedure? (make-str-state "abc" token-accept ()))
+(procedure? (Token make-str-state "abc" %acc ()))
 ```
 ---
     #t
@@ -93,7 +100,7 @@
 ### returns a function for n=3
 
 ```scheme
-(procedure? (make-count-state 3 (fn (_ c) (Char numeric? c)) token-accept))
+(procedure? (Token make-count-state 3 (fn (_ c) (Char numeric? c)) %acc))
 ```
 ---
     #t
@@ -101,7 +108,7 @@
 ### returns done directly for n=0
 
 ```scheme
-(eq? (make-count-state 0 (fn (_ c) (Char numeric? c)) token-accept) token-accept)
+(eq? (Token make-count-state 0 (fn (_ c) (Char numeric? c)) %acc) %acc)
 ```
 ---
     #t
@@ -111,7 +118,7 @@
 ### returns a function
 
 ```scheme
-(procedure? (make-min-state 1 (fn (_ c) (Char numeric? c)) token-accept))
+(procedure? (Token make-min-state 1 (fn (_ c) (Char numeric? c)) %acc))
 ```
 ---
     #t
@@ -121,7 +128,7 @@
 ### returns a function
 
 ```scheme
-(procedure? (make-optional-char 43 token-accept))
+(procedure? (Token make-optional-char 43 %acc))
 ```
 ---
     #t

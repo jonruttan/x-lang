@@ -8,6 +8,11 @@
 (def %type-io (prim-ref (lit type) (lit io)))
 
 (import x/sys/token)
+; Fetch the tokenizer terminators from the catalog (ns `token`). Reader-context
+; states call these per character, so cache the raw refs and call them directly
+; -- never (Token accept ...), whose dispatch would allocate mid-reader-callback.
+(def %tok-accept (prim-ref (lit token) (lit accept)))
+(def %tok-accept-inclusive (prim-ref (lit token) (lit accept-inclusive)))
 (import x/type/str)
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %make-instance (prim-ref (lit type) (lit make-instance)))
@@ -42,7 +47,7 @@
   (fn (self buffer score chr)
     (if (%logo-word-char? chr)
       self
-      (token-accept buffer score chr))))
+      (%tok-accept buffer score chr))))
 
 ; Forward declarations (set! by dispatch.x/expr.x)
 (def %logo ())
@@ -73,21 +78,21 @@
 ; Single-char operator: accept on next char
 (def %logo-op-accept-next
   (fn (_ buffer score chr2)
-    (token-accept buffer score chr2)))
+    (%tok-accept buffer score chr2)))
 
 ; < followed by second char: accept-inclusive for <- <= <>, accept for others
 (def %logo-op-lt-second
   (fn (_ buffer score chr2)
     (if (or (= chr2 45) (= chr2 61) (= chr2 62))
-      (token-accept-inclusive buffer score chr2)
-      (token-accept buffer score chr2))))
+      (%tok-accept-inclusive buffer score chr2)
+      (%tok-accept buffer score chr2))))
 
 ; > followed by second char: accept-inclusive for >=, accept for others
 (def %logo-op-gt-second
   (fn (_ buffer score chr2)
     (if (= chr2 61)
-      (token-accept-inclusive buffer score chr2)
-      (token-accept buffer score chr2))))
+      (%tok-accept-inclusive buffer score chr2)
+      (%tok-accept buffer score chr2))))
 
 ; ============================================================
 ; Logo tokenizer base
@@ -119,14 +124,14 @@
     (Base make-type base "LOGO-CLOSE"
       (list
         (pair (lit analyse)
-          (make-char-state (%char->integer #\]) token-accept ()))
+          (Token make-char-state (%char->integer #\]) %tok-accept ()))
         (pair (lit read) (fn (_ . args) %logo-block-close))))
 
     ; LOGO-OPEN
     (Base make-type base "LOGO-OPEN"
       (list
         (pair (lit analyse)
-          (make-char-state (%char->integer #\[) token-accept ()))
+          (Token make-char-state (%char->integer #\[) %tok-accept ()))
         (pair (lit read)
           (fn (_ . args)
             (def buf (first args))
@@ -174,7 +179,7 @@
     (Base make-type base "LOGO-NEWLINE"
       (list
         (pair (lit analyse)
-          (make-char-state 10 token-accept ()))))
+          (Token make-char-state 10 %tok-accept ()))))
 
     ; LOGO-INDENT: \n + spaces/tabs + word
     (def %indent-after-nl
@@ -235,20 +240,20 @@
     (Base make-type base "LOGO-PAREN-OPEN"
       (list
         (pair (lit analyse)
-          (make-char-state 40 token-accept ()))
+          (Token make-char-state 40 %tok-accept ()))
         (pair (lit read) (fn (_ . args) (pair %logo-paren-tag "(")))))
 
     (Base make-type base "LOGO-PAREN-CLOSE"
       (list
         (pair (lit analyse)
-          (make-char-state 41 token-accept ()))
+          (Token make-char-state 41 %tok-accept ()))
         (pair (lit read) (fn (_ . args) (pair %logo-paren-tag ")")))))
 
     ; LOGO-STRING: "..."
     (def %string-body
       (fn (self buffer score chr)
         (if (= chr 34)
-          (token-accept-inclusive buffer score chr)
+          (%tok-accept-inclusive buffer score chr)
           (if (= chr 10) () self))))
 
     (set! %logo-string
@@ -274,7 +279,7 @@
             (if (= chr 59)
               (fn (self buf sc chr2)
                 (if (= chr2 10)
-                  (token-accept buf sc chr2)
+                  (%tok-accept buf sc chr2)
                   self))
               ())))))
 
