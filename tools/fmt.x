@@ -21,7 +21,7 @@
   (def %all-constructs
     (if (null? %lang-constructs) %constructs
       (append %constructs %lang-constructs)))
-  (def %fmt-table (fmt-build-table %all-constructs))
+  (def %fmt-table (Fmt build-table %all-constructs))
 
   ; --- Create formatter base, patch COMMENT to keep tokens ---
 
@@ -59,4 +59,4 @@
 
   ; --- Format ---
 
-  (fmt-tokens %tokens %fmt-table))
+  (Fmt tokens %tokens %fmt-table))
