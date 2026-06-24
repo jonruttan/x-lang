@@ -1,0 +1,32 @@
+#!/bin/sh
+# Pre-push gate -- block a push when the suite is red.
+#
+# The remote is local-only and there is no CI (see docs/contributing.md), so
+# this hook is THE enforced gate. Install with `make install-hooks` (sets
+# core.hooksPath=.githooks). Bypass a single push with `git push --no-verify`.
+#
+# RUN_ASAN=1 additionally runs `make test-asan` as a NON-BLOCKING advisory: the
+# ASan baseline has a tracked, pre-existing finding (an object-dispatch
+# under-read), so a red ASan run is not necessarily your regression and must
+# never fail the push until that baseline is clean.
+
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
+
+# Hard gate: both suites (test-c + test-x), green at HEAD. A regression blocks.
+printf '[pre-push] make test ...\n'
+if ! make test; then
+	printf '\n[pre-push] BLOCKED: `make test` is red. Fix it, or bypass with `git push --no-verify`.\n' >&2
+	exit 1
+fi
+
+# Advisory: the ASan build still crashes on a tracked, pre-existing finding (an
+# object-dispatch under-read), so it cannot hard-gate yet. RUN_ASAN=1 runs it
+# non-blocking; PROMOTE it into the hard gate above once it is green.
+if [ -n "$RUN_ASAN" ]; then
+	printf '\n[pre-push] RUN_ASAN -- make test-asan (advisory) ...\n'
+	make test-asan || printf '[pre-push] note: test-asan red (tracked finding); not blocking.\n' >&2
+fi
+
+printf '[pre-push] OK\n'
+exit 0

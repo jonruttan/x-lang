@@ -34,6 +34,9 @@ BEGIN {
 	unit_hdr = ""
 	tmpfile = TMPDIR "/spec-" SPEC_ID ".tmp"
 	tc = 0
+	# Per-test opt-in: set when the expected block is fenced as ```output,
+	# meaning "compare the FULL multi-line output", not just the last line.
+	expect_full = 0
 
 	# Derive lib_base directory from LANG_LIB
 	n = split(LANG_LIB, _parts, "/")
@@ -59,6 +62,15 @@ function strip(s) {
 	return s
 }
 
+# Drop trailing newlines. Used only in full-output (```output) mode so a
+# result's trailing newline (every %repl-print emits one) does not cause a
+# spurious mismatch against the author's expected block.
+function rtrim_blank(s) {
+	while (length(s) > 0 && substr(s, length(s), 1) == "\n")
+		s = substr(s, 1, length(s) - 1)
+	return s
+}
+
 function collect() {
 	if (tname == "") return
 
@@ -70,6 +82,7 @@ function collect() {
 		printf "%s%sp%s", unit_hdr, BLUE, RESET
 		unit_hdr = ""
 		tname = ""; input_buf = ""; expect_buf = ""
+		expect_full = 0
 		state = 0
 		return
 	}
@@ -82,13 +95,15 @@ function collect() {
 	t_unit[tc] = unit
 	t_unit_hdr[tc] = unit_hdr
 	t_lib[tc] = lib
+	t_full[tc] = expect_full
 
 	unit_hdr = ""
 	tname = ""; input_buf = ""; expect_buf = ""
+	expect_full = 0
 	state = 0
 }
 
-function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, got, boundary_done) {
+function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, got, boundary_done, seen, want) {
 	if (repl_cmd == " ") {
 		# Direct mode: feed tests to the personality REPL without
 		# %T harness or (begin ...) wrapper.  Used by Sweet where
@@ -141,21 +156,36 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 
 	tidx = from
 	output = ""
+	seen = 0
 	while ((cmd | getline line) > 0) {
 		# Strip REPL prompts (> and $ prefixes, looping)
 		while (substr(line, 1, 2) == "> " || substr(line, 1, 2) == "$ ")
 			line = substr(line, 3)
 		if (line == "<<SEP>>") {
-			if (output == t_expect[tidx]) {
+			# Full mode compares all captured lines (blanks preserved, trailing
+			# newline trimmed); default mode compares only the last line.
+			got = t_full[tidx] ? rtrim_blank(output) : output
+			want = t_full[tidx] ? rtrim_blank(t_expect[tidx]) : t_expect[tidx]
+			if (got == want) {
 				printf "%s%s.%s", t_unit_hdr[tidx], GREEN, RESET
 			} else {
 				fails++
 				printf "%s\n%sFAIL: %s: %s\n  expected: %s\n  got:      %s%s\n", \
 					t_unit_hdr[tidx], RED, t_unit[tidx], t_name[tidx], \
-					t_expect[tidx], output, RESET
+					want, got, RESET
 			}
 			tidx++
 			output = ""
+			seen = 0
+		} else if (t_full[tidx]) {
+			# Capture from the first non-blank line onward, preserving interior
+			# blanks. Leading blanks are skipped: the harness emits a blank line
+			# after each <<SEP>> (the repl-print newline of the separator form),
+			# so a test's captured output would otherwise start with one.
+			if (seen || line != "") {
+				output = seen ? output "\n" line : line
+				seen = 1
+			}
 		} else if (line != "") {
 			output = line
 		}
@@ -176,20 +206,22 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 	# one-true-awk, the real code on gawk/mawk.)
 	boundary_done = 0
 	while (tidx <= to) {
-		if (!boundary_done && output == t_expect[tidx]) {
+		got = t_full[tidx] ? rtrim_blank(output) : output
+		want = t_full[tidx] ? rtrim_blank(t_expect[tidx]) : t_expect[tidx]
+		if (!boundary_done && got == want) {
 			printf "%s%s.%s", t_unit_hdr[tidx], GREEN, RESET
 		} else {
 			fails++
-			if (!boundary_done && output != "")
-				got = output       # boundary test interrupted -- show partial output
-			else {
+			if (!boundary_done && got != "") {
+				# boundary test interrupted -- got already holds the partial output
+			} else {
 				got = "<no result -- interpreter died mid-batch"
 				if (cmd_status > 0) got = got " (exit " cmd_status ")"
 				got = got ">"
 			}
 			printf "%s\n%sFAIL: %s: %s\n  expected: %s\n  got:      %s%s\n", \
 				t_unit_hdr[tidx], RED, t_unit[tidx], t_name[tidx], \
-				t_expect[tidx], got, RESET
+				want, got, RESET
 		}
 		boundary_done = 1
 		tidx++
@@ -210,6 +242,16 @@ function batch_run(    i, batch_start, cur_lib) {
 		}
 	}
 	run_batch(batch_start, tc, cur_lib)
+}
+
+# Expected output fenced as ```output -> compare the FULL multi-line output for
+# this test (opt-in). Must precede the generic fence rule below. The default
+# (indented expected, or a plain ``` fence) stays last-line-only, so every
+# existing spec is unaffected.
+state == 2 && /^```output/ {
+	fenced = 1
+	expect_full = 1
+	next
 }
 
 # Fenced code blocks (``` with optional language tag)

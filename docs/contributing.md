@@ -44,9 +44,10 @@ Tests are markdown spec files in `tests/x/specs/` organized by category:
 ### Running Tests
 
 ```sh
-make test-x          # x-lang tests (1229 cases)
+make test-x          # x-lang spec suite
 make test-c          # C unit tests
-make test            # all tests
+make test            # all tests (the full gate)
+make test-asan       # both suites under AddressSanitizer (memory-safety net)
 ```
 
 ### Adding Tests
@@ -66,6 +67,35 @@ Tests use a markdown format where each `###` heading is a test case:
 ```
 
 The spec runner evaluates the `scheme` code block and compares stdout against the indented expected output after the `---` separator.
+
+> **Last line only (default).** By default the runner compares only the **last non-empty stdout line**, and stderr is discarded. To assert a single multi-value result this way, put it on one line (e.g. `(display a)(display " ")(display b)`).
+>
+> **Multi-line output (`` ```output ``).** Fence the expected block as `` ```output `` to compare the **full multi-line stdout** instead — for formatters, pretty-printers, and any multi-line render. Leading blank lines are ignored and the trailing newline is trimmed; interior blank lines are significant. Errors are catchable too: the harness prints an uncaught error to stdout as `Error: <value>`, so a `` ```output `` block can assert it (or use `raised`/`throws?`). See `tests/x/specs/meta/multiline.spec.md`.
+>
+> A spec can swap in a custom support library with a `# @lib ../tests/x/lib/NAME.x` header — it *replaces* the default lib, so the support file must `(include "lib/x-core.x")` first (see `tests/x/lib/token.x`).
+
+### The test-with-fix rule
+
+**Every bug fix ships with a regression test in the same commit**, written so it **fails before the fix and passes after** — confirm both. A fix without a test that proves it is incomplete: nothing stops the bug from returning. This is the project's main defense against recurring "should-have-been-caught" regressions. A `fix:` commit that touches no `tests/` file is the smell to avoid.
+
+### Error-path assertions
+
+`tests/x/lib/assert.x` names the "this must raise" pattern, so the silent-failure class (a form that should raise but returns nil) can't read as a pass. Add `# @lib ../tests/x/lib/assert.x` to a spec, then:
+
+- `(throws? (fn (_) EXPR))` → `#t` if `EXPR` raises, else `#f`
+- `(raised  (fn (_) EXPR))` → the value `EXPR` raised, or the symbol `%none`
+
+### Memory safety (AddressSanitizer)
+
+`make test-asan` runs both suites against an ASan build. It catches the crash class that is silently wrong on 64-bit but faults on 32-bit/Pi (e.g. an unchecked read past an object) — run it before pushing C or eval-core changes. It is **report-only** for now: there is a tracked, pre-existing baseline finding, so confirm a red ASan run is actually *your* regression before acting on it.
+
+### Pre-push gate
+
+```sh
+make install-hooks   # sets core.hooksPath=.githooks
+```
+
+The hook hard-gates on `make test` (both suites) and blocks the push if it fails (bypass a single push with `git push --no-verify`). `make test-asan` still crashes at HEAD on a tracked, pre-existing finding, so it runs only on demand and non-blocking — `RUN_ASAN=1`. **Promote it into the hard gate once it is green.**
 
 ## Commit Conventions
 

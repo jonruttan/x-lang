@@ -95,6 +95,29 @@ after `---`:
 ---
 ````
 
+### Full multi-line output
+
+By default only the **last non-empty output line** is compared. To assert the
+**full multi-line output** (formatters, pretty-printers, multi-line renders),
+fence the expected block as `output`:
+
+````markdown
+### formats a nested form
+
+```scheme
+(fmt-expr (quote (a (b c))))
+```
+---
+```output
+(a
+  (b c))
+```
+````
+
+In this mode leading blank lines are ignored and the trailing newline is
+trimmed; interior blank lines are significant. Errors are assertable too: the
+harness prints an uncaught error to stdout as `Error: <value>`.
+
 ## Running tests
 
 Each language personality has a `spec-runner.sh` that sets three variables
@@ -149,4 +172,6 @@ are ignored.
 
 Test execution pipes `cat $LANG_LIB $tmpfile | $X_BIN 2>/dev/null`,
 strips REPL prompts (`> `, `$ `), and compares the last non-empty output
-line against the expected value.
+line against the expected value — unless the expected block is fenced as
+`` ```output ``, in which case the full multi-line output is compared (leading
+blanks ignored, trailing newline trimmed, interior blanks significant).
