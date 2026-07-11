@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: make test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build
+        run: make
+      - name: C specs
+        run: make test-c
+      - name: x-lang specs
+        run: make test-x
+        env:
+          PARALLEL: "1"
+
+  # Memory-safety advisory: mirrors the local pre-push gate's RUN_ASAN=1 mode.
+  # Non-blocking until the known ASan baseline finding (eq?/match under-read
+  # in object dispatch) is fixed; flip continue-on-error off once clean.
+  asan:
+    name: make test-asan (advisory)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Run suites under AddressSanitizer
+        run: make test-asan
+        env:
+          PARALLEL: "1"
