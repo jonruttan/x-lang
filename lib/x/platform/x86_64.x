@@ -21,7 +21,12 @@
 ; Descriptor: (prefixes opcode modrm-spec extras)
 ; prefixes: list of prefix bytes
 ; opcode: list of opcode bytes (or (base-byte . opreg-arg-idx))
-; modrm-spec: () | (reg-arg rm-arg) | (slash-val rm-arg)
+; modrm-spec: () | (reg-arg rm-arg) | ((/ digit) rm-arg)
+;   A bare number is an ARGUMENT INDEX whose register fills the reg
+;   field; the Intel /digit opcode extension is spelled (/ n). The two
+;   were both bare numbers once, and number? dispatch made every
+;   register-arg form encode as a /digit -- mov rax, rdi silently
+;   became mov rax, rcx.
 ; extras: list of (kind arg-idx) for immediates/displacements
 
 (def %x86_64-encode
@@ -51,9 +56,9 @@
         (def rm-idx  (List nth 1 modrm-spec))
         (def rm-arg (List nth rm-idx args))
         (def reg-val
-          (if (number? reg-src)
-            reg-src                           ; /digit extension
-            (%op-value (List nth reg-src args))))   ; register arg
+          (if (pair? reg-src)
+            (List nth 1 reg-src)              ; (/ n) opcode extension
+            (%op-value (List nth reg-src args))))   ; register arg index
         (if (eq? (%op-type rm-arg) (lit reg))
           ; reg-reg: mod=11
           (%emit-u8! asm (%modrm 3 reg-val (%op-value rm-arg)))
@@ -118,7 +123,7 @@
       (pair (lit ri) (list
         (list (%rex 1 0 0 0))
         (list 129)               ; 0x81
-        (list 0 0)               ; /0 = ADD, rm=arg0
+        (list (list (lit /) 0) 0) ; /0 = ADD, rm=arg0
         (list (list (lit imm32) 1))))))
 
     ; SUB r64, r64 (REX.W 29 /r)
@@ -131,7 +136,7 @@
       (pair (lit ri) (list
         (list (%rex 1 0 0 0))
         (list 129)               ; 0x81
-        (list 5 0)               ; /5 = SUB
+        (list (list (lit /) 5) 0) ; /5 = SUB
         (list (list (lit imm32) 1))))))
 
     ; CMP r64, r64 (REX.W 39 /r) — flags from arg0 - arg1, matching
@@ -145,7 +150,7 @@
       (pair (lit ri) (list
         (list (%rex 1 0 0 0))
         (list 129)               ; 0x81
-        (list 7 0)               ; /7 = CMP
+        (list (list (lit /) 7) 0) ; /7 = CMP
         (list (list (lit imm32) 1))))))
 
     ; JMP rel32
