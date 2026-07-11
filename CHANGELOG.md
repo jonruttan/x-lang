@@ -7,6 +7,9 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- **x86_64 assembler parity** (`lib/x/platform/x86_64.x`) — `cmp` (rr/ri), the six conditional branches (`b/eq b/ne b/lt b/ge b/gt b/le` as Jcc rel32, sharing arm64's mnemonic names), a `b` alias for `jmp`, and per-arch `asm-prologue!`/`asm-epilogue!` (SysV frame + rbx/r12-r14) and `asm-load-imm64!`. The JIT codegen module (`asm-compile.x`) remains arm64-only (registers hard-wired) — tracked separately.
+- **Arch-tagged specs** — the spec runner skips `<name>.<arch>.spec.md` files on non-matching hosts (`uname -m`, arm64/aarch64 and x86_64/amd64 normalized); asm specs split into `.arm64.`/`.x86_64.` variants since the scenarios are ABI-specific (A64's x0 arg-and-return duality vs SysV's rdi-in/rax-out)
+
 - **GC hook/root registration API** — `heap-mark-hook!`, `heap-free-hook!`, `heap-mark-root!` primitives wired through to x-expr's heap-group extensible lists; `lib/x/sys/gc.x` is now a thin re-export layer
 - **Optional build modules under `opt/`** — first occupant is `opt/x-prim/signal.c`; gated by `X_SIGNAL` (default on), `make X_SIGNAL=` drops the module and compiles the eval poll out
 - **`examples/logo/ch1.logo`** — Chapter-1 programs from *Turtle Geometry* (ARCR/ARCL, RAY, POLY/NEWPOLY, POLYSPI/POLYSPII, INSPI)
@@ -24,6 +27,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- **call/cc reinvocation segfault on Linux/gcc** — the stack capture's lower bound came from `&local`, missing frame slots the compiler placed below it (gcc spills `p_base`/`cont` there); clang's register allocation masked it. Capture now bounds from a non-inlinable callee frame, and the restore descent keeps a two-pad margin so the memcpy can't clobber the live restore frame.
+- **A64 detection on GNU triplets** — `%asm-arm64?` matched only Darwin's "arm64" spelling, loading the x86_64 backend on aarch64 Linux
 - **Op lexical scope** — operative bodies now capture the environment at `(op …)` definition time, not the caller's environment at call time. Co-issue: a C-spec for `procedure_call` / `operative_call` was updated to match.
 - **BST insert mutates in place** — `x_alist_bst_insert` no longer path-copies, so fn closures that captured a BST snapshot at definition time stay valid as later globals are added. This was the root cause of an intermittent turtle test failure (`>=` unbound during `include-once` of `float.x`).
 - **`syscall-id` self-parameter** — was declared `(fn (call) …)` which left the actual argument slot empty; one-arg call sites were working by accident. Now `(fn (_ call) …)` per x-lang `fn` convention.

@@ -90,6 +90,15 @@ esac
 # Derive project root from X_BIN (always at project root).
 RUNNER="$(cd "$(dirname "$X_BIN")" && pwd)/tests/spec-runner.awk"
 
+# Host arch for arch-tagged specs (e.g. asm.arm64.spec.md runs only on A64
+# hosts). Darwin says arm64 where GNU says aarch64; normalize to the tags the
+# platform backends use (lib/x/platform/<arch>.x).
+_HOST_ARCH=$(uname -m)
+case "$_HOST_ARCH" in
+  arm64|aarch64) _HOST_ARCH=arm64 ;;
+  x86_64|amd64)  _HOST_ARCH=x86_64 ;;
+esac
+
 TEST_COUNT=0
 FAIL_COUNT=0
 PENDING_COUNT=0
@@ -133,6 +142,11 @@ _throttle() {
 for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
   [ -f "$_spec" ] || continue
   case "$_spec" in */applicative/*) continue ;; esac
+  # Arch-tagged specs (<name>.<arch>.spec.md) run only on matching hosts.
+  _tag="${_spec%.spec.md}"; _tag="${_tag##*.}"
+  case "$_tag" in
+    arm64|x86_64) [ "$_tag" = "$_HOST_ARCH" ] || continue ;;
+  esac
   # SPECS (a glob pattern, e.g. '*list*') narrows the run for fast iteration; unset = all.
   [ -n "$SPECS" ] && { case "$_spec" in $SPECS) : ;; *) continue ;; esac; }
   _I=$_N
