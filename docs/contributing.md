@@ -97,6 +97,10 @@ make install-hooks   # sets core.hooksPath=.githooks
 
 The hook hard-gates on `make test` (both suites) and blocks the push if it fails (bypass a single push with `git push --no-verify`). `make test-asan` still crashes at HEAD on a tracked, pre-existing finding, so it runs only on demand and non-blocking — `RUN_ASAN=1`. **Promote it into the hard gate once it is green.**
 
+### CI
+
+GitHub Actions (`.github/workflows/ci.yml`) re-runs `make test` on macOS and Linux for every push and pull request, with `make test-asan` as a non-blocking advisory job (same tracked baseline finding as above). The pre-push hook remains the first line of defence: it catches a red suite before it leaves the machine.
+
 ## Commit Conventions
 
 This project follows [AngularJS commit conventions](CONVENTIONS.md):

@@ -1,8 +1,9 @@
 #!/bin/sh
 # Pre-push gate -- block a push when the suite is red.
 #
-# The remote is local-only and there is no CI (see docs/contributing.md), so
-# this hook is THE enforced gate. Install with `make install-hooks` (sets
+# GitHub Actions re-runs `make test` on push/PR (.github/workflows/ci.yml),
+# but this hook is the gate that catches a red suite BEFORE it leaves the
+# machine (see docs/contributing.md). Install with `make install-hooks` (sets
 # core.hooksPath=.githooks). Bypass a single push with `git push --no-verify`.
 #
 # RUN_ASAN=1 additionally runs `make test-asan` as a NON-BLOCKING advisory: the
