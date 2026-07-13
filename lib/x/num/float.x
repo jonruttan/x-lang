@@ -154,6 +154,10 @@
   (fn (_ a b)
     (%make-instance %float (%ffi-call "d/d" () (first a) (first b)))))
 
+(def %f-mod
+  (fn (_ a b)
+    (%make-instance %float (%ffi-call "d%d" () (first a) (first b)))))
+
 (note "Comparisons")
 
 ; --- Comparisons ---
@@ -244,6 +248,10 @@
 (%type-push-op %float-ts (lit -) (fn (_ a b) (%f-sub (%ensure-float a) (%ensure-float b))))
 (%type-push-op %float-ts (lit *) (fn (_ a b) (%f-mul (%ensure-float a) (%ensure-float b))))
 (%type-push-op %float-ts (lit /) (fn (_ a b) (%f-div (%ensure-float a) (%ensure-float b))))
+; Without this op, (% 1.2 1.4) fell through to x_prim_mod's integer
+; fallback -- value-word % value-word on two float PAYLOAD POINTERS --
+; and returned garbage ((gcd 1.2 1.4) famously yielded 8).
+(%type-push-op %float-ts (lit %) (fn (_ a b) (%f-mod (%ensure-float a) (%ensure-float b))))
 (%type-push-op %float-ts (lit <) (fn (_ a b) (%f-lt (%ensure-float a) (%ensure-float b))))
 (%type-push-op %float-ts (lit =) (fn (_ a b) (%f-eq (%ensure-float a) (%ensure-float b))))
 

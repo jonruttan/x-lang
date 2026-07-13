@@ -314,6 +314,56 @@
 ---
     24
 
+## % with floats (fmod)
+
+### % smaller by larger is the dividend
+
+```scheme
+(% 1.2 1.4)
+```
+---
+    1.2
+
+### % larger by smaller
+
+```scheme
+(% 1.4 1.2)
+```
+---
+    0.2
+
+### % float by float
+
+```scheme
+(% 7.5 2.0)
+```
+---
+    1.5
+
+### % truncates toward zero (C semantics)
+
+```scheme
+(% (- 0 7.5) 2.0)
+```
+---
+    -1.5
+
+### % float by int coerces
+
+```scheme
+(% 5.5 2)
+```
+---
+    1.5
+
+### % integers unchanged
+
+```scheme
+(% 7 3)
+```
+---
+    1
+
 ## float comparisons
 
 ### f< true
