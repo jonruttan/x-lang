@@ -28,26 +28,22 @@ jobs:
           PARALLEL: "1"
 
   # Memory-safety advisory: mirrors the local pre-push gate's RUN_ASAN=1 mode.
-  # REPORT-ONLY until the tracked baseline finding (eq?/match under-read in
-  # object dispatch) is fixed. The step swallows the exit code on purpose:
-  # job-level continue-on-error still reports a FAILING CHECK on the PR merge
-  # box, which reads as a blocking gate. Red surfaces as a warning annotation
-  # and in the log; make it a plain `run: make test-asan` once the baseline
-  # is clean.
+  # The red check is DELIBERATE: the ASan baseline has real, unfixed
+  # memory-safety findings (tracked: eq?/match under-read in object
+  # dispatch; Linux shows a wider surface), and hiding them behind a green
+  # check is how they stay unfixed. continue-on-error keeps the run itself
+  # from gating on it. Fix the baseline, then delete continue-on-error so
+  # this becomes a hard gate.
   asan:
     name: make test-asan (advisory)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Run suites under AddressSanitizer (report-only)
-        run: |
-          if make test-asan; then
-            echo "ASan clean — promote this job to a hard gate (see comment above)"
-          else
-            echo "::warning title=test-asan advisory red::tracked baseline finding (eq?/match under-read); see job log"
-          fi
+      - name: Run suites under AddressSanitizer
+        run: make test-asan
         env:
           PARALLEL: "1"
