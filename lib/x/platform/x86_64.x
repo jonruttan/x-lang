@@ -21,7 +21,12 @@
 ; Descriptor: (prefixes opcode modrm-spec extras)
 ; prefixes: list of prefix bytes
 ; opcode: list of opcode bytes (or (base-byte . opreg-arg-idx))
-; modrm-spec: () | (reg-arg rm-arg) | (slash-val rm-arg)
+; modrm-spec: () | (reg-arg rm-arg) | ((/ digit) rm-arg)
+;   A bare number is an ARGUMENT INDEX whose register fills the reg
+;   field; the Intel /digit opcode extension is spelled (/ n). The two
+;   were both bare numbers once, and number? dispatch made every
+;   register-arg form encode as a /digit -- mov rax, rdi silently
+;   became mov rax, rcx.
 ; extras: list of (kind arg-idx) for immediates/displacements
 
 (def %x86_64-encode
@@ -51,9 +56,9 @@
         (def rm-idx  (List nth 1 modrm-spec))
         (def rm-arg (List nth rm-idx args))
         (def reg-val
-          (if (number? reg-src)
-            reg-src                           ; /digit extension
-            (%op-value (List nth reg-src args))))   ; register arg
+          (if (pair? reg-src)
+            (List nth 1 reg-src)              ; (/ n) opcode extension
+            (%op-value (List nth reg-src args))))   ; register arg index
         (if (eq? (%op-type rm-arg) (lit reg))
           ; reg-reg: mod=11
           (%emit-u8! asm (%modrm 3 reg-val (%op-value rm-arg)))
@@ -118,7 +123,7 @@
       (pair (lit ri) (list
         (list (%rex 1 0 0 0))
         (list 129)               ; 0x81
-        (list 0 0)               ; /0 = ADD, rm=arg0
+        (list (list (lit /) 0) 0) ; /0 = ADD, rm=arg0
         (list (list (lit imm32) 1))))))
 
     ; SUB r64, r64 (REX.W 29 /r)
@@ -131,7 +136,21 @@
       (pair (lit ri) (list
         (list (%rex 1 0 0 0))
         (list 129)               ; 0x81
-        (list 5 0)               ; /5 = SUB
+        (list (list (lit /) 5) 0) ; /5 = SUB
+        (list (list (lit imm32) 1))))))
+
+    ; CMP r64, r64 (REX.W 39 /r) — flags from arg0 - arg1, matching
+    ; arm64's operand order (cmp left right)
+    (pair (lit cmp) (list
+      (pair (lit rr) (list
+        (list (%rex 1 0 0 0))
+        (list 57)                ; 0x39
+        (list 1 0)               ; reg=arg1, rm=arg0
+        ()))
+      (pair (lit ri) (list
+        (list (%rex 1 0 0 0))
+        (list 129)               ; 0x81
+        (list (list (lit /) 7) 0) ; /7 = CMP
         (list (list (lit imm32) 1))))))
 
     ; JMP rel32
@@ -139,11 +158,71 @@
       (pair (lit l) (list () (list 233) ()           ; 0xE9
         (list (list (lit rel32) 0))))))
 
+    ; B — arm64's name for the unconditional branch; same encoding as JMP
+    ; so branchy code keeps one mnemonic vocabulary across backends
+    (pair (lit b) (list
+      (pair (lit l) (list () (list 233) ()           ; 0xE9
+        (list (list (lit rel32) 0))))))
+
+    ; Conditional branches: Jcc rel32 (0F 8x). Named after arm64's B.cond
+    ; so per-arch specs and generated code share mnemonics. Signed
+    ; conditions (JL/JG), matching B.LT/B.GT.
+    (pair (lit b/eq) (list
+      (pair (lit l) (list () (list 15 132) ()        ; 0F 84 = JE
+        (list (list (lit rel32) 0))))))
+    (pair (lit b/ne) (list
+      (pair (lit l) (list () (list 15 133) ()        ; 0F 85 = JNE
+        (list (list (lit rel32) 0))))))
+    (pair (lit b/lt) (list
+      (pair (lit l) (list () (list 15 140) ()        ; 0F 8C = JL
+        (list (list (lit rel32) 0))))))
+    (pair (lit b/ge) (list
+      (pair (lit l) (list () (list 15 141) ()        ; 0F 8D = JGE
+        (list (list (lit rel32) 0))))))
+    (pair (lit b/gt) (list
+      (pair (lit l) (list () (list 15 143) ()        ; 0F 8F = JG
+        (list (list (lit rel32) 0))))))
+    (pair (lit b/le) (list
+      (pair (lit l) (list () (list 15 142) ()        ; 0F 8E = JLE
+        (list (list (lit rel32) 0))))))
+
     ; CALL rel32
     (pair (lit call) (list
       (pair (lit l) (list () (list 232) ()           ; 0xE8
         (list (list (lit rel32) 0))))))
   ))
+
+; --- Prologue/epilogue helpers ---
+; Mirror arm64's asm-prologue!/asm-epilogue!: frame pointer plus four
+; callee-saved registers (rbx r12 r13 r14 here, x19-x22 there). The even
+; push count keeps rsp 16-byte aligned for any nested call (SysV requires
+; rsp % 16 == 0 at each CALL site).
+(def asm-prologue!
+  (fn (_ asm)
+    (%emit-u8! asm 85)                                          ; push rbp
+    (%emit-u8! asm 72) (%emit-u8! asm 137) (%emit-u8! asm 229)  ; mov rbp, rsp
+    (%emit-u8! asm 83)                                          ; push rbx
+    (%emit-u8! asm 65) (%emit-u8! asm 84)                       ; push r12
+    (%emit-u8! asm 65) (%emit-u8! asm 85)                       ; push r13
+    (%emit-u8! asm 65) (%emit-u8! asm 86)))                     ; push r14
+
+(def asm-epilogue!
+  (fn (_ asm)
+    (%emit-u8! asm 65) (%emit-u8! asm 94)                       ; pop r14
+    (%emit-u8! asm 65) (%emit-u8! asm 93)                       ; pop r13
+    (%emit-u8! asm 65) (%emit-u8! asm 92)                       ; pop r12
+    (%emit-u8! asm 91)                                          ; pop rbx
+    (%emit-u8! asm 93)                                          ; pop rbp
+    (%emit-u8! asm 195)))                                       ; ret
+
+; --- Load 64-bit immediate into register (REX.W B8+rd imm64) ---
+; Counterpart of arm64's MOVZ+MOVK sequence; REX.B extends to r8-r15.
+(def asm-load-imm64!
+  (fn (_ asm rd-reg val)
+    (def rd (if (pair? rd-reg) (%op-value rd-reg) rd-reg))
+    (%emit-u8! asm (if (> rd 7) 73 72))     ; 0x48 REX.W / 0x49 REX.WB
+    (%emit-u8! asm (| 184 (& rd 7)))        ; 0xB8+rd
+    (%emit-u64-le! asm val)))
 
 ; --- Patch resolver: x86_64 rel32 ---
 (def %x86_64-patch
