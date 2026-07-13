@@ -1,10 +1,11 @@
+# @lib ../tests/x/lib/lint.x
+
 ## lint: AST walking
 
 ### detects undefined symbol reference
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %result (lint-forms (list (list (lit +) (lit x) 1)) () ()))
   (def %undef (lint-undefined (first %result) (first (rest %result))))
   (display (lint-has? "x" %undef)))
@@ -16,7 +17,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %forms (list (list (lit def) (lit x) 1) (lit x)))
   (def %result (lint-forms %forms () ()))
   (def %undef (lint-undefined (first %result) (first (rest %result))))
@@ -29,7 +29,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %forms (list (list (lit def) (lit x) 1)))
   (def %result (lint-forms %forms () ()))
   (def %unused (lint-unused (first %result) (first (rest %result)) ()))
@@ -42,7 +41,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %forms (list (list (lit def) (lit %internal) 1)))
   (def %result (lint-forms %forms () ()))
   (def %unused (lint-unused (first %result) (first (rest %result)) ()))
@@ -57,7 +55,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list (list (lit first) (list (lit lit) (lit sym)))) () ()))
   (display (null? (lint-first-rest %r))))
 ```
@@ -68,7 +65,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list (list (lit first) (lit xs))) () ()))
   (display (null? (lint-first-rest %r))))
 ```
@@ -79,7 +75,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list (list (lit rest) (list (lit lit) (list 1 2)))) () ()))
   (display (null? (lint-first-rest %r))))
 ```
@@ -92,7 +87,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %f (list (lit fn) (list (lit _) (lit x))
             (list (lit do) (list (lit def) (lit y) 1) (lit x))))
   (def %r (lint-forms (list %f) () ()))
@@ -105,7 +99,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %f (list (lit fn) (list (lit _) (lit x))
             (list (lit def) (lit y) 1) (lit x)))
   (def %r (lint-forms (list %f) () ()))
@@ -118,7 +111,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %f (list (lit fn) (list (lit _) (lit x))
             (list (lit if) (lit c)
               (list (lit do) (list (lit def) (lit z) 1) 2) 3)))
@@ -134,7 +126,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %fs (list
     (list (lit def) (lit f) (list (lit fn) (list (lit _) (lit x) (lit y)) (lit x)))
     (list (lit f) 1)))
@@ -148,7 +139,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %fs (list
     (list (lit def) (lit f) (list (lit fn) (list (lit _) (lit x)) (lit x)))
     (list (lit f) 1)))
@@ -162,7 +152,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list (list (list (lit lit) (lit g)) 1)) () ()))
   (display (null? (lint-warnings-of "call-nonfn" %r))))
 ```
@@ -173,7 +162,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list (list (lit def) (lit a) 1) (list (lit def) (lit a) 2)) () ()))
   (display (lint-has? "a" (lint-warnings-of "dup-def" %r))))
 ```
@@ -186,7 +174,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list '(def f (fn (_ x) (fn (_ x) x)))) () ()))
   (display (lint-has? "x" (lint-warnings-of "shadow" %r))))
 ```
@@ -197,7 +184,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list '(def f (fn (_ x) (let ((x 1)) x)))) () ()))
   (display (lint-has? "x" (lint-warnings-of "shadow" %r))))
 ```
@@ -208,7 +194,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list '(def f (fn (_ list) list))) () ()))
   (display (null? (lint-warnings-of "shadow" %r))))
 ```
@@ -219,7 +204,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list '(def f (fn (_ lst) (let ((lst (rest lst))) lst)))) () ()))
   (display (null? (lint-warnings-of "shadow" %r))))
 ```
@@ -230,7 +214,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list '(def f (fn (self x) (fn (self y) (self y))))) () ()))
   (display (null? (lint-warnings-of "shadow" %r))))
 ```
@@ -241,7 +224,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list (list (lit if) (lit c))) () ()))
   (display (null? (lint-warnings-of "malformed" %r))))
 ```
@@ -252,7 +234,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list (list (lit if) (lit c) 1 2)) () ()))
   (display (null? (lint-warnings-of "malformed" %r))))
 ```
@@ -265,7 +246,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %fs (list
     (list (lit def) (lit f) (list (lit fn) () 1))
     (list (lit f))))
@@ -279,7 +259,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list (list (lit foo) (list "0" 0))) () ()))
   (display (null? (lint-warnings-of "call-nonfn" %r))))
 ```
@@ -292,7 +271,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list '(def f (fn (_ x y) x))) () ()))
   (display (lint-has? "y" (lint-warnings-of "unused" %r))))
 ```
@@ -303,7 +281,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list '(def f (fn (_ x y) y))) () ()))
   (display (null? (lint-warnings-of "unused" %r))))
 ```
@@ -314,7 +291,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list '(def f (fn (_ x . more) x))) () ()))
   (display (null? (lint-warnings-of "unused" %r))))
 ```
@@ -325,7 +301,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list '(def f (fn (_ x) x))) () ()))
   (display (null? (lint-warnings-of "unused" %r))))
 ```
@@ -336,7 +311,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list '(let ((b 1) (c 2)) b)) () ()))
   (display (lint-has? "c" (lint-warnings-of "unused" %r))))
 ```
@@ -347,7 +321,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list '(let ((b 1) (c 2)) (foo b c))) () ()))
   (display (null? (lint-warnings-of "unused" %r))))
 ```
@@ -360,7 +333,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list '(guard (e 1) (foo))) () ()))
   (display (lint-has? "e" (lint-warnings-of "unused" %r))))
 ```
@@ -371,7 +343,6 @@
 
 ```scheme
 (do
-  (include "lib/x/tool/lint.x")
   (def %r (lint-forms (list '(guard (e (bar) (baz e)) (foo))) () ()))
   (display (null? (lint-warnings-of "unused" %r))))
 ```
