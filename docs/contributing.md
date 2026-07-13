@@ -87,7 +87,7 @@ The spec runner evaluates the `scheme` code block and compares stdout against th
 
 ### Memory safety (AddressSanitizer)
 
-`make test-asan` runs both suites against an ASan build. It catches the crash class that is silently wrong on 64-bit but faults on 32-bit/Pi (e.g. an unchecked read past an object) — run it before pushing C or eval-core changes. It is **report-only** for now: there is a tracked, pre-existing baseline finding, so confirm a red ASan run is actually *your* regression before acting on it.
+`make test-asan` runs both suites against an ASan build. It catches the crash class that is silently wrong on 64-bit but faults on 32-bit/Pi (e.g. an unchecked read past an object) — run it before pushing C or eval-core changes. The baseline is **clean** (since 2026-07-13) and CI hard-gates it: a red ASan run is a real regression. Note the pinned `ASAN_OPTIONS` in the Makefile — leak detection is off (the GC does not free at exit) and so is the fake stack (incompatible with stack-copying call/cc).
 
 ### Pre-push gate
 
@@ -95,11 +95,11 @@ The spec runner evaluates the `scheme` code block and compares stdout against th
 make install-hooks   # sets core.hooksPath=.githooks
 ```
 
-The hook hard-gates on `make test` (both suites) and blocks the push if it fails (bypass a single push with `git push --no-verify`). `make test-asan` still crashes at HEAD on a tracked, pre-existing finding, so it runs only on demand and non-blocking — `RUN_ASAN=1`. **Promote it into the hard gate once it is green.**
+The hook hard-gates on `make test` (both suites) and blocks the push if it fails (bypass a single push with `git push --no-verify`). `make test-asan` is green at HEAD but slow (~2-3x), so locally it stays opt-in — `RUN_ASAN=1` runs it non-blocking; CI hard-gates it on every push regardless.
 
 ### CI
 
-GitHub Actions (`.github/workflows/ci.yml`) re-runs `make test` on macOS and Linux for every push and pull request, with `make test-asan` as a non-blocking advisory job (same tracked baseline finding as above). The pre-push hook remains the first line of defence: it catches a red suite before it leaves the machine.
+GitHub Actions (`.github/workflows/ci.yml`) hard-gates every push and pull request on `make test` (macOS + Linux) **and** `make test-asan` (Linux). The pre-push hook remains the first line of defence: it catches a red suite before it leaves the machine.
 
 ## Commit Conventions
 

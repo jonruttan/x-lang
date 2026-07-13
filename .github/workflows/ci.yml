@@ -27,18 +27,15 @@ jobs:
         env:
           PARALLEL: "1"
 
-  # Memory-safety advisory: mirrors the local pre-push gate's RUN_ASAN=1 mode.
-  # The red check is DELIBERATE: the ASan baseline has real, unfixed
-  # memory-safety findings (tracked: eq?/match under-read in object
-  # dispatch; Linux shows a wider surface), and hiding them behind a green
-  # check is how they stay unfixed. continue-on-error keeps the run itself
-  # from gating on it. Fix the baseline, then delete continue-on-error so
-  # this becomes a hard gate.
+  # Memory-safety gate: both suites under AddressSanitizer. HARD gate since
+  # the baseline reached zero (2026-07-13; was 112 findings): a red run here
+  # is a real memory-safety regression -- the class that is silently wrong
+  # on 64-bit and segfaults on 32-bit/Pi. See test-asan in the Makefile for
+  # the pinned ASAN_OPTIONS rationale.
   asan:
-    name: make test-asan (advisory)
+    name: make test-asan
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:

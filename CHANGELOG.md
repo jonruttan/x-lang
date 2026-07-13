@@ -25,6 +25,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - **Syscall name tables compacted** — x86_64 (267 entries) and i386 (256 entries) shifted from `(list (lit name) ;N …)` to `(lit (name name …))`; ~1000 lines lighter, same in-memory shape
 - **`lib/x-and` / `lib/x-or` module-loading layer tightened** — drop duplicate posix re-imports (x-core already loads it); pre-compile quasi/unquote reader analysers in x-or so subsequent file parses aren't ~20% slower; make x/or's system extensions (syscall/file/socket) opt-in to save ~660 lines per startup
 
+### Changed (CI)
+
+- **`make test-asan` promoted to a hard CI gate** — the AddressSanitizer baseline reached zero (112 findings at the gate's introduction → 0): the under-read fixes below plus pinned `ASAN_OPTIONS` (`detect_stack_use_after_return=0`; stack-copying call/cc is fundamentally incompatible with ASan's fake stack, as with any fiber library). A red ASan job is now a real memory-safety regression.
+
 ### Fixed
 
 - **Type-field reads on non-type tags** — six sites (`type?`, `type-name`, `units`, `length`, and the `write`/`display` hook dispatch) navigated `x_type_field_*` on whatever sat in an object's type slot. A child base's slot holds the `x_eval_obj` sentinel (a static atom tagging the raw string `"BASE"`), so e.g. `(pair? (Base make))` read 8 bytes past the tag string (ASan global-buffer-overflow) and worked only because the garbage compared unequal. All six now use `x_type_op_try`'s documented guard: only a pair-tree type has fields; sentinel-typed objects get defined fallbacks (`type?` → `#f`, atom units/length, default repr).

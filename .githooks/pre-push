@@ -6,10 +6,9 @@
 # machine (see docs/contributing.md). Install with `make install-hooks` (sets
 # core.hooksPath=.githooks). Bypass a single push with `git push --no-verify`.
 #
-# RUN_ASAN=1 additionally runs `make test-asan` as a NON-BLOCKING advisory: the
-# ASan baseline has a tracked, pre-existing finding (an object-dispatch
-# under-read), so a red ASan run is not necessarily your regression and must
-# never fail the push until that baseline is clean.
+# RUN_ASAN=1 additionally runs `make test-asan` as a NON-BLOCKING advisory.
+# The baseline is clean and CI hard-gates it on every push; locally it stays
+# opt-in only because instrumentation makes it ~2-3x slower than the gate.
 
 root=$(git rev-parse --show-toplevel) || exit 1
 cd "$root" || exit 1
@@ -21,12 +20,11 @@ if ! make test; then
 	exit 1
 fi
 
-# Advisory: the ASan build still crashes on a tracked, pre-existing finding (an
-# object-dispatch under-read), so it cannot hard-gate yet. RUN_ASAN=1 runs it
-# non-blocking; PROMOTE it into the hard gate above once it is green.
+# Opt-in ASan pass (see header note): non-blocking locally for speed; CI is
+# the enforcing gate for this one.
 if [ -n "$RUN_ASAN" ]; then
 	printf '\n[pre-push] RUN_ASAN -- make test-asan (advisory) ...\n'
-	make test-asan || printf '[pre-push] note: test-asan red (tracked finding); not blocking.\n' >&2
+	make test-asan || printf '[pre-push] note: test-asan RED -- the baseline is clean, so this is likely YOUR regression (CI will hard-fail it); not blocking locally.\n' >&2
 fi
 
 printf '[pre-push] OK\n'
