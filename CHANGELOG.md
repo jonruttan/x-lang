@@ -27,6 +27,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- **def-class heap under-read on bare members** — `%collect-methods` tested `(eq? (first (first forms)) (lit method))` without a `pair?` guard, so a bare member name (a symbol) had its name buffer dereferenced as an object — an out-of-bounds read that 64-bit malloc tolerates (garbage compares unequal, so bare members were skipped *by luck*) but ASan flags and 32-bit/Pi can segfault on. This was the tracked "eq?/match under-read" blocking `make test-asan` from hard-gating.
 - **call/cc reinvocation segfault on Linux/gcc** — the stack capture's lower bound came from `&local`, missing frame slots the compiler placed below it (gcc spills `p_base`/`cont` there); clang's register allocation masked it. Capture now bounds from a non-inlinable callee frame, and the restore descent keeps a two-pad margin so the memcpy can't clobber the live restore frame.
 - **A64 detection on GNU triplets** — `%asm-arm64?` matched only Darwin's "arm64" spelling, loading the x86_64 backend on aarch64 Linux
 - **Op lexical scope** — operative bodies now capture the environment at `(op …)` definition time, not the caller's environment at call time. Co-issue: a C-spec for `procedure_call` / `operative_call` was updated to match.

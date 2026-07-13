@@ -572,7 +572,11 @@
   (fn (loop class-name forms raw? parent e)
     (if (null? forms)
       ()
-      (if (eq? (first (first forms)) (lit method))
+      ; Guard the head test: a bare member name is a SYMBOL, and first on a
+      ; non-pair is unchecked -- (first 'x) yields the name buffer as an
+      ; "object", so the eq? below would read past a 2-byte allocation
+      ; (ASan heap-buffer-overflow; the 32-bit/Pi segfault class).
+      (if (if (pair? (first forms)) (eq? (first (first forms)) (lit method)) #f)
         (do
           (if (%method-has-doc? (first forms))
             (%stash-method-doc! class-name (first forms))
