@@ -18,6 +18,14 @@
 ---
     1
 
+### parses negative float
+
+```scheme
+-7.5
+```
+---
+    -7.5
+
 ### parses small float
 
 ```scheme
@@ -343,7 +351,7 @@
 ### % truncates toward zero (C semantics)
 
 ```scheme
-(% (- 0 7.5) 2.0)
+(% -7.5 2.0)
 ```
 ---
     -1.5

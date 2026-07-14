@@ -74,6 +74,12 @@
     (if (and (>= chr 48) (<= chr 57))
       %float-int-digits
       (if (= chr 46) %float-first-frac ()))))
+; Sign: a '-' entry must see a digit next, so a lone '-' (the operator)
+; and '-.' fall through to the symbol type unclaimed.
+
+(def %float-neg-int
+  (fn (_ buffer score chr)
+    (if (and (>= chr 48) (<= chr 57)) %float-int-digits ())))
 ; --- Math library for strtod (needed by convert alist) ---
 ; Try libm.so.6 (Linux), libm.dylib (macOS), then fall back to current process
 
@@ -102,9 +108,11 @@
       (pair
         (lit analyse)
         (fn (_ buffer score chr)
-          ; Entry: must start with digit [0-9]
+          ; Entry: digit [0-9], or '-' followed by a digit
 
-          (if (and (>= chr 48) (<= chr 57)) %float-int-digits ())))
+          (if (and (>= chr 48) (<= chr 57))
+            %float-int-digits
+            (if (= chr 45) %float-neg-int ()))))
       (pair (lit read) (fn (_ . args) (%float-read (first args))))
       (pair
         (lit from)

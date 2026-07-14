@@ -198,6 +198,22 @@
 ---
     3
 
+### rejects a dotted body instead of walking it
+
+```scheme
+(do 1 2 . 3)
+```
+---
+    Error: do: improper body (dotted tail)
+
+### rejects a non-list body
+
+```scheme
+(begin . 3)
+```
+---
+    Error: do: improper body (dotted tail)
+
 ### evaluates all forms
 
 ```scheme
