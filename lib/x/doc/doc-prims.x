@@ -223,9 +223,9 @@
   (param sym SYMBOL "A symbol")
   (returns STRING "The symbol's name"))
 
-(doc list->str "Convert a list of characters to a string."
-  (param chars LIST "List of characters")
-  (returns STRING "A string"))
+(doc bytes->str "Pack a list of characters into a string, one low byte per char."
+  (param bytes LIST "List of byte-valued characters")
+  (returns STRING "A string of those bytes"))
 
 ; === I/O ===
 

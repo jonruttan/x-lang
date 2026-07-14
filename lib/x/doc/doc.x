@@ -27,7 +27,10 @@
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
 (def %str->symbol (prim-ref (lit str) (lit ->sym)))
-(def %str-lt (prim-ref (lit str) (lit <?)))
+; Two-arg front for %str<? (the pure-X byte compare defined below; the body
+; resolves it at call time, so definition order is fine). Was the C (str <?)
+; prim, retired -- sorting help output is cold, no C residency case.
+(def %str-lt (fn (_ a b) (%str<? a b 0)))
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
 
@@ -485,7 +488,7 @@
         (def %md (%doc-lookup (first m)))
         (%display-entry-line "  " (first m)
           (if (null? %md) "" (%doc-entry-desc %md))))
-      ; alphabetical by module name (sort is a List method now; %str-lt is a C primitive)
+      ; alphabetical by module name (sort is a List method now)
       (List sort
         (fn (_ a b) (%str-lt (symbol->str (first a)) (symbol->str (first b))))
         (first %module-registry-cell)))))

@@ -65,10 +65,13 @@
       (#t
         (let ((rem (%n2s% n radix)))
           (match
-            ((< n radix) (list->str (list (%str-byte-ref %d rem))))
+            ; bytes->str, not list->str: digits are ASCII BYTES, and the
+            ; utf8-aware list->str (x/type/str-utf8) shadows the byte-packer
+            ; post-boot -- this must stay the raw pack either way.
+            ((< n radix) (bytes->str (list (%str-byte-ref %d rem))))
             (#t (%str-append
                   (self (%n2s/ n radix) radix)
-                  (list->str (list (%str-byte-ref %d rem)))))))))))
+                  (bytes->str (list (%str-byte-ref %d rem)))))))))))
 
 ; str->number: (str->number str [radix]) -> integer or ()
 ; str->number parses an ASCII numeric string; all indexing is byte-level

@@ -25,56 +25,13 @@
 (import x/platform/syscall)
 (import x/type/object)
 
-; --- The flag tables (module-private data; surfaced via the methods below) ---
-; Static value members can't carry help text, so the tables live here and the
-; (File file-modes)/(File stat-flags) methods expose + document them.
-
-; File open mode flags. The O_* flag VALUES differ by OS (verified: macOS
-; O_CREAT=512 / O_TRUNC=1024 vs Linux 64 / 512), so there is one table per
-; platform and %file-modes picks at load via os-darwin?. (S_* stat flags below
-; are POSIX-standard and identical across Linux/macOS, so they are not split.)
-(def %file-modes-linux (list
-  (list (lit accmode)    3)        ; 00000003
-  (list (lit rdonly)     0)        ; 00000000
-  (list (lit wronly)     1)        ; 00000001
-  (list (lit rdwr)       2)        ; 00000002
-  (list (lit creat)      64)       ; 00000100
-  (list (lit excl)       128)      ; 00000200
-  (list (lit noctty)     256)      ; 00000400
-  (list (lit trunc)      512)      ; 00001000
-  (list (lit append)     1024)     ; 00002000
-  (list (lit nonblock)   2048)     ; 00004000
-  (list (lit dsync)      4096)     ; 00010000
-  (list (lit fasync)     8192)     ; 00020000
-  (list (lit direct)     16384)    ; 00040000
-  (list (lit largefile)  32768)    ; 00100000
-  (list (lit directory)  65536)    ; 00200000
-  (list (lit nofollow)   131072)   ; 00400000
-  (list (lit noatime)    262144)   ; 01000000
-  (list (lit cloexec)    524288)   ; 02000000
-  (list (lit sync)       1048576)  ; 04000000
-  (list (lit path)       2097152)))  ; 010000000
-
-; Darwin/macOS O_* flag values (from <sys/fcntl.h>) -- note the divergence from
-; Linux (creat/trunc/excl especially). Subset File needs plus common flags;
-; Linux-only flags (dsync/direct/largefile/noatime/path/...) are omitted.
-(def %file-modes-darwin (list
-  (list (lit accmode)   3)          ; 0x0003
-  (list (lit rdonly)    0)          ; 0x0000
-  (list (lit wronly)    1)          ; 0x0001
-  (list (lit rdwr)      2)          ; 0x0002
-  (list (lit nonblock)  4)          ; 0x0004
-  (list (lit append)    8)          ; 0x0008
-  (list (lit nofollow)  256)        ; 0x0100
-  (list (lit creat)     512)        ; 0x0200
-  (list (lit trunc)     1024)       ; 0x0400
-  (list (lit excl)      2048)       ; 0x0800
-  (list (lit noctty)    131072)     ; 0x20000
-  (list (lit directory) 1048576)    ; 0x100000
-  (list (lit cloexec)   16777216))) ; 0x1000000
-
-; Select the table for this OS at load (os-darwin? from x/platform/syscall).
-(def %file-modes (if os-darwin? %file-modes-darwin %file-modes-linux))
+; --- The flag tables (surfaced via the methods below) ---
+; Static value members can't carry help text, so the tables live as data and
+; the (File file-modes)/(File stat-flags) methods expose + document them.
+; The O_* open-flag tables (%file-modes) are PLATFORM truth and live in
+; x/platform/syscall.x (imported above), shared with sys/posix.x.  The S_*
+; stat flags below are POSIX-standard and identical across Linux/macOS, so
+; they are not split per platform and stay here.
 
 ; Stat mode flags (Linux S_* constants)
 (def %stat-flags (list

@@ -68,7 +68,7 @@
 ; Encode code point cp as a list of its 1-4 UTF-8 byte values (0-255). Out-of-
 ; range code points emit U+FFFD (the replacement character), matching the C
 ; encoder this replaces. Returns bare integers, not CHARACTERs: callers map
-; integer->char to byte-pack via list->str, or use the bytes directly.
+; integer->char to byte-pack via bytes->str, or use the bytes directly.
 (def %utf8-encode
   (fn (self cp)
     (if (if (< cp 0) #t (> cp 1114111))   ; out of range -> U+FFFD

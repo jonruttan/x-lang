@@ -1,7 +1,6 @@
 ; syscall.x -- x86_64, i386, and Darwin/BSD syscall tables
 (import x/core/list)
 (import x/core/alist)
-(import x/protocol/str/str8)
 
 ; x86_64 syscall name table (267 entries, index = syscall number)
 
@@ -523,7 +522,73 @@
 ; x-machine is the build triple, e.g. "arm64-apple-darwin25.5.0" vs
 ; "x86_64-linux-gnu". macOS uses BSD syscall numbers AND different O_* flag
 ; values, so the file layer keys off this too.
-(def os-darwin? (Str8 contains? "darwin" x-machine))
+;
+; Boot-level byte search, NOT (Str8 contains?): this platform layer loads
+; mid-x-core (sys/posix.x imports it, before the str8 protocol exists), so it
+; may use only the boot string accessors. With a not-yet-callable Str8, the
+; old form silently captured the UNEVALUATED list -- truthy, so it looked
+; right on darwin and would have mis-detected Linux.
+(def %os-substr-at?
+  (fn (loop needle hay i j)
+    (if (>= j (str-length needle)) #t
+      (if (eq? (str-ref hay (+ i j)) (str-ref needle j))
+        (loop needle hay i (+ j 1))
+        #f))))
+(def %os-contains?
+  (fn (loop needle hay i)
+    (if (> (+ i (str-length needle)) (str-length hay)) #f
+      (if (%os-substr-at? needle hay i 0) #t (loop needle hay (+ i 1))))))
+(def os-darwin? (%os-contains? "darwin" x-machine 0))
+
+; --- File open-mode flags (O_*) ---
+; PLATFORM truth: the O_* flag VALUES differ by OS (verified: macOS
+; O_CREAT=512 / O_TRUNC=1024 vs Linux 64 / 512), so there is one table per
+; platform and %file-modes picks at load via os-darwin?.  Consumed by
+; sys/file.x (the (File file-modes) method + symbolic open modes) and
+; sys/posix.x (its libc open() calls).  Formerly C-bound %O_* constants;
+; retired with the ISA audit -- platform data is policy and lives in X.
+(def %file-modes-linux (list
+  (list (lit accmode)    3)        ; 00000003
+  (list (lit rdonly)     0)        ; 00000000
+  (list (lit wronly)     1)        ; 00000001
+  (list (lit rdwr)       2)        ; 00000002
+  (list (lit creat)      64)       ; 00000100
+  (list (lit excl)       128)      ; 00000200
+  (list (lit noctty)     256)      ; 00000400
+  (list (lit trunc)      512)      ; 00001000
+  (list (lit append)     1024)     ; 00002000
+  (list (lit nonblock)   2048)     ; 00004000
+  (list (lit dsync)      4096)     ; 00010000
+  (list (lit fasync)     8192)     ; 00020000
+  (list (lit direct)     16384)    ; 00040000
+  (list (lit largefile)  32768)    ; 00100000
+  (list (lit directory)  65536)    ; 00200000
+  (list (lit nofollow)   131072)   ; 00400000
+  (list (lit noatime)    262144)   ; 01000000
+  (list (lit cloexec)    524288)   ; 02000000
+  (list (lit sync)       1048576)  ; 04000000
+  (list (lit path)       2097152)))  ; 010000000
+
+; Darwin/macOS O_* flag values (from <sys/fcntl.h>) -- note the divergence from
+; Linux (creat/trunc/excl especially). Subset File needs plus common flags;
+; Linux-only flags (dsync/direct/largefile/noatime/path/...) are omitted.
+(def %file-modes-darwin (list
+  (list (lit accmode)   3)          ; 0x0003
+  (list (lit rdonly)    0)          ; 0x0000
+  (list (lit wronly)    1)          ; 0x0001
+  (list (lit rdwr)      2)          ; 0x0002
+  (list (lit nonblock)  4)          ; 0x0004
+  (list (lit append)    8)          ; 0x0008
+  (list (lit nofollow)  256)        ; 0x0100
+  (list (lit creat)     512)        ; 0x0200
+  (list (lit trunc)     1024)       ; 0x0400
+  (list (lit excl)      2048)       ; 0x0800
+  (list (lit noctty)    131072)     ; 0x20000
+  (list (lit directory) 1048576)    ; 0x100000
+  (list (lit cloexec)   16777216))) ; 0x1000000
+
+; Select the table for this OS at load.
+(def %file-modes (if os-darwin? %file-modes-darwin %file-modes-linux))
 
 ; Darwin/BSD syscall numbers (from <sys/syscall.h>). Bare numbers: macOS libc
 ; syscall() OR-folds the UNIX class (0x2000000), so the bare BSD number reaches

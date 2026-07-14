@@ -21,10 +21,12 @@
     (def %rl
       (fn (self acc)
         (def ch (%read-char))
+        ; bytes->str, not list->str: acc holds raw input BYTES; the utf8-aware
+        ; list->str would re-encode bytes >= 128, corrupting UTF-8 input.
         (if (null? ch)
-          (if (null? acc) () (list->str (reverse acc)))
+          (if (null? acc) () (bytes->str (reverse acc)))
           (if (= ch 10)
-            (list->str (reverse acc))
+            (bytes->str (reverse acc))
             (self (pair (%integer->char ch) acc))))))
     (%rl ())))
 
