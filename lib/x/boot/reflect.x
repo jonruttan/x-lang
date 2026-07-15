@@ -32,10 +32,12 @@
   (fn (_ o) (%ptr-ref-word (%obj->ptr o) (* %obj-slot-flags %word-size))))
 
 ; Data-slot read: materialize the object whose pointer sits in data word i.
+; Addressing via data.x's %data-word-off -- the ONE formula shared with the
+; write half (%obj-set!), so ref and set! can never target different words.
 (def %reflect-obj-ref
   (fn (_ o i)
     (%ptr->obj (%int->ptr
-      (%ptr-ref-word (%obj->ptr o) (+ %data-offset (* i %word-size)))))))
+      (%ptr-ref-word (%obj->ptr o) (%data-word-off i))))))
 
 (def %reflect-meta-ref
   (fn (_ o i)

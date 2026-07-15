@@ -6,7 +6,9 @@
 reflective accessors read their offsets from it. These tests probe LIVE
 objects word by word (`%obj->ptr` + `%ptr-ref-word`) and fail if the running
 build's layout disagrees with the descriptor. The source half
-(`make check-obj-layout`) diffs the same values against x-obj.h.
+(`make check-obj-layout`) diffs the same values against x-obj.h.  The
+instruments (`%word`, `%flags`, the catalog fetches) live in the harness
+(`tests/x/lib/obj-layout.x`), fetched once per batch.
 
 ## data words
 
@@ -14,10 +16,6 @@ build's layout disagrees with the descriptor. The source half
 
 ```scheme
 (do
-  (def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
-  (def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
-  (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
-  (def %word (fn (_ o slot) (%ptr-ref-word (%obj->ptr o) (* slot %word-size))))
   (def p (pair 1 2))
   (display (eq? (%word p (+ %obj-meta-len %obj-slot-first))
                 (%ptr->int (%obj->ptr (first p))))) (display " ")
@@ -32,15 +30,10 @@ build's layout disagrees with the descriptor. The source half
 ### an atom's value is the data word at meta-len
 
 ```scheme
-(do
-  (def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
-  (def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
-  (display (%ptr-ref-word (%obj->ptr 42) (* %obj-meta-len %word-size))))
+(%ptr-ref-word (%obj->ptr 42) (* %obj-meta-len %word-size))
 ```
 ---
-```output
-42
-```
+    42
 
 ## header words
 
@@ -48,9 +41,6 @@ build's layout disagrees with the descriptor. The source half
 
 ```scheme
 (do
-  (def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
-  (def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
-  (def %word (fn (_ o slot) (%ptr-ref-word (%obj->ptr o) (* slot %word-size))))
   (display (eq? (%word (pair 1 2) %obj-slot-type)
                 (%word (pair 3 4) %obj-slot-type))) (display " ")
   (display (eq? (%word (pair 1 2) %obj-slot-type)
@@ -70,10 +60,6 @@ holds per-object attribute bits (str atoms own their storage; ints don't).
 
 ```scheme
 (do
-  (def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
-  (def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
-  (def %flags (fn (_ o) (& (%ptr-ref-word (%obj->ptr o) (* %obj-slot-flags %word-size))
-                           (+ %obj-flag-type-mask %obj-flag-attr-mask))))
   (display (eq? (%flags 7) (%flags 9))) (display " ")
   (display (eq? (%flags 7) (%flags "seven"))))
 ```
@@ -88,10 +74,6 @@ holds per-object attribute bits (str atoms own their storage; ints don't).
 
 ```scheme
 (do
-  (def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
-  (def %ptr->obj (prim-ref (lit ptr) (lit ->obj)))
-  (def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
-  (def %int->ptr (prim-ref (lit int) (lit ->ptr)))
   (def p (pair 7 8))
   (display (eq? (%ptr->obj (%int->ptr
                   (%ptr-ref-word (%obj->ptr p) (* %obj-meta-len %word-size))))
@@ -120,16 +102,15 @@ consumes the descriptor (a boot-order change), this pins the two together.
 
 ### meta words are PREPENDED: unit I at word -(I+1), and flag-meta is set
 
+The ambient meta-count is saved and RESTORED (boot arms 1 slot for
+source-line tracking; leaving it at a test value would strip line meta
+from every object a later block allocates -- see base-paths.spec.md).
+
 ```scheme
 (do
-  (def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
-  (def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
-  (def %meta-count! (prim-ref (lit obj) (lit meta-count!)))
-  (def %meta-set! (prim-ref (lit obj) (lit meta-set!)))
-  (def %meta-ref (prim-ref (lit obj) (lit meta-ref)))
-  (%meta-count! 1)
+  (def %mc-prev (%meta-count! 1))
   (def o (pair 5 6))
-  (%meta-count! 0)
+  (%meta-count! %mc-prev)
   (%meta-set! o 0 42)
   (display (%meta-ref o 0)) (display " ")
   (display (%ptr-ref-word (%obj->ptr o) (- 0 %word-size))) (display " ")

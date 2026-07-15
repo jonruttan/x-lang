@@ -35,11 +35,10 @@
 ; intern to the same atom.
 (def %print-list-handle (%print-type-of (lit (0))))
 (def %print-sym-handle  (%print-type-of (lit q)))
-(def %print-is?
-  (fn (_ o handle)
-    (match
-      ((eq? o ()) #f)
-      (#t (eq? (%print-type-of o) handle)))))
+; (type ?) IS this predicate: #f for nil, compares the type's NAME atom
+; against the handle -- the cross-base name-matching property the note
+; above needs.  Alias the C prim; no hand-rolled twin.
+(def %print-is? (prim-ref (lit type) (lit ?)))
 (def %print-path-write         (%reflect-path (lit type-write) %base-paths))
 (def %print-path-display       (%reflect-path (lit type-display) %base-paths))
 (def %print-path-write-stack   (%reflect-path (lit type-write-stack) %base-paths))
@@ -197,36 +196,31 @@
       (match
         ((eq? %h2 ()) (%print-generic o))
         (#t (do (apply %h2 (pair o ())) ()))))))
+; ONE dispatch body for both modes (write and display differ only in the
+; path pair handed to the cell dispatch); %print-w/%print-d stay as named
+; fronts because handlers and walkers reference them.  `self` is the
+; recursion knot -- children render in the SAME mode.
 ; Booleans by same? (object identity), NEVER eq?: eq? compares value words,
 ; and any scalar whose word collides with #t's -- e.g. (first-int #t) -- would
 ; render as a boolean.  #t/#f are singletons, so identity is exact (mirrors
 ; C's pointer compare against the base true/false objects).
+(def %print-render
+  (fn (_ o self path fallback-path)
+    (match
+      ((eq? o ()) (%print-emit "()"))
+      ((same? o #t) (%print-emit "#t"))
+      ((same? o #f) (%print-emit "#f"))
+      (#t (do
+        (def %tw (%reflect-type-word o))
+        (match
+          ((eq? %tw 0) ())
+          ((eq? %tw %reflect-satom-tw) (%print-generic o))
+          ((eq? %tw %reflect-spair-tw) (%print-spair o self))
+          (#t (%print-cell o %tw path fallback-path))))))))
 (def %print-w
-  (fn (_ o)
-    (match
-      ((eq? o ()) (%print-emit "()"))
-      ((same? o #t) (%print-emit "#t"))
-      ((same? o #f) (%print-emit "#f"))
-      (#t (do
-        (def %tw (%reflect-type-word o))
-        (match
-          ((eq? %tw 0) ())
-          ((eq? %tw %reflect-satom-tw) (%print-generic o))
-          ((eq? %tw %reflect-spair-tw) (%print-spair o %print-w))
-          (#t (%print-cell o %tw %print-path-write ()))))))))
+  (fn (self o) (%print-render o self %print-path-write ())))
 (def %print-d
-  (fn (_ o)
-    (match
-      ((eq? o ()) (%print-emit "()"))
-      ((same? o #t) (%print-emit "#t"))
-      ((same? o #f) (%print-emit "#f"))
-      (#t (do
-        (def %tw (%reflect-type-word o))
-        (match
-          ((eq? %tw 0) ())
-          ((eq? %tw %reflect-satom-tw) (%print-generic o))
-          ((eq? %tw %reflect-spair-tw) (%print-spair o %print-d))
-          (#t (%print-cell o %tw %print-path-display %print-path-write))))))))
+  (fn (self o) (%print-render o self %print-path-display %print-path-write)))
 
 ; --- default cell handlers for the built-ins, pushed like any handler ---
 ; Drop a path's final step: descriptor paths END at the slot VALUE (the
@@ -242,7 +236,6 @@
       (def %node (%reflect-step (%print-tree handle) (%print-path-parent stack-path)))
       (set-first! %node (pair handler (first %node))))))
 (def %print-int-h  (fn (_ o) (%print-emit (number->str o))))
-(def %print-str-wh (fn (_ o) (%print-str-w o)))
 (def %print-str-dh (fn (_ o) (%print-emit o)))
 (def %print-sym-wh
   (fn (_ o) (do (%print-emit "(lit ") (%print-emit (symbol->str o)) (%print-emit ")"))))
@@ -251,7 +244,7 @@
 (def %print-list-dh (fn (_ o) (%print-list o %print-d)))
 (%print-push! (%print-type-of 0)        %print-path-write-stack   %print-int-h)
 (%print-push! (%print-type-of 0)        %print-path-display-stack %print-int-h)
-(%print-push! (%print-type-of "")       %print-path-write-stack   %print-str-wh)
+(%print-push! (%print-type-of "")       %print-path-write-stack   %print-str-w)
 (%print-push! (%print-type-of "")       %print-path-display-stack %print-str-dh)
 (%print-push! (%print-type-of (lit q))  %print-path-write-stack   %print-sym-wh)
 (%print-push! (%print-type-of (lit q))  %print-path-display-stack %print-sym-dh)
@@ -302,11 +295,23 @@
 (%print-opaque! "OPERATIVE" "#<op>")
 
 ; --- to-str: swap the sink for a collector, render, restore, join ---
-(def %print-join
-  (fn (self parts acc)
+; Parts accumulate REVERSED (collector prepends).  Join adjacent PAIRS per
+; round -- (append later earlier) keeps logical order -- so total copying is
+; O(bytes * log parts), not the linear fold's O(bytes * parts) (write-to-str
+; of an n-fragment render was quadratic).
+(def %print-join-round
+  (fn (self parts)
     (match
-      ((eq? parts ()) acc)
-      (#t (self (rest parts) (%str-append (first parts) acc))))))
+      ((eq? parts ()) ())
+      ((eq? (rest parts) ()) parts)
+      (#t (pair (%str-append (first (rest parts)) (first parts))
+                (self (rest (rest parts))))))))
+(def %print-join
+  (fn (self parts)
+    (match
+      ((eq? parts ()) "")
+      ((eq? (rest parts) ()) (first parts))
+      (#t (self (%print-join-round parts))))))
 (def %print-to-str
   (fn (_ o render)
     (do
@@ -317,7 +322,7 @@
       (guard (e (do (set-first! %print-sink %old) (error e)))
         (render o))
       (set-first! %print-sink %old)
-      (%print-join (first %parts) ""))))
+      (%print-join (first %parts)))))
 
 ; --- the public surface: catalog entries + the bare verbs ---
 (def %print-display1 (fn (_ o) (%print-d o) ()))
@@ -333,6 +338,10 @@
 ; + env save/restore) corrupts reader-lambda state under x-base (hex mis-
 ; analyses; see the printer-batch notes).  An op call leaves the seat clean.
 (def write (op (%w-o) %w-e (do (%print-w (eval %w-o %w-e)) ())))
+; display evals ALL args BEFORE emitting anything (two passes, not one
+; interleaved loop): the retired C prim's x_eargs did the same, so an error
+; in a later arg prints NOTHING rather than a truncated line.  Semantics,
+; not an accident -- don't fuse the loops.
 (def %print-d-each
   (fn (self args)
     (match

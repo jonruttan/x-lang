@@ -530,14 +530,16 @@
 ; right on darwin and would have mis-detected Linux.
 (def %os-substr-at?
   (fn (loop needle hay i j)
-    (if (>= j (str-length needle)) #t
-      (if (eq? (str-ref hay (+ i j)) (str-ref needle j))
-        (loop needle hay i (+ j 1))
-        #f))))
+    (match
+      ((>= j (str-length needle)) #t)
+      ((eq? (str-ref hay (+ i j)) (str-ref needle j)) (loop needle hay i (+ j 1)))
+      (#t #f))))
 (def %os-contains?
   (fn (loop needle hay i)
-    (if (> (+ i (str-length needle)) (str-length hay)) #f
-      (if (%os-substr-at? needle hay i 0) #t (loop needle hay (+ i 1))))))
+    (match
+      ((> (+ i (str-length needle)) (str-length hay)) #f)
+      ((%os-substr-at? needle hay i 0) #t)
+      (#t (loop needle hay (+ i 1))))))
 (def os-darwin? (%os-contains? "darwin" x-machine 0))
 
 ; --- File open-mode flags (O_*) ---

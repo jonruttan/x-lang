@@ -28,17 +28,9 @@ checked for liveness only.
   (def %man ())
   (map (fn (_ e) (set! %man (pair (pair (first e) (first (rest e))) %man)))
        %isa-catalog)
-  (def %member? (fn (self p lst)
-    (if (null? lst)
-        #f
-        (if (if (eq? (first p) (first (first lst)))
-                (eq? (rest p) (rest (first lst)))
-                #f)
-            #t
-            (self p (rest lst))))))
   (def %report (fn (self label a b)
     (map (fn (_ p)
-           (if (%member? p b)
+           (if (List member p b)
                ()
                (do (display label) (display " ")
                    (display (first p)) (display " ")

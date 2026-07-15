@@ -44,23 +44,28 @@
 ; cell is never replaced).
 (def %registry-prims-cell (%reflect-base-cell (lit prims)))
 
-; The rest of the entry keyed k in an assoc list, or ().  Both catalog
-; levels share this shape: ((ns . methods) ...) and ((method . value) ...).
-; Keys are interned symbols, so eq? compares identity.
-(def %registry-assoc-rest
-  (fn (self k cur)
-    (match
-      ((eq? cur ()) ())
-      ((eq? (first (first cur)) k) (rest (first cur)))
-      (#t (self k (rest cur))))))
-
-; The (ns . methods) domain PAIR itself, or () -- prim-reg! setcdrs it.
+; The entry PAIR keyed k in an assoc list, or () -- prim-reg! setcdrs it.
+; Both catalog levels share this shape: ((ns . methods) ...) and
+; ((method . value) ...).  Keys are interned symbols, so eq? compares
+; identity.  ONE walk; assoc-rest below is its value-projecting front.
 (def %registry-domain-pair
   (fn (self ns cur)
     (match
       ((eq? cur ()) ())
       ((eq? (first (first cur)) ns) (first cur))
       (#t (self ns (rest cur))))))
+
+; The rest of the entry keyed k, or ().  Nil guard is mandatory (first/rest
+; are unchecked -- projecting a missed lookup would be UB), and it is a
+; separate fn, not a do-body: `do` is X-defined and does not exist at
+; stage 0.
+(def %registry-rest-or-nil
+  (fn (_ p)
+    (match
+      ((eq? p ()) ())
+      (#t (rest p)))))
+(def %registry-assoc-rest
+  (fn (_ k cur) (%registry-rest-or-nil (%registry-domain-pair k cur))))
 
 ; --- the protocol (formerly C prims; semantics preserved exactly) ---
 ; (prims)                the catalog alist, for introspection and fetching

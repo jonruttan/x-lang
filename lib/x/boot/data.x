@@ -20,13 +20,17 @@
     (#t 4)))
 (def %data-offset (* %word-size %obj-meta-len))
 
-; Data-slot write, pure reflection: data word i of an object lives at
-; %data-offset + i*%word-size; the stored word is the value's object
+; THE data-word addressing formula -- the byte offset of data word i.  One
+; definition: reflect.x's read half (%reflect-obj-ref) and the write half
+; below must always address the same word, or set!/ref silently diverge.
+(def %data-word-off (fn (_ i) (+ %data-offset (* i %word-size))))
+
+; Data-slot write, pure reflection: the stored word is the value's object
 ; pointer.  Formerly the C (obj set!) prim -- boot/reflect.x files this
 ; same fn back into the catalog under that name.  Returns v (C contract).
 (def %obj-set!
   (fn (_ o i v)
-    (%ptr-set-word! (%obj->ptr o) (+ %data-offset (* i %word-size))
+    (%ptr-set-word! (%obj->ptr o) (%data-word-off i)
       (%ptr->int (%obj->ptr v)))
     v))
 
