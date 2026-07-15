@@ -163,3 +163,14 @@
 ```
 ---
     "SYMBOL"
+
+### nil has no type name
+
+Pins the nil-return path (formerly a C spec: nil input, nil-typed objects,
+and nil-NAME types all resolve to nil rather than misreading a payload).
+
+```scheme
+(null? (Type name ()))
+```
+---
+    #t

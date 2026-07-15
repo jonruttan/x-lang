@@ -13,8 +13,16 @@
 ;      " "
 
 ; --- Bootstrap (minimum to get provide/import working) ---
+; The base-paths contract + the catalog protocol load FIRST: everything
+; after them (operatives.x included) fetches its C instruments through
+; prim-ref, which is pure X -- a first/rest walk over the prims cell.
+(include "tools/base-paths.x")
+(include "lib/x/boot/registry.x")
 (include "lib/x/boot/operatives.x")
+; The object-layout contract: header offsets data.x and reflect.x build on.
+(include "tools/obj-layout.x")
 (include "lib/x/boot/data.x")
+(include "lib/x/boot/reflect.x")
 (include "lib/x/boot/string.x")
 (include "lib/x/boot/module.x")
 

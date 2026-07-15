@@ -470,11 +470,9 @@
   (example "(do (prim-reg! (lit float) (lit +) %f+) (prim-ref (lit float) (lit +)))" "#<fn>")
   (see prim-ref))
 
-(doc use "Define a namespace's catalog methods into the env as ns/method names."
-  (note "Qualified fetch+define for interactive/bulk use: (use (lit int)) defines int/+,")
-  (note "int/-, ... Idempotent: never clobbers an existing binding.")
-  (param ns SYMBOL "Namespace symbol whose methods to define")
-  (see prim-ref))
+; (`use` -- the qualified fetch+define convenience -- is retired: it had no
+; callers.  The registry protocol itself is pure x-lang now: boot/registry.x
+; reads the catalog, boot/reflect.x writes it.)
 
 ; === Pre-doc module descriptions ===
 ; These modules are included before x/doc/doc.x exists, so they cannot wrap
