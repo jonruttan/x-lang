@@ -24,6 +24,7 @@
 (include "lib/x/boot/data.x")
 (include "lib/x/boot/reflect.x")
 (include "lib/x/boot/string.x")
+(include "lib/x/boot/printer.x")
 (include "lib/x/boot/module.x")
 
 (do
