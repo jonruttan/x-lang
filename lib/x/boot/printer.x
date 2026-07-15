@@ -67,6 +67,16 @@
           ((< b 16) (%str-append "\\x0" (number->str b 16)))
           (#t (%str-append "\\x" (number->str b 16)))))
       (#t ()))))
+; Emit whole SAFE RUNS, not bytes: scan ahead to the next byte needing an
+; escape and emit the run with one %str-byte-sub (one allocation, one OUT
+; call -- the door is an unbuffered write(2), so per-byte emission costs a
+; syscall per byte of every written string).
+(def %print-str-w-run-end
+  (fn (self s i n)
+    (match
+      ((>= i n) i)
+      ((eq? (%print-str-esc-byte (%str-byte-ref s i)) ()) (self s (+ i 1) n))
+      (#t i))))
 (def %print-str-w-loop
   (fn (self s i n)
     (match
@@ -74,9 +84,12 @@
       (#t (do
         (def %e (%print-str-esc-byte (%str-byte-ref s i)))
         (match
-          ((eq? %e ()) (%print-emit (%str-byte-sub s i 1)))
-          (#t (%print-emit %e)))
-        (self s (+ i 1) n))))))
+          ((eq? %e ())
+            (do
+              (def %end (%print-str-w-run-end s (+ i 1) n))
+              (%print-emit (%str-byte-sub s i (- %end i)))
+              (self s %end n)))
+          (#t (do (%print-emit %e) (self s (+ i 1) n)))))))))
 (def %print-str-w
   (fn (_ s)
     (do
@@ -151,14 +164,35 @@
 ; A cell handler renders the value itself (calling display/write back for
 ; children); apply -- never a direct call -- so list-valued objects are not
 ; re-evaluated as forms.
-(def %print-cell
-  (fn (_ o path fallback-path)
+; Resolve a handler from ONE tree: the path, then the fallback path
+; (display falls back to write).  %reflect-step nil-propagates, so an
+; empty stack or nil tree just answers nil.
+(def %print-tree-h
+  (fn (_ t path fallback-path)
     (do
-      (def %t (%print-tree (%print-type-of o)))
-      (def %h (match ((eq? %t ()) ()) (#t (%reflect-step %t path))))
+      (def %h (%reflect-step t path))
+      (match
+        ((eq? %h ()) (match ((eq? fallback-path ()) ())
+                            (#t (%reflect-step t fallback-path))))
+        (#t %h)))))
+; Handler resolution is OWN-TREE-FIRST: the type word IS the tree pointer
+; (mirrors C's x_obj_type dispatch), so a custom type registered in another
+; base carries its own handlers with it -- and the common case costs one
+; materialization instead of a type-of + alist walk.  The name-keyed alist
+; lookup stays as the FALLBACK: a child base's BUILT-IN trees are bare (the
+; parent's defaults were pushed only on the parent's trees), but their names
+; intern to the same atoms, so the parent's handlers still apply.
+(def %print-cell
+  (fn (_ o tw path fallback-path)
+    (do
+      (def %own (%ptr->obj (%int->ptr tw)))
+      (def %h (match
+        ; guard like reflect.x: only a spair-tagged word is a navigable tree
+        ((eq? (%reflect-type-word %own) %reflect-spair-tw)
+          (%print-tree-h %own path fallback-path))
+        (#t ())))
       (def %h2 (match
-        ((eq? %h ()) (match ((eq? %t ()) ()) ((eq? fallback-path ()) ())
-                            (#t (%reflect-step %t fallback-path))))
+        ((eq? %h ()) (%print-tree-h (%print-tree (%print-type-of o)) path fallback-path))
         (#t %h)))
       (match
         ((eq? %h2 ()) (%print-generic o))
@@ -179,7 +213,7 @@
           ((eq? %tw 0) ())
           ((eq? %tw %reflect-satom-tw) (%print-generic o))
           ((eq? %tw %reflect-spair-tw) (%print-spair o %print-w))
-          (#t (%print-cell o %print-path-write ()))))))))
+          (#t (%print-cell o %tw %print-path-write ()))))))))
 (def %print-d
   (fn (_ o)
     (match
@@ -192,7 +226,7 @@
           ((eq? %tw 0) ())
           ((eq? %tw %reflect-satom-tw) (%print-generic o))
           ((eq? %tw %reflect-spair-tw) (%print-spair o %print-d))
-          (#t (%print-cell o %print-path-display %print-path-write))))))))
+          (#t (%print-cell o %tw %print-path-display %print-path-write))))))))
 
 ; --- default cell handlers for the built-ins, pushed like any handler ---
 ; Drop a path's final step: descriptor paths END at the slot VALUE (the

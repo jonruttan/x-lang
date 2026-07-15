@@ -32,6 +32,30 @@ resolve by NAME BYTES since they are C-static atoms, not reader symbols.
 ---
     #t
 
+## cross-base dispatch
+
+Handler resolution is OWN-TREE-FIRST (the type word is the tree pointer,
+as C's x_obj_type dispatch was), with the name-keyed alist lookup as the
+fallback.  Own-tree serves custom types registered in OTHER bases -- their
+handlers travel with the instance; the fallback serves child-base built-ins,
+whose bare trees share interned name atoms with the parent's handler-bearing
+trees.
+
+### a child-registered type's write handler dispatches from the parent
+
+```scheme
+(do
+  (def %xb (Base make))
+  (def %xb-t (Base make-type %xb "XB-T"
+    (list (pair (lit write) (fn (_ o) (display "<child-ok>"))))))
+  (Base bind %xb (lit xb-t) %xb-t)
+  (Base bind %xb (lit mi) (prim-ref (lit type) (lit make-instance)))
+  (def %xb-i (Base eval %xb (lit (mi xb-t 5))))
+  (display %xb-i))
+```
+---
+    <child-ok>
+
 ## opaque handle resolution
 
 ### the six boot-registered opaque types resolve by name

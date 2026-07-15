@@ -78,3 +78,51 @@ ok
 ```output
 ok
 ```
+
+### every live PRIMITIVE-typed global is catalog-filed or manifested
+
+The reverse direction the liveness checks above cannot see: walk the env
+global BST and demand that every PRIMITIVE-typed binding is either (a) a
+value alias of a catalog-filed prim (module `%`-caches -- already-gated
+surface), or (b) named in `%isa-bare`/`%isa-keep`.  A NEW bare C binding
+-- however it is spelled in the source, across however many lines --
+exists in the live env and fails here.  (Keep-list names the lib shadows
+with X wrappers, like `+`, simply don't appear as PRIMITIVE; this
+direction is live-to-manifest only.)
+
+```scheme
+(do
+  (def %walk
+    (fn (self node acc)
+      (if (null? node) acc
+          (let ((kids (rest node)))
+            (self (first kids) (self (rest kids) (pair (first node) acc)))))))
+  (def %prim-t (Type of (prim-ref (lit int) (lit +))))
+  (def %cat-vals ())
+  (map (fn (_ dom)
+         (map (fn (_ e)
+                (if (eq? (Type of (rest e)) %prim-t)
+                    (set! %cat-vals (pair (rest e) %cat-vals))
+                    ()))
+              (rest dom)))
+       (prims))
+  (def %man-names ())
+  (map (fn (_ e) (set! %man-names (pair (first e) %man-names))) %isa-bare)
+  (map (fn (_ e) (set! %man-names (pair (first e) %man-names))) %isa-keep)
+  (map (fn (_ e) (set! %man-names (pair (first e) %man-names))) %isa-aliases)
+  (def %member-eq?
+    (fn (self v lst)
+      (if (null? lst) #f
+          (if (eq? v (first lst)) #t (self v (rest lst))))))
+  (def %bad ())
+  (map (fn (_ e)
+         (if (eq? (Type of (rest e)) %prim-t)
+             (if (%member-eq? (rest e) %cat-vals) ()
+                 (if (%member-eq? (first e) %man-names) ()
+                     (set! %bad (pair (first e) %bad))))
+             ()))
+       (%walk (%reflect-base-cell (lit env-global-tree)) ()))
+  (if (null? %bad) "ok" %bad))
+```
+---
+    "ok"

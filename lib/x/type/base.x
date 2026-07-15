@@ -14,6 +14,7 @@
 
 (doc (provide x/type/base Base)
   (note "(Base make) -> a fresh execution-context (base) object.")
+  (note "CONTRACT: a fresh base is the bare C ISA -- no display/write, no catalog protocol. Reach in with parent closures or (Base bind); see core/sandbox specs.")
   (note "(Base eval target expr) evaluates expr inside target, isolated from the outer env.")
   (note "(Base bind target name val); (Base make-type target name handlers); (Base make-tok).")
   (example "(let ((b (Base make))) (Base eval b (lit (+ 1 2))))" "3")

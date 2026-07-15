@@ -289,3 +289,49 @@
 ```
 ---
     (lit first-type)
+
+## bare-children contract
+
+A fresh base is the bare C ISA -- arithmetic, binding, eval -- and nothing
+more.  The x layers (output verbs, the catalog protocol) live in the PARENT;
+reaching into a child is done with parent closures or (Base bind), never by
+expecting a library inside.  (The pre-x-printer C runtime bound display and
+prim-ref into every child; that was incidental, and no consumer used it.)
+
+### a child has no display
+
+```scheme
+(do (def %bc1 (Base make))
+    (guard (e (lit bare)) (Base eval %bc1 (lit (display 42)))))
+```
+---
+    (lit bare)
+
+### a child has no catalog protocol
+
+```scheme
+(do (def %bc2 (Base make))
+    (guard (e (lit bare)) (Base eval %bc2 (lit (prim-ref (lit int) (lit +))))))
+```
+---
+    (lit bare)
+
+### the C ISA is present: arithmetic, def, eval
+
+```scheme
+(do (def %bc3 (Base make))
+    (Base eval %bc3 (lit (def x (* 6 7))))
+    (Base eval %bc3 (lit x)))
+```
+---
+    42
+
+### the parent reaches in with closures
+
+```scheme
+(do (def %bc4 (Base make))
+    (Base bind %bc4 (lit shout) (fn (_ v) (display v) (display "!")))
+    (Base eval %bc4 (lit (shout 7))))
+```
+---
+    7!

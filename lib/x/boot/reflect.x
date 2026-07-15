@@ -143,6 +143,12 @@
 ; objects, types without a tree, or trees without an iter handler.
 ; C semantics (x_prim_iter) preserved: the handler is APPLIED (args as
 ; values, not re-evaluated).
+; The type-iter step list, resolved ONCE at load: %base-paths is a boot-time
+; literal (no writers), and the path is rooted at the type-tree ARGUMENT,
+; not the base -- so caching holds no base reference and survives re-basing.
+; (iter new) is per-iteration hot; a per-call descriptor scan is ~100
+; interpreted steps of pure waste.
+(def %reflect-iter-path (%reflect-path (lit type-iter) %base-paths))
 (def %reflect-iter-new
   (fn (_ o)
     (match
@@ -160,8 +166,7 @@
                 (match
                   ((eq? (%reflect-type-word %t) %reflect-spair-tw)
                     (do
-                      (def %h (%reflect-step %t
-                                (%reflect-path (lit type-iter) %base-paths)))
+                      (def %h (%reflect-step %t %reflect-iter-path))
                       (match
                         ((eq? %h ()) ())
                         (#t (apply %h (pair o ()))))))
