@@ -260,3 +260,29 @@
 ---
     8
 
+
+## number->str
+
+### zero and ordinaries
+
+```scheme
+(list (number->str 0) (number->str 12345) (number->str -42))
+```
+---
+    ("0" "12345" "-42")
+
+### radix
+
+```scheme
+(list (number->str 255 16) (number->str -255 16) (number->str 7 2))
+```
+---
+    ("ff" "-ff" "111")
+
+### the most-negative fixnum terminates
+
+```scheme
+(number->str (<< 1 63))
+```
+---
+    "-9223372036854775808"

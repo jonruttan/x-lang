@@ -21,6 +21,10 @@
   (fn (loop o steps)
     (match
       ((eq? steps ()) o)
+      ; nil-propagate: a step into a missing slot answers nil instead of
+      ; first/rest on NULL (unchecked C -- a segfault).  Paths address
+      ; OPTIONAL slots (e.g. an empty handler stack), so absent = nil.
+      ((eq? o ()) ())
       ((eq? (first steps) (lit f)) (loop (first o) (rest steps)))
       (#t (loop (rest o) (rest steps))))))
 

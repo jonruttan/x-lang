@@ -50,23 +50,29 @@
 ; number->str: (number->str n [radix]) -> string
 (def %n2s/ /)
 (def %n2s% %)
+; Digits accumulate in the NEGATIVE domain: negating a positive n is always
+; safe, while (- 0 n) on the most-negative fixnum wraps back to itself (the
+; old positive-domain recursion never terminated on it).  C division
+; truncates toward zero, so for n <= 0 the remainder is 0..-(radix-1) and
+; negating THAT is safe.  Digits prepend least-significant-first into one
+; byte list, packed with a single bytes->str -- not list->str: digits are
+; ASCII BYTES, and the utf8-aware list->str (x/type/str-utf8) shadows the
+; byte-packer post-boot -- this must stay the raw pack either way.
+(def %n2s-loop
+  (fn (self n radix digits acc)
+    (do
+      (def %q (%n2s/ n radix))
+      (def %acc (pair (%str-byte-ref digits (- 0 (%n2s% n radix))) acc))
+      (match
+        ((= %q 0) %acc)
+        (#t (self %q radix digits %acc))))))
 (def number->str
-  (fn (self n . rest)
+  (fn (_ n . rest)
     (def radix (match ((eq? rest ()) 10) (#t (first rest))))
     (def %d "0123456789abcdefghijklmnopqrstuvwxyz")
     (match
-      ((= n 0) "0")
-      ((< n 0) (%str-append "-" (self (- 0 n) radix)))
-      (#t
-        (let ((rem (%n2s% n radix)))
-          (match
-            ; bytes->str, not list->str: digits are ASCII BYTES, and the
-            ; utf8-aware list->str (x/type/str-utf8) shadows the byte-packer
-            ; post-boot -- this must stay the raw pack either way.
-            ((< n radix) (bytes->str (list (%str-byte-ref %d rem))))
-            (#t (%str-append
-                  (self (%n2s/ n radix) radix)
-                  (bytes->str (list (%str-byte-ref %d rem)))))))))))
+      ((< n 0) (%str-append "-" (bytes->str (%n2s-loop n radix %d ()))))
+      (#t (bytes->str (%n2s-loop (- 0 n) radix %d ()))))))
 
 ; str->number: (str->number str [radix]) -> integer or ()
 ; str->number parses an ASCII numeric string; all indexing is byte-level

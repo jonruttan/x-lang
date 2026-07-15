@@ -1,14 +1,15 @@
 ; char-io.x -- UTF-8-aware CHARACTER write/display handlers (x-lang)
 ;
-; A CHARACTER holds a Unicode code point. The C type ships a minimal byte-level
-; write/display at the bottom of the type's IO stacks (correct for ASCII only).
-; Here we push handlers that own the full behaviour, so UTF-8 lives in x-lang,
-; not C:
+; A CHARACTER holds a Unicode code point. The type's IO stacks boot EMPTY
+; (the C write/display handlers are gone with the C print stack), so until
+; this file loads a char renders as %print-generic's #<ATOM:0x..> form.
+; The handlers pushed here own the full behaviour, so UTF-8 lives in
+; x-lang, not C:
 ;   display  -> the code point's UTF-8 bytes (via x/codec/utf8 + bytes->str)
 ;   write    -> #\ prefix, then a named char (#\newline, ...) or the glyph
 ;
-; Loaded right after the codec and string layer at boot; the pushed handlers
-; shadow the C fallback before any non-ASCII character is printed.
+; Loaded right after the codec and string layer at boot, before any
+; character is printed.
 
 (import x/codec/utf8)
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
@@ -59,7 +60,7 @@
         (display (%char->str ch))   ; glyph: the char's UTF-8 bytes
         (display name)))))          ; named: #\newline etc.
 
-; --- install (push over the C fallback) ---
+; --- install (onto the empty boot stacks) ---
 
 (let ((ct (%type-by-atom (%type-of (%integer->char 0)))))
   (%type-push-display ct %char-display)

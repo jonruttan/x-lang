@@ -90,6 +90,56 @@
 ---
     #t
 
+### displays the most-negative fixnum
+
+```scheme
+(display (<< 1 63))
+```
+---
+    -9223372036854775808
+
+### does not spoof a boolean on value-word collision
+
+```scheme
+(str=? ((prim-ref (lit io) (lit display-to-str)) (first-int #t)) "#t")
+```
+---
+    #f
+
+## opaque forms
+
+The seven opaque types render fixed #<...> forms from boot/printer.x (the
+retired C write handlers printed the same strings).
+
+### procedure, operative, primitive, pointer
+
+```scheme
+(list ((prim-ref (lit io) (lit write-to-str)) (fn (_ x) x))
+      ((prim-ref (lit io) (lit write-to-str)) (op (x) e ()))
+      ((prim-ref (lit io) (lit write-to-str)) (prim-ref (lit io) (lit write-str)))
+      ((prim-ref (lit io) (lit write-to-str)) ((prim-ref (lit obj) (lit ->ptr)) 0)))
+```
+---
+    ("#<fn>" "#<op>" "#<prim>" "#<ptr>")
+
+### display falls back to the write form
+
+```scheme
+(display (pair 1 (pair (fn (_ x) x) ())))
+```
+---
+    (1 #<fn>)
+
+### to-str captures opaque forms without leaking to stdout
+
+```scheme
+(do
+  (def %s ((prim-ref (lit io) (lit write-to-str)) (pair (fn (_ x) x) ())))
+  (display "[") (display %s) (display "]"))
+```
+---
+    [(#<fn>)]
+
 ## newline
 
 ### returns nil

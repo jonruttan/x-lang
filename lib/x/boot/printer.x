@@ -14,9 +14,9 @@
 ;   - display-to-str / write-to-str via a swappable SINK: handlers print by
 ;     calling display/write recursively, so capture is state, not plumbing
 ;
-; Loads right after boot/string.x (needs number->str, str-append and the
-; byte accessors at CALL time; and it re-defines string.x's variadic
-; `display`, whose captured %display1 pointed at the C prim).
+; Loads BEFORE boot/string.x (which resolves display/write from here); the
+; number->str / str-append dependencies below are CALL-time only, and
+; string.x loads immediately after -- before anything prints.
 
 ; --- the OUT door and the sink ---
 (def %print-out (prim-ref (lit io) (lit write-str)))
@@ -163,12 +163,16 @@
       (match
         ((eq? %h2 ()) (%print-generic o))
         (#t (do (apply %h2 (pair o ())) ()))))))
+; Booleans by same? (object identity), NEVER eq?: eq? compares value words,
+; and any scalar whose word collides with #t's -- e.g. (first-int #t) -- would
+; render as a boolean.  #t/#f are singletons, so identity is exact (mirrors
+; C's pointer compare against the base true/false objects).
 (def %print-w
   (fn (_ o)
     (match
       ((eq? o ()) (%print-emit "()"))
-      ((eq? o #t) (%print-emit "#t"))
-      ((eq? o #f) (%print-emit "#f"))
+      ((same? o #t) (%print-emit "#t"))
+      ((same? o #f) (%print-emit "#f"))
       (#t (do
         (def %tw (%reflect-type-word o))
         (match
@@ -180,8 +184,8 @@
   (fn (_ o)
     (match
       ((eq? o ()) (%print-emit "()"))
-      ((eq? o #t) (%print-emit "#t"))
-      ((eq? o #f) (%print-emit "#f"))
+      ((same? o #t) (%print-emit "#t"))
+      ((same? o #f) (%print-emit "#f"))
       (#t (do
         (def %tw (%reflect-type-word o))
         (match
@@ -220,6 +224,49 @@
 (%print-push! (%print-type-of (lit (0))) %print-path-write-stack   %print-list-wh)
 (%print-push! (%print-type-of (lit (0))) %print-path-display-stack %print-list-dh)
 
+; --- the opaque types: fixed #<...> forms (write; display falls back) ---
+; These replace the C write handlers of the same seven types (deleted with
+; the print stack).  Their handles are C-STATIC name atoms, not reader
+; symbols -- (lit PROCEDURE) does NOT intern to them -- so resolve each by
+; NAME BYTES against the type-alist keys.  Load-time only; the byte prims
+; are fetched here because string.x loads after this file.
+(def %print-byte-len (prim-ref (lit str) (lit byte-len)))
+(def %print-byte-ref (prim-ref (lit str) (lit byte-ref)))
+(def %print-name-eq-loop
+  (fn (self a b i n)
+    (match
+      ((eq? i n) #t)
+      ((eq? (%print-byte-ref a i) (%print-byte-ref b i)) (self a b (+ i 1) n))
+      (#t #f))))
+(def %print-name=?
+  (fn (_ a b)
+    (match
+      ((eq? (%print-byte-len a) (%print-byte-len b))
+        (%print-name-eq-loop a b 0 (%print-byte-len a)))
+      (#t #f))))
+(def %print-handle-by-name
+  (fn (self s cur)
+    (match
+      ((eq? cur ()) ())
+      ((%print-name=? (%reflect-sym->str (first (first cur))) s) (first (first cur)))
+      (#t (self s (rest cur))))))
+(def %print-opaque!
+  (fn (_ name form)
+    (do
+      (def %h (%print-handle-by-name name (first %reflect-type-alist-cell)))
+      (match
+        ((eq? %h ()) ())  ; type absent in this build -- %print-generic covers it
+        (#t (%print-push! %h %print-path-write-stack (fn (_ o) (%print-emit form))))))))
+; ATOM registers lazily on first x_mkatom and nothing in-tree constructs
+; one, so this push no-ops here; kept for embedders that pre-register it.
+(%print-opaque! "ATOM"      "#<atom>")
+(%print-opaque! "BUFFER"    "#<buffer>")
+(%print-opaque! "POINTER"   "#<ptr>")
+(%print-opaque! "PRIMITIVE" "#<prim>")
+(%print-opaque! "ITER"      "#<iter>")
+(%print-opaque! "PROCEDURE" "#<fn>")
+(%print-opaque! "OPERATIVE" "#<op>")
+
 ; --- to-str: swap the sink for a collector, render, restore, join ---
 (def %print-join
   (fn (self parts acc)
@@ -245,8 +292,8 @@
 (prim-reg! (lit io) (lit write)          %print-write1)
 (prim-reg! (lit io) (lit display-to-str) (fn (_ o) (%print-to-str o %print-d)))
 (prim-reg! (lit io) (lit write-to-str)   (fn (_ o) (%print-to-str o %print-w)))
-; The bare verbs: write is unary; display keeps string.x's variadic shape
-; (its captured %display1 pointed at the retired C prim).
+; The bare verbs: write is unary; display is variadic (the shape the old
+; string.x shim over the retired C prim established).
 ; The bare verbs are OPS, not fns: the repl's print seat calls them between
 ; a form's eval and the next form's READ, and an X fn there (save-stack push
 ; + env save/restore) corrupts reader-lambda state under x-base (hex mis-
