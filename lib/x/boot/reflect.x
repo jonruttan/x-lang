@@ -138,6 +138,35 @@
                   (%reflect-type-tree-name
                     (%ptr->obj (%int->ptr %tw)))))))))))
 
+; (iter new o) -- fetch the iter handler from o's type tree (descriptor
+; path type-iter) and apply it to o; nil for nil-typed/sentinel-typed
+; objects, types without a tree, or trees without an iter handler.
+; C semantics (x_prim_iter) preserved: the handler is APPLIED (args as
+; values, not re-evaluated).
+(def %reflect-iter-new
+  (fn (_ o)
+    (match
+      ((eq? o ()) ())
+      (#t
+        (do
+          (def %tw (%reflect-type-word o))
+          (match
+            ((eq? %tw 0) ())
+            ((eq? %tw %reflect-satom-tw) ())
+            ((eq? %tw %reflect-spair-tw) ())
+            (#t
+              (do
+                (def %t (%ptr->obj (%int->ptr %tw)))
+                (match
+                  ((eq? (%reflect-type-word %t) %reflect-spair-tw)
+                    (do
+                      (def %h (%reflect-step %t
+                                (%reflect-path (lit type-iter) %base-paths)))
+                      (match
+                        ((eq? %h ()) ())
+                        (#t (apply %h (pair o ()))))))
+                  (#t ()))))))))))
+
 ; (prim-reg! ns method value) -- the catalog protocol's producer half:
 ; file an entry under ns/method.  Prepend semantics (a re-registration
 ; shadows on lookup); returns nil (C contract).  Needs set-first!/set-rest!
@@ -166,3 +195,4 @@
 (prim-reg! (lit obj) (lit meta-count!) %reflect-meta-count!)
 (prim-reg! (lit io)  (lit error-line)  %reflect-error-line)
 (prim-reg! (lit type) (lit name)       %reflect-type-name)
+(prim-reg! (lit iter) (lit new)        %reflect-iter-new)

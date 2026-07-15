@@ -25,14 +25,9 @@
 (def str-length %str-byte-len)
 (def substring (fn (_ s start end) (%str-byte-sub s start (- end start))))
 
-; display: variadic -- print each argument in turn. The C primitive is unary;
-; this wraps it. (match/do/apply, not if/for-each, which are not available yet.)
-(def %display1 (prim-ref (lit io) (lit display)))
-(def display
-  (fn (self . args)
-    (match
-      ((null? args) ())
-      (#t (do (%display1 (first args)) (apply self (rest args)))))))
+; display/write live in boot/printer.x (loaded just before this file); the
+; old variadic-display shim over the C prim is gone with the C printers.
+; newline resolves `display` at call time, so it may live here unchanged.
 (def newline (fn (_ ) (display "\n")))
 
 ; str=?: string equality, compared by BYTES (str-byte-*). Byte equality is the

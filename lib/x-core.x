@@ -23,8 +23,10 @@
 (include "tools/obj-layout.x")
 (include "lib/x/boot/data.x")
 (include "lib/x/boot/reflect.x")
-(include "lib/x/boot/string.x")
+; printer BEFORE string.x: string.x's callers resolve display/write from it,
+; and its own number->str dependency is call-time only.
 (include "lib/x/boot/printer.x")
+(include "lib/x/boot/string.x")
 (include "lib/x/boot/module.x")
 
 (do
