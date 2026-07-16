@@ -74,10 +74,11 @@ for f in "$@"; do
   else
     _OUT=$({ printf '%s\n' "$_CONSTRUCTS_INPUT"; cat "$f"; } | cat "$LANG_LIB" "$LINTER" - | "$X_BIN" 2>&1)
   fi
-  # Decide pass/fail from the linter's own output, not $?: x-lang's (error)
-  # prints a message but does not set a non-zero process status, so the exit
-  # code is unreliable here.  A clean file prints "ok"; findings
-  # (Undefined:/Unused:) or a crash produce no "ok" line.
+  # Decide pass/fail from the linter's own output, not $?: an uncaught
+  # x-lang (error) now exits non-zero, but output-based detection also
+  # catches a crash that never reaches the (error) call.  A clean file
+  # prints "ok"; findings (Undefined:/Unused:) or a crash produce no
+  # "ok" line.
   if printf '%s\n' "$_OUT" | grep -qx "ok"; then
     printf '  \033[1;32m.\033[0m %s\n' "$_NAME"
   else

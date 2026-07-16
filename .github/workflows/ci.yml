@@ -21,10 +21,10 @@ jobs:
       - name: Build
         run: make
       # The contract gates (`make test` runs them first): C-surface ratchet
-      # + object-layout + base-paths.  Without this step the ratchet only
-      # fires on machines with the local pre-push hook.
+      # + object-layout + base-paths + boot-order.  Without this step the
+      # ratchet only fires on machines with the local pre-push hook.
       - name: Contract gates
-        run: make check-isa check-obj-layout check-base-paths
+        run: make check-isa check-obj-layout check-base-paths check-boot-order
       - name: C specs
         run: make test-c
       - name: x-lang specs
