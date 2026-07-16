@@ -12,6 +12,13 @@
 
 ; ns `io` is de-registered (R5): fetch the REPL reader from the catalog.
 (def %repl-read (prim-ref (lit io) (lit repl-read)))
+; The boot sweep: boot leaves ~98% of the heap as garbage (~4.2M dead
+; objects vs a ~58k live set) because GC is explicit-trigger only.  One
+; collect at the boot->interactive boundary -- the canonical safe point:
+; no reader mid-flight, no seat print in progress -- reclaims it before
+; the first prompt.  Once per process (the repl op re-enters per turn).
+(def %repl-collect (prim-ref (lit heap) (lit collect)))
+(def %repl-boot-swept ())
 (def %repl-prompt "> ")
 (def %repl-print
   (fn (_ result)
@@ -24,6 +31,10 @@
     ; before the pipe, so stdin survives ctrl-c)
     (if (Sys isatty 3)
       (do (Sys dup2 3 0) (Sys close 3))
+      ())
+    ; Boot sweep, once (see the module-top note).
+    (if (null? %repl-boot-swept)
+      (do (set! %repl-boot-swept #t) (%repl-collect))
       ())
     (set-first-int! %sigint-flag 0)
     (display %repl-prompt)
