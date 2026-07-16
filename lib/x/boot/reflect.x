@@ -75,13 +75,34 @@
       old)))
 
 ; (io error-line) -- the line recorded in the active error handler, 0 when
-; no handler is installed.  The handler's line lives in an INT-slot at
-; handler path (r r r) -- read as rest-int of (r r), per the walker note.
+; no handler is installed.  The line is an INT slot at descriptor row
+; error-handler-line (handler-rooted), so per the walker note it is read
+; from the slot's PARENT with first-int/rest-int.  Everything is derived
+; from the row ONCE at load (%base-paths is a boot-time literal): the
+; parent step list via the shared %reflect-path-parent, and the int reader
+; by the path's FINAL step letter (f = first-int, r = rest-int) -- a
+; layout change follows the contract automatically instead of this walk
+; being re-flattened by hand.
+(def %reflect-path-final
+  (fn (self p)
+    (match
+      ((eq? (rest p) ()) (first p))
+      (#t (self (rest p))))))
+(def %reflect-int-reader
+  (fn (_ p)
+    (match
+      ((eq? (%reflect-path-final p) (lit f)) first-int)
+      (#t rest-int))))
+(def %reflect-error-line-path   (%reflect-path (lit error-handler-line) %base-paths))
+(def %reflect-error-line-parent (%reflect-path-parent %reflect-error-line-path))
+(def %reflect-error-line-int    (%reflect-int-reader %reflect-error-line-path))
 (def %reflect-error-line
   (fn (_)
     (match
       ((eq? (first %reflect-error-handler-cell) ()) 0)
-      (#t (rest-int (rest (rest (first %reflect-error-handler-cell))))))))
+      (#t (%reflect-error-line-int
+            (%reflect-step (first %reflect-error-handler-cell)
+                           %reflect-error-line-parent))))))
 
 ; --- type reflection ---
 ; The type slot (header word 1) as an integer tag.
@@ -100,6 +121,17 @@
   (%reflect-type-word ((prim-ref (lit type) (lit of)) 0)))
 (def %reflect-spair-tw
   (%reflect-type-word (rest (first (first %reflect-type-alist-cell)))))
+
+; THE TYPE-TAG TRAP predicate: does this type word mark a type HANDLE
+; rather than an instance?  Both sentinel tags qualify -- the static-atom
+; tag (bare handle atoms) and the structural-pair tag (registered type
+; trees) -- and neither carries a navigable type-tree pointer, so every
+; consumer must branch on BOTH before dereferencing the word.
+(def %reflect-handle-tw?
+  (fn (_ tw)
+    (match
+      ((eq? tw %reflect-satom-tw) #t)
+      (#t (eq? tw %reflect-spair-tw)))))
 
 ; Copying string maker (C used x_mkstr on the name atom's bytes).
 (def %reflect-sym->str (prim-ref (lit sym) (lit ->str)))
@@ -133,8 +165,7 @@
         (do
           (def %tw (%reflect-type-word o))
           (match
-            ((eq? %tw %reflect-satom-tw) (%reflect-handle-name o))
-            ((eq? %tw %reflect-spair-tw) (%reflect-handle-name o))
+            ((%reflect-handle-tw? %tw) (%reflect-handle-name o))
             ((eq? %tw 0) ())
             (#t (%reflect-name-str
                   (%reflect-type-tree-name
@@ -160,8 +191,7 @@
           (def %tw (%reflect-type-word o))
           (match
             ((eq? %tw 0) ())
-            ((eq? %tw %reflect-satom-tw) ())
-            ((eq? %tw %reflect-spair-tw) ())
+            ((%reflect-handle-tw? %tw) ())
             (#t
               (do
                 (def %t (%ptr->obj (%int->ptr %tw)))

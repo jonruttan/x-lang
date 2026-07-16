@@ -45,11 +45,26 @@
 (def %print-path-display-stack (%reflect-path (lit type-display-stack) %base-paths))
 
 ; --- generic sentinel-atom form: #<ATOM:0x{value-hex}> ---
+; For SENTINEL-tagged atoms only (their value word IS the payload).  A
+; handler-less CELL instance must never come here: first-int on a
+; zero-data-word instance reads past the allocation, and a slot-0 pointer
+; is not a value -- those render via %print-obj-opaque below.
 (def %print-generic
   (fn (_ o)
     (do
       (%print-emit "#<ATOM:0x")
       (%print-emit (number->str (first-int o) 16))
+      (%print-emit ">"))))
+; Bounded opaque form for handler-less cell-typed instances: only the
+; header-derived type NAME is read, never a data word.
+(def %print-obj-opaque
+  (fn (_ o)
+    (do
+      (%print-emit "#<obj:")
+      (def %n (%reflect-type-name o))
+      (match
+        ((eq? %n ()) (%print-emit "?"))
+        (#t (%print-emit %n)))
       (%print-emit ">"))))
 
 ; --- the string escaper (write mode): "..." with \" \\ \n \t \r and \xHH ---
@@ -194,7 +209,7 @@
         ((eq? %h ()) (%print-tree-h (%print-tree (%print-type-of o)) path fallback-path))
         (#t %h)))
       (match
-        ((eq? %h2 ()) (%print-generic o))
+        ((eq? %h2 ()) (%print-obj-opaque o))
         (#t (do (apply %h2 (pair o ())) ()))))))
 ; ONE dispatch body for both modes (write and display differ only in the
 ; path pair handed to the cell dispatch); %print-w/%print-d stay as named
@@ -223,17 +238,14 @@
   (fn (self o) (%print-render o self %print-path-display %print-path-write)))
 
 ; --- default cell handlers for the built-ins, pushed like any handler ---
-; Drop a path's final step: descriptor paths END at the slot VALUE (the
-; handler list); mutation needs the PARENT node whose first IS that slot.
-(def %print-path-parent
-  (fn (self p)
-    (match
-      ((eq? (rest p) ()) ())
-      (#t (pair (first p) (self (rest p)))))))
+; Descriptor paths END at the slot VALUE (the handler list); mutation needs
+; the PARENT node whose first IS that slot -- registry.x's shared
+; %reflect-path-parent derives it (hoisted to registry.x -- the single
+; cell-from-slot derivation point shared with sys/type.x and reflect.x).
 (def %print-push!
   (fn (_ handle stack-path handler)
     (do
-      (def %node (%reflect-step (%print-tree handle) (%print-path-parent stack-path)))
+      (def %node (%reflect-step (%print-tree handle) (%reflect-path-parent stack-path)))
       (set-first! %node (pair handler (first %node))))))
 (def %print-int-h  (fn (_ o) (%print-emit (number->str o))))
 (def %print-str-dh (fn (_ o) (%print-emit o)))
@@ -296,33 +308,58 @@
 
 ; --- to-str: swap the sink for a collector, render, restore, join ---
 ; Parts accumulate REVERSED (collector prepends).  Join adjacent PAIRS per
-; round -- (append later earlier) keeps logical order -- so total copying is
-; O(bytes * log parts), not the linear fold's O(bytes * parts) (write-to-str
-; of an n-fragment render was quadratic).
+; round -- O(bytes * log parts) copying, not the linear fold's
+; O(bytes * parts).  The round is TAIL-recursive with an accumulator (a
+; non-tail round burned one C frame per fragment pair -- write-to-str of a
+; 10k-element list segfaulted); prepending to the accumulator REVERSES the
+; list each round, so the join direction alternates with it (rev? tracks
+; whether the current list is in reverse logical order).
 (def %print-join-round
-  (fn (self parts)
+  (fn (self parts rev? acc)
     (match
-      ((eq? parts ()) ())
-      ((eq? (rest parts) ()) parts)
-      (#t (pair (%str-append (first (rest parts)) (first parts))
-                (self (rest (rest parts))))))))
+      ((eq? parts ()) acc)
+      ((eq? (rest parts) ()) (pair (first parts) acc))
+      (#t (self (rest (rest parts)) rev?
+            (pair (match
+                    (rev? (%str-append (first (rest parts)) (first parts)))
+                    (#t   (%str-append (first parts) (first (rest parts)))))
+                  acc))))))
 (def %print-join
-  (fn (self parts)
+  (fn (self parts rev?)
     (match
       ((eq? parts ()) "")
       ((eq? (rest parts) ()) (first parts))
-      (#t (self (%print-join-round parts))))))
-(def %print-to-str
-  (fn (_ o render)
+      (#t (self (%print-join-round parts rev? ())
+                (match (rev? #f) (#t #t)))))))
+; The single-COLLECTED-part case copies: the collected object is the
+; handler's emitted string ITSELF (or a printer literal like "#t"), and
+; to-str's contract is a FRESH string -- returning the original let a
+; caller's raw-mem poke mutate the source, or permanently corrupt the
+; shared literal.  Multi-part joins are fresh by construction.
+(def %print-to-str-finish
+  (fn (_ parts)
+    (match
+      ((eq? parts ()) "")
+      ((eq? (rest parts) ()) (%str-append (first parts) ""))
+      (#t (%print-join parts #t)))))
+; Collector state (%parts box, saved sink) rides PARAMETERS, never body
+; defs: under the TCO trampoline a body def binds GLOBALLY (the save-stack
+; frame is popped before the deferred tail form runs), so def'd state is
+; shared across activations and a NESTED to-str (a handler rendering to a
+; string mid-capture) corrupted the outer capture.  Params are
+; per-activation.
+(def %print-to-str-run
+  (fn (_ o render %parts %old)
     (do
-      (def %parts (pair () ()))
-      (def %old (first %print-sink))
       (set-first! %print-sink
         (fn (_ s) (set-first! %parts (pair s (first %parts)))))
       (guard (e (do (set-first! %print-sink %old) (error e)))
         (render o))
       (set-first! %print-sink %old)
-      (%print-join (first %parts)))))
+      (%print-to-str-finish (first %parts)))))
+(def %print-to-str
+  (fn (_ o render)
+    (%print-to-str-run o render (pair () ()) (first %print-sink))))
 
 ; --- the public surface: catalog entries + the bare verbs ---
 (def %print-display1 (fn (_ o) (%print-d o) ()))

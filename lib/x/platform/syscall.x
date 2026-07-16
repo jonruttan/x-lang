@@ -541,6 +541,7 @@
       ((%os-substr-at? needle hay i 0) #t)
       (#t (loop needle hay (+ i 1))))))
 (def os-darwin? (%os-contains? "darwin" x-machine 0))
+(def os-linux? (%os-contains? "linux" x-machine 0))
 
 ; --- File open-mode flags (O_*) ---
 ; PLATFORM truth: the O_* flag VALUES differ by OS (verified: macOS
@@ -589,8 +590,14 @@
   (list (lit directory) 1048576)    ; 0x100000
   (list (lit cloexec)   16777216))) ; 0x1000000
 
-; Select the table for this OS at load.
-(def %file-modes (if os-darwin? %file-modes-darwin %file-modes-linux))
+; Select the table for this OS at load.  Both probes explicit: an
+; unrecognized platform must fail loudly here, not silently run with Linux
+; flag values (wrong O_* values corrupt the interpreter via raw syscalls).
+(def %file-modes
+  (match
+    (os-darwin? %file-modes-darwin)
+    (os-linux? %file-modes-linux)
+    (#t (error (pair (lit unsupported-platform) x-machine)))))
 
 ; Darwin/BSD syscall numbers (from <sys/syscall.h>). Bare numbers: macOS libc
 ; syscall() OR-folds the UNIX class (0x2000000), so the bare BSD number reaches

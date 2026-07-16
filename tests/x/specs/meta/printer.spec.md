@@ -9,15 +9,20 @@ resolve by NAME BYTES since they are C-static atoms, not reader symbols.
 
 ## missing-handler fallback
 
-### an empty write stack falls to the generic form, no crash
+### an empty write stack falls to the opaque form, no crash
+
+The probe runs under a SENTINEL guard and the stack is restored
+UNCONDITIONALLY before asserting: if the probe raises, re-raising before
+the restore would leave STRING's write stack empty for the whole batch,
+cascading every later string-rendering test.
 
 ```scheme
 (do
   (def %t (%registry-assoc-rest (%print-type-of "s") (first %reflect-type-alist-cell)))
-  (def %node (%reflect-step %t (%print-path-parent %print-path-write-stack)))
+  (def %node (%reflect-step %t (%reflect-path-parent %print-path-write-stack)))
   (def %saved (first %node))
   (set-first! %node ())
-  (def %r ((prim-ref (lit io) (lit write-to-str)) "s"))
+  (def %r (guard (e ()) ((prim-ref (lit io) (lit write-to-str)) "s")))
   (set-first! %node %saved)
   (not (null? %r)))
 ```
@@ -87,3 +92,82 @@ no-ops (kept for embedders that pre-register the type).
 ```
 ---
     #f
+
+## to-str contracts
+
+### to-str returns a FRESH string, never the source object
+
+```scheme
+(do (def %s "abc")
+    (same? ((prim-ref (lit io) (lit display-to-str)) %s) %s))
+```
+---
+    #f
+
+### to-str of a boolean is fresh per call
+
+```scheme
+(same? ((prim-ref (lit io) (lit display-to-str)) #t)
+       ((prim-ref (lit io) (lit display-to-str)) #t))
+```
+---
+    #f
+
+### to-str nests: a handler rendering to a string mid-capture
+
+```scheme
+(do
+  (def %wts (prim-ref (lit io) (lit write-to-str)))
+  (def %t (%registry-assoc-rest (%print-type-of 0) (first %reflect-type-alist-cell)))
+  (def %node (%reflect-step %t (%reflect-path-parent %print-path-write-stack)))
+  (def %saved (first %node))
+  (set-first! %node
+    (pair (fn (_ o) (do (%print-emit "[") (%print-emit (%wts "in")) (%print-emit "]")))
+          %saved))
+  (def %r (guard (e (lit err)) (%wts 42)))
+  (set-first! %node %saved)
+  %r)
+```
+---
+    "[\"in\"]"
+
+### write-to-str survives a 12k-element list (tail join)
+
+The non-tail join segfaulted at 10k elements; 12k pins the fix while
+staying inside the harness's alloc/time budget.
+
+```scheme
+(do
+  (def %build (fn (self n acc) (match ((eq? n 0) acc) (#t (self (- n 1) (pair n acc))))))
+  (str? ((prim-ref (lit io) (lit write-to-str)) (%build 12000 ()))))
+```
+---
+    #t
+
+### an error mid-render restores the sink and propagates
+
+```scheme
+(do
+  (def %wts (prim-ref (lit io) (lit write-to-str)))
+  (def %t (%registry-assoc-rest (%print-type-of 0) (first %reflect-type-alist-cell)))
+  (def %node (%reflect-step %t (%reflect-path-parent %print-path-write-stack)))
+  (def %saved (first %node))
+  (set-first! %node (pair (fn (_ o) (error (lit render-boom))) %saved))
+  (def %r (guard (e e) (%wts 42)))
+  (set-first! %node %saved)
+  (display %r) (display " ") (display 7))
+```
+---
+    render-boom 7
+
+## handler-less cell instances
+
+### render the bounded #<obj:NAME> form, never a data word
+
+```scheme
+(do
+  (def %h ((prim-ref (lit type) (lit make)) "GHOST" ()))
+  (display ((prim-ref (lit obj) (lit make)) %h 0)))
+```
+---
+    #<obj:GHOST>

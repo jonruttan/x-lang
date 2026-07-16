@@ -1,5 +1,3 @@
-# @lib ../tests/x/lib/base-paths.x
-
 # The base-paths contract, runtime half
 
 `tools/base-paths.x` commits every base-object field as a first/rest path;

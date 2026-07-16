@@ -25,6 +25,12 @@
 ; below must always address the same word, or set!/ref silently diverge.
 (def %data-word-off (fn (_ i) (+ %data-offset (* i %word-size))))
 
+; The two pair-slot offsets, hoisted through THE formula at load time --
+; coherence (one addressing definition) AND faster than re-computing
+; (+ %data-offset %word-size) on every accessor call.
+(def %data-off-0 (%data-word-off 0))
+(def %data-off-1 (%data-word-off 1))
+
 ; Data-slot write, pure reflection: the stored word is the value's object
 ; pointer.  Formerly the C (obj set!) prim -- boot/reflect.x files this
 ; same fn back into the catalog under that name.  Returns v (C contract).
@@ -38,7 +44,7 @@
 (def set-rest! (fn (_ p v) (%obj-set! p 1 v) p))
 
 ; Int variants: read/write raw integer from pair slots
-(def first-int (fn (_ x) (%ptr-ref-word (%obj->ptr x) %data-offset)))
-(def rest-int (fn (_ x) (%ptr-ref-word (%obj->ptr x) (+ %data-offset %word-size))))
-(def set-first-int! (fn (_ p v) (%ptr-set-word! (%obj->ptr p) %data-offset v) p))
-(def set-rest-int! (fn (_ p v) (%ptr-set-word! (%obj->ptr p) (+ %data-offset %word-size) v) p))
+(def first-int (fn (_ x) (%ptr-ref-word (%obj->ptr x) %data-off-0)))
+(def rest-int (fn (_ x) (%ptr-ref-word (%obj->ptr x) %data-off-1)))
+(def set-first-int! (fn (_ p v) (%ptr-set-word! (%obj->ptr p) %data-off-0 v) p))
+(def set-rest-int! (fn (_ p v) (%ptr-set-word! (%obj->ptr p) %data-off-1 v) p))

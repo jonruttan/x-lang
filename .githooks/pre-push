@@ -1,7 +1,8 @@
 #!/bin/sh
 # Pre-push gate -- block a push when the suite is red.
 #
-# GitHub Actions re-runs `make test` on push/PR (.github/workflows/ci.yml),
+# GitHub Actions re-runs the same surface on push/PR (.github/workflows/
+# ci.yml: contract gates + test-c + test-x as separate steps),
 # but this hook is the gate that catches a red suite BEFORE it leaves the
 # machine (see docs/contributing.md). Install with `make install-hooks` (sets
 # core.hooksPath=.githooks). Bypass a single push with `git push --no-verify`.

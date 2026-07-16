@@ -70,6 +70,10 @@ holds per-object attribute bits (str atoms own their storage; ints don't).
 
 ## materialization
 
+(No folklore-reconciliation block anymore: boot/data.x consumes the
+descriptor directly -- `%data-offset` is `(* %word-size %obj-meta-len)` --
+since e62ac80, so pinning the two together would be a tautology.)
+
 ### ptr->obj round-trips a data word back to the object it addresses
 
 ```scheme
@@ -84,19 +88,6 @@ holds per-object attribute bits (str atoms own their storage; ints don't).
 ```output
 #t 8
 ```
-
-## folklore reconciliation
-
-### boot/data.x's %data-offset equals the descriptor's meta-len
-
-data.x predates the descriptor and hardcodes the data offset; until it
-consumes the descriptor (a boot-order change), this pins the two together.
-
-```scheme
-(eq? %data-offset (* %obj-meta-len %word-size))
-```
----
-    #t
 
 ## extended metadata
 

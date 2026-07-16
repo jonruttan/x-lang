@@ -28,6 +28,15 @@
 ; The ITER type handle, for iter?: type-of a degenerate iterator.
 (def %iter (%type-of (%i-make () ())))
 
+; The opaque form: ITER registers LAZILY (that %i-make above is the first
+; iterator ever made), so boot/printer.x's "#<iter>" push no-oped -- the
+; tree didn't exist yet.  The module that registers the type owns its
+; rendering (char-io's pattern); without this push instances render as the
+; bounded #<obj:ITER> fallback.
+(def %type-push-write (prim-ref (lit type) (lit push-write)))
+(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
+(%type-push-write (%type-by-atom %iter) (fn (_ o) (display "#<iter>")))
+
 
 ; List step: the state cell IS the remaining list; step reads the head and
 ; advances by mutating the iterator's own rest (the original list is untouched).

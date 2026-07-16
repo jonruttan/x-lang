@@ -244,6 +244,32 @@
 ---
     ((lit err) 42)
 
+### a handler-body re-raise propagates to the ENCLOSING guard
+
+The guard pops its handler BEFORE the handler body runs (control.c), so
+(error e) inside a handler reaches the outer guard -- the docs/spec.md
+propagation idiom.  (Regression pin: the handler used to stay installed,
+and a re-raise longjmp'd back into its own guard forever.)
+
+```scheme
+(guard (e2 (Str8 append "outer: " e2))
+  (guard (e (error (Str8 append "re: " e)))
+    (error "inner")))
+```
+---
+    "outer: re: inner"
+
+### a handler-body re-raise with NO outer guard leaves the handler popped
+
+```scheme
+(do
+  (def %r1 (guard (e2 (lit outer)) (guard (e (error e)) (error (lit boom)))))
+  (def %r2 (guard (e3 (lit clean)) (+ 1 2)))
+  (list %r1 %r2))
+```
+---
+    ((lit outer) 3)
+
 ## error
 
 ### signals with string

@@ -25,11 +25,25 @@
 
 
 ; --- Type struct navigation ---
+; Every walk below is derived at MODULE LOAD from the committed layout
+; descriptor (tools/base-paths.x) via registry.x's walker -- a layout
+; change follows the contract automatically; nothing here re-flattens the
+; tree by hand.  Group accessors resolve their row's full step list; each
+; *-cell resolves the PARENT of the row naming the value it fronts (via
+; the shared %reflect-path-parent, exactly like the printer's handler
+; pushes), because set-first! on that parent is what replaces the value.
+; Load-time resolution is safe: %base-paths is a boot-time literal, and
+; the type-* rows are rooted at the type-tree ARGUMENT, not the base.
+(def %type-parent-path
+  (fn (_ name) (%reflect-path-parent (%reflect-path name %base-paths))))
 
-; Return the interpreter's type alist from the base object
+; Return the interpreter's type alist from the base object: row type-alist
+; ends at the base CELL; the alist is its first.  Walked from (%base) per
+; call, as the C prim did (only the step list is cached).
+(def %type-alist-path (%reflect-path (lit type-alist) %base-paths))
 (def %type-alist
   (fn (_ )
-    (first (first (first (first (rest (first (%base)))))))))
+    (first (%reflect-step (%base) %type-alist-path))))
 
 ; Look up a type struct by its handle atom (from type-of)
 (def %type-by-atom
@@ -43,41 +57,50 @@
 
 ; --- Field access ---
 
-; Navigate to IO group (6th element)
+; Navigate to IO group (row type-io)
+(def %type-io-path (%reflect-path (lit type-io) %base-paths))
 (def %type-io
-  (fn (_ t) (first (rest (rest (rest (rest (rest t))))))))
+  (fn (_ t) (%reflect-step t %type-io-path)))
 
-; Navigate to CVT group (5th element)
+; Navigate to CVT group (row type-cvt)
+(def %type-cvt-path (%reflect-path (lit type-cvt) %base-paths))
 (def %type-cvt
-  (fn (_ t) (first (rest (rest (rest (rest t)))))))
+  (fn (_ t) (%reflect-step t %type-cvt-path)))
 
-; Navigate to PROC group (4th element): (call-stack eval-stack).
+; Navigate to PROC group (row type-proc): (call-stack eval-stack).
 ; NOT %type-proc: boot's predicates.x owns that name (the FN type handle
 ; backing procedure?), and this file loads after it -- a same-named def here
 ; clobbers the handle and breaks procedure? everywhere.
+(def %type-proc-path (%reflect-path (lit type-proc) %base-paths))
 (def %type-proc-group
-  (fn (_ t) (first (rest (rest (rest t))))))
+  (fn (_ t) (%reflect-step t %type-proc-path)))
 
-; Get the write-stack cell from a type struct
+; The write-stack cell of a type struct: parent of row type-write-stack.
+(def %type-write-cell-path (%type-parent-path (lit type-write-stack)))
 (def %type-write-cell
-  (fn (_ t) (rest (rest (rest (%type-io t))))))
+  (fn (_ t) (%reflect-step t %type-write-cell-path)))
 
-; Get the display-stack cell from a type struct (one past write in the IO group:
-; (analyse (delimit (read (write (display (error)))))))
+; The display-stack cell: parent of row type-display-stack.
+(def %type-display-cell-path (%type-parent-path (lit type-display-stack)))
 (def %type-display-cell
-  (fn (_ t) (rest (rest (rest (rest (%type-io t)))))))
+  (fn (_ t) (%reflect-step t %type-display-cell-path)))
 
-; Get the analyse-stack cell from a type struct
+; The analyse-stack cell: parent of row type-analyse-stack (the IO group
+; node itself -- analyse is the group's first slot).
+(def %type-analyse-cell-path (%type-parent-path (lit type-analyse-stack)))
 (def %type-analyse-cell
-  (fn (_ t) (%type-io t)))
+  (fn (_ t) (%reflect-step t %type-analyse-cell-path)))
 
-; Get the from-conversion cell from a type struct
+; The from-conversion cell: parent of row type-from (the cvt rows name the
+; VALUE alist; its parent is the cell set-first! replaces).
+(def %type-from-cell-path (%type-parent-path (lit type-from)))
 (def %type-from-cell
-  (fn (_ t) (first (%type-cvt t))))
+  (fn (_ t) (%reflect-step t %type-from-cell-path)))
 
-; Get the to-conversion cell from a type struct
+; The to-conversion cell: parent of row type-to.
+(def %type-to-cell-path (%type-parent-path (lit type-to)))
 (def %type-to-cell
-  (fn (_ t) (first (rest (%type-cvt t)))))
+  (fn (_ t) (%reflect-step t %type-to-cell-path)))
 
 ; --- Stack manipulation ---
 
@@ -99,9 +122,11 @@
     (let ((c (%type-display-cell ts)))
       (set-first! c (pair handler (first c))))))
 
-; The call-stack cell of a type (proc group, first element).
+; The call-stack cell of a type: parent of row type-call-stack (the proc
+; group node itself -- call is the group's first slot).
+(def %type-call-cell-path (%type-parent-path (lit type-call-stack)))
 (def %type-call-cell
-  (fn (_ t) (%type-proc-group t)))
+  (fn (_ t) (%reflect-step t %type-call-cell-path)))
 
 ; The current (top) call handler -- capture before pushing to delegate to it.
 (def %type-call-top
@@ -120,13 +145,15 @@
     (let ((c (%type-analyse-cell ts)))
       (set-first! c (pair handler (first c))))))
 
-; Get the delimit-stack cell from a type struct (io group, 2nd element)
+; The delimit-stack cell: parent of row type-delimit-stack.
+(def %type-delimit-cell-path (%type-parent-path (lit type-delimit-stack)))
 (def %type-delimit-cell
-  (fn (_ t) (rest (%type-io t))))
+  (fn (_ t) (%reflect-step t %type-delimit-cell-path)))
 
-; Get the read-stack cell from a type struct (io group, 3rd element)
+; The read-stack cell: parent of row type-read-stack.
+(def %type-read-cell-path (%type-parent-path (lit type-read-stack)))
 (def %type-read-cell
-  (fn (_ t) (rest (rest (%type-io t)))))
+  (fn (_ t) (%reflect-step t %type-read-cell-path)))
 
 ; Push a handler onto a type's delimit stack
 (def %type-push-delimit
@@ -140,9 +167,10 @@
     (let ((c (%type-read-cell ts)))
       (set-first! c (pair handler (first c))))))
 
-; Get the iter-stack cell from a type struct (iter group: 7th element, past io).
+; The iter-stack cell: parent of row type-iter-stack (the iter group node).
+(def %type-iter-cell-path (%type-parent-path (lit type-iter-stack)))
 (def %type-iter-cell
-  (fn (_ t) (first (rest (rest (rest (rest (rest (rest t)))))))))
+  (fn (_ t) (%reflect-step t %type-iter-cell-path)))
 
 ; Push a handler onto a type's iter stack -- sets how (iter obj) builds an
 ; iterator for this type.  The handler is (fn (_ obj) -> iterator), e.g. via
@@ -154,9 +182,11 @@
 
 ; --- Generic-operator dispatch (ops group: 8th element, past iter) ---
 
-; Get the ops cell (the ((op-sym . handler) ...) alist stack cell)
+; The ops cell (the ((op-sym . handler) ...) alist stack cell): parent of
+; row type-ops (the VALUE alist; its parent is what set-first! replaces).
+(def %type-ops-cell-path (%type-parent-path (lit type-ops)))
 (def %type-ops-cell
-  (fn (_ t) (first (first (rest (rest (rest (rest (rest (rest (rest t)))))))))))
+  (fn (_ t) (%reflect-step t %type-ops-cell-path)))
 
 ; Register a binary generic-operator handler for op-sym on a type:
 ;   (%type-push-op ts (lit +) (fn (_ a b) ...))

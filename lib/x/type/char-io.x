@@ -2,7 +2,7 @@
 ;
 ; A CHARACTER holds a Unicode code point. The type's IO stacks boot EMPTY
 ; (the C write/display handlers are gone with the C print stack), so until
-; this file loads a char renders as %print-generic's #<ATOM:0x..> form.
+; this file loads a char renders as the bounded #<obj:CHARACTER> form.
 ; The handlers pushed here own the full behaviour, so UTF-8 lives in
 ; x-lang, not C:
 ;   display  -> the code point's UTF-8 bytes (via x/codec/utf8 + bytes->str)

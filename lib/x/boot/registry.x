@@ -28,13 +28,30 @@
       ((eq? (first steps) (lit f)) (loop (first o) (rest steps)))
       (#t (loop (rest o) (rest steps))))))
 
-; The step list filed under a path name, or nil.
+; The step list filed under a path name.  A MISSING name ERRORS instead of
+; answering nil: %reflect-step with steps=() returns the walked object
+; ITSELF (root echo), so a typo'd path name would silently hand back the
+; whole BASE -- and a consumer mutating "its cell" would overwrite
+; interpreter spine words.  Every resolution happens at load time, so the
+; error fires at boot, where the typo is.
 (def %reflect-path
   (fn (loop name paths)
     (match
-      ((eq? paths ()) ())
+      ((eq? paths ()) (error (pair (lit missing-base-path) name)))
       ((eq? (first (first paths)) name) (rest (rest (first paths))))
       (#t (loop name (rest paths))))))
+
+; Drop a step list's final step.  Descriptor paths END at the slot VALUE;
+; mutators and int-slot readers need the PARENT node whose first/rest IS
+; that slot -- so every "cell" derivation (the printer's handler pushes,
+; the sys/type.x cell walkers, reflect.x's error-line read) flows through
+; this one helper instead of re-flattening the walk by hand.  Stage-0 like
+; the rest of this file: C spine forms only.
+(def %reflect-path-parent
+  (fn (self p)
+    (match
+      ((eq? (rest p) ()) ())
+      (#t (pair (first p) (self (rest p)))))))
 
 ; Resolve a base-rooted path name to the object it addresses.
 (def %reflect-base-cell

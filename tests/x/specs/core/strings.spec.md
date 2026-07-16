@@ -279,10 +279,15 @@
 ---
     ("ff" "-ff" "111")
 
-### the most-negative fixnum terminates
+### the most-negative fixnum terminates (word-size portable)
+
+The negative-domain rewrite's INT_MIN pin, computed from %word-size so
+the 32-bit Pi build passes too; the round-trip proves the digits.
 
 ```scheme
-(number->str (<< 1 63))
+(do
+  (def %n (<< 1 (- (* 8 %word-size) 1)))
+  (eq? (str->number (number->str %n)) %n))
 ```
 ---
-    "-9223372036854775808"
+    #t

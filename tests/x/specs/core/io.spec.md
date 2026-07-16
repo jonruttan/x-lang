@@ -40,6 +40,22 @@
 ---
     (1 (2 3))
 
+### writes a nested empty list
+
+```scheme
+(write (list (list)))
+```
+---
+    (())
+
+### writes a named character
+
+```scheme
+(write #\newline)
+```
+---
+    #\newline
+
 ### returns nil
 
 ```scheme
@@ -90,13 +106,22 @@
 ---
     #t
 
-### displays the most-negative fixnum
+### displays the most-negative fixnum (word-size portable)
+
+The probe computes the platform's most-negative fixnum from %word-size
+(a 64-bit literal can never pass on the 32-bit Pi), and asserts
+properties instead of a literal: negative rendering, termination, and
+str->number round-trip.  Relies on two's-complement wrap like every
+raw-op consumer.
 
 ```scheme
-(display (<< 1 63))
+(do
+  (def %n (<< 1 (- (* 8 %word-size) 1)))
+  (def %s ((prim-ref (lit io) (lit display-to-str)) %n))
+  (list (eq? (str-ref %s 0) #\-) (< 1 (str-length %s)) (eq? (str->number %s) %n)))
 ```
 ---
-    -9223372036854775808
+    (#t #t #t)
 
 ### does not spoof a boolean on value-word collision
 
