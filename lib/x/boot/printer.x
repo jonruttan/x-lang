@@ -68,6 +68,22 @@
       (%print-emit ">"))))
 
 ; --- the string escaper (write mode): "..." with \" \\ \n \t \r and \xHH ---
+; C int ops, fetched once: these loops run PER BYTE of every written
+; string, and the tower's arithmetic wrappers cost ~92 objects per op
+; where the raw instruction costs ~5 (the prim-caching rule for heat).
+(def %print-int+ (prim-ref (lit int) (lit +)))
+(def %print-int- (prim-ref (lit int) (lit -)))
+; The classifier, ordered for the COMMON case: a printable byte concludes
+; safe in THREE compares (34 and 92 are the only escapes >= 32); it builds
+; nothing, so run scanning discards no allocations.
+(def %print-str-esc?
+  (fn (_ b)
+    (match
+      ((eq? b 34) #t)
+      ((eq? b 92) #t)
+      (#t (< b 32)))))
+; The escape string for a byte the classifier flagged (only ever called
+; for those, so the >= 32 non-escapes never reach the \x arms).
 (def %print-str-esc-byte
   (fn (_ b)
     (match
@@ -76,11 +92,8 @@
       ((eq? b 10) "\\n")
       ((eq? b 9)  "\\t")
       ((eq? b 13) "\\r")
-      ((< b 32)
-        (match
-          ((< b 16) (%str-append "\\x0" (number->str b 16)))
-          (#t (%str-append "\\x" (number->str b 16)))))
-      (#t ()))))
+      ((< b 16) (%str-append "\\x0" (number->str b 16)))
+      (#t (%str-append "\\x" (number->str b 16))))))
 ; Emit whole SAFE RUNS, not bytes: scan ahead to the next byte needing an
 ; escape and emit the run with one %str-byte-sub (one allocation, one OUT
 ; call -- the door is an unbuffered write(2), so per-byte emission costs a
@@ -88,22 +101,25 @@
 (def %print-str-w-run-end
   (fn (self s i n)
     (match
-      ((>= i n) i)
-      ((eq? (%print-str-esc-byte (%str-byte-ref s i)) ()) (self s (+ i 1) n))
+      ((< i n)
+        (match
+          ((%print-str-esc? (%str-byte-ref s i)) i)
+          (#t (self s (%print-int+ i 1) n))))
       (#t i))))
 (def %print-str-w-loop
   (fn (self s i n)
     (match
-      ((>= i n) ())
-      (#t (do
-        (def %e (%print-str-esc-byte (%str-byte-ref s i)))
+      ((< i n)
         (match
-          ((eq? %e ())
+          ((%print-str-esc? (%str-byte-ref s i))
             (do
-              (def %end (%print-str-w-run-end s (+ i 1) n))
-              (%print-emit (%str-byte-sub s i (- %end i)))
-              (self s %end n)))
-          (#t (do (%print-emit %e) (self s (+ i 1) n)))))))))
+              (%print-emit (%print-str-esc-byte (%str-byte-ref s i)))
+              (self s (%print-int+ i 1) n)))
+          (#t (do
+            (def %end (%print-str-w-run-end s (%print-int+ i 1) n))
+            (%print-emit (%str-byte-sub s i (%print-int- %end i)))
+            (self s %end n)))))
+      (#t ()))))
 (def %print-str-w
   (fn (_ s)
     (do
@@ -196,7 +212,40 @@
 ; lookup stays as the FALLBACK: a child base's BUILT-IN trees are bare (the
 ; parent's defaults were pushed only on the parent's trees), but their names
 ; intern to the same atoms, so the parent's handlers still apply.
+; Top handler of a memoized stack-parent node, or nil.
+(def %print-stack-top
+  (fn (_ node)
+    (match
+      ((eq? node ()) ())
+      (#t (do
+        (def %s (first node))
+        (match ((eq? %s ()) ()) (#t (first %s))))))))
 (def %print-cell
+  (fn (_ o tw path fallback-path)
+    (do
+      ; MEMO front: the four built-in types cover nearly every rendered
+      ; value, and the descriptor walk costs ~400 objects per cell.  The
+      ; memo maps tw -> the pre-resolved stack-PARENT node (spine-stable:
+      ; %print-push! mutates it in place, so ansi/char-io pushes stay
+      ; visible), read live per call.  Display falls back to the write
+      ; stack, mirroring the walk's fallback-path.  A miss (custom/other
+      ; types) takes the full walk below.
+      ; same?, NEVER eq?, for path identity: paths are LISTS, and eq?
+      ; compares first-pointers -- both paths start with the same
+      ; interned step symbol, so eq? called them equal (display rendered
+      ; through WRITE handlers; 12 specs red).
+      (def %write? (same? path %print-path-write))
+      (def %mh (do
+        (def %h (%print-stack-top (%print-memo-node tw %write?)))
+        (match
+          ((eq? %h ()) (match
+            (%write? ())
+            (#t (%print-stack-top (%print-memo-node tw #t)))))
+          (#t %h))))
+      (match
+        ((eq? %mh ()) (%print-cell-walk o tw path fallback-path))
+        (#t (do (apply %mh (pair o ())) ()))))))
+(def %print-cell-walk
   (fn (_ o tw path fallback-path)
     (do
       (def %own (%ptr->obj (%int->ptr tw)))
@@ -262,6 +311,36 @@
 (%print-push! (%print-type-of (lit q))  %print-path-display-stack %print-sym-dh)
 (%print-push! (%print-type-of (lit (0))) %print-path-write-stack   %print-list-wh)
 (%print-push! (%print-type-of (lit (0))) %print-path-display-stack %print-list-dh)
+
+; --- the dispatch memo: tw -> pre-resolved stack-parent nodes ---
+; Resolved ONCE here for the four built-in types.  Safe to cache: the
+; nodes are reachable from the type alist (marked live, never moved by
+; the non-moving sweep) and %print-push! only ever set-first!s them.
+(def %print-wstack-parent (%reflect-path-parent %print-path-write-stack))
+(def %print-dstack-parent (%reflect-path-parent %print-path-display-stack))
+(def %print-node-of
+  (fn (_ handle parent-path)
+    (%reflect-step (%print-tree handle) parent-path)))
+(def %print-int-tw  (%reflect-type-word 0))
+(def %print-str-tw  (%reflect-type-word ""))
+(def %print-symq-tw (%reflect-type-word (lit q)))
+(def %print-listq-tw (%reflect-type-word (lit (0))))
+(def %print-int-wnode  (%print-node-of (%print-type-of 0)        %print-wstack-parent))
+(def %print-int-dnode  (%print-node-of (%print-type-of 0)        %print-dstack-parent))
+(def %print-str-wnode  (%print-node-of (%print-type-of "")       %print-wstack-parent))
+(def %print-str-dnode  (%print-node-of (%print-type-of "")       %print-dstack-parent))
+(def %print-sym-wnode  (%print-node-of (%print-type-of (lit q))  %print-wstack-parent))
+(def %print-sym-dnode  (%print-node-of (%print-type-of (lit q))  %print-dstack-parent))
+(def %print-list-wnode (%print-node-of (%print-type-of (lit (0))) %print-wstack-parent))
+(def %print-list-dnode (%print-node-of (%print-type-of (lit (0))) %print-dstack-parent))
+(def %print-memo-node
+  (fn (_ tw write?)
+    (match
+      ((eq? tw %print-int-tw)   (match (write? %print-int-wnode)  (#t %print-int-dnode)))
+      ((eq? tw %print-str-tw)   (match (write? %print-str-wnode)  (#t %print-str-dnode)))
+      ((eq? tw %print-symq-tw)  (match (write? %print-sym-wnode)  (#t %print-sym-dnode)))
+      ((eq? tw %print-listq-tw) (match (write? %print-list-wnode) (#t %print-list-dnode)))
+      (#t ()))))
 
 ; --- the opaque types: fixed #<...> forms (write; display falls back) ---
 ; These replace the C write handlers of the same seven types (deleted with

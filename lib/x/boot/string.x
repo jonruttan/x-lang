@@ -56,21 +56,33 @@
 ; byte list, packed with a single bytes->str -- not list->str: digits are
 ; ASCII BYTES, and the utf8-aware list->str (x/type/str-utf8) shadows the
 ; byte-packer post-boot -- this must stay the raw pack either way.
+; C subtraction, fetched once: the digit loop runs per digit of every
+; number the printer renders, and the tower's arithmetic wrappers cost
+; ~92 objects per op vs ~5 for the raw instruction.  eq? (value-word
+; compare) replaces = for the zero test -- same answer on ints, C-cheap.
+(def %n2s-int- (prim-ref (lit int) (lit -)))
+; The digit table, hoisted: re-binding it per call was pure preamble.
+(def %n2s-digits "0123456789abcdefghijklmnopqrstuvwxyz")
 (def %n2s-loop
-  (fn (self n radix digits acc)
+  (fn (self n radix acc)
     (do
       (def %q (%n2s/ n radix))
-      (def %acc (pair (%str-byte-ref digits (- 0 (%n2s% n radix))) acc))
+      (def %acc (pair (%str-byte-ref %n2s-digits (%n2s-int- 0 (%n2s% n radix))) acc))
       (match
-        ((= %q 0) %acc)
-        (#t (self %q radix digits %acc))))))
+        ((eq? %q 0) %acc)
+        (#t (self %q radix %acc))))))
+(def %n2s
+  (fn (_ n radix)
+    (match
+      ((< n 0) (%str-append "-" (bytes->str (%n2s-loop n radix ()))))
+      (#t (bytes->str (%n2s-loop (%n2s-int- 0 n) radix ()))))))
+; Fixed-arity front for the printer's unary base-10 calls (the common
+; case): skips the variadic rest-spine heap copy and the radix match.
 (def number->str
   (fn (_ n . rest)
-    (def radix (match ((eq? rest ()) 10) (#t (first rest))))
-    (def %d "0123456789abcdefghijklmnopqrstuvwxyz")
     (match
-      ((< n 0) (%str-append "-" (bytes->str (%n2s-loop n radix %d ()))))
-      (#t (bytes->str (%n2s-loop (- 0 n) radix %d ()))))))
+      ((eq? rest ()) (%n2s n 10))
+      (#t (%n2s n (first rest))))))
 
 ; str->number: (str->number str [radix]) -> integer or ()
 ; str->number parses an ASCII numeric string; all indexing is byte-level

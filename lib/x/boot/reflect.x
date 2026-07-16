@@ -27,9 +27,14 @@
 ; (ptr ->obj) manifest entry).  With it, accessors can RETURN objects.
 (def %ptr->obj (prim-ref (lit ptr) (lit ->obj)))
 
+; Header-word byte offsets, computed ONCE: these accessors run multiple
+; times per printed cell, and the multiply is a boot constant.
+(def %reflect-flags-off (* %obj-slot-flags %word-size))
+(def %reflect-type-off  (* %obj-slot-type %word-size))
+
 ; The flags header word of an object.
 (def %reflect-flags
-  (fn (_ o) (%ptr-ref-word (%obj->ptr o) (* %obj-slot-flags %word-size))))
+  (fn (_ o) (%ptr-ref-word (%obj->ptr o) %reflect-flags-off)))
 
 ; Data-slot read: materialize the object whose pointer sits in data word i.
 ; Addressing via data.x's %data-word-off -- the ONE formula shared with the
@@ -107,7 +112,7 @@
 ; --- type reflection ---
 ; The type slot (header word 1) as an integer tag.
 (def %reflect-type-word
-  (fn (_ o) (%ptr-ref-word (%obj->ptr o) (* %obj-slot-type %word-size))))
+  (fn (_ o) (%ptr-ref-word (%obj->ptr o) %reflect-type-off)))
 
 ; Discriminator tags, resolved once at boot (static objects, stable).
 ; The static-ATOM sentinel tag marks type HANDLES (the name atoms `type of`
