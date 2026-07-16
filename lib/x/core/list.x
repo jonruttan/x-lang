@@ -3,26 +3,36 @@
 
 (doc (def as-list
   (fn (_ x)
-    (if (or (null? x) (pair? x)) x
-      (let ((it (Iter new x)))
-        (def %go (fn (self )
-          (let ((v (it)))
-            (if (null? v) () (pair v (self))))))
-        (%go)))))
+    ; Nested if, NOT `or`: or is an expand-per-evaluation macro (~330
+    ; objects each time), and this fast path runs inside every fold/map
+    ; step in the system (the 2026-07-16 arithmetic-disease probes).
+    (if (null? x) x
+      (if (pair? x) x
+        (let ((it (Iter new x)))
+          (def %go (fn (self )
+            (let ((v (it)))
+              (if (null? v) () (pair v (self))))))
+          (%go))))))
   (param x ANY "A list, nil, or iterable (e.g. vector)")
   (returns LIST "The input as a proper list")
   "Convert any iterable to a list. Lists and nil pass through unchanged.")
 
 (note "Folds")
 
+; The already-normalized loop: as-list runs ONCE in the public entry.
+; The old self-recursion re-entered through (let ((lst (as-list lst))))
+; on EVERY step -- ~575 objects per element, multiplied through the
+; arithmetic wrappers into the system-wide allocation disease.
+(def %fold-go
+  (fn (self f acc lst)
+    (if (null? lst) acc
+      (self f (f acc (first lst)) (rest lst)))))
+
 (doc (def fold
-  (fn (self (param f CALLABLE "Binary function: (accumulator, element) -> new accumulator")
+  (fn (_ (param f CALLABLE "Binary function: (accumulator, element) -> new accumulator")
        (param init ANY "Initial accumulator value")
        (param lst LIST "List or iterable to fold over"))
-    (let ((lst (as-list lst)))
-      (if (null? lst)
-        init
-        (self f (f init (first lst)) (rest lst))))))
+    (%fold-go f init (as-list lst))))
   (returns ANY "Final accumulated value")
   (example "(fold + 0 '(1 2 3))" "6")
   "Fold a function over a list from the left.")
@@ -60,28 +70,38 @@
       ()
       (pair (f (first lst)) (self f (rest lst))))))
 
+; Multi-list loop, inputs already normalized (the old recursion went
+; back through the public entry, re-as-listing every tail per step).
+(def %mapn-go
+  (fn (self f lsts)
+    (if (%any-null? lsts)
+      ()
+      (pair
+        (apply f (%map1 first lsts))
+        (self f (%map1 rest lsts))))))
+
 (doc (def map
-  (fn (self (param f CALLABLE "Function to apply") . (param lsts LIST "One or more lists"))
+  (fn (_ (param f CALLABLE "Function to apply") . (param lsts LIST "One or more lists"))
     (let ((lsts (%map1 as-list lsts)))
       (if (null? (rest lsts))
         (%map1 f (first lsts))
-        (if (%any-null? lsts)
-          ()
-          (pair
-            (apply f (%map1 first lsts))
-            (apply self f (%map1 rest lsts))))))))
+        (%mapn-go f lsts)))))
   (returns LIST "New list")
   "Apply a function to each element. Supports multiple lists.")
 
+; Already-normalized loop; see %fold-go.
+(def %filter-go
+  (fn (self pred lst)
+    (match
+      ((null? lst) ())
+      ((pred (first lst))
+        (pair (first lst) (self pred (rest lst))))
+      (#t (self pred (rest lst))))))
+
 (doc (def filter
-  (fn (self (param pred CALLABLE "Predicate function")
+  (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List or iterable"))
-    (let ((lst (as-list lst)))
-      (match
-        ((null? lst) ())
-        ((pred (first lst))
-          (pair (first lst) (self pred (rest lst))))
-        (#t (self pred (rest lst)))))))
+    (%filter-go pred (as-list lst))))
   (returns LIST "Filtered list")
   "Return elements that satisfy a predicate.")
 
@@ -98,15 +118,20 @@
                   (do (f val) (self))))))
           (%iter-loop))))))
 
+; Multi-list loop, inputs already normalized; see %mapn-go.
+(def %for-eachn-go
+  (fn (self f lsts)
+    (if (not (%any-null? lsts))
+      (do
+        (apply f (%map1 first lsts))
+        (self f (%map1 rest lsts))))))
+
 (doc (def for-each
-  (fn (self (param f CALLABLE "Function to apply") . (param lsts LIST "One or more lists"))
+  (fn (_ (param f CALLABLE "Function to apply") . (param lsts LIST "One or more lists"))
     (let ((lsts (%map1 as-list lsts)))
       (if (null? (rest lsts))
         (%for-each1 f (first lsts))
-        (if (not (%any-null? lsts))
-          (do
-            (apply f (%map1 first lsts))
-            (apply self f (%map1 rest lsts))))))))
+        (%for-eachn-go f lsts)))))
   "Apply a function to each element for side effects.")
 
 (note "Predicates")

@@ -61,20 +61,32 @@
 ; --- Named let: (let name ((var init) ...) body...) ---
 
 (def %let let)
+; Named let compiles DIRECTLY to a self-passing fn application: fn's
+; arg 0 IS the closure, so (let go ((i 0)) body) is exactly
+; ((fn (go i) body) 0) -- no letrec/set! source-construction cascade
+; (the old path built letrec -> let -> %let forms per EVALUATION,
+; ~2,650 objects; the 2026-07-16 disease probes).  Init expressions
+; still evaluate in the OUTER env, as application arguments.
+(def %named-let-params
+  (fn (self bindings)
+    (match
+      ((eq? bindings ()) ())
+      (#t (pair (first (first bindings)) (self (rest bindings)))))))
+(def %named-let-inits
+  (fn (self bindings)
+    (match
+      ((eq? bindings ()) ())
+      (#t (pair (first (rest (first bindings))) (self (rest bindings)))))))
 (def let
   (op (first-arg . rest-args)
     e
     (if (symbol? first-arg)
       (tail-eval
-        (list
-          (lit letrec)
-          (list
-            (list
-              first-arg
-              (pair
-                (lit fn)
-                (pair (pair (lit _) (map first (first rest-args))) (rest rest-args)))))
-          (pair first-arg (map (fn (_ b) (first (rest b))) (first rest-args))))
+        (pair
+          (pair (lit fn)
+            (pair (pair first-arg (%named-let-params (first rest-args)))
+              (rest rest-args)))
+          (%named-let-inits (first rest-args)))
         e)
       (tail-eval (pair (lit %let) (pair first-arg rest-args)) e))))
 
@@ -82,23 +94,30 @@
 
 (doc cond "Multi-way conditional: evaluates clauses in order, returning the body of the first true test. Supports else and => syntax."
   (param clauses LIST "List of (test body...) clauses; use else for default"))
+; Param helpers, nested if, eq?-nil -- NO lets, named-lets, or `and`:
+; the old body allocated ~3,000 objects per cond EVALUATION (a named-let
+; + two lets + an and per clause walk; the 2026-07-16 disease probes),
+; and cond runs everywhere in lib.
+(def %cond-hit
+  (fn (_ v clause cls e)
+    (if v
+      (if (pair? (rest clause))
+        (if (eq? (first (rest clause)) (lit =>))
+          ((eval (first (rest (rest clause))) e) v)
+          (tail-eval (pair (lit do) (rest clause)) e))
+        (tail-eval (pair (lit do) (rest clause)) e))
+      (%cond-loop (rest cls) e))))
+(def %cond-loop
+  (fn (self cls e)
+    (if (eq? cls ())
+      ()
+      (if (eq? (first (first cls)) (lit else))
+        (tail-eval (pair (lit do) (rest (first cls))) e)
+        (%cond-hit (eval (first (first cls)) e) (first cls) cls e)))))
 (def cond
   (op clauses
     e
-    (let %cond-loop
-      ((cls clauses))
-      (if (null? cls)
-        ()
-        (let ((clause (first cls)))
-          (if (eq? (first clause) (lit else))
-            (tail-eval (pair (lit do) (rest clause)) e)
-            (let ((test-val (eval (first clause) e)))
-              (if test-val
-                (if (and (pair? (rest clause))
-                         (eq? (first (rest clause)) (lit =>)))
-                  ((eval (first (rest (rest clause))) e) test-val)
-                  (tail-eval (pair (lit do) (rest clause)) e))
-                (%cond-loop (rest cls))))))))))
+    (%cond-loop clauses e)))
 
 ; --- case (value dispatch with multi-expression clause bodies) ---
 

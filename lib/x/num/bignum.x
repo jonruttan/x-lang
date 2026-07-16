@@ -418,66 +418,81 @@
 ; operands are plain ints, so these folds check %would-overflow-* and promote.
 ; Binary % < = need no wrapper at all: the C prims dispatch directly.
 
+; The per-pair binaries, NAMED so the 2-arg fast path below calls them
+; directly -- (op a b) is the overwhelming shape and the fold entry
+; costs ~1,100 objects per call (the measured allocation disease).
+(def %big-add2
+  (fn (_ acc x)
+    (if (if (%int-number? acc) (%int-number? x) #f)
+      (if (%would-overflow-add? acc x)
+        (%big-add (%ensure-big acc) (%ensure-big x))
+        (%int+ acc x))
+      (%int+ acc x))))
+(def %big-sub2
+  (fn (_ acc x)
+    (if (if (%int-number? acc) (%int-number? x) #f)
+      (if (%would-overflow-add? acc (%int- 0 x))
+        (%big-sub (%ensure-big acc) (%ensure-big x))
+        (%int- acc x))
+      (%int- acc x))))
+(def %big-mul2
+  (fn (_ acc x)
+    (if (if (%int-number? acc) (%int-number? x) #f)
+      (if (%would-overflow-mul? acc x)
+        (%big-mul (%ensure-big acc) (%ensure-big x))
+        (%int* acc x))
+      (%int* acc x))))
+
 (doc + "Add numbers, promoting to bignum on overflow."
   (param args INTEGER|BIGNUM "Numbers to add")
   (returns INTEGER|BIGNUM "Sum"))
 (set! +
   (fn (_ . args)
-    (if (null? args) 0
-      (fold
-        (fn (_ acc x)
-          (if (if (%int-number? acc) (%int-number? x) #f)
-            (if (%would-overflow-add? acc x)
-              (%big-add (%ensure-big acc) (%ensure-big x))
-              (%int+ acc x))
-            (%int+ acc x)))
-        (first args) (rest args)))))
+    (if (eq? args ()) 0
+      (if (eq? (rest args) ()) (first args)
+        (if (eq? (rest (rest args)) ())
+          (%big-add2 (first args) (first (rest args)))
+          (fold %big-add2 (first args) (rest args)))))))
 
 (doc - "Subtract numbers, promoting to bignum on overflow. Unary form negates."
   (param args INTEGER|BIGNUM "Numbers to subtract")
   (returns INTEGER|BIGNUM "Difference"))
 (set! -
   (fn (_ . args)
-    (if (null? args) 0
-      (if (null? (rest args))
+    (if (eq? args ()) 0
+      (if (eq? (rest args) ())
         ; Unary negation: plain ints negate directly; typed values (bignum,
         ; rational, float, ...) negate via the dispatching binary (- 0 x),
         ; which routes to the type's own - handler.
         (if (%int-number? (first args))
           (%int- (first args))
           (%int- 0 (first args)))
-        (fold
-          (fn (_ acc x)
-            (if (if (%int-number? acc) (%int-number? x) #f)
-              (if (%would-overflow-add? acc (%int- 0 x))
-                (%big-sub (%ensure-big acc) (%ensure-big x))
-                (%int- acc x))
-              (%int- acc x)))
-          (first args) (rest args))))))
+        (if (eq? (rest (rest args)) ())
+          (%big-sub2 (first args) (first (rest args)))
+          (fold %big-sub2 (first args) (rest args)))))))
 
 (doc * "Multiply numbers, promoting to bignum on overflow."
   (param args INTEGER|BIGNUM "Numbers to multiply")
   (returns INTEGER|BIGNUM "Product"))
 (set! *
   (fn (_ . args)
-    (if (null? args) 1
-      (fold
-        (fn (_ acc x)
-          (if (if (%int-number? acc) (%int-number? x) #f)
-            (if (%would-overflow-mul? acc x)
-              (%big-mul (%ensure-big acc) (%ensure-big x))
-              (%int* acc x))
-            (%int* acc x)))
-        (first args) (rest args)))))
+    (if (eq? args ()) 1
+      (if (eq? (rest args) ()) (first args)
+        (if (eq? (rest (rest args)) ())
+          (%big-mul2 (first args) (first (rest args)))
+          (fold %big-mul2 (first args) (rest args)))))))
 
 (doc / "Divide numbers; bignum operands dispatch through the type ops."
   (param args INTEGER|BIGNUM "Numbers to divide")
   (returns INTEGER|BIGNUM "Quotient"))
 (set! /
   (fn (_ . args)
-    (if (null? args) 1
-      (fold (fn (_ acc x) (%int/ acc x))
-        (first args) (rest args)))))
+    (if (eq? args ()) 1
+      (if (eq? (rest args) ()) (first args)
+        (if (eq? (rest (rest args)) ())
+          (%int/ (first args) (first (rest args)))
+          (fold (fn (_ acc x) (%int/ acc x))
+            (first args) (rest args)))))))
 
 ; --- Type registration ---
 
