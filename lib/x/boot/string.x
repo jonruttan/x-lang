@@ -30,21 +30,19 @@
 ; newline resolves `display` at call time, so it may live here unchanged.
 (def newline (fn (_ ) (display "\n")))
 
-; str=?: string equality, compared by BYTES (str-byte-*). Byte equality is the
-; same answer as code-point equality, and staying byte keeps it O(n) and immune
-; to any pushed string-call handler.
-(def %str-eq-loop
-  (fn (self a b i len)
-    (match
-      ((= i len) #t)
-      ((= (%char->integer (%str-byte-ref a i)) (%char->integer (%str-byte-ref b i)))
-        (self a b (+ i 1) len))
-      (#t #f))))
+; str=?: string equality by BYTES -- one (mem cmp) block-compare after the
+; length check (was an interpreted per-byte loop, ~10 evals/byte on every
+; string compare in the system).  Byte equality is the same answer as
+; code-point equality, and staying byte keeps it immune to any pushed
+; string-call handler.  GC-safe: the raw ptrs live only inside the one
+; expression, and collection is explicit-only.
+(def %mem-cmp  (prim-ref (lit mem) (lit cmp)))
+(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
 (def str=?
   (fn (_ a b)
     (match
       ((= (%str-byte-len a) (%str-byte-len b))
-        (%str-eq-loop a b 0 (%str-byte-len a)))
+        (eq? 0 (%mem-cmp (%str->ptr a) (%str->ptr b) (%str-byte-len a))))
       (#t #f))))
 
 ; number->str: (number->str n [radix]) -> string

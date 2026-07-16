@@ -111,27 +111,34 @@ not run -- see tests/spec-format.md.)
 ---
     (#f #t)
 
-## End-of-input -- PENDING
+## End-of-input (read-only views)
 
-These stay pending: a `(buf make)` view is non-read-only, so an exhausted
-`Buf read` extends from stdin (blocking on, or consuming, the harness's
-own spec input) instead of returning `()`. The read-only flag
-(`X_OBJ_FLAG_RO`) is only set by the C tokenizer's own buffers
-(token-read-string) and is not reachable from x-lang construction. When an
-RO construction door exists, re-point these at it and add the `---` +
-expected block back.
+`(buf make s %obj-flag-ro)` constructs a READ-ONLY view: an exhausted
+read returns `()` instead of extending from stdin (which would block on,
+or consume, the harness's own spec input).  The flag value comes from the
+committed obj-layout descriptor, not a magic number.  Note the write
+cursor of a view starts at the BASE: an RO view of "x" must first walk
+its write cursor past the content via `Buf append`-free means -- the C
+tokenizer does this internally -- so these specs use `Buf tok` semantics:
+a fresh RO view has read == write == base, i.e. it is ALREADY exhausted.
 
 ### a read-only view returns () at end of input
 
 ```scheme
-(null? (do (def %b (Buf make-ro "x")) (Buf read %b) (Buf read %b)))
+(null? (do (def %b ((prim-ref (lit buf) (lit make)) "x" %obj-flag-ro))
+           ((prim-ref (lit buf) (lit read)) %b)))
 ```
+---
+    #t
 
-### empty input is an immediately-exhausted buffer
+### empty input is an immediately-exhausted read-only buffer
 
 ```scheme
-(null? (do (def %b (Buf make-ro "")) (Buf read %b)))
+(null? (do (def %b ((prim-ref (lit buf) (lit make)) "" %obj-flag-ro))
+           ((prim-ref (lit buf) (lit read)) %b)))
 ```
+---
+    #t
 
 ## Buf type identity
 
