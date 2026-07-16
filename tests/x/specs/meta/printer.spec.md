@@ -131,25 +131,22 @@ no-ops (kept for embedders that pre-register the type).
 ---
     "[\"in\"]"
 
-### write-to-str survives a 12k-element list (tail join) -- PENDING
+### write-to-str survives a 12k-element list (tail join)
 
-PENDING until the printer's per-element allocation is fixed: rendering
-one list element currently allocates ~0.5-0.8MB that the explicit-only
-GC never reclaims (measured 2026-07-15: boot ~530MB RSS; write of a
-500-list +270MB; to-str +145MB more -- profile IDENTICAL back through
-eceb1d5, i.e. pre-existing since the printer migration, not a fix-round
-regression).  At 12k elements that is ~10GB: this block OOM-killed the
-16GB ubuntu CI runners while macOS compressed memory silently absorbed
-it locally.  The tail-join fix it pins is real (the old non-tail join
-segfaulted at ~10k elements), but proving it needs N above the old
-crash threshold, which is unrunnable until the memory disease is cured.
-Re-enable with `---` + `#t` when per-element cost drops ~100x.
+Re-armed after the allocation-disease cure (fold/as-list once-only
+normalization, arithmetic fast paths, lean cond/or/named-let): the
+per-element cost fell ~6.7x and this render measures 1.85GB RSS /
+8.6s on Linux under a 4GB cap (2026-07-16) -- OOM-killing 16GB CI
+runners before the cure.  It pins the TAIL join: the old non-tail
+round segfaulted at ~10k elements.
 
 ```scheme
 (do
   (def %build (fn (self n acc) (match ((eq? n 0) acc) (#t (self (- n 1) (pair n acc))))))
   (str? ((prim-ref (lit io) (lit write-to-str)) (%build 12000 ()))))
 ```
+---
+    #t
 
 ### an error mid-render restores the sink and propagates
 
