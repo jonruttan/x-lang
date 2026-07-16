@@ -320,6 +320,11 @@
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
 (%type-push-call (%type-by-atom %rational) (%class-call-handler Rational))
 
+; Join the pact last, once the module is fully usable: tower members
+; announce themselves so pairwise registrations fire in any load order.
+(import x/sys/pact)
+(Pact join (lit rational) %rational)
+
 (doc (provide x/num/rational Rational)
   (note "Literal syntax: 1/3, -2/7. The generic operators dispatch rational")
   (note "operands through the type ops; / promotes inexact int division.")

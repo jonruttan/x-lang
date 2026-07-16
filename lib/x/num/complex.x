@@ -342,6 +342,11 @@
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
 (%type-push-call (%type-by-atom %complex) (%class-call-handler Complex))
 
+; Join the pact last, once the module is fully usable: tower members
+; announce themselves so pairwise registrations fire in any load order.
+(import x/sys/pact)
+(Pact join (lit complex) %complex)
+
 (doc (provide x/num/complex Complex)
   (note "Literal syntax: a+bi, a-bi (e.g. 3+4i, 0+1i, 2-3i)")
   (note "Extends arithmetic operators (+, -, *, /, =) with complex promotion.")

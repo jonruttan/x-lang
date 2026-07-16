@@ -284,25 +284,34 @@
   "Test whether a value is a real number (complex.x narrows this to exclude complexes).")
 
 ; --- Bignum -> float conversion (registered late, after f+/f* are defined) ---
-(if (not (null? %bignum))
-  (do
-    (def %from-cell (%type-from-cell (%type-by-atom %float)))
-    (set-first! %from-cell
-      (pair
-        (pair %bignum
-          (fn (_ value)
-            (def sign (first (first value)))
-            (def limbs (reverse (rest (first value))))
-            (def fbase (%exact->inexact %bignum-base))
-            (def fzero (%exact->inexact 0))
-            ; Horner's method on reversed (now MSB-first) limbs
-            (def %go
-              (fn (self ls acc)
-                (if (null? ls) acc
-                  (self (rest ls) (%f-add (%f-mul acc fbase) (%exact->inexact (first ls)))))))
-            (def mag (%go limbs fzero))
-            (if (%int= sign -1) (%f-sub fzero mag) mag)))
-        (first %from-cell)))))
+; A pairwise registration: it needs bignum's handle (the from-alist key) and
+; float's arithmetic (the converter body), so neither module alone can install
+; it. Filed with the pact, it runs right here when bignum loaded first, at
+; bignum's join when bignum loads later, and never when bignum never loads.
+; (The old `(if (not (null? %bignum))` guard raised Unbound SYMBOL whenever
+; bignum was absent -- an unbound global is not nil.)
+(import x/sys/pact)
+(Pact when (list (lit bignum))
+  (fn (_ big)
+    ; %bignum-base and `reverse` (x/core/list) are bignum.x's load-time
+    ; bindings; the pact guarantees bignum fully loaded before this fires.
+    (let ((from-cell (%type-from-cell (%type-by-atom %float))))
+      (set-first! from-cell
+        (pair
+          (pair big
+            (fn (_ value)
+              (def sign (first (first value)))
+              (def limbs (reverse (rest (first value))))
+              (def fbase (%exact->inexact %bignum-base))
+              (def fzero (%exact->inexact 0))
+              ; Horner's method on reversed (now MSB-first) limbs
+              (def %go
+                (fn (self ls acc)
+                  (if (null? ls) acc
+                    (self (rest ls) (%f-add (%f-mul acc fbase) (%exact->inexact (first ls)))))))
+              (def mag (%go limbs fzero))
+              (if (%int= sign -1) (%f-sub fzero mag) mag)))
+          (first from-cell))))))
 
 (import x/type/object)
 
@@ -416,6 +425,10 @@
 ; Value dispatch (subject-last): (3.14 float?) -> (Float float? 3.14).
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
 (%type-push-call (%type-by-atom %float) (%class-call-handler Float))
+
+; Join the pact last, once the module is fully usable: any registration
+; waiting on float fires against the finished class and type ops.
+(Pact join (lit float) %float)
 
 (doc (provide x/num/float Float)
   (note "Literal syntax: 3.14. The generic operators dispatch float operands")

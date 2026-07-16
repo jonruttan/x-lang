@@ -623,6 +623,12 @@
 (def %type-push-call (prim-ref (lit type) (lit push-call)))
 (%type-push-call (%type-by-atom %bignum) (%class-call-handler Bignum))
 
+; Join the pact last, once the module is fully usable: this fires any
+; pairwise registration waiting on bignum (e.g. float's bignum->float
+; conversion) regardless of which module loaded first.
+(import x/sys/pact)
+(Pact join (lit bignum) %bignum)
+
 (doc (provide x/num/bignum Bignum)
   (note "Auto-promotes when integers exceed native range; the generic operators")
   (note "dispatch bignum operands through the type ops. API: (Bignum + a b), ...")
