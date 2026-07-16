@@ -11,19 +11,23 @@
 ; error (the kernel's -errno), (File read) returns 0 at end-of-file.
 ;
 ;   (let ((fd (File open "/etc/hostname" (lit rdonly))))
-;     (let ((buf (make-str 64)))
+;     (let ((buf ((prim-ref (lit str) (lit make)) 64)))
 ;       (let ((n (File read fd buf 64)))    ; n bytes now live in buf
 ;         (File close fd)
 ;         n)))
 ;
 ; Dependencies: this module imports x/platform/syscall for `syscall-id` (the
-; name->number lookup). The actual I/O additionally needs the `syscall` and
-; `make-str` C primitives, which only the x-or dialect provides -- so File
-; loads anywhere but its methods only RUN under x-or.
+; name->number lookup). Read buffers come from (str make n) -- a GC-owned
+; n-byte string region (fetched below as %make-str) -- so File runs under
+; plain x-core; no extra dialect is needed.
 (import x/core/list)
 (import x/core/alist)
 (import x/platform/syscall)
 (import x/type/object)
+
+; GC-owned read buffers: (str make n) allocates an n-byte string region the
+; collector owns (no free needed). Fetched once here; getc allocates per call.
+(def %make-str (prim-ref (lit str) (lit make)))
 
 ; --- The flag tables (surfaced via the methods below) ---
 ; Static value members can't carry help text, so the tables live as data and
@@ -66,10 +70,10 @@
   (doc "Blocking file I/O over raw POSIX syscalls (open/close/read/write)."
     (note "Lifecycle: (File open path mode) -> a file descriptor; thread it through (File read)/(File write)/(File getc); (File close fd) when done.")
     (note "Return values are the raw syscall results: a negative number is an error (-errno). (File read) returns the byte count, 0 at EOF; (File getc) returns -1 at EOF.")
-    (note "read/write/getc operate on a caller-allocated string buffer (make-str N under x-or): read fills it and returns how many bytes landed; write sends `size` bytes out of it.")
+    (note "read/write/getc operate on a caller-allocated string buffer -- allocate one with (str make N), fetched via (prim-ref (lit str) (lit make)): read fills it and returns how many bytes landed; write sends `size` bytes out of it.")
     (note "(File open)'s mode is flexible: a number passes straight through; a single symbol (rdonly, wronly, ...) resolves via (File file-modes); a list of symbols is OR'd together -- (list (lit wronly) (lit creat) (lit trunc)) is 577. Call (File file-modes) for the full table, or (File stat-flags) for the stat S_* flags.")
-    (note "`syscall-id` is pulled in automatically (imports x/platform/syscall). The methods still need the x-or dialect, which supplies the `syscall` and `make-str` C primitives -- so File only RUNS under x-or.")
-    (example "(let ((fd (File open \"/etc/hostname\" (lit rdonly)))) (let ((buf (make-str 64))) (let ((n (File read fd buf 64))) (File close fd) n)))" "the byte count read into buf, with the fd closed afterward"))
+    (note "`syscall-id` is pulled in automatically (imports x/platform/syscall); `syscall` and (str make) are core primitives, so File runs under plain x-core.")
+    (example "(let ((fd (File open \"/etc/hostname\" (lit rdonly)))) (let ((buf ((prim-ref (lit str) (lit make)) 64))) (let ((n (File read fd buf 64))) (File close fd) n)))" "the byte count read into buf, with the fd closed afterward"))
   (static
     (method file-modes (self)
       (doc "The file open-mode table: an alist mapping each symbolic O_* flag name to its numeric Linux value. Use a key as (File open)'s mode argument; OR numeric values together for combined flags."
@@ -125,12 +129,12 @@
       (doc "Read a single character from a file descriptor."
         (returns CHAR "Character read, or -1 at EOF")
         (example "(File getc fd)" "the next byte as a char, or -1 at EOF"))
-      (let ((buffer (make-str 1)))
+      (let ((buffer (%make-str 1)))
         (let ((bytes-read (File read fd buffer 1)))
           (if (<= bytes-read 0)
             (- 0 1)
             (str-ref buffer 0)))))))
 
 (doc (provide x/sys/file File)
-  (note "Imports x/platform/syscall for syscall-id; the methods additionally need the x-or dialect's syscall/make-str C primitives. Call (File file-modes) / (File stat-flags) for the symbolic flag tables.")
+  (note "Imports x/platform/syscall for syscall-id; read buffers come from the (str make) core primitive, so File runs under plain x-core. Call (File file-modes) / (File stat-flags) for the symbolic flag tables.")
   "File I/O via POSIX syscalls, homed on the File class.")

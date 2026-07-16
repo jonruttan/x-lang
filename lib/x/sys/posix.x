@@ -23,6 +23,13 @@
 (def %dlopen (prim-ref (lit ffi) (lit dlopen)))
 (def %dlsym (prim-ref (lit ffi) (lit dlsym)))
 
+; GC-owned byte regions for FFI out-params (pipe's fd pair, fd-read's read
+; block): allocate as a string -- the collector owns the region, so there is
+; no free call to miss and nothing leaks when an error unwinds mid-call --
+; then hand libc its raw pointer via (str ->ptr).
+(def %make-str (prim-ref (lit str) (lit make)))
+(def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+
 ;
 ; Pure x-lang over the FFI layer; the libc resolves stay %-private. Loads after
 ; object.x (needs def-class) -- every caller (repl, ansi, logo, tools) is
@@ -112,11 +119,12 @@
       (%ptr-call %c-dup2 old new))
     (method pipe (self)
       (doc "Create a pipe and return a pair of file descriptors." (returns PAIR "Pair of (read-fd . write-fd)"))
-      (let ((buf (%cvt (%ptr-call %c-malloc 8) %ptr)))
-        (%ptr-call %c-pipe buf)
-        (let ((r (%ptr-ref buf 0 4)) (w (%ptr-ref buf 4 4)))
-          (%ptr-call %c-free buf)
-          (pair r w))))
+      ; The two 4-byte fds land in a GC-owned (str make) region; the outer
+      ; let keeps the backing string alive across the ptr reads.
+      (let ((s (%make-str 8)))
+        (let ((buf (%str->ptr s)))
+          (%ptr-call %c-pipe buf)
+          (pair (%ptr-ref buf 0 4) (%ptr-ref buf 4 4)))))
     ; --- File I/O (O_* flags from the platform table, resolved at load above) ---
     (method open-read (self (param path STRING "File path to open"))
       (doc "Open a file for reading." (returns INTEGER "File descriptor, or -1 on error"))
@@ -139,17 +147,16 @@
       (doc "Read up to n bytes from a file descriptor (libc read via FFI)."
         (returns LIST "Byte values (0-255) in read order; () at EOF or on error")
         (example "(Sys fd-read fd 4)" "(112 9 240 3)"))
-      ; Read into a fresh block, then copy the bytes out before freeing it --
-      ; the same malloc/%ptr-ref/free dance as `pipe`. %ptr-ref returns a signed
-      ; cell, so mask each to a byte. got<=0 (EOF/error) leaves the loop at i<0
-      ; and yields ().
-      (let ((buf (%cvt (%ptr-call %c-malloc n) %ptr)))
-        (let ((got (%ptr-call (%resolve "read") fd buf n)))
-          (let ((bytes (let go ((i (- got 1)) (acc ()))
-                         (if (< i 0) acc
-                           (go (- i 1) (pair (& (%ptr-ref buf i 1) 255) acc))))))
-            (%ptr-call %c-free buf)
-            bytes))))
+      ; Read into a GC-owned (str make) region -- like `pipe`, no free call:
+      ; the collector owns the backing string (bound in the outer let so it
+      ; outlives the ptr walk). %ptr-ref returns a signed cell, so mask each
+      ; to a byte. got<=0 (EOF/error) leaves the loop at i<0 and yields ().
+      (let ((s (%make-str n)))
+        (let ((buf (%str->ptr s)))
+          (let ((got (%ptr-call (%resolve "read") fd buf n)))
+            (let go ((i (- got 1)) (acc ()))
+              (if (< i 0) acc
+                (go (- i 1) (pair (& (%ptr-ref buf i 1) 255) acc))))))))
     (method file-exists? (self (param path STRING "File path to check"))
       (doc "Check if a file exists (via access with F_OK=0)." (returns BOOLEAN "True if file exists"))
       (= (%ptr-call (%resolve "access") path 0) 0))
