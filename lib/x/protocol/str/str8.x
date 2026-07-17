@@ -47,10 +47,15 @@
         (example "(Str8 length \"abc\")" "3"))
       (%str-byte-len v))
     (method index  (self (param i INT "Byte position (0-based)") (param v STRING "String to index"))
-      (doc "The i-th byte of v as a CHARACTER (code 0-255)."
+      (doc "The i-th byte of v as a CHARACTER (code 0-255); errors when i is out of range."
         (returns CHAR "Byte at position i")
         (example "(Str8 index 0 \"abc\")" "#\\a"))
-      (%str-byte-ref v i))
+      ; %str-byte-ref reads s[i] unchecked (heap over-read past the string), so
+      ; the byte-length compare here is the x-lang guard. Nested ifs, not `or`:
+      ; this runs per element inside the suite's loops and must not allocate.
+      (if (< i 0) (error "Str8 index: index out of range")
+        (if (< i (%str-byte-len v)) (%str-byte-ref v i)
+          (error "Str8 index: index out of range"))))
     (method sub    (self (param st INT "Start byte offset (0-based)") (param len INT "Number of bytes") (param v STRING "Source string"))
       (doc "Substring of len bytes starting at byte offset st."
         (returns STRING "The len-byte slice of v from st")

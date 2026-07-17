@@ -102,6 +102,38 @@
 ---
     20
 
+### indexes from the end with negative, matching the call slot
+
+```scheme
+(Vector ref -1 (Vector of 10 20 30))
+```
+---
+    30
+
+### errors past the end instead of reading raw memory
+
+```scheme
+(Vector ref 5 (Vector of 10 20 30))
+```
+---
+    Error: Vector ref: index out of range
+
+### errors past the front on a negative index
+
+```scheme
+(Vector ref -4 (Vector of 10 20 30))
+```
+---
+    Error: Vector ref: index out of range
+
+### the bare call slot is bounds-checked too
+
+```scheme
+((Vector of 10 20 30) 5)
+```
+---
+    Error: vector: index out of range
+
 ## vector-length
 
 ### returns the length of a vector

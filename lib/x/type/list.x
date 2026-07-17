@@ -37,8 +37,14 @@
       (doc "Return the number of elements." (param lst LIST "List or iterable"))
       (List fold (fn (_ acc _) (+ acc 1)) 0 lst))
     (method nth (self n lst)
-      (doc "Return the element at index n (zero-based)." (param n INT "Zero-based index") (param lst LIST "List"))
-      (if (= n 0) (first lst) (recur self (- n 1) (rest lst))))
+      (doc "Return the element at index n (zero-based); errors when n is out of range." (param n INT "Zero-based index") (param lst LIST "List"))
+      ; first/rest are unchecked C prims (UB on a non-pair -- segfaults on
+      ; 32-bit); the pair? guard is the x-lang call-site check that makes an
+      ; overrun (or a negative n walking off the end) an error, not a crash.
+      (match
+        ((not (pair? lst)) (error "List nth: index out of range"))
+        ((= n 0) (first lst))
+        (#t (recur self (- n 1) (rest lst)))))
     (method last (self lst)
       (doc "Return the last element of a list." (param lst LIST "Non-empty list"))
       (if (null? (rest lst)) (first lst) (recur self (rest lst))))

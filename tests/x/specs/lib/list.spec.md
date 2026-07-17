@@ -90,6 +90,22 @@
 ---
     10
 
+### errors past the end instead of crashing
+
+```scheme
+(List nth 5 (list 1 2))
+```
+---
+    Error: List nth: index out of range
+
+### errors on a negative index
+
+```scheme
+(List nth -1 (list 1 2))
+```
+---
+    Error: List nth: index out of range
+
 ## last
 
 ### returns last element

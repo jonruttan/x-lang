@@ -2,6 +2,7 @@
 (import x/protocol/str/str8)
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
+(def %str-byte-len (prim-ref (lit str) (lit byte-len)))
 
 (import x/codec/utf8)
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
@@ -24,10 +25,14 @@
 ; access -- prefer ->list / cursor traversal to visit every element).
 
 ; Byte offset of code-point index k: advance k whole sequences from byte `from`.
+; Clamps at the byte length instead of decoding past the end (%utf8-decode is
+; an unchecked read) -- callers detect out-of-range by landing at the length.
 (def %u8-byte-offset
   (fn (self s k from)
     (if (= k 0) from
-      (self s (- k 1) (rest (%utf8-decode s from))))))
+      (if (< from (%str-byte-len s))
+        (self s (- k 1) (rest (%utf8-decode s from)))
+        from))))
 
 (def-class StrUTF8 (extends Str8)
   (static
@@ -38,10 +43,16 @@
       (self count v))   ; code points, via Seq's cursor walk
 
     (method index (self (param i INT "Code-point position (0-based)") (param v STRING "String to index"))
-      (doc "The i-th CODE POINT of v as a CHARACTER, found by an O(n) UTF-8 walk."
+      (doc "The i-th CODE POINT of v as a CHARACTER, found by an O(n) UTF-8 walk; errors when i is out of range."
         (returns CHAR "Code point at position i")
         (example "(StrUTF8 index 1 \"$¢€\")" "#\\¢"))
-      (%integer->char (first (%utf8-decode v (%u8-byte-offset v i 0)))))
+      ; The walker clamps at the byte length, so landing there means i is past
+      ; the last code point -- error instead of decoding past the end.
+      (if (< i 0) (error "Str index: index out of range")
+        (let ((b (%u8-byte-offset v i 0)))
+          (if (< b (%str-byte-len v))
+            (%integer->char (first (%utf8-decode v b)))
+            (error "Str index: index out of range")))))
 
     (method sub (self (param start INT "Start code-point offset (0-based)") (param len INT "Number of code points") (param v STRING "Source string"))
       (doc "Substring of len CODE POINTS starting at code-point offset start (O(n) walk)."

@@ -46,10 +46,14 @@
       (pair
         (lit call)
         (fn (_ self . args)
+          ; Bounds-checked like (Vector ref ...): %obj-ref past the object is a
+          ; raw memory read, so slot 0's length is the guard for bare (v i) too.
           (def i (first args))
-          (if (< i 0)
-            (%obj-ref self (+ (%obj-ref self 0) i 1))
-            (%obj-ref self (+ i 1)))))
+          (def len (%obj-ref self 0))
+          (def j (if (< i 0) (+ len i) i))
+          (if (< j 0) (error "vector: index out of range")
+            (if (< j len) (%obj-ref self (+ j 1))
+              (error "vector: index out of range")))))
       (pair
         (lit write)
         (fn (_ self)
@@ -146,9 +150,17 @@
       (doc "Test whether a value is a vector." (returns BOOL "True if x is a vector"))
       (%type? x %vector))
     ; --- Access ---
-    (method ref (self (param i INT "Zero-based index") (param v VECTOR "Vector"))
-      (doc "Return the element at index i of a vector." (returns ANY "Element at index i"))
-      (%obj-ref v (+ i 1)))
+    (method ref (self (param i INT "Zero-based index; negative counts from the end") (param v VECTOR "Vector"))
+      (doc "Return the element at index i of a vector; negative i counts from the end. Errors when i is out of range."
+        (returns ANY "Element at index i"))
+      ; %obj-ref is a raw slot read (arbitrary memory past the object), so the
+      ; length in slot 0 is the x-lang bounds check. Negative normalization
+      ; matches the vector's call slot, so (Vector ref -1 v) == (v -1).
+      (def len (%obj-ref v 0))
+      (def j (if (< i 0) (+ len i) i))
+      (if (< j 0) (error "Vector ref: index out of range")
+        (if (< j len) (%obj-ref v (+ j 1))
+          (error "Vector ref: index out of range"))))
     (method length (self (param v VECTOR "Vector"))
       (doc "Return the number of elements in a vector." (returns INT "Number of elements"))
       (%obj-ref v 0))

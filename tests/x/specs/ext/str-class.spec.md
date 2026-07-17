@@ -25,6 +25,30 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ---
     194
 
+### Str8 index errors past the end instead of over-reading
+
+```scheme
+(Str8 index 10 "ab")
+```
+---
+    Error: Str8 index: index out of range
+
+### Str8 index errors on a negative index
+
+```scheme
+(Str8 index -1 "ab")
+```
+---
+    Error: Str8 index: index out of range
+
+### StrUTF8 index errors past the last code point
+
+```scheme
+(StrUTF8 index 3 "$¢€")
+```
+---
+    Error: Str index: index out of range
+
 ### StrUTF8 index is always a code point
 
 ```x
