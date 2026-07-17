@@ -32,8 +32,21 @@
 (do
   (def x-lib-version "0.2.0")
 
-  ; Pre-register all library paths so import calls are no-ops
+  ; Pre-register all library paths so import calls are no-ops.
+  ; INVARIANT (machine-checked by make check-boot-order): every lib path this
+  ; file loads with raw `include` -- which does NOT register -- must appear
+  ; here, or a later import of it silently reloads the file mid-boot.  The
+  ; boot files above (loaded before the module system existed) are listed too,
+  ; so the invariant holds uniformly.
   (set-first! %include-list-cell
+    (pair "lib/x-core.x"
+    (pair "lib/x/boot/registry.x"
+    (pair "lib/x/boot/operatives.x"
+    (pair "lib/x/boot/data.x"
+    (pair "lib/x/boot/reflect.x"
+    (pair "lib/x/boot/printer.x"
+    (pair "lib/x/boot/string.x"
+    (pair "lib/x/boot/module.x"
     (pair "lib/x/core/predicates.x"
     (pair "lib/x/core/control.x"
     (pair "lib/x/sys/gc.x"
@@ -59,6 +72,7 @@
     (pair "lib/x/sys/posix.x"
     (pair "lib/x/type/char.x"
     (pair "lib/x/type/str-utf8.x"
+    (pair "lib/x/type/char-io.x"
     (pair "lib/x/type/vector.x"
     (pair "lib/x/type/promise.x"
     (pair "lib/x/type/object.x"
@@ -66,13 +80,18 @@
     (pair "lib/x/protocol/str/str8.x"
     (pair "lib/x/protocol/str/utf8.x"
     (pair "lib/x/type/str.x"
+    (pair "lib/x/type/iter.x"
+    (pair "lib/x/type/base.x"
+    (pair "lib/x/type/list.x"
+    (pair "lib/x/type/gen.x"
     (pair "lib/x/sys/token.x"
     (pair "lib/x/core/quasi.x"
     (pair "lib/x/type/quasi-reader.x"
     (pair "lib/x/type/lit-reader.x"
     (pair "lib/x/core/repl.x"
+    (pair "lib/x/sys/ansi.x"
     (pair "lib/x/core/banner.x"
-      (first %include-list-cell))))))))))))))))))))))))))))))))))))))))
+      (first %include-list-cell))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
   ; --- Standard modules ---
   (include "lib/x/core/predicates.x")

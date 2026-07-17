@@ -143,8 +143,9 @@
 ; Load x-or extensions (parsed through all compiled analysers)
 (include "lib/x/or.x")
 
-; ANSI color support (terminal detection + REPL highlighting)
-(include "lib/x/sys/ansi.x")
+; ANSI colour already loaded by x-core.x -- a second include here re-captured
+; the wrapped %repl-print as %saved-repl-print, making (Ansi disable-repl)
+; "restore" the highlighted printer.
 
 (set! %lang-name "x-or")
 (set! %lang-version x-lib-version)

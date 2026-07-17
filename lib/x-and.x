@@ -145,8 +145,9 @@
 ; Load x-and module (parsed through all compiled analysers)
 (include "lib/x/and.x")
 
-; ANSI color support (terminal detection + REPL highlighting)
-(include "lib/x/sys/ansi.x")
+; ANSI colour already loaded by x-core.x -- a second include here re-captured
+; the wrapped %repl-print as %saved-repl-print, making (Ansi disable-repl)
+; "restore" the highlighted printer.
 
 (set! %lang-name "x-and")
 (set! %lang-version x-lib-version)

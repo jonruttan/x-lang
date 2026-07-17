@@ -8,12 +8,24 @@
 ; taken on this platform (e.g. the Linux arm of an os check) never trips the
 ; runtime fatality, so the trap needs static coverage too.
 ;
-; This lint derives the EFFECTIVE load order from lib/x-core.x -- following
-; (include ...) verbatim, honouring the %include-list-cell pre-seed that makes
-; import/include-once of listed paths no-ops, and expanding (import ...) at
-; its load slot -- and flags any load-time-evaluated form whose head (or
-; def-class parent / interface reference) is a def-class name not yet defined
-; at that point in the order.
+; This lint derives the EFFECTIVE load order from each boot entry (x-core.x,
+; then the three dialect entries) -- following (include ...) verbatim,
+; honouring the %include-list-cell pre-seed that makes import/include-once of
+; listed paths no-ops, and expanding (import ...) at its load slot -- and
+; flags any load-time-evaluated form whose head (or def-class parent /
+; interface reference) is a def-class name not yet defined at that point in
+; the order.
+;
+; It also checks the pre-seed/include parallel-list invariant.  Raw `include`
+; does NOT register a path (only include-once/import do), so a lib module
+; loaded raw must appear in a pre-seed or a later import of it silently
+; reloads the file mid-boot (the type/list.x double-load, the x-and/x-or ansi
+; double-include that broke (Ansi disable-repl)).  Two extra finding kinds:
+;   %%double-load   -- a path actually loaded twice in the simulated order
+;   %%unregistered  -- a raw-included lib path never pre-seed registered
+;                      (one import away from a double load)
+; A finding in x-core.x repeats under each dialect entry -- noise only in
+; failure output; the gate is zero findings.
 ;
 ; Deferred bodies are skipped: fn/op closures, def-class (method ...) bodies,
 ; (lit ...) data, and quasi outside unquote all evaluate after boot, when the
@@ -33,7 +45,13 @@
 (def %str-make (prim-ref (lit str) (lit make)))
 
 ; --- state cells ---
-(def %loaded-cell (pair () ()))    ; paths loaded or pre-seeded (strings)
+; loaded vs registered are DISTINCT sets, as in the real module system: a raw
+; include loads without registering; the pre-seed registers without loading.
+; Conflating them (the old single %loaded-cell) is exactly the false
+; assumption that let the pre-seed drift hide from this lint.
+(def %loaded-cell (pair () ()))    ; paths actually loaded (strings)
+(def %registered-cell (pair () ())) ; paths on the include list: pre-seed + once/import
+(def %raw-cell (pair () ()))       ; ((path . including-file) ...) raw lib includes
 (def %defined-cell (pair () ()))   ; class names def-class'd so far (symbols)
 (def %classes-cell (pair () ()))   ; ((name . file) ...) -- every def-class in lib
 (def %findings-cell (pair () ()))  ; ((file kind detail) ...), newest first
@@ -197,18 +215,33 @@
                   (self (rest form) file)))))
       (#t ()))))
 
-; The pre-seed: strings pushed onto the include list mark those paths loaded,
-; so later import/include-once of them no-op.
+; The pre-seed: strings pushed onto the include list REGISTER those paths, so
+; later import/include-once of them no-op.  They are not loaded by this.
 (def %collect-strs
   (fn (self form)
     (match
-      ((str? form) (%cell-push! %loaded-cell form))
+      ((str? form) (%cell-push! %registered-cell form))
       ((pair? form) (do (self (first form)) (self (rest form))))
       (#t ()))))
 
-; include: verbatim, loads unconditionally.  include-once/require-once/import:
-; no-op when the path is already on the include list.  A non-literal or
-; relative path can't be simulated -- report it rather than skip silently.
+(def %lib-path?
+  (fn (_ path) (Str8 starts? "lib/" path)))
+
+; A path about to be loaded that is ALREADY loaded is a double load -- report
+; it and skip the re-walk (reality reloads the file; re-walking adds nothing
+; the first walk didn't, and skipping keeps cyclic includes terminating).
+(def %load-path
+  (fn (_ path file form)
+    (match
+      ((%member-str path (first %loaded-cell))
+        (%cell-push! %findings-cell (list file (lit %%double-load) path form)))
+      (#t (%process-file path)))))
+
+; include: verbatim, loads unconditionally and does NOT register.
+; include-once/require-once: no-op iff REGISTERED (pre-seed or a prior
+; once/import) -- a raw include does not register, so a later once/import of
+; that path reloads it in reality.  A non-literal or relative path can't be
+; simulated -- report it rather than skip silently.
 (def %do-include
   (fn (_ form file force)
     (let ((arg (first (rest form))))
@@ -221,9 +254,16 @@
         ; nothing in the boot closure uses one -- report, don't mis-simulate
         ((eq? (str-ref arg 0) 46)
           (%cell-push! %findings-cell (list file () () form)))
-        (force (%process-file arg))
-        ((%member-str arg (first %loaded-cell)) ())
-        (#t (%process-file arg))))))
+        (force
+          (do (match
+                ((%lib-path? arg) (%cell-push! %raw-cell (pair arg file)))
+                (#t ()))
+              (%load-path arg file form)))
+        ((%member-str arg (first %registered-cell)) ())
+        (#t
+          ; register BEFORE loading, like module.x -- cycle safety
+          (do (%cell-push! %registered-cell arg)
+              (%load-path arg file form)))))))
 
 (def %do-import
   (fn (_ form file)
@@ -232,8 +272,10 @@
         ((symbol? name)
           (let ((path (Str8 append "lib/" (Str8 append (symbol->str name) ".x"))))
             (match
-              ((%member-str path (first %loaded-cell)) ())
-              (#t (%process-file path)))))
+              ((%member-str path (first %registered-cell)) ())
+              (#t
+                (do (%cell-push! %registered-cell path)
+                    (%load-path path file form))))))
         (#t (%cell-push! %findings-cell (list file () () form)))))))
 
 (set! %walk-form
@@ -300,6 +342,15 @@
                     ((null? (first (rest f)))
                       (do (display "unresolvable include/import ")
                           (%show-form-head (first (rest (rest (rest f)))))))
+                    ((eq? (first (rest f)) (lit %%double-load))
+                      (do (display "double load of ")
+                          (display (first (rest (rest f))))
+                          (display " via ")
+                          (%show-form-head (first (rest (rest (rest f)))))))
+                    ((eq? (first (rest f)) (lit %%unregistered))
+                      (do (display "raw include of ")
+                          (display (first (rest (rest f))))
+                          (display " is not pre-seed registered -- a later import reloads it")))
                     (#t
                       (do (%show-form-head (first (rest (rest (rest f)))))
                           (display " -- class ")
@@ -312,10 +363,42 @@
       (#t ()))))
 
 ; --- main ---
+; Each boot entry is a separate simulation (fresh loaded/registered/defined
+; state; the class inventory and tokenization cache persist).  After each
+; walk, every raw-included lib path must have been registered somewhere in
+; that entry's closure, or it is one import away from a double load.
+(def %reset-run!
+  (fn (_)
+    (do (set-first! %loaded-cell ())
+        (set-first! %registered-cell ())
+        (set-first! %raw-cell ())
+        (set-first! %defined-cell ()))))
+
+(def %check-unregistered
+  (fn (self raws)
+    (match
+      ((pair? raws)
+        (do (match
+              ((%member-str (first (first raws)) (first %registered-cell)) ())
+              (#t (%cell-push! %findings-cell
+                    (list (rest (first raws)) (lit %%unregistered)
+                          (first (first raws)) ()))))
+            (self (rest raws))))
+      (#t ()))))
+
+(def %simulate
+  (fn (_ entry)
+    (do (%reset-run!)
+        (%process-file entry)
+        (%check-unregistered (first %raw-cell)))))
+
 (def %main
   (fn (_ paths)
     (do (%inventory-files paths)
-        (%process-file "lib/x-core.x")
+        (%simulate "lib/x-core.x")
+        (%simulate "lib/x-base.x")
+        (%simulate "lib/x-and.x")
+        (%simulate "lib/x-or.x")
         (match
           ((null? (first %findings-cell)) (do (display "ok") (newline)))
           (#t (%report (reverse (first %findings-cell))))))))
