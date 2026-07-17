@@ -73,7 +73,7 @@ sequence.
 
 ```scheme
 (import x/num/random)
-(let ((b (List nth 0 ((Random sw 8) bytes 1)))) (and (>= b 0) (< b 256)))
+(let ((b (List ref 0 ((Random sw 8) bytes 1)))) (and (>= b 0) (< b 256)))
 ```
 ---
     #t
