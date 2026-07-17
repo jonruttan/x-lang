@@ -981,3 +981,87 @@
 ```
 ---
     "n"
+
+## fold-right
+
+### combines last-to-first, (f acc element) like fold
+
+```scheme
+(List fold-right (fn (_ acc x) (pair x acc)) () (list 1 2 3))
+```
+---
+    (1 2 3)
+
+## chunk
+
+### splits with a short tail
+
+```scheme
+(List chunk 2 (list 1 2 3 4 5))
+```
+---
+    ((1 2) (3 4) (5))
+
+### errors on a non-positive size
+
+```scheme
+(List chunk 0 (list 1))
+```
+---
+    Error: List chunk: size must be positive
+
+## unzip
+
+### inverts zip
+
+```scheme
+(List unzip (List zip (list 1 2) (list 9 8)))
+```
+---
+    ((1 2) (9 8))
+
+## interleave
+
+### alternates, stopping at the shorter
+
+```scheme
+(List interleave (list 1 3 5) (list 2 4))
+```
+---
+    (1 2 3 4)
+
+## distinct
+
+### removes all duplicates, keeping first occurrences
+
+```scheme
+(List distinct (list 1 2 1 3 2 1))
+```
+---
+    (1 2 3)
+
+### works on strings (equal?, not eq?)
+
+```scheme
+(List distinct (list "a" "b" "a"))
+```
+---
+    ("a" "b")
+
+## min / max
+
+### finds extremes
+
+```scheme
+(list (List min (list 3 1 2)) (List max (list 3 1 2)))
+```
+---
+    (1 3)
+
+### errors on empty
+
+```scheme
+(List min ())
+```
+---
+    Error: List min: empty list

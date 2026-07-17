@@ -161,6 +161,19 @@
       (if (< j 0) (error "Vector ref: index out of range")
         (if (< j len) (%obj-ref v (+ j 1))
           (error "Vector ref: index out of range"))))
+    (method set! (self (param i INT "Zero-based index; negative counts from the end")
+                       (param x ANY "Value to store")
+                       (param v VECTOR "Vector"))
+      (doc "Store x at index i of a vector (in place); negative i counts from the end. Errors when i is out of range; returns the vector for chaining."
+        (returns VECTOR "v")
+        (example "(Vector ref 0 (Vector set! 0 99 (Vector of 1 2)))" "99"))
+      ; Same guard discipline as ref: slot-0 length is the x-lang bounds
+      ; check over the raw %obj-set!, and negatives normalize identically.
+      (def len (%obj-ref v 0))
+      (def j (if (< i 0) (+ len i) i))
+      (if (< j 0) (error "Vector set!: index out of range")
+        (if (< j len) (do (%obj-set! v (+ j 1) x) v)
+          (error "Vector set!: index out of range"))))
     (method length (self (param v VECTOR "Vector"))
       (doc "Return the number of elements in a vector." (returns INT "Number of elements"))
       (%obj-ref v 0))

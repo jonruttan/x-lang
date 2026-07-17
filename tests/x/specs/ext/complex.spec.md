@@ -275,3 +275,13 @@
 ```
 ---
     #t
+
+## modulo
+
+### % refuses instead of computing garbage
+
+```scheme
+(% 1+2i 2)
+```
+---
+    Error: complex: % is undefined for complex numbers

@@ -15,7 +15,8 @@
 ; @license MIT No Attribution (MIT-0)
 
 (import x/sys/posix)            ; the Sys class: open-read / fd-read / close
-(import x/type/list)            ; the List class: fold / ref / length / remove
+(import x/type/list)            ; the List class: fold / ref / length
+(import x/type/vector)          ; Vector from-list / ref / set! (Fisher-Yates)
 
 (def %urandom-path "/dev/urandom")
 (def %rand-mask 2147483647)     ; 2^31 - 1: keep every RESULT in [0, 2^31)
@@ -137,16 +138,21 @@
     (List ref (self int (List length lst)) lst))
 
   (method shuffle (self lst)
-    (doc "A new list holding the elements of lst in random order (selection shuffle)."
+    (doc "A new list holding the elements of lst in random order (Fisher-Yates)."
       (param lst LIST "A list")
       (returns LIST "A randomly ordered copy")
       (example "((Random sw 5) shuffle (list 1 2 3))" "a permutation of (1 2 3)"))
-    ; Repeatedly pull a random index out of what remains. O(n^2), but needs no
-    ; mutable vector (there is no vector-set!) and is plainly correct.
-    (let go ((rest lst) (out ()))
-      (if (null? rest) out
-        (let ((i (self int (List length rest))))
-          (go (List remove i 1 rest) (pair (List ref i rest) out)))))))
+    ; Fisher-Yates over a vector copy -- O(n), unblocked by (Vector set!)
+    ; (the old selection shuffle was O(n^2) for want of exactly that).
+    (def v (Vector from-list lst))
+    (let go ((i (- (Vector length v) 1)))
+      (if (< i 1) ()
+        (let ((j (self int (+ i 1))))
+          (let ((tmp (Vector ref i v)))
+            (do (Vector set! i (Vector ref j v) v)
+                (Vector set! j tmp v)
+                (go (- i 1)))))))
+    (Vector ->list v)))
 
 (doc (provide x/num/random Random)
   (note "Two backends behind one interface: (Random sw [seed]) software, (Random hw) kernel. The software stream is not cryptographically secure.")

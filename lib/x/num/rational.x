@@ -197,6 +197,14 @@
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
       (%int< (%int* an bd) (%int* bn ad)))))
 
+; Truncating modulo, matching int % and float fmod: a - b*trunc(a/b).
+; trunc(a/b) = C integer division of the cross products.
+(def %rat-mod
+  (fn (_ a b)
+    (let ((q (%int/ (%int* (%rat-numer-of a) (%rat-denom-of b))
+                    (%int* (%rat-denom-of a) (%rat-numer-of b)))))
+      (%rat-sub a (%rat-mul b (%make-rational q 1))))))
+
 (def %rat-eq
   (fn (_ a b)
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
@@ -235,6 +243,7 @@
 (%type-push-op %rational-ts (lit /) (fn (_ a b) (%rat-div (%ensure-rat a) (%ensure-rat b))))
 (%type-push-op %rational-ts (lit <) (fn (_ a b) (%rat-lt (%ensure-rat a) (%ensure-rat b))))
 (%type-push-op %rational-ts (lit =) (fn (_ a b) (%rat-eq (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-ts (lit %) (fn (_ a b) (%rat-mod (%ensure-rat a) (%ensure-rat b))))
 
 ; Integer division that produces rational when not exact
 (def %exact-div

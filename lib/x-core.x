@@ -230,6 +230,23 @@
     (sigint-install))
 
   ; --- Provide ---
+  ; Retroactive provides for the boot layer: those files load BEFORE the
+  ; module system exists, so they cannot call provide themselves; registering
+  ; them here makes them visible to (modules) and module-level (help).
+  (doc (provide x/boot/registry)
+    "Boot: the catalog protocol -- prim-ref and the instrument registry (loads first).")
+  (doc (provide x/boot/operatives)
+    "Boot: the core operative layer over the C primitives.")
+  (doc (provide x/boot/data)
+    "Boot: data constructors and the pair mutators (set-first!/set-rest!).")
+  (doc (provide x/boot/reflect)
+    "Boot: base-struct reflection walkers over the base-paths contract.")
+  (doc (provide x/boot/printer)
+    "Boot: display/write and the printer seams (loads before string.x).")
+  (doc (provide x/boot/string)
+    "Boot: substring/str->number/number->str/bytes->str over the byte prims.")
+  (doc (provide x/boot/module)
+    "Boot: include-once/import/provide and the include-list registry.")
   (doc (provide x/sys/type)
     (note "The reflection helpers are %-private here and filed under catalog ns `type`; the API is the Type class (x/type/type).")
     "Type system mechanism: struct navigation and handler-stack wiring, registered in the catalog.")

@@ -55,3 +55,21 @@ exact rendered doc text.
 ```
 ---
     #t
+
+## provide registration
+
+### the List class module is registered
+
+```scheme
+(null? (%module-find (lit x/type/list)))
+```
+---
+    #f
+
+### boot modules register retroactively
+
+```scheme
+(null? (%module-find (lit x/boot/module)))
+```
+---
+    #f

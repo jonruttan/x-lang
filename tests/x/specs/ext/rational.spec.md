@@ -439,3 +439,21 @@
 ```
 ---
     (3/4)
+
+## modulo
+
+### % is truncating, matching int % and float fmod
+
+```scheme
+(% 7/2 1)
+```
+---
+    1/2
+
+### mixed int and rational operands
+
+```scheme
+(% 5 3/2)
+```
+---
+    1/2

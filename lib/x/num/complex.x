@@ -259,6 +259,10 @@
 (%type-push-op %complex-ts (lit *) (fn (_ a b) (%cx-mul (%ensure-complex a) (%ensure-complex b))))
 (%type-push-op %complex-ts (lit /) (fn (_ a b) (%cx-div (%ensure-complex a) (%ensure-complex b))))
 (%type-push-op %complex-ts (lit =) (fn (_ a b) (%cx-eq (%ensure-complex a) (%ensure-complex b))))
+; % is mathematically undefined over C -- refuse loudly instead of falling
+; through to the generic dispatch's garbage-int path.
+(%type-push-op %complex-ts (lit %)
+  (fn (_ a b) (error "complex: % is undefined for complex numbers")))
 
 ; --- Predicates ---
 

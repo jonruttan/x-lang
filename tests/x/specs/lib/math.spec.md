@@ -340,3 +340,73 @@
 ```
 ---
     1
+
+## quotient / remainder / modulo / divmod
+
+### quotient truncates toward zero
+
+```scheme
+(list (Num quotient 7 2) (Num quotient -7 2))
+```
+---
+    (3 -3)
+
+### remainder takes the dividend's sign
+
+```scheme
+(list (Num remainder 7 2) (Num remainder -7 2))
+```
+---
+    (1 -1)
+
+### modulo takes the divisor's sign
+
+```scheme
+(list (Num modulo -7 3) (Num modulo 7 -3))
+```
+---
+    (2 -2)
+
+### divmod pairs them
+
+```scheme
+(Num divmod 7 2)
+```
+---
+    (3 1)
+
+## variadic min / max
+
+### more than two arguments
+
+```scheme
+(list (Num min 3 1 2) (Num max 3 1 2))
+```
+---
+    (1 3)
+
+### binary still works
+
+```scheme
+(Num min 5 4)
+```
+---
+    4
+
+## isqrt
+
+### largest k with k*k <= n
+
+```scheme
+(list (Num isqrt 0) (Num isqrt 1) (Num isqrt 99) (Num isqrt 100))
+```
+---
+    (0 1 9 10)
+
+### errors on negatives
+
+```scheme
+(Num isqrt -1)
+```
+---
+    Error: Num isqrt: negative input

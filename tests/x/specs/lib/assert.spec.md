@@ -56,3 +56,21 @@ never fail a real test.
 ```
 ---
     #t
+
+## shipped under lib (importable by user code)
+
+### throws? via (import x/test/assert)
+
+```scheme
+(do (import x/test/assert) (throws? (fn (_) (error "boom"))))
+```
+---
+    #t
+
+### raised exposes the error value
+
+```scheme
+(do (import x/test/assert) (raised (fn (_) (error "boom"))))
+```
+---
+    "boom"

@@ -224,3 +224,29 @@
 ```
 ---
     20
+
+## vector-set!
+
+### stores in place and chains
+
+```scheme
+(Vector ref 0 (Vector set! 0 99 (Vector of 1 2)))
+```
+---
+    99
+
+### negative index counts from the end
+
+```scheme
+(do (def v (Vector of 1 2 3)) (Vector set! -1 9 v) v)
+```
+---
+    #(1 2 9)
+
+### errors past the end
+
+```scheme
+(Vector set! 5 9 (Vector of 1 2))
+```
+---
+    Error: Vector set!: index out of range
