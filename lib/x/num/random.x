@@ -119,7 +119,7 @@
 
   (method bool (self)
     (doc "A random boolean (a fair coin)."
-      (returns BOOLEAN "#t or #f")
+      (returns BOOL "#t or #f")
       (example "((Random sw 9) bool)" "#t or #f"))
     (= 0 (self int 2)))
 

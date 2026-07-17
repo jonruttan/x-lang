@@ -1,7 +1,7 @@
 ; logic.x -- Boolean and logic
 
 (doc (def boolean? (fn (_ (param x ANY "Value to test")) (or (eq? x #t) (eq? x #f))))
-  (returns BOOLEAN "True if x is #t or #f")
+  (returns BOOL "True if x is #t or #f")
   "Test whether a value is a boolean.")
 
 ; default-to and until live on the Fn class (combinators).
@@ -30,22 +30,22 @@
       ((or (pair? a) (pair? b)) #f)
       ((eq? a b) #t)
       (#t ((first %equal-others) self a b)))))
-  (returns BOOLEAN "True if a and b are structurally equal")
+  (returns BOOL "True if a and b are structurally equal")
   (note "Vectors compare elementwise (handler installed by x/type/vector); class instances compare by identity.")
   "Structural equality: numbers by value, strings by content, pairs and vectors element-wise (deep), else identity.")
 
 ; --- Derived comparisons ---
 
 (doc (def > (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand")) (< b a)))
-  (returns BOOLEAN "True if a is greater than b")
+  (returns BOOL "True if a is greater than b")
   "Test whether a is greater than b.")
 
 (doc (def <= (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand")) (or (< a b) (= a b))))
-  (returns BOOLEAN "True if a is less than or equal to b")
+  (returns BOOL "True if a is less than or equal to b")
   "Test whether a is less than or equal to b.")
 
 (doc (def >= (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand")) (or (< b a) (= a b))))
-  (returns BOOLEAN "True if a is greater than or equal to b")
+  (returns BOOL "True if a is greater than or equal to b")
   "Test whether a is greater than or equal to b.")
 
 (doc (provide x/core/logic boolean? equal? > <= >=)

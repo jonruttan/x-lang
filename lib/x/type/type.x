@@ -24,7 +24,7 @@
       ((prim-ref (lit type) (lit make-instance)) ts value))
     (method ? (self (param v ANY "Value to test") (param ts ANY "Type handle"))
       (doc "Test whether V is an instance of the type named by TS."
-        (returns BOOLEAN "#t if V's type is TS"))
+        (returns BOOL "#t if V's type is TS"))
       ((prim-ref (lit type) (lit ?)) v ts))
     (method of (self (param v ANY "Value"))
       (doc "Return the type handle of a value (nil for nil)."

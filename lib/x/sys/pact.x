@@ -114,7 +114,7 @@
         (returns NIL "Nothing"))
       (%pact-join name value))
     (method when (self (param names LIST "Name symbols this registration needs")
-                       (param thunk FUNCTION "(fn (_ . values) ...), applied to the joined values in NAMES order"))
+                       (param thunk CALLABLE "(fn (_ . values) ...), applied to the joined values in NAMES order"))
       (doc "Run THUNK once all NAMES have joined: immediately if they already have, else at the completing join. Fires exactly once; never fires if a name never joins."
         (returns NIL "Nothing"))
       (%pact-when names thunk))
@@ -125,7 +125,7 @@
         (if (null? entry) () (rest entry))))
     (method has? (self (param name SYMBOL "Name to test"))
       (doc "Test whether NAME has joined the pact."
-        (returns BOOLEAN "True if NAME has joined"))
+        (returns BOOL "True if NAME has joined"))
       (if (null? (%pact-entry %pact-joined name)) () #t))))
 
 (doc (provide x/sys/pact Pact)

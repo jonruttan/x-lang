@@ -155,29 +155,29 @@
 
     (method comment? (self (param tok ANY "Token to test"))
       (doc "Test whether a token is a comment token."
-        (returns BOOLEAN "True if tok is a (%comment ...) token"))
+        (returns BOOL "True if tok is a (%comment ...) token"))
       (%fmt-comment? tok))
 
     (method width (self (param form ANY "Form to measure"))
       (doc "Estimate the display width of a form (via write-to-str; a comment counts as 80)."
-        (returns INTEGER "Estimated width in characters"))
+        (returns INT "Estimated width in characters"))
       (%fmt-width form))
 
     (method expr (self (param form ANY "Expression to format")
-                       (param col INTEGER "Current indentation column"))
+                       (param col INT "Current indentation column"))
       (doc "Format any expression, writing the result to output."
         (returns ANY "nil (output via display)"))
       (%fmt-expr form col))
 
     (method list (self (param form LIST "List form to format")
-                       (param col INTEGER "Current indentation column")
+                       (param col INT "Current indentation column")
                        (param table ALIST "Formatter table"))
       (doc "Format a list form with indentation-aware pretty printing, writing the result."
         (returns ANY "nil (output via display)"))
       (%fmt-list form col table))
 
     (method body (self (param forms LIST "Body forms")
-                       (param col INTEGER "Current indentation column"))
+                       (param col INT "Current indentation column"))
       (doc "Format a sequence of body forms, one per line, writing the result."
         (returns ANY "nil (output via display)"))
       (%fmt-body forms col))

@@ -270,7 +270,7 @@
 
 (doc number? "Test whether a value is any numeric type (integer, rational, float, or complex)."
   (param x ANY "Value to test")
-  (returns BOOLEAN "True if x is a number"))
+  (returns BOOL "True if x is a number"))
 (set! number?
   (fn (_ x)
     (if (%complex? x) #t
@@ -280,12 +280,12 @@
 
 (doc complex? "Test whether a value is any numeric type (alias for number?)."
   (param x ANY "Value to test")
-  (returns BOOLEAN "True if x is a number"))
+  (returns BOOL "True if x is a number"))
 (def complex? number?)
 
 (doc real? "Test whether a value is a real number (integer, rational, or float, but not complex)."
   (param x ANY "Value to test")
-  (returns BOOLEAN "True if x is a real number"))
+  (returns BOOL "True if x is a real number"))
 (set! real?
   (fn (_ x)
     (if (%rat? x) #t
@@ -296,7 +296,7 @@
   (static
     (method complex? (self (param x ANY "Value to test"))
       (doc "Test whether a value is any numeric type (alias for number?)."
-        (returns BOOLEAN "True if x is a number"))
+        (returns BOOL "True if x is a number"))
       (number? x))
     (method make-rectangular (self (param re NUMBER "Real part") (param im NUMBER "Imaginary part"))
       (doc "Construct a complex number from rectangular coordinates."
@@ -339,7 +339,7 @@
       (%cx-div (%ensure-complex a) (%ensure-complex b)))
     (method = (self (param a COMPLEX|NUMBER "Left operand") (param b COMPLEX|NUMBER "Right operand"))
       (doc "Test whether two complex numbers are equal (reals coerce)."
-        (returns BOOLEAN "True if both real and imaginary parts are equal"))
+        (returns BOOL "True if both real and imaginary parts are equal"))
       (%cx-eq (%ensure-complex a) (%ensure-complex b)))))
 
 ; Value dispatch (subject-last): (1+2i real-part) -> (Complex real-part 1+2i).

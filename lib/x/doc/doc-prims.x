@@ -199,17 +199,17 @@
 (doc eq? "Test identity equality (pointer equality for objects, value for atoms)."
   (param a ANY "First value")
   (param b ANY "Second value")
-  (returns BOOLEAN "t if identical"))
+  (returns BOOL "t if identical"))
 
 (doc = "Test numeric equality."
   (param a INT "First number")
   (param b INT "Second number")
-  (returns BOOLEAN "t if equal"))
+  (returns BOOL "t if equal"))
 
 (doc < "Test numeric less-than."
   (param a INT "First number")
   (param b INT "Second number")
-  (returns BOOLEAN "t if a < b"))
+  (returns BOOL "t if a < b"))
 
 ; char->integer (ns char) and integer->char (ns int) are de-registered (R5);
 ; the Char class (->int / from-int) carries their docs. Reader-hot consumers
@@ -279,35 +279,35 @@
 
 (doc null? "Test if a value is nil (the empty list)."
   (param x ANY "Value to test")
-  (returns BOOLEAN "t if nil"))
+  (returns BOOL "t if nil"))
 
 (doc pair? "Test if a value is a pair (cons cell)."
   (param x ANY "Value to test")
-  (returns BOOLEAN "t if pair"))
+  (returns BOOL "t if pair"))
 
 (doc atom? "Test if a value is an atom (not a pair)."
   (param x ANY "Value to test")
-  (returns BOOLEAN "t if not a pair"))
+  (returns BOOL "t if not a pair"))
 
 (doc number? "Test if a value is an integer."
   (param x ANY "Value to test")
-  (returns BOOLEAN "t if integer"))
+  (returns BOOL "t if integer"))
 
 (doc str? "Test if a value is a string."
   (param x ANY "Value to test")
-  (returns BOOLEAN "t if string"))
+  (returns BOOL "t if string"))
 
 (doc symbol? "Test if a value is a symbol."
   (param x ANY "Value to test")
-  (returns BOOLEAN "t if symbol"))
+  (returns BOOL "t if symbol"))
 
 (doc char? "Test if a value is a character."
   (param x ANY "Value to test")
-  (returns BOOLEAN "t if character"))
+  (returns BOOL "t if character"))
 
 (doc procedure? "Test if a value is callable (procedure or primitive)."
   (param x ANY "Value to test")
-  (returns BOOLEAN "t if procedure or primitive"))
+  (returns BOOL "t if procedure or primitive"))
 
 (doc if "Conditional: evaluate test, then branch."
   (param test ANY "Condition expression")
@@ -333,7 +333,7 @@
 
 (doc not "Logical negation."
   (param x ANY "Value to negate")
-  (returns BOOLEAN "t if x is falsy"))
+  (returns BOOL "t if x is falsy"))
 
 (doc list "Create a list from arguments."
   (param args ANY "Zero or more values")
@@ -377,7 +377,7 @@
 
 (doc atom? "Test if a value is an atom (not a pair or nil)."
   (param x ANY "Value to test")
-  (returns BOOLEAN "t if atom"))
+  (returns BOOL "t if atom"))
 
 (doc number->str "Convert an integer to a string."
   (param n INT "Integer to convert")
@@ -406,7 +406,7 @@
 (doc str=? "Test string equality."
   (param a STRING "First string")
   (param b STRING "Second string")
-  (returns BOOLEAN "t if equal"))
+  (returns BOOL "t if equal"))
 
 
 (doc require-once "Include a file only if it has not been loaded before. Alias for include-once."
@@ -417,7 +417,7 @@
   (returns CHAR "The next character, or () at EOF"))
 
 (doc current-line "Return the current source line number."
-  (returns INTEGER "Line number in the current input"))
+  (returns INT "Line number in the current input"))
 
 ; === Documentation system (x/doc/doc) ===
 

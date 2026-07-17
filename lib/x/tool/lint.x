@@ -584,7 +584,7 @@
       defs))))
   (param defs LIST "Defined names from lint-forms")
   (param uses LIST "Used names from lint-forms")
-  (param lib-mode BOOLEAN "If true, skip unused check")
+  (param lib-mode BOOL "If true, skip unused check")
   (returns LIST "Names defined but never used")
   "Compute unused names: defined but not referenced. Skips %-prefixed internals.")
 

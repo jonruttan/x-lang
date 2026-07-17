@@ -21,7 +21,7 @@
     (if (symbol? sym) (str=? (symbol->str sym) name) ())))
   (param sym ANY "Value to test")
   (param name STRING "Expected symbol name")
-  (returns BOOLEAN "True if sym is a symbol with the given name")
+  (returns BOOL "True if sym is a symbol with the given name")
   "Test if a value is a symbol matching a name string (cross-base safe).")
 
 (def doc-form? (fn (_ tok)

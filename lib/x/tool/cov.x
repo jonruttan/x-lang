@@ -31,7 +31,7 @@
 (doc (def cov-covered?
   (fn (_ obj) (> (& (%cov-obj-flags obj) 2) 0)))
   (param obj ANY "Object to check")
-  (returns BOOLEAN "True if object was evaluated (FLAG_2 set)")
+  (returns BOOL "True if object was evaluated (FLAG_2 set)")
   "Test whether an object was marked as evaluated by x-profile.")
 
 (def %cov-is-cons?
@@ -56,7 +56,7 @@
               (+ cov (+ (first left) (first right)))
               (+ 1 (+ (first (rest left)) (first (rest right)))))))))))
   (param expr ANY "AST node to walk")
-  (param depth INTEGER "Current recursion depth (limit 15)")
+  (param depth INT "Current recursion depth (limit 15)")
   (returns LIST "(covered total) pair")
   "Count covered and total AST nodes in a tree.")
 
@@ -77,7 +77,7 @@
                 (list name cov total)))))))))
   (param name SYMBOL "Function name")
   (param val ANY "Function value to inspect")
-  (param tsv-mode BOOLEAN "Output TSV format if true")
+  (param tsv-mode BOOL "Output TSV format if true")
   (returns LIST "(name covered total) or nil")
   "Check coverage for a single function.")
 
@@ -94,8 +94,8 @@
               (cov-check-fn name val tsv-mode))))
         (self (rest alist) (+ n 1) tsv-mode)))))
   (param alist LIST "Environment alist to walk")
-  (param n INTEGER "Counter (limit 5000)")
-  (param tsv-mode BOOLEAN "Output TSV format if true")
+  (param n INT "Counter (limit 5000)")
+  (param tsv-mode BOOL "Output TSV format if true")
   "Walk an environment alist checking coverage on each procedure.")
 
 ; --- Library boundary ---

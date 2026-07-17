@@ -542,13 +542,13 @@
 (def-class Regex ()
   (static
     (method regex? (self (param x ANY "Value to test"))
-      (doc "Test whether a value is a regex." (returns BOOLEAN "True if x is a regex"))
+      (doc "Test whether a value is a regex." (returns BOOL "True if x is a regex"))
       (%type? x %regex))
     ; Every exec method is subject-LAST (the regex is the final parameter):
     ; the class-call handler appends the dispatched value last, so value-calls
     ; like (#/,/ split "a,b") route to (Regex split "a,b" #/,/).
     (method match (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
-      (doc "Test whether a regex matches an entire string." (returns BOOLEAN "True if regex matches the entire string"))
+      (doc "Test whether a regex matches an entire string." (returns BOOL "True if regex matches the entire string"))
       (def end (str-length str))
       (def result (%regex-exec (%rx-nodes rx) str 0 end))
       (if (and result (= result end)) #t #f))
@@ -562,7 +562,7 @@
               (if result (list i result)
                 (self (+ i 1)))))))
       (%try 0))
-    (method find-at (self (param str STRING "Input string") (param pos INTEGER "Start position") (param rx REGEX "Compiled regex"))
+    (method find-at (self (param str STRING "Input string") (param pos INT "Start position") (param rx REGEX "Compiled regex"))
       (doc "Search for regex starting from position pos." (returns LIST "Pair (start end) of match, or nil"))
       (def end (str-length str))
       (def %try
@@ -602,7 +602,7 @@
               (self next (pair m acc))))))
       (%go 0 ()))
     (method match-count (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
-      (doc "Count the number of non-overlapping matches. (count elsewhere means total elements; this counts MATCHES.)" (returns INTEGER "Number of non-overlapping matches")
+      (doc "Count the number of non-overlapping matches. (count elsewhere means total elements; this counts MATCHES.)" (returns INT "Number of non-overlapping matches")
         (example "(Regex match-count \"a1b22c333\" #/[0-9]+/)" "3"))
       (length (Regex find-all-pos str rx)))
     (method replace (self (param str STRING "Input string") (param rep ANY "Replacement string or function") (param rx REGEX "Compiled regex"))
@@ -650,10 +650,10 @@
       (%go 0 ()))
     (method exec (self (param nodes LIST "List of AST nodes from a compiled regex")
                        (param str STRING "Input string to match against")
-                       (param pos INTEGER "Starting position in the string")
-                       (param end INTEGER "End position (string length)"))
+                       (param pos INT "Starting position in the string")
+                       (param end INT "End position (string length)"))
       (doc "Execute a regex AST against a string from the given position."
-        (returns INTEGER "Final position after match, or nil on failure"))
+        (returns INT "Final position after match, or nil on failure"))
       (%regex-exec nodes str pos end))
     (method parse (self (param pattern STRING "Regex pattern string"))
       (doc "Parse a regex pattern string into a bare AST node list. For a value the exec methods accept, use (Regex compile)." (returns LIST "AST node list"))

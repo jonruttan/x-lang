@@ -444,8 +444,8 @@
       (%int* acc x))))
 
 (doc + "Add numbers, promoting to bignum on overflow."
-  (param args INTEGER|BIGNUM "Numbers to add")
-  (returns INTEGER|BIGNUM "Sum"))
+  (param args INT|BIGNUM "Numbers to add")
+  (returns INT|BIGNUM "Sum"))
 (set! +
   (fn (_ . args)
     (if (eq? args ()) 0
@@ -455,8 +455,8 @@
           (fold %big-add2 (first args) (rest args)))))))
 
 (doc - "Subtract numbers, promoting to bignum on overflow. Unary form negates."
-  (param args INTEGER|BIGNUM "Numbers to subtract")
-  (returns INTEGER|BIGNUM "Difference"))
+  (param args INT|BIGNUM "Numbers to subtract")
+  (returns INT|BIGNUM "Difference"))
 (set! -
   (fn (_ . args)
     (if (eq? args ()) 0
@@ -472,8 +472,8 @@
           (fold %big-sub2 (first args) (rest args)))))))
 
 (doc * "Multiply numbers, promoting to bignum on overflow."
-  (param args INTEGER|BIGNUM "Numbers to multiply")
-  (returns INTEGER|BIGNUM "Product"))
+  (param args INT|BIGNUM "Numbers to multiply")
+  (returns INT|BIGNUM "Product"))
 (set! *
   (fn (_ . args)
     (if (eq? args ()) 1
@@ -483,8 +483,8 @@
           (fold %big-mul2 (first args) (rest args)))))))
 
 (doc / "Divide numbers; bignum operands dispatch through the type ops."
-  (param args INTEGER|BIGNUM "Numbers to divide")
-  (returns INTEGER|BIGNUM "Quotient"))
+  (param args INT|BIGNUM "Numbers to divide")
+  (returns INT|BIGNUM "Quotient"))
 (set! /
   (fn (_ . args)
     (if (eq? args ()) 1
@@ -602,36 +602,36 @@
   (static
     (method bignum? (self (param x ANY "Value to test"))
       (doc "Test whether a value is an arbitrary-precision integer."
-        (returns BOOLEAN "True if x is a bignum"))
+        (returns BOOL "True if x is a bignum"))
       (%bignum? x))
-    (method + (self (param a INTEGER|BIGNUM "First operand") (param b INTEGER|BIGNUM "Second operand"))
-      (doc "Add two bignums (ints coerce)." (returns INTEGER|BIGNUM "Sum, demoted to integer if it fits"))
+    (method + (self (param a INT|BIGNUM "First operand") (param b INT|BIGNUM "Second operand"))
+      (doc "Add two bignums (ints coerce)." (returns INT|BIGNUM "Sum, demoted to integer if it fits"))
       (%big-add (%ensure-big a) (%ensure-big b)))
-    (method - (self (param a INTEGER|BIGNUM "First operand") (param b INTEGER|BIGNUM "Second operand"))
-      (doc "Subtract two bignums (ints coerce)." (returns INTEGER|BIGNUM "Difference, demoted to integer if it fits"))
+    (method - (self (param a INT|BIGNUM "First operand") (param b INT|BIGNUM "Second operand"))
+      (doc "Subtract two bignums (ints coerce)." (returns INT|BIGNUM "Difference, demoted to integer if it fits"))
       (%big-sub (%ensure-big a) (%ensure-big b)))
-    (method * (self (param a INTEGER|BIGNUM "First operand") (param b INTEGER|BIGNUM "Second operand"))
-      (doc "Multiply two bignums (ints coerce)." (returns INTEGER|BIGNUM "Product, demoted to integer if it fits"))
+    (method * (self (param a INT|BIGNUM "First operand") (param b INT|BIGNUM "Second operand"))
+      (doc "Multiply two bignums (ints coerce)." (returns INT|BIGNUM "Product, demoted to integer if it fits"))
       (%big-mul (%ensure-big a) (%ensure-big b)))
-    (method / (self (param a INTEGER|BIGNUM "Dividend") (param b INTEGER|BIGNUM "Divisor"))
-      (doc "Divide two bignums (truncating; ints coerce)." (returns INTEGER|BIGNUM "Quotient, demoted to integer if it fits"))
+    (method / (self (param a INT|BIGNUM "Dividend") (param b INT|BIGNUM "Divisor"))
+      (doc "Divide two bignums (truncating; ints coerce)." (returns INT|BIGNUM "Quotient, demoted to integer if it fits"))
       (%big-div (%ensure-big a) (%ensure-big b)))
-    (method % (self (param a INTEGER|BIGNUM "Dividend") (param b INTEGER|BIGNUM "Divisor"))
-      (doc "Remainder of bignum division (ints coerce)." (returns INTEGER|BIGNUM "Remainder, demoted to integer if it fits"))
+    (method % (self (param a INT|BIGNUM "Dividend") (param b INT|BIGNUM "Divisor"))
+      (doc "Remainder of bignum division (ints coerce)." (returns INT|BIGNUM "Remainder, demoted to integer if it fits"))
       (%big-mod (%ensure-big a) (%ensure-big b)))
-    (method < (self (param a INTEGER|BIGNUM "Left operand") (param b INTEGER|BIGNUM "Right operand"))
-      (doc "Test whether a is less than b (ints coerce)." (returns BOOLEAN "True if a < b"))
+    (method < (self (param a INT|BIGNUM "Left operand") (param b INT|BIGNUM "Right operand"))
+      (doc "Test whether a is less than b (ints coerce)." (returns BOOL "True if a < b"))
       (%big-lt (%ensure-big a) (%ensure-big b)))
-    (method = (self (param a INTEGER|BIGNUM "Left operand") (param b INTEGER|BIGNUM "Right operand"))
-      (doc "Test whether a equals b (ints coerce)." (returns BOOLEAN "True if a equals b"))
+    (method = (self (param a INT|BIGNUM "Left operand") (param b INT|BIGNUM "Right operand"))
+      (doc "Test whether a equals b (ints coerce)." (returns BOOL "True if a equals b"))
       (%big-eq (%ensure-big a) (%ensure-big b)))
-    (method would-overflow-add? (self (param a INTEGER "First operand") (param b INTEGER "Second operand"))
+    (method would-overflow-add? (self (param a INT "First operand") (param b INT "Second operand"))
       (doc "Test whether addition of two native integers would overflow."
-        (returns BOOLEAN "True if a + b would overflow native integer"))
+        (returns BOOL "True if a + b would overflow native integer"))
       (%would-overflow-add? a b))
-    (method would-overflow-mul? (self (param a INTEGER "First operand") (param b INTEGER "Second operand"))
+    (method would-overflow-mul? (self (param a INT "First operand") (param b INT "Second operand"))
       (doc "Test whether multiplication of two native integers would overflow."
-        (returns BOOLEAN "True if a * b would overflow native integer"))
+        (returns BOOL "True if a * b would overflow native integer"))
       (%would-overflow-mul? a b))))
 
 ; Value dispatch (subject-last): (big bignum?) -> (Bignum bignum? big).

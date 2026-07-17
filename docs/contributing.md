@@ -45,6 +45,13 @@ make clean && make
   (`list->str`, `str->number`) are the pre-class boot layer only — don't add new ones.
 - **Constructor-style counts come first**: `(List repeat n x)`, `(Str8 repeat n s)`,
   `(Str8 make k ch)`, `(Vector make n fill)`.
+- **Doc type vocabulary** — one token per concept in `(param ...)`/`(returns ...)`:
+  `INT` (not INTEGER), `BOOL` (not BOOLEAN), `CALLABLE` (not FUNCTION), plus
+  `ANY STRING SYMBOL LIST PAIR CHAR NUMBER VECTOR REGEX FLOAT BIGNUM RATIONAL
+  COMPLEX ITER OBJECT CLASS PTR BUF`. `PROCEDURE`/`OPERATIVE` are reserved for
+  the fn/op constructors' returns. Class names (`Dict`, `Vec`, `Random`, ...)
+  are legitimate returns types as-is. `make check-doc-vocab` enforces the
+  banned aliases.
 - **Arguments are subject-LAST** (the dispatched value is the final parameter),
   matching value-call dispatch: `("a,b" split ",")` → `(Str split "," "a,b")`.
   Deliberate exception: the `File`/`Sys` OS layer mirrors POSIX and stays

@@ -182,7 +182,7 @@
       (doc "Return the index of the first occurrence of a value." (param x ANY "Value to find") (param lst LIST "List") (returns INT "Index, or -1 if not found"))
       (List find-index (fn (_ el) (equal? el x)) lst))
     (method includes? (self x lst)
-      (doc "Test if a list contains a value." (param x ANY "Value to search for") (param lst LIST "List or iterable") (returns BOOLEAN "t if found"))
+      (doc "Test if a list contains a value." (param x ANY "Value to search for") (param lst LIST "List or iterable") (returns BOOL "t if found"))
       (let ((lst (List as-list lst)))
         (match
           ((null? lst) #f)
@@ -354,7 +354,7 @@
         (#t (pair (first lst) (recur self (- n 1) f (rest lst))))))
     ; --- Type predicate / Membership / Association ---
     (method list? (self x)
-      (doc "Test if a value is a proper list." (param x ANY "Value to test") (returns BOOLEAN "t if proper list"))
+      (doc "Test if a value is a proper list." (param x ANY "Value to test") (returns BOOL "t if proper list"))
       (if (null? x) #t (if (pair? x) (recur self (rest x)) #f)))
     (method memq (self x lst)
       (doc "Find first occurrence by identity (eq?). Returns the tail from match, or #f." (param x ANY "Value to search for") (param lst LIST "List"))
@@ -377,10 +377,10 @@
       (doc "Return the third element of a list." (param x LIST "A list with at least three elements") (returns ANY "The third element"))
       (first (rest (rest x))))
     (method list-ref (self lst n)
-      (doc "Return the nth element of a list (Scheme compatibility)." (param lst LIST "List to index") (param n INTEGER "Zero-based index") (returns ANY "The element at index n"))
+      (doc "Return the nth element of a list (Scheme compatibility)." (param lst LIST "List to index") (param n INT "Zero-based index") (returns ANY "The element at index n"))
       (List ref n lst))
     (method list-tail (self lst n)
-      (doc "Return the tail of a list after n elements (Scheme compatibility)." (param lst LIST "List to take tail of") (param n INTEGER "Number of elements to skip") (returns LIST "The remaining list after dropping n elements"))
+      (doc "Return the tail of a list after n elements (Scheme compatibility)." (param lst LIST "List to take tail of") (param n INT "Number of elements to skip") (returns LIST "The remaining list after dropping n elements"))
       (List drop n lst))))
 
 (doc (provide x/type/list List)

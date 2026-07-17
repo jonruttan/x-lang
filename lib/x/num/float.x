@@ -274,13 +274,13 @@
 ; extenders and live only on the Float class.
 (doc number?
   (param x ANY "Value to test")
-  (returns BOOLEAN "True if x is a number")
+  (returns BOOL "True if x is a number")
   "Test whether a value is a number (integer or float).")
 
 (set! number? (fn (_ x) (if (%int-number? x) #t (%float? x))))
 
 (doc (def real? (fn (_ (param x ANY "Value to test")) (number? x)))
-  (returns BOOLEAN "True if x is a real number")
+  (returns BOOL "True if x is a real number")
   "Test whether a value is a real number (complex.x narrows this to exclude complexes).")
 
 ; --- Bignum -> float conversion (registered late, after f+/f* are defined) ---
@@ -318,37 +318,37 @@
 (def-class Float ()
   (static
     (method float? (self (param x ANY "Value to test"))
-      (doc "Test whether a value is a float." (returns BOOLEAN "True if x is a float"))
+      (doc "Test whether a value is a float." (returns BOOL "True if x is a float"))
       (%float? x))
     (method inexact? (self (param x ANY "Value to test"))
-      (doc "Test whether a value is inexact. Equivalent to float?." (returns BOOLEAN "True if x is a float"))
+      (doc "Test whether a value is inexact. Equivalent to float?." (returns BOOL "True if x is a float"))
       (%float? x))
     (method integer? (self (param x ANY "Value to test"))
       (doc "Test whether a value is an integer (the pre-float number? predicate)."
-        (returns BOOLEAN "True if x is a native integer"))
+        (returns BOOL "True if x is a native integer"))
       (%int-number? x))
     (method real? (self (param x ANY "Value to test"))
       (doc "Test whether a value is a real number (numbers minus complexes)."
-        (returns BOOLEAN "True if x is real"))
+        (returns BOOL "True if x is real"))
       (real? x))
     ; --- Conversions ---
-    (method ->str (self (param bits INTEGER "IEEE 754 double bit pattern"))
+    (method ->str (self (param bits INT "IEEE 754 double bit pattern"))
       (doc "Convert a float bit pattern to its string representation." (returns STRING "Decimal string representation"))
       (%float->str bits))
-    (method ->int (self (param bits INTEGER "IEEE 754 double bit pattern"))
-      (doc "Convert a float bit pattern to an integer by truncation." (returns INTEGER "Truncated integer value"))
+    (method ->int (self (param bits INT "IEEE 754 double bit pattern"))
+      (doc "Convert a float bit pattern to an integer by truncation." (returns INT "Truncated integer value"))
       (%float->int bits))
-    (method from-int (self (param n INTEGER "Integer value"))
-      (doc "Convert an integer to a float bit pattern." (returns INTEGER "IEEE 754 double bit pattern"))
+    (method from-int (self (param n INT "Integer value"))
+      (doc "Convert an integer to a float bit pattern." (returns INT "IEEE 754 double bit pattern"))
       (%int->float n))
     (method from-str (self (param s STRING "Decimal string to parse"))
       (doc "Parse a decimal string into a float." (returns FLOAT "Parsed float value"))
       (%str->float s))
-    (method exact->inexact (self (param x INTEGER "Exact integer value"))
+    (method exact->inexact (self (param x INT "Exact integer value"))
       (doc "Convert an exact integer to an inexact float." (returns FLOAT "Float representation"))
       (%exact->inexact x))
     (method inexact->exact (self (param x FLOAT "Float value"))
-      (doc "Convert an inexact float to an exact integer by truncation." (returns INTEGER "Truncated integer value"))
+      (doc "Convert an inexact float to an exact integer by truncation." (returns INT "Truncated integer value"))
       (%inexact->exact x))
     ; --- Arithmetic / comparison (operands coerce via the from-alist) ---
     (method + (self (param a NUMBER "First operand") (param b NUMBER "Second operand"))
@@ -364,10 +364,10 @@
       (doc "Divide two floats (other numerics coerce)." (returns FLOAT "Quotient"))
       (%f-div (%ensure-float a) (%ensure-float b)))
     (method < (self (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
-      (doc "Test whether a is less than b (other numerics coerce)." (returns BOOLEAN "True if a < b"))
+      (doc "Test whether a is less than b (other numerics coerce)." (returns BOOL "True if a < b"))
       (%f-lt (%ensure-float a) (%ensure-float b)))
     (method = (self (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
-      (doc "Test whether a equals b (other numerics coerce)." (returns BOOLEAN "True if a equals b"))
+      (doc "Test whether a equals b (other numerics coerce)." (returns BOOL "True if a equals b"))
       (%f-eq (%ensure-float a) (%ensure-float b)))
     ; --- libm ---
     (method sin (self (param x FLOAT "Angle in radians"))

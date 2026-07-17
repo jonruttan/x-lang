@@ -93,7 +93,7 @@
                        (param mode ANY "Open mode -- a number (e.g. 577), one symbol from (File file-modes) (e.g. (lit rdonly)), or a list of symbols OR'd together (e.g. (list (lit wronly) (lit creat) (lit trunc)))")
                        . (param perm ANY "Permission bits for a newly created file when the mode includes creat; default 0644. Ignored when the file is not created."))
       (doc "Open a file, returning a file descriptor."
-        (returns INTEGER "File descriptor, or negative on error")
+        (returns INT "File descriptor, or negative on error")
         (example "(File open \"/etc/hostname\" (lit rdonly))" "a file descriptor opened read-only")
         (example "(File open \"out.svg\" (list (lit wronly) (lit creat) (lit trunc)))" "an fd opened for writing, new file mode 0644 (577 = O_WRONLY|O_CREAT|O_TRUNC)")
         (example "(File open \"x\" (lit creat) 511)" "create with mode 0777 (511)"))
@@ -103,29 +103,29 @@
       (syscall (syscall-id (lit open)) pathname (%mode->int mode)
                (if (null? perm) 420 (first perm))))
 
-    (method close (self (param fd INTEGER "File descriptor to close"))
+    (method close (self (param fd INT "File descriptor to close"))
       (doc "Close a file descriptor."
-        (returns INTEGER "0 on success, negative on error")
+        (returns INT "0 on success, negative on error")
         (example "(File close fd)" "0"))
       (syscall (syscall-id (lit close)) fd))
 
-    (method read (self (param fd INTEGER "File descriptor to read from")
+    (method read (self (param fd INT "File descriptor to read from")
                        (param buffer STRING "Buffer to read into")
-                       (param size INTEGER "Maximum bytes to read"))
+                       (param size INT "Maximum bytes to read"))
       (doc "Read bytes from a file descriptor into a buffer."
-        (returns INTEGER "Bytes read, 0 at EOF, negative on error")
+        (returns INT "Bytes read, 0 at EOF, negative on error")
         (example "(File read fd buf 64)" "bytes read into buf (0 at EOF)"))
       (syscall (syscall-id (lit read)) fd buffer size))
 
-    (method write (self (param fd INTEGER "File descriptor to write to")
+    (method write (self (param fd INT "File descriptor to write to")
                         (param buffer STRING "Data to write")
-                        (param size INTEGER "Number of bytes to write"))
+                        (param size INT "Number of bytes to write"))
       (doc "Write bytes from a buffer to a file descriptor."
-        (returns INTEGER "Bytes written, or negative on error")
+        (returns INT "Bytes written, or negative on error")
         (example "(File write fd \"hello\" 5)" "5"))
       (syscall (syscall-id (lit write)) fd buffer size))
 
-    (method getc (self (param fd INTEGER "File descriptor to read from"))
+    (method getc (self (param fd INT "File descriptor to read from"))
       (doc "Read a single character from a file descriptor."
         (returns CHAR "Character read, or -1 at EOF")
         (example "(File getc fd)" "the next byte as a char, or -1 at EOF"))

@@ -140,7 +140,7 @@
         (returns CALLABLE "Analyzer state"))
       (%make-xdigit-state done))
 
-    (method make-char-state (self (param ch INTEGER "Character code to match")
+    (method make-char-state (self (param ch INT "Character code to match")
                                   (param next CALLABLE "Reached on match")
                                   (param fail CALLABLE "Reached on non-match (or nil to reject)"))
       (doc "A state matching a single character, transitioning to next or fail."
@@ -155,8 +155,8 @@
         (example "(Token make-pred-state (fn (_ c) (Char alphabetic? c)) done)" "match letters"))
       (%make-pred-state pred done))
 
-    (method make-range-state (self (param lo INTEGER "Lowest accepted character code")
-                                   (param hi INTEGER "Highest accepted character code")
+    (method make-range-state (self (param lo INT "Lowest accepted character code")
+                                   (param hi INT "Highest accepted character code")
                                    (param done CALLABLE "Called on out-of-range character"))
       (doc "A state that loops while the character is in the inclusive range [lo, hi]."
         (returns CALLABLE "Analyzer state")
@@ -178,7 +178,7 @@
         (example "(Token make-str-state \"0x\" hex-digits ())" "match '0x' prefix"))
       (%make-str-state s next fail))
 
-    (method make-count-state (self (param n INTEGER "Exact number of characters to match")
+    (method make-count-state (self (param n INT "Exact number of characters to match")
                                    (param pred CALLABLE "Predicate: (pred chr) -> bool")
                                    (param done CALLABLE "Called after exactly n matches"))
       (doc "Match exactly n characters satisfying pred, then call done. Rejects if fewer match. With n=0, returns done directly."
@@ -186,7 +186,7 @@
         (example "(Token make-count-state 4 (fn (_ c) (Char numeric? c)) done)" "exactly 4 digits"))
       (%make-count-state n pred done))
 
-    (method make-min-state (self (param n INTEGER "Minimum number of characters to match")
+    (method make-min-state (self (param n INT "Minimum number of characters to match")
                                  (param pred CALLABLE "Predicate: (pred chr) -> bool")
                                  (param done CALLABLE "Called after n+ matches on a non-matching char"))
       (doc "Match at least n characters satisfying pred, then loop more, calling done when pred fails."
@@ -194,7 +194,7 @@
         (example "(Token make-min-state 1 (fn (_ c) (Char numeric? c)) done)" "1+ digits"))
       (%make-min-state n pred done))
 
-    (method make-optional-char (self (param ch INTEGER "Character code to optionally match")
+    (method make-optional-char (self (param ch INT "Character code to optionally match")
                                      (param next CALLABLE "Next state (reached whether or not ch matched)"))
       (doc "Match a character if present, skip it if not; either way continue to next."
         (returns CALLABLE "Analyzer state")

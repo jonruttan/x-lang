@@ -70,7 +70,7 @@
     (bold-blue   (%str-append (%sgr "1") (%sgr "34")) "Bold blue foreground")
     (method enabled? (self)
       (doc "Check whether ANSI color support is active."
-        (returns BOOLEAN "True if ANSI color output is enabled"))
+        (returns BOOL "True if ANSI color output is enabled"))
       %ansi?)
     (method wrap (self (param style STRING "ANSI escape sequence") (param text STRING "Text to wrap"))
       (doc "Wrap text in an ANSI style code with automatic reset."
