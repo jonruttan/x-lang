@@ -4,11 +4,13 @@
 (def %integer->char (prim-ref (lit int) (lit ->char)))
 
 ; A Seq subclass describes how to walk some in-memory value V as a sequence of
-; elements. A subclass supplies just three cursor primitives:
+; elements. A subclass supplies just three cursor primitives (subject-LAST,
+; like the rest of the library, so value-call dispatch -- which appends the
+; receiver last -- routes every method correctly):
 ;
 ;   (self start v)       -> opaque cursor positioned at the first element
-;   (self done? v cur)   -> #t once the cursor is past the last element
-;   (self step  v cur)   -> (element . next-cursor)
+;   (self done? cur v)   -> #t once the cursor is past the last element
+;   (self step  cur v)   -> (element . next-cursor)
 ;
 ; Everything else (count, length, ->list, each, fold) is derived ONCE here.
 ; The derived methods call (self start/done?/step ...), which re-dispatch to the
@@ -34,11 +36,11 @@
       (doc "Contract method: return an opaque cursor positioned at the first element. A subclass must override it."
         (returns ANY "A cursor (opaque -- a byte offset for strings)"))
       (error "Seq: start is abstract"))
-    (method done? (self (param v ANY "Value being traversed") (param cur ANY "Current cursor"))
+    (method done? (self (param cur ANY "Current cursor") (param v ANY "Value being traversed"))
       (doc "Contract method: #t once the cursor has advanced past the last element. A subclass must override it."
         (returns BOOL "#t when traversal is complete"))
       (error "Seq: done? is abstract"))
-    (method step (self (param v ANY "Value being traversed") (param cur ANY "Current cursor"))
+    (method step (self (param cur ANY "Current cursor") (param v ANY "Value being traversed"))
       (doc "Contract method: return (element . next-cursor) at the cursor. A subclass must override it."
         (returns PAIR "A (element . next-cursor) pair"))
       (error "Seq: step is abstract"))
@@ -49,8 +51,8 @@
         (returns INT "Number of elements in v")
         (example "(Str8 count \"abc\")" "3"))
       (let loop ((cur (self start v)) (n 0))
-        (if (self done? v cur) n
-          (loop (rest (self step v cur)) (+ n 1)))))
+        (if (self done? cur v) n
+          (loop (rest (self step cur v)) (+ n 1)))))
 
     ; default length walks the cursor; O(1) encodings override this
     (method length (self (param v ANY "Value to measure"))
@@ -63,27 +65,27 @@
         (returns LIST "List of v's elements")
         (example "(Str8 ->list \"ab\")" "(#\\a #\\b)"))
       (let loop ((cur (self start v)) (acc ()))
-        (if (self done? v cur)
+        (if (self done? cur v)
           (reverse acc)
-          (let ((s (self step v cur)))
+          (let ((s (self step cur v)))
             (loop (rest s) (pair (first s) acc))))))
 
-    (method each (self (param v ANY "Value to traverse") (param f CALLABLE "Applied to each element"))
+    (method each (self (param f CALLABLE "Applied to each element") (param v ANY "Value to traverse"))
       (doc "Apply f to each element in order, for its side effects; returns nil."
         (returns ANY "nil"))
       (let loop ((cur (self start v)))
-        (if (self done? v cur) ()
-          (let ((s (self step v cur)))
+        (if (self done? cur v) ()
+          (let ((s (self step cur v)))
             (f (first s))
             (loop (rest s))))))
 
-    (method fold (self (param v ANY "Value to traverse") (param f CALLABLE "Combiner, called (f acc element)") (param acc ANY "Initial accumulator"))
+    (method fold (self (param f CALLABLE "Combiner, called (f acc element)") (param acc ANY "Initial accumulator") (param v ANY "Value to traverse"))
       (doc "Left-fold: thread acc through the elements left to right, calling (f acc element) at each step."
         (returns ANY "The final accumulator")
-        (example "(Str8 fold \"abc\" (fn (_ a c) (+ a 1)) 0)" "3"))
+        (example "(Str8 fold (fn (_ a c) (+ a 1)) 0 \"abc\")" "3"))
       (let loop ((cur (self start v)) (a acc))
-        (if (self done? v cur) a
-          (let ((s (self step v cur)))
+        (if (self done? cur v) a
+          (let ((s (self step cur v)))
             (loop (rest s) (f a (first s)))))))
 
     ; --- encode direction (inverse of ->list) ---

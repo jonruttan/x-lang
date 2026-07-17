@@ -62,10 +62,10 @@
       (def b1 (%u8-byte-offset v len b0))
       (%str-byte-sub v b0 (- b1 b0)))
 
-    (method step (self (param v STRING "String being traversed") (param cur INT "Current byte offset of the cursor"))
+    (method step (self (param cur INT "Current byte offset of the cursor") (param v STRING "String being traversed"))
       (doc "Cursor step: decode one UTF-8 sequence at byte offset cur, yielding (CODE-POINT . next-byte-offset)."
         (returns PAIR "Pair of the decoded code point (CHARACTER) and the next byte offset")
-        (example "(StrUTF8 step \"$¢\" 1)" "(#\\¢ . 3)"))
+        (example "(StrUTF8 step 1 \"$¢\")" "(#\\¢ . 3)"))
       (let ((d (%utf8-decode v cur)))
         (pair (%integer->char (first d)) (rest d))))
 

@@ -109,7 +109,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ```x
 (do
   (import x/protocol/str/utf8)
-  (Utf8 fold "AB" (fn (_ a c) (+ a (Char ->int c))) 0))
+  (Utf8 fold (fn (_ a c) (+ a (Char ->int c))) 0 "AB"))
 ```
 ---
     131
@@ -149,3 +149,33 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ```
 ---
     (226 130 172)
+
+## value-call dispatch (subject-last through Seq)
+
+### fold value-calls route the string as the subject
+
+```x
+(do (import x/protocol/str/utf8) ("abc" fold (fn (_ a c) (+ a 1)) 0))
+```
+---
+    3
+
+### each value-calls route too
+
+```x
+(do
+  (import x/protocol/str/utf8)
+  (def n 0)
+  ("ab" each (fn (_ c) (set! n (+ n 1))))
+  n)
+```
+---
+    2
+
+### count value-calls stay correct
+
+```x
+(do (import x/protocol/str/utf8) ("$¢€" count))
+```
+---
+    3

@@ -73,8 +73,8 @@
     ; via count -> done?, an infinite recursion. start/done? are inherited
     ; unchanged by StrUTF8; only step advances differently.
     (method start (self v)     0)
-    (method done? (self v cur) (>= cur (%str-byte-len v)))
-    (method step  (self v cur) (pair (self index cur v) (+ cur 1)))
+    (method done? (self cur v) (>= cur (%str-byte-len v)))
+    (method step  (self cur v) (pair (self index cur v) (+ cur 1)))
 
     ; encode: one byte element is its own low byte. Makes
     ; (Str8 ->str (Str8 ->list s)) an identity on the byte view.
