@@ -1281,61 +1281,61 @@ Returns a function that applies `f` for side effects, then returns the argument.
 ((Fn tap write) 42) -> 42
 ```
 
-### `List complement`
+### `Fn complement`
 
-`(List complement pred) -> function`
-
-```
-((List complement even?) 3) -> #t
-```
-
-### `List partial`
-
-`(List partial f . bound) -> function`
+`(Fn complement pred) -> function`
 
 ```
-((List partial + 10) 5) -> 15
+((Fn complement even?) 3) -> #t
 ```
 
-### `List juxt`
+### `Fn partial`
 
-`(List juxt . fns) -> function`
-
-```
-((List juxt (method-ref Num inc) (method-ref Num dec)) 5) -> (6 4)
-```
-
-### `List both`
-
-`(List both f g) -> function`
+`(Fn partial f . bound) -> function`
 
 ```
-((List both positive? even?) 4) -> #t
-((List both positive? even?) 3) -> #f
+((Fn partial + 10) 5) -> 15
 ```
 
-### `List either`
+### `Fn juxt`
 
-`(List either f g) -> function`
-
-```
-((List either positive? even?) -2) -> #t
-```
-
-### `List all-pass`
-
-`(List all-pass preds) -> function`
+`(Fn juxt . fns) -> function`
 
 ```
-((List all-pass (list positive? even?)) 4) -> #t
+((Fn juxt (method-ref Num inc) (method-ref Num dec)) 5) -> (6 4)
 ```
 
-### `List any-pass`
+### `Fn both`
 
-`(List any-pass preds) -> function`
+`(Fn both f g) -> function`
 
 ```
-((List any-pass (list positive? even?)) -2) -> #t
+((Fn both positive? even?) 4) -> #t
+((Fn both positive? even?) 3) -> #f
+```
+
+### `Fn either`
+
+`(Fn either f g) -> function`
+
+```
+((Fn either positive? even?) -2) -> #t
+```
+
+### `Fn all-pass`
+
+`(Fn all-pass preds) -> function`
+
+```
+((Fn all-pass (list positive? even?)) 4) -> #t
+```
+
+### `Fn any-pass`
+
+`(Fn any-pass preds) -> function`
+
+```
+((Fn any-pass (list positive? even?)) -2) -> #t
 ```
 
 ---
@@ -1732,14 +1732,6 @@ Complement of `filter`.
 
 ```
 (List reject even? (list 1 2 3 4)) -> (1 3)
-```
-
-#### `List concat`
-
-`(List concat . lsts) -> list`
-
-```
-(List concat (list 1 2) (list 3) (list 4 5)) -> (1 2 3 4 5)
 ```
 
 ### Search

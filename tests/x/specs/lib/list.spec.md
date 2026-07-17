@@ -264,12 +264,12 @@
 ---
     (1 10 2 20 3 30)
 
-## concat
+## append (variadic)
 
 ### concatenates multiple lists
 
 ```scheme
-(List concat (list 1) (list 2 3) (list 4))
+(List append (list 1) (list 2 3) (list 4))
 ```
 ---
     (1 2 3 4)
@@ -277,7 +277,7 @@
 ### concatenates with empty
 
 ```scheme
-(List concat () (list 1) ())
+(List append () (list 1) ())
 ```
 ---
     (1)

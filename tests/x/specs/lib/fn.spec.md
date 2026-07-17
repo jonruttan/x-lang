@@ -89,7 +89,7 @@
 ### negates a predicate
 
 ```scheme
-((List complement (method-ref Num even?)) 3)
+((Fn complement (method-ref Num even?)) 3)
 ```
 ---
     #t
@@ -97,7 +97,7 @@
 ### negates a true result
 
 ```scheme
-(if ((List complement (method-ref Num even?)) 4) "odd" "even")
+(if ((Fn complement (method-ref Num even?)) 4) "odd" "even")
 ```
 ---
     "even"
@@ -107,7 +107,7 @@
 ### partially applies one argument
 
 ```scheme
-((List partial * 3) 4)
+((Fn partial * 3) 4)
 ```
 ---
     12
@@ -115,7 +115,7 @@
 ### partially applies with subtract
 
 ```scheme
-((List partial - 100) 30)
+((Fn partial - 100) 30)
 ```
 ---
     70
@@ -125,7 +125,7 @@
 ### applies multiple functions
 
 ```scheme
-((List juxt (method-ref Num inc) (method-ref Num dec)) 5)
+((Fn juxt (method-ref Num inc) (method-ref Num dec)) 5)
 ```
 ---
     (6 4)
@@ -135,7 +135,7 @@
 ### returns #t when both pass
 
 ```scheme
-((List both (method-ref Num positive?) (method-ref Num even?)) 4)
+((Fn both (method-ref Num positive?) (method-ref Num even?)) 4)
 ```
 ---
     #t
@@ -143,7 +143,7 @@
 ### returns nil when one fails
 
 ```scheme
-(if ((List both (method-ref Num positive?) (method-ref Num even?)) 3) "y" "n")
+(if ((Fn both (method-ref Num positive?) (method-ref Num even?)) 3) "y" "n")
 ```
 ---
     "n"
@@ -153,7 +153,7 @@
 ### returns #t when one passes
 
 ```scheme
-((List either (method-ref Num positive?) (method-ref Num even?)) -2)
+((Fn either (method-ref Num positive?) (method-ref Num even?)) -2)
 ```
 ---
     #t
@@ -161,7 +161,7 @@
 ### returns nil when both fail
 
 ```scheme
-(if ((List either (method-ref Num positive?) (method-ref Num even?)) -3) "y" "n")
+(if ((Fn either (method-ref Num positive?) (method-ref Num even?)) -3) "y" "n")
 ```
 ---
     "n"
@@ -171,7 +171,7 @@
 ### all predicates pass
 
 ```scheme
-((List all-pass (list (method-ref Num positive?) (method-ref Num even?))) 4)
+((Fn all-pass (list (method-ref Num positive?) (method-ref Num even?))) 4)
 ```
 ---
     #t
@@ -179,7 +179,7 @@
 ### fails when one fails
 
 ```scheme
-(if ((List all-pass (list (method-ref Num positive?) (method-ref Num even?))) 3) "y" "n")
+(if ((Fn all-pass (list (method-ref Num positive?) (method-ref Num even?))) 3) "y" "n")
 ```
 ---
     "n"
@@ -189,7 +189,7 @@
 ### one predicate passes
 
 ```scheme
-((List any-pass (list (method-ref Num negative?) (method-ref Num even?))) 4)
+((Fn any-pass (list (method-ref Num negative?) (method-ref Num even?))) 4)
 ```
 ---
     #t
@@ -197,7 +197,7 @@
 ### fails when all fail
 
 ```scheme
-(if ((List any-pass (list (method-ref Num negative?) (method-ref Num even?))) 3) "y" "n")
+(if ((Fn any-pass (list (method-ref Num negative?) (method-ref Num even?))) 3) "y" "n")
 ```
 ---
     "n"

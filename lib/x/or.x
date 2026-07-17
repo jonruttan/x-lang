@@ -67,8 +67,10 @@
 (def cdddar (fn (_ x) (rest (cddar x))))
 (def cddddr (fn (_ x) (rest (cdddr x))))
 
-; Convenience aliases (second, third, else, list-ref, list-tail, str-copy)
-; are now provided by x/core/list.
+; Scheme-compat list accessors: subject-FIRST R7RS names, at home in this
+; dialect with the cxr ladder; the core List class stays data-last.
+(def list-ref (fn (_ lst n) (List ref n lst)))
+(def list-tail (fn (_ lst n) (List drop n lst)))
 
 ; --- System functions ---
 (def system

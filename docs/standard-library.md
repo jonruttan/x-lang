@@ -367,67 +367,60 @@ Returns `#t` if the list is nil.
 
 ## 9. Higher-Order Combinators
 
-### `List complement`
-`(List complement pred) -> function`
+### `Fn complement`
+`(Fn complement pred) -> function`
 Returns a function that negates the result of `pred`.
 ```
-((List complement even?) 3) -> #t
+((Fn complement even?) 3) -> #t
 ```
 
-### `List partial`
-`(List partial f . bound) -> function`
+### `Fn partial`
+`(Fn partial f . bound) -> function`
 Returns a function with the leading arguments of `f` pre-filled.
 ```
-((List partial + 10) 5) -> 15
+((Fn partial + 10) 5) -> 15
 ```
 
-### `List juxt`
-`(List juxt . fns) -> function`
+### `Fn juxt`
+`(Fn juxt . fns) -> function`
 Returns a function that applies each of `fns` to its arguments and collects the results in a list.
 ```
-((List juxt (method-ref Num inc) (method-ref Num dec)) 5) -> (6 4)
+((Fn juxt (method-ref Num inc) (method-ref Num dec)) 5) -> (6 4)
 ```
 
-### `List both`
-`(List both f g) -> function`
+### `Fn both`
+`(Fn both f g) -> function`
 Returns a predicate that is true when both `f` and `g` return true.
 ```
-((List both positive? even?) 4) -> #t
+((Fn both positive? even?) 4) -> #t
 ```
 
-### `List either`
-`(List either f g) -> function`
+### `Fn either`
+`(Fn either f g) -> function`
 Returns a predicate that is true when either `f` or `g` returns true.
 ```
-((List either positive? even?) -2) -> #t
+((Fn either positive? even?) -2) -> #t
 ```
 
-### `List all-pass`
-`(List all-pass preds) -> function`
+### `Fn all-pass`
+`(Fn all-pass preds) -> function`
 Returns a predicate that is true when all predicates in the list pass.
 ```
-((List all-pass (list positive? even?)) 4) -> #t
+((Fn all-pass (list positive? even?)) 4) -> #t
 ```
 
-### `List any-pass`
-`(List any-pass preds) -> function`
+### `Fn any-pass`
+`(Fn any-pass preds) -> function`
 Returns a predicate that is true when any predicate in the list passes.
 ```
-((List any-pass (list positive? even?)) -2) -> #t
+((Fn any-pass (list positive? even?)) -2) -> #t
 ```
 
 ### `List reject`
 `(List reject pred lst) -> list`
-Returns elements for which `pred` is false (List complement of `filter`).
+Returns elements for which `pred` is false (Fn complement of `filter`).
 ```
 (List reject even? (list 1 2 3 4)) -> (1 3)
-```
-
-### `List concat`
-`(List concat . lsts) -> list`
-Concatenates zero or more lists into one.
-```
-(List concat (list 1 2) (list 3) (list 4 5)) -> (1 2 3 4 5)
 ```
 
 ### `List sum`
