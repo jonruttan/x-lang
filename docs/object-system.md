@@ -344,8 +344,8 @@ receiver. It is not [CLOS](https://en.wikipedia.org/wiki/Common_Lisp_Object_Syst
 — there are no generic functions and no multiple dispatch. The path toward
 CLOS-style generic functions would introduce function objects that dispatch on the
 types of *all* their arguments, generalising the type-keyed dispatch already used
-by `convert` (`lib/x/sys/convert.x`), which selects a handler by argument type and
-supports a wildcard default. The message-passing layer would remain the simple,
+by the Convert class (`lib/x/sys/convert.x` — `(Convert to val target)`), which
+selects a handler by argument type and supports a wildcard default. The message-passing layer would remain the simple,
 fast common case.
 
 ---

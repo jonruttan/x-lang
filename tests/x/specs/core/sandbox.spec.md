@@ -1,4 +1,4 @@
-## make-base
+## Base make
 
 ### creates a base object
 
@@ -50,7 +50,7 @@
 ---
     3
 
-## base-eval
+## Base eval
 
 ### evaluates arithmetic
 
@@ -76,7 +76,7 @@
 ---
     (lit caught)
 
-## base-bind
+## Base bind
 
 ### binds a value in target base
 

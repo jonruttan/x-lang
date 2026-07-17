@@ -88,10 +88,11 @@ Language personalities are loaded as additional libraries on top of a dialect, a
 | ASH Shell | x-lang | POSIX shell syntax: pipes, redirections, if/while/for/case |
 | Sweet Expressions | x-lang | SRFI-105/110: curly-infix + indentation-sensitive syntax |
 
-Personalities live under `lang/<name>/` when present and are loaded by concatenation:
+Personalities are maintained as sibling projects and load by concatenation on
+top of a dialect:
 
 ```sh
-cat lib/x.x lang/r5rs/lib/r5rs.x - | ./x
+cat lib/x.x path/to/r5rs.x - | ./x
 ```
 
 The interpreter core has no knowledge of any personality. All personality semantics are implemented in x-lang library code.

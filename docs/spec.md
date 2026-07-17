@@ -1185,45 +1185,45 @@ called with the instance (after the closure's implicit self slot).
 
 ## 12. Sandboxing
 
-### `make-base`
+### `Base make`
 
-`(make-base) -> base`
+`(Base make) -> base`
 
 Creates a fresh, sandboxed interpreter with all built-in types and primitives.
 
 ```
-(def b (make-base))
+(def b (Base make))
 ```
 
-### `base-eval`
+### `Base eval`
 
-`(base-eval base expr) -> value`
+`(Base eval base expr) -> value`
 
 Evaluates `expr` in the target `base` environment.
 
 ```
-(def b (make-base))
-(base-eval b (lit (+ 1 2))) -> 3
+(def b (Base make))
+(Base eval b (lit (+ 1 2))) -> 3
 ```
 
 Bases are isolated:
 
 ```
-(def b (make-base))
-(base-eval b (lit (def x 42)))
-(base-eval b (lit x)) -> 42
+(def b (Base make))
+(Base eval b (lit (def x 42)))
+(Base eval b (lit x)) -> 42
 ```
 
-### `base-bind`
+### `Base bind`
 
-`(base-bind base name value) -> value`
+`(Base bind base name value) -> value`
 
 Binds `name` to `value` in the target `base`.
 
 ```
-(def b (make-base))
-(base-bind b (lit x) 42)
-(base-eval b (lit x)) -> 42
+(def b (Base make))
+(Base bind b (lit x) 42)
+(Base eval b (lit x)) -> 42
 ```
 
 ---

@@ -31,7 +31,7 @@ Reports `def` bindings that are never referenced. Exceptions:
 ## Scope Tracking
 
 The linter walks the AST and tracks scoping for:
-- `def` / `set` -- definitions and mutations
+- `def` / `set!` -- definitions and mutations
 - `fn` -- parameter bindings
 - `op` -- parameter and env-param bindings
 - `let` -- local bindings

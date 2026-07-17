@@ -383,7 +383,7 @@ x_interp_field_tco_env(X)        /* TCO environment register    */
 
 #### Properties
 
-**Independence** — Each base is a self-contained interpreter. It has its own type registry, its own variable bindings, its own I/O streams. Creating a new base with `make-base` produces an independent interpreter.
+**Independence** — Each base is a self-contained interpreter. It has its own type registry, its own variable bindings, its own I/O streams. Creating a new base with `(Base make)` produces an independent interpreter.
 
 **Swappable** — A base can be replaced during execution. Swapping the base swaps the entire language — bindings, types, and state — in one operation.
 
@@ -408,7 +408,7 @@ typedef struct x_error_handler {
 #### Operations
 
 ```
-(make-base)                    → new independent base
-(base-eval base expr)          → evaluate expr in base's environment
-(base-bind base name value)    → bind name to value in base's environment
+(Base make)                    → new independent base
+(Base eval base expr)          → evaluate expr in base's environment
+(Base bind base name value)    → bind name to value in base's environment
 ```

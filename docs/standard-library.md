@@ -35,42 +35,42 @@ Returns its argument unchanged.
 ```
 
 ### `Fn const`
-`(Fn const x) -> (fn (y) x)`
+`(Fn const x) -> (fn (_ y) x)`
 Returns a function that always returns `x`, ignoring its argument.
 ```
 ((Fn const 5) 99) -> 5
 ```
 
 ### `Fn compose`
-`(Fn compose f g) -> (fn (x) (f (g x)))`
+`(Fn compose f g) -> (fn (_ x) (f (g x)))`
 Returns a function that applies `g` then `f` (right-to-left composition).
 ```
 ((Fn compose (method-ref Num inc) (method-ref Num inc)) 3) -> 5
 ```
 
 ### `Fn pipe`
-`(Fn pipe f g) -> (fn (x) (g (f x)))`
+`(Fn pipe f g) -> (fn (_ x) (g (f x)))`
 Returns a function that applies `f` then `g` (left-to-right composition).
 ```
 ((Fn pipe (method-ref Num inc) (method-ref Num inc)) 3) -> 5
 ```
 
 ### `Fn curry`
-`(Fn curry f x) -> (fn (y) (f x y))`
+`(Fn curry f x) -> (fn (_ y) (f x y))`
 Partially applies a two-argument function by fixing its first argument.
 ```
 ((Fn curry + 10) 5) -> 15
 ```
 
 ### `Fn flip`
-`(Fn flip f) -> (fn (a b) (f b a))`
+`(Fn flip f) -> (fn (_ a b) (f b a))`
 Returns a function that calls `f` with its two arguments reversed.
 ```
 ((Fn flip -) 1 10) -> 9
 ```
 
 ### `Fn tap`
-`(Fn tap f) -> (fn (x) ...x)`
+`(Fn tap f) -> (fn (_ x) ...x)`
 Returns a function that applies `f` to its argument for side effects, then returns the argument.
 ```
 ((Fn tap print) 42) -> 42
@@ -328,7 +328,7 @@ Applies `f` to each element for side effects only.
 `(List flat-map f lst) -> list`
 Maps `f` over the list and flattens one level of nesting from the results.
 ```
-(List flat-map (fn (x) (list x x)) (list 1 2)) -> (1 1 2 2)
+(List flat-map (fn (_ x) (list x x)) (list 1 2)) -> (1 1 2 2)
 ```
 
 ---

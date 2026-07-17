@@ -768,36 +768,36 @@ Signals an error with the evaluated `message`. If a `guard` handler is installed
 
 ### Meta
 
-### `make-base`
+### `Base make`
 
-`(make-base) -> base`
+`(Base make) -> base`
 
 Creates a fresh, sandboxed interpreter base environment with all built-in types and primitives registered. The new base has its own environment, type registry, and read buffer.
 
 ```
-(def b (make-base)) -> <base>
+(def b (Base make)) -> <base>
 ```
 
-### `base-eval`
+### `Base eval`
 
-`(base-eval base expr) -> value`
+`(Base eval base expr) -> value`
 
 Evaluates expression `expr` in the target `base` environment. List nil terminators are rewritten to match the target base. Errors in the target base propagate to the calling base if a `guard` handler is installed.
 
 ```
-(def b (make-base))
-(base-eval b (lit (+ 1 2))) -> 3
+(def b (Base make))
+(Base eval b (lit (+ 1 2))) -> 3
 ```
 
-### `base-bind`
+### `Base bind`
 
-`(base-bind base name value) -> value`
+`(Base bind base name value) -> value`
 
 Binds `name` to `value` in the target `base` environment. List values are rewritten to use the target base's nil. All arguments are evaluated in the calling environment before binding in the target.
 
 ```
-(def b (make-base))
-(base-bind b (lit x) 42) -> 42
+(def b (Base make))
+(Base bind b (lit x) 42) -> 42
 ```
 
 ---

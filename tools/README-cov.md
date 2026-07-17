@@ -16,7 +16,7 @@ make x-cov
 sh tools/cov.sh FILE
 
 # Example
-echo '(def abs (fn (x) (if (< x 0) (- 0 x) x)))
+echo '(def abs (fn (_ x) (if (< x 0) (- 0 x) x)))
 (abs 5)' > /tmp/test.x
 sh tools/cov.sh /tmp/test.x
 # Branch coverage: 1/2
@@ -58,7 +58,7 @@ de-registered: fetch with `(prim-ref (lit obj) (lit ->ptr))` or use the Obj clas
   (if (> (Ptr ->int (Ptr from-int 4294967296)) 0) 8 4))
 (def %flags-offset (* 2 word-size))
 
-(def obj-flags (fn (obj)
+(def obj-flags (fn (_ obj)
   (Ptr ref-word (Obj ->ptr obj) %flags-offset)))
 ```
 
