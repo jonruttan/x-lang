@@ -43,7 +43,9 @@ Stable full-stack dialect. Includes all of x-lang, then adds:
 - **Hash tables** (`x/core/hash.x`) — FNV-1a hash function for strings
 - **JIT compiler** (`x/tool/compile.x`) — Compiles x-lang functions to native machine code via the data-driven assembler
 
-Then loads the numeric tower with immediate analyser compilation:
+Then loads the numeric tower with immediate analyser compilation (the shared
+block `lib/x/boot/tower-compiled.x`, included by all three full-stack
+entries — x-base.x, x-and.x, x-or.x):
 
 1. **Bignum** (`x/num/bignum.x`) — Arbitrary-precision integers. Analysers for bignum and int-capped types are compiled to native code immediately after loading.
 2. **Regex** (`x/type/regex.x`) — Regular expressions with `#/pattern/` literal syntax. Uses a C-level analyser, no compilation needed.
