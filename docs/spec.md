@@ -48,14 +48,35 @@ applicatives (created by `fn` or `wrap`), each argument is evaluated before the
 call. For operatives (created by `op` or C primitives), arguments are passed
 unevaluated.
 
-### Nil
+### Nil, false, and truthiness
 
-The empty list `()` is nil. It is falsy. The boolean false value is `#f`.
-`()` self-evaluates.
+The empty list `()` is nil. Nil, the empty list, and absence are ONE value —
+the pun is deliberate: a list is its first pair or the absence of one, and
+nil's representation (the null object) is what makes every list-termination
+test free. The boolean false value is `#f`, a distinct canonical atom carried
+on the base. `()` self-evaluates.
 
 ```
 () -> ()
 ```
+
+**Truthiness: exactly two values are falsy — nil and `#f`.** Everything else
+is truthy, including `0`, `""`, and empty vectors/dicts (which are real
+objects, distinct from nil; only lists pun empty with absence).
+
+The absence discipline (normative for the standard library):
+
+1. Predicates answer `#t`/`#f`, never a useful value.
+2. Absence is nil: lookup and find misses return `()` — never `#f`.
+3. An API whose slots can legally store nil or `#f` must offer a presence
+   door — `has?`, or a presence-based `-or`/`-or-else` default — never a
+   value sentinel. (Internal walkers use one-element boxes.)
+4. Index-returning methods miss with `-1` — the sole numeric exception.
+5. Boundaries (e.g. JSON) carry a foreign null as the symbol `null`; `()`
+   crossing a boundary always means the empty sequence.
+6. `and`/`or` are value operators: `and` normalizes failure to `#f` (it
+   answers "did all pass"); `or` returns its first truthy value, or `()`
+   when given none.
 
 ### Tail-call optimization
 

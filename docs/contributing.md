@@ -52,6 +52,11 @@ make clean && make
   the fn/op constructors' returns. Class names (`Dict`, `Vec`, `Random`, ...)
   are legitimate returns types as-is. `make check-doc-vocab` enforces the
   banned aliases.
+- **Absence discipline** (normative; the full statement is spec.md's "Nil,
+  false, and truthiness"): falsy = {nil, `#f`} only; predicates answer
+  `#t`/`#f`; misses return nil (never `#f`); nil-storable slots need a
+  presence door (`has?` / presence-based `-or`), never a value sentinel;
+  index misses are `-1`; boundaries carry foreign null as the symbol `null`.
 - **Arguments are subject-LAST** (the dispatched value is the final parameter),
   matching value-call dispatch: `("a,b" split ",")` → `(Str split "," "a,b")`.
   Deliberate exception: the `File`/`Sys` OS layer mirrors POSIX and stays

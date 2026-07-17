@@ -923,10 +923,10 @@
 ### returns false when not found
 
 ```scheme
-(if (List memq 6 (list 1 2 3)) "y" "n")
+(null? (List memq 6 (list 1 2 3)))
 ```
 ---
-    "n"
+    #t
 
 ## member
 
@@ -941,10 +941,10 @@
 ### returns false when not found
 
 ```scheme
-(if (List member 6 (list 1 2 3)) "y" "n")
+(null? (List member 6 (list 1 2 3)))
 ```
 ---
-    "n"
+    #t
 
 ## assq
 
@@ -959,10 +959,10 @@
 ### returns false when not found
 
 ```scheme
-(if (List assq (lit z) (list (pair (lit a) 1))) "y" "n")
+(null? (List assq (lit z) (list (pair (lit a) 1))))
 ```
 ---
-    "n"
+    #t
 
 ## assoc
 
@@ -977,10 +977,10 @@
 ### returns false when not found
 
 ```scheme
-(if (List assoc 9 (list (pair 1 10))) "y" "n")
+(null? (List assoc 9 (list (pair 1 10))))
 ```
 ---
-    "n"
+    #t
 
 ## fold-right
 

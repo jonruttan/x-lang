@@ -160,3 +160,45 @@
 ---
     15
 
+
+## truthiness (the two-falsy law)
+
+### nil and #f are the only falsy values
+
+```scheme
+(list (if () "t" "f") (if #f "t" "f"))
+```
+---
+    ("f" "f")
+
+### zero is truthy
+
+```scheme
+(if 0 "t" "f")
+```
+---
+    "t"
+
+### the empty string is truthy
+
+```scheme
+(if "" "t" "f")
+```
+---
+    "t"
+
+### an empty vector is truthy (a real object, not nil)
+
+```scheme
+(if (Vector make 0 ()) "t" "f")
+```
+---
+    "t"
+
+### and normalizes failure to #f; or returns () when given nothing truthy
+
+```scheme
+(list (and 1 () 3) (or #f ()))
+```
+---
+    (#f ())
