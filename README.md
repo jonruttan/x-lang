@@ -9,11 +9,14 @@
 
 [![CI](https://github.com/jonruttan/x-lang/actions/workflows/ci.yml/badge.svg)](https://github.com/jonruttan/x-lang/actions/workflows/ci.yml)
 
-**x-lang** is a Lisp built as computational-expression layers over a minimal,
-type-agnostic interpreter core written in C89. The core provides atom/pair
-primitives, an adaptive type system, and fexpr-based evaluation. Everything
-else — the language semantics, standard library, object system, numeric tower,
-JIT compiler, and the toolchain itself — is written in x-lang.
+**x-lang** is a language built from computational-expression layers over a
+minimal, type-agnostic interpreter core written in C89. The core provides
+atom/pair primitives, an adaptive type system, and fexpr-based evaluation;
+s-expressions are the deliberately simple initial syntax — the reader
+itself is extensible, and whole surface languages load as personalities.
+Everything above the core — the language semantics, standard library, object
+system, numeric tower, JIT compiler, and the toolchain itself — is written
+in x-lang.
 
 ## A taste
 
