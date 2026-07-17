@@ -231,9 +231,13 @@ Creates a new type at runtime. `name` is a string. `handlers` is an association 
 ```
 (Type make "VECTOR"
   (list
-    (pair (lit call) (fn (self . args) ...))
-    (pair (lit write) (fn (self) ...))))
+    (pair (lit call) (fn (_ self . args) ...))
+    (pair (lit write) (fn (_ self) ...))))
 ```
+
+Handler closures follow the universal self-passing convention: the closure
+itself arrives as argument 0 (the `_` slot), then the instance, then any
+call arguments.
 
 Supported handler keys: `call`, `eval`, `from`, `to`, `analyse`, `delimit`, `write`, `length`, `iter`. The `iter` handler is `(fn (_ obj) -> iterator)`; it makes `(iter obj)` build an iterator over the type's values (see the Iterators section of the standard library).
 
@@ -268,21 +272,21 @@ Returns the type name of any object as a string.
 ```
 (def %vector (Type make "VECTOR"
   (list
-    (pair (lit call) (fn (self . args)
+    (pair (lit call) (fn (_ self . args)
       ((first self) (first args))))
-    (pair (lit write) (fn (self)
+    (pair (lit write) (fn (_ self)
       (display "#(")
-      (def write-vec (fn (lst sep)
-        (if (not (null? lst))
-          (do (if sep (display " "))
-              (write (first lst))
-              (write-vec (rest lst) #t)))))
-      (write-vec (first self) ())
+      ((fn (go lst sep)
+         (if (not (null? lst))
+           (do (if sep (display " "))
+               (write (first lst))
+               (go (rest lst) #t))))
+       (first self) ())
       (display ")"))))))
 
-(def vector (fn args (Type make-instance %vector args)))
-(def vector? (fn (x) (Type ? x %vector)))
-(def vector-ref (fn (v i) (v i)))
+(def vector (fn args (Type make-instance %vector (rest args))))
+(def vector? (fn (_ x) (Type ? x %vector)))
+(def vector-ref (fn (_ v i) (v i)))
 ```
 
 The `call` handler enables `(v 0)` indexing. The `write` handler produces `#(1 2 3)` output. The type integrates into the evaluator and printer without any C code changes.

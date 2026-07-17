@@ -1,30 +1,31 @@
-; factorial.x -- Factorial with tail-call optimization
+; factorial.x -- Factorial two ways: self-recursion and a tail-recursive loop
 ;
 ; Usage:
 ;   sh x.sh -f examples/x/factorial.x
 
-; Naive recursive factorial
+; Every closure receives itself as implicit argument 0. Name it `self`
+; and recursion needs no global name.
 (def factorial
-  (fn (n)
-    (if (<= n 1) 1 (* n (factorial (- n 1))))))
+  (fn (self n)
+    (if (<= n 1) 1 (* n (self (- n 1))))))
 
-; Tail-recursive factorial using an accumulator
+; Tail-recursive with an accumulator via named let: constant stack space.
 (def factorial-tc
-  (fn (n)
-    (def go
-      (fn (n acc)
-        (if (<= n 1) acc (go (- n 1) (* acc n)))))
-    (go n 1)))
+  (fn (_ n)
+    (let go ((n n) (acc 1))
+      (if (<= n 1) acc (go (- n 1) (* acc n))))))
 
-(display "factorial(10) = ")
+(display "factorial(10)    = ")
 (display (factorial 10))
 (newline)
 
-(display "factorial-tc(10) = ")
-(display (factorial-tc 10))
+; 20! is the largest factorial that fits a 64-bit integer -- the plain
+; x-lang dialect has no bignums (use x/and for those; see examples/and/).
+(display "factorial-tc(20) = ")
+(display (factorial-tc 20))
 (newline)
 
-; TCO means this won't overflow the stack
-(display "factorial-tc(1000) = ")
-(display (factorial-tc 1000))
+; TCO means a million-iteration loop runs in constant stack space.
+(display "count(1000000)   = ")
+(display (let go ((n 1000000)) (if (= n 0) 'done (go (- n 1)))))
 (newline)

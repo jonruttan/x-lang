@@ -1,7 +1,7 @@
 ; hello.x -- Hello world via syscall
 ;
 ; Usage:
-;   cat lang/x-or/lib/or-base.x lang/x-or/examples/hello.x | ./x
+;   sh x.sh -l x-or -f examples/or/hello.x
 
 (do
   (display "Hello from x/or!\n")

@@ -1,4 +1,4 @@
-# Computational Expressions in C
+# x-lang
 
 ```
     ., .,
@@ -7,7 +7,35 @@
      " "
 ```
 
-A minimal, type-agnostic expression interpreter written in C89. The core provides atom/pair primitives, an adaptive type system, and fexpr-based evaluation. Everything else — including the standard library, language semantics, numeric tower, JIT compiler, and safety — is built on top.
+[![CI](https://github.com/jonruttan/x-lang/actions/workflows/ci.yml/badge.svg)](https://github.com/jonruttan/x-lang/actions/workflows/ci.yml)
+
+**x-lang** is a Lisp built as computational-expression layers over a minimal,
+type-agnostic interpreter core written in C89. The core provides atom/pair
+primitives, an adaptive type system, and fexpr-based evaluation. Everything
+else — the language semantics, standard library, object system, numeric tower,
+JIT compiler, and the toolchain itself — is written in x-lang.
+
+## A taste
+
+```scheme
+; Every closure receives itself as argument 0 -- recursion needs no global name
+(def fact (fn (self n) (if (= n 0) 1 (* n (self (- n 1))))))
+(fact 20)                      ; -> 2432902008176640000
+
+; Fexprs at the core: op receives its arguments unevaluated
+(def my-quote (op (x) e x))
+(my-quote (+ 1 2))             ; -> the list (+ 1 2), unevaluated
+
+; Values dispatch to their class, subject-last
+("hello,world" split ",")      ; -> ("hello" "world")
+((list 10 20 30) 1)            ; -> 20
+
+; The x/and dialect adds a full numeric tower with automatic promotion
+(+ 1/3 1/6)                    ; -> 1/2
+(* 1+2i 3+4i)                  ; -> -5+10i
+```
+
+More in [examples/](examples/) — run one with `sh x.sh -f examples/x/factorial.x`.
 
 ## Architecture
 
@@ -15,7 +43,7 @@ The system is layered. Each layer expands capabilities without modifying those b
 
 1. **Atom/pair bootstrap** ([x-expr](ext/x-expr/)) — Two intrinsic structural types sufficient for evaluation and data construction. The evaluator dispatches through type methods, so these two suffice to get the system running.
 2. **Adaptive type system** — Runtime type definitions with dispatch methods (call, eval, write, length, etc.). Types and the base object share the same nested-list contract structure, extensible by appending pairs.
-3. **Modular library** (`lib/`) — 50+ modules organized by domain: core operations, custom types (vectors, strings, promises), a numeric tower (bignum, float, rational, complex), system interfaces (POSIX, FFI, GC), self-hosted tools (linter, formatter, coverage, profiler, doc generator), and platform-specific code (x86_64, ARM64).
+3. **Modular library** (`lib/`) — 90 modules organized by domain: core operations, custom types (vectors, strings, promises), a numeric tower (bignum, float, rational, complex), system interfaces (POSIX, FFI, GC), self-hosted tools (linter, formatter, coverage, profiler, doc generator), and platform-specific code (x86_64, ARM64).
 4. **FFI and native code** — Dynamic library loading via `dlopen`/`dlsym`, typed foreign calls, raw pointer operations, and a JIT compiler that compiles x-lang functions to native machine code via a data-driven assembler.
 
 See [docs/](docs/) for complete reference documentation.
@@ -28,7 +56,7 @@ The library is composed into dialects that control what capabilities are loaded:
 - **x/and** (`lib/x-and.x`) — Stable full-stack dialect. Adds POSIX, hash tables, the JIT compiler, and a numeric tower (bignum, float, rational, complex) with compiled tokenizer analysers for fast parsing.
 - **x/or** (`lib/x-or.x`) — Experimental dialect. Everything in x/and plus raw syscall tables, file I/O, sockets, character constants, and I/O handle constants.
 
-Dialects are selected via the `-l` flag on the shell wrapper. Language personalities (R5RS Scheme, R7RS Scheme, Kernel, ASH shell, sweet expressions) are loaded as additional libraries on top of a dialect.
+Dialects are selected via the `-l` flag on the shell wrapper. Language personalities (R5RS Scheme, R7RS Scheme, Kernel, ASH shell, sweet expressions) are maintained as sibling projects and load as additional libraries on top of a dialect.
 
 ## Build
 
@@ -36,7 +64,7 @@ The expression engine (`ext/x-expr`) and the C test runner are git submodules
 — clone recursively, or fetch them into an existing clone:
 
 ```sh
-git clone --recursive <repo-url>
+git clone --recursive https://github.com/jonruttan/x-lang.git
 # or, in an existing clone:
 git submodule update --init
 ```
@@ -79,7 +107,7 @@ make test-c                          # C unit tests
 make test                            # all tests
 ```
 
-Test specs are markdown files in `tests/x/specs/` organized by category: core language, closures and applicatives, extensions (types, numeric tower, compile), standard library, end-to-end, and tools.
+Test specs are markdown files in `tests/x/specs/` organized by category: core language, closures and applicatives, extensions (types, numeric tower, compile), standard library, end-to-end, and tools. CI runs the full suite on macOS and Linux, plus a hard AddressSanitizer gate.
 
 ## Features
 
@@ -88,12 +116,12 @@ Test specs are markdown files in `tests/x/specs/` organized by category: core la
 - **Object system** — Classes are callable objects with message-passing dispatch (no quoting), single inheritance and `super`, encapsulated mutable members, and a `(static …)` block for static methods and class-wide members — so a class doubles as a namespace. All in x-lang, on `make-type`.
 - **Module system** — `provide`/`import` with deduplication. Modules are auto-discovered.
 - **Numeric tower** — Arbitrary-precision integers, IEEE 754 floats, exact rationals, complex numbers with automatic promotion.
-- **JIT compiler** — Compiles x-lang functions to native x86_64/ARM64 machine code via a data-driven assembler with mmap execution.
+- **JIT compiler** — Compiles x-lang functions to native ARM64 machine code via a data-driven assembler with mmap execution. The x86_64 assembler has full instruction parity; x86_64 codegen is in progress.
 - **POSIX interface** — Fork, exec, pipe, dup2, wait, open, close, read, write, chdir, getenv, setenv via FFI.
 - **Regular expressions** — Custom type with `#/pattern/` literal syntax.
 - **Self-hosted tools** — Linter, formatter, coverage analyzer, profiler, and documentation generator written in x-lang.
 - **Tail-call optimization** — Trampoline-based TCO with environment save/restore.
-- **C89 portable** — No external dependencies, compiles with gcc, clang, tcc, c89, c99.
+- **C89 portable** — No external dependencies. CI builds with gcc and clang on macOS and Linux; any C89-compatible compiler should work.
 
 ## Documentation
 
@@ -122,4 +150,4 @@ Test specs are markdown files in `tests/x/specs/` organized by category: core la
 
 ## License
 
-MIT No Attribution (MIT-0)
+[MIT No Attribution (MIT-0)](LICENSE)

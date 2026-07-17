@@ -609,7 +609,8 @@
     (list (lit exit)   1)  (list (lit fork)  2)
     (list (lit read)   3)  (list (lit write) 4)
     (list (lit open)   5)  (list (lit close) 6)
-    (list (lit unlink) 10) (list (lit mkdir) 136)
+    (list (lit wait4)  7)  (list (lit unlink) 10)
+    (list (lit execve) 59) (list (lit mkdir) 136)
     (list (lit stat)   188) (list (lit fstat) 189) (list (lit lstat) 190)
     (list (lit lseek)  199)))
 

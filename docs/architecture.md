@@ -101,7 +101,7 @@ The evaluator (`x_eval`) does not distinguish special forms from functions. It c
 `fn` creates a closure (procedure). When a procedure is called, the caller's arguments are evaluated first (via `x_prim_evlis`), then bound to the procedure's parameter list in an extended copy of the closure's captured environment. The body is then evaluated in that environment.
 
 ```
-(fn (x y) (+ x y))
+(fn (_ x y) (+ x y))
 ```
 
 This is the applicative evaluation model: arguments are values by the time the body executes.

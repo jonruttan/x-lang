@@ -1,19 +1,22 @@
-; cat.x -- Display a file using syscalls
+; cat.x -- Display a file using raw syscalls
 ;
 ; Usage:
-;   cat lang/x-or/lib/or-base.x lang/x-or/lib/x/file.x lang/x-or/examples/cat.x | ./x
+;   sh x.sh -l x-or -f examples/or/cat.x
+;
+; (Run from the repository root -- the file path below is repo-relative.)
 
 (do
-  (def buf (make-string 256))
+  ; A GC-owned byte buffer for the read syscall to fill
+  (def buf (Str8 make 256 #\space))
 
-  (def display-file (fn (_ fd)
+  (def display-file (fn (self fd)
     (let ((n (File read fd buf 256)))
       (if (> n 0)
         (do
           (syscall (syscall-id (lit write)) stdout buf n)
-          (display-file fd))))))
+          (self fd))))))
 
-  (let ((fd (File open "lang/x-or/examples/cat.x" (lit rdonly))))
+  (let ((fd (File open "examples/or/cat.x" (lit rdonly))))
     (display "=== cat.x ===\n")
     (display-file fd)
     (File close fd)))

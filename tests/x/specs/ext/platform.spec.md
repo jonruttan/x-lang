@@ -34,6 +34,16 @@ values **without issuing any real syscall**; the assertions branch on
 ---
     #t
 
+### syscall-id maps fork / execve / wait4 per platform (examples/or/execve-ls.x)
+
+```scheme
+(and (eq? (syscall-id (lit fork))   (if os-darwin? 2 57))
+     (eq? (syscall-id (lit execve)) 59)
+     (eq? (syscall-id (lit wait4))  (if os-darwin? 7 61)))
+```
+---
+    #t
+
 ## platform: open flags
 
 ### O_CREAT matches the platform (macOS 512 / Linux 64)

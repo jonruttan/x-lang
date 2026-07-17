@@ -31,4 +31,4 @@
 
 - [Contributing](contributing.md) — Build prerequisites, code style, testing, commit conventions
 - [Changelog](../CHANGELOG.md) — Version history
-- [License](../README.md#license) — MIT No Attribution (MIT-0)
+- [License](../LICENSE) — MIT No Attribution (MIT-0)
