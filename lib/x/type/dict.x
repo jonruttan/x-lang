@@ -63,6 +63,10 @@
   n      ; entry count
 
   (static
+    (method dict? (self (param x ANY "Value to test"))
+      (doc "Test whether a value is a Dict." (returns BOOL "#t when x is a Dict instance"))
+      (if (object? x) (instance-of? x self) #f))
+
     (method make (self . opt)
       (doc "An empty dict. Pass a capacity to pre-size the bucket table."
         (param opt LIST "Optional (capacity) -- initial bucket count, default 8")
