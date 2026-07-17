@@ -346,12 +346,14 @@ Creates local bindings by evaluating each `val` in the current environment, then
 
 `(fn (params ...) body ...) -> procedure`
 
-Creates a closure (applicative, lexically scoped). `params` are not evaluated; they name the formal parameters. Supports variadic binding: if `params` is a single symbol instead of a list, it captures the entire argument list.
+Creates a closure (applicative, lexically scoped). `params` are not evaluated; they name the formal parameters. Every closure receives itself as an implicit first argument — by convention the first formal is `_` when unused, or `self` when the body recurses through it. Supports variadic binding: if `params` is a single symbol instead of a list, it captures the entire argument list, whose head is the closure itself.
 
 ```
-(def add (fn (a b) (+ a b)))
+(def add (fn (_ a b) (+ a b)))
 (add 1 2) -> 3
-(def id (fn args args))
+(def fact (fn (self n) (if (= n 0) 1 (* n (self (- n 1))))))
+(fact 5) -> 120
+(def id (fn args (rest args)))
 (id 1 2 3) -> (1 2 3)
 ```
 
@@ -814,7 +816,7 @@ names are **de-registered** (R5). The surface is the `Type` class (methods
 Creates a new runtime type with string `name` and an association list of `handlers`. Supported handler keys include `call`, `write`, `analyse`, `read`, `iter`, `from`, `to`, and `ops`, each mapping to a closure. Returns a type handle atom used to create instances and check types.
 
 ```
-(def my-type (Type make "my-type" (list (pair (lit call) (fn (obj args) args))))) -> <type-handle>
+(def my-type (Type make "my-type" (list (pair (lit call) (fn (_ obj . args) args))))) -> <type-handle>
 ```
 
 ### `Type make-instance`

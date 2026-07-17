@@ -74,7 +74,7 @@ Proper tail calls MUST NOT grow the stack. A tail-recursive loop MUST be able
 to iterate without limit.
 
 ```
-(def loop (fn (n) (if (= n 0) #t (loop (- n 1)))))
+(def loop (fn (self n) (if (= n 0) #t (self (- n 1)))))
 (loop 1000000) -> #t
 ```
 
@@ -83,8 +83,8 @@ to iterate without limit.
 Mutually tail-recursive functions MUST also run in constant stack space.
 
 ```
-(def even-tc (fn (n) (if (= n 0) #t (odd-tc (- n 1)))))
-(def odd-tc (fn (n) (if (= n 0) #f (even-tc (- n 1)))))
+(def even-tc (fn (_ n) (if (= n 0) #t (odd-tc (- n 1)))))
+(def odd-tc (fn (_ n) (if (= n 0) #f (even-tc (- n 1)))))
 (even-tc 100000) -> #t
 ```
 
@@ -260,23 +260,30 @@ from the end. Two integer arguments `(lst start len)` return a sublist.
 `(fn (params ...) body ...) -> procedure`
 
 Creates a closure (applicative). Arguments are evaluated before binding.
-Supports variadic: if `params` is a single symbol, it captures the entire
-argument list. A dotted-pair parameter list `(a b . rest)` binds named
+Every closure receives itself as an implicit first argument: a call
+`(add 1 2)` binds the first formal to the `add` closure itself, the second
+to `1`, and the third to `2`. By convention the first formal is named `_`
+when unused, or `self` when the body recurses through it — self-recursion
+needs no global name and survives rebinding. Supports variadic: if `params`
+is a single symbol, it captures the entire argument list, whose head is the
+closure itself. A dotted-pair parameter list `(_ a . rest)` binds named
 parameters and collects remaining arguments into `rest`.
 
 ```
-(def add (fn (a b) (+ a b)))
+(def add (fn (_ a b) (+ a b)))
 (add 1 2) -> 3
-(def id (fn args args))
+(def fact (fn (self n) (if (= n 0) 1 (* n (self (- n 1))))))
+(fact 5) -> 120
+(def id (fn args (rest args)))
 (id 1 2 3) -> (1 2 3)
-(def f (fn (a b . rest) rest))
+(def f (fn (_ a b . rest) rest))
 (f 1 2 3 4 5) -> (3 4 5)
 ```
 
 Closures capture their lexical environment:
 
 ```
-(def make-adder (fn (n) (fn (x) (+ n x))))
+(def make-adder (fn (_ n) (fn (_ x) (+ n x))))
 ((make-adder 10) 5) -> 15
 ```
 
@@ -689,7 +696,7 @@ Returns `#f` for `op` operatives and all other values.
 
 ```
 (procedure? +) -> #t
-(procedure? (fn (x) x)) -> #t
+(procedure? (fn (_ x) x)) -> #t
 (procedure? 42) -> #f
 ```
 
@@ -1132,11 +1139,13 @@ Sets the score fields for the tokenizer protocol. `length` is the match length,
 ### Call handler
 
 When a typed instance is called as a function, the `call` handler is invoked
-with the instance as `self` followed by the arguments.
+with the instance followed by the arguments. Like every closure, the handler
+also receives itself as implicit argument 0, so the instance binds as the
+second formal.
 
 ```
 (def counter-t (Type make "COUNTER"
-  (list (pair (lit call) (fn (self . args) (first self))))))
+  (list (pair (lit call) (fn (_ self . args) (first self))))))
 (def c (Type make-instance counter-t 42))
 (c) -> 42
 ```
@@ -1144,11 +1153,11 @@ with the instance as `self` followed by the arguments.
 ### Write handler
 
 When `write` or `display` outputs a typed instance, the `write` handler is
-called with the instance as `self`.
+called with the instance (after the closure's implicit self slot).
 
 ```
 (def my-t (Type make "SHOW"
-  (list (pair (lit write) (fn (self) (display "[") (display (first self)) (display "]"))))))
+  (list (pair (lit write) (fn (_ self) (display "[") (display (first self)) (display "]"))))))
 ```
 
 ---
@@ -1214,7 +1223,7 @@ Returns its argument unchanged.
 
 ### `Fn const`
 
-`(Fn const x) -> (fn (y) x)`
+`(Fn const x) -> (fn (_ y) x)`
 
 Returns a function that always returns `x`.
 
@@ -1224,7 +1233,7 @@ Returns a function that always returns `x`.
 
 ### `Fn compose`
 
-`(Fn compose f g) -> (fn (x) (f (g x)))`
+`(Fn compose f g) -> (fn (_ x) (f (g x)))`
 
 Right-to-left function composition.
 
@@ -1234,7 +1243,7 @@ Right-to-left function composition.
 
 ### `Fn pipe`
 
-`(Fn pipe f g) -> (fn (x) (g (f x)))`
+`(Fn pipe f g) -> (fn (_ x) (g (f x)))`
 
 Left-to-right function composition.
 
@@ -1244,7 +1253,7 @@ Left-to-right function composition.
 
 ### `Fn curry`
 
-`(Fn curry f x) -> (fn (y) (f x y))`
+`(Fn curry f x) -> (fn (_ y) (f x y))`
 
 Partially applies a two-argument function by fixing its first argument.
 
@@ -1254,7 +1263,7 @@ Partially applies a two-argument function by fixing its first argument.
 
 ### `Fn flip`
 
-`(Fn flip f) -> (fn (a b) (f b a))`
+`(Fn flip f) -> (fn (_ a b) (f b a))`
 
 Reverses the arguments of a binary function.
 
@@ -1264,7 +1273,7 @@ Reverses the arguments of a binary function.
 
 ### `Fn tap`
 
-`(Fn tap f) -> (fn (x) ...x)`
+`(Fn tap f) -> (fn (_ x) ...x)`
 
 Returns a function that applies `f` for side effects, then returns the argument.
 
@@ -1543,7 +1552,7 @@ Left fold.
 
 ```
 (fold + 0 (list 1 2 3)) -> 6
-(fold (fn (acc x) (pair x acc)) () (list 1 2 3)) -> (3 2 1)
+(fold (fn (_ acc x) (pair x acc)) () (list 1 2 3)) -> (3 2 1)
 ```
 
 #### `List reduce`
@@ -1673,7 +1682,7 @@ Applies `f` to each element for side effects only.
 Maps then flattens one level.
 
 ```
-(List flat-map (fn (x) (list x x)) (list 1 2)) -> (1 1 2 2)
+(List flat-map (fn (_ x) (list x x)) (list 1 2)) -> (1 1 2 2)
 ```
 
 ### Predicates
