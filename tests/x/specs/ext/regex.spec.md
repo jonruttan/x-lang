@@ -409,7 +409,7 @@
 ### matches full string
 
 ```scheme
-(Regex match #/ab*c/ "abbc")
+(Regex match "abbc" #/ab*c/)
 ```
 ---
     #t
@@ -417,7 +417,7 @@
 ### rejects partial match
 
 ```scheme
-(if (Regex match #/ab/ "abc") "yes" "no")
+(if (Regex match "abc" #/ab/) "yes" "no")
 ```
 ---
     "no"
@@ -425,7 +425,7 @@
 ### matches empty pattern on empty string
 
 ```scheme
-(Regex match #/a*/ "")
+(Regex match "" #/a*/)
 ```
 ---
     #t
@@ -435,7 +435,7 @@
 ### finds match at start
 
 ```scheme
-(Regex search #/ab+/ "abbc")
+(Regex search "abbc" #/ab+/)
 ```
 ---
     (0 3)
@@ -443,7 +443,7 @@
 ### finds match in middle
 
 ```scheme
-(Regex search #/b+/ "aabbc")
+(Regex search "aabbc" #/b+/)
 ```
 ---
     (2 4)
@@ -451,7 +451,7 @@
 ### returns nil on no match
 
 ```scheme
-(null? (Regex search #/z+/ "abc"))
+(null? (Regex search "abc" #/z+/))
 ```
 ---
     #t
@@ -459,7 +459,7 @@
 ### finds single char match
 
 ```scheme
-(Regex search #/./ "x")
+(Regex search "x" #/./)
 ```
 ---
     (0 1)
@@ -479,7 +479,7 @@
 ### matches character set
 
 ```scheme
-(Regex match #/[abc]+/ "abcba")
+(Regex match "abcba" #/[abc]+/)
 ```
 ---
     #t
@@ -487,7 +487,7 @@
 ### rejects non-member
 
 ```scheme
-(not (Regex match #/[abc]+/ "xyz"))
+(not (Regex match "xyz" #/[abc]+/))
 ```
 ---
     #t
@@ -495,7 +495,7 @@
 ### matches range
 
 ```scheme
-(Regex match #/[a-z]+/ "hello")
+(Regex match "hello" #/[a-z]+/)
 ```
 ---
     #t
@@ -503,7 +503,7 @@
 ### negated class rejects member
 
 ```scheme
-(not (Regex match #/[^a-z]+/ "hello"))
+(not (Regex match "hello" #/[^a-z]+/))
 ```
 ---
     #t
@@ -511,7 +511,7 @@
 ### negated class matches non-member
 
 ```scheme
-(Regex match #/[^a-z]+/ "123")
+(Regex match "123" #/[^a-z]+/)
 ```
 ---
     #t
@@ -519,7 +519,7 @@
 ### class with escape
 
 ```scheme
-(Regex match #/[\d]+/ "456")
+(Regex match "456" #/[\d]+/)
 ```
 ---
     #t
@@ -527,7 +527,7 @@
 ### class with multiple escapes
 
 ```scheme
-(Regex match #/[\d\s]+/ "1 2 3")
+(Regex match "1 2 3" #/[\d\s]+/)
 ```
 ---
     #t
@@ -537,7 +537,7 @@
 ### digit class
 
 ```scheme
-(Regex match #/\d+/ "42")
+(Regex match "42" #/\d+/)
 ```
 ---
     #t
@@ -545,7 +545,7 @@
 ### word class
 
 ```scheme
-(Regex match #/\w+/ "hello_42")
+(Regex match "hello_42" #/\w+/)
 ```
 ---
     #t
@@ -553,7 +553,7 @@
 ### space class
 
 ```scheme
-(Regex match #/\s+/ "  ")
+(Regex match "  " #/\s+/)
 ```
 ---
     #t
@@ -561,7 +561,7 @@
 ### non-digit class
 
 ```scheme
-(Regex match #/\D+/ "abc")
+(Regex match "abc" #/\D+/)
 ```
 ---
     #t
@@ -569,7 +569,7 @@
 ### non-digit rejects digits
 
 ```scheme
-(not (Regex match #/\D+/ "123"))
+(not (Regex match "123" #/\D+/))
 ```
 ---
     #t
@@ -579,7 +579,7 @@
 ### alternation matches left
 
 ```scheme
-(Regex match #/(foo|bar)/ "foo")
+(Regex match "foo" #/(foo|bar)/)
 ```
 ---
     #t
@@ -587,7 +587,7 @@
 ### alternation matches right
 
 ```scheme
-(Regex match #/(foo|bar)/ "bar")
+(Regex match "bar" #/(foo|bar)/)
 ```
 ---
     #t
@@ -595,7 +595,7 @@
 ### alternation rejects neither
 
 ```scheme
-(not (Regex match #/(foo|bar)/ "baz"))
+(not (Regex match "baz" #/(foo|bar)/))
 ```
 ---
     #t
@@ -603,7 +603,7 @@
 ### nested group
 
 ```scheme
-(Regex match #/(a(b|c)d)/ "abd")
+(Regex match "abd" #/(a(b|c)d)/)
 ```
 ---
     #t
@@ -613,7 +613,7 @@
 ### start anchor
 
 ```scheme
-(not (null? (Regex search #/^hello/ "hello world")))
+(not (null? (Regex search "hello world" #/^hello/)))
 ```
 ---
     #t
@@ -621,7 +621,7 @@
 ### end anchor
 
 ```scheme
-(not (null? (Regex search #/world$/ "hello world")))
+(not (null? (Regex search "hello world" #/world$/)))
 ```
 ---
     #t
@@ -629,7 +629,7 @@
 ### both anchors
 
 ```scheme
-(Regex match #/^exact$/ "exact")
+(Regex match "exact" #/^exact$/)
 ```
 ---
     #t
@@ -639,7 +639,7 @@
 ### exact count
 
 ```scheme
-(Regex match #/a{3}/ "aaa")
+(Regex match "aaa" #/a{3}/)
 ```
 ---
     #t
@@ -647,7 +647,7 @@
 ### exact count rejects too few
 
 ```scheme
-(not (Regex match #/a{3}/ "aa"))
+(not (Regex match "aa" #/a{3}/))
 ```
 ---
     #t
@@ -655,7 +655,7 @@
 ### range count
 
 ```scheme
-(Regex match #/a{2,4}/ "aaa")
+(Regex match "aaa" #/a{2,4}/)
 ```
 ---
     #t
@@ -663,7 +663,7 @@
 ### open-ended count
 
 ```scheme
-(Regex match #/a{2,}/ "aaaaa")
+(Regex match "aaaaa" #/a{2,}/)
 ```
 ---
     #t
@@ -673,7 +673,7 @@
 ### lazy star matches shortest
 
 ```scheme
-(Regex find #/a*?b/ "aaab")
+(Regex find "aaab" #/a*?b/)
 ```
 ---
     "aaab"
@@ -681,7 +681,7 @@
 ### lazy plus matches shortest
 
 ```scheme
-(Regex find #/a+?/ "aaaa")
+(Regex find "aaaa" #/a+?/)
 ```
 ---
     "a"
@@ -689,7 +689,7 @@
 ### greedy plus matches longest
 
 ```scheme
-(Regex find #/a+/ "aaaa")
+(Regex find "aaaa" #/a+/)
 ```
 ---
     "aaaa"
@@ -699,7 +699,7 @@
 ### finds substring
 
 ```scheme
-(Regex find #/[0-9]+/ "abc123def")
+(Regex find "abc123def" #/[0-9]+/)
 ```
 ---
     "123"
@@ -707,7 +707,7 @@
 ### returns nil on no match
 
 ```scheme
-(null? (Regex find #/[0-9]+/ "abcdef"))
+(null? (Regex find "abcdef" #/[0-9]+/))
 ```
 ---
     #t
@@ -717,7 +717,7 @@
 ### finds all matches
 
 ```scheme
-(Regex find-all #/[0-9]+/ "a1b22c333")
+(Regex find-all "a1b22c333" #/[0-9]+/)
 ```
 ---
     ("1" "22" "333")
@@ -725,7 +725,7 @@
 ### returns empty list on no match
 
 ```scheme
-(null? (Regex find-all #/[0-9]+/ "abcdef"))
+(null? (Regex find-all "abcdef" #/[0-9]+/))
 ```
 ---
     #t
@@ -735,7 +735,7 @@
 ### replaces first match
 
 ```scheme
-(Regex replace #/[0-9]+/ "a1b22c" "N")
+(Regex replace "a1b22c" "N" #/[0-9]+/)
 ```
 ---
     "aNb22c"
@@ -743,7 +743,7 @@
 ### no match returns original
 
 ```scheme
-(Regex replace #/[0-9]+/ "abc" "N")
+(Regex replace "abc" "N" #/[0-9]+/)
 ```
 ---
     "abc"
@@ -753,7 +753,7 @@
 ### replaces all matches
 
 ```scheme
-(Regex replace-all #/[0-9]+/ "a1b22c333" "N")
+(Regex replace-all "a1b22c333" "N" #/[0-9]+/)
 ```
 ---
     "aNbNcN"
@@ -763,7 +763,7 @@
 ### splits on delimiter
 
 ```scheme
-(Regex split #/,/ "a,b,c")
+(Regex split "a,b,c" #/,/)
 ```
 ---
     ("a" "b" "c")
@@ -771,7 +771,7 @@
 ### splits on whitespace
 
 ```scheme
-(Regex split #/\s+/ "hello world")
+(Regex split "hello world" #/\s+/)
 ```
 ---
     ("hello" "world")
@@ -779,7 +779,7 @@
 ### no match returns single-element list
 
 ```scheme
-(Regex split #/,/ "abc")
+(Regex split "abc" #/,/)
 ```
 ---
     ("abc")
@@ -789,7 +789,7 @@
 ### counts matches
 
 ```scheme
-(Regex count #/[0-9]+/ "a1b22c333")
+(Regex count "a1b22c333" #/[0-9]+/)
 ```
 ---
     3
@@ -797,7 +797,7 @@
 ### no matches returns zero
 
 ```scheme
-(Regex count #/[0-9]+/ "abc")
+(Regex count "abc" #/[0-9]+/)
 ```
 ---
     0
@@ -805,7 +805,7 @@
 ### single match
 
 ```scheme
-(Regex count #/abc/ "xabcx")
+(Regex count "xabcx" #/abc/)
 ```
 ---
     1
@@ -815,7 +815,7 @@
 ### replace with function
 
 ```scheme
-(Regex replace #/[a-z]+/ "hello123" (method-ref Str upcase))
+(Regex replace "hello123" (method-ref Str upcase) #/[a-z]+/)
 ```
 ---
     "HELLO123"
@@ -823,7 +823,7 @@
 ### replace-all with function
 
 ```scheme
-(Regex replace-all #/[a-z]+/ "hello123world" (method-ref Str upcase))
+(Regex replace-all "hello123world" (method-ref Str upcase) #/[a-z]+/)
 ```
 ---
     "HELLO123WORLD"
@@ -833,7 +833,7 @@
 ### word boundary at start
 
 ```scheme
-(Regex match #/\bhello\b/ "hello")
+(Regex match "hello" #/\bhello\b/)
 ```
 ---
     #t
@@ -841,7 +841,7 @@
 ### word boundary rejects mid-word
 
 ```scheme
-(Regex match #/\bello/ "hello")
+(Regex match "hello" #/\bello/)
 ```
 ---
     #f
@@ -849,7 +849,7 @@
 ### word boundary in search
 
 ```scheme
-(Regex find #/\b[0-9]+\b/ "abc 123 def")
+(Regex find "abc 123 def" #/\b[0-9]+\b/)
 ```
 ---
     "123"
@@ -857,7 +857,7 @@
 ### non-word-boundary matches inside
 
 ```scheme
-(Regex match #/hel\Blo/ "hello")
+(Regex match "hello" #/hel\Blo/)
 ```
 ---
     #t
@@ -867,7 +867,7 @@
 ### find-at from offset
 
 ```scheme
-(Regex find-at #/[0-9]+/ "abc123def456" 6)
+(Regex find-at "abc123def456" 6 #/[0-9]+/)
 ```
 ---
     (9 12)
@@ -875,7 +875,7 @@
 ### find-at from zero same as search
 
 ```scheme
-(Regex find-at #/[0-9]+/ "abc123" 0)
+(Regex find-at "abc123" 0 #/[0-9]+/)
 ```
 ---
     (3 6)
@@ -883,7 +883,7 @@
 ### find-at past all matches
 
 ```scheme
-(null? (Regex find-at #/[0-9]+/ "abc123" 6))
+(null? (Regex find-at "abc123" 6 #/[0-9]+/))
 ```
 ---
     #t
@@ -893,7 +893,7 @@
 ### returns position pairs
 
 ```scheme
-(Regex find-all-pos #/[0-9]+/ "a1b22c333")
+(Regex find-all-pos "a1b22c333" #/[0-9]+/)
 ```
 ---
     ((1 2) (3 5) (6 9))
@@ -901,7 +901,7 @@
 ### no matches returns empty list
 
 ```scheme
-(null? (Regex find-all-pos #/[0-9]+/ "abc"))
+(null? (Regex find-all-pos "abc" #/[0-9]+/))
 ```
 ---
     #t
@@ -911,7 +911,7 @@
 ### lazy-opt prefers not matching
 
 ```scheme
-(Regex find #/a??b/ "ab")
+(Regex find "ab" #/a??b/)
 ```
 ---
     "ab"
@@ -919,7 +919,7 @@
 ### lazy star minimal
 
 ```scheme
-(Regex find #/a.*?b/ "aXXbYYb")
+(Regex find "aXXbYYb" #/a.*?b/)
 ```
 ---
     "aXXb"
@@ -927,7 +927,7 @@
 ### lazy plus minimal
 
 ```scheme
-(Regex find #/.+?b/ "aXXb")
+(Regex find "aXXb" #/.+?b/)
 ```
 ---
     "aXXb"
@@ -937,7 +937,7 @@
 ### negated digit class
 
 ```scheme
-(Regex find #/[^\d]+/ "123abc456")
+(Regex find "123abc456" #/[^\d]+/)
 ```
 ---
     "abc"
@@ -945,7 +945,7 @@
 ### negated word class
 
 ```scheme
-(Regex find #/[^\w]+/ "hello world")
+(Regex find "hello world" #/[^\w]+/)
 ```
 ---
     " "
@@ -955,7 +955,7 @@
 ### empty pattern matches empty string
 
 ```scheme
-(Regex match #// "")
+(Regex match "" #//)
 ```
 ---
     #t
@@ -963,7 +963,7 @@
 ### star on empty matches anything
 
 ```scheme
-(Regex match #/a*/ "")
+(Regex match "" #/a*/)
 ```
 ---
     #t
@@ -971,7 +971,7 @@
 ### anchored empty
 
 ```scheme
-(Regex match #/^$/ "")
+(Regex match "" #/^$/)
 ```
 ---
     #t
@@ -979,7 +979,7 @@
 ### anchored empty rejects non-empty
 
 ```scheme
-(Regex match #/^$/ "x")
+(Regex match "x" #/^$/)
 ```
 ---
     #f
@@ -990,7 +990,7 @@
 ### method form
 
 ```scheme
-(if (null? (Regex match #/a+/ "aaa")) "no" "yes")
+(if (null? (Regex match "aaa" #/a+/)) "no" "yes")
 ```
 ---
     "yes"
@@ -1002,3 +1002,35 @@
 ```
 ---
     "yes"
+
+### value-call split routes subject-last
+
+```scheme
+(#/,/ split "a,b,c")
+```
+---
+    ("a" "b" "c")
+
+### value-call find
+
+```scheme
+(#/[0-9]+/ find "abc123def")
+```
+---
+    "123"
+
+### value-call replace-all
+
+```scheme
+(#/[0-9]+/ replace-all "a1b2" "N")
+```
+---
+    "aNbN"
+
+### value-call count
+
+```scheme
+(#/[0-9]+/ count "a1b22c333")
+```
+---
+    3
