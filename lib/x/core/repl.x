@@ -12,13 +12,14 @@
 
 ; ns `io` is de-registered (R5): fetch the REPL reader from the catalog.
 (def %repl-read (prim-ref (lit io) (lit repl-read)))
-; The boot sweep: boot leaves ~98% of the heap as garbage (~4.2M dead
-; objects vs a ~58k live set) because GC is explicit-trigger only.  One
-; collect at the boot->interactive boundary -- the canonical safe point:
-; no reader mid-flight, no seat print in progress -- reclaims it before
-; the first prompt.  Once per process (the repl op re-enters per turn).
+; The turn sweep: collect at the TOP of every repl iteration, before
+; the prompt/read -- the seat is quiet (the previous turn's eval
+; finished and its print completed; no reader is mid-flight), so
+; everything unreachable there is turn garbage.  The first iteration's
+; sweep doubles as the boot sweep (~4.2M dead objects, ~98% of the
+; boot heap); later sweeps keep a session's heap at its live set, so
+; long-running interaction never grows past one turn's allocations.
 (def %repl-collect (prim-ref (lit heap) (lit collect)))
-(def %repl-boot-swept ())
 (def %repl-prompt "> ")
 (def %repl-print
   (fn (_ result)
@@ -32,10 +33,8 @@
     (if (Sys isatty 3)
       (do (Sys dup2 3 0) (Sys close 3))
       ())
-    ; Boot sweep, once (see the module-top note).
-    (if (null? %repl-boot-swept)
-      (do (set! %repl-boot-swept #t) (%repl-collect))
-      ())
+    ; Turn sweep (see the module-top note).
+    (%repl-collect)
     (set-first-int! %sigint-flag 0)
     (display %repl-prompt)
     ; Restore default SIGINT so ctrl-c at the prompt exits cleanly
