@@ -658,6 +658,14 @@
 ---
     2
 
+### keeps element order within a group and first-seen key order
+
+```scheme
+(List group-by (method-ref Num even?) (list 1 2 3 4 5))
+```
+---
+    ((#f 1 3 5) (#t 2 4))
+
 ## sort
 
 ### sorts ascending
@@ -691,6 +699,15 @@
 ```
 ---
     #t
+
+### is stable: equal keys keep input order
+
+```scheme
+(List sort (fn (_ a b) (< (first a) (first b)))
+  (list (list 1 90) (list 0 5) (list 1 10) (list 0 7)))
+```
+---
+    ((0 5) (0 7) (1 90) (1 10))
 
 ## sort-by
 

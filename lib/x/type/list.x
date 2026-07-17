@@ -238,34 +238,36 @@
             (#t (self (rest xs) yes (pair (first xs) no))))))
       (go lst () ()))
     (method group-by (self f lst)
-      (doc "Group list elements by a key function." (param f CALLABLE "Key function: element -> group key") (param lst LIST "List") (returns LIST "Alist of (key . elements)"))
+      (doc "Group list elements by a key function." (param f CALLABLE "Key function: element -> group key") (param lst LIST "List") (returns LIST "Alist of (key . elements), keys in first-seen order"))
+      ; Prepend into each group (O(1)) and reverse once at the end -- the old
+      ; per-element (List append group (list val)) was O(n^2) on skewed keys.
       (def add-to-group
         (fn (self alist key val)
           (match
             ((null? alist) (list (pair key (list val))))
             ((eq? (first (first alist)) key)
-              (pair (pair key (List append (rest (first alist)) (list val))) (rest alist)))
+              (pair (pair key (pair val (rest (first alist)))) (rest alist)))
             (#t (pair (first alist) (self (rest alist) key val))))))
-      (List fold (fn (_ acc x) (add-to-group acc (f x) x)) () lst))
+      (List map (fn (_ g) (pair (first g) (reverse (rest g))))
+        (List fold (fn (_ acc x) (add-to-group acc (f x) x)) () lst)))
     (method sort (self cmp lst)
-      (doc "Merge sort a list using a comparison function." (param cmp CALLABLE "Comparison: (a b) -> #t if a comes first") (param lst LIST "List or iterable"))
+      (doc "Stable merge sort using a comparison function: equal-key elements keep their input order." (param cmp CALLABLE "Comparison: (a b) -> #t if a comes strictly first") (param lst LIST "List or iterable"))
       (let ((lst (List as-list lst)))
+        ; STABILITY needs both halves of this: (a) split by taking the first
+        ; half in order (the old alternate-cons split reversed and interleaved
+        ; the halves), and (b) merge takes from the LEFT half unless the right
+        ; element comes strictly first, so ties keep input order.
         (def merge
           (fn (self a b)
             (match
               ((null? a) b)
               ((null? b) a)
-              ((cmp (first a) (first b)) (pair (first a) (self (rest a) b)))
-              (#t (pair (first b) (self a (rest b)))))))
-        (def split
-          (fn (self xs a b)
-            (match
-              ((null? xs) (list a b))
-              ((null? (rest xs)) (list (pair (first xs) a) b))
-              (#t (self (rest (rest xs)) (pair (first xs) a) (pair (first (rest xs)) b))))))
+              ((cmp (first b) (first a)) (pair (first b) (self a (rest b))))
+              (#t (pair (first a) (self (rest a) b))))))
         (if (or (null? lst) (null? (rest lst))) lst
-          (let ((halves (split lst () ())))
-            (merge (recur self cmp (first halves)) (recur self cmp (first (rest halves))))))))
+          (let ((half (>> (List length lst) 1)))
+            (merge (recur self cmp (List take half lst))
+                   (recur self cmp (List drop half lst)))))))
     (method sort-by (self f lst)
       (doc "Sort by a key function (ascending)." (param f CALLABLE "Key function: element -> comparable value") (param lst LIST "List"))
       (List sort (fn (_ a b) (< (f a) (f b))) lst))
