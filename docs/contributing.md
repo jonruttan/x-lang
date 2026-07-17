@@ -5,6 +5,9 @@
 - A C89-compatible compiler (gcc, clang, tcc, c89, c99)
 - POSIX shell (`sh`) for test runners
 - Make
+- The git submodules (`ext/x-expr` — the expression engine the build
+  requires — and `tests/c/test-runner`): clone with `--recursive`, or run
+  `git submodule update --init` in an existing clone
 
 ```sh
 make clean && make
@@ -14,9 +17,9 @@ make clean && make
 
 ### C Code
 
-- **C89 standard** — Variables declared at the top of blocks, no C99 features
+- **C89 standard** — no C99 features. Variables declared at the top of the FUNCTION (house rule, stricter than C89's top-of-block); hoist via guarded initializers or assign-in-place
 - **`x_` prefix** — All exported symbols use the `x_` prefix
-- **Naming** — Use `pair`/`first`/`rest`, never cons/car/cdr. Use `fn`/`def`/`set`/`do`/`op`/`lit`/`quasi`/`match`
+- **Naming** — Use `pair`/`first`/`rest`, never cons/car/cdr. Use `fn`/`def`/`set!`/`do`/`op`/`lit`/`quasi`/`match`
 - **No globals** — All interpreter state belongs on `p_base`. Never use static or global variables for state
 - **Stack-allocated pairs** — Prefer `x_satom_t`/`x_spair_t` over heap allocation where possible
 - **Doxygen comments** — All public functions and macros documented with `@brief`, `@param`, `@return`. File headers include `@file`, `@brief`, `@author`, `@copyright`, `@license`, and the ASCII owl

@@ -109,7 +109,7 @@ The self-reference enables anonymous recursion — name it `self` (or anything) 
     ((> x 100) "big")
     ((> x 10) "medium")
     (#t "small"))
-"medium"
+"small"
 ```
 
 ### Sequences
@@ -225,7 +225,7 @@ Use `modules` to list all registered modules:
 
 - [Specification](spec.md) — Complete language reference with examples
 - [Standard Library](standard-library.md) — Core function reference
-- [x-lang API Reference](ref/x/index.md) — Auto-generated module documentation
+- x-lang API Reference — auto-generated module documentation: run `make doc-x`, then open `ref/x/index.md`
 - [Architecture](architecture.md) — How the interpreter works internally
 - [Dialects](dialects.md) — Detailed dialect comparison
 - [Modules](modules.md) — The provide/import module system

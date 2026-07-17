@@ -267,23 +267,24 @@ Right bit shift of integer `a` by `b` positions (arithmetic shift).
 
 `(def name expr) -> value`
 
-Binds `name` (unevaluated symbol) to the result of evaluating `expr` in the current environment. The binding is created before `expr` is evaluated, which enables recursive definitions: the name is visible inside `expr`'s evaluation.
+Binds `name` (unevaluated symbol) to the result of evaluating `expr` in the current environment. `expr` is evaluated before the binding is created, so it cannot read the binding being defined; recursive functions still work because a closure body resolves names at call time. To reference the name while `expr` itself evaluates, forward-declare with `(def name ())` then `(set! name expr)`.
 
 ```
 (def x 42) -> 42
-(def fact (fn (n) (if (= n 0) 1 (* n (fact (- n 1)))))) -> <procedure>
+(def fact (fn (_ n) (if (= n 0) 1 (* n (fact (- n 1))))))
+(fact 5) -> 120
 ```
 
-### `set`
+### `set!`
 
-`(set name expr) -> value`
+`(set! name expr) -> value`
 
 Mutates an existing binding of `name` to the result of evaluating `expr`. Signals an error if `name` is not already bound in the current environment.
 
 ```
 (def x 1) -> 1
-(set x 2) -> 2
-(set unbound 0) -> error: Unbound symbol
+(set! x 2) -> 2
+(set! unbound 0) -> error: Unbound symbol
 ```
 
 ---

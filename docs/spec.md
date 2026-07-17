@@ -155,17 +155,23 @@ Constructs a proper list from zero or more evaluated arguments.
 `(def name expr) -> value`
 
 Binds `name` (unevaluated symbol) to the result of evaluating `expr` in the
-current environment. The binding is created before `expr` is evaluated, enabling
-recursive definitions. `def` always creates a new binding; it shadows any
-existing binding with the same name rather than replacing it.
+current environment. `expr` is evaluated before the binding is created, so it
+cannot reference the binding being defined. Recursive functions still work: a
+closure body resolves names when the closure is called, by which time the
+`def` has completed. For a definition that needs the name while `expr` itself
+evaluates, forward-declare it: `(def name ())` then `(set! name expr)`. `def`
+always creates a new binding; it shadows any existing binding with the same
+name rather than replacing it.
 
 ```
 (def x 42) -> 42
+(def fact (fn (_ n) (if (= n 0) 1 (* n (fact (- n 1))))))
+(fact 5) -> 120
 ```
 
-### `set`
+### `set!`
 
-`(set name expr) -> value`
+`(set! name expr) -> value`
 
 Mutates an existing binding of `name` to the result of evaluating `expr`.
 Walks the scope chain to find the nearest enclosing binding of `name` and
@@ -173,7 +179,7 @@ modifies it in place. Signals an error if `name` is not bound in any scope.
 
 ```
 (def x 1)
-(set x 2)
+(set! x 2)
 x -> 2
 ```
 

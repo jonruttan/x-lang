@@ -18,8 +18,8 @@
 
 - [C Primitives](primitives.md) — All C-level primitive operations (hand-written)
 - [Standard Library](standard-library.md) — Core library functions (hand-written)
-- [x-lang API Reference](ref/x/index.md) — Complete library reference, auto-generated from `(doc ...)` forms (`make doc-x`)
-- [C API Reference](ref/c/html/index.html) — Doxygen-generated C API (`make doc-c`)
+- x-lang API Reference — complete library reference, auto-generated from `(doc ...)` forms and not committed: run `make doc-x`, then open `ref/x/index.md`
+- C API Reference — Doxygen: run `make doc-c`, then open `ref/c/html/index.html`
 
 ## Tools
 

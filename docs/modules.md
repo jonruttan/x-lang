@@ -59,13 +59,22 @@ Module names map directly to file paths:
 
 The resolution rule is: `lib/<module-name>.x` where slashes in the module name become directory separators.
 
+Two extensions to the rule:
+
+- **Search roots** — `(import-path! "path/to/root")` adds a search root, so
+  `(import my/module)` can resolve outside `lib/` (e.g. an application tree).
+  The default root is `lib`.
+- **Relative includes** — an `include-once`/`import` path starting with `./`
+  or `../` resolves against the *including file's* directory, not the working
+  directory. Raw `include` paths stay verbatim.
+
 ### Bootstrap Sequence
 
 The bootstrap loader `lib/x-core.x` loads modules in a specific order:
 
-1. **Boot phase** — Loads `operatives.x`, `data.x`, `string.x`, `module.x` via raw `include`. These four files establish the minimum needed for `provide`/`import` to work.
+1. **Boot phase** — Loads the boot layer via raw `include`: two repo contracts (`tools/base-paths.x`, `tools/obj-layout.x`) and the seven `lib/x/boot/` files (`registry.x`, `operatives.x`, `data.x`, `reflect.x`, `printer.x`, `string.x`, `module.x`). These establish the catalog, the object layout, printing, and the minimum needed for `provide`/`import` to work.
 
-2. **Pre-registration** — All 25 core module paths are pre-registered in the include-list, so `import` calls within those modules are no-ops (the paths are already marked as "included").
+2. **Pre-registration** — Every library path x-core loads (all its raw `include`s, the boot files, and `lib/x-core.x` itself) is pre-registered in the include-list, so `import` calls within those modules are no-ops (the paths are already marked as "included"). Raw `include` does not register a path, so this parallel list is the registration; `make check-boot-order` enforces that the two stay in sync.
 
 3. **Module loading** — Each module is loaded via `include` in dependency order. Modules use `import` for their own dependencies (which resolve as no-ops due to pre-registration) and `provide` at the bottom to register their exports.
 
@@ -100,7 +109,7 @@ A typical module file:
 
 (doc (def my-function
   (fn (_ x y)
-    (map (fn (a) (+ a y)) x)))
+    (map (fn (_ a) (+ a y)) x)))
   (param x LIST "Input list")
   (param y INTEGER "Value to add")
   (returns LIST "List with y added to each element")
@@ -112,5 +121,8 @@ A typical module file:
 Key conventions:
 - Comment at the top naming the file and its dependencies
 - `import` dependencies before use
+- Every `fn` receives itself as argument 0 — write `(fn (_ a) ...)` (or name
+  it `self` for recursion). Omitting the self slot does not error: the
+  arguments shift by one and the function silently computes garbage.
 - Wrap definitions in `(doc ...)` for automatic documentation generation
 - `provide` at the bottom listing all public exports

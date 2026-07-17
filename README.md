@@ -24,13 +24,24 @@ See [docs/](docs/) for complete reference documentation.
 
 The library is composed into dialects that control what capabilities are loaded:
 
-- **x-lang** (`lib/x.x`) — Core language. Bootstraps 25 modules providing combinators, list operations, sorting, strings, vectors, promises, quasiquote, and a REPL. No numeric tower or POSIX access.
+- **x-lang** (`lib/x.x`) — Core language. Bootstraps 40+ modules providing combinators, list operations, sorting, strings, vectors, promises, quasiquote, and a REPL. No numeric tower.
 - **x/and** (`lib/x-and.x`) — Stable full-stack dialect. Adds POSIX, hash tables, the JIT compiler, and a numeric tower (bignum, float, rational, complex) with compiled tokenizer analysers for fast parsing.
 - **x/or** (`lib/x-or.x`) — Experimental dialect. Everything in x/and plus raw syscall tables, file I/O, sockets, character constants, and I/O handle constants.
 
 Dialects are selected via the `-l` flag on the shell wrapper. Language personalities (R5RS Scheme, R7RS Scheme, Kernel, ASH shell, sweet expressions) are loaded as additional libraries on top of a dialect.
 
 ## Build
+
+The expression engine (`ext/x-expr`) and the C test runner are git submodules
+— clone recursively, or fetch them into an existing clone:
+
+```sh
+git clone --recursive <repo-url>
+# or, in an existing clone:
+git submodule update --init
+```
+
+Then:
 
 ```sh
 make clean && make
@@ -63,7 +74,7 @@ The `-` in `cat ... - | ./x` connects stdin for interactive use after library lo
 ## Test
 
 ```sh
-make test-x                          # x-lang tests (1229 cases)
+make test-x                          # x-lang tests (1,700+ scenarios)
 make test-c                          # C unit tests
 make test                            # all tests
 ```
@@ -100,8 +111,8 @@ Test specs are markdown files in `tests/x/specs/` organized by category: core la
 - [Specification](docs/spec.md) — Normative language specification
 - [Primitives](docs/primitives.md) — All C-level primitive operations
 - [Standard Library](docs/standard-library.md) — Core library function reference
-- [x-lang API Reference](docs/ref/x/index.md) — Auto-generated from source (`make doc-x`)
-- [C API Reference](docs/ref/c/html/index.html) — Doxygen-generated (`make doc-c`)
+- x-lang API Reference — generated locally, not committed: run `make doc-x`, then open `docs/ref/x/index.md`
+- C API Reference — Doxygen: run `make doc-c`, then open `docs/ref/c/html/index.html`
 
 ### Tools
 
