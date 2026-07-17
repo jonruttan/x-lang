@@ -9,8 +9,18 @@
 ; Deep structural equality. eq? is a raw scalar compare (it reads slot 0, which is
 ; the value for an atom but the car for a pair), so it cannot compare compounds --
 ; that is what equal? is for. Pairs are compared element-wise here (recursively);
-; the final eq? branch only sees non-number/non-string atoms (symbols, chars,
-; bools, nil), where the raw scalar compare is correct. self is the recursion.
+; the final branches only see non-number/non-string atoms and boxed objects.
+; self is the recursion.
+;
+; %equal-others: the extension hook for compound types this file cannot know
+; about (logic.x loads before the object system). A later module installs a
+; handler (fn (_ equal? a b) -> #t/#f), chaining the previous one -- vector.x
+; installs elementwise vector equality this way. The default says #f: identity
+; already failed by the time the hook runs. Class INSTANCES deliberately stay
+; identity-compared (they have object identity); a value-semantics instance
+; type can install its own handler here.
+(def %equal-others (pair (fn (_ eq a b) #f) ()))
+
 (doc (def equal?
   (fn (self (param a ANY "First value") (param b ANY "Second value"))
     (match
@@ -18,9 +28,11 @@
       ((and (str? a) (str? b)) (str=? a b))
       ((and (pair? a) (pair? b)) (and (self (first a) (first b)) (self (rest a) (rest b))))
       ((or (pair? a) (pair? b)) #f)
-      (#t (eq? a b)))))
+      ((eq? a b) #t)
+      (#t ((first %equal-others) self a b)))))
   (returns BOOLEAN "True if a and b are structurally equal")
-  "Structural equality: numbers by value, strings by content, pairs element-wise (deep), else identity.")
+  (note "Vectors compare elementwise (handler installed by x/type/vector); class instances compare by identity.")
+  "Structural equality: numbers by value, strings by content, pairs and vectors element-wise (deep), else identity.")
 
 ; --- Derived comparisons ---
 

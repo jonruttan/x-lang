@@ -94,6 +94,46 @@
 ---
     "n"
 
+### compares vectors elementwise
+
+```scheme
+(equal? #(1 2) #(1 2))
+```
+---
+    #t
+
+### different vector elements are not equal
+
+```scheme
+(if (equal? #(1 2) #(1 3)) "y" "n")
+```
+---
+    "n"
+
+### different vector lengths are not equal
+
+```scheme
+(if (equal? #(1 2) #(1 2 3)) "y" "n")
+```
+---
+    "n"
+
+### vectors nest inside pairs and other vectors
+
+```scheme
+(equal? (list #(1 #(2))) (list #(1 #(2))))
+```
+---
+    #t
+
+### includes? finds an equal vector
+
+```scheme
+(List includes? #(1 2) (list #(9) #(1 2)))
+```
+---
+    #t
+
 ### compares equal symbols
 
 ```scheme

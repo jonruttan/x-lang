@@ -186,6 +186,27 @@
 ; matching the library's Ramda data-last convention.
 (%bind-call-over! (Type of (Vector of 1)) Vector)
 
+; Install elementwise vector equality on equal?'s extension hook (logic.x's
+; %equal-others -- logic loads before this file, so equal? cannot name the
+; vector type itself). Chains the previous handler; runs only after equal?'s
+; identity check has already failed. %obj-ref direct (not Vector ref): both
+; operands are known vectors and i is bounded by the slot-0 length.
+(def %vector-equal
+  (fn (_ eq a b)
+    (def len (%obj-ref a 0))
+    (if (= len (%obj-ref b 0))
+      (let go ((i 0))
+        (if (= i len) #t
+          (if (eq (%obj-ref a (+ i 1)) (%obj-ref b (+ i 1)))
+            (go (+ i 1)) #f)))
+      #f)))
+(set-first! %equal-others
+  (let ((prev (first %equal-others)))
+    (fn (_ eq a b)
+      (if (%type? a %vector)
+        (if (%type? b %vector) (%vector-equal eq a b) #f)
+        (prev eq a b)))))
+
 (doc (provide x/type/vector Vector)
   (note "Literal syntax: #(1 2 3), with negative indexing via the vector's call slot.")
   (example "(Vector ref 1 (Vector of 10 20 30))" "20")
