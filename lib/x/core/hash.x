@@ -30,7 +30,7 @@
             (self (%int+ i 1)
               (%int* (^ h (%cvt (str-ref s i) %int)) %fnv-prime)))))
       (%go 0 %fnv-offset))
-    (method hash->hex (self (param n INTEGER "64-bit signed hash value"))
+    (method ->hex (self (param n INTEGER "64-bit signed hash value"))
       (doc "Convert a 64-bit signed integer to a 16-character unsigned hex string."
         (returns STRING "16-character hexadecimal string"))
       (def %lo (& n 4294967295))
@@ -39,5 +39,5 @@
                   (Str pad-left 8 ("0" 0) (%cvt %lo %string 16))))))
 
 (doc (provide x/core/hash Hash)
-  (example "(Hash hash->hex (Hash fnv-1a \"hello\"))" "a430d84680aabd0b")
+  (example "(Hash ->hex (Hash fnv-1a \"hello\"))" "a430d84680aabd0b")
   "FNV-1a string hashing, homed on the Hash class.")

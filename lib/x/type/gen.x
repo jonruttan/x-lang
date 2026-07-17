@@ -20,7 +20,7 @@
   (doc "A lazy generator: a step function over a state, producing values on demand."
     (note "Build with range / range-by / count-from / repeat / iterate / from-list / of, or the `make` primitive.")
     (note "Transformers (map filter take drop take-while drop-while enumerate zip zip-with scan) are lazy -- each returns a new Gen.")
-    (note "Consumers (->list ->vector for-each fold reduce count sum product any? all? none? find nth first last min max) drive it.")
+    (note "Consumers (->list ->vector for-each fold reduce count sum product any? all? none? find ref first last min max) drive it.")
     (note "count-from / repeat / iterate are INFINITE -- bound them with take / take-while before any consumer.")
     (example "(((Gen range 0 6) filter (fn (_ x) (< x 3))) ->list)" "(0 1 2)"))
   (step ()) (state ())
@@ -215,7 +215,7 @@
     (let ((step (self step)))
       (let go ((st (self state))) (let ((s (step st))) (if (null? s) () (if (p (first s)) (first s) (go (rest s))))))))
 
-  (method nth (self (param n INT "0-based index"))
+  (method ref (self (param n INT "0-based index"))
     (doc "The n-th value (0-based), or ()." (returns ANY "Value or nil"))
     (let ((step (self step)))
       (let go ((st (self state)) (n n)) (let ((s (step st))) (if (null? s) () (if (<= n 0) (first s) (go (rest s) (- n 1))))))))

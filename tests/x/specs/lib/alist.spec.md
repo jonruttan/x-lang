@@ -200,12 +200,12 @@
 ---
     1
 
-## to-pairs
+## ->pairs
 
 ### converts alist to list of lists
 
 ```scheme
-(do (def al (list (pair (lit a) 1))) (first (first (Assoc to-pairs al))))
+(do (def al (list (pair (lit a) 1))) (first (first (Assoc ->pairs al))))
 ```
 ---
     (lit a)

@@ -20,7 +20,7 @@
 
 ; Str8 treats a STRING as its raw bytes (8-bit chars, 0-255), with no encoding
 ; protocol. It provides the whole string suite as static methods:
-; (Str8 append a b), (Str8 index i s), (Str8 length s), (Str8 upcase s), ...
+; (Str8 append a b), (Str8 ref i s), (Str8 length s), (Str8 upcase s), ...
 ;
 ; Three string PROTOCOLS:
 ;   Str8     -- always 8-bit bytes (this class)
@@ -29,7 +29,7 @@
 ;
 ; The suite is written ONCE here, expressed entirely through SELF primitives:
 ;   (self length s)        -- element count
-;   (self index i s)       -- i-th element (CHARACTER)
+;   (self ref i s)       -- i-th element (CHARACTER)
 ;   (self sub start len s)  -- substring of `len` elements from `start`
 ;   (self =? a b) (self ->list s) (self ->str l)
 ; so a subclass that overrides only those gets the whole suite in its own
@@ -46,35 +46,35 @@
         (returns INT "Byte length of v")
         (example "(Str8 length \"abc\")" "3"))
       (%str-byte-len v))
-    (method index  (self (param i INT "Byte position (0-based)") (param v STRING "String to index"))
+    (method ref    (self (param i INT "Byte position (0-based)") (param v STRING "String to index"))
       (doc "The i-th byte of v as a CHARACTER (code 0-255); errors when i is out of range."
         (returns CHAR "Byte at position i")
-        (example "(Str8 index 0 \"abc\")" "#\\a"))
+        (example "(Str8 ref 0 \"abc\")" "#\\a"))
       ; %str-byte-ref reads s[i] unchecked (heap over-read past the string), so
       ; the byte-length compare here is the x-lang guard. Nested ifs, not `or`:
       ; this runs per element inside the suite's loops and must not allocate.
-      (if (< i 0) (error "Str8 index: index out of range")
+      (if (< i 0) (error "Str8 ref: index out of range")
         (if (< i (%str-byte-len v)) (%str-byte-ref v i)
-          (error "Str8 index: index out of range"))))
+          (error "Str8 ref: index out of range"))))
     (method sub    (self (param st INT "Start byte offset (0-based)") (param len INT "Number of bytes") (param v STRING "Source string"))
       (doc "Substring of len bytes starting at byte offset st."
         (returns STRING "The len-byte slice of v from st")
         (example "(Str8 sub 1 3 \"hello\")" "\"ell\""))
       (%str-byte-sub v st len))
-    (method ref    (self (param i INT "Byte position (0-based)") (param v STRING "String to index"))
-      (doc "Alias for index: the i-th byte of v as a CHARACTER."
+    (method index  (self (param i INT "Byte position (0-based)") (param v STRING "String to index"))
+      (doc "Alias for ref (the adjudicated element-access name): the i-th byte of v as a CHARACTER."
         (returns CHAR "Byte at position i")
-        (example "(Str8 ref 0 \"abc\")" "#\\a"))
-      (self index i v))  ; alias: ref = index
+        (example "(Str8 index 0 \"abc\")" "#\\a"))
+      (self ref i v))  ; alias: index = ref
 
-    ; cursor primitives (drive Seq's ->list/each/fold/count).
+    ; cursor primitives (drive Seq's ->list/for-each/fold/count).
     ; The cursor is a BYTE offset for every subclass, so done? bounds against the
     ; raw byte length -- NOT (self length), which a code-point subclass overrides
     ; via count -> done?, an infinite recursion. start/done? are inherited
     ; unchanged by StrUTF8; only step advances differently.
     (method start (self v)     0)
     (method done? (self cur v) (>= cur (%str-byte-len v)))
-    (method step  (self cur v) (pair (self index cur v) (+ cur 1)))
+    (method step  (self cur v) (pair (self ref cur v) (+ cur 1)))
 
     ; encode: one byte element is its own low byte. Makes
     ; (Str8 ->str (Str8 ->list s)) an identity on the byte view.
@@ -88,8 +88,8 @@
       (if (= (self length a) (self length b))
         (let go ((i 0) (n (self length a)))
           (if (= i n) #t
-            (if (= (%char->integer (self index i a))
-                   (%char->integer (self index i b)))
+            (if (= (%char->integer (self ref i a))
+                   (%char->integer (self ref i b)))
               (go (+ i 1) n) #f)))
         #f))
 
@@ -118,7 +118,7 @@
         (returns STRING "k-element string of the fill character")
         (example "(Str8 make 3 (\" \" 0))" "\"   \""))
       (def ch (if (null? rest) (" " 0) (first rest)))
-      (self ->str (List repeat ch k)))
+      (self ->str (List repeat k ch)))
 
     ; --- predicates ---
     (method empty? (self (param s STRING "String to test"))
@@ -136,8 +136,8 @@
         (cond
           ((= i la) (< i lb))
           ((= i lb) #f)
-          ((Char <? (self index i a) (self index i b)) #t)
-          ((Char >? (self index i a) (self index i b)) #f)
+          ((Char <? (self ref i a) (self ref i b)) #t)
+          ((Char >? (self ref i a) (self ref i b)) #f)
           (#t (go (+ i 1) la lb)))))
     (method >?  (self (param a STRING "First string") (param b STRING "Second string"))
       (doc "True if a sorts after b in element (byte) order."
@@ -255,7 +255,7 @@
         (example "(Str8 trim-left \"  hi\")" "\"hi\""))
       (let go ((i 0) (n (self length s)))
         (if (= i n) ""
-          (if (Char whitespace? (self index i s))
+          (if (Char whitespace? (self ref i s))
             (go (+ i 1) n)
             (self sub i (- n i) s)))))
     (method trim-right (self (param s STRING "String to trim"))
@@ -264,7 +264,7 @@
         (example "(Str8 trim-right \"hi  \")" "\"hi\""))
       (let go ((i (- (self length s) 1)))
         (if (< i 0) ""
-          (if (Char whitespace? (self index i s))
+          (if (Char whitespace? (self ref i s))
             (go (- i 1))
             (self sub 0 (+ i 1) s)))))
     (method trim (self (param s STRING "String to trim"))

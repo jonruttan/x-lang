@@ -70,8 +70,8 @@
           (let ((s (self step cur v)))
             (loop (rest s) (pair (first s) acc))))))
 
-    (method each (self (param f CALLABLE "Applied to each element") (param v ANY "Value to traverse"))
-      (doc "Apply f to each element in order, for its side effects; returns nil."
+    (method for-each (self (param f CALLABLE "Applied to each element") (param v ANY "Value to traverse"))
+      (doc "Apply f to each element in order, for its side effects; returns nil. Named for-each, matching List/Iter/Gen."
         (returns ANY "nil"))
       (let loop ((cur (self start v)))
         (if (self done? cur v) ()
@@ -108,5 +108,5 @@
                 () elements))))))
 
 (doc (provide x/protocol/seq Seq)
-  (note "A subclass supplies start/done?/step (and char->bytes to encode); count, length, ->list, each, fold and ->str are derived. (help Seq) lists the methods.")
+  (note "A subclass supplies start/done?/step (and char->bytes to encode); count, length, ->list, for-each, fold and ->str are derived. (help Seq) lists the methods.")
   "Seq: the base sequence protocol -- cursor-based traversal shared by every sequence type.")

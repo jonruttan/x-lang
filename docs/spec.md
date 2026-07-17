@@ -1586,15 +1586,15 @@ Like fold but collects intermediate values.
 (length ()) -> 0
 ```
 
-#### `List nth`
+#### `List ref`
 
-`(List nth n lst) -> value`
+`(List ref n lst) -> value`
 
 Zero-based index.
 
 ```
-(List nth 0 (list 10 20 30)) -> 10
-(List nth 2 (list 10 20 30)) -> 30
+(List ref 0 (list 10 20 30)) -> 10
+(List ref 2 (list 10 20 30)) -> 30
 ```
 
 #### `List last`
@@ -1696,13 +1696,13 @@ Maps then flattens one level.
 (List any? even? (list 1 3 5)) -> #f
 ```
 
-#### `List every?`
+#### `List all?`
 
-`(List every? pred lst) -> #t | #f`
+`(List all? pred lst) -> #t | #f`
 
 ```
-(List every? even? (list 2 4 6)) -> #t
-(List every? even? (list 2 3 6)) -> #f
+(List all? even? (list 2 4 6)) -> #t
+(List all? even? (list 2 3 6)) -> #f
 ```
 
 #### `List none?`
@@ -1783,12 +1783,12 @@ Returns `-1` if not found.
 (List includes? 9 (list 1 2 3)) -> #f
 ```
 
-#### `List count`
+#### `List count-if`
 
-`(List count pred lst) -> integer`
+`(List count-if pred lst) -> integer`
 
 ```
-(List count even? (list 1 2 3 4)) -> 2
+(List count-if even? (list 1 2 3 4)) -> 2
 ```
 
 ### Slicing
@@ -1853,10 +1853,10 @@ Returns `-1` if not found.
 
 #### `List repeat`
 
-`(List repeat x n) -> list`
+`(List repeat n x) -> list`
 
 ```
-(List repeat 0 3) -> (0 0 0)
+(List repeat 3 0) -> (0 0 0)
 ```
 
 #### `List times`
@@ -2126,14 +2126,14 @@ Converts list of two-element lists to alist of dotted pairs.
 (Assoc from-pairs (list (list (lit a) 1) (list (lit b) 2))) -> ((a . 1) (b . 2))
 ```
 
-### `Assoc to-pairs`
+### `Assoc ->pairs`
 
-`(Assoc to-pairs alist) -> list`
+`(Assoc ->pairs alist) -> list`
 
 Converts alist of dotted pairs to list of two-element lists.
 
 ```
-(Assoc to-pairs (list (pair (lit a) 1) (pair (lit b) 2))) -> ((a 1) (b 2))
+(Assoc ->pairs (list (pair (lit a) 1) (pair (lit b) 2))) -> ((a 1) (b 2))
 ```
 
 ### `Assoc evolve`

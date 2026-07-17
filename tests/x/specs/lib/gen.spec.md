@@ -156,10 +156,10 @@ intermediate list is built between stages.
 ---
     6
 
-### nth / first / last
+### ref / first / last
 
 ```scheme
-(list ((Gen range 0 9) nth 3) ((Gen range 5 9) first) ((Gen range 5 9) last))
+(list ((Gen range 0 9) ref 3) ((Gen range 5 9) first) ((Gen range 5 9) last))
 ```
 ---
     (3 5 8)

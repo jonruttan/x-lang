@@ -16,12 +16,12 @@
 ; written once through self primitives -- and overrides ONLY the primitives that
 ; change with the encoding:
 ;   length      : code-point count (cursor walk), not Str8's O(1) byte length
-;   index       : decode to the i-th CODE POINT (O(n) walk)
+;   ref         : decode to the i-th CODE POINT (O(n) walk)
 ;   sub         : substring of `len` CODE POINTS from code-point offset `start`
 ;   step        : consume one UTF-8 sequence per element
 ;   char->bytes : encode a code point to its 1-4 UTF-8 bytes (inverse of step)
 ; All byte access goes through the inherited Str8 byte primitives + the shared
-; codec (x/codec/utf8); index/sub are O(n) (inherent to variable-width random
+; codec (x/codec/utf8); ref/sub are O(n) (inherent to variable-width random
 ; access -- prefer ->list / cursor traversal to visit every element).
 
 ; Byte offset of code-point index k: advance k whole sequences from byte `from`.
@@ -42,17 +42,17 @@
         (example "(StrUTF8 length \"$¢€\")" "3"))
       (self count v))   ; code points, via Seq's cursor walk
 
-    (method index (self (param i INT "Code-point position (0-based)") (param v STRING "String to index"))
+    (method ref (self (param i INT "Code-point position (0-based)") (param v STRING "String to index"))
       (doc "The i-th CODE POINT of v as a CHARACTER, found by an O(n) UTF-8 walk; errors when i is out of range."
         (returns CHAR "Code point at position i")
-        (example "(StrUTF8 index 1 \"$¢€\")" "#\\¢"))
+        (example "(StrUTF8 ref 1 \"$¢€\")" "#\\¢"))
       ; The walker clamps at the byte length, so landing there means i is past
       ; the last code point -- error instead of decoding past the end.
-      (if (< i 0) (error "Str index: index out of range")
+      (if (< i 0) (error "Str ref: index out of range")
         (let ((b (%u8-byte-offset v i 0)))
           (if (< b (%str-byte-len v))
             (%integer->char (first (%utf8-decode v b)))
-            (error "Str index: index out of range")))))
+            (error "Str ref: index out of range")))))
 
     (method sub (self (param start INT "Start code-point offset (0-based)") (param len INT "Number of code points") (param v STRING "Source string"))
       (doc "Substring of len CODE POINTS starting at code-point offset start (O(n) walk)."

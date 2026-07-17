@@ -753,7 +753,7 @@
 
     ; Cache lookup: hash the expression to get a stable filename
     (def %expr-key (%write-to-str expr))
-    (def %cache-hash (Hash hash->hex (Hash fnv-1a %expr-key)))
+    (def %cache-hash (Hash ->hex (Hash fnv-1a %expr-key)))
     (def %cache-path (Str append %compile-cache-dir %cache-hash compile-ext))
 
     ; Try loading from cache (fvar table is patched after load)
@@ -801,7 +801,7 @@
     (def %src-path (Str append "/tmp/x-compile-" %id ".c"))
 
     (def %expr-key (%write-to-str expr))
-    (def %cache-hash (Hash hash->hex (Hash fnv-1a %expr-key)))
+    (def %cache-hash (Hash ->hex (Hash fnv-1a %expr-key)))
     (def %cache-path (Str append %compile-cache-dir %cache-hash compile-ext))
 
     (compile-write %src-path (compile-to-c expr fvars))
@@ -861,7 +861,7 @@
 
     ; Cache lookup
     (def %batch-key (%write-to-str exprs))
-    (def %batch-hash (Hash hash->hex (Hash fnv-1a %batch-key)))
+    (def %batch-hash (Hash ->hex (Hash fnv-1a %batch-key)))
     (def %cache-path (Str append %compile-cache-dir %batch-hash compile-ext))
 
     (if (Sys file-exists? %cache-path)

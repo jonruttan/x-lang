@@ -72,12 +72,12 @@
 ---
     0
 
-## nth
+## ref
 
 ### gets element at index
 
 ```scheme
-(List nth 1 (list 10 20 30))
+(List ref 1 (list 10 20 30))
 ```
 ---
     20
@@ -85,7 +85,7 @@
 ### gets first element
 
 ```scheme
-(List nth 0 (list 10 20 30))
+(List ref 0 (list 10 20 30))
 ```
 ---
     10
@@ -93,18 +93,18 @@
 ### errors past the end instead of crashing
 
 ```scheme
-(List nth 5 (list 1 2))
+(List ref 5 (list 1 2))
 ```
 ---
-    Error: List nth: index out of range
+    Error: List ref: index out of range
 
 ### errors on a negative index
 
 ```scheme
-(List nth -1 (list 1 2))
+(List ref -1 (list 1 2))
 ```
 ---
-    Error: List nth: index out of range
+    Error: List ref: index out of range
 
 ## last
 
@@ -300,12 +300,12 @@
 ---
     "n"
 
-## every?
+## all?
 
 ### returns #t when all match
 
 ```scheme
-(List every? (method-ref Num positive?) (list 1 2 3))
+(List all? (method-ref Num positive?) (list 1 2 3))
 ```
 ---
     #t
@@ -313,7 +313,7 @@
 ### returns nil when one fails
 
 ```scheme
-(if (List every? (method-ref Num even?) (list 2 3 4)) "y" "n")
+(if (List all? (method-ref Num even?) (list 2 3 4)) "y" "n")
 ```
 ---
     "n"
@@ -426,12 +426,12 @@
 ---
     "n"
 
-## count
+## count-if
 
 ### counts matching elements
 
 ```scheme
-(List count (method-ref Num even?) (list 1 2 3 4 5 6))
+(List count-if (method-ref Num even?) (list 1 2 3 4 5 6))
 ```
 ---
     3
@@ -439,7 +439,7 @@
 ### returns zero for no matches
 
 ```scheme
-(List count (method-ref Num negative?) (list 1 2 3))
+(List count-if (method-ref Num negative?) (list 1 2 3))
 ```
 ---
     0
@@ -559,7 +559,7 @@
 ### repeats a value
 
 ```scheme
-(List repeat 0 3)
+(List repeat 3 0)
 ```
 ---
     (0 0 0)

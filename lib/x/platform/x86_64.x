@@ -31,10 +31,10 @@
 
 (def %x86_64-encode
   (fn (_ asm descriptor args)
-    (def prefixes  (List nth 0 descriptor))
-    (def opcode    (List nth 1 descriptor))
-    (def modrm-spec (List nth 2 descriptor))
-    (def extras    (List nth 3 descriptor))
+    (def prefixes  (List ref 0 descriptor))
+    (def opcode    (List ref 1 descriptor))
+    (def modrm-spec (List ref 2 descriptor))
+    (def extras    (List ref 3 descriptor))
 
     ; Emit REX prefix (handle regs > 7)
     (for-each (fn (_ b) (%emit-u8! asm b)) prefixes)
@@ -43,8 +43,8 @@
     (if (and (pair? opcode) (eq? (first opcode) (lit opreg)))
       ; Register encoded in low 3 bits of opcode byte
       (do
-        (def base (List nth 1 opcode))
-        (def rn (%op-value (List nth (List nth 2 opcode) args)))
+        (def base (List ref 1 opcode))
+        (def rn (%op-value (List ref (List ref 2 opcode) args)))
         (%emit-u8! asm (| base (& rn 7))))
       ; Normal opcode byte sequence
       (for-each (fn (_ b) (%emit-u8! asm b)) opcode))
@@ -52,20 +52,20 @@
     ; Emit ModR/M if specified
     (if (not (null? modrm-spec))
       (do
-        (def reg-src (List nth 0 modrm-spec))
-        (def rm-idx  (List nth 1 modrm-spec))
-        (def rm-arg (List nth rm-idx args))
+        (def reg-src (List ref 0 modrm-spec))
+        (def rm-idx  (List ref 1 modrm-spec))
+        (def rm-arg (List ref rm-idx args))
         (def reg-val
           (if (pair? reg-src)
-            (List nth 1 reg-src)              ; (/ n) opcode extension
-            (%op-value (List nth reg-src args))))   ; register arg index
+            (List ref 1 reg-src)              ; (/ n) opcode extension
+            (%op-value (List ref reg-src args))))   ; register arg index
         (if (eq? (%op-type rm-arg) (lit reg))
           ; reg-reg: mod=11
           (%emit-u8! asm (%modrm 3 reg-val (%op-value rm-arg)))
           ; mem: [base+disp]
           (do
             (def base (%op-value rm-arg))
-            (def disp (List nth 2 (List nth rm-idx args)))
+            (def disp (List ref 2 (List ref rm-idx args)))
             (if (= disp 0)
               (%emit-u8! asm (%modrm 0 reg-val base))
               (if (and (>= disp -128) (<= disp 127))
@@ -77,14 +77,14 @@
     ; Emit immediates/extras
     (for-each
       (fn (_ spec)
-        (def kind (List nth 0 spec))
-        (def idx  (List nth 1 spec))
-        (def val (%op-value (List nth idx args)))
+        (def kind (List ref 0 spec))
+        (def idx  (List ref 1 spec))
+        (def val (%op-value (List ref idx args)))
         (if (eq? kind (lit imm8))  (%emit-u8! asm (& val 255)))
         (if (eq? kind (lit imm32)) (%emit-u32-le! asm val))
         (if (eq? kind (lit imm64)) (%emit-u64-le! asm val))
         (if (eq? kind (lit rel32))
-          (do (asm-patch! asm 4 (lit rel) (%op-value (List nth idx args)))
+          (do (asm-patch! asm 4 (lit rel) (%op-value (List ref idx args)))
               (%emit-u32-le! asm 0))))
       extras)))
 

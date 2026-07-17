@@ -34,12 +34,12 @@
 ---
     "diff"
 
-## hash->hex
+## ->hex
 
 ### produces hex string
 
 ```scheme
-(str-length (Hash hash->hex (Hash fnv-1a "hello")))
+(str-length (Hash ->hex (Hash fnv-1a "hello")))
 ```
 ---
     16
@@ -47,7 +47,7 @@
 ### consistent output
 
 ```scheme
-(str=? (Hash hash->hex (Hash fnv-1a "test")) (Hash hash->hex (Hash fnv-1a "test")))
+(str=? (Hash ->hex (Hash fnv-1a "test")) (Hash ->hex (Hash fnv-1a "test")))
 ```
 ---
     #t

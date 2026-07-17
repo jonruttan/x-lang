@@ -2,57 +2,57 @@
 
 Two string protocols, each exposing the full string suite as static methods:
 
-- `Str8` -- 8-bit bytes. `(Str8 index i s)` is always a byte; O(1).
-- `StrUTF8` -- UTF-8 code points. `(StrUTF8 index i s)` is always a code point.
+- `Str8` -- 8-bit bytes. `(Str8 ref i s)` is always a byte; O(1).
+- `StrUTF8` -- UTF-8 code points. `(StrUTF8 ref i s)` is always a code point.
 
 The suite (append, join, contains?, split, trim, =?, <?, upcase, reverse, ...)
 is written once on `Str8` through self primitives; `StrUTF8` overrides only the
-primitives (`length` / `index` / `sub` / `step` / `char->bytes`) and inherits
+primitives (`length` / `ref` / `sub` / `step` / `char->bytes`) and inherits
 the rest with code-point behaviour.
 
 `Str` names the ACTIVE protocol -- code points by default (`Str = StrUTF8`), so
 the bare string call `(s i)`, the `str-*` library, and `str->list` are all
-code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliases
-`index`. The classes are preloaded, so no import is needed.
+code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `index` is a
+kept alias for `ref`. The classes are preloaded, so no import is needed.
 
 ## protocols
 
-### Str8 index is always a byte
+### Str8 ref is always a byte
 
 ```x
-(Char ->int (Str8 index 1 "$¢€"))
+(Char ->int (Str8 ref 1 "$¢€"))
 ```
 ---
     194
 
-### Str8 index errors past the end instead of over-reading
+### Str8 ref errors past the end instead of over-reading
 
 ```scheme
-(Str8 index 10 "ab")
+(Str8 ref 10 "ab")
 ```
 ---
-    Error: Str8 index: index out of range
+    Error: Str8 ref: index out of range
 
-### Str8 index errors on a negative index
+### Str8 ref errors on a negative index
 
 ```scheme
-(Str8 index -1 "ab")
+(Str8 ref -1 "ab")
 ```
 ---
-    Error: Str8 index: index out of range
+    Error: Str8 ref: index out of range
 
-### StrUTF8 index errors past the last code point
+### StrUTF8 ref errors past the last code point
 
 ```scheme
-(StrUTF8 index 3 "$¢€")
+(StrUTF8 ref 3 "$¢€")
 ```
 ---
-    Error: Str index: index out of range
+    Error: Str ref: index out of range
 
-### StrUTF8 index is always a code point
+### StrUTF8 ref is always a code point
 
 ```x
-(Char ->int (StrUTF8 index 1 "$¢€"))
+(Char ->int (StrUTF8 ref 1 "$¢€"))
 ```
 ---
     162
@@ -60,7 +60,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### Str (active) is code points by default
 
 ```x
-(Char ->int (Str index 1 "$¢€"))
+(Char ->int (Str ref 1 "$¢€"))
 ```
 ---
     162
@@ -84,7 +84,7 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ### str-byte-* primitives are always byte (handler-immune)
 
 ```x
-(Char ->int (Str8 index 1 "$¢€"))
+(Char ->int (Str8 ref 1 "$¢€"))
 ```
 ---
     194
@@ -338,3 +338,13 @@ code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `ref` aliase
 ```
 ---
     #\b
+
+## index alias
+
+### index is a working alias for ref
+
+```scheme
+(Char ->int (Str8 index 1 "abc"))
+```
+---
+    98

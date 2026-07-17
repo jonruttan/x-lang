@@ -70,7 +70,7 @@
     (method from-pairs (self (param lst LIST "List of two-element lists"))
       (doc "Convert a list of (key value) lists into an alist of dotted pairs." (returns LIST "Association list"))
       (map (fn (_ p) (pair (first p) (first (rest p)))) lst))
-    (method to-pairs (self (param alist LIST "Association list"))
+    (method ->pairs (self (param alist LIST "Association list"))
       (doc "Convert an alist of dotted pairs into a list of (key value) lists." (returns LIST "List of two-element lists"))
       (map (fn (_ entry) (list (first entry) (rest entry))) alist))
     (method evolve (self (param fns LIST "Alist of key -> transform function")

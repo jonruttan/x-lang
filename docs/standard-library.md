@@ -250,11 +250,11 @@ Returns the number of elements in a list.
 (length (list 1 2 3)) -> 3
 ```
 
-### `List nth`
-`(List nth n lst) -> value`
+### `List ref`
+`(List ref n lst) -> value`
 Returns the element at zero-based index `n`.
 ```
-(List nth 1 (list 10 20 30)) -> 20
+(List ref 1 (list 10 20 30)) -> 20
 ```
 
 ### `List last`
@@ -342,11 +342,11 @@ Returns `#t` if `pred` is true for at least one element.
 (List any? even? (list 1 3 4)) -> #t
 ```
 
-### `List every?`
-`(List every? pred lst) -> boolean`
+### `List all?`
+`(List all? pred lst) -> boolean`
 Returns `#t` if `pred` is true for all elements.
 ```
-(List every? even? (list 2 4 6)) -> #t
+(List all? even? (list 2 4 6)) -> #t
 ```
 
 ### `List none?`
@@ -476,11 +476,11 @@ Returns `#t` if `x` is found in the list using structural equality.
 (List includes? 3 (list 1 2 3)) -> #t
 ```
 
-### `List count`
-`(List count pred lst) -> number`
+### `List count-if`
+`(List count-if pred lst) -> number`
 Returns the number of elements for which `pred` returns true.
 ```
-(List count even? (list 1 2 3 4)) -> 2
+(List count-if even? (list 1 2 3 4)) -> 2
 ```
 
 ---
@@ -541,10 +541,10 @@ Generates a list of integers from `start` up to (but not including) `end`.
 ```
 
 ### `List repeat`
-`(List repeat x n) -> list`
-Returns a list containing `x` repeated `n` times.
+`(List repeat n x) -> list`
+Returns a list containing `x` repeated `n` times (count first, matching `Str8 repeat`).
 ```
-(List repeat 0 3) -> (0 0 0)
+(List repeat 3 0) -> (0 0 0)
 ```
 
 ### `List times`
@@ -767,11 +767,11 @@ Converts a list of two-element lists into an alist of dotted pairs.
 (Assoc from-pairs (list (list 'a 1) (list 'b 2))) -> ((a . 1) (b . 2))
 ```
 
-### `Assoc to-pairs`
-`(Assoc to-pairs alist) -> list`
+### `Assoc ->pairs`
+`(Assoc ->pairs alist) -> list`
 Converts an alist of dotted pairs into a list of two-element lists.
 ```
-(Assoc to-pairs (list (pair 'a 1) (pair 'b 2))) -> ((a 1) (b 2))
+(Assoc ->pairs (list (pair 'a 1) (pair 'b 2))) -> ((a 1) (b 2))
 ```
 
 ### `Assoc evolve`

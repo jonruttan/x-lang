@@ -133,13 +133,13 @@
 
 (doc (def doc-emit-entry
   (fn (_ info)
-    (def %name (List nth 0 info))
-    (def %desc (List nth 1 info))
-    (def %params (List nth 2 info))
-    (def %returns (List nth 3 info))
-    (def %examples (List nth 4 info))
-    (def %sees (List nth 5 info))
-    (def %notes (List nth 6 info))
+    (def %name (List ref 0 info))
+    (def %desc (List ref 1 info))
+    (def %params (List ref 2 info))
+    (def %returns (List ref 3 info))
+    (def %examples (List ref 4 info))
+    (def %sees (List ref 5 info))
+    (def %notes (List ref 6 info))
     (display "### `") (display %name) (display "`") (newline) (newline)
     (if (not (str=? %desc "")) (do (display %desc) (newline) (newline)))
     (if (not (null? %notes))
@@ -180,7 +180,7 @@
         (if (doc-form? tok)
           (let ()
             (def %info (doc-extract tok))
-            (def %name (List nth 0 %info))
+            (def %name (List ref 0 %info))
             (if (symbol? %name)
               (pair (pair (symbol->str %name) %info)
                     (self (rest tokens)))
@@ -237,7 +237,7 @@
             (self %rest prims-alist seen)
             (let ()
               (def %info (doc-extract %tok))
-              (def %name-str (symbol->str (List nth 0 %info)))
+              (def %name-str (symbol->str (List ref 0 %info)))
               (if (%doc-seen-has? seen %name-str)
                 (self %rest prims-alist seen)
                 (do (doc-emit-entry %info)
@@ -269,7 +269,7 @@
     (def %provide (%doc-find-provide tokens))
     (if (not (null? %provide))
       (let ()
-        (def %mod-name (symbol->str (List nth 0 %provide)))
+        (def %mod-name (symbol->str (List ref 0 %provide)))
         ; Back navigation — count slashes to determine depth
         (def %depth
           (fold (fn (_ acc ch) (if (= ch (%integer->char 47)) (+ acc 1) acc))
@@ -280,11 +280,11 @@
         (display "[← Index](") (display %back) (display "index.md)")
         (newline) (newline)
         (doc-emit-heading 1 %mod-name)
-        (if (not (str=? (List nth 1 %provide) ""))
-          (do (display (List nth 1 %provide)) (newline) (newline)))
-        (if (not (null? (List nth 6 %provide)))
+        (if (not (str=? (List ref 1 %provide) ""))
+          (do (display (List ref 1 %provide)) (newline) (newline)))
+        (if (not (null? (List ref 6 %provide)))
           (for-each (fn (_ n) (display "> ") (display (first (rest n))) (newline) (newline))
-            (List nth 6 %provide)))))))
+            (List ref 6 %provide)))))))
 
 ; --- Public walkers ---
 

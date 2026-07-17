@@ -784,12 +784,12 @@
 ---
     ("abc")
 
-## regex-count
+## regex-match-count
 
 ### counts matches
 
 ```scheme
-(Regex count "a1b22c333" #/[0-9]+/)
+(Regex match-count "a1b22c333" #/[0-9]+/)
 ```
 ---
     3
@@ -797,7 +797,7 @@
 ### no matches returns zero
 
 ```scheme
-(Regex count "abc" #/[0-9]+/)
+(Regex match-count "abc" #/[0-9]+/)
 ```
 ---
     0
@@ -805,7 +805,7 @@
 ### single match
 
 ```scheme
-(Regex count "xabcx" #/abc/)
+(Regex match-count "xabcx" #/abc/)
 ```
 ---
     1
@@ -1027,10 +1027,10 @@
 ---
     "aNbN"
 
-### value-call count
+### value-call match-count
 
 ```scheme
-(#/[0-9]+/ count "a1b22c333")
+(#/[0-9]+/ match-count "a1b22c333")
 ```
 ---
     3

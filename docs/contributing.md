@@ -31,6 +31,25 @@ make clean && make
 - **No `cond`/`convert` in tokenizer callbacks** — Use nested `if` and direct C primitives to avoid GC corruption
 - **File extension** — `.x`
 
+### Method Naming (adjudicated — one name per concept)
+
+- **Element access is `ref`** on every class (`List ref`, `Vector ref`, `Str8 ref`,
+  `Gen ref`, `Obj ref`, `Ptr ref`). `Str8 index` survives as a documented alias;
+  don't add new `nth`/`index` methods.
+- **`count` means total elements** (the Seq/Gen consumers). Counting by predicate
+  is `count-if` (List); counting regex matches is `match-count` (Regex).
+- **Predicates are `any?` / `all?` / `none?`**; iteration for side effects is
+  `for-each`. (Not `every?`, not `each`.)
+- **Conversions are `->x` / `from-x`** as class methods (`Assoc ->pairs`,
+  `Hash ->hex`, `Vector ->list` / `from-list`). The bare `X->Y` globals
+  (`list->str`, `str->number`) are the pre-class boot layer only — don't add new ones.
+- **Constructor-style counts come first**: `(List repeat n x)`, `(Str8 repeat n s)`,
+  `(Str8 make k ch)`, `(Vector make n fill)`.
+- **Arguments are subject-LAST** (the dispatched value is the final parameter),
+  matching value-call dispatch: `("a,b" split ",")` → `(Str split "," "a,b")`.
+  Deliberate exception: the `File`/`Sys` OS layer mirrors POSIX and stays
+  handle-first (`(File write fd data)`); fds are ints and never value-dispatch.
+
 ## Testing
 
 ### Test Structure

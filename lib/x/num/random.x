@@ -15,7 +15,7 @@
 ; @license MIT No Attribution (MIT-0)
 
 (import x/sys/posix)            ; the Sys class: open-read / fd-read / close
-(import x/type/list)            ; the List class: fold / nth / length / remove
+(import x/type/list)            ; the List class: fold / ref / length / remove
 
 (def %urandom-path "/dev/urandom")
 (def %rand-mask 2147483647)     ; 2^31 - 1: keep every result in [0, 2^31)
@@ -127,7 +127,7 @@
       (param lst LIST "A non-empty list")
       (returns ANY "A random element")
       (example "((Random sw 5) choice (list 'a 'b 'c))" "one of a/b/c"))
-    (List nth (self int (List length lst)) lst))
+    (List ref (self int (List length lst)) lst))
 
   (method shuffle (self lst)
     (doc "A new list holding the elements of lst in random order (selection shuffle)."
@@ -139,7 +139,7 @@
     (let go ((rest lst) (out ()))
       (if (null? rest) out
         (let ((i (self int (List length rest))))
-          (go (List remove i 1 rest) (pair (List nth i rest) out)))))))
+          (go (List remove i 1 rest) (pair (List ref i rest) out)))))))
 
 (doc (provide x/num/random Random)
   (note "Two backends behind one interface: (Random sw [seed]) software, (Random hw) kernel. The software stream is not cryptographically secure.")

@@ -160,13 +160,13 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ---
     3
 
-### each value-calls route too
+### for-each value-calls route too
 
 ```x
 (do
   (import x/protocol/str/utf8)
   (def n 0)
-  ("ab" each (fn (_ c) (set! n (+ n 1))))
+  ("ab" for-each (fn (_ c) (set! n (+ n 1))))
   n)
 ```
 ---
