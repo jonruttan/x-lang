@@ -119,7 +119,7 @@ Test specs are markdown files in `tests/x/specs/` organized by category: core la
 - **Object system** — Classes are callable objects with message-passing dispatch (no quoting), single inheritance and `super`, encapsulated mutable members, and a `(static …)` block for static methods and class-wide members — so a class doubles as a namespace. All in x-lang, on `make-type`.
 - **Module system** — `provide`/`import` with deduplication. Modules are auto-discovered.
 - **Numeric tower** — Arbitrary-precision integers, IEEE 754 floats, exact rationals, complex numbers with automatic promotion.
-- **JIT compiler** — Compiles x-lang functions to native ARM64 machine code via a data-driven assembler with mmap execution. The x86_64 assembler has full instruction parity; x86_64 codegen is in progress.
+- **JIT compiler** — A data-driven assembler assembles, maps, and executes native machine code on both ARM64 and x86_64 (arch-tagged specs execute on each in CI). The automatic x-lang-function-to-native compiler currently targets ARM64.
 - **POSIX interface** — Fork, exec, pipe, dup2, wait, open, close, read, write, chdir, getenv, setenv via FFI.
 - **Regular expressions** — Custom type with `#/pattern/` literal syntax.
 - **Self-hosted tools** — Linter, formatter, coverage analyzer, profiler, and documentation generator written in x-lang.
