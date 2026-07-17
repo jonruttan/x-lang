@@ -226,6 +226,120 @@
       (if (str=? (first seen) name-str) #t
         (self (rest seen) name-str)))))
 
+; --- def-class emission -----------------------------------------------------
+; A class form is (def-class NAME parent-spec body...) where body items are a
+; class-level (doc "desc" (note ...) (example ...)), bare members, (interface
+; ...), (static (method ...) ...), and instance (method ...) forms.  Method
+; docs ride INSIDE the method: (method NAME (self sig...) (doc ...) body...).
+; All symbol comparison is by string (per-base interning; see %doc-splice-dos).
+
+(def %doc-defclass-form? (fn (_ tok)
+  (if (pair? tok) (doc-sym-is? (first tok) "def-class") ())))
+
+; One signature element's display name: (param N T "d") -> N, bare symbol -> it.
+(def %doc-param-name
+  (fn (_ p)
+    (match
+      ((doc-param-form? p) (symbol->str (first (rest p))))
+      ((symbol? p) (symbol->str p))
+      (#t "_"))))
+
+; Render the sig after self as " a b . rest".  A dotted (param ...) tail reads
+; SPLICED -- (self . (param args T "d")) tokenizes as (self param args T "d")
+; -- so a remaining tail that is itself a param form is one variadic param.
+(def %doc-sig-str
+  (fn (self ps)
+    (match
+      ((null? ps) "")
+      ((symbol? ps) (str " . " (symbol->str ps)))
+      ((doc-param-form? ps) (str " . " (symbol->str (first (rest ps)))))
+      ((pair? ps) (str " " (%doc-param-name (first ps)) (self (rest ps))))
+      (#t ""))))
+
+; Collect (param ...) forms from a sig for the Parameters section, treating a
+; spliced variadic tail (see %doc-sig-str) as one param form.
+(def %doc-sig-params
+  (fn (self ps acc)
+    (match
+      ((null? ps) (reverse acc))
+      ((symbol? ps) (reverse acc))
+      ((doc-param-form? ps) (reverse (pair ps acc)))
+      ((not (pair? ps)) (reverse acc))
+      ((doc-param-form? (first ps)) (self (rest ps) (pair (first ps) acc)))
+      (#t (self (rest ps) acc)))))
+
+; Emit one (method ...) form as a doc entry.  static? picks the heading shape:
+; (Class m a b) for statics, (m a b) + an instance note for instance methods.
+(def %doc-emit-method
+  (fn (_ m cname static?)
+    (def %mname (symbol->str (first (rest m))))
+    (def %sig (first (rest (rest m))))
+    (def %args (rest %sig))                          ; strip the self slot
+    (def %mbody (rest (rest (rest m))))
+    (def %docf (if (pair? %mbody)
+                 (if (doc-form? (first %mbody)) (first %mbody) ())
+                 ()))
+    (def %meta (if (null? %docf) () (rest %docf)))
+    (def %head
+      (if static?
+        (str "(" cname " " %mname (%doc-sig-str %args) ")")
+        (str "(" %mname (%doc-sig-str %args) ")")))
+    (def %notes (doc-extract-meta-type %meta "note" ()))
+    ; params ride the SIGNATURE; a bare-variadic sig (self . opt) documents
+    ; its option via (param ...) in the doc meta instead -- fall back to it.
+    (def %sig-params (%doc-sig-params %args ()))
+    (doc-emit-entry
+      (list %head
+            (if (null? %docf) "" (doc-find-last-string %meta))
+            (if (null? %sig-params)
+              (doc-extract-meta-type %meta "param" ())
+              %sig-params)
+            (doc-extract-meta-type %meta "returns" ())
+            (doc-extract-meta-type %meta "example" ())
+            (doc-extract-meta-type %meta "see" ())
+            (if static? %notes
+              (append %notes
+                (list (list (lit note)
+                  (str "Instance method: called on a " cname " instance.")))))))))
+
+; The class-level doc form: (doc "description" (note ...) (example ...)).
+(def %doc-emit-class-doc
+  (fn (_ f)
+    (def %meta (rest (rest f)))
+    (if (str? (first (rest f)))
+      (do (display (first (rest f))) (newline) (newline)
+          (for-each
+            (fn (_ n) (display "> ") (display (first (rest n))) (newline) (newline))
+            (doc-extract-meta-type %meta "note" ())))
+      ())))
+
+(def %doc-walk-class-body
+  (fn (self body cname static?)
+    (match
+      ((not (pair? body)) ())
+      (#t
+        (do (let ((f (first body)))
+              (match
+                ((not (pair? f)) ())
+                ((doc-sym-is? (first f) "method") (%doc-emit-method f cname static?))
+                ((doc-sym-is? (first f) "static") (self (rest f) cname #t))
+                ((doc-form? f) (%doc-emit-class-doc f))
+                (#t ())))
+            (self (rest body) cname static?))))))
+
+(def %doc-emit-class
+  (fn (_ form)
+    (def %cname (symbol->str (first (rest form))))
+    (def %parent (first (rest (rest form))))
+    (display "## Class `") (display %cname) (display "`") (newline) (newline)
+    (if (pair? %parent)
+      (if (doc-sym-is? (first %parent) "extends")
+        (do (display "*Extends `")
+            (display (symbol->str (first (rest %parent))))
+            (display "`.*") (newline) (newline)))
+      ())
+    (%doc-walk-class-body (rest (rest (rest form))) %cname #f)))
+
 (def %doc-walk-body-with-prims
   (fn (self tokens prims-alist seen)
     (if (null? tokens) ()
@@ -246,6 +360,9 @@
           (do (if (not (null? (rest %tok)))
                 (do (display "## ") (display (first (rest %tok))) (newline) (newline)))
               (self %rest prims-alist seen))
+        (if (%doc-defclass-form? %tok)
+          (do (%doc-emit-class %tok)
+              (self %rest prims-alist seen))
         (if (or (doc-def-form? %tok) (doc-set-form? %tok))
           (let ()
             (def %dname (first (rest %tok)))
@@ -260,7 +377,7 @@
                     (doc-emit-entry %prims-entry)
                     (do (display "### `") (display %dname) (display "`") (newline) (newline)))
                   (self %rest prims-alist (pair %dname-str seen))))))
-          (self %rest prims-alist seen))))))))
+          (self %rest prims-alist seen)))))))))
 
 ; --- Page header emission ---
 
