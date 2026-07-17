@@ -18,7 +18,9 @@
 (import x/type/list)            ; the List class: fold / ref / length / remove
 
 (def %urandom-path "/dev/urandom")
-(def %rand-mask 2147483647)     ; 2^31 - 1: keep every result in [0, 2^31)
+(def %rand-mask 2147483647)     ; 2^31 - 1: keep every RESULT in [0, 2^31)
+(def %rand-mask32 4294967295)   ; 2^32 - 1: the xorshift REGISTER stays 32-bit
+(def %rand-span 2147483648)     ; 2^31: the size of the %bits output range
 (def %rand-default-seed 2463534242) ; a nonzero xorshift seed (Marsaglia)
 
 (def-class Random ()
@@ -52,7 +54,7 @@
     (doc "Reseed the software PRNG. A zero seed is replaced -- xorshift needs a nonzero state."
       (param n INT "Seed value")
       (returns Random "self, for chaining"))
-    (set-member! 'state (if (= n 0) %rand-default-seed (& n %rand-mask)))
+    (set-member! 'state (if (= n 0) %rand-default-seed (& n %rand-mask32)))
     self)
 
   ; --- the entropy source -------------------------------------------------
@@ -61,16 +63,17 @@
   (method %bits (self)
     (if (eq? (member 'kind) 'hw) (self %hw-bits) (self %sw-bits)))
 
-  ; 32-bit xorshift (Marsaglia), masked to 31 bits -- mirrors lib/x/logo/math.x.
-  ; Threaded through lets (no set! on a local); the masked result is the next
-  ; state, so the register stays 31-bit at rest.
+  ; 32-bit xorshift (Marsaglia 13/17/5). The REGISTER keeps the full 32 bits
+  ; (the triple's period/quality analysis assumes a 32-bit state -- the old
+  ; 31-bit-masked register was an unanalyzed variant); only the RESULT is
+  ; masked to 31 bits so every backend yields the same [0, 2^31) shape.
   (method %sw-bits (self)
     (let ((s0 (member 'state)))
-      (let ((s1 (^ s0 (<< s0 13))))
+      (let ((s1 (& (^ s0 (<< s0 13)) %rand-mask32)))
         (let ((s2 (^ s1 (>> s1 17))))
-          (let ((s3 (& (^ s2 (<< s2 5)) %rand-mask)))
+          (let ((s3 (& (^ s2 (<< s2 5)) %rand-mask32)))
             (set-member! 'state s3)
-            s3)))))
+            (& s3 %rand-mask))))))
 
   ; Four bytes from /dev/urandom packed big-endian, masked to 31 bits. The fd is
   ; opened once and cached on the instance (see %fd).
@@ -89,11 +92,15 @@
 
   ; --- public API ---------------------------------------------------------
   (method int (self n)
-    (doc "A random integer in [0, n)."
+    (doc "A random integer in [0, n), uniform via rejection sampling."
       (param n INT "Exclusive upper bound (must be > 0)")
       (returns INT "A value in [0, n)")
       (example "((Random sw 1) int 6)" "0..5"))
-    (% (self %bits) n))
+    ; (% bits n) alone is BIASED whenever n does not divide 2^31 (low values
+    ; come up once more often); redraw above the largest exact multiple of n.
+    (let ((limit (- %rand-span (% %rand-span n))))
+      (let go ((b (self %bits)))
+        (if (< b limit) (% b n) (go (self %bits))))))
 
   (method range (self lo hi)
     (doc "A random integer in [lo, hi)."

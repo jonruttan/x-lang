@@ -118,3 +118,15 @@ sequence.
 ```
 ---
     8
+
+## determinism
+
+### same seed, same stream (rejection sampling included)
+
+```scheme
+(do (import x/num/random)
+  (let ((a (Random sw 7)) (b (Random sw 7)))
+    (equal? (a bytes 8) (b bytes 8))))
+```
+---
+    #t
