@@ -42,6 +42,22 @@
 ---
     99
 
+### returns a stored nil, not the default
+
+```scheme
+(do (def al (list (pair (lit a) ()))) (null? (Assoc get-or 99 (lit a) al)))
+```
+---
+    #t
+
+### stored #f is not the default either
+
+```scheme
+(do (def al (list (pair (lit a) #f))) (Assoc get-or 99 (lit a) al))
+```
+---
+    #f
+
 ## assoc-has?
 
 ### returns #t when key exists

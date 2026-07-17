@@ -17,9 +17,12 @@
     (method get-or (self (param d ANY "Default value if key is absent")
                          (param key SYMBOL "Key to look up")
                          (param alist LIST "Association list"))
-      (doc "Look up a key in an alist, returning a default if not found." (returns ANY "Value associated with key, or the default"))
-      (def result (assoc-get key alist))
-      (if (null? result) d result))
+      (doc "Look up a key in an alist, returning a default only when the key is absent."
+        (returns ANY "Value associated with key, or the default")
+        (note "Presence-based: a stored nil is returned as-is, not replaced by the default."))
+      ; Delegate to the box-based walker: testing (null? (assoc-get ...)) would
+      ; hand back the default for a PRESENT key whose stored value is nil.
+      (%opt-get-or-else (fn () d) key alist))
     (method has? (self (param key SYMBOL "Key to check") (param alist LIST "Association list"))
       (doc "Test whether a key exists in an alist." (returns BOOL "True if key is present"))
       (assoc-has? key alist))
