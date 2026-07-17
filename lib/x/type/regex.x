@@ -531,6 +531,14 @@
   (fn (_ rep matched)
     (if (procedure? rep) (rep matched) rep)))
 
+; The AST inside a compiled regex, with a type guard: handing the exec family
+; a non-REGEX (e.g. the bare AST from (Regex parse) or a plain string) used to
+; silently no-op -- (first non-regex) walked garbage that never matched.
+(def %rx-nodes
+  (fn (_ rx)
+    (if (%type? rx %regex) (first rx)
+      (error "Regex: expected a compiled regex -- use #/.../ or (Regex compile pattern)"))))
+
 (def-class Regex ()
   (static
     (method regex? (self (param x ANY "Value to test"))
@@ -542,7 +550,7 @@
     (method match (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Test whether a regex matches an entire string." (returns BOOLEAN "True if regex matches the entire string"))
       (def end (str-length str))
-      (def result (%regex-exec (first rx) str 0 end))
+      (def result (%regex-exec (%rx-nodes rx) str 0 end))
       (if (and result (= result end)) #t #f))
     (method search (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Search for the first occurrence of a regex pattern in a string." (returns LIST "Pair (start end) of first match, or nil if not found"))
@@ -550,7 +558,7 @@
       (def %try
         (fn (self i)
           (if (> i end) ()
-            (let ((result (%regex-exec (first rx) str i end)))
+            (let ((result (%regex-exec (%rx-nodes rx) str i end)))
               (if result (list i result)
                 (self (+ i 1)))))))
       (%try 0))
@@ -560,7 +568,7 @@
       (def %try
         (fn (self i)
           (if (> i end) ()
-            (let ((result (%regex-exec (first rx) str i end)))
+            (let ((result (%regex-exec (%rx-nodes rx) str i end)))
               (if result (list i result)
                 (self (+ i 1)))))))
       (%try pos))
@@ -648,8 +656,13 @@
         (returns INTEGER "Final position after match, or nil on failure"))
       (%regex-exec nodes str pos end))
     (method parse (self (param pattern STRING "Regex pattern string"))
-      (doc "Parse a regex pattern string into an executable AST." (returns LIST "AST node list"))
-      (%regex-parse pattern))))
+      (doc "Parse a regex pattern string into a bare AST node list. For a value the exec methods accept, use (Regex compile)." (returns LIST "AST node list"))
+      (%regex-parse pattern))
+    (method compile (self (param pattern STRING "Regex pattern string"))
+      (doc "Compile a pattern string into a REGEX value -- the programmatic twin of the #/.../ literal, for patterns built at runtime."
+        (returns REGEX "Compiled regex, usable with every exec method and as a value-call subject")
+        (example "(Regex find \"abc123\" (Regex compile \"[0-9]+\"))" "\"123\""))
+      (%make-instance %regex (%regex-parse pattern)))))
 
 ; Value dispatch over the existing match call handler: (rx match s) / (rx find s)
 ; dispatch to Regex methods; (rx "input") still runs the bare match.

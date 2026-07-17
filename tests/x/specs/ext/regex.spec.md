@@ -1034,3 +1034,29 @@
 ```
 ---
     3
+
+## compile
+
+### compiles a pattern string into a usable regex
+
+```scheme
+(Regex find "abc123" (Regex compile "[0-9]+"))
+```
+---
+    "123"
+
+### a compiled regex value-dispatches like a literal
+
+```scheme
+((Regex compile ",") split "a,b,c")
+```
+---
+    ("a" "b" "c")
+
+### exec methods reject a non-REGEX instead of no-opping
+
+```scheme
+(Regex split "a,b" (Regex parse ","))
+```
+---
+    Error: Regex: expected a compiled regex -- use #/.../ or (Regex compile pattern)
