@@ -814,10 +814,14 @@
 (doc (provide x/type/object
   def-class new new-from super method-ref
   object? class? class-of class-name class-parent instance-of?
-  class-members class-methods class-static-members class-static-methods)
+  class-members class-methods class-static-members class-static-methods
+  %class-call-handler %bind-call-over!)
   (note "Instances: (obj name args...) -- method wins, else member (obj m)/(obj m v).")
   (note "Classes are callable: (Class name args...) -- static method, (Class new ...) to")
   (note "instantiate, else class-wide member (Class m)/(Class m v). Use classes as")
   (note "namespaces of static methods. Raw member access in methods: (member 'm)/(set-member! 'm v).")
+  (note "%class-call-handler / %bind-call-over! are the PUBLIC value-call extension hooks")
+  (note "(the % marks handler-layer machinery, not module privacy): (%bind-call-over! (Type of v) Class)")
+  (note "routes a value's symbol-selector calls to the class's statics, subject-LAST.")
   (example "(do (def-class P () x (method get (self) (self x))) ((new P x 5) get))" "5")
   "Object-oriented class system: classes-as-objects, message passing, single inheritance.")
