@@ -24,6 +24,14 @@ intermediate list is built between stages.
 ---
     (0 3 6 9)
 
+### range-by rejects a zero step (it would never terminate)
+
+```scheme
+((Gen range-by 0 10 0) ->list)
+```
+---
+    Error: Gen range-by: step must be non-zero
+
 ### count-from is infinite -- take bounds it
 
 ```scheme

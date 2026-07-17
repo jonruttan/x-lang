@@ -41,10 +41,12 @@
         (returns GEN "Generator") (example "((Gen range 0 4) ->list)" "(0 1 2 3)"))
       (Gen make (fn (_ i) (if (< i stop) (pair i (+ i 1)) ())) start))
 
-    (method range-by (self (param start INT "Start") (param stop INT "Stop (exclusive)") (param by INT "Step, may be negative"))
+    (method range-by (self (param start INT "Start") (param stop INT "Stop (exclusive)") (param by INT "Step, may be negative but not zero"))
       (doc "Integers from start toward stop, stepping by `by`."
         (returns GEN "Generator") (example "((Gen range-by 0 10 3) ->list)" "(0 3 6 9)"))
-      (Gen make (fn (_ i) (if (if (> by 0) (< i stop) (> i stop)) (pair i (+ i by)) ())) start))
+      ; a zero step would never advance i, so the generator would never terminate
+      (if (= by 0) (error "Gen range-by: step must be non-zero")
+        (Gen make (fn (_ i) (if (if (> by 0) (< i stop) (> i stop)) (pair i (+ i by)) ())) start)))
 
     (method count-from (self (param start INT "First value"))
       (doc "INFINITE: start, start+1, start+2, ...  Bound with take / take-while."

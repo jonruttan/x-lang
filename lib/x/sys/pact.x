@@ -126,7 +126,7 @@
     (method has? (self (param name SYMBOL "Name to test"))
       (doc "Test whether NAME has joined the pact."
         (returns BOOL "True if NAME has joined"))
-      (if (null? (%pact-entry %pact-joined name)) () #t))))
+      (if (null? (%pact-entry %pact-joined name)) #f #t))))
 
 (doc (provide x/sys/pact Pact)
   (note "Modules join as their last load-time act; when-entries fire in registration order.")

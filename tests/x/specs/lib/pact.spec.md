@@ -19,14 +19,14 @@ bignum->float conversion is the first client).
 ---
     #t
 
-### has? is false before a join
+### has? is #f (not nil) before a join
 
 ```scheme
 (import x/sys/pact)
-(null? (Pact has? (lit pact-ghost)))
+(Pact has? (lit pact-ghost))
 ```
 ---
-    #t
+    #f
 
 ### join publishes a value that get reads back
 

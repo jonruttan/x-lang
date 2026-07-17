@@ -315,9 +315,13 @@
         ((= n 0) (pair val (rest lst)))
         (#t (pair (first lst) (recur self (- n 1) val (rest lst))))))
     (method insert (self n val lst)
-      (doc "Insert a value at index n." (param n INT "Insertion index") (param val ANY "Value to insert") (param lst LIST "List"))
-      (if (<= n 0) (pair val lst)
-        (pair (first lst) (recur self (- n 1) val (rest lst)))))
+      (doc "Insert a value at index n (clamped: n<=0 prepends, n>=length appends)." (param n INT "Insertion index") (param val ANY "Value to insert") (param lst LIST "List"))
+      (match
+        ((<= n 0) (pair val lst))
+        ; past the end: clamp to append -- without this guard the recursion
+        ; reaches (first ()) (unchecked car, UB)
+        ((null? lst) (pair val ()))
+        (#t (pair (first lst) (recur self (- n 1) val (rest lst))))))
     (method remove (self start n lst)
       (doc "Remove n elements starting at index." (param start INT "Start index") (param n INT "Number of elements to remove") (param lst LIST "List"))
       (match

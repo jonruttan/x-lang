@@ -49,6 +49,14 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ---
     Error: Str ref: index out of range
 
+### Str8 sub clamps start and length to the byte bounds
+
+```scheme
+(Str8 append (Str8 sub 3 10 "hello") (Str8 sub -2 2 "ab") (Str8 sub 9 3 "xy"))
+```
+---
+    "loab"
+
 ### StrUTF8 ref is always a code point
 
 ```x
@@ -330,6 +338,30 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ```
 ---
     #\h
+
+### the bare (s i) call takes a negative index from the end
+
+```scheme
+("hi" -1)
+```
+---
+    #\i
+
+### the bare (s i) call errors past the end instead of over-reading
+
+```scheme
+("hi" 5)
+```
+---
+    Error: str: index out of range
+
+### the bare (s a n) slice clamps at the end
+
+```scheme
+("hello" 3 10)
+```
+---
+    "lo"
 
 ### the named accessor now value-dispatches too (data-last -> subject-last)
 

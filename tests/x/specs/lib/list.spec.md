@@ -889,6 +889,22 @@
 ---
     (10 99 20 30)
 
+### insert at the length appends
+
+```scheme
+(List insert 3 99 (list 10 20 30))
+```
+---
+    (10 20 30 99)
+
+### insert past the end clamps to append
+
+```scheme
+(List insert 7 99 (list 10 20 30))
+```
+---
+    (10 20 30 99)
+
 ## remove
 
 ### removes n elements at start index

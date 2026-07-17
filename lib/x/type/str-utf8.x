@@ -81,10 +81,16 @@
 (def %str-type (%type-by-atom (%type-of "x")))
 
 ; Byte offset of code-point index k: advance k whole sequences from byte `from`.
+; Clamps at byte length `len` instead of walking past the end (%utf8-width is
+; an unchecked read) -- callers detect out-of-range by landing at `len`. The
+; length rides as a param so the walk stays alloc-free (str-byte-len is a prim
+; call that makes an int per call).
 (def %cp-byte-offset
-  (fn (self s k from)
+  (fn (self s len k from)
     (if (= k 0) from
-      (self s (- k 1) (+ from (%utf8-width s from))))))
+      (if (< from len)
+        (self s len (- k 1) (+ from (%utf8-width s from)))
+        from))))
 
 (def %cp-count
   (fn (self s len i n)
@@ -93,16 +99,25 @@
 
 ; i-th code point. Negative i counts from the end (matches the old byte path:
 ; the C call added the length to a negative index). Only the negative case pays
-; for the extra code-point count walk.
+; for the extra code-point count walk. Out of range (either side) errors --
+; %utf8-cp-at is an unchecked read, so this is the x-lang guard.
 (def %cp-ref
   (fn (_ s i)
-    (def k (if (< i 0) (+ i (%cp-count s (%str-byte-len s) 0 0)) i))
-    (%integer->char (%utf8-cp-at s (%cp-byte-offset s k 0)))))
+    (def len (%str-byte-len s))
+    (def k (if (< i 0) (+ i (%cp-count s len 0 0)) i))
+    (def b (if (< k 0) len (%cp-byte-offset s len k 0)))
+    (if (< b len)
+      (%integer->char (%utf8-cp-at s b))
+      (error "str: index out of range"))))
 
+; Clamped like StrUTF8 sub: offsets past the end yield the empty/short slice.
+; A negative count must short-circuit -- the offset walk only stops on k = 0,
+; so a negative k would otherwise clamp at the end and take the whole tail.
 (def %cp-substring
   (fn (_ s start len)
-    (def b0 (%cp-byte-offset s start 0))
-    (def b1 (%cp-byte-offset s len b0))
+    (def blen (%str-byte-len s))
+    (def b0 (%cp-byte-offset s blen start 0))
+    (def b1 (if (< len 0) b0 (%cp-byte-offset s blen len b0)))
     (%str-byte-sub s b0 (- b1 b0))))
 
 ; --- push the code-point call handler over the byte default ---

@@ -57,10 +57,15 @@
         (if (< i (%str-byte-len v)) (%str-byte-ref v i)
           (error "Str8 ref: index out of range"))))
     (method sub    (self (param st INT "Start byte offset (0-based)") (param len INT "Number of bytes") (param v STRING "Source string"))
-      (doc "Substring of len bytes starting at byte offset st."
+      (doc "Substring of len bytes starting at byte offset st; st and len clamp to v's bounds (like StrUTF8 sub)."
         (returns STRING "The len-byte slice of v from st")
         (example "(Str8 sub 1 3 \"hello\")" "\"ell\""))
-      (%str-byte-sub v st len))
+      ; %str-byte-sub reads unchecked (heap over-read past the string), so the
+      ; clamping here is the x-lang guard, mirroring StrUTF8 sub's clamp.
+      (let ((n (%str-byte-len v)))
+        (let ((s0 (if (< st 0) 0 (if (< st n) st n))))
+          (%str-byte-sub v s0
+            (if (< len 0) 0 (if (< len (- n s0)) len (- n s0)))))))
     (method index  (self (param i INT "Byte position (0-based)") (param v STRING "String to index"))
       (doc "Alias for ref (the adjudicated element-access name): the i-th byte of v as a CHARACTER."
         (returns CHAR "Byte at position i")
