@@ -21,7 +21,8 @@
   (def %source-input (%read))
 
   ; --- Tokenize both with a fresh base ---
-  (def %doc-base (make-base))
+  ; (Base make): make-base retired when the constructors homed on the Base class
+  (def %doc-base (Base make))
   (def %prims-tokens (%token-read-string %doc-base %prims-input))
   (def %source-tokens (%token-read-string %doc-base %source-input))
 

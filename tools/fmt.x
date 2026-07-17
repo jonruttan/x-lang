@@ -25,7 +25,8 @@
 
   ; --- Create formatter base, patch COMMENT to keep tokens ---
 
-  (def %fmt-base (make-base))
+  ; (Base make): make-base retired when the constructors homed on the Base class
+  (def %fmt-base (Base make))
 
   ; Reader that keeps the comment text as a token
   (def %fmt-comment-reader (fn (_ . args)

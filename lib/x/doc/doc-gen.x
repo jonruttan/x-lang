@@ -288,14 +288,28 @@
 
 ; --- Public walkers ---
 
+; Splice top-level (do ...) bodies into the token stream: a file whose whole
+; body rides one do form (x-core.x) otherwise hides every doc/provide from
+; the walker and produces an empty page.
+(def %doc-splice-dos
+  (fn (self tokens)
+    (match
+      ((null? tokens) ())
+      ; string compare, not eq?: tokens come from a FRESH base (doc.x), and
+      ; symbol interning is per-base, so (lit do) here is a different atom
+      ((if (pair? (first tokens)) (doc-sym-is? (first (first tokens)) "do") #f)
+        (append (self (rest (first tokens))) (self (rest tokens))))
+      (#t (pair (first tokens) (self (rest tokens)))))))
+
 (doc (def doc-walk-with-prims
   (fn (_ tokens prims-alist)
-    (%doc-emit-page-header tokens)
+    (def %spliced (%doc-splice-dos tokens))
+    (%doc-emit-page-header %spliced)
     ; Build local doc lookup from standalone (doc name ...) forms in source,
     ; then merge with prims-alist so bare defs find their docs
-    (def %local-alist (doc-build-lookup tokens))
+    (def %local-alist (doc-build-lookup %spliced))
     (def %merged (append %local-alist prims-alist))
-    (%doc-walk-body-with-prims tokens %merged ())))
+    (%doc-walk-body-with-prims %spliced %merged ())))
   (param tokens LIST "Source file token list")
   (param prims-alist LIST "Alist from doc-build-lookup (or () for none)")
   "Walk source tokens, using prims-alist as fallback docs for bare defs.")
