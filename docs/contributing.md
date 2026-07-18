@@ -37,7 +37,7 @@ make clean && make
   `Gen ref`, `Obj ref`, `Ptr ref`). `Str8 index` survives as a documented alias;
   don't add new `nth`/`index` methods.
 - **`length` is the property; `count` is the action** (see the [glossary](glossary.md)).
-  Every finite collection exposes `length` — List, Vector, Vec, Str8, StrUTF8,
+  Every finite collection exposes `length` — List, Vector, Array, Str8, StrUTF8,
   Seq, Dict, Set (Dict/Set store it, O(1)). `count` names genuine tallying acts
   only: `Gen count` (consumes the stream — a lazy stream has no length
   property), `Seq count` (the cursor-walk the default `length` delegates to),
@@ -66,7 +66,7 @@ make clean && make
   `INT` (not INTEGER), `BOOL` (not BOOLEAN), `CALLABLE` (not FUNCTION), plus
   `ANY STRING SYMBOL LIST PAIR CHAR NUMBER VECTOR REGEX FLOAT BIGNUM RATIONAL
   COMPLEX ITER OBJECT CLASS PTR BUF`. `PROCEDURE`/`OPERATIVE` are reserved for
-  the fn/op constructors' returns. Class names (`Dict`, `Vec`, `Random`, ...)
+  the fn/op constructors' returns. Class names (`Dict`, `Array`, `Random`, ...)
   are legitimate returns types as-is. `make check-doc-vocab` enforces the
   banned aliases.
 - **Absence discipline** (normative; the full statement is spec.md's "Nil,
@@ -76,7 +76,7 @@ make clean && make
   never a value sentinel; boundaries carry foreign null as the symbol `null`
   (and OS-domain tables keep the OS's own `-1` invalid marker).
 - **Indexes are 0-based; negatives count from the end** on strict indexed
-  collections (`List ref`, `Vector`, `Vec`, `Str8`/`StrUTF8 ref`, the bare
+  collections (`List ref`, `Vector`, `Array`, `Str8`/`StrUTF8 ref`, the bare
   `(s i)`; `Gen ref` excepted — a lazy stream has no end). Index-search
   misses return `()` (the old `-1` exception is repealed), and every checked
   `ref` errors on a nil index so a piped miss fails loudly.

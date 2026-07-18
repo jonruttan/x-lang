@@ -44,7 +44,7 @@ More in [examples/](examples/) — run one with `sh x.sh -f examples/x/factorial
 
 The system is layered. Each layer expands capabilities without modifying those below it.
 
-1. **Atom/pair bootstrap** ([x-expr](ext/x-expr/)) — Two intrinsic structural types sufficient for evaluation and data construction. The evaluator dispatches through type methods, so these two suffice to get the system running.
+1. **Atom/pair bootstrap** ([x-expr](ext/x-expr/)) — One storage shape, two blessed lengths: every object is a fixed-size vector of slots, and the two smallest — the atom (one) and the pair (two) — are sufficient for evaluation and data construction. The evaluator dispatches through type methods, so these two suffice to get the system running.
 2. **Adaptive type system** — Runtime type definitions with dispatch methods (call, eval, write, length, etc.). Types and the base object share the same nested-list contract structure, extensible by appending pairs.
 3. **Modular library** (`lib/`) — 100+ modules organized by domain: core operations, custom types (vectors, strings, promises), a numeric tower (bignum, float, rational, complex), system interfaces (POSIX, FFI, GC), self-hosted tools (linter, formatter, coverage, profiler, doc generator), and platform-specific code (x86_64, ARM64).
 4. **FFI and native code** — Dynamic library loading via `dlopen`/`dlsym`, typed foreign calls, raw pointer operations, and a JIT compiler that compiles x-lang functions to native machine code via a data-driven assembler.

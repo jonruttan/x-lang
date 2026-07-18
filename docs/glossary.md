@@ -23,6 +23,18 @@ are settled (tracked in issue #42 and #44).
 - **bindings list** — `((key value) ...)` two-element lists, the shape `let`
   uses. Bridged to alists by `Assoc from-bindings` / `Assoc ->bindings`.
 
+## vector, atom, pair — and Array
+
+- **vector** — the fundamental fixed-size structural shape: N contiguous
+  object slots. Everything is a vector. The **atom** is the one-slot vector;
+  the **pair** is the two-slot vector; the user-facing `Vector` type is the
+  same shape with the length exposed. Structural tier: plain values,
+  data-last static methods.
+- **Array** — NOT a vector: a growable stateful *container* (Dict/Set tier,
+  instance dispatch) wrapping a vector backing store that doubles on
+  overflow. Fixed extent and value semantics → `Vector`; growth and
+  in-place mutation → `Array`.
+
 ## generator vs iterator
 
 - **generator** — the pure step contract: `(step state) -> (value . next-state)`,
@@ -44,7 +56,7 @@ are settled (tracked in issue #42 and #44).
 ## length vs count
 
 - **length** — the element count as a *property*: the noun you ask of any
-  finite collection (List, Vector, Vec, Str8, StrUTF8, Seq, Dict, Set). The
+  finite collection (List, Vector, Array, Str8, StrUTF8, Seq, Dict, Set). The
   interface word describes the meaning, not the cost — `StrUTF8 length` is
   O(n) under the hood, `Dict length` O(1).
 - **count** — the *action* of tallying. Reserved for genuine acts: `Gen count`

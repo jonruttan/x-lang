@@ -8,7 +8,7 @@ The interpreter is a type-agnostic expression evaluator written in C89. It provi
 
 Each layer expands capabilities without modifying those below it.
 
-**Layer 1: Atom/Pair Bootstrap.** Two intrinsic structural types -- atoms (single datum) and pairs (two data) -- provide enough machinery for evaluation and data construction. The evaluator dispatches through type methods rather than hardcoding knowledge of specific types, so these two suffice to get the system running.
+**Layer 1: Atom/Pair Bootstrap.** One storage shape, two blessed lengths: every object is a fixed-size vector of datum slots, and the two smallest -- the atom (one slot) and the pair (two) -- provide enough machinery for evaluation and data construction. The evaluator dispatches through type methods rather than hardcoding knowledge of specific types, so these two suffice to get the system running; the user-facing `Vector` type is the same shape with the length exposed.
 
 **Layer 2: Adaptive Type System.** `make-type` and `make-instance` introduce new types at runtime. Each type is a nested linked list carrying a fixed prefix of dispatch methods (call, eval, write, length, etc.) and an extensible tail for type-specific data. New types plug into the existing evaluation, printing, and comparison infrastructure the moment they are registered. Types registered at startup include symbols, lists, integers, strings, characters, primitives, procedures, operatives, buffers, whitespace, and comments.
 
