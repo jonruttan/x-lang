@@ -3,7 +3,7 @@
 # The C ISA ratchet
 
 The C layer is the interpreter's instruction set: unchecked, minimal, FIXED.
-`tools/isa.x` is the committed manifest of every C function reachable from X.
+`tools/isa.x` is the committed manifest of every C function reachable from x-lang.
 These tests walk the LIVE primitives catalog and fail on drift in either
 direction, so growing the C surface requires editing the manifest in the same
 commit. The source-level companion (`make check-isa`) covers the bare binding

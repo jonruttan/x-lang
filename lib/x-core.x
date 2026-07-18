@@ -120,7 +120,7 @@
 
   ; Type extensions
   (include "lib/x/core/alist.x")
-  ; include-once (not include): registers the path so str-utf8.x's and the Utf8
+  ; include-once (not include): registers the path so str-utf8.x's and the StrUTF8
   ; protocol class's (import x/codec/utf8) become no-ops instead of reloading it.
   (include-once "lib/x/codec/utf8.x")
   ; Low-level UTF-8 code-point layer for the STRING type: the list<->str

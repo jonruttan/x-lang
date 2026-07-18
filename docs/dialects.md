@@ -1,6 +1,7 @@
-# Computational Expressions in C
+# x-lang Dialects
 
-## Dialects
+*Part of the C implementation of x-lang: computational expressions over a minimal, type-agnostic core.*
+
 
 A dialect is a composition of x-lang library modules that determines what capabilities are available. Each dialect builds on the previous, adding more features at the cost of longer startup time.
 

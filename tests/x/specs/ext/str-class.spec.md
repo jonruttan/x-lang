@@ -12,7 +12,7 @@ the rest with code-point behaviour.
 
 `Str` names the ACTIVE protocol -- code points by default (`Str = StrUTF8`), so
 the bare string call `(s i)`, the `str-*` library, and `str->list` are all
-code-point out of the box. `Utf8` is an alias for `StrUTF8`; method `index` is a
+code-point out of the box. `Str` is the ambient alias for `StrUTF8`; method `index` is a
 kept alias for `ref`. The classes are preloaded, so no import is needed.
 
 ## protocols

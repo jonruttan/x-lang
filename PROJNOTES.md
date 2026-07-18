@@ -1,11 +1,11 @@
-Title:       X-Lang Project Notes  
-Description: Development notes for X-Lang.  
-Keywords:    [#X, #X-Lang, #Project, #Notes]  
+Title:       x-lang Project Notes  
+Description: Development notes for x-lang.  
+Keywords:    [#x-lang, #Project, #Notes]  
 Author:      "[Jon Ruttan](jonruttan@gmail.com)"  
 Date:        2021-10-06  
 Revision:    7 (2026-07-10)  
 
-# X-Lang Project Notes
+# x-lang Project Notes
 
 ## Sub-projects
 
@@ -20,7 +20,7 @@ Revision:    7 (2026-07-10)
 - ANSI / Standard C, no external dependencies
 
 
-### X-Lang (xe/xenon) -- Minimalist Dialect
+### x-lang (xe/xenon) -- Minimalist Dialect
 
 **Status: Implemented** (v0.2.0)
 
@@ -43,7 +43,7 @@ Revision:    7 (2026-07-10)
 
 Experimental / Hacking
 
-- Built on X-Lang
+- Built on x-lang
 - Unstable
 - Full Dialect
 - Kernel access
@@ -51,13 +51,13 @@ Experimental / Hacking
 - Modules
 
 
-### Helium (he/helium) -- Maximal/Stable X-Lang Dialect
+### Helium (he/helium) -- Maximal/Stable x-lang Dialect
 
 **Status: Aspirational**
 
 Hardened / Full Stack
 
-- Built on X-Lang
+- Built on x-lang
 - Stable
 - Lisp1
 - Full Dialect

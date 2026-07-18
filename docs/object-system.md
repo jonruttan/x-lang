@@ -1,6 +1,7 @@
-# Computational Expressions in C
+# x-lang Object System
 
-## Object System
+*Part of the C implementation of x-lang: computational expressions over a minimal, type-agnostic core.*
+
 
 x-lang ships a small object-oriented class system in the standard library
 (`lib/x/type/object.x`). It follows the **message-passing** model made famous by

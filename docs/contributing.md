@@ -20,6 +20,10 @@ make clean && make
 - **C89 standard** — no C99 features. Variables declared at the top of the FUNCTION (house rule, stricter than C89's top-of-block); hoist via guarded initializers or assign-in-place
 - **`x_` prefix** — All exported symbols use the `x_` prefix
 - **Naming** — Use `pair`/`first`/`rest`, never cons/car/cdr. Use `fn`/`def`/`set!`/`do`/`op`/`lit`/`quasi`/`match`
+- **Accessor families** — `x_first`/`x_rest`* are the canonical pair accessors;
+  the `x_0`/`x_1` bit-path family is blessed for dense field plumbing (the
+  base layout); x-lisp.h's `x_car`/`x_cdr` are embedder-compat shims only —
+  never used in this repo's own code
 - **No globals** — All interpreter state belongs on `p_base`. Never use static or global variables for state
 - **Stack-allocated pairs** — Prefer `x_satom_t`/`x_spair_t` over heap allocation where possible
 - **Doxygen comments** — All public functions and macros documented with `@brief`, `@param`, `@return`. File headers include `@file`, `@brief`, `@author`, `@copyright`, `@license`, and the ASCII owl

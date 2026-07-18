@@ -106,9 +106,6 @@
         (returns INT "Decoded code point"))
       (%utf8-cp-at s i))))
 
-; Utf8 = alias for the UTF-8 protocol class.
-(def Utf8 StrUTF8)
-
 ; Str = the AMBIENT string protocol. The default is UTF-8 (code points): the
 ; bare string call (s i), the str-* API, and str->list all work in code points
 ; out of the box. Str8 and StrUTF8 always name their fixed protocols; rebind
@@ -120,6 +117,6 @@
 ; ("hi" upcase) dispatch to Str methods; ("hi" 0) still does code-point access.
 (%bind-call-over! (Type of "x") Str)
 
-(doc (provide x/protocol/str/utf8 StrUTF8 Utf8 Str)
-  (note "The UTF-8 code-point view (a Str8 subclass). Utf8 and Str are aliases for StrUTF8; Str names the active protocol. (help StrUTF8) lists every method.")
+(doc (provide x/protocol/str/utf8 StrUTF8 Str)
+  (note "The UTF-8 code-point view (a Str8 subclass). Str is the blessed ambient alias -- it names the ACTIVE protocol (rebindable); Str8 and StrUTF8 are the canonical fixed names (A11: the Utf8 alias was retired). (help StrUTF8) lists every method.")
   "StrUTF8: the UTF-8 code-point string protocol, overriding Str8's element access for code points.")

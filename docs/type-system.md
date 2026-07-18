@@ -1,6 +1,7 @@
-# Computational Expressions in C
+# x-lang Type System
 
-## Type System
+*Part of the C implementation of x-lang: computational expressions over a minimal, type-agnostic core.*
+
 
 ### The Contract Pattern
 

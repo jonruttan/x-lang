@@ -1,4 +1,6 @@
-# Computational Expressions in C
+# x-lang C Primitives
+
+*Part of the C implementation of x-lang: computational expressions over a minimal, type-agnostic core.*
 
 ## Primitives
 

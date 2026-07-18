@@ -1,6 +1,7 @@
-# Computational Expressions in C
+# x-lang Standard Library
 
-## Standard Library
+*Part of the C implementation of x-lang: computational expressions over a minimal, type-agnostic core.*
+
 
 The x-lang library is modular: 100+ modules (one module = one `provide`-ing `.x` source file) organized across `lib/x/boot/`, `lib/x/core/`, `lib/x/type/`, `lib/x/protocol/`, `lib/x/num/`, `lib/x/sys/`, `lib/x/doc/`, `lib/x/tool/`, and `lib/x/platform/`. The bootstrap loader `lib/x-core.x` pre-registers all paths and loads 40+ core modules via `provide`/`import` with deduplication.
 

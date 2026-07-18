@@ -1,6 +1,7 @@
-# Computational Expressions in C
+# x-lang Architecture
 
-## Architecture
+*Part of the C implementation of x-lang: computational expressions over a minimal, type-agnostic core.*
+
 
 The interpreter is a type-agnostic expression evaluator written in C89. It provides atom/pair primitives, an adaptive type system, and fexpr-based evaluation. It has no built-in knowledge of any particular language semantics. It is dangerous and minimal, like a CPU: it executes what it is given without guardrails, and all safety, convenience, and language identity are supplied by libraries loaded at runtime.
 

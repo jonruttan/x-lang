@@ -32,12 +32,12 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ---
     #\B
 
-## code-point view (Utf8)
+## code-point view (StrUTF8)
 
 ### length counts code points, not bytes
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 length "$¢€"))
+(do (import x/protocol/str/utf8) (StrUTF8 length "$¢€"))
 ```
 ---
     3
@@ -45,7 +45,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ### ->list decodes UTF-8 code points
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 ->list "$¢€"))
+(do (import x/protocol/str/utf8) (StrUTF8 ->list "$¢€"))
 ```
 ---
     (#\$ #\¢ #\€)
@@ -53,7 +53,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ### ASCII agrees with the byte view
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 length "hello"))
+(do (import x/protocol/str/utf8) (StrUTF8 length "hello"))
 ```
 ---
     5
@@ -61,7 +61,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ### ref returns the i-th code point (O(n) index)
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 ref 1 "$¢£¥€¤"))
+(do (import x/protocol/str/utf8) (StrUTF8 ref 1 "$¢£¥€¤"))
 ```
 ---
     #\¢
@@ -69,7 +69,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ### ref reaches a later multi-byte code point
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 ref 4 "$¢£¥€¤"))
+(do (import x/protocol/str/utf8) (StrUTF8 ref 4 "$¢£¥€¤"))
 ```
 ---
     #\€
@@ -79,7 +79,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ```x
 (do
   (import x/protocol/str/utf8)
-  (list (Utf8 ref 0 "¢") (str-ref "¢" 0)))
+  (list (StrUTF8 ref 0 "¢") (str-ref "¢" 0)))
 ```
 ---
     (#\¢ #\Â)
@@ -91,7 +91,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ```x
 (do
   (import x/protocol/str/utf8)
-  (list (length (Str8 ->list "€")) (length (Utf8 ->list "€"))))
+  (list (length (Str8 ->list "€")) (length (StrUTF8 ->list "€"))))
 ```
 ---
     (3 1)
@@ -99,7 +99,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ### count is inherited from Seq and dispatches to the subclass step
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 count "$¢€"))
+(do (import x/protocol/str/utf8) (StrUTF8 count "$¢€"))
 ```
 ---
     3
@@ -109,7 +109,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ```x
 (do
   (import x/protocol/str/utf8)
-  (Utf8 fold (fn (_ a c) (+ a (Char ->int c))) 0 "AB"))
+  (StrUTF8 fold (fn (_ a c) (+ a (Char ->int c))) 0 "AB"))
 ```
 ---
     131
@@ -119,7 +119,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ### ->str encodes code-point characters to a UTF-8 string
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 ->str (list #\$ #\¢ #\€)))
+(do (import x/protocol/str/utf8) (StrUTF8 ->str (list #\$ #\¢ #\€)))
 ```
 ---
     "$¢€"
@@ -129,7 +129,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ```x
 (do
   (import x/protocol/str/utf8)
-  (str=? (Utf8 ->str (Utf8 ->list "$¢£¥€¤")) "$¢£¥€¤"))
+  (str=? (StrUTF8 ->str (StrUTF8 ->list "$¢£¥€¤")) "$¢£¥€¤"))
 ```
 ---
     #t
@@ -145,7 +145,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ### char->bytes gives a code point's UTF-8 bytes
 
 ```x
-(do (import x/protocol/str/utf8) (Utf8 char->bytes #\€))
+(do (import x/protocol/str/utf8) (StrUTF8 char->bytes #\€))
 ```
 ---
     (226 130 172)

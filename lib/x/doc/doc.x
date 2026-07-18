@@ -460,7 +460,7 @@
         (%display-entry-line "  " sym
           (if (null? %e) "" (%doc-entry-desc %e)))
         ; if sym names a class, expand its documented methods underneath.
-        ; Only expand under the class's CANONICAL name, so aliases (e.g. Utf8,
+        ; Only expand under the class's CANONICAL name, so aliases (e.g. Str,
         ; Str -> StrUTF8) stay collapsed instead of repeating the whole list.
         (def %v (guard (_ ()) (eval sym e)))
         (if (if (null? %v) #f
