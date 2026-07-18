@@ -32,6 +32,14 @@
 ---
     "n"
 
+### string literals are distinct objects
+
+```scheme
+(if (eq? "a" "a") "y" "n")
+```
+---
+    "n"
+
 ### value-compares equal characters
 
 ```scheme
