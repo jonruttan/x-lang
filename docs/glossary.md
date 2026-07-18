@@ -57,10 +57,29 @@ byte" (`\0`). None of them is a fourth falsy value: falsy is {nil, `#f`}.
 
 - **value sentinel** — a stand-in *inside the value domain* (`-1` for a
   miss, a magic string). FORBIDDEN by the absence discipline; misses are
-  nil behind presence doors. (Two blessed exceptions: `raised`'s `%none`,
+  nil behind presence doors. (Two blessed exceptions: `raised`'s `%no-raise`,
   OS-domain `-1` — see contributing.)
 - **identity sentinel** — a unique *object* compared by `eq?` to mark a
   mechanism's own state (the TCO tag). Blessed internal technique.
+
+## scoped words (same spelling, different domains — deliberate)
+
+- **head / tail** in C are always *chain-position* words (the front or end
+  pointer of a linked chain: `p_head`, `p_tail`) — never element accessors
+  (those are `first`/`rest`); *tail call* / TCO is a separate compound.
+- **table** in C is a static array of entries (a bind table,
+  `x_callable_entry_t[]`); the hash container is `Dict`; keyed pair-lists
+  are alists. Three structures, three words.
+- **signal** means OS signals (`x_signal`, SIGINT) — errors are *raised*
+  and *propagated*, never "signaled".
+- **init** on List is Haskell's all-but-last (the `last` twin) — unrelated
+  to constructor initialization. **reject** on List is the filter
+  complement; in the tokenizer protocol it is the no-match terminator
+  (accept / accept-inclusive / reject) — each is coherent in its domain.
+- **Utf8** names exactly one thing: the byte↔code-point *codec* class
+  (`x/codec/utf8` — `decode`/`encode`/`width`). The string classes are
+  `Str8`/`StrUTF8` with ambient `Str`; the old `Utf8` *string-class alias*
+  is retired and must not come back.
 
 ## core and base
 

@@ -75,7 +75,7 @@ make clean && make
   return `()` per the C side-effect rule (`Obj set!`, `Ptr set!`); removers
   return the removed element (`Array pop!`). Crossing tiers? Check which
   one you're on before chaining.
-- **Two blessed value sentinels, no third**: `raised`'s `%none` (test
+- **Two blessed value sentinels, no third**: `raised`'s `%no-raise` (test
   layer only — distinguishes a raised nil from no-raise) and OS-domain
   `-1` (boundary vocabulary, like JSON's `null` symbol). Everything else
   misses with nil behind a presence door.
@@ -216,7 +216,7 @@ The spec runner evaluates the `scheme` code block and compares stdout against th
 `tests/x/lib/assert.x` names the "this must raise" pattern, so the silent-failure class (a form that should raise but returns nil) can't read as a pass. Add `# @lib ../tests/x/lib/assert.x` to a spec, then:
 
 - `(throws? (fn (_) EXPR))` → `#t` if `EXPR` raises, else `#f`
-- `(raised  (fn (_) EXPR))` → the value `EXPR` raised, or the symbol `%none`
+- `(raised  (fn (_) EXPR))` → the value `EXPR` raised, or the symbol `%no-raise`
 
 ### Memory safety (AddressSanitizer)
 

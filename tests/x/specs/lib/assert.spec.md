@@ -49,10 +49,10 @@ never fail a real test.
 ---
     99
 
-### returns the %none sentinel when nothing is raised
+### returns the %no-raise sentinel when nothing is raised
 
 ```scheme
-(eq? (raised (fn (_) 42)) (lit %none))
+(eq? (raised (fn (_) 42)) (lit %no-raise))
 ```
 ---
     #t

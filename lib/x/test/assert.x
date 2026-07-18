@@ -24,11 +24,11 @@
 (doc (def raised
   (fn (_ (param thunk CALLABLE "Nullary thunk to run"))
     (guard (e e)
-      (do (thunk) (lit %none)))))
-  (returns ANY "The raised value, or the symbol %none when the thunk returned normally")
-  (note "%none is a SYMBOL (not nil), so a raised nil and a non-raising thunk stay distinct under (eq? (raised ...) (lit %none)).")
+      (do (thunk) (lit %no-raise)))))
+  (returns ANY "The raised value, or the symbol %no-raise when the thunk returned normally")
+  (note "%no-raise is a SYMBOL (not nil), so a raised nil and a non-raising thunk stay distinct under (eq? (raised ...) (lit %no-raise)).")
   (example "(raised (fn (_) (error \"boom\")))" "\"boom\"")
-  "The value a thunk raised, or %none when it did not raise.")
+  "The value a thunk raised, or %no-raise when it did not raise.")
 
 (doc (provide x/test/assert throws? raised)
   (example "(throws? (fn (_) (first ())))" "#t or #f, depending on the form under test")
