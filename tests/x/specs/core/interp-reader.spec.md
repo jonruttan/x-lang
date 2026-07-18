@@ -144,3 +144,21 @@ where the literal sits, even when a *second* interpolation follows it.
 ```
 ---
     ((lit Str8) (lit str) "a" (lit x))
+
+## the tail-only list ( . x)
+
+### a list that is only a tail IS the tail (reads as the bare form)
+
+```scheme
+'( . b)
+```
+---
+    (lit b)
+
+### the bare-variadic parameter form binds everything
+
+```scheme
+(rest ((fn ( . rest) rest) 1 2 3))
+```
+---
+    (1 2 3)
