@@ -223,7 +223,7 @@ registration costs no memory and no allocation.
   `tools/base-layout.x`, so no descriptor bump / `gen-layout` was needed
   (verified: the generated `x-eval-layout.h` has zero heap coupling).
 - `x_heap_root_push(p_cell, node)` — two stores;
-  `x_heap_root_pop(p_cell)` — one store; `x_heap_root_cell(p_base)` —
+  `x_heap_root_pop(p_cell)` — one store; `x_heap_root_slot(p_base)` —
   head-slot address, hoisted once per frame so the base-tree field chase
   is per-frame, not per-push (`x-heap.h`). Cheaper than one
   `x_obj_push_field` (a heap allocation) on every call.

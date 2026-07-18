@@ -43,23 +43,25 @@ union x_datum_union {
 #### Object Flags
 
 ```
-X_OBJ_FLAG_NONE  0x00   no flags
-X_OBJ_FLAG_1     0x01   (used as WRAP for procedures)
-X_OBJ_FLAG_2     0x02   available
-X_OBJ_FLAG_3     0x04   available
-X_OBJ_FLAG_4     0x08   available
-X_OBJ_FLAG_PRIM  0x10   C primitive function
-X_OBJ_FLAG_FN    0x11   user-defined function
-X_OBJ_FLAG_INT   0x12   integer
-X_OBJ_FLAG_CHAR  0x13   character
-X_OBJ_FLAG_STR   0x14   string
-X_OBJ_FLAG_PTR   0x15   generic pointer
-X_OBJ_FLAG_OWN   0x20   object owns its data (freed on collection)
-X_OBJ_FLAG_RO    0x40   read-only
-X_OBJ_FLAG_GC    0x80   GC mark bit
+X_OBJ_FLAG_NONE    0x00   no flags
+X_OBJ_FLAG_1       0x01   app-defined (WRAP on procedures, SHADOW on env pairs)
+X_OBJ_FLAG_2       0x02   app-defined (COV)
+X_OBJ_FLAG_3       0x04   app-defined
+X_OBJ_FLAG_4       0x08   app-defined
+X_OBJ_FLAG_PRIM    0x10   simple-type code: C primitive     ┐ advisory tag for
+X_OBJ_FLAG_FN      0x11   simple-type code: function        │ C consumers --
+X_OBJ_FLAG_INT     0x12   simple-type code: integer         │ NOT the type
+X_OBJ_FLAG_CHAR    0x13   simple-type code: character       │ slot; the core
+X_OBJ_FLAG_STR     0x14   simple-type code: string          │ dispatches on
+X_OBJ_FLAG_PTR     0x15   simple-type code: generic pointer ┘ the type pointer
+X_OBJ_FLAG_OWN     0x20   object owns its (string) storage (freed with it)
+X_OBJ_FLAG_RO      0x40   read-only (advisory)
+X_OBJ_FLAG_META    0x80   extended metadata units prepended
+X_OBJ_FLAG_SHARED  0x100  permanently retained across GC
+X_OBJ_FLAG_MARK    0x200  the GC mark bit
 ```
 
-Flags `0x01`-`0x08` are available for type-specific use. The `WRAP` flag (`0x01`) distinguishes applicative procedures from bare closures.
+Flags `0x01`–`0x08` are app-defined attribute bits; the `WRAP` alias (`0x01`) distinguishes applicative procedures from bare closures. The authoritative bit table is `tools/obj-layout.x`, pinned by `make check-obj-layout`.
 
 ---
 
@@ -352,35 +354,41 @@ The base object uses the same nested-list contract pattern as types. It holds th
 
 #### Structure
 
+The base is a deep pair tree, `(hot . cold)`: the hot half holds the
+environment and control state this layer fills in; the cold half is the
+I/O + metadata skeleton x-expr supplies. The authoritative layout —
+including which leaves are field cells `(current . saved)` versus direct
+values — is `tools/base-layout.x` (regenerate with `make gen-layout`);
+`make check-base-paths` pins it.
+
 ```
-(
-  (type-alist)                              ; type registry
-  (file:in file:out file:err)               ; I/O file descriptors
-  (env-alist                                ; variable bindings
-   eval-list                                ; expression list
-   buffer                                   ; input buffer
-   token-cache                              ; cached tokens
-   error-handler                            ; error handler chain
-   tco-expr                                 ; tail call expression
-   tco-env)                                 ; tail call environment
-)
+base
+  first: env + ctrl              (x-expr leaves nil; filled here)
+    env    env-alist, env-local-boundary, env-global-tree, shadow-list
+    ctrl   save-stack, error-handler, tco-expr, tco-env
+  rest:  io + meta               (x-expr skeleton)
+    io     type-alist, line, true, false  (+ file handles)
+    meta   profile counters, eval-list, token-cache,
+           mark-hooks, free-hooks, mark-roots, sigint
 ```
 
 #### Field Accessor Macros
 
 ```c
-x_interp_field_type_alist(X)     /* type registry              */
+x_eval_field_type_alist(X)     /* type registry               */
 x_base_field_filein(X)         /* stdin file descriptor       */
 x_base_field_fileout(X)        /* stdout file descriptor      */
 x_base_field_fileerr(X)        /* stderr file descriptor      */
-x_interp_field_env_alist(X)      /* environment bindings        */
-x_interp_field_eval_list(X)      /* expression list             */
+x_eval_field_env_alist(X)      /* environment bindings        */
+x_eval_field_eval_list(X)      /* expression list             */
 x_base_field_buffer(X)         /* input buffer                */
-x_interp_field_token_cache(X)    /* token cache                 */
-x_interp_field_error_handler(X)  /* error handler (setjmp)      */
-x_interp_field_tco_expr(X)       /* TCO expression register     */
-x_interp_field_tco_env(X)        /* TCO environment register    */
+x_eval_field_token_cache(X)    /* token cache                 */
+x_eval_field_error_handler(X)  /* error handler (setjmp)      */
+x_eval_field_tco_expr(X)       /* TCO expression register     */
+x_eval_field_tco_env(X)        /* TCO environment register    */
 ```
+
+(The x-expr skeleton's accessors are `x_base_field_*`; the eval layer's are `x_eval_field_*` in `include/x-eval-layout.h`.)
 
 #### Properties
 

@@ -32,7 +32,7 @@ base = x_base(p_base)
            mark-hooks, free-hooks, mark-roots, sigint
 ```
 
-Field access is via nested `first`/`rest` traversal, expressed with the `x_<binary>` accessor family (`x_0` = first, `x_1` = rest, read left-to-right outer-to-inner). For example `x_interp_field_env_alist(X)` resolves to `first(first(first(base)))`. The authoritative layout, including which fields are stack cells versus direct values, is in `include/x-interp.h`.
+Field access is via nested `first`/`rest` traversal, expressed with the `x_<binary>` accessor family (`x_0` = first, `x_1` = rest, read left-to-right outer-to-inner). For example `x_eval_field_env_alist(X)` resolves to `first(first(first(base)))`. The authoritative layout, including which leaves are field cells versus direct values, is `tools/base-layout.x` (mirrored by `include/x-eval-layout.h` and pinned by `make check-base-paths`).
 
 #### Nil
 
