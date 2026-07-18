@@ -49,6 +49,7 @@
           ; Bounds-checked like (Vector ref ...): %obj-ref past the object is a
           ; raw memory read, so slot 0's length is the guard for bare (v i) too.
           (def i (first args))
+          (if (null? i) (error "vector: nil index") ())
           (def len (%obj-ref self 0))
           (def j (if (< i 0) (+ len i) i))
           (if (< j 0) (error "vector: index out of range")
@@ -155,7 +156,9 @@
         (returns ANY "Element at index i"))
       ; %obj-ref is a raw slot read (arbitrary memory past the object), so the
       ; length in slot 0 is the x-lang bounds check. Negative normalization
-      ; matches the vector's call slot, so (Vector ref -1 v) == (v -1).
+      ; matches the vector's call slot, so (Vector ref -1 v) == (v -1). The
+      ; nil guard makes a piped index-search miss fail loudly.
+      (if (null? i) (error "Vector ref: nil index") ())
       (def len (%obj-ref v 0))
       (def j (if (< i 0) (+ len i) i))
       (if (< j 0) (error "Vector ref: index out of range")
@@ -169,6 +172,7 @@
         (example "(Vector ref 0 (Vector set! 0 99 (Vector of 1 2)))" "99"))
       ; Same guard discipline as ref: slot-0 length is the x-lang bounds
       ; check over the raw %obj-set!, and negatives normalize identically.
+      (if (null? i) (error "Vector set!: nil index") ())
       (def len (%obj-ref v 0))
       (def j (if (< i 0) (+ len i) i))
       (if (< j 0) (error "Vector set!: index out of range")

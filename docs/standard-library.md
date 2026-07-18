@@ -449,15 +449,15 @@ Returns the first element matching `pred`, or `()` if none found.
 ```
 
 ### `List find-index`
-`(List find-index pred lst) -> number`
-Returns the zero-based index of the first element matching `pred`, or `-1` if none found.
+`(List find-index pred lst) -> number | ()`
+Returns the zero-based index of the first element matching `pred`, or `()` if none found.
 ```
 (List find-index even? (list 1 3 4)) -> 2
 ```
 
 ### `List index-of`
-`(List index-of x lst) -> number`
-Returns the zero-based index of the first element equal to `x`, or `-1` if not found.
+`(List index-of x lst) -> number | ()`
+Returns the zero-based index of the first element equal to `x`, or `()` if not found.
 ```
 (List index-of 3 (list 1 2 3 4)) -> 2
 ```

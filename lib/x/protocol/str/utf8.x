@@ -42,17 +42,22 @@
         (example "(StrUTF8 length \"$¢€\")" "3"))
       (self count v))   ; code points, via Seq's cursor walk
 
-    (method ref (self (param i INT "Code-point position (0-based)") (param v STRING "String to index"))
-      (doc "The i-th CODE POINT of v as a CHARACTER, found by an O(n) UTF-8 walk; errors when i is out of range."
+    (method ref (self (param i INT "Code-point position (0-based; negative counts from the end)") (param v STRING "String to index"))
+      (doc "The i-th CODE POINT of v as a CHARACTER, found by an O(n) UTF-8 walk; negative i counts from the end. Errors when i is nil or out of range."
         (returns CHAR "Code point at position i")
         (example "(StrUTF8 ref 1 \"$¢€\")" "#\\¢"))
       ; The walker clamps at the byte length, so landing there means i is past
-      ; the last code point -- error instead of decoding past the end.
-      (if (< i 0) (error "Str ref: index out of range")
-        (let ((b (%u8-byte-offset v i 0)))
-          (if (< b (%str-byte-len v))
-            (%integer->char (first (%utf8-decode v b)))
-            (error "Str ref: index out of range")))))
+      ; the last code point -- error instead of decoding past the end. The nil
+      ; guard makes a piped index-search miss fail loudly; only the negative
+      ; case pays the code-point count walk.
+      (if (null? i) (error "Str ref: nil index")
+        (if (< i 0)
+          (let ((k (+ i (self count v))))
+            (if (< k 0) (error "Str ref: index out of range") (self ref k v)))
+          (let ((b (%u8-byte-offset v i 0)))
+            (if (< b (%str-byte-len v))
+              (%integer->char (first (%utf8-decode v b)))
+              (error "Str ref: index out of range"))))))
 
     (method sub (self (param start INT "Start code-point offset (0-based)") (param len INT "Number of code points") (param v STRING "Source string"))
       (doc "Substring of len CODE POINTS starting at code-point offset start (O(n) walk)."

@@ -46,16 +46,21 @@
         (returns INT "Byte length of v")
         (example "(Str8 length \"abc\")" "3"))
       (%str-byte-len v))
-    (method ref    (self (param i INT "Byte position (0-based)") (param v STRING "String to index"))
-      (doc "The i-th byte of v as a CHARACTER (code 0-255); errors when i is out of range."
+    (method ref    (self (param i INT "Byte position (0-based; negative counts from the end)") (param v STRING "String to index"))
+      (doc "The i-th byte of v as a CHARACTER (code 0-255); negative i counts from the end. Errors when i is nil or out of range."
         (returns CHAR "Byte at position i")
         (example "(Str8 ref 0 \"abc\")" "#\\a"))
       ; %str-byte-ref reads s[i] unchecked (heap over-read past the string), so
       ; the byte-length compare here is the x-lang guard. Nested ifs, not `or`:
       ; this runs per element inside the suite's loops and must not allocate.
-      (if (< i 0) (error "Str8 ref: index out of range")
-        (if (< i (%str-byte-len v)) (%str-byte-ref v i)
-          (error "Str8 ref: index out of range"))))
+      ; The nil guard makes a piped index-search miss fail loudly; only the
+      ; negative case pays the second byte-len fetch.
+      (if (null? i) (error "Str8 ref: nil index")
+        (if (< i 0)
+          (if (< (+ i (%str-byte-len v)) 0) (error "Str8 ref: index out of range")
+            (%str-byte-ref v (+ i (%str-byte-len v))))
+          (if (< i (%str-byte-len v)) (%str-byte-ref v i)
+            (error "Str8 ref: index out of range")))))
     (method sub    (self (param st INT "Start byte offset (0-based)") (param len INT "Number of bytes") (param v STRING "Source string"))
       (doc "Substring of len bytes starting at byte offset st; st and len clamp to v's bounds (like StrUTF8 sub)."
         (returns STRING "The len-byte slice of v from st")

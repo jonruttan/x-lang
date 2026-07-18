@@ -33,13 +33,37 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ---
     Error: Str8 ref: index out of range
 
-### Str8 ref errors on a negative index
+### Str8 ref takes a negative index from the end
 
 ```scheme
 (Str8 ref -1 "ab")
 ```
 ---
+    #\b
+
+### Str8 ref errors when a negative index reaches past the front
+
+```scheme
+(Str8 ref -3 "ab")
+```
+---
     Error: Str8 ref: index out of range
+
+### StrUTF8 ref takes a negative index from the end (code points)
+
+```scheme
+(StrUTF8 ref -1 "$¢€")
+```
+---
+    #\€
+
+### a nil index errors loudly (a piped index-search miss)
+
+```scheme
+(Str8 ref () "ab")
+```
+---
+    Error: Str8 ref: nil index
 
 ### StrUTF8 ref errors past the last code point
 

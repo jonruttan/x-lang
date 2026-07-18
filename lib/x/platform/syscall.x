@@ -622,8 +622,13 @@
     (if os-darwin?
       (let ((e (assoc-get call darwin-syscall-numbers)))
         (if (null? e) (- 0 1) (first e)))
+      ; index-of misses with nil; -1 stays this table's OS-domain invalid
+      ; marker (never a valid syscall number)
       (let ((n (List index-of call x86_64-syscall-names)))
-        (if (>= n 0) n (List index-of call i386-syscall-names))))))
+        (if (null? n)
+          (let ((m (List index-of call i386-syscall-names)))
+            (if (null? m) (- 0 1) m))
+          n)))))
 
 (doc (provide x/platform/syscall
   syscall-id os-darwin? x86_64-syscall-names i386-syscall-names darwin-syscall-numbers)

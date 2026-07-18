@@ -71,9 +71,15 @@ make clean && make
   banned aliases.
 - **Absence discipline** (normative; the full statement is spec.md's "Nil,
   false, and truthiness"): falsy = {nil, `#f`} only; predicates answer
-  `#t`/`#f`; misses return nil (never `#f`); nil-storable slots need a
-  presence door (`has?` / presence-based `-or`), never a value sentinel;
-  index misses are `-1`; boundaries carry foreign null as the symbol `null`.
+  `#t`/`#f`; misses return nil (never `#f`) — index-search misses included;
+  nil-storable slots need a presence door (`has?` / presence-based `-or`),
+  never a value sentinel; boundaries carry foreign null as the symbol `null`
+  (and OS-domain tables keep the OS's own `-1` invalid marker).
+- **Indexes are 0-based; negatives count from the end** on strict indexed
+  collections (`List ref`, `Vector`, `Vec`, `Str8`/`StrUTF8 ref`, the bare
+  `(s i)`; `Gen ref` excepted — a lazy stream has no end). Index-search
+  misses return `()` (the old `-1` exception is repealed), and every checked
+  `ref` errors on a nil index so a piped miss fails loudly.
 - **Generators and iterators** (see the [glossary](glossary.md)): a *generator*
   is the pure step contract — `(step state) -> (value . next-state)` or `()` —
   and an *iterator* is a generator boxed with a cursor cell; `Iter next` owns

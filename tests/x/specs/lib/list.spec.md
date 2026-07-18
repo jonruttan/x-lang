@@ -98,13 +98,29 @@
 ---
     Error: List ref: index out of range
 
-### errors on a negative index
+### negative index counts from the end
 
 ```scheme
 (List ref -1 (list 1 2))
 ```
 ---
+    2
+
+### errors when a negative index reaches past the front
+
+```scheme
+(List ref -3 (list 1 2))
+```
+---
     Error: List ref: index out of range
+
+### errors on a nil index (a piped index-search miss fails loudly)
+
+```scheme
+(List ref (List index-of 99 (list 1 2)) (list 1 2))
+```
+---
+    Error: List ref: nil index
 
 ## last
 
@@ -382,13 +398,13 @@
 ---
     2
 
-### returns -1 when not found
+### misses with nil, like every other miss
 
 ```scheme
-(List find-index (method-ref Num negative?) (list 1 2 3))
+(null? (List find-index (method-ref Num negative?) (list 1 2 3)))
 ```
 ---
-    -1
+    #t
 
 ## index-of
 
@@ -400,13 +416,13 @@
 ---
     2
 
-### returns -1 when not found
+### misses with nil, like every other miss
 
 ```scheme
-(List index-of 99 (list 10 20 30))
+(null? (List index-of 99 (list 10 20 30)))
 ```
 ---
-    -1
+    #t
 
 ## includes?
 

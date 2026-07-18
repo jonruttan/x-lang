@@ -38,7 +38,7 @@
   (param i INT "Byte offset (negative counts from the end)")
   (returns CHAR "The byte at offset i, as a CHARACTER (0-255)")
   (example "(str-ref \"$¢€\" 1)" "#\\Â")
-  "Byte at offset i, UNCHECKED: an out-of-range offset reads out of bounds -- use (Str8 ref i s) for the checked byte view (which rejects negatives instead of wrapping). For the i-th code point use (StrUTF8 ref i s), or the bare (s i) which also takes negative i as from-the-end.")
+  "Byte at offset i, UNCHECKED: an out-of-range offset reads out of bounds -- use (Str8 ref i s) for the checked byte view. For the i-th code point use (StrUTF8 ref i s) or the bare (s i) -- equivalent, including negative i counting from the end.")
 
 (doc substring
   (param s STRING "Source string")

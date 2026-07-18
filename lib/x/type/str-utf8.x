@@ -104,7 +104,7 @@
 (def %cp-ref
   (fn (_ s i)
     (def len (%str-byte-len s))
-    (def k (if (< i 0) (+ i (%cp-count s len 0 0)) i))
+    (def k (if (null? i) (- 0 1) (if (< i 0) (+ i (%cp-count s len 0 0)) i)))
     (def b (if (< k 0) len (%cp-byte-offset s len k 0)))
     (if (< b len)
       (%integer->char (%utf8-cp-at s b))

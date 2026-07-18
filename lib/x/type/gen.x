@@ -234,7 +234,7 @@
       (let go ((st (self state))) (let ((s (step st))) (if (null? s) () (if (p (first s)) (first s) (go (rest s))))))))
 
   (method ref (self (param n INT "0-based index"))
-    (doc "The n-th value (0-based); errors when n is negative or past the last value -- matching every other ref." (returns ANY "Value at n"))
+    (doc "The n-th value (0-based); errors when n is negative (a lazy stream has no end to count from) or past the last value." (returns ANY "Value at n"))
     (if (< n 0) (error "Gen ref: index out of range")
       (let ((step (self step)))
         (let go ((st (self state)) (n n)) (let ((s (step st))) (if (null? s) (error "Gen ref: index out of range") (if (<= n 0) (first s) (go (rest s) (- n 1)))))))))

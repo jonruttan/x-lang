@@ -42,11 +42,17 @@
       (doc "Return the number of elements." (param lst LIST "List or iterable"))
       (List fold (fn (_ acc _) (+ acc 1)) 0 lst))
     (method ref (self n lst)
-      (doc "Return the element at index n (zero-based); errors when n is out of range." (param n INT "Zero-based index") (param lst LIST "List"))
+      (doc "Return the element at index n (zero-based; negative counts from the end); errors when n is nil or out of range." (param n INT "Zero-based index (negative counts from the end)") (param lst LIST "List"))
       ; first/rest are unchecked C prims (UB on a non-pair -- segfaults on
       ; 32-bit); the pair? guard is the x-lang call-site check that makes an
-      ; overrun (or a negative n walking off the end) an error, not a crash.
+      ; overrun an error, not a crash. The nil guard makes a piped index-search
+      ; miss fail loudly instead of comparing nil. Only the negative case pays
+      ; the length walk.
       (match
+        ((null? n) (error "List ref: nil index"))
+        ((< n 0)
+          (let ((k (+ n (List length lst))))
+            (if (< k 0) (error "List ref: index out of range") (recur self k lst))))
         ((not (pair? lst)) (error "List ref: index out of range"))
         ((= n 0) (first lst))
         (#t (recur self (- n 1) (rest lst)))))
@@ -148,17 +154,17 @@
           ((pred (first lst)) (first lst))
           (#t (recur self pred (rest lst))))))
     (method find-index (self pred lst)
-      (doc "Return the index of the first element satisfying a predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable") (returns INT "Index, or -1 if not found"))
+      (doc "Return the index of the first element satisfying a predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable") (returns ANY "Zero-based index, or nil if not found"))
       (let ((lst (List as-list lst)))
         (def go
           (fn (self i xs)
             (match
-              ((null? xs) (- 0 1))
+              ((null? xs) ())
               ((pred (first xs)) i)
               (#t (self (+ i 1) (rest xs))))))
         (go 0 lst)))
     (method index-of (self x lst)
-      (doc "Return the index of the first occurrence of a value." (param x ANY "Value to find") (param lst LIST "List") (returns INT "Index, or -1 if not found"))
+      (doc "Return the index of the first occurrence of a value." (param x ANY "Value to find") (param lst LIST "List") (returns ANY "Zero-based index, or nil if not found"))
       (List find-index (fn (_ el) (equal? el x)) lst))
     (method includes? (self x lst)
       (doc "Test if a list contains a value." (param x ANY "Value to search for") (param lst LIST "List or iterable") (returns BOOL "t if found"))

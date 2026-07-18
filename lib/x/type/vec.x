@@ -39,7 +39,9 @@
       v))
 
   ; Normalize an index (negative counts from the end) and bounds-check it.
+  ; The nil guard makes a piped index-search miss fail loudly.
   (method %index (self i what)
+    (if (null? i) (error (Str8 append what ": nil index")) ())
     (def j (if (< i 0) (+ (member 'len) i) i))
     (if (< j 0) (error (Str8 append what ": index out of range"))
       (if (< j (member 'len)) j

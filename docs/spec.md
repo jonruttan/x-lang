@@ -71,7 +71,11 @@ The absence discipline (normative for the standard library):
 3. An API whose slots can legally store nil or `#f` must offer a presence
    door — `has?`, or a presence-based `-or`/`-or-else` default — never a
    value sentinel. (Internal walkers use one-element boxes.)
-4. Index-returning methods miss with `-1` — the sole numeric exception.
+4. Index-search misses return `()` like every other miss. Negative indexes
+   are valid positions — they count from the end on strict indexed
+   collections (`Gen` excepted: a lazy stream has no end) — so no number is
+   ever a miss, and checked `ref`s reject a nil index loudly. (OS-boundary
+   tables keep the OS's own `-1` invalid marker, per rule 5.)
 5. Boundaries (e.g. JSON) carry a foreign null as the symbol `null`; `()`
    crossing a boundary always means the empty sequence.
 6. `and`/`or` are value operators: `and` normalizes failure to `#f` (it
@@ -1768,20 +1772,21 @@ Complement of `filter`.
 
 #### `List find-index`
 
-`(List find-index pred lst) -> integer`
+`(List find-index pred lst) -> integer | ()`
 
-Returns `-1` if not found.
+Misses return `()` like every other miss (negative indexes are valid
+from-the-end positions, so no number can mark absence).
 
 ```
 (List find-index even? (list 1 3 4)) -> 2
-(List find-index even? (list 1 3 5)) -> -1
+(List find-index even? (list 1 3 5)) -> ()
 ```
 
 #### `List index-of`
 
-`(List index-of x lst) -> integer`
+`(List index-of x lst) -> integer | ()`
 
-Returns `-1` if not found.
+Misses return `()`.
 
 ```
 (List index-of 3 (list 1 2 3 4)) -> 2
