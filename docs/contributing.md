@@ -62,6 +62,16 @@ make clean && make
   are the presence-unambiguous entry doors.
 - **Constructor-style counts come first**: `(List repeat n x)`, `(Str8 repeat n s)`,
   `(Str8 make k ch)`, `(Vector make n fill)`.
+- **Constructor verbs — one meaning each**: `make` = build from parts/config
+  (`Dict make`, `Gen make step state`); `of` = variadic literal, on every
+  element container (`List`/`Vector`/`Array`/`Set`/`Gen of ...`; Dict excluded —
+  flat values can't spell pairs; strings' variadic literal is `str`);
+  `from-X` = conversion from another shape (`from-list`, `from-alist`,
+  `from-bindings`, `from-seq`); `build` = generate elements by function
+  (`Vector build n f`); `new`/`new-from` = allocate an instance over
+  something (object system; `Iter new v` boxes a value into a cursor).
+  C side: `x_make_X(base, flags, ...)` is the flag-taking function,
+  `x_mkX(...)` its default-flags macro — a ladder, not duplication.
 - **Doc type vocabulary** — one token per concept in `(param ...)`/`(returns ...)`:
   `INT` (not INTEGER), `BOOL` (not BOOLEAN), `CALLABLE` (not FUNCTION), plus
   `ANY STRING SYMBOL LIST PAIR CHAR NUMBER VECTOR REGEX FLOAT BIGNUM RATIONAL

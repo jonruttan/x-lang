@@ -39,7 +39,13 @@
         (example "((Array from-list (list 1 2 3)) length)" "3"))
       (def a (self make))
       (List for-each (fn (_ x) (a push! x)) lst)
-      a))
+      a)
+
+    (method of (self . (param args ANY "Elements, in order"))
+      (doc "Variadic literal: an array of the arguments."
+        (returns Array "An array holding the arguments")
+        (example "((Array of 1 2 3) ->list)" "(1 2 3)"))
+      (self from-list args)))
 
   ; Normalize an index (negative counts from the end) and bounds-check it.
   ; The nil guard makes a piped index-search miss fail loudly.

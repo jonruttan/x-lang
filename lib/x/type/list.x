@@ -13,6 +13,11 @@
 
 (def-class List ()
   (static
+    (method of (self . (param args ANY "Elements, in order"))
+      (doc "Variadic literal: the arguments as a list -- (List of ...) is (list ...), homed on the class for the constructor-verb symmetry."
+        (returns LIST "List of the arguments")
+        (example "(List of 1 2 3)" "(1 2 3)"))
+      args)
     ; --- Folds ---
     (method as-list (self x)
       (doc "Convert any iterable to a list. Lists and nil pass through unchanged." (param x ANY "A list, nil, or iterable (e.g. vector)") (returns LIST "The input as a proper list"))

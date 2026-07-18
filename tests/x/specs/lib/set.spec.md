@@ -10,6 +10,14 @@
 ---
     #t
 
+### of builds a set variadically (duplicates collapse)
+
+```scheme
+(do (import x/type/set) ((Set of 1 2 2 3) length))
+```
+---
+    3
+
 ### from-list collapses duplicates
 
 ```scheme

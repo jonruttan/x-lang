@@ -72,6 +72,16 @@
 ---
     0
 
+## of
+
+### the variadic literal, homed on the class
+
+```scheme
+(List of 1 2 3)
+```
+---
+    (1 2 3)
+
 ## ref
 
 ### gets element at index

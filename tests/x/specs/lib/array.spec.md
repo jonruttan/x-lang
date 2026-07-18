@@ -2,6 +2,14 @@
 
 ## construction and growth
 
+### of builds an array variadically
+
+```scheme
+(do (import x/type/array) ((Array of 1 2 3) ->list))
+```
+---
+    (1 2 3)
+
 ### make yields an empty array
 
 ```scheme

@@ -26,10 +26,16 @@
     (method from-list (self (param lst LIST "Elements to add (duplicates collapse)"))
       (doc "Build a set from a list's elements."
         (returns Set "A set of the list's distinct elements")
-        (example "((Set from-list (list 1 2 2)) count)" "2"))
+        (example "((Set from-list (list 1 2 2)) length)" "2"))
       (def s (self make))
       (List for-each (fn (_ x) (s add! x)) lst)
-      s))
+      s)
+
+    (method of (self . (param args ANY "Elements (duplicates collapse)"))
+      (doc "Variadic literal: a set of the arguments."
+        (returns Set "A set of the distinct arguments")
+        (example "((Set of 1 2 2 3) length)" "3"))
+      (self from-list args)))
 
   (method add! (self x)
     (doc "Add an element (a no-op when already present); returns the set for chaining."
