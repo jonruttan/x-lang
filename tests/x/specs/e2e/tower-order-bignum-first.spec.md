@@ -35,8 +35,8 @@ their import's test as separate forms.
 ```scheme
 (import x/num/float)
 (import x/sys/pact)
-(def %t-cv (prim-ref (lit convert) (lit to)))
-(def %t-fh (Pact get (lit float)))
+(def %t-cv (prim-ref 'convert 'to))
+(def %t-fh (Pact get 'float))
 (def %t-big (Bignum + 9223372036854775807 1))
 (def %t-f (%t-cv %t-big %t-fh))
 (if (Float float? %t-f)

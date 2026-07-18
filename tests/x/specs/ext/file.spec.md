@@ -27,7 +27,7 @@ the caller's value).
 
 ```scheme
 (do
-  (File open "/p" (lit rdwr))
+  (File open "/p" 'rdwr)
   (eq? (first (rest (rest (first %last-syscall)))) 2))
 ```
 ---
@@ -47,7 +47,7 @@ the caller's value).
 
 ```scheme
 (do
-  (File open "/p" (list (lit rdonly) (lit wronly)))
+  (File open "/p" (list 'rdonly 'wronly))
   (eq? (first (rest (rest (first %last-syscall)))) 1))
 ```
 ---
@@ -57,7 +57,7 @@ the caller's value).
 
 ```scheme
 (do
-  (File open "/p" (lit creat))
+  (File open "/p" 'creat)
   (eq? (first (rest (rest (rest (first %last-syscall))))) 420))
 ```
 ---
@@ -67,7 +67,7 @@ the caller's value).
 
 ```scheme
 (do
-  (File open "/p" (lit creat) 511)
+  (File open "/p" 'creat 511)
   (eq? (first (rest (rest (rest (first %last-syscall))))) 511))
 ```
 ---
@@ -94,7 +94,7 @@ the caller's value).
 (do
   (File write 7 "data" 4)
   (def c (first %last-syscall))
-  (and (eq? (first c) (lit write))
+  (and (eq? (first c) 'write)
        (eq? (first (rest c)) 7)
        (str=? (first (rest (rest c))) "data")))
 ```
@@ -109,7 +109,7 @@ the caller's value).
 (do
   (File close 9)
   (def c (first %last-syscall))
-  (and (eq? (first c) (lit close))
+  (and (eq? (first c) 'close)
        (eq? (first (rest c)) 9)))
 ```
 ---

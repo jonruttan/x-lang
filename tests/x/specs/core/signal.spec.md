@@ -23,7 +23,7 @@
 ### eval completes normally when flag is clear
 
 ```scheme
-(guard (e (lit caught))
+(guard (e 'caught)
   (set-first-int! %sigint-flag 0)
   (+ 1 2))
 ```
@@ -33,8 +33,8 @@
 ### STOP caught by innermost guard
 
 ```scheme
-(guard (e (lit outer))
-  (guard (e (lit inner))
+(guard (e 'outer)
+  (guard (e 'inner)
     (set-first-int! %sigint-flag 1)
     (+ 1 2)))
 ```

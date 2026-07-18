@@ -19,7 +19,7 @@
 ### new base has def
 
 ```scheme
-(do (def b (Base make)) (Base eval b (lit (def x 10))) (Base eval b (lit x)))
+(do (def b (Base make)) (Base eval b (lit (def x 10))) (Base eval b 'x))
 ```
 ---
     10
@@ -29,7 +29,7 @@
 ### parent binding not visible in child
 
 ```scheme
-(do (def x 10) (def b (Base make)) (guard (e (lit isolated)) (Base eval b (lit x))))
+(do (def x 10) (def b (Base make)) (guard (e 'isolated) (Base eval b 'x)))
 ```
 ---
     'isolated
@@ -37,7 +37,7 @@
 ### child binding not visible in parent
 
 ```scheme
-(do (def b (Base make)) (Base eval b (lit (def cx 42))) (guard (e (lit isolated)) cx))
+(do (def b (Base make)) (Base eval b (lit (def cx 42))) (guard (e 'isolated) cx))
 ```
 ---
     'isolated
@@ -45,7 +45,7 @@
 ### two bases are independent
 
 ```scheme
-(do (def a (Base make)) (def b (Base make)) (Base eval a (lit (def x 1))) (Base eval b (lit (def x 2))) (+ (Base eval a (lit x)) (Base eval b (lit x))))
+(do (def a (Base make)) (def b (Base make)) (Base eval a (lit (def x 1))) (Base eval b (lit (def x 2))) (+ (Base eval a 'x) (Base eval b 'x)))
 ```
 ---
     3
@@ -71,7 +71,7 @@
 ### propagates errors to parent guard
 
 ```scheme
-(do (def b (Base make)) (guard (e (lit caught)) (Base eval b (lit (error "boom")))))
+(do (def b (Base make)) (guard (e 'caught) (Base eval b (lit (error "boom")))))
 ```
 ---
     'caught
@@ -81,7 +81,7 @@
 ### binds a value in target base
 
 ```scheme
-(do (def b (Base make)) (Base bind b (lit x) 42) (Base eval b (lit x)))
+(do (def b (Base make)) (Base bind b 'x 42) (Base eval b 'x))
 ```
 ---
     42
@@ -89,7 +89,7 @@
 ### binds a list in target base
 
 ```scheme
-(do (def b (Base make)) (Base bind b (lit xs) (list 1 2 3)) (Base eval b (lit (first xs))))
+(do (def b (Base make)) (Base bind b 'xs (list 1 2 3)) (Base eval b (lit (first xs))))
 ```
 ---
     1
@@ -97,7 +97,7 @@
 ### does not affect parent
 
 ```scheme
-(do (def b (Base make)) (Base bind b (lit z) 99) (guard (e (lit ok)) z))
+(do (def b (Base make)) (Base bind b 'z 99) (guard (e 'ok) z))
 ```
 ---
     'ok

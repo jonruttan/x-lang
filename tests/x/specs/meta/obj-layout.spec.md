@@ -82,7 +82,7 @@ since e62ac80, so pinning the two together would be a tautology.)
   (display (eq? (%ptr->obj (%int->ptr
                   (%ptr-ref-word (%obj->ptr p) (* %obj-meta-len %word-size))))
                 (first p))) (display " ")
-  (display ((prim-ref (lit obj) (lit ref)) p 1)))
+  (display ((prim-ref 'obj 'ref) p 1)))
 ```
 ---
 ```output

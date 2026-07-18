@@ -13,29 +13,29 @@
 ; STRINGS; lint-has? tests membership.
 (import x/core/list)
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
-(def %str->symbol (prim-ref (lit str) (lit ->sym)))
+(def %str->symbol (prim-ref 'str '->sym))
 
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
-(def %type-push-write (prim-ref (lit type) (lit push-write)))
-(def %type-pop-write (prim-ref (lit type) (lit pop-write)))
+(def %type-by-atom (prim-ref 'type 'by-atom))
+(def %type-push-write (prim-ref 'type 'push-write))
+(def %type-pop-write (prim-ref 'type 'pop-write))
 
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
-(def %cvt (prim-ref (lit convert) (lit to)))
+(def %cvt (prim-ref 'convert 'to))
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
-(def %type-of (prim-ref (lit type) (lit of)))
+(def %type-of (prim-ref 'type 'of))
 
 
 (import x/core/alist)
 (import x/type/str)
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
-(def %write-to-str (prim-ref (lit io) (lit write-to-str)))
+(def %write-to-str (prim-ref 'io 'write-to-str))
 
 (import x/sys/type)
 
 ; Type structs we attach handlers to (LIST = forms, SYMBOL = references).
 (def %lint-list-type   (%type-by-atom (%type-of (list 1))))
-(def %lint-symbol-type (%type-by-atom (%type-of (lit a))))
+(def %lint-symbol-type (%type-by-atom (%type-of 'a)))
 
 ; A name is "known" if it resolves to an existing binding -- a C primitive or
 ; a library def.  We test by evaluating the interned symbol under a guard:
@@ -187,7 +187,7 @@
           (self (rest entries) (- n 1))))
     ())))
 
-; Does `form` reference a symbol named `name` (recursively, skipping (lit ...)
+; Does `form` reference a symbol named `name` (recursively, skipping '...
 ; data)?  Used to recognise the rebind idiom (let ((x (f x))) ...): a let-var
 ; whose init mentions the name it shadows is a deliberate refinement, not an
 ; accidental hide, so it should not be flagged as a shadow.
@@ -222,7 +222,7 @@
 
 ; --- first/rest argument check ---
 
-; True when arg is a quoted non-list literal: (lit X) with X neither pair nor
+; True when arg is a quoted non-list literal: 'X with X neither pair nor
 ; nil -- exactly (first 'sym) / (rest 'sym), the static form of the crash.
 ; Compared by name (the head symbol is fresh -- it is part of the walked form).
 (def %lint-literal-non-list? (fn (_ arg)
@@ -472,7 +472,7 @@
           (%warn! "arity" (first entry))
           ()))))))
 
-; A code form whose head is a (lit ...) form calls a non-function (it
+; A code form whose head is a '... form calls a non-function (it
 ; evaluates to a symbol/value, not a procedure) -- a clear bug.  We do NOT
 ; flag a bare-literal head (number/string/char): such a list is usually DATA
 ; passed unevaluated to an operative (e.g. ("0" 0) as a pad spec), which the

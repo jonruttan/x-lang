@@ -50,7 +50,7 @@ top-level form, so literal tests simply follow their import's test.
 (import x/num/bignum)
 (import x/sys/pact)
 (def %t-big1 (Bignum + 9223372036854775807 1))
-(def %t-f1 ((prim-ref (lit convert) (lit to)) %t-big1 (Pact get (lit float))))
+(def %t-f1 ((prim-ref 'convert 'to) %t-big1 (Pact get 'float)))
 (Float float? %t-f1)
 ```
 ---
@@ -75,8 +75,8 @@ top-level form, so literal tests simply follow their import's test.
 ### the conversion is value-correct (2^63 is float-exact, and doubling agrees)
 
 ```scheme
-(def %t-cv2 (prim-ref (lit convert) (lit to)))
-(def %t-fh2 (Pact get (lit float)))
+(def %t-cv2 (prim-ref 'convert 'to))
+(def %t-fh2 (Pact get 'float))
 (def %t-big2 (Bignum + 9223372036854775807 1))
 (def %t-f2 (%t-cv2 %t-big2 %t-fh2))
 (= (+ %t-f2 %t-f2) (%t-cv2 (Bignum + %t-big2 %t-big2) %t-fh2))
@@ -87,8 +87,8 @@ top-level form, so literal tests simply follow their import's test.
 ### the converter honors the sign
 
 ```scheme
-(def %t-cv3 (prim-ref (lit convert) (lit to)))
-(def %t-fh3 (Pact get (lit float)))
+(def %t-cv3 (prim-ref 'convert 'to))
+(def %t-fh3 (Pact get 'float))
 (def %t-big3 (Bignum + 9223372036854775807 1))
 (= (+ (%t-cv3 %t-big3 %t-fh3) (%t-cv3 (Bignum - 0 %t-big3) %t-fh3))
    (%t-cv3 0 %t-fh3))

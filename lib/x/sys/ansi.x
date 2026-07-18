@@ -16,13 +16,13 @@
 
 (import x/sys/posix)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
-(def %token-read-string (prim-ref (lit tok) (lit read-str)))
+(def %token-read-string (prim-ref 'tok 'read-str))
 
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
-(def %str-append (prim-ref (lit str) (lit append)))
+(def %str-append (prim-ref 'str 'append))
 
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
-(def %type-push-write (prim-ref (lit type) (lit push-write)))
+(def %type-push-write (prim-ref 'type 'push-write))
 
 (import x/sys/type)
 (import x/type/object)
@@ -173,13 +173,13 @@
 
 ; Keyword set — x-lang special forms and core operatives
 (def %keywords
-  (list (lit def) (lit fn) (lit op) (lit if) (lit let) (lit do)
-        (lit match) (lit guard) (lit set!) (lit lit) (lit quasi)
-        (lit import) (lit include) (lit provide)
-        (lit and) (lit or) (lit not)
-        (lit apply) (lit eval) (lit begin)
-        (lit when) (lit unless) (lit letrec)
-        (lit cond) (lit case) (lit doc) (lit note)))
+  (list 'def 'fn 'op 'if 'let 'do
+        'match 'guard 'set! 'lit 'quasi
+        'import 'include 'provide
+        'and 'or 'not
+        'apply 'eval 'begin
+        'when 'unless 'letrec
+        'cond 'case 'doc 'note))
 
 (def %keyword?
   (fn (self sym)

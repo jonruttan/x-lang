@@ -109,7 +109,7 @@
 ### interned equality
 
 ```scheme
-(eq? (Convert to "hello" %symbol) (lit hello))
+(eq? (Convert to "hello" %symbol) 'hello)
 ```
 ---
     #t
@@ -119,7 +119,7 @@
 ### converts symbol to string
 
 ```scheme
-(Convert to (lit hello) %string)
+(Convert to 'hello %string)
 ```
 ---
     "hello"

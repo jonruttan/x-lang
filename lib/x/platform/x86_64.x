@@ -2,7 +2,7 @@
 
 ; --- Register aliases (hardware encoding numbers) ---
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
-(def %ptr-set! (prim-ref (lit ptr) (lit set!)))
+(def %ptr-set! (prim-ref 'ptr 'set!))
 
 (def rax (reg 0))  (def rcx (reg 1))  (def rdx (reg 2))  (def rbx (reg 3))
 (def rsp (reg 4))  (def rbp (reg 5))  (def rsi (reg 6))  (def rdi (reg 7))
@@ -40,7 +40,7 @@
     (for-each (fn (_ b) (%emit-u8! asm b)) prefixes)
 
     ; Emit opcode
-    (if (and (pair? opcode) (eq? (first opcode) (lit opreg)))
+    (if (and (pair? opcode) (eq? (first opcode) 'opreg))
       ; Register encoded in low 3 bits of opcode byte
       (do
         (def base (List ref 1 opcode))
@@ -59,7 +59,7 @@
           (if (pair? reg-src)
             (List ref 1 reg-src)              ; (/ n) opcode extension
             (%op-value (List ref reg-src args))))   ; register arg index
-        (if (eq? (%op-type rm-arg) (lit reg))
+        (if (eq? (%op-type rm-arg) 'reg)
           ; reg-reg: mod=11
           (%emit-u8! asm (%modrm 3 reg-val (%op-value rm-arg)))
           ; mem: [base+disp]
@@ -80,11 +80,11 @@
         (def kind (List ref 0 spec))
         (def idx  (List ref 1 spec))
         (def val (%op-value (List ref idx args)))
-        (if (eq? kind (lit imm8))  (%emit-u8! asm (& val 255)))
-        (if (eq? kind (lit imm32)) (%emit-u32-le! asm val))
-        (if (eq? kind (lit imm64)) (%emit-u64-le! asm val))
-        (if (eq? kind (lit rel32))
-          (do (asm-patch! asm 4 (lit rel) (%op-value (List ref idx args)))
+        (if (eq? kind 'imm8)  (%emit-u8! asm (& val 255)))
+        (if (eq? kind 'imm32) (%emit-u32-le! asm val))
+        (if (eq? kind 'imm64) (%emit-u64-le! asm val))
+        (if (eq? kind 'rel32)
+          (do (asm-patch! asm 4 'rel (%op-value (List ref idx args)))
               (%emit-u32-le! asm 0))))
       extras)))
 
@@ -92,104 +92,104 @@
 (def %x86_64-table
   (list
     ; RET
-    (pair (lit ret) (list
-      (pair (lit ||) (list () (list 195) () ()))))   ; 0xC3
+    (pair 'ret (list
+      (pair '|| (list () (list 195) () ()))))   ; 0xC3
 
     ; NOP
-    (pair (lit nop) (list
-      (pair (lit ||) (list () (list 144) () ()))))   ; 0x90
+    (pair 'nop (list
+      (pair '|| (list () (list 144) () ()))))   ; 0x90
 
     ; MOV r64, r64  (REX.W 89 /r)
-    (pair (lit mov) (list
-      (pair (lit rr) (list
+    (pair 'mov (list
+      (pair 'rr (list
         (list (%rex 1 0 0 0))    ; REX.W
         (list 137)               ; 0x89
         (list 1 0)               ; ModR/M: reg=arg1, rm=arg0
         ()))
       ; MOV r64, imm64 (REX.W B8+rd imm64)
-      (pair (lit ri) (list
+      (pair 'ri (list
         (list (%rex 1 0 0 0))
-        (list (lit opreg) 184 0)  ; 0xB8 + rd
+        (list 'opreg 184 0)  ; 0xB8 + rd
         ()
-        (list (list (lit imm64) 1))))))
+        (list (list 'imm64 1))))))
 
     ; ADD r64, r64 (REX.W 01 /r)
-    (pair (lit add) (list
-      (pair (lit rr) (list
+    (pair 'add (list
+      (pair 'rr (list
         (list (%rex 1 0 0 0))
         (list 1)                 ; 0x01
         (list 1 0)               ; reg=arg1, rm=arg0
         ()))
-      (pair (lit ri) (list
+      (pair 'ri (list
         (list (%rex 1 0 0 0))
         (list 129)               ; 0x81
-        (list (list (lit /) 0) 0) ; /0 = ADD, rm=arg0
-        (list (list (lit imm32) 1))))))
+        (list (list '/ 0) 0) ; /0 = ADD, rm=arg0
+        (list (list 'imm32 1))))))
 
     ; SUB r64, r64 (REX.W 29 /r)
-    (pair (lit sub) (list
-      (pair (lit rr) (list
+    (pair 'sub (list
+      (pair 'rr (list
         (list (%rex 1 0 0 0))
         (list 41)                ; 0x29
         (list 1 0)
         ()))
-      (pair (lit ri) (list
+      (pair 'ri (list
         (list (%rex 1 0 0 0))
         (list 129)               ; 0x81
-        (list (list (lit /) 5) 0) ; /5 = SUB
-        (list (list (lit imm32) 1))))))
+        (list (list '/ 5) 0) ; /5 = SUB
+        (list (list 'imm32 1))))))
 
     ; CMP r64, r64 (REX.W 39 /r) — flags from arg0 - arg1, matching
     ; arm64's operand order (cmp left right)
-    (pair (lit cmp) (list
-      (pair (lit rr) (list
+    (pair 'cmp (list
+      (pair 'rr (list
         (list (%rex 1 0 0 0))
         (list 57)                ; 0x39
         (list 1 0)               ; reg=arg1, rm=arg0
         ()))
-      (pair (lit ri) (list
+      (pair 'ri (list
         (list (%rex 1 0 0 0))
         (list 129)               ; 0x81
-        (list (list (lit /) 7) 0) ; /7 = CMP
-        (list (list (lit imm32) 1))))))
+        (list (list '/ 7) 0) ; /7 = CMP
+        (list (list 'imm32 1))))))
 
     ; JMP rel32
-    (pair (lit jmp) (list
-      (pair (lit l) (list () (list 233) ()           ; 0xE9
-        (list (list (lit rel32) 0))))))
+    (pair 'jmp (list
+      (pair 'l (list () (list 233) ()           ; 0xE9
+        (list (list 'rel32 0))))))
 
     ; B — arm64's name for the unconditional branch; same encoding as JMP
     ; so branchy code keeps one mnemonic vocabulary across backends
-    (pair (lit b) (list
-      (pair (lit l) (list () (list 233) ()           ; 0xE9
-        (list (list (lit rel32) 0))))))
+    (pair 'b (list
+      (pair 'l (list () (list 233) ()           ; 0xE9
+        (list (list 'rel32 0))))))
 
     ; Conditional branches: Jcc rel32 (0F 8x). Named after arm64's B.cond
     ; so per-arch specs and generated code share mnemonics. Signed
     ; conditions (JL/JG), matching B.LT/B.GT.
-    (pair (lit b/eq) (list
-      (pair (lit l) (list () (list 15 132) ()        ; 0F 84 = JE
-        (list (list (lit rel32) 0))))))
-    (pair (lit b/ne) (list
-      (pair (lit l) (list () (list 15 133) ()        ; 0F 85 = JNE
-        (list (list (lit rel32) 0))))))
-    (pair (lit b/lt) (list
-      (pair (lit l) (list () (list 15 140) ()        ; 0F 8C = JL
-        (list (list (lit rel32) 0))))))
-    (pair (lit b/ge) (list
-      (pair (lit l) (list () (list 15 141) ()        ; 0F 8D = JGE
-        (list (list (lit rel32) 0))))))
-    (pair (lit b/gt) (list
-      (pair (lit l) (list () (list 15 143) ()        ; 0F 8F = JG
-        (list (list (lit rel32) 0))))))
-    (pair (lit b/le) (list
-      (pair (lit l) (list () (list 15 142) ()        ; 0F 8E = JLE
-        (list (list (lit rel32) 0))))))
+    (pair 'b/eq (list
+      (pair 'l (list () (list 15 132) ()        ; 0F 84 = JE
+        (list (list 'rel32 0))))))
+    (pair 'b/ne (list
+      (pair 'l (list () (list 15 133) ()        ; 0F 85 = JNE
+        (list (list 'rel32 0))))))
+    (pair 'b/lt (list
+      (pair 'l (list () (list 15 140) ()        ; 0F 8C = JL
+        (list (list 'rel32 0))))))
+    (pair 'b/ge (list
+      (pair 'l (list () (list 15 141) ()        ; 0F 8D = JGE
+        (list (list 'rel32 0))))))
+    (pair 'b/gt (list
+      (pair 'l (list () (list 15 143) ()        ; 0F 8F = JG
+        (list (list 'rel32 0))))))
+    (pair 'b/le (list
+      (pair 'l (list () (list 15 142) ()        ; 0F 8E = JLE
+        (list (list 'rel32 0))))))
 
     ; CALL rel32
-    (pair (lit call) (list
-      (pair (lit l) (list () (list 232) ()           ; 0xE8
-        (list (list (lit rel32) 0))))))
+    (pair 'call (list
+      (pair 'l (list () (list 232) ()           ; 0xE8
+        (list (list 'rel32 0))))))
   ))
 
 ; --- Prologue/epilogue helpers ---

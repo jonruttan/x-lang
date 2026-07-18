@@ -1,24 +1,24 @@
 ; float.x -- Floating-point type with IEEE 754 bit-pattern storage
 (import x/type/object)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
-(def %buffer-token (prim-ref (lit buf) (lit tok)))
+(def %buffer-token (prim-ref 'buf 'tok))
 
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
-(def %type-from-cell (prim-ref (lit type) (lit from-cell)))
-(def %type-push-op (prim-ref (lit type) (lit push-op)))
+(def %type-by-atom (prim-ref 'type 'by-atom))
+(def %type-from-cell (prim-ref 'type 'from-cell))
+(def %type-push-op (prim-ref 'type 'push-op))
 
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
-(def %cvt (prim-ref (lit convert) (lit to)))
+(def %cvt (prim-ref 'convert 'to))
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
-(def %make-instance (prim-ref (lit type) (lit make-instance)))
-(def %make-type (prim-ref (lit type) (lit make)))
-(def %type-of (prim-ref (lit type) (lit of)))
-(def %type? (prim-ref (lit type) (lit ?)))
+(def %make-instance (prim-ref 'type 'make-instance))
+(def %make-type (prim-ref 'type 'make))
+(def %type-of (prim-ref 'type 'of))
+(def %type? (prim-ref 'type '?))
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
-(def %dlopen (prim-ref (lit ffi) (lit dlopen)))
-(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
-(def %ffi-call (prim-ref (lit ffi) (lit call)))
+(def %dlopen (prim-ref 'ffi 'dlopen))
+(def %dlsym (prim-ref 'ffi 'dlsym))
+(def %ffi-call (prim-ref 'ffi 'call))
 
 
 
@@ -111,19 +111,19 @@
     "FLOAT"
     (list
       (pair
-        (lit write)
+        'write
         (fn (_ self) (display (%float->str (first self)))))
       (pair
-        (lit analyse)
+        'analyse
         (fn (_ buffer score chr)
           ; Entry: digit [0-9], or '-' followed by a digit
 
           (if (and (>= chr 48) (<= chr 57))
             %float-int-digits
             (if (= chr 45) %float-neg-int ()))))
-      (pair (lit read) (fn (_ . args) (%float-read (first args))))
+      (pair 'read (fn (_ . args) (%float-read (first args))))
       (pair
-        (lit from)
+        'from
         (list
           (pair
             (%type-of 42)
@@ -133,7 +133,7 @@
             (fn (_ value) (%make-instance %float (%str->float value))))
 ))
       (pair
-        (lit to)
+        'to
         (list
           (pair (%type-of 42) (fn (_ self) (%float->int (first self))))
           (pair
@@ -260,16 +260,16 @@
 ; binary C operators dispatch everything typed.
 
 (def %float-ts (%type-by-atom %float))
-(%type-push-op %float-ts (lit +) (fn (_ a b) (%f-add (%ensure-float a) (%ensure-float b))))
-(%type-push-op %float-ts (lit -) (fn (_ a b) (%f-sub (%ensure-float a) (%ensure-float b))))
-(%type-push-op %float-ts (lit *) (fn (_ a b) (%f-mul (%ensure-float a) (%ensure-float b))))
-(%type-push-op %float-ts (lit /) (fn (_ a b) (%f-div (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-ts '+ (fn (_ a b) (%f-add (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-ts '- (fn (_ a b) (%f-sub (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-ts '* (fn (_ a b) (%f-mul (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-ts '/ (fn (_ a b) (%f-div (%ensure-float a) (%ensure-float b))))
 ; Without this op, (% 1.2 1.4) fell through to x_prim_mod's integer
 ; fallback -- value-word % value-word on two float PAYLOAD POINTERS --
 ; and returned garbage ((gcd 1.2 1.4) famously yielded 8).
-(%type-push-op %float-ts (lit %) (fn (_ a b) (%f-mod (%ensure-float a) (%ensure-float b))))
-(%type-push-op %float-ts (lit <) (fn (_ a b) (%f-lt (%ensure-float a) (%ensure-float b))))
-(%type-push-op %float-ts (lit =) (fn (_ a b) (%f-eq (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-ts '% (fn (_ a b) (%f-mod (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-ts '< (fn (_ a b) (%f-lt (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-ts '= (fn (_ a b) (%f-eq (%ensure-float a) (%ensure-float b))))
 
 (note "R7RS Predicates")
 
@@ -299,7 +299,7 @@
 ; (The old `(if (not (null? %bignum))` guard raised Unbound SYMBOL whenever
 ; bignum was absent -- an unbound global is not nil.)
 (import x/sys/pact)
-(Pact when (list (lit bignum))
+(Pact when (list 'bignum)
   (fn (_ big)
     ; %bignum-base and `reverse` (x/core/list) are bignum.x's load-time
     ; bindings; the pact guarantees bignum fully loaded before this fires.
@@ -431,12 +431,12 @@
       (%fatan2 y x))))
 
 ; Value dispatch (subject-last): (3.14 float?) -> (Float float? 3.14).
-(def %type-push-call (prim-ref (lit type) (lit push-call)))
+(def %type-push-call (prim-ref 'type 'push-call))
 (%type-push-call (%type-by-atom %float) (%class-call-handler Float))
 
 ; Join the pact last, once the module is fully usable: any registration
 ; waiting on float fires against the finished class and type ops.
-(Pact join (lit float) %float)
+(Pact join 'float %float)
 
 (doc (provide x/num/float Float)
   (note "Literal syntax: 3.14. The generic operators dispatch float operands")

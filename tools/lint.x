@@ -13,7 +13,7 @@
 ; %lint-lib flag, then target file forms.
 
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
-(def %read (prim-ref (lit io) (lit read)))
+(def %read (prim-ref 'io 'read))
 
 (do
   (import x/tool/lint)
@@ -70,7 +70,7 @@
   ; --- Override the linter's hooks with construct-table-driven versions ---
 
   ; A form introduces a binding (for sequence/top-level scope) when its head
-  ; declares scope=bind.  (Replaces the old hardcoded (lit def) detection.)
+  ; declares scope=bind.  (Replaces the old hardcoded 'def detection.)
   (set! %lint-binds? (fn (_ form)
     (if (if (pair? form) (symbol? (first form)) ())
       (let ((p (%scope-lookup (first form))))
@@ -107,7 +107,7 @@
 
   ; First form may be a mode flag: %lint-lib suppresses unused warnings.
   (def %first-form (%read))
-  (def %lib-mode (eq? %first-form (lit %lint-lib)))
+  (def %lib-mode (eq? %first-form '%lint-lib))
 
   ; Slurp remaining forms (order is irrelevant -- defs/uses are sets).
   (def %read-all (fn (self acc)
@@ -156,4 +156,4 @@
 
   (if (and (null? %undefined) (null? %unused))
     (display "ok\n")
-    (error (lit lint-failed))))
+    (error 'lint-failed)))

@@ -147,7 +147,7 @@
 ### implements when
 
 ```scheme
-(do (def when (op (test . body) e (if (eval test e) (eval (pair (lit do) body) e)))) (when (= 1 1) (+ 10 20)))
+(do (def when (op (test . body) e (if (eval test e) (eval (pair 'do body) e)))) (when (= 1 1) (+ 10 20)))
 ```
 ---
     30
@@ -155,14 +155,14 @@
 ### when returns nil on false
 
 ```scheme
-(do (def when (op (test . body) e (if (eval test e) (eval (pair (lit do) body) e)))) (when (= 1 2) (+ 10 20)))
+(do (def when (op (test . body) e (if (eval test e) (eval (pair 'do body) e)))) (when (= 1 2) (+ 10 20)))
 ```
 ---
 
 ### implements define sugar
 
 ```scheme
-(do (def define (op (name-or-form . body) e (if (pair? name-or-form) (tail-eval (list (lit def) (first name-or-form) (pair (lit fn) (pair (pair (lit _) (rest name-or-form)) body))) e) (tail-eval (list (lit def) name-or-form (first body)) e)))) (define (square x) (* x x)) (square 5))
+(do (def define (op (name-or-form . body) e (if (pair? name-or-form) (tail-eval (list 'def (first name-or-form) (pair 'fn (pair (pair '_ (rest name-or-form)) body))) e) (tail-eval (list 'def name-or-form (first body)) e)))) (define (square x) (* x x)) (square 5))
 ```
 ---
     25
@@ -170,7 +170,7 @@
 ### define sugar with simple binding
 
 ```scheme
-(do (def define (op (name-or-form . body) e (if (pair? name-or-form) (tail-eval (list (lit def) (first name-or-form) (pair (lit fn) (pair (rest name-or-form) body))) e) (tail-eval (list (lit def) name-or-form (first body)) e)))) (define pi 314) pi)
+(do (def define (op (name-or-form . body) e (if (pair? name-or-form) (tail-eval (list 'def (first name-or-form) (pair 'fn (pair (rest name-or-form) body))) e) (tail-eval (list 'def name-or-form (first body)) e)))) (define pi 314) pi)
 ```
 ---
     314
@@ -290,7 +290,7 @@
 ### evaluates a constructed expression
 
 ```scheme
-(eval (pair (lit +) (list 3 4)))
+(eval (pair '+ (list 3 4)))
 ```
 ---
     7
@@ -298,7 +298,7 @@
 ### evaluates nested eval
 
 ```scheme
-(eval (lit (eval (lit 99))))
+(eval (lit (eval '99)))
 ```
 ---
     99
@@ -306,7 +306,7 @@
 ### evaluates in given environment
 
 ```scheme
-(do (def x 10) (let ((x 20)) (eval (lit x))))
+(do (def x 10) (let ((x 20)) (eval 'x)))
 ```
 ---
     20

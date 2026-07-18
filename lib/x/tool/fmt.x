@@ -7,11 +7,11 @@
 (import x/type/str)
 (import x/type/object)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
-(def %token-read-string (prim-ref (lit tok) (lit read-str)))
+(def %token-read-string (prim-ref 'tok 'read-str))
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
-(def %cvt (prim-ref (lit convert) (lit to)))
+(def %cvt (prim-ref 'convert 'to))
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
-(def %write-to-str (prim-ref (lit io) (lit write-to-str)))
+(def %write-to-str (prim-ref 'io 'write-to-str))
 
 ; --- Construct table helpers ---
 
@@ -46,7 +46,7 @@
 ; --- Predicates ---
 
 (def %fmt-comment? (fn (_ tok)
-  (if (pair? tok) (eq? (first tok) (lit %comment)) ())))
+  (if (pair? tok) (eq? (first tok) '%comment) ())))
 
 ; --- Width estimation ---
 
@@ -111,10 +111,10 @@
   (if (< (%fmt-width form) 60)
     (write form)
     (let ((props (if (symbol? head) (%fmt-lookup head table) ())))
-      (let ((fmt-type (if (null? props) () (%fmt-get-prop (lit fmt) props))))
-        (if (eq? fmt-type (lit head-1))  (%fmt-head-1 head rest-forms col)
-        (if (eq? fmt-type (lit head-kw)) (%fmt-head-kw head rest-forms col)
-        (if (eq? fmt-type (lit body))    (%fmt-body-only head rest-forms col)
+      (let ((fmt-type (if (null? props) () (%fmt-get-prop 'fmt props))))
+        (if (eq? fmt-type 'head-1)  (%fmt-head-1 head rest-forms col)
+        (if (eq? fmt-type 'head-kw) (%fmt-head-kw head rest-forms col)
+        (if (eq? fmt-type 'body)    (%fmt-body-only head rest-forms col)
           (%fmt-default head rest-forms col)))))))))
 
 (set! %fmt-expr (fn (_ form col)

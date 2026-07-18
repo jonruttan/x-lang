@@ -19,10 +19,10 @@
 ; make check-boot-order enforces.
 
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
-(def %type-of (prim-ref (lit type) (lit of)))
-(def %type-analyse-cell (prim-ref (lit type) (lit analyse-cell)))
-(def %type-push-analyse (prim-ref (lit type) (lit push-analyse)))
+(def %type-by-atom (prim-ref 'type 'by-atom))
+(def %type-of (prim-ref 'type 'of))
+(def %type-analyse-cell (prim-ref 'type 'analyse-cell))
+(def %type-push-analyse (prim-ref 'type 'push-analyse))
 
 ; Pre-register the heavy module paths so the tower's internal imports are
 ; no-ops and the curated load order below stays authoritative.
@@ -48,7 +48,7 @@
 ;     keeps subsequent files parsing fast. ---
 
 (set! %compile-fvars
-  (list (pair (lit %quasi-accept) %quasi-accept)))
+  (list (pair '%quasi-accept %quasi-accept)))
 (def %c-quasi-analyse
   (compile
     (lit (fn (_ buffer score chr)
@@ -56,7 +56,7 @@
     %compile-fvars))
 
 (set! %compile-fvars
-  (list (pair (lit %unquote-after-comma) %unquote-after-comma)))
+  (list (pair '%unquote-after-comma %unquote-after-comma)))
 (def %c-unquote-analyse
   (compile
     (lit (fn (_ buffer score chr)
@@ -64,7 +64,7 @@
     %compile-fvars))
 
 (set! %compile-fvars
-  (list (pair (lit %lit-accept) %lit-accept)))
+  (list (pair '%lit-accept %lit-accept)))
 (def %c-lit-analyse
   (compile
     (lit (fn (_ buffer score chr)
@@ -86,10 +86,10 @@
 ; 1. Bignum + int-capped
 (include "lib/x/num/bignum.x")
 (set! %compile-fvars
-  (list (pair (lit %big-sign-state) %big-sign-state)
-        (pair (lit %big-digits) %big-digits)
-        (pair (lit %int-capped-digits) %int-capped-digits)
-        (pair (lit %int-capped-sign) %int-capped-sign)))
+  (list (pair '%big-sign-state %big-sign-state)
+        (pair '%big-digits %big-digits)
+        (pair '%int-capped-digits %int-capped-digits)
+        (pair '%int-capped-sign %int-capped-sign)))
 (%type-push-analyse (%type-by-atom (%type-of (Num expt 2 64)))
   (compile
     (lit (fn (_ buffer score chr)
@@ -112,8 +112,8 @@
 ; 3. Float
 (include "lib/x/num/float.x")
 (set! %compile-fvars
-  (list (pair (lit %float-int-digits) %float-int-digits)
-        (pair (lit %float-neg-int) %float-neg-int)))
+  (list (pair '%float-int-digits %float-int-digits)
+        (pair '%float-neg-int %float-neg-int)))
 (%type-push-analyse (%type-by-atom (%type-of 1.0))
   (compile
     ; Sign branch mirrors the interpreted analyser -- without it, -7.5
@@ -128,8 +128,8 @@
 ; 4. Rational
 (include "lib/x/num/rational.x")
 (set! %compile-fvars
-  (list (pair (lit %rat-numer) %rat-numer)
-        (pair (lit %rat-sign)
+  (list (pair '%rat-numer %rat-numer)
+        (pair '%rat-sign
           (fn (_ buffer score chr)
             (if (< chr 48) () (if (< chr 58) %rat-numer ()))))))
 (%type-push-analyse (%type-by-atom (%type-of 1/2))
@@ -144,8 +144,8 @@
 ; 5. Complex
 (include "lib/x/num/complex.x")
 (set! %compile-fvars
-  (list (pair (lit %cx-real-int) %cx-real-int)
-        (pair (lit %cx-neg) %cx-neg)))
+  (list (pair '%cx-real-int %cx-real-int)
+        (pair '%cx-neg %cx-neg)))
 (%type-push-analyse (%type-by-atom (%type-of 1+1i))
   (compile
     ; Sign branch: -1+2i analyses as complex (#45 R4).

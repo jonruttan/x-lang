@@ -23,18 +23,18 @@
 (import x/num/float)
 
 ; Fetch the byte-level string prims from the catalog (ns `str` de-registered, R5).
-(def %json-byte-len (prim-ref (lit str) (lit byte-len)))
-(def %json-byte-ref (prim-ref (lit str) (lit byte-ref)))
-(def %json-byte-sub (prim-ref (lit str) (lit byte-sub)))
-(def %json-append (prim-ref (lit str) (lit append)))
+(def %json-byte-len (prim-ref 'str 'byte-len))
+(def %json-byte-ref (prim-ref 'str 'byte-ref))
+(def %json-byte-sub (prim-ref 'str 'byte-sub))
+(def %json-append (prim-ref 'str 'append))
 ; display-to-str renders any number the way the printer would (int/bignum/float).
-(def %json-display (prim-ref (lit io) (lit display-to-str)))
+(def %json-display (prim-ref 'io 'display-to-str))
 ; The conversion dispatcher: (%json-cvt "2.5" %float) parses AND boxes a float
 ; via the float type's from-alist (%float is the documented convert type
 ; handle, bound when x/num/float loads above).
-(def %json-cvt (prim-ref (lit convert) (lit to)))
+(def %json-cvt (prim-ref 'convert 'to))
 ; char->int for byte values of CHARACTERs coming from str-byte-ref callers.
-(def %json-char->int (prim-ref (lit char) (lit ->int)))
+(def %json-char->int (prim-ref 'char '->int))
 
 (def %json-bs (%json-byte-sub "\\x" 0 1))   ; a one-byte backslash string
 (def %json-quote (%json-byte-sub "\"x" 0 1)) ; a one-byte double-quote string
@@ -206,7 +206,7 @@
           ((= b 91) (%json-parse-array s (+ j 1) len ()))
           ((= b 116) (%json-word s j len "true" #t))
           ((= b 102) (%json-word s j len "false" #f))
-          ((= b 110) (%json-word s j len "null" (lit null)))
+          ((= b 110) (%json-word s j len "null" 'null))
           ((= b 45) (%json-parse-number s j len))
           ((if (>= b 48) (<= b 57) #f) (%json-parse-number s j len))
           (#t (%json-err "unexpected byte" j)))))))
@@ -304,7 +304,7 @@
   (static
     (method parse (self (param s STRING "JSON text"))
       (doc "Parse JSON text into x-lang values; malformed input errors with a byte position."
-        (returns ANY "Dict / list / string / number / #t / #f / (lit null)")
+        (returns ANY "Dict / list / string / number / #t / #f / 'null")
         (example "(Json parse \"[1, 2.5, null]\")" "the list (1 2.5 null)"))
       (def len (%json-byte-len s))
       (def v (%json-parse-value s 0 len))
@@ -314,7 +314,7 @@
     (method emit (self (param v ANY "Value to serialize"))
       (doc "Serialize a value as compact JSON text, escaping \" \\ and control bytes."
         (returns STRING "JSON text")
-        (example "(Json emit (list 1 \"a\\\"b\" (lit null)))" "\"[1,\\\"a\\\\\\\"b\\\",null]\""))
+        (example "(Json emit (list 1 \"a\\\"b\" 'null))" "\"[1,\\\"a\\\\\\\"b\\\",null]\""))
       (%json-emit v))))
 
 (doc (provide x/codec/json Json)

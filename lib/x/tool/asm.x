@@ -1,22 +1,22 @@
 ; asm.x -- Data-driven assembler: JIT machine code generation
 (import x/core/list)
 ; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
-(def %make-obj (prim-ref (lit obj) (lit make)))
-(def %obj-ref (prim-ref (lit obj) (lit ref)))
-(def %obj-set! (prim-ref (lit obj) (lit set!)))
-(def %make-type (prim-ref (lit type) (lit make)))
+(def %make-obj (prim-ref 'obj 'make))
+(def %obj-ref (prim-ref 'obj 'ref))
+(def %obj-set! (prim-ref 'obj 'set!))
+(def %make-type (prim-ref 'type 'make))
 
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
-(def %str-append (prim-ref (lit str) (lit append)))
-(def %str->symbol (prim-ref (lit str) (lit ->sym)))
+(def %str-append (prim-ref 'str 'append))
+(def %str->symbol (prim-ref 'str '->sym))
 
 (import x/type/str)
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
-(def %ptr-call (prim-ref (lit ptr) (lit call)))
-(def %ptr->int (prim-ref (lit ptr) (lit ->int)))
-(def %ptr-set! (prim-ref (lit ptr) (lit set!)))
-(def %dlopen (prim-ref (lit ffi) (lit dlopen)))
-(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+(def %ptr-call (prim-ref 'ptr 'call))
+(def %ptr->int (prim-ref 'ptr '->int))
+(def %ptr-set! (prim-ref 'ptr 'set!))
+(def %dlopen (prim-ref 'ffi 'dlopen))
+(def %dlsym (prim-ref 'ffi 'dlsym))
 
 
 ; --- Platform detection ---
@@ -61,10 +61,10 @@
     (%ptr-call %c-munmap (%ptr->int ptr) size)))
 
 ; --- Operand constructors ---
-(def reg   (fn (_ n)        (list (lit reg) n)))
-(def imm   (fn (_ v)        (list (lit imm) v)))
-(def mem   (fn (_ base off) (list (lit mem) base off)))
-(def label (fn (_ name)     (list (lit label) name)))
+(def reg   (fn (_ n)        (list 'reg n)))
+(def imm   (fn (_ v)        (list 'imm v)))
+(def mem   (fn (_ base off) (list 'mem base off)))
+(def label (fn (_ name)     (list 'label name)))
 
 (def %op-type  (fn (_ op) (first op)))
 (def %op-value (fn (_ op) (first (rest op))))
@@ -73,9 +73,9 @@
 (def %op-sig
   (fn (_ op)
     (def t (first op))
-    (if (eq? t (lit reg)) "r"
-      (if (eq? t (lit imm)) "i"
-        (if (eq? t (lit mem)) "m" "l")))))
+    (if (eq? t 'reg) "r"
+      (if (eq? t 'imm) "i"
+        (if (eq? t 'mem) "m" "l")))))
 
 ; Build signature symbol from operand list: (reg _) (reg _) (imm _) -> rri
 (def %args-sig
@@ -107,12 +107,12 @@
 (def %asm-type
   (%make-type "ASM"
     (list
-      (pair (lit write)
+      (pair 'write
         (fn (_ self)
           (display "<asm pos=")
           (display (%obj-ref self 1))
           (display ">")))
-      (pair (lit call)
+      (pair 'call
         (fn (_ self . args)
           (apply asm-emit! (pair self args)))))))
 
@@ -144,7 +144,7 @@
     (def entry (List assq mnemonic table))
     (if (null? entry) (error (Str append "asm: unknown mnemonic: " (symbol->str mnemonic))))
     ; Match operand signature
-    (def sig (if (null? args) (lit ||) (%args-sig args)))
+    (def sig (if (null? args) '|| (%args-sig args)))
     (def variant (List assq sig (rest entry)))
     (if (null? variant)
       (error (Str append "asm: no variant " (symbol->str sig) " for " (symbol->str mnemonic))))
@@ -184,7 +184,7 @@
         (if (not (null? resolver))
           (resolver buf-ptr offset width ptype target)
           ; Generic fallback: relative offset
-          (let ((val (if (eq? ptype (lit rel))
+          (let ((val (if (eq? ptype 'rel)
                        (- target (+ offset width))
                        target)))
             (%ptr-set! buf-ptr offset val width))))

@@ -192,7 +192,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ```scheme
 (do (import x/codec/json)
-  (list (Json emit 42) (Json emit #t) (Json emit #f) (Json emit (lit null))))
+  (list (Json emit 42) (Json emit #t) (Json emit #f) (Json emit 'null)))
 ```
 ---
     ("42" "true" "false" "null")
@@ -263,7 +263,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ```scheme
 (do (import x/codec/json)
-  (let ((v (Json parse (Json emit (list 1 "two" #t (lit null))))))
+  (let ((v (Json parse (Json emit (list 1 "two" #t 'null)))))
     v))
 ```
 ---

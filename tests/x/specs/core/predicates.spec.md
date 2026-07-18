@@ -3,7 +3,7 @@
 ### returns #t for equal symbols
 
 ```scheme
-(eq? (lit a) (lit a))
+(eq? 'a 'a)
 ```
 ---
     #t
@@ -69,7 +69,7 @@
 ### interned symbols are same?
 
 ```scheme
-(same? (lit a) (lit a))
+(same? 'a 'a)
 ```
 ---
     #t
@@ -285,7 +285,7 @@
 ### returns #t for a symbol
 
 ```scheme
-(atom? (lit a))
+(atom? 'a)
 ```
 ---
     #t
@@ -339,7 +339,7 @@
 ### true for symbol
 
 ```scheme
-(symbol? (lit hello))
+(symbol? 'hello)
 ```
 ---
     #t
@@ -449,7 +449,7 @@
 ### returns #f for symbol
 
 ```scheme
-(char? (lit a))
+(char? 'a)
 ```
 ---
     #f

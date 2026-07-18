@@ -678,7 +678,7 @@
 
 ```scheme
 (do (import x/type/dict)
-  ((Dict from-alist (List zip (list (lit a) (lit b)) (list 1 2))) get (lit b)))
+  ((Dict from-alist (List zip (list 'a 'b) (list 1 2))) get 'b))
 ```
 ---
     2
@@ -986,7 +986,7 @@
 ### finds element by identity
 
 ```scheme
-(first (List memq (lit c) (list (lit a) (lit b) (lit c) (lit d))))
+(first (List memq 'c (list 'a 'b 'c 'd)))
 ```
 ---
     'c
@@ -1022,7 +1022,7 @@
 ### finds by identity
 
 ```scheme
-(rest (List assq (lit b) (list (pair (lit a) 1) (pair (lit b) 2) (pair (lit c) 3))))
+(rest (List assq 'b (list (pair 'a 1) (pair 'b 2) (pair 'c 3))))
 ```
 ---
     2
@@ -1030,7 +1030,7 @@
 ### returns false when not found
 
 ```scheme
-(null? (List assq (lit z) (list (pair (lit a) 1))))
+(null? (List assq 'z (list (pair 'a 1))))
 ```
 ---
     #t

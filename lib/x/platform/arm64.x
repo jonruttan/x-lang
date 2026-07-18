@@ -2,8 +2,8 @@
 
 ; --- Register aliases ---
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
-(def %ptr-ref (prim-ref (lit ptr) (lit ref)))
-(def %ptr-set! (prim-ref (lit ptr) (lit set!)))
+(def %ptr-ref (prim-ref 'ptr 'ref))
+(def %ptr-set! (prim-ref 'ptr 'set!))
 
 (def x0  (reg 0))  (def x1  (reg 1))  (def x2  (reg 2))  (def x3  (reg 3))
 (def x4  (reg 4))  (def x5  (reg 5))  (def x6  (reg 6))  (def x7  (reg 7))
@@ -34,9 +34,9 @@
             ; Field may have 5th element: sub-index into operand
             (def sub (if (> (length f) 4) (List ref 4 f) 0))
             (def val
-              (if (eq? (%op-type arg) (lit label))
+              (if (eq? (%op-type arg) 'label)
                 (do
-                  (def ptype (if (= width 26) (lit arm64-rel) (lit arm64-rel19)))
+                  (def ptype (if (= width 26) 'arm64-rel 'arm64-rel19))
                   (asm-patch! asm 4 ptype (%op-value arg))
                   0)
                 (if (= sub 0)
@@ -75,95 +75,95 @@
 (def %arm64-table
   (list
     ; RET (return via x30)
-    (pair (lit ret) (list
-      (pair (lit ||) (list 3596551104))))      ; 0xD65F03C0
+    (pair 'ret (list
+      (pair '|| (list 3596551104))))      ; 0xD65F03C0
 
     ; NOP
-    (pair (lit nop) (list
-      (pair (lit ||) (list 3573751839))))      ; 0xD503201F
+    (pair 'nop (list
+      (pair '|| (list 3573751839))))      ; 0xD503201F
 
     ; MOV Xd, Xm (alias: ORR Xd, XZR, Xm)
-    (pair (lit mov) (list
-      (pair (lit rr) (list 2852127712         ; 0xAA0003E0
+    (pair 'mov (list
+      (pair 'rr (list 2852127712         ; 0xAA0003E0
         (list 0 0 5 0)       ; Rd [4:0]
         (list 1 16 5 0)))    ; Rm [20:16]
-      (pair (lit ri) (lit movz))))             ; delegate to MOVZ encoder
+      (pair 'ri 'movz)))             ; delegate to MOVZ encoder
 
     ; ADD Xd, Xn, Xm (shifted register, 64-bit)
-    (pair (lit add) (list
-      (pair (lit rrr) (list 2332033024        ; 0x8B000000
+    (pair 'add (list
+      (pair 'rrr (list 2332033024        ; 0x8B000000
         (list 0 0 5 0)       ; Rd
         (list 1 5 5 0)       ; Rn
         (list 2 16 5 0)))    ; Rm
-      (pair (lit rri) (list 2432696320        ; 0x91000000
+      (pair 'rri (list 2432696320        ; 0x91000000
         (list 0 0 5 0)       ; Rd
         (list 1 5 5 0)       ; Rn
         (list 2 10 12 0))))) ; imm12
 
     ; SUB Xd, Xn, Xm
-    (pair (lit sub) (list
-      (pair (lit rrr) (list 3405774848        ; 0xCB000000
+    (pair 'sub (list
+      (pair 'rrr (list 3405774848        ; 0xCB000000
         (list 0 0 5 0)
         (list 1 5 5 0)
         (list 2 16 5 0)))
-      (pair (lit rri) (list 3506438144        ; 0xD1000000
+      (pair 'rri (list 3506438144        ; 0xD1000000
         (list 0 0 5 0)
         (list 1 5 5 0)
         (list 2 10 12 0)))))
 
     ; LDR Xt, [Xn, #imm12*8] (unsigned offset, 64-bit)
     ; mem operand: (mem base-reg offset) — sub=0 for base, sub=1 for offset
-    (pair (lit ldr) (list
-      (pair (lit rm) (list 4181721088         ; 0xF9400000
+    (pair 'ldr (list
+      (pair 'rm (list 4181721088         ; 0xF9400000
         (list 0 0 5 0)       ; Rt [4:0]
         (list 1 5 5 0)       ; Rn [9:5] from mem base (sub=0)
         (list 1 10 12 3 1))))) ; imm12 [21:10] from mem offset (sub=1), >>3
 
     ; STR Xt, [Xn, #imm12*8]
-    (pair (lit str) (list
-      (pair (lit rm) (list 4177526784         ; 0xF9000000
+    (pair 'str (list
+      (pair 'rm (list 4177526784         ; 0xF9000000
         (list 0 0 5 0)
         (list 1 5 5 0)
         (list 1 10 12 3 1)))))
 
     ; B (unconditional branch, PC-relative)
-    (pair (lit b) (list
-      (pair (lit l) (list 335544320           ; 0x14000000
+    (pair 'b (list
+      (pair 'l (list 335544320           ; 0x14000000
         (list 0 0 26 2)))))   ; imm26, offset>>2
 
     ; BL (branch with link)
-    (pair (lit bl) (list
-      (pair (lit l) (list 2483027968          ; 0x94000000
+    (pair 'bl (list
+      (pair 'l (list 2483027968          ; 0x94000000
         (list 0 0 26 2)))))
 
     ; BR Xn (branch to register)
-    (pair (lit br) (list
-      (pair (lit r) (list 3592355840          ; 0xD61F0000
+    (pair 'br (list
+      (pair 'r (list 3592355840          ; 0xD61F0000
         (list 0 5 5 0)))))
 
     ; BLR Xn (branch with link to register)
-    (pair (lit blr) (list
-      (pair (lit r) (list 3594452992          ; 0xD63F0000
+    (pair 'blr (list
+      (pair 'r (list 3594452992          ; 0xD63F0000
         (list 0 5 5 0)))))
 
     ; MUL Xd, Xn, Xm (alias: MADD Xd, Xn, Xm, XZR)
     ; Ra=XZR(31) hardcoded in base opcode [14:10] = 11111
-    (pair (lit mul) (list
-      (pair (lit rrr) (list 2600500224        ; 0x9B007C00 (Ra=XZR already set)
+    (pair 'mul (list
+      (pair 'rrr (list 2600500224        ; 0x9B007C00 (Ra=XZR already set)
         (list 0 0 5 0)       ; Rd
         (list 1 5 5 0)       ; Rn
         (list 2 16 5 0)))))  ; Rm
 
     ; SDIV Xd, Xn, Xm (signed divide)
-    (pair (lit sdiv) (list
-      (pair (lit rrr) (list 2596277248        ; 0x9AC00C00
+    (pair 'sdiv (list
+      (pair 'rrr (list 2596277248        ; 0x9AC00C00
         (list 0 0 5 0)       ; Rd
         (list 1 5 5 0)       ; Rn
         (list 2 16 5 0)))))  ; Rm
 
     ; MSUB Xd, Xn, Xm, Xa (Xd = Xa - Xn*Xm) — for modulo
-    (pair (lit msub) (list
-      (pair (lit rrrr) (list 2600501248       ; 0x9B008000
+    (pair 'msub (list
+      (pair 'rrrr (list 2600501248       ; 0x9B008000
         (list 0 0 5 0)       ; Rd
         (list 1 5 5 0)       ; Rn
         (list 2 16 5 0)      ; Rm
@@ -171,46 +171,46 @@
 
     ; CBZ Xt, label (branch if zero, 64-bit)
     ; imm19 at [23:5], Rt at [4:0]
-    (pair (lit cbz) (list
-      (pair (lit rl) (list 3019898880         ; 0xB4000000
+    (pair 'cbz (list
+      (pair 'rl (list 3019898880         ; 0xB4000000
         (list 0 0 5 0)        ; Rt
         (list 1 5 19 2)))))   ; imm19, offset>>2
 
     ; CBNZ Xt, label (branch if not zero, 64-bit)
-    (pair (lit cbnz) (list
-      (pair (lit rl) (list 3036676096         ; 0xB5000000
+    (pair 'cbnz (list
+      (pair 'rl (list 3036676096         ; 0xB5000000
         (list 0 0 5 0)
         (list 1 5 19 2)))))
 
     ; CMP Xn, Xm (alias: SUBS XZR, Xn, Xm)
-    (pair (lit cmp) (list
-      (pair (lit rr) (list 3942645791         ; 0xEB00001F (Rd=XZR)
+    (pair 'cmp (list
+      (pair 'rr (list 3942645791         ; 0xEB00001F (Rd=XZR)
         (list 0 5 5 0)        ; Rn (first arg = left)
         (list 1 16 5 0)))     ; Rm (second arg = right)
       ; Rd=XZR(31) is hardcoded in base: 0xEB00001F
-      (pair (lit ri) (list 4043309087         ; 0xF100001F = SUBS XZR, Xn, #imm
+      (pair 'ri (list 4043309087         ; 0xF100001F = SUBS XZR, Xn, #imm
         (list 0 5 5 0)        ; Rn
         (list 1 10 12 0)))))  ; imm12
 
     ; B.EQ, B.NE, B.LT, B.GE, B.GT, B.LE (conditional branches)
     ; B.cond: imm19 at [23:5], cond at [3:0]
-    (pair (lit b/eq) (list
-      (pair (lit l) (list 1409286144          ; 0x54000000 | cond=0
+    (pair 'b/eq (list
+      (pair 'l (list 1409286144          ; 0x54000000 | cond=0
         (list 0 5 19 2)))))
-    (pair (lit b/ne) (list
-      (pair (lit l) (list 1409286145          ; 0x54000001
+    (pair 'b/ne (list
+      (pair 'l (list 1409286145          ; 0x54000001
         (list 0 5 19 2)))))
-    (pair (lit b/lt) (list
-      (pair (lit l) (list 1409286155          ; 0x5400000B
+    (pair 'b/lt (list
+      (pair 'l (list 1409286155          ; 0x5400000B
         (list 0 5 19 2)))))
-    (pair (lit b/ge) (list
-      (pair (lit l) (list 1409286154          ; 0x5400000A
+    (pair 'b/ge (list
+      (pair 'l (list 1409286154          ; 0x5400000A
         (list 0 5 19 2)))))
-    (pair (lit b/gt) (list
-      (pair (lit l) (list 1409286156          ; 0x5400000C
+    (pair 'b/gt (list
+      (pair 'l (list 1409286156          ; 0x5400000C
         (list 0 5 19 2)))))
-    (pair (lit b/le) (list
-      (pair (lit l) (list 1409286157          ; 0x5400000D
+    (pair 'b/le (list
+      (pair 'l (list 1409286157          ; 0x5400000D
         (list 0 5 19 2)))))
   ))
 
@@ -238,7 +238,7 @@
 ; --- Dispatch encoder ---
 (def %arm64-dispatch
   (fn (_ asm descriptor args)
-    (if (eq? descriptor (lit movz))
+    (if (eq? descriptor 'movz)
       (%arm64-encode-movz asm () args)
       (%arm64-encode asm descriptor args))))
 
@@ -248,11 +248,11 @@
   (fn (_ buf-ptr offset width ptype target)
     (def word (%ptr-ref buf-ptr offset 4))
     (def rel (>> (- target offset) 2))
-    (if (eq? ptype (lit arm64-rel))
+    (if (eq? ptype 'arm64-rel)
       ; B/BL: imm26 at [25:0]
       (let ((mask (- (<< 1 26) 1)))
         (%ptr-set! buf-ptr offset (| (& word (~ mask)) (& rel mask)) 4))
-      (if (eq? ptype (lit arm64-rel19))
+      (if (eq? ptype 'arm64-rel19)
         ; CBZ/CBNZ/B.cond: imm19 at [23:5]
         (let ((mask (<< (- (<< 1 19) 1) 5)))
           (%ptr-set! buf-ptr offset (| (& word (~ mask)) (& (<< (& rel (- (<< 1 19) 1)) 5) mask)) 4))

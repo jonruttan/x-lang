@@ -89,7 +89,7 @@
 ### compares different symbols
 
 ```scheme
-(if (equal? (lit a) (lit b)) "y" "n")
+(if (equal? 'a 'b) "y" "n")
 ```
 ---
     "n"
@@ -137,7 +137,7 @@
 ### compares equal symbols
 
 ```scheme
-(equal? (lit a) (lit a))
+(equal? 'a 'a)
 ```
 ---
     #t

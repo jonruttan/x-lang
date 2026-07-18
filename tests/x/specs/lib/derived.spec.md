@@ -191,7 +191,7 @@
 ### cond => applies procedure to test value
 
 ```x
-(cond (#f (lit no)) (42 => (fn (_ x) (* x 2))))
+(cond (#f 'no) (42 => (fn (_ x) (* x 2))))
 ```
 ---
     84
@@ -199,7 +199,7 @@
 ### cond => skips false clauses
 
 ```x
-(cond (#f => (fn (_ x) (lit bad))) (#t (lit good)))
+(cond (#f => (fn (_ x) 'bad)) (#t 'good))
 ```
 ---
     'good
@@ -217,7 +217,7 @@
 
 ```x
 (let ((x 0))
-  (cond (#f (lit no)) (else (set! x 1) (+ x 2))))
+  (cond (#f 'no) (else (set! x 1) (+ x 2))))
 ```
 ---
     3
@@ -228,9 +228,9 @@
 
 ```x
 (case 2
-  ((1) (lit one))
-  ((2) (lit two))
-  ((3) (lit three)))
+  ((1) 'one)
+  ((2) 'two)
+  ((3) 'three))
 ```
 ---
     'two
@@ -239,8 +239,8 @@
 
 ```x
 (case 99
-  ((1) (lit one))
-  (else (lit other)))
+  ((1) 'one)
+  (else 'other))
 ```
 ---
     'other
@@ -249,8 +249,8 @@
 
 ```x
 (case (* 2 3)
-  ((2 3 5 7) (lit prime))
-  ((1 4 6 8 9) (lit composite)))
+  ((2 3 5 7) 'prime)
+  ((1 4 6 8 9) 'composite))
 ```
 ---
     'composite

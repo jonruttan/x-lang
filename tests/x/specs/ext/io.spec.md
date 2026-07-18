@@ -20,7 +20,7 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
   (def %p "/tmp/x-spec-io-sys.txt")
   (def %w (Sys open-write %p)) (Sys fd-write %w "abc") (Sys close %w)
   (def %r (Sys open-read %p)) (def %b (Sys fd-read %r 8)) (Sys close %r)
-  (syscall (syscall-id (lit unlink)) %p)
+  (syscall (syscall-id 'unlink) %p)
   %b)
 ```
 ---
@@ -36,7 +36,7 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
   (Sys fd-read %r 8)
   (def %eof (Sys fd-read %r 8))
   (Sys close %r)
-  (syscall (syscall-id (lit unlink)) %p)
+  (syscall (syscall-id 'unlink) %p)
   (null? %eof))
 ```
 ---
@@ -47,11 +47,11 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
 ```scheme
 (do
   (def %p "/tmp/x-spec-io-exists.txt")
-  (syscall (syscall-id (lit unlink)) %p)
+  (syscall (syscall-id 'unlink) %p)
   (def %before (Sys file-exists? %p))
   (def %w (Sys open-write %p)) (Sys fd-write %w "x") (Sys close %w)
   (def %after (Sys file-exists? %p))
-  (syscall (syscall-id (lit unlink)) %p)
+  (syscall (syscall-id 'unlink) %p)
   (def %gone (Sys file-exists? %p))
   (list %before %after %gone))
 ```
@@ -65,11 +65,11 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
 ```scheme
 (do
   (def %p "/tmp/x-spec-io-file.txt")
-  (def %w (File open %p (list (lit wronly) (lit creat) (lit trunc))))
+  (def %w (File open %p (list 'wronly 'creat 'trunc)))
   (File write %w "hello" 5)
   (File close %w)
   (def %r (Sys open-read %p)) (def %b (Sys fd-read %r 16)) (Sys close %r)
-  (syscall (syscall-id (lit unlink)) %p)
+  (syscall (syscall-id 'unlink) %p)
   %b)
 ```
 ---
@@ -86,11 +86,11 @@ region (File read/getc were blocked before it existed).
 (do
   (def %p "/tmp/x-spec-io-fread.txt")
   (def %w (Sys open-write %p)) (Sys fd-write %w "abc") (Sys close %w)
-  (def %r (File open %p (lit rdonly)))
-  (def %buf ((prim-ref (lit str) (lit make)) 8))
+  (def %r (File open %p 'rdonly))
+  (def %buf ((prim-ref 'str 'make) 8))
   (def %n (File read %r %buf 8))
   (File close %r)
-  (syscall (syscall-id (lit unlink)) %p)
+  (syscall (syscall-id 'unlink) %p)
   (list (> %n 0) (str-ref %buf 0)))
 ```
 ---
@@ -102,10 +102,10 @@ region (File read/getc were blocked before it existed).
 (do
   (def %p "/tmp/x-spec-io-getc.txt")
   (def %w (Sys open-write %p)) (Sys fd-write %w "Q") (Sys close %w)
-  (def %r (File open %p (lit rdonly)))
+  (def %r (File open %p 'rdonly))
   (def %c (File getc %r))
   (File close %r)
-  (syscall (syscall-id (lit unlink)) %p)
+  (syscall (syscall-id 'unlink) %p)
   %c)
 ```
 ---
@@ -120,7 +120,7 @@ region (File read/getc were blocked before it existed).
   (def %p "/tmp/x-spec-io-stream.txt")
   (Stream with-output-to-file %p (fn (_) (display "hi")))
   (def %r (Sys open-read %p)) (def %b (Sys fd-read %r 8)) (Sys close %r)
-  (syscall (syscall-id (lit unlink)) %p)
+  (syscall (syscall-id 'unlink) %p)
   %b)
 ```
 ---

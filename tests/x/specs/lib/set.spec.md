@@ -41,7 +41,7 @@
 
 ```scheme
 (do (import x/type/set)
-  (let ((s (Set make))) (s add! (lit x)) (s has? (lit x))))
+  (let ((s (Set make))) (s add! 'x) (s has? 'x)))
 ```
 ---
     #t
@@ -50,7 +50,7 @@
 
 ```scheme
 (do (import x/type/set)
-  (if ((Set make) has? (lit x)) "y" "n"))
+  (if ((Set make) has? 'x) "y" "n"))
 ```
 ---
     "n"

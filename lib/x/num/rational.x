@@ -1,23 +1,23 @@
 ; rational.x -- Rational number type (exact fractions)
 (import x/num/float)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
-(def %buffer-token (prim-ref (lit buf) (lit tok)))
+(def %buffer-token (prim-ref 'buf 'tok))
 
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
-(def %str-append (prim-ref (lit str) (lit append)))
+(def %str-append (prim-ref 'str 'append))
 
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
-(def %type-from-cell (prim-ref (lit type) (lit from-cell)))
-(def %type-push-op (prim-ref (lit type) (lit push-op)))
+(def %type-by-atom (prim-ref 'type 'by-atom))
+(def %type-from-cell (prim-ref 'type 'from-cell))
+(def %type-push-op (prim-ref 'type 'push-op))
 
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
-(def %cvt (prim-ref (lit convert) (lit to)))
+(def %cvt (prim-ref 'convert 'to))
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
-(def %make-instance (prim-ref (lit type) (lit make-instance)))
-(def %make-type (prim-ref (lit type) (lit make)))
-(def %type-of (prim-ref (lit type) (lit of)))
-(def %type? (prim-ref (lit type) (lit ?)))
+(def %make-instance (prim-ref 'type 'make-instance))
+(def %make-type (prim-ref 'type 'make))
+(def %type-of (prim-ref 'type 'of))
+(def %type? (prim-ref 'type '?))
 
 
 ;
@@ -91,13 +91,13 @@
     "RATIONAL"
     (list
       (pair
-        (lit write)
+        'write
         (fn (_ self)
           (display (first (first self)))
           (display "/")
           (display (rest (first self)))))
       (pair
-        (lit analyse)
+        'analyse
         (fn (_ buffer score chr)
           (if (and (>= chr 48) (<= chr 57))
             %rat-numer
@@ -112,9 +112,9 @@
                     %rat-numer
                     ()))
                 ())))))
-      (pair (lit read) (fn (_ . args) (%rational-read (first args))))
+      (pair 'read (fn (_ . args) (%rational-read (first args))))
       (pair
-        (lit from)
+        'from
         (list
           (pair (%type-of 42) (fn (_ value) (%make-rational value 1)))
           (pair
@@ -128,7 +128,7 @@
                       (substring value (%int+ pos 1) (str-length value)) %int))
                   ()))))))
       (pair
-        (lit to)
+        'to
         (list
           (pair (%type-of 42)
             (fn (_ self) (%int/ (first (first self)) (rest (first self)))))
@@ -237,13 +237,13 @@
 ; and rational do not declare each other, so that mix falls through -- as
 ; before this conversion).
 (def %rational-ts (%type-by-atom %rational))
-(%type-push-op %rational-ts (lit +) (fn (_ a b) (%rat-add (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-ts (lit -) (fn (_ a b) (%rat-sub (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-ts (lit *) (fn (_ a b) (%rat-mul (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-ts (lit /) (fn (_ a b) (%rat-div (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-ts (lit <) (fn (_ a b) (%rat-lt (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-ts (lit =) (fn (_ a b) (%rat-eq (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-ts (lit %) (fn (_ a b) (%rat-mod (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-ts '+ (fn (_ a b) (%rat-add (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-ts '- (fn (_ a b) (%rat-sub (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-ts '* (fn (_ a b) (%rat-mul (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-ts '/ (fn (_ a b) (%rat-div (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-ts '< (fn (_ a b) (%rat-lt (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-ts '= (fn (_ a b) (%rat-eq (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-ts '% (fn (_ a b) (%rat-mod (%ensure-rat a) (%ensure-rat b))))
 
 ; Integer division that produces rational when not exact
 (def %exact-div
@@ -326,13 +326,13 @@
 
 ; Make a rational VALUE dispatch its calls to the Rational class (subject-last):
 ; (1/2 numerator) -> (Rational numerator 1/2); (1/2 - 1/3) -> (Rational - 1/2 1/3).
-(def %type-push-call (prim-ref (lit type) (lit push-call)))
+(def %type-push-call (prim-ref 'type 'push-call))
 (%type-push-call (%type-by-atom %rational) (%class-call-handler Rational))
 
 ; Join the pact last, once the module is fully usable: tower members
 ; announce themselves so pairwise registrations fire in any load order.
 (import x/sys/pact)
-(Pact join (lit rational) %rational)
+(Pact join 'rational %rational)
 
 (doc (provide x/num/rational Rational)
   (note "Literal syntax: 1/3, -2/7. The generic operators dispatch rational")

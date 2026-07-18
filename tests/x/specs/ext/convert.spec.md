@@ -50,7 +50,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 ### a symbol/string roundtrip preserves the name
 
 ```scheme
-(Convert to (Convert to (lit hi) %string) %symbol)
+(Convert to (Convert to 'hi %string) %symbol)
 ```
 ---
     'hi

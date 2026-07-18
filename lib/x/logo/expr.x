@@ -6,7 +6,7 @@
 (import x/logo/state)
 (import x/logo/types)
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
-(def %type? (prim-ref (lit type) (lit ?)))
+(def %type? (prim-ref 'type '?))
 
 
 ; ============================================================

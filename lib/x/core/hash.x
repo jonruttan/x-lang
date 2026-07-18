@@ -6,10 +6,10 @@
 
 (import x/type/object)
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
-(def %str-append (prim-ref (lit str) (lit append)))
+(def %str-append (prim-ref 'str 'append))
 
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
-(def %cvt (prim-ref (lit convert) (lit to)))
+(def %cvt (prim-ref 'convert 'to))
 
 (import x/type/str)
 

@@ -5,7 +5,7 @@
 ### fetches a C prim by identity
 
 ```scheme
-((prim-ref (lit int) (lit +)) 2 3)
+((prim-ref 'int '+) 2 3)
 ```
 ---
     5
@@ -13,7 +13,7 @@
 ### absent entry is nil
 
 ```scheme
-(null? (prim-ref (lit no-such-ns) (lit nothing)))
+(null? (prim-ref 'no-such-ns 'nothing))
 ```
 ---
     #t
@@ -24,8 +24,8 @@
 
 ```scheme
 (do
-  (prim-reg! (lit spec-reg) (lit double) (fn (_ n) (* n 2)))
-  ((prim-ref (lit spec-reg) (lit double)) 21))
+  (prim-reg! 'spec-reg 'double (fn (_ n) (* n 2)))
+  ((prim-ref 'spec-reg 'double) 21))
 ```
 ---
     42
@@ -34,9 +34,9 @@
 
 ```scheme
 (do
-  (prim-reg! (lit spec-reg2) (lit a) (fn (_ n) (+ n 1)))
-  (prim-reg! (lit spec-reg2) (lit b) (fn (_ n) (+ n 2)))
-  (+ ((prim-ref (lit spec-reg2) (lit a)) 10)
+  (prim-reg! 'spec-reg2 'a (fn (_ n) (+ n 1)))
+  (prim-reg! 'spec-reg2 'b (fn (_ n) (+ n 2)))
+  (+ ((prim-ref 'spec-reg2 'a) 10)
      ((prim-ref 'spec-reg2 'b) 10)))
 ```
 ---
@@ -46,8 +46,8 @@
 
 ```scheme
 (do
-  (prim-reg! (lit spec-val) (lit answer) 42)
-  (prim-ref (lit spec-val) (lit answer)))
+  (prim-reg! 'spec-val 'answer 42)
+  (prim-ref 'spec-val 'answer))
 ```
 ---
     42
@@ -56,9 +56,9 @@
 
 ```scheme
 (do
-  (prim-reg! (lit spec-shadow) (lit v) 1)
-  (prim-reg! (lit spec-shadow) (lit v) 2)
-  (prim-ref (lit spec-shadow) (lit v)))
+  (prim-reg! 'spec-shadow 'v 1)
+  (prim-reg! 'spec-shadow 'v 2)
+  (prim-ref 'spec-shadow 'v))
 ```
 ---
     2
@@ -66,7 +66,7 @@
 ### returns nil (side-effecting)
 
 ```scheme
-(null? (prim-reg! (lit spec-ret) (lit x) 9))
+(null? (prim-reg! 'spec-ret 'x 9))
 ```
 ---
     #t
@@ -76,7 +76,7 @@
 ### nil for an unknown namespace
 
 ```scheme
-(null? (prim-domain (lit no-such-ns)))
+(null? (prim-domain 'no-such-ns))
 ```
 ---
     #t
@@ -85,8 +85,8 @@
 
 ```scheme
 (do
-  (prim-reg! (lit spec-dom) (lit m) 1)
-  (null? (prim-domain (lit spec-dom))))
+  (prim-reg! 'spec-dom 'm 1)
+  (null? (prim-domain 'spec-dom)))
 ```
 ---
     #f

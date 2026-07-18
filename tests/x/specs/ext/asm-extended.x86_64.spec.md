@@ -8,7 +8,7 @@ A64 specs write `sub x0 x1 x0`, these stage through rax with mov + sub.
 ### cmp register equal takes b/eq
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit cmp) rdi rsi) (asm-emit! a (lit b/ne) (label (lit neq))) (asm-emit! a (lit mov) rax (imm 1)) (asm-emit! a (lit ret)) (asm-label! a (lit neq)) (asm-emit! a (lit mov) rax (imm 0)) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 42 42)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'cmp rdi rsi) (asm-emit! a 'b/ne (label 'neq)) (asm-emit! a 'mov rax (imm 1)) (asm-emit! a 'ret) (asm-label! a 'neq) (asm-emit! a 'mov rax (imm 0)) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 42 42)) (asm-free! a))
 ```
 ---
     1
@@ -16,7 +16,7 @@ A64 specs write `sub x0 x1 x0`, these stage through rax with mov + sub.
 ### cmp register unequal takes b/ne
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit cmp) rdi rsi) (asm-emit! a (lit b/ne) (label (lit neq))) (asm-emit! a (lit mov) rax (imm 1)) (asm-emit! a (lit ret)) (asm-label! a (lit neq)) (asm-emit! a (lit mov) rax (imm 0)) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 10 20)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'cmp rdi rsi) (asm-emit! a 'b/ne (label 'neq)) (asm-emit! a 'mov rax (imm 1)) (asm-emit! a 'ret) (asm-label! a 'neq) (asm-emit! a 'mov rax (imm 0)) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 10 20)) (asm-free! a))
 ```
 ---
     0
@@ -24,7 +24,7 @@ A64 specs write `sub x0 x1 x0`, these stage through rax with mov + sub.
 ### cmp immediate with b/eq
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit cmp) rdi (imm 42)) (asm-emit! a (lit b/eq) (label (lit yes))) (asm-emit! a (lit mov) rax (imm 0)) (asm-emit! a (lit ret)) (asm-label! a (lit yes)) (asm-emit! a (lit mov) rax (imm 1)) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 42 0)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'cmp rdi (imm 42)) (asm-emit! a 'b/eq (label 'yes)) (asm-emit! a 'mov rax (imm 0)) (asm-emit! a 'ret) (asm-label! a 'yes) (asm-emit! a 'mov rax (imm 1)) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 42 0)) (asm-free! a))
 ```
 ---
     1
@@ -32,7 +32,7 @@ A64 specs write `sub x0 x1 x0`, these stage through rax with mov + sub.
 ### cmp less-than with b/lt
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit cmp) rdi rsi) (asm-emit! a (lit b/lt) (label (lit less))) (asm-emit! a (lit mov) rax (imm 0)) (asm-emit! a (lit ret)) (asm-label! a (lit less)) (asm-emit! a (lit mov) rax (imm 1)) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 5 10)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'cmp rdi rsi) (asm-emit! a 'b/lt (label 'less)) (asm-emit! a 'mov rax (imm 0)) (asm-emit! a 'ret) (asm-label! a 'less) (asm-emit! a 'mov rax (imm 1)) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 5 10)) (asm-free! a))
 ```
 ---
     1
@@ -40,7 +40,7 @@ A64 specs write `sub x0 x1 x0`, these stage through rax with mov + sub.
 ### cmp greater-than with b/gt
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit cmp) rdi rsi) (asm-emit! a (lit b/gt) (label (lit greater))) (asm-emit! a (lit mov) rax (imm 0)) (asm-emit! a (lit ret)) (asm-label! a (lit greater)) (asm-emit! a (lit mov) rax (imm 1)) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 20 10)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'cmp rdi rsi) (asm-emit! a 'b/gt (label 'greater)) (asm-emit! a 'mov rax (imm 0)) (asm-emit! a 'ret) (asm-label! a 'greater) (asm-emit! a 'mov rax (imm 1)) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 20 10)) (asm-free! a))
 ```
 ---
     1
@@ -50,7 +50,7 @@ A64 specs write `sub x0 x1 x0`, these stage through rax with mov + sub.
 ### function with prologue/epilogue preserves frame
 
 ```scheme
-(do (def a (asm-new)) (asm-prologue! a) (asm-emit! a (lit mov) rax (imm 77)) (asm-epilogue! a) (def f (asm-finalize! a)) (display (Ptr call f 0 0)) (asm-free! a))
+(do (def a (asm-new)) (asm-prologue! a) (asm-emit! a 'mov rax (imm 77)) (asm-epilogue! a) (def f (asm-finalize! a)) (display (Ptr call f 0 0)) (asm-free! a))
 ```
 ---
     77
@@ -60,7 +60,7 @@ A64 specs write `sub x0 x1 x0`, these stage through rax with mov + sub.
 ### max function via cmp and conditional branch
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit mov) rax rdi) (asm-emit! a (lit cmp) rax rsi) (asm-emit! a (lit b/ge) (label (lit done))) (asm-emit! a (lit mov) rax rsi) (asm-label! a (lit done)) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 30 50)) (display " ") (display (Ptr call f 50 30)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'mov rax rdi) (asm-emit! a 'cmp rax rsi) (asm-emit! a 'b/ge (label 'done)) (asm-emit! a 'mov rax rsi) (asm-label! a 'done) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 30 50)) (display " ") (display (Ptr call f 50 30)) (asm-free! a))
 ```
 ---
     50 50
@@ -68,7 +68,7 @@ A64 specs write `sub x0 x1 x0`, these stage through rax with mov + sub.
 ### absolute difference
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit cmp) rdi rsi) (asm-emit! a (lit b/ge) (label (lit noswap))) (asm-emit! a (lit mov) rax rsi) (asm-emit! a (lit sub) rax rdi) (asm-emit! a (lit ret)) (asm-label! a (lit noswap)) (asm-emit! a (lit mov) rax rdi) (asm-emit! a (lit sub) rax rsi) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 10 50)) (display " ") (display (Ptr call f 50 10)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'cmp rdi rsi) (asm-emit! a 'b/ge (label 'noswap)) (asm-emit! a 'mov rax rsi) (asm-emit! a 'sub rax rdi) (asm-emit! a 'ret) (asm-label! a 'noswap) (asm-emit! a 'mov rax rdi) (asm-emit! a 'sub rax rsi) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 10 50)) (display " ") (display (Ptr call f 50 10)) (asm-free! a))
 ```
 ---
     40 40

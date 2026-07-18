@@ -9,7 +9,7 @@
 ; --- Heavy imports ---
 (import x/sys/posix)
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
-(def %str-append (prim-ref (lit str) (lit append)))
+(def %str-append (prim-ref 'str 'append))
 
 (import x/core/hash)
 (import x/num/bignum)
@@ -75,9 +75,9 @@
 ; --- System functions ---
 (def system
   (fn (_ cmd)
-    (if (= (syscall (syscall-id (lit fork))) 0)
+    (if (= (syscall (syscall-id 'fork)) 0)
       (syscall
-        (syscall-id (lit execve))
+        (syscall-id 'execve)
         "/bin/sh"
         (list "/bin/sh" "-c" cmd)))))
 
@@ -97,22 +97,22 @@
     (def result-exprs (rest test-and-result))
     (eval
       (list
-        (lit letrec)
+        'letrec
         (list
           (list
-            (lit %loop)
+            '%loop
             (pair
-              (lit fn)
+              'fn
               (pair
-                (pair (lit _) variables)
+                (pair '_ variables)
                 (list
-                  (lit if)
+                  'if
                   test-expr
-                  (pair (lit do) result-exprs)
+                  (pair 'do result-exprs)
                   (append
-                    (pair (lit do) body)
-                    (list (pair (lit %loop) steps))))))))
-        (pair (lit %loop) inits))
+                    (pair 'do body)
+                    (list (pair '%loop steps))))))))
+        (pair '%loop inits))
       e)))
 
 (doc (provide x/or

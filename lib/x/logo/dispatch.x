@@ -1,20 +1,20 @@
 ; dispatch.x -- Logo command dispatch and interpreter
 (import x/logo/state)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
-(def %token-read-string (prim-ref (lit tok) (lit read-str)))
+(def %token-read-string (prim-ref 'tok 'read-str))
 
 (import x/logo/types)
 (import x/logo/expr)
 (import x/logo/indent)
 (import x/sys/posix)
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
-(def %ptr-call (prim-ref (lit ptr) (lit call)))
-(def %ptr->str (prim-ref (lit ptr) (lit ->str)))
-(def %ptr-set! (prim-ref (lit ptr) (lit set!)))
-(def %dlopen (prim-ref (lit ffi) (lit dlopen)))
-(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+(def %ptr-call (prim-ref 'ptr 'call))
+(def %ptr->str (prim-ref 'ptr '->str))
+(def %ptr-set! (prim-ref 'ptr 'set!))
+(def %dlopen (prim-ref 'ffi 'dlopen))
+(def %dlsym (prim-ref 'ffi 'dlsym))
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
-(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
+(def %int->ptr (prim-ref 'int '->ptr))
 
 
 
@@ -97,8 +97,8 @@
 ; STOP / RETURN sentinel tags
 ; ============================================================
 
-(def %logo-stop-tag (pair (lit logo-stop) ()))
-(def %logo-return-tag (pair (lit logo-return) ()))
+(def %logo-stop-tag (pair 'logo-stop ()))
+(def %logo-return-tag (pair 'logo-return ()))
 
 (def %is-stop? (fn (_ v) (eq? v %logo-stop-tag)))
 (def %is-return? (fn (_ v) (and (pair? v) (eq? (first v) %logo-return-tag))))

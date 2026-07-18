@@ -5,7 +5,7 @@
 ; grouped into blocks based on indent level.
 (import x/logo/types)
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
-(def %type? (prim-ref (lit type) (lit ?)))
+(def %type? (prim-ref 'type '?))
 
 
 (def %logo-indent-to-blocks

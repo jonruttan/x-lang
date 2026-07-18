@@ -76,7 +76,7 @@
 ### unbound symbol signals error
 
 ```scheme
-(guard (e (lit caught)) no-such-var)
+(guard (e 'caught) no-such-var)
 ```
 ---
     'caught

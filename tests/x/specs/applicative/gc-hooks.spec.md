@@ -53,7 +53,7 @@ The hook runs mid-collect, so it is the raw catalog prim, not a class
 dispatch.
 
 ```scheme
-(Heap mark-hook! (prim-ref (lit heap) (lit count)))
+(Heap mark-hook! (prim-ref 'heap 'count))
 (Heap collect)
 #t
 ```
@@ -77,10 +77,10 @@ root additionally exercises the root-mark pass; after collect its data
 is intact.
 
 ```scheme
-(def kept (pair (lit alive) ()))
+(def kept (pair 'alive ()))
 (Heap mark-root! kept)
 (Heap collect)
-(eq? (first kept) (lit alive))
+(eq? (first kept) 'alive)
 ```
 ---
     #t
@@ -92,11 +92,11 @@ catalog prim (no allocation mid-collect); the freshly registered root
 is honored and the object survives.
 
 ```scheme
-(def guarded (pair (lit safe) ()))
-(def %mark-root (prim-ref (lit heap) (lit mark-root!)))
+(def guarded (pair 'safe ()))
+(def %mark-root (prim-ref 'heap 'mark-root!))
 (Heap mark-hook! (fn (_ ) (%mark-root guarded) ()))
 (Heap collect)
-(eq? (first guarded) (lit safe))
+(eq? (first guarded) 'safe)
 ```
 ---
     #t
@@ -106,10 +106,10 @@ is honored and the object survives.
 ```scheme
 (Heap mark-hook! (fn (_ ) ()))
 (Heap free-hook! (fn (_ ) ()))
-(def survivor (pair (lit kept) ()))
+(def survivor (pair 'kept ()))
 (Heap mark-root! survivor)
 (Heap collect)
-(eq? (first survivor) (lit kept))
+(eq? (first survivor) 'kept)
 ```
 ---
     #t

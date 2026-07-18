@@ -6,7 +6,7 @@
 
 ```scheme
 (do
-  (def %result (lint-forms (list (list (lit +) (lit x) 1)) () ()))
+  (def %result (lint-forms (list (list '+ 'x 1)) () ()))
   (def %undef (lint-undefined (first %result) (first (rest %result))))
   (display (lint-has? "x" %undef)))
 ```
@@ -17,7 +17,7 @@
 
 ```scheme
 (do
-  (def %forms (list (list (lit def) (lit x) 1) (lit x)))
+  (def %forms (list (list 'def 'x 1) 'x))
   (def %result (lint-forms %forms () ()))
   (def %undef (lint-undefined (first %result) (first (rest %result))))
   (display (null? %undef)))
@@ -29,7 +29,7 @@
 
 ```scheme
 (do
-  (def %forms (list (list (lit def) (lit x) 1)))
+  (def %forms (list (list 'def 'x 1)))
   (def %result (lint-forms %forms () ()))
   (def %unused (lint-unused (first %result) (first (rest %result)) ()))
   (display (lint-has? "x" %unused)))
@@ -41,7 +41,7 @@
 
 ```scheme
 (do
-  (def %forms (list (list (lit def) (lit %internal) 1)))
+  (def %forms (list (list 'def '%internal 1)))
   (def %result (lint-forms %forms () ()))
   (def %unused (lint-unused (first %result) (first (rest %result)) ()))
   (display (null? %unused)))
@@ -55,7 +55,7 @@
 
 ```scheme
 (do
-  (def %r (lint-forms (list (list (lit first) (list (lit lit) (lit sym)))) () ()))
+  (def %r (lint-forms (list (list 'first (list 'lit 'sym))) () ()))
   (display (null? (lint-first-rest %r))))
 ```
 ---
@@ -65,7 +65,7 @@
 
 ```scheme
 (do
-  (def %r (lint-forms (list (list (lit first) (lit xs))) () ()))
+  (def %r (lint-forms (list (list 'first 'xs)) () ()))
   (display (null? (lint-first-rest %r))))
 ```
 ---
@@ -75,7 +75,7 @@
 
 ```scheme
 (do
-  (def %r (lint-forms (list (list (lit rest) (list (lit lit) (list 1 2)))) () ()))
+  (def %r (lint-forms (list (list 'rest (list 'lit (list 1 2)))) () ()))
   (display (null? (lint-first-rest %r))))
 ```
 ---
@@ -87,7 +87,7 @@
 
 ```scheme
 (do
-  (def %f (list (lit fn) (list (lit _) (lit x))
+  (def %f (list 'fn (list '_ 'x)
             (list 'do (list 'def 'y 1) 'x)))
   (def %r (lint-forms (list %f) () ()))
   (display (lint-has? "y" (lint-leaks %r))))
@@ -99,7 +99,7 @@
 
 ```scheme
 (do
-  (def %f (list (lit fn) (list (lit _) (lit x))
+  (def %f (list 'fn (list '_ 'x)
             (list 'def 'y 1) 'x))
   (def %r (lint-forms (list %f) () ()))
   (display (null? (lint-leaks %r))))
@@ -111,7 +111,7 @@
 
 ```scheme
 (do
-  (def %f (list (lit fn) (list (lit _) (lit x))
+  (def %f (list 'fn (list '_ 'x)
             (list 'if 'c
               (list 'do (list 'def 'z 1) 2) 3)))
   (def %r (lint-forms (list %f) () ()))
@@ -148,11 +148,11 @@
 ---
     #t
 
-### flags calling a non-callable (lit ...) head
+### flags calling a non-callable '... head
 
 ```scheme
 (do
-  (def %r (lint-forms (list (list (list (lit lit) (lit g)) 1)) () ()))
+  (def %r (lint-forms (list (list (list 'lit 'g) 1)) () ()))
   (display (null? (lint-warnings-of "call-nonfn" %r))))
 ```
 ---
@@ -162,7 +162,7 @@
 
 ```scheme
 (do
-  (def %r (lint-forms (list (list (lit def) (lit a) 1) (list (lit def) (lit a) 2)) () ()))
+  (def %r (lint-forms (list (list 'def 'a 1) (list 'def 'a 2)) () ()))
   (display (lint-has? "a" (lint-warnings-of "dup-def" %r))))
 ```
 ---
@@ -224,7 +224,7 @@
 
 ```scheme
 (do
-  (def %r (lint-forms (list (list (lit if) (lit c))) () ()))
+  (def %r (lint-forms (list (list 'if 'c)) () ()))
   (display (null? (lint-warnings-of "malformed" %r))))
 ```
 ---
@@ -234,7 +234,7 @@
 
 ```scheme
 (do
-  (def %r (lint-forms (list (list (lit if) (lit c) 1 2)) () ()))
+  (def %r (lint-forms (list (list 'if 'c 1 2)) () ()))
   (display (null? (lint-warnings-of "malformed" %r))))
 ```
 ---
@@ -259,7 +259,7 @@
 
 ```scheme
 (do
-  (def %r (lint-forms (list (list (lit foo) (list "0" 0))) () ()))
+  (def %r (lint-forms (list (list 'foo (list "0" 0))) () ()))
   (display (null? (lint-warnings-of "call-nonfn" %r))))
 ```
 ---

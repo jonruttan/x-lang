@@ -7,34 +7,34 @@
 (def %os-id (fn (_ i) (if (null? i) (- 0 1) i)))
 
 ; Socket call identifiers
-; Usage: (socketcall-id (lit socket)) => 1
+; Usage: (socketcall-id 'socket) => 1
 (def socketcall-id (fn (call)
   (%os-id (List index-of call (list
-    (lit none) (lit socket) (lit bind) (lit connect)
-    (lit listen) (lit accept) (lit getsockname) (lit getpeername)
-    (lit socketpair) (lit send) (lit recv) (lit sendto)
-    (lit recvfrom) (lit shutdown) (lit setsockopt) (lit getsockopt)
-    (lit sendmsg) (lit recvmsg) (lit accept4))))))
+    'none 'socket 'bind 'connect
+    'listen 'accept 'getsockname 'getpeername
+    'socketpair 'send 'recv 'sendto
+    'recvfrom 'shutdown 'setsockopt 'getsockopt
+    'sendmsg 'recvmsg 'accept4)))))
 
 ; Protocol family identifiers
-; Usage: (protocol-format-id (lit inet)) => 2
+; Usage: (protocol-format-id 'inet) => 2
 (def protocol-format-id (fn (pf)
   (%os-id (List index-of pf (list
-    (lit unspec) (lit local) (lit inet) (lit ax25) (lit ipx)
-    (lit appletalk) (lit netrom) (lit bridge) (lit atmpvc) (lit x25)
-    (lit inet6) (lit rose) (lit decnet) (lit netbeui) (lit security)
-    (lit key) (lit netlink) (lit packet) (lit ash) (lit econet)
-    (lit atmsvc) (lit rds) (lit sna) (lit irda) (lit pppox)
-    (lit wanpipe) (lit llc) () () (lit can) (lit tipc)
-    (lit bluetooth) (lit iucv) (lit rxrpc) (lit isdn) (lit phonet)
-    (lit ieee802154) (lit caif) (lit alg) (lit max))))))
+    'unspec 'local 'inet 'ax25 'ipx
+    'appletalk 'netrom 'bridge 'atmpvc 'x25
+    'inet6 'rose 'decnet 'netbeui 'security
+    'key 'netlink 'packet 'ash 'econet
+    'atmsvc 'rds 'sna 'irda 'pppox
+    'wanpipe 'llc () () 'can 'tipc
+    'bluetooth 'iucv 'rxrpc 'isdn 'phonet
+    'ieee802154 'caif 'alg 'max)))))
 
 ; Socket type identifiers
-; Usage: (sock-id (lit stream)) => 1
+; Usage: (sock-id 'stream) => 1
 (def sock-id (fn (sock)
   (%os-id (List index-of sock (list
-    (lit none) (lit stream) (lit dgram) (lit raw) (lit rdm)
-    (lit seqpacket) (lit dccp) () () () (lit packet))))))
+    'none 'stream 'dgram 'raw 'rdm
+    'seqpacket 'dccp () () () 'packet)))))
 
 (doc (provide x/platform/socket socketcall-id protocol-format-id sock-id)
   "Socket constant lookup tables for Linux socketcall, protocol families, and socket types.")

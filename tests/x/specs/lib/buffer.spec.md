@@ -20,7 +20,7 @@ not run -- see tests/spec-format.md.)
 ### construction yields a BUFFER
 
 ```scheme
-(Type name ((prim-ref (lit buf) (lit make)) ((prim-ref (lit str) (lit make)) 8)))
+(Type name ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
 ```
 ---
     "BUFFER"
@@ -29,7 +29,7 @@ not run -- see tests/spec-format.md.)
 
 ```scheme
 (do
-  (def %b ((prim-ref (lit buf) (lit make)) ((prim-ref (lit str) (lit make)) 8)))
+  (def %b ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
   (Buf append %b #\h) (Buf append %b #\i)
   (Buf read %b) (Buf read %b)
   (Buf tok %b))
@@ -41,7 +41,7 @@ not run -- see tests/spec-format.md.)
 
 ```scheme
 (do
-  (def %b ((prim-ref (lit buf) (lit make)) ((prim-ref (lit str) (lit make)) 8)))
+  (def %b ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
   (Buf append %b #\a) (Buf append %b #\b) (Buf append %b #\c)
   (Buf read %b) (Buf read %b) (Buf read %b)
   (Buf tok %b))
@@ -53,7 +53,7 @@ not run -- see tests/spec-format.md.)
 
 ```scheme
 (do
-  (def %b ((prim-ref (lit buf) (lit make)) ((prim-ref (lit str) (lit make)) 8)))
+  (def %b ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
   (Buf append %b #\x) (Buf append %b #\y)
   (Buf read %b)
   (Buf tok %b))
@@ -65,7 +65,7 @@ not run -- see tests/spec-format.md.)
 
 ```scheme
 (do
-  (def %b ((prim-ref (lit buf) (lit make)) ((prim-ref (lit str) (lit make)) 8)))
+  (def %b ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
   (Buf append %b #\h) (Buf append %b #\i)
   (Buf read %b) (Buf read %b)
   (Buf last-char %b))
@@ -77,7 +77,7 @@ not run -- see tests/spec-format.md.)
 
 ```scheme
 (do
-  (def %b ((prim-ref (lit buf) (lit make)) ((prim-ref (lit str) (lit make)) 8)))
+  (def %b ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
   (Buf append %b #\z) (Buf read %b)
   (Buf reset %b)
   (str-length (Buf tok %b)))
@@ -89,8 +89,8 @@ not run -- see tests/spec-format.md.)
 
 ```scheme
 (do
-  (def %s ((prim-ref (lit str) (lit make)) 8))
-  (def %b ((prim-ref (lit buf) (lit make)) %s))
+  (def %s ((prim-ref 'str 'make) 8))
+  (def %b ((prim-ref 'buf 'make) %s))
   (Buf append %b #\a) (Buf append %b #\b) (Buf append %b #\c)
   (Buf read %b)
   (Buf retain %b)
@@ -103,9 +103,9 @@ not run -- see tests/spec-format.md.)
 
 ```scheme
 (do
-  (def %b ((prim-ref (lit buf) (lit make)) ((prim-ref (lit str) (lit make)) 8)))
+  (def %b ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
   (Buf append %b #\x)
-  (Buf append %b ((prim-ref (lit int) (lit ->char)) 0))
+  (Buf append %b ((prim-ref 'int '->char) 0))
   (list (null? (Buf read-text %b)) (null? (Buf read-text %b))))
 ```
 ---
@@ -125,7 +125,7 @@ a fresh RO view has read == write == base, i.e. it is ALREADY exhausted.
 ### a read-only view returns () at end of input
 
 ```scheme
-(null? (do (def %b ((prim-ref (lit buf) (lit make)) "x" %obj-flag-ro))
+(null? (do (def %b ((prim-ref 'buf 'make) "x" %obj-flag-ro))
            ((prim-ref 'buf 'read) %b)))
 ```
 ---
@@ -134,7 +134,7 @@ a fresh RO view has read == write == base, i.e. it is ALREADY exhausted.
 ### empty input is an immediately-exhausted read-only buffer
 
 ```scheme
-(null? (do (def %b ((prim-ref (lit buf) (lit make)) "" %obj-flag-ro))
+(null? (do (def %b ((prim-ref 'buf 'make) "" %obj-flag-ro))
            ((prim-ref 'buf 'read) %b)))
 ```
 ---
@@ -149,7 +149,7 @@ case above pins the "BUFFER" name.
 ### a buffer's type differs from its backing string's type
 
 ```scheme
-(str=? (Type name ((prim-ref (lit buf) (lit make)) ((prim-ref (lit str) (lit make)) 4)))
+(str=? (Type name ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 4)))
        (Type name "plain string"))
 ```
 ---

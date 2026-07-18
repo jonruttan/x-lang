@@ -207,7 +207,7 @@
 ### symbol to string
 
 ```scheme
-(Io write-to-str (lit foo))
+(Io write-to-str 'foo)
 ```
 ---
     "'foo"
@@ -289,7 +289,7 @@
 ### convert nil to custom type returns nil
 
 ```scheme
-(do (def %t (Type make "CNV-T" (list (pair (lit from) (list (pair (Type of 42) (fn (_ v) (Type make-instance %t v)))))))) (null? (Convert to () %t)))
+(do (def %t (Type make "CNV-T" (list (pair 'from (list (pair (Type of 42) (fn (_ v) (Type make-instance %t v)))))))) (null? (Convert to () %t)))
 ```
 ---
     #t
@@ -307,7 +307,7 @@
 ### custom type to same type is identity
 
 ```scheme
-(do (def %t (Type make "ID-T" (list (pair (lit from) (list))))) (def obj (Type make-instance %t 42)) (eq? (Convert to obj %t) obj))
+(do (def %t (Type make "ID-T" (list (pair 'from (list))))) (def obj (Type make-instance %t 42)) (eq? (Convert to obj %t) obj))
 ```
 ---
     #t
@@ -380,7 +380,7 @@
 ### wildcard matches any type
 
 ```scheme
-(do (def %t (Type make "WILD-T" (list (pair (lit from) (list (pair #t (fn (_ v) (Type make-instance %t v)))))))) (Type ? (Convert to 42 %t) %t))
+(do (def %t (Type make "WILD-T" (list (pair 'from (list (pair #t (fn (_ v) (Type make-instance %t v)))))))) (Type ? (Convert to 42 %t) %t))
 ```
 ---
     #t
@@ -388,7 +388,7 @@
 ### wildcard catches string
 
 ```scheme
-(do (def %t (Type make "WILD-T" (list (pair (lit from) (list (pair #t (fn (_ v) (Type make-instance %t v)))))))) (Type ? (Convert to "hello" %t) %t))
+(do (def %t (Type make "WILD-T" (list (pair 'from (list (pair #t (fn (_ v) (Type make-instance %t v)))))))) (Type ? (Convert to "hello" %t) %t))
 ```
 ---
     #t
@@ -396,7 +396,7 @@
 ### exact match takes priority over wildcard
 
 ```scheme
-(do (def %t (Type make "PRIO-T" (list (pair (lit from) (list (pair (Type of 42) (fn (_ v) (Type make-instance %t "exact"))) (pair #t (fn (_ v) (Type make-instance %t "wild")))))))) (first (Convert to 42 %t)))
+(do (def %t (Type make "PRIO-T" (list (pair 'from (list (pair (Type of 42) (fn (_ v) (Type make-instance %t "exact"))) (pair #t (fn (_ v) (Type make-instance %t "wild")))))))) (first (Convert to 42 %t)))
 ```
 ---
     "exact"
@@ -404,7 +404,7 @@
 ### wildcard used when no exact match
 
 ```scheme
-(do (def %t (Type make "PRIO-T" (list (pair (lit from) (list (pair (Type of 42) (fn (_ v) (Type make-instance %t "exact"))) (pair #t (fn (_ v) (Type make-instance %t "wild")))))))) (first (Convert to "hello" %t)))
+(do (def %t (Type make "PRIO-T" (list (pair 'from (list (pair (Type of 42) (fn (_ v) (Type make-instance %t "exact"))) (pair #t (fn (_ v) (Type make-instance %t "wild")))))))) (first (Convert to "hello" %t)))
 ```
 ---
     "wild"
@@ -414,7 +414,7 @@
 ### type with empty convert returns nil
 
 ```scheme
-(do (def %t (Type make "EMPTY-T" (list (pair (lit from) (list))))) (null? (Convert to 42 %t)))
+(do (def %t (Type make "EMPTY-T" (list (pair 'from (list))))) (null? (Convert to 42 %t)))
 ```
 ---
     #t
@@ -432,7 +432,7 @@
 ### int converter works
 
 ```scheme
-(do (def %t (Type make "MULTI-T" (list (pair (lit from) (list (pair (Type of 42) (fn (_ v) (Type make-instance %t (+ v 100)))) (pair (Type of "") (fn (_ v) (Type make-instance %t v)))))))) (first (Convert to 5 %t)))
+(do (def %t (Type make "MULTI-T" (list (pair 'from (list (pair (Type of 42) (fn (_ v) (Type make-instance %t (+ v 100)))) (pair (Type of "") (fn (_ v) (Type make-instance %t v)))))))) (first (Convert to 5 %t)))
 ```
 ---
     105
@@ -440,7 +440,7 @@
 ### string converter works
 
 ```scheme
-(do (def %t (Type make "MULTI-T" (list (pair (lit from) (list (pair (Type of 42) (fn (_ v) (Type make-instance %t (+ v 100)))) (pair (Type of "") (fn (_ v) (Type make-instance %t v)))))))) (first (Convert to "hello" %t)))
+(do (def %t (Type make "MULTI-T" (list (pair 'from (list (pair (Type of 42) (fn (_ v) (Type make-instance %t (+ v 100)))) (pair (Type of "") (fn (_ v) (Type make-instance %t v)))))))) (first (Convert to "hello" %t)))
 ```
 ---
     "hello"
@@ -448,7 +448,7 @@
 ### unregistered type returns nil
 
 ```scheme
-(do (def %t (Type make "MULTI-T" (list (pair (lit from) (list (pair (Type of 42) (fn (_ v) (Type make-instance %t v)))))))) (null? (Convert to #\a %t)))
+(do (def %t (Type make "MULTI-T" (list (pair 'from (list (pair (Type of 42) (fn (_ v) (Type make-instance %t v)))))))) (null? (Convert to #\a %t)))
 ```
 ---
     #t

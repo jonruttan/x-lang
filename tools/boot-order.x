@@ -28,7 +28,7 @@
 ; failure output; the gate is zero findings.
 ;
 ; Deferred bodies are skipped: fn/op closures, def-class (method ...) bodies,
-; (lit ...) data, and quasi outside unquote all evaluate after boot, when the
+; '... data, and quasi outside unquote all evaluate after boot, when the
 ; full class set exists.
 ;
 ; Input: every lib .x path as a command-line argument (the wrapper supplies
@@ -42,7 +42,7 @@
 (import x/sys/file)
 
 ; Cached C instruments (cold path; fetched once).
-(def %str-make (prim-ref (lit str) (lit make)))
+(def %str-make (prim-ref 'str 'make))
 
 ; --- state cells ---
 ; loaded vs registered are DISTINCT sets, as in the real module system: a raw
@@ -101,7 +101,7 @@
 
 (def %read-file
   (fn (_ path)
-    (let ((fd (File open path (lit rdonly))))
+    (let ((fd (File open path 'rdonly)))
       (match
         ((< fd 0) (error (Str8 append "boot-order: cannot open " path)))
         (#t
@@ -135,8 +135,8 @@
     (match
       ((pair? form)
         (match
-          ((eq? (first form) (lit lit)) ())
-          ((eq? (first form) (lit def-class))
+          ((eq? (first form) 'lit) ())
+          ((eq? (first form) 'def-class)
             (do (match
                   ((null? (%assq (first (rest form)) (first %classes-cell)))
                     (%cell-push! %classes-cell (pair (first (rest form)) file)))
@@ -195,9 +195,9 @@
               (match
                 ((pair? f)
                   (match
-                    ((eq? (first f) (lit method)) ())
-                    ((eq? (first f) (lit interface)) ())
-                    ((eq? (first f) (lit static)) (self (rest f) file))
+                    ((eq? (first f) 'method) ())
+                    ((eq? (first f) 'interface) ())
+                    ((eq? (first f) 'static) (self (rest f) file))
                     (#t (%walk-form f file))))
                 (#t ())))
             (self (rest body) file)))
@@ -209,8 +209,8 @@
     (match
       ((pair? form)
         (match
-          ((eq? (first form) (lit unquote)) (%walk-form (first (rest form)) file))
-          ((eq? (first form) (lit unquote-splicing)) (%walk-form (first (rest form)) file))
+          ((eq? (first form) 'unquote) (%walk-form (first (rest form)) file))
+          ((eq? (first form) 'unquote-splicing) (%walk-form (first (rest form)) file))
           (#t (do (self (first form) file)
                   (self (rest form) file)))))
       (#t ()))))
@@ -234,7 +234,7 @@
   (fn (_ path file form)
     (match
       ((%member-str path (first %loaded-cell))
-        (%cell-push! %findings-cell (list file (lit %%double-load) path form)))
+        (%cell-push! %findings-cell (list file '%%double-load path form)))
       (#t (%process-file path)))))
 
 ; include: verbatim, loads unconditionally and does NOT register.
@@ -284,22 +284,22 @@
       ((pair? form)
         (let ((h (first form)))
           (match
-            ((eq? h (lit lit)) ())
-            ((eq? h (lit fn)) ())
-            ((eq? h (lit op)) ())
-            ((eq? h (lit method)) ())
-            ((eq? h (lit quasi)) (%walk-quasi (rest form) file))
-            ((eq? h (lit def-class))
+            ((eq? h 'lit) ())
+            ((eq? h 'fn) ())
+            ((eq? h 'op) ())
+            ((eq? h 'method) ())
+            ((eq? h 'quasi) (%walk-quasi (rest form) file))
+            ((eq? h 'def-class)
               (do (%check-name-list (first (rest (rest form))) file form)
                   (%walk-class-body (rest (rest (rest form))) file)
                   (%cell-push! %defined-cell (first (rest form)))))
-            ((eq? h (lit include)) (%do-include form file #t))
-            ((eq? h (lit include-once)) (%do-include form file #f))
-            ((eq? h (lit require-once)) (%do-include form file #f))
-            ((eq? h (lit import)) (%do-import form file))
-            ((eq? h (lit set-first!))
+            ((eq? h 'include) (%do-include form file #t))
+            ((eq? h 'include-once) (%do-include form file #f))
+            ((eq? h 'require-once) (%do-include form file #f))
+            ((eq? h 'import) (%do-import form file))
+            ((eq? h 'set-first!)
               (do (match
-                    ((eq? (first (rest form)) (lit %include-list-cell))
+                    ((eq? (first (rest form)) '%include-list-cell)
                       (%collect-strs (rest (rest form))))
                     (#t ()))
                   (%walk-list (rest form) file)))
@@ -342,12 +342,12 @@
                     ((null? (first (rest f)))
                       (do (display "unresolvable include/import ")
                           (%show-form-head (first (rest (rest (rest f)))))))
-                    ((eq? (first (rest f)) (lit %%double-load))
+                    ((eq? (first (rest f)) '%%double-load)
                       (do (display "double load of ")
                           (display (first (rest (rest f))))
                           (display " via ")
                           (%show-form-head (first (rest (rest (rest f)))))))
-                    ((eq? (first (rest f)) (lit %%unregistered))
+                    ((eq? (first (rest f)) '%%unregistered)
                       (do (display "raw include of ")
                           (display (first (rest (rest f))))
                           (display " is not pre-seed registered -- a later import reloads it")))
@@ -381,7 +381,7 @@
         (do (match
               ((%member-str (first (first raws)) (first %registered-cell)) ())
               (#t (%cell-push! %findings-cell
-                    (list (rest (first raws)) (lit %%unregistered)
+                    (list (rest (first raws)) '%%unregistered
                           (first (first raws)) ()))))
             (self (rest raws))))
       (#t ()))))

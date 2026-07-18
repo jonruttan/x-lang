@@ -8,22 +8,22 @@
 ; Promotion chain: integer -> bignum -> rational -> float -> complex
 (import x/core/list)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
-(def %buffer-token (prim-ref (lit buf) (lit tok)))
+(def %buffer-token (prim-ref 'buf 'tok))
 
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
-(def %str-append (prim-ref (lit str) (lit append)))
+(def %str-append (prim-ref 'str 'append))
 
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
-(def %type-push-analyse (prim-ref (lit type) (lit push-analyse)))
-(def %type-push-op (prim-ref (lit type) (lit push-op)))
+(def %type-by-atom (prim-ref 'type 'by-atom))
+(def %type-push-analyse (prim-ref 'type 'push-analyse))
+(def %type-push-op (prim-ref 'type 'push-op))
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
-(def %make-instance (prim-ref (lit type) (lit make-instance)))
-(def %make-type (prim-ref (lit type) (lit make)))
-(def %type-of (prim-ref (lit type) (lit of)))
-(def %type? (prim-ref (lit type) (lit ?)))
+(def %make-instance (prim-ref 'type 'make-instance))
+(def %make-type (prim-ref 'type 'make))
+(def %type-of (prim-ref 'type 'of))
+(def %type? (prim-ref 'type '?))
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
-(def %char->integer (prim-ref (lit char) (lit ->int)))
+(def %char->integer (prim-ref 'char '->int))
 
 
 
@@ -525,11 +525,11 @@
 (set! %bignum
   (%make-type "BIGNUM"
     (list
-      (pair (lit write)
+      (pair 'write
         (fn (_ self) (display (%bignum-to-string (first (first self)) (rest (first self))))))
-      (pair (lit analyse) %big-analyse)
-      (pair (lit read) (fn (_ . args) (%bignum-read (first args))))
-      (pair (lit from)
+      (pair 'analyse %big-analyse)
+      (pair 'read (fn (_ . args) (%bignum-read (first args))))
+      (pair 'from
         (list
           (pair (%type-of 42)
             (fn (_ value)
@@ -537,7 +537,7 @@
               (%make-instance %bignum r)))
           (pair (%type-of "")
             (fn (_ value) (%bignum-from-string value)))))
-      (pair (lit to)
+      (pair 'to
         (list
           (pair (%type-of 42)
             (fn (_ self) (%bignum-to-int (first (first self)) (rest (first self)))))
@@ -588,13 +588,13 @@
 ; covers the coercion.
 
 (def %bignum-ts (%type-by-atom %bignum))
-(%type-push-op %bignum-ts (lit +) (fn (_ a b) (%big-add (%ensure-big a) (%ensure-big b))))
-(%type-push-op %bignum-ts (lit -) (fn (_ a b) (%big-sub (%ensure-big a) (%ensure-big b))))
-(%type-push-op %bignum-ts (lit *) (fn (_ a b) (%big-mul (%ensure-big a) (%ensure-big b))))
-(%type-push-op %bignum-ts (lit /) (fn (_ a b) (%big-div (%ensure-big a) (%ensure-big b))))
-(%type-push-op %bignum-ts (lit %) (fn (_ a b) (%big-mod (%ensure-big a) (%ensure-big b))))
-(%type-push-op %bignum-ts (lit <) (fn (_ a b) (%big-lt (%ensure-big a) (%ensure-big b))))
-(%type-push-op %bignum-ts (lit =) (fn (_ a b) (%big-eq (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bignum-ts '+ (fn (_ a b) (%big-add (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bignum-ts '- (fn (_ a b) (%big-sub (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bignum-ts '* (fn (_ a b) (%big-mul (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bignum-ts '/ (fn (_ a b) (%big-div (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bignum-ts '% (fn (_ a b) (%big-mod (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bignum-ts '< (fn (_ a b) (%big-lt (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bignum-ts '= (fn (_ a b) (%big-eq (%ensure-big a) (%ensure-big b))))
 
 (import x/type/object)
 
@@ -635,14 +635,14 @@
       (%would-overflow-mul? a b))))
 
 ; Value dispatch (subject-last): (big bignum?) -> (Bignum bignum? big).
-(def %type-push-call (prim-ref (lit type) (lit push-call)))
+(def %type-push-call (prim-ref 'type 'push-call))
 (%type-push-call (%type-by-atom %bignum) (%class-call-handler Bignum))
 
 ; Join the pact last, once the module is fully usable: this fires any
 ; pairwise registration waiting on bignum (e.g. float's bignum->float
 ; conversion) regardless of which module loaded first.
 (import x/sys/pact)
-(Pact join (lit bignum) %bignum)
+(Pact join 'bignum %bignum)
 
 (doc (provide x/num/bignum Bignum)
   (note "Auto-promotes when integers exceed native range; the generic operators")

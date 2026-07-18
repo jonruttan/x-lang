@@ -7,9 +7,9 @@ This guards that refactor: a regression in the recursion would change the
 indented shape below. Previously unassertable — the formatter writes multi-line
 output, which needs the harness's full-output (```` ```output ````) mode.
 
-These feed hand-quoted forms via `(lit …)` (so no tokenizer — sidestepping the
+These feed hand-quoted forms via `'…` (so no tokenizer — sidestepping the
 separate open `token-read-string` issue). A quoted form writes its symbols in
-`(lit x)` syntax, so atoms render as `(lit +)` etc.; the point here is the
+`'x` syntax, so atoms render as `'+` etc.; the point here is the
 *structure* (line breaks + 2-space indentation), not the atom spelling. The
 real tool feeds tokenizer output and is covered separately by `tools/fmt.spec.md`.
 

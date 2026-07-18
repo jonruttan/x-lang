@@ -199,7 +199,7 @@
 ### returns body result when no error
 
 ```scheme
-(guard (e (lit caught)) (+ 1 2))
+(guard (e 'caught) (+ 1 2))
 ```
 ---
     3
@@ -215,7 +215,7 @@
 ### runs handler body on error
 
 ```scheme
-(guard (e (list (lit caught) e)) (error "oops"))
+(guard (e (list 'caught e)) (error "oops"))
 ```
 ---
     ('caught "oops")
@@ -223,7 +223,7 @@
 ### catches unbound symbol
 
 ```scheme
-(guard (e (lit handled)) no-such-var)
+(guard (e 'handled) no-such-var)
 ```
 ---
     'handled
@@ -239,7 +239,7 @@
 ### handler sees error value
 
 ```scheme
-(guard (e (list (lit err) e)) (error 42))
+(guard (e (list 'err e)) (error 42))
 ```
 ---
     ('err 42)
@@ -263,8 +263,8 @@ and a re-raise longjmp'd back into its own guard forever.)
 
 ```scheme
 (do
-  (def %r1 (guard (e2 (lit outer)) (guard (e (error e)) (error (lit boom)))))
-  (def %r2 (guard (e3 (lit clean)) (+ 1 2)))
+  (def %r1 (guard (e2 'outer) (guard (e (error e)) (error 'boom))))
+  (def %r2 (guard (e3 'clean) (+ 1 2)))
   (list %r1 %r2))
 ```
 ---
@@ -301,7 +301,7 @@ and a re-raise longjmp'd back into its own guard forever.)
 ### inner guard catches inner error
 
 ```scheme
-(guard (e (lit outer)) (guard (e (lit inner)) (error "x")))
+(guard (e 'outer) (guard (e 'inner) (error "x")))
 ```
 ---
     'inner
@@ -309,7 +309,7 @@ and a re-raise longjmp'd back into its own guard forever.)
 ### outer guard catches when inner has no guard
 
 ```scheme
-(guard (e (list (lit outer) e)) (do (def f (fn (_ ) (error "deep"))) (f)))
+(guard (e (list 'outer e)) (do (def f (fn (_ ) (error "deep"))) (f)))
 ```
 ---
     ('outer "deep")
@@ -317,7 +317,7 @@ and a re-raise longjmp'd back into its own guard forever.)
 ### inner guard does not catch outer body error
 
 ```scheme
-(guard (e (list (lit caught) e)) (+ 1 2) (error "after"))
+(guard (e (list 'caught e)) (+ 1 2) (error "after"))
 ```
 ---
     ('caught "after")

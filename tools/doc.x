@@ -8,9 +8,9 @@
 ; the source tokens using the alist as fallback for bare (def ...) forms.
 
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
-(def %token-read-string (prim-ref (lit tok) (lit read-str)))
+(def %token-read-string (prim-ref 'tok 'read-str))
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
-(def %read (prim-ref (lit io) (lit read)))
+(def %read (prim-ref 'io 'read))
 
 
 (do

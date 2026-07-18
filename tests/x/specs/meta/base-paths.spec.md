@@ -10,7 +10,7 @@ half (`make check-base-paths`) re-derives the paths from the headers.
 ### the prims path lands on the catalog cell
 
 ```scheme
-(eq? (first (%reflect-base-cell (lit prims))) (prims))
+(eq? (first (%reflect-base-cell 'prims)) (prims))
 ```
 ---
     #t
@@ -19,8 +19,8 @@ half (`make check-base-paths`) re-derives the paths from the headers.
 
 ```scheme
 (do
-  (display (eq? (first (%reflect-base-cell (lit true))) #t)) (display " ")
-  (display (eq? (first (%reflect-base-cell (lit false))) #f)))
+  (display (eq? (first (%reflect-base-cell 'true)) #t)) (display " ")
+  (display (eq? (first (%reflect-base-cell 'false)) #f)))
 ```
 ---
 ```output
@@ -36,8 +36,8 @@ tracking); the test saves, sets, and restores it.
 
 ```scheme
 (do
-  (def %mc  (prim-ref (lit obj) (lit meta-count)))
-  (def %mc! (prim-ref (lit obj) (lit meta-count!)))
+  (def %mc  (prim-ref 'obj 'meta-count))
+  (def %mc! (prim-ref 'obj 'meta-count!))
   (def %before (%mc! 3))
   (display (%mc)) (display " ")
   (display (eq? (%mc! %before) 3)) (display " ")
@@ -59,7 +59,7 @@ than the plain build; C never pinned this either).
 
 ```scheme
 (do
-  (def %el (prim-ref (lit io) (lit error-line)))
+  (def %el (prim-ref 'io 'error-line))
   (display (>= (%el) 0)) (display " ")
   (display (number? (guard (e (%el)) (error "boom")))))
 ```

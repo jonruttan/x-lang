@@ -57,7 +57,7 @@
       (doc "Wrap an already-open fd in a stream. Not owned -- (close) is a no-op."
         (returns Stream "A stream writing to FD")
         (example "(Stream to-fd 2)" "a stream onto stderr"))
-      (new-from self (list (lit fd) fd (lit owned?) ())))
+      (new-from self (list 'fd fd 'owned? ())))
 
     (method to-file (self (param path STRING "File path to open for writing"))
       (doc "Open PATH for writing (wronly|creat|trunc) and wrap its fd in an OWNED stream -- (close) closes the file. Needs the x-or dialect."
@@ -65,8 +65,8 @@
         (note "A newly created file gets mode 0644 (File open's default perm); open via File directly if you need other permission bits.")
         (example "(Stream to-file \"grid.svg\")" "an owned stream that truncates/creates grid.svg"))
       (new-from self
-        (list (lit fd) (File open path (list (lit wronly) (lit creat) (lit trunc)))
-              (lit owned?) #t)))
+        (list 'fd (File open path (list 'wronly 'creat 'trunc))
+              'owned? #t)))
 
     (method stdout (self)
       (doc "A stream onto stdout (fd 1)." (returns Stream "stdout stream"))
@@ -104,29 +104,29 @@
   ; --- instance methods ---
   (method fd (self)
     (doc "The file descriptor this stream writes to." (returns INT "the fd"))
-    (member (lit fd)))
+    (member 'fd))
 
   (method with (self (param thunk CALLABLE "Zero-arg thunk to run"))
     (doc "Run THUNK with the current display/write output redirected to this stream, restoring afterward (even if THUNK errors)."
       (returns ANY "THUNK's result")
       (example "(s with (fn (_) (display x)))" "displays x to the stream s"))
-    (%with-output-to-fd (member (lit fd)) thunk))
+    (%with-output-to-fd (member 'fd) thunk))
 
   (method write (self (param data STRING "Bytes to write")
                       (param size INT "Number of bytes"))
     (doc "Write SIZE bytes of DATA directly to the stream's fd. Needs the x-or dialect."
       (returns INT "Bytes written, or negative on error"))
-    (File write (member (lit fd)) data size))
+    (File write (member 'fd) data size))
 
   (method display (self (param v ANY "Value to render"))
     (doc "Render V (display form) to this stream."
       (returns ANY "nil"))
-    (%with-output-to-fd (member (lit fd)) (fn (_) (display v))))
+    (%with-output-to-fd (member 'fd) (fn (_) (display v))))
 
   (method close (self)
     (doc "Close the stream's fd if it owns it (opened via to-file); a no-op for wrapped fds (to-fd/stdout/stderr)."
       (returns ANY "File close result, or nil when not owned"))
-    (if (member (lit owned?)) (File close (member (lit fd))) ())))
+    (if (member 'owned?) (File close (member 'fd)) ())))
 
 (doc (provide x/sys/stream Stream)
   (note "Redirection is pure X -- push/pop the base's fileout fd (an atom in the io `files` group); no C primitive. File targets need the x-or dialect.")

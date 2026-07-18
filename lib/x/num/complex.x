@@ -1,24 +1,24 @@
 ; complex.x -- Complex number type
 (import x/num/float)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
-(def %buffer-token (prim-ref (lit buf) (lit tok)))
+(def %buffer-token (prim-ref 'buf 'tok))
 
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
-(def %type-by-atom (prim-ref (lit type) (lit by-atom)))
-(def %type-push-op (prim-ref (lit type) (lit push-op)))
+(def %type-by-atom (prim-ref 'type 'by-atom))
+(def %type-push-op (prim-ref 'type 'push-op))
 
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
-(def %cvt (prim-ref (lit convert) (lit to)))
+(def %cvt (prim-ref 'convert 'to))
 
 (import x/num/rational)
 (import x/type/object)
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
-(def %make-instance (prim-ref (lit type) (lit make-instance)))
-(def %make-type (prim-ref (lit type) (lit make)))
-(def %type-of (prim-ref (lit type) (lit of)))
-(def %type? (prim-ref (lit type) (lit ?)))
+(def %make-instance (prim-ref 'type 'make-instance))
+(def %make-type (prim-ref 'type 'make))
+(def %type-of (prim-ref 'type 'of))
+(def %type? (prim-ref 'type '?))
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
-(def %write-to-str (prim-ref (lit io) (lit write-to-str)))
+(def %write-to-str (prim-ref 'io 'write-to-str))
 
 
 ;
@@ -167,7 +167,7 @@
     "COMPLEX"
     (list
       (pair
-        (lit write)
+        'write
         (fn (_ self)
           (let ((re (first (first self))) (im (rest (first self))))
             (display re)
@@ -175,20 +175,20 @@
             (display im)
             (display "i"))))
       (pair
-        (lit analyse)
+        'analyse
         (fn (_ buffer score chr)
           ; Entry: digit, or '-' then digit (negative real part, R4)
           (if (and (>= chr 48) (<= chr 57)) %cx-real-int
             (if (= chr 45) %cx-neg ()))))
-      (pair (lit read) (fn (_ . args) (%cx-read (first args))))
+      (pair 'read (fn (_ . args) (%cx-read (first args))))
       (pair
-        (lit from)
+        'from
         (list
           (pair (%type-of 42) (fn (_ value) (%make-complex value 0)))
           (pair %float (fn (_ value) (%make-complex value 0)))
           (pair %rational (fn (_ value) (%make-complex value 0)))))
       (pair
-        (lit to)
+        'to
         (list
           (pair (%type-of "")
             (fn (_ self) (%write-to-str self))))))))
@@ -263,14 +263,14 @@
 (def %ensure-complex (fn (_ x) (if (%complex? x) x (%make-complex x 0))))
 
 (def %complex-ts (%type-by-atom %complex))
-(%type-push-op %complex-ts (lit +) (fn (_ a b) (%cx-add (%ensure-complex a) (%ensure-complex b))))
-(%type-push-op %complex-ts (lit -) (fn (_ a b) (%cx-sub (%ensure-complex a) (%ensure-complex b))))
-(%type-push-op %complex-ts (lit *) (fn (_ a b) (%cx-mul (%ensure-complex a) (%ensure-complex b))))
-(%type-push-op %complex-ts (lit /) (fn (_ a b) (%cx-div (%ensure-complex a) (%ensure-complex b))))
-(%type-push-op %complex-ts (lit =) (fn (_ a b) (%cx-eq (%ensure-complex a) (%ensure-complex b))))
+(%type-push-op %complex-ts '+ (fn (_ a b) (%cx-add (%ensure-complex a) (%ensure-complex b))))
+(%type-push-op %complex-ts '- (fn (_ a b) (%cx-sub (%ensure-complex a) (%ensure-complex b))))
+(%type-push-op %complex-ts '* (fn (_ a b) (%cx-mul (%ensure-complex a) (%ensure-complex b))))
+(%type-push-op %complex-ts '/ (fn (_ a b) (%cx-div (%ensure-complex a) (%ensure-complex b))))
+(%type-push-op %complex-ts '= (fn (_ a b) (%cx-eq (%ensure-complex a) (%ensure-complex b))))
 ; % is mathematically undefined over C -- refuse loudly instead of falling
 ; through to the generic dispatch's garbage-int path.
-(%type-push-op %complex-ts (lit %)
+(%type-push-op %complex-ts '%
   (fn (_ a b) (error "complex: % is undefined for complex numbers")))
 
 ; --- Predicates ---
@@ -352,13 +352,13 @@
       (%cx-eq (%ensure-complex a) (%ensure-complex b)))))
 
 ; Value dispatch (subject-last): (1+2i real-part) -> (Complex real-part 1+2i).
-(def %type-push-call (prim-ref (lit type) (lit push-call)))
+(def %type-push-call (prim-ref 'type 'push-call))
 (%type-push-call (%type-by-atom %complex) (%class-call-handler Complex))
 
 ; Join the pact last, once the module is fully usable: tower members
 ; announce themselves so pairwise registrations fire in any load order.
 (import x/sys/pact)
-(Pact join (lit complex) %complex)
+(Pact join 'complex %complex)
 
 (doc (provide x/num/complex Complex)
   (note "Literal syntax: a+bi, a-bi (e.g. 3+4i, 0+1i, 2-3i)")

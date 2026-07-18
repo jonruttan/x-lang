@@ -1,26 +1,26 @@
 ; types.x -- Logo tokenizer base and type definitions
 (import x/logo/state)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
-(def %buffer-token (prim-ref (lit buf) (lit tok)))
-(def %token-read (prim-ref (lit tok) (lit read)))
+(def %buffer-token (prim-ref 'buf 'tok))
+(def %token-read (prim-ref 'tok 'read))
 
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
-(def %type-io (prim-ref (lit type) (lit io)))
+(def %type-io (prim-ref 'type 'io))
 
 (import x/sys/token)
 ; Fetch the tokenizer terminators from the catalog (ns `token`). Reader-context
 ; states call these per character, so cache the raw refs and call them directly
 ; -- never (Token accept ...), whose dispatch would allocate mid-reader-callback.
-(def %tok-accept (prim-ref (lit token) (lit accept)))
-(def %tok-accept-inclusive (prim-ref (lit token) (lit accept-inclusive)))
+(def %tok-accept (prim-ref 'token 'accept))
+(def %tok-accept-inclusive (prim-ref 'token 'accept-inclusive))
 (import x/type/str)
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
-(def %make-instance (prim-ref (lit type) (lit make-instance)))
-(def %make-type (prim-ref (lit type) (lit make)))
-(def %type-of (prim-ref (lit type) (lit of)))
-(def %type? (prim-ref (lit type) (lit ?)))
+(def %make-instance (prim-ref 'type 'make-instance))
+(def %make-type (prim-ref 'type 'make))
+(def %type-of (prim-ref 'type 'of))
+(def %type? (prim-ref 'type '?))
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
-(def %char->integer (prim-ref (lit char) (lit ->int)))
+(def %char->integer (prim-ref 'char '->int))
 
 
 
@@ -28,8 +28,8 @@
 ; Type helpers
 ; ============================================================
 
-(def %logo-block-close (pair (lit logo-block-close) ()))
-(def %logo-paren-tag (lit logo-paren))
+(def %logo-block-close (pair 'logo-block-close ()))
+(def %logo-paren-tag 'logo-paren)
 
 (def %logo-alpha?
   (fn (_ chr)
@@ -117,22 +117,22 @@
     (set! %logo-block
       (Base make-type base "LOGO-BLOCK"
         (list
-          (pair (lit write) (fn (_ _) (display "[ ... ]")))
-          (pair (lit eval) (fn (_ self) (logo-process-tokens (first self)))))))
+          (pair 'write (fn (_ _) (display "[ ... ]")))
+          (pair 'eval (fn (_ self) (logo-process-tokens (first self)))))))
 
     ; LOGO-CLOSE
     (Base make-type base "LOGO-CLOSE"
       (list
-        (pair (lit analyse)
+        (pair 'analyse
           (Token make-char-state (%char->integer #\]) %tok-accept ()))
-        (pair (lit read) (fn (_ . args) %logo-block-close))))
+        (pair 'read (fn (_ . args) %logo-block-close))))
 
     ; LOGO-OPEN
     (Base make-type base "LOGO-OPEN"
       (list
-        (pair (lit analyse)
+        (pair 'analyse
           (Token make-char-state (%char->integer #\[) %tok-accept ()))
-        (pair (lit read)
+        (pair 'read
           (fn (_ . args)
             (def buf (first args))
             (def %rb
@@ -149,19 +149,19 @@
     (set! %logo
       (Base make-type base "LOGO"
         (list
-          (pair (lit analyse)
+          (pair 'analyse
             (fn (_ buffer score chr)
               (if (%logo-alpha? chr) %logo-word-continue ())))
-          (pair (lit read)
+          (pair 'read
             (fn (_ . args)
               (%make-instance %logo (%buffer-token (first args)))))
-          (pair (lit write)
+          (pair 'write
             (fn (_ self) (display (first self)))))))
 
     ; LOGO-WS: spaces and tabs only, discard
     (Base make-type base "LOGO-WS"
       (list
-        (pair (lit analyse)
+        (pair 'analyse
           (fn (self buffer score chr)
             (if (or (= chr 32) (= chr 9))
               self
@@ -169,7 +169,7 @@
                 (do (buffer-unread buffer)
                     (score-set score 1 buffer))
                 ()))))
-        (pair (lit delimit)
+        (pair 'delimit
           (fn (_ buffer score chr)
             (if (or (= chr 32) (= chr 9))
               (do (buffer-unread buffer) buffer)
@@ -178,7 +178,7 @@
     ; LOGO-NEWLINE: bare newline, discard
     (Base make-type base "LOGO-NEWLINE"
       (list
-        (pair (lit analyse)
+        (pair 'analyse
           (Token make-char-state 10 %tok-accept ()))))
 
     ; LOGO-INDENT: \n + spaces/tabs + word
@@ -193,10 +193,10 @@
     (set! %logo-indent
       (Base make-type base "LOGO-INDENT"
         (list
-          (pair (lit analyse)
+          (pair 'analyse
             (fn (_ buffer score chr)
               (if (= chr 10) %indent-after-nl ())))
-          (pair (lit read)
+          (pair 'read
             (fn (_ . read-args)
               (def text (%buffer-token (first read-args)))
               (def len (str-length text))
@@ -211,7 +211,7 @@
               (def indent (- indent-end 1))
               (def word (substring text indent-end len))
               (%make-instance %logo-indent (pair indent word))))
-          (pair (lit write)
+          (pair 'write
             (fn (_ self)
               (display (first (rest (first self)))))))))
 
@@ -219,7 +219,7 @@
     (set! %logo-op
       (Base make-type base "LOGO-OP"
         (list
-          (pair (lit analyse)
+          (pair 'analyse
             (fn (_ buffer score chr)
               ; Single-char: + - * / ^ = ,
               (if (or (= chr 43) (= chr 45) (= chr 42) (= chr 47)
@@ -230,24 +230,24 @@
                   ; > may continue with =
                   (if (= chr 62) %logo-op-gt-second
                     ())))))
-          (pair (lit read)
+          (pair 'read
             (fn (_ . args)
               (%make-instance %logo-op (%buffer-token (first args)))))
-          (pair (lit write)
+          (pair 'write
             (fn (_ self) (display (first self)))))))
 
     ; LOGO-PAREN: ( and )
     (Base make-type base "LOGO-PAREN-OPEN"
       (list
-        (pair (lit analyse)
+        (pair 'analyse
           (Token make-char-state 40 %tok-accept ()))
-        (pair (lit read) (fn (_ . args) (pair %logo-paren-tag "(")))))
+        (pair 'read (fn (_ . args) (pair %logo-paren-tag "(")))))
 
     (Base make-type base "LOGO-PAREN-CLOSE"
       (list
-        (pair (lit analyse)
+        (pair 'analyse
           (Token make-char-state 41 %tok-accept ()))
-        (pair (lit read) (fn (_ . args) (pair %logo-paren-tag ")")))))
+        (pair 'read (fn (_ . args) (pair %logo-paren-tag ")")))))
 
     ; LOGO-STRING: "..."
     (def %string-body
@@ -259,22 +259,22 @@
     (set! %logo-string
       (Base make-type base "LOGO-STRING"
         (list
-          (pair (lit analyse)
+          (pair 'analyse
             (fn (_ buffer score chr)
               (if (= chr 34) %string-body ())))
-          (pair (lit read)
+          (pair 'read
             (fn (_ . args)
               (def text (%buffer-token (first args)))
               (def len (str-length text))
               (%make-instance %logo-string (substring text 1 (- len 1)))))
-          (pair (lit write)
+          (pair 'write
             (fn (_ self)
               (display "\"") (display (first self)) (display "\""))))))
 
     ; LOGO-SEMI: ; comment to end of line (discard)
     (Base make-type base "LOGO-SEMI"
       (list
-        (pair (lit analyse)
+        (pair 'analyse
           (fn (_ buffer score chr)
             (if (= chr 59)
               (fn (self buf sc chr2)
@@ -289,7 +289,7 @@
 ; Block and word accessors
 ; ============================================================
 
-(def %indent-block-tag (pair (lit indent-block) ()))
+(def %indent-block-tag (pair 'indent-block ()))
 
 (def %is-block?
   (fn (_ tok)

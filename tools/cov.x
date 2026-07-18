@@ -14,15 +14,15 @@
 ; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` de-registered, R5).
-(def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
-(def %ptr-set-word! (prim-ref (lit ptr) (lit set-word!)))
+(def %ptr-ref-word (prim-ref 'ptr 'ref-word))
+(def %ptr-set-word! (prim-ref 'ptr 'set-word!))
 
-(def %token-read-string (prim-ref (lit tok) (lit read-str)))
+(def %token-read-string (prim-ref 'tok 'read-str))
 
-(def %obj-meta-count! (prim-ref (lit obj) (lit meta-count!)))
-(def %obj-meta-ref (prim-ref (lit obj) (lit meta-ref)))
+(def %obj-meta-count! (prim-ref 'obj 'meta-count!))
+(def %obj-meta-ref (prim-ref 'obj 'meta-ref))
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
-(def %read (prim-ref (lit io) (lit read)))
+(def %read (prim-ref 'io 'read))
 
 
 (do
@@ -130,13 +130,13 @@
         (if (null? then-else) ()
           (do
             (def then-form (first then-else))
-            (%check-branch (lit if-then) then-form)
+            (%check-branch 'if-then then-form)
             (walk then-form)
             (def else-rest (rest then-else))
             (if (null? else-rest) ()
               (do
                 (def else-form (first else-rest))
-                (%check-branch (lit if-else) else-form)
+                (%check-branch 'if-else else-form)
                 (walk else-form)))))))))
 
   ; clauses: each subform is a clause with a body
@@ -148,7 +148,7 @@
                 (do (def body (rest (first clauses)))
                     (if (null? body) ()
                       (do (def body-form (first body))
-                          (%check-branch (lit clause) body-form)
+                          (%check-branch 'clause body-form)
                           (walk body-form))))
                 ())
               (%walk-clauses (rest clauses)))
@@ -160,7 +160,7 @@
     (def %walk-args (fn (_ args)
       (if (null? args) ()
         (if (pair? args)
-          (do (%check-branch (lit short-circuit) (first args))
+          (do (%check-branch 'short-circuit (first args))
               (walk (first args))
               (%walk-args (rest args)))
           ()))))
@@ -172,7 +172,7 @@
     (if (null? clause) ()
       (do
         (def handler (first (rest clause)))
-        (%check-branch (lit guard-handler) handler)
+        (%check-branch 'guard-handler handler)
         (walk handler)))
     (def %walk-body (fn (_ body)
       (if (null? body) ()
@@ -189,12 +189,12 @@
       (do (def entry (first entries))
           (def name (convert (first entry) %string))
           (def props (rest entry))
-          (def branch-type (%get-prop (lit branch) props))
+          (def branch-type (%get-prop 'branch props))
           (def handler
-            (if (eq? branch-type (lit cond))    %cond-eval
-            (if (eq? branch-type (lit clauses)) %clause-eval
-            (if (eq? branch-type (lit short))   %short-eval
-            (if (eq? branch-type (lit guard))   %guard-eval
+            (if (eq? branch-type 'cond)    %cond-eval
+            (if (eq? branch-type 'clauses) %clause-eval
+            (if (eq? branch-type 'short)   %short-eval
+            (if (eq? branch-type 'guard)   %guard-eval
               ())))))
           (%build-dispatch (rest entries)
             (if (null? handler) acc

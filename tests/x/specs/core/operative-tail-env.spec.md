@@ -70,8 +70,8 @@ if that fix is reverted, independent of how `$"..."` is parsed.
 
 ```scheme
 (do
-  (def %mk (fn (self n acc) (if (= n 0) acc (self (- n 1) (pair (lit x) acc)))))
-  (def %op (op () e (eval (pair (lit +) (pair 0 (%mk 3 ()))) e)))
+  (def %mk (fn (self n acc) (if (= n 0) acc (self (- n 1) (pair 'x acc)))))
+  (def %op (op () e (eval (pair '+ (pair 0 (%mk 3 ()))) e)))
   ((fn (_ x) (do (if #t (%op) 0) x)) 9))
 ```
 ---
@@ -81,7 +81,7 @@ if that fix is reverted, independent of how `$"..."` is parsed.
 
 ```scheme
 (do
-  (def %trs (prim-ref (lit tok) (lit read-str)))
+  (def %trs (prim-ref 'tok 'read-str))
   (def %evalstr (op (s) e (eval (first (%trs (%base) s)) e)))
   ((fn (_ x) (do (if #t (%evalstr "(+ x 1)") 0) x)) 9))
 ```

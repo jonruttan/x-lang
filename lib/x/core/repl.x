@@ -5,13 +5,13 @@
 ; repl-read resets the source-line counter before reading, so error lines are
 ; relative to the current input rather than the whole boot+session stream.
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
-(def %str-append (prim-ref (lit str) (lit append)))
+(def %str-append (prim-ref 'str 'append))
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
-(def %error-line (prim-ref (lit io) (lit error-line)))
+(def %error-line (prim-ref 'io 'error-line))
 
 
 ; ns `io` is de-registered (R5): fetch the REPL reader from the catalog.
-(def %repl-read (prim-ref (lit io) (lit repl-read)))
+(def %repl-read (prim-ref 'io 'repl-read))
 ; The turn sweep: collect at the TOP of every repl iteration, before
 ; the prompt/read -- the seat is quiet (the previous turn's eval
 ; finished and its print completed; no reader is mid-flight), so
@@ -19,7 +19,7 @@
 ; sweep doubles as the boot sweep (~4.2M dead objects, ~98% of the
 ; boot heap); later sweeps keep a session's heap at its live set, so
 ; long-running interaction never grows past one turn's allocations.
-(def %repl-collect (prim-ref (lit heap) (lit collect)))
+(def %repl-collect (prim-ref 'heap 'collect))
 (def %repl-prompt "> ")
 (def %repl-print
   (fn (_ result)

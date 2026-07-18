@@ -26,7 +26,7 @@
 (do
   (def %t (Type make "OPSPEC" (list)))
   (def %ts (Type by-atom %t))
-  (Type push-op %ts (lit +) (fn (_ a b) (lit dispatched)))
+  (Type push-op %ts '+ (fn (_ a b) 'dispatched))
   (+ (Type make-instance %t 1) 2))
 ```
 ---
@@ -38,7 +38,7 @@
 (do
   (def %t2 (Type make "OPSPEC2" (list)))
   (def %ts2 (Type by-atom %t2))
-  (Type push-op %ts2 (lit +) (fn (_ a b) (lit right-dispatched)))
+  (Type push-op %ts2 '+ (fn (_ a b) 'right-dispatched))
   (+ 2 (Type make-instance %t2 1)))
 ```
 ---
@@ -50,7 +50,7 @@
 (do
   (def %t6 (Type make "OPSPEC6" (list)))
   (def %ts6 (Type by-atom %t6))
-  (Type push-op %ts6 (lit +) (fn (_ a b) (+ (first a) b)))
+  (Type push-op %ts6 '+ (fn (_ a b) (+ (first a) b)))
   (+ (Type make-instance %t6 40) 2))
 ```
 ---
@@ -73,7 +73,7 @@
 (do
   (def %t4 (Type make "OPSPEC4" (list)))
   (def %ts4 (Type by-atom %t4))
-  (Type push-op %ts4 (lit <) (fn (_ a b) #t))
+  (Type push-op %ts4 '< (fn (_ a b) #t))
   (< (Type make-instance %t4 1) 99))
 ```
 ---
@@ -85,7 +85,7 @@
 (do
   (def %t7 (Type make "OPSPEC7" (list)))
   (def %ts7 (Type by-atom %t7))
-  (Type push-op %ts7 (lit +) (fn (_ a b) (lit same-type)))
+  (Type push-op %ts7 '+ (fn (_ a b) 'same-type))
   (+ (Type make-instance %t7 1) (Type make-instance %t7 2)))
 ```
 ---
@@ -100,8 +100,8 @@
     (list (pair 'from (list (pair %lo2 (fn (_ v) v)))))))
   (def %lo2-ts (Type by-atom %lo2))
   (def %hi2-ts (Type by-atom %hi2))
-  (Type push-op %lo2-ts (lit *) (fn (_ a b) (lit lo2)))
-  (Type push-op %hi2-ts (lit *) (fn (_ a b) (lit hi2)))
+  (Type push-op %lo2-ts '* (fn (_ a b) 'lo2))
+  (Type push-op %hi2-ts '* (fn (_ a b) 'hi2))
   (* (Type make-instance %lo2 1) (Type make-instance %hi2 1)))
 ```
 ---
@@ -116,8 +116,8 @@
     (list (pair 'from (list (pair %lo3 (fn (_ v) v)))))))
   (def %lo3-ts (Type by-atom %lo3))
   (def %hi3-ts (Type by-atom %hi3))
-  (Type push-op %lo3-ts (lit *) (fn (_ a b) (lit lo3)))
-  (Type push-op %hi3-ts (lit *) (fn (_ a b) (lit hi3)))
+  (Type push-op %lo3-ts '* (fn (_ a b) 'lo3))
+  (Type push-op %hi3-ts '* (fn (_ a b) 'hi3))
   (* (Type make-instance %hi3 1) (Type make-instance %lo3 1)))
 ```
 ---
@@ -129,7 +129,7 @@
 (do
   (def %t5 (Type make "OPSPEC5" (list)))
   (def %ts5 (Type by-atom %t5))
-  (Type push-op %ts5 (lit =) (fn (_ a b) #t))
+  (Type push-op %ts5 '= (fn (_ a b) #t))
   (def %a (Type make-instance %t5 1))
   (def %b (Type make-instance %t5 2))
   (list (= %a %b) (eq? %a %a)))

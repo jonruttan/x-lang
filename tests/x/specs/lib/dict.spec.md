@@ -17,7 +17,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  (((Dict new) put! (lit a) 1) get (lit a)))
+  (((Dict new) put! 'a 1) get 'a))
 ```
 ---
     1
@@ -26,7 +26,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  ((new-from Dict ()) get (lit a)))
+  ((new-from Dict ()) get 'a))
 ```
 ---
     Error: Dict: uninitialized instance (use Dict make / from-*)
@@ -35,7 +35,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  ((Dict from-plist (list (lit a) 1 (lit b) 2)) get (lit b)))
+  ((Dict from-plist (list 'a 1 'b 2)) get 'b))
 ```
 ---
     2
@@ -44,7 +44,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  (Dict from-plist (list (lit a) 1 (lit b))))
+  (Dict from-plist (list 'a 1 'b)))
 ```
 ---
     Error: Dict from-plist: odd-length plist
@@ -53,7 +53,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  ((Dict from-bindings (list (list (lit a) 1) (list (lit b) 2))) get (lit a)))
+  ((Dict from-bindings (list (list 'a 1) (list 'b 2))) get 'a))
 ```
 ---
     1
@@ -62,7 +62,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  (let ((d (Dict from-plist (list (lit a) 1))))
+  (let ((d (Dict from-plist (list 'a 1))))
     (list (d ->plist) (d ->bindings))))
 ```
 ---
@@ -72,7 +72,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  ((Dict from-alist (list (pair (lit a) 1) (pair (lit b) 2))) get (lit b)))
+  ((Dict from-alist (list (pair 'a 1) (pair 'b 2))) get 'b))
 ```
 ---
     2
@@ -81,7 +81,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  ((Dict from-alist (list (pair (lit a) 1) (pair (lit a) 9))) get (lit a)))
+  ((Dict from-alist (list (pair 'a 1) (pair 'a 9))) get 'a))
 ```
 ---
     9
@@ -92,7 +92,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  (let ((d (Dict make))) (d put! (lit k) 42) (d get (lit k))))
+  (let ((d (Dict make))) (d put! 'k 42) (d get 'k)))
 ```
 ---
     42
@@ -139,7 +139,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  (let ((d (Dict make))) (d put! (lit k) 1) (d put! (lit k) 2) (d get (lit k))))
+  (let ((d (Dict make))) (d put! 'k 1) (d put! 'k 2) (d get 'k)))
 ```
 ---
     2
@@ -148,7 +148,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  ((((Dict make) put! (lit a) 1) put! (lit b) 2) get (lit a)))
+  ((((Dict make) put! 'a 1) put! 'b 2) get 'a))
 ```
 ---
     1
@@ -157,7 +157,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  (null? ((Dict make) get (lit missing))))
+  (null? ((Dict make) get 'missing)))
 ```
 ---
     #t
@@ -177,7 +177,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  ((Dict make) get-or 99 (lit z)))
+  ((Dict make) get-or 99 'z))
 ```
 ---
     99
@@ -198,7 +198,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  (let ((d (Dict make))) (d put! (lit k) ()) (null? (d get-or 99 (lit k)))))
+  (let ((d (Dict make))) (d put! 'k ()) (null? (d get-or 99 'k))))
 ```
 ---
     #t
@@ -238,7 +238,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  (let ((d (Dict make))) (d put! (lit a) 1) (d del! (lit z)) (d length)))
+  (let ((d (Dict make))) (d put! 'a 1) (d del! 'z) (d length)))
 ```
 ---
     1

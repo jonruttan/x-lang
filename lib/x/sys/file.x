@@ -10,8 +10,8 @@
 ; it. Every op returns the raw syscall result -- a negative value signals an
 ; error (the kernel's -errno), (File read) returns 0 at end-of-file.
 ;
-;   (let ((fd (File open "/etc/hostname" (lit rdonly))))
-;     (let ((buf ((prim-ref (lit str) (lit make)) 64)))
+;   (let ((fd (File open "/etc/hostname" 'rdonly)))
+;     (let ((buf ((prim-ref 'str 'make) 64)))
 ;       (let ((n (File read fd buf 64)))    ; n bytes now live in buf
 ;         (File close fd)
 ;         n)))
@@ -27,7 +27,7 @@
 
 ; GC-owned read buffers: (str make n) allocates an n-byte string region the
 ; collector owns (no free needed). Fetched once here; getc allocates per call.
-(def %make-str (prim-ref (lit str) (lit make)))
+(def %make-str (prim-ref 'str 'make))
 
 ; --- The flag tables (surfaced via the methods below) ---
 ; Static value members can't carry help text, so the tables live as data and
@@ -39,26 +39,26 @@
 
 ; Stat mode flags (Linux S_* constants)
 (def %stat-flags (list
-  (list (lit ifmt)   61440)  ; 0170000 - these bits determine file type
-  (list (lit ifdir)  16384)  ; 0040000 - directory
-  (list (lit ifchr)  8192)   ; 0020000 - character device
-  (list (lit ifblk)  24576)  ; 0060000 - block device
-  (list (lit ifreg)  32768)  ; 0100000 - regular file
-  (list (lit ififo)  4096)   ; 0010000 - fifo
-  (list (lit iflnk)  40960)  ; 0120000 - symbolic link
-  (list (lit ifsock) 49152)  ; 0140000 - socket
-  (list (lit isuid)  2048)   ; 04000 - set user id on execution
-  (list (lit isgid)  1024)   ; 02000 - set group id on execution
-  (list (lit isvtx)  512)    ; 01000 - save swapped text (sticky)
-  (list (lit iread)  256)    ; 00400 - read by owner
-  (list (lit iwrite) 128)    ; 00200 - write by owner
-  (list (lit iexec)  64)))   ; 00100 - execute by owner
+  (list 'ifmt   61440)  ; 0170000 - these bits determine file type
+  (list 'ifdir  16384)  ; 0040000 - directory
+  (list 'ifchr  8192)   ; 0020000 - character device
+  (list 'ifblk  24576)  ; 0060000 - block device
+  (list 'ifreg  32768)  ; 0100000 - regular file
+  (list 'ififo  4096)   ; 0010000 - fifo
+  (list 'iflnk  40960)  ; 0120000 - symbolic link
+  (list 'ifsock 49152)  ; 0140000 - socket
+  (list 'isuid  2048)   ; 04000 - set user id on execution
+  (list 'isgid  1024)   ; 02000 - set group id on execution
+  (list 'isvtx  512)    ; 01000 - save swapped text (sticky)
+  (list 'iread  256)    ; 00400 - read by owner
+  (list 'iwrite 128)    ; 00200 - write by owner
+  (list 'iexec  64)))   ; 00100 - execute by owner
 
 ; Resolve an open-mode argument to a single numeric flag set:
 ;   a number   -> passed straight through (e.g. 577)
-;   a symbol   -> looked up in %file-modes (e.g. (lit rdwr) -> 2)
+;   a symbol   -> looked up in %file-modes (e.g. 'rdwr -> 2)
 ;   a list     -> each element resolved and bitwise-OR'd together, so callers
-;                 can write (list (lit wronly) (lit creat) (lit trunc)) -> 577
+;                 can write (list 'wronly 'creat 'trunc) -> 577
 (def %mode->int
   (fn (_ mode)
     (match
@@ -70,44 +70,44 @@
   (doc "Blocking file I/O over raw POSIX syscalls (open/close/read/write)."
     (note "Lifecycle: (File open path mode) -> a file descriptor; thread it through (File read)/(File write)/(File getc); (File close fd) when done.")
     (note "Return values are the raw syscall results: a negative number is an error (-errno). (File read) returns the byte count, 0 at EOF; (File getc) returns -1 at EOF.")
-    (note "read/write/getc operate on a caller-allocated string buffer -- allocate one with (str make N), fetched via (prim-ref (lit str) (lit make)): read fills it and returns how many bytes landed; write sends `size` bytes out of it.")
-    (note "(File open)'s mode is flexible: a number passes straight through; a single symbol (rdonly, wronly, ...) resolves via (File file-modes); a list of symbols is OR'd together -- (list (lit wronly) (lit creat) (lit trunc)) is 577. Call (File file-modes) for the full table, or (File stat-flags) for the stat S_* flags.")
+    (note "read/write/getc operate on a caller-allocated string buffer -- allocate one with (str make N), fetched via (prim-ref 'str 'make): read fills it and returns how many bytes landed; write sends `size` bytes out of it.")
+    (note "(File open)'s mode is flexible: a number passes straight through; a single symbol (rdonly, wronly, ...) resolves via (File file-modes); a list of symbols is OR'd together -- (list 'wronly 'creat 'trunc) is 577. Call (File file-modes) for the full table, or (File stat-flags) for the stat S_* flags.")
     (note "`syscall-id` is pulled in automatically (imports x/platform/syscall); `syscall` and (str make) are core primitives, so File runs under plain x-core.")
-    (example "(let ((fd (File open \"/etc/hostname\" (lit rdonly)))) (let ((buf ((prim-ref (lit str) (lit make)) 64))) (let ((n (File read fd buf 64))) (File close fd) n)))" "the byte count read into buf, with the fd closed afterward"))
+    (example "(let ((fd (File open \"/etc/hostname\" 'rdonly))) (let ((buf ((prim-ref 'str 'make) 64))) (let ((n (File read fd buf 64))) (File close fd) n)))" "the byte count read into buf, with the fd closed afterward"))
   (static
     (method file-modes (self)
       (doc "The file open-mode table: an alist mapping each symbolic O_* flag name to its numeric Linux value. Use a key as (File open)'s mode argument; OR numeric values together for combined flags."
         (returns LIST "Alist of (symbol value) for: accmode rdonly wronly rdwr creat excl noctty trunc append nonblock dsync fasync direct largefile directory nofollow noatime cloexec sync path")
         (example "(File file-modes)" "the full (symbol value) table")
-        (example "(first (assoc-get (lit rdwr) (File file-modes)))" "2"))
+        (example "(first (assoc-get 'rdwr (File file-modes)))" "2"))
       %file-modes)
 
     (method stat-flags (self)
       (doc "The stat mode-flag table: an alist mapping each symbolic S_* name to its numeric Linux value, for decoding a stat result's st_mode (the ifmt bits select the file type; the rest are permission and set-id/sticky bits)."
         (returns LIST "Alist of (symbol value) for: ifmt ifdir ifchr ifblk ifreg ififo iflnk ifsock isuid isgid isvtx iread iwrite iexec")
         (example "(File stat-flags)" "the full (symbol value) table")
-        (example "(first (assoc-get (lit ifdir) (File stat-flags)))" "16384"))
+        (example "(first (assoc-get 'ifdir (File stat-flags)))" "16384"))
       %stat-flags)
 
     (method open (self (param pathname STRING "File path to open")
-                       (param mode ANY "Open mode -- a number (e.g. 577), one symbol from (File file-modes) (e.g. (lit rdonly)), or a list of symbols OR'd together (e.g. (list (lit wronly) (lit creat) (lit trunc)))")
+                       (param mode ANY "Open mode -- a number (e.g. 577), one symbol from (File file-modes) (e.g. 'rdonly), or a list of symbols OR'd together (e.g. (list 'wronly 'creat 'trunc))")
                        . (param perm ANY "Permission bits for a newly created file when the mode includes creat; default 0644. Ignored when the file is not created."))
       (doc "Open a file, returning a file descriptor."
         (returns INT "File descriptor, or negative on error")
-        (example "(File open \"/etc/hostname\" (lit rdonly))" "a file descriptor opened read-only")
-        (example "(File open \"out.svg\" (list (lit wronly) (lit creat) (lit trunc)))" "an fd opened for writing, new file mode 0644 (577 = O_WRONLY|O_CREAT|O_TRUNC)")
-        (example "(File open \"x\" (lit creat) 511)" "create with mode 0777 (511)"))
+        (example "(File open \"/etc/hostname\" 'rdonly)" "a file descriptor opened read-only")
+        (example "(File open \"out.svg\" (list 'wronly 'creat 'trunc))" "an fd opened for writing, new file mode 0644 (577 = O_WRONLY|O_CREAT|O_TRUNC)")
+        (example "(File open \"x\" 'creat 511)" "create with mode 0777 (511)"))
       ; Always pass the 3rd open() arg: the kernel ignores it unless O_CREAT is
       ; set, so it is harmless for non-creating opens and correct for creating
       ; ones. 420 = 0644 (rw-r--r--).
-      (syscall (syscall-id (lit open)) pathname (%mode->int mode)
+      (syscall (syscall-id 'open) pathname (%mode->int mode)
                (if (null? perm) 420 (first perm))))
 
     (method close (self (param fd INT "File descriptor to close"))
       (doc "Close a file descriptor."
         (returns INT "0 on success, negative on error")
         (example "(File close fd)" "0"))
-      (syscall (syscall-id (lit close)) fd))
+      (syscall (syscall-id 'close) fd))
 
     (method read (self (param fd INT "File descriptor to read from")
                        (param buffer STRING "Buffer to read into")
@@ -115,7 +115,7 @@
       (doc "Read bytes from a file descriptor into a buffer."
         (returns INT "Bytes read, 0 at EOF, negative on error")
         (example "(File read fd buf 64)" "bytes read into buf (0 at EOF)"))
-      (syscall (syscall-id (lit read)) fd buffer size))
+      (syscall (syscall-id 'read) fd buffer size))
 
     (method write (self (param fd INT "File descriptor to write to")
                         (param buffer STRING "Data to write")
@@ -123,7 +123,7 @@
       (doc "Write bytes from a buffer to a file descriptor."
         (returns INT "Bytes written, or negative on error")
         (example "(File write fd \"hello\" 5)" "5"))
-      (syscall (syscall-id (lit write)) fd buffer size))
+      (syscall (syscall-id 'write) fd buffer size))
 
     (method getc (self (param fd INT "File descriptor to read from"))
       (doc "Read a single character from a file descriptor."

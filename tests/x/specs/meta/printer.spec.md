@@ -22,7 +22,7 @@ cascading every later string-rendering test.
   (def %node (%reflect-step %t (%reflect-path-parent %print-path-write-stack)))
   (def %saved (first %node))
   (set-first! %node ())
-  (def %r (guard (e ()) ((prim-ref (lit io) (lit write-to-str)) "s")))
+  (def %r (guard (e ()) ((prim-ref 'io 'write-to-str) "s")))
   (set-first! %node %saved)
   (not (null? %r)))
 ```
@@ -53,8 +53,8 @@ trees.
   (def %xb (Base make))
   (def %xb-t (Base make-type %xb "XB-T"
     (list (pair 'write (fn (_ o) (display "<child-ok>"))))))
-  (Base bind %xb (lit xb-t) %xb-t)
-  (Base bind %xb (lit mi) (prim-ref (lit type) (lit make-instance)))
+  (Base bind %xb 'xb-t %xb-t)
+  (Base bind %xb 'mi (prim-ref 'type 'make-instance))
   (def %xb-i (Base eval %xb (lit (mi xb-t 5))))
   (display %xb-i))
 ```
@@ -88,7 +88,7 @@ no-ops (kept for embedders that pre-register the type).
 ### reader symbols do NOT intern to type handles
 
 ```scheme
-(eq? (%print-type-of (fn (_ x) x)) (lit PROCEDURE))
+(eq? (%print-type-of (fn (_ x) x)) 'PROCEDURE)
 ```
 ---
     #f
@@ -107,7 +107,7 @@ no-ops (kept for embedders that pre-register the type).
 ### to-str of a boolean is fresh per call
 
 ```scheme
-(same? ((prim-ref (lit io) (lit display-to-str)) #t)
+(same? ((prim-ref 'io 'display-to-str) #t)
        ((prim-ref 'io 'display-to-str) #t))
 ```
 ---
@@ -117,14 +117,14 @@ no-ops (kept for embedders that pre-register the type).
 
 ```scheme
 (do
-  (def %wts (prim-ref (lit io) (lit write-to-str)))
+  (def %wts (prim-ref 'io 'write-to-str))
   (def %t (%registry-assoc-rest (%print-type-of 0) (first %reflect-type-alist-cell)))
   (def %node (%reflect-step %t (%reflect-path-parent %print-path-write-stack)))
   (def %saved (first %node))
   (set-first! %node
     (pair (fn (_ o) (do (%print-emit "[") (%print-emit (%wts "in")) (%print-emit "]")))
           %saved))
-  (def %r (guard (e (lit err)) (%wts 42)))
+  (def %r (guard (e 'err) (%wts 42)))
   (set-first! %node %saved)
   %r)
 ```
@@ -143,7 +143,7 @@ round segfaulted at ~10k elements.
 ```scheme
 (do
   (def %build (fn (self n acc) (match ((eq? n 0) acc) (#t (self (- n 1) (pair n acc))))))
-  (str? ((prim-ref (lit io) (lit write-to-str)) (%build 12000 ()))))
+  (str? ((prim-ref 'io 'write-to-str) (%build 12000 ()))))
 ```
 ---
     #t
@@ -152,11 +152,11 @@ round segfaulted at ~10k elements.
 
 ```scheme
 (do
-  (def %wts (prim-ref (lit io) (lit write-to-str)))
+  (def %wts (prim-ref 'io 'write-to-str))
   (def %t (%registry-assoc-rest (%print-type-of 0) (first %reflect-type-alist-cell)))
   (def %node (%reflect-step %t (%reflect-path-parent %print-path-write-stack)))
   (def %saved (first %node))
-  (set-first! %node (pair (fn (_ o) (error (lit render-boom))) %saved))
+  (set-first! %node (pair (fn (_ o) (error 'render-boom)) %saved))
   (def %r (guard (e e) (%wts 42)))
   (set-first! %node %saved)
   (display %r) (display " ") (display 7))
@@ -170,8 +170,8 @@ round segfaulted at ~10k elements.
 
 ```scheme
 (do
-  (def %h ((prim-ref (lit type) (lit make)) "GHOST" ()))
-  (display ((prim-ref (lit obj) (lit make)) %h 0)))
+  (def %h ((prim-ref 'type 'make) "GHOST" ()))
+  (display ((prim-ref 'obj 'make) %h 0)))
 ```
 ---
     #<obj:GHOST>

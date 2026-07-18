@@ -25,7 +25,7 @@ exact rendered doc text.
 ### accepts a quoted symbol
 
 ```scheme
-(do (apropos (lit gcd)) #t)
+(do (apropos 'gcd) #t)
 ```
 ---
     #t
@@ -61,7 +61,7 @@ exact rendered doc text.
 ### the List class module is registered
 
 ```scheme
-(null? (%module-find (lit x/type/list)))
+(null? (%module-find 'x/type/list))
 ```
 ---
     #f
@@ -69,7 +69,7 @@ exact rendered doc text.
 ### boot modules register retroactively
 
 ```scheme
-(null? (%module-find (lit x/boot/module)))
+(null? (%module-find 'x/boot/module))
 ```
 ---
     #f

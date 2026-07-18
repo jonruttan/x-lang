@@ -12,15 +12,15 @@
 
 (import x/sys/posix)
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
-(def %ptr-call (prim-ref (lit ptr) (lit call)))
-(def %ptr->str (prim-ref (lit ptr) (lit ->str)))
-(def %ptr-set! (prim-ref (lit ptr) (lit set!)))
-(def %dlopen (prim-ref (lit ffi) (lit dlopen)))
-(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+(def %ptr-call (prim-ref 'ptr 'call))
+(def %ptr->str (prim-ref 'ptr '->str))
+(def %ptr-set! (prim-ref 'ptr 'set!))
+(def %dlopen (prim-ref 'ffi 'dlopen))
+(def %dlsym (prim-ref 'ffi 'dlsym))
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
-(def %write-to-str (prim-ref (lit io) (lit write-to-str)))
+(def %write-to-str (prim-ref 'io 'write-to-str))
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
-(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
+(def %int->ptr (prim-ref 'int '->ptr))
 
 
 

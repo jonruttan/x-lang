@@ -34,8 +34,8 @@ collector.
 
 ```scheme
 (def shared (list 1 2 3 4 5))
-(def a (pair (lit ref-a) shared))
-(def b (pair (lit ref-b) shared))
+(def a (pair 'ref-a shared))
+(def b (pair 'ref-b shared))
 (Heap collect)
 (and (= (length (rest a)) 5) (= (length (rest b)) 5))
 ```

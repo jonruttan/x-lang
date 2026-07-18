@@ -7,13 +7,13 @@
 
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 ; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
-(def %obj-ref (prim-ref (lit obj) (lit ref)))
+(def %obj-ref (prim-ref 'obj 'ref))
 
-(def %cvt (prim-ref (lit convert) (lit to)))
+(def %cvt (prim-ref 'convert 'to))
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
-(def %type-name (prim-ref (lit type) (lit name)))
+(def %type-name (prim-ref 'type 'name))
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
-(def %ptr-ref-word (prim-ref (lit ptr) (lit ref-word)))
+(def %ptr-ref-word (prim-ref 'ptr 'ref-word))
 
 
 

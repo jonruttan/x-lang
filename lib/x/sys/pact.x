@@ -16,11 +16,11 @@
 ; that completes it. Load order stops mattering, and a registration against
 ; a module that never loads simply never runs.
 ;
-;   (Pact join (lit bignum) %bignum)   -- announce; publish the handle
-;   (Pact when (list (lit bignum))     -- run now, or at bignum's join
+;   (Pact join 'bignum %bignum)   -- announce; publish the handle
+;   (Pact when (list 'bignum)     -- run now, or at bignum's join
 ;     (fn (_ big) ...))                -- applied to the joined values
-;   (Pact get (lit bignum))            -- joined value, or ()
-;   (Pact has? (lit bignum))           -- #t if the name has joined
+;   (Pact get 'bignum)            -- joined value, or ()
+;   (Pact has? 'bignum)           -- #t if the name has joined
 ;
 ; A when-body may reference the waited-on module's globals: by the time it
 ; fires, that module has fully loaded and its top-level defs are bound.

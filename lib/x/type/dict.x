@@ -17,10 +17,10 @@
 (import x/type/list)
 
 ; Fetch the raw slot prims from the catalog (ns `obj` is de-registered, R5).
-(def %dict-obj-ref (prim-ref (lit obj) (lit ref)))
-(def %dict-obj-set! (prim-ref (lit obj) (lit set!)))
+(def %dict-obj-ref (prim-ref 'obj 'ref))
+(def %dict-obj-set! (prim-ref 'obj 'set!))
 ; Fetch the char cast (ns `char` utility members de-registered, R5).
-(def %dict-char->int (prim-ref (lit char) (lit ->int)))
+(def %dict-char->int (prim-ref 'char '->int))
 
 (def %dict-mask31 2147483647)  ; FNV-1a is 64-bit SIGNED -- mask before %
 
@@ -56,7 +56,7 @@
     (note "Keys may be symbols, strings, integers, or chars (hashed by content, compared with equal?); anything else errors.")
     (note "Mutators (put!/del!) return the dict for chaining. get-or is presence-based: a stored nil is returned, not the default.")
     (note "Every association shape has a named door: from-alist ((k . v) ...), from-plist (k v k v ...), from-bindings ((k v) ...) -- and ->alist/->plist/->bindings back out.")
-    (example "((Dict from-plist (list (lit a) 1 (lit b) 2)) get (lit b))" "2")
+    (example "((Dict from-plist (list 'a 1 'b 2)) get 'b)" "2")
     (see make) (see get) (see put!) (see from-plist))
 
   store  ; bucket vector: slot 0 = cap, slots 1..cap = (key . val) alists
@@ -89,7 +89,7 @@
     (method from-plist (self (param plist LIST "Flat (k v k v ...) plist"))
       (doc "Build a dict from a flat plist -- the simplest literal shape."
         (returns Dict "A dict of the plist's pairs")
-        (example "((Dict from-plist (list (lit a) 1 (lit b) 2)) get (lit b))" "2"))
+        (example "((Dict from-plist (list 'a 1 'b 2)) get 'b)" "2"))
       (def d (self make))
       (let go ((ps plist))
         (match
@@ -100,7 +100,7 @@
     (method from-bindings (self (param bindings LIST "Bindings list: ((key value) ...), the let shape"))
       (doc "Build a dict from a bindings list."
         (returns Dict "A dict of the bindings")
-        (example "((Dict from-bindings (list (list (lit a) 1))) get (lit a))" "1"))
+        (example "((Dict from-bindings (list (list 'a 1))) get 'a)" "1"))
       (def d (self make))
       (List for-each (fn (_ b) (d put! (first b) (first (rest b)))) bindings)
       d)
@@ -146,7 +146,7 @@
     (doc "The value stored under a key, or nil when absent."
       (param k ANY "Key (symbol, string, integer, or char)")
       (returns ANY "Stored value, or nil")
-      (example "(let ((d (Dict make))) (d put! (lit a) 1) (d get (lit a)))" "1"))
+      (example "(let ((d (Dict make))) (d put! 'a 1) (d get 'a))" "1"))
     (let ((hit (%dict-find k (%dict-obj-ref (member 'store) (self %slot k)))))
       (if (null? hit) () (rest hit))))
 
@@ -178,7 +178,7 @@
       (param k ANY "Key (symbol, string, integer, or char)")
       (param v ANY "Value to store")
       (returns Dict "self")
-      (example "(((Dict make) put! (lit a) 1) get (lit a))" "1"))
+      (example "(((Dict make) put! 'a 1) get 'a)" "1"))
     (def i (self %slot k))
     (def bucket (%dict-obj-ref (member 'store) i))
     (def hit (%dict-find k bucket))

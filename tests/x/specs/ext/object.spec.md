@@ -490,7 +490,7 @@ It accepts an alist `((k . v) ...)` or a flat plist `(k v ...)`.
 ```x
 (do
   (def-class Box () v)
-  ((new-from Box (list (lit v) (list 1 2 3))) v))
+  ((new-from Box (list 'v (list 1 2 3))) v))
 ```
 ---
     (1 2 3)
@@ -520,7 +520,7 @@ It accepts an alist `((k . v) ...)` or a flat plist `(k v ...)`.
 ```x
 (do
   (def-class Point () x y)
-  (guard (e (lit caught)) (new Point 'x 1 'y 2)))
+  (guard (e 'caught) (new Point 'x 1 'y 2)))
 ```
 ---
     'caught
@@ -530,7 +530,7 @@ It accepts an alist `((k . v) ...)` or a flat plist `(k v ...)`.
 ```x
 (do
   (def-class Point () x y)
-  (guard (e (lit caught)) (new-from Point 'notalist)))
+  (guard (e 'caught) (new-from Point 'notalist)))
 ```
 ---
     'caught

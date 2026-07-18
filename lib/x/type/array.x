@@ -13,8 +13,8 @@
 
 ; Fetch the raw slot prims (ns `obj` is de-registered, R5). Slot 0 of the
 ; backing vector is its capacity; elements live in slots 1..len.
-(def %arr-obj-ref (prim-ref (lit obj) (lit ref)))
-(def %arr-obj-set! (prim-ref (lit obj) (lit set!)))
+(def %arr-obj-ref (prim-ref 'obj 'ref))
+(def %arr-obj-set! (prim-ref 'obj 'set!))
 
 (def-class Array ()
   (doc "A growable container: amortized O(1) push!, O(1) ref/set!, backed by a doubling VECTOR."

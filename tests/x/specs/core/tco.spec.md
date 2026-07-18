@@ -3,7 +3,7 @@
 ### tail-recursive countdown
 
 ```scheme
-(do (def loop (fn (self n) (if (= n 0) (lit done) (self (- n 1))))) (loop 1000))
+(do (def loop (fn (self n) (if (= n 0) 'done (self (- n 1))))) (loop 1000))
 ```
 ---
     'done
@@ -21,7 +21,7 @@
 ### tail-recursive with match
 
 ```scheme
-(do (def f (fn (self n) (match ((= n 0) (lit zero)) (#t (self (- n 1)))))) (f 1000))
+(do (def f (fn (self n) (match ((= n 0) 'zero) (#t (self (- n 1)))))) (f 1000))
 ```
 ---
     'zero
@@ -31,7 +31,7 @@
 ### last form of do is tail
 
 ```scheme
-(do (def f (fn (self n) (do 1 2 (if (= n 0) (lit ok) (self (- n 1)))))) (f 1000))
+(do (def f (fn (self n) (do 1 2 (if (= n 0) 'ok (self (- n 1)))))) (f 1000))
 ```
 ---
     'ok
@@ -41,7 +41,7 @@
 ### last form of let is tail
 
 ```scheme
-(do (def f (fn (self n) (let ((m (- n 1))) (if (= m 0) (lit done) (self m))))) (f 1000))
+(do (def f (fn (self n) (let ((m (- n 1))) (if (= m 0) 'done (self m))))) (f 1000))
 ```
 ---
     'done
@@ -61,7 +61,7 @@
 ### apply with deep recursion
 
 ```scheme
-(do (def f (fn (self n) (if (= n 0) (lit done) (apply self (list (- n 1)))))) (f 1000))
+(do (def f (fn (self n) (if (= n 0) 'done (apply self (list (- n 1)))))) (f 1000))
 ```
 ---
     'done
@@ -71,7 +71,7 @@
 ### and tail-evaluates last expression
 
 ```scheme
-(do (def f (fn (self n) (if (and #t (> n 0)) (self (- n 1)) (lit done)))) (f 1000))
+(do (def f (fn (self n) (if (and #t (> n 0)) (self (- n 1)) 'done))) (f 1000))
 ```
 ---
     'done
@@ -81,7 +81,7 @@
 ### or tail-evaluates last expression
 
 ```scheme
-(do (def f (fn (self n) (if (or () (= n 0)) (lit done) (self (- n 1))))) (f 1000))
+(do (def f (fn (self n) (if (or () (= n 0)) 'done (self (- n 1))))) (f 1000))
 ```
 ---
     'done
@@ -127,7 +127,7 @@
 ### let inside or inside recursive fn
 
 ```scheme
-(do (def f (fn (self n) (if (or () (let ((m (- n 1))) (= m 0))) (lit done) (self (- n 1))))) (f 1000))
+(do (def f (fn (self n) (if (or () (let ((m (- n 1))) (= m 0))) 'done (self (- n 1))))) (f 1000))
 ```
 ---
     'done
@@ -135,7 +135,7 @@
 ### do inside and inside recursive fn
 
 ```scheme
-(do (def f (fn (self n) (if (and #t (do (> n 0))) (self (- n 1)) (lit done)))) (f 1000))
+(do (def f (fn (self n) (if (and #t (do (> n 0))) (self (- n 1)) 'done))) (f 1000))
 ```
 ---
     'done

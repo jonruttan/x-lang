@@ -19,7 +19,7 @@ duality need an explicit `mov rax, rdi` here.
 ### returns first argument
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit mov) rax rdi) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 42 0)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'mov rax rdi) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 42 0)) (asm-free! a))
 ```
 ---
     42
@@ -27,7 +27,7 @@ duality need an explicit `mov rax, rdi` here.
 ### returns zero for zero
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit mov) rax rdi) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 0 0)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'mov rax rdi) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 0 0)) (asm-free! a))
 ```
 ---
     0
@@ -37,7 +37,7 @@ duality need an explicit `mov rax, rdi` here.
 ### loads constant into return register
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit mov) rax (imm 99)) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 0 0)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'mov rax (imm 99)) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 0 0)) (asm-free! a))
 ```
 ---
     99
@@ -45,7 +45,7 @@ duality need an explicit `mov rax, rdi` here.
 ### loads zero
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit mov) rax (imm 0)) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 999 0)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'mov rax (imm 0)) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 999 0)) (asm-free! a))
 ```
 ---
     0
@@ -55,7 +55,7 @@ duality need an explicit `mov rax, rdi` here.
 ### adds two registers
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit mov) rax rdi) (asm-emit! a (lit add) rax rsi) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 20 22)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'mov rax rdi) (asm-emit! a 'add rax rsi) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 20 22)) (asm-free! a))
 ```
 ---
     42
@@ -63,7 +63,7 @@ duality need an explicit `mov rax, rdi` here.
 ### add immediate
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit mov) rax rdi) (asm-emit! a (lit add) rax (imm 10)) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 32 0)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'mov rax rdi) (asm-emit! a 'add rax (imm 10)) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 32 0)) (asm-free! a))
 ```
 ---
     42
@@ -73,7 +73,7 @@ duality need an explicit `mov rax, rdi` here.
 ### subtracts two registers
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit mov) rax rdi) (asm-emit! a (lit sub) rax rsi) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 100 58)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'mov rax rdi) (asm-emit! a 'sub rax rsi) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 100 58)) (asm-free! a))
 ```
 ---
     42
@@ -81,7 +81,7 @@ duality need an explicit `mov rax, rdi` here.
 ### sub immediate
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit mov) rax rdi) (asm-emit! a (lit sub) rax (imm 8)) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 50 0)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'mov rax rdi) (asm-emit! a 'sub rax (imm 8)) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 50 0)) (asm-free! a))
 ```
 ---
     42
@@ -91,7 +91,7 @@ duality need an explicit `mov rax, rdi` here.
 ### nop does not change registers
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit mov) rax rdi) (asm-emit! a (lit nop)) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 42 0)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'mov rax rdi) (asm-emit! a 'nop) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 42 0)) (asm-free! a))
 ```
 ---
     42
@@ -101,7 +101,7 @@ duality need an explicit `mov rax, rdi` here.
 ### forward branch skips instruction
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit mov) rax (imm 1)) (asm-emit! a (lit b) (label (lit skip))) (asm-emit! a (lit mov) rax (imm 99)) (asm-label! a (lit skip)) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 0 0)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'mov rax (imm 1)) (asm-emit! a 'b (label 'skip)) (asm-emit! a 'mov rax (imm 99)) (asm-label! a 'skip) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 0 0)) (asm-free! a))
 ```
 ---
     1
@@ -111,7 +111,7 @@ duality need an explicit `mov rax, rdi` here.
 ### sequence of operations
 
 ```scheme
-(do (def a (asm-new)) (asm-emit! a (lit mov) rax (imm 0)) (asm-emit! a (lit add) rax rsi) (asm-emit! a (lit add) rax rsi) (asm-emit! a (lit ret)) (def f (asm-finalize! a)) (display (Ptr call f 0 21)) (asm-free! a))
+(do (def a (asm-new)) (asm-emit! a 'mov rax (imm 0)) (asm-emit! a 'add rax rsi) (asm-emit! a 'add rax rsi) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 0 21)) (asm-free! a))
 ```
 ---
     42

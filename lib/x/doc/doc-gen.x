@@ -4,14 +4,14 @@
 ; and emits Markdown. Works with tokens from make-base + %token-read-string.
 (import x/core/list)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
-(def %token-read-string (prim-ref (lit tok) (lit read-str)))
+(def %token-read-string (prim-ref 'tok 'read-str))
 
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
-(def %str-append (prim-ref (lit str) (lit append)))
+(def %str-append (prim-ref 'str 'append))
 
 (import x/type/str)
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
-(def %integer->char (prim-ref (lit int) (lit ->char)))
+(def %integer->char (prim-ref 'int '->char))
 
 
 ; --- Predicates (cross-base: use str=? not eq?) ---
@@ -299,7 +299,7 @@
             (doc-extract-meta-type %meta "see" ())
             (if static? %notes
               (append %notes
-                (list (list (lit note)
+                (list (list 'note
                   (str "Instance method: called on a " cname " instance.")))))))))
 
 ; The class-level doc form: (doc "description" (note ...) (example ...)).
@@ -413,7 +413,7 @@
     (match
       ((null? tokens) ())
       ; string compare, not eq?: tokens come from a FRESH base (doc.x), and
-      ; symbol interning is per-base, so (lit do) here is a different atom
+      ; symbol interning is per-base, so 'do here is a different atom
       ((if (pair? (first tokens)) (doc-sym-is? (first (first tokens)) "do") #f)
         (append (self (rest (first tokens))) (self (rest tokens))))
       (#t (pair (first tokens) (self (rest tokens)))))))

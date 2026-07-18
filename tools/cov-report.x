@@ -6,7 +6,7 @@
 
 (import x/tool/cov)
 
-(if (not (symbol? (lit %cov-tsv-mode)))
+(if (not (symbol? '%cov-tsv-mode))
   ()
   (if (null? %cov-tsv-mode)
     (def %cov-tsv-mode #f)))

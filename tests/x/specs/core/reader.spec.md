@@ -105,7 +105,7 @@
 ### reads simple symbol
 
 ```scheme
-(lit abc)
+'abc
 ```
 ---
     'abc
@@ -113,7 +113,7 @@
 ### reads symbol with punctuation
 
 ```scheme
-(lit my-var?)
+'my-var?
 ```
 ---
     'my-var?
@@ -121,7 +121,7 @@
 ### reads operator symbols
 
 ```scheme
-(lit +)
+'+
 ```
 ---
     '+
@@ -232,7 +232,7 @@
 ### single-quote expands to lit
 
 ```scheme
-(lit a)
+'a
 ```
 ---
     'a

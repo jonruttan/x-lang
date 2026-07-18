@@ -29,7 +29,7 @@
 ### finds symbol type
 
 ```scheme
-(not (null? (Type by-atom (Type of (lit foo)))))
+(not (null? (Type by-atom (Type of 'foo))))
 ```
 ---
     #t
@@ -159,7 +159,7 @@
 ### a plain symbol is an object, not a handle
 
 ```scheme
-(Type name (lit foo))
+(Type name 'foo)
 ```
 ---
     "SYMBOL"

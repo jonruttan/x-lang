@@ -3,7 +3,7 @@
 ### tail-recursive countdown
 
 ```scheme
-(do (def loop (fn (self n) (if (= n 0) (lit done) (self (- n 1))))) (loop 100000))
+(do (def loop (fn (self n) (if (= n 0) 'done (self (- n 1))))) (loop 100000))
 ```
 ---
     done
@@ -21,7 +21,7 @@
 ### tail-recursive with match
 
 ```scheme
-(do (def f (fn (self n) (match ((= n 0) (lit zero)) (#t (self (- n 1)))))) (f 50000))
+(do (def f (fn (self n) (match ((= n 0) 'zero) (#t (self (- n 1)))))) (f 50000))
 ```
 ---
     zero
@@ -31,7 +31,7 @@
 ### last form of do is tail
 
 ```scheme
-(do (def f (fn (self n) (do 1 2 (if (= n 0) (lit ok) (self (- n 1)))))) (f 50000))
+(do (def f (fn (self n) (do 1 2 (if (= n 0) 'ok (self (- n 1)))))) (f 50000))
 ```
 ---
     ok
@@ -41,7 +41,7 @@
 ### last form of let is tail
 
 ```scheme
-(do (def f (fn (self n) (let ((m (- n 1))) (if (= m 0) (lit done) (self m))))) (f 50000))
+(do (def f (fn (self n) (let ((m (- n 1))) (if (= m 0) 'done (self m))))) (f 50000))
 ```
 ---
     done
@@ -61,7 +61,7 @@
 ### apply with deep recursion
 
 ```scheme
-(do (def f (fn (self n) (if (= n 0) (lit done) (apply self (list (- n 1)))))) (f 50000))
+(do (def f (fn (self n) (if (= n 0) 'done (apply self (list (- n 1)))))) (f 50000))
 ```
 ---
     done
@@ -71,7 +71,7 @@
 ### and tail-evaluates last expression
 
 ```scheme
-(do (def f (fn (self n) (if (and #t (> n 0)) (self (- n 1)) (lit done)))) (f 50000))
+(do (def f (fn (self n) (if (and #t (> n 0)) (self (- n 1)) 'done))) (f 50000))
 ```
 ---
     done
@@ -79,7 +79,7 @@
 ### and with fn call in recursive condition
 
 ```scheme
-(do (def h (fn (_ n) (> n 0))) (def f (fn (self n) (if (and (h n) #t) (self (- n 1)) (lit done)))) (f 50000))
+(do (def h (fn (_ n) (> n 0))) (def f (fn (self n) (if (and (h n) #t) (self (- n 1)) 'done))) (f 50000))
 ```
 ---
     done
@@ -89,7 +89,7 @@
 ### or tail-evaluates last expression
 
 ```scheme
-(do (def f (fn (self n) (if (or () (= n 0)) (lit done) (self (- n 1))))) (f 50000))
+(do (def f (fn (self n) (if (or () (= n 0)) 'done (self (- n 1))))) (f 50000))
 ```
 ---
     done
@@ -97,7 +97,7 @@
 ### or with fn call in recursive condition
 
 ```scheme
-(do (def h (fn (_ n) (= n 0))) (def f (fn (self n) (if (or () (h n)) (lit done) (self (- n 1))))) (f 50000))
+(do (def h (fn (_ n) (= n 0))) (def f (fn (self n) (if (or () (h n)) 'done (self (- n 1))))) (f 50000))
 ```
 ---
     done
@@ -123,7 +123,7 @@
 ### or with fn call in deep recursion preserves env
 
 ```scheme
-(do (def h (fn (_ n) (= n 0))) (def g (fn (self n) (if (or () (h n)) (lit done) (self (- n 1))))) (g 50000))
+(do (def h (fn (_ n) (= n 0))) (def g (fn (self n) (if (or () (h n)) 'done (self (- n 1))))) (g 50000))
 ```
 ---
     done
@@ -131,7 +131,7 @@
 ### and with fn call in deep recursion preserves env
 
 ```scheme
-(do (def h (fn (_ n) (> n 0))) (def g (fn (self n) (if (and (h n) #t) (self (- n 1)) (lit done)))) (g 50000))
+(do (def h (fn (_ n) (> n 0))) (def g (fn (self n) (if (and (h n) #t) (self (- n 1)) 'done))) (g 50000))
 ```
 ---
     done
@@ -181,7 +181,7 @@
 ### do with fn call in recursive condition
 
 ```scheme
-(do (def h (fn (_ n) (= n 0))) (def g (fn (self n) (if (do (h n)) (lit done) (self (- n 1))))) (g 50000))
+(do (def h (fn (_ n) (= n 0))) (def g (fn (self n) (if (do (h n)) 'done (self (- n 1))))) (g 50000))
 ```
 ---
     done
@@ -199,7 +199,7 @@
 ### let inside or inside recursive fn
 
 ```scheme
-(do (def f (fn (self n) (if (or () (let ((m (- n 1))) (= m 0))) (lit done) (self (- n 1))))) (f 50000))
+(do (def f (fn (self n) (if (or () (let ((m (- n 1))) (= m 0))) 'done (self (- n 1))))) (f 50000))
 ```
 ---
     done
@@ -207,7 +207,7 @@
 ### do inside and inside recursive fn
 
 ```scheme
-(do (def f (fn (self n) (if (and #t (do (> n 0))) (self (- n 1)) (lit done)))) (f 50000))
+(do (def f (fn (self n) (if (and #t (do (> n 0))) (self (- n 1)) 'done))) (f 50000))
 ```
 ---
     done
@@ -215,7 +215,7 @@
 ### match with and guard in recursive fn
 
 ```scheme
-(do (def h (fn (_ n) (> n 0))) (def f (fn (self n) (match ((and (h n) #t) (self (- n 1))) (#t (lit done))))) (f 50000))
+(do (def h (fn (_ n) (> n 0))) (def f (fn (self n) (match ((and (h n) #t) (self (- n 1))) (#t 'done)))) (f 50000))
 ```
 ---
     done
@@ -223,7 +223,7 @@
 ### nested fn calls in or condition preserve env through recursion
 
 ```scheme
-(do (def p (fn (_ n) (= (% n 2) 0))) (def q (fn (_ n) (= n 0))) (def f (fn (self n) (if (or (q n) (p n)) (if (q n) (lit done) (self (- n 1))) (self (- n 1))))) (f 50000))
+(do (def p (fn (_ n) (= (% n 2) 0))) (def q (fn (_ n) (= n 0))) (def f (fn (self n) (if (or (q n) (p n)) (if (q n) 'done (self (- n 1))) (self (- n 1))))) (f 50000))
 ```
 ---
     done

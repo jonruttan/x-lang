@@ -52,7 +52,7 @@ never fail a real test.
 ### returns the %no-raise sentinel when nothing is raised
 
 ```scheme
-(eq? (raised (fn (_) 42)) (lit %no-raise))
+(eq? (raised (fn (_) 42)) '%no-raise)
 ```
 ---
     #t

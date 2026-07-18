@@ -19,7 +19,7 @@ values **without issuing any real syscall**; the assertions branch on
 ### syscall-id maps open to the platform's number (BSD 5 / Linux 2)
 
 ```scheme
-(eq? (syscall-id (lit open)) (if os-darwin? 5 2))
+(eq? (syscall-id 'open) (if os-darwin? 5 2))
 ```
 ---
     #t
@@ -27,7 +27,7 @@ values **without issuing any real syscall**; the assertions branch on
 ### syscall-id maps read / write / close per platform
 
 ```scheme
-(and (eq? (syscall-id (lit read))  (if os-darwin? 3 0))
+(and (eq? (syscall-id 'read)  (if os-darwin? 3 0))
      (eq? (syscall-id 'write) (if os-darwin? 4 1))
      (eq? (syscall-id 'close) (if os-darwin? 6 3)))
 ```
@@ -37,7 +37,7 @@ values **without issuing any real syscall**; the assertions branch on
 ### syscall-id maps fork / execve / wait4 per platform (examples/or/execve-ls.x)
 
 ```scheme
-(and (eq? (syscall-id (lit fork))   (if os-darwin? 2 57))
+(and (eq? (syscall-id 'fork)   (if os-darwin? 2 57))
      (eq? (syscall-id 'execve) 59)
      (eq? (syscall-id 'wait4)  (if os-darwin? 7 61)))
 ```
@@ -49,7 +49,7 @@ values **without issuing any real syscall**; the assertions branch on
 ### O_CREAT matches the platform (macOS 512 / Linux 64)
 
 ```scheme
-(eq? (first (assoc-get (lit creat) (File file-modes))) (if os-darwin? 512 64))
+(eq? (first (assoc-get 'creat (File file-modes))) (if os-darwin? 512 64))
 ```
 ---
     #t
@@ -57,7 +57,7 @@ values **without issuing any real syscall**; the assertions branch on
 ### O_TRUNC matches the platform (macOS 1024 / Linux 512)
 
 ```scheme
-(eq? (first (assoc-get (lit trunc) (File file-modes))) (if os-darwin? 1024 512))
+(eq? (first (assoc-get 'trunc (File file-modes))) (if os-darwin? 1024 512))
 ```
 ---
     #t
@@ -65,7 +65,7 @@ values **without issuing any real syscall**; the assertions branch on
 ### O_RDWR is 2 on every platform (the low access-mode bits are universal)
 
 ```scheme
-(eq? (first (assoc-get (lit rdwr) (File file-modes))) 2)
+(eq? (first (assoc-get 'rdwr (File file-modes))) 2)
 ```
 ---
     #t

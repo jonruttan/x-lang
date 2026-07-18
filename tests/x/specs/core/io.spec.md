@@ -19,7 +19,7 @@
 ### writes a symbol
 
 ```scheme
-(write (lit hello))
+(write 'hello)
 ```
 ---
     'hello
@@ -85,7 +85,7 @@
 ### displays a symbol
 
 ```scheme
-(display (lit hello))
+(display 'hello)
 ```
 ---
     hello
@@ -117,7 +117,7 @@ raw-op consumer.
 ```scheme
 (do
   (def %n (<< 1 (- (* 8 %word-size) 1)))
-  (def %s ((prim-ref (lit io) (lit display-to-str)) %n))
+  (def %s ((prim-ref 'io 'display-to-str) %n))
   (list (eq? (str-ref %s 0) #\-) (< 1 (str-length %s)) (eq? (str->number %s) %n)))
 ```
 ---
@@ -126,7 +126,7 @@ raw-op consumer.
 ### does not spoof a boolean on value-word collision
 
 ```scheme
-(str=? ((prim-ref (lit io) (lit display-to-str)) (first-int #t)) "#t")
+(str=? ((prim-ref 'io 'display-to-str) (first-int #t)) "#t")
 ```
 ---
     #f
@@ -139,7 +139,7 @@ retired C write handlers printed the same strings).
 ### procedure, operative, primitive, pointer
 
 ```scheme
-(list ((prim-ref (lit io) (lit write-to-str)) (fn (_ x) x))
+(list ((prim-ref 'io 'write-to-str) (fn (_ x) x))
       ((prim-ref 'io 'write-to-str) (op (x) e ()))
       ((prim-ref 'io 'write-to-str) (prim-ref 'io 'write-str))
       ((prim-ref 'io 'write-to-str) ((prim-ref 'obj '->ptr) 0)))
@@ -159,7 +159,7 @@ retired C write handlers printed the same strings).
 
 ```scheme
 (do
-  (def %s ((prim-ref (lit io) (lit write-to-str)) (pair (fn (_ x) x) ())))
+  (def %s ((prim-ref 'io 'write-to-str) (pair (fn (_ x) x) ())))
   (display "[") (display %s) (display "]"))
 ```
 ---

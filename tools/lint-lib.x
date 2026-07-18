@@ -33,7 +33,7 @@
           (def new-uses (%walk form scope uses))
           ; If form is (def name ...), add name to scope for rest
           (def new-scope
-            (if (if (pair? form) (eq? (first form) (lit def)) ())
+            (if (if (pair? form) (eq? (first form) 'def) ())
               (pair (first (rest form)) scope)
               scope))
           (%walk-list (rest forms) new-scope new-uses))
@@ -101,9 +101,9 @@
 (def %walk-quasi (fn (_ form scope uses)
   (if (null? form) uses
     (if (pair? form)
-      (if (eq? (first form) (lit unquote))
+      (if (eq? (first form) 'unquote)
         (%walk (first (rest form)) scope uses)
-        (if (eq? (first form) (lit unquote-splicing))
+        (if (eq? (first form) 'unquote-splicing)
           (%walk (first (rest form)) scope uses)
           (%walk-quasi (rest form) scope
             (%walk-quasi (first form) scope uses))))
@@ -131,7 +131,7 @@
   (if (null? forms) (list defs uses)
     (do (def form (first forms))
         (def new-defs
-          (if (if (pair? form) (eq? (first form) (lit def)) ())
+          (if (if (pair? form) (eq? (first form) 'def) ())
             (pair (first (rest form)) defs)
             defs))
         (def new-uses (%walk form () uses))

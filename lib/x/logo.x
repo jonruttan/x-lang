@@ -11,9 +11,9 @@
 (import x/sys/posix)
 (import x/logo/serve)
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
-(def %ptr-call (prim-ref (lit ptr) (lit call)))
-(def %dlopen (prim-ref (lit ffi) (lit dlopen)))
-(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+(def %ptr-call (prim-ref 'ptr 'call))
+(def %dlopen (prim-ref 'ffi 'dlopen))
+(def %dlsym (prim-ref 'ffi 'dlsym))
 
 
 ; --- Fork the server, continue with the REPL in the parent ---

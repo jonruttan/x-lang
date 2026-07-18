@@ -14,7 +14,7 @@ bignum->float conversion is the first client).
 
 ```scheme
 (import x/sys/pact)
-(null? (Pact get (lit pact-ghost)))
+(null? (Pact get 'pact-ghost))
 ```
 ---
     #t
@@ -23,7 +23,7 @@ bignum->float conversion is the first client).
 
 ```scheme
 (import x/sys/pact)
-(Pact has? (lit pact-ghost))
+(Pact has? 'pact-ghost)
 ```
 ---
     #f
@@ -32,8 +32,8 @@ bignum->float conversion is the first client).
 
 ```scheme
 (import x/sys/pact)
-(Pact join (lit pact-alpha) 42)
-(Pact get (lit pact-alpha))
+(Pact join 'pact-alpha 42)
+(Pact get 'pact-alpha)
 ```
 ---
     42
@@ -42,7 +42,7 @@ bignum->float conversion is the first client).
 
 ```scheme
 (import x/sys/pact)
-(Pact has? (lit pact-alpha))
+(Pact has? 'pact-alpha)
 ```
 ---
     #t
@@ -51,9 +51,9 @@ bignum->float conversion is the first client).
 
 ```scheme
 (import x/sys/pact)
-(Pact join (lit pact-g) 1)
-(Pact join (lit pact-g) 2)
-(Pact get (lit pact-g))
+(Pact join 'pact-g 1)
+(Pact join 'pact-g 2)
+(Pact get 'pact-g)
 ```
 ---
     2
@@ -64,9 +64,9 @@ bignum->float conversion is the first client).
 
 ```scheme
 (import x/sys/pact)
-(Pact join (lit pact-b) 7)
+(Pact join 'pact-b 7)
 (def r1 ())
-(Pact when (list (lit pact-b)) (fn (_ b) (set! r1 b)))
+(Pact when (list 'pact-b) (fn (_ b) (set! r1 b)))
 r1
 ```
 ---
@@ -77,9 +77,9 @@ r1
 ```scheme
 (import x/sys/pact)
 (def r2 ())
-(Pact when (list (lit pact-c)) (fn (_ c) (set! r2 c)))
+(Pact when (list 'pact-c) (fn (_ c) (set! r2 c)))
 (def before (null? r2))
-(Pact join (lit pact-c) 9)
+(Pact join 'pact-c 9)
 (list before r2)
 ```
 ---
@@ -90,10 +90,10 @@ r1
 ```scheme
 (import x/sys/pact)
 (def r3 ())
-(Pact when (list (lit pact-d) (lit pact-e)) (fn (_ d e) (set! r3 (- d e))))
-(Pact join (lit pact-d) 10)
+(Pact when (list 'pact-d 'pact-e) (fn (_ d e) (set! r3 (- d e))))
+(Pact join 'pact-d 10)
 (def mid (null? r3))
-(Pact join (lit pact-e) 3)
+(Pact join 'pact-e 3)
 (list mid r3)
 ```
 ---
@@ -104,9 +104,9 @@ r1
 ```scheme
 (import x/sys/pact)
 (def n1 0)
-(Pact when (list (lit pact-f)) (fn (_ v) (set! n1 (+ n1 1))))
-(Pact join (lit pact-f) 1)
-(Pact join (lit pact-f) 2)
+(Pact when (list 'pact-f) (fn (_ v) (set! n1 (+ n1 1))))
+(Pact join 'pact-f 1)
+(Pact join 'pact-f 2)
 n1
 ```
 ---
@@ -117,9 +117,9 @@ n1
 ```scheme
 (import x/sys/pact)
 (def r4 ())
-(Pact when (list (lit pact-h))
-  (fn (_ h) (Pact when (list (lit pact-h)) (fn (_ h2) (set! r4 h2)))))
-(Pact join (lit pact-h) 5)
+(Pact when (list 'pact-h)
+  (fn (_ h) (Pact when (list 'pact-h) (fn (_ h2) (set! r4 h2)))))
+(Pact join 'pact-h 5)
 r4
 ```
 ---

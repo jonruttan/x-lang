@@ -1,14 +1,14 @@
 ; repl.x -- Logo REPL with multiline block reading
 (import x/logo/types)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
-(def %token-read-string (prim-ref (lit tok) (lit read-str)))
+(def %token-read-string (prim-ref 'tok 'read-str))
 
 (import x/logo/dispatch)
 (import x/logo/indent)
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
-(def %read-char (prim-ref (lit io) (lit read-char)))
+(def %read-char (prim-ref 'io 'read-char))
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
-(def %integer->char (prim-ref (lit int) (lit ->char)))
+(def %integer->char (prim-ref 'int '->char))
 
 
 

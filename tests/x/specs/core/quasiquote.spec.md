@@ -52,7 +52,7 @@
 ### substitutes in first position
 
 ```scheme
-(do (def op (lit +)) (quasi ((unquote op) 1 2)))
+(do (def op '+) (quasi ((unquote op) 1 2)))
 ```
 ---
     ('+ 1 2)
