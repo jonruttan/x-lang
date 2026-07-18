@@ -19,7 +19,8 @@
                          (param alist LIST "Association list"))
       (doc "Look up a key in an alist, returning a default only when the key is absent."
         (returns ANY "Value associated with key, or the default")
-        (note "Presence-based: a stored nil is returned as-is, not replaced by the default."))
+        (note "Presence-based: a stored nil is returned as-is, not replaced by the default.")
+        (note "Delegates to the option-store walker, so a flat plist is also accepted."))
       ; Delegate to the box-based walker: testing (null? (assoc-get ...)) would
       ; hand back the default for a PRESENT key whose stored value is nil.
       (%opt-get-or-else (fn () d) key alist))
@@ -46,9 +47,9 @@
                       (param alist LIST "Association list"))
       (doc "Apply a function to every value in an alist, preserving keys." (returns LIST "New alist with transformed values"))
       (map (fn (_ entry) (pair (first entry) (f (rest entry)))) alist))
-    (method filter (self (param pred CALLABLE "Predicate: (entry) -> bool")
+    (method filter (self (param pred CALLABLE "Predicate: (assoc) -> bool, applied to each (key . val) assoc")
                          (param alist LIST "Association list"))
-      (doc "Keep only entries satisfying a predicate." (returns LIST "Filtered alist"))
+      (doc "Keep only assocs satisfying a predicate." (returns LIST "Filtered alist"))
       (filter pred alist))
     (method merge (self (param a LIST "Base alist (takes priority)")
                         (param b LIST "Alist to merge in"))
@@ -67,11 +68,11 @@
       (doc "Remove entries whose keys appear in a given list." (returns LIST "Alist without the excluded keys"))
       (filter (fn (_ entry) (not (List includes? (first entry) keys))) alist))
     ; --- Conversion ---
-    (method from-pairs (self (param lst LIST "List of two-element lists"))
-      (doc "Convert a list of (key value) lists into an alist of dotted pairs." (returns LIST "Association list"))
-      (map (fn (_ p) (pair (first p) (first (rest p)))) lst))
-    (method ->pairs (self (param alist LIST "Association list"))
-      (doc "Convert an alist of dotted pairs into a list of (key value) lists." (returns LIST "List of two-element lists"))
+    (method from-bindings (self (param bindings LIST "Bindings list: ((key value) ...) two-element lists, the let shape"))
+      (doc "Convert a bindings list into an alist of (key . val) assocs." (returns LIST "Association list"))
+      (map (fn (_ b) (pair (first b) (first (rest b)))) bindings))
+    (method ->bindings (self (param alist LIST "Association list"))
+      (doc "Convert an alist into a bindings list of (key value) two-element lists." (returns LIST "Bindings list"))
       (map (fn (_ entry) (list (first entry) (rest entry))) alist))
     (method evolve (self (param fns LIST "Alist of key -> transform function")
                          (param alist LIST "Association list to transform"))
@@ -99,7 +100,7 @@
       (%opt-get-or-else thunk key store))))
 
 (doc (provide x/type/assoc Assoc)
-  (note "Alist format is ((key . val) ...). Keys compared with eq?.")
+  (note "An assoc is one dotted (key . val) pair; an alist is a list of assocs. Keys compared with eq?.")
   (note "The get/has?/del/put/keys bootstrap globals remain in x/core/alist (the object")
   (note "system runs on them); these methods delegate to that layer.")
   (example "(Assoc get (lit x) '((x . 1) (y . 2)))" "1")

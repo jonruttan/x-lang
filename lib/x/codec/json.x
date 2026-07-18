@@ -259,7 +259,7 @@
 
 (def %json-emit-object
   (fn (_ d)
-    (let go ((es (d ->pairs)) (acc "{") (sep ""))
+    (let go ((es (d ->alist)) (acc "{") (sep ""))
       (if (null? es) (%json-append acc "}")
         (let ((k (first (first es))))
           (let ((ks (match

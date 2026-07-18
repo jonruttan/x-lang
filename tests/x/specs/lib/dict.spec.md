@@ -13,20 +13,20 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 ---
     #t
 
-### from-pairs loads an alist
+### from-alist loads an alist
 
 ```scheme
 (do (import x/type/dict)
-  ((Dict from-pairs (list (pair (lit a) 1) (pair (lit b) 2))) get (lit b)))
+  ((Dict from-alist (list (pair (lit a) 1) (pair (lit b) 2))) get (lit b)))
 ```
 ---
     2
 
-### from-pairs: later duplicates overwrite
+### from-alist: later duplicates overwrite
 
 ```scheme
 (do (import x/type/dict)
-  ((Dict from-pairs (list (pair (lit a) 1) (pair (lit a) 9))) get (lit a)))
+  ((Dict from-alist (list (pair (lit a) 1) (pair (lit a) 9))) get (lit a)))
 ```
 ---
     9
@@ -213,13 +213,13 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ## extraction
 
-### ->pairs snapshots the entries
+### ->alist snapshots the entries
 
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make)))
     (d put! (lit a) 1)
-    (let ((snap (d ->pairs)))
+    (let ((snap (d ->alist)))
       (d put! (lit a) 2)
       (list (rest (first snap)) (d get (lit a))))))
 ```

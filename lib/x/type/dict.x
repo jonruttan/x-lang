@@ -75,10 +75,10 @@
       (def c (if (pair? opt) (first opt) 8))
       (new-from self (list 'store (Vector make c ()) 'cap c 'n 0)))
 
-    (method from-pairs (self (param alist LIST "Alist ((key . val) ...) to load"))
-      (doc "Build a dict from an alist of dotted pairs (later duplicates overwrite earlier)."
-        (returns Dict "A dict holding the alist's entries")
-        (example "((Dict from-pairs (list (pair \"a\" 1))) get \"a\")" "1"))
+    (method from-alist (self (param alist LIST "Alist ((key . val) ...) to load"))
+      (doc "Build a dict from an alist (later duplicates overwrite earlier)."
+        (returns Dict "A dict holding the alist's assocs")
+        (example "((Dict from-alist (list (pair \"a\" 1))) get \"a\")" "1"))
       (def d (self make))
       (List for-each (fn (_ e) (d put! (first e) (rest e))) alist)
       d))
@@ -170,9 +170,9 @@
     (= 0 (member 'n)))
 
   ; --- extraction ---------------------------------------------------------
-  (method ->pairs (self)
+  (method ->alist (self)
     (doc "A fresh alist snapshot of the entries (unordered)."
-      (returns LIST "((key . val) ...) -- new pairs, detached from the table"))
+      (returns LIST "((key . val) ...) -- new assocs, detached from the table"))
     ; copy each entry: the live (key . val) pairs are mutated by put!, so a
     ; snapshot must not alias them
     (let go ((i 1) (acc ()))
@@ -183,17 +183,17 @@
 
   (method keys (self)
     (doc "All stored keys (unordered)." (returns LIST "List of keys"))
-    (List map first (self ->pairs)))
+    (List map first (self ->alist)))
 
   (method vals (self)
     (doc "All stored values (unordered)." (returns LIST "List of values"))
-    (List map rest (self ->pairs)))
+    (List map rest (self ->alist)))
 
   (method for-each (self f)
     (doc "Apply f to each (key . val) entry pair, for side effects."
       (param f CALLABLE "Applied to each (key . val) pair")
       (returns ANY "nil"))
-    (List for-each f (self ->pairs))))
+    (List for-each f (self ->alist))))
 
 (doc (provide x/type/dict Dict)
   (note "Buckets over a raw slot vector; content hashing (FNV-1a) + equal? keys; doubles past a 3/4 load factor.")

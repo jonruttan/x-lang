@@ -190,22 +190,22 @@
 ---
     2
 
-## from-pairs
+## from-bindings
 
-### converts list of lists to alist
+### converts a bindings list (the let shape) to an alist
 
 ```scheme
-(do (def al (Assoc from-pairs (list (list (lit a) 1) (list (lit b) 2)))) (assoc-get (lit a) al))
+(do (def al (Assoc from-bindings (list (list (lit a) 1) (list (lit b) 2)))) (assoc-get (lit a) al))
 ```
 ---
     1
 
-## ->pairs
+## ->bindings
 
-### converts alist to list of lists
+### converts an alist to a bindings list
 
 ```scheme
-(do (def al (list (pair (lit a) 1))) (first (first (Assoc ->pairs al))))
+(do (def al (list (pair (lit a) 1))) (first (first (Assoc ->bindings al))))
 ```
 ---
     (lit a)

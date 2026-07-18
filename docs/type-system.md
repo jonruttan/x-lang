@@ -347,7 +347,7 @@ Worked examples live in the tower-loading libraries: `lib/x-and.x` and `lib/x-or
 
 The base object uses the same nested-list contract pattern as types. It holds the complete state of an interpreter instance.
 
-**`p_base` IS nil.** The base context object is the nil value for its interpreter. `()` evaluates to `p_base`.
+**`p_base` is not nil.** Nil is `NULL`: `()` parses to `NULL` and `x_obj_isnil` checks `p_obj == NULL`. The base object is the execution context only. (An earlier design used the base as the nil value; that is long gone.)
 
 #### Structure
 

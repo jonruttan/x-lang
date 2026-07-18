@@ -562,10 +562,10 @@ Returns a list of `n` values starting with `x`, each subsequent value produced b
 ```
 
 ### `List zip`
-`(List zip a b) -> list`
-Pairs corresponding elements from two lists into a list of two-element lists.
+`(List zip a b) -> alist`
+Pairs corresponding elements from two lists as assocs; the result is an alist, ready for `Dict from-alist` and the `Assoc` API.
 ```
-(List zip (list 1 2 3) (list 4 5 6)) -> ((1 4) (2 5) (3 6))
+(List zip (list 1 2 3) (list 4 5 6)) -> ((1 . 4) (2 . 5) (3 . 6))
 ```
 
 ### `List zip-with`
@@ -753,18 +753,18 @@ Returns the alist with entries for the given keys removed.
 (Assoc omit (list 'a) (list (pair 'a 1) (pair 'b 2))) -> ((b . 2))
 ```
 
-### `Assoc from-pairs`
-`(Assoc from-pairs lst) -> alist`
-Converts a list of two-element lists into an alist of dotted pairs.
+### `Assoc from-bindings`
+`(Assoc from-bindings bindings) -> alist`
+Converts a bindings list -- `((key value) ...)` two-element lists, the `let` shape -- into an alist of assocs.
 ```
-(Assoc from-pairs (list (list 'a 1) (list 'b 2))) -> ((a . 1) (b . 2))
+(Assoc from-bindings (list (list 'a 1) (list 'b 2))) -> ((a . 1) (b . 2))
 ```
 
-### `Assoc ->pairs`
-`(Assoc ->pairs alist) -> list`
-Converts an alist of dotted pairs into a list of two-element lists.
+### `Assoc ->bindings`
+`(Assoc ->bindings alist) -> list`
+Converts an alist of assocs into a bindings list of two-element lists.
 ```
-(Assoc ->pairs (list (pair 'a 1) (pair 'b 2))) -> ((a 1) (b 2))
+(Assoc ->bindings (list (pair 'a 1) (pair 'b 2))) -> ((a 1) (b 2))
 ```
 
 ### `Assoc evolve`

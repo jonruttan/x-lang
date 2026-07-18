@@ -8,6 +8,7 @@
 ## Language
 
 - [Specification](spec.md) — Normative language specification (maps 1:1 to test files)
+- [Glossary](glossary.md) — One name per concept: the settled cross-layer vocabulary
 - [Architecture](architecture.md) — System design, evaluation model, the contract pattern
 - [Type System](type-system.md) — Objects, types, the base object, dispatch, extensibility
 - [Object System](object-system.md) — Message-passing classes, single inheritance, encapsulated members, `super`

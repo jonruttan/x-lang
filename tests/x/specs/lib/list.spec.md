@@ -612,13 +612,13 @@
 
 ## zip
 
-### zips two lists
+### zips two lists into an alist of assocs
 
 ```scheme
 (List zip (list 1 2 3) (list 4 5 6))
 ```
 ---
-    ((1 4) (2 5) (3 6))
+    ((1 . 4) (2 . 5) (3 . 6))
 
 ### stops at shorter list
 
@@ -626,7 +626,16 @@
 (List zip (list 1 2) (list 3 4 5))
 ```
 ---
-    ((1 3) (2 4))
+    ((1 . 3) (2 . 4))
+
+### zip output feeds the keyed consumers directly
+
+```scheme
+(do (import x/type/dict)
+  ((Dict from-alist (List zip (list (lit a) (lit b)) (list 1 2))) get (lit b)))
+```
+---
+    2
 
 ## zip-with
 

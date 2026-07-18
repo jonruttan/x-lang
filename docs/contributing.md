@@ -40,9 +40,20 @@ make clean && make
   is `count-if` (List); counting regex matches is `match-count` (Regex).
 - **Predicates are `any?` / `all?` / `none?`**; iteration for side effects is
   `for-each`. (Not `every?`, not `each`.)
-- **Conversions are `->x` / `from-x`** as class methods (`Assoc ->pairs`,
+- **Conversions are `->x` / `from-x`** as class methods (`Dict ->alist`,
   `Hash ->hex`, `Vector ->list` / `from-list`). The bare `X->Y` globals
   (`list->str`, `str->number`) are the pre-class boot layer only — don't add new ones.
+- **Association vocabulary** (see the [glossary](glossary.md)): an **assoc** is one
+  dotted `(key . val)` pair; an **alist** is a list of assocs; a **plist** is the
+  flat `(k v k v ...)` shape, legal ONLY in option stores (the `%opt-cell`
+  family: `let-opts`, `Assoc opt-get-or`/`opt-get-or-else`, `new`, `new-from`);
+  a **bindings list** is `((key value) ...)` two-element lists, the `let` shape.
+  The word "pairs" appears in NO method name — pairing producers (`List zip`,
+  `Gen zip`/`enumerate`, `List group-by`) emit alists; the converters are
+  `Dict from-alist`/`->alist` and `Assoc from-bindings`/`->bindings`. Equality:
+  the alist layer (`Assoc get`, `assoc-get`) compares keys with `eq?`;
+  `List assoc` (`equal?`) and `List assq` (`eq?`) return the assoc itself and
+  are the presence-unambiguous entry doors.
 - **Constructor-style counts come first**: `(List repeat n x)`, `(Str8 repeat n s)`,
   `(Str8 make k ch)`, `(Vector make n fill)`.
 - **Doc type vocabulary** — one token per concept in `(param ...)`/`(returns ...)`:
