@@ -57,13 +57,13 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ---
     #\€
 
-### a nil index errors loudly (a piped index-search miss)
+### a nil index is unconvertible and errors loudly (a piped index-search miss)
 
 ```scheme
 (Str8 ref () "ab")
 ```
 ---
-    Error: Str8 ref: nil index
+    Error: Str8 ref: index not convertible to INT
 
 ### StrUTF8 ref errors past the last code point
 

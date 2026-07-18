@@ -38,6 +38,17 @@
 ; call -- so Str8 is allocation-light and safe to use inside readers/tokenizers
 ; that must not touch the ambient (s i).
 
+; N5 (implicit conversion): index/count seats coerce to INT once at entry;
+; an already-INT arg costs one type-handle eq?, anything else converts, and
+; only an unconvertible value errors (list.x's %list->int is the pattern).
+(def %str8-type-of (prim-ref (lit type) (lit of)))
+(def %str8-int-type (%str8-type-of 0))
+(def %str8-cvt (prim-ref (lit convert) (lit to)))
+(def %str8->int (fn (_ n what)
+  (if (if (null? n) #f (eq? (%str8-type-of n) %str8-int-type)) n
+    (let ((k (%str8-cvt n %str8-int-type)))
+      (if (if (null? k) #f (eq? (%str8-type-of k) %str8-int-type)) k (error what))))))
+
 (def-class Str8 (extends Seq)
   (static
     ; --- primitives (8-bit byte view; handler-immune via str-byte-*) ---
@@ -52,25 +63,27 @@
         (example "(Str8 ref 0 \"abc\")" "#\\a"))
       ; %str-byte-ref reads s[i] unchecked (heap over-read past the string), so
       ; the byte-length compare here is the x-lang guard. Nested ifs, not `or`:
-      ; this runs per element inside the suite's loops and must not allocate.
-      ; The nil guard makes a piped index-search miss fail loudly; only the
-      ; negative case pays the second byte-len fetch.
-      (if (null? i) (error "Str8 ref: nil index")
-        (if (< i 0)
-          (if (< (+ i (%str-byte-len v)) 0) (error "Str8 ref: index out of range")
-            (%str-byte-ref v (+ i (%str-byte-len v))))
-          (if (< i (%str-byte-len v)) (%str-byte-ref v i)
-            (error "Str8 ref: index out of range")))))
+      ; this runs per element inside the suite's loops. The entry coercion
+      ; makes a piped index-search miss (nil, unconvertible) fail loudly; only
+      ; the negative case pays the second byte-len fetch.
+      (def j (%str8->int i "Str8 ref: index not convertible to INT"))
+      (if (< j 0)
+        (if (< (+ j (%str-byte-len v)) 0) (error "Str8 ref: index out of range")
+          (%str-byte-ref v (+ j (%str-byte-len v))))
+        (if (< j (%str-byte-len v)) (%str-byte-ref v j)
+          (error "Str8 ref: index out of range"))))
     (method sub    (self (param st INT "Start byte offset (0-based)") (param len INT "Number of bytes") (param v STRING "Source string"))
       (doc "Substring of len bytes starting at byte offset st; st and len clamp to v's bounds (like StrUTF8 sub)."
         (returns STRING "The len-byte slice of v from st")
         (example "(Str8 sub 1 3 \"hello\")" "\"ell\""))
       ; %str-byte-sub reads unchecked (heap over-read past the string), so the
       ; clamping here is the x-lang guard, mirroring StrUTF8 sub's clamp.
+      (def st2 (%str8->int st "Str8 sub: start not convertible to INT"))
+      (def len2 (%str8->int len "Str8 sub: length not convertible to INT"))
       (let ((n (%str-byte-len v)))
-        (let ((s0 (if (< st 0) 0 (if (< st n) st n))))
+        (let ((s0 (if (< st2 0) 0 (if (< st2 n) st2 n))))
           (%str-byte-sub v s0
-            (if (< len 0) 0 (if (< len (- n s0)) len (- n s0)))))))
+            (if (< len2 0) 0 (if (< len2 (- n s0)) len2 (- n s0)))))))
     (method slice  (self (param st INT "Start offset (0-based, inclusive)") (param end INT "End offset (exclusive)") (param v STRING "Source string"))
       (doc "Substring [st, end) -- the slice convention (start/end-exclusive), delegating to sub (start/length). Dispatches through (self sub), so StrUTF8 slices code points."
         (returns STRING "The [st, end) slice of v")
@@ -211,7 +224,9 @@
       (doc "Concatenate n copies of s (empty string when n <= 0)."
         (returns STRING "s repeated n times")
         (example "(Str8 repeat 3 \"ab\")" "\"ababab\""))
-      (if (<= n 0) "" (%str-append s (self repeat (- n 1) s))))
+      (def k (%str8->int n "Str8 repeat: count not convertible to INT"))
+      (def go (fn (self j) (if (<= j 0) "" (%str-append s (self (- j 1))))))
+      (go k))
 
     ; --- padding (to n ELEMENTS: bytes for Str8, code points for Str --
     ; NOT display columns; wcwidth-style column tables are a known gap) ---
@@ -219,17 +234,19 @@
       (doc "Left-pad s with ch until it is at least n ELEMENTS long (bytes for Str8, code points for Str) -- element count, not display columns."
         (returns STRING "s padded on the left to n elements (unchanged if already >= n)")
         (example "(Str8 pad-left 5 (\"0\" 0) \"42\")" "\"00042\""))
+      (def k (%str8->int n "Str8 pad-left: count not convertible to INT"))
       (def len (self length s))
-      (if (not (< len n)) s
-        (%str-append (self make (- n len) ch) s)))
+      (if (not (< len k)) s
+        (%str-append (self make (- k len) ch) s)))
 
     (method pad-right (self (param n INT "Target element count") (param ch CHAR "Padding character") (param s STRING "String to pad"))
       (doc "Right-pad s with ch until it is at least n ELEMENTS long (bytes for Str8, code points for Str) -- pad-left's missing twin."
         (returns STRING "s padded on the right to n elements (unchanged if already >= n)")
         (example "(Str8 pad-right 5 (\"0\" 0) \"42\")" "\"42000\""))
+      (def k (%str8->int n "Str8 pad-right: count not convertible to INT"))
       (def len (self length s))
-      (if (not (< len n)) s
-        (%str-append s (self make (- n len) ch))))
+      (if (not (< len k)) s
+        (%str-append s (self make (- k len) ch))))
 
     ; --- searching ---
     (method contains? (self (param sub STRING "Substring to search for") (param s STRING "String to search in"))

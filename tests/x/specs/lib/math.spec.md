@@ -410,3 +410,13 @@
 ```
 ---
     Error: Num isqrt: negative input
+
+## int?
+
+### recognizes machine integers only (N5's explicit-control door)
+
+```scheme
+(list (Num int? 3) (Num int? ()) (Num int? "3"))
+```
+---
+    (#t #f #f)

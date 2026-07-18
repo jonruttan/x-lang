@@ -11,6 +11,22 @@
 
 (import x/type/object)
 
+; N5 (implicit conversion): count/index seats COERCE to INT through the
+; conversion catalog. An already-INT arg costs one type-handle eq?
+; (C-static atoms, pointer-stable; nil is typeless so it is checked
+; first); anything else converts through %cvt, and only an UNCONVERTIBLE
+; value errors. Coercion runs ONCE per public entry -- self-recursive
+; walks move into inner `go` fns so the loop never re-probes. Explicit
+; control: pre-convert yourself ((Convert to x %int)).
+(def %list-type-of (prim-ref (lit type) (lit of)))
+(def %list-int-type (%list-type-of 0))
+(def %list-cvt (prim-ref (lit convert) (lit to)))
+(def %list-int? (fn (_ n) (if (null? n) #f (eq? (%list-type-of n) %list-int-type))))
+(def %list->int (fn (_ n what)
+  (if (%list-int? n) n
+    (let ((k (%list-cvt n %list-int-type)))
+      (if (%list-int? k) k (error what))))))
+
 (def-class List ()
   (static
     (method of (self . (param args ANY "Elements, in order"))
@@ -47,20 +63,22 @@
       (doc "Return the number of elements." (param lst LIST "List or iterable"))
       (List fold (fn (_ acc _) (+ acc 1)) 0 lst))
     (method ref (self n lst)
-      (doc "Return the element at index n (zero-based; negative counts from the end); errors when n is nil or out of range." (param n INT "Zero-based index (negative counts from the end)") (param lst LIST "List"))
+      (doc "Return the element at index n (zero-based; negative counts from the end; coerced to INT); errors when n is unconvertible or out of range." (param n INT "Zero-based index (negative counts from the end)") (param lst LIST "List"))
       ; first/rest are unchecked C prims (UB on a non-pair -- segfaults on
-      ; 32-bit); the pair? guard is the x-lang call-site check that makes an
-      ; overrun an error, not a crash. The nil guard makes a piped index-search
-      ; miss fail loudly instead of comparing nil. Only the negative case pays
-      ; the length walk.
-      (match
-        ((null? n) (error "List ref: nil index"))
-        ((< n 0)
-          (let ((k (+ n (List length lst))))
-            (if (< k 0) (error "List ref: index out of range") (recur self k lst))))
-        ((not (pair? lst)) (error "List ref: index out of range"))
-        ((= n 0) (first lst))
-        (#t (recur self (- n 1) (rest lst)))))
+      ; 32-bit); the pair? guard in the walk makes an overrun an error, not a
+      ; crash. The entry coerces ONCE (a nil from a piped index-search miss is
+      ; unconvertible and fails loudly here); only the negative case pays the
+      ; length walk.
+      (def i (%list->int n "List ref: index not convertible to INT"))
+      (def go (fn (self j xs)
+        (match
+          ((not (pair? xs)) (error "List ref: index out of range"))
+          ((= j 0) (first xs))
+          (#t (self (- j 1) (rest xs))))))
+      (if (< i 0)
+        (let ((k (+ i (List length lst))))
+          (if (< k 0) (error "List ref: index out of range") (go k lst)))
+        (go i lst)))
     (method last (self lst)
       (doc "Return the last element of a list." (param lst LIST "Non-empty list"))
       (if (null? (rest lst)) (first lst) (recur self (rest lst))))
@@ -183,17 +201,25 @@
       (List fold (fn (_ acc x) (if (pred x) (+ acc 1) acc)) 0 lst))
     ; --- Slicing ---
     (method take (self n lst)
-      (doc "Take the first n elements of a list." (param n INT "Number of elements") (param lst LIST "List"))
-      (if (or (<= n 0) (null? lst)) ()
-        (pair (first lst) (recur self (- n 1) (rest lst)))))
+      (doc "Take the first n elements of a list (n coerced to INT)." (param n INT "Number of elements") (param lst LIST "List"))
+      (def k (%list->int n "List take: count not convertible to INT"))
+      (def go (fn (self j xs)
+        (if (or (<= j 0) (null? xs)) ()
+          (pair (first xs) (self (- j 1) (rest xs))))))
+      (go k lst))
     (method chunk (self n lst)
       (doc "Split a list into successive n-element sublists; the last may be shorter." (param n INT "Chunk size (must be > 0)") (param lst LIST "List") (returns LIST "List of chunks") (example "(List chunk 2 (list 1 2 3 4 5))" "((1 2) (3 4) (5))"))
-      (if (<= n 0) (error "List chunk: size must be positive")
-        (if (null? lst) ()
-          (pair (List take n lst) (recur self n (List drop n lst))))))
+      (def k (%list->int n "List chunk: size not convertible to INT"))
+      (def go (fn (self xs)
+        (if (null? xs) ()
+          (pair (List take k xs) (self (List drop k xs))))))
+      (if (<= k 0) (error "List chunk: size must be positive") (go lst)))
     (method drop (self n lst)
-      (doc "Drop the first n elements of a list." (param n INT "Number of elements to skip") (param lst LIST "List"))
-      (if (or (<= n 0) (null? lst)) lst (recur self (- n 1) (rest lst))))
+      (doc "Drop the first n elements of a list (n coerced to INT)." (param n INT "Number of elements to skip") (param lst LIST "List"))
+      (def k (%list->int n "List drop: count not convertible to INT"))
+      (def go (fn (self j xs)
+        (if (or (<= j 0) (null? xs)) xs (self (- j 1) (rest xs)))))
+      (go k lst))
     (method take-while (self pred lst)
       (doc "Take elements from the front while predicate holds." (param pred CALLABLE "Predicate function") (param lst LIST "List"))
       (if (or (null? lst) (not (pred (first lst)))) ()
@@ -215,21 +241,31 @@
       (List take n (List drop start lst)))
     ; --- Generators ---
     (method range (self start end)
-      (doc "Generate a list of integers from start to end." (param start INT "Start value (inclusive)") (param end INT "End value (exclusive)") (returns LIST "List of integers") (example "(range 0 5)" "(0 1 2 3 4)"))
-      (if (>= start end) () (pair start (recur self (+ start 1) end))))
+      (doc "Generate a list of integers from start to end (both coerced to INT)." (param start INT "Start value (inclusive)") (param end INT "End value (exclusive)") (returns LIST "List of integers") (example "(range 0 5)" "(0 1 2 3 4)"))
+      (def a (%list->int start "List range: start not convertible to INT"))
+      (def b (%list->int end "List range: end not convertible to INT"))
+      (def go (fn (self i) (if (>= i b) () (pair i (self (+ i 1))))))
+      (go a))
     (method repeat (self n x)
-      (doc "Create a list of n copies of a value; count first, matching (Str8 repeat n s)." (param n INT "Number of repetitions") (param x ANY "Value to repeat") (returns LIST "List of repeated values"))
-      (if (<= n 0) () (pair x (recur self (- n 1) x))))
+      (doc "Create a list of n copies of a value (n coerced to INT); count first, matching (Str8 repeat n s)." (param n INT "Number of repetitions") (param x ANY "Value to repeat") (returns LIST "List of repeated values"))
+      (def k (%list->int n "List repeat: count not convertible to INT"))
+      (def go (fn (self j)
+        (if (<= j 0) () (pair x (self (- j 1))))))
+      (go k))
     (method times (self n f)
-      (doc "Apply a function to each index 0..n-1, collecting results. Count first, per the constructor-count rule (was (f n) before the V6 adjudication)." (param n INT "Number of iterations") (param f CALLABLE "Function: index -> value") (returns LIST "List of results"))
-      (def go (fn (self i) (if (>= i n) () (pair (f i) (self (+ i 1))))))
+      (doc "Apply a function to each index 0..n-1, collecting results (n coerced to INT). Count first, per the constructor-count rule (was (f n) before the V6 adjudication)." (param n INT "Number of iterations") (param f CALLABLE "Function: index -> value") (returns LIST "List of results"))
+      (def k (%list->int n "List times: count not convertible to INT"))
+      (def go (fn (self i) (if (>= i k) () (pair (f i) (self (+ i 1))))))
       (go 0))
     (method unfold (self pred f g seed)
       (doc "Build a list by repeatedly applying step and value functions to a seed." (param pred CALLABLE "Stop predicate: seed -> boolean") (param f CALLABLE "Value function: seed -> element") (param g CALLABLE "Step function: seed -> next-seed") (param seed ANY "Initial seed value") (returns LIST "Generated list"))
       (if (pred seed) () (pair (f seed) (recur self pred f g (g seed)))))
     (method iterate (self f n x)
-      (doc "Generate n values by repeatedly applying f." (param f CALLABLE "Step function") (param n INT "Number of iterations") (param x ANY "Initial value") (returns LIST "List of iterated values"))
-      (if (<= n 0) () (pair x (recur self f (- n 1) (f x)))))
+      (doc "Generate n values by repeatedly applying f (n coerced to INT)." (param f CALLABLE "Step function") (param n INT "Number of iterations") (param x ANY "Initial value") (returns LIST "List of iterated values"))
+      (def k (%list->int n "List iterate: count not convertible to INT"))
+      (def go (fn (self j v)
+        (if (<= j 0) () (pair v (self (- j 1) (f v))))))
+      (go k x))
     (method zip (self a b)
       (doc "Pair up corresponding elements from two lists as assocs -- the result is an alist, so it feeds Dict from-alist and the Assoc API directly." (param a LIST "First elements (keys)") (param b LIST "Second elements (values)") (returns LIST "Alist of (a . b) assocs") (example "(List zip (list 1 2) (list 7 8))" "((1 . 7) (2 . 8))"))
       (if (or (null? a) (null? b)) ()
@@ -323,32 +359,45 @@
       (if (or (null? lsts) (List any? null? lsts)) ()
         (pair (List map first lsts) (recur self (List map rest lsts)))))
     (method update (self n val lst)
-      (doc "Replace the element at index n." (param n INT "Index to update") (param val ANY "New value") (param lst LIST "List"))
-      (match
-        ((null? lst) ())
-        ((= n 0) (pair val (rest lst)))
-        (#t (pair (first lst) (recur self (- n 1) val (rest lst))))))
+      (doc "Replace the element at index n (coerced to INT)." (param n INT "Index to update") (param val ANY "New value") (param lst LIST "List"))
+      (def k (%list->int n "List update: index not convertible to INT"))
+      (def go (fn (self j xs)
+        (match
+          ((null? xs) ())
+          ((= j 0) (pair val (rest xs)))
+          (#t (pair (first xs) (self (- j 1) (rest xs)))))))
+      (go k lst))
     (method insert (self n val lst)
-      (doc "Insert a value at index n (clamped: n<=0 prepends, n>=length appends)." (param n INT "Insertion index") (param val ANY "Value to insert") (param lst LIST "List"))
-      (match
-        ((<= n 0) (pair val lst))
-        ; past the end: clamp to append -- without this guard the recursion
-        ; reaches (first ()) (unchecked car, UB)
-        ((null? lst) (pair val ()))
-        (#t (pair (first lst) (recur self (- n 1) val (rest lst))))))
+      (doc "Insert a value at index n (coerced to INT; clamped: n<=0 prepends, n>=length appends)." (param n INT "Insertion index") (param val ANY "Value to insert") (param lst LIST "List"))
+      (def k (%list->int n "List insert: index not convertible to INT"))
+      (def go (fn (self j xs)
+        (match
+          ((<= j 0) (pair val xs))
+          ; past the end: clamp to append -- without this guard the recursion
+          ; reaches (first ()) (unchecked car, UB)
+          ((null? xs) (pair val ()))
+          (#t (pair (first xs) (self (- j 1) (rest xs)))))))
+      (go k lst))
     (method remove (self start n lst)
-      (doc "Remove n elements starting at index." (param start INT "Start index") (param n INT "Number of elements to remove") (param lst LIST "List"))
-      (match
-        ((null? lst) ())
-        ((> start 0) (pair (first lst) (recur self (- start 1) n (rest lst))))
-        ((> n 0) (recur self 0 (- n 1) (rest lst)))
-        (#t lst)))
+      (doc "Remove n elements starting at index (both coerced to INT)." (param start INT "Start index") (param n INT "Number of elements to remove") (param lst LIST "List"))
+      (def s0 (%list->int start "List remove: start not convertible to INT"))
+      (def k (%list->int n "List remove: count not convertible to INT"))
+      (def go (fn (self i j xs)
+        (match
+          ((null? xs) ())
+          ((> i 0) (pair (first xs) (self (- i 1) j (rest xs))))
+          ((> j 0) (self 0 (- j 1) (rest xs)))
+          (#t xs))))
+      (go s0 k lst))
     (method adjust (self n f lst)
-      (doc "Apply a function to the element at index n." (param n INT "Index to adjust") (param f CALLABLE "Transformation function") (param lst LIST "List"))
-      (match
-        ((null? lst) ())
-        ((= n 0) (pair (f (first lst)) (rest lst)))
-        (#t (pair (first lst) (recur self (- n 1) f (rest lst))))))
+      (doc "Apply a function to the element at index n (coerced to INT)." (param n INT "Index to adjust") (param f CALLABLE "Transformation function") (param lst LIST "List"))
+      (def k (%list->int n "List adjust: index not convertible to INT"))
+      (def go (fn (self j xs)
+        (match
+          ((null? xs) ())
+          ((= j 0) (pair (f (first xs)) (rest xs)))
+          (#t (pair (first xs) (self (- j 1) (rest xs)))))))
+      (go k lst))
     ; --- Type predicate / Membership / Association ---
     (method list? (self x)
       (doc "Test if a value is a proper list." (param x ANY "Value to test") (returns BOOL "t if proper list"))

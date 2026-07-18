@@ -50,21 +50,23 @@
       ; the last code point -- error instead of decoding past the end. The nil
       ; guard makes a piped index-search miss fail loudly; only the negative
       ; case pays the code-point count walk.
-      (if (null? i) (error "Str ref: nil index")
-        (if (< i 0)
-          (let ((k (+ i (self count v))))
-            (if (< k 0) (error "Str ref: index out of range") (self ref k v)))
-          (let ((b (%u8-byte-offset v i 0)))
-            (if (< b (%str-byte-len v))
-              (%integer->char (first (%utf8-decode v b)))
-              (error "Str ref: index out of range"))))))
+      (def j (%str8->int i "Str ref: index not convertible to INT"))
+      (if (< j 0)
+        (let ((k (+ j (self count v))))
+          (if (< k 0) (error "Str ref: index out of range") (self ref k v)))
+        (let ((b (%u8-byte-offset v j 0)))
+          (if (< b (%str-byte-len v))
+            (%integer->char (first (%utf8-decode v b)))
+            (error "Str ref: index out of range")))))
 
     (method sub (self (param start INT "Start code-point offset (0-based)") (param len INT "Number of code points") (param v STRING "Source string"))
       (doc "Substring of len CODE POINTS starting at code-point offset start (O(n) walk)."
         (returns STRING "The len-code-point slice of v from start")
         (example "(StrUTF8 sub 1 1 \"$¢€\")" "\"¢\""))
-      (def b0 (%u8-byte-offset v start 0))
-      (def b1 (%u8-byte-offset v len b0))
+      (def st2 (%str8->int start "Str sub: start not convertible to INT"))
+      (def len2 (%str8->int len "Str sub: length not convertible to INT"))
+      (def b0 (%u8-byte-offset v st2 0))
+      (def b1 (%u8-byte-offset v len2 b0))
       (%str-byte-sub v b0 (- b1 b0)))
 
     (method step (self (param cur INT "Current byte offset of the cursor") (param v STRING "String being traversed"))

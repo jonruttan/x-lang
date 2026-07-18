@@ -144,13 +144,13 @@
 ---
     Error: List ref: index out of range
 
-### errors on a nil index (a piped index-search miss fails loudly)
+### a piped index-search miss (nil) is unconvertible and fails loudly
 
 ```scheme
 (List ref (List index-of 99 (list 1 2)) (list 1 2))
 ```
 ---
-    Error: List ref: nil index
+    Error: List ref: index not convertible to INT
 
 ## last
 

@@ -100,7 +100,10 @@
 ; i-th code point. Negative i counts from the end (matches the old byte path:
 ; the C call added the length to a negative index). Only the negative case pays
 ; for the extra code-point count walk. Out of range (either side) errors --
-; %utf8-cp-at is an unchecked read, so this is the x-lang guard.
+; %utf8-cp-at is an unchecked read, so this is the x-lang guard. INT-ONLY by
+; design (the N5 coercion exception): this handler can run under reader
+; constraints, where conversion dispatch is illegal -- the protocol classes
+; (Str8/StrUTF8 ref) are the coercing doors.
 (def %cp-ref
   (fn (_ s i)
     (def len (%str-byte-len s))

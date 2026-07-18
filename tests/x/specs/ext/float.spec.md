@@ -786,3 +786,13 @@
 ---
     8
 
+
+## N5: count/index seats coerce through the tower
+
+### a float count truncates via the registered converter
+
+```scheme
+(list (List take 2.75 (list 1 2 3 4)) (List ref 1.25 (list 10 20 30)))
+```
+---
+    ((1 2) 20)

@@ -8,6 +8,16 @@
 ; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
 (def %make-obj (prim-ref (lit obj) (lit make)))
 (def %obj-ref (prim-ref (lit obj) (lit ref)))
+
+; N5 (implicit conversion): index seats coerce to INT once at entry; only an
+; unconvertible value errors (list.x's %list->int is the pattern).
+(def %vec-type-of (prim-ref (lit type) (lit of)))
+(def %vec-int-type (%vec-type-of 0))
+(def %vec-cvt (prim-ref (lit convert) (lit to)))
+(def %vec->int (fn (_ n what)
+  (if (if (null? n) #f (eq? (%vec-type-of n) %vec-int-type)) n
+    (let ((k (%vec-cvt n %vec-int-type)))
+      (if (if (null? k) #f (eq? (%vec-type-of k) %vec-int-type)) k (error what))))))
 (def %obj-set! (prim-ref (lit obj) (lit set!)))
 
 (import x/type/object)
@@ -48,8 +58,7 @@
         (fn (_ self . args)
           ; Bounds-checked like (Vector ref ...): %obj-ref past the object is a
           ; raw memory read, so slot 0's length is the guard for bare (v i) too.
-          (def i (first args))
-          (if (null? i) (error "vector: nil index") ())
+          (def i (%vec->int (first args) "vector: index not convertible to INT"))
           (def len (%obj-ref self 0))
           (def j (if (< i 0) (+ len i) i))
           (if (< j 0) (error "vector: index out of range")
@@ -158,9 +167,9 @@
       ; length in slot 0 is the x-lang bounds check. Negative normalization
       ; matches the vector's call slot, so (Vector ref -1 v) == (v -1). The
       ; nil guard makes a piped index-search miss fail loudly.
-      (if (null? i) (error "Vector ref: nil index") ())
+      (def i2 (%vec->int i "Vector ref: index not convertible to INT"))
       (def len (%obj-ref v 0))
-      (def j (if (< i 0) (+ len i) i))
+      (def j (if (< i2 0) (+ len i2) i2))
       (if (< j 0) (error "Vector ref: index out of range")
         (if (< j len) (%obj-ref v (+ j 1))
           (error "Vector ref: index out of range"))))
@@ -172,9 +181,9 @@
         (example "(Vector ref 0 (Vector set! 0 99 (Vector of 1 2)))" "99"))
       ; Same guard discipline as ref: slot-0 length is the x-lang bounds
       ; check over the raw %obj-set!, and negatives normalize identically.
-      (if (null? i) (error "Vector set!: nil index") ())
+      (def i2 (%vec->int i "Vector set!: index not convertible to INT"))
       (def len (%obj-ref v 0))
-      (def j (if (< i 0) (+ len i) i))
+      (def j (if (< i2 0) (+ len i2) i2))
       (if (< j 0) (error "Vector set!: index out of range")
         (if (< j len) (do (%obj-set! v (+ j 1) x) v)
           (error "Vector set!: index out of range"))))

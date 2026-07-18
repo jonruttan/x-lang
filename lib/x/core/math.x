@@ -6,8 +6,18 @@
 
 (import x/type/object)
 
+; The machine-INT type handle, for (Num int?) and the N5 count/index guards.
+; Type handles are C-static atoms, so the eq? compare is pointer-stable.
+(def %num-type-of (prim-ref (lit type) (lit of)))
+(def %num-int-type (%num-type-of 0))
+
 (def-class Num ()
   (static
+    (method int? (self (param x ANY "Value to test"))
+      (doc "Test whether x is a machine INT -- the base integer type. Floats, rationals, bignums, booleans, and nil are not (N5: counts and indexes are machine INTs)."
+        (returns BOOL "#t only for machine integers")
+        (example "(list (Num int? 3) (Num int? ()))" "(#t #f)"))
+      (if (null? x) #f (eq? (%num-type-of x) %num-int-type)))
     ; --- Arithmetic ---
     (method inc (self (param n NUMBER "Number to increment"))
       (doc "Add one to a number." (returns NUMBER "n + 1"))

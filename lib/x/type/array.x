@@ -48,10 +48,12 @@
       (self from-list args)))
 
   ; Normalize an index (negative counts from the end) and bounds-check it.
-  ; The nil guard makes a piped index-search miss fail loudly.
+  ; N5: coerces to INT via vector.x's %vec->int (loads before us); the probe
+  ; is inlined so the dynamic message is only built on the slow path.
   (method %index (self i what)
-    (if (null? i) (error (Str8 append what ": nil index")) ())
-    (def j (if (< i 0) (+ (member 'len) i) i))
+    (def i2 (if (if (null? i) #f (eq? (%vec-type-of i) %vec-int-type)) i
+      (%vec->int i (Str8 append what ": index not convertible to INT"))))
+    (def j (if (< i2 0) (+ (member 'len) i2) i2))
     (if (< j 0) (error (Str8 append what ": index out of range"))
       (if (< j (member 'len)) j
         (error (Str8 append what ": index out of range")))))
