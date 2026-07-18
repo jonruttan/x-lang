@@ -36,8 +36,14 @@ make clean && make
 - **Element access is `ref`** on every class (`List ref`, `Vector ref`, `Str8 ref`,
   `Gen ref`, `Obj ref`, `Ptr ref`). `Str8 index` survives as a documented alias;
   don't add new `nth`/`index` methods.
-- **`count` means total elements** (the Seq/Gen consumers). Counting by predicate
-  is `count-if` (List); counting regex matches is `match-count` (Regex).
+- **`length` is the property; `count` is the action** (see the [glossary](glossary.md)).
+  Every finite collection exposes `length` — List, Vector, Vec, Str8, StrUTF8,
+  Seq, Dict, Set (Dict/Set store it, O(1)). `count` names genuine tallying acts
+  only: `Gen count` (consumes the stream — a lazy stream has no length
+  property), `Seq count` (the cursor-walk the default `length` delegates to),
+  `Heap count` (walks the heap chain), and the verb-compounds `count-if`
+  (List), `match-count` (Regex), `count-from` (Gen). Never add a `count` that
+  merely reads a size — that's a `length`.
 - **Predicates are `any?` / `all?` / `none?`**; iteration for side effects is
   `for-each`. (Not `every?`, not `each`.)
 - **Conversions are `->x` / `from-x`** as class methods (`Dict ->alist`,

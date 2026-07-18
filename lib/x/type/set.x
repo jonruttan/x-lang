@@ -51,9 +51,9 @@
     ((member 'd) del! x)
     self)
 
-  (method count (self)
-    (doc "The number of members." (returns INT "Member count"))
-    ((member 'd) count))
+  (method length (self)
+    (doc "The number of members (a stored property, O(1))." (returns INT "Member count"))
+    ((member 'd) length))
 
   (method empty? (self)
     (doc "Test whether the set has no members." (returns BOOL "#t when empty"))

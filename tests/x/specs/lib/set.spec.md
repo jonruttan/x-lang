@@ -13,7 +13,7 @@
 ### from-list collapses duplicates
 
 ```scheme
-(do (import x/type/set) ((Set from-list (list 1 2 2 3 1)) count))
+(do (import x/type/set) ((Set from-list (list 1 2 2 3 1)) length))
 ```
 ---
     3
@@ -22,7 +22,7 @@
 
 ```scheme
 (do (import x/type/set)
-  ((Set from-list (list "a" (Str8 append "" "a") "b")) count))
+  ((Set from-list (list "a" (Str8 append "" "a") "b")) length))
 ```
 ---
     2
@@ -51,7 +51,7 @@
 
 ```scheme
 (do (import x/type/set)
-  (let ((s (Set make))) (s add! 5) (s add! 5) (s count)))
+  (let ((s (Set make))) (s add! 5) (s add! 5) (s length)))
 ```
 ---
     1
@@ -62,7 +62,7 @@
 (do (import x/type/set)
   (let ((s (Set from-list (list 1 2))))
     (s del! 1)
-    (list (s has? 1) (s count))))
+    (list (s has? 1) (s length))))
 ```
 ---
     (#f 1)
@@ -71,7 +71,7 @@
 
 ```scheme
 (do (import x/type/set)
-  ((((Set make) add! 1) add! 2) count))
+  ((((Set make) add! 1) add! 2) length))
 ```
 ---
     2

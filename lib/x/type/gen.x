@@ -188,7 +188,8 @@
     (Vector from-list (self ->list)))
 
   (method count (self)
-    (doc "How many values the generator yields (drives it; not for infinite ones)." (returns INT "Count"))
+    (doc "Count the values by consuming the generator (not for infinite ones). Deliberately `count`, not `length`: a lazy stream has no length property -- counting it is an action."
+      (returns INT "Count"))
     (self fold (fn (_ n _) (+ n 1)) 0))
 
   (method sum (self) (doc "Sum of the values." (returns NUMBER "Sum")) (self fold (fn (_ a x) (+ a x)) 0))

@@ -46,17 +46,19 @@
       (error "Seq: step is abstract"))
 
     ; --- derived once, polymorphic through (self ...) ---
+    ; count = the ACTION (walk a cursor and tally); length = the PROPERTY
+    ; (element count as an attribute). The default length is implemented BY
+    ; counting; O(1) encodings override length, never count.
     (method count (self (param v ANY "Value to traverse"))
-      (doc "Count the elements by walking the cursor from start to done."
+      (doc "Count the elements: the cursor-walk ACTION, from start to done. `length` is the property this action computes."
         (returns INT "Number of elements in v")
         (example "(Str8 count \"abc\")" "3"))
       (let loop ((cur (self start v)) (n 0))
         (if (self done? cur v) n
           (loop (rest (self step cur v)) (+ n 1)))))
 
-    ; default length walks the cursor; O(1) encodings override this
     (method length (self (param v ANY "Value to measure"))
-      (doc "Number of elements. The default walks the cursor in O(n); fixed-width encodings (e.g. Str8) override it with an O(1) count."
+      (doc "Number of elements: the PROPERTY every finite collection exposes. The default is computed by the `count` walk in O(n); fixed-width encodings (e.g. Str8) override it in O(1)."
         (returns INT "Element count of v"))
       (self count v))
 

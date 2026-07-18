@@ -22,3 +22,16 @@ are settled (tracked in issue #42 and #44).
   `Dict` and JSON — is alist-only.
 - **bindings list** — `((key value) ...)` two-element lists, the shape `let`
   uses. Bridged to alists by `Assoc from-bindings` / `Assoc ->bindings`.
+
+## length vs count
+
+- **length** — the element count as a *property*: the noun you ask of any
+  finite collection (List, Vector, Vec, Str8, StrUTF8, Seq, Dict, Set). The
+  interface word describes the meaning, not the cost — `StrUTF8 length` is
+  O(n) under the hood, `Dict length` O(1).
+- **count** — the *action* of tallying. Reserved for genuine acts: `Gen count`
+  (consumes the stream; a lazy stream has no length property — strict
+  collections have a `length`, lazy streams you `count`), `Seq count` (the
+  cursor-walk that the default `length` is implemented by), `Heap count`
+  (walks the heap chain), and the verb-compounds `count-if`, `match-count`,
+  `count-from`.

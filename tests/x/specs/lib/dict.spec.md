@@ -136,7 +136,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 ---
     #t
 
-## has? / del! / count
+## has? / del! / length
 
 ### has? sees a stored key
 
@@ -162,7 +162,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 (do (import x/type/dict)
   (let ((d (Dict make)))
     (d put! (lit k) 1) (d del! (lit k))
-    (list (d has? (lit k)) (d count))))
+    (list (d has? (lit k)) (d length))))
 ```
 ---
     (#f 0)
@@ -171,18 +171,18 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ```scheme
 (do (import x/type/dict)
-  (let ((d (Dict make))) (d put! (lit a) 1) (d del! (lit z)) (d count)))
+  (let ((d (Dict make))) (d put! (lit a) 1) (d del! (lit z)) (d length)))
 ```
 ---
     1
 
-### count tracks entries
+### length tracks entries
 
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make)))
     (d put! (lit a) 1) (d put! (lit b) 2) (d put! (lit a) 3)
-    (d count)))
+    (d length)))
 ```
 ---
     2
@@ -195,7 +195,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 (do (import x/type/dict)
   (let ((d (Dict make 1)))
     (d put! (lit a) 1) (d put! (lit b) 2) (d put! "c" 3)
-    (list (d get (lit a)) (d get (lit b)) (d get "c") (d count))))
+    (list (d get (lit a)) (d get (lit b)) (d get "c") (d length))))
 ```
 ---
     (1 2 3 3)
@@ -206,7 +206,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 (do (import x/type/dict)
   (let ((d (Dict make 2)))
     (List for-each (fn (_ i) (d put! i (* i 10))) (List range 0 20))
-    (list (d count) (d get 0) (d get 19) (d has? 20))))
+    (list (d length) (d get 0) (d get 19) (d has? 20))))
 ```
 ---
     (20 0 190 #f)
