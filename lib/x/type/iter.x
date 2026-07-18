@@ -1,11 +1,14 @@
 ; iter.x -- Iterator protocol, as the Iter class.
 ;
 ; Build:   (Iter new seq)  or  (Iter make step state)
-; Drive:   (Iter next it)      (Iter empty? it)
+; Drive:   (Iter next it)      (Iter empty? it)      (Iter step it)
 ; Consume: (Iter ->list it)    (Iter for-each f it)    (Iter fold f acc it)
 ;
-; An iterator is [step . state]: (Iter next it) calls (step it), which yields the
-; current item and advances the state; a nil state marks exhaustion.
+; An iterator is a boxed GENERATOR: [step . state].  Steps are PURE -- an
+; x-lang step is (step state) -> (value . next-state), or () when exhausted;
+; the C driver behind (Iter next) owns the box write-back.  A nil state marks
+; exhaustion.  (Iter step it) is the functional door: (value . next-iterator)
+; with the source untouched -- the generator view Gen pipelines drive.
 
 (import x/core/list)
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
@@ -20,6 +23,7 @@
 ; them with their param symbols, a single eval.
 (def %i-make   (prim-ref (lit iter) (lit make)))
 (def %i-next   (prim-ref (lit iter) (lit next)))
+(def %i-step   (prim-ref (lit iter) (lit step)))
 (def %i-empty? (prim-ref (lit iter) (lit empty?)))
 (def %i-new    (prim-ref (lit iter) (lit new)))
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
@@ -38,20 +42,20 @@
 (%type-push-write (%type-by-atom %iter) (fn (_ o) (display "#<iter>")))
 
 
-; List step: the state cell IS the remaining list; step reads the head and
-; advances by mutating the iterator's own rest (the original list is untouched).
+; List step (PURE): the state is the remaining list; yields (head . rest).
+; Steps never mutate -- the C driver owns the box write-back.
 (def %list-iter-step
-  (fn (self it)
-    (if (null? (rest it))
-      ()
-      (let ((head (first (rest it))))
-        (set-rest! it (rest (rest it)))
-        head))))
+  (fn (self st)
+    (if (null? st) () (pair (first st) (rest st)))))
 
 (def-class Iter ()
   (static
     (method make   (self step state) (%i-make step state))
     (method next   (self it)         (%i-next it))
+    (method step   (self it)
+      (doc "Step ITERATOR functionally: (value . next-iterator) leaving it untouched, or () when exhausted -- the generator view of an iterator."
+        (param it ITER "Iterator") (returns ANY "Pair of value and successor iterator, or nil"))
+      (%i-step it))
     (method empty? (self it)         (%i-empty? it))
     (method iter? (self (param x ANY "Value to test"))
       (doc "Test whether a value is an iterator."
@@ -88,16 +92,16 @@
 
 (def %list-iter (fn (_ lst) (Iter make %list-iter-step lst)))
 
-; Index-based (vectors etc.): state is (seq . index); step reads (ref seq index),
-; advances, and nils the state once index reaches len so (Iter empty?) turns true.
+; Index-based (vectors etc.): state is (seq . index); the PURE step yields
+; (element . next-state), with a nil successor once index reaches len so
+; (Iter empty?) turns true.
 (def %index-iter
   (fn (_ seq len ref)
     (Iter make
-      (fn (self it)
-        (let ((st (rest it)))
-          (let ((i (rest st)))
-            (set-rest! it (if (< (+ i 1) len) (pair (first st) (+ i 1)) ()))
-            (ref (first st) i))))
+      (fn (self st)
+        (if (null? st) ()
+          (pair (ref (first st) (rest st))
+            (if (< (+ (rest st) 1) len) (pair (first st) (+ (rest st) 1)) ()))))
       (if (eq? len 0) () (pair seq 0)))))
 
 (def %vector-iter (fn (_ v) (%index-iter v (Vector length v) (fn (_ vv ii) (Vector ref ii vv)))))

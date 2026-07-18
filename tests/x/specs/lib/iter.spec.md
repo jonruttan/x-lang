@@ -92,13 +92,34 @@
 
 ## make-iter
 
-### builds an iterator from a custom step function
+### builds an iterator from a custom step function (pure: state -> (value . next-state))
 
 ```scheme
-(do (def it (Iter make (fn (self it) (if (null? (rest it)) () (do (def v (first (rest it))) (set-rest! it (rest (rest it))) v))) (list 5 6))) (Iter ->list it))
+(do (def it (Iter make (fn (self st) (if (null? st) () (pair (first st) (rest st)))) (list 5 6))) (Iter ->list it))
 ```
 ---
     (5 6)
+
+## step (the functional door)
+
+### yields (value . next-iterator) and leaves the source untouched
+
+```scheme
+(do (import x/type/iter)
+  (def it (Iter new (list 7 8)))
+  (def s (Iter step it))
+  (list (first s) (Iter next (rest s)) (Iter next it)))
+```
+---
+    (7 8 7)
+
+### returns nil on an exhausted iterator
+
+```scheme
+(do (import x/type/iter) (null? (Iter step (Iter new ()))))
+```
+---
+    #t
 
 ## iter?
 

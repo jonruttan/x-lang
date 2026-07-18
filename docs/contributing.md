@@ -74,6 +74,14 @@ make clean && make
   `#t`/`#f`; misses return nil (never `#f`); nil-storable slots need a
   presence door (`has?` / presence-based `-or`), never a value sentinel;
   index misses are `-1`; boundaries carry foreign null as the symbol `null`.
+- **Generators and iterators** (see the [glossary](glossary.md)): a *generator*
+  is the pure step contract — `(step state) -> (value . next-state)` or `()` —
+  and an *iterator* is a generator boxed with a cursor cell; `Iter next` owns
+  the write-back, steps never mutate. `Gen` is the one lazy-pipeline class.
+  Dispatch rule: def-class instances speak message-send; raw typed values get
+  static data-last methods (fluent via value-call). Counted-vs-infinite rule:
+  strict classes take counts (`List repeat n x`, `List iterate f n x`); lazy
+  streams are infinite and bounded with `take` (`Gen repeat x`, `Gen iterate f x`).
 - **Arguments are subject-LAST** (the dispatched value is the final parameter),
   matching value-call dispatch: `("a,b" split ",")` → `(Str split "," "a,b")`.
   Deliberate exception: the `File`/`Sys` OS layer mirrors POSIX and stays

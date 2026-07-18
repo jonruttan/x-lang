@@ -15,12 +15,18 @@
 (import x/type/object)
 (import x/type/list)
 (import x/type/vector)
+(import x/type/iter)
+
+; The functional C iterator step, cached (hot: per element in from-seq gens):
+; (%gen-i-step it) -> (value . next-iterator) | () -- exactly the Gen step
+; contract with the iterator object as the state.
+(def %gen-i-step (prim-ref (lit iter) (lit step)))
 
 (def-class Gen ()
   (doc "A lazy generator: a step function over a state, producing values on demand."
-    (note "Build with range / range-by / count-from / repeat / iterate / from-list / of, or the `make` primitive.")
+    (note "Build with range / range-by / count-from / repeat / iterate / from-list / from-seq / of, or the `make` primitive.")
     (note "Transformers (map filter take drop take-while drop-while enumerate zip zip-with scan) are lazy -- each returns a new Gen.")
-    (note "Consumers (->list ->vector for-each fold reduce count sum product any? all? none? find ref first last min max) drive it.")
+    (note "Consumers (->list ->vector for-each fold reduce count sum product any? all? none? find ref first last min max empty?) drive it.")
     (note "count-from / repeat / iterate are INFINITE -- bound them with take / take-while before any consumer.")
     (example "(((Gen range 0 6) filter (fn (_ x) (< x 3))) ->list)" "(0 1 2)"))
   (step ()) (state ())
@@ -63,6 +69,11 @@
         (returns GEN "Infinite generator")
         (example "(((Gen iterate (fn (_ n) (* n 2)) 1) take 4) ->list)" "(1 2 4 8)"))
       (Gen make (fn (_ s) (pair s (f s))) x))
+
+    (method from-seq (self (param v ANY "Iterable value: list, vector, string, or instance"))
+      (doc "A generator over any iterable value, driven functionally by the C iterator steps: the state is an Iter, stepped without mutation."
+        (returns GEN "Generator") (example "((Gen from-seq (Vector of 1 2 3)) ->list)" "(1 2 3)"))
+      (Gen make %gen-i-step (Iter new v)))
 
     (method from-list (self (param lst LIST "Source list"))
       (doc "A generator over a list's elements."
@@ -195,9 +206,13 @@
   (method sum (self) (doc "Sum of the values." (returns NUMBER "Sum")) (self fold (fn (_ a x) (+ a x)) 0))
   (method product (self) (doc "Product of the values." (returns NUMBER "Product")) (self fold (fn (_ a x) (* a x)) 1))
 
+  (method empty? (self)
+    (doc "Test whether the generator yields no values. Peeks one step -- a Gen is persistent, so nothing is consumed." (returns BOOL "#t when empty"))
+    (null? (self %next)))
+
   (method reduce (self (param f CALLABLE "(acc value) -> acc"))
-    (doc "Fold using the first value as the seed; () for an empty generator." (returns ANY "Reduced value, or nil"))
-    (let ((s (self %next))) (if (null? s) () ((Gen make (self step) (rest s)) fold f (first s)))))
+    (doc "Fold using the first value as the seed; errors on an empty generator (empty? is the presence door)." (returns ANY "Reduced value"))
+    (let ((s (self %next))) (if (null? s) (error "Gen reduce: empty generator") ((Gen make (self step) (rest s)) fold f (first s)))))
 
   (method any? (self (param p CALLABLE "Predicate"))
     (doc "t if p holds for any value; short-circuits." (returns BOOL "t/f"))
@@ -219,25 +234,28 @@
       (let go ((st (self state))) (let ((s (step st))) (if (null? s) () (if (p (first s)) (first s) (go (rest s))))))))
 
   (method ref (self (param n INT "0-based index"))
-    (doc "The n-th value (0-based), or ()." (returns ANY "Value or nil"))
-    (let ((step (self step)))
-      (let go ((st (self state)) (n n)) (let ((s (step st))) (if (null? s) () (if (<= n 0) (first s) (go (rest s) (- n 1))))))))
+    (doc "The n-th value (0-based); errors when n is negative or past the last value -- matching every other ref." (returns ANY "Value at n"))
+    (if (< n 0) (error "Gen ref: index out of range")
+      (let ((step (self step)))
+        (let go ((st (self state)) (n n)) (let ((s (step st))) (if (null? s) (error "Gen ref: index out of range") (if (<= n 0) (first s) (go (rest s) (- n 1)))))))))
 
   (method first (self)
-    (doc "The first value, or ()." (returns ANY "Value or nil"))
-    (let ((s (self %next))) (if (null? s) () (first s))))
+    (doc "The first value; errors on an empty generator (empty? is the presence door)." (returns ANY "First value"))
+    (let ((s (self %next))) (if (null? s) (error "Gen first: empty generator") (first s))))
 
   (method last (self)
-    (doc "The last value, or () (drives the whole generator)." (returns ANY "Value or nil"))
-    (let ((step (self step)))
-      (let go ((st (self state)) (lastv ())) (let ((s (step st))) (if (null? s) lastv (go (rest s) (first s)))))))
+    (doc "The last value; errors on an empty generator (drives the whole generator)." (returns ANY "Last value"))
+    (let ((s (self %next)))
+      (if (null? s) (error "Gen last: empty generator")
+        (let ((step (self step)))
+          (let go ((st (rest s)) (lastv (first s))) (let ((s2 (step st))) (if (null? s2) lastv (go (rest s2) (first s2)))))))))
 
   (method min (self)
-    (doc "The least value, or () (drives the whole generator)." (returns ANY "Value or nil"))
+    (doc "The least value; errors on an empty generator (drives the whole generator)." (returns ANY "Least value"))
     (self reduce (fn (_ a x) (if (< x a) x a))))
 
   (method max (self)
-    (doc "The greatest value, or () (drives the whole generator)." (returns ANY "Value or nil"))
+    (doc "The greatest value; errors on an empty generator (drives the whole generator)." (returns ANY "Greatest value"))
     (self reduce (fn (_ a x) (if (< a x) x a)))))
 
 (doc (provide x/type/gen Gen)

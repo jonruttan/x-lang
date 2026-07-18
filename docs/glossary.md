@@ -23,6 +23,24 @@ are settled (tracked in issue #42 and #44).
 - **bindings list** — `((key value) ...)` two-element lists, the shape `let`
   uses. Bridged to alists by `Assoc from-bindings` / `Assoc ->bindings`.
 
+## generator vs iterator
+
+- **generator** — the pure step contract: `(step state) -> (value . next-state)`,
+  or `()` when exhausted. THE iteration concept of the tower: Seq's cursor
+  triad speaks it per type, `Gen` is the composable lazy pipeline over it, and
+  the C layer's per-type steps implement it allocation-free (the cell ABI).
+  A `Gen` is persistent: driving it consumes nothing, so it can be re-driven.
+- **iterator** — a specific form of generator: a generator boxed with a cursor
+  cell, `[step . state]`, driven by `(Iter next)` — which owns the single
+  mutation (the box write-back; steps themselves never mutate). Ephemeral and
+  drain-once by nature. `(Iter step it)` is the functional door back to the
+  generator view: `(value . next-iterator)` with the source untouched.
+- Corollary conventions: def-class instances (like `Gen`) speak message-send;
+  raw typed values (like iterators) get static data-last methods and are
+  fluent anyway through value-call dispatch. And as with length/count: strict
+  collections take counts (`List repeat n x`), lazy streams are infinite and
+  you `take` (`Gen repeat x`).
+
 ## length vs count
 
 - **length** — the element count as a *property*: the noun you ask of any

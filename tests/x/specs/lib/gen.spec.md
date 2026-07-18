@@ -180,6 +180,57 @@ intermediate list is built between stages.
 ---
     (1 5)
 
+### ref errors past the last value (absence discipline: no nil miss)
+
+```scheme
+((Gen range 0 3) ref 9)
+```
+---
+    Error: Gen ref: index out of range
+
+### ref errors on a negative index
+
+```scheme
+((Gen range 0 3) ref -1)
+```
+---
+    Error: Gen ref: index out of range
+
+### first errors on an empty generator; empty? is the presence door
+
+```scheme
+((Gen of) first)
+```
+---
+    Error: Gen first: empty generator
+
+### reduce errors on an empty generator
+
+```scheme
+((Gen of) reduce +)
+```
+---
+    Error: Gen reduce: empty generator
+
+### empty? peeks without consuming (a Gen is persistent)
+
+```scheme
+(do (def g (Gen of 1 2))
+  (list ((Gen of) empty?) (g empty?) (g ->list)))
+```
+---
+    (#t #f (1 2))
+
+### from-seq drives any iterable through the C iterator steps
+
+```scheme
+(list ((Gen from-seq (list 1 2 3)) ->list)
+      ((Gen from-seq (Vector of 4 5)) ->list)
+      ((Gen from-seq "ab") ->list))
+```
+---
+    ((1 2 3) (4 5) (#\a #\b))
+
 ### ->vector
 
 ```scheme
