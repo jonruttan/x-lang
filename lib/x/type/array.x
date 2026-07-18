@@ -33,6 +33,12 @@
       (def c (if (pair? opt) (first opt) 8))
       (new-from self (list 'store (Vector make c ()) 'len 0)))
 
+    (method new (self . opt)
+      (doc "Alias for make: (Array new) is (Array make) -- the generic instance allocator would build an unusable array."
+        (param opt LIST "Optional (capacity), as for make")
+        (returns Array "A new empty array"))
+      (if (pair? opt) (self make (first opt)) (self make)))
+
     (method from-list (self (param lst LIST "Elements, in order"))
       (doc "Build an array from a list's elements."
         (returns Array "An array holding the list's elements")

@@ -94,3 +94,13 @@
 ```
 ---
     (1 2 3)
+
+## new is make
+
+### the generic allocator can no longer build an unusable set
+
+```scheme
+(do (import x/type/set) (((Set new) add! 3) has? 3))
+```
+---
+    #t

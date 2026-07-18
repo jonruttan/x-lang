@@ -13,6 +13,61 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 ---
     #t
 
+### new is make (regression: the generic allocator built a dict that SEGFAULTED on put!)
+
+```scheme
+(do (import x/type/dict)
+  (((Dict new) put! (lit a) 1) get (lit a)))
+```
+---
+    1
+
+### an uninitialized instance fails loudly, not at the raw slot layer
+
+```scheme
+(do (import x/type/dict)
+  ((new-from Dict ()) get (lit a)))
+```
+---
+    Error: Dict: uninitialized instance (use Dict make / from-*)
+
+### from-plist is the simplest literal shape
+
+```scheme
+(do (import x/type/dict)
+  ((Dict from-plist (list (lit a) 1 (lit b) 2)) get (lit b)))
+```
+---
+    2
+
+### from-plist rejects an odd-length plist
+
+```scheme
+(do (import x/type/dict)
+  (Dict from-plist (list (lit a) 1 (lit b))))
+```
+---
+    Error: Dict from-plist: odd-length plist
+
+### from-bindings takes the let shape
+
+```scheme
+(do (import x/type/dict)
+  ((Dict from-bindings (list (list (lit a) 1) (list (lit b) 2))) get (lit a)))
+```
+---
+    1
+
+### every shape converts back out: ->plist and ->bindings
+
+```scheme
+(do (import x/type/dict)
+  (let ((d (Dict from-plist (list (lit a) 1))))
+    (list (d ->plist) (d ->bindings))))
+```
+---
+    (((lit a) 1) (((lit a) 1)))
+
 ### from-alist loads an alist
 
 ```scheme

@@ -55,8 +55,9 @@
   (doc "A mutable hash table: O(1) expected get/put!/del! over content-hashed keys."
     (note "Keys may be symbols, strings, integers, or chars (hashed by content, compared with equal?); anything else errors.")
     (note "Mutators (put!/del!) return the dict for chaining. get-or is presence-based: a stored nil is returned, not the default.")
-    (example "(let ((d (Dict make))) (d put! \"k\" 1) (d get \"k\"))" "1")
-    (see make) (see get) (see put!))
+    (note "Every association shape has a named door: from-alist ((k . v) ...), from-plist (k v k v ...), from-bindings ((k v) ...) -- and ->alist/->plist/->bindings back out.")
+    (example "((Dict from-plist (list (lit a) 1 (lit b) 2)) get (lit b))" "2")
+    (see make) (see get) (see put!) (see from-plist))
 
   store  ; bucket vector: slot 0 = cap, slots 1..cap = (key . val) alists
   cap    ; bucket count
@@ -75,6 +76,35 @@
       (def c (if (pair? opt) (first opt) 8))
       (new-from self (list 'store (Vector make c ()) 'cap c 'n 0)))
 
+    ; Containers alias new to make: the object system's generic (Class new)
+    ; builds an instance with every member nil, which for a container is a
+    ; landmine (nil store fed to the raw slot layer). A static method wins
+    ; the class dispatch, so this cleanly shadows the generic.
+    (method new (self . opt)
+      (doc "Alias for make: (Dict new) is (Dict make). The generic instance allocator would build an unusable dict."
+        (param opt LIST "Optional (capacity), as for make")
+        (returns Dict "A new empty dict"))
+      (if (pair? opt) (self make (first opt)) (self make)))
+
+    (method from-plist (self (param plist LIST "Flat (k v k v ...) plist"))
+      (doc "Build a dict from a flat plist -- the simplest literal shape."
+        (returns Dict "A dict of the plist's pairs")
+        (example "((Dict from-plist (list (lit a) 1 (lit b) 2)) get (lit b))" "2"))
+      (def d (self make))
+      (let go ((ps plist))
+        (match
+          ((null? ps) d)
+          ((null? (rest ps)) (error "Dict from-plist: odd-length plist"))
+          (#t (do (d put! (first ps) (first (rest ps))) (go (rest (rest ps))))))))
+
+    (method from-bindings (self (param bindings LIST "Bindings list: ((key value) ...), the let shape"))
+      (doc "Build a dict from a bindings list."
+        (returns Dict "A dict of the bindings")
+        (example "((Dict from-bindings (list (list (lit a) 1))) get (lit a))" "1"))
+      (def d (self make))
+      (List for-each (fn (_ b) (d put! (first b) (first (rest b)))) bindings)
+      d)
+
     (method from-alist (self (param alist LIST "Alist ((key . val) ...) to load"))
       (doc "Build a dict from an alist (later duplicates overwrite earlier)."
         (returns Dict "A dict holding the alist's assocs")
@@ -86,6 +116,10 @@
   ; --- internals ----------------------------------------------------------
   ; Bucket slot index (1-based; slot 0 is the capacity) for a key.
   (method %slot (self k)
+    ; Uninitialized guard: an instance built outside make (raw new-from)
+    ; has nil members; fail loudly here instead of feeding nil to the raw
+    ; slot layer (segfault class).
+    (if (null? (member 'cap)) (error "Dict: uninitialized instance (use Dict make / from-*)") ())
     (+ 1 (% (%dict-hash k) (member 'cap))))
 
   ; Double the table and rehash. Entry pairs are reused (rehash moves them
@@ -188,6 +222,16 @@
         (go (+ i 1)
             (List fold (fn (_ a e) (pair (pair (first e) (rest e)) a))
               acc (%dict-obj-ref (member 'store) i))))))
+
+  (method ->plist (self)
+    (doc "The entries as a flat (k v k v ...) plist snapshot (unordered)."
+      (returns LIST "Plist of the entries"))
+    (List fold (fn (_ acc e) (pair (first e) (pair (rest e) acc))) () (self ->alist)))
+
+  (method ->bindings (self)
+    (doc "The entries as a bindings list ((key value) ...) snapshot (unordered)."
+      (returns LIST "Bindings list of the entries"))
+    (List map (fn (_ e) (list (first e) (rest e))) (self ->alist)))
 
   (method keys (self)
     (doc "All stored keys (unordered)." (returns LIST "List of keys"))

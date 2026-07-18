@@ -23,6 +23,11 @@
       (doc "An empty set." (returns Set "A new empty set"))
       (new-from self (list 'd (Dict make))))
 
+    (method new (self)
+      (doc "Alias for make: (Set new) is (Set make) -- the generic instance allocator would build an unusable set."
+        (returns Set "A new empty set"))
+      (self make))
+
     (method from-list (self (param lst LIST "Elements to add (duplicates collapse)"))
       (doc "Build a set from a list's elements."
         (returns Set "A set of the list's distinct elements")

@@ -85,3 +85,13 @@
 ```
 ---
     Error: Array pop!: empty
+
+## new is make
+
+### the generic allocator can no longer build an unusable array
+
+```scheme
+(do (import x/type/array) (((Array new) push! 7) ->list))
+```
+---
+    (7)

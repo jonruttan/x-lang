@@ -200,6 +200,25 @@
 ---
     1
 
+## from-plist / ->plist
+
+### plist to alist and back
+
+```scheme
+(do (def al (Assoc from-plist (list (lit a) 1 (lit b) 2)))
+  (list (assoc-get (lit b) al) (Assoc ->plist al)))
+```
+---
+    (2 ((lit a) 1 (lit b) 2))
+
+### from-plist rejects an odd-length plist
+
+```scheme
+(Assoc from-plist (list (lit a) 1 (lit b)))
+```
+---
+    Error: Assoc from-plist: odd-length plist
+
 ## ->bindings
 
 ### converts an alist to a bindings list
