@@ -46,7 +46,7 @@ The system is layered. Each layer expands capabilities without modifying those b
 
 1. **Atom/pair bootstrap** ([x-expr](ext/x-expr/)) — Two intrinsic structural types sufficient for evaluation and data construction. The evaluator dispatches through type methods, so these two suffice to get the system running.
 2. **Adaptive type system** — Runtime type definitions with dispatch methods (call, eval, write, length, etc.). Types and the base object share the same nested-list contract structure, extensible by appending pairs.
-3. **Modular library** (`lib/`) — 90 modules organized by domain: core operations, custom types (vectors, strings, promises), a numeric tower (bignum, float, rational, complex), system interfaces (POSIX, FFI, GC), self-hosted tools (linter, formatter, coverage, profiler, doc generator), and platform-specific code (x86_64, ARM64).
+3. **Modular library** (`lib/`) — 100+ modules organized by domain: core operations, custom types (vectors, strings, promises), a numeric tower (bignum, float, rational, complex), system interfaces (POSIX, FFI, GC), self-hosted tools (linter, formatter, coverage, profiler, doc generator), and platform-specific code (x86_64, ARM64).
 4. **FFI and native code** — Dynamic library loading via `dlopen`/`dlsym`, typed foreign calls, raw pointer operations, and a JIT compiler that compiles x-lang functions to native machine code via a data-driven assembler.
 
 See [docs/](docs/) for complete reference documentation.
