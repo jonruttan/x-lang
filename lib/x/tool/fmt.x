@@ -50,9 +50,15 @@
 
 ; --- Width estimation ---
 
+; Column math counts CODE POINTS via the bare (s) call -- str-length is
+; BYTES and misaligns any non-ASCII source. True display columns
+; (double-width CJK, zero-width combining marks) need a wcwidth-style
+; table: known gap (#44 N3); code points are correct for everything else.
+(def %fmt-cp-len (fn (_ s) (s)))
+
 (def %fmt-width (fn (_ form)
   (if (%fmt-comment? form) 80
-    (str-length (%write-to-str form)))))
+    (%fmt-cp-len (%write-to-str form)))))
 
 ; --- Pretty printer ---
 
@@ -75,14 +81,14 @@
 ; Layout strategies
 (def %fmt-head-1 (fn (_ head rest-forms col)
   (if (null? rest-forms) (write (pair head rest-forms))
-    (let ((head-width (+ 2 (str-length (%cvt head %string)))))
+    (let ((head-width (+ 2 (%fmt-cp-len (%cvt head %string)))))
         (display "(") (write head) (display " ")
         (%fmt-expr (first rest-forms) (+ col head-width))
         (%fmt-body (rest rest-forms) (+ col 2))
         (display ")")))))
 
 (def %fmt-head-kw (fn (_ head rest-forms col)
-  (let ((head-width (+ 2 (str-length (%cvt head %string)))))
+  (let ((head-width (+ 2 (%fmt-cp-len (%cvt head %string)))))
       (display "(") (write head) (display " ")
       (%fmt-expr (first rest-forms) (+ col head-width))
       (%fmt-body (rest rest-forms) (+ col 2))
@@ -134,7 +140,7 @@
 (def-class Fmt ()
   (doc "Comment-preserving, data-driven pretty printer for x-lang s-expressions."
     (note "Build a formatter table from construct declarations with (Fmt build-table ...), then (Fmt tokens toks table) prints them. A form under 60 chars wide prints as-is; wider ones indent per the table's `fmt` property (head-1 / head-kw / body / default).")
-    (example "(Fmt width (lit (+ 1 2)))" "7"))
+    (example "(Fmt width (list 10 20))" "7"))
   (static
     (method build-table (self (param constructs LIST "Construct declarations (from XEON)"))
       (doc "Build a formatter lookup table from construct declarations."
@@ -159,8 +165,8 @@
       (%fmt-comment? tok))
 
     (method width (self (param form ANY "Form to measure"))
-      (doc "Estimate the display width of a form (via write-to-str; a comment counts as 80)."
-        (returns INT "Estimated width in characters"))
+      (doc "Estimate the display width of a form in CODE POINTS (via write-to-str; a comment counts as 80). Code points approximate display columns except for double-width/combining glyphs (wcwidth is a known gap)."
+        (returns INT "Estimated width in code points"))
       (%fmt-width form))
 
     (method expr (self (param form ANY "Expression to format")

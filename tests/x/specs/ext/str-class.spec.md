@@ -73,6 +73,14 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ---
     Error: Str ref: index out of range
 
+### pad-right is pad-left's twin (elements, not columns)
+
+```scheme
+(Str8 pad-right 5 ("0" 0) "42")
+```
+---
+    "42000"
+
 ### slice is the (start, end-exclusive) twin of sub
 
 ```scheme

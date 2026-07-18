@@ -59,6 +59,11 @@ are settled (tracked in issue #42 and #44).
   finite collection (List, Vector, Array, Str8, StrUTF8, Seq, Dict, Set). The
   interface word describes the meaning, not the cost — `StrUTF8 length` is
   O(n) under the hood, `Dict length` O(1).
+- **width** — display columns, exclusively. Never byte counts: `str-length`
+  is bytes, `Str length` is code points, and neither is a column count for
+  double-width or combining glyphs. Column math (Fmt) counts code points —
+  correct except for those glyph classes; true wcwidth-style tables are a
+  known gap. Padding (`pad-left`/`pad-right`) is by *elements*, not columns.
 - **count** — the *action* of tallying. Reserved for genuine acts: `Gen count`
   (consumes the stream; a lazy stream has no length property — strict
   collections have a `length`, lazy streams you `count`), `Seq count` (the

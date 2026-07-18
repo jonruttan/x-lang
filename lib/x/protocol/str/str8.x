@@ -213,14 +213,23 @@
         (example "(Str8 repeat 3 \"ab\")" "\"ababab\""))
       (if (<= n 0) "" (%str-append s (self repeat (- n 1) s))))
 
-    ; --- padding (to n ELEMENTS) ---
-    (method pad-left (self (param n INT "Target element width") (param ch CHAR "Padding character") (param s STRING "String to pad"))
-      (doc "Left-pad s with ch until it is at least n elements wide."
-        (returns STRING "s padded on the left to width n (unchanged if already >= n)")
+    ; --- padding (to n ELEMENTS: bytes for Str8, code points for Str --
+    ; NOT display columns; wcwidth-style column tables are a known gap) ---
+    (method pad-left (self (param n INT "Target element count") (param ch CHAR "Padding character") (param s STRING "String to pad"))
+      (doc "Left-pad s with ch until it is at least n ELEMENTS long (bytes for Str8, code points for Str) -- element count, not display columns."
+        (returns STRING "s padded on the left to n elements (unchanged if already >= n)")
         (example "(Str8 pad-left 5 (\"0\" 0) \"42\")" "\"00042\""))
       (def len (self length s))
       (if (not (< len n)) s
         (%str-append (self make (- n len) ch) s)))
+
+    (method pad-right (self (param n INT "Target element count") (param ch CHAR "Padding character") (param s STRING "String to pad"))
+      (doc "Right-pad s with ch until it is at least n ELEMENTS long (bytes for Str8, code points for Str) -- pad-left's missing twin."
+        (returns STRING "s padded on the right to n elements (unchanged if already >= n)")
+        (example "(Str8 pad-right 5 (\"0\" 0) \"42\")" "\"42000\""))
+      (def len (self length s))
+      (if (not (< len n)) s
+        (%str-append s (self make (- n len) ch))))
 
     ; --- searching ---
     (method contains? (self (param sub STRING "Substring to search for") (param s STRING "String to search in"))
