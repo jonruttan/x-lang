@@ -1,4 +1,4 @@
-## as-list
+## as-list (the bare boot-layer global; the class method is `List from-seq`)
 
 ### passes through list
 
@@ -81,6 +81,16 @@
 ```
 ---
     ((20 30) (20 30))
+
+## from-seq
+
+### builds a list from any iterable (the from-X verb; ex as-list)
+
+```scheme
+(do (import x/type/vector) (List from-seq (Vector of 1 2 3)))
+```
+---
+    (1 2 3)
 
 ## of
 

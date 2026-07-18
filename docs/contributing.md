@@ -62,6 +62,22 @@ make clean && make
   are the presence-unambiguous entry doors.
 - **Constructor-style counts come first**: `(List repeat n x)`, `(Str8 repeat n s)`,
   `(Str8 make k ch)`, `(Vector make n fill)`.
+- **Keyed lookup follows the dispatch tiers** (no signature to memorize):
+  containers speak `(store get k)` (Dict, Set — instance dispatch); value
+  classes speak `(Class get key store)` (Assoc — data-last static);
+  registries speak `(Class get name)` (Pact — module-state singleton).
+  Every `get` pairs with eager `get-or` (default first) and lazy
+  `get-or-else` (thunk first).
+- **Associative callbacks: transformers get the value, selectors get the
+  assoc.** `map`/`evolve` rewrite values (keys preserved) so their fn
+  receives the VALUE; `filter`/`pick`/`omit`/`for-each` decide on or consume
+  entries so their fn receives the whole `(key . val)` assoc. No key+value
+  two-arg form exists; don't add one without a driving use.
+- **Principled triads, not synonyms** — positional update: `update` (n, new
+  value) / `adjust` (n, function) / `evolve` (per-key function alist);
+  membership: `has?` (keyed presence) / `includes?` (element of a sequence)
+  / `contains?` (subsequence of a string). Never add a fourth spelling
+  (`member?`, `nth-set`, ...).
 - **The name is the range contract**: `slice` always means (start,
   end-exclusive); `sub` always means (start, length) — on every class
   (`List slice`/`sub`, `Str8`/`StrUTF8 slice`/`sub`; `substring` is the

@@ -124,6 +124,14 @@
     (let ((hit (%dict-find k (%dict-obj-ref (member 'store) (self %slot k)))))
       (if (null? hit) d (rest hit))))
 
+  (method get-or-else (self thunk k)
+    (doc "The value stored under a key, or (thunk) only when the key is ABSENT -- get-or's lazy twin (mirrors Assoc opt-get-or-else)."
+      (param thunk CALLABLE "Nullary default producer; runs only on a miss")
+      (param k ANY "Key to look up")
+      (returns ANY "Stored value (a stored nil included), or (thunk)"))
+    (let ((hit (%dict-find k (%dict-obj-ref (member 'store) (self %slot k)))))
+      (if (null? hit) (thunk) (rest hit))))
+
   (method has? (self k)
     (doc "Test whether a key is present."
       (param k ANY "Key to test")

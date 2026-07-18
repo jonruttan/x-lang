@@ -127,6 +127,18 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 ---
     99
 
+### get-or-else is the lazy twin: the thunk runs only on a miss
+
+```scheme
+(do (import x/type/dict)
+  (let ((d (Dict make)) (calls 0))
+    (d put! (lit a) 1)
+    (let ((hit (d get-or-else (fn () (do (set! calls (+ calls 1)) 99)) (lit a))))
+      (list hit (d get-or-else (fn () (do (set! calls (+ calls 1)) 99)) (lit z)) calls))))
+```
+---
+    (1 99 1)
+
 ### returns a stored nil, not the default
 
 ```scheme
