@@ -126,7 +126,7 @@ a fresh RO view has read == write == base, i.e. it is ALREADY exhausted.
 
 ```scheme
 (null? (do (def %b ((prim-ref (lit buf) (lit make)) "x" %obj-flag-ro))
-           ((prim-ref (lit buf) (lit read)) %b)))
+           ((prim-ref 'buf 'read) %b)))
 ```
 ---
     #t
@@ -135,7 +135,7 @@ a fresh RO view has read == write == base, i.e. it is ALREADY exhausted.
 
 ```scheme
 (null? (do (def %b ((prim-ref (lit buf) (lit make)) "" %obj-flag-ro))
-           ((prim-ref (lit buf) (lit read)) %b)))
+           ((prim-ref 'buf 'read) %b)))
 ```
 ---
     #t

@@ -14,7 +14,7 @@
 `foo
 ```
 ---
-    (lit foo)
+    'foo
 
 ### backtick quotes nil
 
@@ -29,7 +29,7 @@
 `(a (b c) d)
 ```
 ---
-    ((lit a) ((lit b) (lit c)) (lit d))
+    ('a ('b 'c) 'd)
 
 ### backtick quotes an integer atom
 
@@ -55,7 +55,7 @@
 (do (def x 42) `(a ,x c))
 ```
 ---
-    ((lit a) 42 (lit c))
+    ('a 42 'c)
 
 ### comma evaluates an expression
 
@@ -63,7 +63,7 @@
 `(result ,(+ 1 2))
 ```
 ---
-    ((lit result) 3)
+    ('result 3)
 
 ### comma in first position
 
@@ -71,7 +71,7 @@
 (do (def op (lit +)) `(,op 1 2))
 ```
 ---
-    ((lit +) 1 2)
+    ('+ 1 2)
 
 ### comma in last position
 
@@ -79,7 +79,7 @@
 (do (def x 99) `(a b ,x))
 ```
 ---
-    ((lit a) (lit b) 99)
+    ('a 'b 99)
 
 ### multiple commas
 
@@ -105,7 +105,7 @@
 `(a ,@(list) b)
 ```
 ---
-    ((lit a) (lit b))
+    ('a 'b)
 
 ### comma-at at beginning
 
@@ -139,7 +139,7 @@
 (write (lit (quasi (a (unquote b)))))
 ```
 ---
-    `((lit a) ,(lit b))
+    `('a ,'b)
 
 ### write outputs comma-at for splicing
 
@@ -147,7 +147,7 @@
 (write (lit (quasi (a (unquote-splicing xs)))))
 ```
 ---
-    `((lit a) ,@(lit xs))
+    `('a ,@'xs)
 
 ### write outputs backtick for simple quasi
 
@@ -155,7 +155,7 @@
 (write (lit (quasi foo)))
 ```
 ---
-    `(lit foo)
+    `'foo
 
 ## backward compatibility
 
@@ -165,7 +165,7 @@
 (do (def x 42) (quasi (a (unquote x) c)))
 ```
 ---
-    ((lit a) 42 (lit c))
+    ('a 42 'c)
 
 ### explicit unquote-splicing still works
 

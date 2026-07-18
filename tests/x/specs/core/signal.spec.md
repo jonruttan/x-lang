@@ -39,7 +39,7 @@
     (+ 1 2)))
 ```
 ---
-    (lit inner)
+    'inner
 
 ## STOP breaks loops
 

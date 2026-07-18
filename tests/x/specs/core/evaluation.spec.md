@@ -79,7 +79,7 @@
 (guard (e (lit caught)) no-such-var)
 ```
 ---
-    (lit caught)
+    'caught
 
 ### the error names the offending symbol
 

@@ -298,8 +298,11 @@
       (set-first! %node (pair handler (first %node))))))
 (def %print-int-h  (fn (_ o) (%print-emit (number->str o))))
 (def %print-str-dh (fn (_ o) (%print-emit o)))
+; Symbols WRITE with the quote shorthand -- 'x, not (lit x) -- so the echo
+; is what you would type and pastes back re-readably (#45 R1). The reader
+; half of ' lives in lit-reader.x; this is the writer half that was missing.
 (def %print-sym-wh
-  (fn (_ o) (do (%print-emit "(lit ") (%print-emit (symbol->str o)) (%print-emit ")"))))
+  (fn (_ o) (do (%print-emit "'") (%print-emit (symbol->str o)))))
 (def %print-sym-dh (fn (_ o) (%print-emit (symbol->str o))))
 (def %print-list-wh (fn (_ o) (%print-list o %print-w)))
 (def %print-list-dh (fn (_ o) (%print-list o %print-d)))

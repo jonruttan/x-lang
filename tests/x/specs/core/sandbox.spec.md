@@ -32,7 +32,7 @@
 (do (def x 10) (def b (Base make)) (guard (e (lit isolated)) (Base eval b (lit x))))
 ```
 ---
-    (lit isolated)
+    'isolated
 
 ### child binding not visible in parent
 
@@ -40,7 +40,7 @@
 (do (def b (Base make)) (Base eval b (lit (def cx 42))) (guard (e (lit isolated)) cx))
 ```
 ---
-    (lit isolated)
+    'isolated
 
 ### two bases are independent
 
@@ -74,7 +74,7 @@
 (do (def b (Base make)) (guard (e (lit caught)) (Base eval b (lit (error "boom")))))
 ```
 ---
-    (lit caught)
+    'caught
 
 ## Base bind
 
@@ -100,7 +100,7 @@
 (do (def b (Base make)) (Base bind b (lit z) 99) (guard (e (lit ok)) z))
 ```
 ---
-    (lit ok)
+    'ok
 
 ## make-token-base
 
@@ -126,32 +126,32 @@
 
 ```scheme
 (do (def %tb1 (Base make-tok))
-    (def %buf-tok (prim-ref (lit buf) (lit tok)))
-    (def %tb1-r (fn (_ . args) (list (lit word) (%buf-tok (first args)))))
+    (def %buf-tok (prim-ref 'buf 'tok))
+    (def %tb1-r (fn (_ . args) (list 'word (%buf-tok (first args)))))
     (def %tb1-a ()) (set! %tb1-a (fn (_ buffer score chr)
       (if (or (= chr 32) (= chr 10)) (do (buffer-unread buffer) (score-set score (- 0 1) buffer))
         %tb1-a)))
-    (Base make-type %tb1 "WORD" (list (pair (lit analyse) (fn (_ buffer score chr)
+    (Base make-type %tb1 "WORD" (list (pair 'analyse (fn (_ buffer score chr)
       (if (and (>= chr 33) (<= chr 126)) (do (score-set score (- 0 1) buffer) %tb1-a) ())))
-      (pair (lit read) %tb1-r)))
+      (pair 'read %tb1-r)))
     (first (first (Tok read-str %tb1 "hello"))))
 ```
 ---
-    (lit word)
+    'word
 
 ### multiple types with discard
 
 ```scheme
 (do (def %tb2 (Base make-tok))
-    (def %buf-tok (prim-ref (lit buf) (lit tok)))
-    (def %tb2-r (fn (_ . args) (list (lit word) (%buf-tok (first args)))))
+    (def %buf-tok (prim-ref 'buf 'tok))
+    (def %tb2-r (fn (_ . args) (list 'word (%buf-tok (first args)))))
     (def %tb2-a ()) (set! %tb2-a (fn (_ buffer score chr)
       (if (or (= chr 32) (= chr 10)) (do (buffer-unread buffer) (score-set score (- 0 1) buffer))
         %tb2-a)))
-    (Base make-type %tb2 "WORD" (list (pair (lit analyse) (fn (_ buffer score chr)
+    (Base make-type %tb2 "WORD" (list (pair 'analyse (fn (_ buffer score chr)
       (if (and (>= chr 33) (<= chr 126)) (do (score-set score (- 0 1) buffer) %tb2-a) ())))
-      (pair (lit read) %tb2-r)))
-    (Base make-type %tb2 "WS" (list (pair (lit analyse) (fn (_ buffer score chr)
+      (pair 'read %tb2-r)))
+    (Base make-type %tb2 "WS" (list (pair 'analyse (fn (_ buffer score chr)
       (if (= chr 32) (score-set score (- 0 1) buffer) ())))))
     (length (Tok read-str %tb2 "hello world")))
 ```
@@ -162,14 +162,14 @@
 
 ```scheme
 (do (def %tb3 (Base make-tok))
-    (def %buf-tok (prim-ref (lit buf) (lit tok)))
+    (def %buf-tok (prim-ref 'buf 'tok))
     (def %tb3-r (fn (_ . args) (%buf-tok (first args))))
     (def %tb3-body ()) (set! %tb3-body (fn (_ buffer score chr)
       (if (or (= chr 32) (= chr 10)) (do (buffer-unread buffer) (score-set score (- 0 1) buffer))
         %tb3-body)))
-    (Base make-type %tb3 "ALL" (list (pair (lit analyse) (fn (_ buffer score chr)
+    (Base make-type %tb3 "ALL" (list (pair 'analyse (fn (_ buffer score chr)
       (if (and (>= chr 33) (<= chr 126)) (do (score-set score (- 0 1) buffer) %tb3-body) ())))
-      (pair (lit read) %tb3-r)))
+      (pair 'read %tb3-r)))
     (str-length (first (Tok read-str %tb3 "hello"))))
 ```
 ---
@@ -179,15 +179,15 @@
 
 ```scheme
 (do (def %tb4 (Base make-tok))
-    (def %buf-tok (prim-ref (lit buf) (lit tok)))
+    (def %buf-tok (prim-ref 'buf 'tok))
     (def %tb4-r (fn (_ . args) (%buf-tok (first args))))
     (def %tb4-body ()) (set! %tb4-body (fn (_ buffer score chr)
       (if (= chr 10)
         (do (buffer-unread buffer) (score-set score 1 buffer))
         %tb4-body)))
-    (Base make-type %tb4 "LINE" (list (pair (lit analyse) (fn (_ buffer score chr)
+    (Base make-type %tb4 "LINE" (list (pair 'analyse (fn (_ buffer score chr)
       (if (and (>= chr 32) (<= chr 126)) (do (score-set score 1 buffer) %tb4-body) ())))
-      (pair (lit read) %tb4-r)))
+      (pair 'read %tb4-r)))
     (str-length (first (Tok read-str %tb4 "hello\n"))))
 ```
 ---
@@ -197,38 +197,38 @@
 
 ```scheme
 (do (def %tb5 (Base make-tok))
-    (def %buf-tok (prim-ref (lit buf) (lit tok)))
-    (def %tb5-r (fn (_ . args) (list (lit tok) (%buf-tok (first args)))))
+    (def %buf-tok (prim-ref 'buf 'tok))
+    (def %tb5-r (fn (_ . args) (list 'tok (%buf-tok (first args)))))
     (def %tb5-body ()) (set! %tb5-body (fn (_ buffer score chr)
       (if (= chr 32) (do (buffer-unread buffer) (score-set score (- 0 1) buffer))
         %tb5-body)))
-    (Base make-type %tb5 "WORD" (list (pair (lit analyse) (fn (_ buffer score chr)
+    (Base make-type %tb5 "WORD" (list (pair 'analyse (fn (_ buffer score chr)
       (if (and (>= chr 97) (<= chr 122)) (do (score-set score (- 0 1) buffer) %tb5-body) ())))
-      (pair (lit read) %tb5-r)))
-    (Base make-type %tb5 "WS" (list (pair (lit analyse) (fn (_ buffer score chr)
+      (pair 'read %tb5-r)))
+    (Base make-type %tb5 "WS" (list (pair 'analyse (fn (_ buffer score chr)
       (if (= chr 32) (score-set score (- 0 1) buffer) ())))))
     (first (first (Tok read-str %tb5 "abc def"))))
 ```
 ---
-    (lit tok)
+    'tok
 
 ### custom type coexists with built-in types
 
 ```scheme
 (do (def %tb6 (Base make))
-    (def %tb6-r (fn (_ . args) (list (lit %comment) (%buf-tok (first args)))))
+    (def %tb6-r (fn (_ . args) (list '%comment (%buf-tok (first args)))))
     (def %tb6-body ()) (set! %tb6-body (fn (_ buffer score chr)
       (if (= chr 10) (score-set score 1 buffer) %tb6-body)))
-    (Base make-type %tb6 "FMT-COMMENT" (list (pair (lit analyse) (fn (_ buffer score chr)
+    (Base make-type %tb6 "FMT-COMMENT" (list (pair 'analyse (fn (_ buffer score chr)
       (if (= chr 59) (do (score-set score 1 buffer) %tb6-body) ())))
-      (pair (lit read) %tb6-r)))
+      (pair 'read %tb6-r)))
     (def %tb6-ta (first (first (first (first (rest (first %tb6)))))))
     (set-first! (first (first (first (rest (first %tb6))))) (append (rest %tb6-ta) (list (first %tb6-ta))))
     (def %tb6-tokens (Tok read-str %tb6 "; hi\n(+ 1 2)"))
     (first (first %tb6-tokens)))
 ```
 ---
-    (lit %comment)
+    '%comment
 
 ## token-read-string
 
@@ -238,7 +238,7 @@
 (first (Tok read-str (Base make) "(+ 1 2)"))
 ```
 ---
-    ((lit +) 1 2)
+    ('+ 1 2)
 
 ### multi-token sexp input
 
@@ -262,8 +262,8 @@
 
 ```scheme
 (do (def %tb8 (Base make))
-    (def %tb8-a (Base make-type %tb8 "A" (list (pair (lit analyse) (fn (_ buffer score chr) ())))))
-    (def %tb8-b (Base make-type %tb8 "B" (list (pair (lit analyse) (fn (_ buffer score chr) ())))))
+    (def %tb8-a (Base make-type %tb8 "A" (list (pair 'analyse (fn (_ buffer score chr) ())))))
+    (def %tb8-b (Base make-type %tb8 "B" (list (pair 'analyse (fn (_ buffer score chr) ())))))
     (def %tb8-ta (first (first (first (first (rest (first %tb8)))))))
     (set-first! (first (first (first (rest (first %tb8))))) (append (rest %tb8-ta) (list (first %tb8-ta))))
     (def %tb8-new (first (first (first (first (rest (first %tb8)))))))
@@ -276,19 +276,19 @@
 
 ```scheme
 (do (def %tb9 (Base make-tok))
-    (def %buf-tok (prim-ref (lit buf) (lit tok)))
-    (def %tb9-r1 (fn (_ . args) (lit first-type)))
-    (def %tb9-r2 (fn (_ . args) (lit second-type)))
-    (Base make-type %tb9 "T1" (list (pair (lit analyse) (fn (_ buffer score chr)
+    (def %buf-tok (prim-ref 'buf 'tok))
+    (def %tb9-r1 (fn (_ . args) 'first-type))
+    (def %tb9-r2 (fn (_ . args) 'second-type))
+    (Base make-type %tb9 "T1" (list (pair 'analyse (fn (_ buffer score chr)
       (if (and (>= chr 97) (<= chr 122)) (score-set score 1 buffer) ())))
-      (pair (lit read) %tb9-r1)))
-    (Base make-type %tb9 "T2" (list (pair (lit analyse) (fn (_ buffer score chr)
+      (pair 'read %tb9-r1)))
+    (Base make-type %tb9 "T2" (list (pair 'analyse (fn (_ buffer score chr)
       (if (and (>= chr 97) (<= chr 122)) (score-set score 1 buffer) ())))
-      (pair (lit read) %tb9-r2)))
+      (pair 'read %tb9-r2)))
     (first (Tok read-str %tb9 "x")))
 ```
 ---
-    (lit first-type)
+    'first-type
 
 ## bare-children contract
 
@@ -302,26 +302,26 @@ prim-ref into every child; that was incidental, and no consumer used it.)
 
 ```scheme
 (do (def %bc1 (Base make))
-    (guard (e (lit bare)) (Base eval %bc1 (lit (display 42)))))
+    (guard (e 'bare) (Base eval %bc1 (lit (display 42)))))
 ```
 ---
-    (lit bare)
+    'bare
 
 ### a child has no catalog protocol
 
 ```scheme
 (do (def %bc2 (Base make))
-    (guard (e (lit bare)) (Base eval %bc2 (lit (prim-ref (lit int) (lit +))))))
+    (guard (e 'bare) (Base eval %bc2 (lit (prim-ref 'int '+)))))
 ```
 ---
-    (lit bare)
+    'bare
 
 ### the C ISA is present: arithmetic, def, eval
 
 ```scheme
 (do (def %bc3 (Base make))
     (Base eval %bc3 (lit (def x (* 6 7))))
-    (Base eval %bc3 (lit x)))
+    (Base eval %bc3 'x))
 ```
 ---
     42
@@ -330,7 +330,7 @@ prim-ref into every child; that was incidental, and no consumer used it.)
 
 ```scheme
 (do (def %bc4 (Base make))
-    (Base bind %bc4 (lit shout) (fn (_ v) (display v) (display "!")))
+    (Base bind %bc4 'shout (fn (_ v) (display v) (display "!")))
     (Base eval %bc4 (lit (shout 7))))
 ```
 ---

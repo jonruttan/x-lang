@@ -121,7 +121,7 @@ the caller's value).
 (do
   (def r (File getc 5))
   (and (eq? r (- 0 1))
-       (eq? (first (first %last-syscall)) (lit read))
+       (eq? (first (first %last-syscall)) 'read)
        (eq? (first (rest (first %last-syscall))) 5)))
 ```
 ---

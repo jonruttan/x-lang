@@ -14,7 +14,7 @@
 'foo
 ```
 ---
-    (lit foo)
+    'foo
 
 ### quote quotes nil
 
@@ -29,7 +29,7 @@
 '(a (b c) d)
 ```
 ---
-    ((lit a) ((lit b) (lit c)) (lit d))
+    ('a ('b 'c) 'd)
 
 ### quote quotes an integer atom
 
@@ -53,7 +53,7 @@
 ''x
 ```
 ---
-    ((lit lit) (lit x))
+    ('lit 'x)
 
 ## interaction
 
@@ -71,7 +71,7 @@
 (first '(a b c))
 ```
 ---
-    (lit a)
+    'a
 
 ### a quoted list passed to a function
 
@@ -87,7 +87,7 @@
 (list 'a'b)
 ```
 ---
-    ((lit a) (lit b))
+    ('a 'b)
 
 ## backward compatibility
 
@@ -105,7 +105,7 @@
 (do (def x 5) `(a ,x b))
 ```
 ---
-    ((lit a) 5 (lit b))
+    ('a 5 'b)
 
 ## other readers unaffected
 

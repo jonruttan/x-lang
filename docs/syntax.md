@@ -20,8 +20,8 @@ and its spelling belongs only in files that load before the quote reader
 ```
 
 The REPL echoes symbols as `'a` and quoted structures with the same
-shorthand — the echo pastes back. **[aspirational: R1 — today the echo is
-`(lit a)`]**
+shorthand — the echo pastes back. (Implemented: the printer's `'`
+shorthand is live; `(lit a)` echoes are history.)
 
 `` `x ``, `,x`, `,@x` are the quasiquote family; the printer already
 echoes them in shorthand.
@@ -38,8 +38,8 @@ echoes them in shorthand.
   **[aspirational: R4]**
 - Floats print with their point: `1.0` echoes `1.0`, not `1`.
   **[aspirational: R4]**
-- Leading-zero integers are decimal (`019` is nineteen). **[aspirational:
-  R5b — today leading zero triggers octal auto-detection]**
+- Leading-zero integers are decimal (`019` is nineteen); `0x13` is hex.
+  (Implemented.)
 
 ## Characters and strings
 
@@ -81,11 +81,11 @@ echoes them in shorthand.
 
 | You type | It echoes |
 |---|---|
-| `'a` | `'a` **[aspirational: R1]** |
+| `'a` | `'a` |
 | `42`, `-7`, `"s"`, `#\a`, `#t` | itself |
 | `#(1 2 3)`, `1/2`, `3.14`, `3+4i` | itself (tower forms in tower dialects) |
 | `` `(a ,x) `` | quasi shorthand |
-| a list value | `('a 'b)` — quoted elements, pasteable **[aspirational: R1]** |
+| a list value | `('a 'b)` — quoted elements, pasteable |
 | fn / op / dict / instance | `#<…>` opaque — deliberately not pasteable |
 | `()` | *(blank)* |
 

@@ -218,7 +218,7 @@
 (guard (e (list (lit caught) e)) (error "oops"))
 ```
 ---
-    ((lit caught) "oops")
+    ('caught "oops")
 
 ### catches unbound symbol
 
@@ -226,7 +226,7 @@
 (guard (e (lit handled)) no-such-var)
 ```
 ---
-    (lit handled)
+    'handled
 
 ### returns last body form
 
@@ -242,7 +242,7 @@
 (guard (e (list (lit err) e)) (error 42))
 ```
 ---
-    ((lit err) 42)
+    ('err 42)
 
 ### a handler-body re-raise propagates to the ENCLOSING guard
 
@@ -268,7 +268,7 @@ and a re-raise longjmp'd back into its own guard forever.)
   (list %r1 %r2))
 ```
 ---
-    ((lit outer) 3)
+    ('outer 3)
 
 ## error
 
@@ -304,7 +304,7 @@ and a re-raise longjmp'd back into its own guard forever.)
 (guard (e (lit outer)) (guard (e (lit inner)) (error "x")))
 ```
 ---
-    (lit inner)
+    'inner
 
 ### outer guard catches when inner has no guard
 
@@ -312,7 +312,7 @@ and a re-raise longjmp'd back into its own guard forever.)
 (guard (e (list (lit outer) e)) (do (def f (fn (_ ) (error "deep"))) (f)))
 ```
 ---
-    ((lit outer) "deep")
+    ('outer "deep")
 
 ### inner guard does not catch outer body error
 
@@ -320,7 +320,7 @@ and a re-raise longjmp'd back into its own guard forever.)
 (guard (e (list (lit caught) e)) (+ 1 2) (error "after"))
 ```
 ---
-    ((lit caught) "after")
+    ('caught "after")
 
 ## guard with env restore
 

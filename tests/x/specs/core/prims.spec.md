@@ -37,7 +37,7 @@
   (prim-reg! (lit spec-reg2) (lit a) (fn (_ n) (+ n 1)))
   (prim-reg! (lit spec-reg2) (lit b) (fn (_ n) (+ n 2)))
   (+ ((prim-ref (lit spec-reg2) (lit a)) 10)
-     ((prim-ref (lit spec-reg2) (lit b)) 10)))
+     ((prim-ref 'spec-reg2 'b) 10)))
 ```
 ---
     23

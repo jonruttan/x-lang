@@ -210,7 +210,7 @@
 (Io write-to-str (lit foo))
 ```
 ---
-    "(lit foo)"
+    "'foo"
 
 ### boolean to string
 

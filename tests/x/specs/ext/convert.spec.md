@@ -53,7 +53,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 (Convert to (Convert to (lit hi) %string) %symbol)
 ```
 ---
-    (lit hi)
+    'hi
 
 ### a nil value converts to nil (absence stays absence)
 

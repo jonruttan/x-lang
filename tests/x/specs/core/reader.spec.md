@@ -108,7 +108,7 @@
 (lit abc)
 ```
 ---
-    (lit abc)
+    'abc
 
 ### reads symbol with punctuation
 
@@ -116,7 +116,7 @@
 (lit my-var?)
 ```
 ---
-    (lit my-var?)
+    'my-var?
 
 ### reads operator symbols
 
@@ -124,7 +124,7 @@
 (lit +)
 ```
 ---
-    (lit +)
+    '+
 
 ## character reader
 
@@ -235,7 +235,7 @@
 (lit a)
 ```
 ---
-    (lit a)
+    'a
 
 ## comment handling
 

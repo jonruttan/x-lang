@@ -104,7 +104,7 @@
 (Convert to "hello" %symbol)
 ```
 ---
-    (lit hello)
+    'hello
 
 ### interned equality
 

@@ -143,7 +143,7 @@ where the literal sits, even when a *second* interpolation follows it.
 '$"a{x}"
 ```
 ---
-    ((lit Str8) (lit str) "a" (lit x))
+    ('Str8 'str "a" 'x)
 
 ## the tail-only list ( . x)
 
@@ -153,7 +153,7 @@ where the literal sits, even when a *second* interpolation follows it.
 '( . b)
 ```
 ---
-    (lit b)
+    'b
 
 ### the bare-variadic parameter form binds everything
 
@@ -162,3 +162,13 @@ where the literal sits, even when a *second* interpolation follows it.
 ```
 ---
     (1 2 3)
+
+## integer bases (leading zero is decimal)
+
+### 019 is nineteen, not octal-then-stop
+
+```scheme
+(list 019 010 0x13)
+```
+---
+    (19 10 19)

@@ -67,8 +67,8 @@ the tail. Its idiomatic use is the bare-variadic parameter list:
 
 ## Known sharp edges (tracked in issue #45)
 
-- Leading-zero integers currently read as octal via base auto-detection
-  (`019` → `1`); ruling pending to make leading-zero decimal (`0x` stays
-  hex).
+- Leading-zero integers read DECIMAL (`019` is nineteen); only an explicit
+  `0x`/`0X` prefix is hex. (Ruled and implemented — base auto-detection's
+  octal surprise is gone.)
 - The `1a` → `1`,`a` split and symbol permissiveness are documented
   behavior, not bugs — the scoring rules above are the specification.

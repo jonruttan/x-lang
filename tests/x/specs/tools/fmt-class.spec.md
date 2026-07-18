@@ -13,12 +13,12 @@ when many token-reads run alongside these in a single batch.
 ---
     #t
 
-### width measures a form (symbols write as (lit x): 13, not 7)
+### width measures a form (symbols write as 'x: 8, the quote mark counts)
 ```scheme
 (display (Fmt width (lit (+ 1 2))))
 ```
 ---
-    13
+    8
 
 ### build-table returns a lookup table
 ```scheme
@@ -53,25 +53,25 @@ when many token-reads run alongside these in a single batch.
 (Fmt expr (lit (+ 1 2)) 0)
 ```
 ---
-    ((lit +) 1 2)
+    ('+ 1 2)
 
 ### body prints forms one per line
 ```scheme
 (Fmt body (list (lit a) (lit b)) 0)
 ```
 ---
-    (lit b)
+    'b
 
 ### list indents a wide form (default layout)
 ```scheme
 (Fmt list (lit (alpha beta gamma delta epsilon zeta eta theta iota kappa)) 0 (Fmt build-table ()))
 ```
 ---
-      (lit kappa))
+      'kappa)
 
 ### tokens formats top-level tokens through the pipeline
 ```scheme
 (Fmt tokens (Tok read-str (Base make) "(+ 1 2)") (Fmt build-table ()))
 ```
 ---
-    ((lit +) 1 2)
+    ('+ 1 2)

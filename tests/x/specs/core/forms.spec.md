@@ -6,7 +6,7 @@
 (lit a)
 ```
 ---
-    (lit a)
+    'a
 
 ### returns a list
 
@@ -14,7 +14,7 @@
 (lit (a b c))
 ```
 ---
-    ((lit a) (lit b) (lit c))
+    ('a 'b 'c)
 
 ### returns a nested list
 
@@ -66,7 +66,7 @@
 (first (lit (a b c)))
 ```
 ---
-    (lit a)
+    'a
 
 ## rest
 
@@ -84,7 +84,7 @@
 (rest (lit (a b c)))
 ```
 ---
-    ((lit b) (lit c))
+    ('b 'c)
 
 ## list
 
@@ -268,7 +268,7 @@
 (do (def x 5) (match ((< x 0) (lit neg)) ((= x 0) (lit zero)) (#t (lit pos))))
 ```
 ---
-    (lit pos)
+    'pos
 
 ## let
 

@@ -989,7 +989,7 @@
 (first (List memq (lit c) (list (lit a) (lit b) (lit c) (lit d))))
 ```
 ---
-    (lit c)
+    'c
 
 ### returns false when not found
 

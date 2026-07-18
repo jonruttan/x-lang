@@ -108,7 +108,7 @@
 (do (def my-op (op (x) e x)) (def a 42) (my-op a))
 ```
 ---
-    (lit a)
+    'a
 
 ### can eval args explicitly
 
@@ -209,7 +209,7 @@
 (do (def my-op (op (x) e x)) (def my-fn (wrap my-op)) ((unwrap my-fn) (+ 1 2)))
 ```
 ---
-    ((lit +) 1 2)
+    ('+ 1 2)
 
 ### unwrapped applicative receives unevaluated args
 
@@ -217,7 +217,7 @@
 (do (def my-op (op (x) e x)) ((unwrap (wrap my-op)) (+ 1 2)))
 ```
 ---
-    ((lit +) 1 2)
+    ('+ 1 2)
 
 ## apply
 

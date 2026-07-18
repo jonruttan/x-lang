@@ -66,7 +66,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
     (list (d ->plist) (d ->bindings))))
 ```
 ---
-    (((lit a) 1) (((lit a) 1)))
+    (('a 1) (('a 1)))
 
 ### from-alist loads an alist
 
@@ -187,9 +187,9 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make)) (calls 0))
-    (d put! (lit a) 1)
-    (let ((hit (d get-or-else (fn () (do (set! calls (+ calls 1)) 99)) (lit a))))
-      (list hit (d get-or-else (fn () (do (set! calls (+ calls 1)) 99)) (lit z)) calls))))
+    (d put! 'a 1)
+    (let ((hit (d get-or-else (fn () (do (set! calls (+ calls 1)) 99)) 'a)))
+      (list hit (d get-or-else (fn () (do (set! calls (+ calls 1)) 99)) 'z) calls))))
 ```
 ---
     (1 99 1)
@@ -228,8 +228,8 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make)))
-    (d put! (lit k) 1) (d del! (lit k))
-    (list (d has? (lit k)) (d length))))
+    (d put! 'k 1) (d del! 'k)
+    (list (d has? 'k) (d length))))
 ```
 ---
     (#f 0)
@@ -248,7 +248,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make)))
-    (d put! (lit a) 1) (d put! (lit b) 2) (d put! (lit a) 3)
+    (d put! 'a 1) (d put! 'b 2) (d put! 'a 3)
     (d length)))
 ```
 ---
@@ -261,8 +261,8 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make 1)))
-    (d put! (lit a) 1) (d put! (lit b) 2) (d put! "c" 3)
-    (list (d get (lit a)) (d get (lit b)) (d get "c") (d length))))
+    (d put! 'a 1) (d put! 'b 2) (d put! "c" 3)
+    (list (d get 'a) (d get 'b) (d get "c") (d length))))
 ```
 ---
     (1 2 3 3)
@@ -285,10 +285,10 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make)))
-    (d put! (lit a) 1)
+    (d put! 'a 1)
     (let ((snap (d ->alist)))
-      (d put! (lit a) 2)
-      (list (rest (first snap)) (d get (lit a))))))
+      (d put! 'a 2)
+      (list (rest (first snap)) (d get 'a)))))
 ```
 ---
     (1 2)
@@ -298,18 +298,18 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make)))
-    (d put! (lit a) 1)
+    (d put! 'a 1)
     (list (d keys) (d vals))))
 ```
 ---
-    (((lit a)) (1))
+    (('a) (1))
 
 ### for-each visits every entry
 
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make)) (sum (pair 0 ())))
-    (d put! (lit a) 1) (d put! (lit b) 2)
+    (d put! 'a 1) (d put! 'b 2)
     (d for-each (fn (_ e) (set-first! sum (+ (first sum) (rest e)))))
     (first sum)))
 ```

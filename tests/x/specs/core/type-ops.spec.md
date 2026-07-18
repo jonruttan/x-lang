@@ -30,7 +30,7 @@
   (+ (Type make-instance %t 1) 2))
 ```
 ---
-    (lit dispatched)
+    'dispatched
 
 ### dispatch works with the typed operand on the right
 
@@ -42,7 +42,7 @@
   (+ 2 (Type make-instance %t2 1)))
 ```
 ---
-    (lit right-dispatched)
+    'right-dispatched
 
 ### the handler receives both raw operands
 
@@ -89,7 +89,7 @@
   (+ (Type make-instance %t7 1) (Type make-instance %t7 2)))
 ```
 ---
-    (lit same-type)
+    'same-type
 
 ### the from-relation decides mixed types (absorber wins)
 
@@ -97,7 +97,7 @@
 (do
   (def %lo2 (Type make "OPSLO2" (list)))
   (def %hi2 (Type make "OPSHI2"
-    (list (pair (lit from) (list (pair %lo2 (fn (_ v) v)))))))
+    (list (pair 'from (list (pair %lo2 (fn (_ v) v)))))))
   (def %lo2-ts (Type by-atom %lo2))
   (def %hi2-ts (Type by-atom %hi2))
   (Type push-op %lo2-ts (lit *) (fn (_ a b) (lit lo2)))
@@ -105,7 +105,7 @@
   (* (Type make-instance %lo2 1) (Type make-instance %hi2 1)))
 ```
 ---
-    (lit hi2)
+    'hi2
 
 ### the from-relation is order-independent
 
@@ -113,7 +113,7 @@
 (do
   (def %lo3 (Type make "OPSLO3" (list)))
   (def %hi3 (Type make "OPSHI3"
-    (list (pair (lit from) (list (pair %lo3 (fn (_ v) v)))))))
+    (list (pair 'from (list (pair %lo3 (fn (_ v) v)))))))
   (def %lo3-ts (Type by-atom %lo3))
   (def %hi3-ts (Type by-atom %hi3))
   (Type push-op %lo3-ts (lit *) (fn (_ a b) (lit lo3)))
@@ -121,7 +121,7 @@
   (* (Type make-instance %hi3 1) (Type make-instance %lo3 1)))
 ```
 ---
-    (lit hi3)
+    'hi3
 
 ### eq? keeps identity semantics (never dispatches)
 

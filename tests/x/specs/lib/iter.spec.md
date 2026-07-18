@@ -88,7 +88,7 @@
 (do (def-class Pt () (x 0) (y 0)) (def p (new Pt x 3 y 4)) (Iter ->list (Iter new p)))
 ```
 ---
-    (((lit x) . 3) ((lit y) . 4))
+    (('x . 3) ('y . 4))
 
 ## make-iter
 

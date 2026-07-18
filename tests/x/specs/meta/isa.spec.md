@@ -109,7 +109,7 @@ direction is live-to-manifest only.)
            ((List memq (rest e) %cat-vals) ())
            ((List memq (first e) %man-names) ())
            (#t (set! %bad (pair (first e) %bad)))))
-       (%walk (%reflect-base-cell (lit env-global-tree)) ()))
+       (%walk (%reflect-base-cell 'env-global-tree) ()))
   (if (null? %bad) "ok" %bad))
 ```
 ---

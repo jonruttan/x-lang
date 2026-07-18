@@ -52,7 +52,7 @@ trees.
 (do
   (def %xb (Base make))
   (def %xb-t (Base make-type %xb "XB-T"
-    (list (pair (lit write) (fn (_ o) (display "<child-ok>"))))))
+    (list (pair 'write (fn (_ o) (display "<child-ok>"))))))
   (Base bind %xb (lit xb-t) %xb-t)
   (Base bind %xb (lit mi) (prim-ref (lit type) (lit make-instance)))
   (def %xb-i (Base eval %xb (lit (mi xb-t 5))))
@@ -99,7 +99,7 @@ no-ops (kept for embedders that pre-register the type).
 
 ```scheme
 (do (def %s "abc")
-    (same? ((prim-ref (lit io) (lit display-to-str)) %s) %s))
+    (same? ((prim-ref 'io 'display-to-str) %s) %s))
 ```
 ---
     #f
@@ -108,7 +108,7 @@ no-ops (kept for embedders that pre-register the type).
 
 ```scheme
 (same? ((prim-ref (lit io) (lit display-to-str)) #t)
-       ((prim-ref (lit io) (lit display-to-str)) #t))
+       ((prim-ref 'io 'display-to-str) #t))
 ```
 ---
     #f

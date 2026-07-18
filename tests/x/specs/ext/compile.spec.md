@@ -52,7 +52,7 @@
 
 ```scheme
 (do (def before (length compile-emitters))
-    (compile-add-emitter! (lit test-emit-42) (fn (_ args) (display "42")))
+    (compile-add-emitter! 'test-emit-42 (fn (_ args) (display "42")))
     (def after (length compile-emitters))
     (> after before))
 ```

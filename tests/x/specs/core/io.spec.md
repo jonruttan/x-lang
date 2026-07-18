@@ -22,7 +22,7 @@
 (write (lit hello))
 ```
 ---
-    (lit hello)
+    'hello
 
 ### writes a list
 
@@ -140,9 +140,9 @@ retired C write handlers printed the same strings).
 
 ```scheme
 (list ((prim-ref (lit io) (lit write-to-str)) (fn (_ x) x))
-      ((prim-ref (lit io) (lit write-to-str)) (op (x) e ()))
-      ((prim-ref (lit io) (lit write-to-str)) (prim-ref (lit io) (lit write-str)))
-      ((prim-ref (lit io) (lit write-to-str)) ((prim-ref (lit obj) (lit ->ptr)) 0)))
+      ((prim-ref 'io 'write-to-str) (op (x) e ()))
+      ((prim-ref 'io 'write-to-str) (prim-ref 'io 'write-str))
+      ((prim-ref 'io 'write-to-str) ((prim-ref 'obj '->ptr) 0)))
 ```
 ---
     ("#<fn>" "#<op>" "#<prim>" "#<ptr>")

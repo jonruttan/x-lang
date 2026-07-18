@@ -128,7 +128,7 @@
 (do (def al (list (pair (lit a) 1) (pair (lit b) 2))) (assoc-keys al))
 ```
 ---
-    ((lit a) (lit b))
+    ('a 'b)
 
 ## assoc-vals
 
@@ -209,7 +209,7 @@
   (list (assoc-get (lit b) al) (Assoc ->plist al)))
 ```
 ---
-    (2 ((lit a) 1 (lit b) 2))
+    (2 ('a 1 'b 2))
 
 ### from-plist rejects an odd-length plist
 
@@ -227,7 +227,7 @@
 (do (def al (list (pair (lit a) 1))) (first (first (Assoc ->bindings al))))
 ```
 ---
-    (lit a)
+    'a
 
 ## evolve
 

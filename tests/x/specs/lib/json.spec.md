@@ -45,7 +45,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
   (list (Json parse "true") (Json parse "false") (Json parse "null")))
 ```
 ---
-    (#t #f (lit null))
+    (#t #f 'null)
 
 ### strings
 
@@ -150,7 +150,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
     (list ((first (rest (v get "xs"))) get "y") (v get "z"))))
 ```
 ---
-    (#t (lit null))
+    (#t 'null)
 
 ### duplicate keys: last wins
 
@@ -267,4 +267,4 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
     v))
 ```
 ---
-    (1 "two" #t (lit null))
+    (1 "two" #t 'null)

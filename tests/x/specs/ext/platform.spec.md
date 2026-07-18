@@ -28,8 +28,8 @@ values **without issuing any real syscall**; the assertions branch on
 
 ```scheme
 (and (eq? (syscall-id (lit read))  (if os-darwin? 3 0))
-     (eq? (syscall-id (lit write)) (if os-darwin? 4 1))
-     (eq? (syscall-id (lit close)) (if os-darwin? 6 3)))
+     (eq? (syscall-id 'write) (if os-darwin? 4 1))
+     (eq? (syscall-id 'close) (if os-darwin? 6 3)))
 ```
 ---
     #t
@@ -38,8 +38,8 @@ values **without issuing any real syscall**; the assertions branch on
 
 ```scheme
 (and (eq? (syscall-id (lit fork))   (if os-darwin? 2 57))
-     (eq? (syscall-id (lit execve)) 59)
-     (eq? (syscall-id (lit wait4))  (if os-darwin? 7 61)))
+     (eq? (syscall-id 'execve) 59)
+     (eq? (syscall-id 'wait4)  (if os-darwin? 7 61)))
 ```
 ---
     #t

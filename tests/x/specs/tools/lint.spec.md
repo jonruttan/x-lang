@@ -88,7 +88,7 @@
 ```scheme
 (do
   (def %f (list (lit fn) (list (lit _) (lit x))
-            (list (lit do) (list (lit def) (lit y) 1) (lit x))))
+            (list 'do (list 'def 'y 1) 'x)))
   (def %r (lint-forms (list %f) () ()))
   (display (lint-has? "y" (lint-leaks %r))))
 ```
@@ -100,7 +100,7 @@
 ```scheme
 (do
   (def %f (list (lit fn) (list (lit _) (lit x))
-            (list (lit def) (lit y) 1) (lit x)))
+            (list 'def 'y 1) 'x))
   (def %r (lint-forms (list %f) () ()))
   (display (null? (lint-leaks %r))))
 ```
@@ -112,8 +112,8 @@
 ```scheme
 (do
   (def %f (list (lit fn) (list (lit _) (lit x))
-            (list (lit if) (lit c)
-              (list (lit do) (list (lit def) (lit z) 1) 2) 3)))
+            (list 'if 'c
+              (list 'do (list 'def 'z 1) 2) 3)))
   (def %r (lint-forms (list %f) () ()))
   (display (lint-has? "z" (lint-leaks %r))))
 ```
@@ -127,8 +127,8 @@
 ```scheme
 (do
   (def %fs (list
-    (list (lit def) (lit f) (list (lit fn) (list (lit _) (lit x) (lit y)) (lit x)))
-    (list (lit f) 1)))
+    (list 'def 'f (list 'fn (list '_ 'x 'y) 'x))
+    (list 'f 1)))
   (def %r (lint-forms %fs () ()))
   (display (lint-has? "f" (lint-warnings-of "arity" %r))))
 ```
@@ -140,8 +140,8 @@
 ```scheme
 (do
   (def %fs (list
-    (list (lit def) (lit f) (list (lit fn) (list (lit _) (lit x)) (lit x)))
-    (list (lit f) 1)))
+    (list 'def 'f (list 'fn (list '_ 'x) 'x))
+    (list 'f 1)))
   (def %r (lint-forms %fs () ()))
   (display (null? (lint-warnings-of "arity" %r))))
 ```
@@ -247,8 +247,8 @@
 ```scheme
 (do
   (def %fs (list
-    (list (lit def) (lit f) (list (lit fn) () 1))
-    (list (lit f))))
+    (list 'def 'f (list 'fn () 1))
+    (list 'f)))
   (def %r (lint-forms %fs () ()))
   (display (null? (lint-warnings-of "arity" %r))))
 ```

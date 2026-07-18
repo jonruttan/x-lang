@@ -71,7 +71,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
   (list (s code) (s raw)))
 ```
 ---
-    ((lit hidden) 42)
+    ('hidden 42)
 
 ### raw field access is not available from outside the object
 
@@ -82,7 +82,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
   (guard (e 'blocked) (%member p 'x)))
 ```
 ---
-    (lit blocked)
+    'blocked
 
 ## inheritance
 
@@ -131,7 +131,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
   (class-name (new Widget)))
 ```
 ---
-    (lit Widget)
+    'Widget
 
 ### class-parent returns the extended class, nil at the root
 
@@ -203,7 +203,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
   (Sub greet))
 ```
 ---
-    (lit hi)
+    'hi
 
 ### class? distinguishes classes from instances; classes print as #<class N>
 
@@ -213,7 +213,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
   (list (class? Widget) (class? (new Widget)) (class-name Widget)))
 ```
 ---
-    (#t #f (lit Widget))
+    (#t #f 'Widget)
 
 ## errors
 
@@ -225,7 +225,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
   (guard (e 'no-member) ((new P x 1) bogus)))
 ```
 ---
-    (lit no-member)
+    'no-member
 
 ### an unknown static member on a class is an error
 
@@ -235,7 +235,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
   (guard (e 'no-static) (C bogus)))
 ```
 ---
-    (lit no-static)
+    'no-static
 
 ### super with no parent method is an error
 
@@ -245,7 +245,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
   (guard (e 'no-super) ((new A) m)))
 ```
 ---
-    (lit no-super)
+    'no-super
 
 ## edge cases
 
@@ -312,7 +312,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
   (list (c who) (instance-of? c A)))
 ```
 ---
-    ((lit a) #t)
+    ('a #t)
 
 ## classes as namespaces
 
@@ -324,7 +324,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
   ((class-of (new K)) tag))
 ```
 ---
-    (lit kk)
+    'kk
 
 ### class-wide members hold strings and symbols
 
@@ -334,7 +334,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
   (list (App label) (App kind)))
 ```
 ---
-    ("x-lang" (lit lang))
+    ("x-lang" 'lang)
 
 ## member defaults and descriptions
 
@@ -391,7 +391,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
   (guard (e 'bad-super) (C s)))
 ```
 ---
-    (lit bad-super)
+    'bad-super
 
 ## validation and guards
 
@@ -401,7 +401,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 (guard (e 'bad-form) (def-class P () (fields x)))
 ```
 ---
-    (lit bad-form)
+    'bad-form
 
 ### class-of requires an instance, not a class
 
@@ -411,7 +411,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
   (guard (e 'not-inst) (class-of C)))
 ```
 ---
-    (lit not-inst)
+    'not-inst
 
 ## method-ref (method as a value)
 
@@ -523,7 +523,7 @@ It accepts an alist `((k . v) ...)` or a flat plist `(k v ...)`.
   (guard (e (lit caught)) (new Point 'x 1 'y 2)))
 ```
 ---
-    (lit caught)
+    'caught
 
 ### a malformed new-from store errors cleanly (caught, not a crash)
 
@@ -533,4 +533,4 @@ It accepts an alist `((k . v) ...)` or a flat plist `(k v ...)`.
   (guard (e (lit caught)) (new-from Point 'notalist)))
 ```
 ---
-    (lit caught)
+    'caught
