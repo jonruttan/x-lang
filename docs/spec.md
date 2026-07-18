@@ -28,7 +28,7 @@ Integers, strings, and characters evaluate to themselves.
 ```
 42 -> 42
 "hello" -> "hello"
-#\a -> a
+#\a -> #\a
 ```
 
 ### Symbol lookup
@@ -125,9 +125,9 @@ Returns `expr` unevaluated. This is the quoting primitive. The reader provides
 `'expr` as shorthand for `(lit expr)` (see `core/quote-reader.spec.md`).
 
 ```
-(lit (+ 1 2)) -> (+ 1 2)
-(lit abc) -> abc
-'abc -> abc
+(lit (+ 1 2)) -> ('+ 1 2)
+(lit abc) -> 'abc
+'abc -> 'abc
 '(1 2 3) -> (1 2 3)
 ```
 
@@ -322,7 +322,7 @@ environment.
 
 ```
 (def my-quote (op (x) e x))
-(my-quote (+ 1 2)) -> (+ 1 2)
+(my-quote (+ 1 2)) -> ('+ 1 2)
 ```
 
 The environment parameter can be used for selective evaluation:
@@ -355,7 +355,7 @@ value that was not created by `wrap` is undefined behavior.
 ```
 (def my-op (op (x) e x))
 (def my-fn (wrap my-op))
-((unwrap my-fn) (+ 1 2)) -> (+ 1 2)
+((unwrap my-fn) (+ 1 2)) -> ('+ 1 2)
 ```
 
 ### `apply`
@@ -379,7 +379,7 @@ arguments.
 Evaluates expression `expr`. With optional `env`, evaluates in that environment.
 
 ```
-(eval (lit (+ 1 2))) -> 3
+(eval '(+ 1 2)) -> 3
 ```
 
 ---
@@ -596,12 +596,14 @@ Right shift (arithmetic).
 
 `(eq? a b) -> #t | #f`
 
-Pointer identity. Returns `#t` if `a` and `b` are the exact same object.
-Symbols with the same name are interned and thus `eq?`.
+Scalar-value identity: the same object, or two scalars (integers,
+characters) carrying the same value. Symbols with the same name are
+interned and thus `eq?`. Use `same?` for strict object identity.
 
 ```
-(eq? (lit x) (lit x)) -> #t
-(eq? 1 1) -> #f
+(eq? 'x 'x) -> #t
+(eq? 1 1) -> #t
+(eq? "a" "a") -> #f
 ```
 
 ### `=`
@@ -708,7 +710,7 @@ Returns `#t` if `x` is not a pair. Inverse of `pair?`.
 `(symbol? x) -> #t | #f`
 
 ```
-(symbol? (lit x)) -> #t
+(symbol? 'x) -> #t
 (symbol? 42) -> #f
 ```
 
@@ -755,8 +757,8 @@ is undefined.
 Returns the character with code point `n`.
 
 ```
-(integer->char 97) -> a
-(integer->char 65) -> A
+(integer->char 97) -> #\a
+(integer->char 65) -> #\A
 (= (integer->char 97) #\a) -> #t
 ```
 
@@ -784,13 +786,13 @@ Returns the character at zero-based `index` in `str`. Out-of-bounds access is
 undefined.
 
 ```
-(str-ref "hello" 0) -> h
-(str-ref "hello" 4) -> o
+(str-ref "hello" 0) -> #\h
+(str-ref "hello" 4) -> #\o
 ```
 
 ### `Str8 append`
 
-`(Str8 append str1 str2 ...) -> string` (ns `str` is de-registered: the class -- or `(prim-ref (lit str) (lit append))` for load-time/hot fetches -- is the surface)
+`(Str8 append str1 str2 ...) -> string` (ns `str` is de-registered: the class -- or `(prim-ref 'str 'append)` for load-time/hot fetches -- is the surface)
 
 Concatenates exactly two strings. For multiple strings, use `Str append` (variadic).
 
@@ -829,7 +831,7 @@ String content equality.
 Converts a string to an interned symbol.
 
 ```
-(Str8 ->sym "hello") -> hello
+(Str8 ->sym "hello") -> 'hello
 ```
 
 ### `symbol->str`
@@ -839,7 +841,7 @@ Converts a string to an interned symbol.
 Converts a symbol to a string.
 
 ```
-(symbol->str (lit hello)) -> "hello"
+(symbol->str 'hello) -> "hello"
 ```
 
 ### `number->str`
@@ -932,7 +934,7 @@ evaluated.
 
 ```
 (def x 1)
-(quasi (a (unquote x) b)) -> (a 1 b)
+(quasi (a (unquote x) b)) -> ('a 1 'b)
 ```
 
 ### `unquote`
@@ -960,7 +962,7 @@ Evaluates `expr` (must produce a list) and splices it into the surrounding list.
 Nested quasiquote:
 
 ```
-(quasi (quasi (unquote (unquote (lit x))))) -> (quasi (unquote x))
+(quasi (quasi (unquote (unquote 'x)))) -> ('quasi ('unquote 'x))
 ```
 
 ---
@@ -1034,7 +1036,7 @@ my-var? -> <symbol>
 | `#\tab`      | horizontal tab | 9    |
 
 ```
-#\a -> a
+#\a -> #\a
 (char->integer #\space) -> 32
 (char->integer #\newline) -> 10
 (char->integer #\tab) -> 9
@@ -1055,7 +1057,7 @@ is the tail.
 `'expr` is sugar for `(lit expr)`.
 
 ```
-'abc -> abc
+'abc -> 'abc
 '(1 2 3) -> (1 2 3)
 ```
 
@@ -1170,7 +1172,7 @@ second formal.
 
 ```
 (def counter-t (Type make "COUNTER"
-  (list (pair (lit call) (fn (_ self . args) (first self))))))
+  (list (pair 'call (fn (_ self . args) (first self))))))
 (def c (Type make-instance counter-t 42))
 (c) -> 42
 ```
@@ -1182,7 +1184,7 @@ called with the instance (after the closure's implicit self slot).
 
 ```
 (def my-t (Type make "SHOW"
-  (list (pair (lit write) (fn (_ self) (display "[") (display (first self)) (display "]"))))))
+  (list (pair 'write (fn (_ self) (display "[") (display (first self)) (display "]"))))))
 ```
 
 ---
@@ -1207,15 +1209,15 @@ Evaluates `expr` in the target `base` environment.
 
 ```
 (def b (Base make))
-(Base eval b (lit (+ 1 2))) -> 3
+(Base eval b '(+ 1 2)) -> 3
 ```
 
 Bases are isolated:
 
 ```
 (def b (Base make))
-(Base eval b (lit (def x 42)))
-(Base eval b (lit x)) -> 42
+(Base eval b '(def x 42))
+(Base eval b 'x) -> 42
 ```
 
 ### `Base bind`
@@ -1226,8 +1228,8 @@ Binds `name` to `value` in the target `base`.
 
 ```
 (def b (Base make))
-(Base bind b (lit x) 42)
-(Base eval b (lit x)) -> 42
+(Base bind b 'x 42)
+(Base eval b 'x) -> 42
 ```
 
 ---
@@ -2033,8 +2035,8 @@ with `eq?`.
 `(assoc-get key alist) -> value | ()`
 
 ```
-(assoc-get (lit b) (list (pair (lit a) 1) (pair (lit b) 2))) -> 2
-(assoc-get (lit z) (list (pair (lit a) 1))) -> ()
+(assoc-get 'b (list (pair 'a 1) (pair 'b 2))) -> 2
+(assoc-get 'z (list (pair 'a 1))) -> ()
 ```
 
 ### `Assoc get-or`
@@ -2042,7 +2044,7 @@ with `eq?`.
 `(Assoc get-or d key alist) -> value`
 
 ```
-(Assoc get-or 0 (lit z) (list (pair (lit a) 1))) -> 0
+(Assoc get-or 0 'z (list (pair 'a 1))) -> 0
 ```
 
 ### `assoc-has?`
@@ -2050,8 +2052,8 @@ with `eq?`.
 `(assoc-has? key alist) -> #t | #f`
 
 ```
-(assoc-has? (lit a) (list (pair (lit a) 1))) -> #t
-(assoc-has? (lit z) (list (pair (lit a) 1))) -> #f
+(assoc-has? 'a (list (pair 'a 1))) -> #t
+(assoc-has? 'z (list (pair 'a 1))) -> #f
 ```
 
 ### `assoc-del`
@@ -2059,7 +2061,7 @@ with `eq?`.
 `(assoc-del key alist) -> alist`
 
 ```
-(assoc-del (lit a) (list (pair (lit a) 1) (pair (lit b) 2))) -> ((b . 2))
+(assoc-del 'a (list (pair 'a 1) (pair 'b 2))) -> (('b . 2))
 ```
 
 ### `assoc-put`
@@ -2067,7 +2069,7 @@ with `eq?`.
 `(assoc-put key val alist) -> alist`
 
 ```
-(assoc-put (lit a) 99 (list (pair (lit a) 1) (pair (lit b) 2))) -> ((a . 99) (b . 2))
+(assoc-put 'a 99 (list (pair 'a 1) (pair 'b 2))) -> (('a . 99) ('b . 2))
 ```
 
 ### `assoc-keys`
@@ -2075,7 +2077,7 @@ with `eq?`.
 `(assoc-keys alist) -> list`
 
 ```
-(assoc-keys (list (pair (lit a) 1) (pair (lit b) 2))) -> (a b)
+(assoc-keys (list (pair 'a 1) (pair 'b 2))) -> ('a 'b)
 ```
 
 ### `Assoc vals`
@@ -2083,7 +2085,7 @@ with `eq?`.
 `(Assoc vals alist) -> list`
 
 ```
-(Assoc vals (list (pair (lit a) 1) (pair (lit b) 2))) -> (1 2)
+(Assoc vals (list (pair 'a 1) (pair 'b 2))) -> (1 2)
 ```
 
 ### `Assoc map`
@@ -2093,7 +2095,7 @@ with `eq?`.
 Applies `f` to each value.
 
 ```
-(Assoc map (method-ref Num inc) (list (pair (lit a) 1) (pair (lit b) 2))) -> ((a . 2) (b . 3))
+(Assoc map (method-ref Num inc) (list (pair 'a 1) (pair 'b 2))) -> (('a . 2) ('b . 3))
 ```
 
 ### `Assoc filter`
@@ -2103,7 +2105,7 @@ Applies `f` to each value.
 Filters entries by predicate applied to each `(key . val)` pair.
 
 ```
-(Assoc filter (fn (_ e) (> (rest e) 1)) (list (pair (lit a) 1) (pair (lit b) 2))) -> ((b . 2))
+(Assoc filter (fn (_ e) (> (rest e) 1)) (list (pair 'a 1) (pair 'b 2))) -> (('b . 2))
 ```
 
 ### `Assoc merge`
@@ -2113,7 +2115,7 @@ Filters entries by predicate applied to each `(key . val)` pair.
 Merges `b` into `a`, keeping `a`'s entries on collision.
 
 ```
-(Assoc merge (list (pair (lit a) 1)) (list (pair (lit a) 9) (pair (lit b) 2))) -> ((a . 1) (b . 2))
+(Assoc merge (list (pair 'a 1)) (list (pair 'a 9) (pair 'b 2))) -> (('a . 1) ('b . 2))
 ```
 
 ### `Assoc pick`
@@ -2123,7 +2125,7 @@ Merges `b` into `a`, keeping `a`'s entries on collision.
 Returns entries whose keys appear in `keys`.
 
 ```
-(Assoc pick (list (lit a)) (list (pair (lit a) 1) (pair (lit b) 2))) -> ((a . 1))
+(Assoc pick (list 'a) (list (pair 'a 1) (pair 'b 2))) -> (('a . 1))
 ```
 
 ### `Assoc omit`
@@ -2133,7 +2135,7 @@ Returns entries whose keys appear in `keys`.
 Returns entries whose keys are NOT in `keys`.
 
 ```
-(Assoc omit (list (lit a)) (list (pair (lit a) 1) (pair (lit b) 2))) -> ((b . 2))
+(Assoc omit (list 'a) (list (pair 'a 1) (pair 'b 2))) -> (('b . 2))
 ```
 
 ### `Assoc from-bindings`
@@ -2143,7 +2145,7 @@ Returns entries whose keys are NOT in `keys`.
 Converts a bindings list -- `((key value) ...)` two-element lists, the `let` shape -- to an alist of assocs.
 
 ```
-(Assoc from-bindings (list (list (lit a) 1) (list (lit b) 2))) -> ((a . 1) (b . 2))
+(Assoc from-bindings (list (list 'a 1) (list 'b 2))) -> (('a . 1) ('b . 2))
 ```
 
 ### `Assoc ->bindings`
@@ -2153,7 +2155,7 @@ Converts a bindings list -- `((key value) ...)` two-element lists, the `let` sha
 Converts an alist of assocs to a bindings list of two-element lists.
 
 ```
-(Assoc ->bindings (list (pair (lit a) 1) (pair (lit b) 2))) -> ((a 1) (b 2))
+(Assoc ->bindings (list (pair 'a 1) (pair 'b 2))) -> (('a 1) ('b 2))
 ```
 
 ### `Assoc evolve`
@@ -2163,7 +2165,7 @@ Converts an alist of assocs to a bindings list of two-element lists.
 Applies transformation functions to matching keys.
 
 ```
-(Assoc evolve (list (pair (lit a) (method-ref Num inc))) (list (pair (lit a) 1) (pair (lit b) 2))) -> ((a . 2) (b . 2))
+(Assoc evolve (list (pair 'a (method-ref Num inc))) (list (pair 'a 1) (pair 'b 2))) -> (('a . 2) ('b . 2))
 ```
 
 ---

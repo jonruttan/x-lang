@@ -33,6 +33,12 @@ make clean && make
 - **Module structure** — Dependencies via `(import ...)`, exports via `(provide ...)` at file bottom
 - **Documentation** — Wrap definitions in `(doc ...)` forms with `(param ...)`, `(returns ...)`, description string
 - **No `cond`/`convert` in tokenizer callbacks** — Use nested `if` and direct C primitives to avoid GC corruption
+- **Quote spelling** — `'x` in all post-boot code (#45 R2). `(lit x)` is the
+  boot-layer mechanism spelling, used only in files that parse before the
+  quote reader exists: `x-core.x`, its includes through `lit-reader.x`, and
+  the files those pull in via mid-boot `import` (`codec/utf8.x`,
+  `platform/syscall.x`) — plus `tools/isa.x`, a data manifest. Strings and
+  comments inside those files may still show `'x`. See [syntax.md](syntax.md)
 - **File extension** — `.x`
 
 ### Method Naming (adjudicated — one name per concept)

@@ -234,8 +234,8 @@ Creates a new type at runtime. `name` is a string. `handlers` is an association 
 ```
 (Type make "VECTOR"
   (list
-    (pair (lit call) (fn (_ self . args) ...))
-    (pair (lit write) (fn (_ self) ...))))
+    (pair 'call (fn (_ self . args) ...))
+    (pair 'write (fn (_ self) ...))))
 ```
 
 Handler closures follow the universal self-passing convention: the closure
@@ -275,9 +275,9 @@ Returns the type name of any object as a string.
 ```
 (def %vector (Type make "VECTOR"
   (list
-    (pair (lit call) (fn (_ self . args)
+    (pair 'call (fn (_ self . args)
       ((first self) (first args))))
-    (pair (lit write) (fn (_ self)
+    (pair 'write (fn (_ self)
       (display "#(")
       ((fn (go lst sep)
          (if (not (null? lst))
@@ -316,13 +316,13 @@ The fix is to **JIT-compile the analyser to native code** with `compile`, then i
 
 ```
 ; Fetch the wiring helpers from the catalog (registered by sys/type.x)
-(def %type-by-atom      (prim-ref (lit type) (lit by-atom)))
-(def %type-push-analyse (prim-ref (lit type) (lit push-analyse)))
+(def %type-by-atom      (prim-ref 'type 'by-atom))
+(def %type-push-analyse (prim-ref 'type 'push-analyse))
 
 ; Compile + install the int-capped analyser (digits, with +/- sign)
 (set! %compile-fvars
-  (list (pair (lit %int-capped-sign)   %int-capped-sign)
-        (pair (lit %int-capped-digits) %int-capped-digits)))
+  (list (pair '%int-capped-sign   %int-capped-sign)
+        (pair '%int-capped-digits %int-capped-digits)))
 (%type-push-analyse (%type-by-atom (Type of 0))
   (compile
     (lit (fn (_ buffer score chr)

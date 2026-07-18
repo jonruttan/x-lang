@@ -1,9 +1,9 @@
 # x-lang syntax: the preferred forms
 
 *The syntax of booted x-lang and the idioms this project prefers — the
-least-surprise contract. Items marked **[aspirational: R#]** are ruled but
-not yet implemented; the ruling record is issue #45. The bare layer
-underneath is [syntax-bare.md](syntax-bare.md).*
+least-surprise contract. Every ruling here is implemented; the ruling
+record is issue #45. The bare layer underneath is
+[syntax-bare.md](syntax-bare.md).*
 
 ## Symbols and quoting
 

@@ -695,21 +695,21 @@ Returns `#t` if the alist contains an entry for `key`.
 `(assoc-del key alist) -> alist`
 Returns a new alist with all entries for `key` removed.
 ```
-(assoc-del 'a (list (pair 'a 1) (pair 'b 2))) -> ((b . 2))
+(assoc-del 'a (list (pair 'a 1) (pair 'b 2))) -> (('b . 2))
 ```
 
 ### `assoc-put`
 `(assoc-put key val alist) -> alist`
 Sets `key` to `val` in the alist, replacing any existing entry for that key.
 ```
-(assoc-put 'a 99 (list (pair 'a 1) (pair 'b 2))) -> ((a . 99) (b . 2))
+(assoc-put 'a 99 (list (pair 'a 1) (pair 'b 2))) -> (('a . 99) ('b . 2))
 ```
 
 ### `assoc-keys`
 `(assoc-keys alist) -> list`
 Returns a list of all keys in the alist.
 ```
-(assoc-keys (list (pair 'a 1) (pair 'b 2))) -> (a b)
+(assoc-keys (list (pair 'a 1) (pair 'b 2))) -> ('a 'b)
 ```
 
 ### `Assoc vals`
@@ -723,56 +723,56 @@ Returns a list of all values in the alist.
 `(Assoc map f alist) -> alist`
 Applies `f` to each value in the alist, preserving keys.
 ```
-(Assoc map (method-ref Num inc) (list (pair 'a 1) (pair 'b 2))) -> ((a . 2) (b . 3))
+(Assoc map (method-ref Num inc) (list (pair 'a 1) (pair 'b 2))) -> (('a . 2) ('b . 3))
 ```
 
 ### `Assoc filter`
 `(Assoc filter pred alist) -> alist`
 Filters alist entries by a predicate applied to each `(key . val)` pair.
 ```
-(Assoc filter (fn (_ e) (> (rest e) 1)) (list (pair 'a 1) (pair 'b 2))) -> ((b . 2))
+(Assoc filter (fn (_ e) (> (rest e) 1)) (list (pair 'a 1) (pair 'b 2))) -> (('b . 2))
 ```
 
 ### `Assoc merge`
 `(Assoc merge a b) -> alist`
 Merges alist `b` into `a`, keeping entries from `a` when keys collide.
 ```
-(Assoc merge (list (pair 'a 1)) (list (pair 'a 9) (pair 'b 2))) -> ((a . 1) (b . 2))
+(Assoc merge (list (pair 'a 1)) (list (pair 'a 9) (pair 'b 2))) -> (('a . 1) ('b . 2))
 ```
 
 ### `Assoc pick`
 `(Assoc pick keys alist) -> alist`
 Returns only the entries whose keys appear in the `keys` list.
 ```
-(Assoc pick (list 'a) (list (pair 'a 1) (pair 'b 2))) -> ((a . 1))
+(Assoc pick (list 'a) (list (pair 'a 1) (pair 'b 2))) -> (('a . 1))
 ```
 
 ### `Assoc omit`
 `(Assoc omit keys alist) -> alist`
 Returns the alist with entries for the given keys removed.
 ```
-(Assoc omit (list 'a) (list (pair 'a 1) (pair 'b 2))) -> ((b . 2))
+(Assoc omit (list 'a) (list (pair 'a 1) (pair 'b 2))) -> (('b . 2))
 ```
 
 ### `Assoc from-bindings`
 `(Assoc from-bindings bindings) -> alist`
 Converts a bindings list -- `((key value) ...)` two-element lists, the `let` shape -- into an alist of assocs.
 ```
-(Assoc from-bindings (list (list 'a 1) (list 'b 2))) -> ((a . 1) (b . 2))
+(Assoc from-bindings (list (list 'a 1) (list 'b 2))) -> (('a . 1) ('b . 2))
 ```
 
 ### `Assoc ->bindings`
 `(Assoc ->bindings alist) -> list`
 Converts an alist of assocs into a bindings list of two-element lists.
 ```
-(Assoc ->bindings (list (pair 'a 1) (pair 'b 2))) -> ((a 1) (b 2))
+(Assoc ->bindings (list (pair 'a 1) (pair 'b 2))) -> (('a 1) ('b 2))
 ```
 
 ### `Assoc evolve`
 `(Assoc evolve fns alist) -> alist`
 Applies transformation functions from the `fns` alist to matching keys in the data alist.
 ```
-(Assoc evolve (list (pair 'a (method-ref Num inc))) (list (pair 'a 1) (pair 'b 2))) -> ((a . 2) (b . 2))
+(Assoc evolve (list (pair 'a (method-ref Num inc))) (list (pair 'a 1) (pair 'b 2))) -> (('a . 2) ('b . 2))
 ```
 
 ---

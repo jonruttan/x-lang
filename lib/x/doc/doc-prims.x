@@ -9,7 +9,7 @@
 (doc lit "Return the argument unevaluated (quote)."
   (param form ANY "Any expression")
   (returns ANY "The expression itself")
-  (example "(lit x)" "x")
+  (example "(lit x)" "'x")
   (example "(lit (1 2 3))" "(1 2 3)"))
 
 (doc def "Bind a name to a value in the current environment."
@@ -70,7 +70,7 @@
   (param var SYMBOL "Name bound to the error value")
   (param handler ANY "Expression evaluated if error occurs (var is bound)")
   (param body ANY "Expression to evaluate")
-  (example "(guard (e (list (lit error) e)) (+ 1 \"x\"))" "(error \"...\")"))
+  (example "(guard (e (list 'error e)) (+ 1 \"x\"))" "('error \"...\")"))
 
 (doc error "Signal an error with a message."
   (param message STRING "Error message")
@@ -263,7 +263,7 @@
 ; dlopen/dlsym/ffi-call (ns ffi) and ptr-call/ptr->int/... (ns ptr) are
 ; de-registered (R5); the Ffi and Ptr classes (lib/x/type/ptr.x) carry their
 ; docs. int->ptr (ns int) is de-registered (R5) too -- (Ptr from-int) is the
-; surface; reader/hot callers fetch (prim-ref (lit int) (lit ->ptr)).
+; surface; reader/hot callers fetch (prim-ref 'int '->ptr).
 
 ; === Continuations ===
 
@@ -360,7 +360,7 @@
 (doc quasi "Quasiquote: template with unquote and splicing."
   (param template ANY "Template expression with , and ,@ escapes")
   (note "Use , to unquote a single expression, ,@ to splice a list.")
-  (example "(let ((x 42)) (quasi (a ,x b)))" "(a 42 b)"))
+  (example "(let ((x 42)) (quasi (a ,x b)))" "('a 42 'b)"))
 
 (doc repl "Start the read-eval-print loop."
   (note "Customizable: %repl-prompt and %repl-print control display."))
@@ -447,27 +447,27 @@
   (see prim-ref))
 
 (doc prim-domain "The method alist filed under a catalog namespace, or nil."
-  (param ns SYMBOL "Namespace symbol, e.g. (lit int)")
+  (param ns SYMBOL "Namespace symbol, e.g. 'int")
   (returns LIST "((method . impl) ...) for the namespace, or nil")
   (see prims))
 
 (doc prim-ref "Fetch the implementation filed under ns/method, or nil."
   (note "The consumer half of the registry protocol. Fetch at module load and")
   (note "cache in a lexical (hot paths) or call inline (cold paths).")
-  (param ns SYMBOL "Namespace symbol, e.g. (lit iter)")
-  (param method SYMBOL "Method symbol, e.g. (lit next)")
+  (param ns SYMBOL "Namespace symbol, e.g. 'iter")
+  (param method SYMBOL "Method symbol, e.g. 'next")
   (returns ANY "The registered implementation, or nil if absent")
-  (example "(prim-ref (lit int) (lit +))" "#<prim>")
+  (example "(prim-ref 'int '+)" "#<prim>")
   (see prim-reg!))
 
 (doc prim-reg! "File an x-lang value into the catalog under ns/method."
   (note "The producer half of the registry protocol: library implementations register")
   (note "under the same stable identities as C prims. Registration prepends, so a")
   (note "re-registration shadows the older entry on lookup. Returns nil.")
-  (param ns SYMBOL "Namespace symbol, e.g. (lit float)")
-  (param method SYMBOL "Method symbol, e.g. (lit +)")
+  (param ns SYMBOL "Namespace symbol, e.g. 'float")
+  (param method SYMBOL "Method symbol, e.g. '+")
   (param value ANY "The implementation to register (fn, op, or any value)")
-  (example "(do (prim-reg! (lit float) (lit +) %f+) (prim-ref (lit float) (lit +)))" "#<fn>")
+  (example "(do (prim-reg! 'float '+ %f+) (prim-ref 'float '+))" "#<fn>")
   (see prim-ref))
 
 ; (`use` -- the qualified fetch+define convenience -- is retired: it had no

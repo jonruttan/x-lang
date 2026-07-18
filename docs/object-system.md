@@ -262,7 +262,7 @@ internally.
 (object? 42)              ; => #f
 ```
 
-`class-name` returns a *symbol*; at the REPL it prints as `(lit Bonus)`, while
+`class-name` returns a *symbol*; at the REPL it prints as `'Bonus`, while
 `(display (class-name b))` shows `Bonus`.
 
 ---

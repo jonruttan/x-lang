@@ -14,10 +14,11 @@ All primitives receive unevaluated arguments (fexpr-style) and evaluate what the
 
 `(lit expr) -> expr`
 
-Returns `expr` unevaluated. This is the quoting primitive; the argument is never evaluated.
+Returns `expr` unevaluated. This is the quoting primitive; the argument is never evaluated. The reader provides `'expr` as shorthand.
 
 ```
-(lit (+ 1 2)) -> (+ 1 2)
+(lit (+ 1 2)) -> ('+ 1 2)
+'abc -> 'abc
 ```
 
 ---
@@ -62,11 +63,12 @@ Returns the rest element (cdr) of pair `p`.
 
 `(eq? a b) -> #t | #f`
 
-Tests pointer identity of evaluated `a` and `b`. Returns `#t` if `a` and `b` are the exact same object; `#f` otherwise.
+Tests scalar-value identity of evaluated `a` and `b`: the same object, or two scalars (integers, characters) carrying the same value, compare `#t`. Use `same?` for strict object identity.
 
 ```
-(eq? (lit x) (lit x)) -> #t
-(eq? 1 1) -> #f
+(eq? 'x 'x) -> #t
+(eq? 1 1) -> #t
+(eq? "a" "a") -> #f
 ```
 
 ### `=`
@@ -367,7 +369,7 @@ Creates an operative (user-level fexpr). Like `fn`, but receives arguments uneva
 
 ```
 (def my-quote (op (x) e x))
-(my-quote (+ 1 2)) -> (+ 1 2)
+(my-quote (+ 1 2)) -> ('+ 1 2)
 ```
 
 ### `apply`
@@ -388,7 +390,7 @@ Calls callable `f` with a pre-evaluated list of arguments `args`. Works with bot
 Evaluates the already-evaluated expression `expr`. With an optional `env` argument, evaluates `expr` in that environment instead of the current one. The environment is restored after evaluation.
 
 ```
-(eval (lit (+ 1 2))) -> 3
+(eval '(+ 1 2)) -> 3
 ```
 
 ### `wrap`
@@ -490,7 +492,7 @@ Returns `#t` if `x` evaluates to a string; `#f` otherwise.
 Returns `#t` if `x` evaluates to a symbol; `#f` otherwise.
 
 ```
-(symbol? (lit x)) -> #t
+(symbol? 'x) -> #t
 (symbol? 42) -> #f
 ```
 
@@ -689,7 +691,7 @@ Returns `#t` if strings `str1` and `str2` have equal contents; `#f` otherwise.
 Converts a string to an interned symbol with the same name.
 
 ```
-(string->symbol "hello") -> hello
+(string->symbol "hello") -> 'hello
 ```
 
 ### `symbol->string`
@@ -699,7 +701,7 @@ Converts a string to an interned symbol with the same name.
 Converts a symbol to a string containing the symbol's name.
 
 ```
-(symbol->string (lit hello)) -> "hello"
+(symbol->string 'hello) -> "hello"
 ```
 
 ### `number->string`
@@ -736,7 +738,7 @@ Quasiquote expansion. Returns `template` with `unquote` and `unquote-splicing` f
 
 ```
 (def x 1)
-(quasi (a (unquote x) b)) -> (a 1 b)
+(quasi (a (unquote x) b)) -> ('a 1 'b)
 (def xs (list 2 3))
 (quasi (1 (unquote-splicing xs) 4)) -> (1 2 3 4)
 ```
@@ -788,7 +790,7 @@ Evaluates expression `expr` in the target `base` environment. List nil terminato
 
 ```
 (def b (Base make))
-(Base eval b (lit (+ 1 2))) -> 3
+(Base eval b '(+ 1 2)) -> 3
 ```
 
 ### `Base bind`
@@ -799,7 +801,7 @@ Binds `name` to `value` in the target `base` environment. List values are rewrit
 
 ```
 (def b (Base make))
-(Base bind b (lit x) 42) -> 42
+(Base bind b 'x 42) -> 42
 ```
 
 ---
@@ -809,7 +811,7 @@ Binds `name` to `value` in the target `base` environment. List values are rewrit
 These are C primitives filed in the catalog under namespace `type`; the bare
 names are **de-registered** (R5). The surface is the `Type` class (methods
 `make`, `make-instance`, `?`, `of`, `name`); load-time/hot code fetches via
-`(prim-ref (lit type) (lit make))` etc.
+`(prim-ref 'type 'make)` etc.
 
 ### `Type make`
 
@@ -818,7 +820,7 @@ names are **de-registered** (R5). The surface is the `Type` class (methods
 Creates a new runtime type with string `name` and an association list of `handlers`. Supported handler keys include `call`, `write`, `analyse`, `read`, `iter`, `from`, `to`, and `ops`, each mapping to a closure. Returns a type handle atom used to create instances and check types.
 
 ```
-(def my-type (Type make "my-type" (list (pair (lit call) (fn (_ obj . args) args))))) -> <type-handle>
+(def my-type (Type make "my-type" (list (pair 'call (fn (_ obj . args) args))))) -> <type-handle>
 ```
 
 ### `Type make-instance`
