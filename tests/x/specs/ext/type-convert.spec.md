@@ -320,7 +320,7 @@
 (Convert to 42 %float)
 ```
 ---
-    42
+    42.0
 
 ### exact match result has target type
 
@@ -357,7 +357,7 @@
 (Convert to -5 %float)
 ```
 ---
-    -5
+    -5.0
 
 ### convert zero to float
 
@@ -365,7 +365,7 @@
 (Convert to 0 %float)
 ```
 ---
-    0
+    0.0
 
 ### convert zero result is float
 

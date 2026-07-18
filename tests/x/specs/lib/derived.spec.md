@@ -44,44 +44,44 @@
 ---
     #t
 
-## let*
+## let* is retired (#45 R6)
 
-### creates sequential bindings
+### sequential binding is nested let now
 
 ```x
-(let* ((x 1) (y (+ x 1))) (+ x y))
+(let ((x 1)) (let ((y (+ x 1))) (+ x y)))
 ```
 ---
     3
 
-### later bindings see earlier ones
+### let* no longer exists
 
 ```x
-(let* ((a 10) (b (* a 2)) (c (+ b 5))) c)
+(guard (e "gone") (let* ((a 10)) a))
 ```
 ---
-    25
+    "gone"
 
-### does not leak bindings
+### nested let does not leak bindings
 
 ```x
-(def x 1) (let* ((x 99) (y x)) y) x
+(def x 1) (let ((x 99)) (let ((y x)) y)) x
 ```
 ---
     1
 
-### many sequential bindings
+### many sequential bindings nest
 
 ```x
-(let* ((a 1) (b (+ a 1)) (c (+ b 1)) (d (+ c 1))) d)
+(let ((a 1)) (let ((b (+ a 1))) (let ((c (+ b 1))) (let ((d (+ c 1))) d))))
 ```
 ---
     4
 
-### shadows outer
+### nested let shadows outer
 
 ```x
-(def x 100) (let* ((x 1) (y (+ x 1))) (+ x y))
+(def x 100) (let ((x 1)) (let ((y (+ x 1))) (+ x y)))
 ```
 ---
     3

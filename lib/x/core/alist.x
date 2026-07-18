@@ -104,8 +104,8 @@
     (let ((c (%opt-cell key store)))
       (if (null? c) (thunk) (first c)))))
 
-; Compile one let-opts binding spec into the (name value-form) pair that let*
-; expects.  The default is wrapped in a (fn () ...) thunk so %opt-get-or-else
+; Compile one let-opts binding spec into the (name value-form) pair a let
+; binding expects.  The default is wrapped in a (fn () ...) thunk so %opt-get-or-else
 ; evaluates it only when the option is absent -- a present option never runs its
 ; default expression.  %opt-get-form builds that lazy lookup form; %opt-binding
 ; dispatches on spec shape:
@@ -127,16 +127,23 @@
       (#t                      (list (first b)
                                  (%opt-get-form (first (rest b)) (first (rest (rest b)))))))))
 
+; Nest one let per binding (sequential visibility; let* is retired, #45 R6).
+; bindings is never empty -- %opts always leads.
+(def %opt-nest
+  (fn (self bindings body)
+    (if (null? (rest bindings))
+      (pair (lit let) (pair (list (first bindings)) body))
+      (list (lit let) (list (first bindings)) (self (rest bindings) body)))))
+
 (doc (def let-opts
   (op (src bindings . body)
     e
-    ; Expand to let*: %opts holds the evaluated source once and is visible to
-    ; every lookup, and the option bindings stay local to body.  (let, unlike the
-    ; older do+def expansion, does not leak the bindings into the caller frame e.)
+    ; Expand to nested lets: %opts holds the evaluated source once and is
+    ; visible to every lookup, each binding sees the ones before it, and the
+    ; bindings stay local to body (no leak into the caller frame e).
     (tail-eval
-      (pair (lit let*)
-        (pair (pair (list (lit %opts) src) (map %opt-binding bindings))
-              body))
+      (%opt-nest (pair (list (lit %opts) src) (map %opt-binding bindings))
+                 body)
       e)))
   (note "Each binding is name | (name default) | (name key default). Defaults are")
   (note "lazy (run only when the option is absent) and may reference earlier bindings.")

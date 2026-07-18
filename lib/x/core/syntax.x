@@ -21,22 +21,10 @@
     e
     (if (not (eval test e)) (tail-eval (pair (lit do) body) e))))
 
-; --- let* (sequential binding) ---
 
-(doc let* "Sequential let: bindings are evaluated left to right, each visible to the next."
-  (param bindings LIST "List of (name value) binding pairs")
-  (param body ANY "One or more body expressions"))
-(def let*
-  (op (bindings . body)
-    e
-    (if (null? bindings)
-      (tail-eval (pair (lit do) body) e)
-      (tail-eval
-        (list
-          (lit let)
-          (list (first bindings))
-          (pair (lit let*) (pair (rest bindings) body)))
-        e))))
+; let* was RETIRED (#45 R6, 2026-07-18): six historical uses migrated to
+; nested let; sequential binding is spelled with nested let (in tails,
+; where def would leak) or def-in-body (elsewhere). See docs/syntax.md.
 
 ; --- letrec (recursive binding) ---
 
@@ -150,6 +138,6 @@
           (#t (self (rest cls))))))
     (case-loop clauses)))
 
-(doc (provide x/core/syntax when unless let* letrec cond case)
+(doc (provide x/core/syntax when unless letrec cond case)
   (note "These are operatives that extend the core syntax.")
-  "Derived syntax forms: cond, case, when, unless, let*, letrec.")
+  "Derived syntax forms: cond, case, when, unless, letrec.")

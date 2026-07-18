@@ -28,7 +28,7 @@ cat lib/x-or.x - | ./x   # x/or
 The core dialect. Loads `lib/x-core.x`, which bootstraps the module system and loads 40+ modules:
 
 - **Boot:** operatives, data constructors, string primitives, module system (`provide`/`import`)
-- **Core:** predicates, control flow, GC, type system, conversions, booleans, higher-order functions, logic, list operations (60+ functions), math, syntax forms (`cond`, `case`, `when`, `unless`, `let*`, `letrec`), association lists, arithmetic, quasiquote, REPL, banner
+- **Core:** predicates, control flow, GC, type system, conversions, booleans, higher-order functions, logic, list operations (60+ functions), math, syntax forms (`cond`, `case`, `when`, `unless`, `letrec`), association lists, arithmetic, quasiquote, REPL, banner
 - **System:** intrinsics, token system, numeric tower helpers
 - **Types:** characters, strings, vectors, promises
 

@@ -322,7 +322,7 @@
   (note "Named let: (let name ((var init) ...) body) creates a loop.")
   (example "(let ((x 1) (y 2)) (+ x y))" "3")
   (example "(let loop ((n 5) (acc 1)) (if (= n 0) acc (loop (- n 1) (* acc n))))" "120")
-  (see let*) (see letrec))
+  (see letrec))
 
 (doc do "Evaluate expressions sequentially, return last result."
   (param exprs ANY "One or more expressions")

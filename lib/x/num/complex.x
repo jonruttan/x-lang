@@ -108,6 +108,13 @@
       %cx-real-frac
       ())))
 
+; Entry after a leading '-': a digit starts the (negative) real part.
+; The read side already handles the sign (its separator search starts
+; at index 1), so this state is all -1+2i needed (#45 R4).
+(def %cx-neg
+  (fn (_ buffer score chr)
+    (if (and (>= chr 48) (<= chr 57)) %cx-real-int ())))
+
 (def %cx-real-int ())
 (set! %cx-real-int
   (fn (_ buffer score chr)
@@ -170,7 +177,9 @@
       (pair
         (lit analyse)
         (fn (_ buffer score chr)
-          (if (and (>= chr 48) (<= chr 57)) %cx-real-int ())))
+          ; Entry: digit, or '-' then digit (negative real part, R4)
+          (if (and (>= chr 48) (<= chr 57)) %cx-real-int
+            (if (= chr 45) %cx-neg ()))))
       (pair (lit read) (fn (_ . args) (%cx-read (first args))))
       (pair
         (lit from)

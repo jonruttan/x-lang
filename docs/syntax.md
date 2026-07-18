@@ -33,11 +33,11 @@ echoes them in shorthand.
   correct spelling for negating a *variable* (it routes through the
   operand's type dispatch).
 - Tower literals — dialect-gated (x/and, x/or, x-base): floats `3.14`,
-  `-7.5`; rationals `1/3`, `-2/7`; complexes `3+4i`, `2-3i`; big integers
-  as plain digit runs. `-1+2i` (negative real part) parses.
-  **[aspirational: R4]**
+  `-7.5`; rationals `1/3`, `-2/7`; complexes `3+4i`, `2-3i`, `-1+2i`; big
+  integers as plain digit runs. (Implemented — the compiled analysers
+  carry the sign branches.)
 - Floats print with their point: `1.0` echoes `1.0`, not `1`.
-  **[aspirational: R4]**
+  (Implemented.)
 - Leading-zero integers are decimal (`019` is nineteen); `0x13` is hex.
   (Implemented.)
 
@@ -67,11 +67,14 @@ echoes them in shorthand.
   `(first (rest x))`, `(- x 1)`. The class methods (`Num inc`,
   `List second`) are namespace homes and value-passing handles
   (`(method-ref Num inc)`), not required spellings.
-- **`when`** is the one-armed conditional; `(if c x ())` is retired.
-  **[aspirational: R6]**
+- **`when`** / **`unless`** are the one-armed conditionals; `(if c x ())`
+  is retired. (They existed all along — the audit found 96 hand-rolled
+  emulations written while they sat unused. Existing sites migrate
+  opportunistically; new code uses them.)
 - Sequencing: `def`-in-body for stepwise computation, `let` for
-  bindings-with-scope. `let*` is retired (its six historical uses
-  migrate). **[aspirational: R6]**
+  bindings-with-scope, **nested `let` in tail position** (where `def`
+  would leak under TCO). `let*` is retired — removed, its six historical
+  uses migrated. (Implemented.)
 - Thunks are `(fn () …)`; a self-only signature `(fn (_) …)` means the
   closure *uses* being self-passed. Don't mix the two for "no arguments".
 - Errors are raised with `(error …)` and caught with `guard`; misses are

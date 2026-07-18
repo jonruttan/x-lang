@@ -195,18 +195,18 @@
         (match
           ((eq? remaining ()) ())
           (#t
-            (let* ((%sym (first remaining))
-                   (%found
-                    (fn (self lst)
-                      (match
-                        ((eq? lst ()) #f)
-                        ((eq? (first lst) %sym) #t)
-                        (#t (self (rest lst)))))))
-              (match
-                ((%found exports) (self (rest remaining)))
-                (#t (error (%str-append "import: symbol not exported by "
-                      (%str-append (symbol->str name)
-                        (%str-append ": " (symbol->str %sym))))))))))))
+            (let ((%sym (first remaining)))
+              (let ((%found
+                     (fn (self lst)
+                       (match
+                         ((eq? lst ()) #f)
+                         ((eq? (first lst) %sym) #t)
+                         (#t (self (rest lst)))))))
+                (match
+                  ((%found exports) (self (rest remaining)))
+                  (#t (error (%str-append "import: symbol not exported by "
+                        (%str-append (symbol->str name)
+                          (%str-append ": " (symbol->str %sym)))))))))))))
     (%check syms)))
 
 (def import

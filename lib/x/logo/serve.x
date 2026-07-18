@@ -117,16 +117,16 @@
 (def %http-path
   (fn (_ request)
     (if (null? request) "/"
-      ; let*, not def-in-do: this is the tail, so def would leak to global
-      (let* ((%find-space
-              (fn (self i)
-                (if (>= i (str-length request)) 0
-                  (if (Char =? (str-ref request i) #\space) i
-                    (self (+ i 1))))))
-             (start (+ (%find-space 0) 1))
-             (end (%find-space start)))
-        (if (>= start end) "/"
-          (substring request start end))))))
+      ; nested let, not def-in-do: this is the tail, so def would leak to global
+      (let ((%find-space
+             (fn (self i)
+               (if (>= i (str-length request)) 0
+                 (if (Char =? (str-ref request i) #\space) i
+                   (self (+ i 1)))))))
+        (let ((start (+ (%find-space 0) 1)))
+          (let ((end (%find-space start)))
+            (if (>= start end) "/"
+              (substring request start end))))))))
 
 ; Build an HTTP response string.
 (def %http-response

@@ -112,11 +112,16 @@
 ; 3. Float
 (include "lib/x/num/float.x")
 (set! %compile-fvars
-  (list (pair (lit %float-int-digits) %float-int-digits)))
+  (list (pair (lit %float-int-digits) %float-int-digits)
+        (pair (lit %float-neg-int) %float-neg-int)))
 (%type-push-analyse (%type-by-atom (%type-of 1.0))
   (compile
+    ; Sign branch mirrors the interpreted analyser -- without it, -7.5
+    ; only parses via the stacked interpreted fallback (#45 R4).
     (lit (fn (_ buffer score chr)
-      (if (< chr 48) () (if (< chr 58) %float-int-digits ()))))
+      (if (< chr 48)
+        (if (= chr 45) %float-neg-int ())
+        (if (< chr 58) %float-int-digits ()))))
     %compile-fvars))
 (set! %compile-fvars ())
 
@@ -139,10 +144,14 @@
 ; 5. Complex
 (include "lib/x/num/complex.x")
 (set! %compile-fvars
-  (list (pair (lit %cx-real-int) %cx-real-int)))
+  (list (pair (lit %cx-real-int) %cx-real-int)
+        (pair (lit %cx-neg) %cx-neg)))
 (%type-push-analyse (%type-by-atom (%type-of 1+1i))
   (compile
+    ; Sign branch: -1+2i analyses as complex (#45 R4).
     (lit (fn (_ buffer score chr)
-      (if (< chr 48) () (if (< chr 58) %cx-real-int ()))))
+      (if (< chr 48)
+        (if (= chr 45) %cx-neg ())
+        (if (< chr 58) %cx-real-int ()))))
     %compile-fvars))
 (set! %compile-fvars ())

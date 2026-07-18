@@ -803,13 +803,13 @@
   (fn (loop members inits e eval?)
     (if (null? members)
       ()
-      (let* ((name (first (first members)))
-             (default (rest (first members)))
-             (cell (%opt-cell name inits)))
-        (pair (pair name
-                (if (null? cell) default
-                  (if eval? (eval (first cell) e) (first cell))))
-              (loop (rest members) inits e eval?))))))
+      (let ((name (first (first members)))
+            (default (rest (first members))))
+        (let ((cell (%opt-cell name inits)))
+          (pair (pair name
+                  (if (null? cell) default
+                    (if eval? (eval (first cell) e) (first cell))))
+                (loop (rest members) inits e eval?)))))))
 
 (doc (provide x/type/object
   def-class new new-from super method-ref

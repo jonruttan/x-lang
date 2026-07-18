@@ -538,14 +538,14 @@
   (if (null? forms) defs
     ; `let`, not `def`: this is %lint-top's tail, so a `def` here would itself
     ; leak (the very bug we detect).  We dogfood the fix.
-    (let* ((form (first forms))
-           (eff (%lint-unwrap-doc form))               ; see through (doc (def ..) ..)
-           (nm (if (%lint-binds? eff) (%lint-bound-name eff) ())))
-      (if (if (null? nm) #f (%name-member? nm defs))
-        (%warn! "dup-def" nm) ())                      ; same top-level name defined twice
-      (set-first! %lint-scope ())
-      (%write-to-str form)                              ; drive the walk (string discarded)
-      (self (rest forms) (if (null? nm) defs (pair nm defs)))))))
+    (let ((form (first forms)))
+      (let ((eff (%lint-unwrap-doc form)))             ; see through (doc (def ..) ..)
+        (let ((nm (if (%lint-binds? eff) (%lint-bound-name eff) ())))
+          (if (if (null? nm) #f (%name-member? nm defs))
+            (%warn! "dup-def" nm) ())                  ; same top-level name defined twice
+          (set-first! %lint-scope ())
+          (%write-to-str form)                         ; drive the walk (string discarded)
+          (self (rest forms) (if (null? nm) defs (pair nm defs)))))))))
 
 (doc (def lint-forms (fn (_ forms defs uses)
   (set-first! %lint-uses uses)

@@ -8,7 +8,7 @@
 (list %turtle-x %turtle-y)
 ```
 ---
-    (0 0)
+    (0.0 0.0)
 
 ### starts heading north
 
@@ -16,7 +16,7 @@
 %turtle-heading
 ```
 ---
-    0
+    0.0
 
 ### pen starts down
 
@@ -35,7 +35,7 @@
 (list %turtle-x %turtle-y)
 ```
 ---
-    (0 -100)
+    (0.0 -100.0)
 
 ### creates bytecode entries
 
@@ -57,7 +57,7 @@
 (list %turtle-x %turtle-y)
 ```
 ---
-    (0 100)
+    (0.0 100.0)
 
 ## turtle-right
 
@@ -69,7 +69,7 @@
 %turtle-heading
 ```
 ---
-    90
+    90.0
 
 ## turtle-left
 
@@ -81,7 +81,7 @@
 %turtle-heading
 ```
 ---
-    -45
+    -45.0
 
 ## turtle-penup
 
@@ -130,7 +130,7 @@
 (list %turtle-x %turtle-y)
 ```
 ---
-    (0 0)
+    (0.0 0.0)
 
 ### resets heading
 
@@ -140,7 +140,7 @@
 %turtle-heading
 ```
 ---
-    0
+    0.0
 
 ### clears segments
 
@@ -314,7 +314,7 @@
 (turtle-bc-str)
 ```
 ---
-    "[\"F\",100]"
+    "[\"F\",100.0]"
 
 ## expressions
 
@@ -344,7 +344,7 @@
 (first r)
 ```
 ---
-    8
+    8.0
 
 ### unary minus
 
@@ -400,7 +400,7 @@
 (first r)
 ```
 ---
-    4
+    4.0
 
 ## control flow
 
@@ -432,7 +432,7 @@
 %turtle-x
 ```
 ---
-    0
+    0.0
 
 ### if not
 
@@ -510,7 +510,7 @@
 (first r)
 ```
 ---
-    12
+    12.0
 
 ### abs
 
@@ -528,7 +528,7 @@
 (first r)
 ```
 ---
-    1
+    1.0
 
 ### cos 0
 
@@ -537,7 +537,7 @@
 (first r)
 ```
 ---
-    1
+    1.0
 
 ### remainder
 
@@ -569,7 +569,7 @@
 (list %turtle-x %turtle-y)
 ```
 ---
-    (100 50)
+    (100.0 50.0)
 
 ### home
 
@@ -579,7 +579,7 @@
 (list %turtle-x %turtle-y %turtle-heading)
 ```
 ---
-    (0 0 0)
+    (0.0 0.0 0.0)
 
 ### distance
 
@@ -590,7 +590,7 @@
 (first r)
 ```
 ---
-    5
+    5.0
 
 ## pen color and width
 
@@ -612,7 +612,7 @@
 %turtle-pen-width
 ```
 ---
-    3
+    3.0
 
 ## repeat forever
 
@@ -685,7 +685,7 @@
 %turtle-y
 ```
 ---
-    -50
+    -50.0
 
 ## execute
 
@@ -733,7 +733,7 @@
 %turtle-heading
 ```
 ---
-    180
+    180.0
 
 ## bytecode format
 
@@ -777,4 +777,4 @@
 %turtle-y
 ```
 ---
-    -100
+    -100.0

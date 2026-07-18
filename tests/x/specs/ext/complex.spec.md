@@ -230,7 +230,7 @@
 (Complex real-part (Complex make-polar 5 0))
 ```
 ---
-    5
+    5.0
 
 ## real?
 
@@ -285,3 +285,21 @@
 ```
 ---
     Error: complex: % is undefined for complex numbers
+
+## negative real part (#45 R4)
+
+### -1+2i parses as a complex literal
+
+```scheme
+-1+2i
+```
+---
+    -1+2i
+
+### arithmetic on a negative-real literal
+
+```scheme
+(+ -1+2i 2)
+```
+---
+    1+2i

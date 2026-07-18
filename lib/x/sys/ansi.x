@@ -178,7 +178,7 @@
         (lit import) (lit include) (lit provide)
         (lit and) (lit or) (lit not)
         (lit apply) (lit eval) (lit begin)
-        (lit when) (lit unless) (lit let*) (lit letrec)
+        (lit when) (lit unless) (lit letrec)
         (lit cond) (lit case) (lit doc) (lit note)))
 
 (def %keyword?

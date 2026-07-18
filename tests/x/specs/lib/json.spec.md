@@ -29,14 +29,14 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 ---
     2.5
 
-### exponents parse as floats (integral floats display without the point)
+### exponents parse as floats (and keep their point, #45 R4)
 
 ```scheme
 (do (import x/codec/json)
   (let ((v (Json parse "1e3"))) (list (Type name v) v)))
 ```
 ---
-    ("FLOAT" 1000)
+    ("FLOAT" 1000.0)
 
 ### true / false / null
 

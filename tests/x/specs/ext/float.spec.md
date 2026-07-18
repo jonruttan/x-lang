@@ -16,7 +16,7 @@
 1.0
 ```
 ---
-    1
+    1.0
 
 ### parses negative float
 
@@ -74,7 +74,7 @@
 (Convert to 42 %float)
 ```
 ---
-    42
+    42.0
 
 ### convert result is float
 
@@ -114,7 +114,7 @@
 (Convert to -5 %float)
 ```
 ---
-    -5
+    -5.0
 
 ### convert zero
 
@@ -122,7 +122,7 @@
 (Convert to 0 %float)
 ```
 ---
-    0
+    0.0
 
 ## float conversions
 
@@ -132,7 +132,7 @@
 (Float exact->inexact 5)
 ```
 ---
-    5
+    5.0
 
 ### exact->inexact result is float
 
@@ -190,7 +190,7 @@
 (Float + 1.5 2.5)
 ```
 ---
-    4
+    4.0
 
 ### f- subtraction
 
@@ -206,7 +206,7 @@
 (Float * 3.0 4.0)
 ```
 ---
-    12
+    12.0
 
 ### f/ division
 
@@ -232,7 +232,7 @@
 (+ 1.5 2.5)
 ```
 ---
-    4
+    4.0
 
 ### + int and float
 
@@ -256,7 +256,7 @@
 (+ 1 2 3.0)
 ```
 ---
-    6
+    6.0
 
 ### - two floats
 
@@ -280,7 +280,7 @@
 (* 3.0 4.0)
 ```
 ---
-    12
+    12.0
 
 ### * int and float
 
@@ -288,7 +288,7 @@
 (* 2 3.5)
 ```
 ---
-    7
+    7.0
 
 ### / two floats
 
@@ -496,7 +496,7 @@
 (Float sin (Float exact->inexact 0))
 ```
 ---
-    0
+    0.0
 
 ### fcos of 0
 
@@ -504,7 +504,7 @@
 (Float cos (Float exact->inexact 0))
 ```
 ---
-    1
+    1.0
 
 ### fsqrt of 4
 
@@ -512,7 +512,7 @@
 (Float sqrt 4.0)
 ```
 ---
-    2
+    2.0
 
 ### fsqrt of 2
 
@@ -544,7 +544,7 @@
 (Float floor 3.7)
 ```
 ---
-    3
+    3.0
 
 ### fceil
 
@@ -552,7 +552,7 @@
 (Float ceil 3.2)
 ```
 ---
-    4
+    4.0
 
 ### fround
 
@@ -560,7 +560,7 @@
 (Float round 3.5)
 ```
 ---
-    4
+    4.0
 
 ### fexp of 0
 
@@ -568,7 +568,7 @@
 (Float exp (Float exact->inexact 0))
 ```
 ---
-    1
+    1.0
 
 ### flog of 1
 
@@ -576,7 +576,7 @@
 (Float log 1.0)
 ```
 ---
-    0
+    0.0
 
 ### fpow 2^10
 
@@ -584,7 +584,7 @@
 (Float pow 2.0 10.0)
 ```
 ---
-    1024
+    1024.0
 
 ## float constants
 
@@ -726,7 +726,7 @@
 (map (fn (_ x) (* x 2.0)) (list 1.0 2.0 3.0))
 ```
 ---
-    (2 4 6)
+    (2.0 4.0 6.0)
 
 ### filter with floats
 
@@ -734,7 +734,7 @@
 (filter (fn (_ x) (> x 2.0)) (list 1.0 2.5 3.0 0.5))
 ```
 ---
-    (2.5 3)
+    (2.5 3.0)
 
 ### fold with floats
 
@@ -742,7 +742,7 @@
 (fold + 0.0 (list 1.0 2.0 3.0))
 ```
 ---
-    6
+    6.0
 
 ### float in vector
 
@@ -784,7 +784,7 @@
 (+ (* 2.0 3.0) (/ 10.0 5.0))
 ```
 ---
-    8
+    8.0
 
 
 ## N5: count/index seats coerce through the tower
@@ -796,3 +796,13 @@
 ```
 ---
     ((1 2) 20)
+
+## floats keep their point (#45 R4)
+
+### an int-valued float prints as a float
+
+```scheme
+(list 1.0 (Float / 4.0 2.0))
+```
+---
+    (1.0 2.0)

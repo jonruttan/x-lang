@@ -39,7 +39,15 @@
 ; These use generic ffi-call conventions (no function pointer needed)
 
 (def %float->str
-  (fn (_ bits) (%ffi-call "d->s" () bits)))
+  (fn (_ bits)
+    ; d->s renders int-valued doubles bare ("1"), which re-reads as an
+    ; INT -- keep the point so floats round-trip (#45 R4). Skip anything
+    ; already carrying a point, an exponent, or inf/nan.
+    (let ((s (%ffi-call "d->s" () bits)))
+      (if (Str8 contains? "." s) s
+        (if (Str8 contains? "e" s) s
+          (if (Str8 contains? "n" s) s
+            (Str8 append s ".0")))))))
 
 (def %int->float
   (fn (_ n) (%ffi-call "i->d" () n)))

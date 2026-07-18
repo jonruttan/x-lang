@@ -118,7 +118,7 @@
           (match
             ((= start len) ())
             (#t
-              (let* ((%parse
+              (let ((%parse
                       (fn (self i acc)
                         (match
                           ((= i len) acc)
@@ -127,9 +127,9 @@
                               (match
                                 ((eq? d ()) ())
                                 ((< d radix) (self (+ i 1) (+ (* acc radix) d)))
-                                (#t ())))))))
-                     (result (%parse start 0)))
-                (match
-                  ((eq? result ()) ())
-                  (neg (- 0 result))
-                  (#t result))))))))))
+                                (#t ()))))))))
+                (let ((result (%parse start 0)))
+                  (match
+                    ((eq? result ()) ())
+                    (neg (- 0 result))
+                    (#t result)))))))))))
