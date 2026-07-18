@@ -12,14 +12,11 @@
           (or acc (str=? a "--quiet") (str=? a "-q")))
         ()
         args))
-    (if %quiet
-      ()
-      (if (null? %lang-name)
-        ()
+    (unless %quiet
+      (unless (null? %lang-name)
         (do
           (display %lang-name)
-          (if (null? %lang-version)
-            ()
+          (unless (null? %lang-version)
             (do (display " v") (display %lang-version)))
           (display " on x-lang")
           (newline))))))

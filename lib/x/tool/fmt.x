@@ -25,7 +25,7 @@
   (%fmt-build-lookup constructs ())))
 
 (def %fmt-find (fn (self key table)
-  (if (null? table) ()
+  (unless (null? table)
     (if (str=? (%cvt key %string)
                   (%cvt (first (first table)) %string))
       (first table)
@@ -33,10 +33,10 @@
 
 (def %fmt-lookup (fn (_ name table)
   (def entry (%fmt-find name table))
-  (if (null? entry) () (rest entry))))
+  (unless (null? entry) (rest entry))))
 
 (def %fmt-get-prop (fn (self key props)
-  (if (null? props) ()
+  (unless (null? props)
     (if (pair? (first props))
       (if (eq? (first (first props)) key)
         (rest (first props))
@@ -46,7 +46,7 @@
 ; --- Predicates ---
 
 (def %fmt-comment? (fn (_ tok)
-  (if (pair? tok) (eq? (first tok) '%comment) ())))
+  (when (pair? tok) (eq? (first tok) '%comment))))
 
 ; --- Width estimation ---
 
@@ -70,7 +70,7 @@
 (def %fmt-body ())
 
 (set! %fmt-body (fn (_ forms col)
-  (if (null? forms) ()
+  (unless (null? forms)
     (if (not (pair? forms))
       (do (display "\n") (%spaces col)
           (display ". ") (%fmt-expr forms col))
@@ -110,8 +110,8 @@
   (def rest-forms (rest form))
   (if (< (%fmt-width form) 60)
     (write form)
-    (let ((props (if (symbol? head) (%fmt-lookup head table) ())))
-      (let ((fmt-type (if (null? props) () (%fmt-get-prop 'fmt props))))
+    (let ((props (when (symbol? head) (%fmt-lookup head table))))
+      (let ((fmt-type (unless (null? props) (%fmt-get-prop 'fmt props))))
         (if (eq? fmt-type 'head-1)  (%fmt-head-1 head rest-forms col)
         (if (eq? fmt-type 'head-kw) (%fmt-head-kw head rest-forms col)
         (if (eq? fmt-type 'body)    (%fmt-body-only head rest-forms col)
@@ -125,13 +125,13 @@
 
 (def %fmt-tokens (fn (_ tokens table)
   (def %go (fn (self toks first-token)
-    (if (null? toks) ()
+    (unless (null? toks)
       (let ((tok (first toks)))
-          (if first-token ()
-            (if (%fmt-comment? tok) ()
+          (unless first-token
+            (unless (%fmt-comment? tok)
               (display "\n")))
           (if (pair? tok) (%fmt-list tok 0 table) (%fmt-expr tok 0))
-          (if (%fmt-comment? tok) ()
+          (unless (%fmt-comment? tok)
             (display "\n"))
           (self (rest toks) ())))))
   (%go tokens #t)))

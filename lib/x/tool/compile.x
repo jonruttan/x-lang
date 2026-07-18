@@ -91,7 +91,7 @@
   (fn (_ sym)
     (def %fv-go
       (fn (self fvs)
-        (if (null? fvs) ()
+        (unless (null? fvs)
           (if (eq? sym (first (first fvs)))
             (first fvs)
             (self (rest fvs))))))
@@ -102,7 +102,7 @@
   (fn (_ sym)
     (def %go
       (fn (self fvs i)
-        (if (null? fvs) ()
+        (unless (null? fvs)
           (if (eq? sym (first (first fvs))) i
             (self (rest fvs) (+ i 1))))))
     (%go %compile-fvars 0)))
@@ -556,7 +556,7 @@
           (let ()  ; scoped: def in tail position would leak to global
             (def %gen-new
               (fn (self lst n)
-                (if (= n 0) ()
+                (unless (= n 0)
                   (let ()
                     (def %entry (first lst))
                     (def %name (first %entry))
@@ -577,7 +577,7 @@
     (def %all-prims "")
     (def %gen-decls
       (fn (self lst)
-        (if (null? lst) ()
+        (unless (null? lst)
           (let ()
             (def %name (first (first lst)))
             (set! %all-fwd (Str append %all-fwd (%generate-fwd-decl %name)))
@@ -632,13 +632,13 @@
 ; After dlopen, resolve x_fvar_table symbol and fill with current fvar values.
 (def %compile-patch-fvars
   (fn (_ lib fvars)
-    (if (null? fvars) ()
+    (unless (null? fvars)
       (let ((tbl (%dlsym lib "x_fvar_table")))
-        (if (null? tbl) ()
+        (unless (null? tbl)
           (let ()
             (def %patch-go
               (fn (self fvs i)
-                (if (null? fvs) ()
+                (unless (null? fvs)
                   (do
                     (%ptr-set-word! tbl (* i %word-size)
                       (if (null? (rest (first fvs))) 0
@@ -667,7 +667,7 @@
 
 (def %patch-nested-prims
   (fn (self lib fns prim-type-val)
-    (if (null? fns) ()
+    (unless (null? fns)
       (let ()
         (def %prim-sym (Str append (first (first fns)) "_prim"))
         (def %prim-ptr (%dlsym lib %prim-sym))
@@ -677,11 +677,11 @@
 
 (def %compile-cache-load
   (fn (_ cache-path fns-holder)
-    (if (not (Sys file-exists? cache-path)) ()
+    (unless (not (Sys file-exists? cache-path))
       (let ((lib (%dlopen cache-path 1)))
-        (if (null? lib) ()
+        (unless (null? lib)
           (let ((fn-ptr (%dlsym lib "fn_0")))
-            (if (null? fn-ptr) ()
+            (unless (null? fn-ptr)
               (let ()
                 (%type-cast! fn-ptr first)
                 (def %prim-type-val (%ptr-ref-word (%cvt first %ptr) %type-offset))
@@ -693,7 +693,7 @@
 ; Pipeline stage docs use bare-symbol form to avoid tail-eval closure issues
 (def compile-to-c
   (fn (_ expr . rest)
-    (set! %compile-fvars (if (null? rest) () (first rest)))
+    (set! %compile-fvars (unless (null? rest) (first rest)))
     (if (not (eq? (first expr) 'fn))
       (error "compile-to-c: expression must be (fn (_ params...) body)"))
     (def %fns-holder (list (list)))
@@ -748,7 +748,7 @@
 
 (def compile-c
   (fn (_ expr . rest)
-    (def fvars (if (null? rest) () (first rest)))
+    (def fvars (unless (null? rest) (first rest)))
     (set! %compile-fvars fvars)
 
     ; Cache lookup: hash the expression to get a stable filename
@@ -851,7 +851,7 @@
     ; Resolve functions from a loaded library
     (def %resolve-all
       (fn (self lib i n)
-        (if (= i n) ()
+        (unless (= i n)
           (let ((name (Str append "batch_" (%cvt i %string))))
             (def %fn (%dlsym lib name))
             (if (null? %fn)
@@ -867,12 +867,11 @@
     (if (Sys file-exists? %cache-path)
       ; Cache hit: load and patch fvar table
       (let ((lib (%dlopen %cache-path 1)))
-        (if (not (null? lib))
+        (when (not (null? lib))
           (do
             (if (not (null? %compile-fvars))
               (%compile-patch-fvars lib %compile-fvars))
-            (%resolve-all lib 0 %n))
-          ()))
+            (%resolve-all lib 0 %n))))
 
       ; Cache miss: generate, compile, cache, load
       (let ()

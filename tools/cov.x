@@ -46,18 +46,18 @@
 
   ; Lookup helper using string=? for cross-base symbol comparison
   (def %construct-find (fn (_ key table)
-    (if (null? table) ()
+    (unless (null? table)
       (if (string=? key (first (first table)))
         (first table)
         (%construct-find key (rest table))))))
   (def %construct-lookup (fn (_ name)
     (def entry (%construct-find (convert name %string) %construct-table))
-    (if (null? entry) ()
+    (unless (null? entry)
       (rest entry))))
 
   ; Get a property value from a property list
   (def %get-prop (fn (_ key props)
-    (if (null? props) ()
+    (unless (null? props)
       (if (pair? (first props))
         (if (eq? (first (first props)) key)
           (rest (first props))
@@ -123,17 +123,17 @@
   ; cond: if-style then/else branches
   (def %cond-eval (fn (_ form walk)
     (def args (rest form))
-    (if (null? args) ()
+    (unless (null? args)
       (do
         (walk (first args))
         (def then-else (rest args))
-        (if (null? then-else) ()
+        (unless (null? then-else)
           (do
             (def then-form (first then-else))
             (%check-branch 'if-then then-form)
             (walk then-form)
             (def else-rest (rest then-else))
-            (if (null? else-rest) ()
+            (unless (null? else-rest)
               (do
                 (def else-form (first else-rest))
                 (%check-branch 'if-else else-form)
@@ -142,44 +142,40 @@
   ; clauses: each subform is a clause with a body
   (def %clause-eval (fn (_ form walk)
     (def %walk-clauses (fn (_ clauses)
-      (if (null? clauses) ()
-        (if (pair? clauses)
-          (do (if (pair? (first clauses))
+      (unless (null? clauses)
+        (when (pair? clauses)
+          (do (when (pair? (first clauses))
                 (do (def body (rest (first clauses)))
-                    (if (null? body) ()
+                    (unless (null? body)
                       (do (def body-form (first body))
                           (%check-branch 'clause body-form)
-                          (walk body-form))))
-                ())
-              (%walk-clauses (rest clauses)))
-          ()))))
+                          (walk body-form)))))
+              (%walk-clauses (rest clauses)))))))
     (%walk-clauses (rest form))))
 
   ; short: each arg is a short-circuit branch (and/or)
   (def %short-eval (fn (_ form walk)
     (def %walk-args (fn (_ args)
-      (if (null? args) ()
-        (if (pair? args)
+      (unless (null? args)
+        (when (pair? args)
           (do (%check-branch 'short-circuit (first args))
               (walk (first args))
-              (%walk-args (rest args)))
-          ()))))
+              (%walk-args (rest args)))))))
     (%walk-args (rest form))))
 
   ; guard: handler is error path, body is normal path
   (def %guard-eval (fn (_ form walk)
     (def clause (first (rest form)))
-    (if (null? clause) ()
+    (unless (null? clause)
       (do
         (def handler (first (rest clause)))
         (%check-branch 'guard-handler handler)
         (walk handler)))
     (def %walk-body (fn (_ body)
-      (if (null? body) ()
-        (if (pair? body)
+      (unless (null? body)
+        (when (pair? body)
           (do (walk (first body))
-              (%walk-body (rest body)))
-          ()))))
+              (%walk-body (rest body)))))))
     (%walk-body (rest (rest form)))))
 
   ; --- Build dispatch table from constructs ---
@@ -194,8 +190,7 @@
             (if (eq? branch-type 'cond)    %cond-eval
             (if (eq? branch-type 'clauses) %clause-eval
             (if (eq? branch-type 'short)   %short-eval
-            (if (eq? branch-type 'guard)   %guard-eval
-              ())))))
+            (when (eq? branch-type 'guard)   %guard-eval)))))
           (%build-dispatch (rest entries)
             (if (null? handler) acc
               (pair (pair name handler) acc)))))))
@@ -203,7 +198,7 @@
 
   ; Lookup in dispatch table (string keys)
   (def %lookup (fn (_ key table)
-    (if (null? table) ()
+    (unless (null? table)
       (if (string=? key (first (first table)))
         (first table)
         (%lookup key (rest table))))))
@@ -212,15 +207,14 @@
 
   (def %safe-walk ())
   (set! %safe-walk (fn (_ walk forms)
-    (if (pair? forms)
+    (when (pair? forms)
       (do (walk (first forms))
-          (%safe-walk walk (rest forms)))
-      ())))
+          (%safe-walk walk (rest forms))))))
 
   (def %cov-eval ())
   (set! %cov-eval (fn (_ form)
-    (if (null? form) ()
-      (if (not (pair? form)) ()
+    (unless (null? form)
+      (unless (not (pair? form))
         (if (not (symbol? (first form)))
           (%safe-walk %cov-eval form)
           (do

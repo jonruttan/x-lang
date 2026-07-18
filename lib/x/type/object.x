@@ -56,8 +56,7 @@
 ; Look `selector` up in table `key` (methods | s-methods) along the class chain.
 (def %lookup
   (fn (loop class key selector)
-    (if (null? class)
-      ()
+    (unless (null? class)
       (let ((data (%class-data class)))
         (let ((hit (assoc-get selector (assoc-get key data))))
           (if (null? hit)
@@ -77,7 +76,7 @@
 ; `fields` is the %all-fields alist (member name . default).
 (def %check-init-key
   (fn (_ key fields class)
-    (if (assoc-has? key fields) ()
+    (unless (assoc-has? key fields)
       (error (%str-append "new: " (%str-append (%display-to-str key)
         (%str-append " is not a member of " (%display-to-str (class-name class)))))))))
 
@@ -405,8 +404,7 @@
 ; 32-bit Pi -- so skip non-pairs instead of reading their car. (cf. %find-doc-form)
 (def %find-form
   (fn (loop body tag)
-    (if (null? body)
-      ()
+    (unless (null? body)
       (if (if (pair? (first body)) (eq? (first (first body)) tag) #f)
         (rest (first body))
         (loop (rest body) tag)))))
@@ -448,7 +446,7 @@
         ; description = leading string (or ""); meta = the rest + inline params
         (let ((desc (if (null? dargs) ""
                       (if (str? (first dargs)) (first dargs) "")))
-              (meta (if (null? dargs) ()
+              (meta (unless (null? dargs)
                       (if (str? (first dargs)) (rest dargs) dargs))))
           (set-first! %doc-pending-cell
             (pair (pair (lit %bare)
@@ -483,7 +481,7 @@
   (fn (_ class-name member-name dform)
     (let ((dargs (rest (rest dform))))               ; skip `doc` and the DECL
       (let ((desc (if (null? dargs) "" (if (str? (first dargs)) (first dargs) "")))
-            (meta (if (null? dargs) () (if (str? (first dargs)) (rest dargs) dargs))))
+            (meta (unless (null? dargs) (if (str? (first dargs)) (rest dargs) dargs))))
         (set-first! %doc-pending-cell
           (pair (pair (lit %bare)
                    (pair (%method-doc-key class-name member-name)
@@ -493,7 +491,7 @@
 ; The class-level (doc "desc" meta...) form in a class body, or () if absent.
 (def %find-doc-form
   (fn (loop body)
-    (if (null? body) ()
+    (unless (null? body)
       (if (%class-doc-form? (first body))
         (first body)
         (loop (rest body))))))
@@ -505,7 +503,7 @@
   (fn (_ class-name dform)
     (let ((dargs (rest dform)))
       (let ((desc (if (null? dargs) "" (if (str? (first dargs)) (first dargs) "")))
-            (meta (if (null? dargs) () (if (str? (first dargs)) (rest dargs) dargs))))
+            (meta (unless (null? dargs) (if (str? (first dargs)) (rest dargs) dargs))))
         (set-first! %doc-pending-cell
           (pair (pair (lit %bare) (pair class-name (pair desc meta)))
                 (first %doc-pending-cell)))))))
@@ -516,20 +514,19 @@
 ; itself (the improper tail), not only as a list element; collect it either way.
 (def %sig-params
   (fn (loop sig)
-    (if (null? sig) ()
-      (if (pair? sig)
+    (unless (null? sig)
+      (when (pair? sig)
         (if (eq? (first sig) (lit param))
           (list sig)                                   ; dotted (param ...) tail
           (if (if (pair? (first sig)) (eq? (first (first sig)) (lit param)) #f)
             (pair (first sig) (loop (rest sig)))
-            (loop (rest sig))))
-        ()))))
+            (loop (rest sig))))))))
 
 ; Strip inline (param name TYPE "desc") annotations from a signature, leaving
 ; the bare parameter names the fn closure needs.
 (def %strip-sig-params
   (fn (loop sig)
-    (if (null? sig) ()
+    (unless (null? sig)
       (if (pair? sig)
         ; A dotted (param ...) tail arrives as `sig` itself (e.g. the rest in
         ; (self . (param args ...))); strip it to its NAME as the improper tail
@@ -560,7 +557,7 @@
           (pair (lit recur) sig)                       ; (recur . user-params)
           (pair (lit let)
             (pair (pair (list (lit %super-class) parent)
-                    (if raw? %method-raw-bindings ()))
+                    (when raw? %method-raw-bindings))
                   body)))
         e))))
 
@@ -570,17 +567,15 @@
 ; documented method as a side effect.
 (def %collect-methods
   (fn (loop class-name forms raw? parent e)
-    (if (null? forms)
-      ()
+    (unless (null? forms)
       ; Guard the head test: a bare member name is a SYMBOL, and first on a
       ; non-pair is unchecked -- (first 'x) yields the name buffer as an
       ; "object", so the eq? below would read past a 2-byte allocation
       ; (ASan heap-buffer-overflow; the 32-bit/Pi segfault class).
       (if (if (pair? (first forms)) (eq? (first (first forms)) (lit method)) #f)
         (do
-          (if (%method-has-doc? (first forms))
-            (%stash-method-doc! class-name (first forms))
-            ())
+          (when (%method-has-doc? (first forms))
+            (%stash-method-doc! class-name (first forms)))
           (pair (pair (first (rest (first forms)))
                       (%make-method (first forms) raw? parent e))
                 (loop class-name (rest forms) raw? parent e)))
@@ -592,9 +587,8 @@
 (def %member-name (fn (_ form) (if (pair? form) (first form) form)))
 (def %member-value
   (fn (_ form e)
-    (if (if (pair? form) (not (null? (rest form))) #f)
-      (eval (first (rest form)) e)
-      ())))                                          ; bare name / (NAME) -> nil default
+    (when (if (pair? form) (not (null? (rest form))) #f)
+      (eval (first (rest form)) e))))                                          ; bare name / (NAME) -> nil default
 
 ; The member declaration a body form carries: the form itself, or -- for a
 ; member-doc form (doc DECL ...) -- the wrapped DECL.
@@ -606,8 +600,7 @@
 ; form (doc DECL "desc" ...) declares its member AND registers the doc.
 (def %collect-members
   (fn (loop class-name forms e)
-    (if (null? forms)
-      ()
+    (unless (null? forms)
       (let ((f (first forms)))
         (if (if (pair? f)
               (if (eq? (first f) (lit method)) #t
@@ -617,16 +610,14 @@
               #f)
           (loop class-name (rest forms) e)
           (let ((decl (%member-decl f)))
-            (if (%member-doc-form? f)
-              (%stash-member-doc! class-name (%member-name decl) f)
-              ())
+            (when (%member-doc-form? f)
+              (%stash-member-doc! class-name (%member-name decl) f))
             (pair (pair (%member-name decl) (%member-value decl e))
                   (loop class-name (rest forms) e))))))))
 
 (def %resolve-parent
   (fn (_ parent e)
-    (if (null? parent)
-      ()
+    (unless (null? parent)
       (eval (first (rest parent)) e))))
 
 ; A body form is a member NAME (symbol), or a list headed by a symbol --
@@ -638,14 +629,12 @@
 
 (def %validate-body
   (fn (loop body)
-    (if (null? body)
-      ()
+    (unless (null? body)
       (do
         (let ((f (first body)))
           (if (if (pair? f) (eq? (first f) (lit fields)) #f)
             (error "def-class: the (fields ...) wrapper was removed -- declare members directly, e.g. (def-class C () x y (method m (self) ...))")
-            (if (%valid-head? f)
-              ()
+            (unless (%valid-head? f)
               (error "def-class: invalid body form -- expected a member name, (name value), (doc ...), (interface ...), (method ...), or (static ...)"))))
         (loop (rest body))))))
 
@@ -685,25 +674,24 @@
 
 (def %check-impls!
   (fn (loop cls reqs)
-    (if (null? reqs) ()
+    (unless (null? reqs)
       (do
-        (if (%implements? cls (first reqs)) ()
+        (unless (%implements? cls (first reqs))
           (error (%str-append (symbol->str (class-name cls))
             (%str-append ": missing interface method " (symbol->str (first reqs))))))
         (loop cls (rest reqs))))))
 
 (def %check-ancestors!
   (fn (loop cls anc)
-    (if (null? anc) ()
+    (unless (null? anc)
       (do
         (%check-impls! cls (%class-interface anc))
         (loop cls (assoc-get (lit parent) (%class-data anc)))))))
 
 (def %check-interface!
   (fn (_ cls)
-    (if (null? (%class-interface cls))           ; concrete -> enforce inherited interface(s)
-      (%check-ancestors! cls (assoc-get (lit parent) (%class-data cls)))
-      ())))                                      ; declares an interface -> abstract -> skip
+    (when (null? (%class-interface cls))           ; concrete -> enforce inherited interface(s)
+      (%check-ancestors! cls (assoc-get (lit parent) (%class-data cls))))))                                      ; declares an interface -> abstract -> skip
 
 ; Resolve the parent once, validate the body, build the class object, and enforce
 ; any inherited interface. Kept out of the def-class op body so the op's tail
@@ -713,7 +701,7 @@
     (do
       (%validate-body body)
       (let ((dform (%find-doc-form body)))           ; class-level (doc ...) -> doc registry
-        (if (null? dform) () (%stash-class-doc! name dform)))
+        (unless (null? dform) (%stash-class-doc! name dform)))
       (let ((p (%resolve-parent parent e))
             (sblock (%find-form body (lit static))))
         (let ((cls (%make-class
@@ -776,8 +764,7 @@
 ; Reject entries from alist `al` whose name is already a key in `known`.
 (def %reject-known
   (fn (loop al known)
-    (if (null? al)
-      ()
+    (unless (null? al)
       (if (assoc-has? (first (first al)) known)
         (loop (rest al) known)
         (pair (first al) (loop (rest al) known))))))
@@ -786,8 +773,7 @@
 ; a member redefined in a subclass overrides the inherited one (child wins).
 (def %all-fields
   (fn (loop class)
-    (if (null? class)
-      ()
+    (unless (null? class)
       (let ((own (assoc-get (lit fields) (%class-data class))))
         (%append2 own
           (%reject-known (loop (assoc-get (lit parent) (%class-data class))) own))))))
@@ -801,8 +787,7 @@
 ; supplied 0/nil from a missing key.
 (def %init-fields
   (fn (loop members inits e eval?)
-    (if (null? members)
-      ()
+    (unless (null? members)
       (let ((name (first (first members)))
             (default (rest (first members))))
         (let ((cell (%opt-cell name inits)))

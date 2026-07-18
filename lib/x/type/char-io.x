@@ -47,7 +47,7 @@
 (def %char-name
   (fn (_ cp)
     (let loop ((al %char-names))
-      (if (null? al) ()
+      (unless (null? al)
         (if (= (first (first al)) cp)
           (rest (first al))
           (loop (rest al)))))))

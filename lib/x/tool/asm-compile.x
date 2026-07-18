@@ -137,7 +137,7 @@
         (asm-emit! asm 'mov x0 x20)
         (def %skip
           (fn (self n)
-            (if (< n 0) ()
+            (unless (< n 0)
               (do (%emit-restobj! asm) (self (- n 1))))))
         (%skip idx)
         (%emit-firstobj! asm)
@@ -153,7 +153,7 @@
     (%asm-compile-expr asm (first args) params)
     (def %or-rest
       (fn (self as)
-        (if (null? as) ()
+        (unless (null? as)
           (do
             (asm-emit! asm 'cbnz x0 (label lbl-end))
             (%asm-compile-expr asm (first as) params)
@@ -168,7 +168,7 @@
     (%asm-compile-expr asm (first args) params)
     (def %and-rest
       (fn (self as)
-        (if (null? as) ()
+        (unless (null? as)
           (do
             (asm-emit! asm 'cbz x0 (label lbl-end))
             (%asm-compile-expr asm (first as) params)
@@ -326,8 +326,7 @@
           (if (eq? op '<)  'b/ge
             (if (eq? op '>)  'b/le
               (if (eq? op '<=) 'b/gt
-                (if (eq? op '>=) 'b/lt
-                  ())))))))
+                (when (eq? op '>=) 'b/lt)))))))
 
     (if (and (pair? test-expr) (not (null? (%cmp-branch (first test-expr)))))
       (let ((cmp-op (first test-expr))
@@ -376,7 +375,7 @@
     (%emit-u32-le! asm %PUSH)                    ; save nil on stack
     (def %build-arg
       (fn (self i)
-        (if (< i 0) ()
+        (unless (< i 0)
           (do
             ; Pop raw value from deep stack position
             ; Stack: [accum] [argN-1] ... [arg0] — pop arg at position i
@@ -416,7 +415,7 @@
   (fn (_ expr . %asm-rest)
     (if (not (eq? (first expr) 'fn))
       (error "compile-asm: expression must be (fn (_ params...) body)"))
-    (set! %compile-fvars (if (null? %asm-rest) () (first %asm-rest)))
+    (set! %compile-fvars (unless (null? %asm-rest) (first %asm-rest)))
     (def fn-params (first (rest expr)))
     (def fn-body (first (rest (rest expr))))
     (def params (rest fn-params))  ; skip self (_)

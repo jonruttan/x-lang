@@ -6,8 +6,7 @@
 
 (import x/tool/cov)
 
-(if (not (symbol? '%cov-tsv-mode))
-  ()
+(unless (not (symbol? '%cov-tsv-mode))
   (if (null? %cov-tsv-mode)
     (def %cov-tsv-mode #f)))
 (def %cov-tested 0)
@@ -24,7 +23,7 @@
     ; Walk with inline reporting
     (def %report-walk
       (fn (_ al n)
-        (if (or (null? al) (> n 5000)) ()
+        (unless (or (null? al) (> n 5000))
           (do
             (guard (err ())
               (let ((name (first (first al)))

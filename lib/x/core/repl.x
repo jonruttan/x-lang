@@ -23,16 +23,15 @@
 (def %repl-prompt "> ")
 (def %repl-print
   (fn (_ result)
-    (if (null? result) () (write result))
+    (unless (null? result) (write result))
     (newline)))
 (doc (def repl
   (op ()
     ()
     ; On first call, reclaim terminal stdin from fd 3 (saved by x.sh
     ; before the pipe, so stdin survives ctrl-c)
-    (if (Sys isatty 3)
-      (do (Sys dup2 3 0) (Sys close 3))
-      ())
+    (when (Sys isatty 3)
+      (do (Sys dup2 3 0) (Sys close 3)))
     ; Turn sweep (see the module-top note).
     (%repl-collect)
     (set-first-int! %sigint-flag 0)

@@ -35,19 +35,19 @@
 (def %bc-emit-0
   (fn (_ op)
     (set! %turtle-bc (pair op %turtle-bc))
-    (if (null? %turtle-on-bc) () (%turtle-on-bc op))))
+    (unless (null? %turtle-on-bc) (%turtle-on-bc op))))
 
 ; Emit opcode with one float arg
 (def %bc-emit-1
   (fn (_ op val)
     (set! %turtle-bc (pair val (pair op %turtle-bc)))
-    (if (null? %turtle-on-bc) () (%turtle-on-bc op val))))
+    (unless (null? %turtle-on-bc) (%turtle-on-bc op val))))
 
 ; Emit opcode with two float args
 (def %bc-emit-2
   (fn (_ op a b)
     (set! %turtle-bc (pair b (pair a (pair op %turtle-bc))))
-    (if (null? %turtle-on-bc) () (%turtle-on-bc op a b))))
+    (unless (null? %turtle-on-bc) (%turtle-on-bc op a b))))
 
 ; ============================================================
 ; Movement
@@ -100,7 +100,7 @@
     (set! %turtle-pen-color "#222")
     (set! %turtle-pen-width (Float exact->inexact 1))
     (set! %turtle-bc ())
-    (if (null? %turtle-on-clear) () (%turtle-on-clear))))
+    (unless (null? %turtle-on-clear) (%turtle-on-clear))))
 
 
 (provide x/logo/state

@@ -33,7 +33,7 @@
           (def new-uses (%walk form scope uses))
           ; If form is (def name ...), add name to scope for rest
           (def new-scope
-            (if (if (pair? form) (eq? (first form) 'def) ())
+            (if (and (pair? form) (eq? (first form) 'def))
               (pair (first (rest form)) scope)
               scope))
           (%walk-list (rest forms) new-scope new-uses))
@@ -131,7 +131,7 @@
   (if (null? forms) (list defs uses)
     (do (def form (first forms))
         (def new-defs
-          (if (if (pair? form) (eq? (first form) 'def) ())
+          (if (and (pair? form) (eq? (first form) 'def))
             (pair (first (rest form)) defs)
             defs))
         (def new-uses (%walk form () uses))
@@ -140,14 +140,14 @@
 ; Compute undefined: used but not in env-alist and not in file defs
 (def %lint-undefined (fn (_ defs uses)
   (filter (fn (_ sym)
-    (if (includes? sym defs) ()
-      (if (assoc-has? sym %known-env) () #t)))
+    (unless (includes? sym defs)
+      (unless (assoc-has? sym %known-env) #t)))
     (assoc-keys uses))))
 
 ; Compute unused: defined but not used (skip %-prefixed internals)
 (def %lint-unused (fn (_ defs uses lib-mode)
-  (if lib-mode ()
+  (unless lib-mode
     (filter (fn (_ sym)
-      (if (str-starts? "%" (convert sym %string)) ()
-        (if (assoc-has? sym uses) () #t)))
+      (unless (str-starts? "%" (convert sym %string))
+        (unless (assoc-has? sym uses) #t)))
       defs))))

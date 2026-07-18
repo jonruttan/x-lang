@@ -30,7 +30,7 @@
   ; symbols are fresh here (just read), so this is safe; comparing them later by
   ; eq? would dereference GC-relocated pointers and crash (the x/tool/lint rule).
   (def %props->str (fn (self props)
-    (if (null? props) ()
+    (unless (null? props)
       (if (pair? (first props))
         (pair (pair (if (symbol? (first (first props))) (convert (first (first props)) %string) "")
                     (if (symbol? (rest (first props)))  (convert (rest (first props)) %string)  ""))
@@ -49,18 +49,18 @@
 
   ; Lookup helper using string=? for cross-base symbol comparison
   (def %scope-find (fn (_ key table)
-    (if (null? table) ()
+    (unless (null? table)
       (if (str=? key (first (first table)))
         (first table)
         (%scope-find key (rest table))))))
   (def %scope-lookup (fn (_ name)
     (def entry (%scope-find (convert name %string) %scope-table))
-    (if (null? entry) ()
+    (unless (null? entry)
       (rest entry))))
 
   ; Get a property value (string) by string key from a string-prop list.
   (def %get-prop (fn (_ key props)
-    (if (null? props) ()
+    (unless (null? props)
       (if (pair? (first props))
         (if (str=? (first (first props)) key)
           (rest (first props))
@@ -72,12 +72,11 @@
   ; A form introduces a binding (for sequence/top-level scope) when its head
   ; declares scope=bind.  (Replaces the old hardcoded 'def detection.)
   (set! %lint-binds? (fn (_ form)
-    (if (if (pair? form) (symbol? (first form)) ())
+    (when (and (pair? form) (symbol? (first form)))
       (let ((p (%scope-lookup (first form))))
-        (if (null? p) ()
+        (unless (null? p)
           (let ((st (%get-prop "scope" p)))
-            (if (null? st) () (str=? st "bind")))))
-      ())))
+            (unless (null? st) (str=? st "bind"))))))))
 
   ; Look up the head's scope-type and route to the matching analyser from the
   ; library.  (Replaces the old %walk-pair override; same scope semantics, but
@@ -128,12 +127,12 @@
   (def %unused (lint-unused %defs %uses %lib-mode))
 
   ; Output
-  (if (null? %undefined) ()
+  (unless (null? %undefined)
     (do (%stderr "Undefined:\n")
         (for-each (fn (_ s) (%stderr "  ") (%stderr s) (%stderr "\n"))
           %undefined)))
 
-  (if (null? %unused) ()
+  (unless (null? %unused)
     (do (%stderr "Unused:\n")
         (for-each (fn (_ s) (%stderr "  ") (%stderr s) (%stderr "\n"))
           %unused)))
@@ -150,7 +149,7 @@
     (%stderr "  ") (%stderr k) (%stderr ": ")
     (for-each (fn (_ s) (%stderr s) (%stderr " ")) (lint-warnings-of k %result))
     (%stderr "\n")))
-  (if (null? %warnings) ()
+  (unless (null? %warnings)
     (do (%stderr "Warnings:\n")
         (for-each %show-kind (%uniq-kinds %warnings ()))))
 

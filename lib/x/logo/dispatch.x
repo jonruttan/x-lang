@@ -90,7 +90,7 @@
           ((str=? (first (first vars)) uname)
             (set-rest! (first vars) value) #t)
           (#t (self (rest vars))))))
-    (if (%update %logo-vars) ()
+    (unless (%update %logo-vars)
       (set! %logo-vars (pair (pair uname value) %logo-vars)))))
 
 ; ============================================================
@@ -217,7 +217,7 @@
 
 (set! logo-process-tokens
   (fn (_ tokens)
-    (if (null? tokens) ()
+    (unless (null? tokens)
       (let ((tok (first tokens))
             (remaining (rest tokens)))
         (def word (%logo-word tok))
@@ -298,7 +298,7 @@
           (def %loop
             (fn (self)
               (guard (err
-                  (if (%is-stop? err) () (error err)))
+                  (unless (%is-stop? err) (error err)))
                 (logo-process-tokens (%block-contents block))
                 (self))))
           (%loop)
@@ -315,7 +315,7 @@
                   (def %loop
                     (fn (self)
                       (guard (err
-                          (if (%is-stop? err) () (error err)))
+                          (unless (%is-stop? err) (error err)))
                         (logo-process-tokens (%block-contents block))
                         (let ((cr (%logo-parse-expr cond-tokens)))
                           (if (first cr)
@@ -328,10 +328,9 @@
               (def block (first r2))
               (def %rep
                 (fn (self i)
-                  (if (> i 0)
+                  (when (> i 0)
                     (do (logo-process-tokens (%block-contents block))
-                        (self (- i 1)))
-                    ())))
+                        (self (- i 1))))))
               (%rep count)
               (logo-process-tokens (rest r2)))))))))
 
@@ -417,7 +416,7 @@
     (def remaining (rest else-cmd))
     (if test-val
       (logo-process-tokens then-tokens)
-      (if has-else (logo-process-tokens else-tokens) ()))
+      (when has-else (logo-process-tokens else-tokens)))
     remaining))
 
 (set! %logo-do-if
@@ -461,7 +460,7 @@
             (def saved-vars %logo-vars)
             (def %push
               (fn (self names vals)
-                (if (null? names) ()
+                (unless (null? names)
                   (do
                     (set! %logo-vars
                       (pair (pair (first names) (first vals)) %logo-vars))

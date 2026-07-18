@@ -24,7 +24,7 @@
         ; bytes->str, not list->str: acc holds raw input BYTES; the utf8-aware
         ; list->str would re-encode bytes >= 128, corrupting UTF-8 input.
         (if (null? ch)
-          (if (null? acc) () (bytes->str (reverse acc)))
+          (unless (null? acc) (bytes->str (reverse acc)))
           (if (= ch 10)
             (bytes->str (reverse acc))
             (self (pair (%integer->char ch) acc))))))
@@ -82,7 +82,7 @@
         (sigint-install)
         (if (null? line)
           ; EOF — if caused by ctrl-c, retry
-          (if (null? lines) () (Str join "" (reverse lines)))
+          (unless (null? lines) (Str join "" (reverse lines)))
           (if (str=? line "")
             ; Blank line
             (if (null? lines)
@@ -119,15 +119,14 @@
     ()
     ; On first call, reclaim terminal stdin from fd 3 (saved by x.sh
     ; before the pipe, so stdin survives ctrl-c)
-    (if (Sys isatty 3)
-      (do (Sys dup2 3 0) (Sys close 3))
-      ())
+    (when (Sys isatty 3)
+      (do (Sys dup2 3 0) (Sys close 3)))
     (set-first-int! %sigint-flag 0)
     (display %logo-prompt)
     (def block (%read-block))
     (if (null? block)
       ; EOF or ctrl-c — kill the server child, then exit
-      (do (if (null? %logo-on-exit) () (%logo-on-exit))
+      (do (unless (null? %logo-on-exit) (%logo-on-exit))
           (newline) (Sys exit 0))
       (do
         (guard (err
@@ -142,7 +141,7 @@
                 (%stderr "\n"))))
           ; Block already executed by %is-complete? probe —
           ; no need to process again
-          (if (null? %logo-on-command) () (%logo-on-command)))
+          (unless (null? %logo-on-command) (%logo-on-command)))
         (logo-repl)))))
 
 (provide x/logo/repl

@@ -119,7 +119,7 @@
     ; Uninitialized guard: an instance built outside make (raw new-from)
     ; has nil members; fail loudly here instead of feeding nil to the raw
     ; slot layer (segfault class).
-    (if (null? (member 'cap)) (error "Dict: uninitialized instance (use Dict make / from-*)") ())
+    (when (null? (member 'cap)) (error "Dict: uninitialized instance (use Dict make / from-*)"))
     (+ 1 (% (%dict-hash k) (member 'cap))))
 
   ; Double the table and rehash. Entry pairs are reused (rehash moves them
@@ -132,7 +132,7 @@
     (set-member! 'store (Vector make newcap ()))
     (set-member! 'cap newcap)
     (let go ((i 1))
-      (if (> i oldcap) ()
+      (unless (> i oldcap)
         (do (List for-each
               (fn (_ e)
                 (let ((j (self %slot (first e))))
@@ -148,7 +148,7 @@
       (returns ANY "Stored value, or nil")
       (example "(let ((d (Dict make))) (d put! 'a 1) (d get 'a))" "1"))
     (let ((hit (%dict-find k (%dict-obj-ref (member 'store) (self %slot k)))))
-      (if (null? hit) () (rest hit))))
+      (unless (null? hit) (rest hit))))
 
   (method get-or (self d k)
     (doc "The value stored under a key, or a default only when the key is ABSENT."
@@ -185,8 +185,8 @@
     (if (null? hit)
       (do (%dict-obj-set! (member 'store) i (pair (pair k v) bucket))
           (set-member! 'n (+ (member 'n) 1))
-          (if (> (* 4 (member 'n)) (* 3 (member 'cap)))
-            (self %grow!) ()))
+          (when (> (* 4 (member 'n)) (* 3 (member 'cap)))
+            (self %grow!)))
       (set-rest! hit v))
     self)
 
@@ -196,10 +196,9 @@
       (returns Dict "self"))
     (def i (self %slot k))
     (def bucket (%dict-obj-ref (member 'store) i))
-    (if (pair? (%dict-find k bucket))
+    (when (pair? (%dict-find k bucket))
       (do (%dict-obj-set! (member 'store) i (%dict-remove k bucket))
-          (set-member! 'n (- (member 'n) 1)))
-      ())
+          (set-member! 'n (- (member 'n) 1))))
     self)
 
   ; --- size ---------------------------------------------------------------

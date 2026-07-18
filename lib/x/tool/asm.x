@@ -51,8 +51,8 @@
 (def %asm-mprotect-rx!
   (fn (_ ptr size)
     ; Flush icache on ARM (no-op if unavailable)
-    (if (not (null? %c-icache))
-      (%ptr-call %c-icache (%ptr->int ptr) size) ())
+    (when (not (null? %c-icache))
+      (%ptr-call %c-icache (%ptr->int ptr) size))
     ; Switch to read+execute
     (%ptr-call %c-mprotect (%ptr->int ptr) size 5)))  ; PROT_READ|PROT_EXEC=5
 
@@ -170,7 +170,7 @@
     (def buf-ptr (%obj-ref asm 0))
     ; Resolve patches (arch-specific resolver in slot 2 of arch)
     (def arch (%obj-ref asm 5))
-    (def resolver (if (> (length arch) 2) (List ref 2 arch) ()))
+    (def resolver (when (> (length arch) 2) (List ref 2 arch)))
     (for-each
       (fn (_ patch)
         (def offset (List ref 0 patch))

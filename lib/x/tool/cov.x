@@ -64,7 +64,7 @@
 
 (doc (def cov-check-fn
   (fn (_ name val tsv-mode)
-    (if (not (str=? (%type-name val) "PROCEDURE")) ()
+    (unless (not (str=? (%type-name val) "PROCEDURE"))
       (let ((body (%obj-ref val 1)))
         (let ((counts (cov-count-tree body 0)))
           (let ((cov (first counts))
@@ -85,7 +85,7 @@
 
 (doc (def cov-walk
   (fn (self alist n tsv-mode)
-    (if (or (null? alist) (> n 5000)) ()
+    (unless (or (null? alist) (> n 5000))
       (do
         (guard (_ ())
           (let ((name (first (first alist)))
@@ -102,7 +102,7 @@
 
 (doc (def cov-skip-to-library
   (fn (self alist)
-    (if (null? alist) ()
+    (unless (null? alist)
       (if (and (symbol? (first (first alist)))
                (str=? (%cvt (first (first alist)) %string)
                           "%cov-library-end"))

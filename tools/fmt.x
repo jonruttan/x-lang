@@ -39,7 +39,7 @@
 
   ; Find COMMENT entry: first with (analyse + delimit + no read + no write)
   (def %find-comment (fn (_ alist)
-    (if (null? alist) ()
+    (unless (null? alist)
       (do (def io (%entry-io (first alist)))
           (if (and (not (null? (first (first io))))
                    (not (null? (first (first (rest io)))))

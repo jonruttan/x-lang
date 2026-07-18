@@ -68,7 +68,7 @@
 
 ; str=? membership over a list of name strings.
 (def %name-member? (fn (self name names)
-  (if (null? names) ()
+  (unless (null? names)
     (if (str=? name (first names)) #t (self name (rest names))))))
 
 ; Unwrap (doc DEFN meta...) -> DEFN so def-name and arity collection see the
@@ -96,7 +96,7 @@
 
 ; Does scope (a list of (name . used-box) entries) already bind this name?
 (def %scope-has-name? (fn (self pn scope)
-  (if (null? scope) ()
+  (unless (null? scope)
     (if (str=? pn (first (first scope))) #t
       (self pn (rest scope))))))
 
@@ -109,8 +109,8 @@
 ; `self` are conventional self-slot names that nested scopes reuse on purpose,
 ; so they are never flagged.
 (def %shadow-check! (fn (_ nm scope)
-  (if (if (if (str=? nm "_") #t (str=? nm "self")) #f (%scope-has-name? nm scope))
-    (%warn! "shadow" nm) ())))
+  (when (if (if (str=? nm "_") #t (str=? nm "self")) #f (%scope-has-name? nm scope))
+    (%warn! "shadow" nm))))
 
 ; Add one parameter to scope as a (name . used-box) entry, checking for shadows
 ; against the params/enclosing bindings accumulated so far.
@@ -150,7 +150,7 @@
 ; This is how we learn which locals are actually used.  Walks from the head, so
 ; the INNERMOST binding of a shadowed name is the one marked (lexically correct).
 (def %scope-mark-used! (fn (self name scope)
-  (if (null? scope) ()
+  (unless (null? scope)
     (if (str=? name (first (first scope)))
       (do (set-first! (rest (first scope)) #t) #t)
       (self name (rest scope))))))
@@ -161,12 +161,11 @@
 ; by eq? on the `saved` tail: GC can relocate heap pairs between write-stack
 ; callbacks, so pointer identity is unsafe.  `_` is exempt.
 (def %check-unused! (fn (self entries n)
-  (if (if (> n 0) (pair? entries) #f)
-    (do (if (if (str=? (first (first entries)) "_") #f
+  (when (if (> n 0) (pair? entries) #f)
+    (do (when (if (str=? (first (first entries)) "_") #f
               (not (first (rest (first entries)))))
-          (%warn! "unused" (first (first entries))) ())
-        (self (rest entries) (- n 1)))
-    ())))
+          (%warn! "unused" (first (first entries))))
+        (self (rest entries) (- n 1))))))
 
 (def %frame-unused! (fn (_ saved)
   (%check-unused! (first %lint-scope)
@@ -179,13 +178,11 @@
 ; reverse source order) and stopping at the first one that IS used.  `_` is
 ; never flagged but does not stop the scan (an ignored trailing slot is fine).
 (def %check-trailing-unused! (fn (self entries n)
-  (if (if (> n 0) (pair? entries) #f)
-    (if (first (rest (first entries)))            ; used -> earlier params are positional; stop
-      ()
-      (do (if (str=? (first (first entries)) "_") ()
+  (when (if (> n 0) (pair? entries) #f)
+    (unless (first (rest (first entries)))
+      (do (unless (str=? (first (first entries)) "_")
             (%warn! "unused" (first (first entries))))
-          (self (rest entries) (- n 1))))
-    ())))
+          (self (rest entries) (- n 1)))))))
 
 ; Does `form` reference a symbol named `name` (recursively, skipping '...
 ; data)?  Used to recognise the rebind idiom (let ((x (f x))) ...): a let-var
@@ -202,21 +199,20 @@
 
 ; Walk one form: write dispatches a list to the list handler, a symbol to the
 ; symbol handler, anything else to its own (harmless) writer.  nil is skipped.
-(def %lint-form (fn (_ form) (if (null? form) () (do (write form) ()))))
+(def %lint-form (fn (_ form) (unless (null? form) (do (write form) ()))))
 
 ; Walk a body/clause sequence; a leading binding form adds its name for the rest.
 (def %lint-seq (fn (self forms)
-  (if (null? forms) ()
+  (unless (null? forms)
     (if (pair? forms)
       (do (%lint-form (first forms))
-          (if (%lint-binds? (first forms))
+          (when (%lint-binds? (first forms))
             (let ((bn (%lint-bound-name (first forms))))
               ; %lint-def already added this name to the persistent scope (its
               ; else-branch does no save/restore).  Re-adding would create a
               ; second box that nothing marks -> a phantom "unused".  Only add
               ; when it is not already in scope.
-              (if (%scope-has-name? bn (first %lint-scope)) () (%scope-add! bn)))
-            ())
+              (unless (%scope-has-name? bn (first %lint-scope)) (%scope-add! bn))))
           (self (rest forms)))
       (%lint-form forms)))))
 
@@ -234,10 +230,9 @@
     #f)))
 
 (def %lint-first-rest (fn (_ form)
-  (if (%lint-literal-non-list? (first (rest form)))
+  (when (%lint-literal-non-list? (first (rest form)))
     (set-first! %lint-issues
-      (pair (%cvt (first form) %string) (first %lint-issues)))
-    ())
+      (pair (%cvt (first form) %string) (first %lint-issues))))
   (%lint-seq form)))            ; record use of first/rest + recurse into the arg
 
 ; --- def-in-tail-position leak check ---
@@ -259,7 +254,7 @@
   (set-first! %lint-leaks (pair (%lint-bound-name form) (first %lint-leaks)))))
 
 (def %lint-leak-scan (fn (_ form)
-  (if (if (pair? form) (symbol? (first form)) ())
+  (when (and (pair? form) (symbol? (first form)))
     (let ((h (%cvt (first form) %string)))
       (match
         ((str=? h "def")    (%lint-leak! form))
@@ -268,18 +263,16 @@
         ((str=? h "when")   (%lint-leak-list (rest (rest form))))
         ((str=? h "unless") (%lint-leak-list (rest (rest form))))
         ((str=? h "match")  (%lint-leak-clauses (rest form)))
-        (#t ())))                                                       ; zone ends
-    ()))) ; non-list / non-symbol head: nothing to flag
+        (#t ())))))) ; non-list / non-symbol head: nothing to flag
 
 (def %lint-leak-list (fn (self forms)
-  (if (pair? forms) (do (%lint-leak-scan (first forms)) (self (rest forms))) ())))
+  (when (pair? forms) (do (%lint-leak-scan (first forms)) (self (rest forms))))))
 
 ; match clause = (test result); the result form is in tail position.
 (def %lint-leak-clauses (fn (self clauses)
-  (if (pair? clauses)
-    (do (if (pair? (first clauses)) (%lint-leak-scan (first (rest (first clauses)))) ())
-        (self (rest clauses)))
-    ())))
+  (when (pair? clauses)
+    (do (when (pair? (first clauses)) (%lint-leak-scan (first (rest (first clauses)))))
+        (self (rest clauses))))))
 
 ; --- Per-form handlers (scope-aware; scope holds name strings) ---
 
@@ -310,12 +303,12 @@
   (set-first! %lint-scope saved)))
 
 (def %lint-let-bindings (fn (self bindings)
-  (if (null? bindings) ()
+  (unless (null? bindings)
     (do (%lint-form (first (rest (first bindings))))   ; init in current scope
         (let ((vn (%cvt (first (first bindings)) %string)))
           ; skip the rebind idiom (let ((x (f x))) ..): init mentions x -> a
           ; deliberate refinement, not an accidental hide
-          (if (%form-mentions? vn (first (rest (first bindings)))) ()
+          (unless (%form-mentions? vn (first (rest (first bindings))))
             (%shadow-check! vn (first %lint-scope)))   ; let-var hiding an enclosing local
           (%scope-add! vn))
         (self (rest bindings))))))
@@ -360,27 +353,25 @@
   ; enclosing scope and are used by the body or elsewhere (e.g. fallback
   ; stubs); those are not locals, so reporting them unused would be wrong --
   ; only the error var's scope is truly the handler.
-  (if (str=? (first evar) "_") ()
-    (if (first (rest evar)) () (%warn! "unused" (first evar))))
+  (unless (str=? (first evar) "_")
+    (unless (first (rest evar)) (%warn! "unused" (first evar))))
   (set-first! %lint-scope saved)
   (%lint-seq (rest (rest form)))))                     ; body in outer scope
 
 (def %lint-quasi (fn (self form)
-  (if (null? form) ()
-    (if (pair? form)
+  (unless (null? form)
+    (when (pair? form)
       (if (if (symbol? (first form)) (str=? (%cvt (first form) %string) "unquote") #f)
           (%lint-form (first (rest form)))
         (if (if (symbol? (first form)) (str=? (%cvt (first form) %string) "unquote-splicing") #f)
             (%lint-form (first (rest form)))
-          (do (self (first form)) (self (rest form)))))
-      ()))))
+          (do (self (first form)) (self (rest form)))))))))
 
 ; --- Default hook implementations (tools/lint.x overrides these) ---
 
 (set! %lint-binds? (fn (_ form)
-  (if (if (pair? form) (symbol? (first form)) ())
-    (str=? (%cvt (first form) %string) "def")
-    ())))
+  (when (and (pair? form) (symbol? (first form)))
+    (str=? (%cvt (first form) %string) "def"))))
 
 (set! %lint-bound-name (fn (_ form)
   (let ((np (first (rest form))))
@@ -418,7 +409,7 @@
 (def %lint-arity (list ()))   ; alist: (name . (min . variadic?))
 
 (def %alist-find-name (fn (self name alist)
-  (if (null? alist) ()
+  (unless (null? alist)
     (if (str=? (first (first alist)) name) (first alist)
       (self name (rest alist))))))
 
@@ -440,37 +431,30 @@
     (pair (if (< (first pa) 1) 0 (- (first pa) 1)) (rest pa)))))
 
 (def %arity-record (fn (_ name val)
-  (if (if (pair? val) (symbol? (first val)) #f)
-    (if (if (str=? (%cvt (first val) %string) "fn") (symbol? name) #f)
+  (when (if (pair? val) (symbol? (first val)) #f)
+    (when (if (str=? (%cvt (first val) %string) "fn") (symbol? name) #f)
       (set-first! %lint-arity
-        (pair (pair (%cvt name %string) (%fn-arity val)) (first %lint-arity)))
-      ())
-    ())))
+        (pair (pair (%cvt name %string) (%fn-arity val)) (first %lint-arity)))))))
 
 ; Pre-pass over top-level (def NAME (fn ..)) / (set! NAME (fn ..)).
 (def %arity-collect (fn (self forms)
-  (if (pair? forms)
+  (when (pair? forms)
     (do (let ((f (%lint-unwrap-doc (first forms))))
-          (if (if (pair? f) (symbol? (first f)) #f)
-            (if (if (str=? (%cvt (first f) %string) "def") #t
+          (when (if (pair? f) (symbol? (first f)) #f)
+            (when (if (str=? (%cvt (first f) %string) "def") #t
                   (str=? (%cvt (first f) %string) "set!"))
-              (%arity-record (first (rest f)) (first (rest (rest f))))
-              ())
-            ()))
-        (self (rest forms)))
-    ())))
+              (%arity-record (first (rest f)) (first (rest (rest f)))))))
+        (self (rest forms))))))
 
 (def %lint-check-arity (fn (_ form)
-  (let ((entry (if (if (pair? form) (symbol? (first form)) #f)
-                 (%alist-find-name (%cvt (first form) %string) (first %lint-arity))
-                 ())))
-    (if (null? entry) ()
+  (let ((entry (when (if (pair? form) (symbol? (first form)) #f)
+                 (%alist-find-name (%cvt (first form) %string) (first %lint-arity)))))
+    (unless (null? entry)
       (let ((nargs (- (length form) 1))
             (mn (first (rest entry)))
             (vararg (rest (rest entry))))
-        (if (if vararg (< nargs mn) (not (= nargs mn)))
-          (%warn! "arity" (first entry))
-          ()))))))
+        (when (if vararg (< nargs mn) (not (= nargs mn)))
+          (%warn! "arity" (first entry))))))))
 
 ; A code form whose head is a '... form calls a non-function (it
 ; evaluates to a symbol/value, not a procedure) -- a clear bug.  We do NOT
@@ -496,20 +480,18 @@
               0))))))))             ; 0 = no minimum
 
 (def %lint-check-malformed (fn (_ form)
-  (if (if (pair? form) (symbol? (first form)) #f)
+  (when (if (pair? form) (symbol? (first form)) #f)
     (let ((mn (%lint-min-len (%cvt (first form) %string))))
-      (if (if (= mn 0) #f (< (length form) mn))
-        (%warn! "malformed" (%cvt (first form) %string))
-        ()))
-    ())))
+      (when (if (= mn 0) #f (< (length form) mn))
+        (%warn! "malformed" (%cvt (first form) %string)))))))
 
 ; --- The write handlers ---
 
 ; SYMBOL: record its NAME unless bound or already seen.
 (def %lint-symbol-handler (fn (_ sym)
   (let ((name (%cvt sym %string)))
-    (if (%scope-mark-used! name (first %lint-scope)) ()   ; local ref -> mark its box used
-      (if (%name-member? name (first %lint-uses)) ()
+    (unless (%scope-mark-used! name (first %lint-scope))   ; local ref -> mark its box used
+      (unless (%name-member? name (first %lint-uses))
         (set-first! %lint-uses (pair name (first %lint-uses))))))
   ()))
 
@@ -517,9 +499,8 @@
 ; Doing the checks here (not in %lint-dispatch) means both the lib's default
 ; dispatch and tools/lint.x's construct-table override get them for free.
 (def %lint-list-handler (fn (_ form)
-  (if (%lint-noncallable? (first form))
-    (%warn! "call-nonfn" (guard (_ "?") (%cvt (first form) %string)))
-    ())
+  (when (%lint-noncallable? (first form))
+    (%warn! "call-nonfn" (guard (_ "?") (%cvt (first form) %string))))
   (%lint-check-arity form)
   (%lint-check-malformed form)
   (%lint-dispatch form) ()))
@@ -540,9 +521,9 @@
     ; leak (the very bug we detect).  We dogfood the fix.
     (let ((form (first forms)))
       (let ((eff (%lint-unwrap-doc form)))             ; see through (doc (def ..) ..)
-        (let ((nm (if (%lint-binds? eff) (%lint-bound-name eff) ())))
-          (if (if (null? nm) #f (%name-member? nm defs))
-            (%warn! "dup-def" nm) ())                  ; same top-level name defined twice
+        (let ((nm (when (%lint-binds? eff) (%lint-bound-name eff))))
+          (when (if (null? nm) #f (%name-member? nm defs))
+            (%warn! "dup-def" nm))                  ; same top-level name defined twice
           (set-first! %lint-scope ())
           (%write-to-str form)                         ; drive the walk (string discarded)
           (self (rest forms) (if (null? nm) defs (pair nm defs)))))))))
@@ -568,8 +549,8 @@
 
 (doc (def lint-undefined (fn (_ defs uses)
   (filter (fn (_ name)
-    (if (%name-member? name defs) ()
-      (if (%env-known? name) () #t)))
+    (unless (%name-member? name defs)
+      (unless (%env-known? name) #t)))
     uses)))
   (param defs LIST "Defined names from lint-forms")
   (param uses LIST "Used names from lint-forms")
@@ -577,10 +558,10 @@
   "Compute undefined names: used but not in env or file defs.")
 
 (doc (def lint-unused (fn (_ defs uses lib-mode)
-  (if lib-mode ()
+  (unless lib-mode
     (filter (fn (_ name)
-      (if (Str starts? "%" name) ()
-        (if (%name-member? name uses) () #t)))
+      (unless (Str starts? "%" name)
+        (unless (%name-member? name uses) #t)))
       defs))))
   (param defs LIST "Defined names from lint-forms")
   (param uses LIST "Used names from lint-forms")

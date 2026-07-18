@@ -44,7 +44,7 @@
 
 (def %pact-entry
   (fn (self alist name)
-    (if (null? alist) ()
+    (unless (null? alist)
       (if (eq? (first (first alist)) name)
         (first alist)
         (self (rest alist) name)))))
@@ -53,14 +53,14 @@
 (def %pact-all?
   (fn (self names)
     (if (null? names) #t
-      (if (null? (%pact-entry %pact-joined (first names))) ()
+      (unless (null? (%pact-entry %pact-joined (first names)))
         (self (rest names))))))
 
 ; Joined values for NAMES, in the names' order. Looked up at fire time, so
 ; a thunk always sees the newest published values.
 (def %pact-values
   (fn (self names)
-    (if (null? names) ()
+    (unless (null? names)
       (pair (rest (%pact-entry %pact-joined (first names)))
             (self (rest names))))))
 
@@ -70,7 +70,7 @@
 
 (def %pact-fire-all
   (fn (self entries)
-    (if (null? entries) ()
+    (unless (null? entries)
       (do (%pact-fire (first entries))
           (self (rest entries))))))
 
@@ -122,7 +122,7 @@
       (doc "The value NAME published on join (the newest, if re-joined)."
         (returns ANY "The joined value, or nil if NAME has not joined"))
       (let ((entry (%pact-entry %pact-joined name)))
-        (if (null? entry) () (rest entry))))
+        (unless (null? entry) (rest entry))))
     (method has? (self (param name SYMBOL "Name to test"))
       (doc "Test whether NAME has joined the pact."
         (returns BOOL "True if NAME has joined"))
