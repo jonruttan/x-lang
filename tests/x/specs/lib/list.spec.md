@@ -72,6 +72,16 @@
 ---
     0
 
+## sub
+
+### the (start, length) twin of slice
+
+```scheme
+(list (List slice 1 3 (list 10 20 30 40)) (List sub 1 2 (list 10 20 30 40)))
+```
+---
+    ((20 30) (20 30))
+
 ## of
 
 ### the variadic literal, homed on the class

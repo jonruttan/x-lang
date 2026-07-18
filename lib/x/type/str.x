@@ -46,7 +46,7 @@
   (param end INT "End byte offset (exclusive)")
   (returns STRING "The bytes [start, end) of s")
   (example "(substring \"abcdef\" 1 4)" "\"bcd\"")
-  "Byte substring [start, end). Always byte-level.")
+  "Byte substring [start, end) -- the byte-level slice-convention primitive. Always byte-level.")
 
 (doc str=?
   (param a STRING "First string") (param b STRING "Second string")

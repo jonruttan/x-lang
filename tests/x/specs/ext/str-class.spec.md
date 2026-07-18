@@ -73,6 +73,22 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ---
     Error: Str ref: index out of range
 
+### slice is the (start, end-exclusive) twin of sub
+
+```scheme
+(Str8 slice 1 4 "hello")
+```
+---
+    "ell"
+
+### StrUTF8 slice inherits through (self sub) and cuts code points
+
+```scheme
+(StrUTF8 slice 1 3 "$¢€!")
+```
+---
+    "¢€"
+
 ### Str8 sub clamps start and length to the byte bounds
 
 ```scheme

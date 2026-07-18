@@ -208,8 +208,11 @@
       (doc "Split a list at position n." (param n INT "Split position") (param lst LIST "List") (returns LIST "Pair of (taken dropped)"))
       (list (List take n lst) (List drop n lst)))
     (method slice (self start end lst)
-      (doc "Extract a slice from start to end." (param start INT "Start index (inclusive)") (param end INT "End index (exclusive)") (param lst LIST "List"))
+      (doc "Extract a slice from start to end -- the slice convention: (start, end-exclusive)." (param start INT "Start index (inclusive)") (param end INT "End index (exclusive)") (param lst LIST "List"))
       (List take (- end start) (List drop start lst)))
+    (method sub (self start n lst)
+      (doc "Extract n elements from start -- the sub convention: (start, length); the counted twin of slice." (param start INT "Start index (inclusive)") (param n INT "Number of elements") (param lst LIST "List"))
+      (List take n (List drop start lst)))
     ; --- Generators ---
     (method range (self start end)
       (doc "Generate a list of integers from start to end." (param start INT "Start value (inclusive)") (param end INT "End value (exclusive)") (returns LIST "List of integers") (example "(range 0 5)" "(0 1 2 3 4)"))

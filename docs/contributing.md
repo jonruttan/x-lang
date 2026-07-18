@@ -62,6 +62,11 @@ make clean && make
   are the presence-unambiguous entry doors.
 - **Constructor-style counts come first**: `(List repeat n x)`, `(Str8 repeat n s)`,
   `(Str8 make k ch)`, `(Vector make n fill)`.
+- **The name is the range contract**: `slice` always means (start,
+  end-exclusive); `sub` always means (start, length) — on every class
+  (`List slice`/`sub`, `Str8`/`StrUTF8 slice`/`sub`; `substring` is the
+  byte-level slice-convention primitive). Never add a range method whose
+  name doesn't declare its convention.
 - **Constructor verbs — one meaning each**: `make` = build from parts/config
   (`Dict make`, `Gen make step state`); `of` = variadic literal, on every
   element container (`List`/`Vector`/`Array`/`Set`/`Gen of ...`; Dict excluded —

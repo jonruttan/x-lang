@@ -71,6 +71,11 @@
         (let ((s0 (if (< st 0) 0 (if (< st n) st n))))
           (%str-byte-sub v s0
             (if (< len 0) 0 (if (< len (- n s0)) len (- n s0)))))))
+    (method slice  (self (param st INT "Start offset (0-based, inclusive)") (param end INT "End offset (exclusive)") (param v STRING "Source string"))
+      (doc "Substring [st, end) -- the slice convention (start/end-exclusive), delegating to sub (start/length). Dispatches through (self sub), so StrUTF8 slices code points."
+        (returns STRING "The [st, end) slice of v")
+        (example "(Str8 slice 1 4 \"hello\")" "\"ell\""))
+      (self sub st (- end st) v))
     (method index  (self (param i INT "Byte position (0-based)") (param v STRING "String to index"))
       (doc "Alias for ref (the adjudicated element-access name): the i-th byte of v as a CHARACTER."
         (returns CHAR "Byte at position i")
