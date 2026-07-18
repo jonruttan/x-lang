@@ -9,6 +9,8 @@
 
 - [Specification](spec.md) — Normative language specification (maps 1:1 to test files)
 - [Glossary](glossary.md) — One name per concept: the settled cross-layer vocabulary
+- [Syntax](syntax.md) — The preferred forms and idioms (least surprise; aspirational items marked)
+- [Bare Syntax](syntax-bare.md) — The reader spec any implementation must match
 - [Architecture](architecture.md) — System design, evaluation model, the contract pattern
 - [Type System](type-system.md) — Objects, types, the base object, dispatch, extensibility
 - [Object System](object-system.md) — Message-passing classes, single inheritance, encapsulated members, `super`
