@@ -122,6 +122,18 @@ make clean && make
   something (object system; `Iter new v` boxes a value into a cursor).
   C side: `x_make_X(base, flags, ...)` is the flag-taking function,
   `x_mkX(...)` its default-flags macro — a ladder, not duplication.
+- **member / field / slot are three tiers, not synonyms**: a class instance
+  has **members** (`def-class` members, `(member 'name)`, `set-member!`,
+  `own-members`) — the only word user-facing docs use; a **field** is a
+  named leaf of the base tree (field cells, `x_base_field_*` /
+  `x_eval_field_*`); a **slot** is a raw object position (`Obj ref`, type
+  slots, the vector's backing slots). Same ladder as the storage tiers.
+- **The `%` sigil means private**, in four flavors (all legitimate): a
+  module-private helper (`%opt-cell`), a cached raw C prim behind a class
+  method (`%str-append`, the prim-caching pattern), a macro-expansion
+  runtime hook referenced from `op` expansions (`%opts`), and type-system
+  plumbing (`%make-type`, `%class-call-handler`). The sigil promises
+  "not API"; it does not say which flavor — the defining comment should.
 - **Doc type vocabulary** — one token per concept in `(param ...)`/`(returns ...)`:
   `INT` (not INTEGER), `BOOL` (not BOOLEAN), `CALLABLE` (not FUNCTION), plus
   `ANY STRING SYMBOL LIST PAIR CHAR NUMBER VECTOR REGEX FLOAT BIGNUM RATIONAL
