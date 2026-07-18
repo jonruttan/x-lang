@@ -120,7 +120,7 @@ the caller's value).
 ```scheme
 (do
   (def r (File getc 5))
-  (and (eq? r (- 0 1))
+  (and (eq? r -1)
        (eq? (first (first %last-syscall)) 'read)
        (eq? (first (rest (first %last-syscall))) 5)))
 ```

@@ -94,26 +94,26 @@
     (match
       ((= len 0) ())
       (#t
-        (let ((%0 (%char->integer (%str-byte-ref "0" 0))))
+        (let ((%0 (%char->integer #\0)))
           (def %digit
             (fn (_ ch)
               (def c (%char->integer ch))
               (match
                 ((match ((not (< c %0)) (not (< (+ %0 9) c))) (#t #f))
                   (- c %0))
-                ((match ((not (< c (%char->integer (%str-byte-ref "a" 0))))
-                         (not (< (+ (%char->integer (%str-byte-ref "a" 0)) 25) c))) (#t #f))
-                  (+ 10 (- c (%char->integer (%str-byte-ref "a" 0)))))
-                ((match ((not (< c (%char->integer (%str-byte-ref "A" 0))))
-                         (not (< (+ (%char->integer (%str-byte-ref "A" 0)) 25) c))) (#t #f))
-                  (+ 10 (- c (%char->integer (%str-byte-ref "A" 0)))))
+                ((match ((not (< c (%char->integer #\a)))
+                         (not (< (+ (%char->integer #\a) 25) c))) (#t #f))
+                  (+ 10 (- c (%char->integer #\a))))
+                ((match ((not (< c (%char->integer #\A)))
+                         (not (< (+ (%char->integer #\A) 25) c))) (#t #f))
+                  (+ 10 (- c (%char->integer #\A))))
                 (#t ()))))
           (def c0 (%char->integer (%str-byte-ref s 0)))
-          (def neg (= c0 (%char->integer (%str-byte-ref "-" 0))))
+          (def neg (= c0 (%char->integer #\-)))
           (def start
             (match
               (neg 1)
-              ((= c0 (%char->integer (%str-byte-ref "+" 0))) 1)
+              ((= c0 (%char->integer #\+)) 1)
               (#t 0)))
           (match
             ((= start len) ())

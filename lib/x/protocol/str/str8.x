@@ -145,7 +145,7 @@
       (doc "A string of k copies of the fill character (space if omitted)."
         (returns STRING "k-element string of the fill character")
         (example "(Str8 make 3 (\" \" 0))" "\"   \""))
-      (def ch (if (null? rest) (" " 0) (first rest)))
+      (def ch (if (null? rest) #\space (first rest)))
       (self ->str (List repeat k ch)))
 
     ; --- predicates ---

@@ -4,7 +4,7 @@
 ; Misses return -1: these are OS-domain ids and -1 is the OS's own invalid
 ; marker (boundary vocabulary, like JSON's `null` symbol) -- NOT the library's
 ; nil-miss discipline. index-of itself misses with nil; %os-id converts.
-(def %os-id (fn (_ i) (if (null? i) (- 0 1) i)))
+(def %os-id (fn (_ i) (if (null? i) -1 i)))
 
 ; Socket call identifiers
 ; Usage: (socketcall-id 'socket) => 1

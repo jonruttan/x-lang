@@ -76,7 +76,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ### pad-right is pad-left's twin (elements, not columns)
 
 ```scheme
-(Str8 pad-right 5 ("0" 0) "42")
+(Str8 pad-right 5 #\0 "42")
 ```
 ---
     "42000"
@@ -166,7 +166,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ### make builds a repeated-char string
 
 ```x
-(Str8 make 3 ("x" 0))
+(Str8 make 3 #\x)
 ```
 ---
     "xxx"
@@ -238,7 +238,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ### pad-left to a width
 
 ```x
-(Str8 pad-left 5 ("." 0) "hi")
+(Str8 pad-left 5 #\. "hi")
 ```
 ---
     "...hi"

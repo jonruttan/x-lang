@@ -132,7 +132,7 @@
       (let ((buffer (%make-str 1)))
         (let ((bytes-read (File read fd buffer 1)))
           (if (<= bytes-read 0)
-            (- 0 1)
+            -1
             (str-ref buffer 0)))))))
 
 (doc (provide x/sys/file File)
