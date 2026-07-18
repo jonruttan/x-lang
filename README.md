@@ -105,7 +105,7 @@ The `-` in `cat ... - | ./x` connects stdin for interactive use after library lo
 ## Test
 
 ```sh
-make test-x                          # x-lang tests (1,700+ scenarios)
+make test-x                          # x-lang tests (1,900+ tests)
 make test-c                          # C unit tests
 make test                            # all tests
 ```

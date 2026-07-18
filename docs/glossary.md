@@ -23,6 +23,60 @@ are settled (tracked in issue #42 and #44).
 - **bindings list** — `((key value) ...)` two-element lists, the shape `let`
   uses. Bridged to alists by `Assoc from-bindings` / `Assoc ->bindings`.
 
+## the layers
+
+- **x-expr** (`ext/x-expr/`) — the expression engine submodule: objects,
+  storage, GC, the base tree. Below the language.
+- **the C core** — the interpreter's instruction set (the ISA, cataloged in
+  `tools/isa.x`): evaluator, tokenizer driver, primitives. Deliberately
+  "just enough"; unchecked by design — guards live in x-lang.
+- **the type system** — runtime type structs with dispatch methods; types
+  and the base share one nested-list contract pattern.
+- **the library** (`lib/`) — everything else, written in x-lang, composed
+  into **dialects** (x-lang, x/and, x/or); whole surface languages load as
+  **personalities**.
+
+## combiners
+
+One concept per register; don't mix registers within a document:
+
+- **surface**: `fn` / `op` — what programs say.
+- **C types**: `procedure` / `operative` — what the implementation says.
+- **theory** (docs, comments): `applicative` / `fexpr` — what papers say.
+- **combiner** is the umbrella for anything callable; **`wrap`** turns an
+  operative into an applicative.
+
+## nil and null
+
+Prose says **nil**, always. The word "null" survives in exactly three
+registers: `null?` (the nil predicate — historical, spec'd API), the
+`null` **symbol** (a boundary's foreign null, e.g. JSON), and "the null
+byte" (`\0`). None of them is a fourth falsy value: falsy is {nil, `#f`}.
+
+## sentinel (two senses — always qualify)
+
+- **value sentinel** — a stand-in *inside the value domain* (`-1` for a
+  miss, a magic string). FORBIDDEN by the absence discipline; misses are
+  nil behind presence doors. (Two blessed exceptions: `raised`'s `%none`,
+  OS-domain `-1` — see contributing.)
+- **identity sentinel** — a unique *object* compared by `eq?` to mark a
+  mechanism's own state (the TCO tag). Blessed internal technique.
+
+## core and base
+
+- **core** carries three senses — the C interpreter core, `lib/x/core/`,
+  and the core dialect (`lib/x.x`/`x-core.x`); say which.
+- **base** — the interpreter's root context object (`p_base`): execution
+  context only. Not nil (`()` is `NULL`), and not the environment — the
+  binding structure (`env`) lives *on* the base.
+
+## symbol (a cross-layer trap)
+
+From the C layer up, a **symbol** is the interned name type. Inside
+x-expr, every `SYMBOL`-named macro (`X_TYPE_*_SYMBOL`, `X_OBJ_TRUE_SYMBOL`)
+means *a C string* — the interned type doesn't exist down there. Read
+x-expr's "symbol" as "name text".
+
 ## vector, atom, pair — and Array
 
 - **vector** — the fundamental fixed-size structural shape: N contiguous

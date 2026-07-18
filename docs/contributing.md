@@ -72,7 +72,7 @@ make clean && make
   return the removed element (`Array pop!`). Crossing tiers? Check which
   one you're on before chaining.
 - **Two blessed value sentinels, no third**: `raised`'s `%none` (test
-  harness only — distinguishes a raised nil from no-raise) and OS-domain
+  layer only — distinguishes a raised nil from no-raise) and OS-domain
   `-1` (boundary vocabulary, like JSON's `null` symbol). Everything else
   misses with nil behind a presence door.
 - **Positional edits clamp, never error**: `insert` at ≥ length appends;
@@ -181,7 +181,7 @@ make test-asan       # both suites under AddressSanitizer (memory-safety net)
 
 ### Adding Tests
 
-Tests use a markdown format where each `###` heading is a test case:
+Tests use a markdown format where each `###` heading is a test:
 
 ```markdown
 ## section-name
@@ -199,7 +199,7 @@ The spec runner evaluates the `scheme` code block and compares stdout against th
 
 > **Last line only (default).** By default the runner compares only the **last non-empty stdout line**, and stderr is discarded. To assert a single multi-value result this way, put it on one line (e.g. `(display a)(display " ")(display b)`).
 >
-> **Multi-line output (`` ```output ``).** Fence the expected block as `` ```output `` to compare the **full multi-line stdout** instead — for formatters, pretty-printers, and any multi-line render. Leading blank lines are ignored and the trailing newline is trimmed; interior blank lines are significant. Errors are catchable too: the harness prints an uncaught error to stdout as `Error: <value>`, so a `` ```output `` block can assert it (or use `raised`/`throws?`). See `tests/x/specs/meta/multiline.spec.md`.
+> **Multi-line output (`` ```output ``).** Fence the expected block as `` ```output `` to compare the **full multi-line stdout** instead — for formatters, pretty-printers, and any multi-line render. Leading blank lines are ignored and the trailing newline is trimmed; interior blank lines are significant. Errors are catchable too: the runner prints an uncaught error to stdout as `Error: <value>`, so a `` ```output `` block can assert it (or use `raised`/`throws?`). See `tests/x/specs/meta/multiline.spec.md`.
 >
 > A spec can swap in a custom support library with a `# @lib ../tests/x/lib/NAME.x` header — it *replaces* the default lib, so the support file must `(include "lib/x-core.x")` first (see `tests/x/lib/token.x`).
 
