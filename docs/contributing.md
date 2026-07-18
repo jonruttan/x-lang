@@ -62,6 +62,31 @@ make clean && make
   are the presence-unambiguous entry doors.
 - **Constructor-style counts come first**: `(List repeat n x)`, `(Str8 repeat n s)`,
   `(Str8 make k ch)`, `(Vector make n fill)`.
+- **Trailing optionals are positional**: `(Dict make 32)`, `(Array make 32)`,
+  `(Str8 make k ch)` — a constructor's optional tail rides `(. opt)`
+  positionally. Option STORES (alist-or-plist) are for *named* config only
+  (`let-opts`, `new`/`new-from`); don't mix the two styles in one signature.
+- **Mutator returns have two tiers**: container bangs return the receiver
+  for chaining (`Dict put!`, `Array set!`, `Set add!`); raw-tier bangs
+  return `()` per the C side-effect rule (`Obj set!`, `Ptr set!`); removers
+  return the removed element (`Array pop!`). Crossing tiers? Check which
+  one you're on before chaining.
+- **Two blessed value sentinels, no third**: `raised`'s `%none` (test
+  harness only — distinguishes a raised nil from no-raise) and OS-domain
+  `-1` (boundary vocabulary, like JSON's `null` symbol). Everything else
+  misses with nil behind a presence door.
+- **Positional edits clamp, never error**: `insert` at ≥ length appends;
+  `update`/`adjust` past the end are no-ops; `remove` clamps — the same
+  clamp discipline as `take`/`drop`/`slice`. (Element *access* — `ref` —
+  errors instead; reading a hole is a bug, editing past the end is a no-op.)
+- **Scalar operators are variadic; collection consumers take the
+  collection**: `(Num min a b c)` vs `(List min lst)` — the same split as
+  `+` vs `fold`. Not drift; don't "unify" them.
+- **Two documented data-position exceptions**: `Convert to (val target
+  . args)` reads value→target (the conversion dispatcher's natural order),
+  and Regex methods are subject-last on the COMPILED REGEX — `(rx match
+  str)` ⇒ `(Regex match str rx)`; the string is an argument, the regex is
+  the subject.
 - **Keyed lookup follows the dispatch tiers** (no signature to memorize):
   containers speak `(store get k)` (Dict, Set — instance dispatch); value
   classes speak `(Class get key store)` (Assoc — data-last static);

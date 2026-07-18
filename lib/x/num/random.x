@@ -104,14 +104,14 @@
         (if (< b limit) (% b n) (go (self %bits))))))
 
   (method range (self lo hi)
-    (doc "A random integer in [lo, hi)."
+    (doc "A random integer in [lo, hi) -- exclusive upper bound; `between` is the inclusive twin. The name carries the bound contract."
       (param lo INT "Inclusive lower bound")
       (param hi INT "Exclusive upper bound")
       (returns INT "A value in [lo, hi)"))
     (+ lo (self int (- hi lo))))
 
   (method between (self lo hi)
-    (doc "A random integer in [lo, hi] -- both ends inclusive."
+    (doc "A random integer in [lo, hi] -- both ends inclusive; `range` is the exclusive twin. The name carries the bound contract."
       (param lo INT "Inclusive lower bound")
       (param hi INT "Inclusive upper bound")
       (returns INT "A value in [lo, hi]"))

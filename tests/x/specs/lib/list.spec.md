@@ -623,7 +623,7 @@
 ### calls function n times
 
 ```scheme
-(List times (fn (_ i) i) 4)
+(List times 4 (fn (_ i) i))
 ```
 ---
     (0 1 2 3)
@@ -631,7 +631,7 @@
 ### applies function to indices
 
 ```scheme
-(List times (fn (_ i) (* i i)) 4)
+(List times 4 (fn (_ i) (* i i)))
 ```
 ---
     (0 1 4 9)
