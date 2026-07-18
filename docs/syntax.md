@@ -68,9 +68,13 @@ echoes them in shorthand.
   `List second`) are namespace homes and value-passing handles
   (`(method-ref Num inc)`), not required spellings.
 - **`when`** / **`unless`** are the one-armed conditionals; `(if c x ())`
-  is retired. (They existed all along — the audit found 96 hand-rolled
-  emulations written while they sat unused. Existing sites migrate
-  opportunistically; new code uses them.)
+  is retired. (They existed all along — the audit found hundreds of
+  hand-rolled emulations written while they sat unused; 214 migrated.)
+  Primitive `if` stays deliberately in three places: files that load
+  before `syntax.x` in boot (`when` isn't bound yet), reader-callback
+  code (ops are banned inside `x_token_read`), and hot per-element
+  cores (`when`/`unless` are ops — per-call allocation; primitives are
+  the preferred inline spelling in hot loops).
 - Sequencing: `def`-in-body for stepwise computation, `let` for
   bindings-with-scope, **nested `let` in tail position** (where `def`
   would leak under TCO). `let*` is retired — removed, its six historical
