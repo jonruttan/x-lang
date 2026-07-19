@@ -66,11 +66,11 @@
 (def %n2s-loop
   (fn (self n radix acc)
     (do
-      (def %q (%n2s/ n radix))
-      (def %acc (pair (%str-byte-ref %n2s-digits (%n2s-int- 0 (%n2s% n radix))) acc))
+      (def %n2s-q (%n2s/ n radix))
+      (def %n2s-acc (pair (%str-byte-ref %n2s-digits (%n2s-int- 0 (%n2s% n radix))) acc))
       (match
-        ((eq? %q 0) %acc)
-        (#t (self %q radix %acc))))))
+        ((eq? %n2s-q 0) %n2s-acc)
+        (#t (self %n2s-q radix %n2s-acc))))))
 (def %n2s
   (fn (_ n radix)
     (match

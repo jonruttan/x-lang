@@ -373,13 +373,13 @@
                   (do
                     (when (null? as)
                       (Err raise (lit value) "Str format: more {} slots than arguments" ()))
-                    (def f
+                    (def %fmt-spec
                       (if (if (> close (+ i 1)) (= (%b (+ i 1)) 58) #f)  ; :
                         (%flags (+ i 2) close)
                         (list 60 0 ())))
                     (loop (+ close 1) (rest as)
                           (%str-append acc
-                            (%slot (first as) (first f) (first (rest f)) (first (rest (rest f)))))))))))
+                            (%slot (first as) (first %fmt-spec) (first (rest %fmt-spec)) (first (rest (rest %fmt-spec)))))))))))
           ((= (%b i) 125)                              ; }
             (if (if (< (+ i 1) spec-len) (= (%b (+ i 1)) 125) #f)
               (loop (+ i 2) as (%str-append acc "}"))

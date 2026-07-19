@@ -75,9 +75,9 @@
 (def %reflect-meta-count!
   (fn (_ n)
     (do
-      (def old (first-int (first %reflect-meta-extra-cell)))
+      (def %reflect-prev-extra (first-int (first %reflect-meta-extra-cell)))
       (set-first-int! (first %reflect-meta-extra-cell) n)
-      old)))
+      %reflect-prev-extra)))
 
 ; (io error-line) -- the line recorded in the active error handler, 0 when
 ; no handler is installed.  The line is an INT slot at descriptor row
@@ -158,23 +158,23 @@
 (def %reflect-handle-name
   (fn (_ h)
     (do
-      (def %t (%registry-assoc-rest h (first %reflect-type-alist-cell)))
+      (def %reflect-tt (%registry-assoc-rest h (first %reflect-type-alist-cell)))
       (match
-        ((eq? %t ()) ())
-        (#t (%reflect-name-str (%reflect-type-tree-name %t)))))))
+        ((eq? %reflect-tt ()) ())
+        (#t (%reflect-name-str (%reflect-type-tree-name %reflect-tt)))))))
 (def %reflect-type-name
   (fn (_ o)
     (match
       ((eq? o ()) ())
       (#t
         (do
-          (def %tw (%reflect-type-word o))
+          (def %reflect-twd (%reflect-type-word o))
           (match
-            ((%reflect-handle-tw? %tw) (%reflect-handle-name o))
-            ((eq? %tw 0) ())
+            ((%reflect-handle-tw? %reflect-twd) (%reflect-handle-name o))
+            ((eq? %reflect-twd 0) ())
             (#t (%reflect-name-str
                   (%reflect-type-tree-name
-                    (%ptr->obj (%int->ptr %tw)))))))))))
+                    (%ptr->obj (%int->ptr %reflect-twd)))))))))))
 
 ; (iter new o) -- fetch the iter handler from o's type tree (descriptor
 ; path type-iter) and apply it to o; nil for nil-typed/sentinel-typed
@@ -193,20 +193,20 @@
       ((eq? o ()) ())
       (#t
         (do
-          (def %tw (%reflect-type-word o))
+          (def %reflect-twd (%reflect-type-word o))
           (match
-            ((eq? %tw 0) ())
-            ((%reflect-handle-tw? %tw) ())
+            ((eq? %reflect-twd 0) ())
+            ((%reflect-handle-tw? %reflect-twd) ())
             (#t
               (do
-                (def %t (%ptr->obj (%int->ptr %tw)))
+                (def %reflect-tt (%ptr->obj (%int->ptr %reflect-twd)))
                 (match
-                  ((eq? (%reflect-type-word %t) %reflect-spair-tw)
+                  ((eq? (%reflect-type-word %reflect-tt) %reflect-spair-tw)
                     (do
-                      (def %h (%reflect-step %t %reflect-iter-path))
+                      (def %reflect-ih (%reflect-step %reflect-tt %reflect-iter-path))
                       (match
-                        ((eq? %h ()) ())
-                        (#t (apply %h (pair o ()))))))
+                        ((eq? %reflect-ih ()) ())
+                        (#t (apply %reflect-ih (pair o ()))))))
                   (#t ()))))))))))
 
 ; (prim-reg! ns method value) -- the catalog protocol's producer half:
@@ -218,13 +218,13 @@
 (def prim-reg!
   (fn (_ ns method value)
     (do
-      (def %dom (%registry-domain-pair ns (first %registry-prims-cell)))
+      (def %reflect-dom (%registry-domain-pair ns (first %registry-prims-cell)))
       (match
-        ((eq? %dom ())
+        ((eq? %reflect-dom ())
           (set-first! %registry-prims-cell
             (pair (pair ns (pair (pair method value) ()))
                   (first %registry-prims-cell))))
-        (#t (set-rest! %dom (pair (pair method value) (rest %dom)))))
+        (#t (set-rest! %reflect-dom (pair (pair method value) (rest %reflect-dom)))))
       ())))
 
 ; File into the catalog under the retired C prims' names; %obj-set! is

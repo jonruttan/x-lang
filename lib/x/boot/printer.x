@@ -61,10 +61,10 @@
   (fn (_ o)
     (do
       (%print-emit "#<obj:")
-      (def %n (%reflect-type-name o))
+      (def %print-tn (%reflect-type-name o))
       (match
-        ((eq? %n ()) (%print-emit "?"))
-        (#t (%print-emit %n)))
+        ((eq? %print-tn ()) (%print-emit "?"))
+        (#t (%print-emit %print-tn)))
       (%print-emit ">"))))
 
 ; --- the string escaper (write mode): "..." with \" \\ \n \t \r and \xHH ---
@@ -116,9 +116,9 @@
               (%print-emit (%print-str-esc-byte (%str-byte-ref s i)))
               (self s (%print-int+ i 1) n)))
           (#t (do
-            (def %end (%print-str-w-run-end s (%print-int+ i 1) n))
-            (%print-emit (%str-byte-sub s i (%print-int- %end i)))
-            (self s %end n)))))
+            (def %print-run-end (%print-str-w-run-end s (%print-int+ i 1) n))
+            (%print-emit (%str-byte-sub s i (%print-int- %print-run-end i)))
+            (self s %print-run-end n)))))
       (#t ()))))
 (def %print-str-w
   (fn (_ s)
