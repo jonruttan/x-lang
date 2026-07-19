@@ -97,6 +97,18 @@
 (def %type-from-cell
   (fn (_ t) (%reflect-step t %type-from-cell-path)))
 
+; The units cell: parent of row type-units. Units drive the GC mark
+; hook's generic N-slot traversal; a NEGATIVE value is the dynamic-size
+; sentinel (slot 0 of each instance holds the payload count -- the
+; vector convention). A per-instance-sized type that never sets units
+; has UNTRACED payloads: a collect frees them under the instance (the
+; Dict-across-a-REPL-turn segfault).
+(def %type-units-cell-path (%type-parent-path (lit type-units)))
+(def %type-units-cell
+  (fn (_ t) (%reflect-step t %type-units-cell-path)))
+(def %type-set-units!
+  (fn (_ ts n) (set-first! (%type-units-cell ts) n)))
+
 ; The to-conversion cell: parent of row type-to.
 (def %type-to-cell-path (%type-parent-path (lit type-to)))
 (def %type-to-cell
@@ -237,6 +249,7 @@
 (prim-reg! (lit type) (lit read-cell)     %type-read-cell)
 (prim-reg! (lit type) (lit push-delimit)  %type-push-delimit)
 (prim-reg! (lit type) (lit push-read)     %type-push-read)
+(prim-reg! (lit type) (lit set-units!)    %type-set-units!)
 (prim-reg! (lit type) (lit iter-cell)     %type-iter-cell)
 (prim-reg! (lit type) (lit push-iter)     %type-push-iter)
 (prim-reg! (lit type) (lit ops-cell)      %type-ops-cell)

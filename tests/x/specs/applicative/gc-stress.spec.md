@@ -70,3 +70,23 @@ runs in well under a second.
 ```
 ---
     #t
+
+## vector payloads survive collection (the Dict-across-a-REPL-turn segfault)
+
+### dict buckets, vector slots, and array stores are traced
+
+Vectors are per-instance sized; the dynamic-units sentinel (type units
+= -1, count in slot 0) makes the mark hook walk their payloads. Before
+it, a collect freed Dict buckets under the instance and the next get
+segfaulted -- jon hit it live because the REPL collects every turn.
+
+```scheme
+(do (import x/type/dict) (import x/type/array)
+  (def d (Dict from-plist (list 'a 1 'b 2)))
+  (def v (Vector of (list 1 2) (list 3 4)))
+  (def arr (Array from-list (list (list 9 9))))
+  ((prim-ref 'heap 'collect))
+  (list (d get 'b) (Vector ref 1 v) (arr ->list)))
+```
+---
+    (2 (3 4) ((9 9)))

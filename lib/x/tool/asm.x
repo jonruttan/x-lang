@@ -116,6 +116,11 @@
         (fn (_ self . args)
           (apply asm-emit! (pair self args)))))))
 
+; GC: ASM objects are 6 fixed slots (labels/patches alists are heap
+; pairs); without units the mark hook never traced them (same class as
+; the vector-payload gap).
+((prim-ref 'type 'set-units!) ((prim-ref 'type 'by-atom) %asm-type) 6)
+
 ; --- Architecture loading ---
 ; Each arch module sets %arch to (table . encoder)
 (def %arch ())

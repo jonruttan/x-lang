@@ -120,6 +120,13 @@
                 val)
               ())))))))
 
+; GC: vectors are per-instance sized -- the dynamic-units sentinel (-1)
+; tells the mark hook to read the payload count from slot 0. Without
+; it, vector payloads were NEVER traced: a collect freed the buckets
+; out from under any Dict held across a REPL turn (SEGV on next get).
+((prim-ref (lit type) (lit set-units!))
+  ((prim-ref (lit type) (lit by-atom)) %vector) -1)
+
 (set! %vector-read (fn (_ . args) (%vector-from-list %vector (%read))))
 
 (def-class Vector ()
