@@ -148,3 +148,21 @@ contract -- see ext/file.spec.md.
 ```
 ---
     "/tmp/x-spec22-definitely-not"
+
+## boundary guards
+
+### a missing/nil path fails as kind-'type at the door, not EFAULT in the kernel
+
+The class dispatch binds a missing argument as nil; before this guard
+(File list-dir) surfaced as a baffling "Bad address" io error (or worse
+through the REPL error path -- jon hit corrupted error bytes).
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (list (guard (e (Err kind-of e)) (File list-dir))
+        (guard (e (Err kind-of e)) (File slurp))
+        (guard (e (Err kind-of e)) (File stat 42))
+        (guard (e (Err kind-of e)) (File rename "a" ()))))
+```
+---
+    ('type 'type 'type 'type)

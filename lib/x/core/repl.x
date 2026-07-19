@@ -8,6 +8,7 @@
 (def %str-append (prim-ref 'str 'append))
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
 (def %error-line (prim-ref 'io 'error-line))
+(def %repl-write-to-str (prim-ref 'io 'write-to-str))
 
 
 ; ns `io` is de-registered (R5): fetch the REPL reader from the catalog.
@@ -63,7 +64,13 @@
                       (%str-append "Error [line "
                         (%str-append (number->str (%error-line)) "]: "))
                       "Error: ")
-                    (if (str? err) err (symbol->str err))))
+                    ; A bare-string error reads naturally raw; EVERYTHING
+                    ; else renders through the universal writer.  The old
+                    ; (symbol->str err) coercion read an Err instance's
+                    ; memory as a symbol name -- jon's REPL printed garbage
+                    ; bytes (or strings from other subsystems) for every
+                    ; structured error (#46).
+                    (if (str? err) err (%repl-write-to-str err))))
                 (%stderr "\n"))))
           (%repl-print (eval! %r)))
         (repl)))))

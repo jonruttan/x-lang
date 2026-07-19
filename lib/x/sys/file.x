@@ -73,6 +73,16 @@
 ; any intervening syscall (a close on the error path would clobber it).
 (def %fs-errno (fn (_ r) (Err errno-of r)))
 
+; Boundary guard for the ergonomic tier: a path must be a string.  The
+; class dispatch binds a MISSING argument as nil, and a nil path fed to
+; the raw syscall layer surfaces as a baffling EFAULT ("Bad address") --
+; or worse through the REPL error path.  Fail as 'type at the door.
+(def %fs-path
+  (fn (_ path what)
+    (unless (str? path)
+      (Err raise 'type (Str8 append what ": path must be a string") ()))
+    path))
+
 ; --- Struct decoding helpers (#22: stat + dirent are per-OS byte layouts) ---
 ; Little-endian byte peeks over a (str make N) buffer filled by a syscall.
 (def %fs-byte-ref (prim-ref 'str 'byte-ref))
@@ -203,6 +213,7 @@
       (doc "File metadata as an alist: ((size . BYTES) (mode . RAW) (kind . SYM) (mtime . UNIX-SECONDS)). kind is one of 'file 'dir 'link 'char 'block 'fifo 'socket (from the S_IFMT bits). Raises a kind-'io Err on failure."
         (returns ALIST "((size . N) (mode . M) (kind . K) (mtime . T))")
         (sample "(File stat \"lib/x.x\")" "((size . 461) (mode . 33188) (kind . file) (mtime . 1752861000))"))
+      (%fs-path path "File stat")
       (def buf (%make-str 160))
       (def r (if os-darwin?
                (syscall (syscall-id 'stat64) path buf)
@@ -224,6 +235,7 @@
       (doc "The whole file as one string (stat for the size, one read). Raises a kind-'io Err on open/read failure."
         (returns STRING "The file's bytes")
         (sample "(File slurp \"/etc/hostname\")" "the file's contents as a string"))
+      (%fs-path path "File slurp")
       (def size (assoc-get 'size (File stat path)))
       (def fd (File open path 'rdonly))
       (when (< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
@@ -239,6 +251,8 @@
       (doc "Write s as the entire contents of path (create or truncate, mode 0644). Raises a kind-'io Err on failure; returns the byte count written."
         (returns INT "Bytes written")
         (sample "(File spit \"out.txt\" \"hi\\n\")" "3"))
+      (%fs-path path "File spit")
+      (unless (str? s) (Err raise 'type "File spit: contents must be a string" ()))
       ; symbolic modes: the O_* numbers differ per OS (%file-modes is per-OS)
       (def fd (File open path (list 'wronly 'creat 'trunc) 420))
       (when (< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
@@ -252,6 +266,7 @@
       (doc "The file as a list of lines (split on newline; a trailing final newline yields no empty last line)."
         (returns LIST "List of line strings")
         (sample "(File read-lines \"/etc/hosts\")" "(\"127.0.0.1 localhost\" ...)"))
+      (%fs-path path "File read-lines")
       (def s (File slurp path))
       (def all (Str8 split "\n" s))
       (if (null? all) all
@@ -262,6 +277,7 @@
       (doc "The directory's entry names as a list of strings, '.' and '..' excluded. Per-OS dirent decoding over getdents64 (Linux) / getdirentries64 (Darwin). Raises a kind-'io Err on failure."
         (returns LIST "Entry-name strings")
         (sample "(File list-dir \"lib\")" "(\"x-core.x\" \"x.x\" ...)"))
+      (%fs-path path "File list-dir")
       (def fd (File open path 'rdonly))
       (when (< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
       (def buf (%make-str 4096))
@@ -285,6 +301,7 @@
       (doc "Create a directory (default mode 0755). Raises a kind-'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File mkdir \"build/out\")" "creates the directory"))
+      (%fs-path path "File mkdir")
       (def r (syscall (syscall-id 'mkdir) path (if (null? perm) 493 (first perm))))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'mkdir path)))
       ())
@@ -293,6 +310,7 @@
       (doc "Remove a file (not a directory -- see rmdir). Raises a kind-'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File unlink \"out.txt\")" "removes the file"))
+      (%fs-path path "File unlink")
       (def r (syscall (syscall-id 'unlink) path))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'unlink path)))
       ())
@@ -301,6 +319,7 @@
       (doc "Remove an empty directory. Raises a kind-'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File rmdir \"build/out\")" "removes the directory"))
+      (%fs-path path "File rmdir")
       (def r (syscall (syscall-id 'rmdir) path))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'rmdir path)))
       ())
@@ -309,6 +328,8 @@
       (doc "Rename/move a filesystem entry. Raises a kind-'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File rename \"a.txt\" \"b.txt\")" "moves a.txt to b.txt"))
+      (%fs-path from "File rename")
+      (%fs-path to "File rename")
       (def r (syscall (syscall-id 'rename) from to))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'rename (list from to))))
       ())))

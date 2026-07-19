@@ -202,6 +202,25 @@
         (do (display " . ") (%ansi-write-code (rest obj)))
         (do (display " ") (self (rest obj)))))))
 
+; Quote-family shorthand: the tokenizer expands 'x to (lit x) (and `,
+; ,@ likewise), so re-rendering parsed code must fold them back or help
+; samples written as 'rdonly display as (lit rdonly) -- the R1/R8 echo
+; regression jon caught in (help File).
+(def %code-sugar
+  (fn (_ obj)
+    (if (pair? obj)
+      (if (pair? (rest obj))
+        (if (null? (rest (rest obj)))
+          (match
+            ((eq? (first obj) 'lit) "'")
+            ((eq? (first obj) 'quasi) "`")
+            ((eq? (first obj) 'unquote) ",")
+            ((eq? (first obj) 'unquote-splicing) ",@")
+            (#t ()))
+          ())
+        ())
+      ())))
+
 (set! %ansi-write-code
   (fn (self obj)
     (if (null? obj)
@@ -211,7 +230,11 @@
     (if (eq? obj #f)
       (do (display %c-bool) (display "#f") (display %c-rst))
     (if (pair? obj)
-      (do (display "(") (%ansi-write-code-list obj) (display ")"))
+      (let ((sugar (%code-sugar obj)))
+        (if (null? sugar)
+          (do (display "(") (%ansi-write-code-list obj) (display ")"))
+          (do (display %c-keyword) (display sugar) (display %c-rst)
+              (%ansi-write-code (first (rest obj))))))
     (if (number? obj)
       (do (display %c-number) (write obj) (display %c-rst))
     (if (str? obj)
