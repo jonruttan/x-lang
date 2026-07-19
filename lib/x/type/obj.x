@@ -15,6 +15,7 @@
     (method make (self (param ts ANY "Type handle (from Type of / make-type)")
                        (param n INT "Number of slots"))
       (doc "Allocate a raw typed object with N nil slots (the Vector pattern: slot 0 = length)."
+        (note "GC CONTRACT: raw slots are traced only if the TYPE declares units -- ((prim-ref 'type 'set-units!) ts -1) for slot-0-counted sizes (the Vector convention), or a fixed count. Without it a collect frees the payloads under the object (the Dict-across-a-REPL-turn segfault class).")
         (returns ANY "The new object"))
       ((prim-ref (lit obj) (lit make)) ts n))
     (method ref (self (param obj ANY "Object") (param i INT "Slot index (0-based)"))
