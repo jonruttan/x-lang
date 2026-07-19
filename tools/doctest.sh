@@ -7,8 +7,8 @@
 #   sh tests/x/spec-runner.sh build/doctests.spec.md
 #
 # Module list is auto-discovered from lib/x/**. Denylist, with cause:
-#   x/platform/arm64   -- asm backends; not importable standalone (#37)
-#   x/platform/x86_64
+#   x/tool/asm/*       -- asm backend opcode tables: raw-included by
+#                         tool/asm.x, reference its (reg n), not importable
 #   x/constructs       -- XEON DATA, not code: importing it EVALUATES the
 #                         construct table, and the (read ...) entry calls
 #                         read -- which eats the tool's own stdin (the rest
@@ -29,7 +29,7 @@ esac
 
 # lib/x/type/dict.x -> x/type/dict; sorted for stable output.
 _MODS=$(find lib/x -name '*.x' | sed 's|^lib/||; s|\.x$||' | sort \
-  | grep -v -E '^x/platform/(arm64|x86_64)$|^x/constructs$')
+  | grep -v -E '^x/tool/asm/|^x/constructs$')
 
 {
   printf '(alloc-limit! %s)\n' "$X_ALLOC_LIMIT_OBJS"

@@ -1,4 +1,6 @@
-; asm/arm64.x -- ARM64 opcode table and fixed-width encoder
+; tool/asm/arm64.x -- ARM64 opcode table and fixed-width encoder (a private
+; component of the assembler: raw-included by tool/asm.x, not importable
+; standalone -- it references (reg n) from asm.x)
 
 ; --- Register aliases ---
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).

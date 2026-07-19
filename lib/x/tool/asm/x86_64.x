@@ -1,4 +1,6 @@
-; asm/x86_64.x -- x86_64 opcode table and variable-length encoder
+; tool/asm/x86_64.x -- x86-64 opcode table and encoder (a private component
+; of the assembler: raw-included by tool/asm.x, not importable standalone
+; -- it references (reg n) from asm.x)
 
 ; --- Register aliases (hardware encoding numbers) ---
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
