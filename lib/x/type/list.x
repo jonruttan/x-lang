@@ -43,8 +43,22 @@
       (Iter new lst))
     (method fold (self f init lst)
       (doc "Fold a function over a list from the left." (param f CALLABLE "Binary function: (accumulator, element) -> new accumulator") (param init ANY "Initial accumulator value") (param lst LIST "List or iterable to fold over") (returns ANY "Final accumulated value") (example "(fold + 0 '(1 2 3))" "6"))
+      ; first/rest are unchecked C prims, so an improper tail walks off the end
+      ; of the list into UB -- (pair 1 2) is ordinary data, not hostile input.
+      ; Same discipline as `ref`'s walk below: the pair? guard makes the overrun
+      ; an error rather than a crash. fold is the walker every other basic goes
+      ; through (length, map, reverse, ...), so guarding here covers them all.
+      ; The walk lives in an inner `go` so the loop never re-probes: `recur`
+      ; would re-enter the method and re-run from-seq on the TAIL, which for an
+      ; improper list is an atom -- and from-seq hands a non-list to Iter, which
+      ; is where the crash actually was.
       (let ((lst (List from-seq lst)))
-        (if (null? lst) init (recur self f (f init (first lst)) (rest lst)))))
+        (def go (fn (self acc xs)
+          (match
+            ((null? xs) acc)
+            ((not (pair? xs)) (Err raise (lit type) "List fold: improper list" ()))
+            (#t (self (f acc (first xs)) (rest xs))))))
+        (go init lst)))
     (method reduce (self f lst)
       (doc "Fold without an initial value; uses the first element." (param f CALLABLE "Binary function") (param lst LIST "Non-empty list or iterable"))
       (let ((lst (List from-seq lst))) (List fold f (first lst) (rest lst))))
