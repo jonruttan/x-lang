@@ -1,5 +1,5 @@
 ; seq.x -- Seq: the base sequence protocol (cursor-based traversal)
-(import x/type/object)
+(import x/type/class)
 ; Fetch the int->char cast from the catalog (ns `int` utility member de-registered, R5).
 (def %integer->char (prim-ref (lit int) (lit ->char)))
 

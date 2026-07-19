@@ -5,7 +5,7 @@
 ; via Str8 (paths are byte strings to the syscall layer anyway).
 
 (import x/protocol/str/str8)
-(import x/type/object)
+(import x/type/class)
 
 ; Index of the last '/' in s, or -1 (internal sentinel only; the public
 ; door is (Str8 last-index-of), which misses with nil -- #25 delivered).

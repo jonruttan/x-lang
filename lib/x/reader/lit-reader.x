@@ -11,7 +11,7 @@
 ;   delimit: one combined handler so ' ` , terminate an adjacent token
 ;            (foo'bar reads as foo then 'bar).
 ;
-; Requires: quasi-reader.x, intrinsics.x, str.x, char.x, x/sys/type.
+; Requires: quasi-reader.x, intrinsics.x, str.x, char.x, x/type/struct.
 
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
@@ -137,7 +137,7 @@
 
 (%type-push-delimit %sym-type %macro-delimit)
 
-(doc (provide x/type/lit-reader
+(doc (provide x/reader/lit-reader
   %lit-analyse %lit-read %lit-accept %macro-delimit)
   (note "'sym is a symbol, '(a b) a literal list, ''x nests; ' also terminates")
   (note "an adjacent token: foo'bar reads as foo then 'bar.")

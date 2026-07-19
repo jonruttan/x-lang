@@ -4,7 +4,7 @@
 ; ext/hash.spec test lib all (include "lib/x-core.x") first), so def-class is
 ; available when this loads.
 
-(import x/type/object)
+(import x/type/class)
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref 'str 'append))
 
@@ -38,6 +38,6 @@
       (%str-append (Str pad-left 8 #\0 (%cvt %hi %string 16))
                   (Str pad-left 8 #\0 (%cvt %lo %string 16))))))
 
-(doc (provide x/core/hash Hash)
+(doc (provide x/type/hash Hash)
   (example "(Hash ->hex (Hash fnv-1a \"hello\"))" "\"a430d84680aabd0b\"")
   "FNV-1a string hashing, homed on the Hash class.")

@@ -60,6 +60,6 @@
     (first-int
       (first (first (rest (first (rest (first (%base))))))))))
 
-(doc (provide x/sys/intrinsics
+(doc (provide x/reader/intrinsics
   buffer-len buffer-unread score-set peek-char current-line)
   "Low-level tokenizer and profiling intrinsics: buffer scoring helpers and line tracking.")

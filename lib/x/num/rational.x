@@ -285,7 +285,7 @@
               (substring tok (%int+ pos 1) (str-length tok)) %int))
           ())))))
 
-(import x/type/object)
+(import x/type/class)
 
 (def-class Rational ()
   (static

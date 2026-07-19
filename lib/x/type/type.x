@@ -1,6 +1,6 @@
 ; type/type.x -- Type: the type-system reflection API.
 ;
-; The mechanism lives in lib/x/sys/type.x (pre-object, %-private) and is
+; The mechanism lives in lib/x/type/struct.x (pre-object, %-private) and is
 ; filed in the catalog under ns `type`, beside the C entries (make,
 ; make-instance, ?, of, name). This class presents it: reflection and
 ; wiring are cold operations, so every method fetches inline with
@@ -8,7 +8,7 @@
 ; fetch-and-cache the helpers they use instead of calling the class:
 ;   (def %type-push-op (prim-ref (lit type) (lit push-op)))
 
-(import x/type/object)
+(import x/type/class)
 
 (def-class Type ()
   (static
@@ -123,5 +123,5 @@
       ((prim-ref (lit type) (lit cast!)) obj src))))
 
 (doc (provide x/type/type Type)
-  (note "Mechanism in lib/x/sys/type.x, filed under catalog ns `type`; load-time wiring fetch-and-caches the helpers instead of calling the class.")
+  (note "Mechanism in lib/x/type/struct.x, filed under catalog ns `type`; load-time wiring fetch-and-caches the helpers instead of calling the class.")
   "Type-system reflection: construction, lookup, struct navigation, and handler-stack wiring on the Type class.")

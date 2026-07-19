@@ -1,6 +1,6 @@
 # REPL operative: %repl-prompt / %repl-print
 
-The REPL is an x-lang operative (`lib/x/core/repl.x`), and its prompt and print
+The REPL is an x-lang operative (`lib/x/repl/loop.x`), and its prompt and print
 path are **customizable variables** rather than C hooks. These were previously
 untested. The print-path tests use the harness's full-output (```` ```output ````)
 mode, since `%repl-print` emits during evaluation. Each customization test

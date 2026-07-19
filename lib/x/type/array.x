@@ -7,7 +7,7 @@
 ; wanted this -- random.x's shuffle was O(n^2) "because there is no
 ; vector-set!".
 
-(import x/type/object)
+(import x/type/class)
 (import x/type/vector)
 (import x/type/list)
 

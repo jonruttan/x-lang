@@ -11,7 +11,7 @@
 (def %cvt (prim-ref 'convert 'to))
 
 (import x/num/rational)
-(import x/type/object)
+(import x/type/class)
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %make-instance (prim-ref 'type 'make-instance))
 (def %make-type (prim-ref 'type 'make))

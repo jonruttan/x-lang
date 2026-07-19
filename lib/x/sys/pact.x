@@ -25,7 +25,7 @@
 ; A when-body may reference the waited-on module's globals: by the time it
 ; fires, that module has fully loaded and its top-level defs are bound.
 
-(import x/type/object)
+(import x/type/class)
 
 ; --- State ---
 ; The roll-call: (name . value) alist, newest first (a re-join shadows).

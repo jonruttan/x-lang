@@ -79,5 +79,5 @@
   (note "Uses eval! (no env save/restore) so definitions persist.")
   "Start the read-eval-print loop.")
 
-(doc (provide x/core/repl repl)
+(doc (provide x/repl/loop repl)
   "Start the read-eval-print loop.")

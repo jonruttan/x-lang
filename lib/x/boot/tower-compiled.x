@@ -28,7 +28,7 @@
 ; no-ops and the curated load order below stays authoritative.
 (set-first! %include-list-cell
   (pair "lib/x/boot/tower-compiled.x"
-  (pair "lib/x/core/hash.x"
+  (pair "lib/x/type/hash.x"
   (pair "lib/x/tool/compile.x"
   (pair "lib/x/num/bignum.x"
   (pair "lib/x/type/regex.x"
@@ -39,7 +39,7 @@
 
 ; Load compiler infrastructure FIRST (before numeric tower)
 ; (posix.x already loaded by x-core.x)
-(include "lib/x/core/hash.x")
+(include "lib/x/type/hash.x")
 (include "lib/x/tool/compile.x")
 
 ; --- Compile the quote-family analysers and swap them into the symbol

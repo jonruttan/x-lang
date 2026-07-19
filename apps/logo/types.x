@@ -7,7 +7,7 @@
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-io (prim-ref 'type 'io))
 
-(import x/sys/token)
+(import x/reader/token)
 ; Fetch the tokenizer terminators from the catalog (ns `token`). Reader-context
 ; states call these per character, so cache the raw refs and call them directly
 ; -- never (Token accept ...), whose dispatch would allocate mid-reader-callback.

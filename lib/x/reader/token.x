@@ -8,7 +8,7 @@
 ; callers (logo/types.x) fetch-and-cache them and call the cached refs directly
 ; -- no dispatch on the hot path. The Token class methods are the cold-call API.
 (import x/type/char)
-(import x/type/object)
+(import x/type/class)
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
 
@@ -201,7 +201,7 @@
         (sample "(Token make-optional-char 43 digits)" "optionally match '+' then digits"))
       (%make-optional-char ch next))))
 
-(doc (provide x/sys/token Token)
+(doc (provide x/reader/token Token)
   (note "States receive (self buffer score chr): return self to loop, another state to transition, a score to accept, nil to reject.")
   (note "Terminators registered under catalog ns `token` (accept/accept-inclusive/reject) -- reader-context callers fetch-and-cache them; never dispatch (Token accept ...) per character.")
   "Composable tokenizer state-machine builders on the Token class.")

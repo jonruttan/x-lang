@@ -12,7 +12,7 @@
 ;
 ; Loads after object.x (def-class), list.x (reverse) and vector.x (Vector).
 
-(import x/type/object)
+(import x/type/class)
 (import x/type/list)
 (import x/type/vector)
 (import x/type/iter)

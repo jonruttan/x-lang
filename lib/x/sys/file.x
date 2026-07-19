@@ -23,7 +23,7 @@
 (import x/core/list)
 (import x/core/alist)
 (import x/platform/syscall)
-(import x/type/object)
+(import x/type/class)
 
 ; GC-owned read buffers: (str make n) allocates an n-byte string region the
 ; collector owns (no free needed). Fetched once here; getc allocates per call.

@@ -52,13 +52,13 @@
     (pair "lib/x/sys/gc.x"
     (pair "lib/x/doc/doc.x"
     (pair "lib/x/doc/doc-prims.x"
-    (pair "lib/x/sys/type.x"
+    (pair "lib/x/type/struct.x"
     (pair "lib/x/type/type.x"
     (pair "lib/x/type/obj.x"
     (pair "lib/x/type/buf.x"
     (pair "lib/x/type/ptr.x"
     (pair "lib/x/type/io.x"
-    (pair "lib/x/sys/convert.x"
+    (pair "lib/x/type/convert.x"
     (pair "lib/x/core/boolean.x"
     (pair "lib/x/core/fn.x"
     (pair "lib/x/core/logic.x"
@@ -68,14 +68,14 @@
     (pair "lib/x/core/alist.x"
     (pair "lib/x/type/assoc.x"
     (pair "lib/x/core/arithmetic.x"
-    (pair "lib/x/sys/intrinsics.x"
+    (pair "lib/x/reader/intrinsics.x"
     (pair "lib/x/sys/posix.x"
     (pair "lib/x/type/char.x"
     (pair "lib/x/type/str-utf8.x"
     (pair "lib/x/type/char-io.x"
     (pair "lib/x/type/vector.x"
     (pair "lib/x/type/promise.x"
-    (pair "lib/x/type/object.x"
+    (pair "lib/x/type/class.x"
     (pair "lib/x/protocol/seq.x"
     (pair "lib/x/protocol/str/str8.x"
     (pair "lib/x/protocol/str/utf8.x"
@@ -84,14 +84,14 @@
     (pair "lib/x/type/base.x"
     (pair "lib/x/type/list.x"
     (pair "lib/x/type/gen.x"
-    (pair "lib/x/sys/token.x"
+    (pair "lib/x/reader/token.x"
     (pair "lib/x/core/quasi.x"
-    (pair "lib/x/type/quasi-reader.x"
-    (pair "lib/x/type/lit-reader.x"
-    (pair "lib/x/core/repl.x"
+    (pair "lib/x/reader/quasi-reader.x"
+    (pair "lib/x/reader/lit-reader.x"
+    (pair "lib/x/repl/loop.x"
     (pair "lib/x/type/err.x"
-    (pair "lib/x/sys/ansi.x"
-    (pair "lib/x/core/banner.x"
+    (pair "lib/x/repl/ansi.x"
+    (pair "lib/x/repl/banner.x"
       (first %include-list-cell)))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
   ; --- Standard modules ---
@@ -99,7 +99,7 @@
   (include "lib/x/core/control.x")
 
   ; Type system internals (before doc, cannot use provide)
-  (include "lib/x/sys/type.x")
+  (include "lib/x/type/struct.x")
 
   ; Documentation system
   (include "lib/x/doc/doc.x")
@@ -117,7 +117,7 @@
   (include "lib/x/core/arithmetic.x")
 
   ; Tokenizer helpers
-  (include "lib/x/sys/intrinsics.x")
+  (include "lib/x/reader/intrinsics.x")
 
   ; Type extensions
   (include "lib/x/core/alist.x")
@@ -132,13 +132,13 @@
   (include "lib/x/type/str-utf8.x")
   ; UTF-8-aware CHARACTER write/display handlers (shadow the C byte fallback)
   (include "lib/x/type/char-io.x")
-  (include "lib/x/type/object.x")
+  (include "lib/x/type/class.x")
   ; Convert: the conversion dispatcher (registered in the catalog as
   ; (convert . to)) + the Convert class with the no-match policy member.
   ; Relocated past object.x from the early type-internals block -- it needs
   ; def-class + doc, and every caller (tower, regex, posix, hash, tools)
   ; loads later still.
-  (include "lib/x/sys/convert.x")
+  (include "lib/x/type/convert.x")
   ; Type: the type-system reflection API (the Type class). The mechanism stays
   ; in sys/type.x (pre-object, %-private, filed under catalog ns `type`);
   ; this class presents it and carries the docs.
@@ -198,19 +198,19 @@
   (include "lib/x/type/list.x")
   ; Gen: lazy generators (unfold-based). Needs object/list/vector, all above.
   (include "lib/x/type/gen.x")
-  (include "lib/x/sys/token.x")
+  (include "lib/x/reader/token.x")
 
   ; Quasi-quoting
   (include "lib/x/core/quasi.x")
 
   ; Quasi-quote reader syntax (backtick, comma, comma-at)
-  (include "lib/x/type/quasi-reader.x")
+  (include "lib/x/reader/quasi-reader.x")
 
   ; Quote reader syntax (apostrophe expr to lit expr)
-  (include "lib/x/type/lit-reader.x")
+  (include "lib/x/reader/lit-reader.x")
 
   ; REPL
-  (include "lib/x/core/repl.x")
+  (include "lib/x/repl/loop.x")
 
   ; Structured errors (#20): the Err class + errno translation.  Loaded
   ; after lit-reader (the file speaks 'x) and after platform/syscall's
@@ -224,10 +224,10 @@
   ; after repl.x (it wraps %repl-print) and doc.x (it sets the %c-* help
   ; colours).  All colours are empty no-ops unless stdout is a TTY and
   ; NO_COLOR/TERM=dumb/--no-color do not disable them.
-  (include "lib/x/sys/ansi.x")
+  (include "lib/x/repl/ansi.x")
 
   ; Banner
-  (include "lib/x/core/banner.x")
+  (include "lib/x/repl/banner.x")
 
   ; Install the SIGINT handler so ctrl-c breaks loops.  On builds without
   ; signal support these primitives are absent; fall back to inert no-ops so
@@ -256,7 +256,7 @@
     "Boot: substring/str->number/number->str/bytes->str over the byte prims.")
   (doc (provide x/boot/module)
     "Boot: include-once/import/provide and the include-list registry.")
-  (doc (provide x/sys/type)
+  (doc (provide x/type/struct)
     (note "The reflection helpers are %-private here and filed under catalog ns `type`; the API is the Type class (x/type/type).")
     "Type system mechanism: struct navigation and handler-stack wiring, registered in the catalog.")
   (doc (provide x/core

@@ -9,7 +9,7 @@
 ; Recursion uses `recur` (a method's own self-reference); cross-calls to other
 ; list operations go through (List ...).
 
-(import x/type/object)
+(import x/type/class)
 
 ; N5 (implicit conversion): count/index seats COERCE to INT through the
 ; conversion catalog. An already-INT arg costs one type-handle eq?

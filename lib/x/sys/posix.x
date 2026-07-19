@@ -3,7 +3,7 @@
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).
 (def %cvt (prim-ref (lit convert) (lit to)))
 
-(import x/type/object)
+(import x/type/class)
 (import x/core/alist)
 (import x/platform/syscall)
 

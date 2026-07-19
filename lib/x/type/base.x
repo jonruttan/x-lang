@@ -2,7 +2,7 @@
 ; The base C prims are de-registered (no bare names); each static method below
 ; hands its evaluated args to the matching prim, captured from the catalog.
 
-(import x/type/object)
+(import x/type/class)
 
 (def-class Base ()
   (static

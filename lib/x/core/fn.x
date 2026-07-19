@@ -4,7 +4,7 @@
 ; before the object system references these combinators -- there are zero call
 ; sites in the tree -- so the whole module is just the class.
 
-(import x/type/object)
+(import x/type/class)
 
 (def-class Fn ()
   (static

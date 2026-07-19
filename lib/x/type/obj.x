@@ -8,7 +8,7 @@
 ; the only surface. eq? and same? also file under ns `obj` but are
 ; keep-list globals: the C binder's kept-names list keeps them bare.
 
-(import x/type/object)
+(import x/type/class)
 
 (def-class Obj ()
   (static

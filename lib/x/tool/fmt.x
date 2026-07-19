@@ -5,7 +5,7 @@
 ; / %fmt-body) are mutually recursive via forward-decl + set!, so they call each
 ; other directly (no per-node class dispatch). The Fmt class is the API.
 (import x/type/str)
-(import x/type/object)
+(import x/type/class)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %token-read-string (prim-ref 'tok 'read-str))
 ; Fetch the conversion dispatcher from the catalog (registered by sys/convert.x).

@@ -4,7 +4,7 @@
 ; def-class); the pre-object string layer uses the char->integer C primitive,
 ; not these, so nothing before object.x references the Char class.
 
-(import x/type/object)
+(import x/type/class)
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
 (def %integer->char (prim-ref (lit int) (lit ->char)))

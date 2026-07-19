@@ -1,6 +1,6 @@
 # @lib ../tests/x/lib/token.x
 
-Token (`lib/x/sys/token.x`) is the tokenizer state-builder vocabulary. The
+Token (`lib/x/reader/token.x`) is the tokenizer state-builder vocabulary. The
 builders are `Token` methods (called at setup); the terminators (accept /
 accept-inclusive / reject) are registered under catalog ns `token` for
 reader-context callers to fetch. The harness caches `%acc` / `%rej`.

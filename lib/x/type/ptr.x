@@ -11,7 +11,7 @@
 ; ->ptr); (Ptr from-int n) fetches it. obj->ptr / str->ptr live on the Obj
 ; and (via Convert) string surfaces.
 
-(import x/type/object)
+(import x/type/class)
 
 ; Type helpers for ptr? (ns `type` de-registered; fetch from the catalog).
 ; The PTR handle is obtained by type-of'ing a null pointer -- not dereferenced.

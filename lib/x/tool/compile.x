@@ -11,7 +11,7 @@
 
 (import x/type/str)
 (import x/sys/posix)
-(import x/core/hash)
+(import x/type/hash)
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %type-of (prim-ref 'type 'of))
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).

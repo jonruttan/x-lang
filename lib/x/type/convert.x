@@ -53,7 +53,7 @@
 (def %ptr->int (prim-ref (lit ptr) (lit ->int)))
 (def %ptr->str (prim-ref (lit ptr) (lit ->str)))
 
-(import x/type/object)
+(import x/type/class)
 ; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
 (def %obj->ptr (prim-ref (lit obj) (lit ->ptr)))
 
@@ -191,6 +191,6 @@
         (returns ANY "The converted value; on no registered conversion, (Convert missing)'s result (default nil)"))
       (apply %convert-to (pair val (pair target extra))))))
 
-(doc (provide x/sys/convert Convert)
+(doc (provide x/type/convert Convert)
   (note "Hot consumers fetch the dispatcher from the catalog: (prim-ref 'convert 'to). The no-match policy is the (Convert missing) member.")
   "Generic type conversion: the Convert class over the type system's from/to alists.")

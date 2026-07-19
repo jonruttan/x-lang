@@ -20,7 +20,7 @@
       (if (if (null? k) #f (eq? (%vec-type-of k) %vec-int-type)) k (error what))))))
 (def %obj-set! (prim-ref (lit obj) (lit set!)))
 
-(import x/type/object)
+(import x/type/class)
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %make-type (prim-ref (lit type) (lit make)))
 (def %type-of (prim-ref (lit type) (lit of)))

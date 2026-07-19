@@ -11,8 +11,8 @@
 ; whose slots 1..cap each hold an alist bucket of (key . val) pairs; `n`
 ; counts entries; put! doubles the table past a 3/4 load factor.
 
-(import x/type/object)
-(import x/core/hash)
+(import x/type/class)
+(import x/type/hash)
 (import x/type/vector)
 (import x/type/list)
 

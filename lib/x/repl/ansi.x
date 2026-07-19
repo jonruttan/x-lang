@@ -24,8 +24,8 @@
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-push-write (prim-ref 'type 'push-write))
 
-(import x/sys/type)
-(import x/type/object)
+(import x/type/struct)
+(import x/type/class)
 
 ; --- Terminal detection ---
 
@@ -270,7 +270,7 @@
 
 (Ansi enable-repl)
 
-(doc (provide x/sys/ansi Ansi)
+(doc (provide x/repl/ansi Ansi)
   (note "Color scheme: LSP semantic tokens — number=yellow, string=green, symbol=blue, char=magenta, bool=bold-red, function=cyan.")
   (note "Colors are Ansi static members ((Ansi red), (Ansi bold-cyan), ...); empty strings when color is off.")
   (note "Respects NO_COLOR and TERM=dumb; pass --no-color to disable.")

@@ -1,6 +1,6 @@
 # $"..." string interpolation reader
 
-The `$"..."` reader macro (lib/x/type/lit-reader.x) expands an interpolated
+The `$"..."` reader macro (lib/x/reader/lit-reader.x) expands an interpolated
 string into a `(Str8 str <chunk> <hole> ...)` call. A `{expr}` hole is parsed
 and spliced in as a plain sub-expression; `{{` / `}}` (and a lone `}`) are
 literal braces. Parsing happens at READ time, so each hole evaluates in place,

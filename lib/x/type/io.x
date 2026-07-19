@@ -13,7 +13,7 @@
 ; inside a tokenizer callback:
 ;   (def %read (prim-ref (lit io) (lit read)))
 
-(import x/type/object)
+(import x/type/class)
 
 (def-class Io ()
   (static

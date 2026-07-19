@@ -15,7 +15,7 @@
 (def %type-by-atom (prim-ref (lit type) (lit by-atom)))
 (def %type-push-iter (prim-ref (lit type) (lit push-iter)))
 
-(import x/type/object)
+(import x/type/class)
 (import x/type/vector)
 
 ; The C iter prims, captured from the catalog (the `iter` namespace is

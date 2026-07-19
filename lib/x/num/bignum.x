@@ -596,7 +596,7 @@
 (%type-push-op %bignum-ts '< (fn (_ a b) (%big-lt (%ensure-big a) (%ensure-big b))))
 (%type-push-op %bignum-ts '= (fn (_ a b) (%big-eq (%ensure-big a) (%ensure-big b))))
 
-(import x/type/object)
+(import x/type/class)
 
 (def-class Bignum ()
   (static

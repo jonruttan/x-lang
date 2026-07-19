@@ -10,7 +10,7 @@
 ; call/write slots) stay module-level %-privates -- the reader runs in tokenizer
 ; context and must not go through class dispatch. The Regex class wraps them.
 
-(import x/type/object)
+(import x/type/class)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
 

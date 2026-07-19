@@ -337,7 +337,7 @@
 ; note: (note text...) -> no-op, returns nil (standalone section marker)
 (def note (op %note-args _ ()))
 
-; --- Color stubs (overridden by x/sys/ansi.x when loaded) ---
+; --- Color stubs (overridden by x/repl/ansi.x when loaded) ---
 
 (def %c-reset "")
 (def %c-bold "")
@@ -349,7 +349,7 @@
 (def %c-error "")
 (def %c-module "")
 
-; Code highlighting stub (overridden by x/sys/ansi.x when loaded)
+; Code highlighting stub (overridden by x/repl/ansi.x when loaded)
 (def %highlight-code display)
 
 ; --- Display helpers ---

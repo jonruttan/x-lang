@@ -10,7 +10,7 @@
 ; Failures raise kind-'io Errs via (Err from-errno (Err errno-of r) ...).
 
 (import x/sys/posix)
-(import x/type/object)
+(import x/type/class)
 (import x/core/list)
 
 ; libc doors (cold: fetched once at load; calls go through %ptr-call)

@@ -4,7 +4,7 @@
 ; before the object system calls these. Value-passing call sites use
 ; (method-ref Num inc) etc.
 
-(import x/type/object)
+(import x/type/class)
 
 ; The machine-INT type handle, for (Num int?) and the N5 count/index guards.
 ; Type handles are C-static atoms, so the eq? compare is pointer-stable.

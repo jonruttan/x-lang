@@ -31,7 +31,7 @@
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
 (def %write-to-str (prim-ref 'io 'write-to-str))
 
-(import x/sys/type)
+(import x/type/struct)
 
 ; Type structs we attach handlers to (LIST = forms, SYMBOL = references).
 (def %lint-list-type   (%type-by-atom (%type-of (list 1))))

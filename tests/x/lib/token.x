@@ -1,4 +1,4 @@
-; Test harness: x-core.x (which loads x/sys/token -> the Token class and the
+; Test harness: x-core.x (which loads x/reader/token -> the Token class and the
 ; catalog-registered terminators) + cached terminator refs for the cases.
 ;
 ; The terminators (accept/reject) live under catalog ns `token` rather than as

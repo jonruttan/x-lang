@@ -9,7 +9,7 @@ The ansi highlighter re-tokenizes doc sample strings; without this fold
 regression jon caught at the REPL.
 
 ```scheme
-(do (import x/sys/ansi)
+(do (import x/repl/ansi)
   (list (%code-sugar '(lit x)) (%code-sugar (list 'quasi 'x))
         (%code-sugar (list 'unquote 'x)) (%code-sugar (list 'unquote-splicing 'x))
         (null? (%code-sugar '(lit x y))) (null? (%code-sugar '(f x)))))

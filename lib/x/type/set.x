@@ -5,7 +5,7 @@
 ; (symbol/string/integer/char elements), equal? comparison, and O(1) expected
 ; add!/has?/del!.
 
-(import x/type/object)
+(import x/type/class)
 (import x/type/dict)
 (import x/type/list)
 

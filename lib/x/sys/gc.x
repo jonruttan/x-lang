@@ -13,7 +13,7 @@
 ; alive only by marking). The raw mark/sweep prims remain exposed but are
 ; low-level.
 
-(import x/type/object)
+(import x/type/class)
 
 (def-class Heap ()
   (static

@@ -17,7 +17,7 @@
 ; Emission escapes properly -- the gap that kept lib/x/logo/json.x app-only:
 ; " \ and control bytes come out as \" \\ \n \r \t \b \f or \u00XX.
 
-(import x/type/object)
+(import x/type/class)
 (import x/type/dict)
 (import x/type/list)
 (import x/num/float)

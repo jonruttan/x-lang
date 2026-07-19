@@ -6,7 +6,7 @@
 ; month 1-12, day 1-31, wday 0-6 with 0 = Sunday.
 
 (import x/core/alist)
-(import x/type/object)
+(import x/type/class)
 (import x/protocol/str/str8)
 
 ; Tower-proof integer ops: under x/and or x/or the ambient / promotes to

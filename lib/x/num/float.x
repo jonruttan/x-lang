@@ -1,5 +1,5 @@
 ; float.x -- Floating-point type with IEEE 754 bit-pattern storage
-(import x/type/object)
+(import x/type/class)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
 
@@ -321,7 +321,7 @@
               (if (%int= sign -1) (%f-sub fzero mag) mag)))
           (first from-cell))))))
 
-(import x/type/object)
+(import x/type/class)
 
 (def-class Float ()
   (static

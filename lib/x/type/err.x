@@ -28,7 +28,7 @@
 ; late is fine); the errno table picks its per-OS column at load via
 ; os-darwin? (global since platform/syscall.x, itself boot-loaded).
 
-(import x/type/object)
+(import x/type/class)
 (import x/core/alist)
 
 ; --- errno -> (sym message) ---

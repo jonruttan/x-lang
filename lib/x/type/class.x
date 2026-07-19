@@ -1,4 +1,6 @@
-; object.x -- Object-oriented class system (message passing, single inheritance)
+; class.x -- the class system: message passing, single inheritance, def-class
+; (renamed from object.x, #36: it collided with obj.x, the small raw-slot
+; wrapper class -- one name per concept)
 (import x/core/alist)
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
@@ -796,7 +798,7 @@
                     (if eval? (eval (first cell) e) (first cell))))
                 (loop (rest members) inits e eval?)))))))
 
-(doc (provide x/type/object
+(doc (provide x/type/class
   def-class new new-from super method-ref
   object? class? class-of class-name class-parent instance-of?
   class-members class-methods class-static-members class-static-methods

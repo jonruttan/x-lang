@@ -8,7 +8,7 @@
 ; must fetch-and-cache into module %-vars, never class-dispatch per token:
 ;   (def %buffer-token (prim-ref (lit buf) (lit tok)))
 
-(import x/type/object)
+(import x/type/class)
 
 ; A buffer is a non-owning VIEW over storage someone else owns (a string's
 ; bytes, the input channel). It is never constructed here -- the tokenizer hands

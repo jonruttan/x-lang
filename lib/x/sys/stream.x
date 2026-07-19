@@ -12,7 +12,7 @@
 ;
 ; File-backed streams need the x-or dialect (File open/close/write -> syscall).
 (import x/sys/file)
-(import x/type/object)
+(import x/type/class)
 
 ; --- the fileout cell: the fd display/write currently target ---
 ; Navigate the base pair tree to the io `files` list, then its 2nd cell.

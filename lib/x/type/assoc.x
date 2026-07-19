@@ -6,7 +6,7 @@
 ; compared by eq?; option stores (opt-get-or...) also accept flat plists.
 
 (import x/core/alist)
-(import x/type/object)
+(import x/type/class)
 
 (def-class Assoc ()
   (static

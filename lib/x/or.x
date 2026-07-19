@@ -11,7 +11,7 @@
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref 'str 'append))
 
-(import x/core/hash)
+(import x/type/hash)
 (import x/num/bignum)
 (import x/type/regex)
 ; x/tool/compile is already loaded by lib/x-or.x; no need to re-import.
