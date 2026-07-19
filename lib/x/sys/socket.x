@@ -44,6 +44,14 @@
 
 (def %sk-set1! (fn (_ p off v) (%sk-ptr-set! p off v 1)))
 
+; Sign-fold an FFI int return: on Linux, ptr-call hands libc's -1 back
+; ZERO-EXTENDED (4294967295), so (< r 0) reads failure as success --
+; CI caught tcp-connect "succeeding" against a closed port and the
+; native-arch podman probe pinned the raw value. Darwin sign-extends.
+; Fold the u32 range's top half back to negative before any sign test.
+(def %sk-fold
+  (fn (_ r) (if (> r 2147483647) (- r 4294967296) r)))
+
 ; Parse a dotted quad into its four octets; kind-'value Err on anything
 ; else (no DNS here by design).
 (def %parse-quad
@@ -100,7 +108,7 @@
       (doc "Create a TCP server socket: socket + SO_REUSEADDR + bind(INADDR_ANY, port) + listen."
         (returns INT "The listening file descriptor")
         (sample "(Socket tcp-listen 8080)" "a listening fd"))
-      (def fd (%sk-ptr-call %c-socket %AF-INET %SOCK-STREAM 0))
+      (def fd (%sk-fold (%sk-ptr-call %c-socket %AF-INET %SOCK-STREAM 0)))
       (when (< fd 0) (%sk-fail fd 'socket port ()))
       ; SO_REUSEADDR: an int 1 (4 LE bytes) so quick restarts do not
       ; trip on TIME_WAIT.
@@ -110,10 +118,10 @@
       (%sk-ptr-call %c-setsockopt fd %SOL-SOCKET %SO-REUSEADDR optval 4)
       (%sk-ptr-call %c-free optval)
       (def addr (%make-sockaddr-in port ()))
-      (def r (%sk-ptr-call %c-bind fd addr 16))
+      (def r (%sk-fold (%sk-ptr-call %c-bind fd addr 16)))
       (when (< r 0) (do (%sk-ptr-call %c-close fd) (%sk-fail r 'bind port addr)))
       (%sk-ptr-call %c-free addr)
-      (def lr (%sk-ptr-call %c-listen fd (if (null? backlog) 16 (first backlog))))
+      (def lr (%sk-fold (%sk-ptr-call %c-listen fd (if (null? backlog) 16 (first backlog)))))
       (when (< lr 0) (do (%sk-ptr-call %c-close fd) (%sk-fail lr 'listen port ())))
       fd)
 
@@ -121,7 +129,7 @@
       (doc "Block until a client connects; the peer address is discarded (stat the fd's peer later if wanted)."
         (returns INT "The connected client file descriptor")
         (sample "(Socket accept listen-fd)" "a client fd"))
-      (def cfd (%sk-ptr-call %c-accept fd 0 0))
+      (def cfd (%sk-fold (%sk-ptr-call %c-accept fd 0 0)))
       (when (< cfd 0) (%sk-fail cfd 'accept fd ()))
       cfd)
 
@@ -130,10 +138,10 @@
       (doc "Open a TCP connection to host:port (no DNS -- dotted quads only)."
         (returns INT "The connected file descriptor")
         (sample "(Socket tcp-connect \"127.0.0.1\" 8080)" "a connected fd"))
-      (def fd (%sk-ptr-call %c-socket %AF-INET %SOCK-STREAM 0))
+      (def fd (%sk-fold (%sk-ptr-call %c-socket %AF-INET %SOCK-STREAM 0)))
       (when (< fd 0) (%sk-fail fd 'socket port ()))
       (def addr (%make-sockaddr-in port host))
-      (def r (%sk-ptr-call %c-connect fd addr 16))
+      (def r (%sk-fold (%sk-ptr-call %c-connect fd addr 16)))
       (when (< r 0) (do (%sk-ptr-call %c-close fd) (%sk-fail r 'connect (list host port) addr)))
       (%sk-ptr-call %c-free addr)
       fd)
@@ -142,7 +150,7 @@
                        (param s STRING "Bytes to send"))
       (doc "Send the whole string; raises on failure."
         (returns INT "Bytes sent"))
-      (def r (%sk-ptr-call %c-send fd s (str-length s) 0))
+      (def r (%sk-fold (%sk-ptr-call %c-send fd s (str-length s) 0)))
       (when (< r 0) (%sk-fail r 'send fd ()))
       r)
 
@@ -151,7 +159,7 @@
       (doc "Receive up to maxlen bytes as a string; nil at orderly EOF (the peer closed); raises on failure."
         (returns ANY "The received string, or nil at EOF"))
       (def buf (%sk-int->ptr (%sk-ptr-call %c-malloc (+ maxlen 1))))
-      (def n (%sk-ptr-call %c-recv fd buf maxlen 0))
+      (def n (%sk-fold (%sk-ptr-call %c-recv fd buf maxlen 0)))
       (when (< n 0)
         (let ((en (Err errno-of n)))
           (%sk-ptr-call %c-free buf)
