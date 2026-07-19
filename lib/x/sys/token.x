@@ -111,7 +111,7 @@
 ; --- The Token class: the API over the builders + terminators ---
 (def-class Token ()
   (doc "Composable tokenizer state-machine builders. A state is (fn (self buffer score chr) ...) returning self to loop, another state to transition, a score to accept, or nil to reject."
-    (note "Terminators (accept/accept-inclusive/reject) run per-character in reader lambdas. Reader-context callers must fetch them raw -- (prim-ref (lit token) (lit accept)) -- and call the cached ref, NOT (Token accept ...) (class dispatch allocates, hazardous mid-reader-callback). The class methods are for cold call sites.")
+    (note "Terminators (accept/accept-inclusive/reject) run per-character in reader lambdas. Reader-context callers must fetch them raw -- (prim-ref 'token 'accept) -- and call the cached ref, NOT (Token accept ...) (class dispatch allocates, hazardous mid-reader-callback). The class methods are for cold call sites.")
     (sample "(Token make-digit-state (Token make-char-state 46 (Token make-digit-state acc) ()))" "an integer.fractional matcher (acc = an accept terminator)"))
   (static
     ; --- terminators ---

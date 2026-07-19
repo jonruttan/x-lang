@@ -192,5 +192,5 @@
       (apply %convert-to (pair val (pair target extra))))))
 
 (doc (provide x/sys/convert Convert)
-  (note "Hot consumers fetch the dispatcher from the catalog: (prim-ref (lit convert) (lit to)). The no-match policy is the (Convert missing) member.")
+  (note "Hot consumers fetch the dispatcher from the catalog: (prim-ref 'convert 'to). The no-match policy is the (Convert missing) member.")
   "Generic type conversion: the Convert class over the type system's from/to alists.")

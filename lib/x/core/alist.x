@@ -148,7 +148,7 @@
   (note "Each binding is name | (name default) | (name key default). Defaults are")
   (note "lazy (run only when the option is absent) and may reference earlier bindings.")
   (note "The source evaluates to an alist ((k . v) ...) or a flat plist (k v ...).")
-  (example "(let-opts (lit (a 1)) ((a 0) (b 0)) (+ a b))" "1")
+  (example "(let-opts '(a 1) ((a 0) (b 0)) (+ a b))" "1")
   (see assoc-get)
   "Bind locals from an option store (alist or plist) with lazy per-binding defaults.")
 
@@ -156,5 +156,5 @@
   assoc-get assoc-has? assoc-del assoc-put assoc-keys let-opts)
   (note "The bootstrap layer the object system runs on, plus the let-opts form.")
   (note "The full association API is the Assoc class: (Assoc merge a b), (Assoc map f al), ...")
-  (example "(assoc-get (lit x) '((x . 1) (y . 2)))" "1")
+  (example "(assoc-get 'x '((x . 1) (y . 2)))" "1")
   "Association-list bootstrap: get/has?/del/put/keys and let-opts.")

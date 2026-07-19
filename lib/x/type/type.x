@@ -112,7 +112,7 @@
     (method push-iter (self (param ts ANY "Type struct") (param f CALLABLE "Iter handler (fn (_ obj) -> iterator)"))
       (doc "Push an iter handler onto a type's iter stack -- sets how (iter obj) builds an iterator." (returns ANY "nil"))
       ((prim-ref (lit type) (lit push-iter)) ts f))
-    (method push-op (self (param ts ANY "Type struct") (param op ATOM "Operator symbol, e.g. (lit +)")
+    (method push-op (self (param ts ANY "Type struct") (param op ATOM "Operator symbol, e.g. '+")
                           (param f CALLABLE "Binary handler (fn (_ a b) ...); owns coercing a plain operand"))
       (doc "Register a binary generic-operator handler on a type; the C operators (+ - * / % = <) dispatch here. A re-registration shadows the older handler."
         (returns ANY "nil"))

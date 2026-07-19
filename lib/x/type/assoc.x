@@ -76,7 +76,7 @@
       (map (fn (_ entry) (list (first entry) (rest entry))) alist))
     (method from-plist (self (param plist LIST "Flat (k v k v ...) plist"))
       (doc "Convert a flat plist into an alist of assocs." (returns LIST "Association list")
-        (example "(Assoc from-plist (list (lit a) 1))" "(('a . 1))"))
+        (example "(Assoc from-plist (list 'a 1))" "(('a . 1))"))
       (match
         ((null? plist) ())
         ((null? (rest plist)) (Err raise (lit value) "Assoc from-plist: odd-length plist" ()))
@@ -104,7 +104,7 @@
                              (param store LIST "Option store: alist or flat plist"))
       (doc "Look up a key in an option store (alist or plist); return a default if absent."
         (returns ANY "Stored value, or the default")
-        (example "(Assoc opt-get-or 0 (lit b) (lit (a 1)))" "0"))
+        (example "(Assoc opt-get-or 0 'b '(a 1))" "0"))
       (%opt-get-or-else (fn () d) key store))
     (method opt-get-or-else (self (param thunk CALLABLE "Nullary function producing the default")
                                   (param key SYMBOL "Key to look up")
@@ -117,5 +117,5 @@
   (note "An assoc is one dotted (key . val) pair; an alist is a list of assocs. Keys compared with eq?.")
   (note "The get/has?/del/put/keys bootstrap globals remain in x/core/alist (the object")
   (note "system runs on them); these methods delegate to that layer.")
-  (example "(Assoc get (lit x) '((x . 1) (y . 2)))" "1")
+  (example "(Assoc get 'x '((x . 1) (y . 2)))" "1")
   "Association list operations, homed on the Assoc class.")

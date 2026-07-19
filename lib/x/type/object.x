@@ -757,7 +757,7 @@
   (note "Data counterpart to new: the store is evaluated (new-from is a fn) and its")
   (note "values are used as-is, not re-evaluated -- so pass a quoted list, a variable,")
   (note "or a built alist/plist.  Unknown keys fall back to declared defaults.")
-  (example "(do (def-class P () x y) ((new-from P (lit (x 1 y 2))) x))" "1")
+  (example "(do (def-class P () x y) ((new-from P '(x 1 y 2)) x))" "1")
   (see new)
   "Instantiate a class from a computed option store (alist or plist) of values.")
 
