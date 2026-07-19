@@ -14,6 +14,9 @@
 
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
 (def %read (prim-ref 'io 'read))
+; The bare `convert` global was homed (the conversion surface is the Convert
+; class); fetch the dispatcher directly -- same door lib/x/tool/lint.x uses.
+(def %lint-cvt (prim-ref 'convert 'to))
 
 (do
   (import x/tool/lint)
@@ -32,8 +35,8 @@
   (def %props->str (fn (self props)
     (unless (null? props)
       (if (pair? (first props))
-        (pair (pair (if (symbol? (first (first props))) (convert (first (first props)) %string) "")
-                    (if (symbol? (rest (first props)))  (convert (rest (first props)) %string)  ""))
+        (pair (pair (if (symbol? (first (first props))) (%lint-cvt (first (first props)) %string) "")
+                    (if (symbol? (rest (first props)))  (%lint-cvt (rest (first props)) %string)  ""))
               (self (rest props)))
         (self (rest props))))))
 
@@ -41,7 +44,7 @@
   (def %build-lookup (fn (_ entries acc)
     (if (null? entries) acc
       (let () (def entry (first entries))   ; scoped: tail-position defs would leak
-          (def name (convert (first entry) %string))
+          (def name (%lint-cvt (first entry) %string))
           (def props (%props->str (rest entry)))
           (%build-lookup (rest entries)
             (pair (pair name props) acc))))))
@@ -54,7 +57,7 @@
         (first table)
         (%scope-find key (rest table))))))
   (def %scope-lookup (fn (_ name)
-    (def entry (%scope-find (convert name %string) %scope-table))
+    (def entry (%scope-find (%lint-cvt name %string) %scope-table))
     (unless (null? entry)
       (rest entry))))
 
@@ -85,7 +88,7 @@
   (set! %lint-dispatch (fn (_ form)
     (def head (first form))
     (if (not (symbol? head)) (%lint-seq form)
-      (let ((h (convert head %string))
+      (let ((h (%lint-cvt head %string))
             (props (%scope-lookup head)))
         (let ((st (if (null? props) ""
                     (let ((s (%get-prop "scope" props))) (if (null? s) "" s)))))
