@@ -1,16 +1,16 @@
 ; turtle.x -- Logo turtle graphics interpreter (aggregator)
 
-(import x/logo/state)
-(import x/logo/types)
-(import x/logo/expr)
-(import x/logo/dispatch)
-(import x/logo/math)
-(import x/logo/tstate)
-(import x/logo/indent)
-(import x/logo/repl)
-(import x/logo/json)
+(import logo/state)
+(import logo/types)
+(import logo/expr)
+(import logo/dispatch)
+(import logo/math)
+(import logo/tstate)
+(import logo/indent)
+(import logo/repl)
+(import logo/json)
 
-(provide x/logo/turtle
+(provide logo/turtle
   ; state
   turtle-forward turtle-back turtle-right turtle-left
   turtle-penup turtle-pendown turtle-clearscreen

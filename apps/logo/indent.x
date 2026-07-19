@@ -3,7 +3,7 @@
 ; Converts indented lines to nested block structures.
 ; Flat tokens pass through unchanged; indented tokens are
 ; grouped into blocks based on indent level.
-(import x/logo/types)
+(import logo/types)
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %type? (prim-ref 'type '?))
 
@@ -59,4 +59,4 @@
 
     (%process tokens (list (pair 0 ())))))
 
-(provide x/logo/indent %logo-indent-to-blocks)
+(provide logo/indent %logo-indent-to-blocks)

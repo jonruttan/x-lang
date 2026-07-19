@@ -1,7 +1,7 @@
 ; math.x -- Logo math functions and LFSR random number generator
-(import x/logo/state)
-(import x/logo/types)
-(import x/logo/expr)
+(import logo/state)
+(import logo/types)
+(import logo/expr)
 (import x/num/float)
 
 ; ============================================================
@@ -62,5 +62,5 @@
 (set! %logo-vars
   (pair (pair "PI" %pi) %logo-vars))
 
-(provide x/logo/math
+(provide logo/math
   %logo-rand %lfsr-state)

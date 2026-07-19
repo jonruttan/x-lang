@@ -1,11 +1,11 @@
 ; dispatch.x -- Logo command dispatch and interpreter
-(import x/logo/state)
+(import logo/state)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %token-read-string (prim-ref 'tok 'read-str))
 
-(import x/logo/types)
-(import x/logo/expr)
-(import x/logo/indent)
+(import logo/types)
+(import logo/expr)
+(import logo/indent)
 (import x/sys/posix)
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr-call (prim-ref 'ptr 'call))
@@ -483,7 +483,7 @@
           (pair (list name n-params proc) %logo-commands))
         (logo-process-tokens remaining)))))
 
-(provide x/logo/dispatch
+(provide logo/dispatch
   %logo-commands %logo-lookup %logo-vars %logo-var-set!
   logo-process-tokens logo-process-to
   %logo-stop-tag %logo-return-tag)

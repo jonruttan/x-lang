@@ -1,7 +1,7 @@
 ; tstate.x -- Extended turtle state commands
-(import x/logo/state)
-(import x/logo/types)
-(import x/logo/expr)
+(import logo/state)
+(import logo/types)
+(import logo/expr)
 (import x/num/float)
 
 ; ============================================================
@@ -123,6 +123,6 @@
           (turtle-forward (Float * (%as-float dist) %turtle-scale))))
   %logo-commands))))
 
-(provide x/logo/tstate
+(provide logo/tstate
   turtle-setxy turtle-home turtle-distance turtle-towards
   turtle-state turtle-setturtle %turtle-visible)

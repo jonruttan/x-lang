@@ -1,5 +1,5 @@
 ; json.x -- Turtle bytecode and JSON output
-(import x/logo/state)
+(import logo/state)
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
 (def %write-to-str (prim-ref 'io 'write-to-str))
 
@@ -37,4 +37,4 @@
     (display (turtle-bc-str))
     (newline)))
 
-(provide x/logo/json turtle-json turtle-json-str turtle-bc-str)
+(provide logo/json turtle-json turtle-json-str turtle-bc-str)

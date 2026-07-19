@@ -7,7 +7,6 @@
 #   sh tests/x/spec-runner.sh build/doctests.spec.md
 #
 # Module list is auto-discovered from lib/x/**. Denylist, with cause:
-#   x/logo, x/logo/*   -- importing the Logo app forks an HTTP server (#35)
 #   x/platform/arm64   -- asm backends; not importable standalone (#37)
 #   x/platform/x86_64
 #   x/constructs       -- XEON DATA, not code: importing it EVALUATES the
@@ -30,7 +29,7 @@ esac
 
 # lib/x/type/dict.x -> x/type/dict; sorted for stable output.
 _MODS=$(find lib/x -name '*.x' | sed 's|^lib/||; s|\.x$||' | sort \
-  | grep -v -E '^x/logo(/|$)|^x/platform/(arm64|x86_64)$|^x/constructs$')
+  | grep -v -E '^x/platform/(arm64|x86_64)$|^x/constructs$')
 
 {
   printf '(alloc-limit! %s)\n' "$X_ALLOC_LIMIT_OBJS"

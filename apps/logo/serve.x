@@ -4,8 +4,8 @@
 ; Uses FFI to wrap socket syscalls.
 ;
 ; Usage:
-;   (import x/logo/turtle)
-;   (import x/logo/serve)
+;   (import logo/turtle)
+;   (import logo/serve)
 ;   ; ... run Logo commands to populate segments ...
 ;   (turtle-serve 8080)
 ;   ; Open http://localhost:8080 in browser
@@ -152,7 +152,7 @@
 (def turtle-serve
   (fn (_ port)
     ; Read the HTML template
-    (def html-template (%slurp "lib/x/logo/viewer.html"))
+    (def html-template (%slurp "apps/logo/viewer.html"))
     (if (str=? html-template "")
       (Err raise 'io "Could not read turtle.html" ()))
     ; Inject the endpoint script before </body>
@@ -189,4 +189,4 @@
             (self)))))
     (%serve-loop)))
 
-(provide x/logo/serve turtle-serve %bc-write)
+(provide logo/serve turtle-serve %bc-write)

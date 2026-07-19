@@ -103,7 +103,7 @@
     (unless (null? %turtle-on-clear) (%turtle-on-clear))))
 
 
-(provide x/logo/state
+(provide logo/state
   %turtle-x %turtle-y %turtle-heading %turtle-pen %turtle-bc
   %as-float %as-int
   turtle-forward turtle-back turtle-right turtle-left

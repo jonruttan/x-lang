@@ -103,7 +103,14 @@ done
 # (the pipe dies on ctrl-c; fd 3 survives for the REPL)
 exec 3<&0
 
-CMD="cat \"${LIB_PATH}${X_LIB}${X_EXT}\" ${file} | \"$SCRIPT_PATH/x\"$xflags$args"
+# Library entries live in lib/; applications live in apps/NAME/run.x
+# (#35 -- the Logo app left the stdlib). -l resolves lib first, then apps.
+ENTRY="${LIB_PATH}${X_LIB}${X_EXT}"
+if [ ! -e "$ENTRY" ] && [ -e "apps/${X_LIB}/run${X_EXT}" ]; then
+	ENTRY="apps/${X_LIB}/run${X_EXT}"
+fi
+
+CMD="cat \"${ENTRY}\" ${file} | \"$SCRIPT_PATH/x\"$xflags$args"
 
 if [ "$verbose" ]; then
 	echo "$CMD"

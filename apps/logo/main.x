@@ -1,15 +1,16 @@
 ; logo.x -- Logo turtle graphics with live browser viewer
 ;
-; Usage:  ./x.sh -l logo
+; Usage:  x.sh -l apps/logo/run
 ;
 ; Starts a server on localhost:8080. Open the URL in your browser.
 ; Type Logo commands — the browser updates live.
 
+(import-path! "apps")
 (def %bignum ())
 (import x/num/float)
-(import x/logo/turtle)
+(import logo/turtle)
 (import x/sys/posix)
-(import x/logo/serve)
+(import logo/serve)
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr-call (prim-ref 'ptr 'call))
 (def %dlopen (prim-ref 'ffi 'dlopen))

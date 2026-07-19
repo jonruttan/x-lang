@@ -3,8 +3,8 @@
 ; Each parse function takes a token list, returns (value . remaining-tokens).
 ; Precedence (low→high): comparison, additive, multiplicative, power, unary, primary.
 
-(import x/logo/state)
-(import x/logo/types)
+(import logo/state)
+(import logo/types)
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %type? (prim-ref 'type '?))
 
@@ -187,7 +187,7 @@
 
 (def %logo-parse-one-expr %logo-parse-expr)
 
-(provide x/logo/expr
+(provide logo/expr
   %logo-parse-expr %logo-parse-one-expr
   %logo-functions %logo-fn-lookup %logo-lookup
   %logo-resolve-word %is-op-str?)

@@ -1,5 +1,5 @@
 ; types.x -- Logo tokenizer base and type definitions
-(import x/logo/state)
+(import logo/state)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
 (def %token-read (prim-ref 'tok 'read))
@@ -366,7 +366,7 @@
 (def %cmd-handler (fn (_ entry) (first (rest (rest entry)))))
 
 
-(provide x/logo/types
+(provide logo/types
   %logo-base %logo %logo-indent %logo-block %logo-op %logo-string
   %logo-word %logo-word=? %is-block? %block-contents %make-indent-block
   %logo-op-str %is-op? %is-string? %logo-string-val %is-paren?
