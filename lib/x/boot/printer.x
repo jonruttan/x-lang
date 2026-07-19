@@ -141,17 +141,17 @@
     (match
       ((%print-is? (first o) %print-sym-handle)
         (do
-          (def %tail (rest o))
+          (def %print-tl (rest o))
           (match
-            ((eq? %tail ()) #f)
-            ((%print-is? %tail %print-list-handle)
+            ((eq? %print-tl ()) #f)
+            ((%print-is? %print-tl %print-list-handle)
               (match
-                ((eq? (rest %tail) ())
+                ((eq? (rest %print-tl) ())
                   (do
-                    (def %p (%print-quasi-prefix (first o)))
+                    (def %print-pfx (%print-quasi-prefix (first o)))
                     (match
-                      ((eq? %p ()) #f)
-                      (#t (do (%print-emit %p) (render (first %tail)) #t)))))
+                      ((eq? %print-pfx ()) #f)
+                      (#t (do (%print-emit %print-pfx) (render (first %print-tl)) #t)))))
                 (#t #f)))
             (#t #f))))
       (#t #f))))
@@ -162,14 +162,14 @@
   (fn (self o render tail?)
     (do
       (render (first o))
-      (def %tail (rest o))
+      (def %print-tl (rest o))
       (match
-        ((eq? %tail ()) (%print-emit ")"))
-        ((tail? %tail)
-          (do (%print-emit " ") (self %tail render tail?)))
+        ((eq? %print-tl ()) (%print-emit ")"))
+        ((tail? %print-tl)
+          (do (%print-emit " ") (self %print-tl render tail?)))
         (#t (do
           (%print-emit " . ")
-          (render %tail)
+          (render %print-tl)
           (%print-emit ")")))))))
 (def %print-list-tail? (fn (_ o) (%print-is? o %print-list-handle)))
 (def %print-spair-tail?
@@ -200,11 +200,11 @@
 (def %print-tree-h
   (fn (_ t path fallback-path)
     (do
-      (def %h (%reflect-step t path))
+      (def %print-hd (%reflect-step t path))
       (match
-        ((eq? %h ()) (match ((eq? fallback-path ()) ())
+        ((eq? %print-hd ()) (match ((eq? fallback-path ()) ())
                             (#t (%reflect-step t fallback-path))))
-        (#t %h)))))
+        (#t %print-hd)))))
 ; Handler resolution is OWN-TREE-FIRST: the type word IS the tree pointer
 ; (mirrors C's x_obj_type dispatch), so a custom type registered in another
 ; base carries its own handlers with it -- and the common case costs one
@@ -218,8 +218,8 @@
     (match
       ((eq? node ()) ())
       (#t (do
-        (def %s (first node))
-        (match ((eq? %s ()) ()) (#t (first %s))))))))
+        (def %print-st (first node))
+        (match ((eq? %print-st ()) ()) (#t (first %print-st))))))))
 (def %print-cell
   (fn (_ o tw path fallback-path)
     (do
@@ -234,32 +234,32 @@
       ; compares first-pointers -- both paths start with the same
       ; interned step symbol, so eq? called them equal (display rendered
       ; through WRITE handlers; 12 specs red).
-      (def %write? (same? path %print-path-write))
-      (def %mh (do
-        (def %h (%print-stack-top (%print-memo-node tw %write?)))
+      (def %print-wr? (same? path %print-path-write))
+      (def %print-mh (do
+        (def %print-hd (%print-stack-top (%print-memo-node tw %print-wr?)))
         (match
-          ((eq? %h ()) (match
-            (%write? ())
+          ((eq? %print-hd ()) (match
+            (%print-wr? ())
             (#t (%print-stack-top (%print-memo-node tw #t)))))
-          (#t %h))))
+          (#t %print-hd))))
       (match
-        ((eq? %mh ()) (%print-cell-walk o tw path fallback-path))
-        (#t (do (apply %mh (pair o ())) ()))))))
+        ((eq? %print-mh ()) (%print-cell-walk o tw path fallback-path))
+        (#t (do (apply %print-mh (pair o ())) ()))))))
 (def %print-cell-walk
   (fn (_ o tw path fallback-path)
     (do
-      (def %own (%ptr->obj (%int->ptr tw)))
-      (def %h (match
+      (def %print-own (%ptr->obj (%int->ptr tw)))
+      (def %print-hd (match
         ; guard like reflect.x: only a spair-tagged word is a navigable tree
-        ((eq? (%reflect-type-word %own) %reflect-spair-tw)
-          (%print-tree-h %own path fallback-path))
+        ((eq? (%reflect-type-word %print-own) %reflect-spair-tw)
+          (%print-tree-h %print-own path fallback-path))
         (#t ())))
-      (def %h2 (match
-        ((eq? %h ()) (%print-tree-h (%print-tree (%print-type-of o)) path fallback-path))
-        (#t %h)))
+      (def %print-hd2 (match
+        ((eq? %print-hd ()) (%print-tree-h (%print-tree (%print-type-of o)) path fallback-path))
+        (#t %print-hd)))
       (match
-        ((eq? %h2 ()) (%print-obj-opaque o))
-        (#t (do (apply %h2 (pair o ())) ()))))))
+        ((eq? %print-hd2 ()) (%print-obj-opaque o))
+        (#t (do (apply %print-hd2 (pair o ())) ()))))))
 ; ONE dispatch body for both modes (write and display differ only in the
 ; path pair handed to the cell dispatch); %print-w/%print-d stay as named
 ; fronts because handlers and walkers reference them.  `self` is the
@@ -275,12 +275,12 @@
       ((same? o #t) (%print-emit "#t"))
       ((same? o #f) (%print-emit "#f"))
       (#t (do
-        (def %tw (%reflect-type-word o))
+        (def %print-tw (%reflect-type-word o))
         (match
-          ((eq? %tw 0) ())
-          ((eq? %tw %reflect-satom-tw) (%print-generic o))
-          ((eq? %tw %reflect-spair-tw) (%print-spair o self))
-          (#t (%print-cell o %tw path fallback-path))))))))
+          ((eq? %print-tw 0) ())
+          ((eq? %print-tw %reflect-satom-tw) (%print-generic o))
+          ((eq? %print-tw %reflect-spair-tw) (%print-spair o self))
+          (#t (%print-cell o %print-tw path fallback-path))))))))
 (def %print-w
   (fn (self o) (%print-render o self %print-path-write ())))
 (def %print-d
@@ -294,8 +294,8 @@
 (def %print-push!
   (fn (_ handle stack-path handler)
     (do
-      (def %node (%reflect-step (%print-tree handle) (%reflect-path-parent stack-path)))
-      (set-first! %node (pair handler (first %node))))))
+      (def %print-nd (%reflect-step (%print-tree handle) (%reflect-path-parent stack-path)))
+      (set-first! %print-nd (pair handler (first %print-nd))))))
 (def %print-int-h  (fn (_ o) (%print-emit (number->str o))))
 (def %print-str-dh (fn (_ o) (%print-emit o)))
 ; Symbols WRITE with the quote shorthand -- 'x, not (lit x) -- so the echo
@@ -374,10 +374,10 @@
 (def %print-opaque!
   (fn (_ name form)
     (do
-      (def %h (%print-handle-by-name name (first %reflect-type-alist-cell)))
+      (def %print-hd (%print-handle-by-name name (first %reflect-type-alist-cell)))
       (match
-        ((eq? %h ()) ())  ; type absent in this build -- %print-generic covers it
-        (#t (%print-push! %h %print-path-write-stack (fn (_ o) (%print-emit form))))))))
+        ((eq? %print-hd ()) ())  ; type absent in this build -- %print-generic covers it
+        (#t (%print-push! %print-hd %print-path-write-stack (fn (_ o) (%print-emit form))))))))
 ; ATOM registers lazily on first x_mkatom and nothing in-tree constructs
 ; one, so this push no-ops here; kept for embedders that pre-register it.
 (%print-opaque! "ATOM"      "#<atom>")

@@ -342,7 +342,7 @@
 ; ============================================================
 
 ; Case-insensitive alist lookup by first element
-(def %alist-find
+(def %logo-alist-find
   (fn (_ name alist)
     (def uname (Str upcase name))
     (def %find
@@ -372,4 +372,4 @@
   %logo-op-str %is-op? %is-string? %logo-string-val %is-paren?
   %logo-alpha? logo-process-tokens logo-process-to
   %logo-vars %logo-commands
-  %alist-find %cmd-name %cmd-arity %cmd-handler)
+  %logo-alist-find %cmd-name %cmd-arity %cmd-handler)

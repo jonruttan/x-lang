@@ -16,10 +16,10 @@
 (def %logo-functions ())
 
 (def %logo-fn-lookup
-  (fn (_ name) (%alist-find name %logo-functions)))
+  (fn (_ name) (%logo-alist-find name %logo-functions)))
 
 (def %logo-lookup
-  (fn (_ word) (%alist-find word %logo-commands)))
+  (fn (_ word) (%logo-alist-find word %logo-commands)))
 
 ; ============================================================
 ; Operator helpers
