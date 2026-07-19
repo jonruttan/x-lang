@@ -95,12 +95,14 @@
 ---
     (1 2 3)
 
-## new is make
+## new refuses (constructor adjudication)
 
-### the generic allocator can no longer build an unusable set
+### new raises kind-'state; make is the constructor
 
 ```scheme
-(do (import x/type/set) (((Set new) add! 3) has? 3))
+(do (import x/type/set)
+  (guard (e (list (Err kind-of e) (((Set make) add! 3) has? 3)))
+    (Set new)))
 ```
 ---
-    #t
+    ('state #t)

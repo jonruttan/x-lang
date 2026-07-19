@@ -13,14 +13,19 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 ---
     #t
 
-### new is make (regression: the generic allocator built a dict that SEGFAULTED on put!)
+### new refuses loudly (constructor adjudication: make constructs, new is member-init)
+
+The generic allocator once built a dict that SEGFAULTED on put!; a quiet
+new->make alias then blurred two different operations into synonyms.
+new now refuses with a kind-'state Err pointing at the right doors.
 
 ```scheme
 (do (import x/type/dict)
-  (((Dict new) put! 'a 1) get 'a))
+  (guard (e (list (Err kind-of e) ((Dict make) empty?)))
+    (Dict new)))
 ```
 ---
-    1
+    ('state #t)
 
 ### an uninitialized instance fails loudly, not at the raw slot layer
 

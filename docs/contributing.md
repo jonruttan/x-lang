@@ -49,6 +49,15 @@ make clean && make
 
 ### Method Naming (adjudicated — one name per concept)
 
+- **Constructors: `make` constructs, `new` initializes members** — two
+  different operations, one name each. `make` is THE public constructor
+  (positional/sizing args: `(Dict make 64)`, `(Vector make n fill)`);
+  `new` is the class system's member-init record door (`(new Point x 1 y 2)`).
+  Never alias one to the other: a stateful container whose internals `new`
+  cannot build shadows it with a kind-`'state` refusal pointing at `make` /
+  `from-*`. Input-shape constructors are `from-x` (one name per shape:
+  `from-alist` / `from-plist` / `from-bindings` / `from-list`), variadic
+  literals are `of`.
 - **Element access is `ref`** on every class (`List ref`, `Vector ref`, `Str8 ref`,
   `Gen ref`, `Obj ref`, `Ptr ref`). `Str8 index` survives as a documented alias;
   don't add new `nth`/`index` methods.

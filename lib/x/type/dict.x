@@ -76,15 +76,16 @@
       (def c (if (pair? opt) (first opt) 8))
       (new-from self (list 'store (Vector make c ()) 'cap c 'n 0)))
 
-    ; Containers alias new to make: the object system's generic (Class new)
-    ; builds an instance with every member nil, which for a container is a
-    ; landmine (nil store fed to the raw slot layer). A static method wins
-    ; the class dispatch, so this cleanly shadows the generic.
+    ; Constructor adjudication (one meaning per name): `make` is THE public
+    ; constructor (positional, sizing args); `new` is the class system's
+    ; member-init record door, which cannot build a container's internal
+    ; state (nil store fed to the raw slot layer = the old segfault). A
+    ; static method wins the class dispatch, so this shadows the generic
+    ; with a loud pointer at the right doors instead of a quiet synonym.
     (method new (self . opt)
-      (doc "Alias for make: (Dict new) is (Dict make). The generic instance allocator would build an unusable dict."
-        (param opt LIST "Optional (capacity), as for make")
-        (returns Dict "A new empty dict"))
-      (if (pair? opt) (self make (first opt)) (self make)))
+      (doc "REFUSED: new's member-init cannot build the table. Use (Dict make) or a from-* constructor."
+        (returns ANY "Does not return -- raises a kind-'state Err"))
+      (Err raise 'state "Dict: use (Dict make) / from-* -- new's member-init cannot build the table" ()))
 
     (method from-plist (self (param plist LIST "Flat (k v k v ...) plist"))
       (doc "Build a dict from a flat plist -- the simplest literal shape."

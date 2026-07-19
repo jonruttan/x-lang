@@ -23,10 +23,12 @@
       (doc "An empty set." (returns Set "A new empty set"))
       (new-from self (list 'd (Dict make))))
 
-    (method new (self)
-      (doc "Alias for make: (Set new) is (Set make) -- the generic instance allocator would build an unusable set."
-        (returns Set "A new empty set"))
-      (self make))
+    ; Constructor adjudication: make constructs, new is the member-init
+    ; record door and cannot build a set's internal state -- refuse loudly.
+    (method new (self . opt)
+      (doc "REFUSED: new's member-init cannot build the table. Use (Set make) or (Set from-list) / (Set of)."
+        (returns ANY "Does not return -- raises a kind-'state Err"))
+      (Err raise 'state "Set: use (Set make) / from-list / of -- new's member-init cannot build the table" ()))
 
     (method from-list (self (param lst LIST "Elements to add (duplicates collapse)"))
       (doc "Build a set from a list's elements."

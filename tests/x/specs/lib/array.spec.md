@@ -86,12 +86,14 @@
 ---
     Error: #<err:value Array pop!: empty>
 
-## new is make
+## new refuses (constructor adjudication)
 
-### the generic allocator can no longer build an unusable array
+### new raises kind-'state; make is the constructor
 
 ```scheme
-(do (import x/type/array) (((Array new) push! 7) ->list))
+(do (import x/type/array)
+  (guard (e (list (Err kind-of e) (((Array make) push! 7) ->list)))
+    (Array new)))
 ```
 ---
-    (7)
+    ('state (7))
