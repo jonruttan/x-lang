@@ -90,3 +90,45 @@ segfaulted -- jon hit it live because the REPL collects every turn.
 ```
 ---
     (2 (3 4) ((9 9)))
+
+## every heap type survives collection (the GC-payload audit)
+
+The mark hook traces a typed object by per-type units, a C mark
+callback, or (for pair-layout customs) recursion. Any custom type that
+stores heap payloads but declares neither had UNTRACED slots -- freed
+under the live instance, segfault on next access. This audit swept
+every C type struct and every make-obj/make-instance consumer; the
+three gaps (VECTOR, ASM, ITER) are fixed, the rest verified.
+
+### Gen driving a C iterator survives (ITER units fix)
+
+```scheme
+(do (import x/type/gen)
+  (def g (Gen from-seq (Vector of 10 20 30)))
+  (def it (Iter new (Vector of 1 2 3)))
+  ((prim-ref 'heap 'collect))
+  ((prim-ref 'heap 'collect))
+  (list (g ->list) (first ((prim-ref 'iter 'step) it))))
+```
+---
+    ((10 20 30) 1)
+
+### the full type zoo survives two collects
+
+```scheme
+(do (import x/type/dict) (import x/type/set) (import x/type/array)
+    (import x/type/regex) (import x/type/promise)
+  (def d (Dict from-plist (list 'k (list 1 2 3))))
+  (def st (Set from-list (list "x" "y")))
+  (def arr (Array of (list 5) (list 6)))
+  (def rx (Regex compile "([a-z]+)-([0-9]+)"))
+  (def p (delay (+ 40 2)))
+  (def bigvec (Vector make 40 (list 'deep)))
+  ((prim-ref 'heap 'collect))
+  ((prim-ref 'heap 'collect))
+  (list (d get 'k) (st has? "y") (arr ->list)
+        (assoc-get 1 (Regex match-groups "ab-12" rx))
+        (Promise force p) (Vector ref 39 bigvec)))
+```
+---
+    ((1 2 3) #t ((5) (6)) "ab" 42 ('deep))
