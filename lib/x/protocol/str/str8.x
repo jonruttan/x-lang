@@ -234,7 +234,7 @@
     (method pad-left (self (param n INT "Target element count") (param ch CHAR "Padding character") (param s STRING "String to pad"))
       (doc "Left-pad s with ch until it is at least n ELEMENTS long (bytes for Str8, code points for Str) -- element count, not display columns."
         (returns STRING "s padded on the left to n elements (unchanged if already >= n)")
-        (example "(Str8 pad-left 5 (\"0\" 0) \"42\")" "\"00042\""))
+        (example "(Str8 pad-left 5 #\\0 \"42\")" "\"00042\""))
       (def k (%str8->int n "Str8 pad-left: count not convertible to INT"))
       (def len (self length s))
       (if (not (< len k)) s
@@ -243,7 +243,7 @@
     (method pad-right (self (param n INT "Target element count") (param ch CHAR "Padding character") (param s STRING "String to pad"))
       (doc "Right-pad s with ch until it is at least n ELEMENTS long (bytes for Str8, code points for Str) -- pad-left's missing twin."
         (returns STRING "s padded on the right to n elements (unchanged if already >= n)")
-        (example "(Str8 pad-right 5 (\"0\" 0) \"42\")" "\"42000\""))
+        (example "(Str8 pad-right 5 #\\0 \"42\")" "\"42000\""))
       (def k (%str8->int n "Str8 pad-right: count not convertible to INT"))
       (def len (self length s))
       (if (not (< len k)) s
@@ -260,6 +260,141 @@
         (if (> (+ i sub-len) s-len) #f
           (if (self match-at? sub i s) #t (loop (+ i 1))))))
       (if (= sub-len 0) #t (go 0)))
+    (method index-of (self (param sub STRING "Substring to search for") (param s STRING "String to search in"))
+      (doc "The element position of sub's first occurrence in s, or nil on a miss (absence is nil, like every other index-search miss). An empty sub matches at 0."
+        (returns ANY "Position, or nil")
+        (example "(Str8 index-of \"ll\" \"hello\")" "2")
+        (example "(null? (Str8 index-of \"zz\" \"hello\"))" "#t"))
+      (def s-len (self length s))
+      (def sub-len (self length sub))
+      (def go (fn (loop i)
+        (if (> (+ i sub-len) s-len) ()
+          (if (self match-at? sub i s) i (loop (+ i 1))))))
+      (go 0))
+    (method last-index-of (self (param sub STRING "Substring to search for") (param s STRING "String to search in"))
+      (doc "The element position of sub's LAST occurrence in s, or nil on a miss. An empty sub matches at the end."
+        (returns ANY "Position, or nil")
+        (example "(Str8 last-index-of \"l\" \"hello\")" "3")
+        (example "(null? (Str8 last-index-of \"zz\" \"hello\"))" "#t"))
+      (def s-len (self length s))
+      (def sub-len (self length sub))
+      (def go (fn (loop i)
+        (if (< i 0) ()
+          (if (self match-at? sub i s) i (loop (- i 1))))))
+      (go (- s-len sub-len)))
+    (method replace (self (param old STRING "Literal substring to replace (not a regex)")
+                          (param replacement STRING "Replacement")
+                          (param s STRING "String to rewrite"))
+      (doc "Replace every occurrence of old with new (literal, non-overlapping, left to right). Regex replacement lives on the Regex class; an empty old raises kind-'value (it would never advance)."
+        (returns STRING "s with every old replaced by new")
+        (example "(Str8 replace \"l\" \"L\" \"hello\")" "\"heLLo\"")
+        (example "(Str8 replace \"aa\" \"b\" \"aaaa\")" "\"bb\"")
+        (example "(Str8 replace \"zz\" \"b\" \"hello\")" "\"hello\""))
+      (when (= (self length old) 0)
+        (Err raise (lit value) "Str replace: empty search string" ()))
+      (def old-len (self length old))
+      (def go (fn (loop from acc)
+        (let ((i (self index-of old (self sub from (- (self length s) from) s))))
+          (if (null? i)
+            (%str-append acc (self sub from (- (self length s) from) s))
+            (loop (+ from (+ i old-len))
+                  (%str-append acc
+                    (%str-append (self sub from i s) replacement)))))))
+      (go 0 ""))
+    (method format (self (param spec STRING "Template: literal text with {} slots; {{ and }} escape braces")
+                         . (param args ANY "One value per {} slot"))
+      (doc "Render args into a template (#25). A slot is {} or {:FLAGS} with FLAGS = [<|>][WIDTH][.PRECISION]: < left-aligns (default), > right-aligns, WIDTH pads with spaces to at least WIDTH ELEMENTS (bytes for Str8, code points for Str), .P renders a number with exactly P decimals (floats round; ints gain .000...). Slot/argument counts must match (kind-'value otherwise). Strings render raw; other values render display-style."
+        (returns STRING "The rendered string")
+        (example "(Str8 format \"{} + {} = {}\" 1 2 3)" "\"1 + 2 = 3\"")
+        (example "(Str8 format \"[{:>6}]\" \"ok\")" "\"[    ok]\"")
+        (example "(Str8 format \"[{:<6}]\" \"ok\")" "\"[ok    ]\"")
+        (example "(Str8 format \"{:.2}\" 7)" "\"7.00\"")
+        (example "(Str8 format \"{{}} is a slot\")" "\"{} is a slot\""))
+      (def spec-len (%str-byte-len spec))
+      (def %b (fn (_ i) (%char->integer (%str-byte-ref spec i))))
+      ; parse {:FLAGS} between k and close (exclusive): (align width prec)
+      (def %flags (fn (_ k close)
+        (def align (match
+          ((>= k close) 60)
+          ((= (%b k) 62) 62)                          ; >
+          ((= (%b k) 60) 60)                          ; <
+          (#t 60)))
+        (def k2 (if (if (< k close) (or (= (%b k) 60) (= (%b k) 62)) #f) (+ k 1) k))
+        (def %digits (fn (loop i acc)
+          (if (if (< i close) (if (>= (%b i) 48) (<= (%b i) 57) #f) #f)
+            (loop (+ i 1) (+ (* acc 10) (- (%b i) 48)))
+            (pair i acc))))
+        (def w (%digits k2 0))
+        (def prec
+          (if (if (< (first w) close) (= (%b (first w)) 46) #f)   ; .
+            (rest (%digits (+ (first w) 1) 0))
+            ()))
+        (list align (rest w) prec)))
+      ; render one value under (align width prec)
+      (def %slot (fn (_ v align width prec)
+        (def base
+          (match
+            ((null? prec) (if (str? v) v (%display-to-str v)))
+            ((eq? (%str8-type-of v) %str8-int-type)
+              (if (= prec 0) (number->str v)
+                (%str-append (number->str v)
+                  (%str-append "." (Str8 repeat prec "0")))))
+            (#t
+              ; float path: the value existing means the tower is loaded
+              (do
+                (def scale (let go ((p prec) (acc 1)) (if (= p 0) acc (go (- p 1) (* acc 10)))))
+                (def r (Float / (Float round (Float * v (Float exact->inexact scale)))
+                                (Float exact->inexact scale)))
+                (def rs (%display-to-str r))
+                (if (= prec 0) (self sub 0 (self index-of "." rs) rs)
+                  (let ((dot (self index-of "." rs)))
+                    (self pad-right (+ (+ dot 1) prec) #\0 rs)))))))
+        (if (< (self length base) width)
+          (if (= align 62)
+            (self pad-left width #\space base)
+            (self pad-right width #\space base))
+          base)))
+      (def %fmt-go (fn (loop i as acc)
+        (match
+          ((>= i spec-len)
+            (do (unless (null? as)
+                  (Err raise (lit value) "Str format: fewer {} slots than arguments" ()))
+                acc))
+          ((= (%b i) 123)                              ; {
+            (match
+              ((if (< (+ i 1) spec-len) (= (%b (+ i 1)) 123) #f)  ; {{
+                (loop (+ i 2) as (%str-append acc "{")))
+              (#t
+                (let ((close (let go ((j (+ i 1)))
+                               (match
+                                 ((>= j spec-len) (Err raise (lit value) "Str format: unmatched { in template" ()))
+                                 ((= (%b j) 125) j)
+                                 (#t (go (+ j 1)))))))
+                  (do
+                    (when (null? as)
+                      (Err raise (lit value) "Str format: more {} slots than arguments" ()))
+                    (def f
+                      (if (if (> close (+ i 1)) (= (%b (+ i 1)) 58) #f)  ; :
+                        (%flags (+ i 2) close)
+                        (list 60 0 ())))
+                    (loop (+ close 1) (rest as)
+                          (%str-append acc
+                            (%slot (first as) (first f) (first (rest f)) (first (rest (rest f)))))))))))
+          ((= (%b i) 125)                              ; }
+            (if (if (< (+ i 1) spec-len) (= (%b (+ i 1)) 125) #f)
+              (loop (+ i 2) as (%str-append acc "}"))
+              (Err raise (lit value) "Str format: unmatched } in template" ())))
+          (#t
+            ; copy a literal run in one slice (up to the next brace)
+            (let ((end (let go ((j i))
+                         (match
+                           ((>= j spec-len) j)
+                           ((= (%b j) 123) j)
+                           ((= (%b j) 125) j)
+                           (#t (go (+ j 1)))))))
+              (loop end as (%str-append acc (%str-byte-sub spec i (- end i)))))))))
+      (%fmt-go 0 args ""))
+
     (method starts? (self (param pfx STRING "Prefix to test for") (param s STRING "String to check"))
       (doc "True if s begins with the prefix pfx."
         (returns BOOL "#t when s starts with pfx")

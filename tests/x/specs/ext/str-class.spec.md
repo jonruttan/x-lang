@@ -428,3 +428,113 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ```
 ---
     98
+
+## position search (#25)
+
+### index-of finds the first occurrence; misses are nil
+
+```scheme
+(list (Str8 index-of "ll" "hello") (Str8 index-of "" "hi") (null? (Str8 index-of "zz" "hello")))
+```
+---
+    (2 0 #t)
+
+### last-index-of finds the last occurrence; misses are nil
+
+```scheme
+(list (Str8 last-index-of "l" "hello") (Str8 last-index-of "aa" "aaaa") (null? (Str8 last-index-of "z" "abc")))
+```
+---
+    (3 2 #t)
+
+### StrUTF8 positions are code points
+
+```scheme
+(import x/type/str-utf8)
+(StrUTF8 index-of "€" "$¢€!")
+```
+---
+    2
+
+## literal replace (#25)
+
+### replaces every occurrence, non-overlapping, left to right
+
+```scheme
+(list (Str8 replace "l" "L" "hello") (Str8 replace "aa" "b" "aaaa") (Str8 replace "zz" "b" "hello"))
+```
+---
+    ("heLLo" "bb" "hello")
+
+### an empty search string refuses (it would never advance)
+
+```scheme
+(guard (e (Err kind-of e)) (Str8 replace "" "x" "hi"))
+```
+---
+    'value
+
+## format (#25)
+
+### positional slots render display-style
+
+```scheme
+(Str8 format "{} + {} = {}" 1 2 "three")
+```
+---
+    "1 + 2 = three"
+
+### width and alignment: > right, < left (the default)
+
+```scheme
+(list (Str8 format "[{:>6}]" "ok") (Str8 format "[{:<6}]" "ok") (Str8 format "[{:6}]" "ok"))
+```
+---
+    ("[    ok]" "[ok    ]" "[ok    ]")
+
+### precision setup: the tower loads in its OWN block
+
+The harness begin-wraps each block into one form, so a float literal in
+the same block as (import x/num/float) would parse BEFORE the import
+evaluates -- the tower parse-before-eval trap, begin-flavored.
+
+```scheme
+(do (import x/num/float) #t)
+```
+---
+    #t
+
+### precision: ints gain decimals, floats round and keep exactly P
+
+```scheme
+(list (Str8 format "{:.2}" 7) (Str8 format "{:.2}" 3.14159) (Str8 format "{:.2}" 2.5) (Str8 format "{:>8.2}" 3.5))
+```
+---
+    ("7.00" "3.14" "2.50" "    3.50")
+
+### braces escape by doubling
+
+```scheme
+(Str8 format "{{}} is a slot; {} fills it" "x")
+```
+---
+    "{} is a slot; x fills it"
+
+### slot/argument arity is strict, both directions, and templates must close
+
+```scheme
+(list (guard (e (Err kind-of e)) (Str8 format "{}"))
+      (guard (e (Err kind-of e)) (Str8 format "x" 1))
+      (guard (e (Err kind-of e)) (Str8 format "{" 1)))
+```
+---
+    ('value 'value 'value)
+
+### StrUTF8 widths pad by code points
+
+```scheme
+(import x/type/str-utf8)
+(StrUTF8 format "[{:>4}]" "é")
+```
+---
+    "[   é]"

@@ -7,15 +7,12 @@
 (import x/protocol/str/str8)
 (import x/type/object)
 
-; Index of the last '/' in s, or -1. (Str8 has no last-index-of yet, #25.)
+; Index of the last '/' in s, or -1 (internal sentinel only; the public
+; door is (Str8 last-index-of), which misses with nil -- #25 delivered).
 (def %path-last-slash
   (fn (_ s)
-    (let ((n (str-length s)))
-      (let go ((i (- n 1)))
-        (match
-          ((< i 0) -1)
-          ((Char =? (Str8 ref i s) #\/) i)
-          (#t (go (- i 1))))))))
+    (let ((i (Str8 last-index-of "/" s)))
+      (if (null? i) -1 i))))
 
 ; s with trailing slashes stripped -- except a bare "/" (the root), which
 ; keeps its one slash.
