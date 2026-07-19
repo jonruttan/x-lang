@@ -55,10 +55,17 @@ class's first consumer, and was verified end-to-end against nc.
 
 ### connecting where nothing listens is a structured econnrefused
 
+"Nothing listens" is made true by construction -- bind the port, close
+it, then connect: a bare fixed port turned out to be LISTENED ON by
+something on the ubuntu CI runner (connect returned an fd; the pin got
+"5").
+
 ```scheme
 (do (import x/sys/socket)
+  (def l (Socket tcp-listen 49877))
+  (Socket close l)
   (guard (e (list (Err kind-of e) (assoc-get 'sym (e data)) (assoc-get 'op (e data))))
-    (Socket tcp-connect "127.0.0.1" 47989)))
+    (Socket tcp-connect "127.0.0.1" 49877)))
 ```
 ---
     ('io 'econnrefused 'connect)
