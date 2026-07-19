@@ -103,6 +103,10 @@
 (def %errno-table
   (append %errno-base (if os-darwin? %errno-darwin %errno-linux)))
 
+; Lazily-resolved errno location for (Err errno-of): () = unresolved,
+; 'missing = libc lacks the symbol, else the dlsym'd function pointer.
+(def %errno-loc-cell (pair () ()))
+
 (def %errno-find
   (fn (self n table)
     (if (null? table) ()
@@ -155,6 +159,20 @@
         (example "(Err kind-of \"bare string\")" "'user")
         (example "(Err kind-of (Err make 'index \"oops\" ()))" "'index"))
       (if (Err err? v) (v kind) 'user))
+
+    (method errno-of (self (param r INT "A failed call's raw return value (negative)"))
+      (doc "Recover the CURRENT errno after a failed libc/syscall call. The syscall prim routes through libc on both OSes, returning a bare -1 with the reason parked behind the per-thread errno location -- __error() on Darwin, __errno_location() on Linux; this derefs it (lazily resolving the symbol once). Falls back to (- 0 r) on a libc without the symbol. Fetch BEFORE any intervening call (a close on the error path clobbers errno)."
+        (returns INT "The positive errno"))
+      (when (null? (first %errno-loc-cell))
+        (set-first! %errno-loc-cell
+          (let ((loc ((prim-ref 'ffi 'dlsym) ((prim-ref 'ffi 'dlopen) () 1)
+                      (if os-darwin? "__error" "__errno_location"))))
+            (if (null? loc) 'missing loc))))
+      (if (eq? (first %errno-loc-cell) 'missing)
+        (- 0 r)
+        ((prim-ref 'ptr 'ref)
+          ((prim-ref 'int '->ptr) ((prim-ref 'ptr 'call) (first %errno-loc-cell)))
+          0 4)))
 
     (method from-errno (self (param n INT "errno, positive or the syscall layer's negative -errno")
                              (param op SYMBOL "The operation, e.g. 'open")

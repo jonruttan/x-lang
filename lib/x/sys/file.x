@@ -67,27 +67,11 @@
       (#t (first (assoc-get mode %file-modes))))))
 
 ; --- errno recovery (#22) ---
-; The syscall prim goes through libc's syscall() on BOTH OSes: the raw
-; return is a bare -1 and the REASON parks behind the per-thread errno
-; location -- __error() on Darwin, __errno_location() on Linux (glibc
-; and musl both export it).  CI caught the wrong first guess here: a
-; -(-1) path pinned enoent misses as eperm on Linux.  %fs-errno derefs
-; the location on both; the (- 0 r) arm survives only as the fallback
-; for a libc without the symbol.
-; NOTE: fetch errno BEFORE any intervening syscall (a close on the error
-; path would clobber it).
-(def %fs-dlopen (prim-ref 'ffi 'dlopen))
-(def %fs-dlsym (prim-ref 'ffi 'dlsym))
-(def %fs-ptr-call (prim-ref 'ptr 'call))
-(def %fs-ptr-ref (prim-ref 'ptr 'ref))
-(def %fs-int->ptr (prim-ref 'int '->ptr))
-(def %fs-errno-loc
-  (%fs-dlsym (%fs-dlopen () 1) (if os-darwin? "__error" "__errno_location")))
-(def %fs-errno
-  (fn (_ r)
-    (if (null? %fs-errno-loc)
-      (- 0 r)
-      (%fs-ptr-ref (%fs-int->ptr (%fs-ptr-call %fs-errno-loc)) 0 4))))
+; Homed on the Err class ((Err errno-of r), lazily resolving the per-OS
+; errno location -- CI once caught a wrong -(-1) guess here as
+; enoent-pinned-eperm on Linux).  Thin local alias; fetch errno BEFORE
+; any intervening syscall (a close on the error path would clobber it).
+(def %fs-errno (fn (_ r) (Err errno-of r)))
 
 ; --- Struct decoding helpers (#22: stat + dirent are per-OS byte layouts) ---
 ; Little-endian byte peeks over a (str make N) buffer filled by a syscall.
