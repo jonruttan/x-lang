@@ -39,5 +39,5 @@
                   (Str pad-left 8 #\0 (%cvt %lo %string 16))))))
 
 (doc (provide x/core/hash Hash)
-  (example "(Hash ->hex (Hash fnv-1a \"hello\"))" "a430d84680aabd0b")
+  (example "(Hash ->hex (Hash fnv-1a \"hello\"))" "\"a430d84680aabd0b\"")
   "FNV-1a string hashing, homed on the Hash class.")

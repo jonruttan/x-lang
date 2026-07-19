@@ -241,7 +241,7 @@
       (List take n (List drop start lst)))
     ; --- Generators ---
     (method range (self start end)
-      (doc "Generate a list of integers from start to end (both coerced to INT)." (param start INT "Start value (inclusive)") (param end INT "End value (exclusive)") (returns LIST "List of integers") (example "(range 0 5)" "(0 1 2 3 4)"))
+      (doc "Generate a list of integers from start to end (both coerced to INT)." (param start INT "Start value (inclusive)") (param end INT "End value (exclusive)") (returns LIST "List of integers") (example "(List range 0 5)" "(0 1 2 3 4)"))
       (def a (%list->int start "List range: start not convertible to INT"))
       (def b (%list->int end "List range: end not convertible to INT"))
       (def go (fn (self i) (if (>= i b) () (pair i (self (+ i 1))))))

@@ -70,7 +70,7 @@
   (param var SYMBOL "Name bound to the error value")
   (param handler ANY "Expression evaluated if error occurs (var is bound)")
   (param body ANY "Expression to evaluate")
-  (example "(guard (e (list 'error e)) (+ 1 \"x\"))" "('error \"...\")"))
+  (example "(guard (e (list 'caught e)) (error \"boom\"))" "('caught \"boom\")"))
 
 (doc error "Signal an error with a message."
   (param message STRING "Error message")
@@ -326,7 +326,7 @@
 
 (doc do "Evaluate expressions sequentially, return last result."
   (param exprs ANY "One or more expressions")
-  (example "(do (display \"hi\") 42)" "42"))
+  (example "(do (def x 1) (+ x 1))" "2"))
 
 (doc begin "Alias for do."
   (see do))
@@ -467,7 +467,7 @@
   (param ns SYMBOL "Namespace symbol, e.g. 'float")
   (param method SYMBOL "Method symbol, e.g. '+")
   (param value ANY "The implementation to register (fn, op, or any value)")
-  (example "(do (prim-reg! 'float '+ %f+) (prim-ref 'float '+))" "#<fn>")
+  (example "(do (prim-reg! 'demo 'twice (fn (_ n) (* n 2))) ((prim-ref 'demo 'twice) 21))" "42")
   (see prim-ref))
 
 ; (`use` -- the qualified fetch+define convenience -- is retired: it had no

@@ -13,7 +13,7 @@
   (doc "A mutable set with O(1) expected membership, backed by a Dict."
     (note "Elements follow Dict's key rules: symbols, strings, integers, or chars, compared by content (equal?).")
     (note "Mutators (add!/del!) return the set for chaining.")
-    (example "(let ((s (Set from-list (list 1 2 2 3)))) (s count))" "3")
+    (example "(let ((s (Set from-list (list 1 2 2 3)))) (s length))" "3")
     (see add!) (see has?))
 
   d  ; backing Dict: element -> #t
@@ -76,5 +76,5 @@
 
 (doc (provide x/type/set Set)
   (note "Membership = key presence in the backing Dict; same key-type rules and content comparison.")
-  (example "((Set from-list (list \"a\" \"b\" \"a\")) count)" "2")
+  (example "((Set from-list (list \"a\" \"b\" \"a\")) length)" "2")
   "Set: mutable membership with O(1) expected add/has?/del, on a Dict.")

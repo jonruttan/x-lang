@@ -281,7 +281,7 @@
   (note "Selector is literal: (super self method args...). Instance methods only.")
   (note "Resolves from the parent of the method's DEFINING class, so it is correct")
   (note "through multi-level inheritance.")
-  (example "(super self total)" "the parent total method's result")
+  (sample "(super self total)" "the parent total method's result")
   (see def-class)
   "Invoke the parent class's version of a method.")
 

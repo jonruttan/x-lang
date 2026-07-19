@@ -146,7 +146,7 @@
                           (param n NUMBER "Maximum number of bytes to read"))
       (doc "Read up to n bytes from a file descriptor (libc read via FFI)."
         (returns LIST "Byte values (0-255) in read order; () at EOF or on error")
-        (example "(Sys fd-read fd 4)" "(112 9 240 3)"))
+        (sample "(Sys fd-read fd 4)" "(112 9 240 3)"))
       ; Read into a GC-owned (str make) region -- like `pipe`, no free call:
       ; the collector owns the backing string (bound in the outer let so it
       ; outlives the ptr walk). %ptr-ref returns a signed cell, so mask each
@@ -174,7 +174,7 @@
     (method isatty (self (param fd NUMBER "File descriptor to test"))
       (doc "Test whether a file descriptor refers to a terminal (TTY)."
         (returns BOOL "True if fd refers to a terminal")
-        (example "(Sys isatty 1)" "#t"))
+        (sample "(Sys isatty 1)" "#t"))
       (= 1 (%ptr-call %c-isatty fd)))
     ; clock was previously reached via the catalog auto-class (ns sys); authored
     ; here as the catalog bridge retires (R4). Cold path -> inline prim-ref.

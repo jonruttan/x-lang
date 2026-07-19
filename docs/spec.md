@@ -738,28 +738,31 @@ Returns `#t` if `x` is a character object.
 (char? 42) -> #f
 ```
 
-### `char->integer`
+### `Char ->int`
 
-`(char->integer c) -> integer`
+`(Char ->int c) -> integer` (the bare `char->integer` global was de-registered
+in R5; the class — or `(prim-ref 'char '->int)` for load-time/hot fetches —
+is the surface)
 
 Returns the integer code point of character `c`. Passing a non-character value
 is undefined.
 
 ```
-(char->integer #\a) -> 97
-(char->integer #\A) -> 65
+(Char ->int #\a) -> 97
+(Char ->int #\A) -> 65
 ```
 
-### `integer->char`
+### `Char from-int`
 
-`(integer->char n) -> char`
+`(Char from-int n) -> char` (the bare `integer->char` global was de-registered
+in R5; the class — or `(prim-ref 'int '->char)` — is the surface)
 
 Returns the character with code point `n`.
 
 ```
-(integer->char 97) -> #\a
-(integer->char 65) -> #\A
-(= (integer->char 97) #\a) -> #t
+(Char from-int 97) -> #\a
+(Char from-int 65) -> #\A
+(= (Char from-int 97) #\a) -> #t
 ```
 
 ---
@@ -1037,9 +1040,9 @@ my-var? -> <symbol>
 
 ```
 #\a -> #\a
-(char->integer #\space) -> 32
-(char->integer #\newline) -> 10
-(char->integer #\tab) -> 9
+(Char ->int #\space) -> 32
+(Char ->int #\newline) -> 10
+(Char ->int #\tab) -> 9
 ```
 
 ### Lists

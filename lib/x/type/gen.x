@@ -70,7 +70,11 @@
     (method repeat (self (param x ANY "Value to repeat"))
       (doc "INFINITE: x, x, x, ...  Bound with take."
         (returns GEN "Infinite generator") (example "(((Gen repeat 7) take 3) ->list)" "(7 7 7)"))
-      (Gen make (fn (_ _) (pair x ())) ()))
+      ; x rides the STATE, never a closure capture: the step runs after
+      ; this activation's env frame is restored, so a captured x falls
+      ; through to any global x (doctest census caught exactly that --
+      ; (def x 42) earlier in the batch turned (Gen repeat 7) into 42s).
+      (Gen make (fn (_ st) (pair st st)) x))
 
     (method iterate (self (param f CALLABLE "Successor function") (param x ANY "Seed"))
       (doc "INFINITE: x, (f x), (f (f x)), ...  Bound with take / take-while."

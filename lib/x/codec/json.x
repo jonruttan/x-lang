@@ -305,7 +305,7 @@
     (method parse (self (param s STRING "JSON text"))
       (doc "Parse JSON text into x-lang values; malformed input errors with a byte position."
         (returns ANY "Dict / list / string / number / #t / #f / 'null")
-        (example "(Json parse \"[1, 2.5, null]\")" "the list (1 2.5 null)"))
+        (example "(Json parse \"[1, 2.5, null]\")" "(1 2.5 'null)"))
       (def len (%json-byte-len s))
       (def v (%json-parse-value s 0 len))
       (if (< (%json-skip-ws s (rest v) len) len)

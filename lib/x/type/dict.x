@@ -72,7 +72,7 @@
       (doc "An empty dict. Pass a capacity to pre-size the bucket table."
         (param opt LIST "Optional (capacity) -- initial bucket count, default 8")
         (returns Dict "A new empty dict")
-        (example "(Dict make)" "an empty dict"))
+        (example "((Dict make) empty?)" "#t"))
       (def c (if (pair? opt) (first opt) 8))
       (new-from self (list 'store (Vector make c ()) 'cap c 'n 0)))
 

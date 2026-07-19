@@ -38,7 +38,7 @@
   (param args ANY "Zero or more expressions")
   (returns ANY "First truthy value, or () if all are falsy")
   (example "(or #f 2 3)" "2")
-  (example "(or #f ())" "()")
+  (example "(null? (or #f ()))" "#t")
   "Short-circuit logical OR. Evaluates left to right, returns first truthy value.")
 
 (doc (def time

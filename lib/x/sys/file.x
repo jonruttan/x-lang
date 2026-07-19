@@ -73,20 +73,20 @@
     (note "read/write/getc operate on a caller-allocated string buffer -- allocate one with (str make N), fetched via (prim-ref 'str 'make): read fills it and returns how many bytes landed; write sends `size` bytes out of it.")
     (note "(File open)'s mode is flexible: a number passes straight through; a single symbol (rdonly, wronly, ...) resolves via (File file-modes); a list of symbols is OR'd together -- (list 'wronly 'creat 'trunc) is 577. Call (File file-modes) for the full table, or (File stat-flags) for the stat S_* flags.")
     (note "`syscall-id` is pulled in automatically (imports x/platform/syscall); `syscall` and (str make) are core primitives, so File runs under plain x-core.")
-    (example "(let ((fd (File open \"/etc/hostname\" 'rdonly))) (let ((buf ((prim-ref 'str 'make) 64))) (let ((n (File read fd buf 64))) (File close fd) n)))" "the byte count read into buf, with the fd closed afterward"))
+    (sample "(let ((fd (File open \"/etc/hostname\" 'rdonly))) (let ((buf ((prim-ref 'str 'make) 64))) (let ((n (File read fd buf 64))) (File close fd) n)))" "the byte count read into buf, with the fd closed afterward"))
   (static
     (method file-modes (self)
       (doc "The file open-mode table: an alist mapping each symbolic O_* flag name to its numeric Linux value. Use a key as (File open)'s mode argument; OR numeric values together for combined flags."
         (returns LIST "Alist of (symbol value) for: accmode rdonly wronly rdwr creat excl noctty trunc append nonblock dsync fasync direct largefile directory nofollow noatime cloexec sync path")
-        (example "(File file-modes)" "the full (symbol value) table")
-        (example "(first (assoc-get 'rdwr (File file-modes)))" "2"))
+        (sample "(File file-modes)" "the full (symbol value) table")
+        (sample "(first (assoc-get 'rdwr (File file-modes)))" "2"))
       %file-modes)
 
     (method stat-flags (self)
       (doc "The stat mode-flag table: an alist mapping each symbolic S_* name to its numeric Linux value, for decoding a stat result's st_mode (the ifmt bits select the file type; the rest are permission and set-id/sticky bits)."
         (returns LIST "Alist of (symbol value) for: ifmt ifdir ifchr ifblk ifreg ififo iflnk ifsock isuid isgid isvtx iread iwrite iexec")
-        (example "(File stat-flags)" "the full (symbol value) table")
-        (example "(first (assoc-get 'ifdir (File stat-flags)))" "16384"))
+        (sample "(File stat-flags)" "the full (symbol value) table")
+        (sample "(first (assoc-get 'ifdir (File stat-flags)))" "16384"))
       %stat-flags)
 
     (method open (self (param pathname STRING "File path to open")
@@ -94,9 +94,9 @@
                        . (param perm ANY "Permission bits for a newly created file when the mode includes creat; default 0644. Ignored when the file is not created."))
       (doc "Open a file, returning a file descriptor."
         (returns INT "File descriptor, or negative on error")
-        (example "(File open \"/etc/hostname\" 'rdonly)" "a file descriptor opened read-only")
-        (example "(File open \"out.svg\" (list 'wronly 'creat 'trunc))" "an fd opened for writing, new file mode 0644 (577 = O_WRONLY|O_CREAT|O_TRUNC)")
-        (example "(File open \"x\" 'creat 511)" "create with mode 0777 (511)"))
+        (sample "(File open \"/etc/hostname\" 'rdonly)" "a file descriptor opened read-only")
+        (sample "(File open \"out.svg\" (list 'wronly 'creat 'trunc))" "an fd opened for writing, new file mode 0644 (577 = O_WRONLY|O_CREAT|O_TRUNC)")
+        (sample "(File open \"x\" 'creat 511)" "create with mode 0777 (511)"))
       ; Always pass the 3rd open() arg: the kernel ignores it unless O_CREAT is
       ; set, so it is harmless for non-creating opens and correct for creating
       ; ones. 420 = 0644 (rw-r--r--).
@@ -106,7 +106,7 @@
     (method close (self (param fd INT "File descriptor to close"))
       (doc "Close a file descriptor."
         (returns INT "0 on success, negative on error")
-        (example "(File close fd)" "0"))
+        (sample "(File close fd)" "0"))
       (syscall (syscall-id 'close) fd))
 
     (method read (self (param fd INT "File descriptor to read from")
@@ -114,7 +114,7 @@
                        (param size INT "Maximum bytes to read"))
       (doc "Read bytes from a file descriptor into a buffer."
         (returns INT "Bytes read, 0 at EOF, negative on error")
-        (example "(File read fd buf 64)" "bytes read into buf (0 at EOF)"))
+        (sample "(File read fd buf 64)" "bytes read into buf (0 at EOF)"))
       (syscall (syscall-id 'read) fd buffer size))
 
     (method write (self (param fd INT "File descriptor to write to")
@@ -122,13 +122,13 @@
                         (param size INT "Number of bytes to write"))
       (doc "Write bytes from a buffer to a file descriptor."
         (returns INT "Bytes written, or negative on error")
-        (example "(File write fd \"hello\" 5)" "5"))
+        (sample "(File write fd \"hello\" 5)" "5"))
       (syscall (syscall-id 'write) fd buffer size))
 
     (method getc (self (param fd INT "File descriptor to read from"))
       (doc "Read a single character from a file descriptor."
         (returns CHAR "Character read, or -1 at EOF")
-        (example "(File getc fd)" "the next byte as a char, or -1 at EOF"))
+        (sample "(File getc fd)" "the next byte as a char, or -1 at EOF"))
       (let ((buffer (%make-str 1)))
         (let ((bytes-read (File read fd buffer 1)))
           (if (<= bytes-read 0)

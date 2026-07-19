@@ -27,7 +27,7 @@
 (def-class Random ()
   (doc "A source of random integers with a pluggable entropy backend."
     (note "Make one with (Random sw) / (Random sw seed) for the software PRNG, or (Random hw) for the kernel CSPRNG. The software stream is NOT cryptographically secure.")
-    (example "(let ((r (Random sw 42))) (r int 6))" "an integer in [0, 6)")
+    (example "(let ((r (Random sw 42))) (r int 6))" "0")
     (see sw) (see hw) (see int) (see shuffle))
 
   (kind 'sw)          ; 'sw -> xorshift PRNG,  'hw -> /dev/urandom
@@ -39,7 +39,7 @@
       (doc "A software xorshift PRNG. Deterministic; pass a seed for a reproducible stream."
         (param opt LIST "Optional (seed) -- a nonzero integer seed")
         (returns Random "A software RNG")
-        (example "(Random sw 42)" "a seeded, reproducible PRNG"))
+        (sample "(Random sw 42)" "a seeded, reproducible PRNG"))
       (let ((r (new-from self (list 'kind 'sw))))
         (if (pair? opt) (r seed! (first opt)))
         r))
@@ -47,7 +47,7 @@
     (method hw (self)
       (doc "A hardware RNG reading the kernel CSPRNG from /dev/urandom."
         (returns Random "A hardware RNG")
-        (example "(Random hw)" "a /dev/urandom-backed source"))
+        (sample "(Random hw)" "a /dev/urandom-backed source"))
       (new-from self (list 'kind 'hw))))
 
   ; --- seeding (software only) --------------------------------------------
@@ -96,7 +96,7 @@
     (doc "A random integer in [0, n), uniform via rejection sampling."
       (param n INT "Exclusive upper bound (must be > 0)")
       (returns INT "A value in [0, n)")
-      (example "((Random sw 1) int 6)" "0..5"))
+      (example "((Random sw 1) int 6)" "3"))
     ; (% bits n) alone is BIASED whenever n does not divide 2^31 (low values
     ; come up once more often); redraw above the largest exact multiple of n.
     (let ((limit (- %rand-span (% %rand-span n))))
@@ -120,7 +120,7 @@
   (method bool (self)
     (doc "A random boolean (a fair coin)."
       (returns BOOL "#t or #f")
-      (example "((Random sw 9) bool)" "#t or #f"))
+      (example "((Random sw 9) bool)" "#f"))
     (= 0 (self int 2)))
 
   (method bytes (self n)
@@ -134,14 +134,14 @@
     (doc "A uniformly random element of a non-empty list."
       (param lst LIST "A non-empty list")
       (returns ANY "A random element")
-      (example "((Random sw 5) choice (list 'a 'b 'c))" "one of a/b/c"))
+      (example "((Random sw 5) choice (list 'a 'b 'c))" "'a"))
     (List ref (self int (List length lst)) lst))
 
   (method shuffle (self lst)
     (doc "A new list holding the elements of lst in random order (Fisher-Yates)."
       (param lst LIST "A list")
       (returns LIST "A randomly ordered copy")
-      (example "((Random sw 5) shuffle (list 1 2 3))" "a permutation of (1 2 3)"))
+      (example "((Random sw 5) shuffle (list 1 2 3))" "(3 2 1)"))
     ; Fisher-Yates over a vector copy -- O(n), unblocked by (Vector set!)
     ; (the old selection shuffle was O(n^2) for want of exactly that).
     (def v (Vector from-list lst))

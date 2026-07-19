@@ -80,7 +80,7 @@
     (method char->bytes (self (param el CHAR "Code point to encode"))
       (doc "Encode one CODE POINT to its 1-4 UTF-8 bytes (inverse of step)."
         (returns LIST "List of the UTF-8 byte values (integers) for el")
-        (example "(StrUTF8 char->bytes (integer->char 162))" "(194 162)"))
+        (example "(StrUTF8 char->bytes (Char from-int 162))" "(194 162)"))
       (%utf8-encode (%char->integer el)))
 
     ; --- The byte <-> code-point codec (x/codec/utf8 surfaces here) ---
@@ -95,7 +95,7 @@
     (method encode (self (param cp INT "Code point to encode"))
       (doc "Encode a code point as a list of its 1-4 UTF-8 byte values. Out-of-range emits U+FFFD."
         (returns LIST "UTF-8 byte values (integers)")
-        (example "(Utf8 encode 162)" "(194 162)"))
+        (example "(StrUTF8 encode 162)" "(194 162)"))
       (%utf8-encode cp))
     (method width (self (param s STRING "Byte string") (param i INT "Byte index of a sequence start"))
       (doc "Byte width of the UTF-8 sequence at byte index i. Allocation-free."

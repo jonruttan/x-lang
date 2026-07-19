@@ -31,5 +31,5 @@
   "The value a thunk raised, or %no-raise when it did not raise.")
 
 (doc (provide x/test/assert throws? raised)
-  (example "(throws? (fn (_) (first ())))" "#t or #f, depending on the form under test")
+  (example "(throws? (fn (_) no-such-binding))" "#t")
   "Test-support assertions: error-path coverage for user test code.")

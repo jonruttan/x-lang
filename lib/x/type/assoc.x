@@ -76,7 +76,7 @@
       (map (fn (_ entry) (list (first entry) (rest entry))) alist))
     (method from-plist (self (param plist LIST "Flat (k v k v ...) plist"))
       (doc "Convert a flat plist into an alist of assocs." (returns LIST "Association list")
-        (example "(Assoc from-plist (list (lit a) 1))" "((a . 1))"))
+        (example "(Assoc from-plist (list (lit a) 1))" "(('a . 1))"))
       (match
         ((null? plist) ())
         ((null? (rest plist)) (error "Assoc from-plist: odd-length plist"))

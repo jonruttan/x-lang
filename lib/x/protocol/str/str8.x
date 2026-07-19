@@ -7,6 +7,7 @@
 (def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
 (def %char->integer (prim-ref (lit char) (lit ->int)))
+(def %str->symbol (prim-ref (lit str) (lit ->sym)))
 ; display-to-str renders any value the way display would -- used by (Str8 str ...)
 ; to coerce non-string arguments (and the target string interpolation expands to).
 (def %display-to-str (prim-ref (lit io) (lit display-to-str)))
@@ -278,6 +279,11 @@
         (returns STRING "s with its elements in reverse order")
         (example "(Str8 reverse \"abc\")" "\"cba\""))
       (self ->str (reverse (self ->list s))))
+    (method ->sym (self (param s STRING "String to intern"))
+      (doc "Convert a string to an interned symbol with the same name."
+        (returns SYMBOL "The interned symbol")
+        (example "(Str8 ->sym \"hello\")" "'hello"))
+      (%str->symbol s))
     (method upcase (self (param s STRING "String to convert"))
       (doc "Uppercase the ASCII letters of s; other characters pass through."
         (returns STRING "s with a-z mapped to A-Z")

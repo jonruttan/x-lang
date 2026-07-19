@@ -45,8 +45,8 @@
     (note "Pure X: display/write target the base's fileout fd (an atom in the io `files` group); a Stream just pushes/pops that fd. See ext/x-expr/src/x-base.c.")
     (note "(Stream to-fd fd) wraps an existing fd (not owned). (Stream to-file path) opens path for writing and OWNS it -- (close) closes it. (Stream stdout)/(Stream stderr) are conveniences.")
     (note "File-backed streams (to-file, write, with-output-to-file) need the x-or dialect (File open/close/write -> syscall/make-str).")
-    (example "(Stream with-output-to-file \"grid.svg\" (fn (_) (grid ->svg)))" "saves whatever (grid ->svg) displays into grid.svg")
-    (example "(let ((s (Stream to-file \"out.txt\"))) (s with (fn (_) (display \"hi\"))) (s close))" "writes \"hi\" to out.txt, then closes it"))
+    (sample "(Stream with-output-to-file \"grid.svg\" (fn (_) (grid ->svg)))" "saves whatever (grid ->svg) displays into grid.svg")
+    (sample "(let ((s (Stream to-file \"out.txt\"))) (s with (fn (_) (display \"hi\"))) (s close))" "writes \"hi\" to out.txt, then closes it"))
 
   fd        ; the target file descriptor (set by every constructor)
   owned?    ; #t if this stream opened the fd, so (close) should close it
@@ -56,14 +56,14 @@
     (method to-fd (self (param fd INT "An already-open file descriptor"))
       (doc "Wrap an already-open fd in a stream. Not owned -- (close) is a no-op."
         (returns Stream "A stream writing to FD")
-        (example "(Stream to-fd 2)" "a stream onto stderr"))
+        (sample "(Stream to-fd 2)" "a stream onto stderr"))
       (new-from self (list 'fd fd 'owned? ())))
 
     (method to-file (self (param path STRING "File path to open for writing"))
       (doc "Open PATH for writing (wronly|creat|trunc) and wrap its fd in an OWNED stream -- (close) closes the file. Needs the x-or dialect."
         (returns Stream "An owned stream writing to PATH")
         (note "A newly created file gets mode 0644 (File open's default perm); open via File directly if you need other permission bits.")
-        (example "(Stream to-file \"grid.svg\")" "an owned stream that truncates/creates grid.svg"))
+        (sample "(Stream to-file \"grid.svg\")" "an owned stream that truncates/creates grid.svg"))
       (new-from self
         (list 'fd (File open path (list 'wronly 'creat 'trunc))
               'owned? #t)))
@@ -79,7 +79,7 @@
     (method output-fd (self)
       (doc "The file descriptor display/write currently emit to."
         (returns INT "the current output fd")
-        (example "(Stream output-fd)" "1 (stdout), normally"))
+        (sample "(Stream output-fd)" "1 (stdout), normally"))
       (%output-fd))
 
     ; --- thunk redirect helpers ---
@@ -87,14 +87,14 @@
                                     (param thunk CALLABLE "Zero-arg thunk to run"))
       (doc "Run THUNK with display/write redirected to FD, restoring the previous target afterward (even if THUNK errors)."
         (returns ANY "THUNK's result")
-        (example "(Stream with-output-to-fd 2 (fn (_) (display \"to stderr\")))" "displays to stderr, returns nil"))
+        (sample "(Stream with-output-to-fd 2 (fn (_) (display \"to stderr\")))" "displays to stderr, returns nil"))
       (%with-output-to-fd fd thunk))
 
     (method with-output-to-file (self (param path STRING "File path to write")
                                       (param thunk CALLABLE "Zero-arg thunk to run"))
       (doc "Open PATH for writing, run THUNK with all output going to it, then restore the previous output and close PATH (even if THUNK errors). The one-call way to save streamed output to a file."
         (returns ANY "THUNK's result")
-        (example "(Stream with-output-to-file \"grid.svg\" (fn (_) (grid ->svg)))" "saves (grid ->svg)'s output to grid.svg"))
+        (sample "(Stream with-output-to-file \"grid.svg\" (fn (_) (grid ->svg)))" "saves (grid ->svg)'s output to grid.svg"))
       (let ((s (Stream to-file path)))
         (guard (e (s close) (error e))
           (let ((result (s with thunk)))
@@ -109,7 +109,7 @@
   (method with (self (param thunk CALLABLE "Zero-arg thunk to run"))
     (doc "Run THUNK with the current display/write output redirected to this stream, restoring afterward (even if THUNK errors)."
       (returns ANY "THUNK's result")
-      (example "(s with (fn (_) (display x)))" "displays x to the stream s"))
+      (sample "(s with (fn (_) (display x)))" "displays x to the stream s"))
     (%with-output-to-fd (member 'fd) thunk))
 
   (method write (self (param data STRING "Bytes to write")

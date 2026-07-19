@@ -365,5 +365,5 @@
   (note "Extends arithmetic operators (+, -, *, /, =) with complex promotion.")
   (example "3+4i" "3+4i")
   (example "(+ 1 2i)" "1+2i")
-  (example "(magnitude 3+4i)" "5.0")
+  (example "(Complex magnitude 3+4i)" "5.0")
   "Complex number arithmetic with rectangular and polar forms.")
