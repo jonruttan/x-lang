@@ -126,7 +126,7 @@
 (List ref 5 (list 1 2))
 ```
 ---
-    Error: List ref: index out of range
+    Error: #<err:index List ref: index out of range>
 
 ### negative index counts from the end
 
@@ -142,7 +142,7 @@
 (List ref -3 (list 1 2))
 ```
 ---
-    Error: List ref: index out of range
+    Error: #<err:index List ref: index out of range>
 
 ### a piped index-search miss (nil) is unconvertible and fails loudly
 
@@ -1079,7 +1079,7 @@
 (List chunk 0 (list 1))
 ```
 ---
-    Error: List chunk: size must be positive
+    Error: #<err:value List chunk: size must be positive>
 
 ## unzip
 
@@ -1135,4 +1135,4 @@
 (List min ())
 ```
 ---
-    Error: List min: empty list
+    Error: #<err:value List min: empty list>

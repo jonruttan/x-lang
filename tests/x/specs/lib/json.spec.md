@@ -168,7 +168,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 (do (import x/codec/json) (Json parse "1 2"))
 ```
 ---
-    Error: Json parse: trailing content at byte 1
+    Error: #<err:value Json parse: trailing content at byte 1>
 
 ### unterminated string errors
 
@@ -176,7 +176,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 (do (import x/codec/json) (Json parse "\"abc"))
 ```
 ---
-    Error: Json parse: unterminated string at byte 4
+    Error: #<err:value Json parse: unterminated string at byte 4>
 
 ### bad literal errors
 
@@ -184,7 +184,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 (do (import x/codec/json) (Json parse "nulL"))
 ```
 ---
-    Error: Json parse: unknown literal at byte 0
+    Error: #<err:value Json parse: unknown literal at byte 0>
 
 ## emit
 
@@ -246,7 +246,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
   (Json emit (/ 1 2)))
 ```
 ---
-    Error: Json emit: no JSON form for a rational (convert to a float first)
+    Error: #<err:type Json emit: no JSON form for a rational (convert to a float first)>
 
 ## roundtrips
 

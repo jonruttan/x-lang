@@ -53,11 +53,11 @@
       (def j (%str8->int i "Str ref: index not convertible to INT"))
       (if (< j 0)
         (let ((k (+ j (self count v))))
-          (if (< k 0) (error "Str ref: index out of range") (self ref k v)))
+          (if (< k 0) (Err raise (lit index) "Str ref: index out of range" ()) (self ref k v)))
         (let ((b (%u8-byte-offset v j 0)))
           (if (< b (%str-byte-len v))
             (%integer->char (first (%utf8-decode v b)))
-            (error "Str ref: index out of range")))))
+            (Err raise (lit index) "Str ref: index out of range" ())))))
 
     (method sub (self (param start INT "Start code-point offset (0-based)") (param len INT "Number of code points") (param v STRING "Source string"))
       (doc "Substring of len CODE POINTS starting at code-point offset start (O(n) walk)."

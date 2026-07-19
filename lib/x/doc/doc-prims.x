@@ -75,7 +75,7 @@
 (doc error "Signal an error with a message."
   (param message STRING "Error message")
   (param value ANY "Associated value (optional)")
-  (example "(error \"bad input\" 42)" ""))
+  (example "(guard (e e) (error \"bad input\"))" "\"bad input\""))
 
 (doc wrap "Create an applicative from a combiner (evaluates args before calling)."
   (param combiner CALLABLE "An operative or procedure")

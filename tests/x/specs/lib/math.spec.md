@@ -409,7 +409,7 @@
 (Num isqrt -1)
 ```
 ---
-    Error: Num isqrt: negative input
+    Error: #<err:value Num isqrt: negative input>
 
 ## int?
 

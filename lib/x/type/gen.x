@@ -58,7 +58,7 @@
       (def a (%vec->int start "Gen range-by: start not convertible to INT"))
       (def b (%vec->int stop "Gen range-by: stop not convertible to INT"))
       (def d (%vec->int by "Gen range-by: step not convertible to INT"))
-      (if (= d 0) (error "Gen range-by: step must be non-zero")
+      (if (= d 0) (Err raise (lit value) "Gen range-by: step must be non-zero" ())
         (Gen make (fn (_ i) (if (if (> d 0) (< i b) (> i b)) (pair i (+ i d)) ())) a)))
 
     (method count-from (self (param start INT "First value"))
@@ -224,7 +224,7 @@
 
   (method reduce (self (param f CALLABLE "(acc value) -> acc"))
     (doc "Fold using the first value as the seed; errors on an empty generator (empty? is the presence door)." (returns ANY "Reduced value"))
-    (let ((s (self %next))) (if (null? s) (error "Gen reduce: empty generator") ((Gen make (self step) (rest s)) fold f (first s)))))
+    (let ((s (self %next))) (if (null? s) (Err raise (lit value) "Gen reduce: empty generator" ()) ((Gen make (self step) (rest s)) fold f (first s)))))
 
   (method any? (self (param p CALLABLE "Predicate"))
     (doc "t if p holds for any value; short-circuits." (returns BOOL "t/f"))
@@ -248,18 +248,18 @@
   (method ref (self (param n INT "0-based index"))
     (doc "The n-th value (0-based); errors when n is negative (a lazy stream has no end to count from) or past the last value." (returns ANY "Value at n"))
     (def k (%vec->int n "Gen ref: index not convertible to INT"))
-    (if (< k 0) (error "Gen ref: index out of range")
+    (if (< k 0) (Err raise (lit index) "Gen ref: index out of range" ())
       (let ((step (self step)))
-        (let go ((st (self state)) (n k)) (let ((s (step st))) (if (null? s) (error "Gen ref: index out of range") (if (<= n 0) (first s) (go (rest s) (- n 1)))))))))
+        (let go ((st (self state)) (n k)) (let ((s (step st))) (if (null? s) (Err raise (lit index) "Gen ref: index out of range" ()) (if (<= n 0) (first s) (go (rest s) (- n 1)))))))))
 
   (method first (self)
     (doc "The first value; errors on an empty generator (empty? is the presence door)." (returns ANY "First value"))
-    (let ((s (self %next))) (if (null? s) (error "Gen first: empty generator") (first s))))
+    (let ((s (self %next))) (if (null? s) (Err raise (lit value) "Gen first: empty generator" ()) (first s))))
 
   (method last (self)
     (doc "The last value; errors on an empty generator (drives the whole generator)." (returns ANY "Last value"))
     (let ((s (self %next)))
-      (if (null? s) (error "Gen last: empty generator")
+      (if (null? s) (Err raise (lit value) "Gen last: empty generator" ())
         (let ((step (self step)))
           (let go ((st (rest s)) (lastv (first s))) (let ((s2 (step st))) (if (null? s2) lastv (go (rest s2) (first s2)))))))))
 

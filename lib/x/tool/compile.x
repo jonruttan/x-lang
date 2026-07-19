@@ -128,7 +128,7 @@
       (display (Str append "p_" (%cvt sym %string)))
       (let ((fv-entry (%compile-fvar-lookup sym)))
         (if (null? fv-entry)
-          (error (Str append "compile: free variable: " (%cvt sym %string)))
+          (Err raise 'value (Str append "compile: free variable: " (%cvt sym %string)) ())
           (let ((fv-val (rest fv-entry)))
             (if (null? fv-val)
               (display "NULL")
@@ -507,8 +507,8 @@
       (let ((entry (List assq (first lst) compile-emitters)))
         (if entry
           ((rest entry) (rest lst))
-          (error (Str append "compile: unsupported form: "
-            (%cvt (first lst) %string))))))))
+          (Err raise 'value (Str append "compile: unsupported form: "
+            (%cvt (first lst) %string)) ()))))))
 
 ; --- Generate C via write-to-str ---
 
@@ -663,7 +663,7 @@
                 "-o" lib-path src-path))))
     (def %cc-status (%ptr-call %c-system %cc-cmd))
     (if (not (= %cc-status 0))
-      (error (Str append "compile: cc failed with status " (%cvt %cc-status %string))))))
+      (Err raise 'io (Str append "compile: cc failed with status " (%cvt %cc-status %string)) ()))))
 
 (def %patch-nested-prims
   (fn (self lib fns prim-type-val)
@@ -695,7 +695,7 @@
   (fn (_ expr . rest)
     (set! %compile-fvars (unless (null? rest) (first rest)))
     (if (not (eq? (first expr) 'fn))
-      (error "compile-to-c: expression must be (fn (_ params...) body)"))
+      (Err raise 'type "compile-to-c: expression must be (fn (_ params...) body)" ()))
     (def %fns-holder (list (list)))
     (compile-with-writers
       (fn (_ ) (%generate-c-with-fns expr %fns-holder)))))
@@ -724,9 +724,9 @@
 (def compile-load
   (fn (_ lib-path)
     (def %lib (%dlopen lib-path 1))
-    (if (null? %lib) (error "compile-load: dlopen failed"))
+    (if (null? %lib) (Err raise 'io "compile-load: dlopen failed" ()))
     (def %fn (%dlsym %lib "fn_0"))
-    (if (null? %fn) (error "compile-load: dlsym failed for fn_0"))
+    (if (null? %fn) (Err raise 'io "compile-load: dlsym failed for fn_0" ()))
     (%type-cast! %fn first)
     %fn))
 (doc compile-load "Load a compiled shared library and return fn_0 as a callable primitive."
@@ -777,9 +777,9 @@
         (%ptr-call %c-unlink %src-path)
 
         (def %lib (%dlopen %cache-path 1))
-        (if (null? %lib) (error "compile: dlopen failed"))
+        (if (null? %lib) (Err raise 'io "compile: dlopen failed" ()))
         (def %fn (%dlsym %lib "fn_0"))
-        (if (null? %fn) (error "compile: dlsym failed for fn_0"))
+        (if (null? %fn) (Err raise 'io "compile: dlsym failed for fn_0" ()))
         (%type-cast! %fn first)
         (def %prim-type-val (%ptr-ref-word (%cvt first %ptr) %type-offset))
         (%patch-nested-prims %lib (first (list (list))) %prim-type-val)
@@ -809,9 +809,9 @@
     (%ptr-call %c-unlink %src-path)
 
     (def %lib (%dlopen %cache-path 1))
-    (if (null? %lib) (error "compile: dlopen failed"))
+    (if (null? %lib) (Err raise 'io "compile: dlopen failed" ()))
     (def %fn (%dlsym %lib "fn_0"))
-    (if (null? %fn) (error "compile: dlsym failed for fn_0"))
+    (if (null? %fn) (Err raise 'io "compile: dlsym failed for fn_0" ()))
     (%type-cast! %fn first)
     (def %prim-type-val (%ptr-ref-word (%cvt first %ptr) %type-offset))
     (%patch-nested-prims %lib (first (list (list))) %prim-type-val)
@@ -855,7 +855,7 @@
           (let ((name (Str append "batch_" (%cvt i %string))))
             (def %fn (%dlsym lib name))
             (if (null? %fn)
-              (error (Str append "compile-batch: dlsym failed for " name)))
+              (Err raise 'io (Str append "compile-batch: dlsym failed for " name) ()))
             (%type-cast! %fn first)
             (pair %fn (self lib (+ i 1) n))))))
 
@@ -886,7 +886,7 @@
             (if (null? es) acc
               (let ((expr (first es)))
                 (if (not (eq? (first expr) 'fn))
-                  (error "compile-batch: each expression must be (fn ...)"))
+                  (Err raise 'type "compile-batch: each expression must be (fn ...)" ()))
                 (let ((params (first (rest expr)))
                       (body (first (rest (rest expr))))
                       (name (Str append "batch_" (%cvt i %string))))
@@ -913,7 +913,7 @@
         (%ptr-call %c-unlink %src-path)
 
         (def %lib (%dlopen %cache-path 1))
-        (if (null? %lib) (error "compile-batch: dlopen failed"))
+        (if (null? %lib) (Err raise 'io "compile-batch: dlopen failed" ()))
 
         ; Patch fvar table with current runtime pointers
         (if (not (null? %compile-fvars))

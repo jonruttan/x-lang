@@ -126,7 +126,7 @@
   (fn (_ . rest)
     (def cap (if (null? rest) 4096 (first rest)))
     (def ptr (%asm-mmap cap))
-    (if (null? ptr) (error "asm-new: mmap failed"))
+    (if (null? ptr) (Err raise 'io "asm-new: mmap failed" ()))
     (def a (%make-obj %asm-type 6))
     (%obj-set! a 0 ptr)      ; buf-ptr (from ptr-call, PTR type)
     (%obj-set! a 1 0)        ; buf-pos
@@ -142,12 +142,12 @@
     (def table (List ref 0 arch))
     (def encode (List ref 1 arch))
     (def entry (List assq mnemonic table))
-    (if (null? entry) (error (Str append "asm: unknown mnemonic: " (symbol->str mnemonic))))
+    (if (null? entry) (Err raise 'value (Str append "asm: unknown mnemonic: " (symbol->str mnemonic)) ()))
     ; Match operand signature
     (def sig (if (null? args) '|| (%args-sig args)))
     (def variant (List assq sig (rest entry)))
     (if (null? variant)
-      (error (Str append "asm: no variant " (symbol->str sig) " for " (symbol->str mnemonic))))
+      (Err raise 'value (Str append "asm: no variant " (symbol->str sig) " for " (symbol->str mnemonic)) ()))
     (encode asm (rest variant) args)))
 
 (def asm-label!
@@ -179,7 +179,7 @@
         (def lname  (List ref 3 patch))
         (def target-entry (List assq lname labels))
         (if (null? target-entry)
-          (error (Str append "asm: unresolved label: " (symbol->str lname))))
+          (Err raise 'value (Str append "asm: unresolved label: " (symbol->str lname)) ()))
         (def target (rest target-entry))
         (if (not (null? resolver))
           (resolver buf-ptr offset width ptype target)

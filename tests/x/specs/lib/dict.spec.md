@@ -29,7 +29,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
   ((new-from Dict ()) get 'a))
 ```
 ---
-    Error: Dict: uninitialized instance (use Dict make / from-*)
+    Error: #<err:state Dict: uninitialized instance (use Dict make / from-*)>
 
 ### from-plist is the simplest literal shape
 
@@ -47,7 +47,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
   (Dict from-plist (list 'a 1 'b)))
 ```
 ---
-    Error: Dict from-plist: odd-length plist
+    Error: #<err:value Dict from-plist: odd-length plist>
 
 ### from-bindings takes the let shape
 
@@ -169,7 +169,7 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
   ((Dict make) put! (list 1 2) "v"))
 ```
 ---
-    Error: Dict: unhashable key -- use a symbol, string, integer, or char
+    Error: #<err:type Dict: unhashable key -- use a symbol, string, integer, or char>
 
 ## get-or (presence-based)
 

@@ -111,7 +111,7 @@
     (def b (if (< k 0) len (%cp-byte-offset s len k 0)))
     (if (< b len)
       (%integer->char (%utf8-cp-at s b))
-      (error "str: index out of range"))))
+      (Err raise (lit index) "str: index out of range" ()))))
 
 ; Clamped like StrUTF8 sub: offsets past the end yield the empty/short slice.
 ; A negative count must short-circuit -- the offset walk only stops on k = 0,

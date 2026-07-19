@@ -61,7 +61,7 @@
       ((str=? op ">=") (>= (%as-float left) (%as-float right)))
       ((str=? op "<=") (<= (%as-float left) (%as-float right)))
       ((str=? op "<>") (if (str? left) (not (str=? left right)) (not (= left right))))
-      (#t (error (Str append "Unknown operator: " op))))))
+      (#t (Err raise 'value (Str append "Unknown operator: " op) ())))))
 
 ; ============================================================
 ; Expression parser (returns (value . remaining-tokens))
@@ -93,7 +93,7 @@
         (pair (apply (%cmd-handler fn-entry) args) (rest args-result))
         (let ((cmd (%logo-lookup word)))
           (if (null? cmd)
-            (error (Str append "Unknown function: " word))
+            (Err raise 'value (Str append "Unknown function: " word) ())
             (pair (apply (%cmd-handler cmd) args) (rest args-result))))))))
 
 (set! %logo-resolve-value
@@ -108,11 +108,11 @@
             (let ((cmd (%logo-lookup word)))
               (if (and (not (null? cmd)) (= (%cmd-arity cmd) 0))
                 (pair ((%cmd-handler cmd)) rest-t)
-                (error (Str append "Undefined: " word))))))))))
+                (Err raise 'value (Str append "Undefined: " word) ())))))))))
 
 (set! %logo-parse-primary
   (fn (_ tokens)
-    (if (null? tokens) (error "Expected expression")
+    (if (null? tokens) (Err raise 'value "Expected expression" ())
       (let ((tok (first tokens))
             (rest-t (rest tokens)))
         (match
@@ -123,7 +123,7 @@
           ((%is-paren? tok "(")
             (let ((inner (%logo-parse-expr rest-t)))
               (if (null? (rest inner))
-                (error "Expected )")
+                (Err raise 'value "Expected )" ())
                 (let ((next (first (rest inner))))
                   (match
                     ((%is-paren? next ")")
@@ -132,7 +132,7 @@
                     ; Handles COMMAND (arg1, arg2) syntax
                     ((%is-op-str? next ",")
                       (pair (first inner) (rest (rest inner))))
-                    (#t (error "Expected )")))))))
+                    (#t (Err raise 'value "Expected )" ())))))))
           ((%is-op-str? tok "-")
             (let ((r (%logo-parse-primary rest-t)))
               (pair (if (Float float? (first r))
@@ -142,7 +142,7 @@
           (#t
             (let ((raw-word (%logo-word tok)))
               (if (null? raw-word)
-                (error "Unexpected token in expression")
+                (Err raise 'value "Unexpected token in expression" ())
                 (%logo-resolve-word (Str upcase raw-word) rest-t)))))))))
 
 ; Parse function arguments: expr, expr, ... )
@@ -151,7 +151,7 @@
     (def %collect
       (fn (self toks acc)
         (match
-          ((null? toks) (error "Missing ) in function call"))
+          ((null? toks) (Err raise 'value "Missing ) in function call" ()))
           ((%is-paren? (first toks) ")")
             (pair (reverse acc) (rest toks)))
           (#t

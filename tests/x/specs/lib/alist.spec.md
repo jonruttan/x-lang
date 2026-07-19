@@ -217,7 +217,7 @@
 (Assoc from-plist (list 'a 1 'b))
 ```
 ---
-    Error: Assoc from-plist: odd-length plist
+    Error: #<err:value Assoc from-plist: odd-length plist>
 
 ## ->bindings
 

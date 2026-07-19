@@ -60,9 +60,9 @@
     (def i2 (if (if (null? i) #f (eq? (%vec-type-of i) %vec-int-type)) i
       (%vec->int i (Str8 append what ": index not convertible to INT"))))
     (def j (if (< i2 0) (+ (member 'len) i2) i2))
-    (if (< j 0) (error (Str8 append what ": index out of range"))
+    (if (< j 0) (Err raise 'index (Str8 append what ": index out of range") ())
       (if (< j (member 'len)) j
-        (error (Str8 append what ": index out of range")))))
+        (Err raise 'index (Str8 append what ": index out of range") ()))))
 
   (method push! (self x)
     (doc "Append an element (doubling the backing store when full); returns the array for chaining."
@@ -84,7 +84,7 @@
     (doc "Remove and return the last element; errors when empty."
       (returns ANY "The removed element"))
     (def n (member 'len))
-    (if (= n 0) (error "Array pop!: empty")
+    (if (= n 0) (Err raise 'value "Array pop!: empty" ())
       (let ((x (%arr-obj-ref (member 'store) n)))
         (do (%arr-obj-set! (member 'store) n ())   ; drop the reference
             (set-member! 'len (- n 1))

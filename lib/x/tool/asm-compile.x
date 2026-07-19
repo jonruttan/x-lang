@@ -112,7 +112,7 @@
           (%asm-compile-param asm expr params)
           (if (pair? expr)
             (%asm-compile-call asm expr params)
-            (error (Str append "asm-compile: unsupported: " (%write-to-str expr)))))))))
+            (Err raise 'value (Str append "asm-compile: unsupported: " (%write-to-str expr)) ())))))))
 
 ; Compile parameter access from x-lang args list
 ; p_args = (self arg0 arg1 ...) — walk rest N+1 times, first, eval, atomint
@@ -122,7 +122,7 @@
     (def %find
       (fn (self ps idx)
         (if (null? ps)
-          (error (Str append "asm-compile: unbound: " (symbol->str name)))
+          (Err raise 'value (Str append "asm-compile: unbound: " (symbol->str name)) ())
           (if (eq? name (first ps)) idx (self (rest ps) (+ idx 1))))))
     ; Check fvars first (before params, since fvar symbols may shadow)
     (def fv-entry (%compile-fvar-lookup name))
@@ -358,9 +358,9 @@
 (set! %asm-compile-funcall
   (fn (_ asm fn-name args params)
     (if (null? %asm-self-cell)
-      (error (Str append "asm-compile: unknown function: " (symbol->str fn-name))))
+      (Err raise 'value (Str append "asm-compile: unknown function: " (symbol->str fn-name)) ()))
     (def nargs (length args))
-    (if (> nargs 4) (error "asm-compile: max 4 args for recursive calls"))
+    (if (> nargs 4) (Err raise 'value "asm-compile: max 4 args for recursive calls" ()))
 
     ; Evaluate each arg to raw integer, push to stack
     (for-each
@@ -414,7 +414,7 @@
 (def compile-asm
   (fn (_ expr . %asm-rest)
     (if (not (eq? (first expr) 'fn))
-      (error "compile-asm: expression must be (fn (_ params...) body)"))
+      (Err raise 'type "compile-asm: expression must be (fn (_ params...) body)" ()))
     (set! %compile-fvars (unless (null? %asm-rest) (first %asm-rest)))
     (def fn-params (first (rest expr)))
     (def fn-body (first (rest (rest expr))))

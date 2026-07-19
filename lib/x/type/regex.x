@@ -537,7 +537,7 @@
 (def %rx-nodes
   (fn (_ rx)
     (if (%type? rx %regex) (first rx)
-      (error "Regex: expected a compiled regex -- use #/.../ or (Regex compile pattern)"))))
+      (Err raise 'type "Regex: expected a compiled regex -- use #/.../ or (Regex compile pattern)" ()))))
 
 (def-class Regex ()
   (static

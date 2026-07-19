@@ -35,15 +35,15 @@
     (method start (self (param v ANY "Value being traversed as a sequence"))
       (doc "Contract method: return an opaque cursor positioned at the first element. A subclass must override it."
         (returns ANY "A cursor (opaque -- a byte offset for strings)"))
-      (error "Seq: start is abstract"))
+      (Err raise (lit type) "Seq: start is abstract" ()))
     (method done? (self (param cur ANY "Current cursor") (param v ANY "Value being traversed"))
       (doc "Contract method: #t once the cursor has advanced past the last element. A subclass must override it."
         (returns BOOL "#t when traversal is complete"))
-      (error "Seq: done? is abstract"))
+      (Err raise (lit type) "Seq: done? is abstract" ()))
     (method step (self (param cur ANY "Current cursor") (param v ANY "Value being traversed"))
       (doc "Contract method: return (element . next-cursor) at the cursor. A subclass must override it."
         (returns PAIR "A (element . next-cursor) pair"))
-      (error "Seq: step is abstract"))
+      (Err raise (lit type) "Seq: step is abstract" ()))
 
     ; --- derived once, polymorphic through (self ...) ---
     ; count = the ACTION (walk a cursor and tally); length = the PROPERTY
@@ -95,7 +95,7 @@
     (method char->bytes (self (param el ANY "One element to encode"))
       (doc "Contract method: return the list of byte values (0-255) for one element. A subclass that serializes must override it."
         (returns LIST "Byte values for el"))
-      (error "Seq: char->bytes is abstract"))
+      (Err raise (lit type) "Seq: char->bytes is abstract" ()))
 
     ; Derived: encode a list of elements to a string, via char->bytes +
     ; the byte-packer. Dual of ->list, so (->str (->list v)) round-trips.

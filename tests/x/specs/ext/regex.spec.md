@@ -1059,4 +1059,4 @@
 (Regex split "a,b" (Regex parse ","))
 ```
 ---
-    Error: Regex: expected a compiled regex -- use #/.../ or (Regex compile pattern)
+    Error: #<err:type Regex: expected a compiled regex -- use #/.../ or (Regex compile pattern)>

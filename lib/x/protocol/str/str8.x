@@ -69,10 +69,10 @@
       ; the negative case pays the second byte-len fetch.
       (def j (%str8->int i "Str8 ref: index not convertible to INT"))
       (if (< j 0)
-        (if (< (+ j (%str-byte-len v)) 0) (error "Str8 ref: index out of range")
+        (if (< (+ j (%str-byte-len v)) 0) (Err raise (lit index) "Str8 ref: index out of range" ())
           (%str-byte-ref v (+ j (%str-byte-len v))))
         (if (< j (%str-byte-len v)) (%str-byte-ref v j)
-          (error "Str8 ref: index out of range"))))
+          (Err raise (lit index) "Str8 ref: index out of range" ()))))
     (method sub    (self (param st INT "Start byte offset (0-based)") (param len INT "Number of bytes") (param v STRING "Source string"))
       (doc "Substring of len bytes starting at byte offset st; st and len clamp to v's bounds (like StrUTF8 sub)."
         (returns STRING "The len-byte slice of v from st")

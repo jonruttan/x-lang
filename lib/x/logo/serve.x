@@ -74,7 +74,7 @@
 (def %make-server-socket
   (fn (_ port)
     (def fd (%ptr-call %c-socket %AF_INET %SOCK_STREAM 0))
-    (if (< fd 0) (error "socket() failed"))
+    (if (< fd 0) (Err raise 'io "socket() failed" ()))
     ; Set SO_REUSEADDR
     (def optval (%int->ptr (%ptr-call %c-malloc 4)))
     (ptr-set1! optval 0 1) (ptr-set1! optval 1 0)
@@ -85,9 +85,9 @@
     (def addr (%make-sockaddr-in port))
     (def result (%ptr-call %c-bind fd addr 16))
     (%ptr-call %c-free addr)
-    (if (< result 0) (error "bind() failed"))
+    (if (< result 0) (Err raise 'io "bind() failed" ()))
     ; Listen
-    (if (< (%ptr-call %c-listen fd 5) 0) (error "listen() failed"))
+    (if (< (%ptr-call %c-listen fd 5) 0) (Err raise 'io "listen() failed" ()))
     fd))
 
 ; Read up to n bytes from fd into a new string.
@@ -225,7 +225,7 @@
     ; Read the HTML template
     (def html-template (%slurp "lib/x/logo/viewer.html"))
     (if (str=? html-template "")
-      (error "Could not read turtle.html"))
+      (Err raise 'io "Could not read turtle.html" ()))
     ; Inject the endpoint script before </body>
     (def html-page
       (Str append "<script>window.TURTLE_ENDPOINT='/bc';</script>\n"

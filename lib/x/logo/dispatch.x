@@ -29,7 +29,7 @@
 (def %logo-slurp-file
   (fn (_ path)
     (def fd (Sys open-read path))
-    (if (< fd 0) (error (Str append "Cannot open: " path)))
+    (if (< fd 0) (Err raise 'io (Str append "Cannot open: " path) ()))
     (def bufsize 65536)
     (def buf (%int->ptr (%ptr-call %c-malloc bufsize)))
     (def %read-all
@@ -282,7 +282,7 @@
           (def tokens (%token-read-string %logo-base (Str append content " ")))
           (logo-process-tokens (%logo-indent-to-blocks tokens))
           (logo-process-tokens (rest r))))
-      (#t (error (Str append "Unknown special: " uword))))))
+      (#t (Err raise 'value (Str append "Unknown special: " uword) ())))))
 
 ; ============================================================
 ; REPEAT
@@ -290,7 +290,7 @@
 
 (set! %logo-do-repeat
   (fn (_ tokens)
-    (if (null? tokens) (error "REPEAT: expected arguments")
+    (if (null? tokens) (Err raise 'value "REPEAT: expected arguments" ())
       (if (%logo-word=? (first tokens) "FOREVER")
         ; REPEAT FOREVER [block]
         (let ((r (%logo-consume-arg (rest tokens))))
@@ -310,7 +310,7 @@
             (let ((block (first r1))
                   (after-block (rest r1)))
               (if (not (%logo-word=? (first after-block) "UNTIL"))
-                (error "REPEAT: expected UNTIL after block")
+                (Err raise 'value "REPEAT: expected UNTIL after block" ())
                 (let ((cond-tokens (rest after-block)))
                   (def %loop
                     (fn (self)
@@ -398,9 +398,9 @@
 ; Returns remaining tokens after both clauses.
 (def %parse-then-else
   (fn (_ test-val after-cond)
-    (if (null? after-cond) (error "IF: expected THEN"))
+    (if (null? after-cond) (Err raise 'value "IF: expected THEN" ()))
     (if (not (%logo-word=? (first after-cond) "THEN"))
-      (error "IF: expected THEN"))
+      (Err raise 'value "IF: expected THEN" ()))
     (def after-then (rest after-cond))
     (def then-cmd (%consume-one-command after-then))
     (def then-tokens (first then-cmd))
@@ -421,7 +421,7 @@
 
 (set! %logo-do-if
   (fn (_ tokens)
-    (if (null? tokens) (error "IF: expected condition")
+    (if (null? tokens) (Err raise 'value "IF: expected condition" ())
       (let ((cond-result (%parse-if-condition tokens)))
         (def test-val (first cond-result))
         (def after-cond (rest cond-result))
@@ -434,13 +434,13 @@
 
 (set! logo-process-to
   (fn (_ tokens)
-    (if (null? tokens) (error "TO: expected name")
+    (if (null? tokens) (Err raise 'value "TO: expected name" ())
       (let ((name-tok (first tokens))
             (rest-toks (rest tokens)))
         (def name (Str upcase (%logo-word name-tok)))
         (def %read-params
           (fn (self params toks)
-            (if (null? toks) (error "TO: expected [ body ]")
+            (if (null? toks) (Err raise 'value "TO: expected [ body ]" ())
               (let ((tok (first toks)))
                 (match
                   ((%is-block? tok) (list params tok (rest toks)))

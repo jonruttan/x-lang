@@ -79,7 +79,7 @@
         (example "(Assoc from-plist (list (lit a) 1))" "(('a . 1))"))
       (match
         ((null? plist) ())
-        ((null? (rest plist)) (error "Assoc from-plist: odd-length plist"))
+        ((null? (rest plist)) (Err raise (lit value) "Assoc from-plist: odd-length plist" ()))
         (#t (pair (pair (first plist) (first (rest plist)))
               (recur self (rest (rest plist)))))))
     (method ->plist (self (param alist LIST "Association list"))

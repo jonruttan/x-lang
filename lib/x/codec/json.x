@@ -53,8 +53,8 @@
 
 (def %json-err
   (fn (_ what i)
-    (error (%json-append "Json parse: " (%json-append what
-      (%json-append " at byte " (number->str i)))))))
+    (Err raise 'value (%json-append "Json parse: " (%json-append what
+      (%json-append " at byte " (number->str i)))) ())))
 
 ; Expect the literal word w (true/false/null) at i; value already known.
 (def %json-word
@@ -265,7 +265,7 @@
           (let ((ks (match
                       ((str? k) k)
                       ((symbol? k) (symbol->str k))
-                      (#t (error "Json emit: object keys must be strings or symbols")))))
+                      (#t (Err raise 'type "Json emit: object keys must be strings or symbols" ())))))
             (go (rest es)
                 (%json-append acc
                   (%json-append sep
@@ -291,9 +291,9 @@
             (match
               ((str=? tn "FLOAT") (%json-display v))
               ((str=? tn "BIGNUM") (%json-display v))
-              ((str=? tn "RATIONAL") (error "Json emit: no JSON form for a rational (convert to a float first)"))
-              ((str=? tn "COMPLEX") (error "Json emit: no JSON form for a complex number"))
-              (#t (error "Json emit: unsupported value type"))))))))
+              ((str=? tn "RATIONAL") (Err raise 'type "Json emit: no JSON form for a rational (convert to a float first)" ()))
+              ((str=? tn "COMPLEX") (Err raise 'type "Json emit: no JSON form for a complex number" ()))
+              (#t (Err raise 'type "Json emit: unsupported value type" ()))))))))
 
 (def-class Json ()
   (doc "JSON text codec: parse to Dict/list/string/number/#t/#f/null values, emit with proper escaping."

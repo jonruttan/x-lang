@@ -31,7 +31,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 (Str8 ref 10 "ab")
 ```
 ---
-    Error: Str8 ref: index out of range
+    Error: #<err:index Str8 ref: index out of range>
 
 ### Str8 ref takes a negative index from the end
 
@@ -47,7 +47,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 (Str8 ref -3 "ab")
 ```
 ---
-    Error: Str8 ref: index out of range
+    Error: #<err:index Str8 ref: index out of range>
 
 ### StrUTF8 ref takes a negative index from the end (code points)
 
@@ -71,7 +71,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 (StrUTF8 ref 3 "$¢€")
 ```
 ---
-    Error: Str ref: index out of range
+    Error: #<err:index Str ref: index out of range>
 
 ### pad-right is pad-left's twin (elements, not columns)
 
@@ -401,7 +401,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ("hi" 5)
 ```
 ---
-    Error: str: index out of range
+    Error: #<err:index str: index out of range>
 
 ### the bare (s a n) slice clamps at the end
 

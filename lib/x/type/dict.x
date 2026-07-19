@@ -33,7 +33,7 @@
       ((str? k) (& (Hash fnv-1a k) %dict-mask31))
       ((number? k) (& k %dict-mask31))
       ((char? k) (%dict-char->int k))
-      (#t (error "Dict: unhashable key -- use a symbol, string, integer, or char")))))
+      (#t (Err raise 'type "Dict: unhashable key -- use a symbol, string, integer, or char" ())))))
 
 ; Find the (key . val) entry pair in a bucket, or (). Returning the ENTRY
 ; (a box), not the value, keeps presence distinguishable from a stored nil.
@@ -94,7 +94,7 @@
       (let go ((ps plist))
         (match
           ((null? ps) d)
-          ((null? (rest ps)) (error "Dict from-plist: odd-length plist"))
+          ((null? (rest ps)) (Err raise 'value "Dict from-plist: odd-length plist" ()))
           (#t (do (d put! (first ps) (first (rest ps))) (go (rest (rest ps))))))))
 
     (method from-bindings (self (param bindings LIST "Bindings list: ((key value) ...), the let shape"))
@@ -119,7 +119,7 @@
     ; Uninitialized guard: an instance built outside make (raw new-from)
     ; has nil members; fail loudly here instead of feeding nil to the raw
     ; slot layer (segfault class).
-    (when (null? (member 'cap)) (error "Dict: uninitialized instance (use Dict make / from-*)"))
+    (when (null? (member 'cap)) (Err raise 'state "Dict: uninitialized instance (use Dict make / from-*)" ()))
     (+ 1 (% (%dict-hash k) (member 'cap))))
 
   ; Double the table and rehash. Entry pairs are reused (rehash moves them

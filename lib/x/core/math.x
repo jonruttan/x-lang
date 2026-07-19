@@ -64,7 +64,7 @@
     (method isqrt (self (param n INT "Non-negative integer"))
       (doc "Integer square root: the largest k with k*k <= n (Newton's method); errors on a negative input." (returns INT "floor(sqrt(n))")
         (example "(Num isqrt 99)" "9"))
-      (if (< n 0) (error "Num isqrt: negative input")
+      (if (< n 0) (Err raise (lit value) "Num isqrt: negative input" ())
         (if (< n 2) n
           (let go ((x n))
             (let ((y (%int/ (%int+ x (%int/ n x)) 2)))

@@ -64,7 +64,7 @@
 (do (import x/type/array) ((Array from-list (list 1)) ref 5))
 ```
 ---
-    Error: Array ref: index out of range
+    Error: #<err:index Array ref: index out of range>
 
 ## pop!
 
@@ -84,7 +84,7 @@
 (do (import x/type/array) ((Array make) pop!))
 ```
 ---
-    Error: Array pop!: empty
+    Error: #<err:value Array pop!: empty>
 
 ## new is make
 
