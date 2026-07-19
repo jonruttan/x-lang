@@ -44,13 +44,11 @@
 
 (def %sk-set1! (fn (_ p off v) (%sk-ptr-set! p off v 1)))
 
-; Sign-fold an FFI int return: on Linux, ptr-call hands libc's -1 back
-; ZERO-EXTENDED (4294967295), so (< r 0) reads failure as success --
-; CI caught tcp-connect "succeeding" against a closed port and the
-; native-arch podman probe pinned the raw value. Darwin sign-extends.
-; Fold the u32 range's top half back to negative before any sign test.
-(def %sk-fold
-  (fn (_ r) (if (> r 2147483647) (- r 4294967296) r)))
+; Sign-fold an FFI int return -- the canonical fold (and the full story:
+; Linux ptr-call zero-extends libc's -1; Darwin sign-extends) is
+; %sys-fold in x/sys/posix, imported above. Alias kept for the call
+; sites below.
+(def %sk-fold %sys-fold)
 
 ; Parse a dotted quad into its four octets; kind-'value Err on anything
 ; else (no DNS here by design).

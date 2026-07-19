@@ -81,7 +81,8 @@
       (let ((%read-all
              (fn (self acc)
                (def buf (%int->ptr (%ptr-call %c-malloc %slurp-chunk)))
-               (def n (%ptr-call %c-read fd buf (- %slurp-chunk 1)))
+               ; %sys-fold (x/sys/posix): Linux zero-extends read's -1
+               (def n (%sys-fold (%ptr-call %c-read fd buf (- %slurp-chunk 1))))
                (if (<= n 0)
                  (do (%ptr-call %c-free buf) acc)
                  (do

@@ -661,7 +661,8 @@
           (list "-O2" "-DX_HEAP" "-DX_TYPE" "-Wno-unused-value"
                 "-Iext/x-expr/include" "-I./include"
                 "-o" lib-path src-path))))
-    (def %cc-status (%ptr-call %c-system %cc-cmd))
+    ; %sys-fold (x/sys/posix): keeps a failed status readable, not u32-huge
+    (def %cc-status (%sys-fold (%ptr-call %c-system %cc-cmd)))
     (if (not (= %cc-status 0))
       (Err raise 'io (Str append "compile: cc failed with status " (%cvt %cc-status %string)) ()))))
 

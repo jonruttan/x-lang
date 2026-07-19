@@ -34,7 +34,8 @@
     (def buf (%int->ptr (%ptr-call %c-malloc bufsize)))
     (def %read-all
       (fn (self acc)
-        (def n (%ptr-call %c-read fd buf (- bufsize 1)))
+        ; %sys-fold (x/sys/posix): Linux zero-extends read's -1
+        (def n (%sys-fold (%ptr-call %c-read fd buf (- bufsize 1))))
         (if (<= n 0) acc
           (do (%ptr-set! buf n 0 1)
               (self (Str append acc (%ptr->str buf)))))))
