@@ -32,6 +32,12 @@ make clean && make
 
 - **Module structure** — Dependencies via `(import ...)`, exports via `(provide ...)` at file bottom
 - **Documentation** — Wrap definitions in `(doc ...)` forms with `(param ...)`, `(returns ...)`, description string
+- **`example` executes; `sample` illustrates** (#16) — `(example "in" "out")`
+  is an executable contract: `out` must be the true echo, and `make doctest`
+  runs every example as a regression test (gate + CI). Side-effectful,
+  environment-dependent, or prose-described demonstrations are
+  `(sample "in" "prose")` — rendered by help exactly like an example, never
+  executed
 - **No `cond`/`convert` in tokenizer callbacks** — Use nested `if` and direct C primitives to avoid GC corruption
 - **Quote spelling** — `'x` in all post-boot code (#45 R2). `(lit x)` is the
   boot-layer mechanism spelling, used only in files that parse before the

@@ -31,6 +31,10 @@ jobs:
         run: make test-x
         env:
           PARALLEL: "1"
+      # Doctest ratchet (#16): every (example ...) in the doc registry is an
+      # executable contract; a stale example is a red build, not quiet rot.
+      - name: Doctests
+        run: make doctest
 
   # Memory-safety gate: both suites under AddressSanitizer. HARD gate since
   # the baseline reached zero (2026-07-13; was 112 findings): a red run here
