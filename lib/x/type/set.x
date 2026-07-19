@@ -23,13 +23,6 @@
       (doc "An empty set." (returns Set "A new empty set"))
       (new-from self (list 'd (Dict make))))
 
-    ; Constructor adjudication: make constructs, new is the member-init
-    ; record door and cannot build a set's internal state -- refuse loudly.
-    (method new (self . opt)
-      (doc "REFUSED: new's member-init cannot build the table. Use (Set make) or (Set from-list) / (Set of)."
-        (returns ANY "Does not return -- raises a kind-'state Err"))
-      (Err raise 'state "Set: use (Set make) / from-list / of -- new's member-init cannot build the table" ()))
-
     (method from-list (self (param lst LIST "Elements to add (duplicates collapse)"))
       (doc "Build a set from a list's elements."
         (returns Set "A set of the list's distinct elements")
@@ -44,37 +37,44 @@
         (example "((Set of 1 2 2 3) length)" "3"))
       (self from-list args)))
 
+  ; Uninitialized guard: an instance built outside make (generic new,
+  ; raw new-from) has a nil dict member; every op funnels through %d so
+  ; first USE raises the teaching error instead of calling nil.
+  (method %d (self)
+    (when (null? (member 'd)) (Err raise 'state "Set: uninitialized instance (use Set make / from-list / of)" ()))
+    (member 'd))
+
   (method add! (self x)
     (doc "Add an element (a no-op when already present); returns the set for chaining."
       (param x ANY "Element (symbol, string, integer, or char)")
       (returns Set "self"))
-    ((member 'd) put! x #t)
+    ((self %d) put! x #t)
     self)
 
   (method has? (self x)
     (doc "Test membership."
       (param x ANY "Element to test")
       (returns BOOL "#t when x is a member"))
-    ((member 'd) has? x))
+    ((self %d) has? x))
 
   (method del! (self x)
     (doc "Remove an element (a no-op when absent); returns the set for chaining."
       (param x ANY "Element to remove")
       (returns Set "self"))
-    ((member 'd) del! x)
+    ((self %d) del! x)
     self)
 
   (method length (self)
     (doc "The number of members (a stored property, O(1))." (returns INT "Member count"))
-    ((member 'd) length))
+    ((self %d) length))
 
   (method empty? (self)
     (doc "Test whether the set has no members." (returns BOOL "#t when empty"))
-    ((member 'd) empty?))
+    ((self %d) empty?))
 
   (method ->list (self)
     (doc "The members as a list (unordered)." (returns LIST "List of members"))
-    ((member 'd) keys)))
+    ((self %d) keys)))
 
 (doc (provide x/type/set Set)
   (note "Membership = key presence in the backing Dict; same key-type rules and content comparison.")

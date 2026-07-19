@@ -79,13 +79,10 @@
     ; Constructor adjudication (one meaning per name): `make` is THE public
     ; constructor (positional, sizing args); `new` is the class system's
     ; member-init record door, which cannot build a container's internal
-    ; state (nil store fed to the raw slot layer = the old segfault). A
-    ; static method wins the class dispatch, so this shadows the generic
-    ; with a loud pointer at the right doors instead of a quiet synonym.
-    (method new (self . opt)
-      (doc "REFUSED: new's member-init cannot build the table. Use (Dict make) or a from-* constructor."
-        (returns ANY "Does not return -- raises a kind-'state Err"))
-      (Err raise 'state "Dict: use (Dict make) / from-* -- new's member-init cannot build the table" ()))
+    ; state.  No refusal method here -- documenting a door only to slam it
+    ; is worse than the disease.  The generic new builds an inert instance
+    ; and the %slot uninitialized guard below raises the teaching 'state
+    ; Err at first USE, which is where the harm would happen.
 
     (method from-plist (self (param plist LIST "Flat (k v k v ...) plist"))
       (doc "Build a dict from a flat plist -- the simplest literal shape."

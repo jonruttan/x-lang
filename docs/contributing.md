@@ -53,9 +53,11 @@ make clean && make
   different operations, one name each. `make` is THE public constructor
   (positional/sizing args: `(Dict make 64)`, `(Vector make n fill)`);
   `new` is the class system's member-init record door (`(new Point x 1 y 2)`).
-  Never alias one to the other: a stateful container whose internals `new`
-  cannot build shadows it with a kind-`'state` refusal pointing at `make` /
-  `from-*`. Input-shape constructors are `from-x` (one name per shape:
+  Never alias one to the other, and never ship a method documented "don't
+  call me": a stateful container whose internals `new` cannot build guards
+  at the point of harm — first USE of the uninitialized instance raises a
+  kind-`'state` Err naming `make` / `from-*` (Dict's `%slot`, Set's `%d`,
+  Array's `%live`). Input-shape constructors are `from-x` (one name per shape:
   `from-alist` / `from-plist` / `from-bindings` / `from-list`), variadic
   literals are `of`.
 - **Element access is `ref`** on every class (`List ref`, `Vector ref`, `Str8 ref`,

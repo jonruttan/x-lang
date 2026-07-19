@@ -95,14 +95,14 @@
 ---
     (1 2 3)
 
-## new refuses (constructor adjudication)
+## uninitialized instances fail loudly (constructor adjudication)
 
-### new raises kind-'state; make is the constructor
+### a generic-new instance raises kind-'state at first use; make constructs
 
 ```scheme
 (do (import x/type/set)
   (guard (e (list (Err kind-of e) (((Set make) add! 3) has? 3)))
-    (Set new)))
+    ((Set new) add! 3)))
 ```
 ---
     ('state #t)

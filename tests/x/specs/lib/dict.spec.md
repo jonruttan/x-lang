@@ -13,16 +13,18 @@ chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 ---
     #t
 
-### new refuses loudly (constructor adjudication: make constructs, new is member-init)
+### an instance from generic new fails loudly at first USE (constructor adjudication)
 
 The generic allocator once built a dict that SEGFAULTED on put!; a quiet
-new->make alias then blurred two different operations into synonyms.
-new now refuses with a kind-'state Err pointing at the right doors.
+new->make alias then hid two different operations behind one name. Now
+generic new builds an inert instance and the %slot guard raises the
+teaching kind-'state Err the moment it is used -- no fake refusal method
+in the help listing, the guard sits at the point of harm.
 
 ```scheme
 (do (import x/type/dict)
   (guard (e (list (Err kind-of e) ((Dict make) empty?)))
-    (Dict new)))
+    ((Dict new) put! 'a 1)))
 ```
 ---
     ('state #t)

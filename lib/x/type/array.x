@@ -33,13 +33,6 @@
       (def c (if (pair? opt) (first opt) 8))
       (new-from self (list 'store (Vector make c ()) 'len 0)))
 
-    ; Constructor adjudication: make constructs, new is the member-init
-    ; record door and cannot build an array's internal state -- refuse loudly.
-    (method new (self . opt)
-      (doc "REFUSED: new's member-init cannot build the store. Use (Array make) or (Array from-list) / (Array of)."
-        (returns ANY "Does not return -- raises a kind-'state Err"))
-      (Err raise 'state "Array: use (Array make) / from-list / of -- new's member-init cannot build the store" ()))
-
     (method from-list (self (param lst LIST "Elements, in order"))
       (doc "Build an array from a list's elements."
         (returns Array "An array holding the list's elements")
@@ -54,10 +47,18 @@
         (example "((Array of 1 2 3) ->list)" "(1 2 3)"))
       (self from-list args)))
 
+  ; Uninitialized guard: an instance built outside make (generic new, raw
+  ; new-from) has nil members; %live raises the teaching 'state Err at
+  ; first USE, before nil reaches the raw vector layer (segfault class).
+  (method %live (self)
+    (when (null? (member 'store))
+      (Err raise 'state "Array: uninitialized instance (use Array make / from-list / of)" ())))
+
   ; Normalize an index (negative counts from the end) and bounds-check it.
   ; N5: coerces to INT via vector.x's %vec->int (loads before us); the probe
   ; is inlined so the dynamic message is only built on the slow path.
   (method %index (self i what)
+    (self %live)
     (def i2 (if (if (null? i) #f (eq? (%vec-type-of i) %vec-int-type)) i
       (%vec->int i (Str8 append what ": index not convertible to INT"))))
     (def j (if (< i2 0) (+ (member 'len) i2) i2))
@@ -69,6 +70,7 @@
     (doc "Append an element (doubling the backing store when full); returns the array for chaining."
       (param x ANY "Element to append")
       (returns Array "self"))
+    (self %live)
     (def n (member 'len))
     (when (= n (%arr-obj-ref (member 'store) 0))
       (let ((bigger (Vector make (* 2 (%arr-obj-ref (member 'store) 0)) ())))
@@ -84,6 +86,7 @@
   (method pop! (self)
     (doc "Remove and return the last element; errors when empty."
       (returns ANY "The removed element"))
+    (self %live)
     (def n (member 'len))
     (if (= n 0) (Err raise 'value "Array pop!: empty" ())
       (let ((x (%arr-obj-ref (member 'store) n)))
@@ -107,14 +110,17 @@
 
   (method length (self)
     (doc "The live element count." (returns INT "Element count"))
+    (self %live)
     (member 'len))
 
   (method empty? (self)
     (doc "Test whether the array holds no elements." (returns BOOL "#t when empty"))
+    (self %live)
     (= 0 (member 'len)))
 
   (method ->list (self)
     (doc "The elements as a list, in order." (returns LIST "List of elements"))
+    (self %live)
     (let go ((i (member 'len)) (acc ()))
       (if (= i 0) acc
         (go (- i 1) (pair (%arr-obj-ref (member 'store) i) acc))))))

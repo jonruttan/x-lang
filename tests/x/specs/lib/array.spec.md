@@ -86,14 +86,14 @@
 ---
     Error: #<err:value Array pop!: empty>
 
-## new refuses (constructor adjudication)
+## uninitialized instances fail loudly (constructor adjudication)
 
-### new raises kind-'state; make is the constructor
+### a generic-new instance raises kind-'state at first use; make constructs
 
 ```scheme
 (do (import x/type/array)
   (guard (e (list (Err kind-of e) (((Array make) push! 7) ->list)))
-    (Array new)))
+    ((Array new) push! 7)))
 ```
 ---
     ('state (7))
