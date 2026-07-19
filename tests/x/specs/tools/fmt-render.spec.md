@@ -31,7 +31,7 @@ real tool feeds tokenizer output and is covered separately by `tools/fmt.spec.md
 (do (import x/tool/fmt) (Fmt expr (lit (+ 1 2)) 0))
 ```
 ---
-    ('+ 1 2)
+    (+ 1 2)
 
 ### a wide form breaks across lines with 2-space indentation
 
@@ -40,7 +40,7 @@ real tool feeds tokenizer output and is covered separately by `tools/fmt.spec.md
 ```
 ---
 ```output
-('define
-  ('factorial 'n)
-  ('if ('= 'n 0) 1 ('* 'n ('factorial ('- 'n 1)))))
+(define
+  (factorial n)
+  (if (= n 0) 1 (* n (factorial (- n 1)))))
 ```

@@ -53,25 +53,25 @@ when many token-reads run alongside these in a single batch.
 (Fmt expr (lit (+ 1 2)) 0)
 ```
 ---
-    ('+ 1 2)
+    (+ 1 2)
 
 ### body prints forms one per line
 ```scheme
 (Fmt body (list 'a 'b) 0)
 ```
 ---
-    'b
+    b
 
 ### list indents a wide form (default layout)
 ```scheme
 (Fmt list (lit (alpha beta gamma delta epsilon zeta eta theta iota kappa)) 0 (Fmt build-table ()))
 ```
 ---
-      'kappa)
+      kappa)
 
 ### tokens formats top-level tokens through the pipeline
 ```scheme
 (Fmt tokens (Tok read-str (Base make) "(+ 1 2)") (Fmt build-table ()))
 ```
 ---
-    ('+ 1 2)
+    (+ 1 2)

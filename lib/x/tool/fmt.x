@@ -60,6 +60,48 @@
   (if (%fmt-comment? form) 80
     (%fmt-cp-len (%write-to-str form)))))
 
+; --- Source renderer (#39) ---
+;
+; A formatter emits SOURCE, not the REPL echo: `write` (post-R1) renders
+; symbols re-readably as 'x, which would corrupt formatted code
+; ((doc ...) must not become ('doc ...)). Symbols display bare; the
+; quote family folds to its reader sugar; strings/chars keep write's
+; escaping.
+
+(def %src-sugar
+  (fn (_ form)
+    (if (pair? form)
+      (if (pair? (rest form))
+        (if (null? (rest (rest form)))
+          (match
+            ((eq? (first form) 'lit) "'")
+            ((eq? (first form) 'quasi) "`")
+            ((eq? (first form) 'unquote) ",")
+            ((eq? (first form) 'unquote-splicing) ",@")
+            (#t ()))
+          ())
+        ())
+      ())))
+
+(def %fmt-write-src
+  (fn (self form)
+    (match
+      ((null? form) (display "()"))
+      ((pair? form)
+        (let ((sugar (%src-sugar form)))
+          (if (null? sugar)
+            (do (display "(")
+                (let go ((f form))
+                  (%fmt-write-src (first f))
+                  (unless (null? (rest f))
+                    (if (pair? (rest f))
+                      (do (display " ") (go (rest f)))
+                      (do (display " . ") (%fmt-write-src (rest f))))))
+                (display ")"))
+            (do (display sugar) (%fmt-write-src (first (rest form)))))))
+      ((symbol? form) (display form))
+      (#t (write form)))))
+
 ; --- Pretty printer ---
 
 (def %spaces (fn (_ n) (display (Str repeat n " "))))
@@ -80,22 +122,22 @@
 
 ; Layout strategies
 (def %fmt-head-1 (fn (_ head rest-forms col)
-  (if (null? rest-forms) (write (pair head rest-forms))
+  (if (null? rest-forms) (%fmt-write-src (pair head rest-forms))
     (let ((head-width (+ 2 (%fmt-cp-len (%cvt head %string)))))
-        (display "(") (write head) (display " ")
+        (display "(") (%fmt-write-src head) (display " ")
         (%fmt-expr (first rest-forms) (+ col head-width))
         (%fmt-body (rest rest-forms) (+ col 2))
         (display ")")))))
 
 (def %fmt-head-kw (fn (_ head rest-forms col)
   (let ((head-width (+ 2 (%fmt-cp-len (%cvt head %string)))))
-      (display "(") (write head) (display " ")
+      (display "(") (%fmt-write-src head) (display " ")
       (%fmt-expr (first rest-forms) (+ col head-width))
       (%fmt-body (rest rest-forms) (+ col 2))
       (display ")"))))
 
 (def %fmt-body-only (fn (_ head rest-forms col)
-  (do (display "(") (write head)
+  (do (display "(") (%fmt-write-src head)
       (%fmt-body rest-forms (+ col 2))
       (display ")"))))
 
@@ -109,7 +151,7 @@
   (def head (first form))
   (def rest-forms (rest form))
   (if (< (%fmt-width form) 60)
-    (write form)
+    (%fmt-write-src form)
     (let ((props (when (symbol? head) (%fmt-lookup head table))))
       (let ((fmt-type (unless (null? props) (%fmt-get-prop 'fmt props))))
         (if (eq? fmt-type 'head-1)  (%fmt-head-1 head rest-forms col)
@@ -121,7 +163,7 @@
   (if (%fmt-comment? form)
     (display (first (rest form)))
     (if (pair? form) (%fmt-list form col ())
-      (write form)))))
+      (%fmt-write-src form)))))
 
 (def %fmt-tokens (fn (_ tokens table)
   (def %go (fn (self toks first-token)
@@ -130,7 +172,11 @@
           (unless first-token
             (unless (%fmt-comment? tok)
               (display "\n")))
-          (if (pair? tok) (%fmt-list tok 0 table) (%fmt-expr tok 0))
+          ; comments ARE pairs -- route them to %fmt-expr's comment
+          ; branch, never the list printer (which would render the raw
+          ; ('%comment "...") token, the #39 symptom)
+          (if (%fmt-comment? tok) (%fmt-expr tok 0)
+            (if (pair? tok) (%fmt-list tok 0 table) (%fmt-expr tok 0)))
           (unless (%fmt-comment? tok)
             (display "\n"))
           (self (rest toks) ())))))
