@@ -619,7 +619,11 @@
     ; layout File stat decodes (mode@4 mtime@48 size@96).  getdirentries64
     ; is Darwin's dirent reader (Linux uses getdents64 from the index table).
     (list (lit stat64) 338) (list (lit fstat64) 339) (list (lit lstat64) 340)
-    (list (lit getdirentries64) 344)))
+    (list (lit getdirentries64) 344)
+    ; wall clock (#21): the timeval decode is OS-shared (sec i64@0; usec
+    ; fits the low u32@8 on both -- Darwin's tv_usec is a 32-bit field,
+    ; Linux's is an i64 whose value is < 1e6).
+    (list (lit gettimeofday) 116)))
 
 ; syscall-id: look up a syscall number by name. On Darwin, use the BSD alist;
 ; elsewhere the x86_64 index table (falling back to i386). Returns the number,

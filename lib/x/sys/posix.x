@@ -179,9 +179,29 @@
     ; clock was previously reached via the catalog auto-class (ns sys); authored
     ; here as the catalog bridge retires (R4). Cold path -> inline prim-ref.
     (method clock (self)
-      (doc "Current process CPU time in microseconds (for timing / the `time` form)."
+      (doc "Current process CPU time in microseconds (for timing / the `time` form). WALL-clock time is (Sys time) / (Sys time-of-day)."
         (returns INT "Microseconds of CPU time consumed"))
-      ((prim-ref (lit sys) (lit clock))))))
+      ((prim-ref (lit sys) (lit clock))))
+
+    ; --- Wall clock (#21) ---
+    ; libc gettimeofday into a GC-owned 16-byte buffer; the timeval decode
+    ; is OS-shared: tv_sec is an i64 at 0 on both; tv_usec at 8 fits a u32
+    ; read on both (Darwin's field IS 32-bit; Linux's is an i64 < 1e6).
+    (method time-of-day (self)
+      (doc "Wall-clock time from gettimeofday: (unix-seconds . microseconds)."
+        (returns PAIR "(seconds . microseconds)")
+        (sample "(Sys time-of-day)" "(1752861000 . 123456)"))
+      (let ((s (%make-str 16)))
+        (let ((buf (%str->ptr s)))
+          (let ((r (%ptr-call (%resolve "gettimeofday") buf 0)))
+            (when (< r 0) (error (Err from-errno (Err errno-of r) (lit gettimeofday) ())))
+            (pair (%ptr-ref buf 0 8) (%ptr-ref buf 8 4))))))
+
+    (method time (self)
+      (doc "Wall-clock time as unix seconds (UTC). CPU time is (Sys clock); civil dates are the Date class (x/sys/date)."
+        (returns INT "Seconds since the unix epoch")
+        (sample "(Sys time)" "1752861000"))
+      (first (Sys time-of-day)))))
 
 (doc (provide x/sys/posix Sys)
   (note "POSIX via the Sys class: (Sys fork), (Sys exec name args), (Sys pipe),")
