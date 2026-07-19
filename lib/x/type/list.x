@@ -36,7 +36,7 @@
       args)
     ; --- Folds ---
     (method from-seq (self x)
-      (doc "Build a list from any iterable -- the from-X conversion verb (Gen from-seq is its lazy twin; the bare boot global as-list is the pre-class layer). Lists and nil pass through unchanged." (param x ANY "A list, nil, or iterable (e.g. vector)") (returns LIST "The input as a proper list"))
+      (doc "Build a list from any iterable -- the from-X conversion verb (Gen from-seq is its lazy twin; the boot layer normalizes through its private %as-list plumbing). Lists and nil pass through unchanged." (param x ANY "A list, nil, or iterable (e.g. vector)") (returns LIST "The input as a proper list"))
       (if (or (null? x) (pair? x)) x (Iter ->list (Iter new x))))
     (method iter (self (param lst LIST "List to iterate"))
       (doc "An iterator over the list's elements." (returns ITER "Iterator"))

@@ -1,7 +1,7 @@
 ; list.x -- List operations
 (import x/core/logic)
 
-(doc (def as-list
+(doc (def %as-list
   (fn (_ x)
     ; Nested if, NOT `or`: or is an expand-per-evaluation macro (~330
     ; objects each time), and this fast path runs inside every fold/map
@@ -15,12 +15,12 @@
           (%go))))))
   (param x ANY "A list, nil, or iterable (e.g. vector)")
   (returns LIST "The input as a proper list")
-  "Convert any iterable to a list. Lists and nil pass through unchanged.")
+  "Boot-layer plumbing: normalize any iterable to a list (fold/map/filter self-normalize through it). The PUBLIC conversion surface is (List from-seq); this % helper is not provided.")
 
 (note "Folds")
 
-; The already-normalized loop: as-list runs ONCE in the public entry.
-; The old self-recursion re-entered through (let ((lst (as-list lst))))
+; The already-normalized loop: %as-list runs ONCE in the public entry.
+; The old self-recursion re-entered through (let ((lst (%as-list lst))))
 ; on EVERY step -- ~575 objects per element, multiplied through the
 ; arithmetic wrappers into the system-wide allocation disease.
 (def %fold-go
@@ -32,7 +32,7 @@
   (fn (_ (param f CALLABLE "Binary function: (accumulator, element) -> new accumulator")
        (param init ANY "Initial accumulator value")
        (param lst LIST "List or iterable to fold over"))
-    (%fold-go f init (as-list lst))))
+    (%fold-go f init (%as-list lst))))
   (returns ANY "Final accumulated value")
   (example "(fold + 0 '(1 2 3))" "6")
   "Fold a function over a list from the left.")
@@ -82,7 +82,7 @@
 
 (doc (def map
   (fn (_ (param f CALLABLE "Function to apply") . (param lsts LIST "One or more lists"))
-    (let ((lsts (%map1 as-list lsts)))
+    (let ((lsts (%map1 %as-list lsts)))
       (if (null? (rest lsts))
         (%map1 f (first lsts))
         (%mapn-go f lsts)))))
@@ -101,7 +101,7 @@
 (doc (def filter
   (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List or iterable"))
-    (%filter-go pred (as-list lst))))
+    (%filter-go pred (%as-list lst))))
   (returns LIST "Filtered list")
   "Return elements that satisfy a predicate.")
 
@@ -128,7 +128,7 @@
 
 (doc (def for-each
   (fn (_ (param f CALLABLE "Function to apply") . (param lsts LIST "One or more lists"))
-    (let ((lsts (%map1 as-list lsts)))
+    (let ((lsts (%map1 %as-list lsts)))
       (if (null? (rest lsts))
         (%for-each1 f (first lsts))
         (%for-eachn-go f lsts)))))
@@ -165,7 +165,7 @@
   "Return a copy of a string (Scheme compatibility).")
 
 (doc (provide x/core/list
-  as-list fold length append reverse
+  fold length append reverse
   map filter for-each
   
   

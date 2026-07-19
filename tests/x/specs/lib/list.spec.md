@@ -1,20 +1,28 @@
-## as-list (the bare boot-layer global; the class method is `List from-seq`)
+## iterable normalization (public surface: `List from-seq`; the boot layer's %as-list is private plumbing -- #42 A5)
 
-### passes through list
+### from-seq passes through a list
 
 ```scheme
-(as-list (list 1 2 3))
+(do (import x/type/list) (List from-seq (list 1 2 3)))
 ```
 ---
     (1 2 3)
 
-### passes through nil
+### from-seq passes through nil
 
 ```scheme
-(null? (as-list ()))
+(do (import x/type/list) (null? (List from-seq ())))
 ```
 ---
     #t
+
+### the as-list global is retired from the public surface
+
+```scheme
+(guard (e "unbound") (as-list (list 1)))
+```
+---
+    "unbound"
 
 ## fold
 
@@ -84,7 +92,7 @@
 
 ## from-seq
 
-### builds a list from any iterable (the from-X verb; ex as-list)
+### builds a list from any iterable (the from-X verb)
 
 ```scheme
 (do (import x/type/vector) (List from-seq (Vector of 1 2 3)))

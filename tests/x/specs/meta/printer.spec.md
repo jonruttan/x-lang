@@ -133,7 +133,7 @@ no-ops (kept for embedders that pre-register the type).
 
 ### write-to-str survives a 12k-element list (tail join)
 
-Re-armed after the allocation-disease cure (fold/as-list once-only
+Re-armed after the allocation-disease cure (fold/%as-list once-only
 normalization, arithmetic fast paths, lean cond/or/named-let): the
 per-element cost fell ~6.7x and this render measures 1.85GB RSS /
 8.6s on Linux under a 4GB cap (2026-07-16) -- OOM-killing 16GB CI
