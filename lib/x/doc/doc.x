@@ -73,12 +73,19 @@
     (%go lst "")))
 
 ; --- Registry operations ---
-; Entry: (name desc returns params examples sees notes)
+; Entry: (name desc returns params examples sees notes samples)
+;
+; example vs sample (#16): (example "in" "out") is an EXECUTABLE
+; contract -- "out" is the true echo, and tools/doctest.x runs every
+; example as a regression test. (sample "in" "prose") is an
+; illustration -- side-effectful, environment-dependent, or
+; prose-described -- rendered by help exactly like an example but
+; never executed.
 
 (def %doc-register!
-  (fn (_ name desc returns params examples sees notes)
+  (fn (_ name desc returns params examples sees notes samples)
     (set-first! %doc-registry-cell
-      (pair (list name desc returns params examples sees notes)
+      (pair (list name desc returns params examples sees notes samples)
             (first %doc-registry-cell)))))
 
 ; Shared alist lookup by eq? on first element
@@ -102,6 +109,7 @@
 (def %doc-entry-examples (fn (_ e) (first (rest (rest (rest (rest e)))))))
 (def %doc-entry-sees    (fn (_ e) (first (rest (rest (rest (rest (rest e))))))))
 (def %doc-entry-notes   (fn (_ e) (first (rest (rest (rest (rest (rest (rest e)))))))))
+(def %doc-entry-samples (fn (_ e) (first (rest (rest (rest (rest (rest (rest (rest e))))))))))
 
 ; --- Strip param annotations from fn parameter list ---
 
@@ -145,6 +153,7 @@
 (def %doc-pending-examples (pair () ()))
 (def %doc-pending-sees (pair () ()))
 (def %doc-pending-notes (pair () ()))
+(def %doc-pending-samples (pair () ()))
 
 (def %doc-process-meta
   (fn (self forms)
@@ -165,6 +174,10 @@
               (set-first! %doc-pending-examples
                 (pair (pair (first (rest %form)) (first (rest (rest %form))))
                       (first %doc-pending-examples)))
+            (if (eq? %tag (lit sample))
+              (set-first! %doc-pending-samples
+                (pair (pair (first (rest %form)) (first (rest (rest %form))))
+                      (first %doc-pending-samples)))
             (if (eq? %tag (lit see))
               (set-first! %doc-pending-sees
                 (pair (first (rest %form)) (first %doc-pending-sees)))
@@ -174,7 +187,7 @@
             (if (eq? %tag (lit param))
               (set-first! %doc-params-acc
                 (pair (%doc-extract-param %form)
-                      (first %doc-params-acc))))))))))
+                      (first %doc-params-acc)))))))))))
         (self (rest forms))))))
 
 ; --- Reset all pending accumulators ---
@@ -184,6 +197,7 @@
     (set-first! %doc-pending-examples ())
     (set-first! %doc-pending-sees ())
     (set-first! %doc-pending-notes ())
+    (set-first! %doc-pending-samples ())
     (set-first! %doc-params-acc ())))
 
 ; --- Collect all pending metadata into a register call ---
@@ -194,7 +208,8 @@
       (%doc-reverse (first %doc-params-acc))
       (%doc-reverse (first %doc-pending-examples))
       (%doc-reverse (first %doc-pending-sees))
-      (%doc-reverse (first %doc-pending-notes)))))
+      (%doc-reverse (first %doc-pending-notes))
+      (%doc-reverse (first %doc-pending-samples)))))
 
 ; --- Reconstruct fn with stripped params ---
 
@@ -437,6 +452,7 @@
     (%display-params (%doc-entry-params entry))
     (%display-returns (%doc-entry-returns entry))
     (%display-examples (%doc-entry-examples entry))
+    (%display-examples (%doc-entry-samples entry))
     (%display-sees (%doc-entry-sees entry))))
 
 ; --- Module display (uses %module-registry-cell from x-core.x) ---
@@ -453,6 +469,7 @@
       (do
         (%display-notes (%doc-entry-notes %mod-doc))
         (%display-examples (%doc-entry-examples %mod-doc))
+        (%display-examples (%doc-entry-samples %mod-doc))
         (newline)))
     (%doc-for-each
       (fn (_ sym)

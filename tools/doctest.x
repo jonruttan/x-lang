@@ -37,6 +37,7 @@
 ; --- Census counters ---
 (def %n-emitted (pair 0 ()))
 (def %n-blank (pair 0 ()))
+(def %n-samples (pair 0 ()))
 (def %fail-imports (pair () ()))
 (def %count! (fn (_ cell) (set-first! cell (+ (first cell) 1))))
 
@@ -72,7 +73,12 @@
                 (do
                   (%emit-example name mod (first (first exs)) (rest (first exs)) idx)
                   (self (rest exs) (+ idx 1))))))
-          (%go (%doc-entry-examples e) 1)))
+          (%go (%doc-entry-examples e) 1)
+          (def %count-samples
+            (fn (self ss)
+              (unless (null? ss)
+                (do (%count! %n-samples) (self (rest ss))))))
+          (%count-samples (%doc-entry-samples e))))
       entries)))
 
 ; --- Generation ---
@@ -113,5 +119,7 @@
 (display "emitted: ") (display (first %n-emitted)) (newline)
 (display "blank-expected (illustrative, skipped): ")
 (display (first %n-blank)) (newline)
+(display "samples (illustrative by contract, not run): ")
+(display (first %n-samples)) (newline)
 (display "failed imports: ")
 (write (first %fail-imports)) (newline)
