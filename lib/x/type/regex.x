@@ -57,115 +57,126 @@
           (if (= c e)
             #t (self (rest entries) chr)))))))
 
-; Match a single AST node at position, return new position or ()
+; --- Capture threading (#23) ---
+; Every walker takes a `caps` list and returns a STATE (pos . caps) on
+; success, () on failure. Backtracking is capture-safe for free: each
+; tried alternative carries the caps it accumulated, and abandoning it
+; abandons its captures. Group boundaries ride the node stream as
+; spliced (g-open N) / (g-close N) markers (see %regex-exec's group
+; case); an open marker records (g-open N start) in caps, the close
+; converts the most recent one to a finished (N start end) entry --
+; so a group inside a star keeps only its LAST iteration, the usual
+; regex semantics.
+
+; Match a single AST node at position: STATE (pos . caps) or ()
 (def %regex-exec-one
-  (fn (_ node str pos end)
+  (fn (_ node str pos end caps)
     (def tag (first node))
     (match
       ((eq? tag 'lit)
         (if (and (< pos end)
               (= (str-ref str pos) (first (rest node))))
-          (+ pos 1) ()))
+          (pair (+ pos 1) caps) ()))
       ((eq? tag 'any)
-        (if (< pos end) (+ pos 1) ()))
+        (if (< pos end) (pair (+ pos 1) caps) ()))
       ((eq? tag 'class)
         (if (< pos end)
           (if (%regex-class-match (rest node) (str-ref str pos))
-            (+ pos 1) ())
+            (pair (+ pos 1) caps) ())
           ()))
       ((eq? tag 'nclass)
         (if (< pos end)
           (if (%regex-class-match (rest node) (str-ref str pos))
-            () (+ pos 1))
+            () (pair (+ pos 1) caps))
           ()))
-      ; Nested quantifiers: delegate to full exec
-      (#t (%regex-exec (list node) str pos end)))))
+      ; Nested quantifiers/groups: delegate to full exec
+      (#t (%regex-exec (list node) str pos end caps)))))
 
-; Greedy star: collect all reachable positions, try rest from farthest first
+; Greedy star: collect all reachable STATES, try rest from farthest first
 (def %regex-exec-star
-  (fn (_ inner rest-nodes str pos end)
+  (fn (_ inner rest-nodes str pos end caps)
     (def collect
-      (fn (self p)
-        (def next (%regex-exec-one inner str p end))
-        (if (null? next) (list p) (pair p (self next)))))
+      (fn (self st)
+        (def next (%regex-exec-one inner str (first st) end (rest st)))
+        (if (null? next) (list st) (pair st (self next)))))
     (def try-from
-      (fn (self ps)
-        (if (null? ps) ()
-          (let ((r (%regex-exec rest-nodes str (first ps) end)))
-            (if r r (self (rest ps)))))))
-    (try-from (reverse (collect pos)))))
+      (fn (self sts)
+        (if (null? sts) ()
+          (let ((r (%regex-exec rest-nodes str (first (first sts)) end (rest (first sts)))))
+            (if r r (self (rest sts)))))))
+    (try-from (reverse (collect (pair pos caps))))))
 
 ; Plus: match inner once, then star
 (def %regex-exec-plus
-  (fn (_ inner rest-nodes str pos end)
-    (def first-match (%regex-exec-one inner str pos end))
+  (fn (_ inner rest-nodes str pos end caps)
+    (def first-match (%regex-exec-one inner str pos end caps))
     (if (null? first-match) ()
-      (%regex-exec-star inner rest-nodes str first-match end))))
+      (%regex-exec-star inner rest-nodes str (first first-match) end (rest first-match)))))
 
 ; Optional: try with inner (greedy), backtrack to without
 (def %regex-exec-opt
-  (fn (_ inner rest-nodes str pos end)
-    (def with-inner (%regex-exec-one inner str pos end))
+  (fn (_ inner rest-nodes str pos end caps)
+    (def with-inner (%regex-exec-one inner str pos end caps))
     (if (not (null? with-inner))
-      (let ((result (%regex-exec rest-nodes str with-inner end)))
-        (if result result (%regex-exec rest-nodes str pos end)))
-      (%regex-exec rest-nodes str pos end))))
+      (let ((result (%regex-exec rest-nodes str (first with-inner) end (rest with-inner))))
+        (if result result (%regex-exec rest-nodes str pos end caps)))
+      (%regex-exec rest-nodes str pos end caps))))
 
 ; Lazy star: try shortest match first (don't reverse)
 (def %regex-exec-lazy-star
-  (fn (_ inner rest-nodes str pos end)
+  (fn (_ inner rest-nodes str pos end caps)
     (def collect
-      (fn (self p)
-        (def next (%regex-exec-one inner str p end))
-        (if (null? next) (list p) (pair p (self next)))))
+      (fn (self st)
+        (def next (%regex-exec-one inner str (first st) end (rest st)))
+        (if (null? next) (list st) (pair st (self next)))))
     (def try-from
-      (fn (self ps)
-        (if (null? ps) ()
-          (let ((r (%regex-exec rest-nodes str (first ps) end)))
-            (if r r (self (rest ps)))))))
-    (try-from (collect pos))))
+      (fn (self sts)
+        (if (null? sts) ()
+          (let ((r (%regex-exec rest-nodes str (first (first sts)) end (rest (first sts)))))
+            (if r r (self (rest sts)))))))
+    (try-from (collect (pair pos caps)))))
 
 ; Lazy plus: match once, then lazy star
 (def %regex-exec-lazy-plus
-  (fn (_ inner rest-nodes str pos end)
-    (def first-match (%regex-exec-one inner str pos end))
+  (fn (_ inner rest-nodes str pos end caps)
+    (def first-match (%regex-exec-one inner str pos end caps))
     (if (null? first-match) ()
-      (%regex-exec-lazy-star inner rest-nodes str first-match end))))
+      (%regex-exec-lazy-star inner rest-nodes str (first first-match) end (rest first-match)))))
 
 ; Lazy optional: try WITHOUT inner first, then with
 (def %regex-exec-lazy-opt
-  (fn (_ inner rest-nodes str pos end)
-    (let ((without (%regex-exec rest-nodes str pos end)))
+  (fn (_ inner rest-nodes str pos end caps)
+    (let ((without (%regex-exec rest-nodes str pos end caps)))
       (if without without
-        (let ((with-inner (%regex-exec-one inner str pos end)))
+        (let ((with-inner (%regex-exec-one inner str pos end caps)))
           (if (null? with-inner) ()
-            (%regex-exec rest-nodes str with-inner end)))))))
+            (%regex-exec rest-nodes str (first with-inner) end (rest with-inner))))))))
 
 ; Counted repetition: match inner between min and max times
 (def %regex-exec-repeat
-  (fn (_ inner min max rest-nodes str pos end)
-    ; Collect positions from min to max matches (greedy)
+  (fn (_ inner min max rest-nodes str pos end caps)
+    ; Collect states from min to max matches (greedy)
     (def collect-from
-      (fn (self count p)
+      (fn (self count st)
         (if (> count max) ()
           (if (< count min)
-            (let ((next (%regex-exec-one inner str p end)))
+            (let ((next (%regex-exec-one inner str (first st) end (rest st))))
               (if (null? next) () (self (+ count 1) next)))
-            (let ((next (%regex-exec-one inner str p end)))
-              (if (null? next) (list p)
-                (pair p (self (+ count 1) next))))))))
-    (def positions (collect-from 0 pos))
+            (let ((next (%regex-exec-one inner str (first st) end (rest st))))
+              (if (null? next) (list st)
+                (pair st (self (+ count 1) next))))))))
+    (def states (collect-from 0 (pair pos caps)))
     (def try-from
-      (fn (self ps)
-        (if (null? ps) ()
-          (let ((r (%regex-exec rest-nodes str (first ps) end)))
-            (if r r (self (rest ps)))))))
-    (try-from (reverse positions))))
+      (fn (self sts)
+        (if (null? sts) ()
+          (let ((r (%regex-exec rest-nodes str (first (first sts)) end (rest (first sts)))))
+            (if r r (self (rest sts)))))))
+    (try-from (reverse states))))
 
-; Walk AST node list against string
+; Walk AST node list against string: STATE (pos . caps) or ()
 (set! %regex-exec
-  (fn (_ nodes str pos end)
-    (if (null? nodes) pos
+  (fn (_ nodes str pos end caps)
+    (if (null? nodes) (pair pos caps)
       (let ((node (first nodes))
             (rest-nodes (rest nodes))
             (tag (first (first nodes))))
@@ -173,60 +184,86 @@
           ((eq? tag 'lit)
             (if (and (< pos end)
                   (= (str-ref str pos) (first (rest node))))
-              (%regex-exec rest-nodes str (+ pos 1) end) ()))
+              (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'any)
             (if (< pos end)
-              (%regex-exec rest-nodes str (+ pos 1) end) ()))
+              (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'class)
             (if (and (< pos end)
                   (%regex-class-match (rest node) (str-ref str pos)))
-              (%regex-exec rest-nodes str (+ pos 1) end) ()))
+              (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'nclass)
             (if (and (< pos end)
                   (not (%regex-class-match (rest node) (str-ref str pos))))
-              (%regex-exec rest-nodes str (+ pos 1) end) ()))
+              (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'star)
-            (%regex-exec-star (first (rest node)) rest-nodes str pos end))
+            (%regex-exec-star (first (rest node)) rest-nodes str pos end caps))
           ((eq? tag 'plus)
-            (%regex-exec-plus (first (rest node)) rest-nodes str pos end))
+            (%regex-exec-plus (first (rest node)) rest-nodes str pos end caps))
           ((eq? tag 'opt)
-            (%regex-exec-opt (first (rest node)) rest-nodes str pos end))
+            (%regex-exec-opt (first (rest node)) rest-nodes str pos end caps))
           ((eq? tag 'lazy-star)
-            (%regex-exec-lazy-star (first (rest node)) rest-nodes str pos end))
+            (%regex-exec-lazy-star (first (rest node)) rest-nodes str pos end caps))
           ((eq? tag 'lazy-plus)
-            (%regex-exec-lazy-plus (first (rest node)) rest-nodes str pos end))
+            (%regex-exec-lazy-plus (first (rest node)) rest-nodes str pos end caps))
           ((eq? tag 'lazy-opt)
-            (%regex-exec-lazy-opt (first (rest node)) rest-nodes str pos end))
+            (%regex-exec-lazy-opt (first (rest node)) rest-nodes str pos end caps))
           ((eq? tag 'repeat)
             (%regex-exec-repeat (first (rest node))
               (first (rest (rest node)))
               (first (rest (rest (rest node))))
-              rest-nodes str pos end))
+              rest-nodes str pos end caps))
+          ; Numbered group (group N nodes): splice open/close markers
+          ; around the content so captures record on the way through --
+          ; the group itself is transparent to matching (#23).
           ((eq? tag 'group)
-            (%regex-exec (append (first (rest node)) rest-nodes) str pos end))
+            (%regex-exec
+              (pair (list 'g-open (first (rest node)))
+                (append (first (rest (rest node)))
+                  (pair (list 'g-close (first (rest node))) rest-nodes)))
+              str pos end caps))
+          ((eq? tag 'g-open)
+            (%regex-exec rest-nodes str pos end
+              (pair (list 'g-open (first (rest node)) pos) caps)))
+          ((eq? tag 'g-close)
+            (%regex-exec rest-nodes str pos end
+              (%regex-close-group caps (first (rest node)) pos)))
           ((eq? tag 'alt)
-            (let ((left (%regex-exec (append (first (rest node)) rest-nodes) str pos end)))
+            (let ((left (%regex-exec (append (first (rest node)) rest-nodes) str pos end caps)))
               (if left left
-                (%regex-exec (append (first (rest (rest node))) rest-nodes) str pos end))))
+                (%regex-exec (append (first (rest (rest node))) rest-nodes) str pos end caps))))
           ((eq? tag 'anchor-start)
-            (if (= pos 0) (%regex-exec rest-nodes str pos end) ()))
+            (if (= pos 0) (%regex-exec rest-nodes str pos end caps) ()))
           ((eq? tag 'anchor-word-boundary)
             (let ((left-word (if (= pos 0) #f
                     (%regex-is-word-char (%char->integer (str-ref str (- pos 1))))))
                   (right-word (if (= pos end) #f
                     (%regex-is-word-char (%char->integer (str-ref str pos))))))
               (if (eq? left-word right-word) ()
-                (%regex-exec rest-nodes str pos end))))
+                (%regex-exec rest-nodes str pos end caps))))
           ((eq? tag 'anchor-not-word-boundary)
             (let ((left-word (if (= pos 0) #f
                     (%regex-is-word-char (%char->integer (str-ref str (- pos 1))))))
                   (right-word (if (= pos end) #f
                     (%regex-is-word-char (%char->integer (str-ref str pos))))))
               (if (eq? left-word right-word)
-                (%regex-exec rest-nodes str pos end) ())))
+                (%regex-exec rest-nodes str pos end caps) ())))
           ((eq? tag 'anchor-end)
-            (if (= pos end) (%regex-exec rest-nodes str pos end) ()))
+            (if (= pos end) (%regex-exec rest-nodes str pos end caps) ()))
           (#t ()))))))
+
+; Convert the most recent (g-open N start) in caps to a finished
+; (N start end) capture -- pure prefix rebuild, so abandoned backtrack
+; branches never see it.
+(def %regex-close-group
+  (fn (_ caps n endpos)
+    (def go (fn (self cs)
+      (if (null? cs) ()
+        (let ((c (first cs)))
+          (if (if (eq? (first c) 'g-open) (= (first (rest c)) n) #f)
+            (pair (list n (first (rest (rest c))) endpos) (rest cs))
+            (pair c (self (rest cs))))))))
+    (go caps)))
 
 ; --- Write: reconstruct pattern from AST ---
 
@@ -261,7 +298,8 @@
       ((eq? tag 'nclass)
         (do (display "[^") (%regex-write-class (rest node)) (display "]")))
       ((eq? tag 'group)
-        (do (display "(") (%regex-write (first (rest node))) (display ")")))
+        ; numbered shape (group N nodes) -- the nodes are the third element
+        (do (display "(") (%regex-write (first (rest (rest node)))) (display ")")))
       ((eq? tag 'alt)
         (do (%regex-write (first (rest node)))
             (display "|")
@@ -466,11 +504,48 @@
     (%go pos ())))
 
 ; Top-level parse: pattern string to AST node list
+; Number the groups in OPEN order (1-based, the convention $N follows):
+; the parser emits (group nodes); this pass rewrites to (group N nodes),
+; walking group bodies, alt branches, and quantifier inners. A one-cell
+; counter box threads the numbering (per-activation state rides params;
+; the box keeps the walk purely top-down).
+(def %regex-number-groups
+  (fn (_ nodes)
+    (def counter (pair 0 ()))
+    (def walk-one ())
+    (def walk-list
+      (fn (self ns)
+        (if (null? ns) ()
+          (pair (walk-one (first ns)) (self (rest ns))))))
+    (set! walk-one
+      (fn (_ node)
+        (def tag (first node))
+        (match
+          ((eq? tag 'group)
+            (do (set-first! counter (+ (first counter) 1))
+                (let ((n (first counter)))
+                  (list 'group n (walk-list (first (rest node)))))))
+          ((eq? tag 'alt)
+            (list 'alt (walk-list (first (rest node)))
+                       (walk-list (first (rest (rest node))))))
+          ((eq? tag 'star) (list 'star (walk-one (first (rest node)))))
+          ((eq? tag 'plus) (list 'plus (walk-one (first (rest node)))))
+          ((eq? tag 'opt) (list 'opt (walk-one (first (rest node)))))
+          ((eq? tag 'lazy-star) (list 'lazy-star (walk-one (first (rest node)))))
+          ((eq? tag 'lazy-plus) (list 'lazy-plus (walk-one (first (rest node)))))
+          ((eq? tag 'lazy-opt) (list 'lazy-opt (walk-one (first (rest node)))))
+          ((eq? tag 'repeat)
+            (list 'repeat (walk-one (first (rest node)))
+                  (first (rest (rest node)))
+                  (first (rest (rest (rest node))))))
+          (#t node))))
+    (walk-list nodes)))
+
 (set! %regex-parse
   (fn (_ pattern)
     (def len (str-length pattern))
     (def result (%regex-parse-alt-full pattern 0 len 0))
-    (first result)))
+    (%regex-number-groups (first result))))
 
 ; --- Analyser: just match #/ ... / (handle \/ escapes) ---
 
@@ -502,8 +577,9 @@
         (fn (_ self . args)
           (def input (first args))
           (def end (str-length input))
-          (def result (%regex-exec (first self) input 0 end))
-          (if (and result (= result end)) #t #f)))
+          ; exec returns a STATE (pos . caps) since #23
+          (def result (%regex-exec (first self) input 0 end ()))
+          (if (and result (= (first result) end)) #t #f)))
       (pair
         'write
         (fn (_ self)
@@ -527,9 +603,81 @@
 (set! %regex-read
   (fn (_ . args) (%make-instance %regex (first args))))
 
+; --- Captures to texts (#23) ---
+; A winning exec state's caps hold finished (N start end) triples,
+; most recent first; a group under a quantifier appears once per
+; iteration, head = last. Build ((0 . whole) (N . text) ...) keeping
+; the FIRST entry seen per N, sorted by N.
+(def %regex-caps->alist
+  (fn (_ str start endpos caps)
+    (def seen-add
+      (fn (self cs acc)
+        (if (null? cs) acc
+          (let ((c (first cs)))
+            (if (assoc-has? (first c) acc)
+              (self (rest cs) acc)
+              (self (rest cs)
+                (pair (pair (first c)
+                        (substring str (first (rest c)) (first (rest (rest c)))))
+                      acc)))))))
+    ; insertion sort by group number (tiny lists)
+    (def ins
+      (fn (self e lst)
+        (if (null? lst) (list e)
+          (if (< (first e) (first (first lst)))
+            (pair e lst)
+            (pair (first lst) (self e (rest lst)))))))
+    (def sort-by-n
+      (fn (self lst acc)
+        (if (null? lst) acc
+          (self (rest lst) (ins (first lst) acc)))))
+    (sort-by-n (seen-add caps ())
+               (list (pair 0 (substring str start endpos))))))
+
+; First match at-or-after pos WITH captures:
+; (start end ((0 . whole) (N . text) ...)) or ()
+(def %regex-find-caps
+  (fn (_ str pos rx)
+    (def end (str-length str))
+    (def nodes (%rx-nodes rx))
+    (def %try
+      (fn (self i)
+        (if (> i end) ()
+          (let ((result (%regex-exec nodes str i end ())))
+            (if result
+              (list i (first result)
+                    (%regex-caps->alist str i (first result) (rest result)))
+              (self (+ i 1)))))))
+    (%try pos)))
+
+; Expand $N references in a string replacement against a groups alist:
+; $0 = whole match, $1..$9 = groups (absent/unmatched -> ""), $$ = "$".
+(def %regex-expand-rep
+  (fn (_ rep groups)
+    (def len (str-length rep))
+    (def %go
+      (fn (self i acc)
+        (if (>= i len) acc
+          (let ((ch (%char->integer (str-ref rep i))))
+            (if (not (= ch 36))                       ; $
+              (self (+ i 1) (%str-append acc (substring rep i (+ i 1))))
+              (if (>= (+ i 1) len)
+                (%str-append acc "$")
+                (let ((nx (%char->integer (str-ref rep (+ i 1)))))
+                  (match
+                    ((= nx 36)                        ; $$
+                      (self (+ i 2) (%str-append acc "$")))
+                    ((if (>= nx 48) (<= nx 57) #f)    ; $N
+                      (let ((hit (assoc-get (- nx 48) groups)))
+                        (self (+ i 2) (%str-append acc (if (null? hit) "" hit)))))
+                    (#t (self (+ i 1) (%str-append acc "$")))))))))))
+    (%go 0 "")))
+
+; A function replacement receives the matched text; a string replacement
+; expands $N against the match's groups (#23).
 (def %regex-get-replacement
-  (fn (_ rep matched)
-    (if (procedure? rep) (rep matched) rep)))
+  (fn (_ rep matched groups)
+    (if (procedure? rep) (rep matched) (%regex-expand-rep rep groups))))
 
 ; The AST inside a compiled regex, with a type guard: handing the exec family
 ; a non-REGEX (e.g. the bare AST from (Regex parse) or a plain string) used to
@@ -550,16 +698,16 @@
     (method match (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Test whether a regex matches an entire string." (returns BOOL "True if regex matches the entire string"))
       (def end (str-length str))
-      (def result (%regex-exec (%rx-nodes rx) str 0 end))
-      (if (and result (= result end)) #t #f))
+      (def result (%regex-exec (%rx-nodes rx) str 0 end ()))
+      (if (and result (= (first result) end)) #t #f))
     (method search (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Search for the first occurrence of a regex pattern in a string." (returns LIST "Pair (start end) of first match, or nil if not found"))
       (def end (str-length str))
       (def %try
         (fn (self i)
           (if (> i end) ()
-            (let ((result (%regex-exec (%rx-nodes rx) str i end)))
-              (if result (list i result)
+            (let ((result (%regex-exec (%rx-nodes rx) str i end ())))
+              (if result (list i (first result))
                 (self (+ i 1)))))))
       (%try 0))
     (method find-at (self (param str STRING "Input string") (param pos INT "Start position") (param rx REGEX "Compiled regex"))
@@ -568,8 +716,8 @@
       (def %try
         (fn (self i)
           (if (> i end) ()
-            (let ((result (%regex-exec (%rx-nodes rx) str i end)))
-              (if result (list i result)
+            (let ((result (%regex-exec (%rx-nodes rx) str i end ())))
+              (if result (list i (first result))
                 (self (+ i 1)))))))
       (%try pos))
     (method find (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
@@ -578,6 +726,14 @@
       (def m (Regex search str rx))
       (if (null? m) ()
         (substring str (first m) (first (rest m)))))
+    (method match-groups (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
+      (doc "Capture-group texts of the FIRST match anywhere in str: an alist ((0 . whole-match) (N . group-text) ...) keyed by group number in ( ) OPEN order, sorted. A group that did not participate (unmatched alternative) is ABSENT -- presence door, not a sentinel; a group under a quantifier keeps its last iteration. nil when nothing matches."
+        (returns ANY "Groups alist, or nil")
+        (example "(assoc-get 2 (Regex match-groups \"2026-07-19\" #/([0-9]+)-([0-9]+)-([0-9]+)/))" "\"07\"")
+        (example "(assoc-get 0 (Regex match-groups \"key=val\" #/(\\w+)=(\\w+)/))" "\"key=val\"")
+        (example "(null? (Regex match-groups \"nope\" #/[0-9]+/))" "#t"))
+      (def m (%regex-find-caps str 0 rx))
+      (if (null? m) () (first (rest (rest m)))))
     (method find-all (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Find all non-overlapping matches as a list of substrings." (returns LIST "List of matched substrings")
         (example "(Regex find-all \"a1b22c333\" #/[0-9]+/)" "(\"1\" \"22\" \"333\")"))
@@ -608,12 +764,13 @@
     (method replace (self (param str STRING "Input string") (param rep ANY "Replacement string or function") (param rx REGEX "Compiled regex"))
       (doc "Replace the first match. rep can be a string or a function that receives the matched text." (returns STRING "String with first match replaced")
         (example "(Regex replace \"abc123def\" \"N\" #/[0-9]+/)" "\"abcNdef\""))
-      (def m (Regex search str rx))
+      (def m (%regex-find-caps str 0 rx))
       (if (null? m) str
-        (let ((matched (substring str (first m) (first (rest m)))))
+        (let ((groups (first (rest (rest m)))))
           (%str-append
             (substring str 0 (first m))
-            (%str-append (%regex-get-replacement rep matched)
+            (%str-append
+              (%regex-get-replacement rep (assoc-get 0 groups) groups)
               (substring str (first (rest m)) (str-length str)))))))
     (method replace-all (self (param str STRING "Input string") (param rep ANY "Replacement string or function") (param rx REGEX "Compiled regex"))
       (doc "Replace all matches. rep can be a string or a function that receives each matched text." (returns STRING "String with all matches replaced")
@@ -621,17 +778,17 @@
       (def len (str-length str))
       (def %go
         (fn (self pos acc)
-          (def m (Regex find-at str pos rx))
+          (def m (%regex-find-caps str pos rx))
           (if (null? m)
             (%str-append acc (substring str pos len))
             (let ((start (first m)))
               (def end (first (rest m)))
-              (def matched (substring str start end))
+              (def groups (first (rest (rest m))))
               (def next (if (= start end) (+ end 1) end))
               (self next
                 (%str-append acc
                   (%str-append (substring str pos start)
-                    (%regex-get-replacement rep matched))))))))
+                    (%regex-get-replacement rep (assoc-get 0 groups) groups))))))))
       (%go 0 ""))
     (method split (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Split a string at regex matches." (returns LIST "List of substrings between matches")
@@ -654,7 +811,8 @@
                        (param end INT "End position (string length)"))
       (doc "Execute a regex AST against a string from the given position."
         (returns INT "Final position after match, or nil on failure"))
-      (%regex-exec nodes str pos end))
+      (let ((r (%regex-exec nodes str pos end ())))
+        (if (null? r) () (first r))))
     (method parse (self (param pattern STRING "Regex pattern string"))
       (doc "Parse a regex pattern string into a bare AST node list. For a value the exec methods accept, use (Regex compile)." (returns LIST "AST node list"))
       (%regex-parse pattern))
