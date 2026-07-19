@@ -66,6 +66,75 @@
       ((pair? mode) (fold (fn (_ acc flag) (| acc (%mode->int flag))) 0 mode))
       (#t (first (assoc-get mode %file-modes))))))
 
+; --- errno recovery (#22) ---
+; The error REASON travels differently per OS: Linux raw syscalls return
+; -errno directly, but Darwin's syscall() goes through libc, which returns
+; a bare -1 and parks errno behind the per-thread __error() location.
+; %fs-errno normalizes both to a positive errno for (Err from-errno).
+; NOTE: fetch errno BEFORE any intervening syscall (a close on the error
+; path would clobber it).
+(def %fs-dlopen (prim-ref 'ffi 'dlopen))
+(def %fs-dlsym (prim-ref 'ffi 'dlsym))
+(def %fs-ptr-call (prim-ref 'ptr 'call))
+(def %fs-ptr-ref (prim-ref 'ptr 'ref))
+(def %fs-int->ptr (prim-ref 'int '->ptr))
+(def %fs-errno-loc (if os-darwin? (%fs-dlsym (%fs-dlopen () 1) "__error") ()))
+(def %fs-errno
+  (fn (_ r)
+    (if os-darwin?
+      (%fs-ptr-ref (%fs-int->ptr (%fs-ptr-call %fs-errno-loc)) 0 4)
+      (- 0 r))))
+
+; --- Struct decoding helpers (#22: stat + dirent are per-OS byte layouts) ---
+; Little-endian byte peeks over a (str make N) buffer filled by a syscall.
+(def %fs-byte-ref (prim-ref 'str 'byte-ref))
+(def %fs-char->int (prim-ref 'char '->int))
+(def %peek-u8 (fn (_ b i) (%fs-char->int (%fs-byte-ref b i))))
+(def %peek-u16 (fn (_ b i) (+ (%peek-u8 b i) (<< (%peek-u8 b (+ i 1)) 8))))
+(def %peek-u32 (fn (_ b i) (+ (%peek-u16 b i) (<< (%peek-u16 b (+ i 2)) 16))))
+(def %peek-i64 (fn (_ b i) (+ (%peek-u32 b i) (<< (%peek-u32 b (+ i 4)) 32))))
+
+; File kind from the S_IFMT bits of a stat mode.
+(def %mode-kind
+  (fn (_ mode)
+    (let ((fmt (& mode 61440)))
+      (match
+        ((= fmt 32768) 'file)
+        ((= fmt 16384) 'dir)
+        ((= fmt 40960) 'link)
+        ((= fmt 8192)  'char)
+        ((= fmt 24576) 'block)
+        ((= fmt 4096)  'fifo)
+        ((= fmt 49152) 'socket)
+        (#t 'unknown)))))
+
+; Decode one getdents64/getdirentries64 batch buffer into entry names.
+;   Linux  dirent64: ino u64@0, off u64@8, reclen u16@16, type u8@18, name z@19
+;   Darwin dirent64: ino u64@0, seekoff u64@8, reclen u16@16, namlen u16@18,
+;                    type u8@20, name@21
+; A zero reclen would never advance -- treated as end (corrupt buffer guard).
+(def %dirent-name
+  (fn (_ buf start limit)
+    (let go ((i start) (acc ()))
+      (if (>= i limit) (list->str (reverse acc))
+        (let ((c (%peek-u8 buf i)))
+          (if (= c 0) (list->str (reverse acc))
+            (go (+ i 1) (pair (%fs-byte-ref buf i) acc))))))))
+
+(def %dirents
+  (fn (_ buf n acc)
+    (let go ((off 0) (acc acc))
+      (if (>= off n) acc
+        (let ((reclen (%peek-u16 buf (+ off 16))))
+          (if (= reclen 0) acc
+            (let ((name (if os-darwin?
+                          (%dirent-name buf (+ off 21)
+                            (+ (+ off 21) (%peek-u16 buf (+ off 18))))
+                          (%dirent-name buf (+ off 19) (+ off reclen)))))
+              (go (+ off reclen)
+                  (if (= (%peek-i64 buf off) 0) acc  ; ino 0 = deleted slot
+                    (pair name acc))))))))))
+
 (def-class File ()
   (doc "Blocking file I/O over raw POSIX syscalls (open/close/read/write)."
     (note "Lifecycle: (File open path mode) -> a file descriptor; thread it through (File read)/(File write)/(File getc); (File close fd) when done.")
@@ -133,7 +202,128 @@
         (let ((bytes-read (File read fd buffer 1)))
           (if (<= bytes-read 0)
             -1
-            (str-ref buffer 0)))))))
+            (str-ref buffer 0)))))
+
+    ; ======================================================================
+    ; The ergonomic tier (#22): whole-file and filesystem operations that
+    ; RAISE a kind-'io Err (via Err from-errno, #20) instead of returning
+    ; the raw layer's negative -errno.  The five raw ops above keep their
+    ; documented raw contract (absence-model rule 5).
+    ; ======================================================================
+
+    (method stat (self (param path STRING "Path to stat"))
+      (doc "File metadata as an alist: ((size . BYTES) (mode . RAW) (kind . SYM) (mtime . UNIX-SECONDS)). kind is one of 'file 'dir 'link 'char 'block 'fifo 'socket (from the S_IFMT bits). Raises a kind-'io Err on failure."
+        (returns ALIST "((size . N) (mode . M) (kind . K) (mtime . T))")
+        (sample "(File stat \"lib/x.x\")" "((size . 461) (mode . 33188) (kind . file) (mtime . 1752861000))"))
+      (def buf (%make-str 160))
+      (def r (if os-darwin?
+               (syscall (syscall-id 'stat64) path buf)
+               (syscall (syscall-id 'stat) path buf)))
+      (when (< r 0) (error (Err from-errno (%fs-errno r) 'stat path)))
+      (def mode (if os-darwin? (%peek-u16 buf 4) (%peek-u32 buf 24)))
+      (list (pair 'size (%peek-i64 buf (if os-darwin? 96 48)))
+            (pair 'mode mode)
+            (pair 'kind (%mode-kind mode))
+            (pair 'mtime (%peek-i64 buf (if os-darwin? 48 88)))))
+
+    (method exists? (self (param path STRING "Path to test"))
+      (doc "Does path name an existing filesystem entry? (Any kind -- file, directory, link target...)"
+        (returns BOOL "True when stat succeeds")
+        (sample "(File exists? \"lib/x.x\")" "#t"))
+      (guard (_ #f) (do (File stat path) #t)))
+
+    (method slurp (self (param path STRING "File to read"))
+      (doc "The whole file as one string (stat for the size, one read). Raises a kind-'io Err on open/read failure."
+        (returns STRING "The file's bytes")
+        (sample "(File slurp \"/etc/hostname\")" "the file's contents as a string"))
+      (def size (assoc-get 'size (File stat path)))
+      (def fd (File open path 'rdonly))
+      (when (< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
+      (def buf (%make-str size))
+      (def n (File read fd buf size))
+      (def en (if (< n 0) (%fs-errno n) ()))  ; before close clobbers errno
+      (File close fd)
+      (when (< n 0) (error (Err from-errno en 'read path)))
+      (if (= n size) buf (Str8 sub 0 n buf)))
+
+    (method spit (self (param path STRING "File to write (created/truncated)")
+                       (param s STRING "Contents"))
+      (doc "Write s as the entire contents of path (create or truncate, mode 0644). Raises a kind-'io Err on failure; returns the byte count written."
+        (returns INT "Bytes written")
+        (sample "(File spit \"out.txt\" \"hi\\n\")" "3"))
+      ; symbolic modes: the O_* numbers differ per OS (%file-modes is per-OS)
+      (def fd (File open path (list 'wronly 'creat 'trunc) 420))
+      (when (< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
+      (def n (File write fd s (str-length s)))
+      (def en (if (< n 0) (%fs-errno n) ()))  ; before close clobbers errno
+      (File close fd)
+      (when (< n 0) (error (Err from-errno en 'write path)))
+      n)
+
+    (method read-lines (self (param path STRING "File to read"))
+      (doc "The file as a list of lines (split on newline; a trailing final newline yields no empty last line)."
+        (returns LIST "List of line strings")
+        (sample "(File read-lines \"/etc/hosts\")" "(\"127.0.0.1 localhost\" ...)"))
+      (def s (File slurp path))
+      (def all (Str8 split "\n" s))
+      (if (null? all) all
+        (let ((lastc (List last all)))
+          (if (str=? lastc "") (List init all) all))))
+
+    (method list-dir (self (param path STRING "Directory to list"))
+      (doc "The directory's entry names as a list of strings, '.' and '..' excluded. Per-OS dirent decoding over getdents64 (Linux) / getdirentries64 (Darwin). Raises a kind-'io Err on failure."
+        (returns LIST "Entry-name strings")
+        (sample "(File list-dir \"lib\")" "(\"x-core.x\" \"x.x\" ...)"))
+      (def fd (File open path 'rdonly))
+      (when (< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
+      (def buf (%make-str 4096))
+      (def basep (%make-str 8))   ; Darwin getdirentries64's position cookie
+      (def names
+        (let batch ((acc ()))
+          (let ((n (if os-darwin?
+                     (syscall (syscall-id 'getdirentries64) fd buf 4096 basep)
+                     (syscall (syscall-id 'getdents64) fd buf 4096))))
+            (match
+              ((< n 0) (let ((en (%fs-errno n)))  ; before close clobbers errno
+                         (File close fd)
+                         (error (Err from-errno en 'readdir path))))
+              ((= n 0) acc)
+              (#t (batch (%dirents buf n acc)))))))
+      (File close fd)
+      (List reject (fn (_ nm) (or (str=? nm ".") (str=? nm ".."))) names))
+
+    (method mkdir (self (param path STRING "Directory to create")
+                        . (param perm INT "Permission bits; default 0755"))
+      (doc "Create a directory (default mode 0755). Raises a kind-'io Err on failure; returns nil."
+        (returns ANY "nil")
+        (sample "(File mkdir \"build/out\")" "creates the directory"))
+      (def r (syscall (syscall-id 'mkdir) path (if (null? perm) 493 (first perm))))
+      (when (< r 0) (error (Err from-errno (%fs-errno r) 'mkdir path)))
+      ())
+
+    (method unlink (self (param path STRING "File to remove"))
+      (doc "Remove a file (not a directory -- see rmdir). Raises a kind-'io Err on failure; returns nil."
+        (returns ANY "nil")
+        (sample "(File unlink \"out.txt\")" "removes the file"))
+      (def r (syscall (syscall-id 'unlink) path))
+      (when (< r 0) (error (Err from-errno (%fs-errno r) 'unlink path)))
+      ())
+
+    (method rmdir (self (param path STRING "Empty directory to remove"))
+      (doc "Remove an empty directory. Raises a kind-'io Err on failure; returns nil."
+        (returns ANY "nil")
+        (sample "(File rmdir \"build/out\")" "removes the directory"))
+      (def r (syscall (syscall-id 'rmdir) path))
+      (when (< r 0) (error (Err from-errno (%fs-errno r) 'rmdir path)))
+      ())
+
+    (method rename (self (param from STRING "Existing path") (param to STRING "New path"))
+      (doc "Rename/move a filesystem entry. Raises a kind-'io Err on failure; returns nil."
+        (returns ANY "nil")
+        (sample "(File rename \"a.txt\" \"b.txt\")" "moves a.txt to b.txt"))
+      (def r (syscall (syscall-id 'rename) from to))
+      (when (< r 0) (error (Err from-errno (%fs-errno r) 'rename (list from to))))
+      ())))
 
 (doc (provide x/sys/file File)
   (note "Imports x/platform/syscall for syscall-id; read buffers come from the (str make) core primitive, so File runs under plain x-core. Call (File file-modes) / (File stat-flags) for the symbolic flag tables.")
