@@ -64,6 +64,11 @@ on the base. `()` self-evaluates.
 is truthy, including `0`, `""`, and empty vectors/dicts (which are real
 objects, distinct from nil; only lists pun empty with absence).
 
+This model (Model A) is a settled, adjudicated decision. The design record —
+including the priced migration analysis for the nil ≠ `()` alternative
+(Model C), kept for any future major version — is issue #41; do not relitigate
+the model without reading it.
+
 The absence discipline (normative for the standard library):
 
 1. Predicates answer `#t`/`#f`, never a useful value.
