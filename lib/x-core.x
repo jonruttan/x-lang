@@ -89,9 +89,10 @@
     (pair "lib/x/type/quasi-reader.x"
     (pair "lib/x/type/lit-reader.x"
     (pair "lib/x/core/repl.x"
+    (pair "lib/x/type/err.x"
     (pair "lib/x/sys/ansi.x"
     (pair "lib/x/core/banner.x"
-      (first %include-list-cell))))))))))))))))))))))))))))))))))))))))))))))))))))))
+      (first %include-list-cell)))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
   ; --- Standard modules ---
   (include "lib/x/core/predicates.x")
@@ -210,6 +211,14 @@
 
   ; REPL
   (include "lib/x/core/repl.x")
+
+  ; Structured errors (#20): the Err class + errno translation.  Loaded
+  ; after lit-reader (the file speaks 'x) and after platform/syscall's
+  ; transitive boot load (the errno table picks its OS column via
+  ; os-darwin? at load).  Raise sites throughout lib bind Err at CALL
+  ; time, so every post-boot error can be structured regardless of the
+  ; raising module's own boot position.
+  (include "lib/x/type/err.x")
 
   ; ANSI colour: syntax-highlighted REPL output + colourised help.  Loaded
   ; after repl.x (it wraps %repl-print) and doc.x (it sets the %c-* help
