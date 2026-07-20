@@ -84,8 +84,10 @@ The absence discipline (normative for the standard library):
 5. Boundaries (e.g. JSON) carry a foreign null as the symbol `null`; `()`
    crossing a boundary always means the empty sequence.
 6. `and`/`or` are value operators: `and` normalizes failure to `#f` (it
-   answers "did all pass"); `or` returns its first truthy value, or `()`
-   when given none.
+   answers "did all pass"); `or` returns its first truthy value, and when
+   nothing is truthy it passes its LAST operand through unchanged -- so
+   `(or () #f)` is `#f` and `(or #f ())` is `()`. `(or)` is `()`. Use
+   `not` if you need a normalized answer rather than the operand.
 
 ### Tail-call optimization
 
@@ -410,12 +412,16 @@ the last value. `(and)` returns `#t`.
 
 `(or expr ...) -> value`
 
-Short-circuit logical OR. Returns the first truthy value. If all falsy, returns
-`()`. `(or)` returns `()`.
+Short-circuit logical OR. Returns the first truthy value. If every operand is
+falsy, the LAST operand passes through unchanged -- `or` does not normalize
+its failure the way `and` does, so the result is whichever of `()` or `#f` you
+supplied last. `(or)` returns `()`.
 
 ```
 (or () () 3) -> 3
 (or 1 2) -> 1
+(or () #f) -> #f
+(or #f ()) -> ()
 (or) -> ()
 ```
 

@@ -36,10 +36,16 @@
   (op args e
     (if (eq? args ()) () (%or-loop args e))))
   (param args ANY "Zero or more expressions")
-  (returns ANY "First truthy value, or () if all are falsy")
+  (returns ANY "First truthy value; if none is truthy, the last operand unchanged")
   (example "(or #f 2 3)" "2")
   (example "(null? (or #f ()))" "#t")
-  "Short-circuit logical OR. Evaluates left to right, returns first truthy value.")
+  ; or does NOT normalize its failure the way `and` does (#73, ruled): the
+  ; last operand passes through, so the falsy answer is whichever of () or #f
+  ; the caller supplied last. Both directions ride ONE example inside a list --
+  ; a bare (or #f ()) doctest cannot work, since nil renders as an empty line
+  ; and the expected string would have to be "".
+  (example "(list (or () #f) (or #f ()))" "(#f ())")
+  "Short-circuit logical OR. Evaluates left to right, returns the first truthy value; when nothing is truthy the last operand passes through unchanged.")
 
 (doc (def time
   (op args

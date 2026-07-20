@@ -54,11 +54,21 @@
     (method merge (self (param a LIST "Base alist (takes priority)")
                         (param b LIST "Alist to merge in"))
       (doc "Merge two alists; keys in the first take priority." (returns LIST "Merged alist; entries in a shadow those in b"))
-      (fold
-        (fn (_ acc entry)
-          (if (assoc-has? (first entry) acc) acc (pair entry acc)))
-        a
-        b))
+      ; a's entries keep their original order at the FRONT, with b's additions
+      ; following in b's order. Folding `pair` onto `a` directly put b's
+      ; entries first and reversed among themselves (#73). Additions
+      ; accumulate reversed and flip once, so this stays a single pass plus a
+      ; reverse rather than an append per entry. The has? checks cover both a
+      ; and the additions so far, so a duplicate key inside b keeps its first
+      ; occurrence -- the same rule the growing accumulator gave before.
+      (append a
+        (reverse
+          (fold
+            (fn (_ acc entry)
+              (if (assoc-has? (first entry) a) acc
+                (if (assoc-has? (first entry) acc) acc (pair entry acc))))
+            ()
+            b))))
     (method pick (self (param keys LIST "List of keys to keep")
                        (param alist LIST "Association list"))
       (doc "Select entries whose keys appear in a given list." (returns LIST "Alist containing only the selected keys"))

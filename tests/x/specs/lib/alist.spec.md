@@ -162,13 +162,32 @@
 
 ## assoc-merge
 
-### merges two alists
+### merges two alists, a's entries first
+
+A length assertion alone let #73 hide here: the count is 2 in either order.
+Assert the value, and use overlapping keys so priority is covered too.
 
 ```scheme
-(do (def a (list (pair 'x 1))) (def b (list (pair 'y 2))) (length (Assoc merge a b)))
+(Assoc merge (list (pair 'a 1)) (list (pair 'a 9) (pair 'b 2)))
 ```
 ---
-    2
+    (('a . 1) ('b . 2))
+
+### additions keep b's order
+
+```scheme
+(Assoc merge (list (pair 'a 1)) (list (pair 'b 2) (pair 'c 3)))
+```
+---
+    (('a . 1) ('b . 2) ('c . 3))
+
+### a duplicate key inside b keeps its first occurrence
+
+```scheme
+(Assoc merge () (list (pair 'b 2) (pair 'b 9)))
+```
+---
+    (('b . 2))
 
 ## assoc-pick
 
