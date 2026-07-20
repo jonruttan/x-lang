@@ -13,11 +13,14 @@ Sample chars: `$` = U+0024 (1 byte), `¢` = U+00A2 (2 bytes), `€` = U+20AC (3 
 
 ### counts code points, not bytes
 
+Value, not length: a count of 3 is true even if the bytes were regrouped
+incorrectly.
+
 ```scheme
-(length (str->list "$¢€"))
+(str->list "$¢€")
 ```
 ---
-    3
+    (#\$ #\¢ #\€)
 
 ### byte length is larger than the code-point count
 
@@ -30,10 +33,10 @@ Sample chars: `$` = U+0024 (1 byte), `¢` = U+00A2 (2 bytes), `€` = U+20AC (3 
 ### a 2-byte code point inside ASCII counts once (café = 4 code points)
 
 ```scheme
-(length (str->list "café"))
+(str->list "café")
 ```
 ---
-    4
+    (#\c #\a #\f #\é)
 
 ### empty string decodes to the empty list
 
