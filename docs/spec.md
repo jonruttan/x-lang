@@ -526,12 +526,14 @@ Integer division. Identity: `1`. Division by zero is undefined.
 
 `(% a ...) -> integer`
 
-Integer modulo. Identity: `0`. Modulo by zero is undefined.
+Integer modulo. Unlike `+ - * /`, `%` has **no identity element**: calling it
+with no arguments is an error, not `0` (#72). One argument passes through.
+Modulo by zero is undefined.
 
 ```
 (% 10 3) -> 1
 (% 17 10 3) -> 1
-(%) -> 0
+(% 7) -> 7
 ```
 
 ### `~`
