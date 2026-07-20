@@ -1889,10 +1889,10 @@ Misses return `()`.
 
 #### `List times`
 
-`(List times f n) -> list`
+`(List times n f) -> list`
 
 ```
-(List times (method-ref Fn identity) 4) -> (0 1 2 3)
+(List times 4 (method-ref Fn identity)) -> (0 1 2 3)
 ```
 
 #### `List unfold`
@@ -2200,11 +2200,11 @@ Applies transformation functions to matching keys.
 
 ### `Str repeat`
 
-`(Str repeat s n) -> string`
+`(Str repeat n s) -> string`
 
 ```
-(Str repeat "ab" 3) -> "ababab"
-(Str repeat "x" 0) -> ""
+(Str repeat 3 "ab") -> "ababab"
+(Str repeat 0 "x") -> ""
 ```
 
 ### `Str contains?`
@@ -2270,10 +2270,10 @@ Vectors are fixed-size indexed collections backed by lists. They display as
 
 ### `Vector ref`
 
-`(Vector ref v i) -> value`
+`(Vector ref i v) -> value`
 
 ```
-(Vector ref (Vector of 10 20 30) 1) -> 20
+(Vector ref 1 (Vector of 10 20 30)) -> 20
 ```
 
 ### `Vector length`
