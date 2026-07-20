@@ -715,11 +715,14 @@
 
 ### groups by key function
 
+Value, not length: a count of 2 groups says nothing about which elements
+landed in which group, or in what order the groups come back.
+
 ```scheme
-(length (List group-by (method-ref Num even?) (list 1 2 3 4 5)))
+(List group-by (method-ref Num even?) (list 1 2 3 4 5))
 ```
 ---
-    2
+    ((#f 1 3 5) (#t 2 4))
 
 ### keeps element order within a group and first-seen key order
 

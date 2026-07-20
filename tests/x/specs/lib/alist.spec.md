@@ -98,19 +98,21 @@
 
 ### removes key from alist
 
-```scheme
-(do (def al (list (pair 'a 1) (pair 'b 2))) (length (assoc-del 'a al)))
-```
----
-    1
-
-### returns same length when key not present
+Value, not length: a count of 1 is true whichever entry was deleted.
 
 ```scheme
-(do (def al (list (pair 'a 1) (pair 'b 2))) (length (assoc-del 'z al)))
+(do (def al (list (pair 'a 1) (pair 'b 2))) (assoc-del 'a al))
 ```
 ---
-    2
+    (('b . 2))
+
+### returns the alist unchanged when key not present
+
+```scheme
+(do (def al (list (pair 'a 1) (pair 'b 2))) (assoc-del 'z al))
+```
+---
+    (('a . 1) ('b . 2))
 
 ### removes key not at head
 
@@ -154,11 +156,13 @@
 
 ### filters entries by predicate
 
+Value, not length: a count of 1 is true whichever entry survived.
+
 ```scheme
-(do (def al (list (pair 'a 1) (pair 'b 2))) (length (Assoc filter (fn (_ e) (> (rest e) 1)) al)))
+(do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc filter (fn (_ e) (> (rest e) 1)) al))
 ```
 ---
-    1
+    (('b . 2))
 
 ## assoc-merge
 
@@ -193,21 +197,25 @@ Assert the value, and use overlapping keys so priority is covered too.
 
 ### selects entries by key list
 
+Value, not length: picking the WRONG two keys also counts 2.
+
 ```scheme
-(do (def al (list (pair 'a 1) (pair 'b 2) (pair 'c 3))) (length (Assoc pick (list 'a 'c) al)))
+(do (def al (list (pair 'a 1) (pair 'b 2) (pair 'c 3))) (Assoc pick (list 'a 'c) al))
 ```
 ---
-    2
+    (('a . 1) ('c . 3))
 
 ## assoc-omit
 
 ### removes entries by key list
 
+Value, not length: omitting the WRONG key also counts 2.
+
 ```scheme
-(do (def al (list (pair 'a 1) (pair 'b 2) (pair 'c 3))) (length (Assoc omit (list 'a) al)))
+(do (def al (list (pair 'a 1) (pair 'b 2) (pair 'c 3))) (Assoc omit (list 'a) al))
 ```
 ---
-    2
+    (('b . 2) ('c . 3))
 
 ## from-bindings
 

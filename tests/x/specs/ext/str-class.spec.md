@@ -287,11 +287,14 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 
 ### empty-separator split yields one piece per code point
 
+Value, not length: a count of 3 is true even if the multi-byte code points
+were sliced at the wrong boundaries.
+
 ```x
-(length (StrUTF8 split "" "a¢€"))
+(StrUTF8 split "" "a¢€")
 ```
 ---
-    3
+    ("a" "¢" "€")
 
 ### append then count code points
 
