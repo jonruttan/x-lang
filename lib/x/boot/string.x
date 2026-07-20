@@ -87,6 +87,13 @@
 ; str->number: (str->number str [radix]) -> integer or ()
 ; str->number parses an ASCII numeric string; all indexing is byte-level
 ; (str-byte-*) since digits/signs are single bytes.
+;
+; A 0x/0X prefix selects hex, matching the reader's literal (0xff -> 255;
+; #76 ruled). Only when NO explicit radix was passed: an explicit radix
+; means the caller controls interpretation -- (str->number %t 16) in the
+; JSON \u parser stays byte-exact, and a prefix under an explicit radix
+; would be ambiguous ("0x" as digits-of-16 is a miss, and stays one).
+; The sign parses first, so "-0xff" -> -255 like a negated reader literal.
 (def str->number
   (fn (_ s . rest)
     (def radix (match ((eq? rest ()) 10) (#t (first rest))))
@@ -118,18 +125,34 @@
           (match
             ((= start len) ())
             (#t
-              (let ((%parse
-                      (fn (self i acc)
-                        (match
-                          ((= i len) acc)
-                          (#t
-                            (let ((d (%digit (%str-byte-ref s i))))
-                              (match
-                                ((eq? d ()) ())
-                                ((< d radix) (self (+ i 1) (+ (* acc radix) d)))
-                                (#t ()))))))))
-                (let ((result (%parse start 0)))
-                  (match
-                    ((eq? result ()) ())
-                    (neg (- 0 result))
-                    (#t result)))))))))))
+              ; hex? needs a digit after the prefix, so "0x" alone falls
+              ; through to the decimal path and misses there ('x' is not a
+              ; decimal digit) -- () either way, no special case.
+              (let ((hex?
+                      (match
+                        ((not (eq? rest ())) #f)
+                        ((not (< (+ start 2) len)) #f)
+                        ((not (= (%char->integer (%str-byte-ref s start)) %0)) #f)
+                        (#t
+                          (let ((c1 (%char->integer (%str-byte-ref s (+ start 1)))))
+                            (match
+                              ((= c1 (%char->integer #\x)) #t)
+                              ((= c1 (%char->integer #\X)) #t)
+                              (#t #f)))))))
+                (let ((pradix (match (hex? 16) (#t radix)))
+                      (pstart (match (hex? (+ start 2)) (#t start))))
+                  (let ((%parse
+                          (fn (self i acc)
+                            (match
+                              ((= i len) acc)
+                              (#t
+                                (let ((d (%digit (%str-byte-ref s i))))
+                                  (match
+                                    ((eq? d ()) ())
+                                    ((< d pradix) (self (+ i 1) (+ (* acc pradix) d)))
+                                    (#t ()))))))))
+                    (let ((result (%parse pstart 0)))
+                      (match
+                        ((eq? result ()) ())
+                        (neg (- 0 result))
+                        (#t result)))))))))))))

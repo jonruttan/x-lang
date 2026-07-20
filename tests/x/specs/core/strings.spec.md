@@ -291,3 +291,42 @@ the 32-bit Pi build passes too; the round-trip proves the digits.
 ```
 ---
     #t
+
+## str->number hex prefix (#76)
+
+The reader has always accepted `0xff` as a literal; the string parser now
+matches it. Detection is prefix-only and only when no explicit radix is
+passed -- an explicit radix means the caller controls interpretation, which
+keeps the JSON `\u` parser (`(str->number %t 16)`) byte-exact.
+
+### parses the reader's hex notation
+
+```scheme
+(list (str->number "0xff") (str->number "0XFF") (str->number "0x1A"))
+```
+---
+    (255 255 26)
+
+### sign parses before the prefix
+
+```scheme
+(list (str->number "-0xff") (str->number "+0x10"))
+```
+---
+    (-255 16)
+
+### misses stay nil -- 0 would be indistinguishable from parsing "0"
+
+```scheme
+(list (null? (str->number "0x")) (null? (str->number "0xg")) (null? (str->number "abc")))
+```
+---
+    (#t #t #t)
+
+### an explicit radix disables auto-detection
+
+```scheme
+(list (str->number "ff" 16) (null? (str->number "0xff" 16)) (str->number "101" 2))
+```
+---
+    (255 #t 5)
