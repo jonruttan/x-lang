@@ -514,7 +514,10 @@ Multiplication. Identity: `1`.
 
 `(/ a ...) -> integer`
 
-Integer division. Identity: `1`. Division by zero is undefined.
+Integer division. Identity: `1`. Division by an integer zero raises an error
+(#80); it was previously undefined, and in practice took an uncatchable
+hardware trap. Boxed tower zeros are not affected — a float divisor keeps
+IEEE semantics, a rational zero keeps the rational constructor's own error.
 
 ```
 (/ 10 2) -> 5
@@ -528,7 +531,7 @@ Integer division. Identity: `1`. Division by zero is undefined.
 
 Integer modulo. Unlike `+ - * /`, `%` has **no identity element**: calling it
 with no arguments is an error, not `0` (#72). One argument passes through.
-Modulo by zero is undefined.
+Modulo by an integer zero raises an error (#80), as with `/`.
 
 ```
 (% 10 3) -> 1
