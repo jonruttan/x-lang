@@ -1,14 +1,27 @@
 # Logo Turtle Graphics
 
-A Logo interpreter built on x-lang with a live browser viewer.
+A Logo interpreter built on x-lang with a live browser viewer — roughly 2,400
+lines of x-lang implementing a second surface language, complete with its own
+tokenizer types, an infix expression parser, an HTTP server, and an animated
+SVG turtle. It is the worked demonstration of the claim that whole surface
+languages load on top of a dialect.
 
 ## Quick Start
 
 ```sh
-rlwrap ./x.sh -l logo
+sh x.sh -l logo          # or: rlwrap sh x.sh -l logo, for line editing
 ```
 
-Opens a REPL at `http://localhost:8080`. Type Logo commands and watch the turtle draw in the browser.
+Opens a REPL and serves the viewer at `http://localhost:8080`. Type Logo
+commands and watch the turtle draw in the browser.
+
+`-l` resolves `lib/NAME.x` first and then `apps/NAME/run.x`, so the app name
+is `logo` even though the implementation lives in `apps/logo/` rather than the
+standard library.
+
+Chapter-1 programs from *Turtle Geometry* are in
+[`examples/logo/ch1.logo`](../../examples/logo/ch1.logo); load one with the
+`LOAD` command described under [File Loading](#file-loading).
 
 ## Commands
 
@@ -203,10 +216,15 @@ window.TURTLE_BC = ["F",100,"R",90,"F",100,"R",90,"F",100,"R",90,"F",100,"R",90]
 <script src="turtle-player.js"></script>
 ```
 
+> **Note:** `turtle-player.js` is not shipped in this repository — the
+> standalone player was never split out of `viewer.html`. Until it is, static
+> embedding means extracting the `parseBytecode`/render logic from
+> `viewer.html` by hand.
+
 ## Architecture
 
 ```
-Logo REPL (x-lang)                    Browser (turtle.html)
+Logo REPL (x-lang)                    Browser (viewer.html)
   |                                      |
   |-- turtle commands                    |
   |     (fd, rt, pencolor, ...)          |
@@ -227,21 +245,24 @@ Logo REPL (x-lang)                    Browser (turtle.html)
 
 ## Source Files
 
-| File | Description |
-|------|-------------|
-| `lib/logo.x` | Entry point — loads library, starts REPL |
-| `lib/x/logo.x` | Server setup, hooks, fork |
-| `lib/x/logo/state.x` | Turtle state and bytecode emission |
-| `lib/x/logo/types.x` | Logo tokenizer types |
-| `lib/x/logo/expr.x` | Expression parser (infix to values) |
-| `lib/x/logo/dispatch.x` | Command dispatcher and control flow |
-| `lib/x/logo/math.x` | Math functions and LFSR random |
-| `lib/x/logo/tstate.x` | Extended turtle commands |
-| `lib/x/logo/indent.x` | Indentation preprocessor |
-| `lib/x/logo/repl.x` | Interactive REPL |
-| `lib/x/logo/serve.x` | HTTP server for browser viewer |
-| `lib/x/logo/json.x` | Bytecode JSON output |
-| `turtle.html` | Browser viewer and animation |
+All paths are relative to `apps/logo/`.
+
+| File | Lines | Description |
+|------|-------|-------------|
+| `run.x` | 8 | Entry point — `-l logo` resolves here |
+| `main.x` | 46 | Server setup, hooks, fork |
+| `dispatch.x` | 489 | Command dispatcher and control flow |
+| `types.x` | 375 | Logo tokenizer types |
+| `expr.x` | 193 | Expression parser (infix to values) |
+| `serve.x` | 192 | HTTP server for browser viewer |
+| `repl.x` | 148 | Interactive REPL |
+| `tstate.x` | 128 | Extended turtle commands |
+| `state.x` | 113 | Turtle state and bytecode emission |
+| `math.x` | 66 | Math functions and LFSR random |
+| `indent.x` | 62 | Indentation preprocessor |
+| `json.x` | 40 | Bytecode JSON output |
+| `turtle.x` | 29 | Turtle command surface |
+| `viewer.html` | 489 | Browser viewer and animation |
 
 ## Reference
 

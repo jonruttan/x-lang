@@ -68,31 +68,48 @@
 ; the same layer that already gives + - * / their 0/1/2-arg tiers.
 ;
 ; ONE new global, not one per operator. The raw prim rides in the wrapper's
-; CLOSURE -- (%arith-guard 2 msg &) is handed the current value of & before
+; CLOSURE -- (%arith-guard 2 "&" &) is handed the current value of & before
 ; set! rebinds it -- so no %int& / %int^ / %int<< family lands in the global
 ; namespace. (The %int+ .. %int= saves above predate this and stay: the tower
 ; and bignum fetch them by name.)
 ;
 ; The arity test runs ONCE, at wrap time, picking the unary or binary closure;
-; the returned wrapper only does the eq? checks the operator actually needs,
-; so the good path costs what the binary tier above costs.
+; the returned wrapper only does the checks the operator actually needs.
+;
+; COUNTING ARGUMENTS IS NOT ENOUGH. A nil operand reaches the prim and is
+; dereferenced exactly like a missing one: x_prim_lt reads x_intval(NULL)
+; (src/x-prim/pred.c) where x_prim_eq is explicitly nil-safe. The arity tier
+; alone therefore left (< 1 ()) live, and with it every derived comparison in
+; core/logic.x -- (> 1) binds b to nil and calls (< nil 1), which passes an
+; arity test with two arguments and then dies. Reject nil here, once, rather
+; than at each caller.
+;
+; The operator NAME is passed rather than a finished message: two faults now
+; need wording, and %str-append (boot/string.x, loaded well before this file)
+; builds both without duplicating a literal per operator.
 (def %arith-guard
-  (fn (_ n msg prim)
+  (fn (_ n name prim)
     (if (eq? n 1)
       (fn (_ . args)
-        (if (eq? args ()) (error msg) (prim (first args))))
+        (match
+          ((eq? args ()) (error (%str-append name ": needs one argument")))
+          ((null? (first args)) (error (%str-append name ": operand is nil")))
+          (#t (prim (first args)))))
       (fn (_ . args)
-        (if (eq? args ()) (error msg)
-          (if (eq? (rest args) ()) (error msg)
-            (prim (first args) (first (rest args)))))))))
+        (match
+          ((eq? args ()) (error (%str-append name ": needs two arguments")))
+          ((eq? (rest args) ()) (error (%str-append name ": needs two arguments")))
+          ((or (null? (first args)) (null? (first (rest args))))
+            (error (%str-append name ": operands must not be nil")))
+          (#t (prim (first args) (first (rest args)))))))))
 
-(set! &  (%arith-guard 2 "&: needs two arguments"  &))
-(set! |  (%arith-guard 2 "|: needs two arguments"  |))
-(set! ^  (%arith-guard 2 "^: needs two arguments"  ^))
-(set! << (%arith-guard 2 "<<: needs two arguments" <<))
-(set! >> (%arith-guard 2 ">>: needs two arguments" >>))
-(set! <  (%arith-guard 2 "<: needs two arguments"  <))
-(set! ~  (%arith-guard 1 "~: needs one argument"   ~))
+(set! &  (%arith-guard 2 "&"  &))
+(set! |  (%arith-guard 2 "|"  |))
+(set! ^  (%arith-guard 2 "^"  ^))
+(set! << (%arith-guard 2 "<<" <<))
+(set! >> (%arith-guard 2 ">>" >>))
+(set! <  (%arith-guard 2 "<"  <))
+(set! ~  (%arith-guard 1 "~"  ~))
 
 (doc (provide x/core/arithmetic)
   "Variadic +, -, *, /, % folded over the binary C primitives.")

@@ -30,5 +30,5 @@
 
 (set! %lang-name "x-or")
 (set! %lang-version x-lib-version)
-(%banner)
-(repl)
+; Interactive launcher, unless x.sh passed --batch (see repl/banner.x).
+(unless %batch? (do (%banner) (repl)))

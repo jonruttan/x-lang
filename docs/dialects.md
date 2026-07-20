@@ -42,7 +42,7 @@ Stable full-stack dialect. Includes all of x-lang, then adds:
 
 - **POSIX wrappers** (`x/sys/posix.x`) — fork, exec, pipe, dup2, wait, open, close, read, write, chdir, getenv, setenv via FFI
 - **Hash tables** (`x/core/hash.x`) — FNV-1a hash function for strings
-- **JIT compiler** (`x/tool/compile.x`) — Compiles x-lang functions to native machine code via the data-driven assembler
+- **Compiler** (`x/tool/compile.x`) — Compiles x-lang functions by emitting C, invoking a host `cc` at runtime, and `dlopen`ing the result. Requires a C toolchain on the machine running it. (The separate data-driven *assembler* — `x/tool/asm.x`, emitting machine code directly on ARM64 and x86_64 — is not loaded by this dialect.)
 
 Then loads the numeric tower with immediate analyser compilation (the shared
 block `lib/x/boot/tower-compiled.x`, included by all three full-stack

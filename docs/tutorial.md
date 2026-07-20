@@ -28,17 +28,46 @@ This loads the x-lang standard library and drops into a REPL:
 
 The prompt is `> `. Results are printed after each expression. Nil results print nothing.
 
-For the full-stack dialect with numeric tower, JIT compiler, and POSIX:
+For the full-stack dialect with the numeric tower, the compiler, and POSIX:
 
 ```sh
 sh x.sh -l x-and
 ```
 
-To evaluate a file:
+## Writing a Program
+
+The REPL prints every result automatically. A file does not — it runs
+top to bottom and produces output only where you ask for it. Put this in
+`hello.x`:
+
+```scheme
+; hello.x -- Hello world
+
+(display "Hello from x-lang!")
+(newline)
+```
+
+Run it:
 
 ```sh
-sh x.sh -f program.x
+sh x.sh -f hello.x
 ```
+
+```
+Hello from x-lang!
+```
+
+`display` writes a value without quotes; `write` writes it in read-back form
+(so strings keep their quotes); `newline` emits a line break. `-f` evaluates
+the file and exits. To load a file and *then* land in the REPL with its
+definitions available, use `-F`:
+
+```sh
+sh x.sh -F hello.x
+```
+
+This file is [`examples/x/hello.x`](../examples/x/hello.x); the rest of
+[`examples/`](../examples/README.md) builds up from here.
 
 ## Basic Expressions
 
@@ -172,7 +201,7 @@ The standard library provides a rich set of list operations:
 > (List sort < (list 3 1 4 1 5 9))
 (1 1 3 4 5 9)
 > (List zip (list 1 2 3) (list "a" "b" "c"))
-((1 "a") (2 "b") (3 "c"))
+((1 . "a") (2 . "b") (3 . "c"))
 ```
 
 ## Modules
