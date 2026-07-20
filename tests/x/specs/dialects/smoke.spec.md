@@ -110,17 +110,33 @@ not a tower suite -- depth belongs in `e2e/numeric-tower.spec.md`.
 ---
     -5+10i
 
-### PENDING (#49): any token starting with + or - crashes the repl reader
+### rationals -- the README's other tower snippet (#49)
 
-`(+ 1/3 1/6)` -- the README's other tower snippet -- segfaults here, and so
-does `(- 5 3)`, bare `+`, `+5`, `-5`, and `(lit +)`. `1+2i` and `1/2` are fine,
-so it is specifically a LEADING `+`/`-`, i.e. the tower's compiled sign
-analysers on the repl read path. Restore the `---` separator and the expected
-`1/2` when #49 lands.
+Crashed until #49: the compiled rational analyser captured an unrooted
+anonymous closure for its sign state, so a collect freed the code the next
+leading `+`/`-` jumped into.
 
 ```scheme
 (+ 1/3 1/6)
 ```
+---
+    1/2
+
+### a leading sign no longer crashes the repl reader (#49)
+
+```scheme
+(- 5 3)
+```
+---
+    2
+
+### signed literals read correctly (#49)
+
+```scheme
+(+ -7 2)
+```
+---
+    -5
 
 # @lib x-or.x
 
@@ -142,8 +158,18 @@ analysers on the repl read path. Restore the `---` separator and the expected
 ---
     -5+10i
 
-### PENDING (#49): same leading +/- crash as x-and
+### rationals (#49)
 
 ```scheme
 (+ 1/3 1/6)
 ```
+---
+    1/2
+
+### a leading sign no longer crashes the repl reader (#49)
+
+```scheme
+(- 5 3)
+```
+---
+    2

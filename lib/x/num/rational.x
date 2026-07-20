@@ -84,6 +84,20 @@
     (if (and (>= chr 48) (<= chr 57))
       %rat-numer
       (if (= chr 47) %rat-first-denom ()))))
+
+; The state after a leading sign: digits continue into the numerator, anything
+; else rejects. A module-level def, NOT an inline closure, for two reasons --
+; the interpreted analyser below would otherwise allocate a fresh closure on
+; every '-'/'+' char it sees, and the COMPILED analyser in
+; boot/tower-compiled.x captures this value ONCE as a free variable. An
+; anonymous closure there is rooted by nothing after %compile-fvars is cleared,
+; so a later collect frees the code the compiled analyser jumps to (#49).
+; Every other tower stage already uses a module-level def for its sign state
+; (%big-sign-state, %int-capped-sign, %float-neg-int, %cx-neg); rational was
+; the odd one out.
+(def %rat-sign
+  (fn (_ buffer score chr)
+    (if (and (>= chr 48) (<= chr 57)) %rat-numer ())))
 ; --- Rational type ---
 
 (set! %rational
@@ -102,16 +116,8 @@
           (if (and (>= chr 48) (<= chr 57))
             %rat-numer
             (if (= chr 45)
-              (fn (_ buf sc c0)
-                (if (and (>= c0 48) (<= c0 57))
-                  %rat-numer
-                  ()))
-              (if (= chr 43)
-                (fn (_ buf sc c0)
-                  (if (and (>= c0 48) (<= c0 57))
-                    %rat-numer
-                    ()))
-                ())))))
+              %rat-sign
+              (if (= chr 43) %rat-sign ())))))
       (pair 'read (fn (_ . args) (%rational-read (first args))))
       (pair
         'from

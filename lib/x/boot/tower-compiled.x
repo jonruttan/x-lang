@@ -128,10 +128,13 @@
 ; 4. Rational
 (include "lib/x/num/rational.x")
 (set! %compile-fvars
+  ; %rat-sign is rational.x's module-level def, like every other stage's sign
+  ; state. It used to be an anonymous closure built right here, which the
+  ; compiled analyser captured and nothing rooted once %compile-fvars was
+  ; cleared below -- a later collect freed it, and the next leading '+'/'-'
+  ; jumped into freed memory (#49).
   (list (pair '%rat-numer %rat-numer)
-        (pair '%rat-sign
-          (fn (_ buffer score chr)
-            (if (< chr 48) () (if (< chr 58) %rat-numer ()))))))
+        (pair '%rat-sign %rat-sign)))
 (%type-push-analyse (%type-by-atom (%type-of 1/2))
   (compile
     (lit (fn (_ buffer score chr)
