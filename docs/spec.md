@@ -1177,8 +1177,11 @@ Sets the score fields for the tokenizer protocol. `length` is the match length,
 `reader` is the read function to call. Used internally by custom type readers.
 
 ```
-(score-match score 5 my-reader) -> score
+(score-match score 5 my-reader) -> ...
 ```
+
+(Illustrative: `score` and `my-reader` come from the worked reader above, so
+the result is the mutated score object, not a printable literal.)
 
 ### Call handler
 
@@ -2340,7 +2343,7 @@ the pattern into an AST at read time and match against strings at runtime.
 (write #/abc/) -> #/abc/
 (write #//) -> #//
 (write #/ab*c/) -> #/ab*c/
-(write #/a\\.b/) -> #/a\\.b/
+(write #/a\.b/) -> #/a\.b/
 ```
 
 ### Matching
@@ -2399,13 +2402,19 @@ A regex called as a function performs a full match against a string. Returns
 
 ### Escape sequences
 
-`\` escapes the following character, treating it as a literal.
+`\` escapes the following character, treating it as a literal. Note the
+asymmetry with strings: a regex literal is read directly, so one backslash
+escapes -- `#/a\.b/` is the three-element pattern `a` `.` `b` -- while the
+STRING being matched uses source-level escaping, so the one-backslash string
+is written `"a\\b"`. (This section previously doubled the regex escapes as
+if they were strings; those patterns matched a literal backslash and did not
+demonstrate escaping at all.)
 
 ```
-(#/a\\.b/ "a.b") -> #t
-(#/a\\.b/ "axb") -> #f
-(#/a\\\\b/ "a\\b") -> #t
-(#/a\\*b/ "a*b") -> #t
+(#/a\.b/ "a.b") -> #t
+(#/a\.b/ "axb") -> #f
+(#/a\\b/ "a\\b") -> #t
+(#/a\*b/ "a*b") -> #t
 ```
 
 ### Backtracking
