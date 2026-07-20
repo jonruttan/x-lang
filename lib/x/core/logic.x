@@ -35,16 +35,26 @@
   "Structural equality: numbers by value, strings by content, pairs and vectors element-wise (deep), else identity.")
 
 ; --- Derived comparisons ---
-
-(doc (def > (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand")) (< b a)))
+;
+; Each rejects a nil operand before delegating. core/arithmetic.x's guard on
+; < already makes a missing operand raise instead of segfaulting, so these
+; checks are not what keeps the process alive -- they are what makes the
+; message name the operator the user actually typed. Without them (> 1)
+; reports "<: operands must not be nil", naming a primitive the caller never
+; wrote. The cost is two null? tests on a path that already pays for the
+; guard inside <.
+(doc (def > (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
+    (if (or (null? a) (null? b)) (error ">: needs two arguments") (< b a))))
   (returns BOOL "True if a is greater than b")
   "Test whether a is greater than b.")
 
-(doc (def <= (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand")) (or (< a b) (= a b))))
+(doc (def <= (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
+    (if (or (null? a) (null? b)) (error "<=: needs two arguments") (or (< a b) (= a b)))))
   (returns BOOL "True if a is less than or equal to b")
   "Test whether a is less than or equal to b.")
 
-(doc (def >= (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand")) (or (< b a) (= a b))))
+(doc (def >= (fn (_ (param a NUMBER "Left operand") (param b NUMBER "Right operand"))
+    (if (or (null? a) (null? b)) (error ">=: needs two arguments") (or (< b a) (= a b)))))
   (returns BOOL "True if a is greater than or equal to b")
   "Test whether a is greater than or equal to b.")
 

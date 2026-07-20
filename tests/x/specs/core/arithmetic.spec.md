@@ -473,6 +473,33 @@ than returning a value. spec.md's old `(%) -> 0` claim is retracted.
 ---
     ('R 'R)
 
+### a nil operand raises rather than dereferencing
+
+Counting arguments is not enough: a nil operand reaches the primitive and is
+dereferenced exactly like a missing one. `x_prim_lt` reads `x_intval(NULL)`
+where `x_prim_eq` is nil-safe, so an explicit `()` was a live crash after the
+arity tier landed.
+
+```scheme
+(list (guard (e (lit R)) (< 1 ())) (guard (e (lit R)) (< () 1))
+      (guard (e (lit R)) (& 6 ())) (guard (e (lit R)) (~ ())))
+```
+---
+    ('R 'R 'R 'R)
+
+### the derived comparisons raise instead of passing nil through
+
+`>` is `(fn (_ a b) (< b a))`, so `(> 1)` binds `b` to nil and calls
+`(< nil 1)` -- two arguments, so the arity tier passes it straight to the
+unchecked primitive.
+
+```scheme
+(list (guard (e (lit R)) (> 1)) (guard (e (lit R)) (<= 1))
+      (guard (e (lit R)) (>= 1)) (guard (e (lit R)) (>)))
+```
+---
+    ('R 'R 'R 'R)
+
 ### the guarded operators still compute normally
 
 ```scheme
