@@ -65,6 +65,9 @@
         (example "(StrUTF8 sub 1 1 \"$¢€\")" "\"¢\""))
       (def st2 (%str8->int start "Str sub: start not convertible to INT"))
       (def len2 (%str8->int len "Str sub: length not convertible to INT"))
+      ; StrUTF8 overrides sub, so Str8's guard does not cover this path
+      ; (%u8-byte-offset walks the raw bytes just the same). See #51.
+      (%str8-check v "Str sub: not a string")
       (def b0 (%u8-byte-offset v st2 0))
       (def b1 (%u8-byte-offset v len2 b0))
       (%str-byte-sub v b0 (- b1 b0)))

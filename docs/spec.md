@@ -395,13 +395,14 @@ Evaluates expression `expr`. With optional `env`, evaluates in that environment.
 
 `(and expr ...) -> value`
 
-Short-circuit logical AND. Evaluates each `expr` left to right. Returns `()`
-at the first falsy value. If all truthy, returns the last value. `(and)` returns
-`#t`.
+Short-circuit logical AND. Evaluates each `expr` left to right. Normalizes
+failure to `#f` at the first falsy value -- see the absence discipline in
+section 1, which this section previously contradicted. If all truthy, returns
+the last value. `(and)` returns `#t`.
 
 ```
 (and 1 2 3) -> 3
-(and 1 () 3) -> ()
+(and 1 () 3) -> #f
 (and) -> #t
 ```
 
@@ -1564,13 +1565,14 @@ Repeatedly applies `f` to `x` until `pred` is true.
 
 `(equal? a b) -> #t | #f`
 
-Shallow value equality: numbers by value, strings by content, else by identity
-(`eq?`). Does not recurse into pairs or lists.
+Value equality: numbers by value, strings by content, and structural for
+pairs, lists and vectors (vectors via the `%equal-others` handler cell). Falls
+back to identity (`eq?`) for everything else. Instances stay identity-compared.
 
 ```
 (equal? 3 3) -> #t
 (equal? "abc" "abc") -> #t
-(equal? (list 1) (list 1)) -> #f
+(equal? (list 1) (list 1)) -> #t
 ```
 
 ---
@@ -1889,10 +1891,10 @@ Misses return `()`.
 
 #### `List times`
 
-`(List times f n) -> list`
+`(List times n f) -> list`
 
 ```
-(List times (method-ref Fn identity) 4) -> (0 1 2 3)
+(List times 4 (method-ref Fn identity)) -> (0 1 2 3)
 ```
 
 #### `List unfold`
@@ -2200,11 +2202,11 @@ Applies transformation functions to matching keys.
 
 ### `Str repeat`
 
-`(Str repeat s n) -> string`
+`(Str repeat n s) -> string`
 
 ```
-(Str repeat "ab" 3) -> "ababab"
-(Str repeat "x" 0) -> ""
+(Str repeat 3 "ab") -> "ababab"
+(Str repeat 0 "x") -> ""
 ```
 
 ### `Str contains?`
@@ -2270,10 +2272,10 @@ Vectors are fixed-size indexed collections backed by lists. They display as
 
 ### `Vector ref`
 
-`(Vector ref v i) -> value`
+`(Vector ref i v) -> value`
 
 ```
-(Vector ref (Vector of 10 20 30) 1) -> 20
+(Vector ref 1 (Vector of 10 20 30)) -> 20
 ```
 
 ### `Vector length`

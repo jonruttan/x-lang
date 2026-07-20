@@ -49,6 +49,14 @@
 (def %vector-read ())
 
 (def %vector ())
+
+; Receiver guard for the raw-slot ops. %obj-ref reads slot 0 as the length, so
+; a non-vector receiver turns the bounds check ITSELF into a read of arbitrary
+; memory -- the type check has to come first for the bounds check to mean
+; anything. The class layer is the guard site; the C prims stay unchecked by
+; design (see docs/glossary.md "core").
+(def %vec-check (fn (_ v what)
+  (if (%type? v %vector) v (Err raise (lit type) what ()))))
 (set! %vector
   (%make-type
     "VECTOR"
@@ -175,6 +183,7 @@
       ; matches the vector's call slot, so (Vector ref -1 v) == (v -1). The
       ; nil guard makes a piped index-search miss fail loudly.
       (def i2 (%vec->int i "Vector ref: index not convertible to INT"))
+      (%vec-check v "Vector ref: not a vector")
       (def len (%obj-ref v 0))
       (def j (if (< i2 0) (+ len i2) i2))
       (if (< j 0) (Err raise (lit index) "Vector ref: index out of range" ())
@@ -189,6 +198,7 @@
       ; Same guard discipline as ref: slot-0 length is the x-lang bounds
       ; check over the raw %obj-set!, and negatives normalize identically.
       (def i2 (%vec->int i "Vector set!: index not convertible to INT"))
+      (%vec-check v "Vector set!: not a vector")
       (def len (%obj-ref v 0))
       (def j (if (< i2 0) (+ len i2) i2))
       (if (< j 0) (Err raise (lit index) "Vector set!: index out of range" ())
@@ -196,10 +206,12 @@
           (Err raise (lit index) "Vector set!: index out of range" ()))))
     (method length (self (param v VECTOR "Vector"))
       (doc "Return the number of elements in a vector." (returns INT "Number of elements"))
+      (%vec-check v "Vector length: not a vector")
       (%obj-ref v 0))
     ; --- Conversion ---
     (method ->list (self (param v VECTOR "Vector to convert"))
       (doc "Convert a vector to a list." (returns LIST "List of the vector's elements"))
+      (%vec-check v "Vector ->list: not a vector")
       (def len (%obj-ref v 0))
       (def build
         (fn (self i acc)

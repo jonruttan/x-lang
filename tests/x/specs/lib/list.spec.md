@@ -1144,3 +1144,35 @@
 ```
 ---
     Error: #<err:value List min: empty list>
+
+### fold rejects an improper list
+
+```scheme
+(List fold (fn (_ a x) a) 0 (pair 1 2))
+```
+---
+    Error: #<err:type List fold: improper list>
+
+### length rejects an improper list
+
+```scheme
+(List length (pair 1 2))
+```
+---
+    Error: #<err:type List fold: improper list>
+
+### reverse rejects an improper list
+
+```scheme
+(List reverse (pair 1 2))
+```
+---
+    Error: #<err:type List fold: improper list>
+
+### map rejects an improper list
+
+```scheme
+(List map (fn (_ x) x) (pair 1 2))
+```
+---
+    Error: #<err:type map: improper list>

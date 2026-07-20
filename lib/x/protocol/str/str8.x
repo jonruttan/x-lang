@@ -45,6 +45,22 @@
 (def %str8-type-of (prim-ref (lit type) (lit of)))
 (def %str8-int-type (%str8-type-of 0))
 (def %str8-cvt (prim-ref (lit convert) (lit to)))
+
+; Receiver guard for the byte ops. %str-byte-len/-ref/-sub read the string's
+; bytes unchecked, so a non-string receiver makes the length compare ITSELF a
+; read of arbitrary memory -- the type check has to come first for the bounds
+; guard to mean anything.
+;
+; Placement is deliberate: this sits on the COLD seats (length, sub, slice,
+; index, join) and on `start`, which runs once per traversal and so covers
+; every walker above it (->list, iter, upcase, downcase, reverse). `ref`,
+; `done?` and `step` stay unguarded on purpose -- they run per ELEMENT inside
+; the suite's loops, and they keep the same documented-unchecked status as
+; first/rest. See #51.
+(def %str8-str-type (%str8-type-of ""))
+(def %str8-check (fn (_ v what)
+  (if (if (null? v) #f (eq? (%str8-type-of v) %str8-str-type)) v
+    (Err raise (lit type) what ()))))
 (def %str8->int (fn (_ n what)
   (if (if (null? n) #f (eq? (%str8-type-of n) %str8-int-type)) n
     (let ((k (%str8-cvt n %str8-int-type)))
@@ -57,6 +73,7 @@
       (doc "Number of bytes in v (the 8-bit element count)."
         (returns INT "Byte length of v")
         (example "(Str8 length \"abc\")" "3"))
+      (%str8-check v "Str8 length: not a string")
       (%str-byte-len v))
     (method ref    (self (param i INT "Byte position (0-based; negative counts from the end)") (param v STRING "String to index"))
       (doc "The i-th byte of v as a CHARACTER (code 0-255); negative i counts from the end. Errors when i is nil or out of range."
@@ -81,6 +98,7 @@
       ; clamping here is the x-lang guard, mirroring StrUTF8 sub's clamp.
       (def st2 (%str8->int st "Str8 sub: start not convertible to INT"))
       (def len2 (%str8->int len "Str8 sub: length not convertible to INT"))
+      (%str8-check v "Str8 sub: not a string")
       (let ((n (%str-byte-len v)))
         (let ((s0 (if (< st2 0) 0 (if (< st2 n) st2 n))))
           (%str-byte-sub v s0
@@ -101,7 +119,11 @@
     ; raw byte length -- NOT (self length), which a code-point subclass overrides
     ; via count -> done?, an infinite recursion. start/done? are inherited
     ; unchanged by StrUTF8; only step advances differently.
-    (method start (self v)     0)
+    ; The one guard on the cursor protocol: `start` runs once per traversal,
+    ; so it covers every walker above it (->list, iter, upcase, downcase,
+    ; reverse) for the cost of a single type compare -- while done?/step,
+    ; which run per element, stay raw.
+    (method start (self v)     (do (%str8-check v "Str8: not a string") 0))
     (method done? (self cur v) (>= cur (%str-byte-len v)))
     (method step  (self cur v) (pair (self ref cur v) (+ cur 1)))
 
@@ -216,11 +238,18 @@
       (doc "Join the strings in lst, placing sep between consecutive elements."
         (returns STRING "Elements of lst concatenated with sep between them")
         (example "(Str8 join \",\" (list \"a\" \"b\" \"c\"))" "\"a,b,c\""))
+      ; %str-append is a raw byte concat, so a non-string ELEMENT is the hazard
+      ; here rather than a non-string receiver -- (Str8 join ", " (list 1 2 3))
+      ; is an everyday call. The per-element check is noise next to the two
+      ; allocations each step already pays. Use (Str8 str ...) to render
+      ; non-strings; join deliberately does not coerce.
+      (%str8-check sep "Str8 join: separator not a string")
       (match
         ((null? lst) "")
-        ((null? (rest lst)) (first lst))
-        (#t (fold (fn (_ acc s) (%str-append acc (%str-append sep s)))
-                  (first lst) (rest lst)))))
+        ((null? (rest lst)) (%str8-check (first lst) "Str8 join: element not a string"))
+        (#t (fold (fn (_ acc s)
+                    (%str-append acc (%str-append sep (%str8-check s "Str8 join: element not a string"))))
+                  (%str8-check (first lst) "Str8 join: element not a string") (rest lst)))))
     (method repeat (self (param n INT "Number of copies") (param s STRING "String to repeat"))
       (doc "Concatenate n copies of s (empty string when n <= 0)."
         (returns STRING "s repeated n times")

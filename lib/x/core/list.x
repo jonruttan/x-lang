@@ -64,11 +64,16 @@
       ()
       (if (null? (first lsts)) #t (self (rest lsts))))))
 
+; first/rest are unchecked, so an improper tail walks off the end into UB.
+; The Err lookup resolves at CALL time, long after err.x loads (x-core.x:221),
+; and nothing in boot maps over an improper list -- so the guard is safe here
+; even though this module loads at :113.
 (def %map1
   (fn (self f lst)
-    (if (null? lst)
-      ()
-      (pair (f (first lst)) (self f (rest lst))))))
+    (match
+      ((null? lst) ())
+      ((not (pair? lst)) (Err raise (lit type) "map: improper list" ()))
+      (#t (pair (f (first lst)) (self f (rest lst)))))))
 
 ; Multi-list loop, inputs already normalized (the old recursion went
 ; back through the public entry, re-as-listing every tail per step).

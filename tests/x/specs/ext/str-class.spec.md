@@ -538,3 +538,46 @@ evaluates -- the tower parse-before-eval trap, begin-flavored.
 ```
 ---
     "[   é]"
+
+### upcase rejects a non-string
+
+```scheme
+(Str upcase 42)
+```
+---
+    Error: #<err:type Str8: not a string>
+
+### length rejects a non-string
+
+`Str` is StrUTF8, whose `length` counts code points through the cursor walk,
+so the guard fires at `start` rather than in Str8's byte-length seat.
+
+```scheme
+(Str length 42)
+```
+---
+    Error: #<err:type Str8: not a string>
+
+### length on a pair no longer returns a byte count
+
+```scheme
+(Str length (list 1 2))
+```
+---
+    Error: #<err:type Str8: not a string>
+
+### join rejects non-string elements
+
+```scheme
+(Str join ", " (list 1 2 3))
+```
+---
+    Error: #<err:type Str8 join: element not a string>
+
+### sub rejects a non-string
+
+```scheme
+(Str sub 0 2 42)
+```
+---
+    Error: #<err:type Str sub: not a string>

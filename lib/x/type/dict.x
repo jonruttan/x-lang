@@ -24,6 +24,13 @@
 
 (def %dict-mask31 2147483647)  ; FNV-1a is 64-bit SIGNED -- mask before %
 
+; Machine-INT test, boot-safe (type handles are C-static atoms, so eq? is
+; pointer-stable). `number?` is too wide to gate the bitwise mask below:
+; a float is a number but `&` on a boxed float is not an operation.
+(def %dict-type-of (prim-ref (lit type) (lit of)))
+(def %dict-int-type (%dict-type-of 0))
+(def %dict-int? (fn (_ n) (if (null? n) #f (eq? (%dict-type-of n) %dict-int-type))))
+
 ; Content hash per supported key type. Non-negative by construction, so the
 ; bucket index (% h cap) never goes negative (C-truncating % keeps the sign).
 (def %dict-hash
@@ -31,7 +38,7 @@
     (match
       ((symbol? k) (& (Hash fnv-1a (symbol->str k)) %dict-mask31))
       ((str? k) (& (Hash fnv-1a k) %dict-mask31))
-      ((number? k) (& k %dict-mask31))
+      ((%dict-int? k) (& k %dict-mask31))
       ((char? k) (%dict-char->int k))
       (#t (Err raise 'type "Dict: unhashable key -- use a symbol, string, integer, or char" ())))))
 

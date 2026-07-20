@@ -250,3 +250,43 @@
 ```
 ---
     Error: #<err:index Vector set!: index out of range>
+
+### rejects a non-vector receiver
+
+```scheme
+(Vector length 7)
+```
+---
+    Error: #<err:type Vector length: not a vector>
+
+### ref rejects a non-vector receiver
+
+```scheme
+(Vector ref 0 42)
+```
+---
+    Error: #<err:type Vector ref: not a vector>
+
+### ref on a list no longer returns pair internals
+
+```scheme
+(Vector ref 0 (list 1 2 3))
+```
+---
+    Error: #<err:type Vector ref: not a vector>
+
+### set! rejects a non-vector receiver
+
+```scheme
+(Vector set! 0 9 42)
+```
+---
+    Error: #<err:type Vector set!: not a vector>
+
+### ->list rejects a non-vector receiver
+
+```scheme
+(Vector ->list 7)
+```
+---
+    Error: #<err:type Vector ->list: not a vector>
