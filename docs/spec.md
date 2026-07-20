@@ -877,14 +877,23 @@ Converts integer to decimal string representation.
 
 ### `str->number`
 
-`(str->number str) -> integer`
+`(str->number str [radix]) -> integer | ()`
 
-Parses string as integer. Supports `0x` prefix for hex. Non-numeric strings
-return `0`.
+Parses string as an integer. A `0x`/`0X` prefix selects hex, matching the
+reader's literal; the sign parses first, so `"-0xff"` is `-255`. An explicit
+`radix` argument disables prefix detection -- the caller controls
+interpretation, and digits run to radix 36. Non-numeric strings miss with
+`()`, like every other miss; `0` would be indistinguishable from parsing
+`"0"`. (This section previously claimed a `0` fallback -- stale text
+predating the nil model -- and documented the hex prefix before it was
+implemented; #76 ruled it in.)
 
 ```
 (str->number "42") -> 42
 (str->number "0xff") -> 255
+(str->number "-0xff") -> -255
+(str->number "ff" 16) -> 255
+(str->number "abc") -> ()
 ```
 
 ---
