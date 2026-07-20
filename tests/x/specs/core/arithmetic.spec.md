@@ -500,6 +500,37 @@ unchecked primitive.
 ---
     ('R 'R 'R 'R)
 
+## division by zero (#80)
+
+C division has no zero test, no SIGFPE handler exists, and `guard` cannot
+catch a hardware trap -- so before the guard, `(/ 1 0)` killed the whole
+process. The gate is the saved C `number?`, so only a C-level integer zero
+is stopped; boxed tower divisors keep their own dispatch.
+
+### binary tier raises for / and %
+
+```scheme
+(list (guard (e (lit R)) (/ 1 0)) (guard (e (lit R)) (% 1 0)))
+```
+---
+    ('R 'R)
+
+### fold tier raises mid-fold
+
+```scheme
+(list (guard (e (lit R)) (/ 8 2 0)) (guard (e (lit R)) (% 17 10 0)))
+```
+---
+    ('R 'R)
+
+### zero as dividend still divides
+
+```scheme
+(list (/ 0 5) (% 0 5) (/ 100 2 5) (% 17 10 3))
+```
+---
+    (0 0 10 1)
+
 ### the guarded operators still compute normally
 
 ```scheme
