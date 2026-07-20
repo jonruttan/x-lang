@@ -86,7 +86,9 @@ function flush_setup() { setup = "" }
 
   printf "\n### spec.md:%d %s\n\n", line_no, expr >> outfile
   printf "```scheme\n" >> outfile
-  if (setup != "") printf "(do %s %s)\n", setup, expr >> outfile
+  # The wrap spans lines with the closing paren on its own: an end-of-line
+  # comment in setup or expr must not be able to swallow the rest of the form.
+  if (setup != "") printf "(do %s\n%s\n)\n", setup, expr >> outfile
   else printf "%s\n", expr >> outfile
   printf "```\n---\n" >> outfile
   # nil prints as an empty line in the harness, so an expected () is blank.
@@ -96,8 +98,13 @@ function flush_setup() { setup = "" }
 }
 
 # Setup line: accumulate for subsequent assertions in this fence.
+# Comment-only lines are dropped: folded inline into the (do ...) wrap, a
+# `;` comments to END OF LINE and swallows the expression and the closing
+# paren -- the unterminated form then eats the following tests (found via
+# the Comments example itself, which demonstrates exactly this syntax).
 {
   gsub(/^[ \t]+|[ \t]+$/, "")
+  if ($0 ~ /^;/) next
   if ($0 != "") setup = setup " " $0
 }
 ' docs/spec.md
