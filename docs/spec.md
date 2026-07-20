@@ -708,13 +708,13 @@ Returns `#t` if `x` is not a pair. Inverse of `pair?`.
 (number? "hello") -> #f
 ```
 
-### `string?`
+### `str?`
 
-`(string? x) -> #t | #f`
+`(str? x) -> #t | #f`
 
 ```
-(string? "hello") -> #t
-(string? 42) -> #f
+(str? "hello") -> #t
+(str? 42) -> #f
 ```
 
 ### `symbol?`
@@ -1328,7 +1328,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 `(Fn complement pred) -> function`
 
 ```
-((Fn complement even?) 3) -> #t
+((Fn complement (method-ref Num even?)) 3) -> #t
 ```
 
 ### `Fn partial`
@@ -1352,8 +1352,8 @@ Returns a function that applies `f` for side effects, then returns the argument.
 `(Fn both f g) -> function`
 
 ```
-((Fn both positive? even?) 4) -> #t
-((Fn both positive? even?) 3) -> #f
+((Fn both (method-ref Num positive?) (method-ref Num even?)) 4) -> #t
+((Fn both (method-ref Num positive?) (method-ref Num even?)) 3) -> #f
 ```
 
 ### `Fn either`
@@ -1361,7 +1361,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 `(Fn either f g) -> function`
 
 ```
-((Fn either positive? even?) -2) -> #t
+((Fn either (method-ref Num positive?) (method-ref Num even?)) -2) -> #t
 ```
 
 ### `Fn all-pass`
@@ -1369,7 +1369,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 `(Fn all-pass preds) -> function`
 
 ```
-((Fn all-pass (list positive? even?)) 4) -> #t
+((Fn all-pass (list (method-ref Num positive?) (method-ref Num even?))) 4) -> #t
 ```
 
 ### `Fn any-pass`
@@ -1377,7 +1377,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 `(Fn any-pass preds) -> function`
 
 ```
-((Fn any-pass (list positive? even?)) -2) -> #t
+((Fn any-pass (list (method-ref Num positive?) (method-ref Num even?))) -2) -> #t
 ```
 
 ---
@@ -1735,8 +1735,8 @@ Maps then flattens one level.
 `(List any? pred lst) -> #t | #f`
 
 ```
-(List any? even? (list 1 3 4)) -> #t
-(List any? even? (list 1 3 5)) -> #f
+(List any? (method-ref Num even?) (list 1 3 4)) -> #t
+(List any? (method-ref Num even?) (list 1 3 5)) -> #f
 ```
 
 #### `List all?`
@@ -1744,8 +1744,8 @@ Maps then flattens one level.
 `(List all? pred lst) -> #t | #f`
 
 ```
-(List all? even? (list 2 4 6)) -> #t
-(List all? even? (list 2 3 6)) -> #f
+(List all? (method-ref Num even?) (list 2 4 6)) -> #t
+(List all? (method-ref Num even?) (list 2 3 6)) -> #f
 ```
 
 #### `List none?`
@@ -1753,7 +1753,7 @@ Maps then flattens one level.
 `(List none? pred lst) -> #t | #f`
 
 ```
-(List none? even? (list 1 3 5)) -> #t
+(List none? (method-ref Num even?) (list 1 3 5)) -> #t
 ```
 
 #### `List empty?`
@@ -1774,7 +1774,7 @@ Maps then flattens one level.
 Complement of `filter`.
 
 ```
-(List reject even? (list 1 2 3 4)) -> (1 3)
+(List reject (method-ref Num even?) (list 1 2 3 4)) -> (1 3)
 ```
 
 ### Search
@@ -1784,8 +1784,8 @@ Complement of `filter`.
 `(List find pred lst) -> value | ()`
 
 ```
-(List find even? (list 1 3 4 6)) -> 4
-(List find even? (list 1 3 5)) -> ()
+(List find (method-ref Num even?) (list 1 3 4 6)) -> 4
+(List find (method-ref Num even?) (list 1 3 5)) -> ()
 ```
 
 #### `List find-index`
@@ -1796,8 +1796,8 @@ Misses return `()` like every other miss (negative indexes are valid
 from-the-end positions, so no number can mark absence).
 
 ```
-(List find-index even? (list 1 3 4)) -> 2
-(List find-index even? (list 1 3 5)) -> ()
+(List find-index (method-ref Num even?) (list 1 3 4)) -> 2
+(List find-index (method-ref Num even?) (list 1 3 5)) -> ()
 ```
 
 #### `List index-of`
@@ -1824,7 +1824,7 @@ Misses return `()`.
 `(List count-if pred lst) -> integer`
 
 ```
-(List count-if even? (list 1 2 3 4)) -> 2
+(List count-if (method-ref Num even?) (list 1 2 3 4)) -> 2
 ```
 
 ### Slicing
@@ -1850,7 +1850,7 @@ Misses return `()`.
 `(List take-while pred lst) -> list`
 
 ```
-(List take-while odd? (list 1 3 4 5)) -> (1 3)
+(List take-while (method-ref Num odd?) (list 1 3 4 5)) -> (1 3)
 ```
 
 #### `List drop-while`
@@ -1858,7 +1858,7 @@ Misses return `()`.
 `(List drop-while pred lst) -> list`
 
 ```
-(List drop-while odd? (list 1 3 4 5)) -> (4 5)
+(List drop-while (method-ref Num odd?) (list 1 3 4 5)) -> (4 5)
 ```
 
 #### `List split-at`
@@ -1944,7 +1944,7 @@ Pairs corresponding elements as assocs; the result is an alist.
 `(List partition pred lst) -> (list list)`
 
 ```
-(List partition even? (list 1 2 3 4)) -> ((2 4) (1 3))
+(List partition (method-ref Num even?) (list 1 2 3 4)) -> ((2 4) (1 3))
 ```
 
 #### `List group-by`
@@ -1952,7 +1952,7 @@ Pairs corresponding elements as assocs; the result is an alist.
 `(List group-by f lst) -> alist`
 
 ```
-(List group-by even? (list 1 2 3 4)) -> ((#f 1 3) (#t 2 4))
+(List group-by (method-ref Num even?) (list 1 2 3 4)) -> ((#f 1 3) (#t 2 4))
 ```
 
 #### `List sort`

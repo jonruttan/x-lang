@@ -72,7 +72,15 @@ function flush_setup() { setup = "" }
     gsub(/[^A-Za-z0-9]+/, "-", slug)
     sub(/^-+/, "", slug); sub(/-+$/, "", slug)
     outfile = ENVIRON["OUT"] "/" slug ".spec.md"
-    printf "## %s\n", section > outfile
+    # Per-section dialect. Most sections document x-core semantics -- notably
+    # section 5, where spec.md means INTEGER division, so running it under a
+    # tower dialect would be wrong. Two sections need readers that only exist
+    # once a dialect has installed them at boot: #/.../ regex literals, which
+    # x-base.x brings in via tower-compiled.x. Reader macros are boot-time
+    # only, so this cannot be fixed by importing inside the example.
+    lib = (slug == "20-Lib-Regex" || slug == "10-Reader-Syntax") ? "x-base.x" : ""
+    if (lib != "") printf "# @lib %s\n", lib > outfile
+    printf "## %s\n", section >> outfile
     last_section = section
   }
 
