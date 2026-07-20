@@ -88,7 +88,7 @@ See [`apps/logo/README.md`](apps/logo/README.md) for the command reference.
 - **Regular expressions** — Custom type with `#/pattern/` literal syntax.
 - **Self-hosted tools** — Linter, formatter, coverage analyzer, profiler, and documentation generator written in x-lang.
 - **Tail-call optimization** — Trampoline-based TCO with environment save/restore.
-- **C89 portable** — No third-party dependencies (links only `libc`, `-ldl`, `-lm`). CI builds with gcc and clang on macOS and Linux; any C89-compatible compiler should work.
+- **C89 portable** — No third-party dependencies: the expression engine links only `libc`; the full binary adds `-ldl` for the FFI/JIT layer (float math dlopens `libm` at runtime rather than linking it). CI builds with gcc and clang on macOS and Linux; any C89-compatible compiler should work.
 
 ## Architecture
 
@@ -130,10 +130,12 @@ make clean && make
 
 Requires a C89-compatible compiler. Produces the `x` binary.
 
-The interpreter itself has no runtime dependencies beyond `libc`, `-ldl`, and
-`-lm`. One optional tool does: `x/tool/compile` — the C-emitting compiler —
-invokes `cc` at *runtime* and `dlopen`s the result, so it needs a host C
-toolchain present when it runs. Nothing else does.
+The expression engine (`ext/x-expr`) needs nothing beyond `libc`; the full
+binary adds `-ldl` for the FFI/JIT layer. There is no `-lm` — float math
+resolves `libm` at runtime through the FFI, the same way it resolves any
+other library. One optional tool needs more: `x/tool/compile` — the
+C-emitting compiler — invokes `cc` at *runtime* and `dlopen`s the result, so
+it needs a host C toolchain present when it runs. Nothing else does.
 
 ## Run
 

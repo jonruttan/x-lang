@@ -170,9 +170,14 @@
   (fn (_ a b)
     (%make-instance %float (%ffi-call "d/d" () (first a) (first b)))))
 
+; fmod through the dlsym'd %libm handle (dd->d), like every other math
+; function -- NOT an inline C convention.  The retired d%d convention was
+; the binary's ONLY link-time libm reference; with it gone the link drops
+; -lm entirely (%libm above already loads libm itself at runtime).
+(def %ffmod (%dlsym %libm "fmod"))
 (def %f-mod
   (fn (_ a b)
-    (%make-instance %float (%ffi-call "d%d" () (first a) (first b)))))
+    (%make-instance %float (%ffi-call "dd->d" %ffmod (first a) (first b)))))
 
 (note "Comparisons")
 
