@@ -4,6 +4,17 @@
 
 (def %lang-name ())
 (def %lang-version ())
+; Batch mode: x.sh sets --batch when a file is supplied with -f/-F.  The
+; dialect entries skip the interactive launcher, so the C read-eval loop
+; falls through to the file that x.sh concatenated after them.  Without
+; this the launcher's (repl) reclaims terminal stdin from fd 3 (loop.x)
+; and DISCARDS the still-unread file bytes -- reads are one byte at a
+; time, so nothing is buffered ahead.
+(def %batch?
+  (fold
+    (fn (_ acc a) (or acc (str=? a "--batch")))
+    ()
+    args))
 (def %banner
   (fn (_ )
     (def %quiet

@@ -26,6 +26,9 @@ fi
 file=""
 verbose=""
 xflags=""
+# Appended after the -F file so the interactive launcher runs once the
+# file has been evaluated (see lib/x/repl/launch.x).
+post=""
 
 display_help() {
 	echo "Usage: $0 [OPTION]... "
@@ -48,10 +51,12 @@ do
 	case "$1" in
 		-f | --file)
 			file="\"$2\""
+			post=""
 			shift 2
 			;;
 		-F | --load)
 			file="\"$2\" $file"
+			post="\"${LIB_PATH}x/repl/launch.x\""
 			shift 2
 			;;
 		-h | --help)
@@ -110,7 +115,14 @@ if [ ! -e "$ENTRY" ] && [ -e "apps/${X_LIB}/run${X_EXT}" ]; then
 	ENTRY="apps/${X_LIB}/run${X_EXT}"
 fi
 
-CMD="cat \"${ENTRY}\" ${file} | \"$SCRIPT_PATH/x\"$xflags$args"
+# A supplied file suppresses the dialect entry's interactive launcher, so
+# the read-eval loop reaches the file instead of the launcher reclaiming
+# stdin and discarding it.  -F re-launches afterwards via $post.
+if [ "$file" ]; then
+	xflags="$xflags \"--batch\""
+fi
+
+CMD="cat \"${ENTRY}\" ${file} ${post} | \"$SCRIPT_PATH/x\"$xflags$args"
 
 if [ "$verbose" ]; then
 	echo "$CMD"
