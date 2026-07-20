@@ -26,9 +26,9 @@ Revision:    7 (2026-07-10)
 
 - Foundational / Scripting
 - Lisp1 with fexpr evaluation model
-- 50+ modular library files
+- ~100 modular library files
 - Module system (provide/import)
-- JIT compiler (x86_64, ARM64)
+- JIT assembler (x86_64, ARM64); automatic native compiler (ARM64 only)
 - Numeric tower (bignum, float, rational, complex)
 - POSIX via FFI, regex, vectors, hash tables
 - Self-hosted tools (lint, fmt, cov, profile, doc)

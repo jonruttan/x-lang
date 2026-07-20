@@ -296,7 +296,7 @@ The `call` handler enables `(v 0)` indexing. The `write` handler produces `#(1 2
 
 #### Example: Object System
 
-The standard library's object system (`lib/x/type/object.x`) is the richest use of `make-type`. It defines two callable types — `%object` (instances) and `%class` (classes) — each with an **operative** `call` handler, so `(obj name args...)` reaches the handler with the receiver as `self` and `name` *unevaluated* (a literal selector, no quote needed). The handler looks `name` up as a method (walking the parent chain for inheritance); finding none, it falls back to a member get/set.
+The standard library's object system (`lib/x/type/class.x`) is the richest use of `make-type`. It defines two callable types — `%object` (instances) and `%class` (classes) — each with an **operative** `call` handler, so `(obj name args...)` reaches the handler with the receiver as `self` and `name` *unevaluated* (a literal selector, no quote needed). The handler looks `name` up as a method (walking the parent chain for inheritance); finding none, it falls back to a member get/set.
 
 ```
 (def-class Point ()

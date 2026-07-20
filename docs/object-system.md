@@ -4,7 +4,7 @@
 
 
 x-lang ships a small object-oriented class system in the standard library
-(`lib/x/type/object.x`). It follows the **message-passing** model made famous by
+(`lib/x/type/class.x`). It follows the **message-passing** model made famous by
 SICP and Smalltalk: objects own their members, and you interact with an object by
 sending it a message — no quoting required.
 
