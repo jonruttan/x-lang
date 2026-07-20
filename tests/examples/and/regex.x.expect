@@ -1,0 +1,4 @@
+pattern: #/[a-z]+@[a-z]+\.[a-z]+/
+match 'user@example.com': #t
+match 'not-an-email': #f
+value-call: #t

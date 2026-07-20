@@ -64,9 +64,9 @@ x/and does NOT include raw syscall access, file I/O, or socket constants.
 
 Experimental/hacking dialect. Everything in x/and, plus:
 
-- **Syscall tables** (`x/platform/syscall.x`) — Symbolic syscall number lookup for x86_64 and i386/BSD
-- **File I/O** (`x/sys/file.x`) — File operations via POSIX syscalls with symbolic mode flags
-- **Socket constants** (`x/platform/socket.x`) — Linux socketcall, protocol families, socket types
+- **Syscall tables** (`x/platform/syscall.x`) — Symbolic syscall number lookup for x86_64 and i386/BSD (loaded via the POSIX layer)
+- **File I/O** (`x/sys/file.x`) — File operations via POSIX syscalls with symbolic mode flags. **Opt-in** (#36): `(import x/sys/file)`
+- **Socket constants** (`x/platform/socket.x`) — Linux socketcall, protocol families, socket types. **Opt-in** (#36): `(import x/platform/socket)`
 - **Character constants** — `#newline`/`#nl`, `#cr`, `#esc`, `#0`, `#crnl`
 - **I/O constants** — `stdin` (0), `stdout` (1), `stderr` (2), `current-input-handle`, `current-output-handle`, `current-error-handle`
 - **Car/cdr compositions** — 28 composed accessors from `caar` through `cddddr`

@@ -35,6 +35,12 @@ jobs:
       # executable contract; a stale example is a red build, not quiet rot.
       - name: Doctests
         run: make doctest
+      # Examples ratchet: every file under examples/ runs under its documented
+      # dialect (batch mode), output-pinned where portable.  The first code a
+      # newcomer runs was previously the only code with no gate -- and its
+      # first-ever run caught or/cat.x broken by the #36 opt-in re-cut.
+      - name: Examples
+        run: make check-examples
 
   # Memory-safety gate: both suites under AddressSanitizer. HARD gate since
   # the baseline reached zero (2026-07-13; was 112 findings): a red run here

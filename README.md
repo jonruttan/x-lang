@@ -107,7 +107,7 @@ The library is composed into dialects that control what capabilities are loaded:
 
 - **x-lang** (`lib/x.x`) — Core language. Bootstraps 40+ modules providing combinators, list operations, sorting, strings, vectors, promises, quasiquote, and a REPL. No numeric tower.
 - **x/and** (`lib/x-and.x`) — Stable full-stack dialect. Adds POSIX, hash tables, the JIT compiler, and a numeric tower (bignum, float, rational, complex) with compiled tokenizer analysers for fast parsing.
-- **x/or** (`lib/x-or.x`) — Experimental dialect. Everything in x/and plus raw syscall tables, file I/O, sockets, character constants, and I/O handle constants.
+- **x/or** (`lib/x-or.x`) — Experimental dialect. Everything in x/and plus the raw syscall surface, character constants, and I/O handle constants; file I/O and sockets load on demand (`(import x/sys/file)`, `x/platform/socket`).
 
 Dialects are selected via the `-l` flag on the shell wrapper. Language personalities (R5RS Scheme, R7RS Scheme, Kernel, ASH shell, sweet expressions) are maintained as sibling projects and load as additional libraries on top of a dialect.
 

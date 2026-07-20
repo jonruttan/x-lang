@@ -1,3 +1,4 @@
+=== cat.x ===
 ; cat.x -- Display a file using raw syscalls
 ;
 ; Usage:
