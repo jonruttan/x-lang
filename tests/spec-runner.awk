@@ -139,7 +139,14 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 			# -- ~120s of pure waste per heavy-lib (x-base/complex/...) spec.
 			if (i > from)
 				printf "(display \"<<SEP>>\\n\")\n" > tmpfile
-			printf "(begin %s)\n", t_input[i] > tmpfile
+			# The closing paren sits on its OWN line: a test whose last
+			# line ends in a `;` comment would otherwise swallow it,
+			# leaving an unterminated (begin that eats the <<SEP>>
+			# markers after it -- the test "vanishes" with no crash.
+			# Comments are legal x-lang, so the harness must be robust
+			# to them anywhere in the snippet (found via spec.md's own
+			# Comments example, #70 seam 2).
+			printf "(begin %s\n)\n", t_input[i] > tmpfile
 		}
 		printf "(display \"<<SEP>>\\n\")\n" > tmpfile
 		printf "%s\n", "%END%" > tmpfile

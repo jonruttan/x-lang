@@ -1074,11 +1074,16 @@ my-var? -> <symbol>
 ### Lists
 
 `(a b c)` creates a proper list. `(a b . c)` creates a dotted pair where `c`
-is the tail.
+is the tail. The dotted example is quoted because this section is about what
+the READER produces: a bare `(1 2 3)` happens to evaluate to itself through
+the non-callable pass-through, but a bare dotted form does not survive
+evaluation -- deeper tails like `(1 2 . 3)` raise, and the immediate form
+`(1 . 2)` currently crashes the argument walk (#69; the evaluation semantics
+of improper call forms are ruled there, not here).
 
 ```
 (1 2 3) -> (1 2 3)
-(1 . 2) -> (1 . 2)
+(lit (1 . 2)) -> (1 . 2)
 ```
 
 ### Quote shorthand
