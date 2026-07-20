@@ -144,5 +144,36 @@
           (unless (null? %logo-on-command) (%logo-on-command)))
         (logo-repl)))))
 
+; ============================================================
+; Batch mode (-f)
+; ============================================================
+;
+; x.sh -f cats the program after the entry, so stdin IS the Logo file --
+; and it is Logo syntax, which the C read-eval loop that resumes after
+; run.x cannot parse.  Slurp stdin to EOF and push it through the same
+; pipeline as LOAD (dispatch.x): tokenize, indent-to-blocks, process.
+; The exit hook must run on BOTH paths -- main.x kills the forked viewer
+; server through %logo-on-exit, and a batch that skips it leaves an
+; orphan server holding port 8080.
+(def logo-batch
+  (fn (_)
+    (def %lines
+      (fn (self acc)
+        (def line (%read-line))
+        (if (null? line) (reverse acc) (self (pair line acc)))))
+    (def content (Str join "\n" (%lines ())))
+    (guard (err
+        (%seq
+          (%stderr "Error: ")
+          ; loop.x's formatter, not logo-repl's str/number/symbol triple:
+          ; dispatch raises Err INSTANCES, and only the C writer renders those
+          (%stderr (if (str? err) err (%repl-write-to-str err)))
+          (%stderr "\n")
+          (unless (null? %logo-on-exit) (%logo-on-exit))
+          (Sys exit 1)))
+      (def tokens (%token-read-string %logo-base (Str append content " ")))
+      (logo-process-tokens (%logo-indent-to-blocks tokens))
+      (unless (null? %logo-on-exit) (%logo-on-exit)))))
+
 (provide logo/repl
-  logo-repl %logo-on-exit %logo-on-command)
+  logo-repl logo-batch %logo-on-exit %logo-on-command)

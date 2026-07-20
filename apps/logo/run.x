@@ -7,4 +7,7 @@
 ; The Logo app lives outside the stdlib (#35): arm its root, then load.
 (import-path! "apps")
 (include "apps/logo/main.x")
-(logo-repl)
+; Batch (-f): stdin holds a Logo program, not a session -- and logo-repl's
+; fd swap would discard it unread, the same bug the dialect entries had
+; (see repl/banner.x).  %batch? comes from x-core via banner.x.
+(if %batch? (logo-batch) (logo-repl))
