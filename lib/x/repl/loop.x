@@ -26,6 +26,16 @@
   (fn (_ result)
     (unless (null? result) (write result))
     (newline)))
+; The audited gap: ctrl-d was the ONLY exit, documented nowhere -- a
+; stranger who does not know the EOF convention was trapped in the
+; session.  A callable spelling is discoverable from the banner and help.
+(doc (def quit
+  (fn (_ . args)
+    (Sys exit (if (eq? args ()) 0 (first args)))))
+  (param status INT "Optional exit status; default 0")
+  (sample "(quit)" "end the session with status 0")
+  (note "Never returns: exits the process, same as ctrl-d at the prompt.")
+  "End the session.")
 (doc (def repl
   (op ()
     ()
@@ -79,5 +89,5 @@
   (note "Uses eval! (no env save/restore) so definitions persist.")
   "Start the read-eval-print loop.")
 
-(doc (provide x/repl/loop repl)
+(doc (provide x/repl/loop repl quit)
   "Start the read-eval-print loop.")
