@@ -12,12 +12,6 @@
 (def %int< <)
 (def %int= =)
 (def %int-number? number?)
-(def %int& &)
-(def %int-or |)
-(def %int^ ^)
-(def %int<< <<)
-(def %int>> >>)
-(def %int~ ~)
 
 ; The BINARY case bypasses fold entirely: (op a b) is the overwhelming
 ; shape (every counter, every digit loop), and the fold entry costs
@@ -59,7 +53,7 @@
     ; + - * /, % has no meaningful identity element, and spec.md's old
     ; "(%) -> 0" claim was arbitrary. Without this tier (%) fell through to
     ; (first ()) -- the documented-unchecked prim -- and segfaulted.
-    (if (eq? args ()) (%arith-arity "%: needs at least one argument")
+    (if (eq? args ()) (error "%: needs at least one argument")
       (if (eq? (rest args) ()) (first args)
         (if (eq? (rest (rest args)) ())
           (%int% (first args) (first (rest args)))
@@ -73,47 +67,32 @@
 ; here rather than in C: the core stays the unchecked processor, and this is
 ; the same layer that already gives + - * / their 0/1/2-arg tiers.
 ;
-; Shape matters for cost. The checks are INLINE and the shared helper is only
-; reached on the failing path, so the good path pays two eq? tests and no extra
-; call -- the same shape as the binary tier above. The saved %int-* prims are
-; untouched, so hot internal callers (bignum, dict) that fetch them directly
-; are unaffected.
-(def %arith-arity (fn (_ msg) (error msg)))
+; ONE new global, not one per operator. The raw prim rides in the wrapper's
+; CLOSURE -- (%arith-guard 2 msg &) is handed the current value of & before
+; set! rebinds it -- so no %int& / %int^ / %int<< family lands in the global
+; namespace. (The %int+ .. %int= saves above predate this and stay: the tower
+; and bignum fetch them by name.)
+;
+; The arity test runs ONCE, at wrap time, picking the unary or binary closure;
+; the returned wrapper only does the eq? checks the operator actually needs,
+; so the good path costs what the binary tier above costs.
+(def %arith-guard
+  (fn (_ n msg prim)
+    (if (eq? n 1)
+      (fn (_ . args)
+        (if (eq? args ()) (error msg) (prim (first args))))
+      (fn (_ . args)
+        (if (eq? args ()) (error msg)
+          (if (eq? (rest args) ()) (error msg)
+            (prim (first args) (first (rest args)))))))))
 
-(set! &
-  (fn (_ . args)
-    (if (eq? args ()) (%arith-arity "&: needs two arguments")
-      (if (eq? (rest args) ()) (%arith-arity "&: needs two arguments")
-        (%int& (first args) (first (rest args)))))))
-(set! |
-  (fn (_ . args)
-    (if (eq? args ()) (%arith-arity "|: needs two arguments")
-      (if (eq? (rest args) ()) (%arith-arity "|: needs two arguments")
-        (%int-or (first args) (first (rest args)))))))
-(set! ^
-  (fn (_ . args)
-    (if (eq? args ()) (%arith-arity "^: needs two arguments")
-      (if (eq? (rest args) ()) (%arith-arity "^: needs two arguments")
-        (%int^ (first args) (first (rest args)))))))
-(set! <<
-  (fn (_ . args)
-    (if (eq? args ()) (%arith-arity "<<: needs two arguments")
-      (if (eq? (rest args) ()) (%arith-arity "<<: needs two arguments")
-        (%int<< (first args) (first (rest args)))))))
-(set! >>
-  (fn (_ . args)
-    (if (eq? args ()) (%arith-arity ">>: needs two arguments")
-      (if (eq? (rest args) ()) (%arith-arity ">>: needs two arguments")
-        (%int>> (first args) (first (rest args)))))))
-(set! ~
-  (fn (_ . args)
-    (if (eq? args ()) (%arith-arity "~: needs one argument")
-      (%int~ (first args)))))
-(set! <
-  (fn (_ . args)
-    (if (eq? args ()) (%arith-arity "<: needs two arguments")
-      (if (eq? (rest args) ()) (%arith-arity "<: needs two arguments")
-        (%int< (first args) (first (rest args)))))))
+(set! &  (%arith-guard 2 "&: needs two arguments"  &))
+(set! |  (%arith-guard 2 "|: needs two arguments"  |))
+(set! ^  (%arith-guard 2 "^: needs two arguments"  ^))
+(set! << (%arith-guard 2 "<<: needs two arguments" <<))
+(set! >> (%arith-guard 2 ">>: needs two arguments" >>))
+(set! <  (%arith-guard 2 "<: needs two arguments"  <))
+(set! ~  (%arith-guard 1 "~: needs one argument"   ~))
 
 (doc (provide x/core/arithmetic)
   "Variadic +, -, *, /, % folded over the binary C primitives.")
