@@ -360,7 +360,12 @@
       (match
         ((null? lst) ())
         ((null? (rest lst)) lst)
-        ((equal? (f (first lst)) (f (first (rest lst)))) (recur self f (rest lst)))
+        ; Drop the SECOND of a duplicate pair, not the first: de-duplication
+        ; keeps the earliest element of each run (Unix uniq's reading, and the
+        ; one the docs always claimed). Recurring on (rest lst) kept the LAST
+        ; instead -- #73.
+        ((equal? (f (first lst)) (f (first (rest lst))))
+         (recur self f (pair (first lst) (rest (rest lst)))))
         (#t (pair (first lst) (recur self f (rest lst))))))
     (method intersperse (self sep lst)
       (doc "Insert a separator between each element." (param sep ANY "Separator element") (param lst LIST "List"))

@@ -802,13 +802,24 @@
 
 ## uniq-by
 
-### removes consecutive duplicates by key
+### removes consecutive duplicates by key, keeping the FIRST of each run
+
+A length assertion alone let #73 hide here: `(length ...)` is 3 whether the
+first or the last element of each run survives. Assert the value.
 
 ```scheme
-(length (List uniq-by (method-ref Num abs) (list 1 -1 2 -2 3)))
+(List uniq-by (method-ref Num abs) (list 1 -1 2 -2 3))
 ```
 ---
-    3
+    (1 2 3)
+
+### keeps the first across a run of three
+
+```scheme
+(List uniq-by (method-ref Num abs) (list 5 -5 5 7))
+```
+---
+    (5 7)
 
 ## intersperse
 
