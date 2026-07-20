@@ -35,9 +35,11 @@
             (display " on x-lang"))
           (newline)
           ; The two things a stranger cannot discover alone: how to get
-          ; help, and how to leave (there is no line editing to hint at
-          ; either, and ctrl-d is a convention, not a discovery).
-          (display "(help) for help; (quit) or ctrl-d to exit")
+          ; help, and how to leave.  ctrl-d is deliberately NOT mentioned:
+          ; at a real terminal the tokenizer swallows one-shot EOF (#90),
+          ; so until that lands, (quit) is the only exit this line can
+          ; honestly advertise.
+          (display "(help) for help; (quit) to exit")
           (newline))))))
 
 (doc (provide x/repl/banner)
