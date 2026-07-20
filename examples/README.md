@@ -4,6 +4,10 @@ Every example carries its exact run command in a header comment. The
 directory tells you which dialect it needs: `x/` runs on base x-lang, `and/`
 needs `-l x-and`, `or/` needs `-l x-or`.
 
+Every example is executed in CI (`make check-examples`, part of `make test`),
+with output pinned where it is portable — so the run commands and outputs you
+see here are verified, not aspirational.
+
 Read them in this order.
 
 ## 1. Base x-lang (`x/`)
@@ -41,8 +45,9 @@ sh x.sh -l x-and -f examples/and/numeric-tower.x
 
 ## 3. The experimental dialect (`or/`)
 
-Needs `-l x-or`. This dialect is explicitly experimental; it adds raw syscall
-tables and file I/O. These examples touch the operating system directly.
+Needs `-l x-or`. This dialect is explicitly experimental; it adds the raw
+syscall surface (file I/O loads on demand — see `or/cat.x`). These examples
+touch the operating system directly.
 
 | File | Lines | What it shows |
 |------|-------|---------------|
