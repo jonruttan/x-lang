@@ -414,3 +414,77 @@
 ---
     0
 
+
+## arity guards (#72)
+
+These all SEGFAULTED before #72 -- a REPL user typing `(< 1)` lost the session.
+The guard lives in `lib/x/core/arithmetic.x`, the same layer that gives
+`+ - * /` their 0/1/2-arg tiers, so the C prims stay unchecked by design.
+
+### zero-arg modulo is an error, not an identity
+
+`%` has no meaningful identity element, so unlike `+ - * /` it raises rather
+than returning a value. spec.md's old `(%) -> 0` claim is retracted.
+
+```scheme
+(guard (e (lit RAISED)) (%))
+```
+---
+    'RAISED
+
+### one-arg modulo still passes through
+
+```scheme
+(% 7)
+```
+---
+    7
+
+### bitwise ops need two arguments
+
+```scheme
+(list (guard (e (lit R)) (&)) (guard (e (lit R)) (& 6))
+      (guard (e (lit R)) (|)) (guard (e (lit R)) (^)))
+```
+---
+    ('R 'R 'R 'R)
+
+### shifts need two arguments
+
+```scheme
+(list (guard (e (lit R)) (<< 1)) (guard (e (lit R)) (>> 4)))
+```
+---
+    ('R 'R)
+
+### bitwise not needs one argument
+
+```scheme
+(guard (e (lit RAISED)) (~))
+```
+---
+    'RAISED
+
+### less-than needs two arguments
+
+```scheme
+(list (guard (e (lit R)) (<)) (guard (e (lit R)) (< 1)))
+```
+---
+    ('R 'R)
+
+### the guarded operators still compute normally
+
+```scheme
+(list (& 6 3) (| 6 3) (^ 6 3) (<< 1 4) (>> 16 4) (~ 0) (% 7 2) (< 1 2) (< 2 1))
+```
+---
+    (2 7 5 16 1 -1 1 #t #f)
+
+### the identity-carrying operators keep their zero-arg tiers
+
+```scheme
+(list (+) (-) (*) (/))
+```
+---
+    (0 0 1 1)
