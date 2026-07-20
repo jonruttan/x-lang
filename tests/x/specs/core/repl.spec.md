@@ -76,3 +76,47 @@ after
 ```output
 P=7
 ```
+
+## %banner
+
+### a dialect banner names the dialect, its version, and the exit path
+
+```scheme
+(do
+  (def %on %lang-name) (def %ov %lang-version)
+  (set! %lang-name "x-test") (set! %lang-version "1.0")
+  (%banner)
+  (set! %lang-name %on) (set! %lang-version %ov)
+  ())
+```
+---
+```output
+x-test v1.0 on x-lang
+(help) for help; (quit) or ctrl-d to exit
+```
+
+### the base dialect does not claim to run on itself
+
+```scheme
+(do
+  (def %on %lang-name) (def %ov %lang-version)
+  (set! %lang-name "x-lang") (set! %lang-version "1.0")
+  (%banner)
+  (set! %lang-name %on) (set! %lang-version %ov)
+  ())
+```
+---
+```output
+x-lang v1.0
+(help) for help; (quit) or ctrl-d to exit
+```
+
+## quit
+
+### the binding exists (calling it would end the harness process)
+
+```scheme
+(null? quit)
+```
+---
+    #f

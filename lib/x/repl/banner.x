@@ -29,7 +29,15 @@
           (display %lang-name)
           (unless (null? %lang-version)
             (do (display " v") (display %lang-version)))
-          (display " on x-lang")
+          ; The base dialect IS x-lang: "x-lang v0.2.0 on x-lang" read
+          ; as a bug.  The suffix is for dialects built on top.
+          (unless (str=? %lang-name "x-lang")
+            (display " on x-lang"))
+          (newline)
+          ; The two things a stranger cannot discover alone: how to get
+          ; help, and how to leave (there is no line editing to hint at
+          ; either, and ctrl-d is a convention, not a discovery).
+          (display "(help) for help; (quit) or ctrl-d to exit")
           (newline))))))
 
 (doc (provide x/repl/banner)
