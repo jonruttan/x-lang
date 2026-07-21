@@ -397,8 +397,9 @@
     (do (%inventory-files paths)
         (%simulate "lib/x-core.x")
         (%simulate "lib/x-base.x")
-        (%simulate "lib/x-and.x")
-        (%simulate "lib/x-or.x")
+        (%simulate "lib/he.x")
+        (%simulate "lib/xe.x")
+        (%simulate "lib/rn.x")
         (match
           ((null? (first %findings-cell)) (do (display "ok") (newline)))
           (#t (%report (reverse (first %findings-cell))))))))

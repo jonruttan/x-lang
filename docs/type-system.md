@@ -340,7 +340,7 @@ Two install idioms:
 
 Do the compilation **incrementally, right after each type's module loads**, so subsequent source files are parsed through the already-compiled (fast) analysers rather than interpreted ones.
 
-Worked examples live in the tower-loading libraries: `lib/x-and.x` and `lib/x-or.x` (interactive dialects) and `lib/x-base.x` (non-interactive) all compile the quote-family and numeric-tower analysers this way. See [Dialects](dialects.md) for the dialect-level view.
+Worked examples live in the tower-loading libraries: the xenon/radon bodies (`lib/x/boot/{xenon,radon}.x`, interactive dialects) and `lib/x-base.x` (non-interactive) all compile the quote-family and numeric-tower analysers this way. See [Dialects](dialects.md) for the dialect-level view.
 
 > **Note:** `compile`'s fvar path shells out to the host C compiler and caches the resulting shared object by expression hash, so the *first* load against a cold cache pays the `cc` cost; later loads reuse the cached `.so`.
 

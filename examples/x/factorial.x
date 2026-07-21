@@ -20,7 +20,7 @@
 (newline)
 
 ; 20! is the largest factorial that fits a 64-bit integer -- the plain
-; x-lang dialect has no bignums (use x/and for those; see examples/and/).
+; x-lang dialect has no bignums (use xe for those; see examples/xe/).
 (display "factorial-tc(20) = ")
 (display (factorial-tc 20))
 (newline)

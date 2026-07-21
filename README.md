@@ -31,9 +31,9 @@ readers, fexpr evaluation, runtime type systems, or self-hosted toolchains.
 It is not a general-purpose application language, and it is not trying to
 displace one.
 
-**Maturity — v0.2.0.** The C core and the `x/and` dialect are covered by a
+**Maturity — v0.3.0.** The C core and the xenon dialect are covered by a
 full spec suite with CI on macOS and Linux plus a hard AddressSanitizer gate.
-The surface API is *not* frozen and may change between versions. The `x/or`
+The surface API is *not* frozen and may change between versions. The radon
 dialect is explicitly experimental. x86_64 parity for the automatic
 native-code compiler is in progress.
 
@@ -53,7 +53,7 @@ native-code compiler is in progress.
 (def fact (fn (self n) (if (= n 0) 1 (* n (self (- n 1))))))
 (fact 20)                      ; -> 2432902008176640000
 
-; The x/and dialect adds a full numeric tower with automatic promotion
+; The xenon dialect adds a full numeric tower with automatic promotion
 (+ 1/3 1/6)                    ; -> 1/2
 (* 1+2i 3+4i)                  ; -> -5+10i
 ```
@@ -105,9 +105,9 @@ See [docs/](docs/) for complete reference documentation.
 
 The library is composed into dialects that control what capabilities are loaded:
 
-- **x-lang** (`lib/x.x`) — Core language. Bootstraps 40+ modules providing combinators, list operations, sorting, strings, vectors, promises, quasiquote, and a REPL. No numeric tower.
-- **x/and** (`lib/x-and.x`) — Stable full-stack dialect. Adds POSIX, hash tables, the JIT compiler, and a numeric tower (bignum, float, rational, complex) with compiled tokenizer analysers for fast parsing.
-- **x/or** (`lib/x-or.x`) — Experimental dialect. Everything in x/and plus the raw syscall surface, character constants, and I/O handle constants; file I/O and sockets load on demand (`(import x/sys/file)`, `x/platform/socket`).
+- **helium** (`lib/he.x`) — The light dialect and the default (`lib/x.x` points to it). Bootstraps 40+ modules providing combinators, list operations, sorting, strings, vectors, promises, quasiquote, and a REPL. No numeric tower.
+- **xenon** (`lib/xe.x`) — Stable full-stack dialect. Adds POSIX, hash tables, the JIT compiler, and a numeric tower (bignum, float, rational, complex) with compiled tokenizer analysers for fast parsing.
+- **radon** (`lib/rn.x`) — Experimental dialect. Everything in xenon plus the raw syscall surface, character constants, and I/O handle constants; file I/O and sockets load on demand (`(import x/sys/file)`, `x/platform/socket`).
 
 Dialects are selected via the `-l` flag on the shell wrapper. Language personalities (R5RS Scheme, R7RS Scheme, Kernel, ASH shell, sweet expressions) are maintained as sibling projects and load as additional libraries on top of a dialect.
 
@@ -143,14 +143,14 @@ The interpreter reads from stdin. Libraries are loaded by concatenation:
 
 ```sh
 # Shell wrapper (recommended)
-sh x.sh                     # x-lang with standard library + REPL
-sh x.sh -l x-and            # x/and: full-stack with numeric tower
-sh x.sh -l x-or             # x/or: experimental + file I/O
+sh x.sh                     # helium (the default) + REPL
+sh x.sh -l xe               # xenon: full-stack with numeric tower
+sh x.sh -l rn               # radon: experimental + file I/O
 
 # Direct invocation
-cat lib/x.x - | ./x         # x-lang with standard library
-cat lib/x-and.x - | ./x     # x/and dialect
-cat lib/x-or.x - | ./x      # x/or dialect
+cat lib/x.x - | ./x         # the default dialect (helium)
+cat lib/xe.x - | ./x        # xenon dialect
+cat lib/rn.x - | ./x        # radon dialect
 
 # Evaluate a file
 cat lib/x.x program.x | ./x
@@ -184,7 +184,7 @@ dialect, the base, contract).
 - [Architecture](docs/architecture.md) — System design, evaluation model, the contract pattern
 - [Type System](docs/type-system.md) — Objects, types, the base, dispatch, extensibility
 - [Object System](docs/object-system.md) — Classes, instances, statics, inheritance, encapsulation
-- [Dialects](docs/dialects.md) — x-lang, x/and, and x/or dialect layers
+- [Dialects](docs/dialects.md) — the helium, xenon, and radon dialect layers
 - [Tutorial](docs/tutorial.md) — Getting started guide
 - [Modules](docs/modules.md) — The provide/import module system
 

@@ -80,7 +80,7 @@ The bootstrap loader `lib/x-core.x` loads modules in a specific order:
 
 3. **Module loading** — Each module is loaded via `include` in dependency order. Modules use `import` for their own dependencies (which resolve as no-ops due to pre-registration) and `provide` at the bottom to register their exports.
 
-This pre-registration pattern is also used by `lib/x-and.x` and `lib/x-or.x` to register their additional modules before loading them.
+This pre-registration pattern is also used by the dialect bodies (`lib/x/boot/xenon.x`, `lib/x/boot/radon.x`) to register their additional modules before loading them.
 
 ### Discovery
 

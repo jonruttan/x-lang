@@ -441,7 +441,7 @@
     (method third (self x)
       (doc "Return the third element of a list." (param x LIST "A list with at least three elements") (returns ANY "The third element"))
       (first (rest (rest x))))
-    ; list-ref/list-tail (subject-first Scheme compat) moved to the x/or
+    ; list-ref/list-tail (subject-first Scheme compat) moved to the x/rn
     ; dialect, where the R7RS-isms live -- the core class stays data-last.
     ))
 

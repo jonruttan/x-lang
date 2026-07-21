@@ -1,11 +1,11 @@
 ; cat.x -- Display a file using raw syscalls
 ;
 ; Usage:
-;   sh x.sh -l x-or -f examples/or/cat.x
+;   sh x.sh -l rn -f examples/rn/cat.x
 ;
 ; (Run from the repository root -- the file path below is repo-relative.)
 
-; File I/O is opt-in in x/or (#36): the dialect carries the syscall table,
+; File I/O is opt-in in x/rn (#36): the dialect carries the syscall table,
 ; but the File class loads on demand.
 (import x/sys/file)
 
@@ -20,7 +20,7 @@
           (syscall (syscall-id (lit write)) stdout buf n)
           (self fd))))))
 
-  (let ((fd (File open "examples/or/cat.x" (lit rdonly))))
+  (let ((fd (File open "examples/rn/cat.x" (lit rdonly))))
     (display "=== cat.x ===\n")
     (display-file fd)
     (File close fd)))

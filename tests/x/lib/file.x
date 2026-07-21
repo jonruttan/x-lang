@@ -12,7 +12,7 @@
 ; returns numeric syscall ids.  We install the stubs AFTER the import so they
 ; win -- File's methods resolve `syscall`/`syscall-id`/`make-str` as globals at
 ; call time, so the later (stub) definitions shadow both the real syscall-id
-; and the absent x-or C primitives.
+; and the absent radon C primitives.
 (include "lib/x-core.x")
 (import x/sys/file)
 
@@ -23,7 +23,7 @@
 ; identity stub: pass the symbolic name (open/read/write/close) straight
 ; through so cases can assert on it without a platform syscall table.
 (def syscall-id (fn (_ n) n))
-; make-str is an x-or-dialect C primitive absent from this build; (File getc)
+; make-str is an radon-dialect C primitive absent from this build; (File getc)
 ; only needs *a* buffer, and the stubbed syscall returns 0 (EOF) so the
 ; buffer's contents are never read -- a placeholder string suffices.
 (def make-str (fn (_ n) " "))

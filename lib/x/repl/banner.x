@@ -29,8 +29,10 @@
           (display %lang-name)
           (unless (null? %lang-version)
             (do (display " v") (display %lang-version)))
-          ; The base dialect IS x-lang: "x-lang v0.2.0 on x-lang" read
-          ; as a bug.  The suffix is for dialects built on top.
+          ; "x-lang" is the LANGUAGE's name, not a dialect's (#95) -- if
+          ; an embedder names a dialect after the language itself,
+          ; "x-lang v0.3.0 on x-lang" would read as a bug, so the suffix
+          ; is suppressed for that one spelling.
           (unless (str=? %lang-name "x-lang")
             (display " on x-lang"))
           (newline)

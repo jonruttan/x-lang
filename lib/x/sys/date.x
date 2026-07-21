@@ -9,7 +9,7 @@
 (import x/type/class)
 (import x/protocol/str/str8)
 
-; Tower-proof integer ops: under x/and or x/or the ambient / promotes to
+; Tower-proof integer ops: under xenon or radon the ambient / promotes to
 ; RATIONAL (287787200/146097 is not a year). Civil math is INT math by
 ; definition -- fetch the raw C ops once and use them throughout.
 (def %i/ (prim-ref 'int '/))

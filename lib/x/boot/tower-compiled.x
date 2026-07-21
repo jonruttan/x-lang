@@ -1,7 +1,7 @@
 ; boot/tower-compiled.x -- the numeric tower with compiled tokenizer analysers
 ;
-; The shared heart of every full-stack dialect entry (x-base.x, x-and.x,
-; x-or.x): load the compiler, compile the quote-family analysers and swap
+; The shared heart of every full-stack dialect body (x-base.x and
+; boot/{xenon,radon}.x): load the compiler, compile the quote-family analysers and swap
 ; them into the symbol type's analyse list, then load each tower type and
 ; immediately compile its analyser.  Analysers run on every char while
 ; tokenizing, so compiling them makes every SUBSEQUENT file parse through
@@ -9,7 +9,7 @@
 ; rest of the tower, user source, and tests).
 ;
 ; This file was extracted from three near-identical copies in the dialect
-; entries; the copies had already diverged (x-or grew per-type fvar names
+; entries; the copies had already diverged (the experimental entry grew per-type fvar names
 ; that were never reset).  One copy, one idiom: %compile-fvars is set before
 ; each compile and cleared after, so no analyser accidentally captures a
 ; previous type's free variables.
