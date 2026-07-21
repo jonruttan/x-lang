@@ -141,3 +141,52 @@
 ---
     (1 2)
 
+
+## nested quasiquote is depth-tracked (#55 ruled)
+
+Each `quasi` deepens by one, each `unquote`/`unquote-splicing` returns one
+level, and only a depth-1 payload evaluates. Before the depth counter the
+inner unquote leaked into the expansion and was EVALUATED -- a call to the
+unbound symbol `unquote`. The printer renders surviving quasi forms with the
+reader's shorthand, so expectations here use the true echo.
+
+### the innermost unquote evaluates through both levels
+
+```scheme
+(do (def %qq-y 42) (quasi (quasi (unquote (unquote %qq-y)))))
+```
+---
+    `,42
+
+### a quoted payload survives as syntax
+
+```scheme
+(quasi (quasi (unquote (unquote (lit x)))))
+```
+---
+    `,'x
+
+### nested quasi with no unquote stays syntax
+
+```scheme
+(quasi (quasi (a)))
+```
+---
+    `('a)
+
+### splicing under nesting: inner payload evaluates, form survives one level
+
+```scheme
+(do (def %qq-xs (list 1 2)) (quasi (quasi ((unquote-splicing (unquote %qq-xs))))))
+```
+---
+    `(,@(1 2))
+
+### single-level substitution and splicing unchanged
+
+```scheme
+(do (def %qq-x 1) (def %qq-l (list 2 3))
+  (list (quasi (a (unquote %qq-x) b)) (quasi (a (unquote-splicing %qq-l) b))))
+```
+---
+    (('a 1 'b) ('a 2 3 'b))
