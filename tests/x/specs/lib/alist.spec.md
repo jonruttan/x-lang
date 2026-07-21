@@ -400,3 +400,39 @@ Value, not length: omitting the WRONG key also counts 2.
 ---
     0
 
+
+## Assoc entry guards (#51 ruled from the benchmark)
+
+The public seats check ONCE per call that the spine head and first entry are
+cells -- the two crash shapes the review filed ((Assoc get 'k 42) and
+(Assoc get 'k (pair 1 2))) both segfaulted. The boot walkers stay
+documented-unchecked: a per-step spine guard measured +66% on the walk and
++7.4% on EVERY method dispatch (the object system routes through assoc-get),
+and was still incomplete. Deeper spine garbage keeps first/rest's unchecked
+status.
+
+### non-alist receivers raise across the public seats
+
+```scheme
+(list (guard (e (Err kind-of e)) (Assoc get (lit k) 42))
+      (guard (e (Err kind-of e)) (Assoc get (lit k) (pair 1 2)))
+      (guard (e (lit R)) (Assoc has? (lit k) 42))
+      (guard (e (lit R)) (Assoc del (lit k) 42))
+      (guard (e (lit R)) (Assoc put (lit k) 1 42))
+      (guard (e (lit R)) (Assoc keys 42))
+      (guard (e (lit R)) (Assoc vals 42))
+      (guard (e (lit R)) (Assoc get-or 0 (lit k) 42)))
+```
+---
+    ('type 'type 'R 'R 'R 'R 'R 'R)
+
+### normal use unchanged, nil alist included
+
+```scheme
+(do
+  (def al (list (pair (lit a) 1) (pair (lit b) 2)))
+  (list (Assoc get (lit a) al) (Assoc get (lit z) al) (Assoc get (lit a) ())
+        (Assoc has? (lit b) al) (Assoc keys al) (Assoc get-or 9 (lit z) al)))
+```
+---
+    (1 () () #t ('a 'b) 9)

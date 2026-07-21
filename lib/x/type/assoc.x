@@ -8,12 +8,31 @@
 (import x/core/alist)
 (import x/type/class)
 
+; Entry guard for the public alist seats (#51, ruled from the benchmark).
+; The boot walkers (assoc-get and friends) stay documented-unchecked: a
+; per-step spine guard measured +66% on the walk and +7.4% on EVERY method
+; dispatch in the language (the object system routes through assoc-get),
+; and was STILL incomplete -- entries must be cells too, so completeness
+; extrapolates past +120%. The crashes actually reported ((Assoc get 'k 42),
+; (Assoc get 'k (pair 1 2))) are misuse of THIS public API, so the check
+; runs once per CALL here -- the spine head and the first entry must be
+; cells -- and costs ~2 closure calls on methods that already cost ~100us.
+; A dotted tail deeper in the spine remains unchecked, same status as
+; first/rest. The cold/hot split is the same one Str8's `start` uses.
+(def %assoc-check
+  (fn (_ al what)
+    (match
+      ((null? al) al)
+      ((not (pair? al)) (Err raise (lit type) what ()))
+      ((not (pair? (first al))) (Err raise (lit type) what ()))
+      (#t al))))
+
 (def-class Assoc ()
   (static
     ; --- Lookup ---
     (method get (self (param key SYMBOL "Key to look up") (param alist LIST "Association list"))
       (doc "Look up a key in an alist, returning its value or nil." (returns ANY "Value associated with key, or nil if not found"))
-      (assoc-get key alist))
+      (assoc-get key (%assoc-check alist "Assoc get: not an alist")))
     (method get-or (self (param d ANY "Default value if key is absent")
                          (param key SYMBOL "Key to look up")
                          (param alist LIST "Association list"))
@@ -23,25 +42,25 @@
         (note "Delegates to the option-store walker, so a flat plist is also accepted."))
       ; Delegate to the box-based walker: testing (null? (assoc-get ...)) would
       ; hand back the default for a PRESENT key whose stored value is nil.
-      (%opt-get-or-else (fn () d) key alist))
+      (%opt-get-or-else (fn () d) key (%assoc-check alist "Assoc get-or: not an alist")))
     (method has? (self (param key SYMBOL "Key to check") (param alist LIST "Association list"))
       (doc "Test whether a key exists in an alist." (returns BOOL "True if key is present"))
-      (assoc-has? key alist))
+      (assoc-has? key (%assoc-check alist "Assoc has?: not an alist")))
     ; --- Modification ---
     (method del (self (param key SYMBOL "Key to remove") (param alist LIST "Association list"))
       (doc "Remove all entries for a key from an alist." (returns LIST "Alist without the given key"))
-      (assoc-del key alist))
+      (assoc-del key (%assoc-check alist "Assoc del: not an alist")))
     (method put (self (param key SYMBOL "Key to set") (param val ANY "Value to associate")
                       (param alist LIST "Association list"))
       (doc "Set a key-value pair, replacing any existing entry for that key." (returns LIST "Alist with the key set to val"))
-      (assoc-put key val alist))
+      (assoc-put key val (%assoc-check alist "Assoc put: not an alist")))
     ; --- Extraction ---
     (method keys (self (param alist LIST "Association list"))
       (doc "Return all keys from an alist." (returns LIST "List of keys"))
-      (assoc-keys alist))
+      (assoc-keys (%assoc-check alist "Assoc keys: not an alist")))
     (method vals (self (param alist LIST "Association list"))
       (doc "Return all values from an alist." (returns LIST "List of values"))
-      (map rest alist))
+      (map rest (%assoc-check alist "Assoc vals: not an alist")))
     ; --- Transformation ---
     (method map (self (param f CALLABLE "Function applied to each value")
                       (param alist LIST "Association list"))
