@@ -138,6 +138,29 @@
       ((eq? tw %reflect-satom-tw) #t)
       (#t (eq? tw %reflect-spair-tw)))))
 
+; (obj retag!) -- write an object's type header slot to the type resolved
+; from a registry handle: the door for x-defined types over C-created
+; values (#101 -- BOOL claims the #t/#f statics at boot; C prims return
+; them by IDENTITY, so only the object itself changing type touches them).
+; Born as a C instruction on the #101 branch, retired here by ruling: the
+; store is the same layout-contract write %type-cast! (struct.x) performs,
+; so it is pure reflection like every accessor above.  RAW like the mem
+; ops: retagging an object whose payload does not match the new type's
+; declared layout (its units walk -- see bool.x's units 0) is UB, and the
+; caller owns it; any new consumer on the collect path gets ASan-verified
+; before it lands (the #101 lesson).  Unknown handles refuse -- policy in
+; x.  Returns nil (the C side-effect-primitive contract, kept).
+(def %reflect-retag!
+  (fn (_ o h)
+    (do
+      (def %reflect-rtt (%registry-assoc-rest h (first %reflect-type-alist-cell)))
+      (match
+        ((eq? %reflect-rtt ()) (error "retag!: unknown type handle"))
+        (#t (do
+              (%ptr-set-word! (%obj->ptr o) %reflect-type-off
+                (%ptr->int (%obj->ptr %reflect-rtt)))
+              ()))))))
+
 ; Copying string maker (C used x_mkstr on the name atom's bytes).
 (def %reflect-sym->str (prim-ref (lit sym) (lit ->str)))
 
@@ -235,6 +258,7 @@
 (prim-reg! (lit obj) (lit meta-set!)   %reflect-meta-set!)
 (prim-reg! (lit obj) (lit meta-count)  %reflect-meta-count)
 (prim-reg! (lit obj) (lit meta-count!) %reflect-meta-count!)
+(prim-reg! (lit obj) (lit retag!)      %reflect-retag!)
 (prim-reg! (lit io)  (lit error-line)  %reflect-error-line)
 (prim-reg! (lit type) (lit name)       %reflect-type-name)
 (prim-reg! (lit iter) (lit new)        %reflect-iter-new)
