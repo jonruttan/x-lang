@@ -503,10 +503,16 @@ dispatches the numeric tower: each of those types registers refusal handlers
 for `+ - * / % <`, so `(+ 1 "abc")` errors instead of reading the string's
 pointer as an integer (#52). CHARACTERS are exempt by
 contract: a char IS its code point arithmetically -- `(- #\3 #\0)` is `3` --
-and the regex engine, utf8 decode, and the printer all depend on it. Two
-documented residuals: symbols (tree-typed; the registry cannot carry ops for
-them) and nil-typed singletons like `#t` still fall through to machine
-arithmetic, both closed when booleans become a real type. The bitwise family
+and the regex engine, utf8 decode, and the printer all depend on it. One
+documented residual: symbols (tree-typed; the registry cannot carry ops for
+them) still fall through to machine arithmetic. The booleans are a real
+BOOL type (#101) -- `(Type of #t)` answers, and `(+ #t 1)` refuses through
+the same registry.
+
+```
+(Type name (Type of #t)) -> "BOOL"
+(guard (e "caught") (+ #t 1)) -> "caught"
+``` The bitwise family
 (`~ & | ^ << >>`) is stricter: integer or char operands only, enforced in its
 wrappers.
 

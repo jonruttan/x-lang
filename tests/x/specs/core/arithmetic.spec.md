@@ -553,8 +553,8 @@ The refusal lives in the dispatch registry: string/char/list/pair/vector
 register error-raising handlers for + - * / % <, so op_try routes a bad
 operand to err:type instead of the int fallthrough's pointer arithmetic.
 Zero cost on the int path (op_try fast-declines ops-less types; benchmarked
-at baseline). Symbols (tree-typed) and nil-typed singletons (#t) are the
-documented residuals until booleans become a real type.
+at baseline). Symbols (tree-typed) are the one documented residual; the
+booleans are a real BOOL type (#101) and refuse like everything else.
 
 ### wrong-type operands raise err:type across the family
 
@@ -575,6 +575,14 @@ documented residuals until booleans become a real type.
 ```
 ---
     "no + for STRING"
+
+### booleans refuse too -- BOOL is a real type (#101)
+
+```scheme
+(list (Type name (Type of #t)) (guard (e (e msg)) (+ #t 1)) (guard (e (Err kind-of e)) (< #f 3)))
+```
+---
+    ("BOOL" "no + for BOOL" 'type)
 
 ### chars ARE their code points -- the pun is contract, not an accident
 

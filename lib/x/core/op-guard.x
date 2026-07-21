@@ -13,9 +13,9 @@
 ; type carries ops, and INT keeps none. The tower is untouched by
 ; construction -- float/rational/bignum handlers sit on their own types and
 ; win their own dispatches. Two residual holes, both recorded on #52:
-;   - nil-typed operands ((+ #t 1)): op_try cannot consult a type that is
-;     not there. Closed when BOOL lands as an x-defined type (filed issue).
-;     (+ 1 ()) is caught earlier, by the wrappers' nil guards.
+;   - nil-typed operands: op_try cannot consult a type that is not there.
+;     The booleans left this class when BOOL claimed them (type/bool.x,
+;     #101); (+ 1 ()) is caught by the C prims' nil guards.
 ;   - mixed tower/non-numeric ((+ 1.5 "a")): both sides own the op and
 ;     neither type absorbs the other, so op_try declines ("unrelated
 ;     types: not ours to decide") -- pre-existing tower-side behavior.
@@ -62,8 +62,8 @@
 ; SYMBOL is deliberately absent: symbols are TREE-typed (their type slot is
 ; the interning tree, not a type struct), so op_try never consults a struct
 ; for them -- a registration here lands somewhere dispatch cannot see.
-; Symbol operands join nil-typed values (#t) as the documented residual on
-; #52, both closed by the same future move (real types for the singletons).
+; Symbol operands are the one documented residual on #52 -- the boolean
+; half closed when bool.x claimed the singletons (#101).
 
 (doc (provide x/core/op-guard)
-  "Non-numeric types (string, list, pair, vector) refuse the arithmetic operators with err:type instead of falling through to pointer arithmetic; symbols and nil-typed values cannot (tree-typed / typeless) and remain the documented residual.")
+  "Non-numeric types (string, list, pair, vector) refuse the arithmetic operators with err:type instead of falling through to pointer arithmetic; symbols cannot (tree-typed) and remain the documented residual; booleans refuse via type/bool.x.")

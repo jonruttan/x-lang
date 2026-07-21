@@ -132,3 +132,24 @@ three gaps (VECTOR, ASM, ITER) are fixed, the rest verified.
 ```
 ---
     ((1 2 3) #t ((5) (6)) "ab" 42 ('deep))
+
+## retagged singletons survive collection (#101)
+
+The mark hook walks typed objects by their type's declared units, and
+build_struct DEFAULTS x-made types to pair units -- over a 1-slot static
+satom that walk read the "#t" text pointer as a child object (ASan:
+global-buffer-overflow past the "#f" string global, in x_heap_tree_mark).
+BOOL declares units 0: its instances trace nothing. This pins the boot
+claim across back-to-back collections on the REPL's own sweep path.
+
+### collect twice, then every boolean behavior
+
+```scheme
+(do
+  (Heap collect)
+  (Heap collect)
+  (list (Type name (Type of #t)) (if #t 1 2) (if #f 1 2)
+        (guard (e (lit R)) (+ #t 1)) (eq? #t #t) (boolean? #f)))
+```
+---
+    ("BOOL" 1 2 'R #t #t)

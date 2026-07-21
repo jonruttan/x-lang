@@ -89,11 +89,12 @@
     (pair "lib/x/reader/quasi-reader.x"
     (pair "lib/x/reader/lit-reader.x"
     (pair "lib/x/repl/loop.x"
+    (pair "lib/x/type/bool.x"
     (pair "lib/x/core/op-guard.x"
     (pair "lib/x/type/err.x"
     (pair "lib/x/repl/ansi.x"
     (pair "lib/x/repl/banner.x"
-      (first %include-list-cell))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+      (first %include-list-cell)))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
   ; --- Standard modules ---
   (include "lib/x/core/predicates.x")
@@ -226,6 +227,12 @@
   ; (+ 1 "abc") to err:type instead of the int fallthrough's pointer math.
   ; After err.x (Err raise) and vector.x (the #() handle).
   (include "lib/x/core/op-guard.x")
+
+  ; BOOL claims the #t/#f singletons (#101): an x-defined type over the
+  ; C statics via (obj retag!), closing the #52 boolean residual -- and
+  ; (Type of #t) finally answers. After op-guard (reuses its refusal
+  ; machinery).
+  (include "lib/x/type/bool.x")
 
   ; ANSI colour: syntax-highlighted REPL output + colourised help.  Loaded
   ; after repl.x (it wraps %repl-print) and doc.x (it sets the %c-* help
