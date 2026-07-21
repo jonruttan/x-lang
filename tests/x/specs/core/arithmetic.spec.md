@@ -546,3 +546,74 @@ is stopped; boxed tower divisors keep their own dispatch.
 ```
 ---
     (0 0 1 1)
+
+## non-numeric operands refuse (#52 ruled)
+
+The refusal lives in the dispatch registry: string/char/list/pair/vector
+register error-raising handlers for + - * / % <, so op_try routes a bad
+operand to err:type instead of the int fallthrough's pointer arithmetic.
+Zero cost on the int path (op_try fast-declines ops-less types; benchmarked
+at baseline). Symbols (tree-typed) and nil-typed singletons (#t) are the
+documented residuals until booleans become a real type.
+
+### wrong-type operands raise err:type across the family
+
+```scheme
+(list (guard (e (Err kind-of e)) (+ 1 "abc"))
+      (guard (e (Err kind-of e)) (< 1 "a"))
+      (guard (e (Err kind-of e)) (* 2 (list 1)))
+      (guard (e (Err kind-of e)) (/ #(1) 2))
+      (guard (e (Err kind-of e)) (% 7 (pair 1 2))))
+```
+---
+    ('type 'type 'type 'type 'type)
+
+### the message names op and type
+
+```scheme
+(guard (e (e msg)) (+ 1 "abc"))
+```
+---
+    "no + for STRING"
+
+### chars ARE their code points -- the pun is contract, not an accident
+
+The regex engine reads {3} via (- ch #\0) inside the tokenizer, utf8 decode
+masks CHAR-typed bytes with &, and the printer's escaper orders chars with <.
+
+```scheme
+(list (< #\a #\b) (- #\3 #\0) (+ #\a 1) (& #\a 15))
+```
+---
+    (#t 3 98 1)
+
+## nil operands raise in the C prims (#52 ruled)
+
+An x-level wrapper test measured +9% on every method dispatch, so the check
+follows x_prim_eq's existing nil-safety convention instead: two pointer
+tests inside the prim, after op_try. (+ 1 ()) segfaulted before this.
+
+### nil raises catchably on all five, all shapes
+
+```scheme
+(list (guard (e (lit R)) (+ 1 ())) (guard (e (lit R)) (- ())) (guard (e (lit R)) (- 5 ()))
+      (guard (e (lit R)) (* () 2)) (guard (e (lit R)) (/ 6 ())) (guard (e (lit R)) (% () 2))
+      (guard (e (lit R)) (+ 1 2 () 4)))
+```
+---
+    ('R 'R 'R 'R 'R 'R 'R)
+
+## bitwise is integer-only (#52 ruled)
+
+No tower semantics exist for the bitwise family, so unlike `<` (whose
+strictness would break float comparisons) rejecting every non-INT operand
+is simply correct -- inline type tests in the wrappers, nil included.
+
+### non-integers raise across the bitwise family
+
+```scheme
+(list (guard (e (lit R)) (& "a" 1)) (guard (e (lit R)) (| 1 (list 2)))
+      (guard (e (lit R)) (~ "x")) (guard (e (lit R)) (<< 1 ())))
+```
+---
+    ('R 'R 'R 'R)

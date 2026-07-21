@@ -290,3 +290,14 @@
 ```
 ---
     Error: #<err:type Vector ->list: not a vector>
+
+### make rejects a negative length (#52)
+
+A negative n built a vector REPORTING length n, so every later bounds check
+compared against a lie.
+
+```scheme
+(list (guard (e (Err kind-of e)) (Vector make -5)) (Vector length (Vector make 0)))
+```
+---
+    ('value 0)
