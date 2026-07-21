@@ -15,6 +15,9 @@
 (import x/type/hash)
 (import x/num/bignum)
 (import x/type/regex)
+; Common containers: Dict rides the dialects (helium stays light) -- same
+; rationale as x/xe.x; pinned by dialects/smoke.spec.md.
+(import x/type/dict)
 ; x/tool/compile is already loaded by the radon body; no need to re-import.
 
 ; --- Opt-in system extensions ---
@@ -125,6 +128,7 @@
   system do-loop)
   (note "Experimental/unstable dialect with full toolbox.")
   (note "Includes compiler and POSIX FFI.")
+  (note "Common containers loaded by default: Dict (content-hashed mutable table).")
   (note "Extends arithmetic with bignum, float, rational, complex, regex.")
   (note "Syscall table, file I/O, and sockets are opt-in -- include them yourself if you call (system …) or use these subsystems.")
   "x/rn: Experimental hacking dialect built on x-lang.")
