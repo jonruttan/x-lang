@@ -92,7 +92,7 @@ P=7
 ---
 ```output
 x-test v1.0 on x-lang
-(help) for help; (quit) or ctrl-d to exit
+(help) for help; (quit) to exit
 ```
 
 ### the base dialect does not claim to run on itself
@@ -108,7 +108,7 @@ x-test v1.0 on x-lang
 ---
 ```output
 x-lang v1.0
-(help) for help; (quit) or ctrl-d to exit
+(help) for help; (quit) to exit
 ```
 
 ## quit

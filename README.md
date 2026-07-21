@@ -159,8 +159,9 @@ sh x.sh -f program.x
 
 The `-` in `cat ... - | ./x` connects stdin for interactive use after library loading.
 
-Inside a session, `(help)` shows the documentation index; `(quit)` or ctrl-d
-exits. For line editing and history, wrap the session in `rlwrap`.
+Inside a session, `(help)` shows the documentation index and `(quit)` exits
+(terminal ctrl-d is currently swallowed by the reader — #90). For line
+editing and history, wrap the session in `rlwrap`.
 
 ## Test
 

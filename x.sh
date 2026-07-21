@@ -42,6 +42,7 @@ display_help() {
 	echo "  -F, --load FILE evaluate file then continue"
 	echo "  -l, --lib NAME  library name (default: \"$X_LIB\")"
 	echo "  -q, --quiet     suppress the startup banner"
+	echo "      --no-color  disable ANSI colour in the REPL"
 	echo "  -v, --verbose   display extra output"
 	echo "  -V, --version   display version and exit"
 }
@@ -75,12 +76,27 @@ do
 			xflags="$xflags \"--quiet\""
 			shift
 			;;
+		--no-color)
+			# Consumed by repl/ansi.x's args fold.  Without this case the
+			# wrapper rejected its own documented flag as unknown; it only
+			# ever worked spelled `-- --no-color`.
+			xflags="$xflags \"--no-color\""
+			shift
+			;;
 		-v | --verbose)
 			verbose="verbose"
 			shift
 			;;
 		-V | --version)
-			echo 'x-version' | "$SCRIPT_PATH/x"
+			# The old `echo 'x-version' | x` printed NOTHING (#79): with no
+			# library on the pipe the bare C loop evaluates but cannot
+			# print -- display/write are library code (the printer is
+			# x-level, boot/printer.x).  So boot the entry in batch mode
+			# and let IT print.  Two versions on purpose: x-lib-version is
+			# the library (what the banner shows), x-version the x-expr
+			# engine -- they are different numbers and drift independently.
+			printf '(display %%lang-name)(display " ")(display x-lib-version)(display " (engine ")(display x-version)(display ")")(newline)\n' \
+				| cat "${LIB_PATH}${X_LIB}${X_EXT}" - | "$SCRIPT_PATH/x" "--batch"
 			exit 0
 			;;
 		--) # End of all options
@@ -113,6 +129,34 @@ exec 3<&0
 ENTRY="${LIB_PATH}${X_LIB}${X_EXT}"
 if [ ! -e "$ENTRY" ] && [ -e "apps/${X_LIB}/run${X_EXT}" ]; then
 	ENTRY="apps/${X_LIB}/run${X_EXT}"
+fi
+
+# A wrong name used to fail as `cat: lib/nope.x: No such file` with EXIT 0
+# -- a bare cat diagnostic, no mention of x-lang, and a success status.
+# Name the request, the searched paths, and the real inventory instead.
+if [ ! -e "$ENTRY" ]; then
+	echo "Error: no library or app named '$X_LIB'" >&2
+	echo "  searched ${LIB_PATH}${X_LIB}${X_EXT} and apps/${X_LIB}/run${X_EXT}" >&2
+	# Inventory by discovery, not by hand: lib entries are ${LIB_PATH}*.x
+	# files, apps are apps/*/run.x -- the same rule the resolution above
+	# follows.  (An empty lib listing also means LIB_PATH itself is wrong:
+	# x.sh resolves lib/ against the CURRENT DIRECTORY, so run it from the
+	# repository root.)
+	libs=""
+	for _e in "${LIB_PATH}"*"${X_EXT}"; do
+		[ -e "$_e" ] && libs="$libs $(basename "$_e" "$X_EXT")"
+	done
+	apps=""
+	for _a in apps/*/run"$X_EXT"; do
+		[ -e "$_a" ] && apps="$apps $(basename "$(dirname "$_a")")"
+	done
+	if [ -n "$libs" ]; then
+		echo "  libraries:$libs" >&2
+	else
+		echo "  no libraries found under '$LIB_PATH' -- run from the repository root" >&2
+	fi
+	[ -n "$apps" ] && echo "  apps:$apps" >&2
+	exit 1
 fi
 
 # A supplied file suppresses the dialect entry's interactive launcher, so
