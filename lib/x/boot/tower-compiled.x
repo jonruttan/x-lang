@@ -70,16 +70,46 @@
     (lit (fn (_ buffer score chr)
       (if (= chr 39) %lit-accept ())))
     %compile-fvars))
+
+(set! %compile-fvars
+  (list (pair '%interp-accept %interp-accept)))
+(def %c-interp-analyse
+  (compile
+    (lit (fn (_ buffer score chr)
+      (if (= chr 36) %interp-accept ())))
+    %compile-fvars))
 (set! %compile-fvars ())
 
-; Swap the compiled analysers in for the interpreted handlers.  The symbol
-; type's analyse list (from lit-reader.x) is (lit quasi unquote <C symbol
-; analyse>); the C catch-all tail stays as is.
+; Swap the compiled analysers in for the interpreted handlers BY IDENTITY,
+; never by seat.  A positional swap breaks silently the day lit-reader.x
+; grows a handler: when $"..." interpolation joined the list at seat 0,
+; the old three-seat overwrite destroyed the $ analyser (every $-string
+; then read as one SYMBOL in every tower dialect) while ' ` , kept
+; working -- each char still had SOME handler, so nothing failed loudly.
+; Matching each interpreted handler follows the contract instead of the
+; layout; handlers this file does not know (and the C catch-all tail)
+; pass through untouched.
+; Identity MUST be (obj same?) -- pointer identity.  eq? compares value
+; words, and two DIFFERENT interpreted closures answer eq? #t (their
+; first data words coincide), so an eq?-keyed draft of this walk stamped
+; the first compiled handler over every seat and killed the quote family.
+(def %tower-same? (prim-ref 'obj 'same?))
 (def %sym-analyse-list
   (first (first (%type-analyse-cell (%type-by-atom (%type-of "x"))))))
-(set-first! %sym-analyse-list %c-lit-analyse)
-(set-first! (rest %sym-analyse-list) %c-quasi-analyse)
-(set-first! (rest (rest %sym-analyse-list)) %c-unquote-analyse)
+(def %tower-swap-one!
+  (fn (_ cell)
+    (match
+      ((%tower-same? (first cell) %interp-analyse) (set-first! cell %c-interp-analyse))
+      ((%tower-same? (first cell) %lit-analyse) (set-first! cell %c-lit-analyse))
+      ((%tower-same? (first cell) %quasi-analyse) (set-first! cell %c-quasi-analyse))
+      ((%tower-same? (first cell) %unquote-analyse) (set-first! cell %c-unquote-analyse))
+      (#t ()))))
+(def %tower-swap-analysers!
+  (fn (self cell)
+    (match
+      ((null? cell) ())
+      (#t (do (%tower-swap-one! cell) (self (rest cell)))))))
+(%tower-swap-analysers! %sym-analyse-list)
 
 ; --- Load numeric tower with immediate analyser compilation ---
 
