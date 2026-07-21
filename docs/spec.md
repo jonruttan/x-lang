@@ -457,6 +457,13 @@ Logical negation. Returns `#t` if `x` is falsy; `#f` otherwise.
 Error recovery. Evaluates `body` forms. If an error is signalled, binds the
 error value to `var` and evaluates `handler-body` instead. Handlers nest.
 
+The error value depends on the raiser: `(error x)` delivers `x` itself,
+`(Err raise ...)` delivers an Err instance, and C-raised errors (an unbound
+symbol, the built-in guards) deliver a message-carrying atom that prints as
+its message -- `(display (guard (e e) nosuchsym))` shows
+`Unbound SYMBOL 'nosuchsym'`, and an uncaught one prints the same text after
+`Error:` (#54).
+
 ```
 (guard (e e) (error "oops")) -> "oops"
 (guard (e "caught") (+ 1 2)) -> 3
