@@ -39,6 +39,9 @@
 ; shape (every counter, every digit loop), and the fold entry costs
 ; ~1,100 objects per call (per-step churn -- the measured 2026-07-16
 ; allocation disease).  0/1/2-arg tiers touch no list machinery.
+; Nil operands raise INSIDE the C prims (the x_prim_eq nil-safety
+; convention, #52 ruled): an x-level test here measured +9% on every method
+; dispatch -- the wrapper tiers stay lean on purpose.
 (set! +
   (fn (_ . args)
     (if (eq? args ()) 0
@@ -125,13 +128,47 @@
             (error (%str-append name ": operands must not be nil")))
           (#t (prim (first args) (first (rest args)))))))))
 
-(set! &  (%arith-guard 2 "&"  &))
-(set! |  (%arith-guard 2 "|"  |))
-(set! ^  (%arith-guard 2 "^"  ^))
-(set! << (%arith-guard 2 "<<" <<))
-(set! >> (%arith-guard 2 ">>" >>))
+; Strict-INT variant for the BITWISE family (#52 ruled): these have no tower
+; semantics -- there is no float `&` and never will be -- so unlike `<`
+; (where a strict test would break float comparisons dispatched through the
+; C op registry), rejecting every non-INT operand is simply correct. The
+; type test is an inline type-of + eq? pair per operand, not a closure call
+; (the #51 cost model), and it subsumes the nil test: (%arith-type-of ())
+; is nil, which is not the INT handle.
+(def %arith-type-of (prim-ref (lit type) (lit of)))
+(def %arith-int-t (%arith-type-of 0))
+; CHARs pass: they ARE their code points (str-byte-ref returns CHAR and
+; utf8 decode masks those bytes with & directly) -- the char/int pun is
+; contract here, matching op-guard's exemption.
+(def %arith-char-t (%arith-type-of #\A))
+(def %arith-int-ok?
+  (fn (_ t) (match ((eq? t %arith-int-t) #t) (#t (eq? t %arith-char-t)))))
+(def %arith-int-guard
+  (fn (_ n name prim)
+    (if (eq? n 1)
+      (fn (_ . args)
+        (match
+          ((eq? args ()) (error (%str-append name ": needs one argument")))
+          ((not (%arith-int-ok? (%arith-type-of (first args))))
+            (error (%str-append name ": operand must be an integer")))
+          (#t (prim (first args)))))
+      (fn (_ . args)
+        (match
+          ((eq? args ()) (error (%str-append name ": needs two arguments")))
+          ((eq? (rest args) ()) (error (%str-append name ": needs two arguments")))
+          ((not (%arith-int-ok? (%arith-type-of (first args))))
+            (error (%str-append name ": operands must be integers")))
+          ((not (%arith-int-ok? (%arith-type-of (first (rest args)))))
+            (error (%str-append name ": operands must be integers")))
+          (#t (prim (first args) (first (rest args)))))))))
+
+(set! &  (%arith-int-guard 2 "&"  &))
+(set! |  (%arith-int-guard 2 "|"  |))
+(set! ^  (%arith-int-guard 2 "^"  ^))
+(set! << (%arith-int-guard 2 "<<" <<))
+(set! >> (%arith-int-guard 2 ">>" >>))
 (set! <  (%arith-guard 2 "<"  <))
-(set! ~  (%arith-guard 1 "~"  ~))
+(set! ~  (%arith-int-guard 1 "~"  ~))
 
 (doc (provide x/core/arithmetic)
   "Variadic +, -, *, /, % folded over the binary C primitives.")

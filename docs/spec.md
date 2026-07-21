@@ -496,6 +496,26 @@ All arithmetic operators are variadic and evaluate their arguments.
 
 ### `+`
 
+Arithmetic operands must be numbers. A NIL operand raises (the prims share
+`eq?`'s nil-safety convention), and a non-numeric operand -- string,
+list, pair, vector -- raises `err:type` through the same registry that
+dispatches the numeric tower: each of those types registers refusal handlers
+for `+ - * / % <`, so `(+ 1 "abc")` errors instead of reading the string's
+pointer as an integer (#52). CHARACTERS are exempt by
+contract: a char IS its code point arithmetically -- `(- #\3 #\0)` is `3` --
+and the regex engine, utf8 decode, and the printer all depend on it. Two
+documented residuals: symbols (tree-typed; the registry cannot carry ops for
+them) and nil-typed singletons like `#t` still fall through to machine
+arithmetic, both closed when booleans become a real type. The bitwise family
+(`~ & | ^ << >>`) is stricter: integer or char operands only, enforced in its
+wrappers.
+
+```
+(guard (e "caught") (+ 1 ())) -> "caught"
+(guard (e "caught") (+ 1 "abc")) -> "caught"
+(guard (e "caught") (& "a" 1)) -> "caught"
+```
+
 `(+ a ...) -> integer`
 
 Addition. Identity: `0`.
@@ -914,7 +934,12 @@ implemented; #76 ruled it in.)
 (str->number "-0xff") -> -255
 (str->number "ff" 16) -> 255
 (str->number "abc") -> ()
+(guard (e "caught") (str->number "12345678901234567890")) -> "caught"
 ```
+
+Digits that overflow the machine integer RAISE rather than wrapping -- a
+literal parse silently becoming a different number corrupted 64-bit IDs in
+JSON (#52). Accumulation is negative-domain, so `INT_MIN` parses exactly.
 
 ---
 

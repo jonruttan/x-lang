@@ -330,3 +330,21 @@ keeps the JSON `\u` parser (`(str->number %t 16)`) byte-exact.
 ```
 ---
     (255 #t 5)
+
+## str->number overflow raises (#52 ruled)
+
+Accumulation is negative-domain (the %n2s lesson: |INT_MIN| has no positive
+reading), and each digit's multiply is verified by undoing it -- a wrap
+fails the round-trip and raises instead of silently becoming a different
+number, which is how JSON corrupted 64-bit IDs.
+
+### overflow raises, boundaries parse exactly
+
+```scheme
+(list (guard (e (lit R)) (str->number "12345678901234567890"))
+      (guard (e (lit R)) (str->number "9223372036854775808"))
+      (str->number "9223372036854775807")
+      (str->number "-9223372036854775808"))
+```
+---
+    ('R 'R 9223372036854775807 -9223372036854775808)

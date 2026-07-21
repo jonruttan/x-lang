@@ -141,6 +141,15 @@
                               (#t #f)))))))
                 (let ((pradix (match (hex? 16) (#t radix)))
                       (pstart (match (hex? (+ start 2)) (#t start))))
+                  ; Digits accumulate in the NEGATIVE domain, like %n2s above
+                  ; and for the same reason: |INT_MIN| does not fit positive,
+                  ; so "-9223372036854775808" must build as its own sign.
+                  ; Each step VERIFIES the multiply by undoing it -- on a wrap
+                  ; the round-trip fails and the parse RAISES (#52 ruled:
+                  ; "12345678901234567890" silently became a negative number,
+                  ; which is how JSON corrupted 64-bit IDs). The verify uses
+                  ; only non-wrapping ops: acc2+d steps toward zero, and the
+                  ; division is exact when no wrap occurred.
                   (let ((%parse
                           (fn (self i acc)
                             (match
@@ -149,10 +158,21 @@
                                 (let ((d (%digit (%str-byte-ref s i))))
                                   (match
                                     ((eq? d ()) ())
-                                    ((< d pradix) (self (+ i 1) (+ (* acc pradix) d)))
+                                    ((< d pradix)
+                                      (let ((acc2 (- (* acc pradix) d)))
+                                        (match
+                                          ((not (eq? (/ (+ acc2 d) pradix) acc))
+                                            (error "str->number: integer overflow"))
+                                          (#t (self (+ i 1) acc2)))))
                                     (#t ()))))))))
                     (let ((result (%parse pstart 0)))
                       (match
                         ((eq? result ()) ())
-                        (neg (- 0 result))
-                        (#t result)))))))))))))
+                        (neg result)
+                        (#t
+                          ; The positive reading of |INT_MIN| overflows even
+                          ; though the negative accumulation held it.
+                          (let ((posv (- 0 result)))
+                            (match
+                              ((< posv 0) (error "str->number: integer overflow"))
+                              (#t posv))))))))))))))))

@@ -149,6 +149,10 @@
                        (param fill ANY "Value to fill each slot with"))
       (doc "Create a vector of length n, with every element set to fill."
         (returns VECTOR "New vector of length n filled with fill"))
+      ; A negative n built a vector REPORTING length n (#52): every later
+      ; bounds check compared against it, so the container lied its whole
+      ; life. Cold constructor seat -- the guard is one compare.
+      (if (< n 0) (Err raise (lit value) "Vector make: negative length" ()) ())
       (def v (%make-obj %vector (+ n 1)))
       (%obj-set! v 0 n)
       (def loop

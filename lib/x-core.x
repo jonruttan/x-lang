@@ -89,10 +89,11 @@
     (pair "lib/x/reader/quasi-reader.x"
     (pair "lib/x/reader/lit-reader.x"
     (pair "lib/x/repl/loop.x"
+    (pair "lib/x/core/op-guard.x"
     (pair "lib/x/type/err.x"
     (pair "lib/x/repl/ansi.x"
     (pair "lib/x/repl/banner.x"
-      (first %include-list-cell)))))))))))))))))))))))))))))))))))))))))))))))))))))))
+      (first %include-list-cell))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
   ; --- Standard modules ---
   (include "lib/x/core/predicates.x")
@@ -219,6 +220,12 @@
   ; time, so every post-boot error can be structured regardless of the
   ; raising module's own boot position.
   (include "lib/x/type/err.x")
+
+  ; Non-numeric types refuse arithmetic (#52): error-raising op handlers
+  ; registered on string/symbol/char/list/pair/vector, so op_try routes
+  ; (+ 1 "abc") to err:type instead of the int fallthrough's pointer math.
+  ; After err.x (Err raise) and vector.x (the #() handle).
+  (include "lib/x/core/op-guard.x")
 
   ; ANSI colour: syntax-highlighted REPL output + colourised help.  Loaded
   ; after repl.x (it wraps %repl-print) and doc.x (it sets the %c-* help
