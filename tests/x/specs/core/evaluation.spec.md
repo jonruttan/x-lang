@@ -166,3 +166,58 @@
 ```
 ---
     (3 3)
+
+## improper call forms (#69 ruled: error / echo split)
+
+Calling an APPLICATIVE with an improper argument list raises -- the C
+argument walk (x_eval_list) guards spine cells STRUCTURALLY, by the type's
+declared pair units (the same contract the collector's payload walk trusts),
+so any reader personality's spine type participates and no reader/evaluator
+symmetry is assumed. A NON-callable head was never a call: the form is data
+and echoes back unchanged, proper or dotted. Ops receive spines raw and a
+dotted param spec binds an atom tail legitimately.
+
+Before this, (list 1 . 5) and bare-x-core (f 1.5) -- where 1.5 reads as a
+dotted pair with no float module -- killed the process.
+
+### callable head with improper args raises, catchably
+
+```scheme
+(list (guard (e (lit R)) (list 1 . 5))
+      (guard (e (lit R)) ((fn (_ a) a) 1 . 5))
+      (guard (e (lit R)) (eval (pair list 5))))
+```
+---
+    ('R 'R 'R)
+
+### the error names the fault
+
+```scheme
+(guard (e (Str8 contains? "improper argument list" (Str8 append "" e))) (list 1 . 5))
+```
+---
+    #t
+
+### non-callable heads echo the data form, dotted or not
+
+```scheme
+(list (1 . 2) (1 2 . 3) (eval (pair 1 2)))
+```
+---
+    ((1 . 2) (1 2 . 3) (1 . 2))
+
+### ops still bind dotted tails through dotted param specs
+
+```scheme
+((op (o . a) e (list o a)) 1 . 5)
+```
+---
+    (1 5)
+
+### proper calls and proper data pass-throughs unchanged
+
+```scheme
+(list (list 1 2) ((fn (_ a b) (+ a b)) 3 4) (eval (lit (1 2 3))))
+```
+---
+    ((1 2) 7 (1 2 3))
