@@ -21,7 +21,7 @@
 #                         251 -> 211, caught 2026-07-20)
 #   x/boot/helium|xenon|radon
 #                      -- not modules, dialect BODIES that exist to be
-#                         included by the lib entries/shims (#95): each
+#                         included by the lib entries (#95): each
 #                         starts with a raw (include "lib/x-core.x"),
 #                         unconditional by design, so importing one
 #                         re-boots core inside this already-booted walk

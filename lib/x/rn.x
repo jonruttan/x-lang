@@ -1,4 +1,4 @@
-; rn.x -- x/rn: radon, the experimental/hacking dialect (retired spelling: x/or, #95)
+; rn.x -- x/rn: radon, the experimental/hacking dialect
 ;
 ; Built on x-lang.  Pulls in the heavy toolbox eagerly (compiler comes in
 ; transitively via the radon body, lib/x/boot/radon.x; POSIX FFI, numeric

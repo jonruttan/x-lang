@@ -8,8 +8,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed (dialect names — #95)
 
 - **Noble-gas dialect names** — the dialects are now **helium** (`lib/he.x`, light/default — the old `lib/x.x` surface, byte for byte), **xenon** (`lib/xe.x`, stable full tower — the old `x-and`), and **radon** (`lib/rn.x`, experimental — the old `x-or`). Atomic weight = library weight, radioactivity = instability; and the governing rule: dialects may differ in what surface is loaded, never in what a shared spelling means. `x-lang` reverts to being the language's name only; banners show the full element word (`xenon v0.3.0 on x-lang`); `-l` flags stay terse (`-l xe`). The module layer follows: `x/and` → `x/xe`, `x/or` → `x/rn`.
-- **Compat shims, one release** — `-l x-and` / `-l x-or` and `(import x/and)` / `(import x/or)` keep booting via shims at the old paths; `lib/x.x` is now the default pointer (bare `sh x.sh` boots helium). The shims will be deleted in the release after the rename.
-- **Dialect bodies** — each dialect's composition lives in `lib/x/boot/{helium,xenon,radon}.x`; entries and shims are a body-include plus the top-level launcher (a `(repl)` cannot ride a nested `include`: it would read the included file's EOF instead of the session's stdin).
+- **Old spellings retired** — `-l x-and` / `-l x-or` and `(import x/and)` / `(import x/or)` no longer resolve (transitional shims existed only within this release cycle); an unknown `-l` name fails with the wrapper's inventory listing. `lib/x.x` remains as the default pointer (bare `sh x.sh` boots helium), and `check-doc-vocab` now ratchets the retired spellings out of `lib/`.
+- **Dialect bodies** — each dialect's composition lives in `lib/x/boot/{helium,xenon,radon}.x`; each entry is a body-include plus the top-level launcher (a `(repl)` cannot ride a nested `include`: it would read the included file's EOF instead of the session's stdin).
 - **Examples reorganized** — `examples/and/` → `examples/xe/`, `examples/or/` → `examples/rn/`.
 - **Library version 0.3.0.**
 

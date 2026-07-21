@@ -1,11 +1,11 @@
 ; boot/radon.x -- the radon dialect body: everything but the launcher
 ;
-; Shared by the lib/rn.x entry and the lib/x-or.x compat shim (#95).  The
-; (repl) launcher cannot ride a nested (include ...): the REPL reads the
-; CURRENT input source, so inside an include frame it meets the file's
-; EOF and exits instead of reading the session's stdin.  Entries and
-; shims therefore keep the launcher at stream top level and include this
-; body.  (Same extraction idiom as boot/tower-compiled.x.)
+; Included by the lib/rn.x entry (#95).  The (repl) launcher cannot ride
+; a nested (include ...): the REPL reads the CURRENT input source, so
+; inside an include frame it meets the file's EOF and exits instead of
+; reading the session's stdin.  The entry therefore keeps the launcher at
+; stream top level and includes this body.  (Same extraction idiom as
+; boot/tower-compiled.x.)
 
 ; Load core first (fast, no numeric tower)
 (include "lib/x-core.x")

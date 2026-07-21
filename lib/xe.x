@@ -4,7 +4,7 @@
 ;
 ; @description xenon: Stable/Hardened dialect.  x-core plus the shared
 ;   compiled numeric tower (lib/x/boot/tower-compiled.x), the x/xe module,
-;   and the interactive banner/REPL.  Retired spelling: x-and (#95).
+;   and the interactive banner/REPL.
 ; @author [Jon Ruttan](jonruttan@gmail.com)
 ; @copyright 2026 Jon Ruttan
 ; @license MIT No Attribution (MIT-0)

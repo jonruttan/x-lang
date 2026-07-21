@@ -11,12 +11,11 @@ point: `x-base.x` has no `(repl)`, so its forms reach the C read-eval loop,
 while the dialect entries (`he.x`, `xe.x`, `rn.x`) end with `(repl)` and go
 through the x-lang REPL reader instead. #49 lives on the second path only.
 
-The noble-gas rename (#95) added the compat groups: `x.x` is the
-default-pointer shim (bare `sh x.sh` boots helium), and `x-and.x`/`x-or.x`
-are the retired spellings, kept one release. Their groups prove the shim
-path itself boots -- `check-dialect-cover` demands a group per `lib/*.x`
-file, and its reverse check will demand these groups die with the shims
-(Phase 3 of #95).
+The noble-gas rename (#95) named the entries he/xe/rn; `x.x` is the
+default pointer (bare `sh x.sh` boots helium), and its group proves the
+pointer path itself boots -- `check-dialect-cover` demands a group per
+`lib/*.x` file. (The transitional `x-and.x`/`x-or.x` shims and their
+groups are gone; dialect-cover's reverse check enforced the removal.)
 
 Keep one taste-level form per dialect feature here. This file is a smoke test,
 not a tower suite -- depth belongs in `e2e/numeric-tower.spec.md`.
@@ -51,9 +50,9 @@ not a tower suite -- depth belongs in `e2e/numeric-tower.spec.md`.
 
 # @lib x.x
 
-## x.x -- the default pointer shim (boots helium)
+## x.x -- the default pointer (boots helium)
 
-### arithmetic through the shim
+### arithmetic through the pointer
 
 ```scheme
 (+ 2 3)
@@ -61,7 +60,7 @@ not a tower suite -- depth belongs in `e2e/numeric-tower.spec.md`.
 ---
     5
 
-### the standard library is loaded through the shim
+### the standard library is loaded through the pointer
 
 ```scheme
 (List length (list 1 2 3))
@@ -165,18 +164,6 @@ leading `+`/`-` jumped into.
 ---
     -5
 
-# @lib x-and.x
-
-## x-and.x -- retired spelling, shims to xenon (#95)
-
-### the compat path boots the full tower
-
-```scheme
-(+ 1/3 1/6)
-```
----
-    1/2
-
 # @lib rn.x
 
 ## rn.x -- radon, the experimental tower dialect
@@ -212,15 +199,3 @@ leading `+`/`-` jumped into.
 ```
 ---
     2
-
-# @lib x-or.x
-
-## x-or.x -- retired spelling, shims to radon (#95)
-
-### the compat path boots the full tower
-
-```scheme
-(+ 1/3 1/6)
-```
----
-    1/2
