@@ -988,10 +988,14 @@ Evaluates `expr` (must produce a list) and splices it into the surrounding list.
 (quasi (1 (unquote-splicing xs) 4)) -> (1 2 3 4)
 ```
 
-Nested quasiquote:
+Nested quasiquote is depth-tracked: each `quasi` deepens by one, each
+`unquote` returns one level, and only a depth-1 payload evaluates -- so the
+inner form survives one wrapping as syntax while the innermost value is
+substituted. The printer renders the surviving quasi form with the reader's
+shorthand:
 
 ```
-(quasi (quasi (unquote (unquote 'x)))) -> ('quasi ('unquote 'x))
+(quasi (quasi (unquote (unquote 'x)))) -> `,'x
 ```
 
 ---
