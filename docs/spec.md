@@ -48,6 +48,19 @@ applicatives (created by `fn` or `wrap`), each argument is evaluated before the
 call. For operatives (created by `op` or C primitives), arguments are passed
 unevaluated.
 
+Calling an applicative with an IMPROPER argument list -- `(list 1 . 5)` -- is
+an error: the argument walk raises `call: improper argument list (dotted
+tail)` rather than reading past the spine (#69 ruled). Operatives are
+untouched: they receive their spines raw, and a dotted parameter spec binds a
+dotted tail legitimately. When `f` evaluates to a non-callable value the form
+is DATA, not a call, and echoes back unchanged -- proper or dotted (see
+Lists, section 10).
+
+```
+(guard (e "caught") (list 1 . 5)) -> "caught"
+(1 . 2) -> (1 . 2)
+```
+
 ### Nil, false, and truthiness
 
 The empty list `()` is nil. Nil, the empty list, and absence are ONE value —
@@ -1078,16 +1091,15 @@ my-var? -> <symbol>
 ### Lists
 
 `(a b c)` creates a proper list. `(a b . c)` creates a dotted pair where `c`
-is the tail. The dotted example is quoted because this section is about what
-the READER produces: a bare `(1 2 3)` happens to evaluate to itself through
-the non-callable pass-through, but a bare dotted form does not survive
-evaluation -- deeper tails like `(1 2 . 3)` raise, and the immediate form
-`(1 . 2)` currently crashes the argument walk (#69; the evaluation semantics
-of improper call forms are ruled there, not here).
+is the tail. Bare data forms -- proper or dotted -- evaluate to themselves
+through the non-callable pass-through (#69 ruled: a non-callable head was
+never a call, so data echoes back; see List evaluation in section 1 for the
+callable half of that ruling).
 
 ```
 (1 2 3) -> (1 2 3)
-(lit (1 . 2)) -> (1 . 2)
+(1 . 2) -> (1 . 2)
+(1 2 . 3) -> (1 2 . 3)
 ```
 
 ### Quote shorthand

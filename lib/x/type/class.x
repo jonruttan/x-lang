@@ -161,6 +161,21 @@
 ; Install via type-push-call: (%type-push-call (%type-by-atom %rational)
 ; (%class-call-handler Rational)). An `op` (not fn) so the method selector stays
 ; unevaluated while the remaining args evaluate in the caller's env.
+; Data-form echo for the non-selector paths below (#69 ruled: a non-callable
+; head was never a call, so DATA IN, DATA OUT). Evaluates each element of the
+; proper prefix -- self-evaluating data is identity, and x_prim_iter's
+; re-evaluation path needs exactly that -- and a DOTTED tail is evaluated and
+; preserved in place, so (1 . 2) echoes unchanged just like (1 2 3) does.
+; %map1 cannot be used here: its improper-list guard (#51) is right for a
+; real map over a list argument, but this walk reproduces a FORM, and a
+; dotted form is data here, not an error.
+(def %data-echo
+  (fn (self f xs)
+    (match
+      ((null? xs) ())
+      ((not (pair? xs)) (f xs))
+      (#t (pair (f (first xs)) (self f (rest xs)))))))
+
 (def %class-call-handler
   (fn (_ class)
     (op (obj . args) e
@@ -170,15 +185,20 @@
       ; must NOT fire; reproduce the data form so the list passes through
       ; unchanged, exactly as a non-callable head would. (x_prim_iter
       ; re-evaluates the list it iterates, which is why this path exists.)
+      ; args can be a bare ATOM -- (1 . 2) binds args to 2 via the dotted
+      ; spec -- so the pair? test comes BEFORE any first/rest touches it
+      ; (#69: (first args) on the atom was the crash).
       (if (null? args)
         (list obj)
-        (let ((sel (%selector (first args))))
-          (if (symbol? sel)
-            (let ((m (%lookup class (lit s-methods) sel)))
-              (if (null? m)
-                (error (%str-append "object: no such method " (symbol->str sel)))
-                (apply m (pair class (append (%map1 (fn (_ a) (eval a e)) (rest args)) (list obj))))))
-            (pair obj (%map1 (fn (_ a) (eval a e)) args))))))))
+        (if (not (pair? args))
+          (pair obj (eval args e))
+          (let ((sel (%selector (first args))))
+            (if (symbol? sel)
+              (let ((m (%lookup class (lit s-methods) sel)))
+                (if (null? m)
+                  (error (%str-append "object: no such method " (symbol->str sel)))
+                  (apply m (pair class (append (%map1 (fn (_ a) (eval a e)) (rest args)) (list obj))))))
+              (pair obj (%data-echo (fn (_ a) (eval a e)) args)))))))))
 
 ; Variant for types that ALREADY have a call handler (indexing/matching): a
 ; SYMBOL selector dispatches to the class method (subject-LAST, as above);
@@ -190,15 +210,20 @@
 (def %class-call-handler-over
   (fn (_ class prior)
     (op (obj . args) e
+      ; Same atom-tail guard as %class-call-handler (#69): a dotted form
+      ; binds args to a bare atom, which no prior handler can index into
+      ; either -- echo it as data rather than delegating.
       (if (null? args)
         (apply prior (list obj))
-        (let ((sel (%selector (first args))))
-          (if (symbol? sel)
-            (let ((m (%lookup class (lit s-methods) sel)))
-              (if (null? m)
-                (error (%str-append "object: no such method " (symbol->str sel)))
-                (apply m (pair class (append (%map1 (fn (_ a) (eval a e)) (rest args)) (list obj))))))
-            (apply prior (pair obj (%map1 (fn (_ a) (eval a e)) args)))))))))
+        (if (not (pair? args))
+          (pair obj (eval args e))
+          (let ((sel (%selector (first args))))
+            (if (symbol? sel)
+              (let ((m (%lookup class (lit s-methods) sel)))
+                (if (null? m)
+                  (error (%str-append "object: no such method " (symbol->str sel)))
+                  (apply m (pair class (append (%map1 (fn (_ a) (eval a e)) (rest args)) (list obj))))))
+              (apply prior (pair obj (%data-echo (fn (_ a) (eval a e)) args))))))))))
 
 ; Install value-to-class method dispatch OVER a type's existing call handler:
 ; symbol selector -> the class's static method (subject-last); anything else
