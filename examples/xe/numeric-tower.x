@@ -1,7 +1,7 @@
 ; numeric-tower.x -- Numeric tower examples
 ;
 ; Usage:
-;   sh x.sh -l x-and -f examples/and/numeric-tower.x
+;   sh x.sh -l xe -f examples/xe/numeric-tower.x
 
 ; Arbitrary-precision integers (bignum)
 (display "2^100 = ")

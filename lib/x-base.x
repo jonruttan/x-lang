@@ -5,7 +5,7 @@
 ; @description x-base: non-interactive full-stack library with a COMPILED
 ;   numeric tower (see docs/dialects.md and docs/type-system.md).  The
 ;   analyser-compilation lives in lib/x/boot/tower-compiled.x, shared with
-;   x-and.x and x-or.x; this entry is x-core plus that block, without the
+;   the xenon/radon bodies; this entry is x-core plus that block, without the
 ;   interactive banner/REPL.
 ; @author [Jon Ruttan](jonruttan@gmail.com)
 ; @copyright 2021 Jon Ruttan

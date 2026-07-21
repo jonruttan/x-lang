@@ -13,7 +13,7 @@ Each layer expands capabilities without modifying those below it.
 
 **Layer 2: Adaptive Type System.** `make-type` and `make-instance` introduce new types at runtime. Each type is a nested linked list carrying a fixed prefix of dispatch methods (call, eval, write, length, etc.) and an extensible tail for type-specific data. New types plug into the existing evaluation, printing, and comparison infrastructure the moment they are registered. Types registered at startup include symbols, lists, integers, strings, characters, primitives, procedures, operatives, buffers, whitespace, and comments.
 
-**Layer 3: Modular Library.** 100+ modules (one module = one `provide`-ing `.x` source file) organized by domain: core operations (`lib/x/core/`), custom types (`lib/x/type/`), a numeric tower (`lib/x/num/`), system interfaces (`lib/x/sys/`), self-hosted tools (`lib/x/tool/`), documentation (`lib/x/doc/`), and platform-specific code (`lib/x/platform/`). The bootstrap sequence in `lib/x-core.x` pre-registers all module paths and loads 40+ core modules via `provide`/`import` with deduplication. This layer is composed into dialects (x-lang, x/and, x/or) that control which capabilities are available.
+**Layer 3: Modular Library.** 100+ modules (one module = one `provide`-ing `.x` source file) organized by domain: core operations (`lib/x/core/`), custom types (`lib/x/type/`), a numeric tower (`lib/x/num/`), system interfaces (`lib/x/sys/`), self-hosted tools (`lib/x/tool/`), documentation (`lib/x/doc/`), and platform-specific code (`lib/x/platform/`). The bootstrap sequence in `lib/x-core.x` pre-registers all module paths and loads 40+ core modules via `provide`/`import` with deduplication. This layer is composed into dialects (helium, xenon, radon) that control which capabilities are available.
 
 **Layer 4: FFI and Native Code.** Dynamic library loading via `dlopen`/`dlsym` (`src/x-prim/ffi.c`), typed foreign calls with convention strings, raw pointer operations, and a JIT compiler (`lib/x/tool/compile.x`, `lib/x/tool/asm.x`) that compiles x-lang functions to native x86_64/ARM64 machine code via a data-driven assembler with mmap execution. POSIX system calls (fork, exec, pipe, dup2, wait, open, close, etc.) are wrapped as x-lang functions through the FFI in `lib/x/sys/posix.x`.
 
@@ -137,7 +137,7 @@ stdin -> buffer -> tokenizer -> s-expression reader -> evaluator -> writer -> st
 
 2. **Buffer.** A fixed-size `char[]` buffer (`X_CLI_BUFFER_SIZE`, 256 bytes) is wrapped in a buffer type object and attached to the base at `x_base_field_buffer`. The buffer feeds single characters to the tokenizer.
 
-3. **Tokenizer.** `x_token_read` iterates the registered type list. Each type provides an `analyse` method that inspects the buffer to determine if the upcoming bytes match that type, and a `delimit` method that determines token boundaries. The tokenizer dispatches to the highest-scoring type. In the x/and and x/or dialects, analyser functions for numeric types are compiled to native machine code at load time via the JIT compiler, significantly accelerating tokenization.
+3. **Tokenizer.** `x_token_read` iterates the registered type list. Each type provides an `analyse` method that inspects the buffer to determine if the upcoming bytes match that type, and a `delimit` method that determines token boundaries. The tokenizer dispatches to the highest-scoring type. In the xenon and radon dialects, analyser functions for numeric types are compiled to native machine code at load time via the JIT compiler, significantly accelerating tokenization.
 
 4. **S-expression reader.** `x_sexp_read` delegates to `x_token_read`. Pair/list syntax is handled by `x_sexp_pair_read` and `x_sexp_list_read`, which recursively call the token reader for sub-expressions. The reader produces a tree of atoms and pairs.
 
@@ -151,18 +151,18 @@ The REPL loop in `x_cli.c` runs these stages in sequence: prompt, read, eval, pr
 
 The library is composed into dialects that control what capabilities are loaded. Each dialect includes all of the previous:
 
-**x-lang** (`lib/x.x` / `lib/x-core.x`): The core dialect. Bootstraps 40+ modules providing core operations, combinators, list processing, strings, vectors, promises, quasiquote, and a REPL. No numeric tower or system access.
+**helium** (`lib/he.x` / `lib/x-core.x`): The light dialect and the default (`lib/x.x` is a pointer to it). Bootstraps 40+ modules providing core operations, combinators, list processing, strings, vectors, promises, quasiquote, and a REPL. No numeric tower or system access.
 
-**x/and** (`lib/x-and.x`): Stable full-stack dialect. Adds POSIX wrappers, hash tables, the JIT compiler, and a numeric tower (bignum, float, rational, complex). Each numeric type's tokenizer analyser is compiled to native code immediately after loading, so subsequent source files are parsed through fast compiled analysers rather than interpreted ones.
+**xenon** (`lib/xe.x`): Stable full-stack dialect. Adds POSIX wrappers, hash tables, the JIT compiler, and a numeric tower (bignum, float, rational, complex). Each numeric type's tokenizer analyser is compiled to native code immediately after loading, so subsequent source files are parsed through fast compiled analysers rather than interpreted ones.
 
-**x/or** (`lib/x-or.x`): Experimental dialect. Everything in x/and plus raw syscall lookup tables, file I/O, socket constants, car/cdr composition helpers, character constants, and I/O handle constants.
+**radon** (`lib/rn.x`): Experimental dialect. Everything in xenon plus raw syscall lookup tables, file I/O, socket constants, car/cdr composition helpers, character constants, and I/O handle constants.
 
 Dialects are selected via the shell wrapper's `-l` flag:
 
 ```sh
-sh x.sh              # x-lang
-sh x.sh -l x-and     # x/and
-sh x.sh -l x-or      # x/or
+sh x.sh              # helium (default)
+sh x.sh -l xe        # xenon
+sh x.sh -l rn        # radon
 ```
 
 Language personalities (R5RS Scheme, R7RS Scheme, Kernel, ASH shell, sweet expressions) are loaded as additional libraries on top of a dialect. The interpreter core has no knowledge of any specific language. Without any library, the bare interpreter exposes only C-level primitives.
@@ -171,4 +171,4 @@ Language personalities (R5RS Scheme, R7RS Scheme, Kernel, ASH shell, sweet expre
 
 The C core has no file-open or file-close primitives. Its only I/O is reading bytes from stdin and writing bytes to stdout/stderr via POSIX `read`/`write` syscalls on the file descriptors stored in the base object. Code loading happens externally through shell concatenation.
 
-The x/and and x/or dialects extend this via the FFI: `lib/x/sys/posix.x` wraps fork, exec, pipe, dup2, wait, open, close, read, write, chdir, getenv, and setenv. `lib/x/sys/file.x` (x/or only) provides higher-level file I/O with symbolic mode flags. This keeps the C core minimal while still supporting full system access when needed.
+The xenon and radon dialects extend this via the FFI: `lib/x/sys/posix.x` wraps fork, exec, pipe, dup2, wait, open, close, read, write, chdir, getenv, and setenv. `lib/x/sys/file.x` (radon only) provides higher-level file I/O with symbolic mode flags. This keeps the C core minimal while still supporting full system access when needed.

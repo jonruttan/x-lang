@@ -33,10 +33,11 @@ index — see [Exploration](#exploration) below. There is no built-in line
 editing or history; wrap the session in [`rlwrap`](https://github.com/hanslub42/rlwrap)
 (`rlwrap sh x.sh`) if you want arrow keys.
 
-For the full-stack dialect with the numeric tower, the compiler, and POSIX:
+For the full-stack dialect (xenon) with the numeric tower, the compiler,
+and POSIX:
 
 ```sh
-sh x.sh -l x-and
+sh x.sh -l xe
 ```
 
 ## Writing a Program
@@ -211,16 +212,24 @@ The standard library provides a rich set of list operations:
 
 ## Modules
 
-Load additional capabilities with `import`:
+Everything the default dialect ships is ready without ceremony — vectors,
+for instance:
 
 ```
-> (import x/type/vector)
 > (def v (Vector make 3 0))
 > v
 #(0 0 0)
 ```
 
-In the x/and dialect, the numeric tower is pre-loaded:
+Capabilities the dialect does *not* pre-load are one `import` away:
+
+```
+> (import x/type/hash)
+> (Hash ->hex (Hash fnv-1a "hello"))
+"a430d84680aabd0b"
+```
+
+In the xenon dialect, the numeric tower is pre-loaded:
 
 ```
 > (Num expt 2 100)
@@ -251,9 +260,9 @@ Use `modules` to list all registered modules:
 
 | Dialect | Load Command | Use Case |
 |---------|-------------|----------|
-| x-lang | `sh x.sh` | General programming, scripting, learning |
-| x/and | `sh x.sh -l x-and` | Numeric computing, full-stack applications |
-| x/or | `sh x.sh -l x-or` | Systems programming, OS interaction |
+| helium | `sh x.sh` | General programming, scripting, learning (the default) |
+| xenon | `sh x.sh -l xe` | Numeric computing, full-stack applications |
+| radon | `sh x.sh -l rn` | Systems programming, OS interaction |
 
 ## Next Steps
 

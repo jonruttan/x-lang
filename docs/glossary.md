@@ -33,8 +33,24 @@ are settled (tracked in issue #42 and #44).
 - **the type system** — runtime type structs with dispatch methods; types
   and the base share one nested-list contract pattern.
 - **the library** (`lib/`) — everything else, written in x-lang, composed
-  into **dialects** (x-lang, x/and, x/or); whole surface languages load as
+  into **dialects** (helium, xenon, radon); whole surface languages load as
   **personalities**.
+
+## the dialects (noble gases)
+
+Atomic weight = library weight; radioactivity = instability. Dialects may
+differ in what surface is *loaded*, never in what a shared spelling *means*
+(same-spelling-different-meaning is personality territory).
+
+- **helium** (`he`, `lib/he.x`) — light: fast boot, interactive, no numeric
+  tower. The default; `lib/x.x` is a pointer to it.
+- **xenon** (`xe`, `lib/xe.x`) — heavy and inert: the full numeric tower,
+  POSIX, the compiler; the stable full-stack surface.
+- **radon** (`rn`, `lib/rn.x`) — heavy and radioactive: xenon's surface
+  plus the experimental/raw APIs (syscalls, opt-in file I/O and sockets);
+  explicitly volatile.
+- **x-lang** — the *language's* name only, never a dialect's. Retired
+  dialect spellings `x-and`/`x-or` shim to xenon/radon for one release.
 
 ## combiners
 
@@ -84,7 +100,8 @@ byte" (`\0`). None of them is a fourth falsy value: falsy is {nil, `#f`}.
 ## core and base
 
 - **core** carries three senses — the C interpreter core, `lib/x/core/`,
-  and the core dialect (`lib/x.x`/`x-core.x`); say which.
+  and the bootstrap core (`x-core.x`, the module manifest every dialect
+  loads first; internal, not a user-facing dialect); say which.
 - **base** — the interpreter's root context object (`p_base`): execution
   context only. Not nil (`()` is `NULL`), and not the environment — the
   binding structure (`env`) lives *on* the base.

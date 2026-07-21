@@ -14,7 +14,7 @@
 - [Architecture](architecture.md) — System design, evaluation model, the contract pattern
 - [Type System](type-system.md) — Objects, types, the base object, dispatch, extensibility
 - [Object System](object-system.md) — Message-passing classes, single inheritance, encapsulated members, `super`
-- [Dialects](dialects.md) — x-lang, x/and, and x/or dialect layers
+- [Dialects](dialects.md) — the helium, xenon, and radon dialect layers
 - [Modules](modules.md) — The provide/import module system
 
 ## Reference

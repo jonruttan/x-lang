@@ -1,6 +1,6 @@
 ; hash.x -- Hash: FNV-1a string hashing as the Hash class.
 ;
-; Loaded after x-core.x in every context (the x-and/x-base/x-or dialects and the
+; Loaded after x-core.x in every context (the xenon/x-base/radon dialects and the
 ; ext/hash.spec test lib all (include "lib/x-core.x") first), so def-class is
 ; available when this loads.
 

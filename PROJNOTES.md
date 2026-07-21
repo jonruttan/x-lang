@@ -32,7 +32,7 @@ Revision:    7 (2026-07-10)
 - Numeric tower (bignum, float, rational, complex)
 - POSIX via FFI, regex, vectors, hash tables
 - Self-hosted tools (lint, fmt, cov, profile, doc)
-- Three dialects: x-lang (core), x/and (stable), x/or (experimental)
+- Three dialects: helium (light/default), xenon (stable full-stack), radon (experimental)
 - Language personalities: R5RS, R7RS, Kernel, ASH, Sweet
 - ANSI / Standard C, no external dependencies
 

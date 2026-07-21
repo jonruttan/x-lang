@@ -7,7 +7,7 @@ The x-lang library is modular: ~100 modules (one module = one `provide`-ing `.x`
 
 This document covers the core functions loaded by `lib/x.x` (the base x-lang dialect). For the complete auto-generated reference covering all modules, run `make doc-x` and open `ref/x/index.md` (generated locally, not committed).
 
-**Library version:** `0.2.0`
+**Library version:** `0.3.0`
 
 ### Module Categories
 

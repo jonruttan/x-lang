@@ -1,6 +1,6 @@
 ; launch.x -- the interactive launcher, unconditionally
 ;
-; The dialect entries (x.x, x-and.x, x-or.x) end with a %batch?-guarded
+; The dialect entries (he.x, xe.x, rn.x -- and their shims) end with a %batch?-guarded
 ; launcher so that -f can evaluate a file instead of starting a session.
 ; -F wants BOTH: evaluate the file, then hand the user a prompt.  x.sh
 ; concatenates this file after the -F file, so the launcher runs once the

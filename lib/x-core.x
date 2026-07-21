@@ -30,7 +30,7 @@
 (include "lib/x/boot/module.x")
 
 (do
-  (def x-lib-version "0.2.0")
+  (def x-lib-version "0.3.0")
 
   ; Pre-register all library paths so import calls are no-ops.
   ; INVARIANT (machine-checked by make check-boot-order): every lib path this

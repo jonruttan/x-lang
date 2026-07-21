@@ -3,7 +3,7 @@
 Stream (`lib/x/sys/stream.x`) redirects output by pushing/popping the base's
 `fileout` fd -- pure X, no syscall. These cases exercise the syscall-free
 surface: construction, the redirect plumbing, and restore. The file-backed
-methods (`to-file`, `write`, `with-output-to-file`) need the x-or dialect and
+methods (`to-file`, `write`, `with-output-to-file`) need the radon dialect and
 are verified separately.
 
 The redirect cases deliberately retarget output to the *current* fd, so nothing

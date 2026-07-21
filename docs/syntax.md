@@ -32,7 +32,7 @@ echoes them in shorthand.
   stage. **Never write `(- 0 1)` for a literal.** `(- 0 x)` remains the
   correct spelling for negating a *variable* (it routes through the
   operand's type dispatch).
-- Tower literals — dialect-gated (x/and, x/or, x-base): floats `3.14`,
+- Tower literals — dialect-gated (xenon, radon, x-base): floats `3.14`,
   `-7.5`; rationals `1/3`, `-2/7`; complexes `3+4i`, `2-3i`, `-1+2i`; big
   integers as plain digit runs. (Implemented — the compiled analysers
   carry the sign branches.)
@@ -98,7 +98,7 @@ echoes them in shorthand.
 
 ## Dialect matrix
 
-| Syntax | bare x | x-lang | x/and, x/or, x-base |
+| Syntax | bare x | helium | xenon/radon, x-base |
 |---|---|---|---|
 | ints (signed, hex), strings, `#\` chars, lists, `( . x)`, `;` | ✓ | ✓ | ✓ |
 | `#t`/`#f` as booleans, printer | — | ✓ | ✓ |
