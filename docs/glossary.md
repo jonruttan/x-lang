@@ -49,8 +49,9 @@ differ in what surface is *loaded*, never in what a shared spelling *means*
 - **radon** (`rn`, `lib/rn.x`) — heavy and radioactive: xenon's surface
   plus the experimental/raw APIs (syscalls, opt-in file I/O and sockets);
   explicitly volatile.
-- **x-lang** — the *language's* name only, never a dialect's. Retired
-  dialect spellings `x-and`/`x-or` shim to xenon/radon for one release.
+- **x-lang** — the *language's* name only, never a dialect's. The retired
+  dialect spellings `x-and`/`x-or` are ratcheted out of `lib/`
+  (`check-doc-vocab`'s retired-dialects gate) and must not come back.
 
 ## combiners
 

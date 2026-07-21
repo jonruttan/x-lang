@@ -20,9 +20,9 @@ Revision:    7 (2026-07-10)
 - ANSI / Standard C, no external dependencies
 
 
-### x-lang (xe/xenon) -- Minimalist Dialect
+### x-lang -- The Language
 
-**Status: Implemented** (v0.2.0)
+**Status: Implemented** (v0.3.0)
 
 - Foundational / Scripting
 - Lisp1 with fexpr evaluation model
@@ -37,34 +37,20 @@ Revision:    7 (2026-07-10)
 - ANSI / Standard C, no external dependencies
 
 
-### Neon (ne/neon) -- Midsize/Unstable Dialect
+### Noble-gas dialects (he/xe/rn)
 
-**Status: Aspirational**
+**Status: Shipped** (v0.3.0, #95 — supersedes the old aspirational
+Neon/Helium notes, whose meanings did not survive the adjudication:
+helium shipped as the LIGHT dialect, not "maximal/stable", and
+stability-channel dialects were ruled out entirely — a release channel
+is not a dialect. See docs/dialects.md for the ruling.)
 
-Experimental / Hacking
+- **helium** (`he`) — light, fast boot, interactive, no tower; the default
+- **xenon** (`xe`) — full numeric tower, POSIX, compiler; stable
+- **radon** (`rn`) — xenon's surface + experimental/raw APIs; volatile
 
-- Built on x-lang
-- Unstable
-- Full Dialect
-- Kernel access
-- Compiler
-- Modules
-
-
-### Helium (he/helium) -- Maximal/Stable x-lang Dialect
-
-**Status: Aspirational**
-
-Hardened / Full Stack
-
-- Built on x-lang
-- Stable
-- Lisp1
-- Full Dialect
-- Kernel access
-- Compiler
-- Modules
-- Hardened
+Atomic weight = library weight; radioactivity = instability. Dialects
+never re-mean a shared spelling.
 
 
 ### X-Tools System Tools

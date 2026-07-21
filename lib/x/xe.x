@@ -1,4 +1,4 @@
-; xe.x -- x/xe: xenon, the stable/hardened dialect (retired spelling: x/and, #95)
+; xe.x -- x/xe: xenon, the stable/hardened dialect
 ;
 ; Built on x-lang. Imports the full stable toolbox: compiler, POSIX,
 ; numeric tower, regex. Does NOT include experimental extensions
