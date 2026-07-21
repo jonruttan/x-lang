@@ -116,6 +116,14 @@ not a tower suite -- depth belongs in `e2e/numeric-tower.spec.md`.
 ---
     6
 
+### $-interpolation survives the compiled-analyser swap
+
+```scheme
+(do (def w 3) $"n={w}/x")
+```
+---
+    "n=3/x"
+
 # @lib xe.x
 
 ## xe.x -- xenon, the stable tower dialect
@@ -164,6 +172,14 @@ leading `+`/`-` jumped into.
 ---
     -5
 
+### $-interpolation survives the compiled-analyser swap
+
+```scheme
+(do (def w 3) $"n={w}/x")
+```
+---
+    "n=3/x"
+
 # @lib rn.x
 
 ## rn.x -- radon, the experimental tower dialect
@@ -199,3 +215,11 @@ leading `+`/`-` jumped into.
 ```
 ---
     2
+
+### $-interpolation survives the compiled-analyser swap
+
+```scheme
+(do (def w 3) $"n={w}/x")
+```
+---
+    "n=3/x"
