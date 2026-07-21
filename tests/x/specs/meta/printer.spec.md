@@ -175,3 +175,56 @@ round segfaulted at ~10k elements.
 ```
 ---
     #<obj:GHOST>
+
+## the C-raised error atom prints its message (#54)
+
+x_eval_error delivers a nil-typed atom whose string is the base's error
+scratch buffer. The printer's generic sentinel form rendered the BUFFER
+POINTER -- every C-raised error printed as the same #<ATOM:0x..>, zero
+diagnostic signal with the message sitting right there in the atom. The
+printer now identity-tests that one atom (reached via the error-str layout
+path) and emits its bytes. (error "msg") delivers a real STRING and never
+took this path.
+
+### uncaught unbound symbol shows the diagnostic
+
+```scheme
+nosuchsym
+```
+---
+    Error: Unbound SYMBOL 'nosuchsym'
+
+### display and write of a caught error show the message
+
+```scheme
+(do (display (guard (e e) nosuchsym)) (display " / ") (write (guard (e e) nosuchsym)))
+```
+---
+    Unbound SYMBOL 'nosuchsym' / Unbound SYMBOL 'nosuchsym'
+
+### two different C-raised errors are distinguishable
+
+```scheme
+(do
+  (def a (%str-append "" (guard (e e) nosuchsym)))
+  (def b (%str-append "" (guard (e e) (list 1 . 5))))
+  (list (str=? a b) (Str8 contains? "improper" b)))
+```
+---
+    (#f #t)
+
+### x-level (error msg) still delivers the string itself
+
+```scheme
+(guard (e e) (error "custom boom"))
+```
+---
+    "custom boom"
+
+### other sentinel atoms still render generically
+
+```scheme
+(Str8 starts? "#<ATOM:0x" (%display-to-str (Type of 0)))
+```
+---
+    #t
