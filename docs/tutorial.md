@@ -28,7 +28,7 @@ This loads the x-lang standard library and drops into a REPL:
 
 The prompt is `> `. Results are printed after each expression. Nil results print nothing.
 
-Leave the session with `(quit)`. `(help)` shows the documentation
+Leave the session with `(quit)` or ctrl-d. `(help)` shows the documentation
 index — see [Exploration](#exploration) below. There is no built-in line
 editing or history; wrap the session in [`rlwrap`](https://github.com/hanslub42/rlwrap)
 (`rlwrap sh x.sh`) if you want arrow keys.
