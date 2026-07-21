@@ -2,21 +2,28 @@
 
 The shipped dialects had **zero** end-to-end coverage until this file (#70).
 Every numeric spec runs against a bespoke `@lib` harness, which passes -- so the
-tower is well covered while the four launchers users actually run were covered
+tower is well covered while the launchers users actually run were covered
 not at all. That is how #49 shipped: a dialect that cannot add two numbers.
 
 These run each entry point **as the README documents it** -- `@lib <dialect>`
 is exactly `cat lib/<dialect> program.x | ./x`. That distinction is the whole
 point: `x-base.x` has no `(repl)`, so its forms reach the C read-eval loop,
-while `x.x`, `x-and.x` and `x-or.x` end with `(repl)` and go through the x-lang
-REPL reader instead. #49 lives on the second path only.
+while the dialect entries (`he.x`, `xe.x`, `rn.x`) end with `(repl)` and go
+through the x-lang REPL reader instead. #49 lives on the second path only.
+
+The noble-gas rename (#95) added the compat groups: `x.x` is the
+default-pointer shim (bare `sh x.sh` boots helium), and `x-and.x`/`x-or.x`
+are the retired spellings, kept one release. Their groups prove the shim
+path itself boots -- `check-dialect-cover` demands a group per `lib/*.x`
+file, and its reverse check will demand these groups die with the shims
+(Phase 3 of #95).
 
 Keep one taste-level form per dialect feature here. This file is a smoke test,
 not a tower suite -- depth belongs in `e2e/numeric-tower.spec.md`.
 
-# @lib x.x
+# @lib he.x
 
-## x.x -- the base dialect
+## he.x -- helium, the light dialect
 
 ### arithmetic
 
@@ -41,6 +48,26 @@ not a tower suite -- depth belongs in `e2e/numeric-tower.spec.md`.
 ```
 ---
     "ABC"
+
+# @lib x.x
+
+## x.x -- the default pointer shim (boots helium)
+
+### arithmetic through the shim
+
+```scheme
+(+ 2 3)
+```
+---
+    5
+
+### the standard library is loaded through the shim
+
+```scheme
+(List length (list 1 2 3))
+```
+---
+    3
 
 # @lib x-core.x
 
@@ -90,9 +117,9 @@ not a tower suite -- depth belongs in `e2e/numeric-tower.spec.md`.
 ---
     6
 
-# @lib x-and.x
+# @lib xe.x
 
-## x-and.x -- the tower dialect (and)
+## xe.x -- xenon, the stable tower dialect
 
 ### multiplication
 
@@ -138,9 +165,21 @@ leading `+`/`-` jumped into.
 ---
     -5
 
-# @lib x-or.x
+# @lib x-and.x
 
-## x-or.x -- the tower dialect (or)
+## x-and.x -- retired spelling, shims to xenon (#95)
+
+### the compat path boots the full tower
+
+```scheme
+(+ 1/3 1/6)
+```
+---
+    1/2
+
+# @lib rn.x
+
+## rn.x -- radon, the experimental tower dialect
 
 ### multiplication
 
@@ -173,3 +212,15 @@ leading `+`/`-` jumped into.
 ```
 ---
     2
+
+# @lib x-or.x
+
+## x-or.x -- retired spelling, shims to radon (#95)
+
+### the compat path boots the full tower
+
+```scheme
+(+ 1/3 1/6)
+```
+---
+    1/2

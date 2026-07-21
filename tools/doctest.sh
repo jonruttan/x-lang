@@ -19,6 +19,13 @@
 #                         exactly like x/constructs -- every module sorting
 #                         after x/repl/launch silently vanished (40 doctests,
 #                         251 -> 211, caught 2026-07-20)
+#   x/boot/helium|xenon|radon
+#                      -- not modules, dialect BODIES that exist to be
+#                         included by the lib entries/shims (#95): each
+#                         starts with a raw (include "lib/x-core.x"),
+#                         unconditional by design, so importing one
+#                         re-boots core inside this already-booted walk
+#                         (post-boot reader re-registration SIGSEGVs)
 # Everything else under lib/x is fair game; boot-loaded modules re-import
 # as no-ops (include-once pre-seed).
 
@@ -35,7 +42,7 @@ esac
 
 # lib/x/type/dict.x -> x/type/dict; sorted for stable output.
 _MODS=$(find lib/x -name '*.x' | sed 's|^lib/||; s|\.x$||' | sort \
-  | grep -v -E '^x/tool/asm/|^x/constructs$|^x/repl/launch$')
+  | grep -v -E '^x/tool/asm/|^x/constructs$|^x/repl/launch$|^x/boot/(helium|xenon|radon)$')
 
 # Generate to a temp file so the output can be VERIFIED before it is emitted.
 # The failure mode this guards is silent truncation: an import that reads

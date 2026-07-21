@@ -52,13 +52,15 @@ if [ -n "$_TIMEOUT_BIN" ]; then
   TIMEOUT_CMD="$_TIMEOUT_BIN ${TIMEOUT_EXAMPLE_SECS:-120}"
 fi
 
-# x.sh's -l resolution (#35): lib/x.x for the base dir, then lib/x-DIR.x,
+# x.sh's -l resolution (#35): lib/DIR.x first (this is all x.sh itself
+# does for libs -- the noble-gas entries he/xe/rn resolve here, and DIR=x
+# hits the lib/x.x default shim), then the retired lib/x-DIR.x spelling
+# (#95 compat; examples/and -> lib/x-and.x until the Phase-2 dir rename),
 # then apps/DIR/run.x.
 entry_for_dir() {
-  case "$1" in
-    x) echo "lib/x.x"; return ;;
-  esac
-  if [ -e "lib/x-$1.x" ]; then
+  if [ -e "lib/$1.x" ]; then
+    echo "lib/$1.x"
+  elif [ -e "lib/x-$1.x" ]; then
     echo "lib/x-$1.x"
   elif [ -e "apps/$1/run.x" ]; then
     echo "apps/$1/run.x"
