@@ -4,11 +4,12 @@
 ; could close: (+ #t 1) fell through to machine arithmetic (op_try cannot
 ; consult a type that is not there -- the #52 residual), and (Type of #t)
 ; answered nil, a documented wart. The type is defined HERE, in x, and the
-; singletons are claimed with the one C instruction this needed:
-; (obj retag!), which writes an object's type header slot. C prims return
-; the singletons by IDENTITY, so rebinding the name #t would touch nothing
-; -- the objects themselves change type. Type policy in x, C supplies one
-; instruction.
+; singletons are claimed with (obj retag!), which writes an object's type
+; header slot. C prims return the singletons by IDENTITY, so rebinding the
+; name #t would touch nothing -- the objects themselves change type.
+; retag! began as a C instruction on the #101 branch and was retired by
+; ruling into boot/reflect.x (pure reflection over the layout contract):
+; type policy in x, and the C surface never grew for it.
 ;
 ; Everything identity-based survives retagging untouched, verified by spec:
 ; truthiness (if/match test isnil-or-false-singleton, never the type),
