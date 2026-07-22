@@ -1,7 +1,7 @@
 # Dict: the mutable hash table
 
 Content-hashed (FNV-1a), equal?-compared keys: symbols, strings, integers,
-chars. Class instances are identity keys: address-hashed, eq?-compared.
+chars. Class instances are identity keys: address-hashed, same?-compared.
 `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ## construction
@@ -16,7 +16,7 @@ chars. Class instances are identity keys: address-hashed, eq?-compared.
 
 ### an instance from generic new fails loudly at first USE (constructor adjudication)
 
-The generic allocator once built a dict that SEGFAULTED on put!; a quiet
+The generic allocator once built a dict that SEGFAULTED on set!; a quiet
 new->make alias then hid two different operations behind one name. Now
 generic new builds an inert instance and the %slot guard raises the
 teaching kind-'state Err the moment it is used -- no fake refusal method
@@ -25,7 +25,7 @@ in the help listing, the guard sits at the point of harm.
 ```scheme
 (do (import x/type/dict)
   (guard (e (list (Err kind-of e) ((Dict make) empty?)))
-    ((Dict new) put! 'a 1)))
+    ((Dict new) set! 'a 1)))
 ```
 ---
     ('state #t)
@@ -94,13 +94,13 @@ in the help listing, the guard sits at the point of harm.
 ---
     9
 
-## put! / get
+## set! / get
 
 ### roundtrips a symbol key
 
 ```scheme
 (do (import x/type/dict)
-  (let ((d (Dict make))) (d put! 'k 42) (d get 'k)))
+  (let ((d (Dict make))) (d set! 'k 42) (d get 'k)))
 ```
 ---
     42
@@ -109,7 +109,7 @@ in the help listing, the guard sits at the point of harm.
 
 ```scheme
 (do (import x/type/dict)
-  (let ((d (Dict make))) (d put! "name" "x-lang") (d get "name")))
+  (let ((d (Dict make))) (d set! "name" "x-lang") (d get "name")))
 ```
 ---
     "x-lang"
@@ -119,7 +119,7 @@ in the help listing, the guard sits at the point of harm.
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make)))
-    (d put! (Str8 append "na" "me") 1)
+    (d set! (Str8 append "na" "me") 1)
     (d get "name")))
 ```
 ---
@@ -129,7 +129,7 @@ in the help listing, the guard sits at the point of harm.
 
 ```scheme
 (do (import x/type/dict)
-  (let ((d (Dict make))) (d put! 7 "seven") (d get 7)))
+  (let ((d (Dict make))) (d set! 7 "seven") (d get 7)))
 ```
 ---
     "seven"
@@ -138,25 +138,25 @@ in the help listing, the guard sits at the point of harm.
 
 ```scheme
 (do (import x/type/dict)
-  (let ((d (Dict make))) (d put! #\a 1) (d get #\a)))
+  (let ((d (Dict make))) (d set! #\a 1) (d get #\a)))
 ```
 ---
     1
 
-### put! overwrites an existing key
+### set! overwrites an existing key
 
 ```scheme
 (do (import x/type/dict)
-  (let ((d (Dict make))) (d put! 'k 1) (d put! 'k 2) (d get 'k)))
+  (let ((d (Dict make))) (d set! 'k 1) (d set! 'k 2) (d get 'k)))
 ```
 ---
     2
 
-### put! chains
+### set! chains
 
 ```scheme
 (do (import x/type/dict)
-  ((((Dict make) put! 'a 1) put! 'b 2) get 'a))
+  ((((Dict make) set! 'a 1) set! 'b 2) get 'a))
 ```
 ---
     1
@@ -174,7 +174,7 @@ in the help listing, the guard sits at the point of harm.
 
 ```scheme
 (do (import x/type/dict)
-  ((Dict make) put! (list 1 2) "v"))
+  ((Dict make) set! (list 1 2) "v"))
 ```
 ---
     Error: #<err:type Dict: unhashable key -- use a symbol, string, integer, char, or class instance>
@@ -195,7 +195,7 @@ in the help listing, the guard sits at the point of harm.
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make)) (calls 0))
-    (d put! 'a 1)
+    (d set! 'a 1)
     (let ((hit (d get-or-else (fn () (do (set! calls (+ calls 1)) 99)) 'a)))
       (list hit (d get-or-else (fn () (do (set! calls (+ calls 1)) 99)) 'z) calls))))
 ```
@@ -206,7 +206,7 @@ in the help listing, the guard sits at the point of harm.
 
 ```scheme
 (do (import x/type/dict)
-  (let ((d (Dict make))) (d put! 'k ()) (null? (d get-or 99 'k))))
+  (let ((d (Dict make))) (d set! 'k ()) (null? (d get-or 99 'k))))
 ```
 ---
     #t
@@ -217,7 +217,7 @@ in the help listing, the guard sits at the point of harm.
 
 ```scheme
 (do (import x/type/dict)
-  (let ((d (Dict make))) (d put! "k" 1) (d has? "k")))
+  (let ((d (Dict make))) (d set! "k" 1) (d has? "k")))
 ```
 ---
     #t
@@ -236,7 +236,7 @@ in the help listing, the guard sits at the point of harm.
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make)))
-    (d put! 'k 1) (d del! 'k)
+    (d set! 'k 1) (d del! 'k)
     (list (d has? 'k) (d length))))
 ```
 ---
@@ -246,7 +246,7 @@ in the help listing, the guard sits at the point of harm.
 
 ```scheme
 (do (import x/type/dict)
-  (let ((d (Dict make))) (d put! 'a 1) (d del! 'z) (d length)))
+  (let ((d (Dict make))) (d set! 'a 1) (d del! 'z) (d length)))
 ```
 ---
     1
@@ -256,7 +256,7 @@ in the help listing, the guard sits at the point of harm.
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make)))
-    (d put! 'a 1) (d put! 'b 2) (d put! 'a 3)
+    (d set! 'a 1) (d set! 'b 2) (d set! 'a 3)
     (d length)))
 ```
 ---
@@ -269,7 +269,7 @@ in the help listing, the guard sits at the point of harm.
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make 1)))
-    (d put! 'a 1) (d put! 'b 2) (d put! "c" 3)
+    (d set! 'a 1) (d set! 'b 2) (d set! "c" 3)
     (list (d get 'a) (d get 'b) (d get "c") (d length))))
 ```
 ---
@@ -280,7 +280,7 @@ in the help listing, the guard sits at the point of harm.
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make 2)))
-    (List for-each (fn (_ i) (d put! i (* i 10))) (List range 0 20))
+    (List for-each (fn (_ i) (d set! i (* i 10))) (List range 0 20))
     (list (d length) (d get 0) (d get 19) (d has? 20))))
 ```
 ---
@@ -293,9 +293,9 @@ in the help listing, the guard sits at the point of harm.
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make)))
-    (d put! 'a 1)
+    (d set! 'a 1)
     (let ((snap (d ->alist)))
-      (d put! 'a 2)
+      (d set! 'a 2)
       (list (rest (first snap)) (d get 'a)))))
 ```
 ---
@@ -306,7 +306,7 @@ in the help listing, the guard sits at the point of harm.
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make)))
-    (d put! 'a 1)
+    (d set! 'a 1)
     (list (d keys) (d vals))))
 ```
 ---
@@ -317,7 +317,7 @@ in the help listing, the guard sits at the point of harm.
 ```scheme
 (do (import x/type/dict)
   (let ((d (Dict make)) (sum (pair 0 ())))
-    (d put! 'a 1) (d put! 'b 2)
+    (d set! 'a 1) (d set! 'b 2)
     (d for-each (fn (_ e) (%set-first! sum (+ (first sum) (rest e)))))
     (first sum)))
 ```
@@ -328,8 +328,8 @@ in the help listing, the guard sits at the point of harm.
 
 Class instances are identity keys: hashed by address (stable -- the
 mark-sweep GC frees in place, and a keyed instance is rooted by its own
-bucket entry), compared with eq?, never equal? (which would recurse into
-the field box and loop on cyclic instances).
+bucket entry), compared with same? (strict identity), never equal? (which
+would recurse into the field box and loop on cyclic instances).
 
 ### equal-but-distinct instances are distinct keys
 
@@ -337,8 +337,8 @@ the field box and loop on cyclic instances).
 (do (import x/type/dict)
   (def-class P () x y)
   (let ((a (P new x 1 y 2)) (b (P new x 1 y 2)) (d (Dict make)))
-    (d put! a "first")
-    (d put! b "second")
+    (d set! a "first")
+    (d set! b "second")
     (list (d get a) (d get b) (d length))))
 ```
 ---
@@ -350,7 +350,7 @@ the field box and loop on cyclic instances).
 (do (import x/type/dict)
   (def-class P () x)
   (let ((a (P new x 1)) (b (P new x 1)) (d (Dict make)))
-    (d put! a 'a) (d put! b 'b)
+    (d set! a 'a) (d set! b 'b)
     (d del! a)
     (list (d has? a) (d has? b) (d length))))
 ```
@@ -364,7 +364,7 @@ the field box and loop on cyclic instances).
   (def-class N () v next)
   (let ((a (N new v 1)) (b (N new v 2)) (d (Dict make)))
     (a next b) (b next a)
-    (d put! a 'a) (d put! b 'b)
+    (d set! a 'a) (d set! b 'b)
     (list (d get a) (d get b))))
 ```
 ---
@@ -377,7 +377,7 @@ the field box and loop on cyclic instances).
   (def-class P () v)
   (let ((ks (List map (fn (_ i) (P new v i)) (List range 0 20)))
         (d (Dict make)))
-    (List for-each (fn (_ k) (d put! k (k v))) ks)
+    (List for-each (fn (_ k) (d set! k (k v))) ks)
     (list (d length)
           (List all? (fn (_ k) (equal? (d get k) (k v))) ks))))
 ```

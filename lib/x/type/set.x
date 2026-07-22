@@ -56,7 +56,7 @@
     (doc "Add an element (a no-op when already present); returns the set for chaining."
       (param x ANY "Element (symbol, string, integer, char, or class instance)")
       (returns Set "self"))
-    ((self %d) put! x #t)
+    ((self %d) set! x #t)
     self)
 
   (method has? (self x)
