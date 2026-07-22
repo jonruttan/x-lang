@@ -195,7 +195,7 @@
     (%asm-compile-expr asm (first args) params)
     (%asm-compile-expr asm (first (rest args)) params)))
 
-; Compile (score-set score sign buffer): jit_score_set(score, sign, buffer)
+; Compile (%score-set score sign buffer): jit_score_set(score, sign, buffer)
 ; score and buffer are x_obj_t* (fvars or params), sign is raw int
 (def %asm-compile-score-set
   (fn (_ asm args params)
@@ -214,13 +214,13 @@
     (asm-emit! asm 'mov x1 (imm sign-val)) ; x1 = sign
     (%emit-call! asm %jit-score-set)))
 
-; Compile (buffer-unread buffer): jit_buffer_unread(buffer)
+; Compile (%buffer-unread buffer): jit_buffer_unread(buffer)
 (def %asm-compile-buffer-unread
   (fn (_ asm args params)
     (%asm-compile-expr asm (first args) params)
     (%emit-call! asm %jit-buffer-unread)))
 
-; Compile (buffer-len buffer): jit_buffer_len(buffer) -> raw int
+; Compile (%buffer-len buffer): jit_buffer_len(buffer) -> raw int
 (def %asm-compile-buffer-len
   (fn (_ asm args params)
     (%asm-compile-expr asm (first args) params)
@@ -272,11 +272,11 @@
                       (%asm-compile-not asm args params)
                       (if (eq? op '%seq)
                         (%asm-compile-seq asm args params)
-                        (if (eq? op 'score-set)
+                        (if (eq? op '%score-set)
                           (%asm-compile-score-set asm args params)
-                          (if (eq? op 'buffer-unread)
+                          (if (eq? op '%buffer-unread)
                             (%asm-compile-buffer-unread asm args params)
-                            (if (eq? op 'buffer-len)
+                            (if (eq? op '%buffer-len)
                               (%asm-compile-buffer-len asm args params)
                               (if (eq? op '=)
                                 (%asm-compile-cmp asm 'b/eq args params)

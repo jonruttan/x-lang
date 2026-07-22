@@ -63,7 +63,7 @@
     (if (and (>= chr 48) (<= chr 57))
       %cx-imag-frac
       (if (= chr 105)
-        (score-set score 1 buffer)
+        (%score-set score 1 buffer)
         ()))))
 
 (def %cx-imag-dot
@@ -80,7 +80,7 @@
       (if (= chr 46)
         %cx-imag-dot
         (if (= chr 105)
-          (score-set score 1 buffer)
+          (%score-set score 1 buffer)
           ())))))
 
 (def %cx-sign
@@ -99,7 +99,7 @@
         (if (= chr 45)
           %cx-sign
           (if (= chr 105)
-            (score-set score 1 buffer)
+            (%score-set score 1 buffer)
             ()))))))
 
 (def %cx-real-dot
@@ -127,7 +127,7 @@
           (if (= chr 45)
             %cx-sign
             (if (= chr 105)
-              (score-set score 1 buffer)
+              (%score-set score 1 buffer)
               ())))))))
 
 ; --- Reader helpers ---

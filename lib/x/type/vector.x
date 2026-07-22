@@ -92,7 +92,7 @@
           (if (= chr (%char->integer #\#))
             (fn (_ buf sc c0)
               (if (= c0 (%char->integer #\())
-                (do (buffer-unread buf) (score-set sc 1 buf))
+                (do (%buffer-unread buf) (%score-set sc 1 buf))
                 ()))
             ())))
       (pair (lit read) (fn (_ . args) (%vector-read (first args))))

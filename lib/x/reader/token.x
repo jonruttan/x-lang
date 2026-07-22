@@ -18,11 +18,11 @@
 ; raw refs rather than dispatching (Token accept ...) per character.
 (def %tok-accept
   (fn (_ buffer score chr)
-    (buffer-unread buffer)
-    (score-set score 1 buffer)))
+    (%buffer-unread buffer)
+    (%score-set score 1 buffer)))
 (def %tok-accept-inclusive
   (fn (_ buffer score chr)
-    (score-set score 1 buffer)))
+    (%score-set score 1 buffer)))
 (def %tok-reject
   (fn (_ buffer score chr) ()))
 

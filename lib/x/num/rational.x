@@ -67,13 +67,13 @@
 (set! %rat-denom
   (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
-      (%seq (score-set score 1 buffer) %rat-denom)
-      (%seq (buffer-unread buffer) (score-set score 1 buffer)))))
+      (%seq (%score-set score 1 buffer) %rat-denom)
+      (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
 
 (def %rat-first-denom
   (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
-      (%seq (score-set score 1 buffer) %rat-denom)
+      (%seq (%score-set score 1 buffer) %rat-denom)
       ())))
 ; Integer digits before '/'
 

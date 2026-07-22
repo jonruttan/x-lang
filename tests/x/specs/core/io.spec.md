@@ -220,7 +220,7 @@ retired C write handlers printed the same strings).
 ### returns positive integer
 
 ```scheme
-(> (current-line) 0)
+(> (%current-line) 0)
 ```
 ---
     #t
