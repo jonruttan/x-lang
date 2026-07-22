@@ -35,7 +35,7 @@ changes is that the type system can finally SEE them.
 ```scheme
 (do (import x/type/dict)
   (list (match (#f 1) (#t 42))
-        (guard (e (Err kind-of e)) ((Dict make) put! #t 1))))
+        (guard (e (Err kind-of e)) ((Dict make) set! #t 1))))
 ```
 ---
     (42 'type)

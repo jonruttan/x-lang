@@ -65,13 +65,13 @@
   (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
       %float-frac
-      (%seq (buffer-unread buffer) (score-set score 1 buffer)))))
+      (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
 ; Must see at least one digit after '.'
 
 (def %float-first-frac
   (fn (_ buffer score chr)
     (if (and (>= chr 48) (<= chr 57))
-      (%seq (score-set score 1 buffer) %float-frac)
+      (%seq (%score-set score 1 buffer) %float-frac)
       ())))
 ; Integer part: digits until '.'
 

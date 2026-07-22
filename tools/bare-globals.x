@@ -88,23 +88,12 @@
   (help)
   (modules)
   (note)
-  ; --- reader intrinsics (tokenizer-callback vocabulary; score-set and
-  ;     buffer-unread are ALSO symbol-keyed in the compiler emitter table) ---
-  (buffer-len)
-  (buffer-unread)
-  (current-line)
-  (peek-char)
-  (score-set)
   ; --- repl verbs ---
   (quit)
   (repl)
   ; --- iteration / laziness (form-like) ---
   (delay)
   (iter)
-  ; --- string converters: SWEEP CANDIDATES (class faces exist) ---
-  (list->str)
-  (str)
-  (str->list)
   ; --- platform lookups + syscall tables (opt-in modules) ---
   (darwin-syscall-numbers)
   (i386-syscall-names)

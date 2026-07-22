@@ -105,7 +105,7 @@
       (if (eq? len 0) () (pair seq 0)))))
 
 (def %vector-iter (fn (_ v) (%index-iter v (Vector length v) (fn (_ vv ii) (Vector ref ii vv)))))
-(def %str-iter (fn (_ s) (%list-iter (str->list s))))
+(def %str-iter (fn (_ s) (%list-iter (%str->list s))))
 
 ; --- Wire the iter slot on each sequence type ------------------------------
 

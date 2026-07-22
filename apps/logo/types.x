@@ -165,14 +165,14 @@
           (fn (self buffer score chr)
             (if (or (= chr 32) (= chr 9))
               self
-              (if (> (buffer-len buffer) 1)
-                (do (buffer-unread buffer)
-                    (score-set score 1 buffer))
+              (if (> (%buffer-len buffer) 1)
+                (do (%buffer-unread buffer)
+                    (%score-set score 1 buffer))
                 ()))))
         (pair 'delimit
           (fn (_ buffer score chr)
             (if (or (= chr 32) (= chr 9))
-              (do (buffer-unread buffer) buffer)
+              (do (%buffer-unread buffer) buffer)
               ())))))
 
     ; LOGO-NEWLINE: bare newline, discard

@@ -50,7 +50,8 @@
 ; Conflating them (the old single %loaded-cell) is exactly the false
 ; assumption that let the pre-seed drift hide from this lint.
 (def %loaded-cell (pair () ()))    ; paths actually loaded (strings)
-(def %registered-cell (pair () ())) ; paths on the include list: pre-seed + once/import
+(def %reg-names-cell (pair () ())) ; module NAMES registered: pre-seed + import (symbols)
+(def %registered-cell (pair () ())) ; paths on the include list (include-once)
 (def %raw-cell (pair () ()))       ; ((path . including-file) ...) raw lib includes
 (def %defined-cell (pair () ()))   ; class names def-class'd so far (symbols)
 (def %classes-cell (pair () ()))   ; ((name . file) ...) -- every def-class in lib
@@ -215,13 +216,20 @@
                   (self (rest form) file)))))
       (#t ()))))
 
-; The pre-seed: strings pushed onto the include list REGISTER those paths, so
-; later import/include-once of them no-op.  They are not loaded by this.
+; The pre-seed: (lit name) symbols pushed onto the loaded-module registry
+; REGISTER those modules, so later imports of them no-op.  They are not
+; loaded by this.  Strings registered PATHS under the old path-keyed
+; scheme; still collected so a legacy pre-seed simulates instead of
+; silently vanishing.
 (def %collect-strs
   (fn (self form)
     (match
       ((str? form) (%cell-push! %registered-cell form))
-      ((pair? form) (do (self (first form)) (self (rest form))))
+      ((pair? form)
+        (match
+          ((eq? (first form) 'lit)
+            (%cell-push! %reg-names-cell (first (rest form))))
+          (#t (do (self (first form)) (self (rest form))))))
       (#t ()))))
 
 (def %lib-path?
@@ -270,12 +278,13 @@
     (let ((name (first (rest form))))
       (match
         ((symbol? name)
-          (let ((path (Str8 append "lib/" (Str8 append (symbol->str name) ".x"))))
-            (match
-              ((%member-str path (first %registered-cell)) ())
-              (#t
-                (do (%cell-push! %registered-cell path)
-                    (%load-path path file form))))))
+          (match
+            ((%memq name (first %reg-names-cell)) ())
+            (#t
+              (do (%cell-push! %reg-names-cell name)
+                  (%load-path
+                    (Str8 append "lib/" (Str8 append (symbol->str name) ".x"))
+                    file form)))))
         (#t (%cell-push! %findings-cell (list file () () form)))))))
 
 (set! %walk-form
@@ -300,6 +309,8 @@
             ((eq? h '%set-first!)
               (do (match
                     ((eq? (first (rest form)) '%include-list-cell)
+                      (%collect-strs (rest (rest form))))
+                    ((eq? (first (rest form)) '%module-loaded-cell)
                       (%collect-strs (rest (rest form))))
                     (#t ()))
                   (%walk-list (rest form) file)))
@@ -370,15 +381,35 @@
 (def %reset-run!
   (fn (_)
     (do (%set-first! %loaded-cell ())
+        (%set-first! %reg-names-cell ())
         (%set-first! %registered-cell ())
         (%set-first! %raw-cell ())
         (%set-first! %defined-cell ()))))
+
+; "lib/x/boot/registry.x" -> "x/boot/registry"; "lib/x-core.x" -> "x-core".
+; The raw-include invariant is name-keyed: a raw-included lib path is
+; registered iff the module NAME derived from it is in the name registry.
+(def %path->name-str
+  (fn (_ path)
+    ; (Str8 sub start LENGTH s): drop the 4-byte "lib/" prefix and the
+    ; 2-byte ".x" suffix
+    (Str8 sub 4 (- (Str8 length path) 6) path)))
+(def %name-registered?
+  (fn (_ namestr)
+    (def %go
+      (fn (self lst)
+        (match
+          ((null? lst) #f)
+          ((str=? (symbol->str (first lst)) namestr) #t)
+          (#t (self (rest lst))))))
+    (%go (first %reg-names-cell))))
 
 (def %check-unregistered
   (fn (self raws)
     (match
       ((pair? raws)
         (do (match
+              ((%name-registered? (%path->name-str (first (first raws)))) ())
               ((%member-str (first (first raws)) (first %registered-cell)) ())
               (#t (%cell-push! %findings-cell
                     (list (rest (first raws)) '%%unregistered

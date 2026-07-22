@@ -502,10 +502,10 @@
   (fn (_ buffer score chr)
     (if (if (>= chr 48) (<= chr 57) #f)
       %big-digits
-      (do (buffer-unread buffer)
+      (do (%buffer-unread buffer)
           ; Only score if digit count exceeds native integer range
-          (if (%int< %int-max-digits (buffer-len buffer))
-            (score-set score 1 buffer)
+          (if (%int< %int-max-digits (%buffer-len buffer))
+            (%score-set score 1 buffer)
             ())))))
 
 (def %big-sign-state
@@ -561,9 +561,9 @@
   (fn (_ buffer score chr)
     (if (if (>= chr 48) (<= chr 57) #f)
       %int-capped-digits
-      (do (buffer-unread buffer)
-          (if (not (%int< %int-max-digits (buffer-len buffer)))
-            (score-set score 1 buffer)
+      (do (%buffer-unread buffer)
+          (if (not (%int< %int-max-digits (%buffer-len buffer)))
+            (%score-set score 1 buffer)
             ())))))
 
 (def %int-capped-sign

@@ -26,7 +26,13 @@ Loads a module by name, with deduplication:
 (import x/num/float)
 ```
 
-`import` resolves the module name to a file path (e.g., `x/core/list` becomes `lib/x/core/list.x`), then includes the file if it hasn't been included already. Repeated `import` calls for the same module are no-ops.
+`import` dedups by **module name**: if the name is already in the
+loaded-module registry it is a no-op; otherwise it registers the name,
+resolves it to a file path through the search roots (e.g., `x/core/list`
+becomes `lib/x/core/list.x`), and loads the file. Name-keyed identity is
+what makes an installed tree work — the same module reached through a
+different root (repo `lib/` vs an installed absolute root) is still the
+same module (see `docs/boot-amalgam.md`).
 
 ### `include`
 
@@ -43,10 +49,15 @@ Raw file inclusion without deduplication:
 Like `include`, but tracks which paths have been loaded and skips duplicates:
 
 ```
-(include-once "lib/x/core/list.x")
+(include-once "./support.x")
 ```
 
-`import` is built on `include-once` internally.
+`include-once` dedups by **path** (it loads files, not modules) and is the
+right tool for non-module files. For library modules always use `import` —
+the two registries are separate, so an `include-once` of a module file does
+not make a later `import` of that module a no-op. Root-relative literals
+like `"lib/..."` are boot-closure-only (`make check-path-literals`): they
+resolve against the process cwd and break installed trees.
 
 ### Module Naming Convention
 

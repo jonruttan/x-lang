@@ -558,7 +558,7 @@
 (def %regex-scan-body
   (fn (self buffer score chr)
     (match
-      ((= chr #\/) (score-set score 1 buffer))
+      ((= chr #\/) (%score-set score 1 buffer))
       ((= chr #\\) %regex-scan-escape)
       (#t self))))
 

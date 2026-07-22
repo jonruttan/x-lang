@@ -183,7 +183,7 @@ leading `+`/`-` jumped into.
 ### Dict is loaded by default (common containers)
 
 ```scheme
-(do (def d (Dict make)) (d put! "k" 1) (d get "k"))
+(do (def d (Dict make)) (d set! "k" 1) (d get "k"))
 ```
 ---
     1
@@ -243,7 +243,7 @@ leading `+`/`-` jumped into.
 ### Dict is loaded by default (common containers)
 
 ```scheme
-(do (def d (Dict make)) (d put! (lit k) 1) (d get (lit k)))
+(do (def d (Dict make)) (d set! (lit k) 1) (d get (lit k)))
 ```
 ---
     1

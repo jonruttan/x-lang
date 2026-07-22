@@ -31,6 +31,12 @@ make clean && make
 ### x-lang Code
 
 - **Module structure** — Dependencies via `(import ...)`, exports via `(provide ...)` at file bottom
+- **No root-relative load literals in runtime modules** — a `(include "lib/...")`
+  outside the boot closure resolves against the process cwd, so it works in a
+  repo checkout and breaks **only installed trees** — the one environment CI
+  never runs. Load siblings via `(import x/...)` (root-resolved) or
+  `./`-relative `include-once` (file-relative). Machine-checked by
+  `make check-path-literals`; rationale in `docs/boot-amalgam.md`
 - **Documentation** — Wrap definitions in `(doc ...)` forms with `(param ...)`, `(returns ...)`, description string
 - **`example` executes; `sample` illustrates** (#16) — `(example "in" "out")`
   is an executable contract: `out` must be the true echo, and `make doctest`

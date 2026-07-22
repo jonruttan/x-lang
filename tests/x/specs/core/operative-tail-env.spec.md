@@ -51,7 +51,7 @@ if that fix is reverted, independent of how `$"..."` is parsed.
 ### both in if-tail position resolve their holes
 
 ```scheme
-((fn (_ x) (str (if #t $"a{x}" "") (if #t $"b{x}" ""))) 9)
+((fn (_ x) (Str8 str (if #t $"a{x}" "") (if #t $"b{x}" ""))) 9)
 ```
 ---
     "a9b9"
@@ -59,7 +59,7 @@ if that fix is reverted, independent of how `$"..."` is parsed.
 ### a leading if-tail interpolation does not corrupt a following direct one
 
 ```scheme
-((fn (_ x) (str (if #t $"a{x}" "") $"b{x}")) 9)
+((fn (_ x) (Str8 str (if #t $"a{x}" "") $"b{x}")) 9)
 ```
 ---
     "a9b9"

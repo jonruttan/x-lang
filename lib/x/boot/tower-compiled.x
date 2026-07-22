@@ -24,18 +24,18 @@
 (def %type-analyse-cell (prim-ref 'type 'analyse-cell))
 (def %type-push-analyse (prim-ref 'type 'push-analyse))
 
-; Pre-register the heavy module paths so the tower's internal imports are
+; Pre-register the heavy module NAMES so the tower's internal imports are
 ; no-ops and the curated load order below stays authoritative.
-(%set-first! %include-list-cell
-  (pair "lib/x/boot/tower-compiled.x"
-  (pair "lib/x/type/hash.x"
-  (pair "lib/x/tool/compile.x"
-  (pair "lib/x/num/bignum.x"
-  (pair "lib/x/type/regex.x"
-  (pair "lib/x/num/float.x"
-  (pair "lib/x/num/rational.x"
-  (pair "lib/x/num/complex.x"
-    (first %include-list-cell))))))))))
+(%set-first! %module-loaded-cell
+  (pair (lit x/boot/tower-compiled)
+  (pair (lit x/type/hash)
+  (pair (lit x/tool/compile)
+  (pair (lit x/num/bignum)
+  (pair (lit x/type/regex)
+  (pair (lit x/num/float)
+  (pair (lit x/num/rational)
+  (pair (lit x/num/complex)
+    (first %module-loaded-cell))))))))))
 
 ; Load compiler infrastructure FIRST (before numeric tower)
 ; (posix.x already loaded by x-core.x)

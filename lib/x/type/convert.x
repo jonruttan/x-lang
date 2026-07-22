@@ -111,7 +111,7 @@
                       (%number->str v)
                       (%number->str v (first extra)))))
     (pair %symbol (fn (_ v . extra) (symbol->str v)))
-    (pair %pair   (fn (_ v . extra) (list->str v)))
+    (pair %pair   (fn (_ v . extra) (%list->str v)))
     (pair %ptr    (fn (_ v . extra) (%ptr->str v)))))
 
 ; SYMBOL: from string

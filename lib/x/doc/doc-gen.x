@@ -249,9 +249,9 @@
   (fn (self ps)
     (match
       ((null? ps) "")
-      ((symbol? ps) (str " . " (symbol->str ps)))
-      ((%doc-param-form? ps) (str " . " (symbol->str (first (rest ps)))))
-      ((pair? ps) (str " " (%doc-param-name (first ps)) (self (rest ps))))
+      ((symbol? ps) (%str-build " . " (symbol->str ps)))
+      ((%doc-param-form? ps) (%str-build " . " (symbol->str (first (rest ps)))))
+      ((pair? ps) (%str-build " " (%doc-param-name (first ps)) (self (rest ps))))
       (#t ""))))
 
 ; Collect (param ...) forms from a sig for the Parameters section, treating a
@@ -279,8 +279,8 @@
     (def %meta (unless (null? %docf) (rest %docf)))
     (def %head
       (if static?
-        (str "(" cname " " %mname (%doc-sig-str %args) ")")
-        (str "(" %mname (%doc-sig-str %args) ")")))
+        (%str-build "(" cname " " %mname (%doc-sig-str %args) ")")
+        (%str-build "(" %mname (%doc-sig-str %args) ")")))
     (def %notes (%doc-extract-meta-type %meta "note" ()))
     ; params ride the SIGNATURE; a bare-variadic sig (self . opt) documents
     ; its option via (param ...) in the doc meta instead -- fall back to it.
@@ -297,7 +297,7 @@
             (if static? %notes
               (%append %notes
                 (list (list 'note
-                  (str "Instance method: called on a " cname " instance.")))))))))
+                  (%str-build "Instance method: called on a " cname " instance.")))))))))
 
 ; The class-level doc form: (doc "description" (note ...) (example ...)).
 (def %doc-emit-class-doc

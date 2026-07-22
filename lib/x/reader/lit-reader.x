@@ -30,7 +30,7 @@
 
 (def %lit-accept
   (fn (_ buffer score _)
-    (%seq (buffer-unread buffer) (score-set score 1 buffer))))
+    (%seq (%buffer-unread buffer) (%score-set score 1 buffer))))
 
 (def %lit-analyse
   (fn (_ buffer score chr) (if (= chr 39) %lit-accept ())))
@@ -48,7 +48,7 @@
     (if (if (= (%buffer-last-char buffer) 39) #t
           (if (= (%buffer-last-char buffer) 96) #t
             (= (%buffer-last-char buffer) 44)))
-      (%seq (buffer-unread buffer) buffer)
+      (%seq (%buffer-unread buffer) buffer)
       ())))
 
 ; --- $"...{expr}..." string interpolation --------------------------------
@@ -108,7 +108,7 @@
 ; $ (byte 36) reader: one-char token, then parse the following string.
 (def %interp-accept
   (fn (_ buffer score _)
-    (%seq (buffer-unread buffer) (score-set score 1 buffer))))
+    (%seq (%buffer-unread buffer) (%score-set score 1 buffer))))
 (def %interp-analyse
   (fn (_ buffer score chr) (if (= chr 36) %interp-accept ())))
 (def %interp-read

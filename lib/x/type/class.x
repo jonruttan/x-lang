@@ -99,15 +99,79 @@
         (do (%check-init-key (first store) fields class)
             (loop (rest (rest store)) fields class))))))
 
+; Names in `names` not already in `seen`, in order -- the subclass-additions
+; step of the constructor order below.
+(def %names-minus
+  (fn (loop names seen)
+    (unless (null? names)
+      (if (%name-in? (first names) seen)
+        (loop (rest names) seen)
+        (pair (first names) (loop (rest names) seen))))))
+
+; Instance members in CONSTRUCTOR order: the root ancestor's members first,
+; then each subclass's own additions; an override keeps its ancestor's slot
+; (the child's default still wins, via %all-fields). This is the order a
+; positional (new C v1 v2 ...) fills -- %all-fields keeps the child-first
+; order introspection shows.
+(def %ctor-member-names
+  (fn (loop class)
+    (unless (null? class)
+      (let ((up (loop (%assoc-get (lit parent) (%class-data class)))))
+        (%append2 up
+          (%names-minus (%assoc-keys (%assoc-get (lit fields) (%class-data class))) up))))))
+
+; The keyword tail of a new call begins at `inits` when its head form is a
+; (name . val) pair headed by a declared member (dotted-alist form), or a bare
+; member name WITH a value form after it (plist form). A TRAILING bare member
+; name is a positional value -- the common constructor arg named after the
+; member it fills: (def root ...) (Distances new root). The residual footgun,
+; documented on new: a NON-trailing positional value spelled as a bare member
+; name (or a call headed by one) still reads as the keyword tail.
+(def %keyword-tail?
+  (fn (_ inits fields)
+    (let ((form (first inits)))
+      (if (pair? form)
+        (if (symbol? (first form)) (%assoc-has? (first form) fields) #f)
+        (if (symbol? form)
+          (if (%assoc-has? form fields) (pair? (rest inits)) #f)
+          #f)))))
+
+; Split a new op's args into positional prefix + keyword tail: positional
+; forms are paired with %ctor-member-names as (name . form) alist entries, and
+; the tail passes through as-is -- %check-init-keys and %opt-cell both walk
+; the resulting mixed store.
+(def %positional->store
+  (fn (loop inits names fields class)
+    (match
+      ((null? inits) ())
+      ((%keyword-tail? inits fields) inits)              ; keyword tail begins
+      ((null? names)
+        (error (%str-append "new: too many positional values for "
+          (%display-to-str (class-name class)))))
+      (#t (pair (pair (first names) (first inits))
+            (loop (rest inits) (rest names) fields class))))))
+
 ; Build an instance: instance fields (across the chain) initialised from inits.
 ; eval? selects how supplied values are treated (see %init-fields): #t = code
-; evaluated in e (the new ops), #f = data used as-is (new-from).
+; evaluated in e (the new ops, whose args may open with a positional prefix),
+; #f = data used as-is (new-from; keyword store only).
 (def %instantiate
   (fn (_ class inits e eval?)
     (let ((fields (%all-fields class)))
-      (%check-init-keys inits fields class)
-      (%make-instance %object
-        (list class (%init-fields fields inits e eval?))))))
+      (let ((store (if eval?
+                     (%positional->store inits (%ctor-member-names class) fields class)
+                     inits)))
+        (%check-init-keys store fields class)
+        (let ((inst (%make-instance %object
+                      (list class (%init-fields fields store e eval?)))))
+          ; %init protocol hook (the initialize slot): a class's %init method,
+          ; if any, runs once the fields are built -- construction logic beyond
+          ; plain field values. Resolved through %lookup, so a child's override
+          ; wins and (super self %init) chains as usual. Fires on every
+          ; construction door (new, class-dispatch new, new-from).
+          (let ((m (%lookup class (lit methods) (lit %init))))
+            (unless (null? m) (apply m (list inst))))
+          inst)))))
 
 (note "Dispatch handlers")
 
@@ -617,6 +681,16 @@
     (when (if (pair? form) (not (null? (rest form))) #f)
       (eval (first (rest form)) e))))                                          ; bare name / (NAME) -> nil default
 
+; Instance-member default: the EXPRESSION wrapped as a nullary closure over the
+; defining env, so %init-fields evaluates it once PER CONSTRUCTION -- a mutable
+; default like (links (Set make)) is fresh for every instance, never shared.
+; Statics keep %member-value's once-at-definition evaluation: they ARE the
+; class-wide shared state.
+(def %member-default-thunk
+  (fn (_ form e)
+    (when (if (pair? form) (not (null? (rest form))) #f)
+      (eval (list (lit fn) (list (lit _)) (first (rest form))) e))))
+
 ; The member declaration a body form carries: the form itself, or -- for a
 ; member-doc form (doc DECL ...) -- the wrapped DECL.
 (def %member-decl
@@ -625,8 +699,10 @@
 ; Collect member declarations from `forms` into a (name . value) alist, skipping
 ; (method ...), (static ...), and the class summary (doc "..."). A member-doc
 ; form (doc DECL "desc" ...) declares its member AND registers the doc.
+; thunk? selects the default representation: #t (instance members) stores the
+; default as a per-construction thunk; #f (statics) evaluates it here, once.
 (def %collect-members
-  (fn (loop class-name forms e)
+  (fn (loop class-name forms e thunk?)
     (unless (null? forms)
       (let ((f (first forms)))
         (if (if (pair? f)
@@ -635,12 +711,13 @@
                   (if (eq? (first f) (lit interface)) #t
                     (%class-doc-form? f))))          ; skip methods, statics, interface, class doc
               #f)
-          (loop class-name (rest forms) e)
+          (loop class-name (rest forms) e thunk?)
           (let ((decl (%member-decl f)))
             (when (%member-doc-form? f)
               (%stash-member-doc! class-name (%member-name decl) f))
-            (pair (pair (%member-name decl) (%member-value decl e))
-                  (loop class-name (rest forms) e))))))))
+            (pair (pair (%member-name decl)
+                    (if thunk? (%member-default-thunk decl e) (%member-value decl e)))
+                  (loop class-name (rest forms) e thunk?))))))))
 
 (def %resolve-parent
   (fn (_ parent e)
@@ -733,11 +810,11 @@
             (sblock (%find-form body (lit static))))
         (let ((cls (%make-class
                      name
-                     (%collect-members name body e)         ; instance members
+                     (%collect-members name body e #t)      ; instance members: per-construction defaults
                      (%collect-methods name body #t p e)    ; instance methods: raw access + super
                      p
                      (%collect-methods name sblock #f p e)  ; static methods
-                     (%collect-members name sblock e)       ; static members
+                     (%collect-members name sblock e #f)    ; static members: once, class-wide
                      (%find-form body (lit interface)))))   ; declared interface (or ())
           (%check-interface! cls)                            ; error if a contract method is unmet
           cls)))))
@@ -752,7 +829,8 @@
       (list (lit def) name (list (lit lit) (%build-class name parent body e)))
       e)))
   (note "Names are literal (no quotes). Body forms (members and methods intermixed):")
-  (note "  NAME | (NAME default)                    instance member (default optional, nil if omitted)")
+  (note "  NAME | (NAME default)                    instance member (default optional, nil if omitted;")
+  (note "                                           evaluated per construction, so (links (Set make)) is fresh each time)")
   (note "  (doc DECL \"desc\" meta..)                 document a member; DECL is NAME or (NAME default)")
   (note "  (method NAME (self . args) body...)      instance method")
   (note "  (static MEMBER... (method ...)...)       class-wide members + static methods")
@@ -760,6 +838,8 @@
   (note "  (doc \"summary\" (note ..) (see ..) (example ..))   class-level docs, shown by (help Class)")
   (note "A method shadows a member of the same name. Parent: () or (extends Class).")
   (note "Inside a method, (self m) accesses members; (member 'm)/(set-member! 'm v) are raw.")
+  (note "A (method %init (self) ...) runs after every construction, fields built --")
+  (note "the initialize hook; a child's override wins, (super self %init) chains.")
   (example "(do (def-class C () (static (n 7) (method get (self) (self n)))) (C get))" "7")
   (see new)
   "Define a class (a callable class object) with fields, methods, and statics.")
@@ -772,6 +852,12 @@
   (note "values are expressions, evaluated in the caller's env:")
   (note "  (new C name val name val ...)   plist form -- the usual one")
   (note "  (new C (name . val) ...)        dotted-alist form (val is an expression)")
+  (note "  (new C v1 v2 ... name val ...)  positional prefix: values fill members in")
+  (note "    constructor order (root ancestor's members first, then each subclass's own),")
+  (note "    until the first bare declared-member name starts the keyword tail.")
+  (note "A TRAILING bare member name is positional ((new Distances root) passes the root")
+  (note "variable); the footgun: a NON-trailing positional value spelled as a bare member")
+  (note "name (or a call headed by one) reads as the keyword tail -- use keywords there.")
   (note "For a computed/quoted store (a list of ready values) use new-from.")
   (example "(do (def-class P () x) ((new P x 5) x))" "5")
   (see new-from)
@@ -810,8 +896,10 @@
 ; its declared default.  eval? selects how a supplied value is treated: #t (the
 ; (new ...) ops, whose values are code) evaluates it in caller env e; #f (new-from,
 ; whose store is data) uses it as-is.  An absent key (%opt-cell returns ()) falls
-; back to the declared default, already a value; null? on the box distinguishes a
-; supplied 0/nil from a missing key.
+; back to the declared default -- a thunk over the defining env, called NOW, so
+; a constructing default ((Set make), (list 1 2)) is fresh per instance while a
+; quoted one ('(1 2)) is the one literal, exactly as quote means; null? on the
+; box distinguishes a supplied 0/nil from a missing key.
 (def %init-fields
   (fn (loop members inits e eval?)
     (unless (null? members)
@@ -819,7 +907,8 @@
             (default (rest (first members))))
         (let ((cell (%opt-cell name inits)))
           (pair (pair name
-                  (if (null? cell) default
+                  (if (null? cell)
+                    (unless (null? default) (default))
                     (if eval? (eval (first cell) e) (first cell))))
                 (loop (rest members) inits e eval?)))))))
 

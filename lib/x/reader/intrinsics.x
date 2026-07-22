@@ -30,36 +30,35 @@
     ()))
 
 ; Buffer length and unread for tokenizer scoring
-(def buffer-len
+(def %buffer-len
   (fn (_ buffer)
     (- (%first-int (rest buffer)) (%first-int buffer))))
-(def buffer-unread
+(def %buffer-unread
   (fn (_ buffer)
     (%set-first-int!
       (rest buffer)
       (- (%first-int (rest buffer)) 1))))
-(def score-set
+(def %score-set
   (fn (_ score sign buffer)
-    (%set-first-int! score (* sign (buffer-len buffer)))))
+    (%set-first-int! score (* sign (%buffer-len buffer)))))
 
 ; Peek at next character without consuming it
-(def peek-char
+(def %peek-char
   (fn (_ )
     (def %ch (%read-char))
     (if (null? %ch)
       ()
       (do
-        (buffer-unread
+        (%buffer-unread
           (first
             (first (rest (rest (rest (rest (first (%base)))))))))
         %ch))))
 
 ; Current source line number
-(def current-line
+(def %current-line
   (fn (_ )
     (%first-int
       (first (first (rest (first (rest (first (%base))))))))))
 
-(doc (provide x/reader/intrinsics
-  buffer-len buffer-unread score-set peek-char current-line)
+(doc (provide x/reader/intrinsics)
   "Low-level tokenizer and profiling intrinsics: buffer scoring helpers and line tracking.")

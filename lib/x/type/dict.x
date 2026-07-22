@@ -11,7 +11,7 @@
 ;
 ; Internals: `store` is a vector (slot 0 = capacity, the raw-obj pattern)
 ; whose slots 1..cap each hold an alist bucket of (key . val) pairs; `n`
-; counts entries; put! doubles the table past a 3/4 load factor.
+; counts entries; set! doubles the table past a 3/4 load factor.
 
 (import x/type/class)
 (import x/type/hash)
@@ -52,11 +52,12 @@
       ((object? k) (& (>> (%dict-ptr->int (%dict-obj->ptr k)) 4) %dict-mask31))
       (#t (Err raise 'type "Dict: unhashable key -- use a symbol, string, integer, char, or class instance" ())))))
 
-; Bucket key equality: instances are identity keys (eq?) -- equal? would
-; recurse into the field box, and cyclic instances would loop -- while
-; content keys keep equal?.
+; Bucket key equality: instances are identity keys, compared with same? --
+; strict object identity; NEVER eq?, which compares value words, and NEVER
+; equal?, which would recurse into the field box and loop on cyclic
+; instances -- while content keys keep equal?.
 (def %dict-key=
-  (fn (_ a b) (if (object? a) (eq? a b) (equal? a b))))
+  (fn (_ a b) (if (object? a) (same? a b) (equal? a b))))
 
 ; Find the (key . val) entry pair in a bucket, or (). Returning the ENTRY
 ; (a box), not the value, keeps presence distinguishable from a stored nil.
@@ -75,12 +76,12 @@
       (#t (pair (first bucket) (self k (rest bucket)))))))
 
 (def-class Dict ()
-  (doc "A mutable hash table: O(1) expected get/put!/del! over content-hashed keys."
-    (note "Keys may be symbols, strings, integers, or chars (hashed by content, compared with equal?), or class instances (identity keys: hashed by address, compared with eq?); anything else errors.")
-    (note "Mutators (put!/del!) return the dict for chaining. get-or is presence-based: a stored nil is returned, not the default.")
+  (doc "A mutable hash table: O(1) expected get/set!/del! over content-hashed keys."
+    (note "Keys may be symbols, strings, integers, or chars (hashed by content, compared with equal?), or class instances (identity keys: hashed by address, compared with same?); anything else errors.")
+    (note "Mutators (set!/del!) return the dict for chaining. get-or is presence-based: a stored nil is returned, not the default.")
     (note "Every association shape has a named door: from-alist ((k . v) ...), from-plist (k v k v ...), from-bindings ((k v) ...) -- and ->alist/->plist/->bindings back out.")
     (example "((Dict from-plist (list 'a 1 'b 2)) get 'b)" "2")
-    (see make) (see get) (see put!) (see from-plist))
+    (see make) (see get) (see set!) (see from-plist))
 
   store  ; bucket vector: slot 0 = cap, slots 1..cap = (key . val) alists
   cap    ; bucket count
@@ -116,14 +117,14 @@
         (match
           ((null? ps) d)
           ((null? (rest ps)) (Err raise 'value "Dict from-plist: odd-length plist" ()))
-          (#t (do (d put! (first ps) (first (rest ps))) (go (rest (rest ps))))))))
+          (#t (do (d set! (first ps) (first (rest ps))) (go (rest (rest ps))))))))
 
     (method from-bindings (self (param bindings LIST "Bindings list: ((key value) ...), the let shape"))
       (doc "Build a dict from a bindings list."
         (returns Dict "A dict of the bindings")
         (example "((Dict from-bindings (list (list 'a 1))) get 'a)" "1"))
       (def d (self make))
-      (List for-each (fn (_ b) (d put! (first b) (first (rest b)))) bindings)
+      (List for-each (fn (_ b) (d set! (first b) (first (rest b)))) bindings)
       d)
 
     (method from-alist (self (param alist LIST "Alist ((key . val) ...) to load"))
@@ -131,7 +132,7 @@
         (returns Dict "A dict holding the alist's assocs")
         (example "((Dict from-alist (list (pair \"a\" 1))) get \"a\")" "1"))
       (def d (self make))
-      (List for-each (fn (_ e) (d put! (first e) (rest e))) alist)
+      (List for-each (fn (_ e) (d set! (first e) (rest e))) alist)
       d))
 
   ; --- internals ----------------------------------------------------------
@@ -167,7 +168,7 @@
     (doc "The value stored under a key, or nil when absent."
       (param k ANY "Key (symbol, string, integer, or char)")
       (returns ANY "Stored value, or nil")
-      (example "(let ((d (Dict make))) (d put! 'a 1) (d get 'a))" "1"))
+      (example "(let ((d (Dict make))) (d set! 'a 1) (d get 'a))" "1"))
     (let ((hit (%dict-find k (%dict-obj-ref (member 'store) (self %slot k)))))
       (unless (null? hit) (rest hit))))
 
@@ -194,12 +195,12 @@
     (pair? (%dict-find k (%dict-obj-ref (member 'store) (self %slot k)))))
 
   ; --- mutation -----------------------------------------------------------
-  (method put! (self k v)
+  (method set! (self k v)
     (doc "Store a value under a key (overwriting any previous value); returns the dict for chaining."
       (param k ANY "Key (symbol, string, integer, or char)")
       (param v ANY "Value to store")
       (returns Dict "self")
-      (example "(((Dict make) put! 'a 1) get 'a)" "1"))
+      (example "(((Dict make) set! 'a 1) get 'a)" "1"))
     (def i (self %slot k))
     (def bucket (%dict-obj-ref (member 'store) i))
     (def hit (%dict-find k bucket))
@@ -235,7 +236,7 @@
   (method ->alist (self)
     (doc "A fresh alist snapshot of the entries (unordered)."
       (returns LIST "((key . val) ...) -- new assocs, detached from the table"))
-    ; copy each entry: the live (key . val) pairs are mutated by put!, so a
+    ; copy each entry: the live (key . val) pairs are mutated by set!, so a
     ; snapshot must not alias them
     (let go ((i 1) (acc ()))
       (if (> i (member 'cap)) acc
@@ -269,5 +270,5 @@
 
 (doc (provide x/type/dict Dict)
   (note "Buckets over a raw slot vector; content hashing (FNV-1a) + equal? keys, instances by identity (address hash + eq?); doubles past a 3/4 load factor.")
-  (example "(let ((d (Dict make))) (d put! \"k\" 1) (d get \"k\"))" "1")
+  (example "(let ((d (Dict make))) (d set! \"k\" 1) (d get \"k\"))" "1")
   "Dict: a mutable content-hashed table -- the O(1) associative container.")

@@ -27,7 +27,7 @@
 
 ; The code point's UTF-8 byte string -- a CHARACTER is a 1-code-point string.
 ; list->str (x/type/str-utf8) already encodes a code-point char to its bytes.
-(def %char->str (fn (_ ch) (list->str (list ch))))
+(def %char->str (fn (_ ch) (%list->str (list ch))))
 
 ; --- display: raw glyph bytes ---
 

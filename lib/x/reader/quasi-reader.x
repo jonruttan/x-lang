@@ -25,14 +25,14 @@
 
 (def %quasi-accept
   (fn (_ buffer score _)
-    (%seq (buffer-unread buffer) (score-set score 1 buffer))))
+    (%seq (%buffer-unread buffer) (%score-set score 1 buffer))))
 
 ; After a comma, an @ makes it unquote-splicing; either way score one char.
 (def %unquote-after-comma
   (fn (_ buffer score chr)
     (if (= chr 64)
-      (score-set score 1 buffer)
-      (%seq (buffer-unread buffer) (score-set score 1 buffer)))))
+      (%score-set score 1 buffer)
+      (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
 
 ; --- analyse: score a leading ` or , as a one-char token ---
 

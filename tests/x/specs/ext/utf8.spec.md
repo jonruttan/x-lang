@@ -1,4 +1,4 @@
-# UTF-8 code-point layer (str->list / list->str)
+# UTF-8 code-point layer (StrUTF8 ->list / list->str)
 
 `str->list` decodes a UTF-8 string into a list of code-point CHARACTERs and
 `list->str` re-encodes it; they are exact inverses (`lib/x/type/str-utf8.x` over
@@ -17,7 +17,7 @@ Value, not length: a count of 3 is true even if the bytes were regrouped
 incorrectly.
 
 ```scheme
-(str->list "$¢€")
+(StrUTF8 ->list "$¢€")
 ```
 ---
     (#\$ #\¢ #\€)
@@ -33,7 +33,7 @@ incorrectly.
 ### a 2-byte code point inside ASCII counts once (café = 4 code points)
 
 ```scheme
-(str->list "café")
+(StrUTF8 ->list "café")
 ```
 ---
     (#\c #\a #\f #\é)
@@ -41,7 +41,7 @@ incorrectly.
 ### empty string decodes to the empty list
 
 ```scheme
-(str->list "")
+(StrUTF8 ->list "")
 ```
 ---
 
@@ -50,7 +50,7 @@ incorrectly.
 ### the documented example builds a UTF-8 string
 
 ```scheme
-(list->str (list #\$ #\€))
+(StrUTF8 ->str (list #\$ #\€))
 ```
 ---
     "$€"
@@ -58,7 +58,7 @@ incorrectly.
 ### str->list then list->str round-trips the string
 
 ```scheme
-(list->str (str->list "$¢€"))
+(StrUTF8 ->str (StrUTF8 ->list "$¢€"))
 ```
 ---
     "$¢€"
@@ -66,7 +66,7 @@ incorrectly.
 ### the round-trip preserves the exact byte length (no corruption)
 
 ```scheme
-(%str-length (list->str (str->list "¢€")))
+(%str-length (StrUTF8 ->str (StrUTF8 ->list "¢€")))
 ```
 ---
     5
