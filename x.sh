@@ -15,6 +15,14 @@
 SCRIPT_PATH=$(dirname "$0")
 X_EXT=.x
 X_LIB=x
+# One definition per name the wrapper embeds; every use below reads these.
+X_PIN=pin.xon            # pin manifest (docs/modules.md "Pinning")
+X_PIN_MOD=x/tool/pin     # platform-side pin loader, imported by pin_arm
+X_LAUNCH=x/repl/launch.x # interactive launcher, cat'd after -F / pinned REPL
+                         # (a platform file: deliberately not -e/X_EXT-aware)
+X_RUN=run                # app entry basename: apps/NAME/run.x (#35)
+X_SHARE=share/x          # installed runtime tree, beside the bin dir
+X_ENGINE=libexec/x/x     # installed engine binary
 
 # Repo mode: a lib tree at the CURRENT directory (the boot includes are
 # cwd-relative "lib/..." literals, so cwd must be the repo root anyway),
@@ -31,7 +39,7 @@ APPS_PATH=apps/
 ENTRY_DIR=lib/
 INSTALL_ROOT=
 if [ ! -e "${LIB_PATH}${X_LIB}${X_EXT}" ]; then
-	INSTALL_ROOT="$SCRIPT_PATH/../share/x"
+	INSTALL_ROOT="$SCRIPT_PATH/../${X_SHARE}"
 	LIB_PATH="$INSTALL_ROOT/lib/"
 	APPS_PATH="$INSTALL_ROOT/apps/"
 	ENTRY_DIR="$INSTALL_ROOT/boot/"
@@ -58,7 +66,7 @@ pin_form() {
 }
 pin_arm() {
 	if [ -n "$PIN_FILE" ]; then
-		printf '(import x/tool/pin)\n'
+		printf '(import %s)\n' "$X_PIN_MOD"
 	fi
 }
 
@@ -66,7 +74,7 @@ pin_arm() {
 # root); installed it lives in libexec -- and the wrapper takes the bin/x
 # name there, so probe libexec FIRST or $SCRIPT_PATH/x re-runs this
 # script forever.
-X_BIN="$SCRIPT_PATH/../libexec/x/x"
+X_BIN="$SCRIPT_PATH/../${X_ENGINE}"
 if [ ! -e "$X_BIN" ]; then
 	X_BIN="$SCRIPT_PATH/x"
 fi
@@ -95,7 +103,7 @@ display_help() {
 	echo "  -l, --lib NAME  library name (default: \"$X_LIB\")"
 	echo "  -q, --quiet     suppress the startup banner"
 	echo "      --no-color  disable ANSI colour in the REPL"
-	echo "      --no-pin    ignore any pin.xon manifest"
+	echo "      --no-pin    ignore any $X_PIN manifest"
 	echo "  -v, --verbose   display extra output"
 	echo "  -V, --version   display version and exit"
 }
@@ -112,7 +120,7 @@ do
 		-F | --load)
 			file="\"$2\" $file"
 			[ -z "$file1" ] && file1="$2"
-			post="\"${LIB_PATH}x/repl/launch.x\""
+			post="\"${LIB_PATH}${X_LAUNCH}\""
 			shift 2
 			;;
 		-h | --help)
@@ -180,7 +188,7 @@ do
 	shift
 done
 
-# Project pinning: probe for a pin.xon manifest from the PROGRAM's
+# Project pinning: probe for the pin manifest ($X_PIN) from the PROGRAM's
 # directory (-f/-F; the first file named), or the cwd for a REPL, walking
 # up git-style.  Found means announced, never silent: the path is printed
 # to stderr below, and the manifest reaches the interpreter as data only
@@ -194,8 +202,8 @@ if [ -z "$no_pin" ]; then
 	fi
 	_pd=$(cd "$_pd" 2>/dev/null && pwd)
 	while [ -n "$_pd" ]; do
-		if [ -e "$_pd/pin.xon" ]; then
-			PIN_FILE="$_pd/pin.xon"
+		if [ -e "$_pd/$X_PIN" ]; then
+			PIN_FILE="$_pd/$X_PIN"
 			break
 		fi
 		[ "$_pd" = / ] && break
@@ -212,8 +220,8 @@ exec 3<&0
 # in apps/NAME/run.x (#35 -- the Logo app left the stdlib). -l resolves
 # the entry dir first, then apps.
 ENTRY="${ENTRY_DIR}${X_LIB}${X_EXT}"
-if [ ! -e "$ENTRY" ] && [ -e "${APPS_PATH}${X_LIB}/run${X_EXT}" ]; then
-	ENTRY="${APPS_PATH}${X_LIB}/run${X_EXT}"
+if [ ! -e "$ENTRY" ] && [ -e "${APPS_PATH}${X_LIB}/${X_RUN}${X_EXT}" ]; then
+	ENTRY="${APPS_PATH}${X_LIB}/${X_RUN}${X_EXT}"
 fi
 
 # A wrong name used to fail as `cat: lib/nope.x: No such file` with EXIT 0
@@ -221,7 +229,7 @@ fi
 # Name the request, the searched paths, and the real inventory instead.
 if [ ! -e "$ENTRY" ]; then
 	echo "Error: no library or app named '$X_LIB'" >&2
-	echo "  searched ${ENTRY_DIR}${X_LIB}${X_EXT} and ${APPS_PATH}${X_LIB}/run${X_EXT}" >&2
+	echo "  searched ${ENTRY_DIR}${X_LIB}${X_EXT} and ${APPS_PATH}${X_LIB}/${X_RUN}${X_EXT}" >&2
 	# Inventory by discovery, not by hand: entries are ${ENTRY_DIR}*.x
 	# files, apps are ${APPS_PATH}*/run.x -- the same rule the resolution
 	# above follows.  (An empty listing also means ENTRY_DIR itself is
@@ -232,7 +240,7 @@ if [ ! -e "$ENTRY" ]; then
 		[ -e "$_e" ] && libs="$libs $(basename "$_e" "$X_EXT")"
 	done
 	apps=""
-	for _a in "${APPS_PATH}"*/run"$X_EXT"; do
+	for _a in "${APPS_PATH}"*/"${X_RUN}${X_EXT}"; do
 		[ -e "$_a" ] && apps="$apps $(basename "$(dirname "$_a")")"
 	done
 	if [ -n "$libs" ]; then
@@ -254,7 +262,7 @@ if [ "$file" ]; then
 	xflags="$xflags \"--batch\""
 elif [ -n "$PIN_FILE" ]; then
 	xflags="$xflags \"--batch\""
-	post="\"${LIB_PATH}x/repl/launch.x\""
+	post="\"${LIB_PATH}${X_LAUNCH}\""
 fi
 
 # An empty tail must vanish entirely -- a bare `cat` would read stdin.
