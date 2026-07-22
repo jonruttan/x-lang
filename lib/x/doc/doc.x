@@ -721,20 +721,14 @@
 
 ; --- Module discovery ---
 
-; Reverse %module-resolve: "lib/x/core/list.x" -> x/core/list symbol
-; Returns () for paths that aren't modules (e.g. "lib/x-core.x")
-; Reverse %module-resolve: "lib/x/core/list.x" -> x/core/list symbol
-; Uses only primitives available at doc.x load time (no str-starts?/str-ends?)
-(def %path->module-name
-  (fn (_ path)
-    (def %len (%str-length path))
-    (if (< %len 7) ()
-      (if (not (str=? (%substring path 0 4) "lib/")) ()
-        (if (not (str=? (%substring path (- %len 2) %len) ".x")) ()
-          (let ()
-            (def %inner (%substring path 4 (- %len 2)))
-            (if (not (str=? (%substring %inner 0 2) "x/")) ()
-              (%str->symbol %inner))))))))
+; A registry entry is already a module NAME (x/core/list); show the x/
+; namespace only, hiding boot internals like x-core itself -- the same
+; filter %path->module-name applied when the registry held paths.
+(def %module-name-shown?
+  (fn (_ name)
+    (def %s (symbol->str name))
+    (if (< (%str-length %s) 2) #f
+      (str=? (%substring %s 0 2) "x/"))))
 
 ; Check if module name is in the loaded registry
 (def %module-is-loaded?
@@ -747,10 +741,10 @@
     (%doc-commit!)
     (display %c-bold) (display "Modules:") (display %c-reset) (newline)
     (def %show
-      (fn (self paths)
-        (if (not (null? paths))
+      (fn (self names)
+        (if (not (null? names))
           (let ()
-            (def %name (%path->module-name (first paths)))
+            (def %name (if (%module-name-shown? (first names)) (first names) ()))
             (if (not (null? %name))
               (do
                 (%display-name "  " %name)
@@ -763,10 +757,12 @@
                         (do (display " -- ") (display (%doc-entry-desc %md))))))
                   (display "  [available]"))
                 (newline)))
-            (self (rest paths))))))
-    ; sorted by path (== module order); sort is non-destructive, so the
-    ; live include/load queue is left untouched
-    (%show (List sort (fn (_ a b) (%str-lt a b)) (first %include-list-cell)))))
+            (self (rest names))))))
+    ; sorted by name; sort is non-destructive, so the live registry list is
+    ; left untouched
+    (%show (List sort
+             (fn (_ a b) (%str-lt (symbol->str a) (symbol->str b)))
+             (first %module-loaded-cell)))))
 
 (doc (provide x/doc/doc doc note help apropos modules)
   (note "doc wraps def or provide for metadata. help for REPL lookup. apropos for search.")

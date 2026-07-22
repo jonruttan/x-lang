@@ -5,7 +5,7 @@
 ; Starts a server on localhost:8080. Open the URL in your browser.
 ; Type Logo commands — the browser updates live.
 
-(import-path! "apps")
+(import-path! (guard (_ "apps") (%path-join %install-root "apps")))
 (def %bignum ())
 (import x/num/float)
 (import logo/turtle)

@@ -16,9 +16,9 @@
 ; so a later (import x/rn) is a no-op.  This body registers itself too: the
 ; entry and shim load it via raw `include`, which does not register
 ; (pre-seed invariant, check-boot-order).
-(%set-first! %include-list-cell
-  (pair "lib/x/boot/radon.x"
-  (pair "lib/x/rn.x" (first %include-list-cell))))
+(%set-first! %module-loaded-cell
+  (pair (lit x/boot/radon)
+  (pair (lit x/rn) (first %module-loaded-cell))))
 (include "lib/x/rn.x")
 
 ; ANSI colour already loaded by x-core.x -- a second include here re-captured

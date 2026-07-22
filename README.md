@@ -162,6 +162,21 @@ The `-` in `cat ... - | ./x` connects stdin for interactive use after library lo
 Inside a session, `(help)` shows the documentation index; `(quit)` or ctrl-d
 exits. For line editing and history, wrap the session in `rlwrap`.
 
+## Install
+
+```sh
+make install                # /usr/local by default
+make install PREFIX=~/.local
+```
+
+Installs the wrapper as `bin/x` (the user-facing command), the engine
+binary under `libexec/x/`, and the runtime tree under `share/x/`: the
+library and apps **byte-identical** to the repo's (`diff -r` runs inside
+the install as proof), plus generated amalgamated boot entries under
+`share/x/boot/` — so `x`, `x -l xe`, and `x -f program.x` work from any
+directory (see `docs/boot-amalgam.md`). `DESTDIR` is honoured for
+staged/packaged installs. Remove with `make uninstall` (same `PREFIX`).
+
 ## Test
 
 ```sh

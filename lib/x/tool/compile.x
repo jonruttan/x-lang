@@ -241,11 +241,12 @@
 ; The assembler toolchain (asm-compile.x -> asm.x -> host platform) is ~900 lines,
 ; about half of compile.x's parse cost, and only the pure-JIT path needs it --
 ; compile-to-c and the C-compiler path never do. So ship a stub that loads the
-; toolchain on first call via include-once (an op, so its top-level defs bind
-; globally and REPLACE this stub with the real compile-asm), then dispatches.
+; toolchain on first call via import (top-level defs bind globally and REPLACE
+; this stub with the real compile-asm), then dispatches. import, not a path
+; literal: resolves through the import roots so it works installed too.
 (def compile-asm
   (fn (_ expr)
-    (include-once "lib/x/tool/asm-compile.x")
+    (import x/tool/asm-compile)
     (compile-asm expr)))
 
 ; --- Default compile: JIT assembler with C compiler fallback ---

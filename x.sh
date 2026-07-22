@@ -13,12 +13,45 @@
 #     (   )
 #      " "
 SCRIPT_PATH=$(dirname "$0")
-LIB_PATH=lib/
 X_EXT=.x
 X_LIB=x
 
-if [ ! -e "$LIB_PATH" ]; then
-	LIB_PATH=/usr/local/share/x/lib/
+# Repo mode: a lib tree at the CURRENT directory (the boot includes are
+# cwd-relative "lib/..." literals, so cwd must be the repo root anyway),
+# entries loaded live.  Probe for the entry file, not a bare lib/
+# directory -- any unrelated project's lib/ used to hijack the path here.
+# Installed mode: the runtime tree sits beside the wrapper's bin dir
+# (share/x); entries are the amalgamated boot files under share/x/boot
+# (zero path literals), and the import root reaches the interpreter as
+# DATA -- one (def %install-root ...) form emitted at the top of the pipe
+# (docs/boot-amalgam.md; module.x consumes it, def is a C prim so no
+# library is needed to evaluate it).
+LIB_PATH=lib/
+APPS_PATH=apps/
+ENTRY_DIR=lib/
+INSTALL_ROOT=
+if [ ! -e "${LIB_PATH}${X_LIB}${X_EXT}" ]; then
+	INSTALL_ROOT="$SCRIPT_PATH/../share/x"
+	LIB_PATH="$INSTALL_ROOT/lib/"
+	APPS_PATH="$INSTALL_ROOT/apps/"
+	ENTRY_DIR="$INSTALL_ROOT/boot/"
+fi
+
+# The install-root form, emitted ahead of the entry in installed mode; a
+# no-op command in repo mode (nothing defines %install-root there).
+root_form() {
+	if [ -n "$INSTALL_ROOT" ]; then
+		printf '(def %%install-root "%s")\n' "$INSTALL_ROOT"
+	fi
+}
+
+# The engine binary sits beside this script in-repo (x.sh + x at the
+# root); installed it lives in libexec -- and the wrapper takes the bin/x
+# name there, so probe libexec FIRST or $SCRIPT_PATH/x re-runs this
+# script forever.
+X_BIN="$SCRIPT_PATH/../libexec/x/x"
+if [ ! -e "$X_BIN" ]; then
+	X_BIN="$SCRIPT_PATH/x"
 fi
 
 # Pipe carries only library content — the REPL reclaims terminal
@@ -95,8 +128,9 @@ do
 			# and let IT print.  Two versions on purpose: x-lib-version is
 			# the library (what the banner shows), x-version the x-expr
 			# engine -- they are different numbers and drift independently.
-			printf '(display %%lang-name)(display " ")(display x-lib-version)(display " (engine ")(display x-version)(display ")")(newline)\n' \
-				| cat "${LIB_PATH}${X_LIB}${X_EXT}" - | "$SCRIPT_PATH/x" "--batch"
+			{ root_form; cat "${ENTRY_DIR}${X_LIB}${X_EXT}"; \
+				printf '(display %%lang-name)(display " ")(display x-lib-version)(display " (engine ")(display x-version)(display ")")(newline)\n'; } \
+				| "$X_BIN" "--batch"
 			exit 0
 			;;
 		--) # End of all options
@@ -124,11 +158,13 @@ done
 # (the pipe dies on ctrl-c; fd 3 survives for the REPL)
 exec 3<&0
 
-# Library entries live in lib/; applications live in apps/NAME/run.x
-# (#35 -- the Logo app left the stdlib). -l resolves lib first, then apps.
-ENTRY="${LIB_PATH}${X_LIB}${X_EXT}"
-if [ ! -e "$ENTRY" ] && [ -e "apps/${X_LIB}/run${X_EXT}" ]; then
-	ENTRY="apps/${X_LIB}/run${X_EXT}"
+# Library entries live in lib/ (repo) or share/x/boot/ (installed, where
+# app entries are amalgamated alongside the dialects); applications live
+# in apps/NAME/run.x (#35 -- the Logo app left the stdlib). -l resolves
+# the entry dir first, then apps.
+ENTRY="${ENTRY_DIR}${X_LIB}${X_EXT}"
+if [ ! -e "$ENTRY" ] && [ -e "${APPS_PATH}${X_LIB}/run${X_EXT}" ]; then
+	ENTRY="${APPS_PATH}${X_LIB}/run${X_EXT}"
 fi
 
 # A wrong name used to fail as `cat: lib/nope.x: No such file` with EXIT 0
@@ -136,24 +172,24 @@ fi
 # Name the request, the searched paths, and the real inventory instead.
 if [ ! -e "$ENTRY" ]; then
 	echo "Error: no library or app named '$X_LIB'" >&2
-	echo "  searched ${LIB_PATH}${X_LIB}${X_EXT} and apps/${X_LIB}/run${X_EXT}" >&2
-	# Inventory by discovery, not by hand: lib entries are ${LIB_PATH}*.x
-	# files, apps are apps/*/run.x -- the same rule the resolution above
-	# follows.  (An empty lib listing also means LIB_PATH itself is wrong:
-	# x.sh resolves lib/ against the CURRENT DIRECTORY, so run it from the
-	# repository root.)
+	echo "  searched ${ENTRY_DIR}${X_LIB}${X_EXT} and ${APPS_PATH}${X_LIB}/run${X_EXT}" >&2
+	# Inventory by discovery, not by hand: entries are ${ENTRY_DIR}*.x
+	# files, apps are ${APPS_PATH}*/run.x -- the same rule the resolution
+	# above follows.  (An empty listing also means ENTRY_DIR itself is
+	# wrong: in repo mode it resolves against the CURRENT DIRECTORY, so
+	# run from the repository root.)
 	libs=""
-	for _e in "${LIB_PATH}"*"${X_EXT}"; do
+	for _e in "${ENTRY_DIR}"*"${X_EXT}"; do
 		[ -e "$_e" ] && libs="$libs $(basename "$_e" "$X_EXT")"
 	done
 	apps=""
-	for _a in apps/*/run"$X_EXT"; do
+	for _a in "${APPS_PATH}"*/run"$X_EXT"; do
 		[ -e "$_a" ] && apps="$apps $(basename "$(dirname "$_a")")"
 	done
 	if [ -n "$libs" ]; then
 		echo "  libraries:$libs" >&2
 	else
-		echo "  no libraries found under '$LIB_PATH' -- run from the repository root" >&2
+		echo "  no entries found under '$ENTRY_DIR' -- run from the repository root" >&2
 	fi
 	[ -n "$apps" ] && echo "  apps:$apps" >&2
 	exit 1
@@ -166,7 +202,7 @@ if [ "$file" ]; then
 	xflags="$xflags \"--batch\""
 fi
 
-CMD="cat \"${ENTRY}\" ${file} ${post} | \"$SCRIPT_PATH/x\"$xflags$args"
+CMD="{ root_form; cat \"${ENTRY}\" ${file} ${post}; } | \"$X_BIN\"$xflags$args"
 
 if [ "$verbose" ]; then
 	echo "$CMD"

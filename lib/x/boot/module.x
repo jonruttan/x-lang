@@ -143,6 +143,28 @@
 (%set-rest! %module-registry-cell (pair () ()))
 (def %doc-registry-cell (rest %module-registry-cell))
 
+; --- Loaded-module registry (name-keyed) ---
+; Module identity is the NAME (x/type/str), not the filesystem path it was
+; loaded from: paths vary with the import root (repo "lib" vs an installed
+; absolute root), names do not.  Path-keyed dedup left every boot module one
+; import away from a silent double load in any tree whose root is not the
+; literal "lib" (docs/boot-amalgam.md).  Symbols are interned per-base, so
+; eq? membership is sound.
+(%set-rest! %doc-registry-cell (pair () ()))
+(def %module-loaded-cell (rest %doc-registry-cell))
+(def %module-loaded?
+  (fn (_ name)
+    (def %go
+      (fn (self lst)
+        (match
+          ((eq? lst ()) #f)
+          ((eq? (first lst) name) #t)
+          (#t (self (rest lst))))))
+    (%go (first %module-loaded-cell))))
+(def %module-loaded!
+  (fn (_ name)
+    (%set-first! %module-loaded-cell (pair name (first %module-loaded-cell)))))
+
 (def %module-register!
   (fn (_ name exports)
     (%set-first! %module-registry-cell
@@ -152,7 +174,16 @@
 ; exactly "lib/<name>.x" and needs no filesystem check at boot (a single root
 ; short-circuits before %file-exists? is ever called -- Sys loads much later).
 ; Add roots post-boot with (import-path! "dir") to import modules outside lib/.
-(def %import-roots-cell (pair (list "lib") ()))
+;
+; The embedder may define %install-root -- the runtime tree root, no trailing
+; slash, e.g. "/usr/local/share/x" -- BEFORE the library loads (the shell
+; wrapper's installed mode emits one (def %install-root ...) form at the top
+; of the pipe; def is a C prim, so no library is needed to evaluate it).
+; When bound it REPLACES the cwd-relative default: an installed tree must
+; resolve imports from ANY cwd (docs/boot-amalgam.md).  Unbound -- the repo
+; case -- the guard falls back to "lib" and nothing changes.
+(def %import-roots-cell
+  (pair (guard (_ (list "lib")) (list (%path-join %install-root "lib"))) ()))
 (def %file-exists?
   (fn (_ path) (guard (_ #f) (Sys file-exists? path))))
 (def import-path!
@@ -211,7 +242,13 @@
 
 (def import
   (op (name . syms) _
-    (include-once (%module-resolve name))
+    (match
+      ((%module-loaded? name) ())
+      (#t
+        (do
+          ; register BEFORE loading -- cycle safety, mirrors include-once
+          (%module-loaded! name)
+          (include (%module-resolve name)))))
     (match
       ((eq? syms ()) ())
       (#t

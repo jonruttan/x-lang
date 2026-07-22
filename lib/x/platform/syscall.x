@@ -6,10 +6,12 @@
 (import x/core/alist)
 
 ; The three tables live under platform/data/ (#38: this file was 95%
-; literal data); include-once registers them so later imports no-op.
-(include-once "lib/x/platform/data/syscalls-x86_64.x")
-(include-once "lib/x/platform/data/syscalls-i386.x")
-(include-once "lib/x/platform/data/syscalls-darwin.x")
+; literal data); import registers the names so later imports no-op -- and
+; resolves through the import roots, so the tables load in an installed
+; tree too (no root-relative path literals at runtime, docs/boot-amalgam.md).
+(import x/platform/data/syscalls-x86_64)
+(import x/platform/data/syscalls-i386)
+(import x/platform/data/syscalls-darwin)
 
 ; --- platform detection ---
 ; x-machine is the build triple, e.g. "arm64-apple-darwin25.5.0" vs

@@ -33,6 +33,12 @@ cat lib/xe.x - | ./x     # xenon
 cat lib/rn.x - | ./x     # radon
 ```
 
+In an **installed** tree (`make install`) the wrapper boots the same dialects
+from `share/x/boot/` — one generated, amalgamated entry per dialect (the raw
+include chain flattened to a single stream; see `docs/boot-amalgam.md`) — and
+the library under `share/x/lib/` is byte-identical to the repo's. Repo
+checkouts always load the live entries above.
+
 `lib/x.x` is a pointer, not a dialect: it is what a bare `sh x.sh` boots, and it currently points at helium. The default stays light on purpose — xenon's boot runs eight runtime `cc` compilations (the compiled tokenizer analysers), which would make every newcomer run slow and host-toolchain-dependent. The pre-0.3.0 spellings `x-and`/`x-or` are retired (see the CHANGELOG); an unknown `-l` name fails with the wrapper's inventory listing, which names the real entries.
 
 ---

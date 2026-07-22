@@ -205,9 +205,11 @@
     ()))
 
 ; --- Load architecture ---
+; import, not a path literal: resolves through the import roots so the
+; backend loads in an installed tree too.
 (if %asm-arm64?
-  (include "lib/x/tool/asm/arm64.x")
-  (include "lib/x/tool/asm/x86_64.x"))
+  (import x/tool/asm/arm64)
+  (import x/tool/asm/x86_64))
 
 (doc (provide x/asm
   asm-new asm-emit! asm-label! asm-patch! asm-pos asm-finalize! asm-free!
