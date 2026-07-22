@@ -362,7 +362,7 @@
           (let ()
             (def %dname (first (rest %tok)))
             (def %dname-str (symbol->str %dname))
-            (if (str=? (substring %dname-str 0 1) "%")
+            (if (str=? (%substring %dname-str 0 1) "%")
               (self %rest prims-alist seen)
               (if (%doc-seen-has? seen %dname-str)
                 (self %rest prims-alist seen)

@@ -39,7 +39,7 @@
 ### produces hex string
 
 ```scheme
-(str-length (Hash ->hex (Hash fnv-1a "hello")))
+(%str-length (Hash ->hex (Hash fnv-1a "hello")))
 ```
 ---
     16

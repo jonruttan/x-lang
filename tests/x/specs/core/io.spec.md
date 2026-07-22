@@ -118,7 +118,7 @@ raw-op consumer.
 (do
   (def %n (<< 1 (- (* 8 %word-size) 1)))
   (def %s ((prim-ref 'io 'display-to-str) %n))
-  (list (eq? (str-ref %s 0) #\-) (< 1 (str-length %s)) (eq? (str->number %s) %n)))
+  (list (eq? (%str-ref %s 0) #\-) (< 1 (%str-length %s)) (eq? (%str->number %s) %n)))
 ```
 ---
     (#t #t #t)

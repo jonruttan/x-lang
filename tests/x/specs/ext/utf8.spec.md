@@ -25,7 +25,7 @@ incorrectly.
 ### byte length is larger than the code-point count
 
 ```scheme
-(str-length "$¢€")
+(%str-length "$¢€")
 ```
 ---
     6
@@ -66,7 +66,7 @@ incorrectly.
 ### the round-trip preserves the exact byte length (no corruption)
 
 ```scheme
-(str-length (list->str (str->list "¢€")))
+(%str-length (list->str (str->list "¢€")))
 ```
 ---
     5

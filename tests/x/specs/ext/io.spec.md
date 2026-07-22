@@ -91,7 +91,7 @@ region (File read/getc were blocked before it existed).
   (def %n (File read %r %buf 8))
   (File close %r)
   (syscall (syscall-id 'unlink) %p)
-  (list (> %n 0) (str-ref %buf 0)))
+  (list (> %n 0) (%str-ref %buf 0)))
 ```
 ---
     (#t #\a)

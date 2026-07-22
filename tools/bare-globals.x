@@ -75,11 +75,4 @@
   (set-first-int!)
   (set-rest!)
   (set-rest-int!)
-  ; --- SWEEP: boot string helpers (Str is the public face) ---
-  (line-of)
-  (number->str)
-  (str->number)
-  (str-length)
-  (str-ref)
-  (substring)
 )))

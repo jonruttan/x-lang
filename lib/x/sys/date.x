@@ -51,7 +51,7 @@
             (let ((doe (+ (* yoe 365) (+ (- (%i/ yoe 4) (%i/ yoe 100)) doy))))
               (- (+ (* era 146097) doe) 719468))))))))
 
-(def %pad2 (fn (_ n) (Str8 pad-left 2 #\0 (number->str n))))
+(def %pad2 (fn (_ n) (Str8 pad-left 2 #\0 (%number->str n))))
 
 (def-class Date ()
   (doc "Civil dates over unix time: pure integer math, proleptic Gregorian, UTC only."
@@ -100,7 +100,7 @@
         (returns STRING "\"YYYY-MM-DDTHH:MM:SSZ\"")
         (example "(Date ->iso (Date from-unix 1234567890))" "\"2009-02-13T23:31:30Z\""))
       (Str8 append
-        (number->str (assoc-get 'year date))
+        (%number->str (assoc-get 'year date))
         "-" (%pad2 (assoc-get 'month date))
         "-" (%pad2 (assoc-get 'day date))
         "T" (%pad2 (Assoc get-or 0 'hour date))

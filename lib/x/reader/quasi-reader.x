@@ -58,7 +58,7 @@
     (if (= (%buffer-last-char buffer) 44)
       (pair (lit unquote) (pair (%token-read buffer) ()))
       (if (= (%buffer-last-char buffer) 64)
-        (if (= (%char->integer (str-ref (%buffer-token buffer) 0)) 44)
+        (if (= (%char->integer (%str-ref (%buffer-token buffer) 0)) 44)
           (pair (lit unquote-splicing) (pair (%token-read buffer) ()))
           ())
         ()))))

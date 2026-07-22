@@ -135,29 +135,29 @@
 (def %cx-find-char
   (fn (self s i len ch)
     (if (>= i len) ()
-      (if (= (%cvt (str-ref s i) %int) ch)
+      (if (= (%cvt (%str-ref s i) %int) ch)
         i
         (self s (%int+ i 1) len ch)))))
 
 (def %cx-parse-num
   (fn (_ s)
-    (if (%cx-find-char s 0 (str-length s) 46)
+    (if (%cx-find-char s 0 (%str-length s) 46)
       (%make-instance %float (%str->float s))
       (%cvt s %int))))
 
 (set! %cx-read
   (fn (_ . args)
     (let ((tok (%buffer-token (first args))))
-      (let ((len (str-length tok)))
-        (let ((body (substring tok 0 (%int- len 1))))
+      (let ((len (%str-length tok)))
+        (let ((body (%substring tok 0 (%int- len 1))))
           (let ((blen (%int- len 1)))
             (let ((sign-pos (%cx-find-char body 1 blen 43)))
               (if (null? sign-pos)
                 (set! sign-pos (%cx-find-char body 1 blen 45)))
               (if sign-pos
                 (%make-complex
-                  (%cx-parse-num (substring body 0 sign-pos))
-                  (%cx-parse-num (substring body sign-pos blen)))
+                  (%cx-parse-num (%substring body 0 sign-pos))
+                  (%cx-parse-num (%substring body sign-pos blen)))
                 (%make-complex 0 (%cx-parse-num body))))))))))
 
 ; --- Type definition ---

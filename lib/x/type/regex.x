@@ -75,18 +75,18 @@
     (match
       ((eq? tag 'lit)
         (if (and (< pos end)
-              (= (str-ref str pos) (first (rest node))))
+              (= (%str-ref str pos) (first (rest node))))
           (pair (+ pos 1) caps) ()))
       ((eq? tag 'any)
         (if (< pos end) (pair (+ pos 1) caps) ()))
       ((eq? tag 'class)
         (if (< pos end)
-          (if (%regex-class-match (rest node) (str-ref str pos))
+          (if (%regex-class-match (rest node) (%str-ref str pos))
             (pair (+ pos 1) caps) ())
           ()))
       ((eq? tag 'nclass)
         (if (< pos end)
-          (if (%regex-class-match (rest node) (str-ref str pos))
+          (if (%regex-class-match (rest node) (%str-ref str pos))
             () (pair (+ pos 1) caps))
           ()))
       ; Nested quantifiers/groups: delegate to full exec
@@ -183,18 +183,18 @@
         (match
           ((eq? tag 'lit)
             (if (and (< pos end)
-                  (= (str-ref str pos) (first (rest node))))
+                  (= (%str-ref str pos) (first (rest node))))
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'any)
             (if (< pos end)
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'class)
             (if (and (< pos end)
-                  (%regex-class-match (rest node) (str-ref str pos)))
+                  (%regex-class-match (rest node) (%str-ref str pos)))
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'nclass)
             (if (and (< pos end)
-                  (not (%regex-class-match (rest node) (str-ref str pos))))
+                  (not (%regex-class-match (rest node) (%str-ref str pos))))
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'star)
             (%regex-exec-star (first (rest node)) rest-nodes str pos end caps))
@@ -236,16 +236,16 @@
             (if (= pos 0) (%regex-exec rest-nodes str pos end caps) ()))
           ((eq? tag 'anchor-word-boundary)
             (let ((left-word (if (= pos 0) #f
-                    (%regex-is-word-char (%char->integer (str-ref str (- pos 1))))))
+                    (%regex-is-word-char (%char->integer (%str-ref str (- pos 1))))))
                   (right-word (if (= pos end) #f
-                    (%regex-is-word-char (%char->integer (str-ref str pos))))))
+                    (%regex-is-word-char (%char->integer (%str-ref str pos))))))
               (if (eq? left-word right-word) ()
                 (%regex-exec rest-nodes str pos end caps))))
           ((eq? tag 'anchor-not-word-boundary)
             (let ((left-word (if (= pos 0) #f
-                    (%regex-is-word-char (%char->integer (str-ref str (- pos 1))))))
+                    (%regex-is-word-char (%char->integer (%str-ref str (- pos 1))))))
                   (right-word (if (= pos end) #f
-                    (%regex-is-word-char (%char->integer (str-ref str pos))))))
+                    (%regex-is-word-char (%char->integer (%str-ref str pos))))))
               (if (eq? left-word right-word)
                 (%regex-exec rest-nodes str pos end caps) ())))
           ((eq? tag 'anchor-end)
@@ -351,7 +351,7 @@
     (def %parse-int
       (fn (self i acc)
         (if (>= i end) (pair acc i)
-          (let ((ch (str-ref s i)))
+          (let ((ch (%str-ref s i)))
             (if (and (>= ch 48) (<= ch 57))
               (self (+ i 1) (+ (* acc 10) (- ch 48)))
               (pair acc i))))))
@@ -359,21 +359,21 @@
     (def min-val (first min-r))
     (def after-min (rest min-r))
     (if (>= after-min end) (pair node pos)
-      (let ((ch (str-ref s after-min)))
+      (let ((ch (%str-ref s after-min)))
         (match
           ; {n}
           ((= ch #\})
             (pair (list 'repeat node min-val min-val) (+ after-min 1)))
           ; {n,} or {n,m}
           ((= ch #\,)
-            (if (and (< (+ after-min 1) end) (= (str-ref s (+ after-min 1)) #\}))
+            (if (and (< (+ after-min 1) end) (= (%str-ref s (+ after-min 1)) #\}))
               ; {n,} — unbounded
               (pair (list 'repeat node min-val 999999999) (+ after-min 2))
               ; {n,m}
               (let ((max-r (%parse-int (+ after-min 1) 0)))
                 (def max-val (first max-r))
                 (def after-max (rest max-r))
-                (if (and (< after-max end) (= (str-ref s after-max) #\}))
+                (if (and (< after-max end) (= (%str-ref s after-max) #\}))
                   (pair (list 'repeat node min-val max-val) (+ after-max 1))
                   (pair node pos)))))
           (#t (pair node pos)))))))
@@ -382,8 +382,8 @@
 (def %regex-wrap-quantifier
   (fn (_ s pos end node)
     (if (>= pos end) (pair node pos)
-      (let ((ch (str-ref s pos)))
-        (def lazy (and (< (+ pos 1) end) (= (str-ref s (+ pos 1)) #\?)))
+      (let ((ch (%str-ref s pos)))
+        (def lazy (and (< (+ pos 1) end) (= (%str-ref s (+ pos 1)) #\?)))
         (match
           ((= ch #\*)
             (if lazy (pair (list 'lazy-star node) (+ pos 2))
@@ -400,7 +400,7 @@
 ; Parse escape sequence
 (def %regex-parse-escape
   (fn (_ s pos)
-    (def ch (str-ref s pos))
+    (def ch (%str-ref s pos))
     (match
       ((= ch #\d) (pair (list 'class (pair 48 57)) (+ pos 1)))
       ((= ch #\D) (pair (list 'nclass (pair 48 57)) (+ pos 1)))
@@ -415,28 +415,28 @@
 ; Parse character class [...] or [^...]
 (def %regex-parse-class
   (fn (_ s pos end)
-    (def negated (and (< pos end) (= (str-ref s pos) #\^)))
+    (def negated (and (< pos end) (= (%str-ref s pos) #\^)))
     (def start (if negated (+ pos 1) pos))
     (def tag (if negated 'nclass 'class))
     (def %go
       (fn (self i acc)
         (if (>= i end) (pair (pair tag (%reverse acc)) i)
-          (let ((ch (%char->integer (str-ref s i))))
+          (let ((ch (%char->integer (%str-ref s i))))
             (match
               ((= ch #\])
                 (pair (pair tag (%reverse acc)) (+ i 1)))
               ; Escape inside class: \d \w \s etc. expand to ranges/literals
               ((= ch #\\)
                 (if (>= (+ i 1) end) (self (+ i 1) (pair ch acc))
-                  (let ((esc (%char->integer (str-ref s (+ i 1)))))
+                  (let ((esc (%char->integer (%str-ref s (+ i 1)))))
                     (match
                       ((= esc #\d) (self (+ i 2) (pair (pair 48 57) acc)))
                       ((= esc #\w) (self (+ i 2) (pair 95 (pair (pair 97 122) (pair (pair 65 90) (pair (pair 48 57) acc))))))
                       ((= esc #\s) (self (+ i 2) (pair 13 (pair 10 (pair 9 (pair 32 acc))))))
                       (#t (self (+ i 2) (pair esc acc)))))))
               ; Range: a-z
-              ((and (< (+ i 2) end) (= (%char->integer (str-ref s (+ i 1))) #\-))
-                (let ((hi (%char->integer (str-ref s (+ i 2)))))
+              ((and (< (+ i 2) end) (= (%char->integer (%str-ref s (+ i 1))) #\-))
+                (let ((hi (%char->integer (%str-ref s (+ i 2)))))
                   (self (+ i 3) (pair (pair ch hi) acc))))
               (#t (self (+ i 1) (pair ch acc))))))))
     (%go start ())))
@@ -451,7 +451,7 @@
 
 (set! %regex-parse-atom
   (fn (_ s i end)
-    (let ((ch (str-ref s i)))
+    (let ((ch (%str-ref s i)))
       (match
         ((= ch #\.)
           (pair (list 'any) (+ i 1)))
@@ -471,7 +471,7 @@
     (def content (%regex-parse-alt-full s pos end 1))
     (def nodes (first content))
     (def close-pos (rest content))
-    (pair nodes (if (and (< close-pos end) (= (str-ref s close-pos) #\)))
+    (pair nodes (if (and (< close-pos end) (= (%str-ref s close-pos) #\)))
                   (+ close-pos 1) close-pos))))
 
 (set! %regex-parse-alt-full
@@ -479,7 +479,7 @@
     (def left (%regex-parse-seq s pos end depth))
     (def left-nodes (first left))
     (def left-pos (rest left))
-    (if (and (< left-pos end) (= (str-ref s left-pos) #\|))
+    (if (and (< left-pos end) (= (%str-ref s left-pos) #\|))
       (let ((right (%regex-parse-alt-full s (+ left-pos 1) end depth)))
         (pair (list (list 'alt left-nodes (first right))) (rest right)))
       left)))
@@ -489,7 +489,7 @@
     (def %go
       (fn (self i acc)
         (if (>= i end) (pair (%reverse acc) i)
-          (let ((ch (str-ref s i)))
+          (let ((ch (%str-ref s i)))
             (match
               ((and (= ch #\)) (> depth 0)) (pair (%reverse acc) i))
               ((= ch #\|) (pair (%reverse acc) i))
@@ -543,7 +543,7 @@
 
 (set! %regex-parse
   (fn (_ pattern)
-    (def len (str-length pattern))
+    (def len (%str-length pattern))
     (def result (%regex-parse-alt-full pattern 0 len 0))
     (%regex-number-groups (first result))))
 
@@ -576,7 +576,7 @@
         'call
         (fn (_ self . args)
           (def input (first args))
-          (def end (str-length input))
+          (def end (%str-length input))
           ; exec returns a STATE (pos . caps) since #23
           (def result (%regex-exec (first self) input 0 end ()))
           (if (and result (= (first result) end)) #t #f)))
@@ -597,7 +597,7 @@
         (fn (_ . args)
           (def tok (%buffer-token (first args)))
           ; Strip #/ prefix and / suffix
-          (def pattern (substring tok 2 (- (str-length tok) 1)))
+          (def pattern (%substring tok 2 (- (%str-length tok) 1)))
           (%make-instance %regex (%regex-parse pattern)))))))
 
 (set! %regex-read
@@ -618,7 +618,7 @@
               (self (rest cs) acc)
               (self (rest cs)
                 (pair (pair (first c)
-                        (substring str (first (rest c)) (first (rest (rest c)))))
+                        (%substring str (first (rest c)) (first (rest (rest c)))))
                       acc)))))))
     ; insertion sort by group number (tiny lists)
     (def ins
@@ -632,13 +632,13 @@
         (if (null? lst) acc
           (self (rest lst) (ins (first lst) acc)))))
     (sort-by-n (seen-add caps ())
-               (list (pair 0 (substring str start endpos))))))
+               (list (pair 0 (%substring str start endpos))))))
 
 ; First match at-or-after pos WITH captures:
 ; (start end ((0 . whole) (N . text) ...)) or ()
 (def %regex-find-caps
   (fn (_ str pos rx)
-    (def end (str-length str))
+    (def end (%str-length str))
     (def nodes (%rx-nodes rx))
     (def %try
       (fn (self i)
@@ -654,16 +654,16 @@
 ; $0 = whole match, $1..$9 = groups (absent/unmatched -> ""), $$ = "$".
 (def %regex-expand-rep
   (fn (_ rep groups)
-    (def len (str-length rep))
+    (def len (%str-length rep))
     (def %go
       (fn (self i acc)
         (if (>= i len) acc
-          (let ((ch (%char->integer (str-ref rep i))))
+          (let ((ch (%char->integer (%str-ref rep i))))
             (if (not (= ch 36))                       ; $
-              (self (+ i 1) (%str-append acc (substring rep i (+ i 1))))
+              (self (+ i 1) (%str-append acc (%substring rep i (+ i 1))))
               (if (>= (+ i 1) len)
                 (%str-append acc "$")
-                (let ((nx (%char->integer (str-ref rep (+ i 1)))))
+                (let ((nx (%char->integer (%str-ref rep (+ i 1)))))
                   (match
                     ((= nx 36)                        ; $$
                       (self (+ i 2) (%str-append acc "$")))
@@ -697,12 +697,12 @@
     ; like (#/,/ split "a,b") route to (Regex split "a,b" #/,/).
     (method match (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Test whether a regex matches an entire string." (returns BOOL "True if regex matches the entire string"))
-      (def end (str-length str))
+      (def end (%str-length str))
       (def result (%regex-exec (%rx-nodes rx) str 0 end ()))
       (if (and result (= (first result) end)) #t #f))
     (method search (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Search for the first occurrence of a regex pattern in a string." (returns LIST "Pair (start end) of first match, or nil if not found"))
-      (def end (str-length str))
+      (def end (%str-length str))
       (def %try
         (fn (self i)
           (if (> i end) ()
@@ -712,7 +712,7 @@
       (%try 0))
     (method find-at (self (param str STRING "Input string") (param pos INT "Start position") (param rx REGEX "Compiled regex"))
       (doc "Search for regex starting from position pos." (returns LIST "Pair (start end) of match, or nil"))
-      (def end (str-length str))
+      (def end (%str-length str))
       (def %try
         (fn (self i)
           (if (> i end) ()
@@ -725,7 +725,7 @@
         (example "(Regex find \"abc123def\" #/[0-9]+/)" "\"123\""))
       (def m (Regex search str rx))
       (if (null? m) ()
-        (substring str (first m) (first (rest m)))))
+        (%substring str (first m) (first (rest m)))))
     (method match-groups (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Capture-group texts of the FIRST match anywhere in str: an alist ((0 . whole-match) (N . group-text) ...) keyed by group number in ( ) OPEN order, sorted. A group that did not participate (unmatched alternative) is ABSENT -- presence door, not a sentinel; a group under a quantifier keeps its last iteration. nil when nothing matches."
         (returns ANY "Groups alist, or nil")
@@ -744,7 +744,7 @@
             (let ((start (first m)))
               (def end (first (rest m)))
               (def next (if (= start end) (+ end 1) end))
-              (self next (pair (substring str start end) acc))))))
+              (self next (pair (%substring str start end) acc))))))
       (%go 0 ()))
     (method find-all-pos (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Find all non-overlapping match positions." (returns LIST "List of (start end) pairs"))
@@ -768,42 +768,42 @@
       (if (null? m) str
         (let ((groups (first (rest (rest m)))))
           (%str-append
-            (substring str 0 (first m))
+            (%substring str 0 (first m))
             (%str-append
               (%regex-get-replacement rep (assoc-get 0 groups) groups)
-              (substring str (first (rest m)) (str-length str)))))))
+              (%substring str (first (rest m)) (%str-length str)))))))
     (method replace-all (self (param str STRING "Input string") (param rep ANY "Replacement string or function") (param rx REGEX "Compiled regex"))
       (doc "Replace all matches. rep can be a string or a function that receives each matched text." (returns STRING "String with all matches replaced")
         (example "(Regex replace-all \"a1b22c333\" \"N\" #/[0-9]+/)" "\"aNbNcN\""))
-      (def len (str-length str))
+      (def len (%str-length str))
       (def %go
         (fn (self pos acc)
           (def m (%regex-find-caps str pos rx))
           (if (null? m)
-            (%str-append acc (substring str pos len))
+            (%str-append acc (%substring str pos len))
             (let ((start (first m)))
               (def end (first (rest m)))
               (def groups (first (rest (rest m))))
               (def next (if (= start end) (+ end 1) end))
               (self next
                 (%str-append acc
-                  (%str-append (substring str pos start)
+                  (%str-append (%substring str pos start)
                     (%regex-get-replacement rep (assoc-get 0 groups) groups))))))))
       (%go 0 ""))
     (method split (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Split a string at regex matches." (returns LIST "List of substrings between matches")
         (example "(Regex split \"a,b,c\" #/,/)" "(\"a\" \"b\" \"c\")")
         (example "(#/,/ split \"a,b,c\")" "(\"a\" \"b\" \"c\")"))
-      (def len (str-length str))
+      (def len (%str-length str))
       (def %go
         (fn (self pos acc)
           (def m (Regex find-at str pos rx))
           (if (null? m)
-            (%reverse (pair (substring str pos len) acc))
+            (%reverse (pair (%substring str pos len) acc))
             (let ((start (first m)))
               (def end (first (rest m)))
               (def next (if (= start end) (+ end 1) end))
-              (self next (pair (substring str pos start) acc))))))
+              (self next (pair (%substring str pos start) acc))))))
       (%go 0 ()))
     (method exec (self (param nodes LIST "List of AST nodes from a compiled regex")
                        (param str STRING "Input string to match against")

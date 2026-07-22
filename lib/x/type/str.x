@@ -30,14 +30,14 @@
 (doc str-length
   (param s STRING "String to measure")
   (returns INT "Byte length of s")
-  (example "(str-length \"$¢€\")" "6")
+  (example "(%str-length \"$¢€\")" "6")
   "Byte length (raw octets). For element count in the active protocol use (Str length s).")
 
 (doc str-ref
   (param s STRING "String to index")
   (param i INT "Byte offset (negative counts from the end)")
   (returns CHAR "The byte at offset i, as a CHARACTER (0-255)")
-  (example "(str-ref \"$¢€\" 1)" "#\\Â")
+  (example "(%str-ref \"$¢€\" 1)" "#\\Â")
   "Byte at offset i, UNCHECKED: an out-of-range offset reads out of bounds -- use (Str8 ref i s) for the checked byte view. For the i-th code point use (StrUTF8 ref i s) or the bare (s i) -- equivalent, including negative i counting from the end.")
 
 (doc substring
@@ -45,7 +45,7 @@
   (param start INT "Start byte offset")
   (param end INT "End byte offset (exclusive)")
   (returns STRING "The bytes [start, end) of s")
-  (example "(substring \"abcdef\" 1 4)" "\"bcd\"")
+  (example "(%substring \"abcdef\" 1 4)" "\"bcd\"")
   "Byte substring [start, end) -- the byte-level slice-convention primitive. Always byte-level.")
 
 (doc str=?

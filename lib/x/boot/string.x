@@ -21,9 +21,9 @@
 ; the string call, and every caller built on them (str=?, str->number, readers)
 ; stays byte-safe automatically. Use the bare (s i) call for the ambient
 ; protocol, or the Str8 / StrUTF8 classes for an explicit one.
-(def str-ref %str-byte-ref)
-(def str-length %str-byte-len)
-(def substring (fn (_ s start end) (%str-byte-sub s start (- end start))))
+(def %str-ref %str-byte-ref)
+(def %str-length %str-byte-len)
+(def %substring (fn (_ s start end) (%str-byte-sub s start (- end start))))
 
 ; display/write live in boot/printer.x (loaded just before this file); the
 ; old variadic-display shim over the C prim is gone with the C printers.
@@ -78,7 +78,7 @@
       (#t (bytes->str (%n2s-loop (%n2s-int- 0 n) radix ()))))))
 ; Fixed-arity front for the printer's unary base-10 calls (the common
 ; case): skips the variadic rest-spine heap copy and the radix match.
-(def number->str
+(def %number->str
   (fn (_ n . rest)
     (match
       ((eq? rest ()) (%n2s n 10))
@@ -94,7 +94,7 @@
 ; JSON \u parser stays byte-exact, and a prefix under an explicit radix
 ; would be ambiguous ("0x" as digits-of-16 is a miss, and stays one).
 ; The sign parses first, so "-0xff" -> -255 like a negated reader literal.
-(def str->number
+(def %str->number
   (fn (_ s . rest)
     (def radix (match ((eq? rest ()) 10) (#t (first rest))))
     (def len (%str-byte-len s))

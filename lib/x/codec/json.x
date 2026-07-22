@@ -54,7 +54,7 @@
 (def %json-err
   (fn (_ what i)
     (Err raise 'value (%json-append "Json parse: " (%json-append what
-      (%json-append " at byte " (number->str i)))) ())))
+      (%json-append " at byte " (%number->str i)))) ())))
 
 ; Expect the literal word w (true/false/null) at i; value already known.
 (def %json-word
@@ -90,17 +90,17 @@
             (if (= b 46) #t (if (= b 101) #t (if (= b 69) #t (go (+ j 1)))))))))
     ; %json-cvt, not (Float from-str): from-str returns the raw IEEE bit
     ; pattern; the convert path boxes a real FLOAT value.
-    (def %v (if %floaty (%json-cvt %text %float) (str->number %text)))
+    (def %v (if %floaty (%json-cvt %text %float) (%str->number %text)))
     (if (null? %v) (%json-err "malformed number" i) (pair %v %end))))
 
 ; --- strings ---------------------------------------------------------------
 (def %json-hexdig "0123456789abcdef")
 
-; 4 hex digits at i -> integer (str->number radix 16), error on short input.
+; 4 hex digits at i -> integer (%str->number radix 16), error on short input.
 (def %json-hex4
   (fn (_ s i len)
     (if (> (+ i 4) len) (%json-err "truncated \\u escape" i)
-      (let ((v (str->number (%json-byte-sub s i 4) 16)))
+      (let ((v (%str->number (%json-byte-sub s i 4) 16)))
         (if (null? v) (%json-err "malformed \\u escape" i) v)))))
 
 ; \uXXXX (with surrogate-pair combining) -> (utf8-string . next-pos)

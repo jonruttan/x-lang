@@ -153,7 +153,7 @@
         fd))
     (method fd-write (self (param fd NUMBER "File descriptor") (param s STRING "String to write"))
       (doc "Write a string to a file descriptor." (returns NUMBER "Bytes written"))
-      (%sys-fold (%ptr-call (%resolve "write") fd s (str-length s))))
+      (%sys-fold (%ptr-call (%resolve "write") fd s (%str-length s))))
     (method fd-read (self (param fd NUMBER "File descriptor to read from")
                           (param n NUMBER "Maximum number of bytes to read"))
       (doc "Read up to n bytes from a file descriptor (libc read via FFI)."

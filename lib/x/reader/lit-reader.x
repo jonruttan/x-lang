@@ -76,7 +76,7 @@
 (def %str-index
   (fn (self s code i len)
     (if (>= i len) len
-      (if (= (%char->int (str-ref s i)) code) i
+      (if (= (%char->int (%str-ref s i)) code) i
         (self s code (+ i 1) len)))))
 
 ; Interpolated string -> argument list for (Str8 str ...): literal chunks
@@ -89,21 +89,21 @@
             (c (%str-index s 125 i len)))                   ; next }
         (let ((p (if (< o c) o c)))                         ; whichever brace comes first
           (if (>= p len)
-            (list (substring s i len))                      ; no more braces: trailing literal
-            (if (= (%char->int (str-ref s p)) 123)
+            (list (%substring s i len))                      ; no more braces: trailing literal
+            (if (= (%char->int (%str-ref s p)) 123)
               ; a {  -- either a hole or a {{ literal
-              (if (and (< (+ p 1) len) (= (%char->int (str-ref s (+ p 1))) 123))
-                (pair (substring s i (+ p 1)) (self s (+ p 2) len))   ; {{ -> literal {
+              (if (and (< (+ p 1) len) (= (%char->int (%str-ref s (+ p 1))) 123))
+                (pair (%substring s i (+ p 1)) (self s (+ p 2) len))   ; {{ -> literal {
                 (let ((close (%str-index s 125 (+ p 1) len)))         ; hole: { expr }
-                  (pair (substring s i p)                             ; text before {
+                  (pair (%substring s i p)                             ; text before {
                     ; pad with a trailing space so a bare-symbol hole ({x}) terminates its
                     ; token at end-of-buffer (token-read-string drops an unterminated tail).
-                    (pair (first (%token-read-string (%base) (%str-append (substring s (+ p 1) close) " ")))
+                    (pair (first (%token-read-string (%base) (%str-append (%substring s (+ p 1) close) " ")))
                       (self s (+ close 1) len)))))
               ; a }  -- }} or a lone }, both literal (one brace either way)
-              (if (and (< (+ p 1) len) (= (%char->int (str-ref s (+ p 1))) 125))
-                (pair (substring s i (+ p 1)) (self s (+ p 2) len))   ; }} -> literal }
-                (pair (substring s i (+ p 1)) (self s (+ p 1) len)))))))))) ; lone } -> literal }
+              (if (and (< (+ p 1) len) (= (%char->int (%str-ref s (+ p 1))) 125))
+                (pair (%substring s i (+ p 1)) (self s (+ p 2) len))   ; }} -> literal }
+                (pair (%substring s i (+ p 1)) (self s (+ p 1) len)))))))))) ; lone } -> literal }
 
 ; $ (byte 36) reader: one-char token, then parse the following string.
 (def %interp-accept
@@ -117,7 +117,7 @@
       ; %token-read consumes the following string token; %interp-forms splits its
       ; holes now, so we emit (Str8 str <chunk> <expr> ...) directly (see header).
       (let ((s (%token-read buffer)))
-        (pair (lit Str8) (pair (lit str) (%interp-forms s 0 (str-length s)))))
+        (pair (lit Str8) (pair (lit str) (%interp-forms s 0 (%str-length s)))))
       ())))
 
 ; --- Place the readers on the symbol type ---

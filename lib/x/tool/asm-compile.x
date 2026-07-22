@@ -94,7 +94,7 @@
 (def %asm-genlabel
   (fn (_ prefix)
     (set! %asm-label-counter (+ %asm-label-counter 1))
-    (%str->symbol (Str append prefix (number->str %asm-label-counter)))))
+    (%str->symbol (Str append prefix (%number->str %asm-label-counter)))))
 
 ; --- Code generation ---
 ; Convention: result always in x0 as a RAW INTEGER.
