@@ -41,7 +41,7 @@
   (quasi)
   (unless)
   (when)
-  ; --- module system (forms in practice) ---
+  ; --- module system: ruled bare 2026-07-22 (user: "I want to keep them") ---
   (import)
   (import-path!)
   (include-once)
