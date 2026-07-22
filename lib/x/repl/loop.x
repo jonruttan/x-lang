@@ -45,7 +45,7 @@
       (do (Sys dup2 3 0) (Sys close 3)))
     ; Turn sweep (see the module-top note).
     (%repl-collect)
-    (set-first-int! %sigint-flag 0)
+    (%set-first-int! %sigint-flag 0)
     (display %repl-prompt)
     ; Restore default SIGINT so ctrl-c at the prompt exits cleanly
     (sigint-restore)
@@ -56,7 +56,7 @@
       (do (newline) (Sys exit 0))
       (%seq
         (guard (err
-            (set-first-int! %sigint-flag 0)
+            (%set-first-int! %sigint-flag 0)
             (if (if (atom? err) (str=? (symbol->str err) "STOP") #f)
               (display "\n")
               ; %seq is BINARY (it is the primitive `do` is built on), so a

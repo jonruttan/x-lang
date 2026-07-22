@@ -21,9 +21,9 @@ cascading every later string-rendering test.
   (def %t (%registry-assoc-rest (%print-type-of "s") (first %reflect-type-alist-cell)))
   (def %node (%reflect-step %t (%reflect-path-parent %print-path-write-stack)))
   (def %saved (first %node))
-  (set-first! %node ())
+  (%set-first! %node ())
   (def %r (guard (e ()) ((prim-ref 'io 'write-to-str) "s")))
-  (set-first! %node %saved)
+  (%set-first! %node %saved)
   (not (null? %r)))
 ```
 ---
@@ -121,11 +121,11 @@ no-ops (kept for embedders that pre-register the type).
   (def %t (%registry-assoc-rest (%print-type-of 0) (first %reflect-type-alist-cell)))
   (def %node (%reflect-step %t (%reflect-path-parent %print-path-write-stack)))
   (def %saved (first %node))
-  (set-first! %node
+  (%set-first! %node
     (pair (fn (_ o) (do (%print-emit "[") (%print-emit (%wts "in")) (%print-emit "]")))
           %saved))
   (def %r (guard (e 'err) (%wts 42)))
-  (set-first! %node %saved)
+  (%set-first! %node %saved)
   %r)
 ```
 ---
@@ -156,9 +156,9 @@ round segfaulted at ~10k elements.
   (def %t (%registry-assoc-rest (%print-type-of 0) (first %reflect-type-alist-cell)))
   (def %node (%reflect-step %t (%reflect-path-parent %print-path-write-stack)))
   (def %saved (first %node))
-  (set-first! %node (pair (fn (_ o) (error 'render-boom)) %saved))
+  (%set-first! %node (pair (fn (_ o) (error 'render-boom)) %saved))
   (def %r (guard (e e) (%wts 42)))
-  (set-first! %node %saved)
+  (%set-first! %node %saved)
   (display %r) (display " ") (display 7))
 ```
 ---

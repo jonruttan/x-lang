@@ -68,11 +68,4 @@
   (assoc-has?)
   (assoc-keys)
   (assoc-put)
-  ; --- SWEEP: boot data.x layout accessors ---
-  (first-int)
-  (rest-int)
-  (set-first!)
-  (set-first-int!)
-  (set-rest!)
-  (set-rest-int!)
 )))

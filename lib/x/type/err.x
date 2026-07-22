@@ -164,7 +164,7 @@
       (doc "Recover the CURRENT errno after a failed libc/syscall call. The syscall prim routes through libc on both OSes, returning a bare -1 with the reason parked behind the per-thread errno location -- __error() on Darwin, __errno_location() on Linux; this derefs it (lazily resolving the symbol once). Falls back to (- 0 r) on a libc without the symbol. Fetch BEFORE any intervening call (a close on the error path clobbers errno)."
         (returns INT "The positive errno"))
       (when (null? (first %errno-loc-cell))
-        (set-first! %errno-loc-cell
+        (%set-first! %errno-loc-cell
           (let ((loc ((prim-ref 'ffi 'dlsym) ((prim-ref 'ffi 'dlopen) () 1)
                       (if os-darwin? "__error" "__errno_location"))))
             (if (null? loc) 'missing loc))))

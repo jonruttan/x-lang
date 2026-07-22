@@ -126,7 +126,7 @@ raw-op consumer.
 ### does not spoof a boolean on value-word collision
 
 ```scheme
-(str=? ((prim-ref 'io 'display-to-str) (first-int #t)) "#t")
+(str=? ((prim-ref 'io 'display-to-str) (%first-int #t)) "#t")
 ```
 ---
     #f

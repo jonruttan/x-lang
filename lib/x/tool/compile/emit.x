@@ -150,7 +150,7 @@
           (inner-body (first (rest args)))
           (fn-name (Str append "fn_" (%cvt (+ 1 (%length (first %compile-fns))) %string))))
       ; Add this fn to the list
-      (set-first! %compile-fns
+      (%set-first! %compile-fns
         (pair (list fn-name inner-params inner-body)
               (first %compile-fns)))
       ; Return pointer to the static prim object
@@ -177,7 +177,7 @@
     (%cw-emit (first args))
     (display ")")))
 
-; (set-first! cell val) => assign + return val
+; (%set-first! cell val) => assign + return val
 (def %cw-set-first
   (fn (_ args)
     (display "(x_firstobj(")
@@ -326,7 +326,7 @@
     (%cw-emit (first (rest args)))
     (display ")")))
 
-; (set-rest! cell val) => assign + return val
+; (%set-rest! cell val) => assign + return val
 (def %cw-set-rest
   (fn (_ args)
     (display "(x_restobj(")
@@ -428,8 +428,8 @@
     (pair 'first         %cw-first)
     (pair 'rest          %cw-rest)
     (pair 'pair          %cw-pair)
-    (pair 'set-first!    %cw-set-first)
-    (pair 'set-rest!     %cw-set-rest)
+    (pair '%set-first!   %cw-set-first)
+    (pair '%set-rest!    %cw-set-rest)
     (pair 'score-set     %cw-score-set)
     (pair '%seq          %cw-seq)
     (pair 'buffer-unread %cw-buffer-unread)

@@ -10,7 +10,7 @@
 ; Pre-seed invariant (check-boot-order): loaded via raw `include` from the
 ; entries, which does not register -- self-register or a later import
 ; of this path reloads it mid-session.
-(set-first! %include-list-cell
+(%set-first! %include-list-cell
   (pair "lib/x/boot/helium.x" (first %include-list-cell)))
 (set! %lang-name "helium")
 (set! %lang-version x-lib-version)

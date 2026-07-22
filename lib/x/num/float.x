@@ -309,7 +309,7 @@
     ; %bignum-base and `reverse` (x/core/list) are bignum.x's load-time
     ; bindings; the pact guarantees bignum fully loaded before this fires.
     (let ((from-cell (%type-from-cell (%type-by-atom %float))))
-      (set-first! from-cell
+      (%set-first! from-cell
         (pair
           (pair big
             (fn (_ value)

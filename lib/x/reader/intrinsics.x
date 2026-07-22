@@ -8,10 +8,10 @@
   (fn (_ msg)
     (def %files (rest (first (first (rest (first (%base)))))))
     (def %fo (first (rest %files)))
-    (def %s (first-int %fo))
-    (set-first-int! %fo (first-int (first (rest (rest %files)))))
+    (def %s (%first-int %fo))
+    (%set-first-int! %fo (%first-int (first (rest (rest %files)))))
     (display msg)
-    (set-first-int! %fo %s)))
+    (%set-first-int! %fo %s)))
 
 ; Quick profile dump to stderr (alloc-count + heap object count).
 ; ns `heap` is de-registered (R5): fetch the prim from the catalog.
@@ -22,7 +22,7 @@
 (def %profile-dump
   (fn (_ )
     (%stderr
-      (first-int
+      (%first-int
         (first (first (first (first (rest (rest (first (%base))))))))))
     (%stderr " ")
     (%stderr (%heap-count))
@@ -32,15 +32,15 @@
 ; Buffer length and unread for tokenizer scoring
 (def buffer-len
   (fn (_ buffer)
-    (- (first-int (rest buffer)) (first-int buffer))))
+    (- (%first-int (rest buffer)) (%first-int buffer))))
 (def buffer-unread
   (fn (_ buffer)
-    (set-first-int!
+    (%set-first-int!
       (rest buffer)
-      (- (first-int (rest buffer)) 1))))
+      (- (%first-int (rest buffer)) 1))))
 (def score-set
   (fn (_ score sign buffer)
-    (set-first-int! score (* sign (buffer-len buffer)))))
+    (%set-first-int! score (* sign (buffer-len buffer)))))
 
 ; Peek at next character without consuming it
 (def peek-char
@@ -57,7 +57,7 @@
 ; Current source line number
 (def current-line
   (fn (_ )
-    (first-int
+    (%first-int
       (first (first (rest (first (rest (first (%base))))))))))
 
 (doc (provide x/reader/intrinsics

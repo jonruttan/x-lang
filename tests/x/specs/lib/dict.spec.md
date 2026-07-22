@@ -317,7 +317,7 @@ in the help listing, the guard sits at the point of harm.
 (do (import x/type/dict)
   (let ((d (Dict make)) (sum (pair 0 ())))
     (d put! 'a 1) (d put! 'b 2)
-    (d for-each (fn (_ e) (set-first! sum (+ (first sum) (rest e)))))
+    (d for-each (fn (_ e) (%set-first! sum (+ (first sum) (rest e)))))
     (first sum)))
 ```
 ---

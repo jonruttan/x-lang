@@ -522,7 +522,7 @@
         (def tag (first node))
         (match
           ((eq? tag 'group)
-            (do (set-first! counter (+ (first counter) 1))
+            (do (%set-first! counter (+ (first counter) 1))
                 (let ((n (first counter)))
                   (list 'group n (walk-list (first (rest node)))))))
           ((eq? tag 'alt)

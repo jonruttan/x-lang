@@ -336,7 +336,7 @@ The fix is to **JIT-compile the analyser to native code** with `compile`, then i
 Two install idioms:
 
 - **`(%type-push-analyse type compiled)`** — prepend a compiled analyser onto a type's analyse stack (used for each numeric type right after its module loads). Load-time wiring fetches the helper from the catalog as above; interactive reflection can use the class instead: `(Type push-analyse …)`.
-- **`(set-first! slot compiled)`** on a cell of `(%type-analyse-cell …)` — replace an existing interpreted handler in place (used to swap the symbol type's compiled `lit`/`quasi`/`unquote` analysers in for the interpreted ones from `lit-reader.x`).
+- **`(%set-first! slot compiled)`** on a cell of `(%type-analyse-cell …)` — replace an existing interpreted handler in place (used to swap the symbol type's compiled `lit`/`quasi`/`unquote` analysers in for the interpreted ones from `lit-reader.x`).
 
 Do the compilation **incrementally, right after each type's module loads**, so subsequent source files are parsed through the already-compiled (fast) analysers rather than interpreted ones.
 

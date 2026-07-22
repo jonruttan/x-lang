@@ -1,4 +1,7 @@
 ; syscall.x -- x86_64, i386, and Darwin/BSD syscall tables
+; STRING SPELLINGS: %-private byte helpers, NOT Str8 -- the table-selection
+; walk below RUNS AT LOAD, and posix.x pulls this file into the x-core boot
+; before str8.x exists (#108 strings round: a class call here is boot death).
 (import x/core/list)
 (import x/core/alist)
 

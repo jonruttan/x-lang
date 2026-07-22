@@ -39,7 +39,7 @@
 (def %n-blank (pair 0 ()))
 (def %n-samples (pair 0 ()))
 (def %fail-imports (pair () ()))
-(def %count! (fn (_ cell) (set-first! cell (+ (first cell) 1))))
+(def %count! (fn (_ cell) (%set-first! cell (+ (first cell) 1))))
 
 ; Emit one example as a harness test. mod is the import path string, or
 ; nil for boot-registered names.
@@ -98,8 +98,8 @@
     (def %before (first %doc-registry-cell))
     (def %ok (pair #t ()))
     (guard (err
-        (do (set-first! %ok #f)
-            (set-first! %fail-imports (pair m (first %fail-imports)))))
+        (do (%set-first! %ok #f)
+            (%set-first! %fail-imports (pair m (first %fail-imports)))))
       (eval! (list 'import (%str->sym m))))
     (when (first %ok)
       (do

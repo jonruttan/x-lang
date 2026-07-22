@@ -71,11 +71,11 @@
 
 ; Set the from alist on a type struct
 (def %type-set-from!
-  (fn (_ ts alist) (set-first! (%type-from-cell ts) alist)))
+  (fn (_ ts alist) (%set-first! (%type-from-cell ts) alist)))
 
 ; Set the to alist on a type struct
 (def %type-set-to!
-  (fn (_ ts alist) (set-first! (%type-to-cell ts) alist)))
+  (fn (_ ts alist) (%set-first! (%type-to-cell ts) alist)))
 
 ; --- Type handles ---
 (def %int    (%type-of 0))

@@ -1,4 +1,8 @@
 ; doc.x -- Inline documentation system for x-lang
+; STRING SPELLINGS: %-private byte helpers, NOT Str8 -- doc registration RUNS
+; during boot (every (doc ...) form in every boot module calls this file)
+; long before str8.x loads; a class call here is an unbound-symbol boot
+; death (#108 strings round, learned the hard way).
 ;
 ; Three forms — same metadata everywhere:
 ;
@@ -84,7 +88,7 @@
 
 (def %doc-register!
   (fn (_ name desc returns params examples sees notes samples)
-    (set-first! %doc-registry-cell
+    (%set-first! %doc-registry-cell
       (pair (list name desc returns params examples sees notes samples)
             (first %doc-registry-cell)))))
 
@@ -134,14 +138,14 @@
         (if (eq? (first ps) (lit param))
           (let ()  ; scoped: def in tail position would leak to global
             (def %info (%doc-extract-param ps))
-            (set-first! %doc-params-acc
+            (%set-first! %doc-params-acc
               (pair %info (first %doc-params-acc)))
             (first %info))
           (if (pair? (first ps))
             (if (eq? (first (first ps)) (lit param))
               (let ()
                 (def %info (%doc-extract-param (first ps)))
-                (set-first! %doc-params-acc
+                (%set-first! %doc-params-acc
                   (pair %info (first %doc-params-acc)))
                 (pair (first %info) (self (rest ps))))
               (pair (first ps) (self (rest ps))))
@@ -164,28 +168,28 @@
             (def %form (first forms))
             (def %tag (first %form))
             (if (eq? %tag (lit returns))
-              (set-first! %doc-pending-returns
+              (%set-first! %doc-pending-returns
                 (list (first (rest %form))
                   (if (null? (rest (rest %form))) ""
                     (if (str? (first (rest (rest %form))))
                       (first (rest (rest %form)))
                       ""))))
             (if (eq? %tag (lit example))
-              (set-first! %doc-pending-examples
+              (%set-first! %doc-pending-examples
                 (pair (pair (first (rest %form)) (first (rest (rest %form))))
                       (first %doc-pending-examples)))
             (if (eq? %tag (lit sample))
-              (set-first! %doc-pending-samples
+              (%set-first! %doc-pending-samples
                 (pair (pair (first (rest %form)) (first (rest (rest %form))))
                       (first %doc-pending-samples)))
             (if (eq? %tag (lit see))
-              (set-first! %doc-pending-sees
+              (%set-first! %doc-pending-sees
                 (pair (first (rest %form)) (first %doc-pending-sees)))
             (if (eq? %tag (lit note))
-              (set-first! %doc-pending-notes
+              (%set-first! %doc-pending-notes
                 (pair (first (rest %form)) (first %doc-pending-notes)))
             (if (eq? %tag (lit param))
-              (set-first! %doc-params-acc
+              (%set-first! %doc-params-acc
                 (pair (%doc-extract-param %form)
                       (first %doc-params-acc)))))))))))
         (self (rest forms))))))
@@ -193,12 +197,12 @@
 ; --- Reset all pending accumulators ---
 (def %doc-reset-pending!
   (fn (_ )
-    (set-first! %doc-pending-returns ())
-    (set-first! %doc-pending-examples ())
-    (set-first! %doc-pending-sees ())
-    (set-first! %doc-pending-notes ())
-    (set-first! %doc-pending-samples ())
-    (set-first! %doc-params-acc ())))
+    (%set-first! %doc-pending-returns ())
+    (%set-first! %doc-pending-examples ())
+    (%set-first! %doc-pending-sees ())
+    (%set-first! %doc-pending-notes ())
+    (%set-first! %doc-pending-samples ())
+    (%set-first! %doc-params-acc ())))
 
 ; --- Collect all pending metadata into a register call ---
 (def %doc-collect-and-register!
@@ -218,7 +222,7 @@
     (if (not (pair? fn-form)) fn-form
       (if (not (eq? (first fn-form) (lit fn))) fn-form
         (let ()
-          (set-first! %doc-params-acc ())
+          (%set-first! %doc-params-acc ())
           (def %clean-params (%doc-strip-params (first (rest fn-form))))
           (pair (lit fn) (pair %clean-params (rest (rest fn-form)))))))))
 
@@ -266,14 +270,14 @@
     (if (not (pair? def-form))
       ; bare symbol
       (do
-        (set-first! %doc-pending-cell
+        (%set-first! %doc-pending-cell
           (pair (pair (lit %bare) (pair def-form %doc-meta))
                 (first %doc-pending-cell)))
         def-form)
       (if (eq? (first def-form) (lit provide))
         ; provide-wrap
         (do
-          (set-first! %doc-pending-cell
+          (%set-first! %doc-pending-cell
             (pair (pair (lit %provide) (pair def-form %doc-meta))
                   (first %doc-pending-cell)))
           (tail-eval def-form e))
@@ -284,7 +288,7 @@
         ; the symbol in the caller's env `e`.  A `let` frame here breaks that
         ; tail-eval (lib defs get mis-scoped).  Inlining keeps it leak-free.
         (do
-          (set-first! %doc-pending-cell
+          (%set-first! %doc-pending-cell
             (pair (pair (lit %def) (pair def-form %doc-meta))
                   (first %doc-pending-cell)))
           (tail-eval
@@ -311,7 +315,7 @@
         (def %value (first (rest (rest form))))
         (%doc-reset-pending!)
         (%doc-process-meta meta)
-        (set-first! %doc-params-acc ())
+        (%set-first! %doc-params-acc ())
         (%doc-strip-fn %value)
         (%doc-collect-and-register! (first (rest form))
           (%doc-find-last-string meta)))))))
@@ -321,7 +325,7 @@
     (def %pending (first %doc-pending-cell))
     (if (null? %pending) ()
       (let ()
-        (set-first! %doc-pending-cell ())
+        (%set-first! %doc-pending-cell ())
         (def %go
           (fn (self lst)
             (if (null? lst) ()

@@ -50,7 +50,7 @@
   (lit
     ((member     (fn (_ n) (assoc-get n (%obj-fields self))))
      (set-member! (fn (_ n v)
-                   (set-first! (%obj-box self) (assoc-put n v (%obj-fields self)))
+                   (%set-first! (%obj-box self) (assoc-put n v (%obj-fields self)))
                    v)))))
 
 (note "Member lookup (walks the single-inheritance parent chain)")
@@ -124,7 +124,7 @@
             (match
               ((null? rest) (assoc-get selector (%obj-fields self)))
               (#t (let ((v (eval (first rest) e)))
-                    (set-first! (%obj-box self) (assoc-put selector v (%obj-fields self)))
+                    (%set-first! (%obj-box self) (assoc-put selector v (%obj-fields self)))
                     v))))
           (#t (error "object: no such member")))))))
 
@@ -146,7 +146,7 @@
             (match
               ((null? rest) (assoc-get selector (%class-statics self)))
               (#t (let ((v (eval (first rest) e)))
-                    (set-first! (%class-statics-box self) (assoc-put selector v (%class-statics self)))
+                    (%set-first! (%class-statics-box self) (assoc-put selector v (%class-statics self)))
                     v))))
           (#t (error "object: no such static member")))))))
 
@@ -475,7 +475,7 @@
                       (if (str? (first dargs)) (first dargs) "")))
               (meta (unless (null? dargs)
                       (if (str? (first dargs)) (rest dargs) dargs))))
-          (set-first! %doc-pending-cell
+          (%set-first! %doc-pending-cell
             (pair (pair (lit %bare)
                      (pair (%method-doc-key class-name mname)
                            (pair desc (%append2 meta (%sig-params sig)))))
@@ -509,7 +509,7 @@
     (let ((dargs (rest (rest dform))))               ; skip `doc` and the DECL
       (let ((desc (if (null? dargs) "" (if (str? (first dargs)) (first dargs) "")))
             (meta (unless (null? dargs) (if (str? (first dargs)) (rest dargs) dargs))))
-        (set-first! %doc-pending-cell
+        (%set-first! %doc-pending-cell
           (pair (pair (lit %bare)
                    (pair (%method-doc-key class-name member-name)
                          (pair desc meta)))
@@ -531,7 +531,7 @@
     (let ((dargs (rest dform)))
       (let ((desc (if (null? dargs) "" (if (str? (first dargs)) (first dargs) "")))
             (meta (unless (null? dargs) (if (str? (first dargs)) (rest dargs) dargs))))
-        (set-first! %doc-pending-cell
+        (%set-first! %doc-pending-cell
           (pair (pair (lit %bare) (pair class-name (pair desc meta)))
                 (first %doc-pending-cell)))))))
 

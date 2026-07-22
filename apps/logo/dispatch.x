@@ -89,7 +89,7 @@
         (match
           ((null? vars) #f)
           ((str=? (first (first vars)) uname)
-            (set-rest! (first vars) value) #t)
+            (%set-rest! (first vars) value) #t)
           (#t (self (rest vars))))))
     (unless (%update %logo-vars)
       (set! %logo-vars (pair (pair uname value) %logo-vars)))))

@@ -192,7 +192,7 @@
           (set-member! 'n (+ (member 'n) 1))
           (when (> (* 4 (member 'n)) (* 3 (member 'cap)))
             (self %grow!)))
-      (set-rest! hit v))
+      (%set-rest! hit v))
     self)
 
   (method del! (self k)

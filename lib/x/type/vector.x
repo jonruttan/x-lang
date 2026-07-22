@@ -249,7 +249,7 @@
           (if (eq (%obj-ref a (+ i 1)) (%obj-ref b (+ i 1)))
             (go (+ i 1)) #f)))
       #f)))
-(set-first! %equal-others
+(%set-first! %equal-others
   (let ((prev (first %equal-others)))
     (fn (_ eq a b)
       (if (%type? a %vector)

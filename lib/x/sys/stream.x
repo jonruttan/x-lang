@@ -27,7 +27,7 @@
   (fn (_ fd)
     (let ((cell (%fileout-cell)))
       (let ((prev (first cell)))
-        (set-first! cell fd)
+        (%set-first! cell fd)
         prev))))
 
 ; Run THUNK with output redirected to FD, restoring the prior fd afterward --

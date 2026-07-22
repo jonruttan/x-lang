@@ -224,7 +224,7 @@
 ; float's from-alist (the same late-registration precedent float.x uses for
 ; bignum). rational -> float = numerator/denominator in float space.
 (def %float-from-cell (%type-from-cell (%type-by-atom %float)))
-(set-first! %float-from-cell
+(%set-first! %float-from-cell
   (pair
     (pair %rational
       (fn (_ self)

@@ -223,7 +223,7 @@
       (if (= chr 59) (do (score-set score 1 buffer) %tb6-body) ())))
       (pair 'read %tb6-r)))
     (def %tb6-ta (first (first (first (first (rest (first %tb6)))))))
-    (set-first! (first (first (first (rest (first %tb6))))) (List append (rest %tb6-ta) (list (first %tb6-ta))))
+    (%set-first! (first (first (first (rest (first %tb6))))) (List append (rest %tb6-ta) (list (first %tb6-ta))))
     (def %tb6-tokens (Tok read-str %tb6 "; hi\n(+ 1 2)"))
     (first (first %tb6-tokens)))
 ```
@@ -265,7 +265,7 @@
     (def %tb8-a (Base make-type %tb8 "A" (list (pair 'analyse (fn (_ buffer score chr) ())))))
     (def %tb8-b (Base make-type %tb8 "B" (list (pair 'analyse (fn (_ buffer score chr) ())))))
     (def %tb8-ta (first (first (first (first (rest (first %tb8)))))))
-    (set-first! (first (first (first (rest (first %tb8))))) (List append (rest %tb8-ta) (list (first %tb8-ta))))
+    (%set-first! (first (first (first (rest (first %tb8))))) (List append (rest %tb8-ta) (list (first %tb8-ta))))
     (def %tb8-new (first (first (first (first (rest (first %tb8)))))))
     (eq? (first (first %tb8-new)) %tb8-a))
 ```
