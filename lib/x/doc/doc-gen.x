@@ -16,7 +16,7 @@
 
 ; --- Predicates (cross-base: use str=? not eq?) ---
 
-(doc (def doc-sym-is?
+(doc (def %doc-sym-is?
   (fn (_ sym name)
     (when (symbol? sym) (str=? (symbol->str sym) name))))
   (param sym ANY "Value to test")
@@ -24,22 +24,22 @@
   (returns BOOL "True if sym is a symbol with the given name")
   "Test if a value is a symbol matching a name string (cross-base safe).")
 
-(def doc-form? (fn (_ tok)
-  (when (pair? tok) (doc-sym-is? (first tok) "doc"))))
-(def doc-note-form? (fn (_ tok)
-  (when (pair? tok) (doc-sym-is? (first tok) "note"))))
-(def doc-def-form? (fn (_ tok)
-  (when (pair? tok) (doc-sym-is? (first tok) "def"))))
-(def doc-set-form? (fn (_ tok)
-  (when (pair? tok) (doc-sym-is? (first tok) "set!"))))
-(def doc-param-form? (fn (_ tok)
-  (when (pair? tok) (doc-sym-is? (first tok) "param"))))
-(def doc-provide-form? (fn (_ tok)
-  (when (pair? tok) (doc-sym-is? (first tok) "provide"))))
+(def %docgen-form? (fn (_ tok)
+  (when (pair? tok) (%doc-sym-is? (first tok) "doc"))))
+(def %doc-note-form? (fn (_ tok)
+  (when (pair? tok) (%doc-sym-is? (first tok) "note"))))
+(def %doc-def-form? (fn (_ tok)
+  (when (pair? tok) (%doc-sym-is? (first tok) "def"))))
+(def %doc-set-form? (fn (_ tok)
+  (when (pair? tok) (%doc-sym-is? (first tok) "set!"))))
+(def %doc-param-form? (fn (_ tok)
+  (when (pair? tok) (%doc-sym-is? (first tok) "param"))))
+(def %doc-provide-form? (fn (_ tok)
+  (when (pair? tok) (%doc-sym-is? (first tok) "provide"))))
 
 ; --- Extraction helpers ---
 
-(def doc-find-last-string
+(def %doc-find-last-string
   (fn (_ lst)
     (def %go (fn (self remaining found)
       (if (null? remaining) found
@@ -48,72 +48,72 @@
           (self (rest remaining) found)))))
     (%go lst "")))
 
-(def doc-extract-params
+(def %doc-extract-params
   (fn (self ps acc)
     (if (null? ps) (%reverse acc)
       (if (not (pair? ps))
-        (if (doc-param-form? ps) (%reverse (pair ps acc)) (%reverse acc))
-        (if (doc-param-form? (first ps))
+        (if (%doc-param-form? ps) (%reverse (pair ps acc)) (%reverse acc))
+        (if (%doc-param-form? (first ps))
           (self (rest ps) (pair (first ps) acc))
           (self (rest ps) acc))))))
 
-(def doc-extract-meta-type
+(def %doc-extract-meta-type
   (fn (self forms tag acc)
     (if (null? forms) (%reverse acc)
       (if (pair? (first forms))
-        (if (doc-sym-is? (first (first forms)) tag)
+        (if (%doc-sym-is? (first (first forms)) tag)
           (self (rest forms) tag (pair (first forms) acc))
           (self (rest forms) tag acc))
         (self (rest forms) tag acc)))))
 
 ; --- Main doc form extraction ---
 
-(doc (def doc-extract
+(doc (def %doc-extract
   (fn (_ form)
     (def %second (first (rest form)))
     (def %meta (rest (rest form)))
-    (if (or (doc-def-form? %second) (doc-set-form? %second))
+    (if (or (%doc-def-form? %second) (%doc-set-form? %second))
       (let ()  ; scoped: def in tail position would leak to global
         (def %name (first (rest %second)))
         (def %value (unless (null? (rest (rest %second)))
                       (first (rest (rest %second)))))
-        (def %desc (doc-find-last-string %meta))
+        (def %desc (%doc-find-last-string %meta))
         (def %fn-params
           (when (pair? %value)
-            (when (doc-sym-is? (first %value) "fn")
-              (doc-extract-params (first (rest %value)) ()))))
-        (def %returns (doc-extract-meta-type %meta "returns" ()))
-        (def %examples (doc-extract-meta-type %meta "example" ()))
-        (def %sees (doc-extract-meta-type %meta "see" ()))
-        (def %notes (doc-extract-meta-type %meta "note" ()))
+            (when (%doc-sym-is? (first %value) "fn")
+              (%doc-extract-params (first (rest %value)) ()))))
+        (def %returns (%doc-extract-meta-type %meta "returns" ()))
+        (def %examples (%doc-extract-meta-type %meta "example" ()))
+        (def %sees (%doc-extract-meta-type %meta "see" ()))
+        (def %notes (%doc-extract-meta-type %meta "note" ()))
         (list %name %desc %fn-params %returns %examples %sees %notes))
-      (if (doc-provide-form? %second)
+      (if (%doc-provide-form? %second)
         (let () (def %name (first (rest %second)))
-            (def %desc (doc-find-last-string %meta))
+            (def %desc (%doc-find-last-string %meta))
             (list %name %desc
-              (doc-extract-meta-type %meta "param" ())
-              (doc-extract-meta-type %meta "returns" ())
-              (doc-extract-meta-type %meta "example" ())
-              (doc-extract-meta-type %meta "see" ())
-              (doc-extract-meta-type %meta "note" ())))
-        (let () (def %desc (doc-find-last-string %meta))
+              (%doc-extract-meta-type %meta "param" ())
+              (%doc-extract-meta-type %meta "returns" ())
+              (%doc-extract-meta-type %meta "example" ())
+              (%doc-extract-meta-type %meta "see" ())
+              (%doc-extract-meta-type %meta "note" ())))
+        (let () (def %desc (%doc-find-last-string %meta))
             (list %second %desc
-              (doc-extract-meta-type %meta "param" ())
-              (doc-extract-meta-type %meta "returns" ())
-              (doc-extract-meta-type %meta "example" ())
-              (doc-extract-meta-type %meta "see" ())
-              (doc-extract-meta-type %meta "note" ())))))))
+              (%doc-extract-meta-type %meta "param" ())
+              (%doc-extract-meta-type %meta "returns" ())
+              (%doc-extract-meta-type %meta "example" ())
+              (%doc-extract-meta-type %meta "see" ())
+              (%doc-extract-meta-type %meta "note" ())))))))
   (param form LIST "A (doc ...) token form")
   (returns LIST "(name desc params returns examples sees notes)")
   "Extract structured metadata from a (doc ...) form.")
 
 ; --- Markdown output ---
 
-(def doc-emit-heading (fn (_ level text)
+(def %doc-emit-heading (fn (_ level text)
   (%for-each (fn (_ _) (display "#")) (List range 0 level))
   (display " ") (display text) (newline) (newline)))
 
-(def doc-emit-param (fn (_ p)
+(def %doc-emit-param (fn (_ p)
   (def %p-name (first (rest p)))
   (def %p-type (unless (null? (rest (rest p))) (first (rest (rest p)))))
   (def %p-desc
@@ -129,7 +129,7 @@
     (do (display " — ") (display %p-desc)))
   (newline)))
 
-(doc (def doc-emit-entry
+(doc (def %doc-emit-entry
   (fn (_ info)
     (def %name (List ref 0 info))
     (def %desc (List ref 1 info))
@@ -171,13 +171,13 @@
 
 ; --- Lookup alist for retroactive docs ---
 
-(doc (def doc-build-lookup
+(doc (def %doc-build-lookup
   (fn (self tokens)
     (unless (null? tokens)
       (let ((tok (first tokens)))
-        (if (doc-form? tok)
+        (if (%docgen-form? tok)
           (let ()
-            (def %info (doc-extract tok))
+            (def %info (%doc-extract tok))
             (def %name (List ref 0 %info))
             (if (symbol? %name)
               (pair (pair (symbol->str %name) %info)
@@ -188,7 +188,7 @@
   (returns LIST "Alist of (name-string . extracted-7-tuple) pairs")
   "Build a lookup alist from (doc ...) forms in a token stream.")
 
-(doc (def doc-lookup-alist
+(doc (def %doc-lookup-alist
   (fn (self alist name-str)
     (unless (null? alist)
       (if (str=? (first (first alist)) name-str)
@@ -207,12 +207,12 @@
   (fn (self tokens)
     (unless (null? tokens)
       (let ((tok (first tokens)))
-        (if (doc-form? tok)
+        (if (%docgen-form? tok)
           (let ((%second (first (rest tok))))
-            (if (doc-provide-form? %second)
-              (doc-extract tok)
+            (if (%doc-provide-form? %second)
+              (%doc-extract tok)
               (self (rest tokens))))
-          (if (doc-provide-form? tok)
+          (if (%doc-provide-form? tok)
             (list (first (rest tok)) "" () () () () ())
             (self (rest tokens))))))))
 
@@ -232,13 +232,13 @@
 ; All symbol comparison is by string (per-base interning; see %doc-splice-dos).
 
 (def %doc-defclass-form? (fn (_ tok)
-  (when (pair? tok) (doc-sym-is? (first tok) "def-class"))))
+  (when (pair? tok) (%doc-sym-is? (first tok) "def-class"))))
 
 ; One signature element's display name: (param N T "d") -> N, bare symbol -> it.
 (def %doc-param-name
   (fn (_ p)
     (match
-      ((doc-param-form? p) (symbol->str (first (rest p))))
+      ((%doc-param-form? p) (symbol->str (first (rest p))))
       ((symbol? p) (symbol->str p))
       (#t "_"))))
 
@@ -250,7 +250,7 @@
     (match
       ((null? ps) "")
       ((symbol? ps) (str " . " (symbol->str ps)))
-      ((doc-param-form? ps) (str " . " (symbol->str (first (rest ps)))))
+      ((%doc-param-form? ps) (str " . " (symbol->str (first (rest ps)))))
       ((pair? ps) (str " " (%doc-param-name (first ps)) (self (rest ps))))
       (#t ""))))
 
@@ -261,9 +261,9 @@
     (match
       ((null? ps) (%reverse acc))
       ((symbol? ps) (%reverse acc))
-      ((doc-param-form? ps) (%reverse (pair ps acc)))
+      ((%doc-param-form? ps) (%reverse (pair ps acc)))
       ((not (pair? ps)) (%reverse acc))
-      ((doc-param-form? (first ps)) (self (rest ps) (pair (first ps) acc)))
+      ((%doc-param-form? (first ps)) (self (rest ps) (pair (first ps) acc)))
       (#t (self (rest ps) acc)))))
 
 ; Emit one (method ...) form as a doc entry.  static? picks the heading shape:
@@ -275,25 +275,25 @@
     (def %args (rest %sig))                          ; strip the self slot
     (def %mbody (rest (rest (rest m))))
     (def %docf (when (pair? %mbody)
-                 (when (doc-form? (first %mbody)) (first %mbody))))
+                 (when (%docgen-form? (first %mbody)) (first %mbody))))
     (def %meta (unless (null? %docf) (rest %docf)))
     (def %head
       (if static?
         (str "(" cname " " %mname (%doc-sig-str %args) ")")
         (str "(" %mname (%doc-sig-str %args) ")")))
-    (def %notes (doc-extract-meta-type %meta "note" ()))
+    (def %notes (%doc-extract-meta-type %meta "note" ()))
     ; params ride the SIGNATURE; a bare-variadic sig (self . opt) documents
     ; its option via (param ...) in the doc meta instead -- fall back to it.
     (def %sig-params (%doc-sig-params %args ()))
-    (doc-emit-entry
+    (%doc-emit-entry
       (list %head
-            (if (null? %docf) "" (doc-find-last-string %meta))
+            (if (null? %docf) "" (%doc-find-last-string %meta))
             (if (null? %sig-params)
-              (doc-extract-meta-type %meta "param" ())
+              (%doc-extract-meta-type %meta "param" ())
               %sig-params)
-            (doc-extract-meta-type %meta "returns" ())
-            (doc-extract-meta-type %meta "example" ())
-            (doc-extract-meta-type %meta "see" ())
+            (%doc-extract-meta-type %meta "returns" ())
+            (%doc-extract-meta-type %meta "example" ())
+            (%doc-extract-meta-type %meta "see" ())
             (if static? %notes
               (%append %notes
                 (list (list 'note
@@ -307,7 +307,7 @@
       (do (display (first (rest f))) (newline) (newline)
           (%for-each
             (fn (_ n) (display "> ") (display (first (rest n))) (newline) (newline))
-            (doc-extract-meta-type %meta "note" ()))))))
+            (%doc-extract-meta-type %meta "note" ()))))))
 
 (def %doc-walk-class-body
   (fn (self body cname static?)
@@ -317,9 +317,9 @@
         (do (let ((f (first body)))
               (match
                 ((not (pair? f)) ())
-                ((doc-sym-is? (first f) "method") (%doc-emit-method f cname static?))
-                ((doc-sym-is? (first f) "static") (self (rest f) cname #t))
-                ((doc-form? f) (%doc-emit-class-doc f))
+                ((%doc-sym-is? (first f) "method") (%doc-emit-method f cname static?))
+                ((%doc-sym-is? (first f) "static") (self (rest f) cname #t))
+                ((%docgen-form? f) (%doc-emit-class-doc f))
                 (#t ())))
             (self (rest body) cname static?))))))
 
@@ -329,7 +329,7 @@
     (def %parent (first (rest (rest form))))
     (display "## Class `") (display %cname) (display "`") (newline) (newline)
     (when (pair? %parent)
-      (if (doc-sym-is? (first %parent) "extends")
+      (if (%doc-sym-is? (first %parent) "extends")
         (do (display "*Extends `")
             (display (symbol->str (first (rest %parent))))
             (display "`.*") (newline) (newline))))
@@ -341,24 +341,24 @@
       (let ()
         (def %tok (first tokens))
         (def %rest (rest tokens))
-        (if (doc-form? %tok)
-          (if (doc-provide-form? (first (rest %tok)))
+        (if (%docgen-form? %tok)
+          (if (%doc-provide-form? (first (rest %tok)))
             (self %rest prims-alist seen)
             (let ()
-              (def %info (doc-extract %tok))
+              (def %info (%doc-extract %tok))
               (def %name-str (symbol->str (List ref 0 %info)))
               (if (%doc-seen-has? seen %name-str)
                 (self %rest prims-alist seen)
-                (do (doc-emit-entry %info)
+                (do (%doc-emit-entry %info)
                     (self %rest prims-alist (pair %name-str seen))))))
-        (if (doc-note-form? %tok)
+        (if (%doc-note-form? %tok)
           (do (if (not (null? (rest %tok)))
                 (do (display "## ") (display (first (rest %tok))) (newline) (newline)))
               (self %rest prims-alist seen))
         (if (%doc-defclass-form? %tok)
           (do (%doc-emit-class %tok)
               (self %rest prims-alist seen))
-        (if (or (doc-def-form? %tok) (doc-set-form? %tok))
+        (if (or (%doc-def-form? %tok) (%doc-set-form? %tok))
           (let ()
             (def %dname (first (rest %tok)))
             (def %dname-str (symbol->str %dname))
@@ -367,9 +367,9 @@
               (if (%doc-seen-has? seen %dname-str)
                 (self %rest prims-alist seen)
                 (let ()
-                  (def %prims-entry (doc-lookup-alist prims-alist %dname-str))
+                  (def %prims-entry (%doc-lookup-alist prims-alist %dname-str))
                   (if (not (null? %prims-entry))
-                    (doc-emit-entry %prims-entry)
+                    (%doc-emit-entry %prims-entry)
                     (do (display "### `") (display %dname) (display "`") (newline) (newline)))
                   (self %rest prims-alist (pair %dname-str seen))))))
           (self %rest prims-alist seen)))))))))
@@ -391,7 +391,7 @@
             "" (List range 0 %depth)))
         (display "[← Index](") (display %back) (display "index.md)")
         (newline) (newline)
-        (doc-emit-heading 1 %mod-name)
+        (%doc-emit-heading 1 %mod-name)
         (if (not (str=? (List ref 1 %provide) ""))
           (do (display (List ref 1 %provide)) (newline) (newline)))
         (if (not (null? (List ref 6 %provide)))
@@ -409,32 +409,28 @@
       ((null? tokens) ())
       ; string compare, not eq?: tokens come from a FRESH base (doc.x), and
       ; symbol interning is per-base, so 'do here is a different atom
-      ((if (pair? (first tokens)) (doc-sym-is? (first (first tokens)) "do") #f)
+      ((if (pair? (first tokens)) (%doc-sym-is? (first (first tokens)) "do") #f)
         (%append (self (rest (first tokens))) (self (rest tokens))))
       (#t (pair (first tokens) (self (rest tokens)))))))
 
-(doc (def doc-walk-with-prims
+(doc (def %doc-walk-with-prims
   (fn (_ tokens prims-alist)
     (def %spliced (%doc-splice-dos tokens))
     (%doc-emit-page-header %spliced)
     ; Build local doc lookup from standalone (doc name ...) forms in source,
     ; then merge with prims-alist so bare defs find their docs
-    (def %local-alist (doc-build-lookup %spliced))
+    (def %local-alist (%doc-build-lookup %spliced))
     (def %merged (%append %local-alist prims-alist))
     (%doc-walk-body-with-prims %spliced %merged ())))
   (param tokens LIST "Source file token list")
   (param prims-alist LIST "Alist from doc-build-lookup (or () for none)")
   "Walk source tokens, using prims-alist as fallback docs for bare defs.")
 
-(doc (def doc-walk
+(doc (def %doc-walk
   (fn (_ tokens)
-    (doc-walk-with-prims tokens ())))
+    (%doc-walk-with-prims tokens ())))
   (param tokens LIST "Token list from %token-read-string")
   "Walk a token tree, extracting and emitting all documentation as Markdown.")
 
-(doc (provide x/doc/doc-gen
-  doc-sym-is? doc-form? doc-note-form? doc-def-form? doc-set-form? doc-param-form?
-  doc-provide-form? doc-find-last-string doc-extract-params
-  doc-extract-meta-type doc-extract doc-emit-heading doc-emit-param
-  doc-emit-entry doc-walk)
+(doc (provide x/doc/doc-gen)
   "Markdown documentation generator from x-lang source tokens.")

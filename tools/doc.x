@@ -27,7 +27,7 @@
   (def %source-tokens (%token-read-string %doc-base %source-input))
 
   ; --- Build lookup alist from doc-prims tokens ---
-  (def %prims-alist (doc-build-lookup %prims-tokens))
+  (def %prims-alist (%doc-build-lookup %prims-tokens))
 
   ; --- Generate Markdown ---
-  (doc-walk-with-prims %source-tokens %prims-alist))
+  (%doc-walk-with-prims %source-tokens %prims-alist))
