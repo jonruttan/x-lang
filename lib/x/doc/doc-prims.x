@@ -350,11 +350,6 @@
   (returns ANY "First truthy value, or nil")
   (example "(or #f 42)" "42"))
 
-(doc time "Time an expression's evaluation in microseconds."
-  (param expr ANY "Expression to time")
-  (returns ANY "Result of expr (prints elapsed time as side effect)")
-  (example "(time (List fold + 0 (List range 0 1000)))" "499500"))
-
 (doc newline "Display a newline character.")
 
 (doc quasi "Quasiquote: template with unquote and splicing."

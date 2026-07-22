@@ -3,7 +3,7 @@
 ### valid selective import succeeds
 
 ```scheme
-(import x/core/list else str-copy)
+(import x/core/predicates null? pair?)
 ```
 ---
 
@@ -17,15 +17,15 @@
 ### invalid symbol raises error
 
 ```scheme
-(guard (e (display e)) (import x/core/list else nonexistent str-copy))
+(guard (e (display e)) (import x/core/predicates null? nonexistent pair?))
 ```
 ---
-    import: symbol not exported by x/core/list: nonexistent
+    import: symbol not exported by x/core/predicates: nonexistent
 
 ### all listed symbols are valid
 
 ```scheme
-(import x/core/list else str-copy)
+(import x/core/predicates null? pair?)
 ```
 ---
 

@@ -143,18 +143,11 @@
         (%for-eachn-go f lsts)))))
   "Boot-layer for-each; the public face is (List for-each).")
 
-(note "Convenience aliases")
+; else and str-copy RETIRED by ruling (#108, 2026-07-22): cond/case match
+; the SYMBOL else -- (lit else) -- so (else ...) clauses never needed the
+; global; a string copy is (Str8 sub 0 (Str8 length s) s).
 
-(doc (def else #t)
-  "Alias for #t, for use as the default clause in cond/case.")
-
-(doc (def str-copy (fn (_ s) (%substring s 0 (%str-length s))))
-  (param s STRING "String to copy")
-  (returns STRING "A copy of the string")
-  "Return a copy of a string (Scheme compatibility).")
-
-(doc (provide x/core/list
-  else str-copy)
+(doc (provide x/core/list)
   (note "Boot list layer: %-private walkers only (the top level is sacred, #108); the public list API is the List class.")
   (example "(List map (method-ref Num inc) '(1 2 3))" "(2 3 4)")
   "Boot-layer list plumbing; public list processing lives on the List class.")

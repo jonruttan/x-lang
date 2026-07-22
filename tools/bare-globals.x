@@ -52,14 +52,10 @@
   (prim-ref)
   (prim-reg!)
   (prims)
-  ; --- name-kept io verbs + misc keep ---
+  ; --- name-kept io verbs + x-lib-version: ruled bare 2026-07-22 ---
   (display)
   (newline)
   (write)
   (list)
-  (time)
   (x-lib-version)
-  ; --- convenience aliases: pending ruling (#108 census) ---
-  (else)
-  (str-copy)
 )))

@@ -196,6 +196,19 @@
         (returns INT "Microseconds of CPU time consumed"))
       ((prim-ref (lit sys) (lit clock))))
 
+    ; The homed successor of the retired bare `time` op (#108, ruled
+    ; 2026-07-22): class dispatch evaluates arguments, so an op cannot ride
+    ; a static seat (probed) -- the expression travels as a thunk instead.
+    (method time-it (self (param thunk CALLABLE "Zero-argument fn to run and time"))
+      (doc "Run THUNK, print its elapsed CPU microseconds to stdout, and return its result. Wrap the expression: (Sys time-it (fn () expr))."
+        (returns ANY "The thunk's result")
+        (example "(Sys time-it (fn () (List fold + 0 (List range 0 1000))))" "499500"))
+      (let ((t0 ((prim-ref (lit sys) (lit clock)))))
+        (let ((result (thunk)))
+          (display (- ((prim-ref (lit sys) (lit clock))) t0))
+          (display " us\n")
+          result)))
+
     ; --- Wall clock (#21) ---
     ; libc gettimeofday into a GC-owned 16-byte buffer; the timeval decode
     ; is OS-shared: tv_sec is an i64 at 0 on both; tv_usec at 8 fits a u32

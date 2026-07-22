@@ -44,7 +44,6 @@
   (lit     (fmt . call)    (scope . skip)        (branch . none))
   (quasi   (fmt . call)    (scope . quasi)       (branch . none))
   (include (fmt . call)    (scope . skip)        (branch . none))
-  (time    (fmt . call)    (scope . none)        (branch . none))
   (when    (fmt . head-1)  (scope . none)        (branch . cond))
   (unless  (fmt . head-1)  (scope . none)        (branch . cond))
   ; Module system + doc DSL: their arguments are module paths, type names,

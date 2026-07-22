@@ -4,8 +4,6 @@
 ; numeric tower, regex, Dict. Does NOT include experimental extensions
 ; (syscall, file, socket).
 ;
-; Convenience aliases (second, third, else, list-ref, list-tail, str-copy)
-; are now provided by x/core/list.
 
 ; --- Common containers ---
 ; Dict rides the dialect, not x-core: helium stays light (x-core only),
