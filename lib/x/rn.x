@@ -87,10 +87,10 @@
 (def do-loop
   (op (bindings test-and-result . body)
     e
-    (def variables (map first bindings))
-    (def inits (map cadr bindings))
+    (def variables (%map first bindings))
+    (def inits (%map cadr bindings))
     (def steps
-      (map
+      (%map
         (fn (_ clause)
           (if (null? (cddr clause)) (first clause) (caddr clause)))
         bindings))
@@ -110,7 +110,7 @@
                   'if
                   test-expr
                   (pair 'do result-exprs)
-                  (append
+                  (%append
                     (pair 'do body)
                     (list (pair '%loop steps))))))))
         (pair '%loop inits))

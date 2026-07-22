@@ -139,9 +139,9 @@
               (fn (self acc)
                 (def tok (%token-read buf))
                 (if (null? tok)
-                  (%make-instance %logo-block (reverse acc))
+                  (%make-instance %logo-block (List reverse acc))
                   (if (eq? tok %logo-block-close)
-                    (%make-instance %logo-block (reverse acc))
+                    (%make-instance %logo-block (List reverse acc))
                     (self (pair tok acc))))))
             (%rb ())))))
 

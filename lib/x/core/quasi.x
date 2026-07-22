@@ -28,7 +28,7 @@
       ((and (pair? (first t)) (eq? (first (first t)) (lit unquote-splicing)))
         (match
           ((eq? d 1)
-            (list (lit append) (first (rest (first t))) (self (rest t) d)))
+            (list (lit %append) (first (rest (first t))) (self (rest t) d)))
           (#t
             (list (lit pair)
               (list (lit pair) (list (lit lit) (lit unquote-splicing))

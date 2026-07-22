@@ -39,7 +39,7 @@
     (def extras    (List ref 3 descriptor))
 
     ; Emit REX prefix (handle regs > 7)
-    (for-each (fn (_ b) (%emit-u8! asm b)) prefixes)
+    (%for-each (fn (_ b) (%emit-u8! asm b)) prefixes)
 
     ; Emit opcode
     (if (and (pair? opcode) (eq? (first opcode) 'opreg))
@@ -49,7 +49,7 @@
         (def rn (%op-value (List ref (List ref 2 opcode) args)))
         (%emit-u8! asm (| base (& rn 7))))
       ; Normal opcode byte sequence
-      (for-each (fn (_ b) (%emit-u8! asm b)) opcode))
+      (%for-each (fn (_ b) (%emit-u8! asm b)) opcode))
 
     ; Emit ModR/M if specified
     (if (not (null? modrm-spec))
@@ -77,7 +77,7 @@
                     (%emit-u32-le! asm disp))))))))
 
     ; Emit immediates/extras
-    (for-each
+    (%for-each
       (fn (_ spec)
         (def kind (List ref 0 spec))
         (def idx  (List ref 1 spec))

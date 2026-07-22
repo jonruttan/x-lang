@@ -723,7 +723,7 @@
 ### map with floats
 
 ```scheme
-(map (fn (_ x) (* x 2.0)) (list 1.0 2.0 3.0))
+(List map (fn (_ x) (* x 2.0)) (list 1.0 2.0 3.0))
 ```
 ---
     (2.0 4.0 6.0)
@@ -731,7 +731,7 @@
 ### filter with floats
 
 ```scheme
-(filter (fn (_ x) (> x 2.0)) (list 1.0 2.5 3.0 0.5))
+(List filter (fn (_ x) (> x 2.0)) (list 1.0 2.5 3.0 0.5))
 ```
 ---
     (2.5 3.0)
@@ -739,7 +739,7 @@
 ### fold with floats
 
 ```scheme
-(fold + 0.0 (list 1.0 2.0 3.0))
+(List fold + 0.0 (list 1.0 2.0 3.0))
 ```
 ---
     6.0

@@ -38,7 +38,7 @@
         (example "(Path join \"a/\" \"/b\")" "\"a/b\"")
         (example "(Path join \"/root\" \"etc\")" "\"/root/etc\"")
         (example "(Path join \"a\" \"\" \"b\")" "\"a/b\""))
-      (fold
+      (%fold
         (fn (_ acc part)
           (match
             ((str=? part "") acc)

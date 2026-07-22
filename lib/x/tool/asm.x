@@ -81,7 +81,7 @@
 (def %args-sig
   (fn (_ args)
     (%str->symbol
-      (fold (fn (_ acc op) (%str-append acc (%op-sig op))) "" args))))
+      (%fold (fn (_ acc op) (%str-append acc (%op-sig op))) "" args))))
 
 ; --- Buffer byte emitters ---
 (def %emit-u8!
@@ -175,8 +175,8 @@
     (def buf-ptr (%obj-ref asm 0))
     ; Resolve patches (arch-specific resolver in slot 2 of arch)
     (def arch (%obj-ref asm 5))
-    (def resolver (when (> (length arch) 2) (List ref 2 arch)))
-    (for-each
+    (def resolver (when (> (%length arch) 2) (List ref 2 arch)))
+    (%for-each
       (fn (_ patch)
         (def offset (List ref 0 patch))
         (def width  (List ref 1 patch))

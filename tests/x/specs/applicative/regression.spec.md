@@ -42,7 +42,7 @@
 ```scheme
 (import x/tool/profile)
 (profile-reset)
-(fold (fn (_ acc x) (+ acc x)) 0 (List range 1 1001))
+(List fold (fn (_ acc x) (+ acc x)) 0 (List range 1 1001))
 (< (alloc-count) 500000)
 ```
 ---
@@ -82,7 +82,7 @@
 ### map 5000 elements completes
 
 ```scheme
-(= (length (map (method-ref Num inc) (List range 1 5001))) 5000)
+(= (List length (List map (method-ref Num inc) (List range 1 5001))) 5000)
 ```
 ---
     #t
@@ -90,7 +90,7 @@
 ### fold 10000 elements completes
 
 ```scheme
-(= (fold (fn (_ acc x) (+ acc x)) 0 (List range 1 10001)) 50005000)
+(= (List fold (fn (_ acc x) (+ acc x)) 0 (List range 1 10001)) 50005000)
 ```
 ---
     #t

@@ -1665,13 +1665,13 @@ back to identity (`eq?`) for everything else. Instances stay identity-compared.
 
 #### `fold`
 
-`(fold f init lst) -> value`
+`(List fold f init lst) -> value`
 
 Left fold.
 
 ```
-(fold + 0 (list 1 2 3)) -> 6
-(fold (fn (_ acc x) (pair x acc)) () (list 1 2 3)) -> (3 2 1)
+(List fold + 0 (list 1 2 3)) -> 6
+(List fold (fn (_ acc x) (pair x acc)) () (list 1 2 3)) -> (3 2 1)
 ```
 
 #### `List reduce`
@@ -1698,11 +1698,11 @@ Like fold but collects intermediate values.
 
 #### `length`
 
-`(length lst) -> integer`
+`(List length lst) -> integer`
 
 ```
-(length (list 1 2 3)) -> 3
-(length ()) -> 0
+(List length (list 1 2 3)) -> 3
+(List length ()) -> 0
 ```
 
 #### `List ref`
@@ -1736,10 +1736,10 @@ All elements except the last.
 
 #### `append`
 
-`(append a b) -> list`
+`(List append a b) -> list`
 
 ```
-(append (list 1 2) (list 3 4)) -> (1 2 3 4)
+(List append (list 1 2) (list 3 4)) -> (1 2 3 4)
 ```
 
 #### `List prepend`
@@ -1752,10 +1752,10 @@ All elements except the last.
 
 #### `reverse`
 
-`(reverse lst) -> list`
+`(List reverse lst) -> list`
 
 ```
-(reverse (list 1 2 3)) -> (3 2 1)
+(List reverse (list 1 2 3)) -> (3 2 1)
 ```
 
 #### `List flatten`
@@ -1770,28 +1770,28 @@ All elements except the last.
 
 #### `map`
 
-`(map f lst) -> list`
+`(List map f lst) -> list`
 
 ```
-(map (method-ref Num inc) (list 1 2 3)) -> (2 3 4)
+(List map (method-ref Num inc) (list 1 2 3)) -> (2 3 4)
 ```
 
 #### `filter`
 
-`(filter pred lst) -> list`
+`(List filter pred lst) -> list`
 
 ```
-(filter (method-ref Num even?) (list 1 2 3 4)) -> (2 4)
+(List filter (method-ref Num even?) (list 1 2 3 4)) -> (2 4)
 ```
 
 #### `for-each`
 
-`(for-each f lst) -> ()`
+`(List for-each f lst) -> ()`
 
 Applies `f` to each element for side effects only.
 
 ```
-(for-each display (list 1 2 3)) -> ()
+(List for-each display (list 1 2 3)) -> ()
 ```
 
 #### `List flat-map`

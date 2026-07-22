@@ -32,7 +32,7 @@
   (def %lang-constructs (%read))
   (def %all-constructs
     (if (null? %lang-constructs) %constructs
-      (append %constructs %lang-constructs)))
+      (%append %constructs %lang-constructs)))
 
   ; Build lookup alist: ((name-string . props) ...)
   (def %build-lookup (fn (_ entries acc)
@@ -225,7 +225,7 @@
               (%safe-walk %cov-eval form))))))))
 
   ; Walk all top-level forms
-  (for-each %cov-eval %tokens)
+  (%for-each %cov-eval %tokens)
 
   ; --- Report ---
 
@@ -241,7 +241,7 @@
         (display "All branches covered.\n")
         (do
           (display "Uncovered branches:\n")
-          (for-each (fn (_ entry)
+          (%for-each (fn (_ entry)
             (def line (first (rest (rest entry))))
             (if (> line 0)
               (do (display "  line ")

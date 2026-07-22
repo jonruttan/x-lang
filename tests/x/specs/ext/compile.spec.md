@@ -41,7 +41,7 @@
 ### has entries
 
 ```scheme
-(> (length compile-emitters) 10)
+(> (List length compile-emitters) 10)
 ```
 ---
     #t
@@ -51,9 +51,9 @@
 ### adds an emitter
 
 ```scheme
-(do (def before (length compile-emitters))
+(do (def before (List length compile-emitters))
     (compile-add-emitter! 'test-emit-42 (fn (_ args) (display "42")))
-    (def after (length compile-emitters))
+    (def after (List length compile-emitters))
     (> after before))
 ```
 ---

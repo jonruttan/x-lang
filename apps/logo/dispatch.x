@@ -126,7 +126,7 @@
     (def %consume
       (fn (self i toks acc)
         (if (= i 0)
-          (pair (reverse acc) (%skip-separators toks))
+          (pair (List reverse acc) (%skip-separators toks))
           (let ((r (%logo-consume-arg (%skip-separators toks))))
             (self (- i 1) (rest r) (pair (first r) acc))))))
     (%consume n tokens ())))
@@ -140,7 +140,7 @@
   (fn (_ toks stop)
     (def %go
       (fn (self ts acc)
-        (if (eq? ts stop) (reverse acc)
+        (if (eq? ts stop) (List reverse acc)
           (self (rest ts) (pair (first ts) acc)))))
     (%go toks ())))
 
@@ -452,10 +452,10 @@
         (def result (%read-params () rest-toks))
         ; Upcase param names once at definition time
         (def param-names
-          (map (method-ref Str upcase) (reverse (first result))))
+          (List map (method-ref Str upcase) (List reverse (first result))))
         (def body (first (rest result)))
         (def remaining (first (rest (rest result))))
-        (def n-params (length param-names))
+        (def n-params (List length param-names))
         (def proc
           (fn (_ . logo-args)
             (def saved-vars %logo-vars)

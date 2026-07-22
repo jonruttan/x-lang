@@ -197,7 +197,7 @@
               (let ((m (%lookup class (lit s-methods) sel)))
                 (if (null? m)
                   (error (%str-append "object: no such method " (symbol->str sel)))
-                  (apply m (pair class (append (%map1 (fn (_ a) (eval a e)) (rest args)) (list obj))))))
+                  (apply m (pair class (%append (%map1 (fn (_ a) (eval a e)) (rest args)) (list obj))))))
               (pair obj (%data-echo (fn (_ a) (eval a e)) args)))))))))
 
 ; Variant for types that ALREADY have a call handler (indexing/matching): a
@@ -222,7 +222,7 @@
               (let ((m (%lookup class (lit s-methods) sel)))
                 (if (null? m)
                   (error (%str-append "object: no such method " (symbol->str sel)))
-                  (apply m (pair class (append (%map1 (fn (_ a) (eval a e)) (rest args)) (list obj))))))
+                  (apply m (pair class (%append (%map1 (fn (_ a) (eval a e)) (rest args)) (list obj))))))
               (apply prior (pair obj (%data-echo (fn (_ a) (eval a e)) args))))))))))
 
 ; Install value-to-class method dispatch OVER a type's existing call handler:
@@ -318,7 +318,7 @@
 ; when applied, re-drives the normal dispatch: (Target sel . args). It does NOT
 ; introspect the method tables -- it just defers the call -- so it works for
 ; static methods, instance methods, and members uniformly, with any arity.
-;   (map (method-ref Str upcase) lst)
+;   (%map (method-ref Str upcase) lst)
 ;   (regex-replace rx s (method-ref Str upcase))
 ; Each captured value (target, selector, and every applied arg) is spliced as a
 ; (lit V) literal so the rebuilt call dispatches on the values, not re-evaluation.
@@ -332,7 +332,7 @@
               (%map1 (fn (_ a) (list (lit lit) a)) args)))
           e)))))
   (note "Selector is literal: (method-ref Class method). Works for static and instance methods.")
-  (example "(map (method-ref Str upcase) (list \"a\" \"b\"))" "(\"A\" \"B\")")
+  (example "(List map (method-ref Str upcase) (list \"a\" \"b\"))" "(\"A\" \"B\")")
   (see def-class)
   "Make a class/instance method usable as a first-class function value.")
 

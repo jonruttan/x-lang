@@ -18,18 +18,18 @@ checked for liveness only.
 (do
   (def %prim-type (Type of first))
   (def %live ())
-  (map (fn (_ dom)
-         (map (fn (_ e)
+  (List map (fn (_ dom)
+         (List map (fn (_ e)
                 (if (eq? (Type of (rest e)) %prim-type)
                     (set! %live (pair (pair (first dom) (first e)) %live))
                     ()))
               (rest dom)))
        (prims))
   (def %man ())
-  (map (fn (_ e) (set! %man (pair (pair (first e) (first (rest e))) %man)))
+  (List map (fn (_ e) (set! %man (pair (pair (first e) (first (rest e))) %man)))
        %isa-catalog)
   (def %report (fn (self label a b)
-    (map (fn (_ p)
+    (List map (fn (_ p)
            (if (List member p b)
                ()
                (do (display label) (display " ")
@@ -51,7 +51,7 @@ ok
 
 ```scheme
 (do
-  (map (fn (_ e) (eval (first e))) %isa-bare)
+  (List map (fn (_ e) (eval (first e))) %isa-bare)
   (display "ok"))
 ```
 ---
@@ -63,7 +63,7 @@ ok
 
 ```scheme
 (do
-  (map (fn (_ e) (eval (first e))) %isa-values)
+  (List map (fn (_ e) (eval (first e))) %isa-values)
   (display "ok"))
 ```
 ---
@@ -91,19 +91,19 @@ direction is live-to-manifest only.)
             (self (first kids) (self (rest kids) (pair (first node) acc)))))))
   (def %prim-t (Type of first))
   (def %cat-vals ())
-  (map (fn (_ dom)
-         (map (fn (_ e)
+  (List map (fn (_ dom)
+         (List map (fn (_ e)
                 (if (eq? (Type of (rest e)) %prim-t)
                     (set! %cat-vals (pair (rest e) %cat-vals))
                     ()))
               (rest dom)))
        (prims))
   (def %man-names ())
-  (map (fn (_ e) (set! %man-names (pair (first e) %man-names))) %isa-bare)
-  (map (fn (_ e) (set! %man-names (pair (first e) %man-names))) %isa-keep)
-  (map (fn (_ e) (set! %man-names (pair (first e) %man-names))) %isa-aliases)
+  (List map (fn (_ e) (set! %man-names (pair (first e) %man-names))) %isa-bare)
+  (List map (fn (_ e) (set! %man-names (pair (first e) %man-names))) %isa-keep)
+  (List map (fn (_ e) (set! %man-names (pair (first e) %man-names))) %isa-aliases)
   (def %bad ())
-  (map (fn (_ e)
+  (List map (fn (_ e)
          (match
            ((not (eq? (Type of (rest e)) %prim-t)) ())
            ((List memq (rest e) %cat-vals) ())

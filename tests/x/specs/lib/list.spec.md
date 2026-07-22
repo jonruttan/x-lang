@@ -29,7 +29,7 @@
 ### folds left
 
 ```scheme
-(fold + 0 (list 1 2 3))
+(List fold + 0 (list 1 2 3))
 ```
 ---
     6
@@ -37,7 +37,7 @@
 ### fold with subtraction
 
 ```scheme
-(fold - 10 (list 1 2 3))
+(List fold - 10 (list 1 2 3))
 ```
 ---
     4
@@ -67,7 +67,7 @@
 ### counts elements
 
 ```scheme
-(length (list 1 2 3))
+(List length (list 1 2 3))
 ```
 ---
     3
@@ -75,7 +75,7 @@
 ### empty list is zero
 
 ```scheme
-(length ())
+(List length ())
 ```
 ---
     0
@@ -193,7 +193,7 @@
 ### concatenates two lists
 
 ```scheme
-(append (list 1 2) (list 3 4))
+(List append (list 1 2) (list 3 4))
 ```
 ---
     (1 2 3 4)
@@ -201,7 +201,7 @@
 ### appends to empty
 
 ```scheme
-(append () (list 1 2))
+(List append () (list 1 2))
 ```
 ---
     (1 2)
@@ -221,7 +221,7 @@
 ### reverses a list
 
 ```scheme
-(reverse (list 1 2 3))
+(List reverse (list 1 2 3))
 ```
 ---
     (3 2 1)
@@ -229,7 +229,7 @@
 ### reverses empty
 
 ```scheme
-(null? (reverse ()))
+(null? (List reverse ()))
 ```
 ---
     #t
@@ -257,7 +257,7 @@
 ### applies function to each
 
 ```scheme
-(map (method-ref Num inc) (list 1 2 3))
+(List map (method-ref Num inc) (list 1 2 3))
 ```
 ---
     (2 3 4)
@@ -265,7 +265,7 @@
 ### maps over empty
 
 ```scheme
-(null? (map (method-ref Num inc) ()))
+(null? (List map (method-ref Num inc) ()))
 ```
 ---
     #t
@@ -275,7 +275,7 @@
 ### keeps matching elements
 
 ```scheme
-(filter (method-ref Num even?) (list 1 2 3 4))
+(List filter (method-ref Num even?) (list 1 2 3 4))
 ```
 ---
     (2 4)
@@ -283,7 +283,7 @@
 ### filters to empty
 
 ```scheme
-(null? (filter (method-ref Num negative?) (list 1 2 3)))
+(null? (List filter (method-ref Num negative?) (list 1 2 3)))
 ```
 ---
     #t
@@ -293,7 +293,7 @@
 ### applies function for side effects
 
 ```scheme
-(null? (for-each (fn (_ x) x) (list 1 2 3)))
+(null? (List for-each (fn (_ x) x) (list 1 2 3)))
 ```
 ---
     #t
@@ -807,7 +807,7 @@ landed in which group, or in what order the groups come back.
 
 ### removes consecutive duplicates by key, keeping the FIRST of each run
 
-A length assertion alone let #73 hide here: `(length ...)` is 3 whether the
+A length assertion alone let #73 hide here: `(List length ...)` is 3 whether the
 first or the last element of each run survives. Assert the value.
 
 ```scheme
@@ -847,7 +847,7 @@ first or the last element of each run survives. Assert the value.
 ### appends two lists
 
 ```scheme
-(append (list 1 2) (list 3 4))
+(List append (list 1 2) (list 3 4))
 ```
 ---
     (1 2 3 4)
@@ -855,7 +855,7 @@ first or the last element of each run survives. Assert the value.
 ### appends three lists
 
 ```scheme
-(append (list 1) (list 2) (list 3))
+(List append (list 1) (list 2) (list 3))
 ```
 ---
     (1 2 3)
@@ -863,7 +863,7 @@ first or the last element of each run survives. Assert the value.
 ### appends with empty
 
 ```scheme
-(append () (list 1 2) ())
+(List append () (list 1 2) ())
 ```
 ---
     (1 2)
@@ -871,7 +871,7 @@ first or the last element of each run survives. Assert the value.
 ### appends zero lists
 
 ```scheme
-(null? (append))
+(null? (List append))
 ```
 ---
     #t
@@ -879,7 +879,7 @@ first or the last element of each run survives. Assert the value.
 ### appends one list
 
 ```scheme
-(append (list 1 2))
+(List append (list 1 2))
 ```
 ---
     (1 2)
@@ -889,7 +889,7 @@ first or the last element of each run survives. Assert the value.
 ### maps over two lists
 
 ```scheme
-(map + (list 1 2 3) (list 10 20 30))
+(List map + (list 1 2 3) (list 10 20 30))
 ```
 ---
     (11 22 33)
@@ -897,7 +897,7 @@ first or the last element of each run survives. Assert the value.
 ### maps over three lists
 
 ```scheme
-(map + (list 1 2) (list 10 20) (list 100 200))
+(List map + (list 1 2) (list 10 20) (list 100 200))
 ```
 ---
     (111 222)
@@ -905,7 +905,7 @@ first or the last element of each run survives. Assert the value.
 ### stops at shortest
 
 ```scheme
-(map + (list 1 2 3) (list 10 20))
+(List map + (list 1 2 3) (list 10 20))
 ```
 ---
     (11 22)
@@ -913,7 +913,7 @@ first or the last element of each run survives. Assert the value.
 ### single-list backward compat
 
 ```scheme
-(map (method-ref Num inc) (list 1 2 3))
+(List map (method-ref Num inc) (list 1 2 3))
 ```
 ---
     (2 3 4)
@@ -923,7 +923,7 @@ first or the last element of each run survives. Assert the value.
 ### iterates two lists
 
 ```scheme
-(do (def r ()) (for-each (fn (_ a b) (set! r (pair (+ a b) r))) (list 1 2) (list 10 20)) (reverse r))
+(do (def r ()) (List for-each (fn (_ a b) (set! r (pair (+ a b) r))) (list 1 2) (list 10 20)) (List reverse r))
 ```
 ---
     (11 22)
@@ -931,7 +931,7 @@ first or the last element of each run survives. Assert the value.
 ### single-list backward compat
 
 ```scheme
-(do (def r ()) (for-each (fn (_ x) (set! r (pair x r))) (list 1 2 3)) (reverse r))
+(do (def r ()) (List for-each (fn (_ x) (set! r (pair x r))) (list 1 2 3)) (List reverse r))
 ```
 ---
     (1 2 3)

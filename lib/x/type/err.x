@@ -101,7 +101,7 @@
     (115 einprogress "Operation now in progress")))
 
 (def %errno-table
-  (append %errno-base (if os-darwin? %errno-darwin %errno-linux)))
+  (%append %errno-base (if os-darwin? %errno-darwin %errno-linux)))
 
 ; Lazily-resolved errno location for (Err errno-of): () = unresolved,
 ; 'missing = libc lacks the symbol, else the dlsym'd function pointer.

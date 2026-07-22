@@ -139,7 +139,7 @@
 
 ; Compute undefined: used but not in env-alist and not in file defs
 (def %lint-undefined (fn (_ defs uses)
-  (filter (fn (_ sym)
+  (%filter (fn (_ sym)
     (unless (includes? sym defs)
       (unless (assoc-has? sym %known-env) #t)))
     (assoc-keys uses))))
@@ -147,7 +147,7 @@
 ; Compute unused: defined but not used (skip %-prefixed internals)
 (def %lint-unused (fn (_ defs uses lib-mode)
   (unless lib-mode
-    (filter (fn (_ sym)
+    (%filter (fn (_ sym)
       (unless (str-starts? "%" (convert sym %string))
         (unless (assoc-has? sym uses) #t)))
       defs))))

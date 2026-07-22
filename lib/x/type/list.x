@@ -42,7 +42,7 @@
       (doc "An iterator over the list's elements." (returns ITER "Iterator"))
       (Iter new lst))
     (method fold (self f init lst)
-      (doc "Fold a function over a list from the left." (param f CALLABLE "Binary function: (accumulator, element) -> new accumulator") (param init ANY "Initial accumulator value") (param lst LIST "List or iterable to fold over") (returns ANY "Final accumulated value") (example "(fold + 0 '(1 2 3))" "6"))
+      (doc "Fold a function over a list from the left." (param f CALLABLE "Binary function: (accumulator, element) -> new accumulator") (param init ANY "Initial accumulator value") (param lst LIST "List or iterable to fold over") (returns ANY "Final accumulated value") (example "(List fold + 0 '(1 2 3))" "6"))
       ; first/rest are unchecked C prims, so an improper tail walks off the end
       ; of the list into UB -- (pair 1 2) is ordinary data, not hostile input.
       ; Same discipline as `ref`'s walk below: the pair? guard makes the overrun
@@ -317,7 +317,7 @@
             ((eq? (first (first alist)) key)
               (pair (pair key (pair val (rest (first alist)))) (rest alist)))
             (#t (pair (first alist) (self (rest alist) key val))))))
-      (List map (fn (_ g) (pair (first g) (reverse (rest g))))
+      (List map (fn (_ g) (pair (first g) (%reverse (rest g))))
         (List fold (fn (_ acc x) (add-to-group acc (f x) x)) () lst)))
     (method sort (self cmp lst)
       (doc "Stable merge sort using a comparison function: equal-key elements keep their input order." (param cmp CALLABLE "Comparison: (a b) -> #t if a comes strictly first") (param lst LIST "List or iterable"))
@@ -345,7 +345,7 @@
         (note "O(n^2) via equal?, so it works for every element type; hashable elements (symbols/strings/ints/chars) can dedupe O(n) through x/type/set instead."))
       (let go ((xs lst) (seen ()) (acc ()))
         (match
-          ((null? xs) (reverse acc))
+          ((null? xs) (%reverse acc))
           ((List includes? (first xs) seen) (go (rest xs) seen acc))
           (#t (go (rest xs) (pair (first xs) seen) (pair (first xs) acc))))))
     (method uniq (self lst)

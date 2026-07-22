@@ -72,9 +72,9 @@
 (def %compile-cc
   (fn (_ src-path lib-path)
     (def %cc-cmd
-      (fold (fn (_ acc s) (Str append acc " " s))
+      (%fold (fn (_ acc s) (Str append acc " " s))
         "cc"
-        (append %compile-cc-flags
+        (%append %compile-cc-flags
           (list "-O2" "-DX_HEAP" "-DX_TYPE" "-Wno-unused-value"
                 "-Iext/x-expr/include" "-I./include"
                 "-o" lib-path src-path))))
@@ -264,7 +264,7 @@
 ; Caches the shared library by expression hash. Fvar table patched after load.
 (def compile-batch
   (fn (_ . exprs)
-    (def %n (length exprs))
+    (def %n (%length exprs))
 
     ; Resolve functions from a loaded library
     (def %resolve-all

@@ -63,7 +63,7 @@
   (fn (_ mode)
     (match
       ((number? mode) mode)
-      ((pair? mode) (fold (fn (_ acc flag) (| acc (%mode->int flag))) 0 mode))
+      ((pair? mode) (%fold (fn (_ acc flag) (| acc (%mode->int flag))) 0 mode))
       (#t (first (assoc-get mode %file-modes))))))
 
 ; --- errno recovery (#22) ---
@@ -114,9 +114,9 @@
 (def %dirent-name
   (fn (_ buf start limit)
     (let go ((i start) (acc ()))
-      (if (>= i limit) (list->str (reverse acc))
+      (if (>= i limit) (list->str (%reverse acc))
         (let ((c (%peek-u8 buf i)))
-          (if (= c 0) (list->str (reverse acc))
+          (if (= c 0) (list->str (%reverse acc))
             (go (+ i 1) (pair (%fs-byte-ref buf i) acc))))))))
 
 (def %dirents

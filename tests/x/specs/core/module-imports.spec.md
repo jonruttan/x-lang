@@ -3,7 +3,7 @@
 ### valid selective import succeeds
 
 ```scheme
-(import x/core/list map filter fold)
+(import x/core/list else str-copy)
 ```
 ---
 
@@ -17,7 +17,7 @@
 ### invalid symbol raises error
 
 ```scheme
-(guard (e (display e)) (import x/core/list map nonexistent fold))
+(guard (e (display e)) (import x/core/list else nonexistent str-copy))
 ```
 ---
     import: symbol not exported by x/core/list: nonexistent
@@ -25,7 +25,7 @@
 ### all listed symbols are valid
 
 ```scheme
-(import x/core/list map filter fold length)
+(import x/core/list else str-copy)
 ```
 ---
 

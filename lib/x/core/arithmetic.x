@@ -48,21 +48,21 @@
       (if (eq? (rest args) ()) (first args)
         (if (eq? (rest (rest args)) ())
           (%int+ (first args) (first (rest args)))
-          (fold %int+ (first args) (rest args)))))))
+          (%fold %int+ (first args) (rest args)))))))
 (set! *
   (fn (_ . args)
     (if (eq? args ()) 1
       (if (eq? (rest args) ()) (first args)
         (if (eq? (rest (rest args)) ())
           (%int* (first args) (first (rest args)))
-          (fold %int* (first args) (rest args)))))))
+          (%fold %int* (first args) (rest args)))))))
 (set! /
   (fn (_ . args)
     (if (eq? args ()) 1
       (if (eq? (rest args) ()) (first args)
         (if (eq? (rest (rest args)) ())
           (%int/0 (first args) (first (rest args)))
-          (fold %int/0 (first args) (rest args)))))))
+          (%fold %int/0 (first args) (rest args)))))))
 (set! -
   (fn (_ . args)
     (if (eq? args ())
@@ -71,7 +71,7 @@
         (%int- 0 (first args))
         (if (eq? (rest (rest args)) ())
           (%int- (first args) (first (rest args)))
-          (fold %int- (first args) (rest args)))))))
+          (%fold %int- (first args) (rest args)))))))
 (set! %
   (fn (_ . args)
     ; The zero-arg tier is an ERROR, not an identity (#72, ruled): unlike
@@ -82,7 +82,7 @@
       (if (eq? (rest args) ()) (first args)
         (if (eq? (rest (rest args)) ())
           (%int%0 (first args) (first (rest args)))
-          (fold %int%0 (first args) (rest args)))))))
+          (%fold %int%0 (first args) (rest args)))))))
 
 ; --- Arity guards for the binary/unary C primitives (#72) ---
 ;

@@ -276,7 +276,7 @@
     (if (null? args) 1
       (if (null? (rest args))
         (%rat-div-policy 1 (first args))
-        (fold %rat-div-policy (first args) (rest args))))))
+        (%fold %rat-div-policy (first args) (rest args))))))
 
 ; --- Reader ---
 

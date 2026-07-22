@@ -420,7 +420,7 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ```x
 (do
   (def-class M () (static (method dbl (self n) (* n 2))))
-  (map (method-ref M dbl) (list 1 2 3)))
+  (List map (method-ref M dbl) (list 1 2 3)))
 ```
 ---
     (2 4 6)

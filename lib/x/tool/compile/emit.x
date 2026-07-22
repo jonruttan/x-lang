@@ -148,7 +148,7 @@
   (fn (_ args)
     (let ((inner-params (first args))
           (inner-body (first (rest args)))
-          (fn-name (Str append "fn_" (%cvt (+ 1 (length (first %compile-fns))) %string))))
+          (fn-name (Str append "fn_" (%cvt (+ 1 (%length (first %compile-fns))) %string))))
       ; Add this fn to the list
       (set-first! %compile-fns
         (pair (list fn-name inner-params inner-body)

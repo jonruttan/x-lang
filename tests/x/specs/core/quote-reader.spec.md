@@ -76,7 +76,7 @@
 ### a quoted list passed to a function
 
 ```scheme
-(map (fn (_ x) (* x 10)) '(1 2 3))
+(List map (fn (_ x) (* x 10)) '(1 2 3))
 ```
 ---
     (10 20 30)

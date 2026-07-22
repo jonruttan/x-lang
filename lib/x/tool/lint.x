@@ -169,7 +169,7 @@
 
 (def %frame-unused! (fn (_ saved)
   (%check-unused! (first %lint-scope)
-    (- (length (first %lint-scope)) (length saved)))))
+    (- (%length (first %lint-scope)) (%length saved)))))
 
 ; Parameters are POSITIONAL: a middle unused param cannot be dropped without
 ; shifting the ones after it, and fixed-signature callbacks (e.g. a reader's
@@ -280,11 +280,11 @@
   (def saved (first %lint-scope))
   (set-first! %lint-scope (%add-params (first (rest form)) saved))
   (def params (first %lint-scope))               ; param entries (boxes shared with scope)
-  (def nparams (- (length params) (length saved)))
+  (def nparams (- (%length params) (%length saved)))
   (%lint-seq (rest (rest form)))
   (%lint-leak-scan (%last (rest (rest form))))   ; flag def in the body's tail
   (%check-unused! (first %lint-scope)            ; body-level defs above params: any unused is dead
-    (- (length (first %lint-scope)) (length params)))
+    (- (%length (first %lint-scope)) (%length params)))
   (%check-trailing-unused! params nparams)       ; params: only trailing unused (positional)
   (set-first! %lint-scope saved)))
 
@@ -294,11 +294,11 @@
     (pair (pair (%cvt (first (rest (rest form))) %string) (list #f))   ; env var entry
           (%add-params (first (rest form)) saved)))
   (def params (first %lint-scope))                      ; params + env var (boxes shared)
-  (def nparams (- (length params) (length saved)))
+  (def nparams (- (%length params) (%length saved)))
   (%lint-seq (rest (rest (rest form))))
   (%lint-leak-scan (%last (rest (rest (rest form)))))   ; flag def in the body's tail
   (%check-unused! (first %lint-scope)
-    (- (length (first %lint-scope)) (length params)))
+    (- (%length (first %lint-scope)) (%length params)))
   (%check-trailing-unused! params nparams)
   (set-first! %lint-scope saved)))
 
@@ -450,7 +450,7 @@
   (let ((entry (when (if (pair? form) (symbol? (first form)) #f)
                  (%alist-find-name (%cvt (first form) %string) (first %lint-arity)))))
     (unless (null? entry)
-      (let ((nargs (- (length form) 1))
+      (let ((nargs (- (%length form) 1))
             (mn (first (rest entry)))
             (vararg (rest (rest entry))))
         (when (if vararg (< nargs mn) (not (= nargs mn)))
@@ -482,7 +482,7 @@
 (def %lint-check-malformed (fn (_ form)
   (when (if (pair? form) (symbol? (first form)) #f)
     (let ((mn (%lint-min-len (%cvt (first form) %string))))
-      (when (if (= mn 0) #f (< (length form) mn))
+      (when (if (= mn 0) #f (< (%length form) mn))
         (%warn! "malformed" (%cvt (first form) %string)))))))
 
 ; --- The write handlers ---
@@ -548,7 +548,7 @@
   "Walk top-level forms via the write stacks, collecting def/use names, first/rest issues, tail-position def leaks, and pedantic warnings (arity, non-callable calls, duplicate defs, malformed forms, lexical shadows, and unused locals).")
 
 (doc (def lint-undefined (fn (_ defs uses)
-  (filter (fn (_ name)
+  (%filter (fn (_ name)
     (unless (%name-member? name defs)
       (unless (%env-known? name) #t)))
     uses)))
@@ -559,7 +559,7 @@
 
 (doc (def lint-unused (fn (_ defs uses lib-mode)
   (unless lib-mode
-    (filter (fn (_ name)
+    (%filter (fn (_ name)
       (unless (Str starts? "%" name)
         (unless (%name-member? name uses) #t)))
       defs))))
@@ -585,8 +585,8 @@
   "Extract all pedantic warnings (arity, call-nonfn, dup-def, ...) from a result.")
 
 (doc (def lint-warnings-of (fn (_ kind result)
-  (map (fn (_ w) (rest w))
-    (filter (fn (_ w) (str=? (first w) kind)) (lint-warnings result)))))
+  (%map (fn (_ w) (rest w))
+    (%filter (fn (_ w) (str=? (first w) kind)) (lint-warnings result)))))
   (param kind STRING "Warning kind: arity | call-nonfn | dup-def | malformed | shadow | unused")
   (param result LIST "Result of lint-forms")
   (returns LIST "The names for warnings of that kind")

@@ -19,7 +19,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ### ->list yields one character per byte
 
 ```x
-(do (import x/protocol/str/str8) (length (Str8 ->list "$¢€")))
+(do (import x/protocol/str/str8) (List length (Str8 ->list "$¢€")))
 ```
 ---
     6
@@ -91,7 +91,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ```x
 (do
   (import x/protocol/str/utf8)
-  (list (length (Str8 ->list "€")) (length (StrUTF8 ->list "€"))))
+  (list (List length (Str8 ->list "€")) (List length (StrUTF8 ->list "€"))))
 ```
 ---
     (3 1)

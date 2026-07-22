@@ -56,11 +56,11 @@
   (fn (_ host)
     (def parts (Str8 split "." host))
     (def octets
-      (map (fn (_ p)
+      (%map (fn (_ p)
              (if (str=? p "") (Err raise 'value (Str8 append "Socket: bad IPv4 address: " host) ())
                (str->number p)))
            parts))
-    (when (not (= (length octets) 4))
+    (when (not (= (%length octets) 4))
       (Err raise 'value (Str8 append "Socket: bad IPv4 address: " host) ()))
     (List for-each
       (fn (_ o) (when (or (null? o) (< o 0) (> o 255))

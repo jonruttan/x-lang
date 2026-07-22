@@ -153,7 +153,7 @@
         (match
           ((null? toks) (Err raise 'value "Missing ) in function call" ()))
           ((%is-paren? (first toks) ")")
-            (pair (reverse acc) (rest toks)))
+            (pair (List reverse acc) (rest toks)))
           (#t
             (let ((r (%logo-parse-expr toks)))
               (if (and (not (null? (rest r)))

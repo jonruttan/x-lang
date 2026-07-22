@@ -163,7 +163,7 @@
     (def j (%json-skip-ws s i len))
     (if (>= j len) (%json-err "unterminated array" j)
       (if (= (%json-byte s j) 93)                              ; ]
-        (pair (reverse acc) (+ j 1))
+        (pair (%reverse acc) (+ j 1))
         (let ((v (%json-parse-value s j len)))
           (let ((k (%json-skip-ws s (rest v) len)))
             (if (>= k len) (%json-err "unterminated array" k)
@@ -171,7 +171,7 @@
                 ((= (%json-byte s k) 44)                       ; ,
                   (self s (+ k 1) len (pair (first v) acc)))
                 ((= (%json-byte s k) 93)                       ; ]
-                  (pair (reverse (pair (first v) acc)) (+ k 1)))
+                  (pair (%reverse (pair (first v) acc)) (+ k 1)))
                 (#t (%json-err "expected , or ] in array" k))))))))))
 
 (def %json-parse-object

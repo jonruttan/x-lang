@@ -108,7 +108,7 @@
     (method exec (self (param name STRING "Program name") (param args LIST "List of argument strings"))
       (doc "Replace the current process with the named program. Does not return on success.")
       (let ((all (pair name args)))
-        (let ((n (length all)))
+        (let ((n (%length all)))
           (let ((argv (%cvt (%ptr-call %c-malloc (* (+ n 1) %word-size)) %ptr)))
             (def %fill
               (fn (self lst i)

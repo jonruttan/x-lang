@@ -70,7 +70,7 @@ the tree constructs one, so its tree is absent at boot and its push
 no-ops (kept for embedders that pre-register the type).
 
 ```scheme
-(map (fn (_ n) (null? (%print-handle-by-name n (first %reflect-type-alist-cell))))
+(List map (fn (_ n) (null? (%print-handle-by-name n (first %reflect-type-alist-cell))))
      (pair "BUFFER" (pair "POINTER" (pair "PRIMITIVE"
        (pair "ITER" (pair "PROCEDURE" (pair "OPERATIVE" ())))))))
 ```

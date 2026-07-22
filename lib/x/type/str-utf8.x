@@ -49,8 +49,8 @@
 (doc (def list->str
   (fn (_ chars)
     (bytes->str
-      (map %integer->char
-        (fold (fn (_ acc ch) (append acc (%utf8-encode (%char->integer ch))))
+      (%map %integer->char
+        (%fold (fn (_ acc ch) (%append acc (%utf8-encode (%char->integer ch))))
               () chars)))))
   (param chars LIST "List of CHARACTERs (Unicode code points)")
   (returns STRING "UTF-8 string encoding each code point")
@@ -62,7 +62,7 @@
     (def len (str-length s))
     (let go ((i 0) (acc ()))
       (if (>= i len)
-        (reverse acc)
+        (%reverse acc)
         (let ((d (%utf8-decode s i)))
           (go (rest d) (pair (%integer->char (first d)) acc)))))))
   (param s STRING "String to decode")

@@ -69,7 +69,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ```scheme
 (do (import x/codec/json)
-  (map (method-ref Char ->int) (str->list (Json parse "\"a\\n\\tb\""))))
+  (List map (method-ref Char ->int) (str->list (Json parse "\"a\\n\\tb\""))))
 ```
 ---
     (97 10 9 98)

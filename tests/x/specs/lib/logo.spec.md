@@ -42,7 +42,7 @@
 ```scheme
 (turtle-clearscreen)
 (turtle-forward 50)
-(length %turtle-bc)
+(List length %turtle-bc)
 ```
 ---
     2
@@ -114,7 +114,7 @@
 (turtle-clearscreen)
 (turtle-penup)
 (turtle-forward 50)
-(def bc (reverse %turtle-bc))
+(def bc (List reverse %turtle-bc))
 (first bc)
 ```
 ---
@@ -147,7 +147,7 @@
 ```scheme
 (turtle-forward 100)
 (turtle-clearscreen)
-(length %turtle-bc)
+(List length %turtle-bc)
 ```
 ---
     0
@@ -204,7 +204,7 @@
 
 ```scheme
 (def toks (Tok read-str %logo-base "[ fd 100 ] "))
-(length (%block-contents (first toks)))
+(List length (%block-contents (first toks)))
 ```
 ---
     2
@@ -217,7 +217,7 @@
 (turtle-clearscreen)
 (def toks (Tok read-str %logo-base "fd 100 "))
 (logo-process-tokens toks)
-(length %turtle-bc)
+(List length %turtle-bc)
 ```
 ---
     2
@@ -228,7 +228,7 @@
 (turtle-clearscreen)
 (def toks (Tok read-str %logo-base "repeat 4 [ fd 100 rt 90 ] "))
 (logo-process-tokens toks)
-(length %turtle-bc)
+(List length %turtle-bc)
 ```
 ---
     16
@@ -239,7 +239,7 @@
 (turtle-clearscreen)
 (def toks (Tok read-str %logo-base "Forward 50 "))
 (logo-process-tokens toks)
-(length %turtle-bc)
+(List length %turtle-bc)
 ```
 ---
     2
@@ -254,7 +254,7 @@
 (logo-process-tokens t1)
 (def t2 (Tok read-str %logo-base "sq 60 "))
 (logo-process-tokens t2)
-(length %turtle-bc)
+(List length %turtle-bc)
 ```
 ---
     16
@@ -267,7 +267,7 @@
 (logo-process-tokens t1)
 (def t2 (Tok read-str %logo-base "arcr 1 10 "))
 (logo-process-tokens t2)
-(length %turtle-bc)
+(List length %turtle-bc)
 ```
 ---
     40
@@ -278,7 +278,7 @@
 
 ```scheme
 (def toks (Tok read-str %logo-base "fd 100 rt 90 "))
-(length (%logo-indent-to-blocks toks))
+(List length (%logo-indent-to-blocks toks))
 ```
 ---
     4
@@ -288,7 +288,7 @@
 ```scheme
 (def toks (Tok read-str %logo-base "\nrepeat 4\n    fd 100\n    rt 90\n "))
 (def processed (%logo-indent-to-blocks toks))
-(length processed)
+(List length processed)
 ```
 ---
     3
@@ -299,7 +299,7 @@
 (turtle-clearscreen)
 (def toks (Tok read-str %logo-base "\nrepeat 4\n    fd 100\n    rt 90\n "))
 (logo-process-tokens (%logo-indent-to-blocks toks))
-(length %turtle-bc)
+(List length %turtle-bc)
 ```
 ---
     16
@@ -409,7 +409,7 @@
 ```scheme
 (turtle-clearscreen)
 (logo-process-tokens (Tok read-str %logo-base "if 5 > 3 then fd 100 "))
-(length %turtle-bc)
+(List length %turtle-bc)
 ```
 ---
     2
@@ -419,7 +419,7 @@
 ```scheme
 (turtle-clearscreen)
 (logo-process-tokens (Tok read-str %logo-base "if 5 < 3 then fd 100 "))
-(length %turtle-bc)
+(List length %turtle-bc)
 ```
 ---
     0
@@ -439,7 +439,7 @@
 ```scheme
 (turtle-clearscreen)
 (logo-process-tokens (Tok read-str %logo-base "if not 5 < 3 then fd 100 "))
-(length %turtle-bc)
+(List length %turtle-bc)
 ```
 ---
     2
@@ -450,7 +450,7 @@
 (turtle-clearscreen)
 (logo-process-tokens (Tok read-str %logo-base "to t [ fd 100 stop fd 100 ] "))
 (logo-process-tokens (Tok read-str %logo-base "t "))
-(length %turtle-bc)
+(List length %turtle-bc)
 ```
 ---
     2
@@ -622,7 +622,7 @@
 (turtle-clearscreen)
 (logo-process-tokens (Tok read-str %logo-base "to limited [ repeat forever [ fd 10 stop ] ] "))
 (logo-process-tokens (Tok read-str %logo-base "limited "))
-(length %turtle-bc)
+(List length %turtle-bc)
 ```
 ---
     2
@@ -694,7 +694,7 @@
 ```scheme
 (turtle-clearscreen)
 (logo-process-tokens (Tok read-str %logo-base "execute \"fd 100\" "))
-(length %turtle-bc)
+(List length %turtle-bc)
 ```
 ---
     2
@@ -742,7 +742,7 @@
 ```scheme
 (turtle-clearscreen)
 (turtle-forward 100)
-(first (reverse %turtle-bc))
+(first (List reverse %turtle-bc))
 ```
 ---
     "F"
@@ -752,7 +752,7 @@
 ```scheme
 (turtle-clearscreen)
 (turtle-right 90)
-(first (reverse %turtle-bc))
+(first (List reverse %turtle-bc))
 ```
 ---
     "R"
@@ -762,7 +762,7 @@
 ```scheme
 (turtle-clearscreen)
 (turtle-pencolor "red")
-(first (reverse %turtle-bc))
+(first (List reverse %turtle-bc))
 ```
 ---
     "K"
