@@ -115,6 +115,24 @@ found there falls through to the platform library. Note that a pinned
 module's own `import`s also resolve through the roots, so a pin that
 must not mix with newer dependencies should vendor its import closure.
 
+A complete pinned project:
+
+```
+myproj/
+├── pin.xon              ; (root "deps")
+├── main.x               ; (import x/type/dict) ...
+└── deps/
+    └── x/type/dict.x    ; the exact dict.x this project was written against
+```
+
+```sh
+x -f myproj/main.x
+# pinned: /path/to/myproj/pin.xon      <- stderr notice
+```
+
+`main.x`'s `(import x/type/dict)` loads `deps/x/type/dict.x`; every
+other import falls through to the installed library.
+
 ### Probing and arming
 
 The shell wrapper probes for `pin.xon` starting from the **program's**

@@ -15,7 +15,7 @@
 - [Type System](type-system.md) — Objects, types, the base object, dispatch, extensibility
 - [Object System](object-system.md) — Message-passing classes, single inheritance, encapsulated members, `super`
 - [Dialects](dialects.md) — the helium, xenon, and radon dialect layers
-- [Modules](modules.md) — The provide/import module system
+- [Modules](modules.md) — The provide/import module system, and pinning a project's libraries (pin.xon)
 
 ## Reference
 
