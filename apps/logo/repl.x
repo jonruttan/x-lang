@@ -121,7 +121,7 @@
     ; before the pipe, so stdin survives ctrl-c)
     (when (Sys isatty 3)
       (do (Sys dup2 3 0) (Sys close 3)))
-    (set-first-int! %sigint-flag 0)
+    (%set-first-int! %sigint-flag 0)
     (display %logo-prompt)
     (def block (%read-block))
     (if (null? block)
@@ -130,7 +130,7 @@
           (newline) (Sys exit 0))
       (do
         (guard (err
-            (set-first-int! %sigint-flag 0)
+            (%set-first-int! %sigint-flag 0)
             (if (if (atom? err) (str=? (symbol->str err) "STOP") #f)
               (display "\n")
               (%seq

@@ -9,11 +9,11 @@
 
 (def %io-state (rest (first (rest (first (%base))))))
 (def %false-stack (rest (rest %io-state)))
-(set-rest! %false-stack (pair () ()))
+(%set-rest! %false-stack (pair () ()))
 (def %include-list-cell (rest %false-stack))
 
 (def %rewrite
-  (fn (_ p a b) (set-first! p a) (set-rest! p b) p))
+  (fn (_ p a b) (%set-first! p a) (%set-rest! p b) p))
 (def %expanded (pair () ()))
 
 ; --- Path resolution (for ./ and ../ relative includes) ---------------------
@@ -84,9 +84,9 @@
       ((eq? (first %include-dir-cell) ()) ".")
       (#t (first (first %include-dir-cell))))))
 (def %include-dir-push!
-  (fn (_ dir) (set-first! %include-dir-cell (pair dir (first %include-dir-cell)))))
+  (fn (_ dir) (%set-first! %include-dir-cell (pair dir (first %include-dir-cell)))))
 (def %include-dir-pop!
-  (fn (_) (set-first! %include-dir-cell (rest (first %include-dir-cell)))))
+  (fn (_) (%set-first! %include-dir-cell (rest (first %include-dir-cell)))))
 
 ; --- Relative-aware include (the C primitive is untouched) -----------------
 ; Make the bare `include` resolve ./ and ../ against the file currently loading
@@ -130,22 +130,22 @@
       ((%include-list-has? %io-path) ())
       (#t
         (do
-          (set-first! %include-list-cell
+          (%set-first! %include-list-cell
             (pair %io-path (first %include-list-cell)))
           (include %io-path))))))
 (def require-once include-once)
 
 ; --- Module registry ---
-(set-rest! %include-list-cell (pair () ()))
+(%set-rest! %include-list-cell (pair () ()))
 (def %module-registry-cell (rest %include-list-cell))
 
 ; --- Documentation registry cell ---
-(set-rest! %module-registry-cell (pair () ()))
+(%set-rest! %module-registry-cell (pair () ()))
 (def %doc-registry-cell (rest %module-registry-cell))
 
 (def %module-register!
   (fn (_ name exports)
-    (set-first! %module-registry-cell
+    (%set-first! %module-registry-cell
       (pair (pair name exports)
             (first %module-registry-cell)))))
 ; Search roots for `import`. The default is just "lib", so resolution stays
@@ -157,7 +157,7 @@
   (fn (_ path) (guard (_ #f) (Sys file-exists? path))))
 (def import-path!
   (fn (_ dir)
-    (set-first! %import-roots-cell (pair dir (first %import-roots-cell)))
+    (%set-first! %import-roots-cell (pair dir (first %import-roots-cell)))
     (first %import-roots-cell)))
 (def %module-resolve
   (fn (_ name)

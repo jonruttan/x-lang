@@ -16,7 +16,7 @@
 ; so a later (import x/xe) is a no-op.  This body registers itself too: the
 ; entry and shim load it via raw `include`, which does not register
 ; (pre-seed invariant, check-boot-order).
-(set-first! %include-list-cell
+(%set-first! %include-list-cell
   (pair "lib/x/boot/xenon.x"
   (pair "lib/x/xe.x" (first %include-list-cell))))
 (include "lib/x/xe.x")

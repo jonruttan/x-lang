@@ -3,7 +3,7 @@
 ### flag exists and starts at zero
 
 ```scheme
-(first-int %sigint-flag)
+(%first-int %sigint-flag)
 ```
 ---
     0
@@ -14,7 +14,7 @@
 
 ```scheme
 (guard (e (if (atom? e) (symbol->str e) e))
-  (set-first-int! %sigint-flag 1)
+  (%set-first-int! %sigint-flag 1)
   (+ 1 2))
 ```
 ---
@@ -24,7 +24,7 @@
 
 ```scheme
 (guard (e 'caught)
-  (set-first-int! %sigint-flag 0)
+  (%set-first-int! %sigint-flag 0)
   (+ 1 2))
 ```
 ---
@@ -35,7 +35,7 @@
 ```scheme
 (guard (e 'outer)
   (guard (e 'inner)
-    (set-first-int! %sigint-flag 1)
+    (%set-first-int! %sigint-flag 1)
     (+ 1 2)))
 ```
 ---
@@ -50,7 +50,7 @@
     (guard (e n)
       ((fn (f)
         (set! n (+ n 1))
-        (if (>= n 100) (set-first-int! %sigint-flag 1))
+        (if (>= n 100) (%set-first-int! %sigint-flag 1))
         (f))
       )))
 ```
@@ -64,7 +64,7 @@
     (guard (e n)
       (do (def loop (fn (self)
             (set! n (+ n 1))
-            (if (>= n 50) (set-first-int! %sigint-flag 1))
+            (if (>= n 50) (%set-first-int! %sigint-flag 1))
             (self)))
           (loop))))
 ```

@@ -38,7 +38,7 @@
   ; here, or a later import of it silently reloads the file mid-boot.  The
   ; boot files above (loaded before the module system existed) are listed too,
   ; so the invariant holds uniformly.
-  (set-first! %include-list-cell
+  (%set-first! %include-list-cell
     (pair "lib/x-core.x"
     (pair "lib/x/boot/registry.x"
     (pair "lib/x/boot/operatives.x"

@@ -58,7 +58,7 @@
 ; the linter is the only thing that catches them.
 (def %lint-warn (list ()))
 (def %warn! (fn (_ kind name)
-  (set-first! %lint-warn (pair (pair kind name) (first %lint-warn)))))
+  (%set-first! %lint-warn (pair (pair kind name) (first %lint-warn)))))
 
 ; Swappable hooks -- tools/lint.x overrides these for data-driven, construct-
 ; table dispatch.  Forward-declared; defaults set below once the helpers exist.
@@ -143,7 +143,7 @@
         scope)))))
 
 (def %scope-add! (fn (_ name)
-  (set-first! %lint-scope (pair (pair name (list #f)) (first %lint-scope)))))
+  (%set-first! %lint-scope (pair (pair name (list #f)) (first %lint-scope)))))
 
 ; A reference resolved to a local: find it in scope, flip its used-box to #t,
 ; and return #t.  Return () when name is not a local (a free/global reference).
@@ -152,7 +152,7 @@
 (def %scope-mark-used! (fn (self name scope)
   (unless (null? scope)
     (if (str=? name (first (first scope)))
-      (do (set-first! (rest (first scope)) #t) #t)
+      (do (%set-first! (rest (first scope)) #t) #t)
       (self name (rest scope))))))
 
 ; When a scope frame closes, the entries added since `saved` are this frame's
@@ -231,7 +231,7 @@
 
 (def %lint-first-rest (fn (_ form)
   (when (%lint-literal-non-list? (first (rest form)))
-    (set-first! %lint-issues
+    (%set-first! %lint-issues
       (pair (%cvt (first form) %string) (first %lint-issues))))
   (%lint-seq form)))            ; record use of first/rest + recurse into the arg
 
@@ -251,7 +251,7 @@
   (if (pair? xs) (if (pair? (rest xs)) (self (rest xs)) (first xs)) xs)))
 
 (def %lint-leak! (fn (_ form)
-  (set-first! %lint-leaks (pair (%lint-bound-name form) (first %lint-leaks)))))
+  (%set-first! %lint-leaks (pair (%lint-bound-name form) (first %lint-leaks)))))
 
 (def %lint-leak-scan (fn (_ form)
   (when (and (pair? form) (symbol? (first form)))
@@ -278,7 +278,7 @@
 
 (def %lint-fn (fn (_ form)
   (def saved (first %lint-scope))
-  (set-first! %lint-scope (%add-params (first (rest form)) saved))
+  (%set-first! %lint-scope (%add-params (first (rest form)) saved))
   (def params (first %lint-scope))               ; param entries (boxes shared with scope)
   (def nparams (- (%length params) (%length saved)))
   (%lint-seq (rest (rest form)))
@@ -286,11 +286,11 @@
   (%check-unused! (first %lint-scope)            ; body-level defs above params: any unused is dead
     (- (%length (first %lint-scope)) (%length params)))
   (%check-trailing-unused! params nparams)       ; params: only trailing unused (positional)
-  (set-first! %lint-scope saved)))
+  (%set-first! %lint-scope saved)))
 
 (def %lint-op (fn (_ form)
   (def saved (first %lint-scope))
-  (set-first! %lint-scope
+  (%set-first! %lint-scope
     (pair (pair (%cvt (first (rest (rest form))) %string) (list #f))   ; env var entry
           (%add-params (first (rest form)) saved)))
   (def params (first %lint-scope))                      ; params + env var (boxes shared)
@@ -300,7 +300,7 @@
   (%check-unused! (first %lint-scope)
     (- (%length (first %lint-scope)) (%length params)))
   (%check-trailing-unused! params nparams)
-  (set-first! %lint-scope saved)))
+  (%set-first! %lint-scope saved)))
 
 (def %lint-let-bindings (fn (self bindings)
   (unless (null? bindings)
@@ -325,17 +325,17 @@
         (%lint-seq (rest (rest form)))
         (%lint-leak-scan (%last (rest (rest form))))))
   (%frame-unused! saved)                               ; flag let-bindings never referenced
-  (set-first! %lint-scope saved)))
+  (%set-first! %lint-scope saved)))
 
 (def %lint-def (fn (_ form)
   (def name-part (first (rest form)))
   (if (pair? name-part)
     (let ((saved (first %lint-scope)))                 ; (def (name params) body)
         (%scope-add! (%cvt (first name-part) %string))
-        (set-first! %lint-scope (%add-params (rest name-part) (first %lint-scope)))
+        (%set-first! %lint-scope (%add-params (rest name-part) (first %lint-scope)))
         (%lint-seq (rest (rest form)))
         (%lint-leak-scan (%last (rest (rest form))))   ; def-form body has its own tail
-        (set-first! %lint-scope saved))
+        (%set-first! %lint-scope saved))
     (do (%scope-add! (%cvt name-part %string))      ; (def name val): self-ref ok
         (%lint-form (first (rest (rest form))))))))
 
@@ -355,7 +355,7 @@
   ; only the error var's scope is truly the handler.
   (unless (str=? (first evar) "_")
     (unless (first (rest evar)) (%warn! "unused" (first evar))))
-  (set-first! %lint-scope saved)
+  (%set-first! %lint-scope saved)
   (%lint-seq (rest (rest form)))))                     ; body in outer scope
 
 (def %lint-quasi (fn (self form)
@@ -433,7 +433,7 @@
 (def %arity-record (fn (_ name val)
   (when (if (pair? val) (symbol? (first val)) #f)
     (when (if (str=? (%cvt (first val) %string) "fn") (symbol? name) #f)
-      (set-first! %lint-arity
+      (%set-first! %lint-arity
         (pair (pair (%cvt name %string) (%fn-arity val)) (first %lint-arity)))))))
 
 ; Pre-pass over top-level (def NAME (fn ..)) / (set! NAME (fn ..)).
@@ -492,7 +492,7 @@
   (let ((name (%cvt sym %string)))
     (unless (%scope-mark-used! name (first %lint-scope))   ; local ref -> mark its box used
       (unless (%name-member? name (first %lint-uses))
-        (set-first! %lint-uses (pair name (first %lint-uses))))))
+        (%set-first! %lint-uses (pair name (first %lint-uses))))))
   ()))
 
 ; LIST: run the head/arity checks, then delegate to the (swappable) dispatch.
@@ -524,17 +524,17 @@
         (let ((nm (when (%lint-binds? eff) (%lint-bound-name eff))))
           (when (if (null? nm) #f (%name-member? nm defs))
             (%warn! "dup-def" nm))                  ; same top-level name defined twice
-          (set-first! %lint-scope ())
+          (%set-first! %lint-scope ())
           (%write-to-str form)                         ; drive the walk (string discarded)
           (self (rest forms) (if (null? nm) defs (pair nm defs)))))))))
 
 (doc (def lint-forms (fn (_ forms defs uses)
-  (set-first! %lint-uses uses)
-  (set-first! %lint-issues ())
-  (set-first! %lint-leaks ())
-  (set-first! %lint-warn ())
-  (set-first! %lint-arity ())
-  (set-first! %lint-scope ())
+  (%set-first! %lint-uses uses)
+  (%set-first! %lint-issues ())
+  (%set-first! %lint-leaks ())
+  (%set-first! %lint-warn ())
+  (%set-first! %lint-arity ())
+  (%set-first! %lint-scope ())
   (%arity-collect forms)                             ; pre-pass: file-local fn arities
   (%lint-push)
   (def result-defs (%lint-top forms defs))

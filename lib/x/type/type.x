@@ -55,7 +55,7 @@
         (returns ANY "The PROC group"))
       ((prim-ref (lit type) (lit proc)) ts))
     (method write-cell (self (param ts ANY "Type struct"))
-      (doc "The write-handler stack cell of a type." (returns ANY "The cell (set-first! to mutate)"))
+      (doc "The write-handler stack cell of a type." (returns ANY "The cell (%set-first! to mutate)"))
       ((prim-ref (lit type) (lit write-cell)) ts))
     (method display-cell (self (param ts ANY "Type struct"))
       (doc "The display-handler stack cell of a type." (returns ANY "The cell"))

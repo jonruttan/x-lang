@@ -58,7 +58,7 @@
 (def %forms-cache-cell (pair () ())) ; ((path . forms) ...) -- phase 1 tokenizations
 
 (def %cell-push!
-  (fn (_ cell v) (set-first! cell (pair v (first cell)))))
+  (fn (_ cell v) (%set-first! cell (pair v (first cell)))))
 
 ; Symbols are interned per-base: eq? membership is sound for them.
 (def %memq
@@ -297,7 +297,7 @@
             ((eq? h 'include-once) (%do-include form file #f))
             ((eq? h 'require-once) (%do-include form file #f))
             ((eq? h 'import) (%do-import form file))
-            ((eq? h 'set-first!)
+            ((eq? h '%set-first!)
               (do (match
                     ((eq? (first (rest form)) '%include-list-cell)
                       (%collect-strs (rest (rest form))))
@@ -369,10 +369,10 @@
 ; that entry's closure, or it is one import away from a double load.
 (def %reset-run!
   (fn (_)
-    (do (set-first! %loaded-cell ())
-        (set-first! %registered-cell ())
-        (set-first! %raw-cell ())
-        (set-first! %defined-cell ()))))
+    (do (%set-first! %loaded-cell ())
+        (%set-first! %registered-cell ())
+        (%set-first! %raw-cell ())
+        (%set-first! %defined-cell ()))))
 
 (def %check-unregistered
   (fn (self raws)

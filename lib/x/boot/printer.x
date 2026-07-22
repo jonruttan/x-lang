@@ -71,7 +71,7 @@
       (#t
         (do
           (%print-emit "#<ATOM:0x")
-          (%print-emit (%number->str (first-int o) 16))
+          (%print-emit (%number->str (%first-int o) 16))
           (%print-emit ">"))))))
 ; Bounded opaque form for handler-less cell-typed instances: only the
 ; header-derived type NAME is read, never a data word.
@@ -283,7 +283,7 @@
 ; fronts because handlers and walkers reference them.  `self` is the
 ; recursion knot -- children render in the SAME mode.
 ; Booleans by same? (object identity), NEVER eq?: eq? compares value words,
-; and any scalar whose word collides with #t's -- e.g. (first-int #t) -- would
+; and any scalar whose word collides with #t's -- e.g. (%first-int #t) -- would
 ; render as a boolean.  #t/#f are singletons, so identity is exact (mirrors
 ; C's pointer compare against the base true/false objects).
 (def %print-render
@@ -313,7 +313,7 @@
   (fn (_ handle stack-path handler)
     (do
       (def %print-nd (%reflect-step (%print-tree handle) (%reflect-path-parent stack-path)))
-      (set-first! %print-nd (pair handler (first %print-nd))))))
+      (%set-first! %print-nd (pair handler (first %print-nd))))))
 (def %print-int-h  (fn (_ o) (%print-emit (%number->str o))))
 (def %print-str-dh (fn (_ o) (%print-emit o)))
 ; Symbols WRITE with the quote shorthand -- 'x, not (lit x) -- so the echo
@@ -451,11 +451,11 @@
 (def %print-to-str-run
   (fn (_ o render %parts %old)
     (do
-      (set-first! %print-sink
-        (fn (_ s) (set-first! %parts (pair s (first %parts)))))
-      (guard (e (do (set-first! %print-sink %old) (error e)))
+      (%set-first! %print-sink
+        (fn (_ s) (%set-first! %parts (pair s (first %parts)))))
+      (guard (e (do (%set-first! %print-sink %old) (error e)))
         (render o))
-      (set-first! %print-sink %old)
+      (%set-first! %print-sink %old)
       (%print-to-str-finish (first %parts)))))
 (def %print-to-str
   (fn (_ o render)

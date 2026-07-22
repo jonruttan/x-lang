@@ -75,7 +75,7 @@
 ### visits every element
 
 ```scheme
-(do (def %acc (list 0)) (Iter for-each (fn (_ x) (set-first! %acc (+ (first %acc) x))) (Iter new (Vector of 1 2 3 4))) (first %acc))
+(do (def %acc (list 0)) (Iter for-each (fn (_ x) (%set-first! %acc (+ (first %acc) x))) (Iter new (Vector of 1 2 3 4))) (first %acc))
 ```
 ---
     10

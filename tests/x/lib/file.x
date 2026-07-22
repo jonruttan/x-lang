@@ -19,7 +19,7 @@
 ; %last-syscall holds the argument list of the most recent `syscall` call,
 ; e.g. (open "/path" 577) -- inspected by the spec cases.
 (def %last-syscall (list ()))
-(def syscall (fn (_ . a) (set-first! %last-syscall a) 0))
+(def syscall (fn (_ . a) (%set-first! %last-syscall a) 0))
 ; identity stub: pass the symbolic name (open/read/write/close) straight
 ; through so cases can assert on it without a platform syscall table.
 (def syscall-id (fn (_ n) n))

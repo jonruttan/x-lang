@@ -111,7 +111,7 @@
             (if (or (eq? name %int-name) (eq? name %float-name))
               (pair (first al) (self (rest al)))
               (self (rest al)))))))
-    (set-first! %cell (%filter (first %cell)))
+    (%set-first! %cell (%filter (first %cell)))
 
     ; LOGO-BLOCK
     (set! %logo-block

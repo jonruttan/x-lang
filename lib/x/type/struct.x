@@ -107,7 +107,7 @@
 (def %type-units-cell
   (fn (_ t) (%reflect-step t %type-units-cell-path)))
 (def %type-set-units!
-  (fn (_ ts n) (set-first! (%type-units-cell ts) n)))
+  (fn (_ ts n) (%set-first! (%type-units-cell ts) n)))
 
 ; The to-conversion cell: parent of row type-to.
 (def %type-to-cell-path (%type-parent-path (lit type-to)))
@@ -120,19 +120,19 @@
 (def %type-push-write
   (fn (_ ts handler)
     (let ((c (%type-write-cell ts)))
-      (set-first! c (pair handler (first c))))))
+      (%set-first! c (pair handler (first c))))))
 
 ; Pop the top handler from a type's write stack
 (def %type-pop-write
   (fn (_ ts)
     (let ((c (%type-write-cell ts)))
-      (set-first! c (rest (first c))))))
+      (%set-first! c (rest (first c))))))
 
 ; Push a handler onto a type's display stack
 (def %type-push-display
   (fn (_ ts handler)
     (let ((c (%type-display-cell ts)))
-      (set-first! c (pair handler (first c))))))
+      (%set-first! c (pair handler (first c))))))
 
 ; The call-stack cell of a type: parent of row type-call-stack (the proc
 ; group node itself -- call is the group's first slot).
@@ -149,13 +149,13 @@
 (def %type-push-call
   (fn (_ ts handler)
     (let ((c (%type-call-cell ts)))
-      (set-first! c (pair handler (first c))))))
+      (%set-first! c (pair handler (first c))))))
 
 ; Push a handler onto a type's analyse stack
 (def %type-push-analyse
   (fn (_ ts handler)
     (let ((c (%type-analyse-cell ts)))
-      (set-first! c (pair handler (first c))))))
+      (%set-first! c (pair handler (first c))))))
 
 ; The delimit-stack cell: parent of row type-delimit-stack.
 (def %type-delimit-cell-path (%type-parent-path (lit type-delimit-stack)))
@@ -171,13 +171,13 @@
 (def %type-push-delimit
   (fn (_ ts handler)
     (let ((c (%type-delimit-cell ts)))
-      (set-first! c (pair handler (first c))))))
+      (%set-first! c (pair handler (first c))))))
 
 ; Push a handler onto a type's read stack
 (def %type-push-read
   (fn (_ ts handler)
     (let ((c (%type-read-cell ts)))
-      (set-first! c (pair handler (first c))))))
+      (%set-first! c (pair handler (first c))))))
 
 ; The iter-stack cell: parent of row type-iter-stack (the iter group node).
 (def %type-iter-cell-path (%type-parent-path (lit type-iter-stack)))
@@ -190,7 +190,7 @@
 (def %type-push-iter
   (fn (_ ts handler)
     (let ((c (%type-iter-cell ts)))
-      (set-first! c (pair handler (first c))))))
+      (%set-first! c (pair handler (first c))))))
 
 ; --- Generic-operator dispatch (ops group: 8th element, past iter) ---
 
@@ -211,7 +211,7 @@
 (def %type-push-op
   (fn (_ ts op-sym handler)
     (let ((c (%type-ops-cell ts)))
-      (set-first! c (pair (pair op-sym handler) (first c))))))
+      (%set-first! c (pair (pair op-sym handler) (first c))))))
 
 ; --- Type casting ---
 

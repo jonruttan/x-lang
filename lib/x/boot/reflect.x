@@ -71,12 +71,12 @@
 ; int ATOM; its value is the atom's data word (first-int/set-first-int!).
 ; meta-count! returns the PREVIOUS count (C contract).
 (def %reflect-meta-count
-  (fn (_) (first-int (first %reflect-meta-extra-cell))))
+  (fn (_) (%first-int (first %reflect-meta-extra-cell))))
 (def %reflect-meta-count!
   (fn (_ n)
     (do
-      (def %reflect-prev-extra (first-int (first %reflect-meta-extra-cell)))
-      (set-first-int! (first %reflect-meta-extra-cell) n)
+      (def %reflect-prev-extra (%first-int (first %reflect-meta-extra-cell)))
+      (%set-first-int! (first %reflect-meta-extra-cell) n)
       %reflect-prev-extra)))
 
 ; (io error-line) -- the line recorded in the active error handler, 0 when
@@ -96,8 +96,8 @@
 (def %reflect-int-reader
   (fn (_ p)
     (match
-      ((eq? (%reflect-path-final p) (lit f)) first-int)
-      (#t rest-int))))
+      ((eq? (%reflect-path-final p) (lit f)) %first-int)
+      (#t %rest-int))))
 (def %reflect-error-line-path   (%reflect-path (lit error-handler-line) %base-paths))
 (def %reflect-error-line-parent (%reflect-path-parent %reflect-error-line-path))
 (def %reflect-error-line-int    (%reflect-int-reader %reflect-error-line-path))
@@ -244,10 +244,10 @@
       (def %reflect-dom (%registry-domain-pair ns (first %registry-prims-cell)))
       (match
         ((eq? %reflect-dom ())
-          (set-first! %registry-prims-cell
+          (%set-first! %registry-prims-cell
             (pair (pair ns (pair (pair method value) ()))
                   (first %registry-prims-cell))))
-        (#t (set-rest! %reflect-dom (pair (pair method value) (rest %reflect-dom)))))
+        (#t (%set-rest! %reflect-dom (pair (pair method value) (rest %reflect-dom)))))
       ())))
 
 ; File into the catalog under the retired C prims' names; %obj-set! is

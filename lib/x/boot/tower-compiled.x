@@ -26,7 +26,7 @@
 
 ; Pre-register the heavy module paths so the tower's internal imports are
 ; no-ops and the curated load order below stays authoritative.
-(set-first! %include-list-cell
+(%set-first! %include-list-cell
   (pair "lib/x/boot/tower-compiled.x"
   (pair "lib/x/type/hash.x"
   (pair "lib/x/tool/compile.x"
@@ -99,10 +99,10 @@
 (def %tower-swap-one!
   (fn (_ cell)
     (match
-      ((%tower-same? (first cell) %interp-analyse) (set-first! cell %c-interp-analyse))
-      ((%tower-same? (first cell) %lit-analyse) (set-first! cell %c-lit-analyse))
-      ((%tower-same? (first cell) %quasi-analyse) (set-first! cell %c-quasi-analyse))
-      ((%tower-same? (first cell) %unquote-analyse) (set-first! cell %c-unquote-analyse))
+      ((%tower-same? (first cell) %interp-analyse) (%set-first! cell %c-interp-analyse))
+      ((%tower-same? (first cell) %lit-analyse) (%set-first! cell %c-lit-analyse))
+      ((%tower-same? (first cell) %quasi-analyse) (%set-first! cell %c-quasi-analyse))
+      ((%tower-same? (first cell) %unquote-analyse) (%set-first! cell %c-unquote-analyse))
       (#t ()))))
 (def %tower-swap-analysers!
   (fn (self cell)
