@@ -2130,11 +2130,11 @@ with `eq?`.
 
 ### `assoc-get`
 
-`(assoc-get key alist) -> value | ()`
+`(Assoc get key alist) -> value | ()`
 
 ```
-(assoc-get 'b (list (pair 'a 1) (pair 'b 2))) -> 2
-(assoc-get 'z (list (pair 'a 1))) -> ()
+(Assoc get 'b (list (pair 'a 1) (pair 'b 2))) -> 2
+(Assoc get 'z (list (pair 'a 1))) -> ()
 ```
 
 ### `Assoc get-or`
@@ -2147,35 +2147,35 @@ with `eq?`.
 
 ### `assoc-has?`
 
-`(assoc-has? key alist) -> #t | #f`
+`(Assoc has? key alist) -> #t | #f`
 
 ```
-(assoc-has? 'a (list (pair 'a 1))) -> #t
-(assoc-has? 'z (list (pair 'a 1))) -> #f
+(Assoc has? 'a (list (pair 'a 1))) -> #t
+(Assoc has? 'z (list (pair 'a 1))) -> #f
 ```
 
 ### `assoc-del`
 
-`(assoc-del key alist) -> alist`
+`(Assoc del key alist) -> alist`
 
 ```
-(assoc-del 'a (list (pair 'a 1) (pair 'b 2))) -> (('b . 2))
+(Assoc del 'a (list (pair 'a 1) (pair 'b 2))) -> (('b . 2))
 ```
 
 ### `assoc-put`
 
-`(assoc-put key val alist) -> alist`
+`(Assoc put key val alist) -> alist`
 
 ```
-(assoc-put 'a 99 (list (pair 'a 1) (pair 'b 2))) -> (('a . 99) ('b . 2))
+(Assoc put 'a 99 (list (pair 'a 1) (pair 'b 2))) -> (('a . 99) ('b . 2))
 ```
 
 ### `assoc-keys`
 
-`(assoc-keys alist) -> list`
+`(Assoc keys alist) -> list`
 
 ```
-(assoc-keys (list (pair 'a 1) (pair 'b 2))) -> ('a 'b)
+(Assoc keys (list (pair 'a 1) (pair 'b 2))) -> ('a 'b)
 ```
 
 ### `Assoc vals`

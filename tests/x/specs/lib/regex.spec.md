@@ -21,7 +21,7 @@
 
 ```scheme
 (let ((g (Regex match-groups "b" (Regex compile "(a)|(b)"))))
-  (list (assoc-has? 1 g) (assoc-get 2 g)))
+  (list (Assoc has? 1 g) (Assoc get 2 g)))
 ```
 ---
     (#f "b")
@@ -29,7 +29,7 @@
 ### a group under a quantifier keeps its last iteration
 
 ```scheme
-(assoc-get 1 (Regex match-groups "abab" (Regex compile "(ab)+")))
+(Assoc get 1 (Regex match-groups "abab" (Regex compile "(ab)+")))
 ```
 ---
     "ab"
@@ -53,7 +53,7 @@
 ### lazy quantifiers capture minimally
 
 ```scheme
-(assoc-get 1 (Regex match-groups "<a><b>" (Regex compile "<(.+?)>")))
+(Assoc get 1 (Regex match-groups "<a><b>" (Regex compile "<(.+?)>")))
 ```
 ---
     "a"

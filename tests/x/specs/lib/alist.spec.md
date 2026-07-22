@@ -3,7 +3,7 @@
 ### retrieves value by key
 
 ```scheme
-(do (def al (list (pair 'a 1) (pair 'b 2))) (assoc-get 'b al))
+(do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc get 'b al))
 ```
 ---
     2
@@ -11,7 +11,7 @@
 ### returns nil for missing key
 
 ```scheme
-(do (def al (list (pair 'a 1))) (null? (assoc-get 'z al)))
+(do (def al (list (pair 'a 1))) (null? (Assoc get 'z al)))
 ```
 ---
     #t
@@ -19,7 +19,7 @@
 ### retrieves value from first entry
 
 ```scheme
-(do (def al (list (pair 'a 1) (pair 'b 2))) (assoc-get 'a al))
+(do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc get 'a al))
 ```
 ---
     1
@@ -63,7 +63,7 @@
 ### returns #t when key exists
 
 ```scheme
-(do (def al (list (pair 'a 1))) (assoc-has? 'a al))
+(do (def al (list (pair 'a 1))) (Assoc has? 'a al))
 ```
 ---
     #t
@@ -71,7 +71,7 @@
 ### returns nil when key missing
 
 ```scheme
-(do (def al (list (pair 'a 1))) (if (assoc-has? 'z al) "y" "n"))
+(do (def al (list (pair 'a 1))) (if (Assoc has? 'z al) "y" "n"))
 ```
 ---
     "n"
@@ -79,7 +79,7 @@
 ### finds key after first entry
 
 ```scheme
-(do (def al (list (pair 'a 1) (pair 'b 2))) (assoc-has? 'b al))
+(do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc has? 'b al))
 ```
 ---
     #t
@@ -89,7 +89,7 @@
 ### adds key-value pair
 
 ```scheme
-(do (def al (list (pair 'a 1))) (assoc-get 'b (assoc-put 'b 2 al)))
+(do (def al (list (pair 'a 1))) (Assoc get 'b (Assoc put 'b 2 al)))
 ```
 ---
     2
@@ -101,7 +101,7 @@
 Value, not length: a count of 1 is true whichever entry was deleted.
 
 ```scheme
-(do (def al (list (pair 'a 1) (pair 'b 2))) (assoc-del 'a al))
+(do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc del 'a al))
 ```
 ---
     (('b . 2))
@@ -109,7 +109,7 @@ Value, not length: a count of 1 is true whichever entry was deleted.
 ### returns the alist unchanged when key not present
 
 ```scheme
-(do (def al (list (pair 'a 1) (pair 'b 2))) (assoc-del 'z al))
+(do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc del 'z al))
 ```
 ---
     (('a . 1) ('b . 2))
@@ -117,7 +117,7 @@ Value, not length: a count of 1 is true whichever entry was deleted.
 ### removes key not at head
 
 ```scheme
-(do (def al (list (pair 'a 1) (pair 'b 2))) (null? (assoc-get 'b (assoc-del 'b al))))
+(do (def al (list (pair 'a 1) (pair 'b 2))) (null? (Assoc get 'b (Assoc del 'b al))))
 ```
 ---
     #t
@@ -127,7 +127,7 @@ Value, not length: a count of 1 is true whichever entry was deleted.
 ### returns list of keys
 
 ```scheme
-(do (def al (list (pair 'a 1) (pair 'b 2))) (assoc-keys al))
+(do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc keys al))
 ```
 ---
     ('a 'b)
@@ -147,7 +147,7 @@ Value, not length: a count of 1 is true whichever entry was deleted.
 ### applies function to all values
 
 ```scheme
-(do (def al (list (pair 'a 1) (pair 'b 2))) (assoc-get 'a (Assoc map (method-ref Num inc) al)))
+(do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc get 'a (Assoc map (method-ref Num inc) al)))
 ```
 ---
     2
@@ -222,7 +222,7 @@ Value, not length: omitting the WRONG key also counts 2.
 ### converts a bindings list (the let shape) to an alist
 
 ```scheme
-(do (def al (Assoc from-bindings (list (list 'a 1) (list 'b 2)))) (assoc-get 'a al))
+(do (def al (Assoc from-bindings (list (list 'a 1) (list 'b 2)))) (Assoc get 'a al))
 ```
 ---
     1
@@ -233,7 +233,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ```scheme
 (do (def al (Assoc from-plist (list 'a 1 'b 2)))
-  (list (assoc-get 'b al) (Assoc ->plist al)))
+  (list (Assoc get 'b al) (Assoc ->plist al)))
 ```
 ---
     (2 ('a 1 'b 2))
@@ -261,7 +261,7 @@ Value, not length: omitting the WRONG key also counts 2.
 ### transforms values by matching keys
 
 ```scheme
-(do (def al (list (pair 'a 1) (pair 'b 2))) (assoc-get 'a (Assoc evolve (list (pair 'a (method-ref Num inc))) al)))
+(do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc get 'a (Assoc evolve (list (pair 'a (method-ref Num inc))) al)))
 ```
 ---
     2

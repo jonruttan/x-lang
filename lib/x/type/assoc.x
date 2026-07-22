@@ -9,7 +9,7 @@
 (import x/type/class)
 
 ; Entry guard for the public alist seats (#51, ruled from the benchmark).
-; The boot walkers (assoc-get and friends) stay documented-unchecked: a
+; The boot walkers (%assoc-get and friends) stay documented-unchecked: a
 ; per-step spine guard measured +66% on the walk and +7.4% on EVERY method
 ; dispatch in the language (the object system routes through assoc-get),
 ; and was STILL incomplete -- entries must be cells too, so completeness
@@ -32,7 +32,7 @@
     ; --- Lookup ---
     (method get (self (param key SYMBOL "Key to look up") (param alist LIST "Association list"))
       (doc "Look up a key in an alist, returning its value or nil." (returns ANY "Value associated with key, or nil if not found"))
-      (assoc-get key (%assoc-check alist "Assoc get: not an alist")))
+      (%assoc-get key (%assoc-check alist "Assoc get: not an alist")))
     (method get-or (self (param d ANY "Default value if key is absent")
                          (param key SYMBOL "Key to look up")
                          (param alist LIST "Association list"))
@@ -40,24 +40,24 @@
         (returns ANY "Value associated with key, or the default")
         (note "Presence-based: a stored nil is returned as-is, not replaced by the default.")
         (note "Delegates to the option-store walker, so a flat plist is also accepted."))
-      ; Delegate to the box-based walker: testing (null? (assoc-get ...)) would
+      ; Delegate to the box-based walker: testing (null? (%assoc-get ...)) would
       ; hand back the default for a PRESENT key whose stored value is nil.
       (%opt-get-or-else (fn () d) key (%assoc-check alist "Assoc get-or: not an alist")))
     (method has? (self (param key SYMBOL "Key to check") (param alist LIST "Association list"))
       (doc "Test whether a key exists in an alist." (returns BOOL "True if key is present"))
-      (assoc-has? key (%assoc-check alist "Assoc has?: not an alist")))
+      (%assoc-has? key (%assoc-check alist "Assoc has?: not an alist")))
     ; --- Modification ---
     (method del (self (param key SYMBOL "Key to remove") (param alist LIST "Association list"))
       (doc "Remove all entries for a key from an alist." (returns LIST "Alist without the given key"))
-      (assoc-del key (%assoc-check alist "Assoc del: not an alist")))
+      (%assoc-del key (%assoc-check alist "Assoc del: not an alist")))
     (method put (self (param key SYMBOL "Key to set") (param val ANY "Value to associate")
                       (param alist LIST "Association list"))
       (doc "Set a key-value pair, replacing any existing entry for that key." (returns LIST "Alist with the key set to val"))
-      (assoc-put key val (%assoc-check alist "Assoc put: not an alist")))
+      (%assoc-put key val (%assoc-check alist "Assoc put: not an alist")))
     ; --- Extraction ---
     (method keys (self (param alist LIST "Association list"))
       (doc "Return all keys from an alist." (returns LIST "List of keys"))
-      (assoc-keys (%assoc-check alist "Assoc keys: not an alist")))
+      (%assoc-keys (%assoc-check alist "Assoc keys: not an alist")))
     (method vals (self (param alist LIST "Association list"))
       (doc "Return all values from an alist." (returns LIST "List of values"))
       (%map rest (%assoc-check alist "Assoc vals: not an alist")))
@@ -84,8 +84,8 @@
         (%reverse
           (%fold
             (fn (_ acc entry)
-              (if (assoc-has? (first entry) a) acc
-                (if (assoc-has? (first entry) acc) acc (pair entry acc))))
+              (if (%assoc-has? (first entry) a) acc
+                (if (%assoc-has? (first entry) acc) acc (pair entry acc))))
             ()
             b))))
     (method pick (self (param keys LIST "List of keys to keep")
@@ -122,7 +122,7 @@
       (doc "Apply per-key transform functions to values in an alist." (returns LIST "Alist with selected values transformed"))
       (%map
         (fn (_ entry)
-          (def transform (assoc-get (first entry) fns))
+          (def transform (%assoc-get (first entry) fns))
           (if (null? transform)
             entry
             (pair (first entry) (transform (rest entry)))))

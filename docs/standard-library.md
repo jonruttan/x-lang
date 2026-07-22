@@ -670,46 +670,46 @@ Returns a new list with the element at index `n` transformed by `f`.
 
 Association lists (alists) are lists of pairs `((key . val) ...)` where keys are compared with `eq?` (symbol/pointer equality).
 
-### `assoc-get`
-`(assoc-get key alist) -> value | ()`
+### `Assoc get`
+`(Assoc get key alist) -> value | ()`
 Looks up `key` in the alist, returning its value or `()` if not found.
 ```
-(assoc-get 'b (list (pair 'a 1) (pair 'b 2))) -> 2
+(Assoc get 'b (list (pair 'a 1) (pair 'b 2))) -> 2
 ```
 
 ### `Assoc get-or`
 `(Assoc get-or d key alist) -> value`
-Like `assoc-get`, but returns default `d` if the key is not found.
+Like `Assoc get`, but returns default `d` if the key is not found.
 ```
 (Assoc get-or 0 'z (list (pair 'a 1))) -> 0
 ```
 
-### `assoc-has?`
-`(assoc-has? key alist) -> boolean`
+### `Assoc has?`
+`(Assoc has? key alist) -> boolean`
 Returns `#t` if the alist contains an entry for `key`.
 ```
-(assoc-has? 'a (list (pair 'a 1))) -> #t
+(Assoc has? 'a (list (pair 'a 1))) -> #t
 ```
 
-### `assoc-del`
-`(assoc-del key alist) -> alist`
+### `Assoc del`
+`(Assoc del key alist) -> alist`
 Returns a new alist with all entries for `key` removed.
 ```
-(assoc-del 'a (list (pair 'a 1) (pair 'b 2))) -> (('b . 2))
+(Assoc del 'a (list (pair 'a 1) (pair 'b 2))) -> (('b . 2))
 ```
 
-### `assoc-put`
-`(assoc-put key val alist) -> alist`
+### `Assoc put`
+`(Assoc put key val alist) -> alist`
 Sets `key` to `val` in the alist, replacing any existing entry for that key.
 ```
-(assoc-put 'a 99 (list (pair 'a 1) (pair 'b 2))) -> (('a . 99) ('b . 2))
+(Assoc put 'a 99 (list (pair 'a 1) (pair 'b 2))) -> (('a . 99) ('b . 2))
 ```
 
-### `assoc-keys`
-`(assoc-keys alist) -> list`
+### `Assoc keys`
+`(Assoc keys alist) -> list`
 Returns a list of all keys in the alist.
 ```
-(assoc-keys (list (pair 'a 1) (pair 'b 2))) -> ('a 'b)
+(Assoc keys (list (pair 'a 1) (pair 'b 2))) -> ('a 'b)
 ```
 
 ### `Assoc vals`

@@ -135,7 +135,7 @@
   (include "tools/lint-lib.x")
   (def %forms (list (list (lit lit) (lit foo))))
   (def %result (%lint-forms %forms () ()))
-  (display (null? (assoc-keys (first (rest %result))))))
+  (display (null? (%assoc-keys (first (rest %result))))))
 ```
 ---
     t
@@ -149,7 +149,7 @@
                      (list (lit a)
                        (list (lit unquote) (lit b))))))
   (def %result (%lint-forms %forms () ()))
-  (def %uses (assoc-keys (first (rest %result))))
+  (def %uses (%assoc-keys (first (rest %result))))
   (display (and (includes? (lit b) %uses)
                 (not (includes? (lit a) %uses)))))
 ```

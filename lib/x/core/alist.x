@@ -13,7 +13,7 @@
 
 (note "Lookup")
 
-(doc (def assoc-get
+(doc (def %assoc-get
   (fn (self (param key SYMBOL "Key to look up")
        (param alist LIST "Association list"))
     (match
@@ -24,7 +24,7 @@
   (note "Bootstrap layer: the object system dispatches through this. Class API: (Assoc get ...).")
   "Look up a key in an alist, returning its value or nil.")
 
-(doc (def assoc-has?
+(doc (def %assoc-has?
   (fn (self (param key SYMBOL "Key to check")
        (param alist LIST "Association list"))
     (match
@@ -37,7 +37,7 @@
 
 (note "Modification")
 
-(doc (def assoc-del
+(doc (def %assoc-del
   (fn (self (param key SYMBOL "Key to remove")
        (param alist LIST "Association list"))
     (match
@@ -48,18 +48,18 @@
   (note "Bootstrap layer. Class API: (Assoc del ...).")
   "Remove all entries for a key from an alist.")
 
-(doc (def assoc-put
+(doc (def %assoc-put
   (fn (_ (param key SYMBOL "Key to set")
        (param val ANY "Value to associate")
        (param alist LIST "Association list"))
-    (pair (pair key val) (assoc-del key alist))))
+    (pair (pair key val) (%assoc-del key alist))))
   (returns LIST "Alist with the key set to val")
   (note "Bootstrap layer: the object system dispatches through this. Class API: (Assoc put ...).")
   "Set a key-value pair, replacing any existing entry for that key.")
 
 (note "Extraction")
 
-(doc (def assoc-keys (fn (_ (param alist LIST "Association list")) (%map first alist)))
+(doc (def %assoc-keys (fn (_ (param alist LIST "Association list")) (%map first alist)))
   (returns LIST "List of keys")
   (note "Bootstrap layer: the object system's introspection uses this. Class API: (Assoc keys ...).")
   "Return all keys from an alist.")
@@ -149,12 +149,12 @@
   (note "lazy (run only when the option is absent) and may reference earlier bindings.")
   (note "The source evaluates to an alist ((k . v) ...) or a flat plist (k v ...).")
   (example "(let-opts '(a 1) ((a 0) (b 0)) (+ a b))" "1")
-  (see assoc-get)
+  (see %assoc-get)
   "Bind locals from an option store (alist or plist) with lazy per-binding defaults.")
 
 (doc (provide x/core/alist
-  assoc-get assoc-has? assoc-del assoc-put assoc-keys let-opts)
+  let-opts)
   (note "The bootstrap layer the object system runs on, plus the let-opts form.")
   (note "The full association API is the Assoc class: (Assoc merge a b), (Assoc map f al), ...")
-  (example "(assoc-get 'x '((x . 1) (y . 2)))" "1")
+  (example "(Assoc get 'x '((x . 1) (y . 2)))" "1")
   "Association-list bootstrap: get/has?/del/put/keys and let-opts.")

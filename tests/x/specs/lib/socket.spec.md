@@ -33,7 +33,7 @@ class's first consumer, and was verified end-to-end against nc.
 ```scheme
 (do (import x/sys/socket)
   (def lfd (Socket tcp-listen 47913))
-  (def second (guard (e (list (Err kind-of e) (assoc-get 'sym (e data)))) (Socket tcp-listen 47913)))
+  (def second (guard (e (list (Err kind-of e) (Assoc get 'sym (e data)))) (Socket tcp-listen 47913)))
   (Socket close lfd)
   (list (> lfd 2) second))
 ```
@@ -64,7 +64,7 @@ something on the ubuntu CI runner (connect returned an fd; the pin got
 (do (import x/sys/socket)
   (def l (Socket tcp-listen 49877))
   (Socket close l)
-  (guard (e (list (Err kind-of e) (assoc-get 'sym (e data)) (assoc-get 'op (e data))))
+  (guard (e (list (Err kind-of e) (Assoc get 'sym (e data)) (Assoc get 'op (e data))))
     (Socket tcp-connect "127.0.0.1" 49877)))
 ```
 ---

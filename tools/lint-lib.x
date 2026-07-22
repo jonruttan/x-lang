@@ -118,8 +118,8 @@
   (if (null? form) uses
     (if (symbol? form)
       (if (includes? form scope) uses
-        (if (assoc-has? form uses) uses
-          (assoc-put form #t uses)))
+        (if (Assoc has? form uses) uses
+          (Assoc put form #t uses)))
       (if (pair? form)
         (%walk-pair form scope uses)
         uses)))))
@@ -141,13 +141,13 @@
 (def %lint-undefined (fn (_ defs uses)
   (%filter (fn (_ sym)
     (unless (includes? sym defs)
-      (unless (assoc-has? sym %known-env) #t)))
-    (assoc-keys uses))))
+      (unless (Assoc has? sym %known-env) #t)))
+    (Assoc keys uses))))
 
 ; Compute unused: defined but not used (skip %-prefixed internals)
 (def %lint-unused (fn (_ defs uses lib-mode)
   (unless lib-mode
     (%filter (fn (_ sym)
       (unless (str-starts? "%" (convert sym %string))
-        (unless (assoc-has? sym uses) #t)))
+        (unless (Assoc has? sym uses) #t)))
       defs))))
