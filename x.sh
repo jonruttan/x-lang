@@ -45,6 +45,23 @@ root_form() {
 	fi
 }
 
+# The pin forms (docs/modules.md "Pinning"): the manifest's path ahead of
+# the entry as DATA (def is a C prim, like the install root above), the
+# loader import after it -- post-boot, before any user form.  The loader
+# (lib/x/tool/pin.x) resolves platform-side, before any overlay root is
+# armed, and READS the manifest; nothing in it is evaluated.  Both
+# functions are no-ops when no manifest was found.
+pin_form() {
+	if [ -n "$PIN_FILE" ]; then
+		printf '(def %%pin-file "%s")\n' "$PIN_FILE"
+	fi
+}
+pin_arm() {
+	if [ -n "$PIN_FILE" ]; then
+		printf '(import x/tool/pin)\n'
+	fi
+}
+
 # The engine binary sits beside this script in-repo (x.sh + x at the
 # root); installed it lives in libexec -- and the wrapper takes the bin/x
 # name there, so probe libexec FIRST or $SCRIPT_PATH/x re-runs this
@@ -57,6 +74,8 @@ fi
 # Pipe carries only library content — the REPL reclaims terminal
 # stdin from fd 3 (saved below) before its first read
 file=""
+file1=""
+no_pin=""
 verbose=""
 xflags=""
 # Appended after the -F file so the interactive launcher runs once the
@@ -76,6 +95,7 @@ display_help() {
 	echo "  -l, --lib NAME  library name (default: \"$X_LIB\")"
 	echo "  -q, --quiet     suppress the startup banner"
 	echo "      --no-color  disable ANSI colour in the REPL"
+	echo "      --no-pin    ignore any pin.xon manifest"
 	echo "  -v, --verbose   display extra output"
 	echo "  -V, --version   display version and exit"
 }
@@ -85,11 +105,13 @@ do
 	case "$1" in
 		-f | --file)
 			file="\"$2\""
+			[ -z "$file1" ] && file1="$2"
 			post=""
 			shift 2
 			;;
 		-F | --load)
 			file="\"$2\" $file"
+			[ -z "$file1" ] && file1="$2"
 			post="\"${LIB_PATH}x/repl/launch.x\""
 			shift 2
 			;;
@@ -114,6 +136,10 @@ do
 			# wrapper rejected its own documented flag as unknown; it only
 			# ever worked spelled `-- --no-color`.
 			xflags="$xflags \"--no-color\""
+			shift
+			;;
+		--no-pin)
+			no_pin=1
 			shift
 			;;
 		-v | --verbose)
@@ -153,6 +179,29 @@ do
 	args="$args \"$1\""
 	shift
 done
+
+# Project pinning: probe for a pin.xon manifest from the PROGRAM's
+# directory (-f/-F; the first file named), or the cwd for a REPL, walking
+# up git-style.  Found means announced, never silent: the path is printed
+# to stderr below, and the manifest reaches the interpreter as data only
+# (see pin_form/pin_arm above).  --no-pin skips the probe entirely.
+PIN_FILE=
+if [ -z "$no_pin" ]; then
+	if [ -n "$file1" ]; then
+		_pd=$(dirname -- "$file1")
+	else
+		_pd=.
+	fi
+	_pd=$(cd "$_pd" 2>/dev/null && pwd)
+	while [ -n "$_pd" ]; do
+		if [ -e "$_pd/pin.xon" ]; then
+			PIN_FILE="$_pd/pin.xon"
+			break
+		fi
+		[ "$_pd" = / ] && break
+		_pd=$(dirname "$_pd")
+	done
+fi
 
 # Save terminal stdin as fd 3 so x-lang can reclaim it after the pipe
 # (the pipe dies on ctrl-c; fd 3 survives for the REPL)
@@ -197,15 +246,31 @@ fi
 
 # A supplied file suppresses the dialect entry's interactive launcher, so
 # the read-eval loop reaches the file instead of the launcher reclaiming
-# stdin and discarding it.  -F re-launches afterwards via $post.
+# stdin and discarding it.  -F re-launches afterwards via $post.  A pinned
+# REPL rides the same -F shape: --batch suppresses the entry's own
+# launcher so the arming import lands before the prompt, then launch.x
+# hands over the session.
 if [ "$file" ]; then
 	xflags="$xflags \"--batch\""
+elif [ -n "$PIN_FILE" ]; then
+	xflags="$xflags \"--batch\""
+	post="\"${LIB_PATH}x/repl/launch.x\""
 fi
 
-CMD="{ root_form; cat \"${ENTRY}\" ${file} ${post}; } | \"$X_BIN\"$xflags$args"
+# An empty tail must vanish entirely -- a bare `cat` would read stdin.
+TAIL=
+if [ -n "${file}${post}" ]; then
+	TAIL="cat ${file} ${post}; "
+fi
+
+CMD="{ root_form; pin_form; cat \"${ENTRY}\"; pin_arm; ${TAIL}} | \"$X_BIN\"$xflags$args"
 
 if [ "$verbose" ]; then
 	echo "$CMD"
+fi
+
+if [ -n "$PIN_FILE" ]; then
+	echo "pinned: $PIN_FILE" >&2
 fi
 
 eval "$CMD"

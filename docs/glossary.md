@@ -53,6 +53,24 @@ differ in what surface is *loaded*, never in what a shared spelling *means*
   dialect spellings `x-and`/`x-or` are ratcheted out of `lib/`
   (`check-doc-vocab`'s retired-dialects gate) and must not come back.
 
+## notation and pinning
+
+- **xon** — x object notation: a *data* use of x-lang syntax, the way JSON
+  is a data use of JS. An `.xon` file is a sequence of x-lang data forms
+  (with `;` comments) that consumers read with the ordinary reader and
+  **never evaluate**, interpreting a closed per-consumer vocabulary. Not a
+  dialect — dialects are surfaces of the *language*; xon is not evaluated
+  at all (which is why it takes no noble-gas name).
+- **pin** — resolving an import name against a project-held copy of the
+  module instead of the platform library, so the project keeps the exact
+  code it was written against. Declared in the project's `pin.xon`
+  manifest; armed as overlay **search roots** ahead of the platform root
+  (see [modules.md](modules.md), "Pinning").
+- **the pin boundary** — what pinning structurally cannot change: the
+  pre-seeded boot set (an overlay copy of a boot module is a no-op by
+  construction), and module identity (one version per name per session —
+  first load wins).
+
 ## combiners
 
 One concept per register; don't mix registers within a document:

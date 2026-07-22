@@ -81,6 +81,74 @@ Two extensions to the rule:
   or `../` resolves against the *including file's* directory, not the working
   directory. Raw `include` paths stay verbatim.
 
+## Pinning
+
+A project can pin the library modules it depends on: keep the exact
+module files it was written against in its own tree, and have `import`
+resolve those names there instead of in the installed library. Pinned
+code then keeps its behavior as the library evolves.
+
+### The manifest: `pin.xon`
+
+A project declares its pins in a `pin.xon` file at its root. The
+manifest is **xon** — x object notation: a sequence of x-lang data forms
+(with `;` comments), read with the ordinary reader and **never
+evaluated**. Its consumers interpret a closed vocabulary; an unknown
+form is a loud error, not a skip.
+
+The pin vocabulary:
+
+```
+; pin.xon
+(root "deps")     ; overlay root, relative to this file's directory
+```
+
+- `(root "DIR")` — adds an overlay root to the import search roots.
+  A relative `DIR` resolves against the manifest's own directory; an
+  absolute one is used as-is. The directory must exist, and holds
+  module files in the standard name layout (`deps/x/core/list.x` pins
+  `x/core/list`). Roots listed first win, and every overlay root takes
+  precedence over the platform library.
+
+An overlay tree only needs the modules being pinned — anything not
+found there falls through to the platform library. Note that a pinned
+module's own `import`s also resolve through the roots, so a pin that
+must not mix with newer dependencies should vendor its import closure.
+
+### Probing and arming
+
+The shell wrapper probes for `pin.xon` starting from the **program's**
+directory (`-f`/`-F`), or the current directory for a REPL, walking up
+parent directories git-style. A found manifest is always announced —
+one `pinned: <path>` line on stderr — and `--no-pin` skips the probe
+entirely.
+
+The wrapper never reads the manifest itself: it hands the path to the
+interpreter as data (`(def %pin-file "<path>")` ahead of the boot
+entry) and loads `x/tool/pin` right after boot, before the first user
+form. That loader — always resolved from the platform library, never
+from an overlay — reads the manifest, checks the vocabulary, and arms
+the roots via `import-path!`. Because nothing in the manifest is
+evaluated, a manifest can only do what pinning does: redirect import
+resolution into its own project's files.
+
+### The pin boundary
+
+Two structural rules bound what an overlay can change:
+
+- **One version per name per session.** `import` dedups by module name,
+  first load wins — two versions of the same module cannot coexist in
+  one session.
+- **The boot set is unpinnable.** Modules loaded by the boot closure
+  are pre-registered in the loaded-module registry, so an `import` of
+  them is a no-op before any search root is consulted. An overlay copy
+  of a boot module is ignored by construction; pinning the platform
+  itself means running a different boot entry, not overlaying files.
+
+`make check-pin` smokes all of this end to end (overlay resolution,
+root precedence, the unpinnable core, the closed vocabulary,
+`--no-pin`).
+
 ### Bootstrap Sequence
 
 The bootstrap loader `lib/x-core.x` loads modules in a specific order:
