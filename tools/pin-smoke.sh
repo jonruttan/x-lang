@@ -12,6 +12,10 @@
 #   notice     the wrapper announces the manifest on stderr
 #   closed     an unknown manifest form is a loud error, nonzero exit
 #   no-pin     --no-pin skips the probe (and the notice)
+#   vendor     (Pin vendor) copies x/type/dict's closure into an overlay
+#              (helium: dict is not boot-floor there), the boot floor is
+#              skipped, and a pinned run loads the OVERLAY copy -- proven
+#              by appending a drift marker the platform copy lacks
 # (The pinned REPL path is tty-side -- the fd-3 class check-examples.sh
 # documents -- and is not smokeable here; it shares every pipe stage but
 # the final launch.x with the -f path exercised below.)
@@ -108,5 +112,34 @@ status=$?
 [ "$status" -eq 0 ] || fail "--no-pin run exited $status" "$_TMP/err" "$_TMP/out"
 grep -qx "unpinned" "$_TMP/out" || fail "--no-pin: program output missing" "$_TMP/out"
 grep -q "^pinned: " "$_TMP/err" && fail "--no-pin: probe still announced a manifest" "$_TMP/err"
+
+# vendor: closure copied, floor skipped, overlay copy is the one that loads
+mkdir -p "$_TMP/proj2"
+cat > "$_TMP/vendor.x" <<EOF
+(import x/tool/pin)
+(Pin vendor "$_TMP/proj2/deps" 'x/type/dict)
+(display "vendored")
+(newline)
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/vendor.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -eq 0 ] || fail "vendor run exited $status" "$_TMP/err" "$_TMP/out"
+grep -qx "vendored" "$_TMP/out" || fail "vendor: no completion marker" "$_TMP/out" "$_TMP/err"
+[ -e "$_TMP/proj2/deps/x/type/dict.x" ] || fail "vendor: dict.x not copied"
+[ -d "$_TMP/proj2/deps/x/core" ] && fail "vendor: boot floor leaked into the overlay"
+# drift simulation: the vendored copy grows a marker the platform lacks
+printf '(def %%pin-smoke-vendored "yes")\n' >> "$_TMP/proj2/deps/x/type/dict.x"
+cat > "$_TMP/proj2/pin.xon" <<'EOF'
+(root "deps")
+EOF
+cat > "$_TMP/proj2/main.x" <<'EOF'
+(import x/type/dict)
+(display %pin-smoke-vendored)
+(newline)
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/proj2/main.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -eq 0 ] || fail "vendored-pin run exited $status" "$_TMP/err" "$_TMP/out"
+grep -qx "yes" "$_TMP/out" || fail "vendored-pin: the platform copy loaded, not the overlay" "$_TMP/out"
 
 echo "pin-smoke: ok"

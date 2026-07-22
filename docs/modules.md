@@ -133,6 +133,37 @@ x -f myproj/main.x
 `main.x`'s `(import x/type/dict)` loads `deps/x/type/dict.x`; every
 other import falls through to the installed library.
 
+### Vendoring the closure
+
+The platform ships the vendor tool: the `Pin` class in `x/tool/pin`.
+It computes a module's **import closure** statically — the module, its
+transitive imports (including imports inside deferred `fn` bodies), and
+any `./`-relative include siblings — by reading sources with the
+reader, never loading them, and copies the closure into an overlay
+root, preserving the layout:
+
+```
+> (import x/tool/pin)            ; FIRST import of the session
+> (Pin vendor "deps" 'x/type/dict)
+("x/type/dict.x" ...)
+> (Pin closure 'x/type/dict)     ; the same list, without copying
+```
+
+Vendoring the closure is what keeps a pin honest: a pinned module's own
+imports resolve through the same roots, so vendoring only the module
+itself would silently mix it with newer dependencies.
+
+Two rules the tool enforces:
+
+- **The boot floor is skipped, and a boot-floor seed is refused.** A
+  module pre-seeded by the running dialect's boot is unpinnable (the
+  pin boundary), so a vendored copy of one is dead weight. The floor is
+  snapshotted when `x/tool/pin` loads — which is why a vendor session
+  should be fresh, with the tool imported first.
+- **Nothing is skipped silently.** A path the static walk cannot
+  resolve — a computed include, an absolute or root-relative literal —
+  is a loud error, never a silently unvendored dependency.
+
 ### Probing and arming
 
 The shell wrapper probes for `pin.xon` starting from the **program's**

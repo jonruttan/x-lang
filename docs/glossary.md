@@ -70,6 +70,11 @@ differ in what surface is *loaded*, never in what a shared spelling *means*
   pre-seeded boot set (an overlay copy of a boot module is a no-op by
   construction), and module identity (one version per name per session —
   first load wins).
+- **vendor** — copy a module's **import closure** (the module, its
+  transitive imports, and its `./`-relative include siblings; boot floor
+  excluded) into a project's overlay root: `(Pin vendor "deps" 'name)`.
+  Closure-wise, not file-wise — a lone vendored module would silently
+  mix with newer dependencies.
 
 ## combiners
 
