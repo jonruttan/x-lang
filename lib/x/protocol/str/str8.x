@@ -365,8 +365,8 @@
           (match
             ((null? prec) (if (str? v) v (%display-to-str v)))
             ((eq? (%str8-type-of v) %str8-int-type)
-              (if (= prec 0) (number->str v)
-                (%str-append (number->str v)
+              (if (= prec 0) (%number->str v)
+                (%str-append (%number->str v)
                   (%str-append "." (Str8 repeat prec "0")))))
             (#t
               ; float path: the value existing means the tower is loaded

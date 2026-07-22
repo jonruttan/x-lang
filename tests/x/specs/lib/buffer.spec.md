@@ -80,7 +80,7 @@ not run -- see tests/spec-format.md.)
   (def %b ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
   (Buf append %b #\z) (Buf read %b)
   (Buf reset %b)
-  (str-length (Buf tok %b)))
+  (%str-length (Buf tok %b)))
 ```
 ---
     0
@@ -94,7 +94,7 @@ not run -- see tests/spec-format.md.)
   (Buf append %b #\a) (Buf append %b #\b) (Buf append %b #\c)
   (Buf read %b)
   (Buf retain %b)
-  (str-ref %s 0))
+  (%str-ref %s 0))
 ```
 ---
     #\b

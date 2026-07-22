@@ -10,7 +10,7 @@ header-less blocks; (buf make) wraps a string's bytes non-owning.
 ### allocates exactly n visible bytes
 
 ```scheme
-(str-length ((prim-ref 'str 'make) 64))
+(%str-length ((prim-ref 'str 'make) 64))
 ```
 ---
     64
@@ -23,7 +23,7 @@ header-less blocks; (buf make) wraps a string's bytes non-owning.
   (def %p ((prim-ref 'str '->ptr) %s))
   ((prim-ref 'ptr 'set!) %p 0 104 1)
   ((prim-ref 'ptr 'set!) %p 1 105 1)
-  (str-ref %s 0))
+  (%str-ref %s 0))
 ```
 ---
     #\h
@@ -84,7 +84,7 @@ header-less blocks; (buf make) wraps a string's bytes non-owning.
   (def %b ((prim-ref 'buf 'make) %s))
   ((prim-ref 'buf 'append) %b #\x)
   ((prim-ref 'buf 'append) %b #\y)
-  (str-ref %s 0))
+  (%str-ref %s 0))
 ```
 ---
     #\x
@@ -101,7 +101,7 @@ header-less blocks; (buf make) wraps a string's bytes non-owning.
   ((prim-ref 'ptr 'set!) %sp 0 104 1)
   ((prim-ref 'ptr 'set!) %sp 1 105 1)
   ((prim-ref 'mem 'copy) ((prim-ref 'str '->ptr) %dst) %sp 4)
-  (str-ref %dst 1))
+  (%str-ref %dst 1))
 ```
 ---
     #\i
@@ -132,7 +132,7 @@ strncmp would stop at the NUL and call them equal; memcmp must not.
 (do
   (def %s ((prim-ref 'str 'make) 4))
   ((prim-ref 'mem 'set) ((prim-ref 'str '->ptr) %s) 122 3)
-  (list (str-ref %s 0) (str-ref %s 2) (str-ref %s 3)))
+  (list (%str-ref %s 0) (%str-ref %s 2) (%str-ref %s 3)))
 ```
 ---
     (#\z #\z #\space)

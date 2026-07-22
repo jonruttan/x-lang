@@ -71,7 +71,7 @@
       (#t
         (do
           (%print-emit "#<ATOM:0x")
-          (%print-emit (number->str (first-int o) 16))
+          (%print-emit (%number->str (first-int o) 16))
           (%print-emit ">"))))))
 ; Bounded opaque form for handler-less cell-typed instances: only the
 ; header-derived type NAME is read, never a data word.
@@ -110,8 +110,8 @@
       ((eq? b 10) "\\n")
       ((eq? b 9)  "\\t")
       ((eq? b 13) "\\r")
-      ((< b 16) (%str-append "\\x0" (number->str b 16)))
-      (#t (%str-append "\\x" (number->str b 16))))))
+      ((< b 16) (%str-append "\\x0" (%number->str b 16)))
+      (#t (%str-append "\\x" (%number->str b 16))))))
 ; Emit whole SAFE RUNS, not bytes: scan ahead to the next byte needing an
 ; escape and emit the run with one %str-byte-sub (one allocation, one OUT
 ; call -- the door is an unbuffered write(2), so per-byte emission costs a
@@ -314,7 +314,7 @@
     (do
       (def %print-nd (%reflect-step (%print-tree handle) (%reflect-path-parent stack-path)))
       (set-first! %print-nd (pair handler (first %print-nd))))))
-(def %print-int-h  (fn (_ o) (%print-emit (number->str o))))
+(def %print-int-h  (fn (_ o) (%print-emit (%number->str o))))
 (def %print-str-dh (fn (_ o) (%print-emit o)))
 ; Symbols WRITE with the quote shorthand -- 'x, not (lit x) -- so the echo
 ; is what you would type and pastes back re-readably (#45 R1). The reader

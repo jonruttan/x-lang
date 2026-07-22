@@ -72,7 +72,7 @@
                   (%str-append
                     (if (> (%error-line) 1)
                       (%str-append "Error [line "
-                        (%str-append (number->str (%error-line)) "]: "))
+                        (%str-append (%number->str (%error-line)) "]: "))
                       "Error: ")
                     ; A bare-string error reads naturally raw; EVERYTHING
                     ; else renders through the universal writer.  The old

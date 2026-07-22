@@ -48,20 +48,20 @@
       ; nested let, not def-in-do: this is the tail, so def would leak to global
       (let ((%find-space
              (fn (self i)
-               (if (>= i (str-length request)) 0
-                 (if (Char =? (str-ref request i) #\space) i
+               (if (>= i (%str-length request)) 0
+                 (if (Char =? (%str-ref request i) #\space) i
                    (self (+ i 1)))))))
         (let ((start (+ (%find-space 0) 1)))
           (let ((end (%find-space start)))
             (if (>= start end) "/"
-              (substring request start end))))))))
+              (%substring request start end))))))))
 
 ; Build an HTTP response string.
 (def %http-response
   (fn (_ status content-type body)
     (Str append "HTTP/1.1 " status "\r\n"
          "Content-Type: " content-type "\r\n"
-         "Content-Length: " (number->str (str-length body)) "\r\n"
+         "Content-Length: " (%number->str (%str-length body)) "\r\n"
          "Access-Control-Allow-Origin: *\r\n"
          "Connection: close\r\n"
          "\r\n"
@@ -137,7 +137,7 @@
   (fn ()
     (def content (%slurp %bc-path))
     (if (str=? content "") "[]"
-      (Str append "[" (substring content 0 (- (str-length content) 2)) "]"))))
+      (Str append "[" (%substring content 0 (- (%str-length content) 2)) "]"))))
 
 ; Write initial empty bytecode file
 (def %bc-write

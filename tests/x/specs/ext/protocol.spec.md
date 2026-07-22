@@ -79,7 +79,7 @@ a string; `StrUTF8` overrides the primitives to walk code points.
 ```x
 (do
   (import x/protocol/str/utf8)
-  (list (StrUTF8 ref 0 "¢") (str-ref "¢" 0)))
+  (list (StrUTF8 ref 0 "¢") (%str-ref "¢" 0)))
 ```
 ---
     (#\¢ #\Â)

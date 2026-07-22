@@ -52,12 +52,12 @@
 ; Local str-contains? (string.x not yet loaded)
 (def %doc-str-contains?
   (fn (_ sub s)
-    (def %sub-len (str-length sub))
-    (def %s-len (str-length s))
+    (def %sub-len (%str-length sub))
+    (def %s-len (%str-length s))
     (def %go
       (fn (self i)
         (if (< %s-len (+ i %sub-len)) #f
-          (if (str=? (substring s i (+ i %sub-len)) sub) #t
+          (if (str=? (%substring s i (+ i %sub-len)) sub) #t
             (self (+ i 1))))))
     (if (= %sub-len 0) #t (%go 0))))
 
@@ -534,10 +534,10 @@
 ; Lexicographic byte compare of two strings (sorts member/method names).
 (def %str<?
   (fn (loop a b i)
-    (if (>= i (str-length a)) (< (str-length a) (str-length b))
-      (if (>= i (str-length b)) #f
-        (let ((ca (%char->integer (str-ref a i)))
-              (cb (%char->integer (str-ref b i))))
+    (if (>= i (%str-length a)) (< (%str-length a) (%str-length b))
+      (if (>= i (%str-length b)) #f
+        (let ((ca (%char->integer (%str-ref a i)))
+              (cb (%char->integer (%str-ref b i))))
           (if (< ca cb) #t (if (> ca cb) #f (loop a b (+ i 1)))))))))
 
 ; #t if symbol x is in the list of symbols lst.
@@ -723,13 +723,13 @@
 ; Uses only primitives available at doc.x load time (no str-starts?/str-ends?)
 (def %path->module-name
   (fn (_ path)
-    (def %len (str-length path))
+    (def %len (%str-length path))
     (if (< %len 7) ()
-      (if (not (str=? (substring path 0 4) "lib/")) ()
-        (if (not (str=? (substring path (- %len 2) %len) ".x")) ()
+      (if (not (str=? (%substring path 0 4) "lib/")) ()
+        (if (not (str=? (%substring path (- %len 2) %len) ".x")) ()
           (let ()
-            (def %inner (substring path 4 (- %len 2)))
-            (if (not (str=? (substring %inner 0 2) "x/")) ()
+            (def %inner (%substring path 4 (- %len 2)))
+            (if (not (str=? (%substring %inner 0 2) "x/")) ()
               (%str->symbol %inner))))))))
 
 ; Check if module name is in the loaded registry

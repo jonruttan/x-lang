@@ -59,7 +59,7 @@
 
 (doc (def str->list
   (fn (_ s)
-    (def len (str-length s))
+    (def len (%str-length s))
     (let go ((i 0) (acc ()))
       (if (>= i len)
         (%reverse acc)
@@ -135,5 +135,5 @@
 
 (doc (provide x/type/str-utf8 list->str str->list)
   (note "Low-level layer, loaded before the object system. The high-level string API is the Str8 / StrUTF8 classes and the Str entry point in x/type/str.")
-  (note "The named byte API (str-length, str-ref, substring) stays byte-level; only the bare (s i) call is code-point aware.")
+  (note "The %-private byte API (%str-length, %str-ref, %substring) stays byte-level; only the bare (s i) call is code-point aware.")
   "The low-level UTF-8 code-point layer for the STRING type: the list<->str transforms and the bare (s i) code-point indexing handler.")

@@ -199,17 +199,17 @@
           (pair 'read
             (fn (_ . read-args)
               (def text (%buffer-token (first read-args)))
-              (def len (str-length text))
+              (def len (%str-length text))
               (def %count-indent
                 (fn (self i)
                   (if (>= i len) i
-                    (if (or (Char =? (str-ref text i) #\space)
-                            (Char =? (str-ref text i) #\tab))
+                    (if (or (Char =? (%str-ref text i) #\space)
+                            (Char =? (%str-ref text i) #\tab))
                       (self (+ i 1))
                       i))))
               (def indent-end (%count-indent 1))
               (def indent (- indent-end 1))
-              (def word (substring text indent-end len))
+              (def word (%substring text indent-end len))
               (%make-instance %logo-indent (pair indent word))))
           (pair 'write
             (fn (_ self)
@@ -265,8 +265,8 @@
           (pair 'read
             (fn (_ . args)
               (def text (%buffer-token (first args)))
-              (def len (str-length text))
-              (%make-instance %logo-string (substring text 1 (- len 1)))))
+              (def len (%str-length text))
+              (%make-instance %logo-string (%substring text 1 (- len 1)))))
           (pair 'write
             (fn (_ self)
               (display "\"") (display (first self)) (display "\""))))))

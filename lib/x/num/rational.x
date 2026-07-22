@@ -43,7 +43,7 @@
 (def %rat-find-slash
   (fn (self s i len)
     (if (>= i len) ()
-      (if (= (%cvt (str-ref s i) %int) 47)
+      (if (= (%cvt (%str-ref s i) %int) 47)
         i
         (self s (%int+ i 1) len)))))
 ; --- Constructor: auto-reduce and normalize sign ---
@@ -126,12 +126,12 @@
           (pair
             (%type-of "")
             (fn (_ value)
-              (let ((pos (%rat-find-slash value 0 (str-length value))))
+              (let ((pos (%rat-find-slash value 0 (%str-length value))))
                 (if pos
                   (%make-rational
-                    (%cvt (substring value 0 pos) %int)
+                    (%cvt (%substring value 0 pos) %int)
                     (%cvt
-                      (substring value (%int+ pos 1) (str-length value)) %int))
+                      (%substring value (%int+ pos 1) (%str-length value)) %int))
                   ()))))))
       (pair
         'to
@@ -283,12 +283,12 @@
 (set! %rational-read
   (fn (_ . args)
     (let ((tok (%buffer-token (first args))))
-      (let ((pos (%rat-find-slash tok 0 (str-length tok))))
+      (let ((pos (%rat-find-slash tok 0 (%str-length tok))))
         (if pos
           (%make-rational
-            (%cvt (substring tok 0 pos) %int)
+            (%cvt (%substring tok 0 pos) %int)
             (%cvt
-              (substring tok (%int+ pos 1) (str-length tok)) %int))
+              (%substring tok (%int+ pos 1) (%str-length tok)) %int))
           ())))))
 
 (import x/type/class)

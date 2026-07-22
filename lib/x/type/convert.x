@@ -28,9 +28,9 @@
 ; Type handles: %int, %char, %string, %symbol, %ptr, %pair
 ;
 ; Registered conversions:
-;   INT  <- char (char->integer), string (str->number), ptr (%ptr->int)
+;   INT  <- char (char->integer), string (%str->number), ptr (%ptr->int)
 ;   CHAR <- int (integer->char)
-;   STR  <- int (number->str), symbol (symbol->str), list (list->str),
+;   STR  <- int (%number->str), symbol (symbol->str), list (list->str),
 ;           ptr (%ptr->str)
 ;   SYM  <- string (%str->symbol)
 ;   PTR  <- int (int->ptr), string (%str->ptr), any (%obj->ptr)
@@ -93,8 +93,8 @@
     (pair %char   (fn (_ v . extra) (%char->integer v)))
     (pair %string (fn (_ v . extra)
                     (if (null? extra)
-                      (str->number v)
-                      (str->number v (first extra)))))
+                      (%str->number v)
+                      (%str->number v (first extra)))))
     (pair %ptr    (fn (_ v . extra) (%ptr->int v)))))
 
 ; CHAR: from int
@@ -108,8 +108,8 @@
   (list
     (pair %int    (fn (_ v . extra)
                     (if (null? extra)
-                      (number->str v)
-                      (number->str v (first extra)))))
+                      (%number->str v)
+                      (%number->str v (first extra)))))
     (pair %symbol (fn (_ v . extra) (symbol->str v)))
     (pair %pair   (fn (_ v . extra) (list->str v)))
     (pair %ptr    (fn (_ v . extra) (%ptr->str v)))))

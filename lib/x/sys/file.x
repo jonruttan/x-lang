@@ -200,7 +200,7 @@
         (let ((bytes-read (File read fd buffer 1)))
           (if (<= bytes-read 0)
             -1
-            (str-ref buffer 0)))))
+            (%str-ref buffer 0)))))
 
     ; ======================================================================
     ; The ergonomic tier (#22): whole-file and filesystem operations that
@@ -256,7 +256,7 @@
       ; symbolic modes: the O_* numbers differ per OS (%file-modes is per-OS)
       (def fd (File open path (list 'wronly 'creat 'trunc) 420))
       (when (< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
-      (def n (File write fd s (str-length s)))
+      (def n (File write fd s (%str-length s)))
       (def en (if (< n 0) (%fs-errno n) ()))  ; before close clobbers errno
       (File close fd)
       (when (< n 0) (error (Err from-errno en 'write path)))

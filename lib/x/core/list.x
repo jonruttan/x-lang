@@ -148,7 +148,7 @@
 (doc (def else #t)
   "Alias for #t, for use as the default clause in cond/case.")
 
-(doc (def str-copy (fn (_ s) (substring s 0 (str-length s))))
+(doc (def str-copy (fn (_ s) (%substring s 0 (%str-length s))))
   (param s STRING "String to copy")
   (returns STRING "A copy of the string")
   "Return a copy of a string (Scheme compatibility).")

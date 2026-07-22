@@ -23,24 +23,24 @@
 ; stack pushed around each load. Plain and absolute paths keep their cwd-relative
 ; meaning, so no existing call-site moves. The C primitive itself is untouched;
 ; see the set!-wrapper below for how the bare symbol is made relative-aware.
-(def %slash-code (%char->integer (str-ref "/" 0)))
+(def %slash-code (%char->integer (%str-ref "/" 0)))
 
 (def %str-starts?
   (fn (_ s p)
-    (def pl (str-length p))
+    (def pl (%str-length p))
     (match
-      ((< (str-length s) pl) #f)
-      (#t (str=? (substring s 0 pl) p)))))
+      ((< (%str-length s) pl) #f)
+      (#t (str=? (%substring s 0 pl) p)))))
 
 ; Index of the last "/" in p, or -1 if there is none.
 (def %last-slash
   (fn (_ p)
-    (def n (str-length p))
+    (def n (%str-length p))
     (def %go
       (fn (self i last)
         (match
           ((= i n) last)
-          ((= (%char->integer (str-ref p i)) %slash-code) (self (+ i 1) i))
+          ((= (%char->integer (%str-ref p i)) %slash-code) (self (+ i 1) i))
           (#t (self (+ i 1) last)))))
     (%go 0 -1)))
 
@@ -50,7 +50,7 @@
     (def slash (%last-slash p))
     (match
       ((< slash 0) ".")
-      (#t (substring p 0 slash)))))
+      (#t (%substring p 0 slash)))))
 
 ; Join a directory with a relative remainder. No normalisation -- the OS
 ; collapses any "." / ".." segments when it opens the file.
@@ -71,7 +71,7 @@
     (match
       ((%str-starts? input "/") input)
       ((%str-starts? input "./")
-        (%path-join curdir (substring input 2 (str-length input))))
+        (%path-join curdir (%substring input 2 (%str-length input))))
       ((%str-starts? input "../") (%path-join curdir input))
       (#t input))))
 

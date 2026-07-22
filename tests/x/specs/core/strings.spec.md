@@ -3,7 +3,7 @@
 ### returns length of string
 
 ```scheme
-(str-length "hello")
+(%str-length "hello")
 ```
 ---
     5
@@ -11,7 +11,7 @@
 ### returns 0 for empty string
 
 ```scheme
-(str-length "")
+(%str-length "")
 ```
 ---
     0
@@ -21,7 +21,7 @@
 ### returns character at index
 
 ```scheme
-(str-ref "hello" 0)
+(%str-ref "hello" 0)
 ```
 ---
     #\h
@@ -29,7 +29,7 @@
 ### returns middle character
 
 ```scheme
-(str-ref "hello" 2)
+(%str-ref "hello" 2)
 ```
 ---
     #\l
@@ -57,7 +57,7 @@
 ### extracts substring
 
 ```scheme
-(substring "hello world" 6 11)
+(%substring "hello world" 6 11)
 ```
 ---
     "world"
@@ -65,7 +65,7 @@
 ### extracts from start
 
 ```scheme
-(substring "hello" 0 3)
+(%substring "hello" 0 3)
 ```
 ---
     "hel"
@@ -73,7 +73,7 @@
 ### single character
 
 ```scheme
-(substring "abc" 1 2)
+(%substring "abc" 1 2)
 ```
 ---
     "b"
@@ -229,7 +229,7 @@
 ### hex escape produces correct byte
 
 ```scheme
-(= (Convert to (str-ref "\x41" 0) %int) 65)
+(= (Convert to (%str-ref "\x41" 0) %int) 65)
 ```
 ---
     #t
@@ -255,7 +255,7 @@
 ### builds string from parts
 
 ```scheme
-(str-length (Str8 append "abc" "defgh"))
+(%str-length (Str8 append "abc" "defgh"))
 ```
 ---
     8
@@ -266,7 +266,7 @@
 ### zero and ordinaries
 
 ```scheme
-(list (number->str 0) (number->str 12345) (number->str -42))
+(list (%number->str 0) (%number->str 12345) (%number->str -42))
 ```
 ---
     ("0" "12345" "-42")
@@ -274,7 +274,7 @@
 ### radix
 
 ```scheme
-(list (number->str 255 16) (number->str -255 16) (number->str 7 2))
+(list (%number->str 255 16) (%number->str -255 16) (%number->str 7 2))
 ```
 ---
     ("ff" "-ff" "111")
@@ -287,7 +287,7 @@ the 32-bit Pi build passes too; the round-trip proves the digits.
 ```scheme
 (do
   (def %n (<< 1 (- (* 8 %word-size) 1)))
-  (eq? (str->number (number->str %n)) %n))
+  (eq? (%str->number (%number->str %n)) %n))
 ```
 ---
     #t
@@ -297,12 +297,12 @@ the 32-bit Pi build passes too; the round-trip proves the digits.
 The reader has always accepted `0xff` as a literal; the string parser now
 matches it. Detection is prefix-only and only when no explicit radix is
 passed -- an explicit radix means the caller controls interpretation, which
-keeps the JSON `\u` parser (`(str->number %t 16)`) byte-exact.
+keeps the JSON `\u` parser (`(%str->number %t 16)`) byte-exact.
 
 ### parses the reader's hex notation
 
 ```scheme
-(list (str->number "0xff") (str->number "0XFF") (str->number "0x1A"))
+(list (%str->number "0xff") (%str->number "0XFF") (%str->number "0x1A"))
 ```
 ---
     (255 255 26)
@@ -310,7 +310,7 @@ keeps the JSON `\u` parser (`(str->number %t 16)`) byte-exact.
 ### sign parses before the prefix
 
 ```scheme
-(list (str->number "-0xff") (str->number "+0x10"))
+(list (%str->number "-0xff") (%str->number "+0x10"))
 ```
 ---
     (-255 16)
@@ -318,7 +318,7 @@ keeps the JSON `\u` parser (`(str->number %t 16)`) byte-exact.
 ### misses stay nil -- 0 would be indistinguishable from parsing "0"
 
 ```scheme
-(list (null? (str->number "0x")) (null? (str->number "0xg")) (null? (str->number "abc")))
+(list (null? (%str->number "0x")) (null? (%str->number "0xg")) (null? (%str->number "abc")))
 ```
 ---
     (#t #t #t)
@@ -326,7 +326,7 @@ keeps the JSON `\u` parser (`(str->number %t 16)`) byte-exact.
 ### an explicit radix disables auto-detection
 
 ```scheme
-(list (str->number "ff" 16) (null? (str->number "0xff" 16)) (str->number "101" 2))
+(list (%str->number "ff" 16) (null? (%str->number "0xff" 16)) (%str->number "101" 2))
 ```
 ---
     (255 #t 5)
@@ -341,10 +341,10 @@ number, which is how JSON corrupted 64-bit IDs.
 ### overflow raises, boundaries parse exactly
 
 ```scheme
-(list (guard (e (lit R)) (str->number "12345678901234567890"))
-      (guard (e (lit R)) (str->number "9223372036854775808"))
-      (str->number "9223372036854775807")
-      (str->number "-9223372036854775808"))
+(list (guard (e (lit R)) (%str->number "12345678901234567890"))
+      (guard (e (lit R)) (%str->number "9223372036854775808"))
+      (%str->number "9223372036854775807")
+      (%str->number "-9223372036854775808"))
 ```
 ---
     ('R 'R 9223372036854775807 -9223372036854775808)

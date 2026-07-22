@@ -832,28 +832,31 @@ Returns the character with code point `n`.
 
 ## 7. Strings
 
-### `str-length`
+### `Str8 length`
 
-`(str-length str) -> integer`
+`(Str8 length str) -> integer`
 
 Returns the byte length of string `str` (not character count; x-lang strings
-are byte arrays with no encoding awareness).
+are byte arrays with no encoding awareness). The bare `str-length` spelling
+is retired (#108): the boot layer keeps it %-private; the class is the
+surface.
 
 ```
-(str-length "hello") -> 5
-(str-length "") -> 0
+(Str8 length "hello") -> 5
+(Str8 length "") -> 0
 ```
 
-### `str-ref`
+### `Str8 ref`
 
-`(str-ref str index) -> char`
+`(Str8 ref index str) -> char`
 
-Returns the character at zero-based `index` in `str`. Out-of-bounds access is
-undefined.
+Returns the character at zero-based `index` in `str` (index first, the
+adjudicated seat order; negative counts from the end). The bare `str-ref`
+spelling is retired (#108).
 
 ```
-(str-ref "hello" 0) -> #\h
-(str-ref "hello" 4) -> #\o
+(Str8 ref 0 "hello") -> #\h
+(Str8 ref 4 "hello") -> #\o
 ```
 
 ### `Str8 append`
@@ -867,16 +870,17 @@ Concatenates exactly two strings. For multiple strings, use `Str append` (variad
 (Str8 append "" "x") -> "x"
 ```
 
-### `substring`
+### `Str8 sub`
 
-`(substring str start end) -> string`
+`(Str8 sub start len str) -> string`
 
-Extracts a substring from `start` (inclusive) to `end` (exclusive).
-Out-of-bounds indices are undefined.
+Extracts `len` bytes starting at byte offset `start` (count-first seats, the
+adjudicated order; start+length, not start+end). The bare `substring`
+spelling is retired (#108).
 
 ```
-(substring "hello" 1 3) -> "el"
-(substring "hello" 0 5) -> "hello"
+(Str8 sub 1 2 "hello") -> "el"
+(Str8 sub 0 5 "hello") -> "hello"
 ```
 
 ### `str=?`
@@ -910,20 +914,22 @@ Converts a symbol to a string.
 (symbol->str 'hello) -> "hello"
 ```
 
-### `number->str`
+### number to string
 
-`(number->str n) -> string`
+`(Convert to n (Type of "")) -> string`
 
-Converts integer to decimal string representation.
+Converts an integer to its decimal string representation through the
+conversion catalog. The bare `number->str` spelling is retired (#108); the
+boot layer keeps it %-private for the printer's hot path.
 
 ```
-(number->str 42) -> "42"
-(number->str -1) -> "-1"
+(Convert to 42 (Type of "")) -> "42"
+(Convert to -1 (Type of "")) -> "-1"
 ```
 
-### `str->number`
+### string to number
 
-`(str->number str [radix]) -> integer | ()`
+`(Convert to str (Type of 0) [radix]) -> integer | ()`
 
 Parses string as an integer. A `0x`/`0X` prefix selects hex, matching the
 reader's literal; the sign parses first, so `"-0xff"` is `-255`. An explicit
@@ -935,12 +941,12 @@ predating the nil model -- and documented the hex prefix before it was
 implemented; #76 ruled it in.)
 
 ```
-(str->number "42") -> 42
-(str->number "0xff") -> 255
-(str->number "-0xff") -> -255
-(str->number "ff" 16) -> 255
-(str->number "abc") -> ()
-(guard (e "caught") (str->number "12345678901234567890")) -> "caught"
+(Convert to "42" (Type of 0)) -> 42
+(Convert to "0xff" (Type of 0)) -> 255
+(Convert to "-0xff" (Type of 0)) -> -255
+(Convert to "ff" (Type of 0) 16) -> 255
+(Convert to "abc" (Type of 0)) -> ()
+(guard (e "caught") (Convert to "12345678901234567890" (Type of 0))) -> "caught"
 ```
 
 Digits that overflow the machine integer RAISE rather than wrapping -- a

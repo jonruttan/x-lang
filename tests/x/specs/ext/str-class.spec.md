@@ -325,7 +325,7 @@ were sliced at the wrong boundaries.
 ### str-length is byte-level (the raw octet accessor)
 
 ```x
-(str-length "$¢€")
+(%str-length "$¢€")
 ```
 ---
     6
@@ -333,7 +333,7 @@ were sliced at the wrong boundaries.
 ### str-ref is byte-level
 
 ```x
-(Char ->int (str-ref "$¢€" 1))
+(Char ->int (%str-ref "$¢€" 1))
 ```
 ---
     194

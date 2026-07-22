@@ -23,12 +23,12 @@
     (method fnv-1a (self (param s STRING "String to hash"))
       (doc "Hash a string to a 64-bit integer using the FNV-1a algorithm."
         (returns INT "64-bit FNV-1a hash value"))
-      (def %len (str-length s))
+      (def %len (%str-length s))
       (def %go
         (fn (self i h)
           (if (%int= i %len) h
             (self (%int+ i 1)
-              (%int* (^ h (%cvt (str-ref s i) %int)) %fnv-prime)))))
+              (%int* (^ h (%cvt (%str-ref s i) %int)) %fnv-prime)))))
       (%go 0 %fnv-offset))
     (method ->hex (self (param n INT "64-bit signed hash value"))
       (doc "Convert a 64-bit signed integer to a 16-character unsigned hex string."
