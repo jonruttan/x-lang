@@ -192,9 +192,25 @@
     ; clock was previously reached via the catalog auto-class (ns sys); authored
     ; here as the catalog bridge retires (R4). Cold path -> inline prim-ref.
     (method clock (self)
-      (doc "Current process CPU time in microseconds (for timing / the `time` form). WALL-clock time is (Sys time) / (Sys time-of-day)."
+      (doc "Current process CPU time in microseconds (the (Sys time) profiler reads this). WALL-clock time is (Sys now) / (Sys time-of-day)."
         (returns INT "Microseconds of CPU time consumed"))
       ((prim-ref (lit sys) (lit clock))))
+
+    ; The verb seat (#108 rethink, ruled 2026-07-22): (Sys time thunk) TIMES;
+    ; the wall-clock reading it displaced is (Sys now). Thunk-shaped by
+    ; necessity -- class dispatch evaluates arguments, so an op cannot ride a
+    ; static seat (probed) -- and it RETURNS the measurement: mechanism
+    ; returns data, printing is the caller's policy ((display (Sys time ...))
+    ; is the chatty spelling). Need the thunk's result too? Capture it
+    ; through the closure: (def r ()) (Sys time (fn () (set! r ...))).
+    (method time (self (param thunk CALLABLE "Zero-argument fn to run and time"))
+      (doc "Run THUNK and return its elapsed CPU time in microseconds. The thunk's result is discarded -- capture it via the closure when needed."
+        (returns INT "Elapsed CPU microseconds")
+        (example "(number? (Sys time (fn () (List fold + 0 (List range 0 100)))))" "#t")
+        (sample "(Sys time (fn () (heavy-computation)))" "1234"))
+      (let ((t0 ((prim-ref (lit sys) (lit clock)))))
+        (do (thunk)
+            (- ((prim-ref (lit sys) (lit clock))) t0))))
 
     ; --- Wall clock (#21) ---
     ; libc gettimeofday into a GC-owned 16-byte buffer; the timeval decode
@@ -210,10 +226,10 @@
             (when (< r 0) (error (Err from-errno (Err errno-of r) (lit gettimeofday) ())))
             (pair (%ptr-ref buf 0 8) (%ptr-ref buf 8 4))))))
 
-    (method time (self)
-      (doc "Wall-clock time as unix seconds (UTC). CPU time is (Sys clock); civil dates are the Date class (x/sys/date)."
+    (method now (self)
+      (doc "Wall-clock time as unix seconds (UTC) -- the noun reading; (Sys time thunk) is the verb. CPU time is (Sys clock); civil dates are the Date class (x/sys/date)."
         (returns INT "Seconds since the unix epoch")
-        (sample "(Sys time)" "1752861000"))
+        (sample "(Sys now)" "1752861000"))
       (first (Sys time-of-day)))))
 
 (doc (provide x/sys/posix Sys)

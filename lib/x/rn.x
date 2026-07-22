@@ -15,9 +15,10 @@
 (import x/type/hash)
 (import x/num/bignum)
 (import x/type/regex)
-; Common containers: Dict rides the dialects (helium stays light) -- same
-; rationale as x/xe.x; pinned by dialects/smoke.spec.md.
+; Common containers: Dict and Set ride the dialects (helium stays light) --
+; same rationale as x/xe.x; pinned by dialects/smoke.spec.md.
 (import x/type/dict)
+(import x/type/set)
 ; x/tool/compile is already loaded by the radon body; no need to re-import.
 
 ; --- Opt-in system extensions ---

@@ -90,10 +90,10 @@
                (Assoc get-or 0 'second date)))))
 
     (method now (self)
-      (doc "The current wall-clock civil date-time (UTC), from (Sys time)."
+      (doc "The current wall-clock civil date-time (UTC), from (Sys now)."
         (returns ALIST "Date alist for now")
         (sample "(Date now)" "((year . 2026) (month . 7) (day . 18) ...)"))
-      (Date from-unix (Sys time)))
+      (Date from-unix (Sys now)))
 
     (method ->iso (self (param date ALIST "Date alist"))
       (doc "Format a date alist as an ISO-8601 UTC timestamp."
@@ -117,5 +117,5 @@
         #f))))
 
 (doc (provide x/sys/date Date)
-  (note "(Date now) needs x/sys/posix loaded for (Sys time); everything else is pure. Timezone-aware work happens at the boundary -- this module is UTC by design.")
+  (note "(Date now) needs x/sys/posix loaded for (Sys now); everything else is pure. Timezone-aware work happens at the boundary -- this module is UTC by design.")
   "Civil dates over unix time on the Date class: from-unix / to-unix / now / ->iso / leap-year?.")

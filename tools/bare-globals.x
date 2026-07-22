@@ -41,7 +41,7 @@
   (quasi)
   (unless)
   (when)
-  ; --- module system (forms in practice) ---
+  ; --- module system: ruled bare 2026-07-22 (user: "I want to keep them") ---
   (import)
   (import-path!)
   (include-once)
@@ -52,14 +52,70 @@
   (prim-ref)
   (prim-reg!)
   (prims)
-  ; --- name-kept io verbs + misc keep ---
+  ; --- name-kept io verbs + x-lib-version: ruled bare 2026-07-22 ---
   (display)
   (newline)
   (write)
   (list)
-  (time)
   (x-lib-version)
-  ; --- convenience aliases: pending ruling (#108 census) ---
-  (else)
-  (str-copy)
+  ; ============ SCOPE EXTENSION (2026-07-22): the runtime library ============
+  ; The scan now covers all of lib/x/ except the dialect toolboxes and
+  ; lib/x/tool/ (additive DSLs, see the scanner header).  Groups below are
+  ; SANCTIONED-AS-FOUND: each awaits its own ruling round; sweep candidates
+  ; are marked.  Shrinking is the point.
+  ; --- class-system vocabulary (the homing mechanism itself) ---
+  (class-members)
+  (class-methods)
+  (class-name)
+  (class-of)
+  (class-parent)
+  (class-static-members)
+  (class-static-methods)
+  (class?)
+  (def-class)
+  (instance-of?)
+  (method-ref)
+  (new)
+  (new-from)
+  (object?)
+  (super)
+  ; --- predicates, scope-extension additions (join the ruled family) ---
+  (complex?)
+  (real?)
+  ; --- doc/help REPL verbs ---
+  (apropos)
+  (doc)
+  (help)
+  (modules)
+  (note)
+  ; --- reader intrinsics (tokenizer-callback vocabulary; score-set and
+  ;     buffer-unread are ALSO symbol-keyed in the compiler emitter table) ---
+  (buffer-len)
+  (buffer-unread)
+  (current-line)
+  (peek-char)
+  (score-set)
+  ; --- repl verbs ---
+  (quit)
+  (repl)
+  ; --- iteration / laziness (form-like) ---
+  (delay)
+  (iter)
+  ; --- string converters: SWEEP CANDIDATES (class faces exist) ---
+  (list->str)
+  (str)
+  (str->list)
+  ; --- platform lookups + syscall tables (opt-in modules) ---
+  (darwin-syscall-numbers)
+  (i386-syscall-names)
+  (os-darwin?)
+  (os-linux?)
+  (protocol-format-id)
+  (sock-id)
+  (socketcall-id)
+  (syscall-id)
+  (x86_64-syscall-names)
+  ; --- spec-harness vocabulary (tests/x/lib loads these) ---
+  (raised)
+  (throws?)
 )))

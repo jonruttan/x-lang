@@ -1,11 +1,13 @@
 ; dict.x -- Dict: a mutable hash table (buckets over a raw slot vector).
 ;
 ; THE associative container with O(1) expected lookup -- Assoc (alists) is
-; O(n) and eq?-keyed, so string keys don't work there at all. Dict hashes by
-; CONTENT (FNV-1a on the characters, never by pointer: GC relocates heap
-; objects, so pointer hashes would rot) and compares bucket keys with equal?,
-; so symbol, string, integer, and char keys all behave. Anything else errors
-; loudly instead of misbehaving silently.
+; O(n) and eq?-keyed, so string keys don't work there at all. Dict hashes
+; symbol, string, integer, and char keys by CONTENT (FNV-1a) and compares
+; them with equal?. Class instances are IDENTITY keys: hashed by address
+; (sound: the mark-sweep GC frees in place, never relocates, and a live key
+; is rooted by the table itself) and compared with eq?, so equal-but-distinct
+; instances stay distinct keys. Anything else errors loudly instead of
+; misbehaving silently.
 ;
 ; Internals: `store` is a vector (slot 0 = capacity, the raw-obj pattern)
 ; whose slots 1..cap each hold an alist bucket of (key . val) pairs; `n`
@@ -21,6 +23,9 @@
 (def %dict-obj-set! (prim-ref 'obj 'set!))
 ; Fetch the char cast (ns `char` utility members de-registered, R5).
 (def %dict-char->int (prim-ref 'char '->int))
+; Fetch the address casts (ffi.c) for instance identity keys.
+(def %dict-obj->ptr (prim-ref 'obj '->ptr))
+(def %dict-ptr->int (prim-ref 'ptr '->int))
 
 (def %dict-mask31 2147483647)  ; FNV-1a is 64-bit SIGNED -- mask before %
 
@@ -31,8 +36,12 @@
 (def %dict-int-type (%dict-type-of 0))
 (def %dict-int? (fn (_ n) (if (null? n) #f (eq? (%dict-type-of n) %dict-int-type))))
 
-; Content hash per supported key type. Non-negative by construction, so the
-; bucket index (% h cap) never goes negative (C-truncating % keeps the sign).
+; Content hash per supported key type; instances hash by address (identity).
+; The address is stable: mark-sweep frees in place, and a keyed instance is
+; rooted by its bucket entry, so its address cannot be freed and reused while
+; the entry lives. >>4 drops the malloc-alignment zero bits before bucketing.
+; Non-negative by construction, so the bucket index (% h cap) never goes
+; negative (C-truncating % keeps the sign).
 (def %dict-hash
   (fn (_ k)
     (match
@@ -40,7 +49,14 @@
       ((str? k) (& (Hash fnv-1a k) %dict-mask31))
       ((%dict-int? k) (& k %dict-mask31))
       ((char? k) (%dict-char->int k))
-      (#t (Err raise 'type "Dict: unhashable key -- use a symbol, string, integer, or char" ())))))
+      ((object? k) (& (>> (%dict-ptr->int (%dict-obj->ptr k)) 4) %dict-mask31))
+      (#t (Err raise 'type "Dict: unhashable key -- use a symbol, string, integer, char, or class instance" ())))))
+
+; Bucket key equality: instances are identity keys (eq?) -- equal? would
+; recurse into the field box, and cyclic instances would loop -- while
+; content keys keep equal?.
+(def %dict-key=
+  (fn (_ a b) (if (object? a) (eq? a b) (equal? a b))))
 
 ; Find the (key . val) entry pair in a bucket, or (). Returning the ENTRY
 ; (a box), not the value, keeps presence distinguishable from a stored nil.
@@ -48,19 +64,19 @@
   (fn (self k bucket)
     (match
       ((null? bucket) ())
-      ((equal? k (first (first bucket))) (first bucket))
+      ((%dict-key= k (first (first bucket))) (first bucket))
       (#t (self k (rest bucket))))))
 
 (def %dict-remove
   (fn (self k bucket)
     (match
       ((null? bucket) ())
-      ((equal? k (first (first bucket))) (rest bucket))
+      ((%dict-key= k (first (first bucket))) (rest bucket))
       (#t (pair (first bucket) (self k (rest bucket)))))))
 
 (def-class Dict ()
   (doc "A mutable hash table: O(1) expected get/put!/del! over content-hashed keys."
-    (note "Keys may be symbols, strings, integers, or chars (hashed by content, compared with equal?); anything else errors.")
+    (note "Keys may be symbols, strings, integers, or chars (hashed by content, compared with equal?), or class instances (identity keys: hashed by address, compared with eq?); anything else errors.")
     (note "Mutators (put!/del!) return the dict for chaining. get-or is presence-based: a stored nil is returned, not the default.")
     (note "Every association shape has a named door: from-alist ((k . v) ...), from-plist (k v k v ...), from-bindings ((k v) ...) -- and ->alist/->plist/->bindings back out.")
     (example "((Dict from-plist (list 'a 1 'b 2)) get 'b)" "2")
@@ -252,6 +268,6 @@
     (List for-each f (self ->alist))))
 
 (doc (provide x/type/dict Dict)
-  (note "Buckets over a raw slot vector; content hashing (FNV-1a) + equal? keys; doubles past a 3/4 load factor.")
+  (note "Buckets over a raw slot vector; content hashing (FNV-1a) + equal? keys, instances by identity (address hash + eq?); doubles past a 3/4 load factor.")
   (example "(let ((d (Dict make))) (d put! \"k\" 1) (d get \"k\"))" "1")
   "Dict: a mutable content-hashed table -- the O(1) associative container.")

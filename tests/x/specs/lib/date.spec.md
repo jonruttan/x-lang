@@ -1,7 +1,7 @@
 # Date: civil dates over unix time (#21)
 
 Pure integer math (Hinnant's civil algorithms), proleptic Gregorian,
-UTC only. A date is an alist; wday 0 = Sunday. (Sys time) wall-clock
+UTC only. A date is an alist; wday 0 = Sunday. (Sys now) wall-clock
 pins live in ext/posix coverage: here everything is deterministic.
 
 ## known instants
@@ -90,11 +90,11 @@ time-of-day and both sides of the epoch.
 
 ## wall clock
 
-### (Sys time) is wall time, after 2023, and time-of-day's usec is sane
+### (Sys now) is wall time, after 2023, and time-of-day's usec is sane
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/date)
-  (let ((t (Sys time)) (tod (Sys time-of-day)))
+  (let ((t (Sys now)) (tod (Sys time-of-day)))
     (list (> t 1700000000) (>= (rest tod) 0) (< (rest tod) 1000000)
           (Assoc has? 'wday (Date now)))))
 ```

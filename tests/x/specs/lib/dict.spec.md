@@ -1,7 +1,8 @@
 # Dict: the mutable hash table
 
 Content-hashed (FNV-1a), equal?-compared keys: symbols, strings, integers,
-chars. `(import x/type/dict)` in each test -- Dict is not in the x-core boot.
+chars. Class instances are identity keys: address-hashed, eq?-compared.
+`(import x/type/dict)` in each test -- Dict is not in the x-core boot.
 
 ## construction
 
@@ -176,7 +177,7 @@ in the help listing, the guard sits at the point of harm.
   ((Dict make) put! (list 1 2) "v"))
 ```
 ---
-    Error: #<err:type Dict: unhashable key -- use a symbol, string, integer, or char>
+    Error: #<err:type Dict: unhashable key -- use a symbol, string, integer, char, or class instance>
 
 ## get-or (presence-based)
 
@@ -322,3 +323,63 @@ in the help listing, the guard sits at the point of harm.
 ```
 ---
     3
+
+## instance identity keys
+
+Class instances are identity keys: hashed by address (stable -- the
+mark-sweep GC frees in place, and a keyed instance is rooted by its own
+bucket entry), compared with eq?, never equal? (which would recurse into
+the field box and loop on cyclic instances).
+
+### equal-but-distinct instances are distinct keys
+
+```scheme
+(do (import x/type/dict)
+  (def-class P () x y)
+  (let ((a (P new x 1 y 2)) (b (P new x 1 y 2)) (d (Dict make)))
+    (d put! a "first")
+    (d put! b "second")
+    (list (d get a) (d get b) (d length))))
+```
+---
+    ("first" "second" 2)
+
+### del! removes only the given instance
+
+```scheme
+(do (import x/type/dict)
+  (def-class P () x)
+  (let ((a (P new x 1)) (b (P new x 1)) (d (Dict make)))
+    (d put! a 'a) (d put! b 'b)
+    (d del! a)
+    (list (d has? a) (d has? b) (d length))))
+```
+---
+    (#f #t 1)
+
+### cyclic instances are safe keys (eq?, not equal?)
+
+```scheme
+(do (import x/type/dict)
+  (def-class N () v next)
+  (let ((a (N new v 1)) (b (N new v 2)) (d (Dict make)))
+    (a next b) (b next a)
+    (d put! a 'a) (d put! b 'b)
+    (list (d get a) (d get b))))
+```
+---
+    ('a 'b)
+
+### instance keys survive the resize rehash
+
+```scheme
+(do (import x/type/dict) (import x/type/list)
+  (def-class P () v)
+  (let ((ks (List map (fn (_ i) (P new v i)) (List range 0 20)))
+        (d (Dict make)))
+    (List for-each (fn (_ k) (d put! k (k v))) ks)
+    (list (d length)
+          (List all? (fn (_ k) (equal? (d get k) (k v))) ks))))
+```
+---
+    (20 #t)

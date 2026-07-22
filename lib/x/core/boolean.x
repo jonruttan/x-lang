@@ -47,17 +47,5 @@
   (example "(list (or () #f) (or #f ()))" "(#f ())")
   "Short-circuit logical OR. Evaluates left to right, returns the first truthy value; when nothing is truthy the last operand passes through unchanged.")
 
-(doc (def time
-  (op args
-    e
-    (let ((t0 (Sys clock)))
-      (let ((result (eval (first args) e)))
-        (display (- (Sys clock) t0))
-        (display " us\n")
-        result))))
-  (param args ANY "Expression to time")
-  (returns ANY "Result of the expression")
-  "Time an expression. Prints elapsed microseconds to stdout, returns the result.")
-
-(doc (provide x/core/boolean and or time)
-  "Short-circuit logical AND and OR operatives, plus timing.")
+(doc (provide x/core/boolean and or)
+  "Short-circuit logical AND and OR operatives.")
