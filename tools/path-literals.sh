@@ -5,7 +5,7 @@
 # A "lib/..." (or "tools/...", "apps/...") include in a runtime module
 # resolves against the process cwd, so it works only when cwd is the repo
 # root -- it breaks installed trees ONLY, the one environment CI never
-# runs (docs/boot-amalgam.md).  Runtime modules load siblings via import
+# runs.  Runtime modules load siblings via import
 # (root-resolved) or ./-relative include-once (file-relative), both of
 # which work from any tree root.
 #

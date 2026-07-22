@@ -37,7 +37,7 @@
 ; appear here, or a later import of it silently reloads the file mid-boot.
 ; The boot files above (loaded before the module system existed) are listed
 ; too, so the invariant holds uniformly.  Names, not paths: identity must
-; be root-independent (docs/boot-amalgam.md).  (lit ...) because the '
+; be root-independent.  (lit ...) because the '
 ; reader sugar is not loaded yet at this point in boot.
 (%set-first! %module-loaded-cell
   (pair (lit x-core)

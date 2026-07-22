@@ -32,7 +32,7 @@ resolves it to a file path through the search roots (e.g., `x/core/list`
 becomes `lib/x/core/list.x`), and loads the file. Name-keyed identity is
 what makes an installed tree work — the same module reached through a
 different root (repo `lib/` vs an installed absolute root) is still the
-same module (see `docs/boot-amalgam.md`).
+same module.
 
 ### `include`
 

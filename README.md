@@ -174,7 +174,7 @@ binary under `libexec/x/`, and the runtime tree under `share/x/`: the
 library and apps **byte-identical** to the repo's (`diff -r` runs inside
 the install as proof), plus generated amalgamated boot entries under
 `share/x/boot/` — so `x`, `x -l xe`, and `x -f program.x` work from any
-directory (see `docs/boot-amalgam.md`). `DESTDIR` is honoured for
+directory. `DESTDIR` is honoured for
 staged/packaged installs. Remove with `make uninstall` (same `PREFIX`).
 
 ## Test

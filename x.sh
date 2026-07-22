@@ -24,8 +24,8 @@ X_LIB=x
 # (share/x); entries are the amalgamated boot files under share/x/boot
 # (zero path literals), and the import root reaches the interpreter as
 # DATA -- one (def %install-root ...) form emitted at the top of the pipe
-# (docs/boot-amalgam.md; module.x consumes it, def is a C prim so no
-# library is needed to evaluate it).
+# (module.x consumes it; def is a C prim so no library is needed to
+# evaluate it).
 LIB_PATH=lib/
 APPS_PATH=apps/
 ENTRY_DIR=lib/

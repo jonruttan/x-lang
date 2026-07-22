@@ -8,7 +8,7 @@
 ; The three tables live under platform/data/ (#38: this file was 95%
 ; literal data); import registers the names so later imports no-op -- and
 ; resolves through the import roots, so the tables load in an installed
-; tree too (no root-relative path literals at runtime, docs/boot-amalgam.md).
+; tree too (no root-relative path literals at runtime).
 (import x/platform/data/syscalls-x86_64)
 (import x/platform/data/syscalls-i386)
 (import x/platform/data/syscalls-darwin)
