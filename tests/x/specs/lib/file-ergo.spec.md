@@ -45,7 +45,7 @@ contract -- see ext/file.spec.md.
   (File spit p "12345")
   (def st (File stat p))
   (File unlink p)
-  (list (assoc-get 'size st) (assoc-get 'kind st) (> (assoc-get 'mtime st) 0)))
+  (list (Assoc get 'size st) (Assoc get 'kind st) (> (Assoc get 'mtime st) 0)))
 ```
 ---
     (5 'file #t)
@@ -54,7 +54,7 @@ contract -- see ext/file.spec.md.
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
-  (assoc-get 'kind (File stat "/tmp")))
+  (Assoc get 'kind (File stat "/tmp")))
 ```
 ---
     'dir
@@ -133,7 +133,7 @@ contract -- see ext/file.spec.md.
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
-  (guard (e (list (Err kind-of e) (assoc-get 'sym (e data)) (assoc-get 'op (e data))))
+  (guard (e (list (Err kind-of e) (Assoc get 'sym (e data)) (Assoc get 'op (e data))))
     (File slurp "/tmp/x-spec22-definitely-not")))
 ```
 ---
@@ -143,7 +143,7 @@ contract -- see ext/file.spec.md.
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
-  (guard (e (assoc-get 'detail (e data)))
+  (guard (e (Assoc get 'detail (e data)))
     (File rmdir "/tmp/x-spec22-definitely-not")))
 ```
 ---

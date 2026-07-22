@@ -11,7 +11,7 @@ pins live in ext/posix coverage: here everything is deterministic.
 ```scheme
 (do (import x/sys/date)
   (let ((d (Date from-unix 0)))
-    (list (assoc-get 'year d) (assoc-get 'month d) (assoc-get 'day d) (assoc-get 'wday d))))
+    (list (Assoc get 'year d) (Assoc get 'month d) (Assoc get 'day d) (Assoc get 'wday d))))
 ```
 ---
     (1970 1 1 4)
@@ -82,8 +82,8 @@ time-of-day and both sides of the epoch.
 
 ```scheme
 (do (import x/sys/date)
-  (list (assoc-get 'day (Date from-unix (+ (Date to-unix '((year . 2023) (month . 2) (day . 28))) 86400)))
-        (assoc-get 'day (Date from-unix (+ (Date to-unix '((year . 2024) (month . 2) (day . 28))) 86400)))))
+  (list (Assoc get 'day (Date from-unix (+ (Date to-unix '((year . 2023) (month . 2) (day . 28))) 86400)))
+        (Assoc get 'day (Date from-unix (+ (Date to-unix '((year . 2024) (month . 2) (day . 28))) 86400)))))
 ```
 ---
     (1 29)
@@ -96,7 +96,7 @@ time-of-day and both sides of the epoch.
 (do (import x/sys/posix) (import x/sys/date)
   (let ((t (Sys time)) (tod (Sys time-of-day)))
     (list (> t 1700000000) (>= (rest tod) 0) (< (rest tod) 1000000)
-          (assoc-has? 'wday (Date now)))))
+          (Assoc has? 'wday (Date now)))))
 ```
 ---
     (#t #t #t #t)

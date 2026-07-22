@@ -127,7 +127,7 @@ three gaps (VECTOR, ASM, ITER) are fixed, the rest verified.
   ((prim-ref 'heap 'collect))
   ((prim-ref 'heap 'collect))
   (list (d get 'k) (st has? "y") (arr ->list)
-        (assoc-get 1 (Regex match-groups "ab-12" rx))
+        (Assoc get 1 (Regex match-groups "ab-12" rx))
         (Promise force p) (Vector ref 39 bigvec)))
 ```
 ---

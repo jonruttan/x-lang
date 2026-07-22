@@ -64,7 +64,7 @@
     (match
       ((number? mode) mode)
       ((pair? mode) (%fold (fn (_ acc flag) (| acc (%mode->int flag))) 0 mode))
-      (#t (first (assoc-get mode %file-modes))))))
+      (#t (first (Assoc get mode %file-modes))))))
 
 ; --- errno recovery (#22) ---
 ; Homed on the Err class ((Err errno-of r), lazily resolving the per-OS
@@ -146,14 +146,14 @@
       (doc "The file open-mode table: an alist mapping each symbolic O_* flag name to its numeric Linux value. Use a key as (File open)'s mode argument; OR numeric values together for combined flags."
         (returns LIST "Alist of (symbol value) for: accmode rdonly wronly rdwr creat excl noctty trunc append nonblock dsync fasync direct largefile directory nofollow noatime cloexec sync path")
         (sample "(File file-modes)" "the full (symbol value) table")
-        (sample "(first (assoc-get 'rdwr (File file-modes)))" "2"))
+        (sample "(first (Assoc get 'rdwr (File file-modes)))" "2"))
       %file-modes)
 
     (method stat-flags (self)
       (doc "The stat mode-flag table: an alist mapping each symbolic S_* name to its numeric Linux value, for decoding a stat result's st_mode (the ifmt bits select the file type; the rest are permission and set-id/sticky bits)."
         (returns LIST "Alist of (symbol value) for: ifmt ifdir ifchr ifblk ifreg ififo iflnk ifsock isuid isgid isvtx iread iwrite iexec")
         (sample "(File stat-flags)" "the full (symbol value) table")
-        (sample "(first (assoc-get 'ifdir (File stat-flags)))" "16384"))
+        (sample "(first (Assoc get 'ifdir (File stat-flags)))" "16384"))
       %stat-flags)
 
     (method open (self (param pathname STRING "File path to open")
@@ -236,7 +236,7 @@
         (returns STRING "The file's bytes")
         (sample "(File slurp \"/etc/hostname\")" "the file's contents as a string"))
       (%fs-path path "File slurp")
-      (def size (assoc-get 'size (File stat path)))
+      (def size (Assoc get 'size (File stat path)))
       (def fd (File open path 'rdonly))
       (when (< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
       (def buf (%make-str size))

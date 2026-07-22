@@ -180,7 +180,7 @@
       (doc "Translate an errno into a kind-'io Err. The message is strerror-style prefixed with op; data carries ((errno . N) (sym . ENOENT-style-symbol) (op . OP) (detail . D)). Numbers are per-OS (picked at load via os-darwin?); unknown numbers get sym 'unknown."
         (returns OBJECT "The Err instance")
         (example "((Err from-errno 2 'open \"/nope\") msg)" "\"open: No such file or directory\"")
-        (example "(assoc-get 'errno ((Err from-errno -2 'open ()) data))" "2"))
+        (example "(Assoc get 'errno ((Err from-errno -2 'open ()) data))" "2"))
       (def en (if (< n 0) (- 0 n) n))
       (def hit (%errno-find en %errno-table))
       (def sym (if (null? hit) 'unknown (first (rest hit))))

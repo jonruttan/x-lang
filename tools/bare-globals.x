@@ -62,10 +62,4 @@
   ; --- convenience aliases: pending ruling (#108 census) ---
   (else)
   (str-copy)
-  ; --- SWEEP: alist walkers (Assoc is the public face) ---
-  (assoc-del)
-  (assoc-get)
-  (assoc-has?)
-  (assoc-keys)
-  (assoc-put)
 )))

@@ -95,7 +95,7 @@
 (def syscall-id
   (fn (_ call)
     (if os-darwin?
-      (let ((e (assoc-get call darwin-syscall-numbers)))
+      (let ((e (%assoc-get call darwin-syscall-numbers)))
         (if (null? e) -1 (first e)))
       ; index-of misses with nil; -1 stays this table's OS-domain invalid
       ; marker (never a valid syscall number)

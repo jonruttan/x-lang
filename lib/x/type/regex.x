@@ -614,7 +614,7 @@
       (fn (self cs acc)
         (if (null? cs) acc
           (let ((c (first cs)))
-            (if (assoc-has? (first c) acc)
+            (if (%assoc-has? (first c) acc)
               (self (rest cs) acc)
               (self (rest cs)
                 (pair (pair (first c)
@@ -668,7 +668,7 @@
                     ((= nx 36)                        ; $$
                       (self (+ i 2) (%str-append acc "$")))
                     ((if (>= nx 48) (<= nx 57) #f)    ; $N
-                      (let ((hit (assoc-get (- nx 48) groups)))
+                      (let ((hit (%assoc-get (- nx 48) groups)))
                         (self (+ i 2) (%str-append acc (if (null? hit) "" hit)))))
                     (#t (self (+ i 1) (%str-append acc "$")))))))))))
     (%go 0 "")))
@@ -729,8 +729,8 @@
     (method match-groups (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Capture-group texts of the FIRST match anywhere in str: an alist ((0 . whole-match) (N . group-text) ...) keyed by group number in ( ) OPEN order, sorted. A group that did not participate (unmatched alternative) is ABSENT -- presence door, not a sentinel; a group under a quantifier keeps its last iteration. nil when nothing matches."
         (returns ANY "Groups alist, or nil")
-        (example "(assoc-get 2 (Regex match-groups \"2026-07-19\" #/([0-9]+)-([0-9]+)-([0-9]+)/))" "\"07\"")
-        (example "(assoc-get 0 (Regex match-groups \"key=val\" #/(\\w+)=(\\w+)/))" "\"key=val\"")
+        (example "(Assoc get 2 (Regex match-groups \"2026-07-19\" #/([0-9]+)-([0-9]+)-([0-9]+)/))" "\"07\"")
+        (example "(Assoc get 0 (Regex match-groups \"key=val\" #/(\\w+)=(\\w+)/))" "\"key=val\"")
         (example "(null? (Regex match-groups \"nope\" #/[0-9]+/))" "#t"))
       (def m (%regex-find-caps str 0 rx))
       (if (null? m) () (first (rest (rest m)))))
@@ -770,7 +770,7 @@
           (%str-append
             (%substring str 0 (first m))
             (%str-append
-              (%regex-get-replacement rep (assoc-get 0 groups) groups)
+              (%regex-get-replacement rep (%assoc-get 0 groups) groups)
               (%substring str (first (rest m)) (%str-length str)))))))
     (method replace-all (self (param str STRING "Input string") (param rep ANY "Replacement string or function") (param rx REGEX "Compiled regex"))
       (doc "Replace all matches. rep can be a string or a function that receives each matched text." (returns STRING "String with all matches replaced")
@@ -788,7 +788,7 @@
               (self next
                 (%str-append acc
                   (%str-append (%substring str pos start)
-                    (%regex-get-replacement rep (assoc-get 0 groups) groups))))))))
+                    (%regex-get-replacement rep (%assoc-get 0 groups) groups))))))))
       (%go 0 ""))
     (method split (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Split a string at regex matches." (returns LIST "List of substrings between matches")

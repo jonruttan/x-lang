@@ -48,9 +48,9 @@
 ;   (member 'name) / (set-member! 'name v)
 (def %method-raw-bindings
   (lit
-    ((member     (fn (_ n) (assoc-get n (%obj-fields self))))
+    ((member     (fn (_ n) (%assoc-get n (%obj-fields self))))
      (set-member! (fn (_ n v)
-                   (%set-first! (%obj-box self) (assoc-put n v (%obj-fields self)))
+                   (%set-first! (%obj-box self) (%assoc-put n v (%obj-fields self)))
                    v)))))
 
 (note "Member lookup (walks the single-inheritance parent chain)")
@@ -60,9 +60,9 @@
   (fn (loop class key selector)
     (unless (null? class)
       (let ((data (%class-data class)))
-        (let ((hit (assoc-get selector (assoc-get key data))))
+        (let ((hit (%assoc-get selector (%assoc-get key data))))
           (if (null? hit)
-            (loop (assoc-get (lit parent) data) key selector)
+            (loop (%assoc-get (lit parent) data) key selector)
             hit))))))
 
 ; Unwrap a quoted 'x (i.e. (lit x)) to the bare symbol x, so (obj x) and (obj 'x)
@@ -78,7 +78,7 @@
 ; `fields` is the %all-fields alist (member name . default).
 (def %check-init-key
   (fn (_ key fields class)
-    (unless (assoc-has? key fields)
+    (unless (%assoc-has? key fields)
       (error (%str-append "new: " (%str-append (%display-to-str key)
         (%str-append " is not a member of " (%display-to-str (class-name class)))))))))
 
@@ -120,15 +120,15 @@
         (match
           ((not (null? method))
             (apply method (pair self (%map1 (fn (_ a) (eval a e)) rest))))
-          ((assoc-has? selector (%obj-fields self))
+          ((%assoc-has? selector (%obj-fields self))
             (match
-              ((null? rest) (assoc-get selector (%obj-fields self)))
+              ((null? rest) (%assoc-get selector (%obj-fields self)))
               (#t (let ((v (eval (first rest) e)))
-                    (%set-first! (%obj-box self) (assoc-put selector v (%obj-fields self)))
+                    (%set-first! (%obj-box self) (%assoc-put selector v (%obj-fields self)))
                     v))))
           (#t (error "object: no such member")))))))
 
-(def %class-statics-box (fn (_ class) (assoc-get (lit statics) (%class-data class))))
+(def %class-statics-box (fn (_ class) (%assoc-get (lit statics) (%class-data class))))
 (def %class-statics     (fn (_ class) (first (%class-statics-box class))))
 
 ; Class dispatch: a static method wins; (Class new ...) builds an instance;
@@ -142,11 +142,11 @@
             (apply method (pair self (%map1 (fn (_ a) (eval a e)) rest))))
           ((eq? selector (lit new))                       ; (Class new k v ...): values are code
             (%instantiate self rest e #t))
-          ((assoc-has? selector (%class-statics self))
+          ((%assoc-has? selector (%class-statics self))
             (match
-              ((null? rest) (assoc-get selector (%class-statics self)))
+              ((null? rest) (%assoc-get selector (%class-statics self)))
               (#t (let ((v (eval (first rest) e)))
-                    (%set-first! (%class-statics-box self) (assoc-put selector v (%class-statics self)))
+                    (%set-first! (%class-statics-box self) (%assoc-put selector v (%class-statics self)))
                     v))))
           (#t (error "object: no such static member")))))))
 
@@ -357,14 +357,14 @@
 
 (doc (def class-name
   (fn (_ (param x ANY "An instance or a class"))
-    (assoc-get (lit name) (%class-data (if (class? x) x (%obj-class x))))))
+    (%assoc-get (lit name) (%class-data (if (class? x) x (%obj-class x))))))
   (returns SYMBOL "The class name")
   (see class-of)
   "Return the name symbol of a class, or of an instance's class.")
 
 (doc (def class-parent
   (fn (_ (param c CLASS "A class"))
-    (assoc-get (lit parent) (%class-data c))))
+    (%assoc-get (lit parent) (%class-data c))))
   (returns CLASS "The parent class, or nil for a root class")
   (see class-name)
   "Return a class's parent class (the one it extends), or nil if it has none.")
@@ -375,7 +375,7 @@
       #f
       (if (same? c target)                 ; class identity, not value equality
         #t
-        (loop (assoc-get (lit parent) (%class-data c)) target)))))
+        (loop (%assoc-get (lit parent) (%class-data c)) target)))))
 
 (doc (def instance-of?
   (fn (_ (param inst OBJECT "Instance") (param class CLASS "Class"))
@@ -387,25 +387,25 @@
 (note "Introspection -- member/method names (own, not inherited), used by help")
 
 (doc (def class-members
-  (fn (_ (param c CLASS "A class")) (assoc-keys (assoc-get (lit fields) (%class-data c)))))
+  (fn (_ (param c CLASS "A class")) (%assoc-keys (%assoc-get (lit fields) (%class-data c)))))
   (returns LIST "This class's own instance-member names")
   (see class-methods)
   "List a class's own instance member names (not inherited).")
 
 (doc (def class-methods
-  (fn (_ (param c CLASS "A class")) (assoc-keys (assoc-get (lit methods) (%class-data c)))))
+  (fn (_ (param c CLASS "A class")) (%assoc-keys (%assoc-get (lit methods) (%class-data c)))))
   (returns LIST "This class's own instance-method names")
   (see class-members)
   "List a class's own instance method names (not inherited).")
 
 (doc (def class-static-members
-  (fn (_ (param c CLASS "A class")) (assoc-keys (%class-statics c))))
+  (fn (_ (param c CLASS "A class")) (%assoc-keys (%class-statics c))))
   (returns LIST "This class's own static-member names")
   (see class-static-methods)
   "List a class's own static (class-wide) member names (not inherited).")
 
 (doc (def class-static-methods
-  (fn (_ (param c CLASS "A class")) (assoc-keys (assoc-get (lit s-methods) (%class-data c)))))
+  (fn (_ (param c CLASS "A class")) (%assoc-keys (%assoc-get (lit s-methods) (%class-data c)))))
   (returns LIST "This class's own static-method names")
   (see class-static-members)
   "List a class's own static method names (not inherited).")
@@ -675,7 +675,7 @@
 ; the declarer's abstract stub does not count). A miss errors at definition, not
 ; cryptically at call time. Classes with no interface in their chain are untouched.
 
-(def %class-interface (fn (_ c) (assoc-get (lit interface) (%class-data c))))
+(def %class-interface (fn (_ c) (%assoc-get (lit interface) (%class-data c))))
 
 (def %name-in?
   (fn (loop name names)
@@ -686,8 +686,8 @@
 ; primitives are static; instance-based interfaces use instance methods).
 (def %defines?
   (fn (_ c m)
-    (if (%name-in? m (assoc-keys (assoc-get (lit methods) (%class-data c)))) #t
-      (%name-in? m (assoc-keys (assoc-get (lit s-methods) (%class-data c)))))))
+    (if (%name-in? m (%assoc-keys (%assoc-get (lit methods) (%class-data c)))) #t
+      (%name-in? m (%assoc-keys (%assoc-get (lit s-methods) (%class-data c)))))))
 
 ; #t if c's chain provides a concrete impl of method m: some class defines m
 ; (instance or static) but does NOT list it in its own interface (so the abstract
@@ -697,7 +697,7 @@
     (if (null? c) #f
       (if (if (%defines? c m) (not (%name-in? m (%class-interface c))) #f)
         #t
-        (loop (assoc-get (lit parent) (%class-data c)) m)))))
+        (loop (%assoc-get (lit parent) (%class-data c)) m)))))
 
 (def %check-impls!
   (fn (loop cls reqs)
@@ -713,12 +713,12 @@
     (unless (null? anc)
       (do
         (%check-impls! cls (%class-interface anc))
-        (loop cls (assoc-get (lit parent) (%class-data anc)))))))
+        (loop cls (%assoc-get (lit parent) (%class-data anc)))))))
 
 (def %check-interface!
   (fn (_ cls)
     (when (null? (%class-interface cls))           ; concrete -> enforce inherited interface(s)
-      (%check-ancestors! cls (assoc-get (lit parent) (%class-data cls))))))                                      ; declares an interface -> abstract -> skip
+      (%check-ancestors! cls (%assoc-get (lit parent) (%class-data cls))))))                                      ; declares an interface -> abstract -> skip
 
 ; Resolve the parent once, validate the body, build the class object, and enforce
 ; any inherited interface. Kept out of the def-class op body so the op's tail
@@ -792,7 +792,7 @@
 (def %reject-known
   (fn (loop al known)
     (unless (null? al)
-      (if (assoc-has? (first (first al)) known)
+      (if (%assoc-has? (first (first al)) known)
         (loop (rest al) known)
         (pair (first al) (loop (rest al) known))))))
 
@@ -801,9 +801,9 @@
 (def %all-fields
   (fn (loop class)
     (unless (null? class)
-      (let ((own (assoc-get (lit fields) (%class-data class))))
+      (let ((own (%assoc-get (lit fields) (%class-data class))))
         (%append2 own
-          (%reject-known (loop (assoc-get (lit parent) (%class-data class))) own))))))
+          (%reject-known (loop (%assoc-get (lit parent) (%class-data class))) own))))))
 
 ; Build the instance field box: each member takes its init value if supplied --
 ; from a flat plist `name val ...` OR an alist `((name . val) ...)` -- otherwise

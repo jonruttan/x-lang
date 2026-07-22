@@ -10,11 +10,11 @@
 ; O_* open flags from the platform table (%file-modes, x/platform/syscall) --
 ; the single source of platform truth, shared with sys/file.x.  Formerly
 ; C-bound constants; retired with the ISA audit.
-(def %O_RDONLY (first (assoc-get (lit rdonly) %file-modes)))
-(def %O_WRONLY (first (assoc-get (lit wronly) %file-modes)))
-(def %O_CREAT  (first (assoc-get (lit creat)  %file-modes)))
-(def %O_TRUNC  (first (assoc-get (lit trunc)  %file-modes)))
-(def %O_APPEND (first (assoc-get (lit append) %file-modes)))
+(def %O_RDONLY (first (%assoc-get (lit rdonly) %file-modes)))
+(def %O_WRONLY (first (%assoc-get (lit wronly) %file-modes)))
+(def %O_CREAT  (first (%assoc-get (lit creat)  %file-modes)))
+(def %O_TRUNC  (first (%assoc-get (lit trunc)  %file-modes)))
+(def %O_APPEND (first (%assoc-get (lit append) %file-modes)))
 
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr-call (prim-ref (lit ptr) (lit call)))

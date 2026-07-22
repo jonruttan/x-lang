@@ -49,7 +49,7 @@ values **without issuing any real syscall**; the assertions branch on
 ### O_CREAT matches the platform (macOS 512 / Linux 64)
 
 ```scheme
-(eq? (first (assoc-get 'creat (File file-modes))) (if os-darwin? 512 64))
+(eq? (first (Assoc get 'creat (File file-modes))) (if os-darwin? 512 64))
 ```
 ---
     #t
@@ -57,7 +57,7 @@ values **without issuing any real syscall**; the assertions branch on
 ### O_TRUNC matches the platform (macOS 1024 / Linux 512)
 
 ```scheme
-(eq? (first (assoc-get 'trunc (File file-modes))) (if os-darwin? 1024 512))
+(eq? (first (Assoc get 'trunc (File file-modes))) (if os-darwin? 1024 512))
 ```
 ---
     #t
@@ -65,7 +65,7 @@ values **without issuing any real syscall**; the assertions branch on
 ### O_RDWR is 2 on every platform (the low access-mode bits are universal)
 
 ```scheme
-(eq? (first (assoc-get 'rdwr (File file-modes))) 2)
+(eq? (first (Assoc get 'rdwr (File file-modes))) 2)
 ```
 ---
     #t

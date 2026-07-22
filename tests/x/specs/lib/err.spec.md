@@ -10,7 +10,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ```scheme
 (let ((e (Err make 'io "boom" '((fd . 3)))))
-  (list (e kind) (e msg) (assoc-get 'fd (e data))))
+  (list (e kind) (e msg) (Assoc get 'fd (e data))))
 ```
 ---
     ('io "boom" 3)
@@ -114,7 +114,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 ### the syscall layer's negative -errno normalizes
 
 ```scheme
-(assoc-get 'errno ((Err from-errno -13 'write ()) data))
+(Assoc get 'errno ((Err from-errno -13 'write ()) data))
 ```
 ---
     13
@@ -123,7 +123,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ```scheme
 (let ((d ((Err from-errno 2 'open "/nope") data)))
-  (list (assoc-get 'sym d) (assoc-get 'op d) (assoc-get 'detail d)))
+  (list (Assoc get 'sym d) (Assoc get 'op d) (Assoc get 'detail d)))
 ```
 ---
     ('enoent 'open "/nope")
@@ -131,9 +131,9 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 ### shared-range entries are OS-independent
 
 ```scheme
-(list (assoc-get 'sym ((Err from-errno 9 'read ()) data))
-      (assoc-get 'sym ((Err from-errno 17 'mkdir ()) data))
-      (assoc-get 'sym ((Err from-errno 28 'write ()) data)))
+(list (Assoc get 'sym ((Err from-errno 9 'read ()) data))
+      (Assoc get 'sym ((Err from-errno 17 'mkdir ()) data))
+      (Assoc get 'sym ((Err from-errno 28 'write ()) data)))
 ```
 ---
     ('ebadf 'eexist 'enospc)
@@ -142,7 +142,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ```scheme
 (let ((e (Err from-errno 9999 'op ())))
-  (list (assoc-get 'sym (e data)) (e msg)))
+  (list (Assoc get 'sym (e data)) (e msg)))
 ```
 ---
     ('unknown "op: Unknown error")
