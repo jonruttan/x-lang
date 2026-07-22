@@ -148,7 +148,7 @@
                        (param s STRING "Bytes to send"))
       (doc "Send the whole string; raises on failure."
         (returns INT "Bytes sent"))
-      (def r (%sk-fold (%sk-ptr-call %c-send fd s (%str-length s) 0)))
+      (def r (%sk-fold (%sk-ptr-call %c-send fd s (Str8 length s) 0)))
       (when (< r 0) (%sk-fail r 'send fd ()))
       r)
 

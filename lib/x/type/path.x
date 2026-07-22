@@ -18,7 +18,7 @@
 ; keeps its one slash.
 (def %path-strip-trailing
   (fn (_ s)
-    (let ((n (%str-length s)))
+    (let ((n (Str8 length s)))
       (let go ((e n))
         (match
           ((<= e 1) (Str8 sub 0 e s))
@@ -70,7 +70,7 @@
       (let ((s (%path-strip-trailing p)))
         (if (str=? s "/") "/"
           (let ((i (%path-last-slash s)))
-            (if (< i 0) s (Str8 sub (+ i 1) (- (%str-length s) (+ i 1)) s))))))
+            (if (< i 0) s (Str8 sub (+ i 1) (- (Str8 length s) (+ i 1)) s))))))
 
     (method ext (self (param p STRING "Path"))
       (doc "The extension of the basename, without its dot -- or nil when there is none (a leading-dot name like \".bashrc\" has no extension; absence is nil, never a sentinel)."
@@ -79,7 +79,7 @@
         (example "(null? (Path ext \"Makefile\"))" "#t")
         (example "(null? (Path ext \".bashrc\"))" "#t"))
       (let ((b (Path basename p)))
-        (let ((n (%str-length b)))
+        (let ((n (Str8 length b)))
           (let go ((i (- n 1)))
             (match
               ((<= i 0) ())
@@ -99,7 +99,7 @@
         (returns BOOL "True when p begins with '/'")
         (example "(Path absolute? \"/etc\")" "#t")
         (example "(Path absolute? \"etc\")" "#f"))
-      (if (= (%str-length p) 0) #f (Char =? (Str8 ref 0 p) #\/)))))
+      (if (= (Str8 length p) 0) #f (Char =? (Str8 ref 0 p) #\/)))))
 
 (doc (provide x/type/path Path)
   "Pure-string pathname manipulation on the Path class.")

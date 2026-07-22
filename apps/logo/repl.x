@@ -38,18 +38,18 @@
   (fn (_ line)
     (def %cb
       (fn (self i depth)
-        (if (>= i (%str-length line)) depth
+        (if (>= i (Str8 length line)) depth
           (self (+ i 1)
-            (if (Char =? (%str-ref line i) #\[) (+ depth 1)
-              (if (Char =? (%str-ref line i) #\]) (- depth 1)
+            (if (Char =? (Str8 ref i line) #\[) (+ depth 1)
+              (if (Char =? (Str8 ref i line) #\]) (- depth 1)
                 depth))))))
     (%cb 0 0)))
 
 (def %is-indented?
   (fn (_ line)
     (if (str=? line "") #f
-      (if (Char =? (%str-ref line 0) #\space) #t
-        (Char =? (%str-ref line 0) #\tab)))))
+      (if (Char =? (Str8 ref 0 line) #\space) #t
+        (Char =? (Str8 ref 0 line) #\tab)))))
 
 ; Probe: try processing accumulated input.
 ; If it succeeds, the input was complete.

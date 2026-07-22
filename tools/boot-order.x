@@ -97,7 +97,7 @@
       (let ((n (File read fd buf 65536)))
         (match
           ((<= n 0) acc)
-          (#t (self fd (Str8 append acc (%substring buf 0 n)))))))))
+          (#t (self fd (Str8 append acc (Str8 sub 0 n buf)))))))))
 
 (def %read-file
   (fn (_ path)
@@ -252,7 +252,7 @@
           (%cell-push! %findings-cell (list file () () form)))
         ; a ./ or ../ path resolves against the including file (module.x);
         ; nothing in the boot closure uses one -- report, don't mis-simulate
-        ((eq? (%str-ref arg 0) 46)
+        ((eq? (Str8 ref 0 arg) 46)
           (%cell-push! %findings-cell (list file () () form)))
         (force
           (do (match

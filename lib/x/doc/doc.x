@@ -1,4 +1,8 @@
 ; doc.x -- Inline documentation system for x-lang
+; STRING SPELLINGS: %-private byte helpers, NOT Str8 -- doc registration RUNS
+; during boot (every (doc ...) form in every boot module calls this file)
+; long before str8.x loads; a class call here is an unbound-symbol boot
+; death (#108 strings round, learned the hard way).
 ;
 ; Three forms — same metadata everywhere:
 ;
