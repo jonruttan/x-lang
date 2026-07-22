@@ -180,6 +180,14 @@ leading `+`/`-` jumped into.
 ---
     "n=3/x"
 
+### Dict is loaded by default (common containers)
+
+```scheme
+(do (def d (Dict make)) (d put! "k" 1) (d get "k"))
+```
+---
+    1
+
 # @lib rn.x
 
 ## rn.x -- radon, the experimental tower dialect
@@ -223,3 +231,11 @@ leading `+`/`-` jumped into.
 ```
 ---
     "n=3/x"
+
+### Dict is loaded by default (common containers)
+
+```scheme
+(do (def d (Dict make)) (d put! (lit k) 1) (d get (lit k)))
+```
+---
+    1

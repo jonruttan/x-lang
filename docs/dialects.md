@@ -56,6 +56,7 @@ Stable full-stack dialect. Includes all of helium's surface, then adds:
 
 - **POSIX wrappers** (`x/sys/posix.x`) — fork, exec, pipe, dup2, wait, open, close, read, write, chdir, getenv, setenv via FFI
 - **Hash tables** (`x/type/hash.x`) — FNV-1a hash function for strings
+- **Dict** (`x/type/dict.x`) — content-hashed mutable hash table (symbol, string, integer, and char keys); the common container, loaded by default in both tower dialects
 - **Compiler** (`x/tool/compile.x`) — Compiles x-lang functions by emitting C, invoking a host `cc` at runtime, and `dlopen`ing the result. Requires a C toolchain on the machine running it. (The separate data-driven *assembler* — `x/tool/asm.x`, emitting machine code directly on ARM64 and x86_64 — is not loaded by this dialect.)
 
 Then loads the numeric tower with immediate analyser compilation (the shared
