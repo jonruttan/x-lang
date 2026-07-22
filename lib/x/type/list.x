@@ -42,7 +42,7 @@
       (doc "An iterator over the list's elements." (returns ITER "Iterator"))
       (Iter new lst))
     (method fold (self f init lst)
-      (doc "Fold a function over a list from the left." (param f CALLABLE "Binary function: (accumulator, element) -> new accumulator") (param init ANY "Initial accumulator value") (param lst LIST "List or iterable to fold over") (returns ANY "Final accumulated value") (example "(fold + 0 '(1 2 3))" "6"))
+      (doc "Fold a function over a list from the left." (param f CALLABLE "Binary function: (accumulator, element) -> new accumulator") (param init ANY "Initial accumulator value") (param lst LIST "List or iterable to fold over") (returns ANY "Final accumulated value") (example "(List fold + 0 '(1 2 3))" "6"))
       ; first/rest are unchecked C prims, so an improper tail walks off the end
       ; of the list into UB -- (pair 1 2) is ordinary data, not hostile input.
       ; Same discipline as `ref`'s walk below: the pair? guard makes the overrun
