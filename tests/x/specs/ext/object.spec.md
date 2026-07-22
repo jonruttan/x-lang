@@ -369,6 +369,76 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ---
     (5 100)
 
+### a member default is evaluated per construction, not at class definition
+
+```x
+(do
+  (def calls (pair 0 ()))
+  (def-class C () (stamp (do (%set-first! calls (+ (first calls) 1)) (first calls))))
+  (def a (new C))
+  (def b (new C))
+  (list (a stamp) (b stamp) (first calls)))
+```
+---
+    (1 2 2)
+
+### an inherited default is also per construction
+
+```x
+(do
+  (def calls (pair 0 ()))
+  (def-class P () (stamp (do (%set-first! calls (+ (first calls) 1)) (first calls))))
+  (def-class C (extends P))
+  (list ((new C) stamp) ((new C) stamp)))
+```
+---
+    (1 2)
+
+### a supplied init suppresses the default's evaluation
+
+```x
+(do
+  (def calls (pair 0 ()))
+  (def-class C () (stamp (do (%set-first! calls (+ (first calls) 1)) 'evaluated)))
+  (def a (new C stamp 'supplied))
+  (list (a stamp) (first calls)))
+```
+---
+    ('supplied 0)
+
+### a constructing default is fresh per instance, never aliased (same?, not eq?: pairs)
+
+```x
+(do
+  (def-class C () (items (list 1 2)))
+  (def a (new C))
+  (def b (new C))
+  (%set-first! (a items) 9)
+  (list (a items) (b items) (same? (a items) (b items))))
+```
+---
+    ((9 2) (1 2) #f)
+
+### a quoted default is the one shared literal (quote = one object; use (list ...) for fresh)
+
+```x
+(do
+  (def-class C () (items '(1 2)))
+  (same? ((new C) items) ((new C) items)))
+```
+---
+    #t
+
+### a static member default still evaluates once (class-wide state)
+
+```x
+(do
+  (def-class K () (static (box (list 0))))
+  (eq? (K box) (K box)))
+```
+---
+    #t
+
 ## super correctness
 
 ### super from an inherited method resolves to the defining class's parent
@@ -534,3 +604,148 @@ It accepts an alist `((k . v) ...)` or a flat plist `(k v ...)`.
 ```
 ---
     'caught
+
+## positional construction
+
+A `new` call may open with a positional prefix: values fill members in
+constructor order (root ancestor's members first, then each subclass's own)
+until the first bare declared-member name starts the keyword tail.
+
+### positional values fill members in declaration order
+
+```x
+(do
+  (def-class P () x y)
+  (def i (new P 1 2))
+  (list (i x) (i y)))
+```
+---
+    (1 2)
+
+### unfilled members keep their defaults
+
+```x
+(do
+  (def-class P () x (y 7))
+  (def i (new P 1))
+  (list (i x) (i y)))
+```
+---
+    (1 7)
+
+### a subclass's positional order is parent-first
+
+```x
+(do
+  (def-class P () x y)
+  (def-class C (extends P) z)
+  (def i (new C 1 2 3))
+  (list (i x) (i y) (i z)))
+```
+---
+    (1 2 3)
+
+### an overridden member keeps its ancestor's slot
+
+```x
+(do
+  (def-class P () x (y 0))
+  (def-class C (extends P) (y 5) z)
+  (def i (new C 1 2 3))
+  (list (i x) (i y) (i z)))
+```
+---
+    (1 2 3)
+
+### a positional prefix takes a keyword tail
+
+```x
+(do
+  (def-class P () x y z)
+  (def i (new P 1 z 9))
+  (list (i x) (i y) (i z)))
+```
+---
+    (1 () 9)
+
+### class dispatch takes positional args too
+
+```x
+(do
+  (def-class P () x y)
+  (list ((P new 1 2) x) ((P new 1 2) y)))
+```
+---
+    (1 2)
+
+### too many positional values error loudly
+
+```x
+(do
+  (def-class P () x)
+  (guard (e 'too-many) (new P 1 2)))
+```
+---
+    'too-many
+
+### the keyword forms are unchanged
+
+```x
+(do
+  (def-class P () x y)
+  (list ((new P x 5) x) ((new P (x . 6)) x)))
+```
+---
+    (5 6)
+
+## the %init hook
+
+A `(method %init (self) ...)` runs after every construction, once the fields
+are built -- the initialize slot for logic beyond plain field values.
+
+### %init runs after the fields are built
+
+```x
+(do
+  (def-class P () x (y 0)
+    (method %init (self) (self y (* 2 (self x)))))
+  (def i (new P 5))
+  (list (i x) (i y)))
+```
+---
+    (5 10)
+
+### a child's %init wins; (super self %init) chains
+
+```x
+(do
+  (def-class A () log
+    (method %init (self) (self log (pair 'a (self log)))))
+  (def-class B (extends A)
+    (method %init (self) (super self %init) (self log (pair 'b (self log)))))
+  ((new B) log))
+```
+---
+    ('b 'a)
+
+### new-from fires %init too
+
+```x
+(do
+  (def-class P () x
+    (method %init (self) (self x 42)))
+  ((new-from P ()) x))
+```
+---
+    42
+
+### a trailing bare member name is a positional value
+
+```x
+(do
+  (def-class D () root cells)
+  (def root 'the-root)
+  ((new D root) root))
+```
+---
+    'the-root
