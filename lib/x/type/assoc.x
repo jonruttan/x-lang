@@ -60,16 +60,16 @@
       (assoc-keys (%assoc-check alist "Assoc keys: not an alist")))
     (method vals (self (param alist LIST "Association list"))
       (doc "Return all values from an alist." (returns LIST "List of values"))
-      (map rest (%assoc-check alist "Assoc vals: not an alist")))
+      (%map rest (%assoc-check alist "Assoc vals: not an alist")))
     ; --- Transformation ---
     (method map (self (param f CALLABLE "Function applied to each value")
                       (param alist LIST "Association list"))
       (doc "Apply a function to every value in an alist, preserving keys." (returns LIST "New alist with transformed values"))
-      (map (fn (_ entry) (pair (first entry) (f (rest entry)))) alist))
+      (%map (fn (_ entry) (pair (first entry) (f (rest entry)))) alist))
     (method filter (self (param pred CALLABLE "Predicate: (assoc) -> bool, applied to each (key . val) assoc")
                          (param alist LIST "Association list"))
       (doc "Keep only assocs satisfying a predicate." (returns LIST "Filtered alist"))
-      (filter pred alist))
+      (%filter pred alist))
     (method merge (self (param a LIST "Base alist (takes priority)")
                         (param b LIST "Alist to merge in"))
       (doc "Merge two alists; keys in the first take priority." (returns LIST "Merged alist; entries in a shadow those in b"))
@@ -80,9 +80,9 @@
       ; reverse rather than an append per entry. The has? checks cover both a
       ; and the additions so far, so a duplicate key inside b keeps its first
       ; occurrence -- the same rule the growing accumulator gave before.
-      (append a
-        (reverse
-          (fold
+      (%append a
+        (%reverse
+          (%fold
             (fn (_ acc entry)
               (if (assoc-has? (first entry) a) acc
                 (if (assoc-has? (first entry) acc) acc (pair entry acc))))
@@ -91,18 +91,18 @@
     (method pick (self (param keys LIST "List of keys to keep")
                        (param alist LIST "Association list"))
       (doc "Select entries whose keys appear in a given list." (returns LIST "Alist containing only the selected keys"))
-      (filter (fn (_ entry) (List includes? (first entry) keys)) alist))
+      (%filter (fn (_ entry) (List includes? (first entry) keys)) alist))
     (method omit (self (param keys LIST "List of keys to exclude")
                        (param alist LIST "Association list"))
       (doc "Remove entries whose keys appear in a given list." (returns LIST "Alist without the excluded keys"))
-      (filter (fn (_ entry) (not (List includes? (first entry) keys))) alist))
+      (%filter (fn (_ entry) (not (List includes? (first entry) keys))) alist))
     ; --- Conversion ---
     (method from-bindings (self (param bindings LIST "Bindings list: ((key value) ...) two-element lists, the let shape"))
       (doc "Convert a bindings list into an alist of (key . val) assocs." (returns LIST "Association list"))
-      (map (fn (_ b) (pair (first b) (first (rest b)))) bindings))
+      (%map (fn (_ b) (pair (first b) (first (rest b)))) bindings))
     (method ->bindings (self (param alist LIST "Association list"))
       (doc "Convert an alist into a bindings list of (key value) two-element lists." (returns LIST "Bindings list"))
-      (map (fn (_ entry) (list (first entry) (rest entry))) alist))
+      (%map (fn (_ entry) (list (first entry) (rest entry))) alist))
     (method from-plist (self (param plist LIST "Flat (k v k v ...) plist"))
       (doc "Convert a flat plist into an alist of assocs." (returns LIST "Association list")
         (example "(Assoc from-plist (list 'a 1))" "(('a . 1))"))
@@ -120,7 +120,7 @@
     (method evolve (self (param fns LIST "Alist of key -> transform function")
                          (param alist LIST "Association list to transform"))
       (doc "Apply per-key transform functions to values in an alist." (returns LIST "Alist with selected values transformed"))
-      (map
+      (%map
         (fn (_ entry)
           (def transform (assoc-get (first entry) fns))
           (if (null? transform)

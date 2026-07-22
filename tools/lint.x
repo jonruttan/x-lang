@@ -27,7 +27,7 @@
   (def %lang-constructs (%read))
   (def %all-constructs
     (if (null? %lang-constructs) %constructs
-      (append %constructs %lang-constructs)))
+      (%append %constructs %lang-constructs)))
 
   ; Convert each prop's key AND value to a string at BUILD time -- the construct
   ; symbols are fresh here (just read), so this is safe; comparing them later by
@@ -132,12 +132,12 @@
   ; Output
   (unless (null? %undefined)
     (do (%stderr "Undefined:\n")
-        (for-each (fn (_ s) (%stderr "  ") (%stderr s) (%stderr "\n"))
+        (%for-each (fn (_ s) (%stderr "  ") (%stderr s) (%stderr "\n"))
           %undefined)))
 
   (unless (null? %unused)
     (do (%stderr "Unused:\n")
-        (for-each (fn (_ s) (%stderr "  ") (%stderr s) (%stderr "\n"))
+        (%for-each (fn (_ s) (%stderr "  ") (%stderr s) (%stderr "\n"))
           %unused)))
 
   ; Pedantic warnings (advisory -- shown but do not fail the lint): arity,
@@ -150,11 +150,11 @@
         (self (rest ws) (if (lint-has? k acc) acc (pair k acc)))))))
   (def %show-kind (fn (_ k)
     (%stderr "  ") (%stderr k) (%stderr ": ")
-    (for-each (fn (_ s) (%stderr s) (%stderr " ")) (lint-warnings-of k %result))
+    (%for-each (fn (_ s) (%stderr s) (%stderr " ")) (lint-warnings-of k %result))
     (%stderr "\n")))
   (unless (null? %warnings)
     (do (%stderr "Warnings:\n")
-        (for-each %show-kind (%uniq-kinds %warnings ()))))
+        (%for-each %show-kind (%uniq-kinds %warnings ()))))
 
   (if (and (null? %undefined) (null? %unused))
     (display "ok\n")

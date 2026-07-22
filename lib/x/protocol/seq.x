@@ -68,7 +68,7 @@
         (example "(Str8 ->list \"ab\")" "(#\\a #\\b)"))
       (let loop ((cur (self start v)) (acc ()))
         (if (self done? cur v)
-          (reverse acc)
+          (%reverse acc)
           (let ((s (self step cur v)))
             (loop (rest s) (pair (first s) acc))))))
 
@@ -99,14 +99,14 @@
 
     ; Derived: encode a list of elements to a string, via char->bytes +
     ; the byte-packer. Dual of ->list, so (->str (->list v)) round-trips.
-    ; fold here is fold-left: (fold f acc lst), callback (f acc element).
+    ; fold here is fold-left: (%fold f acc lst), callback (f acc element).
     (method ->str (self (param elements LIST "Elements to encode"))
       (doc "Encode a list of elements back into a string via char->bytes -- the dual of ->list, so (->str (->list v)) round-trips."
         (returns STRING "The encoded string")
         (example "(Str8 ->str (list #\\h #\\i))" "\"hi\""))
       (bytes->str
-        (map %integer->char
-          (fold (fn (_ acc el) (append acc (self char->bytes el)))
+        (%map %integer->char
+          (%fold (fn (_ acc el) (%append acc (self char->bytes el)))
                 () elements))))))
 
 (doc (provide x/protocol/seq Seq)

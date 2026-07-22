@@ -37,14 +37,14 @@
       (if (null? more) a
         (if (null? (rest more))
           (if (< (first more) a) (first more) a)   ; binary fast path
-          (fold (fn (_ m x) (if (< x m) x m)) a more))))
+          (%fold (fn (_ m x) (if (< x m) x m)) a more))))
     (method max (self (param a NUMBER "First number") . (param more NUMBER "More numbers"))
       (doc "Return the largest of one or more numbers." (returns NUMBER "The largest argument")
         (example "(Num max 3 1 2)" "3"))
       (if (null? more) a
         (if (null? (rest more))
           (if (> (first more) a) (first more) a)   ; binary fast path
-          (fold (fn (_ m x) (if (> x m) x m)) a more))))
+          (%fold (fn (_ m x) (if (> x m) x m)) a more))))
     (method quotient (self (param a INT "Dividend") (param b INT "Divisor"))
       (doc "Integer division truncating toward zero -- always an integer, where / on integers may promote to a rational under the tower." (returns INT "trunc(a/b)")
         (example "(Num quotient -7 2)" "-3"))
@@ -107,7 +107,7 @@
       (def %gcd2
         (fn (self a b) (if (Num zero? b) a (self b (% a b)))))
       (if (null? args) 0
-        (fold (fn (_ acc x) (%gcd2 (Num abs acc) (Num abs x)))
+        (%fold (fn (_ acc x) (%gcd2 (Num abs acc) (Num abs x)))
               (first args) (rest args))))
     (method lcm (self . args)
       (doc "Compute the least common multiple. Variadic: (Num lcm a b c ...) folds pairwise."
@@ -116,7 +116,7 @@
         (fn (_ a b)
           (if (Num zero? b) 0 (Num abs (* (/ a (Num gcd a b)) b)))))
       (if (null? args) 1
-        (fold (fn (_ acc x) (%lcm2 (Num abs acc) (Num abs x)))
+        (%fold (fn (_ acc x) (%lcm2 (Num abs acc) (Num abs x)))
               (first args) (rest args))))
     ; --- Exponentiation ---
     (method expt (self (param base NUMBER "Base")

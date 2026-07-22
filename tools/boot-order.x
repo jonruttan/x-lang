@@ -402,7 +402,7 @@
         (%simulate "lib/rn.x")
         (match
           ((null? (first %findings-cell)) (do (display "ok") (newline)))
-          (#t (%report (reverse (first %findings-cell))))))))
+          (#t (%report (%reverse (first %findings-cell))))))))
 
 ; (rest args) skips argv[0] (the interpreter binary); the rest is the lib
 ; file list the wrapper passed on the command line.

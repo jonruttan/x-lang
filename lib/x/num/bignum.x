@@ -71,20 +71,20 @@
 ; Strip trailing zero limbs (MSB end), keep at least one limb
 (def %bignum-normalize
   (fn (_ limbs)
-    (def %rev (reverse limbs))
+    (def %rev (%reverse limbs))
     (def %strip
       (fn (self lst)
         (if (null? (rest lst)) lst
           (if (%int= (first lst) 0)
             (self (rest lst))
             lst))))
-    (reverse (%strip %rev))))
+    (%reverse (%strip %rev))))
 
 ; Compare magnitudes: return -1, 0, or 1
 (def %limb-cmp
   (fn (_ a b)
-    (def la (length a))
-    (def lb (length b))
+    (def la (%length a))
+    (def lb (%length b))
     (if (%int< la lb) -1
       (if (%int< lb la) 1
         ; Same length: compare from MSB
@@ -95,7 +95,7 @@
                 (if (%int< (first ra) (first rb)) -1
                   (if (%int< (first rb) (first ra)) 1
                     (self (rest ra) (rest rb)))))))
-          (%cmp-rev (reverse a) (reverse b)))))))
+          (%cmp-rev (%reverse a) (%reverse b)))))))
 
 ; --- Limb arithmetic ---
 
@@ -142,11 +142,11 @@
       (fn (self as shift acc)
         (if (null? as) acc
           (self (rest as) (pair 0 shift)
-            (%limb-add acc (append shift (%limb-mul1 b (first as) 0)) 0)))))
+            (%limb-add acc (%append shift (%limb-mul1 b (first as) 0)) 0)))))
     (%mul-go a () (list 0))))
 
 ; Divide limb list by single limb, return (quotient-limbs . remainder).
-; The walk is MSB-first (over (reverse a)), so prepending each quotient digit
+; The walk is MSB-first (over (%reverse a)), so prepending each quotient digit
 ; leaves qacc LSB-first -- ALREADY the limb storage order. Do not reverse it:
 ; a reverse here flips multi-limb quotients (latent for ages -- single-limb
 ; quotients, the only spec'd case, are order-immune).
@@ -159,7 +159,7 @@
             (def cur (%int+ (%int* rem %bignum-base) (first ra)))
             (self (rest ra) (%int% cur divisor)
                      (pair (%int/ cur divisor) qacc))))))
-    (%div-go (reverse a) 0 ())))
+    (%div-go (%reverse a) 0 ())))
 
 ; General division: a / b, return (quotient-limbs . remainder-limbs)
 ; Uses trial division at the limb level
@@ -174,20 +174,20 @@
       ; Process from MSB, estimate quotient digit, subtract
       (let ()
         (def %top-limb
-          (fn (_ lst) (first (reverse lst))))
-        (def blen (length b))
+          (fn (_ lst) (first (%reverse lst))))
+        (def blen (%length b))
         (def btop (%top-limb b))
         ; Shift a into position and extract quotient digits
         (def %div-loop
           (fn (self rem qdigits)
             (def c (%limb-cmp rem b))
             (if (%int< c 0)
-              (pair (if (null? qdigits) (list 0) (reverse qdigits)) rem)
+              (pair (if (null? qdigits) (list 0) (%reverse qdigits)) rem)
               (if (%int= c 0)
-                (pair (reverse (pair 1 qdigits)) (list 0))
+                (pair (%reverse (pair 1 qdigits)) (list 0))
                 ; Estimate: use top limbs
                 (let ()
-                  (def rlen (length rem))
+                  (def rlen (%length rem))
                   (def rtop (%top-limb rem))
                   ; Estimate quotient as rtop / (btop + 1) to be safe
                   (def q-est
@@ -196,7 +196,7 @@
                         (%int/ rtop (%int+ btop 1))
                         ; rem has more limbs than b
                         (do
-                          (def rtop2 (first (rest (reverse rem))))
+                          (def rtop2 (first (rest (%reverse rem))))
                           (%int/ (%int+ (%int* rtop %bignum-base) rtop2)
                                  (%int+ btop 1))))))
                   (if (%int= q-est 0) (set! q-est 1) ())
@@ -224,7 +224,7 @@
 ; Limb list to decimal string
 (def %bignum-to-string
   (fn (_ sign limbs)
-    (def %rev (reverse limbs))
+    (def %rev (%reverse limbs))
     (def prefix (if (%int= sign -1) "-" ""))
     (def head-str (number->str (first %rev)))
     (def %tail
@@ -256,7 +256,7 @@
                       0 (%int- pos %bignum-digits-per-limb)))
             (def lm (str->number (substring digit-str cs pos)))
             (self cs (pair lm acc))))))
-    (pair sign (%bignum-normalize (reverse (%go dlen ()))))))
+    (pair sign (%bignum-normalize (%reverse (%go dlen ()))))))
 
 ; Decimal string to bignum instance
 (def %bignum-from-string
@@ -284,7 +284,7 @@
         (if (%int= m 0) (if (null? acc) (list 0) acc)
           (self (%int/ m %bignum-base)
                (pair (%int% m %bignum-base) acc)))))
-    (pair sign (reverse (%go mag ())))))
+    (pair sign (%reverse (%go mag ())))))
 
 ; Forward declare %bignum and reader
 (def %bignum ())
@@ -297,7 +297,7 @@
     (if (if (null? (rest nl)) (%int= (first nl) 0) #f)
       0
       ; If few enough limbs to possibly fit in native int, try demotion
-      (if (not (%int< (%int* %word-size 2) (%int* (length nl) %bignum-digits-per-limb)))
+      (if (not (%int< (%int* %word-size 2) (%int* (%length nl) %bignum-digits-per-limb)))
         (let ()
           (def val (%bignum-to-int sign nl))
           ; Verify it round-trips (didn't overflow)
@@ -452,7 +452,7 @@
       (if (eq? (rest args) ()) (first args)
         (if (eq? (rest (rest args)) ())
           (%big-add2 (first args) (first (rest args)))
-          (fold %big-add2 (first args) (rest args)))))))
+          (%fold %big-add2 (first args) (rest args)))))))
 
 (doc - "Subtract numbers, promoting to bignum on overflow. Unary form negates."
   (param args INT|BIGNUM "Numbers to subtract")
@@ -469,7 +469,7 @@
           (%int- 0 (first args)))
         (if (eq? (rest (rest args)) ())
           (%big-sub2 (first args) (first (rest args)))
-          (fold %big-sub2 (first args) (rest args)))))))
+          (%fold %big-sub2 (first args) (rest args)))))))
 
 (doc * "Multiply numbers, promoting to bignum on overflow."
   (param args INT|BIGNUM "Numbers to multiply")
@@ -480,7 +480,7 @@
       (if (eq? (rest args) ()) (first args)
         (if (eq? (rest (rest args)) ())
           (%big-mul2 (first args) (first (rest args)))
-          (fold %big-mul2 (first args) (rest args)))))))
+          (%fold %big-mul2 (first args) (rest args)))))))
 
 (doc / "Divide numbers; bignum operands dispatch through the type ops."
   (param args INT|BIGNUM "Numbers to divide")
@@ -491,7 +491,7 @@
       (if (eq? (rest args) ()) (first args)
         (if (eq? (rest (rest args)) ())
           (%int/ (first args) (first (rest args)))
-          (fold (fn (_ acc x) (%int/ acc x))
+          (%fold (fn (_ acc x) (%int/ acc x))
             (first args) (rest args)))))))
 
 ; --- Type registration ---

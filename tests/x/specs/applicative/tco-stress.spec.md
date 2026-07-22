@@ -241,7 +241,7 @@
 ### map with higher-order function
 
 ```scheme
-(do (def map (fn (self f xs) (if (null? xs) xs (pair (f (first xs)) (self f (rest xs)))))) (map (fn (_ x) (* x x)) (list 1 2 3)))
+(do (def map (fn (self f xs) (if (null? xs) xs (pair (f (first xs)) (self f (rest xs)))))) (List map (fn (_ x) (* x x)) (list 1 2 3)))
 ```
 ---
     (1 4 9)

@@ -20,7 +20,7 @@
             (let ((top (first stack))
                   (parent (first (rest stack)))
                   (rest-stack (rest (rest stack))))
-              (def block (%make-indent-block (reverse (rest top))))
+              (def block (%make-indent-block (List reverse (rest top))))
               (self target
                 (pair (pair (first parent) (pair block (rest parent)))
                       rest-stack)))))))
@@ -28,11 +28,11 @@
     (def %flush-stack
       (fn (self stack)
         (if (null? (rest stack))
-          (reverse (rest (first stack)))
+          (List reverse (rest (first stack)))
           (let ((top (first stack))
                 (parent (first (rest stack)))
                 (rest-stack (rest (rest stack))))
-            (def block (%make-indent-block (reverse (rest top))))
+            (def block (%make-indent-block (List reverse (rest top))))
             (self (pair (pair (first parent) (pair block (rest parent)))
                         rest-stack))))))
 

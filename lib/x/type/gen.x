@@ -25,7 +25,7 @@
 (def-class Gen ()
   (doc "A lazy generator: a step function over a state, producing values on demand."
     (note "Build with range / range-by / count-from / repeat / iterate / from-list / from-seq / of, or the `make` primitive.")
-    (note "Transformers (map filter take drop take-while drop-while enumerate zip zip-with scan) are lazy -- each returns a new Gen.")
+    (note "Transformers (%map filter take drop take-while drop-while enumerate zip zip-with scan) are lazy -- each returns a new Gen.")
     (note "Consumers (->list ->vector for-each fold reduce count sum product any? all? none? find ref first last min max empty?) drive it.")
     (note "count-from / repeat / iterate are INFINITE -- bound them with take / take-while before any consumer.")
     (example "(((Gen range 0 6) filter (fn (_ x) (< x 3))) ->list)" "(0 1 2)"))
@@ -204,7 +204,7 @@
 
   (method ->list (self)
     (doc "Materialise the generator as a list." (returns LIST "All the values"))
-    (reverse (self fold (fn (_ acc x) (pair x acc)) ())))
+    (%reverse (self fold (fn (_ acc x) (pair x acc)) ())))
 
   (method ->vector (self)
     (doc "Materialise the generator as a vector." (returns VECTOR "All the values"))

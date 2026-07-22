@@ -136,7 +136,7 @@
 ### maps over a list
 
 ```scheme
-(do (def map (fn (self f xs) (if (null? xs) xs (pair (f (first xs)) (self f (rest xs)))))) (map (fn (_ x) (* x x)) (list 1 2 3)))
+(do (def map (fn (self f xs) (if (null? xs) xs (pair (f (first xs)) (self f (rest xs)))))) (List map (fn (_ x) (* x x)) (list 1 2 3)))
 ```
 ---
     (1 4 9)
@@ -144,7 +144,7 @@
 ### appends two lists
 
 ```scheme
-(do (def append (fn (self a b) (if (null? a) b (pair (first a) (self (rest a) b))))) (append (list 1 2) (list 3 4)))
+(do (def append (fn (self a b) (if (null? a) b (pair (first a) (self (rest a) b))))) (List append (list 1 2) (list 3 4)))
 ```
 ---
     (1 2 3 4)
@@ -154,7 +154,7 @@
 ### folds a list
 
 ```scheme
-(do (def fold (fn (self f acc xs) (if (null? xs) acc (self f (f acc (first xs)) (rest xs))))) (fold (fn (_ a b) (+ a b)) 0 (list 1 2 3 4 5)))
+(do (def fold (fn (self f acc xs) (if (null? xs) acc (self f (f acc (first xs)) (rest xs))))) (List fold (fn (_ a b) (+ a b)) 0 (list 1 2 3 4 5)))
 ```
 ---
     15
@@ -162,7 +162,7 @@
 ### filters a list
 
 ```scheme
-(do (def filter (fn (self p xs) (if (null? xs) xs (if (p (first xs)) (pair (first xs) (self p (rest xs))) (self p (rest xs)))))) (filter (fn (_ x) (= x 3)) (list 1 2 3 4 3)))
+(do (def filter (fn (self p xs) (if (null? xs) xs (if (p (first xs)) (pair (first xs) (self p (rest xs))) (self p (rest xs)))))) (List filter (fn (_ x) (= x 3)) (list 1 2 3 4 3)))
 ```
 ---
     (3 3)

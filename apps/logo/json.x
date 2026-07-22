@@ -10,7 +10,7 @@
 
 (def turtle-bc-str
   (fn ()
-    (def bc (reverse %turtle-bc))
+    (def bc (List reverse %turtle-bc))
     (def %fstr (fn (_ v) (%write-to-str v)))
     (def %build
       (fn (self items acc first?)

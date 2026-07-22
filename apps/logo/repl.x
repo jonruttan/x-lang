@@ -24,9 +24,9 @@
         ; bytes->str, not list->str: acc holds raw input BYTES; the utf8-aware
         ; list->str would re-encode bytes >= 128, corrupting UTF-8 input.
         (if (null? ch)
-          (unless (null? acc) (bytes->str (reverse acc)))
+          (unless (null? acc) (bytes->str (List reverse acc)))
           (if (= ch 10)
-            (bytes->str (reverse acc))
+            (bytes->str (List reverse acc))
             (self (pair (%integer->char ch) acc))))))
     (%rl ())))
 
@@ -82,7 +82,7 @@
         (sigint-install)
         (if (null? line)
           ; EOF — if caused by ctrl-c, retry
-          (unless (null? lines) (Str join "" (reverse lines)))
+          (unless (null? lines) (Str join "" (List reverse lines)))
           (if (str=? line "")
             ; Blank line
             (if (null? lines)
@@ -90,8 +90,8 @@
               (if (> depth 0)
                 (self lines depth)
                 ; Balanced — probe for completeness
-                (if (%is-complete? (Str join "" (reverse lines)) depth)
-                  (Str join "" (reverse lines))
+                (if (%is-complete? (Str join "" (List reverse lines)) depth)
+                  (Str join "" (List reverse lines))
                   (self lines depth))))
             ; Non-empty line
             (let ((new-depth (+ depth (%count-brackets line)))
@@ -101,8 +101,8 @@
                 (if (%is-indented? line)
                   (self new-lines new-depth)
                   ; Col 0, balanced — probe for completeness
-                  (if (%is-complete? (Str join "" (reverse new-lines)) new-depth)
-                    (Str join "" (reverse new-lines))
+                  (if (%is-complete? (Str join "" (List reverse new-lines)) new-depth)
+                    (Str join "" (List reverse new-lines))
                     (self new-lines new-depth)))))))))
     (%rb () 0)))
 
@@ -160,7 +160,7 @@
     (def %lines
       (fn (self acc)
         (def line (%read-line))
-        (if (null? line) (reverse acc) (self (pair line acc)))))
+        (if (null? line) (List reverse acc) (self (pair line acc)))))
     (def content (Str join "\n" (%lines ())))
     (guard (err
         (%seq

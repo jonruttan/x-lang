@@ -12,9 +12,9 @@ collector.
 ### GC during map over large list
 
 ```scheme
-(def result (map (fn (_ x) (* x x)) (List range 1 1001)))
+(def result (List map (fn (_ x) (* x x)) (List range 1 1001)))
 (Heap collect)
-(= (length result) 1000)
+(= (List length result) 1000)
 ```
 ---
     #t
@@ -37,7 +37,7 @@ collector.
 (def a (pair 'ref-a shared))
 (def b (pair 'ref-b shared))
 (Heap collect)
-(and (= (length (rest a)) 5) (= (length (rest b)) 5))
+(and (= (List length (rest a)) 5) (= (List length (rest b)) 5))
 ```
 ---
     #t
@@ -66,7 +66,7 @@ runs in well under a second.
 ```scheme
 (def live-data (List range 1 101))
 (do (def gc-loop (fn (self n) (if (= n 0) () (do (list 1 2 3) (Heap collect) (self (- n 1)))))) (gc-loop 20))
-(= (length live-data) 100)
+(= (List length live-data) 100)
 ```
 ---
     #t

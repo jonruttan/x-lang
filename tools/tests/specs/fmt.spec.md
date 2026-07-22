@@ -6,9 +6,9 @@
 (do
   (def %base (make-base))
   (def %tokens (Tok read-str %base "(+ 1 2)"))
-  (display (length %tokens))
+  (display (%length %tokens))
   (display " ")
-  (display (length (first %tokens))))
+  (display (%length (first %tokens))))
 ```
 ---
     1 3
@@ -19,7 +19,7 @@
 (do
   (def %base (make-base))
   (def %tokens (Tok read-str %base "(def x 1)\n(def y 2)"))
-  (display (length %tokens)))
+  (display (%length %tokens)))
 ```
 ---
     2

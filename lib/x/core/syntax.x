@@ -38,9 +38,9 @@
       (pair
         (lit let)
         (pair
-          (map (fn (_ b) (list (first b) ())) bindings)
-          (append
-            (map
+          (%map (fn (_ b) (list (first b) ())) bindings)
+          (%append
+            (%map
               (fn (_ b) (list (lit set!) (first b) (first (rest b))))
               bindings)
             body)))

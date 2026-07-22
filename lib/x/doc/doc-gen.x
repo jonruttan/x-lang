@@ -50,16 +50,16 @@
 
 (def doc-extract-params
   (fn (self ps acc)
-    (if (null? ps) (reverse acc)
+    (if (null? ps) (%reverse acc)
       (if (not (pair? ps))
-        (if (doc-param-form? ps) (reverse (pair ps acc)) (reverse acc))
+        (if (doc-param-form? ps) (%reverse (pair ps acc)) (%reverse acc))
         (if (doc-param-form? (first ps))
           (self (rest ps) (pair (first ps) acc))
           (self (rest ps) acc))))))
 
 (def doc-extract-meta-type
   (fn (self forms tag acc)
-    (if (null? forms) (reverse acc)
+    (if (null? forms) (%reverse acc)
       (if (pair? (first forms))
         (if (doc-sym-is? (first (first forms)) tag)
           (self (rest forms) tag (pair (first forms) acc))
@@ -110,7 +110,7 @@
 ; --- Markdown output ---
 
 (def doc-emit-heading (fn (_ level text)
-  (for-each (fn (_ _) (display "#")) (List range 0 level))
+  (%for-each (fn (_ _) (display "#")) (List range 0 level))
   (display " ") (display text) (newline) (newline)))
 
 (def doc-emit-param (fn (_ p)
@@ -141,10 +141,10 @@
     (display "### `") (display %name) (display "`") (newline) (newline)
     (if (not (str=? %desc "")) (do (display %desc) (newline) (newline)))
     (if (not (null? %notes))
-      (for-each (fn (_ n) (display "> ") (display (first (rest n))) (newline) (newline)) %notes))
+      (%for-each (fn (_ n) (display "> ") (display (first (rest n))) (newline) (newline)) %notes))
     (if (not (null? %params))
       (do (display "**Parameters:**") (newline) (newline)
-          (for-each doc-emit-param %params) (newline)))
+          (%for-each doc-emit-param %params) (newline)))
     (if (not (null? %returns))
       (do (def %ret (first %returns))
           (display "**Returns:** `") (display (first (rest %ret))) (display "`")
@@ -156,13 +156,13 @@
     (if (not (null? %examples))
       (do (display "**Examples:**") (newline) (newline)
           (display "```") (newline)
-          (for-each (fn (_ ex)
+          (%for-each (fn (_ ex)
             (display (first (rest ex))) (display " => ")
             (display (first (rest (rest ex)))) (newline)) %examples)
           (display "```") (newline) (newline)))
     (if (not (null? %sees))
       (do (display "**See also:** ")
-          (for-each (fn (_ s)
+          (%for-each (fn (_ s)
             (display "[`") (display (first (rest s))) (display "`](#")
             (display (first (rest s))) (display ") ")) %sees)
           (newline) (newline)))))
@@ -259,10 +259,10 @@
 (def %doc-sig-params
   (fn (self ps acc)
     (match
-      ((null? ps) (reverse acc))
-      ((symbol? ps) (reverse acc))
-      ((doc-param-form? ps) (reverse (pair ps acc)))
-      ((not (pair? ps)) (reverse acc))
+      ((null? ps) (%reverse acc))
+      ((symbol? ps) (%reverse acc))
+      ((doc-param-form? ps) (%reverse (pair ps acc)))
+      ((not (pair? ps)) (%reverse acc))
       ((doc-param-form? (first ps)) (self (rest ps) (pair (first ps) acc)))
       (#t (self (rest ps) acc)))))
 
@@ -295,7 +295,7 @@
             (doc-extract-meta-type %meta "example" ())
             (doc-extract-meta-type %meta "see" ())
             (if static? %notes
-              (append %notes
+              (%append %notes
                 (list (list 'note
                   (str "Instance method: called on a " cname " instance.")))))))))
 
@@ -305,7 +305,7 @@
     (def %meta (rest (rest f)))
     (when (str? (first (rest f)))
       (do (display (first (rest f))) (newline) (newline)
-          (for-each
+          (%for-each
             (fn (_ n) (display "> ") (display (first (rest n))) (newline) (newline))
             (doc-extract-meta-type %meta "note" ()))))))
 
@@ -384,10 +384,10 @@
         (def %mod-name (symbol->str (List ref 0 %provide)))
         ; Back navigation — count slashes to determine depth
         (def %depth
-          (fold (fn (_ acc ch) (if (= ch (%integer->char 47)) (+ acc 1) acc))
+          (%fold (fn (_ acc ch) (if (= ch (%integer->char 47)) (+ acc 1) acc))
             0 (Str ->list %mod-name)))
         (def %back
-          (fold (fn (_ acc _) (%str-append acc "../"))
+          (%fold (fn (_ acc _) (%str-append acc "../"))
             "" (List range 0 %depth)))
         (display "[← Index](") (display %back) (display "index.md)")
         (newline) (newline)
@@ -395,7 +395,7 @@
         (if (not (str=? (List ref 1 %provide) ""))
           (do (display (List ref 1 %provide)) (newline) (newline)))
         (if (not (null? (List ref 6 %provide)))
-          (for-each (fn (_ n) (display "> ") (display (first (rest n))) (newline) (newline))
+          (%for-each (fn (_ n) (display "> ") (display (first (rest n))) (newline) (newline))
             (List ref 6 %provide)))))))
 
 ; --- Public walkers ---
@@ -410,7 +410,7 @@
       ; string compare, not eq?: tokens come from a FRESH base (doc.x), and
       ; symbol interning is per-base, so 'do here is a different atom
       ((if (pair? (first tokens)) (doc-sym-is? (first (first tokens)) "do") #f)
-        (append (self (rest (first tokens))) (self (rest tokens))))
+        (%append (self (rest (first tokens))) (self (rest tokens))))
       (#t (pair (first tokens) (self (rest tokens)))))))
 
 (doc (def doc-walk-with-prims
@@ -420,7 +420,7 @@
     ; Build local doc lookup from standalone (doc name ...) forms in source,
     ; then merge with prims-alist so bare defs find their docs
     (def %local-alist (doc-build-lookup %spliced))
-    (def %merged (append %local-alist prims-alist))
+    (def %merged (%append %local-alist prims-alist))
     (%doc-walk-body-with-prims %spliced %merged ())))
   (param tokens LIST "Source file token list")
   (param prims-alist LIST "Alist from doc-build-lookup (or () for none)")

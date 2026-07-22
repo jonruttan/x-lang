@@ -45,7 +45,7 @@
     (def %gen-loop
       (fn (self processed)
         (def %current (first %compile-fns))
-        (def %len (length %current))
+        (def %len (%length %current))
         (if (= %len processed) %nested-c
           (let ()  ; scoped: def in tail position would leak to global
             (def %gen-new

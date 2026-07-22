@@ -70,7 +70,7 @@
   (def %p (pair 1 2))
   (Obj meta-set! %p 0 99)
   ; Force allocations to trigger GC
-  (def %junk (map (fn (x) (pair x x)) (list 1 2 3 4 5 6 7 8 9 10)))
+  (def %junk (%map (fn (x) (pair x x)) (list 1 2 3 4 5 6 7 8 9 10)))
   (display (Obj meta-ref %p 0)))
 ```
 ---

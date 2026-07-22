@@ -15,7 +15,7 @@
 ; str: the foundational string constructor. A TYPE constructor, so it's a bare
 ; global like `list` (your "types are foundational, classes aren't" line). The
 ; Str8 class method (Str8 str ...) and $"..." interpolation delegate to it.
-(def str (fn (_ . args) (fold (fn (_ acc x) (%str-append acc (%display-to-str x))) "" args)))
+(def str (fn (_ . args) (%fold (fn (_ acc x) (%str-append acc (%display-to-str x))) "" args)))
 
 
 
@@ -155,7 +155,7 @@
       (doc "Concatenate all argument strings, left to right."
         (returns STRING "The arguments joined end to end")
         (example "(Str8 append \"ab\" \"cd\" \"ef\")" "\"abcdef\""))
-      (fold %str-append "" args))
+      (%fold %str-append "" args))
     (method str (self . (param args ANY "Values to render and concatenate"))
       (doc "Concatenate values into one string, coercing each via display (so non-strings render too). The target of $\"...{expr}...\" interpolation."
         (returns STRING "The rendered values joined end to end")
@@ -247,7 +247,7 @@
       (match
         ((null? lst) "")
         ((null? (rest lst)) (%str8-check (first lst) "Str8 join: element not a string"))
-        (#t (fold (fn (_ acc s)
+        (#t (%fold (fn (_ acc s)
                     (%str-append acc (%str-append sep (%str8-check s "Str8 join: element not a string"))))
                   (%str8-check (first lst) "Str8 join: element not a string") (rest lst)))))
     (method repeat (self (param n INT "Number of copies") (param s STRING "String to repeat"))
@@ -442,7 +442,7 @@
       (doc "Reverse the elements of s."
         (returns STRING "s with its elements in reverse order")
         (example "(Str8 reverse \"abc\")" "\"cba\""))
-      (self ->str (reverse (self ->list s))))
+      (self ->str (%reverse (self ->list s))))
     (method ->sym (self (param s STRING "String to intern"))
       (doc "Convert a string to an interned symbol with the same name."
         (returns SYMBOL "The interned symbol")
@@ -452,12 +452,12 @@
       (doc "Uppercase the ASCII letters of s; other characters pass through."
         (returns STRING "s with a-z mapped to A-Z")
         (example "(Str8 upcase \"café\")" "\"CAFé\""))
-      (self ->str (map (fn (_ c) (Char upcase c)) (self ->list s))))
+      (self ->str (%map (fn (_ c) (Char upcase c)) (self ->list s))))
     (method downcase (self (param s STRING "String to convert"))
       (doc "Lowercase the ASCII letters of s; other characters pass through."
         (returns STRING "s with A-Z mapped to a-z")
         (example "(Str8 downcase \"ABC\")" "\"abc\""))
-      (self ->str (map (fn (_ c) (Char downcase c)) (self ->list s))))
+      (self ->str (%map (fn (_ c) (Char downcase c)) (self ->list s))))
 
     ; --- trimming (whitespace is ASCII; element scanning is correct) ---
     (method trim-left (self (param s STRING "String to trim"))
@@ -492,10 +492,10 @@
       (def sep-len (self length sep))
       (def s-len (self length s))
       (if (= sep-len 0)
-        (map (fn (_ c) (self ->str (list c))) (self ->list s))
+        (%map (fn (_ c) (self ->str (list c))) (self ->list s))
         (let go ((start 0) (i 0) (acc ()))
           (if (> (+ i sep-len) s-len)
-            (reverse (pair (self sub start (- s-len start) s) acc))
+            (%reverse (pair (self sub start (- s-len start) s) acc))
             (if (self =? (self sub i sep-len s) sep)
               (go (+ i sep-len) (+ i sep-len)
                   (pair (self sub start (- i start) s) acc))

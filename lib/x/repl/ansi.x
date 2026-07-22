@@ -32,7 +32,7 @@
 (def %no-color-env (Sys getenv "NO_COLOR"))
 (def %term-env (Sys getenv "TERM"))
 (def %no-color-arg
-  (fold
+  (%fold
     (fn (_ acc a) (or acc (str=? a "--no-color")))
     ()
     args))

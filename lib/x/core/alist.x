@@ -59,7 +59,7 @@
 
 (note "Extraction")
 
-(doc (def assoc-keys (fn (_ (param alist LIST "Association list")) (map first alist)))
+(doc (def assoc-keys (fn (_ (param alist LIST "Association list")) (%map first alist)))
   (returns LIST "List of keys")
   (note "Bootstrap layer: the object system's introspection uses this. Class API: (Assoc keys ...).")
   "Return all keys from an alist.")
@@ -142,7 +142,7 @@
     ; visible to every lookup, each binding sees the ones before it, and the
     ; bindings stay local to body (no leak into the caller frame e).
     (tail-eval
-      (%opt-nest (pair (list (lit %opts) src) (map %opt-binding bindings))
+      (%opt-nest (pair (list (lit %opts) src) (%map %opt-binding bindings))
                  body)
       e)))
   (note "Each binding is name | (name default) | (name key default). Defaults are")

@@ -568,8 +568,8 @@
 (def %section-walk
   (fn (loop c accessor seen)
     (if (null? c) ()
-      (append (%section-here (symbol->str (class-name c)) seen (accessor c))
-              (loop (class-parent c) accessor (append (accessor c) seen))))))
+      (%append (%section-here (symbol->str (class-name c)) seen (accessor c))
+              (loop (class-parent c) accessor (%append (accessor c) seen))))))
 
 ; The merged, sorted (name . desc) entries for one category of a class.
 (def %class-section-entries

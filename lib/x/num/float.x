@@ -314,7 +314,7 @@
           (pair big
             (fn (_ value)
               (def sign (first (first value)))
-              (def limbs (reverse (rest (first value))))
+              (def limbs (%reverse (rest (first value))))
               (def fbase (%exact->inexact %bignum-base))
               (def fzero (%exact->inexact 0))
               ; Horner's method on reversed (now MSB-first) limbs

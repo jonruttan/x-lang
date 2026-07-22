@@ -88,7 +88,7 @@ sequence.
 ---
     #t
 
-### shuffle is a permutation (length and sum preserved)
+### shuffle is a permutation (List length and sum preserved)
 
 ```scheme
 (import x/num/random)

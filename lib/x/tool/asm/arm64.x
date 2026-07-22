@@ -34,7 +34,7 @@
             (def sh    (List ref 3 f))
             (def arg (List ref idx args))
             ; Field may have 5th element: sub-index into operand
-            (def sub (if (> (length f) 4) (List ref 4 f) 0))
+            (def sub (if (> (%length f) 4) (List ref 4 f) 0))
             (def val
               (if (eq? (%op-type arg) 'label)
                 (do

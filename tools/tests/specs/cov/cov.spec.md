@@ -178,7 +178,7 @@
   (Ptr set-word! (convert %p %ptr) %flags-offset
     (| (obj-flags %p) 2))
   ; Force some allocations to trigger GC
-  (def %junk (map (fn (x) (pair x x)) (list 1 2 3 4 5 6 7 8 9 10)))
+  (def %junk (%map (fn (x) (pair x x)) (list 1 2 3 4 5 6 7 8 9 10)))
   (display (> (& (obj-flags %p) 2) 0)))
 ```
 ---

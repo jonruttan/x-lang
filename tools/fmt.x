@@ -20,7 +20,7 @@
   (def %lang-constructs (%read))
   (def %all-constructs
     (if (null? %lang-constructs) %constructs
-      (append %constructs %lang-constructs)))
+      (%append %constructs %lang-constructs)))
   (def %fmt-table (Fmt build-table %all-constructs))
 
   ; --- Create formatter base, patch COMMENT to keep tokens ---

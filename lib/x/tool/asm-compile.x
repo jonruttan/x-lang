@@ -359,11 +359,11 @@
   (fn (_ asm fn-name args params)
     (if (null? %asm-self-cell)
       (Err raise 'value (Str append "asm-compile: unknown function: " (symbol->str fn-name)) ()))
-    (def nargs (length args))
+    (def nargs (%length args))
     (if (> nargs 4) (Err raise 'value "asm-compile: max 4 args for recursive calls" ()))
 
     ; Evaluate each arg to raw integer, push to stack
-    (for-each
+    (%for-each
       (fn (_ arg)
         (%asm-compile-expr asm arg params)
         (%emit-u32-le! asm %PUSH))

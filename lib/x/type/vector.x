@@ -37,7 +37,7 @@
 ; Fill a vector's slots from a list (shared helper)
 (def %vector-from-list
   (fn (_ type lst)
-    (def len (length lst))
+    (def len (%length lst))
     (def v (%make-obj type (+ len 1)))
     (%obj-set! v 0 len)
     (def go (fn (self l i)

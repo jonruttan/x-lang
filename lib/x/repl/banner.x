@@ -11,14 +11,14 @@
 ; and DISCARDS the still-unread file bytes -- reads are one byte at a
 ; time, so nothing is buffered ahead.
 (def %batch?
-  (fold
+  (%fold
     (fn (_ acc a) (or acc (str=? a "--batch")))
     ()
     args))
 (def %banner
   (fn (_ )
     (def %quiet
-      (fold
+      (%fold
         (fn (_ acc a)
           (or acc (str=? a "--quiet") (str=? a "-q")))
         ()

@@ -353,7 +353,7 @@
 (doc time "Time an expression's evaluation in microseconds."
   (param expr ANY "Expression to time")
   (returns ANY "Result of expr (prints elapsed time as side effect)")
-  (example "(time (fold + 0 (List range 0 1000)))" "499500"))
+  (example "(time (List fold + 0 (List range 0 1000)))" "499500"))
 
 (doc newline "Display a newline character.")
 
