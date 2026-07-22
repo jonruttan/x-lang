@@ -35,7 +35,7 @@ cat lib/rn.x - | ./x     # radon
 
 In an **installed** tree (`make install`) the wrapper boots the same dialects
 from `share/x/boot/` — one generated, amalgamated entry per dialect (the raw
-include chain flattened to a single stream; see `docs/boot-amalgam.md`) — and
+include chain flattened to a single stream) — and
 the library under `share/x/lib/` is byte-identical to the repo's. Repo
 checkouts always load the live entries above.
 

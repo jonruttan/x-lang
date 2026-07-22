@@ -10,7 +10,7 @@
 ; GC-safety: raw pointers held as ints across these bodies are safe because
 ; collection is EXPLICIT-only -- allocation (the arg lists here) never
 ; triggers a collect, so an object cannot move between the %obj->ptr and
-; the word op that consumes it.  (See docs/gc-stack-roots.md.)
+; the word op that consumes it.
 ;
 ; Boot constraints: loads right after data.x (needs its %-instruments and
 ; %word-size/%data-offset); `if` is not defined until core/control.x, so

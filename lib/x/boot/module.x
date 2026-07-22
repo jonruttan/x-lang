@@ -148,7 +148,7 @@
 ; loaded from: paths vary with the import root (repo "lib" vs an installed
 ; absolute root), names do not.  Path-keyed dedup left every boot module one
 ; import away from a silent double load in any tree whose root is not the
-; literal "lib" (docs/boot-amalgam.md).  Symbols are interned per-base, so
+; literal "lib".  Symbols are interned per-base, so
 ; eq? membership is sound.
 (%set-rest! %doc-registry-cell (pair () ()))
 (def %module-loaded-cell (rest %doc-registry-cell))
@@ -180,7 +180,7 @@
 ; wrapper's installed mode emits one (def %install-root ...) form at the top
 ; of the pipe; def is a C prim, so no library is needed to evaluate it).
 ; When bound it REPLACES the cwd-relative default: an installed tree must
-; resolve imports from ANY cwd (docs/boot-amalgam.md).  Unbound -- the repo
+; resolve imports from ANY cwd.  Unbound -- the repo
 ; case -- the guard falls back to "lib" and nothing changes.
 (def %import-roots-cell
   (pair (guard (_ (list "lib")) (list (%path-join %install-root "lib"))) ()))

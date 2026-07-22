@@ -1,6 +1,6 @@
 #!/bin/sh
 # amalgam-smoke.sh -- boot every generated amalgam entry in batch mode and
-# pin a smoke expression through it (docs/boot-amalgam.md).  A generator
+# pin a smoke expression through it.  A generator
 # slip (wrapped form, wrong order, missing file) dies here, not in an
 # installed tree.  Same self-limit as the other harnesses.
 #
