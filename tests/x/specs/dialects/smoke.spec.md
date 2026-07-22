@@ -188,6 +188,14 @@ leading `+`/`-` jumped into.
 ---
     1
 
+### Set is loaded by default (common containers)
+
+```scheme
+((Set of 1 2 2 3) length)
+```
+---
+    3
+
 # @lib rn.x
 
 ## rn.x -- radon, the experimental tower dialect
@@ -239,3 +247,11 @@ leading `+`/`-` jumped into.
 ```
 ---
     1
+
+### Set is loaded by default (common containers)
+
+```scheme
+((Set of 1 2 2 3) length)
+```
+---
+    3
