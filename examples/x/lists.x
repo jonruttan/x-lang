@@ -5,17 +5,17 @@
 
 ; Map: square every element
 (display "squares: ")
-(write (map (fn (_ x) (* x x)) (list 1 2 3 4 5)))
+(write (List map (fn (_ x) (* x x)) (list 1 2 3 4 5)))
 (newline)
 
 ; Filter: keep only even numbers -- a class method as a value via method-ref
 (display "evens:   ")
-(write (filter (method-ref Num even?) (list 1 2 3 4 5 6 7 8 9 10)))
+(write (List filter (method-ref Num even?) (list 1 2 3 4 5 6 7 8 9 10)))
 (newline)
 
 ; Fold: sum a list
 (display "sum:     ")
-(display (fold + 0 (list 1 2 3 4 5)))
+(display (List fold + 0 (list 1 2 3 4 5)))
 (newline)
 
 ; Sort (a List class method)
