@@ -15,7 +15,7 @@
 ; str: the foundational string constructor. A TYPE constructor, so it's a bare
 ; global like `list` (your "types are foundational, classes aren't" line). The
 ; Str8 class method (Str8 str ...) and $"..." interpolation delegate to it.
-(def str (fn (_ . args) (%fold (fn (_ acc x) (%str-append acc (%display-to-str x))) "" args)))
+(def %str-build (fn (_ . args) (%fold (fn (_ acc x) (%str-append acc (%display-to-str x))) "" args)))
 
 
 
@@ -160,7 +160,7 @@
       (doc "Concatenate values into one string, coercing each via display (so non-strings render too). The target of $\"...{expr}...\" interpolation."
         (returns STRING "The rendered values joined end to end")
         (example "(Str8 str \"x=\" 5 \"!\")" "\"x=5!\""))
-      (apply str args))                            ; delegate to the foundational global
+      (apply %str-build args))                     ; delegate to the %-private builder
     (method iter (self (param s STRING "String to iterate"))
       (doc "An iterator over the string's characters." (returns ITER "Character iterator"))
       (Iter new s))
@@ -501,6 +501,6 @@
                   (pair (self sub start (- i start) s) acc))
               (go start (+ i 1) acc))))))))
 
-(doc (provide x/protocol/str/str8 Str8 str)
+(doc (provide x/protocol/str/str8 Str8)
   (note "The 8-bit byte view. Use (Str8 length s), (Str8 upcase s), etc.; (help Str8) lists every method, (help Str8 method) shows one.")
   "Str8: the 8-bit byte string protocol (a Seq subclass) with the full string method suite.")

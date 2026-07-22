@@ -101,10 +101,6 @@
   ; --- iteration / laziness (form-like) ---
   (delay)
   (iter)
-  ; --- string converters: SWEEP CANDIDATES (class faces exist) ---
-  (list->str)
-  (str)
-  (str->list)
   ; --- platform lookups + syscall tables (opt-in modules) ---
   (darwin-syscall-numbers)
   (i386-syscall-names)

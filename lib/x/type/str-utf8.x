@@ -46,7 +46,7 @@
 ; redefines it to be code-point aware -- each char is UTF-8 encoded via the
 ; shared codec, then byte-packed. Exact inverse of str->list, so
 ; (list->str (str->list s)) round-trips any UTF-8 string.
-(doc (def list->str
+(doc (def %list->str
   (fn (_ chars)
     (bytes->str
       (%map %integer->char
@@ -54,10 +54,9 @@
               () chars)))))
   (param chars LIST "List of CHARACTERs (Unicode code points)")
   (returns STRING "UTF-8 string encoding each code point")
-  (example "(list->str (list #\\$ #\\€))" "\"$€\"")
   "Build a UTF-8 string from a list of code-point characters. Inverse of str->list.")
 
-(doc (def str->list
+(doc (def %str->list
   (fn (_ s)
     (def len (%str-length s))
     (let go ((i 0) (acc ()))
@@ -67,7 +66,6 @@
           (go (rest d) (pair (%integer->char (first d)) acc)))))))
   (param s STRING "String to decode")
   (returns LIST "List of CHARACTERs, one per Unicode code point")
-  (example "(str->list \"$¢€\")" "(#\\$ #\\¢ #\\€)")
   "Decode a UTF-8 string into a list of code-point characters. Inverse of list->str.")
 
 ; --- bare (s i) -> code-point call handler ---------------------------------
@@ -133,7 +131,7 @@
         (%cp-ref s (first vals))
         (%cp-substring s (first vals) (first (rest vals)))))))
 
-(doc (provide x/type/str-utf8 list->str str->list)
+(doc (provide x/type/str-utf8)
   (note "Low-level layer, loaded before the object system. The high-level string API is the Str8 / StrUTF8 classes and the Str entry point in x/type/str.")
   (note "The %-private byte API (%str-length, %str-ref, %substring) stays byte-level; only the bare (s i) call is code-point aware.")
   "The low-level UTF-8 code-point layer for the STRING type: the list<->str transforms and the bare (s i) code-point indexing handler.")

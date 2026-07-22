@@ -87,10 +87,10 @@ $"{{}}"
 These pin the read-time-parsing fix: a hole's variable must resolve in the env
 where the literal sits, even when a *second* interpolation follows it.
 
-### as direct arguments to str
+### as direct arguments to Str8 str
 
 ```scheme
-((fn (_ x) (str $"a{x}" $"b{x}")) 9)
+((fn (_ x) (Str8 str $"a{x}" $"b{x}")) 9)
 ```
 ---
     "a9b9"
@@ -98,7 +98,7 @@ where the literal sits, even when a *second* interpolation follows it.
 ### inside separate let frames
 
 ```scheme
-((fn (_ x) (str (let ((q 1)) $"a{x}") (let ((q 1)) $"b{x}"))) 9)
+((fn (_ x) (Str8 str (let ((q 1)) $"a{x}") (let ((q 1)) $"b{x}"))) 9)
 ```
 ---
     "a9b9"
@@ -106,7 +106,7 @@ where the literal sits, even when a *second* interpolation follows it.
 ### a second interpolation in if-tail (TCO) position
 
 ```scheme
-((fn (_ x) (str (if #t $"a{x}" "") (if #t $"b{x}" ""))) 9)
+((fn (_ x) (Str8 str (if #t $"a{x}" "") (if #t $"b{x}" ""))) 9)
 ```
 ---
     "a9b9"
@@ -114,7 +114,7 @@ where the literal sits, even when a *second* interpolation follows it.
 ### an expr hole then a symbol hole across if-tails
 
 ```scheme
-((fn (_ x) (str (if #t $"a{(+ 1 1)}" "") (if #t $"b{x}" ""))) 9)
+((fn (_ x) (Str8 str (if #t $"a{(+ 1 1)}" "") (if #t $"b{x}" ""))) 9)
 ```
 ---
     "a2b9"

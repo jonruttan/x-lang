@@ -341,7 +341,7 @@ were sliced at the wrong boundaries.
 ### str->list decodes code points (active protocol)
 
 ```x
-(List map (method-ref Char ->int) (str->list "$¢€"))
+(List map (method-ref Char ->int) (StrUTF8 ->list "$¢€"))
 ```
 ---
     (36 162 8364)

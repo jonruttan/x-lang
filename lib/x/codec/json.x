@@ -187,7 +187,7 @@
               (if (if (>= c len) #t (not (= (%json-byte s c) 58)))   ; :
                 (%json-err "expected : after key" c)
                 (let ((v (%json-parse-value s (+ c 1) len)))
-                  (do (d put! (first key) (first v))
+                  (do (d set! (first key) (first v))
                       (let ((k (%json-skip-ws s (rest v) len)))
                         (if (>= k len) (%json-err "unterminated object" k)
                           (match
