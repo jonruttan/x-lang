@@ -86,7 +86,9 @@ Two extensions to the rule:
 A project can pin the library modules it depends on: keep the exact
 module files it was written against in its own tree, and have `import`
 resolve those names there instead of in the installed library. Pinned
-code then keeps its behavior as the library evolves.
+code then keeps its behavior as the library evolves. (This section is
+the reference; for the guided path — new project, retrofit, daily
+work — see [Pinning, step by step](pinning-tutorial.md).)
 
 ### The manifest: `pin.xon`
 
