@@ -165,8 +165,9 @@ exits. For line editing and history, wrap the session in `rlwrap`.
 A project can **pin** the library modules it depends on — keep the exact
 files it was written against in its own tree and declare them in a
 `pin.xon` manifest, which the wrapper finds beside the program (announced
-on stderr; `--no-pin` skips). See [docs/modules.md](docs/modules.md),
-"Pinning".
+on stderr; `--no-pin` skips). Walkthrough:
+[docs/pinning-tutorial.md](docs/pinning-tutorial.md); reference:
+[docs/modules.md](docs/modules.md), "Pinning".
 
 ## Install
 
