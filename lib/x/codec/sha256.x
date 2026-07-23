@@ -13,6 +13,11 @@
 ; checkable against the standard by eye, and the (example) vectors on
 ; `hex` are the executable proof.
 (import x/type/vector)
+; Collection is explicit-trigger-only: without the periodic collect in
+; the block loop below, digesting an amalgam-sized input allocates
+; gigabytes and dies on small machines (the release runner did).  The
+; live set at a block boundary is tiny, so the collects stay cheap.
+(import x/sys/gc)
 
 ; ALL arithmetic rides the cached int prims: under the tower, bare
 ; +/-/* return tower numbers the C bit ops reject (>> errors) -- the
@@ -119,7 +124,12 @@
     (match
       ((= base total) (list h0 h1 h2 h3 h4 h5 h6 h7))
       (#t
-        (do (%sha-fill-w! s len total base w 0)
+        (do (match
+              ; every 32nd block (2KB): bound the allocation between
+              ; collects; tiny inputs (the vectors) never pay one
+              ((and (> base 0) (= (& (>> base 6) 31) 0)) (Heap collect))
+              (#t ()))
+            (%sha-fill-w! s len total base w 0)
             (%sha-extend-w! w 16)
             (let ((r (%sha-rounds w 0 h0 h1 h2 h3 h4 h5 h6 h7)))
               (self s len total (%sha+ base 64) w
