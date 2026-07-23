@@ -1,0 +1,63 @@
+name: Release
+
+# Tier-1 pin artifacts (#115; docs/modules.md "Pinning"): a version tag
+# publishes the amalgamated boot entries -- each dialect's full boot as
+# ONE self-contained, zero-path-literal file -- plus SHASUMS (coreutils
+# format) and pin.release.xon (xon: the per-file sha256 digests and the
+# ISA fingerprint -- the digest of tools/isa.x, the ratcheted C-surface
+# manifest these amalgams were built against; make check-isa holds
+# manifest == binary, so the fingerprint names the engine contract).
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  artifacts:
+    name: publish amalgams + manifest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build
+        run: make
+      # The full gate stands between a tag and its artifacts: a tag on a
+      # red tree publishes nothing.
+      - name: Full gate
+        run: make test
+        env:
+          PARALLEL: "1"
+      - name: Amalgams + manifest
+        run: |
+          make boot
+          sh tools/release-manifest.sh "$GITHUB_REF_NAME"
+      # Dogfood cross-check: the pure-x Sha256 (x/codec/sha256 -- the
+      # consumer-side verify anchor) must agree with coreutils on the ISA
+      # fingerprint consumers will check against.  isa.x is ~10KB (~15s
+      # pure-x); the amalgams would cost minutes each for no extra proof.
+      - name: Cross-check pure-x sha256 against the manifest
+        run: |
+          cat > /tmp/hash-isa.x <<'EOF'
+          (import x/sys/file)
+          (import x/codec/sha256)
+          (display (Sha256 hex (File slurp "tools/isa.x")))
+          (newline)
+          EOF
+          got=$(sh x.sh --no-pin -f /tmp/hash-isa.x | tail -1)
+          want=$(grep '^(isa ' build/release/pin.release.xon | sed 's/.*sha256:\([0-9a-f]*\).*/\1/')
+          echo "pure-x:   $got"
+          echo "manifest: $want"
+          [ -n "$want" ] && [ "$got" = "$want" ] \
+            || { echo "pure-x sha256 disagrees with the manifest" >&2; exit 1; }
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes "Amalgamated boot entries (tier-1 pin artifacts): each dialect's full boot as one self-contained file, byte-stable products of this tag's sources. Verify downloads with \`sha256sum -c SHASUMS\`; \`pin.release.xon\` is the machine-readable manifest (xon), including the ISA fingerprint (sha256 of tools/isa.x -- the C-surface contract these amalgams were built against)." \
+            build/boot/*.x build/release/SHASUMS build/release/pin.release.xon

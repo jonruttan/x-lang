@@ -295,6 +295,21 @@ The hook hard-gates on `make test` (both suites) and blocks the push if it fails
 
 GitHub Actions (`.github/workflows/ci.yml`) hard-gates every push and pull request on `make test` (macOS + Linux) **and** `make test-asan` (Linux). The pre-push hook remains the first line of defence: it catches a red suite before it leaves the machine.
 
+### Releases
+
+Pushing a version tag (`v*`) runs `.github/workflows/release.yml`: the
+full gate first (a tag on a red tree publishes nothing), then `make
+boot` and `tools/release-manifest.sh`, publishing a GitHub Release
+carrying the amalgamated boot entries (`build/boot/*.x`, discovered —
+never a hand list), `SHASUMS` (coreutils format), and
+`pin.release.xon` — the machine-readable manifest (xon) with each
+file's sha256 and the **ISA fingerprint**: the digest of `tools/isa.x`,
+the C-surface contract the amalgams were built against (`make
+check-isa` holds manifest == binary). The workflow also cross-checks
+the pure-x `Sha256` against coreutils on that fingerprint, and `make
+check-release-manifest` gates the manifest script on every test run so
+it cannot rot between releases.
+
 ## Commit Conventions
 
 This project follows [AngularJS commit conventions](../CONVENTIONS.md):

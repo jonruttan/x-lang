@@ -80,6 +80,11 @@ differ in what surface is *loaded*, never in what a shared spelling *means*
   `(Pin verify "deps")` recomputes every digest and walks the tree —
   the overlay must be *exactly* the lock (an unlisted file is a rogue
   shadow). The digests are pure-x SHA-256 (`x/codec/sha256`).
+- **ISA fingerprint** — the sha256 of `tools/isa.x`, the ratcheted
+  C-surface manifest. Published in every release's `pin.release.xon`,
+  it names the engine contract the release's amalgams were built
+  against — the machine-checkable half of "which binary runs this
+  pinned platform".
 
 ## combiners
 

@@ -185,6 +185,22 @@ count. Verification runs are honest by construction: the hash module
 loads eagerly with `x/tool/pin`, before any overlay root is armed, so
 an overlay cannot shadow the hasher that checks it.
 
+### Pinning the platform: released amalgams
+
+Overlay pins cannot cross the pin boundary — the boot set itself.
+Pinning the *platform* means running a pinned boot: every release tag
+publishes the amalgamated boot entries (each dialect's full boot as one
+self-contained file), together with `SHASUMS` and `pin.release.xon` —
+per-file sha256 digests plus the **ISA fingerprint**, the digest of the
+C-surface manifest the amalgams were built against. An amalgam has zero
+path literals, so a verified download boots directly against a
+matching engine binary:
+
+```sh
+sha256sum -c SHASUMS            # verify the download
+cat xe.x program.x | ./x --batch
+```
+
 ### Probing and arming
 
 The shell wrapper probes for `pin.xon` starting from the **program's**
