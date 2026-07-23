@@ -75,6 +75,11 @@ differ in what surface is *loaded*, never in what a shared spelling *means*
   excluded) into a project's overlay root: `(Pin vendor "deps" 'name)`.
   Closure-wise, not file-wise — a lone vendored module would silently
   mix with newer dependencies.
+- **lockfile** (`pin.lock.xon`) — the overlay's integrity record,
+  written by vendor: one `(file "REL" "sha256:HEX")` per vendored file.
+  `(Pin verify "deps")` recomputes every digest and walks the tree —
+  the overlay must be *exactly* the lock (an unlisted file is a rogue
+  shadow). The digests are pure-x SHA-256 (`x/codec/sha256`).
 
 ## combiners
 

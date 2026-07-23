@@ -164,6 +164,27 @@ Two rules the tool enforces:
   resolve — a computed include, an absolute or root-relative literal —
   is a loud error, never a silently unvendored dependency.
 
+### The lockfile and verification
+
+`vendor` also writes `<root>/pin.lock.xon` — xon, like the manifest,
+with one `(file "REL" "sha256:HEX")` entry per vendored file (the
+digest is `Sha256` from `x/codec/sha256`, pure x-lang). `verify`
+recomputes it all:
+
+```
+> (Pin verify "deps")
+5
+```
+
+Every lockfile entry must exist and match its digest, and **every file
+in the tree must be listed** — an unlisted file is a rogue shadow ready
+to win root precedence, so the overlay must be exactly the lock. A
+missing lockfile, a missing or modified file, or an unlisted file is a
+loud error naming each offender; on success `verify` returns the file
+count. Verification runs are honest by construction: the hash module
+loads eagerly with `x/tool/pin`, before any overlay root is armed, so
+an overlay cannot shadow the hasher that checks it.
+
 ### Probing and arming
 
 The shell wrapper probes for `pin.xon` starting from the **program's**

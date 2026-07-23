@@ -127,6 +127,31 @@ status=$?
 grep -qx "vendored" "$_TMP/out" || fail "vendor: no completion marker" "$_TMP/out" "$_TMP/err"
 [ -e "$_TMP/proj2/deps/x/type/dict.x" ] || fail "vendor: dict.x not copied"
 [ -d "$_TMP/proj2/deps/x/core" ] && fail "vendor: boot floor leaked into the overlay"
+# verify plumbing end to end, on a TINY closure (pure-x hashing of the
+# dict closure would cost ~25s per pass; the acme fixture costs nothing
+# and exercises the identical wrapper->loader->lock->hash path)
+mkdir -p "$_TMP/proj3"
+cat > "$_TMP/verify.x" <<EOF
+(import x/tool/pin)
+(import-path! "$_TMP/proj/deps")
+(Pin vendor "$_TMP/proj3/deps" 'acme/util)
+(display (Pin verify "$_TMP/proj3/deps"))
+(newline)
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/verify.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -eq 0 ] || fail "verify-clean run exited $status" "$_TMP/err" "$_TMP/out"
+grep -qx "1" "$_TMP/out" || fail "verify-clean: expected count 1" "$_TMP/out"
+
+cat > "$_TMP/verify2.x" <<EOF
+(import x/tool/pin)
+(display (Pin verify "$_TMP/proj3/deps"))
+EOF
+printf '; tampered\n' >> "$_TMP/proj3/deps/acme/util.x"
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/verify2.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "verify-tamper: tampered overlay verified clean" "$_TMP/out" "$_TMP/err"
+
 # drift simulation: the vendored copy grows a marker the platform lacks
 printf '(def %%pin-smoke-vendored "yes")\n' >> "$_TMP/proj2/deps/x/type/dict.x"
 cat > "$_TMP/proj2/pin.xon" <<'EOF'

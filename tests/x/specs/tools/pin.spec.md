@@ -200,3 +200,64 @@ and hides an import of acme/three inside a deferred fn body.
 ```
 ---
     #t
+
+## pin: the lockfile (Pin verify)
+
+### vendor writes the lockfile
+
+```scheme
+(display (File exists? "build/pin-spec/out/pin.lock.xon"))
+```
+---
+    #t
+
+### verify passes on a fresh vendor, counting the files
+
+```scheme
+(display (Pin verify "build/pin-spec/out"))
+```
+---
+    5
+
+### a modified vendored file fails verify
+
+```scheme
+(do
+  (File spit "build/pin-spec/out/acme/two.x" "(tampered)\n")
+  (display (throws? (fn (_) (Pin verify "build/pin-spec/out")))))
+```
+---
+    #t
+
+### re-vendoring restores verification
+
+```scheme
+(do
+  (Pin vendor "build/pin-spec/out" 'acme/one)
+  (display (Pin verify "build/pin-spec/out")))
+```
+---
+    5
+
+### an unlisted file in the overlay fails verify (a rogue shadow)
+
+```scheme
+(do
+  (File spit "build/pin-spec/out/acme/rogue.x" "(evil)\n")
+  (def %pin-spec-r (throws? (fn (_) (Pin verify "build/pin-spec/out"))))
+  (File unlink "build/pin-spec/out/acme/rogue.x")
+  (display %pin-spec-r))
+```
+---
+    #t
+
+### a garbage lockfile is a loud error
+
+```scheme
+(do
+  (%pin-mkdirs "build/pin-spec/out2")
+  (File spit "build/pin-spec/out2/pin.lock.xon" "(evil)\n")
+  (display (throws? (fn (_) (Pin verify "build/pin-spec/out2")))))
+```
+---
+    #t
