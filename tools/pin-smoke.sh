@@ -16,6 +16,9 @@
 #              (helium: dict is not boot-floor there), the boot floor is
 #              skipped, and a pinned run loads the OVERLAY copy -- proven
 #              by appending a drift marker the platform copy lacks
+#   fetch      (Pin fetch) against a fake release over file:// -- curl,
+#              manifest, pure-x digest, and the tamper refusal; hermetic,
+#              no network
 # (The pinned REPL path is tty-side -- the fd-3 class check-examples.sh
 # documents -- and is not smokeable here; it shares every pipe stage but
 # the final launch.x with the -f path exercised below.)
@@ -166,5 +169,48 @@ $TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/proj2/main.x" >"$_TMP/out" 2>"$_TMP/err"
 status=$?
 [ "$status" -eq 0 ] || fail "vendored-pin run exited $status" "$_TMP/err" "$_TMP/out"
 grep -qx "yes" "$_TMP/out" || fail "vendored-pin: the platform copy loaded, not the overlay" "$_TMP/out"
+
+# fetch: a fake release over file:// -- verified or nothing.  The tiny
+# artifact keeps the pure-x digest instant; the layout and vocabulary
+# are exactly tools/release-manifest.sh's.
+if command -v sha256sum >/dev/null 2>&1; then
+  _dg() { sha256sum "$1" | awk '{print $1}'; }
+else
+  _dg() { shasum -a 256 "$1" | awk '{print $1}'; }
+fi
+mkdir -p "$_TMP/rel/v9.9.9-smoke"
+printf '(def %%pin-smoke-fetched "tiny")\n' > "$_TMP/rel/v9.9.9-smoke/tiny.x"
+{
+  printf '(release "v9.9.9-smoke")\n'
+  printf '(isa "sha256:%s")\n' "$(_dg tools/isa.x)"
+  printf '(file "tiny.x" "sha256:%s")\n' "$(_dg "$_TMP/rel/v9.9.9-smoke/tiny.x")"
+} > "$_TMP/rel/v9.9.9-smoke/pin.release.xon"
+cat > "$_TMP/fetch.x" <<EOF
+(import x/tool/pin)
+(display (Pin fetch "$_TMP/fetched" "v9.9.9-smoke" 'tiny "file://$_TMP/rel"))
+(newline)
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/fetch.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -eq 0 ] || fail "fetch run exited $status" "$_TMP/err" "$_TMP/out"
+grep -q "fetched/tiny.x" "$_TMP/out" || fail "fetch: no verified-amalgam path in output" "$_TMP/out"
+grep -q "isa fingerprint matches" "$_TMP/out" || fail "fetch: isa fingerprint report missing" "$_TMP/out"
+cmp -s "$_TMP/rel/v9.9.9-smoke/tiny.x" "$_TMP/fetched/tiny.x" || fail "fetch: fetched bytes differ"
+
+# fetch refuses a tampered artifact: bad digest in the manifest
+mkdir -p "$_TMP/rel/v9.9.8-bad"
+cp "$_TMP/rel/v9.9.9-smoke/tiny.x" "$_TMP/rel/v9.9.8-bad/tiny.x"
+{
+  printf '(release "v9.9.8-bad")\n'
+  printf '(file "tiny.x" "sha256:%s")\n' "$(printf 'not-these-bytes' | _dg /dev/stdin)"
+} > "$_TMP/rel/v9.9.8-bad/pin.release.xon"
+cat > "$_TMP/fetch2.x" <<EOF
+(import x/tool/pin)
+(Pin fetch "$_TMP/fetched2" "v9.9.8-bad" 'tiny "file://$_TMP/rel")
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/fetch2.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "fetch-tamper: mismatched digest fetched clean" "$_TMP/out" "$_TMP/err"
+grep -q "digest mismatch" "$_TMP/out" "$_TMP/err" || fail "fetch-tamper: no digest-mismatch error" "$_TMP/out" "$_TMP/err"
 
 echo "pin-smoke: ok"

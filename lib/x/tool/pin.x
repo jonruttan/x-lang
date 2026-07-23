@@ -32,10 +32,12 @@
 (def %pin-floor (first %module-loaded-cell))
 
 (import x/sys/file)
-; Eager on purpose: sha256 must resolve PLATFORM-side, before any overlay
-; root is armed below -- a lazy import inside verify could be shadowed by
-; the very overlay it is checking (the pin-the-pinner hole, closed the
-; same way the wrapper closes it for this module itself).
+; Eager on purpose, both: sha256 (and posix, which fetch's curl runner
+; rides) must resolve PLATFORM-side, before any overlay root is armed
+; below -- a lazy import inside verify/fetch could be shadowed by the
+; very overlay it is checking (the pin-the-pinner hole, closed the same
+; way the wrapper closes it for this module itself).
+(import x/sys/posix)
 (import x/codec/sha256)
 
 (def %pin-bad
@@ -368,6 +370,96 @@
       ((null? lst) 0)
       (#t (+ 1 (self (rest lst)))))))
 
+; --- Fetch (GH #115 phase 6): released amalgams, always verified ------
+; A release tag's artifacts (release.yml) are plain HTTPS files:
+;   <base>/<tag>/pin.release.xon       the manifest (xon)
+;   <base>/<tag>/<entry>.x             the amalgams
+; fetch downloads via curl when present (fork/execvp/wait -- no shell),
+; and otherwise prints the URLs and stops: transport is optional,
+; verification is not.  Every downloaded amalgam is digested with the
+; pure-x Sha256 against the manifest before fetch will call it good.
+
+; The canonical release home; a trailing optional on fetch overrides it
+; (a mirror, or file:// in the smoke).
+(def %pin-release-base "https://github.com/jonruttan/x-lang/releases/download")
+(def %pin-release-name "pin.release.xon")
+
+(def %pin-url
+  (fn (_ base tag file)
+    (Str8 append base (Str8 append "/" (Str8 append tag (Str8 append "/" file))))))
+
+; Run argv ("curl" ...) via fork/execvp/wait; 127 = exec never happened
+; (the command is absent).  The child must die on exec failure or a
+; second interpreter continues this very program.
+(def %pin-run!
+  (fn (_ argv)
+    (let ((pid (Sys fork)))
+      (match
+        ((= pid 0)
+          (do (Sys exec (first argv) (rest argv))
+              (Sys exit 127)))
+        (#t (Sys wait pid))))))
+
+(def %pin-download!
+  (fn (_ url target)
+    ; -f: HTTP errors fail the exit status; -L: release downloads
+    ; redirect; -sS: quiet but errors still print
+    (let ((status (%pin-run! (list "curl" "-fsSL" "-o" target url))))
+      (match
+        ((= status 0) ())
+        ((= status 127)
+          (%pin-bad (Str8 append "curl not found -- download manually and re-run against the files:\n  " url)))
+        (#t (%pin-bad (Str8 append "download failed: " url)))))))
+
+; pin.release.xon -> ((release . TAG) (isa . DIGEST) (files . ALIST)),
+; closed vocabulary: release | isa | (file NAME DIGEST).
+(def %pin-release-parse
+  (fn (_ forms)
+    (def %go
+      (fn (self forms tag isa files)
+        (match
+          ((null? forms)
+            (match
+              ((null? tag) (%pin-bad "release manifest has no (release ...)"))
+              (#t (list (pair 'release tag) (pair 'isa isa) (pair 'files files)))))
+          ((not (pair? (first forms))) (%pin-bad "release-manifest form is not a list"))
+          ((eq? (first (first forms)) 'release)
+            (match
+              ((str? (first (rest (first forms))))
+                (self (rest forms) (first (rest (first forms))) isa files))
+              (#t (%pin-bad "release needs a tag string"))))
+          ((eq? (first (first forms)) 'isa)
+            (match
+              ((str? (first (rest (first forms))))
+                (self (rest forms) tag (first (rest (first forms))) files))
+              (#t (%pin-bad "isa needs a digest string"))))
+          ((eq? (first (first forms)) 'file)
+            (match
+              ((not (str? (first (rest (first forms)))))
+                (%pin-bad "release file needs a name string"))
+              ((not (str? (first (rest (rest (first forms))))))
+                (%pin-bad "release file needs a digest string"))
+              (#t (self (rest forms) tag isa
+                    (pair (pair (first (rest (first forms)))
+                                (first (rest (rest (first forms)))))
+                          files)))))
+          (#t (%pin-bad "unknown release-manifest form")))))
+    (%go forms () () ())))
+
+(def %pin-release-file
+  (fn (self name files)
+    (match
+      ((null? files) (%pin-bad (Str8 append "not in the release manifest: " name)))
+      ((str=? (first (first files)) name) (rest (first files)))
+      (#t (self name (rest files))))))
+
+(def %pin-assoc
+  (fn (self key alist)
+    (match
+      ((null? alist) ())
+      ((eq? key (first (first alist))) (rest (first alist)))
+      (#t (self key (rest alist))))))
+
 (def-class Pin ()
   (static
     (method closure (self (param name SYMBOL "Module name, e.g. x/type/dict"))
@@ -401,7 +493,47 @@
             (let ((fails (%pin-verify-fails dest lock)))
               (match
                 ((null? fails) (%pin-length lock))
-                (#t (%pin-bad (Str8 append "verify failed\n" (%pin-join-lines fails))))))))))))
+                (#t (%pin-bad (Str8 append "verify failed\n" (%pin-join-lines fails))))))))))
+    (method fetch (self (param dest STRING "Directory to fetch into")
+                        (param tag STRING "Release tag, e.g. \"v0.4.0\"")
+                        (param entry SYMBOL "Boot entry to fetch, e.g. 'xe")
+                        . (param base STRING "Base URL; default the project's releases"))
+      (doc "Fetch a released amalgam, verified or nothing: downloads the tag's pin.release.xon and <entry>.x (curl via fork/execvp -- absent curl prints the URLs and stops), checks the manifest names the tag, digests the amalgam with the pure-x Sha256 (minutes for an amalgam -- announced), and errors on any mismatch, naming the offending file (left in place for inspection; do not boot it). Reports whether the release's ISA fingerprint matches this tree's tools/isa.x when present -- drift is information, not an error: a pinned platform pairs with its own engine. Returns the amalgam's path."
+        (returns STRING "Path of the verified amalgam")
+        (sample "(Pin fetch \"boot\" \"v0.4.0\" 'xe)" "\"boot/xe.x\""))
+      (let ((b (match ((null? base) %pin-release-base) (#t (first base)))))
+        (let ((file (Str8 append (symbol->str entry) ".x")))
+          (do
+            (%pin-mkdirs dest)
+            (%pin-download! (%pin-url b tag %pin-release-name)
+                            (%path-join dest %pin-release-name))
+            (let ((m (%pin-release-parse
+                       (%pin-forms (File slurp (%path-join dest %pin-release-name))))))
+              (do
+                (match
+                  ((str=? (%pin-assoc 'release m) tag) ())
+                  (#t (%pin-bad (Str8 append "manifest names another release: "
+                                            (%pin-assoc 'release m)))))
+                (let ((want (%pin-release-file file (%pin-assoc 'files m)))
+                      (target (%path-join dest file)))
+                  (do
+                    (%pin-download! (%pin-url b tag file) target)
+                    (display "pin: verifying ")
+                    (display target)
+                    (display " (pure x-lang sha256; an amalgam takes minutes)")
+                    (newline)
+                    (match
+                      ((str=? (%pin-digest target) want) ())
+                      (#t (%pin-bad (Str8 append "digest mismatch: " target))))
+                    (match
+                      ((File exists? "tools/isa.x")
+                        (do (display (match
+                                       ((str=? (%pin-digest "tools/isa.x") (%pin-assoc 'isa m))
+                                         "pin: isa fingerprint matches this tree")
+                                       (#t "pin: isa fingerprint DIFFERS from this tree -- pair the amalgam with its release's engine")))
+                            (newline)))
+                      (#t ()))
+                    target))))))))))
 
 ; --- Load-time driver: a no-op unless the wrapper announced a manifest.
 (def %pin-file-path (guard (_ ()) %pin-file))

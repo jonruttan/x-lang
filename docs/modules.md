@@ -201,6 +201,26 @@ sha256sum -c SHASUMS            # verify the download
 cat xe.x program.x | ./x --batch
 ```
 
+The platform can also fetch and verify in one step:
+
+```
+> (import x/tool/pin)
+> (Pin fetch "boot" "v0.4.0" 'xe)
+pin: verifying boot/xe.x (pure x-lang sha256; an amalgam takes minutes)
+pin: isa fingerprint matches this tree
+"boot/xe.x"
+```
+
+`fetch` downloads the tag's `pin.release.xon` and the named entry (curl
+via fork/exec — no shell; absent curl it prints the URLs and stops:
+transport is optional, verification is not), digests the download with
+the pure-x `Sha256` against the manifest, and errors on any mismatch —
+the file is left in place, named, and must not be booted. The release's
+ISA fingerprint is compared against the local `tools/isa.x` when one
+exists; drift is reported, not an error — a pinned platform pairs with
+its own release's engine. A trailing base-URL argument overrides the
+default release home (a mirror, or `file://` in the smoke).
+
 ### Probing and arming
 
 The shell wrapper probes for `pin.xon` starting from the **program's**
