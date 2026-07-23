@@ -81,6 +81,144 @@ Two extensions to the rule:
   or `../` resolves against the *including file's* directory, not the working
   directory. Raw `include` paths stay verbatim.
 
+## Pinning
+
+A project can pin the library modules it depends on: keep the exact
+module files it was written against in its own tree, and have `import`
+resolve those names there instead of in the installed library. Pinned
+code then keeps its behavior as the library evolves.
+
+### The manifest: `pin.xon`
+
+A project declares its pins in a `pin.xon` file at its root. The
+manifest is **xon** — x object notation: a sequence of x-lang data forms
+(with `;` comments), read with the ordinary reader and **never
+evaluated**. Its consumers interpret a closed vocabulary; an unknown
+form is a loud error, not a skip.
+
+The pin vocabulary:
+
+```
+; pin.xon
+(root "deps")     ; overlay root, relative to this file's directory
+```
+
+- `(root "DIR")` — adds an overlay root to the import search roots.
+  A relative `DIR` resolves against the manifest's own directory; an
+  absolute one is used as-is. The directory must exist, and holds
+  module files in the standard name layout (`deps/x/core/list.x` pins
+  `x/core/list`). Roots listed first win, and every overlay root takes
+  precedence over the platform library.
+
+An overlay tree only needs the modules being pinned — anything not
+found there falls through to the platform library. Note that a pinned
+module's own `import`s also resolve through the roots, so a pin that
+must not mix with newer dependencies should vendor its import closure.
+
+A complete pinned project:
+
+```
+myproj/
+├── pin.xon              ; (root "deps")
+├── main.x               ; (import x/type/dict) ...
+└── deps/
+    └── x/type/dict.x    ; the exact dict.x this project was written against
+```
+
+```sh
+x -f myproj/main.x
+# pinned: /path/to/myproj/pin.xon      <- stderr notice
+```
+
+`main.x`'s `(import x/type/dict)` loads `deps/x/type/dict.x`; every
+other import falls through to the installed library.
+
+### Vendoring the closure
+
+The platform ships the vendor tool: the `Pin` class in `x/tool/pin`.
+It computes a module's **import closure** statically — the module, its
+transitive imports (including imports inside deferred `fn` bodies), and
+any `./`-relative include siblings — by reading sources with the
+reader, never loading them, and copies the closure into an overlay
+root, preserving the layout:
+
+```
+> (import x/tool/pin)            ; FIRST import of the session
+> (Pin vendor "deps" 'x/type/dict)
+("x/type/dict.x" ...)
+> (Pin closure 'x/type/dict)     ; the same list, without copying
+```
+
+Vendoring the closure is what keeps a pin honest: a pinned module's own
+imports resolve through the same roots, so vendoring only the module
+itself would silently mix it with newer dependencies.
+
+Two rules the tool enforces:
+
+- **The boot floor is skipped, and a boot-floor seed is refused.** A
+  module pre-seeded by the running dialect's boot is unpinnable (the
+  pin boundary), so a vendored copy of one is dead weight. The floor is
+  snapshotted when `x/tool/pin` loads — which is why a vendor session
+  should be fresh, with the tool imported first.
+- **Nothing is skipped silently.** A path the static walk cannot
+  resolve — a computed include, an absolute or root-relative literal —
+  is a loud error, never a silently unvendored dependency.
+
+### The lockfile and verification
+
+`vendor` also writes `<root>/pin.lock.xon` — xon, like the manifest,
+with one `(file "REL" "sha256:HEX")` entry per vendored file (the
+digest is `Sha256` from `x/codec/sha256`, pure x-lang). `verify`
+recomputes it all:
+
+```
+> (Pin verify "deps")
+5
+```
+
+Every lockfile entry must exist and match its digest, and **every file
+in the tree must be listed** — an unlisted file is a rogue shadow ready
+to win root precedence, so the overlay must be exactly the lock. A
+missing lockfile, a missing or modified file, or an unlisted file is a
+loud error naming each offender; on success `verify` returns the file
+count. Verification runs are honest by construction: the hash module
+loads eagerly with `x/tool/pin`, before any overlay root is armed, so
+an overlay cannot shadow the hasher that checks it.
+
+### Probing and arming
+
+The shell wrapper probes for `pin.xon` starting from the **program's**
+directory (`-f`/`-F`), or the current directory for a REPL, walking up
+parent directories git-style. A found manifest is always announced —
+one `pinned: <path>` line on stderr — and `--no-pin` skips the probe
+entirely.
+
+The wrapper never reads the manifest itself: it hands the path to the
+interpreter as data (`(def %pin-file "<path>")` ahead of the boot
+entry) and loads `x/tool/pin` right after boot, before the first user
+form. That loader — always resolved from the platform library, never
+from an overlay — reads the manifest, checks the vocabulary, and arms
+the roots via `import-path!`. Because nothing in the manifest is
+evaluated, a manifest can only do what pinning does: redirect import
+resolution into its own project's files.
+
+### The pin boundary
+
+Two structural rules bound what an overlay can change:
+
+- **One version per name per session.** `import` dedups by module name,
+  first load wins — two versions of the same module cannot coexist in
+  one session.
+- **The boot set is unpinnable.** Modules loaded by the boot closure
+  are pre-registered in the loaded-module registry, so an `import` of
+  them is a no-op before any search root is consulted. An overlay copy
+  of a boot module is ignored by construction; pinning the platform
+  itself means running a different boot entry, not overlaying files.
+
+`make check-pin` smokes all of this end to end (overlay resolution,
+root precedence, the unpinnable core, the closed vocabulary,
+`--no-pin`).
+
 ### Bootstrap Sequence
 
 The bootstrap loader `lib/x-core.x` loads modules in a specific order:
