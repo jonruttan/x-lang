@@ -64,7 +64,6 @@
 ; boot/registry.x, which loads first.  Cells resolved once at boot: they
 ; are spine-stable (their CONTENTS mutate; the cells are never replaced).
 (def %reflect-meta-extra-cell    (%reflect-base-cell (lit obj-meta-extra)))
-(def %reflect-error-handler-cell (%reflect-base-cell (lit error-handler)))
 
 ; (obj meta-count) / (obj meta-count!) -- the allocation policy cell: how
 ; many extra meta units subsequent allocations prepend.  The cell holds an
@@ -79,35 +78,33 @@
       (%set-first-int! (first %reflect-meta-extra-cell) n)
       %reflect-prev-extra)))
 
-; (io error-line) -- the line recorded in the active error handler, 0 when
-; no handler is installed.  The line is an INT slot at descriptor row
-; error-handler-line (handler-rooted), so per the walker note it is read
-; from the slot's PARENT with first-int/rest-int.  Everything is derived
-; from the row ONCE at load (%base-paths is a boot-time literal): the
-; parent step list via the shared %reflect-path-parent, and the int reader
-; by the path's FINAL step letter (f = first-int, r = rest-int) -- a
-; layout change follows the contract automatically instead of this walk
-; being re-flattened by hand.
-(def %reflect-path-final
-  (fn (self p)
-    (match
-      ((eq? (rest p) ()) (first p))
-      (#t (self (rest p))))))
-(def %reflect-int-reader
-  (fn (_ p)
-    (match
-      ((eq? (%reflect-path-final p) (lit f)) %first-int)
-      (#t %rest-int))))
-(def %reflect-error-line-path   (%reflect-path (lit error-handler-line) %base-paths))
-(def %reflect-error-line-parent (%reflect-path-parent %reflect-error-line-path))
-(def %reflect-error-line-int    (%reflect-int-reader %reflect-error-line-path))
+; (io error-line) / (io error-file) -- the source location FROZEN at the last
+; error's raise site.  The C raise path snapshots the live line/file counters
+; into the base cells err-line/err-file BEFORE the caught guard pops its handler
+; (control.c pops it before its body runs, so the REPL -- which reads these from
+; inside the handler body -- can no longer reach the handler object).  Reading
+; the snapshot cells, not the handler, is what makes the reported line survive.
+; err-line is a line int; err-file is a file id indexing the (id . path) alist
+; that `include` grows in file-registry (id 0 / stdin -> no file, "").
+(def %reflect-err-line-cell      (%reflect-base-cell (lit err-line)))
+(def %reflect-err-file-cell      (%reflect-base-cell (lit err-file)))
+(def %reflect-file-registry-cell (%reflect-base-cell (lit file-registry)))
 (def %reflect-error-line
-  (fn (_)
+  (fn (_) (%first-int (first %reflect-err-line-cell))))
+; Walk the (id . path) alist for `id`, returning its path string; "" when the
+; id is absent (0, or never registered).  Int equality via (- a b) then the
+; proven (eq? <int> 0) zero-test -- eq? on two int atoms is not relied upon.
+(def %reflect-registry-lookup
+  (fn (self id reg)
     (match
-      ((eq? (first %reflect-error-handler-cell) ()) 0)
-      (#t (%reflect-error-line-int
-            (%reflect-step (first %reflect-error-handler-cell)
-                           %reflect-error-line-parent))))))
+      ((eq? reg ()) "")
+      ((eq? (- (%first-int (first (first reg))) id) 0) (rest (first reg)))
+      (#t (self id (rest reg))))))
+(def %reflect-error-file
+  (fn (_)
+    (%reflect-registry-lookup
+      (%first-int (first %reflect-err-file-cell))
+      (first %reflect-file-registry-cell))))
 
 ; --- type reflection ---
 ; The type slot (header word 1) as an integer tag.
@@ -260,5 +257,6 @@
 (prim-reg! (lit obj) (lit meta-count!) %reflect-meta-count!)
 (prim-reg! (lit obj) (lit retag!)      %reflect-retag!)
 (prim-reg! (lit io)  (lit error-line)  %reflect-error-line)
+(prim-reg! (lit io)  (lit error-file)  %reflect-error-file)
 (prim-reg! (lit type) (lit name)       %reflect-type-name)
 (prim-reg! (lit iter) (lit new)        %reflect-iter-new)
