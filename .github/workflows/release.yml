@@ -56,8 +56,14 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
+        # A hyphenated tag (v0.4.0-rc1) is a prerelease by convention --
+        # it must not surface as the repo's "Latest release".
         run: |
-          gh release create "$GITHUB_REF_NAME" \
+          case "$GITHUB_REF_NAME" in
+            *-*) PRERELEASE=--prerelease ;;
+            *)   PRERELEASE= ;;
+          esac
+          gh release create "$GITHUB_REF_NAME" $PRERELEASE \
             --title "$GITHUB_REF_NAME" \
             --notes "Amalgamated boot entries (tier-1 pin artifacts): each dialect's full boot as one self-contained file, byte-stable products of this tag's sources. Verify downloads with \`sha256sum -c SHASUMS\`; \`pin.release.xon\` is the machine-readable manifest (xon), including the ISA fingerprint (sha256 of tools/isa.x -- the C-surface contract these amalgams were built against)." \
             build/boot/*.x build/release/SHASUMS build/release/pin.release.xon
