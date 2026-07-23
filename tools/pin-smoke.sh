@@ -66,6 +66,7 @@ cat > "$_TMP/proj/deps/x/core/list.x" <<'EOF'
 (error "pin-smoke: the unpinnable core was overlaid")
 EOF
 cat > "$_TMP/proj/main.x" <<'EOF'
+(alloc-limit! 300000000)
 (import acme/util)
 (import x/core/list)
 (display acme-marker)
@@ -107,6 +108,7 @@ cat > "$_TMP/proj/pin.xon" <<'EOF'
 (evil "form")
 EOF
 cat > "$_TMP/proj/plain.x" <<'EOF'
+(alloc-limit! 300000000)
 (display "unpinned")
 (newline)
 EOF
@@ -119,6 +121,7 @@ grep -q "^pinned: " "$_TMP/err" && fail "--no-pin: probe still announced a manif
 # vendor: closure copied, floor skipped, overlay copy is the one that loads
 mkdir -p "$_TMP/proj2"
 cat > "$_TMP/vendor.x" <<EOF
+(alloc-limit! 300000000)
 (import x/tool/pin)
 (Pin vendor "$_TMP/proj2/deps" 'x/type/dict)
 (display "vendored")
@@ -135,6 +138,7 @@ grep -qx "vendored" "$_TMP/out" || fail "vendor: no completion marker" "$_TMP/ou
 # and exercises the identical wrapper->loader->lock->hash path)
 mkdir -p "$_TMP/proj3"
 cat > "$_TMP/verify.x" <<EOF
+(alloc-limit! 300000000)
 (import x/tool/pin)
 (import-path! "$_TMP/proj/deps")
 (Pin vendor "$_TMP/proj3/deps" 'acme/util)
@@ -147,6 +151,7 @@ status=$?
 grep -qx "1" "$_TMP/out" || fail "verify-clean: expected count 1" "$_TMP/out"
 
 cat > "$_TMP/verify2.x" <<EOF
+(alloc-limit! 300000000)
 (import x/tool/pin)
 (display (Pin verify "$_TMP/proj3/deps"))
 EOF
@@ -161,6 +166,7 @@ cat > "$_TMP/proj2/pin.xon" <<'EOF'
 (root "deps")
 EOF
 cat > "$_TMP/proj2/main.x" <<'EOF'
+(alloc-limit! 300000000)
 (import x/type/dict)
 (display %pin-smoke-vendored)
 (newline)
@@ -186,6 +192,7 @@ printf '(def %%pin-smoke-fetched "tiny")\n' > "$_TMP/rel/v9.9.9-smoke/tiny.x"
   printf '(file "tiny.x" "sha256:%s")\n' "$(_dg "$_TMP/rel/v9.9.9-smoke/tiny.x")"
 } > "$_TMP/rel/v9.9.9-smoke/pin.release.xon"
 cat > "$_TMP/fetch.x" <<EOF
+(alloc-limit! 300000000)
 (import x/tool/pin)
 (display (Pin fetch "$_TMP/fetched" "v9.9.9-smoke" 'tiny "file://$_TMP/rel"))
 (newline)
@@ -205,6 +212,7 @@ cp "$_TMP/rel/v9.9.9-smoke/tiny.x" "$_TMP/rel/v9.9.8-bad/tiny.x"
   printf '(file "tiny.x" "sha256:%s")\n' "$(printf 'not-these-bytes' | _dg /dev/stdin)"
 } > "$_TMP/rel/v9.9.8-bad/pin.release.xon"
 cat > "$_TMP/fetch2.x" <<EOF
+(alloc-limit! 300000000)
 (import x/tool/pin)
 (Pin fetch "$_TMP/fetched2" "v9.9.8-bad" 'tiny "file://$_TMP/rel")
 EOF
