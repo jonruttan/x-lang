@@ -8,7 +8,25 @@
 (def %str-append (prim-ref 'str 'append))
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
 (def %error-line (prim-ref 'io 'error-line))
+(def %error-file (prim-ref 'io 'error-file))
 (def %repl-write-to-str (prim-ref 'io 'write-to-str))
+
+; The "Error [...]: " prefix for a caught error.  Prefer file:line when the
+; raise site is known to be in a file (error-file is "" for stdin/REPL input);
+; fall back to [line N] for a multi-line REPL entry (N > 1, worth locating);
+; otherwise a bare "Error: " for a one-liner where the line adds nothing.
+; The prims are cheap, idempotent base-cell reads, so they are called inline
+; rather than def'd into fn-local names (which bind dynamically here).
+(def %error-loc-prefix
+  (fn (_)
+    (if (not (str=? (%error-file) ""))
+      (%str-append "Error ["
+        (%str-append (%error-file) (%str-append ":"
+          (%str-append (%number->str (%error-line)) "]: "))))
+      (if (> (%error-line) 1)
+        (%str-append "Error [line "
+          (%str-append (%number->str (%error-line)) "]: "))
+        "Error: "))))
 
 
 ; ns `io` is de-registered (R5): fetch the REPL reader from the catalog.
@@ -70,10 +88,7 @@
               (%seq
                 (%stderr
                   (%str-append
-                    (if (> (%error-line) 1)
-                      (%str-append "Error [line "
-                        (%str-append (%number->str (%error-line)) "]: "))
-                      "Error: ")
+                    (%error-loc-prefix)
                     ; A bare-string error reads naturally raw; EVERYTHING
                     ; else renders through the universal writer.  The old
                     ; (symbol->str err) coercion read an Err instance's

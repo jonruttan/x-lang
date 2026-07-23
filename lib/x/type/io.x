@@ -6,8 +6,8 @@
 ; same treatment eq?/same? get. So both forms work for those two:
 ;   (display x)        (Io display x)
 ;   (write x)          (Io write x)
-; The other six (read, read-char, write-to-str, display-to-str, error-line,
-; repl-read) have NO bare name; the Io class -- or a catalog fetch, for
+; The others (read, read-char, write-to-str, display-to-str, error-line,
+; error-file, repl-read) have NO bare name; the Io class -- or a catalog fetch, for
 ; reader-context/hot code -- is the only surface. Reader-context callers
 ; (e.g. the %vector-read handler) must fetch-and-cache, never class-dispatch
 ; inside a tokenizer callback:
@@ -42,9 +42,13 @@
         (returns STRING "The human-readable rendering of V"))
       ((prim-ref (lit io) (lit display-to-str)) v))
     (method error-line (self)
-      (doc "The source line number of the most recent error (0 if none)."
+      (doc "The source line number where the most recent error was raised. Frozen at raise time, so it is accurate read from inside a guard handler; between errors it retains the last one (boot itself catches some, so it is rarely 0)."
         (returns INT "Line number"))
       ((prim-ref (lit io) (lit error-line))))
+    (method error-file (self)
+      (doc "The source file path where the most recent error was raised, or \"\" when it arose from stdin/REPL input rather than an included file. Frozen at raise time (see error-line)."
+        (returns STRING "File path"))
+      ((prim-ref (lit io) (lit error-file))))
     (method repl-read (self)
       (doc "Read one expression for the REPL, applying its read conventions."
         (returns ANY "The parsed expression"))

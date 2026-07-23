@@ -31,8 +31,8 @@ half (`make check-base-paths`) re-derives the paths from the headers.
 
 ### meta-count! round-trips through the policy cell
 
-The ambient count is NOT assumed (boot arms 1 meta slot for source-line
-tracking); the test saves, sets, and restores it.
+The ambient count is NOT assumed (boot arms 2 meta slots: source line +
+source file id); the test saves, sets, and restores it.
 
 ```scheme
 (do
@@ -48,14 +48,14 @@ tracking); the test saves, sets, and restores it.
 3 #t #t
 ```
 
-### error-line reads the handler's line slot as an integer
+### error-line reads the frozen raise-site line as an integer
 
-The contract pinned here: the walked read yields a non-negative integer
-outside a handler, and from within a handler it READS (returns an integer
-without raising). The in-handler VALUE is not asserted -- the handler
-object is a C-stack spair and its line slot's content at handler-body
-time is build-dependent (ASan's frame layout yields different residue
-than the plain build; C never pinned this either).
+The contract pinned here: (io error-line) reads the err-line snapshot the
+raise path freezes (reflect.x), so it yields a non-negative integer outside
+a handler (the most recent error's line -- boot catches some, so rarely 0)
+and, from within a handler, the actual raise-site line without raising.
+Unlike the old handler-slot walk this survives the handler pop the guard
+does before its body runs.
 
 ```scheme
 (do
