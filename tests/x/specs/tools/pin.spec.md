@@ -261,3 +261,58 @@ and hides an import of acme/three inside a deferred fn body.
 ```
 ---
     #t
+
+## pin: the release manifest and fetch plumbing (hermetic)
+
+### the release URL layout
+
+```scheme
+(display (%pin-url "https://host/dl" "v1.2.3" "xe.x"))
+```
+---
+    https://host/dl/v1.2.3/xe.x
+
+### a release manifest parses to its parts
+
+```scheme
+(do
+  (def %pin-spec-m (%pin-release-parse (%pin-forms
+    "(release \"v1\") (isa \"sha256:aa\") (file \"xe.x\" \"sha256:bb\")")))
+  (display (%pin-assoc 'release %pin-spec-m))
+  (display " ")
+  (display (%pin-release-file "xe.x" (%pin-assoc 'files %pin-spec-m))))
+```
+---
+    v1 sha256:bb
+
+### a manifest without (release ...) is a loud error
+
+```scheme
+(display (throws? (fn (_) (%pin-release-parse (%pin-forms "(isa \"sha256:aa\")")))))
+```
+---
+    #t
+
+### an unknown release-manifest form is a loud error
+
+```scheme
+(display (throws? (fn (_) (%pin-release-parse (%pin-forms "(evil \"x\")")))))
+```
+---
+    #t
+
+### a file absent from the release manifest is a loud error
+
+```scheme
+(display (throws? (fn (_) (%pin-release-file "nope.x" (list (pair "xe.x" "sha256:bb"))))))
+```
+---
+    #t
+
+### an absent command reports 127 (the print-the-URLs fallback's trigger)
+
+```scheme
+(display (%pin-run! (list "no-such-command-pin-spec-xyz")))
+```
+---
+    127

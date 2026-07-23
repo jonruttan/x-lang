@@ -85,6 +85,10 @@ differ in what surface is *loaded*, never in what a shared spelling *means*
   it names the engine contract the release's amalgams were built
   against — the machine-checkable half of "which binary runs this
   pinned platform".
+- **fetch** — `(Pin fetch "boot" "vX.Y.Z" 'xe)`: download a release's
+  manifest and one amalgam (curl when present; otherwise the URLs print
+  and nothing proceeds) and verify with the pure-x SHA-256 before
+  calling it good. Transport is optional; verification is not.
 
 ## combiners
 
