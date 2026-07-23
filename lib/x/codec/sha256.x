@@ -25,6 +25,16 @@
 (def %sha+ (prim-ref 'int '+))
 (def %sha- (prim-ref 'int '-))
 (def %sha* (prim-ref 'int '*))
+; Raw slot access for the fixed 64-slot schedule vectors: the class
+; dispatch behind (Vector ref)/(Vector set!) costs hundreds of heap
+; objects PER CALL, and this loop makes millions of calls -- it was the
+; whole of #123's 2GB peak (~42M objects between collects, all dispatch
+; scaffolding; the GC itself reclaimed perfectly).  Indices here are
+; structurally in range (0..63 against 64-slot vectors, t>=16 for the
+; backward references), the same trust model as unchecked first/rest;
+; slot = index + 1, the length rides slot 0.
+(def %sha-oref (prim-ref (lit obj) (lit ref)))
+(def %sha-oset! (prim-ref (lit obj) (lit set!)))
 (def %sha-mask 4294967295)
 
 (def %sha-words
@@ -54,12 +64,30 @@
 (def %sha-ih (%sha-words (lit (
   "6a09e667" "bb67ae85" "3c6ef372" "a54ff53a" "510e527f" "9b05688c" "1f83d9ab" "5be0cd19"))))
 
-(def %sha-rotr
-  (fn (_ x n) (& (| (>> x n) (<< x (%sha- 32 n))) %sha-mask)))
-(def %sha-bsig0 (fn (_ x) (^ (%sha-rotr x 2) (^ (%sha-rotr x 13) (%sha-rotr x 22)))))
-(def %sha-bsig1 (fn (_ x) (^ (%sha-rotr x 6) (^ (%sha-rotr x 11) (%sha-rotr x 25)))))
-(def %sha-ssig0 (fn (_ x) (^ (%sha-rotr x 7) (^ (%sha-rotr x 18) (>> x 3)))))
-(def %sha-ssig1 (fn (_ x) (^ (%sha-rotr x 17) (^ (%sha-rotr x 19) (>> x 10)))))
+; The sigmas open-code their rotates -- rotr(x,n) = (>>n | <<32-n)&mask
+; -- because a %sha-rotr helper costs an interpreted call, and the four
+; sigmas would make twelve of them PER ROUND (#123: the digest's cost
+; is call scaffolding, not arithmetic).  Each pair below reads n/32-n.
+(def %sha-bsig0
+  (fn (_ x)
+    (^ (& (| (>> x 2) (<< x 30)) %sha-mask)
+       (^ (& (| (>> x 13) (<< x 19)) %sha-mask)
+          (& (| (>> x 22) (<< x 10)) %sha-mask)))))
+(def %sha-bsig1
+  (fn (_ x)
+    (^ (& (| (>> x 6) (<< x 26)) %sha-mask)
+       (^ (& (| (>> x 11) (<< x 21)) %sha-mask)
+          (& (| (>> x 25) (<< x 7)) %sha-mask)))))
+(def %sha-ssig0
+  (fn (_ x)
+    (^ (& (| (>> x 7) (<< x 25)) %sha-mask)
+       (^ (& (| (>> x 18) (<< x 14)) %sha-mask)
+          (>> x 3)))))
+(def %sha-ssig1
+  (fn (_ x)
+    (^ (& (| (>> x 17) (<< x 15)) %sha-mask)
+       (^ (& (| (>> x 19) (<< x 13)) %sha-mask)
+          (>> x 10)))))
 (def %sha-ch  (fn (_ x y z) (^ (& x y) (& (& (~ x) %sha-mask) z))))
 (def %sha-maj (fn (_ x y z) (^ (& x y) (^ (& x z) (& y z)))))
 
@@ -72,7 +100,7 @@
 (def %sha-byte
   (fn (_ s len total i)
     (match
-      ((< i len) (Str8 ref i s))
+      ((< i len) (%cvt (%str-ref s i) %int))
       ((= i len) 128)
       ((< i (%sha- total 8)) 0)
       (#t (& (>> (%sha* len 8) (<< (%sha- (%sha- total 1) i) 3)) 255)))))
@@ -89,7 +117,7 @@
     (match
       ((= t 16) ())
       (#t
-        (do (Vector set! t (%sha-word s len total (%sha+ base (<< t 2))) w)
+        (do (%sha-oset! w (%sha+ t 1) (%sha-word s len total (%sha+ base (<< t 2))))
             (self s len total base w (%sha+ t 1)))))))
 
 (def %sha-extend-w!
@@ -97,13 +125,13 @@
     (match
       ((= t 64) ())
       (#t
-        (do (Vector set! t
-              (& (%sha+4 (%sha-ssig1 (Vector ref (%sha- t 2) w))
-                         (Vector ref (%sha- t 7) w)
-                         (%sha-ssig0 (Vector ref (%sha- t 15) w))
-                         (Vector ref (%sha- t 16) w))
-                 %sha-mask)
-              w)
+        ; slots fold the +1: (t-2)+1 = t-1, and so on
+        (do (%sha-oset! w (%sha+ t 1)
+              (& (%sha+4 (%sha-ssig1 (%sha-oref w (%sha- t 1)))
+                         (%sha-oref w (%sha- t 6))
+                         (%sha-ssig0 (%sha-oref w (%sha- t 14)))
+                         (%sha-oref w (%sha- t 15)))
+                 %sha-mask))
             (self w (%sha+ t 1)))))))
 
 ; The 64-round compression; sums stay below 2^35, masked where stored.
@@ -113,7 +141,7 @@
       ((= t 64) (list a b c d e f g h))
       (#t
         (let ((t1 (%sha+5 h (%sha-bsig1 e) (%sha-ch e f g)
-                          (Vector ref t %sha-k) (Vector ref t w)))
+                          (%sha-oref %sha-k (%sha+ t 1)) (%sha-oref w (%sha+ t 1))))
               (t2 (%sha+ (%sha-bsig0 a) (%sha-maj a b c))))
           (self w (%sha+ t 1)
             (& (%sha+ t1 t2) %sha-mask) a b c
@@ -125,9 +153,11 @@
       ((= base total) (list h0 h1 h2 h3 h4 h5 h6 h7))
       (#t
         (do (match
-              ; every 32nd block (2KB): bound the allocation between
-              ; collects; tiny inputs (the vectors) never pay one
-              ((and (> base 0) (= (& (>> base 6) 31) 0)) (Heap collect))
+              ; every 8th block (512B): bound the between-collect churn
+              ; (~150MB at the measured per-block cost); tiny inputs
+              ; (the vectors) never pay a collect, and a collect at the
+              ; small live set costs ~ms
+              ((and (> base 0) (= (& (>> base 6) 7) 0)) (Heap collect))
               (#t ()))
             (%sha-fill-w! s len total base w 0)
             (%sha-extend-w! w 16)
