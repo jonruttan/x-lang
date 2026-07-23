@@ -12,9 +12,11 @@
 ; to coerce non-string arguments (and the target string interpolation expands to).
 (def %display-to-str (prim-ref (lit io) (lit display-to-str)))
 
-; str: the foundational string constructor. A TYPE constructor, so it's a bare
-; global like `list` (your "types are foundational, classes aren't" line). The
-; Str8 class method (Str8 str ...) and $"..." interpolation delegate to it.
+; %str-build: the foundational string builder -- byte-level append of each
+; argument's display rendering (encoding-transparent: concatenating valid
+; UTF-8 fragments yields valid UTF-8). Swept %-private from the bare `str`
+; global in #108 (e322895); its public face is the (Str8 str ...) class
+; method below, which $"..." interpolation also delegates to.
 (def %str-build (fn (_ . args) (%fold (fn (_ acc x) (%str-append acc (%display-to-str x))) "" args)))
 
 
