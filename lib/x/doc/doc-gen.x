@@ -144,7 +144,7 @@
       (%for-each (fn (_ n) (display "> ") (display (first (rest n))) (newline) (newline)) %notes))
     (if (not (null? %params))
       (do (display "**Parameters:**") (newline) (newline)
-          (%for-each doc-emit-param %params) (newline)))
+          (%for-each %doc-emit-param %params) (newline)))
     (if (not (null? %returns))
       (do (def %ret (first %returns))
           (display "**Returns:** `") (display (first (rest %ret))) (display "`")
