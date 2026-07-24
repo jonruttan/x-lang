@@ -130,11 +130,13 @@
 (def %keyword-tail?
   (fn (_ inits fields)
     (let ((form (first inits)))
-      (if (pair? form)
-        (if (symbol? (first form)) (%assoc-has? (first form) fields) #f)
-        (if (symbol? form)
-          (if (%assoc-has? form fields) (pair? (rest inits)) #f)
-          #f)))))
+      (match
+        ; (name . val) dotted-alist entry: keyword when its head names a member
+        ((pair? form) (and (symbol? (first form)) (%assoc-has? (first form) fields)))
+        ; a bare member name opens the keyword tail only when a VALUE form
+        ; follows it; a TRAILING one is a positional value ((Distances new root))
+        ((symbol? form) (and (%assoc-has? form fields) (pair? (rest inits))))
+        (#t #f)))))
 
 ; Split a new op's args into positional prefix + keyword tail: positional
 ; forms are paired with %ctor-member-names as (name . form) alist entries, and
