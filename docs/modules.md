@@ -187,6 +187,41 @@ count. Verification runs are honest by construction: the hash module
 loads eagerly with `x/tool/pin`, before any overlay root is armed, so
 an overlay cannot shadow the hasher that checks it.
 
+### Vendoring and auditing a whole project
+
+`vendor` pins one module; a project imports many. `vendor-project`
+scans a source tree for every `(import NAME)` and vendors the **union**
+of their closures in one call — the retrofit that would otherwise be a
+`grep` for imports plus one `vendor` each:
+
+```
+> (import x/tool/pin)            ; FIRST import of the session, unarmed
+> (Pin vendor-project "deps" "src")
+("x/type/dict.x" ...)
+```
+
+The scan follows only `(import NAME)` into the library; a project's own
+`./`-relative includes are its own files, not dependencies. Like
+`vendor`, run it from a fresh unarmed session so names resolve to the
+platform being vendored *from*, and boot-floor seeds are skipped.
+
+`audit` closes the **half-pin** gap: because an armed pin only prepends
+overlay roots, an import of a module the overlay does *not* carry
+silently falls through to the live platform. `audit` scans the same
+project closure and reports every required file missing from the
+overlay:
+
+```
+> (Pin audit "deps" "src")       ; () when the pin is complete
+()
+```
+
+It returns the list of missing root-relative paths (empty means
+complete) and prints a notice when non-empty, so CI can fail an
+incomplete pin with a guard like
+`(if (null? (Pin audit "deps" "src")) ok (error "half-pin"))`. The
+source directory defaults to `"."`.
+
 ### Pinning the platform: released amalgams
 
 Overlay pins cannot cross the pin boundary — the boot set itself.

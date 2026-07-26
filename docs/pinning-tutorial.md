@@ -7,6 +7,11 @@ platform itself. The reference lives in [modules.md](modules.md)
 shown here was run as written. (`x` below is the installed command; in
 a repo checkout spell it `sh x.sh`, run from the repo root.)
 
+> **Requires x-lang ≥ v0.3.1-rc2.** The `Pin` authoring API
+> (`closure`/`vendor`/`verify`/`fetch`) landed in v0.3.1; on v0.3.0 or
+> earlier `(import x/tool/pin)` provides only the manifest runtime and
+> `(Pin …)` raises `Unbound SYMBOL 'Pin`. Check with `(help Pin)`.
+
 ## What pinning buys you, in one minute
 
 The library evolves. A program written today imports `x/type/dict` and

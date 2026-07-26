@@ -316,3 +316,88 @@ and hides an import of acme/three inside a deferred fn body.
 ```
 ---
     127
+
+## pin: project-wide vendoring and audit (Pin vendor-project / audit)
+
+A "project" is a source tree that imports library modules.  These reuse
+the fixture tree armed above: acme/one (and its transitive closure) is
+what a project importing acme/one must vendor.
+
+### a project source tree that imports acme/one
+
+```scheme
+(do
+  (guard (_ ()) (File mkdir "build/pin-spec/proj"))
+  (File spit "build/pin-spec/proj/app.x" "(import acme/one)\n(display \"hi\")\n")
+  (display "ready"))
+```
+---
+    ready
+
+### vendor-project copies the union closure of every project import
+
+```scheme
+(write (Pin vendor-project "build/pin-spec/pout" "build/pin-spec/proj"))
+```
+---
+    ("acme/one.x" "acme/two.x" "acme/one-extra.x" "acme/four.x" "acme/three.x")
+
+### the deferred-body import is vendored too (deep closure member)
+
+```scheme
+(display (File exists? "build/pin-spec/pout/acme/three.x"))
+```
+---
+    #t
+
+### verify passes on the vendored project overlay
+
+```scheme
+(display (Pin verify "build/pin-spec/pout"))
+```
+---
+    5
+
+### audit of a complete overlay reports nothing missing
+
+```scheme
+(display (null? (Pin audit "build/pin-spec/pout" "build/pin-spec/proj")))
+```
+---
+    #t
+
+### %pin-audit-missing lists the rels absent from the overlay
+
+```scheme
+(write (%pin-audit-missing "build/pin-spec/nowhere" (list "acme/one.x" "acme/two.x")))
+```
+---
+    ("acme/one.x" "acme/two.x")
+
+### audit of a half-pin names every import that falls through to the platform
+
+```scheme
+(do
+  (Pin vendor "build/pin-spec/partial" 'acme/two)
+  (Pin audit "build/pin-spec/partial" "build/pin-spec/proj")
+  ())
+```
+---
+```output
+pin: audit -- 4 import(s) fall through to the platform (absent from build/pin-spec/partial):
+acme/one.x
+acme/one-extra.x
+acme/four.x
+acme/three.x
+```
+
+### the source scan recurses into subdirectories
+
+```scheme
+(do
+  (guard (_ ()) (File mkdir "build/pin-spec/proj/sub"))
+  (File spit "build/pin-spec/proj/sub/deep.x" "(import acme/four)\n")
+  (display (%pin-length (%pin-x-files "build/pin-spec/proj"))))
+```
+---
+    2

@@ -460,6 +460,95 @@
       ((eq? key (first (first alist))) (rest (first alist)))
       (#t (self key (rest alist))))))
 
+; --- Project-wide vendoring / audit (GH #132, #133) -------------------
+; closure/vendor act on ONE module; a project imports many.  These scan a
+; project's own *.x sources for every (import NAME) and drive the same
+; closure walk over the union -- the tool a retrofit needs in place of a
+; grep + one vendor per import (and the gap that makes a silent half-pin
+; easy to ship).  Project-local ./ includes are the project's own files,
+; not dependencies, so only (import NAME) is followed here.  Run unarmed
+; (like vendor) so names resolve to the platform being vendored FROM.
+
+(def %pin-concat                       ; two lists, a ++ b
+  (fn (self a b)
+    (match
+      ((null? a) b)
+      (#t (pair (first a) (self (rest a) b))))))
+
+(def %pin-kind                         ; path -> 'file | 'dir | ... (File stat's kind)
+  (fn (_ path) (%pin-assoc 'kind (File stat path))))
+
+(def %pin-ends-x?                      ; does name end in ".x"?
+  (fn (_ name)
+    (let ((n (Str8 length name)))
+      (match
+        ((< n 2) #f)
+        (#t (str=? ".x" (Str8 sub (- n 2) 2 name)))))))
+
+(def %pin-x-files                      ; dir -> every *.x path under dir, recursive
+  (fn (self dir)
+    (def %go
+      (fn (go names)
+        (match
+          ((null? names) ())
+          (#t
+            (let ((p (%path-join dir (first names))))
+              (%pin-concat
+                (match
+                  ((eq? (%pin-kind p) 'dir) (self p))
+                  ((%pin-ends-x? (first names)) (list p))
+                  (#t ()))
+                (go (rest names))))))))
+    (%go (File list-dir dir))))
+
+; Like %pin-scan-form, but for a project's OWN source: follow (import
+; NAME) into the library closure; ignore project-local ./ includes.
+(def %pin-scan-project-form
+  (fn (self form)
+    (match
+      ((not (pair? form)) ())
+      ((eq? (first form) 'lit) ())
+      ((eq? (first form) 'import)
+        (match
+          ((symbol? (first (rest form))) (%pin-take-module (first (rest form))))
+          (#t (%pin-bad "computed import name in project scan"))))
+      (#t (do (self (first form))
+              (self (rest form)))))))
+
+(def %pin-scan-project-list
+  (fn (self forms)
+    (match
+      ((pair? forms)
+        (do (%pin-scan-project-form (first forms))
+            (self (rest forms))))
+      (#t ()))))
+
+(def %pin-scan-project-files
+  (fn (self paths)
+    (match
+      ((null? paths) ())
+      (#t (do (%pin-scan-project-list (%pin-forms (File slurp (first paths))))
+              (self (rest paths)))))))
+
+; srcdir -> (rel . src) entries: the union closure of every import the
+; project's sources reference, discovery order (dedup via the walk's
+; visited set).
+(def %pin-project-closure
+  (fn (_ srcdir)
+    (do (%set-first! %pin-visited-cell ())
+        (%set-first! %pin-out-cell ())
+        (%pin-scan-project-files (%pin-x-files srcdir))
+        (%reverse (first %pin-out-cell)))))
+
+; Required rels absent from dest: each such import silently resolves to
+; the platform, not the overlay (a half-pin).
+(def %pin-audit-missing
+  (fn (self dest rels)
+    (match
+      ((null? rels) ())
+      ((File exists? (%path-join dest (first rels))) (self dest (rest rels)))
+      (#t (pair (first rels) (self dest (rest rels)))))))
+
 (def-class Pin ()
   (static
     (method closure (self (param name SYMBOL "Module name, e.g. x/type/dict"))
@@ -481,6 +570,16 @@
             (do (%pin-copy-all! dest entries)
                 (%pin-lock-update! dest rels)
                 rels))))))
+    (method vendor-project (self (param dest STRING "Overlay root directory, e.g. \"deps\"")
+                                 (param srcdir STRING "Project source dir to scan, e.g. \"src\""))
+    (doc "Vendor a whole project's import closure in one call: scan srcdir's *.x sources for every (import NAME), take the union of their closures, and copy it into dest with the lockfile updated -- the multi-import vendor. Run from a fresh session with x/tool/pin imported FIRST (unarmed), so names resolve to the platform being vendored FROM and the boot floor is exact; boot-floor seeds are skipped. Returns the copied paths."
+      (returns LIST "Root-relative file path strings copied")
+      (sample "(Pin vendor-project \"deps\" \"src\")" "(\"x/type/dict.x\" ...)"))
+    (let ((entries (%pin-project-closure srcdir)))
+      (let ((rels (%pin-rels entries)))
+        (do (%pin-copy-all! dest entries)
+            (%pin-lock-update! dest rels)
+            rels))))
     (method verify (self (param dest STRING "Overlay root directory"))
       (doc "Verify dest against its pin.lock.xon: every entry's digest must match, and every file in the tree must be listed -- an unlisted file is a rogue shadow ready to win root precedence. A missing lockfile, missing file, digest mismatch, or unlisted file is a loud error naming each offender. Returns the number of files verified."
         (returns INT "Files verified")
@@ -494,6 +593,24 @@
               (match
                 ((null? fails) (%pin-length lock))
                 (#t (%pin-bad (Str8 append "verify failed\n" (%pin-join-lines fails))))))))))
+    (method audit (self (param dest STRING "Overlay root directory")
+                        . (param srcdir STRING "Project source dir to scan; default \".\""))
+    (doc "Cross-check an overlay against the project's real imports: scan srcdir's *.x sources for their union import closure and report every required file MISSING from dest. Each missing file is an import that silently falls through to the live platform -- a half-pin. Returns the missing root-relative paths (empty = complete) and prints a notice when non-empty; guard CI with (if (null? (Pin audit ...)) ok (error ...)). Run unarmed, like vendor-project."
+      (returns LIST "Missing root-relative file paths (empty = complete pin)")
+      (sample "(Pin audit \"deps\" \"src\")" "()"))
+    (let ((src (match ((null? srcdir) ".") (#t (first srcdir)))))
+      (let ((missing (%pin-audit-missing dest (%pin-rels (%pin-project-closure src)))))
+        (do (match
+              ((null? missing) ())
+              (#t (do (display "pin: audit -- ")
+                      (display (%pin-length missing))
+                      (display " import(s) fall through to the platform (absent from ")
+                      (display dest)
+                      (display "):")
+                      (newline)
+                      (display (%pin-join-lines missing))
+                      (newline))))
+            missing))))
     (method fetch (self (param dest STRING "Directory to fetch into")
                         (param tag STRING "Release tag, e.g. \"v0.4.0\"")
                         (param entry SYMBOL "Boot entry to fetch, e.g. 'xe")
