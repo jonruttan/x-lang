@@ -54,6 +54,17 @@ make --no-print-directory install PREFIX="/x-$TAG" DESTDIR="$STAGE" >/dev/null \
 [ -x "$STAGE/x-$TAG/bin/x" ]       || fail "no wrapper staged"
 [ -x "$STAGE/x-$TAG/libexec/x/x" ] || fail "no engine staged"
 
+# Developer ID sign + notarize the staged engine BEFORE tarring -- only
+# when the release workflow provided a real identity (secrets present).
+# Unset (the local gate, and any release without notary secrets) leaves
+# the ad-hoc signature `make install` applied: today's behavior, no
+# change.  Set: a failure here fails the package -- we never ship a
+# binary that was meant to be notarized but wasn't.
+if [ -n "${MACOS_SIGN_IDENTITY:-}" ] && [ "$os" = darwin ]; then
+	sh tools/macos-notarize.sh "$STAGE/x-$TAG/libexec/x/x" \
+		|| fail "Developer ID sign + notarize failed"
+fi
+
 mkdir -p "$OUT"
 TARBALL="$OUT/$name.tar.gz"
 tar -czf "$TARBALL" -C "$STAGE" "x-$TAG"

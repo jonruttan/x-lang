@@ -115,7 +115,56 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      # macOS notarization (opt-in via secrets): import the Developer ID
+      # cert into a throwaway keychain and stage the App Store Connect API
+      # key.  ALL secret-gated -- if MACOS_CERT_P12 is empty (no secrets,
+      # or a fork) every step below no-ops and the tarball ships ad-hoc
+      # signed exactly as before.  Set MACOS_SIGN_IDENTITY only on success,
+      # so package.sh notarizes only when the cert really imported.
+      - name: Import signing certificate (macOS)
+        if: runner.os == 'macOS'
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          if [ -z "$MACOS_CERT_P12" ]; then
+            echo "no MACOS_CERT_P12 secret -- shipping ad-hoc signed (not notarized)"
+            exit 0
+          fi
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KPW="$(uuidgen)"
+          security create-keychain -p "$KPW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KPW" "$KEYCHAIN"
+          printf '%s' "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KPW" "$KEYCHAIN" >/dev/null
+          # Put the temp keychain on the search list so codesign finds the identity.
+          security list-keychains -d user -s "$KEYCHAIN" \
+            $(security list-keychains -d user | sed 's/["[:space:]]//g')
+          rm -f "$RUNNER_TEMP/cert.p12"
+          identity=$(security find-identity -v -p codesigning "$KEYCHAIN" \
+            | grep 'Developer ID Application' | head -1 | sed 's/.*"\(.*\)"/\1/')
+          [ -n "$identity" ] || { echo "no Developer ID Application identity in the cert" >&2; exit 1; }
+          echo "MACOS_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "SIGNING_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+      - name: Stage notary API key (macOS)
+        if: runner.os == 'macOS' && env.MACOS_SIGN_IDENTITY != ''
+        env:
+          MACOS_NOTARY_KEY_P8: ${{ secrets.MACOS_NOTARY_KEY_P8 }}
+        run: |
+          printf '%s' "$MACOS_NOTARY_KEY_P8" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          echo "MACOS_NOTARY_KEY_PATH=$RUNNER_TEMP/notary.p8" >> "$GITHUB_ENV"
       - name: Build + package
+        env:
+          # Empty on Linux and on an unsigned macOS run -> package.sh skips
+          # notarization; set -> package.sh signs + notarizes before tarring.
+          MACOS_SIGN_IDENTITY: ${{ env.MACOS_SIGN_IDENTITY }}
+          MACOS_NOTARY_KEY_PATH: ${{ env.MACOS_NOTARY_KEY_PATH }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
         run: sh tools/package.sh "$GITHUB_REF_NAME" build/dist
       - name: Upload to the release
         env:
@@ -123,3 +172,9 @@ jobs:
         run: |
           gh release upload "$GITHUB_REF_NAME" \
             build/dist/*.tar.gz build/dist/*.tar.gz.sha256 --clobber
+      # Always tear down the signing material, success or fail.
+      - name: Clean up signing material (macOS)
+        if: always() && runner.os == 'macOS'
+        run: |
+          [ -n "${SIGNING_KEYCHAIN:-}" ] && security delete-keychain "$SIGNING_KEYCHAIN" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/notary.p8" "$RUNNER_TEMP/cert.p12" 2>/dev/null || true
