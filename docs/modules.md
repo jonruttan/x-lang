@@ -238,6 +238,13 @@ sha256sum -c SHASUMS            # verify the download
 cat xe.x program.x | ./x --batch
 ```
 
+The same release ships that matching engine as a relocatable per-platform
+tarball (`x-<tag>-<os>-<arch>.tar.gz`) — built from the same tagged
+source, so it carries the release's ISA fingerprint by construction. The
+engine and the amalgams are two separately verified artifacts that pair
+through the fingerprint; you never have to build the engine to pin the
+platform.
+
 The platform can also fetch and verify in one step:
 
 ```

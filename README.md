@@ -184,6 +184,24 @@ on stderr; `--no-pin` skips). Walkthrough:
 
 ## Install
 
+**A prebuilt binary — no toolchain, no compile.** Each
+[release](https://github.com/jonruttan/x-lang/releases) ships a
+relocatable tarball per platform (`x-<tag>-<os>-<arch>.tar.gz`):
+
+```sh
+tar -xzf x-<tag>-<os>-<arch>.tar.gz
+sha256sum -c x-<tag>-<os>-<arch>.tar.gz.sha256   # verify the download
+xattr -dr com.apple.quarantine x-<tag>           # macOS only (Gatekeeper)
+x-<tag>/bin/x                                     # run it, or add bin/ to PATH
+```
+
+It is the full install tree (wrapper + engine + library) under one
+versioned directory; the wrapper finds its engine and library beside
+itself, so it runs wherever you unpack it. The macOS engine is ad-hoc
+signed, not notarized — hence the `xattr` step on a downloaded tarball.
+
+**From source.** With a C compiler:
+
 ```sh
 make install                # /usr/local by default
 make install PREFIX=~/.local
