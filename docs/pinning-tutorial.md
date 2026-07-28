@@ -174,8 +174,9 @@ are pinned.
 ## Daily work
 
 - **The notice is your dashboard.** Every pinned run prints
-  `pinned: <path>` to stderr. No line, no pin — check where you ran
-  from and where `pin.xon` lives.
+  `pinned: <path>` to stderr — and a boot-pinned project prints a
+  second line, `pinned boot: <path>`. No line, no pin — check where
+  you ran from and where `pin.xon` lives.
 - **Compare against the live platform** with one flag: `x --no-pin -f
   main.x` runs as if the pin didn't exist. The fastest answer to "is
   this bug ours or did the library move?"
@@ -199,12 +200,37 @@ are pinned.
 ## Pinning the platform
 
 When the *language* must not move — not just a library — run a released
-amalgam. Every release tag publishes each dialect's full boot as one
-self-contained file, plus `SHASUMS` and `pin.release.xon` (per-file
-digests and the **ISA fingerprint**: the digest of the C-surface
-manifest the amalgams were built against).
+platform. Every release tag publishes two kinds of artifact, built from
+the same tagged source:
 
-Fetch and verify in one step:
+- **per-platform binary tarballs** (`x-<tag>-<os>-<arch>.tar.gz` +
+  `.sha256` sidecar): the full install tree — wrapper, engine, library
+  — relocatable, no toolchain, no compile;
+- **amalgamated boot entries** (each dialect's full boot as one
+  self-contained file), plus `SHASUMS` and `pin.release.xon` — per-file
+  digests and the **ISA fingerprint**: the digest of the C-surface
+  manifest the amalgams were built against.
+
+(`v0.4.0` below stands in for whichever tag you are pinning; check the
+[releases page](https://github.com/jonruttan/x-lang/releases) for what
+each tag publishes.)
+
+**Start with the tarball — you never have to build an engine to pin
+the platform:**
+
+```sh
+tar -xzf x-v0.4.0-<os>-<arch>.tar.gz
+sha256sum -c x-v0.4.0-<os>-<arch>.tar.gz.sha256   # verify the download
+xattr -dr com.apple.quarantine x-v0.4.0           # macOS only (Gatekeeper)
+x-v0.4.0/bin/x -f main.x                          # or add bin/ to PATH
+```
+
+That alone pins engine *and* library to the release: the tarball's
+wrapper finds its own engine and library beside itself, and your
+project's `pin.xon` overlay works unchanged through it.
+
+To pin the boot **inside your project's tree** (so the repo itself
+records it), fetch the amalgam, verified or nothing:
 
 ```
 > (import x/tool/pin)
@@ -219,24 +245,48 @@ amalgam takes it *minutes* (tracked for improvement in #123). No curl
 on the machine? `fetch` prints the URLs and stops — download by hand,
 then check with coreutils beside the files: `sha256sum -c SHASUMS`.
 
-Run the pinned platform with the direct pipe (an amalgam has zero path
-literals):
+Then declare it beside your overlay roots — both tiers, one manifest:
+
+```
+; pin.xon
+(root "deps")
+(boot "boot/xe.x")
+```
+
+```sh
+$ x -f main.x
+pinned: /path/to/myproj/pin.xon
+pinned boot: /path/to/myproj/boot/xe.x
+```
+
+The wrapper boots your amalgam *and* arms the overlay — two notices,
+two tiers. (The `(boot ...)` form is the one form the wrapper itself
+consumes, so it must sit alone on its own line; `--boot FILE` on the
+command line overrides it.)
+
+The raw engine pipe still works (an amalgam has zero path literals):
 
 ```
 $ cat boot/xe.x main.x | ./x --batch
 ```
 
+— but know what it skips: no wrapper means no probe, no overlay
+arming, no notices. A project pinned at both tiers should run through
+the manifest, not the pipe.
+
 Read the fingerprint line for what it is: **matches this tree** means
 your current engine speaks the amalgam's C contract; **DIFFERS** means
 the platform has drifted since that release — not an error, but your
-pinned amalgam should run against its own release's engine, not
-today's build.
+pinned amalgam should run against its own release's engine: the
+release tarball above, which carries the fingerprint by construction.
 
 ## When something looks wrong
 
 | You see | It means | Do |
 |---|---|---|
 | no `pinned:` line | probe found no `pin.xon` walking up from the program | check the manifest's location; remember the REPL probes the *cwd* |
+| no `pinned boot:` line | the manifest has no `(boot ...)` alone on its own line | the wrapper extracts that one form textually — one line, one string |
+| `boot entry does not exist` | `(boot ...)` or `--boot` names a missing file | fetch the amalgam first, or fix the path (relative paths resolve against `pin.xon`'s directory) |
 | `pin: unknown form` | the manifest has a form outside the vocabulary | `pin.xon` is data — only `(root "DIR")` today |
 | `pin: root does not exist` | manifest names a missing overlay dir | fix the path (relative roots resolve against `pin.xon`'s own directory) |
 | `unpinnable (boot floor)` | that module ships in the dialect's boot | nothing to vendor; freeze it via a platform pin if you must |
@@ -249,8 +299,10 @@ today's build.
 
 | Surface | What |
 |---|---|
-| `pin.xon` | project manifest — `(root "DIR")`, first listed wins |
+| `pin.xon` | project manifest — `(root "DIR")`, first listed wins; `(boot "FILE")` pins the boot |
 | `--no-pin` | wrapper flag: ignore any manifest this run |
+| `--boot FILE` | wrapper flag: boot FILE (a pinned amalgam) this run; overrides the manifest |
+| `x-<tag>-<os>-<arch>.tar.gz` | a release's wrapper+engine+library, relocatable — the no-toolchain platform pin |
 | `(Pin closure 'name)` | dry run: the files a vendor would copy |
 | `(Pin vendor "deps" 'name)` | copy the closure + write the lockfile |
 | `(Pin verify "deps")` | recompute digests; overlay must equal the lock |
