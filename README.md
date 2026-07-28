@@ -113,8 +113,21 @@ Dialects are selected via the `-l` flag on the shell wrapper. Language personali
 
 ## Build
 
-The expression engine (`ext/x-expr`) and the C test runner are git submodules
-— clone recursively, or fetch them into an existing clone:
+**One command**, if you just want a working `x` (clones with submodules,
+builds the ~4-second C89 engine, and — with `--install` — puts `x` on
+your PATH under `~/.local`, no sudo):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/jonruttan/x-lang/main/bootstrap.sh | sh
+```
+
+Add `--install` to install (`… | sh -s -- --install`); the script prints
+how to run and how to install either way. Knobs: `X_REF` (branch/tag),
+`X_PREFIX`, `X_SRC` — see the header of [bootstrap.sh](bootstrap.sh).
+
+**By hand.** The expression engine (`ext/x-expr`) and the C test runner
+are git submodules — clone recursively, or fetch them into an existing
+clone:
 
 ```sh
 git clone --recursive https://github.com/jonruttan/x-lang.git
