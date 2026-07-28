@@ -102,7 +102,8 @@ The pin vocabulary:
 
 ```
 ; pin.xon
-(root "deps")     ; overlay root, relative to this file's directory
+(root "deps")       ; overlay root, relative to this file's directory
+(boot "boot/xe.x")  ; boot entry: run this amalgam as the boot
 ```
 
 - `(root "DIR")` — adds an overlay root to the import search roots.
@@ -111,6 +112,15 @@ The pin vocabulary:
   module files in the standard name layout (`deps/x/core/list.x` pins
   `x/core/list`). Roots listed first win, and every overlay root takes
   precedence over the platform library.
+- `(boot "FILE")` — names the boot entry: the wrapper boots `FILE` (a
+  fetched, verified amalgam — see below) instead of the platform's
+  entry, and everything else still happens — the overlay roots arm,
+  both pins are announced. A relative `FILE` resolves against the
+  manifest's directory. A missing file is a loud error, never a
+  fallback to the platform entry. This is the one form the *wrapper*
+  consumes (it must choose the entry before the pipe exists), so it
+  must sit alone on its own line; `--boot FILE` on the command line
+  overrides it.
 
 An overlay tree only needs the modules being pinned — anything not
 found there falls through to the platform library. Note that a pinned
@@ -265,22 +275,34 @@ exists; drift is reported, not an error — a pinned platform pairs with
 its own release's engine. A trailing base-URL argument overrides the
 default release home (a mirror, or `file://` in the smoke).
 
+Both tiers compose through the manifest: declare the fetched amalgam
+with `(boot "boot/xe.x")` beside the `(root ...)` forms, and the plain
+`x -f main.x` boots the pinned platform *and* arms the overlay,
+announcing both. The direct `cat` pipe above remains the zero-wrapper
+path, but it bypasses the wrapper — no probe, no arming, no notices —
+so a project pinned at both tiers should run through the manifest.
+
 ### Probing and arming
 
 The shell wrapper probes for `pin.xon` starting from the **program's**
 directory (`-f`/`-F`), or the current directory for a REPL, walking up
 parent directories git-style. A found manifest is always announced —
-one `pinned: <path>` line on stderr — and `--no-pin` skips the probe
-entirely.
+one `pinned: <path>` line on stderr, plus a `pinned boot: <path>` line
+when a boot entry is pinned — and `--no-pin` skips the probe entirely.
 
-The wrapper never reads the manifest itself: it hands the path to the
-interpreter as data (`(def %pin-file "<path>")` ahead of the boot
-entry) and loads `x/tool/pin` right after boot, before the first user
-form. That loader — always resolved from the platform library, never
-from an overlay — reads the manifest, checks the vocabulary, and arms
-the roots via `import-path!`. Because nothing in the manifest is
+The wrapper interprets exactly one manifest form itself: `(boot
+"FILE")`, extracted textually (never evaluated), because the boot
+entry must be chosen before the pipe exists — the loader runs too
+late to pick it. Everything else stays interpreter-side: the wrapper
+hands the manifest's path over as data (`(def %pin-file "<path>")`
+ahead of the boot entry) and loads `x/tool/pin` right after boot,
+before the first user form. That loader — always resolved from the
+platform library, never from an overlay — reads the manifest, checks
+the vocabulary (including the shape of `(boot ...)`), and arms the
+roots via `import-path!`. Because nothing in the manifest is
 evaluated, a manifest can only do what pinning does: redirect import
-resolution into its own project's files.
+resolution into its own project's files, and select which verified
+boot to run.
 
 ### The pin boundary
 
@@ -297,7 +319,7 @@ Two structural rules bound what an overlay can change:
 
 `make check-pin` smokes all of this end to end (overlay resolution,
 root precedence, the unpinnable core, the closed vocabulary,
-`--no-pin`).
+`--no-pin`, and the boot+overlay composition).
 
 ### Bootstrap Sequence
 
