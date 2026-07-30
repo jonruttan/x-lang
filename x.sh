@@ -45,6 +45,22 @@ if [ ! -e "${LIB_PATH}${X_LIB}${X_EXT}" ]; then
 	ENTRY_DIR="$INSTALL_ROOT/boot/"
 fi
 
+# Both forms below emit a path as an x-lang STRING LITERAL ahead of the
+# boot entry.  A path holding a double quote or a backslash would close
+# that literal and inject forms into the boot stream -- the shell hole
+# shquote closes, one evaluator further in.  Refuse the path instead of
+# picking an escaping scheme the reader may not share: these are install
+# and project directories, and a quote in one is a mistake, not a need.
+path_form_safe() {
+	case "$1" in
+		*\"* | *\\*)
+			echo "Error: $2 path contains a quote or backslash: $1" >&2
+			echo "  the path is emitted as an x-lang string; rename the directory" >&2
+			exit 1
+			;;
+	esac
+}
+
 # The install-root form, emitted ahead of the entry in installed mode; a
 # no-op command in repo mode (nothing defines %install-root there).
 root_form() {
@@ -70,6 +86,8 @@ pin_arm() {
 	fi
 }
 
+[ -z "$INSTALL_ROOT" ] || path_form_safe "$INSTALL_ROOT" "install root"
+
 # The engine binary sits beside this script in-repo (x.sh + x at the
 # root); installed it lives in libexec -- and the wrapper takes the bin/x
 # name there, so probe libexec FIRST or $SCRIPT_PATH/x re-runs this
@@ -78,6 +96,18 @@ X_BIN="$SCRIPT_PATH/../${X_ENGINE}"
 if [ ! -e "$X_BIN" ]; then
 	X_BIN="$SCRIPT_PATH/x"
 fi
+
+# Every value that reaches $CMD below is re-parsed by the shell (it is
+# assembled as text and run through `eval`), so a value carrying a quote,
+# `$` or a backtick would stop being a path and start being code.  Single
+# quotes are the only airtight shell quoting -- nothing inside them is
+# special -- so wrap in them and rewrite an embedded ' as the standard
+# '\'' escape.  Data reaching CMD unquoted is the pin.xon manifest hole:
+# the manifest is documented as inert (docs/modules.md "Pinning"), and
+# `eval` on an unquoted (boot "FILE") string made it executable.
+shquote() {
+	printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
 
 # Pipe carries only library content — the REPL reclaims terminal
 # stdin from fd 3 (saved below) before its first read
@@ -114,15 +144,15 @@ while :
 do
 	case "$1" in
 		-f | --file)
-			file="\"$2\""
+			file="$(shquote "$2")"
 			[ -z "$file1" ] && file1="$2"
 			post=""
 			shift 2
 			;;
 		-F | --load)
-			file="\"$2\" $file"
+			file="$(shquote "$2") $file"
 			[ -z "$file1" ] && file1="$2"
-			post="\"${LIB_PATH}${X_LAUNCH}\""
+			post="$(shquote "${LIB_PATH}${X_LAUNCH}")"
 			shift 2
 			;;
 		-h | --help)
@@ -190,7 +220,7 @@ done
 args=
 while [ $# -gt 0 ]
 do
-	args="$args \"$1\""
+	args="$args $(shquote "$1")"
 	shift
 done
 
@@ -210,6 +240,7 @@ if [ -z "$no_pin" ]; then
 	while [ -n "$_pd" ]; do
 		if [ -e "$_pd/$X_PIN" ]; then
 			PIN_FILE="$_pd/$X_PIN"
+			path_form_safe "$PIN_FILE" "manifest"
 			break
 		fi
 		[ "$_pd" = / ] && break
@@ -297,7 +328,7 @@ if [ "$file" ]; then
 	xflags="$xflags \"--batch\""
 elif [ -n "$PIN_FILE" ]; then
 	xflags="$xflags \"--batch\""
-	post="\"${LIB_PATH}${X_LAUNCH}\""
+	post="$(shquote "${LIB_PATH}${X_LAUNCH}")"
 fi
 
 # An empty tail must vanish entirely -- a bare `cat` would read stdin.
@@ -306,7 +337,7 @@ if [ -n "${file}${post}" ]; then
 	TAIL="cat ${file} ${post}; "
 fi
 
-CMD="{ root_form; pin_form; cat \"${ENTRY}\"; pin_arm; ${TAIL}} | \"$X_BIN\"$xflags$args"
+CMD="{ root_form; pin_form; cat $(shquote "$ENTRY"); pin_arm; ${TAIL}} | $(shquote "$X_BIN")$xflags$args"
 
 if [ "$verbose" ]; then
 	echo "$CMD"

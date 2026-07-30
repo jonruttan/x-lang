@@ -28,6 +28,13 @@
 #              never a silent fallback to the platform entry
 #   boot-bad   a malformed (boot ...) is rejected by the loader's
 #              closed vocabulary (the wrapper's probe ignores it)
+#   boot-quote a (boot ...) path carrying shell metacharacters stays a
+#              PATH: the wrapper assembles its pipe as text and evals it,
+#              so an unquoted value would make the manifest executable --
+#              the manifest is documented inert (docs/modules.md)
+#   pin-quote  a manifest DIRECTORY carrying a double quote is refused:
+#              the path is emitted as an x-lang string literal, and a
+#              quote would close it and inject forms into the boot stream
 # (The pinned REPL path is tty-side -- the fd-3 class check-examples.sh
 # documents -- and is not smokeable here; it shares every pipe stage but
 # the final launch.x with the -f path exercised below.)
@@ -290,5 +297,48 @@ EOF
 $TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/proj5/main.x" >"$_TMP/out" 2>"$_TMP/err"
 status=$?
 [ "$status" -ne 0 ] || fail "boot-bad: malformed boot form was accepted" "$_TMP/out" "$_TMP/err"
+
+# boot-quote: a boot path carrying shell metacharacters must stay a PATH.
+# The wrapper builds its pipe as text and evals it, so an unquoted value
+# here used to reach the shell as code -- with pin.xon documented as inert
+# data (docs/modules.md "Pinning"), that made a manifest executable.  The
+# marker file exists so the wrapper's -e gate passes and the value reaches
+# the eval; a leaked metacharacter runs the payload, a quoted one does not.
+# The payload has to be a FILENAME, so it can hold no slash -- it prints
+# instead of writing a file.  Its output must also differ from its own
+# source text, because the wrapper's `pinned boot:` notice echoes the path
+# verbatim: `printf %s%s LE AK` emits LEAK while the path only ever reads
+# "LE AK", so a grep for LEAK matches execution and nothing else.
+mkdir -p "$_TMP/proj6"
+_evil='q";printf %s%s LE AK >&2;"'
+: > "$_TMP/proj6/$_evil"
+printf '(boot "%s")\n' "$_evil" > "$_TMP/proj6/pin.xon"
+printf '(display "ran")\n' > "$_TMP/proj6/main.x"
+_no_exec() {
+	grep -q "LEAK" "$_TMP/out" "$_TMP/err" \
+		&& fail "boot-quote: $1" "$_TMP/err" "$_TMP/out"
+	return 0
+}
+$TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/proj6/main.x" >"$_TMP/out" 2>"$_TMP/err"
+_no_exec "manifest metacharacters reached the shell"
+# Same through the flag, which bypasses the manifest entirely.
+$TIMEOUT_CMD sh "$WRAPPER" --boot "$_TMP/proj6/$_evil" -f "$_TMP/proj6/main.x" \
+	>"$_TMP/out" 2>"$_TMP/err"
+_no_exec "--boot metacharacters reached the shell"
+# And through a program path, which has no existence gate at all.
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/proj6/$_evil" >"$_TMP/out" 2>"$_TMP/err"
+_no_exec "-f metacharacters reached the shell"
+
+# pin-quote: a manifest whose DIRECTORY holds a double quote is refused.
+# pin_form emits that path as an x-lang string literal ahead of the boot
+# entry, where a quote closes the literal and the rest becomes forms.
+_qdir="$_TMP/pq\"dir"
+mkdir -p "$_qdir"
+printf '(root "deps")\n' > "$_qdir/pin.xon"
+printf '(display "ran")\n' > "$_qdir/main.x"
+$TIMEOUT_CMD sh "$WRAPPER" -f "$_qdir/main.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "pin-quote: a quoted manifest path was accepted" "$_TMP/out" "$_TMP/err"
+grep -q "quote or backslash" "$_TMP/err" || fail "pin-quote: no refusal message" "$_TMP/err"
 
 echo "pin-smoke: ok"
