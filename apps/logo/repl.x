@@ -75,35 +75,58 @@
   (fn ()
     (def %rb
       (fn (self lines depth)
-        ; Default SIGINT while reading so ctrl-c at prompt exits;
-        ; reinstall handler after so ctrl-c during execution breaks loops
-        (sigint-restore)
+        ; At the top prompt (no pending lines) default SIGINT so ctrl-c
+        ; exits, as ever.  MID-BLOCK keep the handler installed: the
+        ; handler has no SA_RESTART and x_sys_read treats EINTR as EOF,
+        ; so ctrl-c pops the blocking read with %sigint-flag set and the
+        ; check below cancels the pending block instead of killing the
+        ; session.  Reinstall after so ctrl-c during execution breaks
+        ; loops.
+        (when (null? lines) (sigint-restore))
+        ; The interrupted read also trips the #90 EOF latch (buffer.c
+        ; poisons the CURRENT filein cell to -1, making every later read
+        ; instant EOF).  Snapshot the fd beforehand so the cancel branch
+        ; can un-poison it.  Resolved per read on purpose: filein is a
+        ; chain with a cell per include, so a load-time cell would be the
+        ; includer's, not the session's.
+        (def %logo-filein-cell (%reflect-base-cell 'filein))
+        (def %logo-filein-fd (%first-int (first %logo-filein-cell)))
         (def line (%read-line))
         (sigint-install)
-        (if (null? line)
-          ; EOF — if caused by ctrl-c, retry
-          (unless (null? lines) (Str join "" (List reverse lines)))
-          (if (str=? line "")
-            ; Blank line
-            (if (null? lines)
-              (self () 0)
-              (if (> depth 0)
-                (self lines depth)
-                ; Balanced — probe for completeness
-                (if (%is-complete? (Str join "" (List reverse lines)) depth)
-                  (Str join "" (List reverse lines))
-                  (self lines depth))))
-            ; Non-empty line
-            (let ((new-depth (+ depth (%count-brackets line)))
-                  (new-lines (pair (Str append "\n" line) lines)))
-              (if (> new-depth 0)
-                (self new-lines new-depth)
-                (if (%is-indented? line)
+        (if (= 1 (%first-int %sigint-flag))
+          ; ctrl-c mid-block: discard the pending lines, fresh prompt.
+          ; (line may hold a partial line the interrupt cut short --
+          ; discard that too.)
+          (do
+            (%set-first-int! %sigint-flag 0)
+            (%set-first-int! (first %logo-filein-cell) %logo-filein-fd)
+            (newline)
+            (display %logo-prompt)
+            (self () 0))
+          (if (null? line)
+            ; EOF
+            (unless (null? lines) (Str join "" (List reverse lines)))
+            (if (str=? line "")
+              ; Blank line
+              (if (null? lines)
+                (self () 0)
+                (if (> depth 0)
+                  (self lines depth)
+                  ; Balanced — probe for completeness
+                  (if (%is-complete? (Str join "" (List reverse lines)) depth)
+                    (Str join "" (List reverse lines))
+                    (self lines depth))))
+              ; Non-empty line
+              (let ((new-depth (+ depth (%count-brackets line)))
+                    (new-lines (pair (Str append "\n" line) lines)))
+                (if (> new-depth 0)
                   (self new-lines new-depth)
-                  ; Col 0, balanced — probe for completeness
-                  (if (%is-complete? (Str join "" (List reverse new-lines)) new-depth)
-                    (Str join "" (List reverse new-lines))
-                    (self new-lines new-depth)))))))))
+                  (if (%is-indented? line)
+                    (self new-lines new-depth)
+                    ; Col 0, balanced — probe for completeness
+                    (if (%is-complete? (Str join "" (List reverse new-lines)) new-depth)
+                      (Str join "" (List reverse new-lines))
+                      (self new-lines new-depth))))))))))
     (%rb () 0)))
 
 ; ============================================================
