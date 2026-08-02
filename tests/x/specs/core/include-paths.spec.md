@@ -71,6 +71,25 @@ files already under `lib/`, so nothing depends on paths outside the repo.
 ---
     #t
 
+## Load transparency
+
+### a closure defined in a loaded file sees no loader bindings
+
+A loaded file's forms are top-level forms: `x_eval_load` strips the includer's
+lexical frames (the leading FRAME run) for the duration of the load, so each
+form evaluates against -- and each closure captures -- the true top-level
+chain. Without this, the loader wrappers' formals (`path`, `name`, ...) are
+captured by every closure a module defines and shadow the global env inside
+loaded code forever.
+
+```scheme
+(do
+  (include "tests/x/lib/loader-frame-fixture.x")
+  (%loader-frame-probe))
+```
+---
+    ('unbound 'unbound 'unbound 'unbound)
+
 ## Import search path
 
 ### conservative: the only default root is lib
