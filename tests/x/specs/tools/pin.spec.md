@@ -327,6 +327,39 @@ argument check has to precede the shape check that used to reach for it.
 ---
     #t
 
+### a ./.. include normalises, so the lock key matches the tree walk
+
+An overlay rel is a lockfile KEY and a copy target, not just something
+to open, so `..` has to collapse here — `acme/../shared.x` and the tree
+walk's `shared.x` name one file and never compared equal.
+
+```scheme
+(do
+  (guard (_ ()) (File mkdir "build/pin-spec/lib0/up"))
+  (File spit "build/pin-spec/lib0/up/mod.x"
+    "(include-once \"./../up-shared.x\")\n(provide up/mod)\n")
+  (File spit "build/pin-spec/lib0/up-shared.x" "(def %up-shared 1)\n")
+  (write (Pin vendor "build/pin-spec/upout" 'up/mod))
+  (display " verify=")
+  (display (Pin verify "build/pin-spec/upout")))
+```
+---
+    ("up/mod.x" "up-shared.x") verify=2
+
+### an include climbing out of the overlay is a loud error
+
+Enough `..` and the copy target resolves outside dest entirely — neither
+absolute nor root-relative, so the other guards miss it.
+
+```scheme
+(do
+  (File spit "build/pin-spec/lib0/acme/escape.x"
+    "(include-once \"./../../escapee.x\")\n(provide acme/escape)\n")
+  (display (throws? (fn (_) (Pin closure 'acme/escape)))))
+```
+---
+    #t
+
 ### a garbage lockfile is a loud error
 
 ```scheme
@@ -337,6 +370,106 @@ argument check has to precede the shape check that used to reach for it.
 ```
 ---
     #t
+
+## pin: lockfile provenance (GH #147)
+
+One overlay legitimately holds several vendors, so the file list alone
+cannot say which vendor put a file there.  Each vendor records its claim
+as `(seed "NAME" "rel" ...)`; re-vendoring replaces that seed's claim.
+
+### vendor records the seed's claim
+
+```scheme
+(do
+  (guard (_ ()) (File mkdir "build/pin-spec/lib0/prov"))
+  (File spit "build/pin-spec/lib0/prov/a.x" "(import prov/dep)\n(provide prov/a)\n")
+  (File spit "build/pin-spec/lib0/prov/dep.x" "(provide prov/dep)\n")
+  (Pin vendor "build/pin-spec/prov" 'prov/a)
+  (display (Str8 contains? "(seed \"prov/a\"" (File slurp "build/pin-spec/prov/pin.lock.xon"))))
+```
+---
+    #t
+
+### a dependency dropped upstream leaves the lock on re-vendor
+
+Previously it stayed in both tree and lock, still shadowing the
+platform, with verify calling the pair clean because both went stale
+together.
+
+```scheme
+(do
+  (File spit "build/pin-spec/lib0/prov/a.x" "(provide prov/a)\n")
+  (write (Pin vendor "build/pin-spec/prov" 'prov/a)))
+```
+---
+```output
+pin: 1 file(s) no longer in the closure, still in build/pin-spec/prov (delete them; verify flags them as unlisted):
+prov/dep.x
+("prov/a.x")
+```
+
+### the orphan is then unlisted, so verify refuses it
+
+```scheme
+(display (throws? (fn (_) (Pin verify "build/pin-spec/prov"))))
+```
+---
+    #t
+
+### removing the orphan restores verification
+
+```scheme
+(do
+  (File unlink "build/pin-spec/prov/prov/dep.x")
+  (display (Pin verify "build/pin-spec/prov")))
+```
+---
+    1
+
+### distinct seeds still merge into one overlay
+
+The documented workflow: repeated vendors into one overlay accumulate.
+A separate overlay from the drop cycle above, so the counts here do not
+depend on which spec ran last (`build/` survives between runs).
+
+```scheme
+(do
+  (File spit "build/pin-spec/lib0/prov/m1.x" "(provide prov/m1)\n")
+  (File spit "build/pin-spec/lib0/prov/m2.x" "(provide prov/m2)\n")
+  (Pin vendor "build/pin-spec/prov2" 'prov/m1)
+  (Pin vendor "build/pin-spec/prov2" 'prov/m2)
+  (display (Pin verify "build/pin-spec/prov2")))
+```
+---
+    2
+
+### re-vendoring one seed leaves the other's files alone
+
+```scheme
+(do
+  (Pin vendor "build/pin-spec/prov2" 'prov/m1)
+  (display (Pin verify "build/pin-spec/prov2")))
+```
+---
+    2
+
+### entries predating provenance are kept, never silently dropped
+
+A lockfile written before seeds existed has unattributed entries; a new
+vendor into that overlay must not evict them.
+
+```scheme
+(do
+  (%pin-mkdirs "build/pin-spec/legacy/old")
+  (File spit "build/pin-spec/legacy/old/keep.x" "(def %keep 1)\n")
+  (File spit "build/pin-spec/legacy/pin.lock.xon"
+    (Str8 append "(file \"old/keep.x\" \""
+      (Str8 append (%pin-digest "build/pin-spec/legacy/old/keep.x") "\")\n")))
+  (Pin vendor "build/pin-spec/legacy" 'prov/m1)
+  (display (Pin verify "build/pin-spec/legacy")))
+```
+---
+    2
 
 ## pin: the release manifest and fetch plumbing (hermetic)
 

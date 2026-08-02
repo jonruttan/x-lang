@@ -156,8 +156,9 @@ the rest:
 ("x/type/set.x")
 ```
 
-Repeated vendors into one overlay merge cleanly — the lockfile upserts
-per file.
+Repeated vendors into one overlay merge cleanly — each vendor records
+what it claimed, so the overlay accumulates and re-vendoring one module
+leaves the others alone.
 
 **4. Manifest, run, verify** — exactly as in the fresh-project steps:
 write `(root "deps")` into `myproj/pin.xon`, run your program, look for
@@ -183,7 +184,10 @@ are pinned.
 - **Update a pin deliberately.** There is no auto-update: re-vendor
   from the platform you now want (`(Pin vendor "deps" 'x/type/dict)`
   again, in a fresh session), rerun your tests, commit the new
-  `deps/`. The lockfile diff *is* the upgrade review.
+  `deps/`. The lockfile diff *is* the upgrade review. If the new
+  version dropped a dependency, the re-vendor says so and drops it from
+  the lock; delete the named file, since an orphan left in the overlay
+  still shadows the platform and `verify` will flag it as unlisted.
 - **Verify on suspicion, and in CI.** `(Pin verify "deps")` recomputes
   every digest and walks the tree; a modified, missing, or *unlisted*
   file (something shadowing that the lock never blessed) is a loud,

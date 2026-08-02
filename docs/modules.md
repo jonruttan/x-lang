@@ -180,8 +180,10 @@ Two rules the tool enforces:
 
 `vendor` also writes `<root>/pin.lock.xon` — xon, like the manifest,
 with one `(file "REL" "sha256:HEX")` entry per vendored file (the
-digest is `Sha256` from `x/codec/sha256`, pure x-lang). `verify`
-recomputes it all:
+digest is `Sha256` from `x/codec/sha256`, pure x-lang), plus one
+`(seed "NAME" "REL" ...)` entry per vendor recording what that vendor
+claimed. `NAME` is the module name, or `project:DIR` for
+`vendor-project`. `verify` recomputes it all:
 
 ```
 > (Pin verify "deps")
@@ -196,6 +198,18 @@ loud error naming each offender; on success `verify` returns the file
 count. Verification runs are honest by construction: the hash module
 loads eagerly with `x/tool/pin`, before any overlay root is armed, so
 an overlay cannot shadow the hasher that checks it.
+
+The seed records are what make a *re-vendor* honest. Repeated vendors
+into one overlay accumulate, so the file list alone cannot say which
+vendor put a file there — and without that, a dependency dropped
+upstream stayed in the tree *and* the lock, still shadowing the
+platform, with `verify` calling the pair clean because both had gone
+stale together. Re-vendoring a seed now replaces that seed's claim: a
+file no remaining seed claims leaves the lock and is named on stderr.
+It is not deleted — the overlay is the project's tree — so `verify`
+reports it as unlisted until you remove it. Entries written before
+seeds existed are unattributed and kept as-is, so an older overlay
+keeps verifying and keeps merging.
 
 ### Vendoring and auditing a whole project
 
