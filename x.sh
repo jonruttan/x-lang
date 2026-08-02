@@ -84,6 +84,7 @@ fi
 file=""
 file1=""
 no_pin=""
+boot_file=""
 verbose=""
 xflags=""
 # Appended after the -F file so the interactive launcher runs once the
@@ -101,6 +102,7 @@ display_help() {
 	echo "  -f, --file FILE evaluate file and exit"
 	echo "  -F, --load FILE evaluate file then continue"
 	echo "  -l, --lib NAME  library name (default: \"$X_LIB\")"
+	echo "      --boot FILE boot from FILE (a pinned amalgam) instead of -l's entry"
 	echo "  -q, --quiet     suppress the startup banner"
 	echo "      --no-color  disable ANSI colour in the REPL"
 	echo "      --no-pin    ignore any $X_PIN manifest"
@@ -149,6 +151,10 @@ do
 		--no-pin)
 			no_pin=1
 			shift
+			;;
+		--boot)
+			boot_file="$2"
+			shift 2
 			;;
 		-v | --verbose)
 			verbose="verbose"
@@ -211,6 +217,24 @@ if [ -z "$no_pin" ]; then
 	done
 fi
 
+# Boot pinning (GH #139): the ONE manifest form the wrapper itself
+# consumes.  (boot "FILE") names the boot entry -- a fetched amalgam --
+# and the entry must be chosen HERE, before the pipe exists: the loader
+# import lands after the entry has already booted, too late to pick it.
+# Textual extraction of data, nothing evaluated; the form must sit alone
+# on its line (the loader still checks its shape).  A relative FILE
+# resolves against the manifest's directory, like (root ...).  An
+# explicit --boot wins over the manifest.
+if [ -z "$boot_file" ] && [ -n "$PIN_FILE" ]; then
+	_bt=$(sed -n 's/^(boot "\(.*\)")[[:space:]]*$/\1/p' "$PIN_FILE" | head -n 1)
+	if [ -n "$_bt" ]; then
+		case "$_bt" in
+			/*) boot_file="$_bt" ;;
+			*)  boot_file="$(dirname "$PIN_FILE")/$_bt" ;;
+		esac
+	fi
+fi
+
 # Save terminal stdin as fd 3 so x-lang can reclaim it after the pipe
 # (the pipe dies on ctrl-c; fd 3 survives for the REPL)
 exec 3<&0
@@ -222,6 +246,17 @@ exec 3<&0
 ENTRY="${ENTRY_DIR}${X_LIB}${X_EXT}"
 if [ ! -e "$ENTRY" ] && [ -e "${APPS_PATH}${X_LIB}/${X_RUN}${X_EXT}" ]; then
 	ENTRY="${APPS_PATH}${X_LIB}/${X_RUN}${X_EXT}"
+fi
+
+# A pinned boot replaces the entry outright (-l is not consulted).  A
+# missing file is a broken project pin -- fail loudly, never fall back
+# to the platform entry: a silent fallback is the very shape #139 closes.
+if [ -n "$boot_file" ]; then
+	ENTRY="$boot_file"
+	if [ ! -e "$ENTRY" ]; then
+		echo "Error: pinned boot entry does not exist: $ENTRY" >&2
+		exit 1
+	fi
 fi
 
 # A wrong name used to fail as `cat: lib/nope.x: No such file` with EXIT 0
@@ -279,6 +314,9 @@ fi
 
 if [ -n "$PIN_FILE" ]; then
 	echo "pinned: $PIN_FILE" >&2
+fi
+if [ -n "$boot_file" ]; then
+	echo "pinned boot: $ENTRY" >&2
 fi
 
 eval "$CMD"

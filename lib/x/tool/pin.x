@@ -18,6 +18,9 @@
 ; Vocabulary:
 ;   (root "DIR")   overlay root; a relative DIR resolves against the
 ;                  manifest's own directory.  First root listed wins.
+;   (boot "FILE")  boot entry (a pinned amalgam) -- consumed by the
+;                  SHELL WRAPPER, which must choose the entry before
+;                  the pipe exists; this loader only checks the shape.
 ;
 ; The pre-seeded boot set is unpinnable by construction: boot modules
 ; are already registered in %module-loaded-cell, so an import of them
@@ -60,6 +63,18 @@
       ((Str8 starts? "/" (first (rest form))) (first (rest form)))
       (#t (%path-join dir (first (rest form)))))))
 
+; One (boot "FILE") form -> () -- wrapper-consumed (GH #139): the entry
+; must be chosen before the pipe exists, so by the time this loader
+; runs the pinned boot is already the running boot.  Shape-checked here
+; so a malformed form stays a loud error under the closed vocabulary.
+(def %pin-boot
+  (fn (_ form)
+    (match
+      ((not (pair? (rest form))) (%pin-bad "boot needs one string argument"))
+      ((not (null? (rest (rest form)))) (%pin-bad "boot takes exactly one argument"))
+      ((not (str? (first (rest form)))) (%pin-bad "boot argument must be a string"))
+      (#t ()))))
+
 ; Manifest forms + manifest dir -> resolved roots, manifest order.
 ; Closed vocabulary: an unknown head is an error, not a skip.
 (def %pin-interpret
@@ -71,6 +86,8 @@
           ((not (pair? (first forms))) (%pin-bad "form is not a list"))
           ((eq? (first (first forms)) 'root)
             (pair (%pin-root (first forms) dir) (self (rest forms))))
+          ((eq? (first (first forms)) 'boot)
+            (do (%pin-boot (first forms)) (self (rest forms))))
           (#t (%pin-bad "unknown form")))))
     (%go forms)))
 

@@ -19,6 +19,15 @@
 #   fetch      (Pin fetch) against a fake release over file:// -- curl,
 #              manifest, pure-x digest, and the tamper refusal; hermetic,
 #              no network
+#   compose    (boot "FILE") + (root "DIR") in one manifest (GH #139):
+#              the wrapper boots the project's own entry AND arms the
+#              overlay, announcing both on stderr
+#   boot-flag  --boot FILE overrides the manifest's (boot ...); the
+#              overlay still arms
+#   boot-gone  a manifest naming a missing boot entry fails loudly --
+#              never a silent fallback to the platform entry
+#   boot-bad   a malformed (boot ...) is rejected by the loader's
+#              closed vocabulary (the wrapper's probe ignores it)
 # (The pinned REPL path is tty-side -- the fd-3 class check-examples.sh
 # documents -- and is not smokeable here; it shares every pipe stage but
 # the final launch.x with the -f path exercised below.)
@@ -220,5 +229,66 @@ $TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/fetch2.x" >"$_TMP/out" 2>"$_TMP/er
 status=$?
 [ "$status" -ne 0 ] || fail "fetch-tamper: mismatched digest fetched clean" "$_TMP/out" "$_TMP/err"
 grep -q "digest mismatch" "$_TMP/out" "$_TMP/err" || fail "fetch-tamper: no digest-mismatch error" "$_TMP/out" "$_TMP/err"
+
+# compose (GH #139): boot pin + overlay pin in ONE manifest, one run.
+# The "amalgam" fixture is the repo entry copied out of the tree plus a
+# marker def the real entry lacks -- its includes are cwd-relative, and
+# the smoke runs from the repo root, so the copy boots; the marker
+# proves the COPY booted, the overlay marker proves deps/ armed.
+mkdir -p "$_TMP/proj4/boot" "$_TMP/proj4/deps/acme"
+cp lib/x.x "$_TMP/proj4/boot/entry.x"
+printf '(def %%pin-smoke-boot "custom")\n' >> "$_TMP/proj4/boot/entry.x"
+cp "$_TMP/proj/deps/acme/util.x" "$_TMP/proj4/deps/acme/util.x"
+cat > "$_TMP/proj4/pin.xon" <<'EOF'
+; both tiers, one declaration
+(root "deps")
+(boot "boot/entry.x")
+EOF
+cat > "$_TMP/proj4/main.x" <<'EOF'
+(alloc-limit! 300000000)
+(import acme/util)
+(display %pin-smoke-boot)
+(newline)
+(display acme-marker)
+(newline)
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/proj4/main.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -eq 0 ] || fail "compose run exited $status" "$_TMP/err" "$_TMP/out"
+grep -qx "custom" "$_TMP/out" || fail "compose: the platform entry booted, not the pinned one" "$_TMP/out"
+grep -qx "deps" "$_TMP/out" || fail "compose: overlay did not arm under the pinned boot" "$_TMP/out"
+grep -q "^pinned: " "$_TMP/err" || fail "compose: no 'pinned:' notice" "$_TMP/err"
+grep -q "^pinned boot: " "$_TMP/err" || fail "compose: no 'pinned boot:' notice" "$_TMP/err"
+
+# --boot flag: overrides the manifest's (boot ...); overlay still arms
+cp lib/x.x "$_TMP/proj4/boot/entry2.x"
+printf '(def %%pin-smoke-boot "flag")\n' >> "$_TMP/proj4/boot/entry2.x"
+$TIMEOUT_CMD sh "$WRAPPER" --boot "$_TMP/proj4/boot/entry2.x" -f "$_TMP/proj4/main.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -eq 0 ] || fail "boot-flag run exited $status" "$_TMP/err" "$_TMP/out"
+grep -qx "flag" "$_TMP/out" || fail "boot-flag: --boot did not override the manifest" "$_TMP/out"
+grep -qx "deps" "$_TMP/out" || fail "boot-flag: overlay did not arm under --boot" "$_TMP/out"
+
+# a missing boot entry fails loudly, never a silent platform fallback
+mkdir -p "$_TMP/proj5"
+cat > "$_TMP/proj5/pin.xon" <<'EOF'
+(boot "boot/nope.x")
+EOF
+cat > "$_TMP/proj5/main.x" <<'EOF'
+(display "should not run")
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/proj5/main.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "boot-gone: missing boot entry fell back silently" "$_TMP/out" "$_TMP/err"
+grep -q "boot entry does not exist" "$_TMP/err" || fail "boot-gone: no boot-entry error" "$_TMP/err"
+
+# a malformed (boot ...) never selects an entry (the probe wants one
+# string on its own line); the LOADER's closed vocabulary rejects it
+cat > "$_TMP/proj5/pin.xon" <<'EOF'
+(boot 42)
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/proj5/main.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "boot-bad: malformed boot form was accepted" "$_TMP/out" "$_TMP/err"
 
 echo "pin-smoke: ok"

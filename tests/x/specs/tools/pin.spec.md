@@ -109,6 +109,59 @@ by tools/pin-smoke.sh (make check-pin).
 ---
     #t
 
+### a boot form is accepted and contributes no root
+
+The wrapper consumes `(boot "FILE")` (the entry must be chosen before
+the pipe exists); the loader only shape-checks it.
+
+```scheme
+(do
+  (import x/tool/pin)
+  (display (first (%pin-interpret (%pin-forms "(boot \"boot/xe.x\") (root \"deps\")") "/proj"))))
+```
+---
+    /proj/deps
+
+### a manifest of only a boot form arms nothing
+
+```scheme
+(do
+  (import x/tool/pin)
+  (display (null? (%pin-interpret (%pin-forms "(boot \"boot/xe.x\")") "/proj"))))
+```
+---
+    #t
+
+### a non-string boot argument is a loud error
+
+```scheme
+(do
+  (import x/tool/pin)
+  (display (throws? (fn (_) (%pin-interpret (%pin-forms "(boot 42)") "/p")))))
+```
+---
+    #t
+
+### a missing boot argument is a loud error
+
+```scheme
+(do
+  (import x/tool/pin)
+  (display (throws? (fn (_) (%pin-interpret (%pin-forms "(boot)") "/p")))))
+```
+---
+    #t
+
+### an extra boot argument is a loud error
+
+```scheme
+(do
+  (import x/tool/pin)
+  (display (throws? (fn (_) (%pin-interpret (%pin-forms "(boot \"a\" \"b\")") "/p")))))
+```
+---
+    #t
+
 ### arming a nonexistent root directory is a loud error
 
 ```scheme
