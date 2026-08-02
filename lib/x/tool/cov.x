@@ -1,7 +1,7 @@
 ; cov.x -- Library coverage report
 ;
 ; Walks the env-alist, inspects procedure bodies for coverage flags
-; (X_OBJ_FLAG_2 set by x-profile), and reports covered/total nodes.
+; (X_OBJ_FLAG_2 set by x-bin-profile), and reports covered/total nodes.
 
 ; --- Platform detection ---
 
@@ -32,7 +32,7 @@
   (fn (_ obj) (> (& (%cov-obj-flags obj) 2) 0)))
   (param obj ANY "Object to check")
   (returns BOOL "True if object was evaluated (FLAG_2 set)")
-  "Test whether an object was marked as evaluated by x-profile.")
+  "Test whether an object was marked as evaluated by x-bin-profile.")
 
 (def %cov-is-cons?
   (fn (_ x)
@@ -114,4 +114,4 @@
 
 (doc (provide x/tool/cov
   cov-covered? cov-count-tree cov-check-fn cov-walk cov-skip-to-library)
-  "Library coverage analysis for x-profile instrumented code.")
+  "Library coverage analysis for x-bin-profile instrumented code.")

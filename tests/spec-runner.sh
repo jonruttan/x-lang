@@ -18,7 +18,7 @@
 #
 #   SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 #   SPEC_PATH="$SCRIPT_DIR/specs"
-#   X_BIN="$SCRIPT_DIR/../../x"
+#   X_BIN="$SCRIPT_DIR/../../x-bin"
 #   LANG_LIB="$SCRIPT_DIR/../../lib/x.x"
 #   . "$SCRIPT_DIR/../spec-runner.sh"
 
@@ -50,7 +50,7 @@ if [ -n "$_TIMEOUT_BIN" ]; then
 fi
 
 # Memory runaway guard (complements the wall-time timeout above). The timeout
-# bounds CPU/wall-time; this bounds MEMORY: the interpreter stops a runaway ./x
+# bounds CPU/wall-time; this bounds MEMORY: the interpreter stops a runaway ./x-bin
 # once its allocated-object count reaches the ceiling, instead of allocating
 # until the machine locks up or reboots. Portable: the interpreter limits
 # itself, so it works identically on macOS (where `ulimit -v` is a no-op for
@@ -111,7 +111,7 @@ _N=0
 
 # Cap concurrent jobs in PARALLEL mode. Without a cap the loop forks one job per
 # spec file (dozens) at once, producing spurious "empty output" failures that
-# shift run-to-run. The bottleneck is MEMORY BANDWIDTH, not CPU: each ./x's lib
+# shift run-to-run. The bottleneck is MEMORY BANDWIDTH, not CPU: each ./x-bin's lib
 # load is allocation-heavy, so one job per core thrashes the memory subsystem and
 # slows the heaviest spec ~10x (compile.x load: ~6s -> >60s) until it trips the
 # timeout. One job per core flakes; ~2/3 of the cores leaves enough bandwidth

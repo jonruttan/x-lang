@@ -10,7 +10,7 @@ A dialect is a composition of x-lang library modules that determines what capabi
 
 | Name | Element | Is |
 |------|---------|----|
-| — | — | `./x`, the engine binary: no libraries, substrate rather than a dialect |
+| — | — | `./x-bin`, the engine binary: no libraries, substrate rather than a dialect |
 | `he` | helium | light, fast boot, interactive; no tower — the **default** |
 | `xe` | xenon | full numeric tower, POSIX, compiler; stable |
 | `rn` | radon | xenon's surface plus experimental/raw APIs; explicitly volatile |
@@ -28,9 +28,9 @@ sh x.sh -l rn            # radon
 Or directly:
 
 ```sh
-cat lib/he.x - | ./x     # helium
-cat lib/xe.x - | ./x     # xenon
-cat lib/rn.x - | ./x     # radon
+cat lib/he.x - | ./x-bin     # helium
+cat lib/xe.x - | ./x-bin     # xenon
+cat lib/rn.x - | ./x-bin     # radon
 ```
 
 In an **installed** tree (`make install`) the wrapper boots the same dialects
@@ -114,7 +114,7 @@ Personalities are maintained as sibling projects and load by concatenation on
 top of a dialect:
 
 ```sh
-cat lib/he.x path/to/r5rs.x - | ./x
+cat lib/he.x path/to/r5rs.x - | ./x-bin
 ```
 
 The interpreter core has no knowledge of any personality. All personality semantics are implemented in x-lang library code.

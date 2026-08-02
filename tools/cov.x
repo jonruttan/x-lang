@@ -4,7 +4,7 @@
 ; to know which forms have branches to track (if, match, cond, etc.).
 ; No hardcoded form names -- each language ships its own declarations.
 ;
-; Uses the x-cov binary which marks every evaluated AST node with
+; Uses the x-bin-cov binary which marks every evaluated AST node with
 ; X_OBJ_FLAG_2 (0x2). After evaluating target code, walks the AST
 ; to report which branches were never taken.
 ;

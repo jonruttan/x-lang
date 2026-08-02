@@ -6,7 +6,7 @@ tower is well covered while the launchers users actually run were covered
 not at all. That is how #49 shipped: a dialect that cannot add two numbers.
 
 These run each entry point **as the README documents it** -- `@lib <dialect>`
-is exactly `cat lib/<dialect> program.x | ./x`. That distinction is the whole
+is exactly `cat lib/<dialect> program.x | ./x-bin`. That distinction is the whole
 point: `x-base.x` has no `(repl)`, so its forms reach the C read-eval loop,
 while the dialect entries (`he.x`, `xe.x`, `rn.x`) end with `(repl)` and go
 through the x-lang REPL reader instead. #49 lives on the second path only.

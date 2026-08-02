@@ -14,7 +14,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-X_BIN="${X_BIN:-$PROJECT_DIR/x}"
+X_BIN="${X_BIN:-$PROJECT_DIR/x-bin}"
 
 # Paths inside x-core.x ("lib/...") are repo-relative.
 cd "$PROJECT_DIR" || exit 1

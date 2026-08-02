@@ -245,7 +245,7 @@ matching engine binary:
 
 ```sh
 sha256sum -c SHASUMS            # verify the download
-cat xe.x program.x | ./x --batch
+cat xe.x program.x | ./x-bin --batch
 ```
 
 The same release ships that matching engine as a relocatable per-platform

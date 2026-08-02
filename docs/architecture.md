@@ -133,7 +133,7 @@ Input flows through a fixed sequence of stages:
 stdin -> buffer -> tokenizer -> s-expression reader -> evaluator -> writer -> stdout
 ```
 
-1. **Input.** Bytes arrive on stdin. The interpreter has no file I/O primitives -- loading code is done externally via shell pipe (`cat lib/x.x program.x | ./x`).
+1. **Input.** Bytes arrive on stdin. The interpreter has no file I/O primitives -- loading code is done externally via shell pipe (`cat lib/x.x program.x | ./x-bin`).
 
 2. **Buffer.** A fixed-size `char[]` buffer (`X_CLI_BUFFER_SIZE`, 256 bytes) is wrapped in a buffer type object and attached to the base at `x_base_field_buffer`. The buffer feeds single characters to the tokenizer.
 

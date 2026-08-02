@@ -141,7 +141,7 @@ Then:
 make clean && make
 ```
 
-Requires a C89-compatible compiler. Produces the `x` binary.
+Requires a C89-compatible compiler. Produces the `x-bin` engine binary.
 
 The expression engine (`ext/x-expr`) needs nothing beyond `libc`; the full
 binary adds `-ldl` for the FFI/JIT layer. There is no `-lm` — float math
@@ -161,16 +161,16 @@ sh x.sh -l xe               # xenon: full-stack with numeric tower
 sh x.sh -l rn               # radon: experimental + file I/O
 
 # Direct invocation
-cat lib/x.x - | ./x         # the default dialect (helium)
-cat lib/xe.x - | ./x        # xenon dialect
-cat lib/rn.x - | ./x        # radon dialect
+cat lib/x.x - | ./x-bin         # the default dialect (helium)
+cat lib/xe.x - | ./x-bin        # xenon dialect
+cat lib/rn.x - | ./x-bin        # radon dialect
 
 # Evaluate a file
-cat lib/x.x program.x | ./x
+cat lib/x.x program.x | ./x-bin
 sh x.sh -f program.x
 ```
 
-The `-` in `cat ... - | ./x` connects stdin for interactive use after library loading.
+The `-` in `cat ... - | ./x-bin` connects stdin for interactive use after library loading.
 
 Inside a session, `(help)` shows the documentation index; `(quit)` or ctrl-d
 exits. For line editing and history, wrap the session in `rlwrap`.
