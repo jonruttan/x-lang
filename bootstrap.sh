@@ -97,7 +97,7 @@ fi
 say "building the engine (CC=$CC_BIN)"
 ( cd "$SRC" && make --no-print-directory clean >/dev/null 2>&1 || true )
 ( cd "$SRC" && CC="$CC_BIN" make --no-print-directory ) || die "build failed"
-[ -x "$SRC/x" ] || die "build reported success but no engine at $SRC/x"
+[ -x "$SRC/x-bin" ] || die "build reported success but no engine at $SRC/x-bin"
 
 # --- Verify the freshly built engine answers.
 VER="$( ( cd "$SRC" && sh ./x.sh -V ) 2>/dev/null | head -1 || true )"

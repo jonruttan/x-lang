@@ -6,7 +6,7 @@
 make clean && make
 ```
 
-This produces the `x` binary. Requires a C89-compatible compiler (gcc, clang, tcc).
+This produces the `x-bin` engine binary. Requires a C89-compatible compiler (gcc, clang, tcc).
 
 ## Start a Session
 

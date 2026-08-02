@@ -6,7 +6,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SPEC_PATH="$SCRIPT_DIR/specs"
-X_BIN="$SCRIPT_DIR/../../x"
+X_BIN="$SCRIPT_DIR/../../x-bin"
 LANG_LIB="$SCRIPT_DIR/../../lib/x-core.x"
 
 . "$SCRIPT_DIR/../../tests/spec-runner.sh"

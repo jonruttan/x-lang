@@ -126,7 +126,7 @@ and sources the shared runner:
 ```sh
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SPEC_PATH="$SCRIPT_DIR/specs"
-X_BIN="$SCRIPT_DIR/../../../x"
+X_BIN="$SCRIPT_DIR/../../../x-bin"
 LANG_LIB="$SCRIPT_DIR/../lib/r5rs.x"
 
 . "$SCRIPT_DIR/../../../tests/spec-runner.sh"

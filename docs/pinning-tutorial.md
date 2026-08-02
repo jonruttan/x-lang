@@ -267,7 +267,7 @@ command line overrides it.)
 The raw engine pipe still works (an amalgam has zero path literals):
 
 ```
-$ cat boot/xe.x main.x | ./x --batch
+$ cat boot/xe.x main.x | ./x-bin --batch
 ```
 
 — but know what it skips: no wrapper means no probe, no overlay

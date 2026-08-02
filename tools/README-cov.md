@@ -4,13 +4,13 @@ Flag-bit coverage analysis for x-lang programs.
 
 ## Concept
 
-The `x-cov` binary is a modified build of `x` that sets `X_OBJ_FLAG_2` (0x2) on every AST node at eval time. After evaluating the target code, the coverage reporter walks the original AST and reports which `if`/`match`/`cond` branches were never taken.
+The `x-bin-cov` binary is a modified build of `x-bin` that sets `X_OBJ_FLAG_2` (0x2) on every AST node at eval time. After evaluating the target code, the coverage reporter walks the original AST and reports which `if`/`match`/`cond` branches were never taken.
 
 ## Usage
 
 ```sh
 # Build the coverage binary
-make x-cov
+make x-bin-cov
 
 # Run coverage on a file
 sh tools/cov.sh FILE
@@ -26,7 +26,7 @@ sh tools/cov.sh /tmp/test.x
 
 ## How It Works
 
-1. **Marking**: The `x-cov` binary adds one line to `x_eval()`:
+1. **Marking**: The `x-bin-cov` binary adds one line to `x_eval()`:
    ```c
    #ifdef X_COV
    if (p_exp != NULL) x_obj_flags(p_exp) |= X_OBJ_FLAG_2;
@@ -66,7 +66,7 @@ de-registered: fetch with `(prim-ref (lit obj) (lit ->ptr))` or use the Obj clas
 
 - **Interned symbols**: Atoms (symbols, integers) are shared objects. Marking one `x` marks all references to `x`. Coverage tracking is most reliable for compound (pair) branch expressions like `(+ 1 2)`, not bare symbols.
 - **No line numbers**: The reporter shows the branch expression, not its source location.
-- **Same-binary requirement**: The target code must be evaluated by `x-cov`, not the regular `x` binary.
+- **Same-binary requirement**: The target code must be evaluated by `x-bin-cov`, not the regular `x-bin` binary.
 
 ## Tests
 

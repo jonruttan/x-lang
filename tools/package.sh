@@ -10,7 +10,7 @@
 #   OUTDIR/x-<TAG>-<os>-<arch>.tar.gz.sha256   coreutils-checkable
 #
 # The tarball is the exact `make install` tree -- bin/x (wrapper),
-# libexec/x/x (engine), share/x/{lib,apps,boot} -- under one versioned
+# libexec/x/x-bin (engine), share/x/{lib,apps,boot} -- under one versioned
 # top dir, RELOCATABLE: the wrapper resolves the engine and library from
 # its own directory (../libexec, ../share), so it runs wherever it is
 # unpacked.  A user adds x-<TAG>/bin to PATH; no compile, no toolchain.
@@ -52,7 +52,7 @@ fail() { echo "package: FAIL: $1" >&2; exit 1; }
 make --no-print-directory install PREFIX="/x-$TAG" DESTDIR="$STAGE" >/dev/null \
 	|| fail "make install failed"
 [ -x "$STAGE/x-$TAG/bin/x" ]       || fail "no wrapper staged"
-[ -x "$STAGE/x-$TAG/libexec/x/x" ] || fail "no engine staged"
+[ -x "$STAGE/x-$TAG/libexec/x/x-bin" ] || fail "no engine staged"
 
 # Developer ID sign + notarize the staged engine BEFORE tarring -- only
 # when the release workflow provided a real identity (secrets present).
@@ -61,7 +61,7 @@ make --no-print-directory install PREFIX="/x-$TAG" DESTDIR="$STAGE" >/dev/null \
 # change.  Set: a failure here fails the package -- we never ship a
 # binary that was meant to be notarized but wasn't.
 if [ -n "${MACOS_SIGN_IDENTITY:-}" ] && [ "$os" = darwin ]; then
-	sh tools/macos-notarize.sh "$STAGE/x-$TAG/libexec/x/x" \
+	sh tools/macos-notarize.sh "$STAGE/x-$TAG/libexec/x/x-bin" \
 		|| fail "Developer ID sign + notarize failed"
 fi
 

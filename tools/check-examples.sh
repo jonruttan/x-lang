@@ -33,7 +33,7 @@ set -u
 
 cd "$(dirname "$0")/.." || exit 1
 
-X_BIN="${X_BIN:-./x}"
+X_BIN="${X_BIN:-./x-bin}"
 X_ALLOC_LIMIT_OBJS="${X_ALLOC_LIMIT_OBJS:-300000000}"
 
 ANSI_GREEN='\033[1;32m'

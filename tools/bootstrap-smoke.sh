@@ -32,7 +32,7 @@ fail() { echo "bootstrap-smoke: FAIL: $1" >&2; [ -f "$T/log" ] && sed 's/^/  /' 
 	|| fail "bootstrap --install exited nonzero"
 
 [ -x "$T/prefix/bin/x" ]        || fail "wrapper not installed at the expected path"
-[ -x "$T/prefix/libexec/x/x" ]  || fail "engine not installed at the expected path"
+[ -x "$T/prefix/libexec/x/x-bin" ]  || fail "engine not installed at the expected path"
 [ -d "$T/prefix/share/x/boot" ] || fail "boot amalgams not installed"
 
 echo '(display (+ 40 2))(newline)' > "$T/p.x"

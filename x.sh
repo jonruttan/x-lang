@@ -22,7 +22,7 @@ X_LAUNCH=x/repl/launch.x # interactive launcher, cat'd after -F / pinned REPL
                          # (a platform file: deliberately not -e/X_EXT-aware)
 X_RUN=run                # app entry basename: apps/NAME/run.x (#35)
 X_SHARE=share/x          # installed runtime tree, beside the bin dir
-X_ENGINE=libexec/x/x     # installed engine binary
+X_ENGINE=libexec/x/x-bin # installed engine binary
 
 # Repo mode: a lib tree at the CURRENT directory (the boot includes are
 # cwd-relative "lib/..." literals, so cwd must be the repo root anyway),
@@ -88,13 +88,14 @@ pin_arm() {
 
 [ -z "$INSTALL_ROOT" ] || path_form_safe "$INSTALL_ROOT" "install root"
 
-# The engine binary sits beside this script in-repo (x.sh + x at the
-# root); installed it lives in libexec -- and the wrapper takes the bin/x
-# name there, so probe libexec FIRST or $SCRIPT_PATH/x re-runs this
-# script forever.
+# The engine binary sits beside this script in-repo (x.sh + x-bin at the
+# root); installed it lives in libexec, so probe libexec FIRST.  (The
+# order was load-bearing when the engine was also named `x`: installed,
+# the wrapper takes the bin/x name, and $SCRIPT_PATH/x re-ran this script
+# forever.  x-bin cannot collide with the wrapper, but the order stays.)
 X_BIN="$SCRIPT_PATH/../${X_ENGINE}"
 if [ ! -e "$X_BIN" ]; then
-	X_BIN="$SCRIPT_PATH/x"
+	X_BIN="$SCRIPT_PATH/x-bin"
 fi
 
 # Every value that reaches $CMD below is re-parsed by the shell (it is

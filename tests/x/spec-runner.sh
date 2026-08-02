@@ -16,8 +16,8 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SPEC_PATH="$SCRIPT_DIR/specs"
 # X_BIN defaults to the normal build but is env-overridable, so the same runner
-# can drive a variant binary -- e.g. `make test-asan` points it at ./x-asan.
-X_BIN="${X_BIN:-$SCRIPT_DIR/../../x}"
+# can drive a variant binary -- e.g. `make test-asan` points it at ./x-bin-asan.
+X_BIN="${X_BIN:-$SCRIPT_DIR/../../x-bin}"
 LANG_LIB="$SCRIPT_DIR/../../lib/x-core.x"
 
 . "$SCRIPT_DIR/../spec-runner.sh"
