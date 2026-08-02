@@ -310,6 +310,39 @@ the pure-x `Sha256` against coreutils on that fingerprint, and `make
 check-release-manifest` gates the manifest script on every test run so
 it cannot rot between releases.
 
+The same tag also builds a relocatable per-platform binary tarball
+(`tools/package.sh`, gated by `make check-package`) and uploads it with
+a `.sha256` sidecar.
+
+#### macOS notarization (opt-in via repository secrets)
+
+The macOS tarball's engine is **Developer ID signed and notarized** when
+the signing secrets are present, and falls back to ad-hoc signing (the
+`xattr` step) when they are absent — so the release pipeline works with
+or without them. Signing uses the hardened runtime; the JIT survives it
+because `entitlements.plist` already declares `allow-jit` /
+`allow-unsigned-executable-memory`. A `.tar.gz` can't carry a stapled
+ticket, so none is stapled — Gatekeeper verifies the signed binary
+online on first run.
+
+To enable it, create these five repository secrets (Settings → Secrets
+and variables → Actions, or `gh secret set NAME`). The values never
+leave your machine except into GitHub's secret store:
+
+| Secret | What it is | How to get it |
+|---|---|---|
+| `MACOS_CERT_P12` | base64 of a **Developer ID Application** cert + private key (`.p12`) | Create the cert in Xcode (Settings → Accounts → Manage Certificates → +) or at developer.apple.com; export it from Keychain Access as `.p12`; `base64 -i cert.p12 \| pbcopy` |
+| `MACOS_CERT_PASSWORD` | the password you set on that `.p12` export | — |
+| `MACOS_NOTARY_KEY_P8` | base64 of an **App Store Connect API key** (`.p8`) | appstoreconnect.apple.com → Users and Access → Integrations → App Store Connect API → generate a key; `base64 -i AuthKey_XXX.p8 \| pbcopy` |
+| `MACOS_NOTARY_KEY_ID` | that key's **Key ID** | shown beside the key |
+| `MACOS_NOTARY_ISSUER_ID` | that key's **Issuer ID** | shown above the keys list |
+
+The workflow imports the cert into a throwaway keychain, derives the
+identity, signs + submits via `notarytool`, and tears the keychain down
+on exit. The signing path runs only on a real tag with the secrets set;
+prove it with a throwaway `v*-rc` tag and confirm a downloaded tarball
+runs without the `xattr` step.
+
 ## Commit Conventions
 
 This project follows [AngularJS commit conventions](../CONVENTIONS.md):
