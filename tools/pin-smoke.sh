@@ -237,6 +237,28 @@ status=$?
 [ "$status" -ne 0 ] || fail "fetch-tamper: mismatched digest fetched clean" "$_TMP/out" "$_TMP/err"
 grep -q "digest mismatch" "$_TMP/out" "$_TMP/err" || fail "fetch-tamper: no digest-mismatch error" "$_TMP/out" "$_TMP/err"
 
+# fetch survives a manifest with no (isa ...): the parser requires only the
+# tag, so %pin-assoc hands back nil, and the fingerprint report used to
+# compare against it -- dying AFTER the amalgam had verified clean.  Drift
+# is information, not an error, and so is an absent fingerprint.
+mkdir -p "$_TMP/rel/v9.9.7-noisa"
+cp "$_TMP/rel/v9.9.9-smoke/tiny.x" "$_TMP/rel/v9.9.7-noisa/tiny.x"
+{
+  printf '(release "v9.9.7-noisa")\n'
+  printf '(file "tiny.x" "sha256:%s")\n' "$(_dg "$_TMP/rel/v9.9.7-noisa/tiny.x")"
+} > "$_TMP/rel/v9.9.7-noisa/pin.release.xon"
+cat > "$_TMP/fetch3.x" <<EOF
+(alloc-limit! 300000000)
+(import x/tool/pin)
+(display (Pin fetch "$_TMP/fetched3" "v9.9.7-noisa" 'tiny "file://$_TMP/rel"))
+(newline)
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/fetch3.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -eq 0 ] || fail "fetch-noisa exited $status" "$_TMP/err" "$_TMP/out"
+grep -q "fetched3/tiny.x" "$_TMP/out" || fail "fetch-noisa: no verified-amalgam path in output" "$_TMP/out"
+grep -q "no isa fingerprint" "$_TMP/out" || fail "fetch-noisa: absent fingerprint not reported" "$_TMP/out"
+
 # compose (GH #139): boot pin + overlay pin in ONE manifest, one run.
 # The "amalgam" fixture is the repo entry copied out of the tree plus a
 # marker def the real entry lacks -- its includes are cwd-relative, and

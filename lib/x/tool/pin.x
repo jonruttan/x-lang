@@ -150,15 +150,22 @@
       ((eq? (first form) 'lit) ())
       ((eq? (first form) 'import)
         (match
+          ; The argument check must come FIRST: (first (rest form)) on an
+          ; argument-less form derefs nil, so reaching for it inside the
+          ; guard that rejects it crashes instead of erroring.
+          ((not (pair? (rest form))) (%pin-bad "import with no module name in closure"))
           ((symbol? (first (rest form))) (%pin-take-module (first (rest form))))
           (#t (%pin-bad "computed import name in closure"))))
       ((%pin-include-head? (first form))
-        (let ((arg (first (rest form))))
-          (match
-            ((not (str? arg)) (%pin-bad "computed include path in closure"))
-            ((Str8 starts? "./" arg)
-              (%pin-take-rel dirs (Str8 sub 2 (- (Str8 length arg) 2) arg)))
-            (#t (%pin-bad (Str8 append "unvendorable include path: " arg))))))
+        (match
+          ((not (pair? (rest form))) (%pin-bad "include with no path in closure"))
+          (#t
+            (let ((arg (first (rest form))))
+              (match
+                ((not (str? arg)) (%pin-bad "computed include path in closure"))
+                ((Str8 starts? "./" arg)
+                  (%pin-take-rel dirs (Str8 sub 2 (- (Str8 length arg) 2) arg)))
+                (#t (%pin-bad (Str8 append "unvendorable include path: " arg))))))))
       (#t (do (self (first form) dirs)
               (self (rest form) dirs))))))
 
@@ -527,6 +534,10 @@
       ((eq? (first form) 'lit) ())
       ((eq? (first form) 'import)
         (match
+          ; Same nil-deref guard as %pin-scan-form, and it matters more
+          ; here: this walk reads arbitrary project sources, where a
+          ; half-typed (import) is an ordinary typo, not a library bug.
+          ((not (pair? (rest form))) (%pin-bad "import with no module name in project scan"))
           ((symbol? (first (rest form))) (%pin-take-module (first (rest form))))
           (#t (%pin-bad "computed import name in project scan"))))
       (#t (do (self (first form))
@@ -584,7 +595,11 @@
       (#t
         (let ((entries (%pin-closure-of name)))
           (let ((rels (%pin-rels entries)))
-            (do (%pin-copy-all! dest entries)
+            ; dest otherwise only ever appears as a side effect of copying
+            ; a file into it, so an EMPTY closure left the lockfile spit
+            ; writing into a directory that was never created.
+            (do (%pin-mkdirs dest)
+                (%pin-copy-all! dest entries)
                 (%pin-lock-update! dest rels)
                 rels))))))
     (method vendor-project (self (param dest STRING "Overlay root directory, e.g. \"deps\"")
@@ -594,7 +609,10 @@
       (sample "(Pin vendor-project \"deps\" \"src\")" "(\"x/type/dict.x\" ...)"))
     (let ((entries (%pin-project-closure srcdir)))
       (let ((rels (%pin-rels entries)))
-        (do (%pin-copy-all! dest entries)
+        ; As vendor: a project whose imports are all boot floor yields an
+        ; empty closure, and dest must still exist for the lockfile.
+        (do (%pin-mkdirs dest)
+            (%pin-copy-all! dest entries)
             (%pin-lock-update! dest rels)
             rels))))
     (method verify (self (param dest STRING "Overlay root directory"))
@@ -662,6 +680,14 @@
                     (match
                       ((File exists? "tools/isa.x")
                         (do (display (match
+                                       ; A manifest may carry no (isa ...) at all --
+                                       ; %pin-release-parse requires only the tag, so
+                                       ; %pin-assoc hands back nil, and str=? on nil
+                                       ; would die AFTER the amalgam verified clean.
+                                       ; Drift is information, not an error (docstring),
+                                       ; and so is an absent fingerprint.
+                                       ((null? (%pin-assoc 'isa m))
+                                         "pin: the release manifest carries no isa fingerprint -- engine pairing unchecked")
                                        ((str=? (%pin-digest "tools/isa.x") (%pin-assoc 'isa m))
                                          "pin: isa fingerprint matches this tree")
                                        (#t "pin: isa fingerprint DIFFERS from this tree -- pair the amalgam with its release's engine")))

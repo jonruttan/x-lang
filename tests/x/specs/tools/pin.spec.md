@@ -254,6 +254,29 @@ and hides an import of acme/three inside a deferred fn body.
 ---
     #t
 
+### an argument-less (import) in scanned source is a loud error, not a crash
+
+`(first (rest form))` on a form with no argument derefs nil, so the
+argument check has to precede the shape check that used to reach for it.
+
+```scheme
+(do
+  (File spit "build/pin-spec/lib0/acme/noimp.x" "(import)\n(provide acme/noimp)\n")
+  (display (throws? (fn (_) (Pin closure 'acme/noimp)))))
+```
+---
+    #t
+
+### an argument-less (include-once) in scanned source is a loud error, not a crash
+
+```scheme
+(do
+  (File spit "build/pin-spec/lib0/acme/noinc.x" "(include-once)\n(provide acme/noinc)\n")
+  (display (throws? (fn (_) (Pin closure 'acme/noinc)))))
+```
+---
+    #t
+
 ## pin: the lockfile (Pin verify)
 
 ### vendor writes the lockfile
@@ -443,6 +466,36 @@ acme/one-extra.x
 acme/four.x
 acme/three.x
 ```
+
+### an argument-less (import) in a PROJECT source is a loud error, not a crash
+
+The project scan reads arbitrary user sources, where a half-typed
+`(import)` is an ordinary typo rather than a library bug.
+
+```scheme
+(do
+  (guard (_ ()) (File mkdir "build/pin-spec/badproj"))
+  (File spit "build/pin-spec/badproj/app.x" "(import)\n")
+  (display (throws? (fn (_) (Pin audit "build/pin-spec/pout" "build/pin-spec/badproj")))))
+```
+---
+    #t
+
+### vendoring an empty closure into a fresh directory creates it
+
+A project importing only boot-floor modules has an empty closure; dest
+must still exist for the lockfile to land.
+
+```scheme
+(do
+  (guard (_ ()) (File mkdir "build/pin-spec/floorproj"))
+  (File spit "build/pin-spec/floorproj/app.x" "(import x/core/list)\n")
+  (write (Pin vendor-project "build/pin-spec/emptyout" "build/pin-spec/floorproj"))
+  (display " ")
+  (display (Pin verify "build/pin-spec/emptyout")))
+```
+---
+    () 0
 
 ### the source scan recurses into subdirectories
 
