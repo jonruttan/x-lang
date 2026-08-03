@@ -103,7 +103,7 @@ function collect() {
 	state = 0
 }
 
-function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, got, boundary_done, seen, want) {
+function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, got, boundary_done, seen, want, _tn, _tp) {
 	if (repl_cmd == " ") {
 		# Direct mode: feed tests to the personality REPL without
 		# %T harness or (begin ...) wrapper.  Used by Sweet where
@@ -224,6 +224,15 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 			} else {
 				got = "<no result -- interpreter died mid-batch"
 				if (cmd_status > 0) got = got " (exit " cmd_status ")"
+				# Name the wall-clock budget: a timeout kill produces exactly
+				# this shape, and on the one-true-awk close() returns 0, so the
+				# exit suffix never identifies it there -- a load-induced 60s
+				# kill once read as a mystery one-off crash (the doctest-
+				# variance investigation, 2026-08-02).
+				if (TIMEOUT_CMD != "") {
+					_tn = split(TIMEOUT_CMD, _tp, " ")
+					got = got " (crash, OOM, or the " _tp[_tn] "s timeout)"
+				}
 				got = got ">"
 			}
 			printf "%s\n%sFAIL: %s: %s\n  expected: %s\n  got:      %s%s\n", \
