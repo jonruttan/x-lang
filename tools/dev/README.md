@@ -9,18 +9,19 @@ generation.  None of these are gates -- the contract gates live in
 Auto-formatter for x-lang source files with configurable width threshold.
 
 ```sh
-# Print formatted output to stdout
-sh tools/dev/fmt.sh FILE
+# Print formatted output to stdout (a pure filter)
+sh x.sh --no-pin -q -f tools/dev/fmt.x -- FILE
 
-# Format file in place
-sh tools/dev/fmt.sh -i FILE
-
-# Check formatting (exit 1 if changes needed)
-sh tools/dev/fmt.sh --check FILE
-
-# Format all library files
+# Format all library files in place / check formatting
 make fmt-x
+make fmt-check-x
 ```
+
+In-place and check modes are launch glue in the make recipes; the tool
+itself is a filter.  NOTE: `make fmt-check-x` is currently red on four
+hand-formatted files (x-core.x, constructs.x, rn.x, xe.x) whose layout
+disagrees with the formatter's width rules -- a pre-existing style
+adjudication tracked in the overhaul follow-ups.
 
 ### Formatting rules
 
@@ -41,8 +42,8 @@ across multiple lines with 2-space indentation.
 
 ### Architecture
 
-- `tools/dev/fmt.x` -- formatter implementation (tokenizes, walks, emits)
-- `tools/dev/fmt.sh` -- launch wrapper
+- `tools/dev/fmt.x` -- the whole tool (slurps constructs + target by
+  path, tokenizes with a fresh comment-keeping base, walks, emits)
 
 ## Linter
 
@@ -106,8 +107,8 @@ no line numbers; the target must run under `x-bin-cov` itself.
 ## Others
 
 - `tools/dev/bench.sh` -- library-load benchmarks over `x-bin-profile`
-- `tools/dev/doc.sh` + `doc.x` -- Markdown doc generation from source
-- `tools/dev/doc-index.sh` -- the `docs/ref` master index
+- `tools/dev/doc.x` -- Markdown doc generation from source (per-file filter)
+- `tools/dev/doc-index.x` -- the `docs/ref` master index (filter)
 
 ## Tests
 

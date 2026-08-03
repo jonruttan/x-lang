@@ -1,23 +1,63 @@
 ; fmt.x -- x-lang comment-preserving formatter (entry script)
 ;
-; Data-driven: reads construct declarations from a XEON file
-; (piped before the target source) to know how to format each form.
+; A pure filter: format ONE file to stdout.
+;   sh x.sh --no-pin -q -f tools/dev/fmt.x -- [--lang LANG] FILE
+; In-place and check modes are launch glue in the make recipes (fmt-x /
+; fmt-check-x): there is no stdin data channel under x.sh -f (the pipe
+; carries the script), so inputs are slurped by path -- which also
+; retires the old wrapper's awk string-escape hack.
 ;
-; Input order on stdin: constructs.x, lang-constructs (or ()), then quoted source string.
+; Data-driven: construct declarations (lib/x/constructs.x, plus the
+; language-specific table when --lang or the file's path names one) tell
+; the formatter how each form nests.
 
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
 (def %token-read-string (prim-ref 'tok 'read-str))
-; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
-(def %read (prim-ref 'io 'read))
-
 
 (do
   (import x/tool/fmt)
+  (import x/tool/contract)
 
-  ; --- Load construct declarations ---
-  (def %constructs (%read))
-  (def %lang-constructs (%read))
+  (Contract alloc-guard!)
+
+  ; --- args: [--lang LANG] FILE ---
+  (def %argv (Contract argv))
+  (def %lang
+    (if (and (pair? %argv) (str=? (first %argv) "--lang"))
+      (if (pair? (rest %argv)) (first (rest %argv)) ()) ()))
+  (def %file
+    (match
+      ((null? %lang) (if (pair? %argv) (first %argv) ()))
+      (#t (if (pair? (rest (rest %argv))) (first (rest (rest %argv))) ()))))
+  (when (null? %file)
+    (do (%stderr "Usage: x.sh --no-pin -q -f tools/dev/fmt.x -- [--lang LANG] FILE\n")
+        (Sys exit 1)))
+  (unless (File exists? %file)
+    (do (%stderr (Str8 append "Error: " (Str8 append %file " not found\n")))
+        (Sys exit 1)))
+
+  ; Auto-detect language from the file path (the old wrapper's case table)
+  (def %lang-of
+    (fn (_ path)
+      (match
+        ((Str8 contains? "/lang/r5rs/" path) "r5rs")
+        ((Str8 contains? "/lang/r7rs/" path) "r7rs")
+        ((Str8 contains? "/lang/krn/" path) "krn")
+        ((Str8 contains? "/lang/ash/" path) "ash")
+        ((Str8 contains? "/lang/sweet/" path) "sweet")
+        ((Str8 contains? "/lang/sl/" path) "sl")
+        (#t ()))))
+  (def %the-lang (if (null? %lang) (%lang-of %file) %lang))
+
+  ; --- Load construct declarations (parsed, not evaluated) ---
+  (def %parse-one
+    (fn (_ path) (first (%token-read-string (%base) (File slurp path)))))
+  (def %constructs (%parse-one "lib/x/constructs.x"))
+  (def %lang-constructs
+    (if (null? %the-lang) ()
+      (let ((p (Str8 append "lang/" (Str8 append %the-lang "/lib/constructs.x"))))
+        (if (File exists? p) (%parse-one p) ()))))
   (def %all-constructs
     (if (null? %lang-constructs) %constructs
       (%append %constructs %lang-constructs)))
@@ -60,9 +100,9 @@
   ; Push the keeping reader through the blessed door (path-driven cell).
   (%type-push-read (%find-comment %fmt-registry) %fmt-comment-reader)
 
-  ; --- Read input string and tokenize ---
+  ; --- Slurp the target and tokenize ---
 
-  (def %input (%read))
+  (def %input (File slurp %file))
   (def %tokens (%token-read-string %fmt-base %input))
 
   ; --- Format ---
