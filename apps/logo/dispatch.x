@@ -89,7 +89,10 @@
         (match
           ((null? vars) #f)
           ((str=? (first (first vars)) uname)
-            (%set-rest! (first vars) value) #t)
+            ; do-wrap: a match clause evaluates ONE body expr (the arity-0
+            ; dispatch bug's sibling); bare, the #t was dead and the clause
+            ; leaned on %set-rest!'s return value staying truthy.
+            (do (%set-rest! (first vars) value) #t))
           (#t (self (rest vars))))))
     (unless (%update %logo-vars)
       (set! %logo-vars (pair (pair uname value) %logo-vars)))))
@@ -242,8 +245,8 @@
             (handler (%cmd-handler entry)))
         (match
           ((= arity 0)
-            (handler)
-            (logo-process-tokens remaining))
+            (do (handler)
+                (logo-process-tokens remaining)))
           ((>= arity 1)
             (let ((result (%logo-consume-n-args arity remaining)))
               (apply handler (first result))
