@@ -244,6 +244,39 @@
 ---
     2
 
+### a zero-argument command keeps dispatching what follows
+
+A match clause evaluates ONE body expression, so the arity-0 branch must
+do-wrap its handler call and the recursion -- bare, PU/PD/HOME executed and
+then silently dropped every command after them.
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (Tok read-str %logo-base "pu fd 100 pd fd 50 "))
+(List length %turtle-bc)
+```
+---
+    6
+
+### reassignment updates a variable in place
+
+The same one-body-expression rule stalks %logo-var-set!'s update clause: its
+trailing #t is only reachable through a do-wrap, and without it the update
+leans on %set-rest!'s return value to avoid prepending a duplicate entry.
+
+```scheme
+(logo-process-tokens (Tok read-str %logo-base "qq <- 1 qq <- 2 "))
+(def %qq-count
+  (fn (self vars)
+    (match
+      ((null? vars) 0)
+      ((str=? (first (first vars)) "QQ") (+ 1 (self (rest vars))))
+      (#t (self (rest vars))))))
+(%qq-count %logo-vars)
+```
+---
+    1
+
 ## TO procedure definition
 
 ### defines and calls procedure
