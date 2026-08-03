@@ -13,8 +13,7 @@ expect {
     timeout { puts "FAIL: still alive after ctrl-c at empty prompt"; exit 1 }
 }
 catch {wait} result
-set status [lindex $result 3]
-if {$status != 0} { puts "FAIL: exit status $status (want 0)"; exit 1 }
+if {![exited_zero $result]} { puts "FAIL: not a clean exit 0: $result"; exit 1 }
 # The exit hook must have killed the viewer child.
 for {set i 0} {$i < 5} {incr i} {
     if {![port_8080_busy]} { exit 0 }
