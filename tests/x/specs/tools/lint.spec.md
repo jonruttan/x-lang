@@ -287,6 +287,66 @@ render whole; the writer is hijacked by the walk for lists and symbols).
 ---
     #t
 
+## lint: value-call dispatch (the app surface)
+
+A value call routes (Subject selector args...) through %class-call-handler:
+the selector is a message name, not a variable reference. Without this the
+apps -- class-call-heavy by style -- read every method spelling as
+"Undefined". Subjects are recognised by resolving to a non-callable value;
+locals and unbound heads keep plain call analysis.
+
+### a selector after a non-callable subject is not a use
+
+```scheme
+(do
+  (def %zsubject (pair 1 2))
+  (def %r (lint-forms (list '(def f (fn (_ s) (%zsubject frobnicate s)))) () ()))
+  (display (null? (lint-has? "frobnicate" (first (rest %r))))))
+```
+---
+    #t
+
+### an argument after a callable head is still a use
+
+```scheme
+(do
+  (def %zfn (fn (_ a b) a))
+  (def %r (lint-forms (list '(def g (fn (_ s) (%zfn frobwiggle s)))) () ()))
+  (display (lint-has? "frobwiggle" (first (rest %r)))))
+```
+---
+    #t
+
+### method-ref's selector is not a use
+
+```scheme
+(do
+  (def %r (lint-forms (list '(def h (fn (_ l) (method-ref %zsubject frobnicate)))) () ()))
+  (display (null? (lint-has? "frobnicate" (first (rest %r))))))
+```
+---
+    #t
+
+### a nil env-param op lints (the slot is legal; it once crashed the walk)
+
+```scheme
+(do
+  (def %r (lint-forms (list '(def z (op () () (z)))) () ()))
+  (display (null? (lint-undefined (first %r) (first (rest %r))))))
+```
+---
+    #t
+
+### the embedder contract name is known unbound-by-design
+
+```scheme
+(do
+  (def %r (lint-forms (list '(def q (fn (_) (guard (_ "x") %install-root)))) () ()))
+  (display (null? (lint-undefined (first %r) (first (rest %r))))))
+```
+---
+    #t
+
 ## lint: false-positive regressions (found by hardening)
 
 ### does not flag a 0-arg fn (empty params) called with no args
