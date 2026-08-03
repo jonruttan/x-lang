@@ -806,3 +806,50 @@
 ```
 ---
     (1.0 2.0)
+
+## unconvertible operands raise (engine-crash class)
+
+A conversion-catalog miss used to return silent nil, which reached the
+unchecked `(first)`/FFI seats and segfaulted the engine. The door in
+float.x raises instead; the Convert dispatcher's silent-nil miss policy
+is unchanged.
+
+### exact->inexact on a list raises type, not silent nil
+
+```scheme
+(Float exact->inexact (list 1))
+```
+---
+    Error: #<err:type Float exact->inexact: not convertible to FLOAT>
+
+### a mixed op with an unconvertible operand raises type, not a crash
+
+```scheme
+(Float + 1.0 (list 1))
+```
+---
+    Error: #<err:type Float: operand not convertible to FLOAT>
+
+### inexact->exact on a non-number raises type
+
+```scheme
+(Float inexact->exact (list 1))
+```
+---
+    Error: #<err:type Float inexact->exact: not a float>
+
+### inexact->exact int passthrough keeps exact identity
+
+```scheme
+(Float inexact->exact 5)
+```
+---
+    5
+
+### the Convert-level miss stays silent nil (policy unchanged)
+
+```scheme
+(null? (Convert to (list 1) %float))
+```
+---
+    #t

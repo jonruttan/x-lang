@@ -811,3 +811,56 @@ leans on %set-rest!'s return value to avoid prepending a duplicate entry.
 ```
 ---
     -100.0
+
+## numeric argument guards
+
+A block token in a numeric slot used to reach the float FFI unchecked and
+segfault the engine; the %as-float/%as-int doors in state.x raise instead.
+
+### a bracket block in a numeric slot raises type, not a crash
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (Tok read-str %logo-base "fd [ 1 2 ] "))
+```
+---
+    Error: #<err:type Logo: expected a number>
+
+### an indent block in a numeric slot raises type, not a crash
+
+```scheme
+(turtle-clearscreen)
+(def toks (Tok read-str %logo-base "\nfd\n    xcor\n "))
+(logo-process-tokens (%logo-indent-to-blocks toks))
+```
+---
+    Error: #<err:type Logo: expected a number>
+
+### a string distance still coerces
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (Tok read-str %logo-base "fd \"50\" "))
+%turtle-y
+```
+---
+    -50.0
+
+### a non-numeric repeat count raises type
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (Tok read-str %logo-base "repeat \"x\" [ fd 100 ] "))
+```
+---
+    Error: #<err:type Logo: expected a number>
+
+### a string repeat count coerces
+
+```scheme
+(turtle-clearscreen)
+(logo-process-tokens (Tok read-str %logo-base "repeat \"3\" [ fd 1 ] "))
+%turtle-y
+```
+---
+    -3.0
