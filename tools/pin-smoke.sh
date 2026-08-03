@@ -192,6 +192,55 @@ status=$?
 [ "$status" -eq 0 ] || fail "vendored-pin run exited $status" "$_TMP/err" "$_TMP/out"
 grep -qx "yes" "$_TMP/out" || fail "vendored-pin: the platform copy loaded, not the overlay" "$_TMP/out"
 
+# stale (GH #147): a dependency dropped upstream must LEAVE the lock on
+# re-vendor.  It used to stay in both tree and lock -- still shadowing
+# the platform -- with verify calling the pair clean because both had
+# gone stale together.  Runs through the wrapper, on the acme fixture.
+mkdir -p "$_TMP/proj7/lib0/acme"
+cat > "$_TMP/proj7/lib0/acme/head.x" <<'EOF'
+(import acme/tail)
+(provide acme/head)
+EOF
+cat > "$_TMP/proj7/lib0/acme/tail.x" <<'EOF'
+(provide acme/tail)
+EOF
+cat > "$_TMP/stale1.x" <<EOF
+(alloc-limit! 300000000)
+(import x/tool/pin)
+(import-path! "$_TMP/proj7/lib0")
+(Pin vendor "$_TMP/proj7/deps" 'acme/head)
+(display (Pin verify "$_TMP/proj7/deps"))
+(newline)
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/stale1.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -eq 0 ] || fail "stale-vendor1 exited $status" "$_TMP/err" "$_TMP/out"
+grep -qx "2" "$_TMP/out" || fail "stale: expected 2 files vendored" "$_TMP/out"
+# upstream drops the dependency; re-vendor must name it and drop it
+printf '(provide acme/head)\n' > "$_TMP/proj7/lib0/acme/head.x"
+cat > "$_TMP/stale2.x" <<EOF
+(alloc-limit! 300000000)
+(import x/tool/pin)
+(import-path! "$_TMP/proj7/lib0")
+(Pin vendor "$_TMP/proj7/deps" 'acme/head)
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/stale2.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -eq 0 ] || fail "stale-vendor2 exited $status" "$_TMP/err" "$_TMP/out"
+grep -q "no longer in the closure" "$_TMP/out" || fail "stale: dropped file not reported" "$_TMP/out"
+grep -q "acme/tail.x" "$_TMP/out" || fail "stale: dropped file not named" "$_TMP/out"
+# and the orphan is now unlisted, so verify refuses it
+cat > "$_TMP/stale3.x" <<EOF
+(alloc-limit! 300000000)
+(import x/tool/pin)
+(display (Pin verify "$_TMP/proj7/deps"))
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/stale3.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "stale: orphan left in the overlay verified clean" "$_TMP/out" "$_TMP/err"
+grep -q "unlisted: acme/tail.x" "$_TMP/out" "$_TMP/err" \
+  || fail "stale: orphan not reported as unlisted" "$_TMP/out" "$_TMP/err"
+
 # fetch: a fake release over file:// -- verified or nothing.  The tiny
 # artifact keeps the pure-x digest instant; the layout and vocabulary
 # are exactly tools/release-manifest.sh's.

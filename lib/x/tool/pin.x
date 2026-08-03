@@ -126,6 +126,58 @@
       ((eq? x (first lst)) #t)
       (#t (self x (rest lst))))))
 
+(def %pin-mem-str?
+  (fn (self s lst)
+    (match
+      ((null? lst) #f)
+      ((str=? (first lst) s) #t)
+      (#t (self s (rest lst))))))
+
+; --- Overlay-relative path normalisation ------------------------------
+; %path-join deliberately does not normalise -- the OS collapses "." and
+; ".." when it OPENS a file, which is all module.x needs.  An overlay rel
+; is different: it is a lockfile KEY (compared with str=? against paths
+; the tree walk builds by descent) and a copy TARGET under dest.  Left
+; unnormalised, "acme/../shared.x" and the tree's "shared.x" name the
+; same file and never compare equal, and enough ".." segments put the
+; copy outside dest entirely.  So collapse here, and refuse a rel that
+; climbs past the root -- neither absolute nor root-relative, so the
+; guards above miss it, but just as unvendorable.
+
+(def %pin-split-path                   ; "a/b/c" -> ("a" "b" "c")
+  (fn (self p)
+    (let ((i (Str8 index-of "/" p)))
+      (match
+        ((null? i) (list p))
+        (#t (pair (Str8 sub 0 i p)
+                  (self (Str8 sub (+ i 1) (- (Str8 length p) (+ i 1)) p))))))))
+
+; Fold segments onto acc (reversed): "" and "." vanish, ".." pops.  An
+; empty acc at a ".." means the path has climbed out of the overlay.
+(def %pin-norm-segs
+  (fn (self segs acc whole)
+    (match
+      ((null? segs) acc)
+      ((str=? (first segs) "") (self (rest segs) acc whole))
+      ((str=? (first segs) ".") (self (rest segs) acc whole))
+      ((str=? (first segs) "..")
+        (match
+          ((null? acc)
+            (%pin-bad (Str8 append "include path climbs out of the overlay: " whole)))
+          (#t (self (rest segs) (rest acc) whole))))
+      (#t (self (rest segs) (pair (first segs) acc) whole)))))
+
+(def %pin-join-slash
+  (fn (self segs)
+    (match
+      ((null? segs) "")
+      ((null? (rest segs)) (first segs))
+      (#t (Str8 append (first segs) (Str8 append "/" (self (rest segs))))))))
+
+(def %pin-path-norm
+  (fn (_ p)
+    (%pin-join-slash (%reverse (%pin-norm-segs (%pin-split-path p) () p)))))
+
 (def %pin-include-head?
   (fn (_ h)
     (or (eq? h 'include) (eq? h 'include-once) (eq? h 'require-once))))
@@ -181,7 +233,10 @@
 ; source dir; scanned like any file (it may import).
 (def %pin-take-rel
   (fn (_ dirs tail)
-    (let ((rel (%path-join (first dirs) tail)))
+    ; The overlay rel is normalised (it keys the lockfile and targets the
+    ; copy); the SOURCE path keeps its ".." -- it is only ever opened, and
+    ; the OS resolves it against the real tree.
+    (let ((rel (%pin-path-norm (%path-join (first dirs) tail))))
       (match
         ((%pin-out-has? rel) ())
         (#t
@@ -267,11 +322,25 @@
 ; recomputes every digest AND walks the tree, so a modified file, a
 ; missing file, or an UNLISTED file (a rogue shadow ready to win root
 ; precedence) is a loud error -- the overlay must be exactly the lock.
+;
+; PROVENANCE (GH #147): one overlay legitimately holds several vendors --
+; the tutorial's "repeated vendors into one overlay merge cleanly" -- so
+; the file list alone cannot say which vendor put a file there.  Without
+; that, re-vendoring a seed whose upstream DROPPED a dependency left the
+; orphan in the tree AND in the lock, still shadowing the platform, with
+; verify calling the pair clean because both had gone stale together.
+; So each vendor also records what it claimed:
+;   (seed "NAME" "rel" ...)   NAME = a module name, or "project:DIR"
+; Re-vendoring a seed replaces that seed's claim; a rel no other seed
+; claims leaves the lock and is reported.  Entries predating this record
+; are unattributed and kept as-is, so an old overlay keeps verifying.
 (def %pin-lock-name "pin.lock.xon")
 
 (def %pin-digest
   (fn (_ path) (Str8 append "sha256:" (Sha256 hex (File slurp path)))))
 
+; The closed vocabulary is (file ...) | (seed ...); each reader takes the
+; forms it owns and ignores -- never rejects -- the other's.
 (def %pin-lock-parse
   (fn (_ forms)
     (def %go
@@ -279,6 +348,7 @@
         (match
           ((null? forms) ())
           ((not (pair? (first forms))) (%pin-bad "lockfile form is not a list"))
+          ((eq? (first (first forms)) 'seed) (self (rest forms)))
           ((not (eq? (first (first forms)) 'file)) (%pin-bad "unknown lockfile form"))
           ((not (str? (first (rest (first forms)))))
             (%pin-bad "lockfile entry needs a path string"))
@@ -289,21 +359,40 @@
                     (self (rest forms)))))))
     (%go forms)))
 
-(def %pin-lock-read
+; (seed "NAME" "rel" ...) -> (NAME . (rel ...)) pairs, file order.
+(def %pin-lock-parse-seeds
+  (fn (_ forms)
+    (def %rels
+      (fn (self lst)
+        (match
+          ((null? lst) ())
+          ((not (str? (first lst))) (%pin-bad "seed entry needs path strings"))
+          (#t (pair (first lst) (self (rest lst)))))))
+    (def %go
+      (fn (self forms)
+        (match
+          ((null? forms) ())
+          ((not (pair? (first forms))) (%pin-bad "lockfile form is not a list"))
+          ((not (eq? (first (first forms)) 'seed)) (self (rest forms)))
+          ((not (str? (first (rest (first forms)))))
+            (%pin-bad "seed entry needs a name string"))
+          (#t (pair (pair (first (rest (first forms)))
+                          (%rels (rest (rest (first forms)))))
+                    (self (rest forms)))))))
+    (%go forms)))
+
+(def %pin-lock-forms
   (fn (_ dest)
     (let ((p (%path-join dest %pin-lock-name)))
       (match
-        ((File exists? p) (%pin-lock-parse (%pin-forms (File slurp p))))
+        ((File exists? p) (%pin-forms (File slurp p)))
         (#t ())))))
 
-; Order-preserving upsert: an existing entry keeps its slot, new ones
-; append -- deterministic output without a sort.
-(def %pin-lock-put
-  (fn (self entries rel digest)
-    (match
-      ((null? entries) (pair (pair rel digest) ()))
-      ((str=? (first (first entries)) rel) (pair (pair rel digest) (rest entries)))
-      (#t (pair (first entries) (self (rest entries) rel digest))))))
+(def %pin-lock-read
+  (fn (_ dest) (%pin-lock-parse (%pin-lock-forms dest))))
+
+(def %pin-lock-read-seeds
+  (fn (_ dest) (%pin-lock-parse-seeds (%pin-lock-forms dest))))
 
 (def %pin-lock-render
   (fn (_ entries)
@@ -319,18 +408,96 @@
                         (Str8 append (rest (first lst)) "\")\n"))))))))))
     (%go entries "; pin.lock.xon -- generated by (Pin vendor); do not edit\n")))
 
-(def %pin-lock-update!
-  (fn (_ dest rels)
-    (def %go
-      (fn (self entries lst)
+(def %pin-seed-render
+  (fn (_ seeds)
+    (def %rels
+      (fn (self lst acc)
         (match
-          ((null? lst) entries)
-          (#t (self (%pin-lock-put entries (first lst)
-                      (%pin-digest (%path-join dest (first lst))))
-                    (rest lst))))))
-    (File spit (%path-join dest %pin-lock-name)
-      (%pin-lock-render (%go (%pin-lock-read dest) rels)))
-    ()))
+          ((null? lst) acc)
+          (#t (self (rest lst)
+                (Str8 append acc (Str8 append " \"" (Str8 append (first lst) "\""))))))))
+    (def %go
+      (fn (self lst acc)
+        (match
+          ((null? lst) acc)
+          (#t (self (rest lst)
+                (Str8 append acc
+                  (Str8 append "(seed \""
+                    (Str8 append (first (first lst))
+                      (Str8 append "\""
+                        (Str8 append (%rels (rest (first lst)) "") ")\n"))))))))))
+    (%go seeds "")))
+
+; Order-preserving upsert of one seed's claim.
+(def %pin-seed-put
+  (fn (self seeds name rels)
+    (match
+      ((null? seeds) (pair (pair name rels) ()))
+      ((str=? (first (first seeds)) name) (pair (pair name rels) (rest seeds)))
+      (#t (pair (first seeds) (self (rest seeds) name rels))))))
+
+(def %pin-append-new                   ; acc ++ (lst minus what acc holds)
+  (fn (self acc lst)
+    (match
+      ((null? lst) acc)
+      ((%pin-mem-str? (first lst) acc) (self acc (rest lst)))
+      (#t (self (%pin-concat acc (list (first lst))) (rest lst))))))
+
+(def %pin-seed-claims                  ; every rel any seed claims
+  (fn (self seeds acc)
+    (match
+      ((null? seeds) acc)
+      (#t (self (rest seeds) (%pin-append-new acc (rest (first seeds))))))))
+
+(def %pin-not-in                       ; rels absent from lst
+  (fn (self rels lst)
+    (match
+      ((null? rels) ())
+      ((%pin-mem-str? (first rels) lst) (self (rest rels) lst))
+      (#t (pair (first rels) (self (rest rels) lst))))))
+
+; Rewrite the lock with SEED now claiming RELS.  The file list becomes
+; every rel still claimed, plus entries no seed ever claimed (written
+; before provenance existed -- kept, never silently dropped).  Returns
+; the rels that left the lock: files this seed used to pull in and no
+; longer does, which now shadow the platform for nothing.
+(def %pin-lock-entries                 ; rels -> (rel . digest), digests fresh
+  (fn (self dest rels)
+    (match
+      ((null? rels) ())
+      (#t (pair (pair (first rels) (%pin-digest (%path-join dest (first rels))))
+                (self dest (rest rels)))))))
+
+(def %pin-lock-relock!
+  (fn (_ dest seed rels)
+    (let ((old-rels (%pin-rels (%pin-lock-read dest)))
+          (was-seeds (%pin-lock-read-seeds dest)))
+      (let ((seeds (%pin-seed-put was-seeds seed rels))
+            ; Unattributed: in the file list, claimed by no seed -- an
+            ; overlay locked before provenance existed.  Keep them.
+            (loose (%pin-not-in old-rels (%pin-seed-claims was-seeds ()))))
+        (let ((live (%pin-append-new (%pin-seed-claims seeds ()) loose)))
+          (do
+            (File spit (%path-join dest %pin-lock-name)
+              (Str8 append (%pin-lock-render (%pin-lock-entries dest live))
+                           (%pin-seed-render seeds)))
+            (%pin-not-in old-rels live)))))))
+
+; A dropped file is not deleted -- vendor writes into a tree the project
+; owns, and removing files there is the user's call.  It is named, and
+; verify will flag it as unlisted until it goes.
+(def %pin-report-dropped
+  (fn (_ dest dropped)
+    (match
+      ((null? dropped) ())
+      (#t (do (display "pin: ")
+              (display (%pin-length dropped))
+              (display " file(s) no longer in the closure, still in ")
+              (display dest)
+              (display " (delete them; verify flags them as unlisted):")
+              (newline)
+              (display (%pin-join-lines dropped))
+              ())))))
 
 ; Every file under root, as root-relative paths.  list-dir raises on a
 ; non-directory; the guard's 'file fallback is how a leaf announces
@@ -600,7 +767,8 @@
             ; writing into a directory that was never created.
             (do (%pin-mkdirs dest)
                 (%pin-copy-all! dest entries)
-                (%pin-lock-update! dest rels)
+                (%pin-report-dropped dest
+                  (%pin-lock-relock! dest (symbol->str name) rels))
                 rels))))))
     (method vendor-project (self (param dest STRING "Overlay root directory, e.g. \"deps\"")
                                  (param srcdir STRING "Project source dir to scan, e.g. \"src\""))
@@ -611,9 +779,12 @@
       (let ((rels (%pin-rels entries)))
         ; As vendor: a project whose imports are all boot floor yields an
         ; empty closure, and dest must still exist for the lockfile.
+        ; The seed is the SOURCE DIR, not a module: this claim is "what
+        ; this project's sources need", replaced wholesale each scan.
         (do (%pin-mkdirs dest)
             (%pin-copy-all! dest entries)
-            (%pin-lock-update! dest rels)
+            (%pin-report-dropped dest
+              (%pin-lock-relock! dest (Str8 append "project:" srcdir) rels))
             rels))))
     (method verify (self (param dest STRING "Overlay root directory"))
       (doc "Verify dest against its pin.lock.xon: every entry's digest must match, and every file in the tree must be listed -- an unlisted file is a rogue shadow ready to win root precedence. A missing lockfile, missing file, digest mismatch, or unlisted file is a loud error naming each offender. Returns the number of files verified."
