@@ -107,7 +107,8 @@
             ; name, like first/rest, so the one-body-expression check runs
             ; under the construct-table dispatcher too.
             ((str=? h "match")       (%lint-match form))
-            (#t                      (%lint-seq form))))))))
+            ((str=? h "method-ref")  (%lint-method-ref form))
+            (#t                      (%lint-call form))))))))
 
   ; --- Read target forms, analyze via lint-forms ---
 
