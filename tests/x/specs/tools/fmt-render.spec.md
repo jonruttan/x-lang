@@ -11,7 +11,7 @@ These feed hand-quoted forms via `'…` (so no tokenizer — sidestepping the
 separate open `token-read-string` issue). A quoted form writes its symbols in
 `'x` syntax, so atoms render as `'+` etc.; the point here is the
 *structure* (line breaks + 2-space indentation), not the atom spelling. The
-real tool feeds tokenizer output and is covered separately by `tools/fmt.spec.md`.
+real tool feeds tokenizer output and is covered separately by `tools/tests/specs/fmt.spec.md`.
 
 ## Fmt width
 

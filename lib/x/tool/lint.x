@@ -67,7 +67,7 @@
 (def %warn! (fn (_ kind name)
   (%set-first! %lint-warn (pair (pair kind name) (first %lint-warn)))))
 
-; Swappable hooks -- tools/lint.x overrides these for data-driven, construct-
+; Swappable hooks -- tools/dev/lint.x overrides these for data-driven, construct-
 ; table dispatch.  Forward-declared; defaults set below once the helpers exist.
 (def %lint-binds? ())      ; form -> truthy if it binds a name in a sequence
 (def %lint-bound-name ())  ; form -> the bound name (a STRING)
@@ -443,7 +443,7 @@
   (%lint-form (first (rest form)))
   (%lint-seq (rest (rest (rest form))))))
 
-; --- Default hook implementations (tools/lint.x overrides these) ---
+; --- Default hook implementations (tools/dev/lint.x overrides these) ---
 
 (set! %lint-binds? (fn (_ form)
   (when (and (pair? form) (symbol? (first form)))
@@ -574,7 +574,7 @@
 
 ; LIST: run the head/arity checks, then delegate to the (swappable) dispatch.
 ; Doing the checks here (not in %lint-dispatch) means both the lib's default
-; dispatch and tools/lint.x's construct-table override get them for free.
+; dispatch and tools/dev/lint.x's construct-table override get them for free.
 (def %lint-list-handler (fn (_ form)
   (when (%lint-noncallable? (first form))
     (%warn! "call-nonfn" (guard (_ "?") (%cvt (first form) %string))))

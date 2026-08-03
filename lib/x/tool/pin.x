@@ -821,7 +821,7 @@
                         (param tag STRING "Release tag, e.g. \"v0.4.0\"")
                         (param entry SYMBOL "Boot entry to fetch, e.g. 'xe")
                         . (param base STRING "Base URL; default the project's releases"))
-      (doc "Fetch a released amalgam, verified or nothing: downloads the tag's pin.release.xon and <entry>.x (curl via fork/execvp -- absent curl prints the URLs and stops), checks the manifest names the tag, digests the amalgam with the pure-x Sha256 (minutes for an amalgam -- announced), and errors on any mismatch, naming the offending file (left in place for inspection; do not boot it). Reports whether the release's ISA fingerprint matches this tree's tools/isa.x when present -- drift is information, not an error: a pinned platform pairs with its own engine. Returns the amalgam's path."
+      (doc "Fetch a released amalgam, verified or nothing: downloads the tag's pin.release.xon and <entry>.x (curl via fork/execvp -- absent curl prints the URLs and stops), checks the manifest names the tag, digests the amalgam with the pure-x Sha256 (minutes for an amalgam -- announced), and errors on any mismatch, naming the offending file (left in place for inspection; do not boot it). Reports whether the release's ISA fingerprint matches this tree's tools/contract/isa.x when present -- drift is information, not an error: a pinned platform pairs with its own engine. Returns the amalgam's path."
         (returns STRING "Path of the verified amalgam")
         (sample "(Pin fetch \"boot\" \"v0.4.0\" 'xe)" "\"boot/xe.x\""))
       (let ((b (match ((null? base) %pin-release-base) (#t (first base)))))
@@ -849,7 +849,7 @@
                       ((str=? (%pin-digest target) want) ())
                       (#t (%pin-bad (Str8 append "digest mismatch: " target))))
                     (match
-                      ((File exists? "tools/isa.x")
+                      ((File exists? "tools/contract/isa.x")
                         (do (display (match
                                        ; A manifest may carry no (isa ...) at all --
                                        ; %pin-release-parse requires only the tag, so
@@ -859,7 +859,7 @@
                                        ; and so is an absent fingerprint.
                                        ((null? (%pin-assoc 'isa m))
                                          "pin: the release manifest carries no isa fingerprint -- engine pairing unchecked")
-                                       ((str=? (%pin-digest "tools/isa.x") (%pin-assoc 'isa m))
+                                       ((str=? (%pin-digest "tools/contract/isa.x") (%pin-assoc 'isa m))
                                          "pin: isa fingerprint matches this tree")
                                        (#t "pin: isa fingerprint DIFFERS from this tree -- pair the amalgam with its release's engine")))
                             (newline)))

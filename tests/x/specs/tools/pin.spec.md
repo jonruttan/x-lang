@@ -6,7 +6,7 @@ The manifest (pin.xon) is DATA: forms are read with the ordinary reader
 (`%pin-forms`) and interpreted against a closed vocabulary
 (`%pin-interpret`), never evaluated.  These specs pin the pure
 interpretation layer; the wrapper probe and end-to-end arming are smoked
-by tools/pin-smoke.sh (make check-pin).
+by tools/check/pin-smoke.sh (make check-pin).
 
 ### loading the module without an announced manifest is a no-op
 

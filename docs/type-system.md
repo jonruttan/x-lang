@@ -61,7 +61,7 @@ X_OBJ_FLAG_SHARED  0x100  permanently retained across GC
 X_OBJ_FLAG_MARK    0x200  the GC mark bit
 ```
 
-Flags `0x01`–`0x08` are app-defined attribute bits; the `WRAP` alias (`0x01`) distinguishes applicative procedures from bare closures. The authoritative bit table is `tools/obj-layout.x`, pinned by `make check-obj-layout`.
+Flags `0x01`–`0x08` are app-defined attribute bits; the `WRAP` alias (`0x01`) distinguishes applicative procedures from bare closures. The authoritative bit table is `tools/contract/obj-layout.x`, pinned by `make check-obj-layout`.
 
 ---
 
@@ -358,7 +358,7 @@ The base is a deep pair tree, `(hot . cold)`: the hot half holds the
 environment and control state this layer fills in; the cold half is the
 I/O + metadata skeleton x-expr supplies. The authoritative layout —
 including which leaves are field cells `(current . saved)` versus direct
-values — is `tools/base-layout.x` (regenerate with `make gen-layout`);
+values — is `tools/contract/base-layout.x` (regenerate with `make gen-layout`);
 `make check-base-paths` pins it.
 
 ```
