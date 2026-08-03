@@ -14,6 +14,20 @@
 root=$(git rev-parse --show-toplevel) || exit 1
 cd "$root" || exit 1
 
+# A deletion pushes the all-zeros SHA -- there is no new content to test.
+# Skip the gate only when EVERY ref in this push is a deletion; a mixed
+# push (delete + update) still gates on the updates.
+any_update=
+while read -r local_ref local_sha remote_ref remote_sha; do
+	case "$local_sha" in
+		*[!0]*) any_update=1 ;;
+	esac
+done
+if [ -z "$any_update" ]; then
+	printf '[pre-push] deletions only -- nothing to test, skipping gate.\n'
+	exit 0
+fi
+
 # Hard gate: both suites (test-c + test-x), green at HEAD. A regression blocks.
 printf '[pre-push] make test ...\n'
 if ! make test; then
