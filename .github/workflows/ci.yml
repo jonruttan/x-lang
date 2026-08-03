@@ -35,6 +35,10 @@ jobs:
       # executable contract; a stale example is a red build, not quiet rot.
       - name: Doctests
         run: make doctest
+      # x-lang lint (promoted 2026-08-02, #60 criterion: joined only once
+      # fully green): lib + apps sweep, sibling-preload aware since #176.
+      - name: x-lang lint
+        run: make lint-x
       # Examples ratchet: every file under examples/ runs under its documented
       # dialect (batch mode), output-pinned where portable.  The first code a
       # newcomer runs was previously the only code with no gate -- and its

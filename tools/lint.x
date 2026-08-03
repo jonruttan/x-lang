@@ -161,6 +161,10 @@
     (do (%stderr "Warnings:\n")
         (%for-each %show-kind (%uniq-kinds %warnings ()))))
 
-  (if (and (null? %undefined) (null? %unused))
+  ; match-multi fails (not advisory): a clause body past the first
+  ; expression can never run -- every hit is dead code with no legitimate
+  ; spelling (#166), so unlike arity/shadow there is nothing to tolerate.
+  (if (and (null? %undefined) (null? %unused)
+           (null? (lint-warnings-of "match-multi" %result)))
     (display "ok\n")
     (error 'lint-failed)))
