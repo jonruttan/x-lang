@@ -1,0 +1,4 @@
+t03-cancel-empty-prompt.exp
+t05-stop-during-exec.exp
+t06-error-format.exp
+t07-no-double-exec.exp

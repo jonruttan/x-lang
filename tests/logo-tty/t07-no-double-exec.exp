@@ -1,0 +1,30 @@
+#!/usr/bin/expect -f
+# Behavior 7b, pinned to the POST-rewrite ruling: entries execute EXACTLY
+# once.  Today the completeness probe EXECUTES the entry to test it, and
+# a probe that errors after partial side effects re-runs them on every
+# re-probe -- "print 401 + 302 fd" prints 703 once per probe (observed:
+# 3x in one session).  Sits in known-fail.txt until the rewrite lands.
+# (An unknown word is NOT usable as the erroring tail: dispatch silently
+# ignores those.  All values chosen so no expected output is a substring
+# of any echoed input.)
+source [file join [file dirname [info script]] lib.exp]
+spawn_logo
+send "print 401 + 302 fd\r"
+expect {
+    -ex "703" {}
+    timeout { puts "FAIL: entry never executed"; exit 1 }
+    eof { puts "FAIL: session died"; exit 1 }
+}
+# Blank line: today this re-probes and prints 703 again.  Exactly-once
+# means NO second 703 arrives.
+send "\r"
+set timeout 5
+expect {
+    -ex "703" { puts "FAIL: entry executed more than once"; exit 1 }
+    timeout {}
+    eof { puts "FAIL: session died after blank line"; exit 1 }
+}
+set timeout 15
+catch {ctrl_d}
+catch {expect eof}
+exit 0

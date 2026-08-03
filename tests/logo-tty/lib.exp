@@ -1,0 +1,75 @@
+# lib.exp -- shared plumbing for the logo tty contract tests.
+#
+# Techniques (all proven in the #152/#162 verification sessions):
+#   - stty_init sizes the pty; some line editors refuse a 0-width tty.
+#   - liveness is asserted with COMPUTED output absent from the echo
+#     (print 2 + 3 -> 5), never with echoed input.
+#   - sends are paced: wait for each line's echo before continuing, so
+#     a line-editing layer can never swallow machine-speed input.
+#
+# Every test exits 0 on pass, 1 on fail (the driver maps known-fail).
+
+set stty_init "rows 40 columns 120"
+set timeout 15
+
+proc spawn_logo {} {
+    global spawn_id
+    spawn sh x.sh -l logo
+    expect {
+        "localhost:8080" {}
+        timeout { puts "FAIL: no banner"; exit 1 }
+        eof { puts "FAIL: died at spawn"; exit 1 }
+    }
+    expect {
+        -re {\? } {}
+        timeout { puts "FAIL: no prompt"; exit 1 }
+    }
+    sleep 1
+}
+
+# Send a line and wait for its echo (pacing).
+proc send_line {text} {
+    send "$text\r"
+    expect {
+        -ex $text {}
+        timeout { puts "FAIL: line never echoed: $text"; exit 1 }
+    }
+}
+
+# Assert the session evaluates: expect computed output not in any echo.
+proc assert_alive {a b sum} {
+    send "print $a + $b\r"
+    expect {
+        -ex $sum { }
+        eof { puts "FAIL: session dead"; exit 1 }
+        timeout { puts "FAIL: no evaluation"; exit 1 }
+    }
+    expect {
+        -re {\? } {}
+        timeout { puts "FAIL: no prompt after eval"; exit 1 }
+    }
+}
+
+proc ctrl_c {} { send "\x03" }
+proc ctrl_d {} { send "\x04" }
+
+# True when something is listening on :8080 (the viewer server).
+# lsof on macOS; ss fallback on minimal Linux runners.
+proc port_8080_busy {} {
+    if {![catch {exec lsof -nP -i :8080} out] && [string length $out] > 0} {
+        return 1
+    }
+    if {![catch {exec sh -c "ss -ltn 2>/dev/null | grep ':8080 '"} out2]
+            && [string length $out2] > 0} {
+        return 1
+    }
+    return 0
+}
+
+# True when the spawned process exited NORMALLY with status 0.  expect's
+# wait reports signal death differently across OSes (Linux appends
+# CHILDKILLED with status 0 in slot 3) -- a plain slot-3 test lies there.
+proc exited_zero {result} {
+    if {[lsearch -exact $result CHILDKILLED] >= 0} { return 0 }
+    return [expr {[lindex $result 2] == 0 && [lindex $result 3] == 0}]
+}

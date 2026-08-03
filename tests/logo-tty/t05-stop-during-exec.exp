@@ -1,0 +1,27 @@
+#!/usr/bin/expect -f
+# Behavior 8a, pinned to the POST-rewrite ruling: ctrl-c during EXECUTION
+# breaks the running loop (STOP -> bare newline, no "Error:") and the
+# session SURVIVES.  Today it dies: the long command runs inside the
+# completeness probe, whose guard catches STOP and re-raises it into a
+# handler-less scope -- fatal "*** ERROR: error 'STOP" (the repl.x
+# comment claiming ctrl-c breaks loops was never true for logo).  Sits
+# in known-fail.txt until the rewrite executes entries under a real
+# guard.
+source [file join [file dirname [info script]] lib.exp]
+spawn_logo
+# Brace-quoted: [ ] is Tcl command substitution inside double quotes.
+send {repeat 10000000 [ fd 1 rt 1 ]}
+send "\r"
+sleep 2
+ctrl_c
+sleep 1
+send "print 8 + 9\r"
+expect {
+    -ex "17" {}
+    -re {Error} { puts "FAIL: STOP surfaced as an Error"; exit 1 }
+    eof { puts "FAIL: session died on ctrl-c during execution"; exit 1 }
+    timeout { puts "FAIL: no evaluation after STOP"; exit 1 }
+}
+ctrl_d
+expect eof
+exit 0
