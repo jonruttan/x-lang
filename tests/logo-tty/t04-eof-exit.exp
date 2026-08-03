@@ -16,5 +16,5 @@ for {set i 0} {$i < 5} {incr i} {
     sleep 1
 }
 puts "FAIL: viewer server orphaned on :8080"
-exec sh -c {pkill -f "x-bin --batch" || true}
+kill_session_tree
 exit 1

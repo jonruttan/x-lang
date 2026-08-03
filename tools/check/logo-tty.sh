@@ -58,11 +58,27 @@ known_fail() {
 }
 
 # Each test spawns its own logo session; a wedged one must not strand
-# children.  The viewer server ignores SIGINT by design, so sweep by
-# command line after every test.
+# children.  lib.exp records every spawned session leader's pid here;
+# the pty makes that pid the pgid of the whole tree (incl. the viewer
+# server, which ignores SIGINT by design but not SIGTERM), and orphans
+# keep their pgid even after expect is timeout-killed.  Sweeping those
+# groups reaps exactly this harness's trees -- the previous machine-wide
+# pkill -f 'x-bin --batch' killed unrelated batch runs (#170).
+PIDFILE=$(mktemp "${TMPDIR:-/tmp}/logo-tty-pids.XXXXXX") || exit 1
+LOGO_TTY_PIDFILE="$PIDFILE"
+export LOGO_TTY_PIDFILE
+trap 'rm -f "$PIDFILE"' EXIT
+
 sweep() {
-	pkill -f 'x-bin --batch' 2>/dev/null
+	[ -s "$PIDFILE" ] || return 0
+	while read -r pid; do
+		[ -n "$pid" ] && kill -s TERM -- "-$pid" 2>/dev/null
+	done < "$PIDFILE"
 	sleep 1
+	while read -r pid; do
+		[ -n "$pid" ] && kill -s KILL -- "-$pid" 2>/dev/null
+	done < "$PIDFILE"
+	: > "$PIDFILE"
 }
 
 for t in tests/logo-tty/t*.exp tests/logo-tty/t*.sh; do

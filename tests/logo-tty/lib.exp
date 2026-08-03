@@ -13,8 +13,19 @@ set stty_init "rows 40 columns 120"
 set timeout 15
 
 proc spawn_logo {} {
-    global spawn_id
+    global spawn_id spawn_pid env
     spawn sh x.sh -l logo
+    # The pty makes the child a session leader, so its pid doubles as
+    # the pgid of everything it forks -- including the viewer server
+    # (which ignores SIGINT by design, but not SIGTERM).  Record it so
+    # cleanup can kill exactly THIS tree: a machine-wide
+    # pkill -f 'x-bin --batch' killed unrelated batch runs (#170).
+    set spawn_pid [exp_pid]
+    if {[info exists env(LOGO_TTY_PIDFILE)]} {
+        set f [open $env(LOGO_TTY_PIDFILE) a]
+        puts $f $spawn_pid
+        close $f
+    }
     expect {
         "localhost:8080" {}
         timeout { puts "FAIL: no banner"; exit 1 }
@@ -25,6 +36,18 @@ proc spawn_logo {} {
         timeout { puts "FAIL: no prompt"; exit 1 }
     }
     sleep 1
+}
+
+# Kill this test's spawned session tree (TERM, then KILL) -- pgid-scoped,
+# so concurrent batch engines elsewhere on the machine are untouched.
+# Works even after wait reaped the leader: surviving members (an orphaned
+# viewer server) keep the process group alive.
+proc kill_session_tree {} {
+    global spawn_pid
+    if {![info exists spawn_pid]} { return }
+    catch {exec kill -s TERM -- "-$spawn_pid"}
+    sleep 1
+    catch {exec kill -s KILL -- "-$spawn_pid"}
 }
 
 # Send a line and wait for its echo (pacing).
