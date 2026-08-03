@@ -43,8 +43,15 @@
 ; a bare symbol is a pure lookup, no side effects.)  This replaces a former
 ; base-layout-dependent env-alist dig that broke when the base layout drifted
 ; and produced false "undefined" reports for every primitive.
+; Embedder-contract names: documented as supplied by the embedder BEFORE the
+; library loads (boot/module.x -- "%install-root"), deliberately unbound in a
+; repo-mode session, and every use is guarded.  Known by contract, not env.
+(def %lint-embedder-known (list "%install-root"))
+
 (def %env-known? (fn (_ name)
-  (guard (_ #f) (do (eval! (%str->symbol name)) #t))))
+  (match
+    ((%name-member? name %lint-embedder-known) #t)
+    (#t (guard (_ #f) (do (eval! (%str->symbol name)) #t))))))
 
 ; --- Analysis state (boxes; all values are NAME STRINGS) ---
 (def %lint-scope  (list ()))    ; names in lexical scope
@@ -290,9 +297,16 @@
 
 (def %lint-op (fn (_ form)
   (def saved (first %lint-scope))
+  ; The env slot may be () -- "ignore the caller env", legal at runtime
+  ; (apps/logo's logo-repl) -- so only a SYMBOL adds a scope entry.  %cvt
+  ; on the nil slot answered nil (catalog misses are silent), and that nil
+  ; NAME later reached str=? -- an unchecked C prim -- and crashed.
   (%set-first! %lint-scope
-    (pair (pair (%cvt (first (rest (rest form))) %string) (list #f))   ; env var entry
-          (%add-params (first (rest form)) saved)))
+    (let ((envp (first (rest (rest form)))))
+      (if (symbol? envp)
+        (pair (pair (%cvt envp %string) (list #f))                     ; env var entry
+              (%add-params (first (rest form)) saved))
+        (%add-params (first (rest form)) saved))))
   (def params (first %lint-scope))                      ; params + env var (boxes shared)
   (def nparams (- (%length params) (%length saved)))
   (%lint-seq (rest (rest (rest form))))
@@ -395,6 +409,40 @@
             (%lint-form (first (rest form)))
           (do (self (first form)) (self (rest form)))))))))
 
+; --- Value-call dispatch ---
+; (Subject selector args...) -- when the head resolves to a NON-callable
+; value (a class or instance), the call routes through %class-call-handler
+; and the second element is a MESSAGE NAME: data, never a variable
+; reference.  Recording it as a use made every method spelling (`append`,
+; `close`, ...) read "Undefined" in class-call-heavy code (the apps).
+; Heads that are locals or unbound keep plain call analysis -- their values
+; are unknown statically, so nothing can be assumed about element 2.
+(def %lint-value-subject? (fn (_ head)
+  (match
+    ((not (symbol? head)) #f)
+    ((%scope-has-name? (%cvt head %string) (first %lint-scope)) #f)
+    (#t (guard (_ #f)
+      (let ((v (eval! (%str->symbol (%cvt head %string)))))
+        (match
+          ((null? v) #f)
+          ((procedure? v) #f)
+          ((operative? v) #f)
+          (#t #t))))))))
+
+(def %lint-call (fn (_ form)
+  (match
+    ((if (%lint-value-subject? (first form))
+       (symbol? (first (rest form))) #f)
+      (do (%lint-form (first form))          ; the subject is a real use
+          (%lint-seq (rest (rest form)))))   ; selector skipped, args walked
+    (#t (%lint-seq form)))))
+
+; (method-ref Target sel) -- Target is evaluated, sel is a MESSAGE NAME
+; (x/type/class.x): walk the subject, skip the selector.
+(def %lint-method-ref (fn (_ form)
+  (%lint-form (first (rest form)))
+  (%lint-seq (rest (rest (rest form))))))
+
 ; --- Default hook implementations (tools/dev/lint.x overrides these) ---
 
 (set! %lint-binds? (fn (_ form)
@@ -424,7 +472,8 @@
         ((str=? h "match") (%lint-match form))
         ((str=? h "first") (%lint-first-rest form))
         ((str=? h "rest")  (%lint-first-rest form))
-        (#t                (%lint-seq form)))))))
+        ((str=? h "method-ref") (%lint-method-ref form))
+        (#t                (%lint-call form)))))))
 
 ; --- Arity + non-callable checks ---
 ;
