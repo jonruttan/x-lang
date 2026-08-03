@@ -337,6 +337,50 @@ leans on %set-rest!'s return value to avoid prepending a duplicate entry.
 ---
     16
 
+### indented THEN body executes
+
+```scheme
+(turtle-clearscreen)
+(def toks (Tok read-str %logo-base "\nif 5 > 3 then\n    fd 100\n "))
+(logo-process-tokens (%logo-indent-to-blocks toks))
+(List length %turtle-bc)
+```
+---
+    2
+
+### indented THEN body skipped when false
+
+```scheme
+(turtle-clearscreen)
+(def toks (Tok read-str %logo-base "\nif 5 < 3 then\n    fd 100\n "))
+(logo-process-tokens (%logo-indent-to-blocks toks))
+(List length %turtle-bc)
+```
+---
+    0
+
+### multi-line indented THEN body
+
+```scheme
+(turtle-clearscreen)
+(def toks (Tok read-str %logo-base "\nif 5 > 3 then\n    fd 100\n    rt 90\n    fd 100\n "))
+(logo-process-tokens (%logo-indent-to-blocks toks))
+(List length %turtle-bc)
+```
+---
+    6
+
+### indented ELSE body executes
+
+```scheme
+(turtle-clearscreen)
+(def toks (Tok read-str %logo-base "\nif 5 < 3 then\n    fd 100\nelse\n    bk 50\n "))
+(logo-process-tokens (%logo-indent-to-blocks toks))
+(List length %turtle-bc)
+```
+---
+    2
+
 ## JSON output
 
 ### bytecode JSON output
