@@ -1,11 +1,15 @@
 #!/bin/sh
-# Pre-push gate -- block a push when the suite is red.
+# Pre-push gate -- block a push when the fast suite is red.
 #
-# GitHub Actions re-runs the same surface on push/PR (.github/workflows/
-# ci.yml: contract gates + test-c + test-x as separate steps),
-# but this hook is the gate that catches a red suite BEFORE it leaves the
-# machine (see docs/contributing.md). Install with `make install-hooks` (sets
-# core.hooksPath=.githooks). Bypass a single push with `git push --no-verify`.
+# Runs `make test-fast` (the sub-minute scan gates + test-c + test-x),
+# NOT the full `make test`: the full suite grew past ten minutes and a
+# push holds its SSH connection open across the hook -- GitHub hangs up
+# the idle channel before the transfer starts.  CI remains the enforcing
+# gate for the FULL surface on every push/PR (.github/workflows/ci.yml
+# runs `make test` + test-asan); run `make test` locally when you want
+# the whole thing before pushing.  Install with `make install-hooks`
+# (sets core.hooksPath=.githooks). Bypass a single push with
+# `git push --no-verify`.
 #
 # RUN_ASAN=1 additionally runs `make test-asan` as a NON-BLOCKING advisory.
 # The baseline is clean and CI hard-gates it on every push; locally it stays
@@ -28,10 +32,10 @@ if [ -z "$any_update" ]; then
 	exit 0
 fi
 
-# Hard gate: both suites (test-c + test-x), green at HEAD. A regression blocks.
-printf '[pre-push] make test ...\n'
-if ! make test; then
-	printf '\n[pre-push] BLOCKED: `make test` is red. Fix it, or bypass with `git push --no-verify`.\n' >&2
+# Hard gate: fast gates + both suites (test-c + test-x), green at HEAD.
+printf '[pre-push] make test-fast ...\n'
+if ! make test-fast; then
+	printf '\n[pre-push] BLOCKED: `make test-fast` is red. Fix it, or bypass with `git push --no-verify`.\n' >&2
 	exit 1
 fi
 
