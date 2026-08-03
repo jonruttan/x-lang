@@ -39,6 +39,15 @@
 ; boot heap); later sweeps keep a session's heap at its live set, so
 ; long-running interaction never grows past one turn's allocations.
 (def %repl-collect (prim-ref 'heap 'collect))
+; Ctrl-c cancel plumbing (see the read in `repl` below): identity test
+; for the clean-EOF sentinel (%token-eof, bound by the C io register;
+; same? is pointer identity -- eq? compares value words and could
+; conflate a satom with an integer), and the buffer flush.
+(def %repl-same? (prim-ref 'obj 'same?))
+(def %repl-buf-reset (prim-ref 'buf 'reset))
+; Private cancel marker: a fresh pair, identity-compared, so it can
+; never collide with anything a read returns.
+(def %repl-cancel (pair () ()))
 (def %repl-prompt "> ")
 (def %repl-print
   (fn (_ result)
@@ -65,13 +74,54 @@
     (%repl-collect)
     (%set-first-int! %sigint-flag 0)
     (display %repl-prompt)
-    ; Restore default SIGINT so ctrl-c at the prompt exits cleanly
-    (sigint-restore)
-    (def %r (%repl-read))
-    ; Reinstall handler so ctrl-c during eval breaks loops
-    (sigint-install)
-    (if (null? %r)
+    ; The SIGINT handler stays installed across the read (boot installed
+    ; it; no SA_RESTART, so ctrl-c pops a blocking read as EOF with
+    ; %sigint-flag set).  repl-read has THREE outcomes: a value (nil
+    ; included -- `()` reads as nil and simply evaluates); the clean-EOF
+    ; sentinel %token-eof (real EOF, and ctrl-c at the EMPTY prompt,
+    ; which arrives as EINTR -> latch -> clean EOF) -> exit; and a raised
+    ; "Unterminated input" (the reader hit end of input MID-FORM).  The
+    ; guard below classifies the raise: ctrl-c -> cancel the pending
+    ; form and reprompt; ctrl-d / truncated pipe -> report and exit 1.
+    ; The interrupted read also trips the #90 EOF latch (buffer.c
+    ; poisons the CURRENT filein cell to -1); snapshot the fd per read
+    ; so the cancel branch can un-poison it.  Resolved per read: filein
+    ; is a chain with a cell per include.
+    (def %repl-filein-cell (%reflect-base-cell 'filein))
+    (def %repl-filein-fd (%first-int (first %repl-filein-cell)))
+    (def %r
+      (guard (err
+          ; ctrl-c is visible on TWO channels: the raw flag (the read
+          ; was interrupted), or a STOP error (the eval poll saw the
+          ; flag while an x-level reader handler was mid-eval -- the
+          ; poll CLEARS the flag before raising).
+          (if (if (= 1 (%first-int %sigint-flag)) #t
+                (if (atom? err) (str=? (symbol->str err) "STOP") #f))
+            (do
+              (%set-first-int! %sigint-flag 0)
+              (%set-first-int! (first %repl-filein-cell) %repl-filein-fd)
+              ; Drop bytes the tokenizer had not consumed -- stale
+              ; input must not leak into the next read.  Resolved
+              ; inside the body: at load time the buffer-stack head is
+              ; this file's include buffer, not the session's.
+              (%repl-buf-reset (%reflect-base-cell 'buffer))
+              (newline)
+              %repl-cancel)
+            ; Not ctrl-c: ctrl-d mid-form or a truncated pipe.  The
+            ; input ended inside a form -- report and end, loudly.
+            ; Bare "Error: " prefix: the loc snapshot cells hold stale
+            ; boot metadata for an error raised from the C reader (no
+            ; form was being evaluated), so a file:line here would lie.
+            (do
+              (%stderr "Error: ")
+              (%stderr (if (str? err) err (%repl-write-to-str err)))
+              (%stderr "\n")
+              (Sys exit 1))))
+        (%repl-read)))
+    (if (%repl-same? %r %token-eof)
       (do (newline) (Sys exit 0))
+      (if (%repl-same? %r %repl-cancel)
+        (repl)
       (%seq
         (guard (err
             (%set-first-int! %sigint-flag 0)
@@ -98,7 +148,7 @@
                     (if (str? err) err (%repl-write-to-str err))))
                 (%stderr "\n"))))
           (%repl-print (eval! %r)))
-        (repl)))))
+        (repl))))))
   (note "Customizable via %repl-prompt (default \"> \") and %repl-print.")
   (note "Uses dynamic scoping so def persists across iterations.")
   (note "Uses eval! (no env save/restore) so definitions persist.")

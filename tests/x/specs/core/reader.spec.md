@@ -201,6 +201,30 @@
 ```
 ---
 
+### truncated list raises instead of spinning
+
+```scheme
+(guard (e (display e)) ((prim-ref 'tok 'read-str) (%base) "(a b"))
+```
+---
+    Unterminated input
+
+### truncated non-list tail still drops silently
+
+```scheme
+(write ((prim-ref 'tok 'read-str) (%base) "12 34"))
+```
+---
+    (12)
+
+### clean-EOF sentinel is identity-stable
+
+```scheme
+(write ((prim-ref 'obj 'same?) %token-eof %token-eof))
+```
+---
+    #t
+
 ## dotted pair reader
 
 ### reads dotted pair first
