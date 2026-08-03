@@ -25,7 +25,24 @@ Tool LOGIC is written in x-lang -- entry scripts here or modules under
    keep working when the interpreter build is broken -- independence from
    `x-bin` is a feature, not a shell habit.  (The awk generator is also
    bootstrap-circular: it emits a header the C build needs.)
-3. **Thin launch glue where an engine variant is required**
+3. **Corpus-scanning ratchets** (`check/bare-globals.sh`,
+   `check/path-literals.sh`, `check/dup-defs.sh`), for two measured
+   reasons from the 2026-08 overhaul:
+   - Per-byte textual scanning in interpreted x costs ~500 heap objects
+     per byte (the evaluator allocates per form evaluated): one pass over
+     the ~700KB scan set is 45-70s and pins the GC -- per gate, per push,
+     per CI OS.  Blocked on C-side byte-scan doors (`str find-byte` /
+     `io read-line`), proposed in the overhaul follow-ups.
+   - The C-tokenizer route (`Tok read-str`) is blocked on a reader
+     re-entrancy bug: a raw `#(` vector literal in the tokenized TEXT
+     makes the handler read the vector's elements from the AMBIENT input
+     port -- eating the calling script's own stdin (repro in the filed
+     issue).  Until fixed, read-str over arbitrary source is unsafe.
+   In-language directory enumeration is also off the table on cost
+   (~355K heap objects per file for the interpreted dirent+stat decode);
+   file lists ride shell `find | sort` onto argv -- the boot-order
+   pattern: shell enumerates, x analyzes.
+4. **Thin launch glue where an engine variant is required**
    (`dev/cov.sh` needs `x-bin-cov`).
 
 Everything else runs as an x entry script:
