@@ -240,6 +240,53 @@
 ---
     #t
 
+## lint: pedantic checks (match clause body)
+
+A match clause evaluates ONE body expression; anything after it is dead code
+and the miss is silent (#163). Every hit wants a do-wrap, so there is no
+allowlist. The warning name is the clause test's head symbol (atom tests
+render whole; the writer is hijacked by the walk for lists and symbols).
+
+### flags a match clause with more than one body expression
+
+```scheme
+(do
+  (def %r (lint-forms (list (list 'match (list #t 1 2))) () ()))
+  (display (lint-has? "#t" (lint-warnings-of "match-multi" %r))))
+```
+---
+    #t
+
+### the warning names a compound test by its head
+
+```scheme
+(do
+  (def %r (lint-forms (list (list 'match (list (list 'null? 'v) 1 2))) () ()))
+  (display (lint-has? "null?" (lint-warnings-of "match-multi" %r))))
+```
+---
+    #t
+
+### a do-wrapped clause body is clean
+
+```scheme
+(do
+  (def %r (lint-forms (list (list 'match (list #t (list 'do 1 2)))) () ()))
+  (display (null? (lint-warnings-of "match-multi" %r))))
+```
+---
+    #t
+
+### a single-expression clause body is clean
+
+```scheme
+(do
+  (def %r (lint-forms (list (list 'match (list #t 1))) () ()))
+  (display (null? (lint-warnings-of "match-multi" %r))))
+```
+---
+    #t
+
 ## lint: false-positive regressions (found by hardening)
 
 ### does not flag a 0-arg fn (empty params) called with no args

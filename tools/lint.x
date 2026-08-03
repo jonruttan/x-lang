@@ -103,6 +103,10 @@
             ((str=? st "skip")       ())
             ((str=? h "first")       (%lint-first-rest form))
             ((str=? h "rest")        (%lint-first-rest form))
+            ; match has no scope-type (its clauses bind nothing); route by
+            ; name, like first/rest, so the one-body-expression check runs
+            ; under the construct-table dispatcher too.
+            ((str=? h "match")       (%lint-match form))
             (#t                      (%lint-seq form))))))))
 
   ; --- Read target forms, analyze via lint-forms ---

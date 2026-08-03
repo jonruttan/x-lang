@@ -358,6 +358,34 @@
   (%set-first! %lint-scope saved)
   (%lint-seq (rest (rest form)))))                     ; body in outer scope
 
+; A match clause evaluates ONE body expression -- anything after it is dead
+; code, and the miss is silent: nothing errors, a side effect just never
+; happens (#163: the Logo arity-0 branch ran its handler and never recursed).
+; There is no legitimate multi-expression clause body, so no allowlist: every
+; hit wants a do-wrap.  The warning name is the clause test's head symbol --
+; NOT the test rendered: the walk runs with analysis handlers pushed on the
+; LIST/SYMBOL write stacks, so %write-to-str on a non-atom here would run the
+; analyser, not the printer.
+(def %lint-match (fn (_ form)
+  (def %clause-extra? (fn (_ clause)
+    (match
+      ((not (pair? clause)) #f)
+      ((not (pair? (rest clause))) #f)
+      (#t (not (null? (rest (rest clause))))))))
+  (def %clause-name (fn (_ test)
+    (match
+      ((pair? test) (if (symbol? (first test)) (%cvt (first test) %string) "?"))
+      ((symbol? test) (%cvt test %string))
+      (#t (guard (_ "?") (%write-to-str test))))))
+  (def %scan (fn (self clauses)
+    (unless (null? clauses)
+      (do
+        (when (%clause-extra? (first clauses))
+          (%warn! "match-multi" (%clause-name (first (first clauses)))))
+        (self (rest clauses))))))
+  (%scan (rest form))
+  (%lint-seq (rest form))))
+
 (def %lint-quasi (fn (self form)
   (unless (null? form)
     (when (pair? form)
@@ -393,7 +421,7 @@
         ((str=? h "lit")   ())
         ((str=? h "if")    (%lint-seq (rest form)))
         ((str=? h "do")    (%lint-seq (rest form)))
-        ((str=? h "match") (%lint-seq (rest form)))
+        ((str=? h "match") (%lint-match form))
         ((str=? h "first") (%lint-first-rest form))
         ((str=? h "rest")  (%lint-first-rest form))
         (#t                (%lint-seq form)))))))
@@ -544,7 +572,7 @@
   (param forms LIST "List of top-level forms to analyze")
   (param defs LIST "Accumulator for defined symbol NAMES")
   (param uses LIST "Accumulator for used symbol NAMES")
-  (returns LIST "(defs uses issues leaks warnings) -- defs/uses/issues/leaks are NAME STRINGS; warnings are (kind . name) pairs for arity / call-nonfn / dup-def / malformed / shadow / unused")
+  (returns LIST "(defs uses issues leaks warnings) -- defs/uses/issues/leaks are NAME STRINGS; warnings are (kind . name) pairs for arity / call-nonfn / dup-def / malformed / match-multi / shadow / unused")
   "Walk top-level forms via the write stacks, collecting def/use names, first/rest issues, tail-position def leaks, and pedantic warnings (arity, non-callable calls, duplicate defs, malformed forms, lexical shadows, and unused locals).")
 
 (doc (def lint-undefined (fn (_ defs uses)
@@ -587,7 +615,7 @@
 (doc (def lint-warnings-of (fn (_ kind result)
   (%map (fn (_ w) (rest w))
     (%filter (fn (_ w) (str=? (first w) kind)) (lint-warnings result)))))
-  (param kind STRING "Warning kind: arity | call-nonfn | dup-def | malformed | shadow | unused")
+  (param kind STRING "Warning kind: arity | call-nonfn | dup-def | malformed | match-multi | shadow | unused")
   (param result LIST "Result of lint-forms")
   (returns LIST "The names for warnings of that kind")
   "Filter pedantic warnings to one kind, returning their names.")
