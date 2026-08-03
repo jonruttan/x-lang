@@ -14,7 +14,7 @@
 # amalgamated the same way).  Comments are stripped before matching, so a
 # commented-out include does not trip the gate.
 
-cd "$(dirname "$0")/.." || exit 1
+cd "$(dirname "$0")/../.." || exit 1
 
 FOUND=0
 for f in $(find lib apps -name '*.x' \

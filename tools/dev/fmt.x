@@ -31,7 +31,7 @@
   ; one. Navigation is CONTRACT-DRIVEN (#39): the old hand-rolled walk
   ; hardcoded "type-struct has 7 elements, io is the 7th" and a
   ; shape-heuristic COMMENT probe -- both bit-rotted against the layout
-  ; and segfaulted. Everything below rides tools/base-paths.x rows
+  ; and segfaulted. Everything below rides tools/contract/base-paths.x rows
   ; through the reflect/type doors, so a layout change moves these
   ; accessors automatically (or fails the check-base-paths gate loudly).
 

@@ -1,7 +1,7 @@
 #!/bin/sh
 # package.sh -- build a relocatable per-platform binary tarball.
 #
-#   sh tools/package.sh [TAG] [OUTDIR]
+#   sh tools/release/package.sh [TAG] [OUTDIR]
 #     TAG     version label in the name + top dir  (default: dev)
 #     OUTDIR  where the tarball lands              (default: build/dist)
 #
@@ -23,7 +23,7 @@
 # notarization needs a signing identity and is out of scope here.
 set -eu
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 TAG="${1:-dev}"
 OUT="${2:-build/dist}"
@@ -61,7 +61,7 @@ make --no-print-directory install PREFIX="/x-$TAG" DESTDIR="$STAGE" >/dev/null \
 # change.  Set: a failure here fails the package -- we never ship a
 # binary that was meant to be notarized but wasn't.
 if [ -n "${MACOS_SIGN_IDENTITY:-}" ] && [ "$os" = darwin ]; then
-	sh tools/macos-notarize.sh "$STAGE/x-$TAG/libexec/x/x-bin" \
+	sh tools/release/macos-notarize.sh "$STAGE/x-$TAG/libexec/x/x-bin" \
 		|| fail "Developer ID sign + notarize failed"
 fi
 

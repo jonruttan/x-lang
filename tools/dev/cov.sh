@@ -1,7 +1,7 @@
 #!/bin/sh
 # cov.sh -- x-lang branch coverage wrapper
 #
-# Usage: sh tools/cov.sh [--lang LANG] [--test TEST] FILE
+# Usage: sh tools/dev/cov.sh [--lang LANG] [--test TEST] FILE
 #
 # Runs the target file through the x-bin-cov binary (which marks
 # evaluated AST nodes) then reports which branches were taken.
@@ -12,10 +12,10 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 X_COV="${ROOT}/x-bin-cov"
 LIB="${ROOT}/lib/x-core.x"
-COV="${ROOT}/tools/cov.x"
+COV="${ROOT}/tools/dev/cov.x"
 CONSTRUCTS="${ROOT}/lib/x/constructs.x"
 
 usage() {

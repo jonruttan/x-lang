@@ -1,18 +1,18 @@
 #!/bin/sh
 # fmt.sh -- comment-preserving x-lang formatter
 #
-# Usage: sh tools/fmt.sh FILE                -- print formatted output
-#        sh tools/fmt.sh -i FILE             -- format in place
-#        sh tools/fmt.sh --check FILE        -- exit 1 if file would change
-#        sh tools/fmt.sh --lang r5rs FILE    -- use language-specific constructs
+# Usage: sh tools/dev/fmt.sh FILE                -- print formatted output
+#        sh tools/dev/fmt.sh -i FILE             -- format in place
+#        sh tools/dev/fmt.sh --check FILE        -- exit 1 if file would change
+#        sh tools/dev/fmt.sh --lang r5rs FILE    -- use language-specific constructs
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 X="${ROOT}/x"
 LIB="${ROOT}/lib/x-core.x"
-FMT="${ROOT}/tools/fmt.x"
+FMT="${ROOT}/tools/dev/fmt.x"
 CONSTRUCTS="${ROOT}/lib/x/constructs.x"
 
 usage() {

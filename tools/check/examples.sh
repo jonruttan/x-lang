@@ -20,7 +20,7 @@
 # or/hello.x prints a per-OS syscall number, execve-ls.x prints a live
 # directory listing.
 #
-#   UPDATE=1 sh tools/check-examples.sh   # regenerate existing sidecars
+#   UPDATE=1 sh tools/check/examples.sh   # regenerate existing sidecars
 #
 # UPDATE rewrites only sidecars that already exist -- promoting a
 # status-only example to pinned is a deliberate act (create the file, run
@@ -31,7 +31,7 @@
 # does -- a runaway example fails instead of eating the machine.
 set -u
 
-cd "$(dirname "$0")/.." || exit 1
+cd "$(dirname "$0")/../.." || exit 1
 
 X_BIN="${X_BIN:-./x-bin}"
 X_ALLOC_LIMIT_OBJS="${X_ALLOC_LIMIT_OBJS:-300000000}"

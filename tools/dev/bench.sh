@@ -1,14 +1,14 @@
 #!/bin/sh
 # bench.sh -- Benchmark x-lang library loading with profiling data
 #
-# Usage: sh tools/bench.sh [--no-build]
+# Usage: sh tools/dev/bench.sh [--no-build]
 #
 # Outputs TSV to benchmarks/<date>.tsv and prints comparison with
 # the previous benchmark if one exists.
 
 set -e
 
-BASEDIR="$(cd "$(dirname "$0")/.." && pwd)"
+BASEDIR="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$BASEDIR"
 
 DATE=$(date +%Y-%m-%d_%H%M%S)

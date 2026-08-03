@@ -1,11 +1,11 @@
-; tools/bare-globals.x -- the sanctioned bare top level of boot/core (#108).
+; tools/contract/bare-globals.x -- the sanctioned bare top level of boot/core (#108).
 ;
 ; THE TOP LEVEL IS SACRED: lib/x-core.x + lib/x/boot + lib/x/core may bind
-; only these bare names.  tools/bare-globals-scan.sh (make check-bare-globals)
+; only these bare names.  tools/check/bare-globals.sh (make check-bare-globals)
 ; diffs the live def surface against this file in BOTH directions, so the
 ; list can only shrink deliberately: sweep a name to %-private (public face
 ; on a class) and delete its row in the same commit.  C-bound bare names
-; live in tools/isa.x's %isa-bare section, not here.
+; live in tools/contract/isa.x's %isa-bare section, not here.
 ;
 ; FORMAT (rigid, one entry per line -- the awk parses the same bytes):
 ;   (name)

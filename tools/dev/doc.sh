@@ -1,7 +1,7 @@
 #!/bin/sh
 # doc.sh -- Generate Markdown documentation from x-lang source files
 #
-# Usage: sh tools/doc.sh FILE [FILE ...]    -- generate docs to stdout
+# Usage: sh tools/dev/doc.sh FILE [FILE ...]    -- generate docs to stdout
 #
 # Feeds two string literals to the doc tool:
 #   1. doc-prims.x content (retroactive docs for boot modules)
@@ -10,10 +10,10 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 X="${ROOT}/x"
 LIB="${ROOT}/lib/x-core.x"
-DOC="${ROOT}/tools/doc.x"
+DOC="${ROOT}/tools/dev/doc.x"
 PRIMS="${ROOT}/lib/x/doc/doc-prims.x"
 
 escape_file() {

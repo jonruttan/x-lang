@@ -40,7 +40,7 @@
 # the final launch.x with the -f path exercised below.)
 set -u
 
-cd "$(dirname "$0")/.." || exit 1
+cd "$(dirname "$0")/../.." || exit 1
 WRAPPER=./x.sh
 
 # Wall-time guard, same detection as spec-runner.sh (macOS: gtimeout).
@@ -243,7 +243,7 @@ grep -q "unlisted: acme/tail.x" "$_TMP/out" "$_TMP/err" \
 
 # fetch: a fake release over file:// -- verified or nothing.  The tiny
 # artifact keeps the pure-x digest instant; the layout and vocabulary
-# are exactly tools/release-manifest.sh's.
+# are exactly tools/release/release-manifest.sh's.
 if command -v sha256sum >/dev/null 2>&1; then
   _dg() { sha256sum "$1" | awk '{print $1}'; }
 else
@@ -253,7 +253,7 @@ mkdir -p "$_TMP/rel/v9.9.9-smoke"
 printf '(def %%pin-smoke-fetched "tiny")\n' > "$_TMP/rel/v9.9.9-smoke/tiny.x"
 {
   printf '(release "v9.9.9-smoke")\n'
-  printf '(isa "sha256:%s")\n' "$(_dg tools/isa.x)"
+  printf '(isa "sha256:%s")\n' "$(_dg tools/contract/isa.x)"
   printf '(file "tiny.x" "sha256:%s")\n' "$(_dg "$_TMP/rel/v9.9.9-smoke/tiny.x")"
 } > "$_TMP/rel/v9.9.9-smoke/pin.release.xon"
 cat > "$_TMP/fetch.x" <<EOF
