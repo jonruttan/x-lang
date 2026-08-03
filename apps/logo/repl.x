@@ -1,10 +1,11 @@
-; repl.x -- Logo REPL with multiline block reading
+; repl.x -- Logo REPL over the streaming entry reader (#157), plus batch.
 (import logo/types)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %token-read-string (prim-ref 'tok 'read-str))
 
 (import logo/dispatch)
 (import logo/indent)
+(import logo/entry)
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
 (def %read-char (prim-ref 'io 'read-char))
 ; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
@@ -13,7 +14,8 @@
 
 
 ; ============================================================
-; Line reader
+; Line reader (batch mode only -- the interactive path reads through
+; the entry reader, apps/logo/entry.x)
 ; ============================================================
 
 (def %read-line
@@ -31,111 +33,22 @@
     (%rl ())))
 
 ; ============================================================
-; Balance checking
-; ============================================================
-
-(def %count-brackets
-  (fn (_ line)
-    (def %cb
-      (fn (self i depth)
-        (if (>= i (Str8 length line)) depth
-          (self (+ i 1)
-            (if (Char =? (Str8 ref i line) #\[) (+ depth 1)
-              (if (Char =? (Str8 ref i line) #\]) (- depth 1)
-                depth))))))
-    (%cb 0 0)))
-
-(def %is-indented?
-  (fn (_ line)
-    (if (str=? line "") #f
-      (if (Char =? (Str8 ref 0 line) #\space) #t
-        (Char =? (Str8 ref 0 line) #\tab)))))
-
-; Probe: try processing accumulated input.
-; If it succeeds, the input was complete.
-; If it errors, the input is incomplete — keep reading.
-(def %is-complete?
-  (fn (_ text depth)
-    (if (> depth 0) #f
-      (guard (err
-          ; Re-throw STOP (from ctrl-c) instead of swallowing it
-          (if (if (atom? err) (str=? (symbol->str err) "STOP") #f)
-            (error err)
-            #f))
-        (def tokens (%token-read-string %logo-base (Str append text " ")))
-        (def processed (%logo-indent-to-blocks tokens))
-        (logo-process-tokens processed)
-        #t))))
-
-; ============================================================
-; Block reader
-; ============================================================
-
-(def %read-block
-  (fn ()
-    (def %rb
-      (fn (self lines depth)
-        ; At the top prompt (no pending lines) default SIGINT so ctrl-c
-        ; exits, as ever.  MID-BLOCK keep the handler installed: the
-        ; handler has no SA_RESTART and x_sys_read treats EINTR as EOF,
-        ; so ctrl-c pops the blocking read with %sigint-flag set and the
-        ; check below cancels the pending block instead of killing the
-        ; session.  Reinstall after so ctrl-c during execution breaks
-        ; loops.
-        (when (null? lines) (sigint-restore))
-        ; The interrupted read also trips the #90 EOF latch (buffer.c
-        ; poisons the CURRENT filein cell to -1, making every later read
-        ; instant EOF).  Snapshot the fd beforehand so the cancel branch
-        ; can un-poison it.  Resolved per read on purpose: filein is a
-        ; chain with a cell per include, so a load-time cell would be the
-        ; includer's, not the session's.
-        (def %logo-filein-cell (%reflect-base-cell 'filein))
-        (def %logo-filein-fd (%first-int (first %logo-filein-cell)))
-        (def line (%read-line))
-        (sigint-install)
-        (if (= 1 (%first-int %sigint-flag))
-          ; ctrl-c mid-block: discard the pending lines, fresh prompt.
-          ; (line may hold a partial line the interrupt cut short --
-          ; discard that too.)
-          (do
-            (%set-first-int! %sigint-flag 0)
-            (%set-first-int! (first %logo-filein-cell) %logo-filein-fd)
-            (newline)
-            (display %logo-prompt)
-            (self () 0))
-          (if (null? line)
-            ; EOF
-            (unless (null? lines) (Str join "" (List reverse lines)))
-            (if (str=? line "")
-              ; Blank line
-              (if (null? lines)
-                (self () 0)
-                (if (> depth 0)
-                  (self lines depth)
-                  ; Balanced — probe for completeness
-                  (if (%is-complete? (Str join "" (List reverse lines)) depth)
-                    (Str join "" (List reverse lines))
-                    (self lines depth))))
-              ; Non-empty line
-              (let ((new-depth (+ depth (%count-brackets line)))
-                    (new-lines (pair (Str append "\n" line) lines)))
-                (if (> new-depth 0)
-                  (self new-lines new-depth)
-                  (if (%is-indented? line)
-                    (self new-lines new-depth)
-                    ; Col 0, balanced — probe for completeness
-                    (if (%is-complete? (Str join "" (List reverse new-lines)) new-depth)
-                      (Str join "" (List reverse new-lines))
-                      (self new-lines new-depth))))))))))
-    (%rb () 0)))
-
-; ============================================================
 ; REPL
 ; ============================================================
 
 (def %logo-prompt "? ")
 (def %logo-on-exit ())
 (def %logo-on-command ())
+
+; Cancel marker: fresh pair, identity-compared.
+(def %logo-cancel (pair () ()))
+
+; True when err is the STOP atom (the eval poll's ctrl-c raise; the
+; poll CLEARS %sigint-flag before raising, so both channels are tested
+; wherever ctrl-c is classified).
+(def %logo-stop?
+  (fn (_ err)
+    (if (atom? err) (str=? (symbol->str err) "STOP") #f)))
 
 (def logo-repl
   (op ()
@@ -144,28 +57,64 @@
     ; before the pipe, so stdin survives ctrl-c)
     (when (Sys isatty 3)
       (do (Sys dup2 3 0) (Sys close 3)))
+    ; The SIGINT handler stays installed permanently (boot installed
+    ; it): ctrl-c pops a blocking read as EOF with %sigint-flag set,
+    ; and the entry reader turns that into %logo-eof (empty prompt) or
+    ; an Unterminated-input raise (mid-entry) -- the guard below
+    ; classifies.  During EXECUTION the eval poll raises STOP into the
+    ; eval guard.  The old restore/install dance (default SIGINT while
+    ; reading) is gone: every exit path now runs %logo-on-exit, so the
+    ; viewer child is never orphaned.
     (%set-first-int! %sigint-flag 0)
     (display %logo-prompt)
-    (def block (%read-block))
-    (if (null? block)
-      ; EOF or ctrl-c — kill the server child, then exit
+    ; Snapshot %logo-base's OWN filein fd -- the interrupted read
+    ; poisons THAT base's #90 latch cell, not the session's.
+    (def %lr-fd-cell (%logo-filein-cell))
+    (def %lr-fd (%first-int (first %lr-fd-cell)))
+    (def %entry
+      (guard (err
+          (if (if (= 1 (%first-int %sigint-flag)) #t (%logo-stop? err))
+            ; ctrl-c mid-entry: discard the pending entry and the
+            ; partial line, un-poison the latch, fresh prompt.
+            (do
+              (%set-first-int! %sigint-flag 0)
+              (%set-first-int! (first %lr-fd-cell) %lr-fd)
+              (%logo-entry-flush)
+              (newline)
+              %logo-cancel)
+            ; ctrl-d mid-entry / truncated pipe: report, clean up, end.
+            (do
+              (%stderr "Error: ")
+              (%stderr (if (str? err) err (%repl-write-to-str err)))
+              (%stderr "\n")
+              (unless (null? %logo-on-exit) (%logo-on-exit))
+              (Sys exit 1))))
+        (%logo-read-entry)))
+    (if (%logo-entry-same? %entry %logo-eof)
+      ; Clean EOF: ctrl-d at the prompt, pipe end, AND ctrl-c at the
+      ; EMPTY prompt (EINTR -> latch -> stream end with nothing
+      ; pending).  Kill the server child, then exit.
       (do (unless (null? %logo-on-exit) (%logo-on-exit))
           (newline) (Sys exit 0))
-      (do
-        (guard (err
-            (%set-first-int! %sigint-flag 0)
-            (if (if (atom? err) (str=? (symbol->str err) "STOP") #f)
-              (display "\n")
-              (%seq
-                (%stderr "Error: ")
-                (%stderr (if (str? err) err
-                          (if (number? err) (%number->str err)
-                            (symbol->str err))))
-                (%stderr "\n"))))
-          ; Block already executed by %is-complete? probe —
-          ; no need to process again
-          (unless (null? %logo-on-command) (%logo-on-command)))
-        (logo-repl)))))
+      (if (%logo-entry-same? %entry %logo-cancel)
+        (logo-repl)
+        (do
+          (guard (err
+              (%set-first-int! %sigint-flag 0)
+              (if (%logo-stop? err)
+                (display "\n")
+                (do
+                  (%stderr "Error: ")
+                  ; dispatch raises Err INSTANCES; only the universal
+                  ; writer renders those (the old str/number/symbol
+                  ; triple printed garbage for them -- the #46 shape).
+                  (%stderr (if (str? err) err (%repl-write-to-str err)))
+                  (%stderr "\n"))))
+            ; The entry executes EXACTLY once, here (the old
+            ; completeness probe that pre-executed entries is gone).
+            (logo-process-tokens (%logo-indent-to-blocks %entry))
+            (unless (null? %logo-on-command) (%logo-on-command)))
+          (logo-repl))))))
 
 ; ============================================================
 ; Batch mode (-f)

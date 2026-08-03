@@ -138,8 +138,14 @@
             (def %rb
               (fn (self acc)
                 (def tok (%token-read buf))
+                ; nil = the stream ended INSIDE the block: truncation,
+                ; not an implicit ] (the old silent close accepted
+                ; truncated files and made a ctrl-c'd read look like a
+                ; well-formed block).  Raise, like the sexp reader's
+                ; unterminated-list (#156); the raise reaches the
+                ; session guard through the Base-eval bridge.
                 (if (null? tok)
-                  (%make-instance %logo-block (List reverse acc))
+                  (error "Unterminated input")
                   (if (eq? tok %logo-block-close)
                     (%make-instance %logo-block (List reverse acc))
                     (self (pair tok acc))))))
