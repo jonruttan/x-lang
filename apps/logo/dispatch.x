@@ -226,6 +226,11 @@
             (remaining (rest tokens)))
         (def word (%logo-word tok))
         (match
+          ; A block at statement position runs its contents (matches the
+          ; LOGO-BLOCK 'eval handler); must precede the nil-word skip.
+          ((%is-block? tok)
+            (do (logo-process-tokens (%block-contents tok))
+                (logo-process-tokens remaining)))
           ((null? word)
             (logo-process-tokens remaining))
           ((and (not (null? remaining))
