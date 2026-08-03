@@ -185,15 +185,19 @@
         (def line (%read-line))
         (if (null? line) (List reverse acc) (self (pair line acc)))))
     (def content (Str join "\n" (%lines ())))
+    ; Handler body is MULTI-FORM (x_eval_body) -- no %seq wrapper.  The
+    ; old flat 5-arg (%seq ...) ran only its first two forms (%seq is
+    ; BINARY, the primitive `do` is built on): the newline, the exit
+    ; hook, and (Sys exit 1) were silently dropped, so an erroring
+    ; batch exited 0 and orphaned the viewer.  Caught by check-logo-tty.
     (guard (err
-        (%seq
-          (%stderr "Error: ")
-          ; loop.x's formatter, not logo-repl's str/number/symbol triple:
-          ; dispatch raises Err INSTANCES, and only the C writer renders those
-          (%stderr (if (str? err) err (%repl-write-to-str err)))
-          (%stderr "\n")
-          (unless (null? %logo-on-exit) (%logo-on-exit))
-          (Sys exit 1)))
+        (%stderr "Error: ")
+        ; loop.x's formatter, not logo-repl's str/number/symbol triple:
+        ; dispatch raises Err INSTANCES, and only the C writer renders those
+        (%stderr (if (str? err) err (%repl-write-to-str err)))
+        (%stderr "\n")
+        (unless (null? %logo-on-exit) (%logo-on-exit))
+        (Sys exit 1))
       (def tokens (%token-read-string %logo-base (Str append content " ")))
       (logo-process-tokens (%logo-indent-to-blocks tokens))
       (unless (null? %logo-on-exit) (%logo-on-exit)))))

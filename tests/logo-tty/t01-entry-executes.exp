@@ -1,0 +1,8 @@
+#!/usr/bin/expect -f
+# Behavior 7a: a complete entry evaluates, exactly one result, prompt returns.
+source [file join [file dirname [info script]] lib.exp]
+spawn_logo
+assert_alive 2 3 5
+ctrl_d
+expect eof
+exit 0

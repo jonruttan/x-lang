@@ -1,0 +1,25 @@
+#!/usr/bin/expect -f
+# Behavior 4, pinned to the POST-rewrite ruling: ctrl-c at the EMPTY
+# prompt ends the session CLEANLY -- exit status 0 and %logo-on-exit ran,
+# so no viewer server is left holding :8080.
+# Today this dies via the default handler (exit 130, server orphaned):
+# the test sits in known-fail.txt until the rewrite lands.
+source [file join [file dirname [info script]] lib.exp]
+if {[port_8080_busy]} { puts "SKIP-as-pass: :8080 busy before spawn"; exit 0 }
+spawn_logo
+ctrl_c
+expect {
+    eof {}
+    timeout { puts "FAIL: still alive after ctrl-c at empty prompt"; exit 1 }
+}
+catch {wait} result
+set status [lindex $result 3]
+if {$status != 0} { puts "FAIL: exit status $status (want 0)"; exit 1 }
+# The exit hook must have killed the viewer child.
+for {set i 0} {$i < 5} {incr i} {
+    if {![port_8080_busy]} { exit 0 }
+    sleep 1
+}
+puts "FAIL: viewer server orphaned on :8080"
+exec sh -c {pkill -f "x-bin --batch" || true}
+exit 1

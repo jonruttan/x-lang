@@ -1,0 +1,18 @@
+#!/usr/bin/expect -f
+# Behavior 8b, pinned to the POST-rewrite ruling: an erroring entry
+# surfaces as an "Error: ..." line and the session continues.
+# Today the completeness probe swallows dispatch errors as "incomplete"
+# and no error is ever printed interactively (verified empirically):
+# the test sits in known-fail.txt until the rewrite lands.
+source [file join [file dirname [info script]] lib.exp]
+spawn_logo
+send "frobnicate 5\r"
+expect {
+    -re {Error[: ]} {}
+    timeout { puts "FAIL: no Error line for an unknown command"; exit 1 }
+    eof { puts "FAIL: session died on an erroring entry"; exit 1 }
+}
+assert_alive 4 5 9
+ctrl_d
+expect eof
+exit 0

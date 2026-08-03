@@ -41,6 +41,15 @@ jobs:
       # first-ever run caught or/cat.x broken by the #36 opt-in re-cut.
       - name: Examples
         run: make check-examples
+      # Logo tty contract (#152/#157): pty-driven pins of the interactive
+      # behaviors every batch suite is blind to.  expect ships on the macOS
+      # runners; install it on ubuntu.  The harness skips-with-note if
+      # expect is somehow absent, so this step cannot flake on tooling.
+      - name: Install expect (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q expect
+      - name: Logo tty contract
+        run: make check-logo-tty
 
   # Memory-safety gate: both suites under AddressSanitizer. HARD gate since
   # the baseline reached zero (2026-07-13; was 112 findings): a red run here

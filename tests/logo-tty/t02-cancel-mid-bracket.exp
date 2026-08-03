@@ -1,0 +1,20 @@
+#!/usr/bin/expect -f
+# Behaviors 1+2+3+5: ctrl-c mid-entry cancels the pending input and the
+# session SURVIVES -- the handler is installed mid-entry (1), the pending
+# block is discarded (2), the #90 filein latch is un-poisoned (3), and the
+# fd-3 tty reclaim survives the signal (5).
+# `print [a` is mid-entry under both eras: open bracket depth today,
+# inside the LOGO-OPEN reader loop after the rewrite.
+source [file join [file dirname [info script]] lib.exp]
+spawn_logo
+# Brace-quoted: [ ] is Tcl command substitution inside double quotes.
+send {print [a}
+send "\r"
+sleep 1
+ctrl_c
+sleep 1
+# The discarded entry must produce no output; the session must evaluate.
+assert_alive 7 6 13
+ctrl_d
+expect eof
+exit 0
