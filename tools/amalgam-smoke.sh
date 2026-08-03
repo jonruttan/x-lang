@@ -25,11 +25,17 @@ smoke() { # entry expected-output extra-form
 		cat "build/boot/$1.x"
 		printf '(display (+ 1 2))(newline)(import x/type/set)(display ((Set of 1 2 2 3) length))(newline)%s' "$3"
 	} | "$X_BIN" "--batch" 2>&1)
+	_rc=$?
 	if [ "$_out" = "$2" ]; then
 		echo "amalgam-smoke: $1 ok"
 	else
 		STATUS=1
-		echo "amalgam-smoke: $1 FAIL" >&2
+		# The exit status separates the failure modes: >128 = died by
+		# signal (128+N); 0 with short output = the engine saw a
+		# premature EOF and stopped cleanly mid-stream (empty output =
+		# stdout died in the pipe buffer, so "expected vs actual" alone
+		# cannot tell these apart).
+		echo "amalgam-smoke: $1 FAIL (exit status $_rc)" >&2
 		printf 'expected:\n%s\nactual:\n%s\n' "$2" "$_out" >&2
 	fi
 }
