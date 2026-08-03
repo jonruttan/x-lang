@@ -1,18 +1,18 @@
 #!/bin/sh
-# tools/cov-lib.sh -- x-lang library coverage report (aggregated)
+# tools/dev/cov-lib.sh -- x-lang library coverage report (aggregated)
 #
 # Runs each spec file in its own x-bin-profile invocation, collects
 # per-function coverage data (TSV), then merges by taking the max
 # covered count per function across all runs.
 #
-# Usage: sh tools/cov-lib.sh [spec-dir...]
+# Usage: sh tools/dev/cov-lib.sh [spec-dir...]
 #        (defaults to tests/x/specs/{core,lib,ext})
 #
 # Requires: x-bin-profile binary (make x-bin-profile)
 
 set +e  # don't exit on crash/empty grep from individual specs
 
-BASEDIR="$(cd "$(dirname "$0")/.." && pwd)"
+BASEDIR="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$BASEDIR"
 
 if [ ! -f ./x-bin-profile ]; then
@@ -73,7 +73,7 @@ for dir in "$@"; do
             echo '(def %cov-library-end #t)'
             echo '(def %cov-tsv-mode #t)'
             cat "$TMPTEST"
-            cat tools/cov-report.x
+            cat tools/dev/cov-report.x
         } | timeout 60 ./x-bin-profile 2>/dev/null | grep '^COV	' >> "$TMPTSV"
         true  # don't fail on crash or empty grep
 

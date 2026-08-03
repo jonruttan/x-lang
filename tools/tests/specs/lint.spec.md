@@ -4,7 +4,7 @@
 
 ```scheme
 (do
-  (include "tools/lint-lib.x")
+  (include "tools/dev/lint-lib.x")
   (def %result (%lint-forms (list (list (lit +) (lit x) 1)) () ()))
   (def %undef (%lint-undefined (first %result) (first (rest %result))))
   (display (includes? (lit x) %undef)))
@@ -16,7 +16,7 @@
 
 ```scheme
 (do
-  (include "tools/lint-lib.x")
+  (include "tools/dev/lint-lib.x")
   (def %forms (list (list (lit def) (lit x) 1) (lit x)))
   (def %result (%lint-forms %forms () ()))
   (def %undef (%lint-undefined (first %result) (first (rest %result))))
@@ -29,7 +29,7 @@
 
 ```scheme
 (do
-  (include "tools/lint-lib.x")
+  (include "tools/dev/lint-lib.x")
   (def %forms (list (list (lit def) (lit x) 1)
                     (list (lit def) (lit y) 2)
                     (lit y)))
@@ -44,7 +44,7 @@
 
 ```scheme
 (do
-  (include "tools/lint-lib.x")
+  (include "tools/dev/lint-lib.x")
   (def %forms (list (list (lit def) (lit x) 1)
                     (list (lit def) (lit y) 2)
                     (lit y)))
@@ -59,7 +59,7 @@
 
 ```scheme
 (do
-  (include "tools/lint-lib.x")
+  (include "tools/dev/lint-lib.x")
   (def %forms (list (list (lit fn) (list (lit a) (lit b))
                      (list (lit +) (lit a) (lit b)))))
   (def %result (%lint-forms %forms () ()))
@@ -73,7 +73,7 @@
 
 ```scheme
 (do
-  (include "tools/lint-lib.x")
+  (include "tools/dev/lint-lib.x")
   (def %forms (list (list (lit op) (list (lit x)) (lit e)
                      (list (lit eval) (lit x) (lit e)))))
   (def %result (%lint-forms %forms () ()))
@@ -87,7 +87,7 @@
 
 ```scheme
 (do
-  (include "tools/lint-lib.x")
+  (include "tools/dev/lint-lib.x")
   (def %forms (list (list (lit let)
                      (list (list (lit x) 1))
                      (lit x))))
@@ -102,7 +102,7 @@
 
 ```scheme
 (do
-  (include "tools/lint-lib.x")
+  (include "tools/dev/lint-lib.x")
   (def %forms (list (list (lit guard)
                      (list (lit err) (lit err))
                      (list (lit error) "boom"))))
@@ -117,7 +117,7 @@
 
 ```scheme
 (do
-  (include "tools/lint-lib.x")
+  (include "tools/dev/lint-lib.x")
   (def %forms (list (list (lit def) (lit f)
                      (list (lit fn) (list (lit n))
                        (list (lit f) (list (lit -) (lit n) 1))))))
@@ -132,7 +132,7 @@
 
 ```scheme
 (do
-  (include "tools/lint-lib.x")
+  (include "tools/dev/lint-lib.x")
   (def %forms (list (list (lit lit) (lit foo))))
   (def %result (%lint-forms %forms () ()))
   (display (null? (%assoc-keys (first (rest %result))))))
@@ -144,7 +144,7 @@
 
 ```scheme
 (do
-  (include "tools/lint-lib.x")
+  (include "tools/dev/lint-lib.x")
   (def %forms (list (list (lit quasi)
                      (list (lit a)
                        (list (lit unquote) (lit b))))))
@@ -160,7 +160,7 @@
 
 ```scheme
 (do
-  (include "tools/lint-lib.x")
+  (include "tools/dev/lint-lib.x")
   (def %forms (list (list (lit def) (lit %internal) 1)))
   (def %result (%lint-forms %forms () ()))
   (def %unused (%lint-unused (first %result) (first (rest %result)) ()))
@@ -173,7 +173,7 @@
 
 ```scheme
 (do
-  (include "tools/lint-lib.x")
+  (include "tools/dev/lint-lib.x")
   (def %forms (list (list (lit def) (lit x) 1)))
   (def %result (%lint-forms %forms () ()))
   (def %unused (%lint-unused (first %result) (first (rest %result)) t))

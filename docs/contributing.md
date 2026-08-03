@@ -69,7 +69,7 @@ make clean && make
   boot-layer mechanism spelling, used only in files that parse before the
   quote reader exists: `x-core.x`, its includes through `lit-reader.x`, and
   the files those pull in via mid-boot `import` (`codec/utf8.x`,
-  `platform/syscall.x`) — plus `tools/isa.x`, a data manifest. Strings and
+  `platform/syscall.x`) — plus `tools/contract/isa.x`, a data manifest. Strings and
   comments inside those files may still show `'x`. See [syntax.md](syntax.md)
 - **File extension** — `.x`
 
@@ -299,11 +299,11 @@ GitHub Actions (`.github/workflows/ci.yml`) hard-gates every push and pull reque
 
 Pushing a version tag (`v*`) runs `.github/workflows/release.yml`: the
 full gate first (a tag on a red tree publishes nothing), then `make
-boot` and `tools/release-manifest.sh`, publishing a GitHub Release
+boot` and `tools/release/release-manifest.sh`, publishing a GitHub Release
 carrying the amalgamated boot entries (`build/boot/*.x`, discovered —
 never a hand list), `SHASUMS` (coreutils format), and
 `pin.release.xon` — the machine-readable manifest (xon) with each
-file's sha256 and the **ISA fingerprint**: the digest of `tools/isa.x`,
+file's sha256 and the **ISA fingerprint**: the digest of `tools/contract/isa.x`,
 the C-surface contract the amalgams were built against (`make
 check-isa` holds manifest == binary). The workflow also cross-checks
 the pure-x `Sha256` against coreutils on that fingerprint, and `make
@@ -311,7 +311,7 @@ check-release-manifest` gates the manifest script on every test run so
 it cannot rot between releases.
 
 The same tag also builds a relocatable per-platform binary tarball
-(`tools/package.sh`, gated by `make check-package`) and uploads it with
+(`tools/release/package.sh`, gated by `make check-package`) and uploads it with
 a `.sha256` sidecar.
 
 #### macOS notarization (opt-in via repository secrets)

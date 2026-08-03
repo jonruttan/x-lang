@@ -39,7 +39,7 @@
 # New entries need the same-value argument written here.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR" || exit 1
 
 _FILES=$(find lib apps -name '*.x' 2>/dev/null | sort)

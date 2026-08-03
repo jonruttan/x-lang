@@ -5,7 +5,7 @@
 # the interpreter's own env-alist for known symbols -- no manual
 # enumeration needed.
 #
-# Usage: sh tools/lint.sh [--lib] [--lang LANG] [file.x ...]
+# Usage: sh tools/dev/lint.sh [--lib] [--lang LANG] [file.x ...]
 #   --lib: suppress unused warnings (for library/export files)
 #   --lang LANG: use language-specific constructs
 #   No args: lint lib/x-core.x, lib/x/*.x, and apps/*/*.x in --lib mode
@@ -19,7 +19,7 @@
 # (run.x/main.x, no provide) safe to lint: nothing forks a server.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 X_BIN="$PROJECT_DIR/x-bin"
 LINTER="$SCRIPT_DIR/lint.x"
 LANG_LIB="$PROJECT_DIR/lib/x-core.x"

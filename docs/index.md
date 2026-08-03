@@ -27,9 +27,7 @@
 
 ## Tools
 
-- [Linter](../tools/README-lint.md) — AST linter for x-lang source
-- [Formatter](../tools/README-fmt.md) — Comment-preserving s-expression formatter
-- [Coverage](../tools/README-cov.md) — Library coverage analysis
+- [Dev tools](../tools/dev/README.md) — Formatter, linter, coverage, benchmarks, doc generation
 
 ## Project
 

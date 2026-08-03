@@ -21,7 +21,7 @@
 #      " "
 
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 if ! command -v expect >/dev/null 2>&1; then
 	echo "SKIP: expect not installed -- logo tty contract not exercised"

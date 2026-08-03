@@ -80,7 +80,7 @@
 ; Entry: (name desc returns params examples sees notes samples)
 ;
 ; example vs sample (#16): (example "in" "out") is an EXECUTABLE
-; contract -- "out" is the true echo, and tools/doctest.x runs every
+; contract -- "out" is the true echo, and tools/check/doctest.x runs every
 ; example as a regression test. (sample "in" "prose") is an
 ; illustration -- side-effectful, environment-dependent, or
 ; prose-described -- rendered by help exactly like an example but

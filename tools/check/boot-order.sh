@@ -5,7 +5,7 @@
 # stdin; the full lib file list (for the def-class inventory) rides the
 # command line (the tool reads it from `args` -- stdin is for code, argv is
 # for data: a mid-stream (read) would eat the tool's own next form).
-# tools/boot-order.x simulates the boot load order from lib/x-core.x and
+# tools/check/boot-order.x simulates the boot load order from lib/x-core.x and
 # prints one line per violation, then "ok" iff there were none.
 #
 # Pass/fail comes from the linter's own output, not $?: an uncaught x-lang
@@ -13,7 +13,7 @@
 # only clean signal.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 X_BIN="${X_BIN:-$PROJECT_DIR/x-bin}"
 
 # Paths inside x-core.x ("lib/...") are repo-relative.
@@ -31,7 +31,7 @@ _FILES=$(find lib -name '*.x' | sort)
 
 _OUT=$({
   printf '(alloc-limit! %s)\n' "$X_ALLOC_LIMIT_OBJS"
-  cat lib/x-core.x tools/boot-order.x
+  cat lib/x-core.x tools/check/boot-order.x
 } | "$X_BIN" $_FILES 2>&1)
 
 # "ok" must be present AND no interpreter error anywhere in the output --

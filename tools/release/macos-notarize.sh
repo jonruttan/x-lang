@@ -1,7 +1,7 @@
 #!/bin/sh
 # macos-notarize.sh -- Developer ID sign + notarize a macOS binary.
 #
-#   sh tools/macos-notarize.sh <path-to-binary>
+#   sh tools/release/macos-notarize.sh <path-to-binary>
 #
 # Re-signs the binary (replacing package.sh's ad-hoc signature) with a
 # real Developer ID Application identity under the HARDENED RUNTIME --

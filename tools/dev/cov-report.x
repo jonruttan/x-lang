@@ -1,6 +1,6 @@
-; tools/cov-report.x -- x-lang library coverage report (entry script)
+; tools/dev/cov-report.x -- x-lang library coverage report (entry script)
 ;
-; Usage: cat lib/x-core.x [tests...] tools/cov-report.x | ./x-profile
+; Usage: cat lib/x-core.x [tests...] tools/dev/cov-report.x | ./x-profile
 ;
 ; Set %cov-tsv-mode to #t before loading for machine-readable TSV output.
 

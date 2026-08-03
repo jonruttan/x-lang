@@ -3,7 +3,7 @@
 # forms (#16). Emits the generated .spec.md on stdout; run it through the
 # spec harness with:
 #
-#   sh tools/doctest.sh > build/doctests.spec.md
+#   sh tools/check/doctest.sh > build/doctests.spec.md
 #   sh tests/x/spec-runner.sh build/doctests.spec.md
 #
 # Module list is auto-discovered from lib/x/**. Denylist, with cause:
@@ -30,7 +30,7 @@
 # as no-ops (include-once pre-seed).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 X_BIN="${X_BIN:-$PROJECT_DIR/x-bin}"
 
 cd "$PROJECT_DIR" || exit 1
@@ -56,7 +56,7 @@ trap 'rm -f "$_TMP"' EXIT
 
 {
   printf '(alloc-limit! %s)\n' "$X_ALLOC_LIMIT_OBJS"
-  cat lib/x-core.x tools/doctest.x
+  cat lib/x-core.x tools/check/doctest.x
 } | "$X_BIN" $_MODS > "$_TMP"
 
 if ! grep -q '^failed imports: ' "$_TMP"; then

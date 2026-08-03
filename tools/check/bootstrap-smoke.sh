@@ -16,7 +16,7 @@
 # edit can silently break, which is bootstrap.sh's one fragile coupling.
 set -eu
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 REPO="$(pwd)"
 
 sh -n bootstrap.sh || { echo "bootstrap-smoke: bootstrap.sh has a syntax error" >&2; exit 1; }
