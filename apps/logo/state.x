@@ -18,11 +18,24 @@
     (Float / (Float * (if (Float float? deg) deg (Float exact->inexact deg)) %pi)
         (Float exact->inexact 180))))
 
+; Coercion doors: probe via the non-raising Convert dispatcher and check the
+; RESULT, so strings keep coercing but an unconvertible token (e.g. a block
+; in a numeric slot) raises here instead of segfaulting in the float FFI.
 (def %as-float
-  (fn (_ n) (if (Float float? n) n (Float exact->inexact n))))
+  (fn (_ n)
+    (if (Float float? n) n
+      (let ((f (Convert to n %float)))
+        (if (Float float? f) f
+          (Err raise 'type "Logo: expected a number" n))))))
 
 (def %as-int
-  (fn (_ n) (if (Float float? n) (Float inexact->exact n) n)))
+  (fn (_ n)
+    (match
+      ((Float float? n) (Float inexact->exact n))
+      ((Float integer? n) n)
+      (#t (let ((k (Convert to n %int)))
+            (if (Float integer? k) k
+              (Err raise 'type "Logo: expected a number" n)))))))
 
 ; ============================================================
 ; Bytecode emission

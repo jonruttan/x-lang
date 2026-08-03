@@ -146,9 +146,23 @@
 
 (def %float? (fn (_ x) (%type? x %float)))
 
-(def %exact->inexact (fn (_ x) (%cvt x %float)))
+; Door: coerce to float through the catalog; a miss is a raise, never nil
+; into (first)/d+d (the C core is unchecked -- guards live in x-lang).
+(def %to-float
+  (fn (_ x what)
+    (if (%float? x) x
+      (let ((f (%cvt x %float)))
+        (if (%float? f) f (Err raise 'type what x))))))
 
-(def %inexact->exact (fn (_ x) (%float->int (first x))))
+(def %exact->inexact
+  (fn (_ x) (%to-float x "Float exact->inexact: not convertible to FLOAT")))
+
+(def %inexact->exact
+  (fn (_ x)
+    (match
+      ((%float? x) (%float->int (first x)))
+      ((%int-number? x) x)
+      (#t (Err raise 'type "Float inexact->exact: not a float" x)))))
 
 (note "Arithmetic")
 
@@ -256,7 +270,8 @@
 
 (def %e (%fexp (%exact->inexact 1)))
 
-(def %ensure-float (fn (_ x) (%cvt x %float)))
+(def %ensure-float
+  (fn (_ x) (%to-float x "Float: operand not convertible to FLOAT")))
 
 ; --- Type ops: the generic operators dispatch float operands here ---
 ; %ensure-float goes through the cvt from-alist, so the other side may be an
