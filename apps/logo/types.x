@@ -29,6 +29,12 @@
 ; ============================================================
 
 (def %logo-block-close (pair 'logo-block-close ()))
+; Truncation marker: returned (never raised -- ops are banned inside
+; x_token_read) by LOGO-OPEN when the stream ends inside a block.  The
+; entry layer turns it into an "Unterminated input" raise OUTSIDE the
+; reader; on read-str paths it lands in the token list, where dispatch
+; skips it like any wordless token (no worse than the old silent close).
+(def %logo-truncated (pair 'logo-truncated ()))
 (def %logo-paren-tag 'logo-paren)
 
 (def %logo-alpha?
@@ -141,11 +147,11 @@
                 ; nil = the stream ended INSIDE the block: truncation,
                 ; not an implicit ] (the old silent close accepted
                 ; truncated files and made a ctrl-c'd read look like a
-                ; well-formed block).  Raise, like the sexp reader's
-                ; unterminated-list (#156); the raise reaches the
-                ; session guard through the Base-eval bridge.
+                ; well-formed block).  RETURN the marker -- raising
+                ; here would run an op inside x_token_read (banned;
+                ; observed SIGSEGV); the entry layer raises outside.
                 (if (null? tok)
-                  (error "Unterminated input")
+                  %logo-truncated
                   (if (eq? tok %logo-block-close)
                     (%make-instance %logo-block (List reverse acc))
                     (self (pair tok acc))))))
@@ -374,6 +380,7 @@
 
 (provide logo/types
   %logo-base %logo %logo-indent %logo-block %logo-op %logo-string
+  %logo-truncated
   %logo-word %logo-word=? %is-block? %block-contents %make-indent-block
   %logo-op-str %is-op? %is-string? %logo-string-val %is-paren?
   %logo-alpha? logo-process-tokens logo-process-to

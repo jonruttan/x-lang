@@ -28,7 +28,6 @@
 (def %entry-buf-make (prim-ref 'buf 'make))
 (def %entry-buf-reset-prim (prim-ref 'buf 'reset))
 (def %entry-last-char (prim-ref 'buf 'last-char))
-(def %entry-make-instance (prim-ref 'type 'make-instance))
 (def %entry-type? (prim-ref 'type '?))
 (def %entry-obj-same? (prim-ref 'obj 'same?))
 
@@ -53,9 +52,26 @@
 (Base bind %logo-base '%entry-door-tok (prim-ref 'tok 'read))
 (Base bind %logo-base '%entry-door-byte (prim-ref 'buf 'read))
 (Base bind %logo-base '%entry-door-buf %entry-buf)
+; make-instance resolves the TYPE against the calling base's alist, so
+; a session-side call with a logo type silently answers nil (the
+; convert-silent-nil shape) -- instance SYNTHESIS goes through the door
+; too.  Cross-base forms may reference ONLY symbols bound here: symbol
+; interning is per-base, so a stock name like `lit` in a session-built
+; form would not resolve inside %logo-base.
+(Base bind %logo-base '%entry-door-mi (prim-ref 'type 'make-instance))
+(Base bind %logo-base '%entry-door-indent %logo-indent)
+(Base bind %logo-base '%entry-door-pair pair)
 
 (def %entry-tok-form (list '%entry-door-tok '%entry-door-buf))
 (def %entry-byte-form (list '%entry-door-byte '%entry-door-buf))
+
+; Synthesize the LOGO-INDENT instance (k . word) inside %logo-base.
+; k and word self-evaluate, so the built form needs no quoting.
+(def %entry-synth-indent
+  (fn (_ k word)
+    (Base eval %logo-base
+      (list '%entry-door-mi '%entry-door-indent
+        (list '%entry-door-pair k word)))))
 
 ; One token from the live stream, tokenized by Logo's types.  nil means
 ; the stream ended (EOF, or an interrupted read via the EINTR latch).
@@ -171,7 +187,7 @@
         (do
           (%buffer-unread %entry-buf)
           (def tok (%entry-read-tok))
-          (if (null? tok)
+          (if (if (null? tok) #t (eq? tok %logo-truncated))
             (error "Unterminated input")
             (self (pair tok acc))))))))
 
@@ -185,12 +201,12 @@
 (def %entry-read-line
   (fn (_ k)
     (def tok (%entry-read-tok))
-    (if (null? tok)
+    (if (if (null? tok) #t (eq? tok %logo-truncated))
       (error "Unterminated input")
       (do
         (def head
           (if (%entry-type? tok %logo)
-            (%entry-make-instance %logo-indent (pair k (first tok)))
+            (%entry-synth-indent k (first tok))
             tok))
         (List reverse (%entry-line-toks (list head)))))))
 

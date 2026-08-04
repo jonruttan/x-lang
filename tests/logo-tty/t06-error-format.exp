@@ -6,7 +6,9 @@
 # the test sits in known-fail.txt until the rewrite lands.
 source [file join [file dirname [info script]] lib.exp]
 spawn_logo
-send "frobnicate 5\r"
+# `fd` with no argument raises (an UNKNOWN word would not -- dispatch
+# silently ignores those, in both eras).
+send "fd\r"
 expect {
     -re {Error[: ]} {}
     timeout { puts "FAIL: no Error line for an unknown command"; exit 1 }
