@@ -331,7 +331,7 @@ leave your machine except into GitHub's secret store:
 
 | Secret | What it is | How to get it |
 |---|---|---|
-| `MACOS_CERT_P12` | base64 of a **Developer ID Application** cert + private key (`.p12`) | Create the cert in Xcode (Settings → Accounts → Manage Certificates → +) or at developer.apple.com; export it from Keychain Access as `.p12`; `base64 -i cert.p12 \| pbcopy` |
+| `MACOS_CERT_P12` | base64 of a **Developer ID Application** cert + private key (`.p12`) | Create the cert in Xcode (Settings → **Apple Accounts** → select team → Manage Certificates… → **+**; needs the paid Developer Program, Account Holder role) or at developer.apple.com; export it as `.p12` from **Keychain Access** — which still exists beside the Passwords app, at `/System/Library/CoreServices/Applications/Keychain Access.app` (My Certificates → right-click → Export…); then `base64 -i cert.p12 \| pbcopy` |
 | `MACOS_CERT_PASSWORD` | the password you set on that `.p12` export | — |
 | `MACOS_NOTARY_KEY_P8` | base64 of an **App Store Connect API key** (`.p8`) | appstoreconnect.apple.com → Users and Access → Integrations → App Store Connect API → generate a key; `base64 -i AuthKey_XXX.p8 \| pbcopy` |
 | `MACOS_NOTARY_KEY_ID` | that key's **Key ID** | shown beside the key |
