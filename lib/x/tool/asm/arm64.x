@@ -102,6 +102,54 @@
         (list 1 5 5 0)       ; Rn
         (list 2 10 12 0))))) ; imm12
 
+    ; --- Bitwise / shift family (64-bit, register forms only) ---
+    ; Register forms keep the JIT's binop shape uniform: both operands
+    ; land in registers, so shifts take their amount from a register
+    ; (LSLV/LSRV) rather than the immediate UBFM aliases.  Encodings
+    ; verified with: python3 -c "print(hex(N))"
+
+    ; AND Xd, Xn, Xm (shifted register)
+    (pair 'and (list
+      (pair 'rrr (list 2315255808        ; 0x8A000000
+        (list 0 0 5 0)       ; Rd
+        (list 1 5 5 0)       ; Rn
+        (list 2 16 5 0)))))  ; Rm
+
+    ; ORR Xd, Xn, Xm (shifted register)
+    (pair 'orr (list
+      (pair 'rrr (list 2852126720        ; 0xAA000000
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 2 16 5 0)))))
+
+    ; EOR Xd, Xn, Xm (shifted register)
+    (pair 'eor (list
+      (pair 'rrr (list 3388997632        ; 0xCA000000
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 2 16 5 0)))))
+
+    ; ORN Xd, Xn, Xm -- bitwise NOT via (orn Xd, XZR, Xm)
+    (pair 'orn (list
+      (pair 'rrr (list 2854223872        ; 0xAA200000
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 2 16 5 0)))))
+
+    ; LSLV Xd, Xn, Xm -- logical shift left, amount in Xm
+    (pair 'lslv (list
+      (pair 'rrr (list 2596282368        ; 0x9AC02000
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 2 16 5 0)))))
+
+    ; LSRV Xd, Xn, Xm -- logical shift right, amount in Xm
+    (pair 'lsrv (list
+      (pair 'rrr (list 2596283392        ; 0x9AC02400
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 2 16 5 0)))))
+
     ; SUB Xd, Xn, Xm
     (pair 'sub (list
       (pair 'rrr (list 3405774848        ; 0xCB000000

@@ -73,11 +73,16 @@ which is where the clobbered accumulator corrupted things.
 
 Anything the JIT does not implement used to reach the self-recursion
 path and compile AS a recursive call: the code ran, recursed forever,
-and segfaulted far from the cause. `&` has no emitter on this build, so
-it stands in for any unimplemented form.
+and segfaulted far from the cause. `abs` stands in for any unimplemented
+form — it reads as an operator and has no emitter.
+
+(This case originally used `&`, which the bitwise family later
+implemented; the suite caught the stale premise. Any stand-in here is
+only valid while it stays unimplemented — if `abs` ever lands, pick
+another rather than deleting the case.)
 
 ```scheme
-(display (guard (_ 'raised) (do (compile-asm '(fn (_ a b) (& a b))) 'no-raise)))
+(display (guard (_ 'raised) (do (compile-asm '(fn (_ a b) (abs a b))) 'no-raise)))
 ```
 ---
     raised

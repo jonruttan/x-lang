@@ -200,6 +200,87 @@
     (asm-emit! asm 'mov x0 (imm 1))
     (asm-label! asm lbl-end)))
 
+; --- Scratch memory: the JIT's state mechanism -------------------------
+; The compiler keeps every value in x0 as a raw integer, so an
+; expression cannot hold state across steps.  These two forms give it
+; state WITHOUT a register allocator: the caller passes a raw address
+; (an integer -- obtained x-lang-side from a string's data pointer), and
+; slots are addressed by a CONSTANT word index, so each access is one
+; instruction against the already-encoded scaled-offset ldr/str.
+;
+;   (%mem-ref  ADDR-EXPR INDEX)        -> word at ADDR[INDEX]
+;   (%mem-set! ADDR-EXPR INDEX VALUE)  -> stores, yields VALUE
+;
+; INDEX is a literal (imm12 scaled by 8: 0..4095 words).  No bounds
+; check exists and none is possible -- this is the raw-pointer tier,
+; the same trust model as (obj ref); the caller owns the buffer.
+(def %asm-mem-offset
+  (fn (_ idx)
+    (if (not (number? idx))
+      (Err raise 'value "asm-compile: %mem index must be a literal" ()))
+    (if (or (< idx 0) (> idx 4095))
+      (Err raise 'value "asm-compile: %mem index out of range (0..4095)" ()))
+    (* idx 8)))
+
+(def %asm-compile-mem-ref
+  (fn (_ asm args params)
+    (%asm-compile-expr asm (first args) params)      ; x0 = base address
+    (asm-emit! asm (lit ldr) x0 (mem 0 (%asm-mem-offset (first (rest args)))))))
+
+(def %asm-compile-mem-set
+  (fn (_ asm args params)
+    (def %off (%asm-mem-offset (first (rest args))))
+    (%asm-compile-expr asm (first args) params)      ; base
+    (%emit-u32-le! asm %PUSH)
+    (%asm-compile-expr asm (first (rest (rest args))) params) ; value
+    (asm-emit! asm 'mov x1 x0)
+    (%emit-u32-le! asm %POP)                         ; x0 = base
+    (asm-emit! asm (lit str) x1 (mem 0 %off))
+    (asm-emit! asm 'mov x0 x1)))                     ; yield the value
+
+; --- Variable-index scratch access ------------------------------------
+; The constant-index forms above cover fixed slots; these take the index
+; as an EXPRESSION, which is what a loop needs (K[t], W[t & 15]) -- and
+; a loop is what keeps a generated body small enough to compile.  No new
+; encoding: scale the index by 8 with lslv, add it to the base, then the
+; same ldr/str at offset 0.
+;
+;   (%mem-ref-at  ADDR IDX)        -> word at ADDR[IDX]
+;   (%mem-set-at! ADDR IDX VALUE)  -> stores, yields VALUE
+;
+; Unchecked, like the constant-index pair: the caller owns the buffer.
+(def %asm-emit-scale-index!
+  (fn (_ asm)
+    ; x0 = index -> x1 = index * 8
+    (asm-emit! asm 'mov x2 (imm 3))
+    (asm-emit! asm 'lslv x0 x0 x2)
+    (asm-emit! asm 'mov x1 x0)))
+
+(def %asm-compile-mem-ref-at
+  (fn (_ asm args params)
+    (%asm-compile-expr asm (first args) params)          ; base
+    (%emit-u32-le! asm %PUSH)
+    (%asm-compile-expr asm (first (rest args)) params)   ; index
+    (%asm-emit-scale-index! asm)                         ; x1 = index*8
+    (%emit-u32-le! asm %POP)                             ; x0 = base
+    (asm-emit! asm 'add x0 x0 x1)
+    (asm-emit! asm (lit ldr) x0 (mem 0 0))))
+
+(def %asm-compile-mem-set-at
+  (fn (_ asm args params)
+    (%asm-compile-expr asm (first args) params)          ; base
+    (%emit-u32-le! asm %PUSH)
+    (%asm-compile-expr asm (first (rest args)) params)   ; index
+    (%asm-emit-scale-index! asm)
+    (%emit-u32-le! asm %POP)                             ; x0 = base
+    (asm-emit! asm 'add x0 x0 x1)                        ; x0 = address
+    (%emit-u32-le! asm %PUSH)                            ; save address
+    (%asm-compile-expr asm (first (rest (rest args))) params) ; value
+    (asm-emit! asm 'mov x1 x0)                           ; x1 = value
+    (%emit-u32-le! asm %POP)                             ; x0 = address
+    (asm-emit! asm (lit str) x1 (mem 0 0))
+    (asm-emit! asm 'mov x0 x1)))                         ; yield the value
+
 ; Compile (do a b ...): evaluate each in order, result is the last.
 ; %seq below is the tokenizer's internal TWO-arg form; `do` is the
 ; language's own sequencing form, and the JIT lacked it entirely -- a
@@ -272,11 +353,38 @@
     (asm-emit! asm 'mov x0 (imm 1))
     (asm-label! asm lbl-end)))
 
+; The bitwise/shift family: op -> the ARM64 instruction its two operands
+; feed.  A TABLE, not more if-nesting -- the chain below is already
+; twenty deep, and these all share the binop shape (both operands to
+; registers, one instruction).  Shifts take a register amount (LSLV/
+; LSRV), so a shift by an expression works like any other operand.
+(def %asm-bitwise-ops
+  (list (pair '&  'and)
+        (pair '|  'orr)
+        (pair '^  'eor)
+        (pair '<< 'lslv)
+        (pair '>> 'lsrv)))
+
 ; Compile a call expression
 (set! %asm-compile-call
   (fn (_ asm expr params)
     (def op (first expr))
     (def args (rest expr))
+    (def %bitwise (List assq op %asm-bitwise-ops))
+    (if (not (null? %bitwise))
+      (%asm-compile-binop asm (rest %bitwise) args params)
+    (if (eq? op '~)
+      ; MVN Xd, Xm is ORN Xd, XZR, Xm
+      (do (%asm-compile-expr asm (first args) params)
+          (asm-emit! asm 'orn x0 xzr x0))
+    (if (eq? op '%mem-ref-at)
+      (%asm-compile-mem-ref-at asm args params)
+    (if (eq? op '%mem-set-at!)
+      (%asm-compile-mem-set-at asm args params)
+    (if (eq? op '%mem-ref)
+      (%asm-compile-mem-ref asm args params)
+    (if (eq? op '%mem-set!)
+      (%asm-compile-mem-set asm args params)
     (if (eq? op 'do)
       (%asm-compile-do asm args params)
     (if (eq? op '+)
@@ -318,7 +426,7 @@
                                       (%asm-compile-cmp asm 'b/le args params)
                                       (if (eq? op '>=)
                                         (%asm-compile-cmp asm 'b/ge args params)
-                                        (%asm-compile-funcall asm op args params))))))))))))))))))))))
+                                        (%asm-compile-funcall asm op args params))))))))))))))))))))))))))))
 
 ; Binary operation: push left, eval right, pop left, combine
 (set! %asm-compile-binop
