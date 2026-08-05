@@ -113,3 +113,74 @@ reasons that are not defects.
 ```
 ---
     ok
+
+### compiled and interpreted agree across generated RECURSIVE functions
+
+Recursion needs one guard the straight-line grammar does not:
+**termination**. Free-form recursive calls would generate functions that
+never return, so these use a fixed decreasing-counter shape —
+`(fn (self n acc) (if (<= n 0) BASE (self (- n 1) STEP)))` — with `BASE`
+and `STEP` generated. The counter always decreases and the base case is
+`<=`, so every generated function terminates by construction.
+
+Leaves are bounded here too: six iterations of unbounded multiplication
+would overflow 64 bits, where the JIT wraps and the interpreter's answer
+stops being a useful oracle. That is a limit of the comparison, not a
+defect either side.
+
+This is the coverage that would have caught the unknown-operator bug —
+anything the JIT does not implement used to compile *as* a self-call.
+
+```scheme
+(do
+  (def %seed-cell (pair 777001 ()))
+  (def %rand
+    (fn (_ n)
+      (%set-first! %seed-cell (& (+ (* (first %seed-cell) 1664525) 1013904223) 4294967295))
+      (% (>> (first %seed-cell) 8) n)))
+
+  ; bounded leaves: the two params and small literals only
+  (def %leaf
+    (fn (_)
+      (def %k (%rand 4))
+      (if (= %k 0) 'n (if (= %k 1) 'acc (%rand 50)))))
+  (def %gen
+    (fn (self d)
+      (if (<= d 0) (%leaf)
+        (let ((k (%rand 6)))
+          (if (= k 0) (list '+ (self (- d 1)) (self (- d 1)))
+            (if (= k 1) (list '- (self (- d 1)) (self (- d 1)))
+              (if (= k 2) (list '* (self (- d 1)) (%leaf))
+                (if (= k 3) (list '/ (self (- d 1)) (+ 1 (%rand 20)))
+                  (if (= k 4) (list '% (self (- d 1)) (+ 1 (%rand 20)))
+                    (list 'if (list '< (self (- d 1)) (self (- d 1)))
+                          (self (- d 1)) (self (- d 1))))))))))))
+
+  (def %evalit (op (form) e (eval (eval form e) e)))
+
+  ; (fn (self n acc) (if (<= n 0) BASE (self (- n 1) STEP)))
+  (def %gen-rec
+    (fn (_)
+      (list 'fn '(self n acc)
+        (list 'if (list '<= 'n 0)
+          (%gen 2)
+          (list 'self (list '- 'n 1) (%gen 2))))))
+
+  (def %counts (list 0 1 2 5))
+  (def %check-args
+    (fn (self form c i ns)
+      (if (null? ns) 'ok
+        (let ((cv (c (first ns) 3)) (iv (i (first ns) 3)))
+          (if (= cv iv) (self form c i (rest ns))
+            (list 'MISMATCH form 'n (first ns) 'compiled cv 'interpreted iv))))))
+  (def %run
+    (fn (self k)
+      (if (= k 0) 'ok
+        (let ((form (%gen-rec)))
+          (let ((r (%check-args form (compile-asm form) (%evalit form) %counts)))
+            (if (eq? r 'ok) (self (- k 1)) r))))))
+
+  (display (%run 30)))
+```
+---
+    ok
