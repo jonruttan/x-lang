@@ -104,6 +104,36 @@ collection.  Limitations: interned atoms are shared (marking one `x`
 marks them all -- compound branch expressions are the reliable signal);
 no line numbers; the target must run under `x-bin-cov` itself.
 
+## SHA-256 / JIT benchmark
+
+Where a digest's time actually goes, and the harness that proved the JIT
+was not where it went.
+
+```sh
+sh x.sh --no-pin -q -f tools/dev/bench-sha256.x -- [--parts] [--unroll N] [--size BYTES]
+```
+
+`--parts` times the digest's pieces separately over the same block count:
+the compiled round loop, the interpreted W fill, and the interpreted H
+shuffles. **Run it before optimising anything in this area.** It exists
+because intuition here was wrong by two orders of magnitude -- the
+compiled round loop, which #189-#195 spent a week sharpening, was 0.9% of
+a 25KB digest against 92.5% for the W fill. The three parts should
+roughly sum to the end-to-end digest; a sum well under it means
+something outside the three is paying, and that is the next thing to
+look at.
+
+`--unroll N` emits N round bodies per recursive call. It is a knob for
+RE-MEASURING, not a recommendation: 1/2/4 measure as noise (the boxing it
+amortises is a fraction of that 0.9%), and 8 trips the allocation
+ceiling. The unrolled shape lives here so the negative result stays
+reproducible rather than being re-derived.
+
+Input is synthetic (`--size`, default 25000) because SHA-256 does
+identical work per block whatever the bytes are -- no build artifact
+needed. The three FIPS vectors are checked on every run before any
+timing is reported; a fast wrong digest is worth nothing.
+
 ## Others
 
 - `tools/dev/bench.sh` -- library-load benchmarks over `x-bin-profile`
