@@ -1,6 +1,6 @@
 ; bench-sha256.x -- where a SHA-256 digest's time actually goes.
 ;
-;   sh x.sh --no-pin -q -f tools/dev/bench-sha256.x -- [--parts] [--unroll N] [--size BYTES]
+;   sh x.sh --no-pin -q -f tools/dev/bench-sha256.x -- [--parts] [--fold] [--unroll N] [--size BYTES]
 ;
 ; Two reports, one harness -- they share the buffer layout, the round-body
 ; builder and the block driver, so splitting them into two files would
@@ -27,6 +27,14 @@
 ; unrolled shape is kept here, and only here, so the negative result
 ; stays reproducible instead of being re-derived from scratch.
 ;
+; --fold moves the H shuffles INTO the compiled function (sentinel entry
+; at t = -1, store on the exit branch): one native call per block instead
+; of a call bracketed by two interpreted eight-iteration loops.  Measured
+; at --size 25000: digest 963.8 -> 666.7ms (-31%), the shuffles' 266ms
+; collapsing into a rounds number that does not move.  This knob is the
+; measured case FOR folding; it stays a knob so the comparison itself
+; stays reproducible.
+;
 ; Input is synthetic and content-independent: SHA-256 does identical work
 ; per block whatever the bytes are, so a generated buffer keeps the
 ; benchmark reproducible and free of any build artifact.  The reference
@@ -47,7 +55,7 @@
   (def %clock (prim-ref (lit sys) (lit clock)))
   (def %M 4294967295)
 
-  ; --- args: [--parts] [--unroll N] [--size BYTES] ---
+  ; --- args: [--parts] [--fold] [--unroll N] [--size BYTES] ---
   (def %argv (Contract argv))
   (def %flag?
     (fn (self name av)
@@ -60,6 +68,7 @@
           (%str->number (first (rest av)) 10))
         (#t (self name (rest av) dflt)))))
   (def %parts? (%flag? "--parts" %argv))
+  (def %fold? (%flag? "--fold" %argv))
   (def %unroll (%opt "--unroll" %argv 1))
   (def %size (%opt "--size" %argv 25000))
   ; 64 rounds have to divide evenly into groups, or the loop steps past
@@ -121,13 +130,39 @@
       (if (= k %unroll)
         (list (list 'self 'a (list '+ 't %unroll)))
         (pair (%round-for (%te k)) (self (+ k 1))))))
+  ; The H shuffles as EXPRESSIONS.  Both move words within the same
+  ; scratch buffer the round loop already addresses, at constant indices,
+  ; so they need no JIT feature the rounds do not already use.
+  ;   load:  a..h (slots 16..23) <- H (slots 96..103)
+  ;   store: H <- (H + a..h) & 0xffffffff
+  (def %seq8
+    (fn (_ f) (pair 'do ((fn (self i) (if (= i 8) () (pair (f i) (self (+ i 1))))) 0))))
+  (def %load-h-expr (%seq8 (fn (_ i) (%setC (+ 16 i) (%C (+ %HB i))))))
+  (def %store-h-expr
+    (%seq8 (fn (_ i) (%setC (+ %HB i) (%m32 (list '+ (%C (+ %HB i)) (%C (+ 16 i))))))))
+
+  ; --unroll aside, the shape is either
+  ;   (if (= t 64) 0 <rounds>)                       -- shuffles outside
+  ; or, folded, a THREE-way loop entered at t = -1:
+  ;   (if (< t 0)   (do <load>  (self a 0))          -- entry
+  ;   (if (= t 64)  <store>                          -- exit
+  ;                 <rounds>))
+  ; One native call per block instead of a call plus two interpreted
+  ; eight-iteration loops.  It costs one extra compare per round, which
+  ; is charged against the cheapest 4% of the digest to remove ~28%.
   (def %rounds-expr
-    (list 'fn '(self a t)
-      (list 'if (list '= 't 64) 0 (pair 'do (%bodies 0)))))
+    (if %fold?
+      (list 'fn '(self a t)
+        (list 'if (list '< 't 0)
+          (list 'do %load-h-expr (list 'self 'a 0))
+          (list 'if (list '= 't 64) %store-h-expr (pair 'do (%bodies 0)))))
+      (list 'fn '(self a t)
+        (list 'if (list '= 't 64) 0 (pair 'do (%bodies 0))))))
 
   (def %node-count
     (fn (self e) (if (pair? e) (+ (self (first e)) (self (rest e))) 1)))
-  (display "unroll ")(display %unroll)
+  (display "fold ")(display (if %fold? "on " "off"))
+  (display "  unroll ")(display %unroll)
   (display "   nodes ")(display (%node-count %rounds-expr))(newline)
   (def %t-compile (%clock))
   (def %rounds (compile-asm %rounds-expr))
@@ -157,12 +192,18 @@
       (match ((= i 8) ())
         (#t (do (%poke (+ %HB i) (& (%sha+ (%peek (+ %HB i)) (%peek (+ 16 i))) %M))
                 (self (+ i 1)))))) 0)))
+  ; Folded, the compiled function does the shuffles itself and is entered
+  ; at the -1 sentinel; unfolded, the interpreted loops bracket it.
   (def %block
-    (fn (_ s len total base)
-      (%fill-w s len total base)
-      (%load-h)
-      (%rounds %addr 0)
-      (%store-h)))
+    (if %fold?
+      (fn (_ s len total base)
+        (%fill-w s len total base)
+        (%rounds %addr -1))
+      (fn (_ s len total base)
+        (%fill-w s len total base)
+        (%load-h)
+        (%rounds %addr 0)
+        (%store-h))))
   (def %blocks-of (fn (_ len) (<< (%sha+ (>> (%sha+ len 8) 6) 1) 6)))
   (def %digest
     (fn (_ s)
@@ -191,6 +232,21 @@
   (%vec "vector 56-byte " "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
     "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1")
 
+  ; --- differential check against the library implementation ---
+  ; The vectors above are three fixed inputs; --fold restructures the
+  ; compiled loop (sentinel entry, shuffles inside), so it is worth
+  ; checking the JIT path against lib/x/codec/sha256.x on an input none
+  ; of them covers -- a multi-block message whose length is not a block
+  ; multiple, which is where padding and the block walk interact.  Kept
+  ; small because the pure-x side is the slow one.
+  (def %xcheck-in (%make-str 1000))
+  (def %xcheck-native (%digest %xcheck-in))
+  (def %xcheck-lib (Sha256 hex %xcheck-in))
+  (display "vs lib/codec   ")
+  (display (if (str=? %xcheck-native %xcheck-lib) "ok" "DIVERGED"))(newline)
+  (unless (str=? %xcheck-native %xcheck-lib)
+    (Err raise 'state "bench-sha256: compiled digest disagrees with Sha256" ()))
+
   ; --- throughput ---
   (def %input (%make-str %size))
   (def %len (Str8 length %input))
@@ -211,9 +267,14 @@
   (when %parts?
     (do
       (%init-h)
+      ; Under --fold the compiled function is entered at the sentinel, so
+      ; this number INCLUDES the shuffles it absorbed -- which is why the
+      ; shuffle line below reports "folded" rather than a time that the
+      ; digest above no longer pays.
       (def %t-rounds (%clock))
       ((fn (self b)
-         (match ((= b %nblocks) ()) (#t (do (%rounds %addr 0) (self (+ b 1)))))) 0)
+         (match ((= b %nblocks) ())
+           (#t (do (%rounds %addr (if %fold? -1 0)) (self (+ b 1)))))) 0)
       (set! %t-rounds (- (%clock) %t-rounds))
 
       (def %t-fill (%clock))
@@ -222,14 +283,19 @@
            (#t (do (%fill-w %input %len %total (<< b 6)) (self (+ b 1)))))) 0)
       (set! %t-fill (- (%clock) %t-fill))
 
-      (def %t-shuffle (%clock))
-      ((fn (self b)
-         (match ((= b %nblocks) ()) (#t (do (%load-h) (%store-h) (self (+ b 1)))))) 0)
-      (set! %t-shuffle (- (%clock) %t-shuffle))
+      (def %t-shuffle 0)
+      (unless %fold?
+        (do
+          (set! %t-shuffle (%clock))
+          ((fn (self b)
+             (match ((= b %nblocks) ()) (#t (do (%load-h) (%store-h) (self (+ b 1)))))) 0)
+          (set! %t-shuffle (- (%clock) %t-shuffle))))
 
       (newline)
       (display "  compiled rounds   ")(display %t-rounds)(display " us")(newline)
       (display "  W fill            ")(display %t-fill)(display " us")(newline)
-      (display "  H shuffles        ")(display %t-shuffle)(display " us")(newline)
+      (display "  H shuffles        ")
+      (if %fold? (display "folded into rounds") (do (display %t-shuffle)(display " us")))
+      (newline)
       (display "  sum of parts      ")
       (display (+ %t-rounds (+ %t-fill %t-shuffle)))(display " us")(newline))))
