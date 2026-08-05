@@ -196,6 +196,23 @@
     (asm-emit! asm 'mov x0 (imm 1))
     (asm-label! asm lbl-end)))
 
+; Compile (do a b ...): evaluate each in order, result is the last.
+; %seq below is the tokenizer's internal TWO-arg form; `do` is the
+; language's own sequencing form, and the JIT lacked it entirely -- a
+; compiled (do ...) body fell through to the function-call path and
+; failed obscurely.  Any number of forms; none yields nil.
+(def %asm-compile-do
+  (fn (_ asm args params)
+    (if (null? args)
+      (asm-emit! asm 'mov x0 (imm 0))
+      (let ()
+        (def %go
+          (fn (self as)
+            (do
+              (%asm-compile-expr asm (first as) params)
+              (unless (null? (rest as)) (self (rest as))))))
+        (%go args)))))
+
 ; Compile (%seq a b): evaluate a, discard, evaluate b, return
 (def %asm-compile-seq
   (fn (_ asm args params)
@@ -256,6 +273,8 @@
   (fn (_ asm expr params)
     (def op (first expr))
     (def args (rest expr))
+    (if (eq? op 'do)
+      (%asm-compile-do asm args params)
     (if (eq? op '+)
       (%asm-compile-binop asm 'add args params)
       (if (eq? op '-)
@@ -295,7 +314,7 @@
                                       (%asm-compile-cmp asm 'b/le args params)
                                       (if (eq? op '>=)
                                         (%asm-compile-cmp asm 'b/ge args params)
-                                        (%asm-compile-funcall asm op args params)))))))))))))))))))))
+                                        (%asm-compile-funcall asm op args params))))))))))))))))))))))
 
 ; Binary operation: push left, eval right, pop left, combine
 (set! %asm-compile-binop
@@ -433,7 +452,16 @@
     (%ptr-set-word! self-cell 0 0)
     (set! %asm-self-cell self-cell)
 
-    (def asm (asm-new))
+    ; Size the code buffer to the expression: asm-new's 4096-byte
+    ; default is 1024 instructions, and a GENERATED body (an unrolled
+    ; loop, a table of cases) blows past it -- which used to mean a
+    ; segfault, not an error.  Each node costs at most a few
+    ; instructions, so 128 bytes/node is generous; mmap is cheap, and
+    ; %emit-u8!'s guard catches any underestimate loudly.
+    (def %node-count
+      (fn (self e)
+        (if (pair? e) (+ (self (first e)) (self (rest e))) 1)))
+    (def asm (asm-new (+ 4096 (* 128 (%node-count expr)))))
 
     ; Prologue: save callee-saved registers
     (asm-prologue! asm)
