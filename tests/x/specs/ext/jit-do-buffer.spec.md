@@ -132,3 +132,35 @@ moved the position by NOTHING: a torn instruction would leave it past
 ```
 ---
     (raised #t #t)
+
+## runtime availability
+
+The compiler reaches its runtime helpers (`jit_mkint`, `jit_atomint`,
+…) by `dlsym` on the engine itself, and those symbols live in
+`exports.sym`. An engine built without them — a bare `strip` drops the
+exported symbol table that `strip -x` keeps, which is what `make
+install` did — resolves every helper to nil, and nil becomes address 0.
+Compiled code then *called address 0*: a SIGSEGV inside `jit_atomint`,
+arbitrarily far from the cause, on every installed engine while the
+repo build was clean (x-lang#201).
+
+So the entry point refuses first. It refuses at the CALL, not at module
+load: raising out of a nested `import` leaves the loader mid-file, which
+showed up as correct answers followed by a stray error and exit 1.
+
+### an unreachable JIT runtime refuses instead of emitting a call to zero
+
+`%jit-missing` is what resolution records; forcing it here simulates the
+stripped engine without needing one, and the case restores it so the
+rest of the batch still compiles.
+
+```scheme
+(do
+  (def %saved %jit-missing)
+  (set! %jit-missing (list "jit_mkint"))
+  (def %verdict (guard (_ 'raised) (do (compile-asm '(fn (_ a) (+ a 1))) 'no-raise)))
+  (set! %jit-missing %saved)
+  (display (list %verdict ((compile-asm '(fn (_ a) (+ a 1))) 41))))
+```
+---
+    (raised 42)

@@ -29,18 +29,45 @@
 
 
 ; --- Resolve JIT runtime helpers (non-variadic wrappers in jit.c) ---
+;
+; EVERY helper must resolve, and an unresolved one must REFUSE, not
+; coast: dlsym answers nil, %ptr->int turns that into 0, and the
+; compiler then happily emits `blr` to address 0 -- machine code that
+; segfaults on its first call, arbitrarily far from the cause.  That is
+; exactly what a bare-`strip`ped install did (it drops the exported
+; symbol table that `strip -x` keeps, so an INSTALLED engine had no
+; jit_* symbols at all while the repo build was fine): the JIT compiled
+; happily and died inside jit_atomint (x-lang#201).
+;
+; The refusal is RECORDED here and raised by compile-asm, not raised
+; here: this runs inside `import`, and unwinding a raise out of a nested
+; module load leaves the loader mid-file (observed: correct answers
+; followed by a stray error and exit 1).  Loading always succeeds;
+; the entry point checks before it emits anything, so the raise happens
+; in an ordinary call that Sha256's adoption guard turns into "stay
+; pure-x" -- correct, merely slower.
 (def %jit-lib (%dlopen () 1))
-(def %jit-mkint    (%ptr->int (%dlsym %jit-lib "jit_mkint")))
-(def %jit-mkpair   (%ptr->int (%dlsym %jit-lib "jit_mkpair")))
-(def %jit-firstobj (%ptr->int (%dlsym %jit-lib "jit_firstobj")))
-(def %jit-restobj  (%ptr->int (%dlsym %jit-lib "jit_restobj")))
-(def %jit-atomint  (%ptr->int (%dlsym %jit-lib "jit_atomint")))
-(def %jit-eval-arg (%ptr->int (%dlsym %jit-lib "jit_eval_arg")))
-(def %jit-build-args (%ptr->int (%dlsym %jit-lib "jit_build_args")))
-(def %jit-make-callable (%dlsym %jit-lib "jit_make_prim"))
-(def %jit-score-set (%ptr->int (%dlsym %jit-lib "jit_score_set")))
-(def %jit-buffer-unread (%ptr->int (%dlsym %jit-lib "jit_buffer_unread")))
-(def %jit-buffer-len (%ptr->int (%dlsym %jit-lib "jit_buffer_len")))
+(def %jit-missing ())
+(def %jit-sym
+  (fn (_ name)
+    (def p (%dlsym %jit-lib name))
+    (when (null? p) (set! %jit-missing (pair name %jit-missing)))
+    p))
+(def %jit-addr
+  (fn (_ name)
+    (def p (%jit-sym name))
+    (if (null? p) 0 (%ptr->int p))))
+(def %jit-mkint    (%jit-addr "jit_mkint"))
+(def %jit-mkpair   (%jit-addr "jit_mkpair"))
+(def %jit-firstobj (%jit-addr "jit_firstobj"))
+(def %jit-restobj  (%jit-addr "jit_restobj"))
+(def %jit-atomint  (%jit-addr "jit_atomint"))
+(def %jit-eval-arg (%jit-addr "jit_eval_arg"))
+(def %jit-build-args (%jit-addr "jit_build_args"))
+(def %jit-make-callable (%jit-sym "jit_make_prim"))
+(def %jit-score-set (%jit-addr "jit_score_set"))
+(def %jit-buffer-unread (%jit-addr "jit_buffer_unread"))
+(def %jit-buffer-len (%jit-addr "jit_buffer_len"))
 
 ; Stack push/pop ride the per-arch asm-push!/asm-pop! FUNCTIONS: each
 ; backend owns its 16-byte discipline (arm64 pre/post-indexed str/ldr;
@@ -660,6 +687,15 @@
 
 (def compile-asm
   (fn (_ expr . %asm-rest)
+    ; Refuse before emitting anything when the JIT runtime is not
+    ; reachable.  An unresolved helper is address 0, and a compiled call
+    ; to 0 is a SIGSEGV arbitrarily far from the cause -- which is what a
+    ; bare-`strip`ped install produced (x-lang#201).
+    (unless (null? %jit-missing)
+      (Err raise 'state
+        (Str append "asm-compile: JIT runtime unavailable (unresolved symbol "
+          (Str append (first %jit-missing)
+            "); engine built without its exported symbols?")) ()))
     (if (not (eq? (first expr) 'fn))
       (Err raise 'type "compile-asm: expression must be (fn (_ params...) body)" ()))
     (set! %compile-fvars (unless (null? %asm-rest) (first %asm-rest)))
