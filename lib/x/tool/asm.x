@@ -77,11 +77,46 @@
       (if (eq? t 'imm) "i"
         (if (eq? t 'mem) "m" "l")))))
 
-; Build signature symbol from operand list: (reg _) (reg _) (imm _) -> rri
+; This file's emit path is the assembler's inner loop: every instruction
+; of every compiled function goes through it, and a GENERATED body runs
+; to thousands of instructions.  Class-dispatched helpers cost roughly
+; 200us a call here against 11-26us for the identical work on raw prims
+; -- (List assq) measured at 226us against a hand-rolled walk over the
+; same list at 26us, so ~90% of it is dispatch, not lookup.  Hence the
+; raw walk below.  Same lesson as the digest's Vector access (#123): in
+; a hot pure-x loop the scaffolding is the cost, not the work.
+(def %asm-assq
+  (fn (self k xs)
+    (if (null? xs) ()
+      (if (eq? (first (first xs)) k) (first xs) (self k (rest xs))))))
+
+; A small integer key for the operand shape: base-5 digits, seeded at 1
+; so leading operands stay significant.
+(def %op-code
+  (fn (_ op)
+    (def t (first op))
+    (if (eq? t 'reg) 1 (if (eq? t 'imm) 2 (if (eq? t 'mem) 3 4)))))
+(def %args-key
+  (fn (self args acc)
+    (if (null? args) acc
+      (self (rest args) (+ (* acc 5) (%op-code (first args)))))))
+
+; Signature symbols are built ONCE per distinct operand shape.  The old
+; path appended a fresh string per operand and interned the result on
+; EVERY emit; the whole instruction set uses a handful of shapes, so the
+; second and later emits of each shape now cost a walk over that handful.
+(def %sig-cache ())
+(def %asm-sig-intern
+  (fn (_ k args)
+    (def sym (%str->symbol
+      (%fold (fn (_ acc op) (%str-append acc (%op-sig op))) "" args)))
+    (set! %sig-cache (pair (pair k sym) %sig-cache))
+    sym))
 (def %args-sig
   (fn (_ args)
-    (%str->symbol
-      (%fold (fn (_ acc op) (%str-append acc (%op-sig op))) "" args))))
+    (def k (%args-key args 1))
+    (def hit (%asm-assq k %sig-cache))
+    (if (null? hit) (%asm-sig-intern k args) (rest hit))))
 
 ; --- Buffer byte emitters ---
 (def %emit-u8!
@@ -96,12 +131,27 @@
     (%ptr-set! (%obj-ref asm 0) pos (& byte 255) 1)
     (%obj-set! asm 1 (+ pos 1))))
 
+; A whole instruction at a time.  Going through %emit-u8! four times
+; re-read the position, the capacity and the buffer pointer, and wrote
+; the position back, for EVERY byte -- twenty prim calls to store four.
+; The bookkeeping is done once here and the four stores share it, which
+; is the bulk of what an emit costs once the encoder stops dispatching.
+;
+; The bound is checked ONCE, against the last byte of the word, so a
+; word that would straddle the end still raises before anything is
+; written -- a stricter guarantee than the per-byte check it replaces,
+; which could write a partial instruction and then raise.
 (def %emit-u32-le!
   (fn (_ asm val)
-    (%emit-u8! asm (& val 255))
-    (%emit-u8! asm (& (>> val 8) 255))
-    (%emit-u8! asm (& (>> val 16) 255))
-    (%emit-u8! asm (& (>> val 24) 255))))
+    (def pos (%obj-ref asm 1))
+    (if (>= (+ pos 3) (%obj-ref asm 2))
+      (Err raise 'state "asm: code buffer full (raise the asm-new capacity)" ()))
+    (def buf (%obj-ref asm 0))
+    (%ptr-set! buf pos            (& val 255) 1)
+    (%ptr-set! buf (+ pos 1) (& (>> val 8) 255) 1)
+    (%ptr-set! buf (+ pos 2) (& (>> val 16) 255) 1)
+    (%ptr-set! buf (+ pos 3) (& (>> val 24) 255) 1)
+    (%obj-set! asm 1 (+ pos 4))))
 
 (def %emit-u64-le!
   (fn (_ asm val)
@@ -150,16 +200,15 @@
 (def asm-emit!
   (fn (_ asm mnemonic . args)
     (def arch (%obj-ref asm 5))
-    (def table (List ref 0 arch))
-    (def encode (List ref 1 arch))
-    (def entry (List assq mnemonic table))
+    (def entry (%asm-assq mnemonic (first arch)))
     (if (null? entry) (Err raise 'value (Str append "asm: unknown mnemonic: " (symbol->str mnemonic)) ()))
     ; Match operand signature
     (def sig (if (null? args) '|| (%args-sig args)))
-    (def variant (List assq sig (rest entry)))
+    (def variant (%asm-assq sig (rest entry)))
     (if (null? variant)
       (Err raise 'value (Str append "asm: no variant " (symbol->str sig) " for " (symbol->str mnemonic)) ()))
-    (encode asm (rest variant) args)))
+    ; arch is (table encoder); the encoder is its second element.
+    ((first (rest arch)) asm (rest variant) args)))
 
 (def asm-label!
   (fn (_ asm name)

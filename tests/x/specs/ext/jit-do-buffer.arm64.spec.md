@@ -98,3 +98,31 @@ before the sizing fix wrote off the end of the buffer.
 ```
 ---
     402
+
+### a word that would straddle the end raises before writing any of it
+
+The capacity check used to sit in the byte emitter and fire per byte, so
+an instruction landing across the end wrote its leading bytes and only
+then raised — a torn instruction in the buffer behind a raised error.
+The word emitter checks the LAST byte up front, so the position does not
+move and nothing is written.
+
+The capacity here is deliberately NOT a multiple of four. On a 4096-byte
+buffer both the old and the new check raise cleanly, because the failing
+instruction begins exactly at the end — the tear is invisible. At 4094,
+1023 instructions leave the position at 4092 and the next word runs two
+bytes past the end: the per-byte check wrote those two and left the
+position at 4094, while checking the last byte up front leaves it at
+4092 with nothing written.
+
+```scheme
+(do
+  (def %a (asm-new 4094))
+  (def %fill (fn (self n) (match ((= n 0) ()) (#t (do (asm-emit! %a 'nop) (self (- n 1)))))))
+  (%fill 1023)
+  (def %before (asm-pos %a))
+  (def %verdict (guard (_ 'raised) (do (asm-emit! %a 'nop) 'no-raise)))
+  (display (list %verdict %before (asm-pos %a))))
+```
+---
+    (raised 4092 4092)

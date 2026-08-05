@@ -18,6 +18,17 @@
 (def xzr (reg 31))
 (def lr  (reg 30))
 
+; Positional access on RAW prims.  This encoder runs once per emitted
+; instruction and reached for (List ref) six times per field, three or
+; four fields deep -- roughly twenty class-dispatched calls to read a
+; handful of small integers.  (List ref) measured at 226us against 26us
+; for an identical hand-rolled walk, so ~90% of that was dispatch.  The
+; descriptors are fixed-shape data this file writes itself, so the
+; bounds and coercion (List ref) provides buy nothing here; the field
+; walk below destructures in ONE pass instead of re-walking per element.
+(def %arm64-nth
+  (fn (self n xs) (if (= n 0) (first xs) (self (- n 1) (rest xs)))))
+
 ; --- Encoder: build 32-bit instruction word from descriptor ---
 ; Descriptor: (base-opcode (arg-idx bit-pos bit-width shift) ...)
 (def %arm64-encode
@@ -28,13 +39,17 @@
       (fn (self flds w)
         (if (null? flds) w
           (let ((f (first flds)))
-            (def idx   (List ref 0 f))
-            (def pos   (List ref 1 f))
-            (def width (List ref 2 f))
-            (def sh    (List ref 3 f))
-            (def arg (List ref idx args))
+            (def r1 (rest f))
+            (def r2 (rest r1))
+            (def r3 (rest r2))
+            (def r4 (rest r3))
+            (def idx   (first f))
+            (def pos   (first r1))
+            (def width (first r2))
+            (def sh    (first r3))
+            (def arg (%arm64-nth idx args))
             ; Field may have 5th element: sub-index into operand
-            (def sub (if (> (%length f) 4) (List ref 4 f) 0))
+            (def sub (if (null? r4) 0 (first r4)))
             (def val
               (if (eq? (%op-type arg) 'label)
                 (do
@@ -43,7 +58,7 @@
                   0)
                 (if (= sub 0)
                   (%op-value arg)
-                  (List ref (+ sub 1) arg))))
+                  (%arm64-nth (+ sub 1) arg))))
             (def mask (- (<< 1 width) 1))
             (def bits (<< (& (>> val sh) mask) pos))
             (self (rest flds) (| w bits))))))
@@ -52,8 +67,8 @@
 ; --- MOVZ encoder: load 16-bit immediate into register ---
 (def %arm64-encode-movz
   (fn (_ asm descriptor args)
-    (def rd (%op-value (List ref 0 args)))
-    (def val (%op-value (List ref 1 args)))
+    (def rd (%op-value (first args)))
+    (def val (%op-value (first (rest args))))
     ; MOVZ X<d>, #<imm16> = 0xD2800000 | (imm16 << 5) | Rd
     (def word (| 3531603968 (| (<< (& val 65535) 5) (& rd 31))))
     (%emit-u32-le! asm word)))
