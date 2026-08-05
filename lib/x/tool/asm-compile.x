@@ -107,7 +107,14 @@
     (if (null? expr)
       (asm-emit! asm 'mov x0 (imm 0))    ; nil = NULL = 0
       (if (number? expr)
-        (asm-emit! asm 'mov x0 (imm expr))
+        ; `mov Xd, #imm` is MOVZ: 16 bits, and the encoder MASKS the rest
+        ; away (& val 65535) -- so a literal above 65535 silently compiled
+        ; to a wrong constant ((+ x 100000) computed x + 34464, no error).
+        ; Anything that does not fit takes the MOVZ+MOVK sequence instead;
+        ; negatives too, whose two's complement needs all four halfwords.
+        (if (and (>= expr 0) (<= expr 65535))
+          (asm-emit! asm 'mov x0 (imm expr))
+          (asm-load-imm64! asm x0 expr))
         (if (symbol? expr)
           (%asm-compile-param asm expr params)
           (if (pair? expr)
