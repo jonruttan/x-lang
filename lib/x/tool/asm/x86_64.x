@@ -376,6 +376,11 @@
         (list 1)                 ; 0x01 ADD r/m64, r64
         (list 1 0)
         ()))
+      (pair 'ri (list
+        (list 72)
+        (list 129)               ; 0x81 /0 ADD r/m64, imm32 (two-operand)
+        (list (list '/ 0) 0)
+        (list (list 'imm32 1))))
       (pair 'rri (list
         (list 72)
         (list 129)               ; 0x81
@@ -388,6 +393,11 @@
         (list 41)                ; 0x29 SUB r/m64, r64
         (list 1 0)
         ()))
+      (pair 'ri (list
+        (list 72)
+        (list 129)               ; 0x81 /5 SUB r/m64, imm32 (two-operand)
+        (list (list '/ 5) 0)
+        (list (list 'imm32 1))))
       (pair 'rri (list
         (list 72)
         (list 129)
