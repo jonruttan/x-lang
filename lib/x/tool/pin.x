@@ -567,8 +567,10 @@
 ;   <base>/<tag>/<entry>.x             the amalgams
 ; fetch downloads via curl when present (fork/execvp/wait -- no shell),
 ; and otherwise prints the URLs and stops: transport is optional,
-; verification is not.  Every downloaded amalgam is digested with the
-; pure-x Sha256 against the manifest before fetch will call it good.
+; verification is not.  Every downloaded amalgam is digested with
+; Sha256 against the manifest before fetch will call it good -- the
+; JIT engine when the host proves it (it must agree with the pure-x
+; digest before adoption), the pure-x reference otherwise.
 
 ; The canonical release home; a trailing optional on fetch overrides it
 ; (a mirror, or file:// in the smoke).
@@ -821,7 +823,7 @@
                         (param tag STRING "Release tag, e.g. \"v0.4.0\"")
                         (param entry SYMBOL "Boot entry to fetch, e.g. 'xe")
                         . (param base STRING "Base URL; default the project's releases"))
-      (doc "Fetch a released amalgam, verified or nothing: downloads the tag's pin.release.xon and <entry>.x (curl via fork/execvp -- absent curl prints the URLs and stops), checks the manifest names the tag, digests the amalgam with the pure-x Sha256 (minutes for an amalgam -- announced), and errors on any mismatch, naming the offending file (left in place for inspection; do not boot it). Reports whether the release's ISA fingerprint matches this tree's tools/contract/isa.x when present -- drift is information, not an error: a pinned platform pairs with its own engine. Returns the amalgam's path."
+      (doc "Fetch a released amalgam, verified or nothing: downloads the tag's pin.release.xon and <entry>.x (curl via fork/execvp -- absent curl prints the URLs and stops), checks the manifest names the tag, digests the amalgam with Sha256 -- the differentially-verified JIT engine where the host supports it (seconds), pure-x elsewhere (minutes for an amalgam; either way announced), and errors on any mismatch, naming the offending file (left in place for inspection; do not boot it). Reports whether the release's ISA fingerprint matches this tree's tools/contract/isa.x when present -- drift is information, not an error: a pinned platform pairs with its own engine. Returns the amalgam's path."
         (returns STRING "Path of the verified amalgam")
         (sample "(Pin fetch \"boot\" \"v0.4.0\" 'xe)" "\"boot/xe.x\""))
       (let ((b (match ((null? base) %pin-release-base) (#t (first base)))))
@@ -843,7 +845,9 @@
                     (%pin-download! (%pin-url b tag file) target)
                     (display "pin: verifying ")
                     (display target)
-                    (display " (pure x-lang sha256; an amalgam takes minutes)")
+                    (display (if (Sha256 jit!)
+                                 " (jit sha256)"
+                                 " (pure x-lang sha256; an amalgam takes minutes)"))
                     (newline)
                     (match
                       ((str=? (%pin-digest target) want) ())

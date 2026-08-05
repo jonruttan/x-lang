@@ -193,27 +193,90 @@
       ((null? hs) "")
       (#t (Str8 append (%sha-hex8 (first hs)) (self (rest hs)))))))
 
+; The pure-x digest as a function: bytes -> the eight H words.  Both
+; paths end here shape-wise -- the compiled engine returns the same
+; 8-word list -- so the hex formatting is shared and the engine is a
+; drop-in for exactly this function.
+(def %sha-digest-words
+  (fn (_ s)
+    (def %len (Str8 length s))
+    ; padded length: L+1+k+8 rounded to a 64-byte block -- via shifts,
+    ; no division (the tower / trap has nothing to bite)
+    (def %total (<< (%sha+ (>> (%sha+ %len 8) 6) 1) 6))
+    (%sha-blocks s %len %total 0 (Vector make 64 0)
+      (first %sha-ih)
+      (first (rest %sha-ih))
+      (first (rest (rest %sha-ih)))
+      (first (rest (rest (rest %sha-ih))))
+      (first (rest (rest (rest (rest %sha-ih)))))
+      (first (rest (rest (rest (rest (rest %sha-ih))))))
+      (first (rest (rest (rest (rest (rest (rest %sha-ih)))))))
+      (first (rest (rest (rest (rest (rest (rest (rest %sha-ih))))))))
+      )))
+
+; --- The compiled engine (arm64 JIT), adopted only when it proves out --
+;
+; State: () = not tried, the symbol `failed` = tried and refused (never
+; retried -- the reasons a build fails, wrong arch or a broken
+; toolchain, do not heal within a session), else the engine function.
+; The pure-x digest above stays the reference and the fallback; the
+; engine must AGREE with it on the FIPS vectors and a multi-block
+; padding case before it is adopted (the differential check lives in
+; %sha-jit-make and raises on any disagreement), so the failure mode of
+; a bad JIT is "slower", never "wrong hash".
+;
+; Adoption is never per-call: (Sha256 jit!) builds explicitly, and hex
+; auto-builds once CUMULATIVE bytes digested cross 64KB -- past that
+; point the seconds of compile always repay (breakeven is ~22KB on the
+; measured machine; an amalgam is hundreds of KB).  Small sessions --
+; the doctests, a lockfile spot-check -- never pay for what they would
+; never earn back.
+(def %sha-jit-engine ())
+(def %sha-jit-bytes (pair 0 ()))
+(def %sha-jit-threshold 65536)
+
+(def %sha-jit-try!
+  (fn (_)
+    (match
+      ((null? %sha-jit-engine)
+        (do
+          ; any raise -- unknown mnemonic on a non-arm64 host, a
+          ; toolchain error, a failed differential check -- lands here
+          ; and pins the state to `failed`: guarded at the point of
+          ; harm, and pure-x carries on
+          (set! %sha-jit-engine
+            (guard (%e (lit failed))
+              (do
+                (import x/codec/sha256-jit)
+                (%sha-jit-make %sha-k %sha-ih %sha-digest-words))))
+          (not (eq? %sha-jit-engine (lit failed)))))
+      ((eq? %sha-jit-engine (lit failed)) #f)
+      (#t #t))))
+
+(def %sha-words
+  (fn (_ s)
+    (do
+      (%set-first! %sha-jit-bytes (%sha+ (first %sha-jit-bytes) (Str8 length s)))
+      (when (and (null? %sha-jit-engine)
+                 (>= (first %sha-jit-bytes) %sha-jit-threshold))
+        (%sha-jit-try!))
+      (match
+        ((or (null? %sha-jit-engine) (eq? %sha-jit-engine (lit failed)))
+          (%sha-digest-words s))
+        (#t (%sha-jit-engine s))))))
+
 (def-class Sha256 ()
   (static
     (method hex (self (param s STRING "Bytes to digest (a byte string)"))
-      (doc "SHA-256 digest of s, as a 64-character lowercase hex string. Pure x-lang (FIPS 180-4); the executable vectors below are the standard's."
+      (doc "SHA-256 digest of s, as a 64-character lowercase hex string (FIPS 180-4). Computed pure-x, or by the differentially-verified compiled engine once (jit!) has built it -- identical output either way; the executable vectors below are the standard's."
         (returns STRING "64 hex characters")
         (example "(Sha256 hex \"\")" "\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"")
         (example "(Sha256 hex \"abc\")" "\"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\""))
-      (def %len (Str8 length s))
-      ; padded length: L+1+k+8 rounded to a 64-byte block -- via shifts,
-      ; no division (the tower / trap has nothing to bite)
-      (def %total (<< (%sha+ (>> (%sha+ %len 8) 6) 1) 6))
-      (%sha-hex-list
-        (%sha-blocks s %len %total 0 (Vector make 64 0)
-          (first %sha-ih)
-          (first (rest %sha-ih))
-          (first (rest (rest %sha-ih)))
-          (first (rest (rest (rest %sha-ih))))
-          (first (rest (rest (rest (rest %sha-ih)))))
-          (first (rest (rest (rest (rest (rest %sha-ih))))))
-          (first (rest (rest (rest (rest (rest (rest %sha-ih)))))))
-          (first (rest (rest (rest (rest (rest (rest (rest %sha-ih)))))))))))))
+      (%sha-hex-list (%sha-words s)))
+    (method jit! (self)
+      (doc "Build and adopt the compiled digest engine (arm64 JIT) now, if it can prove itself: the engine is adopted only after agreeing with the pure-x digest on the FIPS vectors plus a multi-block padding case. Idempotent; seconds of compile on first success. Returns #t when the engine is active, #f when unavailable (non-arm64 host, no JIT toolchain, or a failed check -- pure-x carries on and results are identical either way). hex also auto-builds once 64KB of cumulative input has been digested, so calling this is an optimization, not a requirement."
+        (returns BOOL "#t when the compiled engine is active"))
+      (%sha-jit-try!))))
 
 (doc (provide x/codec/sha256 Sha256)
-  "SHA-256 (FIPS 180-4) in pure x-lang: (Sha256 hex s) digests a byte string.")
+  "SHA-256 (FIPS 180-4): (Sha256 hex s) digests a byte string. Pure x-lang, with an optional differentially-verified JIT engine ((Sha256 jit!) or 64KB cumulative auto-build).")
