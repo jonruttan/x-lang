@@ -88,6 +88,10 @@
 (def %asm-compile-if ())
 (def %asm-compile-funcall ())
 (def %asm-self-cell ())
+; The name bound to the function being compiled (its self parameter).
+; Only a call to THAT name is self-recursion; anything else is an
+; unsupported form and must say so -- see %asm-compile-funcall.
+(def %asm-self-name ())
 (def %asm-label-counter 0)
 
 ; Generate unique label names (for nested if/else)
@@ -385,6 +389,15 @@
   (fn (_ asm fn-name args params)
     (if (null? %asm-self-cell)
       (Err raise 'value (Str append "asm-compile: unknown function: " (symbol->str fn-name)) ()))
+    ; Anything reaching here that is NOT the function's own name is an
+    ; operator the JIT does not implement -- a bitwise op on a build
+    ; without them, a typo, a library call.  This used to compile it AS
+    ; A SELF-CALL: the code ran, recursed on itself forever, and died
+    ; with a segfault far from the cause.  Silently wrong is the worst
+    ; failure mode a compiler has; refuse at generation instead.
+    (if (not (eq? fn-name %asm-self-name))
+      (Err raise 'value
+        (Str append "asm-compile: unsupported form: " (symbol->str fn-name)) ()))
     (def nargs (%length args))
     (if (> nargs 4) (Err raise 'value "asm-compile: max 4 args for recursive calls" ()))
 
@@ -408,11 +421,16 @@
             ; Actually we need to pop in reverse. Args were pushed left-to-right.
             ; Stack top has last arg. Pop each into x1, mkint, then mkpair with accum.
             (%emit-u32-le! asm %POP)            ; pop accum -> x0
-            (asm-emit! asm 'mov x3 x0)    ; x3 = accum (save)
+            ; x21, not x3: the accumulator has to survive the jit_mkint
+            ; call below, and x3 is CALLER-saved (AAPCS64) -- the C
+            ; function was free to clobber it, so the pair got built on
+            ; garbage and the call segfaulted.  x21 is callee-saved and
+            ; this compiler's prologue already spills it.
+            (asm-emit! asm 'mov x21 x0)   ; x21 = accum (save)
             (%emit-u32-le! asm %POP)            ; pop raw arg -> x0
             (%emit-mkint! asm)                  ; x0 = atom(raw) via jit_mkint
             (asm-emit! asm 'mov x1 x0)    ; x1 = a (atom)
-            (asm-emit! asm 'mov x2 x3)    ; x2 = d (accum)
+            (asm-emit! asm 'mov x2 x21)   ; x2 = d (accum)
             (asm-emit! asm 'mov x0 x19)   ; x0 = p_base
             (%emit-call! asm %jit-mkpair)      ; x0 = (atom . accum)
             (%emit-u32-le! asm %PUSH)           ; push new accum
@@ -429,7 +447,11 @@
     (asm-emit! asm 'mov x1 x0)           ; p_args
     (asm-emit! asm 'mov x0 x19)          ; p_base
     (asm-load-imm64! asm x8 (%ptr->int %asm-self-cell))
-    (asm-emit! asm 'ldr x8 (mem x8 0))
+    ; (mem BASE off) takes the base as a raw register NUMBER, not a
+    ; (reg n) operand -- passing x8 handed the encoder a list to shift,
+    ; so every self-recursive call died at GENERATION with ">>: operands
+    ; must be integers".  Recursion had simply never run.
+    (asm-emit! asm 'ldr x8 (mem 8 0))
     (asm-emit! asm 'blr x8)
 
     ; x0 = boxed result. Unbox to raw integer (inline LDR).
@@ -451,6 +473,7 @@
     (def self-cell (%ptr-call c-malloc 8))
     (%ptr-set-word! self-cell 0 0)
     (set! %asm-self-cell self-cell)
+    (set! %asm-self-name (first fn-params))
 
     ; Size the code buffer to the expression: asm-new's 4096-byte
     ; default is 1024 instructions, and a GENERATED body (an unrolled
@@ -485,6 +508,7 @@
     ; Patch trampoline with actual address
     (%ptr-set-word! self-cell 0 (%ptr->int raw-fn))
     (set! %asm-self-cell ())
+    (set! %asm-self-name ())
     (set! %compile-fvars ())
 
     ; Create proper x-lang prim from the raw function pointer
