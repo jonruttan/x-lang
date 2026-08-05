@@ -35,6 +35,18 @@
 ; slot = index + 1, the length rides slot 0.
 (def %sha-oref (prim-ref (lit obj) (lit ref)))
 (def %sha-oset! (prim-ref (lit obj) (lit set!)))
+; Message bytes come through (str byte-ref) + (char ->int), NOT the
+; generic converter.  %cvt is a catalog dispatch: measured at ~142us per
+; byte against ~11us for the pair below, and filling W is 92% of a
+; digest's runtime (25KB amalgam: 3.68s of 4.0s total), so this one
+; substitution is worth more than everything the JIT can do to the round
+; loop -- which is 0.9% of it.
+;
+; (str ref) is NOT interchangeable here: char->int on ITS result answers
+; garbage (51105660208 for a byte whose value is 100).  Only byte-ref
+; yields the char whose ->int is the byte.
+(def %sha-byte-ref (prim-ref (lit str) (lit byte-ref)))
+(def %sha-char->int (prim-ref (lit char) (lit ->int)))
 (def %sha-mask 4294967295)
 
 (def %sha-words
@@ -100,7 +112,7 @@
 (def %sha-byte
   (fn (_ s len total i)
     (match
-      ((< i len) (%cvt (%str-ref s i) %int))
+      ((< i len) (%sha-char->int (%sha-byte-ref s i)))
       ((= i len) 128)
       ((< i (%sha- total 8)) 0)
       (#t (& (>> (%sha* len 8) (<< (%sha- (%sha- total 1) i) 3)) 255)))))

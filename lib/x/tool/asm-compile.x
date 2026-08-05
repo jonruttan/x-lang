@@ -595,7 +595,7 @@
     ; loop, a table of cases) blows past it -- which used to mean a
     ; segfault, not an error.  Each node costs at most a few
     ; instructions, so 128 bytes/node is generous; mmap is cheap, and
-    ; %emit-u8!'s guard catches any underestimate loudly.
+    ; the emitters' capacity guard catches any underestimate loudly.
     (def %node-count
       (fn (self e)
         (if (pair? e) (+ (self (first e)) (self (rest e))) 1)))
