@@ -87,6 +87,12 @@
 (def %emit-u8!
   (fn (_ asm byte)
     (def pos (%obj-ref asm 1))
+    ; The buffer is ONE mmap'd region and nothing checked it: emitting
+    ; past the capacity wrote into whatever followed the mapping and
+    ; died with a segfault somewhere unrelated.  A function that
+    ; outgrows its buffer has to say so instead.
+    (if (>= pos (%obj-ref asm 2))
+      (Err raise 'state "asm: code buffer full (raise the asm-new capacity)" ()))
     (%ptr-set! (%obj-ref asm 0) pos (& byte 255) 1)
     (%obj-set! asm 1 (+ pos 1))))
 
