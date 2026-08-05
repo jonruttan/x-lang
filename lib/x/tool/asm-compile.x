@@ -281,6 +281,67 @@
     (asm-emit! asm (lit str) x1 (mem 0 0))
     (asm-emit! asm 'mov x0 x1)))                         ; yield the value
 
+; --- Byte-width scratch access -----------------------------------------
+; The word family above addresses the JIT's own scratch state; this
+; family reads and writes BYTES, which is what a compiled function needs
+; to consume input that arrives as a string's data pointer (a digest's
+; message, a codec's buffer).  Same trust model, same shapes, two
+; differences: the index counts bytes (imm12 unscaled, 0..4095; no *8),
+; and the width is one byte -- LDRB zero-extends into the value, STRB
+; stores the value's LOW byte and ignores the rest, so a store yields
+; the full value it was given, not the truncated byte.
+;
+;   (%mem-byte-ref     ADDR INDEX)        (%mem-byte-ref-at  ADDR IDX-EXPR)
+;   (%mem-byte-set!    ADDR INDEX VALUE)  (%mem-byte-set-at! ADDR IDX-EXPR VALUE)
+(def %asm-mem-byte-offset
+  (fn (_ idx)
+    (if (not (number? idx))
+      (Err raise 'value "asm-compile: %mem-byte index must be a literal" ()))
+    (if (or (< idx 0) (> idx 4095))
+      (Err raise 'value "asm-compile: %mem-byte index out of range (0..4095)" ()))
+    idx))
+
+(def %asm-compile-mem-byte-ref
+  (fn (_ asm args params)
+    (%asm-compile-expr asm (first args) params)      ; x0 = base address
+    (asm-emit! asm (lit ldrb) x0 (mem 0 (%asm-mem-byte-offset (first (rest args)))))))
+
+(def %asm-compile-mem-byte-set
+  (fn (_ asm args params)
+    (def %off (%asm-mem-byte-offset (first (rest args))))
+    (%asm-compile-expr asm (first args) params)      ; base
+    (%emit-u32-le! asm %PUSH)
+    (%asm-compile-expr asm (first (rest (rest args))) params) ; value
+    (asm-emit! asm 'mov x1 x0)
+    (%emit-u32-le! asm %POP)                         ; x0 = base
+    (asm-emit! asm (lit strb) x1 (mem 0 %off))
+    (asm-emit! asm 'mov x0 x1)))                     ; yield the value
+
+(def %asm-compile-mem-byte-ref-at
+  (fn (_ asm args params)
+    (%asm-compile-expr asm (first args) params)          ; base
+    (%emit-u32-le! asm %PUSH)
+    (%asm-compile-expr asm (first (rest args)) params)   ; index (bytes)
+    (asm-emit! asm 'mov x1 x0)                           ; no scaling
+    (%emit-u32-le! asm %POP)                             ; x0 = base
+    (asm-emit! asm 'add x0 x0 x1)
+    (asm-emit! asm (lit ldrb) x0 (mem 0 0))))
+
+(def %asm-compile-mem-byte-set-at
+  (fn (_ asm args params)
+    (%asm-compile-expr asm (first args) params)          ; base
+    (%emit-u32-le! asm %PUSH)
+    (%asm-compile-expr asm (first (rest args)) params)   ; index (bytes)
+    (asm-emit! asm 'mov x1 x0)                           ; no scaling
+    (%emit-u32-le! asm %POP)                             ; x0 = base
+    (asm-emit! asm 'add x0 x0 x1)                        ; x0 = address
+    (%emit-u32-le! asm %PUSH)                            ; save address
+    (%asm-compile-expr asm (first (rest (rest args))) params) ; value
+    (asm-emit! asm 'mov x1 x0)                           ; x1 = value
+    (%emit-u32-le! asm %POP)                             ; x0 = address
+    (asm-emit! asm (lit strb) x1 (mem 0 0))
+    (asm-emit! asm 'mov x0 x1)))                         ; yield the value
+
 ; Compile (do a b ...): evaluate each in order, result is the last.
 ; %seq below is the tokenizer's internal TWO-arg form; `do` is the
 ; language's own sequencing form, and the JIT lacked it entirely -- a
@@ -392,6 +453,14 @@
       (%asm-compile-mem-ref asm args params)
     (if (eq? op '%mem-set!)
       (%asm-compile-mem-set asm args params)
+    (if (eq? op '%mem-byte-ref-at)
+      (%asm-compile-mem-byte-ref-at asm args params)
+    (if (eq? op '%mem-byte-set-at!)
+      (%asm-compile-mem-byte-set-at asm args params)
+    (if (eq? op '%mem-byte-ref)
+      (%asm-compile-mem-byte-ref asm args params)
+    (if (eq? op '%mem-byte-set!)
+      (%asm-compile-mem-byte-set asm args params)
     (if (eq? op 'do)
       (%asm-compile-do asm args params)
     (if (eq? op '+)
@@ -433,7 +502,7 @@
                                       (%asm-compile-cmp asm 'b/le args params)
                                       (if (eq? op '>=)
                                         (%asm-compile-cmp asm 'b/ge args params)
-                                        (%asm-compile-funcall asm op args params))))))))))))))))))))))))))))
+                                        (%asm-compile-funcall asm op args params))))))))))))))))))))))))))))))))
 
 ; Binary operation: push left, eval right, pop left, combine
 (set! %asm-compile-binop

@@ -1,6 +1,6 @@
 ; bench-sha256.x -- where a SHA-256 digest's time actually goes.
 ;
-;   sh x.sh --no-pin -q -f tools/dev/bench-sha256.x -- [--parts] [--fold] [--unroll N] [--size BYTES]
+;   sh x.sh --no-pin -q -f tools/dev/bench-sha256.x -- [--parts] [--fold] [--fill] [--unroll N] [--size BYTES]
 ;
 ; Two reports, one harness -- they share the buffer layout, the round-body
 ; builder and the block driver, so splitting them into two files would
@@ -34,6 +34,19 @@
 ; collapsing into a rounds number that does not move.  This knob is the
 ; measured case FOR folding; it stays a knob so the comparison itself
 ; stays reproducible.
+;
+; --fold moves the H shuffles (working-state load, H accumulate) into
+; the compiled function via a t=-1 sentinel entry -- one native call per
+; block (#198: 963.8 -> 666.7ms at 25KB).
+;
+; --fill compiles the W fill itself against the message's raw address,
+; using the byte-width %mem-byte family; the FIPS padding is compiled
+; arithmetic against len/total parked in scratch slots, so one function
+; serves every block including the padded tail.  This was the last
+; interpreted part that mattered: 666.7 -> ~71ms at 25KB (the fill part
+; alone 590 -> 15ms).  The cost is compile time (~9s with fill -- the
+; fill is ~2800 nodes), so the compiled digest pays off on REUSE, not on
+; a one-shot hash.
 ;
 ; Input is synthetic and content-independent: SHA-256 does identical work
 ; per block whatever the bytes are, so a generated buffer keeps the
@@ -69,6 +82,7 @@
         (#t (self name (rest av) dflt)))))
   (def %parts? (%flag? "--parts" %argv))
   (def %fold? (%flag? "--fold" %argv))
+  (def %fill? (%flag? "--fill" %argv))
   (def %unroll (%opt "--unroll" %argv 1))
   (def %size (%opt "--size" %argv 25000))
   ; 64 rounds have to divide evenly into groups, or the loop steps past
@@ -159,13 +173,47 @@
       (list 'fn '(self a t)
         (list 'if (list '= 't 64) 0 (pair 'do (%bodies 0))))))
 
+  ; --- the W fill as a COMPILED function (--fill) ---
+  ; The fill is the digest's dominant interpreted cost (66% after #198's
+  ; fold), and what kept it interpreted was that the JIT could not read
+  ; message BYTES.  With the %mem-byte family it can: the message
+  ; arrives as a second raw address, and the FIPS padding -- 0x80 at
+  ; len, zeros, the bit length big-endian in the last eight bytes -- is
+  ; ordinary compiled arithmetic against len/total parked in scratch
+  ; slots (26=block base, 27=len, 28=total), so ONE compiled function
+  ; serves every block including the padded tail.  Straight-line, not a
+  ; loop: sixteen words, each from four padded byte reads.
+  (def %pad-byte
+    (fn (_ k)
+      (def i (if (= k 0) (%C 26) (list '+ (%C 26) k)))
+      (def L (%C 27))
+      (def T (%C 28))
+      (list 'if (list '< i L)
+        (list '%mem-byte-ref-at 'm i)
+        (list 'if (list '= i L) 128
+          (list 'if (list '< i (list '- T 8)) 0
+            (list '& (list '>> (list '<< L 3)
+                           (list '<< (list '- (list '- T 1) i) 3)) 255))))))
+  (def %fill-word
+    (fn (_ t)
+      (%setC t
+        (list '| (list '<< (%pad-byte (* t 4)) 24)
+          (list '| (list '<< (%pad-byte (+ (* t 4) 1)) 16)
+            (list '| (list '<< (%pad-byte (+ (* t 4) 2)) 8)
+              (%pad-byte (+ (* t 4) 3))))))))
+  (def %fill-expr
+    (list 'fn '(_ a m)
+      (pair 'do ((fn (self t) (if (= t 16) () (pair (%fill-word t) (self (+ t 1))))) 0))))
+
   (def %node-count
     (fn (self e) (if (pair? e) (+ (self (first e)) (self (rest e))) 1)))
   (display "fold ")(display (if %fold? "on " "off"))
+  (display "  fill ")(display (if %fill? "on " "off"))
   (display "  unroll ")(display %unroll)
   (display "   nodes ")(display (%node-count %rounds-expr))(newline)
   (def %t-compile (%clock))
   (def %rounds (compile-asm %rounds-expr))
+  (def %cfill (if %fill? (compile-asm %fill-expr) ()))
   (set! %t-compile (- (%clock) %t-compile))
   (display "compile        ")(display %t-compile)(display " us")(newline)
 
@@ -194,13 +242,24 @@
                 (self (+ i 1)))))) 0)))
   ; Folded, the compiled function does the shuffles itself and is entered
   ; at the -1 sentinel; unfolded, the interpreted loops bracket it.
+  ; Filled, the W fill is the compiled %cfill against the message's raw
+  ; address: one poke (the block base into slot 26) replaces sixteen
+  ; interpreted %sha-word calls.  len/total sit in slots 27/28, poked
+  ; once per digest, so the SAME compiled fill handles the padded tail.
+  (def %fill-for
+    (if %fill?
+      (fn (_ s maddr len total base)
+        (%poke 26 base)
+        (%cfill %addr maddr))
+      (fn (_ s maddr len total base)
+        (%fill-w s len total base))))
   (def %block
     (if %fold?
-      (fn (_ s len total base)
-        (%fill-w s len total base)
+      (fn (_ s maddr len total base)
+        (%fill-for s maddr len total base)
         (%rounds %addr -1))
-      (fn (_ s len total base)
-        (%fill-w s len total base)
+      (fn (_ s maddr len total base)
+        (%fill-for s maddr len total base)
         (%load-h)
         (%rounds %addr 0)
         (%store-h))))
@@ -209,9 +268,11 @@
     (fn (_ s)
       (def len (Str8 length s))
       (def total (%blocks-of len))
+      (def maddr (if %fill? (%ptr->int (%str->ptr s)) 0))
+      (when %fill? (do (%poke 27 len) (%poke 28 total)))
       (%init-h)
       ((fn (self b)
-         (match ((= b total) ()) (#t (do (%block s len total b) (self (%sha+ b 64)))))) 0)
+         (match ((= b total) ()) (#t (do (%block s maddr len total b) (self (%sha+ b 64)))))) 0)
       ((fn (self i acc)
          (match ((= i 8) acc)
            (#t (self (+ i 1)
@@ -277,10 +338,14 @@
            (#t (do (%rounds %addr (if %fold? -1 0)) (self (+ b 1)))))) 0)
       (set! %t-rounds (- (%clock) %t-rounds))
 
+      ; %fill-for is whichever fill the digest above actually used --
+      ; compiled under --fill, interpreted otherwise -- so this line is
+      ; comparable to the digest either way.
+      (def %maddr2 (if %fill? (%ptr->int (%str->ptr %input)) 0))
       (def %t-fill (%clock))
       ((fn (self b)
          (match ((= b %nblocks) ())
-           (#t (do (%fill-w %input %len %total (<< b 6)) (self (+ b 1)))))) 0)
+           (#t (do (%fill-for %input %maddr2 %len %total (<< b 6)) (self (+ b 1)))))) 0)
       (set! %t-fill (- (%clock) %t-fill))
 
       (def %t-shuffle 0)
@@ -293,7 +358,8 @@
 
       (newline)
       (display "  compiled rounds   ")(display %t-rounds)(display " us")(newline)
-      (display "  W fill            ")(display %t-fill)(display " us")(newline)
+      (display "  W fill            ")(display %t-fill)
+      (display (if %fill? " us (compiled)" " us"))(newline)
       (display "  H shuffles        ")
       (if %fold? (display "folded into rounds") (do (display %t-shuffle)(display " us")))
       (newline)

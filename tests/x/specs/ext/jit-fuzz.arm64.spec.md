@@ -310,6 +310,15 @@ interpreter *is* still the oracle for that index arithmetic, which is
 ordinary integer work; it is only the load and store that need the
 model.
 
+Cases alternate between the WORD family and the BYTE family
+(`%mem-byte-*`), which shares the shape but not the scale: byte indices
+mask with `(& i 255)` over the same 256-byte region the word slots
+occupy, the byte model is sentinel-filled and verified per BYTE, and a
+byte store lands `(& v 255)` while the form yields the full value.
+Sharing one region is deliberate — a scale confusion between the
+families (a byte store scaled by 8, a word store unscaled) corrupts the
+other family's sentinels and is caught by whichever phase runs next.
+
 ```scheme
 (do
   (def %seed-cell (pair 20260806 ()))
@@ -368,8 +377,9 @@ model.
               ((eq? (rest row) 'es) (list op (%gen (- d 1)) (%rand 32)))
               (#t (list op (%gen (- d 1))))))))))
 
-  ; --- one compiled runtime loader, shared by every case ---
+  ; --- one compiled runtime loader per family, shared by every case ---
   (def %ld (compile-asm '(fn (_ m i) (%mem-ref-at m i))))
+  (def %ldb (compile-asm '(fn (_ m i) (%mem-byte-ref-at m i))))
 
   ; Every slot must hold its sentinel, except the one slot the case
   ; wrote, which must hold the value.
@@ -404,12 +414,52 @@ model.
                                 " runtime=" (%w rt) " const=" (%w konst)
                                 " stored=" (%w v))))))))))))
 
+  ; --- the byte phase: same design, byte granularity ---
+  (def %refb (prim-ref (lit ptr) (lit ref)))
+  (def %setb (prim-ref (lit ptr) (lit set!)))
+  (def %bbytes 256)
+  (def %bsentinel (fn (_ j) (& (+ (* j 7) 1) 255)))
+  (def %bfill
+    (fn (self j)
+      (unless (>= j %bbytes)
+        (do (%setb %ptr j (%bsentinel j) 1) (self (+ j 1))))))
+  (def %bverify
+    (fn (self j at v)
+      (if (>= j %bbytes) 'ok
+        (let ((got (%refb %ptr j 1))
+              (want (if (= j at) (& v 255) (%bsentinel j))))
+          (if (= got want) (self (+ j 1) at v)
+            (%cat (list "BYTE " (%w j) " got=" (%w got) " want=" (%w want))))))))
+  (def %bcheck
+    (fn (_ idx-expr a b v)
+      (do
+        (%bfill 0)
+        (let ((at ((%evalit (list 'fn '(_ a b) (list '& idx-expr 255))) a b)))
+          (do
+            ((compile-asm (list 'fn '(_ m a b)
+                            (list '%mem-byte-set-at! 'm (list '& idx-expr 255) v)))
+              %addr a b)
+            (let ((buf-verdict (%bverify 0 at v)))
+              (if (not (eq? buf-verdict 'ok))
+                (%cat (list "BYTE-MISMATCH " (%w idx-expr) " a=" (%w a) " b=" (%w b)
+                            " " buf-verdict))
+                (let ((rt (%ldb %addr at))
+                      (konst ((compile-asm (list 'fn '(_ m)
+                                             (list '%mem-byte-ref 'm at))) %addr)))
+                  (if (and (= rt (& v 255)) (= konst (& v 255))) 'ok
+                    (%cat (list "BYTE-READBACK " (%w idx-expr) " at=" (%w at)
+                                " runtime=" (%w rt) " const=" (%w konst)
+                                " stored=" (%w v))))))))))))
+
   (def %run
     (fn (self n)
       (if (= n 0) 'ok
-        (let ((r (%check (%gen 3) (- (%rand 2000) 1000) (- (%rand 2000) 1000)
-                         (+ 1000000 (%rand 1000000)))))
-          (if (eq? r 'ok) (self (- n 1)) r)))))
+        (let ((e (%gen 3))
+              (a (- (%rand 2000) 1000))
+              (b (- (%rand 2000) 1000))
+              (v (+ 1000000 (%rand 1000000))))
+          (let ((r (if (= 0 (% n 2)) (%check e a b v) (%bcheck e a b v))))
+            (if (eq? r 'ok) (self (- n 1)) r))))))
 
   (display (%run 12)))
 ```
