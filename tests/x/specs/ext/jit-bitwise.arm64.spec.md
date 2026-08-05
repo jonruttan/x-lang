@@ -54,6 +54,21 @@ in progress), so the runner skips this file on other hosts.
 ---
     1
 
+### shift right on a negative value sign-extends, as the interpreter does
+
+The interpreter's `>>` is C's on a signed word, so it propagates the
+sign bit. The JIT first emitted LSRV and answered
+`4611686018427387900` here — a compiled function disagreeing with the
+identical interpreted one, which is the only contract the JIT has. It
+emits ASRV now. (On the masked non-negative values a digest shifts,
+the two instructions agree, so nothing above would have caught this.)
+
+```scheme
+(display ((compile-asm '(fn (_ a b) (>> a b))) -16 2))
+```
+---
+    -4
+
 ### a shift amount may itself be an expression
 
 ```scheme
