@@ -136,6 +136,14 @@ amortises is a fraction of that 0.9%), and 8 trips the allocation
 ceiling. The unrolled shape lives here so the negative result stays
 reproducible rather than being re-derived.
 
+`--fold` moves the H shuffles into the compiled function (one native
+call per block); `--fill` compiles the W fill itself via the byte-width
+`%mem-byte` family, padding included. Together they take the 25KB digest
+from ~964ms interpreted-parts to ~71ms — at the price of ~9s of compile,
+so the compiled digest pays off on reuse, not one-shot hashing. All
+knobs compose, and the FIPS vectors plus a differential check against
+`lib/x/codec/sha256.x` run on every invocation regardless.
+
 Input is synthetic (`--size`, default 25000) because SHA-256 does
 identical work per block whatever the bytes are -- no build artifact
 needed. The three FIPS vectors are checked on every run before any

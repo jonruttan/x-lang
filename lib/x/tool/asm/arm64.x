@@ -198,6 +198,22 @@
         (list 1 5 5 0)
         (list 1 10 12 3 1)))))
 
+    ; LDRB Wt, [Xn, #imm12] (unsigned offset, byte, zero-extends)
+    ; Same field shape as ldr, but the offset is UNSCALED (shift 0):
+    ; imm12 counts bytes, not words.
+    (pair 'ldrb (list
+      (pair 'rm (list 960495616          ; 0x39400000
+        (list 0 0 5 0)       ; Rt [4:0]
+        (list 1 5 5 0)       ; Rn [9:5] from mem base (sub=0)
+        (list 1 10 12 0 1))))) ; imm12 [21:10] from mem offset (sub=1), unscaled
+
+    ; STRB Wt, [Xn, #imm12] (stores the LOW byte of Wt)
+    (pair 'strb (list
+      (pair 'rm (list 956301312          ; 0x39000000
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 1 10 12 0 1)))))
+
     ; B (unconditional branch, PC-relative)
     (pair 'b (list
       (pair 'l (list 335544320           ; 0x14000000
