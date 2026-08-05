@@ -110,7 +110,7 @@ Where a digest's time actually goes, and the harness that proved the JIT
 was not where it went.
 
 ```sh
-sh x.sh --no-pin -q -f tools/dev/bench-sha256.x -- [--parts] [--unroll N] [--size BYTES]
+sh x.sh --no-pin -q -f tools/dev/bench-sha256.x -- [--parts] [--fold] [--unroll N] [--size BYTES]
 ```
 
 `--parts` times the digest's pieces separately over the same block count:
@@ -122,6 +122,13 @@ a 25KB digest against 92.5% for the W fill. The three parts should
 roughly sum to the end-to-end digest; a sum well under it means
 something outside the three is paying, and that is the next thing to
 look at.
+
+`--fold` moves the H shuffles into the compiled function (a sentinel
+entry at `t = -1`; the store rides the exit branch), so each block is one
+native call instead of a call bracketed by two interpreted 8-iteration
+loops. Measured at `--size 25000`: digest 963.8 → 666.7ms (−31%). Under
+`--fold` the parts report says `folded into rounds` for the shuffle line
+rather than timing loops the digest no longer runs.
 
 `--unroll N` emits N round bodies per recursive call. It is a knob for
 RE-MEASURING, not a recommendation: 1/2/4 measure as noise (the boxing it
