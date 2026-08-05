@@ -20,7 +20,13 @@ INTEGER-VALUED: comparisons and the boolean forms appear only inside
 where the interpreter answers `#t`/`#f`, and the JIT's nil is a raw `0`,
 so comparing those directly would test a known, documented boundary
 rather than a bug. Division and modulo take non-zero literal divisors
-(a zero divisor is a trap in both, not a difference). This runs under
+(a zero divisor is a trap in both, not a difference), and shift amounts
+stay under 32 (ARM64 shifts by the low six bits of the register, C's
+shift by at least the word width is undefined — comparing those would
+pit a defined answer against an undefined one). Signed overflow in `*`
+and `<<` is assumed to wrap identically on both sides, which it does:
+the interpreter's arithmetic is C on a 64-bit word and the JIT's is the
+register file. This runs under
 helium: with the numeric tower loaded, interpreted arithmetic would
 promote to bignum where the JIT wraps, so the oracle would disagree for
 reasons that are not defects.
@@ -38,42 +44,90 @@ reasons that are not defects.
       (%set-first! %seed-cell (& (+ (* (first %seed-cell) 1664525) 1013904223) 4294967295))
       (% (>> (first %seed-cell) 8) n)))
 
+  ; Local list walkers.  This file's harness is x-core + posix + hash +
+  ; compile -- the `List` CLASS is not loaded, and the runner discards
+  ; stderr, so reaching for `List ref` here does not fail loudly: the
+  ; unbound-symbol error disappears and the block reports a garbage
+  ; value with no hint of the cause.  Count with %len rather than
+  ; writing the row totals as constants; a hand-written count silently
+  ; stops generating whichever form gets appended past it.
+  (def %nth (fn (self n xs) (if (= n 0) (first xs) (self (- n 1) (rest xs)))))
+  (def %len (fn (self xs) (if (null? xs) 0 (+ 1 (self (rest xs))))))
+  (def %pick (fn (_ xs) (%nth (%rand (%len xs)) xs)))
+
   ; --- generators: integer-valued expr, boolean-valued test ---
+  ;
+  ; The grammar is a TABLE of (operator . operand-shape) rows, not a
+  ; cascade of ifs.  It was a cascade at eight forms and was already
+  ; hard to read; the bitwise family took it to fifteen, and every
+  ; future JIT form would deepen it further.  Adding a form is now a
+  ; row, and the shapes are named:
+  ;
+  ;   ee   both operands recurse       el   operand then a bare leaf
+  ;   ed   operand then a NON-ZERO divisor literal
+  ;   es   operand then a 0..31 shift amount
+  ;   e    unary                       tee  test then two operands
   (def %gen-expr ())
   (def %gen-test ())
   (def %leaf
     (fn (_)
-      (def %k (%rand 5))
-      (if (= %k 0) 'a
-        (if (= %k 1) 'b
-          (if (= %k 2) (%rand 100)
-            ; wide literals: the MOVZ/MOVK boundary (the #189 class)
-            (if (= %k 3) (+ 65500 (%rand 200)) (+ 100000 (%rand 900000))))))))
+      (let ((k (%rand 6)))
+        (match
+          ((= k 0) 'a)
+          ((= k 1) 'b)
+          ((= k 2) (%rand 100))
+          ; wide literals: the MOVZ/MOVK boundary (the #189 class)
+          ((= k 3) (+ 65500 (%rand 200)))
+          ((= k 4) (+ 100000 (%rand 900000)))
+          ; NEGATIVE literals.  Two's complement needs all four MOVK
+          ; halfwords, and a negative operand is the only way a
+          ; sign-extending shift differs from a logical one -- with the
+          ; grammar's leaves all non-negative, the LSRV-for-ASRV bug was
+          ; invisible to this whole file.
+          (#t (- 0 (+ 1 (%rand 70000))))))))
+  (def %expr-forms
+    (list (pair '+ 'ee)  (pair '- 'ee)  (pair '& 'ee)
+          (pair '| 'ee)  (pair '^ 'ee)  (pair 'do 'ee)
+          (pair '* 'el)
+          (pair '/ 'ed)  (pair '% 'ed)
+          (pair '<< 'es) (pair '>> 'es)
+          (pair '~ 'e)
+          (pair 'if 'tee)))
   (set! %gen-expr
     (fn (_ d)
       (if (<= d 0) (%leaf)
-        (let ((k (%rand 8)))
-          (if (= k 0) (list '+ (%gen-expr (- d 1)) (%gen-expr (- d 1)))
-            (if (= k 1) (list '- (%gen-expr (- d 1)) (%gen-expr (- d 1)))
-              (if (= k 2) (list '* (%gen-expr (- d 1)) (%leaf))
-                (if (= k 3) (list '/ (%gen-expr (- d 1)) (+ 1 (%rand 50)))
-                  (if (= k 4) (list '% (%gen-expr (- d 1)) (+ 1 (%rand 50)))
-                    (if (= k 5) (list 'do (%gen-expr (- d 1)) (%gen-expr (- d 1)))
-                      (if (= k 6) (list 'if (%gen-test (- d 1))
-                                        (%gen-expr (- d 1)) (%gen-expr (- d 1)))
-                        (%leaf))))))))))))
+        (let ((row (%pick %expr-forms)))
+          (let ((op (first row)))
+            (match
+              ((eq? (rest row) 'ee)
+                (list op (%gen-expr (- d 1)) (%gen-expr (- d 1))))
+              ((eq? (rest row) 'el) (list op (%gen-expr (- d 1)) (%leaf)))
+              ((eq? (rest row) 'ed)
+                (list op (%gen-expr (- d 1)) (+ 1 (%rand 50))))
+              ; a shift amount is bounded to 0..31: ARM64 shifts by the
+              ; low six bits of the register while C's shift by >= the
+              ; word width is undefined, so a wider amount would compare
+              ; a defined result against an undefined one.
+              ((eq? (rest row) 'es) (list op (%gen-expr (- d 1)) (%rand 32)))
+              ((eq? (rest row) 'e) (list op (%gen-expr (- d 1))))
+              (#t (list op (%gen-test (- d 1))
+                        (%gen-expr (- d 1)) (%gen-expr (- d 1))))))))))
+  ; Tests: the comparisons take two expressions, `not` one test, the
+  ; connectives two tests.
+  (def %test-forms
+    (list (pair '< 'ee)  (pair '> 'ee)  (pair '= 'ee)
+          (pair '<= 'ee) (pair '>= 'ee)
+          (pair 'not 't) (pair 'and 'tt) (pair 'or 'tt)))
   (set! %gen-test
     (fn (_ d)
       (if (<= d 0) (list '< (%leaf) (%leaf))
-        (let ((k (%rand 8)))
-          (if (= k 0) (list '< (%gen-expr (- d 1)) (%gen-expr (- d 1)))
-            (if (= k 1) (list '> (%gen-expr (- d 1)) (%gen-expr (- d 1)))
-              (if (= k 2) (list '= (%gen-expr (- d 1)) (%gen-expr (- d 1)))
-                (if (= k 3) (list '<= (%gen-expr (- d 1)) (%gen-expr (- d 1)))
-                  (if (= k 4) (list '>= (%gen-expr (- d 1)) (%gen-expr (- d 1)))
-                    (if (= k 5) (list 'not (%gen-test (- d 1)))
-                      (if (= k 6) (list 'and (%gen-test (- d 1)) (%gen-test (- d 1)))
-                        (list 'or (%gen-test (- d 1)) (%gen-test (- d 1))))))))))))))
+        (let ((row (%pick %test-forms)))
+          (let ((op (first row)))
+            (match
+              ((eq? (rest row) 'ee)
+                (list op (%gen-expr (- d 1)) (%gen-expr (- d 1))))
+              ((eq? (rest row) 't) (list op (%gen-test (- d 1))))
+              (#t (list op (%gen-test (- d 1)) (%gen-test (- d 1))))))))))
 
   ; Evaluate a CONSTRUCTED form in the caller's environment: the op gets
   ; its argument unevaluated, so the first eval runs the (list ...) call
@@ -84,17 +138,43 @@ reasons that are not defects.
   (def %evalit (op (form) e (eval (eval form e) e)))
 
   ; --- the loop: compile, interpret, compare on several argument pairs ---
-  (def %args (list (pair 0 0) (pair 1 2) (pair 7 3) (pair 100 250) (pair 65535 65536)))
+  ; Negative arguments earn their place: every pair here used to be
+  ; non-negative, which is exactly why a sign-extension bug in `>>`
+  ; survived a differential fuzzer aimed straight at it.
+  (def %args (list (pair 0 0) (pair 1 2) (pair 7 3) (pair 100 250)
+                   (pair 65535 65536) (pair -1 -7) (pair -65536 5)))
   ; compile and interpret ONCE per expression, then vary the arguments:
   ; every compile-asm mmaps a fresh code buffer, so rebuilding per
   ; argument pair burns memory for nothing.
+  ; The verdict is DISPLAYED and must be the block's last output.  The
+  ; runner compares the LAST non-empty line, and the batch printer
+  ; renders the block's own value after whatever was displayed -- so a
+  ; trailing `(newline)`, or a stray paren that ends the `do` early and
+  ; leaves later forms at top level, puts something else on that line.
+  ; Both mistakes surface identically, as an opaque `#<ATOM:0x...>` where
+  ; the verdict should be, which says nothing about which one it was.
+  ;
+  ; The report is a STRING naming the case.  `Str append` is binary, so
+  ; the parts are joined by a fold rather than passed as one wide call.
+  (def %w (prim-ref (lit io) (lit write-to-str)))
+  (def %cat
+    (fn (self parts)
+      (if (null? (rest parts)) (first parts)
+        (Str append (first parts) (self (rest parts))))))
+  (def %report
+    (fn (_ expr pr cv iv)
+      (%cat (list "MISMATCH " (%w expr)
+                  " on a=" (%w (first pr))
+                  " b=" (%w (rest pr))
+                  " compiled=" (%w cv)
+                  " interpreted=" (%w iv)))))
   (def %check-args
     (fn (self expr c i pairs)
       (if (null? pairs) 'ok
         (let ((cv (c (first (first pairs)) (rest (first pairs))))
               (iv (i (first (first pairs)) (rest (first pairs)))))
           (if (= cv iv) (self expr c i (rest pairs))
-            (list 'MISMATCH expr (first pairs) 'compiled cv 'interpreted iv))))))
+            (%report expr (first pairs) cv iv))))))
   (def %check
     (fn (_ expr)
       (%check-args expr
@@ -144,17 +224,32 @@ anything the JIT does not implement used to compile *as* a self-call.
     (fn (_)
       (def %k (%rand 4))
       (if (= %k 0) 'n (if (= %k 1) 'acc (%rand 50)))))
+  ; The same operator/shape table the straight-line grammar uses, minus
+  ; the growers.  `&`, `|`, `^`, `~` and `>>` are bounded by their
+  ; operands and survive six iterations; `<<` is not, and an overflow
+  ; compounded once per level puts the oracle past the point where its
+  ; answer means anything.
+  (def %nth (fn (self n xs) (if (= n 0) (first xs) (self (- n 1) (rest xs)))))
+  (def %len (fn (self xs) (if (null? xs) 0 (+ 1 (self (rest xs))))))
+  (def %pick (fn (_ xs) (%nth (%rand (%len xs)) xs)))
+  (def %forms
+    (list (pair '+ 'ee) (pair '- 'ee) (pair '& 'ee)
+          (pair '| 'ee) (pair '^ 'ee)
+          (pair '* 'el) (pair '/ 'ed) (pair '% 'ed)
+          (pair '>> 'es) (pair '~ 'e) (pair 'if 'tee)))
   (def %gen
     (fn (self d)
       (if (<= d 0) (%leaf)
-        (let ((k (%rand 6)))
-          (if (= k 0) (list '+ (self (- d 1)) (self (- d 1)))
-            (if (= k 1) (list '- (self (- d 1)) (self (- d 1)))
-              (if (= k 2) (list '* (self (- d 1)) (%leaf))
-                (if (= k 3) (list '/ (self (- d 1)) (+ 1 (%rand 20)))
-                  (if (= k 4) (list '% (self (- d 1)) (+ 1 (%rand 20)))
-                    (list 'if (list '< (self (- d 1)) (self (- d 1)))
-                          (self (- d 1)) (self (- d 1))))))))))))
+        (let ((row (%pick %forms)))
+          (let ((op (first row)))
+            (match
+              ((eq? (rest row) 'ee) (list op (self (- d 1)) (self (- d 1))))
+              ((eq? (rest row) 'el) (list op (self (- d 1)) (%leaf)))
+              ((eq? (rest row) 'ed) (list op (self (- d 1)) (+ 1 (%rand 20))))
+              ((eq? (rest row) 'es) (list op (self (- d 1)) (%rand 32)))
+              ((eq? (rest row) 'e) (list op (self (- d 1))))
+              (#t (list op (list '< (self (- d 1)) (self (- d 1)))
+                        (self (- d 1)) (self (- d 1))))))))))
 
   (def %evalit (op (form) e (eval (eval form e) e)))
 
@@ -181,6 +276,142 @@ anything the JIT does not implement used to compile *as* a self-call.
             (if (eq? r 'ok) (self (- k 1)) r))))))
 
   (display (%run 30)))
+```
+---
+    ok
+
+## scratch-memory fuzz
+
+### a computed store lands where a constant read finds it, and touches nothing else
+
+The memory forms have no interpreted counterpart, so the interpreter
+cannot be the oracle here the way it is above. Two independent oracles
+stand in for it:
+
+- **a model of the buffer.** Every slot is pre-filled with a distinct
+  sentinel, so a single generated store must leave the other
+  sixty-three sentinels exactly as they were. That is what catches a
+  wrong scale or a stray offset — bugs that a read-back of the slot
+  just written would happily confirm.
+- **`ptr ref-word`.** The JIT writes; plain x-lang reads. A scale bug
+  shared by the compiler's store and load paths would agree with
+  itself; an x-lang reader has no such sympathy.
+
+Case count is bounded by the batch, not by taste: all three blocks in
+this file share one interpreter process, and each `compile-asm` mmaps
+its own code buffer. At twenty-four cases the process died mid-batch.
+Raise the count only alongside a measurement, and never by raising the
+runner's allocation ceiling — a tripped ceiling is the measurement.
+
+The index is a generated expression masked with `(& i 31)`, which pins
+it to a valid slot for any operand, negative included — the buffer is
+128 slots, so the masked quarter stays comfortably inside it. The
+interpreter *is* still the oracle for that index arithmetic, which is
+ordinary integer work; it is only the load and store that need the
+model.
+
+```scheme
+(do
+  (def %seed-cell (pair 20260806 ()))
+  (def %rand
+    (fn (_ n)
+      (%set-first! %seed-cell (& (+ (* (first %seed-cell) 1664525) 1013904223) 4294967295))
+      (% (>> (first %seed-cell) 8) n)))
+  (def %nth (fn (self n xs) (if (= n 0) (first xs) (self (- n 1) (rest xs)))))
+  (def %len (fn (self xs) (if (null? xs) 0 (+ 1 (self (rest xs))))))
+  (def %pick (fn (_ xs) (%nth (%rand (%len xs)) xs)))
+  (def %w (prim-ref (lit io) (lit write-to-str)))
+  (def %cat
+    (fn (self parts)
+      (if (null? (rest parts)) (first parts)
+        (Str append (first parts) (self (rest parts))))))
+  (def %evalit (op (form) e (eval (eval form e) e)))
+
+  ; --- the buffer, and the x-lang-side reader that checks it ---
+  (def %buf ((prim-ref (lit str) (lit make)) 1024))
+  (def %ptr ((prim-ref (lit str) (lit ->ptr)) %buf))
+  (def %addr ((prim-ref (lit ptr) (lit ->int)) %ptr))
+  (def %refw (prim-ref (lit ptr) (lit ref-word)))
+  (def %setw (prim-ref (lit ptr) (lit set-word!)))
+  (def %slots 32)
+  ; A per-slot sentinel, not zero: zeroed memory cannot tell "left alone"
+  ; apart from "written with the wrong value at the wrong index".
+  (def %sentinel (fn (_ j) (+ (* j 7) 1)))
+  (def %fill
+    (fn (self j)
+      (unless (>= j %slots)
+        (do (%setw %ptr (* j 8) (%sentinel j)) (self (+ j 1))))))
+
+  ; --- index expressions: integer arithmetic over the two arguments ---
+  (def %gen ())
+  (def %leaf
+    (fn (_)
+      (let ((k (%rand 5)))
+        (match
+          ((= k 0) 'a)
+          ((= k 1) 'b)
+          ((= k 2) (%rand 100))
+          ((= k 3) (+ 100000 (%rand 900000)))
+          (#t (- 0 (+ 1 (%rand 70000))))))))
+  (def %forms
+    (list (pair '+ 'ee) (pair '- 'ee) (pair '& 'ee) (pair '| 'ee)
+          (pair '^ 'ee) (pair '* 'el) (pair '<< 'es) (pair '>> 'es)
+          (pair '~ 'e)))
+  (set! %gen
+    (fn (_ d)
+      (if (<= d 0) (%leaf)
+        (let ((row (%pick %forms)))
+          (let ((op (first row)))
+            (match
+              ((eq? (rest row) 'ee) (list op (%gen (- d 1)) (%gen (- d 1))))
+              ((eq? (rest row) 'el) (list op (%gen (- d 1)) (%leaf)))
+              ((eq? (rest row) 'es) (list op (%gen (- d 1)) (%rand 32)))
+              (#t (list op (%gen (- d 1))))))))))
+
+  ; --- one compiled runtime loader, shared by every case ---
+  (def %ld (compile-asm '(fn (_ m i) (%mem-ref-at m i))))
+
+  ; Every slot must hold its sentinel, except the one slot the case
+  ; wrote, which must hold the value.
+  (def %verify
+    (fn (self j slot v)
+      (if (>= j %slots) 'ok
+        (let ((got (%refw %ptr (* j 8)))
+              (want (if (= j slot) v (%sentinel j))))
+          (if (= got want) (self (+ j 1) slot v)
+            (%cat (list "SLOT " (%w j) " got=" (%w got) " want=" (%w want))))))))
+
+  (def %check
+    (fn (_ idx-expr a b v)
+      (do
+        (%fill 0)
+        (let ((slot ((%evalit (list 'fn '(_ a b) (list '& idx-expr 31))) a b)))
+          (do
+            ((compile-asm (list 'fn '(_ m a b)
+                            (list '%mem-set-at! 'm (list '& idx-expr 31) v)))
+              %addr a b)
+            (let ((buf-verdict (%verify 0 slot v)))
+              (if (not (eq? buf-verdict 'ok))
+                (%cat (list "MISMATCH " (%w idx-expr) " a=" (%w a) " b=" (%w b)
+                            " " buf-verdict))
+                ; the compiled loader and a constant-index loader must
+                ; both find what the computed store left behind
+                (let ((rt (%ld %addr slot))
+                      (konst ((compile-asm (list 'fn '(_ m)
+                                             (list '%mem-ref 'm slot))) %addr)))
+                  (if (and (= rt v) (= konst v)) 'ok
+                    (%cat (list "READBACK " (%w idx-expr) " slot=" (%w slot)
+                                " runtime=" (%w rt) " const=" (%w konst)
+                                " stored=" (%w v))))))))))))
+
+  (def %run
+    (fn (self n)
+      (if (= n 0) 'ok
+        (let ((r (%check (%gen 3) (- (%rand 2000) 1000) (- (%rand 2000) 1000)
+                         (+ 1000000 (%rand 1000000)))))
+          (if (eq? r 'ok) (self (- n 1)) r)))))
+
+  (display (%run 12)))
 ```
 ---
     ok

@@ -150,6 +150,13 @@
         (list 1 5 5 0)
         (list 2 16 5 0)))))
 
+    ; ASRV Xd, Xn, Xm -- arithmetic shift right, amount in Xm
+    (pair 'asrv (list
+      (pair 'rrr (list 2596284416        ; 0x9AC02800
+        (list 0 0 5 0)
+        (list 1 5 5 0)
+        (list 2 16 5 0)))))
+
     ; SUB Xd, Xn, Xm
     (pair 'sub (list
       (pair 'rrr (list 3405774848        ; 0xCB000000

@@ -357,13 +357,20 @@
 ; feed.  A TABLE, not more if-nesting -- the chain below is already
 ; twenty deep, and these all share the binop shape (both operands to
 ; registers, one instruction).  Shifts take a register amount (LSLV/
-; LSRV), so a shift by an expression works like any other operand.
+; ASRV), so a shift by an expression works like any other operand.
+;
+; `>>` is ASRV, not LSRV: the interpreter's `>>` is C's on a signed
+; word, so it sign-extends -- (>> -16 2) is -4.  A logical shift here
+; would answer 4611686018427387900 and disagree with the interpreted
+; definition of the same function, which is the one contract the JIT
+; has.  On the masked non-negative values a digest loop shifts, the
+; two are identical anyway.
 (def %asm-bitwise-ops
   (list (pair '&  'and)
         (pair '|  'orr)
         (pair '^  'eor)
         (pair '<< 'lslv)
-        (pair '>> 'lsrv)))
+        (pair '>> 'asrv)))
 
 ; Compile a call expression
 (set! %asm-compile-call
