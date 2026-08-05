@@ -151,6 +151,20 @@ for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
   [ -n "$SPECS" ] && { case "$_spec" in $SPECS) : ;; *) continue ;; esac; }
   _I=$_N
   _N=$((_N+1))
+  # Per-file timeout scaling: a file whose one-off cost is legitimately
+  # heavy (the sha256-jit spec BUILDS the compiled digest engine, and
+  # sanitizer instrumentation multiplies that build several-fold)
+  # declares `# @timeout-scale N` near its head, and its process budget
+  # becomes N x the base.  A MULTIPLIER, not an absolute: it composes
+  # with the asan gate's raised TIMEOUT_UNIT_SECS, and the runaway guard
+  # stays tight for every file that declares nothing.
+  _tcmd="$TIMEOUT_UNIT"
+  if [ -n "$_TIMEOUT_BIN" ]; then
+    _scale=$(sed -n 's/^# @timeout-scale \([0-9][0-9]*\)$/\1/p' "$_spec" | head -1)
+    if [ -n "$_scale" ]; then
+      _tcmd="$_TIMEOUT_BIN $(( ${TIMEOUT_UNIT_SECS:-60} * _scale ))"
+    fi
+  fi
   _t0=$(date +%s)
   if [ -n "$PARALLEL" ]; then
     (
@@ -158,7 +172,7 @@ for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
           -v LANG_LIB="$LANG_LIB" \
           -v REPL_CMD="${REPL_CMD:-(repl)}" \
           -v READ_FN="${READ_FN:-Io read}" \
-          -v TIMEOUT_CMD="$TIMEOUT_UNIT" \
+          -v TIMEOUT_CMD="$_tcmd" \
           -v TMPDIR="$_TMPDIR" \
           -v SPEC_ID="$_I" \
           -f "$RUNNER" "$_spec"
@@ -169,7 +183,7 @@ for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
         -v LANG_LIB="$LANG_LIB" \
         -v REPL_CMD="${REPL_CMD:-(repl)}" \
         -v READ_FN="${READ_FN:-Io read}" \
-        -v TIMEOUT_CMD="$TIMEOUT_UNIT" \
+        -v TIMEOUT_CMD="$_tcmd" \
         -v TMPDIR="$_TMPDIR" \
         -v SPEC_ID="$_I" \
         -f "$RUNNER" "$_spec"

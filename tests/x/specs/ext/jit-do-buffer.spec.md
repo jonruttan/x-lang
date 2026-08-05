@@ -1,8 +1,8 @@
 # @lib ../tests/x/lib/compile.x
 
-The JIT's `do` form and its code-buffer bounds. Arch-tagged: the
-assembler backend these compile through is ARM64 (x86_64 parity is in
-progress), so the runner skips this file on other hosts.
+The JIT's `do` form and its code-buffer bounds. Untagged on purpose: both backends (ARM64 and x86-64) compile the
+same vocabulary, so this file runs on every host and IS the parity
+contract.
 
 ## the `do` form
 
@@ -67,11 +67,14 @@ mmap'd region and segfaulted somewhere unrelated. It raises now, and
 
 ### emitting past the capacity raises instead of corrupting memory
 
+Nine nops into an eight-byte buffer: a nop is one byte on x86-64 and
+four on ARM64, so nine overruns eight bytes on ANY backend.
+
 ```scheme
 (do
   (def %a (asm-new 8))
   (def %fill (fn (self n) (match ((= n 0) ()) (#t (do (asm-emit! %a 'nop) (self (- n 1)))))))
-  (display (guard (_ 'raised) (do (%fill 8) 'no-raise))))
+  (display (guard (_ 'raised) (do (%fill 9) 'no-raise))))
 ```
 ---
     raised
@@ -99,30 +102,33 @@ before the sizing fix wrote off the end of the buffer.
 ---
     402
 
-### a word that would straddle the end raises before writing any of it
+### an instruction that would straddle the end raises before writing any of it
 
 The capacity check used to sit in the byte emitter and fire per byte, so
 an instruction landing across the end wrote its leading bytes and only
 then raised — a torn instruction in the buffer behind a raised error.
-The word emitter checks the LAST byte up front, so the position does not
-move and nothing is written.
+The batched emitters check the LAST byte up front, so the position does
+not move and nothing is written.
 
-The capacity here is deliberately NOT a multiple of four. On a 4096-byte
-buffer both the old and the new check raise cleanly, because the failing
-instruction begins exactly at the end — the tear is invisible. At 4094,
-1023 instructions leave the position at 4092 and the next word runs two
-bytes past the end: the per-byte check wrote those two and left the
-position at 4094, while checking the last byte up front leaves it at
-4092 with nothing written.
+Arch-neutral by measurement: one `mov x0 x0` is emitted into a probe
+buffer to learn the instruction size (four bytes on ARM64, three on
+x86-64), and the real buffer is sized to hold exactly four of them plus
+ONE SPARE BYTE — so the fifth mov begins in bounds and ends past the
+end, the exact tear shape. The case then pins that the failing emit
+moved the position by NOTHING: a torn instruction would leave it past
+`4*size`.
 
 ```scheme
 (do
-  (def %a (asm-new 4094))
-  (def %fill (fn (self n) (match ((= n 0) ()) (#t (do (asm-emit! %a 'nop) (self (- n 1)))))))
-  (%fill 1023)
+  (def %probe (asm-new 64))
+  (asm-emit! %probe 'mov x0 x0)
+  (def %size (asm-pos %probe))
+  (def %a (asm-new (+ (* 4 %size) (- %size 1))))
+  (def %fill (fn (self n) (match ((= n 0) ()) (#t (do (asm-emit! %a 'mov x0 x0) (self (- n 1)))))))
+  (%fill 4)
   (def %before (asm-pos %a))
-  (def %verdict (guard (_ 'raised) (do (asm-emit! %a 'nop) 'no-raise)))
-  (display (list %verdict %before (asm-pos %a))))
+  (def %verdict (guard (_ 'raised) (do (asm-emit! %a 'mov x0 x0) 'no-raise)))
+  (display (list %verdict (= %before (* 4 %size)) (= (asm-pos %a) %before))))
 ```
 ---
-    (raised 4092 4092)
+    (raised #t #t)

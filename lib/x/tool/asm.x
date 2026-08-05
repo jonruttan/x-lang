@@ -63,7 +63,11 @@
 ; --- Operand constructors ---
 (def reg   (fn (_ n)        (list 'reg n)))
 (def imm   (fn (_ v)        (list 'imm v)))
-(def mem   (fn (_ base off) (list 'mem base off)))
+; A mem base may be a raw register NUMBER or a (reg n) OPERAND -- the
+; alias form carries each backend's register mapping (x8 is r10 on
+; x86-64), which retires the (mem x0 off)-vs-(mem 0 off) trap class:
+; both spellings now mean the same thing.
+(def mem   (fn (_ base off) (list 'mem (if (pair? base) (first (rest base)) base) off)))
 (def label (fn (_ name)     (list 'label name)))
 
 (def %op-type  (fn (_ op) (first op)))
@@ -152,6 +156,25 @@
     (%ptr-set! buf (+ pos 2) (& (>> val 16) 255) 1)
     (%ptr-set! buf (+ pos 3) (& (>> val 24) 255) 1)
     (%obj-set! asm 1 (+ pos 4))))
+
+; A LIST of bytes in one call: single capacity check against the last
+; byte, one position update.  The x86-64 backend's variable-length
+; instructions emit through this -- per-BYTE %emit-u8! calls cost an
+; interpreted call each (the #196 lesson: the scaffolding is the cost),
+; and a 7-byte instruction was paying seven of them plus seven capacity
+; checks and position writes.
+(def %emit-bytes!
+  (fn (_ asm bytes)
+    (def n ((fn (self k xs) (if (null? xs) k (self (+ k 1) (rest xs)))) 0 bytes))
+    (def pos (%obj-ref asm 1))
+    (if (>= (+ pos (- n 1)) (%obj-ref asm 2))
+      (Err raise 'state "asm: code buffer full (raise the asm-new capacity)" ()))
+    (def buf (%obj-ref asm 0))
+    ((fn (self p xs)
+       (unless (null? xs)
+         (do (%ptr-set! buf p (& (first xs) 255) 1)
+             (self (+ p 1) (rest xs))))) pos bytes)
+    (%obj-set! asm 1 (+ pos n))))
 
 (def %emit-u64-le!
   (fn (_ asm val)

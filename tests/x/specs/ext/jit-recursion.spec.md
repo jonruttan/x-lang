@@ -1,8 +1,8 @@
 # @lib ../tests/x/lib/compile.x
 
-JIT self-recursion. Arch-tagged: the assembler backend these compile
-through is ARM64 (x86_64 parity is in progress), so the runner skips
-this file on other hosts.
+JIT self-recursion. Untagged on purpose: both backends (ARM64 and x86-64) compile the
+same vocabulary, so this file runs on every host and IS the parity
+contract.
 
 The trampoline machinery for recursive calls was present but had never
 run — two bugs, one at generation and one at runtime:

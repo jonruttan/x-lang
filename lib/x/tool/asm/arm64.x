@@ -183,6 +183,16 @@
         (list 1 5 5 0)
         (list 2 10 12 0)))))
 
+    ; PUSH/POP: one register, 16 bytes of stack, the same constants the
+    ; compiler used to emit raw (STR Xt,[sp,#-16]! / LDR Xt,[sp],#16)
+    ; with the Rt field filled from the operand.
+    (pair 'push (list
+      (pair 'r (list 4162785248          ; 0xF81F0FE0
+        (list 0 0 5 0)))))   ; Rt [4:0]
+    (pair 'pop (list
+      (pair 'r (list 4165011424          ; 0xF84107E0
+        (list 0 0 5 0)))))   ; Rt [4:0]
+
     ; LDR Xt, [Xn, #imm12*8] (unsigned offset, 64-bit)
     ; mem operand: (mem base-reg offset) — sub=0 for base, sub=1 for offset
     (pair 'ldr (list
@@ -304,6 +314,19 @@
 
 ; --- Prologue/epilogue helpers ---
 ; These emit fixed instruction sequences for function call frames
+
+; asm-push!/asm-pop!: one register to/from a 16-byte stack slot.  These
+; are the compiled code's HOTTEST instructions (every binop brackets its
+; left operand with a pair), so they emit their constant words directly
+; -- the table's 'push/'pop entries stay for hand-written code, but the
+; compiler's path costs one call, not a dispatch walk (the mnemonic
+; route tripled a big build's allocation when it briefly carried these).
+(def asm-push!
+  (fn (_ asm r)
+    (%emit-u32-le! asm (| 4162785248 (& (first (rest r)) 31)))))  ; 0xF81F0FE0|Rt
+(def asm-pop!
+  (fn (_ asm r)
+    (%emit-u32-le! asm (| 4165011424 (& (first (rest r)) 31)))))  ; 0xF84107E0|Rt
 
 ; asm-prologue!: save x29 (fp) and x30 (lr), set up frame
 ; STP x29, x30, [sp, #-16]! = 0xA9BF7BFD

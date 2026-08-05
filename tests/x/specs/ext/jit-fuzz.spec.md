@@ -5,8 +5,9 @@ grammar, run each BOTH compiled and interpreted, and require the two to
 agree. The interpreter is the oracle — there are no hand-written
 expectations to rot.
 
-Arch-tagged: the assembler backend is ARM64 (x86_64 parity is in
-progress), so the runner skips this file on other hosts.
+Untagged on purpose: both backends (ARM64 and x86-64) compile the
+same vocabulary, so this file runs on every host and IS the parity
+contract.
 
 **Deterministic on purpose.** A gate that fails differently every run is
 unactionable, so the generator is a seeded LCG: a failure prints the

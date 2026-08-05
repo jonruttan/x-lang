@@ -9,6 +9,14 @@
 (def %str->symbol (prim-ref 'str '->sym))
 
 (import x/tool/asm)
+; Collection is explicit-trigger-only, and a GENERATED build is the
+; hottest allocator in the system: each emitted instruction costs
+; interpreted-call scaffolding, and a 3500-node engine build peaked at
+; ~700MB of uncollected garbage natively -- roughly double under ASan
+; redzones, which is more than a CI runner has.  The compiler collects
+; every %asm-gc-window nodes, so a build's peak is the WINDOW's garbage,
+; not the whole build's; small compiles (under a window) never collect.
+(import x/sys/gc)
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr-call (prim-ref 'ptr 'call))
 (def %ptr->int (prim-ref 'ptr '->int))
@@ -34,9 +42,11 @@
 (def %jit-buffer-unread (%ptr->int (%dlsym %jit-lib "jit_buffer_unread")))
 (def %jit-buffer-len (%ptr->int (%dlsym %jit-lib "jit_buffer_len")))
 
-; Stack push/pop constants
-(def %PUSH 4162785248)   ; STR x0, [sp, #-16]!
-(def %POP  4165011424)   ; LDR x0, [sp], #16
+; Stack push/pop ride the per-arch asm-push!/asm-pop! FUNCTIONS: each
+; backend owns its 16-byte discipline (arm64 pre/post-indexed str/ldr;
+; x86-64 keeps rsp 16-aligned for SysV calls at any push depth), and the
+; function form costs one call -- these bracket every binop, and routing
+; them through the mnemonic dispatch tripled a big build's allocation.
 
 ; --- Emit helpers: call JIT runtime functions ---
 ; All use BLR x8. Preserves x19 (p_base), x20 (p_args).
@@ -105,9 +115,14 @@
 ; x19 = p_base (callee-saved), x20 = p_args (callee-saved).
 ; All intermediate values are raw integers; boxing happens at the end.
 
+(def %asm-gc-window 128)
+(def %asm-gc-tick (pair 0 ()))
+
 ; Emit code for an expression
 (set! %asm-compile-expr
   (fn (_ asm expr params)
+    (%set-first! %asm-gc-tick (+ (first %asm-gc-tick) 1))
+    (when (= 0 (% (first %asm-gc-tick) %asm-gc-window)) (Heap collect))
     (if (null? expr)
       (asm-emit! asm 'mov x0 (imm 0))    ; nil = NULL = 0
       (if (number? expr)
@@ -231,10 +246,10 @@
   (fn (_ asm args params)
     (def %off (%asm-mem-offset (first (rest args))))
     (%asm-compile-expr asm (first args) params)      ; base
-    (%emit-u32-le! asm %PUSH)
+    (asm-push! asm x0)
     (%asm-compile-expr asm (first (rest (rest args))) params) ; value
     (asm-emit! asm 'mov x1 x0)
-    (%emit-u32-le! asm %POP)                         ; x0 = base
+    (asm-pop! asm x0)                         ; x0 = base
     (asm-emit! asm (lit str) x1 (mem 0 %off))
     (asm-emit! asm 'mov x0 x1)))                     ; yield the value
 
@@ -259,25 +274,25 @@
 (def %asm-compile-mem-ref-at
   (fn (_ asm args params)
     (%asm-compile-expr asm (first args) params)          ; base
-    (%emit-u32-le! asm %PUSH)
+    (asm-push! asm x0)
     (%asm-compile-expr asm (first (rest args)) params)   ; index
     (%asm-emit-scale-index! asm)                         ; x1 = index*8
-    (%emit-u32-le! asm %POP)                             ; x0 = base
+    (asm-pop! asm x0)                             ; x0 = base
     (asm-emit! asm 'add x0 x0 x1)
     (asm-emit! asm (lit ldr) x0 (mem 0 0))))
 
 (def %asm-compile-mem-set-at
   (fn (_ asm args params)
     (%asm-compile-expr asm (first args) params)          ; base
-    (%emit-u32-le! asm %PUSH)
+    (asm-push! asm x0)
     (%asm-compile-expr asm (first (rest args)) params)   ; index
     (%asm-emit-scale-index! asm)
-    (%emit-u32-le! asm %POP)                             ; x0 = base
+    (asm-pop! asm x0)                             ; x0 = base
     (asm-emit! asm 'add x0 x0 x1)                        ; x0 = address
-    (%emit-u32-le! asm %PUSH)                            ; save address
+    (asm-push! asm x0)                            ; save address
     (%asm-compile-expr asm (first (rest (rest args))) params) ; value
     (asm-emit! asm 'mov x1 x0)                           ; x1 = value
-    (%emit-u32-le! asm %POP)                             ; x0 = address
+    (asm-pop! asm x0)                             ; x0 = address
     (asm-emit! asm (lit str) x1 (mem 0 0))
     (asm-emit! asm 'mov x0 x1)))                         ; yield the value
 
@@ -310,35 +325,35 @@
   (fn (_ asm args params)
     (def %off (%asm-mem-byte-offset (first (rest args))))
     (%asm-compile-expr asm (first args) params)      ; base
-    (%emit-u32-le! asm %PUSH)
+    (asm-push! asm x0)
     (%asm-compile-expr asm (first (rest (rest args))) params) ; value
     (asm-emit! asm 'mov x1 x0)
-    (%emit-u32-le! asm %POP)                         ; x0 = base
+    (asm-pop! asm x0)                         ; x0 = base
     (asm-emit! asm (lit strb) x1 (mem 0 %off))
     (asm-emit! asm 'mov x0 x1)))                     ; yield the value
 
 (def %asm-compile-mem-byte-ref-at
   (fn (_ asm args params)
     (%asm-compile-expr asm (first args) params)          ; base
-    (%emit-u32-le! asm %PUSH)
+    (asm-push! asm x0)
     (%asm-compile-expr asm (first (rest args)) params)   ; index (bytes)
     (asm-emit! asm 'mov x1 x0)                           ; no scaling
-    (%emit-u32-le! asm %POP)                             ; x0 = base
+    (asm-pop! asm x0)                             ; x0 = base
     (asm-emit! asm 'add x0 x0 x1)
     (asm-emit! asm (lit ldrb) x0 (mem 0 0))))
 
 (def %asm-compile-mem-byte-set-at
   (fn (_ asm args params)
     (%asm-compile-expr asm (first args) params)          ; base
-    (%emit-u32-le! asm %PUSH)
+    (asm-push! asm x0)
     (%asm-compile-expr asm (first (rest args)) params)   ; index (bytes)
     (asm-emit! asm 'mov x1 x0)                           ; no scaling
-    (%emit-u32-le! asm %POP)                             ; x0 = base
+    (asm-pop! asm x0)                             ; x0 = base
     (asm-emit! asm 'add x0 x0 x1)                        ; x0 = address
-    (%emit-u32-le! asm %PUSH)                            ; save address
+    (asm-push! asm x0)                            ; save address
     (%asm-compile-expr asm (first (rest (rest args))) params) ; value
     (asm-emit! asm 'mov x1 x0)                           ; x1 = value
-    (%emit-u32-le! asm %POP)                             ; x0 = address
+    (asm-pop! asm x0)                             ; x0 = address
     (asm-emit! asm (lit strb) x1 (mem 0 0))
     (asm-emit! asm 'mov x0 x1)))                         ; yield the value
 
@@ -371,16 +386,16 @@
   (fn (_ asm args params)
     ; Eval score -> push
     (%asm-compile-expr asm (first args) params)
-    (%emit-u32-le! asm %PUSH)
+    (asm-push! asm x0)
     ; Eval buffer -> push
     (%asm-compile-expr asm (first (rest (rest args))) params)
-    (%emit-u32-le! asm %PUSH)
+    (asm-push! asm x0)
     ; sign is a literal number
     (def sign-val (first (rest args)))
     ; Call jit_score_set(score, sign, buffer)
-    (%emit-u32-le! asm %POP)                   ; x0 = buffer
+    (asm-pop! asm x0)                   ; x0 = buffer
     (asm-emit! asm 'mov x2 x0)           ; x2 = buffer
-    (%emit-u32-le! asm %POP)                   ; x0 = score
+    (asm-pop! asm x0)                   ; x0 = score
     (asm-emit! asm 'mov x1 (imm sign-val)) ; x1 = sign
     (%emit-call! asm %jit-score-set)))
 
@@ -402,10 +417,10 @@
     (def lbl-true (%asm-genlabel "%cmp_t"))
     (def lbl-end  (%asm-genlabel "%cmp_e"))
     (%asm-compile-expr asm (first args) params)
-    (%emit-u32-le! asm %PUSH)
+    (asm-push! asm x0)
     (%asm-compile-expr asm (first (rest args)) params)
     (asm-emit! asm 'mov x1 x0)
-    (%emit-u32-le! asm %POP)
+    (asm-pop! asm x0)
     (asm-emit! asm 'cmp x0 x1)
     (asm-emit! asm cond-insn (label lbl-true))
     (asm-emit! asm 'mov x0 (imm 0))
@@ -508,20 +523,20 @@
 (set! %asm-compile-binop
   (fn (_ asm insn args params)
     (%asm-compile-expr asm (first args) params)
-    (%emit-u32-le! asm %PUSH)
+    (asm-push! asm x0)
     (%asm-compile-expr asm (first (rest args)) params)
     (asm-emit! asm 'mov x1 x0)
-    (%emit-u32-le! asm %POP)
+    (asm-pop! asm x0)
     (asm-emit! asm insn x0 x0 x1)))
 
 ; Modulo: SDIV + MSUB
 (set! %asm-compile-mod
   (fn (_ asm args params)
     (%asm-compile-expr asm (first args) params)
-    (%emit-u32-le! asm %PUSH)
+    (asm-push! asm x0)
     (%asm-compile-expr asm (first (rest args)) params)
     (asm-emit! asm 'mov x1 x0)
-    (%emit-u32-le! asm %POP)
+    (asm-pop! asm x0)
     (asm-emit! asm 'sdiv x2 x0 x1)
     (asm-emit! asm 'msub x0 x2 x1 x0)))
 
@@ -546,10 +561,10 @@
       (let ((cmp-op (first test-expr))
             (cmp-args (rest test-expr)))
         (%asm-compile-expr asm (first cmp-args) params)
-        (%emit-u32-le! asm %PUSH)
+        (asm-push! asm x0)
         (%asm-compile-expr asm (first (rest cmp-args)) params)
         (asm-emit! asm 'mov x1 x0)
-        (%emit-u32-le! asm %POP)
+        (asm-pop! asm x0)
         (asm-emit! asm 'cmp x0 x1)
         (asm-emit! asm (%cmp-branch cmp-op) (label lbl-else))
         (%asm-compile-expr asm then-expr params)
@@ -589,13 +604,13 @@
     (%for-each
       (fn (_ arg)
         (%asm-compile-expr asm arg params)
-        (%emit-u32-le! asm %PUSH))
+        (asm-push! asm x0))
       args)
 
     ; Build args list: pop each, mkint, mkpair to build (nil a0 a1 ...)
     ; Build right-to-left: start with nil, prepend each arg
     (asm-emit! asm 'mov x0 (imm 0))       ; x0 = nil (accumulator)
-    (%emit-u32-le! asm %PUSH)                    ; save nil on stack
+    (asm-push! asm x0)                    ; save nil on stack
     (def %build-arg
       (fn (self i)
         (unless (< i 0)
@@ -604,24 +619,24 @@
             ; Stack: [accum] [argN-1] ... [arg0] — pop arg at position i
             ; Actually we need to pop in reverse. Args were pushed left-to-right.
             ; Stack top has last arg. Pop each into x1, mkint, then mkpair with accum.
-            (%emit-u32-le! asm %POP)            ; pop accum -> x0
+            (asm-pop! asm x0)            ; pop accum -> x0
             ; x21, not x3: the accumulator has to survive the jit_mkint
             ; call below, and x3 is CALLER-saved (AAPCS64) -- the C
             ; function was free to clobber it, so the pair got built on
             ; garbage and the call segfaulted.  x21 is callee-saved and
             ; this compiler's prologue already spills it.
             (asm-emit! asm 'mov x21 x0)   ; x21 = accum (save)
-            (%emit-u32-le! asm %POP)            ; pop raw arg -> x0
+            (asm-pop! asm x0)            ; pop raw arg -> x0
             (%emit-mkint! asm)                  ; x0 = atom(raw) via jit_mkint
             (asm-emit! asm 'mov x1 x0)    ; x1 = a (atom)
             (asm-emit! asm 'mov x2 x21)   ; x2 = d (accum)
             (asm-emit! asm 'mov x0 x19)   ; x0 = p_base
             (%emit-call! asm %jit-mkpair)      ; x0 = (atom . accum)
-            (%emit-u32-le! asm %PUSH)           ; push new accum
+            (asm-push! asm x0)           ; push new accum
             (self (- i 1))))))
     (%build-arg (- nargs 1))
     ; Pop final list, prepend nil as self
-    (%emit-u32-le! asm %POP)                    ; x0 = (a0 a1 ... aN)
+    (asm-pop! asm x0)                    ; x0 = (a0 a1 ... aN)
     (asm-emit! asm 'mov x2 x0)            ; x2 = d (args list)
     (asm-emit! asm 'mov x1 (imm 0))       ; x1 = a (nil = self)
     (asm-emit! asm 'mov x0 x19)           ; x0 = p_base
@@ -635,7 +650,7 @@
     ; (reg n) operand -- passing x8 handed the encoder a list to shift,
     ; so every self-recursive call died at GENERATION with ">>: operands
     ; must be integers".  Recursion had simply never run.
-    (asm-emit! asm 'ldr x8 (mem 8 0))
+    (asm-emit! asm 'ldr x8 (mem x8 0))
     (asm-emit! asm 'blr x8)
 
     ; x0 = boxed result. Unbox to raw integer (inline LDR).
