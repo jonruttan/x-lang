@@ -130,6 +130,9 @@
   (fn (_ k-vec ih ref)
     (def %rounds (compile-asm %sj-rounds-expr))
     (def %fill (compile-asm %sj-fill-expr))
+    ; drop the whole build's remaining garbage before the digest phase
+    ; (the compiler also collects periodically DURING the build)
+    (Heap collect)
     (def %buf (%sj-make-str 1024))
     (def %ptr (%sj-str->ptr %buf))
     (def %addr (%sj-ptr->int %ptr))

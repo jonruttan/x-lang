@@ -490,6 +490,11 @@
         (list (list 'rel32 0))))))
   ))
 
+; asm-push!/asm-pop!: the function forms of the 'push/'pop lowerings --
+; the compiler's hottest emission, one call instead of a dispatch walk.
+(def asm-push! (fn (_ asm r) (%x86-lower-push asm (list r))))
+(def asm-pop!  (fn (_ asm r) (%x86-lower-pop asm (list r))))
+
 ; --- Prologue/epilogue helpers ---
 ; Mirror arm64's asm-prologue!/asm-epilogue!: frame pointer plus four
 ; callee-saved registers (rbx r12 r13 r14 here, x19-x22 there). At entry

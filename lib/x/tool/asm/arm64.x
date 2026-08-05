@@ -315,6 +315,19 @@
 ; --- Prologue/epilogue helpers ---
 ; These emit fixed instruction sequences for function call frames
 
+; asm-push!/asm-pop!: one register to/from a 16-byte stack slot.  These
+; are the compiled code's HOTTEST instructions (every binop brackets its
+; left operand with a pair), so they emit their constant words directly
+; -- the table's 'push/'pop entries stay for hand-written code, but the
+; compiler's path costs one call, not a dispatch walk (the mnemonic
+; route tripled a big build's allocation when it briefly carried these).
+(def asm-push!
+  (fn (_ asm r)
+    (%emit-u32-le! asm (| 4162785248 (& (first (rest r)) 31)))))  ; 0xF81F0FE0|Rt
+(def asm-pop!
+  (fn (_ asm r)
+    (%emit-u32-le! asm (| 4165011424 (& (first (rest r)) 31)))))  ; 0xF84107E0|Rt
+
 ; asm-prologue!: save x29 (fp) and x30 (lr), set up frame
 ; STP x29, x30, [sp, #-16]! = 0xA9BF7BFD
 ; MOV x29, sp              = 0x910003FD
