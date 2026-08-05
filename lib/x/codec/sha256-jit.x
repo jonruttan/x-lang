@@ -121,9 +121,11 @@
 ; ref:   the pure-x digest, (fn (_ s) -> 8-word list) -- the oracle.
 ;
 ; Returns (fn (_ s) -> 8-word list) driving the compiled pair, or raises
-; -- on a non-arm64 host (unknown mnemonic), on any toolchain error, or
-; on DISAGREEMENT with the reference.  The caller guards; a raise means
-; "stay pure-x", never a wrong digest.
+; -- on a host whose architecture has no assembler backend (unknown
+; mnemonic), on any toolchain error, or on DISAGREEMENT with the
+; reference.  The caller guards; a raise means "stay pure-x", never a
+; wrong digest.  Both current backends (ARM64, x86-64) compile the same
+; vocabulary, so this module is arch-blind.
 (def %sha-jit-make
   (fn (_ k-vec ih ref)
     (def %rounds (compile-asm %sj-rounds-expr))
@@ -185,4 +187,4 @@
     %digest))
 
 (doc (provide x/codec/sha256-jit %sha-jit-make)
-  "The compiled SHA-256 engine (arm64 JIT); built and adopted only via (Sha256 jit!) after proving agreement with the pure-x digest.")
+  "The compiled SHA-256 engine (JIT, ARM64 and x86-64 backends); built and adopted only via (Sha256 jit!) after proving agreement with the pure-x digest.")

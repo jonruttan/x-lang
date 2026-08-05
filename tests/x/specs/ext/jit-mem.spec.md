@@ -1,8 +1,8 @@
 # @lib ../tests/x/lib/compile.x
 
-The JIT's scratch-memory forms. Arch-tagged: the assembler backend is
-ARM64 (x86_64 parity is in progress), so the runner skips this file on
-other hosts.
+The JIT's scratch-memory forms. Untagged on purpose: both backends (ARM64 and x86-64) compile the
+same vocabulary, so this file runs on every host and IS the parity
+contract.
 
 The compiler keeps every value in `x0` as a raw integer, so a compiled
 expression cannot hold state across steps — which is what a generated

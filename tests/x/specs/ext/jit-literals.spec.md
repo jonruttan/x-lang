@@ -1,8 +1,8 @@
 # @lib ../tests/x/lib/compile.x
 
-Wide integer literals in JIT-compiled code. Arch-tagged: the assembler
-backend these compile through is ARM64 (x86_64 parity is in progress),
-so the runner skips this file on other hosts.
+Wide integer literals in JIT-compiled code. Untagged on purpose: both backends (ARM64 and x86-64) compile the
+same vocabulary, so this file runs on every host and IS the parity
+contract.
 
 `mov Xd, #imm` maps to MOVZ — 16 bits, and the encoder masks the rest
 away — so before this fix any literal above 65535 compiled to a

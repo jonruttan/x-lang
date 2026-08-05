@@ -183,6 +183,16 @@
         (list 1 5 5 0)
         (list 2 10 12 0)))))
 
+    ; PUSH/POP: one register, 16 bytes of stack, the same constants the
+    ; compiler used to emit raw (STR Xt,[sp,#-16]! / LDR Xt,[sp],#16)
+    ; with the Rt field filled from the operand.
+    (pair 'push (list
+      (pair 'r (list 4162785248          ; 0xF81F0FE0
+        (list 0 0 5 0)))))   ; Rt [4:0]
+    (pair 'pop (list
+      (pair 'r (list 4165011424          ; 0xF84107E0
+        (list 0 0 5 0)))))   ; Rt [4:0]
+
     ; LDR Xt, [Xn, #imm12*8] (unsigned offset, 64-bit)
     ; mem operand: (mem base-reg offset) — sub=0 for base, sub=1 for offset
     (pair 'ldr (list

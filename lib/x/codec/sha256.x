@@ -214,7 +214,7 @@
       (first (rest (rest (rest (rest (rest (rest (rest %sha-ih))))))))
       )))
 
-; --- The compiled engine (arm64 JIT), adopted only when it proves out --
+; --- The compiled engine (JIT), adopted only when it proves out ------
 ;
 ; State: () = not tried, the symbol `failed` = tried and refused (never
 ; retried -- the reasons a build fails, wrong arch or a broken
@@ -240,7 +240,8 @@
     (match
       ((null? %sha-jit-engine)
         (do
-          ; any raise -- unknown mnemonic on a non-arm64 host, a
+          ; any raise -- unknown mnemonic on a host with no assembler
+          ; backend, a
           ; toolchain error, a failed differential check -- lands here
           ; and pins the state to `failed`: guarded at the point of
           ; harm, and pure-x carries on
@@ -274,7 +275,7 @@
         (example "(Sha256 hex \"abc\")" "\"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\""))
       (%sha-hex-list (%sha-words s)))
     (method jit! (self)
-      (doc "Build and adopt the compiled digest engine (arm64 JIT) now, if it can prove itself: the engine is adopted only after agreeing with the pure-x digest on the FIPS vectors plus a multi-block padding case. Idempotent; seconds of compile on first success. Returns #t when the engine is active, #f when unavailable (non-arm64 host, no JIT toolchain, or a failed check -- pure-x carries on and results are identical either way). hex also auto-builds once 64KB of cumulative input has been digested, so calling this is an optimization, not a requirement."
+      (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself: the engine is adopted only after agreeing with the pure-x digest on the FIPS vectors plus a multi-block padding case. Idempotent; seconds of compile on first success. Returns #t when the engine is active, #f when unavailable (no assembler backend for this host, no JIT toolchain, or a failed check -- pure-x carries on and results are identical either way). hex also auto-builds once 64KB of cumulative input has been digested, so calling this is an optimization, not a requirement."
         (returns BOOL "#t when the compiled engine is active"))
       (%sha-jit-try!))))
 
