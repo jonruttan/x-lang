@@ -1,8 +1,13 @@
 # Sha256 JIT engine
+# @timeout-scale 4
 
 The compiled digest engine behind `(Sha256 jit!)`. Untagged on purpose:
 the assembler has both ARM64 and x86-64 backends now, so the engine
-builds — and must prove itself — on every CI host. (The graceful
+builds — and must prove itself — on every CI host. The
+`@timeout-scale` above buys the BUILD its budget: compiling the engine
+is a one-off ~3500-node generation, and sanitizer instrumentation
+multiplies it several-fold (the asan gate's 180s base was exceeded on
+real CI hardware — exit 124, no sanitizer report). (The graceful
 refusal on a host with NO backend keeps its guard and its teeth, but no
 CI machine can exercise it any more; the adoption gate's differential
 check is what actually protects it.)
