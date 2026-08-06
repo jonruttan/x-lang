@@ -297,6 +297,36 @@ if [ -n "$boot_file" ]; then
 		echo "Error: pinned boot entry does not exist: $ENTRY" >&2
 		exit 1
 	fi
+
+	# PAIRING CHECK.  An amalgam is built against one engine's C surface;
+	# run it on a drifted engine and the boot walks a base layout that no
+	# longer matches -- a SIGSEGV mid-boot, with the pinned lines already
+	# printed and nothing to say what went wrong (x-lang#187; the crash
+	# that started the 2026-08-03 investigation was exactly this).
+	#
+	# Both sides are RECORDED strings, so this is a compare, not a digest:
+	# the release ships its ISA fingerprint in pin.release.xon beside the
+	# amalgam, and `make install` puts this engine's beside the library.
+	# No sha tool needed at boot, and the check happens BEFORE the amalgam
+	# reaches the engine -- the only place a refusal can still be one.
+	#
+	# Silent when either side is absent: an amalgam with no manifest, or a
+	# repo checkout with no installed fingerprint, is unknown-not-wrong,
+	# and `fetch` already says so at the point where it matters.
+	_rel="$(dirname "$ENTRY")/pin.release.xon"
+	_mine="$INSTALL_ROOT/contract/isa.sha256"
+	if [ -n "$INSTALL_ROOT" ] && [ -f "$_rel" ] && [ -f "$_mine" ]; then
+		_want=$(sed -n 's/.*isa "sha256:\([0-9a-f]*\)".*/\1/p' "$_rel" | head -1)
+		_have=$(cat "$_mine")
+		if [ -n "$_want" ] && [ "$_want" != "$_have" ]; then
+			echo "Error: pinned boot amalgam was built for a different engine" >&2
+			echo "  amalgam: $ENTRY" >&2
+			echo "  its engine's isa fingerprint: $_want" >&2
+			echo "  this engine's:                $_have" >&2
+			echo "  pair the amalgam with its own release's engine (same tag)" >&2
+			exit 1
+		fi
+	fi
 fi
 
 # A wrong name used to fail as `cat: lib/nope.x: No such file` with EXIT 0
