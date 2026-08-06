@@ -44,7 +44,18 @@
 
 ; --- Compile cache ---
 
+; The cache key must carry the BUILD TRIPLE, not just the expression.
+; These bundles are native code for ONE architecture, and the path held
+; only an expression hash -- so two engines of different architectures on
+; one machine (an Apple Silicon box running both a native build and an
+; x86_64 one under Rosetta, which is how the x86 backend was validated)
+; hand each other unloadable objects: the second engine finds a "hit",
+; dlopen fails, and the failure surfaces wherever the loaded function was
+; about to be used.  x-machine is the compiler's own triple, so folding it
+; into the hash partitions the cache exactly along the lines that matter.
 (def %compile-cache-dir "/tmp/x-cache-")
+(def %compile-cache-key
+  (fn (_ s) (Hash ->hex (Hash fnv-1a (Str append x-machine s)))))
 
 ; --- Platform-specific cc flags ---
 
@@ -171,7 +182,7 @@
 
     ; Cache lookup: hash the expression to get a stable filename
     (def %expr-key (%write-to-str expr))
-    (def %cache-hash (Hash ->hex (Hash fnv-1a %expr-key)))
+    (def %cache-hash (%compile-cache-key %expr-key))
     (def %cache-path (Str append %compile-cache-dir %cache-hash compile-ext))
 
     ; Try loading from cache (fvar table is patched after load)
@@ -219,7 +230,7 @@
     (def %src-path (Str append "/tmp/x-compile-" %id ".c"))
 
     (def %expr-key (%write-to-str expr))
-    (def %cache-hash (Hash ->hex (Hash fnv-1a %expr-key)))
+    (def %cache-hash (%compile-cache-key %expr-key))
     (def %cache-path (Str append %compile-cache-dir %cache-hash compile-ext))
 
     (compile-write %src-path (compile-to-c expr fvars))
@@ -280,7 +291,7 @@
 
     ; Cache lookup
     (def %batch-key (%write-to-str exprs))
-    (def %batch-hash (Hash ->hex (Hash fnv-1a %batch-key)))
+    (def %batch-hash (%compile-cache-key %batch-key))
     (def %cache-path (Str append %compile-cache-dir %batch-hash compile-ext))
 
     (if (Sys file-exists? %cache-path)
