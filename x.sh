@@ -12,7 +12,15 @@
 #     {O,O}
 #     (   )
 #      " "
-SCRIPT_PATH=$(dirname "$0")
+# ABSOLUTE, not as spelled: every path the wrapper derives (install root,
+# entry, engine) hangs off this, and the install root reaches the
+# interpreter as DATA that import resolution consumes.  A `./x/bin/x`
+# invocation made that root start with `./`, which is the marker for
+# resolve-against-the-INCLUDING-FILE -- so the root got re-based and the
+# boot's first include failed with `include: cannot open` (x-lang#188).
+# Only the `./` spelling broke; bare and deeper relative paths happened
+# to work, which is exactly the kind of accident normalising removes.
+SCRIPT_PATH=$(cd "$(dirname "$0")" && pwd)
 X_EXT=.x
 X_LIB=x
 # One definition per name the wrapper embeds; every use below reads these.

@@ -76,6 +76,15 @@ echo '(display (+ 40 2))(newline)' > "$EXTRACT/hello.x"
 out=$( cd / && "$EXTRACT/x-$TAG/bin/x" -f "$EXTRACT/hello.x" 2>/dev/null | tail -1 )
 [ "$out" = "42" ] || fail "the packaged x did not run after relocation (got: '$out')"
 
+# ... and by RELATIVE invocation, `./`-spelled.  This proof only ever ran
+# the wrapper by absolute path, so x-lang#188 shipped: a `./x-TAG/bin/x`
+# call put a `./`-prefixed install root into the boot stream, import
+# resolution read that as include-relative, and the boot failed with
+# `include: cannot open`.  Absolute and bare-relative spellings both
+# worked, so only this exact shape catches it.
+out=$( cd "$EXTRACT" && "./x-$TAG/bin/x" -f "$EXTRACT/hello.x" 2>/dev/null | tail -1 )
+[ "$out" = "42" ] || fail "the packaged x did not run by relative path (got: '$out')"
+
 # The sidecar names the BARE tarball (so `sha256sum -c` works from OUTDIR).
 ( cd "$OUT" && _sha "$name.tar.gz" > "$name.tar.gz.sha256" )
 
