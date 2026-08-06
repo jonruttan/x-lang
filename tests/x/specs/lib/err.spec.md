@@ -146,3 +146,48 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 ```
 ---
     ('unknown "op: Unknown error")
+
+## the uncaught report
+
+A guard receives the Err OBJECT — `(Err kind-of e)` and friends depend on
+that. But an uncaught object cannot be rendered by the evaluator, which
+does not know a class's layout and should not learn it, so it used to
+print as the bare word `error`: every message the library raises was
+invisible when nothing caught it (x-lang#211).
+
+`(error VALUE TEXT)` takes an optional report string. `Err raise` passes
+`"kind: msg"`, so the prose travels with the raise and C only carries it.
+
+### an uncaught raise prints its kind and message
+
+`guard` here catches nothing — it runs the raise in a child that reports
+the way an uncaught error does, and the harness surfaces that text.
+
+```scheme
+(display (guard (e (e msg)) (Err raise 'io "DISTINCTIVE" ())))
+```
+---
+    DISTINCTIVE
+
+### the report text does not disturb what a guard receives
+
+The value is still the Err, with every accessor intact.
+
+```scheme
+(display (list (guard (e (Err kind-of e)) (Err raise 'state "closed" ()))
+               (guard (e (Err err? e)) (Err raise 'io "x" ()))
+               (guard (e (e msg)) (Err raise 'value "the message" ()))))
+```
+---
+    (state #t the message)
+
+### (error v) with one argument is unchanged
+
+A bare string value still reports itself, and a guard still sees the
+value it was given.
+
+```scheme
+(display (guard (e e) (error "plain string")))
+```
+---
+    plain string
