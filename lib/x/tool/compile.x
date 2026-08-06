@@ -57,6 +57,21 @@
 (def %compile-cache-key
   (fn (_ s) (Hash ->hex (Hash fnv-1a (Str append x-machine s)))))
 
+; Why a freshly-built object refuses to load.  dlopen answers nil and
+; nothing more -- there is no dlerror door -- so the message names the
+; cause that actually produces this, and the two facts needed to confirm
+; it: a bundle is native code for ONE architecture, and `cc` targets the
+; HOST, which is not always the engine's own build (an engine running
+; under emulation, or cross-built, gets objects it cannot load).  Naming
+; the triple turns "dlopen failed" into something a reader can act on.
+(def %compile-load-failure
+  (fn (_ who path)
+    (Str append who
+      (Str append ": cannot load the object just compiled: "
+        (Str append path
+          (Str append " -- this engine is " (Str append x-machine
+            "; cc builds for the host, so an engine running under emulation or cross-built gets an object of the wrong architecture (check with `file`)")))))))
+
 ; --- Platform-specific cc flags ---
 
 (def %compile-cc-flags
@@ -153,7 +168,7 @@
 (def compile-load
   (fn (_ lib-path)
     (def %lib (%dlopen lib-path 1))
-    (if (null? %lib) (Err raise 'io "compile-load: dlopen failed" ()))
+    (if (null? %lib) (Err raise 'io (%compile-load-failure "compile-load" lib-path) ()))
     (def %fn (%dlsym %lib "fn_0"))
     (if (null? %fn) (Err raise 'io "compile-load: dlsym failed for fn_0" ()))
     (%type-cast! %fn first)
@@ -206,7 +221,7 @@
         (%ptr-call %c-unlink %src-path)
 
         (def %lib (%dlopen %cache-path 1))
-        (if (null? %lib) (Err raise 'io "compile: dlopen failed" ()))
+        (if (null? %lib) (Err raise 'io (%compile-load-failure "compile" %cache-path) ()))
         (def %fn (%dlsym %lib "fn_0"))
         (if (null? %fn) (Err raise 'io "compile: dlsym failed for fn_0" ()))
         (%type-cast! %fn first)
@@ -238,7 +253,7 @@
     (%ptr-call %c-unlink %src-path)
 
     (def %lib (%dlopen %cache-path 1))
-    (if (null? %lib) (Err raise 'io "compile: dlopen failed" ()))
+    (if (null? %lib) (Err raise 'io (%compile-load-failure "compile" %cache-path) ()))
     (def %fn (%dlsym %lib "fn_0"))
     (if (null? %fn) (Err raise 'io "compile: dlsym failed for fn_0" ()))
     (%type-cast! %fn first)
@@ -343,7 +358,7 @@
         (%ptr-call %c-unlink %src-path)
 
         (def %lib (%dlopen %cache-path 1))
-        (if (null? %lib) (Err raise 'io "compile-batch: dlopen failed" ()))
+        (if (null? %lib) (Err raise 'io (%compile-load-failure "compile-batch" %cache-path) ()))
 
         ; Patch fvar table with current runtime pointers
         (if (not (null? %compile-fvars))

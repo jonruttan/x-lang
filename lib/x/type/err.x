@@ -143,9 +143,16 @@
     (method raise (self (param kind SYMBOL "Error kind, e.g. 'io")
                         (param msg STRING "Human-readable message")
                         (param data ALIST "Context alist (or ())"))
-      (doc "Construct an Err and raise it: (error (Err make kind msg data))."
+      (doc "Construct an Err and raise it: (error (Err make kind msg data) \"kind: msg\")."
         (returns ANY "Does not return"))
-      (error (Err make kind msg data)))
+      ; The second argument is the UNCAUGHT report.  A guard still
+      ; receives the Err object -- (Err kind-of e) depends on that -- but
+      ; an uncaught object printed as the bare word "error", because the
+      ; evaluator cannot render one and will not learn the class layout
+      ; (x-lang#211).  So the prose travels with the raise: every message
+      ; below is now visible when nothing catches it.
+      (error (Err make kind msg data)
+             (Str8 append (symbol->str kind) (Str8 append ": " msg))))
 
     (method err? (self (param v ANY "Any value"))
       (doc "Test whether v is an Err instance."
