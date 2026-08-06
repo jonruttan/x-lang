@@ -867,7 +867,18 @@
                                          "pin: isa fingerprint matches this tree")
                                        (#t "pin: isa fingerprint DIFFERS from this tree -- pair the amalgam with its release's engine")))
                             (newline)))
-                      (#t ()))
+                      ; No local ISA manifest -- the reader case: an
+                      ; unpacked tarball has no source checkout, so the
+                      ; check above cannot run.  SAY so.  Silence here
+                      ; reads as "pairing verified" to someone who just
+                      ; watched the digest verify, and the pairing is
+                      ; precisely what a platform pin is for.  Absent
+                      ; information is information, the same ruling the
+                      ; absent-fingerprint branch above already makes.
+                      (#t
+                        (do
+                          (display "pin: no isa manifest here -- engine pairing unchecked (run from a source checkout to compare)")
+                          (newline))))
                     target))))))))))
 
 ; --- Load-time driver: a no-op unless the wrapper announced a manifest.
