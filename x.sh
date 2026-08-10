@@ -305,15 +305,16 @@ if [ -n "$boot_file" ]; then
 	# that started the 2026-08-03 investigation was exactly this).
 	#
 	# Both sides are RECORDED strings, so this is a compare, not a digest:
-	# the release ships its ISA fingerprint in pin.release.xon beside the
-	# amalgam, and `make install` puts this engine's beside the library.
+	# `Pin boot` lifts the release's ISA fingerprint into pin.lock.xon
+	# beside the manifest, and `make install` puts this engine's beside
+	# the library.
 	# No sha tool needed at boot, and the check happens BEFORE the amalgam
 	# reaches the engine -- the only place a refusal can still be one.
 	#
 	# Silent when either side is absent: an amalgam with no manifest, or a
 	# repo checkout with no installed fingerprint, is unknown-not-wrong,
 	# and `fetch` already says so at the point where it matters.
-	_rel="$(dirname "$ENTRY")/pin.release.xon"
+	_rel="$(dirname "$PIN_FILE")/pin.lock.xon"
 	_mine="$INSTALL_ROOT/contract/isa.sha256"
 	if [ -n "$INSTALL_ROOT" ] && [ -f "$_rel" ] && [ -f "$_mine" ]; then
 		_want=$(sed -n 's/.*isa "sha256:\([0-9a-f]*\)".*/\1/p' "$_rel" | head -1)

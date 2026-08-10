@@ -75,6 +75,19 @@
       ((not (str? (first (rest form)))) (%pin-bad "boot argument must be a string"))
       (#t ()))))
 
+; One (src "DIR") form -> () -- tool-side, like boot.  It names where the
+; PROJECT's own sources live, which is what lets sync and check derive the
+; pin from the code that exists rather than a list written in advance: the
+; imports ARE the dependency declaration.  Inert at load time; the loader
+; arms roots, and a source directory is not a root.
+(def %pin-src
+  (fn (_ form)
+    (match
+      ((not (pair? (rest form))) (%pin-bad "src needs one string argument"))
+      ((not (null? (rest (rest form)))) (%pin-bad "src takes exactly one argument"))
+      ((not (str? (first (rest form)))) (%pin-bad "src argument must be a string"))
+      (#t ()))))
+
 ; Manifest forms + manifest dir -> resolved roots, manifest order.
 ; Closed vocabulary: an unknown head is an error, not a skip.
 (def %pin-interpret
@@ -88,8 +101,46 @@
             (pair (%pin-root (first forms) dir) (self (rest forms))))
           ((eq? (first (first forms)) 'boot)
             (do (%pin-boot (first forms)) (self (rest forms))))
+          ((eq? (first (first forms)) 'src)
+            (do (%pin-src (first forms)) (self (rest forms))))
           (#t (%pin-bad "unknown form")))))
     (%go forms)))
+
+; --- The manifest as the TOOL reads it -------------------------------
+; The loader above turns (root ...) into armed import paths and discards
+; the rest; the verbs need the VALUES, so read them back by head.  Path
+; arguments resolve against the manifest's directory, exactly as (root
+; ...) does, so a manifest means the same thing from any cwd.
+(def %pin-manifest-name "pin.xon")
+
+(def %pin-manifest-arg
+  (fn (self head forms dir)
+    (match
+      ((null? forms) ())
+      ((not (pair? (first forms))) (self head (rest forms) dir))
+      ((not (eq? (first (first forms)) head)) (self head (rest forms) dir))
+      ((not (pair? (rest (first forms)))) ())
+      ((Str8 starts? "/" (first (rest (first forms)))) (first (rest (first forms))))
+      (#t (%path-join dir (first (rest (first forms))))))))
+
+; The same lookup WITHOUT resolution -- the manifest's own spelling.
+; What the lock records has to be portable: "maze", not the absolute
+; path this particular machine resolved it to.
+(def %pin-manifest-raw
+  (fn (self head forms)
+    (match
+      ((null? forms) ())
+      ((not (pair? (first forms))) (self head (rest forms)))
+      ((not (eq? (first (first forms)) head)) (self head (rest forms)))
+      ((not (pair? (rest (first forms)))) ())
+      (#t (first (rest (first forms)))))))
+
+(def %pin-manifest-forms
+  (fn (_ dir)
+    (let ((p (%path-join dir %pin-manifest-name)))
+      (match
+        ((not (File exists? p)) (%pin-bad (Str8 append "no manifest: " p)))
+        (#t (%pin-forms (File slurp p)))))))
 
 ; Arm: prepend each root via import-path!, last-listed first, so the
 ; manifest's FIRST root ends up with the highest precedence.  A missing
@@ -349,6 +400,11 @@
           ((null? forms) ())
           ((not (pair? (first forms))) (%pin-bad "lockfile form is not a list"))
           ((eq? (first (first forms)) 'seed) (self (rest forms)))
+          ; The platform half -- (release ...) (isa ...) (boot ...), written
+          ; by the boot verb.  Same rule the seed forms already follow: a
+          ; reader takes the forms it owns and ignores the other's, so the
+          ; vocabulary stays closed without either half rejecting the other.
+          ((%pin-member? (first (first forms)) %pin-platform-heads) (self (rest forms)))
           ((not (eq? (first (first forms)) 'file)) (%pin-bad "unknown lockfile form"))
           ((not (str? (first (rest (first forms)))))
             (%pin-bad "lockfile entry needs a path string"))
@@ -381,12 +437,78 @@
                     (self (rest forms)))))))
     (%go forms)))
 
+; Final path segment.  Used for the lock's name, and by the boot verb to
+; take its amalgam name from the manifest's (boot "boot/he.x") -- so the
+; file name is data the project already stated, with no dialect symbol to
+; repeat at the call site.
+(def %pin-basename
+  (fn (_ p)
+    (let ((d (%path-dir p)))
+      (match
+        ((str=? d ".") p)
+        (#t (%substring p (+ 1 (%str-length d)) (%str-length p)))))))
+
+; The lock sits BESIDE the overlay root and is NAMED FOR IT -- deps/ is
+; locked by deps.lock.xon.  Two reasons, and the second is the one that
+; bites: an integrity record kept inside the tree it describes reads as
+; part of the payload (vendor writes that tree, verify may condemn it),
+; and a fixed name in the parent would make two overlays sharing a parent
+; share one lock and silently clobber each other -- which is exactly what
+; the spec suite does, vendoring build/pin-spec/prov and .../partial.
+(def %pin-lock-path
+  (fn (_ dest)
+    (%path-join (%path-dir dest)
+                (Str8 append (%pin-basename dest) ".lock.xon"))))
+
 (def %pin-lock-forms
   (fn (_ dest)
-    (let ((p (%path-join dest %pin-lock-name)))
+    (let ((p (%pin-lock-path dest)))
       (match
         ((File exists? p) (%pin-forms (File slurp p)))
         (#t ())))))
+
+; The platform half of the lock -- (release ...) (isa ...) (boot ...),
+; written by `boot`.  relock rewrites the whole file from the overlay's
+; forms, so these must survive a sync that knows nothing about them.
+(def %pin-member?
+  (fn (self x lst)
+    (match
+      ((null? lst) #f)
+      ((eq? (first lst) x) #t)
+      (#t (self x (rest lst))))))
+
+(def %pin-str->sym (prim-ref (lit str) (lit ->sym)))
+
+(def %pin-platform-heads (list 'release 'isa 'boot))
+
+(def %pin-platform-forms
+  (fn (self forms)
+    (match
+      ((null? forms) ())
+      ((not (pair? (first forms))) (self (rest forms)))
+      ((%pin-member? (first (first forms)) %pin-platform-heads)
+        (pair (first forms) (self (rest forms))))
+      (#t (self (rest forms))))))
+
+(def %pin-platform-render
+  (fn (self forms)
+    (match
+      ((null? forms) "")
+      (#t (Str8 append (%pin-form-render (first forms))
+                       (self (rest forms)))))))
+
+; One (head "a" "b" ...) form back to a line of xon.
+(def %pin-form-render
+  (fn (_ form)
+    (Str8 append "(" (Str8 append (symbol->str (first form))
+                                  (Str8 append (%pin-args-render (rest form)) ")\n")))))
+
+(def %pin-args-render
+  (fn (self args)
+    (match
+      ((null? args) "")
+      (#t (Str8 append " \"" (Str8 append (first args)
+                                          (Str8 append "\"" (self (rest args)))))))))
 
 (def %pin-lock-read
   (fn (_ dest) (%pin-lock-parse (%pin-lock-forms dest))))
@@ -406,7 +528,12 @@
                     (Str8 append (first (first lst))
                       (Str8 append "\" \""
                         (Str8 append (rest (first lst)) "\")\n"))))))))))
-    (%go entries "; pin.lock.xon -- generated by (Pin vendor); do not edit\n")))
+    ; No header here: both writers emit %pin-lock-header first, so that a
+    ; lock carrying platform lines does not end up with its own banner
+    ; stranded in the middle of the file.
+    (%go entries "")))
+
+(def %pin-lock-header "; pin.lock.xon -- generated; do not edit\n")
 
 (def %pin-seed-render
   (fn (_ seeds)
@@ -478,9 +605,14 @@
             (loose (%pin-not-in old-rels (%pin-seed-claims was-seeds ()))))
         (let ((live (%pin-append-new (%pin-seed-claims seeds ()) loose)))
           (do
-            (File spit (%path-join dest %pin-lock-name)
-              (Str8 append (%pin-lock-render (%pin-lock-entries dest live))
-                           (%pin-seed-render seeds)))
+            ; The platform lines ride through untouched: a sync re-derives
+            ; the overlay from source and must not silently unpin the
+            ; language underneath it.
+            (File spit (%pin-lock-path dest)
+              (Str8 append %pin-lock-header
+                (Str8 append (%pin-platform-render (%pin-platform-forms (%pin-lock-forms dest)))
+                  (Str8 append (%pin-lock-render (%pin-lock-entries dest live))
+                               (%pin-seed-render seeds)))))
             (%pin-not-in old-rels live)))))))
 
 ; A dropped file is not deleted -- vendor writes into a tree the project
@@ -746,6 +878,69 @@
       ((File exists? (%path-join dest (first rels))) (self dest (rest rels)))
       (#t (pair (first rels) (self dest (rest rels)))))))
 
+; Vendor a whole source tree's union closure into dest.  Shared by the
+; vendor-project method (explicit paths) and by sync (paths from the
+; manifest) so both do exactly the same thing -- one mechanism, two doors.
+; label is what the lock RECORDS as the seed; srcdir is what gets
+; scanned.  They differ for sync, which scans a path resolved against
+; the manifest's directory but must record the manifest's own spelling:
+; a resolved path can be absolute, and an absolute path in a committed
+; lockfile is both meaningless on another machine and a quiet leak of
+; wherever the author happened to keep the project.
+(def %pin-vendor-project!
+  (fn (_ dest srcdir label)
+    (let ((entries (%pin-project-closure srcdir)))
+      (let ((rels (%pin-rels entries)))
+        ; A project whose imports are all boot floor yields an empty
+        ; closure, and dest must still exist for the lockfile.  The seed
+        ; is the SOURCE DIR, not a module: the claim is "what this
+        ; project's sources need", replaced wholesale on each scan.
+        (do (%pin-mkdirs dest)
+            (%pin-copy-all! dest entries)
+            (%pin-report-dropped dest
+              (%pin-lock-relock! dest (Str8 append "project:" label) rels))
+            rels)))))
+
+; Drop a trailing ".x": the manifest names a FILE, the release names an
+; ENTRY, and this is the one place the two spellings meet.
+(def %pin-entry-of
+  (fn (_ file)
+    (%pin-str->sym (%substring file 0 (- (%str-length file) 2)))))
+
+; Replace the lock's platform lines, keeping the overlay's untouched.
+; The inverse of the passthrough in relock: `boot` owns these three forms,
+; `sync` owns the rest, and neither may clobber the other's half.
+(def %pin-lock-set-platform!
+  (fn (_ dest forms)
+    (let ((old (%pin-lock-forms dest)))
+      (File spit (%pin-lock-path dest)
+        (Str8 append %pin-lock-header
+          (Str8 append (%pin-platform-render forms)
+                       (%pin-nonplatform-render old)))))))
+
+(def %pin-nonplatform-render
+  (fn (self forms)
+    (match
+      ((null? forms) "")
+      ((not (pair? (first forms))) (self (rest forms)))
+      ((%pin-member? (first (first forms)) %pin-platform-heads) (self (rest forms)))
+      (#t (Str8 append (%pin-form-render (first forms)) (self (rest forms)))))))
+
+; The default project directory for the verbs: "." unless given.
+(def %pin-dir-or-dot
+  (fn (_ dir) (match ((null? dir) ".") (#t (first dir)))))
+
+; root/src out of a manifest, with the message a project hits when the
+; form it needs is simply not there -- naming the form, not the failure.
+(def %pin-need
+  (fn (_ head forms dir)
+    (let ((v (%pin-manifest-arg head forms dir)))
+      (match
+        ((null? v) (%pin-bad (Str8 append "manifest has no ("
+                                          (Str8 append (symbol->str head)
+                                                       " \"...\") form"))))
+        (#t v)))))
+
 (def-class Pin ()
   (static
     (method closure (self (param name SYMBOL "Module name, e.g. x/type/dict"))
@@ -777,24 +972,14 @@
     (doc "Vendor a whole project's import closure in one call: scan srcdir's *.x sources for every (import NAME), take the union of their closures, and copy it into dest with the lockfile updated -- the multi-import vendor. Run from a fresh session with x/tool/pin imported FIRST (unarmed), so names resolve to the platform being vendored FROM and the boot floor is exact; boot-floor seeds are skipped. Returns the copied paths."
       (returns LIST "Root-relative file path strings copied")
       (sample "(Pin vendor-project \"deps\" \"src\")" "(\"x/type/dict.x\" ...)"))
-    (let ((entries (%pin-project-closure srcdir)))
-      (let ((rels (%pin-rels entries)))
-        ; As vendor: a project whose imports are all boot floor yields an
-        ; empty closure, and dest must still exist for the lockfile.
-        ; The seed is the SOURCE DIR, not a module: this claim is "what
-        ; this project's sources need", replaced wholesale each scan.
-        (do (%pin-mkdirs dest)
-            (%pin-copy-all! dest entries)
-            (%pin-report-dropped dest
-              (%pin-lock-relock! dest (Str8 append "project:" srcdir) rels))
-            rels))))
+    (%pin-vendor-project! dest srcdir srcdir))
     (method verify (self (param dest STRING "Overlay root directory"))
       (doc "Verify dest against its pin.lock.xon: every entry's digest must match, and every file in the tree must be listed -- an unlisted file is a rogue shadow ready to win root precedence. A missing lockfile, missing file, digest mismatch, or unlisted file is a loud error naming each offender. Returns the number of files verified."
         (returns INT "Files verified")
         (sample "(Pin verify \"deps\")" "5"))
       (match
-        ((not (File exists? (%path-join dest %pin-lock-name)))
-          (%pin-bad (Str8 append "no lockfile: " (%path-join dest %pin-lock-name))))
+        ((not (File exists? (%pin-lock-path dest)))
+          (%pin-bad (Str8 append "no lockfile: " (%pin-lock-path dest))))
         (#t
           (let ((lock (%pin-lock-read dest)))
             (let ((fails (%pin-verify-fails dest lock)))
@@ -819,6 +1004,60 @@
                       (display (%pin-join-lines missing))
                       (newline))))
             missing))))
+    ; --- The front door (root/src/boot come from the manifest) --------
+    ; sync/check exist because the older pair (vendor-project + audit)
+    ; makes the CALLER carry what the manifest already says, and because
+    ; hand-vendoring module by module forces a project to declare its
+    ; libraries before writing the code that uses them.  It is backwards:
+    ; the imports ARE the declaration.  These read pin.xon and work from
+    ; the code that exists today, so a project that grows a new import
+    ; re-syncs instead of being re-planned.
+    (method sync (self . (param dir STRING "Project directory holding pin.xon; default \".\""))
+      (doc "Bring the overlay in line with the project's code: read pin.xon, scan its (src ...) tree for every import, and vendor the union closure into its (root ...), rewriting the lockfile. Idempotent, and the whole update after a source file gains an import -- no module list to maintain by hand. Run unarmed (--no-pin), so names resolve to the platform being vendored FROM. Returns the vendored root-relative paths."
+        (returns LIST "Root-relative file path strings now pinned")
+        (sample "(Pin sync)" "(\"x/type/dict.x\" ...)"))
+      (let ((d (%pin-dir-or-dot dir)))
+        (let ((forms (%pin-manifest-forms d)))
+          (%pin-vendor-project! (%pin-need 'root forms d)
+                                (%pin-need 'src forms d)
+                                (%pin-manifest-raw 'src forms)))))
+    (method check (self . (param dir STRING "Project directory holding pin.xon; default \".\""))
+      (doc "The whole integrity question in one call, for CI: the overlay must match its lockfile byte for byte (nothing edited, nothing unlisted), AND no import in the (src ...) tree may fall through to the live platform. A digest mismatch or unlisted file is a loud error; a fallen-through import is reported and returned. Returns the missing root-relative paths -- empty means the pin is complete and intact."
+        (returns LIST "Imports absent from the overlay (empty = complete)")
+        (sample "(Pin check)" "()"))
+      (let ((d (%pin-dir-or-dot dir)))
+        (let ((forms (%pin-manifest-forms d)))
+          (let ((root (%pin-need 'root forms d))
+                (src (%pin-need 'src forms d)))
+            ; Verify first: it raises. An audit answer computed against an
+            ; overlay whose bytes are already wrong would describe a tree
+            ; that does not exist.
+            (do (Pin verify root)
+                (Pin audit root src))))))
+    (method boot (self (param tag STRING "Release tag to pin the language to, e.g. \"v0.3.1-rc6\"")
+                       . (param dir STRING "Project directory holding pin.xon; default \".\""))
+      (doc "Pin the language itself to a release, in one step: read the manifest's (boot ...) path, fetch and verify that release's amalgam into place, and record the release tag, its ISA fingerprint and the amalgam's digest in the lockfile beside pin.xon. The release manifest is consumed, not kept -- its three facts live in the lock, so nothing generated is left in the boot directory. Returns the amalgam's path."
+        (returns STRING "Path of the verified amalgam")
+        (sample "(Pin boot \"v0.3.1-rc6\")" "\"boot/he.x\""))
+      (let ((d (%pin-dir-or-dot dir)))
+        (let ((forms (%pin-manifest-forms d)))
+          (let ((bootpath (%pin-need 'boot forms d))
+                (root (%pin-need 'root forms d)))
+            (let ((bootdir (%path-dir bootpath))
+                  (file (%pin-basename (%pin-need 'boot forms d))))
+              (do
+                (Pin fetch bootdir tag (%pin-entry-of file))
+                ; Lift the release's facts into the lock, then remove the
+                ; downloaded manifest: two records of the same thing drift.
+                (let ((rel (%path-join bootdir %pin-release-name)))
+                  (let ((m (%pin-release-parse (%pin-forms (File slurp rel)))))
+                    (do
+                      (%pin-lock-set-platform! root
+                        (list (list 'release tag)
+                              (list 'isa (%pin-assoc 'isa m))
+                              (list 'boot file (%pin-digest bootpath))))
+                      (File unlink rel))))
+                bootpath))))))
     (method fetch (self (param dest STRING "Directory to fetch into")
                         (param tag STRING "Release tag, e.g. \"v0.4.0\"")
                         (param entry SYMBOL "Boot entry to fetch, e.g. 'xe")

@@ -11,6 +11,16 @@ a repo checkout spell it `sh x.sh`, run from the repo root.)
 > (`closure`/`vendor`/`verify`/`fetch`) landed in v0.3.1; on v0.3.0 or
 > earlier `(import x/tool/pin)` provides only the manifest runtime and
 > `(Pin …)` raises `Unbound SYMBOL 'Pin`. Check with `(help Pin)`.
+>
+> **The manifest-driven verbs (`sync`/`check`/`boot`) and the `(src …)`
+> form need a newer x still.** The manifest vocabulary is *closed* — an
+> unknown form is a loud error, which is what catches typos — so a
+> `pin.xon` carrying `(src …)` is refused outright by any x that
+> predates it, with `pin: unknown form`. That cuts both ways: the
+> project's own x, *and* whatever x your CI installs from a release.
+> Adopt `(src …)` only once the release your project pins to has it,
+> or the pin will refuse to arm on the very machine it was meant to
+> make reproducible.
 
 ## What pinning buys you, in one minute
 
@@ -42,48 +52,62 @@ Two structural limits to know up front:
 
 ## Pin a fresh project
 
-Say `myproj/` will depend on `x/type/dict` and must keep today's dict.
+Say `myproj/` depends on `x/type/dict` and must keep today's dict.
 
-**1. Vendor the module.** From the repo (or an installed x), start a
-*fresh* session and import the pin tool *first* — the tool snapshots
-the boot floor when it loads, so nothing you imported earlier can
-distort what it considers pinnable:
-
-```
-$ x
-> (import x/tool/pin)
-> (Pin vendor "myproj/deps" 'x/type/dict)
-("x/type/dict.x" "x/type/hash.x")
-```
-
-Vendor copied **two** files, not one: `dict.x` and its import
-`hash.x`. That is the point — vendoring is *closure-wise*. A lone
-vendored module would still resolve its own imports against the live
-platform and silently mix old code with new dependencies. (Everything
-else dict imports is boot floor under this dialect, so it stays with
-the platform.)
-
-The overlay now looks like:
-
-```
-myproj/deps/
-├── pin.lock.xon         ; written by vendor: sha256 per file
-└── x/type/
-    ├── dict.x
-    └── hash.x
-```
-
-**2. Declare the manifest.** One file, one form:
+**1. Declare the manifest.** One file, two forms — where the pin goes,
+and where your code lives:
 
 ```
 $ cat > myproj/pin.xon
 (root "deps")
+(src "src")
 ```
 
 `pin.xon` is **xon** — x object notation: data read with the ordinary
 reader and never evaluated. `(root "deps")` adds `myproj/deps/` as an
-import root ahead of the platform library. That's the entire manifest
-vocabulary today.
+import root ahead of the platform library; `(src "src")` tells the pin
+tool where to read your imports from.
+
+**2. Sync.** From the repo (or an installed x), start a *fresh*
+session, unpinned, and import the pin tool *first* — the tool snapshots
+the boot floor when it loads, so nothing you imported earlier can
+distort what it considers pinnable:
+
+```
+$ x --no-pin
+> (import x/tool/pin)
+> (Pin sync "myproj")
+("x/type/dict.x" "x/type/hash.x")
+```
+
+You never named a module. `sync` read the manifest, scanned `src/` for
+every `(import ...)`, and vendored what it found — which is **two**
+files, not one: `dict.x` and its import `hash.x`. That is the point —
+vendoring is *closure-wise*. A lone vendored module would still resolve
+its own imports against the live platform and silently mix old code
+with new dependencies. (Everything else dict imports is boot floor
+under this dialect, so it stays with the platform.)
+
+This is also why there is nothing to maintain by hand later: when a
+source file grows a new import, you re-run `sync`. The imports **are**
+the dependency list, so there is no second list to keep in step.
+
+The project now looks like:
+
+```
+myproj/
+├── pin.xon              ; you write this
+├── deps.lock.xon        ; generated: sha256 per file, named for deps/
+├── src/
+└── deps/
+    └── x/type/
+        ├── dict.x
+        └── hash.x
+```
+
+The lock sits *beside* the overlay and is named for it. An integrity
+record kept inside the tree it describes reads as part of the payload —
+and two overlays sharing a parent would otherwise share one lock.
 
 **3. Run.** Given an ordinary program —
 
@@ -111,66 +135,72 @@ form. `(import x/type/dict)` now loads `deps/x/type/dict.x`; every
 other import falls through to the platform. From now on the platform's
 dict can change freely; yours doesn't.
 
-**4. Commit the pin.** `pin.xon`, `deps/` — lockfile included — go in
-your project's version control. They *are* the pin.
-
-## Retrofit an existing project
-
-You have a working project and want to freeze what it uses today.
-
-**1. Inventory your imports.** Grep is honest enough:
+**4. Check it, then commit it.** One call answers the whole integrity
+question, and it is what CI should run:
 
 ```
-$ grep -rh "^(import " myproj --include="*.x" | sort -u
-(import x/type/dict)
-(import x/type/set)
-(import x/core/list)
+> (Pin check "myproj")
+()
 ```
 
-**2. Ask what each would pin.** `Pin closure` is the dry run of
-`vendor` — same walk, no copies:
+Empty means the overlay matches its lock byte for byte *and* no import
+falls through to the live platform. A half-pin — an import you added
+but have not synced — comes back named:
 
 ```
-> (import x/tool/pin)
-> (Pin closure 'x/type/dict)
-("x/type/dict.x" "x/type/hash.x")
-```
-
-**3. Vendor the non-floor ones.** A boot-floor import needs no
-vendoring and `vendor` will tell you so by refusing:
-
-```
-> (Pin vendor "myproj/deps" 'x/core/list)
-*** ERROR: pin: unpinnable (boot floor): x/core/list
-```
-
-That error is information, not failure: `x/core/list` ships inside the
-dialect's boot — under *this* dialect your program always gets the
-platform's copy, and freezing it means a platform pin (below). Vendor
-the rest:
-
-```
-> (Pin vendor "myproj/deps" 'x/type/dict)
-("x/type/dict.x" "x/type/hash.x")
-> (Pin vendor "myproj/deps" 'x/type/set)
+> (Pin check "myproj")
+pin: audit -- 1 import(s) fall through to the platform (absent from myproj/deps):
+x/type/set.x
 ("x/type/set.x")
 ```
 
-Repeated vendors into one overlay merge cleanly — each vendor records
-what it claimed, so the overlay accumulates and re-vendoring one module
-leaves the others alone.
+Then `pin.xon`, `deps.lock.xon` and `deps/` go into version control.
+They *are* the pin.
 
-**4. Manifest, run, verify** — exactly as in the fresh-project steps:
-write `(root "deps")` into `myproj/pin.xon`, run your program, look for
-the `pinned:` line. Then prove the overlay is intact:
+## Retrofit an existing project
+
+You have a working project and want to freeze what it uses today. This
+is the case `sync` exists for: the code already states its dependencies.
+
+**1. Declare where things live.**
 
 ```
-> (Pin verify "myproj/deps")
-3
+$ cat > myproj/pin.xon
+(root "deps")
+(src ".")
 ```
 
-Three files checked against the lockfile, tree exactly matching. You
-are pinned.
+`(src ".")` scans the whole project; point it at a subdirectory if your
+sources live in one.
+
+**2. Sync.** One call, whatever the project imports:
+
+```
+> (import x/tool/pin)
+> (Pin sync "myproj")
+("x/type/dict.x" "x/type/hash.x" "x/type/set.x")
+```
+
+Boot-floor imports are skipped, not refused — `x/core/list` ships
+inside the dialect's boot, so under *this* dialect your program always
+gets the platform's copy, and freezing it means a platform pin (below).
+You do not have to know which of your imports those are; `sync` does.
+
+**3. Check.**
+
+```
+> (Pin check "myproj")
+()
+```
+
+Empty: the overlay matches its lock, and nothing falls through. You are
+pinned.
+
+If you need finer control than "everything the project imports" — a
+single module, or a dry run of what a vendor *would* copy — the
+lower-level surface is still there: `(Pin closure 'name)`,
+`(Pin vendor "deps" 'name)`, `(Pin verify "deps")`. `sync` and `check`
+are those verbs driven from the manifest.
 
 ## Daily work
 
@@ -234,20 +264,34 @@ wrapper finds its own engine and library beside itself, and your
 project's `pin.xon` overlay works unchanged through it.
 
 To pin the boot **inside your project's tree** (so the repo itself
-records it), fetch the amalgam, verified or nothing:
+records it), name the amalgam in the manifest once:
+
+```
+(root "deps")
+(src "src")
+(boot "boot/xe.x")
+```
+
+then pin it to a release — fetched, verified, and recorded in one call:
 
 ```
 > (import x/tool/pin)
-> (Pin fetch "boot" "v0.4.0" 'xe)
-pin: verifying boot/xe.x (pure x-lang sha256; an amalgam takes minutes)
+> (Pin boot "v0.4.0" "myproj")
+pin: verifying myproj/boot/xe.x (jit sha256)
 pin: isa fingerprint matches this tree
-"boot/xe.x"
+"myproj/boot/xe.x"
 ```
 
-Be warned about the honest cost: the digest is pure x-lang and an
-amalgam takes it *minutes* (tracked for improvement in #123). No curl
-on the machine? `fetch` prints the URLs and stops — download by hand,
-then check with coreutils beside the files: `sha256sum -c SHASUMS`.
+`boot` takes the amalgam's name from the manifest — no dialect symbol
+to repeat — and lifts the release's three facts (tag, ISA fingerprint,
+amalgam digest) into `deps.lock.xon`, then discards the downloaded
+release manifest. Two records of the same thing drift; one does not.
+A later `sync` carries those lines through untouched, so growing an
+import never silently unpins the language underneath it.
+
+No curl on the machine? The fetch prints the URLs and stops — download
+by hand, then check with coreutils beside the files: `sha256sum -c
+SHASUMS`.
 
 Then declare it beside your overlay roots — both tiers, one manifest:
 
@@ -303,14 +347,18 @@ release tarball above, which carries the fingerprint by construction.
 
 | Surface | What |
 |---|---|
-| `pin.xon` | project manifest — `(root "DIR")`, first listed wins; `(boot "FILE")` pins the boot |
+| `pin.xon` | project manifest — `(root "DIR")` first listed wins; `(src "DIR")` where your code is; `(boot "FILE")` pins the boot |
 | `--no-pin` | wrapper flag: ignore any manifest this run |
 | `--boot FILE` | wrapper flag: boot FILE (a pinned amalgam) this run; overrides the manifest |
 | `x-<tag>-<os>-<arch>.tar.gz` | a release's wrapper+engine+library, relocatable — the no-toolchain platform pin |
+| `(Pin sync)` | vendor whatever `(src ...)` imports — the everyday verb |
+| `(Pin check)` | verify the lock **and** audit for half-pins — the CI verb |
+| `(Pin boot "vX.Y.Z")` | fetch, verify and record the release's amalgam |
 | `(Pin closure 'name)` | dry run: the files a vendor would copy |
-| `(Pin vendor "deps" 'name)` | copy the closure + write the lockfile |
+| `(Pin vendor "deps" 'name)` | copy one module's closure + write the lockfile |
 | `(Pin verify "deps")` | recompute digests; overlay must equal the lock |
-| `(Pin fetch "boot" "vX.Y.Z" 'xe)` | download + verify a released amalgam |
-| `pin.lock.xon` | the overlay's integrity record (generated) |
+| `(Pin audit "deps" "src")` | name imports that fall through to the platform |
+| `(Pin fetch "boot" "vX.Y.Z" 'xe)` | download + verify an amalgam, no recording |
+| `<overlay>.lock.xon` | the overlay's integrity record (generated, beside it) |
 | `pin.release.xon` | a release's digests + ISA fingerprint (published) |
 | `(help Pin)` | the class's own documentation, in-session |
