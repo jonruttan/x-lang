@@ -412,4 +412,43 @@ status=$?
 [ "$status" -ne 0 ] || fail "pin-quote: a quoted manifest path was accepted" "$_TMP/out" "$_TMP/err"
 grep -q "quote or backslash" "$_TMP/err" || fail "pin-quote: no refusal message" "$_TMP/err"
 
+# pairing-guard: the wrapper's boot-time ISA refusal, both layouts.
+# The guard arms only in INSTALLED mode (INSTALL_ROOT set), so no other
+# in-repo gate exercises it -- which is exactly how v0.3.1-rc7 shipped a
+# wrapper whose guard read a lockfile name that no longer exists and
+# silently never fired.  A fake install tree suffices: the refusal runs
+# BEFORE any engine boots, so no working library is needed.
+_fake="$_TMP/fakeinstall"
+mkdir -p "$_fake/bin" "$_fake/share/x/contract" "$_fake/share/x/lib" "$_fake/share/x/boot"
+cp "$WRAPPER" "$_fake/bin/x"
+printf 'aaaa1111\n' | tr -d '\n' > "$_fake/share/x/contract/isa.sha256"
+
+# New layout: the lock is named for the root, beside the manifest.
+mkdir -p "$_TMP/pair1/boot" "$_TMP/pair1/deps"
+printf '(root "deps")\n(boot "boot/he.x")\n' > "$_TMP/pair1/pin.xon"
+printf '; not a real amalgam -- never reached\n' > "$_TMP/pair1/boot/he.x"
+printf '(isa "sha256:bbbb2222")\n' > "$_TMP/pair1/deps.lock.xon"
+printf '(display "ran")\n' > "$_TMP/pair1/main.x"
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake/bin/x" -f "$_TMP/pair1/main.x") >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "pairing-guard: a mismatched lock fingerprint was accepted (new layout)" "$_TMP/out" "$_TMP/err"
+grep -q "different engine" "$_TMP/err" || fail "pairing-guard: no refusal message (new layout)" "$_TMP/err"
+
+# Old layout: pin.release.xon beside the amalgam (bare Pin fetch keeps it).
+mkdir -p "$_TMP/pair2/boot"
+printf '(boot "boot/he.x")\n' > "$_TMP/pair2/pin.xon"
+printf '; not a real amalgam -- never reached\n' > "$_TMP/pair2/boot/he.x"
+printf '(release "v9.9.9")\n(isa "sha256:cccc3333")\n' > "$_TMP/pair2/boot/pin.release.xon"
+printf '(display "ran")\n' > "$_TMP/pair2/main.x"
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake/bin/x" -f "$_TMP/pair2/main.x") >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "pairing-guard: a mismatched release fingerprint was accepted (old layout)" "$_TMP/out" "$_TMP/err"
+grep -q "different engine" "$_TMP/err" || fail "pairing-guard: no refusal message (old layout)" "$_TMP/err"
+
+# Matched fingerprints must NOT refuse (the boot then fails later on the
+# fake tree, which is fine -- the assertion is only about the guard).
+printf '(isa "sha256:aaaa1111")\n' > "$_TMP/pair1/deps.lock.xon"
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake/bin/x" -f "$_TMP/pair1/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "different engine" "$_TMP/err" && fail "pairing-guard: matched fingerprints were refused" "$_TMP/err"
+
 echo "pin-smoke: ok"
