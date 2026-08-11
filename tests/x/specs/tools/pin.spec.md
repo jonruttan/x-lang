@@ -747,3 +747,37 @@ an absolute project directory, as it is here.
 ```
 ---
     #t
+
+## pin: versioned imports vendor the chosen file (GH #214)
+
+### a constraint import is resolved at sync time and vendored at its versioned rel
+
+The scanner routes (import-version-once NAME "SPEC") through the boot
+layer's own resolver, so the overlay receives the concrete file the
+constraint selects -- here the newest 1.3.*.
+
+```scheme
+(do
+  (guard (_ ()) (File mkdir "build/pin-spec/vfix"))
+  (guard (_ ()) (File mkdir "build/pin-spec/vfix/acme"))
+  (File spit "build/pin-spec/vfix/acme/vd.x" "(provide acme/vd)\n")
+  (File spit "build/pin-spec/vfix/acme/vd@1.3.x" "(provide acme/vd)\n")
+  (File spit "build/pin-spec/vfix/acme/vd@1.3.1.x" "(provide acme/vd)\n")
+  (import-path! "build/pin-spec/vfix")
+  (guard (_ ()) (File mkdir "build/pin-spec/vproj"))
+  (File spit "build/pin-spec/vproj/app.x" "(import-version-once acme/vd \"1.3.*\")\n")
+  (write (Pin vendor-project "build/pin-spec/vout" "build/pin-spec/vproj")))
+```
+---
+    ("acme/vd@1.3.1.x")
+
+### a computed version spec is a loud error, like every computed argument
+
+```scheme
+(do
+  (guard (_ ()) (File mkdir "build/pin-spec/vproj2"))
+  (File spit "build/pin-spec/vproj2/app.x" "(import-version-once acme/vd (spec))\n")
+  (display (throws? (fn (_) (Pin vendor-project "build/pin-spec/vout2" "build/pin-spec/vproj2")))))
+```
+---
+    #t

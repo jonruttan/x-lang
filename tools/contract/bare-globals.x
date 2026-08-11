@@ -44,6 +44,8 @@
   ; --- module system: ruled bare 2026-07-22 (user: "I want to keep them") ---
   (import)
   (import-path!)
+  (import-version)       ; GH #214: versioned siblings of import, same family
+  (import-version-once)  ; GH #214
   (include-once)
   (provide)
   (require-once)
