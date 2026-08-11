@@ -23,7 +23,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 ```scheme
 (do
   (import x/tool/pin)
-  (display (first (%pin-interpret (%pin-forms "(root \"deps\")") "/proj"))))
+  (display (first (Pin %pin-interpret (Pin %pin-forms "(root \"deps\")") "/proj"))))
 ```
 ---
     /proj/deps
@@ -33,7 +33,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 ```scheme
 (do
   (import x/tool/pin)
-  (display (first (%pin-interpret (%pin-forms "(root \"/opt/deps\")") "/proj"))))
+  (display (first (Pin %pin-interpret (Pin %pin-forms "(root \"/opt/deps\")") "/proj"))))
 ```
 ---
     /opt/deps
@@ -43,7 +43,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 ```scheme
 (do
   (import x/tool/pin)
-  (display (first (rest (%pin-interpret (%pin-forms "(root \"a\") (root \"b\")") "/p")))))
+  (display (first (rest (Pin %pin-interpret (Pin %pin-forms "(root \"a\") (root \"b\")") "/p")))))
 ```
 ---
     /p/b
@@ -53,7 +53,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 ```scheme
 (do
   (import x/tool/pin)
-  (display (first (%pin-interpret (%pin-forms "; a comment
+  (display (first (Pin %pin-interpret (Pin %pin-forms "; a comment
 (root \"deps\")") "/p"))))
 ```
 ---
@@ -64,7 +64,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 ```scheme
 (do
   (import x/tool/pin)
-  (display (throws? (fn (_) (%pin-interpret (%pin-forms "(evil \"x\")") "/p")))))
+  (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(evil \"x\")") "/p")))))
 ```
 ---
     #t
@@ -74,7 +74,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 ```scheme
 (do
   (import x/tool/pin)
-  (display (throws? (fn (_) (%pin-interpret (%pin-forms "(root \"a\") stray") "/p")))))
+  (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(root \"a\") stray") "/p")))))
 ```
 ---
     #t
@@ -84,7 +84,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 ```scheme
 (do
   (import x/tool/pin)
-  (display (throws? (fn (_) (%pin-interpret (%pin-forms "(root 42)") "/p")))))
+  (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(root 42)") "/p")))))
 ```
 ---
     #t
@@ -94,7 +94,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 ```scheme
 (do
   (import x/tool/pin)
-  (display (throws? (fn (_) (%pin-interpret (%pin-forms "(root)") "/p")))))
+  (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(root)") "/p")))))
 ```
 ---
     #t
@@ -104,7 +104,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 ```scheme
 (do
   (import x/tool/pin)
-  (display (throws? (fn (_) (%pin-interpret (%pin-forms "(root \"a\" \"b\")") "/p")))))
+  (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(root \"a\" \"b\")") "/p")))))
 ```
 ---
     #t
@@ -117,7 +117,7 @@ the pipe exists); the loader only shape-checks it.
 ```scheme
 (do
   (import x/tool/pin)
-  (display (first (%pin-interpret (%pin-forms "(boot \"boot/xe.x\") (root \"deps\")") "/proj"))))
+  (display (first (Pin %pin-interpret (Pin %pin-forms "(boot \"boot/xe.x\") (root \"deps\")") "/proj"))))
 ```
 ---
     /proj/deps
@@ -127,7 +127,7 @@ the pipe exists); the loader only shape-checks it.
 ```scheme
 (do
   (import x/tool/pin)
-  (display (null? (%pin-interpret (%pin-forms "(boot \"boot/xe.x\")") "/proj"))))
+  (display (null? (Pin %pin-interpret (Pin %pin-forms "(boot \"boot/xe.x\")") "/proj"))))
 ```
 ---
     #t
@@ -137,7 +137,7 @@ the pipe exists); the loader only shape-checks it.
 ```scheme
 (do
   (import x/tool/pin)
-  (display (throws? (fn (_) (%pin-interpret (%pin-forms "(boot 42)") "/p")))))
+  (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(boot 42)") "/p")))))
 ```
 ---
     #t
@@ -147,7 +147,7 @@ the pipe exists); the loader only shape-checks it.
 ```scheme
 (do
   (import x/tool/pin)
-  (display (throws? (fn (_) (%pin-interpret (%pin-forms "(boot)") "/p")))))
+  (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(boot)") "/p")))))
 ```
 ---
     #t
@@ -157,7 +157,7 @@ the pipe exists); the loader only shape-checks it.
 ```scheme
 (do
   (import x/tool/pin)
-  (display (throws? (fn (_) (%pin-interpret (%pin-forms "(boot \"a\" \"b\")") "/p")))))
+  (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(boot \"a\" \"b\")") "/p")))))
 ```
 ---
     #t
@@ -167,7 +167,7 @@ the pipe exists); the loader only shape-checks it.
 ```scheme
 (do
   (import x/tool/pin)
-  (display (throws? (fn (_) (%pin-arm! (list "/nonexistent-pin-root-xyz"))))))
+  (display (throws? (fn (_) (Pin %pin-arm! (list "/nonexistent-pin-root-xyz"))))))
 ```
 ---
     #t
@@ -364,7 +364,7 @@ absolute nor root-relative, so the other guards miss it.
 
 ```scheme
 (do
-  (%pin-mkdirs "build/pin-spec/out2")
+  (Pin %pin-mkdirs "build/pin-spec/out2")
   (File spit "build/pin-spec/out2.lock.xon" "(evil)\n")
   (display (throws? (fn (_) (Pin verify "build/pin-spec/out2")))))
 ```
@@ -460,11 +460,11 @@ vendor into that overlay must not evict them.
 
 ```scheme
 (do
-  (%pin-mkdirs "build/pin-spec/legacy/old")
+  (Pin %pin-mkdirs "build/pin-spec/legacy/old")
   (File spit "build/pin-spec/legacy/old/keep.x" "(def %keep 1)\n")
   (File spit "build/pin-spec/legacy.lock.xon"
     (Str8 append "(file \"old/keep.x\" \""
-      (Str8 append (%pin-digest "build/pin-spec/legacy/old/keep.x") "\")\n")))
+      (Str8 append (Pin %pin-digest "build/pin-spec/legacy/old/keep.x") "\")\n")))
   (Pin vendor "build/pin-spec/legacy" 'prov/m1)
   (display (Pin verify "build/pin-spec/legacy")))
 ```
@@ -476,7 +476,7 @@ vendor into that overlay must not evict them.
 ### the release URL layout
 
 ```scheme
-(display (%pin-url "https://host/dl" "v1.2.3" "xe.x"))
+(display (Pin %pin-url "https://host/dl" "v1.2.3" "xe.x"))
 ```
 ---
     https://host/dl/v1.2.3/xe.x
@@ -485,11 +485,11 @@ vendor into that overlay must not evict them.
 
 ```scheme
 (do
-  (def %pin-spec-m (%pin-release-parse (%pin-forms
+  (def %pin-spec-m (Pin %pin-release-parse (Pin %pin-forms
     "(release \"v1\") (isa \"sha256:aa\") (file \"xe.x\" \"sha256:bb\")")))
-  (display (%pin-assoc 'release %pin-spec-m))
+  (display (Pin %pin-assoc 'release %pin-spec-m))
   (display " ")
-  (display (%pin-release-file "xe.x" (%pin-assoc 'files %pin-spec-m))))
+  (display (Pin %pin-release-file "xe.x" (Pin %pin-assoc 'files %pin-spec-m))))
 ```
 ---
     v1 sha256:bb
@@ -497,7 +497,7 @@ vendor into that overlay must not evict them.
 ### a manifest without (release ...) is a loud error
 
 ```scheme
-(display (throws? (fn (_) (%pin-release-parse (%pin-forms "(isa \"sha256:aa\")")))))
+(display (throws? (fn (_) (Pin %pin-release-parse (Pin %pin-forms "(isa \"sha256:aa\")")))))
 ```
 ---
     #t
@@ -505,7 +505,7 @@ vendor into that overlay must not evict them.
 ### an unknown release-manifest form is a loud error
 
 ```scheme
-(display (throws? (fn (_) (%pin-release-parse (%pin-forms "(evil \"x\")")))))
+(display (throws? (fn (_) (Pin %pin-release-parse (Pin %pin-forms "(evil \"x\")")))))
 ```
 ---
     #t
@@ -513,7 +513,7 @@ vendor into that overlay must not evict them.
 ### a file absent from the release manifest is a loud error
 
 ```scheme
-(display (throws? (fn (_) (%pin-release-file "nope.x" (list (pair "xe.x" "sha256:bb"))))))
+(display (throws? (fn (_) (Pin %pin-release-file "nope.x" (list (pair "xe.x" "sha256:bb"))))))
 ```
 ---
     #t
@@ -521,7 +521,7 @@ vendor into that overlay must not evict them.
 ### an absent command reports 127 (the print-the-URLs fallback's trigger)
 
 ```scheme
-(display (%pin-run! (list "no-such-command-pin-spec-xyz")))
+(display (Pin %pin-run! (list "no-such-command-pin-spec-xyz")))
 ```
 ---
     127
@@ -578,7 +578,7 @@ what a project importing acme/one must vendor.
 ### %pin-audit-missing lists the rels absent from the overlay
 
 ```scheme
-(write (%pin-audit-missing "build/pin-spec/nowhere" (list "acme/one.x" "acme/two.x")))
+(write (Pin %pin-audit-missing "build/pin-spec/nowhere" (list "acme/one.x" "acme/two.x")))
 ```
 ---
     ("acme/one.x" "acme/two.x")
@@ -636,7 +636,7 @@ must still exist for the lockfile to land.
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/proj/sub"))
   (File spit "build/pin-spec/proj/sub/deep.x" "(import acme/four)\n")
-  (display (%pin-length (%pin-x-files "build/pin-spec/proj"))))
+  (display (Pin %pin-length (Pin %pin-x-files "build/pin-spec/proj"))))
 ```
 ---
     2
@@ -652,8 +652,8 @@ and work from the code that is actually there.
 
 ```scheme
 (do
-  (%pin-mkdirs "build/pin-spec/fd/src")
-  (%pin-mkdirs "build/pin-spec/fd/dep")
+  (Pin %pin-mkdirs "build/pin-spec/fd/src")
+  (Pin %pin-mkdirs "build/pin-spec/fd/dep")
   (File spit "build/pin-spec/fd/pin.xon" "(root \"dep\")\n(src \"src\")\n")
   (File spit "build/pin-spec/fd/src/app.x" "(import acme/three)\n")
   ; build/ survives between runs, and the later-import spec below adds a
@@ -717,9 +717,9 @@ untouched, or growing an import would silently drop the language pin.
     (Str8 append "(release \"v9.9.9\")\n(isa \"sha256:abc\")\n"
       (Str8 append "(boot \"he.x\" \"sha256:def\")\n"
         (Str8 append "(file \"acme/three.x\" \""
-          (Str8 append (%pin-digest "build/pin-spec/fd/dep/acme/three.x") "\")\n")))))
+          (Str8 append (Pin %pin-digest "build/pin-spec/fd/dep/acme/three.x") "\")\n")))))
   (Pin sync "build/pin-spec/fd")
-  (display (%pin-length (%pin-platform-forms (%pin-lock-forms "build/pin-spec/fd/dep")))))
+  (display (Pin %pin-length (Pin %pin-platform-forms (Pin %pin-lock-forms "build/pin-spec/fd/dep")))))
 ```
 ---
     3
@@ -728,7 +728,7 @@ untouched, or growing an import would silently drop the language pin.
 
 ```scheme
 (do
-  (%pin-mkdirs "build/pin-spec/nosrc")
+  (Pin %pin-mkdirs "build/pin-spec/nosrc")
   (File spit "build/pin-spec/nosrc/pin.xon" "(root \"dep\")\n")
   (display (throws? (fn (_) (Pin sync "build/pin-spec/nosrc")))))
 ```
@@ -810,7 +810,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
   ; would protect vd.x here -- clear it so both stages stay distinct.
   (guard (_ ()) (File unlink "build/pin-spec/uproj/bare.x"))
   (File spit "build/pin-spec/uproj/app.x" "(import-version-once acme/vd \"1.3.*\")\n")
-  (write (List map (fn (_ p) (%pin-basename p)) (Pin unused "build/pin-spec/uproj"))))
+  (write (List map (fn (_ p) (Pin %pin-basename p)) (Pin unused "build/pin-spec/uproj"))))
 ```
 ---
     ("vd.x" "vd@1.3.x")
@@ -820,7 +820,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
 ```scheme
 (do
   (File spit "build/pin-spec/uproj/bare.x" "(import acme/vd)\n")
-  (write (List map (fn (_ p) (%pin-basename p)) (Pin unused "build/pin-spec/uproj"))))
+  (write (List map (fn (_ p) (Pin %pin-basename p)) (Pin unused "build/pin-spec/uproj"))))
 ```
 ---
     ("vd@1.3.x")
@@ -836,8 +836,8 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
   ; the prior run's manifest so this stage is the same on every run.
   (guard (_ ()) (File unlink "build/pin-spec/initproj/pin.xon"))
   (Pin init "build/pin-spec/initproj")
-  (display (null? (%pin-interpret
-                    (%pin-forms (File slurp "build/pin-spec/initproj/pin.xon"))
+  (display (null? (Pin %pin-interpret
+                    (Pin %pin-forms (File slurp "build/pin-spec/initproj/pin.xon"))
                     "build/pin-spec/initproj"))))
 ```
 ---
