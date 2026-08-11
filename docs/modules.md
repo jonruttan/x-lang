@@ -151,6 +151,8 @@ work — see [Pinning, step by step](pinning-tutorial.md).)
 ### The manifest: `pin.xon`
 
 A project declares its pins in a `pin.xon` file at its root. The
+`(Pin init)` writes a commented starter manifest and refuses to
+overwrite one; the file is three forms you can equally write by hand. The
 manifest is **xon** — x object notation: a sequence of x-lang data forms
 (with `;` comments), read with the ordinary reader and **never
 evaluated**. Its consumers interpret a closed vocabulary; an unknown

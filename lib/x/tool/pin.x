@@ -139,7 +139,11 @@
   (fn (_ dir)
     (let ((p (%path-join dir %pin-manifest-name)))
       (match
-        ((not (File exists? p)) (%pin-bad (Str8 append "no manifest: " p)))
+        ((not (File exists? p))
+          ; The one error a NEWCOMER hits first: name the way out, not
+          ; just the absence.
+          (%pin-bad (Str8 append "no manifest: "
+                      (Str8 append p " -- (Pin init) writes a starter"))))
         (#t (%pin-forms (File slurp p)))))))
 
 ; Arm: prepend each root via import-path!, last-listed first, so the
@@ -700,11 +704,21 @@
           ((null? lst) #f)
           ((str=? (first (first lst)) rel) #t)
           (#t (self rel (rest lst))))))
+    ; Dotfiles are outside the module layout, so outside the threat: an
+    ; unlisted file matters because a module RESOLVES to it, and no module
+    ; name resolves to a dotfile.  Skipping them is what lets a
+    ; declared-but-empty overlay survive both git (deps/.gitkeep) and
+    ; verify at once (GH #217) -- and keeps .DS_Store from poisoning a
+    ; mac's overlay.
+    (def %dot-base?
+      (fn (_ rel)
+        (Str8 starts? "." (%pin-basename rel))))
     (def %tree-fails
       (fn (self files acc)
         (match
           ((null? files) acc)
           ((str=? (first files) %pin-lock-name) (self (rest files) acc))
+          ((%dot-base? (first files)) (self (rest files) acc))
           ((%lock-has? (first files) lock) (self (rest files) acc))
           (#t (self (rest files) (pair (Str8 append "unlisted: " (first files)) acc))))))
     (%tree-fails (%pin-tree-files dest) (%entry-fails lock ()))))
@@ -1049,6 +1063,39 @@
       (#t (pair (%pin-path-norm (%path-join dir (rest (first cands))))
                 (self dir (rest cands)))))))
 
+; The running dialect's boot entry, for init's default: pin what you are
+; standing on.  %lang-name is set by each dialect body (helium/xenon/
+; radon); bare boots leave it unset -- guard, and default to helium.
+(def %pin-running-entry
+  (fn (_)
+    (let ((n (guard (_ ()) %lang-name)))
+      (match
+        ((null? n) (lit he))
+        ((str=? n "helium") (lit he))
+        ((str=? n "xenon") (lit xe))
+        ((str=? n "radon") (lit rn))
+        (#t (lit he))))))
+; init's optionals, any order: a string is the project directory, a
+; symbol is the boot entry.  Anything else is a loud error.
+(def %pin-init-opts
+  (fn (self opts dir entry)
+    (match
+      ((null? opts) (pair dir entry))
+      ((str? (first opts)) (self (rest opts) (first opts) entry))
+      ((symbol? (first opts)) (self (rest opts) dir (first opts)))
+      (#t (%pin-bad "init: arguments are a directory string and/or an entry symbol")))))
+(def %pin-init-template
+  (fn (_ entry)
+    (Str8 append
+"; What this project is pinned to.
+;   root -- the overlay: this project's own copy of the library modules it imports
+;   src  -- the tree the pin verbs scan to work out what those are
+;   boot -- the language itself: a verified amalgam from a release
+(root \"deps\")
+(src \".\")
+(boot \"boot/"
+      (Str8 append (symbol->str entry) ".x\")\n"))))
+
 (def-class Pin ()
   (static
     (method closure (self (param name SYMBOL "Module name, e.g. x/type/dict"))
@@ -1120,6 +1167,31 @@
     ; the imports ARE the declaration.  These read pin.xon and work from
     ; the code that exists today, so a project that grows a new import
     ; re-syncs instead of being re-planned.
+    (method init (self . (param opts ANY "Optional, any order: a project directory string (default \".\") and a boot dialect entry symbol (default the running dialect)"))
+      (doc "Write a starter pin.xon -- the manifest every other verb reads -- commented so it teaches its own vocabulary: (root \"deps\") (src \".\") (boot \"boot/<entry>.x\"). Writes intent only: no directories are made and nothing is downloaded (boot and sync do those, in that order). Refuses to overwrite an existing manifest. Returns the manifest's path."
+        (returns STRING "Path of the written pin.xon")
+        (sample "(Pin init)" "\"pin.xon\"")
+        (sample "(Pin init \"myproj\" 'xe)" "\"myproj/pin.xon\""))
+      (let ((parsed (%pin-init-opts opts "." ())))
+        (let ((d (first parsed))
+              (entry (match ((null? (rest parsed)) (%pin-running-entry))
+                           (#t (rest parsed)))))
+          (let ((p (%path-join d %pin-manifest-name)))
+            (do
+              (match
+                ((File exists? p)
+                  (%pin-bad (Str8 append "manifest already exists: " p)))
+                (#t ()))
+              (File spit p (%pin-init-template entry))
+              (display (Str8 append "pin: wrote " p))
+              (newline)
+              (display "pin: edit (src ...) if your code lives elsewhere, then:")
+              (newline)
+              (display "  (Pin boot \"vX.Y.Z\")   pin the language")
+              (newline)
+              (display "  (Pin sync)            pin what your code imports")
+              (newline)
+              p)))))
     (method sync (self . (param dir STRING "Project directory holding pin.xon; default \".\""))
       (doc "Bring the overlay in line with the project's code: read pin.xon, scan its (src ...) tree for every import, and vendor the union closure into its (root ...), rewriting the lockfile. Idempotent, and the whole update after a source file gains an import -- no module list to maintain by hand. Run unarmed (--no-pin), so names resolve to the platform being vendored FROM. Returns the vendored root-relative paths."
         (returns LIST "Root-relative file path strings now pinned")
