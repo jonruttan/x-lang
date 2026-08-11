@@ -78,7 +78,12 @@ jobs:
           Each tarball is the full install tree (wrapper + engine + library),
           relocatable -- run it wherever you unpack it, or add `x-<tag>/bin`
           to PATH. Verify with the sidecar: `sha256sum -c x-<tag>-<os>-<arch>.tar.gz.sha256`.
-          The engine is ad-hoc signed on macOS, not notarized.
+          On macOS the engine is signed with a Developer ID and notarized,
+          so Gatekeeper accepts it once the quarantine attribute is cleared.
+          (Builds made without the signing secrets -- a fork, or a tag pushed
+          where they are unset -- ship ad-hoc signed instead.) Check whichever
+          you have: `spctl -a -vv -t install <tree>/libexec/x/x-bin` reports
+          `source=Notarized Developer ID` for a notarized engine.
 
           ## Amalgams (tier-1 platform pins)
 

@@ -282,7 +282,7 @@ argument check has to precede the shape check that used to reach for it.
 ### vendor writes the lockfile
 
 ```scheme
-(display (File exists? "build/pin-spec/out/pin.lock.xon"))
+(display (File exists? "build/pin-spec/out.lock.xon"))
 ```
 ---
     #t
@@ -365,7 +365,7 @@ absolute nor root-relative, so the other guards miss it.
 ```scheme
 (do
   (%pin-mkdirs "build/pin-spec/out2")
-  (File spit "build/pin-spec/out2/pin.lock.xon" "(evil)\n")
+  (File spit "build/pin-spec/out2.lock.xon" "(evil)\n")
   (display (throws? (fn (_) (Pin verify "build/pin-spec/out2")))))
 ```
 ---
@@ -385,7 +385,7 @@ as `(seed "NAME" "rel" ...)`; re-vendoring replaces that seed's claim.
   (File spit "build/pin-spec/lib0/prov/a.x" "(import prov/dep)\n(provide prov/a)\n")
   (File spit "build/pin-spec/lib0/prov/dep.x" "(provide prov/dep)\n")
   (Pin vendor "build/pin-spec/prov" 'prov/a)
-  (display (Str8 contains? "(seed \"prov/a\"" (File slurp "build/pin-spec/prov/pin.lock.xon"))))
+  (display (Str8 contains? "(seed \"prov/a\"" (File slurp "build/pin-spec/prov.lock.xon"))))
 ```
 ---
     #t
@@ -462,7 +462,7 @@ vendor into that overlay must not evict them.
 (do
   (%pin-mkdirs "build/pin-spec/legacy/old")
   (File spit "build/pin-spec/legacy/old/keep.x" "(def %keep 1)\n")
-  (File spit "build/pin-spec/legacy/pin.lock.xon"
+  (File spit "build/pin-spec/legacy.lock.xon"
     (Str8 append "(file \"old/keep.x\" \""
       (Str8 append (%pin-digest "build/pin-spec/legacy/old/keep.x") "\")\n")))
   (Pin vendor "build/pin-spec/legacy" 'prov/m1)
@@ -640,3 +640,110 @@ must still exist for the lockfile to land.
 ```
 ---
     2
+
+## pin: the manifest-driven front door (Pin sync / check / boot)
+
+The older pair makes the caller carry paths the manifest already states,
+and hand-vendoring module by module forces a project to name its
+libraries before the code that imports them exists. These read pin.xon
+and work from the code that is actually there.
+
+### sync derives the overlay from the project's own imports
+
+```scheme
+(do
+  (%pin-mkdirs "build/pin-spec/fd/src")
+  (%pin-mkdirs "build/pin-spec/fd/dep")
+  (File spit "build/pin-spec/fd/pin.xon" "(root \"dep\")\n(src \"src\")\n")
+  (File spit "build/pin-spec/fd/src/app.x" "(import acme/three)\n")
+  ; build/ survives between runs, and the later-import spec below adds a
+  ; second source file AND vendors what it imports.  Vendor never deletes
+  ; (a dropped file is the project's to remove), so without clearing both
+  ; sides the NEXT run starts stage one with the second import already
+  ; present and vendored, and the two stages stop being distinguishable.
+  (guard (_ ()) (File unlink "build/pin-spec/fd/src/more.x"))
+  (guard (_ ()) (File unlink "build/pin-spec/fd/dep/acme/four.x"))
+  (write (Pin sync "build/pin-spec/fd")))
+```
+---
+    ("acme/three.x")
+
+### the lock is named for the overlay, beside it, not inside it
+
+```scheme
+(display (list (File exists? "build/pin-spec/fd/dep.lock.xon")
+               (File exists? "build/pin-spec/fd/dep/dep.lock.xon")))
+```
+---
+    (#t #f)
+
+### check is clean once synced
+
+```scheme
+(write (Pin check "build/pin-spec/fd"))
+```
+---
+    ()
+
+### a later import falls through until the next sync
+
+```scheme
+(do
+  (File spit "build/pin-spec/fd/src/more.x" "(import acme/four)\n")
+  (write (Pin check "build/pin-spec/fd")))
+```
+---
+    ("acme/four.x")
+
+### re-syncing picks it up
+
+```scheme
+(do
+  (Pin sync "build/pin-spec/fd")
+  (write (Pin check "build/pin-spec/fd")))
+```
+---
+    ()
+
+### a sync must not unpin the language underneath it
+
+The platform half of the lock -- release, isa, boot -- is written by the
+boot verb; a sync re-derives the overlay and must carry it through
+untouched, or growing an import would silently drop the language pin.
+
+```scheme
+(do
+  (File spit "build/pin-spec/fd/dep.lock.xon"
+    (Str8 append "(release \"v9.9.9\")\n(isa \"sha256:abc\")\n"
+      (Str8 append "(boot \"he.x\" \"sha256:def\")\n"
+        (Str8 append "(file \"acme/three.x\" \""
+          (Str8 append (%pin-digest "build/pin-spec/fd/dep/acme/three.x") "\")\n")))))
+  (Pin sync "build/pin-spec/fd")
+  (display (%pin-length (%pin-platform-forms (%pin-lock-forms "build/pin-spec/fd/dep")))))
+```
+---
+    3
+
+### the manifest must state what a verb needs
+
+```scheme
+(do
+  (%pin-mkdirs "build/pin-spec/nosrc")
+  (File spit "build/pin-spec/nosrc/pin.xon" "(root \"dep\")\n")
+  (display (throws? (fn (_) (Pin sync "build/pin-spec/nosrc")))))
+```
+---
+    #t
+
+### the lock records the manifest's spelling, never a resolved path
+
+A lockfile is committed. An absolute path in it is meaningless on
+anyone else's machine and leaks wherever the author kept the project,
+so the seed records what the manifest said -- even when sync was handed
+an absolute project directory, as it is here.
+
+```scheme
+(display (Str8 contains? "(seed \"project:src\"" (File slurp "build/pin-spec/fd/dep.lock.xon")))
+```
+---
+    #t
