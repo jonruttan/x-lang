@@ -1,5 +1,15 @@
 name: CI
 
+# TWO TIERS (2026-08-11).  A pull request gets a FAST verdict: build,
+# the fast contract gates, both spec suites, doctests, lint -- the same
+# depth the pre-push hook runs, minutes not tens of minutes.  A push to
+# main gets the FULL depth: every gate (including the network-touching
+# release checks and the many-boot pin smoke), the examples ratchet, the
+# tty contract, and the AddressSanitizer leg.  The trade is deliberate:
+# a regression only the deep tier catches lands on main for at most one
+# cycle, and the deep tier still guards every release (the release
+# workflow runs the full gate again before publishing anything).
+
 on:
   push:
     branches: [main]
@@ -20,11 +30,17 @@ jobs:
           submodules: recursive
       - name: Build
         run: make
-      # The contract gates -- exactly `make gates`, the same single
-      # definition `make test` runs first.  A hand-listed subset here once
-      # let check-pin's first Linux run happen in the release job.
-      - name: Contract gates
+      # The contract gates: the FULL set on main (network checks, pin
+      # smoke, amalgam build included), the fast subset on a PR -- both
+      # are single Makefile definitions, never a hand-list here (a
+      # hand-listed subset once let check-pin's first Linux run happen
+      # in the release job).
+      - name: Contract gates (full, main)
+        if: github.event_name != 'pull_request'
         run: make gates
+      - name: Contract gates (fast, PR)
+        if: github.event_name == 'pull_request'
+        run: make gates-fast
       - name: C specs
         run: make test-c
       - name: x-lang specs
@@ -44,15 +60,17 @@ jobs:
       # newcomer runs was previously the only code with no gate -- and its
       # first-ever run caught or/cat.x broken by the #36 opt-in re-cut.
       - name: Examples
+        if: github.event_name != 'pull_request'
         run: make check-examples
       # Logo tty contract (#152/#157): pty-driven pins of the interactive
       # behaviors every batch suite is blind to.  expect ships on the macOS
       # runners; install it on ubuntu.  The harness skips-with-note if
       # expect is somehow absent, so this step cannot flake on tooling.
       - name: Install expect (Linux)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && github.event_name != 'pull_request'
         run: sudo apt-get update -q && sudo apt-get install -y -q expect
       - name: Logo tty contract
+        if: github.event_name != 'pull_request'
         run: make check-logo-tty
 
   # Memory-safety gate: both suites under AddressSanitizer. HARD gate since
@@ -62,6 +80,10 @@ jobs:
   # the pinned ASAN_OPTIONS rationale.
   asan:
     name: make test-asan
+    # Deep tier only: the sanitizer multiplies the whole suite 5-10x,
+    # which is most of what made every PR round-trip cost tens of
+    # minutes.  Merges to main still cannot land without it.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
