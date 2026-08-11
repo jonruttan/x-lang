@@ -242,6 +242,7 @@
 
 ; Forward refs: the walk is mutually recursive (module -> file -> form).
 (def %pin-take-module ())
+(def %pin-take-version ())
 (def %pin-walk-file ())
 
 ; One form.  dirs = (root-relative-dir . source-dir) of the file being
@@ -259,6 +260,14 @@
           ((not (pair? (rest form))) (%pin-bad "import with no module name in closure"))
           ((symbol? (first (rest form))) (%pin-take-module (first (rest form))))
           (#t (%pin-bad "computed import name in closure"))))
+      ((or (eq? (first form) 'import-version) (eq? (first form) 'import-version-once))
+        (match
+          ((not (pair? (rest form))) (%pin-bad "import-version with no module name in closure"))
+          ((not (symbol? (first (rest form)))) (%pin-bad "computed import-version name in closure"))
+          ((not (pair? (rest (rest form)))) (%pin-bad "import-version with no version spec in closure"))
+          ((not (str? (first (rest (rest form))))) (%pin-bad "computed import-version spec in closure"))
+          (#t (%pin-take-version (first form) (first (rest form))
+                                 (first (rest (rest form)))))))
       ((%pin-include-head? (first form))
         (match
           ((not (pair? (rest form))) (%pin-bad "include with no path in closure"))
@@ -316,6 +325,25 @@
               (let ((src (%module-resolve name)))
                 (do (%pin-push! %pin-out-cell (pair rel src))
                     (%pin-walk-file rel src)))))))))
+
+; A versioned import: resolve name+spec through the BOOT layer's own
+; resolver (one resolver, two consumers -- the same boot-level-accessor
+; pattern take-module already uses for %module-resolve), then vendor the
+; CHOSEN file at its versioned rel.  Dedup is by rel: each version file is
+; its own overlay entry, and a bare (import name) elsewhere in the closure
+; vendors the bare file alongside -- coexistence is the point; whether a
+; PROJECT mixes versions is the audit's question, not the walk's.
+(set! %pin-take-version
+  (fn (_ who name spec)
+    (let ((hit (%module-resolve-version who name
+                 (%module-parse-spec who spec) spec)))
+      (let ((rel (%path-join (%path-dir (symbol->str name))
+                             (%pin-basename (rest hit)))))
+        (match
+          ((%pin-out-has? rel) ())
+          (#t
+            (do (%pin-push! %pin-out-cell (pair rel (rest hit)))
+                (%pin-walk-file rel (rest hit)))))))))
 
 (set! %pin-walk-file
   (fn (_ rel src)
@@ -841,6 +869,14 @@
           ((not (pair? (rest form))) (%pin-bad "import with no module name in project scan"))
           ((symbol? (first (rest form))) (%pin-take-module (first (rest form))))
           (#t (%pin-bad "computed import name in project scan"))))
+      ((or (eq? (first form) 'import-version) (eq? (first form) 'import-version-once))
+        (match
+          ((not (pair? (rest form))) (%pin-bad "import-version with no module name in project scan"))
+          ((not (symbol? (first (rest form)))) (%pin-bad "computed import-version name in project scan"))
+          ((not (pair? (rest (rest form)))) (%pin-bad "import-version with no version spec in project scan"))
+          ((not (str? (first (rest (rest form))))) (%pin-bad "computed import-version spec in project scan"))
+          (#t (%pin-take-version (first form) (first (rest form))
+                                 (first (rest (rest form)))))))
       (#t (do (self (first form))
               (self (rest form)))))))
 

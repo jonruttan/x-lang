@@ -34,6 +34,54 @@ what makes an installed tree work — the same module reached through a
 different root (repo `lib/` vs an installed absolute root) is still the
 same module.
 
+### `import-version-once` / `import-version`
+
+A module may exist in several **versions at once**, as sibling files — the
+bare file is version 0, and `@`-suffixed files carry dotted versions with
+missing components meaning 0:
+
+```
+x/type/thing.x          version 0        (every unversioned module)
+x/type/thing@1.3.x      version 1.3.0
+x/type/thing@1.3.1.x    version 1.3.1
+```
+
+`import-version-once` selects among them by a **spec string** — the version
+is an argument, never part of the module name, and every version file
+`(provide)`s the base name:
+
+```
+(import-version-once maze/grid "1.3")     ; exactly 1.3.0
+(import-version-once maze/grid "1.3.*")   ; newest 1.3.*  — picks up patches
+(import-version-once maze/grid "^1")      ; newest within major 1
+(import-version-once maze/grid "*")       ; newest present
+```
+
+The spec must be a string literal: `3.1` the float is `3.10` the float, so
+only a string can spell a version. Resolution walks the import roots in
+order; the **first root holding any satisfying candidate wins**, even if a
+later root holds a higher version — root order is precedence (the overlay
+shadows the platform), exactly as with `import`. Exact specs probe the
+literal filename first and fall back to the scan, so equivalent spellings
+(`3.1` on disk vs `"3.1.0"` requested) unify numerically.
+
+Fixes flow through resolution, not mutation: files are append-only, a bug
+fix is a new patch file, and every import whose spec admits it selects it
+on its next run. Byte-exact reproducibility remains vendoring's job
+(`Pin sync` resolves the constraint and the lockfile digests the chosen
+file).
+
+Dedup keys the **base name**, once per session, with a contract: if the
+module is already loaded and the loaded version **satisfies** the spec,
+no-op; loaded and *not* satisfying — or loaded bare, its version
+unknowable — is a loud error naming both sides. (A later bare
+`(import name)` still no-ops silently; that is `import`'s own contract,
+unchanged.) `import-version` is the raw re-evaluating sibling, mirroring
+`include` vs `include-once`; it re-records the version it loads.
+
+One prose rule rides along: in this ecosystem the series spelling "1.x"
+collides with a literal filename — write `1.*`.
+
 ### `include`
 
 Raw file inclusion without deduplication:

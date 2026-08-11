@@ -109,3 +109,135 @@ loaded code forever.
 ```
 ---
     (#t #t)
+
+## Versioned module lines (GH #214)
+
+A module may exist in several versions at once as sibling files: `grid.x`
+(version 0 — every unversioned module), `grid@1.3.x`, `grid@1.3.1.x`. The
+version is an ARGUMENT, never part of the name — every version file provides
+the base name, and the registry keys it. A fixture tree is built under
+build/ivspec/ and armed as an import root.
+
+### fixture tree
+
+```scheme
+(do
+  (import x/sys/file)
+  (guard (_ ()) (File mkdir "build"))
+  (guard (_ ()) (File mkdir "build/ivspec"))
+  (guard (_ ()) (File mkdir "build/ivspec/vmod"))
+  (File spit "build/ivspec/vmod/thing.x"
+    "(def %thing-v \"0\")\n(provide vmod/thing %thing-v)\n")
+  (File spit "build/ivspec/vmod/thing@1.3.x"
+    "(def %thing-v \"1.3\")\n(provide vmod/thing %thing-v)\n")
+  (File spit "build/ivspec/vmod/thing@1.3.1.x"
+    "(def %thing-v \"1.3.1\")\n(provide vmod/thing %thing-v)\n")
+  (File spit "build/ivspec/vmod/thing@2.x"
+    "(def %thing-v \"2\")\n(provide vmod/thing %thing-v)\n")
+  (import-path! "build/ivspec")
+  (display "ready"))
+```
+---
+    ready
+
+### a prefix constraint selects the newest satisfying file — the bug-fix path
+
+`"1.3.*"` reaches 1.3.1 the moment the patch file lands; no import site
+changes. This is how fixes flow: resolution, not mutation.
+
+```scheme
+(do
+  (import-version-once vmod/thing "1.3.*")
+  (display %thing-v))
+```
+---
+    1.3.1
+
+### a satisfied re-request is a no-op; an unsatisfiable one is a loud error
+
+The loaded 1.3.1 satisfies `"^1"` (no-op). It does not satisfy `"2"`: a
+named version is a contract, so import's silent first-wins would be the
+wrong answer — the mismatch errs, naming both sides.
+
+```scheme
+(do
+  (import-version-once vmod/thing "^1")
+  (display (guard (_ #t) (do (import-version-once vmod/thing "2") #f))))
+```
+---
+    #t
+
+### a bare import after a versioned load no-ops — import's own contract
+
+```scheme
+(do
+  (import vmod/thing)
+  (display %thing-v))
+```
+---
+    1.3.1
+
+### the spec must be a string literal
+
+`3.1` the float is `3.10` the float; only a string can spell semver.
+
+```scheme
+(display (guard (_ #t) (do (import-version-once vmod/thing 1.3) #f)))
+```
+---
+    #t
+
+### exact means exact, not newest-within
+
+Fresh name so the registry has no entry: `"1.3"` takes 1.3, not the 1.3.1
+sitting beside it.
+
+```scheme
+(do
+  (File spit "build/ivspec/vmod/exact.x"
+    "(def %exact-v \"0\")\n(provide vmod/exact %exact-v)\n")
+  (File spit "build/ivspec/vmod/exact@1.3.x"
+    "(def %exact-v \"1.3\")\n(provide vmod/exact %exact-v)\n")
+  (File spit "build/ivspec/vmod/exact@1.3.1.x"
+    "(def %exact-v \"1.3.1\")\n(provide vmod/exact %exact-v)\n")
+  (import-version-once vmod/exact "1.3")
+  (display %exact-v))
+```
+---
+    1.3
+
+### star takes the newest overall; the bare file is version 0
+
+```scheme
+(do
+  (File spit "build/ivspec/vmod/star.x"
+    "(def %star-v \"0\")\n(provide vmod/star %star-v)\n")
+  (File spit "build/ivspec/vmod/star@0.9.x"
+    "(def %star-v \"0.9\")\n(provide vmod/star %star-v)\n")
+  (import-version-once vmod/star "*")
+  (display %star-v))
+```
+---
+    0.9
+
+### a versioned request for a bare-loaded module is a loud error
+
+The bare load's version is unknowable, so no spec can be satisfied.
+
+```scheme
+(do
+  (File spit "build/ivspec/vmod/plain.x"
+    "(def %plain-v \"0\")\n(provide vmod/plain %plain-v)\n")
+  (import vmod/plain)
+  (display (guard (_ #t) (do (import-version-once vmod/plain "^1") #f))))
+```
+---
+    #t
+
+### nothing satisfies: the error names module and spec
+
+```scheme
+(display (guard (_ #t) (do (import-version-once vmod/thing "9.9") #f)))
+```
+---
+    #t
