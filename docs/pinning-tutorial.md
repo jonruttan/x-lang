@@ -358,6 +358,8 @@ release tarball above, which carries the fingerprint by construction.
 | `(Pin vendor "deps" 'name)` | copy one module's closure + write the lockfile |
 | `(Pin verify "deps")` | recompute digests; overlay must equal the lock |
 | `(Pin audit "deps" "src")` | name imports that fall through to the platform |
+| `(Pin resolve 'name "spec")` | dry run of a versioned import: the file it would load |
+| `(Pin unused "src")` | version files nothing scanned selects — safe to remove |
 | `(Pin fetch "boot" "vX.Y.Z" 'xe)` | download + verify an amalgam, no recording |
 | `<overlay>.lock.xon` | the overlay's integrity record (generated, beside it) |
 | `pin.release.xon` | a release's digests + ISA fingerprint (published) |

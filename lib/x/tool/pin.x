@@ -977,6 +977,78 @@
                                                        " \"...\") form"))))
         (#t v)))))
 
+; Distinct module-name strings out of a closure's entries.
+(def %pin-closure-names
+  (fn (_ entries)
+    (def %go
+      (fn (self lst acc)
+        (match
+          ((null? lst) acc)
+          (#t
+            (let ((nm (%pin-rel-name (first (first lst)))))
+              (match
+                ((%pin-name-member? nm acc) (self (rest lst) acc))
+                (#t (self (rest lst) (pair nm acc)))))))))
+    (%go entries ())))
+(def %pin-selected-paths
+  (fn (_ entries)
+    (def %go
+      (fn (self lst acc)
+        (match
+          ((null? lst) acc)
+          (#t (self (rest lst)
+                    (pair (%pin-path-norm (rest (first lst))) acc))))))
+    (%go entries ())))
+(def %pin-unselected
+  (fn (_ names selected)
+    (def %per-name
+      (fn (self names acc)
+        (match
+          ((null? names) acc)
+          (#t
+            (self (rest names)
+              (%pin-append-new acc
+                (%pin-not-in (%pin-name-candidates (first names)) selected)))))))
+    (%per-name names ())))
+
+; --- Version observability (GH #214 follow-up) -----------------------
+; rel "maze/grid@1.3.1.x" or "maze/grid.x" -> the module name string.
+(def %pin-rel-name
+  (fn (_ rel)
+    (let ((at (Str8 index-of "@" rel)))
+      (match
+        ((null? at) (Str8 sub 0 (- (Str8 length rel) 2) rel))
+        (#t (Str8 sub 0 at rel))))))
+(def %pin-name-member?
+  (fn (self x lst)
+    (match
+      ((null? lst) #f)
+      ((str=? (first lst) x) #t)
+      (#t (self x (rest lst))))))
+; Every candidate file for a module name string, across ALL import roots:
+; the version files the kernel-direct scan sees, plus the bare file where
+; present.  Full normalised paths.
+(def %pin-name-candidates
+  (fn (_ namestr)
+    (let ((reldir (%path-dir namestr))
+          (base (%pin-basename namestr)))
+      (def %per-root
+        (fn (self roots acc)
+          (match
+            ((null? roots) acc)
+            (#t
+              (let ((dir (%path-join (first roots) reldir)))
+                (self (rest roots)
+                  (%pin-append-new acc
+                    (%pin-cand-paths dir (%module-scan-dir dir base)))))))))
+      (%per-root (first %import-roots-cell) ()))))
+(def %pin-cand-paths
+  (fn (self dir cands)
+    (match
+      ((null? cands) ())
+      (#t (pair (%pin-path-norm (%path-join dir (rest (first cands))))
+                (self dir (rest cands)))))))
+
 (def-class Pin ()
   (static
     (method closure (self (param name SYMBOL "Module name, e.g. x/type/dict"))
@@ -1094,6 +1166,31 @@
                               (list 'boot file (%pin-digest bootpath))))
                       (File unlink rel))))
                 bootpath))))))
+    (method resolve (self (param name SYMBOL "Module name, e.g. maze/grid")
+                          (param spec STRING "Version spec, e.g. \"1.3.*\" or \"^1\""))
+      (doc "The file an (import-version-once NAME \"SPEC\") would load, resolved against the CURRENT import roots without loading anything -- the dry run of a versioned import, as closure is of vendor. Run it where your program runs (armed, the overlay answers; unarmed, the platform does). A spec nothing satisfies is the same loud error the import raises."
+        (returns STRING "Path of the file the spec selects")
+        (sample "(Pin resolve 'maze/grid \"1.3.*\")" "\"maze/grid@1.3.1.x\""))
+      (rest (%module-resolve-version (lit resolve) name
+              (%module-parse-spec (lit resolve) spec) spec)))
+    (method unused (self . (param srcdir STRING "Project source dir to scan; default \".\""))
+      (doc "Version files no import in srcdir's sources selects -- the safe-removal list. Provably neutral: resolution takes the newest satisfying candidate per root, so a file this returns cannot change any scanned import's outcome by being removed (had it been able to win for some spec, it would already be selected). The answer is relative to the sources scanned: an external consumer's specs are invisible here. Run unarmed, like audit; prints a notice when non-empty."
+        (returns LIST "Full paths of version files nothing scanned selects")
+        (sample "(Pin unused \"maze\")" "(\"maze/grid@0.9.x\")"))
+      (let ((src (%pin-dir-or-dot srcdir)))
+        (let ((entries (%pin-project-closure src)))
+          (let ((selected (%pin-selected-paths entries))
+                (names (%pin-closure-names entries)))
+            (let ((unused (%pin-unselected names selected)))
+              (do (match
+                    ((null? unused) ())
+                    (#t (do (display "pin: unused -- ")
+                            (display (%pin-length unused))
+                            (display " version file(s) no scanned import selects (safe to remove):")
+                            (newline)
+                            (display (%pin-join-lines unused))
+                            (newline))))
+                  unused))))))
     (method fetch (self (param dest STRING "Directory to fetch into")
                         (param tag STRING "Release tag, e.g. \"v0.4.0\"")
                         (param entry SYMBOL "Boot entry to fetch, e.g. 'xe")
