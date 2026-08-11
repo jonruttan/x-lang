@@ -82,6 +82,16 @@ unchanged.) `import-version` is the raw re-evaluating sibling, mirroring
 One prose rule rides along: in this ecosystem the series spelling "1.x"
 collides with a literal filename — write `1.*`.
 
+Two observability surfaces live on `Pin` (`import x/tool/pin`):
+`(Pin resolve 'maze/grid "1.3.*")` is the dry run — the file the spec
+would load, resolved against the current roots, nothing loaded.
+`(Pin unused "src")` is the safe-removal answer: the version files no
+import in the scanned sources selects. Provably neutral — resolution
+takes the newest satisfying candidate per root, so a file it lists
+cannot change any scanned import's outcome by being removed. The answer
+is relative to the sources scanned; an external consumer's specs are
+invisible to it.
+
 ### `include`
 
 Raw file inclusion without deduplication:

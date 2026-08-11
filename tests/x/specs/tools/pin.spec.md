@@ -781,3 +781,46 @@ constraint selects -- here the newest 1.3.*.
 ```
 ---
     #t
+
+## pin: version observability (Pin resolve / unused)
+
+### resolve is the dry run of a versioned import
+
+Same fixture as the vendoring section: vd.x, vd@1.3.x, vd@1.3.1.x under
+build/pin-spec/vfix. Exact takes the named file; the prefix takes the
+newest satisfying -- without loading either.
+
+```scheme
+(display (list (Str8 ends? "vd@1.3.x" (Pin resolve 'acme/vd "1.3"))
+               (Str8 ends? "vd@1.3.1.x" (Pin resolve 'acme/vd "1.3.*"))))
+```
+---
+    (#t #t)
+
+### unused lists exactly what nothing selects -- the safe-removal answer
+
+The project imports "1.3.*" (selects 1.3.1). Unselected: the bare vd.x
+(no bare import anywhere) and the shadowed vd@1.3.x. Removal of either is
+provably resolution-neutral; the selected 1.3.1 is not listed.
+
+```scheme
+(do
+  (guard (_ ()) (File mkdir "build/pin-spec/uproj"))
+  ; build/ survives between runs and the next spec adds bare.x, which
+  ; would protect vd.x here -- clear it so both stages stay distinct.
+  (guard (_ ()) (File unlink "build/pin-spec/uproj/bare.x"))
+  (File spit "build/pin-spec/uproj/app.x" "(import-version-once acme/vd \"1.3.*\")\n")
+  (write (List map (fn (_ p) (%pin-basename p)) (Pin unused "build/pin-spec/uproj"))))
+```
+---
+    ("vd.x" "vd@1.3.x")
+
+### a bare import protects the bare file
+
+```scheme
+(do
+  (File spit "build/pin-spec/uproj/bare.x" "(import acme/vd)\n")
+  (write (List map (fn (_ p) (%pin-basename p)) (Pin unused "build/pin-spec/uproj"))))
+```
+---
+    ("vd@1.3.x")
