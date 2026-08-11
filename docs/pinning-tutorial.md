@@ -54,8 +54,9 @@ Two structural limits to know up front:
 
 Say `myproj/` depends on `x/type/dict` and must keep today's dict.
 
-**1. Declare the manifest.** One file, two forms — where the pin goes,
-and where your code lives:
+**1. Declare the manifest.** `(Pin init)` writes a commented starter —
+`(root "deps")`, `(src ".")`, and a `(boot …)` line for the running
+dialect — or write it yourself; it is three forms:
 
 ```
 $ cat > myproj/pin.xon
@@ -351,6 +352,7 @@ release tarball above, which carries the fingerprint by construction.
 | `--no-pin` | wrapper flag: ignore any manifest this run |
 | `--boot FILE` | wrapper flag: boot FILE (a pinned amalgam) this run; overrides the manifest |
 | `x-<tag>-<os>-<arch>.tar.gz` | a release's wrapper+engine+library, relocatable — the no-toolchain platform pin |
+| `(Pin init)` | write a commented starter pin.xon (refuses to overwrite) |
 | `(Pin sync)` | vendor whatever `(src ...)` imports — the everyday verb |
 | `(Pin check)` | verify the lock **and** audit for half-pins — the CI verb |
 | `(Pin boot "vX.Y.Z")` | fetch, verify and record the release's amalgam |

@@ -824,3 +824,96 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
 ```
 ---
     ("vd@1.3.x")
+
+## pin: the starter manifest (Pin init)
+
+### init writes a manifest the loader accepts, and returns its path
+
+```scheme
+(do
+  (guard (_ ()) (File mkdir "build/pin-spec/initproj"))
+  ; build/ survives between runs and init refuses to overwrite -- clear
+  ; the prior run's manifest so this stage is the same on every run.
+  (guard (_ ()) (File unlink "build/pin-spec/initproj/pin.xon"))
+  (Pin init "build/pin-spec/initproj")
+  (display (null? (%pin-interpret
+                    (%pin-forms (File slurp "build/pin-spec/initproj/pin.xon"))
+                    "build/pin-spec/initproj"))))
+```
+---
+    #f
+
+### init refuses to overwrite
+
+```scheme
+(display (throws? (fn (_) (Pin init "build/pin-spec/initproj"))))
+```
+---
+    #t
+
+### the entry symbol picks the boot line's dialect
+
+```scheme
+(do
+  (guard (_ ()) (File mkdir "build/pin-spec/initxe"))
+  (guard (_ ()) (File unlink "build/pin-spec/initxe/pin.xon"))
+  (Pin init "build/pin-spec/initxe" 'xe)
+  (display (Str8 contains? "(boot \"boot/xe.x\")"
+                 (File slurp "build/pin-spec/initxe/pin.xon"))))
+```
+---
+    #t
+
+### the manifest init writes drives the other verbs
+
+```scheme
+(do
+  (File spit "build/pin-spec/initproj/app.x" "(import acme/two)\n")
+  (write (Pin sync "build/pin-spec/initproj")))
+```
+---
+    ("acme/two.x")
+
+### the no-manifest error names the way out
+
+```scheme
+(do
+  (guard (_ ()) (File mkdir "build/pin-spec/noman"))
+  (display (throws? (fn (_) (Pin sync "build/pin-spec/noman")))))
+```
+---
+    #t
+
+## pin: a declared-but-empty overlay is livable (GH #217)
+
+Git cannot carry an empty directory, so surviving a clone needs
+deps/.gitkeep -- and verify used to reject the placeholder as tampering.
+The two requirements were jointly unsatisfiable. Dotfiles are outside
+the module layout, so outside the threat: no module name resolves to
+one.
+
+### the placeholder passes check; an unlisted module file still fails
+
+```scheme
+(do
+  (guard (_ ()) (File mkdir "build/pin-spec/empty"))
+  (guard (_ ()) (File mkdir "build/pin-spec/empty/deps"))
+  (guard (_ ()) (File unlink "build/pin-spec/empty/deps/rogue.x"))
+  (File spit "build/pin-spec/empty/pin.xon" "(root \"deps\")\n(src \"src\")\n")
+  (guard (_ ()) (File mkdir "build/pin-spec/empty/src"))
+  (File spit "build/pin-spec/empty/deps/.gitkeep" "")
+  (File spit "build/pin-spec/empty/deps.lock.xon" "(release \"v9.9.9\")\n")
+  (write (Pin check "build/pin-spec/empty")))
+```
+---
+    ()
+
+### the skip is dotfiles only -- a rogue module file is still tampering
+
+```scheme
+(do
+  (File spit "build/pin-spec/empty/deps/rogue.x" "(evil)\n")
+  (display (throws? (fn (_) (Pin check "build/pin-spec/empty")))))
+```
+---
+    #t
