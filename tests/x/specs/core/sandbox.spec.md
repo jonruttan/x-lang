@@ -335,3 +335,27 @@ prim-ref into every child; that was incidental, and no consumer used it.)
 ```
 ---
     7!
+
+## raw prims guard nil in a child base (#239)
+
+A `(Base make)` child gets the C prims raw -- the lib wrappers
+(lib/x/core/arithmetic.x) are absent -- so the bitwise family's nil guard
+must live in the prims themselves. Before #239 each of these killed the
+whole process.
+
+Each op gets a fresh child: a single child crashes on its FIFTH caught
+error (#253 -- any error source, pre-existing and unrelated to #239),
+and this spec pins the nil guard, not that limit.
+
+### the bitwise family raises catchably on nil operands
+
+```scheme
+(do (list (guard (e (lit R)) (Base eval (Base make) (lit (~ ()))))
+          (guard (e (lit R)) (Base eval (Base make) (lit (& () 1))))
+          (guard (e (lit R)) (Base eval (Base make) (lit (| 1 ()))))
+          (guard (e (lit R)) (Base eval (Base make) (lit (^ () 1))))
+          (guard (e (lit R)) (Base eval (Base make) (lit (<< 1 ()))))
+          (guard (e (lit R)) (Base eval (Base make) (lit (>> () 1))))))
+```
+---
+    ('R 'R 'R 'R 'R 'R)
