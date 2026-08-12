@@ -39,14 +39,8 @@
 
 ; --- Extraction helpers ---
 
-(def %doc-find-last-string
-  (fn (_ lst)
-    (def %go (fn (self remaining found)
-      (if (null? remaining) found
-        (if (str? (first remaining))
-          (self (rest remaining) (first remaining))
-          (self (rest remaining) found)))))
-    (%go lst "")))
+; %doc-find-last-string comes from doc.x (same package, loads first);
+; this file used to carry an identical copy (#227/#231 hoist).
 
 (def %doc-extract-params
   (fn (self ps acc)
@@ -189,11 +183,9 @@
   "Build a lookup alist from (doc ...) forms in a token stream.")
 
 (doc (def %doc-lookup-alist
-  (fn (self alist name-str)
-    (unless (null? alist)
-      (if (str=? (first (first alist)) name-str)
-        (rest (first alist))
-        (self (rest alist) name-str)))))
+  (fn (_ alist name-str)
+    (let ((hit (%assoc-str name-str alist)))
+      (unless (null? hit) (rest hit)))))
   (param alist LIST "Alist from doc-build-lookup")
   (param name-str STRING "Function name as string")
   (returns LIST "Extracted 7-tuple, or () if not found")
@@ -218,11 +210,6 @@
 
 ; --- Emit body with prims alist fallback and deduplication ---
 
-(def %doc-seen-has?
-  (fn (self seen name-str)
-    (if (null? seen) #f
-      (if (str=? (first seen) name-str) #t
-        (self (rest seen) name-str)))))
 
 ; --- def-class emission -----------------------------------------------------
 ; A class form is (def-class NAME parent-spec body...) where body items are a
@@ -347,7 +334,7 @@
             (let ()
               (def %info (%doc-extract %tok))
               (def %name-str (symbol->str (List ref 0 %info)))
-              (if (%doc-seen-has? seen %name-str)
+              (if (%member-str? %name-str seen)
                 (self %rest prims-alist seen)
                 (do (%doc-emit-entry %info)
                     (self %rest prims-alist (pair %name-str seen))))))
@@ -364,7 +351,7 @@
             (def %dname-str (symbol->str %dname))
             (if (str=? (Str8 sub 0 1 %dname-str) "%")
               (self %rest prims-alist seen)
-              (if (%doc-seen-has? seen %dname-str)
+              (if (%member-str? %dname-str seen)
                 (self %rest prims-alist seen)
                 (let ()
                   (def %prims-entry (%doc-lookup-alist prims-alist %dname-str))

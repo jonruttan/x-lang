@@ -487,9 +487,10 @@ vendor into that overlay must not evict them.
 (do
   (def %pin-spec-m (Pin %pin-release-parse (Pin %pin-forms
     "(release \"v1\") (isa \"sha256:aa\") (file \"xe.x\" \"sha256:bb\")")))
-  (display (Pin %pin-assoc 'release %pin-spec-m))
+  ; %pin-assoc was retired for the canonical %assoc-get (#227)
+  (display (%assoc-get 'release %pin-spec-m))
   (display " ")
-  (display (Pin %pin-release-file "xe.x" (Pin %pin-assoc 'files %pin-spec-m))))
+  (display (Pin %pin-release-file "xe.x" (%assoc-get 'files %pin-spec-m))))
 ```
 ---
     v1 sha256:bb

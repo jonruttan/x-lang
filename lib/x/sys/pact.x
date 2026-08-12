@@ -37,6 +37,10 @@
 ; Pact loads mid-boot (the tower modules import it), so it defines its own
 ; list recursion instead of importing x/core/list. Recursion goes through
 ; the self argument, per the self-passing convention.
+; ADJUDICATED KEEP (#227): %pact-rev/%pact-entry mirror the canonical
+; %reverse/%assq, but this file's stated contract is no core/list
+; dependency -- the tower loads in any order, so the ambient boot
+; globals are not guaranteed here.
 
 (def %pact-rev
   (fn (self l acc)

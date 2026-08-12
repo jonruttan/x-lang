@@ -301,7 +301,7 @@ locals and unbound heads keep plain call analysis.
 (do
   (def %zsubject (pair 1 2))
   (def %r (lint-forms (list '(def f (fn (_ s) (%zsubject frobnicate s)))) () ()))
-  (display (null? (lint-has? "frobnicate" (first (rest %r))))))
+  (display (not (lint-has? "frobnicate" (first (rest %r))))))
 ```
 ---
     #t
@@ -322,7 +322,7 @@ locals and unbound heads keep plain call analysis.
 ```scheme
 (do
   (def %r (lint-forms (list '(def h (fn (_ l) (method-ref %zsubject frobnicate)))) () ()))
-  (display (null? (lint-has? "frobnicate" (first (rest %r))))))
+  (display (not (lint-has? "frobnicate" (first (rest %r))))))
 ```
 ---
     #t

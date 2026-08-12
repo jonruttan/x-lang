@@ -104,7 +104,7 @@
 (def %names-minus
   (fn (loop names seen)
     (unless (null? names)
-      (if (%name-in? (first names) seen)
+      (if (%memq? (first names) seen)
         (loop (rest names) seen)
         (pair (first names) (loop (rest names) seen))))))
 
@@ -583,11 +583,7 @@
 
 ; The class-level (doc "desc" meta...) form in a class body, or () if absent.
 (def %find-doc-form
-  (fn (loop body)
-    (unless (null? body)
-      (if (%class-doc-form? (first body))
-        (first body)
-        (loop (rest body))))))
+  (fn (_ body) (%find %class-doc-form? body)))
 
 ; Stash a class-level (doc "desc" meta...) under the bare class name, so
 ; (help Class) shows a summary above the member/method sections. DESC may be
@@ -756,17 +752,13 @@
 
 (def %class-interface (fn (_ c) (%assoc-get (lit interface) (%class-data c))))
 
-(def %name-in?
-  (fn (loop name names)
-    (if (null? names) #f
-      (if (eq? (first names) name) #t (loop name (rest names))))))
 
 ; m is among c's OWN methods -- instance OR static (the string protocol's
 ; primitives are static; instance-based interfaces use instance methods).
 (def %defines?
   (fn (_ c m)
-    (if (%name-in? m (%assoc-keys (%assoc-get (lit methods) (%class-data c)))) #t
-      (%name-in? m (%assoc-keys (%assoc-get (lit s-methods) (%class-data c)))))))
+    (if (%memq? m (%assoc-keys (%assoc-get (lit methods) (%class-data c)))) #t
+      (%memq? m (%assoc-keys (%assoc-get (lit s-methods) (%class-data c)))))))
 
 ; #t if c's chain provides a concrete impl of method m: some class defines m
 ; (instance or static) but does NOT list it in its own interface (so the abstract
@@ -774,7 +766,7 @@
 (def %implements?
   (fn (loop c m)
     (if (null? c) #f
-      (if (if (%defines? c m) (not (%name-in? m (%class-interface c))) #f)
+      (if (if (%defines? c m) (not (%memq? m (%class-interface c))) #f)
         #t
         (loop (%assoc-get (lit parent) (%class-data c)) m)))))
 

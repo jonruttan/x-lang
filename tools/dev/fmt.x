@@ -89,13 +89,14 @@
 
   ; Find the COMMENT type by NAME (fresh string via the reflect walk),
   ; not by shape heuristics.
-  (def %find-comment (fn (self entries)
-    (when (null? entries)
-      (Err raise 'state "fmt: no COMMENT type in the fresh base's registry" ()))
-    (let ((ts (rest (first entries))))
-      (if (str=? (%reflect-sym->str (%reflect-type-tree-name ts)) "COMMENT")
-        ts
-        (self (rest entries))))))
+  (def %find-comment (fn (_ entries)
+    (let ((hit (%find (fn (_ e)
+                        (str=? (%reflect-sym->str (%reflect-type-tree-name (rest e)))
+                               "COMMENT"))
+                      entries)))
+      (when (null? hit)
+        (Err raise 'state "fmt: no COMMENT type in the fresh base's registry" ()))
+      (rest hit))))
 
   ; Push the keeping reader through the blessed door (path-driven cell).
   (%type-push-read (%find-comment %fmt-registry) %fmt-comment-reader)

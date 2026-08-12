@@ -34,14 +34,7 @@
 (def %compile-fns ())
 
 (def %compile-fvar-lookup
-  (fn (_ sym)
-    (def %fv-go
-      (fn (self fvs)
-        (unless (null? fvs)
-          (if (eq? sym (first (first fvs)))
-            (first fvs)
-            (self (rest fvs))))))
-    (%fv-go %compile-fvars)))
+  (fn (_ sym) (%assq sym %compile-fvars)))
 
 ; Return the index of a fvar symbol in %compile-fvars (for table emission)
 (def %compile-fvar-index

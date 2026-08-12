@@ -514,13 +514,6 @@
         (fn (_ a b) (%str-lt (symbol->str (first a)) (symbol->str (first b))))
         (first %module-registry-cell)))))
 
-; True if the string x appears in the list of strings lst.
-(def %member-str?
-  (fn (self x lst)
-    (if (null? lst) #f
-      (if (str=? x (first lst)) #t
-        (self x (rest lst))))))
-
 ; Walk a class's chain looking up "<class>/method" docs; return the first hit
 ; (most-derived wins), or nil. Lets (help Class method) find inherited methods.
 (def %find-method-doc

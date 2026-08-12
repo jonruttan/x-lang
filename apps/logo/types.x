@@ -109,15 +109,20 @@
     (def %cell (first (first (first (rest (first base))))))
     (def %int-name (%type-of 0))
     (def %float-name (%type-of (Float exact->inexact 0)))
-    ; Keep only INTEGER and FLOAT from the base
-    (def %filter
+    ; Keep only INTEGER and FLOAT from the base.  A LOCAL walker on
+    ; purpose, renamed off the boot %filter it used to shadow (#227): the
+    ; alist walked here lives in the FRESH child base, and type tags are
+    ; per-base -- the canonical %filter's pair?/%as-list type-tests
+    ; misclassify foreign-base objects (verified: routing through it
+    ; kills logo at load).  Raw first/rest access is the contract.
+    (def %logo-type-keep
       (fn (self al)
         (if (null? al) ()
           (let ((name (first (first al))))
             (if (or (eq? name %int-name) (eq? name %float-name))
               (pair (first al) (self (rest al)))
               (self (rest al)))))))
-    (%set-first! %cell (%filter (first %cell)))
+    (%set-first! %cell (%logo-type-keep (first %cell)))
 
     ; LOGO-BLOCK
     (set! %logo-block

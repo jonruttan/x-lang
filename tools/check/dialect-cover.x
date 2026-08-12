@@ -64,10 +64,6 @@
         (go (rest names)
             (if (Str8 ends? ".x" (first names)) (pair (first names) acc) acc))))))
 
-(def %member? (fn (_ s xs)
-  (let go ((xs xs))
-    (if (null? xs) #f
-      (if (str=? s (first xs)) #t (go (rest xs)))))))
 
 (def %contains-slash?
   (fn (_ s)
@@ -81,7 +77,7 @@
 (let go ((names %dialects))
   (unless (null? names)
     (let ((name (first names)))
-      (unless (%member? name %covered)
+      (unless (%member-str? name %covered)
         (do (display "dialect-cover: FAIL lib/") (display name)
             (display " has no '# @lib ") (display name)
             (display "' group in ") (display %spec-dir) (display "/")

@@ -129,12 +129,9 @@
     (pair #t (fn (_ v . extra) (%obj->ptr v)))))
 
 ; --- The dispatcher ---
-(def %alist-find
-  (fn (self alist key)
-    (if (null? alist) ()
-      (if (eq? (first (first alist)) key)
-        (first alist)
-        (self (rest alist) key)))))
+; Entry lookup is the canonical %assq (core/alist.x, #227): this file
+; loads at x-core.x:144, after alist.x:126, and the dispatcher only runs
+; at call time anyway.
 
 ; Locals are bound with `let`, NOT `def`.  This body sits in the fn's tail
 ; position, and a `def` in a tail context runs *after* TCO has popped the
@@ -155,10 +152,10 @@
               (if (null? from-al) ()
                 (do
                   (if (null? source) ()
-                    (set! entry (%alist-find from-al source)))
+                    (set! entry (%assq source from-al)))
                   ; Wildcard: #t key
                   (if (null? entry)
-                    (set! entry (%alist-find from-al #t))
+                    (set! entry (%assq #t from-al))
                     ())))))
           ; Outbound: target in source's to-alist
           (if (null? entry)
@@ -167,7 +164,7 @@
                 (if (null? source-ts) ()
                   (let ((to-al (first (%type-to-cell source-ts))))
                     (if (null? to-al) ()
-                      (set! entry (%alist-find to-al target)))))))
+                      (set! entry (%assq target to-al)))))))
             ())
           ; Call converter: (fn (_ . val) . extra); a miss is the dialect's
           ; policy, not ours -- read it off the class (cold path only).

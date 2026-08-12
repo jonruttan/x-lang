@@ -24,12 +24,11 @@
 (def %fmt-build-table (fn (_ constructs)
   (%fmt-build-lookup constructs ())))
 
-(def %fmt-find (fn (self key table)
-  (unless (null? table)
-    (if (str=? (%cvt key %string)
-                  (%cvt (first (first table)) %string))
-      (first table)
-      (self key (rest table))))))
+; Cross-base keys: BOTH sides convert to string per entry (table keys are
+; raw symbols from a fresh read).  The walk itself is the canonical %find.
+(def %fmt-find (fn (_ key table)
+  (let ((ks (%cvt key %string)))
+    (%find (fn (_ e) (str=? ks (%cvt (first e) %string))) table))))
 
 (def %fmt-lookup (fn (_ name table)
   (def entry (%fmt-find name table))

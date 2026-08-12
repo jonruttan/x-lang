@@ -47,22 +47,21 @@
             (pair (pair name props) acc))))))
   (def %construct-table (%build-lookup %all-constructs ()))
 
-  ; Lookup helper using str=? for cross-base symbol comparison
-  (def %construct-find (fn (_ key table)
-    (unless (null? table)
-      (if (str=? key (first (first table)))
-        (first table)
-        (%construct-find key (rest table))))))
+  ; Cross-base lookup: table keys are strings, so the canonical str=?
+  ; entry lookup (%assoc-str, core/alist.x) is the comparator.
   (def %construct-lookup (fn (_ name)
-    (def entry (%construct-find (%cov-cvt name %string) %construct-table))
+    (def entry (%assoc-str (%cov-cvt name %string) %construct-table))
     (unless (null? entry)
       (rest entry))))
 
-  ; Get a property value from a property list
+  ; Get a property value from a property list.  str=? on a converted key,
+  ; NOT eq?: construct symbols are read in a fresh base, and per-base
+  ; interning makes cross-base eq? the crash lint.x's header warns about
+  ; (#227).  pair?-guarded because props can mix bare flags with pairs.
   (def %get-prop (fn (_ key props)
     (unless (null? props)
       (if (pair? (first props))
-        (if (eq? (first (first props)) key)
+        (if (str=? (%cov-cvt (first (first props)) %string) key)
           (rest (first props))
           (%get-prop key (rest props)))
         (%get-prop key (rest props))))))
@@ -188,7 +187,7 @@
       (do (def entry (first entries))
           (def name (%cov-cvt (first entry) %string))
           (def props (rest entry))
-          (def branch-type (%get-prop 'branch props))
+          (def branch-type (%get-prop "branch" props))
           (def handler
             (if (eq? branch-type 'cond)    %cond-eval
             (if (eq? branch-type 'clauses) %clause-eval
@@ -214,10 +213,11 @@
         (if (not (symbol? (first form)))
           (%safe-walk %cov-eval form)
           (do
-            ; %construct-find, not a local walker: a same-named def here binds
-            ; globally (top-level do) and once clobbered class.x's %lookup.
+            ; Canonical %assoc-str, not a local walker: a same-named def
+            ; here binds globally (top-level do) and once clobbered
+            ; class.x's %lookup.
             (def handler
-              (%construct-find (%cov-cvt (first form) %string) %dispatch))
+              (%assoc-str (%cov-cvt (first form) %string) %dispatch))
             (if handler
               ((rest handler) form %cov-eval)
               (%safe-walk %cov-eval form))))))))

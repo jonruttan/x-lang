@@ -61,35 +61,10 @@
 (def %cell-push!
   (fn (_ cell v) (%set-first! cell (pair v (first cell)))))
 
-; Symbols are interned per-base: eq? membership is sound for them.
-(def %memq
-  (fn (self x lst)
-    (match
-      ((null? lst) #f)
-      ((eq? x (first lst)) #t)
-      (#t (self x (rest lst))))))
-
-; String atoms are NOT interned: path membership needs str=?.
-(def %member-str
-  (fn (self s lst)
-    (match
-      ((null? lst) #f)
-      ((str=? s (first lst)) #t)
-      (#t (self s (rest lst))))))
-
-(def %assq
-  (fn (self key alist)
-    (match
-      ((null? alist) ())
-      ((eq? key (first (first alist))) (first alist))
-      (#t (self key (rest alist))))))
-
-(def %assoc-str
-  (fn (self key alist)
-    (match
-      ((null? alist) ())
-      ((str=? key (first (first alist))) (first alist))
-      (#t (self key (rest alist))))))
+; Membership/assoc walks come from the canonical boot layer (#227):
+; %memq?/%member-str? (core/list.x), %assq/%assoc-str (core/alist.x).
+; The eq?/str=? split matters here: symbols intern per-base (eq? sound),
+; string atoms never intern (paths need str=?).
 
 ; --- file reading / parsing ---
 (def %read-chunks
@@ -172,7 +147,7 @@
     (let ((entry (%assq name (first %classes-cell))))
       (match
         ((null? entry) ())
-        ((%memq name (first %defined-cell)) ())
+        ((%memq? name (first %defined-cell)) ())
         (#t (%cell-push! %findings-cell (list file name (rest entry) form)))))))
 
 (def %check-name-list
@@ -241,7 +216,7 @@
 (def %load-path
   (fn (_ path file form)
     (match
-      ((%member-str path (first %loaded-cell))
+      ((%member-str? path (first %loaded-cell))
         (%cell-push! %findings-cell (list file '%%double-load path form)))
       (#t (%process-file path)))))
 
@@ -267,7 +242,7 @@
                 ((%lib-path? arg) (%cell-push! %raw-cell (pair arg file)))
                 (#t ()))
               (%load-path arg file form)))
-        ((%member-str arg (first %registered-cell)) ())
+        ((%member-str? arg (first %registered-cell)) ())
         (#t
           ; register BEFORE loading, like module.x -- cycle safety
           (do (%cell-push! %registered-cell arg)
@@ -279,7 +254,7 @@
       (match
         ((symbol? name)
           (match
-            ((%memq name (first %reg-names-cell)) ())
+            ((%memq? name (first %reg-names-cell)) ())
             (#t
               (do (%cell-push! %reg-names-cell name)
                   (%load-path
@@ -410,7 +385,7 @@
       ((pair? raws)
         (do (match
               ((%name-registered? (%path->name-str (first (first raws)))) ())
-              ((%member-str (first (first raws)) (first %registered-cell)) ())
+              ((%member-str? (first (first raws)) (first %registered-cell)) ())
               (#t (%cell-push! %findings-cell
                     (list (rest (first raws)) '%%unregistered
                           (first (first raws)) ()))))

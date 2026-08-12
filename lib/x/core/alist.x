@@ -35,6 +35,34 @@
   (note "Bootstrap layer: the object system dispatches through this. Class API: (Assoc has? ...).")
   "Test whether a key exists in an alist.")
 
+; Entry-returning lookups (#227): %assoc-get conflates a stored nil with
+; a miss; these return the (key . value) ENTRY, so callers test presence
+; with null? and read the value with rest.  Two key-equality sides, like
+; the membership helpers in list.x: symbols intern per-base (eq? never
+; matches across bases), strings always compare by content.
+
+(doc (def %assq
+  (fn (self (param key SYMBOL "Key to look up (eq? comparison)")
+       (param alist LIST "Association list"))
+    (match
+      ((null? alist) ())
+      ((eq? key (first (first alist))) (first alist))
+      (#t (self key (rest alist))))))
+  (returns ANY "The (key . value) entry pair, or nil if not found")
+  (note "Entry-returning eq? lookup. Class API: (List assq ...).")
+  "Look up a key in an alist, returning the entry pair or nil.")
+
+(doc (def %assoc-str
+  (fn (self (param key STR "String key (str=? comparison)")
+       (param alist LIST "Alist with string keys"))
+    (match
+      ((null? alist) ())
+      ((str=? key (first (first alist))) (first alist))
+      (#t (self key (rest alist))))))
+  (returns ANY "The (key . value) entry pair, or nil if not found")
+  (note "The str=? side of the key-equality split: tables keyed by converted (cross-base) names use this.")
+  "Look up a string key in an alist, returning the entry pair or nil.")
+
 (note "Modification")
 
 (doc (def %assoc-del
