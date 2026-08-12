@@ -42,6 +42,7 @@
 ; way the wrapper closes it for this module itself).
 (import x/sys/posix)
 (import x/codec/sha256)
+(import x/codec/xon)
 
 ; --- The Pin class: the whole tool, one namespace ---------------------
 ; Every helper is a %-prefixed STATIC on the class -- private by
@@ -95,11 +96,10 @@
     (%pin-release-name "pin.release.xon")
     (method %pin-bad (self what)
       (error (Str8 append "pin: " what)))
-    ; Read manifest text as forms, never evaluating.  Trailing space so the
-    ; tokenizer closes the final token (read-str drops an unterminated tail
-    ; -- the boot-order.x technique).
+    ; Read manifest text as forms, never evaluating.  The end-of-buffer
+    ; termination workaround lives in the shared door (Xon read, #230).
     (method %pin-forms (self text)
-      (Tok read-str (%base) (Str8 append text " ")))
+      (Xon read text))
     ; One (root "DIR") form -> the resolved root string.  %path-join is
     ; module.x's boot-level path helper (boot-adjacent accessors rule).
     (method %pin-root (self form dir)
@@ -133,41 +133,33 @@
     ; Manifest forms + manifest dir -> resolved roots, manifest order.
     ; Closed vocabulary: an unknown head is an error, not a skip.
     (method %pin-interpret (self forms dir)
-      (def %go
-            (fn (self forms)
-              (match
-                ((null? forms) ())
-                ((not (pair? (first forms))) (Pin %pin-bad "form is not a list"))
-                ((eq? (first (first forms)) 'root)
-                  (pair (Pin %pin-root (first forms) dir) (self (rest forms))))
-                ((eq? (first (first forms)) 'boot)
-                  (do (Pin %pin-boot (first forms)) (self (rest forms))))
-                ((eq? (first (first forms)) 'src)
-                  (do (Pin %pin-src (first forms)) (self (rest forms))))
-                (#t (Pin %pin-bad "unknown form")))))
-          (%go forms))
+      ; The vocabulary is the table; boot/src validate and yield nil, so
+      ; the walk's result is exactly the resolved roots in manifest order.
+      (Xon walk
+        (list (pair (lit root) (fn (_ f) (Pin %pin-root f dir)))
+              (pair (lit boot) (fn (_ f) (Pin %pin-boot f)))
+              (pair (lit src)  (fn (_ f) (Pin %pin-src f))))
+        (fn (_ f)
+          (match
+            ((not (pair? f)) (Pin %pin-bad "form is not a list"))
+            (#t (Pin %pin-bad "unknown form"))))
+        forms))
     (method %pin-manifest-arg (self head forms dir)
-      (def %rec (fn (self head forms dir)
-        (match
-              ((null? forms) ())
-              ((not (pair? (first forms))) (self head (rest forms) dir))
-              ((not (eq? (first (first forms)) head)) (self head (rest forms) dir))
-              ((not (pair? (rest (first forms)))) ())
-              ((Str8 starts? "/" (first (rest (first forms)))) (first (rest (first forms))))
-              (#t (%path-join dir (first (rest (first forms))))))))
-      (%rec head forms dir))
+      (let ((hit (%find (fn (_ f) (if (pair? f) (eq? (first f) head) #f)) forms)))
+            (match
+              ((null? hit) ())
+              ((not (pair? (rest hit))) ())
+              ((Str8 starts? "/" (first (rest hit))) (first (rest hit)))
+              (#t (%path-join dir (first (rest hit)))))))
     ; The same lookup WITHOUT resolution -- the manifest's own spelling.
     ; What the lock records has to be portable: "maze", not the absolute
     ; path this particular machine resolved it to.
     (method %pin-manifest-raw (self head forms)
-      (def %rec (fn (self head forms)
-        (match
-              ((null? forms) ())
-              ((not (pair? (first forms))) (self head (rest forms)))
-              ((not (eq? (first (first forms)) head)) (self head (rest forms)))
-              ((not (pair? (rest (first forms)))) ())
-              (#t (first (rest (first forms)))))))
-      (%rec head forms))
+      (let ((hit (%find (fn (_ f) (if (pair? f) (eq? (first f) head) #f)) forms)))
+            (match
+              ((null? hit) ())
+              ((not (pair? (rest hit))) ())
+              (#t (first (rest hit))))))
     (method %pin-manifest-forms (self dir)
       (let ((p (%path-join dir (Pin %pin-manifest-name))))
             (match
@@ -288,26 +280,27 @@
     ; The closed vocabulary is (file ...) | (seed ...); each reader takes the
     ; forms it owns and ignores -- never rejects -- the other's.
     (method %pin-lock-parse (self forms)
-      (def %go
-            (fn (self forms)
-              (match
-                ((null? forms) ())
-                ((not (pair? (first forms))) (Pin %pin-bad "lockfile form is not a list"))
-                ((eq? (first (first forms)) 'seed) (self (rest forms)))
-                ; The platform half -- (release ...) (isa ...) (boot ...), written
-                ; by the boot verb.  Same rule the seed forms already follow: a
-                ; reader takes the forms it owns and ignores the other's, so the
-                ; vocabulary stays closed without either half rejecting the other.
-                ((%memq? (first (first forms)) (Pin %pin-platform-heads)) (self (rest forms)))
-                ((not (eq? (first (first forms)) 'file)) (Pin %pin-bad "unknown lockfile form"))
-                ((not (str? (first (rest (first forms)))))
-                  (Pin %pin-bad "lockfile entry needs a path string"))
-                ((not (str? (first (rest (rest (first forms))))))
-                  (Pin %pin-bad "lockfile entry needs a digest string"))
-                (#t (pair (pair (first (rest (first forms)))
-                                (first (rest (rest (first forms)))))
-                          (self (rest forms)))))))
-          (%go forms))
+      ; seed and the platform half -- (release ...) (isa ...) (boot ...),
+      ; written by the boot verb -- pass through untaken: a reader takes
+      ; the forms it owns and ignores the other's, so the vocabulary
+      ; stays closed without either half rejecting the other.
+      (def %skip (fn (_ f) ()))
+      (Xon walk
+        (pair (pair (lit file)
+                (fn (_ f)
+                  (match
+                    ((not (str? (first (rest f))))
+                      (Pin %pin-bad "lockfile entry needs a path string"))
+                    ((not (str? (first (rest (rest f)))))
+                      (Pin %pin-bad "lockfile entry needs a digest string"))
+                    (#t (pair (first (rest f)) (first (rest (rest f))))))))
+          (pair (pair (lit seed) %skip)
+                (%map (fn (_ h) (pair h %skip)) (Pin %pin-platform-heads))))
+        (fn (_ f)
+          (match
+            ((not (pair? f)) (Pin %pin-bad "lockfile form is not a list"))
+            (#t (Pin %pin-bad "unknown lockfile form"))))
+        forms))
     ; (seed "NAME" "rel" ...) -> (NAME . (rel ...)) pairs, file order.
     (method %pin-lock-parse-seeds (self forms)
       (def %rels
@@ -316,18 +309,18 @@
                 ((null? lst) ())
                 ((not (str? (first lst))) (Pin %pin-bad "seed entry needs path strings"))
                 (#t (pair (first lst) (self (rest lst)))))))
-          (def %go
-            (fn (self forms)
+          (Xon walk
+            (list (pair (lit seed)
+                    (fn (_ f)
+                      (match
+                        ((not (str? (first (rest f))))
+                          (Pin %pin-bad "seed entry needs a name string"))
+                        (#t (pair (first (rest f)) (%rels (rest (rest f)))))))))
+            (fn (_ f)
               (match
-                ((null? forms) ())
-                ((not (pair? (first forms))) (Pin %pin-bad "lockfile form is not a list"))
-                ((not (eq? (first (first forms)) 'seed)) (self (rest forms)))
-                ((not (str? (first (rest (first forms)))))
-                  (Pin %pin-bad "seed entry needs a name string"))
-                (#t (pair (pair (first (rest (first forms)))
-                                (%rels (rest (rest (first forms)))))
-                          (self (rest forms)))))))
-          (%go forms))
+                ((not (pair? f)) (Pin %pin-bad "lockfile form is not a list"))
+                (#t ())))
+            forms))
     ; Final path segment.  Used for the lock's name, and by the boot verb to
     ; take its amalgam name from the manifest's (boot "boot/he.x") -- so the
     ; file name is data the project already stated, with no dialect symbol to
@@ -357,69 +350,19 @@
     ; forms, so these must survive a sync that knows nothing about them.
     (method %pin-str->sym (self s) ((prim-ref (lit str) (lit ->sym)) s))
     (method %pin-platform-forms (self forms)
-      (def %rec (fn (self forms)
-        (match
-              ((null? forms) ())
-              ((not (pair? (first forms))) (self (rest forms)))
-              ((%memq? (first (first forms)) (Pin %pin-platform-heads))
-                (pair (first forms) (self (rest forms))))
-              (#t (self (rest forms))))))
-      (%rec forms))
-    (method %pin-platform-render (self forms)
-      (def %rec (fn (self forms)
-        (match
-              ((null? forms) "")
-              (#t (Str8 append (Pin %pin-form-render (first forms))
-                               (self (rest forms)))))))
-      (%rec forms))
-    ; One (head "a" "b" ...) form back to a line of xon.
-    (method %pin-form-render (self form)
-      (Str8 append "(" (Str8 append (symbol->str (first form))
-                                        (Str8 append (Pin %pin-args-render (rest form)) ")\n"))))
-    (method %pin-args-render (self args)
-      (def %rec (fn (self args)
-        (match
-              ((null? args) "")
-              (#t (Str8 append " \"" (Str8 append (first args)
-                                                  (Str8 append "\"" (self (rest args)))))))))
-      (%rec args))
+      (%filter (fn (_ f) (if (pair? f) (%memq? (first f) (Pin %pin-platform-heads)) #f))
+               forms))
     (method %pin-lock-read (self dest)
       (Pin %pin-lock-parse (Pin %pin-lock-forms dest)))
     (method %pin-lock-read-seeds (self dest)
       (Pin %pin-lock-parse-seeds (Pin %pin-lock-forms dest)))
+    ; No header here: both writers emit (Pin %pin-lock-header) first, so that a
+    ; lock carrying platform lines does not end up with its own banner
+    ; stranded in the middle of the file.
     (method %pin-lock-render (self entries)
-      (def %go
-            (fn (self lst acc)
-              (match
-                ((null? lst) acc)
-                (#t (self (rest lst)
-                      (Str8 append acc
-                        (Str8 append "(file \""
-                          (Str8 append (first (first lst))
-                            (Str8 append "\" \""
-                              (Str8 append (rest (first lst)) "\")\n"))))))))))
-          ; No header here: both writers emit (Pin %pin-lock-header) first, so that a
-          ; lock carrying platform lines does not end up with its own banner
-          ; stranded in the middle of the file.
-          (%go entries ""))
+      (Xon emit (%map (fn (_ e) (list (lit file) (first e) (rest e))) entries)))
     (method %pin-seed-render (self seeds)
-      (def %rels
-            (fn (self lst acc)
-              (match
-                ((null? lst) acc)
-                (#t (self (rest lst)
-                      (Str8 append acc (Str8 append " \"" (Str8 append (first lst) "\""))))))))
-          (def %go
-            (fn (self lst acc)
-              (match
-                ((null? lst) acc)
-                (#t (self (rest lst)
-                      (Str8 append acc
-                        (Str8 append "(seed \""
-                          (Str8 append (first (first lst))
-                            (Str8 append "\""
-                              (Str8 append (%rels (rest (first lst)) "") ")\n"))))))))))
-          (%go seeds ""))
+      (Xon emit (%map (fn (_ st) (pair (lit seed) (pair (first st) (rest st)))) seeds)))
     ; Order-preserving upsert of one seed's claim.
     (method %pin-seed-put (self seeds name rels)
       (def %rec (fn (self seeds name rels)
@@ -478,7 +421,7 @@
                   ; language underneath it.
                   (File spit (Pin %pin-lock-path dest)
                     (Str8 append (Pin %pin-lock-header)
-                      (Str8 append (Pin %pin-platform-render (Pin %pin-platform-forms (Pin %pin-lock-forms dest)))
+                      (Str8 append (Xon emit (Pin %pin-platform-forms (Pin %pin-lock-forms dest)))
                         (Str8 append (Pin %pin-lock-render (Pin %pin-lock-entries dest live))
                                      (Pin %pin-seed-render seeds)))))
                   (Pin %pin-not-in old-rels live))))))
@@ -688,16 +631,13 @@
       (let ((old (Pin %pin-lock-forms dest)))
             (File spit (Pin %pin-lock-path dest)
               (Str8 append (Pin %pin-lock-header)
-                (Str8 append (Pin %pin-platform-render forms)
+                (Str8 append (Xon emit forms)
                              (Pin %pin-nonplatform-render old))))))
     (method %pin-nonplatform-render (self forms)
-      (def %rec (fn (self forms)
-        (match
-              ((null? forms) "")
-              ((not (pair? (first forms))) (self (rest forms)))
-              ((%memq? (first (first forms)) (Pin %pin-platform-heads)) (self (rest forms)))
-              (#t (Str8 append (Pin %pin-form-render (first forms)) (self (rest forms)))))))
-      (%rec forms))
+      (Xon emit
+        (%filter (fn (_ f)
+                   (if (pair? f) (not (%memq? (first f) (Pin %pin-platform-heads))) #f))
+                 forms)))
     ; The default project directory for the verbs: "." unless given.
     (method %pin-dir-or-dot (self dir)
       (match ((null? dir) ".") (#t (first dir))))

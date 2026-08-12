@@ -40,6 +40,7 @@
 ; Output: one line per finding, then "ok" iff there were none.
 
 (import x/sys/file)
+(import x/codec/xon)
 
 ; Cached C instruments (cold path; fetched once).
 (def %str-make (prim-ref 'str 'make))
@@ -84,15 +85,15 @@
           (let ((text (%read-chunks fd "")))
             (do (File close fd) text)))))))
 
-; Trailing space so the tokenizer closes the final token (read-str drops an
-; unterminated tail).  Cached across phases: phase 1 tokenizes every lib
-; file for the inventory, phase 2 re-walks the boot closure.
+; Cached across phases: phase 1 tokenizes every lib file for the
+; inventory, phase 2 re-walks the boot closure.  The end-of-buffer
+; termination workaround lives in the shared door (Xon read, #230).
 (def %read-forms
   (fn (_ path)
     (let ((hit (%assoc-str path (first %forms-cache-cell))))
       (match
         ((null? hit)
-          (let ((forms (Tok read-str (%base) (Str8 append (%read-file path) " "))))
+          (let ((forms (Xon read (%read-file path))))
             (do (%cell-push! %forms-cache-cell (pair path forms))
                 forms)))
         (#t (rest hit))))))

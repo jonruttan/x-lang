@@ -11,10 +11,10 @@
 ; the source tokens using the alist as fallback for bare (def ...) forms.
 
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
-(def %token-read-string (prim-ref 'tok 'read-str))
 
 (do
   (import x/doc/doc-gen)
+  (import x/codec/xon)
   (import x/tool/contract)
 
   (Contract alloc-guard!)
@@ -36,8 +36,8 @@
   ; --- Tokenize both with a fresh base ---
   ; (Base make): make-base retired when the constructors homed on the Base class
   (def %doc-base (Base make))
-  (def %prims-tokens (%token-read-string %doc-base %prims-input))
-  (def %source-tokens (%token-read-string %doc-base %source-input))
+  (def %prims-tokens (Xon read %prims-input %doc-base))
+  (def %source-tokens (Xon read %source-input %doc-base))
 
   ; --- Build lookup alist from doc-prims tokens ---
   (def %prims-alist (%doc-build-lookup %prims-tokens))

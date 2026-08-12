@@ -13,10 +13,10 @@
 
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
-(def %token-read-string (prim-ref 'tok 'read-str))
 
 (do
   (import x/tool/fmt)
+  (import x/codec/xon)
   (import x/tool/contract)
 
   (Contract alloc-guard!)
@@ -52,7 +52,7 @@
 
   ; --- Load construct declarations (parsed, not evaluated) ---
   (def %parse-one
-    (fn (_ path) (first (%token-read-string (%base) (File slurp path)))))
+    (fn (_ path) (first (Xon read (File slurp path)))))
   (def %constructs (%parse-one "lib/x/constructs.x"))
   (def %lang-constructs
     (if (null? %the-lang) ()
@@ -104,7 +104,7 @@
   ; --- Slurp the target and tokenize ---
 
   (def %input (File slurp %file))
-  (def %tokens (%token-read-string %fmt-base %input))
+  (def %tokens (Xon read %input %fmt-base))
 
   ; --- Format ---
 

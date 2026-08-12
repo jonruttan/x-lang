@@ -82,7 +82,12 @@
         (example "(Ansi highlight \"(def x 42)\")" "(def x 42)"))
       (if (not %ansi?)
         (display code)
-        (let ((%toks (%token-read-string (%base) code))
+        ; Terminated read, local on purpose: this file is boot-included,
+        ; so it cannot import the shared door (x/codec/xon).  Without the
+        ; appended space, read-str drops an unterminated final token
+        ; (#161) -- and highlight routinely sees mid-edit text whose last
+        ; token IS unterminated.
+        (let ((%toks (%token-read-string (%base) (Str8 append code " ")))
               (%go
                 (fn (self toks first?)
                   (unless (null? toks)
