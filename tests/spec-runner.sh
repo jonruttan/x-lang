@@ -139,9 +139,26 @@ _throttle() {
   fi
 }
 
-for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
+# Positional arguments name EXACTLY the specs to run (GH #221: they used
+# to be silently ignored -- accepted-and-discarded is the silent-fallback
+# shape).  A named path that does not exist is a loud error, never a
+# fallthrough to the glob.  No arguments = every spec under SPEC_PATH, as
+# ever; the SPECS='<glob>' narrowing composes with both modes, and the
+# STRESS tail stays glob-mode only (explicit args mean exactly those).
+_args_mode=0
+if [ $# -gt 0 ]; then
+  _args_mode=1
+  for _s in "$@"; do
+    [ -f "$_s" ] || { echo "spec-runner: no such spec file: $_s" >&2; exit 1; }
+  done
+else
+  set -- "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md
+fi
+for _spec in "$@"; do
   [ -f "$_spec" ] || continue
-  case "$_spec" in */applicative/*) continue ;; esac
+  # Applicative (stress) specs are skipped by the glob walk; naming one
+  # explicitly runs it.
+  case "$_spec" in */applicative/*) [ "$_args_mode" = 1 ] || continue ;; esac
   # Arch-tagged specs (<name>.<arch>.spec.md) run only on matching hosts.
   _tag="${_spec%.spec.md}"; _tag="${_tag##*.}"
   case "$_tag" in
@@ -194,8 +211,9 @@ for _spec in "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md; do
   fi
 done
 
-# Applicative (stress) specs only run with STRESS=1.
-if [ -n "$STRESS" ] && [ -d "$SPEC_PATH/applicative" ]; then
+# Applicative (stress) specs only run with STRESS=1, and only in glob
+# mode -- explicit arguments already said exactly what to run.
+if [ "$_args_mode" = 0 ] && [ -n "$STRESS" ] && [ -d "$SPEC_PATH/applicative" ]; then
   for _spec in "$SPEC_PATH"/applicative/*.spec.md; do
     [ -f "$_spec" ] || continue
     _I=$_N

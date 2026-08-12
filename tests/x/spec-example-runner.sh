@@ -8,6 +8,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 X_BIN="${X_BIN:-$SCRIPT_DIR/../../x-bin}"
 LANG_LIB="${LANG_LIB:-$SCRIPT_DIR/../../lib/x-core.x}"
-SPEC_PATH="$SCRIPT_DIR/../../build/spec-example-specs"
+SPEC_PATH="${SPEC_PATH:-$SCRIPT_DIR/../../build/spec-example-specs}"
 
 . "$SCRIPT_DIR/../spec-runner.sh"
