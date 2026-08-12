@@ -14,7 +14,7 @@ an if-tail interpolation reads its variable as Unbound.
 
 Coverage note: with read-time `$"..."` parsing (the shipped default), the
 interpolation cases below no longer route through the eval-time operative, so
-they guard the user-visible behavior via the read-time path. The "pure eval-core"
+they guard the user-visible behaviour via the read-time path. The "pure eval-core"
 cases at the end reproduce the operative-tail wander WITHOUT interpolation -- a
 recursive-build operative (no tokenizer at all) and a `token-read-string`
 operative (the fmt.x class) -- so they isolate `x_op_restore`: each reads Unbound

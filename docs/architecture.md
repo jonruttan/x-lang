@@ -119,7 +119,7 @@ The parameter list binds the unevaluated argument tree. The environment paramete
 
 #### wrap / unwrap
 
-`wrap` takes any combiner and produces an applicative: a combiner that evaluates its arguments before delegating to the wrapped combiner. `unwrap` extracts the underlying combiner from an applicative. These allow conversion between operative and applicative behavior without creating new primitive types.
+`wrap` takes any combiner and produces an applicative: a combiner that evaluates its arguments before delegating to the wrapped combiner. `unwrap` extracts the underlying combiner from an applicative. These allow conversion between operative and applicative behaviour without creating new primitive types.
 
 #### Tail-Call Optimization
 

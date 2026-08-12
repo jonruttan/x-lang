@@ -57,7 +57,7 @@ make --no-print-directory install PREFIX="/x-$TAG" DESTDIR="$STAGE" >/dev/null \
 # Developer ID sign + notarize the staged engine BEFORE tarring -- only
 # when the release workflow provided a real identity (secrets present).
 # Unset (the local gate, and any release without notary secrets) leaves
-# the ad-hoc signature `make install` applied: today's behavior, no
+# the ad-hoc signature `make install` applied: today's behaviour, no
 # change.  Set: a failure here fails the package -- we never ship a
 # binary that was meant to be notarized but wasn't.
 if [ -n "${MACOS_SIGN_IDENTITY:-}" ] && [ "$os" = darwin ]; then

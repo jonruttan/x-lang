@@ -71,4 +71,4 @@ the tail. Its idiomatic use is the bare-variadic parameter list:
   `0x`/`0X` prefix is hex. (Ruled and implemented — base auto-detection's
   octal surprise is gone.)
 - The `1a` → `1`,`a` split and symbol permissiveness are documented
-  behavior, not bugs — the scoring rules above are the specification.
+  behaviour, not bugs — the scoring rules above are the specification.

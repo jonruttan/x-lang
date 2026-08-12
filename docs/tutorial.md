@@ -187,7 +187,7 @@ x-lang's evaluation model is distinctive. All C-level primitives are **fexprs**:
 
 `op` binds the unevaluated argument tree and the caller's environment `e`. The body decides what to evaluate and when. This is how all core forms (`if`, `def`, `match`, `do`) are implemented -- they are ordinary operatives, not special forms the evaluator knows about.
 
-`wrap` and `unwrap` convert between applicative and operative behavior:
+`wrap` and `unwrap` convert between applicative and operative behaviour:
 
 ```
 > (def my-add (wrap (op (a b) e (+ (eval a e) (eval b e)))))

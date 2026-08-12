@@ -370,7 +370,7 @@ passing them to the underlying combiner.
 `(unwrap applicative) -> combiner`
 
 Extracts the underlying combiner from an applicative. Calling `unwrap` on a
-value that was not created by `wrap` is undefined behavior.
+value that was not created by `wrap` is undefined behaviour.
 
 ```
 (def my-op (op (x) e x))
