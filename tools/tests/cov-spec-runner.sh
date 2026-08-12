@@ -5,7 +5,7 @@
 # Sources the shared test runner.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SPEC_PATH="$SCRIPT_DIR/specs/cov"
+SPEC_PATH="${SPEC_PATH:-$SCRIPT_DIR/specs/cov}"
 X_BIN="$SCRIPT_DIR/../../x-bin-cov"
 LANG_LIB="$SCRIPT_DIR/../../lib/x-core.x"
 
