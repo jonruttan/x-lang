@@ -23,6 +23,9 @@
 (def %obj-meta-ref (prim-ref 'obj 'meta-ref))
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
 (def %read (prim-ref 'io 'read))
+; The bare `convert` global was homed (the conversion surface is the Convert
+; class); fetch the dispatcher directly -- same door tools/dev/lint.x uses.
+(def %cov-cvt (prim-ref 'convert 'to))
 
 
 (do
@@ -38,20 +41,20 @@
   (def %build-lookup (fn (_ entries acc)
     (if (null? entries) acc
       (do (def entry (first entries))
-          (def name (convert (first entry) %string))
+          (def name (%cov-cvt (first entry) %string))
           (def props (rest entry))
           (%build-lookup (rest entries)
             (pair (pair name props) acc))))))
   (def %construct-table (%build-lookup %all-constructs ()))
 
-  ; Lookup helper using string=? for cross-base symbol comparison
+  ; Lookup helper using str=? for cross-base symbol comparison
   (def %construct-find (fn (_ key table)
     (unless (null? table)
-      (if (string=? key (first (first table)))
+      (if (str=? key (first (first table)))
         (first table)
         (%construct-find key (rest table))))))
   (def %construct-lookup (fn (_ name)
-    (def entry (%construct-find (convert name %string) %construct-table))
+    (def entry (%construct-find (%cov-cvt name %string) %construct-table))
     (unless (null? entry)
       (rest entry))))
 
@@ -67,16 +70,16 @@
   ; --- Derive word-size and define flag access ---
 
   (def word-size
-    (if (> (convert (convert 4294967296 %ptr) %int) 0) 8 4))
+    (if (> (%cov-cvt (%cov-cvt 4294967296 %ptr) %int) 0) 8 4))
 
   (def %flags-offset (* 2 word-size))
   (def %cov-bit 2)
 
   (def obj-flags (fn (_ obj)
-    (%ptr-ref-word (convert obj %ptr) %flags-offset)))
+    (%ptr-ref-word (%cov-cvt obj %ptr) %flags-offset)))
 
   (def obj-flag-set (fn (_ obj bit)
-    (%ptr-set-word! (convert obj %ptr) %flags-offset
+    (%ptr-set-word! (%cov-cvt obj %ptr) %flags-offset
       (| (obj-flags obj) bit))
     obj))
 
@@ -183,7 +186,7 @@
   (def %build-dispatch (fn (_ entries acc)
     (if (null? entries) acc
       (do (def entry (first entries))
-          (def name (convert (first entry) %string))
+          (def name (%cov-cvt (first entry) %string))
           (def props (rest entry))
           (def branch-type (%get-prop 'branch props))
           (def handler
@@ -214,7 +217,7 @@
             ; %construct-find, not a local walker: a same-named def here binds
             ; globally (top-level do) and once clobbered class.x's %lookup.
             (def handler
-              (%construct-find (convert (first form) %string) %dispatch))
+              (%construct-find (%cov-cvt (first form) %string) %dispatch))
             (if handler
               ((rest handler) form %cov-eval)
               (%safe-walk %cov-eval form))))))))

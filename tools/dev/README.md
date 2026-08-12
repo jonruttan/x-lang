@@ -72,8 +72,6 @@ exports are used downstream).  Scope tracking covers `def`/`set!`, `fn`,
 - `tools/dev/lint.x` -- the linter (scope walk + reporting; the `%lint-lib`
   first-form token is its library-mode flag)
 - `tools/dev/lint.sh` -- launch wrapper (file discovery, constructs input)
-- `tools/dev/lint-lib.x` -- legacy def/use analysis library; loaded by
-  nothing but its own specs (see Tests below)
 
 ## Coverage
 
@@ -161,9 +159,8 @@ timing is reported; a fast wrong digest is worth nothing.
 make test-tools
 ```
 
-Runs `tools/tests/` (fmt + lint + cov specs).  CURRENTLY RED and not part
-of `make test`: the suite rotted while orphaned (nothing invoked it; API
-drift accumulated -- `make-base` retired for `(Base make)`, `includes?`
-homed onto List, printer output changes).  It rejoins the gate when the
-specs are repaired or folded into `tests/x/specs/` -- tracked in the
-tools-overhaul follow-up issue.
+Runs `tools/tests/` (fmt specs on the plain engine, cov + meta specs on
+`x-bin-cov`).  In `make test` and CI since the #180 repair.  The legacy
+def/use library `lint-lib.x` and its specs were retired with that repair
+(dead code: loaded by nothing, its `%walk-pair` dispatcher was never
+assigned); the live linter is `lib/x/tool/lint.x`, gated by `lint-x`.
