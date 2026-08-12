@@ -42,6 +42,7 @@
 ; way the wrapper closes it for this module itself).
 (import x/sys/posix)
 (import x/codec/sha256)
+(import x/sys/proc)
 (import x/codec/xon)
 
 ; --- The Pin class: the whole tool, one namespace ---------------------
@@ -485,20 +486,12 @@
       (%rec lst))
     (method %pin-url (self base tag file)
       (Str8 append base (Str8 append "/" (Str8 append tag (Str8 append "/" file)))))
-    ; Run argv ("curl" ...) via fork/execvp/wait; 127 = exec never happened
-    ; (the command is absent).  The child must die on exec failure or a
-    ; second interpreter continues this very program.
-    (method %pin-run! (self argv)
-      (let ((pid (Sys fork)))
-            (match
-              ((= pid 0)
-                (do (Sys exec (first argv) (rest argv))
-                    (Sys exit 127)))
-              (#t (Sys wait pid)))))
+    ; Download via curl through Proc run! (#226): 127 = curl absent,
+    ; anything else nonzero = the download failed.
     (method %pin-download! (self url target)
       ; -f: HTTP errors fail the exit status; -L: release downloads
           ; redirect; -sS: quiet but errors still print
-          (let ((status (Pin %pin-run! (list "curl" "-fsSL" "-o" target url))))
+          (let ((status (Proc run! (list "curl" "-fsSL" "-o" target url))))
             (match
               ((= status 0) ())
               ((= status 127)

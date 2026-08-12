@@ -522,7 +522,7 @@ vendor into that overlay must not evict them.
 ### an absent command reports 127 (the print-the-URLs fallback's trigger)
 
 ```scheme
-(display (Pin %pin-run! (list "no-such-command-pin-spec-xyz")))
+(display (Proc run! (list "no-such-command-pin-spec-xyz")))
 ```
 ---
     127

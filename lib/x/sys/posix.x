@@ -59,6 +59,7 @@
 
 (def %c-pipe (%resolve "pipe"))
 
+
 (def %c-dup2 (%resolve "dup2"))
 
 (def %c-waitpid (%resolve "waitpid"))
@@ -98,13 +99,18 @@
       (doc "Terminate the process with the given exit status.")
       (%ptr-call %c-exit status))
     (method wait (self (param pid INT "Process ID to wait for"))
-      (doc "Wait for a child process and return its exit status."
-        (returns INT "Exit status of the child process"))
-      (let ((buf (%cvt (%ptr-call %c-malloc 4) %ptr)))
-        (%ptr-call %c-waitpid pid buf 0)
-        (let ((raw (%ptr-ref buf 0 4)))
-          (%ptr-call %c-free buf)
-          (/ (% raw 65536) 256))))
+      (doc "Wait for a child and return how it ended."
+        (returns INT "Exit status 0-255 for a normal exit; 128+N when signal N killed the child (the shell convention)")
+        (note "The old contract returned WEXITSTATUS unconditionally, so a signal-killed child reported 0 -- success (#226)."))
+      ; Status word lands in a GC-owned (str make) region (see pipe).
+      ; Low 7 bits = the killing signal, 0 for a normal exit; the exit
+      ; code rides bits 8-15.
+      (let ((s (%make-str 4)))
+        (let ((buf (%str->ptr s)))
+          (%ptr-call %c-waitpid pid buf 0)
+          (let ((raw (%ptr-ref buf 0 4)))
+            (let ((sig (% raw 128)))
+              (if (= sig 0) (/ (% raw 65536) 256) (+ 128 sig)))))))
     (method exec (self (param name STRING "Program name") (param args LIST "List of argument strings"))
       (doc "Replace the current process with the named program. Does not return on success.")
       (let ((all (pair name args)))
@@ -122,6 +128,27 @@
                     (self (rest lst) (+ i 1))))))
             (%fill all 0)
             (%sys-fold (%ptr-call %c-execvp name argv))))))
+    ; --- Signals ---
+    ; POSIX-fixed numbers (identical on Darwin and Linux); named here so
+    ; call sites stop carrying magic 2/1/15 literals (#226).
+    (sigint 2 "SIGINT: terminal interrupt (ctrl-c)")
+    (sigkill 9 "SIGKILL: uncatchable, unignorable kill")
+    (sigterm 15 "SIGTERM: polite termination request")
+    (sig-dfl 0 "signal(2) disposition: restore the default action")
+    (sig-ign 1 "signal(2) disposition: ignore the signal")
+    (method kill (self (param pid INT "Process ID")
+                       (param sig INT "Signal number, e.g. (Sys sigterm)"))
+      (doc "Send a signal to a process." (returns INT "0 on success, -1 on error"))
+      ; Cold path: resolve per call (the file-exists? pattern), keeping
+      ; the module inside its %-globals budget.
+      (%sys-fold (%ptr-call (%resolve "kill") pid sig)))
+    (method signal (self (param sig INT "Signal number")
+                         (param disposition INT "(Sys sig-ign) or (Sys sig-dfl) ONLY -- an x-lang closure cannot be a C signal handler"))
+      (doc "Set a signal's disposition to ignore or default."
+        (returns ANY "The previous disposition; meaningful only when it was one of the two constants"))
+      ; signal(2) returns a POINTER (the old handler) -- never %sys-fold
+      ; a pointer return (see the fold's comment above).
+      (%ptr-call (%resolve "signal") sig disposition))
     ; --- File descriptors ---
     (method close (self (param fd INT "File descriptor to close"))
       (doc "Close a file descriptor." (returns INT "0 on success, -1 on error"))

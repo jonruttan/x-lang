@@ -89,6 +89,14 @@ for f in "$@"; do
   # linter collects the file's own defs from its forms regardless).
   _PRELOAD=""
   case "$f" in
+    # Dialect entries (lib/x/*.x) reference classes their own (import ...)
+    # lines load -- rn.x's system rides Proc (#226).  Same rule as the app
+    # arm below: the target's top-level import lines declare the env it
+    # boots with; execute just those first.  Modules import-once, so a
+    # sibling chain re-pulling one is harmless.
+    */lib/x/*.x)
+      _PRELOAD="$(grep '^(import ' "$f" | tr '\n' ' ')"
+      ;;
     */apps/*/*.x|apps/*/*.x)
       _APP_DIR="$(cd "$(dirname "$f")" && pwd)"
       _APPS_ROOT="$(dirname "$_APP_DIR")"

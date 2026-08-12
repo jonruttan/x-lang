@@ -60,7 +60,7 @@
 (file "lib/x/tool/asm.x" 40)
 (file "lib/x/tool/asm/arm64.x" 8)
 (file "lib/x/tool/asm/x86_64.x" 23)
-(file "lib/x/tool/compile.x" 24)
+(file "lib/x/tool/compile.x" 23)
 (file "lib/x/tool/compile/emit.x" 54)
 (file "lib/x/tool/compile/pipeline.x" 10)
 (file "lib/x/tool/contract.x" 4)

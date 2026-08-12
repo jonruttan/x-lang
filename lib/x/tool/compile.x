@@ -11,6 +11,7 @@
 
 (import x/type/str)
 (import x/sys/posix)
+(import x/sys/proc)
 (import x/type/hash)
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
 (def %type-of (prim-ref 'type 'of))
@@ -36,7 +37,6 @@
 ; --- libc resolves (fd-write / file-exists? live on the Sys class) ---
 
 (def %c-unlink (%resolve "unlink"))
-(def %c-system (%resolve "system"))
 
 ; --- Compile counter for unique temp file names ---
 
@@ -97,15 +97,16 @@
 
 (def %compile-cc
   (fn (_ src-path lib-path)
-    (def %cc-cmd
-      (%fold (fn (_ acc s) (Str append acc " " s))
-        "cc"
-        (%append %compile-cc-flags
-          (list "-O2" "-DX_HEAP" "-DX_TYPE" "-Wno-unused-value"
-                "-Iext/x-expr/include" "-I./include"
-                "-o" lib-path src-path))))
-    ; %sys-fold (x/sys/posix): keeps a failed status readable, not u32-huge
-    (def %cc-status (%sys-fold (%ptr-call %c-system %cc-cmd)))
+    ; A real argv through Proc run! (#226), not libc system(): paths are
+    ; single arguments (no shell re-split), and the status is the actual
+    ; exit code, not an undecoded wait word.
+    (def %cc-status
+      (Proc run!
+        (pair "cc"
+          (%append %compile-cc-flags
+            (list "-O2" "-DX_HEAP" "-DX_TYPE" "-Wno-unused-value"
+                  "-Iext/x-expr/include" "-I./include"
+                  "-o" lib-path src-path)))))
     (if (not (= %cc-status 0))
       (Err raise 'io (Str append "compile: cc failed with status " (%cvt %cc-status %string)) ()))))
 
