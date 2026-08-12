@@ -89,7 +89,7 @@ is intact.
 
 The hook registers a root during the mark phase, so it calls the raw
 catalog prim (no allocation mid-collect); the freshly registered root
-is honored and the object survives.
+is honoured and the object survives.
 
 ```scheme
 (def guarded (pair 'safe ()))

@@ -4,7 +4,7 @@
 
 ```scheme
 (do
-  (def %base (make-base))
+  (def %base (Base make))
   (def %tokens (Tok read-str %base "(+ 1 2)"))
   (display (%length %tokens))
   (display " ")
@@ -17,7 +17,7 @@
 
 ```scheme
 (do
-  (def %base (make-base))
+  (def %base (Base make))
   (def %tokens (Tok read-str %base "(def x 1)\n(def y 2)"))
   (display (%length %tokens)))
 ```
@@ -28,7 +28,7 @@
 
 ```scheme
 (do
-  (def %base (make-base))
+  (def %base (Base make))
   (def %tokens (Tok read-str %base "(if (> x 0) x (- 0 x))"))
   (def %form (first %tokens))
   (display (first %form))
@@ -36,13 +36,13 @@
   (display (pair? (first (rest %form)))))
 ```
 ---
-    if t
+    if #t
 
 ### tokenizes strings
 
 ```scheme
 (do
-  (def %base (make-base))
+  (def %base (Base make))
   (def %tokens (Tok read-str %base "(display \"hello\")"))
   (def %form (first %tokens))
   (display (first %form))
@@ -56,18 +56,18 @@
 
 ```scheme
 (do
-  (def %base (make-base))
+  (def %base (Base make))
   (def %tokens (Tok read-str %base "()"))
   (display (null? %tokens)))
 ```
 ---
-    t
+    #t
 
 ### preserves integer values
 
 ```scheme
 (do
-  (def %base (make-base))
+  (def %base (Base make))
   (def %tokens (Tok read-str %base "42\n"))
   (display (first %tokens)))
 ```
@@ -78,18 +78,18 @@
 
 ```scheme
 (do
-  (def %base (make-base))
+  (def %base (Base make))
   (def %tokens (Tok read-str %base "#\\a\n"))
   (display (char? (first %tokens))))
 ```
 ---
-    t
+    #t
 
 ### tokenizes def form structure
 
 ```scheme
 (do
-  (def %base (make-base))
+  (def %base (Base make))
   (def %tokens (Tok read-str %base "(def x (+ 1 2))"))
   (def %form (first %tokens))
   (display (first %form))
@@ -99,4 +99,4 @@
   (display (pair? (first (rest (rest %form))))))
 ```
 ---
-    def x t
+    def x #t

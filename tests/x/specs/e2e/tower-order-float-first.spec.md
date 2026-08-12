@@ -84,7 +84,7 @@ top-level form, so literal tests simply follow their import's test.
 ---
     #t
 
-### the converter honors the sign
+### the converter honours the sign
 
 ```scheme
 (def %t-cv3 (prim-ref 'convert 'to))

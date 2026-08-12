@@ -142,7 +142,7 @@ global-buffer-overflow past the "#f" string global, in x_heap_tree_mark).
 BOOL declares units 0: its instances trace nothing. This pins the boot
 claim across back-to-back collections on the REPL's own sweep path.
 
-### collect twice, then every boolean behavior
+### collect twice, then every boolean behaviour
 
 ```scheme
 (do

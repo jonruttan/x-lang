@@ -9,7 +9,7 @@
 ;            body    = no args on head line, all as body (do, match)
 ;            call    = default function call layout
 ;
-;   scope  - Linter scope behavior:
+;   scope  - Linter scope behaviour:
 ;            bind    = first arg is a binding name (def)
 ;            bind-set = first arg is a symbol being set (set)
 ;            params  = first arg is parameter list (fn)
@@ -20,7 +20,7 @@
 ;            none    = no scope effect (if, do, match)
 ;            skip    = skip entirely, don't walk body (lit, include)
 ;
-;   branch - Coverage branch behavior:
+;   branch - Coverage branch behaviour:
 ;            cond    = then/else branches (if)
 ;            clauses = each subform is a clause (match, cond)
 ;            short   = short-circuit, each arg is a branch (and, or)

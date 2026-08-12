@@ -18,7 +18,7 @@
 ;     #101); (+ 1 ()) is caught by the C prims' nil guards.
 ;   - mixed tower/non-numeric ((+ 1.5 "a")): both sides own the op and
 ;     neither type absorbs the other, so op_try declines ("unrelated
-;     types: not ours to decide") -- pre-existing tower-side behavior.
+;     types: not ours to decide") -- pre-existing tower-side behaviour.
 ;
 ; `=` is deliberately NOT registered: it is value-word compare in the
 ; fallthrough, and interned symbols answer it correctly by pointer -- an

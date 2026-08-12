@@ -1,12 +1,15 @@
 ## meta: obj-meta-count primitives
 
-### obj-meta-count defaults to 0
+### obj-meta-count defaults to 2 (source-location line/file slots)
 
 ```scheme
+; Boot reserves meta slots 0/1 for raise-time line/file stamping
+; (lib/x/boot/ + docs: source-location errors), so a base that has
+; loaded x-core reports 2, not 0.
 (display (Obj meta-count))
 ```
 ---
-    0
+    2
 
 ### obj-meta-ref on non-extended object returns 0
 
@@ -23,6 +26,7 @@
 ### obj-meta-count! sets and returns old value
 
 ```scheme
+; The old value is 2: the source-location slots x-core booted with.
 (do
   (def %old (Obj meta-count! 3))
   (display %old)
@@ -30,7 +34,7 @@
   (display (Obj meta-count)))
 ```
 ---
-    0 3
+    2 3
 
 ### obj-meta-set! and obj-meta-ref round-trip
 

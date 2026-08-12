@@ -1,7 +1,7 @@
 #!/bin/sh
 # check-logo-tty.sh -- the Logo REPL's tty contract, pinned executably.
 #
-# The #152/#157 interactive behaviors (ctrl-c cancel, exit paths, hooks,
+# The #152/#157 interactive behaviours (ctrl-c cancel, exit paths, hooks,
 # execute-once) are isatty-guarded and therefore INVISIBLE to every
 # batch-driven suite -- the front-facing-audit lesson.  This harness
 # drives real pty sessions with expect(1) and is the only executable
