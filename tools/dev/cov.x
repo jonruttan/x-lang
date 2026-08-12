@@ -17,8 +17,6 @@
 (def %ptr-ref-word (prim-ref 'ptr 'ref-word))
 (def %ptr-set-word! (prim-ref 'ptr 'set-word!))
 
-(def %token-read-string (prim-ref 'tok 'read-str))
-
 (def %obj-meta-count! (prim-ref 'obj 'meta-count!))
 (def %obj-meta-ref (prim-ref 'obj 'meta-ref))
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
@@ -29,6 +27,8 @@
 
 
 (do
+  (import x/codec/xon)
+
   ; --- Load construct declarations ---
 
   (def %constructs (%read))
@@ -93,7 +93,9 @@
   ; --- Tokenize input ---
 
   (def %input (%read))
-  (def %tokens (%token-read-string (%base) %input))
+  ; Xon read carries the end-of-buffer termination fix this call
+  ; previously lacked (#230).
+  (def %tokens (Xon read %input))
 
   ; --- Evaluate all top-level forms ---
 
