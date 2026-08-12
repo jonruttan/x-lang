@@ -196,13 +196,6 @@
               (pair (pair name handler) acc)))))))
   (def %dispatch (%build-dispatch %all-constructs ()))
 
-  ; Lookup in dispatch table (string keys)
-  (def %lookup (fn (_ key table)
-    (unless (null? table)
-      (if (string=? key (first (first table)))
-        (first table)
-        (%lookup key (rest table))))))
-
   ; --- Generic walker ---
 
   (def %safe-walk ())
@@ -218,8 +211,10 @@
         (if (not (symbol? (first form)))
           (%safe-walk %cov-eval form)
           (do
+            ; %construct-find, not a local walker: a same-named def here binds
+            ; globally (top-level do) and once clobbered class.x's %lookup.
             (def handler
-              (%lookup (convert (first form) %string) %dispatch))
+              (%construct-find (convert (first form) %string) %dispatch))
             (if handler
               ((rest handler) form %cov-eval)
               (%safe-walk %cov-eval form))))))))
