@@ -16,10 +16,17 @@
 #     the adjudicated allowlist below or every definition lives in the
 #     per-arch backend directory (lib/x/tool/asm/ -- one loads per host).
 #
-# Scope: lib/ + apps/ (everything that can co-load into one base env).
+# Scope: lib/ + apps/ + tools/ (everything that can co-load into one
+# base env -- the driver scripts load x-core and then their tool file, so
+# tools/ globals land in the same env; the %lookup rebind fixed in #252
+# lived exactly there, invisible to the pre-tools scan).
 # Extraction is a real form scanner (paren depth outside strings, char
 # literals, and ; comments), not a line grep.  Recognized definers:
 # (def NAME ...), (def-class NAME ...), and their (doc ...) wrappers.
+# A top-level (do ...) is descended into: %do-seq tail-evals children in
+# the caller's env, so defs directly inside it bind globally -- treating
+# them as top-level is what makes the cov.x/lint.x (do ...) bodies
+# visible.  (let ...) is NOT descended: its bindings are scoped.
 #
 # Adjudicated same-name multi-definition names (2026-07-19, #47 wrap-up):
 #   let            -- staged bootstrap upgrade: core/control.x defines the
@@ -42,7 +49,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR" || exit 1
 
-_FILES=$(find lib apps -name '*.x' 2>/dev/null | sort)
+_FILES=$(find lib apps tools -name '*.x' 2>/dev/null | sort)
 
 awk '
 BEGIN {
@@ -51,18 +58,48 @@ BEGIN {
   for (i in aw) allow[aw[i]] = 1
 }
 
-function flush_form(    tmp, name, body, key) {
-  if (form == "") return
-  # Normalize the quote idiom: (lit x)/(quote x) and bare quotes compare
-  # equal (#45 R2 allows either spelling in boot-constrained files).
-  while (match(form, /\((lit|quote) [^()]+\)/)) {
-    tmp = substr(form, RSTART, RLENGTH)
-    sub(/^\((lit|quote) /, "", tmp)
-    sub(/\)$/, "", tmp)
-    form = substr(form, 1, RSTART - 1) "Q:" tmp substr(form, RSTART + RLENGTH)
+# Split the children of a top-level (do ...) body into kids[1..n],
+# tracking strings and #\X char literals so their parens do not count.
+# Only list-shaped children are collected (defs are lists; atoms cannot
+# define anything).
+function split_children(f, kids,    s, i, n, c, depth, start, cnt, str) {
+  s = f
+  sub(/^\(do[ \t]*/, "", s)
+  sub(/\)[ \t]*$/, "", s)
+  n = length(s); depth = 0; str = 0; cnt = 0; start = 0
+  for (i = 1; i <= n; i++) {
+    c = substr(s, i, 1)
+    if (str) {
+      if (c == "\\") i++
+      else if (c == "\"") str = 0
+      continue
+    }
+    if (c == "#" && substr(s, i, 2) == "#\\") { i += 2; continue }
+    if (c == "\"") { str = 1; continue }
+    if (c == "(") {
+      if (depth == 0) start = i
+      depth++
+    } else if (c == ")") {
+      depth--
+      if (depth == 0 && start > 0) {
+        kids[++cnt] = substr(s, start, i - start + 1)
+        start = 0
+      }
+    }
   }
-  gsub(/'"'"'/, "Q:", form)
-  tmp = form
+  return cnt
+}
+
+# Record one top-level form (already quote-normalized).  A (do ...) is
+# descended: %do-seq tail-evals its children in the CALLER env, so a
+# def directly inside binds globally, same as a bare top-level def.
+function handle(f,    tmp, name, body, key, kids, nk, j) {
+  if (f ~ /^\(do[ \t(]/) {
+    nk = split_children(f, kids)
+    for (j = 1; j <= nk; j++) handle(kids[j])
+    return
+  }
+  tmp = f
   if (tmp ~ /^\(doc[ \t]*\(def(-class)?[ \t]/) sub(/^\(doc[ \t]*/, "", tmp)
   if (tmp ~ /^\(def(-class)?[ \t]/) {
     sub(/^\(def(-class)?[ \t]+/, "", tmp)
@@ -78,6 +115,17 @@ function flush_form(    tmp, name, body, key) {
         if (body ~ /^\(prim-ref /) {
           if (!(name in fetch_body)) fetch_body[name] = body
           else if (fetch_body[name] != body) fetch_diverge[name] = 1
+        } else if (FILENAME ~ /^tools\//) {
+          # A tool script co-loads with lib/apps (its driver loads x-core
+          # first) but never with a sibling tool script -- each driver is
+          # its own engine run.  So a tools/ def is checked against the
+          # lib/apps owner only; tools-vs-tools same-name defs are fine.
+          # lib/apps sort before tools/, so the owner is already recorded.
+          if ((name in own_body) && own_body[name] != body) {
+            own_diverge[name] = 1
+            own_file2[name] = FILENAME
+            own_outside_arch[name] = 1
+          }
         } else {
           if (!(name in own_body)) { own_body[name] = body; own_file[name] = FILENAME }
           else if (own_body[name] != body) {
@@ -91,6 +139,20 @@ function flush_form(    tmp, name, body, key) {
       }
     }
   }
+}
+
+function flush_form(    tmp) {
+  if (form == "") return
+  # Normalize the quote idiom: (lit x)/(quote x) and bare quotes compare
+  # equal (#45 R2 allows either spelling in boot-constrained files).
+  while (match(form, /\((lit|quote) [^()]+\)/)) {
+    tmp = substr(form, RSTART, RLENGTH)
+    sub(/^\((lit|quote) /, "", tmp)
+    sub(/\)$/, "", tmp)
+    form = substr(form, 1, RSTART - 1) "Q:" tmp substr(form, RSTART + RLENGTH)
+  }
+  gsub(/'"'"'/, "Q:", form)
+  handle(form)
   form = ""
 }
 

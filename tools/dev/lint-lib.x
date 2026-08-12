@@ -17,12 +17,12 @@
 (def %walk-pair ())
 (def %walk-list ())
 
-(def %add-params (fn (_ params scope)
+(def %walk-add-params (fn (_ params scope)
   (if (null? params) scope
     (if (symbol? params)
       (pair params scope)
       (if (pair? params)
-        (%add-params (rest params) (pair (first params) scope))
+        (%walk-add-params (rest params) (pair (first params) scope))
         scope)))))
 
 ; Walk a list of sequential forms, accumulating defs into scope
@@ -42,14 +42,14 @@
 ; (fn (_ params...) body...)
 (def %walk-fn (fn (_ form scope uses)
   (def params (first (rest form)))
-  (%walk-list (rest (rest form)) (%add-params params scope) uses)))
+  (%walk-list (rest (rest form)) (%walk-add-params params scope) uses)))
 
 ; (op (_ params env) body...)
 (def %walk-op (fn (_ form scope uses)
   (def params (first (rest form)))
   (def env-param (first (rest (rest form))))
   (%walk-list (rest (rest (rest form)))
-    (pair env-param (%add-params params scope)) uses)))
+    (pair env-param (%walk-add-params params scope)) uses)))
 
 ; (let ((name val) ...) body...) or (let name ((var init) ...) body...)
 (def %walk-let-bindings (fn (_ bindings scope uses)
@@ -81,7 +81,7 @@
   (if (pair? name-part)
     ; Compound: (define (name params...) body...)
     (%walk-list (rest (rest form))
-      (%add-params (rest name-part) (pair (first name-part) scope))
+      (%walk-add-params (rest name-part) (pair (first name-part) scope))
       uses)
     ; Simple: (def name val)
     (%walk (first (rest (rest form))) (pair name-part scope) uses))))
