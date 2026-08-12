@@ -154,3 +154,51 @@ the end of the buffer.
 ```
 ---
     #t
+
+## marshal guards: nil is NULL, unsupported args raise (#244)
+
+`syscall` and the ptr-call FFI prim marshal arguments into positional
+slots. An unsupported argument used to be silently SKIPPED, shifting
+every following argument one slot left -- positional corruption in the
+two rawest primitives. Now: a nil argument is the NULL pointer/zero and
+fills its OWN slot (nil = NULL, the settled model -- the rn execve/wait4
+examples spell NULL as `()`), and anything that is not nil/int/str(/ptr)
+raises catchably at marshal time, before anything executes.
+
+The ptr-call cases make a real cross-platform call (libc `getpid` via
+`dlsym`); the syscall raise-case needs no valid syscall number because
+the guard fires during marshalling, before the syscall executes (raw
+syscall numbers are per-arch and unavailable on arm64 -- the rest of
+this file uses the `Sys` abstraction for that reason).
+
+### an unsupported syscall argument raises before the call fires
+
+```scheme
+(guard (e 'raised) (syscall 999 (list 1)))
+```
+---
+    'raised
+
+### a nil ptr-call argument marshals as NULL in its own slot
+
+```scheme
+(do (def %pc-dlopen (prim-ref 'ffi 'dlopen))
+    (def %pc-dlsym (prim-ref 'ffi 'dlsym))
+    (def %pc-call (prim-ref 'ptr 'call))
+    (def %pc-fp (%pc-dlsym (%pc-dlopen () 1) "getpid"))
+    (> (%pc-call %pc-fp ()) 0))
+```
+---
+    #t
+
+### an unsupported ptr-call argument raises
+
+```scheme
+(do (def %pc2-dlopen (prim-ref 'ffi 'dlopen))
+    (def %pc2-dlsym (prim-ref 'ffi 'dlsym))
+    (def %pc2-call (prim-ref 'ptr 'call))
+    (def %pc2-fp (%pc2-dlsym (%pc2-dlopen () 1) "getpid"))
+    (guard (e 'raised) (%pc2-call %pc2-fp (list 1))))
+```
+---
+    'raised
