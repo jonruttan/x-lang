@@ -153,3 +153,23 @@ claim across back-to-back collections on the REPL's own sweep path.
 ```
 ---
     ("BOOL" 1 2 'R #t #t)
+
+## GC during a standalone-trampoline tail chain (#243)
+
+`(apply <operative> ...)` drains its deferred tail through
+`x_eval_tco_trampoline`, which keeps the operative's restore record
+across the tail's evaluation. A collect during that evaluation used to
+sweep the record -- the trampoline held it only in C locals, and a C
+local is not a GC root -- so the exit restore read freed memory. The
+trampoline now roots the kept records exactly as `x_eval` always did.
+
+### collect mid-tail-chain leaves the restore record intact
+
+```scheme
+(do (def %g243-x 'outer)
+    (def %g243-help (fn (_) (do (Heap collect) %g243-x)))
+    (def %g243-op (op () e (%g243-help)))
+    (list (apply %g243-op ()) %g243-x))
+```
+---
+    ('outer 'outer)
