@@ -241,3 +241,52 @@ The bare load's version is unknowable, so no spec can be satisfied.
 ```
 ---
     #t
+
+## guard unwinds include state (#242)
+
+A raise inside `(include ...)` caught by a guard OUTSIDE the include used
+to leave the include's fd open and its filein/buffer/line stack entries
+pushed: top-level reads then continued from the dead file's remaining
+bytes, and every caught raise leaked one fd. The guard's recovery now
+unwinds the three stacks to its snapshot and closes the cut-away fds.
+
+### a caught mid-include raise does not leak the file's trailing forms
+
+```scheme
+(do (def %gi1 (guard (e 'caught) (include "tests/x/lib/guard-include-fixture.x")))
+    (list %gi1 %guard-include-marker (guard (e 'unbound) %guard-include-leaked)))
+```
+---
+    ('caught 'loaded 'unbound)
+
+### the trailing def stays unread on the next top-level read too
+
+```scheme
+(guard (e 'still-unbound) %guard-include-leaked)
+```
+---
+    'still-unbound
+
+### three hundred caught raises leak no fds
+
+```scheme
+(do (def %gi-loop ())
+    (set! %gi-loop (fn (_ n)
+      (if (eq? n 0) 'done
+        (do (guard (e ()) (include "tests/x/lib/guard-include-fixture.x"))
+            (%gi-loop (- n 1))))))
+    (%gi-loop 300)
+    (include "tests/x/lib/guard-include-ok.x")
+    %guard-include-ok)
+```
+---
+    'ok
+
+### a guard inside an included file keeps that file's frames
+
+```scheme
+(do (include "tests/x/lib/guard-include-inner.x")
+    (list %gi-inner %gi-inner-after))
+```
+---
+    ('inner-caught 'after)
