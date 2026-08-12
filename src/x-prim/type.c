@@ -45,6 +45,11 @@
 #include "x-type/symbol.h"
 #include "x-type/whitespace.h"
 
+/** Read-buffer size for (make-base) children -- the sandbox analogue of
+ *  x-cli's X_CLI_BUFFER_SIZE, sized for token reads via base-eval, not
+ *  whole-stream loads. */
+#define X_BASE_BUFFER_SIZE 256
+
 /**
  * @brief Build a type struct from a handlers alist.
  *
@@ -312,7 +317,7 @@ static x_obj_t *x_prim_make_base(x_obj_t *p_base, x_obj_t *p_args)
 	x_char_t *buffer;
 	(void)p_args;
 
-	buffer = (x_char_t *)x_sys_malloc(256);
+	buffer = (x_char_t *)x_sys_malloc(X_BASE_BUFFER_SIZE);
 	p_new_base = x_eval_make(NULL, NULL);
 
 	/* Register types. */
@@ -327,8 +332,10 @@ static x_obj_t *x_prim_make_base(x_obj_t *p_base, x_obj_t *p_args)
 	x_type_whitespace_register(p_new_base, p_new_base);
 	x_type_comment_register(p_new_base, p_new_base);
 
-	/* Set up read buffer. */
-	p_buffer = x_mkbuffer(p_new_base, buffer);
+	/* Set up read buffer.  OWN: the malloc'd region frees with the
+	 * buffer object (#245 -- the non-owning wrap leaked it per
+	 * (make-base) call; x-cli wraps its same-purpose buffer OWN). */
+	p_buffer = x_mkbufferown(p_new_base, buffer);
 	x_base_field_buffer(p_new_base) = x_mkspair(p_new_base, X_OBJ_FLAG_NONE,
 		p_buffer, x_base_field_buffer(p_new_base));
 
