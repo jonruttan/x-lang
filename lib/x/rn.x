@@ -9,6 +9,7 @@
 
 ; --- Heavy imports ---
 (import x/sys/posix)
+(import x/sys/proc)
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref 'str 'append))
 
@@ -78,13 +79,14 @@
 (def list-tail (fn (_ lst n) (List drop n lst)))
 
 ; --- System functions ---
+; Over Proc run! (#226): the old raw fork/execve never waited (zombies,
+; no status), never guarded exec failure (a failed exec left a second
+; interpreter running the caller's program), and depended on the
+; opt-in syscall table.  This one works by default and returns the
+; status, per the R7RS-ish contract callers expect.
 (def system
   (fn (_ cmd)
-    (if (= (syscall (syscall-id 'fork)) 0)
-      (syscall
-        (syscall-id 'execve)
-        "/bin/sh"
-        (list "/bin/sh" "-c" cmd)))))
+    (Proc run! (list "/bin/sh" "-c" cmd))))
 
 ; --- do-loop: Scheme iteration form ---
 ; (do-loop ((var init step) ...) (test result ...) body ...)

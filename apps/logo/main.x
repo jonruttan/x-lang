@@ -32,9 +32,10 @@
     (let ((pid (Sys fork)))
       (if (= pid 0)
         ; Ignore SIGINT in the server child so ctrl-c doesn't throw
-        ; STOP errors in the request handler (SIG_IGN = 1, SIGINT = 2)
+        ; STOP errors in the request handler (#226: named surface, no
+        ; more dlsym'd magic numbers)
         (do (Sys close 0) (Sys open-read "/dev/null")
-            (%ptr-call (%dlsym (%dlopen () 1) "signal") 2 1)
+            (Sys signal (Sys sigint) (Sys sig-ign))
             (turtle-serve %logo-port))
         pid))))
 
@@ -47,5 +48,8 @@
 (unless %batch?
   (set! %logo-on-exit
     (fn ()
-      (%ptr-call (%dlsym (%dlopen () 1) "kill") %server-pid 15)))
+      ; Kill politely, then reap: the child was never waited on before,
+      ; leaving a zombie for the parent's remaining lifetime (#226).
+      (Sys kill %server-pid (Sys sigterm))
+      (Sys wait %server-pid)))
   (display "http://localhost:") (display %logo-port) (newline))
