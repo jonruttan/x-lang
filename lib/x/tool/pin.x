@@ -193,20 +193,6 @@
                     (import-path! (first roots))
                     ())))))
       (%rec roots))
-    (method %pin-memq (self x lst)
-      (def %rec (fn (self x lst)
-        (match
-              ((null? lst) #f)
-              ((eq? x (first lst)) #t)
-              (#t (self x (rest lst))))))
-      (%rec x lst))
-    (method %pin-mem-str? (self s lst)
-      (def %rec (fn (self s lst)
-        (match
-              ((null? lst) #f)
-              ((str=? (first lst) s) #t)
-              (#t (self s (rest lst))))))
-      (%rec s lst))
     ; "a/b/c" -> ("a" "b" "c")
     (method %pin-split-path (self p)
       (def %rec (fn (self p)
@@ -257,13 +243,7 @@
                 (do (Pin %pin-push! (Pin %pin-out-cell) (pair rel (%path-join (rest dirs) tail)))
                     (Pin %pin-walk-file rel (%path-join (rest dirs) tail)))))))
     (method %pin-out-has? (self rel)
-      (def %go
-            (fn (self lst)
-              (match
-                ((null? lst) #f)
-                ((str=? (first (first lst)) rel) #t)
-                (#t (self (rest lst))))))
-          (%go (first (Pin %pin-out-cell))))
+      (not (null? (%assoc-str rel (first (Pin %pin-out-cell))))))
     ; Closure of NAME: (root-relative . source) pairs, discovery order.  A
     ; floor seed is the caller's error to reject; here it just yields ().
     (method %pin-closure-of (self name)
@@ -318,7 +298,7 @@
                 ; by the boot verb.  Same rule the seed forms already follow: a
                 ; reader takes the forms it owns and ignores the other's, so the
                 ; vocabulary stays closed without either half rejecting the other.
-                ((Pin %pin-member? (first (first forms)) (Pin %pin-platform-heads)) (self (rest forms)))
+                ((%memq? (first (first forms)) (Pin %pin-platform-heads)) (self (rest forms)))
                 ((not (eq? (first (first forms)) 'file)) (Pin %pin-bad "unknown lockfile form"))
                 ((not (str? (first (rest (first forms)))))
                   (Pin %pin-bad "lockfile entry needs a path string"))
@@ -375,20 +355,13 @@
     ; The platform half of the lock -- (release ...) (isa ...) (boot ...),
     ; written by `boot`.  relock rewrites the whole file from the overlay's
     ; forms, so these must survive a sync that knows nothing about them.
-    (method %pin-member? (self x lst)
-      (def %rec (fn (self x lst)
-        (match
-              ((null? lst) #f)
-              ((eq? (first lst) x) #t)
-              (#t (self x (rest lst))))))
-      (%rec x lst))
     (method %pin-str->sym (self s) ((prim-ref (lit str) (lit ->sym)) s))
     (method %pin-platform-forms (self forms)
       (def %rec (fn (self forms)
         (match
               ((null? forms) ())
               ((not (pair? (first forms))) (self (rest forms)))
-              ((Pin %pin-member? (first (first forms)) (Pin %pin-platform-heads))
+              ((%memq? (first (first forms)) (Pin %pin-platform-heads))
                 (pair (first forms) (self (rest forms))))
               (#t (self (rest forms))))))
       (%rec forms))
@@ -460,7 +433,7 @@
       (def %rec (fn (self acc lst)
         (match
               ((null? lst) acc)
-              ((Pin %pin-mem-str? (first lst) acc) (self acc (rest lst)))
+              ((%member-str? (first lst) acc) (self acc (rest lst)))
               (#t (self (Pin %pin-concat acc (list (first lst))) (rest lst))))))
       (%rec acc lst))
     ; every rel any seed claims
@@ -475,7 +448,7 @@
       (def %rec (fn (self rels lst)
         (match
               ((null? rels) ())
-              ((Pin %pin-mem-str? (first rels) lst) (self (rest rels) lst))
+              ((%member-str? (first rels) lst) (self (rest rels) lst))
               (#t (pair (first rels) (self (rest rels) lst))))))
       (%rec rels lst))
     ; Rewrite the lock with SEED now claiming RELS.  The file list becomes
@@ -536,11 +509,7 @@
                   (self (rest lst) acc))
                 (#t (self (rest lst) (pair (Str8 append "modified: " (first (first lst))) acc))))))
           (def %lock-has?
-            (fn (self rel lst)
-              (match
-                ((null? lst) #f)
-                ((str=? (first (first lst)) rel) #t)
-                (#t (self rel (rest lst))))))
+            (fn (_ rel lst) (not (null? (%assoc-str rel lst)))))
           ; Dotfiles are outside the module layout, so outside the threat: an
           ; unlisted file matters because a module RESOLVES to it, and no module
           ; name resolves to a dotfile.  Skipping them is what lets a
@@ -626,19 +595,10 @@
                 (#t (Pin %pin-bad "unknown release-manifest form")))))
           (%go forms () () ()))
     (method %pin-release-file (self name files)
-      (def %rec (fn (self name files)
-        (match
-              ((null? files) (Pin %pin-bad (Str8 append "not in the release manifest: " name)))
-              ((str=? (first (first files)) name) (rest (first files)))
-              (#t (self name (rest files))))))
-      (%rec name files))
-    (method %pin-assoc (self key alist)
-      (def %rec (fn (self key alist)
-        (match
-              ((null? alist) ())
-              ((eq? key (first (first alist))) (rest (first alist)))
-              (#t (self key (rest alist))))))
-      (%rec key alist))
+      (let ((hit (%assoc-str name files)))
+            (match
+              ((null? hit) (Pin %pin-bad (Str8 append "not in the release manifest: " name)))
+              (#t (rest hit)))))
     ; two lists, a ++ b
     (method %pin-concat (self a b)
       (def %rec (fn (self a b)
@@ -648,7 +608,7 @@
       (%rec a b))
     ; path -> 'file | 'dir | ... (File stat's kind)
     (method %pin-kind (self path)
-      (Pin %pin-assoc 'kind (File stat path)))
+      (%assoc-get 'kind (File stat path)))
     ; does name end in ".x"?
     (method %pin-ends-x? (self name)
       (let ((n (Str8 length name)))
@@ -735,7 +695,7 @@
         (match
               ((null? forms) "")
               ((not (pair? (first forms))) (self (rest forms)))
-              ((Pin %pin-member? (first (first forms)) (Pin %pin-platform-heads)) (self (rest forms)))
+              ((%memq? (first (first forms)) (Pin %pin-platform-heads)) (self (rest forms)))
               (#t (Str8 append (Pin %pin-form-render (first forms)) (self (rest forms)))))))
       (%rec forms))
     ; The default project directory for the verbs: "." unless given.
@@ -759,7 +719,7 @@
                 (#t
                   (let ((nm (Pin %pin-rel-name (first (first lst)))))
                     (match
-                      ((Pin %pin-name-member? nm acc) (self (rest lst) acc))
+                      ((%member-str? nm acc) (self (rest lst) acc))
                       (#t (self (rest lst) (pair nm acc)))))))))
           (%go entries ()))
     (method %pin-selected-paths (self entries)
@@ -787,13 +747,6 @@
             (match
               ((null? at) (Str8 sub 0 (- (Str8 length rel) 2) rel))
               (#t (Str8 sub 0 at rel)))))
-    (method %pin-name-member? (self x lst)
-      (def %rec (fn (self x lst)
-        (match
-              ((null? lst) #f)
-              ((str=? (first lst) x) #t)
-              (#t (self x (rest lst))))))
-      (%rec x lst))
     ; Every candidate file for a module name string, across ALL import roots:
     ; the version files the kernel-direct scan sees, plus the bare file where
     ; present.  Full normalised paths.
@@ -850,8 +803,8 @@
             (Str8 append (symbol->str entry) ".x\")\n")))
     (method %pin-take-module (self name)
       (match
-            ((Pin %pin-memq name %pin-floor) ())  ; platform floor: inert if vendored
-            ((Pin %pin-memq name (first (Pin %pin-visited-cell))) ())
+            ((%memq? name %pin-floor) ())  ; platform floor: inert if vendored
+            ((%memq? name (first (Pin %pin-visited-cell))) ())
             (#t
               ; push BEFORE walking -- cycle safety, mirrors import itself
               (do (Pin %pin-push! (Pin %pin-visited-cell) name)
@@ -990,7 +943,7 @@
       (returns LIST "Root-relative file path strings copied")
       (sample "(Pin vendor \"deps\" 'x/type/dict)" "(\"x/type/dict.x\" ...)"))
     (match
-      ((Pin %pin-memq name %pin-floor)
+      ((%memq? name %pin-floor)
         (Pin %pin-bad (Str8 append "unpinnable (boot floor): " (symbol->str name))))
       (#t
         (let ((entries (Pin %pin-closure-of name)))
@@ -1107,7 +1060,7 @@
                     (do
                       (Pin %pin-lock-set-platform! root
                         (list (list 'release tag)
-                              (list 'isa (Pin %pin-assoc 'isa m))
+                              (list 'isa (%assoc-get 'isa m))
                               (list 'boot file (Pin %pin-digest bootpath))))
                       (File unlink rel))))
                 bootpath))))))
@@ -1153,10 +1106,10 @@
                        (Pin %pin-forms (File slurp (%path-join dest (Pin %pin-release-name)))))))
               (do
                 (match
-                  ((str=? (Pin %pin-assoc 'release m) tag) ())
+                  ((str=? (%assoc-get 'release m) tag) ())
                   (#t (Pin %pin-bad (Str8 append "manifest names another release: "
-                                            (Pin %pin-assoc 'release m)))))
-                (let ((want (Pin %pin-release-file file (Pin %pin-assoc 'files m)))
+                                            (%assoc-get 'release m)))))
+                (let ((want (Pin %pin-release-file file (%assoc-get 'files m)))
                       (target (%path-join dest file)))
                   (do
                     (Pin %pin-download! (Pin %pin-url b tag file) target)
@@ -1178,9 +1131,9 @@
                                        ; would die AFTER the amalgam verified clean.
                                        ; Drift is information, not an error (docstring),
                                        ; and so is an absent fingerprint.
-                                       ((null? (Pin %pin-assoc 'isa m))
+                                       ((null? (%assoc-get 'isa m))
                                          "pin: the release manifest carries no isa fingerprint -- engine pairing unchecked")
-                                       ((str=? (Pin %pin-digest "tools/contract/isa.x") (Pin %pin-assoc 'isa m))
+                                       ((str=? (Pin %pin-digest "tools/contract/isa.x") (%assoc-get 'isa m))
                                          "pin: isa fingerprint matches this tree")
                                        (#t "pin: isa fingerprint DIFFERS from this tree -- pair the amalgam with its release's engine")))
                             (newline)))

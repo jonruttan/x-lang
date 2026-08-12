@@ -50,7 +50,7 @@
 
 (def %env-known? (fn (_ name)
   (match
-    ((%name-member? name %lint-embedder-known) #t)
+    ((%member-str? name %lint-embedder-known) #t)
     (#t (guard (_ #f) (do (eval! (%str->symbol name)) #t))))))
 
 ; --- Analysis state (boxes; all values are NAME STRINGS) ---
@@ -73,10 +73,6 @@
 (def %lint-bound-name ())  ; form -> the bound name (a STRING)
 (def %lint-dispatch ())    ; form -> () : scope-aware analysis of one list form
 
-; str=? membership over a list of name strings.
-(def %name-member? (fn (self name names)
-  (unless (null? names)
-    (if (str=? name (first names)) #t (self name (rest names))))))
 
 ; Unwrap (doc DEFN meta...) -> DEFN so def-name and arity collection see the
 ; real (def ...) / (set! ...) underneath.  Most lib functions are doc-wrapped;
@@ -102,10 +98,9 @@
     (%cvt p %string))))                  ; bare symbol
 
 ; Does scope (a list of (name . used-box) entries) already bind this name?
-(def %scope-has-name? (fn (self pn scope)
-  (unless (null? scope)
-    (if (str=? pn (first (first scope))) #t
-      (self pn (rest scope))))))
+; Entries are always pairs, so the canonical entry lookup is safe here.
+(def %scope-has-name? (fn (_ pn scope)
+  (not (null? (%assoc-str pn scope)))))
 
 ; Warn "shadow" when nm shadows an ENCLOSING LOCAL already present in `scope`
 ; (an outer param/let-var, or an earlier param of the same list -- a duplicate).
@@ -485,10 +480,6 @@
 
 (def %lint-arity (list ()))   ; alist: (name . (min . variadic?))
 
-(def %alist-find-name (fn (self name alist)
-  (unless (null? alist)
-    (if (str=? (first (first alist)) name) (first alist)
-      (self name (rest alist))))))
 
 (def %params-arity (fn (self params n)   ; -> (proper-count . variadic?)
   (if (null? params) (pair n #f)
@@ -525,7 +516,7 @@
 
 (def %lint-check-arity (fn (_ form)
   (let ((entry (when (if (pair? form) (symbol? (first form)) #f)
-                 (%alist-find-name (%cvt (first form) %string) (first %lint-arity)))))
+                 (%assoc-str (%cvt (first form) %string) (first %lint-arity)))))
     (unless (null? entry)
       (let ((nargs (- (%length form) 1))
             (mn (first (rest entry)))
@@ -568,7 +559,7 @@
 (def %lint-symbol-handler (fn (_ sym)
   (let ((name (%cvt sym %string)))
     (unless (%scope-mark-used! name (first %lint-scope))   ; local ref -> mark its box used
-      (unless (%name-member? name (first %lint-uses))
+      (unless (%member-str? name (first %lint-uses))
         (%set-first! %lint-uses (pair name (first %lint-uses))))))
   ()))
 
@@ -599,7 +590,7 @@
     (let ((form (first forms)))
       (let ((eff (%lint-unwrap-doc form)))             ; see through (doc (def ..) ..)
         (let ((nm (when (%lint-binds? eff) (%lint-bound-name eff))))
-          (when (if (null? nm) #f (%name-member? nm defs))
+          (when (if (null? nm) #f (%member-str? nm defs))
             (%warn! "dup-def" nm))                  ; same top-level name defined twice
           (%set-first! %lint-scope ())
           (%write-to-str form)                         ; drive the walk (string discarded)
@@ -626,7 +617,7 @@
 
 (doc (def lint-undefined (fn (_ defs uses)
   (%filter (fn (_ name)
-    (unless (%name-member? name defs)
+    (unless (%member-str? name defs)
       (unless (%env-known? name) #t)))
     uses)))
   (param defs LIST "Defined names from lint-forms")
@@ -638,7 +629,7 @@
   (unless lib-mode
     (%filter (fn (_ name)
       (unless (Str starts? "%" name)
-        (unless (%name-member? name uses) #t)))
+        (unless (%member-str? name uses) #t)))
       defs))))
   (param defs LIST "Defined names from lint-forms")
   (param uses LIST "Used names from lint-forms")
@@ -669,7 +660,7 @@
   (returns LIST "The names for warnings of that kind")
   "Filter pedantic warnings to one kind, returning their names.")
 
-(doc (def lint-has? (fn (_ name names) (%name-member? name names)))
+(doc (def lint-has? (fn (_ name names) (%member-str? name names)))
   (param name STRING "A symbol name")
   (param names LIST "A list of names (e.g. from lint-undefined)")
   (returns BOOL "#t if name is in names")

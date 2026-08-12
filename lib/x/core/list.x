@@ -114,6 +114,46 @@
   (returns LIST "Filtered list")
   "Boot-layer filter; the public face is (List filter).")
 
+(note "Search")
+
+; The eq?/str=? split below is inherent, not stylistic: symbols intern
+; PER-BASE, so two spellings of one name from different bases never eq?,
+; while strings always compare by content.  The names encode the side so
+; every call site picks one deliberately (#227).
+
+(doc (def %memq?
+  (fn (self (param x ANY "Value to look for (eq? comparison)")
+       (param lst LIST "List to search"))
+    (match
+      ((null? lst) #f)
+      ((eq? x (first lst)) #t)
+      (#t (self x (rest lst))))))
+  (returns BOOL "True if x occurs in lst under eq?")
+  (note "Boot-layer eq? membership; the public face is (List includes?). Cross-base names need %member-str?.")
+  "Boot-layer eq? membership test.")
+
+(doc (def %member-str?
+  (fn (self (param s STR "String to look for (str=? comparison)")
+       (param lst LIST "List of strings"))
+    (match
+      ((null? lst) #f)
+      ((str=? s (first lst)) #t)
+      (#t (self s (rest lst))))))
+  (returns BOOL "True if s occurs in lst under str=?")
+  (note "The str=? side of the membership split; convert cross-base symbols to strings and use this.")
+  "Boot-layer string membership test.")
+
+(doc (def %find
+  (fn (self (param pred CALLABLE "Predicate")
+       (param lst LIST "List to search"))
+    (match
+      ((null? lst) ())
+      ((pred (first lst)) (first lst))
+      (#t (self pred (rest lst))))))
+  (returns ANY "First element satisfying pred, or nil")
+  (note "Boot-layer find-first; the public face is (List find). A nil result conflates a stored nil with a miss -- box at the call site when that matters (the %opt-cell pattern).")
+  "Boot-layer find-first matching element.")
+
 (def %for-each1
   (fn (self f lst)
     (if (null? lst) ()

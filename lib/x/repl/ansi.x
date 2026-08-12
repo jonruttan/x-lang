@@ -181,13 +181,7 @@
         'cond 'case 'doc 'note))
 
 (def %keyword?
-  (fn (self sym)
-    (def %go
-      (fn (self lst)
-        (if (null? lst) #f
-          (if (eq? (first lst) sym) #t
-            (self (rest lst))))))
-    (%go %keywords)))
+  (fn (_ sym) (%memq? sym %keywords)))
 
 ; Forward declaration for mutual recursion
 (def %ansi-write-code ())

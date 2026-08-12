@@ -50,14 +50,10 @@
             (pair (pair name props) acc))))))
   (def %scope-table (%build-lookup %all-constructs ()))
 
-  ; Lookup helper using string=? for cross-base symbol comparison
-  (def %scope-find (fn (_ key table)
-    (unless (null? table)
-      (if (str=? key (first (first table)))
-        (first table)
-        (%scope-find key (rest table))))))
+  ; Cross-base lookup: table keys are strings (built by %props->str), so
+  ; the canonical str=? entry lookup (%assoc-str, core/alist.x) applies.
   (def %scope-lookup (fn (_ name)
-    (def entry (%scope-find (%lint-cvt name %string) %scope-table))
+    (def entry (%assoc-str (%lint-cvt name %string) %scope-table))
     (unless (null? entry)
       (rest entry))))
 
