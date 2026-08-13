@@ -98,6 +98,7 @@
   (iter)
   ; --- platform lookups + syscall tables (opt-in modules) ---
   (darwin-syscall-numbers)
+  (dirent-names)
   (i386-syscall-names)
   (os-darwin?)
   (os-linux?)

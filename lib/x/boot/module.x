@@ -1,4 +1,7 @@
 ; module.x -- Include-once and module system (bootstrap)
+; lint-known: dirent-names
+; (x/platform/dirent, imported at CALL time in %module-list-dir --
+;  the same lazy-import pattern as the syscall table)
 ;
 ; Provides include-once, require-once, provide, import.
 ; Last bootstrap file — after this, normal modules can use provide/import.
@@ -459,42 +462,15 @@
           ((eq? (first (first lst)) name) (first (rest (first lst))))
           (#t (self (rest lst))))))
     (%go %file-modes)))
-(def %module-u16
-  (fn (_ buf i)
-    (+ (%str-byte-ref buf i) (* 256 (%str-byte-ref buf (+ i 1))))))
-(def %module-dirent-name
-  ; NUL-terminated name in buf between start and end.
-  (fn (_ buf start end)
-    (def %go
-      (fn (self i)
-        (match
-          ((= i end) i)
-          ((= (%str-byte-ref buf i) 0) i)
-          (#t (self (+ i 1))))))
-    (%substring buf start (%go start))))
-(def %module-dirents
-  ; One getdents batch buffer -> entry names onto acc.  Name offset 19 on
-  ; Linux (dirent64), 21 on Darwin (namlen u16@18); reclen u16@16 on both.
-  (fn (_ buf n acc)
-    (def %name-off (match (os-darwin? 21) (#t 19)))
-    (def %go
-      (fn (self off acc)
-        (match
-          ((< off n)
-            (do
-              (def %reclen (%module-u16 buf (+ off 16)))
-              (match
-                ((= %reclen 0) acc)
-                (#t (self (+ off %reclen)
-                          (pair (%module-dirent-name buf (+ off %name-off)
-                                                     (+ off %reclen))
-                                acc))))))
-          (#t acc))))
-    (%go 0 acc)))
 (def %module-list-dir
-  ; Entry names in dir; a dir that cannot be opened is no entries.
+  ; Entry names in dir; a dir that cannot be opened is no entries (a
+  ; DELIBERATE boot policy -- resolution probes absent roots), but a
+  ; read error mid-scan is an ERROR: folding it into EOF silently
+  ; changed which module version resolved (#228).  "." and ".." are
+  ; rejected here, not in the decoder, mirroring file.x's split.
   (fn (_ dir)
     (import x/platform/syscall)
+    (import x/platform/dirent)
         ; Three args always, like sys/file.x: the kernel ignores the perm
     ; unless O_CREAT is set, and the prim's call shape stays uniform.
     (def %fd (syscall (syscall-id (lit open)) dir (%module-mode (lit rdonly)) 420))
@@ -512,11 +488,21 @@
                   (syscall (syscall-id (lit getdirentries64)) %fd %buf 4096 %basep))
                 (#t (syscall (syscall-id (lit getdents64)) %fd %buf 4096))))
             (match
-              ((< %n 1) acc)
-              (#t (self (%module-dirents %buf %n acc))))))
+              ((< %n 0)
+                (do (syscall (syscall-id (lit close)) %fd)
+                    (error (%str-append "module list-dir: directory read failed: " dir))))
+              ((= %n 0) acc)
+              (#t (self (dirent-names %buf %n acc))))))
           (def %names (%go ()))
           (syscall (syscall-id (lit close)) %fd)
-          %names)))))
+          (def %keep
+            (fn (self lst acc)
+              (match
+                ((eq? lst ()) acc)
+                ((str=? (first lst) ".") (self (rest lst) acc))
+                ((str=? (first lst) "..") (self (rest lst) acc))
+                (#t (self (rest lst) (pair (first lst) acc))))))
+          (%keep %names ()))))))
 (def %module-scan-dir
   ; All (version-tuple . filename) candidates for base in dir, bare included
   ; as version ().  A missing or unreadable directory is no candidates.

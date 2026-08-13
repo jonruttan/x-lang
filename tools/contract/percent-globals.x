@@ -8,7 +8,7 @@
 ; call overhead): sha256*, asm*, compile*, boot/*.  Everything else is
 ; unhomed inventory awaiting the pin.x treatment.
 (file "lib/x/boot/data.x" 17)
-(file "lib/x/boot/module.x" 55)
+(file "lib/x/boot/module.x" 52)
 (file "lib/x/boot/operatives.x" 6)
 (file "lib/x/boot/printer.x" 76)
 (file "lib/x/boot/reflect.x" 29)
@@ -51,7 +51,7 @@
 (file "lib/x/repl/loop.x" 12)
 (file "lib/x/rn.x" 1)
 (file "lib/x/sys/date.x" 6)
-(file "lib/x/sys/file.x" 14)
+(file "lib/x/sys/file.x" 12)
 (file "lib/x/sys/pact.x" 12)
 (file "lib/x/sys/posix.x" 32)
 (file "lib/x/sys/socket.x" 29)
