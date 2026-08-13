@@ -65,13 +65,23 @@ if [ $# -eq 0 ]; then
     [ -e "$_f" ] && _FILES="$_FILES $_f"
   done
   # PARALLEL=1: fan the sweep out via self-recursion, one file per child
-  # (each file is one engine run either way; the win is 8 at once --
-  # ~4min serial to well under a minute).  xargs exits nonzero when any
-  # child fails, so the gate verdict is preserved.  Child output is
+  # (each file is one engine run either way).  xargs exits nonzero when
+  # any child fails, so the gate verdict is preserved.  Child output is
   # per-line atomic; a failing file's block may interleave with others,
   # which a green gate never shows.
+  #
+  # Default fan-out: min(cores, 4).  A child peaks at ~600MB RSS
+  # (class.x, measured 2026-08-13); 8-wide OOM-killed the 7GB ubuntu CI
+  # runner (SIGTERM 143, ECHILD noise in make) while 14GB macOS
+  # survived.  4x600MB leaves headroom everywhere; raise NPROC
+  # explicitly on machines with the memory for it.
   if [ -n "$PARALLEL" ]; then
-    printf '%s\n' $_FILES | xargs -P "${NPROC:-8}" -n 1 sh "$0" --lib || exit 1
+    _NP="$NPROC"
+    if [ -z "$_NP" ]; then
+      _NP="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+      [ "$_NP" -gt 4 ] && _NP=4
+    fi
+    printf '%s\n' $_FILES | xargs -P "$_NP" -n 1 sh "$0" --lib || exit 1
     exit 0
   fi
   set -- $_FILES
