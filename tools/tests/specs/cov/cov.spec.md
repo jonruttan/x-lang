@@ -72,9 +72,31 @@
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (_ obj)
     (Ptr ref-word (Convert to obj %ptr) %flags-offset)))
-  ; Pair branches on purpose: int->ptr conversion is a VALUE cast, so
-  ; obj-flags on an atom branch would dereference its value as an address.
   (def %tokens (Tok read-str (%base) "(if #t (+ 1 1) (+ 2 2))\n"))
+  (def %form (first %tokens))
+  (def %then (first (rest (rest %form))))
+  (def %else (first (rest (rest (rest %form)))))
+  (eval %form)
+  (display (> (& (obj-flags %then) 2) 0))
+  (display " ")
+  (display (= (& (obj-flags %else) 2) 0)))
+```
+---
+    #t #t
+
+
+### atom branches mark and read correctly
+
+```scheme
+(do
+  (def word-size
+    (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
+  (def %flags-offset (* 2 word-size))
+  ; %obj->ptr, not the convert catalog: an atom's int->ptr conversion is
+  ; a value cast -- the historical crash this spec pins (#231 chip).
+  (def obj-flags (fn (_ obj)
+    (Ptr ref-word (%obj->ptr obj) %flags-offset)))
+  (def %tokens (Tok read-str (%base) "(if #t 1 2)\n"))
   (def %form (first %tokens))
   (def %then (first (rest (rest %form))))
   (def %else (first (rest (rest (rest %form)))))
@@ -95,8 +117,6 @@
   (def %flags-offset (* 2 word-size))
   (def obj-flags (fn (_ obj)
     (Ptr ref-word (Convert to obj %ptr) %flags-offset)))
-  ; Pair branches on purpose: int->ptr conversion is a VALUE cast, so
-  ; obj-flags on an atom branch would dereference its value as an address.
   (def %tokens (Tok read-str (%base) "(if #t (+ 1 1) (+ 2 2))\n"))
   (def %form (first %tokens))
   (def %else (first (rest (rest (rest %form)))))
