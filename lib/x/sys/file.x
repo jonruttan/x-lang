@@ -23,6 +23,7 @@
 (import x/core/list)
 (import x/core/alist)
 (import x/platform/syscall)
+(import x/platform/dirent)
 (import x/type/class)
 
 ; GC-owned read buffers: (str make n) allocates an n-byte string region the
@@ -106,32 +107,7 @@
         ((= fmt 49152) 'socket)
         (#t 'unknown)))))
 
-; Decode one getdents64/getdirentries64 batch buffer into entry names.
-;   Linux  dirent64: ino u64@0, off u64@8, reclen u16@16, type u8@18, name z@19
-;   Darwin dirent64: ino u64@0, seekoff u64@8, reclen u16@16, namlen u16@18,
-;                    type u8@20, name@21
-; A zero reclen would never advance -- treated as end (corrupt buffer guard).
-(def %dirent-name
-  (fn (_ buf start limit)
-    (let go ((i start) (acc ()))
-      (if (>= i limit) (%list->str (%reverse acc))
-        (let ((c (%peek-u8 buf i)))
-          (if (= c 0) (%list->str (%reverse acc))
-            (go (+ i 1) (pair (%fs-byte-ref buf i) acc))))))))
 
-(def %dirents
-  (fn (_ buf n acc)
-    (let go ((off 0) (acc acc))
-      (if (>= off n) acc
-        (let ((reclen (%peek-u16 buf (+ off 16))))
-          (if (= reclen 0) acc
-            (let ((name (if os-darwin?
-                          (%dirent-name buf (+ off 21)
-                            (+ (+ off 21) (%peek-u16 buf (+ off 18))))
-                          (%dirent-name buf (+ off 19) (+ off reclen)))))
-              (go (+ off reclen)
-                  (if (= (%peek-i64 buf off) 0) acc  ; ino 0 = deleted slot
-                    (pair name acc))))))))))
 
 (def-class File ()
   (doc "Blocking file I/O over raw POSIX syscalls (open/close/read/write)."
@@ -292,7 +268,7 @@
                          (File close fd)
                          (error (Err from-errno en 'readdir path))))
               ((= n 0) acc)
-              (#t (batch (%dirents buf n acc)))))))
+              (#t (batch (dirent-names buf n acc)))))))
       (File close fd)
       (List reject (fn (_ nm) (or (str=? nm ".") (str=? nm ".."))) names))
 

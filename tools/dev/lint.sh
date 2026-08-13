@@ -130,6 +130,11 @@ for f in "$@"; do
     # boots with; execute just those first.  Modules import-once, so a
     # sibling chain re-pulling one is harmless.
     */lib/x/*.x)
+      # TOP-LEVEL imports only, deliberately: call-time (indented)
+      # imports can be guarded -- tool/asm.x imports its per-arch
+      # backend inside an os match, and executing BOTH here loads the
+      # wrong arch's fragment.  A name a guarded/lazy import supplies is
+      # declared with a `; lint-known:` marker instead.
       _PRELOAD="$(grep '^(import ' "$f" | tr '\n' ' ')"
       ;;
     */apps/*/*.x|apps/*/*.x)
