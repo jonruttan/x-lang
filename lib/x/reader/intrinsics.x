@@ -15,19 +15,7 @@
 
 ; Quick profile dump to stderr (alloc-count + heap object count).
 ; ns `heap` is de-registered (R5): fetch the prim from the catalog.
-(def %heap-count (prim-ref (lit heap) (lit count)))
-; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
-(def %read-char (prim-ref (lit io) (lit read-char)))
 
-(def %profile-dump
-  (fn (_ )
-    (%stderr
-      (%first-int
-        (first (first (first (first (rest (rest (first (%base))))))))))
-    (%stderr " ")
-    (%stderr (%heap-count))
-    (%stderr "\n")
-    ()))
 
 ; Buffer length and unread for tokenizer scoring
 (def %buffer-len
@@ -42,17 +30,6 @@
   (fn (_ score sign buffer)
     (%set-first-int! score (* sign (%buffer-len buffer)))))
 
-; Peek at next character without consuming it
-(def %peek-char
-  (fn (_ )
-    (def %ch (%read-char))
-    (if (null? %ch)
-      ()
-      (do
-        (%buffer-unread
-          (first
-            (first (rest (rest (rest (rest (first (%base)))))))))
-        %ch))))
 
 ; Current source line number
 (def %current-line

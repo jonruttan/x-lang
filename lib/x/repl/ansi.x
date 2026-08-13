@@ -118,8 +118,6 @@
 (def %c-bool     (Ansi bold-red))
 (def %c-nil-val  (Ansi dim))
 (def %c-function (Ansi cyan))
-(def %c-regexp   (Ansi red))
-(def %c-punct    "")
 (def %c-rst      (Ansi reset))
 
 ; --- Syntax-highlighted recursive writer ---

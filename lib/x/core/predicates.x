@@ -44,8 +44,6 @@
 ; their arguments unevaluated, so procedure? deliberately excludes them.
 (def operative? (fn (_ x) (%type? x %type-op)))
 
-; Source line of an object (0 if no metadata)
-(def %line-of (fn (_ obj) (%obj-meta-ref obj 0)))
 
 ; NOTE: this module loads before the doc system (x/doc/doc.x), so it cannot
 ; wrap its provide in (doc ...). Its module description is registered

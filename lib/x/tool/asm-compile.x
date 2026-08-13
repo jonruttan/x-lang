@@ -65,8 +65,6 @@
 (def %jit-restobj  (%jit-addr "jit_restobj"))
 (def %jit-atomint  (%jit-addr "jit_atomint"))
 (def %jit-eval-arg (%jit-addr "jit_eval_arg"))
-(def %jit-build-args (%jit-addr "jit_build_args"))
-(def %jit-make-callable (%jit-sym "jit_make_prim"))
 (def %jit-score-set (%jit-addr "jit_score_set"))
 (def %jit-buffer-unread (%jit-addr "jit_buffer_unread"))
 (def %jit-buffer-len (%jit-addr "jit_buffer_len"))
@@ -107,11 +105,6 @@
     (asm-emit! asm 'mov x0 x19)    ; x0 = p_base
     (%emit-call! asm %jit-mkint)))
 
-; jit_mkpair(base, a, b): x0 = pair. Expects x1 = a, x2 = b.
-(def %emit-mkpair!
-  (fn (_ asm)
-    (asm-emit! asm 'mov x0 x19)    ; x0 = p_base
-    (%emit-call! asm %jit-mkpair)))
 
 ; jit_eval_arg(base, expr): x0 = eval'd. Expects x0 = base, x1 = expr.
 (def %emit-eval-arg!

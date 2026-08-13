@@ -834,8 +834,7 @@
                   (#t ()))))))
       (%scan which arg))
 
-    (method %pin-scan-project-form (self form) (Pin %pin-scan-project-pair (lit form) form))
-    (method %pin-scan-project-list (self forms) (Pin %pin-scan-project-pair (lit list) forms))
+        (method %pin-scan-project-list (self forms) (Pin %pin-scan-project-pair (lit list) forms))
     (method closure (self (param name SYMBOL "Module name, e.g. x/type/dict"))
     (doc "The module's vendorable import closure: root-relative file paths (the module, its transitive imports, and any ./-relative include siblings), discovery order. Boot-floor modules -- pre-seeded under the running dialect, so inert in an overlay -- are excluded. Loud error on any path the static walk cannot resolve."
       (returns LIST "Root-relative file path strings")

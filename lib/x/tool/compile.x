@@ -238,31 +238,6 @@
 
 ; --- Full C compilation (called by compile-cache.x on cache miss) ---
 
-(def %compile-c-full
-  (fn (_ expr fvars)
-    (set! %compile-fvars fvars)
-    (set! %compile-id (+ %compile-id 1))
-    (def %id (%cvt %compile-id %string))
-    (def %src-path (Str append "/tmp/x-compile-" %id ".c"))
-
-    (def %expr-key (%write-to-str expr))
-    (def %cache-hash (%compile-cache-key %expr-key))
-    (def %cache-path (Str append %compile-cache-dir %cache-hash compile-ext))
-
-    (compile-write %src-path (compile-to-c expr fvars))
-    (compile-cc %src-path %cache-path)
-    (%ptr-call %c-unlink %src-path)
-
-    (def %lib (%dlopen %cache-path 1))
-    (if (null? %lib) (Err raise 'io (%compile-load-failure "compile" %cache-path) ()))
-    (def %fn (%dlsym %lib "fn_0"))
-    (if (null? %fn) (Err raise 'io "compile: dlsym failed for fn_0" ()))
-    (%type-cast! %fn first)
-    (def %prim-type-val (%ptr-ref-word (%cvt first %ptr) %type-offset))
-    (%patch-nested-prims %lib (first (list (list))) %prim-type-val)
-    (if (not (null? fvars))
-      (%compile-patch-fvars %lib fvars))
-    %fn))
 
 ; --- JIT assembler: lazy-loaded on first pure-JIT use ---
 ; The assembler toolchain (asm-compile.x -> asm.x -> host platform) is ~900 lines,

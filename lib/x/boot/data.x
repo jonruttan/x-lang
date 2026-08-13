@@ -45,6 +45,4 @@
 
 ; Int variants: read/write raw integer from pair slots
 (def %first-int (fn (_ x) (%ptr-ref-word (%obj->ptr x) %data-off-0)))
-(def %rest-int (fn (_ x) (%ptr-ref-word (%obj->ptr x) %data-off-1)))
 (def %set-first-int! (fn (_ p v) (%ptr-set-word! (%obj->ptr p) %data-off-0 v) p))
-(def %set-rest-int! (fn (_ p v) (%ptr-set-word! (%obj->ptr p) %data-off-1 v) p))

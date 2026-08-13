@@ -4,7 +4,7 @@
 ; Three concerns, one mechanism each:
 ;   - The TYPE SYSTEM carries the data: each type struct's cvt group holds a
 ;     from-alist (source-type -> converter) and a to-alist (target-type ->
-;     converter), set with the %type-set-from!/%type-set-to! helpers below.
+;     converter), set with the %type-set-from! helper below.
 ;   - The CATALOG carries the implementation: %convert-to is registered as
 ;     (convert . to); hot consumers (the tower's coercions, reader and write
 ;     handlers) fetch-and-cache it at module load:
@@ -73,9 +73,6 @@
 (def %type-set-from!
   (fn (_ ts alist) (%set-first! (%type-from-cell ts) alist)))
 
-; Set the to alist on a type struct
-(def %type-set-to!
-  (fn (_ ts alist) (%set-first! (%type-to-cell ts) alist)))
 
 ; --- Type handles ---
 (def %int    (%type-of 0))
