@@ -12,6 +12,9 @@
 ; -- the post-#108 boot spelling, as codec/json.x) -- transcription is
 ; checkable against the standard by eye, and the (example) vectors on
 ; `hex` are the executable proof.
+; lint-known: %sha-jit-make
+; (defined in sha256-jit.x, supplied by the LAZY include that defers the
+; ~14.5s JIT engine build -- an eager import would defeat the deferral)
 (import x/type/vector)
 ; Collection is explicit-trigger-only: without the periodic collect in
 ; the block loop below, digesting an amalgam-sized input allocates
@@ -246,7 +249,7 @@
           ; and pins the state to `failed`: guarded at the point of
           ; harm, and pure-x carries on
           (set! %sha-jit-engine
-            (guard (%e (lit failed))
+            (guard (_ (lit failed))
               (do
                 (import x/codec/sha256-jit)
                 (%sha-jit-make %sha-k %sha-ih %sha-digest-words))))
@@ -254,7 +257,9 @@
       ((eq? %sha-jit-engine (lit failed)) #f)
       (#t #t))))
 
-(def %sha-words
+; Renamed from %sha-words (lint dup-def): the hex-constant parser above
+; shares nothing with this but load-order luck made the overload work.
+(def %sha-hash-words
   (fn (_ s)
     (do
       (%set-first! %sha-jit-bytes (%sha+ (first %sha-jit-bytes) (Str8 length s)))
@@ -273,7 +278,7 @@
         (returns STRING "64 hex characters")
         (example "(Sha256 hex \"\")" "\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"")
         (example "(Sha256 hex \"abc\")" "\"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\""))
-      (%sha-hex-list (%sha-words s)))
+      (%sha-hex-list (%sha-hash-words s)))
     (method jit! (self)
       (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself: the engine is adopted only after agreeing with the pure-x digest on the FIPS vectors plus a multi-block padding case. Idempotent; seconds of compile on first success. Returns #t when the engine is active, #f when unavailable (no assembler backend for this host, no JIT toolchain, or a failed check -- pure-x carries on and results are identical either way). hex also auto-builds once 64KB of cumulative input has been digested, so calling this is an optimization, not a requirement."
         (returns BOOL "#t when the compiled engine is active"))

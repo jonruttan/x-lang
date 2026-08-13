@@ -1,4 +1,6 @@
 ; float.x -- Floating-point type with IEEE 754 bit-pattern storage
+; lint-known: %bignum-base
+; (defined in num/bignum.x; the tower supplies it in load order)
 (import x/type/class)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
