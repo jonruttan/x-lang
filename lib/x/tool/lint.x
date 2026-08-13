@@ -46,12 +46,7 @@
 ; Embedder-contract names: documented as supplied by the embedder BEFORE the
 ; library loads (boot/module.x -- "%install-root"), deliberately unbound in a
 ; repo-mode session, and every use is guarded.  Known by contract, not env.
-(def %lint-embedder-known (list "%install-root"))
 
-(def %env-known? (fn (_ name)
-  (match
-    ((%member-str? name %lint-embedder-known) #t)
-    (#t (guard (_ #f) (do (eval! (%str->symbol name)) #t))))))
 
 ; --- Analysis state (boxes; all values are NAME STRINGS) ---
 (def %lint-scope  (list ()))    ; names in lexical scope
@@ -412,9 +407,41 @@
 ; `close`, ...) read "Undefined" in class-call-heavy code (the apps).
 ; Heads that are locals or unbound keep plain call analysis -- their values
 ; are unknown statically, so nothing can be assumed about element 2.
+; --- def-class ---
+; Class names def-class'd in the FILE: a value call through one
+; dispatches its selector as a message name (x/type/class.x), so the
+; subject test below must say yes even though the name is in scope.
+; (doc TARGET meta...): a pair target is a real definition to walk; a
+; bare-symbol target documents a REGISTRY name (doc-prims.x, str.x) --
+; not a value reference, so it must not count as a use.
+
+(def %lint-class-names (list ()))
+
+; Sibling method names of the class currently being walked: instance
+; methods call each other bare, and the calling convention also binds
+; recur (self-reference) and the member/set-member! accessors.
+
+; (method NAME (self params...) body...) -- a named fn, shifted one.
+; The method NAME is a member, not a global: never recorded, so it can
+; neither collide nor count as unused; selectors that call it ride the
+; class-call skip.
+
+         ; (name value "doc"): the value is code
+
+; Collect a class body's method NAMES (through static and doc wrappers):
+; they are bound as siblings inside every method of that class.
+
+
+; Order independence: file-bottom loader code may call (Class ...) before
+; the reversed-or-not walk reaches the def-class, so class NAMES register
+; in a pre-pass (like %arity-collect).
+
 (def %lint-value-subject? (fn (_ head)
   (match
     ((not (symbol? head)) #f)
+    ; A class defined in this file IS in scope -- but a call through it
+    ; dispatches the selector as a message, so it is a subject.
+    ((%member-str? (%cvt head %string) (first %lint-class-names)) #t)
     ((%scope-has-name? (%cvt head %string) (first %lint-scope)) #f)
     (#t (guard (_ #f)
       (let ((v (eval! (%str->symbol (%cvt head %string)))))
@@ -424,12 +451,38 @@
           ((operative? v) #f)
           (#t #t))))))))
 
+; (subject X ...) where the subject is a bound local (self, an instance,
+; a named-let var) and X resolves nowhere: under value-call dispatch X
+; is a message name, not a variable.  Narrow on purpose: a BOUND first
+; argument (plain fn self-recursion passing a local) still records
+; normally; only a name that would have been a guaranteed false
+; 'undefined' is treated as a message.  The cost: a genuine typo in
+; that exact position is not flagged -- statically undecidable under
+; value-call dispatch, adjudicated toward zero false positives.
+(def %lint-member-send? (fn (_ form)
+  (match
+    ((not (symbol? (first form))) #f)
+    ((not (%scope-has-name? (%cvt (first form) %string) (first %lint-scope))) #f)
+    ((not (pair? (rest form))) #f)
+    ((not (symbol? (first (rest form)))) #f)
+    ((%scope-has-name? (%cvt (first (rest form)) %string) (first %lint-scope)) #f)
+    (#t (guard (_ #t)
+      (do (eval! (%str->symbol (%cvt (first (rest form)) %string))) #f))))))
+
+; Computed subject: ((self %d) keys ...) -- a pair-headed call whose
+; second element is an unresolvable symbol is a value-call send; the
+; head expression lints on its own, the message name is skipped.
+; Dispatched from the non-symbol-head path of %lint-dispatch.
+
 (def %lint-call (fn (_ form)
   (match
     ((if (%lint-value-subject? (first form))
        (symbol? (first (rest form))) #f)
       (do (%lint-form (first form))          ; the subject is a real use
           (%lint-seq (rest (rest form)))))   ; selector skipped, args walked
+    ((%lint-member-send? form)
+      (do (%lint-form (first form))          ; self is a real use (the param)
+          (%lint-seq (rest (rest form)))))   ; member name skipped, args walked
     (#t (%lint-seq form)))))
 
 ; (method-ref Target sel) -- Target is evaluated, sel is a MESSAGE NAME
@@ -558,9 +611,12 @@
 ; SYMBOL: record its NAME unless bound or already seen.
 (def %lint-symbol-handler (fn (_ sym)
   (let ((name (%cvt sym %string)))
-    (unless (%scope-mark-used! name (first %lint-scope))   ; local ref -> mark its box used
-      (unless (%member-str? name (first %lint-uses))
-        (%set-first! %lint-uses (pair name (first %lint-uses))))))
+    ; A #/.../ spelling is a reader-macro literal (regex), not a variable
+    ; reference -- the linter reads the file as data, so the macro never ran.
+    (unless (Str8 starts? "#/" name)
+      (unless (%scope-mark-used! name (first %lint-scope))   ; local ref -> mark its box used
+        (unless (%member-str? name (first %lint-uses))
+          (%set-first! %lint-uses (pair name (first %lint-uses)))))))
   ()))
 
 ; LIST: run the head/arity checks, then delegate to the (swappable) dispatch.
@@ -583,6 +639,92 @@
 
 ; --- Analysis entry points ---
 
+; --- The Lint class: the cold analysis surface (#percent-globals) ---
+; The pin.x treatment, applied to the class/doc/prepass analysers added
+; with the lib-wide sweep: homed as %-statics so the file stays inside
+; its shrinking %-globals budget.  The per-form walk core (scope ops,
+; handlers, send rules) stays as %-defs on MEASURED hot-path grounds:
+; it runs per node of every form of every swept file.
+(def-class Lint ()
+  (static
+    (%lint-class-siblings (list ()) "Sibling method names of the class being walked")
+    (%lint-embedder-known (list "%install-root" "%pin-file") "Embedder-contract names, announced before any file runs")
+    (method %env-known? (self name)
+  (match
+    ((%member-str? name (Lint %lint-embedder-known)) #t)
+    (#t (guard (_ #f) (do (eval! (%str->symbol name)) #t)))))
+    (method %lint-doc (self form)
+  (match
+    ((null? (rest form)) ())
+    ((symbol? (first (rest form))) (%lint-seq (rest (rest form))))
+    (#t (%lint-seq (rest form)))))
+    (method %lint-class-methods (self clauses acc)
+  (match
+    ((null? clauses) acc)
+    (#t (let ((c (first clauses)))
+          (recur self (rest clauses)
+            (match
+              ((not (pair? c)) acc)
+              ((eq? (first c) 'method) (pair (%cvt (first (rest c)) %string) acc))
+              ((eq? (first c) 'static) (recur self (rest c) acc))
+              ((if (eq? (first c) 'doc) (if (pair? (first (rest c))) (eq? (first (first (rest c))) 'method) #f) #f)
+                (pair (%cvt (first (rest (first (rest c)))) %string) acc))
+              (#t acc)))))))
+    (method %lint-class-clause (self c)
+  (match
+    ((not (pair? c)) ())                          ; bare symbol member: a declaration
+    ((eq? (first c) 'method) (Lint %lint-method c))
+    ((eq? (first c) 'static) (%for-each (fn (_ k) (recur self k)) (rest c)))
+    ((eq? (first c) 'interface) ())               ; declared NAMES, not references
+    ((eq? (first c) 'doc) ())                     ; class-level doc: prose + DSL
+    (#t (%lint-form (first (rest c))))))
+    (method %lint-method (self form)
+  (def saved (first %lint-scope))
+  ; The calling convention binds recur (the method's own self-reference),
+  ; the member/set-member! instance accessors, and the class's sibling
+  ; method names (instance methods call each other bare).
+  (%scope-add! "recur")
+  (%scope-add! "member")
+  (%scope-add! "set-member!")
+  (%for-each (fn (_ n) (%scope-add! n)) (first (Lint %lint-class-siblings)))
+  (%set-first! %lint-scope (%add-params (first (rest (rest form))) (first %lint-scope)))
+  (%lint-seq (rest (rest (rest form))))
+  (%lint-leak-scan (%last (rest (rest (rest form)))))
+  (%set-first! %lint-scope saved))
+    (method %lint-class (self form)
+  (def name-str (%cvt (first (rest form)) %string))
+  (%scope-add! name-str)
+  (%set-first! %lint-class-names (pair name-str (first %lint-class-names)))
+  ; The parents slot is (Parent ...) or (extends Proto ...): the extends
+  ; KEYWORD is not a reference, everything else is.
+  (let ((parents (first (rest (rest form)))))
+    (match
+      ((if (pair? parents) (eq? (first parents) 'extends) #f) (%lint-seq (rest parents)))
+      (#t (%for-each (fn (_ p) (%lint-form p)) parents))))
+  (let ((saved-sibs (first (Lint %lint-class-siblings))))
+    (%set-first! (Lint %lint-class-siblings)
+      (Lint %lint-class-methods (rest (rest (rest form))) ()))
+    (%for-each (fn (_ c) (Lint %lint-class-clause c)) (rest (rest (rest form))))
+    (%set-first! (Lint %lint-class-siblings) saved-sibs)))
+    (method %lint-class-prepass (self forms)
+  (unless (null? forms)
+    (do (let ((f (%lint-unwrap-doc (first forms))))
+          (when (if (pair? f) (eq? (first f) 'def-class) #f)
+            (%set-first! %lint-class-names
+              (pair (%cvt (first (rest f)) %string) (first %lint-class-names)))))
+        (recur self (rest forms)))))
+    (method %lint-computed-call (self form)
+  (match
+    ((if (pair? (rest form))
+       (if (symbol? (first (rest form)))
+         (if (%scope-has-name? (%cvt (first (rest form)) %string) (first %lint-scope)) #f
+           (guard (_ #t)
+             (do (eval! (%str->symbol (%cvt (first (rest form)) %string))) #f)))
+         #f) #f)
+      (do (%lint-form (first form))
+          (%lint-seq (rest (rest form)))))
+    (#t (%lint-seq form))))))
+
 (def %lint-top (fn (self forms defs)
   (if (null? forms) defs
     ; `let`, not `def`: this is %lint-top's tail, so a `def` here would itself
@@ -603,7 +745,10 @@
   (%set-first! %lint-warn ())
   (%set-first! %lint-arity ())
   (%set-first! %lint-scope ())
+  (%set-first! %lint-class-names ())
+  (%set-first! (Lint %lint-class-siblings) ())
   (%arity-collect forms)                             ; pre-pass: file-local fn arities
+  (Lint %lint-class-prepass forms)                        ; pre-pass: class names (order independence)
   (%lint-push)
   (def result-defs (%lint-top forms defs))
   (%lint-pop)
@@ -618,7 +763,7 @@
 (doc (def lint-undefined (fn (_ defs uses)
   (%filter (fn (_ name)
     (unless (%member-str? name defs)
-      (unless (%env-known? name) #t)))
+      (unless (Lint %env-known? name) #t)))
     uses)))
   (param defs LIST "Defined names from lint-forms")
   (param uses LIST "Used names from lint-forms")

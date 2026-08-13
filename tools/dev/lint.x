@@ -75,7 +75,9 @@
       (let ((p (%scope-lookup (first form))))
         (unless (null? p)
           (let ((st (%get-prop "scope" p)))
-            (unless (null? st) (str=? st "bind"))))))))
+            (unless (null? st)
+              ; def-class binds its NAME at top level too (scope "class")
+              (if (str=? st "bind") #t (str=? st "class")))))))))
 
   ; Look up the head's scope-type and route to the matching analyser from the
   ; library.  (Replaces the old %walk-pair override; same scope semantics, but
@@ -83,7 +85,7 @@
   ; non-list check; unknown forms are treated as function calls.
   (set! %lint-dispatch (fn (_ form)
     (def head (first form))
-    (if (not (symbol? head)) (%lint-seq form)
+    (if (not (symbol? head)) (Lint %lint-computed-call form)
       (let ((h (%lint-cvt head %string))
             (props (%scope-lookup head)))
         (let ((st (if (null? props) ""
@@ -95,6 +97,7 @@
             ((str=? st "params-env") (%lint-op form))
             ((str=? st "let")        (%lint-let form))
             ((str=? st "guard")      (%lint-guard form))
+            ((str=? st "class")      (Lint %lint-class form))
             ((str=? st "quasi")      (%lint-quasi (rest form)))
             ((str=? st "skip")       ())
             ((str=? h "first")       (%lint-first-rest form))
@@ -104,6 +107,7 @@
             ; under the construct-table dispatcher too.
             ((str=? h "match")       (%lint-match form))
             ((str=? h "method-ref")  (%lint-method-ref form))
+            ((str=? h "doc")         (Lint %lint-doc form))
             (#t                      (%lint-call form))))))))
 
   ; --- Read target forms, analyze via lint-forms ---

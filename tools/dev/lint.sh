@@ -46,9 +46,44 @@ if [ $# -eq 0 ]; then
   for _f in "$PROJECT_DIR"/lib/x/*.x; do
     case "$_f" in */constructs.x) ;; *) _FILES="$_FILES $_f" ;; esac
   done
+  # The library subdirectories -- formerly a sweep blind spot (#226 found
+  # rn.x flagging a reference its unlinted importer shared).  The
+  # dialect-entry preload arm below covers these too: a module's own
+  # top-level (import ...) lines declare its env, and re-importing an
+  # already-loaded module is a no-op.
+  # Exclusions, each for a reason:
+  #   tower-compiled.x   -- GENERATED tower amalgam, not a module
+  #   tool/asm/*.x       -- per-arch include FRAGMENTS of tool/asm.x
+  #   compile/pipeline.x -- include fragment of tool/compile.x's flow
+  for _f in $(find "$PROJECT_DIR/lib/x" -mindepth 2 -name '*.x' | sort); do
+    case "$_f" in
+      */boot/tower-compiled.x|*/tool/asm/*|*/compile/pipeline.x) continue ;;
+    esac
+    _FILES="$_FILES $_f"
+  done
   for _f in "$PROJECT_DIR"/apps/*/*.x; do
     [ -e "$_f" ] && _FILES="$_FILES $_f"
   done
+  # PARALLEL=1: fan the sweep out via self-recursion, one file per child
+  # (each file is one engine run either way).  xargs exits nonzero when
+  # any child fails, so the gate verdict is preserved.  Child output is
+  # per-line atomic; a failing file's block may interleave with others,
+  # which a green gate never shows.
+  #
+  # Default fan-out: min(cores, 4).  A child peaks at ~600MB RSS
+  # (class.x, measured 2026-08-13); 8-wide OOM-killed the 7GB ubuntu CI
+  # runner (SIGTERM 143, ECHILD noise in make) while 14GB macOS
+  # survived.  4x600MB leaves headroom everywhere; raise NPROC
+  # explicitly on machines with the memory for it.
+  if [ -n "$PARALLEL" ]; then
+    _NP="$NPROC"
+    if [ -z "$_NP" ]; then
+      _NP="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+      [ "$_NP" -gt 4 ] && _NP=4
+    fi
+    printf '%s\n' $_FILES | xargs -P "$_NP" -n 1 sh "$0" --lib || exit 1
+    exit 0
+  fi
   set -- $_FILES
 fi
 
@@ -118,6 +153,14 @@ for f in "$@"; do
       done
       ;;
   esac
+
+  # Adjudicated lazy references: a `; lint-known: NAME...` header line
+  # names %-globals a sibling file defines and a lazy include supplies at
+  # runtime (the JIT-deferral pattern).  Bind them nil in the linter env
+  # so they are known; the marker sits next to the reason in the file.
+  for _k in $(sed -n 's/^; lint-known:\(.*\)$/\1/p' "$f"); do
+    _PRELOAD="$_PRELOAD (def $_k 0)"   # 0, not (): a nil binding would fail the value-subject test
+  done
 
   # Run linter: library [+ app preload] + linter code, then constructs +
   # [mode flag] + target

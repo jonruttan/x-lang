@@ -1,5 +1,7 @@
 ; asm-compile.x -- JIT compiler: x-lang expressions to native machine code
 ; Produces proper x-lang prims that work with map, fold, closures, etc.
+; lint-known: %compile-fvars %compile-fvar-lookup
+; (defined in tool/compile/emit.x; compile.x's include order supplies them)
 (import x/core/list)
 ; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
 (def %obj->ptr (prim-ref 'obj '->ptr))

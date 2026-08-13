@@ -1,4 +1,7 @@
 ; str/str8.x -- Str8: the 8-bit (byte) string class + the full string suite
+; lint-known: Float
+; (the numeric tower loads after this file; float-path methods reach
+;  Float lazily at call time)
 (import x/protocol/seq)
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
