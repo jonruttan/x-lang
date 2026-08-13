@@ -13,6 +13,7 @@
 (import x/sys/posix)
 (import x/sys/file)
 (import x/type/list)
+(import x/type/path)
 
 ; Fetch the byte prims from the catalog: the walk and the gates' line
 ; matchers are hot loops, and class dispatch costs hundreds of objects per
@@ -46,7 +47,7 @@
             (let ents ((names (File list-dir path)) (acc acc))
               (if (null? names) acc
                 (ents (rest names)
-                      (self (Str8 append path (Str8 append "/" (first names)))
+                      (self (Path join path (first names))
                             acc)))))
           ((keep? path) (pair path acc))
           (#t acc))))

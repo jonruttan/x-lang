@@ -41,6 +41,7 @@
 
 (import x/sys/file)
 (import x/codec/xon)
+(import x/type/path)
 
 ; Cached C instruments (cold path; fetched once).
 (def %str-make (prim-ref 'str 'make))
@@ -259,7 +260,7 @@
             (#t
               (do (%cell-push! %reg-names-cell name)
                   (%load-path
-                    (Str8 append "lib/" (Str8 append (symbol->str name) ".x"))
+                    (Path join "lib" (Str8 append (symbol->str name) ".x"))
                     file form)))))
         (#t (%cell-push! %findings-cell (list file () () form)))))))
 
@@ -367,9 +368,9 @@
 ; registered iff the module NAME derived from it is in the name registry.
 (def %path->name-str
   (fn (_ path)
-    ; (Str8 sub start LENGTH s): drop the 4-byte "lib/" prefix and the
-    ; 2-byte ".x" suffix
-    (Str8 sub 4 (- (Str8 length path) 6) path)))
+    ; drop the 4-byte "lib/" prefix (a prefix strip, not a path op),
+    ; then the extension through the typed door (#225)
+    (Path strip-ext (Str8 sub 4 (- (Str8 length path) 4) path))))
 (def %name-registered?
   (fn (_ namestr)
     (def %go

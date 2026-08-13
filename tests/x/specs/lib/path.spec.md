@@ -99,3 +99,53 @@ No filesystem access -- every method is a total string function.
 ```
 ---
     (#t #f #f)
+
+## Path norm
+
+### dot and empty components drop, dot-dot consumes
+
+```scheme
+(do (import x/type/path)
+  (display (Path norm "a/./b//c"))
+  (display " ")
+  (display (Path norm "a/b/../c")))
+```
+---
+    a/b/c a/c
+
+### leading dot-dots survive for the caller to judge
+
+```scheme
+(do (import x/type/path)
+  (display (Path norm "../a"))
+  (display " ")
+  (display (Path norm "a/../../b")))
+```
+---
+    ../a ../b
+
+### collapse to current dir or root
+
+```scheme
+(do (import x/type/path)
+  (display (Path norm "a/.."))
+  (display " ")
+  (display (Path norm "/a/../..")))
+```
+---
+    . /
+
+## Path strip-ext
+
+### strips one extension from the basename, keeps the directory
+
+```scheme
+(do (import x/type/path)
+  (display (Path strip-ext "a/b.x"))
+  (display " ")
+  (display (Path strip-ext "a.tar.gz"))
+  (display " ")
+  (display (Path strip-ext "Makefile")))
+```
+---
+    a/b a.tar Makefile

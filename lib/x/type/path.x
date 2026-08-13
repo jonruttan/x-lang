@@ -94,6 +94,48 @@
         (example "(Path split \"a//b/\")" "(\"a\" \"b\")"))
       (List reject (fn (_ c) (str=? c "")) (Str8 split "/" p)))
 
+    (method norm (self (param p STRING "Path"))
+      (doc "Lexically normalize: '.' and empty components drop, '..' consumes the component before it. Leading '..'s survive (nothing to consume -- the CALLER decides whether climbing out is an error), and an absolute path never climbs above '/'. Purely lexical: no symlink is consulted."
+        (returns STRING "The normalized path")
+        (example "(Path norm \"a/./b//c\")" "\"a/b/c\"")
+        (example "(Path norm \"a/b/../c\")" "\"a/c\"")
+        (example "(Path norm \"../a\")" "\"../a\"")
+        (example "(Path norm \"a/..\")" "\".\"")
+        (example "(Path norm \"/a/../..\")" "\"/\""))
+      (def %resolve
+        (fn (self segs acc)
+          (match
+            ((null? segs) (%reverse acc))
+            ((str=? (first segs) ".") (self (rest segs) acc))
+            ((str=? (first segs) "..")
+              (match
+                ((if (null? acc) #f (not (str=? (first acc) ".."))) (self (rest segs) (rest acc)))
+                ((Path absolute? p) (self (rest segs) acc))
+                (#t (self (rest segs) (pair ".." acc)))))
+            (#t (self (rest segs) (pair (first segs) acc))))))
+      (let ((segs (%resolve (Path split p) ())))
+        (let ((body (%fold (fn (_ acc c) (if (str=? acc "") c (Str8 append acc (Str8 append "/" c))))
+                           "" segs)))
+          (match
+            ((Path absolute? p) (Str8 append "/" body))
+            ((str=? body "") ".")
+            (#t body)))))
+
+    (method strip-ext (self (param p STRING "Path"))
+      (doc "p without the basename's extension and its dot; unchanged when ext is nil. The whole path keeps its directory part -- this is the typed door for the byte-arithmetic suffix strips the tools hand-rolled."
+        (returns STRING "The path minus its extension")
+        (example "(Path strip-ext \"a/b.x\")" "\"a/b\"")
+        (example "(Path strip-ext \"a.tar.gz\")" "\"a.tar\"")
+        (example "(Path strip-ext \"Makefile\")" "\"Makefile\""))
+      (let ((e (Path ext p)))
+        (match
+          ((null? e) p)
+          ; guard: only cut when the dotted extension really is p's tail
+          ; (a slash-terminated path keeps its bytes)
+          ((Str8 ends? (Str8 append "." e) p)
+            (Str8 sub 0 (- (Str8 length p) (+ 1 (Str8 length e))) p))
+          (#t p))))
+
     (method absolute? (self (param p STRING "Path"))
       (doc "Does p start at the root?"
         (returns BOOL "True when p begins with '/'")

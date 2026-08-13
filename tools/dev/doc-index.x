@@ -7,6 +7,7 @@
 ; querying the module registry, so all generated docs appear.
 
 (import x/tool/contract)
+(import x/type/path)
 
 (Contract alloc-guard!)
 
@@ -63,7 +64,8 @@
   (fn (_ name)
     (and (Str8 ends? ".md" name) (not (str=? name "index.md")))))
 
-(def %base-of (fn (_ name) (%di-byte-sub name 0 (- (%di-byte-len name) 3))))
+; The typed strip replaces the hardcoded cut-3-bytes (#225).
+(def %base-of (fn (_ name) (Path strip-ext name)))
 
 (def %emit-entry
   (fn (_ path link fallback-title)
@@ -80,7 +82,7 @@
 (let go ((groups %groups))
   (unless (null? groups)
     (let ((dir (first (first groups))) (label (rest (first groups))))
-      (let ((dpath (Str8 append %doc-dir (Str8 append "/" dir))))
+      (let ((dpath (Path join %doc-dir dir)))
         (when (File exists? dpath)
           (do (display "## ") (display label) (newline) (newline)
               (let each ((names (Contract sort (File list-dir dpath))))
@@ -88,9 +90,9 @@
                   (let ((name (first names)))
                     (when (%md-name? name)
                       (let ((base (%base-of name)))
-                        (%emit-entry (Str8 append dpath (Str8 append "/" name))
-                                     (Str8 append dir (Str8 append "/" name))
-                                     (Str8 append "x/" (Str8 append dir (Str8 append "/" base)))))))
+                        (%emit-entry (Path join dpath name)
+                                     (Path join dir name)
+                                     (Path join "x" dir base)))))
                   (each (rest names))))
               (newline)))))
     (go (rest groups))))
@@ -101,7 +103,7 @@
     (if (null? names) (List reverse acc)
       (go (rest names)
           (if (and (%md-name? (first names))
-                   (File exists? (Str8 append %doc-dir (Str8 append "/" (first names)))))
+                   (File exists? (Path join %doc-dir (first names))))
             (pair (first names) acc) acc)))))
 
 (unless (null? %top-md)
@@ -109,7 +111,7 @@
       (let each ((names %top-md))
         (unless (null? names)
           (let ((name (first names)))
-            (%emit-entry (Str8 append %doc-dir (Str8 append "/" name))
+            (%emit-entry (Path join %doc-dir name)
                          name
                          (%base-of name)))
           (each (rest names))))

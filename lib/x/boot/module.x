@@ -45,6 +45,13 @@
     (%go 0 -1)))
 
 ; Directory part of a path: everything before the last "/", or "." if none.
+; BOOT-CONSTRAINED twins of (Path dirname)/(Path join) -- this file
+; loads before the class layer, so it cannot ride x/type/path.  The
+; SEMANTICS INTENTIONALLY DIVERGE and callers rely on it: %path-dir
+; does not strip trailing slashes or special-case the root, and
+; %path-join returns part UNCHANGED for dir "." or "" where (Path join)
+; would emit "./part" -- rel paths built here key lockfiles and the
+; module registry, so the bytes are the contract (#225).
 (def %path-dir
   (fn (_ p)
     (def slash (%last-slash p))

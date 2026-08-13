@@ -811,7 +811,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
   ; would protect vd.x here -- clear it so both stages stay distinct.
   (guard (_ ()) (File unlink "build/pin-spec/uproj/bare.x"))
   (File spit "build/pin-spec/uproj/app.x" "(import-version-once acme/vd \"1.3.*\")\n")
-  (write (List map (fn (_ p) (Pin %pin-basename p)) (Pin unused "build/pin-spec/uproj"))))
+  (write (List map (fn (_ p) (Path basename p)) (Pin unused "build/pin-spec/uproj"))))
 ```
 ---
     ("vd.x" "vd@1.3.x")
@@ -821,7 +821,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
 ```scheme
 (do
   (File spit "build/pin-spec/uproj/bare.x" "(import acme/vd)\n")
-  (write (List map (fn (_ p) (Pin %pin-basename p)) (Pin unused "build/pin-spec/uproj"))))
+  (write (List map (fn (_ p) (Path basename p)) (Pin unused "build/pin-spec/uproj"))))
 ```
 ---
     ("vd@1.3.x")
