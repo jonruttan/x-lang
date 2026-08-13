@@ -52,6 +52,7 @@
 #include "src/x-prim.c"
 
 #include "src/x-prim/io.c"
+#include "src/x-prim/heap.c"
 
 /* Stubs for primitives not under test. */
 x_obj_t *x_prim_core_register(x_obj_t *p_base, x_obj_t *p_args) { return p_base; }
@@ -59,6 +60,9 @@ x_obj_t *x_prim_arith_register(x_obj_t *p_base, x_obj_t *p_args) { return p_base
 x_obj_t *x_prim_pred_register(x_obj_t *p_base, x_obj_t *p_args) { return p_base; }
 x_obj_t *x_prim_string_register(x_obj_t *p_base, x_obj_t *p_args) { return p_base; }
 x_obj_t *x_prim_type_register(x_obj_t *p_base, x_obj_t *p_args) { return p_base; }
+x_obj_t *x_prim_base_register(x_obj_t *p_base, x_obj_t *p_args) { return p_base; }
+x_obj_t *x_prim_buffer_register(x_obj_t *p_base, x_obj_t *p_args) { return p_base; }
+x_obj_t *x_prim_iter_register(x_obj_t *p_base, x_obj_t *p_args) { return p_base; }
 x_obj_t *x_prim_ffi_register(x_obj_t *p_base, x_obj_t *p_args) { return p_base; }
 x_obj_t *x_prim_callcc_register(x_obj_t *p_base, x_obj_t *p_args) { return p_base; }
 x_obj_t *x_syntax_binding_register(x_obj_t *p_base, x_obj_t *p_args) { return p_base; }
