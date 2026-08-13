@@ -43,8 +43,6 @@
 (import x/codec/xon)
 (import x/type/path)
 
-; Cached C instruments (cold path; fetched once).
-(def %str-make (prim-ref 'str 'make))
 
 ; --- state cells ---
 ; loaded vs registered are DISTINCT sets, as in the real module system: a raw
@@ -69,22 +67,6 @@
 ; string atoms never intern (paths need str=?).
 
 ; --- file reading / parsing ---
-(def %read-chunks
-  (fn (self fd acc)
-    (let ((buf (%str-make 65536)))
-      (let ((n (File read fd buf 65536)))
-        (match
-          ((<= n 0) acc)
-          (#t (self fd (Str8 append acc (Str8 sub 0 n buf)))))))))
-
-(def %read-file
-  (fn (_ path)
-    (let ((fd (File open path 'rdonly)))
-      (match
-        ((< fd 0) (error (Str8 append "boot-order: cannot open " path)))
-        (#t
-          (let ((text (%read-chunks fd "")))
-            (do (File close fd) text)))))))
 
 ; Cached across phases: phase 1 tokenizes every lib file for the
 ; inventory, phase 2 re-walks the boot closure.  The end-of-buffer
@@ -94,7 +76,7 @@
     (let ((hit (%assoc-str path (first %forms-cache-cell))))
       (match
         ((null? hit)
-          (let ((forms (Xon read (%read-file path))))
+          (let ((forms (Xon read (File slurp path))))
             (do (%cell-push! %forms-cache-cell (pair path forms))
                 forms)))
         (#t (rest hit))))))

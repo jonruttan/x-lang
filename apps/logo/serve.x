@@ -11,6 +11,7 @@
 ;   ; Open http://localhost:8080 in browser
 
 (import x/sys/posix)
+(import x/sys/file)
 ; Socket plumbing is homed on the Socket class (#29) -- this app is its
 ; first consumer; the Darwin-only constants that used to live here moved
 ; there and grew their Linux column.
@@ -71,28 +72,11 @@
 ; File reading
 ; ============================================================
 
-(def %slurp-chunk 1048576)  ; 1MB chunks
-
+; Whole-file reads ride (File slurp).  The HTTP-serving policy stays:
+; an unreadable path answers "" (a 404's body), never an error (#229).
 (def %slurp
   (fn (_ path)
-    (def fd (Sys open-read path))
-    (if (< fd 0) ""
-      ; let, not def-in-do: this is the tail (def would leak to global)
-      (let ((%read-all
-             (fn (self acc)
-               (def buf (%int->ptr (%ptr-call %c-malloc %slurp-chunk)))
-               ; %sys-fold (x/sys/posix): Linux zero-extends read's -1
-               (def n (%sys-fold (%ptr-call %c-read fd buf (- %slurp-chunk 1))))
-               (if (<= n 0)
-                 (do (%ptr-call %c-free buf) acc)
-                 (do
-                   (ptr-set1! buf n 0)
-                   (let ((chunk (%ptr->str buf)))
-                     (%ptr-call %c-free buf)
-                     (self (Str append acc chunk))))))))
-        (def content (%read-all ""))
-        (Sys close fd)
-        content))))
+    (guard (_ "") (File slurp path))))
 
 ; ============================================================
 ; Bytecode file — flat JSON array entries, one per line

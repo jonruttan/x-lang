@@ -11,6 +11,7 @@
 
 (import x/type/str)
 (import x/sys/posix)
+(import x/sys/file)
 (import x/sys/proc)
 (import x/type/hash)
 ; Fetch the type prims from the catalog (ns `type` is de-registered, R5).
@@ -150,10 +151,9 @@
 
 (def compile-write
   (fn (_ path source)
-    (def fd (Sys open-write path))
-    (Sys fd-write fd source)
-    (Sys close fd)
-    path))
+    ; (File spit) checks the open; the old raw fd path wrote to -1 on
+    ; failure and the error surfaced nowhere (#229)
+    (do (File spit path source) path)))
 (doc compile-write "Write a string to a file. Returns the path."
   (param path STRING "Output file path")
   (param source STRING "Content to write")

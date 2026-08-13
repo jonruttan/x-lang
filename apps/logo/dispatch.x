@@ -7,6 +7,7 @@
 (import logo/expr)
 (import logo/indent)
 (import x/sys/posix)
+(import x/sys/file)
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr-call (prim-ref 'ptr 'call))
 (def %ptr->str (prim-ref 'ptr '->str))
@@ -22,27 +23,9 @@
 ; File reader (uses read-char with stdin redirection)
 ; ============================================================
 
-(def %c-read (%dlsym (%dlopen () 1) "read"))
-(def %c-malloc (%dlsym (%dlopen () 1) "malloc"))
-(def %c-free (%dlsym (%dlopen () 1) "free"))
-
-(def %logo-slurp-file
-  (fn (_ path)
-    (def fd (Sys open-read path))
-    (if (< fd 0) (Err raise 'io (Str append "Cannot open: " path) ()))
-    (def bufsize 65536)
-    (def buf (%int->ptr (%ptr-call %c-malloc bufsize)))
-    (def %read-all
-      (fn (self acc)
-        ; %sys-fold (x/sys/posix): Linux zero-extends read's -1
-        (def n (%sys-fold (%ptr-call %c-read fd buf (- bufsize 1))))
-        (if (<= n 0) acc
-          (do (%ptr-set! buf n 0 1)
-              (self (Str append acc (%ptr->str buf)))))))
-    (def content (%read-all ""))
-    (%ptr-call %c-free buf)
-    (Sys close fd)
-    content))
+; Whole-file reads ride (File slurp) -- the old FFI malloc/read loop
+; NUL-truncated its chunks and duplicated serve.x's (#229).
+(def %logo-slurp-file (fn (_ path) (File slurp path)))
 
 ; ============================================================
 ; Command table
