@@ -231,11 +231,11 @@
         (sample "(File exists? \"lib/x.x\")" "#t"))
       (guard (_ #f) (do (File stat path) #t)))
 
-    (method slurp (self (param path STRING "File to read"))
+    (method read-all (self (param path STRING "File to read"))
       (doc "The whole file as one string (stat for the size, one read). Raises a kind-'io Err on open/read failure."
         (returns STRING "The file's bytes")
-        (sample "(File slurp \"/etc/hostname\")" "the file's contents as a string"))
-      (%fs-path path "File slurp")
+        (sample "(File read-all \"/etc/hostname\")" "the file's contents as a string"))
+      (%fs-path path "File read-all")
       (def size (Assoc get 'size (File stat path)))
       (def fd (File open path 'rdonly))
       (when (< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
@@ -246,13 +246,13 @@
       (when (< n 0) (error (Err from-errno en 'read path)))
       (if (= n size) buf (Str8 sub 0 n buf)))
 
-    (method spit (self (param path STRING "File to write (created/truncated)")
+    (method write-all (self (param path STRING "File to write (created/truncated)")
                        (param s STRING "Contents"))
       (doc "Write s as the entire contents of path (create or truncate, mode 0644). Raises a kind-'io Err on failure; returns the byte count written."
         (returns INT "Bytes written")
-        (sample "(File spit \"out.txt\" \"hi\\n\")" "3"))
-      (%fs-path path "File spit")
-      (unless (str? s) (Err raise 'type "File spit: contents must be a string" ()))
+        (sample "(File write-all \"out.txt\" \"hi\\n\")" "3"))
+      (%fs-path path "File write-all")
+      (unless (str? s) (Err raise 'type "File write-all: contents must be a string" ()))
       ; symbolic modes: the O_* numbers differ per OS (%file-modes is per-OS)
       (def fd (File open path (list 'wronly 'creat 'trunc) 420))
       (when (< fd 0) (error (Err from-errno (%fs-errno fd) 'open path)))
@@ -267,7 +267,7 @@
         (returns LIST "List of line strings")
         (sample "(File read-lines \"/etc/hosts\")" "(\"127.0.0.1 localhost\" ...)"))
       (%fs-path path "File read-lines")
-      (def s (File slurp path))
+      (def s (File read-all path))
       (def all (Str8 split "\n" s))
       (if (null? all) all
         (let ((lastc (List last all)))

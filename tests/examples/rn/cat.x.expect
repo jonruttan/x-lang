@@ -15,7 +15,7 @@
   (def buf (Str8 make 256 #\space))
 
   ; Deliberately a STREAMING read (256-byte chunks straight to stdout):
-  ; this example teaches the fd loop.  A whole-file read is (File slurp).
+  ; this example teaches the fd loop.  A whole-file read is (File read-all).
   (def display-file (fn (self fd)
     (let ((n (File read fd buf 256)))
       (if (> n 0)

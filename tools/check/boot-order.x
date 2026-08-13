@@ -76,7 +76,7 @@
     (let ((hit (%assoc-str path (first %forms-cache-cell))))
       (match
         ((null? hit)
-          (let ((forms (Xon read (File slurp path))))
+          (let ((forms (Xon read (File read-all path))))
             (do (%cell-push! %forms-cache-cell (pair path forms))
                 forms)))
         (#t (rest hit))))))

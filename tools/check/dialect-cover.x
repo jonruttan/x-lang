@@ -55,7 +55,7 @@
 (def %covered
   (let go ((files (Contract walk %spec-dir (fn (_ p) #t))) (acc ()))
     (if (null? files) acc
-      (go (rest files) (List append acc (%at-lib-values (File slurp (first files)) ()))))))
+      (go (rest files) (List append acc (%at-lib-values (File read-all (first files)) ()))))))
 
 (def %dialects
   (Contract sort

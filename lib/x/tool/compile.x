@@ -151,9 +151,9 @@
 
 (def compile-write
   (fn (_ path source)
-    ; (File spit) checks the open; the old raw fd path wrote to -1 on
+    ; (File write-all) checks the open; the old raw fd path wrote to -1 on
     ; failure and the error surfaced nowhere (#229)
-    (do (File spit path source) path)))
+    (do (File write-all path source) path)))
 (doc compile-write "Write a string to a file. Returns the path."
   (param path STRING "Output file path")
   (param source STRING "Content to write")

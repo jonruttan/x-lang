@@ -2,7 +2,7 @@
 ;
 ; A pure filter: Markdown for ONE source file to stdout.
 ;   sh x.sh --no-pin -q -f tools/dev/doc.x -- FILE
-; Inputs are slurped by path (no stdin data channel under x.sh -f):
+; Inputs are read by path (no stdin data channel under x.sh -f):
 ;   1. lib/x/doc/doc-prims.x (retroactive docs for boot modules; an
 ;      empty table when FILE IS doc-prims.x)
 ;   2. FILE, the source being documented
@@ -30,8 +30,8 @@
 
   (def %prims-path "lib/x/doc/doc-prims.x")
   (def %prims-input
-    (if (str=? %file %prims-path) "" (File slurp %prims-path)))
-  (def %source-input (File slurp %file))
+    (if (str=? %file %prims-path) "" (File read-all %prims-path)))
+  (def %source-input (File read-all %file))
 
   ; --- Tokenize both with a fresh base ---
   ; (Base make): make-base retired when the constructors homed on the Base class

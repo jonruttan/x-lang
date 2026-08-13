@@ -52,7 +52,7 @@ sh x.sh --no-pin -q -f tools/<dir>/<tool>.x -- <args>
 ```
 
 Flags after `--` land in the interpreter's `args`; there is no stdin data
-channel (`-f` owns the pipe), so inputs are slurped by path.  Gates always
+channel (`-f` owns the pipe), so inputs are read by path.  Gates always
 pass `--no-pin` (the pin probe walks up from the tool file) and arm the
 allocation guard.
 

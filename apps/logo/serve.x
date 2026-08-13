@@ -18,24 +18,11 @@
 (import x/sys/socket)
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr-call (prim-ref 'ptr 'call))
-(def %ptr->str (prim-ref 'ptr '->str))
-(def %ptr-set! (prim-ref 'ptr 'set!))
 (def %dlopen (prim-ref 'ffi 'dlopen))
 (def %dlsym (prim-ref 'ffi 'dlsym))
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
 (def %write-to-str (prim-ref 'io 'write-to-str))
-; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
-(def %int->ptr (prim-ref 'int '->ptr))
 
-; libc read for file slurping (socket traffic rides the Socket class).
-(def %libc (%dlopen () 1))
-(def %resolve (fn (_ name) (%dlsym %libc name)))
-(def %c-read     (%resolve "read"))
-(def %c-malloc   (%resolve "malloc"))
-(def %c-free     (%resolve "free"))
-
-; Convenience: write one byte at offset
-(def ptr-set1! (fn (_ ptr offset val) (%ptr-set! ptr offset val 1)))
 
 ; ============================================================
 ; HTTP helpers
@@ -72,11 +59,11 @@
 ; File reading
 ; ============================================================
 
-; Whole-file reads ride (File slurp).  The HTTP-serving policy stays:
+; Whole-file reads ride (File read-all).  The HTTP-serving policy stays:
 ; an unreadable path answers "" (a 404's body), never an error (#229).
-(def %slurp
+(def %read-or-empty
   (fn (_ path)
-    (guard (_ "") (File slurp path))))
+    (guard (_ "") (File read-all path))))
 
 ; ============================================================
 ; Bytecode file — flat JSON array entries, one per line
@@ -119,7 +106,7 @@
 ; Read bytecode file and wrap as JSON array
 (def %bc-json
   (fn ()
-    (def content (%slurp %bc-path))
+    (def content (%read-or-empty %bc-path))
     (if (str=? content "") "[]"
       (Str append "[" (Str8 sub 0 (- (Str8 length content) 2) content) "]"))))
 
@@ -136,7 +123,7 @@
 (def turtle-serve
   (fn (_ port)
     ; Read the HTML template
-    (def html-template (%slurp "apps/logo/viewer.html"))
+    (def html-template (%read-or-empty "apps/logo/viewer.html"))
     (if (str=? html-template "")
       (Err raise 'io "Could not read turtle.html" ()))
     ; Inject the endpoint script before </body>

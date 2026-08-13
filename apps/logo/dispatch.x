@@ -23,9 +23,9 @@
 ; File reader (uses read-char with stdin redirection)
 ; ============================================================
 
-; Whole-file reads ride (File slurp) -- the old FFI malloc/read loop
+; Whole-file reads ride (File read-all) -- the old FFI malloc/read loop
 ; NUL-truncated its chunks and duplicated serve.x's (#229).
-(def %logo-slurp-file (fn (_ path) (File slurp path)))
+(def %logo-read-file (fn (_ path) (File read-all path)))
 
 ; ============================================================
 ; Command table
@@ -270,7 +270,7 @@
       ((str=? uword "LOAD")
         (let ((r (%logo-consume-arg remaining)))
           (def filename (first r))
-          (def content (%logo-slurp-file filename))
+          (def content (%logo-read-file filename))
           (def tokens (%token-read-string %logo-base (Str append content " ")))
           (logo-process-tokens (%logo-indent-to-blocks tokens))
           (logo-process-tokens (rest r))))

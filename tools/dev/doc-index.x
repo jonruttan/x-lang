@@ -24,7 +24,7 @@
         (pair "doc" "Documentation") (pair "tool" "Tools")
         (pair "platform" "Platform")))
 
-; --- tiny line scanner over a slurped doc file ---------------------
+; --- tiny line scanner over a read-in doc file ----------------------
 
 ; Lines of text as (start . end) offset pairs, first N only.
 (def %title-and-desc
@@ -69,7 +69,7 @@
 
 (def %emit-entry
   (fn (_ path link fallback-title)
-    (def td (%title-and-desc (File slurp path)))
+    (def td (%title-and-desc (File read-all path)))
     (def title (if (null? (first td)) fallback-title (first td)))
     (do (display "- [") (display title) (display "](") (display link) (display ")")
         (unless (null? (rest td))
