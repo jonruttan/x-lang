@@ -170,7 +170,7 @@
                 ; just the absence.
                 (Pin %pin-bad (Str8 append "no manifest: "
                             (Str8 append p " -- (Pin init) writes a starter"))))
-              (#t (Pin %pin-forms (File slurp p))))))
+              (#t (Pin %pin-forms (File read-all p))))))
     ; Arm: prepend each root via import-path!, last-listed first, so the
     ; manifest's FIRST root ends up with the highest precedence.  A missing
     ; root directory is a broken project -- fail loudly, never silently
@@ -222,7 +222,7 @@
               (Pin %pin-take-module name)
               (%reverse (first (Pin %pin-out-cell)))))
     ; mkdir -p: ensure every prefix of dir exists.  EEXIST races are settled
-    ; by the guard; a real failure surfaces at the spit that follows.
+    ; by the guard; a real failure surfaces at the write-all that follows.
     (method %pin-mkdirs (self dir)
       (def %rec (fn (self dir)
         (match
@@ -237,7 +237,7 @@
     (method %pin-copy! (self dest entry)
       (let ((target (%path-join dest (first entry))))
             (do (Pin %pin-mkdirs (%path-dir target))
-                (File spit target (File slurp (rest entry)))
+                (File write-all target (File read-all (rest entry)))
                 ())))
     (method %pin-rels (self entries)
       (def %go
@@ -254,7 +254,7 @@
                       (self dest (rest lst)))))))
       (%rec dest lst))
     (method %pin-digest (self path)
-      (Str8 append "sha256:" (Sha256 hex (File slurp path))))
+      (Str8 append "sha256:" (Sha256 hex (File read-all path))))
     ; The closed vocabulary is (file ...) | (seed ...); each reader takes the
     ; forms it owns and ignores -- never rejects -- the other's.
     (method %pin-lock-parse (self forms)
@@ -316,7 +316,7 @@
     (method %pin-lock-forms (self dest)
       (let ((p (Pin %pin-lock-path dest)))
             (match
-              ((File exists? p) (Pin %pin-forms (File slurp p)))
+              ((File exists? p) (Pin %pin-forms (File read-all p)))
               (#t ()))))
     ; The platform half of the lock -- (release ...) (isa ...) (boot ...),
     ; written by `boot`.  relock rewrites the whole file from the overlay's
@@ -392,7 +392,7 @@
                   ; The platform lines ride through untouched: a sync re-derives
                   ; the overlay from source and must not silently unpin the
                   ; language underneath it.
-                  (File spit (Pin %pin-lock-path dest)
+                  (File write-all (Pin %pin-lock-path dest)
                     (Str8 append (Pin %pin-lock-header)
                       (Str8 append (Xon emit (Pin %pin-platform-forms (Pin %pin-lock-forms dest)))
                         (Str8 append (Pin %pin-lock-render (Pin %pin-lock-entries dest live))
@@ -543,7 +543,7 @@
       (def %rec (fn (self paths)
         (match
               ((null? paths) ())
-              (#t (do (Pin %pin-scan-project-list (Pin %pin-forms (File slurp (first paths))))
+              (#t (do (Pin %pin-scan-project-list (Pin %pin-forms (File read-all (first paths))))
                       (self (rest paths)))))))
       (%rec paths))
     ; srcdir -> (rel . src) entries: the union closure of every import the
@@ -593,7 +593,7 @@
     ; `sync` owns the rest, and neither may clobber the other's half.
     (method %pin-lock-set-platform! (self dest forms)
       (let ((old (Pin %pin-lock-forms dest)))
-            (File spit (Pin %pin-lock-path dest)
+            (File write-all (Pin %pin-lock-path dest)
               (Str8 append (Pin %pin-lock-header)
                 (Str8 append (Xon emit forms)
                              (Pin %pin-nonplatform-render old))))))
@@ -734,7 +734,7 @@
                   (do (Pin %pin-push! (Pin %pin-out-cell) (pair rel (rest hit)))
                       (Pin %pin-walk-file rel (rest hit))))))))
     (method %pin-walk-file (self rel src)
-      (Pin %pin-scan-list (Pin %pin-forms (File slurp src))
+      (Pin %pin-scan-list (Pin %pin-forms (File read-all src))
                           (pair (%path-dir rel) (%path-dir src))))
     (method %pin-tf-walk (self path rel acc)
       (def %names (guard (_ 'file) (File list-dir path)))
@@ -853,7 +853,7 @@
         (let ((entries (Pin %pin-closure-of name)))
           (let ((rels (Pin %pin-rels entries)))
             ; dest otherwise only ever appears as a side effect of copying
-            ; a file into it, so an EMPTY closure left the lockfile spit
+            ; a file into it, so an EMPTY closure left the lockfile write
             ; writing into a directory that was never created.
             (do (Pin %pin-mkdirs dest)
                 (Pin %pin-copy-all! dest entries)
@@ -912,7 +912,7 @@
                 ((File exists? p)
                   (Pin %pin-bad (Str8 append "manifest already exists: " p)))
                 (#t ()))
-              (File spit p (Pin %pin-init-template entry))
+              (File write-all p (Pin %pin-init-template entry))
               (display (Str8 append "pin: wrote " p))
               (newline)
               (display "pin: edit (src ...) if your code lives elsewhere, then:")
@@ -960,7 +960,7 @@
                 ; Lift the release's facts into the lock, then remove the
                 ; downloaded manifest: two records of the same thing drift.
                 (let ((rel (%path-join bootdir (Pin %pin-release-name))))
-                  (let ((m (Pin %pin-release-parse (Pin %pin-forms (File slurp rel)))))
+                  (let ((m (Pin %pin-release-parse (Pin %pin-forms (File read-all rel)))))
                     (do
                       (Pin %pin-lock-set-platform! root
                         (list (list 'release tag)
@@ -1007,7 +1007,7 @@
             (Pin %pin-download! (Pin %pin-url b tag (Pin %pin-release-name))
                             (%path-join dest (Pin %pin-release-name)))
             (let ((m (Pin %pin-release-parse
-                       (Pin %pin-forms (File slurp (%path-join dest (Pin %pin-release-name)))))))
+                       (Pin %pin-forms (File read-all (%path-join dest (Pin %pin-release-name)))))))
               (do
                 (match
                   ((str=? (%assoc-get 'release m) tag) ())
@@ -1061,7 +1061,7 @@
   (match
     ((null? %pin-announced) ())
     (#t (Pin %pin-arm!
-          (Pin %pin-interpret (Pin %pin-forms (File slurp %pin-announced))
+          (Pin %pin-interpret (Pin %pin-forms (File read-all %pin-announced))
                               (%path-dir %pin-announced))))))
 
 (provide x/tool/pin Pin)

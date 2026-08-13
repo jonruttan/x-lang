@@ -11,30 +11,18 @@
 ;   ; Open http://localhost:8080 in browser
 
 (import x/sys/posix)
+(import x/sys/file)
 ; Socket plumbing is homed on the Socket class (#29) -- this app is its
 ; first consumer; the Darwin-only constants that used to live here moved
 ; there and grew their Linux column.
 (import x/sys/socket)
 ; Fetch the ptr/ffi prims from the catalog (ns `ptr`/`ffi` are de-registered, R5).
 (def %ptr-call (prim-ref 'ptr 'call))
-(def %ptr->str (prim-ref 'ptr '->str))
-(def %ptr-set! (prim-ref 'ptr 'set!))
 (def %dlopen (prim-ref 'ffi 'dlopen))
 (def %dlsym (prim-ref 'ffi 'dlsym))
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
 (def %write-to-str (prim-ref 'io 'write-to-str))
-; Fetch the char/int casts from the catalog (ns `char`/`int` utility members de-registered, R5).
-(def %int->ptr (prim-ref 'int '->ptr))
 
-; libc read for file slurping (socket traffic rides the Socket class).
-(def %libc (%dlopen () 1))
-(def %resolve (fn (_ name) (%dlsym %libc name)))
-(def %c-read     (%resolve "read"))
-(def %c-malloc   (%resolve "malloc"))
-(def %c-free     (%resolve "free"))
-
-; Convenience: write one byte at offset
-(def ptr-set1! (fn (_ ptr offset val) (%ptr-set! ptr offset val 1)))
 
 ; ============================================================
 ; HTTP helpers
@@ -71,28 +59,11 @@
 ; File reading
 ; ============================================================
 
-(def %slurp-chunk 1048576)  ; 1MB chunks
-
-(def %slurp
+; Whole-file reads ride (File read-all).  The HTTP-serving policy stays:
+; an unreadable path answers "" (a 404's body), never an error (#229).
+(def %read-or-empty
   (fn (_ path)
-    (def fd (Sys open-read path))
-    (if (< fd 0) ""
-      ; let, not def-in-do: this is the tail (def would leak to global)
-      (let ((%read-all
-             (fn (self acc)
-               (def buf (%int->ptr (%ptr-call %c-malloc %slurp-chunk)))
-               ; %sys-fold (x/sys/posix): Linux zero-extends read's -1
-               (def n (%sys-fold (%ptr-call %c-read fd buf (- %slurp-chunk 1))))
-               (if (<= n 0)
-                 (do (%ptr-call %c-free buf) acc)
-                 (do
-                   (ptr-set1! buf n 0)
-                   (let ((chunk (%ptr->str buf)))
-                     (%ptr-call %c-free buf)
-                     (self (Str append acc chunk))))))))
-        (def content (%read-all ""))
-        (Sys close fd)
-        content))))
+    (guard (_ "") (File read-all path))))
 
 ; ============================================================
 ; Bytecode file — flat JSON array entries, one per line
@@ -135,7 +106,7 @@
 ; Read bytecode file and wrap as JSON array
 (def %bc-json
   (fn ()
-    (def content (%slurp %bc-path))
+    (def content (%read-or-empty %bc-path))
     (if (str=? content "") "[]"
       (Str append "[" (Str8 sub 0 (- (Str8 length content) 2) content) "]"))))
 
@@ -152,7 +123,7 @@
 (def turtle-serve
   (fn (_ port)
     ; Read the HTML template
-    (def html-template (%slurp "apps/logo/viewer.html"))
+    (def html-template (%read-or-empty "apps/logo/viewer.html"))
     (if (str=? html-template "")
       (Err raise 'io "Could not read turtle.html" ()))
     ; Inject the endpoint script before </body>

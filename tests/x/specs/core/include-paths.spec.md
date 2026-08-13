@@ -126,13 +126,13 @@ build/ivspec/ and armed as an import root.
   (guard (_ ()) (File mkdir "build"))
   (guard (_ ()) (File mkdir "build/ivspec"))
   (guard (_ ()) (File mkdir "build/ivspec/vmod"))
-  (File spit "build/ivspec/vmod/thing.x"
+  (File write-all "build/ivspec/vmod/thing.x"
     "(def %thing-v \"0\")\n(provide vmod/thing %thing-v)\n")
-  (File spit "build/ivspec/vmod/thing@1.3.x"
+  (File write-all "build/ivspec/vmod/thing@1.3.x"
     "(def %thing-v \"1.3\")\n(provide vmod/thing %thing-v)\n")
-  (File spit "build/ivspec/vmod/thing@1.3.1.x"
+  (File write-all "build/ivspec/vmod/thing@1.3.1.x"
     "(def %thing-v \"1.3.1\")\n(provide vmod/thing %thing-v)\n")
-  (File spit "build/ivspec/vmod/thing@2.x"
+  (File write-all "build/ivspec/vmod/thing@2.x"
     "(def %thing-v \"2\")\n(provide vmod/thing %thing-v)\n")
   (import-path! "build/ivspec")
   (display "ready"))
@@ -194,11 +194,11 @@ sitting beside it.
 
 ```scheme
 (do
-  (File spit "build/ivspec/vmod/exact.x"
+  (File write-all "build/ivspec/vmod/exact.x"
     "(def %exact-v \"0\")\n(provide vmod/exact %exact-v)\n")
-  (File spit "build/ivspec/vmod/exact@1.3.x"
+  (File write-all "build/ivspec/vmod/exact@1.3.x"
     "(def %exact-v \"1.3\")\n(provide vmod/exact %exact-v)\n")
-  (File spit "build/ivspec/vmod/exact@1.3.1.x"
+  (File write-all "build/ivspec/vmod/exact@1.3.1.x"
     "(def %exact-v \"1.3.1\")\n(provide vmod/exact %exact-v)\n")
   (import-version-once vmod/exact "1.3")
   (display %exact-v))
@@ -210,9 +210,9 @@ sitting beside it.
 
 ```scheme
 (do
-  (File spit "build/ivspec/vmod/star.x"
+  (File write-all "build/ivspec/vmod/star.x"
     "(def %star-v \"0\")\n(provide vmod/star %star-v)\n")
-  (File spit "build/ivspec/vmod/star@0.9.x"
+  (File write-all "build/ivspec/vmod/star@0.9.x"
     "(def %star-v \"0.9\")\n(provide vmod/star %star-v)\n")
   (import-version-once vmod/star "*")
   (display %star-v))
@@ -226,7 +226,7 @@ The bare load's version is unknowable, so no spec can be satisfied.
 
 ```scheme
 (do
-  (File spit "build/ivspec/vmod/plain.x"
+  (File write-all "build/ivspec/vmod/plain.x"
     "(def %plain-v \"0\")\n(provide vmod/plain %plain-v)\n")
   (import vmod/plain)
   (display (guard (_ #t) (do (import-version-once vmod/plain "^1") #f))))

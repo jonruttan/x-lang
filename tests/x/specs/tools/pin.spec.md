@@ -189,14 +189,14 @@ and hides an import of acme/three inside a deferred fn body.
   (guard (_ ()) (File mkdir "build/pin-spec"))
   (guard (_ ()) (File mkdir "build/pin-spec/lib0"))
   (guard (_ ()) (File mkdir "build/pin-spec/lib0/acme"))
-  (File spit "build/pin-spec/lib0/acme/one.x"
+  (File write-all "build/pin-spec/lib0/acme/one.x"
     "(import acme/two)\n(include-once \"./one-extra.x\")\n(def %acme-deferred (fn (_) (import acme/three)))\n(provide acme/one)\n")
-  (File spit "build/pin-spec/lib0/acme/one-extra.x" "(import acme/four)\n")
-  (File spit "build/pin-spec/lib0/acme/two.x"
+  (File write-all "build/pin-spec/lib0/acme/one-extra.x" "(import acme/four)\n")
+  (File write-all "build/pin-spec/lib0/acme/two.x"
     "(import x/core/list)\n(provide acme/two)\n")
-  (File spit "build/pin-spec/lib0/acme/three.x" "(provide acme/three)\n")
-  (File spit "build/pin-spec/lib0/acme/four.x" "(provide acme/four)\n")
-  (File spit "build/pin-spec/lib0/acme/bad.x" "(include-once (computed))\n")
+  (File write-all "build/pin-spec/lib0/acme/three.x" "(provide acme/three)\n")
+  (File write-all "build/pin-spec/lib0/acme/four.x" "(provide acme/four)\n")
+  (File write-all "build/pin-spec/lib0/acme/bad.x" "(include-once (computed))\n")
   (import-path! "build/pin-spec/lib0")
   (display "ready"))
 ```
@@ -224,8 +224,8 @@ and hides an import of acme/three inside a deferred fn body.
 ### the vendored copy is byte-identical to its source
 
 ```scheme
-(display (str=? (File slurp "build/pin-spec/out/acme/two.x")
-                (File slurp "build/pin-spec/lib0/acme/two.x")))
+(display (str=? (File read-all "build/pin-spec/out/acme/two.x")
+                (File read-all "build/pin-spec/lib0/acme/two.x")))
 ```
 ---
     #t
@@ -261,7 +261,7 @@ argument check has to precede the shape check that used to reach for it.
 
 ```scheme
 (do
-  (File spit "build/pin-spec/lib0/acme/noimp.x" "(import)\n(provide acme/noimp)\n")
+  (File write-all "build/pin-spec/lib0/acme/noimp.x" "(import)\n(provide acme/noimp)\n")
   (display (throws? (fn (_) (Pin closure 'acme/noimp)))))
 ```
 ---
@@ -271,7 +271,7 @@ argument check has to precede the shape check that used to reach for it.
 
 ```scheme
 (do
-  (File spit "build/pin-spec/lib0/acme/noinc.x" "(include-once)\n(provide acme/noinc)\n")
+  (File write-all "build/pin-spec/lib0/acme/noinc.x" "(include-once)\n(provide acme/noinc)\n")
   (display (throws? (fn (_) (Pin closure 'acme/noinc)))))
 ```
 ---
@@ -299,7 +299,7 @@ argument check has to precede the shape check that used to reach for it.
 
 ```scheme
 (do
-  (File spit "build/pin-spec/out/acme/two.x" "(tampered)\n")
+  (File write-all "build/pin-spec/out/acme/two.x" "(tampered)\n")
   (display (throws? (fn (_) (Pin verify "build/pin-spec/out")))))
 ```
 ---
@@ -319,7 +319,7 @@ argument check has to precede the shape check that used to reach for it.
 
 ```scheme
 (do
-  (File spit "build/pin-spec/out/acme/rogue.x" "(evil)\n")
+  (File write-all "build/pin-spec/out/acme/rogue.x" "(evil)\n")
   (def %pin-spec-r (throws? (fn (_) (Pin verify "build/pin-spec/out"))))
   (File unlink "build/pin-spec/out/acme/rogue.x")
   (display %pin-spec-r))
@@ -336,9 +336,9 @@ walk's `shared.x` name one file and never compared equal.
 ```scheme
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/lib0/up"))
-  (File spit "build/pin-spec/lib0/up/mod.x"
+  (File write-all "build/pin-spec/lib0/up/mod.x"
     "(include-once \"./../up-shared.x\")\n(provide up/mod)\n")
-  (File spit "build/pin-spec/lib0/up-shared.x" "(def %up-shared 1)\n")
+  (File write-all "build/pin-spec/lib0/up-shared.x" "(def %up-shared 1)\n")
   (write (Pin vendor "build/pin-spec/upout" 'up/mod))
   (display " verify=")
   (display (Pin verify "build/pin-spec/upout")))
@@ -353,7 +353,7 @@ absolute nor root-relative, so the other guards miss it.
 
 ```scheme
 (do
-  (File spit "build/pin-spec/lib0/acme/escape.x"
+  (File write-all "build/pin-spec/lib0/acme/escape.x"
     "(include-once \"./../../escapee.x\")\n(provide acme/escape)\n")
   (display (throws? (fn (_) (Pin closure 'acme/escape)))))
 ```
@@ -365,7 +365,7 @@ absolute nor root-relative, so the other guards miss it.
 ```scheme
 (do
   (Pin %pin-mkdirs "build/pin-spec/out2")
-  (File spit "build/pin-spec/out2.lock.xon" "(evil)\n")
+  (File write-all "build/pin-spec/out2.lock.xon" "(evil)\n")
   (display (throws? (fn (_) (Pin verify "build/pin-spec/out2")))))
 ```
 ---
@@ -382,10 +382,10 @@ as `(seed "NAME" "rel" ...)`; re-vendoring replaces that seed's claim.
 ```scheme
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/lib0/prov"))
-  (File spit "build/pin-spec/lib0/prov/a.x" "(import prov/dep)\n(provide prov/a)\n")
-  (File spit "build/pin-spec/lib0/prov/dep.x" "(provide prov/dep)\n")
+  (File write-all "build/pin-spec/lib0/prov/a.x" "(import prov/dep)\n(provide prov/a)\n")
+  (File write-all "build/pin-spec/lib0/prov/dep.x" "(provide prov/dep)\n")
   (Pin vendor "build/pin-spec/prov" 'prov/a)
-  (display (Str8 contains? "(seed \"prov/a\"" (File slurp "build/pin-spec/prov.lock.xon"))))
+  (display (Str8 contains? "(seed \"prov/a\"" (File read-all "build/pin-spec/prov.lock.xon"))))
 ```
 ---
     #t
@@ -398,7 +398,7 @@ together.
 
 ```scheme
 (do
-  (File spit "build/pin-spec/lib0/prov/a.x" "(provide prov/a)\n")
+  (File write-all "build/pin-spec/lib0/prov/a.x" "(provide prov/a)\n")
   (write (Pin vendor "build/pin-spec/prov" 'prov/a)))
 ```
 ---
@@ -434,8 +434,8 @@ depend on which spec ran last (`build/` survives between runs).
 
 ```scheme
 (do
-  (File spit "build/pin-spec/lib0/prov/m1.x" "(provide prov/m1)\n")
-  (File spit "build/pin-spec/lib0/prov/m2.x" "(provide prov/m2)\n")
+  (File write-all "build/pin-spec/lib0/prov/m1.x" "(provide prov/m1)\n")
+  (File write-all "build/pin-spec/lib0/prov/m2.x" "(provide prov/m2)\n")
   (Pin vendor "build/pin-spec/prov2" 'prov/m1)
   (Pin vendor "build/pin-spec/prov2" 'prov/m2)
   (display (Pin verify "build/pin-spec/prov2")))
@@ -461,8 +461,8 @@ vendor into that overlay must not evict them.
 ```scheme
 (do
   (Pin %pin-mkdirs "build/pin-spec/legacy/old")
-  (File spit "build/pin-spec/legacy/old/keep.x" "(def %keep 1)\n")
-  (File spit "build/pin-spec/legacy.lock.xon"
+  (File write-all "build/pin-spec/legacy/old/keep.x" "(def %keep 1)\n")
+  (File write-all "build/pin-spec/legacy.lock.xon"
     (Str8 append "(file \"old/keep.x\" \""
       (Str8 append (Pin %pin-digest "build/pin-spec/legacy/old/keep.x") "\")\n")))
   (Pin vendor "build/pin-spec/legacy" 'prov/m1)
@@ -538,7 +538,7 @@ what a project importing acme/one must vendor.
 ```scheme
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/proj"))
-  (File spit "build/pin-spec/proj/app.x" "(import acme/one)\n(display \"hi\")\n")
+  (File write-all "build/pin-spec/proj/app.x" "(import acme/one)\n(display \"hi\")\n")
   (display "ready"))
 ```
 ---
@@ -609,7 +609,7 @@ The project scan reads arbitrary user sources, where a half-typed
 ```scheme
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/badproj"))
-  (File spit "build/pin-spec/badproj/app.x" "(import)\n")
+  (File write-all "build/pin-spec/badproj/app.x" "(import)\n")
   (display (throws? (fn (_) (Pin audit "build/pin-spec/pout" "build/pin-spec/badproj")))))
 ```
 ---
@@ -623,7 +623,7 @@ must still exist for the lockfile to land.
 ```scheme
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/floorproj"))
-  (File spit "build/pin-spec/floorproj/app.x" "(import x/core/list)\n")
+  (File write-all "build/pin-spec/floorproj/app.x" "(import x/core/list)\n")
   (write (Pin vendor-project "build/pin-spec/emptyout" "build/pin-spec/floorproj"))
   (display " ")
   (display (Pin verify "build/pin-spec/emptyout")))
@@ -636,7 +636,7 @@ must still exist for the lockfile to land.
 ```scheme
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/proj/sub"))
-  (File spit "build/pin-spec/proj/sub/deep.x" "(import acme/four)\n")
+  (File write-all "build/pin-spec/proj/sub/deep.x" "(import acme/four)\n")
   (display (Pin %pin-length (Pin %pin-x-files "build/pin-spec/proj"))))
 ```
 ---
@@ -655,8 +655,8 @@ and work from the code that is actually there.
 (do
   (Pin %pin-mkdirs "build/pin-spec/fd/src")
   (Pin %pin-mkdirs "build/pin-spec/fd/dep")
-  (File spit "build/pin-spec/fd/pin.xon" "(root \"dep\")\n(src \"src\")\n")
-  (File spit "build/pin-spec/fd/src/app.x" "(import acme/three)\n")
+  (File write-all "build/pin-spec/fd/pin.xon" "(root \"dep\")\n(src \"src\")\n")
+  (File write-all "build/pin-spec/fd/src/app.x" "(import acme/three)\n")
   ; build/ survives between runs, and the later-import spec below adds a
   ; second source file AND vendors what it imports.  Vendor never deletes
   ; (a dropped file is the project's to remove), so without clearing both
@@ -690,7 +690,7 @@ and work from the code that is actually there.
 
 ```scheme
 (do
-  (File spit "build/pin-spec/fd/src/more.x" "(import acme/four)\n")
+  (File write-all "build/pin-spec/fd/src/more.x" "(import acme/four)\n")
   (write (Pin check "build/pin-spec/fd")))
 ```
 ---
@@ -714,7 +714,7 @@ untouched, or growing an import would silently drop the language pin.
 
 ```scheme
 (do
-  (File spit "build/pin-spec/fd/dep.lock.xon"
+  (File write-all "build/pin-spec/fd/dep.lock.xon"
     (Str8 append "(release \"v9.9.9\")\n(isa \"sha256:abc\")\n"
       (Str8 append "(boot \"he.x\" \"sha256:def\")\n"
         (Str8 append "(file \"acme/three.x\" \""
@@ -730,7 +730,7 @@ untouched, or growing an import would silently drop the language pin.
 ```scheme
 (do
   (Pin %pin-mkdirs "build/pin-spec/nosrc")
-  (File spit "build/pin-spec/nosrc/pin.xon" "(root \"dep\")\n")
+  (File write-all "build/pin-spec/nosrc/pin.xon" "(root \"dep\")\n")
   (display (throws? (fn (_) (Pin sync "build/pin-spec/nosrc")))))
 ```
 ---
@@ -744,7 +744,7 @@ so the seed records what the manifest said -- even when sync was handed
 an absolute project directory, as it is here.
 
 ```scheme
-(display (Str8 contains? "(seed \"project:src\"" (File slurp "build/pin-spec/fd/dep.lock.xon")))
+(display (Str8 contains? "(seed \"project:src\"" (File read-all "build/pin-spec/fd/dep.lock.xon")))
 ```
 ---
     #t
@@ -761,12 +761,12 @@ constraint selects -- here the newest 1.3.*.
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/vfix"))
   (guard (_ ()) (File mkdir "build/pin-spec/vfix/acme"))
-  (File spit "build/pin-spec/vfix/acme/vd.x" "(provide acme/vd)\n")
-  (File spit "build/pin-spec/vfix/acme/vd@1.3.x" "(provide acme/vd)\n")
-  (File spit "build/pin-spec/vfix/acme/vd@1.3.1.x" "(provide acme/vd)\n")
+  (File write-all "build/pin-spec/vfix/acme/vd.x" "(provide acme/vd)\n")
+  (File write-all "build/pin-spec/vfix/acme/vd@1.3.x" "(provide acme/vd)\n")
+  (File write-all "build/pin-spec/vfix/acme/vd@1.3.1.x" "(provide acme/vd)\n")
   (import-path! "build/pin-spec/vfix")
   (guard (_ ()) (File mkdir "build/pin-spec/vproj"))
-  (File spit "build/pin-spec/vproj/app.x" "(import-version-once acme/vd \"1.3.*\")\n")
+  (File write-all "build/pin-spec/vproj/app.x" "(import-version-once acme/vd \"1.3.*\")\n")
   (write (Pin vendor-project "build/pin-spec/vout" "build/pin-spec/vproj")))
 ```
 ---
@@ -777,7 +777,7 @@ constraint selects -- here the newest 1.3.*.
 ```scheme
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/vproj2"))
-  (File spit "build/pin-spec/vproj2/app.x" "(import-version-once acme/vd (spec))\n")
+  (File write-all "build/pin-spec/vproj2/app.x" "(import-version-once acme/vd (spec))\n")
   (display (throws? (fn (_) (Pin vendor-project "build/pin-spec/vout2" "build/pin-spec/vproj2")))))
 ```
 ---
@@ -810,7 +810,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
   ; build/ survives between runs and the next spec adds bare.x, which
   ; would protect vd.x here -- clear it so both stages stay distinct.
   (guard (_ ()) (File unlink "build/pin-spec/uproj/bare.x"))
-  (File spit "build/pin-spec/uproj/app.x" "(import-version-once acme/vd \"1.3.*\")\n")
+  (File write-all "build/pin-spec/uproj/app.x" "(import-version-once acme/vd \"1.3.*\")\n")
   (write (List map (fn (_ p) (Path basename p)) (Pin unused "build/pin-spec/uproj"))))
 ```
 ---
@@ -820,7 +820,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
 
 ```scheme
 (do
-  (File spit "build/pin-spec/uproj/bare.x" "(import acme/vd)\n")
+  (File write-all "build/pin-spec/uproj/bare.x" "(import acme/vd)\n")
   (write (List map (fn (_ p) (Path basename p)) (Pin unused "build/pin-spec/uproj"))))
 ```
 ---
@@ -838,7 +838,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
   (guard (_ ()) (File unlink "build/pin-spec/initproj/pin.xon"))
   (Pin init "build/pin-spec/initproj")
   (display (null? (Pin %pin-interpret
-                    (Pin %pin-forms (File slurp "build/pin-spec/initproj/pin.xon"))
+                    (Pin %pin-forms (File read-all "build/pin-spec/initproj/pin.xon"))
                     "build/pin-spec/initproj"))))
 ```
 ---
@@ -860,7 +860,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
   (guard (_ ()) (File unlink "build/pin-spec/initxe/pin.xon"))
   (Pin init "build/pin-spec/initxe" 'xe)
   (display (Str8 contains? "(boot \"boot/xe.x\")"
-                 (File slurp "build/pin-spec/initxe/pin.xon"))))
+                 (File read-all "build/pin-spec/initxe/pin.xon"))))
 ```
 ---
     #t
@@ -869,7 +869,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
 
 ```scheme
 (do
-  (File spit "build/pin-spec/initproj/app.x" "(import acme/two)\n")
+  (File write-all "build/pin-spec/initproj/app.x" "(import acme/two)\n")
   (write (Pin sync "build/pin-spec/initproj")))
 ```
 ---
@@ -900,10 +900,10 @@ one.
   (guard (_ ()) (File mkdir "build/pin-spec/empty"))
   (guard (_ ()) (File mkdir "build/pin-spec/empty/deps"))
   (guard (_ ()) (File unlink "build/pin-spec/empty/deps/rogue.x"))
-  (File spit "build/pin-spec/empty/pin.xon" "(root \"deps\")\n(src \"src\")\n")
+  (File write-all "build/pin-spec/empty/pin.xon" "(root \"deps\")\n(src \"src\")\n")
   (guard (_ ()) (File mkdir "build/pin-spec/empty/src"))
-  (File spit "build/pin-spec/empty/deps/.gitkeep" "")
-  (File spit "build/pin-spec/empty/deps.lock.xon" "(release \"v9.9.9\")\n")
+  (File write-all "build/pin-spec/empty/deps/.gitkeep" "")
+  (File write-all "build/pin-spec/empty/deps.lock.xon" "(release \"v9.9.9\")\n")
   (write (Pin check "build/pin-spec/empty")))
 ```
 ---
@@ -913,7 +913,7 @@ one.
 
 ```scheme
 (do
-  (File spit "build/pin-spec/empty/deps/rogue.x" "(evil)\n")
+  (File write-all "build/pin-spec/empty/deps/rogue.x" "(evil)\n")
   (display (throws? (fn (_) (Pin check "build/pin-spec/empty")))))
 ```
 ---

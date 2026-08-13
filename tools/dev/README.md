@@ -42,7 +42,7 @@ across multiple lines with 2-space indentation.
 
 ### Architecture
 
-- `tools/dev/fmt.x` -- the whole tool (slurps constructs + target by
+- `tools/dev/fmt.x` -- the whole tool (reads constructs + target by
   path, tokenizes with a fresh comment-keeping base, walks, emits)
 
 ## Linter

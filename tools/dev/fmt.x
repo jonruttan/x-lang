@@ -4,7 +4,7 @@
 ;   sh x.sh --no-pin -q -f tools/dev/fmt.x -- [--lang LANG] FILE
 ; In-place and check modes are launch glue in the make recipes (fmt-x /
 ; fmt-check-x): there is no stdin data channel under x.sh -f (the pipe
-; carries the script), so inputs are slurped by path -- which also
+; carries the script), so inputs are read by path -- which also
 ; retires the old wrapper's awk string-escape hack.
 ;
 ; Data-driven: construct declarations (lib/x/constructs.x, plus the
@@ -52,7 +52,7 @@
 
   ; --- Load construct declarations (parsed, not evaluated) ---
   (def %parse-one
-    (fn (_ path) (first (Xon read (File slurp path)))))
+    (fn (_ path) (first (Xon read (File read-all path)))))
   (def %constructs (%parse-one "lib/x/constructs.x"))
   (def %lang-constructs
     (if (null? %the-lang) ()
@@ -103,7 +103,7 @@
 
   ; --- Slurp the target and tokenize ---
 
-  (def %input (File slurp %file))
+  (def %input (File read-all %file))
   (def %tokens (Xon read %input %fmt-base))
 
   ; --- Format ---

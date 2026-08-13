@@ -1,4 +1,4 @@
-# File ergonomics: slurp / spit / stat / read-lines / list-dir (#22)
+# File ergonomics: read-all / write-all / stat / read-lines / list-dir (#22)
 
 The ergonomic tier over the raw syscall layer: whole-file operations
 that RAISE kind-'io Errs (via Err from-errno) instead of returning
@@ -6,29 +6,29 @@ negative results. Real I/O under /tmp; every test cleans up after
 itself. The raw five (open/close/read/write/getc) keep their raw
 contract -- see ext/file.spec.md.
 
-## spit and slurp
+## write-all and read-all
 
-### spit writes, slurp reads back, unlink cleans up
+### write-all writes, read-all reads back, unlink cleans up
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-spec22-a")
-  (def n (File spit p "alpha\nbeta\n"))
-  (def s (File slurp p))
+  (def n (File write-all p "alpha\nbeta\n"))
+  (def s (File read-all p))
   (File unlink p)
   (list n s (File exists? p)))
 ```
 ---
     (11 "alpha\nbeta\n" #f)
 
-### spit truncates on rewrite
+### write-all truncates on rewrite
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-spec22-b")
-  (File spit p "a longer first body")
-  (File spit p "short")
-  (def s (File slurp p))
+  (File write-all p "a longer first body")
+  (File write-all p "short")
+  (def s (File read-all p))
   (File unlink p)
   s)
 ```
@@ -42,7 +42,7 @@ contract -- see ext/file.spec.md.
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-spec22-c")
-  (File spit p "12345")
+  (File write-all p "12345")
   (def st (File stat p))
   (File unlink p)
   (list (Assoc get 'size st) (Assoc get 'kind st) (> (Assoc get 'mtime st) 0)))
@@ -75,7 +75,7 @@ contract -- see ext/file.spec.md.
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-spec22-d")
-  (File spit p "one\ntwo\nthree\n")
+  (File write-all p "one\ntwo\nthree\n")
   (def ls (File read-lines p))
   (File unlink p)
   ls)
@@ -88,7 +88,7 @@ contract -- see ext/file.spec.md.
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-spec22-e")
-  (File spit p "one\ntwo")
+  (File write-all p "one\ntwo")
   (def ls (File read-lines p))
   (File unlink p)
   ls)
@@ -104,7 +104,7 @@ contract -- see ext/file.spec.md.
 (do (import x/sys/posix) (import x/sys/file)
   (def d "/tmp/x-spec22-dir")
   (File mkdir d)
-  (File spit "/tmp/x-spec22-dir/inner" "x")
+  (File write-all "/tmp/x-spec22-dir/inner" "x")
   (File rename "/tmp/x-spec22-dir/inner" "/tmp/x-spec22-dir/moved")
   (def names (File list-dir d))
   (File unlink "/tmp/x-spec22-dir/moved")
@@ -129,12 +129,12 @@ contract -- see ext/file.spec.md.
 
 ## structured failure
 
-### a missing file slurps to a kind-'io enoent Err
+### a missing file read-alls to a kind-'io enoent Err
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
   (guard (e (list (Err kind-of e) (Assoc get 'sym (e data)) (Assoc get 'op (e data))))
-    (File slurp "/tmp/x-spec22-definitely-not")))
+    (File read-all "/tmp/x-spec22-definitely-not")))
 ```
 ---
     ('io 'enoent 'stat)
@@ -160,7 +160,7 @@ through the REPL error path -- jon hit corrupted error bytes).
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
   (list (guard (e (Err kind-of e)) (File list-dir))
-        (guard (e (Err kind-of e)) (File slurp))
+        (guard (e (Err kind-of e)) (File read-all))
         (guard (e (Err kind-of e)) (File stat 42))
         (guard (e (Err kind-of e)) (File rename "a" ()))))
 ```
