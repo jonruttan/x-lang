@@ -74,11 +74,16 @@
   (def %flags-offset (* 2 word-size))
   (def %cov-bit 2)
 
+  ; %obj->ptr (boot data.x), NOT the convert catalog: int->%ptr there is
+  ; a VALUE cast, so an atom branch -- the then of (if c 1 2) -- would
+  ; have its value dereferenced as an address (garbage or SIGSEGV).
+  ; %obj->ptr yields the object HEADER address for atoms and pairs alike
+  ; (proven: an evaluated int branch reads back marked).
   (def obj-flags (fn (_ obj)
-    (%ptr-ref-word (%cov-cvt obj %ptr) %flags-offset)))
+    (%ptr-ref-word (%obj->ptr obj) %flags-offset)))
 
   (def obj-flag-set (fn (_ obj bit)
-    (%ptr-set-word! (%cov-cvt obj %ptr) %flags-offset
+    (%ptr-set-word! (%obj->ptr obj) %flags-offset
       (| (obj-flags obj) bit))
     obj))
 
