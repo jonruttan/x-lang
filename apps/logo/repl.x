@@ -65,20 +65,20 @@
     ; eval guard.  The old restore/install dance (default SIGINT while
     ; reading) is gone: every exit path now runs %logo-on-exit, so the
     ; viewer child is never orphaned.
-    (%set-first-int! %sigint-flag 0)
+    (%set-cell-int! %sigint-flag 0)
     (display %logo-prompt)
     ; Snapshot %logo-base's OWN filein fd -- the interrupted read
     ; poisons THAT base's #90 latch cell, not the session's.
     (def %lr-fd-cell (%logo-filein-cell))
-    (def %lr-fd (%first-int (first %lr-fd-cell)))
+    (def %lr-fd (%cell-int (first %lr-fd-cell)))
     (def %entry
       (guard (err
-          (if (if (= 1 (%first-int %sigint-flag)) #t (%logo-stop? err))
+          (if (if (= 1 (%cell-int %sigint-flag)) #t (%logo-stop? err))
             ; ctrl-c mid-entry: discard the pending entry and the
             ; partial line, un-poison the latch, fresh prompt.
             (do
-              (%set-first-int! %sigint-flag 0)
-              (%set-first-int! (first %lr-fd-cell) %lr-fd)
+              (%set-cell-int! %sigint-flag 0)
+              (%set-cell-int! (first %lr-fd-cell) %lr-fd)
               (%logo-entry-flush)
               (newline)
               %logo-cancel)
@@ -100,7 +100,7 @@
         (logo-repl)
         (do
           (guard (err
-              (%set-first-int! %sigint-flag 0)
+              (%set-cell-int! %sigint-flag 0)
               (if (%logo-stop? err)
                 (display "\n")
                 (do
