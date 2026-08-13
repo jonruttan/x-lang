@@ -44,6 +44,7 @@
 (import x/codec/sha256)
 (import x/sys/proc)
 (import x/codec/xon)
+(import x/type/path)
 
 ; --- The Pin class: the whole tool, one namespace ---------------------
 ; Every helper is a %-prefixed STATIC on the class -- private by
@@ -108,7 +109,7 @@
             ((not (pair? (rest form))) (Pin %pin-bad "root needs one string argument"))
             ((not (null? (rest (rest form)))) (Pin %pin-bad "root takes exactly one argument"))
             ((not (str? (first (rest form)))) (Pin %pin-bad "root argument must be a string"))
-            ((Str8 starts? "/" (first (rest form))) (first (rest form)))
+            ((Path absolute? (first (rest form))) (first (rest form)))
             (#t (%path-join dir (first (rest form))))))
     ; One (boot "FILE") form -> () -- wrapper-consumed (GH #139): the entry
     ; must be chosen before the pipe exists, so by the time this loader
@@ -150,7 +151,7 @@
             (match
               ((null? hit) ())
               ((not (pair? (rest hit))) ())
-              ((Str8 starts? "/" (first (rest hit))) (first (rest hit)))
+              ((Path absolute? (first (rest hit))) (first (rest hit)))
               (#t (%path-join dir (first (rest hit)))))))
     ; The same lookup WITHOUT resolution -- the manifest's own spelling.
     ; What the lock records has to be portable: "maze", not the absolute
@@ -186,39 +187,15 @@
                     (import-path! (first roots))
                     ())))))
       (%rec roots))
-    ; "a/b/c" -> ("a" "b" "c")
-    (method %pin-split-path (self p)
-      (def %rec (fn (self p)
-        (let ((i (Str8 index-of "/" p)))
-              (match
-                ((null? i) (list p))
-                (#t (pair (Str8 sub 0 i p)
-                          (self (Str8 sub (+ i 1) (- (Str8 length p) (+ i 1)) p))))))))
-      (%rec p))
-    ; Fold segments onto acc (reversed): "" and "." vanish, ".." pops.  An
-    ; empty acc at a ".." means the path has climbed out of the overlay.
-    (method %pin-norm-segs (self segs acc whole)
-      (def %rec (fn (self segs acc whole)
-        (match
-              ((null? segs) acc)
-              ((str=? (first segs) "") (self (rest segs) acc whole))
-              ((str=? (first segs) ".") (self (rest segs) acc whole))
-              ((str=? (first segs) "..")
-                (match
-                  ((null? acc)
-                    (Pin %pin-bad (Str8 append "include path climbs out of the overlay: " whole)))
-                  (#t (self (rest segs) (rest acc) whole))))
-              (#t (self (rest segs) (pair (first segs) acc) whole)))))
-      (%rec segs acc whole))
-    (method %pin-join-slash (self segs)
-      (def %rec (fn (self segs)
-        (match
-              ((null? segs) "")
-              ((null? (rest segs)) (first segs))
-              (#t (Str8 append (first segs) (Str8 append "/" (self (rest segs))))))))
-      (%rec segs))
+    ; Lexical normalization is (Path norm); the OVERLAY POLICY -- a rel
+    ; that climbs out of the overlay is an error -- stays here, read off
+    ; the leading ".." that Path norm preserves for exactly this judgment.
     (method %pin-path-norm (self p)
-      (Pin %pin-join-slash (%reverse (Pin %pin-norm-segs (Pin %pin-split-path p) () p))))
+      (let ((r (Path norm p)))
+            (match
+              ((if (str=? r "..") #t (Str8 starts? "../" r))
+                (Pin %pin-bad (Str8 append "include path climbs out of the overlay: " p)))
+              (#t r))))
     (method %pin-include-head? (self h)
       (or (eq? h 'include) (eq? h 'include-once) (eq? h 'require-once)))
     (method %pin-push! (self cell v)
@@ -326,11 +303,6 @@
     ; take its amalgam name from the manifest's (boot "boot/he.x") -- so the
     ; file name is data the project already stated, with no dialect symbol to
     ; repeat at the call site.
-    (method %pin-basename (self p)
-      (let ((d (%path-dir p)))
-            (match
-              ((str=? d ".") p)
-              (#t (%substring p (+ 1 (%str-length d)) (%str-length p))))))
     ; The lock sits BESIDE the overlay root and is NAMED FOR IT -- deps/ is
     ; locked by deps.lock.xon.  Two reasons, and the second is the one that
     ; bites: an integrity record kept inside the tree it describes reads as
@@ -340,7 +312,7 @@
     ; the spec suite does, vendoring build/pin-spec/prov and .../partial.
     (method %pin-lock-path (self dest)
       (%path-join (%path-dir dest)
-                      (Str8 append (Pin %pin-basename dest) ".lock.xon")))
+                      (Str8 append (Path basename dest) ".lock.xon")))
     (method %pin-lock-forms (self dest)
       (let ((p (Pin %pin-lock-path dest)))
             (match
@@ -462,7 +434,7 @@
           ; mac's overlay.
           (def %dot-base?
             (fn (_ rel)
-              (Str8 starts? "." (Pin %pin-basename rel))))
+              (Str8 starts? "." (Path basename rel))))
           (def %tree-fails
             (fn (self files acc)
               (match
@@ -484,6 +456,8 @@
               ((null? lst) 0)
               (#t (+ 1 (self (rest lst)))))))
       (%rec lst))
+    ; A URL, not a filesystem path: (Path join) would be wrong here (its
+    ; seam collapse would eat the scheme's "//").
     (method %pin-url (self base tag file)
       (Str8 append base (Str8 append "/" (Str8 append tag (Str8 append "/" file)))))
     ; Download via curl through Proc run! (#226): 127 = curl absent,
@@ -547,10 +521,7 @@
       (%assoc-get 'kind (File stat path)))
     ; does name end in ".x"?
     (method %pin-ends-x? (self name)
-      (let ((n (Str8 length name)))
-            (match
-              ((< n 2) #f)
-              (#t (str=? ".x" (Str8 sub (- n 2) 2 name))))))
+      (Str8 ends? ".x" name))
     ; dir -> every *.x path under dir, recursive
     (method %pin-x-files (self dir)
       (def %rec (fn (self dir)
@@ -616,7 +587,7 @@
     ; Drop a trailing ".x": the manifest names a FILE, the release names an
     ; ENTRY, and this is the one place the two spellings meet.
     (method %pin-entry-of (self file)
-      (Pin %pin-str->sym (%substring file 0 (- (%str-length file) 2))))
+      (Pin %pin-str->sym (Path strip-ext file)))
     ; Replace the lock's platform lines, keeping the overlay's untouched.
     ; The inverse of the passthrough in relock: `boot` owns these three forms,
     ; `sync` owns the rest, and neither may clobber the other's half.
@@ -685,7 +656,7 @@
     ; present.  Full normalised paths.
     (method %pin-name-candidates (self namestr)
       (let ((reldir (%path-dir namestr))
-                (base (Pin %pin-basename namestr)))
+                (base (Path basename namestr)))
             (def %per-root
               (fn (self roots acc)
                 (match
@@ -756,7 +727,7 @@
       (let ((hit (%module-resolve-version who name
                        (%module-parse-spec who spec) spec)))
             (let ((rel (%path-join (%path-dir (symbol->str name))
-                                   (Pin %pin-basename (rest hit)))))
+                                   (Path basename (rest hit)))))
               (match
                 ((Pin %pin-out-has? rel) ())
                 (#t
@@ -983,7 +954,7 @@
           (let ((bootpath (Pin %pin-need 'boot forms d))
                 (root (Pin %pin-need 'root forms d)))
             (let ((bootdir (%path-dir bootpath))
-                  (file (Pin %pin-basename (Pin %pin-need 'boot forms d))))
+                  (file (Path basename (Pin %pin-need 'boot forms d))))
               (do
                 (Pin fetch bootdir tag (Pin %pin-entry-of file))
                 ; Lift the release's facts into the lock, then remove the
