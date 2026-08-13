@@ -290,3 +290,41 @@ unwinds the three stacks to its snapshot and closes the cut-away fds.
 ```
 ---
     ('inner-caught 'after)
+
+## the EOF latch must not eat the fd the guard recovers
+
+The #170 sticky-EOF latch overwrites the current filein cell so later
+reads fail instantly; the cell holds the fd's bitwise complement so the
+value stays recoverable. The read-ERROR raise fires with the latch
+already written: a guard catching it unwinds the cut-away include and
+must close the real descriptor recovered from the latched cell --
+pre-#278 the unwind closed the poisoned value and the fd leaked.
+Including a directory forces that path portably: open succeeds and the
+first read fails. POSIX hands out the lowest free descriptor, so a
+probe open's fd number is stable iff the caught raises leaked nothing.
+
+### a read-error raise inside include is catchable
+
+```scheme
+(guard (e 'caught) (include "tests/x/lib"))
+```
+---
+    'caught
+
+### five caught read-error raises leak no fds
+
+```scheme
+(import x/sys/file)
+(def %gi-fd-probe (fn (_)
+  (let ((fd (File open "tests/x/lib/guard-include-ok.x" 'rdonly)))
+    (do (File close fd) fd))))
+(def %gi-fd0 (%gi-fd-probe))
+(def %gi-latch-loop (fn (_ n)
+  (if (eq? n 0) 'done
+    (do (guard (e ()) (include "tests/x/lib"))
+        (%gi-latch-loop (- n 1))))))
+(%gi-latch-loop 5)
+(- (%gi-fd-probe) %gi-fd0)
+```
+---
+    0
