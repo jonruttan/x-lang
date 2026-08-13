@@ -29,7 +29,6 @@
 ; coherence (one addressing definition) AND faster than re-computing
 ; (+ %data-offset %word-size) on every accessor call.
 (def %data-off-0 (%data-word-off 0))
-(def %data-off-1 (%data-word-off 1))
 
 ; Data-slot write, pure reflection: the stored word is the value's object
 ; pointer.  Formerly the C (obj set!) prim -- boot/reflect.x files this

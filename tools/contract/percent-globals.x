@@ -7,7 +7,7 @@
 ; Hot-path rows stand on MEASURED de-dispatch grounds (8-30x class
 ; call overhead): sha256*, asm*, compile*, boot/*.  Everything else is
 ; unhomed inventory awaiting the pin.x treatment.
-(file "lib/x/boot/data.x" 15)
+(file "lib/x/boot/data.x" 14)
 (file "lib/x/boot/module.x" 52)
 (file "lib/x/boot/operatives.x" 6)
 (file "lib/x/boot/printer.x" 76)
