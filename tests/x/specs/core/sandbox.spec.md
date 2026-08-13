@@ -396,3 +396,20 @@ restores both env and boundary.
 ```
 ---
     77
+
+## child read buffer is owned (#245)
+
+`(Base make)` wraps its malloc'd read buffer with the OWN flag (the
+x-cli precedent), tying the region's lifetime to the buffer object.
+The child still evaluates and tokenizes through the owned buffer after
+a parent collect -- the flag must change ownership, not lifetime.
+
+### the child evaluates and tokenizes after a parent collect
+
+```scheme
+(do (def %b245 (Base make))
+    (Heap collect)
+    (list (Base eval %b245 (lit (+ 1 2))) (first (Tok read-str %b245 "(+ 3 4)"))))
+```
+---
+    (3 ('+ 3 4))
