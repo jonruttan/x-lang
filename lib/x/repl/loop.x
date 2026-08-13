@@ -72,7 +72,7 @@
       (do (Sys dup2 3 0) (Sys close 3)))
     ; Turn sweep (see the module-top note).
     (%repl-collect)
-    (%set-first-int! %sigint-flag 0)
+    (%set-cell-int! %sigint-flag 0)
     (display %repl-prompt)
     ; The SIGINT handler stays installed across the read (boot installed
     ; it; no SA_RESTART, so ctrl-c pops a blocking read as EOF with
@@ -88,18 +88,18 @@
     ; so the cancel branch can un-poison it.  Resolved per read: filein
     ; is a chain with a cell per include.
     (def %repl-filein-cell (%reflect-base-cell 'filein))
-    (def %repl-filein-fd (%first-int (first %repl-filein-cell)))
+    (def %repl-filein-fd (%cell-int (first %repl-filein-cell)))
     (def %r
       (guard (err
           ; ctrl-c is visible on TWO channels: the raw flag (the read
           ; was interrupted), or a STOP error (the eval poll saw the
           ; flag while an x-level reader handler was mid-eval -- the
           ; poll CLEARS the flag before raising).
-          (if (if (= 1 (%first-int %sigint-flag)) #t
+          (if (if (= 1 (%cell-int %sigint-flag)) #t
                 (if (atom? err) (str=? (symbol->str err) "STOP") #f))
             (do
-              (%set-first-int! %sigint-flag 0)
-              (%set-first-int! (first %repl-filein-cell) %repl-filein-fd)
+              (%set-cell-int! %sigint-flag 0)
+              (%set-cell-int! (first %repl-filein-cell) %repl-filein-fd)
               ; Drop bytes the tokenizer had not consumed -- stale
               ; input must not leak into the next read.  Resolved
               ; inside the body: at load time the buffer-stack head is
@@ -124,7 +124,7 @@
         (repl)
       (%seq
         (guard (err
-            (%set-first-int! %sigint-flag 0)
+            (%set-cell-int! %sigint-flag 0)
             (if (if (atom? err) (str=? (symbol->str err) "STOP") #f)
               (display "\n")
               ; %seq is BINARY (it is the primitive `do` is built on), so a

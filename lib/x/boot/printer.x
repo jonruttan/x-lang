@@ -71,7 +71,7 @@
       (#t
         (do
           (%print-emit "#<ATOM:0x")
-          (%print-emit (%number->str (%first-int o) 16))
+          (%print-emit (%number->str (%cell-int o) 16))
           (%print-emit ">"))))))
 ; Bounded opaque form for handler-less cell-typed instances: only the
 ; header-derived type NAME is read, never a data word.
@@ -283,7 +283,7 @@
 ; fronts because handlers and walkers reference them.  `self` is the
 ; recursion knot -- children render in the SAME mode.
 ; Booleans by same? (object identity), NEVER eq?: eq? compares value words,
-; and any scalar whose word collides with #t's -- e.g. (%first-int #t) -- would
+; and any scalar whose word collides with #t's -- e.g. (%cell-int #t) -- would
 ; render as a boolean.  #t/#f are singletons, so identity is exact (mirrors
 ; C's pointer compare against the base true/false objects).
 (def %print-render

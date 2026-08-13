@@ -26,10 +26,6 @@
   (if (Str contains? "arm64" x-machine) #t
     (Str contains? "aarch64" x-machine)))
 
-; --- Syscall numbers ---
-(def %SYS-mmap     (if %asm-darwin? 197 9))
-(def %SYS-mprotect (if %asm-darwin? 74 10))
-(def %SYS-munmap   (if %asm-darwin? 73 11))
 
 ; --- mmap flags ---
 (def %MAP-FLAGS

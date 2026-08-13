@@ -70,12 +70,12 @@
 ; int ATOM; its value is the atom's data word (first-int/set-first-int!).
 ; meta-count! returns the PREVIOUS count (C contract).
 (def %reflect-meta-count
-  (fn (_) (%first-int (first %reflect-meta-extra-cell))))
+  (fn (_) (%cell-int (first %reflect-meta-extra-cell))))
 (def %reflect-meta-count!
   (fn (_ n)
     (do
-      (def %reflect-prev-extra (%first-int (first %reflect-meta-extra-cell)))
-      (%set-first-int! (first %reflect-meta-extra-cell) n)
+      (def %reflect-prev-extra (%cell-int (first %reflect-meta-extra-cell)))
+      (%set-cell-int! (first %reflect-meta-extra-cell) n)
       %reflect-prev-extra)))
 
 ; (io error-line) / (io error-file) -- the source location FROZEN at the last
@@ -90,7 +90,7 @@
 (def %reflect-err-file-cell      (%reflect-base-cell (lit err-file)))
 (def %reflect-file-registry-cell (%reflect-base-cell (lit file-registry)))
 (def %reflect-error-line
-  (fn (_) (%first-int (first %reflect-err-line-cell))))
+  (fn (_) (%cell-int (first %reflect-err-line-cell))))
 ; Walk the (id . path) alist for `id`, returning its path string; "" when the
 ; id is absent (0, or never registered).  Int equality via (- a b) then the
 ; proven (eq? <int> 0) zero-test -- eq? on two int atoms is not relied upon.
@@ -98,12 +98,12 @@
   (fn (self id reg)
     (match
       ((eq? reg ()) "")
-      ((eq? (- (%first-int (first (first reg))) id) 0) (rest (first reg)))
+      ((eq? (- (%cell-int (first (first reg))) id) 0) (rest (first reg)))
       (#t (self id (rest reg))))))
 (def %reflect-error-file
   (fn (_)
     (%reflect-registry-lookup
-      (%first-int (first %reflect-err-file-cell))
+      (%cell-int (first %reflect-err-file-cell))
       (first %reflect-file-registry-cell))))
 
 ; --- type reflection ---

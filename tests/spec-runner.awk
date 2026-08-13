@@ -113,7 +113,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 		for (i = from; i <= to; i++) {
 			if (i > from) {
 				# heap-collect = real GC between snippets (OOM guard).
-				# No (%profile-dump) here: its heap-count is an O(heap)
+				# No per-snippet heap dump here: a heap-count is an O(heap)
 				# chain walk (~1.9s/call on the numeric-tower heap) whose
 				# output went to discarded stderr -- pure waste.
 				printf "(heap-collect)\n" > tmpfile
@@ -133,7 +133,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 		printf "(def %%T (op () %%E (def %%r (%s)) (if (eq? %%r (lit %%END%%)) () (%%seq (guard (err (display \"Error: \") (display err) (newline)) (%%repl-print (eval! %%r))) (%%T)))))\n", read_fn > tmpfile
 		printf "%s\n", "(%T)" > tmpfile
 		for (i = from; i <= to; i++) {
-			# Inter-snippet separator only.  No (%profile-dump): its
+			# Inter-snippet separator only.  No per-snippet heap dump: a
 			# heap-count is an O(heap) chain walk (~1.9s/call on the
 			# numeric-tower heap) whose output went to discarded stderr
 			# -- ~120s of pure waste per heavy-lib (x-base/complex/...) spec.

@@ -29,7 +29,6 @@
 ; coherence (one addressing definition) AND faster than re-computing
 ; (+ %data-offset %word-size) on every accessor call.
 (def %data-off-0 (%data-word-off 0))
-(def %data-off-1 (%data-word-off 1))
 
 ; Data-slot write, pure reflection: the stored word is the value's object
 ; pointer.  Formerly the C (obj set!) prim -- boot/reflect.x files this
@@ -43,8 +42,11 @@
 (def %set-first! (fn (_ p v) (%obj-set! p 0 v) p))
 (def %set-rest! (fn (_ p v) (%obj-set! p 1 v) p))
 
-; Int variants: read/write raw integer from pair slots
-(def %first-int (fn (_ x) (%ptr-ref-word (%obj->ptr x) %data-off-0)))
-(def %rest-int (fn (_ x) (%ptr-ref-word (%obj->ptr x) %data-off-1)))
-(def %set-first-int! (fn (_ p v) (%ptr-set-word! (%obj->ptr p) %data-off-0 v) p))
-(def %set-rest-int! (fn (_ p v) (%ptr-set-word! (%obj->ptr p) %data-off-1 v) p))
+; Int cells: read/write a raw machine integer in an object's first data
+; word.  Reshaped from a pair-style first/rest accessor quartet (#231):
+; every caller is a single-slot int CELL (the C-written sigint flag,
+; reflect's counters, the profiler spine leaves), so the rest-slot half
+; never had a caller -- the pair framing was the wrong shape, not the
+; unused half an accident.
+(def %cell-int (fn (_ x) (%ptr-ref-word (%obj->ptr x) %data-off-0)))
+(def %set-cell-int! (fn (_ p v) (%ptr-set-word! (%obj->ptr p) %data-off-0 v) p))
