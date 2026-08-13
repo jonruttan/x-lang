@@ -343,19 +343,56 @@ A `(Base make)` child gets the C prims raw -- the lib wrappers
 must live in the prims themselves. Before #239 each of these killed the
 whole process.
 
-Each op gets a fresh child: a single child crashes on its FIFTH caught
-error (#253 -- any error source, pre-existing and unrelated to #239),
-and this spec pins the nil guard, not that limit.
+One child per op here is incidental; a single child now survives
+repeated caught errors (see "repeated caught errors" below, #253).
 
 ### the bitwise family raises catchably on nil operands
 
 ```scheme
-(do (list (guard (e (lit R)) (Base eval (Base make) (lit (~ ()))))
-          (guard (e (lit R)) (Base eval (Base make) (lit (& () 1))))
-          (guard (e (lit R)) (Base eval (Base make) (lit (| 1 ()))))
-          (guard (e (lit R)) (Base eval (Base make) (lit (^ () 1))))
-          (guard (e (lit R)) (Base eval (Base make) (lit (<< 1 ()))))
-          (guard (e (lit R)) (Base eval (Base make) (lit (>> () 1))))))
+(do (def %bn (Base make))
+    (list (guard (e (lit R)) (Base eval %bn (lit (~ ()))))
+          (guard (e (lit R)) (Base eval %bn (lit (& () 1))))
+          (guard (e (lit R)) (Base eval %bn (lit (| 1 ()))))
+          (guard (e (lit R)) (Base eval %bn (lit (^ () 1))))
+          (guard (e (lit R)) (Base eval %bn (lit (<< 1 ()))))
+          (guard (e (lit R)) (Base eval %bn (lit (>> () 1))))))
 ```
 ---
     ('R 'R 'R 'R 'R 'R)
+
+## repeated caught errors leave the child usable (#253)
+
+`base-eval` installs a setjmp handler in the target base. Its handler
+pair-tree used to be built one wrapper shallower than `guard`'s, so the
+shared `x_error_handler_saved_env` accessor (which reads the env one
+level below an `(env . boundary)` cell) restored `first(env)` instead of
+`env` on every caught error -- degrading the child's env-alist head each
+time until a symbol lookup walked a non-pair and segfaulted (the
+"fifth caught error" crash). The handler now matches `guard`'s shape and
+restores both env and boundary.
+
+### many caught errors, then the child still evaluates
+
+```scheme
+(do (def %b (Base make))
+    (def %loop ())
+    (set! %loop (fn (_ n) (if (eq? n 0) 'done
+      (do (guard (e ()) (Base eval %b 'unbound)) (%loop (- n 1))))))
+    (%loop 50)
+    (Base eval %b (lit (+ 40 2))))
+```
+---
+    42
+
+### a child binding survives repeated caught errors
+
+```scheme
+(do (def %b (Base make))
+    (Base eval %b (lit (def keep 77)))
+    (guard (e ()) (Base eval %b 'n1)) (guard (e ()) (Base eval %b 'n2))
+    (guard (e ()) (Base eval %b 'n3)) (guard (e ()) (Base eval %b 'n4))
+    (guard (e ()) (Base eval %b 'n5)) (guard (e ()) (Base eval %b 'n6))
+    (Base eval %b 'keep))
+```
+---
+    77
