@@ -1,2 +1,1 @@
-t02-cancel-mid-bracket.exp
 t03-cancel-empty-prompt.exp
