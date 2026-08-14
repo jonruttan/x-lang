@@ -52,4 +52,4 @@
       ; leaving a zombie for the parent's remaining lifetime (#226).
       (Sys kill %server-pid (Sys sigterm))
       (Sys wait %server-pid)))
-  (display "http://localhost:") (display %logo-port) (newline))
+  (display "http://localhost:" %logo-port "\n"))

@@ -19,7 +19,7 @@
     (def lib-start (cov-skip-to-library e))
     (def alist (if (null? lib-start) e lib-start))
     (if (not %cov-tsv-mode)
-      (do (display "=== x-lang Library Coverage ===") (newline) (newline)))
+      (do (display "=== x-lang Library Coverage ===\n\n")))
     ; Walk with inline reporting
     (def %report-walk
       (fn (_ al n)
@@ -41,18 +41,16 @@
                             (set! %cov-tested (+ %cov-tested 1))
                             (if (= cov 0)
                               (do (set! %cov-untested (+ %cov-untested 1))
-                                  (display "    ") (write name) (display " UNTESTED") (newline))
+                                  (display "    ") (write name) (display " UNTESTED\n"))
                               (do (set! %cov-partial (+ %cov-partial 1))
-                                  (display "    ") (write name) (display " ")
-                                  (display cov) (display "/") (display total)
-                                  (display " (") (display (%int/ (* cov 100) total))
-                                  (display "%)") (newline)))))))))))
+                                  (display "    ") (write name) (display " " cov "/" total " ("
+                                                                         (%int/ (* cov 100) total)
+                                                                         "%)\n")))))))))))
             (%report-walk (rest al) (+ n 1))))))
     (%report-walk alist 0)
     (if (not %cov-tsv-mode)
-      (do (newline)
-          (display "  Full:     ") (display %cov-tested) (display "/") (display %cov-total) (newline)
-          (display "  Partial:  ") (display %cov-partial) (display "/") (display %cov-total) (newline)
-          (display "  Untested: ") (display %cov-untested) (display "/") (display %cov-total) (newline)))))
+      (do (display "\n" "  Full:     " %cov-tested "/" %cov-total "\n"
+                   "  Partial:  " %cov-partial "/" %cov-total "\n"
+                   "  Untested: " %cov-untested "/" %cov-total "\n")))))
 
 (%cov-report)

@@ -137,12 +137,12 @@
   ; Output
   (unless (null? %undefined)
     (do (%stderr "Undefined:\n")
-        (%for-each (fn (_ s) (%stderr "  ") (%stderr s) (%stderr "\n"))
+        (%for-each (fn (_ s) (%stderr "  " s "\n"))
           %undefined)))
 
   (unless (null? %unused)
     (do (%stderr "Unused:\n")
-        (%for-each (fn (_ s) (%stderr "  ") (%stderr s) (%stderr "\n"))
+        (%for-each (fn (_ s) (%stderr "  " s "\n"))
           %unused)))
 
   ; Pedantic warnings (advisory -- shown but do not fail the lint): arity,
@@ -154,8 +154,8 @@
       (let ((k (first (first ws))))
         (self (rest ws) (if (lint-has? k acc) acc (pair k acc)))))))
   (def %show-kind (fn (_ k)
-    (%stderr "  ") (%stderr k) (%stderr ": ")
-    (%for-each (fn (_ s) (%stderr s) (%stderr " ")) (lint-warnings-of k %result))
+    (%stderr "  " k ": ")
+    (%for-each (fn (_ s) (%stderr s " ")) (lint-warnings-of k %result))
     (%stderr "\n")))
   (unless (null? %warnings)
     (do (%stderr "Warnings:\n")

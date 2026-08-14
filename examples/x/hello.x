@@ -3,5 +3,4 @@
 ; Usage:
 ;   sh x.sh -f examples/x/hello.x
 
-(display "Hello from x-lang!")
-(newline)
+(display "Hello from x-lang!\n")

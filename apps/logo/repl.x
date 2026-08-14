@@ -84,9 +84,8 @@
               %logo-cancel)
             ; ctrl-d mid-entry / truncated pipe: report, clean up, end.
             (do
-              (%stderr "Error: ")
-              (%stderr (if (str? err) err (%repl-write-to-str err)))
-              (%stderr "\n")
+              (%stderr "Error: " (if (str? err) err (%repl-write-to-str err))
+                       "\n")
               (unless (null? %logo-on-exit) (%logo-on-exit))
               (Sys exit 1))))
         (%logo-read-entry)))
@@ -104,12 +103,8 @@
               (if (%logo-stop? err)
                 (display "\n")
                 (do
-                  (%stderr "Error: ")
-                  ; dispatch raises Err INSTANCES; only the universal
-                  ; writer renders those (the old str/number/symbol
-                  ; triple printed garbage for them -- the #46 shape).
-                  (%stderr (if (str? err) err (%repl-write-to-str err)))
-                  (%stderr "\n"))))
+                  (%stderr "Error: "
+                           (if (str? err) err (%repl-write-to-str err)) "\n"))))
             ; The entry executes EXACTLY once, here (the old
             ; completeness probe that pre-executed entries is gone).
             (logo-process-tokens (%logo-indent-to-blocks %entry))

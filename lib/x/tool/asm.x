@@ -184,9 +184,7 @@
     (list
       (pair 'write
         (fn (_ self)
-          (display "<asm pos=")
-          (display (%obj-ref self 1))
-          (display ">")))
+          (display "<asm pos=" (%obj-ref self 1) ">")))
       (pair 'call
         (fn (_ self . args)
           (apply asm-emit! (pair self args)))))))

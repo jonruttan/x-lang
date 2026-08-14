@@ -455,3 +455,25 @@ locals and unbound heads keep plain call analysis.
 ```
 ---
     #t
+
+## lint: display-chain warning (#291)
+
+### adjacent output calls in a sequence warn (advisory)
+
+```scheme
+(do
+  (def %r (lint-forms (list '(def f (fn (_ x) (do (display "a") (display x) ())))) () ()))
+  (display (lint-has? "display" (lint-warnings-of "display-chain" %r))))
+```
+---
+    #t
+
+### a lone display does not warn
+
+```scheme
+(do
+  (def %r (lint-forms (list '(def g (fn (_ x) (do (display x) ())))) () ()))
+  (display (null? (lint-warnings-of "display-chain" %r))))
+```
+---
+    #t

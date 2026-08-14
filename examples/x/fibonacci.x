@@ -17,11 +17,7 @@
     (if (> i n)
       ()
       (do
-        (display "fib(")
-        (display i)
-        (display ") = ")
-        (display (fib i))
-        (newline)
+        (display "fib(" i ") = " (fib i) "\n")
         (self (+ i 1) n)))))
 
 (print-fibs 0 19)

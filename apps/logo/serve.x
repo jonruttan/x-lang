@@ -132,9 +132,8 @@
            html-template))
     ; Create server socket
     (def server-fd (Socket tcp-listen port))
-    (display "Turtle server listening on http://localhost:")
-    (display port) (newline)
-    (display "Press Ctrl+C to stop.\n")
+    (display "Turtle server listening on http://localhost:" port "\n"
+             "Press Ctrl+C to stop.\n")
     ; Accept loop
     (def %serve-loop
       (fn (self)

@@ -286,7 +286,7 @@
               (%make-instance %logo-string (Str8 sub 1 (- len 2) text))))
           (pair 'write
             (fn (_ self)
-              (display "\"") (display (first self)) (display "\""))))))
+              (display "\"" (first self) "\""))))))
 
     ; LOGO-SEMI: ; comment to end of line (discard)
     (Base make-type base "LOGO-SEMI"
