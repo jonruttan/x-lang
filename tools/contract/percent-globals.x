@@ -44,7 +44,7 @@
 (file "lib/x/protocol/str/utf8.x" 5)
 (file "lib/x/reader/intrinsics.x" 5)
 (file "lib/x/reader/lit-reader.x" 21)
-(file "lib/x/reader/quasi-reader.x" 10)
+(file "lib/x/reader/quasi-reader.x" 9)
 (file "lib/x/reader/token.x" 14)
 (file "lib/x/repl/ansi.x" 26)
 (file "lib/x/repl/banner.x" 4)

@@ -46,6 +46,11 @@
 ;     type's analyse list.  x-core.x (lit-reader.x) installed interpreted
 ;     versions; these run on every char while tokenizing, so compiling them
 ;     keeps subsequent files parsing fast. ---
+;
+; The character constants below are BYTE CODES, not the #\c literals their
+; interpreted twins in lit-reader.x/quasi-reader.x use: `compile` emits a
+; constant verbatim into the generated C, so #\` reaches cc as #\` and the
+; build dies with "expected expression".  ' = 39, $ = 36, ` = 96, , = 44.
 
 (set! %compile-fvars
   (list (pair '%quasi-accept %quasi-accept)))
