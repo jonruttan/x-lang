@@ -165,13 +165,22 @@
 (def %sha-blocks
   (fn (self s len total base w h0 h1 h2 h3 h4 h5 h6 h7)
     (match
-      ((= base total) (list h0 h1 h2 h3 h4 h5 h6 h7))
+      ; Completion collect (#294): a digest leaves ~550k objects of
+      ; dispatch garbage PER BLOCK, and the periodic collect above never
+      ; fires under 512B -- so every small hash used to leak ~70MB of
+      ; real memory.  Batches that hash many small inputs (pin verify
+      ; walks) accumulated gigabytes: 11.7GB native on the Linux CI
+      ; runner over one pin.spec batch, and the ASan job's VM died on
+      ; it.  macOS hid the same bloat behind the memory compressor.
+      ; One collect at completion returns the digest's net growth to
+      ; zero; the h-words are fn params, env-rooted across the collect
+      ; exactly like the periodic collect's live set.
+      ((= base total) (do (Heap collect) (list h0 h1 h2 h3 h4 h5 h6 h7)))
       (#t
         (do (match
               ; every 8th block (512B): bound the between-collect churn
-              ; (~150MB at the measured per-block cost); tiny inputs
-              ; (the vectors) never pay a collect, and a collect at the
-              ; small live set costs ~ms
+              ; (~150MB at the measured per-block cost); a collect at
+              ; the small live set costs ~ms
               ((and (> base 0) (= (& (>> base 6) 7) 0)) (Heap collect))
               (#t ()))
             (%sha-fill-w! s len total base w 0)
