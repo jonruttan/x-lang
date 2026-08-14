@@ -28,19 +28,14 @@
         (do
           (display %lang-name)
           (unless (null? %lang-version)
-            (do (display " v") (display %lang-version)))
+            (do (display " v" %lang-version)))
           ; "x-lang" is the LANGUAGE's name, not a dialect's (#95) -- if
           ; an embedder names a dialect after the language itself,
           ; "x-lang v0.3.0 on x-lang" would read as a bug, so the suffix
           ; is suppressed for that one spelling.
           (unless (str=? %lang-name "x-lang")
             (display " on x-lang"))
-          (newline)
-          ; The two things a stranger cannot discover alone: how to get
-          ; help, and how to leave.  ctrl-d earned its place back when the
-          ; buffer layer learned to latch one-shot terminal EOF (#90).
-          (display "(help) for help; (quit) or ctrl-d to exit")
-          (newline))))))
+          (display "\n" "(help) for help; (quit) or ctrl-d to exit\n"))))))
 
 (doc (provide x/repl/banner)
   "Startup banner printed when the REPL launches.")

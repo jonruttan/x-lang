@@ -404,13 +404,11 @@
     (method %pin-report-dropped (self dest dropped)
       (match
             ((null? dropped) ())
-            (#t (do (display "pin: ")
-                    (display (Pin %pin-length dropped))
-                    (display " file(s) no longer in the closure, still in ")
-                    (display dest)
-                    (display " (delete them; verify flags them as unlisted):")
-                    (newline)
-                    (display (Pin %pin-join-lines dropped))
+            (#t (do (display "pin: " (Pin %pin-length dropped)
+                             " file(s) no longer in the closure, still in "
+                             dest
+                             " (delete them; verify flags them as unlisted):\n"
+                             (Pin %pin-join-lines dropped))
                     ()))))
     (method %pin-tree-files (self root)
       (Pin %pin-tf-walk root "" ()))
@@ -887,14 +885,9 @@
       (let ((missing (Pin %pin-audit-missing dest (Pin %pin-rels (Pin %pin-project-closure src)))))
         (do (match
               ((null? missing) ())
-              (#t (do (display "pin: audit -- ")
-                      (display (Pin %pin-length missing))
-                      (display " import(s) fall through to the platform (absent from ")
-                      (display dest)
-                      (display "):")
-                      (newline)
-                      (display (Pin %pin-join-lines missing))
-                      (newline))))
+              (#t (do (display "pin: audit -- " (Pin %pin-length missing)
+                               " import(s) fall through to the platform (absent from "
+                               dest "):\n" (Pin %pin-join-lines missing) "\n"))))
             missing))))
     (method init (self . (param opts ANY "Optional, any order: a project directory string (default \".\") and a boot dialect entry symbol (default the running dialect)"))
       (doc "Write a starter pin.xon -- the manifest every other verb reads -- commented so it teaches its own vocabulary: (root \"deps\") (src \".\") (boot \"boot/<entry>.x\"). Writes intent only: no directories are made and nothing is downloaded (boot and sync do those, in that order). Refuses to overwrite an existing manifest. Returns the manifest's path."
@@ -912,14 +905,10 @@
                   (Pin %pin-bad (Str8 append "manifest already exists: " p)))
                 (#t ()))
               (File write-all p (Pin %pin-init-template entry))
-              (display (Str8 append "pin: wrote " p))
-              (newline)
-              (display "pin: edit (src ...) if your code lives elsewhere, then:")
-              (newline)
-              (display "  (Pin boot \"vX.Y.Z\")   pin the language")
-              (newline)
-              (display "  (Pin sync)            pin what your code imports")
-              (newline)
+              (display "pin: wrote " p "\n"
+                       "pin: edit (src ...) if your code lives elsewhere, then:\n"
+                       "  (Pin boot \"vX.Y.Z\")   pin the language\n"
+                       "  (Pin sync)            pin what your code imports\n")
               p)))))
     (method sync (self . (param dir STRING "Project directory holding pin.xon; default \".\""))
       (doc "Bring the overlay in line with the project's code: read pin.xon, scan its (src ...) tree for every import, and vendor the union closure into its (root ...), rewriting the lockfile. Idempotent, and the whole update after a source file gains an import -- no module list to maintain by hand. Run unarmed (--no-pin), so names resolve to the platform being vendored FROM. Returns the vendored root-relative paths."
@@ -985,12 +974,10 @@
             (let ((unused (Pin %pin-unselected names selected)))
               (do (match
                     ((null? unused) ())
-                    (#t (do (display "pin: unused -- ")
-                            (display (Pin %pin-length unused))
-                            (display " version file(s) no scanned import selects (safe to remove):")
-                            (newline)
-                            (display (Pin %pin-join-lines unused))
-                            (newline))))
+                    (#t (do (display "pin: unused -- "
+                                     (Pin %pin-length unused)
+                                     " version file(s) no scanned import selects (safe to remove):\n"
+                                     (Pin %pin-join-lines unused) "\n"))))
                   unused))))))
     (method fetch (self (param dest STRING "Directory to fetch into")
                         (param tag STRING "Release tag, e.g. \"v0.4.0\"")
@@ -1016,12 +1003,11 @@
                       (target (%path-join dest file)))
                   (do
                     (Pin %pin-download! (Pin %pin-url b tag file) target)
-                    (display "pin: verifying ")
-                    (display target)
-                    (display (if (Sha256 jit!)
+                    (display "pin: verifying " target
+                             (if (Sha256 jit!)
                                  " (jit sha256)"
-                                 " (pure x-lang sha256; an amalgam takes minutes)"))
-                    (newline)
+                                 " (pure x-lang sha256; an amalgam takes minutes)")
+                             "\n")
                     (match
                       ((str=? (Pin %pin-digest target) want) ())
                       (#t (Pin %pin-bad (Str8 append "digest mismatch: " target))))
@@ -1038,8 +1024,8 @@
                                          "pin: the release manifest carries no isa fingerprint -- engine pairing unchecked")
                                        ((str=? (Pin %pin-digest "tools/contract/isa.x") (%assoc-get 'isa m))
                                          "pin: isa fingerprint matches this tree")
-                                       (#t "pin: isa fingerprint DIFFERS from this tree -- pair the amalgam with its release's engine")))
-                            (newline)))
+                                       (#t "pin: isa fingerprint DIFFERS from this tree -- pair the amalgam with its release's engine"))
+                                     "\n")))
                       ; No local ISA manifest -- the reader case: an
                       ; unpacked tarball has no source checkout, so the
                       ; check above cannot run.  SAY so.  Silence here
@@ -1050,8 +1036,7 @@
                       ; absent-fingerprint branch above already makes.
                       (#t
                         (do
-                          (display "pin: no isa manifest here -- engine pairing unchecked (run from a source checkout to compare)")
-                          (newline))))
+                          (display "pin: no isa manifest here -- engine pairing unchecked (run from a source checkout to compare)\n"))))
                     target))))))))
 ))
 

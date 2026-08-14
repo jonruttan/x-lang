@@ -207,15 +207,13 @@
 
   (def %node-count
     (fn (self e) (if (pair? e) (+ (self (first e)) (self (rest e))) 1)))
-  (display "fold ")(display (if %fold? "on " "off"))
-  (display "  fill ")(display (if %fill? "on " "off"))
-  (display "  unroll ")(display %unroll)
-  (display "   nodes ")(display (%node-count %rounds-expr))(newline)
+  (display "fold " (if %fold? "on " "off") "  fill " (if %fill? "on " "off")
+           "  unroll " %unroll "   nodes " (%node-count %rounds-expr) "\n")
   (def %t-compile (%clock))
   (def %rounds (compile-asm %rounds-expr))
   (def %cfill (if %fill? (compile-asm %fill-expr) ()))
   (set! %t-compile (- (%clock) %t-compile))
-  (display "compile        ")(display %t-compile)(display " us")(newline)
+  (display "compile        " %t-compile " us\n")
 
   ; --- x-lang side: K table, H init, block driver ---
   ((fn (self i)
@@ -283,7 +281,7 @@
   (def %vec
     (fn (_ label s want)
       (def got (%digest s))
-      (display label)(display (if (str=? got want) "ok" "WRONG"))(newline)
+      (display label (if (str=? got want) "ok" "WRONG") "\n")
       (if (not (str=? got want))
         (Err raise 'state (Str8 append "bench-sha256: vector failed: " label) ()))))
   (%vec "vector abc     " "abc"
@@ -303,8 +301,8 @@
   (def %xcheck-in (%make-str 1000))
   (def %xcheck-native (%digest %xcheck-in))
   (def %xcheck-lib (Sha256 hex %xcheck-in))
-  (display "vs lib/codec   ")
-  (display (if (str=? %xcheck-native %xcheck-lib) "ok" "DIVERGED"))(newline)
+  (display "vs lib/codec   "
+           (if (str=? %xcheck-native %xcheck-lib) "ok" "DIVERGED") "\n")
   (unless (str=? %xcheck-native %xcheck-lib)
     (Err raise 'state "bench-sha256: compiled digest disagrees with Sha256" ()))
 
@@ -313,12 +311,11 @@
   (def %len (Str8 length %input))
   (def %total (%blocks-of %len))
   (def %nblocks (>> %total 6))
-  (display "input          ")(display %size)
-  (display " bytes, ")(display %nblocks)(display " blocks")(newline)
+  (display "input          " %size " bytes, " %nblocks " blocks\n")
   (def %t-digest (%clock))
   (%digest %input)
   (set! %t-digest (- (%clock) %t-digest))
-  (display "digest         ")(display %t-digest)(display " us")(newline)
+  (display "digest         " %t-digest " us\n")
 
   ; --- the attribution report ---
   ; Each part runs over the SAME block count as the digest above, so the
@@ -356,12 +353,9 @@
              (match ((= b %nblocks) ()) (#t (do (%load-h) (%store-h) (self (+ b 1)))))) 0)
           (set! %t-shuffle (- (%clock) %t-shuffle))))
 
-      (newline)
-      (display "  compiled rounds   ")(display %t-rounds)(display " us")(newline)
-      (display "  W fill            ")(display %t-fill)
-      (display (if %fill? " us (compiled)" " us"))(newline)
-      (display "  H shuffles        ")
-      (if %fold? (display "folded into rounds") (do (display %t-shuffle)(display " us")))
-      (newline)
-      (display "  sum of parts      ")
-      (display (+ %t-rounds (+ %t-fill %t-shuffle)))(display " us")(newline))))
+      (display "\n" "  compiled rounds   " %t-rounds " us\n"
+               "  W fill            " %t-fill
+               (if %fill? " us (compiled)" " us") "\n" "  H shuffles        ")
+      (if %fold? (display "folded into rounds") (do (display %t-shuffle " us")))
+      (display "\n" "  sum of parts      "
+               (+ %t-rounds (+ %t-fill %t-shuffle)) " us\n"))))

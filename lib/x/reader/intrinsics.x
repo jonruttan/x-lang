@@ -4,13 +4,20 @@
 ; Requires: data.x (first-int, set-first-int!)
 
 ; Write to stderr (swap fileout fd, display, restore)
+; Variadic like display (#291): the fd swap wraps the whole batch.  A
+; loop, not (apply display msgs): display is an OP, and applying it to
+; VALUES would re-evaluate a list value as a form.
 (def %stderr
-  (fn (_ msg)
+  (fn (_ . msgs)
     (def %files (rest (first (first (rest (first (%base)))))))
     (def %fo (first (rest %files)))
     (def %s (%cell-int %fo))
     (%set-cell-int! %fo (%cell-int (first (rest (rest %files)))))
-    (display msg)
+    (def %each
+      (fn (self lst)
+        (if (eq? lst ()) ()
+          (do (display (first lst)) (self (rest lst))))))
+    (%each msgs)
     (%set-cell-int! %fo %s)))
 
 ; Quick profile dump to stderr (alloc-count + heap object count).

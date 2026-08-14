@@ -21,7 +21,7 @@
 ; Fetch the string prim from the catalog (ns `str` is de-registered, R5).
 (def %str->sym (prim-ref 'str '->sym))
 
-(def %emit (fn (_ s) (do (display s) (newline))))
+(def %emit (fn (_ s) (do (display s "\n"))))
 
 ; Walk the registry from head until the remembered older head; returns
 ; the new entries oldest-first (registration order).
@@ -50,12 +50,11 @@
       (do
         (%count! %n-emitted)
         (%emit "")
-        (display "### ") (display (symbol->str name))
-        (display " -- example ") (display idx) (newline)
+        (display "### " (symbol->str name) " -- example " idx "\n")
         (%emit "")
         (%emit "```scheme")
         (when mod
-          (do (display "(import ") (display mod) (%emit ")")))
+          (do (display "(import " mod) (%emit ")")))
         (%emit in)
         (%emit "```")
         (%emit "---")
@@ -116,10 +115,8 @@
 (%emit "")
 (%emit "## census")
 (%emit "")
-(display "emitted: ") (display (first %n-emitted)) (newline)
-(display "blank-expected (illustrative, skipped): ")
-(display (first %n-blank)) (newline)
-(display "samples (illustrative by contract, not run): ")
-(display (first %n-samples)) (newline)
-(display "failed imports: ")
+(display "emitted: " (first %n-emitted) "\n"
+         "blank-expected (illustrative, skipped): " (first %n-blank) "\n"
+         "samples (illustrative by contract, not run): " (first %n-samples)
+         "\n" "failed imports: ")
 (write (first %fail-imports)) (newline)

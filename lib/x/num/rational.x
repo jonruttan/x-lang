@@ -107,9 +107,7 @@
       (pair
         'write
         (fn (_ self)
-          (display (first (first self)))
-          (display "/")
-          (display (rest (first self)))))
+          (display (first (first self)) "/" (rest (first self)))))
       (pair
         'analyse
         (fn (_ buffer score chr)

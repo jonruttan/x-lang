@@ -172,8 +172,7 @@
           (let ((re (first (first self))) (im (rest (first self))))
             (display re)
             (if (not (%real< im 0)) (display "+"))
-            (display im)
-            (display "i"))))
+            (display im "i"))))
       (pair
         'analyse
         (fn (_ buffer score chr)

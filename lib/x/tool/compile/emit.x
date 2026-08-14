@@ -64,7 +64,7 @@
 (def %compile-symbol-write
   (fn (_ sym)
     (if (List memq sym %compile-params)
-      (display (Str append "p_" (%cvt sym %string)))
+      (display "p_" (%cvt sym %string))
       (let ((fv-entry (%compile-fvar-lookup sym)))
         (if (null? fv-entry)
           (Err raise 'value (Str append "compile: free variable: " (%cvt sym %string)) ())
@@ -72,8 +72,8 @@
             (if (null? fv-val)
               (display "NULL")
               ; Emit table lookup: x_fvar_table[N] (cacheable, patched at load)
-              (display (Str append "x_fvar_table["
-                (%cvt (%compile-fvar-index sym) %string) "]")))))))))
+              (display "x_fvar_table["
+                       (%cvt (%compile-fvar-index sym) %string) "]"))))))))
 ; INT: emit integer literal
 (def %compile-int-write
   (fn (_ n)
@@ -110,9 +110,7 @@
   (fn (_ args)
     (display "(x_firstint(")
     (%cw-emit (first args))
-    (display ") = ")
-    (display (%cvt (first (rest args)) %string))
-    (display " * x_bufferlen(")
+    (display ") = " (%cvt (first (rest args)) %string) " * x_bufferlen(")
     (%cw-emit (first (rest (rest args))))
     (display "), ")
     (%cw-emit (first args))
@@ -147,7 +145,7 @@
         (pair (list fn-name inner-params inner-body)
               (first %compile-fns)))
       ; Return pointer to the static prim object
-      (display (Str append "(x_obj_t *)" fn-name "_prim")))))
+      (display "(x_obj_t *)" fn-name "_prim"))))
 
 ; (or a b ...) => short-circuit logical OR
 (def %cw-or
@@ -186,9 +184,7 @@
   (fn (_ args)
     (display "(x_atomint(")
     (%cw-emit (first args))
-    (display ") += ")
-    (display (%cvt (first (rest args)) %string))
-    (display ", ")
+    (display ") += " (%cvt (first (rest args)) %string) ", ")
     (%cw-emit (first args))
     (display ")")))
 
@@ -197,9 +193,7 @@
   (fn (_ args)
     (display "(x_atomint(")
     (%cw-emit (first args))
-    (display ") = ")
-    (display (%cvt (first (rest args)) %string))
-    (display ", ")
+    (display ") = " (%cvt (first (rest args)) %string) ", ")
     (%cw-emit (first args))
     (display ")")))
 
@@ -351,9 +345,7 @@
 (def %cw-make-type-pred
   (fn (_ c-check)
     (fn (_ args)
-      (display "(")
-      (display c-check)
-      (display "(")
+      (display "(" c-check "(")
       (%cw-emit (first args))
       (display ") ? ")
       (%cw-emit (first args))

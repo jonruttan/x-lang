@@ -305,9 +305,7 @@
   (fn (loop al)
     (if (not (null? al))
       (do
-        (display " ")
-        (display (first (first al)))
-        (display "=")
+        (display " " (first (first al)) "=")
         (write (rest (first al)))
         (loop (rest al))))))
 
@@ -325,15 +323,12 @@
 
 (def %class-write
   (fn (_ self)
-    (display "#<class ")
-    (display (class-name self))
-    (display ">")))
+    (display "#<class " (class-name self) ">")))
 
 ; Default dump for a class that defines no %repr.
 (def %object-default-write
   (fn (_ self)
-    (display "#<")
-    (display (class-name self))
+    (display "#<" (class-name self))
     (%write-fields (%obj-fields self))
     (display ">")))
 

@@ -113,9 +113,8 @@
             ; boot metadata for an error raised from the C reader (no
             ; form was being evaluated), so a file:line here would lie.
             (do
-              (%stderr "Error: ")
-              (%stderr (if (str? err) err (%repl-write-to-str err)))
-              (%stderr "\n")
+              (%stderr "Error: " (if (str? err) err (%repl-write-to-str err))
+                       "\n")
               (Sys exit 1))))
         (%repl-read)))
     (if (%repl-same? %r %token-eof)

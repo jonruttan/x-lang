@@ -78,10 +78,8 @@
   (unless (null? names)
     (let ((name (first names)))
       (unless (%member-str? name %covered)
-        (do (display "dialect-cover: FAIL lib/") (display name)
-            (display " has no '# @lib ") (display name)
-            (display "' group in ") (display %spec-dir) (display "/")
-            (newline)
+        (do (display "dialect-cover: FAIL lib/" name " has no '# @lib " name
+                     "' group in " %spec-dir "/\n")
             (%set-first! %bad #t))))
     (go (rest names))))
 
@@ -90,12 +88,10 @@
   (unless (null? gs)
     (let ((g (first gs)))
       (unless (or (%contains-slash? g) (File exists? (Str8 append "lib/" g)))
-        (do (display "dialect-cover: FAIL ") (display %spec-dir)
-            (display "/ covers lib/") (display g)
-            (display ", which does not exist")
-            (newline)
+        (do (display "dialect-cover: FAIL " %spec-dir "/ covers lib/" g
+                     ", which does not exist\n")
             (%set-first! %bad #t))))
     (go (rest gs))))
 
 (if (first %bad) (Sys exit 1)
-  (do (display "dialect-cover: ok") (newline)))
+  (do (display "dialect-cover: ok\n")))

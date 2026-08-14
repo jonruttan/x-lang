@@ -290,8 +290,7 @@
 ; --- report ---
 (def %show-form-head
   (fn (_ form)
-    (do (display "(")
-        (display (first form))
+    (do (display "(" (first form))
         (match
           ((pair? (rest form))
             (do (display " ")
@@ -306,28 +305,23 @@
     (match
       ((pair? findings)
         (do (let ((f (first findings)))
-              (do (display (first f))
-                  (display ": ")
+              (do (display (first f) ": ")
                   (match
                     ((null? (first (rest f)))
                       (do (display "unresolvable include/import ")
                           (%show-form-head (first (rest (rest (rest f)))))))
                     ((eq? (first (rest f)) '%%double-load)
-                      (do (display "double load of ")
-                          (display (first (rest (rest f))))
-                          (display " via ")
+                      (do (display "double load of " (first (rest (rest f)))
+                                   " via ")
                           (%show-form-head (first (rest (rest (rest f)))))))
                     ((eq? (first (rest f)) '%%unregistered)
-                      (do (display "raw include of ")
-                          (display (first (rest (rest f))))
-                          (display " is not pre-seed registered -- a later import reloads it")))
+                      (do (display "raw include of " (first (rest (rest f)))
+                                   " is not pre-seed registered -- a later import reloads it")))
                     (#t
                       (do (%show-form-head (first (rest (rest (rest f)))))
-                          (display " -- class ")
-                          (display (first (rest f)))
-                          (display " is defined later (")
-                          (display (first (rest (rest f))))
-                          (display ")"))))
+                          (display " -- class " (first (rest f))
+                                   " is defined later ("
+                                   (first (rest (rest f))) ")"))))
                   (newline)))
             (self (rest findings))))
       (#t ()))))
@@ -391,7 +385,7 @@
         (%simulate "lib/xe.x")
         (%simulate "lib/rn.x")
         (match
-          ((null? (first %findings-cell)) (do (display "ok") (newline)))
+          ((null? (first %findings-cell)) (do (display "ok\n")))
           (#t (%report (%reverse (first %findings-cell))))))))
 
 ; (rest args) skips argv[0] (the interpreter binary); the rest is the lib

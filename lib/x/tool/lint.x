@@ -202,7 +202,14 @@
 (def %lint-seq (fn (self forms)
   (unless (null? forms)
     (if (pair? forms)
-      (do (%lint-form (first forms))
+      ; Adjacent output calls in a SEQUENCE are one variadic call (#291);
+      ; warn (advisory) so the swept unary chains do not grow back.
+      ; Branch arms are not sequences and never reach here adjacently.
+      (do (when (if (Lint %lint-out-verb? (first forms))
+                  (if (pair? (rest forms)) (Lint %lint-out-verb? (first (rest forms))) #f)
+                  #f)
+            (%warn! "display-chain" (%cvt (first (first forms)) %string)))
+          (%lint-form (first forms))
           (when (%lint-binds? (first forms))
             (let ((bn (%lint-bound-name (first forms))))
               ; %lint-def already added this name to the persistent scope (its
@@ -649,6 +656,16 @@
   (static
     (%lint-class-siblings (list ()) "Sibling method names of the class being walked")
     (%lint-embedder-known (list "%install-root" "%pin-file") "Embedder-contract names, announced before any file runs")
+    (method %lint-out-verb? (self form)
+      (match
+        ((not (pair? form)) #f)
+        ((not (symbol? (first form))) #f)
+        (#t (let ((h (%cvt (first form) %string)))
+              (match
+                ((str=? h "display") #t)
+                ((str=? h "newline") #t)
+                ((str=? h "%stderr") #t)
+                (#t #f))))))
     (method %env-known? (self name)
   (match
     ((%member-str? name (Lint %lint-embedder-known)) #t)

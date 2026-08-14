@@ -236,11 +236,7 @@
 
   (if (> %total-branches 0)
     (do
-      (display "Branch coverage: ")
-      (display %covered-branches)
-      (display "/")
-      (display %total-branches)
-      (display "\n")
+      (display "Branch coverage: " %covered-branches "/" %total-branches "\n")
 
       (if (null? %uncovered)
         (display "All branches covered.\n")
@@ -249,12 +245,9 @@
           (%for-each (fn (_ entry)
             (def line (first (rest (rest entry))))
             (if (> line 0)
-              (do (display "  line ")
-                  (display line)
-                  (display ": "))
+              (do (display "  line " line ": "))
               (display "  "))
-            (display (first entry))
-            (display ": ")
+            (display (first entry) ": ")
             (write (first (rest entry)))
             (display "\n"))
             %uncovered))))

@@ -15,17 +15,6 @@
     (let go ((n n) (acc 1))
       (if (<= n 1) acc (go (- n 1) (* acc n))))))
 
-(display "factorial(10)    = ")
-(display (factorial 10))
-(newline)
-
-; 20! is the largest factorial that fits a 64-bit integer -- the plain
-; x-lang dialect has no bignums (use xe for those; see examples/xe/).
-(display "factorial-tc(20) = ")
-(display (factorial-tc 20))
-(newline)
-
-; TCO means a million-iteration loop runs in constant stack space.
-(display "count(1000000)   = ")
-(display (let go ((n 1000000)) (if (= n 0) 'done (go (- n 1)))))
-(newline)
+(display "factorial(10)    = " (factorial 10) "\n" "factorial-tc(20) = "
+         (factorial-tc 20) "\n" "count(1000000)   = "
+         (let go ((n 1000000)) (if (= n 0) 'done (go (- n 1)))) "\n")

@@ -34,7 +34,6 @@
 
 (def turtle-json
   (fn ()
-    (display (turtle-bc-str))
-    (newline)))
+    (display (turtle-bc-str) "\n")))
 
 (provide logo/json turtle-json turtle-json-str turtle-bc-str)

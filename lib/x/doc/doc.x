@@ -361,32 +361,27 @@
 (def %display-notes
   (fn (_ notes)
     (%doc-for-each
-      (fn (_ n) (display "  ") (display %c-dim) (display n) (display %c-reset) (newline))
+      (fn (_ n) (display "  " %c-dim n %c-reset "\n"))
       notes)))
 
 (def %display-params
   (fn (self ps)
     (if (null? ps) ()
       (do
-        (display "  ")
-        (display %c-param) (display (first (first ps))) (display %c-reset)
+        (display "  " %c-param (first (first ps)) %c-reset)
         (if (not (null? (first (rest (first ps)))))
-          (do (display " : ")
-              (display %c-type) (display (first (rest (first ps)))) (display %c-reset)))
+          (do (display " : " %c-type (first (rest (first ps))) %c-reset)))
         (if (not (str=? (first (rest (rest (first ps)))) ""))
-          (do (display " -- ")
-              (display (first (rest (rest (first ps)))))))
+          (do (display " -- " (first (rest (rest (first ps)))))))
         (newline)
         (self (rest ps))))))
 
 (def %display-returns
   (fn (_ ret)
     (if (not (null? ret))
-      (do (display "  => ")
-          (display %c-type) (display (first ret)) (display %c-reset)
+      (do (display "  => " %c-type (first ret) %c-reset)
           (if (not (str=? (first (rest ret)) ""))
-            (do (display " -- ")
-                (display (first (rest ret)))))
+            (do (display " -- " (first (rest ret)))))
           (newline)))))
 
 (def %display-examples
@@ -395,15 +390,13 @@
       (fn (_ ex)
         (display "  > ")
         (%highlight-code (first ex))
-        (display " => ")
-        (display (rest ex))
-        (newline))
+        (display " => " (rest ex) "\n"))
       examples)))
 
 (def %display-sees
   (fn (_ sees)
     (%doc-for-each
-      (fn (_ ref) (display "  See: ") (display ref) (newline))
+      (fn (_ ref) (display "  See: " ref "\n"))
       sees)))
 
 ; Print a coloured name at an indent: `<indent>%c-name<name>%c-reset`.  name
@@ -412,7 +405,7 @@
 ; modules' load status).
 (def %display-name
   (fn (_ indent name)
-    (display indent) (display %c-name) (display name) (display %c-reset)))
+    (display indent %c-name name %c-reset)))
 
 ; Print one "<name> -- <desc>" listing line (description omitted when empty),
 ; then a newline.  The single formatter every name+desc listing routes through
@@ -422,7 +415,7 @@
   (fn (_ indent name desc)
     (%display-name indent name)
     (if (not (str=? desc ""))
-      (do (display " -- ") (display desc)))
+      (do (display " -- " desc)))
     (newline)))
 
 ; --- Display ---
@@ -445,13 +438,11 @@
 
 (def %display-doc
   (fn (_ entry)
-    (display %c-name) (display (%doc-entry-name entry)) (display %c-reset)
-    (display ": ")
-    (display (%doc-entry-desc entry))
-    (newline)
+    (display %c-name (%doc-entry-name entry) %c-reset ": "
+             (%doc-entry-desc entry) "\n")
     (def %mod (%module-for-sym (%doc-entry-name entry)))
     (if (not (null? %mod))
-      (do (display "  module: ") (display %c-module) (display %mod) (display %c-reset) (newline)))
+      (do (display "  module: " %c-module %mod %c-reset "\n")))
     (%display-notes (%doc-entry-notes entry))
     (%display-params (%doc-entry-params entry))
     (%display-returns (%doc-entry-returns entry))
@@ -495,15 +486,13 @@
 
 (def %display-overview
   (fn (_ )
-    (display %c-bold) (display "x-lang help system") (display %c-reset) (newline)
-    (newline)
-    (display "  (help)          show this overview") (newline)
-    (display "  (help name)     docs for a function or operative") (newline)
-    (display "  (help module)   list a module's exports") (newline)
-    (display "  (modules)       list all available modules") (newline)
-    (display "  (apropos \"str\") search by name substring") (newline)
-    (newline)
-    (display %c-bold) (display "Modules:") (display %c-reset) (newline)
+    (display %c-bold "x-lang help system" %c-reset "\n\n"
+             "  (help)          show this overview\n"
+             "  (help name)     docs for a function or operative\n"
+             "  (help module)   list a module's exports\n"
+             "  (modules)       list all available modules\n"
+             "  (apropos \"str\") search by name substring\n\n" %c-bold
+             "Modules:" %c-reset "\n")
     (%doc-for-each
       (fn (_ m)
         (def %md (%doc-lookup (first m)))
@@ -588,7 +577,7 @@
   (fn (_ label entries indent)
     (if (null? entries) ()
       (do
-        (display indent) (display label) (newline)
+        (display indent label "\n")
         (%display-entries entries (%str-append indent "  "))))))
 
 ; Print a class's members + methods, grouped static vs instance, at `base` indent.
@@ -602,7 +591,7 @@
       (do
         (if (if (null? s-mem) (null? s-meth) #f) ()    ; static: only if non-empty
           (do
-            (display base) (display "static:") (newline)
+            (display base "static:\n")
             (%display-section "members:" s-mem  (%str-append base "  "))
             (%display-section "methods:" s-meth (%str-append base "  "))))
         (%display-section "members:" i-mem  base)
@@ -639,9 +628,8 @@
                 (%str-append (symbol->str %cls-arg)
                   (%str-append "/" %meth-str))))))
           (if (null? %me)
-            (do (display %c-error) (display "No documentation for ")
-                (display %cls-arg) (display " ") (display (first (rest args)))
-                (display %c-reset) (newline))
+            (do (display %c-error "No documentation for " %cls-arg " "
+                         (first (rest args)) %c-reset "\n"))
             (%display-doc %me)))
       (let ()
         (def %h-name (first args))
@@ -660,8 +648,7 @@
                   (let ()
                     (def %cdoc (%doc-lookup (class-name %cls)))
                     (if (null? %cdoc)
-                      (do (display %c-name) (display (class-name %cls))
-                          (display %c-reset) (newline))
+                      (do (display %c-name (class-name %cls) %c-reset "\n"))
                       (%display-doc %cdoc))
                     (%display-class-sections %cls "  "))
                   (let ()
@@ -674,10 +661,10 @@
                         ; those rather than a bare "no documentation".
                         (def %hits (%apropos-matches (symbol->str %h-name)))
                         (if (null? %hits)
-                          (do (display %c-error) (display "No documentation for ")
-                              (display %h-name) (display %c-reset) (newline))
-                          (do (display "No top-level doc for ") (display %h-name)
-                              (display "; documented methods matching it:") (newline)
+                          (do (display %c-error "No documentation for "
+                                       %h-name %c-reset "\n"))
+                          (do (display "No top-level doc for " %h-name
+                                       "; documented methods matching it:\n")
                               (%apropos-show %hits))))))))))))))))
 
 ; Doc-registry entries whose name CONTAINS pat (a string), sorted by name.
@@ -732,7 +719,7 @@
 (def modules
   (fn (_ )
     (%doc-commit!)
-    (display %c-bold) (display "Modules:") (display %c-reset) (newline)
+    (display %c-bold "Modules:" %c-reset "\n")
     (def %show
       (fn (self names)
         (if (not (null? names))
@@ -747,7 +734,7 @@
                     (def %md (%doc-lookup %name))
                     (if (not (null? %md))
                       (if (not (str=? (%doc-entry-desc %md) ""))
-                        (do (display " -- ") (display (%doc-entry-desc %md))))))
+                        (do (display " -- " (%doc-entry-desc %md))))))
                   (display "  [available]"))
                 (newline)))
             (self (rest names))))))
