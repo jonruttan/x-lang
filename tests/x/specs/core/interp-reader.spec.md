@@ -82,6 +82,80 @@ $"{{}}"
 ---
     "{}"
 
+### \ escapes a brace, so no hole opens
+
+The backslash itself survives, exactly as it does in an ordinary string: the
+chunk goes back through the C string reader, so there is one escape table and
+`{{` stays the way to write a bare brace.
+
+```scheme
+$"a\{b\}c"
+```
+---
+    "a\\{b\\}c"
+
+## a hole holds arbitrary code
+
+The analyser scans a hole in expression context, so the characters that would
+otherwise end the token -- a quote, a brace, another `$"` -- are read as the
+code they belong to.
+
+### a string literal inside a hole
+
+```scheme
+$"hi {(Str8 upcase "ab")}!"
+```
+---
+    "hi AB!"
+
+### braces inside a hole's string are not hole syntax
+
+```scheme
+$"[{(Str8 append "a}b{c" "|")}]"
+```
+---
+    "[a}b{c|]"
+
+### a #\ character literal in a hole cannot end the scan
+
+```scheme
+$"{(List length (list #\" #\} #\a))}"
+```
+---
+    "3"
+
+### a nested $"..." inside a hole
+
+```scheme
+(let ((c 7)) $"a{$"<{c}>"}z")
+```
+---
+    "a<7>z"
+
+### three literals deep
+
+```scheme
+$"a{$"b{$"c{(+ 1 1)}"}"}z"
+```
+---
+    "abc2z"
+
+### a hole holding a string and a nested literal at once
+
+```scheme
+$"Hello, {(Str8 join " " (List map (fn (_ c) $"{c}") (list 1 2 3)))}!"
+```
+---
+    "Hello, 1 2 3!"
+
+### $ not followed by a quote stays an ordinary symbol
+
+```scheme
+(lit $foo)
+```
+---
+    '$foo
+
 ## holes evaluate in the enclosing scope
 
 These pin the read-time-parsing fix: a hole's variable must resolve in the env

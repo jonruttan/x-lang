@@ -47,7 +47,11 @@ echoes them in shorthand.
   string-index idiom `("x" 0)` is retired.
 - Strings escape with `\" \\ \n \t \r \0 \xHH`.
 - `$"text {expr} text"` interpolates at read time (expands to
-  `(Str8 str …)`).
+  `(Str8 str …)`).  A hole is scanned in expression context, so it holds
+  arbitrary code — a string (`$"{(join " " xs)}"`), a `#\` character
+  literal, or another `$"…"` — and only the `}` that closes it ends it.
+  `{{` and `}}` are literal braces; `\` escapes the next character, so
+  `\{` opens no hole (and, as in any string, keeps its backslash).
 
 ## Collections
 

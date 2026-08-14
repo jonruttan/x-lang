@@ -71,12 +71,16 @@
       (if (= chr 39) %lit-accept ())))
     %compile-fvars))
 
+; Only the entry test compiles: it is the piece that runs on every character.
+; The states behind it (%interp-after-dollar's machine) run inside a literal
+; only, so they stay interpreted -- and they are closures over a `let`, with no
+; global names for %compile-fvars to bind anyway.
 (set! %compile-fvars
-  (list (pair '%interp-accept %interp-accept)))
+  (list (pair '%interp-after-dollar %interp-after-dollar)))
 (def %c-interp-analyse
   (compile
     (lit (fn (_ buffer score chr)
-      (if (= chr 36) %interp-accept ())))
+      (if (= chr 36) %interp-after-dollar ())))
     %compile-fvars))
 (set! %compile-fvars ())
 

@@ -85,3 +85,13 @@
 ```
 ---
     "a<1>b<22>"
+
+## a regex literal inside a $"..." interpolation hole
+
+### a {n,m} quantifier in a hole's regex is pattern text, not hole syntax
+
+```scheme
+$"[{(if (#/a{2,3}/ "aaa") "yes" "no")}]"
+```
+---
+    "[yes]"
