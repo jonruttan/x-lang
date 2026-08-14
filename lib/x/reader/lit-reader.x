@@ -33,11 +33,11 @@
     (%seq (%buffer-unread buffer) (%score-set score 1 buffer))))
 
 (def %lit-analyse
-  (fn (_ buffer score chr) (if (= chr 39) %lit-accept ())))
+  (fn (_ buffer score chr) (if (= chr #\') %lit-accept ())))
 
 (def %lit-read
   (fn (_ buffer . rest)
-    (if (= (%buffer-last-char buffer) 39)
+    (if (= (%buffer-last-char buffer) #\')
       (pair (lit lit) (pair (%token-read buffer) ()))
       ())))
 
@@ -45,9 +45,9 @@
 ; binding keep it allocation-free on the per-char delimiter path.
 (def %macro-delimit
   (fn (_ buffer . rest)
-    (if (if (= (%buffer-last-char buffer) 39) #t
-          (if (= (%buffer-last-char buffer) 96) #t
-            (= (%buffer-last-char buffer) 44)))
+    (if (if (= (%buffer-last-char buffer) #\') #t
+          (if (= (%buffer-last-char buffer) #\`) #t
+            (= (%buffer-last-char buffer) #\,)))
       (%seq (%buffer-unread buffer) buffer)
       ())))
 
