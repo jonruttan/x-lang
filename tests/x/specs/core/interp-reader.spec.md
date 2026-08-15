@@ -156,6 +156,47 @@ $"Hello, {(Str8 join " " (List map (fn (_ c) $"{c}") (list 1 2 3)))}!"
 ---
     '$foo
 
+## degenerate holes (#159)
+
+### an empty hole splices nothing
+
+A hole with no expression reads no form, so it contributes nothing -- the same
+way `$""` is `""`. This used to segfault the READER (`first` on the empty token
+list is unchecked), before evaluation began.
+
+```scheme
+$"a{}b"
+```
+---
+    "ab"
+
+### a hole of only whitespace is equally empty
+
+```scheme
+$"a{   }b"
+```
+---
+    "ab"
+
+### a literal that is nothing but an empty hole
+
+```scheme
+$"{}"
+```
+---
+    ""
+
+### an unterminated literal falls back to a symbol rather than crashing
+
+Nothing scores the token, so the symbol reader -- the analyse list's tail --
+claims the text, exactly as it does for any run of characters no literal wants.
+
+```scheme
+(symbol? (first (Tok read-str (%base) "$\"a{x ")))
+```
+---
+    #t
+
 ## holes evaluate in the enclosing scope
 
 These pin the read-time-parsing fix: a hole's variable must resolve in the env
