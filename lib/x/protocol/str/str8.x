@@ -157,10 +157,16 @@
 
     ; --- construction ---
     (method append (self . (param args STRING "Strings to concatenate"))
-      (doc "Concatenate all argument strings, left to right."
+      (doc "Concatenate all argument strings, left to right. Errors on a non-string argument; use (Str8 str ...) to render non-strings."
         (returns STRING "The arguments joined end to end")
         (example "(Str8 append \"ab\" \"cd\" \"ef\")" "\"abcdef\""))
-      (%fold %str-append "" args))
+      ; Same hazard join guards, and the same remedy: %str-append is a raw byte
+      ; concat, so a non-string ARGUMENT makes it read arbitrary memory -- nil
+      ; segfaulted here (#159) while every sibling seat already raised. The
+      ; per-argument check is noise next to the allocation each step pays.
+      (%fold (fn (_ acc s)
+              (%str-append acc (%str8-check s "Str8 append: not a string")))
+            "" args))
     (method str (self . (param args ANY "Values to render and concatenate"))
       (doc "Concatenate values into one string, coercing each via display (so non-strings render too). The target of $\"...{expr}...\" interpolation."
         (returns STRING "The rendered values joined end to end")

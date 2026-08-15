@@ -255,13 +255,20 @@
                 (pair (chunk (%substring s i (+ p 1))) (self s (+ p 1) len)))
               (#t                                                ; hole: { expr }
                 (let ((close (hole-end s (+ p 1) len)))
-                  (pair (chunk (%substring s i p))               ; text before {
-                    ; pad with a trailing space so a bare-symbol hole ({x})
-                    ; terminates its token at end-of-buffer (token-read-string
-                    ; drops an unterminated tail).
-                    (pair (first (%token-read-string (%base)
-                            (%str-append (%substring s (+ p 1) close) " ")))
-                      (self s (+ close 1) len))))))))))
+                  ; pad with a trailing space so a bare-symbol hole ({x})
+                  ; terminates its token at end-of-buffer (token-read-string
+                  ; drops an unterminated tail).
+                  (let ((forms (%token-read-string (%base)
+                                 (%str-append (%substring s (+ p 1) close) " "))))
+                    (pair (chunk (%substring s i p))              ; text before {
+                      ; An EMPTY hole ({} or whitespace) reads no form at all,
+                      ; and `first` is unchecked -- (first ()) is UB, and it
+                      ; segfaulted the READER before evaluation ever began
+                      ; (#159).  Nothing to splice, so splice nothing: $"a{}b"
+                      ; is "ab", the same way $"" is "".
+                      (if (null? forms)
+                        (self s (+ close 1) len)
+                        (pair (first forms) (self s (+ close 1) len))))))))))))
     walk))
 
 ; The winning token is the whole literal: strip $" and the closing ", split what

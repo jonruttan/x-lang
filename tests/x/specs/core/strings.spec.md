@@ -52,6 +52,26 @@
 ---
     "abc"
 
+### a non-string argument raises rather than reading raw memory (#159)
+
+`%str-append` is a raw byte concat, so nil used to segfault here while every
+sibling seat already raised. `append` does not coerce -- `(Str8 str ...)` is
+the seat that renders non-strings.
+
+```scheme
+(Str8 append "a" ())
+```
+---
+    Error: #<err:type Str8 append: not a string>
+
+### a non-string argument raises wherever it sits
+
+```scheme
+(Str8 append "a" 5 "b")
+```
+---
+    Error: #<err:type Str8 append: not a string>
+
 ## substring
 
 ### extracts substring
