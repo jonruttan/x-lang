@@ -28,7 +28,7 @@
         (do
           (display %lang-name)
           (unless (null? %lang-version)
-            (do (display " v" %lang-version)))
+            (do (display $" v{%lang-version}")))
           ; "x-lang" is the LANGUAGE's name, not a dialect's (#95) -- if
           ; an embedder names a dialect after the language itself,
           ; "x-lang v0.3.0 on x-lang" would read as a bug, so the suffix
