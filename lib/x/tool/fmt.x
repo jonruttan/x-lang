@@ -57,7 +57,11 @@
 
 (def %fmt-width (fn (_ form)
   (if (%fmt-comment? form) 80
-    (%fmt-cp-len (%write-to-str form)))))
+    ; A kept $"..." literal measures as its SOURCE TEXT; write-to-str would
+    ; measure the ('%interp "...") marker and misjudge every wrap around it.
+    (if (if (pair? form) (eq? (first form) (lit %interp)) #f)
+      (%fmt-cp-len (first (rest form)))
+      (%fmt-cp-len (%write-to-str form))))))
 
 ; --- Source renderer (#39) ---
 ;
@@ -86,6 +90,13 @@
   (fn (self form)
     (match
       ((null? form) (display "()"))
+      ; A ('%interp "...") token is a $"..." literal the reader kept as its
+      ; own source text (Xon arm-source!): print the text, never the marker.
+      ; It IS a pair, so this clause must precede the list printer -- which
+      ; would otherwise emit the raw marker, the #39 symptom in the shape
+      ; comments already guard against.
+      ((if (pair? form) (eq? (first form) (lit %interp)) #f)
+        (display (first (rest form))))
       ((pair? form)
         (let ((sugar (%src-sugar form)))
           (if (null? sugar)
@@ -158,11 +169,17 @@
         (if (eq? fmt-type 'body)    (%fmt-body-only head rest-forms col)
           (%fmt-default head rest-forms col)))))))))
 
+; A kept $"..." literal is a PAIR, like a comment, so the pretty printer
+; needs the same guard the compact one has: without it %fmt-list descends
+; and emits the raw ('%interp "...") marker.  Short forms hid this -- they
+; take the one-line path through %fmt-write-src.
 (set! %fmt-expr (fn (_ form col)
-  (if (%fmt-comment? form)
-    (display (first (rest form)))
-    (if (pair? form) (%fmt-list form col ())
-      (%fmt-write-src form)))))
+  (match
+    ((%fmt-comment? form) (display (first (rest form))))
+    ((if (pair? form) (eq? (first form) (lit %interp)) #f)
+      (display (first (rest form))))
+    ((pair? form) (%fmt-list form col ()))
+    (#t (%fmt-write-src form)))))
 
 (def %fmt-tokens (fn (_ tokens table)
   (def %go (fn (self toks first-token)

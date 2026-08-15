@@ -404,11 +404,7 @@
     (method %pin-report-dropped (self dest dropped)
       (match
             ((null? dropped) ())
-            (#t (do (display "pin: " (Pin %pin-length dropped)
-                             " file(s) no longer in the closure, still in "
-                             dest
-                             " (delete them; verify flags them as unlisted):\n"
-                             (Pin %pin-join-lines dropped))
+            (#t (do (display $"pin: {(Pin %pin-length dropped)} file(s) no longer in the closure, still in {dest} (delete them; verify flags them as unlisted):\n{(Pin %pin-join-lines dropped)}")
                     ()))))
     (method %pin-tree-files (self root)
       (Pin %pin-tf-walk root "" ()))
@@ -885,9 +881,7 @@
       (let ((missing (Pin %pin-audit-missing dest (Pin %pin-rels (Pin %pin-project-closure src)))))
         (do (match
               ((null? missing) ())
-              (#t (do (display "pin: audit -- " (Pin %pin-length missing)
-                               " import(s) fall through to the platform (absent from "
-                               dest "):\n" (Pin %pin-join-lines missing) "\n"))))
+              (#t (do (display $"pin: audit -- {(Pin %pin-length missing)} import(s) fall through to the platform (absent from {dest}):\n{(Pin %pin-join-lines missing)}\n"))))
             missing))))
     (method init (self . (param opts ANY "Optional, any order: a project directory string (default \".\") and a boot dialect entry symbol (default the running dialect)"))
       (doc "Write a starter pin.xon -- the manifest every other verb reads -- commented so it teaches its own vocabulary: (root \"deps\") (src \".\") (boot \"boot/<entry>.x\"). Writes intent only: no directories are made and nothing is downloaded (boot and sync do those, in that order). Refuses to overwrite an existing manifest. Returns the manifest's path."
@@ -974,10 +968,7 @@
             (let ((unused (Pin %pin-unselected names selected)))
               (do (match
                     ((null? unused) ())
-                    (#t (do (display "pin: unused -- "
-                                     (Pin %pin-length unused)
-                                     " version file(s) no scanned import selects (safe to remove):\n"
-                                     (Pin %pin-join-lines unused) "\n"))))
+                    (#t (do (display $"pin: unused -- {(Pin %pin-length unused)} version file(s) no scanned import selects (safe to remove):\n{(Pin %pin-join-lines unused)}\n"))))
                   unused))))))
     (method fetch (self (param dest STRING "Directory to fetch into")
                         (param tag STRING "Release tag, e.g. \"v0.4.0\"")

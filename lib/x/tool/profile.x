@@ -112,12 +112,7 @@
 
 (doc (def profile-dump
   (fn (_ )
-    (%stderr "allocs=" (alloc-count) " evals=" (eval-count) " tco="
-             (tco-count) " assoc-calls=" (assoc-calls-count) " assoc-steps="
-             (assoc-steps-count) " sym-find-calls=" (sym-find-calls-count)
-             " sym-find-steps=" (sym-find-steps-count) " gc-runs="
-             (gc-runs-count) " bst-hits=" (bst-hits-count) " bst-misses="
-             (bst-misses-count) " heap=" (Heap count) "\n")))
+    (%stderr $"allocs={(alloc-count)} evals={(eval-count)} tco={(tco-count)} assoc-calls={(assoc-calls-count)} assoc-steps={(assoc-steps-count)} sym-find-calls={(sym-find-calls-count)} sym-find-steps={(sym-find-steps-count)} gc-runs={(gc-runs-count)} bst-hits={(bst-hits-count)} bst-misses={(bst-misses-count)} heap={(Heap count)}\n")))
   "Dump all profile counters to stderr.")
 
 (doc (provide x/tool/profile

@@ -71,7 +71,7 @@
                 (total (first (rest counts))))
             (if (> total 0)
               (if tsv-mode
-                (do (display "COV\t") (write name) (display "\t" cov "\t" total "\n"))
+                (do (display "COV\t") (write name) (display $"\t{cov}\t{total}\n"))
                 (list name cov total)))))))))
   (param name SYMBOL "Function name")
   (param val ANY "Function value to inspect")

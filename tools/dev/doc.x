@@ -36,6 +36,10 @@
   ; --- Tokenize both with a fresh base ---
   ; (Base make): make-base retired when the constructors homed on the Base class
   (def %doc-base (Base make))
+  ; A scratch base has no reader macros: arm it (once, before the first
+  ; read) so a $"..." literal survives as its own text instead of
+  ; shattering at its first space -- see (Xon arm-source!).
+  (Xon arm-source! %doc-base)
   (def %prims-tokens (Xon read %prims-input %doc-base))
   (def %source-tokens (Xon read %source-input %doc-base))
 

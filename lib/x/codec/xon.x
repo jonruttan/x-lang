@@ -29,6 +29,50 @@
         ((symbol? v) (symbol->str v))
         ((number? v) ((prim-ref (lit io) (lit write-to-str)) v))
         (#t (Err raise (lit type) "Xon emit: unsupported atom in form" v))))
+    ; A scratch base is the bare C ISA: the reader macros are armed on the
+    ; BOOT base's string type (lit-reader.x), so a $"..." literal read into
+    ; one SHATTERS at its first space -- and the trailing quote then opens a
+    ; string that never closes, killing the file with "Unterminated input".
+    ; Arm the SHARED analyser (one definition of where a literal ends, no
+    ; second scanner to drift) with a KEEPING reader: a scratch base belongs
+    ; to a tool that re-emits or inspects SOURCE, so the literal must survive
+    ; as its own text.  lit-reader's EXPANDING reader would be exactly wrong
+    ; here -- fmt would print (Str8 str ...) and destroy the sugar it was
+    ; asked to format.  The token rides in a ('%interp "...") marker, the
+    ; shape fmt already uses for comments; a bare string is indistinguishable
+    ; from a real one, and converting to a symbol is not available -- the
+    ; conversion catalog is off-limits inside x_token_read.
+    ;
+    ; Call ONCE per base, before its first read.  A handler slot is a LIST in
+    ; every base; a fresh base's is STATIC-tagged, so it answers pair? with
+    ; #f while walking like any other list (the #296 static-spine class).
+    ; Prepending with pair handles both -- treating pair? #f as "a lone
+    ; handler" and wrapping it makes the tokenizer apply a LIST as a handler,
+    ; which bus-errors.
+    (method arm-source! (self (param b ANY "A fresh base, before its first read"))
+      (doc "Arm b to keep $\"...\" literals as ('%interp \"<source text>\") tokens."
+        (returns ANY "nil")
+        (note "For tools that read SOURCE into a scratch base (fmt, doc). The literal survives verbatim instead of shattering."))
+      (let ((st (Xon %xon-find-type b "STRING")))
+        (unless (null? st)
+          (%type-push-analyse st (pair %interp-analyse (first (%type-analyse-cell st))))
+          (%type-push-read st
+            (pair (fn (_ buffer . rest)
+                    (if (= (%buffer-last-char buffer) #\")
+                      (let ((tok ((prim-ref (lit buf) (lit tok)) buffer)))
+                        (if (and (> (%str-length tok) 2) (= (%str-ref tok 0) #\$))
+                          (list (lit %interp) tok)
+                          ()))
+                      ()))
+                  (first (%type-read-cell st)))))))
+    ; The base's type registry by NAME, through the contract-driven reflect
+    ; door (tools/contract/base-paths.x), never a shape heuristic.
+    (method %xon-find-type (self b name)
+      (let ((hit (%find (fn (_ e)
+                          (str=? (%reflect-sym->str (%reflect-type-tree-name (rest e)))
+                                 name))
+                   (first (%reflect-step b (%reflect-path (lit type-alist) %base-paths))))))
+        (if (null? hit) () (rest hit))))
     (method read (self (param s STR "xon text")
                        . (param base ANY "Optional base to intern into (default: the current base)"))
       (doc "Tokenize xon text into a list of forms."
