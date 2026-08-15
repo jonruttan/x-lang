@@ -101,6 +101,10 @@
   ; Push the keeping reader through the blessed door (path-driven cell).
   (%type-push-read (%find-comment %fmt-registry) %fmt-comment-reader)
 
+  ; Same treatment for $"..." literals: keep them as their source text, so
+  ; formatting cannot expand the sugar away -- see (Xon arm-source!).
+  (Xon arm-source! %fmt-base)
+
   ; --- Slurp the target and tokenize ---
 
   (def %input (File read-all %file))
