@@ -4,9 +4,29 @@
 ; the module's class (classes ARE namespaces; pin.x is the worked
 ; example -- 100 globals homed to 1).
 ;
+; Scope is lib/ + apps/ + tools/ (#304): a tool script co-loads with the
+; library, so its globals share the env.  Counting is form-accurate
+; (tools/check/defs.awk), which sees two shapes the old line grep did
+; not -- (doc (def %name ...)), so DOCUMENTED helpers stopped hiding, and
+; defs directly inside a top-level (do ...), which is how tool scripts
+; are written.  Rows that grew when the blind spots closed record
+; globals that were always there, not new pollution.
+;
 ; Hot-path rows stand on MEASURED de-dispatch grounds (8-30x class
 ; call overhead): sha256*, asm*, compile*, boot/*.  Everything else is
 ; unhomed inventory awaiting the pin.x treatment.
+(file "apps/logo/dispatch.x" 28)
+(file "apps/logo/entry.x" 27)
+(file "apps/logo/expr.x" 15)
+(file "apps/logo/indent.x" 2)
+(file "apps/logo/json.x" 1)
+(file "apps/logo/main.x" 6)
+(file "apps/logo/math.x" 5)
+(file "apps/logo/repl.x" 9)
+(file "apps/logo/serve.x" 15)
+(file "apps/logo/state.x" 15)
+(file "apps/logo/tstate.x" 2)
+(file "apps/logo/types.x" 43)
 (file "lib/x/boot/data.x" 14)
 (file "lib/x/boot/module.x" 52)
 (file "lib/x/boot/operatives.x" 6)
@@ -19,18 +39,18 @@
 (file "lib/x/codec/sha256-jit.x" 34)
 (file "lib/x/codec/sha256.x" 33)
 (file "lib/x/codec/utf8.x" 6)
-(file "lib/x/core/alist.x" 5)
+(file "lib/x/core/alist.x" 12)
 (file "lib/x/core/arithmetic.x" 17)
 (file "lib/x/core/boolean.x" 3)
 (file "lib/x/core/control.x" 2)
-(file "lib/x/core/list.x" 8)
+(file "lib/x/core/list.x" 19)
 (file "lib/x/core/logic.x" 1)
 (file "lib/x/core/math.x" 5)
 (file "lib/x/core/op-guard.x" 6)
 (file "lib/x/core/predicates.x" 12)
 (file "lib/x/core/quasi.x" 1)
 (file "lib/x/core/syntax.x" 5)
-(file "lib/x/doc/doc-gen.x" 25)
+(file "lib/x/doc/doc-gen.x" 32)
 (file "lib/x/doc/doc.x" 73)
 (file "lib/x/num/bignum.x" 57)
 (file "lib/x/num/complex.x" 41)
@@ -86,6 +106,20 @@
 (file "lib/x/type/promise.x" 6)
 (file "lib/x/type/ptr.x" 3)
 (file "lib/x/type/regex.x" 41)
-(file "lib/x/type/str-utf8.x" 12)
+(file "lib/x/type/str-utf8.x" 14)
 (file "lib/x/type/struct.x" 48)
 (file "lib/x/type/vector.x" 17)
+(file "tools/check/boot-order.x" 33)
+(file "tools/check/dialect-cover.x" 9)
+(file "tools/check/doctest.x" 11)
+(file "tools/contract/bare-globals.x" 1)
+(file "tools/contract/base-paths.x" 1)
+(file "tools/contract/isa.x" 5)
+(file "tools/contract/obj-layout.x" 29)
+(file "tools/dev/bench-sha256.x" 75)
+(file "tools/dev/cov-report.x" 5)
+(file "tools/dev/cov.x" 32)
+(file "tools/dev/doc-index.x" 10)
+(file "tools/dev/doc.x" 9)
+(file "tools/dev/fmt.x" 17)
+(file "tools/dev/lint.x" 23)
