@@ -235,3 +235,69 @@ retired C write handlers printed the same strings).
 ---
     #t
 
+
+## write-fits?: bounded rendering
+
+`(io write-fits?)` answers "does this render in under N columns?" by counting
+through the printer's own sink and aborting at the limit -- so it never
+materializes the text, and its cost is bounded by N rather than by the form.
+It must agree with measuring `write-to-str` the long way, which is what these
+pin.
+
+### agrees with write-to-str's length, form by form
+
+```scheme
+(do
+  (def fits? (prim-ref (lit io) (lit write-fits?)))
+  (def wtos (prim-ref (lit io) (lit write-to-str)))
+  (def long? (fn (_ f n) (< ((wtos f)) n)))
+  (def forms (list 1 "ab" (lit sym) (list 1 2 3) (list "a" (list 2 (list 3 4)))
+                   (list (lit lit) (lit x)) (pair 1 2) ()))
+  (%for-each (fn (_ f)
+    (%for-each (fn (_ n)
+      (unless (eq? (fits? f n) (long? f n))
+        (Err raise (lit value) "write-fits? disagrees with write-to-str" f)))
+      (list 1 2 3 5 8 20)))
+    forms)
+  #t)
+```
+---
+    #t
+
+### counts CODE POINTS, not bytes
+
+`"aé"` writes as 4 code points in 5 bytes, so a byte count would refuse a
+width the form actually fits.
+
+```scheme
+(do
+  (def fits? (prim-ref (lit io) (lit write-fits?)))
+  (def wtos (prim-ref (lit io) (lit write-to-str)))
+  (list ((wtos "aé")) (Str8 length (wtos "aé")) (fits? "aé" 5) (fits? "aé" 4)))
+```
+---
+    (4 5 #t #f)
+
+### the sink is restored after an aborted render
+
+```scheme
+(do
+  (def fits? (prim-ref (lit io) (lit write-fits?)))
+  (def wtos (prim-ref (lit io) (lit write-to-str)))
+  (fits? (list 1 2 3 4 5 6 7 8 9) 3)
+  (wtos (list 1 2)))
+```
+---
+    "(1 2)"
+
+### a nested ask keeps its own counter
+
+```scheme
+(do
+  (def fits? (prim-ref (lit io) (lit write-fits?)))
+  (def wtos (prim-ref (lit io) (lit write-to-str)))
+  (list (wtos (list 1 (fits? (list 1 2 3) 3) 2))
+        (fits? (list 1 (fits? (list 9 9 9) 3) 2) 60)))
+```
+---
+    ("(1 #f 2)" #t)
