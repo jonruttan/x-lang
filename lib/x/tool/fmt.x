@@ -157,17 +157,30 @@
       (%fmt-body rest-forms (+ col 2))
       (display ")"))))
 
-(set! %fmt-list (fn (_ form col table)
+; The layout decision is a PREDICATE, not a measurement: this only ever
+; asked whether the form is under 60 columns.  Asking it as a measurement
+; meant rendering the whole subtree through write-to-str -- once per
+; ancestor, since every node asks -- which is what made lib/x/tool/pin.x
+; cost ~450M allocations and overrun the alloc-guard ceiling entirely.
+; (io write-fits?) counts through the printer's own sink and stops at the
+; limit, so one node's question costs 60 columns of work, not its subtree.
+; The door is captured ONCE: fmt.x is at its %-global budget, and a
+; per-node prim-ref would pay a catalog lookup per node.
+; %fmt-width stays exact, for (Fmt width) -- the public API documents a
+; true width, and only the layout decision moves here.
+(set! %fmt-list
+  (let ((fits? (prim-ref 'io 'write-fits?)))
+   (fn (_ form col table)
   (def head (first form))
   (def rest-forms (rest form))
-  (if (< (%fmt-width form) 60)
+  (if (fits? form 60)
     (%fmt-write-src form)
     (let ((props (when (symbol? head) (%fmt-lookup head table))))
       (let ((fmt-type (unless (null? props) (%fmt-get-prop 'fmt props))))
         (if (eq? fmt-type 'head-1)  (%fmt-head-1 head rest-forms col)
         (if (eq? fmt-type 'head-kw) (%fmt-head-kw head rest-forms col)
         (if (eq? fmt-type 'body)    (%fmt-body-only head rest-forms col)
-          (%fmt-default head rest-forms col)))))))))
+          (%fmt-default head rest-forms col))))))))))
 
 ; A kept $"..." literal is a PAIR, like a comment, so the pretty printer
 ; needs the same guard the compact one has: without it %fmt-list descends

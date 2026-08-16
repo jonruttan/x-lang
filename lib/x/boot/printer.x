@@ -468,6 +468,53 @@
 (prim-reg! (lit io) (lit write)          %print-write1)
 (prim-reg! (lit io) (lit display-to-str) (fn (_ o) (%print-to-str o %print-d)))
 (prim-reg! (lit io) (lit write-to-str)   (fn (_ o) (%print-to-str o %print-w)))
+; --- bounded rendering: "does this form fit in N columns?" -------------
+; The question needs no TEXT, only a COUNT, so the sink COUNTS instead of
+; collecting -- which drops both the parts list and the join that dominate
+; write-to-str -- and ABORTS the render the moment the limit is reached, so
+; the walk is bounded by N instead of by the form's size.
+;
+; fmt asks this once per list node, and used to ask it by rendering the
+; whole subtree through write-to-str and measuring the result -- so every
+; subtree was re-rendered once per ancestor.  Measured on lib/x/tool/pin.x
+; (1042 lines): 30s and ~450M allocations, which is OVER the 300M
+; alloc-guard ceiling, so the formatter could not finish the file at all.
+; With this door: 10s and ~150M, same output byte for byte.
+;
+; Counting is CODE POINTS, matching the column math everywhere else (bytes
+; misalign non-ASCII source).  The one-byte shortcut is exact -- in valid
+; UTF-8 a single byte is a single code point -- and skips the ambient
+; string-call dispatch for the "(", ")" and " " chunks that dominate the
+; emit stream.  Counting BYTES alone measured faster still (7s) but is only
+; conservative: bytes >= code points, so it would wrap a non-ASCII form that
+; would have fit.
+;
+; Helpers and state ride the registration closure rather than new globals:
+; the %-budget is shrink-only, and a per-call helper would allocate once per
+; node.  `let` bindings are per-activation, so a nested ask (a fits? inside a
+; to-str capture, or inside another fits?) keeps its own counter -- the
+; hazard %print-to-str-run's parameter-riding comment describes.
+(prim-reg! (lit io) (lit write-fits?)
+  ; `let` is not bound yet at this point in boot (core/syntax.x is far
+  ; below), so the bindings are immediately-applied fns -- which is what
+  ; let desugars to, and which puts the counter and the saved sink on
+  ; PARAMETERS, the per-activation home this file's to-str comment
+  ; requires: a nested ask keeps its own counter.
+  ((fn (_ len)
+     (fn (_ o limit)
+       ((fn (_ n old)
+          (do
+            (%set-first! %print-sink
+              (fn (_ s)
+                (do (%set-first! n (%print-int+ (first n) (len s)))
+                    (if (< (first n) limit) () (error (lit %print-overflow))))))
+            (guard (e (do (%set-first! %print-sink old)
+                          (if (%print-same? e (lit %print-overflow)) #f (error e))))
+              (do (%print-w o)
+                  (%set-first! %print-sink old)
+                  (< (first n) limit)))))
+        (pair 0 ()) (first %print-sink))))
+   (fn (_ s) (if (= (%print-byte-len s) 1) 1 (s)))))
 ; The bare verbs: write is unary; display is variadic (the shape the old
 ; string.x shim over the retired C prim established).
 ; The bare verbs are OPS, not fns: the repl's print seat calls them between
