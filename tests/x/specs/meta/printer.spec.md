@@ -85,6 +85,31 @@ no-ops (kept for embedders that pre-register the type).
 ---
     #t
 
+## non-navigable type tags (the base sentinel)
+
+A child base's type slot holds x_eval_obj -- a static ATOM whose bytes
+are "BASE", never a registered pair tree.  (type name) must answer the
+tag's own bytes, exactly as the C branch returned the raw tag: stepping
+the name path through an atom with the UNCHECKED first/rest reads its
+payload as a pair pointer, which is how the REPL echo of (Base make)
+segfaulted mid-#<obj: (the opaque form calls type-name for the label).
+
+### a base's sentinel type tag answers its bytes, not a navigation
+
+```scheme
+((prim-ref 'type 'name) (Base make))
+```
+---
+    "BASE"
+
+### a fresh base renders as the bounded opaque form
+
+```scheme
+((prim-ref 'io 'display-to-str) (Base make))
+```
+---
+    "#<obj:BASE>"
+
 ### reader symbols do NOT intern to type handles
 
 ```scheme

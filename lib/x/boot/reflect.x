@@ -169,7 +169,12 @@
 ; C branches exactly: a bare atom / structural pair is a type HANDLE,
 ; resolved against the type-alist (its own type field holds a sentinel, so
 ; navigating it would misread the tag payload); nil-typed objects have no
-; name; anything else reads its type tree's name field.
+; name; a NON-navigable type tag -- an ATOM sentinel like the base tag
+; x_eval_obj ("BASE"), never a registered pair tree -- answers its own
+; bytes (C returned the raw tag; x_type_prim_type_name's "must not be
+; navigated" rule): stepping the name path through an atom with the
+; UNCHECKED first/rest is a segfault, which is exactly how printing a
+; (base make) child died; anything else reads its type tree's name field.
 (def %reflect-name-str
   (fn (_ n)
     (match
@@ -192,9 +197,13 @@
           (match
             ((%reflect-handle-tw? %reflect-twd) (%reflect-handle-name o))
             ((eq? %reflect-twd 0) ())
-            (#t (%reflect-name-str
-                  (%reflect-type-tree-name
-                    (%ptr->obj (%int->ptr %reflect-twd)))))))))))
+            (#t
+              (do
+                (def %reflect-tt (%ptr->obj (%int->ptr %reflect-twd)))
+                (match
+                  ((eq? (%reflect-type-word %reflect-tt) %reflect-spair-tw)
+                    (%reflect-name-str (%reflect-type-tree-name %reflect-tt)))
+                  (#t (%reflect-name-str %reflect-tt)))))))))))
 
 ; (iter new o) -- fetch the iter handler from o's type tree (descriptor
 ; path type-iter) and apply it to o; nil for nil-typed/sentinel-typed
