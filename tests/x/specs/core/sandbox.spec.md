@@ -8,6 +8,14 @@
 ---
     #f
 
+### a base survives being displayed (the REPL echo path)
+
+```scheme
+(do (def %pb (Base make)) (display %pb) (display "\n") (Base eval %pb (lit (+ 1 2))))
+```
+---
+    3
+
 ### new base has arithmetic
 
 ```scheme
