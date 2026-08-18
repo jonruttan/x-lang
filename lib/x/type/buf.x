@@ -51,10 +51,13 @@
       (doc "Read one token from a buffer through the type system's analysers."
         (returns ANY "The parsed token"))
       ((prim-ref (lit tok) (lit read)) buffer))
-    (method read-str (self (param base ANY "Base object with type alist") (param s STRING "Source string to tokenize"))
+    (method read-str (self (param base ANY "Base object with type alist (Base instance or raw)") (param s STRING "Source string to tokenize"))
       (doc "Tokenize a string using a base's type system."
         (returns LIST "List of parsed tokens"))
-      ((prim-ref (lit tok) (lit read-str)) base s))))
+      ; The C prim consumes a RAW base; a Base instance unwraps here (the
+      ; tokenizer seam).  Base is late-bound on purpose -- type/base.x
+      ; loads after this module, and nothing calls read-str mid-boot.
+      ((prim-ref (lit tok) (lit read-str)) (Base raw-of base) s))))
 
 (doc (provide x/type/buf Buf Tok)
   (note "ns `buf`/`tok` are de-registered; reader-hot callers fetch-and-cache the prims, never class-dispatch per token.")

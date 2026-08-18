@@ -87,28 +87,52 @@ no-ops (kept for embedders that pre-register the type).
 
 ## non-navigable type tags (the base sentinel)
 
-A child base's type slot holds x_eval_obj -- a static ATOM whose bytes
-are "BASE", never a registered pair tree.  (type name) must answer the
-tag's own bytes, exactly as the C branch returned the raw tag: stepping
-the name path through an atom with the UNCHECKED first/rest reads its
-payload as a pair pointer, which is how the REPL echo of (Base make)
-segfaulted mid-#<obj: (the opaque form calls type-name for the label).
+A raw child base's type slot holds x_eval_obj -- a static ATOM whose
+bytes are "BASE", never a registered pair tree.  (type name) must answer
+the tag's own bytes, exactly as the C branch returned the raw tag:
+stepping the name path through an atom with the UNCHECKED first/rest
+reads its payload as a pair pointer, which is how the REPL echo of a
+fresh base segfaulted mid-#<obj: (the opaque form calls type-name for
+the label).  (Base make) wraps the raw base in an instance now, so these
+pins reach through the catalog for the raw object.
 
 ### a base's sentinel type tag answers its bytes, not a navigation
 
 ```scheme
-((prim-ref 'type 'name) (Base make))
+((prim-ref 'type 'name) ((prim-ref 'base 'make)))
 ```
 ---
     "BASE"
 
-### a fresh base renders as the bounded opaque form
+### a raw base renders as the bounded opaque form
 
 ```scheme
-((prim-ref 'io 'display-to-str) (Base make))
+((prim-ref 'io 'display-to-str) ((prim-ref 'base 'make)))
 ```
 ---
     "#<obj:BASE>"
+
+### a sentinel-typed operator is data, not a navigation (head position)
+
+The same tag guard in C's x_type_list_eval: an operator whose type tag
+is not a pair tree has no call slot to walk, so the form answers itself
+as data -- exactly the nil-call-slot contract -- instead of reading the
+tag's payload as pair pointers (the (b eval ...) segfault).
+
+```scheme
+(do (def %rawb ((prim-ref 'base 'make)))
+    (pair? (%rawb eval 1)))
+```
+---
+    #t
+
+### a type-handle operator is data too
+
+```scheme
+(pair? ((%print-type-of 0) 1))
+```
+---
+    #t
 
 ### reader symbols do NOT intern to type handles
 
