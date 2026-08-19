@@ -994,10 +994,21 @@
                       (target (%path-join dest file)))
                   (do
                     (Pin %pin-download! (Pin %pin-url b tag file) target)
+                    ; Build the compiled digest only when the payload
+                    ; justifies it: 65536 mirrors sha256.x's own
+                    ; auto-build bar (%sha-jit-threshold).  An amalgam
+                    ; (hundreds of KB) still gets the engine -- and the
+                    ; slow-path warning when the build is unavailable --
+                    ; while a small artifact digests pure-x in
+                    ; milliseconds instead of paying the ~14.5s engine
+                    ; build (#324: the pin gate's three fetch smokes
+                    ; each paid it to verify tens of bytes).
                     (display "pin: verifying " target
-                             (if (Sha256 jit!)
-                                 " (jit sha256)"
-                                 " (pure x-lang sha256; an amalgam takes minutes)")
+                             (if (< (%assoc-get 'size (File stat target)) 65536)
+                                 ""
+                                 (if (Sha256 jit!)
+                                     " (jit sha256)"
+                                     " (pure x-lang sha256; an amalgam takes minutes)"))
                              "\n")
                     (match
                       ((str=? (Pin %pin-digest target) want) ())
