@@ -9,17 +9,73 @@ name: CI
 # a regression only the deep tier catches lands on main for at most one
 # cycle, and the deep tier still guards every release (the release
 # workflow runs the full gate again before publishing anything).
+#
+# FAN-OUT (2026-08-18, #318).  The suite used to run as ONE job whose
+# steps ran serially, so the wall clock was the SUM of every step
+# (~23 min on main).  The steps are independent given a built x-bin and
+# the build is ~3s, so they now run as parallel jobs and the wall clock
+# is the slowest LEG.  Resource discipline, so the fan-out cannot crash
+# a runner: every job is its own runner VM, and no in-job parallelism
+# knob changed -- lint keeps its min(cores,4) fan-out (a child peaks
+# ~600MB; 8-wide once OOM-killed a runner) and the spec runner keeps its
+# PARALLEL_JOBS derivation.  Each memory ceiling now has a whole VM to
+# itself instead of sharing one with its neighbours.  A main push spawns
+# 5 macOS jobs -- exactly the free-plan macOS concurrency cap -- so a
+# second active run queues rather than failing; that is the graceful
+# direction.  check-bootstrap stays inside the gates job: its make clean
+# (bootstrap.sh) deletes x-bin and every object, so it must never share
+# a workspace with a concurrently-running step (#326 tracks containing
+# that blast radius).
 
 on:
   push:
     branches: [main]
   pull_request:
 
+# A superseded PR run keeps burning runners until its slowest leg ends;
+# cancel it when a newer push to the same ref arrives.  Main runs are
+# never cancelled: every merge gets its full verdict read.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  test:
-    name: make test (${{ matrix.os }})
+  specs:
+    name: specs (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build
+        run: make
+      - name: C specs
+        run: make test-c
+      - name: x-lang specs
+        run: make test-x
+        env:
+          PARALLEL: "1"
+      # Doctest ratchet (#16): every (example ...) in the doc registry is an
+      # executable contract; a stale example is a red build, not quiet rot.
+      - name: Doctests
+        run: make doctest
+      # Tool-suite specs (promoted with the #180 repair; joined only once
+      # fully green).  Builds x-bin-cov for the cov half -- and that build
+      # brackets itself with clean-obj (#329), leaving src/**/*.o deleted,
+      # so it runs LAST in this job: any later target depending on
+      # $(EXECUTABLE) would pay a silent full C rebuild.
+      - name: Tool specs
+        run: make test-tools
+
+  gates:
+    name: gates (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -41,24 +97,40 @@ jobs:
       - name: Contract gates (fast, PR)
         if: github.event_name == 'pull_request'
         run: make gates-fast
-      - name: C specs
-        run: make test-c
-      - name: x-lang specs
-        run: make test-x
-        env:
-          PARALLEL: "1"
-      # Doctest ratchet (#16): every (example ...) in the doc registry is an
-      # executable contract; a stale example is a red build, not quiet rot.
-      - name: Doctests
-        run: make doctest
+
+  lint:
+    name: lint (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build
+        run: make
       # x-lang lint (promoted 2026-08-02, #60 criterion: joined only once
       # fully green): lib + apps sweep, sibling-preload aware since #176.
       - name: x-lang lint
         run: make lint-x
-      # Tool-suite specs (promoted with the #180 repair, same criterion:
-      # joined only once fully green).  Builds x-bin-cov for the cov half.
-      - name: Tool specs
-        run: make test-tools
+
+  docs:
+    name: docs (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build
+        run: make
       # Doc generation (#308): the gate had no target that parses library
       # SOURCE, so a tree whose reader the doc tool chokes on was green --
       # #306 broke doc.x and fmt.x on every file it touched and make test
@@ -68,22 +140,38 @@ jobs:
       # dies.  Output lands in docs/ref/x/, which is gitignored.
       - name: Doc generation
         run: make doc-x
+
+  # Deep tier only: the examples ratchet and the tty contract.  Paired in
+  # one job so the ubuntu expect install is paid once.
+  interactive:
+    name: examples + tty (${{ matrix.os }})
+    if: github.event_name != 'pull_request'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build
+        run: make
       # Examples ratchet: every file under examples/ runs under its documented
       # dialect (batch mode), output-pinned where portable.  The first code a
       # newcomer runs was previously the only code with no gate -- and its
       # first-ever run caught or/cat.x broken by the #36 opt-in re-cut.
       - name: Examples
-        if: github.event_name != 'pull_request'
         run: make check-examples
       # Logo tty contract (#152/#157): pty-driven pins of the interactive
       # behaviors every batch suite is blind to.  expect ships on the macOS
       # runners; install it on ubuntu.  The harness skips-with-note if
       # expect is somehow absent, so this step cannot flake on tooling.
       - name: Install expect (Linux)
-        if: runner.os == 'Linux' && github.event_name != 'pull_request'
+        if: runner.os == 'Linux'
         run: sudo apt-get update -q && sudo apt-get install -y -q expect
       - name: Logo tty contract
-        if: github.event_name != 'pull_request'
         run: make check-logo-tty
 
   # Memory-safety gate: both suites under AddressSanitizer. HARD gate since
