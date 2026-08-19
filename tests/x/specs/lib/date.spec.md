@@ -101,3 +101,29 @@ time-of-day and both sides of the epoch.
 ```
 ---
     (#t #t #t #t)
+
+## from-iso (#364)
+
+### the inverse of ->iso, wday included
+
+```scheme
+(do (import x/sys/date)
+  (list (Date ->iso (Date from-iso "2009-02-13T23:31:30Z"))
+        (Date to-unix (Date from-iso "2009-02-13T23:31:30Z"))
+        (Assoc get 'wday (Date from-iso "2009-02-13T23:31:30Z"))
+        (Date ->iso (Date from-iso "1970-01-01"))))
+```
+---
+    ("2009-02-13T23:31:30Z" 1234567890 5 "1970-01-01T00:00:00Z")
+
+### strict: bad shapes, out-of-range fields, nonexistent civil dates all raise 'value
+
+```scheme
+(do (import x/sys/date)
+  (list (guard (e (Err kind-of e)) (Date from-iso "2023-02-30T00:00:00Z"))
+        (guard (e (Err kind-of e)) (Date from-iso "2023-13-01T00:00:00Z"))
+        (guard (e (Err kind-of e)) (Date from-iso "2023-01-01T25:00:00Z"))
+        (guard (e (Err kind-of e)) (Date from-iso "garbage"))))
+```
+---
+    ('value 'value 'value 'value)

@@ -30,6 +30,57 @@
             (do (Sys exec (first argv) (rest argv))
                 (Sys exit 127)))
           (#t (Sys wait pid)))))
+    ; Child-side prologue for the -with variants (#364): applied between
+    ; fork and exec, so it can only be env/cwd -- the two knobs subprocess
+    ; callers actually need. A failed chdir must NOT exec in the wrong
+    ; directory: exit 126 (the shell's cannot-execute convention).
+    (method %child-prep (self (param opts ALIST "Options: (cwd . PATH) and/or (env . ((NAME . VALUE) ...))"))
+      (let ((env (Assoc get 'env opts)))
+        (unless (null? env)
+          (List for-each (fn (_ kv) (Sys setenv (first kv) (rest kv))) env)))
+      (let ((cwd (Assoc get 'cwd opts)))
+        (unless (null? cwd)
+          (when (< (Sys chdir cwd) 0) (Sys exit 126)))))
+
+    (method run-with! (self (param opts ALIST "Options: (cwd . PATH) working directory, (env . ((NAME . VALUE) ...)) environment overrides -- both optional")
+                            (param argv LIST "Command and arguments"))
+      (doc "run! with a child-side working directory and/or environment overrides (#364). Env pairs are set on top of the inherited environment; cwd applies after them."
+        (returns INT "Exit status; 126 = the cwd was unusable; 127 = exec failed; 128+N = signal death")
+        (example "(Proc run-with! (list (pair 'cwd \"/tmp\")) (list \"/bin/sh\" \"-c\" \"test $(pwd) = /tmp || test $(pwd) = /private/tmp\"))" "0"))
+      (let ((pid (Sys fork)))
+        (match
+          ((= pid 0)
+            (do (Proc %child-prep opts)
+                (Sys exec (first argv) (rest argv))
+                (Sys exit 127)))
+          (#t (Sys wait pid)))))
+
+    (method capture-with (self (param opts ALIST "Options as in run-with!")
+                               (param argv LIST "Command and arguments"))
+      (doc "capture with a child-side working directory and/or environment overrides (#364)."
+        (returns PAIR "(status . stdout-string); status as in run-with!")
+        (example "(rest (Proc capture-with (list (pair 'env (list (pair \"X364\" \"y\")))) (list \"/bin/sh\" \"-c\" \"printf %s $X364\")))" "\"y\""))
+      (let ((fds (Sys pipe)))
+        (let ((pid (Sys fork)))
+          (match
+            ((= pid 0)
+              (do (Sys close (first fds))
+                  (Sys dup2 (rest fds) 1)
+                  (Sys close (rest fds))
+                  (Proc %child-prep opts)
+                  (Sys exec (first argv) (rest argv))
+                  (Sys exit 127)))
+            (#t
+              ; Same drain-before-wait rule as capture (see its comment).
+              (let ((drain (fn (self rfd acc)
+                             (let ((chunk (Sys fd-read rfd 65536)))
+                               (if (null? chunk) (%str-concat (%reverse acc))
+                                 (self rfd (pair (bytes->str chunk) acc)))))))
+                (do (Sys close (rest fds))
+                    (let ((out (drain (first fds) ())))
+                      (do (Sys close (first fds))
+                          (pair (Sys wait pid) out))))))))))
+
     (method capture (self (param argv LIST "Command and arguments"))
       (doc "Fork/exec argv with stdout piped back; wait; return status and output."
         (returns PAIR "(status . stdout-string); status as in run!")

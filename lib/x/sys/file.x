@@ -348,7 +348,105 @@
       (%fs-path to "File rename")
       (def r (syscall (syscall-id 'rename) from to))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'rename (list from to))))
-      ())))
+      ())
+
+    ; --- The coverage tail (#364) ---
+
+    (method lstat (self (param path STRING "Path to stat, symlinks NOT followed"))
+      (doc "File metadata like (File stat), but a symbolic link reports itself (kind 'link) instead of its target -- the door (File walk) uses to avoid following link cycles. Raises a kind-'io Err on failure."
+        (returns ALIST "((size . N) (mode . M) (kind . K) (mtime . T))")
+        (sample "(File lstat \"some-symlink\")" "((size . 11) (mode . 41453) (kind . link) (mtime . ...))"))
+      (%fs-path path "File lstat")
+      (def buf (%make-str 160))
+      (def r (if os-darwin?
+               (syscall (syscall-id 'lstat64) path buf)
+               (syscall (syscall-id 'lstat) path buf)))
+      (when (< r 0) (error (Err from-errno (%fs-errno r) 'lstat path)))
+      (def mode (if os-darwin? (%peek-u16 buf 4) (%peek-u32 buf 24)))
+      (list (pair 'size (%peek-i64 buf (if os-darwin? 96 48)))
+            (pair 'mode mode)
+            (pair 'kind (%mode-kind mode))
+            (pair 'mtime (%peek-i64 buf (if os-darwin? 48 88)))))
+
+    (method copy (self (param from STRING "Source file") (param to STRING "Destination (created/truncated, mode 0644)"))
+      (doc "Copy a file's bytes, binary-safe: a 64KB fd-level read/write loop driven by the raw byte counts, never by string length (a string's observable bytes end at the first NUL, so read-all->write-all corrupts binary). Raises a kind-'io Err on failure; returns the byte count copied."
+        (returns INT "Bytes copied")
+        (sample "(File copy \"a.bin\" \"b.bin\")" "1048576"))
+      (%fs-path from "File copy")
+      (%fs-path to "File copy")
+      (def in (File open from 'rdonly))
+      (when (< in 0) (error (Err from-errno (%fs-errno in) 'open from)))
+      (def out (File open to (list 'wronly 'creat 'trunc) 420))
+      (when (< out 0)
+        (let ((en (%fs-errno out)))
+          (File close in)
+          (error (Err from-errno en 'open to))))
+      (def buf (%make-str 65536))
+      (def %die (fn (_ r op path)
+        (let ((en (%fs-errno r)))
+          (File close in)
+          (File close out)
+          (error (Err from-errno en op path)))))
+      (def total
+        (let go ((acc 0))
+          (let ((n (File read in buf 65536)))
+            (match
+              ((< n 0) (%die n 'read from))
+              ((= n 0) acc)
+              (#t (let ((w (File write out buf n)))
+                    (match
+                      ((< w 0) (%die w 'write to))
+                      ; the raw write contract can return short; refuse the
+                      ; partial copy loudly rather than looping into it
+                      ((< w n) (%die -5 'write to))            ; -EIO
+                      (#t (go (+ acc n))))))))))
+      (File close in)
+      (File close out)
+      total)
+
+    (method temp (self . (param prefix STRING "Path prefix for the new file; default \"/tmp/x-\""))
+      (doc "Create a fresh temporary file that did not exist before the call: O_CREAT|O_EXCL|O_RDWR, mode 0600, name = prefix + random suffix (bytes from /dev/urandom), retrying on collision. Returns (fd . path); closing and unlinking are the caller's."
+        (returns PAIR "(open-fd . path)")
+        (sample "(File temp)" "(5 . \"/tmp/x-k29vq1x0\")")
+        (sample "(File temp \"/tmp/build-\")" "(6 . \"/tmp/build-8shd02mm\")"))
+      (def base (if (null? prefix) "/tmp/x-" (first prefix)))
+      (def %rand-name (fn (_)
+        ; 8 suffix chars from /dev/urandom, mapped into [a-z0-9]
+        (def rfd (File open "/dev/urandom" 'rdonly))
+        (when (< rfd 0) (error (Err from-errno (%fs-errno rfd) 'open "/dev/urandom")))
+        (def rbuf (%make-str 8))
+        (def got (File read rfd rbuf 8))
+        (File close rfd)
+        (when (< got 8) (error (Err from-errno -5 'read "/dev/urandom")))
+        (def %fs-c->i (prim-ref (lit char) (lit ->int)))
+        (let go ((i 0) (acc ()))
+          (if (= i 8) (bytes->str (%reverse acc))
+            (let ((v (% (%fs-c->i (%fs-byte-ref rbuf i)) 36)))
+              (go (+ i 1) (pair (if (< v 26) (+ 97 v) (+ 22 v)) acc)))))))
+      (let attempt ((left 16))
+        (when (= left 0)
+          (Err raise 'io "File temp: could not create a fresh name (16 collisions)" base))
+        (let ((path (Str8 append base (%rand-name))))
+          (let ((fd (File open path (list 'rdwr 'creat 'excl) 384)))
+            (if (< fd 0) (attempt (- left 1)) (pair fd path))))))
+
+    (method walk (self (param path STRING "Directory to walk"))
+      (doc "Every non-directory entry under path, recursively, as paths RELATIVE to path (files, links, sockets, fifos alike -- filter on (File lstat) kind for finer policy). Recursion decisions ride lstat, so a symlinked directory is REPORTED as its link, never followed (no cycle risk). Order follows the directory tables; treat it as unspecified. Raises a kind-'io Err on failure."
+        (returns LIST "Relative path strings")
+        (sample "(File walk \"lib/x/num\")" "(\"bigint.x\" \"complex.x\" ...)"))
+      (%fs-path path "File walk")
+      (let go ((rel "") (names (File list-dir path)) (acc ()))
+        (match
+          ((null? names) acc)
+          (#t
+            (let ((name (first names)))
+              (let ((r (if (str=? rel "") name (Str8 append rel "/" name))))
+                (let ((kind (Assoc get 'kind (File lstat (Str8 append path "/" r)))))
+                  (match
+                    ((eq? kind 'dir)
+                      (go rel (rest names)
+                          (go r (File list-dir (Str8 append path "/" r)) acc)))
+                    (#t (go rel (rest names) (pair r acc)))))))))))))
 
 (doc (provide x/sys/file File)
   (note "Imports x/platform/syscall for syscall-id; read buffers come from the (str make) core primitive, so File runs under plain x-core. Call (File file-modes) / (File stat-flags) for the symbolic flag tables.")

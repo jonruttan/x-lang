@@ -247,3 +247,72 @@ through the REPL error path -- jon hit corrupted error bytes).
 ```
 ---
     ('type)
+
+## lstat / copy / temp / walk (#364)
+
+### copy is binary-safe: a NUL-bearing file copies byte-exact
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (def t1 (File temp "/tmp/x-364a-"))
+  (def t2 (File temp "/tmp/x-364b-"))
+  (File write (first t1) "ab" 2)
+  (File write (first t1) (bytes->str (list 0)) 1)
+  (File write (first t1) "cd" 2)
+  (File close (first t1))
+  (File close (first t2))
+  (def n (File copy (rest t1) (rest t2)))
+  (def size (Assoc get 'size (File stat (rest t2))))
+  (File unlink (rest t1))
+  (File unlink (rest t2))
+  (list n size))
+```
+---
+    (5 5)
+
+### temp creates a fresh openable file under the prefix
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (def t (File temp "/tmp/x-364t-"))
+  (def existed (File exists? (rest t)))
+  (File close (first t))
+  (File unlink (rest t))
+  (list (>= (first t) 0) existed (Str8 starts? "/tmp/x-364t-" (rest t))))
+```
+---
+    (#t #t #t)
+
+### walk reports every non-directory entry, relative, recursing subdirs
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (File mkdir "/tmp/x-364-walk")
+  (File mkdir "/tmp/x-364-walk/sub")
+  (File write-all "/tmp/x-364-walk/a.txt" "1")
+  (File write-all "/tmp/x-364-walk/sub/b.txt" "2")
+  (def found (List sort (fn (_ a b) (Str8 <? a b)) (File walk "/tmp/x-364-walk")))
+  (File unlink "/tmp/x-364-walk/a.txt")
+  (File unlink "/tmp/x-364-walk/sub/b.txt")
+  (File rmdir "/tmp/x-364-walk/sub")
+  (File rmdir "/tmp/x-364-walk")
+  found)
+```
+---
+    ("a.txt" "sub/b.txt")
+
+### lstat reports a symlink as itself; stat follows it
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file) (import x/sys/proc)
+  (def p "/tmp/x-364-lnk-target")
+  (File write-all p "x")
+  (Proc run! (list "/bin/ln" "-s" p "/tmp/x-364-lnk"))
+  (def kinds (list (Assoc get 'kind (File lstat "/tmp/x-364-lnk"))
+                   (Assoc get 'kind (File stat "/tmp/x-364-lnk"))))
+  (File unlink "/tmp/x-364-lnk")
+  (File unlink p)
+  kinds)
+```
+---
+    ('link 'file)
