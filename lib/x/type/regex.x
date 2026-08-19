@@ -36,11 +36,14 @@
 (def %regex-parse ())
 
 ; Word character check: [0-9A-Za-z_]
+; Nested if, NOT and/or (#343): the operatives expand per evaluation
+; (~330 objects each -- the lib/x/core/list.x %as-list precedent) and
+; these tests run per character in the matcher's inner loop.
 (def %regex-is-word-char
   (fn (_ c)
-    (if (and (>= c 48) (<= c 57)) #t
-      (if (and (>= c 65) (<= c 90)) #t
-        (if (and (>= c 97) (<= c 122)) #t
+    (if (if (>= c 48) (<= c 57) #f) #t
+      (if (if (>= c 65) (<= c 90) #f) #t
+        (if (if (>= c 97) (<= c 122) #f) #t
           (= c 95))))))
 
 ; Character class membership: check if chr (char) matches any entry (int codes)
@@ -55,7 +58,7 @@
           (let ((e (first es)))
             (if (pair? e)
               ; range: (lo . hi) — integer codes
-              (if (and (>= c (first e)) (<= c (rest e)))
+              (if (if (>= c (first e)) (<= c (rest e)) #f)
                 #t (self (rest es)))
               ; literal char code
               (if (= c e)
@@ -79,8 +82,7 @@
     (def tag (first node))
     (match
       ((eq? tag 'lit)
-        (if (and (< pos end)
-              (= (%str-ref str pos) (first (rest node))))
+        (if (if (< pos end) (= (%str-ref str pos) (first (rest node))) #f)
           (pair (+ pos 1) caps) ()))
       ((eq? tag 'any)
         (if (< pos end) (pair (+ pos 1) caps) ()))
@@ -187,19 +189,18 @@
             (tag (first (first nodes))))
         (match
           ((eq? tag 'lit)
-            (if (and (< pos end)
-                  (= (%str-ref str pos) (first (rest node))))
+            (if (if (< pos end) (= (%str-ref str pos) (first (rest node))) #f)
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'any)
             (if (< pos end)
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'class)
-            (if (and (< pos end)
-                  (%regex-class-match (rest node) (%str-ref str pos)))
+            (if (if (< pos end)
+                  (%regex-class-match (rest node) (%str-ref str pos)) #f)
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'nclass)
-            (if (and (< pos end)
-                  (not (%regex-class-match (rest node) (%str-ref str pos))))
+            (if (if (< pos end)
+                  (not (%regex-class-match (rest node) (%str-ref str pos))) #f)
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'star)
             (%regex-exec-star (first (rest node)) rest-nodes str pos end caps))
