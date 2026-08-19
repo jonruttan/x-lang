@@ -132,50 +132,103 @@
     (def form (%read))
     (if (null? form) acc (self (pair form acc)))))
   (def %forms-rev (%read-all ()))
-  (def %forms
+  (def %all-forms
     (if %lib-mode %forms-rev (pair %first-form %forms-rev)))
 
-  (def %result (lint-forms %forms () ()))
-  (def %defs (first %result))
-  (def %uses (first (rest %result)))
+  ; Lint ONE file's forms; emit its findings; return #t on pass.
+  ; In batch mode every line rides `out` (stdout) so the per-file blocks
+  ; stay ordered; single-file mode keeps the legacy stderr findings.
+  (def %lint-one (fn (_ forms emit)
+    (def %result (lint-forms forms () ()))
+    (def %defs (first %result))
+    (def %uses (first (rest %result)))
 
-  ; Undefined: used but not in env-alist and not in file defs
-  (def %undefined (lint-undefined %defs %uses))
+    ; Undefined: used but not in env-alist and not in file defs
+    (def %undefined (lint-undefined %defs %uses))
 
-  ; Unused: defined but not used (skip %-prefixed internals)
-  (def %unused (lint-unused %defs %uses %lib-mode))
+    ; Unused: defined but not used (skip %-prefixed internals)
+    (def %unused (lint-unused %defs %uses %lib-mode))
 
-  ; Output
-  (unless (null? %undefined)
-    (do (%stderr "Undefined:\n")
-        (%for-each (fn (_ s) (%stderr "  " s "\n"))
-          %undefined)))
+    (unless (null? %undefined)
+      (do (emit "Undefined:\n")
+          (%for-each (fn (_ s) (emit "  " s "\n"))
+            %undefined)))
 
-  (unless (null? %unused)
-    (do (%stderr "Unused:\n")
-        (%for-each (fn (_ s) (%stderr "  " s "\n"))
-          %unused)))
+    (unless (null? %unused)
+      (do (emit "Unused:\n")
+          (%for-each (fn (_ s) (emit "  " s "\n"))
+            %unused)))
 
-  ; Pedantic warnings (advisory -- shown but do not fail the lint): arity,
-  ; call-nonfn, dup-def, malformed, shadow (lexical), unused (local).  Grouped
-  ; by kind, discovered from the results so a new kind needs no change here.
-  (def %warnings (lint-warnings %result))
-  (def %uniq-kinds (fn (self ws acc)
-    (if (null? ws) acc
-      (let ((k (first (first ws))))
-        (self (rest ws) (if (lint-has? k acc) acc (pair k acc)))))))
-  (def %show-kind (fn (_ k)
-    (%stderr "  " k ": ")
-    (%for-each (fn (_ s) (%stderr s " ")) (lint-warnings-of k %result))
-    (%stderr "\n")))
-  (unless (null? %warnings)
-    (do (%stderr "Warnings:\n")
-        (%for-each %show-kind (%uniq-kinds %warnings ()))))
+    ; Pedantic warnings (advisory -- shown but do not fail the lint): arity,
+    ; call-nonfn, dup-def, malformed, shadow (lexical), unused (local).  Grouped
+    ; by kind, discovered from the results so a new kind needs no change here.
+    (def %warnings (lint-warnings %result))
+    (def %uniq-kinds (fn (self ws acc)
+      (if (null? ws) acc
+        (let ((k (first (first ws))))
+          (self (rest ws) (if (lint-has? k acc) acc (pair k acc)))))))
+    (def %show-kind (fn (_ k)
+      (emit "  " k ": ")
+      (%for-each (fn (_ s) (emit s " ")) (lint-warnings-of k %result))
+      (emit "\n")))
+    (unless (null? %warnings)
+      (do (emit "Warnings:\n")
+          (%for-each %show-kind (%uniq-kinds %warnings ()))))
 
-  ; match-multi fails (not advisory): a clause body past the first
-  ; expression can never run -- every hit is dead code with no legitimate
-  ; spelling (#166), so unlike arity/shadow there is nothing to tolerate.
-  (if (and (null? %undefined) (null? %unused)
-           (null? (lint-warnings-of "match-multi" %result)))
-    (display "ok\n")
-    (error 'lint-failed)))
+    ; match-multi fails (not advisory): a clause body past the first
+    ; expression can never run -- every hit is dead code with no legitimate
+    ; spelling (#166), so unlike arity/shadow there is nothing to tolerate.
+    (if (null? %undefined) (if (null? %unused)
+      (null? (lint-warnings-of "match-multi" %result)) #f) #f)))
+
+  ; Batch protocol (#323): the stream may hold SEVERAL files, each
+  ; introduced by a (%lint-next-file "NAME") marker form the shell
+  ; injects between file bodies -- one engine boot lints the whole
+  ; same-preload group.  Soundness rides on the SHELL grouping only
+  ; files with IDENTICAL mode+preload (a union environment would mask
+  ; missing-import bugs); this loop just resets analysis state per
+  ; file, which lint-forms already does at entry.  No markers = the
+  ; legacy single-file behaviour, byte-for-byte.
+  (def %batch-marker? (fn (_ f)
+    (if (pair? f) (if (symbol? (first f))
+      (str=? (%lint-cvt (first f) %string) "%lint-next-file") #f) #f)))
+  (def %emit-out (fn (_ . parts) (%for-each (fn (_ p) (display p)) parts)))
+  (def %emit-err (fn (_ . parts) (%for-each (fn (_ p) (%stderr p)) parts)))
+
+  ; Split %all-forms (REVERSED file order preserved within: %read-all
+  ; prepends, so forms arrive newest-first; lint-forms treats them as a
+  ; set, and the marker split keys on the markers regardless of order
+  ; -- walk the REVERSED list so files come out in stream order).
+  (def %split (fn (self forms cur groups)
+    (if (null? forms)
+      (%reverse (pair (%reverse cur) groups))
+      (if (%batch-marker? (first forms))
+        (self (rest forms) (list (first forms))
+              (pair (%reverse cur) groups))
+        (self (rest forms) (pair (first forms) cur) groups)))))
+
+  (def %groups (%split (%reverse %all-forms) () ()))
+
+  (if (null? (rest %groups))
+    ; Single file, no markers: legacy output exactly.
+    (if (%lint-one (first %groups) %emit-err)
+      (display "ok\n")
+      (error 'lint-failed))
+    ; Batch: first group is pre-marker prologue (constructs already
+    ; consumed upstream; normally empty).  Each marked group prints a
+    ; %%LINT%% block; the shell reassembles per-file verdicts.
+    (do
+      (def %any-fail (list #f))
+      (%for-each
+        (fn (_ g)
+          (unless (null? g)
+            (when (%batch-marker? (first g))
+              (let ((name (first (rest (first g)))))
+                (do
+                  (%emit-out "%%LINT%% " name "\n")
+                  (if (%lint-one (rest g) %emit-out)
+                    (%emit-out "%%OK%%\n")
+                    (do (%set-first! %any-fail #t)
+                        (%emit-out "%%FAIL%%\n"))))))))
+        %groups)
+      (if (first %any-fail) (error 'lint-failed) ()))))
