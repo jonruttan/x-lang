@@ -5,18 +5,18 @@
 ; State
 ; ============================================================
 
-(def %turtle-x (Float exact->inexact 0))
-(def %turtle-y (Float exact->inexact 0))
-(def %turtle-heading (Float exact->inexact 0))
+(def %turtle-x (Float from 0))
+(def %turtle-y (Float from 0))
+(def %turtle-heading (Float from 0))
 (def %turtle-pen #t)
 (def %turtle-pen-color "#222")
-(def %turtle-pen-width (Float exact->inexact 1))
+(def %turtle-pen-width (Float from 1))
 (def %turtle-bc ())    ; bytecode list (reversed, newest first)
 
 (def %deg->rad
   (fn (_ deg)
-    (Float / (Float * (if (Float float? deg) deg (Float exact->inexact deg)) %pi)
-        (Float exact->inexact 180))))
+    (Float / (Float * (if (Float float? deg) deg (Float from deg)) %pi)
+        (Float from 180))))
 
 ; Coercion doors: probe via the non-raising Convert dispatcher and check the
 ; RESULT, so strings keep coercing but an unconvertible token (e.g. a block
@@ -31,7 +31,7 @@
 (def %as-int
   (fn (_ n)
     (match
-      ((Float float? n) (Float inexact->exact n))
+      ((Float float? n) (Float ->int n))
       ((Float integer? n) n)
       (#t (let ((k (Convert to n %int)))
             (if (Float integer? k) k
@@ -106,12 +106,12 @@
 
 (def turtle-clearscreen
   (fn ()
-    (set! %turtle-x (Float exact->inexact 0))
-    (set! %turtle-y (Float exact->inexact 0))
-    (set! %turtle-heading (Float exact->inexact 0))
+    (set! %turtle-x (Float from 0))
+    (set! %turtle-y (Float from 0))
+    (set! %turtle-heading (Float from 0))
     (set! %turtle-pen #t)
     (set! %turtle-pen-color "#222")
-    (set! %turtle-pen-width (Float exact->inexact 1))
+    (set! %turtle-pen-width (Float from 1))
     (set! %turtle-bc ())
     (unless (null? %turtle-on-clear) (%turtle-on-clear))))
 

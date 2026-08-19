@@ -35,7 +35,7 @@
 
 ; Run THUNK with output redirected to FD, restoring the prior fd afterward --
 ; even if THUNK errors (guard restores, then re-raises via (error e)).
-(def %with-output-to-fd
+(def %with-fd
   (fn (_ fd thunk)
     (let ((prev (%set-output-fd! fd)))
       (guard (e (%set-output-fd! prev) (error e))
@@ -47,8 +47,8 @@
   (doc "A first-class output stream over a file descriptor: write to it, or redirect display/write output through it for the duration of a thunk."
     (note "Pure X: display/write target the base's fileout fd (an atom in the io `files` group); a Stream just pushes/pops that fd. See ext/x-expr/src/x-base.c.")
     (note "(Stream to-fd fd) wraps an existing fd (not owned). (Stream to-file path) opens path for writing and OWNS it -- (close) closes it. (Stream stdout)/(Stream stderr) are conveniences.")
-    (note "File-backed streams (to-file, write, with-output-to-file) need the radon dialect (File open/close/write -> syscall/make-str).")
-    (sample "(Stream with-output-to-file \"grid.svg\" (fn (_) (grid ->svg)))" "saves whatever (grid ->svg) displays into grid.svg")
+    (note "File-backed streams (to-file, write, with-file) need the radon dialect (File open/close/write -> syscall/make-str).")
+    (sample "(Stream with-file \"grid.svg\" (fn (_) (grid ->svg)))" "saves whatever (grid ->svg) displays into grid.svg")
     (sample "(let ((s (Stream to-file \"out.txt\"))) (s with (fn (_) (display \"hi\"))) (s close))" "writes \"hi\" to out.txt, then closes it"))
 
   fd        ; the target file descriptor (set by every constructor)
@@ -86,18 +86,18 @@
       (%output-fd))
 
     ; --- thunk redirect helpers ---
-    (method with-output-to-fd (self (param fd INT "Target file descriptor")
+    (method with-fd (self (param fd INT "Target file descriptor")
                                     (param thunk CALLABLE "Zero-arg thunk to run"))
       (doc "Run THUNK with display/write redirected to FD, restoring the previous target afterward (even if THUNK errors)."
         (returns ANY "THUNK's result")
-        (sample "(Stream with-output-to-fd 2 (fn (_) (display \"to stderr\")))" "displays to stderr, returns nil"))
-      (%with-output-to-fd fd thunk))
+        (sample "(Stream with-fd 2 (fn (_) (display \"to stderr\")))" "displays to stderr, returns nil"))
+      (%with-fd fd thunk))
 
-    (method with-output-to-file (self (param path STRING "File path to write")
+    (method with-file (self (param path STRING "File path to write")
                                       (param thunk CALLABLE "Zero-arg thunk to run"))
       (doc "Open PATH for writing, run THUNK with all output going to it, then restore the previous output and close PATH (even if THUNK errors). The one-call way to save streamed output to a file."
         (returns ANY "THUNK's result")
-        (sample "(Stream with-output-to-file \"grid.svg\" (fn (_) (grid ->svg)))" "saves (grid ->svg)'s output to grid.svg"))
+        (sample "(Stream with-file \"grid.svg\" (fn (_) (grid ->svg)))" "saves (grid ->svg)'s output to grid.svg"))
       (let ((s (Stream to-file path)))
         (guard (e (s close) (error e))
           (let ((result (s with thunk)))
@@ -113,7 +113,7 @@
     (doc "Run THUNK with the current display/write output redirected to this stream, restoring afterward (even if THUNK errors)."
       (returns ANY "THUNK's result")
       (sample "(s with (fn (_) (display x)))" "displays x to the stream s"))
-    (%with-output-to-fd (member 'fd) thunk))
+    (%with-fd (member 'fd) thunk))
 
   (method write (self (param data STRING "Bytes to write")
                       (param size INT "Number of bytes"))
@@ -124,7 +124,7 @@
   (method display (self (param v ANY "Value to render"))
     (doc "Render V (display form) to this stream."
       (returns ANY "nil"))
-    (%with-output-to-fd (member 'fd) (fn (_) (display v))))
+    (%with-fd (member 'fd) (fn (_) (display v))))
 
   (method close (self)
     (doc "Close the stream's fd if it owns it (opened via to-file); a no-op for wrapped fds (to-fd/stdout/stderr)."
@@ -133,4 +133,4 @@
 
 (doc (provide x/sys/stream Stream)
   (note "Redirection is pure X -- push/pop the base's fileout fd (an atom in the io `files` group); no C primitive. File targets need the radon dialect.")
-  "Output redirection as first-class Streams: to-fd/to-file/stdout/stderr, (s with thunk)/write/display/close, plus the with-output-to-fd / with-output-to-file helpers.")
+  "Output redirection as first-class Streams: to-fd/to-file/stdout/stderr, (s with thunk)/write/display/close, plus the with-fd / with-file helpers.")

@@ -436,3 +436,26 @@ status.
 ```
 ---
     (1 () () #t ('a 'b) 9)
+
+## Assoc entry / find (#357: the entry-returning doors, formerly List assq/assoc)
+
+### entry finds the pair by identity; nil is the unambiguous miss
+
+```scheme
+(do (import x/type/assoc)
+  (list (rest (Assoc entry 'b (list (pair 'a 1) (pair 'b 2) (pair 'c 3))))
+        (null? (Assoc entry 'z (list (pair 'a 1))))))
+```
+---
+    (2 #t)
+
+### find compares with equal?, so string and number keys hit
+
+```scheme
+(do (import x/type/assoc)
+  (list (rest (Assoc find 2 (list (pair 1 10) (pair 2 20))))
+        (rest (Assoc find "b" (list (pair "a" 1) (pair "b" 2))))
+        (null? (Assoc find "z" (list (pair "a" 1))))))
+```
+---
+    (20 2 #t)

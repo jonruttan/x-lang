@@ -3,7 +3,7 @@
 Stream (`lib/x/sys/stream.x`) redirects output by pushing/popping the base's
 `fileout` fd -- pure X, no syscall. These cases exercise the syscall-free
 surface: construction, the redirect plumbing, and restore. The file-backed
-methods (`to-file`, `write`, `with-output-to-file`) need the radon dialect and
+methods (`to-file`, `write`, `with-file`) need the radon dialect and
 are verified separately.
 
 The redirect cases deliberately retarget output to the *current* fd, so nothing
@@ -43,20 +43,20 @@ value) without performing real I/O.
 
 ## stream: redirect plumbing
 
-### with-output-to-fd runs the thunk and returns its value
+### with-fd runs the thunk and returns its value
 
 ```scheme
-(Stream with-output-to-fd (Stream output-fd) (fn (_) 42))
+(Stream with-fd (Stream output-fd) (fn (_) 42))
 ```
 ---
     42
 
-### with-output-to-fd restores the previous output fd afterward
+### with-fd restores the previous output fd afterward
 
 ```scheme
 (do
   (def before (Stream output-fd))
-  (Stream with-output-to-fd before (fn (_) ()))
+  (Stream with-fd before (fn (_) ()))
   (eq? (Stream output-fd) before))
 ```
 ---

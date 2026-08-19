@@ -9,10 +9,10 @@
 ; ============================================================
 
 (def %deg->rad
-  (fn (_ deg) (Float / (Float * (%as-float deg) %pi) (Float exact->inexact 180))))
+  (fn (_ deg) (Float / (Float * (%as-float deg) %pi) (Float from 180))))
 
 (def %rad->deg
-  (fn (_ rad) (Float / (Float * rad (Float exact->inexact 180)) %pi)))
+  (fn (_ rad) (Float / (Float * rad (Float from 180)) %pi)))
 
 ; ============================================================
 ; LFSR random number generator (pure x-lang, no C dependency)
@@ -47,8 +47,8 @@
     (list "COS"       1 (fn (_ x) (Float cos (%deg->rad x))))
     (list "TAN"       1 (fn (_ x) (Float tan (%deg->rad x))))
     (list "ARCTAN"    1 (fn (_ x) (%rad->deg (Float atan (%as-float x)))))
-    (list "ROUND"     1 (fn (_ x) (Float inexact->exact (Float round (%as-float x)))))
-    (list "INT"       1 (fn (_ x) (Float inexact->exact (Float floor (%as-float x)))))
+    (list "ROUND"     1 (fn (_ x) (Float ->int (Float round (%as-float x)))))
+    (list "INT"       1 (fn (_ x) (Float ->int (Float floor (%as-float x)))))
     (list "NOT"       1 (fn (_ x) (not x)))
 
     ; 2-arg math functions

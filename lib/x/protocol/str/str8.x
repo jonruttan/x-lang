@@ -463,8 +463,8 @@
               ; float path: the value existing means the tower is loaded
               (do
                 (def scale (let go ((p prec) (acc 1)) (if (= p 0) acc (go (- p 1) (* acc 10)))))
-                (def r (Float / (Float round (Float * v (Float exact->inexact scale)))
-                                (Float exact->inexact scale)))
+                (def r (Float / (Float round (Float * v (Float from scale)))
+                                (Float from scale)))
                 (def rs (%display-to-str r))
                 (if (= prec 0) (self sub 0 (self index-of "." rs) rs)
                   (let ((dot (self index-of "." rs)))

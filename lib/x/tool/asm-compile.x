@@ -475,7 +475,7 @@
   (fn (_ asm expr params)
     (def op (first expr))
     (def args (rest expr))
-    (def %bitwise (List assq op %asm-bitwise-ops))
+    (def %bitwise (Assoc entry op %asm-bitwise-ops))
     (if (not (null? %bitwise))
       (%asm-compile-binop asm (rest %bitwise) args params)
     (if (eq? op '~)

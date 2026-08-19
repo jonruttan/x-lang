@@ -8,8 +8,8 @@ are settled (tracked in issue #42 and #44).
 
 ## Association vocabulary
 
-- **assoc** — one dotted `(key . val)` pair: a single association. `List assoc`
-  / `List assq` return the assoc itself.
+- **assoc** — one dotted `(key . val)` pair: a single association. `Assoc find`
+  / `Assoc entry` return the assoc itself.
 - **alist** — a list of assocs: `((k1 . v1) (k2 . v2) ...)`. The associative
   wire format of the library: pairing producers (`List zip`, `Gen zip`,
   `Gen enumerate`, `List group-by`, `Dict ->alist`) emit alists, and the keyed

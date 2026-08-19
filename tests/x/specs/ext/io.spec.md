@@ -113,12 +113,12 @@ region (File read/getc were blocked before it existed).
 
 ## Stream (redirect display to a file)
 
-### with-output-to-file writes the displayed output
+### with-file writes the displayed output
 
 ```scheme
 (do
   (def %p "/tmp/x-spec-io-stream.txt")
-  (Stream with-output-to-file %p (fn (_) (display "hi")))
+  (Stream with-file %p (fn (_) (display "hi")))
   (def %r (Sys open-read %p)) (def %b (Sys fd-read %r 8)) (Sys close %r)
   (syscall (syscall-id 'unlink) %p)
   %b)

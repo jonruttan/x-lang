@@ -5,7 +5,7 @@
 ;   array  <-> list          string <-> string      true/false <-> #t/#f
 ;   null   <-> the symbol `null` (nil would collide with the empty array)
 ;   number <-> integer, or FLOAT when the text carries . / e (built at runtime
-;              via (Float from-str) -- this SOURCE file stays float-literal-free
+;              via the conversion catalog -- this SOURCE file stays float-literal-free
 ;              so it loads under plain x-core)
 ;
 ; Parsing is recursive descent over BYTES (the str-byte-* prims, handler-
@@ -67,7 +67,7 @@
 
 ; --- numbers ---------------------------------------------------------------
 ; Scan the number's extent, then classify: . / e / E anywhere makes it a
-; float (built via Float from-str -- runtime, no float literals here).
+; float (built via the conversion catalog -- runtime, no float literals here).
 (def %json-num-byte?
   (fn (_ b)
     (match
@@ -88,7 +88,7 @@
         (if (>= j %end) #f
           (let ((b (%json-byte s j)))
             (if (= b 46) #t (if (= b 101) #t (if (= b 69) #t (go (+ j 1)))))))))
-    ; %json-cvt, not (Float from-str): from-str returns the raw IEEE bit
+    ; %json-cvt, not the bits door (Float str->bits): that returns the raw IEEE bit
     ; pattern; the convert path boxes a real FLOAT value.
     (def %v (if %floaty (%json-cvt %text %float) (%str->number %text)))
     (if (null? %v) (%json-err "malformed number" i) (pair %v %end))))
@@ -299,7 +299,7 @@
 (def-class Json ()
   (doc "JSON text codec: parse to Dict/list/string/number/#t/#f/null values, emit with proper escaping."
     (note "Objects are Dicts (string keys); arrays are lists; null is the SYMBOL null (nil would collide with []).")
-    (note "Decimal and exponent numbers parse as floats (via Float from-str); plain digit runs parse as integers.")
+    (note "Decimal and exponent numbers parse as floats (via the conversion catalog); plain digit runs parse as integers.")
     (example "((Json parse \"{\\\"a\\\": [1, true]}\") get \"a\")" "(1 #t)")
     (see parse) (see emit))
   (static

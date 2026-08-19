@@ -98,9 +98,9 @@
 
 (set! %logo-resolve-value
   (fn (_ word rest-t)
-    ; List assoc compares with equal? (content compare covers strings); the
+    ; Assoc find compares with equal? (content compare covers strings); the
     ; extra comparator arg an older signature took is gone
-    (let ((var (List assoc word %logo-vars)))
+    (let ((var (Assoc find word %logo-vars)))
       (if (not (null? var)) (pair (rest var) rest-t)
         (let ((fn-entry (%logo-fn-lookup word)))
           (if (and (not (null? fn-entry)) (null? (rest (rest fn-entry))))
@@ -136,7 +136,7 @@
           ((%is-op-str? tok "-")
             (let ((r (%logo-parse-primary rest-t)))
               (pair (if (Float float? (first r))
-                      (Float * (Float exact->inexact -1) (first r))
+                      (Float * (Float from -1) (first r))
                       (- (first r)))
                     (rest r))))
           (#t

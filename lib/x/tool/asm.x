@@ -81,7 +81,7 @@
 ; of every compiled function goes through it, and a GENERATED body runs
 ; to thousands of instructions.  Class-dispatched helpers cost roughly
 ; 200us a call here against 11-26us for the identical work on raw prims
-; -- (List assq) measured at 226us against a hand-rolled walk over the
+; -- (Assoc entry) measured at 226us against a hand-rolled walk over the
 ; same list at 26us, so ~90% of it is dispatch, not lookup.  Hence the
 ; raw walk below.  Same lesson as the digest's Vector access (#123): in
 ; a hot pure-x loop the scaffolding is the cost, not the work.
@@ -254,7 +254,7 @@
         (def width  (List ref 1 patch))
         (def ptype  (List ref 2 patch))
         (def lname  (List ref 3 patch))
-        (def target-entry (List assq lname labels))
+        (def target-entry (Assoc entry lname labels))
         (if (null? target-entry)
           (Err raise 'value (Str append "asm: unresolved label: " (symbol->str lname)) ()))
         (def target (rest target-entry))

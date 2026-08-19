@@ -128,6 +128,22 @@
             (pair (first entry) (transform (rest entry)))))
         alist))
     ; --- Option stores ---
+    (method entry (self (param key ANY "Key to search for, compared with eq?")
+                        (param alist LIST "Association list"))
+      (doc "The (key . value) entry itself, by identity (eq?), or nil -- the presence-unambiguous entry door (a hit is always a pair); get is the value door. Was (List assq), #357."
+        (returns ANY "The matching entry pair, or nil")
+        (example "(Assoc entry 'b (list (pair 'a 1) (pair 'b 2)))" "('b . 2)"))
+      (if (null? alist) ()
+        (if (eq? key (first (first alist))) (first alist) (recur self key (rest alist)))))
+
+    (method find (self (param key ANY "Key to search for, compared with equal?")
+                       (param alist LIST "Association list"))
+      (doc "The (key . value) entry itself, by equality (equal?), or nil. String and number keys hit here and miss the eq?-keyed doors (get/entry). Was (List assoc), #357."
+        (returns ANY "The matching entry pair, or nil")
+        (example "(Assoc find \"b\" (list (pair \"a\" 1) (pair \"b\" 2)))" "(\"b\" . 2)"))
+      (if (null? alist) ()
+        (if (equal? key (first (first alist))) (first alist) (recur self key (rest alist)))))
+
     (method opt-get-or (self (param d ANY "Default value if key is absent")
                              (param key SYMBOL "Key to look up")
                              (param store LIST "Option store: alist or flat plist"))
