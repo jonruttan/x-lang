@@ -194,6 +194,17 @@
                     v))))
           (#t (error "object: no such member")))))))
 
+; The de-dispatch door (#332): resolve a method ONCE and call it inside
+; a hot loop with self as argument 0.  A stored method is OPERATIVE at
+; direct call (fn closures lack the WRAP flag), so callers (wrap ...)
+; the handle -- %class-dispatch gets the same effect from its explicit
+; apply-with-evaluated-args.  Chain-aware
+; via %lookup, so a subclass override keeps winning; the traversals in
+; protocol/seq.x are the canonical users -- (self done? ...) per
+; ELEMENT paid a selector, a chain walk, an arg-list allocation and an
+; apply, per element, per traversal.
+(def %class-method-of (fn (_ class sel) (%lookup class (lit s-methods) sel)))
+
 (def %class-statics-box (fn (_ class) (%assoc-get (lit statics) (%class-data class))))
 (def %class-statics     (fn (_ class) (first (%class-statics-box class))))
 
