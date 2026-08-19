@@ -1,5 +1,6 @@
 # @lib ../tests/x/lib/compile.x
 
+# @weight 9
 Differential fuzzing of the JIT: generate expressions from its supported
 grammar, run each BOTH compiled and interpreted, and require the two to
 agree. The interpreter is the oracle — there are no hand-written

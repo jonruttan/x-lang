@@ -1,4 +1,6 @@
 # Sha256 JIT engine
+
+# @weight 15
 # @timeout-scale 4
 
 The compiled digest engine behind `(Sha256 jit!)`. Untagged on purpose:

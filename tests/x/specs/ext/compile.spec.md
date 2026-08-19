@@ -1,5 +1,6 @@
 # @lib ../tests/x/lib/compile.x
 
+# @weight 8
 ## compile-cc-flags
 
 ### is a list

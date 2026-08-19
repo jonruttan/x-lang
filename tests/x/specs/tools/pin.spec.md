@@ -1,5 +1,6 @@
 # @lib ../tests/x/lib/assert.x
 
+# @weight 13
 ## pin: manifest interpretation (x/tool/pin)
 
 The manifest (pin.xon) is DATA: forms are read with the ordinary reader
