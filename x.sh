@@ -321,7 +321,14 @@ if [ -n "$boot_file" ]; then
 	# Silent when either side is absent: an amalgam with no manifest, or a
 	# repo checkout with no installed fingerprint, is unknown-not-wrong,
 	# and `fetch` already says so at the point where it matters.
-	_root=$(sed -n 's/^(root "\(.*\)")[[:space:]]*$/\1/p' "$PIN_FILE" | head -n 1)
+	# --no-pin leaves PIN_FILE empty while --boot still lands here; sed
+	# on "" printed a spurious "sed: : No such file or directory" on
+	# every such invocation (#331).  No manifest to consult means no
+	# root -- the ENTRY-relative fallback below is the derivation.
+	_root=
+	if [ -n "$PIN_FILE" ] && [ -f "$PIN_FILE" ]; then
+		_root=$(sed -n 's/^(root "\(.*\)")[[:space:]]*$/\1/p' "$PIN_FILE" | head -n 1)
+	fi
 	_rel=
 	if [ -n "$_root" ]; then
 		case "$_root" in
