@@ -170,68 +170,99 @@
       (let ()
         (def r (%limb-divmod1 a (first b)))
         (pair (first r) (list (rest r))))
-      ; Multi-limb: repeated subtraction with estimate
-      ; Process from MSB, estimate quotient digit, subtract
-      ; The loop carries rem in BOTH orders plus its length (#341): the
-      ; old body re-reversed and re-walked the LSB-first rem ~4-6 times
-      ; per quotient digit (%limb-cmp reverses both sides, %top-limb
-      ; reverses, the two-limb estimate reversed again).  One reverse
-      ; and one length walk per digit remain, on the freshly subtracted
-      ; remainder.  The algorithm is untouched.
+      ; Multi-limb: positional schoolbook long division (#401).  The old
+      ; arm subtracted q-est*b UNSHIFTED and stacked each iteration's
+      ; count as if it were a positional digit: wrong quotients once the
+      ; dividend outgrew the divisor by more than one limb, and an
+      ; iteration count that scaled with the quotient's VALUE (the
+      ; OOM-kill).  Here the dividend's limbs stream in MSB-first, one
+      ; quotient digit per position.  Invariant: rem < b after every
+      ; position, so the prepend below keeps rem < base*b and the digit
+      ; loop is bounded -- termination by construction.
       (let ()
         (def blen (%length b))
         (def rb (%reverse b))
         (def btop (first rb))
-        ; MSB-first compare of equal-length limb lists
+        ; MSB-first compare of equal-length limb lists; %cmp-len decides
+        ; from precomputed lengths + MSB views.  One reverse + one
+        ; length walk per digit-loop pass, instead of %limb-cmp's two of
+        ; each per CALL (the #341 lesson, kept through the #401 rewrite).
         (def %cmp-msb
           (fn (self ra rb2)
             (if (null? ra) 0
               (if (%int< (first ra) (first rb2)) -1
                 (if (%int< (first rb2) (first ra)) 1
                   (self (rest ra) (rest rb2)))))))
-        ; Magnitude compare from precomputed lengths + MSB views
         (def %cmp-len
           (fn (_ la ra lb2 rb2)
             (if (%int< la lb2) -1
               (if (%int< lb2 la) 1
                 (%cmp-msb ra rb2)))))
-        ; Shift a into position and extract quotient digits
-        (def %div-loop
-          (fn (self rem rrem rlen qdigits)
-            (def c (%cmp-len rlen rrem blen rb))
-            (if (%int< c 0)
-              (pair (if (null? qdigits) (list 0) (%reverse qdigits)) rem)
-              (if (%int= c 0)
-                (pair (%reverse (pair 1 qdigits)) (list 0))
-                ; Estimate: use top limbs
-                (let ()
-                  (def rtop (first rrem))
-                  ; Estimate quotient as rtop / (btop + 1) to be safe
-                  (def q-est
-                    (if (%int< rlen blen) 0
-                      (if (%int= rlen blen)
-                        (%int/ rtop (%int+ btop 1))
-                        ; rem has more limbs than b
-                        (do
-                          (def rtop2 (first (rest rrem)))
-                          (%int/ (%int+ (%int* rtop %bigint-base) rtop2)
-                                 (%int+ btop 1))))))
-                  (if (%int= q-est 0) (set! q-est 1) ())
-                  ; Subtract q-est * b from rem
-                  (def product (%limb-mul1 b q-est 0))
-                  (def plen (%length product))
-                  (def rprod (%reverse product))
-                  (if (%int< (%cmp-len rlen rrem plen rprod) 0)
-                    ; Over-estimated, reduce by 1
-                    (do
-                      (set! q-est (%int- q-est 1))
-                      (set! product (%limb-mul1 b q-est 0))
-                      ())
+        ; One quotient digit: accumulate d until rem < b.  The estimate
+        ; keys on rem's length: at rlen == blen ONE top limb over
+        ; (btop + 1), at rlen == blen + 1 (the invariant's ceiling) the
+        ; two-limb form.  Either never overestimates (rem >= its top
+        ; limbs scaled, b < (btop + 1) scaled), so d only climbs; the
+        ; defensive decrement guards the floor-truncation edge anyway.
+        (def %digit-loop
+          (fn (self rem rrem rlen d)
+            (if (%int< (%cmp-len rlen rrem blen rb) 0) (pair d rem)
+              (let ()
+                (def rtop (first rrem))
+                (def est
+                  (if (%int= rlen blen) (%int/ rtop (%int+ btop 1))
+                    (%int/ (%int+ (%int* rtop %bigint-base)
+                                  (first (rest rrem)))
+                           (%int+ btop 1))))
+                (if (%int= est 0) (set! est 1) ())
+                (def product (%limb-mul1 b est 0))
+                (if (%int< (%cmp-len rlen rrem
+                                     (%length product) (%reverse product))
+                           0)
+                  (do
+                    (set! est (%int- est 1))
+                    (set! product (%limb-mul1 b est 0))
                     ())
-                  (def new-rem (%bigint-normalize (%limb-sub rem product 0)))
-                  (self new-rem (%reverse new-rem) (%length new-rem)
-                        (pair q-est qdigits)))))))
-        (%div-loop a (%reverse a) (%length a) ())))))
+                  ())
+                (def new-rem (%bigint-normalize (%limb-sub rem product 0)))
+                (self new-rem (%reverse new-rem) (%length new-rem)
+                      (%int+ d est))))))
+        ; A zero rem threads as () between positions: prepending onto
+        ; the normalized-zero (0) would leave a HIGH zero limb, and
+        ; %limb-cmp compares lengths first.
+        (def %rem-thread
+          (fn (_ r)
+            (if (null? (rest r)) (if (%int= (first r) 0) () r) r)))
+        ; Walk dividend limbs MSB-first; LSB-first rem means
+        ; rem*base + limb is ONE prepend.  Digits prepend to qacc, so
+        ; qacc ends LSB-first -- already the storage order.
+        (def %pos-loop
+          (fn (self ra rem qacc)
+            (if (null? ra) (pair (%bigint-normalize qacc)
+                                 (if (null? rem) (list 0)
+                                   (%bigint-normalize rem)))
+              (let ((r2 (pair (first ra) rem)))
+                (let ((dr (%digit-loop r2 (%reverse r2) (%length r2) 0)))
+                  (self (rest ra) (%rem-thread (rest dr))
+                        (pair (first dr) qacc)))))))
+        ; MSB-first prefix of n limbs as an LSB list, plus the rest:
+        ; prepend-accumulate reverses the prefix, which IS the LSB order.
+        (def %take-rev
+          (fn (self n xs acc)
+            (if (%int= n 0) (pair acc xs)
+              (self (%int- n 1) (rest xs) (pair (first xs) acc)))))
+        ; Seed rem with the dividend's top blen limbs in ONE step (their
+        ; value is < base^blen <= base*b, so the digit bound holds) and
+        ; walk only the remaining alen - blen positions: the quotient
+        ; has alen - blen + 1 digits, and an equal-length divide is one
+        ; digit-loop pass -- not a walk over every dividend limb.
+        (def alen (%length a))
+        (if (%int< alen blen) (pair (list 0) a)
+          (let ((sr (%take-rev blen (%reverse a) ())))
+            (let ((dr0 (%digit-loop (first sr) (%reverse (first sr))
+                                    blen 0)))
+              (%pos-loop (rest sr) (%rem-thread (rest dr0))
+                         (list (first dr0))))))))))
 
 ; --- String conversion ---
 
