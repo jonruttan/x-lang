@@ -31,6 +31,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Manual full-depth run on ANY ref: every main-only job (full gates,
+  # examples/tty, asan) fires because the conditions test only "not a
+  # pull_request".  This is how a change to a deep-tier-only surface
+  # gets verified BEFORE merge instead of burning a main run to find
+  # out -- #366 (an asan-only OOM invisible to PR CI) is the shape it
+  # exists for; #294 recommended it first.
+  workflow_dispatch:
 
 # A superseded PR run keeps burning runners until its slowest leg ends;
 # cancel it when a newer push to the same ref arrives.  Main runs are
