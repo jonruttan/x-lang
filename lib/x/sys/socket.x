@@ -168,6 +168,24 @@
           (%sk-ptr-call %c-free buf)
           s)))
 
+    (method recv-bytes (self (param fd INT "Connected file descriptor")
+                            (param maxlen INT "Maximum bytes to receive"))
+      (doc "Receive up to maxlen bytes as a BYTE LIST -- the lossless door (recv's string return truncates at the first NUL; this one carries binary intact, #374); nil at orderly EOF; raises on failure."
+        (returns ANY "Byte list (0-255 values), or nil at EOF"))
+      (def %pref (prim-ref (lit ptr) (lit ref)))
+      (def buf (%sk-int->ptr (%sk-ptr-call %c-malloc maxlen)))
+      (def n (%sk-fold (%sk-ptr-call %c-recv fd buf maxlen 0)))
+      (when (< n 0)
+        (let ((en (Err errno-of n)))
+          (%sk-ptr-call %c-free buf)
+          (error (Err from-errno en 'recv fd))))
+      (def out
+        (let go ((i (- n 1)) (acc ()))
+          (if (< i 0) acc
+            (go (- i 1) (pair (& (%pref buf i 1) 255) acc)))))
+      (%sk-ptr-call %c-free buf)
+      (if (= n 0) () out))
+
     (method close (self (param fd INT "File descriptor to close"))
       (doc "Close a socket file descriptor."
         (returns ANY "nil"))
@@ -298,5 +316,5 @@
       fd)))
 
 (doc (provide x/sys/socket Socket)
-  (note "First consumer: x/logo/serve.x (whose Darwin-only constants this replaces). Recv truncates at the first NUL byte (ptr->str) -- fine for text protocols; binary recv needs a byte-list door, tracked with the Buf work.")
+  (note "First consumer: x/logo/serve.x (whose Darwin-only constants this replaces). Recv truncates at the first NUL byte (ptr->str) -- fine for text protocols; recv-bytes is the lossless byte-list door (#374).")
   "Blocking IPv4 TCP on the Socket class, over libc FFI.")
