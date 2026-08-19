@@ -50,7 +50,19 @@
 
 ; --- Analysis state (boxes; all values are NAME STRINGS) ---
 (def %lint-scope  (list ()))    ; names in lexical scope
-(def %lint-uses   (list ()))    ; names referenced (unique)
+(def %lint-uses   (list ()))    ; names referenced (unique, in first-seen order)
+; ADJUDICATED BY BENCHMARK (#344): membership stays %member-str? and
+; the tables stay alists.  A Dict variant was built and measured SLOWER
+; (5.6s vs 4.0s on class.x): every (d get k) rides the class value-call
+; dispatch, which loses to a few hundred C-speed str=? probes -- and
+; the x/type/dict import cost ~0.1s per lint boot besides.  Re-visit
+; only with a dispatch-free table or the #323 batch harness landed.
+; The current list node's head, converted ONCE per node by the list
+; handler (#344): arity/malformed/dispatch each re-ran the conversion
+; catalog on the same head -- 5-6 full %convert-to dispatches per node.
+; Valid only within the handler's dynamic extent; nil for non-symbol
+; heads.
+(def %lint-head-cell (list ()))
 (def %lint-issues (list ()))    ; op names where first/rest hit a literal non-list
 (def %lint-leaks  (list ()))    ; def names that bind in tail position (leak to global)
 
@@ -575,14 +587,15 @@
         (self (rest forms))))))
 
 (def %lint-check-arity (fn (_ form)
-  (let ((entry (when (if (pair? form) (symbol? (first form)) #f)
-                 (%assoc-str (%cvt (first form) %string) (first %lint-arity)))))
-    (unless (null? entry)
-      (let ((nargs (- (%length form) 1))
-            (mn (first (rest entry)))
-            (vararg (rest (rest entry))))
-        (when (if vararg (< nargs mn) (not (= nargs mn)))
-          (%warn! "arity" (first entry))))))))
+  (let ((h (first %lint-head-cell)))
+    (unless (null? h)
+      (let ((entry (%assoc-str h (first %lint-arity))))
+        (unless (null? entry)
+          (let ((nargs (- (%length form) 1))
+                (mn (first (rest entry)))
+                (vararg (rest (rest entry))))
+            (when (if vararg (< nargs mn) (not (= nargs mn)))
+              (%warn! "arity" h)))))))))
 
 ; A code form whose head is a '... form calls a non-function (it
 ; evaluates to a symbol/value, not a procedure) -- a clear bug.  We do NOT
@@ -608,10 +621,11 @@
               0))))))))             ; 0 = no minimum
 
 (def %lint-check-malformed (fn (_ form)
-  (when (if (pair? form) (symbol? (first form)) #f)
-    (let ((mn (%lint-min-len (%cvt (first form) %string))))
-      (when (if (= mn 0) #f (< (%length form) mn))
-        (%warn! "malformed" (%cvt (first form) %string)))))))
+  (let ((h (first %lint-head-cell)))
+    (unless (null? h)
+      (let ((mn (%lint-min-len h)))
+        (when (if (= mn 0) #f (< (%length form) mn))
+          (%warn! "malformed" h)))))))
 
 ; --- The write handlers ---
 
@@ -619,8 +633,12 @@
 (def %lint-symbol-handler (fn (_ sym)
   (let ((name (%cvt sym %string)))
     ; A #/.../ spelling is a reader-macro literal (regex), not a variable
-    ; reference -- the linter reads the file as data, so the macro never ran.
-    (unless (Str8 starts? "#/" name)
+    ; reference -- the linter reads the file as data, so the macro never
+    ; ran.  Two byte compares (#344): the (Str8 starts? ...) spelling
+    ; cost ~6 dispatches and a substring per symbol occurrence.
+    (unless (if (< (%str-byte-len name) 2) #f
+              (if (eq? 35 (%char->integer (%str-byte-ref name 0)))
+                  (eq? 47 (%char->integer (%str-byte-ref name 1))) #f))
       (unless (%scope-mark-used! name (first %lint-scope))   ; local ref -> mark its box used
         (unless (%member-str? name (first %lint-uses))
           (%set-first! %lint-uses (pair name (first %lint-uses)))))))
@@ -630,6 +648,11 @@
 ; Doing the checks here (not in %lint-dispatch) means both the lib's default
 ; dispatch and tools/dev/lint.x's construct-table override get them for free.
 (def %lint-list-handler (fn (_ form)
+  ; The head converts ONCE here (#344); every consumer below (and the
+  ; driver's dispatch override) reads %lint-head-cell instead of
+  ; re-running the conversion catalog.
+  (%set-first! %lint-head-cell
+    (if (symbol? (first form)) (guard (_ ()) (%cvt (first form) %string)) ()))
   (when (%lint-noncallable? (first form))
     (%warn! "call-nonfn" (guard (_ "?") (%cvt (first form) %string))))
   (%lint-check-arity form)
