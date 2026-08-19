@@ -139,12 +139,98 @@ _throttle() {
   fi
 }
 
+# _spawn TIMEOUT_CMD FILE... -- one awk runner job over the given spec
+# files (a same-@lib bucket, or a singleton), forked and throttled in
+# PARALLEL mode, inline otherwise.  Serial mode prints a per-job timing
+# tail; a merged bucket is labelled by its first file plus a +N count.
+_spawn() {
+  _tcmd="$1"; shift
+  _I=$_N
+  _N=$((_N+1))
+  _t0=$(date +%s)
+  if [ -n "$PARALLEL" ]; then
+    (
+      awk -v X_BIN="$X_BIN" \
+          -v LANG_LIB="$LANG_LIB" \
+          -v REPL_CMD="${REPL_CMD:-(repl)}" \
+          -v READ_FN="${READ_FN:-Io read}" \
+          -v TIMEOUT_CMD="$_tcmd" \
+          -v TMPDIR="$_TMPDIR" \
+          -v SPEC_ID="$_I" \
+          -f "$RUNNER" "$@"
+    ) &
+    _throttle "$!"
+  else
+    awk -v X_BIN="$X_BIN" \
+        -v LANG_LIB="$LANG_LIB" \
+        -v REPL_CMD="${REPL_CMD:-(repl)}" \
+        -v READ_FN="${READ_FN:-Io read}" \
+        -v TIMEOUT_CMD="$_tcmd" \
+        -v TMPDIR="$_TMPDIR" \
+        -v SPEC_ID="$_I" \
+        -f "$RUNNER" "$@"
+    _t1=$(date +%s); _dt=$((_t1 - _t0))
+    if [ "$_dt" -gt 0 ]; then
+      if [ $# -gt 1 ]; then
+        printf " [%s+%d: %ds]" "$(basename "$1" .spec.md)" $(($# - 1)) "$_dt"
+      else
+        printf " [%s: %ds]" "$(basename "$1" .spec.md)" "$_dt"
+      fi
+    fi
+  fi
+}
+
+# Per-file timeout scaling: a file whose one-off cost is legitimately
+# heavy (the sha256-jit spec BUILDS the compiled digest engine, and
+# sanitizer instrumentation multiplies that build several-fold)
+# declares `# @timeout-scale N` near its head, and its process budget
+# becomes N x the base.  A MULTIPLIER, not an absolute: it composes
+# with the asan gate's raised TIMEOUT_UNIT_SECS, and the runaway guard
+# stays tight for every file that declares nothing.
+_file_tcmd() {
+  _ftc="$TIMEOUT_UNIT"
+  if [ -n "$_TIMEOUT_BIN" ]; then
+    _scale=$(sed -n 's/^# @timeout-scale \([0-9][0-9]*\)$/\1/p' "$1" | head -1)
+    if [ -n "$_scale" ]; then
+      _ftc="$_TIMEOUT_BIN $(( ${TIMEOUT_UNIT_SECS:-60} * _scale ))"
+    fi
+  fi
+  printf '%s' "$_ftc"
+}
+
+# Bucket classification (#319).  One awk job can take several spec files,
+# amortizing the library boot (~0.7s for x-core -- ~61% of the suite when
+# every file paid it alone), but ONLY same-@lib files may share a job:
+# the runner's `lib` state persists across file boundaries, so a mixed
+# bucket would leak one file's @lib into the next.  A file is bucketable
+# under its declared lib only when the declaration is unambiguous -- ONE
+# `@lib`, sitting above the first test and the first fence (a fenced
+# `# @lib` is spec PROSE, e.g. in the meta specs, and must not classify).
+# Anything ambiguous, plus every `@timeout-scale` file (its budget is per
+# FILE), prints "!" and runs alone.  Over-detection only costs a lost
+# merge, never a wrong lib.
+_classify() {
+  awk '
+    /^# @lib /                { nlib++; if (nlib == 1) { libval = substr($0, 8); libline = FNR } }
+    /^### /                   { if (!testline) testline = FNR }
+    /^```/                    { if (!fenceline) fenceline = FNR }
+    /^# @timeout-scale [0-9]/ { scaled = 1 }
+    END {
+      if (scaled || nlib > 1) { print "!"; exit }
+      if (nlib == 0) { print ""; exit }
+      if ((testline && libline > testline) || (fenceline && libline > fenceline)) { print "!"; exit }
+      print libval
+    }' "$1"
+}
+
 # Positional arguments name EXACTLY the specs to run (GH #221: they used
 # to be silently ignored -- accepted-and-discarded is the silent-fallback
 # shape).  A named path that does not exist is a loud error, never a
-# fallthrough to the glob.  No arguments = every spec under SPEC_PATH, as
-# ever; the SPECS='<glob>' narrowing composes with both modes, and the
-# STRESS tail stays glob-mode only (explicit args mean exactly those).
+# fallthrough to the glob.  Explicit args keep one job per file (exact
+# runs stay exact, with their own timing tails); the glob walk buckets.
+# No arguments = every spec under SPEC_PATH, as ever; the SPECS='<glob>'
+# narrowing composes with both modes, and the STRESS tail stays glob-mode
+# only (explicit args mean exactly those).
 _args_mode=0
 if [ $# -gt 0 ]; then
   _args_mode=1
@@ -154,6 +240,11 @@ if [ $# -gt 0 ]; then
 else
   set -- "$SPEC_PATH"/*.spec.md "$SPEC_PATH"/*/*.spec.md
 fi
+
+# Walk the target list, applying the filters; glob mode collects the
+# survivors for bucketing, args mode spawns each file directly.
+_LIST="$_TMPDIR/files.lst"
+: > "$_LIST"
 for _spec in "$@"; do
   [ -f "$_spec" ] || continue
   # Applicative (stress) specs are skipped by the glob walk; naming one
@@ -166,50 +257,59 @@ for _spec in "$@"; do
   esac
   # SPECS (a glob pattern, e.g. '*list*') narrows the run for fast iteration; unset = all.
   [ -n "$SPECS" ] && { case "$_spec" in $SPECS) : ;; *) continue ;; esac; }
-  _I=$_N
-  _N=$((_N+1))
-  # Per-file timeout scaling: a file whose one-off cost is legitimately
-  # heavy (the sha256-jit spec BUILDS the compiled digest engine, and
-  # sanitizer instrumentation multiplies that build several-fold)
-  # declares `# @timeout-scale N` near its head, and its process budget
-  # becomes N x the base.  A MULTIPLIER, not an absolute: it composes
-  # with the asan gate's raised TIMEOUT_UNIT_SECS, and the runaway guard
-  # stays tight for every file that declares nothing.
-  _tcmd="$TIMEOUT_UNIT"
-  if [ -n "$_TIMEOUT_BIN" ]; then
-    _scale=$(sed -n 's/^# @timeout-scale \([0-9][0-9]*\)$/\1/p' "$_spec" | head -1)
-    if [ -n "$_scale" ]; then
-      _tcmd="$_TIMEOUT_BIN $(( ${TIMEOUT_UNIT_SECS:-60} * _scale ))"
-    fi
-  fi
-  _t0=$(date +%s)
-  if [ -n "$PARALLEL" ]; then
-    (
-      awk -v X_BIN="$X_BIN" \
-          -v LANG_LIB="$LANG_LIB" \
-          -v REPL_CMD="${REPL_CMD:-(repl)}" \
-          -v READ_FN="${READ_FN:-Io read}" \
-          -v TIMEOUT_CMD="$_tcmd" \
-          -v TMPDIR="$_TMPDIR" \
-          -v SPEC_ID="$_I" \
-          -f "$RUNNER" "$_spec"
-    ) &
-    _throttle "$!"
+  if [ "$_args_mode" = 1 ]; then
+    _spawn "$(_file_tcmd "$_spec")" "$_spec"
   else
-    awk -v X_BIN="$X_BIN" \
-        -v LANG_LIB="$LANG_LIB" \
-        -v REPL_CMD="${REPL_CMD:-(repl)}" \
-        -v READ_FN="${READ_FN:-Io read}" \
-        -v TIMEOUT_CMD="$_tcmd" \
-        -v TMPDIR="$_TMPDIR" \
-        -v SPEC_ID="$_I" \
-        -f "$RUNNER" "$_spec"
-  fi
-  _t1=$(date +%s); _dt=$((_t1 - _t0))
-  if [ -z "$PARALLEL" ] && [ "$_dt" -gt 0 ]; then
-    printf " [%s: %ds]" "$(basename "$_spec" .spec.md)" "$_dt"
+    printf '%s\n' "$_spec" >> "$_LIST"
   fi
 done
+
+# Glob mode: bucket same-lib files, at most SPEC_BATCH per job.  The cap
+# keeps the two per-process guards meaningful -- the wall-clock timeout
+# and the alloc-limit! ceiling both bound one PROCESS, and a bucket is
+# one process accumulating all its files' garbage (there is no safe
+# mid-batch collect: see the seam note in spec-runner.awk).  Eight LIGHT
+# files stay far under the ceiling; the heavy libs (logo, complex,
+# x-base tower) are singletons or tiny buckets by construction.  A
+# merged bucket's timeout is base x file-count: the same per-file budget
+# as before, one process instead of N.  Lower SPEC_BATCH on a
+# memory-constrained box (it composes with PARALLEL_JOBS); 1 restores
+# the old one-file-per-job behaviour exactly.
+: "${SPEC_BATCH:=8}"
+if [ "$_args_mode" = 0 ]; then
+  _CLS="$_TMPDIR/classes.lst"
+  : > "$_CLS"
+  while IFS= read -r _spec; do
+    printf '%s|%s\n' "$(_classify "$_spec")" "$_spec" >> "$_CLS"
+  done < "$_LIST"
+  # Stable sort by class: same-lib files become adjacent, glob order is
+  # preserved within a class ("|" delimiter -- it survives an empty
+  # leading field where a tab would not, and no repo path contains one).
+  sort -s -t '|' -k1,1 "$_CLS" > "$_CLS.sorted"
+
+  _bucket=""; _bn=0; _bkey=""
+  _flush() {
+    [ "$_bn" -gt 0 ] || return 0
+    if [ "$_bn" -eq 1 ]; then
+      _spawn "$(_file_tcmd $_bucket)" $_bucket
+    elif [ -n "$_TIMEOUT_BIN" ]; then
+      _spawn "$_TIMEOUT_BIN $(( ${TIMEOUT_UNIT_SECS:-60} * _bn ))" $_bucket
+    else
+      _spawn "" $_bucket
+    fi
+    _bucket=""; _bn=0
+  }
+  while IFS='|' read -r _cls _spec; do
+    if [ "$_cls" = "!" ] || [ "$_cls" != "$_bkey" ] || [ "$_bn" -ge "$SPEC_BATCH" ]; then
+      _flush
+      _bkey="$_cls"
+    fi
+    _bucket="$_bucket $_spec"
+    _bn=$((_bn + 1))
+    [ "$_cls" = "!" ] && _flush
+  done < "$_CLS.sorted"
+  _flush
+fi
 
 # Applicative (stress) specs only run with STRESS=1, and only in glob
 # mode -- explicit arguments already said exactly what to run.

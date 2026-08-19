@@ -20,7 +20,12 @@
 #   SPEC_ID  -- unique integer for temp file namespacing
 #
 # Tests are collected during parsing, then run in a single interpreter
-# invocation per spec file (or per library group if @lib changes).
+# invocation per library group (@lib changes split a group).  The runner
+# accepts MULTIPLE spec files in one invocation (#319): the shell buckets
+# same-@lib files together so one library boot serves the whole bucket --
+# the boot (~0.7s for x-core) was ~61% of the suite when every file paid
+# it alone.  `lib` deliberately persists across file boundaries, which is
+# only sound because the shell never mixes libs in a bucket.
 # A separator expression between tests delimits output sections.
 
 BEGIN {
@@ -137,6 +142,14 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 			# heap-count is an O(heap) chain walk (~1.9s/call on the
 			# numeric-tower heap) whose output went to discarded stderr
 			# -- ~120s of pure waste per heavy-lib (x-base/complex/...) spec.
+			#
+			# Deliberately NO (heap collect) at the file seams of a
+			# merged bucket: a mid-batch collect after the sigint/Base
+			# e2e specs crashes the engine (the #283/#299 rooting
+			# family), taking every later test in the bucket with it --
+			# measured, 40 spec failures.  Bounding a bucket's garbage
+			# is the shell's job: SPEC_BATCH caps files per process and
+			# the alloc-limit! ceiling stays the runaway guard.
 			if (i > from)
 				printf "(display \"<<SEP>>\\n\")\n" > tmpfile
 			# The closing paren sits on its OWN line: a test whose last
