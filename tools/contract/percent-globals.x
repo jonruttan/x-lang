@@ -13,8 +13,9 @@
 ; globals that were always there, not new pollution.
 ;
 ; Hot-path rows stand on MEASURED de-dispatch grounds (8-30x class
-; call overhead): sha256*, asm*, compile*, boot/*.  Everything else is
-; unhomed inventory awaiting the pin.x treatment.
+; call overhead): sha256*, asm*, compile*, boot/*, and (#334: 15x on
+; the fnv byte loop, 2x on dict ops, benchmarked) type/dict + type/hash.
+; Everything else is unhomed inventory awaiting the pin.x treatment.
 (file "apps/logo/dispatch.x" 28)
 (file "apps/logo/entry.x" 27)
 (file "apps/logo/expr.x" 15)
@@ -96,10 +97,10 @@
 (file "lib/x/type/char.x" 5)
 (file "lib/x/type/class.x" 72)
 (file "lib/x/type/convert.x" 20)
-(file "lib/x/type/dict.x" 13)
+(file "lib/x/type/dict.x" 19)
 (file "lib/x/type/err.x" 6)
 (file "lib/x/type/gen.x" 1)
-(file "lib/x/type/hash.x" 4)
+(file "lib/x/type/hash.x" 7)
 (file "lib/x/type/iter.x" 19)
 (file "lib/x/type/list.x" 5)
 (file "lib/x/type/path.x" 2)

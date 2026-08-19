@@ -23,6 +23,13 @@
 (def %dict-obj-set! (prim-ref 'obj 'set!))
 ; Fetch the char cast (ns `char` utility members de-registered, R5).
 (def %dict-char->int (prim-ref 'char '->int))
+; Cached int arithmetic (#334): ambient + - * % re-route through the
+; tower's op dispatch once x/num loads (the tower-division trap class),
+; and %slot's index math ran on every get/set!/has?/del!.
+(def %dict-int+ (prim-ref 'int '+))
+(def %dict-int- (prim-ref 'int '-))
+(def %dict-int* (prim-ref 'int '*))
+(def %dict-int% (prim-ref 'int '%))
 ; Fetch the address casts (ffi.c) for instance identity keys.
 (def %dict-obj->ptr (prim-ref 'obj '->ptr))
 (def %dict-ptr->int (prim-ref 'ptr '->int))
@@ -51,6 +58,21 @@
       ((char? k) (%dict-char->int k))
       ((object? k) (& (>> (%dict-ptr->int (%dict-obj->ptr k)) 4) %dict-mask31))
       (#t (Err raise 'type "Dict: unhashable key -- use a symbol, string, integer, char, or class instance" ())))))
+
+; Bucket slot index (1-based; slot 0 is the capacity) on a PASSED cap:
+; the old (self %slot k) method paid a class dispatch plus TWO field
+; walks per public operation -- the guard read `cap` and the index math
+; immediately re-read it -- with the arithmetic riding the ambient
+; tower dispatchers (#334).  Callers bind cap and store ONCE and guard
+; via %dict-uninit! below.
+(def %dict-slot
+  (fn (_ cap k) (%dict-int+ 1 (%dict-int% (%dict-hash k) cap))))
+
+; Uninitialized guard: an instance built outside make (raw new-from)
+; has nil members; fail loudly instead of feeding nil to the raw slot
+; layer (segfault class).
+(def %dict-uninit!
+  (fn (_) (Err raise 'state "Dict: uninitialized instance (use Dict make / from-*)" ())))
 
 ; Bucket key equality: instances are identity keys, compared with same? --
 ; strict object identity; NEVER eq?, which compares value words, and NEVER
@@ -136,32 +158,25 @@
       d))
 
   ; --- internals ----------------------------------------------------------
-  ; Bucket slot index (1-based; slot 0 is the capacity) for a key.
-  (method %slot (self k)
-    ; Uninitialized guard: an instance built outside make (raw new-from)
-    ; has nil members; fail loudly here instead of feeding nil to the raw
-    ; slot layer (segfault class).
-    (when (null? (member 'cap)) (Err raise 'state "Dict: uninitialized instance (use Dict make / from-*)" ()))
-    (+ 1 (% (%dict-hash k) (member 'cap))))
-
   ; Double the table and rehash. Entry pairs are reused (rehash moves them
   ; between buckets; it does not copy), so this is O(n) with no reallocation
   ; of the entries themselves.
   (method %grow! (self)
     (def old (member 'store))
     (def oldcap (member 'cap))
-    (def newcap (* 2 oldcap))
-    (set-member! 'store (Vector make newcap ()))
+    (def newcap (%dict-int* 2 oldcap))
+    (def new (Vector make newcap ()))
+    (set-member! 'store new)
     (set-member! 'cap newcap)
     (let go ((i 1))
       (unless (> i oldcap)
         (do (List for-each
               (fn (_ e)
-                (let ((j (self %slot (first e))))
-                  (%dict-obj-set! (member 'store) j
-                    (pair e (%dict-obj-ref (member 'store) j)))))
+                (let ((j (%dict-slot newcap (first e))))
+                  (%dict-obj-set! new j
+                    (pair e (%dict-obj-ref new j)))))
               (%dict-obj-ref old i))
-            (go (+ i 1))))))
+            (go (%dict-int+ i 1))))))
 
   ; --- lookup -------------------------------------------------------------
   (method get (self k)
@@ -169,7 +184,9 @@
       (param k ANY "Key (symbol, string, integer, or char)")
       (returns ANY "Stored value, or nil")
       (example "(let ((d (Dict make))) (d set! 'a 1) (d get 'a))" "1"))
-    (let ((hit (%dict-find k (%dict-obj-ref (member 'store) (self %slot k)))))
+    (def %cap (member 'cap))
+    (when (null? %cap) (%dict-uninit!))
+    (let ((hit (%dict-find k (%dict-obj-ref (member 'store) (%dict-slot %cap k)))))
       (unless (null? hit) (rest hit))))
 
   (method get-or (self d k)
@@ -177,7 +194,9 @@
       (param d ANY "Default for an absent key")
       (param k ANY "Key to look up")
       (returns ANY "Stored value (a stored nil included), or the default"))
-    (let ((hit (%dict-find k (%dict-obj-ref (member 'store) (self %slot k)))))
+    (def %cap (member 'cap))
+    (when (null? %cap) (%dict-uninit!))
+    (let ((hit (%dict-find k (%dict-obj-ref (member 'store) (%dict-slot %cap k)))))
       (if (null? hit) d (rest hit))))
 
   (method get-or-else (self thunk k)
@@ -185,14 +204,18 @@
       (param thunk CALLABLE "Nullary default producer; runs only on a miss")
       (param k ANY "Key to look up")
       (returns ANY "Stored value (a stored nil included), or (thunk)"))
-    (let ((hit (%dict-find k (%dict-obj-ref (member 'store) (self %slot k)))))
+    (def %cap (member 'cap))
+    (when (null? %cap) (%dict-uninit!))
+    (let ((hit (%dict-find k (%dict-obj-ref (member 'store) (%dict-slot %cap k)))))
       (if (null? hit) (thunk) (rest hit))))
 
   (method has? (self k)
     (doc "Test whether a key is present."
       (param k ANY "Key to test")
       (returns BOOL "#t when the key is stored"))
-    (pair? (%dict-find k (%dict-obj-ref (member 'store) (self %slot k)))))
+    (def %cap (member 'cap))
+    (when (null? %cap) (%dict-uninit!))
+    (pair? (%dict-find k (%dict-obj-ref (member 'store) (%dict-slot %cap k)))))
 
   ; --- mutation -----------------------------------------------------------
   (method set! (self k v)
@@ -201,13 +224,17 @@
       (param v ANY "Value to store")
       (returns Dict "self")
       (example "(((Dict make) set! 'a 1) get 'a)" "1"))
-    (def i (self %slot k))
-    (def bucket (%dict-obj-ref (member 'store) i))
+    (def %store (member 'store))
+    (def %cap (member 'cap))
+    (when (null? %cap) (%dict-uninit!))
+    (def i (%dict-slot %cap k))
+    (def bucket (%dict-obj-ref %store i))
     (def hit (%dict-find k bucket))
     (if (null? hit)
-      (do (%dict-obj-set! (member 'store) i (pair (pair k v) bucket))
-          (set-member! 'n (+ (member 'n) 1))
-          (when (> (* 4 (member 'n)) (* 3 (member 'cap)))
+      (do (%dict-obj-set! %store i (pair (pair k v) bucket))
+          (def %n (%dict-int+ (member 'n) 1))
+          (set-member! 'n %n)
+          (when (> (%dict-int* 4 %n) (%dict-int* 3 %cap))
             (self %grow!)))
       (%set-rest! hit v))
     self)
@@ -216,11 +243,14 @@
     (doc "Remove a key (a no-op when absent); returns the dict for chaining."
       (param k ANY "Key to remove")
       (returns Dict "self"))
-    (def i (self %slot k))
-    (def bucket (%dict-obj-ref (member 'store) i))
+    (def %store (member 'store))
+    (def %cap (member 'cap))
+    (when (null? %cap) (%dict-uninit!))
+    (def i (%dict-slot %cap k))
+    (def bucket (%dict-obj-ref %store i))
     (when (pair? (%dict-find k bucket))
-      (do (%dict-obj-set! (member 'store) i (%dict-remove k bucket))
-          (set-member! 'n (- (member 'n) 1))))
+      (do (%dict-obj-set! %store i (%dict-remove k bucket))
+          (set-member! 'n (%dict-int- (member 'n) 1))))
     self)
 
   ; --- size ---------------------------------------------------------------
@@ -238,11 +268,14 @@
       (returns LIST "((key . val) ...) -- new assocs, detached from the table"))
     ; copy each entry: the live (key . val) pairs are mutated by set!, so a
     ; snapshot must not alias them
+    (def %store (member 'store))
+    (def %cap (member 'cap))
+    (when (null? %cap) (%dict-uninit!))
     (let go ((i 1) (acc ()))
-      (if (> i (member 'cap)) acc
-        (go (+ i 1)
+      (if (> i %cap) acc
+        (go (%dict-int+ i 1)
             (List fold (fn (_ a e) (pair (pair (first e) (rest e)) a))
-              acc (%dict-obj-ref (member 'store) i))))))
+              acc (%dict-obj-ref %store i))))))
 
   (method ->plist (self)
     (doc "The entries as a flat (k v k v ...) plist snapshot (unordered)."
