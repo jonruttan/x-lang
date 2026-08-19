@@ -253,3 +253,68 @@
 ```
 ---
     #f
+
+## multi-limb division (#401)
+
+The old multi-limb arm subtracted its trial product unshifted: wrong
+quotients once the dividend outgrew the divisor by more than one limb,
+and an iteration count that scaled with the quotient's VALUE. Every
+block here checks the q*b+r=a identity a broken quotient cannot fake.
+
+### the #401 repro: 97b+5 over a two-limb b
+
+```scheme
+(let ((b (Bigint * 123456789 987654321)))
+  (write (Bigint / (Bigint + (Bigint * b 97) 5) b)))
+```
+---
+    97
+
+### remainder of the repro
+
+```scheme
+(let ((b (Bigint * 123456789 987654321)))
+  (write (Bigint % (Bigint + (Bigint * b 97) 5) b)))
+```
+---
+    5
+
+### exact multiple: b*b / b = b
+
+```scheme
+(let ((b (Bigint * 123456789 987654321)))
+  (Bigint = b (Bigint / (Bigint * b b) b)))
+```
+---
+    #t
+
+### identity at limb gap 2
+
+```scheme
+(let ((b (Bigint * 123456789 987654321)))
+  (let ((a (Bigint + (Bigint * b b) 1)))
+    (let ((q (Bigint / a b)) (r (Bigint % a b)))
+      (Bigint = a (Bigint + (Bigint * q b) r)))))
+```
+---
+    #t
+
+### identity at a large limb gap (formerly value-linear: never finished)
+
+```scheme
+(let ((p (fn (self x n) (if (= n 1) x (Bigint * x (self x (- n 1)))))))
+  (let ((a (p 987654321987654321 11)) (b (p 987654321987654321 10)))
+    (let ((q (Bigint / a b)) (r (Bigint % a b)))
+      (if (Bigint = a (Bigint + (Bigint * q b) r)) (Bigint < r b) #f))))
+```
+---
+    #t
+
+### quotient of zero dividend limbs mid-stream
+
+```scheme
+(let ((b (Bigint * 999999999 999999999)))
+  (write (Bigint / (Bigint * b 1000000000000000000) b)))
+```
+---
+    1000000000000000000
