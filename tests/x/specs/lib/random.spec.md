@@ -189,3 +189,20 @@ sequence.
 ```
 ---
     ('value)
+
+
+## uuid (#375)
+
+### v4 shape: 36 chars, version nibble 4, IETF variant, seeded reproducibility
+
+```scheme
+(do (import x/num/random) (import x/codec/hex)
+  (def u ((Random sw 42) uuid))
+  (list (Str8 length u)
+        (Str8 sub 14 1 u)
+        (Str8 includes? (Str8 sub 19 1 u) "89ab")
+        (str=? u ((Random sw 42) uuid))
+        (str=? u ((Random sw 43) uuid))))
+```
+---
+    (36 "4" #t #t #f)
