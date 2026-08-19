@@ -172,23 +172,40 @@
         (pair (first r) (list (rest r))))
       ; Multi-limb: repeated subtraction with estimate
       ; Process from MSB, estimate quotient digit, subtract
+      ; The loop carries rem in BOTH orders plus its length (#341): the
+      ; old body re-reversed and re-walked the LSB-first rem ~4-6 times
+      ; per quotient digit (%limb-cmp reverses both sides, %top-limb
+      ; reverses, the two-limb estimate reversed again).  One reverse
+      ; and one length walk per digit remain, on the freshly subtracted
+      ; remainder.  The algorithm is untouched.
       (let ()
-        (def %top-limb
-          (fn (_ lst) (first (%reverse lst))))
         (def blen (%length b))
-        (def btop (%top-limb b))
+        (def rb (%reverse b))
+        (def btop (first rb))
+        ; MSB-first compare of equal-length limb lists
+        (def %cmp-msb
+          (fn (self ra rb2)
+            (if (null? ra) 0
+              (if (%int< (first ra) (first rb2)) -1
+                (if (%int< (first rb2) (first ra)) 1
+                  (self (rest ra) (rest rb2)))))))
+        ; Magnitude compare from precomputed lengths + MSB views
+        (def %cmp-len
+          (fn (_ la ra lb2 rb2)
+            (if (%int< la lb2) -1
+              (if (%int< lb2 la) 1
+                (%cmp-msb ra rb2)))))
         ; Shift a into position and extract quotient digits
         (def %div-loop
-          (fn (self rem qdigits)
-            (def c (%limb-cmp rem b))
+          (fn (self rem rrem rlen qdigits)
+            (def c (%cmp-len rlen rrem blen rb))
             (if (%int< c 0)
               (pair (if (null? qdigits) (list 0) (%reverse qdigits)) rem)
               (if (%int= c 0)
                 (pair (%reverse (pair 1 qdigits)) (list 0))
                 ; Estimate: use top limbs
                 (let ()
-                  (def rlen (%length rem))
-                  (def rtop (%top-limb rem))
+                  (def rtop (first rrem))
                   ; Estimate quotient as rtop / (btop + 1) to be safe
                   (def q-est
                     (if (%int< rlen blen) 0
@@ -196,13 +213,15 @@
                         (%int/ rtop (%int+ btop 1))
                         ; rem has more limbs than b
                         (do
-                          (def rtop2 (first (rest (%reverse rem))))
+                          (def rtop2 (first (rest rrem)))
                           (%int/ (%int+ (%int* rtop %bigint-base) rtop2)
                                  (%int+ btop 1))))))
                   (if (%int= q-est 0) (set! q-est 1) ())
                   ; Subtract q-est * b from rem
                   (def product (%limb-mul1 b q-est 0))
-                  (if (%int< (%limb-cmp rem product) 0)
+                  (def plen (%length product))
+                  (def rprod (%reverse product))
+                  (if (%int< (%cmp-len rlen rrem plen rprod) 0)
                     ; Over-estimated, reduce by 1
                     (do
                       (set! q-est (%int- q-est 1))
@@ -210,8 +229,9 @@
                       ())
                     ())
                   (def new-rem (%bigint-normalize (%limb-sub rem product 0)))
-                  (self new-rem (pair q-est qdigits)))))))
-        (%div-loop a ())))))
+                  (self new-rem (%reverse new-rem) (%length new-rem)
+                        (pair q-est qdigits)))))))
+        (%div-loop a (%reverse a) (%length a) ())))))
 
 ; --- String conversion ---
 
