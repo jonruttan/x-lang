@@ -107,7 +107,7 @@ echoes them in shorthand.
 | ints (signed, hex), strings, `#\` chars, lists, `( . x)`, `;` | ✓ | ✓ | ✓ |
 | `#t`/`#f` as booleans, printer | — | ✓ | ✓ |
 | `'` `` ` `` `,` `,@` `$"…"` `#(…)` | — | ✓ | ✓ |
-| floats, rationals, complexes, bignums, `#/…/` | — | — | ✓ |
+| floats, rationals, complexes, bigints, `#/…/` | — | — | ✓ |
 
 The bare column is normative for every implementation of the reader;
 see [syntax-bare.md](syntax-bare.md).

@@ -52,7 +52,7 @@
 (file "lib/x/core/syntax.x" 5)
 (file "lib/x/doc/doc-gen.x" 32)
 (file "lib/x/doc/doc.x" 73)
-(file "lib/x/num/bignum.x" 57)
+(file "lib/x/num/bigint.x" 57)
 (file "lib/x/num/complex.x" 41)
 (file "lib/x/num/float.x" 60)
 (file "lib/x/num/random.x" 5)

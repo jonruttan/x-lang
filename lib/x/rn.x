@@ -14,7 +14,7 @@
 (def %str-append (prim-ref 'str 'append))
 
 (import x/type/hash)
-(import x/num/bignum)
+(import x/num/bigint)
 (import x/type/regex)
 ; Common containers: Dict and Set ride the dialects (helium stays light) --
 ; same rationale as x/xe.x; pinned by dialects/smoke.spec.md.
@@ -132,6 +132,6 @@
   (note "Experimental/unstable dialect with full toolbox.")
   (note "Includes compiler and POSIX FFI.")
   (note "Common containers loaded by default: Dict (content-hashed mutable table).")
-  (note "Extends arithmetic with bignum, float, rational, complex, regex.")
+  (note "Extends arithmetic with bigint, float, rational, complex, regex.")
   (note "Syscall table, file I/O, and sockets are opt-in -- include them yourself if you call (system …) or use these subsystems.")
   "x/rn: Experimental hacking dialect built on x-lang.")

@@ -1,7 +1,7 @@
-# Numeric tower load order: bignum first, float later
+# Numeric tower load order: bigint first, float later
 
-The bundle order under plain x-core imports: bignum is already joined when
-float.x files its when-entry, so the bignum->float conversion installs
+The bundle order under plain x-core imports: bigint is already joined when
+float.x files its when-entry, so the bigint->float conversion installs
 immediately at float load. The reverse order lives in
 tower-order-float-first.spec.md; each order needs its own file because a
 spec file is one interpreter batch.
@@ -11,21 +11,21 @@ form AFTER its import, never inside the same form (the whole form is
 tokenized before the import evaluates). Literal tests therefore follow
 their import's test as separate forms.
 
-## bignum then float
+## bigint then float
 
-### bignum works alone
+### bigint works alone
 
 ```scheme
-(import x/num/bignum)
-(Bignum + 9223372036854775807 1)
+(import x/num/bigint)
+(Bigint + 9223372036854775807 1)
 ```
 ---
     9223372036854775808
 
-### bignum literals parse from the next form on
+### bigint literals parse from the next form on
 
 ```scheme
-(Bignum bignum? 10000000000000000000)
+(Bigint bigint? 10000000000000000000)
 ```
 ---
     #t
@@ -37,10 +37,10 @@ their import's test as separate forms.
 (import x/sys/pact)
 (def %t-cv (prim-ref 'convert 'to))
 (def %t-fh (Pact get 'float))
-(def %t-big (Bignum + 9223372036854775807 1))
+(def %t-big (Bigint + 9223372036854775807 1))
 (def %t-f (%t-cv %t-big %t-fh))
 (if (Float float? %t-f)
-  (= (+ %t-f %t-f) (%t-cv (Bignum + %t-big %t-big) %t-fh))
+  (= (+ %t-f %t-f) (%t-cv (Bigint + %t-big %t-big) %t-fh))
   ())
 ```
 ---

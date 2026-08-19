@@ -18,12 +18,12 @@
 ---
     42
 
-## bignum promotion
+## bigint promotion
 
 ### multiply overflow promotes
 
 ```scheme
-(Bignum bignum? (* 999999999999 999999999999))
+(Bigint bigint? (* 999999999999 999999999999))
 ```
 ---
     #t
@@ -31,12 +31,12 @@
 ### add overflow promotes
 
 ```scheme
-(Bignum bignum? (+ 4611686018427387904 4611686018427387904))
+(Bigint bigint? (+ 4611686018427387904 4611686018427387904))
 ```
 ---
     #t
 
-### bignum subtraction produces correct value
+### bigint subtraction produces correct value
 
 ```scheme
 (= (- (+ 4611686018427387904 4611686018427387904) 4611686018427387904) 4611686018427387904)
@@ -70,7 +70,7 @@
 ---
     #t
 
-### float plus bignum promotes to float
+### float plus bigint promotes to float
 
 ```scheme
 (Float float? (+ 1.0 99999999999999999999))

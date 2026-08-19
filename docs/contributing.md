@@ -185,7 +185,7 @@ make clean && make
   "not API"; it does not say which flavor — the defining comment should.
 - **Doc type vocabulary** — one token per concept in `(param ...)`/`(returns ...)`:
   `INT` (not INTEGER), `BOOL` (not BOOLEAN), `CALLABLE` (not FUNCTION), plus
-  `ANY STRING SYMBOL LIST PAIR CHAR NUMBER VECTOR REGEX FLOAT BIGNUM RATIONAL
+  `ANY STRING SYMBOL LIST PAIR CHAR NUMBER VECTOR REGEX FLOAT BIGINT RATIONAL
   COMPLEX ITER OBJECT CLASS PTR BUF`. `PROCEDURE`/`OPERATIVE` are reserved for
   the fn/op constructors' returns. Class names (`Dict`, `Array`, `Random`, ...)
   are legitimate returns types as-is. `make check-doc-vocab` enforces the
@@ -230,7 +230,7 @@ Tests are markdown spec files in `tests/x/specs/` organized by category:
 
 - `core/` — Language fundamentals (evaluation, forms, closures, logic, arithmetic, strings, etc.)
 - `applicative/` — Higher-order function tests
-- `ext/` — Extension types (bignum, float, rational, complex, regex, compile, POSIX)
+- `ext/` — Extension types (bigint, float, rational, complex, regex, compile, POSIX)
 - `lib/` — Standard library functions
 - `e2e/` — End-to-end integration tests
 - `tools/` — Tool tests (lint, fmt)

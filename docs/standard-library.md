@@ -16,7 +16,7 @@ This document covers the core functions loaded by `lib/x.x` (the base x-lang dia
 | Boot | `lib/x/boot/` | Operatives, data constructors, strings, module system |
 | Core | `lib/x/core/` | Combinators, lists (60+ functions), logic, math, syntax, control, quasiquote, REPL |
 | Types | `lib/x/type/` | Characters, strings, vectors, promises, regex, objects, iterators |
-| Numeric | `lib/x/num/` | Bignum, float, rational, complex, tower helpers |
+| Numeric | `lib/x/num/` | Bigint, float, rational, complex, tower helpers |
 | System | `lib/x/sys/` | POSIX, FFI, tokenizer, type system, conversions, GC, file I/O |
 | Tools | `lib/x/tool/` | Linter, formatter, coverage, profiler, compiler, assembler |
 | Docs | `lib/x/doc/` | Inline documentation, doc generator, primitive docs |

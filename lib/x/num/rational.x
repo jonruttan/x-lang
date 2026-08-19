@@ -220,7 +220,7 @@
 
 ; Float absorbs rationals under the from-relation: declare the conversion on
 ; float's from-alist (the same late-registration precedent float.x uses for
-; bignum). rational -> float = numerator/denominator in float space.
+; bigint). rational -> float = numerator/denominator in float space.
 (def %float-from-cell (%type-from-cell (%type-by-atom %float)))
 (%set-first! %float-from-cell
   (pair
@@ -237,7 +237,7 @@
   (fn (_ x) (if (%rat? x) x (%make-rational x 1))))
 
 ; Generic-operator handlers: the C binaries dispatch rational operands here.
-; The non-rational side is an int (float absorbs rationals via from; bignum
+; The non-rational side is an int (float absorbs rationals via from; bigint
 ; and rational do not declare each other, so that mix falls through -- as
 ; before this conversion).
 (def %rational-ts (%type-by-atom %rational))
@@ -257,9 +257,9 @@
       (%make-rational a b))))
 
 ; / policy: this module OWNS the variadic / (one policy owner per operator --
-; bignum owns + - * overflow promotion). Both-plain-int division promotes to
+; bigint owns + - * overflow promotion). Both-plain-int division promotes to
 ; rational when inexact; anything typed flows through the dispatching C binary
-; (rational/float/bignum handlers take it from there). Unary (/ x) = (/ 1 x).
+; (rational/float/bigint handlers take it from there). Unary (/ x) = (/ 1 x).
 (def %rat-div-policy
   (fn (_ a b)
     (if (if (%int-number? a) (%int-number? b) #f)

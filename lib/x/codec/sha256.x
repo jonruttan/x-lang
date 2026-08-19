@@ -55,7 +55,7 @@
 (def %sha-words
   (fn (_ hexes)
     ; the %cvt narrows: under the tower %str->number returns a TOWER
-    ; integer (bignum-capable parsing), which the C bit ops reject --
+    ; integer (bigint-capable parsing), which the C bit ops reject --
     ; %int coercion is identity under bare x-core and a narrowing
     ; conversion tower-up; every value fits 32 bits by construction
     ((fn (self lst)

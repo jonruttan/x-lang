@@ -58,7 +58,7 @@ the tail. Its idiomatic use is the bare-variadic parameter list:
   boolean singletons.
 - No quote family: `'x`, `` `x ``, `,x`, `,@x` are library reader macros;
   at the bare layer `'x` is part of a symbol.
-- No floats, rationals, complexes, bignums, vectors (`#(…)`), or regexes
+- No floats, rationals, complexes, bigints, vectors (`#(…)`), or regexes
   (`#/…/`) — all library- or dialect-added. A `1.5`-shaped token reads as
   the integer `1`, the dot sentinel, and the integer `5`.
 - **No writer.** The bare interpreter produces no textual representation

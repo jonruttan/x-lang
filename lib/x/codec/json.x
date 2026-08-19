@@ -27,7 +27,7 @@
 (def %json-byte-ref (prim-ref 'str 'byte-ref))
 (def %json-byte-sub (prim-ref 'str 'byte-sub))
 (def %json-append (prim-ref 'str 'append))
-; display-to-str renders any number the way the printer would (int/bignum/float).
+; display-to-str renders any number the way the printer would (int/bigint/float).
 (def %json-display (prim-ref 'io 'display-to-str))
 ; The conversion dispatcher: (%json-cvt "2.5" %float) parses AND boxes a float
 ; via the float type's from-alist (%float is the documented convert type
@@ -290,7 +290,7 @@
       (#t (let ((tn (Type name v)))
             (match
               ((str=? tn "FLOAT") (%json-display v))
-              ((str=? tn "BIGNUM") (%json-display v))
+              ((str=? tn "BIGINT") (%json-display v))
               ((str=? tn "RATIONAL") (Err raise 'type "Json emit: no JSON form for a rational (convert to a float first)" ()))
               ((str=? tn "COMPLEX") (Err raise 'type "Json emit: no JSON form for a complex number" ()))
               (#t (Err raise 'type "Json emit: unsupported value type" ()))))))))

@@ -1,6 +1,6 @@
 ; float.x -- Floating-point type with IEEE 754 bit-pattern storage
-; lint-known: %bignum-base
-; (defined in num/bignum.x; the tower supplies it in load order)
+; lint-known: %bigint-base
+; (defined in num/bigint.x; the tower supplies it in load order)
 (import x/type/class)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %buffer-token (prim-ref 'buf 'tok))
@@ -277,8 +277,8 @@
 
 ; --- Type ops: the generic operators dispatch float operands here ---
 ; %ensure-float goes through the cvt from-alist, so the other side may be an
-; int, string, bignum, or rational (all declared). The old %safe wrapper chain
-; is gone: bignum owns the + - * int-overflow policy, rational owns /, and the
+; int, string, bigint, or rational (all declared). The old %safe wrapper chain
+; is gone: bigint owns the + - * int-overflow policy, rational owns /, and the
 ; binary C operators dispatch everything typed.
 
 (def %float-ts (%type-by-atom %float))
@@ -313,18 +313,18 @@
   (returns BOOL "True if x is a real number")
   "Test whether a value is a real number (complex.x narrows this to exclude complexes).")
 
-; --- Bignum -> float conversion (registered late, after f+/f* are defined) ---
-; A pairwise registration: it needs bignum's handle (the from-alist key) and
+; --- Bigint -> float conversion (registered late, after f+/f* are defined) ---
+; A pairwise registration: it needs bigint's handle (the from-alist key) and
 ; float's arithmetic (the converter body), so neither module alone can install
-; it. Filed with the pact, it runs right here when bignum loaded first, at
-; bignum's join when bignum loads later, and never when bignum never loads.
-; (The old `(if (not (null? %bignum))` guard raised Unbound SYMBOL whenever
-; bignum was absent -- an unbound global is not nil.)
+; it. Filed with the pact, it runs right here when bigint loaded first, at
+; bigint's join when bigint loads later, and never when bigint never loads.
+; (The old `(if (not (null? %bigint))` guard raised Unbound SYMBOL whenever
+; bigint was absent -- an unbound global is not nil.)
 (import x/sys/pact)
-(Pact when (list 'bignum)
+(Pact when (list 'bigint)
   (fn (_ big)
-    ; %bignum-base and `reverse` (x/core/list) are bignum.x's load-time
-    ; bindings; the pact guarantees bignum fully loaded before this fires.
+    ; %bigint-base and `reverse` (x/core/list) are bigint.x's load-time
+    ; bindings; the pact guarantees bigint fully loaded before this fires.
     (let ((from-cell (%type-from-cell (%type-by-atom %float))))
       (%set-first! from-cell
         (pair
@@ -332,7 +332,7 @@
             (fn (_ value)
               (def sign (first (first value)))
               (def limbs (%reverse (rest (first value))))
-              (def fbase (%exact->inexact %bignum-base))
+              (def fbase (%exact->inexact %bigint-base))
               (def fzero (%exact->inexact 0))
               ; Horner's method on reversed (now MSB-first) limbs
               (def %go

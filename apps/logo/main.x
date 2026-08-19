@@ -6,7 +6,7 @@
 ; Type Logo commands — the browser updates live.
 
 (import-path! (guard (_ "apps") (%path-join %install-root "apps")))
-(def %bignum ())
+(def %bigint ())
 (import x/num/float)
 (import logo/turtle)
 (import x/sys/posix)
