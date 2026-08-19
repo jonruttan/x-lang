@@ -81,7 +81,7 @@
                    (first (%reflect-step (Base raw-of b)
                             (%reflect-path (lit type-alist) %base-paths))))))
         (if (null? hit) () (rest hit))))
-    (method read (self (param s STR "xon text")
+    (method parse (self (param s STR "xon text")
                        . (param base ANY "Optional base to intern into (default: the current base)"))
       (doc "Tokenize xon text into a list of forms."
         (returns LIST "The forms, in file order")
@@ -90,7 +90,7 @@
         ; (#161); the appended space closes the final token.  This door
         ; exists so that workaround -- and its eventual removal -- lives
         ; in exactly one place.
-        (example "(first (first (Xon read \"(file \\\"a\\\" \\\"b\\\")\")))" "'file"))
+        (example "(first (first (Xon parse \"(file \\\"a\\\" \\\"b\\\")\")))" "'file"))
       (Tok read-str (if (null? base) (%base) (first base))
                     (Str8 append s " ")))
     (method emit-form (self (param form LIST "One form"))

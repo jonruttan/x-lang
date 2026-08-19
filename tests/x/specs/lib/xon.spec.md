@@ -11,7 +11,7 @@ reader parses back to the same value.
 ```scheme
 (do
   (import x/codec/xon)
-  (def %f (Xon read "(file \"a.x\" \"sha256:aa\")\n(seed \"n\" \"r\")"))
+  (def %f (Xon parse "(file \"a.x\" \"sha256:aa\")\n(seed \"n\" \"r\")"))
   (display (%length %f))
   (display " ")
   (display (first (first %f))))
@@ -24,7 +24,7 @@ reader parses back to the same value.
 ```scheme
 (do
   (import x/codec/xon)
-  (display (%length (Xon read "(a) (b)"))))
+  (display (%length (Xon parse "(a) (b)"))))
 ```
 ---
     2
@@ -51,7 +51,7 @@ reader parses back to the same value.
 (do
   (import x/codec/xon)
   (def %odd "a\"b")
-  (def %back (Xon read (Xon emit (list (list 'file %odd "d")))))
+  (def %back (Xon parse (Xon emit (list (list 'file %odd "d")))))
   (display (str=? (first (rest (first %back))) %odd))
   (display " ")
   (display (%length %back)))
@@ -65,7 +65,7 @@ reader parses back to the same value.
 (do
   (import x/codec/xon)
   (def %odd "a\\b")
-  (def %back (Xon read (Xon emit (list (list 'file %odd "d")))))
+  (def %back (Xon parse (Xon emit (list (list 'file %odd "d")))))
   (display (str=? (first (rest (first %back))) %odd))
   (display " ")
   (display (%length %back)))
@@ -80,7 +80,7 @@ reader parses back to the same value.
   (import x/codec/xon)
   (def %odd "a\nb")
   (def %text (Xon emit (list (list 'file %odd "d"))))
-  (def %back (Xon read %text))
+  (def %back (Xon parse %text))
   (display (str=? (first (rest (first %back))) %odd))
   (display " ")
   ; the escaped newline must not split the line: still exactly one form
@@ -141,7 +141,7 @@ tool that re-emits source (fmt) or inspects it (doc) needs.
 
 ```scheme
 (do (import x/codec/xon)
-    (%length (first (Xon read "(f $\"a {x} b\" 1)" (Base make)))))
+    (%length (first (Xon parse "(f $\"a {x} b\" 1)" (Base make)))))
 ```
 ---
     5
@@ -152,7 +152,7 @@ tool that re-emits source (fmt) or inspects it (doc) needs.
 (do (import x/codec/xon)
     (def b (Base make))
     (Xon arm-source! b)
-    (def form (first (Xon read "(f $\"a {x} b\" 1)" b)))
+    (def form (first (Xon parse "(f $\"a {x} b\" 1)" b)))
     (list (%length form) (first (first (rest form))) (first (rest (first (rest form))))))
 ```
 ---
@@ -164,7 +164,7 @@ tool that re-emits source (fmt) or inspects it (doc) needs.
 (do (import x/codec/xon)
     (def b (Base make))
     (Xon arm-source! b)
-    (first (rest (first (Xon read "(f \"plain\")" b)))))
+    (first (rest (first (Xon parse "(f \"plain\")" b)))))
 ```
 ---
     "plain"

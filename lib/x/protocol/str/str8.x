@@ -368,15 +368,15 @@
         (%str-append s (self make (- k len) ch))))
 
     ; --- searching ---
-    (method contains? (self (param sub STRING "Substring to search for") (param s STRING "String to search in"))
+    (method includes? (self (param sub STRING "Substring to search for") (param s STRING "String to search in"))
       (doc "True if sub occurs anywhere within s (empty sub always matches)."
         (returns BOOL "#t when s contains sub")
-        (example "(Str8 contains? \"ll\" \"hello\")" "#t"))
+        (example "(Str8 includes? \"ll\" \"hello\")" "#t"))
       ; Boolean of the linear byte scan (#332); byte-sound for StrUTF8
       ; (see %find-bytes).  The old walk allocated a substring and ran
       ; an interpreted compare per position.
-      (do (%str8-check sub "Str8 contains?: not a string")
-          (%str8-check s "Str8 contains?: not a string")
+      (do (%str8-check sub "Str8 includes?: not a string")
+          (%str8-check s "Str8 includes?: not a string")
           (not (null? (self %find-bytes sub 0 s)))))
     (method index-of (self (param sub STRING "Substring to search for") (param s STRING "String to search in"))
       (doc "The element position of sub's first occurrence in s, or nil on a miss (absence is nil, like every other index-search miss). An empty sub matches at 0."

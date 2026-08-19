@@ -71,7 +71,7 @@ same way -- raw bases from the catalog prims stay plumbing.
 ```scheme
 (do (def %ib4 (Base make))
     (def %r ((prim-ref 'io 'display-to-str) %ib4))
-    (Str8 contains? "#<base:objs " %r))
+    (Str8 includes? "#<base:objs " %r))
 ```
 ---
     #t

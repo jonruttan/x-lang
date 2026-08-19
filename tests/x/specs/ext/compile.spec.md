@@ -73,7 +73,7 @@
 ### includes x-obj.h header
 
 ```scheme
-(Str contains? "x-obj.h" (compile-to-c (lit (fn (_ n) n)) ()))
+(Str includes? "x-obj.h" (compile-to-c (lit (fn (_ n) n)) ()))
 ```
 ---
     #t
@@ -81,7 +81,7 @@
 ### generates function body
 
 ```scheme
-(Str contains? "fn_0" (compile-to-c (lit (fn (_ n) n)) ()))
+(Str includes? "fn_0" (compile-to-c (lit (fn (_ n) n)) ()))
 ```
 ---
     #t

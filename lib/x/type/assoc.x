@@ -28,6 +28,9 @@
       (#t al))))
 
 (def-class Assoc ()
+  (doc "Persistent association lists: every operation returns a NEW alist, the input untouched."
+    (note "The verb rule (#358): persistent operations carry bare verbs (put/del) because nothing mutates; the mutating twins live on Dict with the bang (set!/del!). Same data shape, opposite update models -- pick by whether callers share the structure.")
+    (example "(Assoc get 'b (Assoc put 'b 2 (list (pair 'a 1))))" "2"))
   (static
     ; --- Lookup ---
     (method get (self (param key SYMBOL "Key to look up") (param alist LIST "Association list"))

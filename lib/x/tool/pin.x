@@ -99,9 +99,9 @@
     (method %pin-bad (self what)
       (error (Str8 append "pin: " what)))
     ; Read manifest text as forms, never evaluating.  The end-of-buffer
-    ; termination workaround lives in the shared door (Xon read, #230).
+    ; termination workaround lives in the shared door (Xon parse, #230).
     (method %pin-forms (self text)
-      (Xon read text))
+      (Xon parse text))
     ; One (root "DIR") form -> the resolved root string.  %path-join is
     ; module.x's boot-level path helper (boot-adjacent accessors rule).
     (method %pin-root (self form dir)

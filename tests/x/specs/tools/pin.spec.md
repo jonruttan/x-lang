@@ -386,7 +386,7 @@ as `(seed "NAME" "rel" ...)`; re-vendoring replaces that seed's claim.
   (File write-all "build/pin-spec/lib0/prov/a.x" "(import prov/dep)\n(provide prov/a)\n")
   (File write-all "build/pin-spec/lib0/prov/dep.x" "(provide prov/dep)\n")
   (Pin vendor "build/pin-spec/prov" 'prov/a)
-  (display (Str8 contains? "(seed \"prov/a\"" (File read-all "build/pin-spec/prov.lock.xon"))))
+  (display (Str8 includes? "(seed \"prov/a\"" (File read-all "build/pin-spec/prov.lock.xon"))))
 ```
 ---
     #t
@@ -745,7 +745,7 @@ so the seed records what the manifest said -- even when sync was handed
 an absolute project directory, as it is here.
 
 ```scheme
-(display (Str8 contains? "(seed \"project:src\"" (File read-all "build/pin-spec/fd/dep.lock.xon")))
+(display (Str8 includes? "(seed \"project:src\"" (File read-all "build/pin-spec/fd/dep.lock.xon")))
 ```
 ---
     #t
@@ -860,7 +860,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
   (guard (_ ()) (File mkdir "build/pin-spec/initxe"))
   (guard (_ ()) (File unlink "build/pin-spec/initxe/pin.xon"))
   (Pin init "build/pin-spec/initxe" 'xe)
-  (display (Str8 contains? "(boot \"boot/xe.x\")"
+  (display (Str8 includes? "(boot \"boot/xe.x\")"
                  (File read-all "build/pin-spec/initxe/pin.xon"))))
 ```
 ---

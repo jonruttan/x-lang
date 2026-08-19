@@ -5,7 +5,7 @@ Two string protocols, each exposing the full string suite as static methods:
 - `Str8` -- 8-bit bytes. `(Str8 ref i s)` is always a byte; O(1).
 - `StrUTF8` -- UTF-8 code points. `(StrUTF8 ref i s)` is always a code point.
 
-The suite (append, join, contains?, split, trim, =?, <?, upcase, reverse, ...)
+The suite (append, join, includes?, split, trim, =?, <?, upcase, reverse, ...)
 is written once on `Str8` through self primitives; `StrUTF8` overrides only the
 primitives (`length` / `ref` / `sub` / `step` / `char->bytes`) and inherits
 the rest with code-point behaviour.
@@ -179,10 +179,10 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ---
     "a, b, c"
 
-### contains? finds a substring
+### includes? finds a substring
 
 ```x
-(Str8 contains? "ll" "hello")
+(Str8 includes? "ll" "hello")
 ```
 ---
     #t
@@ -304,10 +304,10 @@ were sliced at the wrong boundaries.
 ---
     3
 
-### contains? works on multi-byte content
+### includes? works on multi-byte content
 
 ```x
-(StrUTF8 contains? "¢" "a¢€")
+(StrUTF8 includes? "¢" "a¢€")
 ```
 ---
     #t
@@ -374,10 +374,10 @@ were sliced at the wrong boundaries.
 ---
     ("a" "b" "c")
 
-### another combinator: contains?
+### another combinator: includes?
 
 ```scheme
-("hello" contains? "ell")
+("hello" includes? "ell")
 ```
 ---
     #t
