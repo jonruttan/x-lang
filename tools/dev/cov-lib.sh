@@ -74,7 +74,7 @@ for dir in "$@"; do
             echo '(def %cov-tsv-mode #t)'
             cat "$TMPTEST"
             cat tools/dev/cov-report.x
-        } | timeout 60 ./x-bin-profile 2>>"${COV_ERR:-/dev/null}" | grep '^COV	' >> "$TMPTSV"
+        } | timeout 60 ./x-bin-profile 2>>"${COV_ERR:-/dev/null}" | tee -a "${COV_RAW:-/dev/null}" | grep '^COV	' >> "$TMPTSV"
         true  # don't fail on crash or empty grep
 
         printf "." >&2
