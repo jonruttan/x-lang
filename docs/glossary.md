@@ -132,7 +132,7 @@ byte" (`\0`). None of them is a fourth falsy value: falsy is {nil, `#f`}.
   (accept / accept-inclusive / reject) — each is coherent in its domain.
 - **Utf8** names exactly one thing: the byte↔code-point *codec* class
   (`x/codec/utf8` — `decode`/`encode`/`width`). The string classes are
-  `Str8`/`StrUTF8` with ambient `Str`; the old `Utf8` *string-class alias*
+  `Str8`/`StrUtf8` with ambient `Str`; the old `Utf8` *string-class alias*
   is retired and must not come back.
 
 ## core and base
@@ -184,8 +184,8 @@ x-expr's "symbol" as "name text".
 ## length vs count
 
 - **length** — the element count as a *property*: the noun you ask of any
-  finite collection (List, Vector, Array, Str8, StrUTF8, Seq, Dict, Set). The
-  interface word describes the meaning, not the cost — `StrUTF8 length` is
+  finite collection (List, Vector, Array, Str8, StrUtf8, Seq, Dict, Set). The
+  interface word describes the meaning, not the cost — `StrUtf8 length` is
   O(n) under the hood, `Dict length` O(1).
 - **width** — display columns, exclusively. Never byte counts: `str-length`
   is bytes, `Str length` is code points, and neither is a column count for

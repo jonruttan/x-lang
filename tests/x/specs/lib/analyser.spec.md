@@ -1,11 +1,11 @@
-# @lib ../tests/x/lib/token.x
+# @lib ../tests/x/lib/analyser.x
 
-Token (`lib/x/reader/token.x`) is the tokenizer state-builder vocabulary. The
-builders are `Token` methods (called at setup); the terminators (accept /
+Analyser (`lib/x/reader/analyser.x`) is the tokenizer state-builder vocabulary. The
+builders are `Analyser` methods (called at setup); the terminators (accept /
 accept-inclusive / reject) are registered under catalog ns `token` for
 reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 
-## Token accept
+## Analyser accept
 
 ### the accept terminator is a function
 
@@ -15,7 +15,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 ---
     #t
 
-## Token reject
+## Analyser reject
 
 ### the reject terminator is a function
 
@@ -30,7 +30,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 ### returns a function
 
 ```scheme
-(procedure? (Token make-digit-state %acc))
+(procedure? (Analyser make-digit-state %acc))
 ```
 ---
     #t
@@ -40,7 +40,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 ### returns a function
 
 ```scheme
-(procedure? (Token make-xdigit-state %acc))
+(procedure? (Analyser make-xdigit-state %acc))
 ```
 ---
     #t
@@ -50,7 +50,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 ### returns a function
 
 ```scheme
-(procedure? (Token make-char-state 65 %acc ()))
+(procedure? (Analyser make-char-state 65 %acc ()))
 ```
 ---
     #t
@@ -60,7 +60,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 ### returns a function
 
 ```scheme
-(procedure? (Token make-pred-state (fn (_ c) (Char alphabetic? c)) %acc))
+(procedure? (Analyser make-pred-state (fn (_ c) (Char alphabetic? c)) %acc))
 ```
 ---
     #t
@@ -70,7 +70,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 ### returns a function
 
 ```scheme
-(procedure? (Token make-range-state 48 57 %acc))
+(procedure? (Analyser make-range-state 48 57 %acc))
 ```
 ---
     #t
@@ -80,7 +80,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 ### returns a function
 
 ```scheme
-(procedure? (Token make-alt-state %acc %rej))
+(procedure? (Analyser make-alt-state %acc %rej))
 ```
 ---
     #t
@@ -90,7 +90,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 ### returns a function
 
 ```scheme
-(procedure? (Token make-str-state "abc" %acc ()))
+(procedure? (Analyser make-str-state "abc" %acc ()))
 ```
 ---
     #t
@@ -100,7 +100,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 ### returns a function for n=3
 
 ```scheme
-(procedure? (Token make-count-state 3 (fn (_ c) (Char numeric? c)) %acc))
+(procedure? (Analyser make-count-state 3 (fn (_ c) (Char numeric? c)) %acc))
 ```
 ---
     #t
@@ -108,7 +108,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 ### returns done directly for n=0
 
 ```scheme
-(eq? (Token make-count-state 0 (fn (_ c) (Char numeric? c)) %acc) %acc)
+(eq? (Analyser make-count-state 0 (fn (_ c) (Char numeric? c)) %acc) %acc)
 ```
 ---
     #t
@@ -118,7 +118,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 ### returns a function
 
 ```scheme
-(procedure? (Token make-min-state 1 (fn (_ c) (Char numeric? c)) %acc))
+(procedure? (Analyser make-min-state 1 (fn (_ c) (Char numeric? c)) %acc))
 ```
 ---
     #t
@@ -128,7 +128,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 ### returns a function
 
 ```scheme
-(procedure? (Token make-optional-char 43 %acc))
+(procedure? (Analyser make-optional-char 43 %acc))
 ```
 ---
     #t

@@ -14,7 +14,7 @@
 ; bytes directly and ignore this handler. So readers/tokenizers/loaders that
 ; need bytes use those (or the Str8 class) and never touch the ambient (s i).
 ;
-; The high-level string library -- the Str8 / StrUTF8 protocol classes and the
+; The high-level string library -- the Str8 / StrUtf8 protocol classes and the
 ; Str entry point -- lives in x/type/str, loaded later once objects exist.
 ;
 ; No UTF-8 in C: C packs/loads bytes; this x-lang layer owns the byte<->code-
@@ -108,7 +108,7 @@
 ; %utf8-cp-at is an unchecked read, so this is the x-lang guard. INT-ONLY by
 ; design (the N5 coercion exception): this handler can run under reader
 ; constraints, where conversion dispatch is illegal -- the protocol classes
-; (Str8/StrUTF8 ref) are the coercing doors.
+; (Str8/StrUtf8 ref) are the coercing doors.
 (def %cp-ref
   (fn (_ s i)
     (def len (%str-byte-len s))
@@ -118,7 +118,7 @@
       (%integer->char (%utf8-cp-at s b))
       (Err raise (lit index) "str: index out of range" ()))))
 
-; Clamped like StrUTF8 sub: offsets past the end yield the empty/short slice.
+; Clamped like StrUtf8 sub: offsets past the end yield the empty/short slice.
 ; A negative count must short-circuit -- the offset walk only stops on k = 0,
 ; so a negative k would otherwise clamp at the end and take the whole tail.
 (def %cp-substring
@@ -139,6 +139,6 @@
         (%cp-substring s (first vals) (first (rest vals)))))))
 
 (doc (provide x/type/str-utf8)
-  (note "Low-level layer, loaded before the object system. The high-level string API is the Str8 / StrUTF8 classes and the Str entry point in x/type/str.")
+  (note "Low-level layer, loaded before the object system. The high-level string API is the Str8 / StrUtf8 classes and the Str entry point in x/type/str.")
   (note "The %-private byte API (%str-length, %str-ref, %substring) stays byte-level; only the bare (s i) call is code-point aware.")
   "The low-level UTF-8 code-point layer for the STRING type: the list<->str transforms and the bare (s i) code-point indexing handler.")

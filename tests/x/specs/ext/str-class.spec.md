@@ -1,18 +1,18 @@
-# String classes (Str8 / StrUTF8 / Str)
+# String classes (Str8 / StrUtf8 / Str)
 
 Two string protocols, each exposing the full string suite as static methods:
 
 - `Str8` -- 8-bit bytes. `(Str8 ref i s)` is always a byte; O(1).
-- `StrUTF8` -- UTF-8 code points. `(StrUTF8 ref i s)` is always a code point.
+- `StrUtf8` -- UTF-8 code points. `(StrUtf8 ref i s)` is always a code point.
 
 The suite (append, join, includes?, split, trim, =?, <?, upcase, reverse, ...)
-is written once on `Str8` through self primitives; `StrUTF8` overrides only the
+is written once on `Str8` through self primitives; `StrUtf8` overrides only the
 primitives (`length` / `ref` / `sub` / `step` / `char->bytes`) and inherits
 the rest with code-point behaviour.
 
-`Str` names the ACTIVE protocol -- code points by default (`Str = StrUTF8`), so
+`Str` names the ACTIVE protocol -- code points by default (`Str = StrUtf8`), so
 the bare string call `(s i)`, the `str-*` library, and `str->list` are all
-code-point out of the box. `Str` is the ambient alias for `StrUTF8`; method `index` is a
+code-point out of the box. `Str` is the ambient alias for `StrUtf8`; method `index` is a
 kept alias for `ref`. The classes are preloaded, so no import is needed.
 
 ## protocols
@@ -49,10 +49,10 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ---
     Error: #<err:index Str8 ref: index out of range>
 
-### StrUTF8 ref takes a negative index from the end (code points)
+### StrUtf8 ref takes a negative index from the end (code points)
 
 ```scheme
-(StrUTF8 ref -1 "$¢€")
+(StrUtf8 ref -1 "$¢€")
 ```
 ---
     #\€
@@ -65,10 +65,10 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ---
     Error: Str8 ref: index not convertible to INT
 
-### StrUTF8 ref errors past the last code point
+### StrUtf8 ref errors past the last code point
 
 ```scheme
-(StrUTF8 ref 3 "$¢€")
+(StrUtf8 ref 3 "$¢€")
 ```
 ---
     Error: #<err:index Str ref: index out of range>
@@ -89,10 +89,10 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ---
     "ell"
 
-### StrUTF8 slice inherits through (self sub) and cuts code points
+### StrUtf8 slice inherits through (self sub) and cuts code points
 
 ```scheme
-(StrUTF8 slice 1 3 "$¢€!")
+(StrUtf8 slice 1 3 "$¢€!")
 ```
 ---
     "¢€"
@@ -105,10 +105,10 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ---
     "loab"
 
-### StrUTF8 ref is always a code point
+### StrUtf8 ref is always a code point
 
 ```x
-(Char ->int (StrUTF8 ref 1 "$¢€"))
+(Char ->int (StrUtf8 ref 1 "$¢€"))
 ```
 ---
     162
@@ -121,10 +121,10 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ---
     162
 
-### Str8 length counts bytes; StrUTF8 length counts code points
+### Str8 length counts bytes; StrUtf8 length counts code points
 
 ```x
-(list (Str8 length "$¢€") (StrUTF8 length "$¢€"))
+(list (Str8 length "$¢€") (StrUtf8 length "$¢€"))
 ```
 ---
     (6 3)
@@ -251,12 +251,12 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ---
     "cba"
 
-## StrUTF8 (code-point view)
+## StrUtf8 (code-point view)
 
 ### length counts code points, not bytes
 
 ```x
-(StrUTF8 length "$¢€")
+(StrUtf8 length "$¢€")
 ```
 ---
     3
@@ -264,7 +264,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ### ref returns the i-th code point
 
 ```x
-(Char ->int (StrUTF8 ref 1 "$¢€"))
+(Char ->int (StrUtf8 ref 1 "$¢€"))
 ```
 ---
     162
@@ -272,7 +272,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ### reverse reorders whole code points
 
 ```x
-(StrUTF8 reverse "a¢€")
+(StrUtf8 reverse "a¢€")
 ```
 ---
     "€¢a"
@@ -280,7 +280,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ### make repeats a multi-byte character
 
 ```x
-(StrUTF8 length (StrUTF8 make 2 #\€))
+(StrUtf8 length (StrUtf8 make 2 #\€))
 ```
 ---
     2
@@ -291,7 +291,7 @@ Value, not length: a count of 3 is true even if the multi-byte code points
 were sliced at the wrong boundaries.
 
 ```x
-(StrUTF8 split "" "a¢€")
+(StrUtf8 split "" "a¢€")
 ```
 ---
     ("a" "¢" "€")
@@ -299,7 +299,7 @@ were sliced at the wrong boundaries.
 ### append then count code points
 
 ```x
-(StrUTF8 length (StrUTF8 append "a" "¢" "€"))
+(StrUtf8 length (StrUtf8 append "a" "¢" "€"))
 ```
 ---
     3
@@ -307,7 +307,7 @@ were sliced at the wrong boundaries.
 ### includes? works on multi-byte content
 
 ```x
-(StrUTF8 includes? "¢" "a¢€")
+(StrUtf8 includes? "¢" "a¢€")
 ```
 ---
     #t
@@ -315,7 +315,7 @@ were sliced at the wrong boundaries.
 ### the same method differs by class: length
 
 ```x
-(list (Str8 length "€") (StrUTF8 length "€"))
+(list (Str8 length "€") (StrUtf8 length "€"))
 ```
 ---
     (3 1)
@@ -341,7 +341,7 @@ were sliced at the wrong boundaries.
 ### str->list decodes code points (active protocol)
 
 ```x
-(List map (method-ref Char ->int) (StrUTF8 ->list "$¢€"))
+(List map (method-ref Char ->int) (StrUtf8 ->list "$¢€"))
 ```
 ---
     (36 162 8364)
@@ -450,11 +450,11 @@ were sliced at the wrong boundaries.
 ---
     (3 2 #t)
 
-### StrUTF8 positions are code points
+### StrUtf8 positions are code points
 
 ```scheme
 (import x/type/str-utf8)
-(StrUTF8 index-of "€" "$¢€!")
+(StrUtf8 index-of "€" "$¢€!")
 ```
 ---
     2
@@ -533,11 +533,11 @@ evaluates -- the tower parse-before-eval trap, begin-flavored.
 ---
     ('value 'value 'value)
 
-### StrUTF8 widths pad by code points
+### StrUtf8 widths pad by code points
 
 ```scheme
 (import x/type/str-utf8)
-(StrUTF8 format "[{:>4}]" "é")
+(StrUtf8 format "[{:>4}]" "é")
 ```
 ---
     "[   é]"
@@ -552,7 +552,7 @@ evaluates -- the tower parse-before-eval trap, begin-flavored.
 
 ### length rejects a non-string
 
-`Str` is StrUTF8, whose `length` counts code points through the cursor walk,
+`Str` is StrUtf8, whose `length` counts code points through the cursor walk,
 so the guard fires at `start` rather than in Str8's byte-length seat.
 
 ```scheme

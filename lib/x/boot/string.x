@@ -20,7 +20,7 @@
 ; call -- so they stay byte-level even when a code-point handler is pushed on
 ; the string call, and every caller built on them (str=?, str->number, readers)
 ; stays byte-safe automatically. Use the bare (s i) call for the ambient
-; protocol, or the Str8 / StrUTF8 classes for an explicit one.
+; protocol, or the Str8 / StrUtf8 classes for an explicit one.
 (def %str-ref %str-byte-ref)
 (def %str-length %str-byte-len)
 (def %substring (fn (_ s start end) (%str-byte-sub s start (- end start))))

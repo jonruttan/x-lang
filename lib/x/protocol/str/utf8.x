@@ -1,4 +1,4 @@
-; str/utf8.x -- StrUTF8: the UTF-8 code-point string class
+; str/utf8.x -- StrUtf8: the UTF-8 code-point string class
 (import x/protocol/str/str8)
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-byte-sub (prim-ref (lit str) (lit byte-sub)))
@@ -10,7 +10,7 @@
 (def %integer->char (prim-ref (lit int) (lit ->char)))
 
 
-; StrUTF8 reinterprets the SAME bytes as Str8, but one whole UTF-8 sequence per
+; StrUtf8 reinterprets the SAME bytes as Str8, but one whole UTF-8 sequence per
 ; element, yielding the decoded code point as a CHARACTER. It inherits the full
 ; string suite from Str8 (append, join, includes?, split, trim, =?, <?, ...) --
 ; written once through self primitives -- and overrides ONLY the primitives that
@@ -34,18 +34,18 @@
         (self s (- k 1) (rest (%utf8-decode s from)))
         from))))
 
-(def-class StrUTF8 (extends Str8)
+(def-class StrUtf8 (extends Str8)
   (static
     (method length (self (param v STRING "String to measure"))
       (doc "Number of UTF-8 CODE POINTS in v (not bytes), via a cursor walk."
         (returns INT "Code-point count of v")
-        (example "(StrUTF8 length \"$¢€\")" "3"))
+        (example "(StrUtf8 length \"$¢€\")" "3"))
       (self count v))   ; code points, via Seq's cursor walk
 
     (method ref (self (param i INT "Code-point position (0-based; negative counts from the end)") (param v STRING "String to index"))
       (doc "The i-th CODE POINT of v as a CHARACTER, found by an O(n) UTF-8 walk; negative i counts from the end. Errors when i is nil or out of range."
         (returns CHAR "Code point at position i")
-        (example "(StrUTF8 ref 1 \"$¢€\")" "#\\¢"))
+        (example "(StrUtf8 ref 1 \"$¢€\")" "#\\¢"))
       ; The walker clamps at the byte length, so landing there means i is past
       ; the last code point -- error instead of decoding past the end. The nil
       ; guard makes a piped index-search miss fail loudly; only the negative
@@ -62,10 +62,10 @@
     (method sub (self (param start INT "Start code-point offset (0-based)") (param len INT "Number of code points") (param v STRING "Source string"))
       (doc "Substring of len CODE POINTS starting at code-point offset start (O(n) walk)."
         (returns STRING "The len-code-point slice of v from start")
-        (example "(StrUTF8 sub 1 1 \"$¢€\")" "\"¢\""))
+        (example "(StrUtf8 sub 1 1 \"$¢€\")" "\"¢\""))
       (def st2 (%str8->int start "Str sub: start not convertible to INT"))
       (def len2 (%str8->int len "Str sub: length not convertible to INT"))
-      ; StrUTF8 overrides sub, so Str8's guard does not cover this path
+      ; StrUtf8 overrides sub, so Str8's guard does not cover this path
       ; (%u8-byte-offset walks the raw bytes just the same). See #51.
       (%str8-check v "Str sub: not a string")
       (def b0 (%u8-byte-offset v st2 0))
@@ -75,7 +75,7 @@
     (method step (self (param cur INT "Current byte offset of the cursor") (param v STRING "String being traversed"))
       (doc "Cursor step: decode one UTF-8 sequence at byte offset cur, yielding (CODE-POINT . next-byte-offset)."
         (returns PAIR "Pair of the decoded code point (CHARACTER) and the next byte offset")
-        (example "(StrUTF8 step 1 \"$¢\")" "(#\\¢ . 3)"))
+        (example "(StrUtf8 step 1 \"$¢\")" "(#\\¢ . 3)"))
       (let ((d (%utf8-decode v cur)))
         (pair (%integer->char (first d)) (rest d))))
 
@@ -106,7 +106,7 @@
     (method char->bytes (self (param el CHAR "Code point to encode"))
       (doc "Encode one CODE POINT to its 1-4 UTF-8 bytes (inverse of step)."
         (returns LIST "List of the UTF-8 byte values (integers) for el")
-        (example "(StrUTF8 char->bytes (Char from-int 162))" "(194 162)"))
+        (example "(StrUtf8 char->bytes (Char from-int 162))" "(194 162)"))
       (%utf8-encode (%char->integer el)))
 
     ; --- The byte <-> code-point codec (x/codec/utf8 surfaces here) ---
@@ -121,7 +121,7 @@
     (method encode (self (param cp INT "Code point to encode"))
       (doc "Encode a code point as a list of its 1-4 UTF-8 byte values. Out-of-range emits U+FFFD."
         (returns LIST "UTF-8 byte values (integers)")
-        (example "(StrUTF8 encode 162)" "(194 162)"))
+        (example "(StrUtf8 encode 162)" "(194 162)"))
       (%utf8-encode cp))
     (method width (self (param s STRING "Byte string") (param i INT "Byte index of a sequence start"))
       (doc "Byte width of the UTF-8 sequence at byte index i. Allocation-free."
@@ -134,15 +134,15 @@
 
 ; Str = the AMBIENT string protocol. The default is UTF-8 (code points): the
 ; bare string call (s i), the str-* API, and str->list all work in code points
-; out of the box. Str8 and StrUTF8 always name their fixed protocols; rebind
+; out of the box. Str8 and StrUtf8 always name their fixed protocols; rebind
 ; Str (e.g. (def Str Str8)) to change the active protocol for the whole str-*
 ; library at once.
-(def Str StrUTF8)
+(def Str StrUtf8)
 
 ; Value dispatch over the existing code-point call handler: ("hi" index 0) and
 ; ("hi" upcase) dispatch to Str methods; ("hi" 0) still does code-point access.
 (%bind-call-over! (Type of "x") Str)
 
-(doc (provide x/protocol/str/utf8 StrUTF8 Str)
-  (note "The UTF-8 code-point view (a Str8 subclass). Str is the blessed ambient alias -- it names the ACTIVE protocol (rebindable); Str8 and StrUTF8 are the canonical fixed names (A11: the Utf8 alias was retired). (help StrUTF8) lists every method.")
-  "StrUTF8: the UTF-8 code-point string protocol, overriding Str8's element access for code points.")
+(doc (provide x/protocol/str/utf8 StrUtf8 Str)
+  (note "The UTF-8 code-point view (a Str8 subclass). Str is the blessed ambient alias -- it names the ACTIVE protocol (rebindable); Str8 and StrUtf8 are the canonical fixed names (A11: the Utf8 alias was retired). (help StrUtf8) lists every method.")
+  "StrUtf8: the UTF-8 code-point string protocol, overriding Str8's element access for code points.")

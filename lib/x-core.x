@@ -85,7 +85,7 @@
   (pair (lit x/type/base)
   (pair (lit x/type/list)
   (pair (lit x/type/gen)
-  (pair (lit x/reader/token)
+  (pair (lit x/reader/analyser)
   (pair (lit x/core/quasi)
   (pair (lit x/reader/quasi-reader)
   (pair (lit x/reader/lit-reader)
@@ -124,7 +124,7 @@
 
 ; Type extensions
 (include "lib/x/core/alist.x")
-; import (not include): registers the NAME so str-utf8.x's and the StrUTF8
+; import (not include): registers the NAME so str-utf8.x's and the StrUtf8
 ; protocol class's (import x/codec/utf8) become no-ops instead of reloading it.
 (import x/codec/utf8)
 ; Low-level UTF-8 code-point layer for the STRING type: the list<->str
@@ -183,7 +183,7 @@
 ; Char: classification / case / comparison (the Char class). Needs def-class; the
 ; pre-object string layer uses char->integer, not these, so it relocated here.
 (include "lib/x/type/char.x")
-; String library: the protocol classes (Str8/StrUTF8) + the Str entry point.
+; String library: the protocol classes (Str8/StrUtf8) + the Str entry point.
 ; Loaded AFTER the object system they are built on. (The low-level code-point
 ; layer in type/str-utf8.x already loaded earlier, before objects, for boot
 ; code that needs the list<->string conversions.)
@@ -201,7 +201,7 @@
 (include "lib/x/type/list.x")
 ; Gen: lazy generators (unfold-based). Needs object/list/vector, all above.
 (include "lib/x/type/gen.x")
-(include "lib/x/reader/token.x")
+(include "lib/x/reader/analyser.x")
 
 ; Quasi-quoting
 (include "lib/x/core/quasi.x")

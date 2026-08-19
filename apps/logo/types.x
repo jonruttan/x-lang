@@ -7,10 +7,10 @@
 ; Fetch the type-system helpers from the catalog (registered by sys/type.x).
 (def %type-io (prim-ref 'type 'io))
 
-(import x/reader/token)
+(import x/reader/analyser)
 ; Fetch the tokenizer terminators from the catalog (ns `token`). Reader-context
 ; states call these per character, so cache the raw refs and call them directly
-; -- never (Token accept ...), whose dispatch would allocate mid-reader-callback.
+; -- never (Analyser accept ...), whose dispatch would allocate mid-reader-callback.
 (def %tok-accept (prim-ref 'token 'accept))
 (def %tok-accept-inclusive (prim-ref 'token 'accept-inclusive))
 (import x/type/str)
@@ -138,14 +138,14 @@
     (Base make-type base "LOGO-CLOSE"
       (list
         (pair 'analyse
-          (Token make-char-state (%char->integer #\]) %tok-accept ()))
+          (Analyser make-char-state (%char->integer #\]) %tok-accept ()))
         (pair 'read (fn (_ . args) %logo-block-close))))
 
     ; LOGO-OPEN
     (Base make-type base "LOGO-OPEN"
       (list
         (pair 'analyse
-          (Token make-char-state (%char->integer #\[) %tok-accept ()))
+          (Analyser make-char-state (%char->integer #\[) %tok-accept ()))
         (pair 'read
           (fn (_ . args)
             (def buf (first args))
@@ -199,7 +199,7 @@
     (Base make-type base "LOGO-NEWLINE"
       (list
         (pair 'analyse
-          (Token make-char-state 10 %tok-accept ()))))
+          (Analyser make-char-state 10 %tok-accept ()))))
 
     ; LOGO-INDENT: \n + spaces/tabs + word
     (def %indent-after-nl
@@ -260,13 +260,13 @@
     (Base make-type base "LOGO-PAREN-OPEN"
       (list
         (pair 'analyse
-          (Token make-char-state 40 %tok-accept ()))
+          (Analyser make-char-state 40 %tok-accept ()))
         (pair 'read (fn (_ . args) (pair %logo-paren-tag "(")))))
 
     (Base make-type base "LOGO-PAREN-CLOSE"
       (list
         (pair 'analyse
-          (Token make-char-state 41 %tok-accept ()))
+          (Analyser make-char-state 41 %tok-accept ()))
         (pair 'read (fn (_ . args) (pair %logo-paren-tag ")")))))
 
     ; LOGO-STRING: "..."

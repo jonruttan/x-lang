@@ -6,7 +6,7 @@
 ; str values are C strings (bytes past NUL unobservable -- the x-lib ruling),
 ; so a payload that may contain a 0 byte belongs on the -bytes doors; the
 ; byte list is the library's established binary carrier ((Sys fd-read),
-; (StrUTF8 encode)).
+; (StrUtf8 encode)).
 ;
 ; Decode is strict per #61 (no silent repair): a character outside the
 ; alphabet raises a kind-'value Err, as do misplaced padding and a short
