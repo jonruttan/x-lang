@@ -12,9 +12,10 @@
 ;
 ; body is the DECODED value when the response says json and carries
 ; content; the raw byte list otherwise (an empty body is ()). Statuses
-; stay data -- a 404 comes back as 404, never a raise (the redirect
-; stance): (Rest ok? resp) answers the 2xx question. Everything Http
-; rules holds here: https via Tls, names via resolve, no redirects.
+; stay data -- a 404 comes back as 404, never a raise (Rest ok? resp)
+; answers the 2xx question. Everything Http rules holds here: https via
+; Tls, names via resolve, redirects auto-followed (Http's cap-10 loop
+; with the RFC method rules).
 ;
 ; Zero top-level %-globals (new-file budget 0).
 
@@ -114,5 +115,5 @@
         (if (>= st 200) (< st 300) #f)))))
 
 (doc (provide x/net/rest Rest)
-  (note "The JSON layer over Http: values out (Json emit + the json headers), values back (Json parse by content-type). Statuses stay data -- ok? answers 2xx; 3xx/4xx/5xx come back for the caller's policy, as with Http's redirects.")
+  (note "The JSON layer over Http: values out (Json emit + the json headers), values back (Json parse by content-type). Statuses stay data -- ok? answers 2xx; redirects auto-follow at the Http tier, so a 3xx here means the chain ENDED on one (no location, or following disabled).")
   "JSON-speaking REST verbs, homed on the Rest class.")
