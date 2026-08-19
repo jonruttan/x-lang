@@ -800,11 +800,11 @@ Returns the string `s` repeated `n` times.
 (Str repeat "ab" 3) -> "ababab"
 ```
 
-### `Str contains?`
-`(Str contains? sub s) -> boolean`
+### `Str includes?`
+`(Str includes? sub s) -> boolean`
 Returns `#t` if `sub` is found anywhere within `s`.
 ```
-(Str contains? "ell" "hello") -> #t
+(Str includes? "ell" "hello") -> #t
 ```
 
 ### `Str starts?`

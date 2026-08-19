@@ -12,7 +12,7 @@
 
 ; StrUTF8 reinterprets the SAME bytes as Str8, but one whole UTF-8 sequence per
 ; element, yielding the decoded code point as a CHARACTER. It inherits the full
-; string suite from Str8 (append, join, contains?, split, trim, =?, <?, ...) --
+; string suite from Str8 (append, join, includes?, split, trim, =?, <?, ...) --
 ; written once through self primitives -- and overrides ONLY the primitives that
 ; change with the encoding:
 ;   length      : code-point count (cursor walk), not Str8's O(1) byte length

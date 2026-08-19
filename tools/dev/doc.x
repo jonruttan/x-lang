@@ -51,8 +51,8 @@
         (let ((%source-input (File read-all %file)))
           (let ((%doc-base (Base make)))
             (Xon arm-source! %doc-base)
-            (let ((%prims-tokens (Xon read %prims-input %doc-base)))
-              (let ((%source-tokens (Xon read %source-input %doc-base)))
+            (let ((%prims-tokens (Xon parse %prims-input %doc-base)))
+              (let ((%source-tokens (Xon parse %source-input %doc-base)))
                 ; --- Lookup alist from doc-prims tokens, then the walk ---
                 (%doc-walk-with-prims %source-tokens
                                       (%doc-build-lookup %prims-tokens)))))))))

@@ -98,9 +98,9 @@
   ; --- Tokenize input ---
 
   (def %input (%read))
-  ; Xon read carries the end-of-buffer termination fix this call
+  ; Xon parse carries the end-of-buffer termination fix this call
   ; previously lacked (#230).
-  (def %tokens (Xon read %input))
+  (def %tokens (Xon parse %input))
 
   ; --- Evaluate all top-level forms ---
 

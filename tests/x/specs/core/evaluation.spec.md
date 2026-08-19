@@ -193,7 +193,7 @@ dotted pair with no float module -- killed the process.
 ### the error names the fault
 
 ```scheme
-(guard (e (Str8 contains? "improper argument list" (Str8 str "" e))) (list 1 . 5))
+(guard (e (Str8 includes? "improper argument list" (Str8 str "" e))) (list 1 . 5))
 ```
 ---
     #t

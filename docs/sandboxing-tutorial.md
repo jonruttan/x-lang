@@ -265,7 +265,7 @@ The instance is the right thing to hold almost always. The raw object —
 seams:
 
 - **C plumbing.** `(prim-ref 'tok 'read-str)` and friends consume raw
-  bases. The library's own doors (`Tok read-str`, `Xon read`) unwrap
+  bases. The library's own doors (`Tok read-str`, `Xon parse`) unwrap
   either form, so this only matters when you fetch prims directly.
 - **Raw spine walks.** Code that navigates a base with `first`/`rest`
   (as `%find-tree` above navigates type trees) needs the raw object;

@@ -11,7 +11,7 @@ values **without issuing any real syscall**; the assertions branch on
 ### os-darwin? reflects the build machine (x-machine)
 
 ```scheme
-(eq? os-darwin? (Str8 contains? "darwin" x-machine))
+(eq? os-darwin? (Str8 includes? "darwin" x-machine))
 ```
 ---
     #t

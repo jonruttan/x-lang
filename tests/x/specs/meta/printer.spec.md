@@ -257,7 +257,7 @@ nosuchsym
 (do
   (def a (%str-append "" (guard (e e) nosuchsym)))
   (def b (%str-append "" (guard (e e) (list 1 . 5))))
-  (list (str=? a b) (Str8 contains? "improper" b)))
+  (list (str=? a b) (Str8 includes? "improper" b)))
 ```
 ---
     (#f #t)

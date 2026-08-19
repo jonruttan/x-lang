@@ -41,18 +41,18 @@
   (def %lang-of
     (fn (_ path)
       (match
-        ((Str8 contains? "/lang/r5rs/" path) "r5rs")
-        ((Str8 contains? "/lang/r7rs/" path) "r7rs")
-        ((Str8 contains? "/lang/krn/" path) "krn")
-        ((Str8 contains? "/lang/ash/" path) "ash")
-        ((Str8 contains? "/lang/sweet/" path) "sweet")
-        ((Str8 contains? "/lang/sl/" path) "sl")
+        ((Str8 includes? "/lang/r5rs/" path) "r5rs")
+        ((Str8 includes? "/lang/r7rs/" path) "r7rs")
+        ((Str8 includes? "/lang/krn/" path) "krn")
+        ((Str8 includes? "/lang/ash/" path) "ash")
+        ((Str8 includes? "/lang/sweet/" path) "sweet")
+        ((Str8 includes? "/lang/sl/" path) "sl")
         (#t ()))))
   (def %the-lang (if (null? %lang) (%lang-of %file) %lang))
 
   ; --- Load construct declarations (parsed, not evaluated) ---
   (def %parse-one
-    (fn (_ path) (first (Xon read (File read-all path)))))
+    (fn (_ path) (first (Xon parse (File read-all path)))))
   (def %constructs (%parse-one "lib/x/constructs.x"))
   (def %lang-constructs
     (if (null? %the-lang) ()
@@ -110,7 +110,7 @@
   ; --- Slurp the target and tokenize ---
 
   (def %input (File read-all %file))
-  (def %tokens (Xon read %input %fmt-base))
+  (def %tokens (Xon parse %input %fmt-base))
 
   ; --- Format ---
 

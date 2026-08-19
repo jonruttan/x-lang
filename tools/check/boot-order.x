@@ -70,13 +70,13 @@
 
 ; Cached across phases: phase 1 tokenizes every lib file for the
 ; inventory, phase 2 re-walks the boot closure.  The end-of-buffer
-; termination workaround lives in the shared door (Xon read, #230).
+; termination workaround lives in the shared door (Xon parse, #230).
 (def %read-forms
   (fn (_ path)
     (let ((hit (%assoc-str path (first %forms-cache-cell))))
       (match
         ((null? hit)
-          (let ((forms (Xon read (File read-all path))))
+          (let ((forms (Xon parse (File read-all path))))
             (do (%cell-push! %forms-cache-cell (pair path forms))
                 forms)))
         (#t (rest hit))))))

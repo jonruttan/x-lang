@@ -18,7 +18,7 @@
 ; "x86_64-linux-gnu". macOS uses BSD syscall numbers AND different O_* flag
 ; values, so the file layer keys off this too.
 ;
-; Boot-level byte search, NOT (Str8 contains?): this platform layer loads
+; Boot-level byte search, NOT (Str8 includes?): this platform layer loads
 ; mid-x-core (sys/posix.x imports it, before the str8 protocol exists), so it
 ; may use only the boot string accessors. With a not-yet-callable Str8, the
 ; old form silently captured the UNEVALUATED list -- truthy, so it looked

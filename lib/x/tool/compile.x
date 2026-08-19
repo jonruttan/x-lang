@@ -92,12 +92,12 @@
       (first %compile-pid-cell))))
 
 (def %compile-cc-flags
-  (if (Str contains? "darwin" x-machine)
+  (if (Str includes? "darwin" x-machine)
     (list "-bundle" "-undefined" "dynamic_lookup")
     (list "-shared" "-fPIC")))
 
 (def %compile-ext
-  (if (Str contains? "darwin" x-machine) ".bundle" ".so"))
+  (if (Str includes? "darwin" x-machine) ".bundle" ".so"))
 
 ; --- Multi-arg string concatenation ---
 

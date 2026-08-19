@@ -20,11 +20,11 @@
 
 
 ; --- Platform detection ---
-(def %asm-darwin? (Str contains? "darwin" x-machine))
+(def %asm-darwin? (Str includes? "darwin" x-machine))
 ; Darwin spells the A64 arch "arm64", GNU triplets spell it "aarch64".
 (def %asm-arm64?
-  (if (Str contains? "arm64" x-machine) #t
-    (Str contains? "aarch64" x-machine)))
+  (if (Str includes? "arm64" x-machine) #t
+    (Str includes? "aarch64" x-machine)))
 
 
 ; --- mmap flags ---

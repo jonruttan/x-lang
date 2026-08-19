@@ -113,6 +113,15 @@ make clean && make
   the alist layer (`Assoc get`, `assoc-get`) compares keys with `eq?`;
   `Assoc find` (`equal?`) and `Assoc entry` (`eq?`) return the assoc itself and
   are the presence-unambiguous entry doors.
+- **Bang marks mutation, bare verbs mark persistence** (#358): `Dict set!`/`del!`
+  mutate in place; `Assoc put`/`del` return new alists. Same data shape, opposite
+  update models -- the suffix tells you which you are holding.
+- **One membership verb per kind** (#358): keyed containers answer `has?`
+  (Dict, Set, Assoc, Pact); positional searches answer `includes?` (List
+  element, Str8/StrUTF8 substring). `contains?` is retired.
+- **Codecs parse** (#358): text-to-values in codec/ is `parse` (Json, Xon);
+  `read` stays the port-consumption verb (Io read, File read). Byte<->text
+  transcoders pair `encode`/`decode` (Base64, Hex).
 - **Constructor-style counts come first**: `(List repeat n x)`, `(Str8 repeat n s)`,
   `(Str8 make k ch)`, `(Vector make n fill)`.
 - **Trailing optionals are positional**: `(Dict make 32)`, `(Array make 32)`,

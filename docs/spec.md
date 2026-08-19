@@ -2394,13 +2394,13 @@ Applies transformation functions to matching keys.
 (Str repeat 0 "x") -> ""
 ```
 
-### `Str contains?`
+### `Str includes?`
 
-`(Str contains? sub s) -> #t | #f`
+`(Str includes? sub s) -> #t | #f`
 
 ```
-(Str contains? "ell" "hello") -> #t
-(Str contains? "xyz" "hello") -> #f
+(Str includes? "ell" "hello") -> #t
+(Str includes? "xyz" "hello") -> #f
 ```
 
 ### `Str starts?`
