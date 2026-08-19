@@ -168,6 +168,46 @@
           (%sk-ptr-call %c-free buf)
           s)))
 
+    (method resolve (self (param name STRING "Hostname to resolve"))
+      (doc "The host's first IPv4 address as a dotted quad, via getaddrinfo (#412) -- the DNS door; every other Socket method still takes quads. Raises kind-'io with the gai code when resolution fails, kind-'value when the name has no IPv4 address."
+        (returns STRING "A dotted quad, e.g. \"140.82.114.3\"")
+        (sample "(Socket resolve \"localhost\")" "\"127.0.0.1\""))
+      (def %pref-word (prim-ref (lit ptr) (lit ref-word)))
+      (def %pref (prim-ref (lit ptr) (lit ref)))
+      (def %make-str (prim-ref (lit str) (lit make)))
+      (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
+      ; struct addrinfo, 64-bit: ai_family i32@4 and ai_next*@40 agree
+      ; across the OSes; Darwin and glibc SWAP the middle pointers --
+      ; ai_addr rides @32 on Darwin (canonname @24) and @24 on Linux.
+      (def addr-off (if os-darwin? 32 24))
+      (def rescell-region (%make-str 8))
+      (def rescell (%str->ptr rescell-region))
+      (def r (%sk-fold (%sk-ptr-call (%sk "getaddrinfo") name 0 0 rescell)))
+      (when (not (= r 0))
+        (Err raise (lit io) (Str8 append "Socket resolve: getaddrinfo failed for " name) r))
+      (def head (%pref-word rescell 0))
+      (def quad
+        (let walk ((node head))
+          (match
+            ((= node 0) ())
+            (#t
+              (let ((np (%sk-int->ptr node)))
+                (match
+                  ((= (& (%pref np 4 4) 65535) 2)          ; AF_INET
+                    (let ((sa (%pref-word np addr-off)))
+                      (if (= sa 0) (walk (%pref-word np 40))
+                        (let ((sp (%sk-int->ptr sa)))
+                          (Str8 append
+                            (%number->str (& (%pref sp 4 1) 255)) "."
+                            (%number->str (& (%pref sp 5 1) 255)) "."
+                            (%number->str (& (%pref sp 6 1) 255)) "."
+                            (%number->str (& (%pref sp 7 1) 255)))))))
+                  (#t (walk (%pref-word np 40)))))))))
+      (%sk-ptr-call (%sk "freeaddrinfo") (%sk-int->ptr head))
+      (when (null? quad)
+        (Err raise (lit value) (Str8 append "Socket resolve: no IPv4 address for " name) ()))
+      quad)
+
     (method recv-bytes (self (param fd INT "Connected file descriptor")
                             (param maxlen INT "Maximum bytes to receive"))
       (doc "Receive up to maxlen bytes as a BYTE LIST -- the lossless door (recv's string return truncates at the first NUL; this one carries binary intact, #374); nil at orderly EOF; raises on failure."

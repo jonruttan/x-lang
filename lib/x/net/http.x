@@ -7,10 +7,11 @@
 ; Connection: close on every request; no keep-alive, no redirects
 ; (the status comes back -- following 3xx is the caller's policy).
 ;
-; PLAIN http only, by the ruling: an https:// url raises kind-'value --
-; TLS stays with the charter-recorded curl door (Proc + curl, the Pin
-; fetch pattern). No DNS either (the Socket contract): hosts are dotted
-; quads; a name in a url raises the same way a bad quad does.
+; https rides the Tls class (#412's amendment to the #374 ruling:
+; libssl binds over the dlopen FFI -- the variadic blocker was libcurl's;
+; verification + SNI + hostname checks on by default). Hostnames resolve
+; through (Socket resolve) at request time; the Host header carries the
+; NAME (virtual hosting), the connect takes the quad.
 ;
 ; net/ is the network-PROTOCOL tier: message shapes over sys/socket's
 ; transport, the way codec/ is data shapes over strings and bytes.
@@ -26,6 +27,7 @@
 (import x/core/list)
 (import x/type/assoc)
 (import x/sys/socket)
+(import x/net/tls)
 
 (def-class Http ()
   (doc "A plain-http/1.1 client over Socket: (Http get url), (Http post url body), (Http request method url headers body) -> ((status . INT) (headers . ALIST) (body . BYTE-LIST)). Header names come back lowercased; https and DNS are out by design (the curl door covers TLS)."
@@ -34,27 +36,27 @@
   (static
     ; --- url -> ((host . H) (port . P) (path . S)); strict per #61 ---
     (method %parse-url (self (param url STRING "http://HOST[:PORT][/PATH...]"))
-      (doc "Split a plain-http url. https raises kind-'value (TLS is the curl door); a missing scheme raises; the path defaults to \"/\"."
-        (returns ALIST "((host . H) (port . P) (path . S))"))
-      (when (Str8 starts? "https://" url)
-        (Err raise (lit value) "Http: https is the curl door (TLS; #374 ruling)" url))
-      (unless (Str8 starts? "http://" url)
-        (Err raise (lit value) "Http: not an http:// url" url))
-      (def rest-part (Str8 sub 7 (Str8 length url) url))
+      (doc "Split an http or https url; the path defaults to \"/\", the port to the scheme's (80/443); a missing scheme raises kind-'value."
+        (returns ALIST "((host . H) (port . P) (path . S) (tls . BOOL))"))
+      (def tls? (Str8 starts? "https://" url))
+      (unless (if tls? #t (Str8 starts? "http://" url))
+        (Err raise (lit value) "Http: not an http(s):// url" url))
+      (def rest-part (Str8 sub (if tls? 8 7) (Str8 length url) url))
       (def slash (Str8 index-of "/" rest-part))
       (def hostport (if (null? slash) rest-part (Str8 sub 0 slash rest-part)))
       (def path (if (null? slash) "/"
                   (Str8 sub slash (Str8 length rest-part) rest-part)))
       (def colon (Str8 index-of ":" hostport))
       (def host (if (null? colon) hostport (Str8 sub 0 colon hostport)))
-      (def port (if (null? colon) 80
+      (def port (if (null? colon) (if tls? 443 80)
                   (let ((p (%str->number (Str8 sub (+ colon 1) (Str8 length hostport) hostport))))
                     (if (null? p)
                       (Err raise (lit value) "Http: bad port" url)
                       p))))
       (when (str=? host "")
         (Err raise (lit value) "Http: empty host" url))
-      (list (pair (lit host) host) (pair (lit port) port) (pair (lit path) path)))
+      (list (pair (lit host) host) (pair (lit port) port) (pair (lit path) path)
+            (pair (lit tls) tls?)))
 
     ; --- request text (string; the send side is textual by nature) ---
     (method %build-request (self (param method STRING "Verb, e.g. \"GET\"")
@@ -124,8 +126,9 @@
                     ((null? l) (%bad "truncated chunk"))
                     (#t (take (rest l) (- k 1) (pair (first l) chunk)))))))))))
 
-    (method %parse-response (self (param bytes LIST "The raw response bytes, complete"))
-      (doc "Parse a full http response: status from the status line, headers lowercased into an alist, the body unframed (chunked decoded; Content-Length applied; else everything to EOF)."
+    (method %parse-response (self (param bytes LIST "The raw response bytes, complete")
+                                  . (param no-body BOOL "Truthy for HEAD responses: headers may claim a Content-Length, but no body follows"))
+      (doc "Parse a full http response: status from the status line, headers lowercased into an alist, the body unframed (chunked decoded; Content-Length applied; else everything to EOF). HEAD callers pass the no-body flag -- framing headers describe the body a GET would have carried."
         (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))"))
       (def %bad (fn (_ what)
         (Err raise (lit value) (Str8 append "Http: bad response: " what) ())))
@@ -170,6 +173,7 @@
                       (Str8 trim (Str8 sub (+ colon 1) (Str8 length ln) ln))))))
           (List reject (fn (_ ln) (str=? ln "")) (rest lines))))
       (def body
+        (if (if (null? no-body) #f (first no-body)) ()
         (let ((te (Assoc find "transfer-encoding" headers)))
           (match
             ((if (pair? te) (Str8 includes? "chunked" (rest te)) #f)
@@ -180,10 +184,63 @@
                   ((null? cl) body-raw)
                   (#t
                     (let ((n (%str->number (rest cl))))
-                      (if (null? n) body-raw (List take n body-raw))))))))))
+                      (if (null? n) body-raw (List take n body-raw)))))))))))
       (list (pair (lit status) status)
             (pair (lit headers) headers)
             (pair (lit body) body)))
+
+    (method %quad? (self (param host STRING "Host text"))
+      (doc "Is this a dotted quad already (digits and dots only)? Names go through (Socket resolve)."
+        (returns BOOL "#t for quad-shaped text"))
+      (def %blen (prim-ref (lit str) (lit byte-len)))
+      (def %bref (prim-ref (lit str) (lit byte-ref)))
+      (def %c->i (prim-ref (lit char) (lit ->int)))
+      (def n (%blen host))
+      (let go ((i 0))
+        (match
+          ((= i n) (> n 0))
+          (#t
+            (let ((c (%c->i (%bref host i))))
+              (if (or (= c 46) (if (>= c 48) (<= c 57) #f))
+                (go (+ i 1))
+                #f))))))
+
+    (method url-encode (self (param s STRING "Text to percent-encode"))
+      (doc "Percent-encode for urls: unreserved bytes (A-Z a-z 0-9 - _ . ~) pass through, everything else becomes %XX uppercase (#412)."
+        (returns STRING "The encoded text")
+        (example "(Http url-encode \"a b&c=d\")" "\"a%20b%26c%3Dd\""))
+      (def %blen (prim-ref (lit str) (lit byte-len)))
+      (def %bref (prim-ref (lit str) (lit byte-ref)))
+      (def %c->i (prim-ref (lit char) (lit ->int)))
+      (def %hex (fn (_ v) (if (< v 10) (+ 48 v) (+ 55 v))))
+      (def %plain? (fn (_ c)
+        (or (if (>= c 65) (<= c 90) #f)
+            (or (if (>= c 97) (<= c 122) #f)
+                (or (if (>= c 48) (<= c 57) #f)
+                    (or (= c 45) (or (= c 95) (or (= c 46) (= c 126)))))))))
+      (def n (%blen s))
+      (bytes->str
+        (%reverse
+          (let go ((i 0) (acc ()))
+            (match
+              ((= i n) acc)
+              (#t
+                (let ((c (%c->i (%bref s i))))
+                  (go (+ i 1)
+                      (if (%plain? c) (pair c acc)
+                        (pair (%hex (& c 15)) (pair (%hex (>> c 4)) (pair 37 acc))))))))))))
+
+    (method with-query (self (param url STRING "Base url (may already carry a query)")
+                             (param params ALIST "(name . value) strings, both percent-encoded here"))
+      (doc "Append percent-encoded query parameters: ? on a bare url, & on one already carrying a query (#412)."
+        (returns STRING "The url with the query appended")
+        (example "(Http with-query \"http://h/p\" (list (pair \"q\" \"a b\") (pair \"n\" \"2\")))" "\"http://h/p?q=a%20b&n=2\""))
+      (List fold
+        (fn (_ acc kv)
+          (Str8 append acc
+            (if (Str8 includes? "?" acc) "&" "?")
+            (Http url-encode (first kv)) "=" (Http url-encode (rest kv))))
+        url params))
 
     ; --- the wire ---
     (method request (self (param method STRING "Verb: \"GET\", \"POST\", ...")
@@ -194,16 +251,32 @@
         (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))")
         (sample "(bytes->str (rest (Assoc find 'body (Http get \"http://127.0.0.1:8080/\"))))" "the page text"))
       (def u (Http %parse-url url))
-      (def fd (Socket tcp-connect (rest (Assoc find (lit host) u))
-                                  (rest (Assoc find (lit port) u))))
-      (Socket send fd (Http %build-request method u headers body))
+      (def host (rest (Assoc find (lit host) u)))
+      (def quad (if (Http %quad? host) host (Socket resolve host)))
+      (def tls? (rest (Assoc find (lit tls) u)))
+      (def req (Http %build-request method u headers body))
       (def raw
-        (let drain ((acc ()))
-          (let ((chunk (Socket recv-bytes fd 65536)))
-            (if (null? chunk) (List flat-map (fn (_ c) c) (%reverse acc))
-              (drain (pair chunk acc))))))
-      (Socket close fd)
-      (Http %parse-response raw))
+        (if tls?
+          (let ((sess (Tls connect quad (rest (Assoc find (lit port) u))
+                          (list (pair (lit host) host)))))
+            (let ()
+              (Tls send sess req)
+              (let ((bytes (let drain ((acc ()))
+                             (let ((chunk (Tls recv-bytes sess 65536)))
+                               (if (null? chunk) (List flat-map (fn (_ c) c) (%reverse acc))
+                                 (drain (pair chunk acc)))))))
+                (Tls close sess)
+                bytes)))
+          (let ((fd (Socket tcp-connect quad (rest (Assoc find (lit port) u)))))
+            (let ()
+              (Socket send fd req)
+              (let ((bytes (let drain ((acc ()))
+                             (let ((chunk (Socket recv-bytes fd 65536)))
+                               (if (null? chunk) (List flat-map (fn (_ c) c) (%reverse acc))
+                                 (drain (pair chunk acc)))))))
+                (Socket close fd)
+                bytes)))))
+      (Http %parse-response raw (str=? method "HEAD")))
 
     (method get (self (param url STRING "http://HOST[:PORT][/PATH]")
                       . (param headers ALIST "Optional (name . value) header strings"))
@@ -218,8 +291,34 @@
       (doc "POST body to the url: (Http request \"POST\" url headers body). Set a content-type header when the peer cares."
         (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))")
         (sample "(Http post \"http://127.0.0.1:8080/in\" \"a=1\" (list (pair \"Content-Type\" \"application/x-www-form-urlencoded\")))" "the response alist"))
-      (Http request "POST" url (if (null? headers) () (first headers)) body))))
+      (Http request "POST" url (if (null? headers) () (first headers)) body))
+
+    (method put (self (param url STRING "Target url")
+                      (param body STRING "Request body")
+                      . (param headers ALIST "Optional (name . value) header strings"))
+      (doc "PUT body to the url."
+        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))"))
+      (Http request "PUT" url (if (null? headers) () (first headers)) body))
+
+    (method patch (self (param url STRING "Target url")
+                        (param body STRING "Request body")
+                        . (param headers ALIST "Optional (name . value) header strings"))
+      (doc "PATCH the url with body."
+        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))"))
+      (Http request "PATCH" url (if (null? headers) () (first headers)) body))
+
+    (method delete (self (param url STRING "Target url")
+                         . (param headers ALIST "Optional (name . value) header strings"))
+      (doc "DELETE the url."
+        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))"))
+      (Http request "DELETE" url (if (null? headers) () (first headers)) ()))
+
+    (method head (self (param url STRING "Target url")
+                       . (param headers ALIST "Optional (name . value) header strings"))
+      (doc "HEAD the url: the headers a GET would return, no body (framing headers describe the body that WOULD have come; the parser applies no body framing)."
+        (returns ALIST "((status . INT) (headers . ALIST) (body . ()))"))
+      (Http request "HEAD" url (if (null? headers) () (first headers)) ()))))
 
 (doc (provide x/net/http Http)
-  (note "Plain http/1.1 over Socket, Connection: close, chunked + Content-Length framing both decoded; bodies are byte lists (bytes->str for text). https = the curl door (Proc + curl, the Pin pattern); no DNS (dotted quads, the Socket contract); redirects are the caller's policy. net/ = protocol shapes over sys/socket transport.")
+  (note "http/1.1 over Socket -- and https over Tls (#412), verification on, names resolved via (Socket resolve) with the Host header keeping the name. Connection: close; chunked + Content-Length framing decoded; bodies are byte lists (bytes->str for text); redirects are the caller's policy. Verbs: get/post/put/patch/delete/head; url-encode/with-query build query strings. net/ = protocol shapes over sys/socket transport.")
   "A plain-http client, homed on the Http class.")
