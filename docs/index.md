@@ -4,6 +4,7 @@
 
 - [Tutorial](tutorial.md) — Build, run, and write your first x-lang programs
 - [Pinning, step by step](pinning-tutorial.md) — Set up a pinned project, retrofit an existing one, pin the platform
+- [Sandboxing and type reflection, step by step](sandboxing-tutorial.md) — Make an isolated interpreter, hand it capabilities, teach it types, inspect anything
 - [README](../README.md) — Project overview, build instructions, feature summary
 
 ## Language

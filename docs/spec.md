@@ -1284,18 +1284,66 @@ called with the instance (after the closure's implicit self slot).
   (list (pair 'write (fn (_ self) (display "[") (display (first self)) (display "]"))))))
 ```
 
+### Type reflection
+
+`(Type wrap t) -> instance`
+
+Clothes a type handle (from `Type of`) or a type struct (from `Type by-atom`)
+as an interactive Type instance carrying both forms: the `handle` member is
+the name atom, `raw` the struct the wiring statics consume.
+
+```
+((Type wrap (Type of 0)) name) -> "INTEGER"
+((Type wrap (Type by-atom (Type of 0))) name) -> "INTEGER"
+```
+
+`(t cell 'field-name)` walks the layout contract
+(`tools/contract/base-paths.x`) to the object the type-rooted row for
+`field-name` addresses — handler stacks, the conversion catalog cells, the
+generic-operator alist. `(t fields)` lists the row names. A name whose row is
+not type-rooted is refused: a base-rooted path stepped from a type struct
+would address arbitrary spine words.
+
+```
+(null? ((Type wrap (Type of 0)) cell 'type-ops-stack)) -> #f
+(null? (List filter (fn (_ n) (eq? n 'type-iter)) ((Type wrap (Type of 0)) fields))) -> #f
+(guard (e 'refused) ((Type wrap (Type of 0)) cell 'line)) -> 'refused
+```
+
+The push verbs wire handlers through the instance — `push-write`,
+`push-display`, `push-call`, `push-op` — shadowing the current handler, and
+`(Type pop-write (t raw))` restores the write stack. Restyling a shared
+built-in is a shadow-then-pop round trip (illustrative; the round trip is
+pinned by `tests/x/specs/lib/type.spec.md`):
+
+```
+(def t-int (Type wrap (Type of 0)))
+(t-int push-write (fn (_ n) (display (Str8 append "0x" (%number->str n 16)))))
+; the write/echo mode now renders integers as 0x2a ...
+(Type pop-write (t-int raw))
+; ... and is restored byte-for-byte
+```
+
 ---
 
 ## 12. Sandboxing
 
 ### `Base make`
 
-`(Base make) -> base`
+`(Base make) -> instance`
 
-Creates a fresh, sandboxed interpreter with all built-in types and primitives.
+Creates a fresh, sandboxed interpreter — all built-in types and C primitives,
+no library — wrapped as a Base instance. The raw C base object rides the
+instance's `raw` member; every `Base` static accepts either form, and
+`(Base raw-of v)` unwraps. A fresh child is the bare C ISA: no output verbs,
+no catalog protocol, no reader macros — reach in with parent closures or
+`bind`.
 
 ```
 (def b (Base make))
+(Base base? b) -> #t
+(Base base? (b raw)) -> #f
+(Base base? 5) -> #f
 ```
 
 ### `Base eval`
@@ -1327,6 +1375,55 @@ Binds `name` to `value` in the target `base`.
 (def b (Base make))
 (Base bind b 'x 42)
 (Base eval b 'x) -> 42
+```
+
+### Base instances
+
+The instance answers `eval`, `bind`, and `make-type` directly — the receiver
+is the base:
+
+```
+(def b (Base make))
+(b eval '(* 6 7)) -> 42
+```
+
+```
+(def b (Base make))
+(b bind 'x 5)
+(b eval 'x) -> 5
+```
+
+The statics keep working on raw bases from the catalog prims — plumbing
+that holds a raw base passes it straight through:
+
+```
+(def rb ((prim-ref 'base 'make)))
+(Base eval rb '(+ 40 2)) -> 42
+```
+
+### Base field reflection
+
+`(b cell 'field-name)` walks the layout contract
+(`tools/contract/base-paths.x`) to the object the base-rooted row for
+`field-name` addresses; `(Base fields)` lists the row names. A cell-kind
+field's value sits in the cell's first slot. A name whose row is not
+base-rooted is refused — a type-rooted path stepped from a base spine would
+address arbitrary interpreter state.
+
+```
+(def b (Base make))
+(null? (List filter (fn (_ n) (eq? n 'type-alist)) (b fields))) -> #f
+```
+
+```
+(def b (Base make))
+(b bind 'marker 77)
+(rest (first (first (b cell 'env-alist)))) -> 77
+```
+
+```
+(def b (Base make))
+(guard (e 'refused) (b cell 'type-iter)) -> 'refused
 ```
 
 ---

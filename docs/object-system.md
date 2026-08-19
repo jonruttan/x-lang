@@ -50,11 +50,20 @@ form headed by `method` is a method, anything else is a member.
 
 - **`NAME`** — the symbol the class is bound to.
 - **`PARENT-SPEC`** — `()` for no parent, or `(extends OtherClass)` for single
-  inheritance.
+  inheritance. These are the only two forms: anything else — a bare
+  `(OtherClass)` list, a bare symbol, `(extends)` with no class — is refused
+  loudly at class-definition time.
 - **member** — `name`, or `(name default)`, or `(name default "description")`. The
   optional middle value is the member's default (used when `new` doesn't supply
   one); the optional trailing string documents it and is shown by `(help Class)`.
-  Declare as many (or as few) as you like; a class can have none.
+  Declare as many (or as few) as you like; a class can have none. A
+  `(doc DECL "description" …)` body form **also declares** its member (see
+  [Documentation](#documentation)), so declare each member exactly once —
+  bare *or* doc-form, never both. A member name declared twice in one class
+  body is refused loudly: the duplicate used to poison positional
+  construction silently (the doubled slot absorbed two values and a later
+  member stayed nil). Subclass overrides are unaffected — the check never
+  walks the inheritance chain.
 - **`(method NAME (self . params) body...)`** — a method. The first parameter is
   always `self`, the receiving instance; any further parameters receive the
   evaluated message arguments.
@@ -289,8 +298,12 @@ Counter
 ```
 
 A method is documented with a leading `(doc "description" …)` form; a member with
-its trailing `"description"` string. `(help Class member-or-method)` prints the full
-entry for one of them, and `(help x/type/object)` prints the module overview.
+its trailing `"description"` string, or with a body-level
+`(doc DECL "description" …)` form — which **declares the member as well as
+documenting it**, so a doc-form member needs no separate bare declaration
+(and having both is a refused duplicate). `(help Class member-or-method)`
+prints the full entry for one of them, and `(help x/type/object)` prints the
+module overview.
 
 ---
 
