@@ -16,7 +16,8 @@
 ; call overhead): sha256*, asm*, compile*, boot/*, and (#334: 15x on
 ; the fnv byte loop, 2x on dict ops, benchmarked) type/dict + type/hash,
 ; and (#335: cached int %// on the random draw loop, port math, and the
-; per-expression gc tick) num/random + sys/socket + tool/asm-compile.
+; per-expression gc tick) num/random + sys/socket + tool/asm-compile,
+; and (#307: the sugar-fold cell reads per PRINTED NODE) tool/fmt.
 ; Everything else is unhomed inventory awaiting the pin.x treatment.
 (file "apps/logo/dispatch.x" 28)
 (file "apps/logo/entry.x" 27)
@@ -88,7 +89,7 @@
 (file "lib/x/tool/compile/pipeline.x" 10)
 (file "lib/x/tool/contract.x" 4)
 (file "lib/x/tool/cov.x" 8)
-(file "lib/x/tool/fmt.x" 22)
+(file "lib/x/tool/fmt.x" 23)
 (file "lib/x/tool/lint.x" 69)
 (file "lib/x/tool/pin.x" 1)
 (file "lib/x/tool/profile.x" 4)
@@ -124,5 +125,5 @@
 (file "tools/dev/cov.x" 32)
 (file "tools/dev/doc-index.x" 10)
 (file "tools/dev/doc.x" 3)
-(file "tools/dev/fmt.x" 17)
+(file "tools/dev/fmt.x" 13)
 (file "tools/dev/lint.x" 22)

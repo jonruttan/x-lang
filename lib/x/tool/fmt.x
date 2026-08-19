@@ -72,20 +72,31 @@
 ; quote family folds to its reader sugar; strings/chars keep write's
 ; escaping.
 
+; Sugar folding is PER-FILE state (#307): a boot-constrained file's
+; text loads before the quote reader exists, so its (lit ...) spellings
+; are the MECHANISM and must survive formatting verbatim -- folding
+; them to 'x there produces an unbootable tree (proven: 152/152 spec
+; failures).  Everything post-boot gets the encouraged sugar
+; (docs/syntax.md).  The driver flips this cell per file; a plain cell,
+; not a class member, because %src-sugar runs per printed node and a
+; class dispatch per node is the #342 anti-pattern.
+(def %fmt-fold-sugar (pair #t ()))
+
 (def %src-sugar
   (fn (_ form)
-    (if (pair? form)
-      (if (pair? (rest form))
-        (if (null? (rest (rest form)))
-          (match
-            ((eq? (first form) 'lit) "'")
-            ((eq? (first form) 'quasi) "`")
-            ((eq? (first form) 'unquote) ",")
-            ((eq? (first form) 'unquote-splicing) ",@")
-            (#t ()))
+    (if (not (first %fmt-fold-sugar)) ()
+      (if (pair? form)
+        (if (pair? (rest form))
+          (if (null? (rest (rest form)))
+            (match
+              ((eq? (first form) 'lit) "'")
+              ((eq? (first form) 'quasi) "`")
+              ((eq? (first form) 'unquote) ",")
+              ((eq? (first form) 'unquote-splicing) ",@")
+              (#t ()))
+            ())
           ())
-        ())
-      ())))
+        ()))))
 
 (def %fmt-write-src
   (fn (self form)
@@ -268,7 +279,12 @@
                          (param table ALIST "Formatter table from (Fmt build-table)"))
       (doc "Format a list of top-level tokens with the given construct table, writing the result."
         (returns ANY "nil (output via display)"))
-      (%fmt-tokens tokens table))))
+      (%fmt-tokens tokens table))
+
+    (method fold-sugar! (self (param on BOOL "Fold quote-family forms to reader sugar?"))
+      (doc "Set whether (lit x) / (quasi x) / (unquote x) fold to ' ` , sugar in output. ON is the docs/syntax.md ruling for post-boot code; a driver formatting a BOOT-CONSTRAINED file (its text loads before the quote reader arms) must turn it OFF or the output cannot boot (#307)."
+        (returns ANY "nil"))
+      (%set-first! %fmt-fold-sugar on))))
 
 (doc (provide x/tool/fmt Fmt)
   (note "Formatting logic is %-private (the mutually-recursive printers call each other directly); the Fmt class is the API.")
