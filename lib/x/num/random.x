@@ -1,4 +1,7 @@
 ; random.x -- pseudo- and hardware random number generation.
+; lint-known: Float
+; ((r float) late-binds the Float class, the str8.x precedent -- random
+; takes no hard tower dependency; the method needs x/num/float loaded.)
 ;
 ; Two entropy backends behind one interface:
 ;
@@ -136,6 +139,24 @@
       (returns ANY "A random element")
       (example "((Random sw 5) choice (list 'a 'b 'c))" "'a"))
     (List ref (self int (List length lst)) lst))
+
+  (method float (self)
+    (doc "A uniform float in [0.0, 1.0) with 53-bit resolution -- two 31-bit draws, hi supplying 31 bits and lo's top 22 joining them, over 2^53 (#363). Late-bound like every cross-class call: needs x/num/float loaded."
+      (returns FLOAT "A float in [0, 1)")
+      (sample "((Random sw 1) float)" "0.987947375469473"))
+    (let ((hi (self %bits)) (lo (self %bits)))
+      (Float / (Float from-int (+ (* hi 4194304) (>> lo 9)))
+               (Float from-int 9007199254740992))))
+
+  (method sample (self k lst)
+    (doc "k distinct elements of lst, uniformly, in random order -- a shuffled prefix (#363). Raises kind-'value when k exceeds the population."
+      (param k INT "How many to draw")
+      (param lst LIST "The population")
+      (returns LIST "k distinct elements")
+      (sample "((Random sw 5) sample 2 (list 1 2 3 4))" "(1 3)"))
+    (when (> k (List length lst))
+      (Err raise 'value "Random sample: k exceeds the population" k))
+    (List take k (self shuffle lst)))
 
   (method shuffle (self lst)
     (doc "A new list holding the elements of lst in random order (Fisher-Yates)."

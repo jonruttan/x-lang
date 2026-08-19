@@ -853,3 +853,49 @@ is unchanged.
 ```
 ---
     #t
+
+## the math tail (#363)
+
+### log2, log10, hypot
+
+```scheme
+(list (Float log2 8.0) (Float log10 1000.0) (Float hypot 3.0 4.0))
+```
+---
+    (3.0 3.0 5.0)
+
+### the constants: pi, e, tau; tau is 2*pi
+
+```scheme
+(list (Float pi) (Float e) (Float = (Float tau) (Float * 2.0 (Float pi))))
+```
+---
+    (3.14159265358979 2.71828182845905 #t)
+
+### nan? is #t only for a NaN float
+
+```scheme
+(list (Float nan? (/ 0.0 0.0)) (Float nan? (/ 1.0 0.0))
+      (Float nan? 1.5) (Float nan? 42))
+```
+---
+    (#t #f #f #f)
+
+### inf? sees both signs, not NaN, not finite
+
+```scheme
+(list (Float inf? (/ 1.0 0.0)) (Float inf? (/ -1.0 0.0))
+      (Float inf? (/ 0.0 0.0)) (Float inf? 1.5))
+```
+---
+    (#t #t #f #f)
+
+### finite? is total: ints and finite floats in, specials and non-numbers out
+
+```scheme
+(list (Float finite? 42) (Float finite? 1.5)
+      (Float finite? (/ 1.0 0.0)) (Float finite? (/ 0.0 0.0))
+      (Float finite? "x"))
+```
+---
+    (#t #t #f #f #f)
