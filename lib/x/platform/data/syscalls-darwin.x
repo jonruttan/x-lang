@@ -17,7 +17,7 @@
     (list (lit execve) 59) (list (lit rename) 128)
     (list (lit mkdir)  136) (list (lit rmdir) 137)
     (list (lit stat)   188) (list (lit fstat) 189) (list (lit lstat) 190)
-    (list (lit lseek)  199)
+    (list (lit lseek)  199) (list (lit ftruncate) 201)
     ; 64-bit-inode variants (#22): the plain stat trio above returns the
     ; LEGACY 32-bit-ino struct on Darwin; stat64/fstat64/lstat64 return the
     ; layout File stat decodes (mode@4 mtime@48 size@96).  getdirentries64

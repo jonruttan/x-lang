@@ -2,8 +2,8 @@
 ;
 ; Wraps low-level syscalls with symbolic mode flags. The open-mode and stat
 ; flag tables are exposed as the (File file-modes) / (File stat-flags) methods
-; (evaluate either to see the whole table); the five I/O ops are methods too
-; ((File open), close, read, write, getc).
+; (evaluate either to see the whole table); the I/O ops are methods too
+; ((File open), close, read, write, getc, seek, tell, truncate).
 ;
 ; Lifecycle: (File open path mode) hands back a file descriptor (a small
 ; non-negative integer); pass it to read/write/getc; (File close fd) releases
@@ -110,8 +110,8 @@
 
 
 (def-class File ()
-  (doc "Blocking file I/O over raw POSIX syscalls (open/close/read/write)."
-    (note "Lifecycle: (File open path mode) -> a file descriptor; thread it through (File read)/(File write)/(File getc); (File close fd) when done.")
+  (doc "Blocking file I/O over raw POSIX syscalls (open/close/read/write/seek)."
+    (note "Lifecycle: (File open path mode) -> a file descriptor; thread it through (File read)/(File write)/(File getc)/(File seek); (File close fd) when done.")
     (note "Return values are the raw syscall results: a negative number is an error (-errno). (File read) returns the byte count, 0 at EOF; (File getc) returns -1 at EOF.")
     (note "read/write/getc operate on a caller-allocated string buffer -- allocate one with (str make N), fetched via (prim-ref 'str 'make): read fills it and returns how many bytes landed; write sends `size` bytes out of it.")
     (note "(File open)'s mode is flexible: a number passes straight through; a single symbol (rdonly, wronly, ...) resolves via (File file-modes); a list of symbols is OR'd together -- (list 'wronly 'creat 'trunc) is 577. Call (File file-modes) for the full table, or (File stat-flags) for the stat S_* flags.")
@@ -177,6 +177,45 @@
           (if (<= bytes-read 0)
             -1
             (Str8 ref 0 buffer)))))
+
+    ; The seek trio (#360). Raw-tier contract like read/write: the raw
+    ; syscall result comes back, negative = -errno. i386's lseek syscall
+    ; takes 32-bit offsets (llseek is the 64-bit door there; not wired).
+    (method %whence (self (param whence ANY "Seek origin -- symbol or number"))
+      (doc "Resolve a seek origin to its POSIX SEEK_* value (identical across Linux/macOS): 'set -> 0, 'cur -> 1, 'end -> 2; a number passes through. Raises a kind-'type Err on anything else -- an unknown origin must not reach the kernel."
+        (returns INT "0, 1, 2, or the number given"))
+      (match
+        ((number? whence) whence)
+        ((eq? whence 'set) 0)
+        ((eq? whence 'cur) 1)
+        ((eq? whence 'end) 2)
+        (#t (Err raise 'type "File seek: whence must be 'set, 'cur, 'end, or a number" whence))))
+
+    (method seek (self (param fd INT "File descriptor")
+                       (param offset INT "Byte offset, interpreted per whence")
+                       . (param whence ANY "Origin -- 'set (absolute, the default), 'cur (relative to the current offset), 'end (relative to end of file); or the numeric 0/1/2"))
+      (doc "Reposition a file descriptor's read/write offset (lseek). Seeking past end of file is allowed; a later write there leaves a hole that reads back as zero bytes."
+        (returns INT "The new offset from the start of the file, or negative on error")
+        (sample "(File seek fd 16)" "16 -- absolute seek")
+        (sample "(File seek fd 0 'end)" "the file's size, with the offset now at end")
+        (sample "(File seek fd -1 'cur)" "steps the offset back one byte"))
+      (syscall (syscall-id 'lseek) fd offset
+               (File %whence (if (null? whence) 'set (first whence)))))
+
+    (method tell (self (param fd INT "File descriptor"))
+      (doc "The file descriptor's current offset -- (File seek fd 0 'cur)."
+        (returns INT "Current offset from the start of the file, or negative on error")
+        (sample "(File tell fd)" "the current offset"))
+      (File seek fd 0 'cur))
+
+    (method truncate (self (param fd INT "File descriptor, opened writable")
+                           . (param size INT "New size in bytes; default the current offset"))
+      (doc "Truncate (or extend) the open file to size bytes (ftruncate). The offset does not move -- seek explicitly if it now lies past the end."
+        (returns INT "0 on success, negative on error")
+        (sample "(File truncate fd 3)" "0 -- the file is now 3 bytes")
+        (sample "(File truncate fd)" "0 -- cut at the current offset"))
+      (syscall (syscall-id 'ftruncate) fd
+               (if (null? size) (File tell fd) (first size))))
 
     ; ======================================================================
     ; The ergonomic tier (#22): whole-file and filesystem operations that

@@ -3,8 +3,8 @@
 The ergonomic tier over the raw syscall layer: whole-file operations
 that RAISE kind-'io Errs (via Err from-errno) instead of returning
 negative results. Real I/O under /tmp; every test cleans up after
-itself. The raw five (open/close/read/write/getc) keep their raw
-contract -- see ext/file.spec.md.
+itself. The raw ops (open/close/read/write/getc/seek/tell/truncate)
+keep their raw contract -- see ext/file.spec.md.
 
 ## write-all and read-all
 
@@ -166,3 +166,84 @@ through the REPL error path -- jon hit corrupted error bytes).
 ```
 ---
     ('type 'type 'type 'type)
+
+## seek / tell / truncate (raw tier, #360)
+
+### seek to end reports the size; an absolute seek rereads mid-file
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (def p "/tmp/x-spec360-a")
+  (File write-all p "hello world")
+  (def fd (File open p 'rdonly))
+  (def at-end (File seek fd 0 'end))
+  (def back (File seek fd 6))
+  (def buf ((prim-ref 'str 'make) 5))
+  (def n (File read fd buf 5))
+  (File close fd)
+  (File unlink p)
+  (list at-end back n buf))
+```
+---
+    (11 6 5 "world")
+
+### tell starts at 0 and tracks reads
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (def p "/tmp/x-spec360-b")
+  (File write-all p "abcdef")
+  (def fd (File open p 'rdonly))
+  (def t0 (File tell fd))
+  (def buf ((prim-ref 'str 'make) 4))
+  (File read fd buf 4)
+  (def t1 (File tell fd))
+  (File close fd)
+  (File unlink p)
+  (list t0 t1))
+```
+---
+    (0 4)
+
+### truncate to an explicit size; stat and read-all confirm
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (def p "/tmp/x-spec360-c")
+  (File write-all p "abcdef")
+  (def fd (File open p 'wronly))
+  (def r (File truncate fd 3))
+  (File close fd)
+  (def size (Assoc get 'size (File stat p)))
+  (def body (File read-all p))
+  (File unlink p)
+  (list r size body))
+```
+---
+    (0 3 "abc")
+
+### truncate without a size cuts at the current offset
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (def p "/tmp/x-spec360-d")
+  (File write-all p "abcdef")
+  (def fd (File open p 'rdwr))
+  (File seek fd 2)
+  (File truncate fd)
+  (File close fd)
+  (def body (File read-all p))
+  (File unlink p)
+  body)
+```
+---
+    "ab"
+
+### seek rejects an unknown whence symbol at the door
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (list (guard (e (Err kind-of e)) (File seek 0 0 'nope))))
+```
+---
+    ('type)
