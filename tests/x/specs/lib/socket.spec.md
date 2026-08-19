@@ -69,3 +69,54 @@ something on the ubuntu CI runner (connect returned an fd; the pin got
 ```
 ---
     ('io 'econnrefused 'connect)
+
+## UDP and unix-domain loopback (#364)
+
+These ARE deterministic under the batch harness, unlike the TCP accept
+loop the preamble rules out: a datagram queues before recv-from runs,
+and a unix/TCP connect completes against the listen backlog before
+accept is called -- no step blocks.
+
+### connected-UDP request, recv-from identifies the sender, send-to replies
+
+```scheme
+(do (import x/sys/socket)
+  (def sfd (Socket udp-bind 49364))
+  (def cfd (Socket udp-connect "127.0.0.1" 49364))
+  (Socket send cfd "ping")
+  (def got (Socket recv-from sfd 64))
+  (Socket send-to sfd "pong" (first (rest got)) (rest (rest got)))
+  (def reply (Socket recv cfd 64))
+  (Socket close cfd) (Socket close sfd)
+  (list (first got) (first (rest got)) reply))
+```
+---
+    ("ping" "127.0.0.1" "pong")
+
+### unix-domain round trip through listen/connect/accept
+
+```scheme
+(do (import x/sys/socket) (import x/sys/file)
+  (def up "/tmp/x-364-spec.sock")
+  (guard (_ ()) (File unlink up))
+  (def lfd (Socket unix-listen up))
+  (def c (Socket unix-connect up))
+  (def a (Socket accept lfd))
+  (Socket send c "hello-unix")
+  (def got (Socket recv a 64))
+  (Socket close c) (Socket close a) (Socket close lfd)
+  (File unlink up)
+  got)
+```
+---
+    "hello-unix"
+
+### a unix path past sockaddr_un capacity raises 'value
+
+```scheme
+(do (import x/sys/socket)
+  (list (guard (e (Err kind-of e))
+    (Socket unix-connect (Str8 repeat 25 "aaaa")))))
+```
+---
+    ('value)

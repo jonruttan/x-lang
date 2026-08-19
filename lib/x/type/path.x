@@ -6,6 +6,7 @@
 
 (import x/protocol/str/str8)
 (import x/type/class)
+(import x/type/list)   ; relpath/match? segment work (reject/repeat/append/fold)
 
 ; Index of the last '/' in s, or -1 (internal sentinel only; the public
 ; door is (Str8 last-index-of), which misses with nil -- #25 delivered).
@@ -141,7 +142,73 @@
         (returns BOOL "True when p begins with '/'")
         (example "(Path absolute? \"/etc\")" "#t")
         (example "(Path absolute? \"etc\")" "#f"))
-      (if (= (Str8 length p) 0) #f (Char =? (Str8 ref 0 p) #\/)))))
+      (if (= (Str8 length p) 0) #f (Char =? (Str8 ref 0 p) #\/)))
+
+    (method relpath (self (param start STRING "The path to be relative FROM")
+                          (param p STRING "The path to express relative to start"))
+      (doc "Express p relative to start, lexically (#364): both are normalized, the common prefix drops, and each remaining start segment becomes '..'. Both must be absolute or both relative -- mixing raises kind-'value (relating them needs a working directory, which this pure-string class refuses to consult); a relative start that still climbs ('..' after norm) raises for the same reason."
+        (returns STRING "p relative to start ('.' when they coincide)")
+        (example "(Path relpath \"/a/b\" \"/a/c/d\")" "\"../c/d\"")
+        (example "(Path relpath \"a/b\" \"a/b\")" "\".\"")
+        (example "(Path relpath \"/a\" \"/a/b\")" "\"b\""))
+      (def ns (Path norm start))
+      (def np (Path norm p))
+      (unless (eq? (Path absolute? ns) (Path absolute? np))
+        (Err raise 'value "Path relpath: mixing absolute and relative paths needs a working directory" (list start p)))
+      (def %segs (fn (_ q)
+        (List reject (fn (_ s) (str=? s ""))
+          (Str8 split "/" q))))
+      (def ss (%segs ns))
+      (when (List includes? ".." ss)
+        (Err raise 'value "Path relpath: start climbs out of the common root" start))
+      (def ps (%segs np))
+      (let strip ((a ss) (b ps))
+        (match
+          ((if (pair? a) (if (pair? b) (str=? (first a) (first b)) #f) #f)
+            (strip (rest a) (rest b)))
+          (#t
+            (let ((ups (List repeat (List length a) "..")))
+              (let ((all (List append ups b)))
+                (if (null? all) "." (List fold (fn (_ acc s) (Str8 append acc "/" s)) (first all) (rest all)))))))))
+
+    (method match? (self (param pattern STRING "Glob pattern: ? one char, * a run, ** a whole-segment wildcard crossing '/'")
+                         (param p STRING "Path to test"))
+      (doc "Glob-match p against pattern, segment-aware (#364): '?' matches one non-'/' character, '*' a non-'/' run, and '**' AS A FULL SEGMENT matches zero or more whole segments. No character classes (the [...] form) -- purely lexical, no filesystem access."
+        (returns BOOL "True when the whole of p matches the whole pattern")
+        (example "(Path match? \"*.x\" \"file.x\")" "#t")
+        (example "(Path match? \"lib/*.x\" \"lib/a/b.x\")" "#f")
+        (example "(Path match? \"lib/**/*.x\" \"lib/a/b.x\")" "#t")
+        (example "(Path match? \"lib/**\" \"lib\")" "#t"))
+      (def %bref (prim-ref (lit str) (lit byte-ref)))
+      (def %blen (prim-ref (lit str) (lit byte-len)))
+      (def %c->i (prim-ref (lit char) (lit ->int)))
+      ; one segment against one glob segment, byte-recursive
+      (def %seg? (fn (loop pat s pi si)
+        (def pn (%blen pat))
+        (def sn (%blen s))
+        (match
+          ((= pi pn) (= si sn))
+          ((= (%c->i (%bref pat pi)) 42)                       ; *
+            (if (loop pat s (+ pi 1) si) #t
+              (if (< si sn) (loop pat s pi (+ si 1)) #f)))
+          ((= si sn) #f)
+          ((= (%c->i (%bref pat pi)) 63)                       ; ?
+            (loop pat s (+ pi 1) (+ si 1)))
+          ((= (%c->i (%bref pat pi)) (%c->i (%bref s si)))
+            (loop pat s (+ pi 1) (+ si 1)))
+          (#t #f))))
+      (def %segs (fn (_ q)
+        (List reject (fn (_ s) (str=? s "")) (Str8 split "/" q))))
+      (let go ((pats (%segs pattern)) (segs (%segs p)))
+        (match
+          ((null? pats) (null? segs))
+          ((str=? (first pats) "**")
+            (if (go (rest pats) segs) #t                       ; ** takes zero segments
+              (if (pair? segs) (go pats (rest segs)) #f)))     ; or eats one and stays
+          ((null? segs) #f)
+          ((%seg? (first pats) (first segs) 0 0)
+            (go (rest pats) (rest segs)))
+          (#t #f))))))
 
 (doc (provide x/type/path Path)
   "Pure-string pathname manipulation on the Path class.")

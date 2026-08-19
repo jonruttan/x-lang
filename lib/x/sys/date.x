@@ -7,6 +7,7 @@
 
 (import x/core/alist)
 (import x/type/class)
+(import x/type/list)   ; from-iso field work (length/ref/map)
 (import x/protocol/str/str8)
 
 ; Tower-proof integer ops: under xenon or radon the ambient / promotes to
@@ -107,6 +108,52 @@
         ":" (%pad2 (Assoc get-or 0 'minute date))
         ":" (%pad2 (Assoc get-or 0 'second date))
         "Z"))
+
+    (method from-iso (self (param s STRING "ISO-8601 UTC timestamp: \"YYYY-MM-DDTHH:MM:SSZ\" or the bare date \"YYYY-MM-DD\""))
+      (doc "Parse an ISO-8601 UTC timestamp back to a date alist -- the inverse of ->iso (#364). Strict per #61: wrong shape, out-of-range fields, or a nonexistent civil date (Feb 30) raises kind-'value. A bare date reads as midnight."
+        (returns ALIST "Canonical date alist (wday included), as from-unix builds")
+        (example "(Date from-iso \"2009-02-13T23:31:30Z\")" "(('year . 2009) ('month . 2) ('day . 13) ('hour . 23) ('minute . 31) ('second . 30) ('wday . 5))")
+        (example "(Assoc get 'hour (Date from-iso \"1970-01-01\"))" "0")
+        (example "(Date to-unix (Date from-iso \"2009-02-13T23:31:30Z\"))" "1234567890"))
+      (def %bad (fn (_ what)
+        (Err raise 'value (Str8 append "Date from-iso: " what) s)))
+      (def %int-at (fn (_ q)
+        (let ((n (%str->number q)))
+          (if (null? n) (%bad "non-numeric field") n))))
+      (def ti (Str8 index-of "T" s))
+      (def date-part (if (null? ti) s (Str8 sub 0 ti s)))
+      ; negative years: norm the leading '-' away for the split, restore after
+      (def neg? (Str8 starts? "-" date-part))
+      (def dp (if neg? (Str8 sub 1 (Str8 length date-part) date-part) date-part))
+      (def dsegs (Str8 split "-" dp))
+      (unless (= (List length dsegs) 3) (%bad "date is not YYYY-MM-DD"))
+      (def y ((fn (_ v) (if neg? (- 0 v) v)) (%int-at (List ref 0 dsegs))))
+      (def mo (%int-at (List ref 1 dsegs)))
+      (def d (%int-at (List ref 2 dsegs)))
+      (def tsegs
+        (if (null? ti) (list 0 0 0)
+          (let ((tp (Str8 sub (+ ti 1) (Str8 length s) s)))
+            (do (unless (= (Str8 length tp) 9) (%bad "time is not HH:MM:SSZ"))
+                (unless (Str8 ends? "Z" tp) (%bad "missing the Z (UTC-only by design)"))
+                (let ((hh (Str8 split ":" (Str8 sub 0 8 tp))))
+                  (do (unless (= (List length hh) 3) (%bad "time is not HH:MM:SSZ"))
+                      (List map (fn (_ q) (%int-at q)) hh)))))))
+      (def h (List ref 0 tsegs))
+      (def mi (List ref 1 tsegs))
+      (def sec (List ref 2 tsegs))
+      (when (or (< mo 1) (> mo 12)) (%bad "month out of range"))
+      (when (or (< d 1) (> d 31)) (%bad "day out of range"))
+      (when (or (< h 0) (> h 23)) (%bad "hour out of range"))
+      (when (or (< mi 0) (> mi 59)) (%bad "minute out of range"))
+      (when (or (< sec 0) (> sec 59)) (%bad "second out of range"))
+      ; canonicalize through unix seconds; a nonexistent civil date (Feb 30)
+      ; shifts under the roundtrip and is refused rather than silently moved
+      (def parsed (list (pair 'year y) (pair 'month mo) (pair 'day d)
+                        (pair 'hour h) (pair 'minute mi) (pair 'second sec)))
+      (def canon (Date from-unix (Date to-unix parsed)))
+      (unless (and (= (Assoc get 'day canon) d) (= (Assoc get 'month canon) mo))
+        (%bad "no such civil date"))
+      canon)
 
     (method leap-year? (self (param y INT "Year"))
       (doc "Gregorian leap-year test."

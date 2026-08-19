@@ -82,3 +82,26 @@ happened, 128+N for death by signal N.
 ```
 ---
     alive
+
+## run-with! / capture-with (#364)
+
+### env overrides reach the child
+
+```scheme
+(do (import x/sys/proc)
+  (rest (Proc capture-with (list (pair 'env (list (pair "X364" "yes"))))
+              (list "/bin/sh" "-c" "printf %s $X364"))))
+```
+---
+    "yes"
+
+### cwd applies in the child; an unusable cwd is 126, not a wrong-dir exec
+
+```scheme
+(do (import x/sys/proc)
+  (list (first (Proc capture-with (list (pair 'cwd "/")) (list "/bin/sh" "-c" "pwd")))
+        (rest (Proc capture-with (list (pair 'cwd "/")) (list "/bin/sh" "-c" "printf %s $PWD")))
+        (Proc run-with! (list (pair 'cwd "/definitely-not-a-dir")) (list "/bin/true"))))
+```
+---
+    (0 "/" 126)

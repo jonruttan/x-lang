@@ -172,7 +172,130 @@
       (doc "Close a socket file descriptor."
         (returns ANY "nil"))
       (%sk-ptr-call %c-close fd)
-      ())))
+      ())
+
+    ; --- UDP (#364). SOCK_DGRAM = 2 on both OSes. Cold paths resolve
+    ; sendto/recvfrom per call ((%sk ...)), keeping the module's %-globals
+    ; budget flat.
+
+    (method udp-bind (self (param port INT "Port to bind (INADDR_ANY)"))
+      (doc "Create a UDP socket bound to port on all interfaces -- the receiving end. Read with (Socket recv-from fd n) for sender identity, or plain (Socket recv) when it does not matter."
+        (returns INT "The bound datagram file descriptor")
+        (sample "(Socket udp-bind 9999)" "a bound fd"))
+      (def fd (%sk-fold (%sk-ptr-call %c-socket %AF-INET 2 0)))
+      (when (< fd 0) (%sk-fail fd 'socket port ()))
+      (def addr (%make-sockaddr-in port ()))
+      (def r (%sk-fold (%sk-ptr-call %c-bind fd addr 16)))
+      (when (< r 0) (do (%sk-ptr-call %c-close fd) (%sk-fail r 'bind port addr)))
+      (%sk-ptr-call %c-free addr)
+      fd)
+
+    (method udp-connect (self (param host STRING "Dotted-quad IPv4 address")
+                              (param port INT "Destination port"))
+      (doc "Create a CONNECTED UDP socket: the peer address is fixed once, and the plain (Socket send)/(Socket recv) pair then works datagram-wise -- the request/reply shape. For unconnected sends use (Socket send-to)."
+        (returns INT "The connected datagram file descriptor")
+        (sample "(Socket udp-connect \"127.0.0.1\" 9999)" "a connected fd"))
+      (def fd (%sk-fold (%sk-ptr-call %c-socket %AF-INET 2 0)))
+      (when (< fd 0) (%sk-fail fd 'socket port ()))
+      (def addr (%make-sockaddr-in port host))
+      (def r (%sk-fold (%sk-ptr-call %c-connect fd addr 16)))
+      (when (< r 0) (do (%sk-ptr-call %c-close fd) (%sk-fail r 'connect (list host port) addr)))
+      (%sk-ptr-call %c-free addr)
+      fd)
+
+    (method send-to (self (param fd INT "Datagram file descriptor")
+                          (param s STRING "Bytes to send (one datagram)")
+                          (param host STRING "Dotted-quad IPv4 destination")
+                          (param port INT "Destination port"))
+      (doc "Send one datagram to host:port through an unconnected UDP socket."
+        (returns INT "Bytes sent"))
+      (def addr (%make-sockaddr-in port host))
+      (def r (%sk-fold (%sk-ptr-call (%sk "sendto") fd s (Str8 length s) 0 addr 16)))
+      (when (< r 0) (%sk-fail r 'sendto (list host port) addr))
+      (%sk-ptr-call %c-free addr)
+      r)
+
+    (method recv-from (self (param fd INT "Bound datagram file descriptor")
+                            (param maxlen INT "Maximum bytes to receive"))
+      (doc "Block for one datagram; return it WITH the sender's identity. Like recv, the payload string truncates at the first NUL byte (ptr->str) -- fine for text protocols."
+        (returns PAIR "(payload . (host . port))")
+        (sample "(Socket recv-from fd 4096)" "(\"ping\" . (\"127.0.0.1\" . 51234))"))
+      (def buf (%sk-int->ptr (%sk-ptr-call %c-malloc (+ maxlen 1))))
+      (def addr (%sk-int->ptr (%sk-ptr-call %c-malloc 16)))
+      (def alen (%sk-int->ptr (%sk-ptr-call %c-malloc 4)))
+      (%sk-ptr-call %c-memset addr 0 16)
+      (%sk-set1! alen 0 16)
+      (%sk-set1! alen 1 0) (%sk-set1! alen 2 0) (%sk-set1! alen 3 0)
+      (def %free-all (fn (_)
+        (%sk-ptr-call %c-free buf)
+        (%sk-ptr-call %c-free addr)
+        (%sk-ptr-call %c-free alen)))
+      (def n (%sk-fold (%sk-ptr-call (%sk "recvfrom") fd buf maxlen 0 addr alen)))
+      (when (< n 0)
+        (let ((en (Err errno-of n)))
+          (%free-all)
+          (error (Err from-errno en 'recvfrom fd))))
+      (def %u8at (prim-ref (lit ptr) (lit ref)))
+      (def %oct (fn (_ i) (& (%u8at addr i 1) 255)))
+      (def sender
+        (pair (Str8 append (%number->str (%oct 4)) "." (%number->str (%oct 5)) "."
+                           (%number->str (%oct 6)) "." (%number->str (%oct 7)))
+              (+ (* 256 (%oct 2)) (%oct 3))))
+      (%sk-set1! buf n 0)
+      (def payload (%sk-ptr->str buf))
+      (%free-all)
+      (pair payload sender))
+
+    ; --- Unix-domain stream sockets (#364). AF_UNIX = 1 on both OSes;
+    ; sockaddr_un = family header + NUL-terminated path (Darwin leads
+    ; with a length byte, like sockaddr_in). accept/send/recv/close are
+    ; the same methods TCP uses.
+
+    (method %sockaddr-un (self (param path STRING "Filesystem socket path (under 100 bytes)"))
+      (doc "Build a malloc'd sockaddr_un for path -- the caller frees. Raises kind-'value past 99 bytes (the struct's path field is 104)."
+        (returns PTR "The packed address (110 bytes)"))
+      (def plen (Str8 length path))
+      (when (> plen 99)
+        (Err raise 'value "Socket: unix path exceeds sockaddr_un capacity" path))
+      (def addr (%sk-int->ptr (%sk-ptr-call %c-malloc 110)))
+      (%sk-ptr-call %c-memset addr 0 110)
+      (if os-darwin?
+        (do (%sk-set1! addr 0 (+ plen 3)) (%sk-set1! addr 1 1))
+        (do (%sk-set1! addr 0 1) (%sk-set1! addr 1 0)))
+      (def %b (prim-ref (lit str) (lit byte-ref)))
+      (def %c->i (prim-ref (lit char) (lit ->int)))
+      (let go ((i 0))
+        (unless (= i plen)
+          (do (%sk-set1! addr (+ 2 i) (%c->i (%b path i)))
+              (go (+ i 1)))))
+      addr)
+
+    (method unix-listen (self (param path STRING "Filesystem socket path to create")
+                              . (param backlog INT "Listen backlog; default 16"))
+      (doc "Create a unix-domain stream server socket at path: socket + bind + listen. The path must not already exist (bind refuses) -- unlink a stale one first; accept/send/recv/close are shared with TCP."
+        (returns INT "The listening file descriptor")
+        (sample "(Socket unix-listen \"/tmp/app.sock\")" "a listening fd"))
+      (def fd (%sk-fold (%sk-ptr-call %c-socket 1 %SOCK-STREAM 0)))
+      (when (< fd 0) (%sk-fail fd 'socket path ()))
+      (def addr (Socket %sockaddr-un path))
+      (def r (%sk-fold (%sk-ptr-call %c-bind fd addr 110)))
+      (when (< r 0) (do (%sk-ptr-call %c-close fd) (%sk-fail r 'bind path addr)))
+      (%sk-ptr-call %c-free addr)
+      (def lr (%sk-fold (%sk-ptr-call %c-listen fd (if (null? backlog) 16 (first backlog)))))
+      (when (< lr 0) (do (%sk-ptr-call %c-close fd) (%sk-fail lr 'listen path ())))
+      fd)
+
+    (method unix-connect (self (param path STRING "Filesystem socket path to connect to"))
+      (doc "Open a unix-domain stream connection to the socket at path."
+        (returns INT "The connected file descriptor")
+        (sample "(Socket unix-connect \"/tmp/app.sock\")" "a connected fd"))
+      (def fd (%sk-fold (%sk-ptr-call %c-socket 1 %SOCK-STREAM 0)))
+      (when (< fd 0) (%sk-fail fd 'socket path ()))
+      (def addr (Socket %sockaddr-un path))
+      (def r (%sk-fold (%sk-ptr-call %c-connect fd addr 110)))
+      (when (< r 0) (do (%sk-ptr-call %c-close fd) (%sk-fail r 'connect path addr)))
+      (%sk-ptr-call %c-free addr)
+      fd)))
 
 (doc (provide x/sys/socket Socket)
   (note "First consumer: x/logo/serve.x (whose Darwin-only constants this replaces). Recv truncates at the first NUL byte (ptr->str) -- fine for text protocols; binary recv needs a byte-list door, tracked with the Buf work.")

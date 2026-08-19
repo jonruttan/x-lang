@@ -149,3 +149,43 @@ No filesystem access -- every method is a total string function.
 ```
 ---
     a/b a.tar Makefile
+
+## relpath (#364)
+
+### common prefix drops; climbs become ..
+
+```scheme
+(do (import x/type/path)
+  (list (Path relpath "/a/b" "/a/c/d")
+        (Path relpath "a/b" "a/b")
+        (Path relpath "/a" "/a/b")
+        (Path relpath "/a/b/c" "/")))
+```
+---
+    ("../c/d" "." "b" "../../..")
+
+### mixing absolute and relative raises 'value
+
+```scheme
+(do (import x/type/path)
+  (list (guard (e (Err kind-of e)) (Path relpath "/a" "b"))))
+```
+---
+    ('value)
+
+## match? (#364)
+
+### segment-aware: * stays inside a segment, ** crosses
+
+```scheme
+(do (import x/type/path)
+  (list (Path match? "*.x" "file.x")
+        (Path match? "*.x" "dir/file.x")
+        (Path match? "lib/**/*.x" "lib/a/b.x")
+        (Path match? "lib/**/*.x" "lib/b.x")
+        (Path match? "lib/**" "lib")
+        (Path match? "a?c" "abc")
+        (Path match? "a?c" "ac")))
+```
+---
+    (#t #f #t #t #t #t #f)
