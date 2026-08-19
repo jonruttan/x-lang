@@ -207,3 +207,37 @@
 ```
 ---
     #t
+
+## cov: library report pipeline (#402)
+
+The blocks above prove the C flag mechanics; these prove the x/tool/cov
+LIBRARY against real fn objects. The tool rotted to 0/0 invisibly when
+the type-tag model changed (fn bodies are C-built spines whose type name
+is nil) because nothing exercised this layer.
+
+### cov-count-tree walks a C-built fn body spine
+
+```scheme
+(do
+  (import x/tool/cov)
+  (def f (fn (_ x) (+ x 1)))
+  (def spine ((prim-ref (lit obj) (lit ref)) f 1))
+  (display (> (first (rest (cov-count-tree (first (rest spine)) 0))) 0)))
+```
+---
+    #t
+
+### cov-check-fn reports a called fn as covered
+
+```scheme
+(do
+  (import x/tool/cov)
+  (def f (fn (_ x) (+ x 1)))
+  (f 1)
+  (def r (cov-check-fn (lit f) f #f))
+  (display (list (first r)
+                 (> (first (rest (rest r))) 0)
+                 (> (first (rest r)) 0))))
+```
+---
+    (f #t #t)

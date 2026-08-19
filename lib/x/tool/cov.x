@@ -23,10 +23,17 @@
 
 ; --- Object flag inspection ---
 
+; Object-ADDRESS cast via (obj ->ptr), never the convert catalog: %cvt
+; to %ptr on an INT node is a VALUE cast (the #277 ruling) -- it walked
+; garbage for every int in a body.  The prim rides a closure capture,
+; not a new module global (the percent-globals budget stays at 8).
 (def %cov-obj-flags
-  (fn (_ obj)
-    (if (null? obj) 0
-      (%ptr-ref-word (%cvt obj %ptr) %cov-flags-offset))))
+  ((fn (_)
+     (def %o->p (prim-ref 'obj '->ptr))
+     (fn (_ obj)
+       (if (null? obj) 0
+         (%ptr-ref-word (%o->p obj) %cov-flags-offset))))
+   ()))
 
 (doc (def cov-covered?
   (fn (_ obj) (> (& (%cov-obj-flags obj) 2) 0)))
@@ -34,18 +41,28 @@
   (returns BOOL "True if object was evaluated (FLAG_2 set)")
   "Test whether an object was marked as evaluated by x-bin-profile.")
 
-; Cons test by cached type-handle eq? (#342): the old body allocated a
-; %type-name string and ran two str=? per AST node.  The handles are
-; captured once in a closure -- no new module globals.
+; Cons test by cached type-handle eq? (#342), REPAIRED for the type-tag
+; model (#402): a fn body is a C-BUILT spine carrying the structural-
+; PAIR sentinel tag -- its %type-name is NIL and its handle matches
+; neither LIST nor PAIR, so the old name compare (and a handle-only
+; compare) scored every body 0/0 and the whole sweep reported nothing.
+; The sentinel is probed from a real fn's own body spine at load, and
+; tested by raw type WORD (header word 1) -- an int compare, no
+; navigation, safe on every object per the type-tag-trap rule.
 (def %cov-is-cons?
   ((fn (_)
      (def %t-of (prim-ref 'type 'of))
      (def %t-list (%t-of (list 1)))
      (def %t-pair (%t-of (pair 1 2)))
+     (def %o->p (prim-ref 'obj '->ptr))
+     (def %tw (fn (_ o) (%ptr-ref-word (%o->p o) %cov-word-size)))
+     (def %spair-tw (%tw (%obj-ref (fn (_ x) x) 1)))
      (fn (_ x)
        (if (null? x) #f
          (let ((t (%t-of x)))
-           (if (eq? t %t-list) #t (eq? t %t-pair))))))
+           (if (eq? t %t-list) #t
+             (if (eq? t %t-pair) #t
+               (eq? (%tw x) %spair-tw)))))))
    ()))
 
 ; --- AST coverage counting ---
@@ -83,7 +100,14 @@
 (doc (def cov-check-fn
   (fn (_ name val tsv-mode)
     (unless (not (str=? (%type-name val) "PROCEDURE"))
-      (let ((body (%obj-ref val 1)))
+      ; A procedure's slot 1 is the spine (params body env) -- the body
+      ; FORMS are its second element (#402).  Walking slot 1 whole runs
+      ; off into the captured env (only the depth limit bounded it).
+      (let ((body (let ((spine (%obj-ref val 1)))
+                    (if (%cov-is-cons? spine)
+                      (if (%cov-is-cons? (rest spine))
+                        (first (rest spine)) ())
+                      ()))))
         (let ((counts (cov-count-tree body 0)))
           (let ((cov (first counts))
                 (total (first (rest counts))))

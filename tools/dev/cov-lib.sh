@@ -74,7 +74,7 @@ for dir in "$@"; do
             echo '(def %cov-tsv-mode #t)'
             cat "$TMPTEST"
             cat tools/dev/cov-report.x
-        } | timeout 60 ./x-bin-profile 2>/dev/null | grep '^COV	' >> "$TMPTSV"
+        } | timeout 60 ./x-bin-profile 2>>"${COV_ERR:-/dev/null}" | grep '^COV	' >> "$TMPTSV"
         true  # don't fail on crash or empty grep
 
         printf "." >&2
@@ -84,6 +84,16 @@ done
 echo "" >&2
 echo "x-lang coverage: $SPEC_COUNT spec files" >&2
 echo "" >&2
+
+# A sweep that produced NO rows is a broken sweep, not an empty report:
+# the tool rotted to 0/0 invisibly once (#402 -- the type-tag model
+# changed under it and every run "succeeded" with nothing to say).
+# Set COV_ERR=<file> to capture the engine stderr the pipeline hides.
+if [ ! -s "$TMPTSV" ]; then
+    echo "cov-lib: ZERO coverage rows from $SPEC_COUNT spec files -- the pipeline is broken (#402)." >&2
+    echo "cov-lib: re-run with COV_ERR=/tmp/cov-err.txt to see engine stderr." >&2
+    exit 1
+fi
 
 # Merge TSV: for each function, take max covered count
 # Input: name\tcovered\ttotal (may have duplicates across runs)
