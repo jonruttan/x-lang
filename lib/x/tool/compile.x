@@ -75,6 +75,22 @@
 
 ; --- Platform-specific cc flags ---
 
+; Process-unique tag for every /tmp artifact this module writes (#391):
+; concurrent engines (the parallel examples gate, any parallel spec
+; lane) collided on the counter-named C source -- whichever process
+; finished first deleted /tmp/x-compile-1.c out from under the other.
+; LAZY, computed at first compile: this module loads mid-boot under the
+; tower dialects, before Sys is callable -- a load-time (Sys getpid)
+; was Unbound under rn/xe (the class-call-before-def-class trap the
+; boot-order gate exists for; the examples gate caught it first).
+(def %compile-pid-cell (pair () ()))
+(def %compile-pid-tag
+  (fn (_)
+    (do
+      (when (null? (first %compile-pid-cell))
+        (%set-first! %compile-pid-cell (%cvt (Sys getpid) %string)))
+      (first %compile-pid-cell))))
+
 (def %compile-cc-flags
   (if (Str contains? "darwin" x-machine)
     (list "-bundle" "-undefined" "dynamic_lookup")
@@ -101,15 +117,22 @@
     ; A real argv through Proc run! (#226), not libc system(): paths are
     ; single arguments (no shell re-split), and the status is the actual
     ; exit code, not an undecoded wait word.
+    ; Build to a pid-unique temp, PUBLISH with one rename (#391): cc
+    ; wrote the object at its final content-keyed cache path, so a
+    ; concurrent process whose cache probe hit mid-write dlopened a
+    ; partial file ("dlsym failed for fn_0").  rename is atomic on the
+    ; same filesystem; the cross-process cache stays a feature.
+    (def %tmp-path (Str append lib-path "." (%compile-pid-tag) ".tmp"))
     (def %cc-status
       (Proc run!
         (pair "cc"
           (%append %compile-cc-flags
             (list "-O2" "-DX_HEAP" "-DX_TYPE" "-Wno-unused-value"
                   "-Iext/x-expr/include" "-I./include"
-                  "-o" lib-path src-path)))))
+                  "-o" %tmp-path src-path)))))
     (if (not (= %cc-status 0))
-      (Err raise 'io (Str append "compile: cc failed with status " (%cvt %cc-status %string)) ()))))
+      (Err raise 'io (Str append "compile: cc failed with status " (%cvt %cc-status %string)) ()))
+    (File rename %tmp-path lib-path)))
 
 (def %patch-nested-prims
   (fn (self lib fns prim-type-val)
@@ -215,7 +238,7 @@
       (let ()
         (set! %compile-id (+ %compile-id 1))
         (def %id (%cvt %compile-id %string))
-        (def %src-path (Str append "/tmp/x-compile-" %id ".c"))
+        (def %src-path (Str append "/tmp/x-compile-" (%compile-pid-tag) "-" %id ".c"))
 
         (compile-write %src-path (compile-to-c expr fvars))
         (compile-cc %src-path %cache-path)
@@ -298,7 +321,7 @@
       (let ()
         (set! %compile-id (+ %compile-id 1))
         (def %id (%cvt %compile-id %string))
-        (def %src-path (Str append "/tmp/x-compile-" %id ".c"))
+        (def %src-path (Str append "/tmp/x-compile-" (%compile-pid-tag) "-" %id ".c"))
 
         (%compile-push-writers)
 
