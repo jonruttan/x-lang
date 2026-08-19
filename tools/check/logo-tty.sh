@@ -74,7 +74,19 @@ sweep() {
 	while read -r pid; do
 		[ -n "$pid" ] && kill -s TERM -- "-$pid" 2>/dev/null
 	done < "$PIDFILE"
-	sleep 1
+	# Condition wait, not a fixed second (#327): after a clean test the
+	# groups are already gone and this costs nothing; a surviving tree
+	# gets polled up to the old 1s, and KILL stays the backstop.
+	_i=0
+	while [ "$_i" -lt 10 ]; do
+		_alive=0
+		while read -r pid; do
+			[ -n "$pid" ] && kill -0 -- "-$pid" 2>/dev/null && { _alive=1; break; }
+		done < "$PIDFILE"
+		[ "$_alive" -eq 0 ] && break
+		sleep 0.1
+		_i=$((_i + 1))
+	done
 	while read -r pid; do
 		[ -n "$pid" ] && kill -s KILL -- "-$pid" 2>/dev/null
 	done < "$PIDFILE"

@@ -35,7 +35,6 @@ proc spawn_logo {} {
         -re {\? } {}
         timeout { puts "FAIL: no prompt"; exit 1 }
     }
-    sleep 1
 }
 
 # Kill this test's spawned session tree (TERM, then KILL) -- pgid-scoped,
@@ -46,7 +45,13 @@ proc kill_session_tree {} {
     global spawn_pid
     if {![info exists spawn_pid]} { return }
     catch {exec kill -s TERM -- "-$spawn_pid"}
-    sleep 1
+    # Condition wait, not a fixed second (#327): the group is usually
+    # gone in milliseconds; the old 1s stays as the poll ceiling and
+    # KILL as the unchanged backstop for a wedged tree.
+    for {set i 0} {$i < 10} {incr i} {
+        if {[catch {exec kill -0 -- "-$spawn_pid"}]} { return }
+        after 100
+    }
     catch {exec kill -s KILL -- "-$spawn_pid"}
 }
 

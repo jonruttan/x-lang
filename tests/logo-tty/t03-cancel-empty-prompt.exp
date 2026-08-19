@@ -8,16 +8,23 @@ source [file join [file dirname [info script]] lib.exp]
 if {[port_8080_busy]} { puts "SKIP-as-pass: :8080 busy before spawn"; exit 0 }
 spawn_logo
 ctrl_c
+# 5s, not the 15s default (#327): a clean exit arrives in well under a
+# second; five is ample to conclude "still alive" -- which is exactly
+# the pre-rewrite behaviour this known-fail pins, so the full budget
+# was paid on every single run.
 expect {
+    -timeout 5
     eof {}
     timeout { puts "FAIL: still alive after ctrl-c at empty prompt"; exit 1 }
 }
 catch {wait} result
 if {![exited_zero $result]} { puts "FAIL: not a clean exit 0: $result"; exit 1 }
 # The exit hook must have killed the viewer child.
-for {set i 0} {$i < 5} {incr i} {
+# Poll at 200ms (#327): the port is usually free on the first check;
+# the 5s ceiling is unchanged.
+for {set i 0} {$i < 25} {incr i} {
     if {![port_8080_busy]} { exit 0 }
-    sleep 1
+    after 200
 }
 puts "FAIL: viewer server orphaned on :8080"
 kill_session_tree

@@ -10,9 +10,19 @@ spawn_logo
 # Brace-quoted: [ ] is Tcl command substitution inside double quotes.
 send {print [a}
 send "\r"
-sleep 1
+# The echo IS the entry-arrived signal (the file's own pacing rule);
+# a fixed second here was pure ceiling (#327).
+expect {
+    -ex {print [a} {}
+    timeout { puts "FAIL: entry never echoed"; exit 1 }
+}
 ctrl_c
-sleep 1
+# The cancel lands the session back at a prompt; that prompt is the
+# processed-the-interrupt signal the old sleep approximated.
+expect {
+    -re {\? } {}
+    timeout { puts "FAIL: no prompt after cancel"; exit 1 }
+}
 # The discarded entry must produce no output; the session must evaluate.
 assert_alive 7 6 13
 ctrl_d
