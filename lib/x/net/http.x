@@ -251,6 +251,12 @@
       (pair "Authorization"
             (Str8 append "Basic " (Base64 encode (Str8 append user ":" pass)))))
 
+    (method bearer-auth (self (param token STRING "The bearer token"))
+      (doc "The Authorization header pair for bearer-token auth (RFC 6750) -- add it to any verb's headers, exactly like basic-auth: (Rest get url (list (Http bearer-auth tok))). Tokens are credentials: use https urls; the cross-host redirect strip covers this header too."
+        (returns PAIR "(\"Authorization\" . \"Bearer ...\")")
+        (example "(Http bearer-auth \"abc123\")" "(\"Authorization\" . \"Bearer abc123\")"))
+      (pair "Authorization" (Str8 append "Bearer " token)))
+
     (method %sans-auth (self (param headers ALIST "Request headers"))
       (doc "The headers without any Authorization entry (name compared case-insensitively) -- applied when a redirect hops to a DIFFERENT host, so credentials never leak cross-origin (the curl rule)."
         (returns ALIST "The filtered headers"))
@@ -407,5 +413,5 @@
       (Http request "HEAD" url (if (null? headers) () (first headers)) ()))))
 
 (doc (provide x/net/http Http)
-  (note "http/1.1 over Socket -- and https over Tls (#412), verification on, names resolved via (Socket resolve) with the Host header keeping the name. Connection: close; chunked + Content-Length framing decoded; bodies are byte lists (bytes->str for text); redirects auto-follow (cap 10; (redirects . 0) opts out; 303->GET, 301/302 POST->GET, 307/308 preserve). Verbs: get/post/put/patch/delete/head; url-encode/with-query build query strings; (Http basic-auth u p) is the Authorization pair (stripped on cross-host redirects). net/ = protocol shapes over sys/socket transport.")
+  (note "http/1.1 over Socket -- and https over Tls (#412), verification on, names resolved via (Socket resolve) with the Host header keeping the name. Connection: close; chunked + Content-Length framing decoded; bodies are byte lists (bytes->str for text); redirects auto-follow (cap 10; (redirects . 0) opts out; 303->GET, 301/302 POST->GET, 307/308 preserve). Verbs: get/post/put/patch/delete/head; url-encode/with-query build query strings; (Http basic-auth u p) / (Http bearer-auth tok) are the Authorization pairs (stripped on cross-host redirects). net/ = protocol shapes over sys/socket transport.")
   "A plain-http client, homed on the Http class.")
