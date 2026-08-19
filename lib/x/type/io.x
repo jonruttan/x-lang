@@ -1,5 +1,21 @@
 ; type/io.x -- Io: the input/output surface.
 ;
+; THE I/O TIERS (#365) -- four classes, four jobs:
+;   Io     (this file)      the VERBS on the current channels: write/
+;                           display (also bare), read/read-char, the
+;                           to-str captures, error-line/file, repl-read.
+;   Stream (x/sys/stream)   WHERE output goes: redirect the output verbs
+;                           to an fd or file (to-fd/to-file/with-...).
+;   File   (x/sys/file)     the FILESYSTEM: descriptors and raw ops
+;                           (open/read/write/seek), plus the ergonomic
+;                           whole-file tier (read-all/stat/walk/...).
+;   Buf    (x/type/buf)     the READER's side: the tokenizer's non-owning
+;                           buffer view and the Tok token stream -- input
+;                           machinery, not general I/O.
+; Rule of thumb: printing or reading values -> Io; sending output
+; somewhere else -> Stream; touching the filesystem -> File; writing a
+; reader -> Buf.
+;
 ; The C primitives live in src/x-prim/io.c (catalog ns `io`). ns `io` is
 ; DE-REGISTERED (R5) -- EXCEPT `write` and `display`, the universal output
 ; verbs, which stay bound bare via the C keep-list (x_prims_name_kept), the

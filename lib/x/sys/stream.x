@@ -1,4 +1,7 @@
 ; stream.x -- Stream: output redirection as first-class streams (pure X).
+; One of the four I/O tiers -- Io holds the verbs, Stream redirects
+; output, File is the filesystem, Buf is the reader's side; the full
+; statement lives in x/type/io.x's header (#365).
 ;
 ; display/write emit to the base's `fileout` fd -- an integer ATOM in the io
 ; `files` group (filein fileout fileerr write-buf buffer); see

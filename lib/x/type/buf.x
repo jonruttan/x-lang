@@ -1,4 +1,7 @@
 ; type/buf.x -- Buf + Tok: the tokenizer buffer and token-stream API.
+; One of the four I/O tiers -- Io holds the verbs, Stream redirects
+; output, File is the filesystem, Buf is the reader's side; the full
+; statement lives in x/type/io.x's header (#365).
 ;
 ; The C primitives live in src/x-prim/type.c (catalog ns `buf` and `tok`);
 ; the methods fetch inline per the cold rule. Both namespaces are

@@ -109,3 +109,7 @@
     (def %env (Sys getenv "X_ALLOC_LIMIT_OBJS"))
     (def %n (if (null? %env) () (%digits %env)))
     (alloc-limit! (if (null? %n) 300000000 %n)))))
+
+(doc (provide x/tool/contract Contract)
+  (note "Gates run from the repo root (make provides the cwd), so walk paths are repo-relative by construction; the shell policy that homed the gates in the language is tools/README.md.")
+  "Shared scaffold for the in-language gate ratchets, on the Contract class: the sorted recursive walk, sorted-list set ops (sort/uniq/only), the tool's own argv behind the engine prefix, and the allocation guard.")
