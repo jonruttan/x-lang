@@ -258,3 +258,22 @@ a type struct addresses arbitrary spine words.
 ```
 ---
     'refused
+
+### push-write through a wrapped type round-trips (shadow, then pop)
+
+The probe runs under a guard and the stack is restored UNCONDITIONALLY
+before asserting (the printer spec's missing-handler lesson): a raised
+probe that skipped the pop would leave INTEGER's write stack hexed for
+the whole batch.  Children of a written list render in the same mode,
+so the pushed handler shows through the list writer.
+
+```scheme
+(do
+  (def %wt (Type wrap (Type of 0)))
+  (%wt push-write (fn (_ n) (display (Str8 append "0x" (%number->str n 16)))))
+  (def %r (guard (e 'err) ((prim-ref 'io 'write-to-str) (list 1 2 42))))
+  (Type pop-write (%wt raw))
+  (list %r ((prim-ref 'io 'write-to-str) (list 1 2 42))))
+```
+---
+    ("(0x1 0x2 0x2a)" "(1 2 42)")
