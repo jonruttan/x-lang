@@ -76,6 +76,13 @@
     (let ((k (%str8-cvt n %str8-int-type)))
       (if (if (null? k) #f (eq? (%str8-type-of k) %str8-int-type)) k (error what))))))
 
+; Per-element C arithmetic (#332): the catalog carries int < and = but
+; NO >= or > (a prim-ref miss is a SILENT nil, and a nil head returns
+; the form itself -- truthy -- so the first draft's done? was instantly
+; "true"; the whole suite went quietly wrong).  >= and > are spelled
+; via < below: (>= a b) = (if (< a b) #f #t), (> a b) = (< b a).
+; +/-/< and the mem/ptr doors reuse boot's cached set (#333).
+
 (def-class Str8 (extends Seq)
   (static
     ; --- primitives (8-bit byte view; handler-immune via str-byte-*) ---
@@ -134,8 +141,12 @@
     ; reverse) for the cost of a single type compare -- while done?/step,
     ; which run per element, stay raw.
     (method start (self v)     (do (%str8-check v "Str8: not a string") 0))
-    (method done? (self cur v) (>= cur (%str-byte-len v)))
-    (method step  (self cur v) (pair (self ref cur v) (+ cur 1)))
+    (method done? (self cur v) (if (%sc-int< cur (%str-byte-len v)) #f #t))
+    ; Raw byte read (#332): the cursor protocol structurally bounds cur
+    ; (start type-checks, done? gates every step), the same trust model
+    ; as unchecked first/rest -- ref's per-call coercion and double
+    ; bounds check cost more than the read itself, per element.
+    (method step  (self cur v) (pair (%str-byte-ref v cur) (%sc-int+ cur 1)))
 
     ; encode: one byte element is its own low byte. Makes
     ; (Str8 ->str (Str8 ->list s)) an identity on the byte view.
@@ -146,19 +157,63 @@
       (doc "True if a and b have equal length and equal bytes."
         (returns BOOL "#t when a and b are byte-equal")
         (example "(Str8 =? \"ab\" \"ab\")" "#t"))
-      (if (= (self length a) (self length b))
-        (let go ((i 0) (n (self length a)))
-          (if (= i n) #t
-            (if (= (%char->integer (self ref i a))
-                   (%char->integer (self ref i b)))
-              (go (+ i 1) n) #f)))
-        #f))
+      ; Byte equality IS the contract, and boot str=? is already the
+      ; one-block-compare door (#332); the interpreted per-byte loop
+      ; paid ~10 evals per byte.  Type checks stay loud.
+      (do (%str8-check a "Str8 =?: not a string")
+          (%str8-check b "Str8 =?: not a string")
+          (str=? a b)))
 
-    ; does sub occur in s at element position pos?
+    ; does sub occur in s at element position pos?  For Str8 an element
+    ; position IS a byte position; StrUTF8 overrides with a code-point
+    ; translation onto the same byte door (#332).
     (method match-at? (self sub pos s)
-      (def sub-len (self length sub))
-      (if (> (+ pos sub-len) (self length s)) #f
-        (self =? (self sub pos sub-len s) sub)))
+      (self %match-bytes-at? sub pos s))
+    ; The byte door: bounds, then ONE block compare -- no substring
+    ; allocation per probe.  Raw ptrs derive and land in the same
+    ; expression; collection is explicit-only (the str=? grounds).
+    (method %match-bytes-at? (self sub bpos s)
+      (def m (%str-byte-len sub))
+      (if (%sc-int< bpos 0) #f
+        (if (%sc-int< (%str-byte-len s) (%sc-int+ bpos m)) #f
+          (eq? 0 (%mem-cmp (%int->ptr (%sc-int+ (%ptr->int (%str->ptr s)) bpos))
+                           (%str->ptr sub) m)))))
+    ; Linear byte search from a byte offset: first-byte skip, block-
+    ; compare confirm.  Returns the BYTE index or nil.  Sound for
+    ; StrUTF8 inputs too: a valid UTF-8 needle can never match starting
+    ; mid-sequence, so a byte hit is always a code-point-aligned hit.
+    (method %find-bytes (self sub from s)
+      (def m (%str-byte-len sub))
+      (def n (%str-byte-len s))
+      (if (eq? m 0) (if (%sc-int< n from) () from)
+        (do
+          (def c0 (%char->integer (%str-byte-ref sub 0)))
+          (def last (%n2s-int- n m))
+          (def subp (%str->ptr sub))
+          (def sbase (%ptr->int (%str->ptr s)))
+          (let go ((i from))
+            (if (%sc-int< last i) ()
+              (if (eq? (%char->integer (%str-byte-ref s i)) c0)
+                (if (eq? 0 (%mem-cmp (%int->ptr (%sc-int+ sbase i)) subp m))
+                  i
+                  (go (%sc-int+ i 1)))
+                (go (%sc-int+ i 1))))))))
+    ; Backward twin of %find-bytes.
+    (method %rfind-bytes (self sub s)
+      (def m (%str-byte-len sub))
+      (def n (%str-byte-len s))
+      (if (eq? m 0) n
+        (do
+          (def c0 (%char->integer (%str-byte-ref sub 0)))
+          (def subp (%str->ptr sub))
+          (def sbase (%ptr->int (%str->ptr s)))
+          (let go ((i (%n2s-int- n m)))
+            (if (%sc-int< i 0) ()
+              (if (eq? (%char->integer (%str-byte-ref s i)) c0)
+                (if (eq? 0 (%mem-cmp (%int->ptr (%sc-int+ sbase i)) subp m))
+                  i
+                  (go (%n2s-int- i 1)))
+                (go (%n2s-int- i 1))))))))
 
     ; --- construction ---
     (method append (self . (param args STRING "Strings to concatenate"))
@@ -200,13 +255,16 @@
       (doc "True if a sorts before b in element (byte) order."
         (returns BOOL "#t when a is lexicographically less than b")
         (example "(Str8 <? \"abc\" \"abd\")" "#t"))
-      (let go ((i 0) (la (self length a)) (lb (self length b)))
-        (cond
-          ((= i la) (< i lb))
-          ((= i lb) #f)
-          ((Char <? (self ref i a) (self ref i b)) #t)
-          ((Char >? (self ref i a) (self ref i b)) #f)
-          (#t (go (+ i 1) la lb)))))
+      ; One block compare of the common prefix, then a length tiebreak
+      ; (#332): byte order equals code-point order for UTF-8 (the note
+      ; above), and the old loop paid two dispatches per element.
+      (do (%str8-check a "Str8 <?: not a string")
+          (%str8-check b "Str8 <?: not a string")
+          (def la (%str-byte-len a))
+          (def lb (%str-byte-len b))
+          (def n (if (%sc-int< lb la) lb la))
+          (def c (%mem-cmp (%str->ptr a) (%str->ptr b) n))
+          (if (eq? c 0) (%sc-int< la lb) (eq? c -1))))
     (method >?  (self (param a STRING "First string") (param b STRING "Second string"))
       (doc "True if a sorts after b in element (byte) order."
         (returns BOOL "#t when a is lexicographically greater than b")
@@ -314,34 +372,31 @@
       (doc "True if sub occurs anywhere within s (empty sub always matches)."
         (returns BOOL "#t when s contains sub")
         (example "(Str8 contains? \"ll\" \"hello\")" "#t"))
-      (def s-len (self length s))
-      (def sub-len (self length sub))
-      (def go (fn (loop i)
-        (if (> (+ i sub-len) s-len) #f
-          (if (self match-at? sub i s) #t (loop (+ i 1))))))
-      (if (= sub-len 0) #t (go 0)))
+      ; Boolean of the linear byte scan (#332); byte-sound for StrUTF8
+      ; (see %find-bytes).  The old walk allocated a substring and ran
+      ; an interpreted compare per position.
+      (do (%str8-check sub "Str8 contains?: not a string")
+          (%str8-check s "Str8 contains?: not a string")
+          (not (null? (self %find-bytes sub 0 s)))))
     (method index-of (self (param sub STRING "Substring to search for") (param s STRING "String to search in"))
       (doc "The element position of sub's first occurrence in s, or nil on a miss (absence is nil, like every other index-search miss). An empty sub matches at 0."
         (returns ANY "Position, or nil")
         (example "(Str8 index-of \"ll\" \"hello\")" "2")
         (example "(null? (Str8 index-of \"zz\" \"hello\"))" "#t"))
-      (def s-len (self length s))
-      (def sub-len (self length sub))
-      (def go (fn (loop i)
-        (if (> (+ i sub-len) s-len) ()
-          (if (self match-at? sub i s) i (loop (+ i 1))))))
-      (go 0))
+      ; The linear byte scan directly: Str8 element positions ARE byte
+      ; positions.  StrUTF8 overrides to translate the byte hit to a
+      ; code-point index (#332).
+      (do (%str8-check sub "Str8 index-of: not a string")
+          (%str8-check s "Str8 index-of: not a string")
+          (self %find-bytes sub 0 s)))
     (method last-index-of (self (param sub STRING "Substring to search for") (param s STRING "String to search in"))
       (doc "The element position of sub's LAST occurrence in s, or nil on a miss. An empty sub matches at the end."
         (returns ANY "Position, or nil")
         (example "(Str8 last-index-of \"l\" \"hello\")" "3")
         (example "(null? (Str8 last-index-of \"zz\" \"hello\"))" "#t"))
-      (def s-len (self length s))
-      (def sub-len (self length sub))
-      (def go (fn (loop i)
-        (if (< i 0) ()
-          (if (self match-at? sub i s) i (loop (- i 1))))))
-      (go (- s-len sub-len)))
+      (do (%str8-check sub "Str8 last-index-of: not a string")
+          (%str8-check s "Str8 last-index-of: not a string")
+          (self %rfind-bytes sub s)))
     (method replace (self (param old STRING "Literal substring to replace (not a regex)")
                           (param replacement STRING "Replacement")
                           (param s STRING "String to rewrite"))
@@ -464,14 +519,18 @@
       (doc "True if s begins with the prefix pfx."
         (returns BOOL "#t when s starts with pfx")
         (example "(Str8 starts? \"he\" \"hello\")" "#t"))
-      (self match-at? pfx 0 s))
+      (self %match-bytes-at? pfx 0 s))
     (method ends?   (self (param sfx STRING "Suffix to test for") (param s STRING "String to check"))
       (doc "True if s ends with the suffix sfx."
         (returns BOOL "#t when s ends with sfx")
         (example "(Str8 ends? \"lo\" \"hello\")" "#t"))
-      (def s-len (self length s))
-      (def sfx-len (self length sfx))
-      (if (> sfx-len s-len) #f (self match-at? sfx (- s-len sfx-len) s)))
+      ; Byte lengths deliberately (#332): a byte-suffix match IS an
+      ; element-suffix match for valid UTF-8, so StrUTF8 inherits this
+      ; without paying its O(n) code-point length twice.
+      (def s-len (%str-byte-len s))
+      (def sfx-len (%str-byte-len sfx))
+      (if (%sc-int< s-len sfx-len) #f
+        (self %match-bytes-at? sfx (%n2s-int- s-len sfx-len) s)))
 
     ; --- transformation ---
     (method reverse  (self (param s STRING "String to reverse"))
@@ -488,12 +547,14 @@
       (doc "Uppercase the ASCII letters of s; other characters pass through."
         (returns STRING "s with a-z mapped to A-Z")
         (example "(Str8 upcase \"café\")" "\"CAFé\""))
-      (self ->str (%map (fn (_ c) (Char upcase c)) (self ->list s))))
+      (def %upf (wrap (%class-method-of Char (lit upcase))))
+      (self ->str (%map (fn (_ c) (%upf Char c)) (self ->list s))))
     (method downcase (self (param s STRING "String to convert"))
       (doc "Lowercase the ASCII letters of s; other characters pass through."
         (returns STRING "s with A-Z mapped to a-z")
         (example "(Str8 downcase \"ABC\")" "\"abc\""))
-      (self ->str (%map (fn (_ c) (Char downcase c)) (self ->list s))))
+      (def %dnf (wrap (%class-method-of Char (lit downcase))))
+      (self ->str (%map (fn (_ c) (%dnf Char c)) (self ->list s))))
 
     ; --- trimming (whitespace is ASCII; element scanning is correct) ---
     (method trim-left (self (param s STRING "String to trim"))
@@ -525,17 +586,22 @@
       (doc "Split s into a list of pieces around each occurrence of sep (empty sep splits into single elements)."
         (returns LIST "List of substrings of s between separators")
         (example "(Str8 split \",\" \"a,b,c\")" "(\"a\" \"b\" \"c\")"))
-      (def sep-len (self length sep))
-      (def s-len (self length s))
-      (if (= sep-len 0)
+      ; Byte scan + byte slices (#332): every cut lands on a match of
+      ; sep, which for valid UTF-8 is code-point aligned, so StrUTF8
+      ; inherits this byte implementation soundly.  The old walk paid a
+      ; substring allocation and an interpreted compare per position.
+      ; The empty-sep arm stays fully dispatched: per ELEMENT is the
+      ; contract (code points under StrUTF8).
+      (def sep-len (%str-byte-len sep))
+      (def s-len (%str-byte-len s))
+      (if (eq? sep-len 0)
         (%map (fn (_ c) (self ->str (list c))) (self ->list s))
-        (let go ((start 0) (i 0) (acc ()))
-          (if (> (+ i sep-len) s-len)
-            (%reverse (pair (self sub start (- s-len start) s) acc))
-            (if (self =? (self sub i sep-len s) sep)
-              (go (+ i sep-len) (+ i sep-len)
-                  (pair (self sub start (- i start) s) acc))
-              (go start (+ i 1) acc))))))))
+        (let go ((start 0) (acc ()))
+          (let ((hit (self %find-bytes sep start s)))
+            (if (null? hit)
+              (%reverse (pair (%str-byte-sub s start (%n2s-int- s-len start)) acc))
+              (go (%sc-int+ hit sep-len)
+                  (pair (%str-byte-sub s start (%n2s-int- hit start)) acc)))))))))
 
 (doc (provide x/protocol/str/str8 Str8)
   (note "The 8-bit byte view. Use (Str8 length s), (Str8 upcase s), etc.; (help Str8) lists every method, (help Str8 method) shows one.")

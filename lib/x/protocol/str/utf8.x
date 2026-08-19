@@ -80,6 +80,29 @@
         (pair (%integer->char (first d)) (rest d))))
 
     ; encode: a code point -> its UTF-8 bytes (inverse of step)
+    ; --- search translations (#332): the byte doors inherited from
+    ; Str8 find BYTE offsets; these walkers convert to/from code-point
+    ; indices in one O(offset) pass, replacing the old inherited
+    ; searches that re-ran O(n) code-point length/sub per position.
+    (method %byte->cp (self bpos s)
+      (let go ((b 0) (i 0))
+        (if (>= b bpos) i
+          (go (+ b (self width s b)) (+ i 1)))))
+    (method %cp->byte (self k s)
+      (def n (%str-byte-len s))
+      (let go ((i 0) (b 0))
+        (if (>= i k) b
+          (if (>= b n) b
+            (go (+ i 1) (+ b (self width s b)))))))
+    (method match-at? (self sub pos s)
+      (self %match-bytes-at? sub (self %cp->byte pos s) s))
+    (method index-of (self sub s)
+      (let ((b (self %find-bytes sub 0 s)))
+        (if (null? b) () (self %byte->cp b s))))
+    (method last-index-of (self sub s)
+      (let ((b (self %rfind-bytes sub s)))
+        (if (null? b) () (self %byte->cp b s))))
+
     (method char->bytes (self (param el CHAR "Code point to encode"))
       (doc "Encode one CODE POINT to its 1-4 UTF-8 bytes (inverse of step)."
         (returns LIST "List of the UTF-8 byte values (integers) for el")
