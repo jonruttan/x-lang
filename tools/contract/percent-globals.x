@@ -14,7 +14,9 @@
 ;
 ; Hot-path rows stand on MEASURED de-dispatch grounds (8-30x class
 ; call overhead): sha256*, asm*, compile*, boot/*, and (#334: 15x on
-; the fnv byte loop, 2x on dict ops, benchmarked) type/dict + type/hash.
+; the fnv byte loop, 2x on dict ops, benchmarked) type/dict + type/hash,
+; and (#335: cached int %// on the random draw loop, port math, and the
+; per-expression gc tick) num/random + sys/socket + tool/asm-compile.
 ; Everything else is unhomed inventory awaiting the pin.x treatment.
 (file "apps/logo/dispatch.x" 28)
 (file "apps/logo/entry.x" 27)
@@ -56,7 +58,7 @@
 (file "lib/x/num/bigint.x" 57)
 (file "lib/x/num/complex.x" 41)
 (file "lib/x/num/float.x" 60)
-(file "lib/x/num/random.x" 5)
+(file "lib/x/num/random.x" 6)
 (file "lib/x/num/rational.x" 39)
 (file "lib/x/platform/socket.x" 1)
 (file "lib/x/platform/syscall.x" 5)
@@ -75,9 +77,9 @@
 (file "lib/x/sys/file.x" 7)
 (file "lib/x/sys/pact.x" 12)
 (file "lib/x/sys/posix.x" 32)
-(file "lib/x/sys/socket.x" 29)
+(file "lib/x/sys/socket.x" 31)
 (file "lib/x/sys/stream.x" 5)
-(file "lib/x/tool/asm-compile.x" 62)
+(file "lib/x/tool/asm-compile.x" 63)
 (file "lib/x/tool/asm.x" 37)
 (file "lib/x/tool/asm/arm64.x" 8)
 (file "lib/x/tool/asm/x86_64.x" 23)
