@@ -582,6 +582,36 @@
       (self trim-left (self trim-right s)))
 
     ; --- splitting (empty sep -> per element; else element search) ---
+    (method wrap (self (param width INT "Column limit, in bytes")
+                       (param s STRING "Text to wrap"))
+      (doc "Greedy word-wrap: split s on whitespace (spaces, tabs, newlines all break words) and pack words into lines at most width bytes long. A word longer than width stands alone on its own over-length line -- words are never broken (#375). Returns no empty lines; all-whitespace input gives ()."
+        (returns LIST "Lines, in order")
+        (example "(Str8 wrap 10 \"the quick brown fox\")" "(\"the quick\" \"brown fox\")"))
+      (def words
+        (List reject (fn (_ w) (str=? w ""))
+          (Str8 split " "
+            (Str8 replace "\t" " " (Str8 replace "\n" " " (Str8 replace "\r" " " s))))))
+      (let go ((ws words) (line "") (llen 0) (acc ()))
+        (match
+          ((null? ws) (if (= llen 0) (%reverse acc) (%reverse (pair line acc))))
+          (#t
+            (let ((w (first ws)))
+              (let ((wlen (Str8 length w)))
+                (match
+                  ((= llen 0) (go (rest ws) w wlen acc))
+                  ((<= (+ llen (+ 1 wlen)) width)
+                    (go (rest ws) (Str8 append line " " w) (+ llen (+ 1 wlen)) acc))
+                  (#t (go (rest ws) w wlen (pair line acc)))))))))) 
+
+    (method fill (self (param width INT "Column limit, in bytes")
+                       (param s STRING "Text to wrap"))
+      (doc "wrap, joined back with newlines: one string, lines at most width bytes (over-length single words excepted)."
+        (returns STRING "The wrapped text")
+        (example "(Str8 fill 10 \"the quick brown fox\")" "\"the quick\\nbrown fox\""))
+      (def lines (Str8 wrap width s))
+      (if (null? lines) ""
+        (List fold (fn (_ acc l) (Str8 append acc "\n" l)) (first lines) (rest lines))))
+
     (method split (self (param sep STRING "Separator to split on") (param s STRING "String to split"))
       (doc "Split s into a list of pieces around each occurrence of sep (empty sep splits into single elements)."
         (returns LIST "List of substrings of s between separators")

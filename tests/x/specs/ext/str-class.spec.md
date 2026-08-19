@@ -584,3 +584,25 @@ so the guard fires at `start` rather than in Str8's byte-length seat.
 ```
 ---
     Error: #<err:type Str sub: not a string>
+
+
+## wrap and fill (#375)
+
+### greedy wrap at the width; fill joins with newlines
+
+```scheme
+(list (Str8 wrap 10 "the quick brown fox jumps")
+      (Str8 fill 10 "the quick brown fox"))
+```
+---
+    (("the quick" "brown fox" "jumps") "the quick\nbrown fox")
+
+### long words stand alone unbroken; whitespace-only input gives no lines
+
+```scheme
+(list (Str8 wrap 4 "a verylongword b")
+      (Str8 wrap 5 "   ")
+      (Str8 fill 5 ""))
+```
+---
+    (("a" "verylongword" "b") () "")
