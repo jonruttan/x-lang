@@ -29,6 +29,23 @@ esac
 # Word-splitting the list into argv is intended; lib paths contain no spaces.
 _FILES=$(find lib -name '*.x' | sort)
 
+# Verdict cache (#325).  This gate is a pure function of its inputs: the
+# lib sources (list AND contents), this script, the lint itself, and the
+# engine that tokenizes everything -- hashing x-bin covers the last (a
+# relink changes it exactly when engine behaviour may have; an untouched
+# tree hashes stable).  A GREEN verdict is cached under that key in
+# build/, so the pre-push hook pays the ~25s walk only when something
+# that could change the answer changed; a fresh checkout (CI) or a red
+# tree always runs live -- only "ok" is ever cached.
+_DG="sha256sum"
+command -v sha256sum >/dev/null 2>&1 || _DG="shasum -a 256"
+_KEY=$({ $_DG tools/check/boot-order.sh tools/check/boot-order.x x-bin $_FILES; } | $_DG | awk '{print $1}')
+_CACHE="build/boot-order.verdict"
+if [ -f "$_CACHE" ] && [ "$(cat "$_CACHE" 2>/dev/null)" = "$_KEY" ]; then
+  echo "boot-order: ok (cached)"
+  exit 0
+fi
+
 _OUT=$({
   printf '(alloc-limit! %s)\n' "$X_ALLOC_LIMIT_OBJS"
   cat lib/x-core.x tools/check/boot-order.x
@@ -39,6 +56,7 @@ _OUT=$({
 # slip through on the strength of an earlier "ok" line.
 if printf '%s\n' "$_OUT" | grep -qx "ok" \
   && ! printf '%s\n' "$_OUT" | grep -q "ERROR"; then
+  mkdir -p build && printf '%s\n' "$_KEY" > "$_CACHE"
   echo "boot-order: ok"
 else
   echo "boot-order: FAIL" >&2
