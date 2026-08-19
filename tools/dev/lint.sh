@@ -32,11 +32,93 @@ LANG=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --lib) LIB_MODE=1; shift ;;
+    --group) GROUP_LIST="$2"; shift 2 ;;
     --lang) LANG="$2"; shift 2 ;;
     -*) echo "Usage: $0 [--lib] [--lang LANG] [file.x ...]" >&2; exit 1 ;;
     *) break ;;
   esac
 done
+
+# Compute the preload for one ABSOLUTE target path into _PRELOAD -- the
+# imports executed ahead of the linter so the target's legitimate env is
+# bound.  Factored out (#323): the per-file loop and the batch grouper
+# both need it (the group KEY is the preload text, verbatim).
+_preload_for() {
+  _PRELOAD=""
+  case "$1" in
+    */lib/x/*.x)
+      _PRELOAD="$(grep '^(import ' "$1" | sed 's/;.*$//' | tr '\n' ' ')"
+      ;;
+    */apps/*/*.x)
+      _APP_DIR="$(cd "$(dirname "$1")" && pwd)"
+      _APPS_ROOT="$(dirname "$_APP_DIR")"
+      _APP="$(basename "$_APP_DIR")"
+      _ABS_F="$_APP_DIR/$(basename "$1")"
+      _PRELOAD="(import-path! \"$_APPS_ROOT\")"
+      for _m in "$_APP_DIR"/*.x; do
+        grep -q '(provide ' "$_m" && [ "$_m" != "$_ABS_F" ] && continue
+        _PRELOAD="$_PRELOAD $(grep '^(import ' "$_m" | sed 's/;.*$//' | tr '\n' ' ')"
+      done
+      for _m in "$_APP_DIR"/*.x; do
+        [ "$_m" = "$_ABS_F" ] && continue
+        grep -q '(provide ' "$_m" || continue
+        _PRELOAD="$_PRELOAD (import $_APP/$(basename "$_m" .x))"
+      done
+      ;;
+  esac
+  for _k in $(sed -n 's/^; lint-known:\(.*\)$/\1/p' "$1"); do
+    _PRELOAD="$_PRELOAD (def $_k 0)"   # 0, not (): a nil binding would fail the value-subject test
+  done
+}
+
+# --group LISTFILE (#323): lint every file in LISTFILE (absolute paths,
+# one per line, identical preloads by construction) in ONE engine.  The
+# stream interleaves (%lint-next-file "NAME") markers with the file
+# bodies; the driver emits a %%LINT%% block per file and the awk below
+# reassembles the legacy per-file lines.  A file with no verdict (the
+# engine died mid-group) reports as a failure, never a silent pass.
+if [ -n "${GROUP_LIST:-}" ]; then
+  _FIRST=$(head -1 "$GROUP_LIST")
+  _preload_for "$_FIRST"
+  _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") ()"
+  _OUT=$({
+      printf '%s\n' "$_CONSTRUCTS_INPUT"
+      [ "$LIB_MODE" -eq 1 ] && printf '%%lint-lib\n'
+      while IFS= read -r _f; do
+        printf '(%%lint-next-file "%s")\n' "$(echo "$_f" | sed "s|$PROJECT_DIR/||")"
+        cat "$_f"
+        printf '\n'
+      done < "$GROUP_LIST"
+    } | { cat "$LANG_LIB"; printf '%s\n' "$_PRELOAD"; cat "$LINTER" -; } | "$X_BIN" 2>&1)
+  printf '%s\n' "$_OUT" | awk -v listfile="$GROUP_LIST" -v proj="$PROJECT_DIR/" '
+    BEGIN {
+      nf = 0
+      while ((getline l < listfile) > 0) { sub(proj, "", l); want[l] = 1; order[++nf] = l }
+      fail = 0
+    }
+    /^%%LINT%% / { name = substr($0, 10); buf = ""; next }
+    /^%%OK%%$/   { printf "  \033[1;32m.\033[0m %s\n", name; done[name] = 1; name = ""; next }
+    /^%%FAIL%%$/ {
+      fail = 1
+      printf "  \033[1;31mF\033[0m %s\n", name
+      printf "%s", buf
+      done[name] = 1; name = ""; next
+    }
+    name != "" { if ($0 !~ /^\*\*\* ERROR/) buf = buf "    " $0 "\n"; next }
+    { stray = stray "    " $0 "\n" }
+    END {
+      for (i = 1; i <= nf; i++) {
+        if (!(order[i] in done)) {
+          fail = 1
+          printf "  \033[1;31mF\033[0m %s\n", order[i]
+          printf "    (no verdict -- engine died mid-group)\n"
+          if (stray != "") { printf "%s", stray; stray = "" }
+        }
+      }
+      exit fail
+    }'
+  exit $?
+fi
 
 # Default targets: library files in --lib mode (skip data-only files),
 # then every app file -- the sibling preload below makes those lintable.
@@ -75,16 +157,47 @@ if [ $# -eq 0 ]; then
   # runner (SIGTERM 143, ECHILD noise in make) while 14GB macOS
   # survived.  4x600MB leaves headroom everywhere; raise NPROC
   # explicitly on machines with the memory for it.
-  if [ -n "$PARALLEL" ]; then
-    _NP="$NPROC"
-    if [ -z "$_NP" ]; then
-      _NP="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
-      [ "$_NP" -gt 4 ] && _NP=4
+  # Batch by PRELOAD SIGNATURE (#323): one engine boot lints every file
+  # that shares an identical mode+preload -- ~160 boots collapse to ~55
+  # groups.  Identical preloads are the SOUNDNESS line: batching files
+  # with different imports would union their environments and mask
+  # missing-import bugs (the exact class this sweep has caught).  The
+  # driver's (%lint-next-file ...) markers carry the per-file split;
+  # lint-forms resets its analysis state per file.
+  _GTMP=$(mktemp -d "${TMPDIR:-/tmp}/lint-groups.XXXXXX") || exit 1
+  for _f in $_FILES; do
+    _preload_for "$_f"
+    _key=$(printf '%s|%s' "$LIB_MODE" "$_PRELOAD" | cksum | tr ' ' '-')
+    printf '%s\n' "$_f" >> "$_GTMP/g$_key"
+  done
+  # Chunk big groups at LINT_BATCH (8) files: one 36-file group as a
+  # single child serializes work four slots used to share -- the boots
+  # saved were repaid in idle slots (measured ~neutral wall clock).
+  # Chunks inherit the group key, so the identical-preload soundness
+  # line is untouched.
+  : "${LINT_BATCH:=8}"
+  for _g in "$_GTMP"/g*; do
+    if [ "$(grep -c '' "$_g")" -gt "$LINT_BATCH" ]; then
+      split -l "$LINT_BATCH" "$_g" "${_g}-c"
+      rm -f "$_g"
     fi
-    printf '%s\n' $_FILES | xargs -P "$_NP" -n 1 sh "$0" --lib || exit 1
-    exit 0
+  done
+  _NP="$NPROC"
+  if [ -z "$_NP" ]; then
+    _NP="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+    [ "$_NP" -gt 4 ] && _NP=4
   fi
-  set -- $_FILES
+  if [ -n "$PARALLEL" ]; then
+    ls "$_GTMP"/g* | xargs -P "$_NP" -n 1 sh "$0" --lib --group
+    _rc=$?
+  else
+    _rc=0
+    for _g in "$_GTMP"/g*; do
+      sh "$0" --lib --group "$_g" || _rc=1
+    done
+  fi
+  rm -rf "$_GTMP"
+  exit $_rc
 fi
 
 FAIL=0
@@ -123,61 +236,9 @@ for f in "$@"; do
     _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") ()"
   fi
 
-  # App target: emit a preload that imports the target's sibling modules so
-  # their exports are bound (known) when the target's forms are analysed.
-  # The preload EXECUTES (it sits before the linter in the pipe, like the
-  # library); the target is read as data after it.  Modules are recognised
-  # by carrying a (provide ...); the target itself is never preloaded
-  # directly, though a sibling's import chain may pull it in (harmless: the
-  # linter collects the file's own defs from its forms regardless).
-  _PRELOAD=""
-  case "$f" in
-    # Dialect entries (lib/x/*.x) reference classes their own (import ...)
-    # lines load -- rn.x's system rides Proc (#226).  Same rule as the app
-    # arm below: the target's top-level import lines declare the env it
-    # boots with; execute just those first.  Modules import-once, so a
-    # sibling chain re-pulling one is harmless.
-    */lib/x/*.x)
-      # TOP-LEVEL imports only, deliberately: call-time (indented)
-      # imports can be guarded -- tool/asm.x imports its per-arch
-      # backend inside an os match, and executing BOTH here loads the
-      # wrong arch's fragment.  A name a guarded/lazy import supplies is
-      # declared with a `; lint-known:` marker instead.
-      # Strip trailing `; comments` BEFORE the newline->space join: a
-      # commented import line otherwise swallows every later import AND
-      # the lint-known marker defs into one run-on comment (#363 found
-      # random.x's marker dead this way -- only the first import ran).
-      _PRELOAD="$(grep '^(import ' "$f" | sed 's/;.*$//' | tr '\n' ' ')"
-      ;;
-    */apps/*/*.x)
-      _APP_DIR="$(cd "$(dirname "$f")" && pwd)"
-      _APPS_ROOT="$(dirname "$_APP_DIR")"
-      _APP="$(basename "$_APP_DIR")"
-      _ABS_F="$_APP_DIR/$(basename "$f")"
-      _PRELOAD="(import-path! \"$_APPS_ROOT\")"
-      # Entry files (no provide) cannot be loaded -- they RUN the app -- but
-      # their top-level (import ...) lines declare the env the app boots
-      # with (e.g. x/num/float); execute just those, in file order, first.
-      # The target's own import lines count too: read as data they never run.
-      for _m in "$_APP_DIR"/*.x; do
-        grep -q '(provide ' "$_m" && [ "$_m" != "$_ABS_F" ] && continue
-        _PRELOAD="$_PRELOAD $(grep '^(import ' "$_m" | sed 's/;.*$//' | tr '\n' ' ')"
-      done
-      for _m in "$_APP_DIR"/*.x; do
-        [ "$_m" = "$_ABS_F" ] && continue
-        grep -q '(provide ' "$_m" || continue
-        _PRELOAD="$_PRELOAD (import $_APP/$(basename "$_m" .x))"
-      done
-      ;;
-  esac
-
-  # Adjudicated lazy references: a `; lint-known: NAME...` header line
-  # names %-globals a sibling file defines and a lazy include supplies at
-  # runtime (the JIT-deferral pattern).  Bind them nil in the linter env
-  # so they are known; the marker sits next to the reason in the file.
-  for _k in $(sed -n 's/^; lint-known:\(.*\)$/\1/p' "$f"); do
-    _PRELOAD="$_PRELOAD (def $_k 0)"   # 0, not (): a nil binding would fail the value-subject test
-  done
+  # Preload: factored into _preload_for (#323) -- the batch grouper
+  # keys on the same text this loop executes.
+  _preload_for "$f"
 
   # Run linter: library [+ app preload] + linter code, then constructs +
   # [mode flag] + target

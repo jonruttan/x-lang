@@ -123,4 +123,4 @@
 (file "tools/dev/doc-index.x" 10)
 (file "tools/dev/doc.x" 3)
 (file "tools/dev/fmt.x" 17)
-(file "tools/dev/lint.x" 24)
+(file "tools/dev/lint.x" 22)
