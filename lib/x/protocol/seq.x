@@ -3,7 +3,7 @@
 ; THE ITERATION TIERS (#365) -- three classes, three jobs:
 ;   Seq  (this file)     DEFINE an encoding: subclass with three cursor
 ;                        primitives (start/done?/step) and the derived
-;                        walk API arrives free -- Str8 and StrUTF8 are
+;                        walk API arrives free -- Str8 and StrUtf8 are
 ;                        the worked examples.
 ;   Iter (x/type/iter)   DRIVE a sequence at runtime: the iterator
 ;                        OBJECT every sequence type yields through its

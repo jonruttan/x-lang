@@ -35,7 +35,7 @@
 ;
 ; Three string PROTOCOLS:
 ;   Str8     -- always 8-bit bytes (this class)
-;   StrUTF8  -- always UTF-8 code points (subclass; overrides the primitives)
+;   StrUtf8  -- always UTF-8 code points (subclass; overrides the primitives)
 ;   Str      -- the AMBIENT protocol (currently = Str8); see provide below
 ;
 ; The suite is written ONCE here, expressed entirely through SELF primitives:
@@ -108,11 +108,11 @@
         (if (< j (%str-byte-len v)) (%str-byte-ref v j)
           (Err raise (lit index) "Str8 ref: index out of range" ()))))
     (method sub    (self (param st INT "Start byte offset (0-based)") (param len INT "Number of bytes") (param v STRING "Source string"))
-      (doc "Substring of len bytes starting at byte offset st; st and len clamp to v's bounds (like StrUTF8 sub)."
+      (doc "Substring of len bytes starting at byte offset st; st and len clamp to v's bounds (like StrUtf8 sub)."
         (returns STRING "The len-byte slice of v from st")
         (example "(Str8 sub 1 3 \"hello\")" "\"ell\""))
       ; %str-byte-sub reads unchecked (heap over-read past the string), so the
-      ; clamping here is the x-lang guard, mirroring StrUTF8 sub's clamp.
+      ; clamping here is the x-lang guard, mirroring StrUtf8 sub's clamp.
       (def st2 (%str8->int st "Str8 sub: start not convertible to INT"))
       (def len2 (%str8->int len "Str8 sub: length not convertible to INT"))
       (%str8-check v "Str8 sub: not a string")
@@ -121,7 +121,7 @@
           (%str-byte-sub v s0
             (if (< len2 0) 0 (if (< len2 (- n s0)) len2 (- n s0)))))))
     (method slice  (self (param st INT "Start offset (0-based, inclusive)") (param end INT "End offset (exclusive)") (param v STRING "Source string"))
-      (doc "Substring [st, end) -- the slice convention (start/end-exclusive), delegating to sub (start/length). Dispatches through (self sub), so StrUTF8 slices code points."
+      (doc "Substring [st, end) -- the slice convention (start/end-exclusive), delegating to sub (start/length). Dispatches through (self sub), so StrUtf8 slices code points."
         (returns STRING "The [st, end) slice of v")
         (example "(Str8 slice 1 4 \"hello\")" "\"ell\""))
       (self sub st (- end st) v))
@@ -135,7 +135,7 @@
     ; The cursor is a BYTE offset for every subclass, so done? bounds against the
     ; raw byte length -- NOT (self length), which a code-point subclass overrides
     ; via count -> done?, an infinite recursion. start/done? are inherited
-    ; unchanged by StrUTF8; only step advances differently.
+    ; unchanged by StrUtf8; only step advances differently.
     ; The one guard on the cursor protocol: `start` runs once per traversal,
     ; so it covers every walker above it (->list, iter, upcase, downcase,
     ; reverse) for the cost of a single type compare -- while done?/step,
@@ -165,7 +165,7 @@
           (str=? a b)))
 
     ; does sub occur in s at element position pos?  For Str8 an element
-    ; position IS a byte position; StrUTF8 overrides with a code-point
+    ; position IS a byte position; StrUtf8 overrides with a code-point
     ; translation onto the same byte door (#332).
     (method match-at? (self sub pos s)
       (self %match-bytes-at? sub pos s))
@@ -180,7 +180,7 @@
                            (%str->ptr sub) m)))))
     ; Linear byte search from a byte offset: first-byte skip, block-
     ; compare confirm.  Returns the BYTE index or nil.  Sound for
-    ; StrUTF8 inputs too: a valid UTF-8 needle can never match starting
+    ; StrUtf8 inputs too: a valid UTF-8 needle can never match starting
     ; mid-sequence, so a byte hit is always a code-point-aligned hit.
     (method %find-bytes (self sub from s)
       (def m (%str-byte-len sub))
@@ -372,7 +372,7 @@
       (doc "True if sub occurs anywhere within s (empty sub always matches)."
         (returns BOOL "#t when s contains sub")
         (example "(Str8 includes? \"ll\" \"hello\")" "#t"))
-      ; Boolean of the linear byte scan (#332); byte-sound for StrUTF8
+      ; Boolean of the linear byte scan (#332); byte-sound for StrUtf8
       ; (see %find-bytes).  The old walk allocated a substring and ran
       ; an interpreted compare per position.
       (do (%str8-check sub "Str8 includes?: not a string")
@@ -384,7 +384,7 @@
         (example "(Str8 index-of \"ll\" \"hello\")" "2")
         (example "(null? (Str8 index-of \"zz\" \"hello\"))" "#t"))
       ; The linear byte scan directly: Str8 element positions ARE byte
-      ; positions.  StrUTF8 overrides to translate the byte hit to a
+      ; positions.  StrUtf8 overrides to translate the byte hit to a
       ; code-point index (#332).
       (do (%str8-check sub "Str8 index-of: not a string")
           (%str8-check s "Str8 index-of: not a string")
@@ -525,7 +525,7 @@
         (returns BOOL "#t when s ends with sfx")
         (example "(Str8 ends? \"lo\" \"hello\")" "#t"))
       ; Byte lengths deliberately (#332): a byte-suffix match IS an
-      ; element-suffix match for valid UTF-8, so StrUTF8 inherits this
+      ; element-suffix match for valid UTF-8, so StrUtf8 inherits this
       ; without paying its O(n) code-point length twice.
       (def s-len (%str-byte-len s))
       (def sfx-len (%str-byte-len sfx))
@@ -587,11 +587,11 @@
         (returns LIST "List of substrings of s between separators")
         (example "(Str8 split \",\" \"a,b,c\")" "(\"a\" \"b\" \"c\")"))
       ; Byte scan + byte slices (#332): every cut lands on a match of
-      ; sep, which for valid UTF-8 is code-point aligned, so StrUTF8
+      ; sep, which for valid UTF-8 is code-point aligned, so StrUtf8
       ; inherits this byte implementation soundly.  The old walk paid a
       ; substring allocation and an interpreted compare per position.
       ; The empty-sep arm stays fully dispatched: per ELEMENT is the
-      ; contract (code points under StrUTF8).
+      ; contract (code points under StrUtf8).
       (def sep-len (%str-byte-len sep))
       (def s-len (%str-byte-len s))
       (if (eq? sep-len 0)

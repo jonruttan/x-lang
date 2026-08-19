@@ -90,7 +90,7 @@ make clean && make
   `Gen ref`, `Obj ref`, `Ptr ref`). `Str8 index` survives as a documented alias;
   don't add new `nth`/`index` methods.
 - **`length` is the property; `count` is the action** (see the [glossary](glossary.md)).
-  Every finite collection exposes `length` — List, Vector, Array, Str8, StrUTF8,
+  Every finite collection exposes `length` — List, Vector, Array, Str8, StrUtf8,
   Seq, Dict, Set (Dict/Set store it, O(1)). `count` names genuine tallying acts
   only: `Gen count` (consumes the stream — a lazy stream has no length
   property), `Seq count` (the cursor-walk the default `length` delegates to),
@@ -118,7 +118,7 @@ make clean && make
   update models -- the suffix tells you which you are holding.
 - **One membership verb per kind** (#358): keyed containers answer `has?`
   (Dict, Set, Assoc, Pact); positional searches answer `includes?` (List
-  element, Str8/StrUTF8 substring). `contains?` is retired.
+  element, Str8/StrUtf8 substring). `contains?` is retired.
 - **Codecs parse** (#358): text-to-values in codec/ is `parse` (Json, Xon);
   `read` stays the port-consumption verb (Io read, File read). Byte<->text
   transcoders pair `encode`/`decode` (Base64, Hex).
@@ -167,7 +167,7 @@ make clean && make
   (`member?`, `nth-set`, ...).
 - **The name is the range contract**: `slice` always means (start,
   end-exclusive); `sub` always means (start, length) — on every class
-  (`List slice`/`sub`, `Str8`/`StrUTF8 slice`/`sub`; `substring` is the
+  (`List slice`/`sub`, `Str8`/`StrUtf8 slice`/`sub`; `substring` is the
   byte-level slice-convention primitive). Never add a range method whose
   name doesn't declare its convention.
 - **Constructor verbs — one meaning each**: `make` = build from parts/config
@@ -206,7 +206,7 @@ make clean && make
   never a value sentinel; boundaries carry foreign null as the symbol `null`
   (and OS-domain tables keep the OS's own `-1` invalid marker).
 - **Indexes are 0-based; negatives count from the end** on strict indexed
-  collections (`List ref`, `Vector`, `Array`, `Str8`/`StrUTF8 ref`, the bare
+  collections (`List ref`, `Vector`, `Array`, `Str8`/`StrUtf8 ref`, the bare
   `(s i)`; `Gen ref` excepted — a lazy stream has no end). Index-search
   misses return `()` (the old `-1` exception is repealed).
 - **Count/index seats coerce to INT implicitly** through the conversion

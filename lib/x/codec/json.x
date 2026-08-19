@@ -113,13 +113,13 @@
         (%json-err "lone lead surrogate" i)
         (let ((lo (%json-hex4 s (+ i 6) len)))
           (if (if (>= lo 56320) (<= lo 57343) #f)    ; DC00-DFFF: tail surrogate
-            (pair (bytes->str (StrUTF8 encode
+            (pair (bytes->str (StrUtf8 encode
                     (+ 65536 (+ (* 1024 (- hi 55296)) (- lo 56320)))))
                   (+ i 10))
             (%json-err "lone lead surrogate" i))))
       (if (if (>= hi 56320) (<= hi 57343) #f)
         (%json-err "lone tail surrogate" i)
-        (pair (bytes->str (StrUTF8 encode hi)) (+ i 4))))))
+        (pair (bytes->str (StrUtf8 encode hi)) (+ i 4))))))
 
 ; One escape char after the backslash -> (string . next-pos)
 (def %json-escape
