@@ -71,6 +71,42 @@ trap 'rm -rf "$_TMP"' EXIT
 
 total=0; pinned=0; failed=0
 
+# Launch phase (#328): the examples are independent programs with zero
+# cross-example state, so they run concurrently -- at most EXAMPLE_JOBS
+# (4) engines at a time, the lint fan-out's ceiling: each child is one
+# dialect boot (+ the example), and the tower entries are the heavy
+# ones at ~3.3s/boot.  Each child writes its exit status and captured
+# streams under an index; the report phase below replays the ORIGINAL
+# loop, in glob order, off those captures -- verdict logic, output
+# order, UPDATE semantics all unchanged.  A batch-wait every
+# EXAMPLE_JOBS launches keeps the throttle boring (10 examples; a
+# wait-any scheduler would buy nothing here).
+: "${EXAMPLE_JOBS:=4}"
+_i=0; _inflight=0
+for f in examples/*/*; do
+  case "$f" in
+    */README.md) continue ;;
+  esac
+  [ -f "$f" ] || continue
+  dir=$(basename "$(dirname "$f")")
+  entry=$(entry_for_dir "$dir")
+  _i=$((_i + 1))
+  [ -z "$entry" ] && continue
+  (
+    { printf '(alloc-limit! %s)\n' "$X_ALLOC_LIMIT_OBJS"; cat "$entry" "$f"; } \
+      | $TIMEOUT_CMD "$X_BIN" --batch >"$_TMP/$_i.out" 2>"$_TMP/$_i.err"
+    echo $? > "$_TMP/$_i.rc"
+  ) &
+  _inflight=$((_inflight + 1))
+  if [ "$_inflight" -ge "$EXAMPLE_JOBS" ]; then
+    wait
+    _inflight=0
+  fi
+done
+wait
+
+# Report phase: the original loop, reading the captures.
+_i=0
 for f in examples/*/*; do
   case "$f" in
     */README.md) continue ;;
@@ -79,6 +115,7 @@ for f in examples/*/*; do
 
   dir=$(basename "$(dirname "$f")")
   entry=$(entry_for_dir "$dir")
+  _i=$((_i + 1))
   if [ -z "$entry" ]; then
     printf '%bFAIL%b %s: no dialect entry for examples/%s/\n' \
       "$ANSI_RED" "$ANSI_RESET" "$f" "$dir"
@@ -86,10 +123,10 @@ for f in examples/*/*; do
     continue
   fi
 
-  out="$_TMP/out"; errf="$_TMP/err"
-  { printf '(alloc-limit! %s)\n' "$X_ALLOC_LIMIT_OBJS"; cat "$entry" "$f"; } \
-    | $TIMEOUT_CMD "$X_BIN" --batch >"$out" 2>"$errf"
-  status=$?
+  out="$_TMP/$_i.out"; errf="$_TMP/$_i.err"
+  # A missing rc means the child itself was killed before it could
+  # write one -- a failure, never a silent pass.
+  status=$(cat "$_TMP/$_i.rc" 2>/dev/null || echo 127)
   total=$((total + 1))
 
   if [ "$status" -ne 0 ]; then
