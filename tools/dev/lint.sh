@@ -143,7 +143,11 @@ for f in "$@"; do
       # backend inside an os match, and executing BOTH here loads the
       # wrong arch's fragment.  A name a guarded/lazy import supplies is
       # declared with a `; lint-known:` marker instead.
-      _PRELOAD="$(grep '^(import ' "$f" | tr '\n' ' ')"
+      # Strip trailing `; comments` BEFORE the newline->space join: a
+      # commented import line otherwise swallows every later import AND
+      # the lint-known marker defs into one run-on comment (#363 found
+      # random.x's marker dead this way -- only the first import ran).
+      _PRELOAD="$(grep '^(import ' "$f" | sed 's/;.*$//' | tr '\n' ' ')"
       ;;
     */apps/*/*.x)
       _APP_DIR="$(cd "$(dirname "$f")" && pwd)"
@@ -157,7 +161,7 @@ for f in "$@"; do
       # The target's own import lines count too: read as data they never run.
       for _m in "$_APP_DIR"/*.x; do
         grep -q '(provide ' "$_m" && [ "$_m" != "$_ABS_F" ] && continue
-        _PRELOAD="$_PRELOAD $(grep '^(import ' "$_m" | tr '\n' ' ')"
+        _PRELOAD="$_PRELOAD $(grep '^(import ' "$_m" | sed 's/;.*$//' | tr '\n' ' ')"
       done
       for _m in "$_APP_DIR"/*.x; do
         [ "$_m" = "$_ABS_F" ] && continue

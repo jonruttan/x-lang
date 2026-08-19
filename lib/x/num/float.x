@@ -450,7 +450,84 @@
       (%fpow base exponent))
     (method atan2 (self (param y FLOAT "Y coordinate") (param x FLOAT "X coordinate"))
       (doc "Compute the arc tangent of y/x, using signs to determine the quadrant." (returns FLOAT "Angle in radians"))
-      (%fatan2 y x))))
+      (%fatan2 y x))
+
+    ; --- The math tail (#363) ---
+    ; Cold paths: dlsym per call (the kill pattern), keeping float.x inside
+    ; its %-globals budget; the hot trig/exp family above keeps its
+    ; load-time-cached resolves.
+    (method log2 (self (param x FLOAT "Positive float"))
+      (doc "Compute the base-2 logarithm of a float."
+        (returns FLOAT "log2(x)")
+        (sample "(Float log2 8.0)" "3.0"))
+      (%make-instance %float (%ffi-call "d->d" (%dlsym %libm "log2") (first x))))
+    (method log10 (self (param x FLOAT "Positive float"))
+      (doc "Compute the base-10 logarithm of a float."
+        (returns FLOAT "log10(x)")
+        (sample "(Float log10 1000.0)" "3.0"))
+      (%make-instance %float (%ffi-call "d->d" (%dlsym %libm "log10") (first x))))
+    (method hypot (self (param x FLOAT "First leg") (param y FLOAT "Second leg"))
+      (doc "Compute sqrt(x^2 + y^2) without intermediate overflow (libm hypot)."
+        (returns FLOAT "The hypotenuse")
+        (sample "(Float hypot 3.0 4.0)" "5.0"))
+      (%make-instance %float (%ffi-call "dd->d" (%dlsym %libm "hypot") (first x) (first y))))
+
+    ; --- Constants (#363) ---
+    ; %pi and %e were already computed at load (atan2/exp); tau derives
+    ; per call through the float adder.
+    (method pi (self)
+      (doc "The circle constant pi, 3.14159265..."
+        (returns FLOAT "pi")
+        (sample "(Float pi)" "3.14159265358979"))
+      %pi)
+    (method e (self)
+      (doc "Euler's number e, 2.71828182..."
+        (returns FLOAT "e")
+        (sample "(Float e)" "2.71828182845905"))
+      %e)
+    (method tau (self)
+      (doc "The turn constant tau = 2*pi, 6.28318530..."
+        (returns FLOAT "tau")
+        (sample "(Float tau)" "6.28318530717959"))
+      (%f-add %pi %pi))
+
+    ; --- IEEE-special predicates (#363) ---
+    ; Bit tests on the stored pattern: exponent all-ones ((<< 2047 52),
+    ; 0x7FF0000000000000) marks the specials; the 52 mantissa bits split
+    ; NaN from infinity. The masks are DERIVED, not written out: a 17+-
+    ; digit decimal literal parses as a BIGINT wherever num/bigint has
+    ; capped the int reader, and & refuses bigints. All three are TOTAL
+    ; predicates: #f, never a raise, off-domain.
+    (method nan? (self (param x ANY "Value to test"))
+      (doc "Is x a float NaN? #f for every non-float (an int is never NaN)."
+        (returns BOOL "#t only for a NaN float")
+        (sample "(Float nan? (/ 0.0 0.0))" "#t"))
+      (if (%float? x)
+        (let ((em (<< 2047 52)))
+          (if (= (& (first x) em) em)
+            (not (= (& (first x) (- (<< 1 52) 1)) 0))
+            #f))
+        #f))
+    (method inf? (self (param x ANY "Value to test"))
+      (doc "Is x a float infinity, either sign? #f for every non-float."
+        (returns BOOL "#t only for an infinite float")
+        (sample "(Float inf? (/ 1.0 0.0))" "#t"))
+      (if (%float? x)
+        (let ((em (<< 2047 52)))
+          (if (= (& (first x) em) em)
+            (= (& (first x) (- (<< 1 52) 1)) 0)
+            #f))
+        #f))
+    (method finite? (self (param x ANY "Value to test"))
+      (doc "Is x a finite number? #t for machine INTs and finite floats; #f for float inf/NaN and for everything else (rational/bigint instances answer through their own classes)."
+        (returns BOOL "#t for machine ints and finite floats")
+        (sample "(Float finite? 42)" "#t"))
+      (match
+        ((%float? x)
+         (let ((em (<< 2047 52)))
+           (not (= (& (first x) em) em))))
+        ((number? x) #t)
+        (#t #f)))))
 
 ; Value dispatch (subject-last): (3.14 float?) -> (Float float? 3.14).
 (def %type-push-call (prim-ref 'type 'push-call))

@@ -130,3 +130,49 @@ sequence.
 ```
 ---
     #t
+
+## float and sample (#363)
+
+### float lands in [0, 1) and is a float
+
+```scheme
+(do (import x/num/random) (import x/num/float)
+  (let ((r (Random sw 42)))
+    (let ((f (r float)))
+      (list (Float float? f)
+            (Float < (Float from-int -1) f)
+            (Float < f (Float from-int 1))))))
+```
+---
+    (#t #t #t)
+
+### float is reproducible under a seed
+
+```scheme
+(do (import x/num/random) (import x/num/float)
+  (Float = ((Random sw 7) float) ((Random sw 7) float)))
+```
+---
+    #t
+
+### sample draws k distinct members, k=0 draws none
+
+```scheme
+(do (import x/num/random)
+  (let ((drawn ((Random sw 5) sample 3 (list 1 2 3 4 5))))
+    (list (List length drawn)
+          (List all? (fn (_ x) (List includes? x (list 1 2 3 4 5))) drawn)
+          (= (List length (List distinct drawn)) 3)
+          ((Random sw 5) sample 0 (list 1 2)))))
+```
+---
+    (3 #t #t ())
+
+### sample beyond the population raises 'value
+
+```scheme
+(do (import x/num/random)
+  (list (guard (e (Err kind-of e)) ((Random sw 1) sample 3 (list 1 2)))))
+```
+---
+    ('value)
