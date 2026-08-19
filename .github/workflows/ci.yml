@@ -71,10 +71,10 @@ jobs:
       - name: Doctests
         run: make doctest
       # Tool-suite specs (promoted with the #180 repair; joined only once
-      # fully green).  Builds x-bin-cov for the cov half -- and that build
-      # brackets itself with clean-obj (#329), leaving src/**/*.o deleted,
-      # so it runs LAST in this job: any later target depending on
-      # $(EXECUTABLE) would pay a silent full C rebuild.
+      # fully green).  Builds the coverage binary for the cov half; since
+      # #329 every variant compiles to its own object suffix, so this no
+      # longer disturbs the plain build's objects and its position in the
+      # job is a free choice.
       - name: Tool specs
         run: make test-tools
 
