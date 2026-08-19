@@ -1,5 +1,9 @@
 ; iter.x -- Iterator protocol, as the Iter class.
 ;
+; One of the three iteration tiers -- Seq defines encodings, Iter drives
+; sequences, Gen composes lazy pipelines; the full statement lives in
+; x/protocol/seq.x's header (#365).
+;
 ; Build:   (Iter new seq)  or  (Iter make step state)
 ; Drive:   (Iter next it)      (Iter empty? it)      (Iter step it)
 ; Consume: (Iter ->list it)    (Iter for-each f it)    (Iter fold f acc it)
@@ -50,28 +54,53 @@
 
 (def-class Iter ()
   (static
-    (method make   (self step state) (%i-make step state))
-    (method next   (self it)         (%i-next it))
+    (method make (self (param step CALLABLE "Pure step: (step state) -> (value . next-state); a NIL next-state ends the iteration after that value, and a nil state must answer ()")
+                       (param state ANY "Initial state; nil marks an already-exhausted iterator"))
+      (doc "Build an iterator from a pure step function and its starting state -- the from-scratch constructor; (Iter new) is the from-a-sequence door. Exhaustion rides the STATE: the step signals the last element by returning a nil next-state (the list step below is the model)."
+        (returns ITER "A fresh iterator")
+        (example "(Iter ->list (Iter make (fn (_ st) (if (null? st) () (pair (first st) (rest st)))) (list 1 2 3)))" "(1 2 3)"))
+      (%i-make step state))
+    (method next (self (param it ITER "Iterator to advance"))
+      (doc "The next element, ADVANCING the iterator in place (the C driver writes the successor state back into the box); () once exhausted. (Iter step) is the functional sibling that leaves it untouched."
+        (returns ANY "The next element, or nil when exhausted"))
+      (%i-next it))
     (method step   (self it)
       (doc "Step ITERATOR functionally: (value . next-iterator) leaving it untouched, or () when exhausted -- the generator view of an iterator."
         (param it ITER "Iterator") (returns ANY "Pair of value and successor iterator, or nil"))
       (%i-step it))
-    (method empty? (self it)         (%i-empty? it))
+    (method empty? (self (param it ITER "Iterator to test"))
+      (doc "Is the iterator exhausted? True once next would return nil; the source is not advanced."
+        (returns BOOL "True when nothing remains"))
+      (%i-empty? it))
     (method iter? (self (param x ANY "Value to test"))
       (doc "Test whether a value is an iterator."
         (returns BOOL "True if x is an iterator"))
       (%type? x %iter))
     ; nil has no type for the prim to dispatch on, so shadow it to an empty
     ; iterator; everything else uses the prim's per-type slot dispatch.
-    (method new    (self x)
+    (method new (self (param x ANY "A sequence: list, vector, string, or def-class instance; nil gives an empty iterator"))
+      (doc "An iterator over a sequence, via the type's iter slot. Instances yield their members as (name . value) pairs; also available bare as `iter`."
+        (returns ITER "An iterator positioned at the first element")
+        (example "(Iter ->list (Iter new (list 1 2)))" "(1 2)"))
       (if (null? x) (%i-make %list-iter-step ()) (%i-new x)))
-    (method ->list (self it)
+    (method ->list (self (param it ITER "Iterator to drain"))
+      (doc "Drain the iterator into a list, in order; the iterator ends exhausted."
+        (returns LIST "Every remaining element")
+        (example "(Iter ->list (Iter new \"ab\"))" "(#\\a #\\b)"))
       (let drain ((it it))
         (if (%i-empty? it) () (let ((h (%i-next it))) (pair h (drain it))))))
-    (method for-each (self f it)
+    (method for-each (self (param f CALLABLE "One-argument fn, called per element for effect")
+                           (param it ITER "Iterator to drain"))
+      (doc "Drain the iterator applying f to each element for effect; returns nil."
+        (returns ANY "nil"))
       (let loop ((it it))
         (if (%i-empty? it) () (do (f (%i-next it)) (loop it)))))
-    (method fold   (self f acc it)
+    (method fold (self (param f CALLABLE "Two-argument fn: (f acc element) -> next acc")
+                       (param acc ANY "Initial accumulator")
+                       (param it ITER "Iterator to drain"))
+      (doc "Drain the iterator folding f over the elements, left to right."
+        (returns ANY "The final accumulator")
+        (example "(Iter fold + 0 (Iter new (list 1 2 3)))" "6"))
       (let loop ((acc acc) (it it))
         (if (%i-empty? it) acc (loop (f acc (%i-next it)) it))))))
 

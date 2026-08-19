@@ -1,4 +1,20 @@
 ; seq.x -- Seq: the base sequence protocol (cursor-based traversal)
+;
+; THE ITERATION TIERS (#365) -- three classes, three jobs:
+;   Seq  (this file)     DEFINE an encoding: subclass with three cursor
+;                        primitives (start/done?/step) and the derived
+;                        walk API arrives free -- Str8 and StrUTF8 are
+;                        the worked examples.
+;   Iter (x/type/iter)   DRIVE a sequence at runtime: the iterator
+;                        OBJECT every sequence type yields through its
+;                        iter slot; imperative next/empty? plus the
+;                        functional step view.
+;   Gen  (x/type/gen)    COMPOSE lazily: O(1) map/filter/take pipelines
+;                        over any of the above, materialising only when
+;                        a consumer drives them.
+; Rule of thumb: implementing a new encoding -> Seq; consuming elements
+; now -> Iter (or the sequence class's own methods); building a pipeline
+; -> Gen.
 (import x/type/class)
 ; Fetch the int->char cast from the catalog (ns `int` utility member de-registered, R5).
 (def %integer->char (prim-ref (lit int) (lit ->char)))

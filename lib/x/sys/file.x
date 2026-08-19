@@ -1,4 +1,7 @@
 ; file.x -- File: file I/O via POSIX syscalls, homed on the File class.
+; One of the four I/O tiers -- Io holds the verbs, Stream redirects
+; output, File is the filesystem, Buf is the reader's side; the full
+; statement lives in x/type/io.x's header (#365).
 ;
 ; Wraps low-level syscalls with symbolic mode flags. The open-mode and stat
 ; flag tables are exposed as the (File file-modes) / (File stat-flags) methods

@@ -1,5 +1,9 @@
 ; gen.x -- Gen: lazy generators.
 ;
+; One of the three iteration tiers -- Seq defines encodings, Iter drives
+; sequences, Gen composes lazy pipelines; the full statement lives in
+; x/protocol/seq.x's header (#365).
+;
 ; A generator is an UNFOLD: a step function over a state.
 ;   (step state) -> (value . next-state)   -- a value was produced
 ;   (step state) -> ()                       -- exhausted
