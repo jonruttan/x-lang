@@ -456,9 +456,17 @@ check-doc-vocab: ## Lint doc forms for banned type-token aliases + retired names
 #     arch/compiler defaults already; pinned off so behavior matches.
 #   - WRAPPER= disables the C runner's valgrind auto-wrap (ASan != valgrind).
 #   - TIMEOUT_UNIT_SECS raised: instrumentation slows each spec ~2-3x.
+#   - SPEC_HEAVY_JOBS=1 (#366): instrumentation also multiplies RESIDENT
+#     memory 2-3x, so the runner's default heavy-set admission (2 in
+#     flight, tuned at normal RSS) overshoots a 7GB CI runner -- the
+#     heaviest-first schedule put the sha256-jit and pin specs, BOTH
+#     ASan-multiplied jit builds, co-resident at t=0 and the runner VM
+#     was OOM-killed (exit 143) on every merge after #349.  One heavy at
+#     a time bounds the peak at one big heap; light fill still runs
+#     alongside.  Env-overridable for boxes with the memory.
 ASAN_RUN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0
 test-asan: x-bin-asan ## Run both suites under AddressSanitizer (memory-safety gate)
-	ASAN_OPTIONS=$(ASAN_RUN_OPTIONS) TIMEOUT_UNIT_SECS=180 X_BIN=./x-bin-asan sh tests/x/spec-runner.sh
+	ASAN_OPTIONS=$(ASAN_RUN_OPTIONS) TIMEOUT_UNIT_SECS=180 SPEC_HEAVY_JOBS=$${SPEC_HEAVY_JOBS:-1} X_BIN=./x-bin-asan sh tests/x/spec-runner.sh
 	ASAN_OPTIONS=$(ASAN_RUN_OPTIONS) WRAPPER= CFLAGS="$(TEST_CFLAGS) -fsanitize=address -fno-omit-frame-pointer" sh $(PATH_TESTS_C)/test-runner/test-runner.sh $(TESTS)
 .PHONY: test-asan
 

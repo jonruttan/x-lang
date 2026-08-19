@@ -30,7 +30,11 @@ name: CI
 on:
   push:
     branches: [main]
+  # `labeled` added to the default trigger set so attaching `ci-asan`
+  # starts a fresh run whose asan leg is live (see the asan job's `if`);
+  # the concurrency group below cancels the superseded run.
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
 
 # A superseded PR run keeps burning runners until its slowest leg ends;
 # cancel it when a newer push to the same ref arrives.  Main runs are
@@ -183,8 +187,13 @@ jobs:
     name: make test-asan
     # Deep tier only: the sanitizer multiplies the whole suite 5-10x,
     # which is most of what made every PR round-trip cost tens of
-    # minutes.  Merges to main still cannot land without it.
-    if: github.event_name != 'pull_request'
+    # minutes.  Merges to main still cannot land without it.  The
+    # `ci-asan` label opts a PR in: main-only-ness made the #366 OOM
+    # invisible until after merge, so a PR that changes the suite's
+    # resource profile (scheduler, admission caps, heavy specs) can now
+    # buy its asan verdict up front instead of burning a main cycle --
+    # exactly the verification #294 asked for.
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ci-asan')
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
