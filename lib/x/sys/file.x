@@ -27,6 +27,7 @@
 (import x/core/alist)
 (import x/platform/syscall)
 (import x/platform/dirent)
+(import x/codec/struct)   ; the stat-buffer decode rides a field spec (#371)
 (import x/type/class)
 
 ; GC-owned read buffers: (str make n) allocates an n-byte string region the
@@ -89,12 +90,7 @@
 
 ; --- Struct decoding helpers (#22: stat + dirent are per-OS byte layouts) ---
 ; Little-endian byte peeks over a (str make N) buffer filled by a syscall.
-(def %fs-byte-ref (prim-ref 'str 'byte-ref))
-(def %fs-char->int (prim-ref 'char '->int))
-(def %peek-u8 (fn (_ b i) (%fs-char->int (%fs-byte-ref b i))))
-(def %peek-u16 (fn (_ b i) (+ (%peek-u8 b i) (<< (%peek-u8 b (+ i 1)) 8))))
-(def %peek-u32 (fn (_ b i) (+ (%peek-u16 b i) (<< (%peek-u16 b (+ i 2)) 16))))
-(def %peek-i64 (fn (_ b i) (+ (%peek-u32 b i) (<< (%peek-u32 b (+ i 4)) 32))))
+(def %fs-byte-ref (prim-ref 'str 'byte-ref))   ; temp's suffix bytes
 
 ; File kind from the S_IFMT bits of a stat mode.
 (def %mode-kind
@@ -227,6 +223,26 @@
     ; documented raw contract (absence-model rule 5).
     ; ======================================================================
 
+    ; The per-OS stat-struct field spec, decoded through the Struct codec
+    ; (#371 -- this decode was the codec's want-evidence). Pads carry the
+    ; layout to each field: Darwin mode u16@4 / mtime i64@48 / size i64@96
+    ; (the stat64 layout); Linux mode u32@24 / size i64@48 / mtime i64@88.
+    (method %stat-decode (self (param buf STRING "A stat buffer a syscall filled"))
+      (doc "Decode a stat64/stat buffer into the public metadata alist."
+        (returns ALIST "((size . N) (mode . M) (kind . K) (mtime . T))"))
+      (def d (Struct unpack
+               (if os-darwin?
+                 (list (list 'pad 4) (list 'mode 'u16) (list 'pad 42)
+                       (list 'mtime 'i64) (list 'pad 40) (list 'size 'i64))
+                 (list (list 'pad 24) (list 'mode 'u32) (list 'pad 20)
+                       (list 'size 'i64) (list 'pad 32) (list 'mtime 'i64)))
+               buf))
+      (def mode (rest (Assoc entry 'mode d)))
+      (list (pair 'size (rest (Assoc entry 'size d)))
+            (pair 'mode mode)
+            (pair 'kind (%mode-kind mode))
+            (pair 'mtime (rest (Assoc entry 'mtime d)))))
+
     (method stat (self (param path STRING "Path to stat"))
       (doc "File metadata as an alist: ((size . BYTES) (mode . RAW) (kind . SYM) (mtime . UNIX-SECONDS)). kind is one of 'file 'dir 'link 'char 'block 'fifo 'socket (from the S_IFMT bits). Raises a kind-'io Err on failure."
         (returns ALIST "((size . N) (mode . M) (kind . K) (mtime . T))")
@@ -237,11 +253,7 @@
                (syscall (syscall-id 'stat64) path buf)
                (syscall (syscall-id 'stat) path buf)))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'stat path)))
-      (def mode (if os-darwin? (%peek-u16 buf 4) (%peek-u32 buf 24)))
-      (list (pair 'size (%peek-i64 buf (if os-darwin? 96 48)))
-            (pair 'mode mode)
-            (pair 'kind (%mode-kind mode))
-            (pair 'mtime (%peek-i64 buf (if os-darwin? 48 88)))))
+      (File %stat-decode buf))
 
     (method exists? (self (param path STRING "Path to test"))
       (doc "Does path name an existing filesystem entry? (Any kind -- file, directory, link target...)"
@@ -365,11 +377,7 @@
                (syscall (syscall-id 'lstat64) path buf)
                (syscall (syscall-id 'lstat) path buf)))
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'lstat path)))
-      (def mode (if os-darwin? (%peek-u16 buf 4) (%peek-u32 buf 24)))
-      (list (pair 'size (%peek-i64 buf (if os-darwin? 96 48)))
-            (pair 'mode mode)
-            (pair 'kind (%mode-kind mode))
-            (pair 'mtime (%peek-i64 buf (if os-darwin? 48 88)))))
+      (File %stat-decode buf))
 
     (method copy (self (param from STRING "Source file") (param to STRING "Destination (created/truncated, mode 0644)"))
       (doc "Copy a file's bytes, binary-safe: a 64KB fd-level read/write loop driven by the raw byte counts, never by string length (a string's observable bytes end at the first NUL, so read-all->write-all corrupts binary). Raises a kind-'io Err on failure; returns the byte count copied."
