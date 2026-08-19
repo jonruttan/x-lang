@@ -18,6 +18,10 @@
 (def %sk-ptr-set! (prim-ref 'ptr 'set!))
 (def %sk-ptr->str (prim-ref 'ptr '->str))
 (def %sk-int->ptr (prim-ref 'int '->ptr))
+; Cached int prims (#335): port math is int-only; ambient % and /
+; would ride the tower's op dispatch.
+(def %sk-int/ (prim-ref 'int '/))
+(def %sk-int% (prim-ref 'int '%))
 (def %sk-dlopen (prim-ref 'ffi 'dlopen))
 (def %sk-dlsym (prim-ref 'ffi 'dlsym))
 (def %sk-libc (%sk-dlopen () 1))
@@ -78,8 +82,8 @@
     (if os-darwin?
       (do (%sk-set1! addr 0 16) (%sk-set1! addr 1 %AF-INET))
       (do (%sk-set1! addr 0 %AF-INET) (%sk-set1! addr 1 0)))
-    (%sk-set1! addr 2 (/ port 256))
-    (%sk-set1! addr 3 (% port 256))
+    (%sk-set1! addr 2 (%sk-int/ port 256))
+    (%sk-set1! addr 3 (%sk-int% port 256))
     (unless (null? host)
       (let ((o (%parse-quad host)))
         (%sk-set1! addr 4 (List ref 0 o))

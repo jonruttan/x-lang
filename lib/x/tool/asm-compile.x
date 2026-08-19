@@ -139,12 +139,14 @@
 
 (def %asm-gc-window 128)
 (def %asm-gc-tick (pair 0 ()))
+; Cached int prim (#335): the tick check runs per compiled expression.
+(def %asm-int% (prim-ref (lit int) (lit %)))
 
 ; Emit code for an expression
 (set! %asm-compile-expr
   (fn (_ asm expr params)
     (%set-first! %asm-gc-tick (+ (first %asm-gc-tick) 1))
-    (when (= 0 (% (first %asm-gc-tick) %asm-gc-window)) (Heap collect))
+    (when (= 0 (%asm-int% (first %asm-gc-tick) %asm-gc-window)) (Heap collect))
     (if (null? expr)
       (asm-emit! asm 'mov x0 (imm 0))    ; nil = NULL = 0
       (if (number? expr)
