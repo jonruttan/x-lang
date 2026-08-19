@@ -307,39 +307,47 @@ if [ -n "$boot_file" ]; then
 	# Both sides are RECORDED strings, so this is a compare, not a digest:
 	# `Pin boot` lifts the release's ISA fingerprint into the overlay's
 	# lock (<root>.lock.xon beside the manifest -- the lock is NAMED FOR
-	# the root, so its path derives from the manifest's first (root ...)
-	# form), the older `Pin fetch` layout leaves pin.release.xon beside
-	# the amalgam, and `make install` puts this engine's fingerprint
-	# beside the library.  Try the lock first, then the fetch layout:
-	# both are in the wild, and a guard that reads neither is a silent
-	# regression to the mid-boot SIGSEGV this check exists to prevent
-	# (the exact bug shipped in v0.3.1-rc7, caught by running the
+	# its root: two overlays sharing a parent must not share a lock), the
+	# older `Pin fetch` layout leaves pin.release.xon beside the amalgam,
+	# and `make install` puts this engine's fingerprint beside the
+	# library.  Try EVERY manifest root's lock, first hit wins (#313: the
+	# guard once read only the FIRST root, so an unrelated root reorder
+	# orphaned the lock and the guard skipped without a word), then the
+	# fetch layout: both are in the wild, and a guard that reads neither
+	# is a silent regression to the mid-boot SIGSEGV this check exists to
+	# prevent (the exact bug shipped in v0.3.1-rc7, caught by running the
 	# released artifact).
 	# No sha tool needed at boot, and the check happens BEFORE the amalgam
 	# reaches the engine -- the only place a refusal can still be one.
 	#
-	# Silent when either side is absent: an amalgam with no manifest, or a
-	# repo checkout with no installed fingerprint, is unknown-not-wrong,
-	# and `fetch` already says so at the point where it matters.
+	# Silent when the ENGINE side is absent (a repo checkout with no
+	# installed fingerprint is unknown-not-wrong), but an armed boot pin
+	# whose lock cannot be FOUND says so (#313): a protection that
+	# disappears without a word is worse than none.
 	# --no-pin leaves PIN_FILE empty while --boot still lands here; sed
 	# on "" printed a spurious "sed: : No such file or directory" on
 	# every such invocation (#331).  No manifest to consult means no
 	# root -- the ENTRY-relative fallback below is the derivation.
-	_root=
-	if [ -n "$PIN_FILE" ] && [ -f "$PIN_FILE" ]; then
-		_root=$(sed -n 's/^(root "\(.*\)")[[:space:]]*$/\1/p' "$PIN_FILE" | head -n 1)
-	fi
 	_rel=
-	if [ -n "$_root" ]; then
-		case "$_root" in
-			/*) _rel="${_root}.lock.xon" ;;
-			*)  _rel="$(dirname "$PIN_FILE")/${_root}.lock.xon" ;;
-		esac
+	if [ -n "$PIN_FILE" ] && [ -f "$PIN_FILE" ]; then
+		for _root in $(sed -n 's/^(root "\(.*\)")[[:space:]]*$/\1/p' "$PIN_FILE"); do
+			case "$_root" in
+				/*) _cand="${_root}.lock.xon" ;;
+				*)  _cand="$(dirname "$PIN_FILE")/${_root}.lock.xon" ;;
+			esac
+			if [ -f "$_cand" ]; then
+				_rel="$_cand"
+				break
+			fi
+		done
 	fi
 	if [ -z "$_rel" ] || [ ! -f "$_rel" ]; then
 		_rel="$(dirname "$ENTRY")/pin.release.xon"
 	fi
 	_mine="$INSTALL_ROOT/contract/isa.sha256"
+	if [ -n "$INSTALL_ROOT" ] && [ ! -f "$_rel" ]; then
+		echo "x.sh: boot pin armed but no lock found (no <root>.lock.xon for any manifest root, no pin.release.xon) -- engine pairing unchecked; run (Pin boot) to write the lock" >&2
+	fi
 	if [ -n "$INSTALL_ROOT" ] && [ -f "$_rel" ] && [ -f "$_mine" ]; then
 		_want=$(sed -n 's/.*isa "sha256:\([0-9a-f]*\)".*/\1/p' "$_rel" | head -1)
 		_have=$(cat "$_mine")
