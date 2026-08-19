@@ -49,11 +49,18 @@
           (%build-lookup (rest entries)
             (pair (pair name props) acc))))))
   (def %scope-table (%build-lookup %all-constructs ()))
-
   ; Cross-base lookup: table keys are strings (built by %props->str), so
   ; the canonical str=? entry lookup (%assoc-str, core/alist.x) applies.
+  ; The 90-entry scan is NOT the cost at this size (a Dict variant
+  ; measured SLOWER -- see the adjudication note in x/tool/lint.x); the
+  ; per-query CONVERSION was (#344).  The string-keyed twin serves
+  ; callers already holding the converted head (the dispatch's cell).
   (def %scope-lookup (fn (_ name)
     (def entry (%assoc-str (%lint-cvt name %string) %scope-table))
+    (unless (null? entry)
+      (rest entry))))
+  (def %scope-lookup-str (fn (_ h)
+    (def entry (%assoc-str h %scope-table))
     (unless (null? entry)
       (rest entry))))
 
@@ -86,8 +93,12 @@
   (set! %lint-dispatch (fn (_ form)
     (def head (first form))
     (if (not (symbol? head)) (Lint %lint-computed-call form)
-      (let ((h (%lint-cvt head %string))
-            (props (%scope-lookup head)))
+      ; The head string comes from the list handler's cell (#344); the
+      ; old code re-converted here AND inside %scope-lookup -- two more
+      ; catalog dispatches per node.  Parallel let (props cannot see h),
+      ; so the cell read repeats; both arms are cheap.
+      (let ((h (if (null? (first %lint-head-cell)) (%lint-cvt head %string) (first %lint-head-cell)))
+            (props (%scope-lookup-str (if (null? (first %lint-head-cell)) (%lint-cvt head %string) (first %lint-head-cell)))))
         (let ((st (if (null? props) ""
                     (let ((s (%get-prop "scope" props))) (if (null? s) "" s)))))
           (match
