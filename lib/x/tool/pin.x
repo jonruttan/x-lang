@@ -196,8 +196,6 @@
               ((if (str=? r "..") #t (Str8 starts? "../" r))
                 (Pin %pin-bad (Str8 append "include path climbs out of the overlay: " p)))
               (#t r))))
-    (method %pin-include-head? (self h)
-      (or (eq? h 'include) (eq? h 'include-once) (eq? h 'require-once)))
     (method %pin-push! (self cell v)
       (%set-first! cell (pair v (first cell))))
     ; A ./ sibling: same tail joined under both the overlay offset and the
@@ -345,13 +343,20 @@
               (#t (pair (first seeds) (self (rest seeds) name rels))))))
       (%rec seeds name rels))
     ; acc ++ (lst minus what acc holds)
+    ; New elements prepend-collect, ONE concat at the end (#340): the old
+    ; walk full-copied acc (with a class dispatch) per new element --
+    ; O(n^2) over the module closure.  news doubles as the dup filter for
+    ; elements lst repeats, which the growing acc used to catch.
     (method %pin-append-new (self acc lst)
-      (def %rec (fn (self acc lst)
+      (def %rec (fn (self lst news)
         (match
-              ((null? lst) acc)
-              ((%member-str? (first lst) acc) (self acc (rest lst)))
-              (#t (self (Pin %pin-concat acc (list (first lst))) (rest lst))))))
-      (%rec acc lst))
+              ((null? lst) news)
+              ((%member-str? (first lst) acc) (self (rest lst) news))
+              ((%member-str? (first lst) news) (self (rest lst) news))
+              (#t (self (rest lst) (pair (first lst) news))))))
+      (def %news (%rec lst ()))
+      (if (null? %news) acc
+        (Pin %pin-concat acc (%reverse %news))))
     ; every rel any seed claims
     (method %pin-seed-claims (self seeds acc)
       (def %rec (fn (self seeds acc)
@@ -772,7 +777,13 @@
                       ((not (str? (first (rest (rest form))))) (Pin %pin-bad "computed import-version spec in closure"))
                       (#t (Pin %pin-take-version (first form) (first (rest form))
                                              (first (rest (rest form)))))))
-                  ((Pin %pin-include-head? (first form))
+                  ; include heads tested inline (#340): this arm runs per
+                  ; AST node of every scanned file, and the class dispatch
+                  ; through the statics table per node timed out an ASan
+                  ; leg once already (see the note above this walker).
+                  ((or (eq? (first form) 'include)
+                       (eq? (first form) 'include-once)
+                       (eq? (first form) 'require-once))
                     (match
                       ((not (pair? (rest form))) (Pin %pin-bad "include with no path in closure"))
                       (#t

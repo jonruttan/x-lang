@@ -36,26 +36,34 @@
 (def %regex-parse ())
 
 ; Word character check: [0-9A-Za-z_]
+; Nested if, NOT and/or (#343): the operatives expand per evaluation
+; (~330 objects each -- the lib/x/core/list.x %as-list precedent) and
+; these tests run per character in the matcher's inner loop.
 (def %regex-is-word-char
   (fn (_ c)
-    (if (and (>= c 48) (<= c 57)) #t
-      (if (and (>= c 65) (<= c 90)) #t
-        (if (and (>= c 97) (<= c 122)) #t
+    (if (if (>= c 48) (<= c 57) #f) #t
+      (if (if (>= c 65) (<= c 90) #f) #t
+        (if (if (>= c 97) (<= c 122) #f) #t
           (= c 95))))))
 
 ; Character class membership: check if chr (char) matches any entry (int codes)
+; The char->int cast happens ONCE, above the entry walk (#337): the old
+; self-recursion re-converted chr on every entry.
 (def %regex-class-match
-  (fn (self entries chr)
+  (fn (_ entries chr)
     (def c (%char->integer chr))
-    (if (null? entries) #f
-      (let ((e (first entries)))
-        (if (pair? e)
-          ; range: (lo . hi) — integer codes
-          (if (and (>= c (first e)) (<= c (rest e)))
-            #t (self (rest entries) chr))
-          ; literal char code
-          (if (= c e)
-            #t (self (rest entries) chr)))))))
+    (def go
+      (fn (self es)
+        (if (null? es) #f
+          (let ((e (first es)))
+            (if (pair? e)
+              ; range: (lo . hi) — integer codes
+              (if (if (>= c (first e)) (<= c (rest e)) #f)
+                #t (self (rest es)))
+              ; literal char code
+              (if (= c e)
+                #t (self (rest es))))))))
+    (go entries)))
 
 ; --- Capture threading (#23) ---
 ; Every walker takes a `caps` list and returns a STATE (pos . caps) on
@@ -74,8 +82,7 @@
     (def tag (first node))
     (match
       ((eq? tag 'lit)
-        (if (and (< pos end)
-              (= (%str-ref str pos) (first (rest node))))
+        (if (if (< pos end) (= (%str-ref str pos) (first (rest node))) #f)
           (pair (+ pos 1) caps) ()))
       ((eq? tag 'any)
         (if (< pos end) (pair (+ pos 1) caps) ()))
@@ -182,19 +189,18 @@
             (tag (first (first nodes))))
         (match
           ((eq? tag 'lit)
-            (if (and (< pos end)
-                  (= (%str-ref str pos) (first (rest node))))
+            (if (if (< pos end) (= (%str-ref str pos) (first (rest node))) #f)
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'any)
             (if (< pos end)
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'class)
-            (if (and (< pos end)
-                  (%regex-class-match (rest node) (%str-ref str pos)))
+            (if (if (< pos end)
+                  (%regex-class-match (rest node) (%str-ref str pos)) #f)
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'nclass)
-            (if (and (< pos end)
-                  (not (%regex-class-match (rest node) (%str-ref str pos))))
+            (if (if (< pos end)
+                  (not (%regex-class-match (rest node) (%str-ref str pos))) #f)
               (%regex-exec rest-nodes str (+ pos 1) end caps) ()))
           ((eq? tag 'star)
             (%regex-exec-star (first (rest node)) rest-nodes str pos end caps))
@@ -213,14 +219,15 @@
               (first (rest (rest node)))
               (first (rest (rest (rest node))))
               rest-nodes str pos end caps))
-          ; Numbered group (group N nodes): splice open/close markers
-          ; around the content so captures record on the way through --
-          ; the group itself is transparent to matching (#23).
+          ; Numbered group (group N nodes spliced): the open/close capture
+          ; markers around the content are PRE-BUILT at parse time by
+          ; %regex-number-groups (#337) -- the old per-entry rebuild
+          ; allocated the markers and double-appended on every starting
+          ; position and every backtrack. One append of the static
+          ; splice onto the (varying) continuation remains.
           ((eq? tag 'group)
             (%regex-exec
-              (pair (list 'g-open (first (rest node)))
-                (%append (first (rest (rest node)))
-                  (pair (list 'g-close (first (rest node))) rest-nodes)))
+              (%append (first (rest (rest (rest node)))) rest-nodes)
               str pos end caps))
           ((eq? tag 'g-open)
             (%regex-exec rest-nodes str pos end
@@ -521,7 +528,13 @@
           ((eq? tag 'group)
             (do (%set-first! counter (+ (first counter) 1))
                 (let ((n (first counter)))
-                  (list 'group n (walk-list (first (rest node)))))))
+                  (let ((body (walk-list (first (rest node)))))
+                    ; Slot 3 = body (write/reconstruct reads it); slot 4 =
+                    ; the exec splice (g-open N) ++ body ++ ((g-close N)),
+                    ; built once here so the matcher never rebuilds it.
+                    (list 'group n body
+                      (pair (list 'g-open n)
+                        (%append body (list (list 'g-close n)))))))))
           ((eq? tag 'alt)
             (list 'alt (walk-list (first (rest node)))
                        (walk-list (first (rest (rest node))))))
@@ -703,20 +716,22 @@
     (method search (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Search for the first occurrence of a regex pattern in a string." (returns LIST "Pair (start end) of first match, or nil if not found"))
       (def end (%str-length str))
+      (def nodes (%rx-nodes rx))   ; hoisted: guard once, not per position (#337)
       (def %try
         (fn (self i)
           (if (> i end) ()
-            (let ((result (%regex-exec (%rx-nodes rx) str i end ())))
+            (let ((result (%regex-exec nodes str i end ())))
               (if result (list i (first result))
                 (self (+ i 1)))))))
       (%try 0))
     (method find-at (self (param str STRING "Input string") (param pos INT "Start position") (param rx REGEX "Compiled regex"))
       (doc "Search for regex starting from position pos." (returns LIST "Pair (start end) of match, or nil"))
       (def end (%str-length str))
+      (def nodes (%rx-nodes rx))   ; hoisted: guard once, not per position (#337)
       (def %try
         (fn (self i)
           (if (> i end) ()
-            (let ((result (%regex-exec (%rx-nodes rx) str i end ())))
+            (let ((result (%regex-exec nodes str i end ())))
               (if result (list i (first result))
                 (self (+ i 1)))))))
       (%try pos))

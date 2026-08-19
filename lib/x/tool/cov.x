@@ -34,27 +34,45 @@
   (returns BOOL "True if object was evaluated (FLAG_2 set)")
   "Test whether an object was marked as evaluated by x-bin-profile.")
 
+; Cons test by cached type-handle eq? (#342): the old body allocated a
+; %type-name string and ran two str=? per AST node.  The handles are
+; captured once in a closure -- no new module globals.
 (def %cov-is-cons?
-  (fn (_ x)
-    (if (null? x) #f
-      (let ((tn (%type-name x)))
-        (or (str=? tn "LIST") (str=? tn "PAIR"))))))
+  ((fn (_)
+     (def %t-of (prim-ref 'type 'of))
+     (def %t-list (%t-of (list 1)))
+     (def %t-pair (%t-of (pair 1 2)))
+     (fn (_ x)
+       (if (null? x) #f
+         (let ((t (%t-of x)))
+           (if (eq? t %t-list) #t (eq? t %t-pair))))))
+   ()))
 
 ; --- AST coverage counting ---
 
 (doc (def cov-count-tree
-  (fn (self expr depth)
-    (if (or (null? expr) (> depth 15))
-      (list 0 0)
-      (if (not (%cov-is-cons? expr))
-        (list 0 0)
-        (guard (_ (list 0 0))
-          (let ((left (self (first expr) (+ depth 1)))
-                (right (self (rest expr) (+ depth 1)))
-                (cov (if (cov-covered? expr) 1 0)))
-            (list
-              (+ cov (+ (first left) (first right)))
-              (+ 1 (+ (first (rest left)) (first (rest right)))))))))))
+  (fn (_ expr depth)
+    ; Two counter cells serve the WHOLE walk (#342): the old walk
+    ; allocated a fresh (list 0 0) and opened a guard frame per AST
+    ; node.  cov-walk's per-function guard is the one that remains --
+    ; a node-level error now skips that function's row instead of
+    ; zeroing one subtree.
+    (def cov-cell (pair 0 ()))
+    (def tot-cell (pair 0 ()))
+    (def go
+      (fn (self e d)
+        (if (null? e) ()
+          (if (> d 15) ()
+            (if (%cov-is-cons? e)
+              (do
+                (if (cov-covered? e)
+                  (%set-first! cov-cell (+ (first cov-cell) 1)) ())
+                (%set-first! tot-cell (+ (first tot-cell) 1))
+                (self (first e) (+ d 1))
+                (self (rest e) (+ d 1)))
+              ())))))
+    (go expr depth)
+    (list (first cov-cell) (first tot-cell))))
   (param expr ANY "AST node to walk")
   (param depth INT "Current recursion depth (limit 15)")
   (returns LIST "(covered total) pair")
