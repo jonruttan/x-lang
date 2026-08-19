@@ -48,10 +48,17 @@
 ; (list->str (str->list s)) round-trips any UTF-8 string.
 (doc (def %list->str
   (fn (_ chars)
-    (bytes->str
-      (%map %integer->char
-        (%fold (fn (_ acc ch) (%append acc (%utf8-encode (%char->integer ch))))
-              () chars)))))
+    ; Reverse-prepend each code point's bytes, reverse once (#333): the
+    ; per-char %append was O(n^2) pairs -- this is the registered
+    ; STRING <- list converter, so every list->string conversion paid it.
+    (do
+      (def %rev-onto (fn (self l acc)
+        (match ((null? l) acc) (#t (self (rest l) (pair (first l) acc))))))
+      (bytes->str
+        (%map %integer->char
+          (%reverse
+            (%fold (fn (_ acc ch) (%rev-onto (%utf8-encode (%char->integer ch)) acc))
+                  () chars)))))))
   (param chars LIST "List of CHARACTERs (Unicode code points)")
   (returns STRING "UTF-8 string encoding each code point")
   "Build a UTF-8 string from a list of code-point characters. Inverse of str->list.")

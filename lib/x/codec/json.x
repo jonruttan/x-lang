@@ -249,28 +249,29 @@
 
 (def %json-emit ())
 
+; Pieces prepend, ONE concat per container (#333): the per-element
+; append re-copied the container's whole accumulated text -- and nested
+; containers re-copied their children's finished text at every level.
 (def %json-emit-array
   (fn (_ lst)
-    (let go ((xs lst) (acc "[") (sep ""))
-      (if (null? xs) (%json-append acc "]")
+    (let go ((xs lst) (acc (list "[")) (sep ""))
+      (if (null? xs) (%str-concat (%reverse (pair "]" acc)))
         (go (rest xs)
-            (%json-append acc (%json-append sep (%json-emit (first xs))))
+            (pair (%json-emit (first xs)) (pair sep acc))
             ",")))))
 
 (def %json-emit-object
   (fn (_ d)
-    (let go ((es (d ->alist)) (acc "{") (sep ""))
-      (if (null? es) (%json-append acc "}")
+    (let go ((es (d ->alist)) (acc (list "{")) (sep ""))
+      (if (null? es) (%str-concat (%reverse (pair "}" acc)))
         (let ((k (first (first es))))
           (let ((ks (match
                       ((str? k) k)
                       ((symbol? k) (symbol->str k))
                       (#t (Err raise 'type "Json emit: object keys must be strings or symbols" ())))))
             (go (rest es)
-                (%json-append acc
-                  (%json-append sep
-                    (%json-append (%json-emit-string ks)
-                      (%json-append ":" (%json-emit (rest (first es)))))))
+                (pair (%json-emit (rest (first es)))
+                  (pair ":" (pair (%json-emit-string ks) (pair sep acc))))
                 ",")))))))
 
 (set! %json-emit

@@ -34,7 +34,7 @@
 (file "lib/x/boot/printer.x" 76)
 (file "lib/x/boot/reflect.x" 29)
 (file "lib/x/boot/registry.x" 8)
-(file "lib/x/boot/string.x" 18)
+(file "lib/x/boot/string.x" 25)
 (file "lib/x/boot/tower-compiled.x" 12)
 (file "lib/x/codec/json.x" 30)
 (file "lib/x/codec/sha256-jit.x" 34)

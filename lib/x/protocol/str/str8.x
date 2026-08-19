@@ -20,7 +20,12 @@
 ; UTF-8 fragments yields valid UTF-8). Swept %-private from the bare `str`
 ; global in #108 (e322895); its public face is the (Str8 str ...) class
 ; method below, which $"..." interpolation also delegates to.
-(def %str-build (fn (_ . args) (%fold (fn (_ acc x) (%str-append acc (%display-to-str x))) "" args)))
+; One rendering pass, ONE concatenation (#333): the old fold re-copied
+; the whole accumulator per argument -- O(n^2) in the rendered length,
+; paid by every $"..." interpolation.
+(def %str-build
+  (fn (_ . args)
+    (%str-concat (%map %display-to-str args))))
 
 
 
@@ -164,9 +169,10 @@
       ; concat, so a non-string ARGUMENT makes it read arbitrary memory -- nil
       ; segfaulted here (#159) while every sibling seat already raised. The
       ; per-argument check is noise next to the allocation each step pays.
-      (%fold (fn (_ acc s)
-              (%str-append acc (%str8-check s "Str8 append: not a string")))
-            "" args))
+      ; Checks per argument as ever; the concatenation is one pass
+      ; (#333), not an accumulator re-copy per argument.
+      (%str-concat
+        (%map (fn (_ s) (%str8-check s "Str8 append: not a string")) args)))
     (method str (self . (param args ANY "Values to render and concatenate"))
       (doc "Concatenate values into one string, coercing each via display (so non-strings render too). The target of $\"...{expr}...\" interpolation."
         (returns STRING "The rendered values joined end to end")
@@ -258,16 +264,30 @@
       (match
         ((null? lst) "")
         ((null? (rest lst)) (%str8-check (first lst) "Str8 join: element not a string"))
-        (#t (%fold (fn (_ acc s)
-                    (%str-append acc (%str-append sep (%str8-check s "Str8 join: element not a string"))))
-                  (%str8-check (first lst) "Str8 join: element not a string") (rest lst)))))
+        ; Interleave into a piece list, concatenate ONCE (#333): joining
+        ; n pieces of average length L was O(n^2 L) bytes copied.
+        (#t (%str-concat
+              (pair (%str8-check (first lst) "Str8 join: element not a string")
+                    (%fold (fn (_ acc s)
+                             (pair sep (pair (%str8-check s "Str8 join: element not a string") acc)))
+                           () (%reverse (rest lst))))))))
     (method repeat (self (param n INT "Number of copies") (param s STRING "String to repeat"))
       (doc "Concatenate n copies of s (empty string when n <= 0)."
         (returns STRING "s repeated n times")
         (example "(Str8 repeat 3 \"ab\")" "\"ababab\""))
       (def k (%str8->int n "Str8 repeat: count not convertible to INT"))
-      (def go (fn (self j) (if (<= j 0) "" (%str-append s (self (- j 1))))))
-      (go k))
+      ; Binary doubling (#333): ~2*log2(n) C appends instead of n.  The
+      ; old shape was O(n^2) bytes AND non-tail -- (Str8 repeat 10000
+      ; "a") overflowed the C stack outright (segfault, noted on the
+      ; issue); a flat n-piece concat fixed the crash but paid
+      ; interpreter overhead per piece (measured ~40us/piece), where
+      ; doubling pays it per BIT of n.
+      (def go (fn (self j base acc)
+        (if (<= j 0) acc
+          (self (>> j 1)
+                (%str-append base base)
+                (if (= 1 (& j 1)) (%str-append acc base) acc)))))
+      (if (<= k 0) "" (go k s "")))
 
     ; --- padding (to n ELEMENTS: bytes for Str8, code points for Str --
     ; NOT display columns; wcwidth-style column tables are a known gap) ---
@@ -333,14 +353,19 @@
       (when (= (self length old) 0)
         (Err raise (lit value) "Str replace: empty search string" ()))
       (def old-len (self length old))
+      ; Segments prepend into a piece list, ONE concat at the end
+      ; (#333): the old accumulator re-copied all prior output per
+      ; match.  s-len is hoisted (it was recomputed twice per match);
+      ; the per-match tail substring the search still allocates is
+      ; #332's search-cost territory, not this issue's.
+      (def s-len (self length s))
       (def go (fn (loop from acc)
-        (let ((i (self index-of old (self sub from (- (self length s) from) s))))
+        (let ((i (self index-of old (self sub from (- s-len from) s))))
           (if (null? i)
-            (%str-append acc (self sub from (- (self length s) from) s))
+            (%str-concat (%reverse (pair (self sub from (- s-len from) s) acc)))
             (loop (+ from (+ i old-len))
-                  (%str-append acc
-                    (%str-append (self sub from i s) replacement)))))))
-      (go 0 ""))
+                  (pair replacement (pair (self sub from i s) acc)))))))
+      (go 0 ()))
     (method format (self (param spec STRING "Template: literal text with {} slots; {{ and }} escape braces")
                          . (param args ANY "One value per {} slot"))
       (doc "Render args into a template (#25). A slot is {} or {:FLAGS} with FLAGS = [<|>][WIDTH][.PRECISION]: < left-aligns (default), > right-aligns, WIDTH pads with spaces to at least WIDTH ELEMENTS (bytes for Str8, code points for Str), .P renders a number with exactly P decimals (floats round; ints gain .000...). Slot/argument counts must match (kind-'value otherwise). Strings render raw; other values render display-style."
