@@ -15,20 +15,21 @@
 
 ; --- Construct table helpers ---
 
+; Cross-base keys: entry keys convert to STRING once, here at build time
+; (#339) -- the old %fmt-find re-converted every table key on every
+; lookup.  The probe key still converts once per lookup.
 (def %fmt-build-lookup (fn (self entries acc)
   (if (null? entries) acc
     (let ((entry (first entries)))
         (self (rest entries)
-          (pair (pair (first entry) (rest entry)) acc))))))
+          (pair (pair (%cvt (first entry) %string) (rest entry)) acc))))))
 
 (def %fmt-build-table (fn (_ constructs)
   (%fmt-build-lookup constructs ())))
 
-; Cross-base keys: BOTH sides convert to string per entry (table keys are
-; raw symbols from a fresh read).  The walk itself is the canonical %find.
 (def %fmt-find (fn (_ key table)
   (let ((ks (%cvt key %string)))
-    (%find (fn (_ e) (str=? ks (%cvt (first e) %string))) table))))
+    (%find (fn (_ e) (str=? ks (first e))) table))))
 
 (def %fmt-lookup (fn (_ name table)
   (def entry (%fmt-find name table))
