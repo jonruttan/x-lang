@@ -89,6 +89,14 @@ fi
 
 FAIL=0
 for f in "$@"; do
+  # Normalize to an absolute path: the preload arms below match on
+  # */lib/x/*.x and */apps/*/*.x, which a relative argument like
+  # lib/x/tool/pin.x never hits -- skipping the preload and producing
+  # spurious Undefined findings the absolute-path sweep doesn't show.
+  case "$f" in
+    /*) ;;
+    *) f="$(cd "$(dirname "$f")" && pwd)/$(basename "$f")" ;;
+  esac
   _NAME=$(echo "$f" | sed "s|$PROJECT_DIR/||")
 
   # Auto-detect language from file path if not specified
@@ -137,7 +145,7 @@ for f in "$@"; do
       # declared with a `; lint-known:` marker instead.
       _PRELOAD="$(grep '^(import ' "$f" | tr '\n' ' ')"
       ;;
-    */apps/*/*.x|apps/*/*.x)
+    */apps/*/*.x)
       _APP_DIR="$(cd "$(dirname "$f")" && pwd)"
       _APPS_ROOT="$(dirname "$_APP_DIR")"
       _APP="$(basename "$_APP_DIR")"
