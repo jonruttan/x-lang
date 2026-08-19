@@ -126,3 +126,79 @@ the caller's value).
 ```
 ---
     #t
+
+## file: (File seek) / (File tell) / (File truncate) argument binding (#360)
+
+### seek passes fd, offset, and the resolved whence symbol (end -> 2)
+
+```scheme
+(do
+  (File seek 7 128 'end)
+  (def c (first %last-syscall))
+  (and (eq? (first c) 'lseek)
+       (eq? (first (rest c)) 7)
+       (eq? (first (rest (rest c))) 128)
+       (eq? (first (rest (rest (rest c)))) 2)))
+```
+---
+    #t
+
+### seek defaults whence to 'set (absolute, 0)
+
+```scheme
+(do
+  (File seek 7 32)
+  (eq? (first (rest (rest (rest (first %last-syscall))))) 0))
+```
+---
+    #t
+
+### seek passes a numeric whence straight through
+
+```scheme
+(do
+  (File seek 7 0 1)
+  (eq? (first (rest (rest (rest (first %last-syscall))))) 1))
+```
+---
+    #t
+
+### tell is (seek fd 0 'cur)
+
+```scheme
+(do
+  (File tell 7)
+  (def c (first %last-syscall))
+  (and (eq? (first c) 'lseek)
+       (eq? (first (rest c)) 7)
+       (eq? (first (rest (rest c))) 0)
+       (eq? (first (rest (rest (rest c)))) 1)))
+```
+---
+    #t
+
+### truncate passes fd and the explicit size
+
+```scheme
+(do
+  (File truncate 7 3)
+  (def c (first %last-syscall))
+  (and (eq? (first c) 'ftruncate)
+       (eq? (first (rest c)) 7)
+       (eq? (first (rest (rest c))) 3)))
+```
+---
+    #t
+
+### truncate without a size cuts at the current offset (tell's result)
+
+```scheme
+(do
+  (File truncate 7)
+  (def c (first %last-syscall))
+  (and (eq? (first c) 'ftruncate)
+       (eq? (first (rest c)) 7)
+       (eq? (first (rest (rest c))) 0)))
+```
+---
+    #t
