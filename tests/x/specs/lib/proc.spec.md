@@ -1,5 +1,6 @@
 # Proc (x/sys/proc) and the Sys signal surface
 
+# @weight 6
 Argv-based child processes.  The status convention carries three
 distinguishable outcomes: the child's exit code, 127 for exec-never-
 happened, 128+N for death by signal N.

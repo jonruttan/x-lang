@@ -1,5 +1,6 @@
 # Date: civil dates over unix time (#21)
 
+# @weight 7
 Pure integer math (Hinnant's civil algorithms), proleptic Gregorian,
 UTC only. A date is an alist; wday 0 = Sunday. (Sys now) wall-clock
 pins live in ext/posix coverage: here everything is deterministic.

@@ -109,46 +109,124 @@ PENDING_COUNT=0
 _TMPDIR=$(mktemp -d)
 _N=0
 
-# Cap concurrent jobs in PARALLEL mode. Without a cap the loop forks one job per
-# spec file (dozens) at once, producing spurious "empty output" failures that
-# shift run-to-run. The bottleneck is MEMORY BANDWIDTH, not CPU: each ./x-bin's lib
-# load is allocation-heavy, so one job per core thrashes the memory subsystem and
-# slows the heaviest spec ~10x (compile.x load: ~6s -> >60s) until it trips the
-# timeout. One job per core flakes; ~2/3 of the cores leaves enough bandwidth
-# headroom to stay stable while recovering ~10% over half (verified: 2/2 clean
-# runs at 8 on a 12-core box, ~245s vs ~270s). Override with PARALLEL_JOBS
-# (=1 serial; lower it on a memory-constrained box like a Pi).
+# Cap concurrent jobs in PARALLEL mode. Without a cap the loop forks every job
+# at once, producing spurious "empty output" failures that shift run-to-run.
+# The bottleneck is MEMORY, twice over: the boot burst (mostly gone since the
+# #319 lib bucketing) and the RESIDENT HEAPS of the heavy specs (logo ~5-7GB,
+# complex ~6GB, the tower boots) -- the per-process alloc-limit! guard cannot
+# protect the MACHINE from several of those at once.  The cores*2/3 rule
+# stays (verified stable at 8 on a 12-core box); the heavy-set admission cap
+# below is what makes heaviest-first scheduling safe at all.  2026-08-19,
+# the hard way: heaviest-first + wait-any + a raised cap launched EVERY
+# heavy spec at t=0 and locked up a 17GB dev box (load avg 185) -- a
+# schedule reorder is a memory-profile change even when total work is
+# identical.  Override with PARALLEL_JOBS (=1 serial; lower it on a
+# memory-constrained box like a Pi).
 _cpus=$( (command -v nproc >/dev/null 2>&1 && nproc) || sysctl -n hw.ncpu 2>/dev/null )
 case "$_cpus" in ''|*[!0-9]*) _cpus=4 ;; esac
 _cpus=$(( _cpus * 2 / 3 ))
 [ "$_cpus" -lt 2 ] && _cpus=2
 : "${PARALLEL_JOBS:=$_cpus}"
 
-# _throttle PID: record a just-launched background job and, once PARALLEL_JOBS
-# are in flight, block on the oldest before returning. POSIX-portable (no
-# `wait -n`): PIDs are tracked FIFO in _jobs_pids.
+# Heavy-set admission cap: at most SPEC_HEAVY_JOBS jobs whose @weight is
+# >= SPEC_HEAVY_MIN may be in flight together, whatever PARALLEL_JOBS
+# says.  @weight doubles as a footprint class: the files heavy in TIME
+# are the same ones heavy in RESIDENT MEMORY (tower/test-lib loads, the
+# jit builds), and running them heaviest-FIRST would otherwise mean
+# running them ALL AT ONCE -- the 2026-08-19 lockup above.  Two heavies
+# + light fill bounds the peak at roughly two big heaps regardless of
+# core count.  Both knobs are env-overridable; lower them on a shared or
+# small box.
+: "${SPEC_HEAVY_JOBS:=2}"
+: "${SPEC_HEAVY_MIN:=4}"
+[ "$SPEC_HEAVY_JOBS" -lt 1 ] 2>/dev/null && SPEC_HEAVY_JOBS=1
+
+# Wait-any job tracking (#320).  The old FIFO wait blocked on the OLDEST
+# job, so one 19s job launched first held the runner below capacity while
+# short jobs finished behind it -- measured 74% worker utilization at 2
+# jobs.  POSIX sh has no `wait -n`, so completion is detected by the
+# job's own output: every awk job writes spec-<id>.cnt as its last act,
+# and a vanished process (`kill -0` fails once the shell has reaped it)
+# covers a job killed before it could write.  The FIFO escape hatch in
+# _admit guarantees progress in the one undetectable shape -- an awk job
+# killed while the shell still holds its zombie unreaped -- by falling
+# back to the old blocking wait after ~60s without progress; the
+# collector's missing-.cnt warning still names the lost job.
 _jobs_running=0
+_heavy_running=0
 _jobs_pids=""
-_throttle() {
+_jobs_ids=""
+_jobs_wts=""
+_reap() {
+  # Free every tracked slot whose job has finished.  The three lists are
+  # space-terminated and popped in lockstep.
+  _keep_pids=""; _keep_ids=""; _keep_wts=""
+  _rest_ids="$_jobs_ids"; _rest_wts="$_jobs_wts"
+  for _jpid in $_jobs_pids; do
+    _jid="${_rest_ids%% *}"; _rest_ids="${_rest_ids#* }"
+    _jw="${_rest_wts%% *}";  _rest_wts="${_rest_wts#* }"
+    if [ -f "$_TMPDIR/spec-$_jid.cnt" ] || ! kill -0 "$_jpid" 2>/dev/null; then
+      wait "$_jpid" 2>/dev/null
+      _jobs_running=$((_jobs_running - 1))
+      [ "$_jw" -ge "$SPEC_HEAVY_MIN" ] && _heavy_running=$((_heavy_running - 1))
+    else
+      _keep_pids="$_keep_pids$_jpid "
+      _keep_ids="$_keep_ids$_jid "
+      _keep_wts="$_keep_wts$_jw "
+    fi
+  done
+  _jobs_pids="$_keep_pids"
+  _jobs_ids="$_keep_ids"
+  _jobs_wts="$_keep_wts"
+}
+# _admit WEIGHT: block until launching a job of this weight fits BOTH
+# caps.  Called BEFORE the fork, so an over-budget job is never started.
+_admit() {
+  _stall=0
+  while :; do
+    _reap
+    if [ "$_jobs_running" -lt "$PARALLEL_JOBS" ]; then
+      if [ "$1" -lt "$SPEC_HEAVY_MIN" ] || [ "$_heavy_running" -lt "$SPEC_HEAVY_JOBS" ]; then
+        return 0
+      fi
+    fi
+    _stall=$((_stall + 1))
+    if [ "$_stall" -gt 600 ]; then
+      wait "${_jobs_pids%% *}" 2>/dev/null
+      _w_old="${_jobs_wts%% *}"
+      _jobs_pids="${_jobs_pids#* }"
+      _jobs_ids="${_jobs_ids#* }"
+      _jobs_wts="${_jobs_wts#* }"
+      _jobs_running=$((_jobs_running - 1))
+      [ "$_w_old" -ge "$SPEC_HEAVY_MIN" ] 2>/dev/null && _heavy_running=$((_heavy_running - 1))
+      _stall=0
+    fi
+    sleep 0.1
+  done
+}
+# _register PID SPEC_ID WEIGHT: record a job _admit already cleared.
+_register() {
   _jobs_pids="${_jobs_pids}$1 "
+  _jobs_ids="${_jobs_ids}$2 "
+  _jobs_wts="${_jobs_wts}$3 "
   _jobs_running=$((_jobs_running + 1))
-  if [ "$_jobs_running" -ge "$PARALLEL_JOBS" ]; then
-    wait "${_jobs_pids%% *}" 2>/dev/null
-    _jobs_pids="${_jobs_pids#* }"
-    _jobs_running=$((_jobs_running - 1))
-  fi
+  [ "$3" -ge "$SPEC_HEAVY_MIN" ] && _heavy_running=$((_heavy_running + 1))
+  return 0
 }
 
-# _spawn TIMEOUT_CMD FILE... -- one awk runner job over the given spec
-# files (a same-@lib bucket, or a singleton), forked and throttled in
-# PARALLEL mode, inline otherwise.  Serial mode prints a per-job timing
-# tail; a merged bucket is labelled by its first file plus a +N count.
+# _spawn WEIGHT TIMEOUT_CMD FILE... -- one awk runner job over the given
+# spec files (a same-@lib bucket, or a singleton).  In PARALLEL mode the
+# job is admitted against both caps BEFORE forking, then registered;
+# inline otherwise.  Serial mode prints a per-job timing tail; a merged
+# bucket is labelled by its first file plus a +N count.
 _spawn() {
-  _tcmd="$1"; shift
+  _w_adm="$1"; _tcmd="$2"; shift 2
+  case "$_w_adm" in ''|*[!0-9]*) _w_adm=0 ;; esac
   _I=$_N
   _N=$((_N+1))
   _t0=$(date +%s)
   if [ -n "$PARALLEL" ]; then
+    _admit "$_w_adm"
     (
       awk -v X_BIN="$X_BIN" \
           -v LANG_LIB="$LANG_LIB" \
@@ -159,7 +237,7 @@ _spawn() {
           -v SPEC_ID="$_I" \
           -f "$RUNNER" "$@"
     ) &
-    _throttle "$!"
+    _register "$!" "$_I" "$_w_adm"
   else
     awk -v X_BIN="$X_BIN" \
         -v LANG_LIB="$LANG_LIB" \
@@ -209,17 +287,26 @@ _file_tcmd() {
 # Anything ambiguous, plus every `@timeout-scale` file (its budget is per
 # FILE), prints "!" and runs alone.  Over-detection only costs a lost
 # merge, never a wrong lib.
+#
+# The second field is the file's `# @weight N` declaration (0 when
+# absent): a scheduling hint in rough serial-seconds, declared in the
+# heavy files themselves the way @timeout-scale is (#320).  Jobs run
+# heaviest-first, because the glob is alphabetical and put six of the
+# eight heaviest files in the last 40% of the queue -- the 13s tools/pin
+# spec started DEAD LAST, defining the whole run's tail.  A stale weight
+# only mis-ranks a schedule; correctness never depends on it.
 _classify() {
   awk '
     /^# @lib /                { nlib++; if (nlib == 1) { libval = substr($0, 8); libline = FNR } }
     /^### /                   { if (!testline) testline = FNR }
     /^```/                    { if (!fenceline) fenceline = FNR }
     /^# @timeout-scale [0-9]/ { scaled = 1 }
+    /^# @weight [0-9]/        { weight = substr($0, 11) + 0 }
     END {
-      if (scaled || nlib > 1) { print "!"; exit }
-      if (nlib == 0) { print ""; exit }
-      if ((testline && libline > testline) || (fenceline && libline > fenceline)) { print "!"; exit }
-      print libval
+      if (scaled || nlib > 1) { print "!|" weight; exit }
+      if (nlib == 0) { print "|" weight; exit }
+      if ((testline && libline > testline) || (fenceline && libline > fenceline)) { print "!|" weight; exit }
+      print libval "|" weight
     }' "$1"
 }
 
@@ -258,7 +345,7 @@ for _spec in "$@"; do
   # SPECS (a glob pattern, e.g. '*list*') narrows the run for fast iteration; unset = all.
   [ -n "$SPECS" ] && { case "$_spec" in $SPECS) : ;; *) continue ;; esac; }
   if [ "$_args_mode" = 1 ]; then
-    _spawn "$(_file_tcmd "$_spec")" "$_spec"
+    _spawn 0 "$(_file_tcmd "$_spec")" "$_spec"
   else
     printf '%s\n' "$_spec" >> "$_LIST"
   fi
@@ -287,64 +374,51 @@ if [ "$_args_mode" = 0 ]; then
   # leading field where a tab would not, and no repo path contains one).
   sort -s -t '|' -k1,1 "$_CLS" > "$_CLS.sorted"
 
-  _bucket=""; _bn=0; _bkey=""
+  # First pass collects the jobs (one line each: weight|timeout|files);
+  # a bucket's weight is its heaviest member's.  The job list is then
+  # sorted heaviest-first and spawned -- with wait-any throttling this
+  # approaches the ideal makespan (the FIFO+glob-order scheduler ran at
+  # 74% utilization; see _throttle).
+  _JOBS="$_TMPDIR/jobs.lst"
+  : > "$_JOBS"
+  _bucket=""; _bn=0; _bkey=""; _bw=0
   _flush() {
     [ "$_bn" -gt 0 ] || return 0
     if [ "$_bn" -eq 1 ]; then
-      _spawn "$(_file_tcmd $_bucket)" $_bucket
+      printf '%s|%s|%s\n' "$_bw" "$(_file_tcmd $_bucket)" "$_bucket" >> "$_JOBS"
     elif [ -n "$_TIMEOUT_BIN" ]; then
-      _spawn "$_TIMEOUT_BIN $(( ${TIMEOUT_UNIT_SECS:-60} * _bn ))" $_bucket
+      printf '%s|%s|%s\n' "$_bw" "$_TIMEOUT_BIN $(( ${TIMEOUT_UNIT_SECS:-60} * _bn ))" "$_bucket" >> "$_JOBS"
     else
-      _spawn "" $_bucket
+      printf '%s||%s\n' "$_bw" "$_bucket" >> "$_JOBS"
     fi
-    _bucket=""; _bn=0
+    _bucket=""; _bn=0; _bw=0
   }
-  while IFS='|' read -r _cls _spec; do
+  while IFS='|' read -r _cls _w _spec; do
     if [ "$_cls" = "!" ] || [ "$_cls" != "$_bkey" ] || [ "$_bn" -ge "$SPEC_BATCH" ]; then
       _flush
       _bkey="$_cls"
     fi
     _bucket="$_bucket $_spec"
     _bn=$((_bn + 1))
+    case "$_w" in ''|*[!0-9]*) _w=0 ;; esac
+    [ "$_w" -gt "$_bw" ] && _bw="$_w"
     [ "$_cls" = "!" ] && _flush
   done < "$_CLS.sorted"
   _flush
+
+  sort -s -t '|' -k1,1rn "$_JOBS" > "$_JOBS.sorted"
+  while IFS='|' read -r _w _tc _files; do
+    _spawn "$_w" "$_tc" $_files
+  done < "$_JOBS.sorted"
 fi
 
 # Applicative (stress) specs only run with STRESS=1, and only in glob
-# mode -- explicit arguments already said exactly what to run.
+# mode -- explicit arguments already said exactly what to run.  One job
+# per file through _spawn, on the stress timeout.
 if [ "$_args_mode" = 0 ] && [ -n "$STRESS" ] && [ -d "$SPEC_PATH/applicative" ]; then
   for _spec in "$SPEC_PATH"/applicative/*.spec.md; do
     [ -f "$_spec" ] || continue
-    _I=$_N
-    _N=$((_N+1))
-    _t0=$(date +%s)
-    if [ -n "$PARALLEL" ]; then
-      (
-        awk -v X_BIN="$X_BIN" \
-            -v LANG_LIB="$LANG_LIB" \
-            -v REPL_CMD="${REPL_CMD:-(repl)}" \
-            -v READ_FN="${READ_FN:-Io read}" \
-            -v TIMEOUT_CMD="$TIMEOUT_APPL" \
-            -v TMPDIR="$_TMPDIR" \
-            -v SPEC_ID="$_I" \
-            -f "$RUNNER" "$_spec"
-      ) &
-      _throttle "$!"
-    else
-      awk -v X_BIN="$X_BIN" \
-          -v LANG_LIB="$LANG_LIB" \
-          -v REPL_CMD="${REPL_CMD:-(repl)}" \
-          -v READ_FN="${READ_FN:-Io read}" \
-          -v TIMEOUT_CMD="$TIMEOUT_APPL" \
-          -v TMPDIR="$_TMPDIR" \
-          -v SPEC_ID="$_I" \
-          -f "$RUNNER" "$_spec"
-    fi
-    _t1=$(date +%s); _dt=$((_t1 - _t0))
-    if [ -z "$PARALLEL" ] && [ "$_dt" -gt 0 ]; then
-      printf " [%s: %ds]" "$(basename "$_spec" .spec.md)" "$_dt"
-    fi
+    _spawn "$SPEC_HEAVY_MIN" "$TIMEOUT_APPL" "$_spec"
   done
 fi
 

@@ -1,5 +1,6 @@
 # @lib ../tests/x/lib/logo.x
 
+# @weight 7
 ## turtle state
 
 ### starts at origin
