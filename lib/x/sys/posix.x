@@ -197,20 +197,56 @@
               (if (< i 0) acc
                 (go (- i 1) (pair (& (%ptr-ref buf i 1) 255) acc))))))))
     (method file-exists? (self (param path STRING "File path to check"))
-      (doc "Check if a file exists (via access with F_OK=0)." (returns BOOL "True if file exists"))
+      (doc "Check if a file exists (via access with F_OK=0)."
+        (returns BOOL "True if file exists")
+        (note "Deliberately duplicated across tiers with (File exists?) (#361): boot/module.x resolves imports through THIS door before sys/file (stat + Err, the ergonomic sibling) can load. Post-boot callers doing file work generally want the File class."))
       (= (%sys-fold (%ptr-call (%resolve "access") path 0)) 0))
     ; --- Environment ---
     (method chdir (self (param path STRING "Directory path"))
-      (doc "Change the current working directory." (returns INT "0 on success, -1 on error"))
+      (doc "Change the current working directory -- (Sys getcwd) reads it back." (returns INT "0 on success, -1 on error"))
       (%sys-fold (%ptr-call %c-chdir path)))
+    (method getcwd (self)
+      (doc "The current working directory (getcwd) -- the symmetric half of (Sys chdir) (#361)."
+        (returns STRING "Absolute path, or nil on failure")
+        (sample "(Sys getcwd)" "\"/home/user/project\""))
+      ; POINTER return (the buffer on success, NULL on failure) -- must NOT
+      ; go through %sys-fold (see its comment). Cold path: resolve per call.
+      (let ((s (%make-str 4096)))
+        (let ((r (%ptr-call (%resolve "getcwd") (%str->ptr s) 4096)))
+          (if (= r 0) () (%cvt (%cvt r %ptr) %string)))))
     (method setenv (self (param name STRING "Variable name") (param val STRING "Variable value"))
-      (doc "Set an environment variable, overwriting any existing value." (returns INT "0 on success, -1 on error"))
+      (doc "Set an environment variable, overwriting any existing value -- (Sys unsetenv) removes it." (returns INT "0 on success, -1 on error"))
       (%sys-fold (%ptr-call %c-setenv name val 1)))
     (method getenv (self (param name STRING "Variable name"))
       (doc "Get the value of an environment variable." (returns STRING "Variable value, or nil if not set"))
       ; POINTER return -- must NOT go through %sys-fold (see its comment).
       (let ((result (%ptr-call %c-getenv name)))
         (if (= result 0) () (%cvt (%cvt result %ptr) %string))))
+    (method unsetenv (self (param name STRING "Variable name"))
+      (doc "Remove an environment variable -- the symmetric half of (Sys setenv) (#361). Removing an absent name succeeds."
+        (returns INT "0 on success, -1 on error"))
+      (%sys-fold (%ptr-call (%resolve "unsetenv") name)))
+    (method environ (self)
+      (doc "The whole environment as a list of \"NAME=VALUE\" strings, in table order (#361). Split an entry at its FIRST '=' only -- values may themselves contain '='."
+        (returns LIST "\"NAME=VALUE\" strings")
+        (sample "(Sys environ)" "(\"HOME=/home/user\" \"TERM=xterm-256color\" ...)"))
+      ; environ is a DATA symbol: deref the char** once, then walk word by
+      ; word (byte offsets, %word-size stride) to the NULL terminator; each
+      ; entry is a C-string pointer. Pointer values throughout -- no fold.
+      (let ((envp (%ptr-ref (%resolve "environ") 0 %word-size)))
+        (let go ((i 0) (acc ()))
+          (let ((e (%ptr-ref (%cvt envp %ptr) (* i %word-size) %word-size)))
+            (if (= e 0) (%reverse acc)
+              (go (+ i 1) (pair (%cvt (%cvt e %ptr) %string) acc)))))))
+    ; --- Sleep (#361) ---
+    (method sleep (self (param seconds INT "Whole seconds to block"))
+      (doc "Block for the given number of seconds (libc sleep). A signal can wake it early; sub-second waits are (Sys usleep)."
+        (returns INT "0 after the full interval; the seconds left unslept when a signal woke it early"))
+      (%sys-fold (%ptr-call (%resolve "sleep") seconds)))
+    (method usleep (self (param micros INT "Microseconds to block"))
+      (doc "Block for the given number of microseconds (libc usleep) -- the sub-second door; whole seconds read better through (Sys sleep)."
+        (returns INT "0 on success, -1 on error"))
+      (%sys-fold (%ptr-call (%resolve "usleep") micros)))
     (method isatty (self (param fd NUMBER "File descriptor to test"))
       (doc "Test whether a file descriptor refers to a terminal (TTY)."
         (returns BOOL "True if fd refers to a terminal")
