@@ -72,7 +72,7 @@
 (file "lib/x/repl/loop.x" 12)
 (file "lib/x/rn.x" 1)
 (file "lib/x/sys/date.x" 6)
-(file "lib/x/sys/file.x" 12)
+(file "lib/x/sys/file.x" 7)
 (file "lib/x/sys/pact.x" 12)
 (file "lib/x/sys/posix.x" 32)
 (file "lib/x/sys/socket.x" 29)
