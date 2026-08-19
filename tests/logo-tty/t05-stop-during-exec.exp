@@ -12,9 +12,22 @@ spawn_logo
 # Brace-quoted: [ ] is Tcl command substitution inside double quotes.
 send {repeat 10000000 [ fd 1 rt 1 ]}
 send "\r"
-sleep 2
-ctrl_c
+expect {
+    -ex {repeat 10000000} {}
+    timeout { puts "FAIL: entry never echoed"; exit 1 }
+}
+# A GENUINE minimum, kept deliberately (#327): ctrl-c must land while
+# the loop is EXECUTING -- too early and STOP hits entry handling
+# instead, testing the wrong behaviour.  The echo above already absorbed
+# the entry latency the old 2s also covered.
 sleep 1
+ctrl_c
+# STOP breaks the loop to a bare newline and a fresh prompt; the prompt
+# is the loop-actually-stopped signal the old sleep approximated.
+expect {
+    -re {\? } {}
+    timeout { puts "FAIL: no prompt after STOP"; exit 1 }
+}
 send "print 8 + 9\r"
 expect {
     -ex "17" {}

@@ -11,9 +11,11 @@ expect {
 }
 catch {wait} result
 if {![exited_zero $result]} { puts "FAIL: not a clean exit 0: $result"; exit 1 }
-for {set i 0} {$i < 5} {incr i} {
+# Poll at 200ms (#327): the port is usually free on the first check;
+# the 5s ceiling is unchanged.
+for {set i 0} {$i < 25} {incr i} {
     if {![port_8080_busy]} { exit 0 }
-    sleep 1
+    after 200
 }
 puts "FAIL: viewer server orphaned on :8080"
 kill_session_tree
