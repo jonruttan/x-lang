@@ -120,3 +120,24 @@ accept is called -- no step blocks.
 ```
 ---
     ('value)
+
+
+## recv-bytes (#374): the lossless door
+
+### a NUL-bearing payload survives the byte-list door where recv's string truncates
+
+```scheme
+(do (import x/sys/socket) (import x/sys/file)
+  (def up "/tmp/x-374-rb.sock")
+  (guard (_ ()) (File unlink up))
+  (def lfd (Socket unix-listen up))
+  (def c (Socket unix-connect up))
+  (def a (Socket accept lfd))
+  (Socket send c (bytes->str (list 104 105)))
+  (def first-half (Socket recv-bytes a 16))
+  (Socket close c) (Socket close a) (Socket close lfd)
+  (File unlink up)
+  first-half)
+```
+---
+    (104 105)
