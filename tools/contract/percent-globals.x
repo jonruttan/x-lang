@@ -120,6 +120,6 @@
 (file "tools/dev/cov-report.x" 5)
 (file "tools/dev/cov.x" 32)
 (file "tools/dev/doc-index.x" 10)
-(file "tools/dev/doc.x" 9)
+(file "tools/dev/doc.x" 3)
 (file "tools/dev/fmt.x" 17)
 (file "tools/dev/lint.x" 23)
