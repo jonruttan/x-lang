@@ -49,7 +49,7 @@
       ((eq? key (first (first alist))) (first alist))
       (#t (self key (rest alist))))))
   (returns ANY "The (key . value) entry pair, or nil if not found")
-  (note "Entry-returning eq? lookup. Class API: (List assq ...).")
+  (note "Entry-returning eq? lookup. Class API: (Assoc entry ...).")
   "Look up a key in an alist, returning the entry pair or nil.")
 
 (doc (def %assoc-str

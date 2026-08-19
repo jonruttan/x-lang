@@ -238,20 +238,20 @@
 (def %cx-magnitude
   (fn (_ z)
     (if (%complex? z)
-      (let ((re (%exact->inexact (%complex-re z)))
-            (im (%exact->inexact (%complex-im z))))
+      (let ((re (%float-of (%complex-re z)))
+            (im (%float-of (%complex-im z))))
         (%fsqrt (%f-add (%f-mul re re) (%f-mul im im))))
       (if (%real< z 0)
-        (%exact->inexact (%real- 0 z))
-        (%exact->inexact z)))))
+        (%float-of (%real- 0 z))
+        (%float-of z)))))
 
 (def %cx-angle
   (fn (_ z)
     (if (%complex? z)
       (%fatan2
-        (%exact->inexact (%complex-im z))
-        (%exact->inexact (%complex-re z)))
-      (if (%real< z 0) %pi (%exact->inexact 0)))))
+        (%float-of (%complex-im z))
+        (%float-of (%complex-re z)))
+      (if (%real< z 0) %pi (%float-of 0)))))
 ; --- Type ops: the generic operators dispatch complex operands here ---
 ; Complex absorbs every real type via its from-declarations (int, float,
 ; rational), so the other side of a mixed pair always coerces with
@@ -306,14 +306,14 @@
       (doc "Test whether a value is any numeric type (alias for number?)."
         (returns BOOL "True if x is a number"))
       (number? x))
-    (method make-rectangular (self (param re NUMBER "Real part") (param im NUMBER "Imaginary part"))
+    (method make (self (param re NUMBER "Real part") (param im NUMBER "Imaginary part"))
       (doc "Construct a complex number from rectangular coordinates."
         (returns COMPLEX|NUMBER "Complex number, or real if imaginary part is zero"))
       (%make-complex re im))
-    (method make-polar (self (param mag NUMBER "Magnitude") (param ang NUMBER "Angle in radians"))
+    (method from-polar (self (param mag NUMBER "Magnitude") (param ang NUMBER "Angle in radians"))
       (doc "Construct a complex number from polar coordinates (magnitude and angle)."
         (returns COMPLEX|NUMBER "Complex number from polar coordinates"))
-      (let ((fang (%exact->inexact ang)) (fmag (%exact->inexact mag)))
+      (let ((fang (%float-of ang)) (fmag (%float-of mag)))
         (%make-complex
           (%f-mul fmag (%fcos fang))
           (%f-mul fmag (%fsin fang)))))

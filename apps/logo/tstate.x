@@ -9,7 +9,7 @@
 ; ============================================================
 
 (def %turtle-visible #t)
-(def %turtle-scale (Float exact->inexact 1))
+(def %turtle-scale (Float from 1))
 
 ; ============================================================
 ; Extended movement commands (emit bytecodes)
@@ -28,9 +28,9 @@
 (def turtle-home
   (fn ()
     (%bc-emit-0 "O")
-    (set! %turtle-x (Float exact->inexact 0))
-    (set! %turtle-y (Float exact->inexact 0))
-    (set! %turtle-heading (Float exact->inexact 0))))
+    (set! %turtle-x (Float from 0))
+    (set! %turtle-y (Float from 0))
+    (set! %turtle-heading (Float from 0))))
 
 ; DISTANCE: distance from turtle to a point (x, y)
 (def turtle-distance
@@ -45,7 +45,7 @@
     (def dx (Float - (%as-float px) %turtle-x))
     (def dy (Float - %turtle-y (%as-float py)))
     (def rad (Float atan2 dx dy))
-    (Float / (Float * rad (Float exact->inexact 180)) %pi)))
+    (Float / (Float * rad (Float from 180)) %pi)))
 
 ; TURTLE.STATE: return current state as list
 (def turtle-state

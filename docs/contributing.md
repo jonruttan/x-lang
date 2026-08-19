@@ -111,7 +111,7 @@ make clean && make
   `Gen zip`/`enumerate`, `List group-by`) emit alists; the converters are
   `Dict from-alist`/`->alist` and `Assoc from-bindings`/`->bindings`. Equality:
   the alist layer (`Assoc get`, `assoc-get`) compares keys with `eq?`;
-  `List assoc` (`equal?`) and `List assq` (`eq?`) return the assoc itself and
+  `Assoc find` (`equal?`) and `Assoc entry` (`eq?`) return the assoc itself and
   are the presence-unambiguous entry doors.
 - **Constructor-style counts come first**: `(List repeat n x)`, `(Str8 repeat n s)`,
   `(Str8 make k ch)`, `(Vector make n fill)`.

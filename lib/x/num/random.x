@@ -143,10 +143,13 @@
   (method float (self)
     (doc "A uniform float in [0.0, 1.0) with 53-bit resolution -- two 31-bit draws, hi supplying 31 bits and lo's top 22 joining them, over 2^53 (#363). Late-bound like every cross-class call: needs x/num/float loaded."
       (returns FLOAT "A float in [0, 1)")
-      (sample "((Random sw 1) float)" "0.987947375469473"))
+      (sample "((Random sw 1) float)" "0.000125900391254041"))
+    ; (Float from), the VALUE door -- the first cut used from-int, which
+    ; was the raw BITS door (renamed int->bits, #357): dividing coerced
+    ; bit patterns clustered every draw near [0.98, 1) instead of uniform.
     (let ((hi (self %bits)) (lo (self %bits)))
-      (Float / (Float from-int (+ (* hi 4194304) (>> lo 9)))
-               (Float from-int 9007199254740992))))
+      (Float / (Float from (+ (* hi 4194304) (>> lo 9)))
+               (Float from 9007199254740992))))
 
   (method sample (self k lst)
     (doc "k distinct elements of lst, uniformly, in random order -- a shuffled prefix (#363). Raises kind-'value when k exceeds the population."

@@ -156,15 +156,15 @@
       (let ((f (%cvt x %float)))
         (if (%float? f) f (Err raise 'type what x))))))
 
-(def %exact->inexact
-  (fn (_ x) (%to-float x "Float exact->inexact: not convertible to FLOAT")))
+(def %float-of
+  (fn (_ x) (%to-float x "Float from: not convertible to FLOAT")))
 
-(def %inexact->exact
+(def %int-of
   (fn (_ x)
     (match
       ((%float? x) (%float->int (first x)))
       ((%int-number? x) x)
-      (#t (Err raise 'type "Float inexact->exact: not a float" x)))))
+      (#t (Err raise 'type "Float ->int: not a float" x)))))
 
 (note "Arithmetic")
 
@@ -268,9 +268,9 @@
 
 ; --- Constants ---
 
-(def %pi (%fatan2 (%exact->inexact 0) (%exact->inexact -1)))
+(def %pi (%fatan2 (%float-of 0) (%float-of -1)))
 
-(def %e (%fexp (%exact->inexact 1)))
+(def %e (%fexp (%float-of 1)))
 
 (def %ensure-float
   (fn (_ x) (%to-float x "Float: operand not convertible to FLOAT")))
@@ -332,13 +332,13 @@
             (fn (_ value)
               (def sign (first (first value)))
               (def limbs (%reverse (rest (first value))))
-              (def fbase (%exact->inexact %bigint-base))
-              (def fzero (%exact->inexact 0))
+              (def fbase (%float-of %bigint-base))
+              (def fzero (%float-of 0))
               ; Horner's method on reversed (now MSB-first) limbs
               (def %go
                 (fn (self ls acc)
                   (if (null? ls) acc
-                    (self (rest ls) (%f-add (%f-mul acc fbase) (%exact->inexact (first ls)))))))
+                    (self (rest ls) (%f-add (%f-mul acc fbase) (%float-of (first ls)))))))
               (def mag (%go limbs fzero))
               (if (%int= sign -1) (%f-sub fzero mag) mag)))
           (first from-cell))))))
@@ -362,24 +362,24 @@
         (returns BOOL "True if x is real"))
       (real? x))
     ; --- Conversions ---
-    (method ->str (self (param bits INT "IEEE 754 double bit pattern"))
-      (doc "Convert a float bit pattern to its string representation." (returns STRING "Decimal string representation"))
+    (method bits->str (self (param bits INT "IEEE 754 double bit pattern"))
+      (doc "Render a raw IEEE 754 bit pattern as its decimal string -- FFI plumbing; value-level work wants (Float from) / the printer." (returns STRING "Decimal string representation"))
       (%float->str bits))
-    (method ->int (self (param bits INT "IEEE 754 double bit pattern"))
-      (doc "Convert a float bit pattern to an integer by truncation." (returns INT "Truncated integer value"))
+    (method bits->int (self (param bits INT "IEEE 754 double bit pattern"))
+      (doc "Truncate a raw IEEE 754 bit pattern to a machine integer -- FFI plumbing; value-level work wants (Float ->int)." (returns INT "Truncated integer value"))
       (%float->int bits))
-    (method from-int (self (param n INT "Integer value"))
-      (doc "Convert an integer to a float bit pattern." (returns INT "IEEE 754 double bit pattern"))
+    (method int->bits (self (param n INT "Integer value"))
+      (doc "The IEEE 754 bit pattern of an integer's double value -- FFI plumbing, NOT a float constructor; (Float from) builds instances." (returns INT "IEEE 754 double bit pattern"))
       (%int->float n))
-    (method from-str (self (param s STRING "Decimal string to parse"))
-      (doc "Parse a decimal string into a float." (returns FLOAT "Parsed float value"))
+    (method str->bits (self (param s STRING "Decimal string to parse"))
+      (doc "The IEEE 754 bit pattern of a decimal string's double value -- FFI plumbing, NOT a parser-to-instance; (Float from) builds instances (the old from-str name claimed FLOAT and returned bits, #66)." (returns INT "IEEE 754 double bit pattern"))
       (%str->float s))
-    (method exact->inexact (self (param x INT "Exact integer value"))
-      (doc "Convert an exact integer to an inexact float." (returns FLOAT "Float representation"))
-      (%exact->inexact x))
-    (method inexact->exact (self (param x FLOAT "Float value"))
+    (method from (self (param x ANY "An exact number (int, bigint, rational), a numeric string, or a float (identity)"))
+      (doc "Construct a float from any convertible value, through the conversion catalog -- the generic value door (was exact->inexact, #357). Raises kind-'type when nothing converts." (returns FLOAT "Float instance"))
+      (%float-of x))
+    (method ->int (self (param x FLOAT "Float value (machine ints pass through)"))
       (doc "Convert an inexact float to an exact integer by truncation." (returns INT "Truncated integer value"))
-      (%inexact->exact x))
+      (%int-of x))
     ; --- Arithmetic / comparison (operands coerce via the from-alist) ---
     (method + (self (param a NUMBER "First operand") (param b NUMBER "Second operand"))
       (doc "Add two floats (other numerics coerce)." (returns FLOAT "Sum"))

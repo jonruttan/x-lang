@@ -111,7 +111,7 @@
   (let ((base ((Base make) raw)))
     (def %cell (first (first (first (rest (first base))))))
     (def %int-name (%type-of 0))
-    (def %float-name (%type-of (Float exact->inexact 0)))
+    (def %float-name (%type-of (Float from 0)))
     ; Keep only INTEGER and FLOAT from the base.  A LOCAL walker on
     ; purpose, renamed off the boot %filter it used to shadow (#227): the
     ; alist walked here lives in the FRESH child base, and type tags are

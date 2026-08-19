@@ -126,42 +126,42 @@
 
 ## float conversions
 
-### exact->inexact converts int
+### from converts int
 
 ```scheme
-(Float exact->inexact 5)
+(Float from 5)
 ```
 ---
     5.0
 
-### exact->inexact result is float
+### from result is float
 
 ```scheme
-(Float float? (Float exact->inexact 5))
+(Float float? (Float from 5))
 ```
 ---
     #t
 
-### exact->inexact float identity
+### from float identity
 
 ```scheme
-(def x 3.14) (eq? (Float exact->inexact x) x)
+(def x 3.14) (eq? (Float from x) x)
 ```
 ---
     #t
 
-### inexact->exact truncates
+### ->int truncates
 
 ```scheme
-(Float inexact->exact 3.14)
+(Float ->int 3.14)
 ```
 ---
     3
 
-### inexact->exact rounds toward zero
+### ->int rounds toward zero
 
 ```scheme
-(Float inexact->exact 9.99)
+(Float ->int 9.99)
 ```
 ---
     9
@@ -169,7 +169,7 @@
 ### str->float and back
 
 ```scheme
-(Float ->str (Float from-str "2.718"))
+(Float bits->str (Float str->bits "2.718"))
 ```
 ---
     "2.718"
@@ -177,7 +177,7 @@
 ### int->float and back
 
 ```scheme
-(Float ->int (Float from-int 42))
+(Float bits->int (Float int->bits 42))
 ```
 ---
     42
@@ -493,7 +493,7 @@
 ### fsin of 0
 
 ```scheme
-(Float sin (Float exact->inexact 0))
+(Float sin (Float from 0))
 ```
 ---
     0.0
@@ -501,7 +501,7 @@
 ### fcos of 0
 
 ```scheme
-(Float cos (Float exact->inexact 0))
+(Float cos (Float from 0))
 ```
 ---
     1.0
@@ -565,7 +565,7 @@
 ### fexp of 0
 
 ```scheme
-(Float exp (Float exact->inexact 0))
+(Float exp (Float from 0))
 ```
 ---
     1.0
@@ -757,7 +757,7 @@
 ### very small float
 
 ```scheme
-(> 0.001 (Float exact->inexact 0))
+(> 0.001 (Float from 0))
 ```
 ---
     #t
@@ -773,7 +773,7 @@
 ### float zero
 
 ```scheme
-(Float = 0.0 (Float exact->inexact 0))
+(Float = 0.0 (Float from 0))
 ```
 ---
     #t
@@ -814,13 +814,13 @@ unchecked `(first)`/FFI seats and segfaulted the engine. The door in
 float.x raises instead; the Convert dispatcher's silent-nil miss policy
 is unchanged.
 
-### exact->inexact on a list raises type, not silent nil
+### from on a list raises type, not silent nil
 
 ```scheme
-(Float exact->inexact (list 1))
+(Float from (list 1))
 ```
 ---
-    Error: #<err:type Float exact->inexact: not convertible to FLOAT>
+    Error: #<err:type Float from: not convertible to FLOAT>
 
 ### a mixed op with an unconvertible operand raises type, not a crash
 
@@ -830,18 +830,18 @@ is unchanged.
 ---
     Error: #<err:type Float: operand not convertible to FLOAT>
 
-### inexact->exact on a non-number raises type
+### ->int on a non-number raises type
 
 ```scheme
-(Float inexact->exact (list 1))
+(Float ->int (list 1))
 ```
 ---
-    Error: #<err:type Float inexact->exact: not a float>
+    Error: #<err:type Float ->int: not a float>
 
-### inexact->exact int passthrough keeps exact identity
+### ->int int passthrough keeps exact identity
 
 ```scheme
-(Float inexact->exact 5)
+(Float ->int 5)
 ```
 ---
     5

@@ -140,11 +140,24 @@ sequence.
   (let ((r (Random sw 42)))
     (let ((f (r float)))
       (list (Float float? f)
-            (Float < (Float from-int -1) f)
-            (Float < f (Float from-int 1))))))
+            (Float < (Float from -1) f)
+            (Float < f (Float from 1))))))
 ```
 ---
     (#t #t #t)
+
+### draws spread across [0,1) -- the bits-door bug clustered everything in [0.98,1)
+
+```scheme
+(do (import x/num/random) (import x/num/float)
+  (let ((r (Random sw 42)))
+    (let go ((i 0) (low #f))
+      (match
+        ((= i 20) low)
+        (#t (go (+ i 1) (if (Float < (r float) (Float from "0.5")) #t low)))))))
+```
+---
+    #t
 
 ### float is reproducible under a seed
 
