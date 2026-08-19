@@ -105,7 +105,10 @@
 ; ============================================================
 
 (def %logo-base
-  (let ((base (Base make)))
+  ; The RAW base: logo walks the spine directly (the %cell walk below,
+  ; entry.x's filein path) and hands it to the raw tok/buf prims per
+  ; token, so it holds the raw member; Base statics accept it as-is.
+  (let ((base ((Base make) raw)))
     (def %cell (first (first (first (rest (first base))))))
     (def %int-name (%type-of 0))
     (def %float-name (%type-of (Float exact->inexact 0)))

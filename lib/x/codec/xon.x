@@ -68,10 +68,12 @@
     ; The base's type registry by NAME, through the contract-driven reflect
     ; door (tools/contract/base-paths.x), never a shape heuristic.
     (method %xon-find-type (self b name)
+      ; The walk needs the RAW spine; a Base instance unwraps here.
       (let ((hit (%find (fn (_ e)
                           (str=? (%reflect-sym->str (%reflect-type-tree-name (rest e)))
                                  name))
-                   (first (%reflect-step b (%reflect-path (lit type-alist) %base-paths))))))
+                   (first (%reflect-step (Base raw-of b)
+                            (%reflect-path (lit type-alist) %base-paths))))))
         (if (null? hit) () (rest hit))))
     (method read (self (param s STR "xon text")
                        . (param base ANY "Optional base to intern into (default: the current base)"))

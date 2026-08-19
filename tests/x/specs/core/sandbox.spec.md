@@ -16,6 +16,112 @@
 ---
     3
 
+## Base instances
+
+(Base make) answers a Base INSTANCE wrapping the raw C base (the `raw`
+member): methods make the base interactive, every static unwraps either
+form, and the tokenizer seams (Tok read-str, Xon's walks) unwrap the
+same way -- raw bases from the catalog prims stay plumbing.
+
+### the instance evaluates directly
+
+```scheme
+(do (def %ib (Base make)) (%ib eval (lit (* 6 7))))
+```
+---
+    42
+
+### the instance binds directly
+
+```scheme
+(do (def %ib2 (Base make)) (%ib2 bind (lit x) 5) (%ib2 eval (lit x)))
+```
+---
+    5
+
+### base? discriminates; raw bases are not instances
+
+```scheme
+(list (Base base? (Base make)) (Base base? ((prim-ref 'base 'make))) (Base base? 5))
+```
+---
+    (#t #f #f)
+
+### statics accept the raw form too
+
+```scheme
+(do (def %rb2 ((prim-ref 'base 'make))) (Base eval %rb2 (lit (+ 40 2))))
+```
+---
+    42
+
+### raw-of unwraps an instance and passes a raw base through
+
+```scheme
+(do (def %ib3 (Base make))
+    (list (null? (Base raw-of %ib3))
+          (Base base? (Base raw-of %ib3))
+          (same? (Base raw-of (%ib3 raw)) (%ib3 raw))))
+```
+---
+    (#f #f #t)
+
+### an instance renders by its live allocation count
+
+```scheme
+(do (def %ib4 (Base make))
+    (def %r ((prim-ref 'io 'display-to-str) %ib4))
+    (Str8 contains? "#<base:objs " %r))
+```
+---
+    #t
+
+## base field reflection
+
+Field access walks the layout contract (tools/contract/base-paths.x):
+(b cell 'name) resolves the base-rooted row for name and steps from the
+base; (Base fields) lists the names.  A non-base-rooted name is REFUSED
+-- a type-rooted path stepped from a base addresses arbitrary spine
+words, and mutating "its cell" would overwrite interpreter state.
+
+### a fresh base's line counter reads 1 through the contract
+
+```scheme
+(do (def %fb (Base make)) (%cell-int (first (%fb cell (lit line)))))
+```
+---
+    1
+
+### the field list carries the contract's base-rooted names
+
+```scheme
+(do (def %names ((Base make) fields))
+    (list (not (null? (List filter (fn (_ n) (eq? n (lit env-alist))) %names)))
+          (not (null? (List filter (fn (_ n) (eq? n (lit type-alist))) %names)))
+          (null? (List filter (fn (_ n) (eq? n (lit type-write))) %names))))
+```
+---
+    (#t #t #t)
+
+### a non-base-rooted name is refused
+
+```scheme
+(do (def %gb (Base make)) (guard (e (lit refused)) (%gb cell (lit type-write))))
+```
+---
+    'refused
+
+### a bound value is visible through the env-alist cell
+
+```scheme
+(do (def %eb (Base make))
+    (%eb bind (lit marker) 77)
+    (def %alist (first (%eb cell (lit env-alist))))
+    (rest (first %alist)))
+```
+---
+    77
+
 ### new base has arithmetic
 
 ```scheme
@@ -223,7 +329,7 @@
 ### custom type coexists with built-in types
 
 ```scheme
-(do (def %tb6 (Base make))
+(do (def %tb6 ((Base make) raw))
     (def %tb6-r (fn (_ . args) (list '%comment (%buf-tok (first args)))))
     (def %tb6-body ()) (set! %tb6-body (fn (_ buffer score chr)
       (if (= chr 10) (%score-set score 1 buffer) %tb6-body)))
@@ -261,7 +367,7 @@
 ### access type alist
 
 ```scheme
-(do (def %tb7 (Base make)) (not (null? (first (first (first (first (rest (first %tb7)))))))))
+(do (def %tb7 ((Base make) raw)) (not (null? (first (first (first (first (rest (first %tb7)))))))))
 ```
 ---
     #t
@@ -269,7 +375,7 @@
 ### move entry from front to end
 
 ```scheme
-(do (def %tb8 (Base make))
+(do (def %tb8 ((Base make) raw))
     (def %tb8-a (Base make-type %tb8 "A" (list (pair 'analyse (fn (_ buffer score chr) ())))))
     (def %tb8-b (Base make-type %tb8 "B" (list (pair 'analyse (fn (_ buffer score chr) ())))))
     (def %tb8-ta (first (first (first (first (rest (first %tb8)))))))

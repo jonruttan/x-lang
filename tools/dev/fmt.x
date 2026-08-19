@@ -75,7 +75,9 @@
   ; through the reflect/type doors, so a layout change moves these
   ; accessors automatically (or fails the check-base-paths gate loudly).
 
-  (def %fmt-base (Base make))
+  ; The RAW base: this tool walks the spine directly (%reflect-step below)
+  ; and hands the base to tokenizer doors, so it holds the raw member.
+  (def %fmt-base ((Base make) raw))
 
   ; Reader that keeps the comment text as a token
   (def %fmt-comment-reader (fn (_ . args)

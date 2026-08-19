@@ -199,3 +199,62 @@ and nil-NAME types all resolve to nil rather than misreading a payload).
 ```
 ---
     #t
+
+## Type instances (Type wrap)
+
+(Type wrap t) clothes a handle or struct as a Type instance: (t name),
+(t cell 'type-write-stack), (t fields), (t push-write f).  Field names
+come from the layout contract (tools/contract/base-paths.x); a
+non-type-rooted name is refused, because a base-rooted path stepped from
+a type struct addresses arbitrary spine words.
+
+### wrap a handle; the instance names itself
+
+```scheme
+((Type wrap (Type of 0)) name)
+```
+---
+    "INTEGER"
+
+### wrap a struct; the same instance surface
+
+```scheme
+((Type wrap (Type by-atom (Type of 0))) name)
+```
+---
+    "INTEGER"
+
+### the instance renders as #<type:NAME>
+
+```scheme
+((prim-ref 'io 'display-to-str) (Type wrap (Type of 0)))
+```
+---
+    "#<type:INTEGER>"
+
+### the write stack is reachable as a contract cell
+
+```scheme
+(do (def %ti (Type wrap (Type of 0)))
+    (not (null? (first (%ti cell (lit type-write-stack))))))
+```
+---
+    #t
+
+### the field list carries the contract's type-rooted names only
+
+```scheme
+(do (def %tn ((Type wrap (Type of 0)) fields))
+    (list (not (null? (List filter (fn (_ n) (eq? n (lit type-write-stack))) %tn)))
+          (null? (List filter (fn (_ n) (eq? n (lit line))) %tn))))
+```
+---
+    (#t #t)
+
+### a non-type-rooted name is refused
+
+```scheme
+(guard (e (lit refused)) ((Type wrap (Type of 0)) cell (lit line)))
+```
+---
+    'refused
