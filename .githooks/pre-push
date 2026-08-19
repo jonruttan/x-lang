@@ -1,19 +1,22 @@
 #!/bin/sh
 # Pre-push gate -- block a push when the fast suite is red.
 #
-# Runs `make test-fast` (the sub-minute scan gates + test-c + test-x),
-# NOT the full `make test`: the full suite grew past ten minutes and a
-# push holds its SSH connection open across the hook -- GitHub hangs up
-# the idle channel before the transfer starts.  CI remains the enforcing
-# gate for the FULL surface on every push/PR (.github/workflows/ci.yml
-# runs `make test` + test-asan); run `make test` locally when you want
-# the whole thing before pushing.  Install with `make install-hooks`
-# (sets core.hooksPath=.githooks). Bypass a single push with
-# `git push --no-verify`.
+# Runs `make test-fast` (the fast scan gates + test-c + test-x), NOT
+# the full `make test`: the full suite is too long to hold a push's SSH
+# connection open across the hook -- GitHub hangs up the idle channel
+# before the transfer starts.  CI remains the enforcing gate for the
+# FULL surface: .github/workflows/ci.yml fans `make test`'s members out
+# across parallel jobs (specs / gates / lint / docs / interactive) on
+# every push and PR, with test-asan on merges to main (#330 corrected
+# this note: ci.yml step-lists the members rather than invoking the
+# `make test` umbrella).  Run `make test` locally when you want the
+# whole thing in one command before pushing.  Install with
+# `make install-hooks` (sets core.hooksPath=.githooks).  Bypass a
+# single push with `git push --no-verify`.
 #
 # RUN_ASAN=1 additionally runs `make test-asan` as a NON-BLOCKING advisory.
-# The baseline is clean and CI hard-gates it on every push; locally it stays
-# opt-in only because instrumentation makes it ~2-3x slower than the gate.
+# The baseline is clean and CI hard-gates it on merge to main; locally it
+# stays opt-in only because instrumentation makes it ~2-3x slower.
 
 root=$(git rev-parse --show-toplevel) || exit 1
 cd "$root" || exit 1

@@ -70,6 +70,12 @@ jobs:
       # executable contract; a stale example is a red build, not quiet rot.
       - name: Doctests
         run: make doctest
+      # spec.md's worked examples (#70 seam 2), same extract-and-execute
+      # shape.  In `make test` and the release gate since promotion day but
+      # absent here until #330 -- so a drifting example surfaced at RELEASE
+      # time instead of on the PR that drifted it.
+      - name: Spec examples
+        run: make spec-examples
       # Tool-suite specs (promoted with the #180 repair; joined only once
       # fully green).  Builds x-bin-cov for the cov half -- and that build
       # brackets itself with clean-obj (#329), leaving src/**/*.o deleted,
