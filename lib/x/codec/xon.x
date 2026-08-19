@@ -24,11 +24,13 @@
     ; but renders symbols as 'sym, and xon heads/args are bare, so
     ; symbols go through symbol->str instead.
     (method %xon-emit-atom (self v)
-      (match
-        ((str? v) ((prim-ref (lit io) (lit write-to-str)) v))
-        ((symbol? v) (symbol->str v))
-        ((number? v) ((prim-ref (lit io) (lit write-to-str)) v))
-        (#t (Err raise (lit type) "Xon emit: unsupported atom in form" v))))
+      ; ONE catalog fetch per call (#333); it was one per matched branch.
+      (let ((w (prim-ref (lit io) (lit write-to-str))))
+        (match
+          ((str? v) (w v))
+          ((symbol? v) (symbol->str v))
+          ((number? v) (w v))
+          (#t (Err raise (lit type) "Xon emit: unsupported atom in form" v)))))
     ; A scratch base is the bare C ISA: the reader macros are armed on the
     ; BOOT base's string type (lit-reader.x), so a $"..." literal read into
     ; one SHATTERS at its first space -- and the trailing quote then opens a
@@ -56,14 +58,18 @@
       (let ((st (Xon %xon-find-type b "STRING")))
         (unless (null? st)
           (%type-push-analyse st (pair %interp-analyse (first (%type-analyse-cell st))))
+          ; The tok prim is fetched ONCE here and closed over (#333):
+          ; fetching it inside the callback paid a catalog walk per
+          ; string token of every armed read.
           (%type-push-read st
-            (pair (fn (_ buffer . rest)
+            (pair (let ((%tokf (prim-ref (lit buf) (lit tok))))
+                  (fn (_ buffer . rest)
                     (if (= (%buffer-last-char buffer) #\")
-                      (let ((tok ((prim-ref (lit buf) (lit tok)) buffer)))
+                      (let ((tok (%tokf buffer)))
                         (if (and (> (%str-length tok) 2) (= (%str-ref tok 0) #\$))
                           (list (lit %interp) tok)
                           ()))
-                      ()))
+                      ())))
                   (first (%type-read-cell st)))))))
     ; The base's type registry by NAME, through the contract-driven reflect
     ; door (tools/contract/base-paths.x), never a shape heuristic.
@@ -91,29 +97,25 @@
       (doc "Render one form as one xon line, newline-terminated, strings escaped."
         (returns STR "One line of xon text")
         (example "(Xon emit-form (list 'file \"a\" \"sha256:aa\"))" "\"(file \\\"a\\\" \\\"sha256:aa\\\")\\n\""))
+      ; Pieces prepend, ONE concat (#333): the old right-recursive
+      ; append chain re-copied every argument's tail per argument.
       (def %args
-        (fn (self args)
+        (fn (self args acc)
           (match
-            ((null? args) "")
+            ((null? args) (%reverse (pair ")\n" acc)))
             ((not (pair? args)) (Err raise (lit type) "Xon emit: improper form tail" args))
-            (#t (Str8 append " "
-                  (Str8 append (Xon %xon-emit-atom (first args))
-                               (self (rest args))))))))
+            (#t (self (rest args)
+                      (pair (Xon %xon-emit-atom (first args)) (pair " " acc)))))))
       (match
         ((not (pair? form)) (Err raise (lit type) "Xon emit: a form is a list" form))
         ((not (symbol? (first form))) (Err raise (lit type) "Xon emit: form head is a symbol" form))
-        (#t (Str8 append "("
-              (Str8 append (symbol->str (first form))
-                (Str8 append (%args (rest form)) ")\n"))))))
+        (#t (%str-concat
+              (pair "(" (pair (symbol->str (first form)) (%args (rest form) ())))))))
     (method emit (self (param forms LIST "Forms to render"))
       (doc "Render forms as xon text, one per line."
         (returns STR "xon text"))
-      (def %go
-        (fn (self forms acc)
-          (match
-            ((null? forms) acc)
-            (#t (self (rest forms) (Str8 append acc (Xon emit-form (first forms))))))))
-      (%go forms ""))
+      ; One rendered piece per form, one concat (#333).
+      (%str-concat (%map (fn (_ f) (Xon emit-form f)) forms)))
     (method walk (self (param table LIST "Vocabulary: ((head . handler) ...) alist, eq?-keyed")
                       (param unknown CALLABLE "Handler for forms whose head is not in the table (and non-list forms)")
                       (param forms LIST "Forms to dispatch"))

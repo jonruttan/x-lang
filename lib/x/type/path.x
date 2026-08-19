@@ -114,8 +114,8 @@
                 (#t (self (rest segs) (pair ".." acc)))))
             (#t (self (rest segs) (pair (first segs) acc))))))
       (let ((segs (%resolve (Path split p) ())))
-        (let ((body (%fold (fn (_ acc c) (if (str=? acc "") c (Str8 append acc (Str8 append "/" c))))
-                           "" segs)))
+        ; join is one-pass since #333; the fold re-copied per segment.
+        (let ((body (match ((null? segs) "") (#t (Str8 join "/" segs)))))
           (match
             ((Path absolute? p) (Str8 append "/" body))
             ((str=? body "") ".")

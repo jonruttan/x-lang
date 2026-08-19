@@ -318,14 +318,14 @@
                          (%c-param-decls params)
                          "    return " (%generate-fn-body params body) ";\n"
                          "}\n\n"))
-                  (self (rest es) (+ i 1) (Str append acc %fn-c)))))))
+                  (self (rest es) (+ i 1) (pair %fn-c acc)))))))
 
         (def %c-source
           (Str append "#include \"x-obj.h\"\n"
                "#include \"x-type/buffer.h\"\n\n"
                (if (null? %compile-fvars) ""
                  "x_obj_t *x_fvar_table[64];\n\n")
-               (%c-all exprs 0 "")))
+               (%str-concat (%reverse (%c-all exprs 0 ())))))
 
         (%compile-pop-writers)
 

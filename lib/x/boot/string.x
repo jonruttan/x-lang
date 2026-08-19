@@ -45,6 +45,63 @@
         (eq? 0 (%mem-cmp (%str->ptr a) (%str->ptr b) (%str-byte-len a))))
       (#t #f))))
 
+; %str-concat: join a LIST of strings -- ONE allocation, one (mem copy)
+; per piece, O(total bytes) (#333).  The append-accumulate idiom this
+; replaces re-copied the whole accumulator per piece (O(n^2) in output
+; size); every multi-piece builder in the library (join, interpolation,
+; the codec emitters, replace) funnels here now.  GC-safe on the str=?
+; grounds: collection is explicit-only, %out stays a live binding for
+; the whole walk, and each raw ptr is derived and consumed with no
+; collect possible in between.
+(def %int->ptr (prim-ref (lit int) (lit ->ptr)))
+; C arithmetic, fetched once: this runs per PIECE, and the ambient
+; ops are the tower dispatchers by the time any caller runs (~92
+; objects per op vs ~5 raw -- the %n2s lesson, re-learned by benchmark:
+; the block path lost to the fold it replaces until these landed).
+(def %sc-int+ (prim-ref (lit int) (lit +)))
+(def %sc-int< (prim-ref (lit int) (lit <)))
+(def %ptr->int (prim-ref (lit ptr) (lit ->int)))
+(def %mem-copy (prim-ref (lit mem) (lit copy)))
+(def %str-make (prim-ref (lit str) (lit make)))
+; HYBRID, measured and derived (2026-08-19): the fold arm costs
+; total*n/2 bytes of C memcpy, the block arm ~15us of prim overhead per
+; piece -- the n cancels and the crossover is TOTAL OUTPUT alone,
+; ~300KB on the measured machine (a 330KB join ties).  Below the
+; threshold the fold's memcpy constant wins (a 2000-piece 8KB join
+; measured 6x faster there than the block path); above it the fold is
+; quadratic without bound while the block stays linear -- the old
+; unconditional fold OOM-pressured at ~2GB copied for what is now one
+; 300KB pass.  Both arms produce identical bytes; the threshold only
+; trades constants.
+(def %str-concat
+  (fn (_ pieces)
+    (do
+      (def %sc-total
+        ((fn (self ps n)
+           (match
+             ((null? ps) n)
+             (#t (self (rest ps) (%sc-int+ n (%str-byte-len (first ps)))))))
+         pieces 0))
+      (match
+        ((%sc-int< %sc-total 262144)
+          ((fn (self ps acc)
+             (match
+               ((null? ps) acc)
+               (#t (self (rest ps) (%str-append acc (first ps))))))
+           pieces ""))
+        (#t
+          (do
+            (def %out (%str-make %sc-total))
+            (def %sc-base (%ptr->int (%str->ptr %out)))
+            ((fn (self ps off)
+               (match
+                 ((null? ps) %out)
+                 (#t (do
+                       (def %sc-n (%str-byte-len (first ps)))
+                       (%mem-copy (%int->ptr (%sc-int+ %sc-base off)) (%str->ptr (first ps)) %sc-n)
+                       (self (rest ps) (%sc-int+ off %sc-n))))))
+             pieces 0)))))))
+
 ; number->str: (number->str n [radix]) -> string
 (def %n2s/ /)
 (def %n2s% %)

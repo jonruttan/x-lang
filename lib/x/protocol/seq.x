@@ -104,10 +104,17 @@
       (doc "Encode a list of elements back into a string via char->bytes -- the dual of ->list, so (->str (->list v)) round-trips."
         (returns STRING "The encoded string")
         (example "(Str8 ->str (list #\\h #\\i))" "\"hi\""))
+      ; Reverse-prepend each element's bytes, reverse once (#333): the
+      ; per-element %append re-copied the whole accumulated byte list
+      ; -- O(n^2) pairs to encode an n-char string (this backs make,
+      ; upcase/downcase, reverse, and the pad family).
+      (def %rev-onto (fn (self l acc)
+        (match ((null? l) acc) (#t (self (rest l) (pair (first l) acc))))))
       (bytes->str
         (%map %integer->char
-          (%fold (fn (_ acc el) (%append acc (self char->bytes el)))
-                () elements))))))
+          (%reverse
+            (%fold (fn (_ acc el) (%rev-onto (self char->bytes el) acc))
+                  () elements)))))))
 
 (doc (provide x/protocol/seq Seq)
   (note "A subclass supplies start/done?/step (and char->bytes to encode); count, length, ->list, for-each, fold and ->str are derived. (help Seq) lists the methods.")

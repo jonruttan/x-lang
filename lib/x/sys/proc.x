@@ -50,12 +50,14 @@
               ; fd-read's byte list.  The drain fn rides a let binding,
               ; NOT a def: this arm is the method's tail, and a
               ; tail-position def binds globally under TCO.
+              ; Chunks prepend, ONE concat when the pipe closes (#333):
+              ; appending per 64KB chunk re-copied all prior output.
               (let ((drain (fn (self rfd acc)
                              (let ((chunk (Sys fd-read rfd 65536)))
-                               (if (null? chunk) acc
-                                 (self rfd (Str8 append acc (bytes->str chunk))))))))
+                               (if (null? chunk) (%str-concat (%reverse acc))
+                                 (self rfd (pair (bytes->str chunk) acc)))))))
                 (do (Sys close (rest fds))
-                    (let ((out (drain (first fds) "")))
+                    (let ((out (drain (first fds) ())))
                       (do (Sys close (first fds))
                           (pair (Sys wait pid) out))))))))))))
 

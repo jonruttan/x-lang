@@ -652,23 +652,26 @@
 (def %regex-expand-rep
   (fn (_ rep groups)
     (def len (%str-length rep))
+    ; Pieces prepend, ONE concat at the end (#333): the per-token
+    ; %str-append re-copied all prior output -- O(n^2) in the expanded
+    ; length, per replacement, per match.
     (def %go
       (fn (self i acc)
-        (if (>= i len) acc
+        (if (>= i len) (%str-concat (%reverse acc))
           (let ((ch (%char->integer (%str-ref rep i))))
             (if (not (= ch 36))                       ; $
-              (self (+ i 1) (%str-append acc (%substring rep i (+ i 1))))
+              (self (+ i 1) (pair (%substring rep i (+ i 1)) acc))
               (if (>= (+ i 1) len)
-                (%str-append acc "$")
+                (%str-concat (%reverse (pair "$" acc)))
                 (let ((nx (%char->integer (%str-ref rep (+ i 1)))))
                   (match
                     ((= nx 36)                        ; $$
-                      (self (+ i 2) (%str-append acc "$")))
+                      (self (+ i 2) (pair "$" acc)))
                     ((if (>= nx 48) (<= nx 57) #f)    ; $N
                       (let ((hit (%assoc-get (- nx 48) groups)))
-                        (self (+ i 2) (%str-append acc (if (null? hit) "" hit)))))
-                    (#t (self (+ i 1) (%str-append acc "$")))))))))))
-    (%go 0 "")))
+                        (self (+ i 2) (pair (if (null? hit) "" hit) acc))))
+                    (#t (self (+ i 1) (pair "$" acc)))))))))))
+    (%go 0 ())))
 
 ; A function replacement receives the matched text; a string replacement
 ; expands $N against the match's groups (#23).
@@ -773,20 +776,21 @@
       (doc "Replace all matches. rep can be a string or a function that receives each matched text." (returns STRING "String with all matches replaced")
         (example "(Regex replace-all \"a1b22c333\" \"N\" #/[0-9]+/)" "\"aNbNcN\""))
       (def len (%str-length str))
+      ; Segments prepend, ONE concat (#333): the per-match append grew
+      ; the accumulator quadratically in the output length.
       (def %go
         (fn (self pos acc)
           (def m (%regex-find-caps str pos rx))
           (if (null? m)
-            (%str-append acc (%substring str pos len))
+            (%str-concat (%reverse (pair (%substring str pos len) acc)))
             (let ((start (first m)))
               (def end (first (rest m)))
               (def groups (first (rest (rest m))))
               (def next (if (= start end) (+ end 1) end))
               (self next
-                (%str-append acc
-                  (%str-append (%substring str pos start)
-                    (%regex-get-replacement rep (%assoc-get 0 groups) groups))))))))
-      (%go 0 ""))
+                (pair (%regex-get-replacement rep (%assoc-get 0 groups) groups)
+                      (pair (%substring str pos start) acc)))))))
+      (%go 0 ()))
     (method split (self (param str STRING "Input string") (param rx REGEX "Compiled regex"))
       (doc "Split a string at regex matches." (returns LIST "List of substrings between matches")
         (example "(Regex split \"a,b,c\" #/,/)" "(\"a\" \"b\" \"c\")")
