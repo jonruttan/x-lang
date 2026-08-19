@@ -64,14 +64,16 @@
       (let ((lst (List from-seq lst))) (List fold f (first lst) (rest lst))))
     (method scan (self f init lst)
       (doc "Like fold, but returns a list of all intermediate values." (param f CALLABLE "Binary function") (param init ANY "Initial accumulator value") (param lst LIST "List or iterable"))
-      (let ((lst (List from-seq lst)))
-        (if (null? lst) (list init)
-          (pair init (recur self f (f init (first lst)) (rest lst))))))
+      (def go (fn (self xs a acc)
+        (if (null? xs) (%reverse (pair a acc))
+          (self (rest xs) (f a (first xs)) (pair a acc)))))
+      (go (List from-seq lst) init ()))
     (method fold-right (self f init lst)
       (doc "Fold from the right: elements combine last-to-first, callback (f acc element) like fold." (param f CALLABLE "Binary function: (accumulator, element) -> new accumulator") (param init ANY "Initial accumulator value") (param lst LIST "List or iterable") (returns ANY "Final accumulated value") (example "(List fold-right (fn (_ acc x) (pair x acc)) () (list 1 2 3))" "(1 2 3)"))
-      (let ((lst (List from-seq lst)))
-        (if (null? lst) init
-          (f (recur self f init (rest lst)) (first lst)))))
+      ; Right fold = left fold over the reversal; iterative (#336).
+      (def go (fn (self xs a)
+        (if (null? xs) a (self (rest xs) (f a (first xs))))))
+      (go (%reverse (List from-seq lst)) init))
     ; --- Basics ---
     (method length (self lst)
       (doc "Return the number of elements." (param lst LIST "List or iterable"))
@@ -120,41 +122,59 @@
       (let ((lsts (%map1 (fn (_ x) (List from-seq x)) lsts)))
         (if (null? (rest lsts))
           (%map1 f (first lsts))
-          (if (%any-null? lsts) ()
-            (pair (apply f (%map1 first lsts)) (apply recur self f (%map1 rest lsts)))))))
+          ((fn (self ls acc)
+             (if (%any-null? ls) (%reverse acc)
+               (self (%map1 rest ls) (pair (apply f (%map1 first ls)) acc))))
+           lsts ()))))
+    ; Inner go loops (#336), the fold precedent: `recur` re-entered the
+    ; method and re-ran the from-seq normalization dispatch on EVERY
+    ; tail; the accumulate-and-reverse shape also makes the walks
+    ; iterative -- the old (pair x (recur ...)) bodies were non-tail
+    ; and overflowed the C stack on ~10^5-element lists (the repeat
+    ; segfault family, #333).
     (method filter (self pred lst)
       (doc "Return elements that satisfy a predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable") (returns LIST "Filtered list"))
-      (let ((lst (List from-seq lst)))
+      (def go (fn (self xs acc)
         (match
-          ((null? lst) ())
-          ((pred (first lst)) (pair (first lst) (recur self pred (rest lst))))
-          (#t (recur self pred (rest lst))))))
+          ((null? xs) (%reverse acc))
+          ((pred (first xs)) (self (rest xs) (pair (first xs) acc)))
+          (#t (self (rest xs) acc)))))
+      (go (List from-seq lst) ()))
     (method for-each (self f . lsts)
       (doc "Apply a function to each element for side effects." (param f CALLABLE "Function to apply") (param lsts LIST "One or more lists"))
       (let ((lsts (%map1 (fn (_ x) (List from-seq x)) lsts)))
         (if (null? (rest lsts))
           (%for-each1 f (first lsts))
-          (if (not (%any-null? lsts))
-            (do (apply f (%map1 first lsts)) (apply recur self f (%map1 rest lsts)))))))
+          ((fn (self ls)
+             (if (%any-null? ls) ()
+               (do (apply f (%map1 first ls)) (self (%map1 rest ls)))))
+           lsts))))
     (method flat-map (self f lst)
       (doc "Map then flatten one level." (param f CALLABLE "Function returning a list") (param lst LIST "List or iterable"))
-      (let ((lst (List from-seq lst)))
-        (if (null? lst) () (%append2 (f (first lst)) (recur self f (rest lst))))))
+      ; Helper first: a closure only sees sibling defs made BEFORE it.
+      (def %rev-onto (fn (self l acc)
+        (match ((null? l) acc) (#t (self (rest l) (pair (first l) acc))))))
+      (def go (fn (self xs acc)
+        (if (null? xs) (%reverse acc)
+          (self (rest xs) (%rev-onto (f (first xs)) acc)))))
+      (go (List from-seq lst) ()))
     ; --- Predicates ---
     (method any? (self pred lst)
       (doc "Return #t if any element satisfies the predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable"))
-      (let ((lst (List from-seq lst)))
+      (def go (fn (self xs)
         (match
-          ((null? lst) #f)
-          ((pred (first lst)) #t)
-          (#t (recur self pred (rest lst))))))
+          ((null? xs) #f)
+          ((pred (first xs)) #t)
+          (#t (self (rest xs))))))
+      (go (List from-seq lst)))
     (method all? (self pred lst)
       (doc "Return #t if all elements satisfy the predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable"))
-      (let ((lst (List from-seq lst)))
+      (def go (fn (self xs)
         (match
-          ((null? lst) #t)
-          ((not (pred (first lst))) #f)
-          (#t (recur self pred (rest lst))))))
+          ((null? xs) #t)
+          ((not (pred (first xs))) #f)
+          (#t (self (rest xs))))))
+      (go (List from-seq lst)))
     (method none? (self pred lst)
       (doc "Return #t if no element satisfies the predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable"))
       (not (List any? pred lst)))
@@ -185,11 +205,12 @@
     ; --- Search ---
     (method find (self pred lst)
       (doc "Return the first element satisfying a predicate, or nil." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable"))
-      (let ((lst (List from-seq lst)))
+      (def go (fn (self xs)
         (match
-          ((null? lst) ())
-          ((pred (first lst)) (first lst))
-          (#t (recur self pred (rest lst))))))
+          ((null? xs) ())
+          ((pred (first xs)) (first xs))
+          (#t (self (rest xs))))))
+      (go (List from-seq lst)))
     (method find-index (self pred lst)
       (doc "Return the index of the first element satisfying a predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable") (returns ANY "Zero-based index, or nil if not found"))
       (let ((lst (List from-seq lst)))
@@ -205,11 +226,12 @@
       (List find-index (fn (_ el) (equal? el x)) lst))
     (method includes? (self x lst)
       (doc "Test if a list contains a value." (param x ANY "Value to search for") (param lst LIST "List or iterable") (returns BOOL "t if found"))
-      (let ((lst (List from-seq lst)))
+      (def go (fn (self xs)
         (match
-          ((null? lst) #f)
-          ((equal? x (first lst)) #t)
-          (#t (recur self x (rest lst))))))
+          ((null? xs) #f)
+          ((equal? x (first xs)) #t)
+          (#t (self (rest xs))))))
+      (go (List from-seq lst)))
     (method count-if (self pred lst)
       (doc "Count elements satisfying a predicate." (param pred CALLABLE "Predicate function") (param lst LIST "List or iterable") (returns INT "Count of matching elements"))
       (List fold (fn (_ acc x) (if (pred x) (+ acc 1) acc)) 0 lst))
@@ -326,17 +348,31 @@
         ; half in order (the old alternate-cons split reversed and interleaved
         ; the halves), and (b) merge takes from the LEFT half unless the right
         ; element comes strictly first, so ties keep input order.
+        ; Helpers first: a closure only sees sibling defs made BEFORE it.
+        (def %rev-onto2 (fn (self l tail)
+          (match ((null? l) tail) (#t (self (rest l) (pair (first l) tail))))))
+        (def %split (fn (self slow fast acc)
+          (match
+            ((null? fast) (pair (%reverse acc) slow))
+            ((null? (rest fast)) (pair (%reverse acc) slow))
+            (#t (self (rest slow) (rest (rest fast)) (pair (first slow) acc))))))
         (def merge
-          (fn (self a b)
-            (match
-              ((null? a) b)
-              ((null? b) a)
-              ((cmp (first b) (first a)) (pair (first b) (self a (rest b))))
-              (#t (pair (first a) (self (rest a) b))))))
+          ; Iterative merge (#336): the recursive body was non-tail
+          ; (stack depth = output length) and the old split paid
+          ; length/take/drop dispatches -- ~4 extra O(n) passes per
+          ; level.  The split walks once, tortoise-and-hare.
+          (fn (_ a b)
+            (def go (fn (self a b acc)
+              (match
+                ((null? a) (%rev-onto2 acc b))
+                ((null? b) (%rev-onto2 acc a))
+                ((cmp (first b) (first a)) (self a (rest b) (pair (first b) acc)))
+                (#t (self (rest a) b (pair (first a) acc))))))
+            (go a b ())))
         (if (or (null? lst) (null? (rest lst))) lst
-          (let ((half (>> (List length lst) 1)))
-            (merge (recur self cmp (List take half lst))
-                   (recur self cmp (List drop half lst)))))))
+          (let ((halves (%split lst lst ())))
+            (merge (recur self cmp (first halves))
+                   (recur self cmp (rest halves)))))))
     (method sort-by (self f lst)
       (doc "Sort by a key function (ascending)." (param f CALLABLE "Key function: element -> comparable value") (param lst LIST "List"))
       (List sort (fn (_ a b) (< (f a) (f b))) lst))
