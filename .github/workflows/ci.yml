@@ -22,10 +22,9 @@ name: CI
 # itself instead of sharing one with its neighbours.  A main push spawns
 # 5 macOS jobs -- exactly the free-plan macOS concurrency cap -- so a
 # second active run queues rather than failing; that is the graceful
-# direction.  check-bootstrap stays inside the gates job: its make clean
-# (bootstrap.sh) deletes x-bin and every object, so it must never share
-# a workspace with a concurrently-running step (#326 tracks containing
-# that blast radius).
+# direction.  check-bootstrap builds in a staged tracked-files copy
+# (#326), so it no longer wipes the workspace's artifacts and the gates
+# job is safe to split further if a future re-balance wants it.
 
 on:
   push:
