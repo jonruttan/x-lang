@@ -243,6 +243,7 @@
     (method exists? (self (param path STRING "Path to test"))
       (doc "Does path name an existing filesystem entry? (Any kind -- file, directory, link target...)"
         (returns BOOL "True when stat succeeds")
+        (note "Deliberately duplicated across tiers with (Sys file-exists?) (#361): that access(2) door is what boot/module.x can reach before this module loads. Post-boot file work belongs here.")
         (sample "(File exists? \"lib/x.x\")" "#t"))
       (guard (_ #f) (do (File stat path) #t)))
 

@@ -202,3 +202,70 @@ this file uses the `Sys` abstraction for that reason).
 ```
 ---
     'raised
+
+## getcwd (#361)
+
+### getcwd returns a string
+
+```scheme
+(str? (Sys getcwd))
+```
+---
+    #t
+
+### chdir and getcwd round-trip
+
+```scheme
+(do (def home (Sys getcwd))
+    (Sys chdir "/")
+    (def at-root (Sys getcwd))
+    (Sys chdir home)
+    (list (str=? at-root "/") (str=? (Sys getcwd) home)))
+```
+---
+    (#t #t)
+
+## setenv / unsetenv / environ (#361)
+
+### unsetenv removes what setenv set
+
+```scheme
+(do (Sys setenv "X_SPEC_361" "v1")
+    (def before (Sys getenv "X_SPEC_361"))
+    (Sys unsetenv "X_SPEC_361")
+    (list before (Sys getenv "X_SPEC_361")))
+```
+---
+    ("v1" ())
+
+### unsetenv of an absent name succeeds
+
+```scheme
+(Sys unsetenv "X_SPEC_361_NEVER_SET")
+```
+---
+    0
+
+### environ carries a variable we set, as NAME=VALUE
+
+```scheme
+(do (Sys setenv "X_SPEC_361E" "yes")
+    (def found
+      (let go ((es (Sys environ)))
+        (if (null? es) #f
+          (if (str=? (first es) "X_SPEC_361E=yes") #t (go (rest es))))))
+    (Sys unsetenv "X_SPEC_361E")
+    found)
+```
+---
+    #t
+
+## sleep (#361)
+
+### sleep 0 and a 1ms usleep return 0 promptly
+
+```scheme
+(list (Sys sleep 0) (Sys usleep 1000))
+```
+---
+    (0 0)
