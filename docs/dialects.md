@@ -69,7 +69,7 @@ Then loads the numeric tower with immediate analyser compilation (the shared
 block `lib/x/boot/tower-compiled.x`, included by every full-tower
 composition — `x-base.x` and the xenon/radon bodies):
 
-1. **Bignum** (`x/num/bignum.x`) — Arbitrary-precision integers. Analysers for bignum and int-capped types are compiled to native code immediately after loading.
+1. **Bigint** (`x/num/bigint.x`) — Arbitrary-precision integers. Analysers for bigint and int-capped types are compiled to native code immediately after loading.
 2. **Regex** (`x/type/regex.x`) — Regular expressions with `#/pattern/` literal syntax. Uses a C-level analyser, no compilation needed.
 3. **Float** (`x/num/float.x`) — IEEE 754 floating-point. Analyser compiled after loading.
 4. **Rational** (`x/num/rational.x`) — Exact rationals. Analyser compiled after loading.

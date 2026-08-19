@@ -29,7 +29,7 @@ Revision:    7 (2026-07-10)
 - ~100 modular library files
 - Module system (provide/import)
 - JIT assembler (x86_64, ARM64); automatic native compiler (ARM64 only)
-- Numeric tower (bignum, float, rational, complex)
+- Numeric tower (bigint, float, rational, complex)
 - POSIX via FFI, regex, vectors, hash tables
 - Self-hosted tools (lint, fmt, cov, profile, doc)
 - Three dialects: helium (light/default), xenon (stable full-stack), radon (experimental)

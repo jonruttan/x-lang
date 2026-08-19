@@ -36,7 +36,7 @@ JIT.
 
 | File | Lines | What it shows |
 |------|-------|---------------|
-| [`xe/numeric-tower.x`](xe/numeric-tower.x) | 29 | Automatic promotion across integers, bignums, rationals, floats, and complex numbers |
+| [`xe/numeric-tower.x`](xe/numeric-tower.x) | 29 | Automatic promotion across integers, bigints, rationals, floats, and complex numbers |
 | [`xe/regex.x`](xe/regex.x) | 25 | The `#/pattern/` literal, and a regex used as a **callable value** |
 
 ```sh

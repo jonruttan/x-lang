@@ -30,7 +30,7 @@ and `<<` is assumed to wrap identically on both sides, which it does:
 the interpreter's arithmetic is C on a 64-bit word and the JIT's is the
 register file. This runs under
 helium: with the numeric tower loaded, interpreted arithmetic would
-promote to bignum where the JIT wraps, so the oracle would disagree for
+promote to bigint where the JIT wraps, so the oracle would disagree for
 reasons that are not defects.
 
 ## differential fuzz

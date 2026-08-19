@@ -153,7 +153,7 @@ The library is composed into dialects that control what capabilities are loaded.
 
 **helium** (`lib/he.x` / `lib/x-core.x`): The light dialect and the default (`lib/x.x` is a pointer to it). Bootstraps 40+ modules providing core operations, combinators, list processing, strings, vectors, promises, quasiquote, and a REPL. No numeric tower or system access.
 
-**xenon** (`lib/xe.x`): Stable full-stack dialect. Adds POSIX wrappers, hash tables, the JIT compiler, and a numeric tower (bignum, float, rational, complex). Each numeric type's tokenizer analyser is compiled to native code immediately after loading, so subsequent source files are parsed through fast compiled analysers rather than interpreted ones.
+**xenon** (`lib/xe.x`): Stable full-stack dialect. Adds POSIX wrappers, hash tables, the JIT compiler, and a numeric tower (bigint, float, rational, complex). Each numeric type's tokenizer analyser is compiled to native code immediately after loading, so subsequent source files are parsed through fast compiled analysers rather than interpreted ones.
 
 **radon** (`lib/rn.x`): Experimental dialect. Everything in xenon plus raw syscall lookup tables, file I/O, socket constants, car/cdr composition helpers, character constants, and I/O handle constants.
 

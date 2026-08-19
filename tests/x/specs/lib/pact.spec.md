@@ -6,7 +6,7 @@ pairwise registration is filed with `when`, which runs the thunk immediately
 if every named party has already joined and queues it otherwise, firing
 exactly once at the join that completes it. `get`/`has?` read the roll-call.
 The numeric tower uses it so its members load in any order (float's
-bignum->float conversion is the first client).
+bigint->float conversion is the first client).
 
 ## roll-call
 

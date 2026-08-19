@@ -2,7 +2,7 @@
 ; that are optional to each other (the numeric tower's arbitrary-order
 ; loading).
 ;
-; The problem: a pairwise registration (e.g. the bignum->float conversion)
+; The problem: a pairwise registration (e.g. the bigint->float conversion)
 ; can only be installed once BOTH sides are loaded -- it needs one side's
 ; type handle and the other side's operations -- and either side may load
 ; first, or never. Whichever module carries the code cannot probe for the
@@ -16,11 +16,11 @@
 ; that completes it. Load order stops mattering, and a registration against
 ; a module that never loads simply never runs.
 ;
-;   (Pact join 'bignum %bignum)   -- announce; publish the handle
-;   (Pact when (list 'bignum)     -- run now, or at bignum's join
+;   (Pact join 'bigint %bigint)   -- announce; publish the handle
+;   (Pact when (list 'bigint)     -- run now, or at bigint's join
 ;     (fn (_ big) ...))                -- applied to the joined values
-;   (Pact get 'bignum)            -- joined value, or ()
-;   (Pact has? 'bignum)           -- #t if the name has joined
+;   (Pact get 'bigint)            -- joined value, or ()
+;   (Pact has? 'bigint)           -- #t if the name has joined
 ;
 ; A when-body may reference the waited-on module's globals: by the time it
 ; fires, that module has fully loaded and its top-level defs are bound.

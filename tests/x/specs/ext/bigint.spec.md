@@ -1,11 +1,11 @@
-# @lib ../tests/x/lib/bignum.x
+# @lib ../tests/x/lib/bigint.x
 
-## bignum literal
+## bigint literal
 
 ### parses large number
 
 ```scheme
-(Bignum bignum? 99999999999999999999)
+(Bigint bigint? 99999999999999999999)
 ```
 ---
     #t
@@ -13,7 +13,7 @@
 ### small numbers stay native
 
 ```scheme
-(if (Bignum bignum? 42) "big" "native")
+(if (Bigint bigint? 42) "big" "native")
 ```
 ---
     "native"
@@ -26,7 +26,7 @@
 ---
     10000000000000000000
 
-### negative bignum
+### negative bigint
 
 ```scheme
 (write -99999999999999999999)
@@ -39,7 +39,7 @@
 ### multiplication overflow promotes
 
 ```scheme
-(Bignum bignum? (* 999999999999 999999999999))
+(Bigint bigint? (* 999999999999 999999999999))
 ```
 ---
     #t
@@ -55,14 +55,14 @@
 ### addition overflow promotes
 
 ```scheme
-(Bignum bignum? (+ 9223372036854775807 1))
+(Bigint bigint? (+ 9223372036854775807 1))
 ```
 ---
     #t
 
 ## big+
 
-### adds two bignums
+### adds two bigints
 
 ```scheme
 (write (+ 99999999999999999999 1))
@@ -72,7 +72,7 @@
 
 ## big-
 
-### subtracts bignums
+### subtracts bigints
 
 ```scheme
 (write (- 100000000000000000000 1))
@@ -82,7 +82,7 @@
 
 ## big*
 
-### multiplies bignums
+### multiplies bigints
 
 ```scheme
 (write (* 10000000000 10000000000))
@@ -92,7 +92,7 @@
 
 ## big<
 
-### compares bignums
+### compares bigints
 
 ```scheme
 (< 99999999999999999999 100000000000000000000)
@@ -102,7 +102,7 @@
 
 ## big=
 
-### equal bignums
+### equal bigints
 
 ```scheme
 (= 99999999999999999999 99999999999999999999)
@@ -115,7 +115,7 @@
 ### no overflow for small addition
 
 ```scheme
-(if (Bignum would-overflow-add? 1 2) "y" "n")
+(if (Bigint would-overflow-add? 1 2) "y" "n")
 ```
 ---
     "n"
@@ -123,7 +123,7 @@
 ### overflow for large positive
 
 ```scheme
-(Bignum would-overflow-mul? 3037000500 3037000500)
+(Bigint would-overflow-mul? 3037000500 3037000500)
 ```
 ---
     #t
@@ -133,7 +133,7 @@
 ### detects multiplication overflow
 
 ```scheme
-(Bignum would-overflow-mul? 9999999999 9999999999)
+(Bigint would-overflow-mul? 9999999999 9999999999)
 ```
 ---
     #t
@@ -141,45 +141,45 @@
 ### no overflow for small
 
 ```scheme
-(if (Bignum would-overflow-mul? 2 3) "y" "n")
+(if (Bigint would-overflow-mul? 2 3) "y" "n")
 ```
 ---
     "n"
 
 ## big+
 
-### adds two bignums
+### adds two bigints
 
 ```scheme
-(write (Bignum + (Convert to 100 %bignum) (Convert to 200 %bignum)))
+(write (Bigint + (Convert to 100 %bigint) (Convert to 200 %bigint)))
 ```
 ---
     300
 
-### adds large bignums
+### adds large bigints
 
 ```scheme
-(write (Bignum + (Convert to 999999999999999999 %bignum) (Convert to 1 %bignum)))
+(write (Bigint + (Convert to 999999999999999999 %bigint) (Convert to 1 %bigint)))
 ```
 ---
     1000000000000000000
 
 ## big-
 
-### subtracts bignums
+### subtracts bigints
 
 ```scheme
-(write (Bignum - (Convert to 1000 %bignum) (Convert to 1 %bignum)))
+(write (Bigint - (Convert to 1000 %bigint) (Convert to 1 %bigint)))
 ```
 ---
     999
 
 ## big*
 
-### multiplies bignums
+### multiplies bigints
 
 ```scheme
-(write (Bignum * (Convert to 12345 %bignum) (Convert to 6789 %bignum)))
+(write (Bigint * (Convert to 12345 %bigint) (Convert to 6789 %bigint)))
 ```
 ---
     83810205
@@ -187,17 +187,17 @@
 ### large multiply
 
 ```scheme
-(Bignum bignum? (Bignum * (Convert to 999999999 %bignum) (Convert to 999999999 %bignum)))
+(Bigint bigint? (Bigint * (Convert to 999999999 %bigint) (Convert to 999999999 %bigint)))
 ```
 ---
     #t
 
 ## big/
 
-### divides bignums
+### divides bigints
 
 ```scheme
-(write (Bignum / (Convert to 100 %bignum) (Convert to 7 %bignum)))
+(write (Bigint / (Convert to 100 %bigint) (Convert to 7 %bigint)))
 ```
 ---
     14
@@ -205,7 +205,7 @@
 ### divides with a multi-limb quotient
 
 ```scheme
-(write (Bignum / (Convert to 99999999999999999999 %bignum) (Convert to 7 %bignum)))
+(write (Bigint / (Convert to 99999999999999999999 %bigint) (Convert to 7 %bigint)))
 ```
 ---
     14285714285714285714
@@ -223,7 +223,7 @@
 ### less than
 
 ```scheme
-(Bignum < (Convert to 1 %bignum) (Convert to 2 %bignum))
+(Bigint < (Convert to 1 %bigint) (Convert to 2 %bigint))
 ```
 ---
     #t
@@ -231,7 +231,7 @@
 ### not less than
 
 ```scheme
-(Bignum < (Convert to 2 %bignum) (Convert to 1 %bignum))
+(Bigint < (Convert to 2 %bigint) (Convert to 1 %bigint))
 ```
 ---
     #f
@@ -241,7 +241,7 @@
 ### equal
 
 ```scheme
-(Bignum = (Convert to 42 %bignum) (Convert to 42 %bignum))
+(Bigint = (Convert to 42 %bigint) (Convert to 42 %bigint))
 ```
 ---
     #t
@@ -249,7 +249,7 @@
 ### not equal
 
 ```scheme
-(Bignum = (Convert to 1 %bignum) (Convert to 2 %bignum))
+(Bigint = (Convert to 1 %bigint) (Convert to 2 %bigint))
 ```
 ---
     #f

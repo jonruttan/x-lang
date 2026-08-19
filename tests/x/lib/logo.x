@@ -3,7 +3,7 @@
 ; own (import logo/...) lines resolve, then import it as a module
 ; (include would sidestep the pre-seed and double-load its deps).
 (include "lib/x-core.x")
-(def %bignum ())
+(def %bigint ())
 (include "lib/x/num/float.x")
 (import-path! "apps")
 (import logo/turtle)

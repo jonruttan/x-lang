@@ -14,7 +14,7 @@
 (def-class Num ()
   (static
     (method int? (self (param x ANY "Value to test"))
-      (doc "Test whether x is a machine INT -- the base integer type. Floats, rationals, bignums, booleans, and nil are not (N5: counts and indexes are machine INTs)."
+      (doc "Test whether x is a machine INT -- the base integer type. Floats, rationals, bigints, booleans, and nil are not (N5: counts and indexes are machine INTs)."
         (returns BOOL "#t only for machine integers")
         (example "(list (Num int? 3) (Num int? ()))" "(#t #f)"))
       (if (null? x) #f (eq? (%num-type-of x) %num-int-type)))

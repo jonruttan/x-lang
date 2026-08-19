@@ -30,7 +30,7 @@
   (pair (lit x/boot/tower-compiled)
   (pair (lit x/type/hash)
   (pair (lit x/tool/compile)
-  (pair (lit x/num/bignum)
+  (pair (lit x/num/bigint)
   (pair (lit x/type/regex)
   (pair (lit x/num/float)
   (pair (lit x/num/rational)
@@ -122,8 +122,8 @@
 
 ; --- Load numeric tower with immediate analyser compilation ---
 
-; 1. Bignum + int-capped
-(include "lib/x/num/bignum.x")
+; 1. Bigint + int-capped
+(include "lib/x/num/bigint.x")
 (set! %compile-fvars
   (list (pair '%big-sign-state %big-sign-state)
         (pair '%big-digits %big-digits)

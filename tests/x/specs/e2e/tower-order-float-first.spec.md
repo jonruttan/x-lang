@@ -1,12 +1,12 @@
-# Numeric tower load order: float first, bignum later
+# Numeric tower load order: float first, bigint later
 
 The tower's members must load in any order under plain x-core (the bundles
 pre-load everything in one fixed order, so only these specs exercise the
 others). This file is the order the REPL repro used: `(import x/num/rational)`
-pulls in float with NO bignum loaded -- which used to raise
-`Unbound SYMBOL '%bignum'` from float.x's load-order guard -- and bignum
-arrives later, at which point the pact installs the bignum->float conversion.
-The reverse order lives in tower-order-bignum-first.spec.md; each order needs
+pulls in float with NO bigint loaded -- which used to raise
+`Unbound SYMBOL '%bigint'` from float.x's load-order guard -- and bigint
+arrives later, at which point the pact installs the bigint->float conversion.
+The reverse order lives in tower-order-bigint-first.spec.md; each order needs
 its own file because a spec file is one interpreter batch.
 
 PARSE-BEFORE-EVAL RULE: a literal is tokenized when its enclosing top-level
@@ -15,9 +15,9 @@ import, never inside the same form as the import (there, e.g. a pre-float
 `x.y` tokenizes as `x . y` -- a dotted pair). Each test below is its own
 top-level form, so literal tests simply follow their import's test.
 
-## before bignum
+## before bigint
 
-### rational imports without bignum (the repro)
+### rational imports without bigint (the repro)
 
 ```scheme
 (import x/num/rational)
@@ -34,7 +34,7 @@ top-level form, so literal tests simply follow their import's test.
 ---
     #t
 
-### float literals and arithmetic work without bignum
+### float literals and arithmetic work without bigint
 
 ```scheme
 (+ 0.5 0.25)
@@ -42,24 +42,24 @@ top-level form, so literal tests simply follow their import's test.
 ---
     0.75
 
-## after bignum
+## after bigint
 
-### bignum joins later; the pact installs bignum->float
+### bigint joins later; the pact installs bigint->float
 
 ```scheme
-(import x/num/bignum)
+(import x/num/bigint)
 (import x/sys/pact)
-(def %t-big1 (Bignum + 9223372036854775807 1))
+(def %t-big1 (Bigint + 9223372036854775807 1))
 (def %t-f1 ((prim-ref 'convert 'to) %t-big1 (Pact get 'float)))
 (Float float? %t-f1)
 ```
 ---
     #t
 
-### bignum literals parse from the next form on
+### bigint literals parse from the next form on
 
 ```scheme
-(Bignum bignum? 10000000000000000000)
+(Bigint bigint? 10000000000000000000)
 ```
 ---
     #t
@@ -77,9 +77,9 @@ top-level form, so literal tests simply follow their import's test.
 ```scheme
 (def %t-cv2 (prim-ref 'convert 'to))
 (def %t-fh2 (Pact get 'float))
-(def %t-big2 (Bignum + 9223372036854775807 1))
+(def %t-big2 (Bigint + 9223372036854775807 1))
 (def %t-f2 (%t-cv2 %t-big2 %t-fh2))
-(= (+ %t-f2 %t-f2) (%t-cv2 (Bignum + %t-big2 %t-big2) %t-fh2))
+(= (+ %t-f2 %t-f2) (%t-cv2 (Bigint + %t-big2 %t-big2) %t-fh2))
 ```
 ---
     #t
@@ -89,8 +89,8 @@ top-level form, so literal tests simply follow their import's test.
 ```scheme
 (def %t-cv3 (prim-ref 'convert 'to))
 (def %t-fh3 (Pact get 'float))
-(def %t-big3 (Bignum + 9223372036854775807 1))
-(= (+ (%t-cv3 %t-big3 %t-fh3) (%t-cv3 (Bignum - 0 %t-big3) %t-fh3))
+(def %t-big3 (Bigint + 9223372036854775807 1))
+(= (+ (%t-cv3 %t-big3 %t-fh3) (%t-cv3 (Bigint - 0 %t-big3) %t-fh3))
    (%t-cv3 0 %t-fh3))
 ```
 ---

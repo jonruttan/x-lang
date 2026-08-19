@@ -21,7 +21,7 @@
 ; here per the standing rule: the C core is the unchecked processor.
 ;
 ; The gate is %int-number?, the SAVED C number?, deliberately: it is #f for
-; every boxed tower instance, so float/rational/bignum divisors fall through
+; every boxed tower instance, so float/rational/bigint divisors fall through
 ; to the tower's own type-op dispatch untouched ((/ 1.0 0.0) stays IEEE inf,
 ; rational zero keeps its own error).  Only a C-level integer zero -- the
 ; one value that reaches raw C division -- is stopped.  eq? alone would NOT
@@ -96,7 +96,7 @@
 ; CLOSURE -- (%arith-guard 2 "&" &) is handed the current value of & before
 ; set! rebinds it -- so no %int& / %int^ / %int<< family lands in the global
 ; namespace. (The %int+ .. %int= saves above predate this and stay: the tower
-; and bignum fetch them by name.)
+; and bigint fetch them by name.)
 ;
 ; The arity test runs ONCE, at wrap time, picking the unary or binary closure;
 ; the returned wrapper only does the checks the operator actually needs.

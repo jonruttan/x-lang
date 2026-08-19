@@ -11,7 +11,7 @@
 ;
 ; Costs nothing on the int fast path: op_try fast-declines when NEITHER
 ; type carries ops, and INT keeps none. The tower is untouched by
-; construction -- float/rational/bignum handlers sit on their own types and
+; construction -- float/rational/bigint handlers sit on their own types and
 ; win their own dispatches. Two residual holes, both recorded on #52:
 ;   - nil-typed operands: op_try cannot consult a type that is not there.
 ;     The booleans left this class when BOOL claimed them (type/bool.x,

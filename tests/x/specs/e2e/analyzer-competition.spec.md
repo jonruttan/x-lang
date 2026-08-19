@@ -1,19 +1,19 @@
 # @lib x-base.x
 
-## integer vs bignum
+## integer vs bigint
 
 ### small number stays integer
 
 ```scheme
-(if (Bignum bignum? 42) "big" "int")
+(if (Bigint bigint? 42) "big" "int")
 ```
 ---
     "int"
 
-### large number becomes bignum
+### large number becomes bigint
 
 ```scheme
-(if (Bignum bignum? 99999999999999999999) "big" "int")
+(if (Bigint bigint? 99999999999999999999) "big" "int")
 ```
 ---
     "big"
@@ -109,7 +109,7 @@
 ### chained promotions
 
 ```scheme
-(do (def x (* 999999999999 999999999999)) (Bignum bignum? x))
+(do (def x (* 999999999999 999999999999)) (Bigint bigint? x))
 ```
 ---
     #t
