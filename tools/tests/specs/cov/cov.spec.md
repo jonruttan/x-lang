@@ -241,3 +241,20 @@ is nil) because nothing exercised this layer.
 ```
 ---
     (f #t #t)
+
+### cov-check-class reports a class's own methods (#408)
+
+```scheme
+(do
+  (import x/tool/cov)
+  (def-class CovProbe ()
+    (static
+      (method touched (self x) (+ x 1))
+      (method untouched (self x) (- x 1))))
+  (CovProbe touched 1)
+  (def rows (cov-check-class (lit CovProbe) CovProbe #f))
+  (display (list (%length rows)
+                 (> (first (rest (rest (first rows)))) 0))))
+```
+---
+    (2 #t)

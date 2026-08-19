@@ -121,6 +121,43 @@
   (returns LIST "(name covered total) or nil")
   "Check coverage for a single function.")
 
+; --- Per-class check (#408) ---
+
+(doc (def cov-check-class
+  (fn (_ cname c tsv-mode)
+    ; The library's surface lives in class methods post-"functions into
+    ; classes" -- top-level bare fns are a handful of wrappers.  A class
+    ; is a %class instance whose payload (readable with first, the
+    ; custom-type convention) is a keyed alist; the methods / s-methods
+    ; rows hold name->handler alists, and each stored handler is a
+    ; PROCEDURE with the standard (params body env) spine, so
+    ; cov-check-fn reads it directly.  Own methods only: walking every
+    ; class's own alists covers each method exactly once.
+    (def %asc
+      (fn (self k al)
+        (if (null? al) ()
+          (if (eq? (first (first al)) k) (rest (first al))
+            (self k (rest al))))))
+    (def %row-walk
+      (fn (self prefix al acc)
+        (if (null? al) acc
+          (let ((r (guard (_ ())
+                     (cov-check-fn
+                       (%str-append prefix
+                         (%cvt (first (first al)) %string))
+                       (rest (first al)) tsv-mode))))
+            (self prefix (rest al)
+                  (if (null? r) acc (pair r acc)))))))
+    (def data (guard (_ ()) (first c)))
+    (def prefix (%str-append (%cvt cname %string) "/"))
+    (%row-walk prefix (%asc (lit methods) data)
+               (%row-walk prefix (%asc (lit s-methods) data) ()))))
+  (param cname SYMBOL "Class name (row prefix)")
+  (param c CLASS "Class value to inspect")
+  (param tsv-mode BOOL "Output TSV format if true")
+  (returns LIST "List of (name covered total) rows (empty in TSV mode)")
+  "Check coverage of every method a class defines itself.")
+
 ; --- Env-alist walker ---
 
 (doc (def cov-walk
@@ -130,13 +167,16 @@
         (guard (_ ())
           (let ((name (first (first alist)))
                 (val (rest (first alist))))
-            (if (and (symbol? name) (procedure? val) (not (null? val)))
-              (cov-check-fn name val tsv-mode))))
+            (if (symbol? name)
+              (if (procedure? val)
+                (cov-check-fn name val tsv-mode)
+                (if (class? val)
+                  (cov-check-class name val tsv-mode) ())))))
         (self (rest alist) (+ n 1) tsv-mode)))))
   (param alist LIST "Environment alist to walk")
   (param n INT "Counter (limit 5000)")
   (param tsv-mode BOOL "Output TSV format if true")
-  "Walk an environment alist checking coverage on each procedure.")
+  "Walk an environment alist checking coverage on each procedure and class.")
 
 ; --- Library boundary ---
 
@@ -153,5 +193,6 @@
   "Skip past test definitions to the library boundary marker.")
 
 (doc (provide x/tool/cov
-  cov-covered? cov-count-tree cov-check-fn cov-walk cov-skip-to-library)
+  cov-covered? cov-count-tree cov-check-fn cov-check-class cov-walk
+  cov-skip-to-library)
   "Library coverage analysis for x-bin-profile instrumented code.")
