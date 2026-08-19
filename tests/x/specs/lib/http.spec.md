@@ -154,3 +154,17 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 ```
 ---
     ("http://elsewhere/y" "https://h:8443/c" "http://h/a/c/d")
+
+
+## basic auth (#412)
+
+### the RFC 7617 vector; the cross-host strip is case-insensitive and surgical
+
+```scheme
+(do (import x/net/http)
+  (list (Http basic-auth "Aladdin" "open sesame")
+        (Http %sans-auth (list (pair "authorization" "Basic x")
+                               (pair "X-Keep" "1")))))
+```
+---
+    (("Authorization" . "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==") (("X-Keep" . "1")))
