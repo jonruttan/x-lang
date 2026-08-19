@@ -715,7 +715,18 @@
 (def %resolve-parent
   (fn (_ parent e)
     (unless (null? parent)
-      (eval (first (rest parent)) e))))
+      (do
+        ; The documented parent slot is () or (extends Class) (see the
+        ; def-class doc).  Anything else -- a bare (Parent) list, a bare
+        ; symbol, (extends) with no class -- used to reach (first ())
+        ; through the UNCHECKED C first and segfault at class-def time;
+        ; refuse loudly instead.
+        (unless (if (pair? parent)
+                  (if (eq? (first parent) (lit extends))
+                    (pair? (rest parent)) #f)
+                  #f)
+          (error "def-class: parents are declared () or (extends Class)"))
+        (eval (first (rest parent)) e)))))
 
 ; A body form is a member NAME (symbol), or a list headed by a symbol --
 ; (method ...), (static ...), or a (NAME value ...) member declaration.
@@ -793,20 +804,49 @@
   (fn (_ name parent body e)
     (do
       (%validate-body body)
+      ; A member name declared twice in ONE class body is always a mistake
+      ; -- the common shape is a bare declaration beside its (doc NAME ...)
+      ; form, which ALSO declares (see %collect-members).  The duplicate is
+      ; silent poison: positional construction fills the doubled slot twice
+      ; and a LATER member stays nil (found via (Type wrap ...): `raw`
+      ; stayed nil and a downstream (first nil) segfaulted).  Subclass
+      ; overrides are unaffected -- one body's own list only, never the
+      ; chain.  LOCAL fns, mid-body on purpose: the file's %-global budget
+      ; is spent, class building is cold, and a mid-body def is
+      ; activation-scoped (only TAIL defs leak globally under TCO).
+      (def %member-key?
+        (fn (loop n ms)
+          (if (null? ms) #f
+            (if (eq? n (first (first ms))) #t (loop n (rest ms))))))
+      (def %check-dups!
+        (fn (loop ms)
+          (unless (null? ms)
+            (do
+              (when (%member-key? (first (first ms)) (rest ms))
+                (error (%str-append (symbol->str name)
+                  (%str-append ": duplicate member "
+                    (%str-append (symbol->str (first (first ms)))
+                      " -- declared twice in one class body (a (doc NAME ...) form also declares)")))))
+              (loop (rest ms))))))
       (let ((dform (%find-doc-form body)))           ; class-level (doc ...) -> doc registry
         (unless (null? dform) (%stash-class-doc! name dform)))
       (let ((p (%resolve-parent parent e))
             (sblock (%find-form body (lit static))))
-        (let ((cls (%make-class
-                     name
-                     (%collect-members name body e #t)      ; instance members: per-construction defaults
-                     (%collect-methods name body #t p e)    ; instance methods: raw access + super
-                     p
-                     (%collect-methods name sblock #f p e)  ; static methods
-                     (%collect-members name sblock e #f)    ; static members: once, class-wide
-                     (%find-form body (lit interface)))))   ; declared interface (or ())
-          (%check-interface! cls)                            ; error if a contract method is unmet
-          cls)))))
+        (let ((imems (%collect-members name body e #t))    ; instance members: per-construction defaults
+              (smems (%collect-members name sblock e #f))) ; static members: once, class-wide
+          (do
+            (%check-dups! imems)
+            (%check-dups! smems)
+            (let ((cls (%make-class
+                         name
+                         imems
+                         (%collect-methods name body #t p e)    ; instance methods: raw access + super
+                         p
+                         (%collect-methods name sblock #f p e)  ; static methods
+                         smems
+                         (%find-form body (lit interface)))))   ; declared interface (or ())
+              (%check-interface! cls)                            ; error if a contract method is unmet
+              cls)))))))
 
 (doc (def def-class
   (op (name parent . body)

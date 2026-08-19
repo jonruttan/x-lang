@@ -688,6 +688,67 @@ until the first bare declared-member name starts the keyword tail.
 ---
     'too-many
 
+## def-class body validation
+
+A member name declared twice in ONE class body errors at def-class time
+-- the common shape is a bare declaration beside its (doc NAME ...)
+form, which ALSO declares.  The duplicate was silent poison: positional
+construction filled the doubled slot twice and a LATER member stayed
+nil (found via (Type wrap ...): `raw` stayed nil and a downstream
+(first nil) segfaulted).  Subclass overrides are unaffected -- the
+check never walks the chain (see "an overridden member keeps its
+ancestor's slot" above).  The parent slot is validated the same way:
+the documented forms are () and (extends Class); a bare (Parent) list
+used to reach (first ()) through the UNCHECKED C first and segfault at
+class-def time.
+
+### a bare declaration beside its doc form is refused
+
+```x
+(guard (e 'dup)
+  (do (def-class DUPM () a (doc a "again")) 'no-error))
+```
+---
+    'dup
+
+### a doc-form member is declared once and fills positionally
+
+```x
+(do
+  (def-class DOCM () a (doc b "declared by its doc form"))
+  (def i (new DOCM 1 2))
+  (list (i a) (i b)))
+```
+---
+    (1 2)
+
+### duplicate static members are refused
+
+```x
+(guard (e 'dup)
+  (do (def-class DUPS () (static (m 1 "d") (m 2 "d"))) 'no-error))
+```
+---
+    'dup
+
+### a bare parent list (no extends) is refused, not a crash
+
+```x
+(guard (e 'refused)
+  (do (def-class ORPHAN (Missing) x) 'no-error))
+```
+---
+    'refused
+
+### (extends) with no class is refused
+
+```x
+(guard (e 'refused)
+  (do (def-class ORPHAN2 (extends) x) 'no-error))
+```
+---
+    'refused
+
 ### the keyword forms are unchanged
 
 ```x
