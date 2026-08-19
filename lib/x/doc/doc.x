@@ -518,13 +518,20 @@
 ; --- Class help: members/methods grouped static vs instance, sorted, merged ---
 
 ; Lexicographic byte compare of two strings (sorts member/method names).
+; Lengths hoisted above the walk (#338): the old loop recomputed both
+; on every character inside a sort comparator.
 (def %str<?
-  (fn (loop a b i)
-    (if (>= i (%str-length a)) (< (%str-length a) (%str-length b))
-      (if (>= i (%str-length b)) #f
-        (let ((ca (%char->integer (%str-ref a i)))
-              (cb (%char->integer (%str-ref b i))))
-          (if (< ca cb) #t (if (> ca cb) #f (loop a b (+ i 1)))))))))
+  (fn (_ a b i)
+    (def la (%str-length a))
+    (def lb (%str-length b))
+    (def go
+      (fn (loop i)
+        (if (>= i la) (< la lb)
+          (if (>= i lb) #f
+            (let ((ca (%char->integer (%str-ref a i)))
+                  (cb (%char->integer (%str-ref b i))))
+              (if (< ca cb) #t (if (> ca cb) #f (loop (+ i 1)))))))))
+    (go i)))
 
 ; #t if symbol x is in the list of symbols lst.
 (def %member-sym?
