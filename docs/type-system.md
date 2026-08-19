@@ -268,7 +268,32 @@ Tests whether `obj` is an instance of the type identified by `type-handle`.
 (Type name obj) → string
 ```
 
-Returns the type name of any object as a string.
+Returns the type name of any object as a string. Non-navigable type tags —
+the base sentinel that marks child execution contexts, and bare handle
+atoms — answer their own bytes rather than a struct walk, mirroring the C
+branches (their fields must not be navigated).
+
+#### Type reflection: `Type wrap`
+
+```
+(Type wrap t) → instance
+```
+
+Clothes a type handle (from `Type of`) or a type struct (from
+`Type by-atom`) as an interactive Type instance: `(t name)`,
+`(t cell 'type-write-stack)`, `(t fields)`, and the wiring verbs
+`push-write` / `push-display` / `push-call` / `push-op` as instance
+methods. The `handle` member holds the name atom, `raw` the struct the
+`Type` statics consume.
+
+`cell` and `fields` walk the layout contract (`tools/contract/base-paths.x`)
+— the same rows the C accessor macros flatten — so every struct field is
+addressable by its contract name: handler stacks, the conversion catalog
+cells, the generic-operator alist. A name whose row is not type-rooted is
+refused: a base-rooted path stepped from a type struct would address
+arbitrary spine words. The worked path through this surface is
+[Sandboxing and type reflection, step by step](sandboxing-tutorial.md);
+the executable reference is [spec.md](spec.md) §11.
 
 #### Example: Vectors
 
@@ -392,7 +417,7 @@ x_eval_field_tco_env(X)        /* TCO environment register    */
 
 #### Properties
 
-**Independence** — Each base is a self-contained interpreter. It has its own type registry, its own variable bindings, its own I/O streams. Creating a new base with `(Base make)` produces an independent interpreter.
+**Independence** — Each base is a self-contained interpreter. It has its own type registry, its own variable bindings, its own I/O streams. Creating a new base with `(Base make)` produces an independent interpreter, wrapped as a Base instance: the raw C base object rides the instance's `raw` member, every `Base` static accepts either form, and the instance answers `eval`/`bind`/`make-type` directly.
 
 **Swappable** — A base can be replaced during execution. Swapping the base swaps the entire language — bindings, types, and state — in one operation.
 
@@ -417,7 +442,19 @@ typedef struct x_error_handler {
 #### Operations
 
 ```
-(Base make)                    → new independent base
+(Base make)                    → new independent base, as a Base instance
+(Base make-tok)                → minimal tokenizer base (no types, no prims)
 (Base eval base expr)          → evaluate expr in base's environment
 (Base bind base name value)    → bind name to value in base's environment
+(Base make-type base name h)   → register a custom type on base
+(Base wrap r) / (Base raw-of v) → clothe a raw base / unwrap either form
+(Base base? v)                 → #t for Base instances only
 ```
+
+The instance is the interactive surface — `(b eval expr)`, `(b bind n v)`,
+`(b make-type name h)` — and reflection rides the layout contract:
+`(b cell 'field-name)` walks `tools/contract/base-paths.x`'s base-rooted
+row for the name to the addressed cell, `(Base fields)` lists the rows,
+and a non-base-rooted name is refused. The worked path is
+[Sandboxing and type reflection, step by step](sandboxing-tutorial.md);
+the executable reference is [spec.md](spec.md) §12.
