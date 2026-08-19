@@ -450,6 +450,36 @@ prim-ref into every child; that was incidental, and no consumer used it.)
 ---
     7!
 
+### a child built-in tree carries fewer write handlers than the parent's
+
+The contract, OBSERVABLE through the reflection doors instead of
+folklore: the parent's INTEGER write stack holds the C-era handler plus
+the x printer's boot push; a fresh child's INTEGER tree never received
+the boot push, so its stack is strictly shorter (and non-empty -- the C
+registration itself installs one).  The child's tree is found by NAME
+BYTES through the raw reflect walk -- child handles do not intern into
+the parent, and the handler spines are C-built (pair? answers #f), so
+the canonical List walkers must not touch them.
+
+```scheme
+(do
+  (def %count (fn (self l) (if (null? l) 0 (+ 1 (self (rest l))))))
+  (def %hb (Base make))
+  (def %find-tree
+    (fn (self nm al)
+      (if (null? al) ()
+        (if (str=? (%reflect-sym->str (%reflect-type-tree-name (rest (first al)))) nm)
+          (rest (first al))
+          (self nm (rest al))))))
+  (def %child-n (%count
+    ((Type wrap (%find-tree "INTEGER" (first (%hb cell (lit type-alist)))))
+      cell (lit type-write-stack))))
+  (def %parent-n (%count ((Type wrap (Type of 0)) cell (lit type-write-stack))))
+  (list (> %parent-n %child-n) (> %child-n 0)))
+```
+---
+    (#t #t)
+
 ## raw prims guard nil in a child base (#239)
 
 A `(Base make)` child gets the C prims raw -- the lib wrappers
