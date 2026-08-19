@@ -128,3 +128,29 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 ```
 ---
     "127.0.0.1"
+
+
+## redirect following (#412)
+
+### the method rules: 303 -> GET; 301/302 flip only POST; 307/308 preserve
+
+```scheme
+(do (import x/net/http)
+  (list (Http %redirect-method 303 "POST")
+        (Http %redirect-method 302 "POST")
+        (Http %redirect-method 302 "DELETE")
+        (Http %redirect-method 307 "POST")))
+```
+---
+    (("GET" . #f) ("GET" . #f) ("DELETE" . #t) ("POST" . #t))
+
+### location resolution: absolute, path-absolute (port kept), relative
+
+```scheme
+(do (import x/net/http)
+  (list (Http %resolve-location (Http %parse-url "https://h/x") "http://elsewhere/y")
+        (Http %resolve-location (Http %parse-url "https://h:8443/a/b") "/c")
+        (Http %resolve-location (Http %parse-url "http://h/a/b") "c/d")))
+```
+---
+    ("http://elsewhere/y" "https://h:8443/c" "http://h/a/c/d")

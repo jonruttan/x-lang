@@ -4,8 +4,8 @@
 ; (Socket tcp-connect) -- request line + headers out, full response
 ; parsing back: status line, headers, and the body under EITHER framing
 ; (Content-Length, or Transfer-Encoding: chunked -- decoded here).
-; Connection: close on every request; no keep-alive, no redirects
-; (the status comes back -- following 3xx is the caller's policy).
+; Connection: close on every request; no keep-alive. Redirects
+; auto-follow (cap 10, RFC method rules, (redirects . 0) opts out).
 ;
 ; https rides the Tls class (#412's amendment to the #374 ruling:
 ; libssl binds over the dlopen FFI -- the variadic blocker was libcurl's;
@@ -28,6 +28,7 @@
 (import x/type/assoc)
 (import x/sys/socket)
 (import x/net/tls)
+(import x/codec/base64)   ; basic-auth's credential encoding (#412)
 
 (def-class Http ()
   (doc "A plain-http/1.1 client over Socket: (Http get url), (Http post url body), (Http request method url headers body) -> ((status . INT) (headers . ALIST) (body . BYTE-LIST)). Header names come back lowercased; https and DNS are out by design (the curl door covers TLS)."
@@ -242,14 +243,28 @@
             (Http url-encode (first kv)) "=" (Http url-encode (rest kv))))
         url params))
 
+    (method basic-auth (self (param user STRING "Username")
+                             (param pass STRING "Password"))
+      (doc "The Authorization header pair for HTTP Basic auth (RFC 7617): add it to any verb's headers -- (Http get url (list (Http basic-auth u p))) or through Rest's trailing headers the same way. Credentials ride base64, NOT encryption: use https urls. On a cross-host redirect the header is stripped automatically (the curl rule)."
+        (returns PAIR "(\"Authorization\" . \"Basic ...\")")
+        (example "(Http basic-auth \"Aladdin\" \"open sesame\")" "(\"Authorization\" . \"Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==\")"))
+      (pair "Authorization"
+            (Str8 append "Basic " (Base64 encode (Str8 append user ":" pass)))))
+
+    (method %sans-auth (self (param headers ALIST "Request headers"))
+      (doc "The headers without any Authorization entry (name compared case-insensitively) -- applied when a redirect hops to a DIFFERENT host, so credentials never leak cross-origin (the curl rule)."
+        (returns ALIST "The filtered headers"))
+      (List reject
+        (fn (_ h) (str=? (Str8 downcase (first h)) "authorization"))
+        headers))
+
     ; --- the wire ---
-    (method request (self (param method STRING "Verb: \"GET\", \"POST\", ...")
-                          (param url STRING "http://HOST[:PORT][/PATH]")
+    (method %request-once (self (param method STRING "Verb")
+                          (param url STRING "http(s)://HOST[:PORT][/PATH]")
                           (param headers ALIST "(name . value) strings; () for none")
                           (param body ANY "Body string, or nil"))
-      (doc "One http/1.1 exchange with Connection: close: connect, send, read to EOF, parse. Redirects are NOT followed -- the 3xx status and its location header come back for the caller's policy."
-        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))")
-        (sample "(bytes->str (rest (Assoc find 'body (Http get \"http://127.0.0.1:8080/\"))))" "the page text"))
+      (doc "One exchange, redirects NOT followed -- the raw wire step request loops over."
+        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST))"))
       (def u (Http %parse-url url))
       (def host (rest (Assoc find (lit host) u)))
       (def quad (if (Http %quad? host) host (Socket resolve host)))
@@ -277,6 +292,78 @@
                 (Socket close fd)
                 bytes)))))
       (Http %parse-response raw (str=? method "HEAD")))
+
+    ; The method a redirect hop uses (RFC 9110 + the curl/requests
+    ; convention): 303 always becomes GET (body dropped); 301/302 become
+    ; GET only when the original was POST; 307/308 preserve method+body.
+    (method %redirect-method (self (param status INT "The 3xx status")
+                                   (param method STRING "The current verb"))
+      (doc "The (verb . keep-body?) pair for following one redirect."
+        (returns PAIR "(method-string . BOOL)")
+        (example "(Http %redirect-method 303 \"POST\")" "(\"GET\" . #f)")
+        (example "(Http %redirect-method 307 \"POST\")" "(\"POST\" . #t)"))
+      (match
+        ((= status 303) (pair "GET" #f))
+        ((if (or (= status 301) (= status 302)) (str=? method "POST") #f)
+          (pair "GET" #f))
+        (#t (pair method #t))))
+
+    (method %resolve-location (self (param u ALIST "The current url, parsed")
+                                    (param loc STRING "The location header value"))
+      (doc "Resolve a Location value against the current url: absolute http(s) urls pass through; a path-absolute /x keeps scheme/host/port; anything else resolves lexically against the current path's directory."
+        (returns STRING "The next url")
+        (example "(Http %resolve-location (Http %parse-url \"https://h:8443/a/b\") \"/c\")" "\"https://h:8443/c\""))
+      (match
+        ((or (Str8 starts? "http://" loc) (Str8 starts? "https://" loc)) loc)
+        (#t
+          (let ((tls? (rest (Assoc find (lit tls) u))))
+            (let ((base (Str8 append
+                          (if tls? "https://" "http://")
+                          (rest (Assoc find (lit host) u))
+                          (let ((port (rest (Assoc find (lit port) u))))
+                            (if (= port (if tls? 443 80)) ""
+                              (Str8 append ":" (%number->str port)))))))
+              (if (Str8 starts? "/" loc) (Str8 append base loc)
+                (let ((path (rest (Assoc find (lit path) u))))
+                  (let ((cut (Str8 last-index-of "/" path)))
+                    (Str8 append base (Str8 sub 0 (+ cut 1) path) loc)))))))))
+
+    (method request (self (param method STRING "Verb: \"GET\", \"POST\", ...")
+                          (param url STRING "http(s)://HOST[:PORT][/PATH]")
+                          (param headers ALIST "(name . value) strings; () for none")
+                          (param body ANY "Body string, or nil")
+                          . (param opts ALIST "Options: (redirects . N) hop cap -- default 10, 0 disables following"))
+      (doc "An http exchange that FOLLOWS redirects (cap 10, (redirects . 0) opts out): 3xx responses with a location header re-request per RFC -- 303 as GET, 301/302 as GET when the verb was POST, 307/308 preserving method and body; relative locations resolve against the current url; cross-scheme hops (http -> https) follow. Exceeding the cap raises kind-'io."
+        (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST)) -- the FINAL response")
+        (sample "(rest (Assoc find 'status (Http get \"http://github.com/\")))" "200 -- the 301 to https was followed"))
+      (def cap
+        (let ((o (if (null? opts) () (first opts))))
+          (let ((e (Assoc entry (lit redirects) o)))
+            (if (null? e) 10 (rest e)))))
+      (let hop ((method method) (url url) (headers headers) (body body) (left cap))
+        (let ((resp (Http %request-once method url headers body)))
+          (let ((status (rest (Assoc find (lit status) resp))))
+            (match
+              ((not (if (>= status 300) (< status 400) #f)) resp)
+              (#t
+                (let ((loc (Assoc find "location" (rest (Assoc find (lit headers) resp)))))
+                  (match
+                    ((null? loc) resp)                     ; a 3xx with no location is final
+                    ((= left 0)
+                      (if (= cap 0) resp                   ; following disabled: the 3xx is the answer
+                        (Err raise (lit io) "Http: too many redirects" url)))
+                    (#t
+                      (let ((mk (Http %redirect-method status method)))
+                        (let ((next (Http %resolve-location (Http %parse-url url) (rest loc))))
+                          ; credentials never cross hosts (the curl rule)
+                          (let ((same-host?
+                                  (str=? (rest (Assoc find (lit host) (Http %parse-url url)))
+                                         (rest (Assoc find (lit host) (Http %parse-url next))))))
+                            (hop (first mk)
+                                 next
+                                 (if same-host? headers (Http %sans-auth headers))
+                                 (if (rest mk) body ())
+                                 (- left 1))))))))))))))
 
     (method get (self (param url STRING "http://HOST[:PORT][/PATH]")
                       . (param headers ALIST "Optional (name . value) header strings"))
@@ -320,5 +407,5 @@
       (Http request "HEAD" url (if (null? headers) () (first headers)) ()))))
 
 (doc (provide x/net/http Http)
-  (note "http/1.1 over Socket -- and https over Tls (#412), verification on, names resolved via (Socket resolve) with the Host header keeping the name. Connection: close; chunked + Content-Length framing decoded; bodies are byte lists (bytes->str for text); redirects are the caller's policy. Verbs: get/post/put/patch/delete/head; url-encode/with-query build query strings. net/ = protocol shapes over sys/socket transport.")
+  (note "http/1.1 over Socket -- and https over Tls (#412), verification on, names resolved via (Socket resolve) with the Host header keeping the name. Connection: close; chunked + Content-Length framing decoded; bodies are byte lists (bytes->str for text); redirects auto-follow (cap 10; (redirects . 0) opts out; 303->GET, 301/302 POST->GET, 307/308 preserve). Verbs: get/post/put/patch/delete/head; url-encode/with-query build query strings; (Http basic-auth u p) is the Authorization pair (stripped on cross-host redirects). net/ = protocol shapes over sys/socket transport.")
   "A plain-http client, homed on the Http class.")
