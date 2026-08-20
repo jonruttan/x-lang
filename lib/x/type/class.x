@@ -165,6 +165,19 @@
               (loop (rest cs))))))
     (%go (first %class-registry))))
 
+; Add a method row to a class's cold alist (key = methods | s-methods) and
+; invalidate every hot table. Prepend, so the newest registration wins over
+; both an earlier addition and the def-class-time definition (the flattener
+; records first sight per level). Returns nil: a mutation, not a value.
+(def %class-add!
+  (fn (_ class key sel f)
+    (unless (symbol? sel)
+      (error "def-method!: selector must be a symbol"))
+    (let ((row (%assq key (%class-data class))))
+      (%set-rest! row (pair (pair sel f) (rest row))))
+    (%classes-invalidate!)
+    ()))
+
 ; Entry discrimination for the cold resolvers (method-of, method-ref, the
 ; value-call handlers): a callable method entry, or nil for a miss / field
 ; marker / inherited-static marker.
@@ -192,13 +205,25 @@
           fresh)
         hot))))
 
-; Total dispatch miss, one seam: a named error today; the %missing protocol
-; hook and the generic-dispatch trapdoor interpose here in later phases.
+; Total dispatch miss, one seam. The %missing protocol hook fires first
+; when the chain defines it: (method %missing (self sel args) ...) --
+; instance side resolves it through the flat itab, static side through the
+; stab, so it inherits like any method. `target` is the receiver (instance
+; or class), `args` the RAW argument forms, evaluated here (cold path)
+; before the hook sees them as a list. Without a hook, a named error.
+; The generic-dispatch trapdoor interposes here in a later phase.
 (def %dispatch-miss
-  (fn (_ class selector static?)
-    (error (%str-append (symbol->str (class-name class))
-      (%str-append (if static? ": no such static member " ": no such member ")
-        (symbol->str selector))))))
+  (fn (_ target class selector args e static?)
+    (let ((tab (if static?
+                 (first (rest (%class-hot class)))
+                 (first (%class-hot class)))))
+      (let ((m (%entry-method (%tab-find! tab tab (lit %missing)))))
+        (if (null? m)
+          (error (%str-append (symbol->str (class-name class))
+            (%str-append (if static? ": no such static member " ": no such member ")
+              (symbol->str selector))))
+          (apply m (list target selector
+                     (%map1 (fn (_ a) (eval a e)) args))))))))
 
 (note "Member lookup (walks the single-inheritance parent chain)")
 
@@ -361,7 +386,7 @@
             (match
               ((null? args) (%assoc-get selector (%obj-fields self)))
               (#t (%box-put! (%obj-box self) selector (eval (first args) e)))))
-          (#t (%dispatch-miss (%obj-class self) selector #f)))))))
+          (#t (%dispatch-miss self (%obj-class self) selector args e #f)))))))
 
 ; The de-dispatch door (#332): resolve a method ONCE and call it inside
 ; a hot loop with self as argument 0.  A stored method is a plain fn
@@ -426,7 +451,20 @@
             (tail-eval (pair entry (pair self args)) e))
           ((eq? selector (lit new))                   ; (Class new k v ...): values are code
             (%instantiate self args e #t))
-          (#t (%dispatch-miss self selector #t)))))))
+          ; Runtime method addition -- the open-class doors. Built-ins like
+          ; `new`: a static method of the same name shadows them (checked
+          ; above via the table). sel and fn are ordinary evaluated args, so
+          ; selectors can be computed (a runtime-defined command language
+          ; needs exactly that). The fn is stored AS-IS -- no super/member
+          ; injection; it receives (self . args) and uses (self f) access.
+          ; The cold alist is mutated (single source of truth: help and
+          ; introspection see the addition immediately) and every hot table
+          ; clears -- descendants must refold to see it.
+          ((eq? selector (lit def-method!))
+            (%class-add! self (lit methods) (eval (first args) e) (eval (first (rest args)) e)))
+          ((eq? selector (lit def-static!))
+            (%class-add! self (lit s-methods) (eval (first args) e) (eval (first (rest args)) e)))
+          (#t (%dispatch-miss self self selector args e #t)))))))
 
 ; --- Value-to-class call dispatch ---
 ; Build a TYPE call handler so an instance, called as (inst method . args),

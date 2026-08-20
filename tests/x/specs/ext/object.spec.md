@@ -1029,3 +1029,103 @@ spelled `(Parent name v)`).
 ```
 ---
     50
+
+## open classes: def-method! and def-static!
+
+Classes accept new methods after definition: `(C def-method! sel fn)` adds
+an instance method, `(C def-static! sel fn)` a static. Both are built-in
+class selectors (shadowable by a same-named static method, like `new`);
+sel and fn are ordinary evaluated arguments, so selectors can be computed.
+The fn is stored as-is -- it receives (self . args) and uses `(self f)`
+member access, with no super/member injection. The cold alist mutates
+(help sees the addition immediately) and every hot table clears.
+
+### add a static, then call it -- selector computed
+
+```x
+(do
+  (def-class T ())
+  (T def-static! (lit hi) (fn (_ self n) (+ n 1)))
+  (T hi 41))
+```
+---
+    42
+
+### add an instance method reaching members
+
+```x
+(do
+  (def-class P () x)
+  (P def-method! (lit double) (fn (_ self) (* 2 (self x))))
+  ((new P x 21) double))
+```
+---
+    42
+
+### a parent gaining a method invalidates an already-dispatched child
+
+```x
+(do
+  (def-class A ())
+  (def-class B (extends A))
+  (def b (new B))
+  (guard (e 'pre) (b late))
+  (A def-method! (lit late) (fn (_ self) 'from-a))
+  (b late))
+```
+---
+    'from-a
+
+### the newest addition wins over an earlier one
+
+```x
+(do
+  (def-class P ())
+  (P def-method! (lit m) (fn (_ self) 'first))
+  (P def-method! (lit m) (fn (_ self) 'second))
+  ((new P) m))
+```
+---
+    'second
+
+## the %missing hook
+
+`(method %missing (self sel args) ...)` fires on a total dispatch miss --
+instance and static sides, inherited through the chain like any method.
+`sel` is the missed selector, `args` the evaluated argument list. Without
+a hook, the miss stays the named error.
+
+### a static %missing catches unknown commands
+
+```x
+(do
+  (def-class Logo ()
+    (static
+      (method %missing (self sel args)
+        (%str-append "I don't know how to " (symbol->str sel)))))
+  (Logo spiral 3))
+```
+---
+    "I don't know how to spiral"
+
+### an instance %missing is inherited and sees the args
+
+```x
+(do
+  (def-class M ()
+    (method %missing (self sel args) (list 'missed sel args)))
+  (def-class M2 (extends M))
+  ((new M2) whoosh 1 2))
+```
+---
+    ('missed 'whoosh (1 2))
+
+### without a hook the miss stays a named error
+
+```x
+(do
+  (def-class Bare ())
+  (guard (e e) ((new Bare) nope)))
+```
+---
+    "Bare: no such member nope"
