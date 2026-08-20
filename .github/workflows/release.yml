@@ -39,15 +39,12 @@ jobs:
       # consumer-side verify anchor) must agree with coreutils on the ISA
       # fingerprint consumers will check against.  isa.x is ~10KB (~15s
       # pure-x); the amalgams would cost minutes each for no extra proof.
+      # The script is a TREE file, not an inline heredoc: the v0.4.0 tag
+      # failed here on a retired API the gates never saw, because a
+      # workflow that only runs on tags is invisible to them (#180 family).
       - name: Cross-check pure-x sha256 against the manifest
         run: |
-          cat > /tmp/hash-isa.x <<'EOF'
-          (import x/sys/file)
-          (import x/codec/sha256)
-          (display (Sha256 hex (File slurp "tools/contract/isa.x")))
-          (newline)
-          EOF
-          got=$(sh x.sh --no-pin -f /tmp/hash-isa.x | tail -1)
+          got=$(sh x.sh --no-pin -f tools/release/hash-isa.x | tail -1)
           want=$(grep '^(isa ' build/release/pin.release.xon | sed 's/.*sha256:\([0-9a-f]*\).*/\1/')
           echo "pure-x:   $got"
           echo "manifest: $want"
