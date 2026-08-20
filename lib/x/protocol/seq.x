@@ -71,9 +71,9 @@
         (example "(Str8 count \"abc\")" "3"))
       ; Handlers hoisted once per traversal (#332); the loop then pays
       ; two direct applies per element instead of two full dispatches.
-      (def %donef (wrap (%class-method-of self (lit done?))))
-      (def %stepf (wrap (%class-method-of self (lit step))))
-      (let loop ((cur ((wrap (%class-method-of self (lit start))) self v)) (n 0))
+      (def %donef (%class-method-of self (lit done?)))
+      (def %stepf (%class-method-of self (lit step)))
+      (let loop ((cur ((%class-method-of self (lit start)) self v)) (n 0))
         (if (%donef self cur v) n
           (loop (rest (%stepf self cur v)) (%sc-int+ n 1)))))
 
@@ -86,9 +86,9 @@
       (doc "Collect every element, in order, into a list."
         (returns LIST "List of v's elements")
         (example "(Str8 ->list \"ab\")" "(#\\a #\\b)"))
-      (def %donef (wrap (%class-method-of self (lit done?))))
-      (def %stepf (wrap (%class-method-of self (lit step))))
-      (let loop ((cur ((wrap (%class-method-of self (lit start))) self v)) (acc ()))
+      (def %donef (%class-method-of self (lit done?)))
+      (def %stepf (%class-method-of self (lit step)))
+      (let loop ((cur ((%class-method-of self (lit start)) self v)) (acc ()))
         (if (%donef self cur v)
           (%reverse acc)
           (let ((s (%stepf self cur v)))
@@ -97,9 +97,9 @@
     (method for-each (self (param f CALLABLE "Applied to each element") (param v ANY "Value to traverse"))
       (doc "Apply f to each element in order, for its side effects; returns nil. Named for-each, matching List/Iter/Gen."
         (returns ANY "nil"))
-      (def %donef (wrap (%class-method-of self (lit done?))))
-      (def %stepf (wrap (%class-method-of self (lit step))))
-      (let loop ((cur ((wrap (%class-method-of self (lit start))) self v)))
+      (def %donef (%class-method-of self (lit done?)))
+      (def %stepf (%class-method-of self (lit step)))
+      (let loop ((cur ((%class-method-of self (lit start)) self v)))
         (if (%donef self cur v) ()
           (let ((s (%stepf self cur v)))
             (f (first s))
@@ -109,9 +109,9 @@
       (doc "Left-fold: thread acc through the elements left to right, calling (f acc element) at each step."
         (returns ANY "The final accumulator")
         (example "(Str8 fold (fn (_ a c) (+ a 1)) 0 \"abc\")" "3"))
-      (def %donef (wrap (%class-method-of self (lit done?))))
-      (def %stepf (wrap (%class-method-of self (lit step))))
-      (let loop ((cur ((wrap (%class-method-of self (lit start))) self v)) (a acc))
+      (def %donef (%class-method-of self (lit done?)))
+      (def %stepf (%class-method-of self (lit step)))
+      (let loop ((cur ((%class-method-of self (lit start)) self v)) (a acc))
         (if (%donef self cur v) a
           (let ((s (%stepf self cur v)))
             (loop (rest s) (f a (first s)))))))

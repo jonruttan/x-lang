@@ -810,3 +810,26 @@ are built -- the initialize slot for logic beyond plain field values.
 ```
 ---
     'the-root
+
+## the de-dispatch door: %class-method-of
+
+`%class-method-of` resolves a method once so hot loops can call it directly
+(#332). A stored method is a plain fn closure and is APPLICATIVE at direct
+call: arguments evaluate exactly once. Wrapping the handle in `(wrap ...)`
+would add a second evaluation pass -- this spec pins single evaluation, so a
+symbol-valued argument arrives as the symbol, never re-resolved to its
+binding.
+
+### a stored method called directly evaluates args once
+
+```x
+(do
+  (def-class P ()
+    (static
+      (method m (self a) a)))
+  (def marker 99)
+  (def f (%class-method-of P (lit m)))
+  (f P (lit marker)))
+```
+---
+    'marker
