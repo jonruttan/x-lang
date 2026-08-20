@@ -102,6 +102,7 @@
 (file "lib/x/type/bool.x" 5)
 (file "lib/x/type/char-io.x" 11)
 (file "lib/x/type/char.x" 5)
+(file "lib/x/type/record.x" 3)
 (file "lib/x/type/class.x" 88)
 (file "lib/x/type/convert.x" 20)
 (file "lib/x/type/dict.x" 19)

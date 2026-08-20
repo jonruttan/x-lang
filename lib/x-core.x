@@ -77,6 +77,7 @@
   (pair (lit x/type/vector)
   (pair (lit x/type/promise)
   (pair (lit x/type/class)
+  (pair (lit x/type/record)
   (pair (lit x/protocol/seq)
   (pair (lit x/protocol/str/str8)
   (pair (lit x/protocol/str/utf8)
@@ -95,7 +96,7 @@
   (pair (lit x/type/err)
   (pair (lit x/repl/ansi)
   (pair (lit x/repl/banner)
-    (first %module-loaded-cell)))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+    (first %module-loaded-cell))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 ; --- Standard modules ---
 (include "lib/x/core/predicates.x")
@@ -136,6 +137,8 @@
 ; UTF-8-aware CHARACTER write/display handlers (shadow the C byte fallback)
 (include "lib/x/type/char-io.x")
 (include "lib/x/type/class.x")
+; Records: def-record, lightweight named-field data types over def-class.
+(include "lib/x/type/record.x")
 ; Convert: the conversion dispatcher (registered in the catalog as
 ; (convert . to)) + the Convert class with the no-match policy member.
 ; Relocated past object.x from the early type-internals block -- it needs

@@ -24,12 +24,18 @@
 ; DOTTED QUAD here (the Socket contract); resolve names first
 ; ((Socket resolve), the getaddrinfo door).
 ;
-; Sessions are (ssl ctx fd) triples. Cold paths: symbols resolve per
+; Sessions are TlsSession records. Cold paths: symbols resolve per
 ; call; zero top-level %-globals (new-file budget 0).
 
 (import x/type/class)
+(import x/type/record)
 (import x/core/list)
 (import x/sys/socket)
+
+; The session record: the SSL handle, its context, and the socket fd --
+; previously an anonymous (ssl ctx fd) triple decoded positionally at
+; every use (first/rest chains); named field access replaces that.
+(def-record TlsSession ssl ctx fd)
 
 (def-class Tls ()
   (doc "TLS client sessions over Socket fds via the system libssl (dlopen FFI): connect/send/recv-bytes/close, certificate verification and hostname checking on by default."
@@ -64,7 +70,7 @@
                           (param port INT "Port, usually 443")
                           . (param opts ALIST "Options: (host . NAME) for SNI + hostname verification against NAME (recommended when connecting by resolved quad); ('insecure) to skip verification entirely"))
       (doc "Open a verified TLS session: TCP connect, then handshake with SNI, the system trust stores, and hostname checking. A failed handshake raises kind-'io -- carrying the X509 verify code when verification failed (10 expired, 18 self-signed, 62 hostname mismatch)."
-        (returns LIST "The session (ssl ctx fd)")
+        (returns OBJECT "The session, a TlsSession record (ssl ctx fd)")
         (sample "(Tls connect \"140.82.114.3\" 443 (list (pair 'host \"github.com\")))" "a verified session"))
       (def %call (prim-ref (lit ptr) (lit call)))
       (def o (if (null? opts) () (first opts)))
@@ -99,18 +105,18 @@
           (if (= vres 0)
             (Err raise (lit io) "Tls: handshake failed" cr)
             (Err raise (lit io) "Tls: certificate verification failed (X509 code in the payload)" vres))))
-      (list ssl ctx fd))
+      (new TlsSession ssl ctx fd))
 
-    (method send (self (param session LIST "A (Tls connect) session")
+    (method send (self (param session OBJECT "A (Tls connect) session (TlsSession record)")
                        (param s STRING "Bytes to send"))
       (doc "Send the whole string through the session; raises kind-'io on failure."
         (returns INT "Bytes written"))
       (def %call (prim-ref (lit ptr) (lit call)))
-      (def r (Tls %fold (%call (Tls %sym "SSL_write") (first session) s (Str8 length s))))
+      (def r (Tls %fold (%call (Tls %sym "SSL_write") (session ssl) s (Str8 length s))))
       (when (<= r 0) (Err raise (lit io) "Tls: write failed" r))
       r)
 
-    (method recv-bytes (self (param session LIST "A (Tls connect) session")
+    (method recv-bytes (self (param session OBJECT "A (Tls connect) session (TlsSession record)")
                              (param maxlen INT "Maximum bytes to receive"))
       (doc "Receive up to maxlen bytes as a byte list (the lossless carrier); nil at an orderly TLS close; raises kind-'io on transport failure."
         (returns ANY "Byte list, or nil at orderly close"))
@@ -120,7 +126,7 @@
       (def %pref (prim-ref (lit ptr) (lit ref)))
       (def region (%make-str maxlen))
       (def buf (%str->ptr region))
-      (def n (Tls %fold (%call (Tls %sym "SSL_read") (first session) buf maxlen)))
+      (def n (Tls %fold (%call (Tls %sym "SSL_read") (session ssl) buf maxlen)))
       (match
         ((> n 0)
           (let go ((i (- n 1)) (acc ()))
@@ -129,20 +135,20 @@
         (#t
           ; 0/ZERO_RETURN(6) = orderly close; SYSCALL(5) with a clean EOF
           ; is how peers that skip close_notify look -- treat as EOF too
-          (let ((code (%call (Tls %sym "SSL_get_error") (first session) n)))
+          (let ((code (%call (Tls %sym "SSL_get_error") (session ssl) n)))
             (match
               ((= code 6) ())
               ((= code 5) ())
               (#t (Err raise (lit io) "Tls: read failed (SSL_get_error in the payload)" code)))))))
 
-    (method close (self (param session LIST "A (Tls connect) session"))
+    (method close (self (param session OBJECT "A (Tls connect) session (TlsSession record)"))
       (doc "Shut the session down and free everything: SSL_shutdown, SSL_free, SSL_CTX_free, and the fd."
         (returns ANY "nil"))
       (def %call (prim-ref (lit ptr) (lit call)))
-      (%call (Tls %sym "SSL_shutdown") (first session))
-      (%call (Tls %sym "SSL_free") (first session))
-      (%call (Tls %sym "SSL_CTX_free") (first (rest session)))
-      (Socket close (first (rest (rest session))))
+      (%call (Tls %sym "SSL_shutdown") (session ssl))
+      (%call (Tls %sym "SSL_free") (session ssl))
+      (%call (Tls %sym "SSL_CTX_free") (session ctx))
+      (Socket close (session fd))
       ())))
 
 (doc (provide x/net/tls Tls)
