@@ -965,3 +965,60 @@ method call in tail position is a genuine tail call.
 ```
 ---
     7
+
+## static members inherit
+
+Static (class-wide) members now resolve up the chain, matching what (help)
+has always displayed. Reads reach the nearest ancestor's value; a write
+through a subclass SHADOWS into the subclass's own box -- the parent's
+value is never mutated through a child (a deliberate parent write is
+spelled `(Parent name v)`).
+
+### a subclass reads an inherited static member
+
+```x
+(do
+  (def-class A () (static (limit 10)))
+  (def-class B (extends A))
+  (B limit))
+```
+---
+    10
+
+### a write through the subclass shadows; the parent is unmutated
+
+```x
+(do
+  (def-class A () (static (limit 10)))
+  (def-class B (extends A))
+  (B limit 99)
+  (list (B limit) (A limit)))
+```
+---
+    (99 10)
+
+### a parent write is visible through an unshadowed child
+
+```x
+(do
+  (def-class A () (static (limit 10)))
+  (def-class B (extends A))
+  (A limit 11)
+  (B limit))
+```
+---
+    11
+
+### a mid-chain shadow is seen by an already-dispatched grandchild
+
+```x
+(do
+  (def-class A () (static (limit 10)))
+  (def-class B (extends A))
+  (def-class C (extends B))
+  (C limit)                       ; builds C's table: owner = A
+  (B limit 50)                    ; B shadows; tables invalidate
+  (C limit))
+```
+---
+    50

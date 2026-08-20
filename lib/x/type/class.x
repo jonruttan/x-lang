@@ -97,9 +97,12 @@
 ; construction caches, shape
 ;   (itab stab fields ctor-names)
 ; itab holds instance methods + instance-field markers; stab holds static
-; methods (chain-merged) + the class's OWN static-member markers -- a static
-; member named `new` is dropped, it never shadowed the new builtin; fields
-; is the %all-fields (name . default-thunk) alist and ctor-names the
+; methods + static-member markers, both chain-merged. An OWN static member
+; marks as the bare %field-tag; an INHERITED one as (%field-tag . OWNER),
+; the nearest ancestor whose box holds it -- reads go to the owner's box,
+; matching what (help) has always displayed. A static member named `new`
+; is dropped at every level: it never shadowed the new builtin. fields is
+; the %all-fields (name . default-thunk) alist and ctor-names the
 ; positional constructor order. Most-derived wins: the chain walk records a
 ; name on first sight only, and a method beats a same-named field marker
 ; exactly as dispatch always had it. Every spine pair and (sel . entry)
@@ -127,14 +130,51 @@
           (loop (%assoc-get (lit parent) (%class-data c)) key mk
             (%fold-rows (%assoc-get key (%class-data c)) mk acc)))))
     (def %mark (fn (_ row) %field-tag))
+    (def %not-new? (fn (_ row) (not (eq? (first row) (lit new)))))
+    (def %walk-statics                    ; ancestor static members, nearest first
+      (fn (loop c acc)
+        (if (null? c) acc
+          (loop (%assoc-get (lit parent) (%class-data c))
+            (%fold-rows (%filter %not-new? (%class-statics c))
+              (fn (_ row) (pair %field-tag c))
+              acc)))))
     (let ((fields (%all-fields class)))
       (list (%fold-rows fields %mark (%walk-chain class (lit methods) rest ()))
-            (%fold-rows (%filter (fn (_ row) (not (eq? (first row) (lit new))))
-                          (%class-statics class))
-              %mark
-              (%walk-chain class (lit s-methods) rest ()))
+            (%walk-statics (%assoc-get (lit parent) (%class-data class))
+              (%fold-rows (%filter %not-new? (%class-statics class))
+                %mark
+                (%walk-chain class (lit s-methods) rest ())))
             fields
             (%ctor-member-names class)))))
+
+; Every class ever built, for table invalidation: a shadow-write (or, later
+; in this arc, runtime method addition) clears every class's slot 1 with
+; %classes-invalidate!, and each rebuilds on its next dispatch. Classes
+; carry no child links, so "which descendants are stale" is unanswerable
+; locally -- and mutation is cold, so clearing everything is the cheap side
+; of the trade (the hot path keeps ZERO staleness checks). The registry
+; pins redefined class objects; redefinition is a REPL affair and the cold
+; alists are small.
+(def %class-registry (list ()))
+(def %classes-invalidate!
+  (fn (_)
+    (def %go
+      (fn (loop cs)
+        (unless (null? cs)
+          (do (%set-rest! (first cs) ())
+              (loop (rest cs))))))
+    (%go (first %class-registry))))
+
+; Entry discrimination for the cold resolvers (method-of, method-ref, the
+; value-call handlers): a callable method entry, or nil for a miss / field
+; marker / inherited-static marker.
+(def %entry-method
+  (fn (_ entry)
+    (match
+      ((null? entry) ())
+      ((eq? entry %field-tag) ())
+      ((if (pair? entry) (eq? (first entry) %field-tag) #f) ())
+      (#t entry))))
 
 ; A class's hot record, built on first dispatch. Lives in the class
 ; object's SLOT 1 -- the free traced slot make-instance leaves nil -- while
@@ -338,8 +378,7 @@
   (fn (_ (param class CLASS "Class to resolve against")
        (param sel SYMBOL "Static-method selector"))
     (let ((stab (first (rest (%class-hot class)))))
-      (let ((entry (%tab-find! stab stab sel)))
-        (unless (eq? entry %field-tag) entry)))))
+      (%entry-method (%tab-find! stab stab sel)))))
   (returns CALLABLE "The resolved static method closure, or nil")
   (note "The sanctioned de-dispatch door: resolve once, call directly in the hot")
   (note "loop with the class as argument 0 -- ((method-of C 'step) C cur v).")
@@ -364,10 +403,24 @@
           (stab (first (rest (%class-hot self)))))
       (let ((entry (%tab-find! stab stab selector)))
         (match
-          ((eq? entry %field-tag)
+          ((eq? entry %field-tag)                     ; own static member
             (match
               ((null? args) (%assoc-get selector (%class-statics self)))
               (#t (%box-put! (%class-statics-box self) selector (eval (first args) e)))))
+          ((if (pair? entry) (eq? (first entry) %field-tag) #f)
+            ; inherited static member: reads go to the owning ancestor's box
+            ; (nearest wins, matching help's display); a write SHADOWS into
+            ; our own box -- the parent's value is never mutated through a
+            ; child; spell a deliberate parent write (Parent name v). The
+            ; shadow invalidates every hot table: descendants' markers may
+            ; point past this class.
+            (match
+              ((null? args) (%assoc-get selector (%class-statics (rest entry))))
+              (#t
+                (let ((v (eval (first args) e)))
+                  (%box-put! (%class-statics-box self) selector v)
+                  (%classes-invalidate!)
+                  v))))
           ((not (null? entry))
             (tail-eval (pair entry (pair self args)) e))
           ((eq? selector (lit new))                   ; (Class new k v ...): values are code
@@ -424,8 +477,8 @@
               ; in the caller's env, and the receiver rides LAST, spliced as
               ; (lit obj) so a list-valued subject is data, never a call.
               (let ((stab (first (rest (%class-hot class)))))
-                (let ((m (%tab-find! stab stab sel)))
-                  (if (if (null? m) #t (eq? m %field-tag))
+                (let ((m (%entry-method (%tab-find! stab stab sel))))
+                  (if (null? m)
                     (error (%str-append "object: no such method " (symbol->str sel)))
                     (tail-eval
                       (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
@@ -457,8 +510,8 @@
               ; in the caller's env, and the receiver rides LAST, spliced as
               ; (lit obj) so a list-valued subject is data, never a call.
               (let ((stab (first (rest (%class-hot class)))))
-                (let ((m (%tab-find! stab stab sel)))
-                  (if (if (null? m) #t (eq? m %field-tag))
+                (let ((m (%entry-method (%tab-find! stab stab sel))))
+                  (if (null? m)
                     (error (%str-append "object: no such method " (symbol->str sel)))
                     (tail-eval
                       (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
@@ -575,14 +628,15 @@
         ; the normal dispatch form, values spliced as (lit V) literals so
         ; nothing re-evaluates.
         (let ((entry
-                (if (class? target)
-                  (let ((stab (first (rest (%class-hot target)))))
-                    (%tab-find! stab stab sel))
-                  (if (object? target)
-                    (let ((itab (first (%class-hot (%obj-class target)))))
-                      (%tab-find! itab itab sel))
-                    ()))))
-          (if (if (null? entry) #t (eq? entry %field-tag))
+                (%entry-method
+                  (if (class? target)
+                    (let ((stab (first (rest (%class-hot target)))))
+                      (%tab-find! stab stab sel))
+                    (if (object? target)
+                      (let ((itab (first (%class-hot (%obj-class target)))))
+                        (%tab-find! itab itab sel))
+                      ())))))
+          (if (null? entry)
             (eval
               (pair (list (lit lit) target)
                 (pair (list (lit lit) sel)
@@ -1043,6 +1097,7 @@
                          smems
                          (%find-form body (lit interface)))))   ; declared interface (or ())
               (%check-interface! cls)                            ; error if a contract method is unmet
+              (%set-first! %class-registry (pair cls (first %class-registry)))
               cls)))))))
 
 (doc (def def-class
