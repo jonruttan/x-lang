@@ -41,6 +41,8 @@
   (guard   (fmt . head-1)  (scope . guard)       (branch . guard))
   (def-class (fmt . head-1) (scope . class)      (branch . none))
   (def-record (fmt . head-1) (scope . class)     (branch . none))
+  (def-generic (fmt . head-1) (scope . bind)     (branch . none))
+  (def-trait (fmt . head-1) (scope . bind)       (branch . none))
   (and     (fmt . call)    (scope . none)        (branch . short))
   (or      (fmt . call)    (scope . none)        (branch . short))
   (lit     (fmt . call)    (scope . skip)        (branch . none))
