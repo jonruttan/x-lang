@@ -76,6 +76,7 @@
   (class?)
   (def-class)
   (instance-of?)
+  (method-of)     ; the sanctioned de-dispatch door (#332): resolve-once hot-loop handle
   (method-ref)
   (new)
   (new-from)

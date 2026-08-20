@@ -66,6 +66,100 @@
     ((member     (fn (_ n) (%assoc-get n (%obj-fields self))))
      (set-member! (fn (_ n v) (%box-put! (%obj-box self) n v))))))
 
+(note "Flat dispatch tables (the hot path)")
+
+; Unique sentinel marking a FIELD entry in a flat table (a method entry is
+; the method closure itself). A fresh pair, compared by eq? -- unforgeable.
+(def %field-tag (list (lit %field)))
+
+; Find `sel` in a flat table and self-organize: a hit DEEPER THAN POSITION
+; TWO swaps its (sel . entry) pair with the head's via two %set-first!, so a
+; hot selector is a front hit from its second call on. The top-2 exemption
+; matters: a method that reads a field alternates two hot selectors, and
+; unconditional move-to-front made them ping-pong the head slot -- two swap
+; writes per call, measured slower than no table at all. With the exemption
+; an alternating pair settles into the top two and never swaps again.
+; Returns the entry (a method closure or %field-tag) or nil. `head` is the
+; table's first spine cell; callers pass the table twice.
+(def %tab-find!
+  (fn (loop cell head sel)
+    (unless (null? cell)
+      (let ((p (first cell)))
+        (if (eq? (first p) sel)
+          (do
+            (unless (if (eq? cell head) #t (eq? cell (rest head)))
+              (%set-first! cell (first head))
+              (%set-first! head p))
+            (rest p))
+          (loop (rest cell) head sel))))))
+
+; Build a class's hot record: flat, chain-merged dispatch tables plus the
+; construction caches, shape
+;   (itab stab fields ctor-names)
+; itab holds instance methods + instance-field markers; stab holds static
+; methods (chain-merged) + the class's OWN static-member markers -- a static
+; member named `new` is dropped, it never shadowed the new builtin; fields
+; is the %all-fields (name . default-thunk) alist and ctor-names the
+; positional constructor order. Most-derived wins: the chain walk records a
+; name on first sight only, and a method beats a same-named field marker
+; exactly as dispatch always had it. Every spine pair and (sel . entry)
+; pair is freshly consed -- %tab-find! reorders the table in place, so it
+; must share no structure with the cold class alists (slot 0), which stay
+; the single authoritative source help and introspection read.
+(def %flatten-class
+  (fn (_ class)
+    ; local + cold on purpose: activation-scoped mid-body defs (only TAIL
+    ; defs leak globally under TCO), the %build-class pattern.
+    (def %seen?
+      (fn (loop n tab)
+        (if (null? tab) #f
+          (if (eq? n (first (first tab))) #t (loop n (rest tab))))))
+    (def %fold-rows                       ; add (k . (mk row)) on first sight
+      (fn (loop al mk acc)
+        (if (null? al) acc
+          (loop (rest al) mk
+            (if (%seen? (first (first al)) acc)
+              acc
+              (pair (pair (first (first al)) (mk (first al))) acc))))))
+    (def %walk-chain                      ; fold `key` alists, derived first
+      (fn (loop c key mk acc)
+        (if (null? c) acc
+          (loop (%assoc-get (lit parent) (%class-data c)) key mk
+            (%fold-rows (%assoc-get key (%class-data c)) mk acc)))))
+    (def %mark (fn (_ row) %field-tag))
+    (let ((fields (%all-fields class)))
+      (list (%fold-rows fields %mark (%walk-chain class (lit methods) rest ()))
+            (%fold-rows (%filter (fn (_ row) (not (eq? (first row) (lit new))))
+                          (%class-statics class))
+              %mark
+              (%walk-chain class (lit s-methods) rest ()))
+            fields
+            (%ctor-member-names class)))))
+
+; A class's hot record, built on first dispatch. Lives in the class
+; object's SLOT 1 -- the free traced slot make-instance leaves nil -- while
+; slot 0 keeps the cold authoritative alist. No staleness probe on the hot
+; path: classes are immutable after def-class today, and a redefinition
+; mints a fresh class object (fresh empty slot 1). The open-classes phase
+; adds mutators; they must clear slot 1 (via a class registry) rather than
+; tax every dispatch with a generation compare.
+(def %class-hot
+  (fn (_ class)
+    (let ((hot (rest class)))
+      (if (null? hot)
+        (let ((fresh (%flatten-class class)))
+          (%set-rest! class fresh)
+          fresh)
+        hot))))
+
+; Total dispatch miss, one seam: a named error today; the %missing protocol
+; hook and the generic-dispatch trapdoor interpose here in later phases.
+(def %dispatch-miss
+  (fn (_ class selector static?)
+    (error (%str-append (symbol->str (class-name class))
+      (%str-append (if static? ": no such static member " ": no such member ")
+        (symbol->str selector))))))
+
 (note "Member lookup (walks the single-inheritance parent chain)")
 
 ; Look `selector` up in table `key` (methods | s-methods) along the class chain.
@@ -172,38 +266,61 @@
 ; #f = data used as-is (new-from; keyword store only).
 (def %instantiate
   (fn (_ class inits e eval?)
-    (let ((fields (%all-fields class)))
-      (let ((store (if eval?
-                     (%positional->store inits (%ctor-member-names class) fields class)
-                     inits)))
-        (%check-init-keys store fields class)
-        (let ((inst (%make-instance %object
-                      (list class (%init-fields fields store e eval?)))))
-          ; %init protocol hook (the initialize slot): a class's %init method,
-          ; if any, runs once the fields are built -- construction logic beyond
-          ; plain field values. Resolved through %lookup, so a child's override
-          ; wins and (super self %init) chains as usual. Fires on every
-          ; construction door (new, class-dispatch new, new-from).
-          (let ((m (%lookup class (lit methods) (lit %init))))
-            (unless (null? m) (apply m (list inst))))
-          inst)))))
+    ; fields (the %all-fields template) and the positional ctor order both
+    ; come from the class's hot record -- computed once per table build, not
+    ; re-walked per construction.
+    (let ((hot (%class-hot class)))
+      (let ((fields (first (rest (rest hot)))))
+        (let ((store (if eval?
+                       (%positional->store inits (first (rest (rest (rest hot)))) fields class)
+                       inits)))
+          (%check-init-keys store fields class)
+          (let ((inst (%make-instance %object
+                        (list class (%init-fields fields store e eval?)))))
+            ; %init protocol hook (the initialize slot): a class's %init
+            ; method, if any, runs once the fields are built -- construction
+            ; logic beyond plain field values. Resolved through the flat
+            ; table, so a child's override wins and (super self %init)
+            ; chains as usual. Fires on every construction door (new,
+            ; class-dispatch new, new-from).
+            (let ((itab (first hot)))
+              (let ((m (%tab-find! itab itab (lit %init))))
+                (unless (if (null? m) #t (eq? m %field-tag))
+                  (apply m (list inst)))))
+            inst))))))
 
 (note "Dispatch handlers")
 
-; Instance dispatch: a method (from the instance's class) wins; otherwise the
-; member is an instance field that (obj f) reads and (obj f v) writes.
+; Instance dispatch: resolve the selector in the class's flat table -- ONE
+; walk decides method vs field vs miss (a field read no longer pays a full
+; method-chain miss first). A method entry is re-driven through tail-eval:
+; the closure self-evaluates as head, the instance self-evaluates in arg
+; position, and C evaluates the raw arg forms once in the caller's env --
+; no per-arg eval closure, no apply save/restore, and the method call is a
+; genuine tail call (deep method recursion runs in constant C stack).
+; A table miss still consults the instance's own fields: set-member! can
+; add an undeclared key to ONE instance, which the class-wide table cannot
+; know about. NOTE: `rest` is the caller's raw form tail and is often a
+; C-BUILT STRUCTURAL SPINE (method bodies are), for which pair? answers #f
+; -- never pair?-test it; a dotted tail surfaces through %map1's improper-
+; list guard exactly as it always did.
 (def %object-dispatch
-  (op (self sel-raw . rest) e
-    (let ((selector (%selector sel-raw)))
-      (let ((method (%lookup (%obj-class self) (lit methods) selector)))
+  (op (self sel-raw . args) e
+    (let ((selector (%selector sel-raw))
+          (itab (first (%class-hot (%obj-class self)))))
+      (let ((entry (%tab-find! itab itab selector)))
         (match
-          ((not (null? method))
-            (apply method (pair self (%map1 (fn (_ a) (eval a e)) rest))))
-          ((%assoc-has? selector (%obj-fields self))
+          ((eq? entry %field-tag)
             (match
-              ((null? rest) (%assoc-get selector (%obj-fields self)))
-              (#t (%box-put! (%obj-box self) selector (eval (first rest) e)))))
-          (#t (error "object: no such member")))))))
+              ((null? args) (%assoc-get selector (%obj-fields self)))
+              (#t (%box-put! (%obj-box self) selector (eval (first args) e)))))
+          ((not (null? entry))
+            (tail-eval (pair entry (pair self args)) e))
+          ((%assoc-has? selector (%obj-fields self))   ; ad-hoc instance key
+            (match
+              ((null? args) (%assoc-get selector (%obj-fields self)))
+              (#t (%box-put! (%obj-box self) selector (eval (first args) e)))))
+          (#t (%dispatch-miss (%obj-class self) selector #f)))))))
 
 ; The de-dispatch door (#332): resolve a method ONCE and call it inside
 ; a hot loop with self as argument 0.  A stored method is a plain fn
@@ -212,31 +329,50 @@
 ; WRAP-flag branch).  Callers must NOT (wrap ...) the handle: that adds
 ; a SECOND evaluation pass over the already-evaluated values -- wasted
 ; work for self-evaluating values, a re-resolution bug for symbols.
-; Chain-aware via %lookup, so a subclass override keeps winning; the
-; traversals in protocol/seq.x are the canonical users -- (self done?
-; ...) per ELEMENT paid a selector, a chain walk, an arg-list
-; allocation and an apply, per element, per traversal.
-(def %class-method-of (fn (_ class sel) (%lookup class (lit s-methods) sel)))
+; Resolution goes through the flat table, so it is chain-aware (a
+; subclass override keeps winning); the traversals in protocol/seq.x
+; are the canonical
+; users -- (self done? ...) per ELEMENT paid a selector, a chain walk,
+; an arg-list allocation and an apply, per element, per traversal.
+(doc (def method-of
+  (fn (_ (param class CLASS "Class to resolve against")
+       (param sel SYMBOL "Static-method selector"))
+    (let ((stab (first (rest (%class-hot class)))))
+      (let ((entry (%tab-find! stab stab sel)))
+        (unless (eq? entry %field-tag) entry)))))
+  (returns CALLABLE "The resolved static method closure, or nil")
+  (note "The sanctioned de-dispatch door: resolve once, call directly in the hot")
+  (note "loop with the class as argument 0 -- ((method-of C 'step) C cur v).")
+  (note "Do NOT (wrap ...) the handle; a stored method already evaluates its")
+  (note "args exactly once at direct call.")
+  (see method-ref)
+  "Resolve a static method to a bare closure for hot-loop direct calls.")
+
+(def %class-method-of method-of)   ; historical internal name, same door
 
 (def %class-statics-box (fn (_ class) (%assoc-get (lit statics) (%class-data class))))
 (def %class-statics     (fn (_ class) (first (%class-statics-box class))))
 
-; Class dispatch: a static method wins; (Class new ...) builds an instance;
-; otherwise the member is a class-wide field that (Class f) reads, (Class f v) sets.
+; Class dispatch: one flat-table walk decides static method vs class-wide
+; member vs the new builtin -- the same tail-eval re-drive as instance
+; dispatch. A static METHOD named new is in the table and shadows the
+; builtin (as always); a static MEMBER named new was dropped at flatten,
+; so the builtin still wins there (as always).
 (def %class-dispatch
-  (op (self sel-raw . rest) e
-    (let ((selector (%selector sel-raw)))
-      (let ((method (%lookup self (lit s-methods) selector)))
+  (op (self sel-raw . args) e
+    (let ((selector (%selector sel-raw))
+          (stab (first (rest (%class-hot self)))))
+      (let ((entry (%tab-find! stab stab selector)))
         (match
-          ((not (null? method))
-            (apply method (pair self (%map1 (fn (_ a) (eval a e)) rest))))
-          ((eq? selector (lit new))                       ; (Class new k v ...): values are code
-            (%instantiate self rest e #t))
-          ((%assoc-has? selector (%class-statics self))
+          ((eq? entry %field-tag)
             (match
-              ((null? rest) (%assoc-get selector (%class-statics self)))
-              (#t (%box-put! (%class-statics-box self) selector (eval (first rest) e)))))
-          (#t (error "object: no such static member")))))))
+              ((null? args) (%assoc-get selector (%class-statics self)))
+              (#t (%box-put! (%class-statics-box self) selector (eval (first args) e)))))
+          ((not (null? entry))
+            (tail-eval (pair entry (pair self args)) e))
+          ((eq? selector (lit new))                   ; (Class new k v ...): values are code
+            (%instantiate self args e #t))
+          (#t (%dispatch-miss self selector #t)))))))
 
 ; --- Value-to-class call dispatch ---
 ; Build a TYPE call handler so an instance, called as (inst method . args),
@@ -282,10 +418,18 @@
           (pair obj (eval args e))
           (let ((sel (%selector (first args))))
             (if (symbol? sel)
-              (let ((m (%lookup class (lit s-methods) sel)))
-                (if (null? m)
-                  (error (%str-append "object: no such method " (symbol->str sel)))
-                  (apply m (pair class (%append (%map1 (fn (_ a) (eval a e)) (rest args)) (list obj))))))
+              ; Static-method resolve via the flat table; a static-member
+              ; marker is not callable here (same miss as before). The call
+              ; is re-driven through tail-eval: raw arg forms evaluate once
+              ; in the caller's env, and the receiver rides LAST, spliced as
+              ; (lit obj) so a list-valued subject is data, never a call.
+              (let ((stab (first (rest (%class-hot class)))))
+                (let ((m (%tab-find! stab stab sel)))
+                  (if (if (null? m) #t (eq? m %field-tag))
+                    (error (%str-append "object: no such method " (symbol->str sel)))
+                    (tail-eval
+                      (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
+                      e))))
               (pair obj (%data-echo (fn (_ a) (eval a e)) args)))))))))
 
 ; Variant for types that ALREADY have a call handler (indexing/matching): a
@@ -307,10 +451,18 @@
           (pair obj (eval args e))
           (let ((sel (%selector (first args))))
             (if (symbol? sel)
-              (let ((m (%lookup class (lit s-methods) sel)))
-                (if (null? m)
-                  (error (%str-append "object: no such method " (symbol->str sel)))
-                  (apply m (pair class (%append (%map1 (fn (_ a) (eval a e)) (rest args)) (list obj))))))
+              ; Static-method resolve via the flat table; a static-member
+              ; marker is not callable here (same miss as before). The call
+              ; is re-driven through tail-eval: raw arg forms evaluate once
+              ; in the caller's env, and the receiver rides LAST, spliced as
+              ; (lit obj) so a list-valued subject is data, never a call.
+              (let ((stab (first (rest (%class-hot class)))))
+                (let ((m (%tab-find! stab stab sel)))
+                  (if (if (null? m) #t (eq? m %field-tag))
+                    (error (%str-append "object: no such method " (symbol->str sel)))
+                    (tail-eval
+                      (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
+                      e))))
               (apply prior (pair obj (%data-echo (fn (_ a) (eval a e)) args))))))))))
 
 ; Install value-to-class method dispatch OVER a type's existing call handler:
@@ -377,17 +529,24 @@
 (note "Inheritance")
 
 (doc (def super
-  (op (self-expr sel-raw . rest) e
+  (op (self-expr sel-raw . args) e
     (let ((inst (eval self-expr e)) (selector (%selector sel-raw)))
       (if (not (object? inst))
         (error "object: super works only inside an instance method")
         ; %super-class is the parent of the class that DEFINED this method (bound by
         ; def-class in the method's scope), so super resolves to the right level even
         ; when the method is inherited by a deeper subclass -- no self-recursion.
-        (let ((method (%lookup (eval (lit %super-class) e) (lit methods) selector)))
-          (if (null? method)
-            (error "object: super has no parent method")
-            (apply method (pair inst (%map1 (fn (_ a) (eval a e)) rest)))))))))
+        ; Resolution goes through the parent's flat itab (chain-merged, so a
+        ; grandparent method is found exactly as the old chain walk did); a
+        ; field marker is not a method. tail-eval re-drives the call: raw
+        ; arg forms evaluate once, and the super call is a genuine tail call.
+        (let ((sc (eval (lit %super-class) e)))
+          (let ((method (if (null? sc) ()
+                          (let ((itab (first (%class-hot sc))))
+                            (%tab-find! itab itab selector)))))
+            (if (if (null? method) #t (eq? method %field-tag))
+              (error "object: super has no parent method")
+              (tail-eval (pair method (pair inst args)) e))))))))
   (note "Selector is literal: (super self method args...). Instance methods only.")
   (note "Resolves from the parent of the method's DEFINING class, so it is correct")
   (note "through multi-level inheritance.")
@@ -409,11 +568,27 @@
   (op (target-expr sel) e
     (let ((target (eval target-expr e)))
       (fn (_ . args)
-        (eval
-          (pair (list (lit lit) target)
-            (pair (list (lit lit) sel)
-              (%map1 (fn (_ a) (list (lit lit) a)) args)))
-          e)))))
+        ; Late-bound by contract: resolve per call (so a rebuilt table is
+        ; honoured), but through the flat tables -- a method hit applies the
+        ; closure directly on the already-evaluated args, no form rebuild.
+        ; A member (field marker) or non-class target falls back to driving
+        ; the normal dispatch form, values spliced as (lit V) literals so
+        ; nothing re-evaluates.
+        (let ((entry
+                (if (class? target)
+                  (let ((stab (first (rest (%class-hot target)))))
+                    (%tab-find! stab stab sel))
+                  (if (object? target)
+                    (let ((itab (first (%class-hot (%obj-class target)))))
+                      (%tab-find! itab itab sel))
+                    ()))))
+          (if (if (null? entry) #t (eq? entry %field-tag))
+            (eval
+              (pair (list (lit lit) target)
+                (pair (list (lit lit) sel)
+                  (%map1 (fn (_ a) (list (lit lit) a)) args)))
+              e)
+            (apply entry (pair target args))))))))
   (note "Selector is literal: (method-ref Class method). Works for static and instance methods.")
   (example "(List map (method-ref Str upcase) (list \"a\" \"b\"))" "(\"A\" \"B\")")
   (see def-class)
@@ -964,7 +1139,7 @@
                 (loop (rest members) inits e eval?)))))))
 
 (doc (provide x/type/class
-  def-class new new-from super method-ref
+  def-class new new-from super method-ref method-of
   object? class? class-of class-name class-parent instance-of?
   class-members class-methods class-static-members class-static-methods
   %class-call-handler %bind-call-over!)

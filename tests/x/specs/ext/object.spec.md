@@ -880,3 +880,88 @@ live view, not a snapshot.
 ```
 ---
     (2 2)
+
+## flat-table dispatch
+
+Dispatch resolves selectors in a flat, chain-merged per-class table built
+lazily and cached on the class (most-derived wins; a method beats a
+same-named member). Method calls are re-driven through tail-eval, so a
+method call in tail position is a genuine tail call.
+
+### override precedence holds through three levels
+
+```x
+(do
+  (def-class A () (method who (self) 'a) (method only-a (self) 'oa))
+  (def-class B (extends A) (method who (self) 'b))
+  (def-class C (extends B))
+  (def c (new C))
+  (list (c who) (c only-a)))
+```
+---
+    ('b 'oa)
+
+### deep method recursion runs in constant C stack
+
+```x
+(do
+  (def-class R ()
+    (method down (self n) (if (= n 0) 'done (self down (- n 1)))))
+  ((new R) down 30000))
+```
+---
+    'done
+
+### a miss names the class and the selector
+
+```x
+(do
+  (def-class Empty ())
+  (guard (e e) ((new Empty) nope)))
+```
+---
+    "Empty: no such member nope"
+
+### a static miss names the class and the selector
+
+```x
+(do
+  (def-class Lone ())
+  (guard (e e) (Lone nope)))
+```
+---
+    "Lone: no such static member nope"
+
+### method-of resolves a static to a directly callable closure
+
+```x
+(do
+  (def-class M () (static (method twice (self n) (* 2 n))))
+  ((method-of M 'twice) M 21))
+```
+---
+    42
+
+### method-of sees a subclass override
+
+```x
+(do
+  (def-class A () (static (method tag (self) 'a)))
+  (def-class B (extends A) (static (method tag (self) 'b)))
+  ((method-of B 'tag) B))
+```
+---
+    'b
+
+### an ad-hoc set-member! key stays reachable through dispatch
+
+```x
+(do
+  (def-class P () x
+    (method poke (self) (set-member! 'extra 7)))
+  (def p (new P x 1))
+  (p poke)
+  (p extra))
+```
+---
+    7
