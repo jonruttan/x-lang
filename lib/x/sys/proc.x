@@ -15,19 +15,26 @@
 
 (def-class Proc ()
   (doc "Argv-based child processes: run and wait, or run and capture stdout."
-    (note "Status convention: 0-255 = the child's exit code; 127 = exec never happened (command absent); 128+N = killed by signal N. Callers branch on = 127 for command-absent (the %pin-download! contract).")
+    (note "Status convention: 0-255 = the child's exit code; 125 = the child died before exec (an error between fork and exec -- the child never escapes); 127 = exec never happened (command absent); 128+N = killed by signal N. Callers branch on = 127 for command-absent (the %pin-download! contract).")
     (see run!) (see capture))
   (static
     (method run! (self (param argv LIST "Command and arguments, e.g. (list \"curl\" \"-fsSL\" url)"))
       (doc "Fork/exec argv; wait; return how the child ended."
         (returns INT "Exit status; 127 = exec failed; 128+N = signal death")
         (example "(Proc run! (list \"/bin/sh\" \"-c\" \"exit 3\"))" "3"))
-      ; The child must die on exec failure or a second interpreter
-      ; continues this very program (the %pin-run! rule, homed here).
+      ; The child must die on exec failure -- AND on any failure at all
+      ; between fork and exec: an uncaught error there aborts the form
+      ; and drops a SECOND INTERPRETER back into the caller's control
+      ; flow, sharing the parent's stdin; under a spec batch each escaped
+      ; child re-runs the remaining program and forks again -- the fork
+      ; bomb that OOM-killed the 16GB CI runner. guard-everything + hard
+      ; exits is the whole rule (the %pin-run! rule, homed here).
+      ; 125 = died before exec; 127 = exec itself failed.
       (let ((pid (Sys fork)))
         (match
           ((= pid 0)
-            (do (Sys exec (first argv) (rest argv))
+            (do (guard (e (Sys exit 125))
+                  (Sys exec (first argv) (rest argv)))
                 (Sys exit 127)))
           (#t (Sys wait pid)))))
     ; Child-side prologue for the -with variants (#364): applied between
@@ -50,8 +57,13 @@
       (let ((pid (Sys fork)))
         (match
           ((= pid 0)
-            (do (Proc %child-prep opts)
-                (Sys exec (first argv) (rest argv))
+            ; Same child-must-die rule as run!: any catchable failure in
+            ; prep or exec exits 125 rather than escaping the fork arm.
+            ; %child-prep's own (Sys exit 126) for an unusable cwd passes
+            ; through -- exit is not an error.
+            (do (guard (e (Sys exit 125))
+                  (do (Proc %child-prep opts)
+                      (Sys exec (first argv) (rest argv))))
                 (Sys exit 127)))
           (#t (Sys wait pid)))))
 
@@ -64,11 +76,13 @@
         (let ((pid (Sys fork)))
           (match
             ((= pid 0)
-              (do (Sys close (first fds))
-                  (Sys dup2 (rest fds) 1)
-                  (Sys close (rest fds))
-                  (Proc %child-prep opts)
-                  (Sys exec (first argv) (rest argv))
+              ; child-must-die rule; see run!.
+              (do (guard (e (Sys exit 125))
+                    (do (Sys close (first fds))
+                        (Sys dup2 (rest fds) 1)
+                        (Sys close (rest fds))
+                        (Proc %child-prep opts)
+                        (Sys exec (first argv) (rest argv))))
                   (Sys exit 127)))
             (#t
               ; Same drain-before-wait rule as capture (see its comment).
@@ -89,10 +103,12 @@
         (let ((pid (Sys fork)))
           (match
             ((= pid 0)
-              (do (Sys close (first fds))
-                  (Sys dup2 (rest fds) 1)
-                  (Sys close (rest fds))
-                  (Sys exec (first argv) (rest argv))
+              ; child-must-die rule; see run!.
+              (do (guard (e (Sys exit 125))
+                    (do (Sys close (first fds))
+                        (Sys dup2 (rest fds) 1)
+                        (Sys close (rest fds))
+                        (Sys exec (first argv) (rest argv))))
                   (Sys exit 127)))
             (#t
               ; Drain the pipe BEFORE waiting: a child writing more than
