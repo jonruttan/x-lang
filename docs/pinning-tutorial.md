@@ -243,8 +243,9 @@ the same tagged source:
   — relocatable, no toolchain, no compile;
 - **amalgamated boot entries** (each dialect's full boot as one
   self-contained file), plus `SHASUMS` and `pin.release.xon` — per-file
-  digests and the **ISA fingerprint**: the digest of the C-surface
-  manifest the amalgams were built against.
+  digests, the **ISA fingerprint** (the digest of the C-surface manifest
+  the amalgams were built against) and the **payload fingerprint** (one
+  digest over everything the release ships as library).
 
 (`v0.4.0` below stands in for whichever tag you are pinning; check the
 [releases page](https://github.com/jonruttan/x-lang/releases) for what
@@ -284,11 +285,20 @@ pin: isa fingerprint matches this tree
 ```
 
 `boot` takes the amalgam's name from the manifest — no dialect symbol
-to repeat — and lifts the release's three facts (tag, ISA fingerprint,
-amalgam digest) into `deps.lock.xon`, then discards the downloaded
-release manifest. Two records of the same thing drift; one does not.
-A later `sync` carries those lines through untouched, so growing an
-import never silently unpins the language underneath it.
+to repeat — and lifts the release's facts (tag, ISA fingerprint,
+payload fingerprint, amalgam digest) into `deps.lock.xon`, then discards
+the downloaded release manifest. Two records of the same thing drift;
+one does not. A later `sync` carries those lines through untouched, so
+growing an import never silently unpins the language underneath it.
+
+The tag is the one the wrapper enforces. Run this pinned project on an
+engine from a *different* release and it refuses to boot, naming both
+tags and the two ways out — move the pin with `(Pin boot "<the engine's
+tag>")`, or install the engine the pin names. The refusal exists because
+the pair does not merely disagree, it crashes: an amalgam binds against
+the release's boot structure and library, not just the C surface the ISA
+fingerprint covers. `--allow-release-skew` (or `(allow-release-skew)` in
+the manifest) proceeds anyway, loudly.
 
 No curl on the machine? The fetch prints the URLs and stops — download
 by hand, then check with coreutils beside the files: `sha256sum -c
@@ -364,5 +374,5 @@ release tarball above, which carries the fingerprint by construction.
 | `(Pin unused "src")` | version files nothing scanned selects — safe to remove |
 | `(Pin fetch "boot" "vX.Y.Z" 'xe)` | download + verify an amalgam, no recording |
 | `<overlay>.lock.xon` | the overlay's integrity record (generated, beside it) |
-| `pin.release.xon` | a release's digests + ISA fingerprint (published) |
+| `pin.release.xon` | a release's digests + ISA and payload fingerprints (published) |
 | `(help Pin)` | the class's own documentation, in-session |

@@ -312,16 +312,26 @@ boot` and `tools/release/release-manifest.sh`, publishing a GitHub Release
 carrying the amalgamated boot entries (`build/boot/*.x`, discovered —
 never a hand list), `SHASUMS` (coreutils format), and
 `pin.release.xon` — the machine-readable manifest (xon) with each
-file's sha256 and the **ISA fingerprint**: the digest of `tools/contract/isa.x`,
-the C-surface contract the amalgams were built against (`make
-check-isa` holds manifest == binary). The workflow also cross-checks
+file's sha256, the **ISA fingerprint** (the digest of `tools/contract/isa.x`,
+the C-surface contract the amalgams were built against; `make
+check-isa` holds manifest == binary) and the **payload fingerprint**
+(one digest over `lib`, `apps` and `boot`, from
+`tools/release/payload-digest.sh`). The ISA fingerprint is a
+compatibility key and cannot serve as an identity one: the C surface is
+fixed by design, so it is identical across releases. The payload
+fingerprint and the tag are what distinguish them, and the tag is what
+the wrapper enforces when booting a pinned amalgam. The workflow also cross-checks
 the pure-x `Sha256` against coreutils on that fingerprint, and `make
 check-release-manifest` gates the manifest script on every test run so
 it cannot rot between releases.
 
 The same tag also builds a relocatable per-platform binary tarball
 (`tools/release/package.sh`, gated by `make check-package`) and uploads it with
-a `.sha256` sidecar.
+a `.sha256` sidecar. Each tarball's install tree is stamped with the tag
+(`share/x/contract/release`, reported in the language as `x-release`)
+and the payload fingerprint; `package.sh` fails the job unless its stamp
+matches both the tree it shipped and the repo the release manifest was
+computed from.
 
 #### macOS notarization (opt-in via repository secrets)
 

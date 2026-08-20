@@ -123,6 +123,7 @@ shquote() {
 file=""
 file1=""
 no_pin=""
+allow_skew=""
 boot_file=""
 verbose=""
 xflags=""
@@ -145,6 +146,8 @@ display_help() {
 	echo "  -q, --quiet     suppress the startup banner"
 	echo "      --no-color  disable ANSI colour in the REPL"
 	echo "      --no-pin    ignore any $X_PIN manifest"
+	echo "      --allow-release-skew  boot a pinned amalgam whose release"
+	echo "                  differs from this engine's (it may crash)"
 	echo "  -v, --verbose   display extra output"
 	echo "  -V, --version   display version and exit"
 }
@@ -191,6 +194,10 @@ do
 			no_pin=1
 			shift
 			;;
+		--allow-release-skew)
+			allow_skew=1
+			shift
+			;;
 		--boot)
 			boot_file="$2"
 			shift 2
@@ -204,11 +211,15 @@ do
 			# library on the pipe the bare C loop evaluates but cannot
 			# print -- display/write are library code (the printer is
 			# x-level, boot/printer.x).  So boot the entry in batch mode
-			# and let IT print.  Two versions on purpose: x-lib-version is
-			# the library (what the banner shows), x-version the x-expr
-			# engine -- they are different numbers and drift independently.
+			# and let IT print.  THREE numbers on purpose, and they
+			# answer different questions: x-lib-version is the library's
+			# (what the banner shows), x-version the x-expr expression
+			# layer's, and x-release which RELEASE this engine is -- the
+			# only one of the three that distinguishes two releases whose
+			# C never changed (#435), and the key the pairing guard below
+			# compares.
 			{ root_form; cat "${ENTRY_DIR}${X_LIB}${X_EXT}"; \
-				printf '(display %%lang-name)(display " ")(display x-lib-version)(display " (engine ")(display x-version)(display ")")(newline)\n'; } \
+				printf '(display %%lang-name)(display " ")(display x-lib-version)(display " (release ")(display x-release)(display ", engine ")(display x-version)(display ")")(newline)\n'; } \
 				| "$X_BIN" "--batch"
 			exit 0
 			;;
@@ -306,6 +317,18 @@ if [ -z "$boot_file" ] && [ -n "$PIN_FILE" ]; then
 	fi
 fi
 
+# The release-skew opt-out, the manifest's second wrapper-consumed form
+# (#435).  A project that KNOWINGLY runs a pinned amalgam against another
+# release's engine says so once, in the manifest, instead of every runner
+# remembering the flag; --allow-release-skew is the same decision made per
+# invocation.  Zero arguments, alone on its line, textual like (boot ...) --
+# and the loader still shape-checks it under the closed vocabulary.
+if [ -z "$allow_skew" ] && [ -n "$PIN_FILE" ] && [ -f "$PIN_FILE" ]; then
+	if grep -q '^[[:space:]]*(allow-release-skew)[[:space:]]*$' "$PIN_FILE"; then
+		allow_skew=1
+	fi
+fi
+
 # Save terminal stdin as fd 3 so x-lang can reclaim it after the pipe
 # (the pipe dies on ctrl-c; fd 3 survives for the REPL)
 exec 3<&0
@@ -376,6 +399,7 @@ if [ -n "$boot_file" ]; then
 		_rel="$(dirname "$ENTRY")/pin.release.xon"
 	fi
 	_mine="$INSTALL_ROOT/contract/isa.sha256"
+	_mine_rel="$INSTALL_ROOT/contract/release"
 	if [ -n "$INSTALL_ROOT" ] && [ ! -f "$_rel" ]; then
 		echo "x.sh: boot pin armed but no lock found (no <root>.lock.xon for any manifest root, no pin.release.xon) -- engine pairing unchecked; run (Pin boot) to write the lock" >&2
 	fi
@@ -395,6 +419,74 @@ if [ -n "$boot_file" ]; then
 			echo "  this engine's:                $_have" >&2
 			echo "  pair the amalgam with its own release's engine (same tag)" >&2
 			exit 1
+		fi
+	fi
+
+	# RELEASE CHECK (#435).  The isa comparison above is a compatibility
+	# test, and a correct one -- but it cannot answer THIS question.
+	# tools/contract/isa.x is the C surface, deliberately fixed: it is
+	# byte-identical across v0.3.1-rc10, v0.4.0 and v0.5.0, as are
+	# obj-layout.x, base-paths.x and base-layout.x.  Meanwhile lib/ moved
+	# 83 files between the first two.  An amalgam binds against far more
+	# than the C surface -- boot structure, object-model conventions, the
+	# library it will import from -- and none of that is in the
+	# fingerprint, so the guard passed a v0.3.1-rc10 amalgam onto a v0.4.0
+	# engine and the boot died on `KERN_INVALID_ADDRESS at 0x696200646e696245`:
+	# a string dereferenced as an object pointer, no diagnosis, the exact
+	# silent SIGSEGV #187 was closed to prevent.
+	#
+	# The release TAG is the key that cannot under-approximate: two
+	# releases are different releases, whatever their C surface did.  The
+	# lock has recorded it since the boot verb was written ((release
+	# "vX.Y.Z")), so this guard also protects projects pinned long before
+	# it existed; `make install` now stamps the engine's own beside the
+	# library.  Both sides are recorded strings again -- a compare before
+	# the amalgam reaches the engine, the only place a refusal can still
+	# be one.
+	if [ -n "$INSTALL_ROOT" ] && [ -f "$_rel" ] && [ ! -f "$_mine_rel" ]; then
+		# Wrapper new, install tree old: the tree predates the stamp, so
+		# the check cannot run.  Say so -- a guard that disappears without
+		# a word is worse than none (#313).
+		echo "x.sh: boot pin armed but this install tree carries no release stamp -- release pairing unchecked; reinstall to stamp it" >&2
+	fi
+	if [ -n "$INSTALL_ROOT" ] && [ -f "$_rel" ] && [ -f "$_mine_rel" ]; then
+		_wantr=$(sed -n 's/^[[:space:]]*(release "\([^"]*\)").*/\1/p' "$_rel" | head -1)
+		_haver=$(cat "$_mine_rel")
+		if [ -z "$_wantr" ]; then
+			echo "x.sh: boot pin armed but no release tag readable in $_rel -- release pairing unchecked; re-run (Pin boot <tag>) to rewrite the lock" >&2
+		fi
+		if [ -n "$_wantr" ] && [ "$_wantr" != "$_haver" ]; then
+			if [ -n "$allow_skew" ]; then
+				echo "x.sh: release skew allowed -- amalgam is $_wantr, engine is $_haver; a crash here is this pairing, not your program" >&2
+			else
+				echo "Error: pinned boot amalgam is from a different release than this engine" >&2
+				echo "  amalgam: $ENTRY" >&2
+				echo "  its release:  $_wantr" >&2
+				echo "  this engine:  $_haver" >&2
+				echo "  the isa fingerprint cannot catch this -- it is the C surface, and" >&2
+				echo "  it is identical across these releases; the amalgam binds against" >&2
+				echo "  more than that, so a mismatched pair segfaults mid-boot." >&2
+				# "Move the pin to this engine" is only advice when this
+				# engine IS a release: `Pin boot` fetches the tag it is
+				# given, and no release is published for a locally built
+				# engine's `git describe` answer (v0.4.0-29-gbcb10a9,
+				# -dirty, or a bare "dev" outside a git tree).  Naming a
+				# remedy that cannot work sends the reader in a circle.
+				_looks_released=
+				case "$_haver" in
+					*-dirty | *-g[0-9a-f]*) ;;
+					v[0-9]*) _looks_released=1 ;;
+				esac
+				if [ -n "$_looks_released" ]; then
+					echo "  Fix by moving the pin:  (Pin boot \"$_haver\")" >&2
+					echo "  or install the $_wantr engine; --allow-release-skew overrides." >&2
+				else
+					echo "  This engine is a local build, not a published release, so there" >&2
+					echo "  is no pin to move it to: install the $_wantr engine to run this" >&2
+					echo "  project, or pass --allow-release-skew to try anyway." >&2
+				fi
+				exit 1
+			fi
 		fi
 	fi
 fi
