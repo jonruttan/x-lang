@@ -919,3 +919,48 @@ one.
 ```
 ---
     #t
+
+## pin: sync never vendors the project's own modules (#223)
+
+A manifest may list the project itself as a root -- its modules are
+already in the repo, versioned; that is what the root declares.  Sync
+arms those roots for its scan (so the closure walk resolves them even
+unarmed), walks their files for imports (their PLATFORM deps must
+land), and vendors only what resolves to the platform.
+
+### own modules are walked but not vendored; their platform deps land
+
+```scheme
+(do
+  (Pin %pin-mkdirs "build/pin-spec/own/src")
+  (Pin %pin-mkdirs "build/pin-spec/own/ownmod")
+  (Pin %pin-mkdirs "build/pin-spec/own/dep")
+  (File write-all "build/pin-spec/own/pin.xon"
+    "(root \"dep\")\n(root \".\")\n(src \"src\")\n")
+  (File write-all "build/pin-spec/own/src/app.x"
+    "(import acme/three)\n(import ownmod/util)\n")
+  (File write-all "build/pin-spec/own/ownmod/util.x"
+    "(import acme/four)\n(provide ownmod/util)\n")
+  (write (Pin sync "build/pin-spec/own")))
+```
+---
+    ("acme/three.x" "acme/four.x")
+
+### the project's own module is NOT in the overlay
+
+```scheme
+(display (File exists? "build/pin-spec/own/dep/ownmod/util.x"))
+```
+---
+    #f
+
+### re-sync is stable: same answer, still no self-copy
+
+```scheme
+(do
+  (write (Pin sync "build/pin-spec/own"))
+  (display " ")
+  (display (File exists? "build/pin-spec/own/dep/ownmod/util.x")))
+```
+---
+    ("acme/three.x" "acme/four.x") #f
