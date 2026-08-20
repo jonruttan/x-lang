@@ -15,8 +15,8 @@ This document covers the core functions loaded by `lib/x.x` (the base x-lang dia
 |----------|------|----------|
 | Boot | `lib/x/boot/` | Operatives, data constructors, strings, module system |
 | Core | `lib/x/core/` | Combinators, lists (60+ functions), logic, math, syntax, control, quasiquote, REPL |
-| Types | `lib/x/type/` | Characters, strings, vectors, promises, regex, objects, iterators |
-| Numeric | `lib/x/num/` | Bigint, float, rational, complex, tower helpers |
+| Types | `lib/x/type/` | Characters, strings, vectors, promises, regex, objects, records, traits, generics, iterators |
+| Numeric | `lib/x/num/` | Bigint, float, rational, complex, and the tower mixed-type policy (`x/num/tower`) |
 | System | `lib/x/sys/` | POSIX, FFI, tokenizer, type system, conversions, GC, file I/O |
 | Tools | `lib/x/tool/` | Linter, formatter, coverage, profiler, compiler, assembler |
 | Docs | `lib/x/doc/` | Inline documentation, doc generator, primitive docs |
@@ -968,6 +968,62 @@ Returns `#t` if `inst` is an instance of `class` or any of its subclasses.
 ```
 (instance-of? (new Point x 1 y 2) Point) -> #t
 ```
+
+### `(private ...)` / `(protected ...)` — class body blocks
+Enforced visibility for the members and methods declared inside:
+`private` = the defining class's methods only; `protected` = methods anywhere
+on its chain. Checked at the dispatch door (violations name class, selector,
+tier, and definer); opt-in per class; `(help)` still lists everything.
+
+### `method-of`
+`(method-of Class sel) -> closure | ()`
+The sanctioned de-dispatch door: resolves a static method once so a hot loop
+can call the bare closure directly — `((method-of C 'step) C cur v)`. Do not
+wrap the handle; a stored method already evaluates its arguments exactly once.
+
+### `def-method!` / `def-static!`
+`(C def-method! sel fn)` / `(C def-static! sel fn)`
+Add an instance / static method to a class after definition. `sel` and `fn`
+are evaluated (computed selectors work); the fn receives `(self . args)` and
+uses `(self f)` member access. Cached dispatch tables refold automatically.
+
+### `%init` / `%repr` / `%str` / `%missing` — protocol hooks
+Methods the runtime invokes: `%init` runs after every construction; `write`
+prefers a `%repr` returning a string, `display` prefers `%str`; a
+`(method %missing (self sel args) ...)` catches any dispatch miss (instance
+and static sides, inherited). Without `%missing` a miss errors naming the
+class and selector.
+
+### `def-record`
+`(def-record Name field... )` — a data-carrier class: the ordinary
+positional/keyword constructor and field doors, plus `(r with 'field v ...)`
+(functional update, quoted keys) and `(r =? other)` (structural equality —
+a method; `eq?`/`same?` keep identity).
+```
+(do (def-record Pt x y) (def p (new Pt 1 2)) (list (p x) ((p with 'y 9) y) (p =? (new Pt 1 2)))) -> (1 9 #t)
+```
+
+### `def-generic` / `on` — `x/type/generic`
+`(def-generic g)` defines an open multi-argument generic (a callable value);
+`(on g ((a Class) b (c handle)) body...)` adds a method — class keys match
+instances (subclasses included), handle keys exactly, bare names anything.
+Pointwise specificity, cvt-lattice tie-break, errors naming candidates.
+`Generic add!` / `miss!` / `methods-of` are the computed-registration,
+miss-handler, and introspection doors.
+
+### `def-trait` / `with` / `delegates` — `x/type/trait`
+`(def-trait T (require sel...) (method ...) (static ...))` bundles methods;
+`(with T...)` in a `def-class` body mixes them in (own > trait > inherited;
+collisions and unmet requires refuse at definition). `(delegates field
+(sel... (theirs ours)...))` generates late-bound forwarders to a field's
+value — the wrapper relationship stated once.
+
+### `num+ num- num* num/ num% num< num=` — `x/num/tower`
+The tower's mixed-type policy as callable generics: same-type pairs stay on
+each numeric module's fast worker; a mixed pair promotes through the cvt
+from-lattice (the absorbing module's own coercion formula); an unrelated
+pair errors naming both types. `(import x/num/tower)` whenever two numeric
+modules meet.
 
 ---
 

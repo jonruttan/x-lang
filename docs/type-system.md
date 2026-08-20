@@ -67,39 +67,53 @@ Flags `0x01`–`0x08` are app-defined attribute bits; the `WRAP` alias (`0x01`) 
 
 ### The Type Contract
 
-A type definition is a `struct x_type_t` with 14 fields:
+A type definition is a `struct x_type_t` with 19 fields:
 
 ```c
 struct x_type_t {
     x_obj_t *p_name;       /* type name atom                */
     x_obj_t *p_data;       /* type-specific data            */
+    x_obj_t *p_mark;       /* GC mark hook (C fn only)      */
     x_obj_t *p_make;       /* constructor                   */
-    x_obj_t *p_free;       /* destructor                    */
+    x_obj_t *p_free;       /* destructor (C fn only)        */
     x_obj_t *p_clone;      /* copy constructor              */
-    x_obj_t *p_units;      /* memory unit count             */
-    x_obj_t *p_length;     /* element count                 */
+    x_obj_t *p_units;      /* traced slot count (int; -1 =  */
+    x_obj_t *p_length;     /*   dynamic) / element count    */
     x_obj_t *p_call;       /* invocation handler            */
     x_obj_t *p_eval;       /* evaluation handler            */
     x_obj_t *p_from;       /* inbound conversion alist      */
     x_obj_t *p_to;         /* outbound conversion alist     */
     x_obj_t *p_analyse;    /* parser/tokenizer handler      */
     x_obj_t *p_delimit;    /* delimiter detection handler   */
+    x_obj_t *p_read;       /* reader handler                */
     x_obj_t *p_write;      /* output/serialization handler  */
+    x_obj_t *p_display;    /* human-readable output handler */
+    x_obj_t *p_iter;       /* iterator builder              */
+    x_obj_t *p_ops;        /* operator handler alist        */
 };
 ```
 
-At runtime, this struct is stored as nested pairs:
+At runtime, this struct is stored as nested pairs (every leaf a
+`(current . saved)` stack, which is what the `type-push-*` registry
+operations manipulate without C):
 
 ```
 (
-  name                              ; field 0
-  data                              ; field 1
-  (make free clone units length)    ; field 2 — heap tuple
-  (call eval)                       ; field 3 — proc tuple
-  (from to)                         ; field 4 — cvt tuple
-  (analyse delimit write)           ; field 5 — io tuple
+  name                                   ; field 0
+  data                                   ; field 1
+  (mark make free clone units length)    ; field 2 — heap group
+  (call eval)                            ; field 3 — proc group
+  (from to)                              ; field 4 — cvt group
+  (analyse delimit read write display)   ; field 5 — io group
+  (iter)                                 ; field 6 — iter group
+  (ops)                                  ; field 7 — ops group
 )
 ```
+
+The `ops` alist — `((op-sym . handler) ...)` — is the door the seven C
+operators (`+ - * / % = <`) dispatch through; the from-conversion alist
+doubles as the arbitration relation when both operands carry handlers (see
+"One model, four doors" in [Object System](object-system.md)).
 
 Nil fields indicate the type does not implement that method. The dispatch system checks for nil before invoking.
 
@@ -242,7 +256,15 @@ Handler closures follow the universal self-passing convention: the closure
 itself arrives as argument 0 (the `_` slot), then the instance, then any
 call arguments.
 
-Supported handler keys: `call`, `eval`, `from`, `to`, `analyse`, `delimit`, `write`, `length`, `iter`. The `iter` handler is `(fn (_ obj) -> iterator)`; it makes `(iter obj)` build an iterator over the type's values (see the Iterators section of the standard library).
+Supported handler keys: `call`, `eval`, `write`, `display`, `length`,
+`analyse`, `delimit`, `read`, `from`, `to`, `units`, `free`, `mark`, `iter`,
+`ops`. The `iter` handler is `(fn (_ obj) -> iterator)`; it makes `(iter obj)`
+build an iterator over the type's values (see the Iterators section of the
+standard library). `units` is an **int**, not a function — the count of traced
+instance slots, with `-1` the dynamic sentinel (slot 0 holds the payload
+count). Caution: `mark`, `free`, and `length` are invoked as raw C function
+pointers — installing an x-lang closure in them crashes; use `units` for GC
+traversal instead.
 
 Returns a type handle (the name atom) used to create instances and check types.
 
