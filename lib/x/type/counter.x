@@ -18,6 +18,15 @@
 
   d  ; the backing Dict: value -> count
 
+  ; Uninitialized guard, unified with Set's: an instance built outside
+  ; make (generic new, raw new-from) has a nil dict member; every op
+  ; funnels through %d so first USE raises the teaching error instead of
+  ; calling nil -- the drift between the two Dict-backed wrappers (Set
+  ; guarded, Counter raw) is closed on the guarded side.
+  (method %d (self)
+    (when (null? (member 'd)) (Err raise 'state "Counter: uninitialized instance (use Counter make / from-list)" ()))
+    (member 'd))
+
   (static
     (method make (self)
       (doc "An empty counter."
@@ -37,43 +46,43 @@
                      . (param n INT "Tally increment; default 1 (negative decrements)"))
     (doc "Add n (default 1) to x's tally. Returns the counter for chaining; a tally may go negative -- the counter records what it is told."
       (returns Counter "self"))
-    (let ((d (member 'd)))
+    (let ((d (self %d)))
       (d set! x (+ (d get-or 0 x) (if (null? n) 1 (first n)))))
     self)
 
   (method get (self (param x ANY "Value to read"))
     (doc "x's tally; 0 when x was never added -- absence and zero read alike, the counting convention."
       (returns INT "The tally"))
-    ((member 'd) get-or 0 x))
+    ((self %d) get-or 0 x))
 
   (method del! (self (param x ANY "Value to forget"))
     (doc "Drop x's tally entirely (get returns 0 afterwards). Returns the counter for chaining."
       (returns Counter "self"))
-    ((member 'd) del! x)
+    ((self %d) del! x)
     self)
 
   (method total (self)
     (doc "The sum of every tally."
       (returns INT "Sum of counts")
       (example "(let ((c (Counter from-list (list 'a 'b 'a)))) (c total))" "3"))
-    (List fold (fn (_ acc e) (+ acc (rest e))) 0 ((member 'd) ->alist)))
+    (List fold (fn (_ acc e) (+ acc (rest e))) 0 ((self %d) ->alist)))
 
   (method keys (self)
     (doc "Every value holding a tally (order unspecified -- the Dict's table order)."
       (returns LIST "The tallied values"))
-    ((member 'd) keys))
+    ((self %d) keys))
 
   (method ->alist (self)
     (doc "The tallies as ((value . count) ...), order unspecified."
       (returns ALIST "(value . count) pairs"))
-    ((member 'd) ->alist))
+    ((self %d) ->alist))
 
   (method most-common (self . (param n INT "How many entries; default all"))
     (doc "The tallies as ((value . count) ...) sorted by count, largest first (ties in table order -- the sort is stable); pass n for just the top n."
       (returns ALIST "(value . count) pairs, descending by count")
       (example "(let ((c (Counter from-list (list 'a 'b 'a 'c 'a 'b)))) (c most-common 2))" "(('a . 3) ('b . 2))"))
     (let ((ranked (List sort (fn (_ a b) (> (rest a) (rest b)))
-                    ((member 'd) ->alist))))
+                    ((self %d) ->alist))))
       (if (null? n) ranked (List take (first n) ranked)))))
 
 (doc (provide x/type/counter Counter)

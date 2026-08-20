@@ -285,6 +285,24 @@
       ((if (pair? entry) #t #f) ())
       (#t entry))))
 
+; Forwarder engine for the `delegates` def-class form: resolve `sel` on
+; the delegate value's own tables per call (late-bound, like method-ref)
+; and apply directly on the already-evaluated args. Methods only: a
+; delegate's FIELD is reached by writing the one-line method by hand.
+(def %delegate-call
+  (fn (_ target sel args)
+    (let ((entry
+            (if (object? target)
+              (let ((itab (first (%class-hot (%obj-class target)))))
+                (%entry-method (%tab-find! itab itab sel)))
+              (if (class? target)
+                (let ((stab (first (rest (%class-hot target)))))
+                  (%entry-method (%tab-find! stab stab sel)))
+                ()))))
+      (if (null? entry)
+        (error (%str-append "delegates: no such method " (symbol->str sel)))
+        (apply entry (pair target args))))))
+
 ; A class's hot record, built on first dispatch. Lives in the class
 ; object's SLOT 1 -- the free traced slot make-instance leaves nil -- while
 ; slot 0 keeps the cold authoritative alist. No staleness probe on the hot
@@ -1101,7 +1119,9 @@
               (if (eq? (first f) (lit method)) #t
                 (if (eq? (first f) (lit static)) #t
                   (if (eq? (first f) (lit interface)) #t
-                    (%class-doc-form? f))))          ; skip methods, statics, interface, class doc
+                    (if (eq? (first f) (lit with)) #t
+                      (if (eq? (first f) (lit delegates)) #t
+                        (%class-doc-form? f))))))    ; skip methods/statics/interface/with/delegates/class doc
               #f)
           (loop class-name (rest forms) e thunk?)
           (let ((decl (%member-decl f)))
@@ -1269,28 +1289,107 @@
       (let ((dform (%find-doc-form body)))           ; class-level (doc ...) -> doc registry
         (unless (null? dform) (%stash-class-doc! name dform)))
       (def %sx (%explode-vis (%find-form body (lit static))))
+      ; Traits (x/type/trait): every (with T...) form's traits, in order.
+      ; Their stored method FORMS build with the ordinary builder against
+      ; THIS class's box -- super resolves on the host's chain -- in the
+      ; TRAIT's captured env, so the body's free names resolve where the
+      ; trait was written. Contributions append AFTER own methods: the
+      ; flattener's first-sight rule makes own > trait > inherited. Two
+      ; traits supplying one selector with no own override refuse here,
+      ; naming both. `delegates` forwarders ride the same append.
+      (def %with-traits
+        (fn (loop fs acc)
+          (match
+            ((null? fs) acc)
+            ((if (pair? (first fs)) (eq? (first (first fs)) (lit with)) #f)
+              (loop (rest fs)
+                (%append2 acc
+                  (%map (fn (_ tx)
+                          (let ((t (eval tx e)))
+                            ; the trait tag is a pair whose head is the
+                            ; interned symbol %trait (trait.x's unforgeable
+                            ; list); shape-checked here because the tag
+                            ; value itself lives in a later-loading module
+                            (if (if (pair? t)
+                                  (if (pair? (first t)) (eq? (first (first t)) (lit %trait)) #f)
+                                  #f)
+                              t
+                              (error "def-class: (with ...) takes trait values (see def-trait)"))))
+                    (rest (first fs))))))
+            (#t (loop (rest fs) acc)))))
+      (def %trait-conflict!
+        (fn (loop rows own seen)
+          (unless (null? rows)
+            (do
+              (let ((sel (first (first rows))))
+                (unless (%member-key? sel own)
+                  (when (%member-key? sel seen)
+                    (error (%str-append (symbol->str name)
+                      (%str-append ": traits collide on "
+                        (%str-append (symbol->str sel) " -- add an own override")))))))
+              (loop (rest rows) own (pair (first rows) seen))))))
+      (def %delegates-methods
+        (fn (loop fs acc)
+          (match
+            ((null? fs) acc)
+            ((if (pair? (first fs)) (eq? (first (first fs)) (lit delegates)) #f)
+              (let ((acc2 (%append2 acc
+                            (%map (fn (_ spec)
+                                    (let ((theirs (if (pair? spec) (first spec) spec))
+                                          (ours (if (pair? spec) (first (rest spec)) spec)))
+                                      (pair ours
+                                        (eval
+                                          (list (lit fn)
+                                            (pair (lit _) (pair (lit self) (lit args)))
+                                            (list (lit %delegate-call)
+                                              (list (lit self) (list (lit lit) (first (rest (first fs)))))
+                                              (list (lit lit) theirs)
+                                              (lit args)))
+                                          e))))
+                              (first (rest (rest (first fs))))))))
+                (loop (rest fs) acc2)))
+            (#t (loop (rest fs) acc)))))
       (let ((p (%resolve-parent parent e))
             (sblock (first %sx))
             (svis (rest %sx))
+            (traits (%with-traits body ()))
             (tbox (list ())))                          ; %this-class box, filled below
         (let ((imems (%collect-members name body e #t))    ; instance members: per-construction defaults
               (smems (%collect-members name sblock e #f))) ; static members: once, class-wide
           (do
             (%check-dups! imems)
             (%check-dups! smems)
-            (let ((cls (%make-class
-                         name
-                         imems
-                         (%collect-methods name body #t tbox e)    ; instance methods: raw access + super
-                         p
-                         (%collect-methods name sblock #f tbox e)  ; static methods
-                         smems
-                         (%find-form body (lit interface))          ; declared interface (or ())
-                         ivis svis)))
-              (%set-first! tbox cls)                             ; methods can now see their class
-              (%check-interface! cls)                            ; error if a contract method is unmet
-              (%set-first! %class-registry (pair cls (first %class-registry)))
-              cls)))))))
+            (let ((own-im (%collect-methods name body #t tbox e))
+                  (own-sm (%collect-methods name sblock #f tbox e))
+                  (t-im (%fold (fn (_ acc t)
+                                 (%append2 acc (%collect-methods name (first (rest (rest (rest t)))) #t tbox
+                                                 (first (rest (rest (rest (rest (rest t)))))))))
+                          () traits))
+                  (t-sm (%fold (fn (_ acc t)
+                                 (%append2 acc (%collect-methods name (first (rest (rest (rest (rest t))))) #f tbox
+                                                 (first (rest (rest (rest (rest (rest t)))))))))
+                          () traits)))
+              (%trait-conflict! t-im own-im ())
+              (%trait-conflict! t-sm own-sm ())
+              (let ((cls (%make-class
+                           name
+                           imems
+                           (%append2 own-im (%append2 t-im (%delegates-methods body ())))
+                           p
+                           (%append2 own-sm t-sm)
+                           smems
+                           (%find-form body (lit interface))          ; declared interface (or ())
+                           ivis svis)))
+                (%set-first! tbox cls)                             ; methods can now see their class
+                (%check-interface! cls)                            ; error if a contract method is unmet
+                ; Trait requirements: each (require SEL...) name needs a
+                ; concrete definition somewhere on the chain (trait- and
+                ; delegate-supplied methods are in the tables by now).
+                (%for-each
+                  (fn (_ t) (%check-impls! cls (first (rest (rest t)))))
+                  traits)
+                (%set-first! %class-registry (pair cls (first %class-registry)))
+                cls))))))))
 
 (doc (def def-class
   (op (name parent . body)
