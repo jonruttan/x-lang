@@ -667,6 +667,19 @@
               (match
                 ((null? ok) (Pin %pin-bad "no manifest root yields a lock name -- name a directory root (a \".\" root cannot carry the lock)"))
                 (#t ok)))))))
+    ; Arm the project's own roots for a scan (#223) and hand back the
+    ; state a matching %pin-scan-restore! puts back: sync, check, and
+    ; any verb whose closure walk must resolve project-own names.
+    (method %pin-scan-arm! (self forms d dest)
+      (let ((own (%filter (fn (_ r) (not (str=? r dest)))
+                          (Pin %pin-manifest-args 'root forms d)))
+            (snapshot (first %import-roots-cell)))
+        (do (Pin %pin-arm! own)
+            (%set-first! (Pin %pin-own-roots-cell) own)
+            snapshot)))
+    (method %pin-scan-restore! (self snapshot)
+      (do (%set-first! %import-roots-cell snapshot)
+          (%set-first! (Pin %pin-own-roots-cell) ())))
     ; The default project directory for the verbs: "." unless given.
     (method %pin-dir-or-dot (self dir)
       (match ((null? dir) ".") (#t (first dir))))
@@ -1054,23 +1067,15 @@
       (let ((d (Pin %pin-dir-or-dot dir)))
         (let ((forms (Pin %pin-manifest-forms d)))
           (let ((dest (Pin %pin-need 'root forms d)))
-            (let ((own (%filter (fn (_ r) (not (str=? r dest)))
-                                (Pin %pin-manifest-args 'root forms d)))
-                  (snapshot (first %import-roots-cell)))
-              (do
-                (Pin %pin-arm! own)
-                (%set-first! (Pin %pin-own-roots-cell) own)
-                (let ((result (Pin %pin-vendor-project! dest
-                                (Pin %pin-need 'src forms d)
-                                (Pin %pin-manifest-raw 'src forms))))
-                  (do
-                    ; Restore the import roots and the classification
-                    ; cell (a REPL session outlives the verb).  An
-                    ; error path leaves them armed -- a dead tool
-                    ; process either way, and arming is additive.
-                    (%set-first! %import-roots-cell snapshot)
-                    (%set-first! (Pin %pin-own-roots-cell) ())
-                    result))))))))
+            ; Restore after (a REPL session outlives the verb).  An
+            ; error path leaves the roots armed -- a dead tool process
+            ; either way, and arming is additive.
+            (let ((snapshot (Pin %pin-scan-arm! forms d dest)))
+              (let ((result (Pin %pin-vendor-project! dest
+                              (Pin %pin-need 'src forms d)
+                              (Pin %pin-manifest-raw 'src forms))))
+                (do (Pin %pin-scan-restore! snapshot)
+                    result)))))))
     (method check (self . (param dir STRING "Project directory holding pin.xon; default \".\""))
       (doc "The whole integrity question in one call, for CI: the overlay must match its lockfile byte for byte (nothing edited, nothing unlisted), AND no import in the (src ...) tree may fall through to the live platform. A digest mismatch or unlisted file is a loud error; a fallen-through import is reported and returned. Returns the missing root-relative paths -- empty means the pin is complete and intact."
         (returns LIST "Imports absent from the overlay (empty = complete)")
@@ -1081,9 +1086,15 @@
                 (src (Pin %pin-need 'src forms d)))
             ; Verify first: it raises. An audit answer computed against an
             ; overlay whose bytes are already wrong would describe a tree
-            ; that does not exist.
+            ; that does not exist.  The audit scan arms the project's own
+            ; roots (#223): its closure walk resolves own-module imports
+            ; instead of dying on them, and own modules -- in the repo,
+            ; not the overlay -- are never reported as half-pins.
             (do (Pin verify root)
-                (Pin audit root src))))))
+                (let ((snapshot (Pin %pin-scan-arm! forms d root)))
+                  (let ((result (Pin audit root src)))
+                    (do (Pin %pin-scan-restore! snapshot)
+                        result))))))))
     (method boot (self (param tag STRING "Release tag to pin the language to, e.g. \"v0.4.0\"")
                        . (param opts ANY "Optional, in order: project directory holding pin.xon (default \".\"), then a base URL (a mirror, or file:// -- fetch's own trailing override)"))
       (doc "Pin the language itself to a release, in one step: read the manifest's (boot ...) path, fetch and verify that release's amalgam into place, and record the release tag, its ISA fingerprint and the amalgam's digest in the lockfile beside pin.xon. The release manifest is consumed, not kept -- its three facts live in the lock, so nothing generated is left in the boot directory. This verb is also the UPGRADE and the REPAIR: re-run it with a new tag to move the pin, or the same tag to restore a damaged amalgam or lock -- the currently pinned amalgam stays in place until its replacement has verified (fetch publishes only a clean digest), and the lock rewrites only after that. Returns the amalgam's path."

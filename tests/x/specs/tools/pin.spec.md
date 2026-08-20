@@ -964,3 +964,15 @@ land), and vendors only what resolves to the platform.
 ```
 ---
     ("acme/three.x" "acme/four.x") #f
+
+### check runs clean end to end on a project with own-module roots
+
+`check` is the CI verb, and its audit half walks the same closure sync
+does: it must resolve own-module imports (not die on them) and never
+report a module the repo itself carries as a half-pin.
+
+```scheme
+(write (Pin check "build/pin-spec/own"))
+```
+---
+    ()
