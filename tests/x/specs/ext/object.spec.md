@@ -903,17 +903,18 @@ per-arg eval closure, no apply save/restore.
 
 ### method self-recursion iterates
 
-Depth is deliberately modest: the engine pins trampoline garbage across
-deep TCO loops (the applicative-stress lane documents ~1GB per ~10k
-levels), and this file rides the PARALLEL spec fleet -- a deep-recursion
-case here co-resides with the JIT specs and OOMed the 7GB CI runner.
-Deep-loop stress belongs in specs/applicative/, serial by design.
+Depth is deliberately tiny: the engine pins trampoline garbage across
+deep TCO loops (~1GB per ~10k levels -- the applicative-stress lane's
+documented behaviour), and this file rides the PARALLEL spec fleet: a
+deep-recursion case here co-resides with the ~1.5GB JIT specs and OOMed
+the 7GB CI runner. This is a recursion-works canary only; deep-loop
+stress belongs in specs/applicative/, serial by design.
 
 ```x
 (do
   (def-class R ()
     (method down (self n) (if (= n 0) 'done (self down (- n 1)))))
-  ((new R) down 2000))
+  ((new R) down 200))
 ```
 ---
     'done
