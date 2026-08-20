@@ -204,8 +204,12 @@
 ;   (%type-push-op ts (lit +) (fn (_ a b) ...))
 ; The C operators (+ - * / % = <) dispatch here when EXACTLY ONE operand is a
 ; typed instance; the handler receives the raw operands and owns coercing the
-; plain side. (Mixed typed/typed dispatch is an open design question -- the
-; cvt from-alists declare the cross-type relation.) Prepend semantics: a
+; plain side. (Mixed typed/typed dispatch: C arbitrates by the cvt
+; from-alists -- the absorbing side's handler wins -- and the tower's policy
+; layer, x/num/tower, promotes through the same lattice at the generic
+; level; docs/object-system.md "One model, four doors" is the ruling
+; record. A pair NEITHER side declares still falls through to raw C at
+; this door -- the recorded bigint x rational residual.) Prepend semantics: a
 ; re-registration shadows the older handler. This replaces set!-wrapping the
 ; global operators -- types register ops; nothing wraps ambient names.
 (def %type-push-op

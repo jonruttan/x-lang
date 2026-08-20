@@ -245,11 +245,28 @@ internally.
 (a statement)    ; => 150       a method still sees the real value
 ```
 
-> **Caveat:** this is encapsulation by *interface*, not by enforcement. x-lang has
-> no private scope, and an instance still stores its payload in slot 0, so
-> `(first a)` and the internal `%obj-*` helpers can reach in. Removing the named
-> raw API closes the obvious door; full opacity would need a different (closure-
-> captured) instance representation.
+For ENFORCED privacy, declare members and methods inside a `(private ...)` or
+`(protected ...)` block (at the body top level, or inside `(static ...)`):
+
+```lisp
+(def-class Account ()
+  (private balance
+    (method %audit (self) ...))            ; private: this class's methods only
+  (protected (method helper (self) ...))   ; protected: methods anywhere on the chain
+  (method deposit (self n) (self balance (+ (self balance) n)) self))
+```
+
+The check runs at the dispatch door -- a violation errors naming the class,
+selector, tier, and defining class -- and costs public method calls exactly one
+added pair test. Enforcement is opt-in per class: undeclared members stay
+public, and the `%` prefix remains a naming convention for protocol hooks, not
+a privacy marker.
+
+> **Caveat:** reflection remains the documented escape, exactly as at the C
+> level: `(help)` and the introspection functions still list guarded members,
+> an instance still stores its payload in slot 0, and `(first a)` or the
+> `%obj-*` helpers can reach in. The dispatch door is the contract surface;
+> raw reflection is the maintenance hatch.
 
 ---
 
@@ -351,16 +368,62 @@ dispatch fills with the receiver; it also wraps each instance-method body so the
 
 ---
 
-### Relationship to CLOS
+### One model, four doors
 
-This is **single-receiver message passing**: dispatch depends only on the
-receiver. It is not [CLOS](https://en.wikipedia.org/wiki/Common_Lisp_Object_System)
-— there are no generic functions and no multiple dispatch. The path toward
-CLOS-style generic functions would introduce function objects that dispatch on the
-types of *all* their arguments, generalising the type-keyed dispatch already used
-by the Convert class (`lib/x/sys/convert.x` — `(Convert to val target)`), which
-selects a handler by argument type and supports a wildcard default. The message-passing layer would remain the simple,
-fast common case.
+Polymorphism in x-lang is one model with four entry doors, ordered by heat:
+
+1. **Message passing** — `(obj sel ...)` / `(Class sel ...)`. Single receiver,
+   resolved in a flat, chain-merged per-class table cached on the class (built
+   lazily, invalidated by runtime mutation). *The* hot path: reach for it
+   whenever behaviour belongs to one thing. `method-of` is the sanctioned
+   de-dispatch door for hot loops -- resolve once, call the bare closure.
+2. **Value-call, subject-last** — `(1/2 numerator)`, `("a,b" split ",")`. Not a
+   dispatch system: routing *sugar* that rewrites a value-headed call into door
+   1 on the value's bound class, receiver appended last. Same tables, same
+   semantics.
+3. **Generic functions** (`x/type/generic`) — `(num+ a b)`, `(dot u v)`. Open,
+   multi-argument, type-directed: `def-generic` + `(on g (SIG...) body)`, with
+   pointwise specificity (exact > nearer ancestor > wildcard; no scalar rank),
+   the cvt from-lattice as the ambiguity tie-break, and a teaching error naming
+   both candidates when the lattice is silent. The cold-path flexibility layer:
+   reach for it when behaviour depends on the types of *several* arguments --
+   the thing doors 1-2 structurally cannot express. The numeric tower's
+   mixed-type policy (`x/num/tower`) is the worked example.
+4. **The C ops cell** — exactly seven spellings (`+ - * / % = <`). Not a
+   general facility: a fixed door whose per-type handlers are one-line shims
+   into door 3's tower generics. Arbitration between two typed operands reads
+   the cvt from-lattice -- the same relation door 3 reads, so promotion has one
+   authority everywhere. Bitwise and identity (`eq?`/`same?`) never dispatch,
+   by ruling.
+
+Doors never fight: a call site is syntactically exactly one door. `(x sel ...)`
+with a symbol selector is doors 1-2; `(g v1 v2)` where `g` names a generic is
+door 3 -- generics are values called by name, never selectors. The library rule
+of thumb: single-receiver concepts are methods; multi-receiver concepts are
+generics; methods may delegate down to generics; generics never re-enter
+selector dispatch on the same arguments.
+
+Composition and contracts change what lands in the tables, never how a call
+routes:
+
+- **`(with Trait...)`** mixes a `def-trait` bundle in at class definition --
+  built against the host's chain (`super` works) in the trait's environment
+  (free names resolve at the definition site). Own method > trait > inherited;
+  two traits on one selector refuse without an own override; `(require ...)`
+  names check against the whole chain.
+- **`(delegates field (sel... (theirs ours)...))`** states the
+  wrapper-forwards-to-a-field relationship once, as generated late-bound
+  forwarders.
+- **`(interface ...)`** remains the abstract contract on an extends-chain --
+  three distinct tools, deliberately not unified.
+- **`def-record`** is the data-carrier shorthand: a class with the positional
+  constructor plus `with` (functional update, quoted keys) and `=?`
+  (structural equality -- a method; `eq?`/`same?` keep identity, by ruling).
+
+Classes are also **open**: `(C def-method! sel fn)` / `(C def-static! sel fn)`
+add methods after definition (computed selectors welcome; the cold class data
+mutates and every cached table refolds), and a `(method %missing (self sel
+args) ...)` protocol hook catches what dispatch cannot resolve.
 
 ---
 
