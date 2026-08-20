@@ -556,4 +556,27 @@ cp "$_TMP/rel/v9.9.9/he.x" "$_TMP/proj/boot/he.x"
 $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -f "$_TMP/ver.x" >"$_TMP/out" 2>"$_TMP/err"
 grep -q "digest mismatch" "$_TMP/out" "$_TMP/err" && fail "verify: restored amalgam still failing" "$_TMP/out" "$_TMP/err"
 
+
+# The lock-root chooser (#313's WRITE side): a "."-first manifest must
+# never produce "..lock.xon" -- boot picks the root whose lock already
+# exists (an upgrade rewrites it), else the first directory-named root.
+# Observed pre-fix: an upgrade against a "."-first manifest wrote
+# ..lock.xon and left the real lock stale -- silent version skew.
+mkdir -p "$_TMP/proj9/boot" "$_TMP/proj9/deps"
+printf '(root ".")\n(root "deps")\n(src ".")\n(boot "boot/he.x")\n' > "$_TMP/proj9/pin.xon"
+{
+	echo '(import x/tool/pin)'
+	echo "(Pin boot \"v9.9.9\" \"$_TMP/proj9\" \"file://$_TMP/rel\")"
+} > "$_TMP/boot3.x"
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -f "$_TMP/boot3.x" >"$_TMP/out" 2>"$_TMP/err" \
+	|| fail "lock-root: dot-first pin failed" "$_TMP/out" "$_TMP/err"
+[ ! -f "$_TMP/proj9/..lock.xon" ] || fail "lock-root: wrote ..lock.xon (#313 write side)" "$_TMP/out"
+grep -q '(release "v9.9.9")' "$_TMP/proj9/deps.lock.xon" || fail "lock-root: lock not at the directory root" "$_TMP/out"
+# Upgrade rewrites the EXISTING lock, wherever it is.
+sed 's/v9.9.9/v9.9.7/' "$_TMP/proj9/deps.lock.xon" > "$_TMP/proj9/deps.lock.xon.new" \
+	&& mv "$_TMP/proj9/deps.lock.xon.new" "$_TMP/proj9/deps.lock.xon"
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -f "$_TMP/boot3.x" >"$_TMP/out" 2>"$_TMP/err" \
+	|| fail "lock-root: re-pin failed" "$_TMP/out" "$_TMP/err"
+grep -q '(release "v9.9.9")' "$_TMP/proj9/deps.lock.xon" || fail "lock-root: upgrade did not rewrite the existing lock" "$_TMP/proj9/deps.lock.xon"
+
 echo "pin-smoke: ok"

@@ -647,6 +647,26 @@
         (%filter (fn (_ f)
                    (if (pair? f) (not (%memq? (first f) (Pin %pin-platform-heads))) #f))
                  forms)))
+    ; Which root gets the PLATFORM lock (#313's write side): the guard
+    ; reads EVERY root's lock, so the writer must (a) REWRITE the lock
+    ; that already exists -- an upgrade must never strand the old one
+    ; -- and (b) failing that, pick a root whose lock NAME is sane: a
+    ; "." root's lock would be "..lock.xon", written and found by
+    ; nothing (observed: an upgrade against a "."-first manifest wrote
+    ; exactly that and left the real lock stale -- silent skew).
+    (method %pin-lock-root (self roots)
+      (def sane (fn (_ r)
+        (let ((b (Path basename r)))
+          (if (str=? b ".") #f (not (str=? b ".."))))))
+      (let ((existing (%find (fn (_ r) (File exists? (Pin %pin-lock-path r)))
+                             roots)))
+        (match
+          ((not (null? existing)) existing)
+          (#t
+            (let ((ok (%find sane roots)))
+              (match
+                ((null? ok) (Pin %pin-bad "no manifest root yields a lock name -- name a directory root (a \".\" root cannot carry the lock)"))
+                (#t ok)))))))
     ; The default project directory for the verbs: "." unless given.
     (method %pin-dir-or-dot (self dir)
       (match ((null? dir) ".") (#t (first dir))))
@@ -1073,7 +1093,7 @@
             (base (match ((null? opts) ()) ((null? (rest opts)) ()) (#t (first (rest opts))))))
         (let ((forms (Pin %pin-manifest-forms d)))
           (let ((bootpath (Pin %pin-need 'boot forms d))
-                (root (Pin %pin-need 'root forms d)))
+                (root (Pin %pin-lock-root (Pin %pin-manifest-args 'root forms d))))
             (let ((bootdir (%path-dir bootpath))
                   (file (Path basename (Pin %pin-need 'boot forms d))))
               (do
