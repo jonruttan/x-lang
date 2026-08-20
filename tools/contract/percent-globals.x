@@ -64,6 +64,7 @@
 (file "lib/x/num/complex.x" 41)
 (file "lib/x/num/float.x" 60)
 (file "lib/x/num/random.x" 6)
+(file "lib/x/num/tower.x" 10)
 (file "lib/x/num/rational.x" 39)
 (file "lib/x/platform/socket.x" 1)
 (file "lib/x/platform/syscall.x" 5)
