@@ -885,8 +885,8 @@ live view, not a snapshot.
 
 Dispatch resolves selectors in a flat, chain-merged per-class table built
 lazily and cached on the class (most-derived wins; a method beats a
-same-named member). Method calls are re-driven through tail-eval, so a
-method call in tail position is a genuine tail call.
+same-named member). Method calls are re-driven through tail-eval -- no
+per-arg eval closure, no apply save/restore.
 
 ### override precedence holds through three levels
 
@@ -901,13 +901,19 @@ method call in tail position is a genuine tail call.
 ---
     ('b 'oa)
 
-### deep method recursion runs in constant C stack
+### method self-recursion iterates
+
+Depth is deliberately modest: the engine pins trampoline garbage across
+deep TCO loops (the applicative-stress lane documents ~1GB per ~10k
+levels), and this file rides the PARALLEL spec fleet -- a deep-recursion
+case here co-resides with the JIT specs and OOMed the 7GB CI runner.
+Deep-loop stress belongs in specs/applicative/, serial by design.
 
 ```x
 (do
   (def-class R ()
     (method down (self n) (if (= n 0) 'done (self down (- n 1)))))
-  ((new R) down 30000))
+  ((new R) down 2000))
 ```
 ---
     'done

@@ -336,8 +336,9 @@
 ; method-chain miss first). A method entry is re-driven through tail-eval:
 ; the closure self-evaluates as head, the instance self-evaluates in arg
 ; position, and C evaluates the raw arg forms once in the caller's env --
-; no per-arg eval closure, no apply save/restore, and the method call is a
-; genuine tail call (deep method recursion runs in constant C stack).
+; no per-arg eval closure, no apply save/restore. (Stack semantics are the
+; trampoline's, unchanged: the old apply path already rode it -- measured,
+; both dispatches complete a 30k-deep method recursion.)
 ; A table miss still consults the instance's own fields: set-member! can
 ; add an undeclared key to ONE instance, which the class-wide table cannot
 ; know about. NOTE: `rest` is the caller's raw form tail and is often a
@@ -592,7 +593,7 @@
         ; Resolution goes through the parent's flat itab (chain-merged, so a
         ; grandparent method is found exactly as the old chain walk did); a
         ; field marker is not a method. tail-eval re-drives the call: raw
-        ; arg forms evaluate once, and the super call is a genuine tail call.
+        ; arg forms evaluate once, with no per-arg eval closure or apply.
         (let ((sc (eval (lit %super-class) e)))
           (let ((method (if (null? sc) ()
                           (let ((itab (first (%class-hot sc))))
