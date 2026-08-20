@@ -105,3 +105,19 @@ happened, 128+N for death by signal N.
 ```
 ---
     (0 "/" 126)
+
+### a child-side failure dies as 125 -- never a second interpreter
+
+Any catchable error between fork and exec must END the child: an escaped
+child shares the parent's stdin and re-runs the remaining program,
+forking again per spawn form -- the fork bomb that OOM-killed the CI
+runner. An unconvertible env value errors inside the child's prep; the
+guard turns it into a hard exit 125.
+
+```x
+(do
+  (import x/sys/proc)
+  (Proc run-with! (list (pair 'env (list (pair "X364" (list 1 2))))) (list "/bin/sh" "-c" "exit 0")))
+```
+---
+    125

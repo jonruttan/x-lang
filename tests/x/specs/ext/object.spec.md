@@ -880,3 +880,152 @@ live view, not a snapshot.
 ```
 ---
     (2 2)
+
+## flat-table dispatch
+
+Dispatch resolves selectors in a flat, chain-merged per-class table built
+lazily and cached on the class (most-derived wins; a method beats a
+same-named member). Method calls are re-driven through tail-eval -- no
+per-arg eval closure, no apply save/restore.
+
+### override precedence holds through three levels
+
+```x
+(do
+  (def-class A () (method who (self) 'a) (method only-a (self) 'oa))
+  (def-class B (extends A) (method who (self) 'b))
+  (def-class C (extends B))
+  (def c (new C))
+  (list (c who) (c only-a)))
+```
+---
+    ('b 'oa)
+
+### method self-recursion iterates
+
+Depth is deliberately tiny: the engine pins trampoline garbage across
+deep TCO loops (~1GB per ~10k levels -- the applicative-stress lane's
+documented behaviour), and this file rides the PARALLEL spec fleet: a
+deep-recursion case here co-resides with the ~1.5GB JIT specs and OOMed
+the 7GB CI runner. This is a recursion-works canary only; deep-loop
+stress belongs in specs/applicative/, serial by design.
+
+```x
+(do
+  (def-class R ()
+    (method down (self n) (if (= n 0) 'done (self down (- n 1)))))
+  ((new R) down 200))
+```
+---
+    'done
+
+### a miss names the class and the selector
+
+```x
+(do
+  (def-class Empty ())
+  (guard (e e) ((new Empty) nope)))
+```
+---
+    "Empty: no such member nope"
+
+### a static miss names the class and the selector
+
+```x
+(do
+  (def-class Lone ())
+  (guard (e e) (Lone nope)))
+```
+---
+    "Lone: no such static member nope"
+
+### method-of resolves a static to a directly callable closure
+
+```x
+(do
+  (def-class M () (static (method twice (self n) (* 2 n))))
+  ((method-of M 'twice) M 21))
+```
+---
+    42
+
+### method-of sees a subclass override
+
+```x
+(do
+  (def-class A () (static (method tag (self) 'a)))
+  (def-class B (extends A) (static (method tag (self) 'b)))
+  ((method-of B 'tag) B))
+```
+---
+    'b
+
+### an ad-hoc set-member! key stays reachable through dispatch
+
+```x
+(do
+  (def-class P () x
+    (method poke (self) (set-member! 'extra 7)))
+  (def p (new P x 1))
+  (p poke)
+  (p extra))
+```
+---
+    7
+
+## static members inherit
+
+Static (class-wide) members now resolve up the chain, matching what (help)
+has always displayed. Reads reach the nearest ancestor's value; a write
+through a subclass SHADOWS into the subclass's own box -- the parent's
+value is never mutated through a child (a deliberate parent write is
+spelled `(Parent name v)`).
+
+### a subclass reads an inherited static member
+
+```x
+(do
+  (def-class A () (static (limit 10)))
+  (def-class B (extends A))
+  (B limit))
+```
+---
+    10
+
+### a write through the subclass shadows; the parent is unmutated
+
+```x
+(do
+  (def-class A () (static (limit 10)))
+  (def-class B (extends A))
+  (B limit 99)
+  (list (B limit) (A limit)))
+```
+---
+    (99 10)
+
+### a parent write is visible through an unshadowed child
+
+```x
+(do
+  (def-class A () (static (limit 10)))
+  (def-class B (extends A))
+  (A limit 11)
+  (B limit))
+```
+---
+    11
+
+### a mid-chain shadow is seen by an already-dispatched grandchild
+
+```x
+(do
+  (def-class A () (static (limit 10)))
+  (def-class B (extends A))
+  (def-class C (extends B))
+  (C limit)                       ; builds C's table: owner = A
+  (B limit 50)                    ; B shadows; tables invalidate
+  (C limit))
+```
+---
+    50

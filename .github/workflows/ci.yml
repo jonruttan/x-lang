@@ -66,6 +66,18 @@ jobs:
         run: make test-x
         env:
           PARALLEL: "1"
+          # ONE heavy spec in flight, not two (2026-08-20, measured with a
+          # temporary in-step memory sampler). At the logo + weight-6-batch
+          # window the 16GB ubuntu runner held TWO ~5-9GB x-bin heaps at
+          # once: main peaked at 6.6GB + 5.3GB (12.7GB total -- 80% of the
+          # VM, passing on the grace that one finishes early), and the
+          # object-model v2 branch's linux peaks grew to 7.7GB + 7.7GB --
+          # runner OOM-killed, "runner received a shutdown signal", exit
+          # 143, with no job surviving to name a file. One heavy plus
+          # light fill bounds the window at ONE big heap (~9GB worst
+          # measured). The macOS leg keeps the default: its peaks are
+          # smaller and it has passed at width 2 throughout.
+          SPEC_HEAVY_JOBS: ${{ matrix.os == 'ubuntu-24.04' && '1' || '2' }}
           # The applicative stress lane (#300): serial tail, ~4.7GB peak
           # per file -- inside the heavy-spec envelope on these runners.
           # NEVER set STRESS on the asan job: the sanitizer multiplies
