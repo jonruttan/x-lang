@@ -414,11 +414,19 @@ fi
 
 # Applicative (stress) specs only run with STRESS=1, and only in glob
 # mode -- explicit arguments already said exactly what to run.  One job
-# per file through _spawn, on the stress timeout.
+# per file through _spawn, on the stress timeout -- STRICTLY SERIAL,
+# after the main fleet drains: these files accumulate eval garbage
+# across deep TCO loops (regression.spec.md peaks ~3.9GB NATIVE,
+# tco-stress ~1.7GB, measured 2026-08-20), and two co-resident on a
+# 7GB CI runner is the #366 OOM shape.  Serial costs ~35s total.
+# ASan jobs must keep STRESS unset: the sanitizer multiplies these
+# peaks 2-4x past any runner.
 if [ "$_args_mode" = 0 ] && [ -n "$STRESS" ] && [ -d "$SPEC_PATH/applicative" ]; then
+  wait
   for _spec in "$SPEC_PATH"/applicative/*.spec.md; do
     [ -f "$_spec" ] || continue
     _spawn "$SPEC_HEAVY_MIN" "$TIMEOUT_APPL" "$_spec"
+    wait
   done
 fi
 

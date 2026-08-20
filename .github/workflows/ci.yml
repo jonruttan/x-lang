@@ -66,6 +66,11 @@ jobs:
         run: make test-x
         env:
           PARALLEL: "1"
+          # The applicative stress lane (#300): serial tail, ~4.7GB peak
+          # per file -- inside the heavy-spec envelope on these runners.
+          # NEVER set STRESS on the asan job: the sanitizer multiplies
+          # those peaks 2-4x past any runner (the #366 OOM shape).
+          STRESS: "1"
       # Doctest ratchet (#16): every (example ...) in the doc registry is an
       # executable contract; a stale example is a red build, not quiet rot.
       - name: Doctests
