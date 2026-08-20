@@ -63,7 +63,18 @@ jobs:
       - name: C specs
         run: make test-c
       - name: x-lang specs
-        run: make test-x
+        # TEMPORARY diagnostic (object-model v2 arc): the ubuntu leg dies
+        # with exit 143 + "runner received a shutdown signal" at the jit
+        # batch, three runs straight, while every heavy spec measures
+        # SMALLER on this branch locally (macOS). The sampler interleaves
+        # memory readings into this step's own log so the death moment is
+        # visible even when the runner agent is killed. Remove once the
+        # cause is pinned.
+        run: |
+          if command -v free >/dev/null; then
+            ( while true; do free -m | awk '/Mem:/{print "MEMSAMPLE used=" $3 "MB avail=" $7 "MB"}'; sleep 5; done ) &
+          fi
+          make test-x
         env:
           PARALLEL: "1"
           # The applicative stress lane (#300): serial tail, ~4.7GB peak
