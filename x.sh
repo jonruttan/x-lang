@@ -257,6 +257,37 @@ if [ -z "$no_pin" ]; then
 	done
 fi
 
+# A corrupt manifest used to surface as a bare mid-boot reader error
+# ("Unterminated input") with nothing naming the file -- the manifest
+# streams into the boot pipe, so its syntax errors wore the stream's
+# face.  A cheap paren balance over the MANIFEST GRAMMAR (strings and
+# ; comments respected; manifests carry no char literals) names it
+# before anything boots.  An empty manifest arms nothing -- say so
+# rather than announcing "pinned:" over a blank file.
+if [ -n "$PIN_FILE" ]; then
+	if ! awk 'BEGIN{b=0;instr=0;esc=0}
+		{
+			n=length($0)
+			for(i=1;i<=n;i++){
+				c=substr($0,i,1)
+				if(instr){ if(esc){esc=0} else if(c=="\\"){esc=1} else if(c=="\""){instr=0}; continue }
+				if(c=="\""){instr=1;continue}
+				if(c==";"){break}
+				if(c=="(")b++
+				if(c==")")b--
+				if(b<0)exit 1
+			}
+		}
+		END{ if(b!=0||instr)exit 1 }' "$PIN_FILE"; then
+		echo "Error: unreadable manifest (unbalanced parens or unterminated string): $PIN_FILE" >&2
+		echo "  fix the manifest, or run with --no-pin to bypass it" >&2
+		exit 1
+	fi
+	if ! grep -q '^[[:space:]]*(' "$PIN_FILE"; then
+		echo "x.sh: manifest is empty -- nothing armed: $PIN_FILE" >&2
+	fi
+fi
+
 # Boot pinning (GH #139): the ONE manifest form the wrapper itself
 # consumes.  (boot "FILE") names the boot entry -- a fetched amalgam --
 # and the entry must be chosen HERE, before the pipe exists: the loader
@@ -351,6 +382,12 @@ if [ -n "$boot_file" ]; then
 	if [ -n "$INSTALL_ROOT" ] && [ -f "$_rel" ] && [ -f "$_mine" ]; then
 		_want=$(sed -n 's/.*isa "sha256:\([0-9a-f]*\)".*/\1/p' "$_rel" | head -1)
 		_have=$(cat "$_mine")
+		# A lock that EXISTS but yields no fingerprint is a corrupt or
+		# truncated lock -- skipping it silently is the same
+		# disappearing-guard shape #313 closed for a MISSING lock.
+		if [ -z "$_want" ]; then
+			echo "x.sh: boot pin armed but no isa fingerprint readable in $_rel -- engine pairing unchecked; re-run (Pin boot <tag>) to rewrite the lock" >&2
+		fi
 		if [ -n "$_want" ] && [ "$_want" != "$_have" ]; then
 			echo "Error: pinned boot amalgam was built for a different engine" >&2
 			echo "  amalgam: $ENTRY" >&2

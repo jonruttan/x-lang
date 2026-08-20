@@ -91,7 +91,14 @@
     ; are unattributed and kept as-is, so an old overlay keeps verifying.
     (%pin-lock-name "pin.lock.xon")
     (%pin-platform-heads (list 'release 'isa 'boot))
-    (%pin-lock-header "; pin.lock.xon -- generated; do not edit\n")
+    ; The header names the ACTUAL lock file (#421): locks are written
+    ; per-root (deps.lock.xon and friends -- the #313 adjudication), and
+    ; a file that opens by claiming a name it does not have reads as a
+    ; stray copy.
+    (method %pin-lock-header-for (self dest)
+      (Str8 append "; "
+        (Str8 append (Path basename (Pin %pin-lock-path dest))
+                     " -- generated; do not edit\n")))
     ; The canonical release home; a trailing optional on fetch overrides it
     ; (a mirror, or file:// in the smoke).
     (%pin-release-base "https://github.com/jonruttan/x-lang/releases/download")
@@ -327,7 +334,7 @@
       (Pin %pin-lock-parse (Pin %pin-lock-forms dest)))
     (method %pin-lock-read-seeds (self dest)
       (Pin %pin-lock-parse-seeds (Pin %pin-lock-forms dest)))
-    ; No header here: both writers emit (Pin %pin-lock-header) first, so that a
+    ; No header here: both writers emit (Pin %pin-lock-header-for dest) first, so that a
     ; lock carrying platform lines does not end up with its own banner
     ; stranded in the middle of the file.
     (method %pin-lock-render (self entries)
@@ -398,7 +405,7 @@
                   ; the overlay from source and must not silently unpin the
                   ; language underneath it.
                   (File write-all (Pin %pin-lock-path dest)
-                    (Str8 append (Pin %pin-lock-header)
+                    (Str8 append (Pin %pin-lock-header-for dest)
                       (Str8 append (Xon emit (Pin %pin-platform-forms (Pin %pin-lock-forms dest)))
                         (Str8 append (Pin %pin-lock-render (Pin %pin-lock-entries dest live))
                                      (Pin %pin-seed-render seeds)))))
@@ -461,15 +468,29 @@
       (Str8 append base (Str8 append "/" (Str8 append tag (Str8 append "/" file)))))
     ; Download via curl through Proc run! (#226): 127 = curl absent,
     ; anything else nonzero = the download failed.
-    (method %pin-download! (self url target)
+    ;
+    ; ATOMIC (#145): curl writes a pid-tagged TEMP name -- an HTTP error
+    ; or a mid-transfer failure must never occupy the target path, which
+    ; for an amalgam is the path the wrapper boots.  %pin-download-tmp!
+    ; returns the temp path so fetch can DIGEST BEFORE PUBLISHING;
+    ; %pin-download! is the download-and-publish composition for
+    ; artifacts with no digest of their own (the release manifest).
+    (method %pin-download-tmp! (self url target)
       ; -f: HTTP errors fail the exit status; -L: release downloads
-          ; redirect; -sS: quiet but errors still print
-          (let ((status (Proc run! (list "curl" "-fsSL" "-o" target url))))
-            (match
-              ((= status 0) ())
-              ((= status 127)
-                (Pin %pin-bad (Str8 append "curl not found -- download manually and re-run against the files:\n  " url)))
-              (#t (Pin %pin-bad (Str8 append "download failed: " url))))))
+      ; redirect; -sS: quiet but errors still print
+      (let ((tmp (Str8 append target
+                   (Str8 append "." (Str8 append (%cvt (Sys getpid) %string) ".tmp")))))
+        (let ((status (Proc run! (list "curl" "-fsSL" "-o" tmp url))))
+          (match
+            ((= status 0) tmp)
+            ((= status 127)
+              (do (guard (_ ()) (File unlink tmp))
+                  (Pin %pin-bad (Str8 append "curl not found -- download manually and re-run against the files:\n  " url))))
+            (#t
+              (do (guard (_ ()) (File unlink tmp))
+                  (Pin %pin-bad (Str8 append "download failed: " url))))))))
+    (method %pin-download! (self url target)
+      (File rename (Pin %pin-download-tmp! url target) target))
     ; pin.release.xon -> ((release . TAG) (isa . DIGEST) (files . ALIST)),
     ; closed vocabulary: release | isa | (file NAME DIGEST).
     (method %pin-release-parse (self forms)
@@ -593,7 +614,7 @@
     (method %pin-lock-set-platform! (self dest forms)
       (let ((old (Pin %pin-lock-forms dest)))
             (File write-all (Pin %pin-lock-path dest)
-              (Str8 append (Pin %pin-lock-header)
+              (Str8 append (Pin %pin-lock-header-for dest)
                 (Str8 append (Xon emit forms)
                              (Pin %pin-nonplatform-render old))))))
     (method %pin-nonplatform-render (self forms)
@@ -873,18 +894,70 @@
       (returns LIST "Root-relative file path strings copied")
       (sample "(Pin vendor-project \"deps\" \"src\")" "(\"x/type/dict.x\" ...)"))
     (Pin %pin-vendor-project! dest srcdir srcdir))
+    ; The PLATFORM half of verify (#145): a lock that pins a boot amalgam
+    ; must still describe the amalgam on disk -- nothing at boot time
+    ; re-digests it (the wrapper compares recorded ISA strings only), so
+    ; THIS is the re-verification, sized for CI and on-demand use.
+    ; Returns fail lines, empty when clean or when no boot is pinned.
+    (method %pin-boot-fails (self dest lockforms)
+      (def row (%find (fn (_ f)
+                        (if (pair? f)
+                          (if (eq? (first f) (lit boot))
+                            (pair? (rest (rest f))) #f)
+                          #f))
+                      lockforms))
+      (match
+        ((null? row) ())
+        (#t
+          (let ((projdir (%path-dir dest)))
+            (let ((bootpath (guard (_ ())
+                              (Pin %pin-manifest-arg (lit boot)
+                                (Pin %pin-manifest-forms projdir) projdir))))
+              (match
+                ((null? bootpath)
+                  ; No manifest (boot ...) path: the lock's boot row is
+                  ; INERT -- the wrapper arms only from the manifest --
+                  ; so nothing boots it and nothing verifies it.  A
+                  ; notice, not a failure: sync legitimately carries
+                  ; platform rows through while the manifest evolves.
+                  (do (display "pin: lock carries a boot row but the manifest names no (boot ...) path -- not armed, not verified\n")
+                      ()))
+                ((not (File exists? bootpath))
+                  (list (Str8 append "pinned boot amalgam missing: " bootpath)))
+                ((str=? (Pin %pin-digest bootpath) (first (rest (rest row)))) ())
+                (#t (list (Str8 append "pinned boot amalgam digest mismatch: "
+                            (Str8 append bootpath
+                              " -- re-run (Pin boot <tag>) to repair"))))))))))
+    ; ISA drift is information, not an error (the fetch ruling): pairing
+    ; ENFORCEMENT is the wrapper's job at boot; verify reports.
+    (method %pin-isa-notice (self lockforms)
+      (let ((row (%find (fn (_ f)
+                          (if (pair? f)
+                            (if (eq? (first f) (lit isa)) (pair? (rest f)) #f)
+                            #f))
+                        lockforms)))
+        (match
+          ((null? row) ())
+          ((not (File exists? "tools/contract/isa.x")) ())
+          ((str=? (Pin %pin-digest "tools/contract/isa.x") (first (rest row)))
+            (display "pin: lock isa fingerprint matches this tree\n"))
+          (#t (display "pin: lock isa fingerprint DIFFERS from this tree -- a pinned platform pairs with its release's engine\n")))))
     (method verify (self (param dest STRING "Overlay root directory"))
-      (doc "Verify dest against its pin.lock.xon: every entry's digest must match, and every file in the tree must be listed -- an unlisted file is a rogue shadow ready to win root precedence. A missing lockfile, missing file, digest mismatch, or unlisted file is a loud error naming each offender. Returns the number of files verified."
+      (doc "Verify dest against its lockfile, BOTH halves: every overlay entry's digest must match and every file in the tree must be listed (an unlisted file is a rogue shadow ready to win root precedence), and when the lock pins a boot amalgam, the amalgam on disk must match the lock's recorded digest -- the boot-time wrapper only compares recorded ISA strings, so verify is where a tampered or skewed amalgam is caught (#145). A missing lockfile, missing file, digest mismatch, or unlisted file is a loud error naming each offender; ISA drift against a source checkout is a notice, never an error. Returns the number of overlay files verified."
         (returns INT "Files verified")
         (sample "(Pin verify \"deps\")" "5"))
       (match
         ((not (File exists? (Pin %pin-lock-path dest)))
           (Pin %pin-bad (Str8 append "no lockfile: " (Pin %pin-lock-path dest))))
         (#t
-          (let ((lock (Pin %pin-lock-read dest)))
-            (let ((fails (Pin %pin-verify-fails dest lock)))
+          (let ((lock (Pin %pin-lock-read dest))
+                (lockforms (Pin %pin-lock-forms dest)))
+            (let ((fails (Pin %pin-concat (Pin %pin-verify-fails dest lock)
+                                          (Pin %pin-boot-fails dest lockforms))))
               (match
-                ((null? fails) (Pin %pin-length lock))
+                ((null? fails)
+                  (do (Pin %pin-isa-notice lockforms)
+                      (Pin %pin-length lock)))
                 (#t (Pin %pin-bad (Str8 append "verify failed\n" (Pin %pin-join-lines fails))))))))))
     (method audit (self (param dest STRING "Overlay root directory")
                         . (param srcdir STRING "Project source dir to scan; default \".\""))
@@ -940,19 +1013,22 @@
             ; that does not exist.
             (do (Pin verify root)
                 (Pin audit root src))))))
-    (method boot (self (param tag STRING "Release tag to pin the language to, e.g. \"v0.3.1-rc6\"")
-                       . (param dir STRING "Project directory holding pin.xon; default \".\""))
-      (doc "Pin the language itself to a release, in one step: read the manifest's (boot ...) path, fetch and verify that release's amalgam into place, and record the release tag, its ISA fingerprint and the amalgam's digest in the lockfile beside pin.xon. The release manifest is consumed, not kept -- its three facts live in the lock, so nothing generated is left in the boot directory. Returns the amalgam's path."
+    (method boot (self (param tag STRING "Release tag to pin the language to, e.g. \"v0.4.0\"")
+                       . (param opts ANY "Optional, in order: project directory holding pin.xon (default \".\"), then a base URL (a mirror, or file:// -- fetch's own trailing override)"))
+      (doc "Pin the language itself to a release, in one step: read the manifest's (boot ...) path, fetch and verify that release's amalgam into place, and record the release tag, its ISA fingerprint and the amalgam's digest in the lockfile beside pin.xon. The release manifest is consumed, not kept -- its three facts live in the lock, so nothing generated is left in the boot directory. This verb is also the UPGRADE and the REPAIR: re-run it with a new tag to move the pin, or the same tag to restore a damaged amalgam or lock -- the currently pinned amalgam stays in place until its replacement has verified (fetch publishes only a clean digest), and the lock rewrites only after that. Returns the amalgam's path."
         (returns STRING "Path of the verified amalgam")
-        (sample "(Pin boot \"v0.3.1-rc6\")" "\"boot/he.x\""))
-      (let ((d (Pin %pin-dir-or-dot dir)))
+        (sample "(Pin boot \"v0.4.0\")" "\"boot/he.x\""))
+      (let ((d (Pin %pin-dir-or-dot opts))
+            (base (match ((null? opts) ()) ((null? (rest opts)) ()) (#t (first (rest opts))))))
         (let ((forms (Pin %pin-manifest-forms d)))
           (let ((bootpath (Pin %pin-need 'boot forms d))
                 (root (Pin %pin-need 'root forms d)))
             (let ((bootdir (%path-dir bootpath))
                   (file (Path basename (Pin %pin-need 'boot forms d))))
               (do
-                (Pin fetch bootdir tag (Pin %pin-entry-of file))
+                (match
+                  ((null? base) (Pin fetch bootdir tag (Pin %pin-entry-of file)))
+                  (#t (Pin fetch bootdir tag (Pin %pin-entry-of file) base)))
                 ; Lift the release's facts into the lock, then remove the
                 ; downloaded manifest: two records of the same thing drift.
                 (let ((rel (%path-join bootdir (Pin %pin-release-name))))
@@ -1007,26 +1083,40 @@
                 (let ((want (Pin %pin-release-file file (%assoc-get 'files m)))
                       (target (%path-join dest file)))
                   (do
-                    (Pin %pin-download! (Pin %pin-url b tag file) target)
-                    ; Build the compiled digest only when the payload
-                    ; justifies it: 65536 mirrors sha256.x's own
-                    ; auto-build bar (%sha-jit-threshold).  An amalgam
-                    ; (hundreds of KB) still gets the engine -- and the
-                    ; slow-path warning when the build is unavailable --
-                    ; while a small artifact digests pure-x in
-                    ; milliseconds instead of paying the ~14.5s engine
-                    ; build (#324: the pin gate's three fetch smokes
-                    ; each paid it to verify tens of bytes).
-                    (display "pin: verifying " target
-                             (if (< (%assoc-get 'size (File stat target)) 65536)
-                                 ""
-                                 (if (Sha256 jit!)
-                                     " (jit sha256)"
-                                     " (pure x-lang sha256; an amalgam takes minutes)"))
-                             "\n")
-                    (match
-                      ((str=? (Pin %pin-digest target) want) ())
-                      (#t (Pin %pin-bad (Str8 append "digest mismatch: " target))))
+                    ; Verified or nothing (#145): the amalgam downloads
+                    ; to a TEMP name and digests THERE; only a clean
+                    ; digest publishes it to the target path.  A
+                    ; mismatch quarantines the bytes as <file>.rejected
+                    ; (inspectable, never bootable -- the wrapper only
+                    ; boots the manifest's named path) and the target
+                    ; path -- including a previously pinned amalgam an
+                    ; UPGRADE is replacing -- is left untouched.
+                    (let ((tmp (Pin %pin-download-tmp! (Pin %pin-url b tag file) target)))
+                      (do
+                        ; Build the compiled digest only when the payload
+                        ; justifies it: 65536 mirrors sha256.x's own
+                        ; auto-build bar (%sha-jit-threshold).  An amalgam
+                        ; (hundreds of KB) still gets the engine -- and the
+                        ; slow-path warning when the build is unavailable --
+                        ; while a small artifact digests pure-x in
+                        ; milliseconds instead of paying the ~14.5s engine
+                        ; build (#324: the pin gate's three fetch smokes
+                        ; each paid it to verify tens of bytes).
+                        (display "pin: verifying " target
+                                 (if (< (%assoc-get 'size (File stat tmp)) 65536)
+                                     ""
+                                     (if (Sha256 jit!)
+                                         " (jit sha256)"
+                                         " (pure x-lang sha256; an amalgam takes minutes)"))
+                                 "\n")
+                        (match
+                          ((str=? (Pin %pin-digest tmp) want)
+                            (File rename tmp target))
+                          (#t
+                            (do
+                              (File rename tmp (Str8 append target ".rejected"))
+                              (Pin %pin-bad (Str8 append "digest mismatch: " target
+                                              (Str8 append " -- rejected bytes at " (Str8 append target ".rejected; the pinned path is untouched")))))))))
                     (match
                       ((File exists? "tools/contract/isa.x")
                         (do (display (match
