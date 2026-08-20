@@ -72,6 +72,19 @@
 ; the method closure itself). A fresh pair, compared by eq? -- unforgeable.
 (def %field-tag (list (lit %field)))
 
+; Privacy wrapper sentinel: a table entry (%priv-tag vis defining . inner)
+; guards inner behind the dispatch-door check below. Same unforgeable-pair
+; trick as %field-tag.
+(def %priv-tag (list (lit %priv)))
+
+; The ambient caller-class probe. Every method body lexically rebinds
+; %this-class to a one-cell box holding its DEFINING class (filled by
+; def-class once the class object exists); evaluated from a non-method
+; context it resolves to this nil. super derives its parent from the same
+; box, replacing the old direct %super-class binding at zero added
+; per-call bindings.
+(def %this-class ())
+
 ; Find `sel` in a flat table and self-organize: a hit DEEPER THAN POSITION
 ; TWO swaps its (sel . entry) pair with the head's via two %set-first!, so a
 ; hot selector is a front hit from its second call on. The top-2 exemption
@@ -632,7 +645,8 @@
         ; grandparent method is found exactly as the old chain walk did); a
         ; field marker is not a method. tail-eval re-drives the call: raw
         ; arg forms evaluate once, with no per-arg eval closure or apply.
-        (let ((sc (eval (lit %super-class) e)))
+        (let ((sc (let ((b (eval (lit %this-class) e)))
+                    (if (null? b) () (class-parent (first b))))))
           (let ((method (if (null? sc) ()
                           (let ((itab (first (%class-hot sc))))
                             (%tab-find! itab itab selector)))))
@@ -915,13 +929,18 @@
             (loop (rest sig))))
         sig))))   ; dotted-rest tail passes through
 
-; Build a method closure from (NAME (self . params) body...). The body is wrapped
-; in a let binding %super-class (the parent of the defining class, used by super)
-; and, for instance methods (raw? true), the raw member/set-member! accessors.
-; A leading (doc ...) body form and inline (param ...) signature annotations are
-; stripped here (their registration happens in %collect-methods).
+; Build a method closure from (NAME (self . params) body...). The body is
+; wrapped in a let binding %this-class -- a one-cell box def-class fills
+; with the class object once it exists (methods are built BEFORE the class;
+; the box breaks the cycle). super reads the defining class's parent from
+; it; the privacy check reads the caller's class from it. For instance
+; methods (raw? true) the raw member/set-member! accessors ride the same
+; let. A leading (doc ...) body form and inline (param ...) signature
+; annotations are stripped here (their registration happens in
+; %collect-methods). The box is spliced as (lit BOX): a raw pair in value
+; position would evaluate as a form.
 (def %make-method
-  (fn (_ form raw? parent e)
+  (fn (_ form raw? tbox e)
     (let ((sig  (%strip-sig-params (first (rest (rest form)))))
           (body (if (%method-has-doc? form)
                   (rest (rest (rest (rest form))))     ; drop leading (doc ...)
@@ -930,7 +949,7 @@
         (list (lit fn)
           (pair (lit recur) sig)                       ; (recur . user-params)
           (pair (lit let)
-            (pair (pair (list (lit %super-class) parent)
+            (pair (pair (list (lit %this-class) (list (lit lit) tbox))
                     (when raw? %method-raw-bindings))
                   body)))
         e))))
@@ -940,7 +959,7 @@
 ; super). class-name keys any per-method docs. Registers a doc entry for each
 ; documented method as a side effect.
 (def %collect-methods
-  (fn (loop class-name forms raw? parent e)
+  (fn (loop class-name forms raw? tbox e)
     (unless (null? forms)
       ; Guard the head test: a bare member name is a SYMBOL, and first on a
       ; non-pair is unchecked -- (first 'x) yields the name buffer as an
@@ -951,9 +970,9 @@
           (when (%method-has-doc? (first forms))
             (%stash-method-doc! class-name (first forms)))
           (pair (pair (first (rest (first forms)))
-                      (%make-method (first forms) raw? parent e))
-                (loop class-name (rest forms) raw? parent e)))
-        (loop class-name (rest forms) raw? parent e)))))
+                      (%make-method (first forms) raw? tbox e))
+                (loop class-name (rest forms) raw? tbox e)))
+        (loop class-name (rest forms) raw? tbox e)))))
 
 ; A member declaration is  NAME  |  (NAME default).  Its doc, if any, comes from
 ; a separate (doc DECL "desc" meta...) form (see %member-doc-form? above), so a
@@ -1121,7 +1140,8 @@
       (let ((dform (%find-doc-form body)))           ; class-level (doc ...) -> doc registry
         (unless (null? dform) (%stash-class-doc! name dform)))
       (let ((p (%resolve-parent parent e))
-            (sblock (%find-form body (lit static))))
+            (sblock (%find-form body (lit static)))
+            (tbox (list ())))                          ; %this-class box, filled below
         (let ((imems (%collect-members name body e #t))    ; instance members: per-construction defaults
               (smems (%collect-members name sblock e #f))) ; static members: once, class-wide
           (do
@@ -1130,11 +1150,12 @@
             (let ((cls (%make-class
                          name
                          imems
-                         (%collect-methods name body #t p e)    ; instance methods: raw access + super
+                         (%collect-methods name body #t tbox e)    ; instance methods: raw access + super
                          p
-                         (%collect-methods name sblock #f p e)  ; static methods
+                         (%collect-methods name sblock #f tbox e)  ; static methods
                          smems
                          (%find-form body (lit interface)))))   ; declared interface (or ())
+              (%set-first! tbox cls)                             ; methods can now see their class
               (%check-interface! cls)                            ; error if a contract method is unmet
               (%set-first! %class-registry (pair cls (first %class-registry)))
               cls)))))))
