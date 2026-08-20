@@ -188,7 +188,10 @@ methods — the same dispatch, one level up (`self` is the class). Declare them 
   else `name` is a class-wide member that `(Class m)` reads and `(Class m v)` sets.
 - Members hold any value — symbols, strings, numbers — useful for class-wide
   constants and state, and they take the same `(name value "desc")` form.
-- Static methods are inherited: a subclass calls or overrides its parents'.
+- Static methods **and class-wide members** are inherited: a read reaches the
+  nearest ancestor that declares the member, and a write through a subclass
+  **shadows** into the subclass's own storage — the parent's value is never
+  mutated through a child (write to the parent by naming it: `(Parent m v)`).
 - `(Class new member val …)` constructs an instance — equivalent to the global
   `(new Class …)`.
 
@@ -205,6 +208,128 @@ Python:
 
 `class?` tests for a class, `class-name` works on a class or an instance, and a
 class prints as `#<class Name>`.
+
+---
+
+### Records: `def-record`
+
+For plain data carriers — a handful of named fields, no behaviour to speak of —
+`def-record` is the shorthand. A record **is** a class (instances are ordinary
+objects; construction, access, writes, and printing all ride the doors above)
+plus the two methods a data carrier wants:
+
+```scheme
+(def-record Span start len (colour ()))
+
+(def s (new Span 3 5))       ; the ordinary positional/keyword constructor
+(s start)                    ; => 3       field access, the ordinary door
+(def s2 (s with 'len 9))     ; functional update -> a NEW record; s untouched
+(s =? (new Span 3 5))        ; => #t      structural equality, field by field
+```
+
+`with` keys are **quoted** — `with` is a method, so its arguments evaluate
+(`new`'s bare keys work because `new` is an operative). `=?` compares same
+class then `equal?` per field; it is a *method* by design — `eq?` and `same?`
+keep identity semantics, by ruling. Records are leaves: to extend one, write
+the `def-class` out.
+
+---
+
+### Generic functions: `def-generic` and `on`
+
+When behaviour depends on the types of **several** arguments — the thing
+single-receiver dispatch structurally cannot express — define a generic
+(`(import x/type/generic)`):
+
+```scheme
+(def-generic area)
+(on area ((c Circle)) (* 3 (* (c r) (c r))))     ; a CLASS key: instances,
+(on area ((s Square)) (* (s side) (s side)))     ;   subclasses included
+(on area (x) 'dunno)                             ; bare name = wildcard
+
+(area (new Circle r 2))     ; => 12
+(%map (fn (_ v) (area v)) shapes)   ; a generic is a callable VALUE
+```
+
+Signature keys are values: a class (nearer definitions win down a chain), a
+type handle from `(Type of v)` (exact), or a bare name (wildcard). Selection
+is pointwise — exact beats a nearer ancestor beats the wildcard, position by
+position, with no scalar rank — and two incomparable candidates fall to the
+cvt from-lattice, then to an error naming both. A total miss errors naming the
+generic and the argument types, unless the generic carries a
+`(Generic miss! g handler)` — the numeric tower's promotion rides exactly
+there (`x/num/tower` is the worked example).
+
+---
+
+### Traits: `def-trait` and `(with ...)`
+
+A trait is a named bundle of methods (and requirements) mixed in at class
+definition (`(import x/type/trait)`):
+
+```scheme
+(def-trait Comparable
+  (require cmp)                              ; the host chain must provide these
+  (method <? (self other) (< (self cmp other) 0))
+  (method >? (self other) (< 0 (self cmp other))))
+
+(def-class Version ()
+  (with Comparable)
+  parts
+  (method cmp (self other) ...))
+```
+
+Trait bodies close over their **definition site** (free names resolve where
+the trait was written) but build against the **host's** chain — `super` and
+member access work as if written in the class. Precedence is explicit, no
+linearization: the class's own method beats a trait's beats an inherited one;
+two traits supplying one selector refuse at definition time unless the class
+overrides it; an unmet `(require ...)` refuses at definition, and
+trait-supplied methods satisfy `(interface ...)` contracts. Traits are for
+shared *behaviour*; for the wrapper-over-a-field relationship use
+`delegates`:
+
+```scheme
+(def-class Bag ()
+  (d)
+  (delegates d (has? length (keys names)))   ; forwarders, rename pairs allowed
+  (method %init (self) (self d (Dict make))))
+```
+
+Each entry forwards to the field's value **per call** (a swapped delegate is
+honoured). Methods only — a delegate's plain field read stays a one-line hand
+method. `interface` remains the third tool: the abstract contract on an
+extends-chain.
+
+---
+
+### Open classes and `%missing`
+
+Classes accept new methods after definition:
+
+```scheme
+(Logo def-static! 'square (fn (_ self n) ...))   ; selector may be computed
+((new P) ...)                                    ; every instance sees it
+```
+
+`(C def-method! sel fn)` adds an instance method, `(C def-static! sel fn)` a
+static; both are built-in class selectors (shadowable by a same-named static,
+like `new`). The fn is stored as-is — it receives `(self . args)` and uses
+`(self f)` member access. The class's data mutates (so `(help)` sees the
+addition immediately) and every cached dispatch table refolds.
+
+The `%missing` protocol hook catches what dispatch cannot resolve — instance
+and static sides, inherited like any method:
+
+```scheme
+(def-class Logo ()
+  (static
+    (method %missing (self sel args)
+      (Str8 str "I don't know how to " sel))))
+(Logo spiral 3)     ; => "I don't know how to spiral"
+```
+
+Without a hook, a miss errors naming the class and selector.
 
 ---
 
@@ -319,7 +444,7 @@ its trailing `"description"` string, or with a body-level
 `(doc DECL "description" …)` form — which **declares the member as well as
 documenting it**, so a doc-form member needs no separate bare declaration
 (and having both is a refused duplicate). `(help Class member-or-method)`
-prints the full entry for one of them, and `(help x/type/object)` prints the
+prints the full entry for one of them, and `(help x/type/class)` prints the
 module overview.
 
 ---
@@ -333,38 +458,64 @@ Instances print as `#<ClassName member=value ...>`:
 ; #<Circle r=4>
 ```
 
-This comes from a `write` handler on the object type; it can be extended to prefer
-a user-defined `to-string` method.
+This is the default dump. A class overrides it with the `%repr` / `%str`
+protocol hooks (mirroring Python's `__repr__`/`__str__`): `write` prefers a
+`%repr` method returning a string; `display` prefers `%str`, falling back to
+`write`. The `%` marks them as runtime-invoked hooks, like `%init` (the
+initialize hook that runs after every construction) and `%missing` (below).
+
+```scheme
+(def-class Vec2 () x y
+  (method %repr (self) (Str8 str "<" (self x) "," (self y) ">")))
+(write (new Vec2 x 1 y 2))
+; <1,2>
+```
 
 ---
 
 ### How it works
 
-The system defines a single runtime type, `%object`, via `make-type`. Its **`call`
-handler is an operative**, so when you write `(obj name args…)` the handler
-receives `self` = the instance, `name` **unevaluated** (a literal selector, no
-quote needed — like `def`), and the remaining args still evaluatable in the
-caller's environment. The handler looks `name` up as a method (walking the parent
-chain); finding none, it falls back to member get/set. This is the dispatch hook
-described in the [Type System](type-system.md) guide — the object system is its
-richest example.
+The system defines two runtime types via `make-type`, with **operative `call`
+handlers**: when you write `(obj name args…)` the handler receives the instance,
+`name` **unevaluated** (a literal selector, no quote needed — like `def`), and
+the raw argument forms, which evaluate once in the caller's environment. This is
+the dispatch hook described in the [Type System](type-system.md) guide — the
+object system is its richest example.
 
-There are two callable types. An **instance** (`%object`) stores `(class . member-box)`,
+An **instance** (`%object`) stores `(class . member-box)` in its first slot,
 where `member-box` is a one-cell mutable box holding the member alist; a member
-write swaps that alist in place. A **class** (`%class`) is itself a callable object
-whose payload is a descriptor alist — `name`, members, `methods`, `parent`, plus
-`s-methods` (static methods) and a `statics` box (class-wide members). Each type's
-`call` handler runs the same method-then-member dispatch — one over an instance's
-members, the other over a class's statics. Class identity (used by `instance-of?`
-and inheritance) is checked with `same?` (pointer identity), not `eq?` (value
-equality), since value-comparing two classes would recurse through their method
-closures.
+write mutates its entry **in place** (no copying, and field order stays
+construction order). A **class** (`%class`) is a callable object whose first
+slot is the cold, authoritative descriptor alist — `name`, `fields`, `methods`,
+`parent`, `s-methods`, the visibility alists, and a `statics` box — the single
+source of truth that `(help)` and introspection read.
 
-One implementation detail: x-lang binds a function's *first* parameter to the
-function itself (the recursion handle). `def-class` prepends a hidden slot to each
-method's parameter list so the `self` you write lands in the second slot, which
-dispatch fills with the receiver; it also wraps each instance-method body so the raw
-`member` / `set-member!` accessors are in scope only inside the method.
+Dispatch does not walk that alist per call. Each class lazily builds a **hot
+record** in its second slot: flat, chain-merged instance and static tables
+(most-derived wins; a method beats a same-named member, exactly as dispatch
+always resolved) plus cached construction data. One table walk decides method
+vs member vs miss; the table self-organizes, promoting a hot selector toward
+the front; a method hit is re-driven through `tail-eval`, so the closure runs
+on the caller's raw argument forms with no per-argument closure and no `apply`
+frame. Runtime mutation — `def-method!`, a static shadow-write, trait mixing —
+edits the cold alist and clears every class's hot slot through a class
+registry; tables refold on next dispatch, so the hot path itself carries zero
+staleness checks. A total miss resolves the `%missing` hook through the same
+tables (so it inherits, and cannot recurse into itself) before erroring with
+the class and selector named.
+
+Class identity (used by `instance-of?` and inheritance) is checked with `same?`
+(pointer identity), not `eq?` (value equality), since value-comparing two
+classes would recurse through their method closures.
+
+Two implementation details: x-lang binds a function's *first* parameter to the
+function itself (the recursion handle), so `def-class` prepends a hidden slot to
+each method's parameter list — the `self` you write lands in the second slot,
+which dispatch fills with the receiver. And every method body is wrapped in a
+`let` that binds the raw `member` / `set-member!` accessors (instance methods
+only) plus `%this-class`, a box holding the method's **defining** class — the
+channel `super` derives its parent from and the privacy check reads the
+caller's identity from.
 
 ---
 
@@ -469,8 +620,16 @@ A bank account with a private balance and a savings subclass that adds interest:
 | `(object? x)` / `(class? x)` | Instance / class predicate |
 | `(class-of inst)` / `(class-name x)` | Class of an instance / name of a class or instance |
 | `(instance-of? inst Class)` | Subtype predicate |
+| `(private DECL...)` / `(protected DECL...)` | Enforced visibility blocks in a class body |
+| `(def-record Name field...)` | Data-carrier class with `with` / `=?` built in |
+| `(def-generic g)` / `(on g (SIG...) body...)` | Define a generic / add a method to it |
+| `(def-trait T ...)` / `(with T...)` | Define a trait / mix it into a class |
+| `(delegates field (sel...))` | Generate forwarders to a field's value |
+| `(C def-method! sel fn)` / `(C def-static! sel fn)` | Add a method at runtime |
+| `(method %init/%repr/%str/%missing ...)` | Protocol hooks: construction, printing, miss |
+| `(method-of Class sel)` | Resolve a static once for hot-loop direct calls |
 
 Every form is in the REPL help system — `(help def-class)`, `(help new)`, … — and
-`(help x/type/object)` prints the module overview. See also the
+`(help x/type/class)` prints the module overview. See also the
 [Type System](type-system.md) for the underlying `make-type` mechanism, and the
 [Standard Library](standard-library.md) reference.
