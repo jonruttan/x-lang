@@ -5,9 +5,57 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+The object model's second architecture: one routing model with four doors,
+and the composition features that shape dispatch tables without changing how
+routing works.
+
+### Added
+
+- **Traits and first-class delegation** — `def-trait` defines a behaviour bundle and `with` composes it into a class; `delegates` makes forwarding a declared relationship rather than hand-written pass-through methods.
+- **Generic functions** — `def-generic` and `on` give multi-argument dispatch as the cold path beside message passing's hot one: pointwise specificity, from-lattice tie-break, and teaching errors when no method applies. `x/num/tower` is the worked example, and the tower's mixed-type policy on generics is now stated rather than implied.
+- **Records** — `def-record` for lightweight named-field data types; `Tls` ported onto it as the first occupant.
+- **Open classes** — `def-method!` and `def-static!` add to a class after its definition, with a `%missing` hook for selectors that resolve to nothing.
+- **Two-tier privacy** — `(private …)` and `(protected …)` blocks, enforced at the dispatch door. Reflection is the documented escape hatch; a leading `%` stays what it always was, a naming convention.
+
+### Changed
+
+- **Object model v2** — message passing now runs over flat per-class dispatch tables (the hot path), with `method-of` as the sanctioned de-dispatch door; value-call subject-last is routing sugar into the same door; generic functions are the multi-argument cold path; and the C ops cell's seven spellings shim into the tower's generics, so promotion has one authority. Composition (`with`/`delegates`), contracts, records, open classes and `%missing` are table-shaping features that never change routing. Measured: a 110-entry static back-hit went 231 → ~100 µs/call, and `method-of`-hoisted calls sit at ~31 µs against a plain `fn`'s ~21.
+- **Static members inherit**, with shadow-on-write, and classes are tracked in a registry.
+- **Stored methods are applicative** — the stale wrap sites are gone.
+- **`%this-class` box replaces the `%super-class` binding**; member and static writes go in place through `%box-put!`; the dispatch arg frame is tail-evaluated.
+- **Library version 0.5.0** — `x-lib-version` had read `0.3.0` since before v0.4.0 shipped, so the banner and `x -V` under-reported the library by two releases while claiming precision. `docs/spec.md`, `docs/standard-library.md` and the README's maturity line move with it.
+
 ### Fixed
 
 - **Releases can be told apart, and a mismatched pin refuses instead of crashing** (#435) — the ISA fingerprint is the C surface, which is deliberately fixed: it is byte-identical across v0.3.1-rc10, v0.4.0 and this tree, as are the obj-layout, base-paths and base-layout contracts. So was the engine binary, and so was every fingerprint anything compared. A boot amalgam from one release therefore booted on another release's engine with the pairing guard passing, and died mid-boot on a dereferenced string. Three things now carry release identity: the engine reports its own tag as `x-release` (`x -V` prints it), an installed tree is stamped with that tag and with a **payload fingerprint** — one digest over everything the release ships as library — and `pin.release.xon` publishes the same payload fingerprint beside the ISA one. The wrapper compares the lock's release tag against the engine's before the amalgam reaches it, and refuses the pair, naming both tags and both remedies; `--allow-release-skew`, or `(allow-release-skew)` in the manifest, waives it loudly for anyone who means it. `(Pin verify)` reports the same comparison without enforcing it. The tag comparison works on locks written long before this change, because `Pin boot` has always recorded it.
+- **`Pin sync` classifies a project's own modules and never vendors them** (#223) — and `check`'s audit half arms the project's own roots too, so a project whose sources import its own modules can finally sync and check. Previously sync copied the project's modules into its own overlay, where the stale copies shadowed the real files.
+- **`Pin boot` writes the lock where the guard will find it** (#313's write side) — the boot pin's engine-pairing guard no longer silently stops firing when overlay roots are reordered.
+- **A forked child dies on any failure before exec** — no more half-configured child continuing into the parent's program.
+
+## [0.4.0] - 2026-08-20
+
+The first release since 0.2.0: the 0.3.x development line and the 0.3.1
+release candidates, shipped together. Reproducibility is the theme — a
+project can now freeze the language it runs on, and a release ships the
+engine to run it.
+
+### Added (reproducibility)
+
+- **Project pinning** — a `pin.xon` manifest (`root` overlay, `src` scan tree, `boot` entry) and the `Pin` verbs over it: `init`, `boot`, `sync`, `check`, `vendor`, `verify`, `closure`, `fetch`, `resolve`, `unused`. Two tiers, because there are two kinds of drift: an **overlay pin** freezes the library modules a project imports — vendored closure-wise, digests in a lockfile — and a **boot pin** freezes the language itself by committing a released amalgam. The lockfile records the release tag, that release's ISA fingerprint, and the amalgam's digest; the wrapper arms both pins, announces them on stderr, and refuses to boot an amalgam whose fingerprint doesn't match the running engine.
+- **Versioned module lines** — `import-version-once` / `import-version` select among sibling `@`-suffixed version files by spec string (`"1.3"`, `"1.3.*"`, `"^1"`, `"*"`). Files are append-only, so a fix is a new patch file and every import whose spec admits it picks the fix up on its next run; dedup keys the base name, and a loaded version that doesn't satisfy a later spec is a loud error naming both sides. `Pin resolve` is the dry run, `Pin unused` the safe-removal answer (#214, #215, #216).
+- **Release engineering** — every tag now publishes per-platform prebuilt binary tarballs (Developer ID signed and notarized on macOS) beside the dialect amalgams, each with a coreutils-checkable `.sha256` sidecar, so a release runs with no toolchain and no compile. `bootstrap.sh` covers the from-source path in one command: clone with submodules, build the C89 engine, and optionally install under a user prefix.
+
+### Added (networking and codecs)
+
+- **A networking tier** — a plain HTTP/1.1 client over `Socket` (#374), then the REST tier on top: https via libssl FFI, DNS, the verbs, and `Rest` (#412), with basic auth, bearer-token auth, and auto-followed redirects.
+- **Codecs** — zlib through the dlopen FFI (#373), CSV (#372), binary struct pack/unpack with `File stat`/`lstat` adopting it (#371), and base64 and hex (#362).
+
+### Added (standard library and reader)
+
+- **`$"…"` string interpolation** — holes hold code, and the literal scans as one token instead of shattering into fragments (#292); the quote family's char codes become char literals. Adopted across the library wherever an output call was a text template (#291).
+- **Library growth** — `Path` (#225), a `Proc` tier over `Sys` with one correct spawn shape (#226), `File read-all`/`write-all`, and the coverage tail: `Pq`, `Deque`, `Counter`, `Random uuid`, `Str8 wrap`/`fill` (#375), `from-iso`, UDP and unix sockets, `Proc` options, `walk`, `glob`, `relpath`, `copy`, `temp` (#364).
+- **Consolidation** — canonical membership/assoc/find helpers replacing 32 private copies (#227), one shared xon codec with a single reader door (#230), and one dirent decoder replacing a drifted pair (#228).
+
 
 ### Changed (dialect names — #95)
 
@@ -31,6 +79,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- **Renames across the surface** — `Bignum` → `Bigint` (#356), `Token` → `Analyser` and `StrUTF8` → `StrUtf8` (#359), the cross-class verbs unified (#358), and the R7RS method names retired (#357). Pre-1.0 surface churn, done in one pass rather than a drip.
+- **A bare `make` no longer mutates the binary** — the strip is stamp-gated (#367), and per-variant object suffixes retired the `clean-obj` brackets (#329).
 - **Renamed `x_base_*` → `x_interp_*`** across the interpreter source tree; the file formerly at `src/x-base.c` is now `src/x-interp.c`. `x_base_*` names are reserved for x-expr's library-level skeleton (file descriptors, hooks, heap-group); `x_interp_*` covers the environment/control/extras half this project fills in.
 - **GC hook & root lists moved from x-interp's `extras` group into x-expr's `heap-group`** — one canonical storage location for everything GC, registered by name via `x_heap_{mark,free}_hook_add()` / `x_heap_mark_root_add()` instead of raw `(rest (rest …))` path-walking from x-lang
 - **Lazy doc metadata processing** — `(doc …)` forms stash raw metadata at load time; the full processor runs only on first `(help)`/`(apropos)`/`(modules)` invocation (~1s startup savings)
@@ -41,8 +91,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 - **`make test-asan` promoted to a hard CI gate** — the AddressSanitizer baseline reached zero (112 findings at the gate's introduction → 0): the under-read fixes below plus pinned `ASAN_OPTIONS` (`detect_stack_use_after_return=0`; stack-copying call/cc is fundamentally incompatible with ASan's fake stack, as with any fiber library). A red ASan job is now a real memory-safety regression.
 
+### Performance
+
+- **sha256 gains a JIT** — verifying a released amalgam went from minutes (and a ~2 GB peak) to seconds. The JIT reads bytes directly, the last interpreted tenth of the digest compiles away, the `H` shuffles fold into the compiled loop, and the build is gated on payload size so a small artifact still verifies in pure x (#123, #324).
+- **x86-64 JIT parity** — the backend reaches parity with arm64 and the JIT spec suite stops being arm64-only.
+- **Hot-path sweep** — the pin closure walk drops its quadratic copies and per-node dispatch (#340), `List` family walks become iterative inner loops with one normalization (#336), the regex matcher stops rebuilding group splices (#337), bigint division carries an MSB view instead of re-reversing per digit (#341), `and`/`or` become nested `if` in per-element loops (#343), int-only sites fetch cached int prims (#335), and the doc, fmt, cov and lint walks shed per-node work (#338, #339, #342, #344).
+- **Doc sweeps batch** — ~5 engine boots instead of ~98, and the `**` glob hole closed (#321, #322).
+
 ### Fixed
 
+- **The pin lifecycle is verified-or-nothing** — loud on every bad input, at every verb (#145, #421).
 - **Negative float literals** — the float analyser only entered on a digit, so `-7.5` was never claimed by the float type and fragmented into `-7`, a stray `.`, and `5`. A `-` entry state (requiring a digit next, so the minus operator stays a symbol) fixes it; pure x-lang, no C.
 - **Dotted bodies error instead of crashing** — `(do 7 . 5)` / `(begin 7 . 5)` (e.g. from a malformed literal under a lib without the float type) walked the improper tail into the unchecked `rest` prim and evaluated a value word as an expression (SIGSEGV). The check lives at the x level, in `do`/`begin`'s boot walker: the C core is the processor and does not bounds-check; the walker that accepts the program does. Boot-safe via catalog-fetched type prims and per-dialect probe handles (reader cells and pair-prim cells carry different types).
 - **`%` on floats returned garbage** — the float type registered `+ - * / < =` ops but not `%`, so `(% 1.2 1.4)` fell through to `x_prim_mod`'s integer fallback: value-word modulo on two float *payload pointers* (`(gcd 1.2 1.4)` famously yielded `8`). Floats now dispatch `%` to a new `d%d` FFI convention (`fmod`, matching `%`'s truncated-division semantics; `-lm` added for Linux). Rational and complex still lack `%` ops and inherit the garbage fallback — noted for the tower's next pass.
