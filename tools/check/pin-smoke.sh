@@ -473,4 +473,87 @@ printf '(display "ran")\n' > "$_TMP/pair4/main.x"
 (cd "$_TMP" && $TIMEOUT_CMD sh "$_fake/bin/x" -f "$_TMP/pair4/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
 grep -q "engine pairing unchecked" "$_TMP/err" || fail "pairing-guard: lockless armed pin skipped WITHOUT the unchecked notice (#313)" "$_TMP/err"
 
+# A lock that EXISTS but yields no fingerprint (corrupt, truncated) is
+# the same disappearing-guard shape -- it must say so too.
+mkdir -p "$_TMP/pair5/boot"
+printf '(root "deps")\n(boot "boot/he.x")\n' > "$_TMP/pair5/pin.xon"
+printf '; not a real amalgam -- never reached\n' > "$_TMP/pair5/boot/he.x"
+printf 'total garbage, no isa line\n' > "$_TMP/pair5/deps.lock.xon"
+printf '(display "ran")\n' > "$_TMP/pair5/main.x"
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake/bin/x" -f "$_TMP/pair5/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "no isa fingerprint readable" "$_TMP/err" || fail "pairing-guard: corrupt lock skipped WITHOUT the unchecked notice" "$_TMP/err"
+
+# A corrupt MANIFEST names itself before anything boots -- it used to
+# surface as a bare mid-boot "Unterminated input" naming nothing.
+mkdir -p "$_TMP/badman"
+printf 'this is (((not xon\n' > "$_TMP/badman/pin.xon"
+printf '(display "ran")\n' > "$_TMP/badman/main.x"
+$TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/badman/main.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "manifest: a corrupt manifest was accepted" "$_TMP/out" "$_TMP/err"
+grep -q "unreadable manifest" "$_TMP/err" || fail "manifest: corrupt manifest not named" "$_TMP/err"
+
+# An EMPTY manifest arms nothing and says so (instead of announcing
+# "pinned:" over a blank file).
+mkdir -p "$_TMP/emptyman"
+: > "$_TMP/emptyman/pin.xon"
+printf '(display "ran")\n' > "$_TMP/emptyman/main.x"
+$TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/emptyman/main.x" >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "nothing armed" "$_TMP/err" || fail "manifest: empty manifest armed silently" "$_TMP/err"
+
+# --- The boot-pin lifecycle, offline (#145): fetch publishes verified
+# --- bytes or nothing, upgrade preserves the pin on failure, and verify
+# --- re-checks the platform half.  file:// is fetch's sanctioned
+# --- mirror override; fixture amalgams are tiny, so digests are pure-x
+# --- milliseconds (under the JIT threshold).
+_sha() {
+	if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+	else shasum -a 256 "$1" | awk '{print $1}'; fi
+}
+mkdir -p "$_TMP/rel/v9.9.9" "$_TMP/rel/v9.9.8" "$_TMP/proj/boot" "$_TMP/proj/deps"
+printf '; v1 amalgam\n(display 1)\n' > "$_TMP/rel/v9.9.9/he.x"
+printf '(release "v9.9.9")\n(isa "sha256:aaaa1111")\n(file "he.x" "sha256:%s")\n' \
+	"$(_sha "$_TMP/rel/v9.9.9/he.x")" > "$_TMP/rel/v9.9.9/pin.release.xon"
+printf '; v2 amalgam, manifest digest WRONG\n(display 2)\n' > "$_TMP/rel/v9.9.8/he.x"
+printf '(release "v9.9.8")\n(isa "sha256:bbbb2222")\n(file "he.x" "sha256:%064d")\n' 0 \
+	> "$_TMP/rel/v9.9.8/pin.release.xon"
+printf '(root "deps")\n(src ".")\n(boot "boot/he.x")\n' > "$_TMP/proj/pin.xon"
+
+# Good pin: amalgam installed, lock carries the tag, header names the
+# lock's REAL file (#421).
+cat > "$_TMP/boot1.x" <<EOF
+(import x/tool/pin)
+(Pin boot "v9.9.9" "$_TMP/proj" "file://$_TMP/rel")
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -f "$_TMP/boot1.x" >"$_TMP/out" 2>"$_TMP/err" \
+	|| fail "boot-pin: good offline pin failed" "$_TMP/out" "$_TMP/err"
+grep -q '; v1 amalgam' "$_TMP/proj/boot/he.x" || fail "boot-pin: amalgam not installed" "$_TMP/out"
+grep -q '(release "v9.9.9")' "$_TMP/proj/deps.lock.xon" || fail "boot-pin: lock has no release tag" "$_TMP/out"
+head -1 "$_TMP/proj/deps.lock.xon" | grep -q 'deps.lock.xon' || fail "boot-pin: lock header does not name the lock (#421)" "$_TMP/proj/deps.lock.xon"
+
+# Failed UPGRADE: loud, and NOTHING moves -- the pinned amalgam, the
+# lock, both untouched; the rejected bytes are quarantined beside them.
+cat > "$_TMP/boot2.x" <<EOF
+(import x/tool/pin)
+(Pin boot "v9.9.8" "$_TMP/proj" "file://$_TMP/rel")
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -f "$_TMP/boot2.x" >"$_TMP/out" 2>"$_TMP/err"
+grep -q "digest mismatch" "$_TMP/out" "$_TMP/err" || fail "boot-pin: bad upgrade did not refuse (#145)" "$_TMP/out" "$_TMP/err"
+grep -q '; v1 amalgam' "$_TMP/proj/boot/he.x" || fail "boot-pin: bad upgrade CLOBBERED the pinned amalgam (#145)" "$_TMP/proj/boot/he.x"
+grep -q '(release "v9.9.9")' "$_TMP/proj/deps.lock.xon" || fail "boot-pin: bad upgrade moved the lock (#145)" "$_TMP/proj/deps.lock.xon"
+[ -f "$_TMP/proj/boot/he.x.rejected" ] || fail "boot-pin: rejected bytes not quarantined" "$_TMP/out"
+
+# Verify covers the platform half: a tampered amalgam fails verify by
+# name; restoring it passes again.
+cat > "$_TMP/ver.x" <<EOF
+(import x/tool/pin)
+(display (Pin verify "$_TMP/proj/deps")) (newline)
+EOF
+printf '; TAMPER\n' >> "$_TMP/proj/boot/he.x"
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -f "$_TMP/ver.x" >"$_TMP/out" 2>"$_TMP/err"
+grep -q "pinned boot amalgam digest mismatch" "$_TMP/out" "$_TMP/err" || fail "verify: tampered amalgam not caught (#145)" "$_TMP/out" "$_TMP/err"
+cp "$_TMP/rel/v9.9.9/he.x" "$_TMP/proj/boot/he.x"
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -f "$_TMP/ver.x" >"$_TMP/out" 2>"$_TMP/err"
+grep -q "digest mismatch" "$_TMP/out" "$_TMP/err" && fail "verify: restored amalgam still failing" "$_TMP/out" "$_TMP/err"
+
 echo "pin-smoke: ok"
