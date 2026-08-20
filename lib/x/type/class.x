@@ -42,6 +42,21 @@
 (def %obj-fields (fn (_ inst) (first (%obj-box inst))))
 (def %class-data (fn (_ c) (first c)))                 ; a class object's alist
 
+; In-place write into a boxed alist: mutate the existing entry when the key
+; is present (the common case -- every declared member exists from
+; construction), else prepend a fresh entry. Replaces the %assoc-put path,
+; which copied the whole alist per write and reordered the written key to
+; the head: the update path now allocates nothing and field order stays
+; construction order. An in-flight iteration over the alist sees the update
+; (live view, not a snapshot).
+(def %box-put!
+  (fn (_ box key v)
+    (let ((entry (%assq key (first box))))
+      (if (null? entry)
+        (%set-first! box (pair (pair key v) (first box)))
+        (%set-rest! entry v))
+      v)))
+
 ; Raw field accessors injected into every instance-method body (closing over
 ; `self`), so a method can bypass a same-named override to reach a field's
 ; storage -- the "private data" pattern. Method-local only.
@@ -49,9 +64,7 @@
 (def %method-raw-bindings
   (lit
     ((member     (fn (_ n) (%assoc-get n (%obj-fields self))))
-     (set-member! (fn (_ n v)
-                   (%set-first! (%obj-box self) (%assoc-put n v (%obj-fields self)))
-                   v)))))
+     (set-member! (fn (_ n v) (%box-put! (%obj-box self) n v))))))
 
 (note "Member lookup (walks the single-inheritance parent chain)")
 
@@ -189,20 +202,20 @@
           ((%assoc-has? selector (%obj-fields self))
             (match
               ((null? rest) (%assoc-get selector (%obj-fields self)))
-              (#t (let ((v (eval (first rest) e)))
-                    (%set-first! (%obj-box self) (%assoc-put selector v (%obj-fields self)))
-                    v))))
+              (#t (%box-put! (%obj-box self) selector (eval (first rest) e)))))
           (#t (error "object: no such member")))))))
 
 ; The de-dispatch door (#332): resolve a method ONCE and call it inside
-; a hot loop with self as argument 0.  A stored method is OPERATIVE at
-; direct call (fn closures lack the WRAP flag), so callers (wrap ...)
-; the handle -- %class-dispatch gets the same effect from its explicit
-; apply-with-evaluated-args.  Chain-aware
-; via %lookup, so a subclass override keeps winning; the traversals in
-; protocol/seq.x are the canonical users -- (self done? ...) per
-; ELEMENT paid a selector, a chain walk, an arg-list allocation and an
-; apply, per element, per traversal.
+; a hot loop with self as argument 0.  A stored method is a plain fn
+; closure and is APPLICATIVE at direct call -- args evaluate exactly
+; once (verified: procedure call evaluates the arg list before the
+; WRAP-flag branch).  Callers must NOT (wrap ...) the handle: that adds
+; a SECOND evaluation pass over the already-evaluated values -- wasted
+; work for self-evaluating values, a re-resolution bug for symbols.
+; Chain-aware via %lookup, so a subclass override keeps winning; the
+; traversals in protocol/seq.x are the canonical users -- (self done?
+; ...) per ELEMENT paid a selector, a chain walk, an arg-list
+; allocation and an apply, per element, per traversal.
 (def %class-method-of (fn (_ class sel) (%lookup class (lit s-methods) sel)))
 
 (def %class-statics-box (fn (_ class) (%assoc-get (lit statics) (%class-data class))))
@@ -222,9 +235,7 @@
           ((%assoc-has? selector (%class-statics self))
             (match
               ((null? rest) (%assoc-get selector (%class-statics self)))
-              (#t (let ((v (eval (first rest) e)))
-                    (%set-first! (%class-statics-box self) (%assoc-put selector v (%class-statics self)))
-                    v))))
+              (#t (%box-put! (%class-statics-box self) selector (eval (first rest) e)))))
           (#t (error "object: no such static member")))))))
 
 ; --- Value-to-class call dispatch ---

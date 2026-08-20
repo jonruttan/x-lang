@@ -547,13 +547,13 @@
       (doc "Uppercase the ASCII letters of s; other characters pass through."
         (returns STRING "s with a-z mapped to A-Z")
         (example "(Str8 upcase \"café\")" "\"CAFé\""))
-      (def %upf (wrap (%class-method-of Char (lit upcase))))
+      (def %upf (%class-method-of Char (lit upcase)))
       (self ->str (%map (fn (_ c) (%upf Char c)) (self ->list s))))
     (method downcase (self (param s STRING "String to convert"))
       (doc "Lowercase the ASCII letters of s; other characters pass through."
         (returns STRING "s with A-Z mapped to a-z")
         (example "(Str8 downcase \"ABC\")" "\"abc\""))
-      (def %dnf (wrap (%class-method-of Char (lit downcase))))
+      (def %dnf (%class-method-of Char (lit downcase)))
       (self ->str (%map (fn (_ c) (%dnf Char c)) (self ->list s))))
 
     ; --- trimming (whitespace is ASCII; element scanning is correct) ---

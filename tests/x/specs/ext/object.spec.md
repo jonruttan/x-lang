@@ -810,3 +810,73 @@ are built -- the initialize slot for logic beyond plain field values.
 ```
 ---
     'the-root
+
+## the de-dispatch door: %class-method-of
+
+`%class-method-of` resolves a method once so hot loops can call it directly
+(#332). A stored method is a plain fn closure and is APPLICATIVE at direct
+call: arguments evaluate exactly once. Wrapping the handle in `(wrap ...)`
+would add a second evaluation pass -- this spec pins single evaluation, so a
+symbol-valued argument arrives as the symbol, never re-resolved to its
+binding.
+
+### a stored method called directly evaluates args once
+
+```x
+(do
+  (def-class P ()
+    (static
+      (method m (self a) a)))
+  (def marker 99)
+  (def f (%class-method-of P (lit m)))
+  (f P (lit marker)))
+```
+---
+    'marker
+
+## in-place member writes
+
+A member write mutates the field's entry in place: no allocation on the
+update path, and field order stays construction order instead of the written
+key jumping to the head. The statics box and `set-member!` share the
+mechanism. An in-flight iteration over the field alist therefore sees a
+live view, not a snapshot.
+
+### write-then-read round-trips, repeatedly
+
+```x
+(do
+  (def-class P () x y)
+  (def i (new P x 1 y 2))
+  (i x 10)
+  (i x 11)
+  (i y (i x))
+  (list (i x) (i y)))
+```
+---
+    (11 11)
+
+### field order stays construction order after writes
+
+```x
+(do
+  (def-class P () a b c)
+  (def i (new P a 1 b 2 c 3))
+  (i c 30)
+  (i a 10)
+  (%assoc-keys (%obj-fields i)))
+```
+---
+    ('a 'b 'c)
+
+### static writes update in place; the write returns the value
+
+```x
+(do
+  (def-class C ()
+    (static (count 0)))
+  (C count 1)
+  (list (C count 2) (C count)))
+```
+---
+    (2 2)

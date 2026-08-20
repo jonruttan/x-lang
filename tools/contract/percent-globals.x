@@ -18,6 +18,10 @@
 ; and (#335: cached int %// on the random draw loop, port math, and the
 ; per-expression gc tick) num/random + sys/socket + tool/asm-compile,
 ; and (#307: the sugar-fold cell reads per PRINTED NODE) tool/fmt.
+; The type/class.x row GROWS during the object-model v2 arc (plan
+; approved 2026-08-20): the dispatch engine's own helpers are the
+; measured hot path (8-30x, #332) the exception above exists for --
+; each growth step is one warm-path helper, named per commit.
 ; Everything else is unhomed inventory awaiting the pin.x treatment.
 (file "apps/logo/dispatch.x" 28)
 (file "apps/logo/entry.x" 27)
@@ -98,7 +102,7 @@
 (file "lib/x/type/bool.x" 5)
 (file "lib/x/type/char-io.x" 11)
 (file "lib/x/type/char.x" 5)
-(file "lib/x/type/class.x" 73)
+(file "lib/x/type/class.x" 74)
 (file "lib/x/type/convert.x" 20)
 (file "lib/x/type/dict.x" 19)
 (file "lib/x/type/err.x" 6)
