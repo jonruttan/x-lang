@@ -694,15 +694,18 @@
               ((symbol? (first opts)) (self (rest opts) dir (first opts)))
               (#t (Pin %pin-bad "init: arguments are a directory string and/or an entry symbol")))))
       (%rec opts dir entry))
+    ; The template literal's continuation lines start at column 0: the
+    ; string keeps every byte, so source-level indentation would ship
+    ; six leading spaces into each written line (#314).
     (method %pin-init-template (self entry)
       (Str8 append
       "; What this project is pinned to.
-      ;   root -- the overlay: this project's own copy of the library modules it imports
-      ;   src  -- the tree the pin verbs scan to work out what those are
-      ;   boot -- the language itself: a verified amalgam from a release
-      (root \"deps\")
-      (src \".\")
-      (boot \"boot/"
+;   root -- the overlay: this project's own copy of the library modules it imports
+;   src  -- the tree the pin verbs scan to work out what those are
+;   boot -- the language itself: a verified amalgam from a release
+(root \"deps\")
+(src \".\")
+(boot \"boot/"
             (Str8 append (symbol->str entry) ".x\")\n")))
     (method %pin-take-module (self name)
       (match

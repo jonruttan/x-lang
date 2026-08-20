@@ -451,4 +451,26 @@ printf '(isa "sha256:aaaa1111")\n' > "$_TMP/pair1/deps.lock.xon"
 (cd "$_TMP" && $TIMEOUT_CMD sh "$_fake/bin/x" -f "$_TMP/pair1/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
 grep -q "different engine" "$_TMP/err" && fail "pairing-guard: matched fingerprints were refused" "$_TMP/err"
 
+# Root order must not matter (#313): the lock is named for ITS root, and
+# the guard tries every manifest root -- reading only the first meant an
+# unrelated reorder orphaned the lock and the guard skipped silently.
+mkdir -p "$_TMP/pair3/boot" "$_TMP/pair3/deps"
+printf '(root ".")\n(root "deps")\n(boot "boot/he.x")\n' > "$_TMP/pair3/pin.xon"
+printf '; not a real amalgam -- never reached\n' > "$_TMP/pair3/boot/he.x"
+printf '(isa "sha256:bbbb2222")\n' > "$_TMP/pair3/deps.lock.xon"
+printf '(display "ran")\n' > "$_TMP/pair3/main.x"
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake/bin/x" -f "$_TMP/pair3/main.x") >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "pairing-guard: a reordered root orphaned the lock (#313)" "$_TMP/out" "$_TMP/err"
+grep -q "different engine" "$_TMP/err" || fail "pairing-guard: no refusal after root reorder (#313)" "$_TMP/err"
+
+# An armed boot pin with NO findable lock says so (#313): the guard must
+# never disappear without a word.
+mkdir -p "$_TMP/pair4/boot"
+printf '(root "deps")\n(boot "boot/he.x")\n' > "$_TMP/pair4/pin.xon"
+printf '; not a real amalgam -- never reached\n' > "$_TMP/pair4/boot/he.x"
+printf '(display "ran")\n' > "$_TMP/pair4/main.x"
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake/bin/x" -f "$_TMP/pair4/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "engine pairing unchecked" "$_TMP/err" || fail "pairing-guard: lockless armed pin skipped WITHOUT the unchecked notice (#313)" "$_TMP/err"
+
 echo "pin-smoke: ok"
