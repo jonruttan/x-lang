@@ -72,11 +72,17 @@ jobs:
         # cause is pinned.
         run: |
           if command -v free >/dev/null; then
-            ( while true; do free -m | awk '/Mem:/{print "MEMSAMPLE used=" $3 "MB avail=" $7 "MB"}'; sleep 5; done ) &
+            ( while true; do
+                free -m | awk '/Mem:/{print "MEMSAMPLE used=" $3 "MB avail=" $7 "MB"}'
+                ps ax -o rss=,pid=,args= | sort -rn | head -2 | awk '{print "TOPRSS " $0}'
+                echo "NPROC $(ps ax | wc -l)"
+                sleep 5
+              done ) &
           fi
           make test-x
         env:
           PARALLEL: "1"
+          SPEC_TRACE: "1"
           # The applicative stress lane (#300): serial tail, ~4.7GB peak
           # per file -- inside the heavy-spec envelope on these runners.
           # NEVER set STRESS on the asan job: the sanitizer multiplies

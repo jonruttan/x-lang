@@ -224,6 +224,10 @@ _spawn() {
   case "$_w_adm" in ''|*[!0-9]*) _w_adm=0 ;; esac
   _I=$_N
   _N=$((_N+1))
+  # TEMPORARY diagnostic (object-model v2 CI hunt): name each job as it
+  # launches, so the runaway that OOM-kills the ubuntu runner is
+  # identified by the last SPAWN line before the memory ramp.
+  [ -n "$SPEC_TRACE" ] && echo "SPAWN[$_I] w=$_w_adm: $*" >&2
   _t0=$(date +%s)
   if [ -n "$PARALLEL" ]; then
     _admit "$_w_adm"
