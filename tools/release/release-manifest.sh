@@ -16,6 +16,15 @@
 #                                             these amalgams were built
 #                                             against (make check-isa
 #                                             holds manifest == binary)
+#                      (payload "sha256:HEX") the RELEASE fingerprint: one
+#                                             Merkle root over everything
+#                                             this release ships as library
+#                                             (lib, apps, boot).  The isa
+#                                             row cannot serve here -- it is
+#                                             byte-identical across rc10,
+#                                             0.4.0 and 0.5.0 (#435) -- so
+#                                             the payload row is what tells
+#                                             two releases apart at all
 #                      (file "x.x" "sha256:HEX") one per amalgam
 #
 # Self-checking, the install-recipe way: a missing amalgam dir, an
@@ -57,6 +66,12 @@ mkdir -p build/release
   isa=$(_digest tools/contract/isa.x)
   check_hex "$isa" tools/contract/isa.x
   printf '(isa "sha256:%s")\n' "$isa"
+  # The payload fingerprint is computed by the same script `make install`
+  # runs against the installed tree, so the manifest and the engine beside
+  # the library are answering the identical question.
+  payload=$(sh tools/release/payload-digest.sh) || exit 1
+  check_hex "$payload" "the payload"
+  printf '(payload "sha256:%s")\n' "$payload"
   n=0
   for f in build/boot/*.x; do
     [ -e "$f" ] || { echo "release-manifest: no amalgams in build/boot" >&2; exit 1; }
@@ -71,4 +86,4 @@ mkdir -p build/release
 
 mv build/release/SHASUMS.tmp build/release/SHASUMS
 mv build/release/pin.release.xon.tmp build/release/pin.release.xon
-echo "release-manifest: $(grep -c '^(file ' build/release/pin.release.xon) amalgams + isa fingerprint for $TAG"
+echo "release-manifest: $(grep -c '^(file ' build/release/pin.release.xon) amalgams + isa and payload fingerprints for $TAG"

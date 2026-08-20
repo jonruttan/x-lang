@@ -83,8 +83,21 @@ differ in what surface is *loaded*, never in what a shared spelling *means*
 - **ISA fingerprint** — the sha256 of `tools/contract/isa.x`, the ratcheted
   C-surface manifest. Published in every release's `pin.release.xon`,
   it names the engine contract the release's amalgams were built
-  against — the machine-checkable half of "which binary runs this
-  pinned platform".
+  against. It is a compatibility key, not an identity: the C surface is
+  deliberately fixed, so releases whose library changed completely share
+  one fingerprint.
+- **payload fingerprint** — the sha256 of the digest listing of
+  everything a release ships as library (`lib`, `apps`, `boot`, sorted).
+  Published in `pin.release.xon` and stamped into an installed tree as
+  `share/x/contract/payload.sha256`. Changes whenever the shipped bytes
+  do, which is what the ISA fingerprint cannot do.
+- **release stamp** — `share/x/contract/release`, the tag an installed
+  engine was built as (`x-release` inside the language). The key the
+  wrapper compares against a lock's `(release ...)` before booting a
+  pinned amalgam, and the one that refuses a mismatched pair.
+- **release skew** — a pinned amalgam and an engine from different
+  releases. Refused at boot; waived per run with `--allow-release-skew`
+  or per project with `(allow-release-skew)` in the manifest.
 - **fetch** — `(Pin fetch "boot" "vX.Y.Z" 'xe)`: download a release's
   manifest and one amalgam (curl when present; otherwise the URLs print
   and nothing proceeds) and verify with the pure-x SHA-256 before

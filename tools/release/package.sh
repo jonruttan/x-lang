@@ -49,7 +49,13 @@ fail() { echo "package: FAIL: $1" >&2; exit 1; }
 # Stage the install tree under a versioned prefix (no sudo, all in $STAGE).
 # `make install` builds the engine + boot amalgams if missing and self-checks
 # the library with diff -r.
-make --no-print-directory install PREFIX="/x-$TAG" DESTDIR="$STAGE" >/dev/null \
+# X_RELEASE is passed, not derived (#435): the engine and the tree are
+# stamped with the tag they SHIP under.  Left to the Makefile's default,
+# `git describe` would answer from whatever the runner checked out -- a
+# shallow clone, or a tag it never fetched -- and a tarball whose engine
+# disagrees with its own release is exactly the confusion the stamp exists
+# to end.
+make --no-print-directory install PREFIX="/x-$TAG" DESTDIR="$STAGE" X_RELEASE="$TAG" >/dev/null \
 	|| fail "make install failed"
 [ -x "$STAGE/x-$TAG/bin/x" ]       || fail "no wrapper staged"
 [ -x "$STAGE/x-$TAG/libexec/x/x-bin" ] || fail "no engine staged"
@@ -84,6 +90,29 @@ out=$( cd / && "$EXTRACT/x-$TAG/bin/x" -f "$EXTRACT/hello.x" 2>/dev/null | tail 
 # worked, so only this exact shape catches it.
 out=$( cd "$EXTRACT" && "./x-$TAG/bin/x" -f "$EXTRACT/hello.x" 2>/dev/null | tail -1 )
 [ "$out" = "42" ] || fail "the packaged x did not run by relative path (got: '$out')"
+
+# The release stamps must describe THIS tarball, and must be the same facts
+# the release manifest published -- the two are built by different CI jobs
+# from the same tag, so nothing else compares them.  Recomputing the payload
+# digest from the EXTRACTED tree proves the stamp describes the bytes that
+# actually shipped (not the staging tree, and not the repo by assumption),
+# and comparing it against the repo's proves it equals the manifest's
+# (payload ...) row, which release-manifest.sh computes from the repo with
+# this same script.  A tarball whose stamp is wrong is a tarball whose
+# pairing guard lies, so this fails the package rather than shipping.
+_tree="$EXTRACT/x-$TAG/share/x"
+[ -f "$_tree/contract/release" ] || fail "no release stamp in the packaged tree"
+[ -f "$_tree/contract/payload.sha256" ] || fail "no payload stamp in the packaged tree"
+stamped_tag=$(cat "$_tree/contract/release")
+[ "$stamped_tag" = "$TAG" ] \
+	|| fail "packaged tree is stamped '$stamped_tag', not '$TAG'"
+stamped=$(cat "$_tree/contract/payload.sha256")
+shipped=$(sh tools/release/payload-digest.sh "$_tree") || fail "payload digest failed"
+[ "$stamped" = "$shipped" ] \
+	|| fail "payload stamp does not describe the shipped tree ($stamped vs $shipped)"
+repo=$(sh tools/release/payload-digest.sh) || fail "payload digest failed"
+[ "$stamped" = "$repo" ] \
+	|| fail "packaged payload differs from the repo's, so it will differ from the release manifest ($stamped vs $repo)"
 
 # The sidecar names the BARE tarball (so `sha256sum -c` works from OUTDIR).
 ( cd "$OUT" && _sha "$name.tar.gz" > "$name.tar.gz.sha256" )

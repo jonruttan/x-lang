@@ -163,6 +163,34 @@ the pipe exists); the loader only shape-checks it.
 ---
     #t
 
+### an allow-release-skew form is accepted and contributes no root
+
+The manifest's second wrapper-consumed form (#435): it waives the
+boot-time release pairing refusal for this project, so like `(boot ...)`
+it is decided before the pipe exists and the loader only shape-checks it.
+
+```scheme
+(do
+  (import x/tool/pin)
+  (display (null? (Pin %pin-interpret (Pin %pin-forms "(allow-release-skew)") "/proj"))))
+```
+---
+    #t
+
+### allow-release-skew takes no arguments
+
+A safety waiver that is silently ignored because it was misspelled is
+worse than one that was never written, so the closed vocabulary rejects
+it rather than skipping it.
+
+```scheme
+(do
+  (import x/tool/pin)
+  (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(allow-release-skew \"yes\")") "/p")))))
+```
+---
+    #t
+
 ### arming a nonexistent root directory is a loud error
 
 ```scheme
@@ -495,6 +523,45 @@ vendor into that overlay must not evict them.
 ```
 ---
     v1 sha256:bb
+
+### a release manifest's payload fingerprint parses
+
+The release fingerprint (#435): one digest over everything the release
+ships as library.  `isa` is the C surface and is byte-identical across
+releases, so it can say "compatible" but never "same release"; this row
+is what tells two releases apart.
+
+```scheme
+(do
+  (def %pin-spec-p (Pin %pin-release-parse (Pin %pin-forms
+    "(release \"v1\") (isa \"sha256:aa\") (payload \"sha256:cc\")")))
+  (display (%assoc-get 'payload %pin-spec-p)))
+```
+---
+    sha256:cc
+
+### a release manifest without a payload row still parses
+
+Every release published before #435 has no such row, and unpinning those
+projects to fix a fingerprint they never had would be the worse trade --
+so the fact is optional and reads back as nil.
+
+```scheme
+(do
+  (def %pin-spec-q (Pin %pin-release-parse (Pin %pin-forms
+    "(release \"v1\") (isa \"sha256:aa\")")))
+  (display (null? (%assoc-get 'payload %pin-spec-q))))
+```
+---
+    #t
+
+### a non-string payload is a loud error
+
+```scheme
+(display (throws? (fn (_) (Pin %pin-release-parse (Pin %pin-forms "(release \"v1\") (payload 42)")))))
+```
+---
+    #t
 
 ### a manifest without (release ...) is a loud error
 

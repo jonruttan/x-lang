@@ -32,6 +32,10 @@
 #              PATH: the wrapper assembles its pipe as text and evals it,
 #              so an unquoted value would make the manifest executable --
 #              the manifest is documented inert (docs/modules.md)
+#   release-guard  a pinned amalgam from another RELEASE is refused even
+#              though the isa fingerprints match (#435), --allow-release-skew
+#              and (allow-release-skew) waive it loudly, and a lock or an
+#              engine with nothing to compare says so
 #   pin-quote  a manifest DIRECTORY carrying a double quote is refused:
 #              the path is emitted as an x-lang string literal, and a
 #              quote would close it and inject forms into the boot stream
@@ -483,6 +487,84 @@ printf '(display "ran")\n' > "$_TMP/pair5/main.x"
 (cd "$_TMP" && $TIMEOUT_CMD sh "$_fake/bin/x" -f "$_TMP/pair5/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
 grep -q "no isa fingerprint readable" "$_TMP/err" || fail "pairing-guard: corrupt lock skipped WITHOUT the unchecked notice" "$_TMP/err"
 
+# release-guard (#435): the pairing refusal the ISA fingerprint cannot
+# make.  isa.x is the C surface and is byte-identical across v0.3.1-rc10,
+# v0.4.0 and v0.5.0 -- so the guard above passed an rc10 amalgam onto a
+# v0.4.0 engine and the boot died on a dereferenced string, no diagnosis.
+# The release TAG is the key that cannot under-approximate, and every leg
+# below keeps the isa fingerprints MATCHED so the refusal under test is
+# unambiguously the release one.
+_fake2="$_TMP/fakeinstall2"
+mkdir -p "$_fake2/bin" "$_fake2/share/x/contract" "$_fake2/share/x/lib" "$_fake2/share/x/boot"
+cp "$WRAPPER" "$_fake2/bin/x"
+printf 'aaaa1111\n' | tr -d '\n' > "$_fake2/share/x/contract/isa.sha256"
+printf 'v9.9.9-rel\n' > "$_fake2/share/x/contract/release"
+
+# dir, the lock's release tag ("" for a lock that predates #435), and
+# "skew" to put the manifest's own waiver in.  The isa row is always the
+# fake engine's, so nothing here can be refused for the older reason.
+_rel_proj() {
+	mkdir -p "$_TMP/$1/boot" "$_TMP/$1/deps"
+	printf '(root "deps")\n(boot "boot/he.x")\n' > "$_TMP/$1/pin.xon"
+	[ "${3:-}" = skew ] && printf '(allow-release-skew)\n' >> "$_TMP/$1/pin.xon"
+	printf '; not a real amalgam -- never reached\n' > "$_TMP/$1/boot/he.x"
+	: > "$_TMP/$1/deps.lock.xon"
+	[ -n "$2" ] && printf '(release "%s")\n' "$2" >> "$_TMP/$1/deps.lock.xon"
+	printf '(isa "sha256:aaaa1111")\n' >> "$_TMP/$1/deps.lock.xon"
+	printf '(display "ran")\n' > "$_TMP/$1/main.x"
+	return 0
+}
+
+# Different release, matching isa: refused, and the message names both.
+_rel_proj rel1 v9.9.8-old
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake2/bin/x" -f "$_TMP/rel1/main.x") >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "release-guard: a skewed release was accepted" "$_TMP/out" "$_TMP/err"
+grep -q "different release" "$_TMP/err" || fail "release-guard: no refusal message" "$_TMP/err"
+grep -q "v9.9.8-old" "$_TMP/err" || fail "release-guard: refusal does not name the amalgam's release" "$_TMP/err"
+grep -q "v9.9.9-rel" "$_TMP/err" || fail "release-guard: refusal does not name the engine's release" "$_TMP/err"
+
+# --allow-release-skew waives it -- loudly.  A silent waiver would be a
+# guard that can be turned off without leaving a trace in the output.
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake2/bin/x" --allow-release-skew -f "$_TMP/rel1/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "different release" "$_TMP/err" && fail "release-guard: --allow-release-skew did not waive the refusal" "$_TMP/err"
+grep -q "release skew allowed" "$_TMP/err" || fail "release-guard: --allow-release-skew waived SILENTLY" "$_TMP/err"
+
+# A LOCALLY BUILT engine must not be told to move the pin onto itself:
+# `Pin boot` fetches the tag it is given, and `git describe` answers for
+# a local build name no published release.  The remedy has to differ.
+printf 'v9.9.9-12-gabcdef1\n' > "$_fake2/share/x/contract/release"
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake2/bin/x" -f "$_TMP/rel1/main.x") >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "release-guard: a skewed local build was accepted" "$_TMP/out" "$_TMP/err"
+grep -q "local build" "$_TMP/err" || fail "release-guard: a local build was told to move the pin onto itself" "$_TMP/err"
+grep -q "Pin boot" "$_TMP/err" && fail "release-guard: a local build was offered an unfetchable (Pin boot) remedy" "$_TMP/err"
+printf 'v9.9.9-rel\n' > "$_fake2/share/x/contract/release"
+
+# The manifest form is the same waiver, made once for the project.
+_rel_proj rel2 v9.9.8-old skew
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake2/bin/x" -f "$_TMP/rel2/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "different release" "$_TMP/err" && fail "release-guard: (allow-release-skew) did not waive the refusal" "$_TMP/err"
+grep -q "release skew allowed" "$_TMP/err" || fail "release-guard: (allow-release-skew) waived SILENTLY" "$_TMP/err"
+
+# Same release: no refusal (the fake tree fails to boot afterwards, which
+# is fine -- the assertion is only about the guard).
+_rel_proj rel3 v9.9.9-rel
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake2/bin/x" -f "$_TMP/rel3/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "different release" "$_TMP/err" && fail "release-guard: a matched release was refused" "$_TMP/err"
+
+# A lock with no (release ...) row -- every lock written before #435 --
+# cannot be checked, and says so rather than passing quietly.
+_rel_proj rel4 ""
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake2/bin/x" -f "$_TMP/rel4/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "no release tag readable" "$_TMP/err" || fail "release-guard: a release-less lock skipped WITHOUT the unchecked notice" "$_TMP/err"
+
+# An install tree with no stamp -- an engine older than #435 under a newer
+# wrapper -- is the same disappearing guard, and says so too.
+_rel_proj rel5 v9.9.8-old
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake/bin/x" -f "$_TMP/rel5/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "carries no release stamp" "$_TMP/err" || fail "release-guard: an unstamped engine skipped WITHOUT the unchecked notice" "$_TMP/err"
+
 # A corrupt MANIFEST names itself before anything boots -- it used to
 # surface as a bare mid-boot "Unterminated input" naming nothing.
 mkdir -p "$_TMP/badman"
@@ -512,7 +594,7 @@ _sha() {
 }
 mkdir -p "$_TMP/rel/v9.9.9" "$_TMP/rel/v9.9.8" "$_TMP/proj/boot" "$_TMP/proj/deps"
 printf '; v1 amalgam\n(display 1)\n' > "$_TMP/rel/v9.9.9/he.x"
-printf '(release "v9.9.9")\n(isa "sha256:aaaa1111")\n(file "he.x" "sha256:%s")\n' \
+printf '(release "v9.9.9")\n(isa "sha256:aaaa1111")\n(payload "sha256:eeee5555")\n(file "he.x" "sha256:%s")\n' \
 	"$(_sha "$_TMP/rel/v9.9.9/he.x")" > "$_TMP/rel/v9.9.9/pin.release.xon"
 printf '; v2 amalgam, manifest digest WRONG\n(display 2)\n' > "$_TMP/rel/v9.9.8/he.x"
 printf '(release "v9.9.8")\n(isa "sha256:bbbb2222")\n(file "he.x" "sha256:%064d")\n' 0 \
@@ -530,6 +612,24 @@ $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -f "$_TMP/boot1.x" >"$_TMP/out" 2>"$_TMP/
 grep -q '; v1 amalgam' "$_TMP/proj/boot/he.x" || fail "boot-pin: amalgam not installed" "$_TMP/out"
 grep -q '(release "v9.9.9")' "$_TMP/proj/deps.lock.xon" || fail "boot-pin: lock has no release tag" "$_TMP/out"
 head -1 "$_TMP/proj/deps.lock.xon" | grep -q 'deps.lock.xon' || fail "boot-pin: lock header does not name the lock (#421)" "$_TMP/proj/deps.lock.xon"
+grep -q '(payload "sha256:eeee5555")' "$_TMP/proj/deps.lock.xon" || fail "boot-pin: lock did not lift the release's payload fingerprint (#435)" "$_TMP/proj/deps.lock.xon"
+
+# ...and a release that published NO payload row -- every release before
+# #435 -- must still pin, leaving no payload line rather than a nil one
+# that would match nothing forever.
+mkdir -p "$_TMP/rel/v9.9.6" "$_TMP/proj6/boot" "$_TMP/proj6/deps"
+cp "$_TMP/rel/v9.9.9/he.x" "$_TMP/rel/v9.9.6/he.x"
+printf '(release "v9.9.6")\n(isa "sha256:aaaa1111")\n(file "he.x" "sha256:%s")\n' \
+	"$(_sha "$_TMP/rel/v9.9.6/he.x")" > "$_TMP/rel/v9.9.6/pin.release.xon"
+printf '(root "deps")\n(src ".")\n(boot "boot/he.x")\n' > "$_TMP/proj6/pin.xon"
+cat > "$_TMP/boot6.x" <<EOF
+(import x/tool/pin)
+(Pin boot "v9.9.6" "$_TMP/proj6" "file://$_TMP/rel")
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -f "$_TMP/boot6.x" >"$_TMP/out" 2>"$_TMP/err" \
+	|| fail "boot-pin: a payload-less release failed to pin (#435)" "$_TMP/out" "$_TMP/err"
+grep -q '(release "v9.9.6")' "$_TMP/proj6/deps.lock.xon" || fail "boot-pin: payload-less pin wrote no release tag" "$_TMP/proj6/deps.lock.xon"
+grep -q '(payload' "$_TMP/proj6/deps.lock.xon" && fail "boot-pin: payload-less release left a payload row in the lock" "$_TMP/proj6/deps.lock.xon"
 
 # Failed UPGRADE: loud, and NOTHING moves -- the pinned amalgam, the
 # lock, both untouched; the rejected bytes are quarantined beside them.

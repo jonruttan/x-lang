@@ -312,8 +312,15 @@ Overlay pins cannot cross the pin boundary — the boot set itself.
 Pinning the *platform* means running a pinned boot: every release tag
 publishes the amalgamated boot entries (each dialect's full boot as one
 self-contained file), together with `SHASUMS` and `pin.release.xon` —
-per-file sha256 digests plus the **ISA fingerprint**, the digest of the
-C-surface manifest the amalgams were built against. An amalgam has zero
+per-file sha256 digests plus two whole-release facts: the **ISA
+fingerprint**, the digest of the C-surface manifest the amalgams were
+built against, and the **payload fingerprint**, one digest over
+everything the release ships as library (`lib`, `apps`, `boot`). The two
+answer different questions. The ISA fingerprint answers *will this
+amalgam run on this engine's C surface* — and because that surface is
+deliberately fixed, it is identical across releases whose library
+changed completely. The payload fingerprint answers *which release is
+this*, and changes whenever the shipped bytes do. An amalgam has zero
 path literals, so a verified download boots directly against a
 matching engine binary:
 
@@ -324,10 +331,13 @@ cat xe.x program.x | ./x-bin --batch
 
 The same release ships that matching engine as a relocatable per-platform
 tarball (`x-<tag>-<os>-<arch>.tar.gz`) — built from the same tagged
-source, so it carries the release's ISA fingerprint by construction. The
-engine and the amalgams are two separately verified artifacts that pair
-through the fingerprint; you never have to build the engine to pin the
-platform.
+source, so it carries the release's fingerprints by construction. An
+installed tree records them beside its library, in
+`share/x/contract/`: `isa.sha256`, `payload.sha256`, and `release` (the
+tag). The engine reports its own tag as `x-release`, which `x -V`
+prints. The engine and the amalgams are two separately verified
+artifacts that pair through the release tag; you never have to build the
+engine to pin the platform.
 
 The platform can also fetch and verify in one step:
 
@@ -364,10 +374,11 @@ parent directories git-style. A found manifest is always announced —
 one `pinned: <path>` line on stderr, plus a `pinned boot: <path>` line
 when a boot entry is pinned — and `--no-pin` skips the probe entirely.
 
-The wrapper interprets exactly one manifest form itself: `(boot
-"FILE")`, extracted textually (never evaluated), because the boot
-entry must be chosen before the pipe exists — the loader runs too
-late to pick it. Everything else stays interpreter-side: the wrapper
+The wrapper interprets two manifest forms itself, both extracted
+textually (never evaluated), because both must be decided before the
+pipe exists — the loader runs too late for either: `(boot "FILE")`,
+which names the boot entry, and `(allow-release-skew)`, which waives the
+release pairing refusal described below. Everything else stays interpreter-side: the wrapper
 hands the manifest's path over as data (`(def %pin-file "<path>")`
 ahead of the boot entry) and loads `x/tool/pin` right after boot,
 before the first user form. That loader — always resolved from the
@@ -377,6 +388,46 @@ roots via `import-path!`. Because nothing in the manifest is
 evaluated, a manifest can only do what pinning does: redirect import
 resolution into its own project's files, and select which verified
 boot to run.
+
+### Release pairing
+
+A pinned boot amalgam and the engine that runs it must come from the
+same release. An amalgam binds against far more than the C surface —
+boot structure, object-model conventions, the library it will import
+from — so a mismatched pair does not fail cleanly; it segfaults
+mid-boot. The ISA fingerprint cannot catch this, because the C surface
+it digests is identical across releases the library changed completely
+between.
+
+The release tag is the key that can. `Pin boot` records it in the lock
+(`(release "vX.Y.Z")`), `make install` stamps the engine's own into
+`share/x/contract/release`, and the wrapper compares the two before the
+amalgam reaches the engine — the last point where a refusal can still
+prevent the crash:
+
+```console
+$ x -f main.x
+Error: pinned boot amalgam is from a different release than this engine
+  amalgam: /proj/boot/he.x
+  its release:  v0.4.0
+  this engine:  v0.5.0
+  ...
+  Fix by moving the pin:  (Pin boot "v0.5.0")
+```
+
+Both remedies are real ones: move the pin to the engine you have, or
+install the engine the pin names. When neither is wanted, the waiver is
+`--allow-release-skew` for one run, or `(allow-release-skew)` in the
+manifest for a project that makes the choice repeatedly. Neither is a
+fix — the pairing that crashes still crashes — so the wrapper stays
+loud about proceeding.
+
+The check runs in installed mode only, and is silent when either side
+has nothing to say: a lock written before the tag was recorded, or a
+tree installed before it was stamped, prints an *unchecked* notice
+rather than passing quietly. `(Pin verify)` reports the same comparison
+without enforcing it, alongside the payload fingerprint — which catches
+the narrower case of a tree carrying the right tag and the wrong bytes.
 
 ### The pin boundary
 
@@ -393,7 +444,7 @@ Two structural rules bound what an overlay can change:
 
 `make check-pin` smokes all of this end to end (overlay resolution,
 root precedence, the unpinnable core, the closed vocabulary,
-`--no-pin`, and the boot+overlay composition).
+`--no-pin`, the boot+overlay composition, and both pairing guards).
 
 ### Bootstrap Sequence
 
