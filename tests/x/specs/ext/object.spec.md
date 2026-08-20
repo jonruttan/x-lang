@@ -1029,3 +1029,213 @@ spelled `(Parent name v)`).
 ```
 ---
     50
+
+## open classes: def-method! and def-static!
+
+Classes accept new methods after definition: `(C def-method! sel fn)` adds
+an instance method, `(C def-static! sel fn)` a static. Both are built-in
+class selectors (shadowable by a same-named static method, like `new`);
+sel and fn are ordinary evaluated arguments, so selectors can be computed.
+The fn is stored as-is -- it receives (self . args) and uses `(self f)`
+member access, with no super/member injection. The cold alist mutates
+(help sees the addition immediately) and every hot table clears.
+
+### add a static, then call it -- selector computed
+
+```x
+(do
+  (def-class T ())
+  (T def-static! (lit hi) (fn (_ self n) (+ n 1)))
+  (T hi 41))
+```
+---
+    42
+
+### add an instance method reaching members
+
+```x
+(do
+  (def-class P () x)
+  (P def-method! (lit double) (fn (_ self) (* 2 (self x))))
+  ((new P x 21) double))
+```
+---
+    42
+
+### a parent gaining a method invalidates an already-dispatched child
+
+```x
+(do
+  (def-class A ())
+  (def-class B (extends A))
+  (def b (new B))
+  (guard (e 'pre) (b late))
+  (A def-method! (lit late) (fn (_ self) 'from-a))
+  (b late))
+```
+---
+    'from-a
+
+### the newest addition wins over an earlier one
+
+```x
+(do
+  (def-class P ())
+  (P def-method! (lit m) (fn (_ self) 'first))
+  (P def-method! (lit m) (fn (_ self) 'second))
+  ((new P) m))
+```
+---
+    'second
+
+## the %missing hook
+
+`(method %missing (self sel args) ...)` fires on a total dispatch miss --
+instance and static sides, inherited through the chain like any method.
+`sel` is the missed selector, `args` the evaluated argument list. Without
+a hook, the miss stays the named error.
+
+### a static %missing catches unknown commands
+
+```x
+(do
+  (def-class Logo ()
+    (static
+      (method %missing (self sel args)
+        (%str-append "I don't know how to " (symbol->str sel)))))
+  (Logo spiral 3))
+```
+---
+    "I don't know how to spiral"
+
+### an instance %missing is inherited and sees the args
+
+```x
+(do
+  (def-class M ()
+    (method %missing (self sel args) (list 'missed sel args)))
+  (def-class M2 (extends M))
+  ((new M2) whoosh 1 2))
+```
+---
+    ('missed 'whoosh (1 2))
+
+### without a hook the miss stays a named error
+
+```x
+(do
+  (def-class Bare ())
+  (guard (e e) ((new Bare) nope)))
+```
+---
+    "Bare: no such member nope"
+
+## privacy: (private ...) and (protected ...) declaration blocks
+
+Members and methods declared inside a `(private ...)` or `(protected ...)`
+block (body top level, or inside `(static ...)`) are enforced at the
+dispatch door. `private` = callable/readable only from methods of the
+defining class; `protected` = from methods anywhere on its chain. The
+caller's identity is the lexical `%this-class` every method body binds --
+top-level code has none, so it is always "outside". Enforcement is
+per-class opt-in: undeclared members stay public, `%`-prefix stays a
+naming convention, and introspection/(help) still lists everything.
+
+### a private member: own methods reach it, outside is blocked
+
+```x
+(do
+  (def-class Acct ()
+    (private balance)
+    (method deposit (self n) (self balance (+ (self balance) n)) self)
+    (method value (self) (self balance))
+    (method %init (self) (self balance 0)))
+  (def a (new Acct))
+  (a deposit 10)
+  (list (a value) (guard (e 'blocked) (a balance))))
+```
+---
+    (10 'blocked)
+
+### the violation names class, selector, and definer
+
+```x
+(do
+  (def-class Vault ()
+    (private (method %open (self) 'in)))
+  (guard (e e) ((new Vault) %open)))
+```
+---
+    "Vault: %open is private to Vault"
+
+### protected: reachable from a subclass method, blocked outside
+
+```x
+(do
+  (def-class P ()
+    (protected (method helper (self) 'from-p)))
+  (def-class C (extends P)
+    (method use (self) (self helper)))
+  (list ((new C) use) (guard (e 'blocked) ((new P) helper))))
+```
+---
+    ('from-p 'blocked)
+
+### private is same-class only: a subclass method is outside
+
+```x
+(do
+  (def-class P ()
+    (private (method %own (self) 'p-only)))
+  (def-class C (extends P)
+    (method try (self) (self %own)))
+  (guard (e 'blocked) ((new C) try)))
+```
+---
+    'blocked
+
+### static-side blocks guard class-wide members
+
+```x
+(do
+  (def-class S ()
+    (static
+      (private (secret 42))
+      (method open (self) (S secret))))
+  (list (S open) (guard (e 'blocked) (S secret))))
+```
+---
+    (42 'blocked)
+
+### member/set-member! raw access is untouched by privacy
+
+```x
+(do
+  (def-class B ()
+    (private x)
+    (method poke (self) (set-member! 'x 7) (member 'x)))
+  ((new B) poke))
+```
+---
+    7
+
+### introspection still lists private members (reflection is the escape)
+
+```x
+(do
+  (def-class H () (private hidden) shown)
+  (class-members H))
+```
+---
+    ('hidden 'shown)
+
+### a private %init still fires on construction
+
+```x
+(do
+  (def-class Q () v
+    (private (method %init (self) (self v 9))))
+  ((new Q) v))
+```
+---
+    9

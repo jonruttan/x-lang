@@ -72,6 +72,19 @@
 ; the method closure itself). A fresh pair, compared by eq? -- unforgeable.
 (def %field-tag (list (lit %field)))
 
+; Privacy wrapper sentinel: a table entry (%priv-tag vis defining . inner)
+; guards inner behind the dispatch-door check below. Same unforgeable-pair
+; trick as %field-tag.
+(def %priv-tag (list (lit %priv)))
+
+; The ambient caller-class probe. Every method body lexically rebinds
+; %this-class to a one-cell box holding its DEFINING class (filled by
+; def-class once the class object exists); evaluated from a non-method
+; context it resolves to this nil. super derives its parent from the same
+; box, replacing the old direct %super-class binding at zero added
+; per-call bindings.
+(def %this-class ())
+
 ; Find `sel` in a flat table and self-organize: a hit DEEPER THAN POSITION
 ; TWO swaps its (sel . entry) pair with the head's via two %set-first!, so a
 ; hot selector is a front hit from its second call on. The top-2 exemption
@@ -124,26 +137,48 @@
             (if (%seen? (first (first al)) acc)
               acc
               (pair (pair (first (first al)) (mk (first al))) acc))))))
-    (def %walk-chain                      ; fold `key` alists, derived first
-      (fn (loop c key mk acc)
-        (if (null? c) acc
-          (loop (%assoc-get (lit parent) (%class-data c)) key mk
-            (%fold-rows (%assoc-get key (%class-data c)) mk acc)))))
-    (def %mark (fn (_ row) %field-tag))
     (def %not-new? (fn (_ row) (not (eq? (first row) (lit new)))))
+    ; Visibility wrap: a name listed in the defining level's vis alist
+    ; ((name . private|protected) ...) gets its entry guarded as
+    ; (%priv-tag vis defining . inner); anything else passes bare.
+    (def %vis-wrap
+      (fn (_ c visal name inner)
+        (let ((v (%assoc-get name visal)))
+          (if (null? v) inner
+            (pair %priv-tag (pair v (pair c inner)))))))
+    (def %ivis-of (fn (_ c) (%assoc-get (lit ivis) (%class-data c))))
+    (def %svis-of (fn (_ c) (%assoc-get (lit svis) (%class-data c))))
+    (def %walk-methods                    ; `key` method alists, derived first
+      (fn (loop c key visf acc)
+        (if (null? c) acc
+          (loop (%assoc-get (lit parent) (%class-data c)) key visf
+            (let ((visal (visf c)))
+              (%fold-rows (%assoc-get key (%class-data c))
+                (fn (_ row) (%vis-wrap c visal (first row) (rest row)))
+                acc))))))
+    (def %walk-ifields                    ; instance-field markers, derived first
+      (fn (loop c acc)
+        (if (null? c) acc
+          (loop (%assoc-get (lit parent) (%class-data c))
+            (let ((visal (%ivis-of c)))
+              (%fold-rows (%assoc-get (lit fields) (%class-data c))
+                (fn (_ row) (%vis-wrap c visal (first row) %field-tag))
+                acc))))))
     (def %walk-statics                    ; ancestor static members, nearest first
       (fn (loop c acc)
         (if (null? c) acc
           (loop (%assoc-get (lit parent) (%class-data c))
-            (%fold-rows (%filter %not-new? (%class-statics c))
-              (fn (_ row) (pair %field-tag c))
-              acc)))))
+            (let ((visal (%svis-of c)))
+              (%fold-rows (%filter %not-new? (%class-statics c))
+                (fn (_ row) (%vis-wrap c visal (first row) (pair %field-tag c)))
+                acc))))))
     (let ((fields (%all-fields class)))
-      (list (%fold-rows fields %mark (%walk-chain class (lit methods) rest ()))
+      (list (%walk-ifields class (%walk-methods class (lit methods) %ivis-of ()))
             (%walk-statics (%assoc-get (lit parent) (%class-data class))
-              (%fold-rows (%filter %not-new? (%class-statics class))
-                %mark
-                (%walk-chain class (lit s-methods) rest ())))
+              (let ((visal (%svis-of class)))
+                (%fold-rows (%filter %not-new? (%class-statics class))
+                  (fn (_ row) (%vis-wrap class visal (first row) %field-tag))
+                  (%walk-methods class (lit s-methods) %svis-of ()))))
             fields
             (%ctor-member-names class)))))
 
@@ -165,15 +200,89 @@
               (loop (rest cs))))))
     (%go (first %class-registry))))
 
+; Add a method row to a class's cold alist (key = methods | s-methods) and
+; invalidate every hot table. Prepend, so the newest registration wins over
+; both an earlier addition and the def-class-time definition (the flattener
+; records first sight per level). Returns nil: a mutation, not a value.
+(def %class-add!
+  (fn (_ class key sel f)
+    (unless (symbol? sel)
+      (error "def-method!: selector must be a symbol"))
+    (let ((row (%assq key (%class-data class))))
+      (%set-rest! row (pair (pair sel f) (rest row))))
+    (%classes-invalidate!)
+    ()))
+
+; Unwrap a privacy wrapper to its inner entry, NO access check -- for the
+; runtime's own protocol-hook lookups (%init, %missing), which fire on the
+; instance's behalf whatever the hook's declared visibility.
+(def %entry-inner
+  (fn (_ entry)
+    (if (if (pair? entry) (eq? (first entry) %priv-tag) #f)
+      (rest (rest (rest entry)))
+      entry)))
+
+; The dispatch-door privacy check. The caller's class comes from the
+; lexical %this-class box every method body binds; from a non-method
+; context the ambient nil makes the answer "outside". private = the same
+; class only; protected = chain-related in EITHER direction, so a parent
+; method calling down into a subclass-protected override stays legal, as
+; does the ordinary inherited-helper call up.
+(def %vis-allowed?
+  (fn (_ vis defining e)
+    (let ((b (eval (lit %this-class) e)))
+      (let ((caller (if (null? b) () (first b))))
+        (match
+          ((null? caller) #f)
+          ((eq? vis (lit private)) (same? caller defining))
+          ((%class-ancestor? caller defining) #t)
+          (#t (%class-ancestor? defining caller)))))))
+
+; A pair entry reaching a dispatch method branch is a privacy wrapper
+; (%priv-tag vis defining . inner): check access, then process inner
+; exactly as the plain branches would. Guarded members are the cold side
+; by construction, so the method path uses plain apply -- no trampoline
+; subtleties inside a helper fn.
+(def %priv-entry
+  (fn (_ target class entry selector args e static?)
+    (let ((vis (first (rest entry)))
+          (defining (first (rest (rest entry))))
+          (inner (rest (rest (rest entry)))))
+      (unless (%vis-allowed? vis defining e)
+        (error (%str-append (symbol->str (class-name class))
+          (%str-append ": " (%str-append (symbol->str selector)
+            (%str-append (if (eq? vis (lit private)) " is private to " " is protected to ")
+              (symbol->str (class-name defining))))))))
+      (match
+        ((eq? inner %field-tag)
+          (if static?
+            (match
+              ((null? args) (%assoc-get selector (%class-statics class)))
+              (#t (%box-put! (%class-statics-box class) selector (eval (first args) e))))
+            (match
+              ((null? args) (%assoc-get selector (%obj-fields target)))
+              (#t (%box-put! (%obj-box target) selector (eval (first args) e))))))
+        ((if (pair? inner) (eq? (first inner) %field-tag) #f)   ; inherited static
+          (match
+            ((null? args) (%assoc-get selector (%class-statics (rest inner))))
+            (#t
+              (let ((v (eval (first args) e)))
+                (%box-put! (%class-statics-box class) selector v)
+                (%classes-invalidate!)
+                v))))
+        (#t (apply inner (pair target (%map1 (fn (_ a) (eval a e)) args))))))))
+
 ; Entry discrimination for the cold resolvers (method-of, method-ref, the
-; value-call handlers): a callable method entry, or nil for a miss / field
-; marker / inherited-static marker.
+; value-call handlers): a callable PUBLIC method entry, or nil for a miss,
+; a field marker, an inherited-static marker, or a privacy-guarded entry --
+; the resolvers are reachable from anywhere, so they never hand out a
+; guarded method.
 (def %entry-method
   (fn (_ entry)
     (match
       ((null? entry) ())
       ((eq? entry %field-tag) ())
-      ((if (pair? entry) (eq? (first entry) %field-tag) #f) ())
+      ((if (pair? entry) #t #f) ())
       (#t entry))))
 
 ; A class's hot record, built on first dispatch. Lives in the class
@@ -192,13 +301,25 @@
           fresh)
         hot))))
 
-; Total dispatch miss, one seam: a named error today; the %missing protocol
-; hook and the generic-dispatch trapdoor interpose here in later phases.
+; Total dispatch miss, one seam. The %missing protocol hook fires first
+; when the chain defines it: (method %missing (self sel args) ...) --
+; instance side resolves it through the flat itab, static side through the
+; stab, so it inherits like any method. `target` is the receiver (instance
+; or class), `args` the RAW argument forms, evaluated here (cold path)
+; before the hook sees them as a list. Without a hook, a named error.
+; The generic-dispatch trapdoor interposes here in a later phase.
 (def %dispatch-miss
-  (fn (_ class selector static?)
-    (error (%str-append (symbol->str (class-name class))
-      (%str-append (if static? ": no such static member " ": no such member ")
-        (symbol->str selector))))))
+  (fn (_ target class selector args e static?)
+    (let ((tab (if static?
+                 (first (rest (%class-hot class)))
+                 (first (%class-hot class)))))
+      (let ((m (%entry-method (%entry-inner (%tab-find! tab tab (lit %missing))))))
+        (if (null? m)
+          (error (%str-append (symbol->str (class-name class))
+            (%str-append (if static? ": no such static member " ": no such member ")
+              (symbol->str selector))))
+          (apply m (list target selector
+                     (%map1 (fn (_ a) (eval a e)) args))))))))
 
 (note "Member lookup (walks the single-inheritance parent chain)")
 
@@ -324,7 +445,7 @@
             ; chains as usual. Fires on every construction door (new,
             ; class-dispatch new, new-from).
             (let ((itab (first hot)))
-              (let ((m (%tab-find! itab itab (lit %init))))
+              (let ((m (%entry-inner (%tab-find! itab itab (lit %init)))))
                 (unless (if (null? m) #t (eq? m %field-tag))
                   (apply m (list inst)))))
             inst))))))
@@ -356,12 +477,14 @@
               ((null? args) (%assoc-get selector (%obj-fields self)))
               (#t (%box-put! (%obj-box self) selector (eval (first args) e)))))
           ((not (null? entry))
-            (tail-eval (pair entry (pair self args)) e))
+            (if (pair? entry)                          ; privacy wrapper
+              (%priv-entry self (%obj-class self) entry selector args e #f)
+              (tail-eval (pair entry (pair self args)) e)))
           ((%assoc-has? selector (%obj-fields self))   ; ad-hoc instance key
             (match
               ((null? args) (%assoc-get selector (%obj-fields self)))
               (#t (%box-put! (%obj-box self) selector (eval (first args) e)))))
-          (#t (%dispatch-miss (%obj-class self) selector #f)))))))
+          (#t (%dispatch-miss self (%obj-class self) selector args e #f)))))))
 
 ; The de-dispatch door (#332): resolve a method ONCE and call it inside
 ; a hot loop with self as argument 0.  A stored method is a plain fn
@@ -423,10 +546,25 @@
                   (%classes-invalidate!)
                   v))))
           ((not (null? entry))
-            (tail-eval (pair entry (pair self args)) e))
+            (if (pair? entry)                              ; privacy wrapper
+              (%priv-entry self self entry selector args e #t)
+              (tail-eval (pair entry (pair self args)) e)))
           ((eq? selector (lit new))                   ; (Class new k v ...): values are code
             (%instantiate self args e #t))
-          (#t (%dispatch-miss self selector #t)))))))
+          ; Runtime method addition -- the open-class doors. Built-ins like
+          ; `new`: a static method of the same name shadows them (checked
+          ; above via the table). sel and fn are ordinary evaluated args, so
+          ; selectors can be computed (a runtime-defined command language
+          ; needs exactly that). The fn is stored AS-IS -- no super/member
+          ; injection; it receives (self . args) and uses (self f) access.
+          ; The cold alist is mutated (single source of truth: help and
+          ; introspection see the addition immediately) and every hot table
+          ; clears -- descendants must refold to see it.
+          ((eq? selector (lit def-method!))
+            (%class-add! self (lit methods) (eval (first args) e) (eval (first (rest args)) e)))
+          ((eq? selector (lit def-static!))
+            (%class-add! self (lit s-methods) (eval (first args) e) (eval (first (rest args)) e)))
+          (#t (%dispatch-miss self self selector args e #t)))))))
 
 ; --- Value-to-class call dispatch ---
 ; Build a TYPE call handler so an instance, called as (inst method . args),
@@ -587,14 +725,16 @@
     (let ((inst (eval self-expr e)) (selector (%selector sel-raw)))
       (if (not (object? inst))
         (error "object: super works only inside an instance method")
-        ; %super-class is the parent of the class that DEFINED this method (bound by
-        ; def-class in the method's scope), so super resolves to the right level even
-        ; when the method is inherited by a deeper subclass -- no self-recursion.
+        ; The parent comes from %this-class -- the box every method body
+        ; binds to its DEFINING class -- so super resolves to the right
+        ; level even when the method is inherited by a deeper subclass:
+        ; no self-recursion.
         ; Resolution goes through the parent's flat itab (chain-merged, so a
         ; grandparent method is found exactly as the old chain walk did); a
         ; field marker is not a method. tail-eval re-drives the call: raw
         ; arg forms evaluate once, with no per-arg eval closure or apply.
-        (let ((sc (eval (lit %super-class) e)))
+        (let ((sc (let ((b (eval (lit %this-class) e)))
+                    (if (null? b) () (class-parent (first b))))))
           (let ((method (if (null? sc) ()
                           (let ((itab (first (%class-hot sc))))
                             (%tab-find! itab itab selector)))))
@@ -726,7 +866,7 @@
 (note "Class definition")
 
 (def %make-class
-  (fn (_ name fields methods parent s-methods statics interface)
+  (fn (_ name fields methods parent s-methods statics interface ivis svis)
     (%make-instance %class
       (list
         (pair (lit name) name)
@@ -735,6 +875,8 @@
         (pair (lit parent) parent)
         (pair (lit s-methods) s-methods)
         (pair (lit interface) interface)           ; declared (interface ...) names, or ()
+        (pair (lit ivis) ivis)                     ; instance-side (name . private|protected)
+        (pair (lit svis) svis)                     ; static-side visibility alist
         (pair (lit statics) (list statics))))))   ; statics in a one-cell mutable box
 
 ; Find a top-level body form whose head is `tag`, returning its rest (or ()).
@@ -877,13 +1019,18 @@
             (loop (rest sig))))
         sig))))   ; dotted-rest tail passes through
 
-; Build a method closure from (NAME (self . params) body...). The body is wrapped
-; in a let binding %super-class (the parent of the defining class, used by super)
-; and, for instance methods (raw? true), the raw member/set-member! accessors.
-; A leading (doc ...) body form and inline (param ...) signature annotations are
-; stripped here (their registration happens in %collect-methods).
+; Build a method closure from (NAME (self . params) body...). The body is
+; wrapped in a let binding %this-class -- a one-cell box def-class fills
+; with the class object once it exists (methods are built BEFORE the class;
+; the box breaks the cycle). super reads the defining class's parent from
+; it; the privacy check reads the caller's class from it. For instance
+; methods (raw? true) the raw member/set-member! accessors ride the same
+; let. A leading (doc ...) body form and inline (param ...) signature
+; annotations are stripped here (their registration happens in
+; %collect-methods). The box is spliced as (lit BOX): a raw pair in value
+; position would evaluate as a form.
 (def %make-method
-  (fn (_ form raw? parent e)
+  (fn (_ form raw? tbox e)
     (let ((sig  (%strip-sig-params (first (rest (rest form)))))
           (body (if (%method-has-doc? form)
                   (rest (rest (rest (rest form))))     ; drop leading (doc ...)
@@ -892,7 +1039,7 @@
         (list (lit fn)
           (pair (lit recur) sig)                       ; (recur . user-params)
           (pair (lit let)
-            (pair (pair (list (lit %super-class) parent)
+            (pair (pair (list (lit %this-class) (list (lit lit) tbox))
                     (when raw? %method-raw-bindings))
                   body)))
         e))))
@@ -902,7 +1049,7 @@
 ; super). class-name keys any per-method docs. Registers a doc entry for each
 ; documented method as a side effect.
 (def %collect-methods
-  (fn (loop class-name forms raw? parent e)
+  (fn (loop class-name forms raw? tbox e)
     (unless (null? forms)
       ; Guard the head test: a bare member name is a SYMBOL, and first on a
       ; non-pair is unchecked -- (first 'x) yields the name buffer as an
@@ -913,9 +1060,9 @@
           (when (%method-has-doc? (first forms))
             (%stash-method-doc! class-name (first forms)))
           (pair (pair (first (rest (first forms)))
-                      (%make-method (first forms) raw? parent e))
-                (loop class-name (rest forms) raw? parent e)))
-        (loop class-name (rest forms) raw? parent e)))))
+                      (%make-method (first forms) raw? tbox e))
+                (loop class-name (rest forms) raw? tbox e)))
+        (loop class-name (rest forms) raw? tbox e)))))
 
 ; A member declaration is  NAME  |  (NAME default).  Its doc, if any, comes from
 ; a separate (doc DECL "desc" meta...) form (see %member-doc-form? above), so a
@@ -1053,8 +1200,47 @@
 ; any inherited interface. Kept out of the def-class op body so the op's tail
 ; stays the bare tail-eval (see below).
 (def %build-class
-  (fn (_ name parent body e)
+  (fn (_ name parent body0 e)
     (do
+      ; Explode (private ...) / (protected ...) declaration blocks: their
+      ; tail forms splice in place and each declared name is recorded in a
+      ; visibility alist for the flattener. Blocks work at the body top
+      ; level (instance side) and inside (static ...); nesting the other
+      ; way round is refused. LOCAL fns, mid-body on purpose (the
+      ; %check-dups! pattern below).
+      (def %block-vis
+        (fn (_ f)
+          (if (pair? f)
+            (if (eq? (first f) (lit private)) (lit private)
+              (if (eq? (first f) (lit protected)) (lit protected) ()))
+            ())))
+      (def %decl-name
+        (fn (_ f)
+          (if (if (pair? f) (eq? (first f) (lit method)) #f)
+            (first (rest f))
+            (%member-name (%member-decl f)))))
+      (def %explode-vis                    ; forms -> (spliced-forms . vis-alist)
+        (fn (loop fs)
+          (match
+            ((null? fs) (pair () ()))
+            ((not (null? (%block-vis (first fs))))
+              (let ((vis (%block-vis (first fs)))
+                    (bodyf (rest (first fs)))
+                    (outer (loop (rest fs))))
+                (do
+                  (%map (fn (_ f)
+                          (when (if (pair? f) (eq? (first f) (lit static)) #f)
+                            (error "def-class: declare (private ...) inside (static ...), not the reverse")))
+                    bodyf)
+                  (pair (%append2 bodyf (first outer))
+                        (%append2 (%map (fn (_ f) (pair (%decl-name f) vis)) bodyf)
+                                  (rest outer))))))
+            (#t
+              (let ((outer (loop (rest fs))))
+                (pair (pair (first fs) (first outer)) (rest outer)))))))
+      (def %ix (%explode-vis body0))
+      (def body (first %ix))
+      (def ivis (rest %ix))
       (%validate-body body)
       ; A member name declared twice in ONE class body is always a mistake
       ; -- the common shape is a bare declaration beside its (doc NAME ...)
@@ -1082,8 +1268,11 @@
               (loop (rest ms))))))
       (let ((dform (%find-doc-form body)))           ; class-level (doc ...) -> doc registry
         (unless (null? dform) (%stash-class-doc! name dform)))
+      (def %sx (%explode-vis (%find-form body (lit static))))
       (let ((p (%resolve-parent parent e))
-            (sblock (%find-form body (lit static))))
+            (sblock (first %sx))
+            (svis (rest %sx))
+            (tbox (list ())))                          ; %this-class box, filled below
         (let ((imems (%collect-members name body e #t))    ; instance members: per-construction defaults
               (smems (%collect-members name sblock e #f))) ; static members: once, class-wide
           (do
@@ -1092,11 +1281,13 @@
             (let ((cls (%make-class
                          name
                          imems
-                         (%collect-methods name body #t p e)    ; instance methods: raw access + super
+                         (%collect-methods name body #t tbox e)    ; instance methods: raw access + super
                          p
-                         (%collect-methods name sblock #f p e)  ; static methods
+                         (%collect-methods name sblock #f tbox e)  ; static methods
                          smems
-                         (%find-form body (lit interface)))))   ; declared interface (or ())
+                         (%find-form body (lit interface))          ; declared interface (or ())
+                         ivis svis)))
+              (%set-first! tbox cls)                             ; methods can now see their class
               (%check-interface! cls)                            ; error if a contract method is unmet
               (%set-first! %class-registry (pair cls (first %class-registry)))
               cls)))))))
@@ -1117,6 +1308,9 @@
   (note "  (method NAME (self . args) body...)      instance method")
   (note "  (static MEMBER... (method ...)...)       class-wide members + static methods")
   (note "  (interface NAME...)                      abstract: a concrete subclass must implement each NAME")
+  (note "  (private DECL...) | (protected DECL...)  visibility blocks (members and methods; also inside (static ...)):")
+  (note "                                           private = defining class's methods only; protected = its chain.")
+  (note "                                           Enforced at the dispatch door; introspection and (help) still list them.")
   (note "  (doc \"summary\" (note ..) (see ..) (example ..))   class-level docs, shown by (help Class)")
   (note "A method shadows a member of the same name. Parent: () or (extends Class).")
   (note "Inside a method, (self m) accesses members; (member 'm)/(set-member! 'm v) are raw.")

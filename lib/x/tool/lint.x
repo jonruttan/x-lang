@@ -735,21 +735,30 @@
   (def name-str (%cvt (first (rest form)) %string))
   (%scope-add! name-str)
   (%set-first! %lint-class-names (pair name-str (first %lint-class-names)))
-  ; The parents slot is (Parent ...) or (extends Proto ...): the extends
-  ; KEYWORD is not a reference, everything else is.
-  (let ((parents (first (rest (rest form)))))
-    (match
-      ((if (pair? parents) (eq? (first parents) 'extends) #f) (%lint-seq (rest parents)))
-      (#t (%for-each (fn (_ p) (%lint-form p)) parents))))
+  ; def-record has NO parents slot -- (def-record NAME field...) -- so its
+  ; whole tail is member declarations; def-class's third element is the
+  ; parents form, (Parent ...) or (extends Proto ...): the extends KEYWORD
+  ; is not a reference, everything else is.
+  (def body
+    (if (eq? (first form) 'def-record)
+      (rest (rest form))
+      (do
+        (let ((parents (first (rest (rest form)))))
+          (match
+            ((if (pair? parents) (eq? (first parents) 'extends) #f) (%lint-seq (rest parents)))
+            (#t (%for-each (fn (_ p) (%lint-form p)) parents))))
+        (rest (rest (rest form))))))
   (let ((saved-sibs (first (Lint %lint-class-siblings))))
     (%set-first! (Lint %lint-class-siblings)
-      (Lint %lint-class-methods (rest (rest (rest form))) ()))
-    (%for-each (fn (_ c) (Lint %lint-class-clause c)) (rest (rest (rest form))))
+      (Lint %lint-class-methods body ()))
+    (%for-each (fn (_ c) (Lint %lint-class-clause c)) body)
     (%set-first! (Lint %lint-class-siblings) saved-sibs)))
     (method %lint-class-prepass (self forms)
   (unless (null? forms)
     (do (let ((f (%lint-unwrap-doc (first forms))))
-          (when (if (pair? f) (eq? (first f) 'def-class) #f)
+          (when (if (pair? f)
+                  (if (eq? (first f) 'def-class) #t (eq? (first f) 'def-record))
+                  #f)
             (%set-first! %lint-class-names
               (pair (%cvt (first (rest f)) %string) (first %lint-class-names)))))
         (recur self (rest forms)))))
