@@ -197,8 +197,17 @@ jobs:
       # the build and laid down byte-identical afterwards.  The
       # ref/c/html/index.html link in docs/index.md then resolves as
       # written.
+      #
+      # mkdir first, and not redundantly: rsync creates only the FINAL
+      # component of its destination, and docs/ref/c is excluded from the
+      # Jekyll build, so nothing else ever makes that parent.  GNU rsync
+      # fails the copy outright (ENOENT); macOS ships openrsync, which
+      # creates the whole path -- which is why this step passed a local
+      # dry run and broke on the first Linux deploy.
       - name: Lay down the C reference verbatim
-        run: rsync -a docs/ref/c/html/ build/_site/docs/ref/c/html/
+        run: |
+          mkdir -p build/_site/docs/ref/c
+          rsync -a docs/ref/c/html/ build/_site/docs/ref/c/html/
 
       - uses: actions/upload-pages-artifact@v3
         with:
