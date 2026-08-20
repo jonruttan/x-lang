@@ -1,0 +1,218 @@
+name: Pages
+
+# The documentation site (https://jonruttan.github.io/x-lang/).
+#
+# WHY A SEPARATE WORKFLOW.  Both generated references are gitignored --
+# docs/ref/x (make doc-x) and docs/ref/c (make doc-c) are build output,
+# never committed -- so the site cannot be served from a branch.  It is
+# built here and handed straight to Pages as an artifact, which keeps
+# the "generated files are not source" rule intact: nothing generated
+# ever lands in a commit.
+#
+# WHY NOT A LEG OF ci.yml.  The docs job there is a GATE -- it runs
+# doc-x on every PR to prove the library still parses (#308) -- and a
+# gate must not carry pages:write / id-token:write, nor a deploy whose
+# failure reads as a doc regression.  This workflow publishes; that one
+# judges.  The overlap is one make target, and it is cheap.
+#
+# NOT tags-only.  A workflow that fires only on a tag is invisible to
+# the gate until the tag is cut, which is exactly how the v0.4.0 tag
+# failed on a bug in release.yml.  Publishing on every main push means
+# a break here surfaces on the merge that caused it.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege: read the tree, write the Pages deployment, and mint
+# the OIDC token deploy-pages authenticates with.  Nothing else.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and never cancel one in flight -- a
+# half-uploaded artifact would leave the live site on a torn state.
+# A superseded run simply queues behind the current one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build site
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Doxygen is not on the runner image, and doc-c is the only step
+      # that needs it.  The Doxyfile is in 1.16.1 format and the runner's
+      # apt version is older, so it will warn about tags it does not know
+      # -- WARN_AS_ERROR = NO, so those warnings do not fail the run, and
+      # the output is the same reference either way.
+      - name: Install Doxygen
+        run: sudo apt-get update && sudo apt-get install -y doxygen
+
+      - name: Build
+        run: make
+
+      # doc-x sweeps lib/x/** into 113 markdown pages plus an index;
+      # doc-c runs Doxygen over the C engine into docs/ref/c/html.
+      # The sweep is chunked and SEQUENTIAL by design (see
+      # tools/dev/doc-sweep.sh) -- a 25-file chunk peaks near 1.7GB, so
+      # it gets the runner to itself rather than sharing with a build.
+      - name: Generate the x-lang reference
+        run: make doc-x
+
+      - name: Generate the C reference
+        run: make doc-c
+
+      # The site tree MIRRORS THE REPO LAYOUT, because the docs link as
+      # though it does: docs/index.md reaches ../README.md, ../LICENSE
+      # and ../CHANGELOG.md, and README.md reaches examples/ and
+      # apps/logo/.  Flattening docs/ to the root would break every one
+      # of those.  The file list is `git ls-files`, not a hand-kept
+      # enumeration -- a doc added tomorrow ships without editing this
+      # workflow -- and the generated references are copied in on top,
+      # since git does not track them.
+      - name: Stage the site tree
+        run: |
+          rm -rf build/site build/_site
+          mkdir -p build/site
+          git ls-files -z | rsync -a --files-from=- --from0 ./ build/site/
+          rsync -a docs/ref/ build/site/docs/ref/
+
+          # Two things every staged page needs before Jekyll sees it.
+          #
+          # TITLE.  A generated reference page opens with its "[<- Index]"
+          # nav link, so the H1 naming the module is on line 3 -- and
+          # jekyll-titles-from-headings only reads a heading at the very
+          # start.  Left alone, all 113 reference pages publish under the
+          # site title, one indistinguishable browser tab from the next.
+          # The first H1 anywhere in the page becomes the page title.
+          #
+          # LIQUID.  Jekyll renders every page through Liquid, and x-lang
+          # spells {{ and }} as LANGUAGE SYNTAX -- Str8's literal-brace
+          # escape.  Unguarded, Liquid EATS them: docs/syntax.md's
+          # "`{{` and `}}` are literal braces" published as "`` are
+          # literal braces", and str8's (Str8 format "{{}} is a slot")
+          # lost its format string outright.  No page here is a template,
+          # so any page carrying a delimiter gets raw guards.  grep
+          # decides which, rather than a kept list -- str8.md is
+          # GENERATED from library source, so the set moves with the
+          # library's own docs.
+          # A README is left front-matter-free on purpose: jekyll-readme-index
+          # promotes it to its directory's index.html, and it stops doing
+          # that the moment the file carries front matter -- which cost the
+          # site its landing page the first time this ran.  No loss: a
+          # README's heading is the project name, which is the site title.
+          find build/site -name '*.md' | while read -r page; do
+            title=''
+            case "${page##*/}" in
+              README.md) ;;
+              *) title=$(sed -n 's/^# //p' "$page" | head -1 \
+                         | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g') ;;
+            esac
+            guard=''
+            grep -qE '\{\{|\}\}|\{%' "$page" && guard=yes
+            {
+              [ -n "$title" ] && printf -- '---\ntitle: "%s"\n---\n' "$title"
+              [ -n "$guard" ] && printf '{%% raw %%}\n'
+              cat "$page"
+              [ -n "$guard" ] && printf '\n{%% endraw %%}\n'
+            } > "$page.staged"
+            mv "$page.staged" "$page"
+          done
+
+      # Written here rather than tracked in the repo: it configures a
+      # publishing step, not the project, and a stray _config.yml at the
+      # repo root would be one more file to explain to a contributor.
+      #
+      # The theme and the three plugins are all in the github-pages gem
+      # set that actions/jekyll-build-pages ships.  jekyll-relative-links
+      # is the load-bearing one: it rewrites the .md links the docs are
+      # written with into the .html pages Jekyll emits, so
+      # docs/index.md's table of contents resolves online exactly as it
+      # does on github.com.  optional-front-matter lets every page stay
+      # plain markdown, readme-index makes the project README the site's
+      # landing page, and default-layout is what puts each page INSIDE
+      # the theme -- without it a page ships as a bare fragment with no
+      # <html> around it.  titles-from-headings gives each page its own
+      # <title> from its H1; without it all 143 tabs read "x-lang".
+      - name: Write the Jekyll configuration
+        run: |
+          cat > build/site/_config.yml <<'CONF'
+          # No baseurl here -- the github-pages gem sets it from the
+          # repository.  Hardcoding "/x-lang" would break the day a
+          # custom domain is pointed at the site.
+          title: x-lang
+          description: Type-agnostic expression interpreter in C89
+          theme: jekyll-theme-primer
+          plugins:
+            - jekyll-relative-links
+            - jekyll-optional-front-matter
+            - jekyll-readme-index
+            - jekyll-default-layout
+            - jekyll-titles-from-headings
+          relative_links:
+            enabled: true
+            collections: true
+          exclude:
+            # 224 spec files, each a markdown document Jekyll would
+            # render as its own page.  They are a test suite, not
+            # documentation; docs/spec.md is the readable form.
+            - tests/
+            # Copied in verbatim AFTER the build (see below).
+            - docs/ref/c/
+            # Machinery, not documentation.
+            - .github/
+            - Makefile
+            - Doxyfile
+          CONF
+
+      # No inputs on purpose.  The static_site_generator knob only
+      # understands nuxt/next/gatsby/sveltekit -- Jekyll is not one of
+      # them, because it does not need to be: the github-pages gem
+      # inside the build step derives baseurl from the repository, the
+      # same way github.com's own Pages build does, so the site works
+      # under /x-lang/ without this workflow ever spelling the repo name.
+      # The step earns its place as the early, loud failure if Pages has
+      # not been enabled on the repository.
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Build with Jekyll
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: build/site
+          destination: build/_site
+
+      # Doxygen's HTML is FINISHED output -- its own stylesheet, its own
+      # search index, its own generated anchors.  Jekyll has nothing to
+      # add to it and several ways to disturb it, so it is excluded from
+      # the build and laid down byte-identical afterwards.  The
+      # ref/c/html/index.html link in docs/index.md then resolves as
+      # written.
+      - name: Lay down the C reference verbatim
+        run: rsync -a docs/ref/c/html/ build/_site/docs/ref/c/html/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/_site
+
+  deploy:
+    name: deploy
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
