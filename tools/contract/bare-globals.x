@@ -78,6 +78,8 @@
   (instance-of?)
   (method-of)     ; the sanctioned de-dispatch door (#332): resolve-once hot-loop handle
   (def-record)    ; record sugar over def-class (with/=? built in)
+  (def-generic)   ; generic-function definition (x/type/generic)
+  (on)            ; generic-method registration sugar (x/type/generic)
   (method-ref)
   (new)
   (new-from)

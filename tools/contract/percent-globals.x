@@ -108,6 +108,7 @@
 (file "lib/x/type/dict.x" 19)
 (file "lib/x/type/err.x" 6)
 (file "lib/x/type/gen.x" 1)
+(file "lib/x/type/generic.x" 19)
 (file "lib/x/type/hash.x" 7)
 (file "lib/x/type/iter.x" 19)
 (file "lib/x/type/list.x" 5)
