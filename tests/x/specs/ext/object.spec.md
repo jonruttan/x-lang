@@ -1129,3 +1129,113 @@ a hook, the miss stays the named error.
 ```
 ---
     "Bare: no such member nope"
+
+## privacy: (private ...) and (protected ...) declaration blocks
+
+Members and methods declared inside a `(private ...)` or `(protected ...)`
+block (body top level, or inside `(static ...)`) are enforced at the
+dispatch door. `private` = callable/readable only from methods of the
+defining class; `protected` = from methods anywhere on its chain. The
+caller's identity is the lexical `%this-class` every method body binds --
+top-level code has none, so it is always "outside". Enforcement is
+per-class opt-in: undeclared members stay public, `%`-prefix stays a
+naming convention, and introspection/(help) still lists everything.
+
+### a private member: own methods reach it, outside is blocked
+
+```x
+(do
+  (def-class Acct ()
+    (private balance)
+    (method deposit (self n) (self balance (+ (self balance) n)) self)
+    (method value (self) (self balance))
+    (method %init (self) (self balance 0)))
+  (def a (new Acct))
+  (a deposit 10)
+  (list (a value) (guard (e 'blocked) (a balance))))
+```
+---
+    (10 'blocked)
+
+### the violation names class, selector, and definer
+
+```x
+(do
+  (def-class Vault ()
+    (private (method %open (self) 'in)))
+  (guard (e e) ((new Vault) %open)))
+```
+---
+    "Vault: %open is private to Vault"
+
+### protected: reachable from a subclass method, blocked outside
+
+```x
+(do
+  (def-class P ()
+    (protected (method helper (self) 'from-p)))
+  (def-class C (extends P)
+    (method use (self) (self helper)))
+  (list ((new C) use) (guard (e 'blocked) ((new P) helper))))
+```
+---
+    ('from-p 'blocked)
+
+### private is same-class only: a subclass method is outside
+
+```x
+(do
+  (def-class P ()
+    (private (method %own (self) 'p-only)))
+  (def-class C (extends P)
+    (method try (self) (self %own)))
+  (guard (e 'blocked) ((new C) try)))
+```
+---
+    'blocked
+
+### static-side blocks guard class-wide members
+
+```x
+(do
+  (def-class S ()
+    (static
+      (private (secret 42))
+      (method open (self) (S secret))))
+  (list (S open) (guard (e 'blocked) (S secret))))
+```
+---
+    (42 'blocked)
+
+### member/set-member! raw access is untouched by privacy
+
+```x
+(do
+  (def-class B ()
+    (private x)
+    (method poke (self) (set-member! 'x 7) (member 'x)))
+  ((new B) poke))
+```
+---
+    7
+
+### introspection still lists private members (reflection is the escape)
+
+```x
+(do
+  (def-class H () (private hidden) shown)
+  (class-members H))
+```
+---
+    ('hidden 'shown)
+
+### a private %init still fires on construction
+
+```x
+(do
+  (def-class Q () v
+    (private (method %init (self) (self v 9))))
+  ((new Q) v))
+```
+---
+    9
