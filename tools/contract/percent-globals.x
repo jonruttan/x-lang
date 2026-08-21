@@ -129,6 +129,7 @@
 (file "lib/x/type/vector.x" 17)
 (file "tools/check/boot-order.x" 33)
 (file "tools/check/dialect-cover.x" 9)
+(file "tools/check/doc-forms.x" 5)
 (file "tools/check/doctest.x" 11)
 (file "tools/contract/bare-globals.x" 1)
 (file "tools/contract/base-paths.x" 1)
