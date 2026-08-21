@@ -270,7 +270,7 @@ Use `modules` to list all registered modules:
 
 - [Specification](spec.md) — Complete language reference with examples
 - [Standard Library](standard-library.md) — Core function reference
-- x-lang API Reference — auto-generated module documentation: run `make doc-x`, then open `ref/x/index.md`
+- [x-lang API Reference](https://jonruttan.github.io/x-lang/docs/ref/x/index.html) — auto-generated module documentation (offline: `make doc-x`, then `ref/x/index.md`)
 - [Architecture](architecture.md) — How the interpreter works internally
 - [Dialects](dialects.md) — Detailed dialect comparison
 - [Modules](modules.md) — The provide/import module system
