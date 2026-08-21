@@ -66,7 +66,7 @@ done
 
 # Structural forms carry their own rendering; everything else is a member.
 # The list mirrors tools/contract/doc-forms.x, which says what each one is.
-STRUCTURAL='^(doc|method|static|interface)$'
+STRUCTURAL='^(doc|method|static|interface|private|protected)$'
 
 missing=0
 checked=0

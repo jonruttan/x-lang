@@ -18,13 +18,16 @@
 ; colours, Random's kind/state/fd -- and it was found by reading a page
 ; beside (help ...), not by any check.
 ;
-; When the object-model v2 (private ...) and (protected ...) blocks land they
-; will render as nonsense members named "private" and "protected": wrong, but
-; wrong where someone can SEE it.  Teach the walker, then add them here.
+; The object-model v2 (private ...) and (protected ...) blocks are taught:
+; their tail SPLICES into the class body (lib/x/type/class.x explodes them
+; that way), so the walker descends and marks what it finds with its tier.
+; A bare symbol inside one is a member declaration and normalises to (name).
 
 (
   (doc       "The class's own description, notes and examples -- and a member's documentation when its first argument is a symbol rather than a string.")
   (method    "An instance method, or a static when it sits inside a (static ...) block.")
   (static    "A block of statics; its body is walked as methods.")
   (interface "The operations a type must supply to satisfy the protocol.")
+  (private   "A visibility block; its tail splices into the class body and each name is marked private -- reachable from the class's own methods only.")
+  (protected "A visibility block; its tail splices into the class body and each name is marked protected -- reachable from methods anywhere on the chain.")
 )

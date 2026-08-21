@@ -27,6 +27,10 @@
 ; approved 2026-08-20): the dispatch engine's own helpers are the
 ; measured hot path (8-30x, #332) the exception above exists for --
 ; each growth step is one warm-path helper, named per commit.
+; doc-gen grew by one for %doc-vis-note, shared by the method and member
+; emitters when an entry comes out of a (private ...) or (protected ...)
+; block: inlining it instead would duplicate the tier wording at both call
+; sites, which is how the two drift.
 ; Everything else is unhomed inventory awaiting the pin.x treatment.
 (file "apps/logo/dispatch.x" 28)
 (file "apps/logo/entry.x" 27)
@@ -63,7 +67,7 @@
 (file "lib/x/core/predicates.x" 12)
 (file "lib/x/core/quasi.x" 1)
 (file "lib/x/core/syntax.x" 5)
-(file "lib/x/doc/doc-gen.x" 32)
+(file "lib/x/doc/doc-gen.x" 33)
 (file "lib/x/doc/doc.x" 73)
 (file "lib/x/num/bigint.x" 57)
 (file "lib/x/num/complex.x" 41)

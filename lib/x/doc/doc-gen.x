@@ -252,8 +252,24 @@
 
 ; Emit one (method ...) form as a doc entry.  static? picks the heading shape:
 ; (Class m a b) for statics, (m a b) + an instance note for instance methods.
+; vis is "" for an undeclared (public) entry, or "private"/"protected" when
+; the entry came out of a visibility block.  Documented, not hidden: (help ...)
+; lists private members too, and a reader needs to know a name exists before
+; they can be told they may not call it.
+; The tier, in the words docs/object-system.md uses for it: private is this
+; class's own methods, protected is any method on the chain in either
+; direction.
+(def %doc-vis-note
+  (fn (_ vis cname)
+    (match
+      ((str=? vis "private")
+        (list (list 'note (%str-build "Private: reachable from " cname "'s own methods only."))))
+      ((str=? vis "protected")
+        (list (list 'note (%str-build "Protected: reachable from methods anywhere on " cname "'s chain."))))
+      (#t ()))))
+
 (def %doc-emit-method
-  (fn (_ m cname static?)
+  (fn (_ m cname static? vis)
     (def %mname (symbol->str (first (rest m))))
     (def %sig (first (rest (rest m))))
     (def %args (rest %sig))                          ; strip the self slot
@@ -278,10 +294,12 @@
             (%doc-extract-meta-type %meta "returns" ())
             (%doc-extract-meta-type %meta "example" ())
             (%doc-extract-meta-type %meta "see" ())
-            (if static? %notes
-              (%append %notes
-                (list (list 'note
-                  (%str-build "Instance method: called on a " cname " instance.")))))))))
+            (%append
+              (if static? %notes
+                (%append %notes
+                  (list (list 'note
+                    (%str-build "Instance method: called on a " cname " instance.")))))
+              (%doc-vis-note vis cname))))))
 
 ; The class-level doc form: (doc "description" (note ...) (example ...)).
 (def %doc-emit-class-doc
@@ -294,15 +312,29 @@
             (%doc-extract-meta-type %meta "note" ()))))))
 
 (def %doc-walk-class-body
-  (fn (self body cname static?)
+  (fn (self body cname static? vis)
     (match
       ((not (pair? body)) ())
       (#t
-        (do (let ((f (first body)))
+        ; A bare symbol IS a member declaration -- (private balance ...)
+        ; declares `balance` with no default -- so it is normalised to the
+        ; (name) shape and flows through the member arm below.  Left alone it
+        ; hit the not-a-pair arm and vanished, the same silence this walker
+        ; keeps having to be taught out of.
+        (do (let ((f (if (symbol? (first body)) (list (first body)) (first body))))
               (match
                 ((not (pair? f)) ())
-                ((%doc-sym-is? (first f) "method") (%doc-emit-method f cname static?))
-                ((%doc-sym-is? (first f) "static") (self (rest f) cname #t))
+                ((%doc-sym-is? (first f) "method") (%doc-emit-method f cname static? vis))
+                ((%doc-sym-is? (first f) "static") (self (rest f) cname #t vis))
+                ; (private ...) / (protected ...) splice their tail into the
+                ; class body -- lib/x/type/class.x explodes them exactly so --
+                ; and hold bare member names, member declarations and methods.
+                ; They nest inside (static ...) as well, so the static flag
+                ; rides through unchanged.
+                ((%doc-sym-is? (first f) "private")
+                  (self (rest f) cname static? "private"))
+                ((%doc-sym-is? (first f) "protected")
+                  (self (rest f) cname static? "protected"))
                 ; (interface a b c) -- the operations a type must supply
                 ; to satisfy the protocol; part of the class's contract, so
                 ; it belongs on the page.
@@ -347,12 +379,19 @@
                         ; description -- (state 2463534242), (fd ()) -- has
                         ; exactly that empty tail.  It segfaulted the
                         ; generator outright.
-                        (let ((tail (rest (rest f))))
+                        ; BOTH steps guarded, not just the first: for a
+                        ; bare member (ledger) the tail is (rest ()), and
+                        ; rest is as unchecked as first.  Guarding only the
+                        ; (first tail) below still segfaulted -- the same
+                        ; trap, one level further in.
+                        (let ((tail (if (pair? (rest f)) (rest (rest f)) ())))
                           (when (pair? tail)
                             (when (str? (first tail))
                               (display $"{(first tail)}\n\n"))))
-                        (display $"> Member: data carried by a {cname} instance.\n\n"))))))
-            (self (rest body) cname static?))))))
+                        (display $"> Member: data carried by a {cname} instance.\n\n")
+                        (%for-each (fn (_ n) (display $"> {(first (rest n))}\n\n"))
+                                   (%doc-vis-note vis cname)))))))
+            (self (rest body) cname static? vis))))))
 
 (def %doc-emit-class
   (fn (_ form)
@@ -362,7 +401,7 @@
     (when (pair? %parent)
       (if (%doc-sym-is? (first %parent) "extends")
         (do (display $"*Extends `{(symbol->str (first (rest %parent)))}`.*\n\n"))))
-    (%doc-walk-class-body (rest (rest (rest form))) %cname #f)))
+    (%doc-walk-class-body (rest (rest (rest form))) %cname #f "")))
 
 (def %doc-walk-body-with-prims
   (fn (self tokens prims-alist seen)
