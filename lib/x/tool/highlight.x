@@ -230,6 +230,26 @@
 ; tutorial's REPL sessions ("> expr" and the value on the next line) and the
 ; generated reference's "(expr) => result" from (example ...) forms.
 
+; Net paren depth of one line, counting only the parens the SCANNER treats as
+; punctuation: one inside a string, a comment or a character literal opens
+; nothing.  This is what tells a transcript's CONTINUATION lines from its
+; results -- a REPL keeps reading while the expression is open, and a
+; multi-line (match ...) rendered its body as grey output before this,
+; because every line was classified on its own.
+(def %hl-depth (fn (self s i n d)
+  (if (>= i n) d
+    (let ((c (%hl-byte-ref s i)))
+      (match
+        ((eq? c 59) d)
+        ((eq? c 34) (self s (%hl-string-end s (%hl+ i 1) n) n d))
+        ((and (eq? c 36) (and (< (%hl+ i 1) n) (eq? (%hl-byte-ref s (%hl+ i 1)) 34)))
+          (self s (%hl-string-end s (%hl+ i 2) n) n d))
+        ((and (eq? c 35) (and (< (%hl+ i 1) n) (eq? (%hl-byte-ref s (%hl+ i 1)) 92)))
+          (self s (%hl-atom-end s (%hl-clamp (%hl+ i 3) n) n) n d))
+        ((eq? c 40) (self s (%hl+ i 1) n (%hl+ d 1)))
+        ((eq? c 41) (self s (%hl+ i 1) n (%hl- d 1)))
+        (#t (self s (%hl+ i 1) n d)))))))
+
 (def %hl-prompt? (fn (_ line) (Str8 starts? "> " line)))
 
 ; Two spellings, one idea: the generated reference writes "expr => result"
@@ -245,30 +265,42 @@
       (pair (%hl-byte-sub line 0 at)
             (%hl-byte-sub line (%hl+ at 4) (%hl- (%hl-byte-len line) (%hl+ at 4))))))))
 
-(def %hl-write-line (fn (_ line keywords)
-  (let ((parts (%hl-arrow-split line)))
-    (match
-      ; "> expr" -- the prompt is Generic.Prompt, the rest is code.
-      ((%hl-prompt? line)
-        (do (%hl-write-span "gp" (%hl-byte-sub line 0 2))
-            (%hl-write-source (%hl-byte-sub line 2 (%hl- (%hl-byte-len line) 2)) keywords)))
-      ; "expr => result" -- both sides are code; only the arrow is not.
-      ((not (null? parts))
-        (do (%hl-write-source (first parts) keywords)
-            (%hl-write-span "o" (%hl-byte-sub line (%hl-arrow-at line) 4))
-            (%hl-write-source (rest parts) keywords)))
-      ; Anything else in a transcript is what the session printed back.
-      ((str=? line "") ())
-      (#t (%hl-write-span "go" line))))))
+; Writes one line and returns the paren depth left OPEN at its end, which the
+; next line needs: at depth 0 a line is a result, and above it the session is
+; still reading the same expression.
+(def %hl-write-line (fn (_ line keywords depth)
+  (let ((n (%hl-byte-len line)))
+    (let ((parts (%hl-arrow-split line)))
+      (match
+        ; "> expr" -- the prompt is Generic.Prompt, the rest is code.
+        ((%hl-prompt? line)
+          (do (%hl-write-span "gp" (%hl-byte-sub line 0 2))
+              (%hl-write-source (%hl-byte-sub line 2 (%hl- n 2)) keywords)
+              (%hl-depth line 2 n 0)))
+        ; A CONTINUATION: the expression above this line has not closed, so
+        ; this is more of it, not the value it returned.  Checked before the
+        ; arrow and the fallback, both of which would misread it.
+        ((> depth 0)
+          (do (%hl-write-source line keywords)
+              (%hl-depth line 0 n depth)))
+        ; "expr => result" -- both sides are code; only the arrow is not.
+        ((not (null? parts))
+          (do (%hl-write-source (first parts) keywords)
+              (%hl-write-span "o" (%hl-byte-sub line (%hl-arrow-at line) 4))
+              (%hl-write-source (rest parts) keywords)
+              0))
+        ; Anything else in a transcript is what the session printed back.
+        ((str=? line "") 0)
+        (#t (do (%hl-write-span "go" line) 0)))))))
 
-(def %hl-write-lines (fn (self lines keywords)
+(def %hl-write-lines (fn (self lines keywords depth)
   (unless (null? lines)
-    (do (%hl-write-line (first lines) keywords)
-        (unless (null? (rest lines)) (display "\n"))
-        (self (rest lines) keywords)))))
+    (let ((d (%hl-write-line (first lines) keywords depth)))
+      (do (unless (null? (rest lines)) (display "\n"))
+          (self (rest lines) keywords d))))))
 
 (def %hl-write-transcript (fn (_ text keywords)
-  (%hl-write-lines (Str8 split "\n" text) keywords)))
+  (%hl-write-lines (Str8 split "\n" text) keywords 0)))
 
 ; --- Wrapping ----------------------------------------------------------------
 

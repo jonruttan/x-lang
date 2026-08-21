@@ -22,7 +22,9 @@
 ; the class doors (Str8 ref / Char =?) and the numeric tower cost ~10x the
 ; resident memory of the cached byte prims -- 4KB of source wanted ~2.5GB
 ; and a 13KB module OOM-killed the machine; on byte-ref it peaks ~290MB
-; above boot.
+; above boot.  Grew by one for %hl-depth, the per-line paren scan that tells
+; a transcript's continuation lines from its results -- same inner loop, same
+; grounds.
 ; The type/class.x row GROWS during the object-model v2 arc (plan
 ; approved 2026-08-20): the dispatch engine's own helpers are the
 ; measured hot path (8-30x, #332) the exception above exists for --
@@ -104,7 +106,7 @@
 (file "lib/x/tool/contract.x" 4)
 (file "lib/x/tool/cov.x" 8)
 (file "lib/x/tool/fmt.x" 23)
-(file "lib/x/tool/highlight.x" 38)
+(file "lib/x/tool/highlight.x" 39)
 (file "lib/x/tool/lint.x" 69)
 (file "lib/x/tool/pin.x" 1)
 (file "lib/x/tool/profile.x" 4)
