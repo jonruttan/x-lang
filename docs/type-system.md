@@ -97,7 +97,7 @@ At runtime, this struct is stored as nested pairs (every leaf a
 `(current . saved)` stack, which is what the `type-push-*` registry
 operations manipulate without C):
 
-```
+```x
 (
   name                                   ; field 0
   data                                   ; field 1
@@ -239,13 +239,13 @@ The evaluator, call mechanism, writer, and length calculator all follow the same
 
 #### `make-type`
 
-```
+```x
 (Type make name handlers) → type-handle
 ```
 
 Creates a new type at runtime. `name` is a string. `handlers` is an association list mapping method names to closures:
 
-```
+```x
 (Type make "VECTOR"
   (list
     (pair 'call (fn (_ self . args) ...))
@@ -270,7 +270,7 @@ Returns a type handle (the name atom) used to create instances and check types.
 
 #### `make-instance`
 
-```
+```x
 (Type make-instance type-handle data) → instance
 ```
 
@@ -278,7 +278,7 @@ Creates an instance of a runtime-defined type. The instance stores `data` and di
 
 #### `type?`
 
-```
+```x
 (Type ? obj type-handle) → #t or ()
 ```
 
@@ -286,7 +286,7 @@ Tests whether `obj` is an instance of the type identified by `type-handle`.
 
 #### `type-name`
 
-```
+```x
 (Type name obj) → string
 ```
 
@@ -297,7 +297,7 @@ branches (their fields must not be navigated).
 
 #### Type reflection: `Type wrap`
 
-```
+```x
 (Type wrap t) → instance
 ```
 
@@ -319,7 +319,7 @@ the executable reference is [spec.md](spec.md) §11.
 
 #### Example: Vectors
 
-```
+```x
 (def %vector (Type make "VECTOR"
   (list
     (pair 'call (fn (_ self . args)
@@ -345,7 +345,7 @@ The `call` handler enables `(v 0)` indexing. The `write` handler produces `#(1 2
 
 The standard library's object system (`lib/x/type/class.x`) is the richest use of `make-type`. It defines two callable types — `%object` (instances) and `%class` (classes) — each with an **operative** `call` handler, so `(obj name args...)` reaches the handler with the receiver as `self` and `name` *unevaluated* (a literal selector, no quote needed). The handler looks `name` up as a method (walking the parent chain for inheritance); finding none, it falls back to a member get/set.
 
-```
+```x
 (def-class Point ()
   x y
   (method sum (self) (+ (self x) (self y))))
@@ -361,7 +361,7 @@ A custom type's `analyse` handler is the tokenizer's hot path — it is invoked 
 
 The fix is to **JIT-compile the analyser to native code** with `compile`, then install the compiled version. An analyser has the shape `(fn (_ buffer score chr) → next-state-fn | ())`: given the current byte `chr`, it returns a state function to continue scanning, or `()` to decline. `compile` takes the analyser as a quoted `(fn …)` AST plus an **fvar table** binding any free variables the body references (the state functions it transitions to). Pure expressions use the JIT assembler; expressions with fvars use the C-compiler-with-cache path.
 
-```
+```x
 ; Fetch the wiring helpers from the catalog (registered by sys/type.x)
 (def %type-by-atom      (prim-ref 'type 'by-atom))
 (def %type-push-analyse (prim-ref 'type 'push-analyse))
@@ -463,7 +463,7 @@ typedef struct x_error_handler {
 
 #### Operations
 
-```
+```x
 (Base make)                    → new independent base, as a Base instance
 (Base make-tok)                → minimal tokenizer base (no types, no prims)
 (Base eval base expr)          → evaluate expr in base's environment

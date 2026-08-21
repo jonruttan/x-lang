@@ -25,7 +25,7 @@ special case. This follows the Kernel language design.
 
 Integers, strings, and characters evaluate to themselves.
 
-```
+```x-repl
 42 -> 42
 "hello" -> "hello"
 #\a -> #\a
@@ -36,7 +36,7 @@ Integers, strings, and characters evaluate to themselves.
 A symbol evaluates to the value bound to it in the current environment. An
 unbound symbol signals an error.
 
-```
+```x
 (def x 10)
 x -> 10
 ```
@@ -56,7 +56,7 @@ dotted tail legitimately. When `f` evaluates to a non-callable value the form
 is DATA, not a call, and echoes back unchanged -- proper or dotted (see
 Lists, section 10).
 
-```
+```x-repl
 (guard (e "caught") (list 1 . 5)) -> "caught"
 (1 . 2) -> (1 . 2)
 ```
@@ -69,7 +69,7 @@ nil's representation (the null object) is what makes every list-termination
 test free. The boolean false value is `#f`, a distinct canonical atom carried
 on the base. `()` self-evaluates.
 
-```
+```x-repl
 () -> ()
 ```
 
@@ -118,7 +118,7 @@ The following forms evaluate their final expression in tail position:
 Proper tail calls MUST NOT grow the stack. A tail-recursive loop MUST be able
 to iterate without limit.
 
-```
+```x
 (def loop (fn (self n) (if (= n 0) #t (self (- n 1)))))
 (loop 1000000) -> #t
 ```
@@ -127,7 +127,7 @@ to iterate without limit.
 
 Mutually tail-recursive functions MUST also run in constant stack space.
 
-```
+```x
 (def even-tc (fn (_ n) (if (= n 0) #t (odd-tc (- n 1)))))
 (def odd-tc (fn (_ n) (if (= n 0) #f (even-tc (- n 1)))))
 (even-tc 100000) -> #t
@@ -144,7 +144,7 @@ Mutually tail-recursive functions MUST also run in constant stack space.
 Returns `expr` unevaluated. This is the quoting primitive. The reader provides
 `'expr` as shorthand for `(lit expr)` (see `core/quote-reader.spec.md`).
 
-```
+```x-repl
 (lit (+ 1 2)) -> ('+ 1 2)
 (lit abc) -> 'abc
 'abc -> 'abc
@@ -157,7 +157,7 @@ Returns `expr` unevaluated. This is the quoting primitive. The reader provides
 
 Constructs a pair from evaluated `a` and `b`.
 
-```
+```x-repl
 (pair 1 2) -> (1 . 2)
 (pair 1 (pair 2 ())) -> (1 2)
 ```
@@ -168,7 +168,7 @@ Constructs a pair from evaluated `a` and `b`.
 
 Returns the first element of pair `p`. Calling `(first ())` is undefined.
 
-```
+```x-repl
 (first (pair 1 2)) -> 1
 (first (list 10 20 30)) -> 10
 ```
@@ -179,7 +179,7 @@ Returns the first element of pair `p`. Calling `(first ())` is undefined.
 
 Returns the rest element of pair `p`. Calling `(rest ())` is undefined.
 
-```
+```x-repl
 (rest (pair 1 2)) -> 2
 (rest (list 10 20 30)) -> (20 30)
 ```
@@ -190,7 +190,7 @@ Returns the rest element of pair `p`. Calling `(rest ())` is undefined.
 
 Constructs a proper list from zero or more evaluated arguments.
 
-```
+```x-repl
 (list 1 2 3) -> (1 2 3)
 (list) -> ()
 ```
@@ -208,7 +208,7 @@ evaluates, forward-declare it: `(def name ())` then `(set! name expr)`. `def`
 always creates a new binding; it shadows any existing binding with the same
 name rather than replacing it.
 
-```
+```x
 (def x 42) -> 42
 (def fact (fn (_ n) (if (= n 0) 1 (* n (fact (- n 1))))))
 (fact 5) -> 120
@@ -222,7 +222,7 @@ Mutates an existing binding of `name` to the result of evaluating `expr`.
 Walks the scope chain to find the nearest enclosing binding of `name` and
 modifies it in place. Signals an error if `name` is not bound in any scope.
 
-```
+```x
 (def x 1)
 (set! x 2)
 x -> 2
@@ -235,7 +235,7 @@ x -> 2
 Evaluates `cond`. If truthy, tail-evaluates `then`. If falsy, tail-evaluates
 `else` (or returns `()` if omitted).
 
-```
+```x-repl
 (if #t 1 2) -> 1
 (if () 1 2) -> 2
 (if () 1) -> ()
@@ -248,7 +248,7 @@ Evaluates `cond`. If truthy, tail-evaluates `then`. If falsy, tail-evaluates
 Evaluates each `form` in sequence and returns the last value. The final form is
 tail-evaluated. With no arguments, returns `()`.
 
-```
+```x-repl
 (do 1 2 3) -> 3
 (do (def x 1) (+ x 1)) -> 2
 ```
@@ -262,7 +262,7 @@ test, tail-evaluates the corresponding `expr` and returns it. Returns `()` if
 no test succeeds. Each clause has exactly ONE body form; for multiple
 expressions, wrap in `do`.
 
-```
+```x
 (match
   ((= 1 2) 10)
   ((= 1 1) 20)
@@ -277,7 +277,7 @@ Creates local bindings, evaluates `body` forms in the extended environment, and
 returns the last value. The final body form is tail-evaluated. Environment is
 restored after `let` completes.
 
-```
+```x-repl
 (let ((x 1) (y 2)) (+ x y)) -> 3
 (let ((x 10)) x) -> 10
 ```
@@ -288,7 +288,7 @@ Lists support direct indexing when called as functions. A single integer
 argument returns the element at that zero-based index. Negative indices count
 from the end. Two integer arguments `(lst start len)` return a sublist.
 
-```
+```x
 (def xs (list 10 20 30 40))
 (xs 0) -> 10
 (xs 2) -> 30
@@ -314,7 +314,7 @@ is a single symbol, it captures the entire argument list, whose head is the
 closure itself. A dotted-pair parameter list `(_ a . rest)` binds named
 parameters and collects remaining arguments into `rest`.
 
-```
+```x
 (def add (fn (_ a b) (+ a b)))
 (add 1 2) -> 3
 (def fact (fn (self n) (if (= n 0) 1 (* n (self (- n 1))))))
@@ -327,7 +327,7 @@ parameters and collects remaining arguments into `rest`.
 
 Closures capture their lexical environment:
 
-```
+```x
 (def make-adder (fn (_ n) (fn (_ x) (+ n x))))
 ((make-adder 10) 5) -> 15
 ```
@@ -340,14 +340,14 @@ Creates an operative (fexpr). Like `fn`, but arguments are NOT evaluated.
 `formals` binds the raw argument tree, `env-param` binds the dynamic
 environment.
 
-```
+```x
 (def my-quote (op (x) e x))
 (my-quote (+ 1 2)) -> ('+ 1 2)
 ```
 
 The environment parameter can be used for selective evaluation:
 
-```
+```x
 (def my-if (op (c t f) e (if (eval c e) (eval t e) (eval f e))))
 (my-if (= 1 1) "yes" "no") -> "yes"
 ```
@@ -359,7 +359,7 @@ The environment parameter can be used for selective evaluation:
 Wraps a combiner to create an applicative that evaluates arguments before
 passing them to the underlying combiner.
 
-```
+```x
 (def my-op (op (x) e x))
 (def my-fn (wrap my-op))
 (my-fn (+ 1 2)) -> 3
@@ -372,7 +372,7 @@ passing them to the underlying combiner.
 Extracts the underlying combiner from an applicative. Calling `unwrap` on a
 value that was not created by `wrap` is undefined behaviour.
 
-```
+```x
 (def my-op (op (x) e x))
 (def my-fn (wrap my-op))
 ((unwrap my-fn) (+ 1 2)) -> ('+ 1 2)
@@ -387,7 +387,7 @@ re-evaluated. When applying a C primitive, the arguments must be self-evaluating
 values (integers, strings, etc.) since primitives may internally evaluate their
 arguments.
 
-```
+```x-repl
 (apply + (list 1 2 3)) -> 6
 (apply list (list 1 2 3)) -> (1 2 3)
 ```
@@ -398,7 +398,7 @@ arguments.
 
 Evaluates expression `expr`. With optional `env`, evaluates in that environment.
 
-```
+```x-repl
 (eval '(+ 1 2)) -> 3
 ```
 
@@ -415,7 +415,7 @@ failure to `#f` at the first falsy value -- see the absence discipline in
 section 1, which this section previously contradicted. If all truthy, returns
 the last value. `(and)` returns `#t`.
 
-```
+```x-repl
 (and 1 2 3) -> 3
 (and 1 () 3) -> #f
 (and) -> #t
@@ -430,7 +430,7 @@ falsy, the LAST operand passes through unchanged -- `or` does not normalize
 its failure the way `and` does, so the result is whichever of `()` or `#f` you
 supplied last. `(or)` returns `()`.
 
-```
+```x-repl
 (or () () 3) -> 3
 (or 1 2) -> 1
 (or () #f) -> #f
@@ -444,7 +444,7 @@ supplied last. `(or)` returns `()`.
 
 Logical negation. Returns `#t` if `x` is falsy; `#f` otherwise.
 
-```
+```x-repl
 (not ()) -> #t
 (not 1) -> #f
 (not #t) -> #f
@@ -464,14 +464,14 @@ its message -- `(display (guard (e e) nosuchsym))` shows
 `Unbound SYMBOL 'nosuchsym'`, and an uncaught one prints the same text after
 `Error:` (#54).
 
-```
+```x-repl
 (guard (e e) (error "oops")) -> "oops"
 (guard (e "caught") (+ 1 2)) -> 3
 ```
 
 Nested guards:
 
-```
+```x
 (guard (e (Str8 append "outer: " e))
   (guard (e (error (Str8 append "re: " e)))
     (error "inner"))) -> "outer: re: inner"
@@ -484,7 +484,7 @@ Nested guards:
 Signals an error. If a `guard` handler is installed, the error is caught.
 Without a handler, `error` terminates the process.
 
-```
+```x-repl
 (guard (e e) (error "fail")) -> "fail"
 ```
 
@@ -509,14 +509,14 @@ them) still fall through to machine arithmetic. The booleans are a real
 BOOL type (#101) -- `(Type of #t)` answers, and `(+ #t 1)` refuses through
 the same registry.
 
-```
+```x-repl
 (Type name (Type of #t)) -> "BOOL"
 (guard (e "caught") (+ #t 1)) -> "caught"
 ``` The bitwise family
 (`~ & | ^ << >>`) is stricter: integer or char operands only, enforced in its
 wrappers.
 
-```
+```x-repl
 (guard (e "caught") (+ 1 ())) -> "caught"
 (guard (e "caught") (+ 1 "abc")) -> "caught"
 (guard (e "caught") (& "a" 1)) -> "caught"
@@ -526,7 +526,7 @@ wrappers.
 
 Addition. Identity: `0`.
 
-```
+```x-repl
 (+ 1 2 3) -> 6
 (+) -> 0
 (+ 5) -> 5
@@ -538,7 +538,7 @@ Addition. Identity: `0`.
 
 Subtraction. One argument: negation. Zero arguments: `0`.
 
-```
+```x-repl
 (- 5 3) -> 2
 (- 5) -> -5
 (- 10 3 2) -> 5
@@ -551,7 +551,7 @@ Subtraction. One argument: negation. Zero arguments: `0`.
 
 Multiplication. Identity: `1`.
 
-```
+```x-repl
 (* 2 3 4) -> 24
 (*) -> 1
 ```
@@ -565,7 +565,7 @@ Integer division. Identity: `1`. Division by an integer zero raises an error
 hardware trap. Boxed tower zeros are not affected — a float divisor keeps
 IEEE semantics, a rational zero keeps the rational constructor's own error.
 
-```
+```x-repl
 (/ 10 2) -> 5
 (/ 100 2 5) -> 10
 (/) -> 1
@@ -579,7 +579,7 @@ Integer modulo. Unlike `+ - * /`, `%` has **no identity element**: calling it
 with no arguments is an error, not `0` (#72). One argument passes through.
 Modulo by an integer zero raises an error (#80), as with `/`.
 
-```
+```x-repl
 (% 10 3) -> 1
 (% 17 10 3) -> 1
 (% 7) -> 7
@@ -591,7 +591,7 @@ Modulo by an integer zero raises an error (#80), as with `/`.
 
 Bitwise NOT (one's complement).
 
-```
+```x-repl
 (~ 0) -> -1
 (~ -1) -> 0
 ```
@@ -602,7 +602,7 @@ Bitwise NOT (one's complement).
 
 Bitwise AND.
 
-```
+```x-repl
 (& 6 3) -> 2
 (& 255 15) -> 15
 ```
@@ -613,7 +613,7 @@ Bitwise AND.
 
 Bitwise OR.
 
-```
+```x-repl
 (| 6 3) -> 7
 (| 0 5) -> 5
 ```
@@ -624,7 +624,7 @@ Bitwise OR.
 
 Bitwise XOR.
 
-```
+```x-repl
 (^ 6 3) -> 5
 (^ 5 5) -> 0
 ```
@@ -635,7 +635,7 @@ Bitwise XOR.
 
 Left shift.
 
-```
+```x-repl
 (<< 1 4) -> 16
 (<< 3 2) -> 12
 ```
@@ -646,7 +646,7 @@ Left shift.
 
 Right shift (arithmetic).
 
-```
+```x-repl
 (>> 16 4) -> 1
 (>> 12 2) -> 3
 ```
@@ -663,7 +663,7 @@ Scalar-value identity: the same object, or two scalars (integers,
 characters) carrying the same value. Symbols with the same name are
 interned and thus `eq?`. Use `same?` for strict object identity.
 
-```
+```x-repl
 (eq? 'x 'x) -> #t
 (eq? 1 1) -> #t
 (eq? "a" "a") -> #f
@@ -676,7 +676,7 @@ interned and thus `eq?`. Use `same?` for strict object identity.
 Numeric/value equality. Compares integer values (and characters by code point).
 Comparing values of different types is undefined.
 
-```
+```x-repl
 (= 1 1) -> #t
 (= 1 2) -> #f
 ```
@@ -685,7 +685,7 @@ Comparing values of different types is undefined.
 
 `(< a b) -> #t | #f`
 
-```
+```x-repl
 (< 1 2) -> #t
 (< 2 1) -> #f
 ```
@@ -694,7 +694,7 @@ Comparing values of different types is undefined.
 
 `(> a b) -> #t | #f`
 
-```
+```x-repl
 (> 2 1) -> #t
 (> 1 2) -> #f
 ```
@@ -703,7 +703,7 @@ Comparing values of different types is undefined.
 
 `(<= a b) -> #t | #f`
 
-```
+```x-repl
 (<= 1 1) -> #t
 (<= 2 1) -> #f
 ```
@@ -712,7 +712,7 @@ Comparing values of different types is undefined.
 
 `(>= a b) -> #t | #f`
 
-```
+```x-repl
 (>= 1 1) -> #t
 (>= 0 1) -> #f
 ```
@@ -723,7 +723,7 @@ Comparing values of different types is undefined.
 
 Returns `#t` if `x` is nil.
 
-```
+```x-repl
 (null? ()) -> #t
 (null? 1) -> #f
 ```
@@ -734,7 +734,7 @@ Returns `#t` if `x` is nil.
 
 Returns `#t` if `x` is a pair.
 
-```
+```x-repl
 (pair? (list 1 2)) -> #t
 (pair? 1) -> #f
 ```
@@ -745,7 +745,7 @@ Returns `#t` if `x` is a pair.
 
 Returns `#t` if `x` is not a pair. Inverse of `pair?`.
 
-```
+```x-repl
 (atom? 1) -> #t
 (atom? (list 1 2)) -> #f
 ```
@@ -754,7 +754,7 @@ Returns `#t` if `x` is not a pair. Inverse of `pair?`.
 
 `(number? x) -> #t | #f`
 
-```
+```x-repl
 (number? 42) -> #t
 (number? "hello") -> #f
 ```
@@ -763,7 +763,7 @@ Returns `#t` if `x` is not a pair. Inverse of `pair?`.
 
 `(str? x) -> #t | #f`
 
-```
+```x-repl
 (str? "hello") -> #t
 (str? 42) -> #f
 ```
@@ -772,7 +772,7 @@ Returns `#t` if `x` is not a pair. Inverse of `pair?`.
 
 `(symbol? x) -> #t | #f`
 
-```
+```x-repl
 (symbol? 'x) -> #t
 (symbol? 42) -> #f
 ```
@@ -784,7 +784,7 @@ Returns `#t` if `x` is not a pair. Inverse of `pair?`.
 Returns `#t` if `x` is a `fn` closure, a `wrap` applicative, or a C primitive.
 Returns `#f` for `op` operatives and all other values.
 
-```
+```x-repl
 (procedure? +) -> #t
 (procedure? (fn (_ x) x)) -> #t
 (procedure? 42) -> #f
@@ -796,7 +796,7 @@ Returns `#f` for `op` operatives and all other values.
 
 Returns `#t` if `x` is a character object.
 
-```
+```x-repl
 (char? #\a) -> #t
 (char? 42) -> #f
 ```
@@ -810,7 +810,7 @@ is the surface)
 Returns the integer code point of character `c`. Passing a non-character value
 is undefined.
 
-```
+```x-repl
 (Char ->int #\a) -> 97
 (Char ->int #\A) -> 65
 ```
@@ -822,7 +822,7 @@ in R5; the class — or `(prim-ref 'int '->char)` — is the surface)
 
 Returns the character with code point `n`.
 
-```
+```x-repl
 (Char from-int 97) -> #\a
 (Char from-int 65) -> #\A
 (= (Char from-int 97) #\a) -> #t
@@ -841,7 +841,7 @@ are byte arrays with no encoding awareness). The bare `str-length` spelling
 is retired (#108): the boot layer keeps it %-private; the class is the
 surface.
 
-```
+```x-repl
 (Str8 length "hello") -> 5
 (Str8 length "") -> 0
 ```
@@ -854,7 +854,7 @@ Returns the character at zero-based `index` in `str` (index first, the
 adjudicated seat order; negative counts from the end). The bare `str-ref`
 spelling is retired (#108).
 
-```
+```x-repl
 (Str8 ref 0 "hello") -> #\h
 (Str8 ref 4 "hello") -> #\o
 ```
@@ -865,7 +865,7 @@ spelling is retired (#108).
 
 Concatenates exactly two strings. For multiple strings, use `Str append` (variadic).
 
-```
+```x-repl
 (Str8 append "hello" " world") -> "hello world"
 (Str8 append "" "x") -> "x"
 ```
@@ -878,7 +878,7 @@ Extracts `len` bytes starting at byte offset `start` (count-first seats, the
 adjudicated order; start+length, not start+end). The bare `substring`
 spelling is retired (#108).
 
-```
+```x-repl
 (Str8 sub 1 2 "hello") -> "el"
 (Str8 sub 0 5 "hello") -> "hello"
 ```
@@ -889,7 +889,7 @@ spelling is retired (#108).
 
 String content equality.
 
-```
+```x-repl
 (str=? "abc" "abc") -> #t
 (str=? "abc" "xyz") -> #f
 ```
@@ -900,7 +900,7 @@ String content equality.
 
 Converts a string to an interned symbol.
 
-```
+```x-repl
 (Str8 ->sym "hello") -> 'hello
 ```
 
@@ -910,7 +910,7 @@ Converts a string to an interned symbol.
 
 Converts a symbol to a string.
 
-```
+```x-repl
 (symbol->str 'hello) -> "hello"
 ```
 
@@ -922,7 +922,7 @@ Converts an integer to its decimal string representation through the
 conversion catalog. The bare `number->str` spelling is retired (#108); the
 boot layer keeps it %-private for the printer's hot path.
 
-```
+```x-repl
 (Convert to 42 (Type of "")) -> "42"
 (Convert to -1 (Type of "")) -> "-1"
 ```
@@ -940,7 +940,7 @@ interpretation, and digits run to radix 36. Non-numeric strings miss with
 predating the nil model -- and documented the hex prefix before it was
 implemented; #76 ruled it in.)
 
-```
+```x-repl
 (Convert to "42" (Type of 0)) -> 42
 (Convert to "0xff" (Type of 0)) -> 255
 (Convert to "-0xff" (Type of 0)) -> -255
@@ -964,7 +964,7 @@ JSON (#52). Accumulation is negative-domain, so `INT_MIN` parses exactly.
 Outputs the s-expression representation of `obj` to stdout. Strings are quoted,
 special characters escaped. Returns `()`.
 
-```
+```x
 (write "hello")   ; outputs: "hello"
 (write 42)        ; outputs: 42
 (write (list 1 2)) ; outputs: (1 2)
@@ -977,7 +977,7 @@ special characters escaped. Returns `()`.
 Outputs human-readable representation. Strings are printed without quotes.
 Returns `()`.
 
-```
+```x
 (display "hello") ; outputs: hello
 (display 42)      ; outputs: 42
 ```
@@ -1018,7 +1018,7 @@ Triggers garbage collection.
 Quasiquote. Returns `template` with `unquote` and `unquote-splicing` forms
 evaluated.
 
-```
+```x
 (def x 1)
 (quasi (a (unquote x) b)) -> ('a 1 'b)
 ```
@@ -1029,7 +1029,7 @@ evaluated.
 
 Evaluates `expr` and substitutes the result.
 
-```
+```x
 (def x 42)
 (quasi (unquote x)) -> 42
 ```
@@ -1040,7 +1040,7 @@ Evaluates `expr` and substitutes the result.
 
 Evaluates `expr` (must produce a list) and splices it into the surrounding list.
 
-```
+```x
 (def xs (list 2 3))
 (quasi (1 (unquote-splicing xs) 4)) -> (1 2 3 4)
 ```
@@ -1051,7 +1051,7 @@ inner form survives one wrapping as syntax while the innermost value is
 substituted. The printer renders the surviving quasi form with the reader's
 shorthand:
 
-```
+```x-repl
 (quasi (quasi (unquote (unquote 'x)))) -> `,'x
 ```
 
@@ -1066,7 +1066,7 @@ supported:
 
 Sequences of digits, optionally preceded by `-` for negative numbers.
 
-```
+```x-repl
 42 -> 42
 -7 -> -7
 0 -> 0
@@ -1097,7 +1097,7 @@ string literal: `(write "\n")` prints `"\n"`, not a raw newline.
 Note: `\0` produces a null byte, which terminates the string for all operations
 that use byte-length (e.g., `str-length`, `(Str8 append)`).
 
-```
+```x-repl
 "hello" -> "hello"
 "" -> ""
 "a\"b" -> "a\"b"
@@ -1109,7 +1109,7 @@ that use byte-length (e.g., `str-length`, `(Str8 append)`).
 Sequences of non-whitespace, non-parenthesis, non-quote characters that don't
 parse as integers.
 
-```
+```x-repl
 abc -> <symbol>
 + -> <symbol>
 my-var? -> <symbol>
@@ -1125,7 +1125,7 @@ my-var? -> <symbol>
 | `#\newline`  | newline (LF)   | 10   |
 | `#\tab`      | horizontal tab | 9    |
 
-```
+```x-repl
 #\a -> #\a
 (Char ->int #\space) -> 32
 (Char ->int #\newline) -> 10
@@ -1140,7 +1140,7 @@ through the non-callable pass-through (#69 ruled: a non-callable head was
 never a call, so data echoes back; see List evaluation in section 1 for the
 callable half of that ruling).
 
-```
+```x-repl
 (1 2 3) -> (1 2 3)
 (1 . 2) -> (1 . 2)
 (1 2 . 3) -> (1 2 . 3)
@@ -1150,7 +1150,7 @@ callable half of that ruling).
 
 `'expr` is sugar for `(lit expr)`.
 
-```
+```x-repl
 'abc -> 'abc
 '(1 2 3) -> (1 2 3)
 ```
@@ -1165,7 +1165,7 @@ callable half of that ruling).
 
 `;` begins a line comment; everything until end-of-line is ignored.
 
-```
+```x
 ; this is a comment
 42 ; this is also a comment -> 42
 ```
@@ -1174,7 +1174,7 @@ callable half of that ruling).
 
 `#(a b c)` creates a vector.
 
-```
+```x-repl
 #(1 2 3) -> #(1 2 3)
 ```
 
@@ -1182,7 +1182,7 @@ callable half of that ruling).
 
 `#/pattern/` creates a regex.
 
-```
+```x-repl
 #/abc/ -> #/abc/
 #/a.*b/ -> #/a.*b/
 ```
@@ -1199,7 +1199,7 @@ Creates a new runtime type with string `name` and an alist of `handlers`.
 Supported handler keys: `call`, `write`, `length`, `analyse`, `delimit`.
 Returns a type handle used with `make-instance` and `type?`.
 
-```
+```x
 (def my-t (Type make "MY-T" (list)))
 ```
 
@@ -1210,7 +1210,7 @@ Returns a type handle used with `make-instance` and `type?`.
 Creates a new instance of the type. Data is stored and accessible via
 `(first instance)`.
 
-```
+```x
 (def my-t (Type make "MY-T" (list)))
 (def obj (Type make-instance my-t 42))
 (first obj) -> 42
@@ -1218,7 +1218,7 @@ Creates a new instance of the type. Data is stored and accessible via
 
 Custom type instances self-evaluate:
 
-```
+```x
 (def obj (Type make-instance my-t 42))
 obj -> <instance>
 ```
@@ -1229,7 +1229,7 @@ obj -> <instance>
 
 Returns `#t` if `obj`'s runtime type matches `type-handle`.
 
-```
+```x-repl
 (Type ? obj my-t) -> #t
 (Type ? 42 my-t) -> #f
 ```
@@ -1240,7 +1240,7 @@ Returns `#t` if `obj`'s runtime type matches `type-handle`.
 
 Returns the name string of `obj`'s type, or `()` if no type.
 
-```
+```x-repl
 (Type name obj) -> "MY-T"
 (Type name 42) -> "INTEGER"
 (Type name "hi") -> "STRING"
@@ -1253,7 +1253,7 @@ Returns the name string of `obj`'s type, or `()` if no type.
 Sets the score fields for the tokenizer protocol. `length` is the match length,
 `reader` is the read function to call. Used internally by custom type readers.
 
-```
+```x-repl
 (score-match score 5 my-reader) -> ...
 ```
 
@@ -1267,7 +1267,7 @@ with the instance followed by the arguments. Like every closure, the handler
 also receives itself as implicit argument 0, so the instance binds as the
 second formal.
 
-```
+```x
 (def counter-t (Type make "COUNTER"
   (list (pair 'call (fn (_ self . args) (first self))))))
 (def c (Type make-instance counter-t 42))
@@ -1279,7 +1279,7 @@ second formal.
 When `write` or `display` outputs a typed instance, the `write` handler is
 called with the instance (after the closure's implicit self slot).
 
-```
+```x
 (def my-t (Type make "SHOW"
   (list (pair 'write (fn (_ self) (display "[") (display (first self)) (display "]"))))))
 ```
@@ -1292,7 +1292,7 @@ Clothes a type handle (from `Type of`) or a type struct (from `Type by-atom`)
 as an interactive Type instance carrying both forms: the `handle` member is
 the name atom, `raw` the struct the wiring statics consume.
 
-```
+```x-repl
 ((Type wrap (Type of 0)) name) -> "INTEGER"
 ((Type wrap (Type by-atom (Type of 0))) name) -> "INTEGER"
 ```
@@ -1304,7 +1304,7 @@ generic-operator alist. `(t fields)` lists the row names. A name whose row is
 not type-rooted is refused: a base-rooted path stepped from a type struct
 would address arbitrary spine words.
 
-```
+```x-repl
 (null? ((Type wrap (Type of 0)) cell 'type-ops-stack)) -> #f
 (null? (List filter (fn (_ n) (eq? n 'type-iter)) ((Type wrap (Type of 0)) fields))) -> #f
 (guard (e 'refused) ((Type wrap (Type of 0)) cell 'line)) -> 'refused
@@ -1316,7 +1316,7 @@ The push verbs wire handlers through the instance — `push-write`,
 built-in is a shadow-then-pop round trip (illustrative; the round trip is
 pinned by `tests/x/specs/lib/type.spec.md`):
 
-```
+```x
 (def t-int (Type wrap (Type of 0)))
 (t-int push-write (fn (_ n) (display (Str8 append "0x" (%number->str n 16)))))
 ; the write/echo mode now renders integers as 0x2a ...
@@ -1339,7 +1339,7 @@ instance's `raw` member; every `Base` static accepts either form, and
 no catalog protocol, no reader macros — reach in with parent closures or
 `bind`.
 
-```
+```x
 (def b (Base make))
 (Base base? b) -> #t
 (Base base? (b raw)) -> #f
@@ -1352,14 +1352,14 @@ no catalog protocol, no reader macros — reach in with parent closures or
 
 Evaluates `expr` in the target `base` environment.
 
-```
+```x
 (def b (Base make))
 (Base eval b '(+ 1 2)) -> 3
 ```
 
 Bases are isolated:
 
-```
+```x
 (def b (Base make))
 (Base eval b '(def x 42))
 (Base eval b 'x) -> 42
@@ -1371,7 +1371,7 @@ Bases are isolated:
 
 Binds `name` to `value` in the target `base`.
 
-```
+```x
 (def b (Base make))
 (Base bind b 'x 42)
 (Base eval b 'x) -> 42
@@ -1382,12 +1382,12 @@ Binds `name` to `value` in the target `base`.
 The instance answers `eval`, `bind`, and `make-type` directly — the receiver
 is the base:
 
-```
+```x
 (def b (Base make))
 (b eval '(* 6 7)) -> 42
 ```
 
-```
+```x
 (def b (Base make))
 (b bind 'x 5)
 (b eval 'x) -> 5
@@ -1396,7 +1396,7 @@ is the base:
 The statics keep working on raw bases from the catalog prims — plumbing
 that holds a raw base passes it straight through:
 
-```
+```x
 (def rb ((prim-ref 'base 'make)))
 (Base eval rb '(+ 40 2)) -> 42
 ```
@@ -1410,18 +1410,18 @@ field's value sits in the cell's first slot. A name whose row is not
 base-rooted is refused — a type-rooted path stepped from a base spine would
 address arbitrary interpreter state.
 
-```
+```x
 (def b (Base make))
 (null? (List filter (fn (_ n) (eq? n 'type-alist)) (b fields))) -> #f
 ```
 
-```
+```x
 (def b (Base make))
 (b bind 'marker 77)
 (rest (first (first (b cell 'env-alist)))) -> 77
 ```
 
-```
+```x
 (def b (Base make))
 (guard (e 'refused) (b cell 'type-iter)) -> 'refused
 ```
@@ -1438,7 +1438,7 @@ Standard library functions for function composition and transformation.
 
 Returns its argument unchanged.
 
-```
+```x-repl
 (Fn identity 42) -> 42
 ```
 
@@ -1448,7 +1448,7 @@ Returns its argument unchanged.
 
 Returns a function that always returns `x`.
 
-```
+```x-repl
 ((Fn const 5) 99) -> 5
 ```
 
@@ -1458,7 +1458,7 @@ Returns a function that always returns `x`.
 
 Right-to-left function composition.
 
-```
+```x-repl
 ((Fn compose (method-ref Num inc) (method-ref Num inc)) 3) -> 5
 ```
 
@@ -1468,7 +1468,7 @@ Right-to-left function composition.
 
 Left-to-right function composition.
 
-```
+```x-repl
 ((Fn pipe (method-ref Num inc) (method-ref Num inc)) 3) -> 5
 ```
 
@@ -1478,7 +1478,7 @@ Left-to-right function composition.
 
 Partially applies a two-argument function by fixing its first argument.
 
-```
+```x-repl
 ((Fn curry + 10) 5) -> 15
 ```
 
@@ -1488,7 +1488,7 @@ Partially applies a two-argument function by fixing its first argument.
 
 Reverses the arguments of a binary function.
 
-```
+```x-repl
 ((Fn flip -) 1 10) -> 9
 ```
 
@@ -1498,7 +1498,7 @@ Reverses the arguments of a binary function.
 
 Returns a function that applies `f` for side effects, then returns the argument.
 
-```
+```x-repl
 ((Fn tap write) 42) -> 42
 ```
 
@@ -1506,7 +1506,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 
 `(Fn complement pred) -> function`
 
-```
+```x-repl
 ((Fn complement (method-ref Num even?)) 3) -> #t
 ```
 
@@ -1514,7 +1514,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 
 `(Fn partial f . bound) -> function`
 
-```
+```x-repl
 ((Fn partial + 10) 5) -> 15
 ```
 
@@ -1522,7 +1522,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 
 `(Fn juxt . fns) -> function`
 
-```
+```x-repl
 ((Fn juxt (method-ref Num inc) (method-ref Num dec)) 5) -> (6 4)
 ```
 
@@ -1530,7 +1530,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 
 `(Fn both f g) -> function`
 
-```
+```x-repl
 ((Fn both (method-ref Num positive?) (method-ref Num even?)) 4) -> #t
 ((Fn both (method-ref Num positive?) (method-ref Num even?)) 3) -> #f
 ```
@@ -1539,7 +1539,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 
 `(Fn either f g) -> function`
 
-```
+```x-repl
 ((Fn either (method-ref Num positive?) (method-ref Num even?)) -2) -> #t
 ```
 
@@ -1547,7 +1547,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 
 `(Fn all-pass preds) -> function`
 
-```
+```x-repl
 ((Fn all-pass (list (method-ref Num positive?) (method-ref Num even?))) 4) -> #t
 ```
 
@@ -1555,7 +1555,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 
 `(Fn any-pass preds) -> function`
 
-```
+```x-repl
 ((Fn any-pass (list (method-ref Num positive?) (method-ref Num even?))) -2) -> #t
 ```
 
@@ -1567,7 +1567,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 
 `(Num inc n) -> integer`
 
-```
+```x-repl
 (Num inc 5) -> 6
 (Num inc -1) -> 0
 ```
@@ -1576,7 +1576,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 
 `(Num dec n) -> integer`
 
-```
+```x-repl
 (Num dec 5) -> 4
 (Num dec 0) -> -1
 ```
@@ -1585,7 +1585,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 
 `(Num negate n) -> integer`
 
-```
+```x-repl
 (Num negate 7) -> -7
 (Num negate -3) -> 3
 ```
@@ -1594,7 +1594,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 
 `(Num abs n) -> integer`
 
-```
+```x-repl
 (Num abs -3) -> 3
 (Num abs 3) -> 3
 ```
@@ -1603,7 +1603,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 
 `(Num min a b) -> integer`
 
-```
+```x-repl
 (Num min 3 7) -> 3
 ```
 
@@ -1611,7 +1611,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 
 `(Num max a b) -> integer`
 
-```
+```x-repl
 (Num max 3 7) -> 7
 ```
 
@@ -1621,7 +1621,7 @@ Returns a function that applies `f` for side effects, then returns the argument.
 
 Clamps `n` to the range `[lo, hi]`.
 
-```
+```x-repl
 (Num clamp 0 10 15) -> 10
 (Num clamp 0 10 -5) -> 0
 (Num clamp 0 10 5) -> 5
@@ -1633,7 +1633,7 @@ Clamps `n` to the range `[lo, hi]`.
 
 Returns whichever of `a`, `b` has the smaller `(f x)`.
 
-```
+```x-repl
 (Num min-by (method-ref Num abs) -5 3) -> 3
 ```
 
@@ -1643,7 +1643,7 @@ Returns whichever of `a`, `b` has the smaller `(f x)`.
 
 Returns whichever of `a`, `b` has the larger `(f x)`.
 
-```
+```x-repl
 (Num max-by (method-ref Num abs) -5 3) -> -5
 ```
 
@@ -1651,7 +1651,7 @@ Returns whichever of `a`, `b` has the larger `(f x)`.
 
 `(Num zero? n) -> #t | #f`
 
-```
+```x-repl
 (Num zero? 0) -> #t
 (Num zero? 1) -> #f
 ```
@@ -1660,7 +1660,7 @@ Returns whichever of `a`, `b` has the larger `(f x)`.
 
 `(Num positive? n) -> #t | #f`
 
-```
+```x-repl
 (Num positive? 5) -> #t
 (Num positive? -1) -> #f
 (Num positive? 0) -> #f
@@ -1670,7 +1670,7 @@ Returns whichever of `a`, `b` has the larger `(f x)`.
 
 `(Num negative? n) -> #t | #f`
 
-```
+```x-repl
 (Num negative? -3) -> #t
 (Num negative? 0) -> #f
 ```
@@ -1679,7 +1679,7 @@ Returns whichever of `a`, `b` has the larger `(f x)`.
 
 `(Num even? n) -> #t | #f`
 
-```
+```x-repl
 (Num even? 4) -> #t
 (Num even? 3) -> #f
 ```
@@ -1688,7 +1688,7 @@ Returns whichever of `a`, `b` has the larger `(f x)`.
 
 `(Num odd? n) -> #t | #f`
 
-```
+```x-repl
 (Num odd? 3) -> #t
 (Num odd? 4) -> #f
 ```
@@ -1697,7 +1697,7 @@ Returns whichever of `a`, `b` has the larger `(f x)`.
 
 `(List sum lst) -> integer`
 
-```
+```x-repl
 (List sum (list 1 2 3)) -> 6
 ```
 
@@ -1705,7 +1705,7 @@ Returns whichever of `a`, `b` has the larger `(f x)`.
 
 `(List product lst) -> integer`
 
-```
+```x-repl
 (List product (list 2 3 4)) -> 24
 ```
 
@@ -1719,7 +1719,7 @@ Returns whichever of `a`, `b` has the larger `(f x)`.
 
 Returns `#t` if `x` is `#t` or `#f`.
 
-```
+```x-repl
 (boolean? #t) -> #t
 (boolean? #f) -> #t
 (boolean? 1) -> #f
@@ -1731,7 +1731,7 @@ Returns `#t` if `x` is `#t` or `#f`.
 
 Returns `x` if non-nil, otherwise `d`.
 
-```
+```x-repl
 (Fn default-to 0 ()) -> 0
 (Fn default-to 0 42) -> 42
 ```
@@ -1742,7 +1742,7 @@ Returns `x` if non-nil, otherwise `d`.
 
 Repeatedly applies `f` to `x` until `pred` is true.
 
-```
+```x-repl
 (Fn until (fn (_ n) (> n 10)) (method-ref Num inc) 1) -> 11
 ```
 
@@ -1754,7 +1754,7 @@ Value equality: numbers by value, strings by content, and structural for
 pairs, lists and vectors (vectors via the `%equal-others` handler cell). Falls
 back to identity (`eq?`) for everything else. Instances stay identity-compared.
 
-```
+```x-repl
 (equal? 3 3) -> #t
 (equal? "abc" "abc") -> #t
 (equal? (list 1) (list 1)) -> #t
@@ -1772,7 +1772,7 @@ back to identity (`eq?`) for everything else. Instances stay identity-compared.
 
 Left fold.
 
-```
+```x-repl
 (List fold + 0 (list 1 2 3)) -> 6
 (List fold (fn (_ acc x) (pair x acc)) () (list 1 2 3)) -> (3 2 1)
 ```
@@ -1783,7 +1783,7 @@ Left fold.
 
 Left fold using first element as initial value.
 
-```
+```x-repl
 (List reduce + (list 1 2 3)) -> 6
 ```
 
@@ -1793,7 +1793,7 @@ Left fold using first element as initial value.
 
 Like fold but collects intermediate values.
 
-```
+```x-repl
 (List scan + 0 (list 1 2 3)) -> (0 1 3 6)
 ```
 
@@ -1803,7 +1803,7 @@ Like fold but collects intermediate values.
 
 `(List length lst) -> integer`
 
-```
+```x-repl
 (List length (list 1 2 3)) -> 3
 (List length ()) -> 0
 ```
@@ -1814,7 +1814,7 @@ Like fold but collects intermediate values.
 
 Zero-based index.
 
-```
+```x-repl
 (List ref 0 (list 10 20 30)) -> 10
 (List ref 2 (list 10 20 30)) -> 30
 ```
@@ -1823,7 +1823,7 @@ Zero-based index.
 
 `(List last lst) -> value`
 
-```
+```x-repl
 (List last (list 1 2 3)) -> 3
 ```
 
@@ -1833,7 +1833,7 @@ Zero-based index.
 
 All elements except the last.
 
-```
+```x-repl
 (List init (list 1 2 3)) -> (1 2)
 ```
 
@@ -1841,7 +1841,7 @@ All elements except the last.
 
 `(List append a b) -> list`
 
-```
+```x-repl
 (List append (list 1 2) (list 3 4)) -> (1 2 3 4)
 ```
 
@@ -1849,7 +1849,7 @@ All elements except the last.
 
 `(List prepend x lst) -> list`
 
-```
+```x-repl
 (List prepend 0 (list 1 2)) -> (0 1 2)
 ```
 
@@ -1857,7 +1857,7 @@ All elements except the last.
 
 `(List reverse lst) -> list`
 
-```
+```x-repl
 (List reverse (list 1 2 3)) -> (3 2 1)
 ```
 
@@ -1865,7 +1865,7 @@ All elements except the last.
 
 `(List flatten lst) -> list`
 
-```
+```x-repl
 (List flatten (list 1 (list 2 (list 3)))) -> (1 2 3)
 ```
 
@@ -1875,7 +1875,7 @@ All elements except the last.
 
 `(List map f lst) -> list`
 
-```
+```x-repl
 (List map (method-ref Num inc) (list 1 2 3)) -> (2 3 4)
 ```
 
@@ -1883,7 +1883,7 @@ All elements except the last.
 
 `(List filter pred lst) -> list`
 
-```
+```x-repl
 (List filter (method-ref Num even?) (list 1 2 3 4)) -> (2 4)
 ```
 
@@ -1893,7 +1893,7 @@ All elements except the last.
 
 Applies `f` to each element for side effects only.
 
-```
+```x-repl
 (List for-each display (list 1 2 3)) -> ()
 ```
 
@@ -1903,7 +1903,7 @@ Applies `f` to each element for side effects only.
 
 Maps then flattens one level.
 
-```
+```x-repl
 (List flat-map (fn (_ x) (list x x)) (list 1 2)) -> (1 1 2 2)
 ```
 
@@ -1913,7 +1913,7 @@ Maps then flattens one level.
 
 `(List any? pred lst) -> #t | #f`
 
-```
+```x-repl
 (List any? (method-ref Num even?) (list 1 3 4)) -> #t
 (List any? (method-ref Num even?) (list 1 3 5)) -> #f
 ```
@@ -1922,7 +1922,7 @@ Maps then flattens one level.
 
 `(List all? pred lst) -> #t | #f`
 
-```
+```x-repl
 (List all? (method-ref Num even?) (list 2 4 6)) -> #t
 (List all? (method-ref Num even?) (list 2 3 6)) -> #f
 ```
@@ -1931,7 +1931,7 @@ Maps then flattens one level.
 
 `(List none? pred lst) -> #t | #f`
 
-```
+```x-repl
 (List none? (method-ref Num even?) (list 1 3 5)) -> #t
 ```
 
@@ -1939,7 +1939,7 @@ Maps then flattens one level.
 
 `(List empty? lst) -> #t | #f`
 
-```
+```x-repl
 (List empty? ()) -> #t
 (List empty? (list 1)) -> #f
 ```
@@ -1952,7 +1952,7 @@ Maps then flattens one level.
 
 Complement of `filter`.
 
-```
+```x-repl
 (List reject (method-ref Num even?) (list 1 2 3 4)) -> (1 3)
 ```
 
@@ -1962,7 +1962,7 @@ Complement of `filter`.
 
 `(List find pred lst) -> value | ()`
 
-```
+```x-repl
 (List find (method-ref Num even?) (list 1 3 4 6)) -> 4
 (List find (method-ref Num even?) (list 1 3 5)) -> ()
 ```
@@ -1974,7 +1974,7 @@ Complement of `filter`.
 Misses return `()` like every other miss (negative indexes are valid
 from-the-end positions, so no number can mark absence).
 
-```
+```x-repl
 (List find-index (method-ref Num even?) (list 1 3 4)) -> 2
 (List find-index (method-ref Num even?) (list 1 3 5)) -> ()
 ```
@@ -1985,7 +1985,7 @@ from-the-end positions, so no number can mark absence).
 
 Misses return `()`.
 
-```
+```x-repl
 (List index-of 3 (list 1 2 3 4)) -> 2
 ```
 
@@ -1993,7 +1993,7 @@ Misses return `()`.
 
 `(List includes? x lst) -> #t | #f`
 
-```
+```x-repl
 (List includes? 3 (list 1 2 3)) -> #t
 (List includes? 9 (list 1 2 3)) -> #f
 ```
@@ -2002,7 +2002,7 @@ Misses return `()`.
 
 `(List count-if pred lst) -> integer`
 
-```
+```x-repl
 (List count-if (method-ref Num even?) (list 1 2 3 4)) -> 2
 ```
 
@@ -2012,7 +2012,7 @@ Misses return `()`.
 
 `(List take n lst) -> list`
 
-```
+```x-repl
 (List take 2 (list 1 2 3 4)) -> (1 2)
 ```
 
@@ -2020,7 +2020,7 @@ Misses return `()`.
 
 `(List drop n lst) -> list`
 
-```
+```x-repl
 (List drop 2 (list 1 2 3 4)) -> (3 4)
 ```
 
@@ -2028,7 +2028,7 @@ Misses return `()`.
 
 `(List take-while pred lst) -> list`
 
-```
+```x-repl
 (List take-while (method-ref Num odd?) (list 1 3 4 5)) -> (1 3)
 ```
 
@@ -2036,7 +2036,7 @@ Misses return `()`.
 
 `(List drop-while pred lst) -> list`
 
-```
+```x-repl
 (List drop-while (method-ref Num odd?) (list 1 3 4 5)) -> (4 5)
 ```
 
@@ -2044,7 +2044,7 @@ Misses return `()`.
 
 `(List split-at n lst) -> (list list)`
 
-```
+```x-repl
 (List split-at 2 (list 1 2 3 4)) -> ((1 2) (3 4))
 ```
 
@@ -2052,7 +2052,7 @@ Misses return `()`.
 
 `(List slice start end lst) -> list`
 
-```
+```x-repl
 (List slice 1 3 (list 10 20 30 40)) -> (20 30)
 ```
 
@@ -2062,7 +2062,7 @@ Misses return `()`.
 
 `(List range start end) -> list`
 
-```
+```x-repl
 (List range 0 5) -> (0 1 2 3 4)
 ```
 
@@ -2070,7 +2070,7 @@ Misses return `()`.
 
 `(List repeat n x) -> list`
 
-```
+```x-repl
 (List repeat 3 0) -> (0 0 0)
 ```
 
@@ -2078,7 +2078,7 @@ Misses return `()`.
 
 `(List times n f) -> list`
 
-```
+```x-repl
 (List times 4 (method-ref Fn identity)) -> (0 1 2 3)
 ```
 
@@ -2086,7 +2086,7 @@ Misses return `()`.
 
 `(List unfold pred f g seed) -> list`
 
-```
+```x-repl
 (List unfold (fn (_ x) (> x 3)) (method-ref Fn identity) (method-ref Num inc) 1) -> (1 2 3)
 ```
 
@@ -2094,7 +2094,7 @@ Misses return `()`.
 
 `(List iterate f n x) -> list`
 
-```
+```x-repl
 (List iterate (method-ref Num inc) 4 0) -> (0 1 2 3)
 ```
 
@@ -2104,7 +2104,7 @@ Misses return `()`.
 
 Pairs corresponding elements as assocs; the result is an alist.
 
-```
+```x-repl
 (List zip (list 1 2 3) (list 4 5 6)) -> ((1 . 4) (2 . 5) (3 . 6))
 ```
 
@@ -2112,7 +2112,7 @@ Pairs corresponding elements as assocs; the result is an alist.
 
 `(List zip-with f a b) -> list`
 
-```
+```x-repl
 (List zip-with + (list 1 2 3) (list 10 20 30)) -> (11 22 33)
 ```
 
@@ -2122,7 +2122,7 @@ Pairs corresponding elements as assocs; the result is an alist.
 
 `(List partition pred lst) -> (list list)`
 
-```
+```x-repl
 (List partition (method-ref Num even?) (list 1 2 3 4)) -> ((2 4) (1 3))
 ```
 
@@ -2130,7 +2130,7 @@ Pairs corresponding elements as assocs; the result is an alist.
 
 `(List group-by f lst) -> alist`
 
-```
+```x-repl
 (List group-by (method-ref Num even?) (list 1 2 3 4)) -> ((#f 1 3) (#t 2 4))
 ```
 
@@ -2140,7 +2140,7 @@ Pairs corresponding elements as assocs; the result is an alist.
 
 Merge sort.
 
-```
+```x-repl
 (List sort < (list 3 1 2)) -> (1 2 3)
 ```
 
@@ -2148,7 +2148,7 @@ Merge sort.
 
 `(List sort-by f lst) -> list`
 
-```
+```x-repl
 (List sort-by (method-ref Num abs) (list -3 1 -2)) -> (1 -2 -3)
 ```
 
@@ -2158,7 +2158,7 @@ Merge sort.
 
 Removes consecutive duplicates.
 
-```
+```x-repl
 (List uniq (list 1 1 2 2 3)) -> (1 2 3)
 ```
 
@@ -2166,7 +2166,7 @@ Removes consecutive duplicates.
 
 `(List uniq-by f lst) -> list`
 
-```
+```x-repl
 (List uniq-by (method-ref Num abs) (list 1 -1 2 -2 3)) -> (1 2 3)
 ```
 
@@ -2174,7 +2174,7 @@ Removes consecutive duplicates.
 
 `(List intersperse sep lst) -> list`
 
-```
+```x-repl
 (List intersperse 0 (list 1 2 3)) -> (1 0 2 0 3)
 ```
 
@@ -2182,7 +2182,7 @@ Removes consecutive duplicates.
 
 `(List transpose lsts) -> list`
 
-```
+```x-repl
 (List transpose (list (list 1 2) (list 3 4))) -> ((1 3) (2 4))
 ```
 
@@ -2190,7 +2190,7 @@ Removes consecutive duplicates.
 
 `(List update n val lst) -> list`
 
-```
+```x-repl
 (List update 1 99 (list 1 2 3)) -> (1 99 3)
 ```
 
@@ -2198,7 +2198,7 @@ Removes consecutive duplicates.
 
 `(List insert n val lst) -> list`
 
-```
+```x-repl
 (List insert 1 99 (list 1 2 3)) -> (1 99 2 3)
 ```
 
@@ -2206,7 +2206,7 @@ Removes consecutive duplicates.
 
 `(List remove start n lst) -> list`
 
-```
+```x-repl
 (List remove 1 2 (list 1 2 3 4)) -> (1 4)
 ```
 
@@ -2214,7 +2214,7 @@ Removes consecutive duplicates.
 
 `(List adjust n f lst) -> list`
 
-```
+```x-repl
 (List adjust 1 (method-ref Num inc) (list 10 20 30)) -> (10 21 30)
 ```
 
@@ -2229,7 +2229,7 @@ with `eq?`.
 
 `(Assoc get key alist) -> value | ()`
 
-```
+```x-repl
 (Assoc get 'b (list (pair 'a 1) (pair 'b 2))) -> 2
 (Assoc get 'z (list (pair 'a 1))) -> ()
 ```
@@ -2238,7 +2238,7 @@ with `eq?`.
 
 `(Assoc get-or d key alist) -> value`
 
-```
+```x-repl
 (Assoc get-or 0 'z (list (pair 'a 1))) -> 0
 ```
 
@@ -2246,7 +2246,7 @@ with `eq?`.
 
 `(Assoc has? key alist) -> #t | #f`
 
-```
+```x-repl
 (Assoc has? 'a (list (pair 'a 1))) -> #t
 (Assoc has? 'z (list (pair 'a 1))) -> #f
 ```
@@ -2255,7 +2255,7 @@ with `eq?`.
 
 `(Assoc del key alist) -> alist`
 
-```
+```x-repl
 (Assoc del 'a (list (pair 'a 1) (pair 'b 2))) -> (('b . 2))
 ```
 
@@ -2263,7 +2263,7 @@ with `eq?`.
 
 `(Assoc put key val alist) -> alist`
 
-```
+```x-repl
 (Assoc put 'a 99 (list (pair 'a 1) (pair 'b 2))) -> (('a . 99) ('b . 2))
 ```
 
@@ -2271,7 +2271,7 @@ with `eq?`.
 
 `(Assoc keys alist) -> list`
 
-```
+```x-repl
 (Assoc keys (list (pair 'a 1) (pair 'b 2))) -> ('a 'b)
 ```
 
@@ -2279,7 +2279,7 @@ with `eq?`.
 
 `(Assoc vals alist) -> list`
 
-```
+```x-repl
 (Assoc vals (list (pair 'a 1) (pair 'b 2))) -> (1 2)
 ```
 
@@ -2289,7 +2289,7 @@ with `eq?`.
 
 Applies `f` to each value.
 
-```
+```x-repl
 (Assoc map (method-ref Num inc) (list (pair 'a 1) (pair 'b 2))) -> (('a . 2) ('b . 3))
 ```
 
@@ -2299,7 +2299,7 @@ Applies `f` to each value.
 
 Filters entries by predicate applied to each `(key . val)` pair.
 
-```
+```x-repl
 (Assoc filter (fn (_ e) (> (rest e) 1)) (list (pair 'a 1) (pair 'b 2))) -> (('b . 2))
 ```
 
@@ -2309,7 +2309,7 @@ Filters entries by predicate applied to each `(key . val)` pair.
 
 Merges `b` into `a`, keeping `a`'s entries on collision.
 
-```
+```x-repl
 (Assoc merge (list (pair 'a 1)) (list (pair 'a 9) (pair 'b 2))) -> (('a . 1) ('b . 2))
 ```
 
@@ -2319,7 +2319,7 @@ Merges `b` into `a`, keeping `a`'s entries on collision.
 
 Returns entries whose keys appear in `keys`.
 
-```
+```x-repl
 (Assoc pick (list 'a) (list (pair 'a 1) (pair 'b 2))) -> (('a . 1))
 ```
 
@@ -2329,7 +2329,7 @@ Returns entries whose keys appear in `keys`.
 
 Returns entries whose keys are NOT in `keys`.
 
-```
+```x-repl
 (Assoc omit (list 'a) (list (pair 'a 1) (pair 'b 2))) -> (('b . 2))
 ```
 
@@ -2339,7 +2339,7 @@ Returns entries whose keys are NOT in `keys`.
 
 Converts a bindings list -- `((key value) ...)` two-element lists, the `let` shape -- to an alist of assocs.
 
-```
+```x-repl
 (Assoc from-bindings (list (list 'a 1) (list 'b 2))) -> (('a . 1) ('b . 2))
 ```
 
@@ -2349,7 +2349,7 @@ Converts a bindings list -- `((key value) ...)` two-element lists, the `let` sha
 
 Converts an alist of assocs to a bindings list of two-element lists.
 
-```
+```x-repl
 (Assoc ->bindings (list (pair 'a 1) (pair 'b 2))) -> (('a 1) ('b 2))
 ```
 
@@ -2359,7 +2359,7 @@ Converts an alist of assocs to a bindings list of two-element lists.
 
 Applies transformation functions to matching keys.
 
-```
+```x-repl
 (Assoc evolve (list (pair 'a (method-ref Num inc))) (list (pair 'a 1) (pair 'b 2))) -> (('a . 2) ('b . 2))
 ```
 
@@ -2371,7 +2371,7 @@ Applies transformation functions to matching keys.
 
 `(Str empty? s) -> #t | #f`
 
-```
+```x-repl
 (Str empty? "") -> #t
 (Str empty? "a") -> #f
 ```
@@ -2380,7 +2380,7 @@ Applies transformation functions to matching keys.
 
 `(Str join sep lst) -> string`
 
-```
+```x-repl
 (Str join ", " (list "a" "b" "c")) -> "a, b, c"
 (Str join "" (list "a" "b")) -> "ab"
 ```
@@ -2389,7 +2389,7 @@ Applies transformation functions to matching keys.
 
 `(Str repeat n s) -> string`
 
-```
+```x-repl
 (Str repeat 3 "ab") -> "ababab"
 (Str repeat 0 "x") -> ""
 ```
@@ -2398,7 +2398,7 @@ Applies transformation functions to matching keys.
 
 `(Str includes? sub s) -> #t | #f`
 
-```
+```x-repl
 (Str includes? "ell" "hello") -> #t
 (Str includes? "xyz" "hello") -> #f
 ```
@@ -2407,7 +2407,7 @@ Applies transformation functions to matching keys.
 
 `(Str starts? pfx s) -> #t | #f`
 
-```
+```x-repl
 (Str starts? "he" "hello") -> #t
 (Str starts? "lo" "hello") -> #f
 ```
@@ -2416,7 +2416,7 @@ Applies transformation functions to matching keys.
 
 `(Str ends? sfx s) -> #t | #f`
 
-```
+```x-repl
 (Str ends? "lo" "hello") -> #t
 (Str ends? "he" "hello") -> #f
 ```
@@ -2425,7 +2425,7 @@ Applies transformation functions to matching keys.
 
 `(Str reverse s) -> string`
 
-```
+```x-repl
 (Str reverse "hello") -> "olleh"
 (Str reverse "") -> ""
 ```
@@ -2441,7 +2441,7 @@ Vectors are fixed-size indexed collections backed by lists. They display as
 
 `(Vector of . args) -> vector`
 
-```
+```x-repl
 (Vector of 1 2 3) -> #(1 2 3)
 (Vector of) -> #()
 ```
@@ -2450,7 +2450,7 @@ Vectors are fixed-size indexed collections backed by lists. They display as
 
 `(Vector vector? x) -> #t | #f`
 
-```
+```x-repl
 (Vector vector? (Vector of 1 2)) -> #t
 (Vector vector? (list 1 2)) -> #f
 ```
@@ -2459,7 +2459,7 @@ Vectors are fixed-size indexed collections backed by lists. They display as
 
 `(Vector ref i v) -> value`
 
-```
+```x-repl
 (Vector ref 1 (Vector of 10 20 30)) -> 20
 ```
 
@@ -2467,7 +2467,7 @@ Vectors are fixed-size indexed collections backed by lists. They display as
 
 `(Vector length v) -> integer`
 
-```
+```x-repl
 (Vector length (Vector of 1 2 3)) -> 3
 ```
 
@@ -2475,7 +2475,7 @@ Vectors are fixed-size indexed collections backed by lists. They display as
 
 `(Vector ->list v) -> list`
 
-```
+```x-repl
 (Vector ->list (Vector of 1 2 3)) -> (1 2 3)
 ```
 
@@ -2483,7 +2483,7 @@ Vectors are fixed-size indexed collections backed by lists. They display as
 
 `(Vector from-list lst) -> vector`
 
-```
+```x-repl
 (Vector from-list (list 1 2 3)) -> #(1 2 3)
 ```
 
@@ -2491,7 +2491,7 @@ Vectors are fixed-size indexed collections backed by lists. They display as
 
 `(Vector make n fill) -> vector`
 
-```
+```x-repl
 (Vector make 3 0) -> #(0 0 0)
 ```
 
@@ -2506,14 +2506,14 @@ the pattern into an AST at read time and match against strings at runtime.
 
 `(Regex regex? x) -> #t | #f`
 
-```
+```x-repl
 (Regex regex? #/abc/) -> #t
 (Regex regex? "abc") -> #f
 ```
 
 ### Regex literals
 
-```
+```x-repl
 (write #/abc/) -> #/abc/
 (write #//) -> #//
 (write #/ab*c/) -> #/ab*c/
@@ -2525,7 +2525,7 @@ the pattern into an AST at read time and match against strings at runtime.
 A regex called as a function performs a full match against a string. Returns
 `#t` on match, `#f` on no match.
 
-```
+```x-repl
 (#/abc/ "abc") -> #t
 (#/abc/ "abd") -> #f
 (#/abc/ "ab") -> #f
@@ -2536,7 +2536,7 @@ A regex called as a function performs a full match against a string. Returns
 
 `.` matches any single character.
 
-```
+```x-repl
 (#/./ "x") -> #t
 (#/a.c/ "abc") -> #t
 (#/a.c/ "axc") -> #t
@@ -2547,7 +2547,7 @@ A regex called as a function performs a full match against a string. Returns
 
 `*` matches zero or more of the preceding element.
 
-```
+```x-repl
 (#/ab*c/ "ac") -> #t
 (#/ab*c/ "abc") -> #t
 (#/ab*c/ "abbbc") -> #t
@@ -2558,7 +2558,7 @@ A regex called as a function performs a full match against a string. Returns
 
 `+` matches one or more of the preceding element.
 
-```
+```x-repl
 (#/ab+c/ "abc") -> #t
 (#/ab+c/ "abbbc") -> #t
 (#/ab+c/ "ac") -> #f
@@ -2568,7 +2568,7 @@ A regex called as a function performs a full match against a string. Returns
 
 `?` matches zero or one of the preceding element.
 
-```
+```x-repl
 (#/ab?c/ "abc") -> #t
 (#/ab?c/ "ac") -> #t
 (#/ab?c/ "abbc") -> #f
@@ -2584,7 +2584,7 @@ is written `"a\\b"`. (This section previously doubled the regex escapes as
 if they were strings; those patterns matched a literal backslash and did not
 demonstrate escaping at all.)
 
-```
+```x-repl
 (#/a\.b/ "a.b") -> #t
 (#/a\.b/ "axb") -> #f
 (#/a\\b/ "a\\b") -> #t
@@ -2595,7 +2595,7 @@ demonstrate escaping at all.)
 
 The `*` quantifier is greedy but backtracks to find a match.
 
-```
+```x-repl
 (#/a.*b/ "axxb") -> #t
 (#/.*b/ "aab") -> #t
 (#/a.*b/ "axx") -> #f
@@ -2603,7 +2603,7 @@ The `*` quantifier is greedy but backtracks to find a match.
 
 ### Combined patterns
 
-```
+```x-repl
 (#/a.*/ "abcdef") -> #t
 (#/a.b*c/ "axbbc") -> #t
 (#/.+/ "abc") -> #t
@@ -2612,6 +2612,6 @@ The `*` quantifier is greedy but backtracks to find a match.
 
 ### `type-name`
 
-```
+```x-repl
 (Type name #/abc/) -> "REGEX"
 ```

@@ -100,7 +100,7 @@
 (file "lib/x/tool/contract.x" 4)
 (file "lib/x/tool/cov.x" 8)
 (file "lib/x/tool/fmt.x" 23)
-(file "lib/x/tool/highlight.x" 37)
+(file "lib/x/tool/highlight.x" 38)
 (file "lib/x/tool/lint.x" 69)
 (file "lib/x/tool/pin.x" 1)
 (file "lib/x/tool/profile.x" 4)

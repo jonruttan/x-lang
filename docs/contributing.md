@@ -388,7 +388,7 @@ make doc             # both
 
 Wrap function definitions in `(doc ...)`:
 
-```scheme
+```x
 (doc (def my-function
   (fn (_ x y)
     (+ x y)))

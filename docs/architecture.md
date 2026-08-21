@@ -59,7 +59,7 @@ Types and the base object share the same structural contract: a nested linked li
 
 **Type contract** (13 fields across 5 groups):
 
-```
+```x
 (
   name
   data
@@ -73,7 +73,7 @@ The `struct x_type_t` mirrors this layout for convenient initialization in C, bu
 
 **Base contract** (3 top-level fields with nested tuples):
 
-```
+```x
 (
   (type-alist)
   (file-in file-out file-err)
@@ -101,7 +101,7 @@ There are no special forms: the evaluator (`x_eval`) does not distinguish the co
 
 `fn` creates a closure (procedure). When a procedure is called, the caller's arguments are evaluated first (via `x_prim_evlis`), then bound to the procedure's parameter list in an extended copy of the closure's captured environment. The body is then evaluated in that environment.
 
-```
+```x
 (fn (_ x y) (+ x y))
 ```
 
@@ -111,7 +111,7 @@ This is the applicative evaluation model: arguments are values by the time the b
 
 `op` creates an operative (user-level fexpr). When an operative is called, arguments are passed unevaluated. The operative also receives the caller's environment as an additional binding, giving it full control over if and how to evaluate its arguments.
 
-```
+```x
 (op (x) e (eval x e))
 ```
 

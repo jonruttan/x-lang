@@ -39,7 +39,7 @@ native-code compiler is in progress.
 
 ## A taste
 
-```scheme
+```x
 ; Values dispatch to their class, subject-last -- and a list is callable
 ("hello,world" split ",")      ; -> ("hello" "world")
 ((list 10 20 30) 1)            ; -> 20

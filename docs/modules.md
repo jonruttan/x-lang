@@ -10,7 +10,7 @@ x-lang provides a simple module system based on three forms: `provide`, `import`
 
 Declares a module and registers its exported symbols:
 
-```
+```x
 (provide x/core/list
   map filter fold sort reverse append ...)
 ```
@@ -21,7 +21,7 @@ Declares a module and registers its exported symbols:
 
 Loads a module by name, with deduplication:
 
-```
+```x
 (import x/type/vector)
 (import x/num/float)
 ```
@@ -50,7 +50,7 @@ x/type/thing@1.3.1.x    version 1.3.1
 is an argument, never part of the module name, and every version file
 `(provide)`s the base name:
 
-```
+```x
 (import-version-once maze/grid "1.3")     ; exactly 1.3.0
 (import-version-once maze/grid "1.3.*")   ; newest 1.3.*  — picks up patches
 (import-version-once maze/grid "^1")      ; newest within major 1
@@ -96,7 +96,7 @@ invisible to it.
 
 Raw file inclusion without deduplication:
 
-```
+```x
 (include "lib/x/core/list.x")
 ```
 
@@ -106,7 +106,7 @@ Raw file inclusion without deduplication:
 
 Like `include`, but tracks which paths have been loaded and skips duplicates:
 
-```
+```x
 (include-once "./support.x")
 ```
 
@@ -160,7 +160,7 @@ form is a loud error, not a skip.
 
 The pin vocabulary:
 
-```
+```x
 ; pin.xon
 (root "deps")       ; overlay root, relative to this file's directory
 (boot "boot/xe.x")  ; boot entry: run this amalgam as the boot
@@ -214,7 +214,7 @@ any `./`-relative include siblings — by reading sources with the
 reader, never loading them, and copies the closure into an overlay
 root, preserving the layout:
 
-```
+```x-repl
 > (import x/tool/pin)            ; FIRST import of the session
 > (Pin vendor "deps" 'x/type/dict)
 ("x/type/dict.x" ...)
@@ -245,7 +245,7 @@ digest is `Sha256` from `x/codec/sha256`, pure x-lang), plus one
 claimed. `NAME` is the module name, or `project:DIR` for
 `vendor-project`. `verify` recomputes it all:
 
-```
+```x-repl
 > (Pin verify "deps")
 5
 ```
@@ -278,7 +278,7 @@ scans a source tree for every `(import NAME)` and vendors the **union**
 of their closures in one call — the retrofit that would otherwise be a
 `grep` for imports plus one `vendor` each:
 
-```
+```x-repl
 > (import x/tool/pin)            ; FIRST import of the session, unarmed
 > (Pin vendor-project "deps" "src")
 ("x/type/dict.x" ...)
@@ -295,7 +295,7 @@ silently falls through to the live platform. `audit` scans the same
 project closure and reports every required file missing from the
 overlay:
 
-```
+```x-repl
 > (Pin audit "deps" "src")       ; () when the pin is complete
 ()
 ```
@@ -341,7 +341,7 @@ engine to pin the platform.
 
 The platform can also fetch and verify in one step:
 
-```
+```x-repl
 > (import x/tool/pin)
 > (Pin fetch "boot" "v0.4.0" 'xe)
 pin: verifying boot/xe.x (pure x-lang sha256; an amalgam takes minutes)
@@ -462,7 +462,7 @@ This pre-registration pattern is also used by the dialect bodies (`lib/x/boot/xe
 
 List all registered modules at the REPL:
 
-```
+```x-repl
 > (modules)
 ```
 
@@ -470,7 +470,7 @@ This returns the module registry — an association list of `(name . exports)` p
 
 Look up documentation for a specific function:
 
-```
+```x-repl
 > (help 'map)
 ```
 
@@ -478,7 +478,7 @@ Look up documentation for a specific function:
 
 A typical module file:
 
-```
+```x
 ; my-module.x -- Description of what it does
 ;
 ; Requires: list.x (map, filter)

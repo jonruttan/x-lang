@@ -232,11 +232,18 @@
 
 (def %hl-prompt? (fn (_ line) (Str8 starts? "> " line)))
 
+; Two spellings, one idea: the generated reference writes "expr => result"
+; from (example ...) forms, and docs/spec.md writes "42 -> 42" in its own
+; normative notation. Both split the same way -- four bytes of arrow.
+(def %hl-arrow-at (fn (_ line)
+  (let ((fat (Str8 index-of " => " line)))
+    (if (null? fat) (Str8 index-of " -> " line) fat))))
+
 (def %hl-arrow-split (fn (_ line)
-  (let ((at (Str8 index-of " => " line)))
+  (let ((at (%hl-arrow-at line)))
     (if (null? at) ()
-      (pair (Str8 slice 0 at line)
-            (Str8 slice (+ at 4) (%hl-byte-len line) line))))))
+      (pair (%hl-byte-sub line 0 at)
+            (%hl-byte-sub line (%hl+ at 4) (%hl- (%hl-byte-len line) (%hl+ at 4))))))))
 
 (def %hl-write-line (fn (_ line keywords)
   (let ((parts (%hl-arrow-split line)))
@@ -248,7 +255,7 @@
       ; "expr => result" -- both sides are code; only the arrow is not.
       ((not (null? parts))
         (do (%hl-write-source (first parts) keywords)
-            (%hl-write-span "o" " => ")
+            (%hl-write-span "o" (%hl-byte-sub line (%hl-arrow-at line) 4))
             (%hl-write-source (rest parts) keywords)))
       ; Anything else in a transcript is what the session printed back.
       ((str=? line "") ())

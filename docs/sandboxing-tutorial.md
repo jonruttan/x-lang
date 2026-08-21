@@ -27,7 +27,7 @@ either form.
 
 ## A first sandbox
 
-```
+```x-repl
 > (def b (Base make))
 #<base:objs 1615>
 > (b eval '(* 6 7))
@@ -42,7 +42,7 @@ The echo `#<base:objs 1615>` is the instance's inspection form — the
 number is the child's live allocation count, so you can watch a sandbox
 grow. Evaluation inside the child is invisible outside, and vice versa:
 
-```
+```x-repl
 > x
 *** ERROR: Unbound SYMBOL 'x
 > (def y 5)
@@ -54,7 +54,7 @@ grow. Evaluation inside the child is invisible outside, and vice versa:
 Errors raised inside the child propagate to the caller's `guard`, and the
 child stays usable afterwards — a caught error does not corrupt it:
 
-```
+```x-repl
 > (guard (e 'caught) (b eval '(error "boom")))
 'caught
 > (b eval '(+ 40 2))
@@ -67,7 +67,7 @@ A fresh child is the **bare C ISA** — arithmetic, binding, eval — and
 nothing more. The library you are typing at lives in the *parent*; the
 child has no output verbs, no catalog protocol, no reader macros:
 
-```
+```x-repl
 > (guard (e 'bare) (b eval '(display "hi")))
 'bare
 > (guard (e 'bare) (b eval '(prim-ref 'io 'write-str)))
@@ -86,7 +86,7 @@ parent" below.
 child gains exactly that capability — the closure runs with the parent's
 environment, so it can reach parent state the child cannot:
 
-```
+```x-repl
 > (b bind 'shout (fn (_ v) (display v) (display "!\n")))
 #<fn>
 > (b eval '(shout 7))
@@ -95,7 +95,7 @@ environment, so it can reach parent state the child cannot:
 
 Values pass through `bind` unchanged, so you can seed data too:
 
-```
+```x-repl
 > (b bind 'xs (list 1 2 3))
 (1 2 3)
 > (b eval '(first xs))
@@ -112,7 +112,7 @@ out. What you did not bind, the child cannot name.
 handler closures are built in the *calling* base and travel with the
 instances they render:
 
-```
+```x-repl
 > (def gizmo (b make-type "GIZMO"
     (list (pair 'write (fn (_ g) (display "<gizmo>"))))))
 #<ATOM:0x796014a10>
@@ -142,7 +142,7 @@ Every field of a base is addressable by name. The names come from the
 layout contract — `tools/contract/base-paths.x`, one row per field — and
 `(Base fields)` lists them:
 
-```
+```x-repl
 > (List length (b fields))
 64
 > (%cell-int (first (b cell 'line)))
@@ -154,7 +154,7 @@ addressed object; a cell-kind field's value sits in the cell's first
 slot. The walk is honest about live state — bind something and read it
 back through the environment cell:
 
-```
+```x-repl
 > (b bind 'marker 77)
 77
 > (rest (first (first (b cell 'env-alist))))
@@ -165,7 +165,7 @@ A name whose row is not base-rooted is refused loudly, because a
 type-rooted path stepped from a base spine would address arbitrary
 interpreter state:
 
-```
+```x-repl
 > (guard (e 'refused) (b cell 'type-iter))
 'refused
 ```
@@ -176,7 +176,7 @@ The same interactive treatment exists for types. `(Type wrap t)` accepts
 a type handle (from `Type of`) or a type struct (from `Type by-atom`) and
 answers a Type instance:
 
-```
+```x-repl
 > (def t-int (Type wrap (Type of 0)))
 #<type:INTEGER>
 > (t-int name)
@@ -198,7 +198,7 @@ Handler stacks shadow: a push sits in front of the current handler, a pop
 restores it. Restyling a shared built-in is therefore a round trip —
 push, use, pop:
 
-```
+```x-repl
 > (t-int push-write (fn (_ n) (display (Str8 append "0x" (%number->str n 16)))))
 ((#<fn> #<fn> . (())) (#<fn> . (())))
 > (list 1 2 42)
@@ -233,7 +233,7 @@ sides and the bare-children contract becomes something you can measure —
 find the child's INTEGER tree by name bytes and compare write-stack
 depths:
 
-```
+```x-repl
 > (def %count (fn (self l) (if (null? l) 0 (+ 1 (self (rest l))))))
 #<fn>
 > (def %find-tree (fn (self nm al)
