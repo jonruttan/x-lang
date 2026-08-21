@@ -17,7 +17,12 @@
 ; the fnv byte loop, 2x on dict ops, benchmarked) type/dict + type/hash,
 ; and (#335: cached int %// on the random draw loop, port math, and the
 ; per-expression gc tick) num/random + sys/socket + tool/asm-compile,
-; and (#307: the sugar-fold cell reads per PRINTED NODE) tool/fmt.
+; and (#307: the sugar-fold cell reads per PRINTED NODE) tool/fmt, and
+; tool/highlight, whose whole body is a per-BYTE scan: routing it through
+; the class doors (Str8 ref / Char =?) and the numeric tower cost ~10x the
+; resident memory of the cached byte prims -- 4KB of source wanted ~2.5GB
+; and a 13KB module OOM-killed the machine; on byte-ref it peaks ~290MB
+; above boot.
 ; The type/class.x row GROWS during the object-model v2 arc (plan
 ; approved 2026-08-20): the dispatch engine's own helpers are the
 ; measured hot path (8-30x, #332) the exception above exists for --
@@ -95,6 +100,7 @@
 (file "lib/x/tool/contract.x" 4)
 (file "lib/x/tool/cov.x" 8)
 (file "lib/x/tool/fmt.x" 23)
+(file "lib/x/tool/highlight.x" 37)
 (file "lib/x/tool/lint.x" 69)
 (file "lib/x/tool/pin.x" 1)
 (file "lib/x/tool/profile.x" 4)
