@@ -185,12 +185,13 @@ Variadic integer division. With no arguments, returns `1` (identity). With one a
 
 `(% a ...) -> integer`
 
-Variadic integer modulo. With no arguments, returns `0`. With one argument, returns that value unchanged. With two or more, applies modulo left to right.
+Variadic integer modulo. With one argument, returns that value unchanged. With two or more, applies modulo left to right.
+
+Unlike `+ - * /`, `%` has no zero-argument identity: `(%)` raises.
 
 ```x-repl
 (% 10 3) -> 1
 (% 17 10 3) -> 1
-(%) -> 0
 ```
 
 ---
@@ -474,15 +475,15 @@ Returns `#t` if `x` evaluates to an integer; `#f` otherwise.
 (number? "hello") -> #f
 ```
 
-### `string?`
+### `str?`
 
-`(string? x) -> #t | #f`
+`(str? x) -> #t | #f`
 
 Returns `#t` if `x` evaluates to a string; `#f` otherwise.
 
 ```x-repl
-(string? "hello") -> #t
-(string? 42) -> #f
+(str? "hello") -> #t
+(str? 42) -> #f
 ```
 
 ### `symbol?`
@@ -552,11 +553,11 @@ Constructs a proper list from zero or more evaluated arguments. `(list)` returns
 
 `(and expr ...) -> value`
 
-Short-circuit logical AND. Evaluates each `expr` left to right. Returns `()` at the first falsy value. If all values are truthy, returns the last one. With no arguments, returns `#t`.
+Short-circuit logical AND. Evaluates each `expr` left to right. Normalizes failure to `#f` at the first falsy value -- it answers "did all pass". If all values are truthy, returns the last one. With no arguments, returns `#t`.
 
 ```x-repl
 (and 1 2 3) -> 3
-(and 1 () 3) -> ()
+(and 1 () 3) -> #f
 (and) -> #t
 ```
 
@@ -564,11 +565,13 @@ Short-circuit logical AND. Evaluates each `expr` left to right. Returns `()` at 
 
 `(or expr ...) -> value`
 
-Short-circuit logical OR. Evaluates each `expr` left to right. Returns the first truthy value. If all values are falsy, returns `()`. With no arguments, returns `()`.
+Short-circuit logical OR. Evaluates each `expr` left to right. Returns the first truthy value. If every operand is falsy the LAST operand passes through unchanged -- `or` does not normalize its failure the way `and` does, so the result is whichever of `()` or `#f` you supplied last. With no arguments, returns `()`.
 
 ```x-repl
 (or () () 3) -> 3
 (or 1 2) -> 1
+(or () #f) -> #f
+(or #f ()) -> ()
 (or) -> ()
 ```
 
@@ -631,99 +634,101 @@ Reads a single character from stdin. Returns a character object, or `()` on end-
 
 ### Strings
 
-### `string-length`
+The string primitives are catalogued under the `str`, `sym` and `bytes`
+namespaces. Most are reachable only through `prim-ref`: the bare global `Str`
+names the library's UTF-8 string class, not this surface, so the examples below
+call them the way library code does. `symbol->str`, `bytes->str` and `str?` also
+carry a bare global binding.
 
-`(string-length str) -> integer`
+Every operation here is BYTE-level. The code-point-aware layer is pure x-lang
+built on top of these (`x/protocol/str/utf8`). For everyday string work, use the
+`Str` class in the standard library reference rather than these.
 
-Returns the length of string `str` in bytes.
+### `str byte-len`
 
-```x-repl
-(string-length "hello") -> 5
-(string-length "") -> 0
-```
+`(str byte-len s) -> integer`
 
-### `string-ref`
-
-`(string-ref str index) -> string`
-
-Returns a single-character string at the given zero-based `index` in `str`.
-
-```x-repl
-(string-ref "hello" 0) -> "h"
-(string-ref "hello" 4) -> "o"
-```
-
-### `string-append`
-
-`(string-append str1 str2) -> string`
-
-Concatenates two strings and returns a new string.
+Number of BYTES in `s`, not code points.
 
 ```x-repl
-(string-append "hello" " world") -> "hello world"
+((prim-ref (lit str) (lit byte-len)) "hello") -> 5
+((prim-ref (lit str) (lit byte-len)) "") -> 0
 ```
 
-### `substring`
+### `str byte-ref`
 
-`(substring str start end) -> string`
+`(str byte-ref s i) -> character`
 
-Returns a new string extracted from `str` starting at index `start` (inclusive) up to `end` (exclusive). Indices are zero-based.
+The byte at zero-based index `i`, as a CHARACTER (0-255). A negative `i` counts
+from the end.
 
 ```x-repl
-(substring "hello" 1 3) -> "el"
+((prim-ref (lit str) (lit byte-ref)) "hello" 0) -> #\h
+((prim-ref (lit str) (lit byte-ref)) "hello" -1) -> #\o
 ```
 
-### `string=?`
+### `str byte-sub`
 
-`(string=? str1 str2) -> #t | #f`
+`(str byte-sub s start len) -> string`
 
-Returns `#t` if strings `str1` and `str2` have equal contents; `#f` otherwise.
+A newly allocated string of `len` bytes taken from byte offset `start`. Note
+that the third argument is a LENGTH, not an end index.
 
 ```x-repl
-(string=? "abc" "abc") -> #t
-(string=? "abc" "xyz") -> #f
+((prim-ref (lit str) (lit byte-sub)) "hello" 1 2) -> "el"
 ```
 
-### `string->symbol`
+### `str append`
 
-`(string->symbol str) -> symbol`
+`(str append a b) -> string`
+
+Concatenates two strings into a newly allocated one.
+
+```x-repl
+((prim-ref (lit str) (lit append)) "hello" " world") -> "hello world"
+```
+
+### `str make`
+
+`(str make n) -> string`
+
+A fresh owned `n`-byte string region, space-filled and NUL-terminated.
+
+```x-repl
+((prim-ref (lit str) (lit make)) 3) -> "   "
+```
+
+### `str ->sym`
+
+`(str ->sym s) -> symbol`
 
 Converts a string to an interned symbol with the same name.
 
 ```x-repl
-(string->symbol "hello") -> 'hello
+((prim-ref (lit str) (lit ->sym)) "hello") -> 'hello
 ```
 
-### `symbol->string`
+### `sym ->str`
 
-`(symbol->string sym) -> string`
+`(sym ->str y) -> string`
 
-Converts a symbol to a string containing the symbol's name.
+Converts a symbol to a string containing its name. Also bound globally as
+`symbol->str`.
 
 ```x-repl
-(symbol->string 'hello) -> "hello"
+(symbol->str 'hello) -> "hello"
 ```
 
-### `number->string`
+### `bytes ->str`
 
-`(number->string n) -> string`
+`(bytes ->str lst) -> string`
 
-Converts integer `n` to its decimal string representation.
-
-```x-repl
-(number->string 42) -> "42"
-(number->string -1) -> "-1"
-```
-
-### `string->number`
-
-`(string->number str) -> integer`
-
-Parses a string as an integer and returns the numeric value. Supports base detection via prefix (e.g. `0x` for hex).
+The raw byte-packer: one low byte per character of `lst`. The code-point-aware
+counterpart (`list->str`) is pure x-lang and UTF-8 encodes on top of this.
+Also bound globally as `bytes->str`.
 
 ```x-repl
-(string->number "42") -> 42
-(string->number "0xff") -> 255
+(bytes->str (list 104 105)) -> "hi"
 ```
 
 ---
@@ -861,12 +866,13 @@ Returns the name string of `obj`'s runtime type, or of a type handle directly. R
 
 ### System
 
-### `gc`
+### `heap collect`
 
-`(gc) -> ()`
+`(heap collect) -> ()`
 
-Triggers garbage collection by marking all objects reachable from the base environment. Returns `()`.
+Triggers garbage collection by marking all objects reachable from the base
+environment. Returns `()`. Reachable through `prim-ref`.
 
 ```x-repl
-(gc) -> ()
+((prim-ref (lit heap) (lit collect))) -> ()
 ```

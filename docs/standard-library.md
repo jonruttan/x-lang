@@ -219,11 +219,11 @@ Structural equality that compares numbers by value, strings by content, and ever
 
 ## 5. List Folds
 
-### `fold`
-`(fold f init lst) -> value`
+### `List fold`
+`(List fold f init lst) -> value`
 Left fold: reduces a list to a single value by applying `f` to the accumulator and each element.
 ```x-repl
-(fold + 0 (list 1 2 3)) -> 6
+(List fold + 0 (list 1 2 3)) -> 6
 ```
 
 ### `List reduce`
@@ -244,11 +244,11 @@ Like `fold`, but collects all intermediate accumulator values into a list.
 
 ## 6. List Basics
 
-### `length`
-`(length lst) -> number`
+### `List length`
+`(List length lst) -> number`
 Returns the number of elements in a list.
 ```x-repl
-(length (list 1 2 3)) -> 3
+(List length (list 1 2 3)) -> 3
 ```
 
 ### `List ref`
@@ -272,11 +272,11 @@ Returns all elements except the last.
 (List init (list 1 2 3)) -> (1 2)
 ```
 
-### `append`
-`(append a b) -> list`
+### `List append`
+`(List append a b) -> list`
 Concatenates two lists.
 ```x-repl
-(append (list 1 2) (list 3 4)) -> (1 2 3 4)
+(List append (list 1 2) (list 3 4)) -> (1 2 3 4)
 ```
 
 ### `List prepend`
@@ -286,11 +286,11 @@ Adds an element to the front of a list.
 (List prepend 0 (list 1 2)) -> (0 1 2)
 ```
 
-### `reverse`
-`(reverse lst) -> list`
+### `List reverse`
+`(List reverse lst) -> list`
 Returns a list with elements in reverse order.
 ```x-repl
-(reverse (list 1 2 3)) -> (3 2 1)
+(List reverse (list 1 2 3)) -> (3 2 1)
 ```
 
 ### `List flatten`
@@ -304,25 +304,25 @@ Recursively flattens nested lists into a single flat list.
 
 ## 7. List Iteration
 
-### `map`
-`(map f lst) -> list`
+### `List map`
+`(List map f lst) -> list`
 Applies `f` to each element and returns a list of results.
 ```x-repl
-(map (method-ref Num inc) (list 1 2 3)) -> (2 3 4)
+(List map (method-ref Num inc) (list 1 2 3)) -> (2 3 4)
 ```
 
-### `filter`
-`(filter pred lst) -> list`
+### `List filter`
+`(List filter pred lst) -> list`
 Returns a list of elements for which `pred` returns true.
 ```x-repl
-(filter (method-ref Num even?) (list 1 2 3 4)) -> (2 4)
+(List filter (method-ref Num even?) (list 1 2 3 4)) -> (2 4)
 ```
 
-### `for-each`
-`(for-each f lst) -> ()`
+### `List for-each`
+`(List for-each f lst) -> ()`
 Applies `f` to each element for side effects only.
 ```x-repl
-(for-each print (list 1 2 3)) -> ()
+(List for-each print (list 1 2 3)) -> ()
 ```
 
 ### `List flat-map`
@@ -340,21 +340,21 @@ Maps `f` over the list and flattens one level of nesting from the results.
 `(List any? pred lst) -> boolean`
 Returns `#t` if `pred` is true for at least one element.
 ```x-repl
-(List any? even? (list 1 3 4)) -> #t
+(List any? (method-ref Num even?) (list 1 3 4)) -> #t
 ```
 
 ### `List all?`
 `(List all? pred lst) -> boolean`
 Returns `#t` if `pred` is true for all elements.
 ```x-repl
-(List all? even? (list 2 4 6)) -> #t
+(List all? (method-ref Num even?) (list 2 4 6)) -> #t
 ```
 
 ### `List none?`
 `(List none? pred lst) -> boolean`
 Returns `#t` if `pred` is false for all elements.
 ```x-repl
-(List none? even? (list 1 3 5)) -> #t
+(List none? (method-ref Num even?) (list 1 3 5)) -> #t
 ```
 
 ### `List empty?`
@@ -372,7 +372,7 @@ Returns `#t` if the list is nil.
 `(Fn complement pred) -> function`
 Returns a function that negates the result of `pred`.
 ```x-repl
-((Fn complement even?) 3) -> #t
+((Fn complement (method-ref Num even?)) 3) -> #t
 ```
 
 ### `Fn partial`
@@ -393,35 +393,35 @@ Returns a function that applies each of `fns` to its arguments and collects the 
 `(Fn both f g) -> function`
 Returns a predicate that is true when both `f` and `g` return true.
 ```x-repl
-((Fn both positive? even?) 4) -> #t
+((Fn both (method-ref Num positive?) (method-ref Num even?)) 4) -> #t
 ```
 
 ### `Fn either`
 `(Fn either f g) -> function`
 Returns a predicate that is true when either `f` or `g` returns true.
 ```x-repl
-((Fn either positive? even?) -2) -> #t
+((Fn either (method-ref Num positive?) (method-ref Num even?)) -2) -> #t
 ```
 
 ### `Fn all-pass`
 `(Fn all-pass preds) -> function`
 Returns a predicate that is true when all predicates in the list pass.
 ```x-repl
-((Fn all-pass (list positive? even?)) 4) -> #t
+((Fn all-pass (list (method-ref Num positive?) (method-ref Num even?))) 4) -> #t
 ```
 
 ### `Fn any-pass`
 `(Fn any-pass preds) -> function`
 Returns a predicate that is true when any predicate in the list passes.
 ```x-repl
-((Fn any-pass (list positive? even?)) -2) -> #t
+((Fn any-pass (list (method-ref Num positive?) (method-ref Num even?))) -2) -> #t
 ```
 
 ### `List reject`
 `(List reject pred lst) -> list`
 Returns elements for which `pred` is false (Fn complement of `filter`).
 ```x-repl
-(List reject even? (list 1 2 3 4)) -> (1 3)
+(List reject (method-ref Num even?) (list 1 2 3 4)) -> (1 3)
 ```
 
 ### `List sum`
@@ -446,14 +446,14 @@ Returns the product of all numbers in a list.
 `(List find pred lst) -> value | ()`
 Returns the first element matching `pred`, or `()` if none found.
 ```x-repl
-(List find even? (list 1 3 4 6)) -> 4
+(List find (method-ref Num even?) (list 1 3 4 6)) -> 4
 ```
 
 ### `List find-index`
 `(List find-index pred lst) -> number | ()`
 Returns the zero-based index of the first element matching `pred`, or `()` if none found.
 ```x-repl
-(List find-index even? (list 1 3 4)) -> 2
+(List find-index (method-ref Num even?) (list 1 3 4)) -> 2
 ```
 
 ### `List index-of`
@@ -474,7 +474,7 @@ Returns `#t` if `x` is found in the list using structural equality.
 `(List count-if pred lst) -> number`
 Returns the number of elements for which `pred` returns true.
 ```x-repl
-(List count-if even? (list 1 2 3 4)) -> 2
+(List count-if (method-ref Num even?) (list 1 2 3 4)) -> 2
 ```
 
 ---
@@ -499,14 +499,14 @@ Returns the list with the first `n` elements removed.
 `(List take-while pred lst) -> list`
 Returns the longest prefix of elements for which `pred` holds.
 ```x-repl
-(List take-while odd? (list 1 3 4 5)) -> (1 3)
+(List take-while (method-ref Num odd?) (list 1 3 4 5)) -> (1 3)
 ```
 
 ### `List drop-while`
 `(List drop-while pred lst) -> list`
 Drops the longest prefix of elements for which `pred` holds.
 ```x-repl
-(List drop-while odd? (list 1 3 4 5)) -> (4 5)
+(List drop-while (method-ref Num odd?) (list 1 3 4 5)) -> (4 5)
 ```
 
 ### `List split-at`
@@ -545,7 +545,7 @@ Returns a list containing `x` repeated `n` times (count first, matching `Str8 re
 `(List times f n) -> list`
 Calls `f` with each index from `0` to `n-1` and collects the results.
 ```x-repl
-(List times (method-ref Fn identity) 4) -> (0 1 2 3)
+(List times 4 (method-ref Fn identity)) -> (0 1 2 3)
 ```
 
 ### `List unfold`
@@ -584,14 +584,14 @@ Combines corresponding elements from two lists using `f`.
 `(List partition pred lst) -> (list list)`
 Splits a list into two lists: elements satisfying `pred` and elements that do not.
 ```x-repl
-(List partition even? (list 1 2 3 4)) -> ((2 4) (1 3))
+(List partition (method-ref Num even?) (list 1 2 3 4)) -> ((2 4) (1 3))
 ```
 
 ### `List group-by`
 `(List group-by f lst) -> alist`
 Groups elements into an association list keyed by the result of applying `f`.
 ```x-repl
-(List group-by even? (list 1 2 3 4)) -> ((() 1 3) (#t 2 4))
+(List group-by (method-ref Num even?) (list 1 2 3 4)) -> ((#f 1 3) (#t 2 4))
 ```
 
 ### `List sort`
@@ -797,7 +797,7 @@ Joins a list of strings with `sep` between each pair.
 `(Str repeat s n) -> string`
 Returns the string `s` repeated `n` times.
 ```x-repl
-(Str repeat "ab" 3) -> "ababab"
+(Str repeat 3 "ab") -> "ababab"
 ```
 
 ### `Str includes?`
@@ -852,7 +852,7 @@ Returns `#t` if `x` is a vector.
 `(Vector ref v i) -> value`
 Returns the element at zero-based index `i` from vector `v`.
 ```x-repl
-(Vector ref (Vector of 10 20 30) 1) -> 20
+(Vector ref 1 (Vector of 10 20 30)) -> 20
 ```
 
 ### `Vector length`
@@ -913,6 +913,7 @@ the class inside them).
 Constructs an instance; member names are literal, values are evaluated. Unset
 members take their declared default (nil if none).
 ```x-repl
+(def-class Point () x y)
 (new Point x 1 y 2) -> #<Point x=1 y=2>
 ```
 
@@ -947,6 +948,7 @@ pattern). Bound only inside method bodies; not available to external code.
 `(object? x) -> boolean`
 Returns `#t` if `x` is an object instance.
 ```x-repl
+(def-class Point () x y)
 (object? (new Point x 1 y 2)) -> #t
 ```
 
@@ -966,6 +968,7 @@ Returns the name symbol of a class, or of an instance's class.
 `(instance-of? inst class) -> boolean`
 Returns `#t` if `inst` is an instance of `class` or any of its subclasses.
 ```x-repl
+(def-class Point () x y)
 (instance-of? (new Point x 1 y 2) Point) -> #t
 ```
 
