@@ -66,9 +66,14 @@
             (let ((%prims-tokens (Xon parse %prims-input %doc-base)))
               (let ((%source-tokens (Xon parse %source-input %doc-base)))
                 ; --- Lookup alist from doc-prims tokens, then the walk ---
+                ; The fallback page title: the source path as a module
+                ; name (lib/x/boot/module.x -> x/boot/module), used only
+                ; when the file declares no (provide ...).
                 (%doc-walk-with-prims %source-tokens
                                       (%doc-build-lookup %prims-tokens)
-                                      %emitter))))))))
+                                      %emitter
+                                      (Str8 replace ".x" ""
+                                        (Str8 replace "lib/" "" %file))))))))))
 
   (if (null? (rest %argv))
     (%doc-one (first %argv))

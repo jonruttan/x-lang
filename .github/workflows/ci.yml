@@ -170,6 +170,44 @@ jobs:
       - name: Doc generation
         run: make doc-x
 
+  # The man-page path had NO gate target at all.  doc-man sits outside `doc`
+  # deliberately -- it is a second full library sweep and only install-man
+  # consumes it -- so nothing in CI ever ran either it or the install, and
+  # both reached main unexercised.  Structural checks only (see the script
+  # header): the gate does not turn on which roff toolchain a runner ships.
+  #
+  # BOTH tiers, not deep-only.  The surfaces this covers are generated
+  # artifacts and shell plumbing, which is exactly the kind of thing a PR
+  # breaks and a deep-tier-only gate reports a merge too late.  It is cheap
+  # next to the legs beside it: one library sweep and a copy into a temp
+  # prefix.
+  #
+  # Doxygen is Linux-only here.  The C half needs it, apt has it in seconds,
+  # and brew would spend minutes building it on the macOS leg for a page set
+  # that is identical on both.  CHECK_MAN_C is what the script keys on, and
+  # it says out loud when the half is not checked.
+  man:
+    name: man pages (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - name: Build
+        run: make
+      - name: Install Doxygen (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q doxygen
+      - name: Man generation + install smoke
+        run: make check-man
+        env:
+          CHECK_MAN_C: ${{ runner.os == 'Linux' && '1' || '' }}
+
   # Deep tier only: the examples ratchet and the tty contract.  Paired in
   # one job so the ubuntu expect install is paid once.
   interactive:

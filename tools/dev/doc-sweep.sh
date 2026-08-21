@@ -149,8 +149,28 @@ for _chunk in "$_TMP"/chunk-*; do
   # Per-file verdicts, same rules and same lines as the old loop.
   while IFS= read -r f; do
     _page=$(_out_for "$f")
-    if [ ! -s "$_page" ]; then
-      if grep -q '(doc (provide' "$f"; then
+    # "Nothing to document" is a different test per format.  A Markdown page
+    # is byte-empty; a man page never is, because every page carries a .TH
+    # header (without one it is not a man page at all -- see the fallback
+    # title in doc-gen).  So man asks whether anything reached it: an entry
+    # (.SS) or a module description (.SH DESCRIPTION).  Without that check,
+    # lib/x/boot/data.x and friends shipped three-line pages that were a
+    # title and nothing else.
+    #
+    # The EMPTY-is-a-failure half stays keyed on byte-emptiness, so it fires
+    # only in Markdown mode.  That is deliberate rather than an oversight:
+    # the two sweeps cover the same corpus and doc-x runs in CI, so a file
+    # that declares (doc (provide and documents nothing is still caught --
+    # and a man page carrying only a description is legitimate output, not a
+    # failure to be reported as one.
+    _nothing=no
+    if [ "$MODE" = man ]; then
+      grep -qE '^\.SS |^\.SH DESCRIPTION' "$_page" 2>/dev/null || _nothing=yes
+    else
+      [ -s "$_page" ] || _nothing=yes
+    fi
+    if [ "$_nothing" = yes ]; then
+      if [ "$MODE" != man ] && grep -q '(doc (provide' "$f"; then
         printf '  \033[1;31mEMPTY\033[0m %s\n' "$_page"
         exit 1
       else
