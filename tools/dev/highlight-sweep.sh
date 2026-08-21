@@ -28,6 +28,22 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT INT TERM
 
+# x.sh resolves the library against the CURRENT directory, so the engine has
+# to run from the repository root -- which means the paths handed to it must
+# survive that move.  Resolve them all to absolute first, then never think
+# about the caller's directory again.
+ABS=""
+for f in "$@"; do
+  case "$f" in
+    /*) abs="$f" ;;
+    *)  abs="$(cd "$(dirname "$f")" && pwd)/$(basename "$f")" ;;
+  esac
+  [ -f "$abs" ] || { echo "highlight-sweep: no such file: $f" >&2; exit 1; }
+  ABS="$ABS $abs"
+done
+set -- $ABS
+cd "$ROOT"
+
 # The tool streams bare for ONE file and behind sentinels for several, so a
 # single-file invocation is padded to keep one code path here.
 if [ $# -eq 1 ]; then
