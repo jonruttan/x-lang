@@ -69,3 +69,49 @@ values **without issuing any real syscall**; the assertions branch on
 ```
 ---
     #t
+
+## engine identity constants
+
+`x-version`, `x-release` and `x-machine` are VALUE bindings, not calls --
+`x_value_bind` in x-cli.c, from the build's headers.  Calling one applies the
+string, which is a different operation entirely: `(x-version)` returns its
+length, not its text.
+
+### x-version is a string, not a callable
+
+```scheme
+(str? x-version)
+```
+---
+    #t
+
+### x-version carries a dotted version
+
+The exact value moves with the release, so this asserts the shape.
+
+```scheme
+(Str8 includes? "." x-version)
+```
+---
+    #t
+
+### x-release is a non-empty string
+
+Set from `git describe` at build time, so only its shape is stable.
+
+```scheme
+(if (str? x-release) (> ((prim-ref 'str 'byte-len) x-release) 0) #f)
+```
+---
+    #t
+
+### applying the value is a string call, NOT a lookup
+
+`(x-version)` looks like an accessor and is not one; it applies the string to
+no arguments, which answers its byte length.
+
+```scheme
+(eq? (x-version) ((prim-ref 'str 'byte-len) x-version))
+```
+---
+    #t
