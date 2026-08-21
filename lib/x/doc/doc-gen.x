@@ -3,6 +3,7 @@
 ; Extracts (doc ...) and (note ...) forms from token trees
 ; and emits Markdown. Works with tokens from make-base + %token-read-string.
 (import x/core/list)
+(import x/doc/emit)
 ; Fetch the tokenizer prims from the catalog (ns `buf`/`tok` are de-registered, R5).
 (def %token-read-string (prim-ref 'tok 'read-str))
 
@@ -101,30 +102,15 @@
   (returns LIST "(name desc params returns examples sees notes)")
   "Extract structured metadata from a (doc ...) form.")
 
-; --- Markdown output ---
-
-(def %doc-emit-heading (fn (_ level text)
-  (%for-each (fn (_ _) (display "#")) (List range 0 level))
-  (display $" {text}\n\n")))
-
-(def %doc-emit-param (fn (_ p)
-  (def %p-name (first (rest p)))
-  (def %p-type (unless (null? (rest (rest p))) (first (rest (rest p)))))
-  (def %p-desc
-    (if (null? (rest (rest p))) ""
-      (if (null? (rest (rest (rest p)))) ""
-        (if (str? (first (rest (rest (rest p)))))
-          (first (rest (rest (rest p)))) ""))))
-  (display $"- **{%p-name}**")
-  (if (not (null? %p-type))
-    (if (not (str? %p-type))
-      (do (display $" : `{%p-type}`"))))
-  (if (not (str=? %p-desc ""))
-    (do (display $" — {%p-desc}")))
-  (newline)))
+; --- Output, through an emitter ------------------------------------------
+; The walk below never writes Markdown -- it calls an EMITTER, a class value
+; threaded through every walker (see x/doc/emit).  The helpers here convert
+; token forms into the plain data the protocol takes: strings, string lists,
+; and (name type desc) triples, so an emitter never has to know what a
+; spliced variadic tail or a three-element (param ...) means.
 
 (doc (def %doc-emit-entry
-  (fn (_ info)
+  (fn (_ em info)
     (def %name (List ref 0 info))
     (def %desc (List ref 1 info))
     (def %params (List ref 2 info))
@@ -132,33 +118,31 @@
     (def %examples (List ref 4 info))
     (def %sees (List ref 5 info))
     (def %notes (List ref 6 info))
-    (display $"### `{%name}`\n\n")
-    (if (not (str=? %desc "")) (do (display $"{%desc}\n\n")))
-    (if (not (null? %notes))
-      (%for-each (fn (_ n) (display $"> {(first (rest n))}\n\n")) %notes))
-    (if (not (null? %params))
-      (do (display "**Parameters:**\n\n")
-          (%for-each %doc-emit-param %params) (newline)))
-    (if (not (null? %returns))
-      (do (def %ret (first %returns))
-          (display $"**Returns:** `{(first (rest %ret))}`")
-          (if (not (null? (rest (rest %ret))))
-            (if (str? (first (rest (rest %ret))))
-              (if (not (str=? (first (rest (rest %ret))) ""))
-                (do (display $" — {(first (rest (rest %ret)))}")))))
-          (newline) (newline)))
-    (if (not (null? %examples))
-      (do (display "**Examples:**\n\n" "```x-repl\n")
-          (%for-each (fn (_ ex)
-            (display $"{(first (rest ex))} => {(first (rest (rest ex)))}\n")) %examples)
-          (display "```\n\n")))
-    (if (not (null? %sees))
-      (do (display "**See also:** ")
-          (%for-each (fn (_ s)
-            (display $"[`{(first (rest s))}`](#{(first (rest s))}) ")) %sees)
-          (newline) (newline)))))
+    (when (symbol? %name) (em alias (DocEmit as-str %name)))
+    (em entry-head (DocEmit as-str %name))
+    (unless (str=? %desc "") (em text %desc))
+    (%for-each (fn (_ n) (em note (DocEmit as-str (first (rest n))))) %notes)
+    (unless (null? %params) (em params (DocEmit param-triples %params)))
+    (unless (null? %returns)
+      (let ((%ret (first %returns)))
+        (em returns (DocEmit as-str (first (rest %ret))) (DocEmit returns-desc %ret))))
+    (unless (null? %examples) (em examples (DocEmit example-pairs %examples)))
+    (unless (null? %sees) (em see-also (DocEmit meta-strs %sees)))))
+  (param em ANY "Emitter class (DocMd, DocMan)")
   (param info LIST "Extracted doc info from doc-extract")
-  "Emit a single function's documentation as Markdown.")
+  "Emit a single entry's documentation through an emitter.")
+
+; One member declaration -> heading, optional description, the member note and
+; its visibility tier.  Shared by the (doc NAME "...") arm and the bare-member
+; arm, which differ only in where the description sits.
+(def %doc-emit-member
+  (fn (_ em name desc cname vis)
+    (em alias (%str-build cname "-" name))
+    (em entry-head name)
+    (unless (str=? desc "") (em text desc))
+    (em note (%str-build "Member: data carried by a " cname " instance."))
+    (%for-each (fn (_ n) (em note (DocEmit as-str (first (rest n)))))
+               (%doc-vis-note vis cname))))
 
 ; --- Lookup alist for retroactive docs ---
 
@@ -269,7 +253,7 @@
       (#t ()))))
 
 (def %doc-emit-method
-  (fn (_ m cname static? vis)
+  (fn (_ em m cname static? vis)
     (def %mname (symbol->str (first (rest m))))
     (def %sig (first (rest (rest m))))
     (def %args (rest %sig))                          ; strip the self slot
@@ -282,10 +266,13 @@
         (%str-build "(" cname " " %mname (%doc-sig-str %args) ")")
         (%str-build "(" %mname (%doc-sig-str %args) ")")))
     (def %notes (%doc-extract-meta-type %meta "note" ()))
+    ; The alias is built from the STRUCTURED name, not %head: a lookup name
+    ; has to be typeable, and %head is a rendered signature.
+    (em alias (%str-build cname "-" %mname))
     ; params ride the SIGNATURE; a bare-variadic sig (self . opt) documents
     ; its option via (param ...) in the doc meta instead -- fall back to it.
     (def %sig-params (%doc-sig-params %args ()))
-    (%doc-emit-entry
+    (%doc-emit-entry em
       (list %head
             (if (null? %docf) "" (%doc-find-last-string %meta))
             (if (null? %sig-params)
@@ -303,16 +290,16 @@
 
 ; The class-level doc form: (doc "description" (note ...) (example ...)).
 (def %doc-emit-class-doc
-  (fn (_ f)
+  (fn (_ em f)
     (def %meta (rest (rest f)))
     (when (str? (first (rest f)))
-      (do (display $"{(first (rest f))}\n\n")
+      (do (em text (first (rest f)))
           (%for-each
-            (fn (_ n) (display $"> {(first (rest n))}\n\n"))
+            (fn (_ n) (em note (DocEmit as-str (first (rest n)))))
             (%doc-extract-meta-type %meta "note" ()))))))
 
 (def %doc-walk-class-body
-  (fn (self body cname static? vis)
+  (fn (self em body cname static? vis)
     (match
       ((not (pair? body)) ())
       (#t
@@ -324,40 +311,35 @@
         (do (let ((f (if (symbol? (first body)) (list (first body)) (first body))))
               (match
                 ((not (pair? f)) ())
-                ((%doc-sym-is? (first f) "method") (%doc-emit-method f cname static? vis))
-                ((%doc-sym-is? (first f) "static") (self (rest f) cname #t vis))
+                ((%doc-sym-is? (first f) "method") (%doc-emit-method em f cname static? vis))
+                ((%doc-sym-is? (first f) "static") (self em (rest f) cname #t vis))
                 ; (private ...) / (protected ...) splice their tail into the
                 ; class body -- lib/x/type/class.x explodes them exactly so --
                 ; and hold bare member names, member declarations and methods.
                 ; They nest inside (static ...) as well, so the static flag
                 ; rides through unchanged.
                 ((%doc-sym-is? (first f) "private")
-                  (self (rest f) cname static? "private"))
+                  (self em (rest f) cname static? "private"))
                 ((%doc-sym-is? (first f) "protected")
-                  (self (rest f) cname static? "protected"))
+                  (self em (rest f) cname static? "protected"))
                 ; (interface a b c) -- the operations a type must supply
                 ; to satisfy the protocol; part of the class's contract, so
                 ; it belongs on the page.
                 ((%doc-sym-is? (first f) "interface")
-                  (do (display "**Interface:** ")
-                      (%for-each (fn (_ n) (display $"`{(symbol->str n)}` ")) (rest f))
-                      (display "\n\n")))
+                  (em interface-line (%map (fn (_ n) (symbol->str n)) (rest f))))
                 ; A doc form is the CLASS's own when its first argument is a
                 ; string, and a MEMBER's when it is that member's name --
                 ; which is the only thing telling them apart, and why members
                 ; reached the page as nothing at all: %doc-emit-class-doc
                 ; guards on str? and returns quietly for anything else, so
                 ; (doc raw "...") fell into that guard and vanished.
-                ;
-                ; Inline rather than two more %-helpers: this file is already
-                ; 32 unhomed globals against a budget that may only shrink.
                 ((%docgen-form? f)
                   (if (str? (first (rest f)))
-                    (%doc-emit-class-doc f)
-                    (do (display $"### `{(symbol->str (first (rest f)))}`\n\n")
-                        (when (str? (first (rest (rest f))))
-                          (display $"{(first (rest (rest f)))}\n\n"))
-                        (display $"> Member: data carried by a {cname} instance.\n\n"))))
+                    (%doc-emit-class-doc em f)
+                    (%doc-emit-member em
+                      (symbol->str (first (rest f)))
+                      (if (str? (first (rest (rest f)))) (first (rest (rest f))) "")
+                      cname vis)))
                 ; ANYTHING ELSE IS A MEMBER.  A class body declares members
                 ; as (name), (name default) or (name default "description")
                 ; -- the head is the MEMBER'S OWN NAME, so class-body heads
@@ -373,97 +355,89 @@
                 ; vanishing -- wrong, but wrong where someone can see it.
                 (#t
                   (when (symbol? (first f))
-                    (do (display $"### `{(symbol->str (first f))}`\n\n")
-                        ; pair? FIRST: first/rest are unchecked, so (first
-                        ; ()) is undefined behaviour, and a member with no
-                        ; description -- (state 2463534242), (fd ()) -- has
-                        ; exactly that empty tail.  It segfaulted the
-                        ; generator outright.
-                        ; BOTH steps guarded, not just the first: for a
-                        ; bare member (ledger) the tail is (rest ()), and
-                        ; rest is as unchecked as first.  Guarding only the
-                        ; (first tail) below still segfaulted -- the same
-                        ; trap, one level further in.
-                        (let ((tail (if (pair? (rest f)) (rest (rest f)) ())))
-                          (when (pair? tail)
-                            (when (str? (first tail))
-                              (display $"{(first tail)}\n\n"))))
-                        (display $"> Member: data carried by a {cname} instance.\n\n")
-                        (%for-each (fn (_ n) (display $"> {(first (rest n))}\n\n"))
-                                   (%doc-vis-note vis cname)))))))
-            (self (rest body) cname static? vis))))))
+                    ; pair? FIRST: first/rest are unchecked, so (first ())
+                    ; is undefined behaviour, and a member with no
+                    ; description -- (state 2463534242), (fd ()) -- has
+                    ; exactly that empty tail.  It segfaulted the generator
+                    ; outright.
+                    ; BOTH steps guarded, not just the first: for a bare
+                    ; member (ledger) the tail is (rest ()), and rest is as
+                    ; unchecked as first.  Guarding only the (first tail)
+                    ; still segfaulted -- the same trap, one level further in.
+                    (%doc-emit-member em
+                      (symbol->str (first f))
+                      (let ((tail (if (pair? (rest f)) (rest (rest f)) ())))
+                        (if (pair? tail)
+                          (if (str? (first tail)) (first tail) "")
+                          ""))
+                      cname vis)))))
+            (self em (rest body) cname static? vis))))))
 
 (def %doc-emit-class
-  (fn (_ form)
+  (fn (_ em form)
     (def %cname (symbol->str (first (rest form))))
     (def %parent (first (rest (rest form))))
-    (display $"## Class `{%cname}`\n\n")
-    (when (pair? %parent)
-      (if (%doc-sym-is? (first %parent) "extends")
-        (do (display $"*Extends `{(symbol->str (first (rest %parent)))}`.*\n\n"))))
-    (%doc-walk-class-body (rest (rest (rest form))) %cname #f "")))
+    (em class-head %cname
+      (if (pair? %parent)
+        (if (%doc-sym-is? (first %parent) "extends")
+          (symbol->str (first (rest %parent)))
+          "")
+        ""))
+    (%doc-walk-class-body em (rest (rest (rest form))) %cname #f "")))
 
 (def %doc-walk-body-with-prims
-  (fn (self tokens prims-alist seen)
+  (fn (self em tokens prims-alist seen)
     (unless (null? tokens)
       (let ()
         (def %tok (first tokens))
         (def %rest (rest tokens))
         (if (%docgen-form? %tok)
           (if (%doc-provide-form? (first (rest %tok)))
-            (self %rest prims-alist seen)
+            (self em %rest prims-alist seen)
             (let ()
               (def %info (%doc-extract %tok))
               (def %name-str (symbol->str (List ref 0 %info)))
               (if (%member-str? %name-str seen)
-                (self %rest prims-alist seen)
-                (do (%doc-emit-entry %info)
-                    (self %rest prims-alist (pair %name-str seen))))))
+                (self em %rest prims-alist seen)
+                (do (%doc-emit-entry em %info)
+                    (self em %rest prims-alist (pair %name-str seen))))))
         (if (%doc-note-form? %tok)
-          (do (if (not (null? (rest %tok)))
-                (do (display $"## {(first (rest %tok))}\n\n")))
-              (self %rest prims-alist seen))
+          (do (unless (null? (rest %tok))
+                (em section (DocEmit as-str (first (rest %tok)))))
+              (self em %rest prims-alist seen))
         (if (%doc-defclass-form? %tok)
-          (do (%doc-emit-class %tok)
-              (self %rest prims-alist seen))
+          (do (%doc-emit-class em %tok)
+              (self em %rest prims-alist seen))
         (if (or (%doc-def-form? %tok) (%doc-set-form? %tok))
           (let ()
             (def %dname (first (rest %tok)))
             (def %dname-str (symbol->str %dname))
             (if (str=? (Str8 sub 0 1 %dname-str) "%")
-              (self %rest prims-alist seen)
+              (self em %rest prims-alist seen)
               (if (%member-str? %dname-str seen)
-                (self %rest prims-alist seen)
+                (self em %rest prims-alist seen)
                 (let ()
                   (def %prims-entry (%doc-lookup-alist prims-alist %dname-str))
                   (if (not (null? %prims-entry))
-                    (%doc-emit-entry %prims-entry)
-                    (do (display $"### `{%dname}`\n\n")))
-                  (self %rest prims-alist (pair %dname-str seen))))))
-          (self %rest prims-alist seen)))))))))
+                    (%doc-emit-entry em %prims-entry)
+                    (em entry-head (DocEmit as-str %dname)))
+                  (self em %rest prims-alist (pair %dname-str seen))))))
+          (self em %rest prims-alist seen)))))))))
 
 ; --- Page header emission ---
 
 (def %doc-emit-page-header
-  (fn (_ tokens)
+  (fn (_ em tokens)
     (def %provide (%doc-find-provide tokens))
-    (if (not (null? %provide))
+    (unless (null? %provide)
       (let ()
         (def %mod-name (symbol->str (List ref 0 %provide)))
         ; Back navigation — count slashes to determine depth
         (def %depth
           (%fold (fn (_ acc ch) (if (= ch (%integer->char 47)) (+ acc 1) acc))
             0 (Str ->list %mod-name)))
-        (def %back
-          (%fold (fn (_ acc _) (%str-append acc "../"))
-            "" (List range 0 %depth)))
-        (display $"[← Index]({%back}index.md)\n\n")
-        (%doc-emit-heading 1 %mod-name)
-        (if (not (str=? (List ref 1 %provide) ""))
-          (do (display $"{(List ref 1 %provide)}\n\n")))
-        (if (not (null? (List ref 6 %provide)))
-          (%for-each (fn (_ n) (display $"> {(first (rest n))}\n\n"))
-            (List ref 6 %provide)))))))
+        (em page-header %mod-name (List ref 1 %provide)
+            (DocEmit meta-strs (List ref 6 %provide)) %depth)))))
 
 ; --- Public walkers ---
 
@@ -481,23 +455,25 @@
       (#t (pair (first tokens) (self (rest tokens)))))))
 
 (doc (def %doc-walk-with-prims
-  (fn (_ tokens prims-alist)
+  (fn (_ tokens prims-alist em)
     (def %spliced (%doc-splice-dos tokens))
-    (%doc-emit-page-header %spliced)
+    (%doc-emit-page-header em %spliced)
     ; Build local doc lookup from standalone (doc name ...) forms in source,
     ; then merge with prims-alist so bare defs find their docs
     (def %local-alist (%doc-build-lookup %spliced))
     (def %merged (%append %local-alist prims-alist))
-    (%doc-walk-body-with-prims %spliced %merged ())))
+    (%doc-walk-body-with-prims em %spliced %merged ())))
   (param tokens LIST "Source file token list")
   (param prims-alist LIST "Alist from doc-build-lookup (or () for none)")
+  (param em ANY "Emitter class (DocMd, DocMan)")
   "Walk source tokens, using prims-alist as fallback docs for bare defs.")
 
 (doc (def %doc-walk
-  (fn (_ tokens)
-    (%doc-walk-with-prims tokens ())))
+  (fn (_ tokens em)
+    (%doc-walk-with-prims tokens () em)))
   (param tokens LIST "Token list from %token-read-string")
-  "Walk a token tree, extracting and emitting all documentation as Markdown.")
+  (param em ANY "Emitter class (DocMd, DocMan)")
+  "Walk a token tree, emitting all documentation through an emitter.")
 
 (doc (provide x/doc/doc-gen)
-  "Markdown documentation generator from x-lang source tokens.")
+  "Documentation generator from x-lang source tokens; output format rides an emitter (x/doc/emit).")

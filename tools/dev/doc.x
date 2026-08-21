@@ -23,14 +23,26 @@
 
 (do
   (import x/doc/doc-gen)
+  (import x/doc/emit)
+  (import x/doc/emit-man)
   (import x/codec/xon)
   (import x/tool/contract)
 
   (Contract alloc-guard!)
 
-  (def %argv (Contract argv))
+  ; --man picks the roff emitter; absent, Markdown, exactly as before.  The
+  ; flag is consumed here, so everything below sees only file paths.  Both
+  ; bindings re-test (Contract argv) rather than parking the flag in a third
+  ; global: this file's %-budget is a ratchet, and a format flag is not worth
+  ; widening it twice.
+  (def %emitter
+    (let ((a (Contract argv)))
+      (if (null? a) DocMd (if (str=? (first a) "--man") DocMan DocMd))))
+  (def %argv
+    (let ((a (Contract argv)))
+      (if (null? a) a (if (str=? (first a) "--man") (rest a) a))))
   (when (null? %argv)
-    (do (%stderr "Usage: x.sh --no-pin -q -f tools/dev/doc.x -- FILE...\n")
+    (do (%stderr "Usage: x.sh --no-pin -q -f tools/dev/doc.x -- [--man] FILE...\n")
         (Sys exit 1)))
 
   (def %prims-path "lib/x/doc/doc-prims.x")
@@ -55,7 +67,8 @@
               (let ((%source-tokens (Xon parse %source-input %doc-base)))
                 ; --- Lookup alist from doc-prims tokens, then the walk ---
                 (%doc-walk-with-prims %source-tokens
-                                      (%doc-build-lookup %prims-tokens)))))))))
+                                      (%doc-build-lookup %prims-tokens)
+                                      %emitter))))))))
 
   (if (null? (rest %argv))
     (%doc-one (first %argv))
