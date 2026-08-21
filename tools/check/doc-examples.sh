@@ -51,11 +51,14 @@ sed 's/#.*//' "$CONF" | while read -r doc level lib mode; do
   section=$(awk -v n="$level" 'BEGIN { s=""; while (n-- > 0) s = s "#"; print s " " }')
   [ "$lib" = "-" ] && lib=""
 
-  DOC="$doc" SECTION="$section" DEFAULT_LIB="$lib" \
-    sh tools/check/spec-examples.sh "$out" >/dev/null
+  skips="$OUTROOT/$slug.skipped"
+  DOC="$doc" SECTION="$section" DEFAULT_LIB="$lib" SKIPFILE="$skips" \
+    sh tools/check/spec-examples.sh "$out" >/dev/null 2>/dev/null
 
   n_files=$(ls "$out" 2>/dev/null | wc -l | tr -d ' ')
   n_tests=$(cat "$out"/*.spec.md 2>/dev/null | grep -c '^### ' || true)
+  n_skip=$(wc -l < "$skips" 2>/dev/null | tr -d ' ')
+  [ -n "$n_skip" ] || n_skip=0
 
   log="$OUTROOT/$slug.log"
   # The runner returns non-zero on failures; this driver decides what that
@@ -69,11 +72,18 @@ sed 's/#.*//' "$CONF" | while read -r doc level lib mode; do
   n_fail=$(strip_ansi "$log" | sed -n 's/.*[0-9]* tests, \([0-9]*\) failed.*/\1/p' | tail -1)
   [ -n "$n_fail" ] || n_fail=0
 
-  printf 'doc-examples: %-26s %3s assertions / %3s files  %s failed  [%s]\n' \
-    "$doc" "$n_tests" "$n_files" "$n_fail" "$mode"
+  printf 'doc-examples: %-26s %3s checked / %3s files  %s failed  %s unchecked  [%s]\n' \
+    "$doc" "$n_tests" "$n_files" "$n_fail" "$n_skip" "$mode"
 
   if [ "$n_fail" -gt 0 ]; then
     strip_ansi "$log" | grep '^FAIL' | sed 's/^/  /'
+  fi
+
+  # An example the extractor cannot run is not a passing example. Naming the
+  # reasons keeps "0 failed" from reading as "everything here is verified".
+  if [ "$n_skip" -gt 0 ]; then
+    awk -F'\t' '{ n[$3]++ } END { for (r in n) printf "  unchecked: %3d  %s\n", n[r], r }' "$skips"
+    [ -z "$SKIP_DETAIL" ] || awk -F'\t' '{ printf "    %s:%s  %s\n", $1, $2, $4 }' "$skips"
   fi
 
   case "$mode" in

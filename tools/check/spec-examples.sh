@@ -52,9 +52,27 @@ export OUT   # awk reads it via ENVIRON
 mkdir -p "$OUT"
 rm -f "$OUT"/*.spec.md "$OUT"/.spec.md   # the dotfile: cleanup for empty slugs written before the fix
 
+# Not every `EXPR -> EXPECTED` line can be a mechanical assertion, and the ones
+# that cannot were being dropped in silence -- a doc could show `(Io read) ->
+# <parsed s-expression>` and the run would report only the assertions it kept,
+# reading as full coverage when it was not.  awk records each drop here and the
+# summary goes to stderr, so an unchecked example is visible without changing
+# what this script writes to stdout.
+SKIPFILE=${SKIPFILE:-$(mktemp)}
+export SKIPFILE
+: > "$SKIPFILE"
+
 awk -v section_mark="$SECTION" -v default_lib="$DEFAULT_LIB" \
     -v label="$(basename "$DOC")" '
 function flush_setup() { setup = "" }
+
+# An assertion this extractor cannot run. Recorded rather than dropped: the
+# caller decides whether an unchecked example is acceptable, and cannot decide
+# what it never hears about.
+function skip(reason, ln, e) {
+  printf "%s\t%d\t%s\t%s\n", label, ln, reason, e >> ENVIRON["SKIPFILE"]
+  n_skip++
+}
 
 # An end-of-line comment on the EXPECTED value is prose, not part of the value:
 # `(newline) -> ()  ; prints \n` asserts (), and the comment says what else
@@ -101,15 +119,15 @@ index($0, section_mark) == 1 {
   # Skip what cannot be a mechanical assertion:
   #   TBD/... placeholders, prose arrows, error demos (the harness renders
   #   errors differently), and anything with an unbalanced fence artifact.
-  if (expected ~ /TBD/ || expr ~ /TBD/) next
-  if (expr ~ /\.\.\./ || expected ~ /\.\.\./) next
-  if (expected ~ /^[Ee]rror/) next
+  if (expected ~ /TBD/ || expr ~ /TBD/) { skip("TBD placeholder", line_no, expr); next }
+  if (expr ~ /\.\.\./ || expected ~ /\.\.\./) { skip("elision", line_no, expr); next }
+  if (expected ~ /^[Ee]rror/) { skip("error demo", line_no, expr); next }
   # <symbol>, <instance>, <fn> etc. are prose placeholders, not literal values.
-  if (expected ~ /^</) next
+  if (expected ~ /^</) { skip("placeholder expected value", line_no, expr); next }
   # display/write examples assert on a RETURN value while also printing, so the
   # harness (which compares stdout) sees both -- not drift, just unassertable.
-  if (expr ~ /display|write|print/) next
-  if (expr == "" || expected == "") next
+  if (expr ~ /display|write|print/) { skip("prints while returning", line_no, expr); next }
+  if (expr == "" || expected == "") { skip("empty side", line_no, expr); next }
 
   if (!section) section = "spec"
   if (section != last_section) {
@@ -141,6 +159,7 @@ index($0, section_mark) == 1 {
     last_section = section
   }
 
+  n_kept++
   printf "\n### %s:%d %s\n\n", label, line_no, expr >> outfile
   printf "```scheme\n" >> outfile
   # The wrap spans lines with the closing paren on its own: an end-of-line
@@ -165,3 +184,11 @@ index($0, section_mark) == 1 {
   if ($0 != "") setup = setup " " $0
 }
 ' "$DOC"
+
+if [ -s "$SKIPFILE" ]; then
+  n=$(wc -l < "$SKIPFILE" | tr -d ' ')
+  echo "spec-examples: $DOC: $n example(s) not checked:" >&2
+  awk -F'\t' '{ n[$3]++ } END { for (r in n) printf "  %3d  %s\n", n[r], r }' \
+    "$SKIPFILE" >&2
+  [ -z "$SKIP_DETAIL" ] || awk -F'\t' '{ printf "  %s:%s  %s  [%s]\n", $1, $2, $4, $3 }' "$SKIPFILE" >&2
+fi
