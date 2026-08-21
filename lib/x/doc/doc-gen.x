@@ -303,7 +303,38 @@
                 ((not (pair? f)) ())
                 ((%doc-sym-is? (first f) "method") (%doc-emit-method f cname static?))
                 ((%doc-sym-is? (first f) "static") (self (rest f) cname #t))
-                ((%docgen-form? f) (%doc-emit-class-doc f))
+                ; (interface a b c) -- the operations a type must supply
+                ; to satisfy the protocol; part of the class's contract, so
+                ; it belongs on the page.
+                ((%doc-sym-is? (first f) "interface")
+                  (do (display "**Interface:** ")
+                      (%for-each (fn (_ n) (display $"`{(symbol->str n)}` ")) (rest f))
+                      (display "\n\n")))
+                ; A doc form is the CLASS's own when its first argument is a
+                ; string, and a MEMBER's when it is that member's name --
+                ; which is the only thing telling them apart, and why members
+                ; reached the page as nothing at all: %doc-emit-class-doc
+                ; guards on str? and returns quietly for anything else, so
+                ; (doc raw "...") fell into that guard and vanished.
+                ;
+                ; Inline rather than two more %-helpers: this file is already
+                ; 32 unhomed globals against a budget that may only shrink.
+                ((%docgen-form? f)
+                  (if (str? (first (rest f)))
+                    (%doc-emit-class-doc f)
+                    (do (display $"### `{(symbol->str (first (rest f)))}`\n\n")
+                        (when (str? (first (rest (rest f))))
+                          (display $"{(first (rest (rest f)))}\n\n"))
+                        (display $"> Member: data carried by a {cname} instance.\n\n"))))
+                ; SILENT, and that silence is the bug this arm keeps
+                ; producing: a class-body form nobody taught this walker
+                ; about reaches the page as nothing, and the page still
+                ; looks finished.  That is how (doc raw ...) members and
+                ; seq.x's (interface ...) went unrendered for as long as
+                ; the tool has existed.  The object-model v2 (private ...)
+                ; and (protected ...) blocks are the next forms due here --
+                ; teach them BEFORE they land, or they will vanish the same
+                ; way and nothing will say so.
                 (#t ())))
             (self (rest body) cname static?))))))
 
