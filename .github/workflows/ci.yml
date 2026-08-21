@@ -93,6 +93,15 @@ jobs:
       # time instead of on the PR that drifted it.
       - name: Spec examples
         run: make spec-examples
+      # The same extraction pointed at the other docs that write examples in
+      # the `EXPR -> EXPECTED` form (#452, #453).  Report-only today, so this
+      # step is here for VISIBILITY -- the failure counts print on every run,
+      # which is what makes the promotion to a real gate a decision someone
+      # takes rather than one that never comes up.  Note the lesson from #330
+      # directly above: a target reachable only through `make test` is
+      # invisible here, because this workflow enumerates targets.
+      - name: Doc examples
+        run: make doc-examples
       # Tool-suite specs (promoted with the #180 repair; joined only once
       # fully green).  Builds the coverage binary for the cov half; since
       # #329 every variant compiles to its own object suffix, so this no
