@@ -38,3 +38,40 @@ reads it back; `(Ptr ptr? x)` tests for a pointer.
 ```
 ---
     "no"
+
+## make-callable -- deliberately not specced here
+
+`make-callable` wraps a raw address as an `x_fn_t` and returns a callable
+prim. Applying the result is only defined when the address really is a
+function with the `(base, args) -> obj` signature, and x-lang has no safe way
+to obtain one: the engine's own primitives are static C symbols, so `dlsym`
+cannot reach them, and any other address makes the call an invalid jump
+rather than an error. Constructing one and never applying it would assert
+nothing worth having. This belongs in a C test, next to a conforming symbol.
+
+## ptr ->str
+
+### a string round-trips through its own pointer
+
+`str ->ptr` hands out the address of a string's bytes; `ptr ->str` copies a
+C string back out of one.  The copy is a new object, not the original.
+
+```scheme
+(do
+  (def %s "hello")
+  (def %p ((prim-ref 'str '->ptr) %s))
+  ((prim-ref 'ptr '->str) %p))
+```
+---
+    "hello"
+
+### the result is a copy, not the original object
+
+```scheme
+(do
+  (def %s "hello")
+  (def %c ((prim-ref 'ptr '->str) ((prim-ref 'str '->ptr) %s)))
+  (list (equal? %c %s) (eq? %c %s)))
+```
+---
+    (#t #f)

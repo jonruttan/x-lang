@@ -113,3 +113,76 @@ is honoured and the object survives.
 ```
 ---
     #t
+
+## heap pin!
+
+### pin! returns the object it marks
+
+```scheme
+(def pinned (pair 'held ()))
+(eq? ((prim-ref 'heap 'pin!) pinned) pinned)
+```
+---
+    #t
+
+### a pinned object's data is intact after a collect
+
+Like the `mark-root!` case above, the pair is also reachable from the
+global, so this exercises the SYSTEM-flag traversal rather than proving
+survival of an otherwise-unreachable object; the flag makes it immune to
+the sweep and its contents are unchanged afterwards.
+
+```scheme
+(def held (pair 'safe ()))
+((prim-ref 'heap 'pin!) held)
+(Heap collect)
+(eq? (first held) 'safe)
+```
+---
+    #t
+
+### pin! marks recursively: nested data survives too
+
+```scheme
+(def deep (pair 'outer (pair 'inner ())))
+((prim-ref 'heap 'pin!) deep)
+(Heap collect)
+(eq? (first (rest deep)) 'inner)
+```
+---
+    #t
+
+## heap sweep -- covered in C, not from x
+
+`heap-sweep` is registered and reachable, and there is no spec for it on
+purpose. Its own header calls it LOW-LEVEL / UNSAFE on its own: a sweep frees
+every object not marked by an *immediately* preceding mark, "with no
+intervening allocation". Evaluating anything in x-lang allocates, so a
+correct x-level call site cannot be written -- the eval-list cell the
+evaluator is mid-traversal on would be freed underneath it. `(Heap collect)`
+is the safe atomic mark+sweep and is specced above. The phases are exercised
+separately in tests/c/src/6.6.x-prim-io.spec.c, where the no-allocation window
+exists.
+
+## heap mark
+
+### mark returns nil (side-effect contract)
+
+```scheme
+(null? ((prim-ref 'heap 'mark)))
+```
+---
+    #t
+
+### marking alone frees nothing
+
+A mark sets flags and reclaims no memory; it is only half a collection.
+The pair is intact afterwards because nothing swept.
+
+```scheme
+(def survives (pair 'still ()))
+((prim-ref 'heap 'mark))
+(eq? (first survives) 'still)
+```
+---
+    #t

@@ -144,3 +144,57 @@ strncmp would stop at the NUL and call them equal; memcmp must not.
 ```
 ---
     (#t #f #f)
+
+## ptr set-word!
+
+### a word round-trips through set-word! / ref-word
+
+`ptr set!` writes a byte; this is its machine-word sibling, writing
+sizeof(long) bytes with no bounds checking.
+
+```scheme
+(do
+  (def %p ((prim-ref 'mem 'alloc) 32))
+  ((prim-ref 'ptr 'set-word!) %p 0 123456789)
+  (def %v ((prim-ref 'ptr 'ref-word) %p 0))
+  ((prim-ref 'mem 'free) %p)
+  %v)
+```
+---
+    123456789
+
+### set-word! returns the pointer it wrote through
+
+```scheme
+(do
+  (def %p ((prim-ref 'mem 'alloc) 32))
+  (def %r ((prim-ref 'ptr 'set-word!) %p 0 7))
+  (def %same (eq? %r %p))
+  ((prim-ref 'mem 'free) %p)
+  %same)
+```
+---
+    #t
+
+## alloc limit!
+
+### arming the guard returns nil (side-effect contract)
+
+The ceiling this spec run already carries is well under the value armed
+here, so raising it changes nothing the rest of the file depends on.
+
+```scheme
+(null? (alloc-limit! 100000000))
+```
+---
+    #t
+
+### evaluation continues normally under a raised ceiling
+
+```scheme
+(do
+  (alloc-limit! 100000000)
+  (List length (list 1 2 3)))
+```
+---
+    3

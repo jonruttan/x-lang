@@ -301,3 +301,12 @@ width the form actually fits.
 ```
 ---
     ("(1 #f 2)" #t)
+
+## repl-read -- deliberately not specced here
+
+`repl-read` reads a form from the process's stdin. Under this harness stdin
+IS the program being fed to the interpreter, so calling it consumes the rest
+of the spec file: the same hazard that put `x/constructs` and `x/repl/launch`
+on the doctest denylist, where it silently swallowed 40 tests. Its behaviour
+is covered end-to-end by the REPL specs, which drive a real session rather
+than calling the primitive mid-file.

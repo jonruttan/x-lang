@@ -154,3 +154,18 @@ case above pins the "BUFFER" name.
 ```
 ---
     #f
+
+## tok read -- deliberately not specced here
+
+`token-read` exposes the tokenizer so a reader hook can pull sub-expressions
+mid-parse.  Called from a spec it does not read the buffer it is handed --
+it reads the AMBIENT input port, which under this harness is the spec file
+being fed to the interpreter.  Handed a buffer over `"(+ 1 2)"` it returned
+`('display "<<SEP>>\n")` -- the runner's own separator form, consumed out
+from under it -- and the next case died mid-batch.
+
+This is the reader re-entrancy hazard that also keeps `Tok read-str` off
+arbitrary source.  Its real call site is inside a reader hook during
+`x_token_read`, where the port is the one being parsed; the reader specs cover
+that path. Note the C suite tests `token-read-string`, which is a different
+primitive -- `x_prim_token_read` itself has no direct test on either side.

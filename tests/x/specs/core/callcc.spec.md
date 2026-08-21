@@ -50,3 +50,12 @@
 ```
 ---
     42
+
+## %cc-invoke -- deliberately not specced here
+
+`%cc-invoke` is the continuation trampoline's internal entry point, called by
+the evaluator with a raw pointer, a saved state object and an argument list.
+It is plumbing rather than surface: reaching it from x-lang means fabricating
+the state object the evaluator owns, and a malformed one is an invalid jump,
+not an error. The behaviour it implements is what every `call/cc` case in
+this file exercises.
