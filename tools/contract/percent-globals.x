@@ -140,4 +140,5 @@
 (file "tools/dev/doc-index.x" 10)
 (file "tools/dev/doc.x" 3)
 (file "tools/dev/fmt.x" 13)
+(file "tools/dev/highlight.x" 8)
 (file "tools/dev/lint.x" 22)
