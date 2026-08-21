@@ -102,6 +102,11 @@ jobs:
       # invisible here, because this workflow enumerates targets.
       - name: Doc examples
         run: make doc-examples
+      # Signature lines, which the example gate cannot see: every entry in the
+      # C primitive reference must name a real binding site and call it in the
+      # form that resolves.  Report-only while #456 is open.
+      - name: Primitive doc surface
+        run: make check-prim-doc
       # Tool-suite specs (promoted with the #180 repair; joined only once
       # fully green).  Builds the coverage binary for the cov half; since
       # #329 every variant compiles to its own object suffix, so this no

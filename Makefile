@@ -314,7 +314,7 @@ check-bootstrap: $(EXECUTABLE) ## Smoke the one-command bootstrap install
 	sh tools/check/bootstrap-smoke.sh
 .PHONY: check-bootstrap
 
-test: gates test-c test-x doctest spec-examples doc-examples check-examples lint-x test-tools doc-x ## Run all tests
+test: gates test-c test-x doctest spec-examples doc-examples check-prim-doc check-examples lint-x test-tools doc-x ## Run all tests
 .PHONY: test
 
 # The release manifest (SHASUMS + pin.release.xon over the amalgams;
@@ -485,6 +485,18 @@ spec-examples: $(EXECUTABLE) ## Run docs/spec.md's examples (gate: spec.md canno
 doc-examples: $(EXECUTABLE) ## Run the prose docs' examples (see doc-examples.conf)
 	sh tools/check/doc-examples.sh
 .PHONY: doc-examples
+
+# The other half of the doc contract: the example gate runs fenced examples,
+# and nothing read the SIGNATURE lines beside them -- which is how `(str append
+# a b)` shipped as the signature of a primitive whose name is `str-append` and
+# whose bare name does not resolve at all.  This joins each entry in the C
+# primitive reference to the binding sites the C source actually registers,
+# through the same scanner check-isa uses.  Report-only: it found 22
+# pre-existing entries that are x-lang definitions in lib/ rather than C
+# primitives (#456), and a gate that lands red rots.
+check-prim-doc: ## Check docs/primitives.md against the C binding surface
+	sh tools/check/prim-doc.sh --report
+.PHONY: check-prim-doc
 
 check-doc-vocab: ## Lint doc forms for banned type-token aliases + retired names
 	@if grep -rn 'INTEGER\|BOOLEAN\|FUNCTION' lib --include='*.x' \
