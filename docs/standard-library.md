@@ -5,7 +5,7 @@
 
 The x-lang library is modular: ~100 modules (one module = one `provide`-ing `.x` source file) organized across `lib/x/boot/`, `lib/x/core/`, `lib/x/type/`, `lib/x/protocol/`, `lib/x/num/`, `lib/x/sys/`, `lib/x/doc/`, `lib/x/tool/`, and `lib/x/platform/`. The bootstrap loader `lib/x-core.x` pre-registers all paths and loads 40+ core modules via `provide`/`import` with deduplication.
 
-This document covers the core functions loaded by `lib/x.x` (the base x-lang dialect). For the complete auto-generated reference covering all modules, run `make doc-x` and open `ref/x/index.md` (generated locally, not committed).
+This document covers the core functions loaded by `lib/x.x` (the base x-lang dialect). For the complete auto-generated reference covering all modules, see the [x-lang API Reference](https://jonruttan.github.io/x-lang/docs/ref/x/index.html) (offline: `make doc-x`, then `ref/x/index.md`).
 
 **Library version:** `0.5.0`
 
