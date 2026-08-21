@@ -71,21 +71,30 @@
     (method page-header (self (param mod STRING "Module name, e.g. x/type/base")
                               (param desc STRING "Module description, or \"\"")
                               (param notes LIST "Note strings")
-                              (param depth INT "Directory depth -- unused; man pages have no relative links"))
-      (doc "Emit the .TH header, the NAME section man's apropos database reads, and DESCRIPTION.")
+                              (param depth INT "Directory depth -- unused; man pages have no relative links")
+                              (param declared? BOOL "Whether the file declared (provide ...) -- unused; a man page needs a .TH either way"))
+      (doc "Emit the .TH header, the NAME section man's apropos database reads, and DESCRIPTION."
+        (note "Unlike Markdown, roff gets a header even for an undeclared file: without .TH the file is not a man page, and man renders it with no header at all. The title then comes from the source path."))
       ; The release rides the .TH date slot, which is where Doxygen puts it
       ; for the C reference too -- an installed page can then say which build
       ; it came from.  Read from the environment for the same reason doc-c
       ; does it that way: the Makefile owns X_RELEASE.
       (def %rel (let ((v (Sys getenv "X_RELEASE"))) (if (null? v) "" v)))
       (display $".TH \"{(self page-name mod)}\" \"3x\" \"{(self esc %rel)}\" \"x-lang\" \"x-lang library\"\n")
+      ; NAME is what apropos indexes, so the dash separator only appears
+      ; when there is something after it: lib/x/boot/* and the platform
+      ; tables declare no module and have no description at all.
       (display ".SH NAME\n")
-      (display $"{(self esc mod)} \\- {(self esc desc)}\n")
-      ; No .PP here: a paragraph macro straight after .SH is redundant, and
-      ; both groff and mandoc skip it with a warning.
-      (display ".SH DESCRIPTION\n")
-      (unless (str=? desc "") (display $"{(self esc desc)}\n"))
-      (List for-each (fn (_ n) (self note n)) notes))
+      (display (if (str=? desc "") $"{(self esc mod)}\n"
+                 $"{(self esc mod)} \\- {(self esc desc)}\n"))
+      ; No .PP after .SH: a paragraph macro straight after a section heading
+      ; is redundant, and both groff and mandoc skip it with a warning.
+      ; DESCRIPTION is skipped entirely when there is nothing to put in it,
+      ; rather than left standing empty above the first entry.
+      (unless (if (str=? desc "") (null? notes) #f)
+        (do (display ".SH DESCRIPTION\n")
+            (unless (str=? desc "") (display $"{(self esc desc)}\n"))
+            (List for-each (fn (_ n) (self note n)) notes))))
 
     (method section (self (param title STRING "Section title"))
       (doc "Emit a top-level section heading.")

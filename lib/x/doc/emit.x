@@ -83,16 +83,20 @@
     (method page-header (self (param mod STRING "Module name, e.g. x/type/base")
                               (param desc STRING "Module description, or \"\"")
                               (param notes LIST "Note strings")
-                              (param depth INT "Directory depth, for the relative index link"))
+                              (param depth INT "Directory depth, for the relative index link")
+                              (param declared? BOOL "Whether the file declared (provide ...)"))
       (doc "Emit the page header: the index back-link, the H1, the module description and its notes."
-        (note "depth drives the ../ prefix on the index link; roff has no such link and ignores it."))
-      (def %back
-        (let go ((i depth) (acc ""))
-          (if (< i 1) acc (go (- i 1) (Str8 append acc "../")))))
-      (display $"[← Index]({%back}index.md)\n\n")
-      (display $"# {mod}\n\n")
-      (unless (str=? desc "") (display $"{desc}\n\n"))
-      (List for-each (fn (_ n) (display $"> {n}\n\n")) notes))
+        (note "depth drives the ../ prefix on the index link; roff has no such link and ignores it.")
+        (note "An UNDECLARED file gets no Markdown header at all -- lib/x/boot/* declares no module, and a title invented from its path would turn a page the sweep drops into one it keeps. roff is the format that structurally needs a header, so DocMan emits one either way."))
+      (when declared?
+        (do
+          (def %back
+            (let go ((i depth) (acc ""))
+              (if (< i 1) acc (go (- i 1) (Str8 append acc "../")))))
+          (display $"[← Index]({%back}index.md)\n\n")
+          (display $"# {mod}\n\n")
+          (unless (str=? desc "") (display $"{desc}\n\n"))
+          (List for-each (fn (_ n) (display $"> {n}\n\n")) notes))))
 
     (method section (self (param title STRING "Section title"))
       (doc "Emit a section heading -- a (note \"...\") form at file top level.")

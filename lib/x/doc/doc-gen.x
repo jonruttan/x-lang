@@ -426,10 +426,20 @@
 
 ; --- Page header emission ---
 
+; A file with no (doc (provide ...)) is still a page: lib/x/boot/* and the
+; platform syscall tables declare no module and used to reach the reference
+; with no title at all -- untidy in Markdown, but in roff a page with no .TH
+; is not a man page, and `man` shows it with no header.  The caller supplies
+; a fallback name derived from the source path for exactly that case.
 (def %doc-emit-page-header
-  (fn (_ em tokens)
+  (fn (_ em tokens fallback)
     (def %provide (%doc-find-provide tokens))
-    (unless (null? %provide)
+    (if (null? %provide)
+      (unless (str=? fallback "")
+        (em page-header fallback "" ()
+            (%fold (fn (_ acc ch) (if (= ch (%integer->char 47)) (+ acc 1) acc))
+              0 (Str ->list fallback))
+            #f))
       (let ()
         (def %mod-name (symbol->str (List ref 0 %provide)))
         ; Back navigation — count slashes to determine depth
@@ -437,7 +447,7 @@
           (%fold (fn (_ acc ch) (if (= ch (%integer->char 47)) (+ acc 1) acc))
             0 (Str ->list %mod-name)))
         (em page-header %mod-name (List ref 1 %provide)
-            (DocEmit meta-strs (List ref 6 %provide)) %depth)))))
+            (DocEmit meta-strs (List ref 6 %provide)) %depth #t)))))
 
 ; --- Public walkers ---
 
@@ -455,9 +465,9 @@
       (#t (pair (first tokens) (self (rest tokens)))))))
 
 (doc (def %doc-walk-with-prims
-  (fn (_ tokens prims-alist em)
+  (fn (_ tokens prims-alist em fallback)
     (def %spliced (%doc-splice-dos tokens))
-    (%doc-emit-page-header em %spliced)
+    (%doc-emit-page-header em %spliced fallback)
     ; Build local doc lookup from standalone (doc name ...) forms in source,
     ; then merge with prims-alist so bare defs find their docs
     (def %local-alist (%doc-build-lookup %spliced))
@@ -466,11 +476,12 @@
   (param tokens LIST "Source file token list")
   (param prims-alist LIST "Alist from doc-build-lookup (or () for none)")
   (param em ANY "Emitter class (DocMd, DocMan)")
+  (param fallback STRING "Module name to title the page with when the file declares no (provide ...)")
   "Walk source tokens, using prims-alist as fallback docs for bare defs.")
 
 (doc (def %doc-walk
   (fn (_ tokens em)
-    (%doc-walk-with-prims tokens () em)))
+    (%doc-walk-with-prims tokens () em "")))
   (param tokens LIST "Token list from %token-read-string")
   (param em ANY "Emitter class (DocMd, DocMan)")
   "Walk a token tree, emitting all documentation through an emitter.")
