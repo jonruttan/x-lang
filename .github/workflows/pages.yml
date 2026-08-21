@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -172,6 +172,13 @@ jobs:
             - .github/
             - Makefile
             - Doxyfile
+            # Personal working notes from 2021, carrying the author's
+            # address in their headers.  Nothing links to them and they
+            # do not describe the system as it is; they stay in the repo
+            # for whoever wants them, but they are not the site.
+            - DEVNOTES.md
+            - PROJNOTES.md
+            - X-Doc--Text-Formatting.md
           CONF
 
       # No inputs on purpose.  The static_site_generator knob only
@@ -183,7 +190,7 @@ jobs:
       # The step earns its place as the early, loud failure if Pages has
       # not been enabled on the repository.
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Build with Jekyll
         uses: actions/jekyll-build-pages@v1
@@ -215,7 +222,7 @@ jobs:
           mkdir -p build/_site/docs/ref/c
           cp -R docs/ref/c/html build/_site/docs/ref/c/
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: build/_site
 
@@ -230,4 +237,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
