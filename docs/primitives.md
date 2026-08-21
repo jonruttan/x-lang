@@ -515,7 +515,7 @@ Returns `#t` if `x` evaluates to a callable (closure or C primitive); `#f` other
 Returns `#t` if `x` evaluates to a character object; `#f` otherwise.
 
 ```x-repl
-(char? ((prim-ref (lit str) (lit byte-ref)) "hello" 0)) -> #t
+(char? ((prim-ref 'str 'byte-ref) "hello" 0)) -> #t
 (char? 42) -> #f
 ```
 
@@ -603,98 +603,98 @@ Outputs a newline character to stdout. Takes no arguments. Returns `()`.
 
 ### Strings
 
-The string primitives are catalogued under the `str`, `sym` and `bytes`
-namespaces. Most are reachable only through `prim-ref`: the bare global `Str`
-names the library's UTF-8 string class, not this surface, so the examples below
-call them the way library code does. `symbol->str`, `bytes->str` and `str?` also
-carry a bare global binding.
+Each primitive has a name and a catalog coordinate: `str-append` is filed
+under namespace `str`, method `append`. The `str` namespace is de-registered,
+so the name itself is not bound and `prim-ref` is the way in --
+`((prim-ref 'str 'append) a b)`. The `sym` and `bytes` namespaces are not
+de-registered, so `symbol->str` and `bytes->str` are called by name.
+
+The bare global `Str` is the library's UTF-8 string class, not this surface.
 
 Every operation here is BYTE-level. The code-point-aware layer is pure x-lang
 built on top of these (`x/protocol/str/utf8`). For everyday string work, use the
 `Str` class in the standard library reference rather than these.
 
-### `str byte-len`
+### `str-byte-len`
 
-`(str byte-len s) -> integer`
+`((prim-ref 'str 'byte-len) s) -> integer`
 
 Number of BYTES in `s`, not code points.
 
 ```x-repl
-((prim-ref (lit str) (lit byte-len)) "hello") -> 5
-((prim-ref (lit str) (lit byte-len)) "") -> 0
+((prim-ref 'str 'byte-len) "hello") -> 5
+((prim-ref 'str 'byte-len) "") -> 0
 ```
 
-### `str byte-ref`
+### `str-byte-ref`
 
-`(str byte-ref s i) -> character`
+`((prim-ref 'str 'byte-ref) s i) -> character`
 
 The byte at zero-based index `i`, as a CHARACTER (0-255). A negative `i` counts
 from the end.
 
 ```x-repl
-((prim-ref (lit str) (lit byte-ref)) "hello" 0) -> #\h
-((prim-ref (lit str) (lit byte-ref)) "hello" -1) -> #\o
+((prim-ref 'str 'byte-ref) "hello" 0) -> #\h
+((prim-ref 'str 'byte-ref) "hello" -1) -> #\o
 ```
 
-### `str byte-sub`
+### `str-byte-sub`
 
-`(str byte-sub s start len) -> string`
+`((prim-ref 'str 'byte-sub) s start len) -> string`
 
 A newly allocated string of `len` bytes taken from byte offset `start`. Note
 that the third argument is a LENGTH, not an end index.
 
 ```x-repl
-((prim-ref (lit str) (lit byte-sub)) "hello" 1 2) -> "el"
+((prim-ref 'str 'byte-sub) "hello" 1 2) -> "el"
 ```
 
-### `str append`
+### `str-append`
 
-`(str append a b) -> string`
+`((prim-ref 'str 'append) a b) -> string`
 
 Concatenates two strings into a newly allocated one.
 
 ```x-repl
-((prim-ref (lit str) (lit append)) "hello" " world") -> "hello world"
+((prim-ref 'str 'append) "hello" " world") -> "hello world"
 ```
 
-### `str make`
+### `make-str`
 
-`(str make n) -> string`
+`((prim-ref 'str 'make) n) -> string`
 
 A fresh owned `n`-byte string region, space-filled and NUL-terminated.
 
 ```x-repl
-((prim-ref (lit str) (lit make)) 3) -> "   "
+((prim-ref 'str 'make) 3) -> "   "
 ```
 
-### `str ->sym`
+### `str->symbol`
 
-`(str ->sym s) -> symbol`
+`((prim-ref 'str '->sym) s) -> symbol`
 
 Converts a string to an interned symbol with the same name.
 
 ```x-repl
-((prim-ref (lit str) (lit ->sym)) "hello") -> 'hello
+((prim-ref 'str '->sym) "hello") -> 'hello
 ```
 
-### `sym ->str`
+### `symbol->str`
 
-`(sym ->str y) -> string`
+`(symbol->str y) -> string`
 
-Converts a symbol to a string containing its name. Also bound globally as
-`symbol->str`.
+Converts a symbol to a string containing its name.
 
 ```x-repl
 (symbol->str 'hello) -> "hello"
 ```
 
-### `bytes ->str`
+### `bytes->str`
 
-`(bytes ->str lst) -> string`
+`(bytes->str lst) -> string`
 
 The raw byte-packer: one low byte per character of `lst`. The code-point-aware
 counterpart (`list->str`) is pure x-lang and UTF-8 encodes on top of this.
-Also bound globally as `bytes->str`.
 
 ```x-repl
 (bytes->str (list 104 105)) -> "hi"
@@ -746,13 +746,13 @@ Signals an error with the evaluated `message`. If a `guard` handler is installed
 
 ### System
 
-### `heap collect`
+### `heap-collect`
 
-`(heap collect) -> ()`
+`((prim-ref 'heap 'collect)) -> ()`
 
 Triggers garbage collection by marking all objects reachable from the base
 environment. Returns `()`. Reachable through `prim-ref`.
 
 ```x-repl
-((prim-ref (lit heap) (lit collect))) -> ()
+((prim-ref 'heap 'collect)) -> ()
 ```
