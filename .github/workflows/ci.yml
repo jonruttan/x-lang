@@ -55,7 +55,7 @@ jobs:
       matrix:
         os: [macos-14, ubuntu-24.04]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Build
@@ -110,7 +110,7 @@ jobs:
       matrix:
         os: [macos-14, ubuntu-24.04]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Build
@@ -136,7 +136,7 @@ jobs:
       matrix:
         os: [macos-14, ubuntu-24.04]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Build
@@ -155,7 +155,7 @@ jobs:
       matrix:
         os: [macos-14, ubuntu-24.04]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Build
@@ -182,7 +182,7 @@ jobs:
       matrix:
         os: [macos-14, ubuntu-24.04]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Build
@@ -217,7 +217,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Run suites under AddressSanitizer
