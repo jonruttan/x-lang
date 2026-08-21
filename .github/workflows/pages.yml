@@ -179,6 +179,10 @@ jobs:
             - tests/
             # Copied in verbatim AFTER the build (see below).
             - docs/ref/c/
+            # Doxygen's main page SOURCE: it is INPUT to that generator and
+            # is published inside the C reference, so Jekyll rendering it
+            # again would put a second copy beside the first.
+            - docs/ref/c-main.md
             # Machinery, not documentation.
             - .github/
             - Makefile
