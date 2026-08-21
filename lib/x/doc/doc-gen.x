@@ -148,7 +148,7 @@
                 (do (display $" — {(first (rest (rest %ret)))}")))))
           (newline) (newline)))
     (if (not (null? %examples))
-      (do (display "**Examples:**\n\n" "```\n")
+      (do (display "**Examples:**\n\n" "```x-repl\n")
           (%for-each (fn (_ ex)
             (display $"{(first (rest ex))} => {(first (rest (rest ex)))}\n")) %examples)
           (display "```\n\n")))
