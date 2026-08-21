@@ -515,19 +515,8 @@ Returns `#t` if `x` evaluates to a callable (closure or C primitive); `#f` other
 Returns `#t` if `x` evaluates to a character object; `#f` otherwise.
 
 ```x-repl
-(char? (Io read-char)) -> #t
+(char? ((prim-ref (lit str) (lit byte-ref)) "hello" 0)) -> #t
 (char? 42) -> #f
-```
-
-### `Type ?`
-
-`(Type ? obj type-handle) -> #t | #f`
-
-Returns `#t` if the runtime type of `obj` matches `type-handle` (as returned by `(Type make …)`); `#f` otherwise. Returns `#f` for nil or objects without a type.
-
-```x
-(def my-t (Type make "my-type" (list)))
-(Type ? (Type make-instance my-t 42) my-t) -> #t
 ```
 
 ---
@@ -608,26 +597,6 @@ Outputs a newline character to stdout. Takes no arguments. Returns `()`.
 
 ```x-repl
 (newline) -> ()  ; prints \n
-```
-
-### `Io read`
-
-`(Io read) -> obj`
-
-Reads and parses one s-expression from stdin. Returns the parsed object.
-
-```x-repl
-(Io read) -> <parsed s-expression from stdin>
-```
-
-### `Io read-char`
-
-`(Io read-char) -> char | ()`
-
-Reads a single character from stdin. Returns a character object, or `()` on end-of-input.
-
-```x-repl
-(Io read-char) -> <char>
 ```
 
 ---
@@ -771,95 +740,6 @@ Signals an error with the evaluated `message`. If a `guard` handler is installed
 
 ```x-repl
 (error "something went wrong") -> <error signalled>
-```
-
----
-
-### Meta
-
-### `Base make`
-
-`(Base make) -> base`
-
-Creates a fresh, sandboxed interpreter base environment with all built-in types and primitives registered. The new base has its own environment, type registry, and read buffer.
-
-```x-repl
-(def b (Base make)) -> <base>
-```
-
-### `Base eval`
-
-`(Base eval base expr) -> value`
-
-Evaluates expression `expr` in the target `base` environment. List nil terminators are rewritten to match the target base. Errors in the target base propagate to the calling base if a `guard` handler is installed.
-
-```x
-(def b (Base make))
-(Base eval b '(+ 1 2)) -> 3
-```
-
-### `Base bind`
-
-`(Base bind base name value) -> value`
-
-Binds `name` to `value` in the target `base` environment. List values are rewritten to use the target base's nil. All arguments are evaluated in the calling environment before binding in the target.
-
-```x
-(def b (Base make))
-(Base bind b 'x 42) -> 42
-```
-
----
-
-### Types
-
-These are C primitives filed in the catalog under namespace `type`; the bare
-names are **de-registered** (R5). The surface is the `Type` class (methods
-`make`, `make-instance`, `?`, `of`, `name`); load-time/hot code fetches via
-`(prim-ref 'type 'make)` etc.
-
-### `Type make`
-
-`(Type make name handlers) -> type-handle`
-
-Creates a new runtime type with string `name` and an association list of `handlers`. Supported handler keys include `call`, `write`, `analyse`, `read`, `iter`, `from`, `to`, and `ops`, each mapping to a closure. Returns a type handle atom used to create instances and check types.
-
-```x-repl
-(def my-type (Type make "my-type" (list (pair 'call (fn (_ obj . args) args))))) -> <type-handle>
-```
-
-### `Type make-instance`
-
-`(Type make-instance type-handle data) -> instance`
-
-Creates a new instance of the runtime type identified by `type-handle`, storing `data` as its contents. Returns `()` if the type handle is not registered.
-
-```x
-(def my-t (Type make "my-type" (list)))
-(Type make-instance my-t 42) -> <instance>
-```
-
-### `Type ?`
-
-`(Type ? obj type-handle) -> #t | #f`
-
-Returns `#t` if the runtime type of `obj` matches `type-handle`; `#f` otherwise. Returns `#f` for nil or objects without a type. Documented above in Predicates.
-
-### `Type of`
-
-`(Type of value) -> type-handle | ()`
-
-Returns the runtime type handle of `value` (`()` for nil). The handle is the interned name atom; conversions and dispatch key on it.
-
-### `Type name`
-
-`(Type name obj-or-handle) -> string | ()`
-
-Returns the name string of `obj`'s runtime type, or of a type handle directly. Returns `()` if `obj` is nil or has no type.
-
-```x
-(def my-t (Type make "my-type" (list)))
-(Type name (Type make-instance my-t 42)) -> "my-type"
 ```
 
 ---

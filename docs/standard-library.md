@@ -1073,3 +1073,83 @@ Left-folds `(f acc element)` over the remaining elements.
 ```x-repl
 (Iter fold + 0 (Iter new (list 1 2 3 4))) -> 10
 ```
+
+## 19. Input
+
+### `Io read`
+`(Io read) -> obj`
+Reads and parses one s-expression from stdin. Returns the parsed object.
+
+### `Io read-char`
+`(Io read-char) -> char | ()`
+Reads a single character from stdin. Returns a character object, or `()` on
+end-of-input.
+
+## 20. Types and Reflection
+
+The runtime-type operations are C primitives filed in the catalog under the
+`type` namespace; the bare names are not bound. `Type` is the surface, and
+load-time or hot code fetches the primitive directly with `(prim-ref 'type
+'make)`.
+
+### `Type make`
+`(Type make name handlers) -> type-handle`
+Creates a runtime type with string `name` and an alist of `handlers`. Handler
+keys include `call`, `write`, `analyse`, `read`, `iter`, `from`, `to` and
+`ops`, each mapping to a closure. Returns a type handle used to make instances
+and to test types.
+
+### `Type make-instance`
+`(Type make-instance type-handle data) -> instance`
+Creates an instance of `type-handle` holding `data`. Returns `()` if the handle
+is not registered.
+
+### `Type ?`
+`(Type ? obj type-handle) -> #t | #f`
+Returns `#t` if the runtime type of `obj` is `type-handle`. Returns `#f` for
+nil and for objects without a type.
+```x-repl
+(def my-t (Type make "my-type" (list)))
+(Type ? (Type make-instance my-t 42) my-t) -> #t
+```
+
+### `Type of`
+`(Type of value) -> type-handle | ()`
+Returns the runtime type handle of `value`, or `()` for nil. The handle is the
+interned name atom; conversions and dispatch key on it.
+
+### `Type name`
+`(Type name obj-or-handle) -> string | ()`
+Returns the name of `obj`'s runtime type, or of a handle directly. Returns `()`
+if `obj` is nil or has no type.
+```x-repl
+(def my-t (Type make "my-type" (list)))
+(Type name (Type make-instance my-t 42)) -> "my-type"
+```
+
+## 21. Sandboxed Bases
+
+### `Base make`
+`(Base make) -> base`
+Creates a fresh, sandboxed interpreter base with its own environment, type
+registry and read buffer, and all built-in types and primitives registered.
+
+### `Base eval`
+`(Base eval base expr) -> value`
+Evaluates `expr` in the target `base`. List nil terminators are rewritten to
+match the target. Errors in the target propagate to the calling base when a
+`guard` handler is installed.
+```x-repl
+(def b (Base make))
+(Base eval b '(+ 1 2)) -> 3
+```
+
+### `Base bind`
+`(Base bind base name value) -> value`
+Binds `name` to `value` in the target `base`. List values are rewritten to use
+the target's nil. All arguments are evaluated in the calling environment before
+binding in the target.
+```x-repl
+(def b (Base make))
+(Base bind b 'x 42) -> 42
+```
