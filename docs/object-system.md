@@ -8,7 +8,7 @@ x-lang ships a small object-oriented class system in the standard library
 SICP and Smalltalk: objects own their members, and you interact with an object by
 sending it a message — no quoting required.
 
-```scheme
+```x
 (def-class Point ()
   x y
   (method dist (self) (+ (self x) (self y))))
@@ -36,7 +36,7 @@ and the class name are all literal — `def-class` is an operative, so nothing i
 quoted. Members and methods are declared **directly** in the body — no wrapper: a
 form headed by `method` is a method, anything else is a member.
 
-```scheme
+```x
 (def-class NAME PARENT-SPEC
   member1                                ; instance members, declared directly:
   (member2 default)                      ;   name | (name default) | (name default "desc")
@@ -70,7 +70,7 @@ form headed by `method` is a method, anything else is a member.
 - **`(static …)`** — optional; a block of class-wide members (same member form) and
   static methods. See [Classes as objects](#classes-as-objects-statics-and-namespaces).
 
-```scheme
+```x
 (def-class Circle ()
   r
   (method area (self) (* (self r) (self r)))
@@ -84,7 +84,7 @@ form headed by `method` is a method, anything else is a member.
 `new` constructs an instance, taking the class followed by literal member names
 paired with values (the values are evaluated, the names are not):
 
-```scheme
+```x
 (def c (new Circle r 5))
 (def c2 (new Circle r (* 2 3)))   ; value side is evaluated
 ```
@@ -92,7 +92,7 @@ paired with values (the values are evaluated, the names are not):
 A member that `new` doesn't initialise takes its declared default (nil, `()`, if
 the declaration gave none). Inherited members are included automatically.
 
-```scheme
+```x
 (def-class Counter () (n 0))      ; n defaults to 0
 ((new Counter) n)                 ; => 0     the default
 ((new Counter n 9) n)             ; => 9     new overrides it
@@ -105,7 +105,7 @@ the declaration gave none). Inherited members are included automatically.
 Send a message by applying the instance to a **literal** member name and any
 arguments:
 
-```scheme
+```x
 (c area)         ; => 25   a method
 (c scale 2)      ; => the instance (doubles r)
 (c r)            ; => 10   a data member (getter)
@@ -128,7 +128,7 @@ which is the basis for computed properties and for private data (below).
 Within a method, `self` is the receiving instance, and you reach its members the
 same way — `(self name)` / `(self name value)`:
 
-```scheme
+```x
 (method scale (self k)
   (self r (* (self r) k))    ; read r, then write it
   self)
@@ -142,7 +142,7 @@ A class may extend one parent. Method lookup walks the parent chain, so a subcla
 inherits the parent's methods and may override them. `super` invokes the parent's
 version of a method (selector literal, as everywhere):
 
-```scheme
+```x
 (def-class Base ()
   v
   (method total (self) (self v)))
@@ -171,7 +171,7 @@ A class is itself a callable object, so it can hold class-wide members and stati
 methods — the same dispatch, one level up (`self` is the class). Declare them in a
 `(static …)` block:
 
-```scheme
+```x
 (def-class Math ()
   (static
     (base 10)                                    ; class-wide member (any value)
@@ -198,7 +198,7 @@ methods — the same dispatch, one level up (`self` is the class). Declare them 
 So a class doubles as a **namespace** of static functions, the way modules do in
 Python:
 
-```scheme
+```x
 (def-class Mathx ()
   (static (method cube (self n) (* n (* n n))) (method double (self n) (* 2 n))))
 
@@ -218,7 +218,7 @@ For plain data carriers — a handful of named fields, no behaviour to speak of 
 objects; construction, access, writes, and printing all ride the doors above)
 plus the two methods a data carrier wants:
 
-```scheme
+```x
 (def-record Span start len (colour ()))
 
 (def s (new Span 3 5))       ; the ordinary positional/keyword constructor
@@ -241,7 +241,7 @@ When behaviour depends on the types of **several** arguments — the thing
 single-receiver dispatch structurally cannot express — define a generic
 (`(import x/type/generic)`):
 
-```scheme
+```x
 (def-generic area)
 (on area ((c Circle)) (* 3 (* (c r) (c r))))     ; a CLASS key: instances,
 (on area ((s Square)) (* (s side) (s side)))     ;   subclasses included
@@ -267,7 +267,7 @@ there (`x/num/tower` is the worked example).
 A trait is a named bundle of methods (and requirements) mixed in at class
 definition (`(import x/type/trait)`):
 
-```scheme
+```x
 (def-trait Comparable
   (require cmp)                              ; the host chain must provide these
   (method <? (self other) (< (self cmp other) 0))
@@ -289,7 +289,7 @@ trait-supplied methods satisfy `(interface ...)` contracts. Traits are for
 shared *behaviour*; for the wrapper-over-a-field relationship use
 `delegates`:
 
-```scheme
+```x
 (def-class Bag ()
   (d)
   (delegates d (has? length (keys names)))   ; forwarders, rename pairs allowed
@@ -307,7 +307,7 @@ extends-chain.
 
 Classes accept new methods after definition:
 
-```scheme
+```x
 (Logo def-static! 'square (fn (_ self n) ...))   ; selector may be computed
 ((new P) ...)                                    ; every instance sees it
 ```
@@ -321,7 +321,7 @@ addition immediately) and every cached dispatch table refolds.
 The `%missing` protocol hook catches what dispatch cannot resolve — instance
 and static sides, inherited like any method:
 
-```scheme
+```x
 (def-class Logo ()
   (static
     (method %missing (self sel args)
@@ -339,14 +339,14 @@ From outside, an object is reached **only** through `(obj …)` dispatch — the
 no global member accessor, so external code cannot poke at an instance's storage by
 name:
 
-```scheme
+```x
 (%member p x)           ; error — no such binding
 ```
 
 Privacy is declared, per class, with a `(private ...)` or `(protected ...)`
 block (at the body top level, or inside `(static ...)`):
 
-```lisp
+```x
 (def-class Account ()
   (private balance
     (method %audit (self) ...))            ; private: this class's methods only
@@ -369,7 +369,7 @@ a privacy marker.
 Inside methods, two extra accessors are in scope (and *only* in scope there)
 for **raw** member access:
 
-```scheme
+```x
 (member 'name)          ; raw read
 (set-member! 'name v)   ; raw write
 ```
@@ -395,7 +395,7 @@ the strictest private door of all: no code outside a method body has them.
 | `(class-members c)` / `(class-methods c)` | a class's own instance member / method names |
 | `(class-static-members c)` / `(class-static-methods c)` | its own static member / method names |
 
-```scheme
+```x
 (instance-of? b Bonus)    ; => #t
 (instance-of? b Base)     ; => #t   (Bonus extends Base)
 (object? 42)              ; => #f
@@ -441,7 +441,7 @@ module overview.
 
 Instances print as `#<ClassName member=value ...>`:
 
-```scheme
+```x
 (write (new Circle r 4))
 ; #<Circle r=4>
 ```
@@ -452,7 +452,7 @@ protocol hooks (mirroring Python's `__repr__`/`__str__`): `write` prefers a
 `write`. The `%` marks them as runtime-invoked hooks, like `%init` (the
 initialize hook that runs after every construction) and `%missing` (below).
 
-```scheme
+```x
 (def-class Vec2 () x y
   (method %repr (self) (Str8 str "<" (self x) "," (self y) ">")))
 (write (new Vec2 x 1 y 2))
@@ -571,7 +571,7 @@ args) ...)` protocol hook catches what dispatch cannot resolve.
 A bank account with an enforced-protected balance and a savings subclass that
 adds interest:
 
-```scheme
+```x
 (def-class Account ()
   (protected balance)                        ; enforced: chain methods only
   (method deposit (self amt)

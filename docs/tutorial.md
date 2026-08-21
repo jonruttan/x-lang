@@ -18,7 +18,7 @@ sh x.sh
 
 This loads the x-lang standard library and drops into a REPL:
 
-```
+```x-repl
 > (+ 1 2)
 3
 > (def greeting "hello")
@@ -48,7 +48,7 @@ The REPL prints every result automatically. A file does not — it runs
 top to bottom and produces output only where you ask for it. Put this in
 `hello.x`:
 
-```scheme
+```x
 ; hello.x -- Hello world
 
 (display "Hello from x-lang!")
@@ -83,7 +83,7 @@ This file is [`examples/x/hello.x`](../examples/x/hello.x); the rest of
 
 Integers, strings, and characters are self-evaluating:
 
-```
+```x-repl
 > 42
 42
 > "hello"
@@ -96,7 +96,7 @@ a
 
 The pair is the fundamental compound structure. A list is a chain of pairs terminated by nil `()`:
 
-```
+```x-repl
 > (pair 1 2)
 (1 . 2)
 > (pair 1 (pair 2 (pair 3 ())))
@@ -113,7 +113,7 @@ The pair is the fundamental compound structure. A list is a chain of pairs termi
 
 `def` binds a name in the current environment:
 
-```
+```x-repl
 > (def x 10)
 > (def double (fn (_ n) (* n 2)))
 > (double x)
@@ -124,7 +124,7 @@ The pair is the fundamental compound structure. A list is a chain of pairs termi
 
 `fn` creates an applicative (a function that evaluates its arguments). The first parameter is always the self-reference (conventionally `_`), followed by the actual parameters:
 
-```
+```x-repl
 > (def square (fn (_ n) (* n n)))
 > (square 5)
 25
@@ -139,7 +139,7 @@ The self-reference enables anonymous recursion — name it `self` (or anything) 
 
 ### Conditionals
 
-```
+```x-repl
 > (if (> 3 2) "yes" "no")
 "yes"
 > (match
@@ -153,7 +153,7 @@ The self-reference enables anonymous recursion — name it `self` (or anything) 
 
 `do` evaluates a sequence of expressions and returns the last:
 
-```
+```x-repl
 > (do
     (def a 1)
     (def b 2)
@@ -163,7 +163,7 @@ The self-reference enables anonymous recursion — name it `self` (or anything) 
 
 ### Local Bindings
 
-```
+```x-repl
 > (let ((x 10) (y 20)) (+ x y))
 30
 ```
@@ -175,7 +175,7 @@ x-lang's evaluation model is distinctive. All C-level primitives are **fexprs**:
 - **`fn`** creates an **applicative** — arguments are evaluated before the body runs (like a normal function)
 - **`op`** creates an **operative** — arguments are passed unevaluated, and the caller's environment is available
 
-```
+```x-repl
 > (def my-if
     (op (test then else) e
       (if (eval test e)
@@ -189,7 +189,7 @@ x-lang's evaluation model is distinctive. All C-level primitives are **fexprs**:
 
 `wrap` and `unwrap` convert between applicative and operative behaviour:
 
-```
+```x-repl
 > (def my-add (wrap (op (a b) e (+ (eval a e) (eval b e)))))
 > (my-add 1 2)
 3
@@ -199,7 +199,7 @@ x-lang's evaluation model is distinctive. All C-level primitives are **fexprs**:
 
 The standard library provides a rich set of list operations:
 
-```
+```x-repl
 > (map (fn (_ x) (* x x)) (list 1 2 3 4 5))
 (1 4 9 16 25)
 > (filter (fn (_ x) (> x 2)) (list 1 2 3 4 5))
@@ -217,7 +217,7 @@ The standard library provides a rich set of list operations:
 Everything the default dialect ships is ready without ceremony — vectors,
 for instance:
 
-```
+```x-repl
 > (def v (Vector make 3 0))
 > v
 #(0 0 0)
@@ -225,7 +225,7 @@ for instance:
 
 Capabilities the dialect does *not* pre-load are one `import` away:
 
-```
+```x-repl
 > (import x/type/hash)
 > (Hash ->hex (Hash fnv-1a "hello"))
 "a430d84680aabd0b"
@@ -233,7 +233,7 @@ Capabilities the dialect does *not* pre-load are one `import` away:
 
 In the xenon dialect, the numeric tower is pre-loaded:
 
-```
+```x-repl
 > (Num expt 2 100)
 1267650600228229401496703205376
 > (+ 1/3 1/6)
@@ -248,13 +248,13 @@ In the xenon dialect, the numeric tower is pre-loaded:
 
 Use `help` to look up documentation for any bound symbol:
 
-```
+```x-repl
 > (help '+)
 ```
 
 Use `modules` to list all registered modules:
 
-```
+```x-repl
 > (modules)
 ```
 

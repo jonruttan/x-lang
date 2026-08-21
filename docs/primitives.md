@@ -16,7 +16,7 @@ All primitives receive unevaluated arguments (fexpr-style) and evaluate what the
 
 Returns `expr` unevaluated. This is the quoting primitive; the argument is never evaluated. The reader provides `'expr` as shorthand.
 
-```
+```x-repl
 (lit (+ 1 2)) -> ('+ 1 2)
 'abc -> 'abc
 ```
@@ -31,7 +31,7 @@ Returns `expr` unevaluated. This is the quoting primitive; the argument is never
 
 Constructs a pair (cons cell) from evaluated `a` and `b`.
 
-```
+```x-repl
 (pair 1 2) -> (1 . 2)
 ```
 
@@ -41,7 +41,7 @@ Constructs a pair (cons cell) from evaluated `a` and `b`.
 
 Returns the first element (car) of pair `p`.
 
-```
+```x-repl
 (first (pair 1 2)) -> 1
 ```
 
@@ -51,7 +51,7 @@ Returns the first element (car) of pair `p`.
 
 Returns the rest element (cdr) of pair `p`.
 
-```
+```x-repl
 (rest (pair 1 2)) -> 2
 ```
 
@@ -65,7 +65,7 @@ Returns the rest element (cdr) of pair `p`.
 
 Tests scalar-value identity of evaluated `a` and `b`: the same object, or two scalars (integers, characters) carrying the same value, compare `#t`. Use `same?` for strict object identity.
 
-```
+```x-repl
 (eq? 'x 'x) -> #t
 (eq? 1 1) -> #t
 (eq? "a" "a") -> #f
@@ -77,7 +77,7 @@ Tests scalar-value identity of evaluated `a` and `b`: the same object, or two sc
 
 Tests numeric value equality of evaluated `a` and `b`. Compares the integer values regardless of object identity.
 
-```
+```x-repl
 (= 1 1) -> #t
 (= 1 2) -> #f
 ```
@@ -92,7 +92,7 @@ Tests numeric value equality of evaluated `a` and `b`. Compares the integer valu
 
 Returns `#t` if integer `a` is strictly less than integer `b`.
 
-```
+```x-repl
 (< 1 2) -> #t
 (< 2 1) -> #f
 ```
@@ -103,7 +103,7 @@ Returns `#t` if integer `a` is strictly less than integer `b`.
 
 Returns `#t` if integer `a` is strictly greater than integer `b`.
 
-```
+```x-repl
 (> 2 1) -> #t
 (> 1 2) -> #f
 ```
@@ -114,7 +114,7 @@ Returns `#t` if integer `a` is strictly greater than integer `b`.
 
 Returns `#t` if integer `a` is less than or equal to integer `b`.
 
-```
+```x-repl
 (<= 1 1) -> #t
 (<= 2 1) -> #f
 ```
@@ -125,7 +125,7 @@ Returns `#t` if integer `a` is less than or equal to integer `b`.
 
 Returns `#t` if integer `a` is greater than or equal to integer `b`.
 
-```
+```x-repl
 (>= 1 1) -> #t
 (>= 0 1) -> #f
 ```
@@ -140,7 +140,7 @@ Returns `#t` if integer `a` is greater than or equal to integer `b`.
 
 Variadic addition. Evaluates all arguments and returns their sum. Identity element is `0`; `(+)` returns `0`.
 
-```
+```x-repl
 (+ 1 2 3) -> 6
 (+) -> 0
 ```
@@ -151,7 +151,7 @@ Variadic addition. Evaluates all arguments and returns their sum. Identity eleme
 
 Variadic subtraction. With one argument, negates it. With two or more, subtracts all subsequent values from the first. With no arguments, returns `0`.
 
-```
+```x-repl
 (- 5 3) -> 2
 (- 5) -> -5
 (- 10 3 2) -> 5
@@ -164,7 +164,7 @@ Variadic subtraction. With one argument, negates it. With two or more, subtracts
 
 Variadic multiplication. Evaluates all arguments and returns their product. Identity element is `1`; `(*)` returns `1`.
 
-```
+```x-repl
 (* 2 3 4) -> 24
 (*) -> 1
 ```
@@ -175,7 +175,7 @@ Variadic multiplication. Evaluates all arguments and returns their product. Iden
 
 Variadic integer division. With no arguments, returns `1` (identity). With one argument, returns that value unchanged. With two or more, divides the first by each subsequent value left to right.
 
-```
+```x-repl
 (/ 10 2) -> 5
 (/ 100 2 5) -> 10
 (/) -> 1
@@ -187,7 +187,7 @@ Variadic integer division. With no arguments, returns `1` (identity). With one a
 
 Variadic integer modulo. With no arguments, returns `0`. With one argument, returns that value unchanged. With two or more, applies modulo left to right.
 
-```
+```x-repl
 (% 10 3) -> 1
 (% 17 10 3) -> 1
 (%) -> 0
@@ -203,7 +203,7 @@ Variadic integer modulo. With no arguments, returns `0`. With one argument, retu
 
 Bitwise NOT (one's complement) of integer `n`.
 
-```
+```x-repl
 (~ 0) -> -1
 (~ -1) -> 0
 ```
@@ -214,7 +214,7 @@ Bitwise NOT (one's complement) of integer `n`.
 
 Bitwise AND of integers `a` and `b`.
 
-```
+```x-repl
 (& 6 3) -> 2
 (& 255 15) -> 15
 ```
@@ -225,7 +225,7 @@ Bitwise AND of integers `a` and `b`.
 
 Bitwise OR of integers `a` and `b`.
 
-```
+```x-repl
 (| 6 3) -> 7
 (| 0 5) -> 5
 ```
@@ -236,7 +236,7 @@ Bitwise OR of integers `a` and `b`.
 
 Bitwise XOR of integers `a` and `b`.
 
-```
+```x-repl
 (^ 6 3) -> 5
 (^ 5 5) -> 0
 ```
@@ -247,7 +247,7 @@ Bitwise XOR of integers `a` and `b`.
 
 Left bit shift of integer `a` by `b` positions.
 
-```
+```x-repl
 (<< 1 4) -> 16
 (<< 3 2) -> 12
 ```
@@ -258,7 +258,7 @@ Left bit shift of integer `a` by `b` positions.
 
 Right bit shift of integer `a` by `b` positions (arithmetic shift).
 
-```
+```x-repl
 (>> 16 4) -> 1
 (>> 12 2) -> 3
 ```
@@ -273,7 +273,7 @@ Right bit shift of integer `a` by `b` positions (arithmetic shift).
 
 Binds `name` (unevaluated symbol) to the result of evaluating `expr` in the current environment. `expr` is evaluated before the binding is created, so it cannot read the binding being defined; recursive functions still work because a closure body resolves names at call time. To reference the name while `expr` itself evaluates, forward-declare with `(def name ())` then `(set! name expr)`.
 
-```
+```x
 (def x 42) -> 42
 (def fact (fn (_ n) (if (= n 0) 1 (* n (fact (- n 1))))))
 (fact 5) -> 120
@@ -285,7 +285,7 @@ Binds `name` (unevaluated symbol) to the result of evaluating `expr` in the curr
 
 Mutates an existing binding of `name` to the result of evaluating `expr`. Signals an error if `name` is not already bound in the current environment.
 
-```
+```x-repl
 (def x 1) -> 1
 (set! x 2) -> 2
 (set! unbound 0) -> error: Unbound symbol
@@ -301,7 +301,7 @@ Mutates an existing binding of `name` to the result of evaluating `expr`. Signal
 
 Evaluates `cond`. If truthy (not `()`), tail-evaluates `then`. If falsy, tail-evaluates `else` when provided, or returns `()`. Uses tail-call optimization for the selected branch.
 
-```
+```x-repl
 (if #t 1 2) -> 1
 (if () 1 2) -> 2
 (if () 1) -> ()
@@ -313,7 +313,7 @@ Evaluates `cond`. If truthy (not `()`), tail-evaluates `then`. If falsy, tail-ev
 
 Evaluates each `form` in sequence and returns the value of the last one. The final form is tail-evaluated for TCO. With no arguments, returns `()`.
 
-```
+```x-repl
 (do 1 2 3) -> 3
 (do (def x 1) (+ x 1)) -> 2
 ```
@@ -324,7 +324,7 @@ Evaluates each `form` in sequence and returns the value of the last one. The fin
 
 Multi-branch conditional (cond-style). Evaluates each `test` in order; for the first truthy test, tail-evaluates the corresponding `expr` and returns it. Returns `()` if no test succeeds.
 
-```
+```x
 (match
   ((= 1 2) 10)
   ((= 1 1) 20)
@@ -337,7 +337,7 @@ Multi-branch conditional (cond-style). Evaluates each `test` in order; for the f
 
 Creates local bindings by evaluating each `val` in the current environment, then evaluates `body` forms in the extended environment. The final body form is tail-evaluated. Environment is restored after `let` completes.
 
-```
+```x-repl
 (let ((x 1) (y 2)) (+ x y)) -> 3
 (let ((x 10)) x) -> 10
 ```
@@ -352,7 +352,7 @@ Creates local bindings by evaluating each `val` in the current environment, then
 
 Creates a closure (applicative, lexically scoped). `params` are not evaluated; they name the formal parameters. Every closure receives itself as an implicit first argument — by convention the first formal is `_` when unused, or `self` when the body recurses through it. Supports variadic binding: if `params` is a single symbol instead of a list, it captures the entire argument list, whose head is the closure itself.
 
-```
+```x
 (def add (fn (_ a b) (+ a b)))
 (add 1 2) -> 3
 (def fact (fn (self n) (if (= n 0) 1 (* n (self (- n 1))))))
@@ -367,7 +367,7 @@ Creates a closure (applicative, lexically scoped). `params` are not evaluated; t
 
 Creates an operative (user-level fexpr). Like `fn`, but receives arguments unevaluated. `formals` binds the raw argument tree, and `env-param` binds the dynamic environment, giving the operative manual control over evaluation.
 
-```
+```x
 (def my-quote (op (x) e x))
 (my-quote (+ 1 2)) -> ('+ 1 2)
 ```
@@ -378,7 +378,7 @@ Creates an operative (user-level fexpr). Like `fn`, but receives arguments uneva
 
 Calls callable `f` with a pre-evaluated list of arguments `args`. Works with both closures and C primitives. Arguments in the list are not re-evaluated.
 
-```
+```x-repl
 (apply + (list 1 2 3)) -> 6
 (apply first (list (list 1 2))) -> 1
 ```
@@ -389,7 +389,7 @@ Calls callable `f` with a pre-evaluated list of arguments `args`. Works with bot
 
 Evaluates the already-evaluated expression `expr`. With an optional `env` argument, evaluates `expr` in that environment instead of the current one. The environment is restored after evaluation.
 
-```
+```x-repl
 (eval '(+ 1 2)) -> 3
 ```
 
@@ -399,7 +399,7 @@ Evaluates the already-evaluated expression `expr`. With an optional `env` argume
 
 Wraps a combiner (operative or primitive) to create an applicative that evaluates its arguments before passing them to the underlying combiner.
 
-```
+```x
 (def my-op (op (x) e x))
 (def my-fn (wrap my-op))
 (my-fn (+ 1 2)) -> 3
@@ -411,7 +411,7 @@ Wraps a combiner (operative or primitive) to create an applicative that evaluate
 
 Extracts the underlying combiner from an applicative created by `wrap`.
 
-```
+```x-repl
 (unwrap (wrap (op (x) e x))) -> <operative>
 ```
 
@@ -425,7 +425,7 @@ Extracts the underlying combiner from an applicative created by `wrap`.
 
 Returns `#t` if `x` evaluates to nil (`()`); `#f` otherwise.
 
-```
+```x-repl
 (null? ()) -> #t
 (null? 1) -> #f
 ```
@@ -436,7 +436,7 @@ Returns `#t` if `x` evaluates to nil (`()`); `#f` otherwise.
 
 Returns `#t` if `x` evaluates to a list pair; `#f` otherwise.
 
-```
+```x-repl
 (pair? (list 1 2)) -> #t
 (pair? 1) -> #f
 ```
@@ -447,7 +447,7 @@ Returns `#t` if `x` evaluates to a list pair; `#f` otherwise.
 
 Returns `#t` if `x` evaluates to a non-pair (atom); `#f` if it is a list pair. The inverse of `pair?`.
 
-```
+```x-repl
 (atom? 1) -> #t
 (atom? (list 1 2)) -> #f
 ```
@@ -458,7 +458,7 @@ Returns `#t` if `x` evaluates to a non-pair (atom); `#f` if it is a list pair. T
 
 Logical negation. Returns `#t` if `x` evaluates to nil; `#f` otherwise. Equivalent to `null?`.
 
-```
+```x-repl
 (not ()) -> #t
 (not 1) -> #f
 ```
@@ -469,7 +469,7 @@ Logical negation. Returns `#t` if `x` evaluates to nil; `#f` otherwise. Equivale
 
 Returns `#t` if `x` evaluates to an integer; `#f` otherwise.
 
-```
+```x-repl
 (number? 42) -> #t
 (number? "hello") -> #f
 ```
@@ -480,7 +480,7 @@ Returns `#t` if `x` evaluates to an integer; `#f` otherwise.
 
 Returns `#t` if `x` evaluates to a string; `#f` otherwise.
 
-```
+```x-repl
 (string? "hello") -> #t
 (string? 42) -> #f
 ```
@@ -491,7 +491,7 @@ Returns `#t` if `x` evaluates to a string; `#f` otherwise.
 
 Returns `#t` if `x` evaluates to a symbol; `#f` otherwise.
 
-```
+```x-repl
 (symbol? 'x) -> #t
 (symbol? 42) -> #f
 ```
@@ -502,7 +502,7 @@ Returns `#t` if `x` evaluates to a symbol; `#f` otherwise.
 
 Returns `#t` if `x` evaluates to a callable (closure or C primitive); `#f` otherwise.
 
-```
+```x-repl
 (procedure? +) -> #t
 (procedure? 42) -> #f
 ```
@@ -513,7 +513,7 @@ Returns `#t` if `x` evaluates to a callable (closure or C primitive); `#f` other
 
 Returns `#t` if `x` evaluates to a character object; `#f` otherwise.
 
-```
+```x-repl
 (char? (Io read-char)) -> #t
 (char? 42) -> #f
 ```
@@ -524,7 +524,7 @@ Returns `#t` if `x` evaluates to a character object; `#f` otherwise.
 
 Returns `#t` if the runtime type of `obj` matches `type-handle` (as returned by `(Type make …)`); `#f` otherwise. Returns `#f` for nil or objects without a type.
 
-```
+```x
 (def my-t (Type make "my-type" (list)))
 (Type ? (Type make-instance my-t 42) my-t) -> #t
 ```
@@ -539,7 +539,7 @@ Returns `#t` if the runtime type of `obj` matches `type-handle` (as returned by 
 
 Constructs a proper list from zero or more evaluated arguments. `(list)` returns `()`.
 
-```
+```x-repl
 (list 1 2 3) -> (1 2 3)
 (list) -> ()
 ```
@@ -554,7 +554,7 @@ Constructs a proper list from zero or more evaluated arguments. `(list)` returns
 
 Short-circuit logical AND. Evaluates each `expr` left to right. Returns `()` at the first falsy value. If all values are truthy, returns the last one. With no arguments, returns `#t`.
 
-```
+```x-repl
 (and 1 2 3) -> 3
 (and 1 () 3) -> ()
 (and) -> #t
@@ -566,7 +566,7 @@ Short-circuit logical AND. Evaluates each `expr` left to right. Returns `()` at 
 
 Short-circuit logical OR. Evaluates each `expr` left to right. Returns the first truthy value. If all values are falsy, returns `()`. With no arguments, returns `()`.
 
-```
+```x-repl
 (or () () 3) -> 3
 (or 1 2) -> 1
 (or) -> ()
@@ -582,7 +582,7 @@ Short-circuit logical OR. Evaluates each `expr` left to right. Returns the first
 
 Outputs the s-expression representation of evaluated `obj` to stdout (strings are quoted, special characters escaped). Returns `()`.
 
-```
+```x-repl
 (write "hello") -> ()  ; prints "hello" (with quotes)
 ```
 
@@ -592,7 +592,7 @@ Outputs the s-expression representation of evaluated `obj` to stdout (strings ar
 
 Outputs the human-readable representation of evaluated `obj` to stdout. Strings are printed without surrounding quotes; all other types use s-expression format. Returns `()`.
 
-```
+```x-repl
 (display "hello") -> ()  ; prints hello (without quotes)
 (display 42) -> ()       ; prints 42
 ```
@@ -603,7 +603,7 @@ Outputs the human-readable representation of evaluated `obj` to stdout. Strings 
 
 Outputs a newline character to stdout. Takes no arguments. Returns `()`.
 
-```
+```x-repl
 (newline) -> ()  ; prints \n
 ```
 
@@ -613,7 +613,7 @@ Outputs a newline character to stdout. Takes no arguments. Returns `()`.
 
 Reads and parses one s-expression from stdin. Returns the parsed object.
 
-```
+```x-repl
 (Io read) -> <parsed s-expression from stdin>
 ```
 
@@ -623,7 +623,7 @@ Reads and parses one s-expression from stdin. Returns the parsed object.
 
 Reads a single character from stdin. Returns a character object, or `()` on end-of-input.
 
-```
+```x-repl
 (Io read-char) -> <char>
 ```
 
@@ -637,7 +637,7 @@ Reads a single character from stdin. Returns a character object, or `()` on end-
 
 Returns the length of string `str` in bytes.
 
-```
+```x-repl
 (string-length "hello") -> 5
 (string-length "") -> 0
 ```
@@ -648,7 +648,7 @@ Returns the length of string `str` in bytes.
 
 Returns a single-character string at the given zero-based `index` in `str`.
 
-```
+```x-repl
 (string-ref "hello" 0) -> "h"
 (string-ref "hello" 4) -> "o"
 ```
@@ -659,7 +659,7 @@ Returns a single-character string at the given zero-based `index` in `str`.
 
 Concatenates two strings and returns a new string.
 
-```
+```x-repl
 (string-append "hello" " world") -> "hello world"
 ```
 
@@ -669,7 +669,7 @@ Concatenates two strings and returns a new string.
 
 Returns a new string extracted from `str` starting at index `start` (inclusive) up to `end` (exclusive). Indices are zero-based.
 
-```
+```x-repl
 (substring "hello" 1 3) -> "el"
 ```
 
@@ -679,7 +679,7 @@ Returns a new string extracted from `str` starting at index `start` (inclusive) 
 
 Returns `#t` if strings `str1` and `str2` have equal contents; `#f` otherwise.
 
-```
+```x-repl
 (string=? "abc" "abc") -> #t
 (string=? "abc" "xyz") -> #f
 ```
@@ -690,7 +690,7 @@ Returns `#t` if strings `str1` and `str2` have equal contents; `#f` otherwise.
 
 Converts a string to an interned symbol with the same name.
 
-```
+```x-repl
 (string->symbol "hello") -> 'hello
 ```
 
@@ -700,7 +700,7 @@ Converts a string to an interned symbol with the same name.
 
 Converts a symbol to a string containing the symbol's name.
 
-```
+```x-repl
 (symbol->string 'hello) -> "hello"
 ```
 
@@ -710,7 +710,7 @@ Converts a symbol to a string containing the symbol's name.
 
 Converts integer `n` to its decimal string representation.
 
-```
+```x-repl
 (number->string 42) -> "42"
 (number->string -1) -> "-1"
 ```
@@ -721,7 +721,7 @@ Converts integer `n` to its decimal string representation.
 
 Parses a string as an integer and returns the numeric value. Supports base detection via prefix (e.g. `0x` for hex).
 
-```
+```x-repl
 (string->number "42") -> 42
 (string->number "0xff") -> 255
 ```
@@ -736,7 +736,7 @@ Parses a string as an integer and returns the numeric value. Supports base detec
 
 Quasiquote expansion. Returns `template` with `unquote` and `unquote-splicing` forms evaluated. Atoms and non-list values are returned as-is. `(unquote expr)` within the template is replaced by the evaluated `expr`. `(unquote-splicing expr)` splices the evaluated list into the surrounding list.
 
-```
+```x
 (def x 1)
 (quasi (a (unquote x) b)) -> ('a 1 'b)
 (def xs (list 2 3))
@@ -753,7 +753,7 @@ Quasiquote expansion. Returns `template` with `unquote` and `unquote-splicing` f
 
 Error recovery form. Evaluates `body` forms in sequence. If an error is signalled during evaluation, binds the error value to `var` and evaluates `handler-body` forms instead. The environment is restored to its state before `body` after an error. Handlers can be nested.
 
-```
+```x
 (guard (e (display e) (newline) 0)
   (error "oops")) -> 0  ; prints oops
 ```
@@ -764,7 +764,7 @@ Error recovery form. Evaluates `body` forms in sequence. If an error is signalle
 
 Signals an error with the evaluated `message`. If a `guard` handler is installed, the error is caught and `message` is bound to the handler variable. If no handler is installed, the error is fatal. `message` may be a string or any object.
 
-```
+```x-repl
 (error "something went wrong") -> <error signalled>
 ```
 
@@ -778,7 +778,7 @@ Signals an error with the evaluated `message`. If a `guard` handler is installed
 
 Creates a fresh, sandboxed interpreter base environment with all built-in types and primitives registered. The new base has its own environment, type registry, and read buffer.
 
-```
+```x-repl
 (def b (Base make)) -> <base>
 ```
 
@@ -788,7 +788,7 @@ Creates a fresh, sandboxed interpreter base environment with all built-in types 
 
 Evaluates expression `expr` in the target `base` environment. List nil terminators are rewritten to match the target base. Errors in the target base propagate to the calling base if a `guard` handler is installed.
 
-```
+```x
 (def b (Base make))
 (Base eval b '(+ 1 2)) -> 3
 ```
@@ -799,7 +799,7 @@ Evaluates expression `expr` in the target `base` environment. List nil terminato
 
 Binds `name` to `value` in the target `base` environment. List values are rewritten to use the target base's nil. All arguments are evaluated in the calling environment before binding in the target.
 
-```
+```x
 (def b (Base make))
 (Base bind b 'x 42) -> 42
 ```
@@ -819,7 +819,7 @@ names are **de-registered** (R5). The surface is the `Type` class (methods
 
 Creates a new runtime type with string `name` and an association list of `handlers`. Supported handler keys include `call`, `write`, `analyse`, `read`, `iter`, `from`, `to`, and `ops`, each mapping to a closure. Returns a type handle atom used to create instances and check types.
 
-```
+```x-repl
 (def my-type (Type make "my-type" (list (pair 'call (fn (_ obj . args) args))))) -> <type-handle>
 ```
 
@@ -829,7 +829,7 @@ Creates a new runtime type with string `name` and an association list of `handle
 
 Creates a new instance of the runtime type identified by `type-handle`, storing `data` as its contents. Returns `()` if the type handle is not registered.
 
-```
+```x
 (def my-t (Type make "my-type" (list)))
 (Type make-instance my-t 42) -> <instance>
 ```
@@ -852,7 +852,7 @@ Returns the runtime type handle of `value` (`()` for nil). The handle is the int
 
 Returns the name string of `obj`'s runtime type, or of a type handle directly. Returns `()` if `obj` is nil or has no type.
 
-```
+```x
 (def my-t (Type make "my-type" (list)))
 (Type name (Type make-instance my-t 42)) -> "my-type"
 ```
@@ -867,6 +867,6 @@ Returns the name string of `obj`'s runtime type, or of a type handle directly. R
 
 Triggers garbage collection by marking all objects reachable from the base environment. Returns `()`.
 
-```
+```x-repl
 (gc) -> ()
 ```

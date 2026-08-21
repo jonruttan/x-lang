@@ -58,7 +58,7 @@ Say `myproj/` depends on `x/type/dict` and must keep today's dict.
 `(root "deps")`, `(src ".")`, and a `(boot …)` line for the running
 dialect — or write it yourself; it is three forms:
 
-```
+```x
 $ cat > myproj/pin.xon
 (root "deps")
 (src "src")
@@ -74,7 +74,7 @@ session, unpinned, and import the pin tool *first* — the tool snapshots
 the boot floor when it loads, so nothing you imported earlier can
 distort what it considers pinnable:
 
-```
+```x-repl
 $ x --no-pin
 > (import x/tool/pin)
 > (Pin sync "myproj")
@@ -112,7 +112,7 @@ and two overlays sharing a parent would otherwise share one lock.
 
 **3. Run.** Given an ordinary program —
 
-```
+```x
 ; myproj/main.x
 (import x/type/dict)
 (def d (Dict make 8))
@@ -123,7 +123,7 @@ and two overlays sharing a parent would otherwise share one lock.
 
 — nothing about running it changes:
 
-```
+```sh
 $ x -f myproj/main.x
 pinned: /path/to/myproj/pin.xon
 hello from a pinned dict
@@ -139,7 +139,7 @@ dict can change freely; yours doesn't.
 **4. Check it, then commit it.** One call answers the whole integrity
 question, and it is what CI should run:
 
-```
+```x-repl
 > (Pin check "myproj")
 ()
 ```
@@ -148,7 +148,7 @@ Empty means the overlay matches its lock byte for byte *and* no import
 falls through to the live platform. A half-pin — an import you added
 but have not synced — comes back named:
 
-```
+```x-repl
 > (Pin check "myproj")
 pin: audit -- 1 import(s) fall through to the platform (absent from myproj/deps):
 x/type/set.x
@@ -165,7 +165,7 @@ is the case `sync` exists for: the code already states its dependencies.
 
 **1. Declare where things live.**
 
-```
+```x
 $ cat > myproj/pin.xon
 (root "deps")
 (src ".")
@@ -176,7 +176,7 @@ sources live in one.
 
 **2. Sync.** One call, whatever the project imports:
 
-```
+```x-repl
 > (import x/tool/pin)
 > (Pin sync "myproj")
 ("x/type/dict.x" "x/type/hash.x" "x/type/set.x")
@@ -189,7 +189,7 @@ You do not have to know which of your imports those are; `sync` does.
 
 **3. Check.**
 
-```
+```x-repl
 > (Pin check "myproj")
 ()
 ```
@@ -268,7 +268,7 @@ project's `pin.xon` overlay works unchanged through it.
 To pin the boot **inside your project's tree** (so the repo itself
 records it), name the amalgam in the manifest once:
 
-```
+```x
 (root "deps")
 (src "src")
 (boot "boot/xe.x")
@@ -276,7 +276,7 @@ records it), name the amalgam in the manifest once:
 
 then pin it to a release — fetched, verified, and recorded in one call:
 
-```
+```x-repl
 > (import x/tool/pin)
 > (Pin boot "v0.4.0" "myproj")
 pin: verifying myproj/boot/xe.x (jit sha256)
@@ -306,7 +306,7 @@ SHASUMS`.
 
 Then declare it beside your overlay roots — both tiers, one manifest:
 
-```
+```x
 ; pin.xon
 (root "deps")
 (boot "boot/xe.x")
@@ -325,7 +325,7 @@ command line overrides it.)
 
 The raw engine pipe still works (an amalgam has zero path literals):
 
-```
+```sh
 $ cat boot/xe.x main.x | ./x-bin --batch
 ```
 

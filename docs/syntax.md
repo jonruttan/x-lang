@@ -12,7 +12,7 @@ the boot-layer *mechanism* — the operative the quote reader expands to —
 and its spelling belongs only in files that load before the quote reader
 (the boot block) and in discussions of the mechanism itself.
 
-```scheme
+```x
 (prim-ref 'buf 'tok)        ; preferred
 (prim-ref (lit buf) (lit tok)) ; boot-layer files only
 '(a . 1)                    ; a quoted assoc

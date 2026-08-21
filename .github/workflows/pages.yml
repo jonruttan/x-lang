@@ -86,6 +86,17 @@ jobs:
           git ls-files -z | rsync -a --files-from=- --from0 ./ build/site/
           rsync -a docs/ref/ build/site/docs/ref/
 
+          # x-lang code blocks become highlighted markup here, before the
+          # guards below run -- an emitted block can contain {{ (Str8's
+          # brace escape appears in the reference), and the guard pass has
+          # to see it.  Rouge has no x-lang lexer, so this is the only
+          # thing that makes 521 blocks in the hand-written pages, plus the
+          # generated reference's examples, render as anything but
+          # plaintext.  Scoped past tests/: a spec file carries ```x fences
+          # too, and the Jekyll config excludes that tree anyway.
+          grep -rl --include='*.md' --exclude-dir=tests '^```x' build/site \
+            | xargs sh tools/dev/highlight-sweep.sh
+
           # Two things every staged page needs before Jekyll sees it.
           #
           # TITLE.  A generated reference page opens with its "[<- Index]"
