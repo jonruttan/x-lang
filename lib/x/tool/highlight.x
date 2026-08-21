@@ -284,7 +284,7 @@
   (doc "Lexical syntax highlighter for x-lang source and REPL transcripts."
     (note "Emits Rouge/Pygments token classes, so an existing Rouge stylesheet renders the output. The keyword set is supplied by the caller from lib/x/constructs.x -- this class hardcodes no part of the language's vocabulary.")
     (note "source and transcript WRITE their result, like x/tool/fmt's printers. The scanner rides cached byte prims rather than the class doors, which is what makes it affordable -- 4KB of source costs about 290MB of resident memory above the boot baseline. Nothing is collected mid-run, so a caller highlighting a whole corpus chunks its work across processes.")
-    (example "(Highlight escape \"a<b\")" "a&lt;b"))
+    (example "(Highlight escape \"a<b\")" "\"a&lt;b\""))
   (static
     (method keywords (self (param constructs LIST "Construct declarations (from XEON)"))
       (doc "The construct names, as strings, for use as the keyword set."
