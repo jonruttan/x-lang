@@ -343,35 +343,8 @@ name:
 (%member p x)           ; error — no such binding
 ```
 
-Inside methods, two extra accessors are in scope (and *only* in scope there) for
-**raw** member access that bypasses any same-named method override:
-
-```scheme
-(member 'name)          ; raw read
-(set-member! 'name v)   ; raw write
-```
-
-They take a **quoted** name — both because they are ordinary functions and because
-the quote visually marks "raw, bypass dispatch." This gives you private data:
-override a member's public name with a method, and keep using the raw accessors
-internally.
-
-```scheme
-(def-class Account ()
-  balance
-  (method balance (self) 'private)                            ; hide the public name
-  (method deposit (self amt)
-    (set-member! 'balance (+ (member 'balance) amt)) self)    ; raw access inside
-  (method statement (self) (member 'balance)))
-
-(def a (new Account balance 100))
-(a deposit 50)
-(a balance)      ; => private   the public getter is overridden
-(a statement)    ; => 150       a method still sees the real value
-```
-
-For ENFORCED privacy, declare members and methods inside a `(private ...)` or
-`(protected ...)` block (at the body top level, or inside `(static ...)`):
+Privacy is declared, per class, with a `(private ...)` or `(protected ...)`
+block (at the body top level, or inside `(static ...)`):
 
 ```lisp
 (def-class Account ()
@@ -392,6 +365,21 @@ a privacy marker.
 > an instance still stores its payload in slot 0, and `(first a)` or the
 > `%obj-*` helpers can reach in. The dispatch door is the contract surface;
 > raw reflection is the maintenance hatch.
+
+Inside methods, two extra accessors are in scope (and *only* in scope there)
+for **raw** member access:
+
+```scheme
+(member 'name)          ; raw read
+(set-member! 'name v)   ; raw write
+```
+
+They take a **quoted** name — both because they are ordinary functions and
+because the quote visually marks "raw, bypass dispatch." They read the field's
+storage directly, so a method can reach a member even when a same-named method
+shadows its public door (a method shadows a member of the same name — the
+basis for computed properties). Being method-local by construction, they are
+the strictest private door of all: no code outside a method body has them.
 
 ---
 
@@ -580,28 +568,37 @@ args) ...)` protocol hook catches what dispatch cannot resolve.
 
 ### Worked example
 
-A bank account with a private balance and a savings subclass that adds interest:
+A bank account with an enforced-protected balance and a savings subclass that
+adds interest:
 
 ```scheme
 (def-class Account ()
-  balance
-  (method balance (self) 'private)                            ; public name hidden
+  (protected balance)                        ; enforced: chain methods only
   (method deposit (self amt)
-    (set-member! 'balance (+ (member 'balance) amt)) self)
-  (method amount (self) (member 'balance)))
+    (self balance (+ (self balance) amt))
+    self)
+  (method amount (self) (self balance)))
 
 (def-class Savings (extends Account)
   rate
   (method add-interest (self)
-    (self deposit (* (member 'balance) (member 'rate)))))     ; raw read of inherited member
+    (self deposit (* (self balance) (self rate)))))   ; protected: a chain method may read
 
-(def s (new Savings balance 100 rate 1))
+(def s (new Savings balance 100 rate 1))   ; construction may initialise it
 (s deposit 50)        ; balance -> 150
 (s add-interest)      ; deposits 150 * 1 = 150 -> balance 300
-(s amount)            ; => 300
-(s balance)           ; => private   (still hidden)
+(s amount)            ; => 300   the public reader
+(s balance)           ; => ERROR: Savings: balance is protected to Account
 (instance-of? s Account)   ; => #t
 ```
+
+`balance` is an ordinary member — methods read and write it with the ordinary
+`(self balance)` door — but because it is declared inside a `(protected ...)`
+block, only methods on `Account`'s chain may. From the outside, `(s balance)`
+is a named error, and `(s amount)` is the interface. Construction is not
+member dispatch, so `(new Savings balance 100 ...)` may still initialise it;
+declare a default (or set it in `%init`) and omit the key to seal that door
+too.
 
 ---
 
