@@ -36,11 +36,19 @@
   (def %df-emit-body
     (fn (self body file cname)
       (unless (null? body)
-        (do (let ((f (first body)))
+        ; A bare symbol IS a member declaration -- (private balance ...) --
+        ; so it normalises to the (name) shape, exactly as doc-gen does.
+        (do (let ((f (if (symbol? (first body)) (list (first body)) (first body))))
               (when (pair? f)
                 (do (display file) (display " ") (display cname) (display " ")
                     (display (%df-name (first f))) (newline)
-                    (when (%df-is? (first f) "static")
+                    ; static and the visibility blocks all SPLICE their tail
+                    ; into the class body, so their contents are class-body
+                    ; forms too and must be walked, or a member declared
+                    ; inside one goes unchecked.
+                    (when (or (%df-is? (first f) "static")
+                            (or (%df-is? (first f) "private")
+                                (%df-is? (first f) "protected")))
                       (self (rest f) file cname)))))
             (self (rest body) file cname)))))
 
