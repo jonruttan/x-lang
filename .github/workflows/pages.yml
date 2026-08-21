@@ -189,7 +189,7 @@ jobs:
         uses: actions/jekyll-build-pages@v1
         with:
           source: build/site
-          destination: build/_site
+          destination: build/jekyll
 
       # Doxygen's HTML is FINISHED output -- its own stylesheet, its own
       # search index, its own generated anchors.  Jekyll has nothing to
@@ -198,16 +198,22 @@ jobs:
       # ref/c/html/index.html link in docs/index.md then resolves as
       # written.
       #
-      # mkdir first, and not redundantly: rsync creates only the FINAL
-      # component of its destination, and docs/ref/c is excluded from the
-      # Jekyll build, so nothing else ever makes that parent.  GNU rsync
-      # fails the copy outright (ENOENT); macOS ships openrsync, which
-      # creates the whole path -- which is why this step passed a local
-      # dry run and broke on the first Linux deploy.
-      - name: Lay down the C reference verbatim
+      # ASSEMBLED HERE, not written into Jekyll's output.
+      # jekyll-build-pages is a CONTAINER action and runs as root, so
+      # everything under its destination belongs to root and this job's
+      # user cannot add to it -- two deploys died learning that, first on
+      # the missing parent (rsync makes only the last component; macOS
+      # ships openrsync, which makes the whole path, so it passed every
+      # local rehearsal) and then on the ownership underneath.  So the
+      # artifact is built in a directory this job owns: copy Jekyll's
+      # output out, which needs only read permission, and lay the Doxygen
+      # HTML in beside it.
+      - name: Assemble the artifact
         run: |
+          mkdir -p build/_site
+          cp -R build/jekyll/. build/_site/
           mkdir -p build/_site/docs/ref/c
-          rsync -a docs/ref/c/html/ build/_site/docs/ref/c/html/
+          cp -R docs/ref/c/html build/_site/docs/ref/c/
 
       - uses: actions/upload-pages-artifact@v3
         with:
