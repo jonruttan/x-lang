@@ -326,16 +326,32 @@
                         (when (str? (first (rest (rest f))))
                           (display $"{(first (rest (rest f)))}\n\n"))
                         (display $"> Member: data carried by a {cname} instance.\n\n"))))
-                ; SILENT, and that silence is the bug this arm keeps
-                ; producing: a class-body form nobody taught this walker
-                ; about reaches the page as nothing, and the page still
-                ; looks finished.  That is how (doc raw ...) members and
-                ; seq.x's (interface ...) went unrendered for as long as
-                ; the tool has existed.  The object-model v2 (private ...)
-                ; and (protected ...) blocks are the next forms due here --
-                ; teach them BEFORE they land, or they will vanish the same
-                ; way and nothing will say so.
-                (#t ())))
+                ; ANYTHING ELSE IS A MEMBER.  A class body declares members
+                ; as (name), (name default) or (name default "description")
+                ; -- the head is the MEMBER'S OWN NAME, so class-body heads
+                ; are an open set no list can enumerate, and an arm that
+                ; dropped them dropped every member in the library: Ansi's
+                ; colours, Random's kind/state/fd, all of it, while the page
+                ; still looked finished.
+                ;
+                ; Treating the unknown as a member also converts the old
+                ; silence into something VISIBLE.  When the object-model v2
+                ; (private ...) and (protected ...) blocks land, they will
+                ; render as a nonsense member named "private" rather than
+                ; vanishing -- wrong, but wrong where someone can see it.
+                (#t
+                  (when (symbol? (first f))
+                    (do (display $"### `{(symbol->str (first f))}`\n\n")
+                        ; pair? FIRST: first/rest are unchecked, so (first
+                        ; ()) is undefined behaviour, and a member with no
+                        ; description -- (state 2463534242), (fd ()) -- has
+                        ; exactly that empty tail.  It segfaulted the
+                        ; generator outright.
+                        (let ((tail (rest (rest f))))
+                          (when (pair? tail)
+                            (when (str? (first tail))
+                              (display $"{(first tail)}\n\n"))))
+                        (display $"> Member: data carried by a {cname} instance.\n\n"))))))
             (self (rest body) cname static?))))))
 
 (def %doc-emit-class
