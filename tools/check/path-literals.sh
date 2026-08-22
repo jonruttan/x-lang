@@ -40,7 +40,7 @@ echo "path-literals: ok"
 #
 # WHY THIS EXISTS.  lib/x/tool/compile.x hands cc a pair of -I paths so the
 # generated C can find the engine's headers.  When those headers moved to the
-# x-eval-c submodule the paths went stale, and nothing said so: the JIT lane
+# x-engine-c submodule the paths went stale, and nothing said so: the JIT lane
 # is STRESS-gated, so the only thing that runs it is CI's stress job, and the
 # failure arrived there as 150 specs reporting "interpreter died mid-batch"
 # -- three inference steps from "cc could not find x.h".  Every other spec

@@ -16,11 +16,11 @@
 ; The base-paths contract + the catalog protocol load FIRST: everything
 ; after them (operatives.x included) fetches its C instruments through
 ; prim-ref, which is pure X -- a first/rest walk over the prims cell.
-(include "ext/x-eval-c/tools/contract/base-paths.x")
+(include "ext/x-engine-c/tools/contract/base-paths.x")
 (include "lib/x/boot/registry.x")
 (include "lib/x/boot/operatives.x")
 ; The object-layout contract: header offsets data.x and reflect.x build on.
-(include "ext/x-eval-c/tools/contract/obj-layout.x")
+(include "ext/x-engine-c/tools/contract/obj-layout.x")
 (include "lib/x/boot/data.x")
 (include "lib/x/boot/reflect.x")
 ; printer BEFORE string.x: string.x's callers resolve display/write from it,

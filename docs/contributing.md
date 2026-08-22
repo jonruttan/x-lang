@@ -5,7 +5,7 @@
 - A C89-compatible compiler (gcc, clang, tcc, c89, c99)
 - POSIX shell (`sh`) for test runners
 - Make
-- The git submodules: `ext/x-eval-c` (the C engine, which the build
+- The git submodules: `ext/x-engine-c` (the C engine, which the build
   requires), and nested inside it `ext/x-expr` (the expression engine) and
   `tests/c/test-runner`. Clone with `--recursive`, or run
   `git submodule update --init` in an existing clone
@@ -42,7 +42,7 @@ make clean && make
   restore the chain head. If the trigger policy ever changes
   (allocation-threshold collects), the window widens to every allocating
   call — revisit every exemption. Unit spec:
-  `ext/x-eval-c/ext/x-expr/tests/src/5.1.x-heap.root-chain.spec.c`. To diagnose a
+  `ext/x-engine-c/ext/x-expr/tests/src/5.1.x-heap.root-chain.spec.c`. To diagnose a
   suspected missing root, build a *reporting* checker (an inverted
   scan run after the precise mark, naming any chain object the root chain
   missed) — never re-arm a conservative scan, which hides the bug instead
@@ -70,7 +70,7 @@ make clean && make
   boot-layer mechanism spelling, used only in files that parse before the
   quote reader exists: `x-core.x`, its includes through `lit-reader.x`, and
   the files those pull in via mid-boot `import` (`codec/utf8.x`,
-  `platform/syscall.x`) — plus `ext/x-eval-c/tools/contract/isa.x`, a data manifest. Strings and
+  `platform/syscall.x`) — plus `ext/x-engine-c/tools/contract/isa.x`, a data manifest. Strings and
   comments inside those files may still show `'x`. See [syntax.md](syntax.md)
 - **File extension** — `.x`
 
@@ -313,7 +313,7 @@ boot` and `tools/release/release-manifest.sh`, publishing a GitHub Release
 carrying the amalgamated boot entries (`build/boot/*.x`, discovered —
 never a hand list), `SHASUMS` (coreutils format), and
 `pin.release.xon` — the machine-readable manifest (xon) with each
-file's sha256, the **ISA fingerprint** (the digest of `ext/x-eval-c/tools/contract/isa.x`,
+file's sha256, the **ISA fingerprint** (the digest of `ext/x-engine-c/tools/contract/isa.x`,
 the C-surface contract the amalgams were built against; `make
 check-isa` holds manifest == binary) and the **payload fingerprint**
 (one digest over `lib`, `apps` and `boot`, from

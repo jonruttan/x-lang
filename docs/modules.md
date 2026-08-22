@@ -354,7 +354,7 @@ via fork/exec — no shell; absent curl it prints the URLs and stops:
 transport is optional, verification is not), digests the download with
 the pure-x `Sha256` against the manifest, and errors on any mismatch —
 the file is left in place, named, and must not be booted. The release's
-ISA fingerprint is compared against the local `ext/x-eval-c/tools/contract/isa.x` when one
+ISA fingerprint is compared against the local `ext/x-engine-c/tools/contract/isa.x` when one
 exists; drift is reported, not an error — a pinned platform pairs with
 its own release's engine. A trailing base-URL argument overrides the
 default release home (a mirror, or `file://` in the smoke).
@@ -450,7 +450,7 @@ root precedence, the unpinnable core, the closed vocabulary,
 
 The bootstrap loader `lib/x-core.x` loads modules in a specific order:
 
-1. **Boot phase** — Loads the boot layer via raw `include`: two repo contracts (`ext/x-eval-c/tools/contract/base-paths.x`, `ext/x-eval-c/tools/contract/obj-layout.x`) and the seven `lib/x/boot/` files (`registry.x`, `operatives.x`, `data.x`, `reflect.x`, `printer.x`, `string.x`, `module.x`). These establish the catalog, the object layout, printing, and the minimum needed for `provide`/`import` to work.
+1. **Boot phase** — Loads the boot layer via raw `include`: two repo contracts (`ext/x-engine-c/tools/contract/base-paths.x`, `ext/x-engine-c/tools/contract/obj-layout.x`) and the seven `lib/x/boot/` files (`registry.x`, `operatives.x`, `data.x`, `reflect.x`, `printer.x`, `string.x`, `module.x`). These establish the catalog, the object layout, printing, and the minimum needed for `provide`/`import` to work.
 
 2. **Pre-registration** — Every library path x-core loads (all its raw `include`s, the boot files, and `lib/x-core.x` itself) is pre-registered in the include-list, so `import` calls within those modules are no-ops (the paths are already marked as "included"). Raw `include` does not register a path, so this parallel list is the registration; `make check-boot-order` enforces that the two stay in sync.
 

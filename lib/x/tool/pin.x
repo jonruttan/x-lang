@@ -1079,8 +1079,8 @@
                         lockforms)))
         (match
           ((null? row) ())
-          ((not (File exists? "ext/x-eval-c/tools/contract/isa.x")) ())
-          ((str=? (Pin %pin-digest "ext/x-eval-c/tools/contract/isa.x") (first (rest row)))
+          ((not (File exists? "ext/x-engine-c/tools/contract/isa.x")) ())
+          ((str=? (Pin %pin-digest "ext/x-engine-c/tools/contract/isa.x") (first (rest row)))
             (display "pin: lock isa fingerprint matches this tree\n"))
           (#t (display "pin: lock isa fingerprint DIFFERS from this tree -- a pinned platform pairs with its release's engine\n")))))
     (method verify (self (param dest STRING "Overlay root directory"))
@@ -1229,7 +1229,7 @@
                         (param tag STRING "Release tag, e.g. \"v0.4.0\"")
                         (param entry SYMBOL "Boot entry to fetch, e.g. 'xe")
                         . (param base STRING "Base URL; default the project's releases"))
-      (doc "Fetch a released amalgam, verified or nothing: downloads the tag's pin.release.xon and <entry>.x (curl via fork/execvp -- absent curl prints the URLs and stops), checks the manifest names the tag, digests the amalgam with Sha256 -- the differentially-verified JIT engine where the host supports it (seconds), pure-x elsewhere (minutes for an amalgam; either way announced), and errors on any mismatch, naming the offending file (left in place for inspection; do not boot it). Reports whether the release's ISA fingerprint matches this tree's ext/x-eval-c/tools/contract/isa.x when present -- drift is information, not an error: a pinned platform pairs with its own engine. Returns the amalgam's path."
+      (doc "Fetch a released amalgam, verified or nothing: downloads the tag's pin.release.xon and <entry>.x (curl via fork/execvp -- absent curl prints the URLs and stops), checks the manifest names the tag, digests the amalgam with Sha256 -- the differentially-verified JIT engine where the host supports it (seconds), pure-x elsewhere (minutes for an amalgam; either way announced), and errors on any mismatch, naming the offending file (left in place for inspection; do not boot it). Reports whether the release's ISA fingerprint matches this tree's ext/x-engine-c/tools/contract/isa.x when present -- drift is information, not an error: a pinned platform pairs with its own engine. Returns the amalgam's path."
         (returns STRING "Path of the verified amalgam")
         (sample "(Pin fetch \"boot\" \"v0.4.0\" 'xe)" "\"boot/xe.x\""))
       (let ((b (match ((null? base) (Pin %pin-release-base)) (#t (first base)))))
@@ -1283,7 +1283,7 @@
                               (Pin %pin-bad (Str8 append "digest mismatch: " target
                                               (Str8 append " -- rejected bytes at " (Str8 append target ".rejected; the pinned path is untouched")))))))))
                     (match
-                      ((File exists? "ext/x-eval-c/tools/contract/isa.x")
+                      ((File exists? "ext/x-engine-c/tools/contract/isa.x")
                         (do (display (match
                                        ; A manifest may carry no (isa ...) at all --
                                        ; %pin-release-parse requires only the tag, so
@@ -1293,7 +1293,7 @@
                                        ; and so is an absent fingerprint.
                                        ((null? (%assoc-get 'isa m))
                                          "pin: the release manifest carries no isa fingerprint -- engine pairing unchecked")
-                                       ((str=? (Pin %pin-digest "ext/x-eval-c/tools/contract/isa.x") (%assoc-get 'isa m))
+                                       ((str=? (Pin %pin-digest "ext/x-engine-c/tools/contract/isa.x") (%assoc-get 'isa m))
                                          "pin: isa fingerprint matches this tree")
                                        (#t "pin: isa fingerprint DIFFERS from this tree -- pair the amalgam with its release's engine"))
                                      "\n")))

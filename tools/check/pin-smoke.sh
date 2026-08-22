@@ -257,7 +257,7 @@ mkdir -p "$_TMP/rel/v9.9.9-smoke"
 printf '(def %%pin-smoke-fetched "tiny")\n' > "$_TMP/rel/v9.9.9-smoke/tiny.x"
 {
   printf '(release "v9.9.9-smoke")\n'
-  printf '(isa "sha256:%s")\n' "$(_dg ext/x-eval-c/tools/contract/isa.x)"
+  printf '(isa "sha256:%s")\n' "$(_dg ext/x-engine-c/tools/contract/isa.x)"
   printf '(file "tiny.x" "sha256:%s")\n' "$(_dg "$_TMP/rel/v9.9.9-smoke/tiny.x")"
 } > "$_TMP/rel/v9.9.9-smoke/pin.release.xon"
 cat > "$_TMP/fetch.x" <<EOF

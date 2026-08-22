@@ -62,7 +62,7 @@ jobs:
 
       # doc-x sweeps lib/x/** into 113 markdown pages plus an index;
       # doc-c delegates to the engine submodule, which runs Doxygen over
-      # its own sources into ext/x-eval-c/docs/ref/c/html.
+      # its own sources into ext/x-engine-c/docs/ref/c/html.
       # The sweep is chunked and SEQUENTIAL by design (see
       # tools/dev/doc-sweep.sh) -- a 25-file chunk peaks near 1.7GB, so
       # it gets the runner to itself rather than sharing with a build.
@@ -239,7 +239,7 @@ jobs:
           # runs with its Doxyfile, over its sources), but it publishes at
           # the same site path it always has -- docs/ref/c/ -- so every
           # link into the C reference survives the repo split.
-          cp -R ext/x-eval-c/docs/ref/c/html build/_site/docs/ref/c/
+          cp -R ext/x-engine-c/docs/ref/c/html build/_site/docs/ref/c/
 
       - uses: actions/upload-pages-artifact@v5
         with:

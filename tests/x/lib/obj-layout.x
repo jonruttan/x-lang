@@ -1,8 +1,8 @@
 ; Test harness: x-core.x + the object-layout descriptor as data
-; (ext/x-eval-c/tools/contract/obj-layout.x -- the committed header-word contract the obj-layout
+; (ext/x-engine-c/tools/contract/obj-layout.x -- the committed header-word contract the obj-layout
 ; spec probes live objects against).
 (include "lib/x-core.x")
-(include "ext/x-eval-c/tools/contract/obj-layout.x")
+(include "ext/x-engine-c/tools/contract/obj-layout.x")
 
 ; Shared instruments, catalog-fetched ONCE per batch.  Every spec block used
 ; to re-fetch private copies; a missed edit in one block would probe stale

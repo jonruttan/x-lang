@@ -424,7 +424,7 @@ if [ -n "$boot_file" ]; then
 
 	# RELEASE CHECK (#435).  The isa comparison above is a compatibility
 	# test, and a correct one -- but it cannot answer THIS question.
-	# ext/x-eval-c/tools/contract/isa.x is the C surface, deliberately fixed: it is
+	# ext/x-engine-c/tools/contract/isa.x is the C surface, deliberately fixed: it is
 	# byte-identical across v0.3.1-rc10, v0.4.0 and v0.5.0, as are
 	# obj-layout.x, base-paths.x and base-layout.x.  Meanwhile lib/ moved
 	# 83 files between the first two.  An amalgam binds against far more

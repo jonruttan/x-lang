@@ -128,14 +128,14 @@
         (pair "cc"
           (%append %compile-cc-flags
             (list "-O2" "-DX_HEAP" "-DX_TYPE" "-Wno-unused-value"
-                  ; The engine's headers moved to the x-eval-c submodule
+                  ; The engine's headers moved to the x-engine-c submodule
                   ; (2026-08-21).  These are the ONLY paths in the runtime
                   ; library that point at C sources, and they are reachable
                   ; only from a source checkout -- the JIT lane is
                   ; STRESS-gated, so nothing but CI's stress run exercises
                   ; them, which is exactly how they survived the split
                   ; unnoticed until then.
-                  "-Iext/x-eval-c/ext/x-expr/include" "-Iext/x-eval-c/include"
+                  "-Iext/x-engine-c/ext/x-expr/include" "-Iext/x-engine-c/include"
                   "-o" %tmp-path src-path)))))
     (if (not (= %cc-status 0))
       (Err raise 'io (Str append "compile: cc failed with status " (%cvt %cc-status %string)) ()))

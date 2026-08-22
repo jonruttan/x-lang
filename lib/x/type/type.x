@@ -49,7 +49,7 @@
   (static
     ; --- layout-contract walkers (shared: type/base.x calls these; homed
     ; here as %-statics per the percent-globals budget -- classes ARE
-    ; namespaces).  Contract rows (ext/x-eval-c/tools/contract/base-paths.x) are
+    ; namespaces).  Contract rows (ext/x-engine-c/tools/contract/base-paths.x) are
     ; (name root step...).  Cell resolution REFUSES a name whose root
     ; walks a different shape: a type-rooted name stepped from a base (or
     ; vice versa) addresses arbitrary spine words, and a consumer
@@ -93,7 +93,7 @@
           (let ((handle t) (raw ((prim-ref (lit type) (lit by-atom)) t)))
             (new Type handle handle raw raw)))))
     (method fields (self)
-      (doc "Every type field name in the layout contract (type-rooted rows of ext/x-eval-c/tools/contract/base-paths.x)."
+      (doc "Every type field name in the layout contract (type-rooted rows of ext/x-engine-c/tools/contract/base-paths.x)."
         (returns LIST "Field name symbols, contract order"))
       (Type %layout-fields (lit type)))
     (method cell (self (param ts ANY "Type struct (from Type by-atom)")
@@ -213,5 +213,5 @@
 
 (doc (provide x/type/type Type)
   (note "Mechanism in lib/x/type/struct.x, filed under catalog ns `type`; load-time wiring fetch-and-caches the helpers instead of calling the class.")
-  (note "(Type wrap t) makes a type interactive: (t name), (t cell 'type-write-stack), (t fields), (t push-write f). Field names come from the layout contract (ext/x-eval-c/tools/contract/base-paths.x); (Type fields) lists them.")
+  (note "(Type wrap t) makes a type interactive: (t name), (t cell 'type-write-stack), (t fields), (t push-write f). Field names come from the layout contract (ext/x-engine-c/tools/contract/base-paths.x); (Type fields) lists them.")
   "Type-system reflection: construction, lookup, struct navigation, and handler-stack wiring on the Type class.")
