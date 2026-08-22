@@ -11,6 +11,7 @@
 
 (import x/type/str)
 (import x/sys/posix)
+(import x/platform/syscall)
 (import x/sys/file)
 (import x/sys/proc)
 (import x/type/hash)
@@ -91,13 +92,16 @@
         (%set-first! %compile-pid-cell (%cvt (Sys getpid) %string)))
       (first %compile-pid-cell))))
 
+; os-darwin? comes from lib/x/platform/syscall.x, which parses the build triple
+; once.  This module used to sniff it a third time, with its own spelling of the
+; same test.
 (def %compile-cc-flags
-  (if (Str includes? "darwin" x-machine)
+  (if os-darwin?
     (list "-bundle" "-undefined" "dynamic_lookup")
     (list "-shared" "-fPIC")))
 
 (def %compile-ext
-  (if (Str includes? "darwin" x-machine) ".bundle" ".so"))
+  (if os-darwin? ".bundle" ".so"))
 
 ; --- Multi-arg string concatenation ---
 
@@ -128,14 +132,14 @@
         (pair "cc"
           (%append %compile-cc-flags
             (list "-O2" "-DX_HEAP" "-DX_TYPE" "-Wno-unused-value"
-                  ; The engine's headers moved to the x-eval-c submodule
+                  ; The engine's headers moved to the x-engine-c submodule
                   ; (2026-08-21).  These are the ONLY paths in the runtime
                   ; library that point at C sources, and they are reachable
                   ; only from a source checkout -- the JIT lane is
                   ; STRESS-gated, so nothing but CI's stress run exercises
                   ; them, which is exactly how they survived the split
                   ; unnoticed until then.
-                  "-Iext/x-eval-c/ext/x-expr/include" "-Iext/x-eval-c/include"
+                  "-Iext/x-engine-c/ext/x-expr/include" "-Iext/x-engine-c/include"
                   "-o" %tmp-path src-path)))))
     (if (not (= %cc-status 0))
       (Err raise 'io (Str append "compile: cc failed with status " (%cvt %cc-status %string)) ()))

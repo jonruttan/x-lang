@@ -88,3 +88,32 @@ First adopter: sys/file.x's stat/lstat decode.
 ```
 ---
     ('value 'value)
+
+## str and cstr fields away from offset zero
+
+### a str field's width is its LENGTH, not an end index
+
+`(str byte-sub s start len)` takes a length; the plan builder passed
+`(+ off n)`, so a field at a non-zero offset read `off` extra bytes -- a
+3-byte field at offset 1 came back 4 bytes long. Correct at offset 0,
+which is why it survived every earlier case here. Found by the engine
+conformance suite pinning byte-sub's argument convention.
+
+```scheme
+(do (import x/codec/struct)
+  (def buf (bytes->str (list 88 104 105 33 33 33)))
+  (list (rest (Assoc entry 's (Struct unpack (list (list 'pad 1) (list 's 'str 3)) buf)))
+        (rest (Assoc entry 's (Struct unpack (list (list 's 'str 3)) buf)))))
+```
+---
+    ("hi!" "Xhi")
+
+### a cstr field stops at the NUL, still measured from its own offset
+
+```scheme
+(do (import x/codec/struct)
+  (def buf (bytes->str (list 88 104 105 0 122 122)))
+  (rest (Assoc entry 's (Struct unpack (list (list 'pad 1) (list 's 'cstr 4)) buf))))
+```
+---
+    "hi"

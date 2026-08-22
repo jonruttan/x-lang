@@ -182,6 +182,21 @@ The pin vocabulary:
   must sit alone on its own line; `--boot FILE` on the command line
   overrides it.
 
+- `(engine "NAME")` — the project's choice of engine. x-lang runs on any
+  engine meeting the contract (see [The Engine Contract](engine-contract.md)),
+  and a project that needs a particular one says so here; the wrapper compares
+  the name against the installed engine's own `x-engine.xon` and refuses a
+  mismatch before anything boots. A tree with no engine declaration (a repo
+  checkout) says so rather than passing silently.
+
+  This row records **intent, not safety**. The pairing that can corrupt is the
+  object layout, and the lock's `(engine-layout "sha256:…")` refuses that by
+  equality — an amalgam walks object header words at committed offsets, so a
+  layout that moved is a crash in field access. Two engines with the same
+  layout are interchangeable, and refusing on the name alone would reject a
+  pairing that is provably fine. Use this when the choice is deliberate, not as
+  a guard.
+
 An overlay tree only needs the modules being pinned — anything not
 found there falls through to the platform library. Note that a pinned
 module's own `import`s also resolve through the roots, so a pin that
@@ -354,7 +369,7 @@ via fork/exec — no shell; absent curl it prints the URLs and stops:
 transport is optional, verification is not), digests the download with
 the pure-x `Sha256` against the manifest, and errors on any mismatch —
 the file is left in place, named, and must not be booted. The release's
-ISA fingerprint is compared against the local `ext/x-eval-c/tools/contract/isa.x` when one
+ISA fingerprint is compared against the local `ext/x-engine-c/tools/contract/isa.x` when one
 exists; drift is reported, not an error — a pinned platform pairs with
 its own release's engine. A trailing base-URL argument overrides the
 default release home (a mirror, or `file://` in the smoke).
@@ -376,8 +391,9 @@ when a boot entry is pinned — and `--no-pin` skips the probe entirely.
 
 The wrapper interprets two manifest forms itself, both extracted
 textually (never evaluated), because both must be decided before the
-pipe exists — the loader runs too late for either: `(boot "FILE")`,
-which names the boot entry, and `(allow-release-skew)`, which waives the
+pipe exists — the loader runs too late for any of them: `(boot "FILE")`,
+which names the boot entry, `(engine "NAME")`, which names the engine, and
+`(allow-release-skew)`, which waives the
 release pairing refusal described below. Everything else stays interpreter-side: the wrapper
 hands the manifest's path over as data (`(def %pin-file "<path>")`
 ahead of the boot entry) and loads `x/tool/pin` right after boot,
@@ -450,7 +466,7 @@ root precedence, the unpinnable core, the closed vocabulary,
 
 The bootstrap loader `lib/x-core.x` loads modules in a specific order:
 
-1. **Boot phase** — Loads the boot layer via raw `include`: two repo contracts (`ext/x-eval-c/tools/contract/base-paths.x`, `ext/x-eval-c/tools/contract/obj-layout.x`) and the seven `lib/x/boot/` files (`registry.x`, `operatives.x`, `data.x`, `reflect.x`, `printer.x`, `string.x`, `module.x`). These establish the catalog, the object layout, printing, and the minimum needed for `provide`/`import` to work.
+1. **Boot phase** — Loads the boot layer via raw `include`: two repo contracts (`ext/x-engine-c/tools/contract/base-paths.x`, `ext/x-engine-c/tools/contract/obj-layout.x`) and the seven `lib/x/boot/` files (`registry.x`, `operatives.x`, `data.x`, `reflect.x`, `printer.x`, `string.x`, `module.x`). These establish the catalog, the object layout, printing, and the minimum needed for `provide`/`import` to work.
 
 2. **Pre-registration** — Every library path x-core loads (all its raw `include`s, the boot files, and `lib/x-core.x` itself) is pre-registered in the include-list, so `import` calls within those modules are no-ops (the paths are already marked as "included"). Raw `include` does not register a path, so this parallel list is the registration; `make check-boot-order` enforces that the two stay in sync.
 

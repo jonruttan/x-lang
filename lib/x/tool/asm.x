@@ -19,12 +19,16 @@
 (def %dlsym (prim-ref 'ffi 'dlsym))
 
 
+(import x/platform/syscall)
+
 ; --- Platform detection ---
-(def %asm-darwin? (Str includes? "darwin" x-machine))
-; Darwin spells the A64 arch "arm64", GNU triplets spell it "aarch64".
-(def %asm-arm64?
-  (if (Str includes? "arm64" x-machine) #t
-    (Str includes? "aarch64" x-machine)))
+; Read from the platform layer, not sniffed from x-machine here.  This module
+; used to parse the triple itself, and it was the only one of three readers that
+; knew Darwin spells A64 "arm64" while GNU triplets spell it "aarch64" -- so the
+; knowledge lived in whichever file happened to need it most recently.  One
+; parse, in lib/x/platform/syscall.x; tools/check/platform-seam.sh holds it there.
+(def %asm-darwin? os-darwin?)
+(def %asm-arm64? arch-arm64?)
 
 
 ; --- mmap flags ---

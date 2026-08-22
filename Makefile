@@ -38,7 +38,7 @@ PREFIX?=/usr/local
 X_RELEASE?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
 # ---------------------------------------------------------------------------
-# The engine binary is built from the x-eval-c submodule (the 2026-08-21
+# The engine binary is built from the x-engine-c submodule (the 2026-08-21
 # split).  Everything that used to live here -- CFLAGS, the compiler probe,
 # the object rules, the variant builds -- moved with the C it compiles.  What
 # stays is the CONTRACT between the two repos, and it is exactly two things.
@@ -56,7 +56,7 @@ X_RELEASE?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 #    the submodule's own `git describe` would fail every pinned project on
 #    sight.  X_RELEASE is passed down on every engine build below -- the same
 #    override tools/release/package.sh already uses for tarballs.
-ENGINE_DIR=ext/x-eval-c
+ENGINE_DIR=ext/x-engine-c
 
 # Fail with a sentence instead of a screenful of missing-file errors: a clone
 # without --recursive has an empty submodule, and the first symptom would
@@ -124,7 +124,7 @@ test-c: ## Run the engine's C unit tests (delegates to the submodule)
 .PHONY: test-c
 
 # The C reference is Doxygen over the engine's sources, so it generates
-# INSIDE the submodule (ext/x-eval-c/docs/ref/c/).  pages.yml copies from
+# INSIDE the submodule (ext/x-engine-c/docs/ref/c/).  pages.yml copies from
 # there; this target exists so `make doc` is still both halves.
 doc-c: ## Generate C reference documentation (delegates to the submodule)
 	$(ENGINE_MAKE) doc-c
@@ -172,7 +172,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-dialect-cover check-highlight-roundtrip ## Run the contract gates
+gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-dialect-cover check-highlight-roundtrip ## Run the contract gates
 .PHONY: gates
 
 # The local-latency split (2026-08-03 audit): `make test` grew past ten
@@ -183,7 +183,7 @@ gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boo
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-dialect-cover ## The fast contract gates (pre-push subset)
+gates-fast: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-dialect-cover ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast test-c test-x ## Pre-push gate: fast gates + both spec suites (CI runs full `make test`)
@@ -199,7 +199,7 @@ check-bootstrap: $(EXECUTABLE) ## Smoke the one-command bootstrap install
 	sh tools/check/bootstrap-smoke.sh
 .PHONY: check-bootstrap
 
-test: gates test-c test-x doctest spec-examples doc-examples check-examples lint-x test-tools doc-x ## Run all tests
+test: gates conformance test-c test-x doctest spec-examples doc-examples check-examples lint-x test-tools doc-x ## Run all tests
 .PHONY: test
 
 # The release manifest (SHASUMS + pin.release.xon over the amalgams;
@@ -335,6 +335,88 @@ check-bare-globals: ## Diff the runtime library's bare top-level defs against to
 check-percent-globals: ## Diff every lib file's %-global count against its shrinking budget
 	sh tools/check/percent-globals.sh
 .PHONY: check-percent-globals
+
+# The platform-parameter ratchet: a module that only works at one word size or
+# byte order declares it at the code AND in tools/contract/constraints.x, and the
+# two must agree in both directions.  A parameter is NOT a capability -- a global
+# `word-size = 8` requirement would lock out the 32-bit Pi and would be false
+# besides, since obj-layout.x is in words and data.x probes the width at boot.
+# The syscall/FFI layer is the part that genuinely binds, and it used to say so
+# only in prose.
+check-constraints: ## Diff source constraint markers against tools/contract/constraints.x
+	sh tools/check/constraints.sh
+.PHONY: check-constraints
+
+# The engine-contract vocabulary: tools/contract/features.x is what an engine's
+# x-engine.xon and this repo's requires.x both quote from, so it must stay in step
+# with the surface it describes.  The gate holds the capability groups as a TOTAL,
+# DISJOINT partition of the engine's isa.x -- a new C row cannot appear unclassified
+# -- and re-derives requires.x from the tree rather than trusting it.  The partition
+# is the load-bearing part: the `ffi` tag carries eleven rows that split three ways
+# (pointer casts, foreign door, syscall door), and treating it as one group would
+# make dlopen mandatory for every engine including a sandboxed one.
+check-engine-contract: ## Hold features.x/requires.x against the engine's ISA
+	sh tools/check/engine-contract.sh
+.PHONY: check-engine-contract
+
+# COMPLIANCE: does the engine DO what its x-engine.xon claims?  check-engine-contract
+# compares provides against requires as text, so an engine that over-declares passes
+# it, is chosen by the resolver, and fails in the field -- loudly for a capability,
+# SILENTLY for a guarantee (an engine that claims gc/explicit-only while collecting
+# on allocation corrupts the six library sites that hold raw pointers across
+# allocating expressions, and says nothing).  This runs generated probes that try to
+# falsify each declared row, BARE: with the library loaded, registry.x's prim-ref and
+# reflect.x's refiled entries make an engine capability indistinguishable from a
+# library one.  Needs the built engine, so it rides `gates`, not `gates-fast`.
+check-compliance: $(EXECUTABLE) ## Falsify each row of the engine's x-engine.xon
+	sh tools/check/compliance.sh
+.PHONY: check-compliance
+
+# CONFORMANCE: is this a correct x-lang evaluator?  The language's own definition of
+# correct, which is why it lives here rather than in an engine -- an implementation
+# that owned this suite would become the arbiter of the contract every other
+# implementation is judged against.  Loads NOTHING: every other runner in tests/ cats
+# a library onto stdin, so what it measures is the library's surface (variadic `+` is
+# lib/x/core/arithmetic.x on top of a BINARY primitive).  X_BIN aims it at any engine.
+conformance: $(EXECUTABLE) ## Run the conformance suite (X_BIN=... for another engine)
+	sh tests/x/conformance/runner.sh
+.PHONY: conformance
+
+# The coverage ratchet.  The suite is early and will be for a while, so the gate is
+# not "is it complete" but "did it just get smaller": a row that was defined and no
+# longer is fails.  Uncovered rows are printed every run, because a suite silent
+# about its gaps reads as finished.
+check-conformance-coverage: ## Report ISA coverage; fail if the suite regressed
+	sh tools/check/conformance-coverage.sh
+.PHONY: check-conformance-coverage
+
+# The implementation-agnostic ratchet: lib/ may name a specific engine only in
+# lib/x/boot/engine.x, the seam that carries both boot contract includes and the
+# engine root the JIT and pin tool read at runtime.  Without this the claim that a
+# second engine needs no library edit is a wish rather than a property.
+check-engine-seam: ## Assert lib/ names its engine only in the seam
+	sh tools/check/engine-seam.sh
+.PHONY: check-engine-seam
+
+# The platform seam: the build triple is PARSED in lib/x/platform/syscall.x and
+# nowhere else.  Three modules used to pick x-machine apart independently and only
+# one knew Darwin spells A64 "arm64" where GNU triplets spell it "aarch64".  Using
+# the whole triple as an opaque value -- a cache key, a diagnostic -- stays fine;
+# what belongs to the platform layer is taking it apart.
+check-platform-seam: ## Assert the build triple is parsed only in the platform layer
+	sh tools/check/platform-seam.sh
+.PHONY: check-platform-seam
+
+# THE SECOND-ENGINE GATE.  The whole engine-contract arc rests on the claim that
+# the vocabulary, the generator and the resolver describe ANY conforming engine --
+# and nothing tested that while only one engine existed.  The first time the
+# apparatus was pointed at a second one it gave two wrong answers: the contract
+# gate could not be asked about another engine at all, and the generator wrote
+# capability claims the engine had no rows for.  This runs the apparatus against a
+# paper engine on every build so those cannot come back.
+check-second-engine: ## Assert the contract apparatus is engine-agnostic
+	sh tools/check/second-engine.sh
+.PHONY: check-second-engine
 
 # The dialect coverage ratchet (#70): every lib/*.x entry point needs an
 # end-to-end smoke group, so a new dialect cannot ship untested the way the
@@ -588,6 +670,16 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	# engine while the repo build (which already used -x, line ~158) was
 	# clean (x-lang#201).  Release tarballs come from this same target.
 	strip -x $(DESTDIR)$(LIBEXECDIR)/$(EXECUTABLE)
+	# The engine's DECLARATION travels with the engine, beside it in libexec.
+	# x.sh reads its (binary "...") row to learn what to run, so an engine that
+	# does not build something called x-bin still installs and starts; and an
+	# installed tree can be asked what it provides without a source checkout,
+	# which is the same reason the ISA fingerprint has been installed since #186.
+	@if [ -f $(ENGINE_DIR)/x-engine.xon ]; then \
+		install $C -m 0644 $(ENGINE_DIR)/x-engine.xon $(DESTDIR)$(LIBEXECDIR)/x-engine.xon; \
+	else \
+		echo "install: WARNING -- $(ENGINE_DIR)/x-engine.xon is missing; the installed tree cannot say what its engine provides" >&2; \
+	fi
 	@if [ -f $(ENGINE_DIR)/entitlements.plist ]; then codesign -s - --entitlements $(ENGINE_DIR)/entitlements.plist -f $(DESTDIR)$(LIBEXECDIR)/$(EXECUTABLE) 2>/dev/null || true; fi
 	install $C -m 0755 $(NAME).sh $(DESTDIR)$(BINDIR)/$(NAME)
 	rm -rf $(DESTDIR)$(LIBDIR)/lib $(DESTDIR)$(LIBDIR)/apps $(DESTDIR)$(LIBDIR)/boot
@@ -600,7 +692,19 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	# just ran it and segfaulted.  One precomputed hex line: the wrapper
 	# needs a STRING compare against a release manifest, not a digester.
 	install -d -m 0755 $(DESTDIR)$(LIBDIR)/contract
-	@sh -c 'if command -v shasum >/dev/null 2>&1; then shasum -a 256 ext/x-eval-c/tools/contract/isa.x | cut -d" " -f1; 		else sha256sum ext/x-eval-c/tools/contract/isa.x | cut -d" " -f1; fi' 		> $(DESTDIR)$(LIBDIR)/contract/isa.sha256
+	@sh -c 'if command -v shasum >/dev/null 2>&1; then shasum -a 256 ext/x-engine-c/tools/contract/isa.x | cut -d" " -f1; 		else sha256sum ext/x-engine-c/tools/contract/isa.x | cut -d" " -f1; fi' 		> $(DESTDIR)$(LIBDIR)/contract/isa.sha256
+	# The LAYOUT fingerprint, and it is the one that matters for pairing.  The isa
+	# digest above is the C SURFACE -- byte-identical across rc10, v0.4.0 and
+	# v0.5.0, which is how a mismatched amalgam once passed the guard and
+	# segfaulted (#435).  An amalgam binds against the LAYOUT: it walks object
+	# header words through reflect.x, and a layout that moved is a crash in field
+	# access rather than a diagnosable error.  All three descriptors digest as ONE
+	# unit because an amalgam binds against all three or none -- the same
+	# concatenation tools/release/release-manifest.sh and the x-engine.xon
+	# generator use, so all three producers agree by construction.
+	@cat $(ENGINE_DIR)/tools/contract/obj-layout.x $(ENGINE_DIR)/tools/contract/base-paths.x $(ENGINE_DIR)/tools/contract/base-layout.x > $(DESTDIR)$(LIBDIR)/contract/layout.cat
+	@sh -c 'if command -v shasum >/dev/null 2>&1; then shasum -a 256 $(DESTDIR)$(LIBDIR)/contract/layout.cat | cut -d" " -f1; else sha256sum $(DESTDIR)$(LIBDIR)/contract/layout.cat | cut -d" " -f1; fi' > $(DESTDIR)$(LIBDIR)/contract/layout.sha256
+	@rm -f $(DESTDIR)$(LIBDIR)/contract/layout.cat
 	cp -R lib $(DESTDIR)$(LIBDIR)/lib
 	cp -R apps $(DESTDIR)$(LIBDIR)/apps
 	cp -R build/boot $(DESTDIR)$(LIBDIR)/boot

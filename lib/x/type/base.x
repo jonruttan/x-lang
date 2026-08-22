@@ -9,7 +9,7 @@
 ;
 ; The base C prims are de-registered (no bare names); each method hands
 ; its evaluated args to the matching prim, captured from the catalog.
-; Field reflection walks the layout contract (ext/x-eval-c/tools/contract/base-paths.x)
+; Field reflection walks the layout contract (ext/x-engine-c/tools/contract/base-paths.x)
 ; through type/type.x's %layout-* helpers (that module loads earlier).
 
 (import x/type/class)
@@ -99,7 +99,7 @@
         (returns ANY "The addressed cell/object"))
       (Type %layout-cell (Base raw-of target) fname (lit base)))
     (method fields (self)
-      (doc "Every base field name in the layout contract (base-rooted rows of ext/x-eval-c/tools/contract/base-paths.x)."
+      (doc "Every base field name in the layout contract (base-rooted rows of ext/x-engine-c/tools/contract/base-paths.x)."
         (returns LIST "Field name symbols, contract order"))
       (Type %layout-fields (lit base)))))
 

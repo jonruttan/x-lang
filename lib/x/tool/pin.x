@@ -100,7 +100,7 @@
     ; release fingerprint -- one digest over everything a release ships as
     ; library -- because `isa` is the C surface and is byte-identical across
     ; releases, so it can say "compatible" but never "same release".
-    (%pin-platform-heads (list 'release 'isa 'payload 'boot))
+    (%pin-platform-heads (list 'release 'isa 'engine-layout 'payload 'boot))
     ; The header names the ACTUAL lock file (#421): locks are written
     ; per-root (deps.lock.xon and friends -- the #313 adjudication), and
     ; a file that opens by claiming a name it does not have reads as a
@@ -162,6 +162,26 @@
       (match
             ((not (null? (rest form))) (Pin %pin-bad "allow-release-skew takes no arguments"))
             (#t ())))
+    ; One (engine "NAME") form -> () -- wrapper-consumed, like boot.  It is the
+    ; project's explicit CHOICE of engine: x-lang runs on any engine meeting the
+    ; contract (docs/engine-contract.md), and a project that needs a particular
+    ; one says so here rather than hoping.  The wrapper compares it against the
+    ; installed engine's own x-engine.xon and refuses a mismatch before anything
+    ; boots.
+    ;
+    ; DELIBERATELY NOT A SAFETY KEY.  The pairing that can corrupt is the LAYOUT,
+    ; and (engine-layout ...) in the lock is what refuses that -- by equality,
+    ; because an amalgam walks header words at committed offsets.  Refusing on the
+    ; NAME instead would repeat the isa mistake in a new spelling: two engines with
+    ; the same layout are interchangeable, and a name compare would reject a
+    ; pairing that is provably fine.  This row records what the project WANTS, not
+    ; what is safe, and those are different questions.
+    (method %pin-engine (self form)
+      (match
+            ((not (pair? (rest form))) (Pin %pin-bad "engine needs one string argument"))
+            ((not (null? (rest (rest form)))) (Pin %pin-bad "engine takes exactly one argument"))
+            ((not (str? (first (rest form)))) (Pin %pin-bad "engine argument must be a string"))
+            (#t ())))
     ; Manifest forms + manifest dir -> resolved roots, manifest order.
     ; Closed vocabulary: an unknown head is an error, not a skip.
     (method %pin-interpret (self forms dir)
@@ -171,6 +191,7 @@
         (list (pair (lit root) (fn (_ f) (Pin %pin-root f dir)))
               (pair (lit boot) (fn (_ f) (Pin %pin-boot f)))
               (pair (lit src)  (fn (_ f) (Pin %pin-src f)))
+              (pair (lit engine) (fn (_ f) (Pin %pin-engine f)))
               (pair (lit allow-release-skew) (fn (_ f) (Pin %pin-allow-skew f))))
         (fn (_ f)
           (match
@@ -545,28 +566,38 @@
     ; the wild to fix a fingerprint they never had.
     (method %pin-release-parse (self forms)
       (def %go
-            (fn (self forms tag isa payload files)
+            (fn (self forms tag isa layout payload files)
               (match
                 ((null? forms)
                   (match
                     ((null? tag) (Pin %pin-bad "release manifest has no (release ...)"))
                     (#t (list (pair 'release tag) (pair 'isa isa)
+                              (pair 'layout layout)
                               (pair 'payload payload) (pair 'files files)))))
                 ((not (pair? (first forms))) (Pin %pin-bad "release-manifest form is not a list"))
                 ((eq? (first (first forms)) 'release)
                   (match
                     ((str? (first (rest (first forms))))
-                      (self (rest forms) (first (rest (first forms))) isa payload files))
+                      (self (rest forms) (first (rest (first forms))) isa layout payload files))
                     (#t (Pin %pin-bad "release needs a tag string"))))
                 ((eq? (first (first forms)) 'isa)
                   (match
                     ((str? (first (rest (first forms))))
-                      (self (rest forms) tag (first (rest (first forms))) payload files))
+                      (self (rest forms) tag (first (rest (first forms))) layout payload files))
                     (#t (Pin %pin-bad "isa needs a digest string"))))
+                ; layout is OPTIONAL for the same reason payload is: it arrives
+                ; now, and every release published before it has no such row.
+                ; Refusing those manifests would unpin every project already in
+                ; the wild to add a fingerprint they never had.
+                ((eq? (first (first forms)) 'layout)
+                  (match
+                    ((str? (first (rest (first forms))))
+                      (self (rest forms) tag isa (first (rest (first forms))) payload files))
+                    (#t (Pin %pin-bad "layout needs a digest string"))))
                 ((eq? (first (first forms)) 'payload)
                   (match
                     ((str? (first (rest (first forms))))
-                      (self (rest forms) tag isa (first (rest (first forms))) files))
+                      (self (rest forms) tag isa layout (first (rest (first forms))) files))
                     (#t (Pin %pin-bad "payload needs a digest string"))))
                 ((eq? (first (first forms)) 'file)
                   (match
@@ -574,12 +605,12 @@
                       (Pin %pin-bad "release file needs a name string"))
                     ((not (str? (first (rest (rest (first forms))))))
                       (Pin %pin-bad "release file needs a digest string"))
-                    (#t (self (rest forms) tag isa payload
+                    (#t (self (rest forms) tag isa layout payload
                           (pair (pair (first (rest (first forms)))
                                       (first (rest (rest (first forms)))))
                                 files)))))
                 (#t (Pin %pin-bad "unknown release-manifest form")))))
-          (%go forms () () () ()))
+          (%go forms () () () () ()))
     (method %pin-release-file (self name files)
       (let ((hit (%assoc-str name files)))
             (match
@@ -1079,8 +1110,8 @@
                         lockforms)))
         (match
           ((null? row) ())
-          ((not (File exists? "ext/x-eval-c/tools/contract/isa.x")) ())
-          ((str=? (Pin %pin-digest "ext/x-eval-c/tools/contract/isa.x") (first (rest row)))
+          ((not (File exists? (Str append %engine-contract-root "/isa.x"))) ())
+          ((str=? (Pin %pin-digest (Str append %engine-contract-root "/isa.x")) (first (rest row)))
             (display "pin: lock isa fingerprint matches this tree\n"))
           (#t (display "pin: lock isa fingerprint DIFFERS from this tree -- a pinned platform pairs with its release's engine\n")))))
     (method verify (self (param dest STRING "Overlay root directory"))
@@ -1199,9 +1230,19 @@
                           (list (list 'release tag)
                                 (list 'isa (%assoc-get 'isa m)))
                           (Pin %pin-concat
-                            (match
-                              ((null? (%assoc-get 'payload m)) ())
-                              (#t (list (list 'payload (%assoc-get 'payload m)))))
+                            (Pin %pin-concat
+                              ; The LAYOUT row is the pairing key that the isa row
+                              ; could never be: an amalgam walks object header words,
+                              ; so a layout that moved is a segfault in field access.
+                              ; Written only when the release published one -- older
+                              ; releases have no such fact, and a row spelling nil
+                              ; would be a fingerprint matching nothing forever.
+                              (match
+                                ((null? (%assoc-get 'layout m)) ())
+                                (#t (list (list 'engine-layout (%assoc-get 'layout m)))))
+                              (match
+                                ((null? (%assoc-get 'payload m)) ())
+                                (#t (list (list 'payload (%assoc-get 'payload m))))))
                             (list (list 'boot file (Pin %pin-digest bootpath))))))
                       (File unlink rel))))
                 bootpath))))))
@@ -1229,7 +1270,7 @@
                         (param tag STRING "Release tag, e.g. \"v0.4.0\"")
                         (param entry SYMBOL "Boot entry to fetch, e.g. 'xe")
                         . (param base STRING "Base URL; default the project's releases"))
-      (doc "Fetch a released amalgam, verified or nothing: downloads the tag's pin.release.xon and <entry>.x (curl via fork/execvp -- absent curl prints the URLs and stops), checks the manifest names the tag, digests the amalgam with Sha256 -- the differentially-verified JIT engine where the host supports it (seconds), pure-x elsewhere (minutes for an amalgam; either way announced), and errors on any mismatch, naming the offending file (left in place for inspection; do not boot it). Reports whether the release's ISA fingerprint matches this tree's ext/x-eval-c/tools/contract/isa.x when present -- drift is information, not an error: a pinned platform pairs with its own engine. Returns the amalgam's path."
+      (doc "Fetch a released amalgam, verified or nothing: downloads the tag's pin.release.xon and <entry>.x (curl via fork/execvp -- absent curl prints the URLs and stops), checks the manifest names the tag, digests the amalgam with Sha256 -- the differentially-verified JIT engine where the host supports it (seconds), pure-x elsewhere (minutes for an amalgam; either way announced), and errors on any mismatch, naming the offending file (left in place for inspection; do not boot it). Reports whether the release's ISA fingerprint matches this tree's ext/x-engine-c/tools/contract/isa.x when present -- drift is information, not an error: a pinned platform pairs with its own engine. Returns the amalgam's path."
         (returns STRING "Path of the verified amalgam")
         (sample "(Pin fetch \"boot\" \"v0.4.0\" 'xe)" "\"boot/xe.x\""))
       (let ((b (match ((null? base) (Pin %pin-release-base)) (#t (first base)))))
@@ -1283,7 +1324,7 @@
                               (Pin %pin-bad (Str8 append "digest mismatch: " target
                                               (Str8 append " -- rejected bytes at " (Str8 append target ".rejected; the pinned path is untouched")))))))))
                     (match
-                      ((File exists? "ext/x-eval-c/tools/contract/isa.x")
+                      ((File exists? (Str append %engine-contract-root "/isa.x"))
                         (do (display (match
                                        ; A manifest may carry no (isa ...) at all --
                                        ; %pin-release-parse requires only the tag, so
@@ -1293,7 +1334,7 @@
                                        ; and so is an absent fingerprint.
                                        ((null? (%assoc-get 'isa m))
                                          "pin: the release manifest carries no isa fingerprint -- engine pairing unchecked")
-                                       ((str=? (Pin %pin-digest "ext/x-eval-c/tools/contract/isa.x") (%assoc-get 'isa m))
+                                       ((str=? (Pin %pin-digest (Str append %engine-contract-root "/isa.x")) (%assoc-get 'isa m))
                                          "pin: isa fingerprint matches this tree")
                                        (#t "pin: isa fingerprint DIFFERS from this tree -- pair the amalgam with its release's engine"))
                                      "\n")))

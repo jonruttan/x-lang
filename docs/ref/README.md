@@ -12,7 +12,7 @@ without an output root:
 
 | subdirectory | generator | source |
 |---|---|---|
-| `c/` | `make doc-c` -- delegates to the engine submodule, which generates into `ext/x-eval-c/docs/ref/c/` | the C engine in `ext/x-eval-c` |
+| `c/` | `make doc-c` -- delegates to the engine submodule, which generates into `ext/x-engine-c/docs/ref/c/` | the C engine in `ext/x-engine-c` |
 | `x/` | `make doc-x` (`tools/dev/doc.x`) | the `(doc ...)` forms in `lib/x/**` |
 
 `make doc` runs both. Hand-written documentation lives one level up, in

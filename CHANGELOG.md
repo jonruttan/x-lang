@@ -19,7 +19,7 @@ routing works.
 
 ### Changed
 
-- **The C engine is a separate repository** — [x-eval-c](https://github.com/jonruttan/x-eval-c), consumed here as the `ext/x-eval-c` submodule with `ext/x-expr` nested inside it. `make` builds the engine there and copies `x-bin` to this repo's root, so the wrapper, the spec runners and every `tools/check/*.sh` script are unchanged. Clone with `--recursive`.
+- **The C engine is a separate repository** — [x-engine-c](https://github.com/jonruttan/x-engine-c), consumed here as the `ext/x-engine-c` submodule with `ext/x-expr` nested inside it. `make` builds the engine there and copies `x-bin` to this repo's root, so the wrapper, the spec runners and every `tools/check/*.sh` script are unchanged. Clone with `--recursive`.
 
   The contract manifests stayed here, and that is the load-bearing part: `lib/x-core.x` includes `base-paths.x` and `obj-layout.x` as the first things it loads and `pin.x` reads `isa.x` at runtime, so they are boot data for the library, not descriptions of the engine. All four ratchets — `check-isa`, `check-obj-layout`, `check-base-paths`, `check-prim-coverage` — therefore still run here, scanning the submodule's sources across the boundary.
 

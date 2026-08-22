@@ -1,7 +1,7 @@
 ; reflect.x -- reflective object accessors over the layout contract (bootstrap)
 ;
 ; The interpreter is fully reflective: %obj->ptr + the ptr word ops reach
-; every word of every object, and ext/x-eval-c/tools/contract/obj-layout.x (included by x-core.x
+; every word of every object, and ext/x-engine-c/tools/contract/obj-layout.x (included by x-core.x
 ; before data.x) commits the offsets.  These accessors REPLACE the C prims
 ; of the same catalog names -- the C table rows are deleted and the ISA
 ; keeps only the load/store instructions -- filed with prim-reg! so every

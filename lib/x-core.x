@@ -16,11 +16,13 @@
 ; The base-paths contract + the catalog protocol load FIRST: everything
 ; after them (operatives.x included) fetches its C instruments through
 ; prim-ref, which is pure X -- a first/rest walk over the prims cell.
-(include "ext/x-eval-c/tools/contract/base-paths.x")
+; engine.x is the ONE place the library names its engine: it carries both
+; contract includes (base-paths for the catalog walk, obj-layout for the header
+; offsets) and the engine root the JIT and the pin tool read at runtime.
+; tools/check/engine-seam.sh holds it to being the only such place.
+(include "lib/x/boot/engine.x")
 (include "lib/x/boot/registry.x")
 (include "lib/x/boot/operatives.x")
-; The object-layout contract: header offsets data.x and reflect.x build on.
-(include "ext/x-eval-c/tools/contract/obj-layout.x")
 (include "lib/x/boot/data.x")
 (include "lib/x/boot/reflect.x")
 ; printer BEFORE string.x: string.x's callers resolve display/write from it,
@@ -41,6 +43,7 @@
 ; reader sugar is not loaded yet at this point in boot.
 (%set-first! %module-loaded-cell
   (pair (lit x-core)
+  (pair (lit x/boot/engine)
   (pair (lit x/boot/registry)
   (pair (lit x/boot/operatives)
   (pair (lit x/boot/data)
@@ -96,7 +99,7 @@
   (pair (lit x/type/err)
   (pair (lit x/repl/ansi)
   (pair (lit x/repl/banner)
-    (first %module-loaded-cell))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+    (first %module-loaded-cell)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 ; --- Standard modules ---
 (include "lib/x/core/predicates.x")
@@ -260,6 +263,8 @@
 ; Retroactive provides for the boot layer: those files load BEFORE the
 ; module system exists, so they cannot call provide themselves; registering
 ; them here makes them visible to (modules) and module-level (help).
+(doc (provide x/boot/engine)
+  "Boot: the engine seam -- the one place the library names its engine, carrying both contract includes and the engine root.")
 (doc (provide x/boot/registry)
   "Boot: the catalog protocol -- prim-ref and the instrument registry (loads first).")
 (doc (provide x/boot/operatives)

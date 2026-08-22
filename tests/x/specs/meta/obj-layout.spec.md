@@ -2,7 +2,7 @@
 
 # The object-layout contract, runtime half
 
-`ext/x-eval-c/tools/contract/obj-layout.x` commits the header-word layout of every object; the
+`ext/x-engine-c/tools/contract/obj-layout.x` commits the header-word layout of every object; the
 reflective accessors read their offsets from it. These tests probe LIVE
 objects word by word (`%obj->ptr` + `%ptr-ref-word`) and fail if the running
 build's layout disagrees with the descriptor. The source half

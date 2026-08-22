@@ -62,7 +62,13 @@
           (let go ((i (- w 1)) (acc 0))
             (if (< i 0) acc
               (go (- i 1) (+ (* acc 256) (%b buf (+ off i)))))))))
-      ; sign-fold a w-byte unsigned value. w < 8 ONLY: an 8-byte
+      ; sign-fold a w-byte unsigned value.  The half/span constants are
+      ; (<< 1 (- (* 8 w) 1)) -- (<< 1 31) for a 4-byte field, which overflows
+      ; a 32-bit fixnum, and the 8-byte case below relies on a 64-bit machine
+      ; int wrapping.  Byte assembly itself is endian-NEUTRAL (%le and %be
+      ; both build the value arithmetically), so only the width binds.
+      ; constraint: word-size = 8 -- sign-fold constants exceed a 32-bit fixnum
+      ; w < 8 ONLY: an 8-byte
       ; accumulation already wraps to the two's-complement signed value
       ; (and (<< 1 64) is 1 under hardware shift-count masking -- the
       ; fold there subtracted one, caught by the i64 round-trip smoke).
@@ -96,17 +102,22 @@
                   ((eq? ty (lit i64)) (list name 8 (%le 8)))     ; 8-byte wrap IS the signed value
                   ((eq? ty (lit u16be)) (list name 2 (%be 2)))
                   ((eq? ty (lit u32be)) (list name 4 (%be 4)))
+                  ; (str byte-sub s START LEN) takes a LENGTH, not an end index --
+                  ; the C signature is (str-byte-sub s start len).  Passing
+                  ; (+ off n) read off EXTRA bytes for any field at a non-zero
+                  ; offset: a 3-byte str field at offset 1 came back 4 bytes long.
+                  ; Correct at offset 0, which is why every existing spec passed.
                   ((eq? ty (lit str))
                     (let ((n (first (rest (rest f)))))
-                      (list name n (fn (_ buf off) (%bsub buf off (+ off n))))))
+                      (list name n (fn (_ buf off) (%bsub buf off n)))))
                   ((eq? ty (lit cstr))
                     (let ((n (first (rest (rest f)))))
                       (list name n
                         (fn (_ buf off)
                           (let scan ((i 0))
                             (match
-                              ((= i n) (%bsub buf off (+ off n)))
-                              ((= (%b buf (+ off i)) 0) (%bsub buf off (+ off i)))
+                              ((= i n) (%bsub buf off n))
+                              ((= (%b buf (+ off i)) 0) (%bsub buf off i))
                               (#t (scan (+ i 1)))))))))
                   (#t (%bad "unknown field type" f)))))))
         spec))

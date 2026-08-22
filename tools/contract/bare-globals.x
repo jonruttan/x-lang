@@ -5,7 +5,7 @@
 ; diffs the live def surface against this file in BOTH directions, so the
 ; list can only shrink deliberately: sweep a name to %-private (public face
 ; on a class) and delete its row in the same commit.  C-bound bare names
-; live in ext/x-eval-c/tools/contract/isa.x's %isa-bare section, not here.
+; live in ext/x-engine-c/tools/contract/isa.x's %isa-bare section, not here.
 ;
 ; FORMAT (rigid, one entry per line -- the awk parses the same bytes):
 ;   (name)
@@ -106,6 +106,13 @@
   (darwin-syscall-numbers)
   (dirent-names)
   (i386-syscall-names)
+  ; arch-*? join os-*? for the same reason those rows exist: the build triple is
+  ; parsed ONCE, in lib/x/platform/syscall.x, and the answer is read by
+  ; lib/x/tool/asm.x and lib/x/tool/compile.x, which each used to sniff the
+  ; string themselves.  Bare because this layer loads mid-x-core, before the
+  ; class machinery that would otherwise home them.
+  (arch-arm64?)
+  (arch-x86-64?)
   (os-darwin?)
   (os-linux?)
   (protocol-format-id)
