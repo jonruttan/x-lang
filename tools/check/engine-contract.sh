@@ -58,6 +58,7 @@ ENGINE_DIR="${X_ENGINE_DIR:-ext/x-engine-c}"
 REFERENCE_DIR="${X_REFERENCE_DIR:-ext/x-engine-c}"
 ISA="$REFERENCE_DIR/tools/contract/isa.x"
 REQ="tools/contract/requires.x"
+CONS="tools/contract/constraints.x"
 [ -f "$FEAT" ] || { echo "engine-contract: no vocabulary at $FEAT" >&2; exit 2; }
 # The ISA is the ENGINE's file.  A missing one means an uninitialised submodule,
 # not a passing check -- say so rather than reporting ok over nothing, which is
@@ -279,6 +280,64 @@ if [ -f "$XON" ]; then
 		fi
 	fi
 fi
+
+# --- 8: parameter VALUES are in the vocabulary too ---------------------------
+# The parameter NAMES were closed and their values were not, so `os` accepted any
+# word at all.  That is not a hypothetical: the spellings darwin/linux/bsd and
+# arm64/x86-64/i386 were real and enforced, but only inside ONE ENGINE'S build
+# script (gen-build-params.sh), while the conformance suite compared %param-os
+# against those same literals.  A second engine stamping its own toolchain's
+# names -- Rust says `macos` and `aarch64` for the same machines -- reports true
+# facts in a vocabulary nothing can read, and every comparison against a literal
+# fails silently.  The vocabulary belongs to the language, so it is checked here.
+awk '/^\(def %feature-parameters/{f=1;next} /^\)\)\)/{f=0}
+     f && /^  \(/ { l=$0; sub(/;.*/,"",l); gsub(/[()]/,"",l); $0=l
+                    if (NF >= 2) print }' "$FEAT" > /tmp/ec-pvals.$$
+
+# A parameter with no declared values is OPEN and accepts anything; `unknown` is
+# always legal and means the build could not say.
+param_legal() {
+	_row=$(awk -v k="$1" '$1 == k { print; exit }' /tmp/ec-pvals.$$)
+	[ -n "$_row" ] || return 0
+	[ "$2" = "unknown" ] && return 0
+	printf '%s\n' "$_row" | cut -d' ' -f2- | tr ' ' '\n' | grep -qx -- "$2"
+}
+
+# Every value a constraint binds must be spellable.  constraints.x is committed,
+# so this half is checkable in any tree, built or not.
+if [ -f "$CONS" ]; then
+	sed -n 's/^  (constraint "[^"]*" \([a-z-]*\) = \([^)]*\)).*/\1 \2/p' "$CONS" \
+	| while read -r _k _v; do
+		if ! param_legal "$_k" "$_v"; then
+			echo "  PARAM-VALUE: constraints.x binds $_k = $_v, which is not in the"
+			echo "    vocabulary.  Add it to %feature-parameters or fix the row."
+			echo "FAILVALUE" >> /tmp/ec-pvfail.$$
+		fi
+	done
+fi
+
+# And every value an engine STAMPS, when there is a stamp to read.  Unlike
+# x-engine.xon this file is a build output -- the C engine gitignores it -- so a
+# source tree that has never been built legitimately has none.  Absence is
+# reported rather than passed over, but it is not a failure: nothing is being
+# claimed that could be wrong.
+STAMP="$ENGINE_DIR/x-engine-build.xon"
+if [ -f "$STAMP" ]; then
+	sed -n 's/^(param \([a-z-]*\) \([^)"]*\))[[:space:]]*$/\1 \2/p' "$STAMP" \
+	| while read -r _k _v; do
+		if ! param_legal "$_k" "$_v"; then
+			echo "  PARAM-VALUE: $STAMP reports $_k = $_v, which is not in the"
+			echo "    vocabulary.  x-lang compares these against literals, so a"
+			echo "    spelling only this engine knows reads as a different machine."
+			echo "FAILVALUE" >> /tmp/ec-pvfail.$$
+		fi
+	done
+else
+	echo "  no build stamp at $STAMP -- parameter values unchecked (not built yet)"
+fi
+# The loops above run in subshells under `|`, so `fail=1` inside them would be
+# lost.  A marker file is how the verdict gets back out.
+if [ -f /tmp/ec-pvfail.$$ ]; then fail=1; rm -f /tmp/ec-pvfail.$$; fi
 
 if [ "$fail" -ne 0 ]; then
 	echo "FAIL: the vocabulary and the engine ISA disagree."
