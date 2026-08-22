@@ -86,7 +86,13 @@ PRELUDE="$SUITE/prelude.x"
 PARAMS="$ENGINE_DIR/x-engine-build.xon"
 
 {
-	printf '(alloc-limit! %s)\n' "$LIMIT"
+	# GUARDED, because alloc-limit! is an isa/gc row and the `core` profile does
+	# not include it.  A genuinely core-only engine -- no collector, which is the
+	# smallest thing that can boot x-lang -- would have died on the prelude of
+	# every core case, so the suite would have been unrunnable by exactly the
+	# engine it is meant to be aimed at first.  Found while sizing a second
+	# implementation against the contract.
+	printf '(guard (_ ()) (alloc-limit! %s))\n' "$LIMIT"
 	if [ -f "$PARAMS" ]; then
 		sed -n 's/^(param \([a-z-]*\) \([a-z0-9_-]*\))[[:space:]]*$/\1 \2/p' "$PARAMS" \
 		| while read -r _k _v; do
