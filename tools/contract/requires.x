@@ -32,8 +32,16 @@
 ;   (needs "PATH" cap...)  a file and the above-core capabilities it references
 
 (def %requires (lit (
-  ; The whole library, every dialect, every app.
-  (profile full)
+  ; The profile the whole library needs.  DERIVED, and it is `posix`, not `full`:
+  ; the union of every above-core capability any file reaches is
+  ; {isa/ffi-call, isa/gc, isa/sys, isa/syscall}, and `posix` is the smallest
+  ; profile containing all four.  `full` adds instr/cov and instr/profile, which
+  ; NOTHING in lib/ or apps/ reaches -- they are not prim-ref-able at all, being
+  ; build flags that change how existing primitives behave.  Naming `full` here
+  ; would have made the default engine fail `provides >= requires`, because
+  ; coverage and profiling are VARIANT builds (x-bin-cov, x-bin-profile) and the
+  ; default x-bin honestly does not have them.
+  (profile posix)
   (needs "apps/logo/dispatch.x" isa/ffi-call)
   (needs "apps/logo/main.x" isa/ffi-call)
   (needs "apps/logo/serve.x" isa/ffi-call)

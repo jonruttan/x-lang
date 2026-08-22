@@ -37,6 +37,7 @@ cd "$ROOT"
 FEAT="tools/contract/features.x"
 ISA="ext/x-engine-c/tools/contract/isa.x"
 REQ="tools/contract/requires.x"
+ENGINE_DIR="ext/x-engine-c"
 [ -f "$FEAT" ] || { echo "engine-contract: no vocabulary at $FEAT" >&2; exit 2; }
 # The ISA is the ENGINE's file.  A missing one means an uninitialised submodule,
 # not a passing check -- say so rather than reporting ok over nothing, which is
@@ -177,10 +178,72 @@ isa/syscall"; fi
 	                    printf "%s", $2; for(i=3;i<=NF;i++) printf " %s", $i; print "" }' "$REQ" \
 	  | sort > /tmp/ec-req-man.$$
 	sort -o /tmp/ec-derived.$$ /tmp/ec-derived.$$
+
+	# The declared profile must COVER every above-core capability the tree
+	# reaches.  Under-declaring is the unsafe direction: it would let a project
+	# pair with an engine that cannot load files the library actually uses.
+	decl=$(awk '/^  \(profile /{ l=$0; gsub(/[()]/,"",l); $0=l; print $2 }' "$REQ")
+	if [ -n "$decl" ]; then
+		grep "^$decl " /tmp/ec-prof-raw.$$ | cut -d' ' -f2- | tr ' ' '\n' | grep -v '^$' > /tmp/ec-decl-atoms.$$ || true
+		# Expand to a FIXPOINT, then drop the profile names themselves: posix
+		# names gc which names core, so one pass leaves two profile names sitting
+		# in the atom set and every later membership test asks whether the engine
+		# "provides core", which nothing does.
+		while :; do
+			expanded=0
+			: > /tmp/ec-decl-next.$$
+			while read -r a; do
+				if grep -q "^$a " /tmp/ec-prof-raw.$$; then
+					grep "^$a " /tmp/ec-prof-raw.$$ | cut -d' ' -f2- | tr ' ' '\n' | grep -v '^$' >> /tmp/ec-decl-next.$$
+					expanded=1
+				else
+					echo "$a" >> /tmp/ec-decl-next.$$
+				fi
+			done < /tmp/ec-decl-atoms.$$
+			sort -u -o /tmp/ec-decl-next.$$ /tmp/ec-decl-next.$$
+			mv /tmp/ec-decl-next.$$ /tmp/ec-decl-atoms.$$
+			[ "$expanded" = 0 ] && break
+		done
+		awk '{for(i=2;i<=NF;i++) print $i}' /tmp/ec-derived.$$ | sort -u > /tmp/ec-need.$$
+		while read -r g; do
+			grep -q "^$g$" /tmp/ec-decl-atoms.$$ || note "PROFILE: requires.x declares $decl, which does not include $g -- but the tree reaches it"
+		done < /tmp/ec-need.$$
+	fi
 	if ! diff -u /tmp/ec-req-man.$$ /tmp/ec-derived.$$ > /tmp/ec-req-diff.$$ 2>&1; then
 		echo "  DERIVED: requires.x disagrees with the tree (-manifest +derived):"
 		grep '^[-+][^-+]' /tmp/ec-req-diff.$$ | sed 's/^/    /'
 		fail=1
+	fi
+fi
+
+# --- 7: the engine's declaration is current, and SATISFIES us ----------------
+# This is what the whole vocabulary is for.  Two checks, and they are different
+# questions: is x-engine.xon still what the generator would produce (a stale
+# declaration is a lie with a timestamp), and does what it declares COVER what
+# this library needs (the satisfaction test that replaces the old isa-digest
+# equality compare -- superset, so a richer engine is never refused).
+XON="$ENGINE_DIR/x-engine.xon"
+if [ -f "$XON" ]; then
+	if ! sh tools/contract/gen-engine-xon.sh "$ENGINE_DIR" > /tmp/ec-xon-gen.$$ 2>/tmp/ec-xon-err.$$; then
+		note "GENERATOR: gen-engine-xon.sh failed against $ENGINE_DIR:"
+		sed 's/^/    /' /tmp/ec-xon-err.$$
+	elif ! diff -u "$XON" /tmp/ec-xon-gen.$$ > /tmp/ec-xon-diff.$$ 2>&1; then
+		note "STALE: $XON is not what the generator produces (-committed +generated):"
+		grep '^[-+][^-+]' /tmp/ec-xon-diff.$$ | sed 's/^/    /'
+	fi
+
+	# satisfaction: every atom the declared profile needs must be provided
+	awk '/^\(provides /{ l=$0; gsub(/[()]/,"",l); $0=l; print $2 }' "$XON" | sort -u > /tmp/ec-xon-prov.$$
+	if [ -s /tmp/ec-decl-atoms.$$ ]; then
+		miss=""
+		while read -r a; do
+			grep -q "^$a$" /tmp/ec-xon-prov.$$ || miss="$miss $a"
+		done < /tmp/ec-decl-atoms.$$
+		if [ -n "$miss" ]; then
+			note "SATISFACTION: $ENGINE_DIR does not provide what requires.x needs:$miss"
+		else
+			echo "  satisfaction: $(basename "$ENGINE_DIR") provides everything requires.x needs."
+		fi
 	fi
 fi
 
