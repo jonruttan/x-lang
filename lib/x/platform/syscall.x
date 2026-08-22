@@ -1,4 +1,5 @@
 ; syscall.x -- x86_64, i386, and Darwin/BSD syscall tables
+; lint-known: %param-os %param-arch
 ; STRING SPELLINGS: %-private byte helpers, NOT Str8 -- the table-selection
 ; walk below RUNS AT LOAD, and posix.x pulls this file into the x-core boot
 ; before str8.x exists (#108 strings round: a class call here is boot death).
@@ -48,8 +49,8 @@
 ; an older install tree has no declaration at all.  Absent is not wrong; it means
 ; fall back to reading the triple, which is what this layer did before and still
 ; can.
-(def %declared-os (guard (e ()) %param-os))
-(def %declared-arch (guard (e ()) %param-arch))
+(def %declared-os (guard (_ ()) %param-os))
+(def %declared-arch (guard (_ ()) %param-arch))
 
 (def os-darwin?
   (match ((eq? %declared-os ()) (%os-contains? "darwin" x-machine 0))
