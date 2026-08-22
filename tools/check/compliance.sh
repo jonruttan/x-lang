@@ -63,18 +63,33 @@ if [ -n "$want_lay" ]; then
 	fi
 fi
 
-# --- DYNAMIC: the generated suite --------------------------------------------
-sh tools/contract/gen-compliance.sh "$ENGINE_ABS" "$W/compliance.spec.md" >/dev/null
-# The harness resolves (include "tools/contract/...") against the CWD, so it must
-# run from the engine's root -- from anywhere else every section dies on
-# `include: cannot open` and the suite reports failures that are about the shell,
-# not the engine.
-( cd "$ENGINE_ABS" && sh "$RUNNER" "$W/compliance.spec.md" ) > "$W/out" 2>&1 || fail=1
-sed 's/^/  /' "$W/out" | grep -vE '^\s*$' | tail -n 40
+# --- DYNAMIC: the planned checks ---------------------------------------------
+# The generator emits DATA and a PLAN; the checks themselves are ordinary spec
+# files under tools/contract/compliance/, run through x-lang's own bare runner.
+# Nothing here generates x-lang.
+sh tools/contract/gen-compliance.sh "$ENGINE_ABS" "$W/gen" >/dev/null
+nrun=0; nbad=0
+while read -r specfile datafile label; do
+	nrun=$((nrun + 1))
+	if [ "$datafile" = "-" ]; then
+		out=$(X_ENGINE_DIR="$ENGINE_ABS" sh tests/x/conformance/runner.sh "$specfile" 2>&1) || true
+	else
+		out=$(X_ENGINE_DIR="$ENGINE_ABS" X_EXTRA_PRELUDE="$datafile" \
+			sh tests/x/conformance/runner.sh "$specfile" 2>&1) || true
+	fi
+	if printf '%s' "$out" | grep -q ", 0 failed"; then
+		printf "  ok    %s\n" "$label"
+	else
+		nbad=$((nbad + 1)); fail=1
+		printf "  FAIL  %s\n" "$label"
+		printf '%s\n' "$out" | grep -E "expected:|got:" | sed 's/^/        /'
+	fi
+done < "$W/gen/plan"
+echo "  $nrun declared rows checked, $nbad failed."
 
 # --- UNTESTED: declared rows with no experiment ------------------------------
 awk '/^\(guarantee /{ l=$0; gsub(/[()]/,"",l); $0=l; print $2 }' "$XON" | sort -u > "$W/claimed-g"
-grep -oE '^### guarantee [^ ]+' "$W/compliance.spec.md" | awk '{print $3}' | sort -u > "$W/tested-g"
+awk '$3=="guarantee" {print $4}' "$W/gen/plan" | sort -u > "$W/tested-g"
 comm -23 "$W/claimed-g" "$W/tested-g" > "$W/untested"
 if [ -s "$W/untested" ]; then
 	echo "  UNTESTED guarantees (declared, no experiment yet):"

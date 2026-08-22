@@ -64,29 +64,24 @@ WORK="${TMPDIR:-/tmp}/conformance.$$"
 mkdir -p "$WORK"
 trap 'rm -rf "$WORK"' EXIT INT TERM
 
-# The prelude every case gets.  Kept to the BARE-CALLABLE set on purpose -- fn,
-# match, def, error, first, rest, eq?, +, include -- because anything richer would
-# be testing the prelude rather than the engine.  %ok is the assertion; %coord is
-# the catalog door (prim-ref does not exist bare: it is x-level, and the committed
-# base paths reach the prims CELL, whose first is the catalog itself).
-cat > "$WORK/prelude" <<'PRE'
-(alloc-limit! LIMIT)
-(def %ok (fn (self c) (match (c (error "ok")) (#t (error "no")))))
-(include "tools/contract/base-paths.x")
-(def %assoc (fn (self k l)
-  (match ((eq? l ()) ())
-         ((eq? (first (first l)) k) (first l))
-         (#t (self k (rest l))))))
-(def %walk (fn (self steps o)
-  (match ((eq? steps ()) o)
-         ((eq? (first steps) (lit f)) (self (rest steps) (first o)))
-         (#t (self (rest steps) (rest o))))))
-(def %cat (first (%walk (rest (rest (%assoc (lit prims) %base-paths))) (%base))))
-(def %coord (fn (self ns m)
-  (match ((eq? (%assoc ns %cat) ()) ())
-         (#t (rest (%assoc m (rest (%assoc ns %cat))))))))
-PRE
-sed "s/LIMIT/$LIMIT/" "$WORK/prelude" > "$WORK/prelude.x"
+# The prelude every case gets is a REAL x-lang file, tests/x/conformance/prelude.x,
+# not a heredoc and not a stack of printf lines: the x-lang that tests the engine
+# should be as readable, lintable and runnable as any other x-lang in the tree.
+# The only thing this script generates is the allocation ceiling -- a number.
+#
+# X_EXTRA_PRELUDE names one more file to cat after it, which is how the compliance
+# run supplies its generated DATA (a list of coordinates to look for) without
+# anything generating CODE.
+PRELUDE="$SUITE/prelude.x"
+[ -f "$PRELUDE" ] || { echo "conformance: no prelude at $PRELUDE" >&2; exit 2; }
+{
+	printf '(alloc-limit! %s)\n' "$LIMIT"
+	cat "$PRELUDE"
+	if [ -n "${X_EXTRA_PRELUDE:-}" ]; then
+		[ -f "$X_EXTRA_PRELUDE" ] || { echo "conformance: no such X_EXTRA_PRELUDE: $X_EXTRA_PRELUDE" >&2; exit 2; }
+		cat "$X_EXTRA_PRELUDE"
+	fi
+} > "$WORK/prelude.x"
 
 RED=$(printf "\033[1;31m"); GREEN=$(printf "\033[1;32m")
 BLUE=$(printf "\033[1;34m"); DIM=$(printf "\033[2m"); OFF=$(printf "\033[0m")
