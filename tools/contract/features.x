@@ -137,9 +137,6 @@
   ; binds globally BECAUSE of TCO, and 10+ library files are written to it.  A
   ; non-TCO engine does not run slower, it overflows the stack in ordinary code.
   (eval/tco -)              ; proper tail calls, unbounded depth
-  ; Tokenizer callbacks run inside the reader's inner loop, which must not
-  ; allocate -- see reader/lit-reader.x:76 and the reader-macro constraints.
-  (tok/callback-no-alloc -)
   ; x-lib's ruled string semantics: a str value IS a C string, and bytes past the
   ; NUL are unobservable.  Ruled three times; the codecs read to it.
   (str/nul-terminated -)
@@ -149,6 +146,20 @@
   ; round-tripping 2^32 through a pointer cast -- a legitimate way to size a word.
   (int/ptr-same-width -)
 )))
+
+; REMOVED, and worth saying why rather than leaving a hole: tok/callback-no-alloc.
+; It was declared as "tokenizer callbacks run without allocating", and it was wrong
+; twice over.  Wrong in CONTENT -- lib/x/reader/lit-reader.x records that the
+; no-allocation rationale is OBSOLETE ("GC is explicit-only, so re-entering the
+; tokenizer from a reader handler is safe"), and docs/syntax.md states the live
+; constraint as something else entirely: OPS ARE BANNED INSIDE x_token_read.  And
+; wrong in CATEGORY -- that ban is an obligation the engine imposes on callback
+; AUTHORS, not a promise the engine makes to callers, so it is not a guarantee at
+; all.  It is documented in docs/engine-contract.md where an implementer meets it.
+;
+; A guarantee that cannot be falsified because it does not describe the engine is
+; worse than an untested one: compliance would have reported it as a claim awaiting
+; an experiment forever.
 
 ; --- PARAMETERS --------------------------------------------------------------
 ; Values an engine reports.  Listed here so the vocabulary is closed (a requires
