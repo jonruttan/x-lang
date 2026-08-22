@@ -36,6 +36,10 @@ set -u
 
 cd "$(dirname "$0")/../.." || exit 1
 
+ENGINE_DIR=ext/x-engine-c
+W_LAYOUT="${TMPDIR:-/tmp}/relman-layout.$$"
+trap 'rm -f "$W_LAYOUT"' EXIT INT TERM
+
 TAG="${1:-}"
 [ -n "$TAG" ] || { echo "release-manifest: usage: release-manifest.sh <tag>" >&2; exit 1; }
 [ -d build/boot ] || { echo "release-manifest: no build/boot -- run 'make boot' first" >&2; exit 1; }
@@ -66,6 +70,20 @@ mkdir -p build/release
   isa=$(_digest ext/x-engine-c/tools/contract/isa.x)
   check_hex "$isa" ext/x-engine-c/tools/contract/isa.x
   printf '(isa "sha256:%s")\n' "$isa"
+  # THE LAYOUT FINGERPRINT.  The isa row above is a compatibility hint and a poor
+  # one: it is the C SURFACE, byte-identical across v0.3.1-rc10, v0.4.0 and v0.5.0,
+  # so comparing it passed a mismatched amalgam onto a drifted engine (#435).  What
+  # an amalgam actually binds against is the LAYOUT -- it walks object header words
+  # through lib/x/boot/reflect.x -- and a layout that moved is a segfault in field
+  # access, not a diagnosable error.  The three descriptors are digested as ONE
+  # unit because an amalgam binds against all three or none.
+  lay="$W_LAYOUT"
+  cat "$ENGINE_DIR/tools/contract/obj-layout.x" \
+      "$ENGINE_DIR/tools/contract/base-paths.x" \
+      "$ENGINE_DIR/tools/contract/base-layout.x" > "$lay"
+  layout=$(_digest "$lay")
+  check_hex "$layout" "the layout descriptors"
+  printf '(layout "sha256:%s")\n' "$layout"
   # The payload fingerprint is computed by the same script `make install`
   # runs against the installed tree, so the manifest and the engine beside
   # the library are answering the identical question.

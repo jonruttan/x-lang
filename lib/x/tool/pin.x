@@ -100,7 +100,7 @@
     ; release fingerprint -- one digest over everything a release ships as
     ; library -- because `isa` is the C surface and is byte-identical across
     ; releases, so it can say "compatible" but never "same release".
-    (%pin-platform-heads (list 'release 'isa 'payload 'boot))
+    (%pin-platform-heads (list 'release 'isa 'engine-layout 'payload 'boot))
     ; The header names the ACTUAL lock file (#421): locks are written
     ; per-root (deps.lock.xon and friends -- the #313 adjudication), and
     ; a file that opens by claiming a name it does not have reads as a
@@ -545,28 +545,38 @@
     ; the wild to fix a fingerprint they never had.
     (method %pin-release-parse (self forms)
       (def %go
-            (fn (self forms tag isa payload files)
+            (fn (self forms tag isa layout payload files)
               (match
                 ((null? forms)
                   (match
                     ((null? tag) (Pin %pin-bad "release manifest has no (release ...)"))
                     (#t (list (pair 'release tag) (pair 'isa isa)
+                              (pair 'layout layout)
                               (pair 'payload payload) (pair 'files files)))))
                 ((not (pair? (first forms))) (Pin %pin-bad "release-manifest form is not a list"))
                 ((eq? (first (first forms)) 'release)
                   (match
                     ((str? (first (rest (first forms))))
-                      (self (rest forms) (first (rest (first forms))) isa payload files))
+                      (self (rest forms) (first (rest (first forms))) isa layout payload files))
                     (#t (Pin %pin-bad "release needs a tag string"))))
                 ((eq? (first (first forms)) 'isa)
                   (match
                     ((str? (first (rest (first forms))))
-                      (self (rest forms) tag (first (rest (first forms))) payload files))
+                      (self (rest forms) tag (first (rest (first forms))) layout payload files))
                     (#t (Pin %pin-bad "isa needs a digest string"))))
+                ; layout is OPTIONAL for the same reason payload is: it arrives
+                ; now, and every release published before it has no such row.
+                ; Refusing those manifests would unpin every project already in
+                ; the wild to add a fingerprint they never had.
+                ((eq? (first (first forms)) 'layout)
+                  (match
+                    ((str? (first (rest (first forms))))
+                      (self (rest forms) tag isa (first (rest (first forms))) payload files))
+                    (#t (Pin %pin-bad "layout needs a digest string"))))
                 ((eq? (first (first forms)) 'payload)
                   (match
                     ((str? (first (rest (first forms))))
-                      (self (rest forms) tag isa (first (rest (first forms))) files))
+                      (self (rest forms) tag isa layout (first (rest (first forms))) files))
                     (#t (Pin %pin-bad "payload needs a digest string"))))
                 ((eq? (first (first forms)) 'file)
                   (match
@@ -574,12 +584,12 @@
                       (Pin %pin-bad "release file needs a name string"))
                     ((not (str? (first (rest (rest (first forms))))))
                       (Pin %pin-bad "release file needs a digest string"))
-                    (#t (self (rest forms) tag isa payload
+                    (#t (self (rest forms) tag isa layout payload
                           (pair (pair (first (rest (first forms)))
                                       (first (rest (rest (first forms)))))
                                 files)))))
                 (#t (Pin %pin-bad "unknown release-manifest form")))))
-          (%go forms () () () ()))
+          (%go forms () () () () ()))
     (method %pin-release-file (self name files)
       (let ((hit (%assoc-str name files)))
             (match
@@ -1199,9 +1209,19 @@
                           (list (list 'release tag)
                                 (list 'isa (%assoc-get 'isa m)))
                           (Pin %pin-concat
-                            (match
-                              ((null? (%assoc-get 'payload m)) ())
-                              (#t (list (list 'payload (%assoc-get 'payload m)))))
+                            (Pin %pin-concat
+                              ; The LAYOUT row is the pairing key that the isa row
+                              ; could never be: an amalgam walks object header words,
+                              ; so a layout that moved is a segfault in field access.
+                              ; Written only when the release published one -- older
+                              ; releases have no such fact, and a row spelling nil
+                              ; would be a fingerprint matching nothing forever.
+                              (match
+                                ((null? (%assoc-get 'layout m)) ())
+                                (#t (list (list 'engine-layout (%assoc-get 'layout m)))))
+                              (match
+                                ((null? (%assoc-get 'payload m)) ())
+                                (#t (list (list 'payload (%assoc-get 'payload m))))))
                             (list (list 'boot file (Pin %pin-digest bootpath))))))
                       (File unlink rel))))
                 bootpath))))))

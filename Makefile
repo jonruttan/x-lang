@@ -673,6 +673,18 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	# needs a STRING compare against a release manifest, not a digester.
 	install -d -m 0755 $(DESTDIR)$(LIBDIR)/contract
 	@sh -c 'if command -v shasum >/dev/null 2>&1; then shasum -a 256 ext/x-engine-c/tools/contract/isa.x | cut -d" " -f1; 		else sha256sum ext/x-engine-c/tools/contract/isa.x | cut -d" " -f1; fi' 		> $(DESTDIR)$(LIBDIR)/contract/isa.sha256
+	# The LAYOUT fingerprint, and it is the one that matters for pairing.  The isa
+	# digest above is the C SURFACE -- byte-identical across rc10, v0.4.0 and
+	# v0.5.0, which is how a mismatched amalgam once passed the guard and
+	# segfaulted (#435).  An amalgam binds against the LAYOUT: it walks object
+	# header words through reflect.x, and a layout that moved is a crash in field
+	# access rather than a diagnosable error.  All three descriptors digest as ONE
+	# unit because an amalgam binds against all three or none -- the same
+	# concatenation tools/release/release-manifest.sh and the x-engine.xon
+	# generator use, so all three producers agree by construction.
+	@cat $(ENGINE_DIR)/tools/contract/obj-layout.x $(ENGINE_DIR)/tools/contract/base-paths.x $(ENGINE_DIR)/tools/contract/base-layout.x > $(DESTDIR)$(LIBDIR)/contract/layout.cat
+	@sh -c 'if command -v shasum >/dev/null 2>&1; then shasum -a 256 $(DESTDIR)$(LIBDIR)/contract/layout.cat | cut -d" " -f1; else sha256sum $(DESTDIR)$(LIBDIR)/contract/layout.cat | cut -d" " -f1; fi' > $(DESTDIR)$(LIBDIR)/contract/layout.sha256
+	@rm -f $(DESTDIR)$(LIBDIR)/contract/layout.cat
 	cp -R lib $(DESTDIR)$(LIBDIR)/lib
 	cp -R apps $(DESTDIR)$(LIBDIR)/apps
 	cp -R build/boot $(DESTDIR)$(LIBDIR)/boot

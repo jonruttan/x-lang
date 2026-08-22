@@ -119,14 +119,16 @@ pin_arm() {
 # `x`: installed, the wrapper takes the bin/x name, and $SCRIPT_PATH/x re-ran
 # this script forever.  A named engine cannot collide with the wrapper, but the
 # order stays.
+# VALIDATION IS DEFERRED to just before the engine is invoked, not done here.
+# The pin guards refuse a mismatched pair BEFORE any engine boots -- that is the
+# whole point of them -- and tools/check/pin-smoke.sh exercises those refusals in
+# a fake install tree with no engine in it at all.  Reporting a missing engine
+# during discovery preempted the refusal, turning an informative "this amalgam
+# was built for a different engine" into "no engine found".  The more specific
+# diagnosis wins.
+_x_explicit=""
 if [ -n "${X_BIN:-}" ]; then
-	# An explicit engine that is not there is a mistake worth naming, not a
-	# reason to quietly run a different one: a silent fallback here is the
-	# shape the pinning guards exist to prevent.
-	if [ ! -x "$X_BIN" ]; then
-		echo "Error: X_BIN names no executable engine: $X_BIN" >&2
-		exit 1
-	fi
+	_x_explicit=1
 else
 	_edir="$SCRIPT_PATH/../${X_ENGINE_DIR}"
 	_ename="$X_ENGINE"
@@ -139,22 +141,35 @@ else
 		_edeclared="$X_BIN"
 		X_BIN="$SCRIPT_PATH/$X_ENGINE"
 	fi
-	# Name what was actually looked for.  Without this the failure surfaced as
-	# `x-bin: No such file or directory` naming the FALLBACK path -- so a tree
-	# whose declared engine was missing sent the reader hunting for a file that
-	# was never supposed to be there.
-	if [ ! -e "$X_BIN" ]; then
+fi
+
+# THE ENGINE MUST EXIST -- checked at each point of use, not at discovery, so the
+# pin guards keep their first refusal.  Those guards deliberately run BEFORE any
+# engine boots, and tools/check/pin-smoke.sh exercises them in a fake install tree
+# with no engine in it at all: validating during discovery turned an informative
+# "this amalgam was built for a different engine" into "no engine found".
+#
+# There are two points of use -- the -V handler and the final invocation -- so
+# this is a function rather than a line.  The message names what was actually
+# looked for: before it, a missing engine surfaced as `x-bin: No such file or
+# directory` naming the FALLBACK path, sending the reader after a file that was
+# never supposed to be there.
+require_engine() {
+	[ -x "$X_BIN" ] && return 0
+	if [ -n "$_x_explicit" ]; then
+		echo "Error: X_BIN names no executable engine: $X_BIN" >&2
+	else
 		echo "Error: no engine found" >&2
 		if [ -n "${_edeclared:-}" ]; then
-			echo "  $_edir/x-engine.xon declares its binary as '$_ename', which is not at:" >&2
+			echo "  ${_edir}/x-engine.xon declares its binary as '$_ename', which is not at:" >&2
 			echo "    $_edeclared" >&2
 		fi
 		echo "  and no '$X_ENGINE' beside the wrapper at:" >&2
 		echo "    $SCRIPT_PATH/$X_ENGINE" >&2
-		echo "  set X_BIN to an engine, or reinstall" >&2
-		exit 1
 	fi
-fi
+	echo "  set X_BIN to an engine, or reinstall" >&2
+	exit 1
+}
 
 # Every value that reaches $CMD below is re-parsed by the shell (it is
 # assembled as text and run through `eval`), so a value carrying a quote,
@@ -268,6 +283,7 @@ do
 			# only one of the three that distinguishes two releases whose
 			# C never changed (#435), and the key the pairing guard below
 			# compares.
+			require_engine
 			{ root_form; cat "${ENTRY_DIR}${X_LIB}${X_EXT}"; \
 				printf '(display %%lang-name)(display " ")(display x-lib-version)(display " (release ")(display x-release)(display ", engine ")(display x-version)(display ")")(newline)\n'; } \
 				| "$X_BIN" "--batch"
@@ -448,6 +464,34 @@ if [ -n "$boot_file" ]; then
 	if [ -z "$_rel" ] || [ ! -f "$_rel" ]; then
 		_rel="$(dirname "$ENTRY")/pin.release.xon"
 	fi
+	# THE LAYOUT KEY (the arc's phase 5).  The isa comparison below is a
+	# compatibility hint and a poor one: isa.x is the C SURFACE, byte-identical
+	# across v0.3.1-rc10, v0.4.0 and v0.5.0, so it passed a mismatched amalgam
+	# onto a drifted engine and the boot died in field access (#435).  It is also
+	# too STRICT in the other direction -- a different engine with the same
+	# capabilities has a different digest and would be refused, which is exactly
+	# backwards once more than one engine exists.
+	#
+	# What an amalgam actually binds against is the LAYOUT: lib/x/boot/reflect.x
+	# reads object header words at committed offsets, so a layout that moved is a
+	# segfault, not a diagnosable error.  That makes it an EQUALITY key, unlike
+	# capabilities, which compare by superset and are checked post-boot where set
+	# algebra is possible.  Compared here as recorded strings, before the amalgam
+	# reaches the engine -- the only place a refusal can still be one.
+	_mine_lay="$INSTALL_ROOT/contract/layout.sha256"
+	if [ -n "$INSTALL_ROOT" ] && [ -f "$_rel" ] && [ -f "$_mine_lay" ]; then
+		_wantl=$(sed -n 's/^[[:space:]]*(engine-layout "sha256:\([0-9a-f]*\)").*/\1/p' "$_rel" | head -1)
+		_havel=$(cat "$_mine_lay")
+		if [ -n "$_wantl" ] && [ "$_wantl" != "$_havel" ]; then
+			echo "Error: pinned boot amalgam was built against a different object layout" >&2
+			echo "  amalgam: $ENTRY" >&2
+			echo "  its engine's layout fingerprint: $_wantl" >&2
+			echo "  this engine's:                   $_havel" >&2
+			echo "  the amalgam walks object header words at committed offsets; a" >&2
+			echo "  layout that moved is a crash in field access, not an error." >&2
+			exit 1
+		fi
+	fi
 	_mine="$INSTALL_ROOT/contract/isa.sha256"
 	_mine_rel="$INSTALL_ROOT/contract/release"
 	if [ -n "$INSTALL_ROOT" ] && [ ! -f "$_rel" ]; then
@@ -593,6 +637,8 @@ CMD="{ root_form; pin_form; cat $(shquote "$ENTRY"); pin_arm; ${TAIL}} | $(shquo
 if [ "$verbose" ]; then
 	echo "$CMD"
 fi
+
+require_engine
 
 if [ -n "$PIN_FILE" ]; then
 	echo "pinned: $PIN_FILE" >&2
