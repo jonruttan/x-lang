@@ -227,6 +227,9 @@
     ; (#371 -- this decode was the codec's want-evidence). Pads carry the
     ; layout to each field: Darwin mode u16@4 / mtime i64@48 / size i64@96
     ; (the stat64 layout); Linux mode u32@24 / size i64@48 / mtime i64@88.
+    ; Both specs are 64-bit layouts and nothing branches on the width, so a
+    ; 32-bit build decodes neighbouring fields.
+    ; constraint: word-size = 8 -- stat/stat64 field offsets are 64-bit
     (method %stat-decode (self (param buf STRING "A stat buffer a syscall filled"))
       (doc "Decode a stat64/stat buffer into the public metadata alist."
         (returns ALIST "((size . N) (mode . M) (kind . K) (mtime . T))"))

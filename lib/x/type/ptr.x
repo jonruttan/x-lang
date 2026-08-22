@@ -37,6 +37,12 @@
       (doc "Copy the NUL-terminated C string at P into a fresh x-lang string."
         (returns STRING "A new string (survives the C buffer)"))
       ((prim-ref (lit ptr) (lit ->str)) p))
+    ; The engine reads this as a memcpy of `width` bytes into the low end of a
+    ; zeroed machine int (x_prim_ptr_ref, src/x-prim/ffi.c).  On a big-endian
+    ; host those bytes land in the HIGH end and any width below the full word
+    ; reads wrong -- which is what "little-endian" in the doc below means.
+    ; ref-word is exempt: a full-width copy has no byte-order question.
+    ; constraint: endian = little -- widening (ptr ref) is a low-end memcpy
     (method ref (self (param p PTR "Base pointer") (param off INT "Byte offset")
                       (param width INT "Read width in bytes (1,2,4,8)"))
       (doc "Read a WIDTH-byte little-endian value at P+OFF."

@@ -183,6 +183,10 @@
       ; struct addrinfo, 64-bit: ai_family i32@4 and ai_next*@40 agree
       ; across the OSes; Darwin and glibc SWAP the middle pointers --
       ; ai_addr rides @32 on Darwin (canonname @24) and @24 on Linux.
+      ; The pointer members move with the word, and the 4-byte ai_family
+      ; read below is a widening (ptr ref) -- host byte order.
+      ; constraint: word-size = 8 -- struct addrinfo pointer offsets
+      ; constraint: endian = little -- widening (ptr ref) of ai_family
       (def addr-off (if os-darwin? 32 24))
       (def rescell-region (%make-str 8))
       (def rescell (%str->ptr rescell-region))

@@ -138,6 +138,7 @@
 (file "tools/check/doc-forms.x" 5)
 (file "tools/check/doctest.x" 11)
 (file "tools/contract/bare-globals.x" 1)
+(file "tools/contract/constraints.x" 1)
 (file "tools/dev/bench-sha256.x" 75)
 (file "tools/dev/cov-report.x" 5)
 (file "tools/dev/cov.x" 32)

@@ -172,7 +172,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-dialect-cover check-highlight-roundtrip ## Run the contract gates
+gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-dialect-cover check-highlight-roundtrip ## Run the contract gates
 .PHONY: gates
 
 # The local-latency split (2026-08-03 audit): `make test` grew past ten
@@ -183,7 +183,7 @@ gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boo
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-dialect-cover ## The fast contract gates (pre-push subset)
+gates-fast: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-dialect-cover ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast test-c test-x ## Pre-push gate: fast gates + both spec suites (CI runs full `make test`)
@@ -335,6 +335,17 @@ check-bare-globals: ## Diff the runtime library's bare top-level defs against to
 check-percent-globals: ## Diff every lib file's %-global count against its shrinking budget
 	sh tools/check/percent-globals.sh
 .PHONY: check-percent-globals
+
+# The platform-parameter ratchet: a module that only works at one word size or
+# byte order declares it at the code AND in tools/contract/constraints.x, and the
+# two must agree in both directions.  A parameter is NOT a capability -- a global
+# `word-size = 8` requirement would lock out the 32-bit Pi and would be false
+# besides, since obj-layout.x is in words and data.x probes the width at boot.
+# The syscall/FFI layer is the part that genuinely binds, and it used to say so
+# only in prose.
+check-constraints: ## Diff source constraint markers against tools/contract/constraints.x
+	sh tools/check/constraints.sh
+.PHONY: check-constraints
 
 # The dialect coverage ratchet (#70): every lib/*.x entry point needs an
 # end-to-end smoke group, so a new dialect cannot ship untested the way the

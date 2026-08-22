@@ -279,6 +279,10 @@
     ; libc gettimeofday into a GC-owned 16-byte buffer; the timeval decode
     ; is OS-shared: tv_sec is an i64 at 0 on both; tv_usec at 8 fits a u32
     ; read on both (Darwin's field IS 32-bit; Linux's is an i64 < 1e6).
+    ; That is the 64-bit timeval; a 32-bit one puts tv_usec at 4, and the
+    ; 4-byte usec read is a widening (ptr ref) -- host byte order.
+    ; constraint: word-size = 8 -- struct timeval field offsets are 64-bit
+    ; constraint: endian = little -- widening (ptr ref) of tv_usec
     (method time-of-day (self)
       (doc "Wall-clock time from gettimeofday: (unix-seconds . microseconds)."
         (returns PAIR "(seconds . microseconds)")
