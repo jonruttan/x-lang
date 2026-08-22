@@ -94,7 +94,7 @@ See [`apps/logo/README.md`](apps/logo/README.md) for the command reference.
 
 The system is layered. Each layer expands capabilities without modifying those below it.
 
-1. **Atom/pair bootstrap** ([x-expr](ext/x-expr/)) — One storage shape, two blessed lengths: every object is a fixed-size vector of slots, and the two smallest — the atom (one) and the pair (two) — are sufficient for evaluation and data construction. The evaluator dispatches through type methods, so these two suffice to get the system running.
+1. **Atom/pair bootstrap** ([x-expr](ext/x-bin-c/ext/x-expr/)) — One storage shape, two blessed lengths: every object is a fixed-size vector of slots, and the two smallest — the atom (one) and the pair (two) — are sufficient for evaluation and data construction. The evaluator dispatches through type methods, so these two suffice to get the system running.
 2. **Adaptive type system** — Runtime type definitions with dispatch methods (call, eval, write, length, etc.). Types and the base object share the same nested-list contract structure, extensible by appending pairs.
 3. **Modular library** (`lib/`) — ~100 modules organized by domain: core operations, custom types (vectors, strings, promises), a numeric tower (bigint, float, rational, complex), system interfaces (POSIX, FFI, GC), self-hosted tools (linter, formatter, coverage, profiler, doc generator), and platform-specific code (x86_64, ARM64).
 4. **FFI and native code** — Dynamic library loading via `dlopen`/`dlsym`, typed foreign calls, raw pointer operations, and a JIT compiler that compiles x-lang functions to native machine code via a data-driven assembler.
@@ -125,15 +125,19 @@ Add `--install` to install (`… | sh -s -- --install`); the script prints
 how to run and how to install either way. Knobs: `X_REF` (branch/tag),
 `X_PREFIX`, `X_SRC` — see the header of [bootstrap.sh](bootstrap.sh).
 
-**By hand.** The expression engine (`ext/x-expr`) and the C test runner
+**By hand.** The engine (`ext/x-bin-c`), the expression engine it embeds
+(`ext/x-bin-c/ext/x-expr`) and the C test runner
 are git submodules — clone recursively, or fetch them into an existing
 clone:
 
 ```sh
 git clone --recursive https://github.com/jonruttan/x-lang.git
 # or, in an existing clone:
-git submodule update --init
+git submodule update --init --recursive
 ```
+
+`--recursive` is required, not merely convenient: the engine lives one level
+down, and x-expr one level below that.
 
 Then:
 
@@ -141,9 +145,11 @@ Then:
 make clean && make
 ```
 
-Requires a C89-compatible compiler. Produces the `x-bin` engine binary.
+Requires a C89-compatible compiler. `make` builds the engine inside
+`ext/x-bin-c` and copies the `x-bin` binary to this repo's root, where the
+wrapper and every test runner expect to find it.
 
-The expression engine (`ext/x-expr`) needs nothing beyond `libc`; the full
+The expression engine (`ext/x-bin-c/ext/x-expr`) needs nothing beyond `libc`; the full
 binary adds `-ldl` for the FFI/JIT layer. There is no `-lm` — float math
 resolves `libm` at runtime through the FFI, the same way it resolves any
 other library. One optional tool needs more: `x/tool/compile` — the

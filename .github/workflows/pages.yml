@@ -61,7 +61,8 @@ jobs:
         run: make
 
       # doc-x sweeps lib/x/** into 113 markdown pages plus an index;
-      # doc-c runs Doxygen over the C engine into docs/ref/c/html.
+      # doc-c delegates to the engine submodule, which runs Doxygen over
+      # its own sources into ext/x-bin-c/docs/ref/c/html.
       # The sweep is chunked and SEQUENTIAL by design (see
       # tools/dev/doc-sweep.sh) -- a 25-file chunk peaks near 1.7GB, so
       # it gets the runner to itself rather than sharing with a build.
@@ -177,16 +178,15 @@ jobs:
             # render as its own page.  They are a test suite, not
             # documentation; docs/spec.md is the readable form.
             - tests/
-            # Copied in verbatim AFTER the build (see below).
+            # Copied in verbatim AFTER the build (see below).  Generated
+            # in the engine submodule since the split; published here.
             - docs/ref/c/
-            # Doxygen's main page SOURCE: it is INPUT to that generator and
-            # is published inside the C reference, so Jekyll rendering it
-            # again would put a second copy beside the first.
-            - docs/ref/c-main.md
-            # Machinery, not documentation.
+            # Machinery, not documentation.  (The Doxyfile and the C
+            # reference's main page moved to the engine submodule, whose
+            # contents git ls-files does not enumerate anyway.)
             - .github/
             - Makefile
-            - Doxyfile
+            - ext/
             # Personal working notes from 2021, carrying the author's
             # address in their headers.  Nothing links to them and they
             # do not describe the system as it is; they stay in the repo
@@ -235,7 +235,11 @@ jobs:
           mkdir -p build/_site
           cp -R build/jekyll/. build/_site/
           mkdir -p build/_site/docs/ref/c
-          cp -R docs/ref/c/html build/_site/docs/ref/c/
+          # The C reference generates INSIDE the engine submodule (Doxygen
+          # runs with its Doxyfile, over its sources), but it publishes at
+          # the same site path it always has -- docs/ref/c/ -- so every
+          # link into the C reference survives the repo split.
+          cp -R ext/x-bin-c/docs/ref/c/html build/_site/docs/ref/c/
 
       - uses: actions/upload-pages-artifact@v5
         with:

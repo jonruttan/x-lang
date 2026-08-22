@@ -1,7 +1,8 @@
 #!/bin/sh
 # tools/check/obj-layout.sh -- source half of the object-layout contract.
 #
-# Parses the layout constants out of ext/x-expr/include/x-obj.h (units per
+# Parses the layout constants out of the engine submodule's x-expr header
+# (ext/x-bin-c/ext/x-expr/include/x-obj.h) (units per
 # header slot, the flags-word bits) and diffs them against the committed
 # descriptor tools/contract/obj-layout.x, so an x-expr bump that moves the object
 # layout fails `make check-obj-layout` before anything runs.  The runtime
@@ -17,9 +18,13 @@
 # Exit 0 when header and descriptor agree; exit 1 with a diff otherwise.
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# The C lives in the x-bin-c submodule (the 2026-08-21 split).  This gate's
+# SUBJECT moved; its manifest did not -- tools/contract/ holds runtime boot
+# data the library includes, so it stays here and the scan reaches across.
+ENGINE="$ROOT/ext/x-bin-c"
 . "$ROOT/tools/lib/contract-diff.sh"
 contract_diff_setup obj-layout
-HDR="$ROOT/ext/x-expr/include/x-obj.h"
+HDR="$ENGINE/ext/x-expr/include/x-obj.h"
 
 # --- 1. the header's view ----------------------------------------------------
 awk '

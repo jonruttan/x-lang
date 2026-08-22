@@ -14,6 +14,10 @@
 # Usage: sh tools/check/isa.sh
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# The C lives in the x-bin-c submodule (the 2026-08-21 split).  This gate's
+# SUBJECT moved; its manifest did not -- tools/contract/ holds runtime boot
+# data the library includes, so it stays here and the scan reaches across.
+ENGINE="$ROOT/ext/x-bin-c"
 . "$ROOT/tools/lib/contract-diff.sh"
 contract_diff_setup isa-scan
 
@@ -21,8 +25,8 @@ contract_diff_setup isa-scan
 # The scanner is tools/lib/isa-scan.awk -- shared with check/prim-doc.sh, which
 # joins the same records to docs/primitives.md.  #t/#f are bound from interned
 # singletons rather than name literals, so they are seeded explicitly below.
-awk -f "$ROOT/tools/lib/isa-scan.awk" "$ROOT"/src/*.c "$ROOT"/src/x-prim/*.c "$ROOT"/src/x-syntax/*.c \
-   "$ROOT"/opt/x-prim/*.c > "$SRC_LIST" || exit 1
+awk -f "$ROOT/tools/lib/isa-scan.awk" "$ENGINE"/src/*.c "$ENGINE"/src/x-prim/*.c "$ENGINE"/src/x-syntax/*.c \
+   "$ENGINE"/opt/x-prim/*.c > "$SRC_LIST" || exit 1
 printf 'value #t\nvalue #f\n' >> "$SRC_LIST"
 
 # --- 2. the manifest's view -------------------------------------------------

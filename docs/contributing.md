@@ -5,8 +5,9 @@
 - A C89-compatible compiler (gcc, clang, tcc, c89, c99)
 - POSIX shell (`sh`) for test runners
 - Make
-- The git submodules (`ext/x-expr` — the expression engine the build
-  requires — and `tests/c/test-runner`): clone with `--recursive`, or run
+- The git submodules: `ext/x-bin-c` (the C engine, which the build
+  requires), and nested inside it `ext/x-expr` (the expression engine) and
+  `tests/c/test-runner`. Clone with `--recursive`, or run
   `git submodule update --init` in an existing clone
 
 ```sh
@@ -41,7 +42,7 @@ make clean && make
   restore the chain head. If the trigger policy ever changes
   (allocation-threshold collects), the window widens to every allocating
   call — revisit every exemption. Unit spec:
-  `ext/x-expr/tests/src/5.1.x-heap.root-chain.spec.c`. To diagnose a
+  `ext/x-bin-c/ext/x-expr/tests/src/5.1.x-heap.root-chain.spec.c`. To diagnose a
   suspected missing root, build a *reporting* checker (an inverted
   scan run after the precise mark, naming any chain object the root chain
   missed) — never re-arm a conservative scan, which hides the bug instead

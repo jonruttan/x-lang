@@ -1,6 +1,3 @@
-[submodule "specs/c/test-runner"]
-	path = tests/c/test-runner
-	url = https://github.com/jonruttan/test-runner.git
-[submodule "ext/x-expr"]
-	path = ext/x-expr
-	url = https://github.com/jonruttan/x-expr.git
+[submodule "ext/x-bin-c"]
+	path = ext/x-bin-c
+	url = /private/tmp/claude-501/-Users-jon-Workspace-x/084cf833-b9bd-4a1a-87a8-31eaf4e0c870/scratchpad/x-bin-c

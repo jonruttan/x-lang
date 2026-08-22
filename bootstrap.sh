@@ -54,9 +54,11 @@ have() { command -v "$1" >/dev/null 2>&1; }
 
 # A checkout is identifiable by the wrapper + the Makefile + the engine
 # submodule directory together -- not one of them alone (a stray Makefile
-# in some cwd must not read as "already here").
+# in some cwd must not read as "already here").  The engine submodule is
+# ext/x-bin-c since the 2026-08-21 split; it used to be ext/x-expr, which
+# now hangs one level further down, inside the engine.
 in_checkout() {
-	[ -f Makefile ] && [ -f x.sh ] && [ -d ext/x-expr ]
+	[ -f Makefile ] && [ -f x.sh ] && [ -d ext/x-bin-c ]
 }
 
 # --- Preflight: a C compiler and make are always needed; git only to clone.

@@ -435,7 +435,7 @@ x_eval_field_tco_expr(X)       /* TCO expression register     */
 x_eval_field_tco_env(X)        /* TCO environment register    */
 ```
 
-(The x-expr skeleton's accessors are `x_base_field_*`; the eval layer's are `x_eval_field_*` in `include/x-eval-layout.h`.)
+(The x-expr skeleton's accessors are `x_base_field_*`; the eval layer's are `x_eval_field_*` in `ext/x-bin-c/include/x-eval-layout.h`.)
 
 #### Properties
 

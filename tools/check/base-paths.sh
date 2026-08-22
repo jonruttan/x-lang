@@ -20,6 +20,10 @@
 #         sh tools/check/base-paths.sh --gen    # print descriptor entries
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# The C lives in the x-bin-c submodule (the 2026-08-21 split).  This gate's
+# SUBJECT moved; its manifest did not -- tools/contract/ holds runtime boot
+# data the library includes, so it stays here and the scan reaches across.
+ENGINE="$ROOT/ext/x-bin-c"
 . "$ROOT/tools/lib/contract-diff.sh"
 contract_diff_setup base-paths
 
@@ -120,10 +124,10 @@ END {
 			(p == "" ? "" : " "), p
 	}
 	if (bad) exit 1
-}' "$ROOT/include/x-eval-layout.h" \
-   "$ROOT/ext/x-expr/include/x-base.h" \
-   "$ROOT/include/x-eval.h" \
-   "$ROOT/include/x-type.h"
+}' "$ENGINE/include/x-eval-layout.h" \
+   "$ENGINE/ext/x-expr/include/x-base.h" \
+   "$ENGINE/include/x-eval.h" \
+   "$ENGINE/include/x-type.h"
 }
 
 # extract runs outside a pipeline so an unparseable-macro failure (exit 1)

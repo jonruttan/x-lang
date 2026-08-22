@@ -15,7 +15,7 @@ Each layer expands capabilities without modifying those below it.
 
 **Layer 3: Modular Library.** 100+ modules (one module = one `provide`-ing `.x` source file) organized by domain: core operations (`lib/x/core/`), custom types (`lib/x/type/`), a numeric tower (`lib/x/num/`), system interfaces (`lib/x/sys/`), self-hosted tools (`lib/x/tool/`), documentation (`lib/x/doc/`), and platform-specific code (`lib/x/platform/`). The bootstrap sequence in `lib/x-core.x` pre-registers all boot module names and loads 40+ core modules via `provide`/`import` with name-keyed deduplication. This layer is composed into dialects (helium, xenon, radon) that control which capabilities are available.
 
-**Layer 4: FFI and Native Code.** Dynamic library loading via `dlopen`/`dlsym` (`src/x-prim/ffi.c`), typed foreign calls with convention strings, raw pointer operations, and a JIT compiler (`lib/x/tool/compile.x`, `lib/x/tool/asm.x`) that compiles x-lang functions to native x86_64/ARM64 machine code via a data-driven assembler with mmap execution. POSIX system calls (fork, exec, pipe, dup2, wait, open, close, etc.) are wrapped as x-lang functions through the FFI in `lib/x/sys/posix.x`.
+**Layer 4: FFI and Native Code.** Dynamic library loading via `dlopen`/`dlsym` (`ext/x-bin-c/src/x-prim/ffi.c`), typed foreign calls with convention strings, raw pointer operations, and a JIT compiler (`lib/x/tool/compile.x`, `lib/x/tool/asm.x`) that compiles x-lang functions to native x86_64/ARM64 machine code via a data-driven assembler with mmap execution. POSIX system calls (fork, exec, pipe, dup2, wait, open, close, etc.) are wrapped as x-lang functions through the FFI in `lib/x/sys/posix.x`.
 
 ### The Base Object
 
@@ -32,7 +32,7 @@ base = x_base(p_base)
            mark-hooks, free-hooks, mark-roots, sigint
 ```
 
-Field access is via nested `first`/`rest` traversal, expressed with the `x_<binary>` accessor family (`x_0` = first, `x_1` = rest, read left-to-right outer-to-inner). For example `x_eval_field_env_alist(X)` resolves to `first(first(first(base)))`. The authoritative layout, including which leaves are field cells versus direct values, is `tools/contract/base-layout.x` (mirrored by `include/x-eval-layout.h` and pinned by `make check-base-paths`).
+Field access is via nested `first`/`rest` traversal, expressed with the `x_<binary>` accessor family (`x_0` = first, `x_1` = rest, read left-to-right outer-to-inner). For example `x_eval_field_env_alist(X)` resolves to `first(first(first(base)))`. The authoritative layout, including which leaves are field cells versus direct values, is `tools/contract/base-layout.x` (mirrored by `ext/x-bin-c/include/x-eval-layout.h`, generated there from `ext/x-bin-c/tools/contract/base-layout.x`, and pinned by `make check-base-paths`).
 
 #### Nil
 
