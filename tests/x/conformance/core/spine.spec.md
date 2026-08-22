@@ -133,7 +133,31 @@ here is unbound in there, so the expression raises and `guard` catches it.
 ---
     *** ERROR: ok
 
-## %seq, %cc-invoke, base/bind, base/make-tok and base/make-type -- not defined here
+### a name can be bound INTO a base, and stays there
+
+covers: base/bind
+
+The capability-handing door of the sandbox (`docs/sandboxing-tutorial.md`): a host
+decides what a child base can see by binding it, one name at a time. The second
+half is what makes it a capability model rather than a naming convenience -- a
+name bound into one base is unbound in another, so a base gets exactly what it was
+given.
+
+```scheme
+(def %mkb (%coord (lit base) (lit make)))
+(def %bind (%coord (lit base) (lit bind)))
+(def %beval (%coord (lit base) (lit eval)))
+(def b1 (%mkb))
+(def b2 (%mkb))
+(%bind b1 (lit answer) 42)
+(%ok (match ((= (%beval b1 (lit answer)) 42)
+              (guard (_ 1) (%seq (%beval b2 (lit answer)) ())))
+             (#t ())))
+```
+---
+    *** ERROR: ok
+
+## %seq, %cc-invoke, base/make-tok and base/make-type -- not defined here
 
 `%seq` does not return a value the way a call does: it PRODUCES A TCO
 CONTINUATION for the evaluator to resolve in tail position (see
@@ -147,14 +171,6 @@ covered by the library's own suite.
 `%cc-invoke` is the continuation-application half of `call/cc`, reachable only
 with a continuation in hand; the observable behaviour is `call/cc`'s, which
 `core/evaluation.spec.md` and `core/catalog-ops.spec.md` both define.
-
-`base/bind` is the binder itself, and the ISA notes why it survives the reflective
-test: it allocates a STRUCTURAL spair for the environment spine, which x-lang's own
-`pair` cannot make. Every obvious call shape crashed the engine outright, which is
-consistent with an instruction whose arguments are the spine's internal shape
-rather than ordinary values. What is observable from x-lang is `def` and `set!`,
-which `core/evaluation.spec.md` defines; pinning the raw binder would freeze one
-engine's spine layout as the contract, which is what decision L1 exists to avoid.
 
 `base/make-tok` and `base/make-type` construct tokenizer and type objects whose
 contracts are the reader's and the type registry's, not the spine's. They belong

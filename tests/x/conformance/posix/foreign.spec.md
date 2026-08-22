@@ -106,24 +106,68 @@ skips is a case that proves nothing.
 ---
     *** ERROR: ok
 
-## ffi/call, sigint-install and sigint-restore -- not defined here
+### the signature-driven call carries doubles as bit patterns
 
-(`syscall` was here until the engine began declaring its platform; see the case
-above. The old objection was real -- a case must not pin the harness's guess --
-and it was answered by giving the engine somewhere to state the fact.)
+covers: ffi/call
 
-One thing learned the hard way and worth keeping: an INVALID number is not a
-substitute for a failing call. `(syscall 999999)` kills the process outright
-rather than returning `-errno`, so the failure path is not observable that way.
-The case above uses a real number and a closed descriptor.
+`ptr/call` cannot express a double: the engine's fixnum is an integer and there is
+no float type at this level -- floats are x-lang (`lib/x/num/float.x`). `ffi/call`
+is the door for conventions that need one, and it solves the representation
+problem by passing the IEEE-754 BITS through an integer in both directions.
 
-`ffi/call` is the SIGNATURE-driven variant of `ptr/call`, used where an argument
-or return needs a type the pointer call cannot infer (floats, in
-`lib/x/num/float.x`). Its contract is the signature language's, and pinning it
-here would freeze a notation the library still owns; `ptr/call` above covers the
-door itself.
+That is what makes it testable bare: both sides are plain integers here, and the
+values below are the bit patterns of 4.0, 2.0, 3.0 and 9.0. The convention set is
+small and closed -- `d->d`, `dd->d` and the arithmetic forms -- rather than a
+general signature language, so an engine has to match the spellings exactly.
 
-`sigint-install` and `sigint-restore` mutate PROCESS-GLOBAL signal state. A case
-that failed between install and restore would leave the harness's own process
-altered, and every later case in the same run would inherit it. They are exercised
-by the REPL's interactive tests, under a booted engine that can put them back.
+```scheme
+(def %dlopen (%coord (lit ffi) (lit dlopen)))
+(def %dlsym (%coord (lit ffi) (lit dlsym)))
+(def %fcall (%coord (lit ffi) (lit call)))
+(def lib (%dlopen () 1))
+(%ok (match ((= (%fcall "d->d" (%dlsym lib "sqrt") 4616189618054758400) 4611686018427387904)
+              (= (%fcall "dd->d" (%dlsym lib "pow") 4613937818241073152 4611686018427387904)
+                 4621256167635550208))
+             (#t ())))
+```
+---
+    *** ERROR: ok
+
+### an installed interrupt handler sets a flag instead of killing the process
+
+covers: sigint-install sigint-restore
+
+The engine's part of ctrl-c. With the default disposition `SIGINT` terminates the
+process; with a handler installed it sets `%sigint-flag`, which the evaluator
+polls and the REPL turns into a cancelled expression (`lib/x/repl/loop.x`).
+
+The case raises the signal at itself through libc `raise`, which is the only way
+to observe the difference, and that is safe here for a reason worth stating: this
+runner gives each case ITS OWN engine process, so signal disposition cannot leak
+into another case. A broken `install` does not corrupt the run -- it kills that one
+process, which the runner reports as a crash rather than as a wrong answer.
+
+An earlier version of this file exempted the pair on the grounds that a failure
+"would leave the harness's own process altered, and every later case in the same
+run would inherit it". That was simply wrong about the harness.
+
+`restore` runs before the assertion, so the process ends as it began.
+
+```scheme
+(include "tools/contract/obj-layout.x")
+(def %o2p (%coord (lit obj) (lit ->ptr)))
+(def %refw (%coord (lit ptr) (lit ref-word)))
+(def %doff (* %param-word-size %obj-meta-len))
+(def %dlopen (%coord (lit ffi) (lit dlopen)))
+(def %dlsym (%coord (lit ffi) (lit dlsym)))
+(def %pcall (%coord (lit ptr) (lit call)))
+(def lib (%dlopen () 1))
+(def before (%refw (%o2p %sigint-flag) %doff))
+(sigint-install)
+(%pcall (%dlsym lib "raise") 2)
+(def after (%refw (%o2p %sigint-flag) %doff))
+(sigint-restore)
+(%ok (match ((= before 0) (match ((= after 0) ()) (#t 1))) (#t ())))
+```
+---
+    *** ERROR: ok
