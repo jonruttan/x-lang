@@ -133,9 +133,41 @@ general signature language, so an engine has to match the spellings exactly.
 ---
     *** ERROR: ok
 
-## syscall, sigint-install and sigint-restore -- not defined here
+### an installed interrupt handler sets a flag instead of killing the process
 
-`sigint-install` and `sigint-restore` mutate PROCESS-GLOBAL signal state. A case
-that failed between install and restore would leave the harness's own process
-altered, and every later case in the same run would inherit it. They are exercised
-by the REPL's interactive tests, under a booted engine that can put them back.
+covers: sigint-install sigint-restore
+
+The engine's part of ctrl-c. With the default disposition `SIGINT` terminates the
+process; with a handler installed it sets `%sigint-flag`, which the evaluator
+polls and the REPL turns into a cancelled expression (`lib/x/repl/loop.x`).
+
+The case raises the signal at itself through libc `raise`, which is the only way
+to observe the difference, and that is safe here for a reason worth stating: this
+runner gives each case ITS OWN engine process, so signal disposition cannot leak
+into another case. A broken `install` does not corrupt the run -- it kills that one
+process, which the runner reports as a crash rather than as a wrong answer.
+
+An earlier version of this file exempted the pair on the grounds that a failure
+"would leave the harness's own process altered, and every later case in the same
+run would inherit it". That was simply wrong about the harness.
+
+`restore` runs before the assertion, so the process ends as it began.
+
+```scheme
+(include "tools/contract/obj-layout.x")
+(def %o2p (%coord (lit obj) (lit ->ptr)))
+(def %refw (%coord (lit ptr) (lit ref-word)))
+(def %doff (* %param-word-size %obj-meta-len))
+(def %dlopen (%coord (lit ffi) (lit dlopen)))
+(def %dlsym (%coord (lit ffi) (lit dlsym)))
+(def %pcall (%coord (lit ptr) (lit call)))
+(def lib (%dlopen () 1))
+(def before (%refw (%o2p %sigint-flag) %doff))
+(sigint-install)
+(%pcall (%dlsym lib "raise") 2)
+(def after (%refw (%o2p %sigint-flag) %doff))
+(sigint-restore)
+(%ok (match ((= before 0) (match ((= after 0) ()) (#t 1))) (#t ())))
+```
+---
+    *** ERROR: ok
