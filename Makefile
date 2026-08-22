@@ -650,6 +650,16 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	# engine while the repo build (which already used -x, line ~158) was
 	# clean (x-lang#201).  Release tarballs come from this same target.
 	strip -x $(DESTDIR)$(LIBEXECDIR)/$(EXECUTABLE)
+	# The engine's DECLARATION travels with the engine, beside it in libexec.
+	# x.sh reads its (binary "...") row to learn what to run, so an engine that
+	# does not build something called x-bin still installs and starts; and an
+	# installed tree can be asked what it provides without a source checkout,
+	# which is the same reason the ISA fingerprint has been installed since #186.
+	@if [ -f $(ENGINE_DIR)/x-engine.xon ]; then \
+		install $C -m 0644 $(ENGINE_DIR)/x-engine.xon $(DESTDIR)$(LIBEXECDIR)/x-engine.xon; \
+	else \
+		echo "install: WARNING -- $(ENGINE_DIR)/x-engine.xon is missing; the installed tree cannot say what its engine provides" >&2; \
+	fi
 	@if [ -f $(ENGINE_DIR)/entitlements.plist ]; then codesign -s - --entitlements $(ENGINE_DIR)/entitlements.plist -f $(DESTDIR)$(LIBEXECDIR)/$(EXECUTABLE) 2>/dev/null || true; fi
 	install $C -m 0755 $(NAME).sh $(DESTDIR)$(BINDIR)/$(NAME)
 	rm -rf $(DESTDIR)$(LIBDIR)/lib $(DESTDIR)$(LIBDIR)/apps $(DESTDIR)$(LIBDIR)/boot

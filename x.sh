@@ -30,7 +30,8 @@ X_LAUNCH=x/repl/launch.x # interactive launcher, cat'd after -F / pinned REPL
                          # (a platform file: deliberately not -e/X_EXT-aware)
 X_RUN=run                # app entry basename: apps/NAME/run.x (#35)
 X_SHARE=share/x          # installed runtime tree, beside the bin dir
-X_ENGINE=libexec/x/x-bin # installed engine binary
+X_ENGINE_DIR=libexec/x   # installed engine directory (binary + its declaration)
+X_ENGINE=x-bin           # default engine binary NAME (see engine discovery below)
 
 # Repo mode: a lib tree at the CURRENT directory (the boot includes are
 # cwd-relative "lib/..." literals, so cwd must be the repo root anyway),
@@ -96,14 +97,63 @@ pin_arm() {
 
 [ -z "$INSTALL_ROOT" ] || path_form_safe "$INSTALL_ROOT" "install root"
 
-# The engine binary sits beside this script in-repo (x.sh + x-bin at the
-# root); installed it lives in libexec, so probe libexec FIRST.  (The
-# order was load-bearing when the engine was also named `x`: installed,
-# the wrapper takes the bin/x name, and $SCRIPT_PATH/x re-ran this script
-# forever.  x-bin cannot collide with the wrapper, but the order stays.)
-X_BIN="$SCRIPT_PATH/../${X_ENGINE}"
-if [ ! -e "$X_BIN" ]; then
-	X_BIN="$SCRIPT_PATH/x-bin"
+# ENGINE DISCOVERY.  x-lang is not tied to one engine (docs/engine-contract.md),
+# so the wrapper resolves WHICH engine to run rather than assuming a filename.
+# Three sources, most specific first:
+#
+#   1. $X_BIN in the environment -- an explicit choice, used by the conformance
+#      and compliance runners to aim the same library at another engine.  Several
+#      tools/check scripts already read X_BIN this way, so honouring it here is
+#      the existing convention rather than a new one.
+#   2. The installed engine directory.  Its x-engine.xon names the binary in a
+#      (binary "...") row, so an engine that does not build something called
+#      x-bin still installs and runs.  Read TEXTUALLY, one line, nothing
+#      evaluated -- the same discipline every other manifest read in this file
+#      follows.
+#   3. Beside this script, under the default name -- repo mode, where the
+#      Makefile copies the built engine to the repository root.  The engine must
+#      physically sit there: tests/spec-runner.sh derives its awk harness path
+#      from the directory holding it.
+#
+# Probe order between 2 and 3 was load-bearing when the engine was also named
+# `x`: installed, the wrapper takes the bin/x name, and $SCRIPT_PATH/x re-ran
+# this script forever.  A named engine cannot collide with the wrapper, but the
+# order stays.
+if [ -n "${X_BIN:-}" ]; then
+	# An explicit engine that is not there is a mistake worth naming, not a
+	# reason to quietly run a different one: a silent fallback here is the
+	# shape the pinning guards exist to prevent.
+	if [ ! -x "$X_BIN" ]; then
+		echo "Error: X_BIN names no executable engine: $X_BIN" >&2
+		exit 1
+	fi
+else
+	_edir="$SCRIPT_PATH/../${X_ENGINE_DIR}"
+	_ename="$X_ENGINE"
+	if [ -f "$_edir/x-engine.xon" ]; then
+		_n=$(sed -n 's/^(binary "\(.*\)")[[:space:]]*$/\1/p' "$_edir/x-engine.xon" | head -n 1)
+		[ -n "$_n" ] && _ename="$_n"
+	fi
+	X_BIN="$_edir/$_ename"
+	if [ ! -e "$X_BIN" ]; then
+		_edeclared="$X_BIN"
+		X_BIN="$SCRIPT_PATH/$X_ENGINE"
+	fi
+	# Name what was actually looked for.  Without this the failure surfaced as
+	# `x-bin: No such file or directory` naming the FALLBACK path -- so a tree
+	# whose declared engine was missing sent the reader hunting for a file that
+	# was never supposed to be there.
+	if [ ! -e "$X_BIN" ]; then
+		echo "Error: no engine found" >&2
+		if [ -n "${_edeclared:-}" ]; then
+			echo "  $_edir/x-engine.xon declares its binary as '$_ename', which is not at:" >&2
+			echo "    $_edeclared" >&2
+		fi
+		echo "  and no '$X_ENGINE' beside the wrapper at:" >&2
+		echo "    $SCRIPT_PATH/$X_ENGINE" >&2
+		echo "  set X_BIN to an engine, or reinstall" >&2
+		exit 1
+	fi
 fi
 
 # Every value that reaches $CMD below is re-parsed by the shell (it is
