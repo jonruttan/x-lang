@@ -35,14 +35,34 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 FEAT="tools/contract/features.x"
-ISA="ext/x-engine-c/tools/contract/isa.x"
+# The engine under test.  Parameterised, because the question this gate answers --
+# does this engine provide what x-lang needs -- is the RESOLVER's question, and a
+# resolver that can only consider one engine is not resolving anything.  Found by
+# pointing the apparatus at a second engine for the first time: everything else in
+# the toolchain already took an engine directory, and this did not.
+ENGINE_DIR="${X_ENGINE_DIR:-ext/x-engine-c}"
+
+# TWO ENGINES, TWO QUESTIONS, and conflating them was a bug this gate shipped
+# with.  The REFERENCE surface is the language's own view of what instructions
+# exist; the CANDIDATE is whatever engine is being judged.
+#
+#   partition + derived requires  ->  REFERENCE.  "What does lib/ need?" is a
+#       property of lib/, and deriving it through a candidate's coordinate map
+#       made a reduced engine appear to shrink the library's requirements: point
+#       this at an engine with no collector and requires.x is reported stale for
+#       no longer needing one.  The library needs exactly what it needs.
+#   satisfaction + staleness      ->  CANDIDATE.  "Can THIS engine run it?"
+#
+# Found by pointing the apparatus at a second engine for the first time, which
+# is what that exercise is for.
+REFERENCE_DIR="${X_REFERENCE_DIR:-ext/x-engine-c}"
+ISA="$REFERENCE_DIR/tools/contract/isa.x"
 REQ="tools/contract/requires.x"
-ENGINE_DIR="ext/x-engine-c"
 [ -f "$FEAT" ] || { echo "engine-contract: no vocabulary at $FEAT" >&2; exit 2; }
 # The ISA is the ENGINE's file.  A missing one means an uninitialised submodule,
 # not a passing check -- say so rather than reporting ok over nothing, which is
 # the vacuous-pass shape the split turned up four times.
-[ -f "$ISA" ] || { echo "engine-contract: no engine ISA at $ISA (submodule not initialised?)" >&2; exit 2; }
+[ -f "$ISA" ] || { echo "engine-contract: no reference ISA at $ISA (submodule not initialised?)" >&2; exit 2; }
 
 fail=0
 note() { echo "  $1"; fail=1; }
@@ -223,6 +243,14 @@ fi
 # this library needs (the satisfaction test that replaces the old isa-digest
 # equality compare -- superset, so a richer engine is never refused).
 XON="$ENGINE_DIR/x-engine.xon"
+if [ ! -f "$XON" ]; then
+	# SILENCE IS NOT A PASS.  Without a declaration there is nothing to satisfy,
+	# and skipping quietly reported an engine as fine when the gate had not looked
+	# at it -- the vacuous-pass shape, in the gate that answers the resolver's
+	# question.  Unknown is not wrong, but it has to say so.
+	echo "  no declaration at $XON -- satisfaction and staleness UNCHECKED"
+	echo "  (generate one: sh tools/contract/gen-engine-xon.sh $ENGINE_DIR)"
+fi
 if [ -f "$XON" ]; then
 	if ! sh tools/contract/gen-engine-xon.sh "$ENGINE_DIR" > /tmp/ec-xon-gen.$$ 2>/tmp/ec-xon-err.$$; then
 		note "GENERATOR: gen-engine-xon.sh failed against $ENGINE_DIR:"

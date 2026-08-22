@@ -83,7 +83,17 @@ awk '/^\(def %feature-capabilities/{f=1;next} /^\)\)\)/{f=0}
                     if (NF>=2 && $2!="rows" && $2!="-") print $2, $1 }' "$FEAT" | sort -k1,1 > "$W/tagmap"
 sort -k2,2 "$W/isa" > "$W/isa-bytag"
 join -1 2 -2 1 -o 1.1,2.2 "$W/isa-bytag" "$W/tagmap" | sort > "$W/bytag"
-{ cat "$W/exp"; awk 'NR==FNR{o[$1];next} !($1 in o)' "$W/exp" "$W/bytag"; } | sort -u > "$W/coord2group"
+# The explicit rows must be INTERSECTED with what this engine actually has.
+# Without that, any group with explicit membership in features.x was reported as
+# provided by every engine -- the generator manufacturing a capability claim the
+# engine never made.  A minimal engine with zero ffi and zero syscall rows
+# declared (provides isa/ffi-call) and (provides isa/syscall), and compliance
+# would then have audited a lie the tooling wrote rather than one the engine told.
+# Found by generating a declaration for a second engine for the first time.
+awk '{print $1}' "$W/isa" | sort -u > "$W/have"
+join "$W/have" "$W/exp" > "$W/exp-present"
+{ cat "$W/exp-present"; awk 'NR==FNR{o[$1];next} !($1 in o)' "$W/exp-present" "$W/bytag"; } \
+	| sort -u > "$W/coord2group"
 
 # The groups the engine has rows for.
 awk '{print $2}' "$W/coord2group" | sort -u > "$W/provided"
