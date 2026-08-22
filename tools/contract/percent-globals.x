@@ -138,6 +138,7 @@
 (file "tools/check/doc-forms.x" 5)
 (file "tools/check/doctest.x" 11)
 (file "tools/contract/bare-globals.x" 1)
+(file "tools/contract/conformance-covered.x" 1)
 (file "tools/contract/constraints.x" 1)
 (file "tools/contract/features.x" 5)
 (file "tools/contract/requires.x" 1)

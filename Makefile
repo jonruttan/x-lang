@@ -172,7 +172,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-dialect-cover check-highlight-roundtrip ## Run the contract gates
+gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-dialect-cover check-highlight-roundtrip ## Run the contract gates
 .PHONY: gates
 
 # The local-latency split (2026-08-03 audit): `make test` grew past ten
@@ -183,7 +183,7 @@ gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boo
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-dialect-cover ## The fast contract gates (pre-push subset)
+gates-fast: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-dialect-cover ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast test-c test-x ## Pre-push gate: fast gates + both spec suites (CI runs full `make test`)
@@ -199,7 +199,7 @@ check-bootstrap: $(EXECUTABLE) ## Smoke the one-command bootstrap install
 	sh tools/check/bootstrap-smoke.sh
 .PHONY: check-bootstrap
 
-test: gates test-c test-x doctest spec-examples doc-examples check-examples lint-x test-tools doc-x ## Run all tests
+test: gates conformance test-c test-x doctest spec-examples doc-examples check-examples lint-x test-tools doc-x ## Run all tests
 .PHONY: test
 
 # The release manifest (SHASUMS + pin.release.xon over the amalgams;
@@ -371,6 +371,24 @@ check-engine-contract: ## Hold features.x/requires.x against the engine's ISA
 check-compliance: $(EXECUTABLE) ## Falsify each row of the engine's x-engine.xon
 	sh tools/check/compliance.sh
 .PHONY: check-compliance
+
+# CONFORMANCE: is this a correct x-lang evaluator?  The language's own definition of
+# correct, which is why it lives here rather than in an engine -- an implementation
+# that owned this suite would become the arbiter of the contract every other
+# implementation is judged against.  Loads NOTHING: every other runner in tests/ cats
+# a library onto stdin, so what it measures is the library's surface (variadic `+` is
+# lib/x/core/arithmetic.x on top of a BINARY primitive).  X_BIN aims it at any engine.
+conformance: $(EXECUTABLE) ## Run the conformance suite (X_BIN=... for another engine)
+	sh tests/x/conformance/runner.sh
+.PHONY: conformance
+
+# The coverage ratchet.  The suite is early and will be for a while, so the gate is
+# not "is it complete" but "did it just get smaller": a row that was defined and no
+# longer is fails.  Uncovered rows are printed every run, because a suite silent
+# about its gaps reads as finished.
+check-conformance-coverage: ## Report ISA coverage; fail if the suite regressed
+	sh tools/check/conformance-coverage.sh
+.PHONY: check-conformance-coverage
 
 # The dialect coverage ratchet (#70): every lib/*.x entry point needs an
 # end-to-end smoke group, so a new dialect cannot ship untested the way the
