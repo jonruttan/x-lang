@@ -74,8 +74,29 @@ trap 'rm -rf "$WORK"' EXIT INT TERM
 # anything generating CODE.
 PRELUDE="$SUITE/prelude.x"
 [ -f "$PRELUDE" ] || { echo "conformance: no prelude at $PRELUDE" >&2; exit 2; }
+# The engine's BUILD DECLARATION, if it has one.  A bare suite cannot ask the
+# library what platform it is on, and it must not ask `uname` either: that
+# reports the machine running the harness, which is not the machine the engine
+# was built for.  Reading the engine's own x-engine-build.xon is the difference
+# between a declaration and a guess -- and it is why the syscall case could not
+# be written until the engine stamped one.
+#
+# Rows are emitted as symbols, matching x.sh; an `unknown` row is skipped so a
+# case sees an unbound name rather than a value nobody established.
+PARAMS="$ENGINE_DIR/x-engine-build.xon"
+
 {
 	printf '(alloc-limit! %s)\n' "$LIMIT"
+	if [ -f "$PARAMS" ]; then
+		sed -n 's/^(param \([a-z-]*\) \([a-z0-9_-]*\))[[:space:]]*$/\1 \2/p' "$PARAMS" \
+		| while read -r _k _v; do
+			[ "$_v" = "unknown" ] && continue
+			case "$_k" in
+				word-size) printf '(def %%param-word-size %s)\n' "$_v" ;;
+				endian|os|arch) printf '(def %%param-%s (lit %s))\n' "$_k" "$_v" ;;
+			esac
+		done
+	fi
 	cat "$PRELUDE"
 	if [ -n "${X_EXTRA_PRELUDE:-}" ]; then
 		[ -f "$X_EXTRA_PRELUDE" ] || { echo "conformance: no such X_EXTRA_PRELUDE: $X_EXTRA_PRELUDE" >&2; exit 2; }

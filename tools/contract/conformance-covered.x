@@ -94,6 +94,7 @@
   (str/make)
   (sym/->str)
   (sys/clock)
+  (syscall)
   (tail-eval)
   (type/?)
   (type/make)
