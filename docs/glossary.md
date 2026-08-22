@@ -25,7 +25,7 @@ are settled (tracked in issue #42 and #44).
 
 ## the layers
 
-- **x-expr** (`ext/x-bin-c/ext/x-expr/`) — the expression engine submodule, nested
+- **x-expr** (`ext/x-eval-c/ext/x-expr/`) — the expression engine submodule, nested
   inside the engine repo that embeds it: objects,
   storage, GC, the base tree. Below the language.
 - **the C core** — the interpreter's instruction set (the ISA, cataloged in

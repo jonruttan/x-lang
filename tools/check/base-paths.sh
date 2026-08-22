@@ -20,10 +20,10 @@
 #         sh tools/check/base-paths.sh --gen    # print descriptor entries
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-# The C lives in the x-bin-c submodule (the 2026-08-21 split).  This gate's
+# The C lives in the x-eval-c submodule (the 2026-08-21 split).  This gate's
 # SUBJECT moved; its manifest did not -- tools/contract/ holds runtime boot
 # data the library includes, so it stays here and the scan reaches across.
-ENGINE="$ROOT/ext/x-bin-c"
+ENGINE="$ROOT/ext/x-eval-c"
 . "$ROOT/tools/lib/contract-diff.sh"
 contract_diff_setup base-paths
 

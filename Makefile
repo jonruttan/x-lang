@@ -38,7 +38,7 @@ PREFIX?=/usr/local
 X_RELEASE?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
 # ---------------------------------------------------------------------------
-# The engine binary is built from the x-bin-c submodule (the 2026-08-21
+# The engine binary is built from the x-eval-c submodule (the 2026-08-21
 # split).  Everything that used to live here -- CFLAGS, the compiler probe,
 # the object rules, the variant builds -- moved with the C it compiles.  What
 # stays is the CONTRACT between the two repos, and it is exactly two things.
@@ -56,7 +56,7 @@ X_RELEASE?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 #    the submodule's own `git describe` would fail every pinned project on
 #    sight.  X_RELEASE is passed down on every engine build below -- the same
 #    override tools/release/package.sh already uses for tarballs.
-ENGINE_DIR=ext/x-bin-c
+ENGINE_DIR=ext/x-eval-c
 
 # Fail with a sentence instead of a screenful of missing-file errors: a clone
 # without --recursive has an empty submodule, and the first symptom would
@@ -124,7 +124,7 @@ test-c: ## Run the engine's C unit tests (delegates to the submodule)
 .PHONY: test-c
 
 # The C reference is Doxygen over the engine's sources, so it generates
-# INSIDE the submodule (ext/x-bin-c/docs/ref/c/).  pages.yml copies from
+# INSIDE the submodule (ext/x-eval-c/docs/ref/c/).  pages.yml copies from
 # there; this target exists so `make doc` is still both halves.
 doc-c: ## Generate C reference documentation (delegates to the submodule)
 	$(ENGINE_MAKE) doc-c
