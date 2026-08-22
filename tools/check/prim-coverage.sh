@@ -103,15 +103,31 @@ FNR == 1 { in_fence = 0; is_c = (FILENAME ~ /\.spec\.c$/) }
 		code = $0
 	}
 
-	# prim-ref coordinates.  The quote character is built with sprintf: this
-	# awk program is itself single-quoted by the shell, so it cannot contain
-	# one.
+	# prim-ref coordinates, in both spellings the reader accepts: the quoted
+	# form, and the (lit ns) (lit method) form.  (Neither is written out here:
+	# this awk program is single-quoted by the shell and cannot contain a
+	# quote character.)
+	# The second is what pre-reader-macro code must use, so a matcher that
+	# knows only the first reports a primitive as unexercised when its spec
+	# is sitting right there. The quote character is built with sprintf --
+	# this awk program is single-quoted by the shell and cannot contain one.
 	s = code
 	while (match(s, "prim-ref[ \t]+" SQ "[^ \t)]+[ \t]+" SQ "[^ \t)]+")) {
 		t = substr(s, RSTART, RLENGTH)
 		gsub(/prim-ref[ \t]+/, "", t)
 		gsub(SQ, "", t)
 		sub(/[ \t]+/, " ", t)
+		coord[t] = 1
+		s = substr(s, RSTART + RLENGTH)
+	}
+	s = code
+	while (match(s, /prim-ref[ \t]+\([ \t]*lit[ \t]+[^ \t)]+[ \t]*\)[ \t]*\([ \t]*lit[ \t]+[^ \t)]+/)) {
+		t = substr(s, RSTART, RLENGTH)
+		gsub(/prim-ref[ \t]+/, "", t)
+		gsub(/\([ \t]*lit[ \t]+/, "", t)
+		gsub(/\)/, " ", t)
+		gsub(/[ \t]+/, " ", t)
+		sub(/^ /, "", t); sub(/ $/, "", t)
 		coord[t] = 1
 		s = substr(s, RSTART + RLENGTH)
 	}
