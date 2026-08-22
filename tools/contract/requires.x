@@ -11,6 +11,14 @@
 ; file.  A row cannot be added by opinion and cannot go stale: the gate fails
 ; both ways.
 ;
+; A CAPABILITY THAT IS NOT prim-ref-ABLE CANNOT BE DERIVED, and two are not:
+; instr/cov and instr/profile are build flags that change how existing primitives
+; behave, so no call site names them and no row below can find them.  The coverage
+; and profiling tools do need a suitably built engine; that dependency is real and
+; is invisible to this derivation.  Recording it needs a hand-written row of the
+; constraints.x kind, which is the honest shape for a need that leaves no trace in
+; the source.  Until then this file under-reports by exactly those two.
+;
 ; ONLY ABOVE-CORE CAPABILITIES GET ROWS.  Every file needs the `core` group; the
 ; useful question is which files need MORE, because those are the ones a minimal
 ; engine cannot load.  The answer is smaller than anyone expected: of ~150 files

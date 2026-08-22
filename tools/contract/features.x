@@ -95,7 +95,10 @@
   (invoke/batch-flag   -)   ; --batch suppresses the entry's interactive launcher
   (invoke/argv         -)   ; the `args` value carries argv
   (io/fd3-stdin        -)   ; the REPL reclaims terminal stdin from fd 3
-  (err/stdout-prefix   -)   ; errors reach stdout as `Error: <value>`
+  (err/stdout-prefix   -)   ; errors reach STDOUT, not stderr.  The ENGINE's prefix
+                            ;   is `*** ERROR: `; `Error: <value>` is x-lang's Err
+                            ;   class formatting the same channel post-boot -- a
+                            ;   compliance check must expect the former.
 )))
 
 ; Explicit membership for the split tag.  Every ffi-tagged isa.x row appears
