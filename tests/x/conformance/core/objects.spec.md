@@ -170,3 +170,57 @@ covers: type/of
 ```
 ---
     *** ERROR: ok
+
+## The object-model constructors
+
+### obj make needs a REGISTERED type handle, and answers an object of that type
+
+covers: obj/make
+
+`(obj make HANDLE N)` allocates an object with N slots, and the handle must be a
+type the base knows: the primitive looks it up in the base's type alist and
+answers nil when it is not there. That is why a bare `(obj make 2)` yields
+nothing -- there is no type to make an instance OF. This is the raw allocator
+`type/make-instance` is built over.
+
+```scheme
+(def %mkt (%coord (lit type) (lit make)))
+(def %omake (%coord (lit obj) (lit make)))
+(def %tof (%coord (lit type) (lit of)))
+(def T (%mkt "OBJTEST" ()))
+(%ok (match ((eq? (%omake T 2) ()) ()) (#t (same? (%tof (%omake T 2)) T))))
+```
+---
+    *** ERROR: ok
+
+### make-callable turns a raw pointer into a PRIM
+
+covers: obj/make-callable
+
+The JIT's door: compile machine code, take its address, and hand it back as
+something the evaluator will call. The contract asserted here is what it
+PRODUCES -- an object of the same type as a primitive, not a pointer and not nil.
+
+The result is deliberately not called. A callable made this way must follow the
+engine's own primitive calling convention, and `strlen` does not; wrapping it is
+safe, calling it would not be. `lib/x/tool/compile.x` wraps code it emitted for
+that convention, which is the only correct use.
+
+```scheme
+(def %dlopen (%coord (lit ffi) (lit dlopen)))
+(def %dlsym (%coord (lit ffi) (lit dlsym)))
+(def %mkcall (%coord (lit obj) (lit make-callable)))
+(def %tof (%coord (lit type) (lit of)))
+(def p (%dlsym (%dlopen () 1) "strlen"))
+(%ok (same? (%tof (%mkcall p)) (%tof %tof)))
+```
+---
+    *** ERROR: ok
+
+## obj ref on a freshly made object -- not defined here
+
+`(obj make HANDLE N)` nils its slots, but reading one back through `obj ref`
+before anything is stored crashes this engine rather than answering nil. That may
+be a defect or it may be an unstated precondition; either way a conformance case
+must not pin it until which one is known, and the reflective accessors the library
+actually uses (lib/x/boot/reflect.x) replace this primitive anyway.
