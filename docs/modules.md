@@ -182,6 +182,21 @@ The pin vocabulary:
   must sit alone on its own line; `--boot FILE` on the command line
   overrides it.
 
+- `(engine "NAME")` — the project's choice of engine. x-lang runs on any
+  engine meeting the contract (see [The Engine Contract](engine-contract.md)),
+  and a project that needs a particular one says so here; the wrapper compares
+  the name against the installed engine's own `x-engine.xon` and refuses a
+  mismatch before anything boots. A tree with no engine declaration (a repo
+  checkout) says so rather than passing silently.
+
+  This row records **intent, not safety**. The pairing that can corrupt is the
+  object layout, and the lock's `(engine-layout "sha256:…")` refuses that by
+  equality — an amalgam walks object header words at committed offsets, so a
+  layout that moved is a crash in field access. Two engines with the same
+  layout are interchangeable, and refusing on the name alone would reject a
+  pairing that is provably fine. Use this when the choice is deliberate, not as
+  a guard.
+
 An overlay tree only needs the modules being pinned — anything not
 found there falls through to the platform library. Note that a pinned
 module's own `import`s also resolve through the roots, so a pin that
@@ -376,8 +391,9 @@ when a boot entry is pinned — and `--no-pin` skips the probe entirely.
 
 The wrapper interprets two manifest forms itself, both extracted
 textually (never evaluated), because both must be decided before the
-pipe exists — the loader runs too late for either: `(boot "FILE")`,
-which names the boot entry, and `(allow-release-skew)`, which waives the
+pipe exists — the loader runs too late for any of them: `(boot "FILE")`,
+which names the boot entry, `(engine "NAME")`, which names the engine, and
+`(allow-release-skew)`, which waives the
 release pairing refusal described below. Everything else stays interpreter-side: the wrapper
 hands the manifest's path over as data (`(def %pin-file "<path>")`
 ahead of the boot entry) and loads `x/tool/pin` right after boot,

@@ -162,6 +162,26 @@
       (match
             ((not (null? (rest form))) (Pin %pin-bad "allow-release-skew takes no arguments"))
             (#t ())))
+    ; One (engine "NAME") form -> () -- wrapper-consumed, like boot.  It is the
+    ; project's explicit CHOICE of engine: x-lang runs on any engine meeting the
+    ; contract (docs/engine-contract.md), and a project that needs a particular
+    ; one says so here rather than hoping.  The wrapper compares it against the
+    ; installed engine's own x-engine.xon and refuses a mismatch before anything
+    ; boots.
+    ;
+    ; DELIBERATELY NOT A SAFETY KEY.  The pairing that can corrupt is the LAYOUT,
+    ; and (engine-layout ...) in the lock is what refuses that -- by equality,
+    ; because an amalgam walks header words at committed offsets.  Refusing on the
+    ; NAME instead would repeat the isa mistake in a new spelling: two engines with
+    ; the same layout are interchangeable, and a name compare would reject a
+    ; pairing that is provably fine.  This row records what the project WANTS, not
+    ; what is safe, and those are different questions.
+    (method %pin-engine (self form)
+      (match
+            ((not (pair? (rest form))) (Pin %pin-bad "engine needs one string argument"))
+            ((not (null? (rest (rest form)))) (Pin %pin-bad "engine takes exactly one argument"))
+            ((not (str? (first (rest form)))) (Pin %pin-bad "engine argument must be a string"))
+            (#t ())))
     ; Manifest forms + manifest dir -> resolved roots, manifest order.
     ; Closed vocabulary: an unknown head is an error, not a skip.
     (method %pin-interpret (self forms dir)
@@ -171,6 +191,7 @@
         (list (pair (lit root) (fn (_ f) (Pin %pin-root f dir)))
               (pair (lit boot) (fn (_ f) (Pin %pin-boot f)))
               (pair (lit src)  (fn (_ f) (Pin %pin-src f)))
+              (pair (lit engine) (fn (_ f) (Pin %pin-engine f)))
               (pair (lit allow-release-skew) (fn (_ f) (Pin %pin-allow-skew f))))
         (fn (_ f)
           (match

@@ -383,6 +383,42 @@ if [ -z "$boot_file" ] && [ -n "$PIN_FILE" ]; then
 	fi
 fi
 
+# The project's CHOICE of engine, a wrapper-consumed manifest form.  x-lang runs
+# on any engine meeting the contract (docs/engine-contract.md); a project that
+# needs a particular one says (engine "NAME") and the wrapper holds it to that.
+# Textual extraction, alone on its line, like (boot ...) -- and the loader still
+# shape-checks it under the closed vocabulary.
+#
+# This is INTENT, not safety.  The pairing that can corrupt is the layout, and
+# (engine-layout ...) refuses that by equality below.  Refusing on the NAME would
+# repeat the isa mistake in a new spelling: two engines with the same layout are
+# interchangeable, and a name compare would reject a pairing that is provably
+# fine.  So this fires only when a project asked for something specific and got
+# something else.
+if [ -n "$PIN_FILE" ] && [ -f "$PIN_FILE" ]; then
+	_wanted_engine=$(sed -n 's/^(engine "\(.*\)")[[:space:]]*$/\1/p' "$PIN_FILE" | head -n 1)
+	if [ -n "$_wanted_engine" ]; then
+		_have_engine=""
+		if [ -f "${_edir:-}/x-engine.xon" ]; then
+			_have_engine=$(sed -n 's/^(engine-name "\(.*\)")[[:space:]]*$/\1/p' "${_edir}/x-engine.xon" | head -n 1)
+		fi
+		if [ -z "$_have_engine" ]; then
+			# Unknown is not wrong: a repo checkout has no installed declaration.
+			# Say so rather than passing silently -- a guard that disappears
+			# without a word is worse than none (#313).
+			echo "x.sh: manifest asks for engine '$_wanted_engine' but this tree carries no engine declaration -- choice unchecked" >&2
+		elif [ "$_wanted_engine" != "$_have_engine" ]; then
+			echo "Error: this project asks for a different engine" >&2
+			echo "  manifest: $PIN_FILE" >&2
+			echo "  it asks for: $_wanted_engine" >&2
+			echo "  this one is: $_have_engine" >&2
+			echo "  install that engine, or drop the (engine ...) row -- any" >&2
+			echo "  contract-meeting engine will do" >&2
+			exit 1
+		fi
+	fi
+fi
+
 # The release-skew opt-out, the manifest's second wrapper-consumed form
 # (#435).  A project that KNOWINGLY runs a pinned amalgam against another
 # release's engine says so once, in the manifest, instead of every runner
