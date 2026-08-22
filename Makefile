@@ -37,114 +37,42 @@ PREFIX?=/usr/local
 # under-approximate, so the engine now carries it.
 X_RELEASE?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
-# Override default compiler and flags
-CC?=gcc
-CFLAGS?=-O2
-CFLAGS+=-Wall -Wextra -Wno-unused-parameter
-CFLAGS+=-DX_HEAP -DX_TYPE -DX_SYS_CLOCK
+# ---------------------------------------------------------------------------
+# The engine binary is built from the x-eval-c submodule (the 2026-08-21
+# split).  Everything that used to live here -- CFLAGS, the compiler probe,
+# the object rules, the variant builds -- moved with the C it compiles.  What
+# stays is the CONTRACT between the two repos, and it is exactly two things.
+#
+# 1. WHERE THE BINARY LANDS.  At this repo's root, where it has always been.
+#    That is not tidiness: tests/spec-runner.sh derives its awk harness path
+#    from the directory holding the engine, so the binary must physically sit
+#    beside tests/ or the runner cannot find its own harness.  Keeping it here
+#    is what leaves x.sh, the spec runners, tools/dev/lint.sh and the ~15
+#    tools/check/*.sh scripts untouched by the split.
+#
+# 2. WHOSE RELEASE IT REPORTS.  This repo's (#435).  The pin lock records the
+#    LANGUAGE release and lib/x/tool/pin.x refuses at boot when a pinned
+#    amalgam's release differs from the engine's, so an engine stamped with
+#    the submodule's own `git describe` would fail every pinned project on
+#    sight.  X_RELEASE is passed down on every engine build below -- the same
+#    override tools/release/package.sh already uses for tarballs.
+ENGINE_DIR=ext/x-eval-c
 
-# Dead code elimination: each function/data in its own section, stripped at link
-CFLAGS+=-ffunction-sections -fdata-sections
+# Fail with a sentence instead of a screenful of missing-file errors: a clone
+# without --recursive has an empty submodule, and the first symptom would
+# otherwise be make(1) complaining it has no rule to make the engine.
+ENGINE_MAKE=@if [ ! -f $(ENGINE_DIR)/Makefile ]; then \
+		echo "The engine submodule is empty. Run: git submodule update --init --recursive" >&2; \
+		exit 1; \
+	fi; $(MAKE) --no-print-directory -C $(ENGINE_DIR) X_RELEASE="$(X_RELEASE)"
 
-# Get the compiler name
-CCOMPILER=$(CC)
-ifeq ("$(CCOMPILER)", "cc")
-
-ifeq ($(shell diff $(shell which cc) $(shell which gcc)), )
-CCOMPILER=gcc
-else ifeq ($(shell diff $(shell which cc) $(shell which clang)), )
-CCOMPILER=clang
-endif
-
-endif
-
-# If there are no LDFLAGS, use the CFLAGS
-LDFLAGS?=$(CFLAGS)
-
-# Customise the settings for the compiler
-CFLAGS+=-fdiagnostics-color=always
-ifneq ("$(CCOMPILER)", "tcc")
-DUMPMACHINE=$(shell $(CC) $(CFLAGS) -dumpmachine)
-endif
-ifeq ("$(CCOMPILER)", "c89")
-CFLAGS+=-ansi -Wno-unused-result
-else ifeq ("$(CCOMPILER)", "c99")
-CFLAGS+=-Wno-unused-result
-else ifeq ("$(CCOMPILER)", "gcc")
-CFLAGS+=-ansi -Wno-unused-result
-else ifeq ("$(CCOMPILER)", "clang")
-CFLAGS+=-ansi -Wno-array-bounds
-endif
-
-# Fallback command to use when compiler doesn't support `-dumpmachine`
-ifndef DUMPMACHINE
-DUMPMACHINE=$(shell echo $(shell uname -m)-$(shell uname -s)-$(shell uname -o) | tr A-Z a-z)
-endif
-
-# Get the machine Target Triplet
-X_MACHINE?=\"$(DUMPMACHINE)\"
-
-# Dead strip unreferenced sections at link time
-# Export dynamic symbols so dlopen'd bundles can call host functions
-ifneq (,$(findstring darwin,$(DUMPMACHINE)))
-LDFLAGS+=-Wl,-exported_symbols_list,exports.sym -Wl,-dead_strip -Wl,-dead_strip
-else ifneq (,$(findstring linux,$(DUMPMACHINE)))
-LDFLAGS+=-Wl,--gc-sections -rdynamic
-endif
-
-BASEDIR=.
-INCDIR=$(BASEDIR)/include
-SRCDIR=$(BASEDIR)/src
-OPTDIR=$(BASEDIR)/opt
-
-# x-expr foundation library
-X_EXPR_DIR=ext/x-expr
-X_EXPR_SOURCES=$(wildcard $(X_EXPR_DIR)/src/*.c)
-# Per-configuration object extension (#329).  The plain build owns .o;
-# each variant compiles to its own suffix (.cov.o, .asan.o, ...) beside
-# it, so no two configurations ever share an object path -- the old
-# clean-obj brackets (which deleted EVERY object on both sides of a
-# variant build, forcing the next plain-build-dependent target to
-# silently re-pay the whole C compile) are gone, and variants rebuild
-# incrementally like the plain build always has.
-OBJ_EXT?=.o
-X_EXPR_OBJECTS=$(X_EXPR_SOURCES:.c=$(OBJ_EXT))
-
-CFLAGS+=-I$(X_EXPR_DIR)/include -I$(INCDIR)
-
-HEADERS=$(wildcard $(INCDIR)/*.h $(INCDIR)/**/*.h $(INCDIR)/**/**/*.h $(X_EXPR_DIR)/include/*.h)
-SOURCES=$(wildcard $(SRCDIR)/*.c $(SRCDIR)/**/*.c $(SRCDIR)/**/**/*.c)
-OBJECTS=$(SOURCES:.c=$(OBJ_EXT))
 # NAME is the PROJECT name: the wrapper's installed command (bin/x) and the
 # install-tree dirs (share/x, libexec/x) -- x.sh's X_SHARE/X_ENGINE and the
 # bootstrap tarball layout depend on it.  EXECUTABLE is the ENGINE BINARY's
-# filename (x-bin), deliberately distinct from the repo root, the wrapper,
-# and the .x extension so tooling can match it precisely.
+# filename, deliberately distinct from the repo root, the wrapper, and the
+# .x extension so tooling can match it precisely.
 NAME=x
 EXECUTABLE=x-bin
-OUTPUT=$(EXECUTABLE)
-
-# Options to be added to $(DEFS)
-DEFS?=$(OSDEF) -DX_MACHINE="$(X_MACHINE)" -DX_SYSCALL -DX_INCLUDE -DSYMBOL_FIND_REORDER
-
-# SIGINT (Ctrl-C) handling, on by default (X_SIGNAL carries the -DX_SIGNAL
-# flag).  The signal module lives under opt/ and is built only when enabled;
-# `make X_SIGNAL=` leaves it out of the build and compiles the eval poll out
-# too (x-lang REPLs fall back to no-ops).  DEFS is absent from TEST_CFLAGS, so
-# the C unit tests always build without it.
-X_SIGNAL?=-DX_SIGNAL
-ifdef X_SIGNAL
-DEFS+=$(X_SIGNAL)
-SOURCES+=$(OPTDIR)/x-prim/signal.c
-endif
-
-# -ldl is the FFI/JIT layer's (dlopen/dlsym in src/x-prim/ffi.c and
-# src/x-obj/jit.c) -- the expression engine ext/x-expr needs no libraries
-# beyond libc.  Darwin and glibc >= 2.34 fold dl into libc, so the flag is
-# a compat no-op there.  There is deliberately NO -lm: the one C fmod call
-# was retired (float % goes through float.x's dlsym'd %libm handle, which
-# dlopens libm at runtime like every other math function).
-EXTRA_LIBS+=-ldl
 
 # Where to install the stuff.  The user-facing command is the WRAPPER,
 # installed as bin/x; the engine binary hides in libexec (without the
@@ -158,16 +86,6 @@ LIBDIR?=$(PREFIX)/share/$(NAME)
 LIBEXECDIR?=$(PREFIX)/libexec/$(NAME)
 MANDIR?=$(PREFIX)/share/man
 
-# C test config
-ifndef PATH_TESTS_C
-PATH_TESTS_C=tests/c
-endif
-ifndef TESTS
-TESTS=$(PATH_TESTS_C)/src/*.spec.c
-endif
-TEST_CFLAGS=$(CFLAGS) -fno-common -g -Og -I. -DTESTS
-
-
 # Coverage
 COVERAGE_DIR=.coverage
 
@@ -175,83 +93,50 @@ COVERAGE_DIR=.coverage
 # Build
 # ============================================================================
 
-default: all strip ## Build and strip
+default: $(EXECUTABLE) ## Build the engine
 
-all: $(SOURCES) $(EXECUTABLE) ## Build all
+all: $(EXECUTABLE) ## Build all
+.PHONY: all
 
-# Stamp-gated (#367): the bare `strip` recipe ran on EVERY make,
-# mutating the binary (strip + macOS ad-hoc re-codesign) even when
-# nothing had rebuilt -- churning the content hash that #325's
-# boot-order verdict cache keys on, and making "did that target dirty
-# the tree?" undiagnosable by a follow-up make.  The stamp is touched
-# AFTER the strip mutates the binary, so it lands newer and the next
-# make no-ops; a real relink leaves the binary newer than the stamp and
-# re-strips exactly once.  `make strip` stays the manual entry.
-strip: build/.strip-stamp ## Strip non-global symbols (keep dynamic exports for dlopen)
-.PHONY: strip
+# The engine, built in the submodule and copied up to this root.  Two rules,
+# not one, so the copy is timestamp-guarded: the inner make no-ops in
+# milliseconds when nothing changed, and cp only runs when it actually
+# produced a newer binary.  FORCE on the inner rule because only the
+# submodule's own makefile knows whether its sources are stale.
+$(EXECUTABLE): $(ENGINE_DIR)/$(EXECUTABLE)
+	cp $< $@
 
-build/.strip-stamp: $(EXECUTABLE)
-	strip -x $(EXECUTABLE)
-	@if [ -f entitlements.plist ]; then codesign -s - --entitlements entitlements.plist -f $(EXECUTABLE) 2>/dev/null || true; fi
-	@mkdir -p build && touch $@
+$(ENGINE_DIR)/$(EXECUTABLE): FORCE
+	$(ENGINE_MAKE)
 
-# Keyed on $(OUTPUT), not $(EXECUTABLE): a variant recursion passes
-# OUTPUT=x-bin-<variant> and names ITSELF as the goal, so make checks
-# the variant binary's staleness against the variant's own objects.
-# (Under the old shared-object scheme the inner goal was the plain
-# binary and only linked because clean-obj had just made every object
-# newer than it.)
-$(OUTPUT): $(OBJECTS) $(X_EXPR_OBJECTS) $(EXTRA_OBJS)
-	$(CC) $(LDFLAGS) $(OBJECTS) $(X_EXPR_OBJECTS) $(EXTRA_OBJS) $(EXTRA_LIBS) -o $(OUTPUT)
+# The variants, same shape.  Each is PHONY-free for the same reason as the
+# plain engine: the copy must compare timestamps, not run unconditionally.
+x-bin-asan x-bin-cov x-bin-profile x-bin-debug: %: $(ENGINE_DIR)/%
+	cp $< $@
 
-# Variant builds (debug / profile / cov / asan): each compiles to its
-# own object suffix (#329), so nothing collides with the plain build's
-# .o and nothing needs the old clean-obj brackets.  Every variant is
-# PHONY -- the recursion is the freshness check: the inner make no-ops
-# in milliseconds when the variant binary is newer than its own
-# objects, and rebuilds exactly the stale ones otherwise (the coverage
-# binary used to go STALE after its first build instead, because the
-# bracket dance made rebuilding cost the whole tree twice).
-#
-# Defined ONLY in the plain (.o) universe: the inner make's goal IS the
-# variant's filename, which must resolve to the $(OUTPUT) link rule --
-# were this phony also defined there, it would override that rule
-# (later definition wins) and recurse forever.
-ifeq ($(OBJ_EXT),.o)
-x-bin-debug: ## Build debug target
-	$(MAKE) OUTPUT=$@ OBJ_EXT=.debug.o CFLAGS="$(CFLAGS) -g -Og -DDEBUG" $@
-.PHONY: x-bin-debug
+$(ENGINE_DIR)/x-bin-asan $(ENGINE_DIR)/x-bin-cov $(ENGINE_DIR)/x-bin-profile $(ENGINE_DIR)/x-bin-debug: $(ENGINE_DIR)/%: FORCE
+	$(ENGINE_MAKE) $*
 
-x-bin-profile: ## Build profiling binary (includes coverage)
-	$(MAKE) OUTPUT=$@ OBJ_EXT=.profile.o CFLAGS="$(CFLAGS) -DX_PROFILE -DX_COV" $@
-.PHONY: x-bin-profile
+# The C spec suite belongs to the engine repo and its CI runs it.  This is
+# the local door to it, so `make test` here can still be the whole verdict.
+test-c: ## Run the engine's C unit tests (delegates to the submodule)
+	$(ENGINE_MAKE) test-c
+.PHONY: test-c
 
-# ASan flags go in CFLAGS only: 'LDFLAGS?=$(CFLAGS)' (above) carries them into
-# the link too, so the runtime links while KEEPING the project's -dead_strip /
-# exports.sym LDFLAGS (passing LDFLAGS on the command line would lose those).
-x-bin-asan: ## Build with AddressSanitizer for memory-safety testing
-	$(MAKE) OUTPUT=$@ OBJ_EXT=.asan.o CFLAGS="$(CFLAGS) -fsanitize=address -fno-omit-frame-pointer -g" $@
-.PHONY: x-bin-asan
+# The C reference is Doxygen over the engine's sources, so it generates
+# INSIDE the submodule (ext/x-eval-c/docs/ref/c/).  pages.yml copies from
+# there; this target exists so `make doc` is still both halves.
+doc-c: ## Generate C reference documentation (delegates to the submodule)
+	$(ENGINE_MAKE) doc-c
+.PHONY: doc-c
 
-x-bin-cov: ## Build the coverage binary (-DX_COV flag-marking eval)
-	$(MAKE) OUTPUT=$@ OBJ_EXT=.cov.o CFLAGS="$(CFLAGS) -DX_COV" $@
-.PHONY: x-bin-cov
-endif
-
-# The *.o globs also catch every variant suffix (x.cov.o ends in .o).
-clean-obj:
-	rm -f $(SRCDIR)/*.o $(SRCDIR)/**/*.o $(SRCDIR)/**/**/*.o $(OPTDIR)/**/*.o $(X_EXPR_DIR)/src/*.o
-
-%$(OBJ_EXT): %.c
-	$(CC) -c $(CFLAGS) $(DEFS) -o $@ $<
+install-man-c uninstall-man-c: ## The C reference man pages (delegates to the submodule)
+	$(ENGINE_MAKE) $@ DESTDIR="$(DESTDIR)" MANDIR="$(MANDIR)"
+.PHONY: install-man-c uninstall-man-c
 
 # ============================================================================
 # Test
 # ============================================================================
-
-test-c: ## Run C unit tests
-	CFLAGS="$(TEST_CFLAGS)" RUNNER=command sh $(PATH_TESTS_C)/test-runner/test-runner.sh $(TESTS)
-.PHONY: test-c
 
 test-x: $(EXECUTABLE) ## Run x-lang tests
 	sh tests/x/spec-runner.sh
@@ -366,37 +251,35 @@ check-logo-tty: $(EXECUTABLE) ## Run the logo interactive-contract pty tests
 	sh tools/check/logo-tty.sh
 .PHONY: check-logo-tty
 
-# The C-surface ratchet, source half: every binding site in the C source must
-# appear in the committed manifest tools/contract/isa.x, so growing the C layer requires
-# a deliberate manifest edit in the same commit.  The runtime half lives in
-# tests/x/specs/meta/isa.spec.md (runs under test-x).
-check-isa: ## Diff the C source's binding surface against tools/contract/isa.x
-	sh tools/check/isa.sh
-.PHONY: check-isa
+# The three SELF-CONTAINED contract ratchets moved to the engine repo with
+# the manifests they diff against (2026-08-21).  They are delegated, not
+# deleted: `make check-isa` still works from here, CI's gate list does not
+# have to know which side of the boundary each ratchet lives on, and a C
+# change that skips its manifest edit is refused by the same `make gates`
+# it always was.
+#
+# Their RUNTIME halves stay here and run under test-x, because only a booted
+# engine can answer them: tests/x/specs/meta/{isa,obj-layout,base-paths}.spec.md
+# walk the live catalog, the live object header and the live base spine.
+check-isa check-obj-layout check-base-paths: ## Engine contract ratchets (delegated)
+	$(ENGINE_MAKE) $@
+.PHONY: check-isa check-obj-layout check-base-paths
 
-# Sixteen primitives had no test and nobody knew -- found by accident, because
-# nothing enumerated the C surface and asked which parts of it run.  This asks.
-# An untestable primitive has to say so in prose next to the subject rather
-# than being quietly absent, and a reason cannot outlive its subject.
+# The fourth ratchet, and the one that CANNOT move: it asks whether every
+# primitive the C registers is EXERCISED by a spec, and most primitives are
+# reachable only through the library, so the honest answer needs BOTH spec
+# suites at once.  Only the repo holding both trees can ask it -- this one,
+# while the engine is a submodule.  When x-lang stops vendoring the engine's
+# source this gate is the thing that has no home yet; see the split notes.
+#
+# Sixteen primitives had no test and nobody knew -- found by accident,
+# because nothing enumerated the C surface and asked which parts of it run.
+# This asks.  An untestable primitive has to say so in prose next to the
+# subject rather than being quietly absent, and a reason cannot outlive its
+# subject.
 check-prim-coverage: ## Assert every C primitive is exercised by a spec, or says why not
 	sh tools/check/prim-coverage.sh
 .PHONY: check-prim-coverage
-
-# The object-layout contract, source half: the header-word layout parsed out
-# of ext/x-expr/include/x-obj.h must match the committed descriptor
-# tools/contract/obj-layout.x, which reflective X code reads its offsets from.  The
-# runtime half is tests/x/specs/meta/obj-layout.spec.md (runs under test-x).
-check-obj-layout: ## Diff x-obj.h's object layout against tools/contract/obj-layout.x
-	sh tools/check/obj-layout.sh
-.PHONY: check-obj-layout
-
-# The base-paths contract, source half: every base-field accessor macro
-# (x-eval-layout.h, x-base.h, the error-handler in x-eval.h) flattened to a
-# first/rest path must match tools/contract/base-paths.x, which reflect.x walks.
-# The runtime half is tests/x/specs/meta/base-paths.spec.md.
-check-base-paths: ## Diff the base-field macro chains against tools/contract/base-paths.x
-	sh tools/check/base-paths.sh
-.PHONY: check-base-paths
 
 # The boot-order lint: derives the effective load order from each boot entry
 # (lib/x-core.x + the three dialect entries; include forms, the
@@ -528,7 +411,18 @@ check-doc-vocab: ## Lint doc forms for banned type-token aliases + retired names
 	@# grep-ratchet so they cannot quietly return -- if one is reintroduced,
 	@# it is either genuinely needed (delete the name from this list with a
 	@# caller) or the deletion is being undone by mistake.
-	@if grep -rnw 'x_eval_filein_push\|x_eval_filein_pop\|x_eval_buffer_pop\|x_char_utf8_len\|x_char_utf8_encode\|x_type_alist_iter\|x_type_alist_iter_prim\|x_type_iter_isempty' src include; then \
+	@#
+	@# The SUBJECT-EXISTS GUARD is not decoration.  This ratchet greps the C
+	@# tree, and when that tree moved to the engine submodule the grep began
+	@# reporting "No such file or directory" on stderr and PASSING -- a scan
+	@# over nothing finds nothing.  Caught by reading gate output, which is
+	@# the only reason it did not rot silently.  A missing subject is now a
+	@# failure, so the next move breaks the gate instead of hollowing it.
+	@if [ ! -d $(ENGINE_DIR)/src ] || [ ! -d $(ENGINE_DIR)/include ]; then \
+		echo "retired-c-symbols: FAIL (no C tree at $(ENGINE_DIR); run 'git submodule update --init --recursive')" >&2; \
+		exit 1; \
+	fi
+	@if grep -rnw 'x_eval_filein_push\|x_eval_filein_pop\|x_eval_buffer_pop\|x_char_utf8_len\|x_char_utf8_encode\|x_type_alist_iter\|x_type_alist_iter_prim\|x_type_iter_isempty' $(ENGINE_DIR)/src $(ENGINE_DIR)/include; then \
 		echo "retired-c-symbols: FAIL (dead export removed in #249 reintroduced)" >&2; \
 		exit 1; \
 	else echo "retired-c-symbols: ok"; fi
@@ -560,7 +454,7 @@ ASAN_RUN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0
 #     remaining slots.
 test-asan: x-bin-asan ## Run both suites under AddressSanitizer (memory-safety gate)
 	ASAN_OPTIONS=$(ASAN_RUN_OPTIONS) TIMEOUT_UNIT_SECS=180 SPEC_HEAVY_JOBS=1 X_BIN=./x-bin-asan sh tests/x/spec-runner.sh
-	ASAN_OPTIONS=$(ASAN_RUN_OPTIONS) WRAPPER= CFLAGS="$(TEST_CFLAGS) -fsanitize=address -fno-omit-frame-pointer" sh $(PATH_TESTS_C)/test-runner/test-runner.sh $(TESTS)
+	$(ENGINE_MAKE) test-asan
 .PHONY: test-asan
 
 # Install the local pre-push gate (first line of defence before the Actions
@@ -577,13 +471,9 @@ install-hooks: ## Install the pre-push test gate (core.hooksPath=.githooks)
 # Coverage
 # ============================================================================
 
-test-c-cov: cov-clean ## C tests with coverage
-	COVERAGE_DIR=$(COVERAGE_DIR) CFLAGS="$(TEST_CFLAGS)" sh $(PATH_TESTS_C)/test-runner/test-runner-coverage.sh $(TESTS)
-.PHONY: test-c-cov
-
 test-x-cov: cov-clean $(EXECUTABLE) ## x-lang tests with coverage
 	$(MAKE) clean
-	CFLAGS="-Og --coverage" $(MAKE) $(EXECUTABLE)
+	$(ENGINE_MAKE) x-bin-cov && cp $(ENGINE_DIR)/x-bin-cov $(EXECUTABLE)
 	sh tests/x/spec-runner.sh
 	mkdir -p $(COVERAGE_DIR)
 	gcovr -r . --filter 'src/' --print-summary --html-details $(COVERAGE_DIR)/index.html
@@ -591,9 +481,9 @@ test-x-cov: cov-clean $(EXECUTABLE) ## x-lang tests with coverage
 
 test-cov: cov-clean ## All tests with coverage
 	$(MAKE) clean
-	CFLAGS="-Og --coverage" $(MAKE) $(EXECUTABLE)
+	$(ENGINE_MAKE) x-bin-cov && cp $(ENGINE_DIR)/x-bin-cov $(EXECUTABLE)
 	sh tests/x/spec-runner.sh
-	CFLAGS="$(TEST_CFLAGS) -Og --coverage" RUNNER=command sh $(PATH_TESTS_C)/test-runner/test-runner.sh $(TESTS)
+	$(ENGINE_MAKE) test-c-cov
 	mkdir -p $(COVERAGE_DIR)
 	gcovr -r . --filter 'src/' --print-summary --html-details $(COVERAGE_DIR)/index.html
 .PHONY: test-cov
@@ -618,46 +508,8 @@ cov-x: x-bin-profile ## x-lang library coverage report
 # Dev tools
 # ============================================================================
 
-defs: ## Generate ctags definitions
-	ctags -f - src/**/*.c | awk 'BEGIN {FS = "\t"} /\/.*\$\/;"/ { printf("%s;\n", substr($$3,3,length($$3)-6)) }' | sort -u > defs
-
-# The base-object layout -- the x_eval_field_* accessors and x_eval_make's
-# construction skeleton -- is generated from the descriptor tools/contract/base-layout.x.
-# include/x-eval-layout.h is committed so a plain checkout builds without awk;
-# after editing the descriptor run `make gen-layout`, then `make clean && make`
-# (header changes don't trigger object rebuilds on their own here).
-$(INCDIR)/x-eval-layout.h: tools/contract/base-layout.x tools/contract/gen-base-layout.awk
-	awk -f tools/contract/gen-base-layout.awk $< > $@
-
-gen-layout: $(INCDIR)/x-eval-layout.h ## Regenerate the base-object layout header from the descriptor
-.PHONY: gen-layout
-
-# The release identity reaches the C as a GENERATED header rather than a
-# -D on the command line, because nothing here tracks CFLAGS: a -D whose
-# value changed would leave the stale x-cli.o in place and the engine would
-# keep reporting the release it was first built under.  A header can be a
-# prerequisite, and one is declared below.
-#
-# Rewritten only when the VALUE changes (the cmp guard), so an unchanged
-# `git describe` costs one stat and rebuilds nothing -- without it every
-# make would relink, since the rule itself must run every time to notice a
-# new commit or tag.  Generated, so it is not committed: a checked-in copy
-# is stale the moment anything is committed.
-$(INCDIR)/x-release.h: FORCE
-	@tmp=$@.$$$$.tmp; \
-		printf '/* GENERATED by the Makefile -- DO NOT EDIT, DO NOT COMMIT. */\n#define X_RELEASE "%s"\n' "$(X_RELEASE)" > $$tmp; \
-		if cmp -s $$tmp $@ 2>/dev/null; then rm -f $$tmp; else mv $$tmp $@; fi
-
-# The one object that reads it.  (No object here depends on any header --
-# see the note above gen-layout -- so this dependency is spelled out.)
-$(SRCDIR)/x-cli$(OBJ_EXT): $(INCDIR)/x-release.h
-
 FORCE:
 .PHONY: FORCE
-
-lint: ## Lint C sources
-	$(CC) -fsyntax-only $(CFLAGS) -g -Wall -pedantic $(SOURCES)
-.PHONY: lint
 
 # Promoted into `test` 2026-08-02 on the #60 criterion (red would rot it,
 # so it joined only once fully green): lib AND apps both sweep clean since
@@ -679,15 +531,6 @@ fmt-x: $(EXECUTABLE) ## Format x-lang files (whole library)
 fmt-check-x: $(EXECUTABLE) ## Check x-lang formatting (whole library)
 	sh tools/dev/fmt-sweep.sh
 .PHONY: fmt-check-x
-
-# docs/ref/c/ is gitignored, so a fresh clone does not have it, and Doxygen
-# refuses to create its own OUTPUT_DIRECTORY (docs/ref/README.md quotes the
-# error).  The target makes its own output root rather than leaving that to
-# whoever cloned -- CI runs this on a fresh checkout.
-doc-c: ## Generate C reference documentation (HTML + man pages)
-	@mkdir -p docs/ref/c
-	X_RELEASE="$(X_RELEASE)" doxygen Doxyfile
-.PHONY: doc-c
 
 # No stderr masking and fail on error/empty output: a 2>/dev/null here once
 # hid a retired-constructor crash for weeks -- 77 of 79 ref files were 0
@@ -728,17 +571,6 @@ check-man: $(EXECUTABLE) ## Smoke man generation + install (CHECK_MAN_C=1 adds t
 doc: doc-c doc-x ## Generate all documentation
 .PHONY: doc
 
-valgrind: ## Run Valgrind
-	$(CC) $(CFLAGS) -g -Wall $(SOURCES) && valgrind -v --leak-check=full ./a.out && rm a.out
-.PHONY: valgrind
-
-watch: ## Watch for changes
-	while true; do \
-		fswatch -o --event Created --event Updated --event MovedTo $(HEADERS) $(SOURCES) tests/c | \
-		make debug && make test-c; \
-	done
-.PHONY: watch
-
 # The installed library is BYTE-IDENTICAL to the repo's:
 # lib/ and apps/ copy verbatim -- diff -r inside the recipe is the proof, and
 # it fails the install if anything diverges.  Only the boot/ entries are
@@ -756,17 +588,19 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	# engine while the repo build (which already used -x, line ~158) was
 	# clean (x-lang#201).  Release tarballs come from this same target.
 	strip -x $(DESTDIR)$(LIBEXECDIR)/$(EXECUTABLE)
-	@if [ -f entitlements.plist ]; then codesign -s - --entitlements entitlements.plist -f $(DESTDIR)$(LIBEXECDIR)/$(EXECUTABLE) 2>/dev/null || true; fi
+	@if [ -f $(ENGINE_DIR)/entitlements.plist ]; then codesign -s - --entitlements $(ENGINE_DIR)/entitlements.plist -f $(DESTDIR)$(LIBEXECDIR)/$(EXECUTABLE) 2>/dev/null || true; fi
 	install $C -m 0755 $(NAME).sh $(DESTDIR)$(BINDIR)/$(NAME)
 	rm -rf $(DESTDIR)$(LIBDIR)/lib $(DESTDIR)$(LIBDIR)/apps $(DESTDIR)$(LIBDIR)/boot
-	# The engine's ISA fingerprint travels WITH the engine.  An installed
+	# The engine's ISA fingerprint travels WITH the engine -- literally so
+	# since the split: the manifest is the engine's own
+	# $(ENGINE_DIR)/tools/contract/isa.x, not a copy this repo keeps.  An installed
 	# tree has no source checkout, so before this there was no way to ask
 	# "which engine contract is this?" -- fetch could not compare (#186)
 	# and a pinned boot could not refuse a mismatched amalgam (#187); it
 	# just ran it and segfaulted.  One precomputed hex line: the wrapper
 	# needs a STRING compare against a release manifest, not a digester.
 	install -d -m 0755 $(DESTDIR)$(LIBDIR)/contract
-	@sh -c 'if command -v shasum >/dev/null 2>&1; then shasum -a 256 tools/contract/isa.x | cut -d" " -f1; 		else sha256sum tools/contract/isa.x | cut -d" " -f1; fi' 		> $(DESTDIR)$(LIBDIR)/contract/isa.sha256
+	@sh -c 'if command -v shasum >/dev/null 2>&1; then shasum -a 256 ext/x-eval-c/tools/contract/isa.x | cut -d" " -f1; 		else sha256sum ext/x-eval-c/tools/contract/isa.x | cut -d" " -f1; fi' 		> $(DESTDIR)$(LIBDIR)/contract/isa.sha256
 	cp -R lib $(DESTDIR)$(LIBDIR)/lib
 	cp -R apps $(DESTDIR)$(LIBDIR)/apps
 	cp -R build/boot $(DESTDIR)$(LIBDIR)/boot
@@ -822,26 +656,12 @@ uninstall: ## Uninstall from PREFIX
 # them would publish this checkout's path into a shared man tree, and they
 # hold nothing but a subdirectory listing.  The filter keys on the page
 # TITLE, not the file name, so it stays right on whatever box ran Doxygen.
-MANSRC=docs/ref/c/man/man3
 MANSRC_X=docs/ref/man/man3x
 
-# Split by REFERENCE, not for tidiness: the C half needs Doxygen and the
-# x-lang half needs only the engine, so joining them would force a Doxygen
-# dependency on anyone who wants the library pages -- and on any CI leg that
-# checks them.  install-man is still the both-halves door.
-install-man-c: doc-c ## Install the C reference man pages (section 3, needs Doxygen)
-	install -d -m 0755 $(DESTDIR)$(MANDIR)/man3
-	@n=0; \
-	for page in $(MANSRC)/*.3; do \
-		if head -n 1 "$$page" | grep -q 'Directory Reference" 3'; then \
-			continue; \
-		fi; \
-		install -m 0644 "$$page" $(DESTDIR)$(MANDIR)/man3/ || exit 1; \
-		n=`expr $$n + 1`; \
-	done; \
-	echo "  $$n C reference pages -> $(DESTDIR)$(MANDIR)/man3"
-.PHONY: install-man-c
-
+# The C half is generated and installed by the engine repo (this Makefile's
+# install-man-c delegates there); the x-lang half is below.  They stay apart
+# because the C pages need Doxygen and these need only the engine -- joining
+# them would force a Doxygen dependency on anyone who wants the library pages.
 install-man-x: doc-man ## Install the x-lang reference man pages (section 3x)
 	install -d -m 0755 $(DESTDIR)$(MANDIR)/man3x
 	@n=0; \
@@ -866,22 +686,6 @@ install-man: install-man-c install-man-x ## Install both man references to MANDI
 #
 #   make install-man MANDIR=$(PREFIX)/share/$(NAME)/man
 #
-uninstall-man-c: ## Remove the C reference man pages from MANDIR
-	@if [ ! -d $(MANSRC) ]; then \
-		echo "uninstall-man-c reads $(MANSRC) to know what install-man-c shipped; run 'make doc-c' first" >&2; \
-		exit 1; \
-	fi
-	@n=0; \
-	for page in $(MANSRC)/*.3; do \
-		installed=$(DESTDIR)$(MANDIR)/man3/`basename "$$page"`; \
-		if [ -f "$$installed" ]; then \
-			rm -f "$$installed" || exit 1; \
-			n=`expr $$n + 1`; \
-		fi; \
-	done; \
-	echo "  removed $$n C reference pages from $(DESTDIR)$(MANDIR)/man3"
-.PHONY: uninstall-man-c
-
 uninstall-man-x: ## Remove the x-lang man pages from MANDIR
 	@if [ ! -d $(MANSRC_X) ]; then \
 		echo "uninstall-man-x reads $(MANSRC_X) to know what install-man-x shipped; run 'make doc-man' first" >&2; \
@@ -902,7 +706,8 @@ uninstall-man: uninstall-man-c uninstall-man-x ## Remove both man references fro
 .PHONY: uninstall-man
 
 clean: cov-clean ## Clean build artifacts
-	rm -f $(EXECUTABLE) x-bin-debug x-bin-profile x-bin-asan x-bin-cov build/.strip-stamp *.out $(SRCDIR)/*.o $(SRCDIR)/**/*.o $(SRCDIR)/**/**/*.o $(OPTDIR)/**/*.o $(X_EXPR_DIR)/src/*.o *.core core
+	rm -f $(EXECUTABLE) x-bin-debug x-bin-profile x-bin-asan x-bin-cov *.out *.core core
+	@if [ -f $(ENGINE_DIR)/Makefile ]; then $(MAKE) --no-print-directory -C $(ENGINE_DIR) clean; fi
 	@# Pre-rename binary names (engine was `x` until the x-bin rename): a
 	@# checkout that built before the rename has stale copies at the root.
 	rm -f x x-debug x-profile x-asan x-cov

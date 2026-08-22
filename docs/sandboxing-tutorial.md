@@ -139,7 +139,7 @@ child is exactly the sanctioned playground.)
 ## Inspecting a base: field reflection
 
 Every field of a base is addressable by name. The names come from the
-layout contract — `tools/contract/base-paths.x`, one row per field — and
+layout contract — `ext/x-eval-c/tools/contract/base-paths.x`, one row per field — and
 `(Base fields)` lists them:
 
 ```x-repl
@@ -282,7 +282,7 @@ seams:
   examples run in CI).
 - [ref/x/type/base.md](ref/x/type/base.md),
   [ref/x/type/type.md](ref/x/type/type.md) — the generated reference.
-- `tools/contract/base-paths.x` — the layout contract both `cell`
+- `ext/x-eval-c/tools/contract/base-paths.x` — the layout contract both `cell`
   walkers read; `(Base fields)` / `(Type fields)` list its rows.
 - `tests/x/specs/core/sandbox.spec.md`,
   `tests/x/specs/lib/type.spec.md`,

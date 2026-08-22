@@ -16,6 +16,15 @@
 # include anywhere in the closure is a build error, not a silent skip.
 # (Runtime modules never contain them at all -- tools/check/path-literals.sh.)
 #
+# ext/ IS ONE OF THE ROOTS.  It was not, and the omission was invisible
+# until the boot closure first included from there: an ext/ include matched
+# neither branch, so it fell through to `print line` and travelled into the
+# amalgam UNRESOLVED.  The installed tree has no ext/, so boot died with no
+# diagnostic -- check-bootstrap caught it as "the installed x did not run a
+# program", which is the symptom three steps downstream of the cause.  The
+# "build error, not a silent skip" promise above only held for the roots
+# the pattern happened to list.
+#
 # Usage: sh tools/release/amalgamate.sh lib/xe.x > build/boot/xe.x
 
 cd "$(dirname "$0")/../.." || exit 1
@@ -35,7 +44,7 @@ function splice(path,  line, n) {
 	while ((getline line < path) > 0) {
 		n++
 		if (line ~ /^[[:space:]]*;/) { print line; continue }
-		if (line ~ /^\(include "(lib|tools|apps)\/[^"]*"\)[[:space:]]*(;.*)?$/) {
+		if (line ~ /^\(include "(lib|tools|apps|ext)\/[^"]*"\)[[:space:]]*(;.*)?$/) {
 			sub(/^\(include "/, "", line)
 			sub(/".*$/, "", line)
 			if ((getline junk < line) < 0) {
@@ -44,7 +53,7 @@ function splice(path,  line, n) {
 			}
 			close(line)
 			splice(line)
-		} else if (line ~ /\((include|include-once|require-once)[[:space:]]+"(lib|tools|apps)\//) {
+		} else if (line ~ /\((include|include-once|require-once)[[:space:]]+"(lib|tools|apps|ext)\//) {
 			printf "amalgamate: %s:%d: root-relative include not alone at column 0\n", path, n > "/dev/stderr"
 			bad = 1; exit 1
 		} else print line

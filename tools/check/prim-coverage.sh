@@ -28,22 +28,29 @@
 #
 # Shell, per the tools charter: this is a corpus scan over ~135 spec files, and
 # the same per-byte cost that keeps dup-defs and bare-globals out of x applies.
-# The surface comes from tools/lib/isa-scan.awk, shared with check-isa.
+# The surface comes from the engine's tools/lib/isa-scan.awk -- the same
+# scanner check-isa uses over there, read across the boundary so there is
+# one definition of "what counts as a binding site", not two.
 set -e
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# The C lives in the x-eval-c submodule (the 2026-08-21 split).  This gate's
+# SUBJECT moved; its manifest did not -- tools/contract/ holds runtime boot
+# data the library includes, so it stays here and the scan reaches across.
+ENGINE="$ROOT/ext/x-eval-c"
 cd "$ROOT"
 
 SCAN="${TMPDIR:-/tmp}/prim-cov-scan.$$"
 trap 'rm -f "$SCAN"' EXIT INT TERM
 
-awk -v names=1 -f tools/lib/isa-scan.awk \
-	src/*.c src/x-prim/*.c src/x-syntax/*.c opt/x-prim/*.c > "$SCAN"
+awk -v names=1 -f "$ENGINE"/tools/lib/isa-scan.awk \
+	"$ENGINE"/src/*.c "$ENGINE"/src/x-prim/*.c "$ENGINE"/src/x-syntax/*.c \
+	"$ENGINE"/opt/x-prim/*.c > "$SCAN"
 
 # The C suite is part of the answer: ffi-call, ptr->str and token-read are
 # exercised there and nowhere else, so a scan of the x specs alone reports
 # them missing.
-find tests \( -name '*.spec.md' -o -name '*.spec.c' \) | sort > "$SCAN.files"
+find tests "$ENGINE"/tests \( -name '*.spec.md' -o -name '*.spec.c' \) | sort > "$SCAN.files"
 
 awk -v scan="$SCAN" '
 BEGIN {

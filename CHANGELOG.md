@@ -19,6 +19,12 @@ routing works.
 
 ### Changed
 
+- **The C engine is a separate repository** — [x-eval-c](https://github.com/jonruttan/x-eval-c), consumed here as the `ext/x-eval-c` submodule with `ext/x-expr` nested inside it. `make` builds the engine there and copies `x-bin` to this repo's root, so the wrapper, the spec runners and every `tools/check/*.sh` script are unchanged. Clone with `--recursive`.
+
+  The contract manifests stayed here, and that is the load-bearing part: `lib/x-core.x` includes `base-paths.x` and `obj-layout.x` as the first things it loads and `pin.x` reads `isa.x` at runtime, so they are boot data for the library, not descriptions of the engine. All four ratchets — `check-isa`, `check-obj-layout`, `check-base-paths`, `check-prim-coverage` — therefore still run here, scanning the submodule's sources across the boundary.
+
+  The engine is built with this repo's `git describe` passed down as `X_RELEASE`, so it keeps reporting the *language* release it was built for and the pin guard's release pairing (#435) is unchanged.
+
 - **Object model v2** — message passing now runs over flat per-class dispatch tables (the hot path), with `method-of` as the sanctioned de-dispatch door; value-call subject-last is routing sugar into the same door; generic functions are the multi-argument cold path; and the C ops cell's seven spellings shim into the tower's generics, so promotion has one authority. Composition (`with`/`delegates`), contracts, records, open classes and `%missing` are table-shaping features that never change routing. Measured: a 110-entry static back-hit went 231 → ~100 µs/call, and `method-of`-hoisted calls sit at ~31 µs against a plain `fn`'s ~21.
 - **Static members inherit**, with shadow-on-write, and classes are tracked in a registry.
 - **Stored methods are applicative** — the stale wrap sites are gone.

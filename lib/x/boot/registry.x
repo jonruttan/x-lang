@@ -3,7 +3,7 @@
 ; The FIRST file x-core loads: everything after it -- operatives.x included
 ; -- fetches its C instruments with prim-ref, so the protocol must exist
 ; before any other X code runs.  It can: the catalog is just a cell in the
-; base spine (tools/contract/base-paths.x, included immediately before this file),
+; base spine (ext/x-eval-c/tools/contract/base-paths.x, included immediately before this file),
 ; and reading it is a pure first/rest walk from (%base).  Uses ONLY the C
 ; spine forms (fn/def/match/lit + first/rest/eq?).
 ;

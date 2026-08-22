@@ -72,7 +72,7 @@
                       ())))
                   (first (%type-read-cell st)))))))
     ; The base's type registry by NAME, through the contract-driven reflect
-    ; door (tools/contract/base-paths.x), never a shape heuristic.
+    ; door (ext/x-eval-c/tools/contract/base-paths.x), never a shape heuristic.
     (method %xon-find-type (self b name)
       ; The walk needs the RAW spine; a Base instance unwraps here.
       (let ((hit (%find (fn (_ e)
