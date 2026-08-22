@@ -33,6 +33,10 @@
 ; emitters when an entry comes out of a (private ...) or (protected ...)
 ; block: inlining it instead would duplicate the tier wording at both call
 ; sites, which is how the two drift.
+; platform/syscall.x grew by two for %declared-os and %declared-arch: the engine's
+; BUILD now declares its os and arch, and the triple parse became the fallback for
+; an engine that could not establish them.  Boot-constrained like the rest of that
+; file -- it loads mid-x-core, before the class machinery that would home them.
 ; Everything else is unhomed inventory awaiting the pin.x treatment.
 (file "apps/logo/dispatch.x" 28)
 (file "apps/logo/entry.x" 27)
@@ -79,7 +83,7 @@
 (file "lib/x/num/tower.x" 10)
 (file "lib/x/num/rational.x" 39)
 (file "lib/x/platform/socket.x" 1)
-(file "lib/x/platform/syscall.x" 5)
+(file "lib/x/platform/syscall.x" 7)
 (file "lib/x/protocol/seq.x" 1)
 (file "lib/x/protocol/str/str8.x" 14)
 (file "lib/x/protocol/str/utf8.x" 5)

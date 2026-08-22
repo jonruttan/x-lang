@@ -105,6 +105,10 @@ all: $(EXECUTABLE) ## Build all
 # submodule's own makefile knows whether its sources are stale.
 $(EXECUTABLE): $(ENGINE_DIR)/$(EXECUTABLE)
 	cp $< $@
+	# The build's param declaration travels WITH the binary, so `dirname $$X_BIN`
+	# finds it in repo mode exactly as it does in an install tree.  Without this
+	# the wrapper would need two ways to locate the same fact.
+	@if [ -f $(ENGINE_DIR)/x-engine-build.xon ]; then cp $(ENGINE_DIR)/x-engine-build.xon x-engine-build.xon; fi
 
 $(ENGINE_DIR)/$(EXECUTABLE): FORCE
 	$(ENGINE_MAKE)
@@ -679,6 +683,16 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 		install $C -m 0644 $(ENGINE_DIR)/x-engine.xon $(DESTDIR)$(LIBEXECDIR)/x-engine.xon; \
 	else \
 		echo "install: WARNING -- $(ENGINE_DIR)/x-engine.xon is missing; the installed tree cannot say what its engine provides" >&2; \
+	fi
+	# And the BUILD's own facts beside it.  x-engine.xon is generated from source
+	# and carries no (param ...) rows on purpose -- word size, byte order and
+	# architecture belong to a BINARY, not a tree.  This is what lets the platform
+	# layer read a declaration instead of sniffing the build triple at runtime, and
+	# what a cross-compiled engine reports its TARGET through.
+	@if [ -f $(ENGINE_DIR)/x-engine-build.xon ]; then \
+		install $C -m 0644 $(ENGINE_DIR)/x-engine-build.xon $(DESTDIR)$(LIBEXECDIR)/x-engine-build.xon; \
+	else \
+		echo "install: WARNING -- $(ENGINE_DIR)/x-engine-build.xon is missing; the installed tree cannot say what platform its engine was built for" >&2; \
 	fi
 	@if [ -f $(ENGINE_DIR)/entitlements.plist ]; then codesign -s - --entitlements $(ENGINE_DIR)/entitlements.plist -f $(DESTDIR)$(LIBEXECDIR)/$(EXECUTABLE) 2>/dev/null || true; fi
 	install $C -m 0755 $(NAME).sh $(DESTDIR)$(BINDIR)/$(NAME)
