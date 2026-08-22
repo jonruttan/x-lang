@@ -37,24 +37,52 @@ nothing more. Reaching these from x-lang's suite means teaching this runner the
 same trick; until then the honest record is that they are undefined here, not
 that they pass.
 
-## buf/* and tok/* -- the tokenizer's own machinery
+## buf/* and tok/* -- the reader protocol, modelled but not yet defined here
 
-`buf/make`, `append`, `read`, `read-text`, `reset`, `retain`, `last-char`, `tok`
-and the two `tok/*` entries are the reader's inner loop, not a general-purpose
-byte API. A buffer carries a read cursor, a retained-token region, and flags that
-decide whether exhaustion answers EOF or EXTENDS FROM STDIN -- and getting the
-flag wrong makes the harness hang rather than fail. Probing them bare crashed the
-engine outright on the obvious call shapes.
+These nine rows are one protocol, not nine instructions, and the reason they stay
+undefined is now a specific gap rather than a shrug. What follows is the model,
+recovered from the engine's C and from `lib/x/num/bigint.x`, which registers a
+real reader type.
 
-They also run under a constraint nothing else here does: code reached inside the
-token read must not allocate, which is why `lib/x/reader/lit-reader.x` is written
-the way it is. A conformance case that called them from ordinary x-lang would be
-testing them outside the conditions they exist under.
+**The protocol.**
 
-Their observable contract is the READER's -- what the tokenizer produces for given
-source text -- and that is a language-level property the library's own dialect and
-reader specs already cover. Defining it at the instruction level needs the reader
-family modelled first; this file names the gap so it stays a decision.
+1. `(base make-tok)` makes a base with NO types registered -- deliberately bare,
+   "for custom tokenizer type registration on an isolated base".
+2. `(base make-type TOKBASE "NAME" handlers)` registers a reader type on it. The
+   handler alist carries `analyse` and `read`.
+3. `analyse` is `(fn (_ buffer score chr))` and it is a STATE MACHINE whose states
+   are functions: it returns the analyser for the next character to continue,
+   `()` to reject, or records a match through the score object to accept.
+   `lib/x/num/bigint.x` is the worked example -- `%big-analyse` dispatches on the
+   first character, `%big-digits` loops while digits arrive, and on a non-digit it
+   pushes the character back and scores.
+4. `(tok read-str TOKBASE text)` drives every registered type's analyser over the
+   text, scores them against each other, and calls the winner's `read`.
+
+So the buffer is never the subject. It is the tape the analysers run over, and
+its marks -- write, read, and the retain mark -- are moved by the tokenizer in an
+order only the tokenizer knows.
+
+**Why driving it by hand pins garbage.** Make a read-only buffer over a
+`(str make 32)` region, append two characters, read twice: `tok` answers length 2
+and `last-char` answers the second character, which looks like working semantics.
+The same `read` returns a character that is neither appended one, nor NUL, nor
+nil. `(str make N)` is not promised to return zeroed memory, so the constructor's
+write mark lands past whatever bytes were there and the cursor reads them. Two
+cases were written green on that before the third disagreed.
+
+**What is still missing for a bare case.** The acceptance path needs the score
+object written and the character pushed back -- `%score-set` and `%buffer-unread`
+in the library -- and those are x-level helpers over the primitives rather than
+primitives themselves, so a bare case must rebuild them. And `(tok read-str)`
+answers nil even through a fully-typed `(base make)`, so there is a precondition
+beyond type registration still to find, most likely the base's own read buffer.
+
+That is the next piece of work, and it is bounded: rebuild the two helpers from
+the primitives, find the precondition, then one case registering a trivial
+digit-accepting type covers all nine rows at once -- because breaking any of
+them breaks the parse. That is the standard a protocol case has to meet: a case
+covers a row when breaking the row breaks the case.
 
 ## obj/make and obj/make-callable -- construction, deferred
 
