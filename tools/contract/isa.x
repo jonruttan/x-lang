@@ -88,6 +88,9 @@
   (int + raw-op)
   (int - raw-op)
   (int ->char raw-op)
+  (int ->str alloc)           ; renders digits into a fresh string; the x-lang
+                              ;   digit loop it replaces ran per digit of every
+                              ;   number the printer rendered
   (int ->ptr ffi)
   (int / raw-op)
   (int < raw-op)

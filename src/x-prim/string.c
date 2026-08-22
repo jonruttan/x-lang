@@ -41,6 +41,80 @@ static x_obj_t *x_prim_string_append(x_obj_t *p_base, x_obj_t *p_args)
 	return x_mkstrown(p_base, s);
 }
 
+/** Render an integer as a string, in an optional base.
+ *  x-lang: (int->str n base)
+ *  @param p_base Interpreter base context.
+ *  @param p_args Unevaluated argument list: (int->str n [base]); base
+ *                defaults to 10 and must be 2..36.
+ *  @return A newly allocated string holding the digits of @p n.
+ *  @note The conversion itself is x_lib_inttostr -- the x-lib drop-in for
+ *        ltoa.  Like every classic itoa/ltoa, that one negates its argument
+ *        to take the magnitude, which is the one operation that does not
+ *        round-trip on the most-negative integer.  Rather than diverge the
+ *        drop-in from the function it stands in for, this wrapper never
+ *        hands it a value that cannot be negated: for negatives it peels the
+ *        final digit first, in the NEGATIVE domain where the arithmetic is
+ *        always safe (C division truncates toward zero, so n % base lands in
+ *        -(base-1)..0 and negating THAT cannot overflow).  The quotient it
+ *        then converts has strictly smaller magnitude than n, so it can
+ *        never itself be the most-negative value.
+ *  @note The buffer is on the STACK: x_mkstr wraps a pointer without
+ *        copying (X_OBJ_FLAG_NONE), so the result must be an OWNED copy
+ *        or the string object outlives its bytes.
+ */
+static x_obj_t *x_prim_int_to_str(x_obj_t *p_base, x_obj_t *p_args)
+{
+	/* Base 2 is the widest rendering: one digit per bit, plus sign and NUL. */
+	x_char_t buf[8 * sizeof(x_int_t) + 3];
+	x_obj_t *p_n, *p_base_arg;
+	x_int_t n, radix, q, r;
+	x_char_t *s;
+	size_t len;
+
+	x_eargs(p_base, p_args, 2, NULL, &p_n);
+
+	radix = 10;
+	if ( ! x_obj_isnil(p_base, x_11(p_args))) {
+		p_base_arg = x_eval_arg(p_base, x_011(p_args));
+		radix = x_intval(p_base_arg);
+	}
+	if (radix < 2 || radix > 36)
+		x_eval_error(p_base,
+			(x_char_t *)"int->str: base must be 2..36", NULL);
+
+	n = x_intval(p_n);
+
+	if (n >= 0) {
+		x_lib_inttostr(n, buf, (unsigned short)radix);
+		len = x_lib_strlen(buf);
+		s = (x_char_t *)x_sys_malloc(len + 1);
+		x_lib_memcpy(s, buf, len + 1);
+		return x_mkstrown(p_base, s);
+	}
+
+	/* Negative: peel the last digit before any negation happens. */
+	q = n / radix;
+	r = -(n % radix);
+	if (q == 0) {
+		buf[0] = (x_char_t)'-';
+		buf[1] = (x_char_t)(r + (r >= 10 ? 'a' - 10 : '0'));
+		buf[2] = (x_char_t)0;
+		s = (x_char_t *)x_sys_malloc(3);
+		x_lib_memcpy(s, buf, 3);
+		return x_mkstrown(p_base, s);
+	}
+
+	x_lib_inttostr(q, buf, (unsigned short)radix);
+	len = x_lib_strlen(buf);
+	buf[len] = (x_char_t)(r + (r >= 10 ? 'a' - 10 : '0'));
+	buf[len + 1] = (x_char_t)0;
+
+	len = len + 1;
+	s = (x_char_t *)x_sys_malloc(len + 1);
+	x_lib_memcpy(s, buf, len + 1);
+	return x_mkstrown(p_base, s);
+}
+
 /** Allocate a fresh writable byte region as a string object.
  *  x-lang: (make-str n)
  *  @param p_base Interpreter base context.
@@ -222,6 +296,7 @@ x_obj_t *x_prim_string_register(x_obj_t *p_base, x_obj_t *p_args)
 		{ "str->symbol",  x_prim_string_to_symbol, "str",   "->sym"    },
 		{ "symbol->str",  x_prim_symbol_to_string, "sym",   "->str"    },
 		{ "bytes->str",   x_prim_list_to_string,   "bytes", "->str"    },
+		{ "int->str",     x_prim_int_to_str,       "int",   "->str"    },
 		{ "str-byte-len", x_prim_str_byte_len,     "str",   "byte-len" },
 		{ "str-byte-ref", x_prim_str_byte_ref,     "str",   "byte-ref" },
 		{ "str-byte-sub", x_prim_str_byte_sub,     "str",   "byte-sub" }
