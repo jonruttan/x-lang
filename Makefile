@@ -172,7 +172,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-dialect-cover check-highlight-roundtrip ## Run the contract gates
+gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-dialect-cover check-highlight-roundtrip ## Run the contract gates
 .PHONY: gates
 
 # The local-latency split (2026-08-03 audit): `make test` grew past ten
@@ -358,6 +358,19 @@ check-constraints: ## Diff source constraint markers against tools/contract/cons
 check-engine-contract: ## Hold features.x/requires.x against the engine's ISA
 	sh tools/check/engine-contract.sh
 .PHONY: check-engine-contract
+
+# COMPLIANCE: does the engine DO what its x-engine.xon claims?  check-engine-contract
+# compares provides against requires as text, so an engine that over-declares passes
+# it, is chosen by the resolver, and fails in the field -- loudly for a capability,
+# SILENTLY for a guarantee (an engine that claims gc/explicit-only while collecting
+# on allocation corrupts the six library sites that hold raw pointers across
+# allocating expressions, and says nothing).  This runs generated probes that try to
+# falsify each declared row, BARE: with the library loaded, registry.x's prim-ref and
+# reflect.x's refiled entries make an engine capability indistinguishable from a
+# library one.  Needs the built engine, so it rides `gates`, not `gates-fast`.
+check-compliance: $(EXECUTABLE) ## Falsify each row of the engine's x-engine.xon
+	sh tools/check/compliance.sh
+.PHONY: check-compliance
 
 # The dialect coverage ratchet (#70): every lib/*.x entry point needs an
 # end-to-end smoke group, so a new dialect cannot ship untested the way the
