@@ -100,6 +100,17 @@ awk '/^\(provides /{ l=$0; gsub(/[()]/,"",l); $0=l; print $2 }' "$XON" | sort -u
 	printf '%s/provides.spec.md %s/expect-%s.x %s\n' "$SPECS" "$OUT" "$safe" "$grp" >> "$OUT/plan"
 done
 
+# --- the build's declared params, where an experiment exists ------------------
+# x-engine.xon carries no param rows -- they are facts of a BINARY -- so these
+# come from the build declaration beside it.  Only a param with a falsifying
+# experiment gets a check; the rest are recorded facts, not claims to audit.
+if [ -f "$ENGINE/x-engine-build.xon" ]; then
+	if grep -qE '^\(param word-size [48]\)' "$ENGINE/x-engine-build.xon"; then
+		f="$SPECS/param-word-size.spec.md"
+		if [ -f "$f" ]; then printf '%s - param word-size\n' "$f" >> "$OUT/plan"; fi
+	fi
+fi
+
 # --- one entry per declared guarantee that has an experiment ------------------
 # A guarantee with no spec file is NOT silently skipped: the driver reports it.
 awk '/^\(guarantee /{ l=$0; gsub(/[()]/,"",l); $0=l; print $2 }' "$XON" | sort -u \

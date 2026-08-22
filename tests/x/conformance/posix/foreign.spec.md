@@ -71,21 +71,51 @@ covers: sys/clock
 ---
     *** ERROR: ok
 
-## syscall, ffi/call, sigint-install and sigint-restore -- not defined here
+### the syscall door reaches the kernel and reports failure as a negative
 
-`syscall` cannot be given a PORTABLE case here. Syscall numbers are per-OS and
-per-arch -- `lib/x/platform/data/` carries three tables for that reason -- so a
-case must either name a number (and be wrong on the next platform) or receive one
-from the harness. Injecting a per-`uname` table into the runner is exactly the
-platform dependency this suite exists to make declarative, and it is what the
-engine's own bare harness does today. The right source is the `(param os ...)` /
-`(param arch ...)` block an engine will stamp beside its binary; until that lands,
-a case here would be pinning the harness's guess rather than the engine's
-behaviour.
+covers: syscall
 
-(An invalid number is not a substitute: `(syscall 999999)` kills the process
-outright rather than returning `-errno`, so the failure path is not observable
-this way either.)
+The raw contract is the whole of it: hand the kernel a number and its arguments,
+and answer what it answers -- a negative value being `-errno`, which every caller
+in `lib/x/sys/` folds. `write` to a closed descriptor is the cheapest failure that
+asks nothing of the machine.
+
+THE NUMBER COMES FROM THE ENGINE'S DECLARATION, not from the harness. Syscall
+numbers are per-OS and per-arch, and this case could not be written until the
+engine stamped `(param os ...)` / `(param arch ...)` beside its binary: before
+that, a case here would have pinned the harness's `uname` guess -- the platform
+of the machine RUNNING the suite, not the platform the engine was BUILT for. The
+table below is platform knowledge, which is what it is; selecting a row from it
+with a declared fact is the part that was missing.
+
+An unrecognised platform fails loudly rather than passing: a case that quietly
+skips is a case that proves nothing.
+
+```scheme
+(def %sys-write
+  (match
+    ((eq? %param-os (lit darwin)) 4)
+    ((eq? %param-os (lit linux))
+      (match ((eq? %param-arch (lit x86-64)) 1)
+             ((eq? %param-arch (lit arm64)) 64)
+             ((eq? %param-arch (lit i386)) 4)
+             (#t ())))
+    (#t ())))
+(%ok (match ((eq? %sys-write ()) ()) (#t (< (syscall %sys-write 999 "x" 1) 0))))
+```
+---
+    *** ERROR: ok
+
+## ffi/call, sigint-install and sigint-restore -- not defined here
+
+(`syscall` was here until the engine began declaring its platform; see the case
+above. The old objection was real -- a case must not pin the harness's guess --
+and it was answered by giving the engine somewhere to state the fact.)
+
+One thing learned the hard way and worth keeping: an INVALID number is not a
+substitute for a failing call. `(syscall 999999)` kills the process outright
+rather than returning `-errno`, so the failure path is not observable that way.
+The case above uses a real number and a closed descriptor.
 
 `ffi/call` is the SIGNATURE-driven variant of `ptr/call`, used where an argument
 or return needs a type the pointer call cannot infer (floats, in
