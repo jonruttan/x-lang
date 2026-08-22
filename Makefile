@@ -172,7 +172,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-dialect-cover check-highlight-roundtrip ## Run the contract gates
+gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-dialect-cover check-highlight-roundtrip ## Run the contract gates
 .PHONY: gates
 
 # The local-latency split (2026-08-03 audit): `make test` grew past ten
@@ -183,7 +183,7 @@ gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boo
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-dialect-cover ## The fast contract gates (pre-push subset)
+gates-fast: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-dialect-cover ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast test-c test-x ## Pre-push gate: fast gates + both spec suites (CI runs full `make test`)
@@ -389,6 +389,14 @@ conformance: $(EXECUTABLE) ## Run the conformance suite (X_BIN=... for another e
 check-conformance-coverage: ## Report ISA coverage; fail if the suite regressed
 	sh tools/check/conformance-coverage.sh
 .PHONY: check-conformance-coverage
+
+# The implementation-agnostic ratchet: lib/ may name a specific engine only in
+# lib/x/boot/engine.x, the seam that carries both boot contract includes and the
+# engine root the JIT and pin tool read at runtime.  Without this the claim that a
+# second engine needs no library edit is a wish rather than a property.
+check-engine-seam: ## Assert lib/ names its engine only in the seam
+	sh tools/check/engine-seam.sh
+.PHONY: check-engine-seam
 
 # The dialect coverage ratchet (#70): every lib/*.x entry point needs an
 # end-to-end smoke group, so a new dialect cannot ship untested the way the

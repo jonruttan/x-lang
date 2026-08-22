@@ -47,6 +47,7 @@
 (file "apps/logo/tstate.x" 2)
 (file "apps/logo/types.x" 43)
 (file "lib/x/boot/data.x" 14)
+(file "lib/x/boot/engine.x" 2)
 (file "lib/x/boot/module.x" 52)
 (file "lib/x/boot/operatives.x" 6)
 (file "lib/x/boot/printer.x" 76)
