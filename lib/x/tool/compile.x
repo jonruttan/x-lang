@@ -11,6 +11,7 @@
 
 (import x/type/str)
 (import x/sys/posix)
+(import x/platform/syscall)
 (import x/sys/file)
 (import x/sys/proc)
 (import x/type/hash)
@@ -91,13 +92,16 @@
         (%set-first! %compile-pid-cell (%cvt (Sys getpid) %string)))
       (first %compile-pid-cell))))
 
+; os-darwin? comes from lib/x/platform/syscall.x, which parses the build triple
+; once.  This module used to sniff it a third time, with its own spelling of the
+; same test.
 (def %compile-cc-flags
-  (if (Str includes? "darwin" x-machine)
+  (if os-darwin?
     (list "-bundle" "-undefined" "dynamic_lookup")
     (list "-shared" "-fPIC")))
 
 (def %compile-ext
-  (if (Str includes? "darwin" x-machine) ".bundle" ".so"))
+  (if os-darwin? ".bundle" ".so"))
 
 ; --- Multi-arg string concatenation ---
 

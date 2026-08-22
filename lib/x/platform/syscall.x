@@ -38,6 +38,26 @@
 (def os-darwin? (%os-contains? "darwin" x-machine 0))
 (def os-linux? (%os-contains? "linux" x-machine 0))
 
+; --- architecture, parsed HERE and only here ---
+; The same triple carries the arch, and it used to be re-sniffed wherever
+; someone needed it: lib/x/tool/asm.x had its own darwin test and its own arm64
+; test, lib/x/tool/compile.x had a third darwin test.  Three readings of one
+; string, and only one of them knew that Darwin spells A64 "arm64" while GNU
+; triplets spell it "aarch64" -- so a module that copied the wrong one would
+; work on a Mac and mis-detect everywhere else.  The triple is parsed once, and
+; tools/check/platform-seam.sh holds it to once.
+;
+; SNIFFING A TRIPLE IS THE INTERIM, NOT THE DESIGN.  What an engine should hand
+; over is a declared (param arch ...) row -- a fact it knows at build time
+; rather than a substring of a string it happens to print.  x-engine.xon omits
+; params on purpose (they are facts of a BUILD, not of a source tree) and they
+; are stamped beside the installed binary.  When that source exists, this is the
+; one place that changes.
+(def arch-arm64?
+  (if (%os-contains? "arm64" x-machine 0) #t
+    (%os-contains? "aarch64" x-machine 0)))
+(def arch-x86-64? (%os-contains? "x86_64" x-machine 0))
+
 ; --- File open-mode flags (O_*) ---
 ; PLATFORM truth: the O_* flag VALUES differ by OS (verified: macOS
 ; O_CREAT=512 / O_TRUNC=1024 vs Linux 64 / 512), so there is one table per
