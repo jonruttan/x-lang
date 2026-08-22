@@ -26,8 +26,19 @@ would be false besides, since the layout descriptors are expressed in words and 
 library sizes a word at boot. Where a specific module genuinely does depend on a
 value, it carries a row in `tools/contract/constraints.x` and a marker at the code.
 
+**Parameter values are vocabulary too.** `os` is spelled `darwin`, not `macos`;
+`arch` is `arm64`, not `aarch64`. Those spellings are declared beside the parameter
+in `features.x` and checked by the gate — against every value `constraints.x` binds,
+and against an engine's `x-engine-build.xon` when it has been built. A closed value
+set is not a requirement: it says which values this vocabulary can *spell*, and
+only `constraints.x` may bind one. `unknown` is always legal and means the build
+could not say.
+
 The closed vocabulary is `tools/contract/features.x`. The language owns it: an
-engine that defined the terms would be choosing the ones it is judged by.
+engine that defined the terms would be choosing the ones it is judged by — which
+is exactly how the parameter spellings went wrong. They were real and enforced,
+but only inside one engine's build script, so a second implementation had to
+reverse-engineer them from that script and a spec file.
 
 ## Capabilities
 

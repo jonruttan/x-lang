@@ -85,8 +85,14 @@
   (instr/cov     X_COV)     ; coverage marking -- tools/dev/cov.x, x-bin-cov
   (instr/profile X_PROFILE) ; eval counters -- lib/x/tool/profile.x
   ; --- reflection support that is not a row at all ---
-  (reflect/layout-data -)   ; ships obj-layout.x + base-paths.x + base-layout.x,
-                            ;   which lib/x-core.x includes BEFORE data.x
+  (reflect/layout-data -)   ; ships obj-layout.x + base-paths.x, the two files
+                            ;   lib/x/boot/engine.x includes before data.x runs.
+                            ;   NOT base-layout.x: that is the C engine's own
+                            ;   generator input (gen-base-layout.awk turns it into
+                            ;   C accessors) and nothing in lib/ reads it.  This
+                            ;   row named three files and the wrong includer until
+                            ;   a second engine was asked to satisfy it and would
+                            ;   have had to emit C for a compiler it does not use.
   (reflect/word-probe  -)   ; int<->ptr round-trip faithful enough to size a word
                             ;   (lib/x/boot/data.x probes it at boot)
   ; --- the invocation protocol (contract layer E) ---
@@ -165,13 +171,34 @@
 ; Values an engine reports.  Listed here so the vocabulary is closed (a requires
 ; row naming any of these is refused by the gate); the per-module needs live in
 ; tools/contract/constraints.x, which is where a value can legitimately bind.
+;
+; THE VALUES ARE PART OF THE VOCABULARY TOO, and they were not written down.
+; They existed -- ext/x-engine-c/tools/contract/gen-build-params.sh normalises a
+; build triple to darwin/linux/bsd and arm64/x86-64/i386, and
+; tests/x/conformance/posix/foreign.spec.md compares %param-os against those very
+; spellings -- but they lived inside ONE ENGINE'S build script, which is an
+; engine choosing the terms it is judged by.  A second implementation had to
+; reverse-engineer them from that script and a spec file: Rust's own names for
+; the same machines are `macos` and `aarch64`, and an engine stamping those
+; reports true facts in a vocabulary nothing can read, so every comparison
+; against a literal fails silently.
+;
+; FORMAT: (name value ...).  A row with values is CLOSED and the gate checks
+; against it; a row with none accepts anything.  `unknown` is always legal and
+; means the build could not say -- consumers skip it rather than guessing.
+;
+; A closed value set is NOT a requirement.  Naming 4 and 8 says which widths this
+; vocabulary can spell, not that an engine must have one of them: a requires row
+; naming a parameter is still refused, and only constraints.x may bind a value.
+; Adding an OS or an architecture is a deliberate edit here, which is the point --
+; the alternative is each engine inventing its own spelling in silence.
 (def %feature-parameters (lit (
-  (word-size)   ; bytes per machine word AND per fixnum (see int/ptr-same-width)
-  (int-width)   ; DERIVED: word-size * 8; declared for readers, never required
-  (endian)      ; byte order of a widening (ptr ref) read
-  (os)          ; darwin / linux / ...
-  (arch)        ; arm64 / x86-64 / i386 / ...
-  (machine)     ; the full build triple, as DATA -- replaces x-machine sniffing
+  (word-size 4 8)          ; bytes per machine word AND per fixnum (int/ptr-same-width)
+  (int-width)              ; DERIVED: word-size * 8; declared for readers, never required
+  (endian little big)      ; byte order of a widening (ptr ref) read
+  (os darwin linux bsd)
+  (arch arm64 x86-64 i386)
+  (machine)                ; the full build triple, as DATA -- replaces x-machine sniffing
 )))
 
 ; --- PROFILES ----------------------------------------------------------------
