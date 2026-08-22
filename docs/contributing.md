@@ -70,7 +70,7 @@ make clean && make
   boot-layer mechanism spelling, used only in files that parse before the
   quote reader exists: `x-core.x`, its includes through `lit-reader.x`, and
   the files those pull in via mid-boot `import` (`codec/utf8.x`,
-  `platform/syscall.x`) — plus `tools/contract/isa.x`, a data manifest. Strings and
+  `platform/syscall.x`) — plus `ext/x-eval-c/tools/contract/isa.x`, a data manifest. Strings and
   comments inside those files may still show `'x`. See [syntax.md](syntax.md)
 - **File extension** — `.x`
 
@@ -313,7 +313,7 @@ boot` and `tools/release/release-manifest.sh`, publishing a GitHub Release
 carrying the amalgamated boot entries (`build/boot/*.x`, discovered —
 never a hand list), `SHASUMS` (coreutils format), and
 `pin.release.xon` — the machine-readable manifest (xon) with each
-file's sha256, the **ISA fingerprint** (the digest of `tools/contract/isa.x`,
+file's sha256, the **ISA fingerprint** (the digest of `ext/x-eval-c/tools/contract/isa.x`,
 the C-surface contract the amalgams were built against; `make
 check-isa` holds manifest == binary) and the **payload fingerprint**
 (one digest over `lib`, `apps` and `boot`, from

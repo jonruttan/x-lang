@@ -78,7 +78,7 @@ same way -- raw bases from the catalog prims stay plumbing.
 
 ## base field reflection
 
-Field access walks the layout contract (tools/contract/base-paths.x):
+Field access walks the layout contract (ext/x-eval-c/tools/contract/base-paths.x):
 (b cell 'name) resolves the base-rooted row for name and steps from the
 base; (Base fields) lists the names.  A non-base-rooted name is REFUSED
 -- a type-rooted path stepped from a base addresses arbitrary spine

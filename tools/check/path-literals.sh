@@ -2,7 +2,7 @@
 # path-literals.sh -- ratchet: root-relative load-path literals are
 # BOOT-CLOSURE ONLY.
 #
-# A "lib/..." (or "tools/...", "apps/...") include in a runtime module
+# A "lib/..." (or "tools/...", "apps/...", "ext/...") include in a runtime module
 # resolves against the process cwd, so it works only when cwd is the repo
 # root -- it breaks installed trees ONLY, the one environment CI never
 # runs.  Runtime modules load siblings via import
@@ -22,7 +22,7 @@ for f in $(find lib apps -name '*.x' \
     ! -path 'lib/x.x' ! -path 'lib/he.x' ! -path 'lib/xe.x' ! -path 'lib/rn.x' \
     ! -path 'lib/x/boot/*' ! -path 'apps/*/run.x' | sort); do
 	HITS=$(sed 's/;.*//' "$f" \
-		| grep -nE '\((include|include-once|require-once)[[:space:]]+"(lib|tools|apps)/')
+		| grep -nE '\((include|include-once|require-once)[[:space:]]+"(lib|tools|apps|ext)/')
 	if [ -n "$HITS" ]; then
 		FOUND=1
 		printf '%s\n' "$HITS" | sed "s|^|$f:|"

@@ -61,7 +61,7 @@ X_OBJ_FLAG_SHARED  0x100  permanently retained across GC
 X_OBJ_FLAG_MARK    0x200  the GC mark bit
 ```
 
-Flags `0x01`–`0x08` are app-defined attribute bits; the `WRAP` alias (`0x01`) distinguishes applicative procedures from bare closures. The authoritative bit table is `tools/contract/obj-layout.x`, pinned by `make check-obj-layout`.
+Flags `0x01`–`0x08` are app-defined attribute bits; the `WRAP` alias (`0x01`) distinguishes applicative procedures from bare closures. The authoritative bit table is `ext/x-eval-c/tools/contract/obj-layout.x`, pinned by `make check-obj-layout`.
 
 ---
 
@@ -308,7 +308,7 @@ Clothes a type handle (from `Type of`) or a type struct (from
 methods. The `handle` member holds the name atom, `raw` the struct the
 `Type` statics consume.
 
-`cell` and `fields` walk the layout contract (`tools/contract/base-paths.x`)
+`cell` and `fields` walk the layout contract (`ext/x-eval-c/tools/contract/base-paths.x`)
 — the same rows the C accessor macros flatten — so every struct field is
 addressable by its contract name: handler stacks, the conversion catalog
 cells, the generic-operator alist. A name whose row is not type-rooted is
@@ -475,7 +475,7 @@ typedef struct x_error_handler {
 
 The instance is the interactive surface — `(b eval expr)`, `(b bind n v)`,
 `(b make-type name h)` — and reflection rides the layout contract:
-`(b cell 'field-name)` walks `tools/contract/base-paths.x`'s base-rooted
+`(b cell 'field-name)` walks `ext/x-eval-c/tools/contract/base-paths.x`'s base-rooted
 row for the name to the addressed cell, `(Base fields)` lists the rows,
 and a non-base-rooted name is refused. The worked path is
 [Sandboxing and type reflection, step by step](sandboxing-tutorial.md);

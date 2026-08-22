@@ -251,37 +251,35 @@ check-logo-tty: $(EXECUTABLE) ## Run the logo interactive-contract pty tests
 	sh tools/check/logo-tty.sh
 .PHONY: check-logo-tty
 
-# The C-surface ratchet, source half: every binding site in the C source must
-# appear in the committed manifest tools/contract/isa.x, so growing the C layer requires
-# a deliberate manifest edit in the same commit.  The runtime half lives in
-# tests/x/specs/meta/isa.spec.md (runs under test-x).
-check-isa: ## Diff the C source's binding surface against tools/contract/isa.x
-	sh tools/check/isa.sh
-.PHONY: check-isa
+# The three SELF-CONTAINED contract ratchets moved to the engine repo with
+# the manifests they diff against (2026-08-21).  They are delegated, not
+# deleted: `make check-isa` still works from here, CI's gate list does not
+# have to know which side of the boundary each ratchet lives on, and a C
+# change that skips its manifest edit is refused by the same `make gates`
+# it always was.
+#
+# Their RUNTIME halves stay here and run under test-x, because only a booted
+# engine can answer them: tests/x/specs/meta/{isa,obj-layout,base-paths}.spec.md
+# walk the live catalog, the live object header and the live base spine.
+check-isa check-obj-layout check-base-paths: ## Engine contract ratchets (delegated)
+	$(ENGINE_MAKE) $@
+.PHONY: check-isa check-obj-layout check-base-paths
 
-# Sixteen primitives had no test and nobody knew -- found by accident, because
-# nothing enumerated the C surface and asked which parts of it run.  This asks.
-# An untestable primitive has to say so in prose next to the subject rather
-# than being quietly absent, and a reason cannot outlive its subject.
+# The fourth ratchet, and the one that CANNOT move: it asks whether every
+# primitive the C registers is EXERCISED by a spec, and most primitives are
+# reachable only through the library, so the honest answer needs BOTH spec
+# suites at once.  Only the repo holding both trees can ask it -- this one,
+# while the engine is a submodule.  When x-lang stops vendoring the engine's
+# source this gate is the thing that has no home yet; see the split notes.
+#
+# Sixteen primitives had no test and nobody knew -- found by accident,
+# because nothing enumerated the C surface and asked which parts of it run.
+# This asks.  An untestable primitive has to say so in prose next to the
+# subject rather than being quietly absent, and a reason cannot outlive its
+# subject.
 check-prim-coverage: ## Assert every C primitive is exercised by a spec, or says why not
 	sh tools/check/prim-coverage.sh
 .PHONY: check-prim-coverage
-
-# The object-layout contract, source half: the header-word layout parsed out
-# of ext/x-expr/include/x-obj.h must match the committed descriptor
-# tools/contract/obj-layout.x, which reflective X code reads its offsets from.  The
-# runtime half is tests/x/specs/meta/obj-layout.spec.md (runs under test-x).
-check-obj-layout: ## Diff x-obj.h's object layout against tools/contract/obj-layout.x
-	sh tools/check/obj-layout.sh
-.PHONY: check-obj-layout
-
-# The base-paths contract, source half: every base-field accessor macro
-# (x-eval-layout.h, x-base.h, the error-handler in x-eval.h) flattened to a
-# first/rest path must match tools/contract/base-paths.x, which reflect.x walks.
-# The runtime half is tests/x/specs/meta/base-paths.spec.md.
-check-base-paths: ## Diff the base-field macro chains against tools/contract/base-paths.x
-	sh tools/check/base-paths.sh
-.PHONY: check-base-paths
 
 # The boot-order lint: derives the effective load order from each boot entry
 # (lib/x-core.x + the three dialect entries; include forms, the
@@ -593,14 +591,16 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	@if [ -f $(ENGINE_DIR)/entitlements.plist ]; then codesign -s - --entitlements $(ENGINE_DIR)/entitlements.plist -f $(DESTDIR)$(LIBEXECDIR)/$(EXECUTABLE) 2>/dev/null || true; fi
 	install $C -m 0755 $(NAME).sh $(DESTDIR)$(BINDIR)/$(NAME)
 	rm -rf $(DESTDIR)$(LIBDIR)/lib $(DESTDIR)$(LIBDIR)/apps $(DESTDIR)$(LIBDIR)/boot
-	# The engine's ISA fingerprint travels WITH the engine.  An installed
+	# The engine's ISA fingerprint travels WITH the engine -- literally so
+	# since the split: the manifest is the engine's own
+	# $(ENGINE_DIR)/tools/contract/isa.x, not a copy this repo keeps.  An installed
 	# tree has no source checkout, so before this there was no way to ask
 	# "which engine contract is this?" -- fetch could not compare (#186)
 	# and a pinned boot could not refuse a mismatched amalgam (#187); it
 	# just ran it and segfaulted.  One precomputed hex line: the wrapper
 	# needs a STRING compare against a release manifest, not a digester.
 	install -d -m 0755 $(DESTDIR)$(LIBDIR)/contract
-	@sh -c 'if command -v shasum >/dev/null 2>&1; then shasum -a 256 tools/contract/isa.x | cut -d" " -f1; 		else sha256sum tools/contract/isa.x | cut -d" " -f1; fi' 		> $(DESTDIR)$(LIBDIR)/contract/isa.sha256
+	@sh -c 'if command -v shasum >/dev/null 2>&1; then shasum -a 256 ext/x-eval-c/tools/contract/isa.x | cut -d" " -f1; 		else sha256sum ext/x-eval-c/tools/contract/isa.x | cut -d" " -f1; fi' 		> $(DESTDIR)$(LIBDIR)/contract/isa.sha256
 	cp -R lib $(DESTDIR)$(LIBDIR)/lib
 	cp -R apps $(DESTDIR)$(LIBDIR)/apps
 	cp -R build/boot $(DESTDIR)$(LIBDIR)/boot

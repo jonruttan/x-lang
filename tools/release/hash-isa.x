@@ -9,5 +9,5 @@
 ; file it is greppable, lintable, and named by the retirement sweeps.
 (import x/sys/file)
 (import x/codec/sha256)
-(display (Sha256 hex (File read-all "tools/contract/isa.x")))
+(display (Sha256 hex (File read-all "ext/x-eval-c/tools/contract/isa.x")))
 (newline)
