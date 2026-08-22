@@ -37,7 +37,7 @@ nothing more. Reaching these from x-lang's suite means teaching this runner the
 same trick; until then the honest record is that they are undefined here, not
 that they pass.
 
-## buf/* and tok/* -- the reader protocol, modelled but not yet defined here
+## the remaining buf/* rows -- the tokenizer's own marks
 
 These nine rows are one protocol, not nine instructions, and the reason they stay
 undefined is now a specific gap rather than a shrug. What follows is the model,
@@ -71,18 +71,24 @@ nil. `(str make N)` is not promised to return zeroed memory, so the constructor'
 write mark lands past whatever bytes were there and the cursor reads them. Two
 cases were written green on that before the third disagreed.
 
-**What is still missing for a bare case.** The acceptance path needs the score
-object written and the character pushed back -- `%score-set` and `%buffer-unread`
-in the library -- and those are x-level helpers over the primitives rather than
-primitives themselves, so a bare case must rebuild them. And `(tok read-str)`
-answers nil even through a fully-typed `(base make)`, so there is a precondition
-beyond type registration still to find, most likely the base's own read buffer.
+**The protocol itself is now defined**, in `core/reader.spec.md`: the two scoring
+helpers were rebuilt from primitives (a buffer's marks are two integer cells
+reachable through `obj ->ptr` + `ptr ref-word`), and the missing precondition was
+not a precondition at all -- a token must be DELIMITED, because the accept branch
+runs only when a character arrives that the state rejects. `"42"` scores nothing;
+`"42 "` scores. That covers `base/make-tok`, `base/make-type`, `tok/read-str` and
+`buf/read`.
 
-That is the next piece of work, and it is bounded: rebuild the two helpers from
-the primitives, find the precondition, then one case registering a trivial
-digit-accepting type covers all nine rows at once -- because breaking any of
-them breaks the parse. That is the standard a protocol case has to meet: a case
-covers a row when breaking the row breaks the case.
+**What stays undefined is the rest of the buffer surface** -- `buf/make`,
+`append`, `read-text`, `reset`, `retain`, `last-char`, `tok`, and `tok/read`.
+The reader case does not require them individually, and the standard a case has
+to meet is that breaking the row breaks the case. Claiming them because the
+tokenizer touches them somewhere would be the hollow coverage this suite exists
+to avoid: it moves the number without defining behaviour.
+
+Defining them needs the tokenizer's mark discipline modelled the way the reader
+protocol now is -- what `retain` means between tokens, what `tok` returns and
+when it is valid -- not another round of driving them by hand.
 
 ## obj/make and obj/make-callable -- construction, deferred
 
