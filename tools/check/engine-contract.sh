@@ -248,8 +248,13 @@ if [ ! -f "$XON" ]; then
 	# and skipping quietly reported an engine as fine when the gate had not looked
 	# at it -- the vacuous-pass shape, in the gate that answers the resolver's
 	# question.  Unknown is not wrong, but it has to say so.
-	echo "  no declaration at $XON -- satisfaction and staleness UNCHECKED"
-	echo "  (generate one: sh tools/contract/gen-engine-xon.sh $ENGINE_DIR)"
+	# ...and it has to FAIL, not merely say so.  The message alone was still a
+	# vacuous pass: this gate answers "can this engine run the library?", it
+	# exited 0 for an engine it had not looked at, and `make test` went green.
+	# An engine with no declaration cannot be paired with anything -- that is a
+	# refusal, and an easily fixed one.
+	note "no declaration at $XON -- nothing to satisfy"
+	echo "    (generate one: sh tools/contract/gen-engine-xon.sh $ENGINE_DIR)"
 fi
 if [ -f "$XON" ]; then
 	if ! sh tools/contract/gen-engine-xon.sh "$ENGINE_DIR" > /tmp/ec-xon-gen.$$ 2>/tmp/ec-xon-err.$$; then

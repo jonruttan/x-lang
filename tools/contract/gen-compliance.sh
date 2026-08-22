@@ -63,7 +63,10 @@ join -1 2 -2 1 -o 1.1,2.2,1.3 "$W/isa-bytag" "$W/tagmap" | sort > "$W/bytag"
 awk 'NR==FNR{g[$1]=$2;next} {print $1, ($1 in g ? g[$1] : $2), $3}' "$W/exp" "$W/bytag" \
 	| sort -u > "$W/c2g"
 # rows named explicitly but whose tag no capability claims are absent from bytag
-awk 'NR==FNR{seen[$1];next} !($1 in seen) { print $1, $2 }' "$W/c2g" "$W/exp" > "$W/exp-only"
+# FILENAME==ARGV[1] for the same reason as in gen-engine-xon.sh: c2g is empty for
+# an engine that declares no isa rows at all, and NR==FNR inverts on an empty
+# first file rather than failing.
+awk 'FILENAME==ARGV[1]{seen[$1];next} !($1 in seen) { print $1, $2 }' "$W/c2g" "$W/exp" > "$W/exp-only"
 while read -r coord grp; do
 	kind=$(awk -v c="$coord" '$1==c {print $3}' "$W/isa" | head -1)
 	if [ -n "$kind" ]; then echo "$coord $grp $kind" >> "$W/c2g"; fi

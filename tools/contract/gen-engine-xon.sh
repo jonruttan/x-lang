@@ -46,7 +46,13 @@ ENGINE="$(cd "$ENGINE" && pwd)"
 FEAT="$ROOT/tools/contract/features.x"
 ISA="$ENGINE/tools/contract/isa.x"
 CLAIMS="$ENGINE/tools/contract/claims.x"
-for f in "$FEAT" "$ISA"; do
+# The REFERENCE surface: the language's own view of what instructions exist, and
+# so the roster a candidate's capability claim is measured against.  Same default
+# and same override as tools/check/engine-contract.sh, because they must agree --
+# the gate regenerates through this script to test staleness.
+REF="${X_REFERENCE_DIR:-$ROOT/ext/x-engine-c}"
+REF_ISA="$REF/tools/contract/isa.x"
+for f in "$FEAT" "$ISA" "$REF_ISA"; do
 	[ -f "$f" ] || { echo "gen-engine-xon: missing $f" >&2; exit 2; }
 done
 
@@ -60,43 +66,86 @@ digest() {
 	else echo "gen-engine-xon: no sha256sum or shasum on PATH" >&2; exit 2; fi
 }
 
-# --- the engine's facts: coordinate -> tag -----------------------------------
-awk '
-	/^\(def %isa-catalog/ { s="catalog"; next }
-	/^\(def %isa-bare/    { s="bare";    next }
-	/^\(def %isa-keep/    { s="keep";    next }
-	/^\(def %isa-aliases/ { s="";        next }
-	/^\(def %isa-values/  { s="";        next }
-	/^  \(/ {
-		if (s == "") next
-		l = $0; sub(/;.*/, "", l); gsub(/[()]/, "", l); $0 = l
-		if (s == "catalog" && NF >= 3) print $1 "/" $2, $3
-		else if (s != "catalog" && NF >= 2) print $1, $2
-	}' "$ISA" > "$W/isa"
-
-# --- the vocabulary: coordinate -> capability group --------------------------
+# --- the vocabulary: tag -> capability group, and explicit per-coordinate rows -
 awk '/^\(def %feature-group-rows/{f=1;next} /^\)\)\)/{f=0}
      f && /^  \(/ { l=$0; sub(/;.*/,"",l); gsub(/[()]/,"",l); $0=l
                     for (i=2;i<=NF;i++) print $i, $1 }' "$FEAT" | sort > "$W/exp"
 awk '/^\(def %feature-capabilities/{f=1;next} /^\)\)\)/{f=0}
      f && /^  \(/ { l=$0; sub(/;.*/,"",l); gsub(/[()]/,"",l); $0=l
                     if (NF>=2 && $2!="rows" && $2!="-") print $2, $1 }' "$FEAT" | sort -k1,1 > "$W/tagmap"
-sort -k2,2 "$W/isa" > "$W/isa-bytag"
-join -1 2 -2 1 -o 1.1,2.2 "$W/isa-bytag" "$W/tagmap" | sort > "$W/bytag"
-# The explicit rows must be INTERSECTED with what this engine actually has.
-# Without that, any group with explicit membership in features.x was reported as
-# provided by every engine -- the generator manufacturing a capability claim the
-# engine never made.  A minimal engine with zero ffi and zero syscall rows
-# declared (provides isa/ffi-call) and (provides isa/syscall), and compliance
-# would then have audited a lie the tooling wrote rather than one the engine told.
-# Found by generating a declaration for a second engine for the first time.
-awk '{print $1}' "$W/isa" | sort -u > "$W/have"
-join "$W/have" "$W/exp" > "$W/exp-present"
-{ cat "$W/exp-present"; awk 'NR==FNR{o[$1];next} !($1 in o)' "$W/exp-present" "$W/bytag"; } \
-	| sort -u > "$W/coord2group"
 
-# The groups the engine has rows for.
-awk '{print $2}' "$W/coord2group" | sort -u > "$W/provided"
+# coordinate -> capability group, for ONE isa.x.  Factored because it is now run
+# twice: once for the candidate and once for the reference, which is what makes
+# the coverage test below possible.
+c2g() {
+	_isa="$1"; _out="$2"
+	awk '
+		/^\(def %isa-catalog/ { s="catalog"; next }
+		/^\(def %isa-bare/    { s="bare";    next }
+		/^\(def %isa-keep/    { s="keep";    next }
+		/^\(def %isa-aliases/ { s="";        next }
+		/^\(def %isa-values/  { s="";        next }
+		/^  \(/ {
+			if (s == "") next
+			l = $0; sub(/;.*/, "", l); gsub(/[()]/, "", l); $0 = l
+			if (s == "catalog" && NF >= 3) print $1 "/" $2, $3
+			else if (s != "catalog" && NF >= 2) print $1, $2
+		}' "$_isa" > "$W/rows"
+	sort -k2,2 "$W/rows" > "$W/rows-bytag"
+	join -1 2 -2 1 -o 1.1,2.2 "$W/rows-bytag" "$W/tagmap" | sort > "$W/bytag"
+	# The explicit rows must be INTERSECTED with what this isa actually has.
+	# Without that, any group with explicit membership in features.x was reported
+	# as provided by every engine -- the generator manufacturing a capability
+	# claim the engine never made.  A minimal engine with zero ffi and zero
+	# syscall rows declared (provides isa/ffi-call) and (provides isa/syscall),
+	# and compliance would then have audited a lie the tooling wrote rather than
+	# one the engine told.  Found by generating a declaration for a second engine
+	# for the first time.
+	awk '{print $1}' "$W/rows" | sort -u > "$W/have"
+	join "$W/have" "$W/exp" > "$W/exp-present"
+	# FILENAME==ARGV[1], not NR==FNR.  The NR==FNR idiom silently INVERTS when the
+	# first file is empty: awk reads no records from it, so the first record of
+	# the SECOND file also has NR==FNR, the "remember" branch swallows the whole
+	# file and nothing is printed.  The first file is empty exactly when the
+	# engine has no coordinate with explicit group membership -- the normal state
+	# of a small engine.  The symptom was a declaration with every derived
+	# (provides ...) row missing while the isa.x plainly had rows: an engine
+	# under-reporting itself, with no error anywhere.  Found by declaring
+	# x-engine-rust's first row.
+	{ cat "$W/exp-present"
+	  awk 'FILENAME==ARGV[1]{o[$1];next} !($1 in o)' "$W/exp-present" "$W/bytag"
+	} | sort -u > "$_out"
+}
+
+c2g "$ISA" "$W/coord2group"
+c2g "$REF_ISA" "$W/ref-c2g"
+
+# --- which groups the candidate PROVIDES -------------------------------------
+# COVERAGE, not presence.  The old test was "the engine has at least one row in
+# the group", and that is not what a capability means: docs/engine-contract.md
+# defines one as "the coordinates in that group resolve" -- all of them, not one
+# of them.  An engine implementing `error` and nothing else declared the whole
+# 25-instruction evaluator group, the satisfaction check then passed it, and the
+# library would have died on the first `fn`.  A false green in the one place the
+# apparatus exists to be trusted.
+#
+# The roster comes from the REFERENCE isa.x, which is already this gate's stated
+# role for it: "the language's own view of what instructions exist".  So the test
+# is candidate-covers-reference, per group.  It errs toward under-declaring, and
+# the contract document rules on that direction explicitly: "under-declaring
+# costs you capability, over-declaring costs correctness".
+#
+# Groups the reference has NO coordinates for are not considered here at all --
+# they are the non-isa capabilities (build flags, protocol promises), which are
+# claimed in claims.x below.  Deriving them from an empty roster would make every
+# engine provide them vacuously.
+awk '{print $2}' "$W/ref-c2g" | sort -u > "$W/groups"
+: > "$W/provided"
+while read -r g; do
+	awk -v g="$g" '$2 == g { print $1 }' "$W/ref-c2g"      | sort -u > "$W/need"
+	awk -v g="$g" '$2 == g { print $1 }' "$W/coord2group"  | sort -u > "$W/hav"
+	if [ -z "$(comm -23 "$W/need" "$W/hav")" ]; then echo "$g" >> "$W/provided"; fi
+done < "$W/groups"
 
 # Capabilities that are NOT isa rows at all (build flags, protocol promises) are
 # not derivable from the manifest.  They are claimed, like guarantees -- listed in
