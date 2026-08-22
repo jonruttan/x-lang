@@ -91,14 +91,17 @@
                             ;   (lib/x/boot/data.x probes it at boot)
   ; --- the invocation protocol (contract layer E) ---
   ; Assumed by x.sh everywhere and written down nowhere until now.
-  (invoke/pipe-stdin   -)   ; the library arrives concatenated on stdin
-  (invoke/batch-flag   -)   ; --batch suppresses the entry's interactive launcher
-  (invoke/argv         -)   ; the `args` value carries argv
-  (io/fd3-stdin        -)   ; the REPL reclaims terminal stdin from fd 3
-  (err/stdout-prefix   -)   ; errors reach STDOUT, not stderr.  The ENGINE's prefix
-                            ;   is `*** ERROR: `; `Error: <value>` is x-lang's Err
-                            ;   class formatting the same channel post-boot -- a
-                            ;   compliance check must expect the former.
+  ; What the ENGINE actually owes, checked against src/x-cli.c rather than
+  ; assumed.  The first draft listed two more rows that turned out not to be the
+  ; engine's at all -- see the note below.
+  (invoke/pipe-stdin   -)   ; the program arrives on stdin and is read-eval'd
+  (invoke/argv         -)   ; every argv element is bound as the `args` list.
+                            ;   The engine parses NOTHING: it does not know what
+                            ;   --batch or --quiet mean.
+  (err/stderr-prefix   -)   ; diagnostics go to STDERR, prefixed `*** ERROR: `.
+                            ;   Verified by running one, not by reading: the C
+                            ;   binds args and hands straight to the read-eval
+                            ;   loop, and the prefix comes from x_error.
 )))
 
 ; Explicit membership for the split tag.  Every ffi-tagged isa.x row appears
@@ -109,6 +112,14 @@
   (isa/ffi-call      ffi/call ffi/dlopen ffi/dlsym ptr/call)
   (isa/syscall       syscall)
 )))
+
+; NOT CAPABILITIES, though the first draft of this file listed them as such.
+; `--batch` is interpreted by lib/x/repl/banner.x and lib/x/tool/contract.x, and
+; the fd-3 stdin reclaim is lib/x/repl/loop.x calling (Sys dup2 3 0).  Both are
+; conventions between the WRAPPER and the LIBRARY; an engine that binds argv and
+; offers the syscall door supports them without knowing they exist.  Listing them
+; as engine capabilities would have made a second engine implement a protocol it
+; has no part in.
 
 ; --- GUARANTEES --------------------------------------------------------------
 ; Behavioural promises.  These CANNOT be derived from isa.x -- they are what the
@@ -171,8 +182,7 @@
 (def %feature-profiles (lit (
   (core  isa/spine isa/alloc isa/raw-op isa/raw-mem isa/types isa/tok isa/io
          isa/hot reflect/ptr-casts reflect/layout-data reflect/word-probe
-         io/include invoke/pipe-stdin invoke/argv invoke/batch-flag
-         io/fd3-stdin err/stdout-prefix)
+         io/include invoke/pipe-stdin invoke/argv err/stderr-prefix)
   (gc    core isa/gc)
   (posix gc isa/sys isa/syscall isa/ffi-call)
   (full  posix instr/cov instr/profile)

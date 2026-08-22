@@ -30,10 +30,12 @@ EOF would consume the rest of the run. That is not a property of the engine and 
 assertion here would be about it.
 
 Exercising them needs a harness that separates program text from input -- the
-wrapper's fd-3 arrangement, which exists exactly for this and is a capability in
-its own right (`io/fd3-stdin`). Reaching them from x-lang's suite means teaching
-this runner that trick; until then the honest record is that they are undefined
-here, not that they pass.
+wrapper's fd-3 arrangement, which exists exactly for this. That arrangement is
+NOT an engine capability, incidentally: `lib/x/repl/loop.x` performs the `dup2`
+itself through the syscall door, so an engine supports it by having that door and
+nothing more. Reaching these from x-lang's suite means teaching this runner the
+same trick; until then the honest record is that they are undefined here, not
+that they pass.
 
 ## buf/* and tok/* -- the tokenizer's own machinery
 
