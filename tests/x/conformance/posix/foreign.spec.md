@@ -106,22 +106,34 @@ skips is a case that proves nothing.
 ---
     *** ERROR: ok
 
-## ffi/call, sigint-install and sigint-restore -- not defined here
+### the signature-driven call carries doubles as bit patterns
 
-(`syscall` was here until the engine began declaring its platform; see the case
-above. The old objection was real -- a case must not pin the harness's guess --
-and it was answered by giving the engine somewhere to state the fact.)
+covers: ffi/call
 
-One thing learned the hard way and worth keeping: an INVALID number is not a
-substitute for a failing call. `(syscall 999999)` kills the process outright
-rather than returning `-errno`, so the failure path is not observable that way.
-The case above uses a real number and a closed descriptor.
+`ptr/call` cannot express a double: the engine's fixnum is an integer and there is
+no float type at this level -- floats are x-lang (`lib/x/num/float.x`). `ffi/call`
+is the door for conventions that need one, and it solves the representation
+problem by passing the IEEE-754 BITS through an integer in both directions.
 
-`ffi/call` is the SIGNATURE-driven variant of `ptr/call`, used where an argument
-or return needs a type the pointer call cannot infer (floats, in
-`lib/x/num/float.x`). Its contract is the signature language's, and pinning it
-here would freeze a notation the library still owns; `ptr/call` above covers the
-door itself.
+That is what makes it testable bare: both sides are plain integers here, and the
+values below are the bit patterns of 4.0, 2.0, 3.0 and 9.0. The convention set is
+small and closed -- `d->d`, `dd->d` and the arithmetic forms -- rather than a
+general signature language, so an engine has to match the spellings exactly.
+
+```scheme
+(def %dlopen (%coord (lit ffi) (lit dlopen)))
+(def %dlsym (%coord (lit ffi) (lit dlsym)))
+(def %fcall (%coord (lit ffi) (lit call)))
+(def lib (%dlopen () 1))
+(%ok (match ((= (%fcall "d->d" (%dlsym lib "sqrt") 4616189618054758400) 4611686018427387904)
+              (= (%fcall "dd->d" (%dlsym lib "pow") 4613937818241073152 4611686018427387904)
+                 4621256167635550208))
+             (#t ())))
+```
+---
+    *** ERROR: ok
+
+## syscall, sigint-install and sigint-restore -- not defined here
 
 `sigint-install` and `sigint-restore` mutate PROCESS-GLOBAL signal state. A case
 that failed between install and restore would leave the harness's own process

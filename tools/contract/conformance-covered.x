@@ -40,6 +40,7 @@
   (error)
   (eval)
   (eval!)
+  (ffi/call)
   (ffi/dlopen)
   (ffi/dlsym)
   (first)
