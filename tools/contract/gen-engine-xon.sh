@@ -174,7 +174,13 @@ printf '; compliance test is what falsifies them.  param rows are absent on purp
 printf '; word size, byte order and arch are facts of a BUILD, stamped beside the\n'
 printf '; binary at install time, not properties of this source tree.\n'
 printf '(engine-name "%s")\n' "$name"
-printf '(binary "x-bin")\n'
+# The binary's NAME comes from the engine, not from here.  It was hardcoded to
+# x-bin, which is the C engine's, and no second implementation is obliged to
+# build a file with that name -- x.sh reads this row precisely so it does not
+# have to assume one.  Found by generating a declaration for x-engine-rust.
+binname=$(sed -n 's/^  (binary "\(.*\)").*/\1/p' "$CLAIMS" 2>/dev/null | head -1)
+[ -n "$binname" ] || binname="x-bin"
+printf '(binary "%s")\n' "$binname"
 printf '(isa "sha256:%s")\n' "$isa_d"
 [ -n "${layout_d:-}" ] && printf '(layout "sha256:%s")\n' "$layout_d"
 while read -r p; do printf '(profile %s)\n' "$p"; done < "$W/holds"
