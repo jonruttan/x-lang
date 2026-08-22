@@ -20,9 +20,12 @@ it, and text is read through it:
    text, scores them against each other, calls the winner's `read`, and answers
    the LIST of tokens it produced.
 
-The buffer is never the subject here. It is the tape the analysers run over, and
-its marks are moved by the tokenizer in an order only the tokenizer knows — which
-is why the remaining `buf/*` rows stay undefined (see `core/io-and-reader.spec.md`).
+The buffer is the tape the analysers run over, and its marks are moved by the
+tokenizer in an order only the tokenizer knows. That does not put it out of reach
+— it puts it out of reach FROM OUTSIDE. The `read` handler runs inside that order,
+so the mark discipline is asserted there; see the second half of this file. The
+`buf/*` rows that remain undefined are the ones no case here requires
+(`core/io-and-reader.spec.md` says which, and why).
 
 **A token must be DELIMITED to be accepted.** The accept branch of an analyser
 runs when a character arrives that the state rejects, so text ending mid-token is
@@ -125,6 +128,220 @@ first case by accepting unconditionally.
 (def tb (%mktok))
 (%mktype tb "TEST" (pair (pair (lit analyse) %analyse) (pair (pair (lit read) %readfn) ())))
 (%ok (eq? (%readstr tb "42 ") ()))
+```
+---
+    *** ERROR: ok
+
+## The mark discipline
+
+A buffer carries three marks -- a retain mark, a read cursor, and a write mark --
+and the primitives that expose them are only meaningful WHERE THE TOKENIZER HAS
+PUT THEM. The `read` handler is that place: it runs once, on accept, with the
+buffer positioned over the text its analyser just claimed. Its first argument IS
+the buffer.
+
+Driven anywhere else they answer nonsense -- see `core/io-and-reader.spec.md` for
+the demonstration that cost two green cases.
+
+### inside the read handler, tok is the text the analyser claimed
+
+covers: buf/tok
+
+```scheme
+(include "tools/contract/obj-layout.x")
+(def %o2p (%coord (lit obj) (lit ->ptr)))
+(def %refw (%coord (lit ptr) (lit ref-word)))
+(def %setw (%coord (lit ptr) (lit set-word!)))
+(def %doff (* %param-word-size %obj-meta-len))
+(def %cellint (fn (_ x) (%refw (%o2p x) %doff)))
+(def %setcell (fn (_ p v) (%setw (%o2p p) %doff v) p))
+(def %buflen (fn (_ b) (- (%cellint (rest b)) (%cellint b))))
+(def %unread (fn (_ b) (%setcell (rest b) (- (%cellint (rest b)) 1))))
+(def %scoreset (fn (_ s sign b) (%setcell s (* sign (%buflen b)))))
+(def %digit? (fn (_ c) (match ((< c 48) ()) ((< 57 c) ()) (#t 1))))
+(def %digits ())
+(set! %digits
+  (fn (_ buffer score chr)
+    (match ((%digit? chr) %digits)
+           (#t (%seq (%unread buffer) (%scoreset score 1 buffer))))))
+(def %an-d (fn (_ buffer score chr) (match ((%digit? chr) %digits) (#t ()))))
+(def %mktok (%coord (lit base) (lit make-tok)))
+(def %mktype (%coord (lit base) (lit make-type)))
+(def %readstr (%coord (lit tok) (lit read-str)))
+(def %btok (%coord (lit buf) (lit tok)))
+(def %blen (%coord (lit str) (lit byte-len)))
+(def %readfn (fn (_ . args) (%blen (%btok (first args)))))
+(def tb (%mktok))
+(%mktype tb "NUM" (pair (pair (lit analyse) %an-d) (pair (pair (lit read) %readfn) ())))
+(%ok (= (first (%readstr tb "42 ")) 2))
+```
+---
+    *** ERROR: ok
+
+### the claimed text and the mark distance agree
+
+covers: buf/tok
+
+`tok` is not a separate accounting of the token: its length is exactly the
+distance between the retain mark and the read cursor, which is what an analyser
+measures when it scores. An engine where the two could disagree would score one
+length and hand the reader another.
+
+```scheme
+(include "tools/contract/obj-layout.x")
+(def %o2p (%coord (lit obj) (lit ->ptr)))
+(def %refw (%coord (lit ptr) (lit ref-word)))
+(def %setw (%coord (lit ptr) (lit set-word!)))
+(def %doff (* %param-word-size %obj-meta-len))
+(def %cellint (fn (_ x) (%refw (%o2p x) %doff)))
+(def %setcell (fn (_ p v) (%setw (%o2p p) %doff v) p))
+(def %buflen (fn (_ b) (- (%cellint (rest b)) (%cellint b))))
+(def %unread (fn (_ b) (%setcell (rest b) (- (%cellint (rest b)) 1))))
+(def %scoreset (fn (_ s sign b) (%setcell s (* sign (%buflen b)))))
+(def %digit? (fn (_ c) (match ((< c 48) ()) ((< 57 c) ()) (#t 1))))
+(def %digits ())
+(set! %digits
+  (fn (_ buffer score chr)
+    (match ((%digit? chr) %digits)
+           (#t (%seq (%unread buffer) (%scoreset score 1 buffer))))))
+(def %an-d (fn (_ buffer score chr) (match ((%digit? chr) %digits) (#t ()))))
+(def %mktok (%coord (lit base) (lit make-tok)))
+(def %mktype (%coord (lit base) (lit make-type)))
+(def %readstr (%coord (lit tok) (lit read-str)))
+(def %btok (%coord (lit buf) (lit tok)))
+(def %blen (%coord (lit str) (lit byte-len)))
+(def %readfn (fn (_ . args) (- (%blen (%btok (first args))) (%buflen (first args)))))
+(def tb (%mktok))
+(%mktype tb "NUM" (pair (pair (lit analyse) %an-d) (pair (pair (lit read) %readfn) ())))
+(%ok (= (first (%readstr tb "42 ")) 0))
+```
+---
+    *** ERROR: ok
+
+### last-char is the character most recently read
+
+covers: buf/last-char
+
+```scheme
+(include "tools/contract/obj-layout.x")
+(def %o2p (%coord (lit obj) (lit ->ptr)))
+(def %refw (%coord (lit ptr) (lit ref-word)))
+(def %setw (%coord (lit ptr) (lit set-word!)))
+(def %doff (* %param-word-size %obj-meta-len))
+(def %cellint (fn (_ x) (%refw (%o2p x) %doff)))
+(def %setcell (fn (_ p v) (%setw (%o2p p) %doff v) p))
+(def %buflen (fn (_ b) (- (%cellint (rest b)) (%cellint b))))
+(def %unread (fn (_ b) (%setcell (rest b) (- (%cellint (rest b)) 1))))
+(def %scoreset (fn (_ s sign b) (%setcell s (* sign (%buflen b)))))
+(def %digit? (fn (_ c) (match ((< c 48) ()) ((< 57 c) ()) (#t 1))))
+(def %digits ())
+(set! %digits
+  (fn (_ buffer score chr)
+    (match ((%digit? chr) %digits)
+           (#t (%seq (%unread buffer) (%scoreset score 1 buffer))))))
+(def %an-d (fn (_ buffer score chr) (match ((%digit? chr) %digits) (#t ()))))
+(def %mktok (%coord (lit base) (lit make-tok)))
+(def %mktype (%coord (lit base) (lit make-type)))
+(def %readstr (%coord (lit tok) (lit read-str)))
+(def %blast (%coord (lit buf) (lit last-char)))
+(def %c2i (%coord (lit char) (lit ->int)))
+(def %readfn (fn (_ . args) (%c2i (%blast (first args)))))
+(def tb (%mktok))
+(%mktype tb "NUM" (pair (pair (lit analyse) %an-d) (pair (pair (lit read) %readfn) ())))
+(%ok (= (first (%readstr tb "42 ")) 50))
+```
+---
+    *** ERROR: ok
+
+### each token's text is its OWN -- the retain mark advances between tokens
+
+covers: buf/retain buf/tok base/make-type
+
+Two types now compete: one claims digits, one claims spaces. Reading `"42 43 "`
+yields three tokens whose texts are 2, 1 and 2 bytes long.
+
+That third number is the whole point. If the retain mark did not advance past a
+finished token, the next token's span would still start at the beginning of the
+input and `"43"` would measure 5 rather than 2. The case also shows the scorer
+choosing between two candidate types per position rather than taking the first
+registered.
+
+```scheme
+(include "tools/contract/obj-layout.x")
+(def %o2p (%coord (lit obj) (lit ->ptr)))
+(def %refw (%coord (lit ptr) (lit ref-word)))
+(def %setw (%coord (lit ptr) (lit set-word!)))
+(def %doff (* %param-word-size %obj-meta-len))
+(def %cellint (fn (_ x) (%refw (%o2p x) %doff)))
+(def %setcell (fn (_ p v) (%setw (%o2p p) %doff v) p))
+(def %buflen (fn (_ b) (- (%cellint (rest b)) (%cellint b))))
+(def %unread (fn (_ b) (%setcell (rest b) (- (%cellint (rest b)) 1))))
+(def %scoreset (fn (_ s sign b) (%setcell s (* sign (%buflen b)))))
+(def %digit? (fn (_ c) (match ((< c 48) ()) ((< 57 c) ()) (#t 1))))
+(def %digits ())
+(set! %digits
+  (fn (_ buffer score chr)
+    (match ((%digit? chr) %digits)
+           (#t (%seq (%unread buffer) (%scoreset score 1 buffer))))))
+(def %an-d (fn (_ buffer score chr) (match ((%digit? chr) %digits) (#t ()))))
+(def %mktok (%coord (lit base) (lit make-tok)))
+(def %mktype (%coord (lit base) (lit make-type)))
+(def %readstr (%coord (lit tok) (lit read-str)))
+(def %btok (%coord (lit buf) (lit tok)))
+(def %blen (%coord (lit str) (lit byte-len)))
+(def %spaces ())
+(set! %spaces
+  (fn (_ buffer score chr)
+    (match ((= chr 32) %spaces)
+           (#t (%seq (%unread buffer) (%scoreset score 1 buffer))))))
+(def %an-s (fn (_ buffer score chr) (match ((= chr 32) %spaces) (#t ()))))
+(def %readfn (fn (_ . args) (%blen (%btok (first args)))))
+(def tb (%mktok))
+(%mktype tb "NUM" (pair (pair (lit analyse) %an-d) (pair (pair (lit read) %readfn) ())))
+(%mktype tb "WS" (pair (pair (lit analyse) %an-s) (pair (pair (lit read) %readfn) ())))
+(def %r (%readstr tb "42 43 "))
+(%ok (match ((= (first %r) 2) (match ((= (first (rest %r)) 1) (= (first (rest (rest %r))) 2)) (#t ()))) (#t ())))
+```
+---
+    *** ERROR: ok
+
+### a base with no type for a character stops there
+
+covers: tok/read-str
+
+The corollary, and it is why the case above needs a space-claiming type: with only
+a digit type registered, `"42 43 "` yields ONE token. Nothing claims the space, so
+tokenising stops rather than skipping it. An engine that silently skipped
+unclaimable input would read two.
+
+```scheme
+(include "tools/contract/obj-layout.x")
+(def %o2p (%coord (lit obj) (lit ->ptr)))
+(def %refw (%coord (lit ptr) (lit ref-word)))
+(def %setw (%coord (lit ptr) (lit set-word!)))
+(def %doff (* %param-word-size %obj-meta-len))
+(def %cellint (fn (_ x) (%refw (%o2p x) %doff)))
+(def %setcell (fn (_ p v) (%setw (%o2p p) %doff v) p))
+(def %buflen (fn (_ b) (- (%cellint (rest b)) (%cellint b))))
+(def %unread (fn (_ b) (%setcell (rest b) (- (%cellint (rest b)) 1))))
+(def %scoreset (fn (_ s sign b) (%setcell s (* sign (%buflen b)))))
+(def %digit? (fn (_ c) (match ((< c 48) ()) ((< 57 c) ()) (#t 1))))
+(def %digits ())
+(set! %digits
+  (fn (_ buffer score chr)
+    (match ((%digit? chr) %digits)
+           (#t (%seq (%unread buffer) (%scoreset score 1 buffer))))))
+(def %an-d (fn (_ buffer score chr) (match ((%digit? chr) %digits) (#t ()))))
+(def %mktok (%coord (lit base) (lit make-tok)))
+(def %mktype (%coord (lit base) (lit make-type)))
+(def %readstr (%coord (lit tok) (lit read-str)))
+(def %btok (%coord (lit buf) (lit tok)))
+(def %blen (%coord (lit str) (lit byte-len)))
+(def %readfn (fn (_ . args) (%blen (%btok (first args)))))
+(def tb (%mktok))
+(%mktype tb "NUM" (pair (pair (lit analyse) %an-d) (pair (pair (lit read) %readfn) ())))
+(def %r (%readstr tb "42 43 "))
+(%ok (eq? (rest %r) ()))
 ```
 ---
     *** ERROR: ok
