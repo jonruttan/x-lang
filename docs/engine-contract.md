@@ -60,12 +60,28 @@ The library's correctness rests on them anyway.
 - `gc/explicit-only` — allocation never collects; only an explicit call does.
 - `gc/non-moving` — a live object's address is stable for its lifetime.
 - `eval/tco` — proper tail calls, unbounded.
-- `tok/callback-no-alloc` — reader callbacks run without allocating.
 - `str/nul-terminated` — a string value is a C string; bytes past the NUL are
   unobservable.
 - `int/ptr-same-width` — the fixnum and the pointer are the same width.
 
-The first two are not academic. Six sites in the library hold a raw pointer as an
+### What the engine requires of *you*
+
+Guarantees run one way — the engine promising, the library relying. There is one
+obligation that runs the other way, and it belongs here because nothing else in
+the vocabulary carries it:
+
+**Operatives are banned inside the tokenizer's read.** Code reached from a reader
+callback must use the primitive `if`, never an op (`docs/syntax.md` states this as
+a ruling, and `lib/x/reader/lit-reader.x` is written to it).
+
+This was previously mis-declared as a *guarantee* named `tok/callback-no-alloc`,
+on the belief that callbacks must not allocate. That belief is obsolete —
+`lit-reader.x` records that re-entering the tokenizer from a reader handler is safe
+*because* collection is explicit-only — and the real constraint is about operatives
+rather than allocation. It is a requirement on callback authors, so it is written
+here rather than declared as something an engine provides.
+
+The first two guarantees are not academic. Six sites in the library hold a raw pointer as an
 integer across an allocating expression on the collection promise alone. An engine
 that collected during allocation would break all six with no error and no crash at
 the point of damage.
