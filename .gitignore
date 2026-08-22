@@ -90,3 +90,7 @@ build/
 # macOS finder metadata -- must be repo-local, not left to a contributor's
 # global gitignore, or the first macOS clone commits one
 .DS_Store
+
+# The engine build's param declaration, copied up beside the binary by `make`.
+# A per-BINARY fact, like the engine itself: never committed.
+x-engine-build.xon

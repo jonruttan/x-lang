@@ -35,8 +35,28 @@
       ((> (+ i (%str-length needle)) (%str-length hay)) #f)
       ((%os-substr-at? needle hay i 0) #t)
       (#t (loop needle hay (+ i 1))))))
-(def os-darwin? (%os-contains? "darwin" x-machine 0))
-(def os-linux? (%os-contains? "linux" x-machine 0))
+; DECLARED PARAMS WIN; the triple parse below is the fallback.  The engine's
+; build writes what it knows -- os, arch, word size, byte order -- from the
+; COMPILER producing the binary, and the wrapper emits those as data ahead of the
+; boot (the route %install-root takes, because this layer runs before any file
+; I/O exists).  Reading a declaration is the point: a cross-compiled engine
+; reports its TARGET, where sniffing a triple at runtime reports whatever string
+; the build happened to embed.
+;
+; `guard` because the rows are absent in two legitimate cases -- an engine whose
+; build could not establish a fact writes `unknown` and the wrapper omits it, and
+; an older install tree has no declaration at all.  Absent is not wrong; it means
+; fall back to reading the triple, which is what this layer did before and still
+; can.
+(def %declared-os (guard (e ()) %param-os))
+(def %declared-arch (guard (e ()) %param-arch))
+
+(def os-darwin?
+  (match ((eq? %declared-os ()) (%os-contains? "darwin" x-machine 0))
+         (#t (eq? %declared-os (lit darwin)))))
+(def os-linux?
+  (match ((eq? %declared-os ()) (%os-contains? "linux" x-machine 0))
+         (#t (eq? %declared-os (lit linux)))))
 
 ; --- architecture, parsed HERE and only here ---
 ; The same triple carries the arch, and it used to be re-sniffed wherever
@@ -54,9 +74,13 @@
 ; are stamped beside the installed binary.  When that source exists, this is the
 ; one place that changes.
 (def arch-arm64?
-  (if (%os-contains? "arm64" x-machine 0) #t
-    (%os-contains? "aarch64" x-machine 0)))
-(def arch-x86-64? (%os-contains? "x86_64" x-machine 0))
+  (match ((eq? %declared-arch ())
+           (if (%os-contains? "arm64" x-machine 0) #t
+             (%os-contains? "aarch64" x-machine 0)))
+         (#t (eq? %declared-arch (lit arm64)))))
+(def arch-x86-64?
+  (match ((eq? %declared-arch ()) (%os-contains? "x86_64" x-machine 0))
+         (#t (eq? %declared-arch (lit x86-64)))))
 
 ; --- File open-mode flags (O_*) ---
 ; PLATFORM truth: the O_* flag VALUES differ by OS (verified: macOS
