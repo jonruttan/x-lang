@@ -103,6 +103,15 @@ keep their raw contract -- see ext/file.spec.md.
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
   (def d "/tmp/x-spec22-dir")
+  ; REMOVED BEFORE IT IS BUILT, not only after.  These fixtures live at fixed
+  ; paths in /tmp, and `File mkdir` on an existing directory raises -- so a run
+  ; that was KILLED between the mkdir and the cleanup leaves a tree that fails
+  ; every later run on this machine, with a diagnosis that points at the walk
+  ; rather than at the corpse.  Measured, after the machine died mid-suite.
+  ; The removals are guarded because absence is the normal case.
+  (guard (_ ()) (File unlink "/tmp/x-spec22-dir/inner"))
+  (guard (_ ()) (File unlink "/tmp/x-spec22-dir/moved"))
+  (guard (_ ()) (File rmdir d))
   (File mkdir d)
   (File write-all "/tmp/x-spec22-dir/inner" "x")
   (File rename "/tmp/x-spec22-dir/inner" "/tmp/x-spec22-dir/moved")
@@ -119,6 +128,9 @@ keep their raw contract -- see ext/file.spec.md.
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
   (def d "/tmp/x-spec22-dir2")
+  ; Same pre-clean as above, and this one needs it twice over: a leftover would
+  ; fail the mkdir AND, if anything were in it, the empty-listing expectation.
+  (guard (_ ()) (File rmdir d))
   (File mkdir d)
   (def names (File list-dir d))
   (File rmdir d)
@@ -287,6 +299,13 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ```scheme
 (do (import x/sys/posix) (import x/sys/file)
+  ; Same pre-clean as the mkdir roundtrip above.  This is the fixture that
+  ; proved the point: a kill left /tmp/x-364-walk behind and the next run failed
+  ; here, looking like a walk bug.
+  (guard (_ ()) (File unlink "/tmp/x-364-walk/a.txt"))
+  (guard (_ ()) (File unlink "/tmp/x-364-walk/sub/b.txt"))
+  (guard (_ ()) (File rmdir "/tmp/x-364-walk/sub"))
+  (guard (_ ()) (File rmdir "/tmp/x-364-walk"))
   (File mkdir "/tmp/x-364-walk")
   (File mkdir "/tmp/x-364-walk/sub")
   (File write-all "/tmp/x-364-walk/a.txt" "1")

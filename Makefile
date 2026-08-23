@@ -291,8 +291,14 @@ doc-c: ## Generate C reference documentation (delegates to the submodule)
 	$(ENGINE_MAKE) doc-c
 .PHONY: doc-c
 
-install-man-c uninstall-man-c: ## The C reference man pages (delegates to the submodule)
-	$(ENGINE_MAKE) $@ DESTDIR="$(DESTDIR)" MANDIR="$(MANDIR)"
+install-man-c uninstall-man-c: ## The C reference man pages (delegates to the engine)
+	@$(ENGINE_ENSURE); if [ -f $(ENGINE_DIR)/Makefile ]; then \
+		$(MAKE) --no-print-directory -C $(ENGINE_DIR) $@ DESTDIR="$(DESTDIR)" MANDIR="$(MANDIR)"; \
+	else \
+		echo "$@: SKIPPED -- the C reference is Doxygen over the engine's sources,"; \
+		echo "  and $(ENGINE_DIR) is a release that ships none.  The engine publishes"; \
+		echo "  its own; make engine-source to build them here."; \
+	fi
 .PHONY: install-man-c uninstall-man-c
 
 # ============================================================================
@@ -314,9 +320,20 @@ test-stress: $(EXECUTABLE) ## Run x-lang tests including the stress lane
 # rot (#180).  Two runners: spec-runner.sh takes the top-level specs on the
 # plain engine; cov-spec-runner.sh takes specs/cov/ on x-bin-cov, because
 # coverage marking only exists under -DX_COV.
-test-tools: $(EXECUTABLE) x-bin-cov ## Run the tool suite's specs (tools/tests)
+# THE COV HALF NEEDS A COV ENGINE, and the rest of the suite does not.  Making
+# the whole target depend on x-bin-cov meant a tree running a released engine
+# could not run ANY tool spec: the variant has to be compiled, and a release
+# ships no C.  Splitting it keeps the artifact path honest -- the tools are
+# x-lang's, and only the coverage tool needs an instrumented engine under it.
+test-tools: $(EXECUTABLE) ## Run the tool suite's specs (tools/tests)
 	sh tools/tests/spec-runner.sh
-	sh tools/tests/cov-spec-runner.sh
+	@$(ENGINE_ENSURE); if [ -f $(ENGINE_DIR)/Makefile ]; then \
+		$(MAKE) --no-print-directory x-bin-cov && sh tools/tests/cov-spec-runner.sh; \
+	else \
+		echo "test-tools: cov specs SKIPPED -- the coverage engine is a BUILD of the"; \
+		echo "  engine (-DX_COV), and $(ENGINE_DIR) is a release that ships no C."; \
+		echo "  make engine-source, then make test-tools, to run them."; \
+	fi
 .PHONY: test-tools
 
 # The doctest ratchet (#16): every (example "in" "out") in the doc registry
