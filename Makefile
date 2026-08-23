@@ -735,8 +735,14 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	# this?" -- and the wrapper's pairing guard, which must decide BEFORE
 	# the amalgam reaches the engine, has nothing to compare (#435).
 	#
-	#   release           the tag this engine was built as; the guard's key,
-	#                     compared against the lock's (release "vX.Y.Z")
+	#   release           the tag THIS LIBRARY was installed from -- it lands
+	#                     under $(LIBDIR)/contract for that reason.  The
+	#                     wrapper compares it to the lock's (release "vX.Y.Z")
+	#                     because a boot amalgam imports from this lib/ and
+	#                     apps/ as it boots (#467), so the pairing that can
+	#                     corrupt is amalgam-to-LIBRARY.  It currently equals
+	#                     the engine's stamp only because one X_RELEASE is
+	#                     passed to both.
 	#   payload.sha256    the digest of what this tree actually ships, the
 	#                     same value the release manifest records -- written
 	#                     AFTER the copies above so it describes the
