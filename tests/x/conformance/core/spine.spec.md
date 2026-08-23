@@ -157,6 +157,103 @@ given.
 ---
     *** ERROR: ok
 
+### a symbol interned inside a base is that base's own
+
+covers: base/make base/eval base/bind str/->sym obj/eq?
+
+**Interning is PER-BASE.** A base is another interpreter context, and it interns
+its own symbols: the same spelling turned into a symbol on either side of a base
+boundary gives two different objects.
+
+This is what makes `base make` an isolation boundary rather than a second
+environment. It also means a host cannot smuggle a name into a child by
+constructing it -- the child's table is the child's.
+
+```scheme
+(def %mkb (%coord (lit base) (lit make)))
+(def %beval (%coord (lit base) (lit eval)))
+(def %bind (%coord (lit base) (lit bind)))
+(def %s2y (%coord (lit str) (lit ->sym)))
+(def b (%mkb))
+(%bind b (lit mk) %s2y)
+(%ok (match ((eq? (%s2y "zed") (%beval b (lit (mk "zed")))) ()) (#t 1)))
+```
+---
+    *** ERROR: ok
+
+### and interning it in the host FIRST does not change that
+
+covers: base/make base/eval str/->sym
+
+Not a snapshot of the parent's table taken at `base make`: a symbol the host
+interned BEFORE the child existed is still a different object inside it. Each
+base interns for itself, from the beginning.
+
+```scheme
+(def %mkb (%coord (lit base) (lit make)))
+(def %beval (%coord (lit base) (lit eval)))
+(def %bind (%coord (lit base) (lit bind)))
+(def %s2y (%coord (lit str) (lit ->sym)))
+(def before (%s2y "beforehand"))
+(def b (%mkb))
+(%bind b (lit mk) %s2y)
+(%bind b (lit same) (%coord (lit obj) (lit eq?)))
+(%bind b (lit host-one) before)
+(%ok (match ((%beval b (lit (same (mk "beforehand") host-one))) ()) (#t 1)))
+```
+---
+    *** ERROR: ok
+
+### INSTRUCTION NAMES are shared across bases
+
+covers: base/make base/eval str/->sym obj/eq?
+
+The exception, and the one that makes the rest work. An instruction's name is the
+SAME symbol object in every base, which is why a form read in the host evaluates
+in a child at all: `(base eval B (lit (+ 2 3)))` hands the child the host's `+`,
+and the child's environment is keyed by that very object.
+
+Without this, per-base interning plus identity lookup would make every
+cross-base form unbound, and the sandbox would be unusable rather than isolated.
+
+```scheme
+(def %mkb (%coord (lit base) (lit make)))
+(def %beval (%coord (lit base) (lit eval)))
+(def %bind (%coord (lit base) (lit bind)))
+(def b (%mkb))
+(%bind b (lit mk) (%coord (lit str) (lit ->sym)))
+(%bind b (lit same) (%coord (lit obj) (lit eq?)))
+(%ok (match ((%beval b (lit (same (mk "+") (lit +))))
+             (%beval b (lit (same (mk "first") (lit first)))))
+            (#t ())))
+```
+---
+    *** ERROR: ok
+
+### a name is found by IDENTITY, not by spelling
+
+covers: base/bind base/eval str/->sym
+
+Environment lookup compares symbol objects, not their text. A child-interned
+symbol therefore does NOT find a name the host bound under its own symbol of the
+same spelling -- it raises, and `guard` catches it.
+
+This is the other half of what makes per-base interning meaningful: if lookup
+were by name, two bases interning separately would still see each other's
+bindings and the tables would be decoration.
+
+```scheme
+(def %mkb (%coord (lit base) (lit make)))
+(def %beval (%coord (lit base) (lit eval)))
+(def %bind (%coord (lit base) (lit bind)))
+(def b (%mkb))
+(%bind b (lit answer) 42)
+(%bind b (lit mk) (%coord (lit str) (lit ->sym)))
+(%ok (guard (e 1) (%seq (%beval b (lit (eval! (mk "answer")))) ())))
+```
+---
+    *** ERROR: ok
+
 ## %seq, %cc-invoke, base/make-tok and base/make-type -- not defined here
 
 `%seq` does not return a value the way a call does: it PRODUCES A TCO
