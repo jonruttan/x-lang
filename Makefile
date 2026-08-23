@@ -238,8 +238,14 @@ $(ENGINE_DIR)/x-bin-asan $(ENGINE_DIR)/x-bin-cov $(ENGINE_DIR)/x-bin-profile $(E
 
 # The C spec suite belongs to the engine repo and its CI runs it.  This is
 # the local door to it, so `make test` here can still be the whole verdict.
-test-c: ## Run the engine's C unit tests (delegates to the submodule)
-	$(ENGINE_MAKE) test-c
+test-c: ## Run the engine's C unit tests (delegates to the engine)
+	@$(ENGINE_ENSURE); if [ -f $(ENGINE_DIR)/Makefile ]; then \
+		$(MAKE) --no-print-directory -C $(ENGINE_DIR) test-c; \
+	else \
+		echo "test-c: SKIPPED -- $(ENGINE_DIR) is a released engine and ships no C suite."; \
+		echo "  A release is published only from a green run of it; this tree tests"; \
+		echo "  the PAIR instead -- conformance, compliance and the spec suites."; \
+	fi
 .PHONY: test-c
 
 # The C reference is Doxygen over the engine's sources, so it generates
@@ -380,8 +386,24 @@ check-logo-tty: $(EXECUTABLE) ## Run the logo interactive-contract pty tests
 # Their RUNTIME halves stay here and run under test-x, because only a booted
 # engine can answer them: tests/x/specs/meta/{isa,obj-layout,base-paths}.spec.md
 # walk the live catalog, the live object header and the live base spine.
+# ANNOUNCE, DO NOT FAIL, when the engine ships no sources.  These three ask
+# whether the engine's C agrees with the manifests it publishes -- a question
+# with no subject in a released artifact, which carries the manifests and no C.
+#
+# SKIPPING IS THE DANGEROUS SHAPE, so it says so on every run and names what
+# still covers the ground: the engine's own repository runs these three on
+# every build of itself, and check-compliance here verifies that the digests
+# its declaration states still describe the manifests shipped beside it.  A
+# gate that goes quiet is indistinguishable from a gate that passed, which is
+# the vacuous-pass family this project has now met five times.
 check-isa check-obj-layout check-base-paths: ## Engine contract ratchets (delegated)
-	$(ENGINE_MAKE) $@
+	@$(ENGINE_ENSURE); if [ -f $(ENGINE_DIR)/Makefile ]; then \
+		$(MAKE) --no-print-directory -C $(ENGINE_DIR) $@; \
+	else \
+		echo "$@: SKIPPED -- $(ENGINE_DIR) is a released engine and ships no C."; \
+		echo "  Its own repository ratchets this on every build; check-compliance"; \
+		echo "  here holds the digests it declares against the manifests it ships."; \
+	fi
 .PHONY: check-isa check-obj-layout check-base-paths
 
 # The fourth ratchet, and the one that CANNOT move: it asks whether every
@@ -631,7 +653,11 @@ check-doc-vocab: ## Lint doc forms for banned type-token aliases + retired names
 	@# over nothing finds nothing.  Caught by reading gate output, which is
 	@# the only reason it did not rot silently.  A missing subject is now a
 	@# failure, so the next move breaks the gate instead of hollowing it.
-	@if [ ! -d $(ENGINE_DIR)/src ] || [ ! -d $(ENGINE_DIR)/include ]; then \
+	@if [ ! -f $(ENGINE_DIR)/Makefile ] && [ -x $(ENGINE_DIR)/$(EXECUTABLE) ]; then \
+		echo "retired-c-symbols: SKIPPED -- $(ENGINE_DIR) is a released engine and ships no C."; \
+		exit 0; \
+	fi; \
+	if [ ! -d $(ENGINE_DIR)/src ] || [ ! -d $(ENGINE_DIR)/include ]; then \
 		echo "retired-c-symbols: FAIL (no C tree at $(ENGINE_DIR); run 'git submodule update --init --recursive')" >&2; \
 		exit 1; \
 	fi

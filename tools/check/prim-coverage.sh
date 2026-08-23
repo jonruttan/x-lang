@@ -28,9 +28,19 @@
 #
 # Shell, per the tools charter: this is a corpus scan over ~135 spec files, and
 # the same per-byte cost that keeps dup-defs and bare-globals out of x applies.
-# The surface comes from the engine's tools/lib/isa-scan.awk -- the same
-# scanner check-isa uses over there, read across the boundary so there is
-# one definition of "what counts as a binding site", not two.
+#
+# THE SURFACE COMES FROM THE MANIFEST, NOT FROM THE C.  It used to run the
+# engine's own isa-scan.awk over the engine's sources, which meant this gate
+# could not be asked about an engine that ships no sources -- and since
+# `make engine` fetches exactly such an engine, that is now the ordinary case
+# rather than an exotic one.
+#
+# Reading tools/contract/isa.x instead is not a weaker claim.  The engine's own
+# check-isa holds that manifest against its C on every build of that repository,
+# so the manifest IS the surface, ratcheted by the project that owns it.  Both
+# were compared here before the switch: identical, except that the manifest also
+# lists `#t` and `#f`, which the scanner does not emit as value rows.  This gate
+# now asks about those two as well, and every spec exercises them.
 set -e
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -40,17 +50,34 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ENGINE="$ROOT/engine"
 cd "$ROOT"
 
+ISA="$ENGINE/tools/contract/isa.x"
+[ -f "$ISA" ] || { echo "prim-coverage: no engine manifest at $ISA" >&2; exit 2; }
+
 SCAN="${TMPDIR:-/tmp}/prim-cov-scan.$$"
-trap 'rm -f "$SCAN"' EXIT INT TERM
+trap 'rm -f "$SCAN" "$SCAN.files"' EXIT INT TERM
 
-awk -v names=1 -f "$ENGINE"/tools/lib/isa-scan.awk \
-	"$ENGINE"/src/*.c "$ENGINE"/src/x-prim/*.c "$ENGINE"/src/x-syntax/*.c \
-	"$ENGINE"/opt/x-prim/*.c > "$SCAN"
+# The three sections that name PRIMITIVES.  %isa-keep is deliberately absent,
+# as it was from the scanner's output before: those are names the engine keeps
+# bound but does not register, and this gate asks about the registered surface.
+awk '
+	/^\(def %isa-catalog/ { s="catalog"; next }
+	/^\(def %isa-bare/    { s="bare";    next }
+	/^\(def %isa-keep/    { s="keep";    next }
+	/^\(def %isa-aliases/ { s="";        next }
+	/^\(def %isa-values/  { s="value";   next }
+	/^  \(/ {
+		if (s == "") next
+		l = $0; sub(/;.*/, "", l); gsub(/[()]/, "", l); $0 = l
+		if (s == "catalog" && NF >= 3)      print "catalog", $1, $2
+		else if (s != "catalog" && NF >= 1) print s, $1
+	}' "$ISA" > "$SCAN"
 
-# The C suite is part of the answer: ffi-call, ptr->str and token-read are
-# exercised there and nowhere else, so a scan of the x specs alone reports
-# them missing.
-find tests "$ENGINE"/tests \( -name '*.spec.md' -o -name '*.spec.c' \) | sort > "$SCAN.files"
+# x-lang's specs, and only those.  The engine's C suite used to be read across
+# the boundary here; it is not in the tree once the engine arrives as a release,
+# and what it uniquely covered is now covered here -- ffi/call by the
+# conformance suite (which reaches primitives through %coord, see below), and
+# heap/sweep by a declared exemption, since no correct x-level call site exists.
+find tests \( -name '*.spec.md' -o -name '*.spec.c' \) | sort > "$SCAN.files"
 
 awk -v scan="$SCAN" '
 BEGIN {
@@ -59,8 +86,19 @@ BEGIN {
 	# ---- the surface
 	while ((getline line < scan) > 0) {
 		n = split(line, f, " ")
-		if (f[1] == "bare" || f[1] == "value") { prim[f[2]] = ""; cfn[f[2]] = f[3] }
-		else if (f[1] == "catalog" && n >= 4)  { prim[f[4]] = f[2] " " f[3]; cfn[f[4]] = f[5] }
+		# TWO KINDS OF SUBJECT, in the terms the contract uses.  The C scanner
+		# keyed everything on the registration NAME the C table carries as a
+		# third string -- a fact isa.x does not record, and one a non-C engine
+		# does not have at all.  So a bare row is its name and a catalog row is
+		# its coordinate, which is how x-lang addresses them anyway.
+		if (f[1] == "bare" || f[1] == "value") { bare[f[2]] = 1; bound[f[2]] = 1 }
+		# KEEP rows are bound but not registered: `%` and the rest of the int
+		# operators are reachable by name and filed in the catalog as well.
+		# They are not subjects of this gate -- the scanner did not make them
+		# subjects either -- but they are how a spec reaches the primitive
+		# behind a catalog coordinate, so they count as a way of reaching it.
+		else if (f[1] == "keep")               { bound[f[2]] = 1 }
+		else if (f[1] == "catalog" && n >= 3)  { cat[f[2] " " f[3]] = f[3] }
 	}
 	close(scan)
 }
@@ -123,6 +161,24 @@ FNR == 1 { in_fence = 0; is_c = (FILENAME ~ /\.spec\.c$/) }
 		s = substr(s, RSTART + RLENGTH)
 	}
 
+	# THE CONFORMANCE DOOR.  That suite runs against a bare engine, where
+	# prim-ref does not exist -- it is x-level -- so it reaches a primitive by
+	# walking the base to the catalog: (%coord (lit ffi) (lit call)).  Not
+	# reading this idiom is why ffi/call looked unexercised the moment the C
+	# suite left the tree: it is tested, in this repository, by the suite whose
+	# whole subject is the surface of an engine.
+	#
+	# NO APOSTROPHES IN THIS PROGRAM.  It is single-quoted by the shell, which
+	# is also why the quote character below is built with sprintf.
+	s = code
+	while (match(s, /%coord[ \t]+\(lit[ \t]+[^ \t)]+\)[ \t]+\(lit[ \t]+[^ \t)]+\)/)) {
+		t = substr(s, RSTART, RLENGTH)
+		gsub(/%coord[ \t]+/, "", t); gsub(/\(lit[ \t]+/, "", t); gsub(/\)/, "", t)
+		sub(/[ \t]+/, " ", t)
+		coord[t] = 1
+		s = substr(s, RSTART + RLENGTH)
+	}
+
 	# class calls: (Heap mark-hook! ...) -- the class fronting a namespace
 	s = code
 	while (match(s, /\([ \t]*[A-Z][A-Za-z0-9]*[ \t]+[^ \t()]+/)) {
@@ -151,41 +207,68 @@ END {
 	alias["bytes"] = "Bytes"
 	alias["obj"] = "Obj Object"
 
-	for (p in prim) {
-		# The library saves several primitives under a %-prefixed alias
-		# before rebinding the bare name (%int->ptr, %str-length); a spec
-		# reaching one of those is reaching the primitive.
-		if ((p in tok) || (("%" p) in tok)) { ok++; continue }
-		if (cfn[p] != "" && (cfn[p] in ctok)) { ok++; continue }
+	# --- the bare surface --------------------------------------------------
+	# The library saves several primitives under a %-prefixed alias before
+	# rebinding the bare name (%int->ptr, %str-length); a spec reaching one of
+	# those is reaching the primitive.
+	for (p in bare) {
+		if ((p in tok) || (("%" p) in tok)) { ok++; barehit[p] = 1; continue }
+		if (p in exempt) { ex++; barehit[p] = 1; continue }
+		bad++
+		printf "  %s -- no spec exercises it, and no section declares it unspecced\n", p
+	}
 
+	# --- the catalog surface -----------------------------------------------
+	for (c in cat) {
+		m = cat[c]
+		split(c, f, " ")
+		ns = f[1]
+		if (c in coord) { ok++; continue }
+
+		cls = toupper(substr(ns,1,1)) substr(ns,2)
+		list = cls (ns in alias ? " " alias[ns] : "")
+		k = split(list, cc, " ")
 		hit = 0
-		if (prim[p] != "") {
-			split(prim[p], c, " ")
-			ns = c[1]; m = c[2]
-			if ((ns " " m) in coord) hit = 1
-			if (!hit) {
-				cls = toupper(substr(ns,1,1)) substr(ns,2)
-				list = cls (ns in alias ? " " alias[ns] : "")
-				k = split(list, cc, " ")
-				for (i = 1; i <= k; i++)
-					if ((cc[i] " " m) in classcall) { hit = 1; break }
-			}
-		}
+		for (i = 1; i <= k; i++)
+			if ((cc[i] " " m) in classcall) { hit = 1; break }
 		if (hit) { ok++; continue }
 
-		# exempt by name or by coordinate
-		if ((p in exempt) || (prim[p] != "" && (prim[p] in exempt))) { ex++; continue }
+		# THE SAME PRIMITIVE, REACHED BARE.  `%` is filed at (int %) and also
+		# bound bare, and a spec that computes with `%` has exercised the C
+		# function behind both.  The scanner merged them by accident, because
+		# the registration name collided; this says it on purpose, and only
+		# when isa.x actually lists the name as bound.
+		#
+		# RECONSTRUCTING THE REGISTRATION NAME.  The C files a catalog entry
+		# under a NAME as well as a coordinate -- (alloc limit!) is called as
+		# alloc-limit!, (io repl-read) as repl-read -- and that name is a free
+		# string in the C table which isa.x does not record.  In practice it is
+		# one of two spellings, so both are tried as plain tokens.
+		#
+		# This is exactly the strength the scanner had: it keyed on that name
+		# and matched it as a token, with no check that anything still bound it.
+		# Reconstructing the name rather than reading it is the price of not
+		# needing the C in the tree, and it is paid in a false PASS at worst --
+		# a spec mentioning the token without calling it -- never a false
+		# refusal.
+		if ((m in tok) || (("%" m) in tok)) { ok++; continue }
+		nm = ns "-" m
+		if ((nm in tok) || (("%" nm) in tok)) { ok++; continue }
+
+		# exempt by coordinate, or by the method alone -- existing sections are
+		# titled `repl-read` and `make-callable`, not `io repl-read`.
+		if ((c in exempt) || (m in exempt)) { ex++; used_ex[c in exempt ? c : m] = 1; continue }
 
 		bad++
-		printf "  %s%s -- no spec exercises it, and no section declares it unspecced\n",
-			p, (prim[p] != "" ? " [" prim[p] "]" : "")
+		printf "  %s -- no spec exercises it, and no section declares it unspecced\n", c
 	}
 
 	# stale exemptions: a reason for something that is not a primitive
 	for (e in exempt) {
-		if (e in prim) continue
+		if (e in bare) continue
+		if (e in cat) continue
 		stale = 1
-		for (p in prim) if (prim[p] == e) { stale = 0; break }
+		for (c in cat) if (cat[c] == e) { stale = 0; break }
 		if (stale) {
 			printf "  %s -- declared unspecced in %s, but no such primitive is registered\n",
 				e, exempt[e]

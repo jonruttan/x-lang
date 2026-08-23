@@ -198,3 +198,18 @@ here, so raising it changes nothing the rest of the file depends on.
 ```
 ---
     3
+
+## heap sweep -- deliberately not specced here
+
+`heap sweep` frees every heap object an immediately preceding `heap mark` did
+not reach. There is no correct x-level call site for it: evaluating anything in
+x allocates, so between the mark and the sweep the evaluator has already built
+objects the mark never saw, and sweeping frees data that is live. `heap collect`
+is the pairing that IS callable, and it is specced above -- it does both halves
+with nothing evaluating in between, which is precisely the property that cannot
+be reconstructed from two calls.
+
+It was covered until now by the engine's own C suite, where the two can be
+driven directly with no evaluation between them. That suite is not in this tree
+once the engine arrives as a released artifact, so the reason moves here, next
+to the subject, rather than the coverage quietly disappearing with the sources.

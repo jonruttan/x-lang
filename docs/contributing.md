@@ -44,12 +44,25 @@ The pin ships rows for `darwin/arm64` and `linux/x86-64` — the two platforms
 x-engine-c publishes — so everything else (the Pi, any 32-bit target) takes the
 source arm and always will until someone publishes for it.
 
-**A fetched engine cannot run the whole gate**, and that is not a bug in the
-fetch. Four gates read the engine's C — `check-isa`, `check-obj-layout`,
-`check-base-paths`, `check-prim-coverage` — and a release artifact ships a
-binary and no sources on purpose. They say so specifically rather than telling
-you to initialise a submodule you do not want. Use a source checkout when you
-need them:
+**A fetched engine runs the whole gate.** `make gates` and `make test` pass
+against a release artifact, which is the point of the arrangement: the tree
+does not need the engine's C to hold the language to its contract.
+
+Four targets have no subject in an artifact — `check-isa`,
+`check-obj-layout`, `check-base-paths` and `test-c` ask whether the engine's C
+agrees with what it publishes, and a release ships the publications and no C.
+They **announce that they skipped, on every run**, and name what still covers
+the ground: the engine's own repository ratchets those three on every build of
+itself, and `check-compliance` here holds the digests its declaration states
+against the manifests shipped beside it. A gate that goes quiet is
+indistinguishable from a gate that passed.
+
+`check-prim-coverage` does *not* skip. It reads the engine's `isa.x` — the
+manifest the engine ratchets against its own C — instead of scanning the C
+itself, so it asks the same question of a checkout and a release alike.
+
+The variant builds (`make test-asan`, `x-bin-cov`) do need a checkout, and say
+so rather than skipping: running no sanitizer is not a result.
 
 ```sh
 make X_ENGINE_DIR=ext/x-engine-c      # back to the submodule
