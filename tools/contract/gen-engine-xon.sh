@@ -201,7 +201,17 @@ while read -r prow; do
 done < "$W/profiles"
 
 # --- emit --------------------------------------------------------------------
-name=$(basename "$ENGINE")
+# THE NAME IS ASSERTED, NOT OBSERVED.  It was `basename $ENGINE`, which reads
+# the directory an engine happens to sit in: `x-engine-c` for a checkout,
+# `x-engine-c-<release>-<os>-<arch>` for an unpacked release.  Same engine, two
+# identities, and the wrapper compares this row to a project's (engine "...")
+# choice -- so a released engine would be refused for the shape of its path.
+# Found by generating a declaration for an unpacked dist tarball.
+#
+# Same rule as (binary ...) below: what an engine is called is the engine's to
+# state.  The basename stays as the fallback, for an engine that has not said.
+name=$(sed -n 's/^  (name "\(.*\)").*/\1/p' "$CLAIMS" 2>/dev/null | head -1)
+[ -n "$name" ] || name=$(basename "$ENGINE")
 isa_d=$(digest "$ISA")
 lay=""
 for f in obj-layout base-paths base-layout; do

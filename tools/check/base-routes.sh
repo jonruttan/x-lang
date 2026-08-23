@@ -47,5 +47,10 @@ if [ -n "$missing" ]; then
 	exit 1
 fi
 n=$(wc -l < "$W/needed" | tr -d ' ')
-echo "base-routes: all $n routes the library walks are declared by $(basename "$ENGINE_DIR")."
+# The engine's name comes from its own declaration, not from the directory it
+# sits in: a checkout and an unpacked release are the same engine at two
+# different paths.  See tools/contract/gen-engine-xon.sh's `name`.
+ename=$(sed -n 's/^(engine-name "\(.*\)").*/\1/p' "$ENGINE_DIR/x-engine.xon" 2>/dev/null | head -1)
+[ -n "$ename" ] || ename=$(basename "$ENGINE_DIR")
+echo "base-routes: all $n routes the library walks are declared by $ename."
 exit 0
