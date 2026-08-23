@@ -40,11 +40,25 @@ are worth knowing before you rely on it:
   once you have built.
 
 A platform the pin declares no artifact for builds from source, and says so.
-Today that is every platform: `x-engine-c`'s release pipeline landed before its
-first release, so the pin carries no artifact rows yet and the submodule is what
-gets built. `make check-engine-fetch` drives the whole path over `file://`
-against a fixture, so the machinery is gated rather than waiting on a release to
-be exercised.
+The pin ships rows for `darwin/arm64` and `linux/x86-64` — the two platforms
+x-engine-c publishes — so everything else (the Pi, any 32-bit target) takes the
+source arm and always will until someone publishes for it.
+
+**A fetched engine cannot run the whole gate**, and that is not a bug in the
+fetch. Four gates read the engine's C — `check-isa`, `check-obj-layout`,
+`check-base-paths`, `check-prim-coverage` — and a release artifact ships a
+binary and no sources on purpose. They say so specifically rather than telling
+you to initialise a submodule you do not want. Use a source checkout when you
+need them:
+
+```sh
+make X_ENGINE_DIR=ext/x-engine-c      # back to the submodule
+```
+
+`make check-engine-fetch` drives the whole acquisition path over `file://`
+against a fixture — verify, reuse, tamper, a declared artifact that will not
+fetch, padded columns, an unreadable row, an unknown form — so the machinery is
+gated rather than exercised once per machine and never again.
 
 An engine directory is either a **checkout** (has a Makefile; `make` builds
 it) or an **unpacked release** (ships a built binary; nothing to build). Both
