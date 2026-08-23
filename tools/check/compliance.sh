@@ -15,9 +15,13 @@
 # Three parts, and the third is the one that keeps the other two honest:
 #   STATIC    the digests in x-engine.xon still match the files they name, and
 #             every atom each declared profile needs is actually declared.
-#   DYNAMIC   the generated bare suite, run by the engine's own tests/bare harness
-#             (it arms the allocation ceiling and loads nothing, which is why a
-#             probe there sees engine capabilities and not library ones).
+#   DYNAMIC   the generated bare suite, run through x-lang's OWN conformance
+#             runner (tests/x/conformance/runner.sh).  It arms the allocation
+#             ceiling and loads no library, which is why a probe there sees
+#             engine capabilities and not library ones -- and it needs nothing
+#             from the engine but the engine: an artifact with no tests/ in it
+#             is a legitimate subject, and so is an engine that never built an
+#             x-lang-shaped harness.
 #   UNTESTED  every declared row for which NO experiment exists is named out loud.
 #             A suite that silently skips a claim is indistinguishable from one
 #             that verified it, and the skipped rows here are guarantees -- the
@@ -32,8 +36,20 @@ ENGINE_ABS="$(cd "$ENGINE" && pwd)"
 XON="$ENGINE_ABS/x-engine.xon"
 [ -f "$XON" ] || { echo "compliance: no declaration at $XON" >&2; exit 2; }
 
-RUNNER="$ENGINE_ABS/tests/bare/bare-runner.sh"
-[ -f "$RUNNER" ] || { echo "compliance: engine has no bare harness at $RUNNER" >&2; exit 2; }
+# NO PRECONDITION ON THE ENGINE'S OWN HARNESS.  This used to require
+# $ENGINE/tests/bare/bare-runner.sh and refuse without it -- a leftover from the
+# first version, which really did drive that harness.  The rewrite moved the
+# checks to ordinary spec files run through x-lang's conformance runner (below),
+# and the requirement stayed behind, guarding a dependency that no longer
+# existed.  Nothing read the variable.
+#
+# It was not harmless.  Compliance is x-lang asking whether an engine does what
+# it claims, and an engine that supplies the harness it is judged by holds the
+# arbiter's pen -- the same reason the conformance suite lives here and not
+# there.  In practice the dead line refused two legitimate subjects: a released
+# engine (an artifact ships no tests) and any second implementation that does
+# not happen to build an x-lang-shaped smoke harness.  Found by pointing this at
+# an unpacked dist tarball.
 
 W="${TMPDIR:-/tmp}/compliance.$$"; mkdir -p "$W"
 trap 'rm -rf "$W"' EXIT INT TERM
@@ -44,7 +60,12 @@ digest() {
 	else shasum -a 256 "$1" | awk '{print $1}'; fi
 }
 
-echo "compliance: $(basename "$ENGINE_ABS")"
+# The engine's name comes from its own declaration, not from the directory it
+# sits in: a checkout and an unpacked release are the same engine at two
+# different paths.  See tools/contract/gen-engine-xon.sh's `name`.
+ename=$(sed -n 's/^(engine-name "\(.*\)").*/\1/p' "$XON" 2>/dev/null | head -1)
+[ -n "$ename" ] || ename=$(basename "$ENGINE_ABS")
+echo "compliance: $ename"
 
 # --- STATIC: the digests still describe the files ----------------------------
 want_isa=$(sed -n 's/^(isa "sha256:\([0-9a-f]*\)").*/\1/p' "$XON" | head -1)
