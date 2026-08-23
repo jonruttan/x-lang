@@ -89,6 +89,12 @@ path_form_safe() {
 param_forms() {
 	_pf="$(dirname "$X_BIN")/x-engine-build.xon"
 	[ -f "$_pf" ] || return 0
+	# The quoted rows first: `machine` and `release` are STRINGS, because their
+	# values are free-form -- a triple, a tag, a describe -- and the bare-atom
+	# sed below would mangle them.  A release reaches the library as a string
+	# for the same reason nothing parses it anywhere else.
+	_rel=$(sed -n 's/^(param release "\(.*\)")[[:space:]]*$/\1/p' "$_pf" | head -1)
+	[ -n "$_rel" ] && [ "$_rel" != "unknown" ] && printf '(def %%param-release "%s")\n' "$_rel"
 	sed -n 's/^(param \([a-z-]*\) \([a-z0-9_-]*\))[[:space:]]*$/\1 \2/p' "$_pf" \
 	| while read -r _k _v; do
 		[ "$_v" = "unknown" ] && continue
@@ -573,6 +579,48 @@ if [ -n "$boot_file" ]; then
 			exit 1
 		fi
 	fi
+	# THE ENGINE'S RELEASE (the arc's phase 5).  A third subject, and the last
+	# one that had no key: the layout row above refuses an engine whose object
+	# model moved, and the release row below refuses a library from another
+	# release, but nothing named WHICH ENGINE BUILD a project was verified
+	# against.  While x-lang stamped its own tag onto the engine it built, that
+	# was invisible -- one string stood for both.  x-engine-c has its own
+	# version line now, so the two are different strings and each needs its own
+	# comparison.
+	#
+	# WHAT THIS IS NOT.  It is not the #435 key: that crash was a LIBRARY
+	# pairing, reproduced with the engine held constant, and the release row
+	# below is what catches it.  No engine-pairing corruption has been observed
+	# at all -- the layout key guards the one that is mechanically possible.
+	# This row records the engine a project was verified against and refuses a
+	# different one because equality is the only claim the evidence supports,
+	# and `Pin boot` makes re-pinning one call.  Waived by --allow-release-skew
+	# like the library row, and for the same reason: someone who knows their
+	# pairing is fine should be able to say so.
+	_mine_erel="$INSTALL_ROOT/contract/engine-release"
+	if [ -n "$INSTALL_ROOT" ] && [ -f "$_rel" ]; then
+		_wante=$(sed -n 's/^[[:space:]]*(engine-release "\([^"]*\)").*/\1/p' "$_rel" | head -1)
+		if [ -n "$_wante" ] && [ ! -f "$_mine_erel" ]; then
+			echo "x.sh: the lock names an engine release but this install tree carries no engine stamp -- engine pairing unchecked; reinstall to stamp it" >&2
+		fi
+		if [ -n "$_wante" ] && [ -f "$_mine_erel" ]; then
+			_havee=$(cat "$_mine_erel")
+			if [ "$_wante" != "$_havee" ]; then
+				if [ -n "$allow_skew" ]; then
+					echo "x.sh: engine skew allowed -- amalgam was verified against $_wante, this engine is $_havee" >&2
+				else
+					echo "Error: pinned boot amalgam was verified against a different engine build" >&2
+					echo "  amalgam: $ENTRY" >&2
+					echo "  verified against:  $_wante" >&2
+					echo "  this engine:       $_havee" >&2
+					echo "  Re-pin to this engine with (Pin boot \"<tag>\"), install the engine" >&2
+					echo "  the lock names, or pass --allow-release-skew to proceed anyway." >&2
+					exit 1
+				fi
+			fi
+		fi
+	fi
+
 	_mine="$INSTALL_ROOT/contract/isa.sha256"
 	_mine_rel="$INSTALL_ROOT/contract/release"
 	if [ -n "$INSTALL_ROOT" ] && [ ! -f "$_rel" ]; then

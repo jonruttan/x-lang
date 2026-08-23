@@ -33,6 +33,15 @@ routing works.
 - **`%this-class` box replaces the `%super-class` binding**; member and static writes go in place through `%box-put!`; the dispatch arg frame is tail-evaluated.
 - **Library version 0.5.0** — `x-lib-version` had read `0.3.0` since before v0.4.0 shipped, so the banner and `x -V` under-reported the library by two releases while claiming precision. `docs/spec.md`, `docs/standard-library.md` and the README's maturity line move with it.
 
+- **The pin records which engine a project was verified against** — a lock's
+  `(engine-release …)`, compared before a pinned amalgam boots and refused on a
+  mismatch (`--allow-release-skew` waives it, loudly). x-lang no longer stamps
+  its own tag onto the engine it builds: `x-engine-c` has a version line of its
+  own, so an installed tree now carries two facts — `contract/release` for the
+  library and `contract/engine-release` for the engine — and each refusal names
+  which one failed. Both rows are optional; a lock written before them announces
+  that the pairing is unchecked rather than being refused.
+
 ### Fixed
 
 - **Releases can be told apart, and a mismatched pin refuses instead of crashing** (#435) — the ISA fingerprint is the C surface, which is deliberately fixed: it is byte-identical across v0.3.1-rc10, v0.4.0 and this tree, as are the obj-layout, base-paths and base-layout contracts, so nothing anything compared could tell two releases apart. A boot amalgam from one release therefore booted against another release's **library** with the pairing guard passing, and died mid-boot on a dereferenced string. (The original report called this an amalgam/engine pairing; reproducing it with the engine held constant showed otherwise — swapping the engine changes nothing, swapping `lib/` and `apps/` decides everything, because an amalgam is self-contained only over its `include` closure and resolves its imports against the installed tree as it boots. See #467.) Three things now carry release identity: the engine reports its own tag as `x-release` (`x -V` prints it), an installed tree is stamped with that tag and with a **payload fingerprint** — one digest over everything the release ships as library — and `pin.release.xon` publishes the same payload fingerprint beside the ISA one. The wrapper compares the lock's release tag against the engine's before the amalgam reaches it, and refuses the pair, naming both tags and both remedies; `--allow-release-skew`, or `(allow-release-skew)` in the manifest, waives it loudly for anyone who means it. `(Pin verify)` reports the same comparison without enforcing it. The tag comparison works on locks written long before this change, because `Pin boot` has always recorded it.

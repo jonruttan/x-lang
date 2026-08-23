@@ -100,7 +100,7 @@
     ; release fingerprint -- one digest over everything a release ships as
     ; library -- because `isa` is the C surface and is byte-identical across
     ; releases, so it can say "compatible" but never "same release".
-    (%pin-platform-heads (list 'release 'isa 'engine-layout 'payload 'boot))
+    (%pin-platform-heads (list 'release 'isa 'engine-release 'engine-layout 'payload 'boot))
     ; The header names the ACTUAL lock file (#421): locks are written
     ; per-root (deps.lock.xon and friends -- the #313 adjudication), and
     ; a file that opens by claiming a name it does not have reads as a
@@ -1231,18 +1231,33 @@
                                 (list 'isa (%assoc-get 'isa m)))
                           (Pin %pin-concat
                             (Pin %pin-concat
-                              ; The LAYOUT row is the pairing key that the isa row
-                              ; could never be: an amalgam walks object header words,
-                              ; so a layout that moved is a segfault in field access.
-                              ; Written only when the release published one -- older
-                              ; releases have no such fact, and a row spelling nil
-                              ; would be a fingerprint matching nothing forever.
+                              ; The ENGINE's release, which is not the (release ...)
+                              ; row above: that one is the language's, and the two
+                              ; have been different strings since x-engine-c got a
+                              ; version line.  Optional like the two below, and for
+                              ; the same reason.
+                              ;
+                              ; %pin-concat IS BINARY.  Adding this as a third
+                              ; argument to the concat below type-checked, ran, and
+                              ; silently dropped the payload row -- caught by
+                              ; pin-smoke's #435 leg, not by reading.
                               (match
-                                ((null? (%assoc-get 'layout m)) ())
-                                (#t (list (list 'engine-layout (%assoc-get 'layout m)))))
-                              (match
-                                ((null? (%assoc-get 'payload m)) ())
-                                (#t (list (list 'payload (%assoc-get 'payload m))))))
+                                ((null? (%assoc-get 'engine-release m)) ())
+                                (#t (list (list 'engine-release
+                                                (%assoc-get 'engine-release m)))))
+                              (Pin %pin-concat
+                                ; The LAYOUT row is the pairing key that the isa row
+                                ; could never be: an amalgam walks object header words,
+                                ; so a layout that moved is a segfault in field access.
+                                ; Written only when the release published one -- older
+                                ; releases have no such fact, and a row spelling nil
+                                ; would be a fingerprint matching nothing forever.
+                                (match
+                                  ((null? (%assoc-get 'layout m)) ())
+                                  (#t (list (list 'engine-layout (%assoc-get 'layout m)))))
+                                (match
+                                  ((null? (%assoc-get 'payload m)) ())
+                                  (#t (list (list 'payload (%assoc-get 'payload m)))))))
                             (list (list 'boot file (Pin %pin-digest bootpath))))))
                       (File unlink rel))))
                 bootpath))))))

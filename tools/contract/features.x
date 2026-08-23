@@ -227,6 +227,13 @@
   (os darwin linux bsd)
   (arch arm64 x86-64 i386)
   (machine)                ; the full build triple, as DATA -- replaces x-machine sniffing
+  (release)                ; the release THIS BINARY was built as.  Free-form, like
+                           ;   machine: a project spells its releases however it
+                           ;   likes and nothing may parse the string -- the pin
+                           ;   compares releases for EQUALITY and never reads them.
+                           ;   Declared beside the binary rather than asked of it,
+                           ;   because the wrapper needs it BEFORE deciding whether
+                           ;   this engine may boot a pinned amalgam at all.
 )))
 
 ; --- PROFILES ----------------------------------------------------------------

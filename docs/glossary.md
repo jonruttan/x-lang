@@ -99,6 +99,12 @@ differ in what surface is *loaded*, never in what a shared spelling *means*
   imports against this tree's `lib/` and `apps/` as it boots.
   Distinct from `x-release`, which is the **engine's** own tag: the two
   are the same string only when x-lang built the engine it runs.
+- **engine release stamp** — `share/x/contract/engine-release`, the release
+  the installed ENGINE was built as, taken from the `(param release …)` row
+  it declares beside its binary. Compared against a lock's
+  `(engine-release …)`: which engine build a project was verified against.
+  Distinct from the release stamp above, which is the library's — one string
+  stood for both until x-engine-c got a version line of its own.
 - **release skew** — a pinned amalgam and an installed library from
   different releases. Refused at boot; waived per run with `--allow-release-skew`
   or per project with `(allow-release-skew)` in the manifest.
