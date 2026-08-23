@@ -11,7 +11,7 @@
 #                    pin.xon / pin.lock.xon:
 #                      (release "TAG")
 #                      (isa "sha256:HEX")     the C-surface fingerprint:
-#                                             the digest of ext/x-engine-c/tools/contract/isa.x,
+#                                             the digest of engine/tools/contract/isa.x,
 #                                             the ratcheted ISA manifest
 #                                             these amalgams were built
 #                                             against (make check-isa

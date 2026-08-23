@@ -308,14 +308,25 @@ do
 			# and let IT print.  THREE numbers on purpose, and they
 			# answer different questions: x-lib-version is the library's
 			# (what the banner shows), x-version the x-expr expression
-			# layer's, and x-release which RELEASE this engine is -- the
-			# only one of the three that distinguishes two releases whose
-			# C never changed (#435), and the key the pairing guard below
-			# compares.
+			# layer's, and x-release which RELEASE THIS ENGINE is.
+			#
+			# THAT LAST ONE IS THE ENGINE'S, NOT THE LANGUAGE'S, and the
+			# two are no longer the same string.  They were while x-lang
+			# built its own engine and passed its `git describe` down;
+			# an engine that arrives as a release carries its own.  The
+			# key the pairing guard compares is neither of these -- it is
+			# the LIBRARY's stamp, $INSTALL_ROOT/contract/release, printed
+			# below when there is an install tree to read it from.  A
+			# banner that showed one release and a guard that compared
+			# another would be a trap for exactly the person reading it
+			# to diagnose a refusal.
 			require_engine
 			{ root_form; cat "${ENTRY_DIR}${X_LIB}${X_EXT}"; \
-				printf '(display %%lang-name)(display " ")(display x-lib-version)(display " (release ")(display x-release)(display ", engine ")(display x-version)(display ")")(newline)\n'; } \
+				printf '(display %%lang-name)(display " ")(display x-lib-version)(display " (engine release ")(display x-release)(display ", expr ")(display x-version)(display ")")(newline)\n'; } \
 				| "$X_BIN" "--batch"
+			if [ -n "$INSTALL_ROOT" ] && [ -f "$INSTALL_ROOT/contract/release" ]; then
+				echo "library release $(cat "$INSTALL_ROOT/contract/release") -- what a pinned boot is checked against"
+			fi
 			exit 0
 			;;
 		--) # End of all options

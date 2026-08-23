@@ -145,9 +145,16 @@ Then:
 make clean && make
 ```
 
-Requires a C89-compatible compiler. `make` builds the engine inside
-`ext/x-engine-c` and copies the `x-bin` binary to this repo's root, where the
-wrapper and every test runner expect to find it.
+Requires a C89-compatible compiler. `make` links `engine` at the engine this
+tree builds against, builds it there, and copies the `x-bin` binary to this
+repo's root, where the wrapper and every test runner expect to find it.
+
+`engine` is a symlink, and it is how x-lang stays implementation-agnostic:
+everything downstream — the boot's contract includes, the JIT's `-I` flags,
+the gates — names that one path, never a particular engine. Point it
+somewhere else with `make X_ENGINE_DIR=/path/to/engine`, and the choice
+sticks until you change it. The target may be a checkout (built here) or an
+unpacked engine release (used as it comes).
 
 The expression engine (`ext/x-engine-c/ext/x-expr`) needs nothing beyond `libc`; the full
 binary adds `-ldl` for the FFI/JIT layer. There is no `-lm` — float math

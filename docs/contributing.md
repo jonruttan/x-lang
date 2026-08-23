@@ -351,7 +351,8 @@ it cannot rot between releases.
 The same tag also builds a relocatable per-platform binary tarball
 (`tools/release/package.sh`, gated by `make check-package`) and uploads it with
 a `.sha256` sidecar. Each tarball's install tree is stamped with the tag
-(`share/x/contract/release`, reported in the language as `x-release`)
+(`share/x/contract/release` — the library's stamp, distinct from the
+engine's own `x-release`)
 and the payload fingerprint; `package.sh` fails the job unless its stamp
 matches both the tree it shipped and the repo the release manifest was
 computed from.

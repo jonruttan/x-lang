@@ -204,7 +204,7 @@ and nil-NAME types all resolve to nil rather than misreading a payload).
 
 (Type wrap t) clothes a handle or struct as a Type instance: (t name),
 (t cell 'type-write-stack), (t fields), (t push-write f).  Field names
-come from the layout contract (ext/x-engine-c/tools/contract/base-paths.x); a
+come from the layout contract (engine/tools/contract/base-paths.x); a
 non-type-rooted name is refused, because a base-rooted path stepped from
 a type struct addresses arbitrary spine words.
 

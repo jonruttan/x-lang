@@ -26,7 +26,7 @@
 
 ; --- Type struct navigation ---
 ; Every walk below is derived at MODULE LOAD from the committed layout
-; descriptor (ext/x-engine-c/tools/contract/base-paths.x) via registry.x's walker -- a layout
+; descriptor (engine/tools/contract/base-paths.x) via registry.x's walker -- a layout
 ; change follows the contract automatically; nothing here re-flattens the
 ; tree by hand.  Group accessors resolve their row's full step list; each
 ; *-cell resolves the PARENT of the row naming the value it fronts (via

@@ -8,7 +8,7 @@
 # Prints one 64-hex line, nothing else.
 #
 # WHY THIS EXISTS (#435).  The ISA fingerprint answers "will this amalgam
-# run on this engine's C surface?" -- a question about ext/x-engine-c/tools/contract/isa.x,
+# run on this engine's C surface?" -- a question about engine/tools/contract/isa.x,
 # which is deliberately fixed and minimal.  It answers NOTHING about which
 # release a tree is: isa.x is byte-identical across v0.3.1-rc10, v0.4.0
 # and v0.5.0, as are obj-layout.x, base-paths.x and base-layout.x, while
