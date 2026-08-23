@@ -553,6 +553,56 @@ _rel_proj rel3 v9.9.9-rel
 (cd "$_TMP" && $TIMEOUT_CMD sh "$_fake2/bin/x" -f "$_TMP/rel3/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
 grep -q "different release" "$_TMP/err" && fail "release-guard: a matched release was refused" "$_TMP/err"
 
+# --- THE ENGINE'S RELEASE, a separate subject (the arc's phase 5) -----------
+# The rows above are the LIBRARY's release.  This one names the engine build a
+# project was verified against, and the two have been different strings since
+# x-engine-c got a version line of its own.  The fake tree stamps both, so a
+# skew in one cannot be mistaken for a skew in the other.
+printf 'eng-v0.1.0\n' > "$_fake2/share/x/contract/engine-release"
+
+_eng_proj() {  # _eng_proj <dir> <engine-release in the lock>
+	_rel_proj "$1" v9.9.9-rel
+	[ -n "$2" ] && printf '(engine-release "%s")\n' "$2" >> "$_TMP/$1/deps.lock.xon"
+	return 0
+}
+
+# A different engine build: refused, naming both sides.
+_eng_proj eng1 eng-v0.0.9
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake2/bin/x" -f "$_TMP/eng1/main.x") >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "engine-guard: a skewed engine release was accepted" "$_TMP/out" "$_TMP/err"
+grep -q "different engine build" "$_TMP/err" || fail "engine-guard: no refusal message" "$_TMP/err"
+grep -q "eng-v0.0.9" "$_TMP/err" || fail "engine-guard: refusal does not name what the amalgam was verified against" "$_TMP/err"
+grep -q "eng-v0.1.0" "$_TMP/err" || fail "engine-guard: refusal does not name the installed engine" "$_TMP/err"
+
+# It is the ENGINE's row that refused, not the library's -- the two subjects
+# must not be reachable through each other's message.
+grep -q "different release" "$_TMP/err" && fail "engine-guard: an engine skew was reported as a library skew" "$_TMP/err"
+
+# Waived like the library's, and just as loudly.
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake2/bin/x" --allow-release-skew -f "$_TMP/eng1/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "different engine build" "$_TMP/err" && fail "engine-guard: --allow-release-skew did not waive it" "$_TMP/err"
+grep -q "engine skew allowed" "$_TMP/err" || fail "engine-guard: the waiver was SILENT" "$_TMP/err"
+
+# Matching engine: no refusal.
+_eng_proj eng2 eng-v0.1.0
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake2/bin/x" -f "$_TMP/eng2/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "different engine build" "$_TMP/err" && fail "engine-guard: a matched engine was refused" "$_TMP/err"
+
+# A lock with no engine-release row -- every lock written before phase 5 --
+# must still boot.  Older locks state no such fact and inventing one would
+# unpin every project in the wild.
+_eng_proj eng3 ""
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake2/bin/x" -f "$_TMP/eng3/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "different engine build" "$_TMP/err" && fail "engine-guard: a lock predating the row was refused" "$_TMP/err"
+
+# A lock that NAMES an engine against a tree that cannot answer: announce,
+# never assume.  A guard that disappears without a word is the #313 shape.
+mv "$_fake2/share/x/contract/engine-release" "$_fake2/share/x/contract/engine-release.away"
+(cd "$_TMP" && $TIMEOUT_CMD sh "$_fake2/bin/x" -f "$_TMP/eng2/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "no engine stamp" "$_TMP/err" || fail "engine-guard: an unanswerable pairing passed in silence" "$_TMP/err"
+mv "$_fake2/share/x/contract/engine-release.away" "$_fake2/share/x/contract/engine-release"
+
 # A lock with no (release ...) row -- every lock written before #435 --
 # cannot be checked, and says so rather than passing quietly.
 _rel_proj rel4 ""

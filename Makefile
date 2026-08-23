@@ -50,12 +50,13 @@ X_RELEASE?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 #    is what leaves x.sh, the spec runners, tools/dev/lint.sh and the ~15
 #    tools/check/*.sh scripts untouched by the split.
 #
-# 2. WHOSE RELEASE IT REPORTS.  This repo's (#435).  The pin lock records the
-#    LANGUAGE release and lib/x/tool/pin.x refuses at boot when a pinned
-#    amalgam's release differs from the engine's, so an engine stamped with
-#    the submodule's own `git describe` would fail every pinned project on
-#    sight.  X_RELEASE is passed down on every engine build below -- the same
-#    override tools/release/package.sh already uses for tarballs.
+# 2. WHOSE RELEASE IT REPORTS.  ITS OWN, since the engine got a version line.
+#    This repo used to pass X_RELEASE down, so the engine reported the LANGUAGE
+#    release it was built for -- correct while one tag was the only identity
+#    either of them had, and a lie the moment x-engine-c cut v0.1.0.  Two
+#    subjects, two stamps: $(LIBDIR)/contract/release is this repo's, and the
+#    engine's own is read from the (param release ...) row it declares beside
+#    its binary.
 #
 # 3. WHERE THE ENGINE IS.  `engine` -- one path, in this repo's root, for every
 #    consumer: the boot's contract includes, the JIT's -I flags, the gates, the
@@ -123,7 +124,7 @@ ENGINE_MAKE=@$(ENGINE_ENSURE); if [ ! -f $(ENGINE_DIR)/Makefile ]; then \
 			echo "For your own: make X_ENGINE_DIR=/path/to/engine" >&2; \
 		fi; \
 		exit 1; \
-	fi; $(MAKE) --no-print-directory -C $(ENGINE_DIR) X_RELEASE="$(X_RELEASE)"
+	fi; $(MAKE) --no-print-directory -C $(ENGINE_DIR)
 
 # NAME is the PROJECT name: the wrapper's installed command (bin/x) and the
 # install-tree dirs (share/x, libexec/x) -- x.sh's X_SHARE/X_ENGINE and the
@@ -220,7 +221,7 @@ engine-link:
 $(ENGINE_DIR)/$(EXECUTABLE): engine-link FORCE
 	@$(ENGINE_ENSURE)
 	@if [ -f $(ENGINE_DIR)/Makefile ]; then \
-		$(MAKE) --no-print-directory -C $(ENGINE_DIR) X_RELEASE="$(X_RELEASE)"; \
+		$(MAKE) --no-print-directory -C $(ENGINE_DIR); \
 	elif [ ! -x $(ENGINE_DIR)/$(EXECUTABLE) ]; then \
 		echo "$(ENGINE_DIR) -> $(ENGINE_SRC) has neither sources to build nor an engine to use." >&2; \
 		echo "For the bundled engine: git submodule update --init --recursive" >&2; \
@@ -833,6 +834,17 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	# just ran it and segfaulted.  One precomputed hex line: the wrapper
 	# needs a STRING compare against a release manifest, not a digester.
 	install -d -m 0755 $(DESTDIR)$(LIBDIR)/contract
+	@# THE ENGINE'S RELEASE, beside the library's, because they are two facts
+	@# now.  Read from the row the engine declares rather than asked of the
+	@# binary: the wrapper compares this before deciding whether an engine may
+	@# boot a pinned amalgam, and starting an engine to find out whether it is
+	@# allowed to start is the wrong shape.  Absent (an engine that predates
+	@# the row) leaves no file, and the guard announces rather than assumes.
+	@sed -n 's/^(param release "\(.*\)")[[:space:]]*$$/\1/p' \
+		$(ENGINE_DIR)/x-engine-build.xon 2>/dev/null | head -1 \
+		> $(DESTDIR)$(LIBDIR)/contract/engine-release || true
+	@[ -s $(DESTDIR)$(LIBDIR)/contract/engine-release ] \
+		|| rm -f $(DESTDIR)$(LIBDIR)/contract/engine-release
 	@# THROUGH $(ENGINE_DIR), like everything else.  This line held a literal
 	@# ext/x-engine-c while the comment above it already said $(ENGINE_DIR) --
 	@# harmless while there was one engine at one path, and wrong the moment

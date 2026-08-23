@@ -84,6 +84,17 @@ mkdir -p build/release
   layout=$(_digest "$lay")
   check_hex "$layout" "the layout descriptors"
   printf '(layout "sha256:%s")\n' "$layout"
+  # WHICH ENGINE BUILT THIS RELEASE.  A separate fact from (release ...) since
+  # the engine got a version line of its own: that row is the LANGUAGE's tag,
+  # this one is the engine's, and they have not been the same string since
+  # x-engine-c cut v0.1.0.  Read from the row the engine declares beside its
+  # binary rather than asked of the binary, so the pin can record it without
+  # starting anything.  Absent for an engine that predates the row -- the lock
+  # simply carries no engine-release, and the guard announces rather than
+  # inventing one.
+  engrel=$(sed -n 's/^(param release "\(.*\)")[[:space:]]*$/\1/p' \
+      "$ENGINE_DIR/x-engine-build.xon" 2>/dev/null | head -1)
+  [ -n "$engrel" ] && printf '(engine-release "%s")\n' "$engrel"
   # The payload fingerprint is computed by the same script `make install`
   # runs against the installed tree, so the manifest and the engine beside
   # the library are answering the identical question.

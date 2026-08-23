@@ -407,6 +407,33 @@ evaluated, a manifest can only do what pinning does: redirect import
 resolution into its own project's files, and select which verified
 boot to run.
 
+### Two pairings, two subjects
+
+A pinned boot is checked against **two** releases, because there are two
+things it can be paired with and they now have separate version lines:
+
+| lock row | what it names | stamped at install as |
+|---|---|---|
+| `(release "…")` | the **library** the amalgam boots against | `share/x/contract/release` |
+| `(engine-release "…")` | the **engine build** it was verified against | `share/x/contract/engine-release` |
+
+Until x-engine-c cut its own v0.1.0, one string stood for both: x-lang built
+the engine and stamped its own tag onto it, so a single comparison happened to
+cover both subjects. It does not any more, and the refusals name which one
+failed.
+
+The engine row is *not* the key that catches #435 — that was a library pairing,
+reproduced with the engine held constant, and the `(release …)` row is what
+refuses it. No engine-pairing corruption has been observed at all; the
+`(engine-layout …)` row guards the one that is mechanically possible. The
+engine release records which build a project was verified against and refuses a
+different one because equality is the only claim the evidence supports, and
+`(Pin boot)` makes re-pinning a single call.
+
+Both rows are **optional**. A lock written before either existed states no such
+fact, and the wrapper announces that it cannot check rather than inventing one —
+refusing on absence would unpin every project in the wild.
+
 ### Release pairing
 
 A pinned boot amalgam and the **installed library** it boots against
