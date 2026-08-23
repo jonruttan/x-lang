@@ -84,11 +84,12 @@ c2g() {
 		/^\(def %isa-bare/    { s="bare";    next }
 		/^\(def %isa-keep/    { s="keep";    next }
 		/^\(def %isa-aliases/ { s="";        next }
-		/^\(def %isa-values/  { s="";        next }
+		/^\(def %isa-values/  { s="values";  next }   # part of the surface: see engine-contract.sh
 		/^  \(/ {
 			if (s == "") next
 			l = $0; sub(/;.*/, "", l); gsub(/[()]/, "", l); $0 = l
 			if (s == "catalog" && NF >= 3) print $1 "/" $2, $3
+			else if (s == "values" && NF >= 1) print $1, "value"
 			else if (s != "catalog" && NF >= 2) print $1, $2
 		}' "$_isa" > "$W/rows"
 	sort -k2,2 "$W/rows" > "$W/rows-bytag"

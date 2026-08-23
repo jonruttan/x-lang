@@ -108,6 +108,24 @@
                             ;   Verified by running one, not by reading: the C
                             ;   binds args and hands straight to the read-eval
                             ;   loop, and the prefix comes from x_error.
+
+  (meta/identity rows)      ; THE ENGINE SAYS WHICH ENGINE IT IS, at runtime:
+                            ;   x-release (the build's release) and x-version
+                            ;   (the implementation's own version).  Required by
+                            ;   `core`, because with two implementations in the
+                            ;   world "which engine is this?" stops being
+                            ;   rhetorical: x.sh prints both in -V, and the pin
+                            ;   records the engine's release so a project can be
+                            ;   paired with the engine it was verified against.
+                            ;   A declaration file answers the same question, but
+                            ;   only about the tree it sits in -- these answer for
+                            ;   the PROCESS, which is what a bug report needs.
+  (meta/platform rows)      ; x-machine: the build triple as a bound value.  NOT
+                            ;   required and not in any profile -- the declared
+                            ;   (param os/arch/machine) rows are the door now,
+                            ;   and this is the fallback for an engine that ships
+                            ;   no build params.  lib/x/platform/syscall.x reads
+                            ;   the params first and parses this only if absent.
 )))
 
 ; Explicit membership for the split tag.  Every ffi-tagged isa.x row appears
@@ -117,6 +135,16 @@
   (reflect/ptr-casts int/->ptr obj/->ptr ptr/->int ptr/->obj ptr/->str str/->ptr)
   (isa/ffi-call      ffi/call ffi/dlopen ffi/dlsym ptr/call)
   (isa/syscall       syscall)
+  ; THE VALUE ROWS.  isa.x's %isa-values carries no tag column, so every one of
+  ; them is classified here or the partition fails.  They were skipped by both
+  ; parsers until this file learned to name them, which is how x-release came to
+  ; be something x.sh depends on and no engine was obliged to have.
+  (meta/identity     x-release x-version)
+  (meta/platform     x-machine)
+  (invoke/argv       args)          ; the argv list this group is already about
+  (isa/sys           %sigint-flag)  ; the flag the signal door sets
+  (isa/tok           %token-eof)    ; the reader's end sentinel
+  (isa/spine         #t #f)         ; the booleans the evaluator itself binds
 )))
 
 ; NOT CAPABILITIES, though the first draft of this file listed them as such.
@@ -220,7 +248,8 @@
 (def %feature-profiles (lit (
   (core  isa/spine isa/alloc isa/raw-op isa/raw-mem isa/types isa/tok isa/io
          isa/hot reflect/ptr-casts reflect/layout-data reflect/word-probe
-         io/include invoke/pipe-stdin invoke/argv err/stderr-prefix)
+         io/include invoke/pipe-stdin invoke/argv err/stderr-prefix
+         meta/identity)
   (gc    core isa/gc)
   (posix gc isa/sys isa/syscall isa/ffi-call)
   (full  posix instr/cov instr/profile)

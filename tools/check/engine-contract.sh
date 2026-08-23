@@ -87,7 +87,14 @@ awk '
 	/^\(def %isa-bare/    { sect="bare";    next }
 	/^\(def %isa-keep/    { sect="keep";    next }
 	/^\(def %isa-aliases/ { sect="";        next }   # x-level aliases: not C rows
-	/^\(def %isa-values/  { sect="";        next }   # values, not instructions
+	# VALUES ARE PART OF THE SURFACE.  They were skipped as "not instructions",
+	# which left x-release, x-version, args and the rest outside the capability
+	# system entirely: no atom could name them, so no requires row could demand
+	# them, so x.sh depended on x-release with nothing checking any engine had
+	# it.  They carry no tag column, so they enter with the sentinel tag `value`
+	# -- which no capability claims wholesale, so TOTAL forces every one of them
+	# into an explicit group.
+	/^\(def %isa-values/  { sect="values";  next }
 	/^  \(/ {
 		if (sect == "") next
 		# Reassigning $0 re-splits with awk default FS, which ignores the
@@ -95,6 +102,7 @@ awk '
 		# yields an empty first field that shifts every coordinate.
 		l = $0; sub(/;.*/, "", l); gsub(/[()]/, "", l); $0 = l
 		if (sect == "catalog" && NF >= 3) print $1 "/" $2, $3
+		else if (sect == "values" && NF >= 1) print $1, "value"
 		else if (sect != "catalog" && NF >= 2) print $1, $2
 	}
 ' "$ISA" > /tmp/ec-isa.$$

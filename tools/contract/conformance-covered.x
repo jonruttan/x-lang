@@ -118,6 +118,8 @@
   (type/of)
   (unwrap)
   (wrap)
+  (x-release)
+  (x-version)
   (|)
   (~)
 )))

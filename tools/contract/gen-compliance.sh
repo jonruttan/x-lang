@@ -49,12 +49,17 @@ awk '/^\(def %feature-capabilities/{f=1;next} /^\)\)\)/{f=0}
                     if (NF>=2 && $2!="rows" && $2!="-") print $2, $1 }' "$FEAT" | sort -k1,1 > "$W/tagmap"
 # Catalog rows carry an ns/method split; bare and keep rows do not, and are probed
 # by resolving the symbol instead of by walking the catalog.
+# VALUES probe exactly like bare names -- evaluate the symbol and see whether it
+# resolves -- so they enter as `bare`.  They were skipped, which is why the rows
+# meta/identity is made of had no compliance probe: declared, required, and
+# never falsified.  Their isa.x entries carry no tag column, hence the NF>=1.
 awk '/^\(def %isa-catalog/{s="cat";next} /^\(def %isa-bare/{s="bare";next}
      /^\(def %isa-keep/{s="bare";next} /^\(def %isa-aliases/{s="";next}
-     /^\(def %isa-values/{s="";next} /^\)\)\)/{s=s}
+     /^\(def %isa-values/{s="values";next} /^\)\)\)/{s=s}
      /^  \(/ { if (s=="") next
                l=$0; sub(/;.*/,"",l); gsub(/[()]/,"",l); $0=l
                if (s=="cat" && NF>=3) print $1 "/" $2, $3, "coord"
+               else if (s=="values" && NF>=1) print $1, "value", "bare"
                else if (s=="bare" && NF>=2) print $1, $2, "bare" }' "$ISA" | sort > "$W/isa"
 
 sort -k2,2 "$W/isa" > "$W/isa-bytag"
