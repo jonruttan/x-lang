@@ -21,7 +21,30 @@ to know which engine it got.
 ```sh
 make                                  # links engine -> ext/x-engine-c
 make X_ENGINE_DIR=../my-engine        # links engine -> ../my-engine
+make engine                           # acquire the engine the pin names
 ```
+
+`make engine` reads `tools/engine/engine.pin.xon` — which implementation, which
+release, and a URL plus sha256 per platform — fetches the artifact for this
+machine, verifies it, unpacks it under `build/engine/` and links it. Three rules
+are worth knowing before you rely on it:
+
+- **A declared artifact that fails to fetch is an error**, never a quiet source
+  build. The source fallback exists for platforms nobody publishes for (the Pi,
+  32-bit); firing it on a broken release would turn "the release is broken" into
+  "the build took eleven minutes today".
+- **Nothing is published unverified.** The download lands on a temp path, is
+  digested there, and is renamed into place only on a match. A rejected download
+  is quarantined as `<dest>.rejected` — the bytes are the evidence.
+- **An already-verified tree is reused**, no network. Offline is the normal case
+  once you have built.
+
+A platform the pin declares no artifact for builds from source, and says so.
+Today that is every platform: `x-engine-c`'s release pipeline landed before its
+first release, so the pin carries no artifact rows yet and the submodule is what
+gets built. `make check-engine-fetch` drives the whole path over `file://`
+against a fixture, so the machinery is gated rather than waiting on a release to
+be exercised.
 
 An engine directory is either a **checkout** (has a Makefile; `make` builds
 it) or an **unpacked release** (ships a built binary; nothing to build). Both
