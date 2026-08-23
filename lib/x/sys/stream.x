@@ -18,8 +18,9 @@
 (import x/type/class)
 
 ; --- the fileout cell: the fd display/write currently target ---
-; Navigate the base pair tree to the io `files` list, then its 2nd cell.
-(def %files (fn (_) (rest (first (first (rest (first (%base))))))))
+; The committed `files` route, then its 2nd cell.  This walked the base by
+; literal first/rest steps until 2026-08-23, which assumed one engine's layout.
+(def %files (fn (_) (%reflect-base-cell (lit files))))
 (def %fileout-cell (fn (_) (first (rest (%files)))))
 
 ; Read the current output fd.

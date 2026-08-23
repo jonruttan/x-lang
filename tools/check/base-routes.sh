@@ -31,11 +31,40 @@ mkdir -p "$W"
 trap 'rm -rf "$W"' EXIT INT TERM
 
 # What the library asks for, by name.
-grep -rhoE "%reflect-path \(lit [a-z-]+\)|%reflect-base-cell \(lit [a-z-]+\)" lib/ \
+#
+# THROUGH THE WRAPPERS TOO.  This matched only the two resolvers directly, and
+# lib/x/type/struct.x reaches thirty-odd routes through %type-parent-path -- so
+# the check reported "all 16 routes are declared" while the library needed 25,
+# and x-engine-rust died on type-analyse-stack with a green gate behind it.
+# Any helper that forwards a name to %reflect-path belongs in this list.
+grep -rhoE "(%reflect-path|%reflect-base-cell|%type-parent-path) \(lit [a-z-]+\)" lib/ \
 	| grep -oE "lit [a-z-]+" | sed 's/lit //' | sort -u > "$W/needed"
 
 # What the engine declares. A row is (name root step ...).
 sed -n 's/^  (\([a-z-][a-z-]*\) .*/\1/p' "$PATHS" | sort -u > "$W/declared"
+
+# --- and the thing a name-based check cannot see at all --------------------
+# A route resolved by NAME is portable; the same steps spelled out are not.
+# Five sites walked the base with literal first/rest chains -- module.x, both
+# %files readers, profile.x, intrinsics.x's line counter -- every one of them
+# reproducing x-engine-c's layout by hand. They passed this check by never
+# naming a route, and they are exactly what decision L1 forbids: the steps are
+# the engine's, so a literal walk lands wherever a DIFFERENT engine put
+# something else. module.x then mutated what it found, which on x-engine-rust
+# scribbled past the false singleton and made #f truthy.
+#
+# Matched loosely on purpose: any first/rest chain three deep reaching %base is
+# suspicious whatever its shape, and a false positive here costs one comment
+# while a false negative costs a boot.
+walks=$(grep -rnE "\((first|rest) \((first|rest) \((first|rest) [^)]*\(%base\)" lib/ \
+	| grep -v '^\s*[0-9]*:\s*;' | grep -vE ":[0-9]+:\s*;" || true)
+if [ -n "$walks" ]; then
+	echo "base-routes: the library walks the base by LITERAL STEPS, not by name:" >&2
+	printf '%s\n' "$walks" | sed 's/^/  /' >&2
+	echo "  Steps belong to the engine (decision L1); resolve a committed route" >&2
+	echo "  instead: (%reflect-base-cell (lit NAME))." >&2
+	exit 1
+fi
 
 missing=$(comm -23 "$W/needed" "$W/declared" | tr '\n' ' ' | sed 's/ $//')
 if [ -n "$missing" ]; then

@@ -9,7 +9,7 @@
 ; VALUES would re-evaluate a list value as a form.
 (def %stderr
   (fn (_ . msgs)
-    (def %files (rest (first (first (rest (first (%base)))))))
+    (def %files (%reflect-base-cell (lit files)))
     (def %fo (first (rest %files)))
     (def %s (%cell-int %fo))
     (%set-cell-int! %fo (%cell-int (first (rest (rest %files)))))
@@ -41,8 +41,7 @@
 ; Current source line number
 (def %current-line
   (fn (_ )
-    (%cell-int
-      (first (first (rest (first (rest (first (%base))))))))))
+    (%cell-int (first (%reflect-base-cell (lit line))))))
 
 (doc (provide x/reader/intrinsics)
   "Low-level tokenizer and profiling intrinsics: buffer scoring helpers and line tracking.")

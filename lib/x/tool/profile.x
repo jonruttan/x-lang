@@ -9,8 +9,7 @@
 ; pressure is low, and a forced variant that always collects.
 
 (def %profile
-  (fn (_ )
-    (first (first (rest (rest (first (%base))))))))
+  (fn (_ ) (%reflect-base-cell (lit profile))))
 
 ; --- Counter accessors ---
 
