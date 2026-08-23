@@ -52,6 +52,15 @@ finds something callable, or the bare name is bound. It does **not** mean
 with x-level ones under the same catalog names. The contract is the coordinate, not
 the language it is written in.
 
+**A profile is not a boot.** Capabilities say which INSTRUCTIONS resolve. They
+say nothing about what the engine's base carries, and the library walks base
+routes *by name* at runtime — `type-alist`, `type-iter`, `error-str` and a dozen
+more. Decision L1 makes the STEPS an engine's own business, so that a different
+object model can arrange its base differently; the NAMES are not negotiable.
+`make check-base-routes` derives the set from the library's call sites and holds
+the engine's `base-paths.x` to it. A second engine reached `core` with two routes
+declared and sixteen required, and nothing else noticed.
+
 **Coverage, not presence.** An engine provides a group when it has *every*
 coordinate in it, measured against the reference engine's manifest — the
 language's own view of what instructions exist. One row does not buy a group. The
