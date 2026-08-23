@@ -213,10 +213,13 @@ jobs:
         os: [macos-14, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v7
-      # x-lang is the language; the engine is a separate project, acquired
-      # rather than carried.  This is the step the submodule used to hide.
-      - name: Acquire the engine
-        run: make engine
+      # SOURCES.  Half of what this job checks is the engine's C reference --
+      # Doxygen over its sources, asserted on Linux by CHECK_MAN_C -- so a
+      # released engine, which ships no C, would leave install-man-c with
+      # nothing to install and the smoke would rightly fail.  The job that
+      # checks the C reference needs the C, the same as the Pages build.
+      - name: Acquire the engine (sources)
+        run: make engine-source
       - name: Build
         run: make
       - name: Install Doxygen (Linux)
