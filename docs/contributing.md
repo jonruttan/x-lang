@@ -5,10 +5,10 @@
 - A C89-compatible compiler (gcc, clang, tcc, c89, c99)
 - POSIX shell (`sh`) for test runners
 - Make
-- The git submodules: `ext/x-engine-c` (the C engine, which the build
-  requires), and nested inside it `ext/x-expr` (the expression engine) and
-  `tests/c/test-runner`. Clone with `--recursive`, or run
-  `git submodule update --init` in an existing clone
+- An engine. This repository does not carry one: `make engine` fetches the
+  release `tools/engine/engine.pin.xon` names for your platform and verifies
+  it. A C compiler is needed only for `make engine-source`, the sanitizer and
+  coverage builds, and the JIT at runtime
 
 ### `engine` — where x-lang looks for its engine
 
@@ -21,7 +21,8 @@ to know which engine it got.
 ```sh
 make                                  # links engine -> ext/x-engine-c
 make X_ENGINE_DIR=../my-engine        # links engine -> ../my-engine
-make engine                           # acquire the engine the pin names
+make engine                           # fetch the release the pin names
+make engine-source                    # clone that release and build it here
 ```
 
 `make engine` reads `tools/engine/engine.pin.xon` — which implementation, which
@@ -65,7 +66,8 @@ The variant builds (`make test-asan`, `x-bin-cov`) do need a checkout, and say
 so rather than skipping: running no sanitizer is not a result.
 
 ```sh
-make X_ENGINE_DIR=ext/x-engine-c      # back to the submodule
+make engine-source                    # a checkout, built here
+make X_ENGINE_DIR=/path/to/checkout   # a checkout you already have
 ```
 
 `make check-engine-fetch` drives the whole acquisition path over `file://`
@@ -79,8 +81,9 @@ are the same subject at different paths, which is why a second implementation
 needs no edit to lib/.
 
 The link, once pointed somewhere explicitly, stays there: a plain `make` does
-not quietly reset it to the submodule. It is `.gitignore`d — it describes one
-working tree's choice, not the project's.
+not quietly reset it. It is `.gitignore`d — it describes one working tree's
+choice, not the project's, and a tree that has never acquired an engine has
+nothing to fall back to and says so.
 
 ```sh
 make clean && make

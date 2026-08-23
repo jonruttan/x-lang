@@ -32,9 +32,9 @@
 (engine "x-engine-c")
 
 ; --- WHERE THE SOURCES ARE ---------------------------------------------------
-; Used for platforms this file declares no artifact for.  While the submodule is
-; still here it is preferred over cloning: it is already at the commit this tree
-; was tested against, and re-cloning to reach the same bytes would be theatre.
+; Used for platforms this file declares no artifact for, and by `make
+; engine-source` when sources are wanted on purpose.  Cloned at the (release
+; ...) tag below, shallow, into build/engine-src/.
 (source "https://github.com/jonruttan/x-engine-c.git")
 
 ; --- ARTIFACTS ---------------------------------------------------------------

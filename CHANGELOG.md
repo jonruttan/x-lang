@@ -42,6 +42,16 @@ routing works.
   which one failed. Both rows are optional; a lock written before them announces
   that the pairing is unchecked rather than being refused.
 
+- **The engine is acquired, not carried** — the `ext/x-engine-c` submodule is
+  gone. `make engine` fetches the release `tools/engine/engine.pin.xon` names
+  for your platform and verifies it against a recorded digest; `make
+  engine-source` clones that release and builds it, which is what a platform
+  with no published engine (the Pi, 32-bit) takes automatically and what the
+  sanitizer, coverage and engine-hacking flows ask for by name. A tree that has
+  never acquired one prints those options instead of failing obscurely. Cloning
+  x-lang no longer needs `--recursive`, and building it no longer needs a C
+  compiler.
+
 ### Fixed
 
 - **Releases can be told apart, and a mismatched pin refuses instead of crashing** (#435) — the ISA fingerprint is the C surface, which is deliberately fixed: it is byte-identical across v0.3.1-rc10, v0.4.0 and this tree, as are the obj-layout, base-paths and base-layout contracts, so nothing anything compared could tell two releases apart. A boot amalgam from one release therefore booted against another release's **library** with the pairing guard passing, and died mid-boot on a dereferenced string. (The original report called this an amalgam/engine pairing; reproducing it with the engine held constant showed otherwise — swapping the engine changes nothing, swapping `lib/` and `apps/` decides everything, because an amalgam is self-contained only over its `include` closure and resolves its imports against the installed tree as it boots. See #467.) Three things now carry release identity: the engine reports its own tag as `x-release` (`x -V` prints it), an installed tree is stamped with that tag and with a **payload fingerprint** — one digest over everything the release ships as library — and `pin.release.xon` publishes the same payload fingerprint beside the ISA one. The wrapper compares the lock's release tag against the engine's before the amalgam reaches it, and refuses the pair, naming both tags and both remedies; `--allow-release-skew`, or `(allow-release-skew)` in the manifest, waives it loudly for anyone who means it. `(Pin verify)` reports the same comparison without enforcing it. The tag comparison works on locks written long before this change, because `Pin boot` has always recorded it.

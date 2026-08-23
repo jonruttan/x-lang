@@ -46,8 +46,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
+      # SOURCES: doc-c runs Doxygen over the engine's C, and a release artifact
+      # ships a binary and no C.  The one page that needs the engine's insides
+      # is the one that documents them.
+      - name: Acquire the engine (sources)
+        run: make engine-source
 
       # Doxygen is not on the runner image, and doc-c is the only step
       # that needs it.  The Doxyfile is in 1.16.1 format and the runner's

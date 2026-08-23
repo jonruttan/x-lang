@@ -56,8 +56,10 @@ jobs:
         os: [macos-14, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
+      # x-lang is the language; the engine is a separate project, acquired
+      # rather than carried.  This is the step the submodule used to hide.
+      - name: Acquire the engine
+        run: make engine
       - name: Build
         run: make
       - name: C specs
@@ -120,8 +122,10 @@ jobs:
         os: [macos-14, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
+      # x-lang is the language; the engine is a separate project, acquired
+      # rather than carried.  This is the step the submodule used to hide.
+      - name: Acquire the engine
+        run: make engine
       - name: Build
         run: make
       # The contract gates: the FULL set on main (network checks, pin
@@ -146,8 +150,10 @@ jobs:
         os: [macos-14, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
+      # x-lang is the language; the engine is a separate project, acquired
+      # rather than carried.  This is the step the submodule used to hide.
+      - name: Acquire the engine
+        run: make engine
       - name: Build
         run: make
       # x-lang lint (promoted 2026-08-02, #60 criterion: joined only once
@@ -165,8 +171,10 @@ jobs:
         os: [macos-14, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
+      # x-lang is the language; the engine is a separate project, acquired
+      # rather than carried.  This is the step the submodule used to hide.
+      - name: Acquire the engine
+        run: make engine
       - name: Build
         run: make
       # Doc generation (#308): the gate had no target that parses library
@@ -205,8 +213,10 @@ jobs:
         os: [macos-14, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
+      # x-lang is the language; the engine is a separate project, acquired
+      # rather than carried.  This is the step the submodule used to hide.
+      - name: Acquire the engine
+        run: make engine
       - name: Build
         run: make
       - name: Install Doxygen (Linux)
@@ -230,8 +240,10 @@ jobs:
         os: [macos-14, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
+      # x-lang is the language; the engine is a separate project, acquired
+      # rather than carried.  This is the step the submodule used to hide.
+      - name: Acquire the engine
+        run: make engine
       - name: Build
         run: make
       # Examples ratchet: every file under examples/ runs under its documented
@@ -265,8 +277,11 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
+      # SOURCES, not a release: the sanitizer build compiles the engine, so
+      # this is the leg that keeps the source arm honest.  It is also the only
+      # CI job that exercises it, which is why it is not `make engine`.
+      - name: Acquire the engine (sources)
+        run: make engine-source
       - name: Run suites under AddressSanitizer
         run: make test-asan
         env:

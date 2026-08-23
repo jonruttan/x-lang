@@ -3,7 +3,7 @@
 This directory is the output root for generated API reference. Its contents
 are build artifacts, ignored by git; the directory itself is tracked, because
 the x-lang generator expects it to exist.  (Doxygen's half now runs inside
-the engine submodule and makes its own output root there; the site workflow
+the engine and makes its own output root there; the site workflow
 copies it in, so the published path is unchanged.)  Doxygen fails outright
 without an output root:
 
@@ -12,7 +12,7 @@ without an output root:
 
 | subdirectory | generator | source |
 |---|---|---|
-| `c/` | `make doc-c` -- delegates to the engine submodule, which generates into `ext/x-engine-c/docs/ref/c/` | the C engine in `ext/x-engine-c` |
+| `c/` | `make doc-c` -- delegates to the engine, which generates into `ext/x-engine-c/docs/ref/c/` | the C engine in `ext/x-engine-c` |
 | `x/` | `make doc-x` (`tools/dev/doc.x`) | the `(doc ...)` forms in `lib/x/**` |
 
 `make doc` runs both. Hand-written documentation lives one level up, in

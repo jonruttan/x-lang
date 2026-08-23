@@ -11,7 +11,8 @@
 #
 #   sh bootstrap.sh
 #
-# It clones x-lang with its submodules (unless already in a checkout),
+# It clones x-lang (unless already in a checkout), acquires the engine that
+# clone names,
 # builds the engine (a ~4-second C89 compile), and prints how to run
 # and how to install.  With --install (or X_INSTALL=1) it also installs
 # to a user prefix -- no sudo, nothing written outside the prefix.
@@ -93,8 +94,8 @@ else
 		die "$SRC exists and is not a git clone -- move it or set X_SRC/--src"
 	else
 		say "cloning $X_REPO @ $X_REF -> $SRC"
-		git clone --quiet --recursive --branch "$X_REF" "$X_REPO" "$SRC" 2>/dev/null \
-			|| git clone --quiet --recursive "$X_REPO" "$SRC"
+		git clone --quiet --branch "$X_REF" "$X_REPO" "$SRC" 2>/dev/null \
+			|| git clone --quiet "$X_REPO" "$SRC"
 		# --branch does not accept a raw commit; fall back to an explicit checkout.
 		git -C "$SRC" checkout --quiet "$X_REF" 2>/dev/null || true
 		git -C "$SRC" submodule update --init --recursive --quiet
@@ -104,6 +105,20 @@ fi
 # --- Build (the 4-second part).
 say "building the engine (CC=$CC_BIN)"
 ( cd "$SRC" && make --no-print-directory clean >/dev/null 2>&1 || true )
+
+# ACQUIRE THE ENGINE.  x-lang is the language; the engine is a separate project
+# and this tree carries none, so there is a step between "clone" and "build"
+# that did not exist while a submodule came along for the ride.  `make engine`
+# reads tools/engine/engine.pin.xon, fetches the release it names for this
+# platform, verifies it against the pinned digest, and links it -- or clones and
+# builds the sources where nothing is published.
+#
+# X_ENGINE_DIR SKIPS IT, which is how the smoke stays offline: pointed at an
+# engine that is already here, there is nothing to acquire.
+if [ -z "${X_ENGINE_DIR:-}" ]; then
+	say "acquiring the engine"
+	( cd "$SRC" && make --no-print-directory engine >/dev/null ) || die "could not acquire an engine"
+fi
 ( cd "$SRC" && CC="$CC_BIN" make --no-print-directory ) || die "build failed"
 [ -x "$SRC/x-bin" ] || die "build reported success but no engine at $SRC/x-bin"
 
