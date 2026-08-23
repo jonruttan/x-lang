@@ -350,7 +350,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-dialect-cover check-highlight-roundtrip ## Run the contract gates
+gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-dialect-cover check-highlight-roundtrip ## Run the contract gates
 .PHONY: gates
 
 # The local-latency split (2026-08-03 audit): `make test` grew past ten
@@ -488,6 +488,14 @@ check-prim-coverage: ## Assert every C primitive is exercised by a spec, or says
 check-engine-fetch: ## Smoke the engine acquisition path (hermetic, file://)
 	sh tools/check/engine-fetch.sh
 .PHONY: check-engine-fetch
+
+# An amalgam claims to be a whole boot.  It was true of what the entry includes
+# and false of what it imports -- those resolved against the platform at boot,
+# which is the mixture #435 crashed on and the hole #467 named.  This holds the
+# claim: seconds, on the commit that would break it.
+check-boot-closed: boot ## Assert a boot amalgam loads nothing from the platform
+	sh tools/check/boot-closed.sh
+.PHONY: check-boot-closed
 
 check-boot-order: $(EXECUTABLE) ## Lint the boot load order: class-call order + pre-seed drift
 	sh tools/check/boot-order.sh
