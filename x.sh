@@ -531,11 +531,16 @@ if [ -n "$boot_file" ]; then
 	fi
 	# THE LAYOUT KEY (the arc's phase 5).  The isa comparison below is a
 	# compatibility hint and a poor one: isa.x is the C SURFACE, byte-identical
-	# across v0.3.1-rc10, v0.4.0 and v0.5.0, so it passed a mismatched amalgam
-	# onto a drifted engine and the boot died in field access (#435).  It is also
-	# too STRICT in the other direction -- a different engine with the same
+	# across v0.3.1-rc10, v0.4.0 and v0.5.0, so it cannot distinguish an engine
+	# whose object layout moved from one whose layout did not.  It is also too
+	# STRICT in the other direction -- a different engine with the same
 	# capabilities has a different digest and would be refused, which is exactly
 	# backwards once more than one engine exists.
+	#
+	# This key is MECHANICAL, not forensic: no crash in the wild has been traced
+	# to a moved layout (#435 looked like one and was not -- see the release
+	# check below).  It guards a failure that cannot be diagnosed if it happens,
+	# which is why it refuses rather than warns.
 	#
 	# What an amalgam actually binds against is the LAYOUT: lib/x/boot/reflect.x
 	# reads object header words at committed offsets, so a layout that moved is a
@@ -581,27 +586,40 @@ if [ -n "$boot_file" ]; then
 		fi
 	fi
 
-	# RELEASE CHECK (#435).  The isa comparison above is a compatibility
-	# test, and a correct one -- but it cannot answer THIS question.
-	# ext/x-engine-c/tools/contract/isa.x is the C surface, deliberately fixed: it is
-	# byte-identical across v0.3.1-rc10, v0.4.0 and v0.5.0, as are
-	# obj-layout.x, base-paths.x and base-layout.x.  Meanwhile lib/ moved
-	# 83 files between the first two.  An amalgam binds against far more
-	# than the C surface -- boot structure, object-model conventions, the
-	# library it will import from -- and none of that is in the
-	# fingerprint, so the guard passed a v0.3.1-rc10 amalgam onto a v0.4.0
-	# engine and the boot died on `KERN_INVALID_ADDRESS at 0x696200646e696245`:
-	# a string dereferenced as an object pointer, no diagnosis, the exact
-	# silent SIGSEGV #187 was closed to prevent.
+	# RELEASE CHECK (#435).  THE SUBJECT HERE IS THE LIBRARY, NOT THE ENGINE.
+	# The two checks above are engine facts -- the object layout an amalgam
+	# walks, and the C surface it calls.  This one compares the amalgam's
+	# release against $INSTALL_ROOT/contract/release, the stamp `make install`
+	# writes for the LIBRARY it installed.  For most of this guard's life the
+	# distinction was invisible, because one tag was stamped on both.
 	#
-	# The release TAG is the key that cannot under-approximate: two
-	# releases are different releases, whatever their C surface did.  The
-	# lock has recorded it since the boot verb was written ((release
-	# "vX.Y.Z")), so this guard also protects projects pinned long before
-	# it existed; `make install` now stamps the engine's own beside the
-	# library.  Both sides are recorded strings again -- a compare before
-	# the amalgam reaches the engine, the only place a refusal can still
-	# be one.
+	# WHY A LIBRARY PAIRING NEEDS A GUARD AT ALL: an amalgam is self-contained
+	# only over its `include` closure.  Its `import` forms resolve at RUNTIME
+	# against this install's lib/ and apps/ (#467), so a pinned boot always
+	# runs MIXED -- the project's amalgam plus whichever version of those
+	# modules the platform happens to carry.  Move share/x/lib/x/codec/utf8.x
+	# aside and any dialect amalgam dies with `include: cannot open`; the
+	# amalgam never contained it.
+	#
+	# That mixture is what crashed in #435: a v0.3.1-rc10 amalgam on a v0.4.0
+	# install died on `KERN_INVALID_ADDRESS at 0x696200646e696245`, a string
+	# dereferenced as an object pointer -- the silent SIGSEGV #187 was closed
+	# to prevent.  Reproduced 2026-08-22 with the ENGINE HELD CONSTANT:
+	# swapping the engine between the two releases changed nothing, swapping
+	# lib/ + apps/ decided everything, and the minimal delta was one file --
+	# v0.4.0's x/num/float.x calls (Str8 includes? ...) where the rc10 amalgam
+	# had baked in a Str8 carrying only `contains?`.  An ordinary vocabulary
+	# rename, met by a stale boot.  No engine pairing was involved, and the
+	# original report's "different engine" framing was wrong.
+	#
+	# So this is the guard the isa and layout keys cannot stand in for: they
+	# describe the engine, and nothing in either moves when the library
+	# renames a method.  The release TAG cannot under-approximate it -- two
+	# releases are different releases, whatever the C surface did.  The lock
+	# has recorded it since the boot verb was written ((release "vX.Y.Z")),
+	# so this also protects projects pinned long before the guard existed.
+	# Both sides are recorded strings -- a compare before the amalgam reaches
+	# the engine, the only place a refusal can still be one.
 	if [ -n "$INSTALL_ROOT" ] && [ -f "$_rel" ] && [ ! -f "$_mine_rel" ]; then
 		# Wrapper new, install tree old: the tree predates the stamp, so
 		# the check cannot run.  Say so -- a guard that disappears without
@@ -616,21 +634,21 @@ if [ -n "$boot_file" ]; then
 		fi
 		if [ -n "$_wantr" ] && [ "$_wantr" != "$_haver" ]; then
 			if [ -n "$allow_skew" ]; then
-				echo "x.sh: release skew allowed -- amalgam is $_wantr, engine is $_haver; a crash here is this pairing, not your program" >&2
+				echo "x.sh: release skew allowed -- amalgam is $_wantr, installed library is $_haver; a crash here is this pairing, not your program" >&2
 			else
-				echo "Error: pinned boot amalgam is from a different release than this engine" >&2
+				echo "Error: pinned boot amalgam is from a different release than this installed library" >&2
 				echo "  amalgam: $ENTRY" >&2
-				echo "  its release:  $_wantr" >&2
-				echo "  this engine:  $_haver" >&2
-				echo "  the isa fingerprint cannot catch this -- it is the C surface, and" >&2
-				echo "  it is identical across these releases; the amalgam binds against" >&2
-				echo "  more than that, so a mismatched pair segfaults mid-boot." >&2
-				# "Move the pin to this engine" is only advice when this
-				# engine IS a release: `Pin boot` fetches the tag it is
-				# given, and no release is published for a locally built
-				# engine's `git describe` answer (v0.4.0-29-gbcb10a9,
-				# -dirty, or a bare "dev" outside a git tree).  Naming a
-				# remedy that cannot work sends the reader in a circle.
+				echo "  its release:        $_wantr" >&2
+				echo "  installed library:  $_haver" >&2
+				echo "  the amalgam is not import-closed: it loads modules from this" >&2
+				echo "  install's lib/ and apps/ as it boots, so a release mismatch runs" >&2
+				echo "  one release's boot against another's modules and can segfault." >&2
+				# "Move the pin to this library" is only advice when the
+				# installed tree IS a release: `Pin boot` fetches the tag it
+				# is given, and no release is published for a locally built
+				# tree's `git describe` answer (v0.4.0-29-gbcb10a9, -dirty,
+				# or a bare "dev" outside a git tree).  Naming a remedy that
+				# cannot work sends the reader in a circle.
 				_looks_released=
 				case "$_haver" in
 					*-dirty | *-g[0-9a-f]*) ;;
@@ -638,10 +656,10 @@ if [ -n "$boot_file" ]; then
 				esac
 				if [ -n "$_looks_released" ]; then
 					echo "  Fix by moving the pin:  (Pin boot \"$_haver\")" >&2
-					echo "  or install the $_wantr engine; --allow-release-skew overrides." >&2
+					echo "  or install the $_wantr release; --allow-release-skew overrides." >&2
 				else
-					echo "  This engine is a local build, not a published release, so there" >&2
-					echo "  is no pin to move it to: install the $_wantr engine to run this" >&2
+					echo "  This install is a local build, not a published release, so there" >&2
+					echo "  is no pin to move it to: install the $_wantr release to run this" >&2
 					echo "  project, or pass --allow-release-skew to try anyway." >&2
 				fi
 				exit 1

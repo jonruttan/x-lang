@@ -407,32 +407,37 @@ boot to run.
 
 ### Release pairing
 
-A pinned boot amalgam and the engine that runs it must come from the
-same release. An amalgam binds against far more than the C surface —
-boot structure, object-model conventions, the library it will import
-from — so a mismatched pair does not fail cleanly; it segfaults
-mid-boot. The ISA fingerprint cannot catch this, because the C surface
-it digests is identical across releases the library changed completely
-between.
+A pinned boot amalgam and the **installed library** it boots against
+must come from the same release. An amalgam is self-contained only over
+what it inlines: its `import` forms resolve as it boots, against the
+installed tree's `lib/` and `apps/`. A pinned boot therefore always runs
+as a mixture — the project's amalgam plus whichever version of those
+modules the platform carries — and when the two are different releases
+the mixture does not fail cleanly, it segfaults mid-boot. An ordinary
+method rename in the library is enough to do it.
+
+Neither engine key catches this. The ISA fingerprint digests the C
+surface and the layout digest describes the object model; a library that
+renames a method moves neither.
 
 The release tag is the key that can. `Pin boot` records it in the lock
-(`(release "vX.Y.Z")`), `make install` stamps the engine's own into
-`share/x/contract/release`, and the wrapper compares the two before the
-amalgam reaches the engine — the last point where a refusal can still
-prevent the crash:
+(`(release "vX.Y.Z")`), `make install` stamps the installed library's own
+into `share/x/contract/release`, and the wrapper compares the two before
+the amalgam reaches the engine — the last point where a refusal can
+still prevent the crash:
 
 ```console
 $ x -f main.x
-Error: pinned boot amalgam is from a different release than this engine
+Error: pinned boot amalgam is from a different release than this installed library
   amalgam: /proj/boot/he.x
-  its release:  v0.4.0
-  this engine:  v0.5.0
+  its release:        v0.4.0
+  installed library:  v0.5.0
   ...
   Fix by moving the pin:  (Pin boot "v0.5.0")
 ```
 
-Both remedies are real ones: move the pin to the engine you have, or
-install the engine the pin names. When neither is wanted, the waiver is
+Both remedies are real ones: move the pin to the release you have, or
+install the release the pin names. When neither is wanted, the waiver is
 `--allow-release-skew` for one run, or `(allow-release-skew)` in the
 manifest for a project that makes the choice repeatedly. Neither is a
 fix — the pairing that crashes still crashes — so the wrapper stays
