@@ -10,8 +10,20 @@
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str-append (prim-ref (lit str) (lit append)))
 
-(def %io-state (rest (first (rest (first (%base))))))
-(def %false-stack (rest (rest %io-state)))
+; THE COMMITTED ROUTES, not a hand-walked chain.  Both of these used to spell
+; their steps out -- (rest (first (rest (first (%base))))) and two more rests --
+; which silently assumed x-engine-c's base layout.  On an engine that arranges
+; its base differently the steps land on an unrelated cell, and the %set-rest!
+; below then WRITES there: booting x-engine-rust turned #f truthy, because the
+; extension scribbled past an object that had no room for it.
+;
+; Decision L1 says the layout travels with the engine and only the NAMES are the
+; contract, so a literal walk is the one thing the library may not do.  Every
+; route named here is one x-engine-c already declared -- the names existed all
+; along; these three lines simply were not using them.
+; %io-state itself is no longer read: it existed only as a waypoint on the way
+; to the false cell, which is now resolved directly.
+(def %false-stack (%reflect-base-cell (lit false)))
 (%set-rest! %false-stack (pair () ()))
 (def %include-list-cell (rest %false-stack))
 
