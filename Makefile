@@ -91,7 +91,24 @@ ENGINE_DIR=engine
 # Fail with a sentence instead of a screenful of missing-file errors: a clone
 # without --recursive has an empty submodule, and the first symptom would
 # otherwise be make(1) complaining it has no rule to make the engine.
-ENGINE_MAKE=@if [ ! -f $(ENGINE_DIR)/Makefile ]; then \
+# ONE IMPLEMENTATION OF "POINT THE LINK", used by the phony target below and by
+# every delegating recipe.  Listing `engine-link` as a prerequisite on each of
+# them was the first attempt and it shipped a red main: `make test-asan` is a
+# valid entry point, CI calls it directly on a fresh checkout, and the variant
+# rule was one of the six places that had no such prerequisite.  A macro that
+# ensures what it is about to use cannot be forgotten at a call site.
+#
+# Re-pointing here is a no-op in the normal case: ENGINE_SRC defaults to
+# whatever the link already names, so this only does work when the link is
+# missing or someone passed X_ENGINE_DIR.
+ENGINE_ENSURE=if [ ! -e "$(ENGINE_SRC)" ]; then \
+		echo "No engine at $(ENGINE_SRC)." >&2; \
+		echo "For the bundled engine: git submodule update --init --recursive" >&2; \
+		echo "For your own: make X_ENGINE_DIR=/path/to/engine" >&2; \
+		exit 1; \
+	fi; ln -sfn "$(ENGINE_SRC)" $(ENGINE_DIR)
+
+ENGINE_MAKE=@$(ENGINE_ENSURE); if [ ! -f $(ENGINE_DIR)/Makefile ]; then \
 		echo "No engine sources at $(ENGINE_DIR) -> $(ENGINE_SRC)." >&2; \
 		echo "For the bundled engine: git submodule update --init --recursive" >&2; \
 		echo "For your own: make X_ENGINE_DIR=/path/to/engine" >&2; \
@@ -155,13 +172,7 @@ $(EXECUTABLE): $(ENGINE_DIR)/$(EXECUTABLE)
 # by hand, a botched checkout -- clobbering it would be the wrong move, and
 # the error names the path.
 engine-link:
-	@if [ ! -e "$(ENGINE_SRC)" ]; then \
-		echo "No engine at $(ENGINE_SRC)." >&2; \
-		echo "For the bundled engine: git submodule update --init --recursive" >&2; \
-		echo "For your own: make X_ENGINE_DIR=/path/to/engine" >&2; \
-		exit 1; \
-	fi
-	@ln -sfn "$(ENGINE_SRC)" $(ENGINE_DIR)
+	@$(ENGINE_ENSURE)
 .PHONY: engine-link
 
 # AN ENGINE DIRECTORY EITHER HAS SOURCES OR SHIPS A BINARY.  A checkout has a
@@ -174,6 +185,7 @@ engine-link:
 # a fresh clone needs, without extending it to engines that were never going
 # to be compiled here.
 $(ENGINE_DIR)/$(EXECUTABLE): engine-link FORCE
+	@$(ENGINE_ENSURE)
 	@if [ -f $(ENGINE_DIR)/Makefile ]; then \
 		$(MAKE) --no-print-directory -C $(ENGINE_DIR) X_RELEASE="$(X_RELEASE)"; \
 	elif [ ! -x $(ENGINE_DIR)/$(EXECUTABLE) ]; then \
