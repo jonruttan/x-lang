@@ -51,6 +51,44 @@ XON="$ENGINE_ABS/x-engine.xon"
 # not happen to build an x-lang-shaped smoke harness.  Found by pointing this at
 # an unpacked dist tarball.
 
+# --- WHICH BINARY IS ON TRIAL -----------------------------------------------
+# The engine directory is the SUBJECT, so the binary must come from it.  This
+# used to leave X_BIN alone and let the conformance runner default it, and the
+# runner's default is x-lang's own ./x-bin -- so pointing this at a second
+# engine tested the C engine against the SECOND engine's declaration.  It did
+# not error: it printed fourteen confident failures for capabilities the subject
+# implements perfectly well, because the binary answering the probes was never
+# the one being judged.
+#
+# A wrong-engine run is not a weaker check, it is a check of something else, and
+# it looks exactly like a real result.  So: the binary is resolved from the
+# engine, an X_BIN from outside the engine directory is refused rather than
+# obeyed, and there is no fallback -- an engine whose binary cannot be found is
+# an error, never a silent substitution.
+binname=$(sed -n 's/^(binary "\(.*\)").*/\1/p' "$XON" 2>/dev/null | head -1)
+[ -n "$binname" ] || binname="x-bin"
+if [ -n "${X_BIN:-}" ]; then
+	xbin_abs=$(cd "$(dirname "$X_BIN")" 2>/dev/null && pwd)/$(basename "$X_BIN")
+	case "$xbin_abs" in
+		"$ENGINE_ABS"/*|"$ENGINE_ABS") ;;
+		*)
+			echo "compliance: X_BIN is $xbin_abs, outside the engine at $ENGINE_ABS." >&2
+			echo "  That would judge one engine's binary against another's claims." >&2
+			exit 2 ;;
+	esac
+else
+	# Conventionally beside the declaration; a build tree may put it elsewhere,
+	# and such an engine passes X_BIN explicitly.
+	if [ -x "$ENGINE_ABS/$binname" ]; then
+		X_BIN="$ENGINE_ABS/$binname"
+	else
+		echo "compliance: no $binname at $ENGINE_ABS." >&2
+		echo "  Set X_BIN to the built binary INSIDE that directory." >&2
+		exit 2
+	fi
+fi
+export X_BIN
+
 W="${TMPDIR:-/tmp}/compliance.$$"; mkdir -p "$W"
 trap 'rm -rf "$W"' EXIT INT TERM
 fail=0
