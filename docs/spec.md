@@ -1298,7 +1298,7 @@ the name atom, `raw` the struct the wiring statics consume.
 ```
 
 `(t cell 'field-name)` walks the layout contract
-(`ext/x-engine-c/tools/contract/base-paths.x`) to the object the type-rooted row for
+(`engine/tools/contract/base-paths.x`) to the object the type-rooted row for
 `field-name` addresses — handler stacks, the conversion catalog cells, the
 generic-operator alist. `(t fields)` lists the row names. A name whose row is
 not type-rooted is refused: a base-rooted path stepped from a type struct
@@ -1404,7 +1404,7 @@ that holds a raw base passes it straight through:
 ### Base field reflection
 
 `(b cell 'field-name)` walks the layout contract
-(`ext/x-engine-c/tools/contract/base-paths.x`) to the object the base-rooted row for
+(`engine/tools/contract/base-paths.x`) to the object the base-rooted row for
 `field-name` addresses; `(Base fields)` lists the row names. A cell-kind
 field's value sits in the cell's first slot. A name whose row is not
 base-rooted is refused — a type-rooted path stepped from a base spine would

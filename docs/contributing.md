@@ -10,6 +10,28 @@
   `tests/c/test-runner`. Clone with `--recursive`, or run
   `git submodule update --init` in an existing clone
 
+### `engine` — where x-lang looks for its engine
+
+x-lang reaches its engine through one path: **`engine`**, a symlink in the
+repo root that `make` points at whatever engine this tree builds against.
+Everything downstream uses that one spelling — the boot's contract includes,
+the JIT's `-I` flags, the gates, the conformance runner — so nothing else has
+to know which engine it got.
+
+```sh
+make                                  # links engine -> ext/x-engine-c
+make X_ENGINE_DIR=../my-engine        # links engine -> ../my-engine
+```
+
+An engine directory is either a **checkout** (has a Makefile; `make` builds
+it) or an **unpacked release** (ships a built binary; nothing to build). Both
+are the same subject at different paths, which is why a second implementation
+needs no edit to lib/.
+
+The link, once pointed somewhere explicitly, stays there: a plain `make` does
+not quietly reset it to the submodule. It is `.gitignore`d — it describes one
+working tree's choice, not the project's.
+
 ```sh
 make clean && make
 ```
@@ -70,7 +92,7 @@ make clean && make
   boot-layer mechanism spelling, used only in files that parse before the
   quote reader exists: `x-core.x`, its includes through `lit-reader.x`, and
   the files those pull in via mid-boot `import` (`codec/utf8.x`,
-  `platform/syscall.x`) — plus `ext/x-engine-c/tools/contract/isa.x`, a data manifest. Strings and
+  `platform/syscall.x`) — plus `engine/tools/contract/isa.x`, a data manifest. Strings and
   comments inside those files may still show `'x`. See [syntax.md](syntax.md)
 - **File extension** — `.x`
 
@@ -313,7 +335,7 @@ boot` and `tools/release/release-manifest.sh`, publishing a GitHub Release
 carrying the amalgamated boot entries (`build/boot/*.x`, discovered —
 never a hand list), `SHASUMS` (coreutils format), and
 `pin.release.xon` — the machine-readable manifest (xon) with each
-file's sha256, the **ISA fingerprint** (the digest of `ext/x-engine-c/tools/contract/isa.x`,
+file's sha256, the **ISA fingerprint** (the digest of `engine/tools/contract/isa.x`,
 the C-surface contract the amalgams were built against; `make
 check-isa` holds manifest == binary) and the **payload fingerprint**
 (one digest over `lib`, `apps` and `boot`, from

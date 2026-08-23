@@ -239,7 +239,7 @@ jobs:
           # runs with its Doxyfile, over its sources), but it publishes at
           # the same site path it always has -- docs/ref/c/ -- so every
           # link into the C reference survives the repo split.
-          cp -R ext/x-engine-c/docs/ref/c/html build/_site/docs/ref/c/
+          cp -R engine/docs/ref/c/html build/_site/docs/ref/c/
 
       - uses: actions/upload-pages-artifact@v5
         with:

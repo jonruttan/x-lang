@@ -22,7 +22,7 @@ set -e
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
-ENGINE_DIR="${X_ENGINE_DIR:-ext/x-engine-c}"
+ENGINE_DIR="${X_ENGINE_DIR:-engine}"
 PATHS="$ENGINE_DIR/tools/contract/base-paths.x"
 [ -f "$PATHS" ] || { echo "base-routes: no base-paths.x at $PATHS" >&2; exit 2; }
 
