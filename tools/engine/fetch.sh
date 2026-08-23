@@ -66,7 +66,30 @@ case "$(uname -m)" in
 	*)              arch=unknown ;;
 esac
 
-row=$(sed -n "s/^(artifact $os $arch \"sha256:\([0-9a-f]*\)\" \"\([^\"]*\)\").*/\1 \2/p" "$PIN" | head -1)
+# WHITESPACE-TOLERANT, AND LOUD ABOUT A ROW IT CANNOT READ.  The first version
+# matched a single space between fields with sed, so aligning the columns in the
+# pin -- two spaces, for readability -- made the row invisible and sent the build
+# down the source arm.  That is the failure this script is most careful to
+# prevent, arriving through the back door: a declared artifact must never look
+# like an undeclared one.  So the fields are split on whitespace, and a row for
+# THIS platform that does not yield all four is an error rather than a miss.
+row=$(awk -v os="$os" -v arch="$arch" '
+	/^\(artifact[ \t]/ {
+		line = $0; sub(/;.*/, "", line); gsub(/[()"]/, " ", line)
+		n = split(line, f, /[ \t]+/)
+		# f[1] is empty (the line starts with the stripped paren), so the row is
+		# f[2]=artifact f[3]=os f[4]=arch f[5]=sha256:HEX f[6]=URL
+		if (f[3] == os && f[4] == arch) {
+			if (n < 6 || f[5] !~ /^sha256:[0-9a-f]+$/ || f[6] == "") { print "MALFORMED"; exit }
+			print f[5], f[6]; exit
+		}
+	}' "$PIN")
+if [ "$row" = "MALFORMED" ]; then
+	echo "engine: $PIN has an (artifact $os $arch ...) row this reader cannot parse" >&2
+	echo "  expected: (artifact OS ARCH \"sha256:HEX\" \"URL\")" >&2
+	exit 2
+fi
+row=${row#sha256:}
 
 # --- the source arm -----------------------------------------------------------
 # Reached ONLY when the pin declares no artifact for this platform.  It says so

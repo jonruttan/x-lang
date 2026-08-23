@@ -38,20 +38,17 @@
 (source "https://github.com/jonruttan/x-engine-c.git")
 
 ; --- ARTIFACTS ---------------------------------------------------------------
-; DELIBERATELY EMPTY.  x-engine-c's release pipeline landed before its first
-; release did, so there is nothing yet to pin: every platform takes the source
-; arm, which is what this tree already did.  The machinery is here, gated by
-; tools/check/engine-fetch.sh against a local fixture, so that turning it on is
-; adding rows rather than writing code.
+; The two platforms x-engine-c publishes for.  Digests are the release's own
+; .sha256 sidecars, not something computed here: a pin that hashes what it
+; downloaded would agree with itself no matter what arrived.
+(release "v0.1.0")
+(artifact darwin arm64  "sha256:ead216f08ceb3aa73be1cc0ddcb83169d2b5aef27a2ea32fd5da36f30c09e689" "https://github.com/jonruttan/x-engine-c/releases/download/v0.1.0/x-engine-c-v0.1.0-darwin-arm64.tar.gz")
+(artifact linux  x86-64 "sha256:c0dd34984f959e3d2171997ee70b4ac15e0dbd609a701bf7399534441976661a" "https://github.com/jonruttan/x-engine-c/releases/download/v0.1.0/x-engine-c-v0.1.0-linux-x86-64.tar.gz")
+
+; EVERY OTHER PLATFORM BUILDS FROM SOURCE, and that is a decision rather than
+; an omission.  The Pi and any 32-bit target have no published engine and will
+; not until someone publishes one; `make engine` says which arm it is on.
 ;
-; When v0.1.0 is cut, add its release row and one artifact row per published
-; platform -- the digests are in the release's .sha256 sidecars:
-;
-;   (release "v0.1.0")
-;   (artifact darwin arm64  "sha256:..." "https://github.com/jonruttan/x-engine-c/releases/download/v0.1.0/x-engine-c-v0.1.0-darwin-arm64.tar.gz")
-;   (artifact linux  x86-64 "sha256:..." "https://github.com/jonruttan/x-engine-c/releases/download/v0.1.0/x-engine-c-v0.1.0-linux-x86-64.tar.gz")
-;
-; A platform with no row is not an error.  The Pi and any 32-bit target build
-; from source and always will until someone publishes for them, and that is a
-; deliberate decision rather than an omission: the fallback fires ONLY when this
-; file declares no artifact, never when a declared one fails to fetch.
+; The fallback fires ONLY when this file declares no artifact for a platform --
+; never when a declared one fails to fetch or fails its digest.  A broken
+; release must not be able to disguise itself as a slow build.

@@ -16,6 +16,8 @@
 #             fall back to a source build.  The fallback is for platforms nobody
 #             publishes for; firing it on a broken release would turn a bad
 #             release into a slow build and hide it.
+#   aligned   a row whose columns are padded for readability still matches
+#   malformed a row for this platform that cannot be read is an ERROR, not a miss
 #   unknown   a form the pin does not define is refused, not ignored
 set -e
 
@@ -88,6 +90,30 @@ fi
 grep -q "fetch failed" "$T/err" || fail "missing: wrong diagnosis" "$T/err"
 grep -q "source" "$T/out" 2>/dev/null && fail "missing: it fell back to a source build" "$T/out"
 
+# --- aligned columns still match ---------------------------------------------
+# THE BUG THIS LEG EXISTS FOR.  The first reader matched a single space between
+# fields, so aligning the pin's columns for readability made the row invisible
+# and the build took the source arm -- a declared artifact wearing the face of
+# an undeclared one, which is the exact failure the `missing` leg above forbids
+# arriving through the back door.
+rm -rf "$out"
+{ printf '(engine "fixture")\n(release "v9.9.9")\n'
+  printf '(artifact %s %s   "sha256:%s"   "file://%s")\n' "$OS" "$ARCH" "$DG" "$T/fixture.tar.gz"
+} > "$T/pin.xon"
+PIN="$T/pin.xon" sh tools/engine/fetch.sh >"$T/out" 2>"$T/err" \
+	|| fail "an artifact row with aligned columns was not matched" "$T/err"
+grep -q "fetching" "$T/err" || fail "aligned columns: it did not fetch (source arm?)" "$T/err" "$T/out"
+
+# --- a row it cannot read is an ERROR, not a miss ----------------------------
+rm -rf "$out"
+{ printf '(engine "fixture")\n(release "v9.9.9")\n'
+  printf '(artifact %s %s "not-a-digest" "file://%s")\n' "$OS" "$ARCH" "$T/fixture.tar.gz"
+} > "$T/pin.xon"
+if PIN="$T/pin.xon" sh tools/engine/fetch.sh >"$T/out" 2>"$T/err"; then
+	fail "an unparseable artifact row was treated as absent" "$T/out"
+fi
+grep -q "cannot parse" "$T/err" || fail "malformed row: wrong diagnosis" "$T/err"
+
 # --- unknown: the vocabulary is closed ---------------------------------------
 printf '(engine "fixture")\n(nonsense "x")\n' > "$T/pin.xon"
 if PIN="$T/pin.xon" sh tools/engine/fetch.sh >"$T/out" 2>"$T/err"; then
@@ -95,4 +121,4 @@ if PIN="$T/pin.xon" sh tools/engine/fetch.sh >"$T/out" 2>"$T/err"; then
 fi
 grep -q "unknown form" "$T/err" || fail "unknown: refused without saying why" "$T/err"
 
-echo "engine-fetch: ok (verify, reuse, tamper, missing, unknown)"
+echo "engine-fetch: ok (verify, reuse, tamper, missing, aligned, malformed, unknown)"
