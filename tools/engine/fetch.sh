@@ -5,6 +5,7 @@
 #
 #   sh tools/engine/fetch.sh                 acquire per the pin
 #   PIN=other.xon sh tools/engine/fetch.sh   read a different pin (the smoke)
+#   FROM_SOURCE=1 sh tools/engine/fetch.sh   take the source arm on purpose
 #
 # SHELL, AND NOT BY HABIT.  This runs before there is an engine to run x with,
 # which is the one place in tools/ where the charter's "logic lives in x" cannot
@@ -73,6 +74,13 @@ esac
 # prevent, arriving through the back door: a declared artifact must never look
 # like an undeclared one.  So the fields are split on whitespace, and a row for
 # THIS platform that does not yield all four is an error rather than a miss.
+# ASKING FOR SOURCES IS DIFFERENT FROM HAVING NO ARTIFACT.  The variant builds
+# (asan, cov) and anyone hacking on the engine need the C even where a release
+# exists, and that is a request, not a fallback -- so it takes the same arm by
+# skipping artifact selection rather than by pretending nothing is published.
+if [ -n "${FROM_SOURCE:-}" ]; then
+	row=""
+else
 row=$(awk -v os="$os" -v arch="$arch" '
 	/^\(artifact[ \t]/ {
 		line = $0; sub(/;.*/, "", line); gsub(/[()"]/, " ", line)
@@ -84,6 +92,7 @@ row=$(awk -v os="$os" -v arch="$arch" '
 			print f[5], f[6]; exit
 		}
 	}' "$PIN")
+fi
 if [ "$row" = "MALFORMED" ]; then
 	echo "engine: $PIN has an (artifact $os $arch ...) row this reader cannot parse" >&2
 	echo "  expected: (artifact OS ARCH \"sha256:HEX\" \"URL\")" >&2
@@ -96,11 +105,6 @@ row=${row#sha256:}
 # out loud: a build that quietly takes eleven minutes instead of eleven seconds
 # should tell you which arm it is on.
 if [ -z "$row" ]; then
-	if [ -f ext/x-engine-c/Makefile ]; then
-		say "no artifact declared for $os/$arch -- building the submodule from source"
-		echo "ext/x-engine-c"
-		exit 0
-	fi
 	[ -n "$source_url" ] || {
 		echo "engine: no artifact for $os/$arch and no (source \"...\") to build from" >&2
 		exit 1; }
@@ -109,7 +113,11 @@ if [ -z "$row" ]; then
 		exit 1; }
 	dest="build/engine-src/$name-$release"
 	if [ ! -d "$dest" ]; then
-		say "no artifact declared for $os/$arch -- cloning $name $release to build from source"
+		if [ -n "${FROM_SOURCE:-}" ]; then
+			say "source build requested -- cloning $name $release"
+		else
+			say "no artifact declared for $os/$arch -- cloning $name $release to build from source"
+		fi
 		mkdir -p "$(dirname "$dest")"
 		git clone --depth 1 --branch "$release" --recursive "$source_url" "$dest.tmp.$$" >&2
 		mv "$dest.tmp.$$" "$dest"

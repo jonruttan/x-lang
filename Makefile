@@ -38,10 +38,10 @@ PREFIX?=/usr/local
 X_RELEASE?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
 # ---------------------------------------------------------------------------
-# The engine binary is built from the x-engine-c submodule (the 2026-08-21
-# split).  Everything that used to live here -- CFLAGS, the compiler probe,
-# the object rules, the variant builds -- moved with the C it compiles.  What
-# stays is the CONTRACT between the two repos, and it is three things.
+# The engine is a SEPARATE PROJECT, not a subdirectory of this one.  It was
+# carved out on 2026-08-21 and consumed as a submodule until this repository
+# learned to acquire a released one; the submodule is gone now, and what stays
+# is the CONTRACT between the two repos, which is three things.
 #
 # 1. WHERE THE BINARY LANDS.  At this repo's root, where it has always been.
 #    That is not tidiness: tests/spec-runner.sh derives its awk harness path
@@ -71,10 +71,10 @@ X_RELEASE?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 #    That bug shipped once during the engine split.  So the indirection lives
 #    in the filesystem, where a path can be one thing and mean another.
 #
-#    WHAT IT POINTS AT, in order: X_ENGINE_DIR when given, then WHATEVER THE
-#    LINK ALREADY POINTS AT, then the submodule.  Phase 4 adds the case the
-#    middle rule exists for: `make engine` links an unpacked release, and a
-#    plain `make` afterwards must not quietly undo that choice.
+#    WHAT IT POINTS AT: X_ENGINE_DIR when given, otherwise WHATEVER THE LINK
+#    ALREADY POINTS AT.  There is no third case any more -- this repository does
+#    not carry an engine, so a tree that has never acquired one has nothing to
+#    fall back to and says so.  `make engine` is the step that gets one.
 #
 #    THE MIDDLE RULE IS NOT COSMETIC.  Re-pointing unconditionally looked
 #    right -- a stale link is a real hazard -- but it meant every `make` reset
@@ -86,7 +86,7 @@ X_RELEASE?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 #
 #    A DANGLING link falls back rather than failing: whatever it named is
 #    gone, so it is not a choice any more.
-ENGINE_SRC?=$(if $(X_ENGINE_DIR),$(X_ENGINE_DIR),$(shell if [ -L $(ENGINE_DIR) ] && [ -e $(ENGINE_DIR) ]; then readlink $(ENGINE_DIR); else echo ext/x-engine-c; fi))
+ENGINE_SRC?=$(if $(X_ENGINE_DIR),$(X_ENGINE_DIR),$(shell if [ -L $(ENGINE_DIR) ] && [ -e $(ENGINE_DIR) ]; then readlink $(ENGINE_DIR); fi))
 ENGINE_DIR=engine
 
 # Fail with a sentence instead of a screenful of missing-file errors: a clone
@@ -103,9 +103,12 @@ ENGINE_DIR=engine
 # whatever the link already names, so this only does work when the link is
 # missing or someone passed X_ENGINE_DIR.
 ENGINE_ENSURE=if [ ! -e "$(ENGINE_SRC)" ]; then \
-		echo "No engine at $(ENGINE_SRC)." >&2; \
-		echo "For the bundled engine: git submodule update --init --recursive" >&2; \
-		echo "For your own: make X_ENGINE_DIR=/path/to/engine" >&2; \
+		echo "No engine. This repository is the LANGUAGE; the engine is a" >&2; \
+		echo "separate project, acquired rather than carried:" >&2; \
+		echo "" >&2; \
+		echo "  make engine         fetch the release engine.pin.xon names" >&2; \
+		echo "  make engine-source  clone that release and build it here" >&2; \
+		echo "  make X_ENGINE_DIR=DIR   use an engine you already have" >&2; \
 		exit 1; \
 	fi; ln -sfn "$(ENGINE_SRC)" $(ENGINE_DIR)
 
@@ -120,8 +123,8 @@ ENGINE_MAKE=@$(ENGINE_ENSURE); if [ ! -f $(ENGINE_DIR)/Makefile ]; then \
 			echo "For a target that needs the C: make X_ENGINE_DIR=/path/to/a/checkout" >&2; \
 		else \
 			echo "No engine sources at $(ENGINE_DIR) -> $(ENGINE_SRC)." >&2; \
-			echo "For the bundled engine: git submodule update --init --recursive" >&2; \
-			echo "For your own: make X_ENGINE_DIR=/path/to/engine" >&2; \
+			echo "  make engine-source      clone the pinned release and build it" >&2; \
+			echo "  make X_ENGINE_DIR=DIR   use a checkout you already have" >&2; \
 		fi; \
 		exit 1; \
 	fi; $(MAKE) --no-print-directory -C $(ENGINE_DIR)
@@ -163,8 +166,30 @@ all: $(EXECUTABLE) ## Build all
 # milliseconds when nothing changed, and cp only runs when it actually
 # produced a newer binary.  FORCE on the inner rule because only the
 # submodule's own makefile knows whether its sources are stale.
-$(EXECUTABLE): $(ENGINE_DIR)/$(EXECUTABLE)
-	cp $< $@
+# CONTENT, NOT TIMESTAMP.  `cp` guarded by make's own freshness rule was right
+# while there was one engine: the only way $< changed was by being rebuilt, so
+# newer meant different.  With the link switchable, the SOURCE identity changes
+# without the mtime moving -- point `engine` at a release built last week and
+# the copy here is newer, make calls the target up to date, and the tree keeps
+# running the engine it built yesterday while every gate reports on the one it
+# was pointed at.  That is the "2624 green tests for an engine it was not using"
+# failure again, one rule further in.
+#
+# cmp instead: copy when the bytes differ, which is the question actually being
+# asked, and leave the mtime alone when they do not so nothing downstream
+# rebuilds for nothing.
+# FORCE, so the question is always ASKED.  A content check inside the recipe is
+# no use if make never runs the recipe: with the link switchable, pointing at a
+# release built last week leaves the copy here newer, make calls the target up
+# to date, and the tree keeps running yesterday's engine while every gate
+# reports on the one it was pointed at.  Measured, not imagined -- the banner
+# said v0.4.0-146-g083685e2 with `engine` pointing at the v0.1.0 release.
+#
+# cmp keeps FORCE cheap: copy when the bytes differ, which is the question
+# actually being asked, and leave the mtime alone when they do not so nothing
+# downstream rebuilds for nothing.
+$(EXECUTABLE): $(ENGINE_DIR)/$(EXECUTABLE) FORCE
+	@cmp -s $< $@ || cp $< $@
 	# The build's param declaration travels WITH the binary, so `dirname $$X_BIN`
 	# finds it in repo mode exactly as it does in an install tree.  Without this
 	# the wrapper would need two ways to locate the same fact.
@@ -182,6 +207,16 @@ $(EXECUTABLE): $(ENGINE_DIR)/$(EXECUTABLE)
 # handed a downloaded one instead is the override losing to the default, which
 # is the mistake this Makefile already made once with the link.  `PIN=` selects
 # a different manifest, which is how the fetch gate drives this.
+# THE SOURCE ARM, ON PURPOSE.  `make engine` prefers a published artifact, which
+# is right for building the language and wrong for the three things that need
+# the C: the sanitizer and coverage builds, and hacking on the engine itself.
+# Those ask for sources rather than discovering they have none.
+engine-source: ## Acquire the engine's SOURCES (clone the pinned release) and link them
+	@$(MAKE) --no-print-directory engine-link \
+		X_ENGINE_DIR="$$(FROM_SOURCE=1 PIN="$(PIN)" sh tools/engine/fetch.sh)"
+	@echo "engine -> $$(readlink $(ENGINE_DIR))"
+.PHONY: engine-source
+
 engine: ## Acquire the engine tools/engine/engine.pin.xon names (release, or source)
 	@if [ -n "$(X_ENGINE_DIR)" ]; then \
 		echo "engine: X_ENGINE_DIR names $(X_ENGINE_DIR) -- linking that, not acquiring" >&2; \
@@ -256,8 +291,14 @@ doc-c: ## Generate C reference documentation (delegates to the submodule)
 	$(ENGINE_MAKE) doc-c
 .PHONY: doc-c
 
-install-man-c uninstall-man-c: ## The C reference man pages (delegates to the submodule)
-	$(ENGINE_MAKE) $@ DESTDIR="$(DESTDIR)" MANDIR="$(MANDIR)"
+install-man-c uninstall-man-c: ## The C reference man pages (delegates to the engine)
+	@$(ENGINE_ENSURE); if [ -f $(ENGINE_DIR)/Makefile ]; then \
+		$(MAKE) --no-print-directory -C $(ENGINE_DIR) $@ DESTDIR="$(DESTDIR)" MANDIR="$(MANDIR)"; \
+	else \
+		echo "$@: SKIPPED -- the C reference is Doxygen over the engine's sources,"; \
+		echo "  and $(ENGINE_DIR) is a release that ships none.  The engine publishes"; \
+		echo "  its own; make engine-source to build them here."; \
+	fi
 .PHONY: install-man-c uninstall-man-c
 
 # ============================================================================
@@ -279,9 +320,20 @@ test-stress: $(EXECUTABLE) ## Run x-lang tests including the stress lane
 # rot (#180).  Two runners: spec-runner.sh takes the top-level specs on the
 # plain engine; cov-spec-runner.sh takes specs/cov/ on x-bin-cov, because
 # coverage marking only exists under -DX_COV.
-test-tools: $(EXECUTABLE) x-bin-cov ## Run the tool suite's specs (tools/tests)
+# THE COV HALF NEEDS A COV ENGINE, and the rest of the suite does not.  Making
+# the whole target depend on x-bin-cov meant a tree running a released engine
+# could not run ANY tool spec: the variant has to be compiled, and a release
+# ships no C.  Splitting it keeps the artifact path honest -- the tools are
+# x-lang's, and only the coverage tool needs an instrumented engine under it.
+test-tools: $(EXECUTABLE) ## Run the tool suite's specs (tools/tests)
 	sh tools/tests/spec-runner.sh
-	sh tools/tests/cov-spec-runner.sh
+	@$(ENGINE_ENSURE); if [ -f $(ENGINE_DIR)/Makefile ]; then \
+		$(MAKE) --no-print-directory x-bin-cov && sh tools/tests/cov-spec-runner.sh; \
+	else \
+		echo "test-tools: cov specs SKIPPED -- the coverage engine is a BUILD of the"; \
+		echo "  engine (-DX_COV), and $(ENGINE_DIR) is a release that ships no C."; \
+		echo "  make engine-source, then make test-tools, to run them."; \
+	fi
 .PHONY: test-tools
 
 # The doctest ratchet (#16): every (example "in" "out") in the doc registry

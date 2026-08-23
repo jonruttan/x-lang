@@ -71,10 +71,10 @@ ISA="$REFERENCE_DIR/tools/contract/isa.x"
 REQ="tools/contract/requires.x"
 CONS="tools/contract/constraints.x"
 [ -f "$FEAT" ] || { echo "engine-contract: no vocabulary at $FEAT" >&2; exit 2; }
-# The ISA is the ENGINE's file.  A missing one means an uninitialised submodule,
+# The ISA is the ENGINE's file.  A missing one means no engine was acquired,
 # not a passing check -- say so rather than reporting ok over nothing, which is
 # the vacuous-pass shape the split turned up four times.
-[ -f "$ISA" ] || { echo "engine-contract: no reference ISA at $ISA (submodule not initialised?)" >&2; exit 2; }
+[ -f "$ISA" ] || { echo "engine-contract: no reference ISA at $ISA (run: make engine)" >&2; exit 2; }
 
 fail=0
 note() { echo "  $1"; fail=1; }

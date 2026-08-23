@@ -8,8 +8,8 @@
 # INSTALLED x from an unrelated cwd -- the same end-to-end assertion a new
 # user makes, minus the clone.
 #
-# The CLONE path (git, submodules, --ref) is deliberately NOT gated here:
-# a hermetic clone would need the submodules available offline.  It is
+# The CLONE path (git, --ref) is deliberately NOT gated here: a hermetic
+# clone would need the network.  It is
 # covered indirectly -- every CI run is itself a recursive checkout +
 # build, the same chain the clone path drives -- and directly by the
 # manual local-clone test.  This gate covers what a Makefile install-layout
@@ -31,19 +31,26 @@ fail() { echo "bootstrap-smoke: FAIL: $1" >&2; [ -f "$T/log" ] && sed 's/^/  /' 
 # bootstrap.sh's `make clean` deleted x-bin and every object mid-`make
 # gates`, the rest of the pipeline silently re-paid the build, and the
 # gate could never share a workspace with a concurrent step.  The copy
-# is exactly `git ls-files --recurse-submodules` -- what a fresh clone
+# is exactly `git ls-files` -- what a fresh clone
 # contains, which is closer to the script's real audience than an
 # artifact-strewn working tree, and hermetic (no network; the clone path
 # stays uncovered here as the header explains).  in_checkout needs only
 # Makefile + x.sh + ext/x-expr, all tracked, so the copy still selects
 # build-in-place.
-( cd "$REPO" && git ls-files --recurse-submodules -z | tar -c --null -T - -f - ) \
+( cd "$REPO" && git ls-files -z | tar -c --null -T - -f - ) \
 	| { mkdir -p "$T/tree" && tar -x -C "$T/tree" -f -; } \
 	|| fail "staging the tracked-source copy failed"
 
 # Build + install to the temp prefix from INSIDE the copy; run from $T so
 # the in-checkout detection triggers on the copy, never the repo.
-( cd "$T/tree" && X_PREFIX="$T/prefix" sh bootstrap.sh --install ) > "$T/log" 2>&1 \
+# OFFLINE, DELIBERATELY.  bootstrap acquires an engine, and a gate that
+# downloads one would fail on a plane and pass in CI for reasons unrelated to
+# the thing under test.  The copy is pointed at the engine this tree already
+# resolved, which is also the honest subject: whether bootstrap can BUILD and
+# INSTALL, not whether GitHub is up.
+_engine_abs=$( cd "$REPO/engine" 2>/dev/null && pwd -P )
+[ -n "$_engine_abs" ] || fail "no engine linked at $REPO/engine -- run make engine first"
+( cd "$T/tree" && X_PREFIX="$T/prefix" X_ENGINE_DIR="$_engine_abs" sh bootstrap.sh --install ) > "$T/log" 2>&1 \
 	|| fail "bootstrap --install exited nonzero"
 
 [ -x "$T/prefix/bin/x" ]        || fail "wrapper not installed at the expected path"

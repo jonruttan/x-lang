@@ -113,8 +113,8 @@ Dialects are selected via the `-l` flag on the shell wrapper. Language personali
 
 ## Build
 
-**One command**, if you just want a working `x` (clones with submodules,
-builds the ~4-second C89 engine, and — with `--install` — puts `x` on
+**One command**, if you just want a working `x` (clones, fetches the
+verified engine release this tree pins, and — with `--install` — puts `x` on
 your PATH under `~/.local`, no sudo):
 
 ```sh
@@ -125,25 +125,32 @@ Add `--install` to install (`… | sh -s -- --install`); the script prints
 how to run and how to install either way. Knobs: `X_REF` (branch/tag),
 `X_PREFIX`, `X_SRC` — see the header of [bootstrap.sh](bootstrap.sh).
 
-**By hand.** The engine (`ext/x-engine-c`), the expression engine it embeds
-(`ext/x-engine-c/ext/x-expr`) and the C test runner
-are git submodules — clone recursively, or fetch them into an existing
-clone:
+**By hand.** This repository is the language. The engine is a separate
+project — [x-engine-c](https://github.com/jonruttan/x-engine-c) — and is
+acquired rather than carried:
 
 ```sh
-git clone --recursive https://github.com/jonruttan/x-lang.git
-# or, in an existing clone:
-git submodule update --init --recursive
+git clone https://github.com/jonruttan/x-lang.git
+cd x-lang
+make engine     # fetch the release tools/engine/engine.pin.xon names, verified
+make
 ```
 
-`--recursive` is required, not merely convenient: the engine lives one level
-down, and x-expr one level below that.
+`make engine` downloads the engine built for your platform, checks it against
+the digest the pin records, and links it as `engine`. Nothing is compiled: the
+engine arrives built.
 
-Then:
+Two other ways to get one, for when that is not what you want:
 
 ```sh
-make clean && make
+make engine-source          # clone the pinned release and build it here
+make X_ENGINE_DIR=../mine   # use an engine you already have
 ```
+
+`make engine-source` is what you want on a platform nobody publishes for (the
+Pi, 32-bit), and when you are working on the engine itself. `make` alone, in a
+tree that has never acquired one, prints these three options rather than
+failing obscurely.
 
 Requires a C89-compatible compiler. `make` links `engine` at the engine this
 tree builds against, builds it there, and copies the `x-bin` binary to this
