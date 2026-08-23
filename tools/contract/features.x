@@ -173,7 +173,7 @@
 ; tools/contract/constraints.x, which is where a value can legitimately bind.
 ;
 ; THE VALUES ARE PART OF THE VOCABULARY TOO, and they were not written down.
-; They existed -- ext/x-engine-c/tools/contract/gen-build-params.sh normalises a
+; They existed -- engine/tools/contract/gen-build-params.sh normalises a
 ; build triple to darwin/linux/bsd and arm64/x86-64/i386, and
 ; tests/x/conformance/posix/foreign.spec.md compares %param-os against those very
 ; spellings -- but they lived inside ONE ENGINE'S build script, which is an

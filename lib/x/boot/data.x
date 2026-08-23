@@ -12,7 +12,7 @@
 (def %int->ptr (prim-ref (lit int) (lit ->ptr)))
 
 ; %word-size and %data-offset computed once at boot; the header length comes
-; from the committed layout contract (ext/x-engine-c/tools/contract/obj-layout.x, included by
+; from the committed layout contract (engine/tools/contract/obj-layout.x, included by
 ; x-core.x just before this file).
 (def %word-size
   (match

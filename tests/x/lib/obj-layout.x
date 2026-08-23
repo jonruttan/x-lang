@@ -1,5 +1,5 @@
 ; Test harness: x-core.x + the object-layout descriptor as data
-; (ext/x-engine-c/tools/contract/obj-layout.x -- the committed header-word contract the obj-layout
+; (engine/tools/contract/obj-layout.x -- the committed header-word contract the obj-layout
 ; spec probes live objects against).
 (include "lib/x-core.x")
 (include "engine/tools/contract/obj-layout.x")

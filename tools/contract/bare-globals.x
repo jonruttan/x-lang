@@ -5,7 +5,7 @@
 ; diffs the live def surface against this file in BOTH directions, so the
 ; list can only shrink deliberately: sweep a name to %-private (public face
 ; on a class) and delete its row in the same commit.  C-bound bare names
-; live in ext/x-engine-c/tools/contract/isa.x's %isa-bare section, not here.
+; live in engine/tools/contract/isa.x's %isa-bare section, not here.
 ;
 ; FORMAT (rigid, one entry per line -- the awk parses the same bytes):
 ;   (name)

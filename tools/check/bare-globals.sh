@@ -9,7 +9,7 @@
 # %-private, and diffs BOTH directions against the manifest:
 #   - a bare def absent from the manifest fails (the surface cannot grow);
 #   - a manifest row with no def fails (stale rows die with their defs).
-# C-bound bare names are ext/x-engine-c/tools/contract/isa.x's %isa-bare section, not this file.
+# C-bound bare names are engine/tools/contract/isa.x's %isa-bare section, not this file.
 #
 # Top-level detection is indentation (<= 2 spaces): library style keeps
 # module-level defs at column 0 (x-core.x's do-block at 2); fn-internal

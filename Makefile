@@ -198,7 +198,7 @@ test-c: ## Run the engine's C unit tests (delegates to the submodule)
 .PHONY: test-c
 
 # The C reference is Doxygen over the engine's sources, so it generates
-# INSIDE the submodule (ext/x-engine-c/docs/ref/c/).  pages.yml copies from
+# INSIDE the engine (engine/docs/ref/c/).  pages.yml copies from
 # there; this target exists so `make doc` is still both halves.
 doc-c: ## Generate C reference documentation (delegates to the submodule)
 	$(ENGINE_MAKE) doc-c
@@ -780,7 +780,13 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	# just ran it and segfaulted.  One precomputed hex line: the wrapper
 	# needs a STRING compare against a release manifest, not a digester.
 	install -d -m 0755 $(DESTDIR)$(LIBDIR)/contract
-	@sh -c 'if command -v shasum >/dev/null 2>&1; then shasum -a 256 ext/x-engine-c/tools/contract/isa.x | cut -d" " -f1; 		else sha256sum ext/x-engine-c/tools/contract/isa.x | cut -d" " -f1; fi' 		> $(DESTDIR)$(LIBDIR)/contract/isa.sha256
+	@# THROUGH $(ENGINE_DIR), like everything else.  This line held a literal
+	@# ext/x-engine-c while the comment above it already said $(ENGINE_DIR) --
+	@# harmless while there was one engine at one path, and wrong the moment
+	@# there was not: it would stamp the SUBMODULE's fingerprint into a tree
+	@# built against another engine, and the wrapper compares that stamp to
+	@# decide whether a pinned amalgam may boot.
+	@sh -c 'if command -v shasum >/dev/null 2>&1; then shasum -a 256 $(ENGINE_DIR)/tools/contract/isa.x | cut -d" " -f1; 		else sha256sum $(ENGINE_DIR)/tools/contract/isa.x | cut -d" " -f1; fi' 		> $(DESTDIR)$(LIBDIR)/contract/isa.sha256
 	# The LAYOUT fingerprint, and it is the one that matters for pairing.  The isa
 	# digest above is the C SURFACE -- byte-identical across rc10, v0.4.0 and
 	# v0.5.0, which is how a mismatched amalgam once passed the guard and

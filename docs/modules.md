@@ -348,10 +348,12 @@ The same release ships that matching engine as a relocatable per-platform
 tarball (`x-<tag>-<os>-<arch>.tar.gz`) — built from the same tagged
 source, so it carries the release's fingerprints by construction. An
 installed tree records them beside its library, in
-`share/x/contract/`: `isa.sha256`, `payload.sha256`, and `release` (the
-tag). The engine reports its own tag as `x-release`, which `x -V`
-prints. The engine and the amalgams are two separately verified
-artifacts that pair through the release tag; you never have to build the
+`share/x/contract/`: `isa.sha256`, `payload.sha256`, and `release` — the
+tag the **library** in that tree was built from, which is what a pinned
+amalgam is checked against. The engine reports its own tag separately as
+`x-release`; `x -V` prints both, labelled, and they are the same string
+only when x-lang built the engine it runs. The engine and the amalgams
+are separately verified artifacts, and you never have to build the
 engine to pin the platform.
 
 The platform can also fetch and verify in one step:
