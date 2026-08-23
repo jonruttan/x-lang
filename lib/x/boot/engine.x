@@ -15,11 +15,15 @@
 ; would travel into the amalgam UNRESOLVED, and an installed tree has no ext/ to
 ; find it in later.  That exact bug shipped once during the engine split.
 ;
-; So the indirection is deliberately shallow: one file to edit, not one variable
-; to thread.  Pointing x-lang at another engine means changing these four lines.
-; Making it a RUNTIME choice needs the engine to arrive as a pinned artifact at a
-; known location, which is the arc's phase 4; this file is what that phase will
-; rewrite, and gathering it here first is what makes that a one-file change.
+; So the indirection is deliberately shallow, and it is now in the FILESYSTEM
+; rather than in this file: `engine` is a symlink at the repo root, pointed by
+; the Makefile at whatever engine this tree builds against -- the submodule, a
+; local checkout named by X_ENGINE_DIR, or (phase 4) an unpacked release.  A
+; path can be one thing and mean another, which is the one indirection available
+; to a file that must stay textually resolvable.
+;
+; Choosing an engine is therefore no longer an edit to this file at all.  It was
+; four lines here; now it is where the link points.
 ;
 ; ORDER: base-paths.x must precede registry.x (the catalog walk reads it), and
 ; obj-layout.x must precede data.x (its header offsets).  Both are pure `def`
@@ -31,8 +35,8 @@
 ; from it, and lib/x/tool/pin.x reads the engine's ISA manifest through it.
 ; Those run long after the library is up, so a value is enough for them; only
 ; the includes below need a literal.
-(def %engine-root "ext/x-engine-c")
-(def %engine-contract-root "ext/x-engine-c/tools/contract")
+(def %engine-root "engine")
+(def %engine-contract-root "engine/tools/contract")
 
-(include "ext/x-engine-c/tools/contract/base-paths.x")
-(include "ext/x-engine-c/tools/contract/obj-layout.x")
+(include "engine/tools/contract/base-paths.x")
+(include "engine/tools/contract/obj-layout.x")

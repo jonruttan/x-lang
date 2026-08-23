@@ -41,7 +41,7 @@ X_RELEASE?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 # The engine binary is built from the x-engine-c submodule (the 2026-08-21
 # split).  Everything that used to live here -- CFLAGS, the compiler probe,
 # the object rules, the variant builds -- moved with the C it compiles.  What
-# stays is the CONTRACT between the two repos, and it is exactly two things.
+# stays is the CONTRACT between the two repos, and it is three things.
 #
 # 1. WHERE THE BINARY LANDS.  At this repo's root, where it has always been.
 #    That is not tidiness: tests/spec-runner.sh derives its awk harness path
@@ -56,13 +56,45 @@ X_RELEASE?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 #    the submodule's own `git describe` would fail every pinned project on
 #    sight.  X_RELEASE is passed down on every engine build below -- the same
 #    override tools/release/package.sh already uses for tarballs.
-ENGINE_DIR=ext/x-engine-c
+#
+# 3. WHERE THE ENGINE IS.  `engine` -- one path, in this repo's root, for every
+#    consumer: the boot's contract includes, the JIT's -I flags, the gates, the
+#    conformance runner.  It is a SYMLINK to whatever engine this tree is
+#    building against, and ENGINE_SRC is what it points at.
+#
+#    WHY A FIXED PATH AND NOT A VARIABLE.  lib/x/boot/engine.x must include the
+#    contract manifests TEXTUALLY: it loads before anything that could build a
+#    path, and tools/release/amalgamate.sh inlines includes by matching a
+#    literal root at the start of a line -- a computed form travels into the
+#    amalgam unresolved, and an installed tree has no way to find it later.
+#    That bug shipped once during the engine split.  So the indirection lives
+#    in the filesystem, where a path can be one thing and mean another.
+#
+#    WHAT IT POINTS AT, in order: X_ENGINE_DIR when given, then WHATEVER THE
+#    LINK ALREADY POINTS AT, then the submodule.  Phase 4 adds the case the
+#    middle rule exists for: `make engine` links an unpacked release, and a
+#    plain `make` afterwards must not quietly undo that choice.
+#
+#    THE MIDDLE RULE IS NOT COSMETIC.  Re-pointing unconditionally looked
+#    right -- a stale link is a real hazard -- but it meant every `make` reset
+#    the tree to the submodule.  Pointed at an artifact and then asked for the
+#    spec suite, the link flipped back mid-run and the suite reported 2624
+#    green tests for an engine it was no longer using.  A default that
+#    silently overrides an explicit choice is worse than a stale link, which
+#    at least stays where someone put it.
+#
+#    A DANGLING link falls back rather than failing: whatever it named is
+#    gone, so it is not a choice any more.
+ENGINE_SRC?=$(if $(X_ENGINE_DIR),$(X_ENGINE_DIR),$(shell if [ -L $(ENGINE_DIR) ] && [ -e $(ENGINE_DIR) ]; then readlink $(ENGINE_DIR); else echo ext/x-engine-c; fi))
+ENGINE_DIR=engine
 
 # Fail with a sentence instead of a screenful of missing-file errors: a clone
 # without --recursive has an empty submodule, and the first symptom would
 # otherwise be make(1) complaining it has no rule to make the engine.
 ENGINE_MAKE=@if [ ! -f $(ENGINE_DIR)/Makefile ]; then \
-		echo "The engine submodule is empty. Run: git submodule update --init --recursive" >&2; \
+		echo "No engine sources at $(ENGINE_DIR) -> $(ENGINE_SRC)." >&2; \
+		echo "For the bundled engine: git submodule update --init --recursive" >&2; \
+		echo "For your own: make X_ENGINE_DIR=/path/to/engine" >&2; \
 		exit 1; \
 	fi; $(MAKE) --no-print-directory -C $(ENGINE_DIR) X_RELEASE="$(X_RELEASE)"
 
@@ -110,8 +142,46 @@ $(EXECUTABLE): $(ENGINE_DIR)/$(EXECUTABLE)
 	# the wrapper would need two ways to locate the same fact.
 	@if [ -f $(ENGINE_DIR)/x-engine-build.xon ]; then cp $(ENGINE_DIR)/x-engine-build.xon x-engine-build.xon; fi
 
-$(ENGINE_DIR)/$(EXECUTABLE): FORCE
-	$(ENGINE_MAKE)
+# NOT ABOVE `default:`.  A rule placed before it becomes the default goal --
+# `make` then built the symlink, reported success, and produced no engine.
+# check-bootstrap caught it; nothing else did, because every other tree
+# already had a binary.
+# The link is re-pointed on every build, not created once: X_ENGINE_DIR is a
+# per-invocation choice, and a stale link would silently build the last
+# engine someone named.  `ln -sfn` is idempotent and costs nothing.
+#
+# It REFUSES a real directory rather than replacing it (that is what -n buys):
+# if `engine` is ever a directory of its own -- an unpacked release put there
+# by hand, a botched checkout -- clobbering it would be the wrong move, and
+# the error names the path.
+engine-link:
+	@if [ ! -e "$(ENGINE_SRC)" ]; then \
+		echo "No engine at $(ENGINE_SRC)." >&2; \
+		echo "For the bundled engine: git submodule update --init --recursive" >&2; \
+		echo "For your own: make X_ENGINE_DIR=/path/to/engine" >&2; \
+		exit 1; \
+	fi
+	@ln -sfn "$(ENGINE_SRC)" $(ENGINE_DIR)
+.PHONY: engine-link
+
+# AN ENGINE DIRECTORY EITHER HAS SOURCES OR SHIPS A BINARY.  A checkout has a
+# Makefile and gets built; an unpacked release has none and is already built,
+# so there is nothing to do but use it.  Trying to build the second is how
+# artifact mode announced itself: `make test-x` died with "no engine sources"
+# while a working binary sat in the directory it had been pointed at.
+#
+# Failing only when BOTH are missing keeps the empty-submodule diagnostic that
+# a fresh clone needs, without extending it to engines that were never going
+# to be compiled here.
+$(ENGINE_DIR)/$(EXECUTABLE): engine-link FORCE
+	@if [ -f $(ENGINE_DIR)/Makefile ]; then \
+		$(MAKE) --no-print-directory -C $(ENGINE_DIR) X_RELEASE="$(X_RELEASE)"; \
+	elif [ ! -x $(ENGINE_DIR)/$(EXECUTABLE) ]; then \
+		echo "$(ENGINE_DIR) -> $(ENGINE_SRC) has neither sources to build nor an engine to use." >&2; \
+		echo "For the bundled engine: git submodule update --init --recursive" >&2; \
+		echo "For your own: make X_ENGINE_DIR=/path/to/engine" >&2; \
+		exit 1; \
+	fi
 
 # The variants, same shape.  Each is PHONY-free for the same reason as the
 # plain engine: the copy must compare timestamps, not run unconditionally.
@@ -176,7 +246,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-dialect-cover check-highlight-roundtrip ## Run the contract gates
+gates: engine-link check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-dialect-cover check-highlight-roundtrip ## Run the contract gates
 .PHONY: gates
 
 # The local-latency split (2026-08-03 audit): `make test` grew past ten
@@ -187,7 +257,7 @@ gates: check-isa check-prim-coverage check-obj-layout check-base-paths check-boo
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-dialect-cover ## The fast contract gates (pre-push subset)
+gates-fast: engine-link check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-dialect-cover ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast test-c test-x ## Pre-push gate: fast gates + both spec suites (CI runs full `make test`)

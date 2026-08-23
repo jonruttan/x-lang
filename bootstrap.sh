@@ -52,13 +52,19 @@ say()  { printf '\033[1;32m==>\033[0m %s\n' "$1"; }
 die()  { printf '\033[1;31mbootstrap: %s\033[0m\n' "$1" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# A checkout is identifiable by the wrapper + the Makefile + the engine
-# submodule directory together -- not one of them alone (a stray Makefile
-# in some cwd must not read as "already here").  The engine submodule is
-# ext/x-engine-c since the 2026-08-21 split; it used to be ext/x-expr, which
-# now hangs one level further down, inside the engine.
+# A checkout is identifiable by the wrapper + the Makefile + the library
+# together -- not one of them alone (a stray Makefile in some cwd must not
+# read as "already here").
+#
+# NOT BY THE ENGINE.  This probe used to require ext/x-engine-c, which made
+# "am I in a checkout?" depend on a directory a checkout can legitimately be
+# without: the submodule is uninitialised on a plain clone, and once the
+# engine arrives as a pinned artifact it is not in the tree at all until it
+# is fetched.  The library is the thing this repo IS.  (The probe has been
+# wrong this way before: it asked for ext/x-expr, which the split moved a
+# level down, and answered "not a checkout" in a checkout.)
 in_checkout() {
-	[ -f Makefile ] && [ -f x.sh ] && [ -d ext/x-engine-c ]
+	[ -f Makefile ] && [ -f x.sh ] && [ -f lib/x-core.x ]
 }
 
 # --- Preflight: a C compiler and make are always needed; git only to clone.

@@ -43,8 +43,17 @@ exempt_reason() {
 	esac
 }
 
+# WHAT COUNTS AS NAMING AN ENGINE, now that there are two spellings.  A module
+# may name neither `ext/x-engine-c` (one implementation, by its repo path) nor
+# `engine/` (the seam's symlink).  The second is the one that would otherwise
+# creep: it is engine-agnostic, so it LOOKS harmless, and a module that reaches
+# through it is still resolving the engine's layout on its own behalf instead of
+# taking it from the seam.  The gate would also have gone vacuous without it --
+# the old pattern matched a spelling lib/ no longer uses.
+PATTERN='ext/x-engine|"engine/|-Iengine/'
+
 fail=0
-found=$(grep -rln "ext/x-engine" lib --include='*.x' 2>/dev/null | sort || true)
+found=$(grep -rlnE "$PATTERN" lib --include='*.x' 2>/dev/null | sort || true)
 for f in $found; do
 	# Only occurrences that RESOLVE a path count.  Two kinds are documentation and
 	# are dropped: `;` comments, and doc-form strings -- (doc ...), (note ...) and
@@ -53,7 +62,7 @@ for f in $found; do
 	# grep; a reader told where the contract is can go and read it.
 	hits=$(sed 's/;.*//' "$f" \
 		| grep -vE '^[[:space:]]*\((doc|note|sample|example|returns|param)[[:space:]]' \
-		| grep -c "ext/x-engine" || true)
+		| grep -cE "$PATTERN" || true)
 	[ "$hits" -gt 0 ] || continue
 	if reason=$(exempt_reason "$f"); then
 		printf "  ok      %-28s (%s)\n" "$f" "$reason"

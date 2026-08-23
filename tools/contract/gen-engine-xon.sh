@@ -50,7 +50,7 @@ CLAIMS="$ENGINE/tools/contract/claims.x"
 # so the roster a candidate's capability claim is measured against.  Same default
 # and same override as tools/check/engine-contract.sh, because they must agree --
 # the gate regenerates through this script to test staleness.
-REF="${X_REFERENCE_DIR:-$ROOT/ext/x-engine-c}"
+REF="${X_REFERENCE_DIR:-$ROOT/engine}"
 REF_ISA="$REF/tools/contract/isa.x"
 for f in "$FEAT" "$ISA" "$REF_ISA"; do
 	[ -f "$f" ] || { echo "gen-engine-xon: missing $f" >&2; exit 2; }
@@ -209,9 +209,13 @@ done < "$W/profiles"
 # Found by generating a declaration for an unpacked dist tarball.
 #
 # Same rule as (binary ...) below: what an engine is called is the engine's to
-# state.  The basename stays as the fallback, for an engine that has not said.
+# state.  The basename stays as the fallback, for an engine that has not said --
+# and it resolves the path PHYSICALLY first, because x-lang reaches its engine
+# through a symlink named `engine`: the literal basename of that is "engine",
+# which names nothing.  Following it gets back to the directory the engine
+# actually lives in, which is the best guess available when it has not said.
 name=$(sed -n 's/^  (name "\(.*\)").*/\1/p' "$CLAIMS" 2>/dev/null | head -1)
-[ -n "$name" ] || name=$(basename "$ENGINE")
+[ -n "$name" ] || name=$(basename "$(cd "$ENGINE" 2>/dev/null && pwd -P || printf '%s' "$ENGINE")")
 isa_d=$(digest "$ISA")
 lay=""
 for f in obj-layout base-paths base-layout; do

@@ -25,6 +25,11 @@
 # "build error, not a silent skip" promise above only held for the roots
 # the pattern happened to list.
 #
+# engine/ IS A ROOT for the same reason, and was added BEFORE the boot moved
+# its contract includes there rather than after -- the ext/ lesson, paid once.
+# It is the symlink at the repo root that names whichever engine this tree
+# builds against; the boot's first two includes come from it.
+#
 # Usage: sh tools/release/amalgamate.sh lib/xe.x > build/boot/xe.x
 
 cd "$(dirname "$0")/../.." || exit 1
@@ -44,7 +49,7 @@ function splice(path,  line, n) {
 	while ((getline line < path) > 0) {
 		n++
 		if (line ~ /^[[:space:]]*;/) { print line; continue }
-		if (line ~ /^\(include "(lib|tools|apps|ext)\/[^"]*"\)[[:space:]]*(;.*)?$/) {
+		if (line ~ /^\(include "(lib|tools|apps|ext|engine)\/[^"]*"\)[[:space:]]*(;.*)?$/) {
 			sub(/^\(include "/, "", line)
 			sub(/".*$/, "", line)
 			if ((getline junk < line) < 0) {
@@ -53,7 +58,7 @@ function splice(path,  line, n) {
 			}
 			close(line)
 			splice(line)
-		} else if (line ~ /\((include|include-once|require-once)[[:space:]]+"(lib|tools|apps|ext)\//) {
+		} else if (line ~ /\((include|include-once|require-once)[[:space:]]+"(lib|tools|apps|ext|engine)\//) {
 			printf "amalgamate: %s:%d: root-relative include not alone at column 0\n", path, n > "/dev/stderr"
 			bad = 1; exit 1
 		} else print line

@@ -29,7 +29,7 @@ set -e
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 SUITE="tests/x/conformance"
-ISA="ext/x-engine-c/tools/contract/isa.x"
+ISA="engine/tools/contract/isa.x"
 FLOOR="tools/contract/conformance-covered.x"
 [ -f "$ISA" ] || { echo "conformance-coverage: no engine ISA at $ISA" >&2; exit 2; }
 

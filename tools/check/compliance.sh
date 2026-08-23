@@ -1,7 +1,7 @@
 #!/bin/sh
 # compliance.sh -- does an engine do what its x-engine.xon claims?
 #
-#   Usage: sh tools/check/compliance.sh [engine-dir]     (default: ext/x-engine-c)
+#   Usage: sh tools/check/compliance.sh [engine-dir]     (default: engine)
 #
 # The third leg of the contract.  check-engine-contract compares `provides`
 # against `requires` as TEXT, so it cannot catch an engine that declares more than
@@ -30,7 +30,7 @@ set -e
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
-ENGINE="${1:-ext/x-engine-c}"
+ENGINE="${1:-engine}"
 [ -d "$ENGINE" ] || { echo "compliance: no engine at $ENGINE" >&2; exit 2; }
 ENGINE_ABS="$(cd "$ENGINE" && pwd)"
 XON="$ENGINE_ABS/x-engine.xon"

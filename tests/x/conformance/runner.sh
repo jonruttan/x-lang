@@ -3,7 +3,7 @@
 #
 #   Usage: sh tests/x/conformance/runner.sh [spec.md ...]
 #   Env:   X_BIN         the engine binary        (default: ./x-bin)
-#          X_ENGINE_DIR  the engine's root        (default: ext/x-engine-c)
+#          X_ENGINE_DIR  the engine's root        (default: engine)
 #          PROFILE       which profile to run     (default: every one)
 #
 # CONFORMANCE ASKS: IS THIS A CORRECT x-lang EVALUATOR?  It is the language's
@@ -43,7 +43,7 @@ set -e
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$ROOT"
 SUITE="$ROOT/tests/x/conformance"
-ENGINE_DIR="${X_ENGINE_DIR:-$ROOT/ext/x-engine-c}"
+ENGINE_DIR="${X_ENGINE_DIR:-$ROOT/engine}"
 ENGINE="${X_BIN:-$ROOT/x-bin}"
 LIMIT="${X_ALLOC_LIMIT_OBJS:-2000000}"
 

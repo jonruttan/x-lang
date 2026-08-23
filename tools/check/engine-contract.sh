@@ -40,7 +40,7 @@ FEAT="tools/contract/features.x"
 # resolver that can only consider one engine is not resolving anything.  Found by
 # pointing the apparatus at a second engine for the first time: everything else in
 # the toolchain already took an engine directory, and this did not.
-ENGINE_DIR="${X_ENGINE_DIR:-ext/x-engine-c}"
+ENGINE_DIR="${X_ENGINE_DIR:-engine}"
 
 # The engine's name comes from its own declaration, not from the directory it
 # sits in: a checkout sits in `x-engine-c` and an unpacked release sits in
@@ -49,7 +49,7 @@ ENGINE_DIR="${X_ENGINE_DIR:-ext/x-engine-c}"
 # tools/contract/gen-engine-xon.sh's `name`.
 engine_name() {
 	_n=$(sed -n 's/^(engine-name "\(.*\)").*/\1/p' "$ENGINE_DIR/x-engine.xon" 2>/dev/null | head -1)
-	[ -n "$_n" ] || _n=$(basename "$ENGINE_DIR")
+	[ -n "$_n" ] || _n=$(basename "$(cd "$ENGINE_DIR" 2>/dev/null && pwd -P || printf '%s' "$ENGINE_DIR")")
 	printf '%s' "$_n"
 }
 
@@ -66,7 +66,7 @@ engine_name() {
 #
 # Found by pointing the apparatus at a second engine for the first time, which
 # is what that exercise is for.
-REFERENCE_DIR="${X_REFERENCE_DIR:-ext/x-engine-c}"
+REFERENCE_DIR="${X_REFERENCE_DIR:-engine}"
 ISA="$REFERENCE_DIR/tools/contract/isa.x"
 REQ="tools/contract/requires.x"
 CONS="tools/contract/constraints.x"
