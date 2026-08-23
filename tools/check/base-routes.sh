@@ -37,8 +37,16 @@ trap 'rm -rf "$W"' EXIT INT TERM
 # the check reported "all 16 routes are declared" while the library needed 25,
 # and x-engine-rust died on type-analyse-stack with a green gate behind it.
 # Any helper that forwards a name to %reflect-path belongs in this list.
-grep -rhoE "(%reflect-path|%reflect-base-cell|%type-parent-path) \(lit [a-z-]+\)" lib/ \
-	| grep -oE "lit [a-z-]+" | sed 's/lit //' | sort -u > "$W/needed"
+{
+	grep -rhoE "(%reflect-path|%reflect-base-cell|%type-parent-path) \(lit [a-z-]+\)" lib/ \
+		| grep -oE "lit [a-z-]+" | sed 's/lit //'
+	# AND the quote shorthand. `'` is helium syntax for the same thing, and the
+	# library uses both spellings -- lib/x/repl/loop.x writes `'filein`. Matching
+	# only `(lit …)` reported every route declared while the REPL died on one
+	# that was never counted.
+	grep -rhoE "(%reflect-path|%reflect-base-cell|%type-parent-path) '[a-z-]+" lib/ \
+		| grep -oE "'[a-z-]+" | sed "s/'//"
+} | sort -u > "$W/needed"
 
 # What the engine declares. A row is (name root step ...).
 sed -n 's/^  (\([a-z-][a-z-]*\) .*/\1/p' "$PATHS" | sort -u > "$W/declared"
