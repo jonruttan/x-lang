@@ -52,6 +52,41 @@ finds something callable, or the bare name is bound. It does **not** mean
 with x-level ones under the same catalog names. The contract is the coordinate, not
 the language it is written in.
 
+### Identity: the engine says which engine it is
+
+Two implementations exist, so this is a real question with a wrong answer
+available. `meta/identity` is the group that answers it at runtime, and `core`
+requires it:
+
+| binding | what it answers |
+|---|---|
+| `x-release` | the release this build was cut as |
+| `x-version` | the implementation's own version number |
+
+Both are non-empty strings; nothing else about their content is specified.
+x-lang compares release strings for **equality** and never parses them, so any
+spelling works — a tag, a hash, `dev` — as long as two different builds are two
+different strings.
+
+Your `x-engine.xon` answers the same question about the *directory it sits in*,
+which is right for a build system and wrong for a bug report: a wrapper can be
+pointed at one engine and run another. These bindings answer for the **process**.
+`x -V` prints both, and the pin records the engine's release so a project can be
+paired with the engine it was verified against.
+
+`meta/platform` (`x-machine`, the build triple as a bound value) is in the
+vocabulary but in **no profile**. The declared `(param os ...)` / `(param arch ...)`
+rows beside the binary are the platform door now; `x-machine` is the fallback for
+an engine that ships no build params.
+
+**Values are part of the surface.** `%isa-values` — the names an engine *binds*
+rather than the instructions it registers — is partitioned like everything else.
+It was skipped by every parser until 2026-08-23, which is how `x-release` came to
+be something the wrapper depended on and no engine was obliged to have. If your
+manifest lists an instruction group, list its bound values too: `#t` and `#f`
+belong to `isa/spine`, `args` to `invoke/argv`, `%token-eof` to `isa/tok`,
+`%sigint-flag` to `isa/sys`.
+
 **A profile is not a boot.** Capabilities say which INSTRUCTIONS resolve. They
 say nothing about what the engine's base carries, and the library walks base
 routes *by name* at runtime — `type-alist`, `type-iter`, `error-str` and a dozen
@@ -124,7 +159,7 @@ Each includes the one before it.
 
 | profile | adds | boots |
 |---|---|---|
-| `core` | the spine, allocation, machine ops, raw memory, types, the reader, byte I/O, reflection | the language |
+| `core` | the spine, allocation, machine ops, raw memory, types, the reader, byte I/O, reflection, identity | the language |
 | `gc` | collection | the REPL loop, the GC module |
 | `posix` | OS facilities, the syscall door, the foreign door | File, Proc, sockets |
 | `full` | coverage and profiling instrumentation | the tooling |

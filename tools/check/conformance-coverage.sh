@@ -37,14 +37,16 @@ W="${TMPDIR:-/tmp}/confcov.$$"; mkdir -p "$W"
 trap 'rm -rf "$W"' EXIT INT TERM
 
 # --- the surface: every ISA row, as the `covers:` lines spell it -------------
-# Catalog rows are ns/method; bare and keep rows are the bare name.  Values and
-# aliases are not instructions and carry no obligation.
+# Catalog rows are ns/method; bare and keep rows are the bare name.  Values are
+# counted too -- meta/identity is made of them and `core` requires it, so a row
+# nothing exercises is a gap in the suite like any other.  Aliases are x-level
+# and carry no obligation.
 awk '
 	/^\(def %isa-catalog/ { s="catalog"; next }
 	/^\(def %isa-bare/    { s="bare";    next }
 	/^\(def %isa-keep/    { s="keep";    next }
 	/^\(def %isa-aliases/ { s="";        next }
-	/^\(def %isa-values/  { s="";        next }
+	/^\(def %isa-values/  { s="values";  next }
 	/^  \(/ {
 		if (s == "") next
 		l = $0; sub(/;.*/, "", l); gsub(/[()]/, "", l); $0 = l
