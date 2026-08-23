@@ -1,0 +1,57 @@
+; engine.pin.xon -- which engine this tree builds against, and where to get it.
+;
+; `make engine` reads this file, acquires what it names, and points the `engine`
+; link at the result.  Everything downstream sees a directory and does not care
+; how it arrived: a checkout is a superset of a release, which is the whole
+; premise of the arrangement.
+;
+; DECLARATIVE, NOT EXECUTABLE, like pin.xon: a closed vocabulary of four forms,
+; read by a shell script that runs BEFORE any engine exists and so cannot use x
+; to parse it.  A form the script does not know is an error, never a shrug.
+;
+; FORMAT (rigid, one form per line -- the sed that reads this parses the same
+; bytes):
+;   (engine "NAME")                      which implementation
+;   (release "TAG")                      which release of it
+;   (artifact OS ARCH "sha256:HEX" "URL")  a prebuilt engine for one platform
+;   (source "URL")                       where the sources are, for platforms
+;                                        with no artifact row
+;
+; OS and ARCH use the CONTRACT'S spellings -- os is darwin/linux/bsd, arch is
+; arm64/x86-64/i386 -- the same ones tools/contract/gen-build-params.sh writes
+; into x-engine-build.xon.  Two vocabularies for one fact is how "aarch64"
+; against "arm64" becomes a download that silently does not exist.
+;
+; SELECTION USES uname, AND THAT IS THE ONE PLACE IT IS RIGHT.  Everywhere else
+; the platform comes from the engine's own declaration, because the compiler
+; knows the target and uname knows only the host.  Here there is no engine yet
+; and the question is "what will run on THIS machine", which is exactly what
+; uname answers.  Cross-compiling is out of scope for a download: point
+; X_ENGINE_DIR at an engine you built.
+
+(engine "x-engine-c")
+
+; --- WHERE THE SOURCES ARE ---------------------------------------------------
+; Used for platforms this file declares no artifact for.  While the submodule is
+; still here it is preferred over cloning: it is already at the commit this tree
+; was tested against, and re-cloning to reach the same bytes would be theatre.
+(source "https://github.com/jonruttan/x-engine-c.git")
+
+; --- ARTIFACTS ---------------------------------------------------------------
+; DELIBERATELY EMPTY.  x-engine-c's release pipeline landed before its first
+; release did, so there is nothing yet to pin: every platform takes the source
+; arm, which is what this tree already did.  The machinery is here, gated by
+; tools/check/engine-fetch.sh against a local fixture, so that turning it on is
+; adding rows rather than writing code.
+;
+; When v0.1.0 is cut, add its release row and one artifact row per published
+; platform -- the digests are in the release's .sha256 sidecars:
+;
+;   (release "v0.1.0")
+;   (artifact darwin arm64  "sha256:..." "https://github.com/jonruttan/x-engine-c/releases/download/v0.1.0/x-engine-c-v0.1.0-darwin-arm64.tar.gz")
+;   (artifact linux  x86-64 "sha256:..." "https://github.com/jonruttan/x-engine-c/releases/download/v0.1.0/x-engine-c-v0.1.0-linux-x86-64.tar.gz")
+;
+; A platform with no row is not an error.  The Pi and any 32-bit target build
+; from source and always will until someone publishes for them, and that is a
+; deliberate decision rather than an omission: the fallback fires ONLY when this
+; file declares no artifact, never when a declared one fails to fetch.

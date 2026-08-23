@@ -108,10 +108,20 @@ ENGINE_ENSURE=if [ ! -e "$(ENGINE_SRC)" ]; then \
 		exit 1; \
 	fi; ln -sfn "$(ENGINE_SRC)" $(ENGINE_DIR)
 
+# TWO WAYS TO HAVE NO SOURCES, and they want different advice.  A release
+# artifact ships a working engine and no Makefile ON PURPOSE -- telling its user
+# to initialise a submodule sends them after a problem they do not have.  An
+# empty directory is the fresh-clone case and does.
 ENGINE_MAKE=@$(ENGINE_ENSURE); if [ ! -f $(ENGINE_DIR)/Makefile ]; then \
-		echo "No engine sources at $(ENGINE_DIR) -> $(ENGINE_SRC)." >&2; \
-		echo "For the bundled engine: git submodule update --init --recursive" >&2; \
-		echo "For your own: make X_ENGINE_DIR=/path/to/engine" >&2; \
+		if [ -x $(ENGINE_DIR)/$(EXECUTABLE) ]; then \
+			echo "$(ENGINE_DIR) -> $(ENGINE_SRC) is a released engine: it ships a" >&2; \
+			echo "binary and no sources, so this target has nothing to build." >&2; \
+			echo "For a target that needs the C: make X_ENGINE_DIR=/path/to/a/checkout" >&2; \
+		else \
+			echo "No engine sources at $(ENGINE_DIR) -> $(ENGINE_SRC)." >&2; \
+			echo "For the bundled engine: git submodule update --init --recursive" >&2; \
+			echo "For your own: make X_ENGINE_DIR=/path/to/engine" >&2; \
+		fi; \
 		exit 1; \
 	fi; $(MAKE) --no-print-directory -C $(ENGINE_DIR) X_RELEASE="$(X_RELEASE)"
 
@@ -158,6 +168,29 @@ $(EXECUTABLE): $(ENGINE_DIR)/$(EXECUTABLE)
 	# finds it in repo mode exactly as it does in an install tree.  Without this
 	# the wrapper would need two ways to locate the same fact.
 	@if [ -f $(ENGINE_DIR)/x-engine-build.xon ]; then cp $(ENGINE_DIR)/x-engine-build.xon x-engine-build.xon; fi
+
+# ACQUIRE the engine the pin names, then point the link at whatever arrived.
+# One linking implementation, reached with X_ENGINE_DIR -- the same door engine
+# hacking uses, because a fetched release is not a special mode.
+#
+# Not a prerequisite of anything.  Acquisition touches the network and the pin
+# is a deliberate choice; a build that silently re-pointed the engine because
+# someone edited a manifest would be the "default overrides an explicit choice"
+# mistake in a new place.  `make engine` is a thing you ask for.
+# X_ENGINE_DIR SHORT-CIRCUITS IT.  Naming an engine explicitly and then being
+# handed a downloaded one instead is the override losing to the default, which
+# is the mistake this Makefile already made once with the link.  `PIN=` selects
+# a different manifest, which is how the fetch gate drives this.
+engine: ## Acquire the engine tools/engine/engine.pin.xon names (release, or source)
+	@if [ -n "$(X_ENGINE_DIR)" ]; then \
+		echo "engine: X_ENGINE_DIR names $(X_ENGINE_DIR) -- linking that, not acquiring" >&2; \
+		$(MAKE) --no-print-directory engine-link; \
+	else \
+		$(MAKE) --no-print-directory engine-link \
+			X_ENGINE_DIR="$$(PIN="$(PIN)" sh tools/engine/fetch.sh)"; \
+	fi
+	@echo "engine -> $$(readlink $(ENGINE_DIR))"
+.PHONY: engine
 
 # NOT ABOVE `default:`.  A rule placed before it becomes the default goal --
 # `make` then built the symlink, reported success, and produced no engine.
@@ -258,7 +291,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: engine-link check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-dialect-cover check-highlight-roundtrip ## Run the contract gates
+gates: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-dialect-cover check-highlight-roundtrip ## Run the contract gates
 .PHONY: gates
 
 # The local-latency split (2026-08-03 audit): `make test` grew past ten
@@ -269,7 +302,7 @@ gates: engine-link check-isa check-prim-coverage check-obj-layout check-base-pat
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: engine-link check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-dialect-cover ## The fast contract gates (pre-push subset)
+gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-dialect-cover ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast test-c test-x ## Pre-push gate: fast gates + both spec suites (CI runs full `make test`)
@@ -373,6 +406,14 @@ check-prim-coverage: ## Assert every C primitive is exercised by a spec, or says
 # class-calls whose def-class comes later in the order -- the silent
 # class-call trap -- and (b) pre-seed drift: double loads and raw-included
 # lib paths never registered (see tools/check/boot-order.x).
+# The acquisition path reaches the network and runs exactly once per machine,
+# which makes it the least-exercised code in the build.  This drives it over
+# file:// against a fixture tarball: verify, reuse, tamper, a declared artifact
+# that will not fetch, and an unknown pin form.
+check-engine-fetch: ## Smoke the engine acquisition path (hermetic, file://)
+	sh tools/check/engine-fetch.sh
+.PHONY: check-engine-fetch
+
 check-boot-order: $(EXECUTABLE) ## Lint the boot load order: class-call order + pre-seed drift
 	sh tools/check/boot-order.sh
 .PHONY: check-boot-order
