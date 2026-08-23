@@ -42,6 +42,17 @@ FEAT="tools/contract/features.x"
 # the toolchain already took an engine directory, and this did not.
 ENGINE_DIR="${X_ENGINE_DIR:-ext/x-engine-c}"
 
+# The engine's name comes from its own declaration, not from the directory it
+# sits in: a checkout sits in `x-engine-c` and an unpacked release sits in
+# `x-engine-c-<release>-<os>-<arch>`, and they are the same engine.  Reporting
+# the path would hand a reader a name their pin.xon can never match.  See
+# tools/contract/gen-engine-xon.sh's `name`.
+engine_name() {
+	_n=$(sed -n 's/^(engine-name "\(.*\)").*/\1/p' "$ENGINE_DIR/x-engine.xon" 2>/dev/null | head -1)
+	[ -n "$_n" ] || _n=$(basename "$ENGINE_DIR")
+	printf '%s' "$_n"
+}
+
 # TWO ENGINES, TWO QUESTIONS, and conflating them was a bug this gate shipped
 # with.  The REFERENCE surface is the language's own view of what instructions
 # exist; the CANDIDATE is whatever engine is being judged.
@@ -276,7 +287,7 @@ if [ -f "$XON" ]; then
 		if [ -n "$miss" ]; then
 			note "SATISFACTION: $ENGINE_DIR does not provide what requires.x needs:$miss"
 		else
-			echo "  satisfaction: $(basename "$ENGINE_DIR") provides everything requires.x needs."
+			echo "  satisfaction: $(engine_name) provides everything requires.x needs."
 		fi
 	fi
 fi
