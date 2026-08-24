@@ -721,8 +721,8 @@ check-doc-vocab: ## Lint doc forms for banned type-token aliases + retired names
 	if [ ! -d $(ENGINE_DIR)/src ] || [ ! -d $(ENGINE_DIR)/include ]; then \
 		echo "retired-c-symbols: FAIL (no C tree at $(ENGINE_DIR); run 'git submodule update --init --recursive')" >&2; \
 		exit 1; \
-	fi
-	@if grep -rnw 'x_eval_filein_push\|x_eval_filein_pop\|x_eval_buffer_pop\|x_char_utf8_len\|x_char_utf8_encode\|x_type_alist_iter\|x_type_alist_iter_prim\|x_type_iter_isempty' $(ENGINE_DIR)/src $(ENGINE_DIR)/include; then \
+	fi; \
+	if grep -rnw 'x_eval_filein_push\|x_eval_filein_pop\|x_eval_buffer_pop\|x_char_utf8_len\|x_char_utf8_encode\|x_type_alist_iter\|x_type_alist_iter_prim\|x_type_iter_isempty' $(ENGINE_DIR)/src $(ENGINE_DIR)/include; then \
 		echo "retired-c-symbols: FAIL (dead export removed in #249 reintroduced)" >&2; \
 		exit 1; \
 	else echo "retired-c-symbols: ok"; fi
