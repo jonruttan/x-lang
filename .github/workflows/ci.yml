@@ -96,12 +96,13 @@ jobs:
       - name: Spec examples
         run: make spec-examples
       # The same extraction pointed at the other docs that write examples in
-      # the `EXPR -> EXPECTED` form (#452, #453).  Report-only today, so this
-      # step is here for VISIBILITY -- the failure counts print on every run,
-      # which is what makes the promotion to a real gate a decision someone
-      # takes rather than one that never comes up.  Note the lesson from #330
-      # directly above: a target reachable only through `make test` is
-      # invisible here, because this workflow enumerates targets.
+      # the `EXPR -> EXPECTED` form.  Both are GATED since #452/#453 fixed
+      # them: primitives.md and standard-library.md were promoted out of
+      # report-only once green, which is the criterion doc-examples.conf
+      # states.  The report tier stays in the driver for the next doc to
+      # enter through.  Note the lesson from #330 directly above: a target
+      # reachable only through `make test` is invisible here, because this
+      # workflow enumerates targets.
       - name: Doc examples
         run: make doc-examples
       # Tool-suite specs (promoted with the #180 repair; joined only once
