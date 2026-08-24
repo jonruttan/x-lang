@@ -84,6 +84,28 @@
                             ;   act is to include the boot closure.
   (instr/cov     X_COV)     ; coverage marking -- tools/dev/cov.x, x-bin-cov
   (instr/profile X_PROFILE) ; eval counters -- lib/x/tool/profile.x
+  ; --- the native-extension lanes -----------------------------------------
+  ; Neither is a tag: both are things an engine SHIPS or EXPORTS, proven the
+  ; way reflect/layout-data is.  They were undeclared assumptions until a
+  ; second engine met them: x-base.x died on `cc failed with status 160`
+  ; because nothing said an engine can host a compiled prim, and the jit/asm
+  ; spec files reported failures against an engine that never claimed the
+  ; lane.  A capability turns those from failures into NOT APPLICABLE.
+  (native/cc     -)         ; ships its C headers beside the binary
+                            ;   (include/ and ext/x-expr/include/), so
+                            ;   x/tool/compile.x can build an object against
+                            ;   the ENGINE'S OWN layout and dlopen it.  The
+                            ;   compiled numeric tower rides this; an engine
+                            ;   without it keeps the interpreted analysers
+                            ;   (boot/tower-compiled.x falls back on
+                            ;   %compile-hosted?, which probes exactly these
+                            ;   two directories).
+  (native/jit    -)         ; hosts the in-process assembler lane: EXPORTS the
+                            ;   jit_* runtime helpers from its running binary
+                            ;   (dlopen self resolves jit_buffer_len et al.)
+                            ;   and permits executing assembled pages.
+                            ;   Consumer: x/tool/asm-compile.x; spec files
+                            ;   carrying `# @requires native/jit`.
   ; --- reflection support that is not a row at all ---
   (reflect/layout-data -)   ; ships obj-layout.x + base-paths.x, the two files
                             ;   lib/x/boot/engine.x includes before data.x runs.

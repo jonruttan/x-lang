@@ -346,6 +346,21 @@ for _spec in "$@"; do
   case "$_tag" in
     arm64|x86_64) [ "$_tag" = "$_HOST_ARCH" ] || continue ;;
   esac
+  # Capability-gated specs: `# @requires <capability>` in the header runs the
+  # file only against an engine whose x-engine.xon declares
+  # `(provides <capability>)`.  The vocabulary is tools/contract/features.x.
+  # A skipped file is NAMED, because silently thinner coverage is the
+  # vacuous-pass shape; naming the file explicitly overrides the gate, the
+  # same deliberate-override rule the applicative/ specs use.  An engine
+  # with no xon beside it skips gated files too -- an undeclared capability
+  # is an absent one, which is the whole point of declaring.
+  _req=$(sed -n 's/^# @requires //p' "$_spec" | head -1)
+  if [ -n "$_req" ] && [ "$_args_mode" != 1 ]; then
+    if ! grep -q "(provides $_req)" "$(dirname "$X_BIN")/engine/x-engine.xon" 2>/dev/null; then
+      printf '[skip %s: requires %s]\n' "$(basename "$_spec" .spec.md)" "$_req"
+      continue
+    fi
+  fi
   # SPECS (a glob pattern, e.g. '*list*') narrows the run for fast iteration; unset = all.
   [ -n "$SPECS" ] && { case "$_spec" in $SPECS) : ;; *) continue ;; esac; }
   if [ "$_args_mode" = 1 ]; then

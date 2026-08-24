@@ -105,6 +105,12 @@
 
 ; --- Can this ENGINE host a compiled prim? -------------------------------
 ;
+; This is the capability `native/cc` (tools/contract/features.x): an engine
+; that ships its C headers is declaring the lane works.  The directory probe
+; below is the capability's OPERATIONAL test -- the declared row and these
+; two directories must agree, and an engine declaring native/cc without
+; shipping the headers fails compliance, not this probe.
+;
 ; The object this lane builds is compiled against the ENGINE's own C headers
 ; -- the -Iengine/... flags below -- so the lane needs those directories to
 ; exist.  A C engine ships them.  An engine written in another language has no

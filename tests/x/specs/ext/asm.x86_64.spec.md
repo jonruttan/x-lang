@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/asm.x
+# @requires native/jit
 
 SysV AMD64 mirror of asm.arm64.spec.md: arguments arrive in rdi/rsi and the
 return value leaves in rax, so scenarios that ride A64's x0 arg-and-return

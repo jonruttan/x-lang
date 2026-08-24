@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/compile.x
+# @requires native/jit
 
 # @weight 9
 Differential fuzzing of the JIT: generate expressions from its supported
