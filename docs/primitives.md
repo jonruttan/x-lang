@@ -6,6 +6,20 @@
 
 All primitives receive unevaluated arguments (fexpr-style) and evaluate what they need internally. Boolean true is `#t`; boolean false is `#f`. Nil is `()` (the empty list).
 
+**What "primitive" means here, and what it does not.** This file documents the
+forms the language answers to once it has booted. Not all of them are C: `if`,
+`let`, `and`, `or`, `display` and `quasi` are operatives written in x-lang, and
+`not`, `list` and `str?` are procedures. The C surface itself has one source of
+truth — `tools/contract/isa.x` in the engine — and `make check-isa` diffs it
+against the C source, so it cannot drift silently.
+
+A bare spelling is also not always the C entry point. `+` is a library generic
+over the numeric tower; the primitive it bottoms out in is the coordinate
+`(int +)`, reached as `((prim-ref (lit int) (lit +)) 1 2)`. Several namespaces
+(`str`, `mem`, `heap`, `io`, `sym`) are de-registered, so their coordinates have
+no bare name at all and `prim-ref` is the only door — the Strings section below
+is written that way throughout.
+
 ---
 
 ### Quoting
@@ -185,12 +199,15 @@ Variadic integer division. With no arguments, returns `1` (identity). With one a
 
 `(% a ...) -> integer`
 
-Variadic integer modulo. With no arguments, returns `0`. With one argument, returns that value unchanged. With two or more, applies modulo left to right.
+Variadic integer modulo. With one argument, returns that value unchanged; with
+two or more, applies modulo left to right. **With no arguments it is an error**
+(`%: needs at least one argument`) — unlike `+` and `*`, which have identities
+to return, and unlike `/`, which answers `1`.
 
 ```x-repl
 (% 10 3) -> 1
 (% 17 10 3) -> 1
-(%) -> 0
+(% 5) -> 5
 ```
 
 ---
@@ -474,15 +491,17 @@ Returns `#t` if `x` evaluates to an integer; `#f` otherwise.
 (number? "hello") -> #f
 ```
 
-### `string?`
+### `str?`
 
-`(string? x) -> #t | #f`
+`(str? x) -> #t | #f`
 
-Returns `#t` if `x` evaluates to a string; `#f` otherwise.
+Returns `#t` if `x` evaluates to a string; `#f` otherwise. The spelling is
+`str?`, matching the `str` namespace the string coordinates live in — there is
+no `string?`.
 
 ```x-repl
-(string? "hello") -> #t
-(string? 42) -> #f
+(str? "hello") -> #t
+(str? 42) -> #f
 ```
 
 ### `symbol?`
@@ -552,11 +571,18 @@ Constructs a proper list from zero or more evaluated arguments. `(list)` returns
 
 `(and expr ...) -> value`
 
-Short-circuit logical AND. Evaluates each `expr` left to right. Returns `()` at the first falsy value. If all values are truthy, returns the last one. With no arguments, returns `#t`.
+Short-circuit logical AND. Evaluates each `expr` left to right. **Short-circuits
+to `#f`** — not to the falsy value that stopped it. If every value is truthy,
+returns the last one; with no arguments, returns `#t`.
+
+The last expression is returned as-is, so a falsy value in final position comes
+back unchanged: `(and 1 ())` is `()`, while `(and 1 () 3)` is `#f`. Falsy is
+`{(), #f}`, and only a short circuit normalizes it.
 
 ```x-repl
 (and 1 2 3) -> 3
-(and 1 () 3) -> ()
+(and 1 () 3) -> #f
+(and 1 ()) -> ()
 (and) -> #t
 ```
 
@@ -564,11 +590,15 @@ Short-circuit logical AND. Evaluates each `expr` left to right. Returns `()` at 
 
 `(or expr ...) -> value`
 
-Short-circuit logical OR. Evaluates each `expr` left to right. Returns the first truthy value. If all values are falsy, returns `()`. With no arguments, returns `()`.
+Short-circuit logical OR. Evaluates each `expr` left to right, returning the
+first truthy value. If every value is falsy it returns **the last one**, not a
+normalized `()`: `(or () #f)` is `#f` and `(or #f ())` is `()`. With no
+arguments, returns `()`.
 
 ```x-repl
 (or () () 3) -> 3
 (or 1 2) -> 1
+(or () #f) -> #f
 (or) -> ()
 ```
 
@@ -631,100 +661,95 @@ Reads a single character from stdin. Returns a character object, or `()` on end-
 
 ### Strings
 
-### `string-length`
+THESE ARE COORDINATES, NOT BARE NAMES. The `str`, `sym` and `mem` namespaces are
+de-registered once the library is up: the bare spellings are dropped and the
+catalog is the door, so a call reads `((prim-ref (lit str) (lit byte-len)) s)`.
+That is deliberate — the names belong to the library, which puts `Str8` and
+friends in front of these — and it is why the examples below look the way they
+do rather than like the `string-length` family they replaced.
 
-`(string-length str) -> integer`
+BYTES, NOT CHARACTERS. Every operation here counts bytes. UTF-8 is a library
+concern (`x/codec/utf8`, `Str8` / `StrUtf8`); the engine stores bytes and a NUL
+terminator, and bytes past the NUL are unobservable.
 
-Returns the length of string `str` in bytes.
+### `str byte-len`
 
-```x-repl
-(string-length "hello") -> 5
-(string-length "") -> 0
-```
+`((prim-ref (lit str) (lit byte-len)) str) -> integer`
 
-### `string-ref`
-
-`(string-ref str index) -> string`
-
-Returns a single-character string at the given zero-based `index` in `str`.
-
-```x-repl
-(string-ref "hello" 0) -> "h"
-(string-ref "hello" 4) -> "o"
-```
-
-### `string-append`
-
-`(string-append str1 str2) -> string`
-
-Concatenates two strings and returns a new string.
+The length of `str` in bytes.
 
 ```x-repl
-(string-append "hello" " world") -> "hello world"
+((prim-ref (lit str) (lit byte-len)) "hello") -> 5
+((prim-ref (lit str) (lit byte-len)) "") -> 0
 ```
 
-### `substring`
+### `str byte-ref`
 
-`(substring str start end) -> string`
+`((prim-ref (lit str) (lit byte-ref)) str index) -> char`
 
-Returns a new string extracted from `str` starting at index `start` (inclusive) up to `end` (exclusive). Indices are zero-based.
+The character at the zero-based byte `index`.
 
 ```x-repl
-(substring "hello" 1 3) -> "el"
+((prim-ref (lit str) (lit byte-ref)) "hello" 0) -> #\h
+((prim-ref (lit str) (lit byte-ref)) "hello" 4) -> #\o
 ```
 
-### `string=?`
+### `str append`
 
-`(string=? str1 str2) -> #t | #f`
+`((prim-ref (lit str) (lit append)) str1 str2) -> string`
 
-Returns `#t` if strings `str1` and `str2` have equal contents; `#f` otherwise.
+Concatenates two strings, returning a new one.
 
 ```x-repl
-(string=? "abc" "abc") -> #t
-(string=? "abc" "xyz") -> #f
+((prim-ref (lit str) (lit append)) "hello" " world") -> "hello world"
 ```
 
-### `string->symbol`
+### `str byte-sub`
 
-`(string->symbol str) -> symbol`
+`((prim-ref (lit str) (lit byte-sub)) str start len) -> string`
 
-Converts a string to an interned symbol with the same name.
+A new string of `len` bytes starting at zero-based `start`.
+
+**The third argument is a LENGTH, not an end index.** Both readings agree at
+`start` 0, which is why a library caller passed `(+ off n)` here for months and
+only fields at a non-zero offset came back wrong (found by the conformance
+suite, which uses a non-zero start on purpose).
 
 ```x-repl
-(string->symbol "hello") -> 'hello
+((prim-ref (lit str) (lit byte-sub)) "hello" 1 3) -> "ell"
 ```
 
-### `symbol->string`
+### `mem cmp`
 
-`(symbol->string sym) -> string`
+`((prim-ref (lit mem) (lit cmp)) a b n) -> 0 | -1 | 1`
 
-Converts a symbol to a string containing the symbol's name.
+Block comparison over `n` bytes: a true `memcmp`, so NULs do not terminate it.
+This is what string equality bottoms out in; there is no `string=?` primitive.
 
 ```x-repl
-(symbol->string 'hello) -> "hello"
+((prim-ref (lit mem) (lit cmp)) "abc" "abc" 3) -> 0
+((prim-ref (lit mem) (lit cmp)) "abc" "xyz" 3) -> -1
 ```
 
-### `number->string`
+### `str ->sym` / `sym ->str`
 
-`(number->string n) -> string`
+`((prim-ref (lit str) (lit ->sym)) str) -> symbol`
+`((prim-ref (lit sym) (lit ->str)) sym) -> string`
 
-Converts integer `n` to its decimal string representation.
+Interning, both ways. Symbols intern per base, so the same spelling on either
+side of a `base make` boundary gives two different objects.
 
 ```x-repl
-(number->string 42) -> "42"
-(number->string -1) -> "-1"
+((prim-ref (lit str) (lit ->sym)) "hello") -> 'hello
+((prim-ref (lit sym) (lit ->str)) (lit hello)) -> "hello"
 ```
 
-### `string->number`
+### Numbers and strings: not here
 
-`(string->number str) -> integer`
-
-Parses a string as an integer and returns the numeric value. Supports base detection via prefix (e.g. `0x` for hex).
-
-```x-repl
-(string->number "42") -> 42
-(string->number "0xff") -> 255
-```
+There is no `number->string` or `string->number` primitive, and no `convert`
+coordinate in the ISA — number formatting and parsing are library code
+(`x/type/convert`, `Str8`, the numeric tower). This section documented both for
+a long time; nothing implemented them.
 
 ---
 
@@ -861,12 +886,18 @@ Returns the name string of `obj`'s runtime type, or of a type handle directly. R
 
 ### System
 
-### `gc`
+### `heap collect`
 
-`(gc) -> ()`
+`((prim-ref (lit heap) (lit collect))) -> ()`
 
-Triggers garbage collection by marking all objects reachable from the base environment. Returns `()`.
+Triggers garbage collection by marking all objects reachable from the base
+environment. Returns `()`.
+
+There is no bare `gc`: collection is a coordinate in the `heap` namespace,
+which is de-registered, so `prim-ref` is the door. The sibling coordinates —
+`heap count`, `heap mark`, `heap pin!`, `heap mark-hook!`, `heap free-hook!` —
+reach the collector the same way.
 
 ```x-repl
-(gc) -> ()
+((prim-ref (lit heap) (lit collect))) -> ()
 ```
