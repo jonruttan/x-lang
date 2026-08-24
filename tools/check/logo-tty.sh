@@ -41,7 +41,11 @@ elif command -v gtimeout >/dev/null 2>&1; then
 fi
 TIMEOUT_CMD=""
 if [ -n "$_TIMEOUT_BIN" ]; then
-	TIMEOUT_CMD="$_TIMEOUT_BIN ${TIMEOUT_LOGO_TTY_SECS:-30}"
+		# The per-test wall guard, above the expect timeout inside lib.exp so a
+	# stuck wait reports itself rather than being killed from outside with no
+	# diagnosis.  Same reasoning as that timeout: a ceiling for hangs, sized for
+	# a loaded runner rather than an idle laptop.
+	TIMEOUT_CMD="$_TIMEOUT_BIN ${TIMEOUT_LOGO_TTY_SECS:-150}"
 fi
 
 ANSI_GREEN='\033[1;32m'

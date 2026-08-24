@@ -10,7 +10,17 @@
 # Every test exits 0 on pass, 1 on fail (the driver maps known-fail).
 
 set stty_init "rows 40 columns 120"
-set timeout 15
+# A CEILING FOR HANGS, NOT A STOPWATCH.  Every wait here is for a live
+# interpreter to answer through a pty, and booting the logo entry from source
+# costs ~4 seconds on an idle developer machine.  15 was therefore under 4x
+# headroom, which is fine until the machine is a shared CI runner -- twice on
+# macos-14 a cancel test failed for want of time (t05 once, t02 once, never the
+# same one twice, never locally, never on Linux).
+#
+# Raising it costs nothing when the tests pass and delays only the report of a
+# genuine hang.  X_TTY_TIMEOUT overrides it, which is also how the knob is
+# tested: set it to 1 and every wait fails.
+set timeout [expr {[info exists env(X_TTY_TIMEOUT)] ? $env(X_TTY_TIMEOUT) : 60}]
 
 proc spawn_logo {} {
     global spawn_id spawn_pid env
