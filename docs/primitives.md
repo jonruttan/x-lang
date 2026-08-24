@@ -1,26 +1,49 @@
-# x-lang C Primitives
+# x-lang Primitives and Core Forms
 
 *Part of the C implementation of x-lang: computational expressions over a minimal, type-agnostic core.*
 
-## Primitives
+This file documents the vocabulary the language answers to once it has booted,
+in three parts, because it is three different things and a single list said
+otherwise. What separates them is not style — it is **where the code lives**,
+which decides how a form behaves when it goes wrong, what shadows it, and
+whether it exists at all in a bare base.
 
-All primitives receive unevaluated arguments (fexpr-style) and evaluate what they need internally. Boolean true is `#t`; boolean false is `#f`. Nil is `()` (the empty list).
+1. **[The C instruction set](#the-c-instruction-set)** — implemented in C, bound
+   under a bare name.
+2. **[Coordinates](#coordinates)** — implemented in C, reachable only through
+   `prim-ref` or a class.
+3. **[What boots on top](#what-boots-on-top)** — operatives and procedures
+   written in x-lang, which most of this file used to call primitives.
 
-**What "primitive" means here, and what it does not.** This file documents the
-forms the language answers to once it has booted. Not all of them are C: `if`,
-`let`, `and`, `or`, `display` and `quasi` are operatives written in x-lang, and
-`not`, `list` and `str?` are procedures. The C surface itself has one source of
-truth — `tools/contract/isa.x` in the engine — and `make check-isa` diffs it
-against the C source, so it cannot drift silently.
+**The C surface has one source of truth**, and it is not this document:
+`tools/contract/isa.x` in the engine, which `make check-isa` diffs against the
+C source on every engine build. `tools/check/primitives-doc.sh` holds this
+file against the same manifest, so a form documented in the wrong part fails
+the gate rather than misleading a reader for a year.
 
-A bare spelling is also not always the C entry point. `+` is a library generic
-over the numeric tower; the primitive it bottoms out in is the coordinate
-`(int +)`, reached as `((prim-ref (lit int) (lit +)) 1 2)`. Several namespaces
-(`str`, `mem`, `heap`, `io`, `sym`) are de-registered, so their coordinates have
-no bare name at all and `prim-ref` is the only door — the Strings section below
-is written that way throughout.
+Boolean true is `#t`; boolean false is `#f`. Nil is `()` (the empty list), and
+falsy is exactly `{(), #f}`.
 
 ---
+
+## The C instruction set
+
+Every entry below is a C function the engine binds under a bare name — the
+`%isa-bare` and `%isa-keep` blocks of `isa.x`. **Primitives receive unevaluated
+arguments** (fexpr-style) and evaluate what they need internally, which is why
+`fn` can be built on top of them; `wrap` supplies applicative semantics.
+
+Each ISA entry carries a tag justifying why it must be C at all — `spine` (the
+evaluator itself), `alloc`, `gc`, `raw-mem`, `raw-op`. An entry that cannot
+honestly take one is a migration candidate, not a fixture.
+
+**A bare name here is not always what a caller reaches.** The `%isa-keep`
+entries — the arithmetic, bitwise and comparison operators — bind bare *even
+when their catalog namespace is de-registered*, and the library then shadows
+twelve of the sixteen with tower-aware generics. So `+` and `<` reach x-lang
+code that dispatches over the numeric tower, while `=`, `eq?`, `same?` and
+`call/cc` reach the C primitive directly. The entries below describe the C
+behaviour; where a tower generic shadows one, the tower's rules apply first.
 
 ### Quoting
 
@@ -109,39 +132,6 @@ Returns `#t` if integer `a` is strictly less than integer `b`.
 ```x-repl
 (< 1 2) -> #t
 (< 2 1) -> #f
-```
-
-### `>`
-
-`(> a b) -> #t | #f`
-
-Returns `#t` if integer `a` is strictly greater than integer `b`.
-
-```x-repl
-(> 2 1) -> #t
-(> 1 2) -> #f
-```
-
-### `<=`
-
-`(<= a b) -> #t | #f`
-
-Returns `#t` if integer `a` is less than or equal to integer `b`.
-
-```x-repl
-(<= 1 1) -> #t
-(<= 2 1) -> #f
-```
-
-### `>=`
-
-`(>= a b) -> #t | #f`
-
-Returns `#t` if integer `a` is greater than or equal to integer `b`.
-
-```x-repl
-(>= 1 1) -> #t
-(>= 0 1) -> #f
 ```
 
 ---
@@ -312,29 +302,6 @@ Mutates an existing binding of `name` to the result of evaluating `expr`. Signal
 
 ### Control
 
-### `if`
-
-`(if cond then [else]) -> value`
-
-Evaluates `cond`. If truthy (not `()`), tail-evaluates `then`. If falsy, tail-evaluates `else` when provided, or returns `()`. Uses tail-call optimization for the selected branch.
-
-```x-repl
-(if #t 1 2) -> 1
-(if () 1 2) -> 2
-(if () 1) -> ()
-```
-
-### `do`
-
-`(do form ...) -> value`
-
-Evaluates each `form` in sequence and returns the value of the last one. The final form is tail-evaluated for TCO. With no arguments, returns `()`.
-
-```x-repl
-(do 1 2 3) -> 3
-(do (def x 1) (+ x 1)) -> 2
-```
-
 ### `match`
 
 `(match (test expr) ...) -> value`
@@ -346,17 +313,6 @@ Multi-branch conditional (cond-style). Evaluates each `test` in order; for the f
   ((= 1 2) 10)
   ((= 1 1) 20)
   (#t 30)) -> 20
-```
-
-### `let`
-
-`(let ((name val) ...) body ...) -> value`
-
-Creates local bindings by evaluating each `val` in the current environment, then evaluates `body` forms in the extended environment. The final body form is tail-evaluated. Environment is restored after `let` completes.
-
-```x-repl
-(let ((x 1) (y 2)) (+ x y)) -> 3
-(let ((x 10)) x) -> 10
 ```
 
 ---
@@ -430,6 +386,338 @@ Extracts the underlying combiner from an applicative created by `wrap`.
 
 ```x-repl
 (unwrap (wrap (op (x) e x))) -> <operative>
+```
+
+---
+
+### Errors
+
+### `guard`
+
+`(guard (var handler-body ...) body ...) -> value`
+
+Error recovery form. Evaluates `body` forms in sequence. If an error is signalled during evaluation, binds the error value to `var` and evaluates `handler-body` forms instead. The environment is restored to its state before `body` after an error. Handlers can be nested.
+
+```x
+(guard (e (display e) (newline) 0)
+  (error "oops")) -> 0  ; prints oops
+```
+
+### `error`
+
+`(error message) -> <does not return>`
+
+Signals an error with the evaluated `message`. If a `guard` handler is installed, the error is caught and `message` is bound to the handler variable. If no handler is installed, the error is fatal. `message` may be a string or any object.
+
+```x-repl
+(error "something went wrong") -> <error signalled>
+```
+
+---
+
+## Coordinates
+
+These are C primitives with **no bare name at all**. They are filed in the
+prims catalog under a namespace, and the namespaces `str`, `mem`, `heap`, `io`,
+`sym` and `type` are de-registered — so `prim-ref` is the door:
+
+```x-repl
+((prim-ref (lit str) (lit byte-len)) "hello") -> 5
+```
+
+`Base`, `Type` and `Io` are **classes**, not prims: the spellings below are the
+class's own selectors, and the class reaches the same catalog coordinate on
+your behalf. Both routes are documented here because both are how the surface
+is actually used.
+
+A coordinate reached through a class also gets the class's argument handling.
+That is not cosmetic: a malformed call through the class raises, where the same
+primitive reached raw can walk off unchecked data — the C layer is a CPU and
+checks nothing (see [Errors](#errors)).
+
+### Types
+
+### `Type ?`
+
+`(Type ? obj type-handle) -> #t | #f`
+
+Returns `#t` if the runtime type of `obj` matches `type-handle` (as returned by `(Type make …)`); `#f` otherwise. Returns `#f` for nil or objects without a type.
+
+```x
+(def my-t (Type make "my-type" (list)))
+(Type ? (Type make-instance my-t 42) my-t) -> #t
+```
+
+### `Type make`
+
+`(Type make name handlers) -> type-handle`
+
+Creates a new runtime type with string `name` and an association list of `handlers`. Supported handler keys include `call`, `write`, `analyse`, `read`, `iter`, `from`, `to`, and `ops`, each mapping to a closure. Returns a type handle atom used to create instances and check types.
+
+```x-repl
+(def my-type (Type make "my-type" (list (pair 'call (fn (_ obj . args) args))))) -> <type-handle>
+```
+
+### `Type make-instance`
+
+`(Type make-instance type-handle data) -> instance`
+
+Creates a new instance of the runtime type identified by `type-handle`, storing `data` as its contents. Returns `()` if the type handle is not registered.
+
+```x
+(def my-t (Type make "my-type" (list)))
+(Type make-instance my-t 42) -> <instance>
+```
+
+### `Type of`
+
+`(Type of value) -> type-handle | ()`
+
+Returns the runtime type handle of `value` (`()` for nil). The handle is the interned name atom; conversions and dispatch key on it.
+
+---
+
+### I/O
+
+### `Io read`
+
+`(Io read) -> obj`
+
+Reads and parses one s-expression from stdin. Returns the parsed object.
+
+```x-repl
+(Io read) -> <parsed s-expression from stdin>
+```
+
+### `Io read-char`
+
+`(Io read-char) -> char | ()`
+
+Reads a single character from stdin. Returns a character object, or `()` on end-of-input.
+
+```x-repl
+(Io read-char) -> <char>
+```
+
+---
+
+### Strings
+
+### `str byte-len`
+
+`((prim-ref (lit str) (lit byte-len)) str) -> integer`
+
+The length of `str` in bytes.
+
+```x-repl
+((prim-ref (lit str) (lit byte-len)) "hello") -> 5
+((prim-ref (lit str) (lit byte-len)) "") -> 0
+```
+
+### `str byte-ref`
+
+`((prim-ref (lit str) (lit byte-ref)) str index) -> char`
+
+The character at the zero-based byte `index`.
+
+```x-repl
+((prim-ref (lit str) (lit byte-ref)) "hello" 0) -> #\h
+((prim-ref (lit str) (lit byte-ref)) "hello" 4) -> #\o
+```
+
+### `str append`
+
+`((prim-ref (lit str) (lit append)) str1 str2) -> string`
+
+Concatenates two strings, returning a new one.
+
+```x-repl
+((prim-ref (lit str) (lit append)) "hello" " world") -> "hello world"
+```
+
+### `str byte-sub`
+
+`((prim-ref (lit str) (lit byte-sub)) str start len) -> string`
+
+A new string of `len` bytes starting at zero-based `start`.
+
+**The third argument is a LENGTH, not an end index.** Both readings agree at
+`start` 0, which is why a library caller passed `(+ off n)` here for months and
+only fields at a non-zero offset came back wrong (found by the conformance
+suite, which uses a non-zero start on purpose).
+
+```x-repl
+((prim-ref (lit str) (lit byte-sub)) "hello" 1 3) -> "ell"
+```
+
+### `mem cmp`
+
+`((prim-ref (lit mem) (lit cmp)) a b n) -> 0 | -1 | 1`
+
+Block comparison over `n` bytes: a true `memcmp`, so NULs do not terminate it.
+This is what string equality bottoms out in; there is no `string=?` primitive.
+
+```x-repl
+((prim-ref (lit mem) (lit cmp)) "abc" "abc" 3) -> 0
+((prim-ref (lit mem) (lit cmp)) "abc" "xyz" 3) -> -1
+```
+
+### `str ->sym` / `sym ->str`
+
+`((prim-ref (lit str) (lit ->sym)) str) -> symbol`
+`((prim-ref (lit sym) (lit ->str)) sym) -> string`
+
+Interning, both ways. Symbols intern per base, so the same spelling on either
+side of a `base make` boundary gives two different objects.
+
+```x-repl
+((prim-ref (lit str) (lit ->sym)) "hello") -> 'hello
+((prim-ref (lit sym) (lit ->str)) (lit hello)) -> "hello"
+```
+
+---
+
+### Meta
+
+### `Base make`
+
+`(Base make) -> base`
+
+Creates a fresh, sandboxed interpreter base environment with all built-in types and primitives registered. The new base has its own environment, type registry, and read buffer.
+
+```x-repl
+(def b (Base make)) -> <base>
+```
+
+### `Base eval`
+
+`(Base eval base expr) -> value`
+
+Evaluates expression `expr` in the target `base` environment. List nil terminators are rewritten to match the target base. Errors in the target base propagate to the calling base if a `guard` handler is installed.
+
+```x
+(def b (Base make))
+(Base eval b '(+ 1 2)) -> 3
+```
+
+### `Base bind`
+
+`(Base bind base name value) -> value`
+
+Binds `name` to `value` in the target `base` environment. List values are rewritten to use the target base's nil. All arguments are evaluated in the calling environment before binding in the target.
+
+```x
+(def b (Base make))
+(Base bind b 'x 42) -> 42
+```
+
+---
+
+### System
+
+### `heap collect`
+
+`((prim-ref (lit heap) (lit collect))) -> ()`
+
+Triggers garbage collection by marking all objects reachable from the base
+environment. Returns `()`.
+
+There is no bare `gc`: collection is a coordinate in the `heap` namespace,
+which is de-registered, so `prim-ref` is the door. The sibling coordinates —
+`heap count`, `heap mark`, `heap pin!`, `heap mark-hook!`, `heap free-hook!` —
+reach the collector the same way.
+
+```x-repl
+((prim-ref (lit heap) (lit collect))) -> ()
+```
+
+---
+
+## What boots on top
+
+Everything below is **written in x-lang**, in `lib/x/boot/` and `lib/x/core/`,
+and appears in no block of `isa.x`. It is documented here because it is core
+vocabulary — `if` and `let` are not optional extras — but it is library code,
+with the consequences that follow: it can be shadowed, it is absent from a bare
+base that has not loaded it, and its errors come from x-lang rather than C.
+
+`if`, `do`, `let`, `and`, `or`, `quasi`, `write` and `display` are
+**operatives** (they receive their arguments unevaluated, like a prim); the
+predicates, `list` and `newline` are **procedures**. The rest of the library —
+`List`, `Str`, `Num`, `Vector` and the classes generally — is documented in
+[standard-library.md](standard-library.md).
+
+### Comparison
+
+### `>`
+
+`(> a b) -> #t | #f`
+
+Returns `#t` if integer `a` is strictly greater than integer `b`.
+
+```x-repl
+(> 2 1) -> #t
+(> 1 2) -> #f
+```
+
+### `<=`
+
+`(<= a b) -> #t | #f`
+
+Returns `#t` if integer `a` is less than or equal to integer `b`.
+
+```x-repl
+(<= 1 1) -> #t
+(<= 2 1) -> #f
+```
+
+### `>=`
+
+`(>= a b) -> #t | #f`
+
+Returns `#t` if integer `a` is greater than or equal to integer `b`.
+
+```x-repl
+(>= 1 1) -> #t
+(>= 0 1) -> #f
+```
+
+---
+
+### Control
+
+### `if`
+
+`(if cond then [else]) -> value`
+
+Evaluates `cond`. If truthy (not `()`), tail-evaluates `then`. If falsy, tail-evaluates `else` when provided, or returns `()`. Uses tail-call optimization for the selected branch.
+
+```x-repl
+(if #t 1 2) -> 1
+(if () 1 2) -> 2
+(if () 1) -> ()
+```
+
+### `do`
+
+`(do form ...) -> value`
+
+Evaluates each `form` in sequence and returns the value of the last one. The final form is tail-evaluated for TCO. With no arguments, returns `()`.
+
+```x-repl
+(do 1 2 3) -> 3
+(do (def x 1) (+ x 1)) -> 2
+```
+
+### `let`
+
+`(let ((name val) ...) body ...) -> value`
+
+Creates local bindings by evaluating each `val` in the current environment, then evaluates `body` forms in the extended environment. The final body form is tail-evaluated. Environment is restored after `let` completes.
+
+```x-repl
+(let ((x 1) (y 2)) (+ x y)) -> 3
+(let ((x 10)) x) -> 10
 ```
 
 ---
@@ -537,17 +825,6 @@ Returns `#t` if `x` evaluates to a character object; `#f` otherwise.
 (char? 42) -> #f
 ```
 
-### `Type ?`
-
-`(Type ? obj type-handle) -> #t | #f`
-
-Returns `#t` if the runtime type of `obj` matches `type-handle` (as returned by `(Type make …)`); `#f` otherwise. Returns `#f` for nil or objects without a type.
-
-```x
-(def my-t (Type make "my-type" (list)))
-(Type ? (Type make-instance my-t 42) my-t) -> #t
-```
-
 ---
 
 ### Lists
@@ -637,120 +914,6 @@ Outputs a newline character to stdout. Takes no arguments. Returns `()`.
 (newline) -> ()  ; prints \n
 ```
 
-### `Io read`
-
-`(Io read) -> obj`
-
-Reads and parses one s-expression from stdin. Returns the parsed object.
-
-```x-repl
-(Io read) -> <parsed s-expression from stdin>
-```
-
-### `Io read-char`
-
-`(Io read-char) -> char | ()`
-
-Reads a single character from stdin. Returns a character object, or `()` on end-of-input.
-
-```x-repl
-(Io read-char) -> <char>
-```
-
----
-
-### Strings
-
-THESE ARE COORDINATES, NOT BARE NAMES. The `str`, `sym` and `mem` namespaces are
-de-registered once the library is up: the bare spellings are dropped and the
-catalog is the door, so a call reads `((prim-ref (lit str) (lit byte-len)) s)`.
-That is deliberate — the names belong to the library, which puts `Str8` and
-friends in front of these — and it is why the examples below look the way they
-do rather than like the `string-length` family they replaced.
-
-BYTES, NOT CHARACTERS. Every operation here counts bytes. UTF-8 is a library
-concern (`x/codec/utf8`, `Str8` / `StrUtf8`); the engine stores bytes and a NUL
-terminator, and bytes past the NUL are unobservable.
-
-### `str byte-len`
-
-`((prim-ref (lit str) (lit byte-len)) str) -> integer`
-
-The length of `str` in bytes.
-
-```x-repl
-((prim-ref (lit str) (lit byte-len)) "hello") -> 5
-((prim-ref (lit str) (lit byte-len)) "") -> 0
-```
-
-### `str byte-ref`
-
-`((prim-ref (lit str) (lit byte-ref)) str index) -> char`
-
-The character at the zero-based byte `index`.
-
-```x-repl
-((prim-ref (lit str) (lit byte-ref)) "hello" 0) -> #\h
-((prim-ref (lit str) (lit byte-ref)) "hello" 4) -> #\o
-```
-
-### `str append`
-
-`((prim-ref (lit str) (lit append)) str1 str2) -> string`
-
-Concatenates two strings, returning a new one.
-
-```x-repl
-((prim-ref (lit str) (lit append)) "hello" " world") -> "hello world"
-```
-
-### `str byte-sub`
-
-`((prim-ref (lit str) (lit byte-sub)) str start len) -> string`
-
-A new string of `len` bytes starting at zero-based `start`.
-
-**The third argument is a LENGTH, not an end index.** Both readings agree at
-`start` 0, which is why a library caller passed `(+ off n)` here for months and
-only fields at a non-zero offset came back wrong (found by the conformance
-suite, which uses a non-zero start on purpose).
-
-```x-repl
-((prim-ref (lit str) (lit byte-sub)) "hello" 1 3) -> "ell"
-```
-
-### `mem cmp`
-
-`((prim-ref (lit mem) (lit cmp)) a b n) -> 0 | -1 | 1`
-
-Block comparison over `n` bytes: a true `memcmp`, so NULs do not terminate it.
-This is what string equality bottoms out in; there is no `string=?` primitive.
-
-```x-repl
-((prim-ref (lit mem) (lit cmp)) "abc" "abc" 3) -> 0
-((prim-ref (lit mem) (lit cmp)) "abc" "xyz" 3) -> -1
-```
-
-### `str ->sym` / `sym ->str`
-
-`((prim-ref (lit str) (lit ->sym)) str) -> symbol`
-`((prim-ref (lit sym) (lit ->str)) sym) -> string`
-
-Interning, both ways. Symbols intern per base, so the same spelling on either
-side of a `base make` boundary gives two different objects.
-
-```x-repl
-((prim-ref (lit str) (lit ->sym)) "hello") -> 'hello
-((prim-ref (lit sym) (lit ->str)) (lit hello)) -> "hello"
-```
-
-### Numbers and strings: not here
-
-There is no `number->string` or `string->number` primitive, and no `convert`
-coordinate in the ISA — number formatting and parsing are library code
-(`x/type/convert`, `Str8`, the numeric tower). This section documented both for
-a long time; nothing implemented them.
-
 ---
 
 ### Quasiquote
@@ -770,106 +933,7 @@ Quasiquote expansion. Returns `template` with `unquote` and `unquote-splicing` f
 
 ---
 
-### Errors
-
-### `guard`
-
-`(guard (var handler-body ...) body ...) -> value`
-
-Error recovery form. Evaluates `body` forms in sequence. If an error is signalled during evaluation, binds the error value to `var` and evaluates `handler-body` forms instead. The environment is restored to its state before `body` after an error. Handlers can be nested.
-
-```x
-(guard (e (display e) (newline) 0)
-  (error "oops")) -> 0  ; prints oops
-```
-
-### `error`
-
-`(error message) -> <does not return>`
-
-Signals an error with the evaluated `message`. If a `guard` handler is installed, the error is caught and `message` is bound to the handler variable. If no handler is installed, the error is fatal. `message` may be a string or any object.
-
-```x-repl
-(error "something went wrong") -> <error signalled>
-```
-
----
-
-### Meta
-
-### `Base make`
-
-`(Base make) -> base`
-
-Creates a fresh, sandboxed interpreter base environment with all built-in types and primitives registered. The new base has its own environment, type registry, and read buffer.
-
-```x-repl
-(def b (Base make)) -> <base>
-```
-
-### `Base eval`
-
-`(Base eval base expr) -> value`
-
-Evaluates expression `expr` in the target `base` environment. List nil terminators are rewritten to match the target base. Errors in the target base propagate to the calling base if a `guard` handler is installed.
-
-```x
-(def b (Base make))
-(Base eval b '(+ 1 2)) -> 3
-```
-
-### `Base bind`
-
-`(Base bind base name value) -> value`
-
-Binds `name` to `value` in the target `base` environment. List values are rewritten to use the target base's nil. All arguments are evaluated in the calling environment before binding in the target.
-
-```x
-(def b (Base make))
-(Base bind b 'x 42) -> 42
-```
-
----
-
 ### Types
-
-These are C primitives filed in the catalog under namespace `type`; the bare
-names are **de-registered** (R5). The surface is the `Type` class (methods
-`make`, `make-instance`, `?`, `of`, `name`); load-time/hot code fetches via
-`(prim-ref 'type 'make)` etc.
-
-### `Type make`
-
-`(Type make name handlers) -> type-handle`
-
-Creates a new runtime type with string `name` and an association list of `handlers`. Supported handler keys include `call`, `write`, `analyse`, `read`, `iter`, `from`, `to`, and `ops`, each mapping to a closure. Returns a type handle atom used to create instances and check types.
-
-```x-repl
-(def my-type (Type make "my-type" (list (pair 'call (fn (_ obj . args) args))))) -> <type-handle>
-```
-
-### `Type make-instance`
-
-`(Type make-instance type-handle data) -> instance`
-
-Creates a new instance of the runtime type identified by `type-handle`, storing `data` as its contents. Returns `()` if the type handle is not registered.
-
-```x
-(def my-t (Type make "my-type" (list)))
-(Type make-instance my-t 42) -> <instance>
-```
-
-### `Type ?`
-
-`(Type ? obj type-handle) -> #t | #f`
-
-Returns `#t` if the runtime type of `obj` matches `type-handle`; `#f` otherwise. Returns `#f` for nil or objects without a type. Documented above in Predicates.
-
-### `Type of`
-
-`(Type of value) -> type-handle | ()`
-
-Returns the runtime type handle of `value` (`()` for nil). The handle is the interned name atom; conversions and dispatch key on it.
 
 ### `Type name`
 
@@ -882,22 +946,3 @@ Returns the name string of `obj`'s runtime type, or of a type handle directly. R
 (Type name (Type make-instance my-t 42)) -> "my-type"
 ```
 
----
-
-### System
-
-### `heap collect`
-
-`((prim-ref (lit heap) (lit collect))) -> ()`
-
-Triggers garbage collection by marking all objects reachable from the base
-environment. Returns `()`.
-
-There is no bare `gc`: collection is a coordinate in the `heap` namespace,
-which is de-registered, so `prim-ref` is the door. The sibling coordinates —
-`heap count`, `heap mark`, `heap pin!`, `heap mark-hook!`, `heap free-hook!` —
-reach the collector the same way.
-
-```x-repl
-((prim-ref (lit heap) (lit collect))) -> ()
-```

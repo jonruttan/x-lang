@@ -28,9 +28,10 @@
 # Environment:
 #   DOC          source document (default docs/spec.md)
 #   SECTION      heading prefix that opens a spec group (default '## ').
-#                primitives.md needs '### ': its whole body sits under a single
-#                `## Primitives`, and one output file per doc re-creates exactly
-#                the failure mode the per-section split exists to prevent.
+#                primitives.md needs '### ': its `##` headings are the three
+#                PARTS it is filed into (#486), so grouping at level 2 would
+#                emit three enormous files and re-create exactly the batching
+#                failure the per-section split exists to prevent.
 #   DEFAULT_LIB  `# @lib` dialect for every generated file (default: none,
 #                i.e. the runner's lib/x-core.x).
 #
