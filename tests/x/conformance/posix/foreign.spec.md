@@ -186,3 +186,27 @@ run would inherit it". That was simply wrong about the harness.
 ```
 ---
     *** ERROR: ok
+
+### a pointer into the engine's heap crosses the door as a real address
+
+covers: ptr/call str/->ptr ptr/ref str/make
+
+libc's `time` both RETURNS the time and WRITES it through the pointer, so the
+two agree only when the pointer genuinely crossed. An engine whose heap is its
+own array and hands libc a raw offset gets no write at all — the region keeps
+the fill `str make` left, `waitpid`'s status reads as "killed by signal 32",
+and every `Proc run!` answers 160 whatever the child did.
+
+```scheme
+(def %dlopen (%coord (lit ffi) (lit dlopen)))
+(def %dlsym (%coord (lit ffi) (lit dlsym)))
+(def %pcall (%coord (lit ptr) (lit call)))
+(def %s2p (%coord (lit str) (lit ->ptr)))
+(def %pref (%coord (lit ptr) (lit ref)))
+(def %smake (%coord (lit str) (lit make)))
+(def buf (%smake 8))
+(def ret (%pcall (%dlsym (%dlopen () 1) "time") (%s2p buf)))
+(%ok (= ret (%pref (%s2p buf) 0 8)))
+```
+---
+    *** ERROR: ok

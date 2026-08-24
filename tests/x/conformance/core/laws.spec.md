@@ -98,3 +98,70 @@ covers: str/byte-len bytes/->str
 ```
 ---
     *** ERROR: ok
+
+### the tower operators offer their operands' type-ops first
+
+covers: type/make type/make-instance int/+
+
+Generic-operator dispatch (`x_type_op_try`). Every value carries a type tag, so
+"is it typed" is not the test — CARRYING A HANDLER is: a type that registers `+`
+receives `(handler a b)` and owns the coercion. An engine without the dispatch
+adds the operand words and answers a machine integer, which is how
+`(+ 2.0 2.0)` once answered a float's bit pattern.
+
+```scheme
+(def %tmake (%coord (lit type) (lit make)))
+(def %minst (%coord (lit type) (lit make-instance)))
+(def h (%tmake "CONF-OPS"
+  (pair (pair (lit ops) (pair (pair (lit +) (fn (_ a b) 42)) ())) ())))
+(def i (%minst h 7))
+(%ok (= (+ i 1) 42))
+```
+---
+    *** ERROR: ok
+
+### a set interrupt flag raises STOP while a handler is active
+
+covers: obj/set!
+
+Publishing the OS interrupt into `%sigint-flag` is half the contract; the
+evaluator must READ it back. The reference checks it at eval_start: flag set and
+an error handler active -> raise STOP. No signal is involved here — the flag is
+set by hand, exactly as `core/signal.spec.md` does.
+
+The flag's value word is found by PROBING, the way `lib/x/boot/data.x` finds
+`%data-off-0`: make an integer with a known value and scan word offsets for it.
+That keeps the check layout-agnostic, which decision L1 requires — the offset is
+the ENGINE's, not the contract's.
+
+```scheme
+(def %o2p (%coord (lit obj) (lit ->ptr)))
+(def %prw (%coord (lit ptr) (lit ref-word)))
+(def %psw (%coord (lit ptr) (lit set-word!)))
+(def probe 12345)
+(def %off (fn (self i) (match ((= (%prw (%o2p probe) i) 12345) i) (#t (self (+ i 1))))))
+(def off (%off 0))
+(def r (guard (e 99) (%psw (%o2p %sigint-flag) off 1) (+ 1 2)))
+(%ok (= r 99))
+```
+---
+    *** ERROR: ok
+
+### and the flag is CLEARED by the raise
+
+covers: obj/->ptr ptr/ref-word ptr/set-word!
+
+Cleared FIRST, so a handler that returns does not re-trip on its next form.
+
+```scheme
+(def %o2p (%coord (lit obj) (lit ->ptr)))
+(def %prw (%coord (lit ptr) (lit ref-word)))
+(def %psw (%coord (lit ptr) (lit set-word!)))
+(def probe 12345)
+(def %off (fn (self i) (match ((= (%prw (%o2p probe) i) 12345) i) (#t (self (+ i 1))))))
+(def off (%off 0))
+(guard (e ()) (%psw (%o2p %sigint-flag) off 1) (+ 1 2))
+(%ok (= (%prw (%o2p %sigint-flag) off) 0))
+```
+---
+    *** ERROR: ok
