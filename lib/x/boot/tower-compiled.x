@@ -55,26 +55,41 @@
 (set! %compile-fvars
   (list (pair '%quasi-accept %quasi-accept)))
 (def %c-quasi-analyse
-  (compile
-    (lit (fn (_ buffer score chr)
-      (if (= chr 96) %quasi-accept ())))
-    %compile-fvars))
+  (match
+    (%compile-hosted?
+      (compile
+      (lit (fn (_ buffer score chr)
+        (if (= chr 96) %quasi-accept ())))
+      %compile-fvars))
+    ; No C headers in this engine: keep the interpreted twin, so the
+    ; identity swap below replaces this handler with itself.
+    (#t %quasi-analyse)))
 
 (set! %compile-fvars
   (list (pair '%unquote-after-comma %unquote-after-comma)))
 (def %c-unquote-analyse
-  (compile
-    (lit (fn (_ buffer score chr)
-      (if (= chr 44) %unquote-after-comma ())))
-    %compile-fvars))
+  (match
+    (%compile-hosted?
+      (compile
+      (lit (fn (_ buffer score chr)
+        (if (= chr 44) %unquote-after-comma ())))
+      %compile-fvars))
+    ; No C headers in this engine: keep the interpreted twin, so the
+    ; identity swap below replaces this handler with itself.
+    (#t %unquote-analyse)))
 
 (set! %compile-fvars
   (list (pair '%lit-accept %lit-accept)))
 (def %c-lit-analyse
-  (compile
-    (lit (fn (_ buffer score chr)
-      (if (= chr 39) %lit-accept ())))
-    %compile-fvars))
+  (match
+    (%compile-hosted?
+      (compile
+      (lit (fn (_ buffer score chr)
+        (if (= chr 39) %lit-accept ())))
+      %compile-fvars))
+    ; No C headers in this engine: keep the interpreted twin, so the
+    ; identity swap below replaces this handler with itself.
+    (#t %lit-analyse)))
 
 ; Only the entry test compiles: it is the piece that runs on every character.
 ; The states behind it (%interp-after-dollar's machine) run inside a literal
@@ -83,10 +98,15 @@
 (set! %compile-fvars
   (list (pair '%interp-after-dollar %interp-after-dollar)))
 (def %c-interp-analyse
-  (compile
-    (lit (fn (_ buffer score chr)
-      (if (= chr 36) %interp-after-dollar ())))
-    %compile-fvars))
+  (match
+    (%compile-hosted?
+      (compile
+      (lit (fn (_ buffer score chr)
+        (if (= chr 36) %interp-after-dollar ())))
+      %compile-fvars))
+    ; No C headers in this engine: keep the interpreted twin, so the
+    ; identity swap below replaces this handler with itself.
+    (#t %interp-analyse)))
 (set! %compile-fvars ())
 
 ; Swap the compiled analysers in for the interpreted handlers BY IDENTITY,
@@ -129,20 +149,41 @@
         (pair '%big-digits %big-digits)
         (pair '%int-capped-digits %int-capped-digits)
         (pair '%int-capped-sign %int-capped-sign)))
+; These two PUSH a new analyser rather than swapping one, so there is no
+; interpreted twin already installed to fall back to -- the twin is written
+; here.  The bodies must agree with the compiled forms below; they can, because
+; unlike the quote family these use byte codes on both sides and so are
+; textually identical.
+(def %big-analyse-interp
+  (fn (_ buffer score chr)
+    (if (< chr 48)
+      (if (or (= chr 45) (= chr 43)) %big-sign-state ())
+      (if (< chr 58) %big-digits ()))))
+(def %int-analyse-interp
+  (fn (_ buffer score chr)
+    (if (< chr 48)
+      (if (or (= chr 45) (= chr 43)) %int-capped-sign ())
+      (if (< chr 58) %int-capped-digits ()))))
 (%type-push-analyse (%type-by-atom (%type-of (Num expt 2 64)))
-  (compile
-    (lit (fn (_ buffer score chr)
-      (if (< chr 48)
-        (if (or (= chr 45) (= chr 43)) %big-sign-state ())
-        (if (< chr 58) %big-digits ()))))
-    %compile-fvars))
+  (match
+    (%compile-hosted?
+      (compile
+        (lit (fn (_ buffer score chr)
+          (if (< chr 48)
+            (if (or (= chr 45) (= chr 43)) %big-sign-state ())
+            (if (< chr 58) %big-digits ()))))
+        %compile-fvars))
+    (#t %big-analyse-interp)))
 (%type-push-analyse (%type-by-atom (%type-of 0))
-  (compile
-    (lit (fn (_ buffer score chr)
-      (if (< chr 48)
-        (if (or (= chr 45) (= chr 43)) %int-capped-sign ())
-        (if (< chr 58) %int-capped-digits ()))))
-    %compile-fvars))
+  (match
+    (%compile-hosted?
+      (compile
+        (lit (fn (_ buffer score chr)
+          (if (< chr 48)
+            (if (or (= chr 45) (= chr 43)) %int-capped-sign ())
+            (if (< chr 58) %int-capped-digits ()))))
+        %compile-fvars))
+    (#t %int-analyse-interp)))
 (set! %compile-fvars ())
 
 ; 2. Regex (C analyser, no compile needed)
@@ -153,15 +194,25 @@
 (set! %compile-fvars
   (list (pair '%float-int-digits %float-int-digits)
         (pair '%float-neg-int %float-neg-int)))
-(%type-push-analyse (%type-by-atom (%type-of 1.0))
-  (compile
-    ; Sign branch mirrors the interpreted analyser -- without it, -7.5
-    ; only parses via the stacked interpreted fallback (#45 R4).
-    (lit (fn (_ buffer score chr)
+; The interpreted twin, for an engine with no C headers.  Must agree with
+; the compiled form below.
+(def %float-analyse-interp
+  (fn (_ buffer score chr)
       (if (< chr 48)
-        (if (= chr 45) %float-neg-int ())
-        (if (< chr 58) %float-int-digits ()))))
-    %compile-fvars))
+      (if (= chr 45) %float-neg-int ())
+      (if (< chr 58) %float-int-digits ()))))
+(%type-push-analyse (%type-by-atom (%type-of 1.0))
+  (match
+    (%compile-hosted?
+      (compile
+        ; Sign branch mirrors the interpreted analyser -- without it, -7.5
+        ; only parses via the stacked interpreted fallback (#45 R4).
+        (lit (fn (_ buffer score chr)
+      (if (< chr 48)
+            (if (= chr 45) %float-neg-int ())
+            (if (< chr 58) %float-int-digits ()))))
+        %compile-fvars))
+    (#t %float-analyse-interp)))
 (set! %compile-fvars ())
 
 ; 4. Rational
@@ -174,13 +225,23 @@
   ; jumped into freed memory (#49).
   (list (pair '%rat-numer %rat-numer)
         (pair '%rat-sign %rat-sign)))
-(%type-push-analyse (%type-by-atom (%type-of 1/2))
-  (compile
-    (lit (fn (_ buffer score chr)
+; The interpreted twin, for an engine with no C headers.  Must agree with
+; the compiled form below.
+(def %rat-analyse-interp
+  (fn (_ buffer score chr)
       (if (< chr 48)
-        (if (= chr 45) %rat-sign (if (= chr 43) %rat-sign ()))
-        (if (< chr 58) %rat-numer ()))))
-    %compile-fvars))
+      (if (= chr 45) %rat-sign (if (= chr 43) %rat-sign ()))
+      (if (< chr 58) %rat-numer ()))))
+(%type-push-analyse (%type-by-atom (%type-of 1/2))
+  (match
+    (%compile-hosted?
+      (compile
+        (lit (fn (_ buffer score chr)
+      (if (< chr 48)
+            (if (= chr 45) %rat-sign (if (= chr 43) %rat-sign ()))
+            (if (< chr 58) %rat-numer ()))))
+        %compile-fvars))
+    (#t %rat-analyse-interp)))
 (set! %compile-fvars ())
 
 ; 5. Complex
@@ -188,12 +249,22 @@
 (set! %compile-fvars
   (list (pair '%cx-real-int %cx-real-int)
         (pair '%cx-neg %cx-neg)))
-(%type-push-analyse (%type-by-atom (%type-of 1+1i))
-  (compile
-    ; Sign branch: -1+2i analyses as complex (#45 R4).
-    (lit (fn (_ buffer score chr)
+; The interpreted twin, for an engine with no C headers.  Must agree with
+; the compiled form below.
+(def %cx-analyse-interp
+  (fn (_ buffer score chr)
       (if (< chr 48)
-        (if (= chr 45) %cx-neg ())
-        (if (< chr 58) %cx-real-int ()))))
-    %compile-fvars))
+      (if (= chr 45) %cx-neg ())
+      (if (< chr 58) %cx-real-int ()))))
+(%type-push-analyse (%type-by-atom (%type-of 1+1i))
+  (match
+    (%compile-hosted?
+      (compile
+        ; Sign branch: -1+2i analyses as complex (#45 R4).
+        (lit (fn (_ buffer score chr)
+      (if (< chr 48)
+            (if (= chr 45) %cx-neg ())
+            (if (< chr 58) %cx-real-int ()))))
+        %compile-fvars))
+    (#t %cx-analyse-interp)))
 (set! %compile-fvars ())
