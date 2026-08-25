@@ -555,8 +555,9 @@
                   (Pin %pin-bad (Str8 append "download failed: " url))))))))
     (method %pin-download! (self url target)
       (File rename (Pin %pin-download-tmp! url target) target))
-    ; pin.release.xon -> ((release . TAG) (isa . DIGEST) (payload . DIGEST)
-    ; (files . ALIST)), closed vocabulary: release | isa | payload |
+    ; pin.release.xon -> ((release . TAG) (isa . DIGEST) (layout . DIGEST)
+    ; (engine-release . TAG) (payload . DIGEST) (files . ALIST)), closed
+    ; vocabulary: release | isa | layout | engine-release | payload |
     ; (file NAME DIGEST).
     ;
     ; payload is OPTIONAL, and stays so: it arrived with #435 and every
@@ -566,24 +567,25 @@
     ; the wild to fix a fingerprint they never had.
     (method %pin-release-parse (self forms)
       (def %go
-            (fn (self forms tag isa layout payload files)
+            (fn (self forms tag isa layout engine payload files)
               (match
                 ((null? forms)
                   (match
                     ((null? tag) (Pin %pin-bad "release manifest has no (release ...)"))
                     (#t (list (pair 'release tag) (pair 'isa isa)
                               (pair 'layout layout)
+                              (pair 'engine-release engine)
                               (pair 'payload payload) (pair 'files files)))))
                 ((not (pair? (first forms))) (Pin %pin-bad "release-manifest form is not a list"))
                 ((eq? (first (first forms)) 'release)
                   (match
                     ((str? (first (rest (first forms))))
-                      (self (rest forms) (first (rest (first forms))) isa layout payload files))
+                      (self (rest forms) (first (rest (first forms))) isa layout engine payload files))
                     (#t (Pin %pin-bad "release needs a tag string"))))
                 ((eq? (first (first forms)) 'isa)
                   (match
                     ((str? (first (rest (first forms))))
-                      (self (rest forms) tag (first (rest (first forms))) layout payload files))
+                      (self (rest forms) tag (first (rest (first forms))) layout engine payload files))
                     (#t (Pin %pin-bad "isa needs a digest string"))))
                 ; layout is OPTIONAL for the same reason payload is: it arrives
                 ; now, and every release published before it has no such row.
@@ -592,12 +594,20 @@
                 ((eq? (first (first forms)) 'layout)
                   (match
                     ((str? (first (rest (first forms))))
-                      (self (rest forms) tag isa (first (rest (first forms))) payload files))
+                      (self (rest forms) tag isa (first (rest (first forms))) engine payload files))
                     (#t (Pin %pin-bad "layout needs a digest string"))))
+                ; engine-release is OPTIONAL like layout: it names the engine
+                ; build the release was verified against, and every release
+                ; published before it has no such row.
+                ((eq? (first (first forms)) 'engine-release)
+                  (match
+                    ((str? (first (rest (first forms))))
+                      (self (rest forms) tag isa layout (first (rest (first forms))) payload files))
+                    (#t (Pin %pin-bad "engine-release needs a tag string"))))
                 ((eq? (first (first forms)) 'payload)
                   (match
                     ((str? (first (rest (first forms))))
-                      (self (rest forms) tag isa layout (first (rest (first forms))) files))
+                      (self (rest forms) tag isa layout engine (first (rest (first forms))) files))
                     (#t (Pin %pin-bad "payload needs a digest string"))))
                 ((eq? (first (first forms)) 'file)
                   (match
@@ -605,12 +615,12 @@
                       (Pin %pin-bad "release file needs a name string"))
                     ((not (str? (first (rest (rest (first forms))))))
                       (Pin %pin-bad "release file needs a digest string"))
-                    (#t (self (rest forms) tag isa layout payload
+                    (#t (self (rest forms) tag isa layout engine payload
                           (pair (pair (first (rest (first forms)))
                                       (first (rest (rest (first forms)))))
                                 files)))))
                 (#t (Pin %pin-bad "unknown release-manifest form")))))
-          (%go forms () () () () ()))
+          (%go forms () () () () () ()))
     (method %pin-release-file (self name files)
       (let ((hit (%assoc-str name files)))
             (match

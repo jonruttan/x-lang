@@ -644,7 +644,7 @@ _sha() {
 }
 mkdir -p "$_TMP/rel/v9.9.9" "$_TMP/rel/v9.9.8" "$_TMP/proj/boot" "$_TMP/proj/deps"
 printf '; v1 amalgam\n(display 1)\n' > "$_TMP/rel/v9.9.9/he.x"
-printf '(release "v9.9.9")\n(isa "sha256:aaaa1111")\n(payload "sha256:eeee5555")\n(file "he.x" "sha256:%s")\n' \
+printf '(release "v9.9.9")\n(isa "sha256:aaaa1111")\n(engine-release "eng-v9.1.2")\n(payload "sha256:eeee5555")\n(file "he.x" "sha256:%s")\n' \
 	"$(_sha "$_TMP/rel/v9.9.9/he.x")" > "$_TMP/rel/v9.9.9/pin.release.xon"
 printf '; v2 amalgam, manifest digest WRONG\n(display 2)\n' > "$_TMP/rel/v9.9.8/he.x"
 printf '(release "v9.9.8")\n(isa "sha256:bbbb2222")\n(file "he.x" "sha256:%064d")\n' 0 \
@@ -663,6 +663,10 @@ grep -q '; v1 amalgam' "$_TMP/proj/boot/he.x" || fail "boot-pin: amalgam not ins
 grep -q '(release "v9.9.9")' "$_TMP/proj/deps.lock.xon" || fail "boot-pin: lock has no release tag" "$_TMP/out"
 head -1 "$_TMP/proj/deps.lock.xon" | grep -q 'deps.lock.xon' || fail "boot-pin: lock header does not name the lock (#421)" "$_TMP/proj/deps.lock.xon"
 grep -q '(payload "sha256:eeee5555")' "$_TMP/proj/deps.lock.xon" || fail "boot-pin: lock did not lift the release's payload fingerprint (#435)" "$_TMP/proj/deps.lock.xon"
+# The MANIFEST carried the engine row this time -- the row the v0.5.0
+# release shipped and the parser refused as an unknown form.  Reaching
+# here at all proves the parse; the grep proves the lift.
+grep -q '(engine-release "eng-v9.1.2")' "$_TMP/proj/deps.lock.xon" || fail "boot-pin: lock did not lift the release's engine-release row" "$_TMP/proj/deps.lock.xon"
 
 # ...and a release that published NO payload row -- every release before
 # #435 -- must still pin, leaving no payload line rather than a nil one
@@ -680,6 +684,7 @@ $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -f "$_TMP/boot6.x" >"$_TMP/out" 2>"$_TMP/
 	|| fail "boot-pin: a payload-less release failed to pin (#435)" "$_TMP/out" "$_TMP/err"
 grep -q '(release "v9.9.6")' "$_TMP/proj6/deps.lock.xon" || fail "boot-pin: payload-less pin wrote no release tag" "$_TMP/proj6/deps.lock.xon"
 grep -q '(payload' "$_TMP/proj6/deps.lock.xon" && fail "boot-pin: payload-less release left a payload row in the lock" "$_TMP/proj6/deps.lock.xon"
+grep -q '(engine-release' "$_TMP/proj6/deps.lock.xon" && fail "boot-pin: engine-less release left an engine-release row in the lock" "$_TMP/proj6/deps.lock.xon"
 
 # Failed UPGRADE: loud, and NOTHING moves -- the pinned amalgam, the
 # lock, both untouched; the rejected bytes are quarantined beside them.
