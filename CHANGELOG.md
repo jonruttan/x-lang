@@ -5,15 +5,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-### Changed
+## [0.5.1] - 2026-08-25
 
-- **The engine pin moved to [x-engine-c v0.1.2][e012]** — the FFI raises
-  catchably on a nil function pointer or operand instead of calling it
-  (the #171 crash class; a dlsym miss handed straight to a call was an
-  uncatchable SIGSEGV). Found when the first conformance run Linux ever
-  saw resolved `sqrt` against an engine that links no libm.
+### Fixed
 
-[e012]: https://github.com/jonruttan/x-engine-c/releases/tag/v0.1.2
+- **`(Pin boot "v0.5.0")` failed for every project** — `pin: unknown
+  release-manifest form`. v0.5.0's `pin.release.xon` carries the
+  `(engine-release …)` row the release script now emits, but the pin
+  tool's manifest parser predated the row and refused the whole
+  manifest. The parser reads it now, optional like `layout` — a manifest
+  without the row still parses, a missing value reads back as nil. And
+  since the pin tool ships inside releases, the fix has to *be* a
+  release: v0.5.0 itself cannot be pinned, and this line exists so the
+  v0.5.x series can be.
 
 ## [0.5.0] - 2026-08-24
 
