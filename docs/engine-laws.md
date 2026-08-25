@@ -129,3 +129,12 @@ Today `boot/tower-compiled.x` probes for the header directories and keeps its
 interpreted analysers when they are absent. A declared capability would say it
 properly, and would turn `ext/jit-*.spec.md` and `ext/asm.*.spec.md` from
 failures into *not applicable* for an engine that never claimed the lane.
+
+## 9. Evaluation and application are type hooks
+
+A `type make` type with an `eval` handler decides what evaluating its
+instances MEANS; with a `call` handler its instances are CALLABLE; without
+either, an instance is itself and a form headed by one is data. This is the
+door an embedded language registers itself through, and the mechanism behind
+the design intent that the interpreter can be re-aimed at any syntax.
+Checked by `tests/x/conformance/core/hooks.spec.md`, both engines green.
