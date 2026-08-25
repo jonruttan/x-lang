@@ -638,14 +638,14 @@
 ; type would have absorbed the bigint via its from-declaration), so %ensure-big
 ; covers the coercion.
 
-(def %bigint-ts (%type-by-atom %bigint))
-(%type-push-op %bigint-ts '+ (fn (_ a b) (%big-add (%ensure-big a) (%ensure-big b))))
-(%type-push-op %bigint-ts '- (fn (_ a b) (%big-sub (%ensure-big a) (%ensure-big b))))
-(%type-push-op %bigint-ts '* (fn (_ a b) (%big-mul (%ensure-big a) (%ensure-big b))))
-(%type-push-op %bigint-ts '/ (fn (_ a b) (%big-div (%ensure-big a) (%ensure-big b))))
-(%type-push-op %bigint-ts '% (fn (_ a b) (%big-mod (%ensure-big a) (%ensure-big b))))
-(%type-push-op %bigint-ts '< (fn (_ a b) (%big-lt (%ensure-big a) (%ensure-big b))))
-(%type-push-op %bigint-ts '= (fn (_ a b) (%big-eq (%ensure-big a) (%ensure-big b))))
+(def %bigint-type (%type-by-atom %bigint))
+(%type-push-op %bigint-type '+ (fn (_ a b) (%big-add (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bigint-type '- (fn (_ a b) (%big-sub (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bigint-type '* (fn (_ a b) (%big-mul (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bigint-type '/ (fn (_ a b) (%big-div (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bigint-type '% (fn (_ a b) (%big-mod (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bigint-type '< (fn (_ a b) (%big-lt (%ensure-big a) (%ensure-big b))))
+(%type-push-op %bigint-type '= (fn (_ a b) (%big-eq (%ensure-big a) (%ensure-big b))))
 
 (import x/type/class)
 

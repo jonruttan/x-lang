@@ -40,9 +40,9 @@
 
 (def %og-install
   (fn (_ handle tname ops)
-    (let ((ts (%og-by-atom handle)))
+    (let ((t (%og-by-atom handle)))
       (List for-each
-        (fn (_ op) (%og-push ts op (%og-refuse (symbol->str op) tname)))
+        (fn (_ op) (%og-push t op (%og-refuse (symbol->str op) tname)))
         ops))))
 
 (def %og-all   (list (lit +) (lit -) (lit *) (lit /) (lit %) (lit <)))

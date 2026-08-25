@@ -680,8 +680,8 @@
 ; falls through to whatever the type's call slot did before.
 (def %bind-call-over!
   (fn (_ type-handle class)
-    (let ((ts (%type-by-atom type-handle)))
-      (%type-push-call ts (%class-call-handler-over class (%type-call-top ts))))))
+    (let ((t (%type-by-atom type-handle)))
+      (%type-push-call t (%class-call-handler-over class (%type-call-top t))))))
 
 (note "Write handlers")
 

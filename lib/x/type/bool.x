@@ -47,12 +47,12 @@
 
 ; push-op wants the STRUCT, reached via by-atom of the make-type return --
 ; the return itself is the registry handle, not the struct (float.x's
-; %float-ts idiom; pushing onto the handle segfaults, found by bisecting
+; %float-type idiom; pushing onto the handle segfaults, found by bisecting
 ; boot).
 (def %bool-push (prim-ref (lit type) (lit push-op)))
-(def %bool-ts ((prim-ref (lit type) (lit by-atom)) %bool))
+(def %bool-type ((prim-ref (lit type) (lit by-atom)) %bool))
 (List for-each
-  (fn (_ op) (%bool-push %bool-ts op (%og-refuse (symbol->str op) "BOOL")))
+  (fn (_ op) (%bool-push %bool-type op (%og-refuse (symbol->str op) "BOOL")))
   %og-all)
 
 (def %bool-retag (prim-ref (lit obj) (lit retag!)))
