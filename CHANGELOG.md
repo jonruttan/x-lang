@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- **The engine pin moved to [x-engine-c v0.1.2][e012]** — the FFI raises
+  catchably on a nil function pointer or operand instead of calling it
+  (the #171 crash class; a dlsym miss handed straight to a call was an
+  uncatchable SIGSEGV). Found when the first conformance run Linux ever
+  saw resolved `sqrt` against an engine that links no libm.
+
+[e012]: https://github.com/jonruttan/x-engine-c/releases/tag/v0.1.2
+
 ## [0.5.0] - 2026-08-24
 
 The object model's second architecture: one routing model with four doors,
@@ -19,7 +31,7 @@ routing works.
 
 ### Changed
 
-- **The C engine is a separate repository, and this tree carries no engine at all** — [x-engine-c](https://github.com/jonruttan/x-engine-c), with its own version line and published releases. `make engine` reads `tools/engine/engine.pin.xon` — a declared release tag plus one artifact row per platform, digests taken from the release's own sha256 sidecars — fetches the tarball, verifies it, and unpacks it; `make engine-source` clones the sources instead for platforms with no published artifact. `x-bin` is copied to this repo's root as before, so the wrapper, the spec runners and every `tools/check/*.sh` script are unchanged. This release pins [x-engine-c v0.1.1](https://github.com/jonruttan/x-engine-c/releases/tag/v0.1.1).
+- **The C engine is a separate repository, and this tree carries no engine at all** — [x-engine-c](https://github.com/jonruttan/x-engine-c), with its own version line and published releases. `make engine` reads `tools/engine/engine.pin.xon` — a declared release tag plus one artifact row per platform, digests taken from the release's own sha256 sidecars — fetches the tarball, verifies it, and unpacks it; `make engine-source` clones the sources instead for platforms with no published artifact. `x-bin` is copied to this repo's root as before, so the wrapper, the spec runners and every `tools/check/*.sh` script are unchanged. This release pins [x-engine-c v0.1.2](https://github.com/jonruttan/x-engine-c/releases/tag/v0.1.2), whose v0.1.1 and v0.1.2 lines are this release's own finds: a prim walked off a dotted argument list (#487) and the FFI called a nil function pointer (the #171 class) -- both uncatchable SIGSEGVs, both now catchable raises.
 
   The contract manifests travel **with the engine**, in its `tools/contract/`: an engine's description of itself is stronger there than as a copy the library keeps, because a private layout copy is right about *some* engine and not necessarily the one running. `lib/x-core.x` includes `base-paths.x` and `obj-layout.x` from there as the first things it loads, and `pin.x` reads `isa.x` at runtime. `check-isa`, `check-obj-layout` and `check-base-paths` are the engine's own gates now; `check-prim-coverage` stays here, because most primitives are reachable only through the library and the honest answer needs both spec suites.
 
