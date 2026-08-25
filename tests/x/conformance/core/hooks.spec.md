@@ -85,3 +85,45 @@ itself, nothing raises.
 ```
 ---
     *** ERROR: ok
+
+### a procedure's state rides slot 1 as (params body env . _)
+
+covers: obj/->ptr ptr/ref-word ptr/->obj int/->ptr
+
+Not decoration: `lib/x/tool/cov.x` walks a PROCEDURE's slot 1 for the
+body forms, on whichever engine is underneath. The data offset is probed
+the way `lib/x/boot/data.x` probes it; the word stride is the machine's.
+
+```scheme
+(def %o2p (%coord (lit obj) (lit ->ptr)))
+(def %prw (%coord (lit ptr) (lit ref-word)))
+(def %p2o (%coord (lit ptr) (lit ->obj)))
+(def %i2p (%coord (lit int) (lit ->ptr)))
+(def probe 12345)
+(def %off (fn (self i) (match ((eq? (%prw (%o2p probe) i) probe) i) (#t (self (+ i 1))))))
+(def d0 (%off 0))
+(def f (fn (zz) 47))
+(def state (%p2o (%i2p (%prw (%o2p f) (+ d0 8)))))
+(%ok (eq? (first (first state)) (lit zz)))
+```
+---
+    *** ERROR: ok
+
+### make-callable's product is of the primitive type
+
+covers: obj/make-callable type/of
+
+The JIT door and the instruction table are one mechanism: a made
+callable IS a primitive, distinguishable from one the engine registered
+only by where its entry points.
+
+```scheme
+(def %mc (%coord (lit obj) (lit make-callable)))
+(def %i2p (%coord (lit int) (lit ->ptr)))
+(def %tof (%coord (lit type) (lit of)))
+(def made (%mc (%i2p 4096)))
+(def real (%coord (lit tok) (lit read)))
+(%ok (eq? (%tof made) (%tof real)))
+```
+---
+    *** ERROR: ok
