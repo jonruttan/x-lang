@@ -469,14 +469,14 @@ the canonical List walkers must not touch them.
 (do
   (def %count (fn (self l) (if (null? l) 0 (+ 1 (self (rest l))))))
   (def %hb (Base make))
-  (def %find-tree
+  (def %find-type
     (fn (self nm al)
       (if (null? al) ()
-        (if (str=? (%reflect-sym->str (%reflect-type-tree-name (rest (first al)))) nm)
+        (if (str=? (%reflect-sym->str (%reflect-type-name-atom (rest (first al)))) nm)
           (rest (first al))
           (self nm (rest al))))))
   (def %child-n (%count
-    ((Type wrap (%find-tree "INTEGER" (first (%hb cell (lit type-alist)))))
+    ((Type wrap (%find-type "INTEGER" (first (%hb cell (lit type-alist)))))
       cell (lit type-write-stack))))
   (def %parent-n (%count ((Type wrap (Type of 0)) cell (lit type-write-stack))))
   (list (> %parent-n %child-n) (> %child-n 0)))

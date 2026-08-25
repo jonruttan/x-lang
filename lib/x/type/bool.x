@@ -19,11 +19,11 @@
 ; The refusal ops close the #52 residual: (+ #t 1) now raises
 ; "no + for BOOL" through the same registry as every other non-numeric
 ; type (op-guard.x, loaded just before this file -- %og-refuse and %og-all
-; are its globals). SYMBOLS remain the one residual: tree-typed, and
-; retagging the interning tree is not an option (every symbol shares it).
+; are its globals). SYMBOLS remain the one residual: their type slot is the interning tree,
+; and retagging it is not an option (every symbol shares it).
 ;
 ; Idempotent: a child base re-running boot must not re-claim the shared
-; singletons with its own tree -- name-interned handles compare across
+; singletons with its own type -- name-interned handles compare across
 ; bases, so the first claim serves every base.
 
 (def %bool-make-type (prim-ref (lit type) (lit make)))

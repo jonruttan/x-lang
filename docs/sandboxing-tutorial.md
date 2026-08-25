@@ -173,7 +173,7 @@ interpreter state:
 ## Wrapping a type
 
 The same interactive treatment exists for types. `(Type wrap t)` accepts
-a type handle (from `Type of`) or a type struct (from `Type by-atom`) and
+a type handle (from `Type of`) or the type itself (from `Type by-atom`) and
 answers a Type instance:
 
 ```x-repl
@@ -236,13 +236,13 @@ depths:
 ```x-repl
 > (def %count (fn (self l) (if (null? l) 0 (+ 1 (self (rest l))))))
 #<fn>
-> (def %find-tree (fn (self nm al)
+> (def %find-type (fn (self nm al)
     (if (null? al) ()
-      (if (str=? (%reflect-sym->str (%reflect-type-tree-name (rest (first al)))) nm)
+      (if (str=? (%reflect-sym->str (%reflect-type-name-atom (rest (first al)))) nm)
         (rest (first al))
         (self nm (rest al))))))
 #<fn>
-> (%count ((Type wrap (%find-tree "INTEGER" (first (b cell 'type-alist))))
+> (%count ((Type wrap (%find-type "INTEGER" (first (b cell 'type-alist))))
            cell 'type-write-stack))
 1
 > (%count ((Type wrap (Type of 0)) cell 'type-write-stack))
@@ -254,7 +254,7 @@ the x printer's boot push) — the delta *is* the contract. Two traps this
 example steps around, worth naming because they bite: child type handles
 do not intern into the parent, so `(Type name child-handle)` answers nil
 — resolve child types by name *bytes* through the raw reflect walk, as
-`%find-tree` does; and handler spines are C-built, so `pair?` answers
+`%find-type` does; and handler spines are C-built, so `pair?` answers
 `#f` on them — walk them with raw `first`/`rest` (the `%count` above),
 never the canonical `List` walkers.
 
@@ -268,7 +268,7 @@ seams:
   bases. The library's own doors (`Tok read-str`, `Xon parse`) unwrap
   either form, so this only matters when you fetch prims directly.
 - **Raw spine walks.** Code that navigates a base with `first`/`rest`
-  (as `%find-tree` above navigates type trees) needs the raw object;
+  (as `%find-type` above navigates types) needs the raw object;
   an instance's slots are not a base spine.
 - **Re-clothing.** `(Base wrap r)` turns a raw base back into an
   instance; `(Base raw-of v)` unwraps either form and passes raw values

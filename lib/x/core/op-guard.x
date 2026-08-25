@@ -59,11 +59,10 @@
 (%og-install (%og-type-of (pair () ())) "PAIR" %og-all)
 (%og-install (%og-type-of #(0)) "VECTOR" %og-all)
 
-; SYMBOL is deliberately absent: symbols are TREE-typed (their type slot is
-; the interning tree, not a type struct), so op_try never consults a struct
-; for them -- a registration here lands somewhere dispatch cannot see.
+; SYMBOL is deliberately absent: a symbol's type slot is the interning
+; tree, not a registered type, so op_try never consults a type for them -- a registration here lands somewhere dispatch cannot see.
 ; Symbol operands are the one documented residual on #52 -- the boolean
 ; half closed when bool.x claimed the singletons (#101).
 
 (doc (provide x/core/op-guard)
-  "Non-numeric types (string, list, pair, vector) refuse the arithmetic operators with err:type instead of falling through to pointer arithmetic; symbols cannot (tree-typed) and remain the documented residual; booleans refuse via type/bool.x.")
+  "Non-numeric types (string, list, pair, vector) refuse the arithmetic operators with err:type instead of falling through to pointer arithmetic; symbols cannot (their type slot is the interning tree, not a registered type) and remain the documented residual; booleans refuse via type/bool.x.")

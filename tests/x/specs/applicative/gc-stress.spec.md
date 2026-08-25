@@ -97,7 +97,7 @@ The mark hook traces a typed object by per-type units, a C mark
 callback, or (for pair-layout customs) recursion. Any custom type that
 stores heap payloads but declares neither had UNTRACED slots -- freed
 under the live instance, segfault on next access. This audit swept
-every C type struct and every make-obj/make-instance consumer; the
+every C-built type and every make-obj/make-instance consumer; the
 three gaps (VECTOR, ASM, ITER) are fixed, the rest verified.
 
 ### Gen driving a C iterator survives (ITER units fix)

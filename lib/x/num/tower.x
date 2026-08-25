@@ -34,8 +34,8 @@
 (def %tw-type-name (prim-ref (lit type) (lit name)))
 (def %tw-push-op (prim-ref (lit type) (lit push-op)))
 
-; A type struct's HANDLE: the name-stack's current atom (field 0 of the
-; struct tree, (current . saved) stacked) -- the same atom (Type of v)
+; A type's HANDLE: the name-stack's current atom (field 0 of the
+; type, (current . saved) stacked) -- the same atom (Type of v)
 ; returns and type? pointer-compares. The modules export their STRUCTS
 ; (%rational-ts et al., what push-op wants); the generics key on handles.
 (def %tw-handle (fn (_ ts) (first (first ts))))

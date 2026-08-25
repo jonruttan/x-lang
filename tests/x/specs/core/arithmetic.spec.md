@@ -553,7 +553,7 @@ The refusal lives in the dispatch registry: string/char/list/pair/vector
 register error-raising handlers for + - * / % <, so op_try routes a bad
 operand to err:type instead of the int fallthrough's pointer arithmetic.
 Zero cost on the int path (op_try fast-declines ops-less types; benchmarked
-at baseline). Symbols (tree-typed) are the one documented residual; the
+at baseline). Symbols (their type slot is the interning tree) are the one documented residual; the
 booleans are a real BOOL type (#101) and refuse like everything else.
 
 ### wrong-type operands raise err:type across the family

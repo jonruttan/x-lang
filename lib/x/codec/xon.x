@@ -76,7 +76,7 @@
     (method %xon-find-type (self b name)
       ; The walk needs the RAW spine; a Base instance unwraps here.
       (let ((hit (%find (fn (_ e)
-                          (str=? (%reflect-sym->str (%reflect-type-tree-name (rest e)))
+                          (str=? (%reflect-sym->str (%reflect-type-name-atom (rest e)))
                                  name))
                    (first (%reflect-step (Base raw-of b)
                             (%reflect-path (lit type-alist) %base-paths))))))

@@ -2,7 +2,7 @@
 ; Convert class.
 ;
 ; Three concerns, one mechanism each:
-;   - The TYPE SYSTEM carries the data: each type struct's cvt group holds a
+;   - The TYPE SYSTEM carries the data: each type's cvt group holds a
 ;     from-alist (source-type -> converter) and a to-alist (target-type ->
 ;     converter), set with the %type-set-from! helper below.
 ;   - The CATALOG carries the implementation: %convert-to is registered as
@@ -69,7 +69,7 @@
 
 ; --- Type navigation via type.x (loaded before us) ---
 
-; Set the from alist on a type struct
+; Set the from alist on a type
 (def %type-set-from!
   (fn (_ ts alist) (%set-first! (%type-from-cell ts) alist)))
 
