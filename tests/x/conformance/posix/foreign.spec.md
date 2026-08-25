@@ -120,15 +120,30 @@ values below are the bit patterns of 4.0, 2.0, 3.0 and 9.0. The convention set i
 small and closed -- `d->d`, `dd->d` and the arithmetic forms -- rather than a
 general signature language, so an engine has to match the spellings exactly.
 
+**The math library is opened the way `float.x` opens it** -- `libm.so.6`, then
+`libm.dylib`, then the process itself -- because `sqrt` is not reachable from a
+self-handle everywhere: the engine deliberately carries no link-time libm
+reference, and on Linux `sqrt` lives in libm, so `dlopen ()` alone finds it only
+on platforms whose libc bundles the math functions (macOS). This test crashed at
+release time as the first conformance run Linux ever saw, on exactly that
+difference. Each symbol is also checked before the call: a nil function pointer
+is a MISS to report, not a value to hand the engine.
+
 ```scheme
 (def %dlopen (%coord (lit ffi) (lit dlopen)))
 (def %dlsym (%coord (lit ffi) (lit dlsym)))
 (def %fcall (%coord (lit ffi) (lit call)))
-(def lib (%dlopen () 1))
-(%ok (match ((= (%fcall "d->d" (%dlsym lib "sqrt") 4616189618054758400) 4611686018427387904)
-              (= (%fcall "dd->d" (%dlsym lib "pow") 4613937818241073152 4611686018427387904)
+(def %libm (%dlopen "libm.so.6" 1))
+(def %libm (match ((eq? %libm ()) (%dlopen "libm.dylib" 1)) (#t %libm)))
+(def %libm (match ((eq? %libm ()) (%dlopen () 1)) (#t %libm)))
+(def %sqrt (%dlsym %libm "sqrt"))
+(def %pow (%dlsym %libm "pow"))
+(%ok (match ((eq? %sqrt ()) ())
+            ((eq? %pow ()) ())
+            ((= (%fcall "d->d" %sqrt 4616189618054758400) 4611686018427387904)
+              (= (%fcall "dd->d" %pow 4613937818241073152 4611686018427387904)
                  4621256167635550208))
-             (#t ())))
+            (#t ())))
 ```
 ---
     *** ERROR: ok

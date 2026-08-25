@@ -68,6 +68,16 @@ jobs:
         run: make test-x
         env:
           PARALLEL: "1"
+      # The conformance suite was reachable only through `make test`, which no
+      # job here runs -- the #330 lesson again, in a new coat: its posix half
+      # had NEVER executed on Linux until the v0.5.0 release run, where the
+      # doubles test failed on the first try (sqrt lives in libm on Linux, and
+      # the engine deliberately links no libm; the spec assumed a self-handle
+      # finds it, which is true only where libc bundles the math functions).
+      # A suite that exists to prove an engine on every platform has to RUN on
+      # every platform this file covers.
+      - name: Conformance
+        run: make conformance
           # ONE heavy spec in flight, not two (2026-08-20, measured with a
           # temporary in-step memory sampler). At the logo + weight-6-batch
           # window the 16GB ubuntu runner held TWO ~5-9GB x-bin heaps at
