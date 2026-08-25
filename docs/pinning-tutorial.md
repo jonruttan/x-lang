@@ -291,14 +291,20 @@ the downloaded release manifest. Two records of the same thing drift;
 one does not. A later `sync` carries those lines through untouched, so
 growing an import never silently unpins the language underneath it.
 
-The tag is the one the wrapper enforces. Run this pinned project on an
-engine from a *different* release and it refuses to boot, naming both
-tags and the two ways out — move the pin with `(Pin boot "<the engine's
-tag>")`, or install the engine the pin names. The refusal exists because
-the pair does not merely disagree, it crashes: an amalgam binds against
-the release's boot structure and library, not just the C surface the ISA
-fingerprint covers. `--allow-release-skew` (or `(allow-release-skew)` in
-the manifest) proceeds anyway, loudly.
+The tag is the one the wrapper enforces — and the wrapper reaches for it
+before it refuses. Run this pinned project on an install from a
+*different* release, and the wrapper hands the whole invocation to a
+cached copy of the release the lock names (`~/.cache/x/releases/`),
+fetching and digest-checking it first if the cache is empty — one
+consent question on a terminal, or `--fetch-release` to say yes ahead
+of time. Nothing global changes; the install on your PATH is never
+touched. Only when the cache can't resolve it — no consent, no network
+— does it refuse, naming both tags and the ways out. The refusal exists
+because the pair does not merely disagree, it crashes: an amalgam binds
+against the release's boot structure and library, not just the C
+surface the ISA fingerprint covers. `--allow-release-skew` (or
+`(allow-release-skew)` in the manifest) means "run *this* install" and
+skips both the handover and the refusal, loudly.
 
 No curl on the machine? The fetch prints the URLs and stops — download
 by hand, then check with coreutils beside the files: `sha256sum -c

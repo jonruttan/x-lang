@@ -603,6 +603,92 @@ mv "$_fake2/share/x/contract/engine-release" "$_fake2/share/x/contract/engine-re
 grep -q "no engine stamp" "$_TMP/err" || fail "engine-guard: an unanswerable pairing passed in silence" "$_TMP/err"
 mv "$_fake2/share/x/contract/engine-release.away" "$_fake2/share/x/contract/engine-release"
 
+# --- REACH FOR THE RELEASE (#499): before refusing a library skew, the
+# --- wrapper hands the invocation to a cached copy of the release the
+# --- lock names -- fetching it, verified, when told to.  The pin knows
+# --- what it needs and where to get it; blocking was the bug.  Every
+# --- leg passes </dev/null so the consent prompt can never engage.
+_cos=$(uname -s | tr 'A-Z' 'a-z')
+_carch=$(uname -m)
+_cacheroot="$_TMP/cache"
+_cname="x-v9.9.8-old-${_cos}-${_carch}"
+
+# A fake cached release: its bin/x only proves it was handed the call.
+mkdir -p "$_cacheroot/$_cname/x-v9.9.8-old/bin"
+cat > "$_cacheroot/$_cname/x-v9.9.8-old/bin/x" <<'EOF'
+#!/bin/sh
+echo "CACHED-RELEASE-RAN $@"
+exit 0
+EOF
+chmod +x "$_cacheroot/$_cname/x-v9.9.8-old/bin/x"
+
+# Cache hit: the skewed install hands over instead of refusing, announces
+# the handover, and the original argv arrives intact.
+_rel_proj reach1 v9.9.8-old
+(cd "$_TMP" && $TIMEOUT_CMD env X_RELEASE_CACHE="$_cacheroot" sh "$_fake2/bin/x" -f "$_TMP/reach1/main.x" </dev/null) >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -eq 0 ] || fail "reach: cache hit still failed" "$_TMP/err" "$_TMP/out"
+grep -q "CACHED-RELEASE-RAN" "$_TMP/out" || fail "reach: cached release was not handed the call" "$_TMP/out" "$_TMP/err"
+grep -q "reach1/main.x" "$_TMP/out" || fail "reach: original argv did not arrive" "$_TMP/out"
+grep -q "handing over to the pinned v9.9.8-old release" "$_TMP/err" || fail "reach: the handover was silent" "$_TMP/err"
+
+# Loop guard: a cached tree that still mismatches refuses, never recurses.
+(cd "$_TMP" && $TIMEOUT_CMD env X_RELEASE_CACHE="$_cacheroot" X_PIN_REEXEC=1 sh "$_fake2/bin/x" -f "$_TMP/reach1/main.x" </dev/null) >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "reach: re-entry did not fall back to the refusal" "$_TMP/out" "$_TMP/err"
+grep -q "different release" "$_TMP/err" || fail "reach: re-entry lost the refusal" "$_TMP/err"
+
+# --allow-release-skew means "run THIS install": no handover, loud waiver.
+(cd "$_TMP" && $TIMEOUT_CMD env X_RELEASE_CACHE="$_cacheroot" sh "$_fake2/bin/x" --allow-release-skew -f "$_TMP/reach1/main.x" </dev/null) >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "CACHED-RELEASE-RAN" "$_TMP/out" && fail "reach: --allow-release-skew still handed over" "$_TMP/out"
+grep -q "release skew allowed" "$_TMP/err" || fail "reach: skew waiver lost" "$_TMP/err"
+
+# Empty cache, no consent possible (no tty): the refusal stands and now
+# names the flag that would have resolved it.
+(cd "$_TMP" && $TIMEOUT_CMD env X_RELEASE_CACHE="$_TMP/cache-empty" sh "$_fake2/bin/x" -f "$_TMP/reach1/main.x" </dev/null) >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "reach: empty cache was accepted" "$_TMP/out" "$_TMP/err"
+grep -q "fetch-release" "$_TMP/err" || fail "reach: refusal does not name --fetch-release" "$_TMP/err"
+
+# --fetch-release against a local mirror (file://, fetch's sanctioned
+# override): verified, unpacked, handed over -- and the cache survives.
+_mirror="$_TMP/mirror/v9.9.7-mir"
+mkdir -p "$_mirror" "$_TMP/mirror-stage/x-v9.9.7-mir/bin"
+cat > "$_TMP/mirror-stage/x-v9.9.7-mir/bin/x" <<'EOF'
+#!/bin/sh
+# A released wrapper predating the flag refuses it -- the handover must
+# not forward its own instruction (found live against v0.5.1).
+for _a in "$@"; do
+	[ "$_a" = "--fetch-release" ] && { echo "Error: Unknown option: $_a" >&2; exit 1; }
+done
+echo "FETCHED-RELEASE-RAN"
+exit 0
+EOF
+chmod +x "$_TMP/mirror-stage/x-v9.9.7-mir/bin/x"
+_mname="x-v9.9.7-mir-${_cos}-${_carch}"
+(cd "$_TMP/mirror-stage" && tar -czf "$_mirror/$_mname.tar.gz" "x-v9.9.7-mir")
+(cd "$_mirror" && { command -v sha256sum >/dev/null 2>&1 && sha256sum "$_mname.tar.gz" || shasum -a 256 "$_mname.tar.gz"; } > "$_mname.tar.gz.sha256")
+_rel_proj reach2 v9.9.7-mir
+(cd "$_TMP" && $TIMEOUT_CMD env X_RELEASE_CACHE="$_TMP/cache2" X_RELEASE_BASE="file://$_TMP/mirror" sh "$_fake2/bin/x" --fetch-release -f "$_TMP/reach2/main.x" </dev/null) >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -eq 0 ] || fail "reach: fetch-release failed" "$_TMP/err" "$_TMP/out"
+grep -q "FETCHED-RELEASE-RAN" "$_TMP/out" || fail "reach: fetched release was not handed the call" "$_TMP/out" "$_TMP/err"
+[ -x "$_TMP/cache2/$_mname/x-v9.9.7-mir/bin/x" ] || fail "reach: fetch did not populate the cache" "$_TMP/err"
+
+# A tampered artifact publishes NOTHING: refusal, and no bytes land in
+# the cache where a later boot would trust them (#145).
+_mirror2="$_TMP/mirror/v9.9.6-bad"
+mkdir -p "$_mirror2"
+_bname="x-v9.9.6-bad-${_cos}-${_carch}"
+cp "$_mirror/$_mname.tar.gz" "$_mirror2/$_bname.tar.gz"
+printf 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef  %s\n' "$_bname.tar.gz" > "$_mirror2/$_bname.tar.gz.sha256"
+_rel_proj reach3 v9.9.6-bad
+(cd "$_TMP" && $TIMEOUT_CMD env X_RELEASE_CACHE="$_TMP/cache3" X_RELEASE_BASE="file://$_TMP/mirror" sh "$_fake2/bin/x" --fetch-release -f "$_TMP/reach3/main.x" </dev/null) >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "reach: a tampered artifact was accepted" "$_TMP/out" "$_TMP/err"
+grep -q "digest mismatch" "$_TMP/err" || fail "reach: tamper refusal not named" "$_TMP/err"
+[ ! -e "$_TMP/cache3/$_bname/x-v9.9.6-bad/bin/x" ] || fail "reach: rejected bytes landed in the cache (#145)" "$_TMP/err"
+
 # A lock with no (release ...) row -- every lock written before #435 --
 # cannot be checked, and says so rather than passing quietly.
 _rel_proj rel4 ""
