@@ -1,15 +1,8 @@
 # Conformance: behaviour is a type handler (profile `core`)
 
-The engine's design intent, stated by its author: the interpreter can be
-re-aimed at any syntax — a JavaScript interpreter, a C compiler, a CPU —
-by re-registering types. The mechanism that makes that possible is that
-EVALUATION and APPLICATION are type handlers: what evaluating a value means
-is its type's registered `eval`, and a callable is a value whose type
-registers `call`. These checks pin the mechanism through the front door
-(`type make`), the way an embedded language registers itself.
-
-Each asserts the observable that distinguishes doing from NOT doing: a
-handler that runs changes the ANSWER, not merely a registration list.
+EVALUATION and APPLICATION are type handlers: what evaluating a value
+means is its type's registered `eval`, and a callable is a value whose
+type registers `call`. The checks go through `type make`.
 
 ### a type's eval handler decides what evaluating its instances means
 
@@ -35,9 +28,7 @@ handler's.
 
 covers: type/make type/make-instance eval
 
-The other half of the law: absence of the handler means the value is its
-own meaning. An engine that hardcoded instance evaluation could pass the
-check above with a special case; passing both pins the dispatch.
+Absence of the handler means the value is its own meaning.
 
 ```scheme
 (def %tmake (%coord (lit type) (lit make)))

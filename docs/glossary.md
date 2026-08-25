@@ -1,8 +1,7 @@
 # Glossary
 
-The names shared across engines. An x-lang engine is judged by the
-contract, so the contract's files are the authority on what things are
-called: a name used in `tools/contract/`, the conformance suite, or this
+The names shared across engines. The contract's files are the authority
+on what things are called: a name used in `tools/contract/`, the conformance suite, or this
 glossary is THE name, and every engine's identifiers use these nouns
 under its own affix conventions (`x_` and snake case in C; modules and
 snake case in Rust). A word that appears in neither the contract nor
@@ -12,8 +11,7 @@ messages and reviews.
 Choosing a name: the contract's existing name wins; failing that, the
 name the library already uses; failing that, the clearer word, whichever
 implementation coined it. A name states what a thing IS, not what shape
-it takes — "spine" and "tree" describe layouts, and belong only in
-sentences about layout.
+it takes; "spine" and "tree" belong only in sentences about layout.
 
 ## The context
 
@@ -41,15 +39,12 @@ sentences about layout.
 
 - **type** — the object a value carries and a handle resolves to: its
   name, its units, and its handlers. Registered in the base's
-  **type-alist**, keyed by handle. Not "tree", "struct" or
-  "descriptor" — those describe layouts.
+  **type-alist**, keyed by handle. Not "tree", "struct" or "descriptor".
 - **handle** — the key a type is filed and looked up under. Its text is
   the type's **name**.
 - **handler** — behaviour registered on a type: `eval`, `call`,
   `analyse`, `read`, `write`, `display`, and the rest of the families
-  the `type-*` routes name. What a value MEANS when evaluated and
-  whether it is callable are its type's handlers, which is what lets a
-  base be re-registered into a different language.
+  the `type-*` routes name.
 - **stack** — a handler family's slot holds a stack; the head is the
   active handler, and pushing shadows without destroying.
 
@@ -57,8 +52,8 @@ sentences about layout.
 
 - **entry** — slot 0 of every callable: where applying it begins. An
   instruction's entry is itself; a closure's names the code that binds
-  and runs it. The C stores a function pointer, Rust an instruction
-  index; both are the entry.
+  and runs it. The C stores a function pointer; Rust stores an
+  instruction index.
 - **state** — slot 1 of a callable: what its entry uses.
   `(params body env . bst)` for a closure, `(params envname body . env)`
   for an operative, the combiner for a wrap.

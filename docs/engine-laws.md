@@ -1,28 +1,13 @@
 # Engine Laws
 
-Behaviour the language requires of an engine that `x-engine.xon` does not state and
-`isa.x` cannot express. Each row here is a law a second implementation broke, found
-by running x-lang on it and reading the reference to see why.
+Behaviour the language requires of an engine that `x-engine.xon` does not
+state and `isa.x` cannot express. A capability in
+[engine-contract.md](engine-contract.md) says a group of instructions is
+reachable; a law says what an instruction must do.
 
-They belong with the **guarantees** in [engine-contract.md](engine-contract.md):
-a capability says a group of instructions is *reachable*, and every law below was
-broken by an engine whose instructions all resolved.
-
-## Why these were invisible
-
-`tools/check/isa.sh` proves every row RESOLVES. It cannot prove a row *does*
-anything, and six of the nine laws below were absent mechanisms rather than
-wrong answers — an absence answers nil or a raw word, never an error.
-
-The conformance suite missed them for a sharper reason, and it is the rule for
-writing the checks:
-
-> **Assert the observable that distinguishes doing it from not doing it.**
-
-`applicative/gc-hooks.spec.md` asks whether a registered hook *survives a
-collection*. That is true of a hook nobody ever calls, so it passed 13 of 13
-against an engine whose collector never invoked a hook. A hook that COUNTS its
-calls tells the two apart in one line.
+A check for a law asserts the observable that distinguishes doing it from
+not doing it — a hook that counts its calls, not a hook that survives a
+collection.
 
 ## The laws
 
@@ -41,105 +26,73 @@ calls tells the two apart in one line.
 ### 1 — `eq?` compares the operand word
 
 `x_prim_eq` is one expression: `a == b || (!isnil(a) && !isnil(b) && x_intval(a)
-== x_intval(b))`. It reads slot 0 of both operands without asking whether they
-are the same kind, so a CHARACTER equals the INTEGER of its code.
+== x_intval(b))`. It reads slot 0 of both operands without asking their kinds,
+so a CHARACTER equals the INTEGER of its code. `lib/x/boot/printer.x` depends
+on it: `%print-str-esc?` and `%print-str-esc-byte` match `(str byte-ref s i)` —
+a character — against 34, 92, 10, 9, 13.
 
-`lib/x/boot/printer.x` depends on it: `%print-str-esc?` and
-`%print-str-esc-byte` are handed `(str byte-ref s i)` — a character — and match
-it against 34, 92, 10, 9, 13. Type-gating the comparison made every arm miss, so
-a quote printed unescaped, a newline came out `\x0a`, and a carriage return lost
-its backslash.
-
-It follows that **a sentinel must not carry a small integer in slot 0**:
-`x_token_eof_prim`'s value word is its own address, or `%token-eof` would be
-`eq?` to `0` and `lib/x/repl/loop.x` would read a literal `0` as end of input.
+A sentinel must not carry a small integer in slot 0. `x_token_eof_prim`'s value
+word is its own address; `%token-eof` is never `eq?` to a byte.
 
 ### 2 — predicates answer `#t` and `#f`
 
 Never a symbol, never nil. `x_prim_eq`, `x_prim_same`, `x_prim_lt` and `type`'s
-predicates all return `x_firstobj(x_eval_field_true(p_base))` or the false field
-— base fields a child base inherits (`x-prim/base.c`).
-
-Both a symbol and nil branch correctly, so nothing that merely *tests* a
-predicate can see the difference. What sees it is printing one.
+predicates return the base's true and false fields, which a child base inherits
+(`x-prim/base.c`).
 
 ### 3 — generic-operator dispatch
 
-`x_type_op_try`. Every value carries a type tag, ints included, so "is it typed"
-is not the test — CARRYING A HANDLER is. If either operand's type registers a
-handler for the operator, it is called as `(handler a b)` and owns the coercion.
-
-When both sides carry one: same type takes `a`'s; otherwise the side whose type
-declares a conversion FROM the other absorbs it; neither declaring the other
-falls through. Offered by `+ - * / %` and `<` `=`, and NOT by the bitwise family
-(ruling #52: bitwise has no tower semantics).
+`x_type_op_try`: if either operand's type registers a handler for the operator,
+the handler is called as `(handler a b)` and owns the coercion. When both sides
+carry one, the same type takes `a`'s; otherwise the side whose type declares a
+conversion FROM the other absorbs it; with neither declaring, the operator falls
+through. Offered by `+ - * / %`, `<` and `=`, and not by the bitwise family.
 
 ### 4 — the collector invokes the hooks
 
 `x_heap_mark_phase` opens with `x_heap_run_hooks(mark_hooks)`;
-`x_heap_sweep_phase` opens with the free hooks. The engine IS the consuming
-layer.
-
-**Mark hooks run BEFORE any marking**, and that ordering was paid for with a
-use-after-free: everything a hook allocates is born unmarked, so hooks running
-after the mark passes let an allocation that escaped into reachable state be
-freed by the same sweep.
+`x_heap_sweep_phase` opens with the free hooks. Mark hooks run BEFORE any
+marking: a hook's allocations are born unmarked, and a hook that runs after the
+mark passes can have an allocation that escaped into reachable state freed by
+the same sweep.
 
 ### 5 — `apply` is a tail call
 
-`x_prim_apply` binds the parameters and returns `x_eval_body_tco`. This is not
-an optimisation detail: `let` is BUILT on apply — `lib/x/core/control.x` expands
-`(let ...)` to `(apply (eval (fn ...)) vals)` — so an apply that settles makes
-every `let` in tail position grow the host stack.
+`x_prim_apply` binds the parameters and returns `x_eval_body_tco`.
+`lib/x/core/control.x` expands `(let ...)` to `(apply (eval (fn ...)) vals)`;
+an apply that settles grows the host stack under every `let` in tail position.
 
 ### 6 — the interrupt flag raises `STOP`
 
-Publishing an OS interrupt into the flag is half the contract. `x_eval_start`
-reads it every iteration: if set AND an error handler is active, it clears the
-flag and raises `STOP`. Clearing first so a handler that returns does not
-re-trip; requiring a handler because an uncatchable raise ends the run instead of
-interrupting the computation.
-
-x-lang sets the flag directly to test this — no signal involved.
+`x_eval_start` reads the flag every iteration. Set, with an error handler
+active, it clears the flag and raises `STOP`; it clears before raising, and it
+raises only under an active handler. x-lang sets `%sigint-flag` directly to
+test it.
 
 ### 7 — pointers cross the foreign door as real addresses
 
-The reference has no equivalent law because its heap IS process memory. An engine
-whose heap is its own array must resolve an address inside it before it crosses
-the door, exactly as it already does for a string's bytes.
-
-`Sys wait` is the case that finds it: x-lang hands `waitpid` a four-byte region
-as `(%str->ptr s)` and reads the status back.
+An engine whose heap is its own array resolves an address inside it to a real
+one before it crosses the foreign door, as it does for a string's bytes.
+`Sys wait` hands `waitpid` a four-byte region as `(%str->ptr s)` and reads the
+status back.
 
 ### 8 — `byte-sub` addresses bytes
 
-A buffer handed to a syscall is binary. `(str make 4096)` filled by
-`getdirentries64` has a NUL in its fifth byte and real records after it, so a
-`byte-sub` that stops at the NUL cannot read a dirent name at offset 21.
-`byte-ref` beside it addresses raw bytes; the two must agree.
+A buffer handed to a syscall is binary: `(str make 4096)` filled by
+`getdirentries64` holds a NUL in its fifth byte and records after it.
+`byte-sub` addresses raw bytes, as `byte-ref` does.
 
 ### 9 — evaluation and application are type handlers
 
 A `type make` type with an `eval` handler decides what evaluating its
-instances MEANS; with a `call` handler its instances are CALLABLE; without
-either, an instance is itself and a form headed by one is data. This is the
-door an embedded language registers itself through, and the mechanism behind
-the design intent that the interpreter can be re-aimed at any syntax.
-
-The absence is the sixth silent one: on an engine with a hardcoded
-evaluator, `type push-eval` writes a row nothing reads, and instances stay
-inert data. Checked by `tests/x/conformance/core/handlers.spec.md`, both
-engines green.
+instances means; with a `call` handler its instances are callable; with
+neither, an instance is itself and a form headed by one is data. Checked by
+`tests/x/conformance/core/handlers.spec.md`.
 
 ## Open contract question
 
-The compiled-C lane is an **undeclared assumption**, not a law. `x/tool/compile.x`
-builds against the engine's own C headers (`-Iengine/include`), and nothing in
-`x-engine.xon` says an engine can host a compiled prim — the two engines'
-`provides` lists differ only by `instr/cov`/`instr/profile` against
-`meta/identity`/`meta/platform`.
-
-Today `boot/tower-compiled.x` probes for the header directories and keeps its
-interpreted analysers when they are absent. A declared capability would say it
-properly, and would turn `ext/jit-*.spec.md` and `ext/asm.*.spec.md` from
-failures into *not applicable* for an engine that never claimed the lane.
+The compiled-C lane is undeclared. `x/tool/compile.x` builds against the
+engine's own headers (`-Iengine/include`); nothing in `x-engine.xon` says an
+engine hosts a compiled prim. `boot/tower-compiled.x` probes for the header
+directories and keeps its interpreted analysers when they are absent;
+`ext/jit-*.spec.md` and `ext/asm.*.spec.md` assume the lane.
