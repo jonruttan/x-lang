@@ -11,7 +11,7 @@ broken by an engine whose instructions all resolved.
 ## Why these were invisible
 
 `tools/check/isa.sh` proves every row RESOLVES. It cannot prove a row *does*
-anything, and five of the eight laws below were absent mechanisms rather than
+anything, and six of the nine laws below were absent mechanisms rather than
 wrong answers — an absence answers nil or a raw word, never an error.
 
 The conformance suite missed them for a sharper reason, and it is the rule for
@@ -36,6 +36,7 @@ calls tells the two apart in one line.
 | 6 | a set interrupt flag raises `STOP` under a handler | set `%sigint-flag` inside a `guard` | the flag is written and never read |
 | 7 | a pointer into the engine's heap crosses the foreign door as a REAL address | `(Proc run! (list "/bin/sh" "-c" "exit 3"))` is `3` | a constant status, whatever the child did |
 | 8 | `str byte-sub` ADDRESSES bytes; it does not slice the NUL-bounded value | a byte past an embedded NUL | every dirent name reads empty |
+| 9 | evaluation and application are TYPE HANDLERS | replacing a made type's `eval` handler changes what `(eval i)` answers | registration writes a row the evaluator never reads |
 
 ### 1 — `eq?` compares the operand word
 
@@ -117,6 +118,19 @@ A buffer handed to a syscall is binary. `(str make 4096)` filled by
 `byte-sub` that stops at the NUL cannot read a dirent name at offset 21.
 `byte-ref` beside it addresses raw bytes; the two must agree.
 
+### 9 — evaluation and application are type handlers
+
+A `type make` type with an `eval` handler decides what evaluating its
+instances MEANS; with a `call` handler its instances are CALLABLE; without
+either, an instance is itself and a form headed by one is data. This is the
+door an embedded language registers itself through, and the mechanism behind
+the design intent that the interpreter can be re-aimed at any syntax.
+
+The absence is the sixth silent one: on an engine with a hardcoded
+evaluator, `type push-eval` writes a row nothing reads, and instances stay
+inert data. Checked by `tests/x/conformance/core/handlers.spec.md`, both
+engines green.
+
 ## Open contract question
 
 The compiled-C lane is an **undeclared assumption**, not a law. `x/tool/compile.x`
@@ -129,12 +143,3 @@ Today `boot/tower-compiled.x` probes for the header directories and keeps its
 interpreted analysers when they are absent. A declared capability would say it
 properly, and would turn `ext/jit-*.spec.md` and `ext/asm.*.spec.md` from
 failures into *not applicable* for an engine that never claimed the lane.
-
-## 9. Evaluation and application are type handlers
-
-A `type make` type with an `eval` handler decides what evaluating its
-instances MEANS; with a `call` handler its instances are CALLABLE; without
-either, an instance is itself and a form headed by one is data. This is the
-door an embedded language registers itself through, and the mechanism behind
-the design intent that the interpreter can be re-aimed at any syntax.
-Checked by `tests/x/conformance/core/handlers.spec.md`, both engines green.
