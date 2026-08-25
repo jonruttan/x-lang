@@ -21,7 +21,11 @@
 #   MACOS_NOTARY_KEY_PATH   path to the App Store Connect API .p8 key file
 #   MACOS_NOTARY_KEY_ID     the key's Key ID
 #   MACOS_NOTARY_ISSUER_ID  the key's Issuer ID
-#   ENTITLEMENTS            entitlements plist (default: ./entitlements.plist)
+#   ENTITLEMENTS            entitlements plist (default: the engine's own
+#                           engine/entitlements.plist -- the JIT entitlements
+#                           belong to the BINARY being signed, and the binary
+#                           is the engine's; x-lang stopped carrying a copy
+#                           when the engine was carved out)
 #
 # A .tar.gz cannot carry a stapled ticket (you can only staple a
 # bundle/dmg/pkg), so none is stapled: the ticket lives in Apple's
@@ -29,7 +33,7 @@
 set -eu
 
 BIN="${1:?usage: macos-notarize.sh <binary>}"
-ENTITLEMENTS="${ENTITLEMENTS:-entitlements.plist}"
+ENTITLEMENTS="${ENTITLEMENTS:-engine/entitlements.plist}"
 
 : "${MACOS_SIGN_IDENTITY:?MACOS_SIGN_IDENTITY not set}"
 : "${MACOS_NOTARY_KEY_PATH:?MACOS_NOTARY_KEY_PATH not set -- notarization needs the API key}"
