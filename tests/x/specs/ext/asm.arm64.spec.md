@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/asm.x
+# @requires native/jit
 
 ## asm-new
 

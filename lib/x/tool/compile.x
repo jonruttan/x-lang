@@ -103,6 +103,34 @@
 (def %compile-ext
   (if os-darwin? ".bundle" ".so"))
 
+; --- Can this ENGINE host a compiled prim? -------------------------------
+;
+; This is the capability `native/cc` (tools/contract/features.x): an engine
+; that ships its C headers is declaring the lane works.  The directory probe
+; below is the capability's OPERATIONAL test -- the declared row and these
+; two directories must agree, and an engine declaring native/cc without
+; shipping the headers fails compliance, not this probe.
+;
+; The object this lane builds is compiled against the ENGINE's own C headers
+; -- the -Iengine/... flags below -- so the lane needs those directories to
+; exist.  A C engine ships them.  An engine written in another language has no
+; C headers to ship and never claimed it could host a compiled prim.
+;
+; Answered ONCE, beside the -I flags that ask the question, so the two cannot
+; drift.  This is a property of the ENGINE, not of the machine: a missing or
+; broken cc is a different failure and still raises, because an engine that
+; ships headers is asserting the lane works.
+;
+; x-engine-rust is the case that made this necessary: x-base.x is x-core plus
+; the compiled numeric tower, and it died there on `cc failed with status 160`
+; -- 67 specs at once -- where the honest answer is that the tower's compiled
+; analysers are an OPTIMISATION over interpreted twins x-core already
+; installed, and an engine without C headers simply keeps the twins.
+(def %compile-hosted?
+  (if (File exists? "engine/include")
+    (File exists? "engine/ext/x-expr/include")
+    #f))
+
 ; --- Multi-arg string concatenation ---
 
 ; str moved to string.x

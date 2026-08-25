@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/asm.x
+# @requires native/jit
 
 SysV AMD64 mirror of asm-extended.arm64.spec.md. Two-operand ISA: where the
 A64 specs write `sub x0 x1 x0`, these stage through rax with mov + sub.

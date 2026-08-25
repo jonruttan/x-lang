@@ -108,8 +108,12 @@
   ; The RAW base: logo walks the spine directly (the %cell walk below,
   ; entry.x's filein path) and hands it to the raw tok/buf prims per
   ; token, so it holds the raw member; Base statics accept it as-is.
-  (let ((base ((Base make) raw)))
-    (def %cell (first (first (first (rest (first base))))))
+  (let ((%inst (Base make)))
+    (def base (%inst raw))
+    ; The type-alist CELL by its declared route, not by a layout walk: the
+    ; walk encoded x-engine-c's spine, and decision L1 leaves each engine
+    ; its own -- the route door resolves whichever engine is underneath.
+    (def %cell (%inst cell 'type-alist))
     (def %int-name (%type-of 0))
     (def %float-name (%type-of (Float from 0)))
     ; Keep only INTEGER and FLOAT from the base.  A LOCAL walker on
