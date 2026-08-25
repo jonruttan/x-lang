@@ -1,223 +1,77 @@
 # Glossary
 
-One name per concept. This page owns the cross-layer vocabulary; the normative
-anchors it defers to are the absence discipline (spec.md, "Nil, false, and
-truthiness") and the method-naming adjudications in
-[contributing.md](contributing.md). Terms are added here as naming decisions
-are settled (tracked in issue #42 and #44).
+The names shared across engines. An x-lang engine is judged by the
+contract, so the contract's files are the authority on what things are
+called: a name used in `tools/contract/`, the conformance suite, or this
+glossary is THE name, and every engine's identifiers use these nouns
+under its own affix conventions (`x_` and snake case in C; modules and
+snake case in Rust). A word that appears in neither the contract nor
+this file is engine-private, and stays out of contract prose, commit
+messages and reviews.
 
-## Association vocabulary
+Choosing a name: the contract's existing name wins; failing that, the
+name the library already uses; failing that, the clearer word, whichever
+implementation coined it. A name states what a thing IS, not what shape
+it takes — "spine" and "tree" describe layouts, and belong only in
+sentences about layout.
 
-- **assoc** — one dotted `(key . val)` pair: a single association. `Assoc find`
-  / `Assoc entry` return the assoc itself.
-- **alist** — a list of assocs: `((k1 . v1) (k2 . v2) ...)`. The associative
-  wire format of the library: pairing producers (`List zip`, `Gen zip`,
-  `Gen enumerate`, `List group-by`, `Dict ->alist`) emit alists, and the keyed
-  consumers (`Assoc` API, `Dict from-alist`) take them. Keys in the alist layer
-  compare with `eq?`.
-- **plist** — the flat `(k v k v ...)` shape. Legal only in **option stores**.
-- **option store** — an argument accepting an alist *or* a plist, walked by
-  `%opt-cell`: `let-opts`, `Assoc get-or`/`opt-get-or`/`opt-get-or-else`, and
-  object initialization (`new`, `new-from`). Everything else — including
-  `Dict` and JSON — is alist-only.
-- **bindings list** — `((key value) ...)` two-element lists, the shape `let`
-  uses. Bridged to alists by `Assoc from-bindings` / `Assoc ->bindings`.
+## The context
 
-## the layers
+- **base** — the execution context: one self-describing structure
+  carrying the interpreter's state. There is nothing above it; "engine"
+  names an implementation, never a value.
+- **route** — a committed path through the base, declared in
+  `base-paths.x` and resolved by name. The steps are the engine's; the
+  names are the contract's.
+- **cell** — what a route ends at: the pair whose first is the value.
+- **catalog** — the base's registry of instructions,
+  `((ns . ((method . instruction) ...)) ...)`, reached by the `prims`
+  route.
+- **frame** — one environment's bindings; frames chain outward to
+  enclosing scopes. The current environment is part of the evaluation,
+  however an engine spells it.
+- **save stack** — what decides whether a definition is top-level: a
+  `def` made while it is empty binds globally. Closure bodies hold a
+  save over their non-tail forms; operatives and sequences hold none.
+- **tco-expr, tco-env** — the deferred tail: the expression a body left
+  for its caller's loop, and the restore that travels with it. Base
+  fields, named by their rows.
 
-- **x-expr** (`ext/x-expr/` inside the engine) — the expression engine, nested
-  inside the engine repo that embeds it: objects,
-  storage, GC, the base tree. Below the language.
-- **the C core** — the interpreter's instruction set (the ISA, cataloged in
-  `engine/tools/contract/isa.x`): evaluator, tokenizer driver, primitives. Deliberately
-  "just enough"; unchecked by design — guards live in x-lang.
-- **the type system** — runtime type structs with dispatch methods; types
-  and the base share one nested-list contract pattern.
-- **the library** (`lib/`) — everything else, written in x-lang, composed
-  into **dialects** (helium, xenon, radon); whole surface languages load as
-  **personalities**.
+## Types
 
-## the dialects (noble gases)
+- **type** — the object a value carries and a handle resolves to: its
+  name, its units, and its handlers. Registered in the base's
+  **type-alist**, keyed by handle. Not "tree", "struct" or
+  "descriptor" — those describe layouts.
+- **handle** — the key a type is filed and looked up under. Its text is
+  the type's **name**.
+- **handler** — behaviour registered on a type: `eval`, `call`,
+  `analyse`, `read`, `write`, `display`, and the rest of the families
+  the `type-*` routes name. What a value MEANS when evaluated and
+  whether it is callable are its type's handlers, which is what lets a
+  base be re-registered into a different language.
+- **stack** — a handler family's slot holds a stack; the head is the
+  active handler, and pushing shadows without destroying.
 
-Atomic weight = library weight; radioactivity = instability. Dialects may
-differ in what surface is *loaded*, never in what a shared spelling *means*
-(same-spelling-different-meaning is personality territory).
+## Callables
 
-- **helium** (`he`, `lib/he.x`) — light: fast boot, interactive, no numeric
-  tower. The default; `lib/x.x` is a pointer to it.
-- **xenon** (`xe`, `lib/xe.x`) — heavy and inert: the full numeric tower,
-  POSIX, the compiler; the stable full-stack surface.
-- **radon** (`rn`, `lib/rn.x`) — heavy and radioactive: xenon's surface
-  plus the experimental/raw APIs (syscalls, opt-in file I/O and sockets);
-  explicitly volatile.
-- **x-lang** — the *language's* name only, never a dialect's. The retired
-  dialect spellings `x-and`/`x-or` are ratcheted out of `lib/`
-  (`check-doc-vocab`'s retired-dialects gate) and must not come back.
+- **entry** — slot 0 of every callable: where applying it begins. An
+  instruction's entry is itself; a closure's names the code that binds
+  and runs it. The C stores a function pointer, Rust an instruction
+  index; both are the entry.
+- **state** — slot 1 of a callable: what its entry uses.
+  `(params body env . bst)` for a closure, `(params envname body . env)`
+  for an operative, the combiner for a wrap.
+- **instruction** — one row of the ISA: a bare name and/or a catalog
+  coordinate, and one function behind it. Arguments arrive as written;
+  an instruction that wants values evaluates them itself.
 
-## notation and pinning
+## Reading
 
-- **xon** — x object notation: a *data* use of x-lang syntax, the way JSON
-  is a data use of JS. An `.xon` file is a sequence of x-lang data forms
-  (with `;` comments) that consumers read with the ordinary reader and
-  **never evaluate**, interpreting a closed per-consumer vocabulary. Not a
-  dialect — dialects are surfaces of the *language*; xon is not evaluated
-  at all (which is why it takes no noble-gas name).
-- **pin** — resolving an import name against a project-held copy of the
-  module instead of the platform library, so the project keeps the exact
-  code it was written against. Declared in the project's `pin.xon`
-  manifest; armed as overlay **search roots** ahead of the platform root
-  (see [modules.md](modules.md), "Pinning").
-- **the pin boundary** — what pinning structurally cannot change: the
-  pre-seeded boot set (an overlay copy of a boot module is a no-op by
-  construction), and module identity (one version per name per session —
-  first load wins).
-- **vendor** — copy a module's **import closure** (the module, its
-  transitive imports, and its `./`-relative include siblings; boot floor
-  excluded) into a project's overlay root: `(Pin vendor "deps" 'name)`.
-  Closure-wise, not file-wise — a lone vendored module would silently
-  mix with newer dependencies.
-- **lockfile** (`pin.lock.xon`) — the overlay's integrity record,
-  written by vendor: one `(file "REL" "sha256:HEX")` per vendored file.
-  `(Pin verify "deps")` recomputes every digest and walks the tree —
-  the overlay must be *exactly* the lock (an unlisted file is a rogue
-  shadow). The digests are pure-x SHA-256 (`x/codec/sha256`).
-- **ISA fingerprint** — the sha256 of `engine/tools/contract/isa.x`, the ratcheted
-  C-surface manifest. Published in every release's `pin.release.xon`,
-  it names the engine contract the release's amalgams were built
-  against. It is a compatibility key, not an identity: the C surface is
-  deliberately fixed, so releases whose library changed completely share
-  one fingerprint.
-- **payload fingerprint** — the sha256 of the digest listing of
-  everything a release ships as library (`lib`, `apps`, `boot`, sorted).
-  Published in `pin.release.xon` and stamped into an installed tree as
-  `share/x/contract/payload.sha256`. Changes whenever the shipped bytes
-  do, which is what the ISA fingerprint cannot do.
-- **release stamp** — `share/x/contract/release`, the tag the installed
-  **library** was built from. The key the wrapper compares against a
-  lock's `(release ...)` before booting a pinned amalgam, and the one
-  that refuses a mismatched pair — because an amalgam resolves its
-  imports against this tree's `lib/` and `apps/` as it boots.
-  Distinct from `x-release`, which is the **engine's** own tag: the two
-  are the same string only when x-lang built the engine it runs.
-- **engine release stamp** — `share/x/contract/engine-release`, the release
-  the installed ENGINE was built as, taken from the `(param release …)` row
-  it declares beside its binary. Compared against a lock's
-  `(engine-release …)`: which engine build a project was verified against.
-  Distinct from the release stamp above, which is the library's — one string
-  stood for both until x-engine-c got a version line of its own.
-- **release skew** — a pinned amalgam and an installed library from
-  different releases. Refused at boot; waived per run with `--allow-release-skew`
-  or per project with `(allow-release-skew)` in the manifest.
-- **fetch** — `(Pin fetch "boot" "vX.Y.Z" 'xe)`: download a release's
-  manifest and one amalgam (curl when present; otherwise the URLs print
-  and nothing proceeds) and verify with the pure-x SHA-256 before
-  calling it good. Transport is optional; verification is not.
-
-## combiners
-
-One concept per register; don't mix registers within a document:
-
-- **surface**: `fn` / `op` — what programs say.
-- **C types**: `procedure` / `operative` — what the implementation says.
-- **theory** (docs, comments): `applicative` / `fexpr` — what papers say.
-- **combiner** is the umbrella for anything callable; **`wrap`** turns an
-  operative into an applicative.
-
-## nil and null
-
-Prose says **nil**, always. The word "null" survives in exactly three
-registers: `null?` (the nil predicate — historical, spec'd API), the
-`null` **symbol** (a boundary's foreign null, e.g. JSON), and "the null
-byte" (`\0`). None of them is a fourth falsy value: falsy is {nil, `#f`}.
-
-## sentinel (two senses — always qualify)
-
-- **value sentinel** — a stand-in *inside the value domain* (`-1` for a
-  miss, a magic string). FORBIDDEN by the absence discipline; misses are
-  nil behind presence doors. (Two blessed exceptions: `raised`'s `%no-raise`,
-  OS-domain `-1` — see contributing.)
-- **identity sentinel** — a unique *object* compared by `eq?` to mark a
-  mechanism's own state (the TCO tag). Blessed internal technique.
-
-## scoped words (same spelling, different domains — deliberate)
-
-- **head / tail** in C are always *chain-position* words (the front or end
-  pointer of a linked chain: `p_head`, `p_tail`) — never element accessors
-  (those are `first`/`rest`); *tail call* / TCO is a separate compound.
-- **table** in C is a static array of entries (a bind table,
-  `x_callable_entry_t[]`); the hash container is `Dict`; keyed pair-lists
-  are alists. Three structures, three words.
-- **signal** means OS signals (`x_signal`, SIGINT) — errors are *raised*
-  and *propagated*, never "signaled".
-- **init** on List is Haskell's all-but-last (the `last` twin) — unrelated
-  to constructor initialization. **reject** on List is the filter
-  complement; in the tokenizer protocol it is the no-match terminator
-  (accept / accept-inclusive / reject) — each is coherent in its domain.
-- **Utf8** names exactly one thing: the byte↔code-point *codec* class
-  (`x/codec/utf8` — `decode`/`encode`/`width`). The string classes are
-  `Str8`/`StrUtf8` with ambient `Str`; the old `Utf8` *string-class alias*
-  is retired and must not come back.
-
-## core and base
-
-- **core** carries three senses — the C interpreter core, `lib/x/core/`,
-  and the bootstrap core (`x-core.x`, the module manifest every dialect
-  loads first; internal, not a user-facing dialect); say which.
-- **base** — the interpreter's root context object (`p_base`): execution
-  context only. Not nil (`()` is `NULL`), and not the environment — the
-  binding structure (`env`) lives *on* the base.
-
-## symbol (a cross-layer trap)
-
-From the C layer up, a **symbol** is the interned name type. Inside
-x-expr, every `SYMBOL`-named macro (`X_TYPE_*_SYMBOL`, `X_OBJ_TRUE_SYMBOL`)
-means *a C string* — the interned type doesn't exist down there. Read
-x-expr's "symbol" as "name text".
-
-## vector, atom, pair — and Array
-
-- **vector** — the fundamental fixed-size structural shape: N contiguous
-  object slots. Everything is a vector. The **atom** is the one-slot vector;
-  the **pair** is the two-slot vector; the user-facing `Vector` type is the
-  same shape with the length exposed. Structural tier: plain values,
-  data-last static methods.
-- **Array** — NOT a vector: a growable stateful *container* (Dict/Set tier,
-  instance dispatch) wrapping a vector backing store that doubles on
-  overflow. Fixed extent and value semantics → `Vector`; growth and
-  in-place mutation → `Array`.
-
-## generator vs iterator
-
-- **generator** — the pure step contract: `(step state) -> (value . next-state)`,
-  or `()` when exhausted. THE iteration concept of the tower: Seq's cursor
-  triad speaks it per type, `Gen` is the composable lazy pipeline over it, and
-  the C layer's per-type steps implement it allocation-free (the cell ABI).
-  A `Gen` is persistent: driving it consumes nothing, so it can be re-driven.
-- **iterator** — a specific form of generator: a generator boxed with a cursor
-  cell, `[step . state]`, driven by `(Iter next)` — which owns the single
-  mutation (the box write-back; steps themselves never mutate). Ephemeral and
-  drain-once by nature. `(Iter step it)` is the functional door back to the
-  generator view: `(value . next-iterator)` with the source untouched.
-- Corollary conventions: def-class instances (like `Gen`) speak message-send;
-  raw typed values (like iterators) get static data-last methods and are
-  fluent anyway through value-call dispatch. And as with length/count: strict
-  collections take counts (`List repeat n x`), lazy streams are infinite and
-  you `take` (`Gen repeat x`).
-
-## length vs count
-
-- **length** — the element count as a *property*: the noun you ask of any
-  finite collection (List, Vector, Array, Str8, StrUtf8, Seq, Dict, Set). The
-  interface word describes the meaning, not the cost — `StrUtf8 length` is
-  O(n) under the hood, `Dict length` O(1).
-- **width** — display columns, exclusively. Never byte counts: `str-length`
-  is bytes, `Str length` is code points, and neither is a column count for
-  double-width or combining glyphs. Column math (Fmt) counts code points —
-  correct except for those glyph classes; true wcwidth-style tables are a
-  known gap. Padding (`pad-left`/`pad-right`) is by *elements*, not columns.
-- **count** — the *action* of tallying. Reserved for genuine acts: `Gen count`
-  (consumes the stream; a lazy stream has no length property — strict
-  collections have a `length`, lazy streams you `count`), `Seq count` (the
-  cursor-walk that the default `length` is implemented by), `Heap count`
-  (walks the heap chain), and the verb-compounds `count-if`, `match-count`,
-  `count-from`.
+- **buffer** — the reader's window: `(val . (read . write))` cells over
+  a text, with byte-offset marks.
+- **token** — what a read handler answers for a span the competition
+  awarded it.
+- **competition** — how the reader chooses: every registered type's
+  analyse handlers score a position, and the best claim wins. A type
+  with no read handler discards its span.
