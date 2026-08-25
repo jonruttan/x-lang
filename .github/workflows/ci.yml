@@ -85,6 +85,16 @@ jobs:
           # NEVER set STRESS on the asan job: the sanitizer multiplies
           # those peaks 2-4x past any runner (the #366 OOM shape).
           STRESS: "1"
+      # The conformance suite was reachable only through `make test`, which no
+      # job here runs -- the #330 lesson again, in a new coat: its posix half
+      # had NEVER executed on Linux until the v0.5.0 release run, where the
+      # doubles test failed on the first try (sqrt lives in libm on Linux, and
+      # the engine deliberately links no libm; the spec assumed a self-handle
+      # finds it, which is true only where libc bundles the math functions).
+      # A suite that exists to prove an engine on every platform has to RUN on
+      # every platform this file covers.
+      - name: Conformance
+        run: make conformance
       # Doctest ratchet (#16): every (example ...) in the doc registry is an
       # executable contract; a stale example is a red build, not quiet rot.
       - name: Doctests
