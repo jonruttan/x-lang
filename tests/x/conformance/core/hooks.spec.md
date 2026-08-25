@@ -13,7 +13,7 @@ handler that runs changes the ANSWER, not merely a registration list.
 
 ### a type's eval handler decides what evaluating its instances means
 
-covers: type/make type/make-instance core/eval
+covers: type/make type/make-instance eval
 
 An instance of a plain type is itself; an instance whose type registers
 `eval` is whatever the handler answers. `(eval i)` evaluates the symbol
@@ -33,7 +33,7 @@ hook's.
 
 ### an instance of a type WITHOUT an eval handler is itself
 
-covers: type/make type/make-instance core/eval
+covers: type/make type/make-instance eval
 
 The other half of the law: absence of the hook means the value is its
 own meaning. An engine that hardcoded instance evaluation could pass the

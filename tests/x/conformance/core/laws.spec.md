@@ -53,7 +53,7 @@ covers: obj/eq?
 
 ### apply is a tail call
 
-covers: core/apply
+covers: apply
 
 Not an optimisation detail: `lib/x/core/control.x` expands `(let ...)` to
 `(apply (eval (fn ...)) vals)`, so an `apply` that runs its callee to a value
@@ -122,7 +122,7 @@ adds the operand words and answers a machine integer, which is how
 
 ### a set interrupt flag raises STOP while a handler is active
 
-covers: obj/set!
+covers: set!
 
 Publishing the OS interrupt into `%sigint-flag` is half the contract; the
 evaluator must READ it back. The reference checks it at eval_start: flag set and
