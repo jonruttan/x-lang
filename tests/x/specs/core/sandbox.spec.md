@@ -329,15 +329,17 @@ words, and mutating "its cell" would overwrite interpreter state.
 ### custom type coexists with built-in types
 
 ```scheme
-(do (def %tb6 ((Base make) raw))
+(do (def %tb6i (Base make))
+    (def %tb6 (%tb6i raw))
     (def %tb6-r (fn (_ . args) (list '%comment (%buf-tok (first args)))))
     (def %tb6-body ()) (set! %tb6-body (fn (_ buffer score chr)
       (if (= chr 10) (%score-set score 1 buffer) %tb6-body)))
     (Base make-type %tb6 "FMT-COMMENT" (list (pair 'analyse (fn (_ buffer score chr)
       (if (= chr 59) (do (%score-set score 1 buffer) %tb6-body) ())))
       (pair 'read %tb6-r)))
-    (def %tb6-ta (first (first (first (first (rest (first %tb6)))))))
-    (%set-first! (first (first (first (rest (first %tb6))))) (List append (rest %tb6-ta) (list (first %tb6-ta))))
+    (def %tb6-c (%tb6i cell (lit type-alist)))
+    (def %tb6-ta (first %tb6-c))
+    (%set-first! %tb6-c (List append (rest %tb6-ta) (list (first %tb6-ta))))
     (def %tb6-tokens (Tok read-str %tb6 "; hi\n(+ 1 2)"))
     (first (first %tb6-tokens)))
 ```
@@ -367,7 +369,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 ### access type alist
 
 ```scheme
-(do (def %tb7 ((Base make) raw)) (not (null? (first (first (first (first (rest (first %tb7)))))))))
+(do (def %tb7i (Base make)) (not (null? (first (%tb7i cell (lit type-alist))))))
 ```
 ---
     #t
@@ -375,12 +377,14 @@ words, and mutating "its cell" would overwrite interpreter state.
 ### move entry from front to end
 
 ```scheme
-(do (def %tb8 ((Base make) raw))
+(do (def %tb8i (Base make))
+    (def %tb8 (%tb8i raw))
     (def %tb8-a (Base make-type %tb8 "A" (list (pair 'analyse (fn (_ buffer score chr) ())))))
     (def %tb8-b (Base make-type %tb8 "B" (list (pair 'analyse (fn (_ buffer score chr) ())))))
-    (def %tb8-ta (first (first (first (first (rest (first %tb8)))))))
-    (%set-first! (first (first (first (rest (first %tb8))))) (List append (rest %tb8-ta) (list (first %tb8-ta))))
-    (def %tb8-new (first (first (first (first (rest (first %tb8)))))))
+    (def %tb8-c (%tb8i cell (lit type-alist)))
+    (def %tb8-ta (first %tb8-c))
+    (%set-first! %tb8-c (List append (rest %tb8-ta) (list (first %tb8-ta))))
+    (def %tb8-new (first %tb8-c))
     (eq? (first (first %tb8-new)) %tb8-a))
 ```
 ---
