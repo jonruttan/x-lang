@@ -1,6 +1,6 @@
 ; type.x -- Type system reflection: the mechanism, registered in the catalog.
 ;
-; Navigate the type struct layout:
+; Navigate the type layout:
 ;   (name (data (heap (proc (cvt (io (iter (ops))))))))
 ; IO layout:
 ;   (analyse (delimit (read (write (display)))))
@@ -33,7 +33,7 @@
 ; the shared %reflect-path-parent, exactly like the printer's handler
 ; pushes), because set-first! on that parent is what replaces the value.
 ; Load-time resolution is safe: %base-paths is a boot-time literal, and
-; the type-* rows are rooted at the type-tree ARGUMENT, not the base.
+; the type-* rows are rooted at the type ARGUMENT, not the base.
 (def %type-parent-path
   (fn (_ name) (%reflect-path-parent (%reflect-path name %base-paths))))
 
@@ -45,7 +45,7 @@
   (fn (_ )
     (first (%reflect-step (%base) %type-alist-path))))
 
-; Look up a type struct by its handle atom (from type-of)
+; Look up a type by its handle atom (from type-of)
 (def %type-by-atom
   (fn (_ handle)
     (def %go (fn (self al)
@@ -75,7 +75,7 @@
 (def %type-proc-group
   (fn (_ t) (%reflect-step t %type-proc-path)))
 
-; The write-stack cell of a type struct: parent of row type-write-stack.
+; The write-stack cell of a type: parent of row type-write-stack.
 (def %type-write-cell-path (%type-parent-path (lit type-write-stack)))
 (def %type-write-cell
   (fn (_ t) (%reflect-step t %type-write-cell-path)))

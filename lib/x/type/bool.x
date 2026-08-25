@@ -19,11 +19,11 @@
 ; The refusal ops close the #52 residual: (+ #t 1) now raises
 ; "no + for BOOL" through the same registry as every other non-numeric
 ; type (op-guard.x, loaded just before this file -- %og-refuse and %og-all
-; are its globals). SYMBOLS remain the one residual: tree-typed, and
-; retagging the interning tree is not an option (every symbol shares it).
+; are its globals). SYMBOLS remain the one residual: their type slot is the interning tree,
+; and retagging it is not an option (every symbol shares it).
 ;
 ; Idempotent: a child base re-running boot must not re-claim the shared
-; singletons with its own tree -- name-interned handles compare across
+; singletons with its own type -- name-interned handles compare across
 ; bases, so the first claim serves every base.
 
 (def %bool-make-type (prim-ref (lit type) (lit make)))
@@ -47,12 +47,12 @@
 
 ; push-op wants the STRUCT, reached via by-atom of the make-type return --
 ; the return itself is the registry handle, not the struct (float.x's
-; %float-ts idiom; pushing onto the handle segfaults, found by bisecting
+; %float-type idiom; pushing onto the handle segfaults, found by bisecting
 ; boot).
 (def %bool-push (prim-ref (lit type) (lit push-op)))
-(def %bool-ts ((prim-ref (lit type) (lit by-atom)) %bool))
+(def %bool-type ((prim-ref (lit type) (lit by-atom)) %bool))
 (List for-each
-  (fn (_ op) (%bool-push %bool-ts op (%og-refuse (symbol->str op) "BOOL")))
+  (fn (_ op) (%bool-push %bool-type op (%og-refuse (symbol->str op) "BOOL")))
   %og-all)
 
 (def %bool-retag (prim-ref (lit obj) (lit retag!)))

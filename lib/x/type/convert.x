@@ -2,7 +2,7 @@
 ; Convert class.
 ;
 ; Three concerns, one mechanism each:
-;   - The TYPE SYSTEM carries the data: each type struct's cvt group holds a
+;   - The TYPE SYSTEM carries the data: each type's cvt group holds a
 ;     from-alist (source-type -> converter) and a to-alist (target-type ->
 ;     converter), set with the %type-set-from! helper below.
 ;   - The CATALOG carries the implementation: %convert-to is registered as
@@ -69,9 +69,9 @@
 
 ; --- Type navigation via type.x (loaded before us) ---
 
-; Set the from alist on a type struct
+; Set the from alist on a type
 (def %type-set-from!
-  (fn (_ ts alist) (%set-first! (%type-from-cell ts) alist)))
+  (fn (_ t alist) (%set-first! (%type-from-cell t) alist)))
 
 
 ; --- Type handles ---
@@ -141,11 +141,11 @@
     (if (null? val) ()
       (if (eq? (%type-of val) target) val
         (let ((source (%type-of val))
-              (target-ts (%type-by-atom target))
+              (target-type (%type-by-atom target))
               (entry ()))
           ; Exact match: source in target's from-alist
-          (if (null? target-ts) ()
-            (let ((from-al (first (%type-from-cell target-ts))))
+          (if (null? target-type) ()
+            (let ((from-al (first (%type-from-cell target-type))))
               (if (null? from-al) ()
                 (do
                   (if (null? source) ()
@@ -157,9 +157,9 @@
           ; Outbound: target in source's to-alist
           (if (null? entry)
             (if (null? source) ()
-              (let ((source-ts (%type-by-atom source)))
-                (if (null? source-ts) ()
-                  (let ((to-al (first (%type-to-cell source-ts))))
+              (let ((source-type (%type-by-atom source)))
+                (if (null? source-type) ()
+                  (let ((to-al (first (%type-to-cell source-type))))
                     (if (null? to-al) ()
                       (set! entry (%assq target to-al)))))))
             ())

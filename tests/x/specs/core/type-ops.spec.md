@@ -98,10 +98,10 @@
   (def %lo2 (Type make "OPSLO2" (list)))
   (def %hi2 (Type make "OPSHI2"
     (list (pair 'from (list (pair %lo2 (fn (_ v) v)))))))
-  (def %lo2-ts (Type by-atom %lo2))
-  (def %hi2-ts (Type by-atom %hi2))
-  (Type push-op %lo2-ts '* (fn (_ a b) 'lo2))
-  (Type push-op %hi2-ts '* (fn (_ a b) 'hi2))
+  (def %lo2-type (Type by-atom %lo2))
+  (def %hi2-type (Type by-atom %hi2))
+  (Type push-op %lo2-type '* (fn (_ a b) 'lo2))
+  (Type push-op %hi2-type '* (fn (_ a b) 'hi2))
   (* (Type make-instance %lo2 1) (Type make-instance %hi2 1)))
 ```
 ---
@@ -114,10 +114,10 @@
   (def %lo3 (Type make "OPSLO3" (list)))
   (def %hi3 (Type make "OPSHI3"
     (list (pair 'from (list (pair %lo3 (fn (_ v) v)))))))
-  (def %lo3-ts (Type by-atom %lo3))
-  (def %hi3-ts (Type by-atom %hi3))
-  (Type push-op %lo3-ts '* (fn (_ a b) 'lo3))
-  (Type push-op %hi3-ts '* (fn (_ a b) 'hi3))
+  (def %lo3-type (Type by-atom %lo3))
+  (def %hi3-type (Type by-atom %hi3))
+  (Type push-op %lo3-type '* (fn (_ a b) 'lo3))
+  (Type push-op %hi3-type '* (fn (_ a b) 'hi3))
   (* (Type make-instance %hi3 1) (Type make-instance %lo3 1)))
 ```
 ---

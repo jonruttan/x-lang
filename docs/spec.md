@@ -504,7 +504,7 @@ for `+ - * / % <`, so `(+ 1 "abc")` errors instead of reading the string's
 pointer as an integer (#52). CHARACTERS are exempt by
 contract: a char IS its code point arithmetically -- `(- #\3 #\0)` is `3` --
 and the regex engine, utf8 decode, and the printer all depend on it. One
-documented residual: symbols (tree-typed; the registry cannot carry ops for
+documented residual: symbols (their type slot is the interning tree; the registry cannot carry ops for
 them) still fall through to machine arithmetic. The booleans are a real
 BOOL type (#101) -- `(Type of #t)` answers, and `(+ #t 1)` refuses through
 the same registry.
@@ -1288,7 +1288,7 @@ called with the instance (after the closure's implicit self slot).
 
 `(Type wrap t) -> instance`
 
-Clothes a type handle (from `Type of`) or a type struct (from `Type by-atom`)
+Clothes a type handle (from `Type of`) or the type itself (from `Type by-atom`)
 as an interactive Type instance carrying both forms: the `handle` member is
 the name atom, `raw` the struct the wiring statics consume.
 
@@ -1301,7 +1301,7 @@ the name atom, `raw` the struct the wiring statics consume.
 (`engine/tools/contract/base-paths.x`) to the object the type-rooted row for
 `field-name` addresses — handler stacks, the conversion catalog cells, the
 generic-operator alist. `(t fields)` lists the row names. A name whose row is
-not type-rooted is refused: a base-rooted path stepped from a type struct
+not type-rooted is refused: a base-rooted path stepped from a type
 would address arbitrary spine words.
 
 ```x-repl

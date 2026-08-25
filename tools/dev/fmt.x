@@ -88,7 +88,7 @@
   ; the reflect walk), not by shape heuristics.
   (def %find-type (fn (_ entries name)
     (let ((hit (%find (fn (_ e)
-                        (str=? (%reflect-sym->str (%reflect-type-tree-name (rest e)))
+                        (str=? (%reflect-sym->str (%reflect-type-name-atom (rest e)))
                                name))
                       entries)))
       (when (null? hit)
@@ -193,7 +193,7 @@
       (def %fmt-base ((Base make) raw))
       ; The fresh base's type registry: descriptor row `type-alist`,
       ; walked FROM %fmt-base (reflect's own cell accessor is bound to
-      ; the running base). Entries are (handle . type-tree).
+      ; the running base). Entries are (handle . type).
       (def %fmt-registry
         (first (%reflect-step %fmt-base (%reflect-path 'type-alist %base-paths))))
       ; Push the keeping reader through the blessed door (path-driven cell).

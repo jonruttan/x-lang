@@ -6,7 +6,7 @@
 ;
 ;   - the dispatch mirror of C's x_token_display/x_token_write: nil, #t/#f,
 ;     sentinel-typed atoms (#<ATOM:0x..>), structural pairs, then the type
-;     CELL dispatch for everything tree-typed
+;     CELL dispatch for everything carrying a type
 ;   - the default renderers for the built-in cell-dispatched types (int,
 ;     str, symbol, list), PUSHED onto their write/display stacks exactly
 ;     like any other handler -- so later pushes (ansi colors, char-io's
@@ -27,11 +27,11 @@
 
 ; --- type machinery (boot-level: contract paths + the registry walk) ---
 (def %print-type-of (prim-ref (lit type) (lit of)))
-(def %print-tree
+(def %print-type
   (fn (_ handle) (%registry-assoc-rest handle (first %reflect-type-alist-cell))))
 ; List/symbol checks are by type HANDLE (name-interned), not tag identity:
 ; C's islist compares the type NAME, so lists from OTHER bases (make-base
-; children) must print as lists too -- their trees differ, their names
+; children) must print as lists too -- their types differ, their names
 ; intern to the same atom.
 (def %print-list-handle (%print-type-of (lit (0))))
 (def %print-sym-handle  (%print-type-of (lit q)))
@@ -212,10 +212,10 @@
 ; A cell handler renders the value itself (calling display/write back for
 ; children); apply -- never a direct call -- so list-valued objects are not
 ; re-evaluated as forms.
-; Resolve a handler from ONE tree: the path, then the fallback path
+; Resolve a handler from ONE type: the path, then the fallback path
 ; (display falls back to write).  %reflect-step nil-propagates, so an
-; empty stack or nil tree just answers nil.
-(def %print-tree-h
+; empty stack or nil type just answers nil.
+(def %print-type-h
   (fn (_ t path fallback-path)
     (do
       (def %print-hd (%reflect-step t path))
@@ -223,12 +223,12 @@
         ((eq? %print-hd ()) (match ((eq? fallback-path ()) ())
                             (#t (%reflect-step t fallback-path))))
         (#t %print-hd)))))
-; Handler resolution is OWN-TREE-FIRST: the type word IS the tree pointer
+; Handler resolution is OWN-TYPE-FIRST: the type word points straight at the type
 ; (mirrors C's x_obj_type dispatch), so a custom type registered in another
 ; base carries its own handlers with it -- and the common case costs one
 ; materialization instead of a type-of + alist walk.  The name-keyed alist
-; lookup stays as the FALLBACK: a child base's BUILT-IN trees are bare (the
-; parent's defaults were pushed only on the parent's trees), but their names
+; lookup stays as the FALLBACK: a child base's BUILT-IN types are bare (the
+; parent's defaults were pushed only on the parent's types), but their names
 ; intern to the same atoms, so the parent's handlers still apply.
 ; Top handler of a memoized stack-parent node, or nil.
 (def %print-stack-top
@@ -268,12 +268,12 @@
     (do
       (def %print-own (%ptr->obj (%int->ptr tw)))
       (def %print-hd (match
-        ; guard like reflect.x: only a spair-tagged word is a navigable tree
+        ; guard like reflect.x: only a spair-tagged word is a navigable type
         ((eq? (%reflect-type-word %print-own) %reflect-spair-tw)
-          (%print-tree-h %print-own path fallback-path))
+          (%print-type-h %print-own path fallback-path))
         (#t ())))
       (def %print-hd2 (match
-        ((eq? %print-hd ()) (%print-tree-h (%print-tree (%print-type-of o)) path fallback-path))
+        ((eq? %print-hd ()) (%print-type-h (%print-type (%print-type-of o)) path fallback-path))
         (#t %print-hd)))
       (match
         ((eq? %print-hd2 ()) (%print-obj-opaque o))
@@ -312,7 +312,7 @@
 (def %print-push!
   (fn (_ handle stack-path handler)
     (do
-      (def %print-nd (%reflect-step (%print-tree handle) (%reflect-path-parent stack-path)))
+      (def %print-nd (%reflect-step (%print-type handle) (%reflect-path-parent stack-path)))
       (%set-first! %print-nd (pair handler (first %print-nd))))))
 (def %print-int-h  (fn (_ o) (%print-emit (%number->str o))))
 (def %print-str-dh (fn (_ o) (%print-emit o)))
@@ -341,7 +341,7 @@
 (def %print-dstack-parent (%reflect-path-parent %print-path-display-stack))
 (def %print-node-of
   (fn (_ handle parent-path)
-    (%reflect-step (%print-tree handle) parent-path)))
+    (%reflect-step (%print-type handle) parent-path)))
 (def %print-int-tw  (%reflect-type-word 0))
 (def %print-str-tw  (%reflect-type-word ""))
 (def %print-symq-tw (%reflect-type-word (lit q)))

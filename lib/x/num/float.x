@@ -281,17 +281,17 @@
 ; is gone: bigint owns the + - * int-overflow policy, rational owns /, and the
 ; binary C operators dispatch everything typed.
 
-(def %float-ts (%type-by-atom %float))
-(%type-push-op %float-ts '+ (fn (_ a b) (%f-add (%ensure-float a) (%ensure-float b))))
-(%type-push-op %float-ts '- (fn (_ a b) (%f-sub (%ensure-float a) (%ensure-float b))))
-(%type-push-op %float-ts '* (fn (_ a b) (%f-mul (%ensure-float a) (%ensure-float b))))
-(%type-push-op %float-ts '/ (fn (_ a b) (%f-div (%ensure-float a) (%ensure-float b))))
+(def %float-type (%type-by-atom %float))
+(%type-push-op %float-type '+ (fn (_ a b) (%f-add (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-type '- (fn (_ a b) (%f-sub (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-type '* (fn (_ a b) (%f-mul (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-type '/ (fn (_ a b) (%f-div (%ensure-float a) (%ensure-float b))))
 ; Without this op, (% 1.2 1.4) fell through to x_prim_mod's integer
 ; fallback -- value-word % value-word on two float PAYLOAD POINTERS --
 ; and returned garbage ((gcd 1.2 1.4) famously yielded 8).
-(%type-push-op %float-ts '% (fn (_ a b) (%f-mod (%ensure-float a) (%ensure-float b))))
-(%type-push-op %float-ts '< (fn (_ a b) (%f-lt (%ensure-float a) (%ensure-float b))))
-(%type-push-op %float-ts '= (fn (_ a b) (%f-eq (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-type '% (fn (_ a b) (%f-mod (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-type '< (fn (_ a b) (%f-lt (%ensure-float a) (%ensure-float b))))
+(%type-push-op %float-type '= (fn (_ a b) (%f-eq (%ensure-float a) (%ensure-float b))))
 
 (note "R7RS Predicates")
 

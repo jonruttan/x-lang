@@ -301,7 +301,7 @@ branches (their fields must not be navigated).
 (Type wrap t) → instance
 ```
 
-Clothes a type handle (from `Type of`) or a type struct (from
+Clothes a type handle (from `Type of`) or the type itself (from
 `Type by-atom`) as an interactive Type instance: `(t name)`,
 `(t cell 'type-write-stack)`, `(t fields)`, and the wiring verbs
 `push-write` / `push-display` / `push-call` / `push-op` as instance
@@ -312,7 +312,7 @@ methods. The `handle` member holds the name atom, `raw` the struct the
 — the same rows the C accessor macros flatten — so every struct field is
 addressable by its contract name: handler stacks, the conversion catalog
 cells, the generic-operator alist. A name whose row is not type-rooted is
-refused: a base-rooted path stepped from a type struct would address
+refused: a base-rooted path stepped from a type would address
 arbitrary spine words. The worked path through this surface is
 [Sandboxing and type reflection, step by step](sandboxing-tutorial.md);
 the executable reference is [spec.md](spec.md) §11.

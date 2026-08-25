@@ -240,14 +240,14 @@
 ; The non-rational side is an int (float absorbs rationals via from; bigint
 ; and rational do not declare each other, so that mix falls through -- as
 ; before this conversion).
-(def %rational-ts (%type-by-atom %rational))
-(%type-push-op %rational-ts '+ (fn (_ a b) (%rat-add (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-ts '- (fn (_ a b) (%rat-sub (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-ts '* (fn (_ a b) (%rat-mul (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-ts '/ (fn (_ a b) (%rat-div (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-ts '< (fn (_ a b) (%rat-lt (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-ts '= (fn (_ a b) (%rat-eq (%ensure-rat a) (%ensure-rat b))))
-(%type-push-op %rational-ts '% (fn (_ a b) (%rat-mod (%ensure-rat a) (%ensure-rat b))))
+(def %rational-type (%type-by-atom %rational))
+(%type-push-op %rational-type '+ (fn (_ a b) (%rat-add (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-type '- (fn (_ a b) (%rat-sub (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-type '* (fn (_ a b) (%rat-mul (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-type '/ (fn (_ a b) (%rat-div (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-type '< (fn (_ a b) (%rat-lt (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-type '= (fn (_ a b) (%rat-eq (%ensure-rat a) (%ensure-rat b))))
+(%type-push-op %rational-type '% (fn (_ a b) (%rat-mod (%ensure-rat a) (%ensure-rat b))))
 
 ; Integer division that produces rational when not exact
 (def %exact-div

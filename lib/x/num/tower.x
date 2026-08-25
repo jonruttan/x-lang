@@ -34,11 +34,11 @@
 (def %tw-type-name (prim-ref (lit type) (lit name)))
 (def %tw-push-op (prim-ref (lit type) (lit push-op)))
 
-; A type struct's HANDLE: the name-stack's current atom (field 0 of the
-; struct tree, (current . saved) stacked) -- the same atom (Type of v)
-; returns and type? pointer-compares. The modules export their STRUCTS
-; (%rational-ts et al., what push-op wants); the generics key on handles.
-(def %tw-handle (fn (_ ts) (first (first ts))))
+; A type's HANDLE: the name-stack's current atom (field 0 of the
+; type, (current . saved) stacked) -- the same atom (Type of v)
+; returns and type? pointer-compares. The modules export their TYPES
+; (%rational-type et al., what push-op wants); the generics key on handles.
+(def %tw-handle (fn (_ t) (first (first t))))
 
 (def-generic num+ "Tower addition: one method per numeric type; a mixed pair promotes via the cvt lattice, and an unrelated pair errors naming both types.")
 (def-generic num- "Tower subtraction; see num+.")
@@ -114,19 +114,19 @@
     (%wire structs workers)))
 
 ; struct order: bigint, float, rational, complex
-(def %tw-structs (list %bigint-ts %float-ts %rational-ts %complex-ts))
+(def %tw-types (list %bigint-type %float-type %rational-type %complex-type))
 (set! %tw-ensure-of
-  (list (pair (%tw-handle %bigint-ts) %ensure-big)
-        (pair (%tw-handle %float-ts) %ensure-float)
-        (pair (%tw-handle %rational-ts) %ensure-rat)
-        (pair (%tw-handle %complex-ts) %ensure-complex)))
-(%tw-op! num+ (lit +) %tw-structs (list %big-add %f-add %rat-add %cx-add))
-(%tw-op! num- (lit -) %tw-structs (list %big-sub %f-sub %rat-sub %cx-sub))
-(%tw-op! num* (lit *) %tw-structs (list %big-mul %f-mul %rat-mul %cx-mul))
-(%tw-op! num/ (lit /) %tw-structs (list %big-div %f-div %rat-div %cx-div))
-(%tw-op! num% (lit %) %tw-structs (list %big-mod %f-mod %rat-mod ()))
-(%tw-op! num< (lit <) %tw-structs (list %big-lt %f-lt %rat-lt ()))
-(%tw-op! num= (lit =) %tw-structs (list %big-eq %f-eq %rat-eq %cx-eq))
+  (list (pair (%tw-handle %bigint-type) %ensure-big)
+        (pair (%tw-handle %float-type) %ensure-float)
+        (pair (%tw-handle %rational-type) %ensure-rat)
+        (pair (%tw-handle %complex-type) %ensure-complex)))
+(%tw-op! num+ (lit +) %tw-types (list %big-add %f-add %rat-add %cx-add))
+(%tw-op! num- (lit -) %tw-types (list %big-sub %f-sub %rat-sub %cx-sub))
+(%tw-op! num* (lit *) %tw-types (list %big-mul %f-mul %rat-mul %cx-mul))
+(%tw-op! num/ (lit /) %tw-types (list %big-div %f-div %rat-div %cx-div))
+(%tw-op! num% (lit %) %tw-types (list %big-mod %f-mod %rat-mod ()))
+(%tw-op! num< (lit <) %tw-types (list %big-lt %f-lt %rat-lt ()))
+(%tw-op! num= (lit =) %tw-types (list %big-eq %f-eq %rat-eq %cx-eq))
 
 (doc (provide x/num/tower num+ num- num* num/ num% num< num=)
   (note "The mixed-type policy layer: import it whenever two numeric modules meet.")

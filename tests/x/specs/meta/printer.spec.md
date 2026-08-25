@@ -39,11 +39,11 @@ cascading every later string-rendering test.
 
 ## cross-base dispatch
 
-Handler resolution is OWN-TREE-FIRST (the type word is the tree pointer,
-as C's x_obj_type dispatch was), with the name-keyed alist lookup as the
-fallback.  Own-tree serves custom types registered in OTHER bases -- their
+Handler resolution is OWN-TYPE-FIRST (the type word points straight at the
+type, as C's x_obj_type dispatch does), with the name-keyed alist lookup as the
+fallback.  Own-type serves custom types registered in OTHER bases -- their
 handlers travel with the instance; the fallback serves child-base built-ins,
-whose bare trees share interned name atoms with the parent's handler-bearing
+whose bare types share interned name atoms with the parent's handler-bearing
 trees.
 
 ### a child-registered type's write handler dispatches from the parent

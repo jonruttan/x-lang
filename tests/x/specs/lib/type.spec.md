@@ -206,7 +206,7 @@ and nil-NAME types all resolve to nil rather than misreading a payload).
 (t cell 'type-write-stack), (t fields), (t push-write f).  Field names
 come from the layout contract (engine/tools/contract/base-paths.x); a
 non-type-rooted name is refused, because a base-rooted path stepped from
-a type struct addresses arbitrary spine words.
+a type addresses arbitrary spine words.
 
 ### wrap a handle; the instance names itself
 

@@ -261,15 +261,15 @@
 
 (def %ensure-complex (fn (_ x) (if (%complex? x) x (%make-complex x 0))))
 
-(def %complex-ts (%type-by-atom %complex))
-(%type-push-op %complex-ts '+ (fn (_ a b) (%cx-add (%ensure-complex a) (%ensure-complex b))))
-(%type-push-op %complex-ts '- (fn (_ a b) (%cx-sub (%ensure-complex a) (%ensure-complex b))))
-(%type-push-op %complex-ts '* (fn (_ a b) (%cx-mul (%ensure-complex a) (%ensure-complex b))))
-(%type-push-op %complex-ts '/ (fn (_ a b) (%cx-div (%ensure-complex a) (%ensure-complex b))))
-(%type-push-op %complex-ts '= (fn (_ a b) (%cx-eq (%ensure-complex a) (%ensure-complex b))))
+(def %complex-type (%type-by-atom %complex))
+(%type-push-op %complex-type '+ (fn (_ a b) (%cx-add (%ensure-complex a) (%ensure-complex b))))
+(%type-push-op %complex-type '- (fn (_ a b) (%cx-sub (%ensure-complex a) (%ensure-complex b))))
+(%type-push-op %complex-type '* (fn (_ a b) (%cx-mul (%ensure-complex a) (%ensure-complex b))))
+(%type-push-op %complex-type '/ (fn (_ a b) (%cx-div (%ensure-complex a) (%ensure-complex b))))
+(%type-push-op %complex-type '= (fn (_ a b) (%cx-eq (%ensure-complex a) (%ensure-complex b))))
 ; % is mathematically undefined over C -- refuse loudly instead of falling
 ; through to the generic dispatch's garbage-int path.
-(%type-push-op %complex-ts '%
+(%type-push-op %complex-type '%
   (fn (_ a b) (error "complex: % is undefined for complex numbers")))
 
 ; --- Predicates ---

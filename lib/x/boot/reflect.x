@@ -114,9 +114,9 @@
 ; Discriminator tags, resolved once at boot (static objects, stable).
 ; The static-ATOM sentinel tag marks type HANDLES (the name atoms `type of`
 ; returns) and other raw atoms.  It is NOT what #t/#f carry (nil-typed,
-; tag 0) and NOT what interned symbols carry (the SYMBOL type tree) -- so
+; tag 0) and NOT what interned symbols carry (the interning tree) -- so
 ; probe it from a real handle.  The structural-PAIR tag is every registered
-; type TREE's own tag, probed from the first type-alist entry; C files the
+; TYPE's own tag, probed from the first type-alist entry; C files the
 ; alist during init, before any lib loads.
 (def %reflect-type-alist-cell (%reflect-base-cell (lit type-alist)))
 (def %reflect-satom-tw
@@ -126,8 +126,8 @@
 
 ; THE TYPE-TAG TRAP predicate: does this type word mark a type HANDLE
 ; rather than an instance?  Both sentinel tags qualify -- the static-atom
-; tag (bare handle atoms) and the structural-pair tag (registered type
-; trees) -- and neither carries a navigable type-tree pointer, so every
+; tag (bare handle atoms) and the structural-pair tag (registered
+; types) -- and neither carries a navigable type pointer, so every
 ; consumer must branch on BOTH before dereferencing the word.
 (def %reflect-handle-tw?
   (fn (_ tw)
@@ -161,8 +161,8 @@
 ; Copying string maker (C used x_mkstr on the name atom's bytes).
 (def %reflect-sym->str (prim-ref (lit sym) (lit ->str)))
 
-; The name atom of a type tree: descriptor path (type-name type f f).
-(def %reflect-type-tree-name
+; The name atom of a type: the contract path (type-name type f f).
+(def %reflect-type-name-atom
   (fn (_ t) (%reflect-step t (%reflect-path (lit type-name) %base-paths))))
 
 ; (type name o) -- the type's name as a FRESH string, or nil.  Mirrors the
@@ -170,11 +170,11 @@
 ; resolved against the type-alist (its own type field holds a sentinel, so
 ; navigating it would misread the tag payload); nil-typed objects have no
 ; name; a NON-navigable type tag -- an ATOM sentinel like the base tag
-; x_eval_obj ("BASE"), never a registered pair tree -- answers its own
+; x_eval_obj ("BASE"), never a registered type -- answers its own
 ; bytes (C returned the raw tag; x_type_prim_type_name's "must not be
 ; navigated" rule): stepping the name path through an atom with the
 ; UNCHECKED first/rest is a segfault, which is exactly how printing a
-; (base make) child died; anything else reads its type tree's name field.
+; (base make) child died; anything else reads its type's name field.
 (def %reflect-name-str
   (fn (_ n)
     (match
@@ -186,7 +186,7 @@
       (def %reflect-tt (%registry-assoc-rest h (first %reflect-type-alist-cell)))
       (match
         ((eq? %reflect-tt ()) ())
-        (#t (%reflect-name-str (%reflect-type-tree-name %reflect-tt)))))))
+        (#t (%reflect-name-str (%reflect-type-name-atom %reflect-tt)))))))
 (def %reflect-type-name
   (fn (_ o)
     (match
@@ -202,18 +202,18 @@
                 (def %reflect-tt (%ptr->obj (%int->ptr %reflect-twd)))
                 (match
                   ((eq? (%reflect-type-word %reflect-tt) %reflect-spair-tw)
-                    (%reflect-name-str (%reflect-type-tree-name %reflect-tt)))
+                    (%reflect-name-str (%reflect-type-name-atom %reflect-tt)))
                   (#t (%reflect-name-str %reflect-tt)))))))))))
 
-; (iter new o) -- fetch the iter handler from o's type tree (descriptor
+; (iter new o) -- fetch the iter handler from o's type (contract
 ; path type-iter) and apply it to o; nil for nil-typed/sentinel-typed
-; objects, types without a tree, or trees without an iter handler.
+; objects, unregistered types, or types without an iter handler.
 ; C semantics (x_prim_iter) preserved: the handler is APPLIED (args as
 ; values, not re-evaluated).
 ; The type-iter step list, resolved ONCE at load: %base-paths is a boot-time
-; literal (no writers), and the path is rooted at the type-tree ARGUMENT,
+; literal (no writers), and the path is rooted at the type ARGUMENT,
 ; not the base -- so caching holds no base reference and survives re-basing.
-; (iter new) is per-iteration hot; a per-call descriptor scan is ~100
+; (iter new) is per-iteration hot; a per-call path scan is ~100
 ; interpreted steps of pure waste.
 (def %reflect-iter-path (%reflect-path (lit type-iter) %base-paths))
 (def %reflect-iter-new

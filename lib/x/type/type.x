@@ -14,7 +14,7 @@
   (doc "Type-system reflection: construction, lookup, struct navigation, and handler-stack wiring. (Type wrap t) clothes a handle or struct as an interactive instance: (t name), (t cell 'type-write-stack), (t push-write f)."
     (example "((Type wrap (Type of 0)) name)" "\"INTEGER\""))
   (doc handle "The type's handle atom -- the name atom (Type of) answers and the type-alist keys.")
-  (doc raw "The raw type struct (tree) -- what the cell walkers and push-* wiring consume.")
+  (doc raw "The raw type -- what the cell walkers and push-* wiring consume.")
   (method name (self)
     (doc "This type's registered name."
       (returns STRING "The name")
@@ -80,14 +80,14 @@
               (pair (first (first paths)) (loop (rest paths))))
             (#t (loop (rest paths))))))
       (%go %base-paths))
-    (method wrap (self (param t ANY "A type handle (from Type of) or type struct (from Type by-atom)"))
+    (method wrap (self (param t ANY "A type handle (from Type of) or the type itself (from Type by-atom)"))
       (doc "Clothe a type as a Type instance for interactive use."
         (returns OBJECT "The Type instance; handle/raw members hold both forms")
         (example "((Type wrap (Type of 0)) name)" "\"INTEGER\""))
       (match
         ((null? t) (error (lit type-wrap-nil)))
         ((eq? (%reflect-type-word t) %reflect-spair-tw)
-          (let ((handle (%reflect-type-tree-name t)) (raw t))
+          (let ((handle (%reflect-type-name-atom t)) (raw t))
             (new Type handle handle raw raw)))
         (#t
           (let ((handle t) (raw ((prim-ref (lit type) (lit by-atom)) t)))
@@ -128,19 +128,19 @@
         (returns LIST "The ((handle . struct) ...) registry, reader-priority order"))
       ((prim-ref (lit type) (lit alist))))
     (method by-atom (self (param handle ATOM "Type handle (from Type of)"))
-      (doc "Look up a type struct by its handle atom."
-        (returns ANY "The type struct, or nil if unregistered"))
+      (doc "Look up a type by its handle atom."
+        (returns ANY "The type, or nil if unregistered"))
       ((prim-ref (lit type) (lit by-atom)) handle))
     (method io (self (param ts ANY "Type struct (from Type by-atom)"))
-      (doc "Navigate to a type struct's IO group: (analyse (delimit (read (write (display)))))."
+      (doc "Navigate to a type's IO group: (analyse (delimit (read (write (display)))))."
         (returns ANY "The IO group"))
       ((prim-ref (lit type) (lit io)) ts))
     (method cvt (self (param ts ANY "Type struct"))
-      (doc "Navigate to a type struct's conversion group: (from (to))."
+      (doc "Navigate to a type's conversion group: (from (to))."
         (returns ANY "The CVT group"))
       ((prim-ref (lit type) (lit cvt)) ts))
     (method proc (self (param ts ANY "Type struct"))
-      (doc "Navigate to a type struct's PROC group: (call-stack eval-stack)."
+      (doc "Navigate to a type's PROC group: (call-stack eval-stack)."
         (returns ANY "The PROC group"))
       ((prim-ref (lit type) (lit proc)) ts))
     (method write-cell (self (param ts ANY "Type struct"))

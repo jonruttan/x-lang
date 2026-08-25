@@ -48,7 +48,7 @@
 
 ; --- Type system access (via type.x) ---
 
-; Cache type structs at load time using representative objects
+; Cache types at load time using representative objects
 (def %list-type (%type-by-atom (%type-of (list 1))))
 (def %symbol-type (%type-by-atom (%type-of 'a)))
 (def %int-type (%type-by-atom (%type-of 0)))

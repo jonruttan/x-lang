@@ -26,7 +26,7 @@
 ; replaces. pack returns a byte LIST (the lossless carrier, #362); callers
 ; needing a buffer take bytes->str knowing the length from the list.
 ;
-; NOT this class: x/type/struct is type-SYSTEM plumbing (the type struct's
+; NOT this class: x/type/struct is type-SYSTEM plumbing (the type's
 ; layout walkers), unrelated to binary records.
 ;
 ; Strict per #61: unknown type symbols, malformed fields, and pack values
