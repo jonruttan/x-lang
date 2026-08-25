@@ -224,12 +224,25 @@ file=""
 file1=""
 no_pin=""
 allow_skew=""
+fetch_release=""
 boot_file=""
 verbose=""
 xflags=""
 # Appended after the -F file so the interactive launcher runs once the
 # file has been evaluated (see lib/x/repl/launch.x).
 post=""
+
+# The original invocation, kept verbatim before the loop below consumes
+# it: the release handover (#499) gives the whole command line to another
+# install's wrapper, which must see exactly what this one was asked.
+ORIG_ARGS=""
+for _arg in "$@"; do
+	# --fetch-release is THIS wrapper's instruction, and its work is done
+	# by handover time; a release's wrapper that predates the flag would
+	# refuse it as unknown (found live: v0.5.1's did).
+	[ "$_arg" = "--fetch-release" ] && continue
+	ORIG_ARGS="$ORIG_ARGS $(shquote "$_arg")"
+done
 
 display_help() {
 	echo "Usage: $0 [OPTION]... "
@@ -248,6 +261,8 @@ display_help() {
 	echo "      --no-pin    ignore any $X_PIN manifest"
 	echo "      --allow-release-skew  boot a pinned amalgam whose release"
 	echo "                  differs from this engine's (it may crash)"
+	echo "      --fetch-release  fetch the release a pinned project names"
+	echo "                  into the per-user cache without asking first"
 	echo "  -v, --verbose   display extra output"
 	echo "  -V, --version   display version and exit"
 }
@@ -296,6 +311,10 @@ do
 			;;
 		--allow-release-skew)
 			allow_skew=1
+			shift
+			;;
+		--fetch-release)
+			fetch_release=1
 			shift
 			;;
 		--boot)
@@ -546,6 +565,78 @@ if [ -n "$boot_file" ]; then
 	if [ -z "$_rel" ] || [ ! -f "$_rel" ]; then
 		_rel="$(dirname "$ENTRY")/pin.release.xon"
 	fi
+	# REACH FOR THE RELEASE THE LOCK NAMES (#499).  The refusals below can
+	# name every fact needed to fix what they refuse: the tag is in the
+	# lock, the artifact name is convention, the digest is in the sidecar.
+	# Reporting that as an errand for the human makes the pin a blocker
+	# instead of a guarantee.  So before any refusal, a pinned project
+	# whose installed library is not the release it names hands the WHOLE
+	# invocation to a cached copy of that release -- fetching it, verified,
+	# when the cache is empty and someone consents (the --fetch-release
+	# flag, or one question on the terminal).  Nothing global changes: the
+	# cache is per-user, the install on PATH is never touched, and the
+	# re-exec'd wrapper runs its own guards against its own matched tree.
+	#   X_RELEASE_CACHE  cache root (default $XDG_CACHE_HOME/x/releases)
+	#   X_RELEASE_BASE   artifact base URL (tests point it at file://)
+	#   X_PIN_REEXEC     loop guard, set by the exec below: a cached tree
+	#                    that still mismatches must refuse, not recurse.
+	# --allow-release-skew means "run THIS install"; it skips the reach.
+	if [ -n "$INSTALL_ROOT" ] && [ -f "$_rel" ] \
+		&& [ -f "$INSTALL_ROOT/contract/release" ] \
+		&& [ -z "$allow_skew" ] && [ -z "${X_PIN_REEXEC:-}" ]; then
+		_reach_want=$(sed -n 's/^[[:space:]]*(release "\([^"]*\)").*/\1/p' "$_rel" | head -1)
+		_reach_have=$(cat "$INSTALL_ROOT/contract/release")
+		if [ -n "$_reach_want" ] && [ "$_reach_want" != "$_reach_have" ]; then
+			_croot="${X_RELEASE_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/x/releases}"
+			_cname="x-${_reach_want}-$(uname -s | tr 'A-Z' 'a-z')-$(uname -m)"
+			_cx="$_croot/$_cname/x-${_reach_want}/bin/x"
+			if [ ! -x "$_cx" ]; then
+				# Consent: the flag says yes ahead of time; a terminal is
+				# asked once; a script gets the refusal below, which names
+				# the flag.  Verified BEFORE unpacked, staged on the same
+				# filesystem, published by one mv -- rejected bytes never
+				# land where a boot would find them (#145).
+				_go="$fetch_release"
+				if [ -z "$_go" ] && [ -t 0 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
+					printf 'x.sh: this project pins %s; fetch it to %s? [y/N] ' \
+						"$_reach_want" "$_croot" > /dev/tty
+					read -r _ans < /dev/tty || _ans=""
+					case "$_ans" in y | Y | yes | YES) _go=1 ;; esac
+				fi
+				if [ -n "$_go" ]; then
+					_base="${X_RELEASE_BASE:-https://github.com/jonruttan/x-lang/releases/download}"
+					if ! command -v curl >/dev/null 2>&1; then
+						echo "x.sh: no curl on PATH -- fetch these, verify, and unpack under $_croot/$_cname/:" >&2
+						echo "  $_base/$_reach_want/$_cname.tar.gz" >&2
+						echo "  $_base/$_reach_want/$_cname.tar.gz.sha256" >&2
+					else
+						_stage="$_croot/.fetch.$$"
+						mkdir -p "$_stage" && (
+							cd "$_stage" || exit 1
+							curl -fsSL -o "$_cname.tar.gz" "$_base/$_reach_want/$_cname.tar.gz" \
+								&& curl -fsSL -o "$_cname.tar.gz.sha256" "$_base/$_reach_want/$_cname.tar.gz.sha256" \
+								|| { echo "x.sh: fetch failed: $_base/$_reach_want/$_cname.tar.gz" >&2; exit 1; }
+							if command -v sha256sum >/dev/null 2>&1; then
+								sha256sum -c "$_cname.tar.gz.sha256" >/dev/null 2>&1
+							else
+								shasum -a 256 -c "$_cname.tar.gz.sha256" >/dev/null 2>&1
+							fi || { echo "x.sh: digest mismatch on $_cname.tar.gz -- refusing to unpack; distrust the transport" >&2; exit 1; }
+							tar -xzf "$_cname.tar.gz"
+						) && [ -x "$_stage/x-${_reach_want}/bin/x" ] \
+							&& mkdir -p "$_croot/$_cname" \
+							&& rm -rf "$_croot/$_cname/x-${_reach_want}" \
+							&& mv "$_stage/x-${_reach_want}" "$_croot/$_cname/x-${_reach_want}"
+						rm -rf "$_stage"
+					fi
+				fi
+			fi
+			if [ -x "$_cx" ]; then
+				echo "x.sh: this install is $_reach_have; handing over to the pinned $_reach_want release (cached)" >&2
+				export X_PIN_REEXEC=1
+				eval "exec $(shquote "$_cx")$ORIG_ARGS"
+			fi
+		fi
+	fi
 	# THE LAYOUT KEY (the arc's phase 5).  The isa comparison below is a
 	# compatibility hint and a poor one: isa.x is the C SURFACE, byte-identical
 	# across v0.3.1-rc10, v0.4.0 and v0.5.0, so it cannot distinguish an engine
@@ -715,11 +806,12 @@ if [ -n "$boot_file" ]; then
 				esac
 				if [ -n "$_looks_released" ]; then
 					echo "  Fix by moving the pin:  (Pin boot \"$_haver\")" >&2
-					echo "  or install the $_wantr release; --allow-release-skew overrides." >&2
+					echo "  or run the $_wantr release from the cache with --fetch-release;" >&2
+					echo "  --allow-release-skew overrides." >&2
 				else
 					echo "  This install is a local build, not a published release, so there" >&2
-					echo "  is no pin to move it to: install the $_wantr release to run this" >&2
-					echo "  project, or pass --allow-release-skew to try anyway." >&2
+					echo "  is no pin to move it to: rerun with --fetch-release to run the" >&2
+					echo "  $_wantr release from the cache, or --allow-release-skew to try anyway." >&2
 				fi
 				exit 1
 			fi
