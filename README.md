@@ -31,7 +31,7 @@ readers, fexpr evaluation, runtime type systems, or self-hosted toolchains.
 It is not a general-purpose application language, and it is not trying to
 displace one.
 
-**Maturity — v0.5.0.** The C core and the xenon dialect are covered by a
+**Maturity — v0.5.1.** The C core and the xenon dialect are covered by a
 full spec suite with CI on macOS and Linux plus a hard AddressSanitizer gate.
 The surface API is *not* frozen and may change between versions. The radon
 dialect is explicitly experimental. x86_64 parity for the automatic
