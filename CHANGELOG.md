@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Unreleased]
+## [0.5.0] - 2026-08-24
 
 The object model's second architecture: one routing model with four doors,
 and the composition features that shape dispatch tables without changing how
@@ -19,13 +19,13 @@ routing works.
 
 ### Changed
 
-- **The C engine is a separate repository** — [x-engine-c](https://github.com/jonruttan/x-engine-c), consumed here as the `ext/x-engine-c` submodule with `ext/x-expr` nested inside it. `make` builds the engine there and copies `x-bin` to this repo's root, so the wrapper, the spec runners and every `tools/check/*.sh` script are unchanged. Clone with `--recursive`.
+- **The C engine is a separate repository, and this tree carries no engine at all** — [x-engine-c](https://github.com/jonruttan/x-engine-c), with its own version line and published releases. `make engine` reads `tools/engine/engine.pin.xon` — a declared release tag plus one artifact row per platform, digests taken from the release's own sha256 sidecars — fetches the tarball, verifies it, and unpacks it; `make engine-source` clones the sources instead for platforms with no published artifact. `x-bin` is copied to this repo's root as before, so the wrapper, the spec runners and every `tools/check/*.sh` script are unchanged. This release pins [x-engine-c v0.1.1](https://github.com/jonruttan/x-engine-c/releases/tag/v0.1.1).
 
   The contract manifests travel **with the engine**, in its `tools/contract/`: an engine's description of itself is stronger there than as a copy the library keeps, because a private layout copy is right about *some* engine and not necessarily the one running. `lib/x-core.x` includes `base-paths.x` and `obj-layout.x` from there as the first things it loads, and `pin.x` reads `isa.x` at runtime. `check-isa`, `check-obj-layout` and `check-base-paths` are the engine's own gates now; `check-prim-coverage` stays here, because most primitives are reachable only through the library and the honest answer needs both spec suites.
 
-  The engine is still built with this repo's `git describe` passed down as `X_RELEASE`.
+  The engine declares its own release: `x -V` prints the library's release and the engine's side by side, and a released engine ships no C — the C-suite gates announce-and-skip here, its own repository having ratcheted them on the build that produced the artifact.
 
-- **x-lang reaches its engine through one path** — `engine`, a `.gitignore`d symlink in the repo root that `make` points at whatever the tree builds against: the submodule, a checkout named by `X_ENGINE_DIR`, or an unpacked engine release. Everything downstream uses that one spelling — the boot's contract includes, the JIT's `-I` flags, the gates, the conformance runner — so a second implementation needs no edit to `lib/`. An engine directory either has sources (built here) or ships a binary (used as-is); the build asks which rather than assuming. Once pointed somewhere explicitly the link stays there, and `make install` stamps the ISA fingerprint from the engine it actually built against, not from a hardcoded submodule path.
+- **x-lang reaches its engine through one path** — `engine`, a `.gitignore`d symlink in the repo root that `make` points at whatever the tree builds against: a fetched release, a checkout named by `X_ENGINE_DIR`, or any unpacked engine directory. Everything downstream uses that one spelling — the boot's contract includes, the JIT's `-I` flags, the gates, the conformance runner — so a second implementation needs no edit to `lib/`. An engine directory either has sources (built here) or ships a binary (used as-is); the build asks which rather than assuming. Once pointed somewhere explicitly the link stays there, and `make install` stamps the ISA fingerprint from the engine it actually built against, not from a hardcoded path.
 
 - **Object model v2** — message passing now runs over flat per-class dispatch tables (the hot path), with `method-of` as the sanctioned de-dispatch door; value-call subject-last is routing sugar into the same door; generic functions are the multi-argument cold path; and the C ops cell's seven spellings shim into the tower's generics, so promotion has one authority. Composition (`with`/`delegates`), contracts, records, open classes and `%missing` are table-shaping features that never change routing. Measured: a 110-entry static back-hit went 231 → ~100 µs/call, and `method-of`-hoisted calls sit at ~31 µs against a plain `fn`'s ~21.
 - **Static members inherit**, with shadow-on-write, and classes are tracked in a registry.
@@ -75,7 +75,7 @@ engine to run it.
 
 - **Project pinning** — a `pin.xon` manifest (`root` overlay, `src` scan tree, `boot` entry) and the `Pin` verbs over it: `init`, `boot`, `sync`, `check`, `vendor`, `verify`, `closure`, `fetch`, `resolve`, `unused`. Two tiers, because there are two kinds of drift: an **overlay pin** freezes the library modules a project imports — vendored closure-wise, digests in a lockfile — and a **boot pin** freezes the language itself by committing a released amalgam. The lockfile records the release tag, that release's ISA fingerprint, and the amalgam's digest; the wrapper arms both pins, announces them on stderr, and refuses to boot an amalgam whose fingerprint doesn't match the running engine.
 - **Versioned module lines** — `import-version-once` / `import-version` select among sibling `@`-suffixed version files by spec string (`"1.3"`, `"1.3.*"`, `"^1"`, `"*"`). Files are append-only, so a fix is a new patch file and every import whose spec admits it picks the fix up on its next run; dedup keys the base name, and a loaded version that doesn't satisfy a later spec is a loud error naming both sides. `Pin resolve` is the dry run, `Pin unused` the safe-removal answer (#214, #215, #216).
-- **Release engineering** — every tag now publishes per-platform prebuilt binary tarballs (Developer ID signed and notarized on macOS) beside the dialect amalgams, each with a coreutils-checkable `.sha256` sidecar, so a release runs with no toolchain and no compile. `bootstrap.sh` covers the from-source path in one command: clone with submodules, build the C89 engine, and optionally install under a user prefix.
+- **Release engineering** — every tag now publishes per-platform prebuilt binary tarballs (Developer ID signed and notarized on macOS) beside the dialect amalgams, each with a coreutils-checkable `.sha256` sidecar, so a release runs with no toolchain and no compile. `bootstrap.sh` covers the from-source path in one command: clone, acquire the engine the pin names, build it (a ~4-second C89 compile), and optionally install under a user prefix.
 
 ### Added (networking and codecs)
 
