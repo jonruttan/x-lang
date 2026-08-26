@@ -205,6 +205,19 @@
     (%set-first! %module-loaded-cell
       (pair (pair name line) (first %module-loaded-cell)))))
 
+; --- Version files loading right now (x-lang#503) ---
+; The next link of the registry chain holds a stack of (NAME . LINE) for
+; version files whose bodies are mid-load.  It exists for one allowance:
+; a version file may import a STRICTLY LOWER version of its own base name
+; -- the object layer's (extends ...) wants the lower class as a value to
+; build on.  The stack is how "its own" is known: outside a self-load the
+; old contract holds, because loading an older version into a session
+; that already handed out the newer one would rebind the exported names
+; underneath every caller.  Accessed as (rest %module-loaded-cell), with
+; op-local helpers -- boot has no class to home new %-defs in, and the
+; percent-globals budget is a ratchet.
+(%set-rest! %module-loaded-cell (pair () ()))
+
 (def %module-register!
   (fn (_ name exports)
     (%set-first! %module-registry-cell
@@ -625,15 +638,36 @@
     (%module-spec-text! (lit import-version-once) text)
     (def %spec (%module-parse-spec (lit import-version-once) text))
     (def %have (%module-loaded-line name))
+    (def %loading (rest %module-loaded-cell))
+    (def %self-loading?
+      (fn (self lst)
+        (match
+          ((eq? lst ()) #f)
+          ((eq? (first (first lst)) name) #t)
+          (#t (self (rest lst))))))
     (match
       ((eq? %have ())
         (do
           (def %hit (%module-resolve-version (lit import-version-once) name %spec text))
           ; register BEFORE loading -- cycle safety, mirrors import
           (%module-loaded-at! name (first %hit))
-          (include (rest %hit))))
+          (%set-first! %loading (pair (pair name (first %hit)) (first %loading)))
+          (include (rest %hit))
+          (%set-first! %loading (rest (first %loading)))))
       ((eq? %have (lit bare)) (%module-version-conflict! name %have text))
       ((%module-version-ok? %spec %have) ())
+      ; a version file may reach DOWN to an earlier version of itself
+      ; (#503): resolve, insist on strictly lower than the recorded line,
+      ; and load by PATH, once -- the name's record stays on the outer
+      ; version, and the lower file's bindings (and provide) are the
+      ; higher file's to shadow.
+      ((%self-loading? (first %loading))
+        (do
+          (def %hit (%module-resolve-version (lit import-version-once) name %spec text))
+          (match
+            ((< (%module-version-cmp (first %hit) %have) 0)
+              (include-once (rest %hit)))
+            (#t (%module-version-conflict! name %have text)))))
       (#t (%module-version-conflict! name %have text)))
     (match
       ((eq? syms ()) ())
@@ -651,8 +685,11 @@
     (%module-spec-text! (lit import-version) text)
     (def %spec (%module-parse-spec (lit import-version) text))
     (def %hit (%module-resolve-version (lit import-version) name %spec text))
+    (def %loading (rest %module-loaded-cell))
     (%module-loaded-at! name (first %hit))
+    (%set-first! %loading (pair (pair name (first %hit)) (first %loading)))
     (include (rest %hit))
+    (%set-first! %loading (rest (first %loading)))
     (match
       ((eq? syms ()) ())
       (#t
