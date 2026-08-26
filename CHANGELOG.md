@@ -5,6 +5,60 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-08-26
+
+The first release shaped by a second engine: two undeclared assumptions
+became declared capabilities, eight unwritten laws became written ones with
+conformance checks, and a pinned project now runs the release it names
+instead of reporting an errand.
+
+### Added
+
+- **A pinned project reaches for the release its lock names** — when the
+  installed library is not the release a lock records, the wrapper no longer
+  refuses with an errand: it fetches that release into a per-user cache
+  (`$XDG_CACHE_HOME/x/releases`) — verified before unpacked, staged and
+  published atomically — and hands the whole invocation to it. Fetching asks
+  consent: `--fetch-release`, or one question on a terminal. Nothing global
+  changes; the re-exec'd wrapper runs its own guards against its own matched
+  tree, and `--allow-release-skew` still means "run THIS install". The
+  refusal survives for the unresolvable cases and now names the flag. (#499)
+- **A version file may import a lower version of itself** — a higher major
+  can be a subclass of the lower one rather than a copy: while a version
+  file's body is mid-load, its own self-name import resolving strictly lower
+  loads that file by path, once, with the higher `provide` shadowing the
+  lower. Chains (`@3` over `@2` over `@1`) fall out of the same rule; outside
+  a self-load the loud version contract is unchanged. (#503)
+- **The native-extension lanes are declared capabilities** — `native/cc` (the
+  engine ships its C headers, so `x/tool/compile.x` can build against them)
+  and the jit/asm lane are now stated in the engine contract instead of
+  assumed. The compiled tower falls back to the interpreted one on an engine
+  that hosts no C, and the jit/asm specs skip against an engine that never
+  claimed the lane — both assumptions had silently encoded "the engine is
+  x-engine-c".
+- **The engine laws** — behavioural laws the library depends on that the
+  contract's resolve-checks could never see (a row can resolve and still do
+  nothing), each one found broken by a second engine. Stated in
+  `docs/engine-laws.md` and checked by conformance: the stamping law (a value
+  carries its base's type), the evaluator's state rides the base, evaluation
+  and application are type handlers, the callable state spine, and the rest.
+
+### Changed
+
+- **One naming scheme for every engine** — the glossary is the ruling record:
+  type behaviour is a *handler* (the private 'hook' retires), the type is
+  neither a "tree" nor a "struct", and the `-ts` suffix retires with the
+  phrase it abbreviated. The engine contract's covers rows use the ISA's own
+  spellings. (#497, #498)
+
+### Fixed
+
+- **Logo's alist prune walks the type-alist route, not the C layout** — the
+  raw `first`/`rest` walk encoded x-engine-c's base spine (the one thing
+  decision L1 says a caller must not do) and pruned through the wrong cell on
+  any other layout. The `(B cell 'type-alist)` door resolves whichever engine
+  is underneath.
+
 ## [0.5.1] - 2026-08-25
 
 ### Fixed
