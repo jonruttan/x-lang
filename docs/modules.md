@@ -79,6 +79,16 @@ unknowable — is a loud error naming both sides. (A later bare
 unchanged.) `import-version` is the raw re-evaluating sibling, mirroring
 `include` vs `include-once`; it re-records the version it loads.
 
+A version file may reach **down**: while a version file is loading, an
+`import-version-once` of a **strictly lower** version of its own base name
+loads that file — by path, once — instead of erring, so a higher major can
+be a subclass of the lower one rather than a copy (the object layer's
+`(extends ...)` wants the lower class as a value to build on). The session's
+record for the name stays on the outer version, and outside a self-load the
+loud contract above is unchanged: loading an older version into a session
+that already handed out the newer one would rebind the exported names under
+every caller.
+
 One prose rule rides along: in this ecosystem the series spelling "1.x"
 collides with a literal filename — write `1.*`.
 

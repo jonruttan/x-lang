@@ -242,6 +242,57 @@ The bare load's version is unknowable, so no spec can be satisfied.
 ---
     #t
 
+## A version may build on an earlier version of itself (GH #503)
+
+A higher major wants to be a subclass of the lower one, not a copy. While a
+version file is LOADING, it may import a STRICTLY LOWER version of its own
+base name: the lower file loads by path, once, and the session's record for
+the name stays on the outer version. Outside a self-load the old loud
+contract holds -- loading an older version into a session that already
+handed out the newer one would rebind the exported names under every caller.
+
+### fixture: a v2 that extends its own v1
+
+```scheme
+(do
+  (File write-all "build/ivspec/vmod/layer@1.0.x"
+    "(def-class L ()\n  (doc (x 10) \"The x slot.\")\n  (static (method new (self) (new-from self (list))))\n  (method x (self) (member 'x))\n  (method describe (self) \"v1\"))\n(provide vmod/layer L)\n")
+  (File write-all "build/ivspec/vmod/layer@2.0.x"
+    "(import-version-once vmod/layer \"1.0.*\")\n(def L1 L)\n(def-class L (extends L1)\n  (doc (y 20) \"The y slot.\")\n  (method y (self) (member 'y))\n  (method describe (self) (Str str \"v2 over \" (super self describe))))\n(provide vmod/layer L)\n")
+  (display "ready"))
+```
+---
+    ready
+
+### the self-lower import loads, and the subclass answers for both versions
+
+Inherited static `new`, the parent's slot and method, the subclass's own,
+and `super` reaching the v1 method through the chain.
+
+```scheme
+(do
+  (import-version-once vmod/layer "2.0.*")
+  (def o (L new))
+  (display (o describe)) (display " ")
+  (display (o x)) (display " ")
+  (display (o y)))
+```
+---
+    v2 over v1 10 20
+
+### the record stays on the outer version
+
+A satisfied re-request no-ops; a lower request from OUTSIDE a self-load
+keeps the loud contract.
+
+```scheme
+(do
+  (import-version-once vmod/layer "2.0.*")
+  (display (guard (_ "refused") (do (import-version-once vmod/layer "1.0.*") "allowed"))))
+```
+---
+    refused
+
 ## guard unwinds include state (#242)
 
 A raise inside `(include ...)` caught by a guard OUTSIDE the include used
