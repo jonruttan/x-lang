@@ -1,6 +1,6 @@
 # x-lang Specification
 
-**Version:** 0.5.1
+**Version:** 0.5.2
 
 This document is the normative specification for x-lang. Each section maps 1:1
 to a test file in `tests/x/specs/`. Behavior described here MUST be implemented
