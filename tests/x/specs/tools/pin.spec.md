@@ -732,6 +732,13 @@ and work from the code that is actually there.
   ; present and vendored, and the two stages stop being distinguishable.
   (guard (_ ()) (File unlink "build/pin-spec/fd/src/more.x"))
   (guard (_ ()) (File unlink "build/pin-spec/fd/dep/acme/four.x"))
+  ; The lock too: the platform-carry-through stage below writes a lock
+  ; whose boot row names a path this manifest never states, and relies on
+  ; the sync after it to overwrite. A run cut between the two -- the batch
+  ; timeout lands there under load -- strands that lock, and since build/
+  ; survives between runs, every later run's re-sync check then reports
+  ; "boot row but no (boot ...) path" until someone clears it by hand.
+  (guard (_ ()) (File unlink "build/pin-spec/fd/dep.lock.xon"))
   (write (Pin sync "build/pin-spec/fd")))
 ```
 ---
