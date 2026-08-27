@@ -64,3 +64,42 @@ if [ "$BAD" != 0 ]; then
 	exit 1
 fi
 echo "include-paths: ok"
+
+# ---------------------------------------------------------------------------
+# APP DATA PATHS are root-relative literals too, and the include scan above
+# cannot see them.
+#
+# WHY THIS EXISTS.  apps/logo/serve.x read its viewer template from a bare
+# "apps/logo/viewer.html".  That is not an include, so the ratchet at the top
+# of this file -- which matches (include "lib/...") forms -- passed it every
+# time, for as long as it existed.  It resolves against the process cwd, and
+# x.sh forces cwd to the repo root in a checkout, so every test and every
+# developer run found the file.  An INSTALLED tree does not: the app is at
+# share/x/apps/logo/ and the user's cwd is wherever they happen to be, so the
+# viewer failed with `io: Could not read turtle.html` for every installed
+# user, in the one environment nothing ran in.
+#
+# THE RULE, from docs/personality-contract.md: an app tree has exactly ONE
+# file that may know the layout -- its entry, which is already exempt above
+# and is where the amalgam generator flattens the literals away.  Every other
+# file reaches data through a root the entry armed and named.
+#
+# SCOPE IS apps/, NOT lib/.  A library module is loaded from the platform's
+# own root and its doc (sample ...) / (example ...) strings legitimately name
+# repo paths -- "(File stat \"lib/x.x\")" is documentation, not a load.
+# Widening this to lib/ would be a false-positive generator; the relocatable
+# trees the contract governs are the app trees.
+BAD=0
+for f in $(find apps -name '*.x' ! -path 'apps/*/run.x' | sort); do
+	HITS=$(sed 's/;.*//' "$f" | grep -nE '"(lib|apps|tools|ext)/[^"]*"')
+	if [ -n "$HITS" ]; then
+		printf '%s\n' "$HITS" | sed "s|^|$f:|"
+		BAD=1
+	fi
+done
+
+if [ "$BAD" != 0 ]; then
+	echo "app-data-paths: FAIL -- a root-relative literal outside an app entry (resolve it through the root the entry arms; see docs/personality-contract.md)" >&2
+	exit 1
+fi
+echo "app-data-paths: ok"
