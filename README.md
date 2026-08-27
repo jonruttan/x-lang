@@ -152,9 +152,10 @@ Pi, 32-bit), and when you are working on the engine itself. `make` alone, in a
 tree that has never acquired one, prints these three options rather than
 failing obscurely.
 
-Requires a C89-compatible compiler. `make` links `engine` at the engine this
-tree builds against, builds it there, and copies the `x-bin` binary to this
-repo's root, where the wrapper and every test runner expect to find it.
+`make` points `engine` at the engine this tree builds against, builds it there
+if it is a checkout, and copies the `x-bin` binary to this repo's root, where
+the wrapper and every test runner expect to find it. A C compiler is needed
+only for that case: a fetched release arrives built.
 
 `engine` is a symlink, and it is how x-lang stays implementation-agnostic:
 everything downstream — the boot's contract includes, the JIT's `-I` flags,
@@ -239,12 +240,18 @@ staged/packaged installs. Remove with `make uninstall` (same `PREFIX`).
 ## Test
 
 ```sh
-make test-x                          # x-lang tests (2,000+ tests)
-make test-c                          # C unit tests
+make test-x                          # x-lang spec suite (2,700+ cases)
+make test-c                          # the engine's C unit tests (delegated)
 make test                            # all tests
 ```
 
 Test specs are markdown files in `tests/x/specs/` organized by category: core language, closures and applicatives, extensions (types, numeric tower, compile), standard library, end-to-end, and tools. CI runs the full suite on macOS and Linux, plus a hard AddressSanitizer gate.
+
+`make test-c` delegates to the engine, and a fetched release ships no C to
+test: it announces that it skipped and names what covers that ground instead.
+The same is true of `check-isa`, `check-obj-layout` and `check-base-paths` —
+[docs/contributing.md](docs/contributing.md) says which is which, and why a
+gate that goes quiet says so out loud.
 
 ## Documentation
 

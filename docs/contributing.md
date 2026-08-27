@@ -2,13 +2,14 @@
 
 ## Build Prerequisites
 
-- A C89-compatible compiler (gcc, clang, tcc, c89, c99)
 - POSIX shell (`sh`) for test runners
 - Make
 - An engine. This repository does not carry one: `make engine` fetches the
   release `tools/engine/engine.pin.xon` names for your platform and verifies
-  it. A C compiler is needed only for `make engine-source`, the sanitizer and
-  coverage builds, and the JIT at runtime
+  it. It arrives built
+- A C89-compatible compiler (gcc, clang, tcc, c89, c99) — needed **only** for
+  `make engine-source`, the sanitizer and coverage builds, and the JIT at
+  runtime. Not for a fetched engine, and not for the gate
 
 ### `engine` — where x-lang looks for its engine
 
