@@ -6,16 +6,16 @@
 The engine is a type-agnostic expression evaluator. It provides atom/pair primitives, an adaptive type system, and fexpr-based evaluation. It has no built-in knowledge of any particular language semantics. It is dangerous and minimal, like a CPU: it executes what it is given without guardrails, and all safety, convenience, and language identity are supplied by libraries loaded at runtime.
 
 > **Scope.** Layers 1 and 2 below, the base object, the object model and the
-> expression pipeline describe an *engine*, and the C names throughout are
-> [x-engine-c](https://github.com/jonruttan/x-engine-c)'s — the engine this
-> tree pins. They are one engine's spelling of the arrangement, not the terms
-> an engine is held to; those are normative in
-> [The Engine Contract](engine-contract.md) and
-> `tools/contract/base-layout.x`. A second engine
-> ([x-engine-rust](https://github.com/jonruttan/x-engine-rust)) is being
-> written to the same contract in a language with no `x_obj_t` and no
-> `p_base` pointer. Layers 3 and 4, the dialects and the library are this
-> repository's.
+> expression pipeline describe an *engine*. Layers 3 and 4, the dialects and
+> the library are this repository's.
+>
+> The nouns are shared across engines and settled in the
+> [Glossary](glossary.md), with the contract's files as the authority. The
+> identifiers here are
+> [x-engine-c](https://github.com/jonruttan/x-engine-c)'s — the reference, and
+> the engine this tree pins — under the `x_`-prefix and snake-case affix
+> conventions the glossary names as C's. A second engine spells those same
+> nouns under its own conventions; it does not get different ones.
 
 ### The Four Layers
 
