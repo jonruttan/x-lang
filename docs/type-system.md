@@ -10,7 +10,7 @@
 > `x_`-prefix and snake-case affix conventions the [Glossary](glossary.md)
 > names as C's. The nouns are shared across engines and settled there, with
 > the contract's files as the authority; the authoritative base layout is
-> `tools/contract/base-layout.x`.
+> `engine/tools/contract/base-layout.x`.
 >
 > x-engine-c is the reference implementation and the closest thing to correct,
 > but reference is not canonical — conformance is the language's definition of
@@ -421,7 +421,7 @@ x-engine-c the cold half is its embeddable expression core's skeleton and the
 hot half is filled by its eval layer; that split is the engine's own. The
 authoritative layout —
 including which leaves are field cells `(current . saved)` versus direct
-values — is `tools/contract/base-layout.x` (regenerate with `make gen-layout`);
+values — is `engine/tools/contract/base-layout.x` (regenerate with `make gen-layout`);
 `make check-base-paths` pins it.
 
 ```
