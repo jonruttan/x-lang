@@ -1,9 +1,21 @@
 # x-lang Architecture
 
-*Part of the C implementation of x-lang: computational expressions over a minimal, type-agnostic core.*
+*x-lang: computational expressions over a minimal, type-agnostic engine.*
 
 
-The interpreter is a type-agnostic expression evaluator written in C89. It provides atom/pair primitives, an adaptive type system, and fexpr-based evaluation. It has no built-in knowledge of any particular language semantics. It is dangerous and minimal, like a CPU: it executes what it is given without guardrails, and all safety, convenience, and language identity are supplied by libraries loaded at runtime.
+The engine is a type-agnostic expression evaluator. It provides atom/pair primitives, an adaptive type system, and fexpr-based evaluation. It has no built-in knowledge of any particular language semantics. It is dangerous and minimal, like a CPU: it executes what it is given without guardrails, and all safety, convenience, and language identity are supplied by libraries loaded at runtime.
+
+> **Scope.** Layers 1 and 2 below, the base object, the object model and the
+> expression pipeline describe an *engine*. Layers 3 and 4, the dialects and
+> the library are this repository's.
+>
+> The nouns are shared across engines and settled in the
+> [Glossary](glossary.md), with the contract's files as the authority. The
+> identifiers here are
+> [x-engine-c](https://github.com/jonruttan/x-engine-c)'s — the reference, and
+> the engine this tree pins — under the `x_`-prefix and snake-case affix
+> conventions the glossary names as C's. A second engine spells those same
+> nouns under its own conventions; it does not get different ones.
 
 ### The Four Layers
 
@@ -15,7 +27,7 @@ Each layer expands capabilities without modifying those below it.
 
 **Layer 3: Modular Library.** 100+ modules (one module = one `provide`-ing `.x` source file) organized by domain: core operations (`lib/x/core/`), custom types (`lib/x/type/`), a numeric tower (`lib/x/num/`), system interfaces (`lib/x/sys/`), self-hosted tools (`lib/x/tool/`), documentation (`lib/x/doc/`), and platform-specific code (`lib/x/platform/`). The bootstrap sequence in `lib/x-core.x` pre-registers all boot module names and loads 40+ core modules via `provide`/`import` with name-keyed deduplication. This layer is composed into dialects (helium, xenon, radon) that control which capabilities are available.
 
-**Layer 4: FFI and Native Code.** Dynamic library loading via `dlopen`/`dlsym` (`ext/x-engine-c/src/x-prim/ffi.c`), typed foreign calls with convention strings, raw pointer operations, and a JIT compiler (`lib/x/tool/compile.x`, `lib/x/tool/asm.x`) that compiles x-lang functions to native x86_64/ARM64 machine code via a data-driven assembler with mmap execution. POSIX system calls (fork, exec, pipe, dup2, wait, open, close, etc.) are wrapped as x-lang functions through the FFI in `lib/x/sys/posix.x`.
+**Layer 4: FFI and Native Code.** Dynamic library loading via `dlopen`/`dlsym` (the engine's foreign door), typed foreign calls with convention strings, raw pointer operations, and a JIT compiler (`lib/x/tool/compile.x`, `lib/x/tool/asm.x`) that compiles x-lang functions to native x86_64/ARM64 machine code via a data-driven assembler with mmap execution. POSIX system calls (fork, exec, pipe, dup2, wait, open, close, etc.) are wrapped as x-lang functions through the FFI in `lib/x/sys/posix.x`.
 
 ### The Base Object
 

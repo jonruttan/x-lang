@@ -1,6 +1,6 @@
 # x-lang Primitives and Core Forms
 
-*Part of the C implementation of x-lang: computational expressions over a minimal, type-agnostic core.*
+*x-lang: computational expressions over a minimal, type-agnostic engine.*
 
 This file documents the vocabulary the language answers to once it has booted,
 in three parts, because it is three different things and a single list said

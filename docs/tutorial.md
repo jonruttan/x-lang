@@ -3,10 +3,24 @@
 ## Build
 
 ```sh
-make clean && make
+make engine     # fetch the verified engine release this tree pins
+make
 ```
 
-This produces the `x-bin` engine binary. Requires a C89-compatible compiler (gcc, clang, tcc).
+The engine is a separate project, acquired rather than carried. `make engine`
+downloads one built for your platform and checks it against the digest
+[`tools/engine/engine.pin.xon`](../tools/engine/engine.pin.xon) records; `make`
+puts the `x-bin` binary where the wrapper and the test runners expect it.
+Nothing is compiled, and no C toolchain is required.
+
+From nothing, in one command:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/jonruttan/x-lang/main/bootstrap.sh | sh
+```
+
+To build an engine from source instead, or to point this tree at one you
+already have, see [Build](../README.md#build) in the README.
 
 ## Start a Session
 

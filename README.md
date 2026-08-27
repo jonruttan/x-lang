@@ -10,13 +10,16 @@
 [![CI](https://github.com/jonruttan/x-lang/actions/workflows/ci.yml/badge.svg)](https://github.com/jonruttan/x-lang/actions/workflows/ci.yml)
 
 **x-lang** is a language built from computational-expression layers over a
-minimal, type-agnostic interpreter core written in C89. The core provides
-atom/pair primitives, an adaptive type system, and fexpr-based evaluation;
-s-expressions are the deliberately simple initial syntax — the reader
-itself is extensible, and whole surface languages load as personalities.
-Everything above the core — the language semantics, standard library, object
-system, numeric tower, JIT compiler, and the toolchain itself — is written
-in x-lang.
+minimal, type-agnostic **engine**. The engine provides atom/pair primitives,
+an adaptive type system, and fexpr-based evaluation; s-expressions are the
+deliberately simple initial syntax — the reader itself is extensible, and
+whole surface languages load as personalities. Everything above it — the
+language semantics, standard library, object system, numeric tower, JIT
+compiler, and the toolchain itself — is written in x-lang.
+
+This repository is the language, not an engine. An engine is acquired as a
+pinned, verified artifact behind a published
+[contract](docs/engine-contract.md); `make engine` fetches one.
 
 ## Status
 
@@ -31,7 +34,7 @@ readers, fexpr evaluation, runtime type systems, or self-hosted toolchains.
 It is not a general-purpose application language, and it is not trying to
 displace one.
 
-**Maturity — v0.5.2.** The C core and the xenon dialect are covered by a
+**Maturity — v0.5.2.** The language and the xenon dialect are covered by a
 full spec suite with CI on macOS and Linux plus a hard AddressSanitizer gate.
 The surface API is *not* frozen and may change between versions. The radon
 dialect is explicitly experimental. x86_64 parity for the automatic
@@ -88,18 +91,38 @@ See [`apps/logo/README.md`](apps/logo/README.md) for the command reference.
 - **Regular expressions** — Custom type with `#/pattern/` literal syntax.
 - **Self-hosted tools** — Linter, formatter, coverage analyzer, profiler, and documentation generator written in x-lang.
 - **Tail-call optimization** — Trampoline-based TCO with environment save/restore.
-- **C89 portable** — No third-party dependencies: the expression engine links only `libc`; the full binary adds `-ldl` for the FFI/JIT layer (float math dlopens `libm` at runtime rather than linking it). CI builds with gcc and clang on macOS and Linux; any C89-compatible compiler should work.
+- **No third-party dependencies** — the engine's expression core links only `libc`; the full binary adds `-ldl` for the FFI/JIT layer (float math dlopens `libm` at runtime rather than linking it). x-engine-c is C89 and builds with gcc or clang on macOS and Linux.
 
 ## Architecture
 
 The system is layered. Each layer expands capabilities without modifying those below it.
 
-1. **Atom/pair bootstrap** ([x-expr](ext/x-engine-c/ext/x-expr/)) — One storage shape, two blessed lengths: every object is a fixed-size vector of slots, and the two smallest — the atom (one) and the pair (two) — are sufficient for evaluation and data construction. The evaluator dispatches through type methods, so these two suffice to get the system running.
+1. **Atom/pair bootstrap** (the engine) — One storage shape, two blessed lengths: every object is a fixed-size vector of slots, and the two smallest — the atom (one) and the pair (two) — are sufficient for evaluation and data construction. The evaluator dispatches through type methods, so these two suffice to get the system running.
 2. **Adaptive type system** — Runtime type definitions with dispatch methods (call, eval, write, length, etc.). Types and the base object share the same nested-list contract structure, extensible by appending pairs.
 3. **Modular library** (`lib/`) — ~100 modules organized by domain: core operations, custom types (vectors, strings, promises), a numeric tower (bigint, float, rational, complex), system interfaces (POSIX, FFI, GC), self-hosted tools (linter, formatter, coverage, profiler, doc generator), and platform-specific code (x86_64, ARM64).
 4. **FFI and native code** — Dynamic library loading via `dlopen`/`dlsym`, typed foreign calls, raw pointer operations, and a JIT compiler that compiles x-lang functions to native machine code via a data-driven assembler.
 
 See [docs/](docs/) for complete reference documentation.
+
+### Engines
+
+Layers 1 and 2 are the engine's, and the engine is not part of this
+repository. It is acquired as a pinned, verified artifact and reached through
+one path — the `engine` symlink — so nothing downstream names a particular
+implementation.
+
+- [**x-engine-c**](https://github.com/jonruttan/x-engine-c) — the C89 engine:
+  evaluator, primitive surface, tokenizer. The reference. This is what
+  `make engine` fetches, and what
+  [`tools/engine/engine.pin.xon`](tools/engine/engine.pin.xon) pins.
+- [**x-engine-rust**](https://github.com/jonruttan/x-engine-rust) — a second
+  engine, in progress. Its core forbids `unsafe`; the foreign door is a
+  separate crate.
+
+What an engine must provide, promise and report is
+[docs/engine-contract.md](docs/engine-contract.md). The conformance suite that
+judges one lives here rather than in any engine: an implementation that owned
+it would become the arbiter every other implementation is measured against.
 
 ## Dialects
 
@@ -152,9 +175,10 @@ Pi, 32-bit), and when you are working on the engine itself. `make` alone, in a
 tree that has never acquired one, prints these three options rather than
 failing obscurely.
 
-Requires a C89-compatible compiler. `make` links `engine` at the engine this
-tree builds against, builds it there, and copies the `x-bin` binary to this
-repo's root, where the wrapper and every test runner expect to find it.
+`make` points `engine` at the engine this tree builds against, builds it there
+if it is a checkout, and copies the `x-bin` binary to this repo's root, where
+the wrapper and every test runner expect to find it. A C compiler is needed
+only for that case: a fetched release arrives built.
 
 `engine` is a symlink, and it is how x-lang stays implementation-agnostic:
 everything downstream — the boot's contract includes, the JIT's `-I` flags,
@@ -163,8 +187,8 @@ somewhere else with `make X_ENGINE_DIR=/path/to/engine`, and the choice
 sticks until you change it. The target may be a checkout (built here) or an
 unpacked engine release (used as it comes).
 
-The expression engine (`ext/x-engine-c/ext/x-expr`) needs nothing beyond `libc`; the full
-binary adds `-ldl` for the FFI/JIT layer. There is no `-lm` — float math
+The engine's expression core needs nothing beyond `libc`; the full binary
+adds `-ldl` for the FFI/JIT layer. There is no `-lm` — float math
 resolves `libm` at runtime through the FFI, the same way it resolves any
 other library. One optional tool needs more: `x/tool/compile` — the
 C-emitting compiler — invokes `cc` at *runtime* and `dlopen`s the result, so
@@ -239,12 +263,18 @@ staged/packaged installs. Remove with `make uninstall` (same `PREFIX`).
 ## Test
 
 ```sh
-make test-x                          # x-lang tests (2,000+ tests)
-make test-c                          # C unit tests
+make test-x                          # x-lang spec suite (2,500+ cases)
+make test-c                          # the engine's C unit tests (delegated)
 make test                            # all tests
 ```
 
 Test specs are markdown files in `tests/x/specs/` organized by category: core language, closures and applicatives, extensions (types, numeric tower, compile), standard library, end-to-end, and tools. CI runs the full suite on macOS and Linux, plus a hard AddressSanitizer gate.
+
+`make test-c` delegates to the engine, and a fetched release ships no C to
+test: it announces that it skipped and names what covers that ground instead.
+The same is true of `check-isa`, `check-obj-layout` and `check-base-paths` —
+[docs/contributing.md](docs/contributing.md) says which is which, and why a
+gate that goes quiet says so out loud.
 
 ## Documentation
 
@@ -268,7 +298,7 @@ vocabulary? The [Glossary](docs/glossary.md) defines the load-bearing terms
 - [Specification](docs/spec.md) — Normative language specification
 - [Glossary](docs/glossary.md) — Settled vocabulary and naming rulings
 - [Syntax](docs/syntax.md) — Surface syntax rulings ([bare-core variant](docs/syntax-bare.md))
-- [Primitives and core forms](docs/primitives.md) — the C instruction set, the coordinates reached through `prim-ref`, and the operatives and procedures that boot on top
+- [Primitives and core forms](docs/primitives.md) — the engine's instruction set, the coordinates reached through `prim-ref`, and the operatives and procedures that boot on top
 - [Standard Library](docs/standard-library.md) — Core library function reference
 - [x-lang API Reference](https://jonruttan.github.io/x-lang/docs/ref/x/index.html) — every module, generated from the `(doc ...)` forms (offline: `make doc-x`, then `docs/ref/x/index.md`)
 - [C API Reference](https://jonruttan.github.io/x-lang/docs/ref/c/html/index.html) — the C engine, generated by Doxygen (offline: `make doc-c`, then `docs/ref/c/html/index.html`)
