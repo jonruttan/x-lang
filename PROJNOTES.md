@@ -3,27 +3,32 @@ Description: Development notes for x-lang.
 Keywords:    [#x-lang, #Project, #Notes]  
 Author:      "[Jon Ruttan](jonruttan@gmail.com)"  
 Date:        2021-10-06  
-Revision:    7 (2026-07-10)  
+Revision:    8 (2026-08-27)  
 
 # x-lang Project Notes
 
 ## Sub-projects
 
-### X-Expressions (x-expr) -- Computational Expressions Library
+### Engines
 
-**Status: Implemented**, in its own repository
-([x-engine-c](https://github.com/jonruttan/x-engine-c))
+The engine is no longer part of this repository. It is acquired as a pinned,
+verified artifact and held to `docs/engine-contract.md`.
 
-- Simple, minimalist, thread-safe
-- Dynamic type system with type-specific evaluators
-- Multiple independent environments
-- Metacircular evaluator, reflective
-- ANSI / Standard C, no external dependencies
+- **x-engine-c** ([repo](https://github.com/jonruttan/x-engine-c)) --
+  **Status: Implemented.** The C89 engine: evaluator, primitive surface,
+  tokenizer. What `tools/engine/engine.pin.xon` names.
+- **x-engine-rust** ([repo](https://github.com/jonruttan/x-engine-rust)) --
+  **Status: In progress.** A second engine. Its core forbids `unsafe`; the
+  foreign door is a separate crate.
+
+Shared engine properties: dynamic type system with type-specific evaluators,
+multiple independent environments, a metacircular reflective evaluator, and no
+external dependencies.
 
 
 ### x-lang -- The Language
 
-**Status: Implemented** (v0.3.0)
+**Status: Implemented** (v0.5.2)
 
 - Foundational / Scripting
 - Lisp1 with fexpr evaluation model
@@ -35,7 +40,7 @@ Revision:    7 (2026-07-10)
 - Self-hosted tools (lint, fmt, cov, profile, doc)
 - Three dialects: helium (light/default), xenon (stable full-stack), radon (experimental)
 - Language personalities: R5RS, R7RS, Kernel, ASH, Sweet
-- ANSI / Standard C, no external dependencies
+- Engine-agnostic: the interpreter is a pinned artifact behind a published contract
 
 
 ### Noble-gas dialects (he/xe/rn)

@@ -94,36 +94,11 @@ make clean && make
 
 ### C Code
 
-- **C89 standard** — no C99 features. Variables declared at the top of the FUNCTION (house rule, stricter than C89's top-of-block); hoist via guarded initializers or assign-in-place
-- **`x_` prefix** — All exported symbols use the `x_` prefix
-- **Naming** — Use `pair`/`first`/`rest`, never cons/car/cdr. Use `fn`/`def`/`set!`/`do`/`op`/`lit`/`quasi`/`match`
-- **Accessor families** — `x_first`/`x_rest`* are the canonical pair accessors;
-  the `x_0`/`x_1` bit-path family is blessed for dense field plumbing (the
-  base layout); x-lisp.h's `x_car`/`x_cdr` are embedder-compat shims only —
-  never used in this repo's own code
-- **No globals** — All interpreter state belongs on `p_base`. Never use static or global variables for state
-- **Stack-allocated pairs** — Prefer `x_satom_t`/`x_spair_t` over heap allocation where possible
-- **GC rooting discipline** (hard rule, like declarations-at-top) — a sole heap
-  reference held across a call that can evaluate x-lang code (`x_eval*`,
-  `x_callable_apply`, `x_obj_prim_call`, type-hook dispatch) lives in a
-  registered root-chain slot: `x_heap_root_push` / `x_heap_root_pop`, period.
-  Collection is **explicit-trigger only**, so pure allocators (`x_mk*`,
-  `x_obj_alloc`) never collect — a hold across them is safe. Standing
-  exemptions (each proven once): buffers (always base-rooted), values still
-  held by a base field or the type alist, and the collect path's own hook
-  args. Registration contract: off-chain (stack) objects only — pushing a
-  heap object truncates the sweep chain; registered pairs carry
-  `x_type_pair_obj`; pop on **every** exit path (lazy-pop by address is
-  unsound). Nonlocal exits are integrated: `guard` and call/cc snapshot and
-  restore the chain head. If the trigger policy ever changes
-  (allocation-threshold collects), the window widens to every allocating
-  call — revisit every exemption. Unit spec:
-  x-engine-c's `ext/x-expr/tests/src/5.1.x-heap.root-chain.spec.c`. To diagnose a
-  suspected missing root, build a *reporting* checker (an inverted
-  scan run after the precise mark, naming any chain object the root chain
-  missed) — never re-arm a conservative scan, which hides the bug instead
-  of finding it
-- **Doxygen comments** — All public functions and macros documented with `@brief`, `@param`, `@return`. File headers include `@file`, `@brief`, `@author`, `@copyright`, `@license`, and the ASCII owl
+There is no C in this repository. The engine's C conventions — C89,
+declarations at the top of the function, the `x_` prefix, the accessor
+families, no globals, stack-allocated pairs, the GC rooting discipline and
+the Doxygen house style — live with the code they govern, in
+[x-engine-c](https://github.com/jonruttan/x-engine-c).
 
 ### x-lang Code
 
