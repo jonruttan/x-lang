@@ -2,6 +2,20 @@
 
 *x-lang: computational expressions over a minimal, type-agnostic engine.*
 
+> **Scope.** The contract pattern, the dispatch model and runtime type
+> creation are the language's. The concrete C throughout — the datum union,
+> `struct x_type_t`, the `x_type_field_*` and `x_eval_field_*` accessors, the
+> base tree's layout — is
+> [x-engine-c](https://github.com/jonruttan/x-engine-c)'s, under the
+> `x_`-prefix and snake-case affix conventions the [Glossary](glossary.md)
+> names as C's. The nouns are shared across engines and settled there, with
+> the contract's files as the authority; the authoritative base layout is
+> `tools/contract/base-layout.x`.
+>
+> x-engine-c is the reference implementation and the closest thing to correct,
+> but reference is not canonical — conformance is the language's definition of
+> correct, and it judges every engine including that one. See
+> [The Engine Contract](engine-contract.md).
 
 ### The Contract Pattern
 
@@ -402,18 +416,20 @@ The base object uses the same nested-list contract pattern as types. It holds th
 #### Structure
 
 The base is a deep pair tree, `(hot . cold)`: the hot half holds the
-environment and control state this layer fills in; the cold half is the
-I/O + metadata skeleton x-expr supplies. The authoritative layout —
+environment and control state, the cold half the I/O and metadata. In
+x-engine-c the cold half is its embeddable expression core's skeleton and the
+hot half is filled by its eval layer; that split is the engine's own. The
+authoritative layout —
 including which leaves are field cells `(current . saved)` versus direct
 values — is `tools/contract/base-layout.x` (regenerate with `make gen-layout`);
 `make check-base-paths` pins it.
 
 ```
 base
-  first: env + ctrl              (x-expr leaves nil; filled here)
+  first: env + ctrl              (core leaves nil; eval layer fills)
     env    env-alist, env-local-boundary, env-global-tree, shadow-list
     ctrl   save-stack, error-handler, tco-expr, tco-env
-  rest:  io + meta               (x-expr skeleton)
+  rest:  io + meta               (expression-core skeleton)
     io     type-alist, line, true, false  (+ file handles)
     meta   profile counters, eval-list, token-cache,
            mark-hooks, free-hooks, mark-roots, sigint
@@ -435,7 +451,7 @@ x_eval_field_tco_expr(X)       /* TCO expression register     */
 x_eval_field_tco_env(X)        /* TCO environment register    */
 ```
 
-(The x-expr skeleton's accessors are `x_base_field_*`; the eval layer's are `x_eval_field_*` in `engine/include/x-eval-layout.h`.)
+(In x-engine-c the skeleton's accessors are `x_base_field_*`; the eval layer's are `x_eval_field_*` in `engine/include/x-eval-layout.h`.)
 
 #### Properties
 
