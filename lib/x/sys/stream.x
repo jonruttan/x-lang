@@ -4,8 +4,8 @@
 ; statement lives in x/type/io.x's header (#365).
 ;
 ; display/write emit to the base's `fileout` fd -- an integer ATOM in the io
-; `files` group (filein fileout fileerr write-buf buffer); see
-; ext/x-expr/src/x-base.c. The base is just a pair tree, so redirection is
+; `files` group (filein fileout fileerr write-buf buffer), whose rows the
+; layout contract names.  The base is just a pair tree, so redirection is
 ; first/set-first! on the fileout cell -- no C primitive needed. A Stream wraps
 ; a target fd; write to it directly, or redirect the current output through it.
 ;
@@ -46,7 +46,7 @@
 
 (def-class Stream ()
   (doc "A first-class output stream over a file descriptor: write to it, or redirect display/write output through it for the duration of a thunk."
-    (note "Pure X: display/write target the base's fileout fd (an atom in the io `files` group); a Stream just pushes/pops that fd. See ext/x-expr/src/x-base.c.")
+    (note "Pure X: display/write target the base's fileout fd (an atom in the io `files` group, whose rows the layout contract names); a Stream just pushes/pops that fd.")
     (note "(Stream to-fd fd) wraps an existing fd (not owned). (Stream to-file path) opens path for writing and OWNS it -- (close) closes it. (Stream stdout)/(Stream stderr) are conveniences.")
     (note "File-backed streams (to-file, write, with-file) need the radon dialect (File open/close/write -> syscall/make-str).")
     (sample "(Stream with-file \"grid.svg\" (fn (_) (grid ->svg)))" "saves whatever (grid ->svg) displays into grid.svg")

@@ -37,7 +37,7 @@ Each layer expands capabilities without modifying those below it.
 
 ### The Base Object
 
-The base object (`p_base`) is the interpreter's root context: a pair tree built from the same atoms and pairs as every other value (there is no struct). x-engine-c builds it in two halves: its embeddable expression core supplies a skeleton -- the I/O and metadata groups, profile counters, hooks, and heap-group -- and its eval layer fills the environment/control half the core leaves nil, appending a few fields of its own. Every leaf is either a stack cell `(current . saved)` for dynamic push/pop, or a direct value. The split is that engine's; what any engine must carry is `tools/contract/base-layout.x`.
+The base object (`p_base`) is the interpreter's root context: a pair tree built from the same atoms and pairs as every other value (there is no struct). x-engine-c builds it in two halves: its embeddable expression core supplies a skeleton -- the I/O and metadata groups, profile counters, hooks, and heap-group -- and its eval layer fills the environment/control half the core leaves nil, appending a few fields of its own. Every leaf is either a stack cell `(current . saved)` for dynamic push/pop, or a direct value. The split is that engine's; what any engine must carry is the layout contract, `engine/tools/contract/base-layout.x`.
 
 ```
 base = x_base(p_base)
@@ -50,7 +50,7 @@ base = x_base(p_base)
            mark-hooks, free-hooks, mark-roots, sigint
 ```
 
-Field access is via nested `first`/`rest` traversal, expressed with the `x_<binary>` accessor family (`x_0` = first, `x_1` = rest, read left-to-right outer-to-inner). For example `x_eval_field_env_alist(X)` resolves to `first(first(first(base)))`. The authoritative layout, including which leaves are field cells versus direct values, is `tools/contract/base-layout.x` (mirrored by `engine/include/x-eval-layout.h`, generated there from `engine/tools/contract/base-layout.x`, and pinned by `make check-base-paths`).
+Field access is via nested `first`/`rest` traversal, expressed with the `x_<binary>` accessor family (`x_0` = first, `x_1` = rest, read left-to-right outer-to-inner). For example `x_eval_field_env_alist(X)` resolves to `first(first(first(base)))`. The authoritative layout, including which leaves are field cells versus direct values, is `engine/tools/contract/base-layout.x` (mirrored by `engine/include/x-eval-layout.h`, generated there from it, and pinned by `make check-base-paths`).
 
 #### Nil
 
