@@ -37,15 +37,15 @@ Each layer expands capabilities without modifying those below it.
 
 ### The Base Object
 
-The base object (`p_base`) is the interpreter's root context: a pair tree built from the same atoms and pairs as every other value (there is no struct). x-expr supplies a skeleton -- the I/O and metadata groups, profile counters, hooks, and heap-group -- and this project fills the environment/control half x-expr leaves nil and appends a few fields of its own. Every leaf is either a stack cell `(current . saved)` for dynamic push/pop, or a direct value.
+The base object (`p_base`) is the interpreter's root context: a pair tree built from the same atoms and pairs as every other value (there is no struct). x-engine-c builds it in two halves: its embeddable expression core supplies a skeleton -- the I/O and metadata groups, profile counters, hooks, and heap-group -- and its eval layer fills the environment/control half the core leaves nil, appending a few fields of its own. Every leaf is either a stack cell `(current . saved)` for dynamic push/pop, or a direct value. The split is that engine's; what any engine must carry is `tools/contract/base-layout.x`.
 
 ```
 base = x_base(p_base)
-  first: env + ctrl              (x-expr leaves nil; filled here)
+  first: env + ctrl              (core leaves nil; eval layer fills)
     env    env-alist, env-local-boundary, env-global-tree, shadow-list
     ctrl   save-stack, error-handler, tco-expr, tco-env
-  rest:  io + meta               (x-expr skeleton)
-    io     type-alist, line, true, false  (+ x-expr's file handles)
+  rest:  io + meta               (expression-core skeleton)
+    io     type-alist, line, true, false  (+ the core's file handles)
     meta   profile counters, eval-list, token-cache,
            mark-hooks, free-hooks, mark-roots, sigint
 ```
