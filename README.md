@@ -112,8 +112,9 @@ one path — the `engine` symlink — so nothing downstream names a particular
 implementation.
 
 - [**x-engine-c**](https://github.com/jonruttan/x-engine-c) — the C89 engine:
-  evaluator, primitive surface, tokenizer. The reference. This is what
-  `make engine` fetches, and what
+  evaluator, primitive surface, tokenizer. The reference implementation, and
+  the closest thing to correct — though conformance, not any engine, is what
+  defines correct. This is what `make engine` fetches, and what
   [`tools/engine/engine.pin.xon`](tools/engine/engine.pin.xon) pins.
 - [**x-engine-rust**](https://github.com/jonruttan/x-engine-rust) — a second
   engine, in progress. Its core forbids `unsafe`; the foreign door is a

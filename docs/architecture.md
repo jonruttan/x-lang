@@ -12,10 +12,16 @@ The engine is a type-agnostic expression evaluator. It provides atom/pair primit
 > The nouns are shared across engines and settled in the
 > [Glossary](glossary.md), with the contract's files as the authority. The
 > identifiers here are
-> [x-engine-c](https://github.com/jonruttan/x-engine-c)'s — the reference, and
-> the engine this tree pins — under the `x_`-prefix and snake-case affix
-> conventions the glossary names as C's. A second engine spells those same
-> nouns under its own conventions; it does not get different ones.
+> [x-engine-c](https://github.com/jonruttan/x-engine-c)'s — the reference
+> implementation, and the engine this tree pins — under the `x_`-prefix and
+> snake-case affix conventions the glossary names as C's.
+>
+> Reference is not canonical. Conformance is the language's definition of
+> correct, and it judges every engine, this one included — which is why the
+> suite lives here rather than inside an engine. The reference is the closest
+> thing to it, which is why a second engine transcribes rather than derives;
+> where the reference carries a recorded fault, the fault is the reference's
+> and not the language's.
 
 ### The Four Layers
 
