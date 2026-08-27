@@ -263,7 +263,7 @@ staged/packaged installs. Remove with `make uninstall` (same `PREFIX`).
 ## Test
 
 ```sh
-make test-x                          # x-lang spec suite (2,700+ cases)
+make test-x                          # x-lang spec suite (2,500+ cases)
 make test-c                          # the engine's C unit tests (delegated)
 make test                            # all tests
 ```
