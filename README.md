@@ -94,7 +94,7 @@ See [`apps/logo/README.md`](apps/logo/README.md) for the command reference.
 
 The system is layered. Each layer expands capabilities without modifying those below it.
 
-1. **Atom/pair bootstrap** ([x-expr](ext/x-engine-c/ext/x-expr/)) — One storage shape, two blessed lengths: every object is a fixed-size vector of slots, and the two smallest — the atom (one) and the pair (two) — are sufficient for evaluation and data construction. The evaluator dispatches through type methods, so these two suffice to get the system running.
+1. **Atom/pair bootstrap** (the engine — [x-engine-c](https://github.com/jonruttan/x-engine-c)) — One storage shape, two blessed lengths: every object is a fixed-size vector of slots, and the two smallest — the atom (one) and the pair (two) — are sufficient for evaluation and data construction. The evaluator dispatches through type methods, so these two suffice to get the system running.
 2. **Adaptive type system** — Runtime type definitions with dispatch methods (call, eval, write, length, etc.). Types and the base object share the same nested-list contract structure, extensible by appending pairs.
 3. **Modular library** (`lib/`) — ~100 modules organized by domain: core operations, custom types (vectors, strings, promises), a numeric tower (bigint, float, rational, complex), system interfaces (POSIX, FFI, GC), self-hosted tools (linter, formatter, coverage, profiler, doc generator), and platform-specific code (x86_64, ARM64).
 4. **FFI and native code** — Dynamic library loading via `dlopen`/`dlsym`, typed foreign calls, raw pointer operations, and a JIT compiler that compiles x-lang functions to native machine code via a data-driven assembler.
@@ -163,8 +163,8 @@ somewhere else with `make X_ENGINE_DIR=/path/to/engine`, and the choice
 sticks until you change it. The target may be a checkout (built here) or an
 unpacked engine release (used as it comes).
 
-The expression engine (`ext/x-engine-c/ext/x-expr`) needs nothing beyond `libc`; the full
-binary adds `-ldl` for the FFI/JIT layer. There is no `-lm` — float math
+The engine's expression core needs nothing beyond `libc`; the full binary
+adds `-ldl` for the FFI/JIT layer. There is no `-lm` — float math
 resolves `libm` at runtime through the FFI, the same way it resolves any
 other library. One optional tool needs more: `x/tool/compile` — the
 C-emitting compiler — invokes `cc` at *runtime* and `dlopen`s the result, so

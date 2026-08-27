@@ -19,7 +19,7 @@ the JIT's `-I` flags, the gates, the conformance runner — so nothing else has
 to know which engine it got.
 
 ```sh
-make                                  # links engine -> ext/x-engine-c
+make                                  # build against the engine already linked
 make X_ENGINE_DIR=../my-engine        # links engine -> ../my-engine
 make engine                           # fetch the release the pin names
 make engine-source                    # clone that release and build it here
@@ -117,7 +117,7 @@ make clean && make
   restore the chain head. If the trigger policy ever changes
   (allocation-threshold collects), the window widens to every allocating
   call — revisit every exemption. Unit spec:
-  `ext/x-engine-c/ext/x-expr/tests/src/5.1.x-heap.root-chain.spec.c`. To diagnose a
+  x-engine-c's `ext/x-expr/tests/src/5.1.x-heap.root-chain.spec.c`. To diagnose a
   suspected missing root, build a *reporting* checker (an inverted
   scan run after the precise mark, naming any chain object the root chain
   missed) — never re-arm a conservative scan, which hides the bug instead

@@ -11,7 +11,8 @@ Revision:    7 (2026-07-10)
 
 ### X-Expressions (x-expr) -- Computational Expressions Library
 
-**Status: Implemented** (`ext/x-expr/`)
+**Status: Implemented**, in its own repository
+([x-engine-c](https://github.com/jonruttan/x-engine-c))
 
 - Simple, minimalist, thread-safe
 - Dynamic type system with type-specific evaluators

@@ -1,7 +1,7 @@
 # Compliance: `(guarantee int/ptr-same-width)`
 
 The fixnum and the pointer are the same width. x-engine-c asserts this at COMPILE
-time (`sizeof(x_int_t) == sizeof(void *)` in ext/x-expr/include/x.h), which makes
+time (`sizeof(x_int_t) == sizeof(void *)` in its `ext/x-expr/include/x.h`), which makes
 it the strongest row that engine declares — but a second engine states it in
 prose like any other claim, and prose is what this suite exists to falsify.
 

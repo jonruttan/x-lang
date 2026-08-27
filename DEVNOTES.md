@@ -75,12 +75,12 @@ objects are never reached by the sweep.
 ### Testing a Single Spec
 
 ```sh
-TESTS=tests/c/src/1.x-alist.spec.c make test-c
+TESTS=tests/c/src/1.x-alist.spec.c make test-c   # in the engine's own tree
 ```
 
 ### Test Helpers
 
-The C specs link against the [test-runner](tests/c/test-runner/) harness,
+The C specs link against the engine's own `tests/c/test-runner/` harness,
 which provides helper systems for capturing and supplying file data.
 
 #### Capturing File Data

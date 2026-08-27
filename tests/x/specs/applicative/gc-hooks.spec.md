@@ -161,7 +161,7 @@ intervening allocation". Evaluating anything in x-lang allocates, so a
 correct x-level call site cannot be written -- the eval-list cell the
 evaluator is mid-traversal on would be freed underneath it. `(Heap collect)`
 is the safe atomic mark+sweep and is specced above. The phases are exercised
-separately in tests/c/src/6.6.x-prim-io.spec.c, where the no-allocation window
+separately in the engine's tests/c/src/6.6.x-prim-io.spec.c, where that window
 exists.
 
 ## heap mark
