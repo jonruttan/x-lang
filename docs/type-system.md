@@ -1,6 +1,6 @@
 # x-lang Type System
 
-*Part of the C implementation of x-lang: computational expressions over a minimal, type-agnostic core.*
+*x-lang: computational expressions over a minimal, type-agnostic engine.*
 
 
 ### The Contract Pattern

@@ -1,6 +1,6 @@
 # x-lang Modules
 
-*Part of the C implementation of x-lang: computational expressions over a minimal, type-agnostic core.*
+*x-lang: computational expressions over a minimal, type-agnostic engine.*
 
 ## Module System
 

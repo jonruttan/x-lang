@@ -1,9 +1,21 @@
 # x-lang Architecture
 
-*Part of the C implementation of x-lang: computational expressions over a minimal, type-agnostic core.*
+*x-lang: computational expressions over a minimal, type-agnostic engine.*
 
 
-The interpreter is a type-agnostic expression evaluator written in C89. It provides atom/pair primitives, an adaptive type system, and fexpr-based evaluation. It has no built-in knowledge of any particular language semantics. It is dangerous and minimal, like a CPU: it executes what it is given without guardrails, and all safety, convenience, and language identity are supplied by libraries loaded at runtime.
+The engine is a type-agnostic expression evaluator. It provides atom/pair primitives, an adaptive type system, and fexpr-based evaluation. It has no built-in knowledge of any particular language semantics. It is dangerous and minimal, like a CPU: it executes what it is given without guardrails, and all safety, convenience, and language identity are supplied by libraries loaded at runtime.
+
+> **Scope.** Layers 1 and 2 below, the base object, the object model and the
+> expression pipeline describe an *engine*, and the C names throughout are
+> [x-engine-c](https://github.com/jonruttan/x-engine-c)'s — the engine this
+> tree pins. They are one engine's spelling of the arrangement, not the terms
+> an engine is held to; those are normative in
+> [The Engine Contract](engine-contract.md) and
+> `tools/contract/base-layout.x`. A second engine
+> ([x-engine-rust](https://github.com/jonruttan/x-engine-rust)) is being
+> written to the same contract in a language with no `x_obj_t` and no
+> `p_base` pointer. Layers 3 and 4, the dialects and the library are this
+> repository's.
 
 ### The Four Layers
 

@@ -1,6 +1,6 @@
 # x-lang Object System
 
-*Part of the C implementation of x-lang: computational expressions over a minimal, type-agnostic core.*
+*x-lang: computational expressions over a minimal, type-agnostic engine.*
 
 
 x-lang ships a small object-oriented class system in the standard library
