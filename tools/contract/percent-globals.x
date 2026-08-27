@@ -37,6 +37,13 @@
 ; BUILD now declares its os and arch, and the triple parse became the fallback for
 ; an engine that could not establish them.  Boot-constrained like the rest of that
 ; file -- it loads mid-x-core, before the class machinery that would home them.
+; apps/logo/run.x grew from 0 to 1 for %logo-app-root, and the growth BUYS a
+; deletion: the app root used to be re-derived in main.x and the viewer's
+; directory guessed a third way in serve.x, as a cwd-relative literal that
+; resolved only from the repo root -- so the viewer was broken in every
+; INSTALLED tree.  One name in the ENTRY, which is the one file allowed to
+; know the layout (path-literals.sh exempts apps/*/run.x), is the shape
+; docs/personality-contract.md requires of a relocatable app.
 ; Everything else is unhomed inventory awaiting the pin.x treatment.
 (file "apps/logo/dispatch.x" 28)
 (file "apps/logo/entry.x" 27)
@@ -46,6 +53,7 @@
 (file "apps/logo/main.x" 6)
 (file "apps/logo/math.x" 5)
 (file "apps/logo/repl.x" 9)
+(file "apps/logo/run.x" 1)
 (file "apps/logo/serve.x" 15)
 (file "apps/logo/state.x" 15)
 (file "apps/logo/tstate.x" 2)

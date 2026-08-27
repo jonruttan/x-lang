@@ -10,6 +10,13 @@
 ;   (turtle-serve 8080)
 ;   ; Open http://localhost:8080 in browser
 
+; %logo-app-root is the app tree the ENTRY armed and named (run.x).  The
+; linter reads one file at a time, so a name the boot arrangement provides
+; looks undefined here -- the same reason float.x declares %bigint-base and
+; syscall.x declares %param-os.  Declared, not defined: this file must not
+; be the second place that knows where the app lives.
+; lint-known: %logo-app-root
+
 (import x/sys/posix)
 (import x/sys/file)
 ; Socket plumbing is homed on the Socket class (#29) -- this app is its
@@ -123,7 +130,11 @@
 (def turtle-serve
   (fn (_ port)
     ; Read the HTML template
-    (def html-template (%read-or-empty "apps/logo/viewer.html"))
+    ; Through the entry's root, never cwd: this read is the app's one DATA
+    ; path, and a literal here found the viewer only when cwd was the repo
+    ; root (broken in every installed tree).  %logo-app-root comes from run.x.
+    (def html-template
+      (%read-or-empty (%path-join %logo-app-root "logo/viewer.html")))
     (if (str=? html-template "")
       (Err raise 'io "Could not read turtle.html" ()))
     ; Inject the endpoint script before </body>

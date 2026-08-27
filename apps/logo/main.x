@@ -5,7 +5,9 @@
 ; Starts a server on localhost:8080. Open the URL in your browser.
 ; Type Logo commands — the browser updates live.
 
-(import-path! (guard (_ "apps") (%path-join %install-root "apps")))
+; The app root is armed and named by the entry (run.x), which is the one
+; file allowed to know the layout.  This file used to re-arm it here; a
+; second derivation of the same path is a second thing to fix.
 (def %bigint ())
 (import x/num/float)
 (import logo/turtle)

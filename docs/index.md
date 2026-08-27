@@ -18,6 +18,7 @@
 - [Type System](type-system.md) — Objects, types, the base object, dispatch, extensibility
 - [Object System](object-system.md) — Message-passing classes, single inheritance, encapsulated members, `super`
 - [Dialects](dialects.md) — the helium, xenon, and radon dialect layers
+- [The Personality Contract](personality-contract.md) — what a personality may rely on, and how one is acquired as a pinned bundle (proposed)
 - [Modules](modules.md) — The provide/import module system, and pinning a project's libraries (pin.xon)
 
 ## Reference
