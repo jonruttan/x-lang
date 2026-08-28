@@ -87,8 +87,25 @@ case "$X_ALLOC_LIMIT_OBJS" in
     ;;
 esac
 
-# Derive project root from X_BIN (always at project root).
-RUNNER="$(cd "$(dirname "$X_BIN")" && pwd)/tests/spec-runner.awk"
+# THE AWK HARNESS SITS BESIDE THIS FILE.  The default finds it the way it
+# always has -- from the directory holding the engine, which in a checkout is
+# the repo root, beside tests/.  That coupling is one of the three reasons the
+# built engine lands at the repo root (see the Makefile's engine-split note).
+#
+# SPEC_RUNNER_DIR OVERRIDES IT, for a caller sourcing this runner out of an
+# INSTALLED tree.  There the engine is under libexec/x/ and this harness under
+# share/x/tests/, so the derivation below points at a path that was never going
+# to exist -- the same addressing bug that dangled the old personality runners
+# when they left the tree.  A personality bundle sets it from `x --share-dir`
+# (docs/personality-contract.md).  The caller says because a SOURCED script
+# cannot portably find its own path.
+RUNNER="${SPEC_RUNNER_DIR:-$(cd "$(dirname "$X_BIN")" && pwd)/tests}/spec-runner.awk"
+if [ ! -f "$RUNNER" ]; then
+	echo "spec-runner: no awk harness at $RUNNER" >&2
+	echo "  set SPEC_RUNNER_DIR to the directory holding spec-runner.awk --" >&2
+	echo "  from an installed tree that is \"\$(x --share-dir)/tests\"" >&2
+	exit 1
+fi
 
 # Host arch for arch-tagged specs (e.g. asm.arm64.spec.md runs only on A64
 # hosts). Darwin says arm64 where GNU says aarch64; normalize to the tags the

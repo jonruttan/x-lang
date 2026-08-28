@@ -10,7 +10,7 @@
 #   OUTDIR/x-<TAG>-<os>-<arch>.tar.gz.sha256   coreutils-checkable
 #
 # The tarball is the exact `make install` tree -- bin/x (wrapper),
-# libexec/x/x-bin (engine), share/x/{lib,apps,boot} -- under one versioned
+# libexec/x/x-bin (engine), share/x/{lib,apps,boot,tests} -- under one versioned
 # top dir, RELOCATABLE: the wrapper resolves the engine and library from
 # its own directory (../libexec, ../share), so it runs wherever it is
 # unpacked.  A user adds x-<TAG>/bin to PATH; no compile, no toolchain.
@@ -113,6 +113,31 @@ shipped=$(sh tools/release/payload-digest.sh "$_tree") || fail "payload digest f
 repo=$(sh tools/release/payload-digest.sh) || fail "payload digest failed"
 [ "$stamped" = "$repo" ] \
 	|| fail "packaged payload differs from the repo's, so it will differ from the release manifest ($stamped vs $repo)"
+
+# THE SHARED SPEC RUNNER SHIPS, and the wrapper can say where it is.  A
+# personality bundle runs its own specs with this runner, locating it as
+# "$(x --share-dir)/tests" -- so a tarball missing either half leaves every
+# bundle unable to test itself, which is exactly the state the old
+# personalities rotted in (docs/personality-contract.md).  Checked on the
+# EXTRACTED tree, because that is what a user gets.
+[ -f "$_tree/tests/spec-runner.sh" ] \
+	|| fail "no shared spec runner in the packaged tree"
+[ -f "$_tree/tests/spec-runner.awk" ] \
+	|| fail "no spec-runner awk harness in the packaged tree"
+#
+# RUN FROM THE EXTRACT, NOT THE REPO.  The wrapper decides repo-vs-installed
+# mode from the CWD (an lib/x.x under it), deliberately -- so an installed x
+# invoked inside a checkout reads the checkout, and answering the checkout's
+# root is then the honest answer, not a bug.  This gate runs with the repo as
+# cwd, so it must step out to ask the packaged tree about itself.
+_wrapper="$EXTRACT/x-$TAG/bin/x"
+_said=$(cd "$EXTRACT" && "$_wrapper" --share-dir) || fail "x --share-dir failed in the packaged tree"
+[ "$_said" = "$(cd "$_tree" && pwd)" ] \
+	|| fail "x --share-dir answered '$_said', not the packaged tree"
+[ -f "$_said/tests/spec-runner.sh" ] \
+	|| fail "x --share-dir names a tree with no spec runner under it"
+_eng=$(cd "$EXTRACT" && "$_wrapper" --engine-path) || fail "x --engine-path failed in the packaged tree"
+[ -x "$_eng" ] || fail "x --engine-path names no executable engine: $_eng"
 
 # The sidecar names the BARE tarball (so `sha256sum -c` works from OUTDIR).
 ( cd "$OUT" && _sha "$name.tar.gz" > "$name.tar.gz.sha256" )
