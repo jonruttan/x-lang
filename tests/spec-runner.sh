@@ -154,7 +154,29 @@ _cpus=$(( _cpus * 2 / 3 ))
 # + light fill bounds the peak at roughly two big heaps regardless of
 # core count.  Both knobs are env-overridable; lower them on a shared or
 # small box.
-: "${SPEC_HEAVY_JOBS:=2}"
+#
+# THE DEFAULT IS SIZED TO THE BOX, because "lower them on a small box" is
+# advice this file gives and its callers do not take.  Two heavies is roughly
+# two big heaps -- logo ~5-7GB plus complex ~6GB, ~13GB worst case -- which
+# fits a 32GB desktop and does not fit a 16GB laptop.  It is the same
+# arithmetic that OOM-killed CI's 16GB ubuntu runner (ci.yml pins that leg to
+# 1 for exactly this reason), and on 2026-08-28 it took down a 16GB dev
+# machine running two suites at once.  A default that is safe only when the
+# caller remembers a comment is not a guard.
+#
+# CI IS UNAFFECTED: both legs set SPEC_HEAVY_JOBS explicitly, and an explicit
+# value still wins below.  This moves only the uninstructed local run.
+#
+# UNKNOWN MEMORY READS AS SMALL.  A box whose size cannot be established gets
+# the conservative width, not the fast one: the cost of being wrong downward
+# is a slower suite, and the cost of being wrong upward is the machine.
+_memb=$( (sysctl -n hw.memsize 2>/dev/null) \
+         || (awk '/^MemTotal:/ {print $2 * 1024; exit}' /proc/meminfo 2>/dev/null) )
+case "$_memb" in ''|*[!0-9]*) _memb=0 ;; esac
+# 24GB: two big heaps (~13GB) plus room for the OS, an editor, a browser and
+# whatever else a dev box is doing while the suite runs.
+if [ "$_memb" -ge 25769803776 ]; then _heavy_default=2; else _heavy_default=1; fi
+: "${SPEC_HEAVY_JOBS:=$_heavy_default}"
 : "${SPEC_HEAVY_MIN:=4}"
 [ "$SPEC_HEAVY_JOBS" -lt 1 ] 2>/dev/null && SPEC_HEAVY_JOBS=1
 
