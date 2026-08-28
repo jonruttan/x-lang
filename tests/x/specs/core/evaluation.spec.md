@@ -172,7 +172,7 @@
 Calling an APPLICATIVE with an improper argument list raises -- the C
 argument walk (x_eval_list) guards spine cells STRUCTURALLY, by the type's
 declared pair units (the same contract the collector's payload walk trusts),
-so any reader personality's spine type participates and no reader/evaluator
+so any reader lang's spine type participates and no reader/evaluator
 symmetry is assumed. A NON-callable head was never a call: the form is data
 and echoes back unchanged, proper or dotted. Ops receive spines raw and a
 dotted param spec binds an atom tail legitimately.

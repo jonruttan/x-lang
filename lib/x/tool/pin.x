@@ -626,15 +626,15 @@
             (match
               ((null? hit) (Pin %pin-bad (Str8 append "not in the release manifest: " name)))
               (#t (rest hit)))))
-    ; --- personality bundles (docs/personality-contract.md) -------------------
-    ; A bundle is a personality -- a DIFFERENT surface language -- acquired the
+    ; --- lang bundles (docs/lang-contract.md) -------------------
+    ; A bundle is a lang -- a DIFFERENT surface language -- acquired the
     ; way the engine is: a foreign repo's tagged tarball, digest-verified BEFORE
     ; anything is unpacked.  Two manifests, answering two questions:
     ;
-    ;   personality.pin.xon   WHICH bundle this project wants, and where from.
+    ;   lang.pin.xon   WHICH bundle this project wants, and where from.
     ;                         The project writes it.  Closed vocabulary:
-    ;                         personality | release | bundle | source.
-    ;   personality.xon       WHAT the bundle IS -- name, dialect, the release
+    ;                         lang | release | bundle | source.
+    ;   lang.xon       WHAT the bundle IS -- name, dialect, the release
     ;                         it was built against.  Shipped inside it.
     ;
     ; THE ARCHIVE ITSELF IS THE DIGEST SUBJECT, which it could not be until
@@ -644,7 +644,7 @@
     ; a property of this library rather than of whatever the host has installed
     ; -- and tar never runs over bytes nothing has vouched for.
     ;
-    ; NO OS/ARCH MATRIX, and the absence is the point: a personality is pure
+    ; NO OS/ARCH MATRIX, and the absence is the point: a lang is pure
     ; x-lang, so a release has exactly one artifact.  The engine pin carries a
     ; row per platform because an engine is a binary; copying that apparatus
     ; here would be rows that cannot be wrong in an interesting way.
@@ -654,17 +654,17 @@
               (match
                 ((null? forms)
                   (match
-                    ((null? name) (Pin %pin-bad "bundle pin has no (personality ...)"))
+                    ((null? name) (Pin %pin-bad "bundle pin has no (lang ...)"))
                     ((null? tag) (Pin %pin-bad "bundle pin has no (release ...)"))
                     ((null? dg) (Pin %pin-bad "bundle pin has no (bundle ...)"))
-                    (#t (list (pair 'personality name) (pair 'release tag)
+                    (#t (list (pair 'lang name) (pair 'release tag)
                               (pair 'digest dg) (pair 'url url) (pair 'source src)))))
                 ((not (pair? (first forms))) (Pin %pin-bad "bundle-pin form is not a list"))
-                ((eq? (first (first forms)) 'personality)
+                ((eq? (first (first forms)) 'lang)
                   (match
                     ((str? (first (rest (first forms))))
                       (self (rest forms) (first (rest (first forms))) tag dg url src))
-                    (#t (Pin %pin-bad "personality needs a name string"))))
+                    (#t (Pin %pin-bad "lang needs a name string"))))
                 ((eq? (first (first forms)) 'release)
                   (match
                     ((str? (first (rest (first forms))))
@@ -693,7 +693,7 @@
                 (#t (Pin %pin-bad (Str8 append "unknown form in bundle pin: "
                                     (symbol->str (first (first forms)))))))))
       (%go forms () () () () ()))
-    (method %pin-bundle-decl-name (self) "personality.xon")
+    (method %pin-bundle-decl-name (self) "lang.xon")
     ; A BINARY file's digest, and the sibling of %pin-digest rather than a
     ; change to it: %pin-digest serves amalgams and lockfiles, which are text,
     ; and hex there is exactly right.  This one takes the length from stat, so
@@ -712,23 +712,23 @@
     ; The bundle's own declaration, read after the tree verifies and held
     ; against the pin that asked for it.  Digests prove the bytes are the ones
     ; published; they say nothing about WHICH thing was published.
-    (method %pin-personality-parse (self forms)
+    (method %pin-lang-parse (self forms)
       (def %go
             (fn (self forms name dialect req entry)
               (match
                 ((null? forms)
                   (match
-                    ((null? name) (Pin %pin-bad "personality.xon has no (personality ...)"))
-                    (#t (list (pair 'personality name) (pair 'dialect dialect)
+                    ((null? name) (Pin %pin-bad "lang.xon has no (lang ...)"))
+                    (#t (list (pair 'lang name) (pair 'dialect dialect)
                               (pair 'requires-release req) (pair 'entry entry)))))
-                ((not (pair? (first forms))) (Pin %pin-bad "personality.xon form is not a list"))
-                ((eq? (first (first forms)) 'personality)
+                ((not (pair? (first forms))) (Pin %pin-bad "lang.xon form is not a list"))
+                ((eq? (first (first forms)) 'lang)
                   (match
                     ((str? (first (rest (first forms))))
                       (self (rest forms) (first (rest (first forms))) dialect req entry))
-                    (#t (Pin %pin-bad "personality needs a name string"))))
+                    (#t (Pin %pin-bad "lang needs a name string"))))
                 ; (dialect he|xe|rn) -- a REQUIREMENT, not a preference: a
-                ; personality reaching x/sys/socket needs radon, and declaring
+                ; lang reaching x/sys/socket needs radon, and declaring
                 ; helium means it dies at boot on a missing import instead of
                 ; at acquisition on a legible refusal.
                 ((eq? (first (first forms)) 'dialect)
@@ -746,7 +746,7 @@
                     ((str? (first (rest (first forms))))
                       (self (rest forms) name dialect req (first (rest (first forms)))))
                     (#t (Pin %pin-bad "entry needs a file string"))))
-                (#t (Pin %pin-bad (Str8 append "unknown form in personality.xon: "
+                (#t (Pin %pin-bad (Str8 append "unknown form in lang.xon: "
                                     (symbol->str (first (first forms)))))))))
       (%go forms () () () ()))
     ; Unpack via tar through Proc run!, the shape %pin-download-tmp! uses for
@@ -1507,18 +1507,18 @@
                           (display "pin: no isa manifest here -- engine pairing unchecked (run from a source checkout to compare)\n"))))
                     target))))))))
     (method bundle (self (param dest STRING "Directory to unpack the bundle into")
-                         . (param dir STRING "Project directory holding personality.pin.xon; default \".\""))
-      (doc "Acquire a personality bundle, verified or nothing. Reads personality.pin.xon (closed vocabulary -- an unknown form is a loud error, never a skip), downloads the tarball its (bundle \"sha256:...\" \"URL\") row names to a temp path, and digests it THERE with pure-x Sha256 before tar is run at all: an archive that does not match is quarantined as <archive>.rejected -- the bytes are the evidence -- and nothing is unpacked. A verified archive unpacks into a per-pid staging directory and is renamed into place at <dest>/<name>-<release>/ only once whole, so a tar that dies half way cannot leave a partial tree where the already-acquired check would later read it as complete. The bundle's personality.xon must agree with the pin about which personality it is, and its (requires-release ...) is reported against this tree's stamp -- drift named, not fatal. An already-acquired bundle at the same release is honoured without touching the network. Returns the bundle's directory."
+                         . (param dir STRING "Project directory holding lang.pin.xon; default \".\""))
+      (doc "Acquire a lang bundle, verified or nothing. Reads lang.pin.xon (closed vocabulary -- an unknown form is a loud error, never a skip), downloads the tarball its (bundle \"sha256:...\" \"URL\") row names to a temp path, and digests it THERE with pure-x Sha256 before tar is run at all: an archive that does not match is quarantined as <archive>.rejected -- the bytes are the evidence -- and nothing is unpacked. A verified archive unpacks into a per-pid staging directory and is renamed into place at <dest>/<name>-<release>/ only once whole, so a tar that dies half way cannot leave a partial tree where the already-acquired check would later read it as complete. The bundle's lang.xon must agree with the pin about which lang it is, and its (requires-release ...) is reported against this tree's stamp -- drift named, not fatal. An already-acquired bundle at the same release is honoured without touching the network. Returns the bundle's directory."
         (returns STRING "Path of the verified, unpacked bundle")
         (sample "(Pin bundle \"deps\")" "\"deps/x-r5rs-v0.2.0\""))
       (let ((d (Pin %pin-dir-or-dot dir)))
-        (let ((mpath (%path-join d "personality.pin.xon")))
+        (let ((mpath (%path-join d "lang.pin.xon")))
           (do
             (match
               ((File exists? mpath) ())
               (#t (Pin %pin-bad (Str8 append "no bundle pin: " mpath))))
             (let ((m (Pin %pin-bundle-parse (Pin %pin-forms (File read-all mpath)))))
-              (let ((name (%assoc-get 'personality m))
+              (let ((name (%assoc-get 'lang m))
                     (tag (%assoc-get 'release m))
                     (want (%assoc-get 'digest m))
                     (url (%assoc-get 'url m)))
@@ -1536,15 +1536,15 @@
                     ; THE BUNDLE MUST AGREE WITH THE PIN ABOUT WHAT IT IS.  The
                     ; digests prove the bytes are the ones published; they say
                     ; nothing about whether the right thing was published.
-                    (let ((pd (Pin %pin-personality-parse
+                    (let ((pd (Pin %pin-lang-parse
                                 (Pin %pin-forms
                                   (File read-all (%path-join home (Pin %pin-bundle-decl-name)))))))
                       (do
                         (match
-                          ((str=? (%assoc-get 'personality pd) name) ())
+                          ((str=? (%assoc-get 'lang pd) name) ())
                           (#t (Pin %pin-bad
                                 (Str8 append "bundle calls itself "
-                                  (Str8 append (%assoc-get 'personality pd)
+                                  (Str8 append (%assoc-get 'lang pd)
                                     (Str8 append ", the pin asked for " name))))))
                         (display (Pin %pin-bundle-pairing pd) "\n")
                         home))))))))))

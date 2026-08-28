@@ -1,23 +1,27 @@
-# The Personality Contract
+# The Lang Contract
 
-x-lang is a language, not a surface. `helium`, `xenon` and `radon` are the
-surfaces the language itself ships; a **personality** is a *different* surface
-language riding on one of them — Logo, R5RS Scheme, Kernel. This document is the
-terms a personality is held to, what it may rely on, and how one is acquired as a
-pinned, verified bundle.
+x-lang is one language. A **lang** is another one running on top of it — Logo,
+R5RS Scheme, Kernel: each a different surface, implemented in x-lang, loaded
+over a dialect. `helium`, `xenon` and `radon` are not langs; they are dialects,
+and the difference is the first section below.
 
-It is written for someone extracting a personality from this tree or writing a
-new one.
+This document is the terms a lang is held to, what it may rely on, and how one
+is acquired as a pinned, verified bundle. It is written for someone extracting
+a lang from this tree or writing a new one.
+
+The platform already used the word before this document did: a lang announces
+itself by setting `%lang-name` and `%lang-version`, which is what puts its own
+name on the banner and its own prompt on the REPL.
 
 > **Status: proposed.** Unlike [The Engine Contract](engine-contract.md), almost
 > nothing here is checked by anything in the tree yet — the acquisition path,
 > the pin vocabulary and the seam gate do not exist. Each section says where it
 > stands. The terms are written down first *because* the last generation of
-> personalities rotted while nobody was holding them to any: see [Why the last
+> langs rotted while nobody was holding them to any: see [Why the last
 > generation rotted](#why-the-last-generation-rotted), which is the evidence
 > this document is built on.
 
-## Dialect and personality
+## Dialect and lang
 
 The line already exists in [dialects.md](dialects.md), and it is the line that
 decides what can leave this repository:
@@ -25,33 +29,33 @@ decides what can leave this repository:
 | | is | may re-mean a shared spelling | can live elsewhere |
 |---|---|---|---|
 | **dialect** | a composition of x-lang modules; differs in what surface is *loaded* | **never** | no |
-| **personality** | a different surface language, announcing itself as one | yes — that is the point | **yes** |
+| **lang** | a different surface language, announcing itself as one | yes — that is the point | **yes** |
 
 A `+` that means pointer arithmetic in one dialect is not a dialect, it is a
 different language wearing the same clothes. That rule is what makes `he`/`xe`/`rn`
 inseparable from the language: they are covered by the spec suite and
-`check-dialect-cover`, and their meanings *are* the specification. A personality
+`check-dialect-cover`, and their meanings *are* the specification. A lang
 is under no such obligation — Kernel's `$vau` and Scheme's `lambda` are supposed
 to mean something x-lang does not — and that freedom is exactly what makes a
-personality safe to ship as a separate, pinned artifact.
+lang safe to ship as a separate, pinned artifact.
 
 **So the boundary was drawn before this document, and everything on the far side
-of it is a personality.** Logo included: it lives in `apps/` because it also
+of it is a lang.** Logo included: it lives in `apps/` because it also
 ships a server and a viewer, but `apps/logo/README.md` describes it as "a second
 surface language" and "the worked demonstration of the claim that whole surface
-languages load on top of a dialect." That is a personality's job description.
+languages load on top of a dialect." That is a lang's job description.
 
 ## The three pinned artifacts
 
 x-lang already acquires two of its three parts rather than containing them. A
-personality bundle is the third, and it is deliberately the *least* novel of them:
+lang bundle is the third, and it is deliberately the *least* novel of them:
 
 | artifact | pinned by | acquired by | status |
 |---|---|---|---|
 | **engine** | `tools/engine/engine.pin.xon` | `tools/engine/fetch.sh` | shipped |
 | **platform boot** | `(boot …)` in `pin.xon` | `Pin boot` / `Pin fetch` | shipped |
 | **library overlay** | `(root …)` in `pin.xon` | `Pin vendor` — copies from the *installed platform* | shipped |
-| **personality bundle** | `personality.pin.xon` | `Pin bundle` | **proposed** |
+| **lang bundle** | `lang.pin.xon` | `Pin bundle` | **proposed** |
 
 Read the third row carefully, because it is the whole reason the fourth is
 needed: `Pin vendor` freezes library modules by copying them out of the platform
@@ -61,12 +65,12 @@ piece — everything else below is an arrangement of parts that already exist.
 
 ## What a bundle is
 
-A personality bundle is an **app-shaped tree**: a directory holding one entry
+A lang bundle is an **app-shaped tree**: a directory holding one entry
 file and the modules it loads.
 
 ```
 x-r5rs-v0.2.0/
-├── personality.xon      ; the bundle's own declaration (see below)
+├── lang.xon      ; the bundle's own declaration (see below)
 ├── run.x                ; THE entry -- what `-l r5rs` boots
 ├── r5rs/                ; modules, resolved by import
 │   ├── base.x
@@ -76,7 +80,7 @@ x-r5rs-v0.2.0/
 
 **The shape is not new, and that is the point.** `x.sh -l NAME` already resolves
 `lib/NAME.x` first and then `apps/NAME/run.x`; Logo has ridden that seam since
-#35. A bundle unpacks into a searched personality root and is found by the same
+#35. A bundle unpacks into a searched lang root and is found by the same
 resolution, extended by one step. No new loader, no new entry convention.
 
 ### One entry file, and one only
@@ -99,27 +103,27 @@ precisely how the previous generation died.
 
 ### The declaration
 
-`personality.xon` — xon, read with the ordinary reader and never evaluated, like
+`lang.xon` — xon, read with the ordinary reader and never evaluated, like
 every other manifest here:
 
 ```x
-(personality "r5rs")          ; the -l name
+(lang "r5rs")          ; the -l name
 (dialect he)                  ; which dialect it loads on
 (requires-release "v0.5.2")   ; the x-lang the bundle was built against
 (entry "run.x")
 ```
 
-`(dialect …)` is a **requirement**, not a preference: a personality that calls
+`(dialect …)` is a **requirement**, not a preference: a lang that calls
 `x/sys/socket` needs radon, and declaring helium means it dies at boot on a
 missing import rather than at acquisition on a legible refusal.
 
 ## The pin
 
-A project names the personalities it uses in `personality.pin.xon`, mirroring
+A project names the langs it uses in `lang.pin.xon`, mirroring
 `engine.pin.xon`'s closed vocabulary:
 
 ```x
-(personality "x-r5rs")
+(lang "x-r5rs")
 (release "v0.2.0")
 (bundle "sha256:…" "https://github.com/jonruttan/x-r5rs/releases/download/v0.2.0/x-r5rs-v0.2.0.tar.gz")
 (source "https://github.com/jonruttan/x-r5rs.git")
@@ -143,7 +147,7 @@ which half of it.
 
 **There is no os/arch matrix, and the absence is the interesting part.** The
 engine pin carries one `(artifact OS ARCH …)` row per platform because an engine
-is a binary. A personality is pure x-lang, so there is exactly one artifact per
+is a binary. A lang is pure x-lang, so there is exactly one artifact per
 release and the entire platform-selection apparatus — `uname`, the contract
 spellings, the source-build fallback for platforms nobody publishes for —
 evaporates. Do not copy it across out of symmetry; every row of it would be a row
@@ -174,8 +178,8 @@ The order is the whole design, and it is the order of what is trusted when:
    quarantine: a `tar` that dies half way (a full disk, a truncated member) must
    not leave a partial tree at the published path, where step 2 would later read
    it as a complete one.
-6. Check the bundle's `personality.xon` agrees with the pin about which
-   personality it is — a digest proves the bytes are the ones published, not
+6. Check the bundle's `lang.xon` agrees with the pin about which
+   lang it is — a digest proves the bytes are the ones published, not
    that the right thing was published — and report release pairing.
 
 **There is no unpack-before-verify window.** An earlier draft of this contract
@@ -194,7 +198,7 @@ concession rather than a style: it "runs before there is an engine to run x
 with, which is the one place in `tools/` where the charter's *logic lives in x*
 cannot apply."
 
-That exemption does not transfer. A personality is fetched with x already
+That exemption does not transfer. A lang is fetched with x already
 running, so acquisition belongs in x — as a verb on the existing `Pin` class,
 which already has pure-x `Sha256`, curl via fork/exec with no shell, and the
 discipline #145 taught it: **the download lands on a temp path, is digested
@@ -209,7 +213,7 @@ Two rules inherited from the engine fetch, for the same reasons:
 
 ## The seam
 
-This is what a personality may rely on, and the part that most needs a gate it
+This is what a lang may rely on, and the part that most needs a gate it
 does not yet have. All of it exists today:
 
 | name | is | provided by |
@@ -232,10 +236,10 @@ tree:
 (import-path! (guard (_ "apps") (%path-join %install-root "apps")))
 ```
 
-A personality that reads a `%`-prefixed name not in this table is relying on a
+A lang that reads a `%`-prefixed name not in this table is relying on a
 platform internal, and the platform owes it nothing. **This table is the
 contract; the rest of `lib/` is not.** The one thing standing between that
-sentence and enforcement is a gate — the personality equivalent of
+sentence and enforcement is a gate — the lang equivalent of
 `check-base-routes`, deriving the set from bundles' call sites and holding the
 platform to it.
 
@@ -261,7 +265,7 @@ rather than something that happened.
 
 ### Why the last generation rotted
 
-Five personalities sit unbuilt outside this repository — `x-ash`, `x-krn`,
+Five langs sit unbuilt outside this repository — `x-ash`, `x-krn`,
 `x-r5rs`, `x-r7rs`, `x-sweet`. They are the evidence for every rule above, and
 none of them failed for want of a digest:
 
@@ -278,11 +282,11 @@ none of them failed for want of a digest:
 
 The encouraging half: **the seam itself held.** `%repl-prompt`, `%lang-name`,
 `%lang-version` and `%banner` are all still live and still mean what they meant.
-Nothing in the old personalities' *design* has expired — the ports are
+Nothing in the old langs' *design* has expired — the ports are
 mechanical. That is a strong argument for writing the seam down before it stops
 being true by accident rather than by decision.
 
-## How a personality is checked
+## How a lang is checked
 
 Three questions, deliberately in three places:
 
@@ -294,7 +298,7 @@ x-lang owns the acquisition code.
 **Is it correct?** The bundle's own spec suite, run by its own CI, against a
 **matrix of pinned x-lang releases** — at minimum its `(requires-release …)` and
 the current release. This lives in the bundle's repository, because a
-personality's definition of correct is its own business; x-lang is not the
+lang's definition of correct is its own business; x-lang is not the
 arbiter of whether Kernel's `$vau` is right.
 
 **Does the seam still hold?** A gate in x-lang deriving the seam from bundles'
@@ -317,8 +321,8 @@ suite-specific prose in its header is calibration notes, not behaviour. Nothing
 has to be extracted from it to make it reusable.
 
 **Sharing was the original design.** Its header states the interface — "Each
-personality runner sets `SPEC_PATH`, `X_BIN`, and `LANG_LIB`, then sources this
-file" — and every old personality did exactly that, in about twenty lines.
+lang runner sets `SPEC_PATH`, `X_BIN`, and `LANG_LIB`, then sources this
+file" — and every old lang did exactly that, in about twenty lines.
 
 **What failed was addressing, not sharing.** The Kernel runner reached the
 platform like this:
@@ -329,7 +333,7 @@ X_BIN="$SCRIPT_DIR/../../../x"
 ```
 
 `$SCRIPT_DIR` was `lang/krn/tests`, so `../../../` was the x-lang repo root. Both
-references dangled the moment the personality left that tree. Vendoring would
+references dangled the moment the lang left that tree. Vendoring would
 fix the dangle by copying 865 lines of shell and awk into every bundle — and buy
 a spec-format dialect per repo, plus an N-repo re-vendor for every runner fix.
 
@@ -401,7 +405,7 @@ Four things that are not obvious, each of which costs an afternoon:
 The harness is *generated* rather than committed, because it embeds two
 absolute paths that are facts of the machine, not of the bundle.
 
-## Writing or extracting a personality
+## Writing or extracting a lang
 
 The order that gets you running soonest:
 
@@ -414,19 +418,19 @@ The order that gets you running soonest:
    than by preference. Logo's are honest and worth copying as a worked example:
    `x/num/float`, `x/reader/analyser`, `x/sys/{file,posix,socket}`, `x/type/str`
    — the socket and file imports are radon opt-ins, so Logo is a radon
-   personality whatever else it might prefer to be.
-3. **Take the tests with you.** A personality without a spec suite in its own CI
+   lang whatever else it might prefer to be.
+3. **Take the tests with you.** A lang without a spec suite in its own CI
    is the previous generation with a fresh coat of paint.
-4. **Move the registrations, not just the code.** A personality in this tree has
+4. **Move the registrations, not just the code.** A lang in this tree has
    rows in places that are easy to miss and loud when missed:
    `tools/contract/requires.x` (ISA needs), `tools/contract/percent-globals.x`
    (per-file budgets), the memory bucketing in `tests/spec-runner.sh`, and its
    own gate in the `gates` list.
 5. **Land the extraction on a release boundary.** The payload fingerprint digests
-   `lib`, `apps` and `boot`, so removing a personality from `apps/` moves it.
+   `lib`, `apps` and `boot`, so removing a lang from `apps/` moves it.
    That is correct behaviour — it is the fingerprint answering *which release is
    this* — but it means the removal is a release event, not a mid-cycle tidy.
 
 The bar is lower than it looks: no engine work, no contract files, no
-conformance suite. A personality is x-lang source that happens to mean something
+conformance suite. A lang is x-lang source that happens to mean something
 else, and the only genuinely hard requirement is the first one.

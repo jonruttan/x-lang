@@ -1,7 +1,7 @@
 #!/bin/sh
 # doctest-runner.sh -- run the GENERATED doctest spec through the standard
 # harness (#16). tools/check/doctest.sh generates build/doctest-specs/doctests.spec.md
-# from the library's (example ...) forms; this personality runner points the
+# from the library's (example ...) forms; this lang runner points the
 # shared spec-runner core at that directory. `make doctest` chains the two.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

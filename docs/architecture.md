@@ -183,7 +183,7 @@ sh x.sh -l xe        # xenon
 sh x.sh -l rn        # radon
 ```
 
-Language personalities (R5RS Scheme, R7RS Scheme, Kernel, ASH shell, sweet expressions) are loaded as additional libraries on top of a dialect. The interpreter core has no knowledge of any specific language. Without any library, the bare interpreter exposes only C-level primitives.
+Langs (R5RS Scheme, R7RS Scheme, Kernel, ASH shell, sweet expressions) are loaded as additional libraries on top of a dialect. The interpreter core has no knowledge of any specific language. Without any library, the bare interpreter exposes only C-level primitives.
 
 ### I/O Model
 

@@ -43,7 +43,7 @@
 ; resolved only from the repo root -- so the viewer was broken in every
 ; INSTALLED tree.  One name in the ENTRY, which is the one file allowed to
 ; know the layout (path-literals.sh exempts apps/*/run.x), is the shape
-; docs/personality-contract.md requires of a relocatable app.
+; docs/lang-contract.md requires of a relocatable app.
 ; Everything else is unhomed inventory awaiting the pin.x treatment.
 (file "apps/logo/dispatch.x" 28)
 (file "apps/logo/entry.x" 27)

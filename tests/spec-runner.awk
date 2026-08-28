@@ -110,7 +110,7 @@ function collect() {
 
 function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, got, boundary_done, seen, want, _tn, _tp) {
 	if (repl_cmd == " ") {
-		# Direct mode: feed tests to the personality REPL without
+		# Direct mode: feed tests to the lang REPL without
 		# %T harness or (begin ...) wrapper.  Used by Sweet where
 		# indentation-based grouping must see raw newlines/tokens.
 		# Each separator on its own line so sweet-read doesn't group them.

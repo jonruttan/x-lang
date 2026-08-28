@@ -8,7 +8,7 @@
 ; THE APP ROOT IS THE SEAM.  apps/ is where the Logo tree sits today, and
 ; this is the harness half of a pair whose other half is run.x's
 ; %logo-app-root -- when Logo moves to its own bundle those are the two
-; lines that follow it (docs/personality-contract.md).  Named rather than
+; lines that follow it (docs/lang-contract.md).  Named rather than
 ; inlined so the pair greps as a pair, and spelled the same on both sides.
 ;
 ; CHECKED, because the unchecked failure is illegible.  import-path! arms

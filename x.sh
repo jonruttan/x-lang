@@ -362,12 +362,12 @@ do
 			;;
 		--share-dir)
 			# WHERE THIS x READS ITS TREE FROM, so a tool outside this
-			# repository can ASK instead of guessing.  A personality bundle
+			# repository can ASK instead of guessing.  A lang bundle
 			# needs the shared spec runner under <root>/tests/, and the only
 			# alternative is re-deriving the root from `command -v x` --
 			# path-guessing, which is the failure class the engine contract
 			# already avoids by preferring an engine's own (param os ...)
-			# declaration to sniffing the host (docs/personality-contract.md).
+			# declaration to sniffing the host (docs/lang-contract.md).
 			#
 			# ONE RELATIVE PATH WORKS IN BOTH MODES, which is the point of
 			# answering with a root rather than a full path: <root>/tests/ is

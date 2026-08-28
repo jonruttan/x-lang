@@ -19,11 +19,11 @@
 #   fetch      (Pin fetch) against a fake release over file:// -- curl,
 #              manifest, pure-x digest, and the tamper refusal; hermetic,
 #              no network
-#   bundle     (Pin bundle) acquires a personality bundle over file://:
+#   bundle     (Pin bundle) acquires a lang bundle over file://:
 #              the tree lands (modules AND data files), a second run
 #              honours it without the network, and every refusal holds --
 #              a swapped archive (quarantined, and NOT unpacked), a bundle
-#              naming another personality, an archive with no declaration,
+#              naming another lang, an archive with no declaration,
 #              and an unknown pin form
 #   compose    (boot "FILE") + (root "DIR") in one manifest (GH #139):
 #              the wrapper boots the project's own entry AND arms the
@@ -826,7 +826,7 @@ $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -f "$_TMP/boot3.x" >"$_TMP/out" 2>"$_TMP/
 	|| fail "lock-root: re-pin failed" "$_TMP/out" "$_TMP/err"
 grep -q '(release "v9.9.9")' "$_TMP/proj9/deps.lock.xon" || fail "lock-root: upgrade did not rewrite the existing lock" "$_TMP/proj9/deps.lock.xon"
 
-# bundle: a personality bundle over file:// -- verified BEFORE it is
+# bundle: a lang bundle over file:// -- verified BEFORE it is
 # unpacked, and nothing published unless the whole thing lands.  Hermetic,
 # no network.
 #
@@ -837,18 +837,18 @@ grep -q '(release "v9.9.9")' "$_TMP/proj9/deps.lock.xon" || fail "lock-root: upg
 # bytes nothing has vouched for.
 _bsrc="$_TMP/bsrc"
 mkdir -p "$_bsrc/demo"
-printf '(personality "x-smoke")\n(dialect he)\n(entry "run.x")\n' > "$_bsrc/personality.xon"
+printf '(lang "x-smoke")\n(dialect he)\n(entry "run.x")\n' > "$_bsrc/lang.xon"
 printf '(provide demo/g g)\n(def g (fn (_) "ok"))\n' > "$_bsrc/demo/g.x"
 printf '; entry\n' > "$_bsrc/run.x"
-# A NON-.x FILE ON PURPOSE: a personality may ship data (the Logo viewer
+# A NON-.x FILE ON PURPOSE: a lang may ship data (the Logo viewer
 # is the worked case), so a bundle is a tree, not one amalgam.
 printf '<html>v</html>\n' > "$_bsrc/viewer.html"
 ( cd "$_bsrc" && tar -czf "$_TMP/x-smoke-v1.tar.gz" . )
 _bpin() { # $1=projdir $2=tag $3=archive-digest $4=tarball
   mkdir -p "$1"
-  { printf '(personality "x-smoke")\n'; printf '(release "%s")\n' "$2"
+  { printf '(lang "x-smoke")\n'; printf '(release "%s")\n' "$2"
     printf '(bundle "sha256:%s" "file://%s")\n' "$3" "$4"
-  } > "$1/personality.pin.xon"
+  } > "$1/lang.pin.xon"
 }
 _brun() { # $1=projdir $2=depsdir
   printf '(alloc-limit! 300000000)\n(import x/tool/pin)\n(display (Pin bundle "%s" "%s"))\n' \
@@ -884,14 +884,14 @@ grep -q "digest mismatch" "$_TMP/err" "$_TMP/out" \
 [ -f "$_TMP/bdeps2/x-smoke-tam.tar.gz.rejected" ] \
   || fail "bundle-tamper: rejected bytes were not quarantined for inspection"
 
-# The bundle must agree with the pin about which personality it is: a digest
+# The bundle must agree with the pin about which lang it is: a digest
 # proves the bytes are the ones published, not that the right thing was.
 rm -rf "$_TMP/blie"; cp -R "$_bsrc" "$_TMP/blie"
-printf '(personality "x-evil")\n(dialect he)\n' > "$_TMP/blie/personality.xon"
+printf '(lang "x-evil")\n(dialect he)\n' > "$_TMP/blie/lang.xon"
 ( cd "$_TMP/blie" && tar -czf "$_TMP/x-smoke-lie.tar.gz" . )
 _bpin "$_TMP/bproj5" lie "$(_dg "$_TMP/x-smoke-lie.tar.gz")" "$_TMP/x-smoke-lie.tar.gz"
 _brun "$_TMP/bproj5" "$_TMP/bdeps5"
-[ $? -ne 0 ] || fail "bundle-name: a bundle naming another personality was accepted" "$_TMP/out" "$_TMP/err"
+[ $? -ne 0 ] || fail "bundle-name: a bundle naming another lang was accepted" "$_TMP/out" "$_TMP/err"
 grep -q "calls itself x-evil" "$_TMP/err" "$_TMP/out" \
   || fail "bundle-name: the mismatch was not named" "$_TMP/err" "$_TMP/out"
 
@@ -900,14 +900,14 @@ rm -rf "$_TMP/bnod"; mkdir -p "$_TMP/bnod"; printf 'x\n' > "$_TMP/bnod/stray.x"
 ( cd "$_TMP/bnod" && tar -czf "$_TMP/x-smoke-nod.tar.gz" . )
 _bpin "$_TMP/bproj7" nod "$(_dg "$_TMP/x-smoke-nod.tar.gz")" "$_TMP/x-smoke-nod.tar.gz"
 _brun "$_TMP/bproj7" "$_TMP/bdeps7"
-[ $? -ne 0 ] || fail "bundle-nodecl: a bundle with no personality.xon was accepted" "$_TMP/out" "$_TMP/err"
-grep -q "ships no personality.xon" "$_TMP/err" "$_TMP/out" \
+[ $? -ne 0 ] || fail "bundle-nodecl: a bundle with no lang.xon was accepted" "$_TMP/out" "$_TMP/err"
+grep -q "ships no lang.xon" "$_TMP/err" "$_TMP/out" \
   || fail "bundle-nodecl: the missing declaration was not named" "$_TMP/err" "$_TMP/out"
 
 # Closed vocabulary: an unknown form in the pin is an error, never a skip.
 mkdir -p "$_TMP/bproj6"
-printf '(personality "x-smoke")\n(release "v1")\n(bundle "sha256:00" "file:///dev/null")\n(surprise "hi")\n' \
-  > "$_TMP/bproj6/personality.pin.xon"
+printf '(lang "x-smoke")\n(release "v1")\n(bundle "sha256:00" "file:///dev/null")\n(surprise "hi")\n' \
+  > "$_TMP/bproj6/lang.pin.xon"
 _brun "$_TMP/bproj6" "$_TMP/bdeps6"
 [ $? -ne 0 ] || fail "bundle-closed: an unknown pin form was ignored" "$_TMP/out" "$_TMP/err"
 grep -q "unknown form in bundle pin: surprise" "$_TMP/err" "$_TMP/out" \

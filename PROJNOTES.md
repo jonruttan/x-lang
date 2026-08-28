@@ -39,7 +39,7 @@ external dependencies.
 - POSIX via FFI, regex, vectors, hash tables
 - Self-hosted tools (lint, fmt, cov, profile, doc)
 - Three dialects: helium (light/default), xenon (stable full-stack), radon (experimental)
-- Language personalities: R5RS, R7RS, Kernel, ASH, Sweet
+- Langs: R5RS, R7RS, Kernel, ASH, Sweet
 - Engine-agnostic: the interpreter is a pinned artifact behind a published contract
 
 

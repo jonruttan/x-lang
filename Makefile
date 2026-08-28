@@ -50,7 +50,7 @@ X_RELEASE?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 #    is what leaves x.sh, the spec runners, tools/dev/lint.sh and the ~15
 #    tools/check/*.sh scripts untouched by the split.  That derivation is the
 #    DEFAULT now rather than the only way: SPEC_RUNNER_DIR overrides it, which
-#    is how a caller outside this tree -- a personality bundle sourcing the
+#    is how a caller outside this tree -- a lang bundle sourcing the
 #    INSTALLED runner, where the engine is under libexec/x/ and the harness
 #    under share/x/tests/ -- finds a harness that does not sit beside its
 #    engine.  The default is unchanged, so this layout constraint still holds.
@@ -343,7 +343,7 @@ test-tools: $(EXECUTABLE) ## Run the tool suite's specs (tools/tests)
 
 # The doctest ratchet (#16): every (example "in" "out") in the doc registry
 # is an executable contract -- "out" must be the true echo.  tools/check/doctest.sh
-# extracts them into a generated spec; the personality runner executes it.
+# extracts them into a generated spec; the lang runner executes it.
 # Illustrations that must not run are (sample ...) forms (see doc.x).
 doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 	mkdir -p build/doctest-specs
@@ -970,12 +970,12 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	diff -r apps $(DESTDIR)$(LIBDIR)/apps
 	diff -r build/boot $(DESTDIR)$(LIBDIR)/boot
 	# THE SHARED SPEC RUNNER, and only it -- not tests/, which is this
-	# repo's own suite and no business of an installed tree.  A personality
+	# repo's own suite and no business of an installed tree.  A lang
 	# bundle keeps its specs in its own repository and runs them with this
 	# runner, sourcing it as <root>/tests/spec-runner.sh where <root> is what
 	# `x --share-dir` answers.  Shipping it is what stops every bundle
 	# vendoring 865 lines of shell and awk and drifting into a spec-format
-	# dialect apiece (docs/personality-contract.md).
+	# dialect apiece (docs/lang-contract.md).
 	#
 	# NOT IN THE PAYLOAD FINGERPRINT, deliberately: that digest is library
 	# bytes -- lib, apps, boot -- and answers "which release is this".  The

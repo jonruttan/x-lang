@@ -120,7 +120,7 @@ harness prints an uncaught error to stdout as `Error: <value>`.
 
 ## Running tests
 
-Each language personality has a `spec-runner.sh` that sets three variables
+Each lang has a `spec-runner.sh` that sets three variables
 and sources the shared runner:
 
 ```sh
@@ -148,7 +148,7 @@ sh lang/sweet/tests/spec-runner.sh # Sweet   (31 tests)
 
 ## Language tags
 
-| Personality | Tag |
+| Lang | Tag |
 |-------------|-----|
 | x-lang, R5RS, R7RS, Kernel, Sweet, SL | `scheme` |
 | ASH | `sh` |

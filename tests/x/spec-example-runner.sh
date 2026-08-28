@@ -1,7 +1,7 @@
 #!/bin/sh
 # spec-example-runner.sh -- run the GENERATED spec.md examples through the
 # standard harness (#70 seam 2). tools/check/spec-examples.sh extracts them from
-# docs/spec.md; this personality runner points the shared spec-runner core at
+# docs/spec.md; this lang runner points the shared spec-runner core at
 # the generated directory, exactly as doctest-runner.sh does for #16.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
