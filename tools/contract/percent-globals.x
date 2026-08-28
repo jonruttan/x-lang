@@ -73,7 +73,7 @@
 (file "apps/logo/types.x" 44)
 (file "lib/x/boot/data.x" 14)
 (file "lib/x/boot/engine.x" 2)
-(file "lib/x/boot/module.x" 51)
+(file "lib/x/boot/module.x" 50)
 (file "lib/x/boot/operatives.x" 6)
 (file "lib/x/boot/printer.x" 76)
 (file "lib/x/boot/reflect.x" 29)

@@ -31,6 +31,23 @@
 (include "lib/x/boot/string.x")
 (include "lib/x/boot/module.x")
 
+; --- ONE-SHOT FROM HERE, and that is what makes x-core re-includable --------
+; Everything below is include-ONCE, not include.  During a normal boot nothing
+; changes: each file is reached exactly once either way.  What it buys is that
+; a SECOND (include "lib/x-core.x") -- on an already-booted tower -- skips them
+; all instead of re-running them.
+;
+; That second include is the first two lines of anyone's personality
+; extraction, and it used to SIGSEGV with nothing on stdout or stderr.  Making
+; every module idempotent would be 39 separate fixes (measured: re-including
+; lib/x/core/arithmetic.x alone kills the process); making the ENTRY skip work
+; it has already done is one.
+;
+; The forms above this line stay plain `include`: include-once is defined in
+; boot/module.x, so it does not exist yet -- and those eight re-load safely on
+; their own, which is why they can.
+
+
 (def x-lib-version "0.6.0")
 
 ; Pre-register all boot module NAMES so import calls are no-ops.
@@ -102,32 +119,32 @@
     (first %module-loaded-cell)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 ; --- Standard modules ---
-(include "lib/x/core/predicates.x")
-(include "lib/x/core/control.x")
+(include-once "lib/x/core/predicates.x")
+(include-once "lib/x/core/control.x")
 
 ; Type system internals (before doc, cannot use provide)
-(include "lib/x/type/struct.x")
+(include-once "lib/x/type/struct.x")
 
 ; Documentation system
-(include "lib/x/doc/doc.x")
-(include "lib/x/doc/doc-prims.x")
+(include-once "lib/x/doc/doc.x")
+(include-once "lib/x/doc/doc-prims.x")
 
 ; Boolean operatives
-(include "lib/x/core/boolean.x")
+(include-once "lib/x/core/boolean.x")
 
 ; Core library
-(include "lib/x/core/logic.x")
-(include "lib/x/core/list.x")
-(include "lib/x/core/syntax.x")
+(include-once "lib/x/core/logic.x")
+(include-once "lib/x/core/list.x")
+(include-once "lib/x/core/syntax.x")
 
 ; Variadic arithmetic
-(include "lib/x/core/arithmetic.x")
+(include-once "lib/x/core/arithmetic.x")
 
 ; Tokenizer helpers
-(include "lib/x/reader/intrinsics.x")
+(include-once "lib/x/reader/intrinsics.x")
 
 ; Type extensions
-(include "lib/x/core/alist.x")
+(include-once "lib/x/core/alist.x")
 ; import (not include): registers the NAME so str-utf8.x's and the StrUtf8
 ; protocol class's (import x/codec/utf8) become no-ops instead of reloading it.
 (import x/codec/utf8)
@@ -136,90 +153,90 @@
 ; -> code-point handler. Safe here -- str-ref/str-length/substring stay pinned
 ; to the byte primitives, and every reader/tokenizer/loader that needs bytes
 ; uses them (not the ambient (s i) call).
-(include "lib/x/type/str-utf8.x")
+(include-once "lib/x/type/str-utf8.x")
 ; UTF-8-aware CHARACTER write/display handlers (shadow the C byte fallback)
-(include "lib/x/type/char-io.x")
-(include "lib/x/type/class.x")
+(include-once "lib/x/type/char-io.x")
+(include-once "lib/x/type/class.x")
 ; Records: def-record, lightweight named-field data types over def-class.
-(include "lib/x/type/record.x")
+(include-once "lib/x/type/record.x")
 ; Convert: the conversion dispatcher (registered in the catalog as
 ; (convert . to)) + the Convert class with the no-match policy member.
 ; Relocated past object.x from the early type-internals block -- it needs
 ; def-class + doc, and every caller (tower, regex, posix, hash, tools)
 ; loads later still.
-(include "lib/x/type/convert.x")
+(include-once "lib/x/type/convert.x")
 ; Type: the type-system reflection API (the Type class). The mechanism stays
 ; in sys/type.x (pre-object, %-private, filed under catalog ns `type`);
 ; this class presents it and carries the docs.
-(include "lib/x/type/type.x")
+(include-once "lib/x/type/type.x")
 ; Obj: the raw object layer (slots, metadata, FFI handles) as the Obj class.
 ; ns `obj` is de-registered; boot/data.x's pair mutators fetch the prims.
-(include "lib/x/type/obj.x")
+(include-once "lib/x/type/obj.x")
 ; Buf + Tok: the tokenizer buffer / token-stream API. ns buf/tok are
 ; de-registered; reader-hot modules fetch-and-cache the prims.
-(include "lib/x/type/buf.x")
+(include-once "lib/x/type/buf.x")
 ; Ptr + Ffi: the raw-pointer / foreign-function surface. ns ptr/ffi are
 ; de-registered; low-level/hot callers fetch-and-cache the prims.
-(include "lib/x/type/ptr.x")
+(include-once "lib/x/type/ptr.x")
 ; Io: input/output surface (the Io class). ns io is de-registered except
 ; write/display (kept bare via the keep-list); the rest fetch-and-cache.
-(include "lib/x/type/io.x")
+(include-once "lib/x/type/io.x")
 ; Fn: function combinators (the Fn class). Moved here from the early core block
 ; -- it needs def-class, and nothing loaded before object.x references it.
-(include "lib/x/core/fn.x")
+(include-once "lib/x/core/fn.x")
 ; Num: integer math utilities + number predicates (the Num class). Relocated
 ; past object.x -- nothing loaded before the object system calls these.
-(include "lib/x/core/math.x")
+(include-once "lib/x/core/math.x")
 ; Promise: the delay form + the Promise class. Relocated past object.x --
 ; nothing loaded before the object system uses promises.
-(include "lib/x/type/promise.x")
+(include-once "lib/x/type/promise.x")
 ; Assoc: the association-list API (the Assoc class). core/alist.x keeps the
 ; bootstrap five the object system runs on; this class delegates to them.
-(include "lib/x/type/assoc.x")
+(include-once "lib/x/type/assoc.x")
 ; Heap: GC control (the Heap class; methods fetch the C prims from the
 ; catalog). Relocated from the early block -- the heap-* bare C names are
 ; bound by registration regardless of where this module loads.
-(include "lib/x/sys/gc.x")
+(include-once "lib/x/sys/gc.x")
 ; Sys: POSIX wrappers (the Sys class). Relocated -- every caller (the REPL's
 ; ctrl-c fd recovery, ansi, logo, tools) loads after the object system.
-(include "lib/x/sys/posix.x")
+(include-once "lib/x/sys/posix.x")
 ; Vector: #() type machinery + the Vector class. Needs def-class; relocated past
 ; object.x from the early block -- nothing before it uses vectors or #() literals.
-(include "lib/x/type/vector.x")
+(include-once "lib/x/type/vector.x")
 ; Char: classification / case / comparison (the Char class). Needs def-class; the
 ; pre-object string layer uses char->integer, not these, so it relocated here.
-(include "lib/x/type/char.x")
+(include-once "lib/x/type/char.x")
 ; String library: the protocol classes (Str8/StrUtf8) + the Str entry point.
 ; Loaded AFTER the object system they are built on. (The low-level code-point
 ; layer in type/str-utf8.x already loaded earlier, before objects, for boot
 ; code that needs the list<->string conversions.)
-(include "lib/x/protocol/seq.x")
-(include "lib/x/protocol/str/str8.x")
-(include "lib/x/protocol/str/utf8.x")
-(include "lib/x/type/str.x")
+(include-once "lib/x/protocol/seq.x")
+(include-once "lib/x/protocol/str/str8.x")
+(include-once "lib/x/protocol/str/utf8.x")
+(include-once "lib/x/type/str.x")
 ; Iterator protocol: defines the Iter class + wires the iter slot on the
 ; sequence types (registered above) + consumers.
-(include "lib/x/type/iter.x")
+(include-once "lib/x/type/iter.x")
 ; Base: execution-context objects via the Base class.
-(include "lib/x/type/base.x")
+(include-once "lib/x/type/base.x")
 ; List: list/sequence operations as the List class (core/list.x holds the
 ; low-level impl + %-helpers; functions migrate onto this class over time).
-(include "lib/x/type/list.x")
+(include-once "lib/x/type/list.x")
 ; Gen: lazy generators (unfold-based). Needs object/list/vector, all above.
-(include "lib/x/type/gen.x")
-(include "lib/x/reader/analyser.x")
+(include-once "lib/x/type/gen.x")
+(include-once "lib/x/reader/analyser.x")
 
 ; Quasi-quoting
-(include "lib/x/core/quasi.x")
+(include-once "lib/x/core/quasi.x")
 
 ; Quasi-quote reader syntax (backtick, comma, comma-at)
-(include "lib/x/reader/quasi-reader.x")
+(include-once "lib/x/reader/quasi-reader.x")
 
 ; Quote reader syntax (apostrophe expr to lit expr)
-(include "lib/x/reader/lit-reader.x")
+(include-once "lib/x/reader/lit-reader.x")
 
 ; REPL
-(include "lib/x/repl/loop.x")
+(include-once "lib/x/repl/loop.x")
 
 ; Structured errors (#20): the Err class + errno translation.  Loaded
 ; after lit-reader (the file speaks 'x) and after platform/syscall's
@@ -227,28 +244,28 @@
 ; os-darwin? at load).  Raise sites throughout lib bind Err at CALL
 ; time, so every post-boot error can be structured regardless of the
 ; raising module's own boot position.
-(include "lib/x/type/err.x")
+(include-once "lib/x/type/err.x")
 
 ; Non-numeric types refuse arithmetic (#52): error-raising op handlers
 ; registered on string/symbol/char/list/pair/vector, so op_try routes
 ; (+ 1 "abc") to err:type instead of the int fallthrough's pointer math.
 ; After err.x (Err raise) and vector.x (the #() handle).
-(include "lib/x/core/op-guard.x")
+(include-once "lib/x/core/op-guard.x")
 
 ; BOOL claims the #t/#f singletons (#101): an x-defined type over the
 ; C statics via (obj retag!), closing the #52 boolean residual -- and
 ; (Type of #t) finally answers. After op-guard (reuses its refusal
 ; machinery).
-(include "lib/x/type/bool.x")
+(include-once "lib/x/type/bool.x")
 
 ; ANSI colour: syntax-highlighted REPL output + colourised help.  Loaded
 ; after repl.x (it wraps %repl-print) and doc.x (it sets the %c-* help
 ; colours).  All colours are empty no-ops unless stdout is a TTY and
 ; NO_COLOR/TERM=dumb/--no-color do not disable them.
-(include "lib/x/repl/ansi.x")
+(include-once "lib/x/repl/ansi.x")
 
 ; Banner
-(include "lib/x/repl/banner.x")
+(include-once "lib/x/repl/banner.x")
 
 ; Install the SIGINT handler so ctrl-c breaks loops.  On builds without
 ; signal support these primitives are absent; fall back to inert no-ops so
