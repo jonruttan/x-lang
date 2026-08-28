@@ -125,6 +125,17 @@ A project names the personalities it uses in `personality.pin.xon`, mirroring
 (source "https://github.com/jonruttan/x-r5rs.git")
 ```
 
+**The digest is of the archive, and that took a change to `Sha256` to be
+possible at all.** `(Sha256 hex)` bounds itself by `Str8 length`, which has
+strlen semantics — so a gzip, whose fourth byte is a NUL, digested as a
+three-byte fragment and compared unequal to itself. The first implementation of
+this verb failed its own digest check, which is how the defect surfaced.
+
+`(Sha256 hex-n s n)` takes the length as an argument, so the whole archive
+digests in pure x. That matters beyond convenience: verification stays a
+property of this library rather than of whatever the host happens to have
+installed, and `tar` never runs over bytes nothing has vouched for.
+
 **An unknown form is a loud error, never a skip** — the ruling `pin.xon` and
 `engine.pin.xon` both already follow. A manifest that silently ignores what it
 does not understand cannot be extended without wondering which readers obeyed
@@ -137,6 +148,44 @@ release and the entire platform-selection apparatus — `uname`, the contract
 spellings, the source-build fallback for platforms nobody publishes for —
 evaporates. Do not copy it across out of symmetry; every row of it would be a row
 that cannot be wrong in an interesting way.
+
+### Acquiring one: `Pin bundle`
+
+```x-repl
+> (import x/tool/pin)
+> (Pin bundle "deps")
+pin: verifying x-r5rs v0.2.0 (jit sha256)
+pin: bundle matches this platform (v0.5.2)
+"deps/x-r5rs-v0.2.0"
+```
+
+The order is the whole design, and it is the order of what is trusted when:
+
+1. Read the pin. An unknown form is an error here, **before any network**.
+2. **Already acquired at this release?** Honour it, no network. A tag cannot
+   change its bytes — the tag *is* the identity.
+3. Download the archive to a pid-tagged **temp** path.
+4. **Digest it there, before `tar` is run at all.** A mismatch quarantines the
+   bytes as `<archive>.rejected` — inspectable, never unpacked — and nothing is
+   published. This is the discipline #145 taught the amalgam fetch, which wrote
+   its target first and so made a rejected download the booted one.
+5. Unpack the verified archive into a per-pid **staging** directory, and rename
+   it into place only once whole. Staging is for **atomicity** here, not
+   quarantine: a `tar` that dies half way (a full disk, a truncated member) must
+   not leave a partial tree at the published path, where step 2 would later read
+   it as a complete one.
+6. Check the bundle's `personality.xon` agrees with the pin about which
+   personality it is — a digest proves the bytes are the ones published, not
+   that the right thing was published — and report release pairing.
+
+**There is no unpack-before-verify window.** An earlier draft of this contract
+had one, because it digested a per-file manifest rather than the archive, and it
+did so because `(Sha256 hex)` could not measure a binary file. Widening `Sha256`
+removed the reason, and removing the reason removed the window, a manifest file,
+its generation step, and the rules that a manifest may not list itself and that
+an unlisted file is a failure. The lesson is worth keeping even though the code
+is gone: **a constraint that shapes a design is worth re-testing before the
+design hardens around it.**
 
 ### Acquisition happens in x, not in shell
 
