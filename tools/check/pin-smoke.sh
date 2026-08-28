@@ -19,6 +19,12 @@
 #   fetch      (Pin fetch) against a fake release over file:// -- curl,
 #              manifest, pure-x digest, and the tamper refusal; hermetic,
 #              no network
+#   bundle     (Pin bundle) acquires a personality bundle over file://:
+#              the tree lands (modules AND data files), a second run
+#              honours it without the network, and every refusal holds --
+#              a swapped archive (quarantined, and NOT unpacked), a bundle
+#              naming another personality, an archive with no declaration,
+#              and an unknown pin form
 #   compose    (boot "FILE") + (root "DIR") in one manifest (GH #139):
 #              the wrapper boots the project's own entry AND arms the
 #              overlay, announcing both on stderr
@@ -819,5 +825,92 @@ sed 's/v9.9.9/v9.9.7/' "$_TMP/proj9/deps.lock.xon" > "$_TMP/proj9/deps.lock.xon.
 $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -f "$_TMP/boot3.x" >"$_TMP/out" 2>"$_TMP/err" \
 	|| fail "lock-root: re-pin failed" "$_TMP/out" "$_TMP/err"
 grep -q '(release "v9.9.9")' "$_TMP/proj9/deps.lock.xon" || fail "lock-root: upgrade did not rewrite the existing lock" "$_TMP/proj9/deps.lock.xon"
+
+# bundle: a personality bundle over file:// -- verified BEFORE it is
+# unpacked, and nothing published unless the whole thing lands.  Hermetic,
+# no network.
+#
+# The archive itself is the digest subject, which it could not be until
+# Sha256 grew hex-n: the plain hex bounds itself by Str8 length, so a gzip
+# (fourth byte NUL) digested as a three-byte fragment.  With an explicit
+# length the whole archive digests in pure x, and tar never runs over
+# bytes nothing has vouched for.
+_bsrc="$_TMP/bsrc"
+mkdir -p "$_bsrc/demo"
+printf '(personality "x-smoke")\n(dialect he)\n(entry "run.x")\n' > "$_bsrc/personality.xon"
+printf '(provide demo/g g)\n(def g (fn (_) "ok"))\n' > "$_bsrc/demo/g.x"
+printf '; entry\n' > "$_bsrc/run.x"
+# A NON-.x FILE ON PURPOSE: a personality may ship data (the Logo viewer
+# is the worked case), so a bundle is a tree, not one amalgam.
+printf '<html>v</html>\n' > "$_bsrc/viewer.html"
+( cd "$_bsrc" && tar -czf "$_TMP/x-smoke-v1.tar.gz" . )
+_bpin() { # $1=projdir $2=tag $3=archive-digest $4=tarball
+  mkdir -p "$1"
+  { printf '(personality "x-smoke")\n'; printf '(release "%s")\n' "$2"
+    printf '(bundle "sha256:%s" "file://%s")\n' "$3" "$4"
+  } > "$1/personality.pin.xon"
+}
+_brun() { # $1=projdir $2=depsdir
+  printf '(alloc-limit! 300000000)\n(import x/tool/pin)\n(display (Pin bundle "%s" "%s"))\n' \
+    "$2" "$1" > "$_TMP/bundle.x"
+  $TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/bundle.x" >"$_TMP/out" 2>"$_TMP/err"
+}
+_bpin "$_TMP/bproj" v1 "$(_dg "$_TMP/x-smoke-v1.tar.gz")" "$_TMP/x-smoke-v1.tar.gz"
+_brun "$_TMP/bproj" "$_TMP/bdeps"
+[ $? -eq 0 ] || fail "bundle: acquire failed" "$_TMP/err" "$_TMP/out"
+[ -f "$_TMP/bdeps/x-smoke-v1/demo/g.x" ] || fail "bundle: module not unpacked" "$_TMP/out"
+[ -f "$_TMP/bdeps/x-smoke-v1/viewer.html" ] || fail "bundle: data file not unpacked" "$_TMP/out"
+grep -q "x-smoke-v1" "$_TMP/out" || fail "bundle: no bundle path in output" "$_TMP/out"
+# Idempotent: a second run honours the tree and does not re-download.
+_brun "$_TMP/bproj" "$_TMP/bdeps"
+grep -q "already acquired" "$_TMP/out" || fail "bundle: re-run did not honour the existing tree" "$_TMP/out"
+
+# THE DIGEST MUST BE OF THE WHOLE ARCHIVE.  This is the regression guard for
+# the bug that shaped the design: with the strlen-bounded digest, a gzip
+# compared equal on its first three bytes, so a tampered archive verified
+# clean.  Here the payload differs but the leading bytes do not.
+rm -rf "$_TMP/btam"; cp -R "$_bsrc" "$_TMP/btam"
+printf '(provide demo/g g)\n(def g (fn (_) "PWNED"))\n' > "$_TMP/btam/demo/g.x"
+( cd "$_TMP/btam" && tar -czf "$_TMP/x-smoke-tam.tar.gz" . )
+_bpin "$_TMP/bproj2" tam "$(_dg "$_TMP/x-smoke-v1.tar.gz")" "$_TMP/x-smoke-tam.tar.gz"
+_brun "$_TMP/bproj2" "$_TMP/bdeps2"
+[ $? -ne 0 ] || fail "bundle-tamper: a swapped archive verified clean" "$_TMP/out" "$_TMP/err"
+grep -q "digest mismatch" "$_TMP/err" "$_TMP/out" \
+  || fail "bundle-tamper: the mismatch was not named" "$_TMP/err" "$_TMP/out"
+[ ! -d "$_TMP/bdeps2/x-smoke-tam" ] || fail "bundle-tamper: a rejected archive was published"
+# NOTHING IS UNPACKED on a mismatch -- the whole point of digesting first.
+[ -z "$(ls -d "$_TMP"/bdeps2/.staging-* 2>/dev/null)" ] \
+  || fail "bundle-tamper: a rejected archive was unpacked anyway"
+[ -f "$_TMP/bdeps2/x-smoke-tam.tar.gz.rejected" ] \
+  || fail "bundle-tamper: rejected bytes were not quarantined for inspection"
+
+# The bundle must agree with the pin about which personality it is: a digest
+# proves the bytes are the ones published, not that the right thing was.
+rm -rf "$_TMP/blie"; cp -R "$_bsrc" "$_TMP/blie"
+printf '(personality "x-evil")\n(dialect he)\n' > "$_TMP/blie/personality.xon"
+( cd "$_TMP/blie" && tar -czf "$_TMP/x-smoke-lie.tar.gz" . )
+_bpin "$_TMP/bproj5" lie "$(_dg "$_TMP/x-smoke-lie.tar.gz")" "$_TMP/x-smoke-lie.tar.gz"
+_brun "$_TMP/bproj5" "$_TMP/bdeps5"
+[ $? -ne 0 ] || fail "bundle-name: a bundle naming another personality was accepted" "$_TMP/out" "$_TMP/err"
+grep -q "calls itself x-evil" "$_TMP/err" "$_TMP/out" \
+  || fail "bundle-name: the mismatch was not named" "$_TMP/err" "$_TMP/out"
+
+# An archive with no declaration is refused, and says where it was left.
+rm -rf "$_TMP/bnod"; mkdir -p "$_TMP/bnod"; printf 'x\n' > "$_TMP/bnod/stray.x"
+( cd "$_TMP/bnod" && tar -czf "$_TMP/x-smoke-nod.tar.gz" . )
+_bpin "$_TMP/bproj7" nod "$(_dg "$_TMP/x-smoke-nod.tar.gz")" "$_TMP/x-smoke-nod.tar.gz"
+_brun "$_TMP/bproj7" "$_TMP/bdeps7"
+[ $? -ne 0 ] || fail "bundle-nodecl: a bundle with no personality.xon was accepted" "$_TMP/out" "$_TMP/err"
+grep -q "ships no personality.xon" "$_TMP/err" "$_TMP/out" \
+  || fail "bundle-nodecl: the missing declaration was not named" "$_TMP/err" "$_TMP/out"
+
+# Closed vocabulary: an unknown form in the pin is an error, never a skip.
+mkdir -p "$_TMP/bproj6"
+printf '(personality "x-smoke")\n(release "v1")\n(bundle "sha256:00" "file:///dev/null")\n(surprise "hi")\n' \
+  > "$_TMP/bproj6/personality.pin.xon"
+_brun "$_TMP/bproj6" "$_TMP/bdeps6"
+[ $? -ne 0 ] || fail "bundle-closed: an unknown pin form was ignored" "$_TMP/out" "$_TMP/err"
+grep -q "unknown form in bundle pin: surprise" "$_TMP/err" "$_TMP/out" \
+  || fail "bundle-closed: the unknown form was not named" "$_TMP/err" "$_TMP/out"
 
 echo "pin-smoke: ok"

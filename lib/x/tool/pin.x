@@ -626,6 +626,137 @@
             (match
               ((null? hit) (Pin %pin-bad (Str8 append "not in the release manifest: " name)))
               (#t (rest hit)))))
+    ; --- personality bundles (docs/personality-contract.md) -------------------
+    ; A bundle is a personality -- a DIFFERENT surface language -- acquired the
+    ; way the engine is: a foreign repo's tagged tarball, digest-verified BEFORE
+    ; anything is unpacked.  Two manifests, answering two questions:
+    ;
+    ;   personality.pin.xon   WHICH bundle this project wants, and where from.
+    ;                         The project writes it.  Closed vocabulary:
+    ;                         personality | release | bundle | source.
+    ;   personality.xon       WHAT the bundle IS -- name, dialect, the release
+    ;                         it was built against.  Shipped inside it.
+    ;
+    ; THE ARCHIVE ITSELF IS THE DIGEST SUBJECT, which it could not be until
+    ; Sha256 grew hex-n: the plain hex bounds itself by Str8 length, so a gzip
+    ; (whose fourth byte is a NUL) digested as a three-byte fragment.  With an
+    ; explicit length the whole archive digests in pure x -- verification stays
+    ; a property of this library rather than of whatever the host has installed
+    ; -- and tar never runs over bytes nothing has vouched for.
+    ;
+    ; NO OS/ARCH MATRIX, and the absence is the point: a personality is pure
+    ; x-lang, so a release has exactly one artifact.  The engine pin carries a
+    ; row per platform because an engine is a binary; copying that apparatus
+    ; here would be rows that cannot be wrong in an interesting way.
+    (method %pin-bundle-parse (self forms)
+      (def %go
+            (fn (self forms name tag dg url src)
+              (match
+                ((null? forms)
+                  (match
+                    ((null? name) (Pin %pin-bad "bundle pin has no (personality ...)"))
+                    ((null? tag) (Pin %pin-bad "bundle pin has no (release ...)"))
+                    ((null? dg) (Pin %pin-bad "bundle pin has no (bundle ...)"))
+                    (#t (list (pair 'personality name) (pair 'release tag)
+                              (pair 'digest dg) (pair 'url url) (pair 'source src)))))
+                ((not (pair? (first forms))) (Pin %pin-bad "bundle-pin form is not a list"))
+                ((eq? (first (first forms)) 'personality)
+                  (match
+                    ((str? (first (rest (first forms))))
+                      (self (rest forms) (first (rest (first forms))) tag dg url src))
+                    (#t (Pin %pin-bad "personality needs a name string"))))
+                ((eq? (first (first forms)) 'release)
+                  (match
+                    ((str? (first (rest (first forms))))
+                      (self (rest forms) name (first (rest (first forms))) dg url src))
+                    (#t (Pin %pin-bad "release needs a tag string"))))
+                ; (bundle "sha256:HEX" "URL") -- DIGEST FIRST, so a row that
+                ; loses its URL cannot read as a digestless one.
+                ((eq? (first (first forms)) 'bundle)
+                  (match
+                    ((not (str? (first (rest (first forms)))))
+                      (Pin %pin-bad "bundle needs a \"sha256:HEX\" digest string"))
+                    ((not (str? (first (rest (rest (first forms))))))
+                      (Pin %pin-bad "bundle needs a URL string after its digest"))
+                    (#t (self (rest forms) name tag
+                          (first (rest (first forms)))
+                          (first (rest (rest (first forms)))) src))))
+                ((eq? (first (first forms)) 'source)
+                  (match
+                    ((str? (first (rest (first forms))))
+                      (self (rest forms) name tag dg url (first (rest (first forms)))))
+                    (#t (Pin %pin-bad "source needs a URL string"))))
+                ; UNKNOWN IS LOUD, never a skip -- the ruling pin.xon and
+                ; engine.pin.xon both already follow.  A manifest that ignores
+                ; what it does not understand cannot be extended without
+                ; wondering which readers obeyed which half of it.
+                (#t (Pin %pin-bad (Str8 append "unknown form in bundle pin: "
+                                    (symbol->str (first (first forms)))))))))
+      (%go forms () () () () ()))
+    (method %pin-bundle-decl-name (self) "personality.xon")
+    ; A BINARY file's digest, and the sibling of %pin-digest rather than a
+    ; change to it: %pin-digest serves amalgams and lockfiles, which are text,
+    ; and hex there is exactly right.  This one takes the length from stat, so
+    ; the NULs inside an archive stop being where the digest ends.
+    (method %pin-digest-bin (self path)
+      (Str8 append "sha256:"
+        (Sha256 hex-n (File read-all path) (%assoc-get 'size (File stat path)))))
+    ; Unpack via tar through Proc run!, the shape %pin-download-tmp! uses for
+    ; curl: 127 = tar absent, anything else nonzero = the archive is bad.
+    (method %pin-untar! (self archive dest)
+      (let ((status (Proc run! (list "tar" "-xzf" archive "-C" dest))))
+        (match
+          ((= status 0) dest)
+          ((= status 127) (Pin %pin-bad "tar not found -- cannot unpack the bundle"))
+          (#t (Pin %pin-bad (Str8 append "bundle did not unpack: " archive))))))
+    ; The bundle's own declaration, read after the tree verifies and held
+    ; against the pin that asked for it.  Digests prove the bytes are the ones
+    ; published; they say nothing about WHICH thing was published.
+    (method %pin-personality-parse (self forms)
+      (def %go
+            (fn (self forms name dialect req entry)
+              (match
+                ((null? forms)
+                  (match
+                    ((null? name) (Pin %pin-bad "personality.xon has no (personality ...)"))
+                    (#t (list (pair 'personality name) (pair 'dialect dialect)
+                              (pair 'requires-release req) (pair 'entry entry)))))
+                ((not (pair? (first forms))) (Pin %pin-bad "personality.xon form is not a list"))
+                ((eq? (first (first forms)) 'personality)
+                  (match
+                    ((str? (first (rest (first forms))))
+                      (self (rest forms) (first (rest (first forms))) dialect req entry))
+                    (#t (Pin %pin-bad "personality needs a name string"))))
+                ; (dialect he|xe|rn) -- a REQUIREMENT, not a preference: a
+                ; personality reaching x/sys/socket needs radon, and declaring
+                ; helium means it dies at boot on a missing import instead of
+                ; at acquisition on a legible refusal.
+                ((eq? (first (first forms)) 'dialect)
+                  (match
+                    ((symbol? (first (rest (first forms))))
+                      (self (rest forms) name (first (rest (first forms))) req entry))
+                    (#t (Pin %pin-bad "dialect needs a symbol -- he, xe or rn"))))
+                ((eq? (first (first forms)) 'requires-release)
+                  (match
+                    ((str? (first (rest (first forms))))
+                      (self (rest forms) name dialect (first (rest (first forms))) entry))
+                    (#t (Pin %pin-bad "requires-release needs a tag string"))))
+                ((eq? (first (first forms)) 'entry)
+                  (match
+                    ((str? (first (rest (first forms))))
+                      (self (rest forms) name dialect req (first (rest (first forms)))))
+                    (#t (Pin %pin-bad "entry needs a file string"))))
+                (#t (Pin %pin-bad (Str8 append "unknown form in personality.xon: "
+                                    (symbol->str (first (first forms)))))))))
+      (%go forms () () () ()))
+    ; Unpack via tar through Proc run!, the shape %pin-download-tmp! uses for
+    ; curl: 127 = tar absent, anything else nonzero = the archive is bad.
+    (method %pin-untar! (self archive dest)
+      (let ((status (Proc run! (list "tar" "-xzf" archive "-C" dest))))
+        (match
+          ((= status 0) dest)
+          ((= status 127) (Pin %pin-bad "tar not found -- cannot unpack the bundle"))
+          (#t (Pin %pin-bad (Str8 append "bundle did not unpack: " archive))))))
     ; two lists, a ++ b
     (method %pin-concat (self a b)
       (def %rec (fn (self a b)
@@ -1375,6 +1506,104 @@
                         (do
                           (display "pin: no isa manifest here -- engine pairing unchecked (run from a source checkout to compare)\n"))))
                     target))))))))
+    (method bundle (self (param dest STRING "Directory to unpack the bundle into")
+                         . (param dir STRING "Project directory holding personality.pin.xon; default \".\""))
+      (doc "Acquire a personality bundle, verified or nothing. Reads personality.pin.xon (closed vocabulary -- an unknown form is a loud error, never a skip), downloads the tarball its (bundle \"sha256:...\" \"URL\") row names to a temp path, and digests it THERE with pure-x Sha256 before tar is run at all: an archive that does not match is quarantined as <archive>.rejected -- the bytes are the evidence -- and nothing is unpacked. A verified archive unpacks into a per-pid staging directory and is renamed into place at <dest>/<name>-<release>/ only once whole, so a tar that dies half way cannot leave a partial tree where the already-acquired check would later read it as complete. The bundle's personality.xon must agree with the pin about which personality it is, and its (requires-release ...) is reported against this tree's stamp -- drift named, not fatal. An already-acquired bundle at the same release is honoured without touching the network. Returns the bundle's directory."
+        (returns STRING "Path of the verified, unpacked bundle")
+        (sample "(Pin bundle \"deps\")" "\"deps/x-r5rs-v0.2.0\""))
+      (let ((d (Pin %pin-dir-or-dot dir)))
+        (let ((mpath (%path-join d "personality.pin.xon")))
+          (do
+            (match
+              ((File exists? mpath) ())
+              (#t (Pin %pin-bad (Str8 append "no bundle pin: " mpath))))
+            (let ((m (Pin %pin-bundle-parse (Pin %pin-forms (File read-all mpath)))))
+              (let ((name (%assoc-get 'personality m))
+                    (tag (%assoc-get 'release m))
+                    (want (%assoc-get 'digest m))
+                    (url (%assoc-get 'url m)))
+                (let ((home (%path-join dest (Str8 append name (Str8 append "-" tag)))))
+                  (do
+                    (Pin %pin-mkdirs dest)
+                    ; AN EXISTING TREE AT THIS RELEASE IS HONOURED, no network.
+                    ; Offline is the normal case for anyone who has acquired
+                    ; once, and a tag cannot change its bytes -- the tag IS the
+                    ; identity.
+                    (match
+                      ((File exists? (%path-join home (Pin %pin-bundle-decl-name)))
+                        (display "pin: " name " " tag " already acquired at " home "\n"))
+                      (#t (Pin %pin-bundle-acquire! name tag want url dest home)))
+                    ; THE BUNDLE MUST AGREE WITH THE PIN ABOUT WHAT IT IS.  The
+                    ; digests prove the bytes are the ones published; they say
+                    ; nothing about whether the right thing was published.
+                    (let ((pd (Pin %pin-personality-parse
+                                (Pin %pin-forms
+                                  (File read-all (%path-join home (Pin %pin-bundle-decl-name)))))))
+                      (do
+                        (match
+                          ((str=? (%assoc-get 'personality pd) name) ())
+                          (#t (Pin %pin-bad
+                                (Str8 append "bundle calls itself "
+                                  (Str8 append (%assoc-get 'personality pd)
+                                    (Str8 append ", the pin asked for " name))))))
+                        (display (Pin %pin-bundle-pairing pd) "\n")
+                        home))))))))))
+    ; Download, verify, unpack, publish -- in that order, which is the design.
+    ; Split out of the verb because the already-acquired arm skips all of it,
+    ; and a conditional that long inside the verb hid which half was the fast
+    ; path.
+    (method %pin-bundle-acquire! (self name tag want url dest home)
+      (let ((archive (%path-join dest (Str8 append name (Str8 append "-" (Str8 append tag ".tar.gz")))))
+            (stage (%path-join dest (Str8 append ".staging-" (%cvt (Sys getpid) %string)))))
+        ; VERIFIED BEFORE UNPACKED.  The download lands on a pid-tagged temp
+        ; path and digests THERE; tar is not run at all until the bytes are the
+        ; ones the pin vouched for.  A mismatch quarantines them as
+        ; <archive>.rejected -- inspectable, never unpacked -- because the bytes
+        ; are the evidence (#145, which the amalgam fetch learned by writing its
+        ; target first and making a rejected download the booted one).
+        (let ((tmp (Pin %pin-download-tmp! url archive)))
+          (do
+            (display "pin: verifying " name " " tag
+                     (if (Sha256 jit!) " (jit sha256)" " (pure x-lang sha256)") "\n")
+            (match
+              ((str=? (Pin %pin-digest-bin tmp) want) ())
+              (#t
+                (do
+                  (File rename tmp (Str8 append archive ".rejected"))
+                  (Pin %pin-bad
+                    (Str8 append "digest mismatch: " (Str8 append name
+                      (Str8 append " " (Str8 append tag
+                        (Str8 append " -- rejected bytes at " (Str8 append archive
+                          ".rejected; nothing was unpacked")))))))))) 
+            ; STAGED FOR ATOMICITY, not for quarantine -- the distinction
+            ; matters now that the archive is trusted before it is opened.  A
+            ; tar that dies half way (a full disk, a truncated member) must not
+            ; leave a partial tree at the published path, where the
+            ; already-acquired check would later read it as a complete one.
+            (Pin %pin-mkdirs stage)
+            (Pin %pin-untar! tmp stage)
+            (guard (_ ()) (File unlink tmp))
+            (let ((decl (%path-join stage (Pin %pin-bundle-decl-name))))
+              (match
+                ((File exists? decl) ())
+                (#t (Pin %pin-bad (Str8 append "bundle ships no "
+                      (Str8 append (Pin %pin-bundle-decl-name)
+                        (Str8 append " -- left at " stage)))))))
+            (File rename stage home)))))
+    ; Release pairing, REPORTED not enforced -- the ruling the amalgam's isa
+    ; drift already gets.  A bundle built against another release may well be
+    ; fine; a bundle whose declaration nobody read is the state the last
+    ; generation rotted in.
+    (method %pin-bundle-pairing (self pd)
+      (let ((req (%assoc-get 'requires-release pd))
+            (mine (guard (_ ())
+                    (Str8 trim (File read-all (Str append %install-root "/contract/release"))))))
+        (match
+          ((null? req) "pin: bundle declares no requires-release -- platform pairing unchecked")
+          ((null? mine) "pin: no release stamp here -- platform pairing unchecked (an installed tree carries one)")
+          ((str=? req mine) (Str8 append "pin: bundle matches this platform (" (Str8 append mine ")")))
+          (#t (Str8 append "pin: bundle wants " (Str8 append req
+                (Str8 append ", this platform is " (Str8 append mine " -- untested pairing"))))))))
 ))
 
 ; --- Load-time driver: a no-op unless the wrapper announced a manifest.
