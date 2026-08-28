@@ -48,7 +48,12 @@ X_RELEASE?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 #    from the directory holding the engine, so the binary must physically sit
 #    beside tests/ or the runner cannot find its own harness.  Keeping it here
 #    is what leaves x.sh, the spec runners, tools/dev/lint.sh and the ~15
-#    tools/check/*.sh scripts untouched by the split.
+#    tools/check/*.sh scripts untouched by the split.  That derivation is the
+#    DEFAULT now rather than the only way: SPEC_RUNNER_DIR overrides it, which
+#    is how a caller outside this tree -- a personality bundle sourcing the
+#    INSTALLED runner, where the engine is under libexec/x/ and the harness
+#    under share/x/tests/ -- finds a harness that does not sit beside its
+#    engine.  The default is unchanged, so this layout constraint still holds.
 #
 # 2. WHOSE RELEASE IT REPORTS.  ITS OWN, since the engine got a version line.
 #    This repo used to pass X_RELEASE down, so the engine reported the LANGUAGE
@@ -918,7 +923,7 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	fi
 	@if [ -f $(ENGINE_DIR)/entitlements.plist ]; then codesign -s - --entitlements $(ENGINE_DIR)/entitlements.plist -f $(DESTDIR)$(LIBEXECDIR)/$(EXECUTABLE) 2>/dev/null || true; fi
 	install $C -m 0755 $(NAME).sh $(DESTDIR)$(BINDIR)/$(NAME)
-	rm -rf $(DESTDIR)$(LIBDIR)/lib $(DESTDIR)$(LIBDIR)/apps $(DESTDIR)$(LIBDIR)/boot
+	rm -rf $(DESTDIR)$(LIBDIR)/lib $(DESTDIR)$(LIBDIR)/apps $(DESTDIR)$(LIBDIR)/boot $(DESTDIR)$(LIBDIR)/tests
 	# The engine's ISA fingerprint travels WITH the engine -- literally so
 	# since the split: the manifest is the engine's own
 	# $(ENGINE_DIR)/tools/contract/isa.x, not a copy this repo keeps.  An installed
@@ -964,6 +969,23 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	diff -r lib $(DESTDIR)$(LIBDIR)/lib
 	diff -r apps $(DESTDIR)$(LIBDIR)/apps
 	diff -r build/boot $(DESTDIR)$(LIBDIR)/boot
+	# THE SHARED SPEC RUNNER, and only it -- not tests/, which is this
+	# repo's own suite and no business of an installed tree.  A personality
+	# bundle keeps its specs in its own repository and runs them with this
+	# runner, sourcing it as <root>/tests/spec-runner.sh where <root> is what
+	# `x --share-dir` answers.  Shipping it is what stops every bundle
+	# vendoring 865 lines of shell and awk and drifting into a spec-format
+	# dialect apiece (docs/personality-contract.md).
+	#
+	# NOT IN THE PAYLOAD FINGERPRINT, deliberately: that digest is library
+	# bytes -- lib, apps, boot -- and answers "which release is this".  The
+	# wrapper and the engine already ship outside it; a tool belongs with
+	# them, and tools/release/payload-digest.sh stays untouched.
+	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tests
+	install $C -m 0644 tests/spec-runner.sh $(DESTDIR)$(LIBDIR)/tests/spec-runner.sh
+	install $C -m 0644 tests/spec-runner.awk $(DESTDIR)$(LIBDIR)/tests/spec-runner.awk
+	diff tests/spec-runner.sh $(DESTDIR)$(LIBDIR)/tests/spec-runner.sh
+	diff tests/spec-runner.awk $(DESTDIR)$(LIBDIR)/tests/spec-runner.awk
 	# The tree's RELEASE IDENTITY, beside the engine's ISA fingerprint and
 	# for the same reason: an installed tree has no source checkout and no
 	# git, so without these two lines it cannot answer "which release is

@@ -212,9 +212,9 @@ rather than something that happened.
 
 ### Why the last generation rotted
 
-Five personalities sit unbuilt in `../dialects/` — `x-ash`, `x-krn`, `x-r5rs`,
-`x-r7rs`, `x-sweet`. They are the evidence for every rule above, and none of them
-failed for want of a digest:
+Five personalities sit unbuilt outside this repository — `x-ash`, `x-krn`,
+`x-r5rs`, `x-r7rs`, `x-sweet`. They are the evidence for every rule above, and
+none of them failed for want of a digest:
 
 - **Path literals in every file.** `(include "lang/krn/lib/krn-base.x")` — nailed
   to a directory layout the repo abandoned. This is the rule the one-entry-file
@@ -255,10 +255,102 @@ piece with the least prior art. Until it exists, the table under
 [The seam](#the-seam) is documentation rather than a contract — which is why the
 status banner at the top of this file says what it says.
 
-**A bundle's tests need the spec runner**, which today is an x-lang repo asset
-(`tests/spec-runner.sh`). Either the release payload publishes it or each bundle
-vendors it; unresolved, and it is the difference between bundles being testable
-and not.
+### The spec runner: the platform publishes it
+
+A bundle's tests need `tests/spec-runner.sh`, which is an x-lang repo asset
+today. **The platform ships it; bundles do not vendor it.** Five findings settle
+it; version coherence is the one that decides.
+
+**It is already generic.** Strip the comments from the runner and grep the
+logic: there is not one hardcoded spec name in it. `@lib` and `@weight` are
+declared by the spec files themselves, so the runner is data-driven and the
+suite-specific prose in its header is calibration notes, not behaviour. Nothing
+has to be extracted from it to make it reusable.
+
+**Sharing was the original design.** Its header states the interface — "Each
+personality runner sets `SPEC_PATH`, `X_BIN`, and `LANG_LIB`, then sources this
+file" — and every old personality did exactly that, in about twenty lines.
+
+**What failed was addressing, not sharing.** The Kernel runner reached the
+platform like this:
+
+```sh
+X_BIN="$SCRIPT_DIR/../../../x"
+. "$SCRIPT_DIR/../../../tests/spec-runner.sh"
+```
+
+`$SCRIPT_DIR` was `lang/krn/tests`, so `../../../` was the x-lang repo root. Both
+references dangled the moment the personality left that tree. Vendoring would
+fix the dangle by copying 865 lines of shell and awk into every bundle — and buy
+a spec-format dialect per repo, plus an N-repo re-vendor for every runner fix.
+
+**Version coherence comes free the shared way, and only by hand the other.** A
+bundle already names the x-lang it was built against, in `(requires-release …)`.
+Source the runner from *that* release's install and the runner and the spec
+format it implements cannot skew, because they are the same release's bytes. A
+vendored runner is pinned to whatever was copied on whatever day, and nothing
+relates it to the platform the bundle actually declares.
+
+**It ships as a tool, outside the payload fingerprint.** The payload digest is
+library bytes — `lib`, `apps`, `boot` — and it answers *which release is this*.
+The wrapper and the engine already ship without joining it. The runner is a
+tool, so it installs beside them (`share/x/test/`) and the fingerprint keeps its
+current meaning.
+
+### Running a bundle's specs
+
+The platform answers two questions so a bundle never guesses:
+
+| asked | answers |
+|---|---|
+| `x --share-dir` | the tree this x reads from — `share/x` installed, the repo root in a checkout |
+| `x --engine-path` | the engine binary, after the wrapper's full discovery order |
+
+One relative path then works in both modes: `<root>/tests/` is the repo's
+`tests/` in a checkout and `share/x/tests/` in an install. The runner and its
+awk harness install there; `make check-package` proves both ship and both flags
+answer, on the extracted tarball rather than the staging tree.
+
+A bundle's whole runner is about twenty lines, and not one path into the x-lang
+source tree:
+
+```sh
+BUNDLE="$(cd "$(dirname "$0")/.." && pwd)"
+X_ROOT="$(x --share-dir)"
+X_BIN="$(x --engine-path)"
+SPEC_RUNNER_DIR="$X_ROOT/tests"; export SPEC_RUNNER_DIR
+LANG_LIB="$BUNDLE/tests/lib/harness.gen.x"
+SPEC_PATH="$BUNDLE/tests/specs"
+. "$X_ROOT/tests/spec-runner.sh"
+```
+
+Four things that are not obvious, each of which costs an afternoon:
+
+- **`SPEC_RUNNER_DIR` is required from an installed tree.** The runner finds its
+  awk harness from the directory holding the *engine* — true in a checkout,
+  where the binary sits beside `tests/`, and false in an install, where the
+  engine is under `libexec/x/`. A sourced script cannot portably find its own
+  path, so the caller says. Unset and wrong, the runner now names the path it
+  looked at instead of dying without one.
+- **The harness must name the root before loading an amalgam.** An amalgam has
+  zero include literals, but its deferred `import` forms resolve against the
+  installed tree as it boots, and `module.x` learns where that is from
+  `%install-root`. `x.sh` emits `(def %install-root "…")` ahead of every boot
+  entry; a harness loading an amalgam directly must emit the same line first.
+- **Load `boot/x-base.x`, not a dialect entry.** The dialect amalgams end with
+  `(unless %batch? (do (%banner) (repl)))` and would start a REPL underneath the
+  suite. `x-base.x` is the launcher-free one, and being an amalgam it carries no
+  path literals, so it loads from any cwd. **The gap:** it is the *full tower*,
+  and there is no launcher-free light amalgam — a helium-weight bundle pays for
+  the tower or loads `lib/x-core.x` by absolute path with the cwd at `<root>`,
+  because x-core's own includes are root-relative.
+- **`# @lib` resolves against `LANG_LIB`'s directory**, not the spec's. A
+  harness beside the specs is named bare — `# @lib harness.gen.x` — and a path
+  that looks right relative to the spec silently produces an empty library,
+  whose first symptom is `Unbound SYMBOL 'Io` rather than a missing file.
+
+The harness is *generated* rather than committed, because it embeds two
+absolute paths that are facts of the machine, not of the bundle.
 
 ## Writing or extracting a personality
 

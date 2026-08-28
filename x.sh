@@ -148,7 +148,13 @@ pin_arm() {
 #   3. Beside this script, under the default name -- repo mode, where the
 #      Makefile copies the built engine to the repository root.  The engine must
 #      physically sit there: tests/spec-runner.sh derives its awk harness path
-#      from the directory holding it.
+#      from the directory holding it, unless the caller sets SPEC_RUNNER_DIR
+#      (which is how an installed tree's runner is sourced from outside it).
+#
+#   `--engine-path` prints what this order settles on, so a caller needing the
+#   RAW engine -- a spec runner pipes a library and a spec straight into it,
+#   and going through this wrapper would boot the library twice -- does not
+#   reimplement any of the above.
 #
 # Probe order between 2 and 3 was load-bearing when the engine was also named
 # `x`: installed, the wrapper takes the bin/x name, and $SCRIPT_PATH/x re-ran
@@ -352,6 +358,49 @@ do
 			if [ -n "$INSTALL_ROOT" ] && [ -f "$INSTALL_ROOT/contract/release" ]; then
 				echo "library release $(cat "$INSTALL_ROOT/contract/release") -- what a pinned boot is checked against"
 			fi
+			exit 0
+			;;
+		--share-dir)
+			# WHERE THIS x READS ITS TREE FROM, so a tool outside this
+			# repository can ASK instead of guessing.  A personality bundle
+			# needs the shared spec runner under <root>/tests/, and the only
+			# alternative is re-deriving the root from `command -v x` --
+			# path-guessing, which is the failure class the engine contract
+			# already avoids by preferring an engine's own (param os ...)
+			# declaration to sniffing the host (docs/personality-contract.md).
+			#
+			# ONE RELATIVE PATH WORKS IN BOTH MODES, which is the point of
+			# answering with a root rather than a full path: <root>/tests/ is
+			# the repo's tests/ in a checkout and share/x/tests/ in an install.
+			# Repo mode is DETECTED by lib/x.x existing under the cwd, so a
+			# checkout's root is the cwd by construction, not by assumption.
+			#
+			# No engine needed: this is a question about paths, and it must
+			# answer on a tree whose engine is missing -- that is one of the
+			# states a caller uses it to diagnose.
+			if [ -n "$INSTALL_ROOT" ]; then
+				# NORMALISED, not printf'd raw: INSTALL_ROOT is built as
+				# "$SCRIPT_PATH/../share/x" and carries the /bin/.. segment.
+				# The cd also FAILS LOUDLY on a tree that is not there, which
+				# is one of the states a caller asks this question to find.
+				cd "$INSTALL_ROOT" 2>/dev/null && pwd || {
+					echo "Error: install root does not exist: $INSTALL_ROOT" >&2
+					exit 1; }
+			else
+				pwd
+			fi
+			exit 0
+			;;
+		--engine-path)
+			# The ENGINE this wrapper would run, after the whole discovery
+			# order above (X_BIN, the installed engine's (binary "...") row,
+			# then beside the wrapper).  A spec runner pipes a library and a
+			# spec into the raw engine rather than through this wrapper -- the
+			# harness boots x-core itself, so the wrapper would boot it twice
+			# -- and without this the caller would have to reimplement the
+			# discovery it is standing next to.
+			require_engine
+			printf '%s/%s\n' "$(cd "$(dirname "$X_BIN")" && pwd)" "$(basename "$X_BIN")"
 			exit 0
 			;;
 		--) # End of all options
