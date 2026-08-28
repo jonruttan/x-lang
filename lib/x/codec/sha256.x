@@ -209,9 +209,21 @@
 ; paths end here shape-wise -- the compiled engine returns the same
 ; 8-word list -- so the hex formatting is shared and the engine is a
 ; drop-in for exactly this function.
+; The optional LENGTH is what makes this usable on binary.  Str8 length has
+; strlen semantics, so it stops at the first NUL -- but nothing below it does:
+; %sha-byte reads through the `str byte-ref` primitive and bounds itself by the
+; len it is HANDED, and the compiled engine takes a raw pointer and a length
+; word.  Both paths were already written length-parameterised; only the
+; derivation was narrow.  A caller that knows the true size (File stat's, say)
+; passes it and digests the whole region.
+;
+; THE LENGTH IS THE CALLER'S CLAIM, and nothing here can check it: a len past
+; the string's allocation reads past the allocation.  That is why it is a
+; separate door (Sha256 hex-n) rather than an optional argument on hex -- the
+; hazard should be visible at the call site, not reachable by accident.
 (def %sha-digest-words
-  (fn (_ s)
-    (def %len (Str8 length s))
+  (fn (_ s . n)
+    (def %len (match ((null? n) (Str8 length s)) (#t (first n))))
     ; padded length: L+1+k+8 rounded to a 64-byte block -- via shifts,
     ; no division (the tower / trap has nothing to bite)
     (def %total (<< (%sha+ (>> (%sha+ %len 8) 6) 1) 6))
@@ -269,16 +281,17 @@
 ; Renamed from %sha-words (lint dup-def): the hex-constant parser above
 ; shares nothing with this but load-order luck made the overload work.
 (def %sha-hash-words
-  (fn (_ s)
+  (fn (_ s . n)
+    (def %len (match ((null? n) (Str8 length s)) (#t (first n))))
     (do
-      (%set-first! %sha-jit-bytes (%sha+ (first %sha-jit-bytes) (Str8 length s)))
+      (%set-first! %sha-jit-bytes (%sha+ (first %sha-jit-bytes) %len))
       (when (and (null? %sha-jit-engine)
                  (>= (first %sha-jit-bytes) %sha-jit-threshold))
         (%sha-jit-try!))
       (match
         ((or (null? %sha-jit-engine) (eq? %sha-jit-engine (lit failed)))
-          (%sha-digest-words s))
-        (#t (%sha-jit-engine s))))))
+          (%sha-digest-words s %len))
+        (#t (%sha-jit-engine s %len))))))
 
 (def-class Sha256 ()
   (static
@@ -288,6 +301,13 @@
         (example "(Sha256 hex \"\")" "\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"")
         (example "(Sha256 hex \"abc\")" "\"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\""))
       (%sha-hex-list (%sha-hash-words s)))
+    (method hex-n (self (param s STRING "Byte region to digest")
+                        (param n INT "How many bytes of s to digest"))
+      (doc "SHA-256 of the FIRST n BYTES of s, for input hex cannot reach: hex bounds itself by Str8 length, which has strlen semantics and stops at the first NUL, so a binary region (a downloaded archive, a compressed block) digests as its leading fragment instead of itself. Identical to hex whenever n is the string's own length, and it takes the same two engines. THE LENGTH IS YOUR CLAIM AND IS NOT CHECKED: n past the region's allocation reads past the allocation, so pass a length you know -- (Assoc get 'size (File stat path)) for a file read whole."
+        (returns STRING "64 hex characters")
+        (example "(Sha256 hex-n \"abc\" 3)" "\"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\"")
+        (example "(Sha256 hex-n \"abc\" 0)" "\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\""))
+      (%sha-hex-list (%sha-hash-words s n)))
     (method jit! (self)
       (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself: the engine is adopted only after agreeing with the pure-x digest on the FIPS vectors plus a multi-block padding case. Idempotent; seconds of compile on first success. Returns #t when the engine is active, #f when unavailable (no assembler backend for this host, no JIT toolchain, or a failed check -- pure-x carries on and results are identical either way). hex also auto-builds once 64KB of cumulative input has been digested, so calling this is an optimization, not a requirement."
         (returns BOOL "#t when the compiled engine is active"))
