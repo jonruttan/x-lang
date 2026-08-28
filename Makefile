@@ -355,7 +355,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
+gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
 .PHONY: gates
 
 # The local-latency split (2026-08-03 audit): `make test` grew past ten
@@ -366,7 +366,7 @@ gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-cov
 # ratchet, none of the targets that build or boot artifacts.  The hook
 # runs test-fast; CI still runs the FULL `make test` on every push/PR
 # (ci.yml unchanged -- it stays the enforcing gate for the heavy surface).
-gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
+gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
 test-fast: gates-fast test-c test-x ## Pre-push gate: fast gates + both spec suites (CI runs full `make test`)
@@ -644,6 +644,16 @@ check-second-engine: ## Assert the contract apparatus is engine-agnostic
 check-base-routes: ## Assert the engine's base carries the routes lib/ walks
 	sh tools/check/base-routes.sh
 .PHONY: check-base-routes
+
+# The LANG SEAM (docs/lang-contract.md).  A lang lives in its own repository,
+# so a rename here that drops one of the names it is promised breaks it
+# silently and this tree stays green -- one of the three ways the last
+# generation of langs rotted, and the one no amount of testing over there can
+# catch in time.  ~8s for all three dialects, which is why it rides the fast
+# gates rather than the deep tier.
+check-seam: $(EXECUTABLE) ## Assert the platform still provides what a lang is promised
+	sh tools/check/seam.sh
+.PHONY: check-seam
 
 # The dialect coverage ratchet (#70): every lib/*.x entry point needs an
 # end-to-end smoke group, so a new dialect cannot ship untested the way the

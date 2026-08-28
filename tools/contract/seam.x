@@ -1,0 +1,48 @@
+; seam.x -- what a lang may rely on, and what the platform must keep providing.
+;
+; A lang (docs/lang-contract.md) is a different surface language living in its
+; own repository, loaded over a dialect.  It reaches the platform through a
+; handful of names -- it sets %lang-name so the banner says what it is, it
+; arms its module root with import-path!, it calls repl to hand over a
+; session.  Those names are a CONTRACT.  The rest of lib/ is not.
+;
+; WHY THIS FILE EXISTS.  The last generation of langs died three ways, and one
+; of them was this: module and global names moved underneath them while nobody
+; was looking.  A lang in another repository cannot fail this tree's tests, so
+; the only way that break is caught before a user hits it is here -- a rename
+; that drops a seam name fails the gate, and restoring it or editing this file
+; is then a deliberate, reviewable act rather than a silent one.
+;
+; DECLARED, NOT DERIVED, and that is a departure from base-paths.x worth being
+; explicit about.  tools/check/base-routes.sh derives the route names from the
+; library's own call sites, because the caller is in this tree.  A lang's call
+; sites are NOT in this tree and never will be -- that is the whole point of a
+; lang -- so there is nothing here to derive from.  This file is the other
+; shape the repo already uses: a closed vocabulary the language owns, like
+; tools/contract/features.x, held against reality by a gate.
+;
+; FORMAT (one form per line, closed vocabulary -- an unknown form is an error):
+;
+;   (seam CLASS NAME "what it is")
+;
+;   always     bound in every dialect, in every tree.  A lang may use it
+;              plainly.
+;   installed  bound ONLY in an installed tree; ABSENT in a repo checkout.  A
+;              lang must guard it, and the gate proves the guard is needed by
+;              checking the name is absent from a checkout -- a seam row that
+;              quietly became unconditional would make every guard look like
+;              superstition.
+;
+; docs/lang-contract.md carries the same table for readers; the gate holds the
+; two to each other, so the documented seam cannot drift from the enforced one.
+
+(seam always %lang-name     "the surface's name -- what the banner prints")
+(seam always %lang-version  "the surface's version, printed beside the name")
+(seam always %banner        "prints the greeting; a lang calls it or replaces it")
+(seam always %repl-prompt   "the prompt string, set! by a lang to claim the line")
+(seam always repl           "the read-eval-print loop a lang hands its session to")
+(seam always %batch?        "whether -f/--batch was passed: no session to hand over")
+(seam always import-path!   "arm an import root at runtime -- how a lang finds its own modules")
+(seam always x-lib-version  "the platform library's version, for a lang that reports it")
+
+(seam installed %install-root "the installed tree's root; ABSENT in a checkout, so a lang must guard it")

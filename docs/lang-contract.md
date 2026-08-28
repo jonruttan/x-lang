@@ -13,10 +13,11 @@ The platform already used the word before this document did: a lang announces
 itself by setting `%lang-name` and `%lang-version`, which is what puts its own
 name on the banner and its own prompt on the REPL.
 
-> **Status: partly shipped.** Acquisition and loading exist and are gated
-> (`Pin bundle`, `-l NAME`, `make check-pin`); the **seam gate** does not, so
-> the table under [The seam](#the-seam) is still documentation rather than a
-> contract. Each section says where it stands. The terms are written down first *because* the last generation of
+> **Status: shipped, with one gap.** Acquisition, loading and the seam are
+> gated (`Pin bundle`, `-l NAME`, `make check-pin`, `make check-seam`). What is
+> still missing is on the *bundle* side, not this one: nothing generates a
+> bundle tarball yet, so a publisher rolls one by hand. Each section says where
+> it stands. The terms are written down first *because* the last generation of
 > langs rotted while nobody was holding them to any: see [Why the last
 > generation rotted](#why-the-last-generation-rotted), which is the evidence
 > this document is built on.
@@ -245,8 +246,9 @@ Two rules inherited from the engine fetch, for the same reasons:
 
 ## The seam
 
-This is what a lang may rely on, and the part that most needs a gate it
-does not yet have. All of it exists today:
+This is what a lang may rely on. It is declared in
+`tools/contract/seam.x` and held to the running platform by `make check-seam`,
+in every dialect:
 
 | name | is | provided by |
 |---|---|---|
@@ -268,12 +270,25 @@ tree:
 (import-path! (guard (_ "apps") (%path-join %install-root "apps")))
 ```
 
+`%install-root` is the one conditional row: a checkout has none, which is why
+the idiom above guards it. The gate checks that too, from the other side — a
+row that quietly became unconditional would turn every lang's guard into
+superstition, so it fails if a checkout starts providing one.
+
 A lang that reads a `%`-prefixed name not in this table is relying on a
 platform internal, and the platform owes it nothing. **This table is the
-contract; the rest of `lib/` is not.** The one thing standing between that
-sentence and enforcement is a gate — the lang equivalent of
-`check-base-routes`, deriving the set from bundles' call sites and holding the
-platform to it.
+contract; the rest of `lib/` is not.**
+
+**Declared, not derived**, and the departure from `check-base-routes` is worth
+being explicit about. That gate derives route names from the library's own call
+sites, because the caller is in this tree. A lang's call sites are *not* in this
+tree and never will be — that is what makes it a lang — so there is nothing here
+to derive from. `seam.x` is the other shape the repo already uses: a closed
+vocabulary the language owns, like `tools/contract/features.x`.
+
+The gate also holds this table and `seam.x` to each other. Two lists for one
+fact is how they drift, and a documented seam that nothing enforces is the state
+this gate was added to end.
 
 ## Release pairing: what actually keeps a bundle working
 
