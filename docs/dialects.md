@@ -15,7 +15,7 @@ A dialect is a composition of x-lang library modules that determines what capabi
 | `xe` | xenon | full numeric tower, POSIX, compiler; stable |
 | `rn` | radon | xenon's surface plus experimental/raw APIs; explicitly volatile |
 
-**The rule that shapes the family: dialects may differ in what surface is *loaded*; they must never differ in what a shared spelling *means*.** A `+` that means pointer arithmetic in one dialect, or a `+` that coerces `"123"` to a number, is not a dialect — it is a different language wearing the same clothes (that would be a *personality*, below). If radon ever grows ergonomic address math, it gets a distinct spelling (the `Ptr` class), not an overload.
+**The rule that shapes the family: dialects may differ in what surface is *loaded*; they must never differ in what a shared spelling *means*.** A `+` that means pointer arithmetic in one dialect, or a `+` that coerces `"123"` to a number, is not a dialect — it is a different language wearing the same clothes (that would be a *lang*, below). If radon ever grows ergonomic address math, it gets a distinct spelling (the `Ptr` class), not an overload.
 
 The interpreter core has no knowledge of any dialect. Dialects are loaded by shell concatenation before user input. The shell wrapper (`x.sh`) selects a dialect with the `-l` flag:
 
@@ -98,11 +98,11 @@ Radon is the right choice for systems programming, kernel hacking, or any task t
 
 ---
 
-### Language Personalities
+### Langs
 
-Language personalities are loaded as additional libraries on top of a dialect, aliasing x-lang primitives and adding derived forms to emulate another language's syntax. This is where same-spelling-different-meaning belongs: a personality may re-mean anything, because it announces itself as a different language.
+Langs are loaded as additional libraries on top of a dialect, aliasing x-lang primitives and adding derived forms to emulate another language's syntax. This is where same-spelling-different-meaning belongs: a lang may re-mean anything, because it announces itself as a different language.
 
-| Personality | Base Dialect | Description |
+| Lang | Base Dialect | Description |
 |-------------|-------------|-------------|
 | R5RS Scheme | helium | `lambda`, `cons`/`car`/`cdr`, `define`, `cond`, `case` |
 | R7RS Scheme | R5RS | `do`, `case-lambda`, `delay`/`force`, `values`, `define-record-type` |
@@ -110,11 +110,11 @@ Language personalities are loaded as additional libraries on top of a dialect, a
 | ASH Shell | helium | POSIX shell syntax: pipes, redirections, if/while/for/case |
 | Sweet Expressions | helium | SRFI-105/110: curly-infix + indentation-sensitive syntax |
 
-Personalities are maintained as sibling projects and load by concatenation on
+Langs are maintained as sibling projects and load by concatenation on
 top of a dialect:
 
 ```sh
 cat lib/he.x path/to/r5rs.x - | ./x-bin
 ```
 
-The interpreter core has no knowledge of any personality. All personality semantics are implemented in x-lang library code.
+The interpreter core has no knowledge of any lang. All lang semantics are implemented in x-lang library code.

@@ -23,7 +23,7 @@ if [ "$1" != "--no-build" ]; then
     echo "done."
 fi
 
-# Profile dump snippet (appended to each personality load)
+# Profile dump snippet (appended to each lang load)
 PROF_SNIPPET='(include "lib/x/profile.x")(profile-dump)'
 
 # Header

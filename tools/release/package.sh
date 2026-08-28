@@ -115,10 +115,10 @@ repo=$(sh tools/release/payload-digest.sh) || fail "payload digest failed"
 	|| fail "packaged payload differs from the repo's, so it will differ from the release manifest ($stamped vs $repo)"
 
 # THE SHARED SPEC RUNNER SHIPS, and the wrapper can say where it is.  A
-# personality bundle runs its own specs with this runner, locating it as
+# lang bundle runs its own specs with this runner, locating it as
 # "$(x --share-dir)/tests" -- so a tarball missing either half leaves every
 # bundle unable to test itself, which is exactly the state the old
-# personalities rotted in (docs/personality-contract.md).  Checked on the
+# langs rotted in (docs/lang-contract.md).  Checked on the
 # EXTRACTED tree, because that is what a user gets.
 [ -f "$_tree/tests/spec-runner.sh" ] \
 	|| fail "no shared spec runner in the packaged tree"

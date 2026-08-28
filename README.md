@@ -13,7 +13,7 @@
 minimal, type-agnostic **engine**. The engine provides atom/pair primitives,
 an adaptive type system, and fexpr-based evaluation; s-expressions are the
 deliberately simple initial syntax — the reader itself is extensible, and
-whole surface languages load as personalities. Everything above it — the
+whole surface languages load as langs. Everything above it — the
 language semantics, standard library, object system, numeric tower, JIT
 compiler, and the toolchain itself — is written in x-lang.
 
@@ -133,7 +133,7 @@ The library is composed into dialects that control what capabilities are loaded:
 - **xenon** (`lib/xe.x`) — Stable full-stack dialect. Adds POSIX, hash tables, the JIT compiler, and a numeric tower (bigint, float, rational, complex) with compiled tokenizer analysers for fast parsing.
 - **radon** (`lib/rn.x`) — Experimental dialect. Everything in xenon plus the raw syscall surface, character constants, and I/O handle constants; file I/O and sockets load on demand (`(import x/sys/file)`, `x/platform/socket`).
 
-Dialects are selected via the `-l` flag on the shell wrapper. Language personalities (R5RS Scheme, R7RS Scheme, Kernel, ASH shell, sweet expressions) are maintained as sibling projects and load as additional libraries on top of a dialect.
+Dialects are selected via the `-l` flag on the shell wrapper. Langs (R5RS Scheme, R7RS Scheme, Kernel, ASH shell, sweet expressions) are maintained as sibling projects and load as additional libraries on top of a dialect.
 
 ## Build
 

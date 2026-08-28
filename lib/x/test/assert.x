@@ -1,6 +1,6 @@
 ; test/assert.x -- error-path assertions for tests (importable by user code).
 ;
-; The spec-harness personality (tests/x/lib/assert.x) layers these over
+; The spec-harness lib (tests/x/lib/assert.x) layers these over
 ; x-core for the .x suite; shipping them under lib/ means user programs can
 ; (import x/test/assert) and get the same error-path coverage idiom.
 ;

@@ -95,6 +95,11 @@ build/
 # A per-BINARY fact, like the engine itself: never committed.
 x-engine-build.xon
 
+# Acquired lang bundles (Pin bundle; docs/lang-contract.md).
+# A pinned third-party artifact, like the engine: the PIN is committed, the
+# bytes it names are not.
+/langs/
+
 # The engine link (Makefile: engine-link) -- points at the submodule, a
 # checkout named by X_ENGINE_DIR, or an unpacked release.  Never committed.
 /engine

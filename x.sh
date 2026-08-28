@@ -47,11 +47,17 @@ LIB_PATH=lib/
 APPS_PATH=apps/
 ENTRY_DIR=lib/
 INSTALL_ROOT=
+# Where acquired lang bundles live (docs/lang-contract.md).
+# Beside lib/ and apps/ because it is the same kind of thing -- a place -l
+# looks -- and X_LANG_DIR moves it for a project that keeps its
+# bundles somewhere else (a deps/ tree, a shared cache).
+LANGS_PATH="${X_LANG_DIR:-langs/}"
 if [ ! -e "${LIB_PATH}${X_LIB}${X_EXT}" ]; then
 	INSTALL_ROOT="$SCRIPT_PATH/../${X_SHARE}"
 	LIB_PATH="$INSTALL_ROOT/lib/"
 	APPS_PATH="$INSTALL_ROOT/apps/"
 	ENTRY_DIR="$INSTALL_ROOT/boot/"
+	[ -n "${X_LANG_DIR:-}" ] || LANGS_PATH="$INSTALL_ROOT/langs/"
 fi
 
 # Both forms below emit a path as an x-lang STRING LITERAL ahead of the
@@ -68,6 +74,64 @@ path_form_safe() {
 			exit 1
 			;;
 	esac
+}
+
+# --- lang bundles ------------------------------------------------
+# A bundle is a DIFFERENT SURFACE LANGUAGE acquired as a pinned artifact
+# (Pin bundle; docs/lang-contract.md).  Unlike a dialect entry it
+# does not boot itself: the wrapper boots the dialect the bundle DECLARES,
+# then loads the bundle on top -- exactly the shape -F already has (entry
+# in --batch so its own launcher stays quiet, the file next, the launcher
+# last).  That is why a bundle's entry needs no root-relative literals at
+# all: the platform is already up when it is read, and its own modules
+# resolve through the root emitted below.
+#
+# Read TEXTUALLY, one form per line, nothing evaluated -- the discipline
+# every other manifest read in this file follows.  The wrapper must choose
+# an entry before the pipe exists, so it cannot ask x to parse this.
+BUNDLE_DIR=
+BUNDLE_ENTRY=
+BUNDLE_DIALECT=
+bundle_resolve() {
+	[ -d "$LANGS_PATH" ] || return 0
+	_found=
+	for _d in "$LANGS_PATH"*/; do
+		[ -f "$_d/lang.xon" ] || continue
+		_n=$(sed -n 's/^(lang "\([^"]*\)").*/\1/p' "$_d/lang.xon" | head -1)
+		[ "$_n" = "$1" ] || continue
+		# TWO BUNDLES CLAIMING ONE NAME IS A MISCONFIGURATION, not a race to
+		# be won by directory order: a project pins ONE release, and picking
+		# silently would make which one you got depend on the filesystem.
+		if [ -n "$_found" ]; then
+			echo "Error: two bundles both call themselves '$1':" >&2
+			echo "    $_found" >&2
+			echo "    $_d" >&2
+			echo "  remove the one you are not pinning" >&2
+			exit 1
+		fi
+		_found="$_d"
+	done
+	[ -n "$_found" ] || return 0
+	BUNDLE_DIR=$(cd "$_found" && pwd)
+	BUNDLE_DIALECT=$(sed -n 's/^(dialect \([a-z0-9-]*\)).*/\1/p' "$_found/lang.xon" | head -1)
+	BUNDLE_ENTRY=$(sed -n 's/^(entry "\([^"]*\)").*/\1/p' "$_found/lang.xon" | head -1)
+	: "${BUNDLE_DIALECT:=he}"
+	: "${BUNDLE_ENTRY:=run.x}"
+	if [ ! -f "$BUNDLE_DIR/$BUNDLE_ENTRY" ]; then
+		echo "Error: bundle '$1' names an entry that is not there: $BUNDLE_ENTRY" >&2
+		echo "  looked in $BUNDLE_DIR" >&2
+		exit 1
+	fi
+	path_form_safe "$BUNDLE_DIR" "bundle root"
+}
+
+# The bundle's module root, emitted after the dialect has booted (import-path!
+# is module.x's, so it does not exist before that) and before the bundle's own
+# entry is read.  Same route %install-root takes, and for the same reason.
+bundle_form() {
+	if [ -n "$BUNDLE_DIR" ]; then
+		printf '(import-path! "%s")\n' "$BUNDLE_DIR"
+	fi
 }
 
 # The engine's BUILD PARAMETERS, emitted ahead of the entry as data -- the same
@@ -362,12 +426,12 @@ do
 			;;
 		--share-dir)
 			# WHERE THIS x READS ITS TREE FROM, so a tool outside this
-			# repository can ASK instead of guessing.  A personality bundle
+			# repository can ASK instead of guessing.  A lang bundle
 			# needs the shared spec runner under <root>/tests/, and the only
 			# alternative is re-deriving the root from `command -v x` --
 			# path-guessing, which is the failure class the engine contract
 			# already avoids by preferring an engine's own (param os ...)
-			# declaration to sniffing the host (docs/personality-contract.md).
+			# declaration to sniffing the host (docs/lang-contract.md).
 			#
 			# ONE RELATIVE PATH WORKS IN BOTH MODES, which is the point of
 			# answering with a root rather than a full path: <root>/tests/ is
@@ -556,6 +620,25 @@ exec 3<&0
 ENTRY="${ENTRY_DIR}${X_LIB}${X_EXT}"
 if [ ! -e "$ENTRY" ] && [ -e "${APPS_PATH}${X_LIB}/${X_RUN}${X_EXT}" ]; then
 	ENTRY="${APPS_PATH}${X_LIB}/${X_RUN}${X_EXT}"
+fi
+# THIRD STEP: an acquired lang bundle.  Unlike the first two this
+# does not make the NAMED file the entry -- the entry becomes the DIALECT
+# the bundle declares, and the bundle rides after it as a -F-shaped load.
+if [ ! -e "$ENTRY" ]; then
+	bundle_resolve "$X_LIB"
+	if [ -n "$BUNDLE_DIR" ]; then
+		ENTRY="${ENTRY_DIR}${BUNDLE_DIALECT}${X_EXT}"
+		if [ ! -e "$ENTRY" ]; then
+			echo "Error: bundle '$X_LIB' declares dialect '$BUNDLE_DIALECT', which this tree has no entry for:" >&2
+			echo "    $ENTRY" >&2
+			exit 1
+		fi
+		# BEFORE any -f/-F file: the lang must exist before a program
+		# written in it is read.  file1 is the USER's file, so an untouched
+		# file1 is how we know to hand back a prompt rather than exit.
+		file="$(shquote "$BUNDLE_DIR/$BUNDLE_ENTRY") $file"
+		[ -n "$file1" ] || post="$(shquote "${LIB_PATH}${X_LAUNCH}")"
+	fi
 fi
 
 # A pinned boot replaces the entry outright (-l is not consulted).  A
@@ -872,8 +955,9 @@ fi
 # -- a bare cat diagnostic, no mention of x-lang, and a success status.
 # Name the request, the searched paths, and the real inventory instead.
 if [ ! -e "$ENTRY" ]; then
-	echo "Error: no library or app named '$X_LIB'" >&2
-	echo "  searched ${ENTRY_DIR}${X_LIB}${X_EXT} and ${APPS_PATH}${X_LIB}/${X_RUN}${X_EXT}" >&2
+	echo "Error: no library, app or lang named '$X_LIB'" >&2
+	echo "  searched ${ENTRY_DIR}${X_LIB}${X_EXT}, ${APPS_PATH}${X_LIB}/${X_RUN}${X_EXT}" >&2
+	echo "      and ${LANGS_PATH}*/lang.xon" >&2
 	# Inventory by discovery, not by hand: entries are ${ENTRY_DIR}*.x
 	# files, apps are ${APPS_PATH}*/run.x -- the same rule the resolution
 	# above follows.  (An empty listing also means ENTRY_DIR itself is
@@ -893,6 +977,16 @@ if [ ! -e "$ENTRY" ]; then
 		echo "  no entries found under '$ENTRY_DIR' -- run from the repository root" >&2
 	fi
 	[ -n "$apps" ] && echo "  apps:$apps" >&2
+	# Langs are listed by the name they DECLARE, not by directory:
+	# a bundle unpacks as <name>-<release>/, so the directory is not what
+	# -l takes, and printing it would be an inventory of wrong answers.
+	pers=""
+	for _p in "${LANGS_PATH}"*/; do
+		[ -f "$_p/lang.xon" ] || continue
+		_pn=$(sed -n 's/^(lang "\([^"]*\)").*/\1/p' "$_p/lang.xon" | head -1)
+		[ -n "$_pn" ] && pers="$pers $_pn"
+	done
+	[ -n "$pers" ] && echo "  langs:$pers" >&2
 	exit 1
 fi
 
@@ -915,7 +1009,7 @@ if [ -n "${file}${post}" ]; then
 	TAIL="cat ${file} ${post}; "
 fi
 
-CMD="{ root_form; param_forms; pin_form; cat $(shquote "$ENTRY"); pin_arm; ${TAIL}} | $(shquote "$X_BIN")$xflags$args"
+CMD="{ root_form; param_forms; pin_form; cat $(shquote "$ENTRY"); pin_arm; bundle_form; ${TAIL}} | $(shquote "$X_BIN")$xflags$args"
 
 if [ "$verbose" ]; then
 	echo "$CMD"

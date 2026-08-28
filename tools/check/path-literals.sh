@@ -79,7 +79,7 @@ echo "include-paths: ok"
 # viewer failed with `io: Could not read turtle.html` for every installed
 # user, in the one environment nothing ran in.
 #
-# THE RULE, from docs/personality-contract.md: an app tree has exactly ONE
+# THE RULE, from docs/lang-contract.md: an app tree has exactly ONE
 # file that may know the layout -- its entry, which is already exempt above
 # and is where the amalgam generator flattens the literals away.  Every other
 # file reaches data through a root the entry armed and named.
@@ -99,7 +99,7 @@ for f in $(find apps -name '*.x' ! -path 'apps/*/run.x' | sort); do
 done
 
 if [ "$BAD" != 0 ]; then
-	echo "app-data-paths: FAIL -- a root-relative literal outside an app entry (resolve it through the root the entry arms; see docs/personality-contract.md)" >&2
+	echo "app-data-paths: FAIL -- a root-relative literal outside an app entry (resolve it through the root the entry arms; see docs/lang-contract.md)" >&2
 	exit 1
 fi
 echo "app-data-paths: ok"

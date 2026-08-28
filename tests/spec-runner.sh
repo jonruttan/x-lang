@@ -13,7 +13,7 @@
 #     (   )
 #      " "
 #
-# Usage: Each personality runner sets SPEC_PATH, X_BIN, and LANG_LIB,
+# Usage: Each lang runner sets SPEC_PATH, X_BIN, and LANG_LIB,
 #        then sources this file.
 #
 #   SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -34,7 +34,7 @@ ANSI_GREEN="\033[1;32m"
 # The timeout is generous on purpose: it must absorb a heavy spec's lib load
 # (e.g. compile.x is ~6s warm / ~20s cold) plus parallel contention without a
 # false kill (a too-tight 30s killed the compile spec under load). Longer
-# timeout for applicative (stress) tests. Personality runners can override
+# timeout for applicative (stress) tests. Lang runners can override
 # TIMEOUT_UNIT_SECS / TIMEOUT_APPL_SECS.
 _TIMEOUT_BIN=""
 if command -v timeout >/dev/null 2>&1; then
@@ -95,9 +95,9 @@ esac
 # SPEC_RUNNER_DIR OVERRIDES IT, for a caller sourcing this runner out of an
 # INSTALLED tree.  There the engine is under libexec/x/ and this harness under
 # share/x/tests/, so the derivation below points at a path that was never going
-# to exist -- the same addressing bug that dangled the old personality runners
-# when they left the tree.  A personality bundle sets it from `x --share-dir`
-# (docs/personality-contract.md).  The caller says because a SOURCED script
+# to exist -- the same addressing bug that dangled the old lang runners
+# when they left the tree.  A lang bundle sets it from `x --share-dir`
+# (docs/lang-contract.md).  The caller says because a SOURCED script
 # cannot portably find its own path.
 RUNNER="${SPEC_RUNNER_DIR:-$(cd "$(dirname "$X_BIN")" && pwd)/tests}/spec-runner.awk"
 if [ ! -f "$RUNNER" ]; then
