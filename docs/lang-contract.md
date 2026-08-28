@@ -256,6 +256,8 @@ in every dialect:
 | `%lang-version` | its version string | same |
 | `%banner` | prints the greeting | `lib/he.x`, `lib/rn.x` |
 | `%repl-prompt` | the prompt string, `set!`-able | `lib/x/repl/loop.x` |
+| `%repl-print` | the result printer — a lang that prints its own values `set!`s it | `lib/x/repl/loop.x` |
+| `%repl-read` | the reader the loop calls — a lang with its own syntax `set!`s it | `lib/x/repl/loop.x` |
 | `repl` | the read-eval-print loop | `lib/x/repl/` |
 | `%batch?` | `-f`/`--batch` was passed | x-core, via `repl/banner.x` |
 | `%install-root` | the installed tree's root, when installed | `lib/x/boot/module.x` |

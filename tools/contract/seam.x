@@ -40,6 +40,13 @@
 (seam always %lang-version  "the surface's version, printed beside the name")
 (seam always %banner        "prints the greeting; a lang calls it or replaces it")
 (seam always %repl-prompt   "the prompt string, set! by a lang to claim the line")
+; %repl-print and %repl-read are %repl-prompt's siblings and were missed when
+; this table was first written: loop.x documents the printer as customizable
+; and x-krn set! it on its first day, which is how the omission was found.  A
+; lang that re-means what a result LOOKS like needs the printer -- Kernel shows
+; (b c) where x shows ('b 'c) -- and one that re-means SYNTAX needs the reader.
+(seam always %repl-print    "the result printer, set! by a lang that prints its own values")
+(seam always %repl-read     "the reader the loop calls, set! by a lang with its own syntax")
 (seam always repl           "the read-eval-print loop a lang hands its session to")
 (seam always %batch?        "whether -f/--batch was passed: no session to hand over")
 (seam always import-path!   "arm an import root at runtime -- how a lang finds its own modules")
