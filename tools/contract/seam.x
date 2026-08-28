@@ -50,6 +50,14 @@
 (seam always repl           "the read-eval-print loop a lang hands its session to")
 (seam always %batch?        "whether -f/--batch was passed: no session to hand over")
 (seam always import-path!   "arm an import root at runtime -- how a lang finds its own modules")
+; eval! IS HOW A LANG IMPLEMENTS define, and that is not obvious from its
+; docstring ("evaluate in current environment").  A lang's define is an
+; operative that must bind in the caller's world, and plain `eval` only manages
+; it when the call happens to sit in tail position, so TCO has popped the frame
+; -- an accident of shape that x-lang#527 records breaking under one extra
+; frame.  eval! does no env save/restore, so the binding persists regardless.
+; x-krn's whole suite turns on it: 59 of 72 specs fail without it, 0 with.
+(seam always eval!          "evaluate without env save/restore -- how a lang's define binds in its caller")
 (seam always x-lib-version  "the platform library's version, for a lang that reports it")
 
 (seam installed %install-root "the installed tree's root; ABSENT in a checkout, so a lang must guard it")

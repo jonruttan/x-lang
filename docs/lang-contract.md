@@ -262,6 +262,7 @@ in every dialect:
 | `%batch?` | `-f`/`--batch` was passed | x-core, via `repl/banner.x` |
 | `%install-root` | the installed tree's root, when installed | `lib/x/boot/module.x` |
 | `import-path!` | arm an import root at runtime | `lib/x/boot/module.x` |
+| `eval!` | evaluate without env save/restore — **how a lang's `define` binds in its caller** | engine, via `x/doc/doc-prims.x` |
 | `x-lib-version` | the library's version | `lib/x-core.x` |
 
 The idiom for a bundle arming its own root, taken from `apps/logo/run.x` — the
