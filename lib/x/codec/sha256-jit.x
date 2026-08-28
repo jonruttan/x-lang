@@ -142,9 +142,13 @@
     ((fn (self i)
        (unless (= i 64)
          (do (%poke (+ %sj-KB i) (%sj-oref k-vec (+ i 1))) (self (+ i 1))))) 0)
+    ; The optional LENGTH mirrors the pure-x path's.  The compiled code needs
+    ; nothing: its contract is already (pointer, length) -- maddr below and the
+    ; len word in scratch slot 27 -- and it never asks a string how long it is.
+    ; Only this derivation was narrow.
     (def %digest
-      (fn (_ s)
-        (def len (Str8 length s))
+      (fn (_ s . n)
+        (def len (match ((null? n) (Str8 length s)) (#t (first n))))
         (def total (<< (+ (>> (+ len 8) 6) 1) 6))
         (def maddr (%sj-ptr->int (%sj-str->ptr s)))
         (%poke 27 len)
@@ -183,10 +187,38 @@
       (fn (_ s)
         (unless (%same (%digest s) (ref s))
           (Err raise 'state "sha256-jit: engine disagrees with the pure-x digest" ()))))
+    ; The length-explicit door gets its own check, and on BINARY: the whole
+    ; reason it exists is input Str8 length cannot measure, so proving the two
+    ; engines agree on text would prove nothing about the case it was added for.
+    (def %check-n
+      (fn (_ s n)
+        (unless (%same (%digest s n) (ref s n))
+          (Err raise 'state "sha256-jit: engine disagrees with the pure-x digest (explicit length)" ()))))
     (%check "")
     (%check "abc")
     (%check "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")
     (%check (Str8 pad-right 150 #\y "x"))
+    ; "A\0B\0C" -- NULs INSIDE, so Str8 length reports 1 and the region is 5.
+    ; Built through the pointer door because every string constructor that takes
+    ; text stops at the NUL too.
+    (def %sj-pset1 (prim-ref (lit ptr) (lit set!)))
+    (def %sj-bin
+      (let ((r (%sj-make-str 5)))
+        (let ((p (%sj-str->ptr r)))
+          (do (%sj-pset1 p 0 65 1) (%sj-pset1 p 1 0 1) (%sj-pset1 p 2 66 1)
+              (%sj-pset1 p 3 0 1)  (%sj-pset1 p 4 67 1)
+              r))))
+    (%check-n %sj-bin 5)
+    ; A binary block that crosses the 64-byte boundary, so the fill and the
+    ; padding path see NULs too, not just the single-block case.
+    (def %sj-bin2
+      (let ((r (%sj-make-str 200)))
+        (let ((p (%sj-str->ptr r)))
+          (do ((fn (self i)
+                 (unless (= i 200)
+                   (do (%sj-pset1 p i (& i 255) 1) (self (+ i 1))))) 0)
+              r))))
+    (%check-n %sj-bin2 200)
     %digest))
 
 (doc (provide x/codec/sha256-jit %sha-jit-make)
