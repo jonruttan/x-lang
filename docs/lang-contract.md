@@ -437,13 +437,29 @@ Four things that are not obvious, each of which costs an afternoon:
   installed tree as it boots, and `module.x` learns where that is from
   `%install-root`. `x.sh` emits `(def %install-root "…")` ahead of every boot
   entry; a harness loading an amalgam directly must emit the same line first.
-- **Load `boot/x-base.x`, not a dialect entry.** The dialect amalgams end with
+- **Load `x-base.x`, not a dialect entry.** The dialect amalgams end with
   `(unless %batch? (do (%banner) (repl)))` and would start a REPL underneath the
   suite. `x-base.x` is the launcher-free one, and being an amalgam it carries no
-  path literals, so it loads from any cwd. **The gap:** it is the *full tower*,
-  and there is no launcher-free light amalgam — a helium-weight bundle pays for
-  the tower or loads `lib/x-core.x` by absolute path with the cwd at `<root>`,
-  because x-core's own includes are root-relative.
+  path literals, so it loads from any cwd.
+- **Its path is the one thing `<root>/…` does *not* settle.** `<root>/tests/`
+  is the runner in both modes, but the boot amalgams are at `<root>/boot/` in an
+  install and `<root>/build/boot/` in a checkout, where they are build output.
+  So probe both, install layout first, and fail naming what you looked for:
+
+  ```sh
+  for _c in "$X_ROOT/boot/x-base.x" "$X_ROOT/build/boot/x-base.x"; do
+      [ -f "$_c" ] && { X_BASE="$_c"; break; }
+  done
+  ```
+
+  `lib/x-base.x` is **not** a substitute. It is the *source* entry and opens
+  with `(include "lib/x-core.x")` — a root-relative literal that resolves only
+  with the cwd at the repo root, which is the addressing failure this whole
+  document exists to prevent. Loading it from a bundle fails with a bare
+  `include: cannot open`.
+- **The tower is the price.** `x-base.x` is the *full tower*, and there is no
+  launcher-free light amalgam — a helium-weight bundle pays for a tower it does
+  not call. `make boot` producing one would close this.
 - **`# @lib` resolves against `LANG_LIB`'s directory**, not the spec's. A
   harness beside the specs is named bare — `# @lib harness.gen.x` — and a path
   that looks right relative to the spec silently produces an empty library,
