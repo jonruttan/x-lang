@@ -25,6 +25,11 @@
 #              a swapped archive (quarantined, and NOT unpacked), a bundle
 #              naming another lang, an archive with no declaration,
 #              and an unknown pin form
+#   load       `-l NAME` RUNS an acquired bundle: the dialect it declares
+#              boots, its modules resolve, its surface name takes, and the
+#              refusals hold -- an unknown name (whose inventory names the
+#              langs it searched), two bundles claiming one name,
+#              and a dialect this tree has no entry for
 #   compose    (boot "FILE") + (root "DIR") in one manifest (GH #139):
 #              the wrapper boots the project's own entry AND arms the
 #              overlay, announcing both on stderr
@@ -912,5 +917,56 @@ _brun "$_TMP/bproj6" "$_TMP/bdeps6"
 [ $? -ne 0 ] || fail "bundle-closed: an unknown pin form was ignored" "$_TMP/out" "$_TMP/err"
 grep -q "unknown form in bundle pin: surprise" "$_TMP/err" "$_TMP/out" \
   || fail "bundle-closed: the unknown form was not named" "$_TMP/err" "$_TMP/out"
+
+# load: an ACQUIRED bundle is runnable -- `-l NAME` boots the dialect the
+# bundle declares and loads the lang on top.  Acquisition without
+# loading is half a feature, and the two halves can rot apart: this case
+# runs the bundle the case above just verified, through the wrapper.
+#
+# X_LANG_DIR keeps it out of the repo's own langs/ dir, so
+# the smoke never depends on -- or leaves behind -- state in the checkout.
+cat > "$_TMP/bdeps/x-smoke-v1/run.x" <<'XEOF'
+(import demo/g)
+(set! %lang-name "x-smoke")
+XEOF
+# The manifest the pin verified does not list run.x, so re-pack: this case
+# is about LOADING, and it uses its own tree rather than the verified one.
+_lpers="$_TMP/lpers"
+mkdir -p "$_lpers"
+cp -R "$_TMP/bdeps/x-smoke-v1" "$_lpers/x-smoke-v1"
+printf '(display (g))(display "|")(display %%lang-name)(newline)\n' > "$_TMP/load.x"
+X_LANG_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-smoke -f "$_TMP/load.x" \
+  >"$_TMP/out" 2>"$_TMP/err"
+[ $? -eq 0 ] || fail "load: -l on an acquired bundle failed" "$_TMP/err" "$_TMP/out"
+grep -q "^ok|x-smoke$" "$_TMP/out" \
+  || fail "load: the bundle's module and surface name did not both arrive" "$_TMP/out" "$_TMP/err"
+
+# A name nothing declares still fails loudly, and the inventory now NAMES
+# the langs it searched -- a listing that omitted them would send a
+# reader hunting for a bundle that is sitting right there.
+X_LANG_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l nosuchsurface -f /dev/null \
+  >"$_TMP/out" 2>"$_TMP/err"
+[ $? -ne 0 ] || fail "load: an unknown -l name exited clean" "$_TMP/out" "$_TMP/err"
+grep -q "langs: x-smoke" "$_TMP/err" \
+  || fail "load: the inventory did not list the acquired lang" "$_TMP/err"
+
+# Two bundles claiming one name is a misconfiguration, not a race won by
+# directory order.
+cp -R "$_lpers/x-smoke-v1" "$_lpers/x-smoke-v2"
+X_LANG_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-smoke -f /dev/null \
+  >"$_TMP/out" 2>"$_TMP/err"
+[ $? -ne 0 ] || fail "load-dup: two bundles with one name resolved anyway" "$_TMP/out" "$_TMP/err"
+grep -q "two bundles both call themselves" "$_TMP/err" \
+  || fail "load-dup: the collision was not named" "$_TMP/err"
+rm -rf "$_lpers/x-smoke-v2"
+
+# A dialect this tree has no entry for is refused by name, before any boot.
+printf '(lang "x-nodialect")\n(dialect zz)\n(entry "run.x")\n' \
+  > "$_lpers/x-smoke-v1/lang.xon"
+X_LANG_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-nodialect -f /dev/null \
+  >"$_TMP/out" 2>"$_TMP/err"
+[ $? -ne 0 ] || fail "load-dialect: an undeclarable dialect booted anyway" "$_TMP/out" "$_TMP/err"
+grep -q "declares dialect 'zz'" "$_TMP/err" \
+  || fail "load-dialect: the missing dialect was not named" "$_TMP/err"
 
 echo "pin-smoke: ok"

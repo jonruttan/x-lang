@@ -13,10 +13,10 @@ The platform already used the word before this document did: a lang announces
 itself by setting `%lang-name` and `%lang-version`, which is what puts its own
 name on the banner and its own prompt on the REPL.
 
-> **Status: proposed.** Unlike [The Engine Contract](engine-contract.md), almost
-> nothing here is checked by anything in the tree yet — the acquisition path,
-> the pin vocabulary and the seam gate do not exist. Each section says where it
-> stands. The terms are written down first *because* the last generation of
+> **Status: partly shipped.** Acquisition and loading exist and are gated
+> (`Pin bundle`, `-l NAME`, `make check-pin`); the **seam gate** does not, so
+> the table under [The seam](#the-seam) is still documentation rather than a
+> contract. Each section says where it stands. The terms are written down first *because* the last generation of
 > langs rotted while nobody was holding them to any: see [Why the last
 > generation rotted](#why-the-last-generation-rotted), which is the evidence
 > this document is built on.
@@ -55,7 +55,7 @@ lang bundle is the third, and it is deliberately the *least* novel of them:
 | **engine** | `tools/engine/engine.pin.xon` | `tools/engine/fetch.sh` | shipped |
 | **platform boot** | `(boot …)` in `pin.xon` | `Pin boot` / `Pin fetch` | shipped |
 | **library overlay** | `(root …)` in `pin.xon` | `Pin vendor` — copies from the *installed platform* | shipped |
-| **lang bundle** | `lang.pin.xon` | `Pin bundle` | **proposed** |
+| **lang bundle** | `lang.pin.xon` | `Pin bundle`, run with `-l NAME` | **shipped** |
 
 Read the third row carefully, because it is the whole reason the fourth is
 needed: `Pin vendor` freezes library modules by copying them out of the platform
@@ -80,8 +80,40 @@ x-r5rs-v0.2.0/
 
 **The shape is not new, and that is the point.** `x.sh -l NAME` already resolves
 `lib/NAME.x` first and then `apps/NAME/run.x`; Logo has ridden that seam since
-#35. A bundle unpacks into a searched lang root and is found by the same
-resolution, extended by one step. No new loader, no new entry convention.
+#35. A bundle is the **third step**: the wrapper searches
+`<root>/langs/*/lang.xon` for one declaring `NAME`, reading it
+textually the way it reads every other manifest. `X_LANG_DIR` moves that
+search for a project keeping its bundles elsewhere.
+
+### A bundle does not boot itself
+
+The third step differs from the first two in what it makes the entry, and the
+difference is worth stating because it removes work rather than adding it.
+`lib/he.x` and `apps/logo/run.x` are *self-booting* — they include the platform
+themselves. A bundle does not. The wrapper boots the dialect the bundle
+**declares**, then loads the bundle on top:
+
+```
+(def %install-root "…")        ; as always
+cat lib/he.x                    ; the DECLARED dialect, in --batch so its
+                                ; own launcher stays quiet
+(import-path! "…/r5rs-v0.2.0")  ; the bundle's module root
+cat …/r5rs-v0.2.0/run.x         ; the lang
+cat lib/x/repl/launch.x         ; the prompt, when no -f was given
+```
+
+That is exactly the shape `-F` has had all along — entry in batch, file, then
+launcher — so there is no new loader and no new composition.
+
+**A bundle's entry therefore needs no root-relative literals at all.** The
+platform is already up when it is read, and the bundle's own modules resolve
+through the root emitted above. The one-entry-file rule below still governs
+*in-tree apps*, which do self-boot; a bundle is freer than the rule requires.
+
+A bundle declaring a dialect this tree has no entry for is refused **by name,
+before anything boots**, and two bundles claiming one name are refused rather
+than resolved by directory order — which one you got would otherwise depend on
+the filesystem.
 
 ### One entry file, and one only
 
@@ -107,10 +139,10 @@ precisely how the previous generation died.
 every other manifest here:
 
 ```x
-(lang "r5rs")          ; the -l name
-(dialect he)                  ; which dialect it loads on
+(lang "r5rs")          ; the -l name, and the name the pin must agree with
+(dialect he)                  ; which dialect the wrapper boots for it
 (requires-release "v0.5.2")   ; the x-lang the bundle was built against
-(entry "run.x")
+(entry "run.x")               ; loaded after the dialect, not instead of it
 ```
 
 `(dialect …)` is a **requirement**, not a preference: a lang that calls
@@ -123,7 +155,7 @@ A project names the langs it uses in `lang.pin.xon`, mirroring
 `engine.pin.xon`'s closed vocabulary:
 
 ```x
-(lang "x-r5rs")
+(lang "r5rs")
 (release "v0.2.0")
 (bundle "sha256:…" "https://github.com/jonruttan/x-r5rs/releases/download/v0.2.0/x-r5rs-v0.2.0.tar.gz")
 (source "https://github.com/jonruttan/x-r5rs.git")
