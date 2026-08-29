@@ -19,6 +19,9 @@
 ;
 ; The measurement that prompted this: with x-lang green at 2590/0, the six
 ; bundles carried 175 failures between them and nothing in this tree said so.
+; Pinning x-engine-c v0.1.3 took that to 69 without a line changing in any
+; bundle -- which is the same point from the other side: the platform moving
+; under them is invisible here unless something runs them.
 ;
 ; A BUNDLE LIVES IN ITS OWN REPOSITORY, so this gate is advisory about
 ; PRESENCE and strict about REGRESSION.  Bundles absent from the disk are
@@ -39,11 +42,20 @@
 
 ; DEBT, each with a reason, none of them an invitation.
 ;
-; ash needs an x-engine-c carrying the #528 fix; the stock engine segfaults its
-; isolated tokenizer base on the first character, which is why nearly the whole
-; suite is red rather than the two string-reader cases its README describes.
-(lang "ash"   "x-ash"    82 80)
-; The two Schemes have never been triaged against 0.6.0.  Nobody has looked at
-; whether these are drift, missing surface, or specs that were red in 2024 too.
-(lang "r5rs"  "x-r5rs"  667 37)
+; ash's two are the single- and double-quoted string readers, which accumulate
+; the value in a module-level global during analyse and lose it -- a bundle bug,
+; documented in its own README.  It was 80 until x-engine-c v0.1.3: the stock
+; v0.1.2 segfaulted the isolated tokenizer base on the first character, so
+; nearly the whole suite was red for a reason that was never ash's.
+(lang "ash"   "x-ash"    82  2)
+; r5rs was 37 until x-engine-c v0.1.3.  Every token beginning with `.` reached
+; the reader as the pair-dot sentinel, so a syntax-rules pattern read as an
+; improper list -- and R5RS's macro layer is written entirely in ellipsis
+; patterns, so the fix moved 28 specs at once.
+(lang "r5rs"  "x-r5rs"  667  9)
+; r7rs did NOT move, and the difference is worth recording.  v0.1.3's
+; `(base def-global)` is quoted as taking this bundle from 579 to 595, but that
+; is the ENGINE gaining the capability: x-r7rs's `guard` still works around its
+; absence, and until the bundle adopts it the number here does not change.  The
+; budget is measured, never transcribed from a commit message.
 (lang "r7rs"  "x-r7rs"  637 58)
