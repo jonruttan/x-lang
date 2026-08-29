@@ -8,6 +8,11 @@
 (def %type-io (prim-ref 'type 'io))
 
 (import x/reader/analyser)
+; #520: the leading-whitespace measurement is shared now. Reader-context, so the
+; raw ref is cached rather than dispatched -- same discipline as the terminators
+; below.
+(import x/reader/indent)
+(def %indent-scan-ref (prim-ref 'indent 'scan))
 ; Fetch the tokenizer terminators from the catalog (ns `token`). Reader-context
 ; states call these per character, so cache the raw refs and call them directly
 ; -- never (Analyser accept ...), whose dispatch would allocate mid-reader-callback.
@@ -224,15 +229,15 @@
             (fn (_ . read-args)
               (def text (%buffer-token (first read-args)))
               (def len (Str8 length text))
-              (def %count-indent
-                (fn (self i)
-                  (if (>= i len) i
-                    (if (or (Char =? (Str8 ref i text) #\space)
-                            (Char =? (Str8 ref i text) #\tab))
-                      (self (+ i 1))
-                      i))))
-              (def indent-end (%count-indent 1))
-              (def indent (- indent-end 1))
+              ; TAB STOP 1 -- Logo's historical answer, now STATED. The loop
+              ; this replaces stepped the index by one per space and per tab and
+              ; handed the result back as a column, which is a tab stop of one
+              ; written as an accident. x/reader/indent hands back the column and
+              ; the end index separately, so this stays correct if that number
+              ; ever changes. See #520.
+              (def scanned (%indent-scan-ref text 1 1))
+              (def indent (first scanned))
+              (def indent-end (rest scanned))
               (def word (Str8 sub indent-end (- len indent-end) text))
               (%make-instance %logo-indent (pair indent word))))
           (pair 'write
