@@ -5,6 +5,30 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-29
+
+0.6.0 let a lang leave the tree. This one is about langs that build on **each
+other**, and about the platform noticing when it breaks one.
+
+A lang can now name another in its manifest, at an exact version, and be
+refused at startup rather than discovering the gap as an unbound symbol
+somewhere inside itself. `make check-langs` runs every bundle's own suite
+against this working tree, which is the first time anything here notices a
+behaviour change a bundle cares about — measured when the gate was written:
+x-lang green at 2590/0 while the six bundles carried 175 failures between them,
+with nothing here saying so. And the two lines at the top of every lang
+extraction — a second `(include "lib/x-core.x")` — no longer segfault, which is
+the first wall a new bundle hits and the one that told it nothing.
+
+`Indent` is the same story one layer down: Logo and x-sweet each owned a copy
+of the indentation algorithm, disagreeing at the edges, and now drive one
+module.
+
+Minor rather than patch. A new public reader module, a new manifest row, a new
+wrapper flag and a new gate — new surface of this size belongs in the minor
+under the SemVer this file adheres to, and nothing published depends on what
+changed underneath it.
+
 ### Added
 
 - **`make check-langs` — every lang bundle's suite, against your working tree.**
