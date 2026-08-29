@@ -5,6 +5,34 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **The engine pin moves to x-engine-c v0.1.3**, and two bundles get better
+  without a line changing in either of them. v0.1.2 segfaulted the isolated
+  tokenizer base — `(Base make-tok)` — on the first character of any input, and
+  read every token beginning with `.` as the pair-dot sentinel, so a
+  syntax-rules pattern arrived as an improper list. Measured across the six
+  bundles `check-langs` runs, on the pinned engine rather than a local build:
+
+  | | before | after |
+  |---|---:|---:|
+  | x-ash | 80 failed | **2** |
+  | x-r5rs | 37 failed | **9** |
+  | x-r7rs | 58 failed | 58 |
+  | **total** | **175** | **69** |
+
+  x-ash's two are its own string readers, a bundle bug its README documents.
+  R5RS's macro layer is written entirely in ellipsis patterns, which is why one
+  reader fix moved 28 specs at once.
+
+  x-r7rs did **not** move, and that is recorded in `tools/contract/langs.x`
+  rather than left to be rediscovered: v0.1.3's `(base def-global)` is quoted as
+  taking that bundle from 579 to 595, but that is the engine gaining the
+  capability — the bundle's `guard` still works around its absence. The budgets
+  are measured, never transcribed.
+
+  x-lang's own suite is unchanged at 2590/0 on the new engine.
+
 ## [0.7.0] - 2026-08-29
 
 0.6.0 let a lang leave the tree. This one is about langs that build on **each
