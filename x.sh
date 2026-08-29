@@ -124,6 +124,22 @@ bundle_dir_of() {
 	(cd "$_found" && pwd)
 }
 
+# The (requires-lang ...) rows of $1's lang.xon, as NAME|VERSION tokens with
+# VERSION empty when the row names none.  Two expressions rather than one
+# optional group, because BRE has no optional group worth relying on.
+bundle_reqs_of() {
+	sed -n 's/^(requires-lang "\([^"]*\)"[^"]*"\([^"]*\)").*/\1|\2/p' "$1/lang.xon"
+	sed -n 's/^(requires-lang "\([^"]*\)")[[:space:]]*$/\1|/p' "$1/lang.xon"
+}
+
+# What an INSTALLED lang says it is.  Written by its `make install` from git
+# describe, never committed -- a version in lang.xon could only be true at the
+# one commit that gets tagged, and would lie on every other.  Absent in a
+# checkout, which is a fact worth reporting rather than papering over.
+bundle_version_of() {
+	[ -f "$1/version" ] && head -1 "$1/version"
+}
+
 # Every root $1's bundle needs armed, deepest dependency first, in
 # BUNDLE_DEPS.
 #
@@ -156,8 +172,31 @@ bundle_deps_collect() {
 			exit 1
 			;;
 	esac
-	for _req in $(sed -n 's/^(requires-lang "\([^"]*\)").*/\1/p' "$_dir/lang.xon"); do
-		bundle_deps_collect "$_req" "$2 $1"
+	# $3 is the version the requirer named, empty when it named none.
+	#
+	# COMPARED FOR EQUALITY, NEVER PARSED -- the platform's existing rule for
+	# release strings, and the reason there is no resolver here.  Ordering and
+	# ranges would need a version algebra this tree has avoided everywhere
+	# else; equality plus a declared waiver is smaller and says what it means.
+	if [ -n "$3" ] && [ -z "$allow_lang_skew" ]; then
+		_have=$(bundle_version_of "$_dir")
+		if [ -z "$_have" ]; then
+			echo "Error: lang '$1' is required at $3 but reports no version" >&2
+			echo "  required by: $2" >&2
+			echo "  $_dir carries no version stamp -- it is a checkout, not an install" >&2
+			echo "  run 'make install' in it, or pass --allow-lang-skew" >&2
+			exit 1
+		fi
+		if [ "$_have" != "$3" ]; then
+			echo "Error: lang '$1' is $_have, but $3 is required" >&2
+			echo "  required by: $2" >&2
+			echo "  found in $_dir" >&2
+			echo "  install the version asked for, or pass --allow-lang-skew" >&2
+			exit 1
+		fi
+	fi
+	for _row in $(bundle_reqs_of "$_dir"); do
+		bundle_deps_collect "${_row%%|*}" "$2 $1" "${_row#*|}"
 	done
 	# Append after our own dependencies, so a diamond arms the shared one
 	# once and earliest.
@@ -183,8 +222,8 @@ bundle_resolve() {
 	path_form_safe "$BUNDLE_DIR" "bundle root"
 	# Dependencies of the bundle itself, not the bundle -- it is armed by
 	# bundle_form, after these and therefore ahead of them in the search.
-	for _req in $(sed -n 's/^(requires-lang "\([^"]*\)").*/\1/p' "$BUNDLE_DIR/lang.xon"); do
-		bundle_deps_collect "$_req" "$1"
+	for _row in $(bundle_reqs_of "$BUNDLE_DIR"); do
+		bundle_deps_collect "${_row%%|*}" "$1" "${_row#*|}"
 	done
 	for _d in $BUNDLE_DEPS; do
 		path_form_safe "$_d" "required lang root"
@@ -400,6 +439,8 @@ display_help() {
 	echo "  -q, --quiet     suppress the startup banner"
 	echo "      --no-color  disable ANSI colour in the REPL"
 	echo "      --no-pin    ignore any $X_PIN manifest"
+	echo "      --allow-lang-skew  load a required lang whose version"
+	echo "                  differs from the one asked for"
 	echo "      --allow-release-skew  boot a pinned amalgam whose release"
 	echo "                  differs from this engine's (it may crash)"
 	echo "      --fetch-release  fetch the release a pinned project names"
@@ -452,6 +493,10 @@ do
 			;;
 		--allow-release-skew)
 			allow_skew=1
+			shift
+			;;
+		--allow-lang-skew)
+			allow_lang_skew=1
 			shift
 			;;
 		--fetch-release)
