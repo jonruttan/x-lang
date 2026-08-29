@@ -35,7 +35,7 @@
 ; Green, and expected to stay that way.
 (lang "krn"   "x-krn"    74  0)
 (lang "sweet" "x-sweet"  32  0)
-(lang "py"    "x-py"      4  0)
+(lang "python" "x-python"  4  0)
 
 ; DEBT, each with a reason, none of them an invitation.
 ;
