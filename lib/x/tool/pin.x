@@ -1521,6 +1521,63 @@
                         (do
                           (display "pin: no isa manifest here -- engine pairing unchecked (run from a source checkout to compare)\n"))))
                     target))))))))
+    (method install (self (param url STRING "URL of a published lang.pin.xon")
+                          . (param dest STRING "Where to install; default the running x's langs directory"))
+      (doc "Install a lang from a published pin, with nothing cloned. Downloads the lang.pin.xon the URL names, reads it (closed vocabulary -- an unknown form is a loud error), then acquires the tarball that pin describes exactly as (Pin bundle) does: digested with pure-x Sha256 before tar runs, quarantined on mismatch, staged and renamed only once whole. Installs to <langs>/<name>, the STABLE name `-l` resolves, replacing any previous version only after the new one has verified. Default destination is the running x's <install-root>/langs, so an installed x needs no argument; a checkout has no install root and must be given one. Returns the installed directory."
+        (returns STRING "Path of the installed lang")
+        (sample "(Pin install \"https://example.org/x-krn/releases/latest/download/lang.pin.xon\")" "\"/usr/local/share/x/langs/krn\""))
+      (let ((root (match
+                    ((null? dest)
+                      (let ((r (guard (_ ()) %install-root)))
+                        (match
+                          ((null? r)
+                            (Pin %pin-bad "install needs an installed x, or a destination: a checkout has no <install-root>/langs"))
+                          (#t (%path-join r "langs")))))
+                    (#t (first dest)))))
+        (do
+          (Pin %pin-mkdirs root)
+          ; THE PIN COMES DOWN FIRST, and it is the only thing fetched without a
+          ; digest to check it against -- there is nothing yet that could carry
+          ; one.  That is the trust boundary of this verb, and it is the URL:
+          ; everything after is checked against what this file says.  Which is
+          ; why it should be an https URL you trust, and why the pin a release
+          ; publishes sits beside the tarball it describes.
+          (let ((pinf (%path-join root (Str8 append ".pin." (%cvt (Sys getpid) %string) ".xon"))))
+            (do
+              (Pin %pin-download! url pinf)
+              (let ((m (Pin %pin-bundle-parse (Pin %pin-forms (File read-all pinf)))))
+                (do
+                  (guard (_ ()) (File unlink pinf))
+                  (let ((name (%assoc-get 'lang m))
+                        (tag (%assoc-get 'release m))
+                        (want (%assoc-get 'digest m))
+                        (burl (%assoc-get 'url m)))
+                    (let ((final (%path-join root name))
+                          (staged (%path-join root
+                                    (Str8 append ".install." (%cvt (Sys getpid) %string)))))
+                      (do
+                        (Pin %pin-bundle-acquire! name tag want burl root staged)
+                        ; The bundle must agree with the pin about what it is,
+                        ; before anything replaces a working installation.
+                        (let ((pd (Pin %pin-lang-parse
+                                    (Pin %pin-forms
+                                      (File read-all (%path-join staged (Pin %pin-bundle-decl-name)))))))
+                          (do
+                            (match
+                              ((str=? (%assoc-get 'lang pd) name) ())
+                              (#t (Pin %pin-bad
+                                    (Str8 append "bundle calls itself "
+                                      (Str8 append (%assoc-get 'lang pd)
+                                        (Str8 append ", the pin asked for " name))))))
+                            ; REPLACED ONLY NOW.  The previous install stays
+                            ; intact through the download, the digest and the
+                            ; unpack: a failed upgrade leaves what you had,
+                            ; not nothing.
+                            (guard (_ ()) (Proc run! (list "rm" "-rf" final)))
+                            (File rename staged final)
+                            (display "pin: installed " name " " tag " to " final "\n")
+                            (display (Pin %pin-bundle-pairing pd) "\n")
+                            final))))))))))))
     (method bundle (self (param dest STRING "Directory to unpack the bundle into")
                          . (param dir STRING "Project directory holding lang.pin.xon; default \".\""))
       (doc "Acquire a lang bundle, verified or nothing. Reads lang.pin.xon (closed vocabulary -- an unknown form is a loud error, never a skip), downloads the tarball its (bundle \"sha256:...\" \"URL\") row names to a temp path, and digests it THERE with pure-x Sha256 before tar is run at all: an archive that does not match is quarantined as <archive>.rejected -- the bytes are the evidence -- and nothing is unpacked. A verified archive unpacks into a per-pid staging directory and is renamed into place at <dest>/<name>-<release>/ only once whole, so a tar that dies half way cannot leave a partial tree where the already-acquired check would later read it as complete. The bundle's lang.xon must agree with the pin about which lang it is, and its (requires-release ...) is reported against this tree's stamp -- drift named, not fatal. An already-acquired bundle at the same release is honoured without touching the network. Returns the bundle's directory."

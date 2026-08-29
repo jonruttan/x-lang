@@ -482,6 +482,23 @@ do
 			fi
 			exit 0
 			;;
+		--install-lang)
+			# INSTALL A LANG WITHOUT CLONING IT.  The argument is the URL of a
+			# published lang.pin.xon; x fetches that, then the tarball it
+			# names, verifies the digest and installs to <install-root>/langs.
+			# A thin front for (Pin install ...) -- the work is there, because
+			# verification is x's job and not the shell's.
+			[ -n "$2" ] || {
+				echo "Error: --install-lang needs the URL of a lang.pin.xon" >&2
+				echo "  e.g. x --install-lang https://host/x-krn/releases/latest/download/lang.pin.xon" >&2
+				exit 1; }
+			require_engine
+			{ root_form; param_forms; cat "${ENTRY_DIR}${X_LIB}${X_EXT}"; \
+			  printf '(import x/tool/pin)\n'; \
+			  printf '(Pin install "%s")\n' "$(printf '%s' "$2" | sed 's/[\\"]/\\&/g')"; } \
+				| "$X_BIN" "--batch"
+			exit $?
+			;;
 		--engine-path)
 			# The ENGINE this wrapper would run, after the whole discovery
 			# order above (X_BIN, the installed engine's (binary "...") row,
