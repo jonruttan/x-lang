@@ -5,6 +5,60 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **`make check-langs` — every lang bundle's suite, against your working tree.**
+  `check-seam` catches a rename in eight seconds and cannot catch anything else:
+  a behaviour change, an arity change, a reader that scores a tie differently
+  all leave this tree green while a bundle in its own repository breaks, and
+  each bundle's CI runs on its own schedule against a *release*, so the break
+  surfaces weeks later as somebody else's mystery. Measured when the gate was
+  written: x-lang green at 2590/0 while the six bundles carried **175 failures**
+  between them, with nothing here saying so. Budgets live in
+  `tools/contract/langs.x` and may only shrink, the rule `percent-globals.x`
+  runs on. Advisory about presence — a bundle not on the disk is announced and
+  skipped, because this tree must build for someone who cloned nothing else —
+  and strict about regression. Deep tier; `LANGS='krn sweet'` runs a subset and
+  `X_LANGS_DIR` moves where bundles are found.
+
+- **`Indent` — the stack discipline under indentation-sensitive grouping**
+  (`lib/x/reader/indent.x`). Logo and x-sweet each owned a copy of it, reached
+  by different routes and disagreeing at the edges; both now drive this one.
+  Two layers: **measurement** (`advance` / `scan` / `measure`) answers what
+  column a line begins at, and **the stack** (`make` / `feed` / `close-all`)
+  answers what opened and what closed. `feed` returns zero or more `close`
+  events followed by exactly one `open` or `same`, so no caller counts levels
+  itself — the loop both previous implementations owned. The two policy
+  questions the surfaces disagreed on are constructor parameters, not
+  assumptions: the tab stop, and what a dedent matching no open level means
+  (`open`, `close` or `error`). Defaults are SRFI-110's, which are also
+  Python's. `advance` / `scan` / `measure` / `classify` are registered under
+  catalog ns `indent` for per-character callers who must not dispatch, the
+  discipline `x/reader/analyser`'s terminators already use. (#520)
+
+### Changed
+
+- **Logo's indent-to-blocks is an adapter now.** `apps/logo/indent.x` keeps what
+  was ever Logo's — what a block is, and where the tokens go — and its
+  `(indent-level . tokens-reversed)` stack and `%pop-to` are gone. Its two
+  answers are stated rather than implied by a loop: a tab is one column (a tab
+  stop of 1), and a dedent to a column no open block sits at opens a block
+  there (`open`). `apps/logo/types.x` measures the leading run with the shared
+  `scan`, which hands back the column and the end index separately — the loop it
+  replaces stepped an index and returned it as a column, which is correct only
+  while a tab is worth one. (#520)
+
+### Fixed
+
+- **A tab advances to the next tab stop; it does not add the tab width.**
+  x-sweet advanced its column by 8 on a tab where SRFI-110 — and CPython, and
+  every editor — advance to the next multiple of 8. Those differ whenever a tab
+  is not first on the line: for `<space><tab>x`, +8 says column 9 and a tab stop
+  says 8. Neither suite had a tab case in it, so nothing caught it in either
+  direction. The shared module carries the corrected reading, and it subsumes
+  Logo's answer rather than overruling it — the next multiple of 1 after n is
+  n+1. (#520)
+
 ## [0.6.0] - 2026-08-28
 
 The release that lets a surface language leave the tree. A **lang** — Kernel,

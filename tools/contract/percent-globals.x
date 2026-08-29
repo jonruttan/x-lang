@@ -45,6 +45,19 @@
 ; know the layout (path-literals.sh exempts apps/*/run.x), is the shape
 ; docs/lang-contract.md requires of a relocatable app.
 ; Everything else is unhomed inventory awaiting the pin.x treatment.
+; lib/x/reader/indent.x arrives at 6, and every one is the reader-context
+; exception rather than convenience: four (advance/scan/measure/classify) are
+; the catalog-registered functions themselves -- ns `indent`, fetched raw by
+; per-character callers exactly as ns `token`'s terminators are -- and two are
+; cached int/char prims those functions call once per CHARACTER of every leading
+; whitespace run.  The stack arithmetic, which runs once per LINE, is homed on
+; the class as (Indent %pop) / (Indent %feed) and costs nothing here.  #520.
+; apps/logo/types.x grew from 43 to 44 for %indent-scan-ref, and the growth BUYS
+; a deletion: the hand-rolled %count-indent loop that walked the leading run and
+; handed its INDEX back as a column.  Logo, x-sweet and Python each had their own
+; answer to what a tab is worth; the ref is how this file reaches the one that is
+; now shared.  Reader-context, so it is cached rather than dispatched.  #520.
+
 (file "apps/logo/dispatch.x" 28)
 (file "apps/logo/entry.x" 27)
 (file "apps/logo/expr.x" 15)
@@ -57,7 +70,7 @@
 (file "apps/logo/serve.x" 15)
 (file "apps/logo/state.x" 15)
 (file "apps/logo/tstate.x" 2)
-(file "apps/logo/types.x" 43)
+(file "apps/logo/types.x" 44)
 (file "lib/x/boot/data.x" 14)
 (file "lib/x/boot/engine.x" 2)
 (file "lib/x/boot/module.x" 51)
@@ -99,6 +112,7 @@
 (file "lib/x/reader/lit-reader.x" 21)
 (file "lib/x/reader/quasi-reader.x" 9)
 (file "lib/x/reader/analyser.x" 14)
+(file "lib/x/reader/indent.x" 6)
 (file "lib/x/repl/ansi.x" 26)
 (file "lib/x/repl/banner.x" 4)
 (file "lib/x/repl/loop.x" 12)

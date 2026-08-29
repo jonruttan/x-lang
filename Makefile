@@ -355,7 +355,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-release-version check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
+gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-langs check-release-version check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
 .PHONY: gates
 
 # The local-latency split (2026-08-03 audit): `make test` grew past ten
@@ -654,6 +654,27 @@ check-base-routes: ## Assert the engine's base carries the routes lib/ walks
 check-seam: $(EXECUTABLE) ## Assert the platform still provides what a lang is promised
 	sh tools/check/seam.sh
 .PHONY: check-seam
+
+# EVERY LANG, AGAINST THIS WORKING TREE.  check-seam above catches a RENAME in
+# eight seconds and cannot catch anything else -- a behaviour change, an arity
+# change, a reader that scores a tie differently all leave this tree green while
+# a bundle in its own repository breaks.  Each bundle's CI runs on its own
+# schedule against a RELEASE, so the break surfaces weeks later as somebody
+# else's mystery.  That is the same shape as the rot the five 2024-era
+# personalities died of.
+#
+# Measured when this gate was written: x-lang green at 2590/0, and the six
+# bundles carrying 175 failures between them with nothing here saying so.
+#
+# Minutes, not seconds (r5rs and r7rs are ~1300 specs together), which is why it
+# rides the deep tier and check-seam rides the fast one.  Advisory about
+# presence -- a bundle that is not on the disk is announced and skipped, because
+# this tree must build for someone who cloned nothing else -- and strict about
+# regression.  Budgets in tools/contract/langs.x, which may only shrink.
+# LANGS='krn sweet' runs a subset; X_LANGS_DIR moves where bundles are found.
+check-langs: $(EXECUTABLE) ## Run every lang bundle's suite against this tree
+	sh tools/check/langs.sh
+.PHONY: check-langs
 
 # THE VERSION A RELEASE REPORTS.  v0.6.0 shipped saying `helium 0.5.2`, because
 # the tag and the changelog moved and lib/x-core.x did not.  Only meaningful at
