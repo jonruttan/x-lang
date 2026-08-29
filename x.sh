@@ -442,16 +442,39 @@ do
 			# No engine needed: this is a question about paths, and it must
 			# answer on a tree whose engine is missing -- that is one of the
 			# states a caller uses it to diagnose.
-			if [ -n "$INSTALL_ROOT" ]; then
+			if [ -z "$INSTALL_ROOT" ]; then
+				# Repo mode: the cwd IS the tree, by the detection above.
+				pwd
+			elif [ -d "$INSTALL_ROOT" ]; then
 				# NORMALISED, not printf'd raw: INSTALL_ROOT is built as
 				# "$SCRIPT_PATH/../share/x" and carries the /bin/.. segment.
-				# The cd also FAILS LOUDLY on a tree that is not there, which
-				# is one of the states a caller asks this question to find.
-				cd "$INSTALL_ROOT" 2>/dev/null && pwd || {
-					echo "Error: install root does not exist: $INSTALL_ROOT" >&2
-					exit 1; }
+				cd "$INSTALL_ROOT" && pwd
+			elif [ -e "$SCRIPT_PATH/lib/x${X_EXT}" ]; then
+				# A CHECKOUT'S WRAPPER, ASKED FROM OUTSIDE THE CHECKOUT.
+				#
+				# Mode detection is cwd-based, deliberately: it decides which
+				# tree x will READ, and running an installed x inside a
+				# checkout reads the checkout.  But this flag exists so a tool
+				# outside the tree can ask instead of guessing, and outside a
+				# checkout that detection takes the installed branch and
+				# computes a share/x that a checkout does not have -- so the
+				# one question the flag was added to answer was the one it
+				# refused.  x-krn hit this on day one and worked around it by
+				# cd'ing to the wrapper's directory first, which is precisely
+				# the guessing the flag is meant to end.
+				#
+				# So: fall back to the tree this WRAPPER belongs to.  Beside
+				# it is lib/x.x, which only a checkout has -- an installed
+				# wrapper sits in bin/ with no lib/ under it, so this branch
+				# cannot fire there.  --engine-path has always resolved from
+				# $SCRIPT_PATH and has always worked from anywhere; this makes
+				# the pair consistent.
+				printf '%s\n' "$SCRIPT_PATH"
 			else
-				pwd
+				echo "Error: no x tree found for this wrapper" >&2
+				echo "  not an install ($INSTALL_ROOT is absent)" >&2
+				echo "  and no lib/x${X_EXT} beside $SCRIPT_PATH" >&2
+				exit 1
 			fi
 			exit 0
 			;;

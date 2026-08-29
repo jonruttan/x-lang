@@ -30,6 +30,8 @@
 #              refusals hold -- an unknown name (whose inventory names the
 #              langs it searched), two bundles claiming one name,
 #              and a dialect this tree has no entry for
+#   share-dir  --share-dir and --engine-path answer FROM OUTSIDE the tree,
+#              which is the only place a bundle ever asks from
 #   compose    (boot "FILE") + (root "DIR") in one manifest (GH #139):
 #              the wrapper boots the project's own entry AND arms the
 #              overlay, announcing both on stderr
@@ -968,5 +970,27 @@ X_LANG_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-nodialect -f /
 [ $? -ne 0 ] || fail "load-dialect: an undeclarable dialect booted anyway" "$_TMP/out" "$_TMP/err"
 grep -q "declares dialect 'zz'" "$_TMP/err" \
   || fail "load-dialect: the missing dialect was not named" "$_TMP/err"
+
+# --share-dir must answer FROM OUTSIDE THE TREE, because that is the entire
+# reason it exists: a bundle's runner is not in the x-lang checkout and needs
+# the tests/ root without guessing.  It did not, at first -- mode detection is
+# cwd-based, so from outside a checkout it took the installed branch and
+# computed a share/x no checkout has.  x-krn hit that on day one and worked
+# around it by cd'ing to the wrapper's directory, which is the guessing the
+# flag was added to end.
+_repo=$(pwd)
+_sd=$(cd "$_TMP" && sh "$_repo/x.sh" --share-dir 2>"$_TMP/sderr") \
+  || fail "share-dir: refused to answer from outside the tree" "$_TMP/sderr"
+[ "$_sd" = "$_repo" ] \
+  || fail "share-dir: answered '$_sd' from outside, not the wrapper's tree '$_repo'"
+# And it must still name a tree with the shared runner under it -- the thing
+# the answer is FOR.
+[ -f "$_sd/tests/spec-runner.sh" ] \
+  || fail "share-dir: answered a tree with no shared spec runner under it: $_sd"
+# --engine-path has always resolved from the wrapper's own directory; assert
+# the pair now agrees, so a future change cannot re-split them.
+_ep=$(cd "$_TMP" && sh "$_repo/x.sh" --engine-path 2>"$_TMP/eperr") \
+  || fail "engine-path: refused to answer from outside the tree" "$_TMP/eperr"
+[ -x "$_ep" ] || fail "engine-path: answered a non-executable from outside: $_ep"
 
 echo "pin-smoke: ok"
