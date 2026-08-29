@@ -96,8 +96,13 @@ path_form_safe() {
 BUNDLE_DIR=
 BUNDLE_ENTRY=
 BUNDLE_DIALECT=
-bundle_resolve() {
-	[ -d "$LANGS_PATH" ] || return 0
+BUNDLE_DEPS=
+
+# The directory of the bundle calling itself $1, or empty.  Factored out
+# because dependency resolution needs exactly the same lookup, including the
+# duplicate-name refusal: a bundle reached as a dependency is no more allowed
+# to be ambiguous than one named on the command line.
+bundle_dir_of() {
 	_found=
 	for _d in "$LANGS_PATH"*/; do
 		[ -f "$_d/lang.xon" ] || continue
@@ -115,10 +120,59 @@ bundle_resolve() {
 		fi
 		_found="$_d"
 	done
-	[ -n "$_found" ] || return 0
-	BUNDLE_DIR=$(cd "$_found" && pwd)
-	BUNDLE_DIALECT=$(sed -n 's/^(dialect \([a-z0-9-]*\)).*/\1/p' "$_found/lang.xon" | head -1)
-	BUNDLE_ENTRY=$(sed -n 's/^(entry "\([^"]*\)").*/\1/p' "$_found/lang.xon" | head -1)
+	[ -n "$_found" ] || return 1
+	(cd "$_found" && pwd)
+}
+
+# Every root $1's bundle needs armed, deepest dependency first, in
+# BUNDLE_DEPS.
+#
+# A lang may be written on top of another -- R7RS is R5RS plus about 700 lines
+# -- and before this row that dependency had nowhere to live.  The dependent
+# probed for its sibling from its own entry, which meant a missing dependency
+# was a runtime message rather than a refusal, nothing recorded WHICH lang was
+# needed, and every dependent re-derived the same path.  The same argument
+# (dialect ...) already makes: a requirement belongs in the manifest, where it
+# can be refused before anything boots.
+#
+# DEPTH-FIRST, and the ORDER IS THE POINT.  import-path! prepends, so the root
+# armed last is searched first; emitting dependencies before the bundle's own
+# root leaves the bundle itself winning any name it shares with something it
+# depends on.
+#
+# $2 is the chain so far, used both to break cycles and to say where a missing
+# lang was asked for.
+bundle_deps_collect() {
+	_dir=$(bundle_dir_of "$1") || {
+		echo "Error: lang '$1' is required but not installed" >&2
+		echo "  required by: $2" >&2
+		echo "  searched ${LANGS_PATH}*/lang.xon" >&2
+		echo "  install it, or set X_LANG_DIR to where it lives" >&2
+		exit 1
+	}
+	case " $2 " in
+		*" $1 "*)
+			echo "Error: langs require each other in a cycle: $2 $1" >&2
+			exit 1
+			;;
+	esac
+	for _req in $(sed -n 's/^(requires-lang "\([^"]*\)").*/\1/p' "$_dir/lang.xon"); do
+		bundle_deps_collect "$_req" "$2 $1"
+	done
+	# Append after our own dependencies, so a diamond arms the shared one
+	# once and earliest.
+	case " $BUNDLE_DEPS " in
+		*" $_dir "*) ;;
+		*) BUNDLE_DEPS="$BUNDLE_DEPS $_dir" ;;
+	esac
+}
+
+bundle_resolve() {
+	[ -d "$LANGS_PATH" ] || return 0
+	_found=$(bundle_dir_of "$1") || return 0
+	BUNDLE_DIR="$_found"
+	BUNDLE_DIALECT=$(sed -n 's/^(dialect \([a-z0-9-]*\)).*/\1/p' "$BUNDLE_DIR/lang.xon" | head -1)
+	BUNDLE_ENTRY=$(sed -n 's/^(entry "\([^"]*\)").*/\1/p' "$BUNDLE_DIR/lang.xon" | head -1)
 	: "${BUNDLE_DIALECT:=he}"
 	: "${BUNDLE_ENTRY:=run.x}"
 	if [ ! -f "$BUNDLE_DIR/$BUNDLE_ENTRY" ]; then
@@ -127,6 +181,14 @@ bundle_resolve() {
 		exit 1
 	fi
 	path_form_safe "$BUNDLE_DIR" "bundle root"
+	# Dependencies of the bundle itself, not the bundle -- it is armed by
+	# bundle_form, after these and therefore ahead of them in the search.
+	for _req in $(sed -n 's/^(requires-lang "\([^"]*\)").*/\1/p' "$BUNDLE_DIR/lang.xon"); do
+		bundle_deps_collect "$_req" "$1"
+	done
+	for _d in $BUNDLE_DEPS; do
+		path_form_safe "$_d" "required lang root"
+	done
 }
 
 # The bundle's module root, emitted after the dialect has booted (import-path!
@@ -134,6 +196,11 @@ bundle_resolve() {
 # entry is read.  Same route %install-root takes, and for the same reason.
 bundle_form() {
 	if [ -n "$BUNDLE_DIR" ]; then
+		# Required langs first: import-path! prepends, so the bundle's own
+		# root ends up searched ahead of everything it depends on.
+		for _d in $BUNDLE_DEPS; do
+			printf '(import-path! "%s")\n' "$_d"
+		done
 		printf '(import-path! "%s")\n' "$BUNDLE_DIR"
 	fi
 }
