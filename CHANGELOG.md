@@ -36,6 +36,33 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   catalog ns `indent` for per-character callers who must not dispatch, the
   discipline `x/reader/analyser`'s terminators already use. (#520)
 
+- **A lang may require another, and `lang.xon` says so** —
+  `(requires-lang "NAME")`. x.sh resolves it exactly as it resolves `-l`,
+  depth-first and transitively with a cycle guard, and arms each required
+  root *before* the requiring bundle's own — `import-path!` prepends, so a
+  bundle still wins any name it shares with something it builds on. A
+  missing lang is a refusal at startup naming what is wanted and who asked,
+  rather than an unbound symbol somewhere inside it. Before this, x-r7rs
+  found the x-r5rs it extends by probing sibling paths in two separate
+  places, which recorded nothing about *what* was needed and would have been
+  re-derived by every dependent. The same argument `(dialect ...)` already
+  makes: a requirement belongs in the manifest. (#526)
+
+- **A required lang may be pinned to an exact version** —
+  `(requires-lang "r5rs" "v0.1.0")`, compared for **equality and never
+  parsed**, as `(requires-release ...)` already is. Ordering and ranges would
+  need a version algebra and, with it, a resolver; equality plus
+  `--allow-lang-skew` is smaller and says what it means. What it compares
+  against is **derived, not declared**: a bundle carries no version row of
+  its own, because such a row can only be true at the one commit that gets
+  tagged — before the tag the tree claims a release that does not exist, and
+  after it every commit claims one it is not. Instead a bundle's
+  `make install` and `tools/bundle.sh` stamp a `version` file from
+  `git describe` and from the tag, the same split as this tree's own
+  `$(X_RELEASE)` → `<lib>/contract/release`. A lang that reports no version
+  is refused as its own case, because it means a checkout rather than an
+  install and the fix is different. (#526)
+
 ### Changed
 
 - **Logo's indent-to-blocks is an adapter now.** `apps/logo/indent.x` keeps what
