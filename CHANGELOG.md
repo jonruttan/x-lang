@@ -5,6 +5,100 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-28
+
+The release that lets a surface language leave the tree. A **lang** — Kernel,
+Scheme, Logo — can now be built, published, acquired, installed and run from
+its own repository, and the platform is held by a gate to what it promises
+one. The five 2024-era personalities rotted because nothing held either side
+to anything; this is the machinery that would have caught all three ways they
+died.
+
+### Added
+
+- **A lang is a pinned, verified artifact** — the third acquired thing, after
+  the engine and the boot amalgams. `(Pin bundle "deps/langs")` reads a
+  project's `lang.pin.xon`, downloads the tarball its `(bundle "sha256:…"
+  "URL")` row names, digests it **before `tar` runs**, and publishes it only
+  once the whole tree verifies. A mismatch quarantines the bytes as
+  `.rejected` rather than deleting them. The terms both sides are held to are
+  [The Lang Contract](docs/lang-contract.md). (#521, #533)
+- **`x --install-lang URL`, with nothing cloned** — fetches a published
+  `lang.pin.xon`, then the tarball it names, and installs to
+  `<install-root>/langs/<name>`. Install and pin answer different questions
+  and the contract now says so: an install is one unversioned copy for the
+  machine and the prompt, a pin is a digest-frozen tree for one project. A
+  failed upgrade leaves the working install untouched. (#534)
+- **`-l NAME` runs an acquired lang** — the third resolution step after
+  `lib/NAME.x` and `apps/NAME/run.x`. Unlike those, a bundle does not boot
+  itself: the wrapper boots the dialect its `lang.xon` **declares**, arms the
+  bundle's module root, and loads it on top — the shape `-F` has always had.
+  So a bundle needs no root-relative literals at all. A dialect this tree
+  cannot supply, and two bundles claiming one name, are refused before
+  anything boots. (#530)
+- **The seam gate** — `tools/contract/seam.x` declares the eleven names a lang
+  may rely on, and `make check-seam` holds the running platform to them in
+  every dialect. A lang lives in its own repository, so a rename here that
+  drops `%repl-prompt` or `import-path!` breaks it silently while this tree
+  stays green. Declared rather than derived, because a lang's call sites are
+  not in this tree and never will be. (#531)
+- **`(Sha256 hex-n s n)`** — the digest, with the length given. `hex` bounds
+  itself by `Str8 length`, which has strlen semantics, so binary input digests
+  as its leading fragment: a gzip whose fourth byte is a NUL digested as three
+  bytes. Both engines were already length-driven and byte-accurate; only the
+  derivation was narrow. The JIT's adoption check gained two binary vectors,
+  since proving the two engines agree on text proved nothing about the case
+  this was added for. (#524)
+- **`x --share-dir` and `x --engine-path`** — a tool outside this repository
+  can ask where x reads its tree from and which engine it runs, instead of
+  guessing. The shared spec runner now installs to `<share>/tests/`, so a lang
+  runs its own suite with the platform's runner rather than vendoring 865
+  lines of it. (#514, #532)
+
+### Changed
+
+- **A personality is a lang** — 154 occurrences across 25 files. Nobody is
+  involved, and the word was long for something the seam had been calling
+  `%lang-name` all along. `surface` was unavailable: it is already
+  load-bearing for the C surface the engine contract is built on, and taking
+  it would give one word two concepts. The Linux `personality` syscall keeps
+  its name, because it is the kernel's and not ours. (#530)
+- **Acquired things live in `deps/`, not `build/`** — the engine, its sources
+  and lang bundles. `build/` is what this project *produces*; none of these is
+  built here, and filing them under output is why `engine` needed a symlink to
+  be findable at all. Sixteen files reach the engine through `engine/` or
+  `$(ENGINE_DIR)` and not one of them changed — the link's own promise, kept.
+  (#533)
+- **The heavy-spec default is sized to the box** — `SPEC_HEAVY_JOBS` is 2 only
+  where there is memory for two big heaps (~13GB), 1 below 24GB, and 1 when
+  the size cannot be established. The runner's own comment said to lower it on
+  a small box; a default that is safe only when the caller remembers a comment
+  is a note, not a guard. CI is unaffected: both legs set it explicitly.
+  (#529)
+
+### Fixed
+
+- **Logo's viewer was broken in every installed tree** — `serve.x` read its
+  template from a cwd-relative `"apps/logo/viewer.html"`, which resolves only
+  when the cwd is the repo root. Every test and every developer run found it;
+  no installed user did. The path-literal ratchet could not see it, because it
+  matches `include` *forms* and a data path is neither — so that gate grew a
+  section for app data paths. (#512)
+- **`--share-dir` refused to answer from outside the tree**, which is the one
+  thing it exists for. Mode detection is cwd-based by design, so from outside
+  a checkout it took the installed branch and computed a `share/x` no checkout
+  has. Found by the first lang to use it, which had worked around it by
+  `cd`-ing to the wrapper's directory first. (#532)
+- **The seam was missing the printer, the reader and `eval!`** — x-krn sets
+  `%repl-print` on its first line of real work, and its `$define!` turns on
+  `eval!`: 59 of 72 specs fail without it. The table had been written by
+  reading what the platform *offers*; a lang reaches for what it *needs*.
+  (#532)
+- **A bundle tarball may have a top-level directory** — `git archive
+  --prefix=NAME/` is how a publisher rolls one, and every tarball the feature
+  was developed against was flat. Descended one level, and only when
+  unambiguous. (#533)
+
 ## [0.5.2] - 2026-08-26
 
 The first release shaped by a second engine: two undeclared assumptions
