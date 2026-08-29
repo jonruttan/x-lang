@@ -61,15 +61,34 @@ function splice(path,  line, n, mod, file) {
 	while ((getline line < path) > 0) {
 		n++
 		if (line ~ /^[[:space:]]*;/) { print line; continue }
-		if (line ~ /^\(include "(lib|tools|apps|ext|engine)\/[^"]*"\)[[:space:]]*(;.*)?$/) {
-			sub(/^\(include "/, "", line)
+		# include-once SPLICES EXACTLY AS include DOES, and has to be named
+		# here explicitly: this pattern used to match plain `include` only, so
+		# when x-core.x moved its 48 sub-includes to include-once (#539) not one
+		# of them matched, every one fell through to the arm below, and `make
+		# boot` died on the FIRST of them reporting "not alone at column 0" --
+		# which it was.  The arm below recognises the spelling and refuses it;
+		# recognising a form is not the same as being able to splice it, and
+		# that gap is worth exactly one confusing error message.
+		#
+		# The two differ in one place only.  A file spliced twice is a hard
+		# error for `include` -- it would inline the same text twice -- while
+		# for include-once a repeat is the whole point of the form, and the
+		# amalgam has already got the text, so it becomes a comment.  The
+		# ONE-SHOT semantics survive the amalgamation either way: splicing is
+		# textual and `seen` guarantees a file lands once.
+		if (line ~ /^\((include|include-once)[[:space:]]+"(lib|tools|apps|ext|engine)\/[^"]*"\)[[:space:]]*(;.*)?$/) {
+			once = (line ~ /^\(include-once/)
+			sub(/^\((include|include-once)[[:space:]]+"/, "", line)
 			sub(/".*$/, "", line)
 			if ((getline junk < line) < 0) {
 				printf "amalgamate: %s:%d: cannot open %s\n", path, n, line > "/dev/stderr"
 				bad = 1; exit 1
 			}
 			close(line)
-			splice(line)
+			if (once && (line in seen))
+				printf "; (include-once %s) -- inlined above\n", line
+			else
+				splice(line)
 		# THE CHARACTER CLASS IS THE WHOLE MATCH.  Leaving `_` out of it silently
 		# skipped x/platform/data/syscalls-x86_64 -- the one module name in the
 		# boot closure that has an underscore -- so that table alone kept loading
