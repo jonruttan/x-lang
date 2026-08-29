@@ -152,7 +152,7 @@
 (def-class Indent ()
   (doc "The stack discipline under indentation-sensitive grouping: feed it a column, it tells you what opened and what closed. Policy -- tab width and what an unmatched dedent means -- is set at construction, never assumed."
     (note "(Indent advance ...) allocates via class dispatch. Per-character callers inside a tokenizer callback must fetch the raw ref -- (prim-ref 'indent 'advance) -- and call the cached ref.")
-    (example "(let ((i (Indent make))) (i feed 4))" "(open)")
+    (example "(let ((i (Indent make))) (i feed 4))" "('open)")
     (see feed) (see make))
 
   tab       ; tab stop: a tab advances to the next multiple of this
@@ -163,7 +163,7 @@
     (method make (self . (param opts LIST "Optional (TAB-STOP MISMATCH-MODE); defaults 8 and 'error"))
       (doc "An indenter with nothing but column 0 open. Defaults are SRFI-110's and Python's: a tab advances to the next multiple of 8, and a dedent matching no open level is an error -- the only one of the three historical answers with a specification behind it."
         (returns Indent "A fresh indenter")
-        (example "((Indent make 1 'open) feed 3)" "(open)"))
+        (example "((Indent make 1 'open) feed 3)" "('open)"))
       (new-from self
         (list 'tab  (if (null? opts) 8 (first opts))
               'mode (if (null? opts) (lit error)
@@ -233,7 +233,7 @@
                            (param ref INT "The column being compared against"))
       (doc "deeper, same or shallower -- the three rules, for a consumer that keeps its own control flow and only wants to stop owning them."
         (returns SYMBOL "deeper | same | shallower")
-        (example "(Indent classify 4 0)" "deeper"))
+        (example "(Indent classify 4 0)" "'deeper"))
       (%indent-classify col ref)))
 
   (method reset! (self)
@@ -255,7 +255,7 @@
   (method feed (self (param col INT "The column this line begins at"))
     (doc "Advance to a line at `col`. Returns zero or more `close` events followed by exactly one `open` or `same` -- so a caller never counts levels itself, which is the loop both previous implementations owned. Raises 'indent when the column matches no open level and the mode is 'error."
       (returns LIST "The events, outermost close first")
-      (example "(let ((i (Indent make))) (i feed 4) (i feed 0))" "(close same)"))
+      (example "(let ((i (Indent make))) (i feed 4) (i feed 0))" "('close 'same)"))
     (let ((r (Indent %feed (member 'cols) col (member 'mode))))
       (set-member! 'cols (first r))
       (rest r)))
@@ -263,7 +263,7 @@
   (method close-all (self)
     (doc "The events for end of input: one `close` per open level above column 0. Leaves the indenter reset."
       (returns LIST "The close events")
-      (example "(let ((i (Indent make))) (i feed 4) (i close-all))" "(close)"))
+      (example "(let ((i (Indent make))) (i feed 4) (i close-all))" "('close)"))
     (let ((r (Indent %feed (member 'cols) 0 (lit close))))
       (set-member! 'cols (list 0))
       ; feed's contract ends every result with open or same; at end of input
