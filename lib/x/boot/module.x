@@ -23,9 +23,29 @@
 ; along; these three lines simply were not using them.
 ; %io-state itself is no longer read: it existed only as a waypoint on the way
 ; to the false cell, which is now resolved directly.
+; RE-LOADABLE, and every guard in this file exists for one reason: including
+; lib/x-core.x on an already-booted tower must not corrupt the loader.  It is
+; the first two lines of anyone's personality extraction, and it used to
+; SIGSEGV with nothing on stdout or stderr.
+;
+; The state lives in the CATALOG rather than in cells this file owns, because a
+; `def` here is re-evaluated on a re-load -- so any flag this file keeps is
+; reset exactly when it is needed.  The catalog belongs to the base and
+; survives.  There is no bound?/defined? predicate to test with either: this
+; runs before `let`, let alone the type system, and prim-ref answering nil for
+; an unregistered member is the test.
+;
+; This one is subtle: hanging the include-once list off the base's false cell
+; already makes the OBJECT survive, but the (%set-rest! ...) beside it wiped it
+; on every re-load, so include-once forgot every file it had loaded.
 (def %false-stack (%reflect-base-cell (lit false)))
-(%set-rest! %false-stack (pair () ()))
-(def %include-list-cell (rest %false-stack))
+(match
+  ((eq? (prim-ref (lit module) (lit include-list)) ())
+    (do
+      (%set-rest! %false-stack (pair () ()))
+      (prim-reg! (lit module) (lit include-list) (rest %false-stack))))
+  (#t ()))
+(def %include-list-cell (prim-ref (lit module) (lit include-list)))
 
 (def %rewrite
   (fn (_ p a b) (%set-first! p a) (%set-rest! p b) p))
@@ -99,7 +119,13 @@
 
 ; Stack of the directories of the files currently being loaded (innermost
 ; first). Pushed/popped around each managed include below.
-(def %include-dir-cell (pair () ()))
+; THE ONE THAT SEGFAULTED.  A re-load happens INSIDE an include, so this stack
+; has a frame pushed; recreating it empty made the matching pop walk off nil.
+(match
+  ((eq? (prim-ref (lit module) (lit include-dir)) ())
+    (prim-reg! (lit module) (lit include-dir) (pair () ())))
+  (#t ()))
+(def %include-dir-cell (prim-ref (lit module) (lit include-dir)))
 (def %include-curdir
   (fn (_)
     (match
@@ -107,8 +133,15 @@
       (#t (first (first %include-dir-cell))))))
 (def %include-dir-push!
   (fn (_ dir) (%set-first! %include-dir-cell (pair dir (first %include-dir-cell)))))
+; Popping an empty stack is a no-op rather than a walk off nil.  With the guard
+; above this should be unreachable, which is the point: an underflow here is a
+; loader bug, and it should report as nothing happening rather than as a crash
+; three frames away.
 (def %include-dir-pop!
-  (fn (_) (%set-first! %include-dir-cell (rest (first %include-dir-cell)))))
+  (fn (_)
+    (match
+      ((eq? (first %include-dir-cell) ()) ())
+      (#t (%set-first! %include-dir-cell (rest (first %include-dir-cell)))))))
 
 ; --- Relative-aware include (the C primitive is untouched) -----------------
 ; Make the bare `include` resolve ./ and ../ against the file currently loading
@@ -124,14 +157,33 @@
 ; `let`) -- this runs for every include from here on, before `let` is defined.
 ; x_eval_load still binds each loaded file's defs globally. Plain/absolute paths
 ; are unchanged, so no existing call-site moves.
-(def %raw-include include)
-(set! include
-  (fn (_ path)
-    (def %io-path (%resolve-include-path path (%include-curdir)))
-    (%include-dir-push! (%path-dir %io-path))
-    (def %result (%raw-include %io-path))
-    (%include-dir-pop!)
-    %result))
+; The wrapper must be installed ONCE.  A second load used to make
+; %raw-include capture the WRAPPER, so `include` called itself forever -- and
+; with no depth limit on non-tail calls (#56) that is a bare SIGSEGV.
+; The flag is a PLAIN PAIR, deliberately.  Stashing the raw C `include` in the
+; catalog also works and reads better, but the catalog is the C surface the ISA
+; manifest describes -- tools/contract/isa.x -- and putting a C prim there under
+; a second name makes the manifest claim a C function that does not exist.
+; tests/x/specs/meta/isa.spec.md catches it, correctly.  An x-side value in the
+; catalog is ignored by that check, which is why `convert to` and `token accept`
+; already live there.
+;
+; On a re-load the flag is set, so this whole form is skipped -- and because it
+; is skipped, %raw-include KEEPS the binding it got on the first load.  That is
+; the point: a `def` that never runs cannot clobber anything.
+(match
+  ((eq? (prim-ref (lit module) (lit include-wrapped)) ())
+    (do
+      (prim-reg! (lit module) (lit include-wrapped) (pair () ()))
+      (def %raw-include include)
+      (set! include
+        (fn (_ path)
+          (def %io-path (%resolve-include-path path (%include-curdir)))
+          (%include-dir-push! (%path-dir %io-path))
+          (def %result (%raw-include %io-path))
+          (%include-dir-pop!)
+          %result))))
+  (#t ()))
 
 ; --- Include-once / require-once ---
 (def %include-list-has?
