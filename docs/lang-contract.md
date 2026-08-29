@@ -207,7 +207,10 @@ The order is the whole design, and it is the order of what is trusted when:
    published. This is the discipline #145 taught the amalgam fetch, which wrote
    its target first and so made a rejected download the booted one.
 5. Unpack the verified archive into a per-pid **staging** directory, and rename
-   it into place only once whole. Staging is for **atomicity** here, not
+   it into place only once whole. A tarball rolled the usual way — `git archive
+   --prefix=NAME/`, one top-level directory — is descended one level, but only
+   when that is unambiguous: no `lang.xon` at the top, exactly one entry, and
+   the declaration inside it. Anything else stays as it unpacked. Staging is for **atomicity** here, not
    quarantine: a `tar` that dies half way (a full disk, a truncated member) must
    not leave a partial tree at the published path, where step 2 would later read
    it as a complete one.

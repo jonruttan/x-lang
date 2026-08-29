@@ -111,7 +111,7 @@ if [ -z "$row" ]; then
 	[ -n "$release" ] || {
 		echo "engine: no artifact for $os/$arch and no (release \"...\") to clone at" >&2
 		exit 1; }
-	dest="build/engine-src/$name-$release"
+	dest="deps/engine-src/$name-$release"
 	if [ ! -d "$dest" ]; then
 		if [ -n "${FROM_SOURCE:-}" ]; then
 			say "source build requested -- cloning $name $release"
@@ -128,7 +128,7 @@ fi
 
 want=${row%% *}
 url=${row#* }
-dest="build/engine/$name-$release-$os-$arch"
+dest="deps/engine/$name-$release-$os-$arch"
 
 # --- already here, and provably the right bytes -------------------------------
 if [ -f "$dest/.digest" ] && [ "$(cat "$dest/.digest")" = "$want" ]; then
@@ -136,8 +136,8 @@ if [ -f "$dest/.digest" ] && [ "$(cat "$dest/.digest")" = "$want" ]; then
 	exit 0
 fi
 
-mkdir -p build/engine
-tmp="build/engine/.fetch.$$.tar.gz"
+mkdir -p deps/engine
+tmp="deps/engine/.fetch.$$.tar.gz"
 trap 'rm -rf "$tmp" "$tmp.d"' EXIT INT TERM
 
 say "fetching $name $release for $os/$arch"

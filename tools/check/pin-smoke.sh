@@ -24,7 +24,8 @@
 #              honours it without the network, and every refusal holds --
 #              a swapped archive (quarantined, and NOT unpacked), a bundle
 #              naming another lang, an archive with no declaration,
-#              and an unknown pin form
+#              and an unknown pin form.  A git-archive-style tarball (one
+#              top-level directory) is descended; a two-entry one is not
 #   load       `-l NAME` RUNS an acquired bundle: the dialect it declares
 #              boots, its modules resolve, its surface name takes, and the
 #              refusals hold -- an unknown name (whose inventory names the
@@ -970,6 +971,33 @@ X_LANG_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-nodialect -f /
 [ $? -ne 0 ] || fail "load-dialect: an undeclarable dialect booted anyway" "$_TMP/out" "$_TMP/err"
 grep -q "declares dialect 'zz'" "$_TMP/err" \
   || fail "load-dialect: the missing dialect was not named" "$_TMP/err"
+
+# A TARBALL WITH A TOP-LEVEL DIRECTORY, which is the normal kind: `git archive
+# --prefix=NAME/` is how a publisher rolls one and what every release tarball
+# looks like.  Refusing it would mean saying "ships no lang.xon" about a bundle
+# that plainly does -- found the first time a bundle was rolled for release.
+rm -rf "$_TMP/bpfx"; mkdir -p "$_TMP/bpfx"
+cp -R "$_bsrc" "$_TMP/bpfx/x-smoke-v1"
+( cd "$_TMP/bpfx" && tar -czf "$_TMP/x-smoke-pfx.tar.gz" x-smoke-v1 )
+_bpin "$_TMP/bproj8" pfx "$(_dg "$_TMP/x-smoke-pfx.tar.gz")" "$_TMP/x-smoke-pfx.tar.gz"
+_brun "$_TMP/bproj8" "$_TMP/bdeps8"
+[ $? -eq 0 ] || fail "bundle-prefix: a git-archive-style tarball was refused" "$_TMP/err" "$_TMP/out"
+[ -f "$_TMP/bdeps8/x-smoke-pfx/lang.xon" ] \
+  || fail "bundle-prefix: the wrapper directory was not descended" "$_TMP/out"
+[ -f "$_TMP/bdeps8/x-smoke-pfx/demo/g.x" ] \
+  || fail "bundle-prefix: modules did not land at the tree root" "$_TMP/out"
+
+# TWO entries at the top is ambiguous and stays where it unpacked: descending
+# would be guessing which one is the bundle.
+rm -rf "$_TMP/bamb"; mkdir -p "$_TMP/bamb/one" "$_TMP/bamb/two"
+cp -R "$_bsrc"/. "$_TMP/bamb/one/"
+printf 'x\n' > "$_TMP/bamb/two/stray"
+( cd "$_TMP/bamb" && tar -czf "$_TMP/x-smoke-amb.tar.gz" one two )
+_bpin "$_TMP/bproj9" amb "$(_dg "$_TMP/x-smoke-amb.tar.gz")" "$_TMP/x-smoke-amb.tar.gz"
+_brun "$_TMP/bproj9" "$_TMP/bdeps9"
+[ $? -ne 0 ] || fail "bundle-ambiguous: a two-entry archive was descended anyway" "$_TMP/out" "$_TMP/err"
+grep -q "ships no lang.xon" "$_TMP/err" "$_TMP/out" \
+  || fail "bundle-ambiguous: the refusal did not name the missing declaration" "$_TMP/err"
 
 # --share-dir must answer FROM OUTSIDE THE TREE, because that is the entire
 # reason it exists: a bundle's runner is not in the x-lang checkout and needs

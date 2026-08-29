@@ -694,6 +694,21 @@
                                     (symbol->str (first (first forms)))))))))
       (%go forms () () () () ()))
     (method %pin-bundle-decl-name (self) "lang.xon")
+    ; stage -> the directory the bundle actually is: stage itself, or its one
+    ; child when the archive carried a top-level directory (see the caller).
+    (method %pin-bundle-tree (self stage)
+      (match
+        ((File exists? (%path-join stage (Pin %pin-bundle-decl-name))) stage)
+        (#t
+          (let ((kids (guard (_ ()) (File list-dir stage))))
+            (match
+              ((null? kids) stage)
+              ((not (null? (rest kids))) stage)
+              (#t
+                (let ((one (%path-join stage (first kids))))
+                  (match
+                    ((File exists? (%path-join one (Pin %pin-bundle-decl-name))) one)
+                    (#t stage)))))))))
     ; A BINARY file's digest, and the sibling of %pin-digest rather than a
     ; change to it: %pin-digest serves amalgams and lockfiles, which are text,
     ; and hex there is exactly right.  This one takes the length from stat, so
@@ -1583,13 +1598,23 @@
             (Pin %pin-mkdirs stage)
             (Pin %pin-untar! tmp stage)
             (guard (_ ()) (File unlink tmp))
-            (let ((decl (%path-join stage (Pin %pin-bundle-decl-name))))
-              (match
-                ((File exists? decl) ())
-                (#t (Pin %pin-bad (Str8 append "bundle ships no "
-                      (Str8 append (Pin %pin-bundle-decl-name)
-                        (Str8 append " -- left at " stage)))))))
-            (File rename stage home)))))
+            ; A TARBALL WITH A TOP-LEVEL DIRECTORY IS THE NORMAL KIND.
+            ; `git archive --prefix=NAME/` is how a publisher rolls one, and it
+            ; is what every release tarball on the internet looks like, so a
+            ; tool that only accepted a flat one would refuse the obvious thing
+            ; and say "ships no lang.xon" about a bundle that plainly does.
+            ; Descend exactly one level, and only when the descent is
+            ; unambiguous: no declaration at the top, one entry, and the
+            ; declaration inside it.  Anything else is left as it unpacked.
+            (let ((tree (Pin %pin-bundle-tree stage)))
+              (do
+                (let ((decl (%path-join tree (Pin %pin-bundle-decl-name))))
+                  (match
+                    ((File exists? decl) ())
+                    (#t (Pin %pin-bad (Str8 append "bundle ships no "
+                          (Str8 append (Pin %pin-bundle-decl-name)
+                            (Str8 append " -- left at " stage)))))))
+                (File rename tree home)))))))
     ; Release pairing, REPORTED not enforced -- the ruling the amalgam's isa
     ; drift already gets.  A bundle built against another release may well be
     ; fine; a bundle whose declaration nobody read is the state the last
