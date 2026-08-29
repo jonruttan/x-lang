@@ -1,53 +1,139 @@
 #!/bin/sh
 # Pre-push gate -- block a push when the fast suite is red.
 #
-# Runs `make test-fast` (the fast scan gates + test-c + test-x), NOT
-# the full `make test`: the full suite is too long to hold a push's SSH
-# connection open across the hook -- GitHub hangs up the idle channel
-# before the transfer starts.  CI remains the enforcing gate for the
-# FULL surface: .github/workflows/ci.yml fans `make test`'s members out
-# across parallel jobs (specs / gates / lint / docs / interactive) on
-# every push and PR, with test-asan on merges to main (#330 corrected
-# this note: ci.yml step-lists the members rather than invoking the
-# `make test` umbrella).  Run `make test` locally when you want the
-# whole thing in one command before pushing.  Install with
-# `make install-hooks` (sets core.hooksPath=.githooks).  Bypass a
+# TESTS THE CONTENT BEING PUSHED, not whatever the working tree happens to
+# hold.  Those are the same thing on the ordinary day -- you are standing on
+# the branch you are pushing -- and silently different the moment you are not.
+# Measured: a push of feat/indent-and-lang-gate made while checked out on main
+# reported 2557 tests where the branch's own content gives 2590, because main
+# did not yet carry the indent specs.  The gate passed, the branch it was
+# gating was never run, and nothing said so.  A gate that tests something
+# other than what it is gating can only mislead.
+#
+# Two paths, and the fast one is the common one:
+#
+#   IN PLACE, when HEAD already IS the commit being pushed and no tracked file
+#   is modified.  Then the working tree is provably the pushed content and
+#   there is nothing to gain by copying it.  This is the ordinary push, and it
+#   costs exactly what this hook always cost.
+#
+#   IN A DETACHED WORKTREE, otherwise -- pushing from a different branch, a
+#   detached HEAD, several refs at once, or with modifications in the tree.
+#   The worktree is built and tested at the pushed sha and then removed.  It
+#   reuses this checkout's acquired engine through X_ENGINE_DIR, so it needs
+#   no network: deps/ is gitignored and a fresh worktree would otherwise try
+#   to acquire one.  Measured at ~3m for a full build plus test-fast.
+#
+# Runs `make test-fast` (the fast scan gates + test-c + test-x), NOT the full
+# `make test`: the full suite is too long to hold a push's SSH connection open
+# across the hook -- GitHub hangs up the idle channel before the transfer
+# starts.  CI remains the enforcing gate for the FULL surface:
+# .github/workflows/ci.yml fans `make test`'s members out across parallel jobs
+# (specs / gates / lint / docs / interactive) on every push and PR, with
+# test-asan on merges to main (#330 corrected this note: ci.yml step-lists the
+# members rather than invoking the `make test` umbrella).  Run `make test`
+# locally when you want the whole thing in one command before pushing.
+# Install with `make install-hooks` (sets core.hooksPath=.githooks).  Bypass a
 # single push with `git push --no-verify`.
 #
 # RUN_ASAN=1 additionally runs `make test-asan` as a NON-BLOCKING advisory.
 # The baseline is clean and CI hard-gates it on merge to main; locally it
 # stays opt-in only because instrumentation makes it ~2-3x slower.
+set -e
 
 root=$(git rev-parse --show-toplevel) || exit 1
 cd "$root" || exit 1
 
 # A deletion pushes the all-zeros SHA -- there is no new content to test.
 # Skip the gate only when EVERY ref in this push is a deletion; a mixed
-# push (delete + update) still gates on the updates.
-any_update=
+# push (delete + update) still gates on the updates.  Distinct shas only:
+# pushing one commit under two names is one thing to test, not two.
+shas=
 while read -r local_ref local_sha remote_ref remote_sha; do
 	case "$local_sha" in
-		*[!0]*) any_update=1 ;;
+		*[!0]*) ;;
+		*) continue ;;
+	esac
+	case " $shas " in
+		*" $local_sha "*) ;;
+		*) shas="$shas $local_sha" ;;
 	esac
 done
-if [ -z "$any_update" ]; then
+if [ -z "$shas" ]; then
 	printf '[pre-push] deletions only -- nothing to test, skipping gate.\n'
 	exit 0
 fi
 
-# Hard gate: fast gates + both suites (test-c + test-x), green at HEAD.
-printf '[pre-push] make test-fast ...\n'
-if ! make test-fast; then
-	printf '\n[pre-push] BLOCKED: `make test-fast` is red. Fix it, or bypass with `git push --no-verify`.\n' >&2
-	exit 1
+# Is the working tree already exactly one of these commits?  diff-index
+# ignores UNTRACKED files on purpose: they are not part of what is pushed,
+# and this repository always carries some (deps/, langs/, build artefacts).
+head_sha=$(git rev-parse HEAD 2>/dev/null || echo none)
+tree_clean=no
+if git diff-index --quiet HEAD -- 2>/dev/null; then
+	tree_clean=yes
 fi
 
-# Opt-in ASan pass (see header note): non-blocking locally for speed; CI is
-# the enforcing gate for this one.
-if [ -n "$RUN_ASAN" ]; then
-	printf '\n[pre-push] RUN_ASAN -- make test-asan (advisory) ...\n'
-	make test-asan || printf '[pre-push] note: test-asan RED -- the baseline is clean, so this is likely YOUR regression (CI will hard-fail it); not blocking locally.\n' >&2
+run_fast() {
+	# $1 is a label for the message only; the caller has already cd'd.
+	printf '[pre-push] make test-fast (%s) ...\n' "$1"
+	if ! make test-fast; then
+		printf '\n[pre-push] BLOCKED: `make test-fast` is red at %s.\n' "$1" >&2
+		printf '[pre-push] Fix it, or bypass with `git push --no-verify`.\n' >&2
+		return 1
+	fi
+	if [ -n "$RUN_ASAN" ]; then
+		printf '\n[pre-push] RUN_ASAN -- make test-asan (advisory) ...\n'
+		make test-asan || printf '[pre-push] note: test-asan RED -- the baseline is clean, so this is likely YOUR regression (CI will hard-fail it); not blocking locally.\n' >&2
+	fi
+	return 0
+}
+
+# The acquired engine, by real path: a worktree has no deps/ of its own, and
+# without this the build there would go to the network for one it already has.
+engine_dir=
+if [ -d "$root/engine" ]; then
+	engine_dir=$(cd "$root/engine" && pwd -P)
 fi
+
+for sha in $shas; do
+	short=$(git rev-parse --short "$sha")
+
+	if [ "$sha" = "$head_sha" ] && [ "$tree_clean" = yes ]; then
+		run_fast "$short, in place" || exit 1
+		continue
+	fi
+
+	# Say WHY the slow path was taken -- otherwise a three-minute pause on a
+	# push that is usually instant looks like a hang.
+	if [ "$sha" != "$head_sha" ]; then
+		printf '[pre-push] %s is not HEAD (%s) -- testing it in a temporary worktree.\n' \
+			"$short" "$(git rev-parse --short HEAD 2>/dev/null || echo none)"
+	else
+		printf '[pre-push] the working tree has modifications -- testing %s in a temporary worktree.\n' "$short"
+	fi
+
+	wt=$(mktemp -d "${TMPDIR:-/tmp}/x-prepush.XXXXXX") || exit 1
+	rm -rf "$wt"
+	if ! git worktree add --detach "$wt" "$sha" >/dev/null 2>&1; then
+		printf '[pre-push] could not create a worktree at %s -- not guessing from the\n' "$short" >&2
+		printf '[pre-push] working tree instead; bypass with `git push --no-verify`.\n' >&2
+		exit 1
+	fi
+
+	# Remove it however this exits, interrupt included: a leaked worktree is
+	# a stale entry in `git worktree list` and a directory nobody prunes.
+	trap 'cd "$root"; git worktree remove --force "$wt" >/dev/null 2>&1; git worktree prune >/dev/null 2>&1' EXIT INT TERM
+
+	rc=0
+	( cd "$wt" && export X_ENGINE_DIR="$engine_dir" && run_fast "$short, worktree" ) || rc=1
+
+	cd "$root"
+	git worktree remove --force "$wt" >/dev/null 2>&1 || true
+	git worktree prune >/dev/null 2>&1 || true
+	trap - EXIT INT TERM
+
+	[ "$rc" = 0 ] || exit 1
+done
 
 printf '[pre-push] OK\n'
 exit 0
