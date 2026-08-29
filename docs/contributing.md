@@ -28,7 +28,7 @@ make engine-source                    # clone that release and build it here
 
 `make engine` reads `tools/engine/engine.pin.xon` — which implementation, which
 release, and a URL plus sha256 per platform — fetches the artifact for this
-machine, verifies it, unpacks it under `build/engine/` and links it. Three rules
+machine, verifies it, unpacks it under `deps/engine/` and links it. Three rules
 are worth knowing before you rely on it:
 
 - **A declared artifact that fails to fetch is an error**, never a quiet source

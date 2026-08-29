@@ -48,10 +48,14 @@ APPS_PATH=apps/
 ENTRY_DIR=lib/
 INSTALL_ROOT=
 # Where acquired lang bundles live (docs/lang-contract.md).
-# Beside lib/ and apps/ because it is the same kind of thing -- a place -l
-# looks -- and X_LANG_DIR moves it for a project that keeps its
-# bundles somewhere else (a deps/ tree, a shared cache).
-LANGS_PATH="${X_LANG_DIR:-langs/}"
+#
+# deps/, NOT beside lib/ and apps/, and the distinction is the point: lib/ and
+# apps/ are this project's own committed source, while a bundle is a verified
+# tarball fetched from somebody else's repository.  They resemble each other
+# only in that -l searches all three.  Nor build/ -- a bundle was not BUILT
+# here, and filing acquired things under output is how the engine came to need
+# a symlink to be findable at all.  X_LANG_DIR moves it.
+LANGS_PATH="${X_LANG_DIR:-deps/langs/}"
 if [ ! -e "${LIB_PATH}${X_LIB}${X_EXT}" ]; then
 	INSTALL_ROOT="$SCRIPT_PATH/../${X_SHARE}"
 	LIB_PATH="$INSTALL_ROOT/lib/"
