@@ -31,7 +31,7 @@
 (include "lib/x/boot/string.x")
 (include "lib/x/boot/module.x")
 
-(def x-lib-version "0.5.2")
+(def x-lib-version "0.6.0")
 
 ; Pre-register all boot module NAMES so import calls are no-ops.
 ; INVARIANT (machine-checked by make check-boot-order): every lib module
