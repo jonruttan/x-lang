@@ -26,6 +26,9 @@
 #              naming another lang, an archive with no declaration,
 #              and an unknown pin form.  A git-archive-style tarball (one
 #              top-level directory) is descended; a two-entry one is not
+#   install    (Pin install) takes a PUBLISHED pin URL, lands at the stable
+#              <langs>/<name>, and a bad digest leaves the working install
+#              untouched
 #   load       `-l NAME` RUNS an acquired bundle: the dialect it declares
 #              boots, its modules resolve, its surface name takes, and the
 #              refusals hold -- an unknown name (whose inventory names the
@@ -998,6 +1001,38 @@ _brun "$_TMP/bproj9" "$_TMP/bdeps9"
 [ $? -ne 0 ] || fail "bundle-ambiguous: a two-entry archive was descended anyway" "$_TMP/out" "$_TMP/err"
 grep -q "ships no lang.xon" "$_TMP/err" "$_TMP/out" \
   || fail "bundle-ambiguous: the refusal did not name the missing declaration" "$_TMP/err"
+
+# install: a lang from a PUBLISHED PIN, with nothing cloned.  This is the
+# everyday path -- `x --install-lang <url>` -- and it differs from Pin bundle in
+# what it is for: one unversioned copy on the machine, at the stable name `-l`
+# resolves, rather than a digest-pinned tree for one project.
+_ipub="$_TMP/ipub"; mkdir -p "$_ipub"
+cp "$_TMP/x-smoke-v1.tar.gz" "$_ipub/"
+{ printf '(lang "x-smoke")\n'; printf '(release "v1")\n'
+  printf '(bundle "sha256:%s" "file://%s/x-smoke-v1.tar.gz")\n' \
+    "$(_dg "$_ipub/x-smoke-v1.tar.gz")" "$_ipub"
+} > "$_ipub/lang.pin.xon"
+_ilangs="$_TMP/ilangs"; mkdir -p "$_ilangs"
+printf '(alloc-limit! 300000000)\n(import x/tool/pin)\n(display (Pin install "file://%s/lang.pin.xon" "%s"))\n' \
+  "$_ipub" "$_ilangs" > "$_TMP/inst.x"
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/inst.x" >"$_TMP/out" 2>"$_TMP/err"
+[ $? -eq 0 ] || fail "install: acquiring from a published pin failed" "$_TMP/err" "$_TMP/out"
+# THE STABLE NAME, not <name>-<release>: -l resolves it and an install is one
+# copy per machine, so a versioned directory would collide with itself on
+# upgrade -- two trees both declaring the same lang, which -l refuses.
+[ -f "$_ilangs/x-smoke/lang.xon" ] \
+  || fail "install: did not land at the stable <langs>/<name>" "$_TMP/out"
+
+# A FAILED UPGRADE MUST LEAVE WHAT YOU HAD.  The digest is checked before
+# anything replaces a working installation, so a bad pin costs you nothing.
+sed 's/sha256:[0-9a-f]*/sha256:0000000000000000000000000000000000000000000000000000000000000000/' \
+  "$_ipub/lang.pin.xon" > "$_ipub/bad.pin.xon"
+printf '(alloc-limit! 300000000)\n(import x/tool/pin)\n(Pin install "file://%s/bad.pin.xon" "%s")\n' \
+  "$_ipub" "$_ilangs" > "$_TMP/inst2.x"
+$TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/inst2.x" >"$_TMP/out" 2>"$_TMP/err"
+[ $? -ne 0 ] || fail "install-tamper: a bad digest installed clean" "$_TMP/out" "$_TMP/err"
+[ -f "$_ilangs/x-smoke/lang.xon" ] \
+  || fail "install-tamper: a failed upgrade destroyed the working install" "$_TMP/err"
 
 # --share-dir must answer FROM OUTSIDE THE TREE, because that is the entire
 # reason it exists: a bundle's runner is not in the x-lang checkout and needs

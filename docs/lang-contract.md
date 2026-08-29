@@ -186,7 +186,33 @@ spellings, the source-build fallback for platforms nobody publishes for —
 evaporates. Do not copy it across out of symmetry; every row of it would be a row
 that cannot be wrong in an interesting way.
 
-### Acquiring one: `Pin bundle`
+### Installing one: `x --install-lang`
+
+For everyday use — one copy on the machine, available from any directory,
+nothing cloned:
+
+```sh
+x --install-lang https://github.com/jonruttan/x-krn/releases/latest/download/lang.pin.xon
+x -l krn
+```
+
+x fetches the published `lang.pin.xon`, then the tarball it names, digests it,
+and installs to `<install-root>/langs/<name>` — the stable name `-l` resolves.
+A versioned directory would collide with itself on upgrade: two trees both
+declaring the same lang, which `-l` refuses.
+
+**A failed upgrade leaves what you had.** The digest is checked, and the tree
+unpacked and verified whole, before anything replaces a working installation.
+
+**The pin file is the trust boundary.** It is the one thing fetched without a
+digest to check it against — nothing exists yet that could carry one —
+and everything after is checked against what it says. So it should be a URL you
+trust, published beside the tarball it describes.
+
+### Pinning one: `Pin bundle`
+
+An install is unversioned and machine-wide. A **pin** freezes a specific
+verified tarball for one project, and is what a build should depend on:
 
 ```x-repl
 > (import x/tool/pin)
