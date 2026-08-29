@@ -7,6 +7,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- **`make check-langs` — every lang bundle's suite, against your working tree.**
+  `check-seam` catches a rename in eight seconds and cannot catch anything else:
+  a behaviour change, an arity change, a reader that scores a tie differently
+  all leave this tree green while a bundle in its own repository breaks, and
+  each bundle's CI runs on its own schedule against a *release*, so the break
+  surfaces weeks later as somebody else's mystery. Measured when the gate was
+  written: x-lang green at 2590/0 while the six bundles carried **175 failures**
+  between them, with nothing here saying so. Budgets live in
+  `tools/contract/langs.x` and may only shrink, the rule `percent-globals.x`
+  runs on. Advisory about presence — a bundle not on the disk is announced and
+  skipped, because this tree must build for someone who cloned nothing else —
+  and strict about regression. Deep tier; `LANGS='krn sweet'` runs a subset and
+  `X_LANGS_DIR` moves where bundles are found.
+
 - **`Indent` — the stack discipline under indentation-sensitive grouping**
   (`lib/x/reader/indent.x`). Logo and x-sweet each owned a copy of it, reached
   by different routes and disagreeing at the edges; both now drive this one.
