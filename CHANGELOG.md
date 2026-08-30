@@ -5,6 +5,92 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`(Num expt b -1)` no longer takes the machine down** (x-lang#545). The
+  parameter was documented "Non-negative integer exponent" and nothing checked
+  it. A negative exponent never reaches the `(= exp 0)` base case — it walks
+  *away* from zero — and every even step squares the base, so the recursion
+  allocated bignums that doubled in width until memory was gone. That is what
+  made it dangerous rather than merely wrong: a plain infinite recursion trips
+  the spec runner's timeout, while this one exhausts memory first, and
+  `alloc-limit!` is calibrated in objects, so a handful of enormous bignums
+  reaches far more RAM than the object count implies.
+
+  It was reachable by accident: `2 ** -1` is ordinary Python and `(expt 2 -1)`
+  is ordinary Scheme, and any lang implementing exponentiation on top of
+  `Num expt` inherited it.
+
+  `expt` now raises `err:value` on a negative exponent, the same shape
+  `Num isqrt` already used for a negative input. The doc stated the contract;
+  this enforces it rather than changing it — a caller wanting Python's or
+  Scheme's answer needs a float, which is the caller's decision to make and not
+  a silent reinterpretation here.
+
+## [0.8.0] - 2026-08-30
+
+### Added
+
+- **The lang kit: the platform ships a bundle's checks, as it already ships the
+  spec runner** (x-lang#546). `tools/lang-kit/` installs to
+  `share/x/tools/lang-kit`, beside `tests/spec-runner.sh` and outside the
+  payload fingerprint for that file's own reason — the digest is library bytes
+  and answers *which release is this*, while a tool ships with the wrapper and
+  the engine.
+
+  `docs/lang-contract.md` settled the ruling for the runner: **the platform
+  ships it; bundles do not vendor it.** The runner was the first thing every
+  bundle would otherwise have copied, and it is not the only one. Across the
+  six published bundles `tools/bundle.sh` is 103 lines and differs between any
+  two by exactly 12 — every one of them the lang's name or its release URL —
+  and `tests/spec-gate.sh` differs by a single line of header comment.
+
+  The first member is `release-refs.sh`, chosen because its evidence is the
+  freshest rather than because it is the largest: it was written twice within a
+  day, and the second copy needed three fixes backported the same afternoon —
+  an issue reference mistaken for a release, a greedy regex window pairing a
+  name with the wrong version, and a look-back that spanned a neighbouring
+  pair. A seventh bundle would have been a seventh copy of all three.
+
+  It is generic over the manifest rather than per bundle: the table of versions
+  to check is read from `lang.xon` — `(requires-release …)` plus any
+  `(requires-lang …)` — so one file serves a bundle declaring one and a bundle
+  declaring two.
+
+  **Two ways to reach it, and the second is not a convenience.** A bundle's
+  specs job has already checked x-lang out; its contract job has not, and does
+  not need to, because this check reads a manifest and greps a tree. Making a
+  one-second text check depend on a built engine would be a regression dressed
+  as consistency. So `X_LANG_KIT` names a checkout's `tools/lang-kit` directly,
+  and everything else asks `x --share-dir` — the addressing the runner already
+  uses, and the failure the contract calls "addressing, not sharing".
+
+  **For bundle authors:** a bundle that sources the kit declares
+  `(requires-release "v0.8.0")` or later. Earlier releases do not carry it, and
+  the shim says so by name rather than failing obscurely.
+
+### Fixed
+
+- **`(Num expt b -1)` no longer takes the machine down** (x-lang#545). The
+  parameter was documented "Non-negative integer exponent" and nothing checked
+  it. A negative exponent never reaches the `(= exp 0)` base case — it walks
+  *away* from zero — and every even step squares the base, so the recursion
+  allocated bignums that doubled in width until memory was gone. That is what
+  made it dangerous rather than merely wrong: a plain infinite recursion trips
+  the spec runner's timeout, while this one exhausts memory first, and
+  `alloc-limit!` is calibrated in objects, so a handful of enormous bignums
+  reaches far more RAM than the object count implies.
+
+  It was reachable by accident: `2 ** -1` is ordinary Python and `(expt 2 -1)`
+  is ordinary Scheme, and any lang implementing exponentiation on top of
+  `Num expt` inherited it.
+
+  `expt` now raises `err:value` on a negative exponent, the same shape
+  `Num isqrt` already used for a negative input. The doc stated the contract;
+  this enforces it rather than changing it — a caller wanting Python's or
+  Scheme's answer needs a float, which is the caller's decision to make and not
+  a silent reinterpretation here.
+
 ## [0.7.1] - 2026-08-30
 
 ### Changed
