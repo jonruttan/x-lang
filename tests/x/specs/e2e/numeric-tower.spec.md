@@ -148,3 +148,45 @@
 ```
 ---
     #t
+
+## decimal, through the compiled analysers
+
+### the literal reads on the boot path too
+
+```scheme
+(Decimal decimal? 1.5d)
+```
+---
+    #t
+
+### exact decimal-fraction addition
+
+```scheme
+(write (+ 0.1d 0.2d))
+```
+---
+    0.3d
+
+### a sign is part of the literal, not an operator applied to it
+
+```scheme
+(write -0.001d)
+```
+---
+    -0.001d
+
+### a float promotes into the decimal exactly
+
+```scheme
+(write (* 2d 3.5))
+```
+---
+    7d
+
+### and the float reader still owns an unsuffixed token
+
+```scheme
+(Float float? 1.5)
+```
+---
+    #t
