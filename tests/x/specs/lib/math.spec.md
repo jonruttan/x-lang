@@ -342,6 +342,17 @@
 ---
     1
 
+### errors on a negative exponent (x-lang#545)
+
+A negative exponent used to walk away from the base case, squaring the base
+each even step until it exhausted memory.
+
+```scheme
+(Num expt 2 -1)
+```
+---
+    Error: #<err:value Num expt: negative exponent>
+
 ## quotient / remainder / modulo / divmod
 
 ### quotient truncates toward zero
