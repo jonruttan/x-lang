@@ -48,19 +48,20 @@
 ; v0.1.2 segfaulted the isolated tokenizer base on the first character, so
 ; nearly the whole suite was red for a reason that was never ash's.
 (lang "ash"   "x-ash"    82  2)
-; r5rs was 37, and the 28 came from the BUNDLE rather than the engine: R5RS 6.6
-; ports rewritten against File (21), and exactness -- sin/cos/exp/magnitude
-; answering exact where R5RS 6.2.5 permits it, plus three suite expectations
-; that contradicted the standard (7).  v0.1.3 changed four files, none of them
-; the reader; src/x-token/sexp/list.c is byte-identical to v0.1.2's.
+; r5rs is GREEN, and it took both halves.  37 -> 9 came from the bundle: R5RS
+; 6.6 ports rewritten against File (21), and exactness under 6.2.5 (7).  The
+; last nine were the ELLIPSIS group, and they were the engine's: every token
+; beginning with `.` reached the reader as the pair-dot sentinel, so `...` was
+; unreadable and syntax-rules patterns could not be written at all.
 ;
-; The nine that remain say so themselves: they are the ELLIPSIS group, which is
-; exactly what a pair-dot fix would have removed.  Every token beginning with
-; `.` still reaches the reader as the pair-dot sentinel, so `...` is unreadable
-; and syntax-rules patterns cannot be written.  That is an open design question
-; about whether the s-expression reader should have an opinion about dots at
-; all, not a fix waiting to be pinned.
-(lang "r5rs"  "x-r5rs"  667  9)
+; x-engine-c v0.1.4 stopped the dot being a token kind -- nothing claims the
+; character now, and the list reader recognises the one-character symbol "."
+; where it already decides pair-versus-list.  R5RS's macro layer is written
+; entirely in ellipsis patterns, so one reader fix moved all nine at once.
+;
+; A zero here is a claim, not a hope: the row is what makes a tenth failure
+; loud.
+(lang "r5rs"  "x-r5rs"  667  0)
 ; r7rs did NOT move on the pin, and the reason is simpler than it looked: the
 ; engine did not gain anything it uses.  `(base def-global)` -- the capability
 ; that would retire this bundle's `guard` shadow -- is NOT in v0.1.3 either; it

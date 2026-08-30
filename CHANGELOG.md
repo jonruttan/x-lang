@@ -5,27 +5,28 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-### Fixed
+### Changed
 
-- **`(Num expt b -1)` no longer takes the machine down** (x-lang#545). The
-  parameter was documented "Non-negative integer exponent" and nothing checked
-  it. A negative exponent never reaches the `(= exp 0)` base case — it walks
-  *away* from zero — and every even step squares the base, so the recursion
-  allocated bignums that doubled in width until memory was gone. That is what
-  made it dangerous rather than merely wrong: a plain infinite recursion trips
-  the spec runner's timeout, while this one exhausts memory first, and
-  `alloc-limit!` is calibrated in objects, so a handful of enormous bignums
-  reaches far more RAM than the object count implies.
+- **The engine pin moves to x-engine-c v0.1.4**, and x-r5rs goes green without
+  a line changing in it — 667/9 to **667/0**.
 
-  It was reachable by accident: `2 ** -1` is ordinary Python and `(expt 2 -1)`
-  is ordinary Scheme, and any lang implementing exponentiation on top of
-  `Num expt` inherited it.
+  v0.1.4 stopped the dot being a token *kind*. It sat in
+  `X_SEXP_LIST_CHARS_STR` beside the brackets, so the analyser scored it on
+  sight: correct for `(` and `)`, which really are always single-character
+  tokens, and false for `.`, which separates a pair only when nothing follows
+  it. Every token *beginning* with a dot was taken whole as the separator, and
+  the reader's internal marker was returned to the caller as a value — so
+  `(first (rest (lit (a ... b))))` segfaulted on a raw C satom.
 
-  `expt` now raises `err:value` on a negative exponent, the same shape
-  `Num isqrt` already used for a negative input. The doc stated the contract;
-  this enforces it rather than changing it — a caller wanting Python's or
-  Scheme's answer needs a float, which is the caller's decision to make and not
-  a silent reinterpretation here.
+  All nine of x-r5rs's remaining failures were ellipsis patterns, and R5RS's
+  macro layer is written entirely in them, so one reader fix moved every one.
+  `tools/contract/langs.x` ratchets that budget to 0: a zero is a claim, not a
+  hope, and it is what makes a tenth failure loud.
+
+  The engine takes no view on `...` — it is a symbol the reader does not
+  recognise and passes through, exactly like `.foo`. One reading changes with
+  it: `(a.b)` is the symbol `a.b` rather than an improper list, which was an
+  accident of the delimiter set rather than deliberate syntax.
 
 ## [0.8.0] - 2026-08-30
 
