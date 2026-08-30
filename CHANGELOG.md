@@ -5,33 +5,47 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-08-30
+
 ### Changed
 
-- **The engine pin moves to x-engine-c v0.1.3**, and two bundles get better
-  without a line changing in either of them. v0.1.2 segfaulted the isolated
-  tokenizer base — `(Base make-tok)` — on the first character of any input, and
-  read every token beginning with `.` as the pair-dot sentinel, so a
-  syntax-rules pattern arrived as an improper list. Measured across the six
-  bundles `check-langs` runs, on the pinned engine rather than a local build:
+- **The engine pin moves to x-engine-c v0.1.3**, and x-ash goes from unusable
+  to two failures without a line changing in it. v0.1.2's
+  `x_prim_make_token_base` segfaulted on the first character of any input:
+  it assigned to the boolean singletons' *cells* rather than through them, and
+  never created the read buffer `make_base` gives itself. An isolated tokenizer
+  base is the one thing x-ash cannot do without, so nearly its whole suite was
+  red for a reason that was never x-ash's.
 
   | | before | after |
   |---|---:|---:|
   | x-ash | 80 failed | **2** |
-  | x-r5rs | 37 failed | **9** |
-  | x-r7rs | 58 failed | 58 |
-  | **total** | **175** | **69** |
 
   x-ash's two are its own string readers, a bundle bug its README documents.
-  R5RS's macro layer is written entirely in ellipsis patterns, which is why one
-  reader fix moved 28 specs at once.
 
-  x-r7rs did **not** move, and that is recorded in `tools/contract/langs.x`
-  rather than left to be rediscovered: v0.1.3's `(base def-global)` is quoted as
-  taking that bundle from 579 to 595, but that is the engine gaining the
-  capability — the bundle's `guard` still works around its absence. The budgets
-  are measured, never transcribed.
+  v0.1.3 also names the buffer sizes it had scattered as bare literals — the
+  reader's buffer was 256 bytes in `make-base` and 65536 in the CLI, filling
+  the same field.
 
-  x-lang's own suite is unchanged at 2590/0 on the new engine.
+- **`tools/contract/langs.x` corrects two attributions and one number**, and
+  the corrections are the point of a file whose budgets are supposed to be
+  measured rather than transcribed.
+
+  x-r5rs's 37 → 9 was credited to this pin. It was not the engine: v0.1.3
+  changed four files, none of them the reader, and
+  `src/x-token/sexp/list.c` is byte-identical to v0.1.2's. The 28 came from
+  x-r5rs itself — R5RS §6.6 ports rewritten against `File` (21), and exactness
+  under §6.2.5 (7). The nine that remain say so: they are the **ellipsis**
+  group, which is exactly what a pair-dot fix would have removed.
+
+  `(base def-global)` was described as shipping in v0.1.3. It is not in v0.1.3;
+  it is proposed and unmerged.
+
+  x-r7rs's budget moves 58 → **43**. 58 is what that suite reports when
+  something else is running — an orphaned engine holding a core has made it say
+  49, 58 and 247 for one unchanged tree, with batches dying mid-run.
+  `check-langs` runs six suites in sequence, which is precisely that condition.
+  Measured twice on a quiet machine it is 43, on both engines.
 
 ## [0.7.0] - 2026-08-29
 

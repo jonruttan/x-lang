@@ -48,14 +48,27 @@
 ; v0.1.2 segfaulted the isolated tokenizer base on the first character, so
 ; nearly the whole suite was red for a reason that was never ash's.
 (lang "ash"   "x-ash"    82  2)
-; r5rs was 37 until x-engine-c v0.1.3.  Every token beginning with `.` reached
-; the reader as the pair-dot sentinel, so a syntax-rules pattern read as an
-; improper list -- and R5RS's macro layer is written entirely in ellipsis
-; patterns, so the fix moved 28 specs at once.
+; r5rs was 37, and the 28 came from the BUNDLE rather than the engine: R5RS 6.6
+; ports rewritten against File (21), and exactness -- sin/cos/exp/magnitude
+; answering exact where R5RS 6.2.5 permits it, plus three suite expectations
+; that contradicted the standard (7).  v0.1.3 changed four files, none of them
+; the reader; src/x-token/sexp/list.c is byte-identical to v0.1.2's.
+;
+; The nine that remain say so themselves: they are the ELLIPSIS group, which is
+; exactly what a pair-dot fix would have removed.  Every token beginning with
+; `.` still reaches the reader as the pair-dot sentinel, so `...` is unreadable
+; and syntax-rules patterns cannot be written.  That is an open design question
+; about whether the s-expression reader should have an opinion about dots at
+; all, not a fix waiting to be pinned.
 (lang "r5rs"  "x-r5rs"  667  9)
-; r7rs did NOT move, and the difference is worth recording.  v0.1.3's
-; `(base def-global)` is quoted as taking this bundle from 579 to 595, but that
-; is the ENGINE gaining the capability: x-r7rs's `guard` still works around its
-; absence, and until the bundle adopts it the number here does not change.  The
-; budget is measured, never transcribed from a commit message.
-(lang "r7rs"  "x-r7rs"  637 58)
+; r7rs did NOT move on the pin, and the reason is simpler than it looked: the
+; engine did not gain anything it uses.  `(base def-global)` -- the capability
+; that would retire this bundle's `guard` shadow -- is NOT in v0.1.3 either; it
+; is proposed and unmerged.  So neither side of that trade has happened yet.
+;
+; 43, not 58, and the correction is about measurement.  58 is what this suite
+; reports when something else is running: an orphaned engine holding a core has
+; made it say 49, 58 and 247 for one unchanged tree, with batches dying
+; mid-run.  check-langs runs six suites in sequence, which is precisely that
+; condition.  Measured twice on a quiet machine it is 43, on both engines.
+(lang "r7rs"  "x-r7rs"  637 43)
