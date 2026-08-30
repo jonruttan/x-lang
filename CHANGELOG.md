@@ -5,6 +5,11 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-08-30
+
+`syntax-rules` works. The reader stopped claiming the dot, and x-r5rs went
+green without a line changing in it.
+
 ### Changed
 
 - **The engine pin moves to x-engine-c v0.1.4**, and x-r5rs goes green without
