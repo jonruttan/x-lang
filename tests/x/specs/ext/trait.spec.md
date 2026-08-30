@@ -1,4 +1,5 @@
 # traits and delegation
+# @weight 1
 
 Traits are named method bundles mixed in at class definition; `delegates`
 generates forwarders to a field's value. Conflict rules are explicit, no

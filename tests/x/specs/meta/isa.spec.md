@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/isa.x
+# @weight 2
 
 # The C ISA ratchet
 

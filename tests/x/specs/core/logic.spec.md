@@ -1,3 +1,4 @@
+# @weight 1
 ## and
 
 ### returns #t for empty and

@@ -1,4 +1,5 @@
 # Http: a plain-http/1.1 client over Socket (#374)
+# @weight 2
 
 The ruled strategy, as amended by #412: pure x; https rides the Tls
 class (libssl over the dlopen FFI) and names resolve through

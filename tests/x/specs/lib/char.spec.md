@@ -1,3 +1,4 @@
+# @weight 1
 ## char-alphabetic?
 
 ### lowercase letter

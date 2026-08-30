@@ -1,3 +1,4 @@
+# @weight 1
 ## Base make
 
 ### creates a base object

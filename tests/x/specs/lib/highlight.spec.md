@@ -1,4 +1,5 @@
 # Highlight: transcript classification
+# @weight 1
 
 Characterizes how `x/tool/highlight` classifies the LINES of a REPL
 transcript, which is the part a byte-level check cannot see. The

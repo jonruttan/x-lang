@@ -1,4 +1,5 @@
 # Array: the growable container
+# @weight 1
 
 ## construction and growth
 

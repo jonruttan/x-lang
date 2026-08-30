@@ -1,3 +1,4 @@
+# @weight 2
 ## iterable normalization (public surface: `List from-seq`; the boot layer's %as-list is private plumbing -- #42 A5)
 
 ### from-seq passes through a list

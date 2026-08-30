@@ -1,3 +1,4 @@
+# @weight 1
 ## str-length
 
 ### returns length of string

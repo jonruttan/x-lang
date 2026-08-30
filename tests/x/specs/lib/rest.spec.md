@@ -1,4 +1,5 @@
 # Rest: the JSON layer over Http (#412)
+# @weight 3
 
 Values out as JSON bodies, JSON responses decoded by content-type,
 statuses kept as data. The wire path was proven live at build time:

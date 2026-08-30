@@ -1,4 +1,5 @@
 # generic functions: def-generic and on
+# @weight 1
 
 Open, multi-argument, type-directed dispatch beside message passing.
 Signature keys are values: a CLASS matches its instances (subclasses

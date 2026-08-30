@@ -1,4 +1,5 @@
 # Source-location error reporting
+# @weight 1
 
 An unbound reference inside a `fn` body loaded from a file reports BOTH the
 source file and the raise-site line -- via `(io error-line)` / `(io error-file)`

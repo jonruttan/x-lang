@@ -1,4 +1,5 @@
 # Deferred cross-module registration (Pact)
+# @weight 1
 
 `Pact` is the rendezvous for modules that are optional to each other: a
 module `join`s under a stable name symbol as its last load-time act, and a

@@ -1,4 +1,5 @@
 # The base-paths contract, runtime half
+# @weight 1
 
 `engine/tools/contract/base-paths.x` commits every base-object field as a first/rest path;
 `boot/reflect.x` walks them. These tests prove the LIVE base agrees: cells

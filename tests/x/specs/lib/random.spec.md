@@ -1,4 +1,5 @@
 # Random number generation (Random)
+# @weight 2
 
 `Random` is a source of random integers with a pluggable entropy backend.
 `(Random sw)` / `(Random sw seed)` is a fast, non-cryptographic xorshift PRNG

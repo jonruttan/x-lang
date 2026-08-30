@@ -1,3 +1,4 @@
+# @weight 1
 ## boolean?
 
 ### true for #t

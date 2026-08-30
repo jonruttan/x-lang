@@ -1,3 +1,4 @@
+# @weight 1
 ## arithmetic basics
 
 ### adds two numbers

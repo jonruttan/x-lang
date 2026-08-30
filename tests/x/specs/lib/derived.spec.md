@@ -1,4 +1,5 @@
 # Derived expression types
+# @weight 1
 
 ## when
 

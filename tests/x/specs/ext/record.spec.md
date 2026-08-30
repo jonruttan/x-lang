@@ -1,4 +1,5 @@
 # def-record: lightweight named-field data types
+# @weight 1
 
 A record IS a class -- construction, field access, and printing ride the
 ordinary object doors -- plus the two methods a data carrier wants:

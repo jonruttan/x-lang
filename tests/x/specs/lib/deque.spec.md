@@ -1,4 +1,5 @@
 # Deque: a double-ended queue (#375)
+# @weight 1
 
 The two-list construction: both ends push and pop amortized O(1);
 length rides a counter. Empty pops raise kind-'value.

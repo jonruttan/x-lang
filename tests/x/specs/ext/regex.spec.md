@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/regex.x
+# @weight 1
 
 ## regex literal
 

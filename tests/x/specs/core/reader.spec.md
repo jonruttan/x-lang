@@ -1,4 +1,5 @@
 # @lib x-base.x
+# @weight 3
 
 ## integer reader
 

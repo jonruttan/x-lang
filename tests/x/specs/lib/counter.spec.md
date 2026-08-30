@@ -1,4 +1,5 @@
 # Counter: a counting map (#375)
+# @weight 1
 
 Dict-backed tallies: absent keys read 0, add! increments by 1 or n,
 most-common ranks by count (stable sort -- ties keep table order).

@@ -1,4 +1,5 @@
 # $"..." string interpolation reader
+# @weight 1
 
 The `$"..."` reader macro (lib/x/reader/lit-reader.x) expands an interpolated
 string into a `(Str8 str <chunk> <hole> ...)` call. A `{expr}` hole is parsed

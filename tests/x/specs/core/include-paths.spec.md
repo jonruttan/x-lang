@@ -1,4 +1,5 @@
 # Relative includes and the import search path
+# @weight 2
 
 `include` / `include-once` / `require-once` / `import` resolve a path that
 begins with `./` or `../` against the directory of the file currently loading.

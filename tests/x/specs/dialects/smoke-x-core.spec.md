@@ -1,4 +1,5 @@
 # x-core.x smoke (dialect entry points)
+# @weight 1
 
 End-to-end smoke of the bare core library entry (#70).  One file per
 dialect so the boots schedule in parallel (#320); the family story is in

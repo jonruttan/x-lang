@@ -1,4 +1,5 @@
 # he.x smoke (dialect entry points)
+# @weight 1
 
 End-to-end smoke of the shipped `he.x` launcher, exactly as the README
 documents it (#70).  One file per dialect so the boots schedule in

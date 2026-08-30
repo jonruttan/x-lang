@@ -1,4 +1,5 @@
 # Object System
+# @weight 1
 
 Message-passing objects: `(obj selector args...)`. The selector is a literal
 member name (no quote needed) -- a method wins, otherwise it is a field that

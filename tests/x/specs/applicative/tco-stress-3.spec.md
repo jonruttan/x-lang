@@ -1,6 +1,7 @@
 # Split 3 of tco-stress (#300): see tco-stress-2's header -- the
 # combined-forms and non-tail sections carry their own multi-GB
 # churn, bounded here in a process of their own.
+# @weight 1
 
 ## combined TCO forms
 

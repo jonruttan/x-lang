@@ -3,6 +3,7 @@
 # ~330 objects per evaluation, 50k-deep loops) and peaked 5.2GB;
 # two files bound each process to ~2.5GB and stay under the default
 # ceiling.
+# @weight 1
 
 ## and/or env restoration
 

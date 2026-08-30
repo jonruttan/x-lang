@@ -1,3 +1,4 @@
+# @weight 1
 ## %sigint-flag
 
 ### flag exists and starts at zero

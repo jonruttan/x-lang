@@ -1,4 +1,5 @@
 # Byte-level string primitives
+# @weight 1
 
 The `str` catalog: byte length, byte indexing, byte substrings and
 string-to-symbol interning.  These are the layer the UTF-8 codec is built on,

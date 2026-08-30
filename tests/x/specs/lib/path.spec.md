@@ -1,4 +1,5 @@
 # Path: pure-string pathname manipulation (#22)
+# @weight 2
 
 No filesystem access -- every method is a total string function.
 

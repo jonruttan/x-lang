@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/tower.x
+# @weight 5
 
 The numeric tower's mixed-type policy on generic functions (x/num/tower):
 seven generics (num+ num- num* num/ num% num< num=) with one method per

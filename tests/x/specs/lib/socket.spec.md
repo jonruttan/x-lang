@@ -1,4 +1,5 @@
 # Socket: blocking IPv4 TCP over libc FFI (#29)
+# @weight 2
 
 Deterministic, non-blocking coverage only: listen/bind/connect failure
 paths and address validation. The full accept/recv/send loop cannot run

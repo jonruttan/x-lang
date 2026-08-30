@@ -1,4 +1,5 @@
 # Lazy generators (Gen)
+# @weight 1
 
 `Gen` is a lazy generator: a step function over a state that produces values on
 demand. Transformers (`map`/`filter`/`take`/…) are lazy and return a new `Gen`;

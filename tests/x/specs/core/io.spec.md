@@ -1,3 +1,4 @@
+# @weight 1
 ## write
 
 ### writes an integer

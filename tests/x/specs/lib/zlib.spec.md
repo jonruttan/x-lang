@@ -1,4 +1,5 @@
 # Zlib codec: compression via the system zlib over FFI (#373)
+# @weight 3
 
 The ruled strategy: bind libz the way Float binds libm -- dlopen FFI,
 no new C. Byte lists both ways (compressed data is binary; strings

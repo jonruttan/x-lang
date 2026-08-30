@@ -1,4 +1,5 @@
 # File ergonomics: read-all / write-all / stat / read-lines / list-dir (#22)
+# @weight 2
 
 The ergonomic tier over the raw syscall layer: whole-file operations
 that RAISE kind-'io Errs (via Err from-errno) instead of returning

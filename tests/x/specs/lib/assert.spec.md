@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/assert.x
+# @weight 1
 
 The `assert.x` test-support helpers (`throws?` / `raised`). These ARE the
 suite's own error assertions, so they are meta-tested here for BOTH branches:

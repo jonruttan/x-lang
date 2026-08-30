@@ -1,3 +1,4 @@
+# @weight 1
 ## lit
 
 ### returns a symbol

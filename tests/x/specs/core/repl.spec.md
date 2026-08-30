@@ -1,4 +1,5 @@
 # REPL operative: %repl-prompt / %repl-print
+# @weight 1
 
 The REPL is an x-lang operative (`lib/x/repl/loop.x`), and its prompt and print
 path are **customizable variables** rather than C hooks. These were previously

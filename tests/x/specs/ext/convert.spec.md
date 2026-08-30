@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/assert.x
+# @weight 1
 
 # Convert: dispatch order + the no-match (silent-nil) policy
 

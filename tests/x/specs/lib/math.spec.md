@@ -1,3 +1,4 @@
+# @weight 1
 ## inc
 
 ### increments by one

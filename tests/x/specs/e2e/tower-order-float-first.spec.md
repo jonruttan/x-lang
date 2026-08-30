@@ -1,4 +1,5 @@
 # Numeric tower load order: float first, bigint later
+# @weight 3
 
 The tower's members must load in any order under plain x-core (the bundles
 pre-load everything in one fixed order, so only these specs exercise the

@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/bigint.x
+# @weight 2
 
 ## bigint literal
 

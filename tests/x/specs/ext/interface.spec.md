@@ -1,4 +1,5 @@
 # Interface (contract) enforcement
+# @weight 1
 
 A class declares the methods its concrete subclasses must provide with
 `(interface …)`. The declaring class is abstract; a concrete subclass is checked

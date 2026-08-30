@@ -1,4 +1,5 @@
 # Set: membership over a Dict
+# @weight 1
 
 ## construction
 

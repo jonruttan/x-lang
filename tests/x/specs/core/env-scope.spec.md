@@ -1,4 +1,5 @@
 # Lexical scope vs globals (GH #47)
+# @weight 1
 
 Symbol lookup must resolve locals -- including ENCLOSING-frame captures --
 ahead of same-named globals, without poisoning any other lexical chain.

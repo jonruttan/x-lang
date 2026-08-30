@@ -1,4 +1,5 @@
 # Fmt: width estimation
+# @weight 1
 
 `Fmt` is the comment-preserving pretty printer; its layout decisions ride on
 `(Fmt width form)`. Width counts CODE POINTS, not bytes — byte counts
