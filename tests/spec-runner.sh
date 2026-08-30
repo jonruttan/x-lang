@@ -260,7 +260,17 @@ _register() {
 # bucket is labelled by its first file plus a +N count.
 _spawn() {
   _w_adm="$1"; _tcmd="$2"; shift 2
-  case "$_w_adm" in ''|*[!0-9]*) _w_adm=0 ;; esac
+  # AN UNDECLARED WEIGHT IS HEAVY, NOT LIGHT.  This used to read 0, which put
+  # every unweighted file OUTSIDE the admission cap -- so the guard covered
+  # only the files someone had remembered to annotate, and the one file its
+  # own rationale is written around (ext/complex, ~6GB) was not among them.
+  # The applicative stress lane was worse: six files documented as peaking
+  # ~4.7GB each, none weighted, admitted PARALLEL_JOBS-wide.
+  #
+  # Same rule as the memory probe below: the cost of being wrong downward is a
+  # slower suite, and the cost of being wrong upward is the machine.  So a
+  # file earns parallelism by DECLARING its weight; forgetting costs speed.
+  case "$_w_adm" in ''|*[!0-9]*) _w_adm=$SPEC_HEAVY_MIN ;; esac
   _I=$_N
   _N=$((_N+1))
   # TEMPORARY diagnostic (object-model v2 CI hunt): name each job as it
@@ -336,8 +346,14 @@ _file_tcmd() {
 # heavy files themselves the way @timeout-scale is (#320).  Jobs run
 # heaviest-first, because the glob is alphabetical and put six of the
 # eight heaviest files in the last 40% of the queue -- the 13s tools/pin
-# spec started DEAD LAST, defining the whole run's tail.  A stale weight
-# only mis-ranks a schedule; correctness never depends on it.
+# spec started DEAD LAST, defining the whole run's tail.
+#
+# A STALE WEIGHT ONLY MIS-RANKS A SCHEDULE.  An ABSENT one used to do more
+# than that, and this comment said otherwise for as long as the admission cap
+# has existed: weight is what the cap classifies on, so a missing declaration
+# read as light and took the file out of the cap entirely.  Absent is now
+# heavy (see _spawn), which restores "correctness never depends on the
+# number" -- it depends only on the declaration being there.
 _classify() {
   awk '
     /^# @lib /                { nlib++; if (nlib == 1) { libval = substr($0, 8); libline = FNR } }
@@ -403,7 +419,13 @@ for _spec in "$@"; do
   # SPECS (a glob pattern, e.g. '*list*') narrows the run for fast iteration; unset = all.
   [ -n "$SPECS" ] && { case "$_spec" in $SPECS) : ;; *) continue ;; esac; }
   if [ "$_args_mode" = 1 ]; then
-    _spawn 0 "$(_file_tcmd "$_spec")" "$_spec"
+    # NAMED FILES ARE CLASSIFIED TOO.  This passed a hard 0, so a file given on
+    # the command line was admitted as light whatever it declared -- and the
+    # obvious way to reproduce a heavy-file problem is to name the heavy files.
+    # `PARALLEL=1 spec-runner.sh ext/complex.spec.md lib/logo.spec.md` put both
+    # big heaps in flight at once, which is the pairing the cap exists to stop.
+    _aw=$(_classify "$_spec"); _aw=${_aw#*|}
+    _spawn "$_aw" "$(_file_tcmd "$_spec")" "$_spec"
   else
     printf '%s\n' "$_spec" >> "$_LIST"
   fi

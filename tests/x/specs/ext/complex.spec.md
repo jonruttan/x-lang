@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/complex.x
+# @weight 7
 
 # complex
 
