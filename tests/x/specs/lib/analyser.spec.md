@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/analyser.x
+# @weight 1
 
 Analyser (`lib/x/reader/analyser.x`) is the tokenizer state-builder vocabulary. The
 builders are `Analyser` methods (called at setup); the terminators (accept /

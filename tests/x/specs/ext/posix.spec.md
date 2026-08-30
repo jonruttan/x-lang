@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/posix.x
+# @weight 1
 
 ## fd-write
 

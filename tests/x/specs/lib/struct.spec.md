@@ -1,4 +1,5 @@
 # Struct codec: binary records against a field spec (#371)
+# @weight 1
 
 Little-endian by default, u16be/u32be for network order, str/cstr for
 byte fields, (pad N) for layout gaps. Buffers are strings; reads are

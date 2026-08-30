@@ -1,4 +1,5 @@
 # Generic-operator dispatch (type ops group)
+# @weight 1
 
 ## int fast path
 

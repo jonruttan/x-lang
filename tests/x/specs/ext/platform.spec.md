@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/platform.x
+# @weight 1
 
 The syscall/file layers are platform-aware: macOS (Darwin) uses BSD syscall
 numbers and different `O_*` flag values than Linux. `syscall-id` and

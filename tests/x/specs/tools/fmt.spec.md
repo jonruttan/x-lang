@@ -1,3 +1,4 @@
+# @weight 1
 ## fmt: tokenization
 
 ### tokenizes simple expression

@@ -1,3 +1,4 @@
+# @weight 1
 ## backtick reader
 
 ### backtick produces a literal list

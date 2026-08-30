@@ -1,4 +1,5 @@
 # Xon codec (x/codec/xon)
+# @weight 1
 
 The xon form language: read, closed-vocabulary walk, emit.  The emit
 side's escaping is the #224 contract -- what the writer renders, the

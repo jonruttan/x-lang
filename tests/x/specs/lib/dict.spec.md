@@ -1,4 +1,5 @@
 # Dict: the mutable hash table
+# @weight 2
 
 Content-hashed (FNV-1a), equal?-compared keys: symbols, strings, integers,
 chars. Class instances are identity keys: address-hashed, same?-compared.

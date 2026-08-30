@@ -1,3 +1,4 @@
+# @weight 1
 ## fn
 
 ### creates a procedure

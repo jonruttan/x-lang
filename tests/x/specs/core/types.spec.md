@@ -1,3 +1,4 @@
+# @weight 1
 ## make-type
 
 ### creates a custom type with call handler

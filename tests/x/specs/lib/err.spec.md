@@ -1,4 +1,5 @@
 # Err: structured errors (kind + message + data)
+# @weight 1
 
 The Err class (boot-loaded) is the structured-error convention over the
 untyped C error prim (#20). Kinds are blessed but open: 'type 'value

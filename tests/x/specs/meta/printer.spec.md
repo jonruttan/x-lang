@@ -1,4 +1,5 @@
 # The x printer's internal contracts
+# @weight 4
 
 boot/printer.x owns rendering end to end; the C layer keeps only the
 (io write-str) OUT door.  These tests pin the internals the public io

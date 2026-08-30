@@ -1,5 +1,6 @@
 # @lib ../tests/x/lib/asm.x
 # @requires native/jit
+# @weight 1
 
 ## cmp and conditional branch
 

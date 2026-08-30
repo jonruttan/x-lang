@@ -1,3 +1,4 @@
+# @weight 1
 ## eq?
 
 ### returns #t for equal symbols

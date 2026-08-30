@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/rational.x
+# @weight 4
 
 ## construction
 

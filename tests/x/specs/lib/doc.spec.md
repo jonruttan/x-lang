@@ -1,4 +1,5 @@
 # Documentation discovery (apropos / help)
+# @weight 1
 
 These pin the argument-handling fixes; they assert the calls complete without
 error (a bare-symbol `apropos`/`help` used to raise "Unbound SYMBOL"), not the

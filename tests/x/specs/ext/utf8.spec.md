@@ -1,4 +1,5 @@
 # UTF-8 code-point layer (StrUtf8 ->list / list->str)
+# @weight 1
 
 `str->list` decodes a UTF-8 string into a list of code-point CHARACTERs and
 `list->str` re-encodes it; they are exact inverses (`lib/x/type/str-utf8.x` over

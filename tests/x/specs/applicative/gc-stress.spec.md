@@ -1,3 +1,4 @@
+# @weight 1
 ## GC stress
 
 Exercises mark+sweep over non-trivial heaps via the atomic `(Heap collect)`

@@ -1,3 +1,4 @@
+# @weight 1
 ## tail call in if
 
 ### tail-recursive countdown

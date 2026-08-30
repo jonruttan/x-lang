@@ -1,4 +1,5 @@
 # Sequence Protocol
+# @weight 1
 
 `Seq` is a base class whose derived operations (`count`, `->list`, `each`,
 `fold`) are written once in terms of three cursor primitives (`start`, `done?`,

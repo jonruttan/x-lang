@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/io.x
+# @weight 1
 
 # Real file I/O round-trips (Sys / File / Stream)
 

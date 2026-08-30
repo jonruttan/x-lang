@@ -1,3 +1,4 @@
+# @weight 1
 ## self-evaluation
 
 ### evaluates positive integers

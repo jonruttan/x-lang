@@ -1,3 +1,4 @@
+# @weight 1
 ## GC hook & root API
 
 End-to-end coverage for the per-pass GC extensible lists in x-expr's

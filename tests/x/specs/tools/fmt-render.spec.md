@@ -1,4 +1,5 @@
 # Fmt: rendering (width + indentation golden-master)
+# @weight 1
 
 Characterizes the formatter's **rendering** — width estimation and the
 indentation/width-threshold logic of the mutually-recursive `%fmt-expr` /

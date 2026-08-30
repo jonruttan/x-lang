@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/obj-layout.x
+# @weight 1
 
 # The object-layout contract, runtime half
 

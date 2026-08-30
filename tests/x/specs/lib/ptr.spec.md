@@ -1,4 +1,5 @@
 # Raw pointers (Ptr)
+# @weight 1
 
 `(Ptr from-int n)` builds a pointer from an integer address and `(Ptr ->int p)`
 reads it back; `(Ptr ptr? x)` tests for a pointer.

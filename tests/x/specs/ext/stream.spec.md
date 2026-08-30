@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/stream.x
+# @weight 1
 
 Stream (`lib/x/sys/stream.x`) redirects output by pushing/popping the base's
 `fileout` fd -- pure X, no syscall. These cases exercise the syscall-free

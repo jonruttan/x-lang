@@ -1,3 +1,4 @@
+# @weight 1
 ## vector
 
 ### creates a vector from arguments

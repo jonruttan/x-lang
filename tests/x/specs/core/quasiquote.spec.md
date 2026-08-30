@@ -1,3 +1,4 @@
+# @weight 1
 ## quasi
 
 ### returns a literal list

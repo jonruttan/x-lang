@@ -1,4 +1,5 @@
 # Harness: full multi-line output mode
+# @weight 1
 
 Exercises the runner's own opt-in `output`-fenced comparison (full multi-line
 stdout) and confirms the default last-line mode is unaffected in the same file.

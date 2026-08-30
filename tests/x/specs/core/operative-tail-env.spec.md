@@ -1,4 +1,5 @@
 # Operative tail-position env integrity
+# @weight 1
 
 An operative (`op`) evaluated in tail position must restore the caller's
 environment on exit, so the next form the caller evaluates sees the correct

@@ -1,4 +1,5 @@
 # Ansi: terminal color + the REPL/help renderers
+# @weight 1
 
 ## help renders the quote family as sugar
 

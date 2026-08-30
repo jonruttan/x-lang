@@ -1,3 +1,4 @@
+# @weight 1
 ## selective imports
 
 ### valid selective import succeeds

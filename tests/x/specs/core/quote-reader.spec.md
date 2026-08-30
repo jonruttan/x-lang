@@ -1,3 +1,4 @@
+# @weight 1
 ## quote reader
 
 ### quote produces a literal list

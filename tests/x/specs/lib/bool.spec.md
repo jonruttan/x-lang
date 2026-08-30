@@ -1,3 +1,4 @@
+# @weight 1
 ## BOOL: the singletons as a real type (#101)
 
 #t and #f are C-static satoms claimed at boot by an x-defined BOOL type via

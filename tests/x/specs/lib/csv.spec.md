@@ -1,4 +1,5 @@
 # Csv codec: RFC 4180 parse and emit (#372)
+# @weight 1
 
 Tables are rows of field STRINGS -- parse never guesses types. Quoted
 fields carry commas, doubled quotes, and newlines; rows end at LF, CRLF,

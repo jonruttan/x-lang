@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/file.x
+# @weight 1
 
 File I/O (`lib/x/sys/file.x`) issues raw Linux (x86_64) syscalls, so it cannot
 run on a non-Linux dev machine. The `@lib` harness stubs `syscall`/`syscall-id`

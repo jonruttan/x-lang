@@ -1,4 +1,5 @@
 # Dirent decoding: the shared platform decoder (#228)
+# @weight 1
 
 boot/module.x and sys/file.x once carried drifted copies; both now
 decode through x/platform/dirent's dirent-names, and this spec pins

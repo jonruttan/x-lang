@@ -1,3 +1,4 @@
+# @weight 1
 ## Type alist
 
 ### returns non-nil

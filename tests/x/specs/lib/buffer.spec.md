@@ -1,4 +1,5 @@
 # Buffer reading (Buf)
+# @weight 1
 
 Buffer construction from x-lang is back: `(buf make s)` (catalog ns `buf` is
 de-registered, so fetch via `prim-ref`) wraps a BUFFER around a string's

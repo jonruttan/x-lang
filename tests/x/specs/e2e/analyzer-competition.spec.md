@@ -1,4 +1,5 @@
 # @lib x-base.x
+# @weight 4
 
 ## integer vs bigint
 

@@ -1,4 +1,5 @@
 # Hex codec: bytes <-> hexadecimal text (#362)
+# @weight 1
 
 Lowercase out, either case in, strict decode (odd length or a character
 outside [0-9a-fA-F] raises kind-'value -- #61: no silent repair).

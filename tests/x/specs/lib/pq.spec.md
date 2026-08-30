@@ -1,4 +1,5 @@
 # Pq: a binary-heap priority queue (#375)
+# @weight 1
 
 Comparator-ordered ((cmp a b) -> #t when a comes strictly first, the
 List sort contract); Array-backed; push!/pop! O(log n), peek O(1).

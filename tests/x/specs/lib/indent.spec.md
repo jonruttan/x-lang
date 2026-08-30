@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/indent.x
+# @weight 2
 
 `Indent` (`lib/x/reader/indent.x`) is the stack discipline under
 indentation-sensitive grouping (#520). Logo and x-sweet each owned a copy of it;

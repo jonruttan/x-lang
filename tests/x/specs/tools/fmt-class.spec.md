@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/fmt.x
+# @weight 1
 
 The Fmt formatter methods. Kept separate from fmt.spec.md's tokenizer cases:
 a known, separately-tracked bug (repeated Tok read-str on one process) fires

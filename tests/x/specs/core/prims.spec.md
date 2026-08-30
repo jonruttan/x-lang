@@ -1,4 +1,5 @@
 # Primitives catalog: the registry protocol
+# @weight 1
 
 ## prim-ref
 

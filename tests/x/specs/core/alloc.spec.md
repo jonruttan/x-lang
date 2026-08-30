@@ -1,4 +1,5 @@
 # Allocation doors
+# @weight 1
 
 The four user-approved 2026-07-15 ISA additions: the byte-region
 allocators x genuinely lacked.  (str make) is the managed default --

@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/hash.x
+# @weight 1
 
 ## fnv-1a
 

@@ -1,3 +1,4 @@
+# @weight 1
 ## iter
 
 ### iterates a list

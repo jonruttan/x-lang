@@ -1,4 +1,5 @@
 # Base64 codec: RFC 4648, strict decode (#362)
+# @weight 1
 
 The standard alphabet with = padding. encode/decode carry strings;
 encode-bytes/decode-bytes carry byte lists (the lossless door -- str

@@ -1,3 +1,4 @@
+# @weight 1
 ## assoc-get
 
 ### retrieves value by key

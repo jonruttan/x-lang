@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/lint.x
+# @weight 2
 
 ## lint: AST walking
 

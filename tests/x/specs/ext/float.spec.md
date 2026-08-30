@@ -1,4 +1,5 @@
 # @lib ../tests/x/lib/float.x
+# @weight 4
 
 ## float literals
 
