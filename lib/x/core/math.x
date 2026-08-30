@@ -119,14 +119,22 @@
         (%fold (fn (_ acc x) (%lcm2 (Num abs acc) (Num abs x)))
               (first args) (rest args))))
     ; --- Exponentiation ---
+    ; A negative exponent never reaches the (= exp 0) base case -- it walks
+    ; AWAY from zero, and every even step squares the base, so the recursion
+    ; allocates bignums that double in width until memory is gone (x-lang#545).
+    ; The doc already said non-negative; the guard makes that a contract rather
+    ; than a comment. A caller wanting Python's or Scheme's answer needs a
+    ; float, which is the caller's decision to make, not a reinterpretation here.
     (method expt (self (param base NUMBER "Base")
                        (param exp NUMBER "Non-negative integer exponent"))
-      (doc "Compute base raised to a non-negative integer exponent by repeated squaring."
-        (returns NUMBER "base raised to the power exp"))
-      (if (= exp 0) 1
-        (if (Num even? exp)
-          (recur self (* base base) (/ exp 2))
-          (* base (recur self base (- exp 1))))))))
+      (doc "Compute base raised to a non-negative integer exponent by repeated squaring; errors on a negative exponent."
+        (returns NUMBER "base raised to the power exp")
+        (example "(Num expt 2 10)" "1024"))
+      (if (< exp 0) (Err raise (lit value) "Num expt: negative exponent" ())
+        (if (= exp 0) 1
+          (if (Num even? exp)
+            (recur self (* base base) (/ exp 2))
+            (* base (recur self base (- exp 1)))))))))
 
 ; Value dispatch (subject-last): an integer calls Num's static methods --
 ; (6 even?) -> (Num even? 6); (12 gcd 8) -> (Num gcd 12 8).
