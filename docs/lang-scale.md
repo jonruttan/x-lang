@@ -5,9 +5,9 @@ what has to be true for there to be twenty of them, and it exists because the
 answers are different: nothing in the contract is wrong at six bundles, and
 three things in it are O(N) by hand.
 
-> **Status: proposal.** Nothing here is gated yet. The measurements are real
-> and reproducible; the rulings are arguments. Each section says which is
-> which.
+> **Status: Ruling 2 is shipped in two bundles; the rest is proposal.** The
+> measurements are real and reproducible; the unshipped rulings are arguments.
+> Each section says where it stands.
 
 ## The problem, measured
 
@@ -84,6 +84,9 @@ vendored into the release tarball so an unpacked bundle needs nothing.
 
 ## Ruling 2: one source of truth per fact, held by a gate
 
+> **Shipped** in x-r5rs and x-r7rs — see [What shipping it
+> taught](#what-shipping-ruling-2-taught) below. Not yet in the other four.
+
 `requires-release` in `lang.xon` is the truth about which platform a bundle was
 built against. The README and the CI matrix should **derive** it, not repeat
 it.
@@ -94,6 +97,48 @@ shape applied to version literals — no release string outside the manifest —
 turns a platform release from 18 edits into one line per bundle, which is small
 enough for a bot to open as a pull request and a human to merge without
 reading twice.
+
+### What shipping Ruling 2 taught
+
+The split turned out to be sharper than "derive it": there are two cases, and
+they want different answers.
+
+**Derive, where something can read the manifest.** A `prepare` job reads
+`(requires-release …)` and emits the CI matrix; in x-r7rs it also supplies the
+`x-r5rs` checkout ref. Both bundles' release workflows do the same. This does
+not guard a copy, it *removes* one — and with it the drift checks that existed
+to catch the copies disagreeing.
+
+**Gate, where nothing can.** A README is prose. `tools/check/release-refs.sh`
+asserts that a version preceded by the name it belongs to is the declared one.
+
+Three bugs, and where they came from is the useful part:
+
+- Matching any version on a line naming x-lang fired on a line carrying
+  `x-lang#527` and an **engine** version. An issue reference is not a release.
+- Two versions on one line broke the regex outright: POSIX has no lazy
+  quantifier, so a greedy window steps over the near version to pair a name
+  with the far one. This is what forced the scan into awk.
+- **CI caught the third on the gate's own header.** A flat look-back still
+  spans a neighbouring pair. The README saying the same phrase *passed*,
+  because its markdown padding pushed the name out of the window — it was
+  right by luck. A name owns a version only when none stands between them.
+
+**A workflow may not pin a version literally**, which covers what the scan
+structurally cannot: `ref:` sits on its own line, so no per-line proximity test
+can pair it with its name. Forbidding the shape was smaller than teaching the
+scan about YAML.
+
+**The cost is now visible.** The same file exists twice, and the second copy
+needed all three fixes backported the day it was written. That is Ruling 1's
+argument in miniature, which is why the other four bundles are deliberately
+still waiting.
+
+**Found in passing:** these workflows fire `push` only on `main`, so a
+feature-branch commit is tested only if the `pull_request` event lands. One
+did not, and the PR showed passing checks belonging to an earlier commit.
+Green against the wrong revision is its own small version of the failure this
+document is about.
 
 ## Ruling 3: tier the checks by cadence, not by repository
 
