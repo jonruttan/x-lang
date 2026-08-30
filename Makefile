@@ -1025,6 +1025,18 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	install $C -m 0644 tests/spec-runner.awk $(DESTDIR)$(LIBDIR)/tests/spec-runner.awk
 	diff tests/spec-runner.sh $(DESTDIR)$(LIBDIR)/tests/spec-runner.sh
 	diff tests/spec-runner.awk $(DESTDIR)$(LIBDIR)/tests/spec-runner.awk
+	# THE LANG KIT, on exactly the argument above.  The spec runner was the
+	# first thing every bundle would otherwise have vendored; it is not the
+	# only one.  These checks are byte-identical in every bundle -- the same
+	# file was written twice and needed three fixes backported to the second
+	# copy the day it was written -- so they ship here and bundles carry a
+	# shim, addressed as <root>/tools/lang-kit where <root> is what
+	# `x --share-dir` answers.
+	#
+	# Outside the payload fingerprint, for the same reason the runner is.
+	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tools/lang-kit
+	install $C -m 0644 tools/lang-kit/release-refs.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/release-refs.sh
+	diff tools/lang-kit/release-refs.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/release-refs.sh
 	# The tree's RELEASE IDENTITY, beside the engine's ISA fingerprint and
 	# for the same reason: an installed tree has no source checkout and no
 	# git, so without these two lines it cannot answer "which release is
