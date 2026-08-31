@@ -65,19 +65,34 @@ More in [examples/](examples/) — start with the
 [examples guide](examples/README.md), or run one directly with
 `sh x.sh -f examples/x/hello.x`.
 
-## A larger demonstration: Logo
+## A larger demonstration: other languages, on top
 
-[`apps/logo/`](apps/logo/) is a Logo interpreter written in x-lang — its own
-tokenizer types, an infix expression parser, an HTTP server, and a live
-animated turtle in the browser, in ~2,400 lines. It is the worked proof that
-whole surface languages load on top of a dialect rather than being bolted into
-the core.
+A **lang** is a different surface language implemented in x-lang and loaded
+over a dialect — the worked proof that whole languages sit on top of this one
+rather than being bolted into its core. Each lives in its own repository and
+is acquired as a pinned, verified bundle:
 
 ```sh
-sh x.sh -l logo             # REPL + viewer at http://localhost:8080
+x --install-lang https://github.com/jonruttan/x-logo/releases/latest/download/lang.pin.xon
+x -l logo                   # REPL + viewer at http://localhost:8080
 ```
 
-See [`apps/logo/README.md`](apps/logo/README.md) for the command reference.
+| lang | is | dialect |
+|---|---|---|
+| [x-logo](https://github.com/jonruttan/x-logo) | Logo turtle graphics, with a live browser viewer | radon |
+| [x-r5rs](https://github.com/jonruttan/x-r5rs) | R5RS Scheme | helium |
+| [x-r7rs](https://github.com/jonruttan/x-r7rs) | R7RS Scheme, on top of x-r5rs | helium |
+| [x-krn](https://github.com/jonruttan/x-krn) | Kernel, with `$vau` | helium |
+| [x-sweet](https://github.com/jonruttan/x-sweet) | SRFI-105/110 sweet-expressions | helium |
+| [x-python](https://github.com/jonruttan/x-python) | a Python 3 surface | xenon |
+| [x-ash](https://github.com/jonruttan/x-ash) | a POSIX-ish shell | radon |
+
+Logo is the largest of them — its own tokenizer types, an infix expression
+parser, an HTTP server and an animated SVG turtle, in ~2,400 lines. It lived
+in this repository's `apps/logo/` until the bundle format could carry it.
+
+[The Lang Contract](docs/lang-contract.md) is the terms a lang is held to,
+what it may rely on, and how one is written or extracted.
 
 ## Features
 

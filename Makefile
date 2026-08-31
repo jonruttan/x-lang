@@ -436,16 +436,6 @@ check-examples: $(EXECUTABLE) ## Run every example under its documented dialect
 	sh tools/check/examples.sh
 .PHONY: check-examples
 
-# The logo tty contract (#152/#157): expect-driven pty sessions pinning the
-# interactive behaviors (ctrl-c cancel, exit paths, hooks, execute-once)
-# that isatty guards hide from every batch suite.  Not part of `make test`
-# (tty environments flake); CI runs it explicitly on both OSes.  Skips
-# with a note when expect(1) is absent.  known-fail.txt entries pin the
-# post-#157 ruling; a listed test PASSING is red (delete its line).
-check-logo-tty: $(EXECUTABLE) ## Run the logo interactive-contract pty tests
-	sh tools/check/logo-tty.sh
-.PHONY: check-logo-tty
-
 # The three SELF-CONTAINED contract ratchets moved to the engine repo with
 # the manifests they diff against (2026-08-21).  They are delegated, not
 # deleted: `make check-isa` still works from here, CI's gate list does not
@@ -541,7 +531,12 @@ boot: ## Generate amalgamated boot entries into build/boot
 	@mkdir -p build/boot
 	@for e in x he xe rn x-base; do \
 		sh tools/release/amalgamate.sh "lib/$$e.x" > "build/boot/$$e.x" || exit 1; done
+	@# GUARDED, because apps/ is empty since Logo became a bundle and an
+	@# unmatched glob is the literal pattern, which amalgamate.sh would then
+	@# try to open.  The mechanism stays (see apps/README.md); the loop just
+	@# has to survive having nothing to do.
 	@for a in apps/*/run.x; do \
+		[ -e "$$a" ] || continue; \
 		n=$$(basename "$$(dirname "$$a")"); \
 		sh tools/release/amalgamate.sh "$$a" > "build/boot/$$n.x" || exit 1; done
 	@echo "boot: generated $$(ls build/boot | wc -l | tr -d ' ') entries"

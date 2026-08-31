@@ -18,7 +18,7 @@ one: a whole, isolated interpreter you hold as an ordinary value. Nothing
 crosses in or out unless you pass it. That gives you sandboxed evaluation
 of code you don't fully trust, scratch interpreters for tools that read
 source without evaluating it, and custom tokenizer bases whose reader
-speaks a different language (the logo app's Logo reader is one of these).
+speaks a different language (x-logo's Logo reader is one of these).
 
 `(Base make)` answers a **Base instance** wrapping the raw C base object.
 The instance is the interactive surface; the raw object (its `raw`
@@ -131,7 +131,7 @@ instance through the write handler you just registered.)
 For tokenizer work — teaching a base to *read* a different surface syntax
 — start from `(Base make-tok)` instead: a minimal base with no types and
 no prims, so your `analyse`/`read` handlers are the only reader it has.
-The worked example is `apps/logo/types.x`, and the specs are the
+The worked example is x-logo's `logo/types.x`, and the specs are the
 "base-make-type" sections of `core/sandbox.spec.md`. (Reader-macro
 handlers on the *running* base are boot-time only, by ruling — a fresh
 child is exactly the sanctioned playground.)

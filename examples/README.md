@@ -61,17 +61,23 @@ sh x.sh -l rn -f examples/rn/hello.x
 
 ## 4. A whole second language
 
-[`logo/ch1.logo`](logo/ch1.logo) holds the Chapter-1 turtle programs from
-*Turtle Geometry* (Abelson & diSessa, 1981) — written in **Logo**, not
-x-lang. They run under the Logo interpreter in
-[`apps/logo/`](../apps/logo/), which is itself ~2,400 lines of x-lang.
+There is no example of one here any more, and where it went is the point.
+**Logo** — ~2,400 lines of x-lang implementing its own tokenizer, an infix
+expression parser, an HTTP server and a live SVG turtle — used to live in this
+repository as `apps/logo/`, with the Chapter-1 turtle programs from *Turtle
+Geometry* (Abelson & diSessa, 1981) beside it as `logo/ch1.logo`.
+
+It is now [x-logo](https://github.com/jonruttan/x-logo), acquired rather than
+bundled with the platform, and the example went with it:
 
 ```sh
-sh x.sh -l logo             # REPL + live turtle at http://localhost:8080
+x --install-lang https://github.com/jonruttan/x-logo/releases/latest/download/lang.pin.xon
+x -l logo             # REPL + live turtle at http://localhost:8080
 ```
 
-See [`apps/logo/README.md`](../apps/logo/README.md) for the command reference
-and for how to load `ch1.logo`.
+The examples in *this* directory are all x-lang. A lang's examples belong to
+the lang, for the same reason its specs do — see
+[the lang contract](../docs/lang-contract.md).
 
 ## Not yet covered
 

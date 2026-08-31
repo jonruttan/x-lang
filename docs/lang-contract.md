@@ -41,10 +41,12 @@ to mean something x-lang does not — and that freedom is exactly what makes a
 lang safe to ship as a separate, pinned artifact.
 
 **So the boundary was drawn before this document, and everything on the far side
-of it is a lang.** Logo included: it lives in `apps/` because it also
-ships a server and a viewer, but `apps/logo/README.md` describes it as "a second
-surface language" and "the worked demonstration of the claim that whole surface
-languages load on top of a dialect." That is a lang's job description.
+of it is a lang.** Logo included, and Logo is the case that proved it: it lived
+in `apps/` because it also ships a server and a viewer, while its own README
+described it as "a second surface language" and "the worked demonstration of
+the claim that whole surface languages load on top of a dialect." That is a
+lang's job description, and it is now [x-logo](https://github.com/jonruttan/x-logo).
+`apps/` is empty.
 
 ## The three pinned artifacts
 
@@ -90,8 +92,8 @@ search for a project keeping its bundles elsewhere.
 
 The third step differs from the first two in what it makes the entry, and the
 difference is worth stating because it removes work rather than adding it.
-`lib/he.x` and `apps/logo/run.x` are *self-booting* — they include the platform
-themselves. A bundle does not. The wrapper boots the dialect the bundle
+`lib/he.x` and an app entry (`apps/NAME/run.x`) are *self-booting* — they
+include the platform themselves. A bundle does not. The wrapper boots the dialect the bundle
 **declares**, then loads the bundle on top:
 
 ```
@@ -290,22 +292,55 @@ in every dialect:
 | `repl` | the read-eval-print loop | `lib/x/repl/` |
 | `%batch?` | `-f`/`--batch` was passed | x-core, via `repl/banner.x` |
 | `%install-root` | the installed tree's root, when installed | `lib/x/boot/module.x` |
+| `%lang-root` | the bundle's own directory — how a lang reaches **data** it ships | `x.sh`, when `-l` resolved a bundle |
 | `import-path!` | arm an import root at runtime | `lib/x/boot/module.x` |
 | `eval!` | evaluate without env save/restore — **how a lang's `define` binds in its caller** | engine, via `x/doc/doc-prims.x` |
 | `x-lib-version` | the library's version | `lib/x-core.x` |
 
-The idiom for a bundle arming its own root, taken from `apps/logo/run.x` — the
-`guard` is what makes one file work in both a repo checkout and an installed
-tree:
+The idiom an in-tree app uses to arm its own root — the `guard` is what makes
+one file work in both a repo checkout and an installed tree. A **bundle needs
+none of it**: the wrapper arms the root and defines `%lang-root` before the
+entry is read, which is what the Logo extraction removed from that file:
 
 ```x
 (import-path! (guard (_ "apps") (%path-join %install-root "apps")))
 ```
 
-`%install-root` is the one conditional row: a checkout has none, which is why
-the idiom above guards it. The gate checks that too, from the other side — a
-row that quietly became unconditional would turn every lang's guard into
-superstition, so it fails if a checkout starts providing one.
+`%install-root` and `%lang-root` are the two conditional rows, and they are
+conditional on different things. A checkout has no `%install-root`, which is
+why the idiom above guards it. `%lang-root` is bound whenever `-l` resolved a
+**bundle** and never in a bare dialect, so a bundle's own code may read it
+plainly — it cannot run in a tree where it is absent. The gate checks both
+from both sides: a row that quietly became unconditional would turn every
+lang's guard into superstition, so it fails if a checkout starts providing an
+`installed` row, or a bare `he` starts providing a `bundle` one.
+
+### Data a bundle ships
+
+`import` answers *where do my modules come from*, and a `./`-relative
+`include-once` reaches a sibling **source** file. Neither means *the bytes of
+that file*. A lang that ships a grammar table, a template, a viewer — anything
+it opens rather than loads — needs an absolute path, and `%lang-root` is it:
+
+```x
+(def html (%read-or-empty (%path-join %lang-root "logo/viewer.html")))
+```
+
+**It is not `%install-root`, and reaching for that instead is the mistake this
+row exists to prevent.** `%install-root` is where the *platform* lives; a
+bundle lives under `langs/` when installed and under a project's `deps/` when
+pinned. A bundle that joined its data path onto `%install-root` would look
+inside x-lang's tree and read nothing.
+
+The wrapper emits it because the wrapper is the only thing that ever knows: it
+is what searched `langs/*/lang.xon` and found the directory. It is emitted for
+the bundle whose entry is about to run, never for a `(requires-lang …)`
+dependency — to the bundle that needs it, a required lang is a library, and a
+second definition would overwrite the one about to be used.
+
+This row is younger than the five bundles above it, and none of them wants it:
+Sweet, Kernel, R5RS, R7RS and Python are modules all the way down. Logo is the
+first lang that hands a file to a browser, which is what surfaced the gap.
 
 A lang that reads a `%`-prefixed name not in this table is relying on a
 platform internal, and the platform owes it nothing. **This table is the

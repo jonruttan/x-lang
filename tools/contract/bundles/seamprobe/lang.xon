@@ -1,0 +1,19 @@
+; seamprobe -- a FIXTURE, not a lang.
+;
+; tools/check/seam.sh declares %lang-root class `bundle`: bound while a bundle
+; is loaded, absent in a bare dialect.  Checking the second half needs only a
+; dialect boot; checking the FIRST half needs a bundle to exist, and a gate
+; that must clone another repository to run is a gate that does not run.
+;
+; So this is the smallest thing x.sh will accept as one: a declaration and an
+; entry that defines nothing.  It is deliberately NOT a surface language --
+; it sets no %lang-name, claims no prompt, and must never grow one, or the
+; gate starts proving things about a lang nobody uses instead of about the
+; wrapper's bundle path.
+;
+; helium: the cheapest dialect that boots, and the probe reaches for nothing
+; a tower provides.
+
+(lang "seamprobe")
+(dialect he)
+(entry "run.x")

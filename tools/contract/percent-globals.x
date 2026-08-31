@@ -37,13 +37,18 @@
 ; BUILD now declares its os and arch, and the triple parse became the fallback for
 ; an engine that could not establish them.  Boot-constrained like the rest of that
 ; file -- it loads mid-x-core, before the class machinery that would home them.
-; apps/logo/run.x grew from 0 to 1 for %logo-app-root, and the growth BUYS a
-; deletion: the app root used to be re-derived in main.x and the viewer's
-; directory guessed a third way in serve.x, as a cwd-relative literal that
-; resolved only from the repo root -- so the viewer was broken in every
-; INSTALLED tree.  One name in the ENTRY, which is the one file allowed to
-; know the layout (path-literals.sh exempts apps/*/run.x), is the shape
-; docs/lang-contract.md requires of a relocatable app.
+; LOGO'S THIRTEEN ROWS LEFT WITH LOGO (x-logo), and the last thing they
+; recorded is worth keeping even though the files are gone.  run.x's single
+; row was %logo-app-root, and it BOUGHT a deletion: the app root had been
+; re-derived in main.x and guessed a third way in serve.x, as a cwd-relative
+; literal that resolved only from the repo root -- so the viewer was broken in
+; every INSTALLED tree.  One name in the ENTRY was the fix.
+;
+; The bundle needs even that one no longer: x.sh defines %lang-root for it
+; (tools/contract/seam.x), so the fact is stated once by the only thing that
+; knows it rather than derived once by the file most likely to be moved.  A
+; budget row is a ratchet on a repo's own inventory; a lang in its own
+; repository ratchets its own.
 ; Everything else is unhomed inventory awaiting the pin.x treatment.
 ; lib/x/reader/indent.x arrives at 6, and every one is the reader-context
 ; exception rather than convenience: four (advance/scan/measure/classify) are
@@ -73,25 +78,7 @@
 ; parse-exp, digits) and the printer's zero/scientific helpers are LOCAL defs
 ; inside the two functions that use them, because a parse-local helper has no
 ; business in a flat global namespace.  #550.
-; apps/logo/types.x grew from 43 to 44 for %indent-scan-ref, and the growth BUYS
-; a deletion: the hand-rolled %count-indent loop that walked the leading run and
-; handed its INDEX back as a column.  Logo, x-sweet and Python each had their own
-; answer to what a tab is worth; the ref is how this file reaches the one that is
-; now shared.  Reader-context, so it is cached rather than dispatched.  #520.
 
-(file "apps/logo/dispatch.x" 28)
-(file "apps/logo/entry.x" 27)
-(file "apps/logo/expr.x" 15)
-(file "apps/logo/indent.x" 2)
-(file "apps/logo/json.x" 1)
-(file "apps/logo/main.x" 6)
-(file "apps/logo/math.x" 5)
-(file "apps/logo/repl.x" 9)
-(file "apps/logo/run.x" 1)
-(file "apps/logo/serve.x" 15)
-(file "apps/logo/state.x" 15)
-(file "apps/logo/tstate.x" 2)
-(file "apps/logo/types.x" 44)
 (file "lib/x/boot/data.x" 14)
 (file "lib/x/boot/engine.x" 2)
 (file "lib/x/boot/module.x" 50)

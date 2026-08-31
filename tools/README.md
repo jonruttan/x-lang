@@ -18,7 +18,7 @@ Tool LOGIC is written in x-lang -- entry scripts here or modules under
    binary under test, pty allocation, per-spec subprocess isolation and
    timeouts, tar/codesign, profiling binaries.  A gate that must observe
    the engine from OUTSIDE (`amalgam-smoke`, `pin-smoke`,
-   `bootstrap-smoke`, `logo-tty`) cannot run inside it.
+   `bootstrap-smoke`) cannot run inside it.
 2. **The C-artifact contract scans** (`check/isa.sh`,
    `check/obj-layout.sh`, `check/base-paths.sh`, plus
    `contract/gen-base-layout.awk`).  These audit the C source and must

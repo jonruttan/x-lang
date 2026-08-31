@@ -30,11 +30,12 @@ DOC=docs/lang-contract.md
 bad=$(sed -n 's/^(\([a-z-]*\)[ )].*/\1/p' "$SEAM" | sort -u | grep -vx 'seam' || true)
 [ -z "$bad" ] || { echo "seam: unknown form(s) in $SEAM: $bad" >&2; exit 2; }
 badclass=$(sed -n 's/^(seam \([a-z-]*\) .*/\1/p' "$SEAM" | sort -u \
-	| grep -vxE 'always|installed' || true)
+	| grep -vxE 'always|installed|bundle' || true)
 [ -z "$badclass" ] || { echo "seam: unknown class(es) in $SEAM: $badclass" >&2; exit 2; }
 
 ALWAYS=$(sed -n 's/^(seam always \([^ ]*\) .*/\1/p' "$SEAM")
 INSTALLED=$(sed -n 's/^(seam installed \([^ ]*\) .*/\1/p' "$SEAM")
+BUNDLE=$(sed -n 's/^(seam bundle \([^ ]*\) .*/\1/p' "$SEAM")
 [ -n "$ALWAYS" ] || { echo "seam: $SEAM declares no always-rows" >&2; exit 2; }
 
 # --- the probe -------------------------------------------------------------
@@ -46,7 +47,7 @@ mkdir -p "$W"
 trap 'rm -rf "$W"' EXIT
 PROBE="$W/probe.x"
 : > "$PROBE"
-for n in $ALWAYS $INSTALLED; do
+for n in $ALWAYS $INSTALLED $BUNDLE; do
 	printf '(display "%s=" (guard (_ "missing") (do %s "ok")) "\\n")\n' "$n" "$n" >> "$PROBE"
 done
 
@@ -75,7 +76,44 @@ for d in he xe rn; do
 			fail=1
 		fi
 	done
+	# A bare dialect is not a bundle, so the bundle-class names must be absent
+	# here.  Same reasoning as the installed rows above: a name that quietly
+	# became unconditional turns the class into a fiction, and the bundle half
+	# of this gate would then be proving nothing.
+	for n in $BUNDLE; do
+		if grep -qx "$n=ok" "$out"; then
+			echo "seam: $d provides '$n' with NO bundle loaded, but $SEAM declares it 'bundle'" >&2
+			fail=1
+		fi
+	done
 done
+
+# --- the bundle class, with a bundle actually loaded -----------------------
+# The other half.  X_LANG_DIR points -l at the fixture's parent (see
+# tools/contract/bundles/seamprobe/lang.xon); the entry defines nothing, so
+# everything the probe finds came from the wrapper's bundle_form.
+#
+# ONE DIALECT IS ENOUGH, and the asymmetry with the loop above is deliberate:
+# what varies across he/xe/rn is the LIBRARY, and %lang-root is emitted by the
+# wrapper ahead of any of it.  Running the fixture three times would cost the
+# tower's boot twice to re-prove a shell function's output.
+if [ -n "$BUNDLE" ]; then
+	out="$W/bundle.out"
+	if ! X_LANG_DIR=tools/contract/bundles/ \
+			sh x.sh --no-pin -q -l seamprobe -f "$PROBE" > "$out" 2>"$W/bundle.err"; then
+		echo "seam: the seamprobe fixture failed to load" >&2
+		sed 's/^/  /' "$W/bundle.err" | head -5 >&2
+		fail=1
+	else
+		for n in $BUNDLE; do
+			if ! grep -qx "$n=ok" "$out"; then
+				echo "seam: a loaded bundle does not get '$n' -- declared 'bundle' in $SEAM" >&2
+				echo "  x.sh's bundle_form is what emits it" >&2
+				fail=1
+			fi
+		done
+	fi
+fi
 
 # --- the documented table must be the declared one -------------------------
 # The contract's table is what a lang author reads; this file is what the gate
@@ -84,7 +122,7 @@ done
 if [ -f "$DOC" ]; then
 	doc_names=$(awk '/^## The seam/{s=1;next} /^## /{if(s)exit} s' "$DOC" \
 		| sed -n 's/^| `\([^`]*\)` |.*/\1/p' | sort -u)
-	decl_names=$(printf '%s\n%s\n' "$ALWAYS" "$INSTALLED" | sed '/^$/d' | sort -u)
+	decl_names=$(printf '%s\n%s\n%s\n' "$ALWAYS" "$INSTALLED" "$BUNDLE" | sed '/^$/d' | sort -u)
 	if [ "$doc_names" != "$decl_names" ]; then
 		# Temp files, not <(...): process substitution is a bashism and CI's
 		# Linux leg runs dash, where it is a syntax error -- a gate that only
@@ -99,4 +137,4 @@ if [ -f "$DOC" ]; then
 fi
 
 [ "$fail" = 0 ] || { echo "seam: FAIL" >&2; exit 1; }
-echo "seam: ok ($(printf '%s\n' $ALWAYS | wc -l | tr -d ' ') always, $(printf '%s\n' $INSTALLED | wc -l | tr -d ' ') installed, he/xe/rn)"
+echo "seam: ok ($(printf '%s\n' $ALWAYS | wc -l | tr -d ' ') always, $(printf '%s\n' $INSTALLED | wc -l | tr -d ' ') installed, $(printf '%s\n' $BUNDLE | wc -l | tr -d ' ') bundle, he/xe/rn)"

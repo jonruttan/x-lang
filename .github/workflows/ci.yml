@@ -69,8 +69,8 @@ jobs:
         env:
           PARALLEL: "1"
           # ONE heavy spec in flight, not two (2026-08-20, measured with a
-          # temporary in-step memory sampler). At the logo + weight-6-batch
-          # window the 16GB ubuntu runner held TWO ~5-9GB x-bin heaps at
+          # temporary in-step memory sampler). At the heaviest window the
+          # 16GB ubuntu runner held TWO ~5-9GB x-bin heaps at
           # once: main peaked at 6.6GB + 5.3GB (12.7GB total -- 80% of the
           # VM, passing on the grace that one finishes early), and the
           # object-model v2 branch's linux peaks grew to 7.7GB + 7.7GB --
@@ -241,10 +241,14 @@ jobs:
         env:
           CHECK_MAN_C: ${{ runner.os == 'Linux' && '1' || '' }}
 
-  # Deep tier only: the examples ratchet and the tty contract.  Paired in
-  # one job so the ubuntu expect install is paid once.
-  interactive:
-    name: examples + tty (${{ matrix.os }})
+  # Deep tier only: the examples ratchet.  This job was `interactive` and ran
+  # the Logo pty contract beside it -- paired so the ubuntu expect install was
+  # paid once.  That contract went with the lang (x-logo runs it on both OSes,
+  # against a matrix of releases, which is more than this ever did), so what is
+  # left is the examples and the job is named for them.  It keeps the OS matrix:
+  # examples/rn/ reaches raw syscalls, and their numbers differ per platform.
+  examples:
+    name: examples (${{ matrix.os }})
     if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
@@ -266,15 +270,6 @@ jobs:
       # first-ever run caught or/cat.x broken by the #36 opt-in re-cut.
       - name: Examples
         run: make check-examples
-      # Logo tty contract (#152/#157): pty-driven pins of the interactive
-      # behaviors every batch suite is blind to.  expect ships on the macOS
-      # runners; install it on ubuntu.  The harness skips-with-note if
-      # expect is somehow absent, so this step cannot flake on tooling.
-      - name: Install expect (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update -q && sudo apt-get install -y -q expect
-      - name: Logo tty contract
-        run: make check-logo-tty
 
   # Memory-safety gate: both suites under AddressSanitizer. HARD gate since
   # the baseline reached zero (2026-07-13; was 112 findings): a red run here

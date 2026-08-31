@@ -77,9 +77,8 @@ jobs:
 
       # The site tree MIRRORS THE REPO LAYOUT, because the docs link as
       # though it does: docs/index.md reaches ../README.md, ../LICENSE
-      # and ../CHANGELOG.md, and README.md reaches examples/ and
-      # apps/logo/.  Flattening docs/ to the root would break every one
-      # of those.  The file list is `git ls-files`, not a hand-kept
+      # and ../CHANGELOG.md, and README.md reaches examples/.
+      # Flattening docs/ to the root would break every one of those.  The file list is `git ls-files`, not a hand-kept
       # enumeration -- a doc added tomorrow ships without editing this
       # workflow -- and the generated references are copied in on top,
       # since git does not track them.

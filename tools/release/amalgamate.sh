@@ -39,7 +39,7 @@ cd "$(dirname "$0")/../.." || exit 1
 
 awk -v entry="$1" '
 # Module name -> file, the same two roots the runtime resolver uses: lib/ for
-# the library, apps/ for an application tree (the logo entry imports logo/turtle
+# the library, apps/ for an application tree (an app entry imports NAME/...
 # through the root its own (import-path! ...) arms).
 function resolve(mod,  f) {
 	f = "lib/" mod ".x"

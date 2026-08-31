@@ -32,6 +32,13 @@
 ;              checking the name is absent from a checkout -- a seam row that
 ;              quietly became unconditional would make every guard look like
 ;              superstition.
+;   bundle     bound ONLY while a lang BUNDLE is loaded (`-l NAME` resolving
+;              through langs/*/lang.xon); absent in a bare dialect.  The gate
+;              checks both halves, and the second half needs a bundle to load
+;              -- tools/contract/bundles/seamprobe/ is that bundle, and it is
+;              a fixture rather than a lang: nine lines whose only job is to
+;              be loaded.  A class nothing can probe is documentation, which
+;              is the state this file exists to end.
 ;
 ; docs/lang-contract.md carries the same table for readers; the gate holds the
 ; two to each other, so the documented seam cannot drift from the enforced one.
@@ -61,3 +68,17 @@
 (seam always x-lib-version  "the platform library's version, for a lang that reports it")
 
 (seam installed %install-root "the installed tree's root; ABSENT in a checkout, so a lang must guard it")
+
+; %lang-root IS NOT %install-root, and conflating them is the whole reason it
+; has a row.  %install-root is where the PLATFORM lives; a bundle lives
+; wherever it was installed or pinned to, which is under langs/ in one case and
+; a project's deps/ in another.  A bundle that shipped a data file and reached
+; for %install-root would find the platform's tree and read nothing.
+;
+; MODULES DO NOT NEED THIS.  `import` resolves through the root the wrapper
+; arms, and a sibling source file is reached with a ./-relative include-once;
+; both work without knowing an absolute path, which is why five bundles got
+; this far without one.  DATA is the case neither covers: x-logo's serve.x
+; hands viewer.html to a browser, and there is no import that means "the bytes
+; of that file".
+(seam bundle %lang-root "the bundle's own directory; how a lang reaches DATA it ships, not modules")

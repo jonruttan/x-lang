@@ -206,7 +206,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 ---
     "2.5"
 
-### strings escape quotes and backslashes (the logo/json.x gap)
+### strings escape quotes and backslashes (the gap x-logo's json.x had)
 
 ```scheme
 (do (import x/codec/json) (Json emit "a\"b\\c"))

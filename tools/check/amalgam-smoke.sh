@@ -4,8 +4,11 @@
 # slip (wrapped form, wrong order, missing file) dies here, not in an
 # installed tree.  Same self-limit as the other harnesses.
 #
-# The logo app amalgam is generated but not smoked: its entry forks a
-# server; booting it headless is a test for another layer.
+# APP AMALGAMS ARE GENERATED, NOT SMOKED, and there are none to generate
+# today: Logo was the only app and it is a bundle now (x-logo).  The
+# exemption is kept rather than deleted because the reason is structural --
+# an app entry may fork a server or claim a terminal, and booting one
+# headless is a test for another layer, not this one.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
