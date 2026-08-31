@@ -67,7 +67,15 @@ fi
 # 250M); ext/complex peaks ~130M. The default is 300M (~14 GB at ~48 B/obj on
 # a 64-bit box): ~2x the heaviest batch, so it trips only a genuinely unbounded
 # loop -- which would otherwise grow without limit -- before it eats the
-# machine. RE-MEASURE when heavy batches change: a too-low ceiling fails good
+# machine.
+#
+# THE BINDING CASE HAS LEFT: the logo spec is x-logo's now, so the heaviest
+# batch in THIS suite is ext/complex at ~130M.  The ceiling is deliberately
+# NOT lowered to match -- what it has to clear is whatever the heaviest batch
+# grows into next, and headroom is the point of a runaway guard.  The logo
+# figures above stay because they are the measurement 300M was chosen from.
+#
+# RE-MEASURE when heavy batches change: a too-low ceiling fails good
 # specs (died mid-batch), which is exactly how 150M failed once logo went
 # green. LOWER it on a small-RAM box (a 512 MB Pi wants a few M -- the guard
 # then stops the tower/logo loads themselves, turning a lockup into a failed
@@ -129,8 +137,9 @@ _N=0
 # Cap concurrent jobs in PARALLEL mode. Without a cap the loop forks every job
 # at once, producing spurious "empty output" failures that shift run-to-run.
 # The bottleneck is MEMORY, twice over: the boot burst (mostly gone since the
-# #319 lib bucketing) and the RESIDENT HEAPS of the heavy specs (logo ~5-7GB,
-# complex ~6GB, the tower boots) -- the per-process alloc-limit! guard cannot
+# #319 lib bucketing) and the RESIDENT HEAPS of the heavy specs (complex
+# ~6GB, the tower boots; logo was ~5-7GB before it left for x-logo, and its
+# bundle suite is heavy for the same reason) -- the alloc-limit! guard cannot
 # protect the MACHINE from several of those at once.  The cores*2/3 rule
 # stays (verified stable at 8 on a 12-core box); the heavy-set admission cap
 # below is what makes heaviest-first scheduling safe at all.  2026-08-19,
@@ -157,12 +166,17 @@ _cpus=$(( _cpus * 2 / 3 ))
 #
 # THE DEFAULT IS SIZED TO THE BOX, because "lower them on a small box" is
 # advice this file gives and its callers do not take.  Two heavies is roughly
-# two big heaps -- logo ~5-7GB plus complex ~6GB, ~13GB worst case -- which
-# fits a 32GB desktop and does not fit a 16GB laptop.  It is the same
-# arithmetic that OOM-killed CI's 16GB ubuntu runner (ci.yml pins that leg to
-# 1 for exactly this reason), and on 2026-08-28 it took down a 16GB dev
-# machine running two suites at once.  A default that is safe only when the
-# caller remembers a comment is not a guard.
+# two big heaps -- ~13GB worst case, measured when logo (~5-7GB) and complex
+# (~6GB) were both in this suite -- which fits a 32GB desktop and does not fit
+# a 16GB laptop.  It is the same arithmetic that OOM-killed CI's 16GB ubuntu
+# runner (ci.yml pins that leg to 1 for exactly this reason), and on
+# 2026-08-28 it took down a 16GB dev machine running two suites at once.  A
+# default that is safe only when the caller remembers a comment is not a
+# guard.
+#
+# LOGO LEAVING DID NOT MAKE THIS SAFER, and the number is left at what two
+# heavies cost for that reason: x-logo's suite is the same heap on the same
+# machine, one process further away, and nothing coordinates the two runners.
 #
 # CI IS UNAFFECTED: both legs set SPEC_HEAVY_JOBS explicitly, and an explicit
 # value still wins below.  This moves only the uninstructed local run.
@@ -460,8 +474,8 @@ done
 # and the alloc-limit! ceiling both bound one PROCESS, and a bucket is
 # one process accumulating all its files' garbage (there is no safe
 # mid-batch collect: see the seam note in spec-runner.awk).  Eight LIGHT
-# files stay far under the ceiling; the heavy libs (logo, complex,
-# x-base tower) are singletons or tiny buckets by construction.  A
+# files stay far under the ceiling; the heavy libs (complex, x-base
+# tower) are singletons or tiny buckets by construction.  A
 # merged bucket's timeout is base x file-count: the same per-file budget
 # as before, one process instead of N.  Lower SPEC_BATCH on a
 # memory-constrained box (it composes with PARALLEL_JOBS); 1 restores

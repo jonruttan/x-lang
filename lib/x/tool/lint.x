@@ -307,7 +307,7 @@
 (def %lint-op (fn (_ form)
   (def saved (first %lint-scope))
   ; The env slot may be () -- "ignore the caller env", legal at runtime
-  ; (apps/logo's logo-repl) -- so only a SYMBOL adds a scope entry.  %cvt
+  ; (x-logo's logo-repl) -- so only a SYMBOL adds a scope entry.  %cvt
   ; on the nil slot answered nil (catalog misses are silent), and that nil
   ; NAME later reached str=? -- an unchecked C prim -- and crashed.
   (%set-first! %lint-scope

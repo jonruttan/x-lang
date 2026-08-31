@@ -5,7 +5,8 @@
 # env-model fix (53b84b0), so two modules defining the same global name
 # with different meanings is a real collision: whichever loads last
 # rewires every caller (the %alist-find segfault -- sys/convert.x's
-# dispatcher helper clobbered by logo/types.x's case-insensitive one).
+# dispatcher helper clobbered by the case-insensitive one in what was then
+# apps/logo/types.x, and is now x-logo).
 #
 # Rule, per global name defined at top level in MORE THAN ONE module:
 #   - catalog fetches -- a body that is (prim-ref ...) -- must all fetch
@@ -35,7 +36,6 @@
 #   compile-asm    -- tool/compile.x installs a lazy stub that
 #                     include-onces tool/asm-compile.x (the real one) and
 #                     re-dispatches; the overwrite is the mechanism.
-#   %deg->rad      -- logo math.x/state.x each derive the same converter.
 #   %c-read %c-malloc %c-free %c-close
 #                  -- libc symbols re-resolved per module through
 #                     different FFI helpers (%resolve/%sk/%dlsym); same
@@ -53,7 +53,7 @@ _FILES=$(find lib apps tools -name '*.x' 2>/dev/null | sort)
 
 awk '
 BEGIN {
-  split("let compile-asm %deg->rad %c-read %c-malloc %c-free %c-close " \
+  split("let compile-asm %c-read %c-malloc %c-free %c-close " \
         "%obj-set! %list-type %ptr %ptr-ref %int->ptr", aw, " ")
   for (i in aw) allow[aw[i]] = 1
 }

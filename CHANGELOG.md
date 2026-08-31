@@ -7,6 +7,55 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- **Logo left the tree, and is [x-logo](https://github.com/jonruttan/x-logo).**
+  It was the last occupant of `apps/`, and the reason that directory exists —
+  `-l` resolving `apps/NAME/run.x` was added for it. Its own README always
+  described it as "a second surface language", which is a lang's job
+  description, so [the lang contract](docs/lang-contract.md) named it as the
+  obvious extraction the day that document was written.
+
+  **It arrived green: 83 tests, 0 failed** — the same 83 that ran here as
+  `lib/logo.spec.md`, against the same turtle kernel, through the bundle's own
+  harness. The pty contract came too and reports what it always did (7 ok, 1
+  known-fail), and the `examples/logo/ch1.logo` pin came with it. Nothing about
+  the language changed; what changed is that it is now acquired, pinned, and
+  run against a matrix of platform releases rather than only against the tip of
+  this tree.
+
+  **`apps/` stays, empty.** The second resolution step is documented behaviour
+  and still gated; what left is its only occupant, not the mechanism. See
+  [apps/README.md](apps/README.md) for what belongs there and what should be a
+  bundle instead — the short version is that an app entry is self-booting and
+  therefore nailed to this tree, so anything wanting its own version number
+  wants to be a lang.
+
+- **A bundle can find the data it ships: `%lang-root`** (`x.sh`, a `bundle`
+  row in `tools/contract/seam.x`). `import` answers *where do my modules come
+  from*, and a `./`-relative `include-once` reaches a sibling source file.
+  Neither means *the bytes of that file*, and Logo is the first lang to need
+  that — `serve.x` hands `viewer.html` to a browser.
+
+  The three ways to do it without this row are all wrong in the same
+  direction: a cwd-relative literal works only from the tree root, a path
+  joined onto `%install-root` finds the *platform's* tree rather than the
+  bundle's, and reading `%import-roots-cell` is a platform internal the seam
+  does not cover. The first of those is not hypothetical — it is exactly how
+  Logo's viewer came to be broken in every installed tree, which is the one
+  environment nothing ran in.
+
+  So the wrapper says it, once, because the wrapper is the only thing that
+  ever knows: it is what searched `langs/*/lang.xon` and found the directory.
+  Emitted for the bundle whose entry is about to run and never for a
+  `(requires-lang …)` dependency — to the bundle that needs it, a required
+  lang is a library.
+
+  **The gate needed a bundle, so there is one.** `%lang-root` is bound only
+  while a bundle is loaded, which is a third class beside `always` and
+  `installed`, and a class nothing can probe is documentation rather than a
+  contract. `tools/contract/bundles/seamprobe/` is nine lines whose only job
+  is to be loaded: `check-seam` now asserts the name is absent from a bare
+  `he`/`xe`/`rn` *and* present under `-l seamprobe`.
+
 - **Arbitrary-precision decimal floating-point, the sixth tower stage**
   (`x/num/decimal.x`, class `Decimal`, literal suffix `d`). It exists because
   the tower had no exact answer for a decimal *fraction*. Bigint takes the
@@ -102,6 +151,23 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   the series over 140 random arguments spanning 1e-40 to 1e3 including the
   near-zero scale case. No disagreement in either, and every published
   constant still lands on the same digits.
+
+### Fixed
+
+- **`%batch?` means "a file was supplied" again, for bundles too.** `banner.x`
+  documents it that way and every dialect entry uses it that way, but the
+  bundle path passes `--batch` unconditionally — it is what keeps the
+  *dialect's* launcher quiet while the bundle loads on top — so every bundle
+  saw `true` whether or not the user named a file.
+
+  The two questions were the same question until bundles existed. x-sweet's
+  `(unless %batch? (%banner))` has silently never fired for want of the
+  distinction, and x-logo's entry has to choose between its REPL and its batch
+  reader on exactly this fact: with the wrong answer it consumes the launcher
+  `x.sh` appended and reads it as a Logo program, which is silent and prints
+  nothing. `x.sh` now restores the flag's documented meaning after the dialect
+  boots, rather than by withholding `--batch`, which is still doing its other
+  job.
 
 ### Changed
 

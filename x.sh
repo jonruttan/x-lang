@@ -233,6 +233,23 @@ bundle_resolve() {
 # The bundle's module root, emitted after the dialect has booted (import-path!
 # is module.x's, so it does not exist before that) and before the bundle's own
 # entry is read.  Same route %install-root takes, and for the same reason.
+#
+# %lang-root IS THE SAME FACT AS A VALUE, and it exists because a bundle may
+# ship DATA as well as modules.  import-path! answers "where do my modules
+# come from" for the module system; it answers nothing for a file the bundle
+# reads itself -- x-logo's serve.x hands viewer.html to a browser, and no
+# `import` can express that.  Without this row such a bundle has three bad
+# options: a cwd-relative literal (broken in every installed tree -- the exact
+# defect x-lang#467 fixed in the in-tree Logo app), a root re-derived from
+# %install-root (wrong, a bundle is not under the platform's tree), or reading
+# %import-roots-cell, which is a platform internal the seam does not cover.
+#
+# ONE DEFINITION, EMITTED WHERE THE FACT IS KNOWN.  The wrapper is the only
+# thing that ever knows where a bundle sits -- it is what searched for it --
+# so it says, once, rather than every bundle guessing.  Only for the bundle
+# itself, never for its dependencies: a required lang reached through
+# (requires-lang ...) is a library to the bundle that needs it, and a second
+# %lang-root would overwrite the one whose entry is about to run.
 bundle_form() {
 	if [ -n "$BUNDLE_DIR" ]; then
 		# Required langs first: import-path! prepends, so the bundle's own
@@ -241,6 +258,26 @@ bundle_form() {
 			printf '(import-path! "%s")\n' "$_d"
 		done
 		printf '(import-path! "%s")\n' "$BUNDLE_DIR"
+		printf '(def %%lang-root "%s")\n' "$BUNDLE_DIR"
+		# %batch? MEANS "A FILE WAS SUPPLIED", and for a bundle it had stopped
+		# meaning that.  --batch is passed unconditionally down there (the
+		# `if [ "$file" ]` below is always true once the bundle entry joins
+		# $file), because it is what keeps the DIALECT entry's own launcher
+		# quiet -- and banner.x derives %batch? from argv, so every bundle saw
+		# `true` whether or not the user named a file.
+		#
+		# The two questions were the same question until bundles existed.  They
+		# are not: what --batch suppresses is the dialect's launcher, and what
+		# a lang asks %batch? is whether there is a session to hand over.  x-
+		# sweet's `(unless %batch? (%banner))` has silently never fired for want
+		# of this line, and x-logo's entry has to choose between its REPL and
+		# its batch reader on exactly this fact -- with the wrong answer it
+		# reads the launcher x.sh appended as a Logo program.
+		#
+		# Restored HERE rather than by not passing --batch, because the flag is
+		# still doing its other job.  The dialect has booted by this point, so
+		# banner.x's def exists to be set!.
+		[ -n "$file1" ] || printf '(set! %%batch? ())\n'
 	fi
 }
 

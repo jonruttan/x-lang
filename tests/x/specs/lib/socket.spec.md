@@ -4,7 +4,7 @@
 Deterministic, non-blocking coverage only: listen/bind/connect failure
 paths and address validation. The full accept/recv/send loop cannot run
 single-threaded under the batch harness (accept blocks; fork tears the
-shared stdin script) -- it is exercised live by x/logo/serve.x, the
+shared stdin script) -- it is exercised live by x-logo's serve.x, the
 class's first consumer, and was verified end-to-end against nc.
 
 ## address validation

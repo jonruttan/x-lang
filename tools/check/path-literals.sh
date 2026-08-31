@@ -69,15 +69,23 @@ echo "include-paths: ok"
 # APP DATA PATHS are root-relative literals too, and the include scan above
 # cannot see them.
 #
-# WHY THIS EXISTS.  apps/logo/serve.x read its viewer template from a bare
-# "apps/logo/viewer.html".  That is not an include, so the ratchet at the top
-# of this file -- which matches (include "lib/...") forms -- passed it every
-# time, for as long as it existed.  It resolves against the process cwd, and
-# x.sh forces cwd to the repo root in a checkout, so every test and every
-# developer run found the file.  An INSTALLED tree does not: the app is at
+# WHY THIS EXISTS.  The Logo app's serve.x read its viewer template from a
+# bare "apps/logo/viewer.html".  That is not an include, so the ratchet at the
+# top of this file -- which matches (include "lib/...") forms -- passed it
+# every time, for as long as it existed.  It resolves against the process cwd,
+# and x.sh forces cwd to the repo root in a checkout, so every test and every
+# developer run found the file.  An INSTALLED tree does not: the app was at
 # share/x/apps/logo/ and the user's cwd is wherever they happen to be, so the
 # viewer failed with `io: Could not read turtle.html` for every installed
 # user, in the one environment nothing ran in.
+#
+# THAT APP IS NOW A BUNDLE (x-logo) and apps/ is empty, so this scan currently
+# has nothing to read.  It stays, and not out of sentiment: apps/ is a live
+# resolution step (see apps/README.md), the failure it catches is invisible in
+# the environment an app is developed in, and a gate deleted for want of a
+# subject is a gate nobody thinks to write back when one arrives.  The same
+# rule now covers the bundle from the other side -- x-logo's CI asserts its
+# data goes through %lang-root and never %install-root.
 #
 # THE RULE, from docs/lang-contract.md: an app tree has exactly ONE
 # file that may know the layout -- its entry, which is already exempt above

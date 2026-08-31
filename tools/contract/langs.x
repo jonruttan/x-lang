@@ -39,6 +39,22 @@
 (lang "krn"   "x-krn"    74  0)
 (lang "sweet" "x-sweet"  32  0)
 (lang "python" "x-python"  4  0)
+; logo arrived GREEN, which is what an extraction should look like: 83/0 here
+; is the same 83 tests that ran as lib/logo.spec.md in this tree, against the
+; same turtle kernel, through the bundle's own harness instead of tests/x/lib.
+; Nothing about the language moved -- what moved is who runs it.
+;
+; It is the ONE ROW TO RUN ALONE.  The turtle kernel's resident heap is 5-7GB
+; (its @weight 7 travelled with it), and check-langs runs these suites in
+; sequence on whatever machine invoked it.  That is exactly the condition the
+; r7rs note below describes: measured beside another heavy suite the numbers
+; here are fiction, and a gate whose verdict depends on what else was running
+; is worse than no gate.
+;
+; Its two other suites are NOT counted here and cannot be: the examples gate
+; and the pty contract live in the bundle's CI, and one of them needs a
+; terminal this gate has no way to provide.
+(lang "logo"  "x-logo"   83  0)
 
 ; DEBT, each with a reason, none of them an invitation.
 ;

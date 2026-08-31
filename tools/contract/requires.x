@@ -50,9 +50,6 @@
   ; coverage and profiling are VARIANT builds (x-bin-cov, x-bin-profile) and the
   ; default x-bin honestly does not have them.
   (profile posix)
-  (needs "apps/logo/dispatch.x" isa/ffi-call)
-  (needs "apps/logo/main.x" isa/ffi-call)
-  (needs "apps/logo/serve.x" isa/ffi-call)
   (needs "lib/x/boot/module.x" isa/syscall)
   (needs "lib/x/codec/zlib.x" isa/ffi-call)
   (needs "lib/x/net/tls.x" isa/ffi-call)
