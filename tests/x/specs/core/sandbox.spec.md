@@ -1,3 +1,10 @@
+# @no-seam-collect
+<!-- Child bases: objects reachable only through a child base's internal
+     structure or C-registered state are invisible to the parent's mark
+     (the x-lang#283 rooting family), so a seam collect frees live objects
+     -- SIGSEGV on Linux, silently tolerated by macOS's allocator, which is
+     how the hazard hid from a macOS bisect.  Runs alone, no seam collects,
+     until the rooting hole closes engine-side. -->
 # @weight 1
 ## Base make
 

@@ -146,32 +146,40 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 			# snippet's peak (the bundles re-measured 250-275M down to
 			# 75-150M -- see spec-runner.sh's calibration).
 			#
-			# This was long refused, and the refusal blamed the wrong
-			# defect: the old note here cited the #283/#299 rooting
-			# family for "40 spec failures" from a mid-batch collect.
-			# Bisected (2026-08-31): every one of the 40 traced to TWO
-			# specs changing obj-meta-extra over a live heap -- the
-			# meta/base-paths and meta/obj-layout width round-trips --
-			# whose divergent-width objects the next collect freed at
-			# the wrong address (the x-engine-c#21 ruling: the width is
-			# boot-time policy; the engine is not privy to the
-			# metadata).  Both specs now test the same contracts
-			# without diverging, and the full suite runs green with
-			# this collect on the stock engine.  A future spec that
-			# diverges the width will abort ITS batch at the next seam
-			# -- that is the policy being enforced loudly, not a runner
-			# bug; see lib/x/boot/reflect.x's meta-count! note.
+			# This was long refused by a note citing the #283/#299
+			# rooting family for "40 spec failures".  The bisect
+			# (2026-08-31) split that into TWO families, and the old
+			# note had one of them right:
+			#
+			#   - the meta-width specs (meta/base-paths, meta/
+			#     obj-layout) changed obj-meta-extra over a live heap,
+			#     so the collect freed their objects at the wrong
+			#     width (the x-engine-c#21 ruling: the width is
+			#     boot-time policy).  FIXED: both now test against the
+			#     ambient width.  A future spec that diverges aborts
+			#     its own batch at the next seam -- the policy
+			#     enforced loudly; see reflect.x's meta-count! note.
+			#
+			#   - the #283 family is REAL and remains: objects
+			#     reachable only through C-held state (sigint's
+			#     handler cells, a child base's internals) are
+			#     invisible to the mark, so a collect frees them live.
+			#     Linux segfaults; macOS's allocator TOLERATES the bad
+			#     free, which is exactly how a macOS bisect missed it
+			#     and why "it passes on my machine" is not evidence
+			#     here.  Those files (core/sandbox, core/signal,
+			#     applicative/gc-hooks) carry the directive below
+			#     until the rooting hole closes engine-side.
 			#
 			# Still no per-snippet heap dump: a heap-count is an
 			# O(heap) chain walk whose output went to discarded stderr
 			# -- ~120s of pure waste per heavy-lib spec.
-			# A file may declare `# @no-seam-collect`: it tests the
-			# divergent-width mechanism ITSELF (widths the policy
-			# forbids over a live heap), so a collect would free its
-			# deliberately mismatched objects at the wrong address.
-			# The classifier makes such a file run alone, so the
-			# opt-out never strips collects from an innocent
-			# bucket-mate.
+			# A file may declare `# @no-seam-collect`, for either
+			# reason above: its SUBJECT is the divergent-width
+			# mechanism (cov/meta), or it holds objects only C-side
+			# state can reach (#283 family).  The classifier makes
+			# such a file run alone, so the opt-out never strips
+			# collects from an innocent bucket-mate.
 			if (i > from) {
 				if (!noseam)
 					printf "((prim-ref (lit heap) (lit collect)))\n" > tmpfile

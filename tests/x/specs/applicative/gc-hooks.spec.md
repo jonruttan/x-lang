@@ -1,3 +1,7 @@
+# @no-seam-collect
+<!-- This file tests the collector's own mark/free hooks: a seam collect
+     would fire a test-installed hook between snippets, entangling the
+     harness with the mechanism under test.  Runs alone, no seam collects. -->
 # @weight 1
 ## GC hook & root API
 
