@@ -103,6 +103,37 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   near-zero scale case. No disagreement in either, and every published
   constant still lands on the same digits.
 
+### Changed
+
+- **The engine pin moves to x-engine-c v0.1.6**, and x-r7rs goes from 43
+  failures to **27** without a line changing in it.
+
+  v0.1.5 adds `(base def-global)`: an operative can define for its caller,
+  whatever the frame depth. `def` decides global-versus-local by save-stack
+  depth, so a `define` written as an operative — which Scheme's and Kernel's
+  both are — binds in its own frame and loses the binding when that frame pops.
+
+  The sixteen are all of `error`, `error objects` and `guard`. `guard` is the
+  live case: R7RS `guard` and x's `guard` are different forms sharing a name,
+  so providing one means shadowing the other, and shadowing interposes exactly
+  the frame that broke the `eval!` workaround. x-r7rs changed nothing — it
+  already preferred the primitive and fell back when it was absent.
+
+  `tools/contract/langs.x` ratchets that budget to 27.
+
+  **The pin names v0.1.6 rather than v0.1.5**, and the extra release is one
+  line. v0.1.5 added the primitive to the engine's `isa.x` without regenerating
+  its `x-engine.xon`, so it shipped the digest of the *previous* manifest and
+  `check-engine-contract` refused it — the gate doing exactly its job, on the
+  first pin bump that could reach it. v0.1.6 is that file regenerated; nothing
+  in the built engine differs.
+
+  `tests/x/fixtures/engine-min` grows the same row. The paper engine declares
+  `core` and no more, `def-global` is tagged `spine`, and a group missing one
+  coordinate is not a capability — so the fixture stopped claiming `core` the
+  moment the vocabulary grew. `check-second-engine` predicted this in its own
+  header, which is the argument for fixtures over remembering.
+
 ## [0.8.1] - 2026-08-30
 
 `syntax-rules` works. The reader stopped claiming the dot, and x-r5rs went

@@ -62,14 +62,17 @@
 ; A zero here is a claim, not a hope: the row is what makes a tenth failure
 ; loud.
 (lang "r5rs"  "x-r5rs"  667  0)
-; r7rs did NOT move on the pin, and the reason is simpler than it looked: the
-; engine did not gain anything it uses.  `(base def-global)` -- the capability
-; that would retire this bundle's `guard` shadow -- is NOT in v0.1.3 either; it
-; is proposed and unmerged.  So neither side of that trade has happened yet.
+; r7rs moved 43 -> 27 on x-engine-c v0.1.5, and the sixteen are all of `error`,
+; `error objects` and `guard`.  (base def-global) lets an operative define for
+; its caller, which is what this bundle's `guard` needed: R7RS guard and x's
+; guard are different forms sharing a name, so providing one means shadowing
+; the other, and shadowing interposes exactly the frame that broke the eval!
+; workaround.  The bundle changed nothing -- it already preferred the primitive
+; and fell back when it was absent.
 ;
 ; 43, not 58, and the correction is about measurement.  58 is what this suite
 ; reports when something else is running: an orphaned engine holding a core has
 ; made it say 49, 58 and 247 for one unchanged tree, with batches dying
 ; mid-run.  check-langs runs six suites in sequence, which is precisely that
 ; condition.  Measured twice on a quiet machine it is 43, on both engines.
-(lang "r7rs"  "x-r7rs"  637 43)
+(lang "r7rs"  "x-r7rs"  637 27)

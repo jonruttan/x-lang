@@ -69,7 +69,7 @@
 ### comma in first position
 
 ```scheme
-(do (def op (lit +)) `(,op 1 2))
+(do (def %qq-op (lit +)) `(,%qq-op 1 2))
 ```
 ---
     ('+ 1 2)
