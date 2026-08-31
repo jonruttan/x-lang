@@ -61,27 +61,43 @@ fi
 #
 # This is a RUNAWAY ceiling, not a tight bound. There is no auto-GC, so a batch
 # accumulates all its parse-time and per-snippet garbage until the process
-# exits, and the ceiling must clear the heaviest LEGIT batch. Binding case
-# (measured against a green suite): the logo spec -- its test lib alone loads
-# ~98M objects and the 72-test batch crosses 150M (fails at 150M, passes at
-# 250M); ext/complex peaks ~130M. The default is 300M (~14 GB at ~48 B/obj on
-# a 64-bit box): ~2x the heaviest batch, so it trips only a genuinely unbounded
+# exits, and the ceiling must clear the heaviest LEGIT batch.
+#
+# THE BINDING CASE IS A LANG BUNDLE, and this runner is what arms the guard for
+# them: a bundle points X at an x-lang tree and runs THIS core, so the default
+# here is the default there.  Measured against x-r7rs, the heaviest batch known
+# (it loads the r5rs surface before its own):
+#
+#   x-r7rs   300M: 637/97   325M: 637/27   350M/400M/500M: 637/27
+#   x-r5rs   300M: 667/34   350M: 667/0    400M: 667/0
+#
+# 27 is x-r7rs's own recorded debt, so both bundles clear the guard somewhere
+# between 300M and 325M and neither improves above it.  The default is 650M
+# (~31 GB at ~48 B/obj on a 64-bit box): ~2x that heaviest batch, the same
+# margin 300M was chosen with, so it still trips only a genuinely unbounded
 # loop -- which would otherwise grow without limit -- before it eats the
 # machine.
 #
-# THE BINDING CASE HAS LEFT: the logo spec is x-logo's now, so the heaviest
-# batch in THIS suite is ext/complex at ~130M.  The ceiling is deliberately
-# NOT lowered to match -- what it has to clear is whatever the heaviest batch
-# grows into next, and headroom is the point of a runaway guard.  The logo
-# figures above stay because they are the measurement 300M was chosen from.
+# HOW THE OLD NUMBER WENT STALE, because the shape repeats.  300M was ~2x the
+# logo spec at ~150M, measured when logo lived here; ext/complex, the heaviest
+# batch remaining in THIS suite, peaks ~130M.  The note this replaced already
+# said the binding case had left the repository -- what it did not say is that
+# it left INTO the bundles, where nothing re-measured it.  x-r5rs was running at
+# 83-97% of the ceiling with no margin at all, and the sixth tower stage
+# (x/num/decimal, ~50M objects a load) spent what was left: 667/0 became
+# 667/34, every one of them a batch dying rather than a wrong answer.  The
+# ceiling was the thing that changed, not the library.
 #
-# RE-MEASURE when heavy batches change: a too-low ceiling fails good
-# specs (died mid-batch), which is exactly how 150M failed once logo went
-# green. LOWER it on a small-RAM box (a 512 MB Pi wants a few M -- the guard
-# then stops the tower/logo loads themselves, turning a lockup into a failed
-# spec). NOTE: a per-process guard cannot fix memory exhaustion from many heavy
-# specs loading in PARALLEL; for that lower PARALLEL_JOBS.
-export X_ALLOC_LIMIT_OBJS="${X_ALLOC_LIMIT_OBJS:-300000000}"
+# RE-MEASURE when heavy batches change -- INCLUDING the bundles', which this
+# suite never runs.  A too-low ceiling fails good specs (died mid-batch), which
+# is how 150M failed once logo went green and how 300M failed once the tower
+# grew.  Bisect it the way the table above was built: run a bundle suite at
+# descending ceilings until the failure count stops falling.  LOWER it on a
+# small-RAM box (a 512 MB Pi wants a few M -- the guard then stops the tower
+# loads themselves, turning a lockup into a failed spec). NOTE: a per-process
+# guard cannot fix memory exhaustion from many heavy specs loading in PARALLEL;
+# for that lower PARALLEL_JOBS.
+export X_ALLOC_LIMIT_OBJS="${X_ALLOC_LIMIT_OBJS:-650000000}"
 
 # Fail OPEN on a malformed value: a non-numeric limit (e.g. "150M") would
 # otherwise tokenize as two forms -- (alloc-limit! 150 M) -- arming a
