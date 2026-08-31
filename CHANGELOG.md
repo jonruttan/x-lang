@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-31
+
+**Logo left, and the platform grew the row that let it.** `apps/` is empty:
+its only occupant is [x-logo](https://github.com/jonruttan/x-logo) now,
+arriving green at 83 tests / 0 failed with its examples and its pty contract
+intact. Minor rather than patch, and the reason is one seam addition —
+`%lang-root`, the bundle's own directory — plus `%batch?` recovering the
+meaning it is documented to have. Both are new surface a lang may rely on,
+which is what a minor bump is for.
+
+Removing a lang from `apps/` moves the payload fingerprint, so this release
+*is* the extraction rather than a tidy that followed one. x-logo declares
+`(requires-release "v0.9.0")` because nothing earlier can serve its viewer.
+
 ### Added
 
 - **Logo left the tree, and is [x-logo](https://github.com/jonruttan/x-logo).**
