@@ -27,7 +27,17 @@ name on the banner and its own prompt on the REPL.
 The line already exists in [dialects.md](dialects.md), and it is the line that
 decides what can leave this repository:
 
-| | is | may re-mean a shared spelling | can live elsewhere |
+**Same-spelling-different-meaning** is the whole of it, and the two halves are
+worth naming separately. A *spelling* is the literal text of a token —
+`lambda`, `do`, `;`, `#`. Its *meaning* is what the system does when it meets
+that text: what the symbol is bound to, or what the reader makes of those
+characters. Both halves matter, because the second is not always a binding —
+ash's `;` is a tokenizer type and is bound to nothing at all.
+
+The question the table asks is which of the two may give a shared spelling a
+meaning of its own:
+
+| | is | may claim a shared spelling | can live elsewhere |
 |---|---|---|---|
 | **dialect** | a composition of x-lang modules; differs in what surface is *loaded* | **never** | no |
 | **lang** | a different surface language, announcing itself as one | yes — that is the point | **yes** |
@@ -39,6 +49,14 @@ inseparable from the language: they are covered by the spec suite and
 is under no such obligation — Kernel's `$vau` and Scheme's `lambda` are supposed
 to mean something x-lang does not — and that freedom is exactly what makes a
 lang safe to ship as a separate, pinned artifact.
+
+**Claiming is not replacing, and the difference is load-bearing.** A lang does
+not overwrite x-lang's meaning for a spelling; x-lang's `do` goes on meaning
+what it meant, for x-lang. The two meanings coexist and the surface you are in
+selects between them. Where that fails, it fails loudly: x-r5rs cannot claim
+`do` at all, because the platform library resolves that name *at run time* from
+275 call sites, so shadowing the global breaks the platform underneath the lang
+rather than shadowing it ([#525](https://github.com/jonruttan/x-lang/issues/525)).
 
 **So the boundary was drawn before this document, and everything on the far side
 of it is a lang.** Logo included, and Logo is the case that proved it: it lived
