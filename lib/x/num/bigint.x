@@ -617,19 +617,58 @@
             (%score-set score 1 buffer)
             ())))))
 
+; Hex literals (#507): a leading 0 may open 0x/0X, and the engine's own
+; xdigits machine is shadowed by this push, so the cap must read hex too.
+; "0x" plus 16 hex digits fills the 64-bit word, so the cap is 18 bytes;
+; a bare "0x" declines (no digit was consumed).  Character constants,
+; not byte codes: these states stay interpreted (only the ENTRY in
+; tower-compiled.x compiles, and IT must keep byte codes -- compile
+; emits constants verbatim into the generated C).  chr arrives as the
+; character CODE, and eq?/< compare operand words (engine law 1), so
+; #\x and 120 are the same test.
+(def %int-capped-xdigits ())
+(set! %int-capped-xdigits
+  (fn (_ buffer score chr)
+    (if (if (if (>= chr #\0) (<= chr #\9) #f) #t
+          (if (if (>= chr #\a) (<= chr #\f) #f) #t
+            (if (>= chr #\A) (<= chr #\F) #f)))
+      %int-capped-xdigits
+      (do (%buffer-unread buffer)
+          (if (not (%int< 18 (%buffer-len buffer)))
+            (%score-set score 1 buffer)
+            ())))))
+
+(def %int-capped-xfirst
+  (fn (_ buffer score chr)
+    (if (if (if (>= chr #\0) (<= chr #\9) #f) #t
+          (if (if (>= chr #\a) (<= chr #\f) #f) #t
+            (if (>= chr #\A) (<= chr #\F) #f)))
+      %int-capped-xdigits
+      ())))
+
+(def %int-capped-base
+  (fn (_ buffer score chr)
+    (if (if (= chr #\x) #t (= chr #\X))
+      %int-capped-xfirst
+      (%int-capped-digits buffer score chr))))
+
 (def %int-capped-sign
   (fn (_ buffer score chr)
-    (if (if (>= chr 48) (<= chr 57) #f)
-      %int-capped-digits
-      ())))
+    (if (= chr #\0)
+      %int-capped-base
+      (if (if (>= chr #\1) (<= chr #\9) #f)
+        %int-capped-digits
+        ()))))
 
 (def %int-capped-analyse
   (fn (_ buffer score chr)
-    (if (if (>= chr 48) (<= chr 57) #f)
-      %int-capped-digits
-      (if (if (= chr 45) #t (= chr 43))
-        %int-capped-sign
-        ()))))
+    (if (= chr #\0)
+      %int-capped-base
+      (if (if (>= chr #\1) (<= chr #\9) #f)
+        %int-capped-digits
+        (if (if (= chr #\-) #t (= chr #\+))
+          %int-capped-sign
+          ())))))
 
 (%type-push-analyse %int-type %int-capped-analyse)
 
