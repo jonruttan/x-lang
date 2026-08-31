@@ -409,9 +409,33 @@ for _spec in "$@"; do
   # same deliberate-override rule the applicative/ specs use.  An engine
   # with no xon beside it skips gated files too -- an undeclared capability
   # is an absent one, which is the whole point of declaring.
+  #
+  # X_ENGINE_DIR NAMES THE ENGINE DIRECTORY and wins outright, which is how
+  # every other reader of this manifest already finds it: engine-contract.sh and
+  # base-routes.sh both open with ${X_ENGINE_DIR:-engine}, second-engine.sh and
+  # compliance.sh set it to drive a different engine, and tools/engine/fetch.sh
+  # tells you to unpack a release and pass `make X_ENGINE_DIR=/path/to/unpacked`.
+  # It is authoritative rather than a first guess -- a caller that names the
+  # directory and finds no manifest there has an engine that declares nothing,
+  # and probing elsewhere would answer a question it did not ask.
+  #
+  # Unset, the manifest SITS IN TWO PLACES and reading only one disables this
+  # gate silently.  A repo build keeps it under engine/ while the Makefile copies
+  # the binary to the root; a release bundle and an installed tree both put it
+  # FLAT beside the engine (deps/engine/<release>/x-engine.xon, libexec/x/ --
+  # the wrapper's "binary + its declaration").  Reading only the repo spelling
+  # meant every gated file skipped against every RELEASED engine whatever that
+  # engine declared: a check that cannot pass is not a check, and this one
+  # failed shut in the configuration a consumer's CI actually runs.
   _req=$(sed -n 's/^# @requires //p' "$_spec" | head -1)
   if [ -n "$_req" ] && [ "$_args_mode" != 1 ]; then
-    if ! grep -q "(provides $_req)" "$(dirname "$X_BIN")/engine/x-engine.xon" 2>/dev/null; then
+    if [ -n "${X_ENGINE_DIR:-}" ]; then
+      _xon="$X_ENGINE_DIR/x-engine.xon"
+    else
+      _xon="$(dirname "$X_BIN")/engine/x-engine.xon"
+      [ -f "$_xon" ] || _xon="$(dirname "$X_BIN")/x-engine.xon"
+    fi
+    if ! grep -q "(provides $_req)" "$_xon" 2>/dev/null; then
       printf '[skip %s: requires %s]\n' "$(basename "$_spec" .spec.md)" "$_req"
       continue
     fi
