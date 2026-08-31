@@ -93,3 +93,24 @@
   (fn (_ ns) (%registry-assoc-rest ns (first %registry-prims-cell))))
 (def prim-ref
   (fn (_ ns method) (%registry-assoc-rest method (prim-domain ns))))
+
+; --- the seam guard: the contract must describe THIS engine ---
+; Booting an engine against another engine's contract -- a mis-pointed
+; `engine` symlink -- used to run away allocating gigabytes: the routes
+; land on the wrong spine slots and every later fetch walks garbage.
+; Three stage-0 facts catch it at the first possible moment: the false
+; route must land on the cell holding the #f singleton -- a value the
+; walk cannot counterfeit -- the catalog route must answer an alist,
+; and a row every engine files must resolve.  A healthy boot pays
+; three walks, once.  One applied form, no globals: this file's %-def
+; budget is part of what stage 0 means.
+((fn (_ die)
+  (match
+    ((eq? (first (%reflect-base-cell (lit false))) #f) ())
+    (#t (die)))
+  (match
+    ((eq? (prims) ()) (die))
+    ((eq? (prim-ref (lit obj) (lit same?)) ()) (die))
+    (#t ())))
+ (fn (_)
+  (error "engine seam mismatch: engine/tools/contract does not describe this engine")))
