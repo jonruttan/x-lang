@@ -169,7 +169,25 @@ jobs:
         run: make
       # x-lang lint (promoted 2026-08-02, #60 criterion: joined only once
       # fully green): lib + apps sweep, sibling-preload aware since #176.
+      #
+      # NPROC PINNED ON UBUNTU, for the reason SPEC_HEAVY_JOBS is pinned
+      # above: the 7GB linux runner is the box that OOMs, and lint's
+      # children are ~600MB each (class.x, measured -- tools/dev/lint.sh
+      # carries the figure).  Two main runs died here with no job
+      # surviving to name a file -- SIGTERM 143, "runner received a
+      # shutdown signal", the signature this file already documents for
+      # an OOM-killed runner -- while the 14GB macOS leg passed both.
+      #
+      # The pin is worth having even where it changes nothing today.
+      # lint.sh derives min(cores, 4), so the width is whatever the
+      # RUNNER happens to have: a hosted-runner spec bump would silently
+      # widen the sweep and buy back the failure, which is the drift this
+      # makes impossible to reintroduce by accident.  macOS is left
+      # unset deliberately -- it keeps lint.sh's default, and naming a
+      # number there would RAISE its width rather than cap it.
       - name: x-lang lint
+        env:
+          NPROC: ${{ matrix.os == 'ubuntu-24.04' && '2' || '' }}
         run: make lint-x
 
   docs:
