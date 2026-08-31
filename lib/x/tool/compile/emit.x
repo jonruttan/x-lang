@@ -52,6 +52,8 @@
 (def %list-type (%type-by-atom (%type-of (list 1))))
 (def %symbol-type (%type-by-atom (%type-of 'a)))
 (def %int-type (%type-by-atom (%type-of 0)))
+(def %char-type (%type-by-atom (%type-of #\a)))
+(def %cc-char->int (prim-ref 'char '->int))
 
 ; --- C-emitting write handlers ---
 ;
@@ -78,6 +80,13 @@
 (def %compile-int-write
   (fn (_ n)
     (display (%cvt n %string))))
+
+; CHARACTER: emit the character CODE as an integer literal.  A char IS
+; its code (engine law 1), and C has no #\ syntax -- without this
+; handler a #\c constant in a compiled form reached cc verbatim.
+(def %compile-char-write
+  (fn (_ c)
+    (display (%cvt (%cc-char->int c) %string))))
 
 ; LIST: inspect operator, dispatch to form-specific C emission
 ; Sub-expressions are emitted by calling write on them (recurses through
@@ -211,7 +220,9 @@
   (fn (_ x)
     (if (number? x)
       (display (%cvt x %string))
-      (do (display "x_atomint(") (%cw-emit x) (display ")")))))
+      (if (char? x)
+        (display (%cvt (%cc-char->int x) %string))
+        (do (display "x_atomint(") (%cw-emit x) (display ")"))))))
 
 ; Build a binary comparison emitter for a given C operator string
 ; Returns first arg (truthy) or NULL (falsy) — valid objects for display.

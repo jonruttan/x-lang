@@ -620,12 +620,9 @@
 ; Hex literals (#507): a leading 0 may open 0x/0X, and the engine's own
 ; xdigits machine is shadowed by this push, so the cap must read hex too.
 ; "0x" plus 16 hex digits fills the 64-bit word, so the cap is 18 bytes;
-; a bare "0x" declines (no digit was consumed).  Character constants,
-; not byte codes: these states stay interpreted (only the ENTRY in
-; tower-compiled.x compiles, and IT must keep byte codes -- compile
-; emits constants verbatim into the generated C).  chr arrives as the
-; character CODE, and eq?/< compare operand words (engine law 1), so
-; #\x and 120 are the same test.
+; a bare "0x" declines (no digit was consumed).  Character constants
+; throughout: chr arrives as the character CODE and eq?/< compare
+; operand words (engine law 1), so #\x and 120 are the same test.
 (def %int-capped-xdigits ())
 (set! %int-capped-xdigits
   (fn (_ buffer score chr)
