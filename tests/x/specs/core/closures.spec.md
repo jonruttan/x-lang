@@ -148,7 +148,7 @@
 ### implements when
 
 ```scheme
-(do (def when (op (test . body) e (if (eval test e) (eval (pair 'do body) e)))) (when (= 1 1) (+ 10 20)))
+(do (def %when (op (test . body) e (if (eval test e) (eval (pair 'do body) e)))) (%when (= 1 1) (+ 10 20)))
 ```
 ---
     30
@@ -156,7 +156,7 @@
 ### when returns nil on false
 
 ```scheme
-(do (def when (op (test . body) e (if (eval test e) (eval (pair 'do body) e)))) (when (= 1 2) (+ 10 20)))
+(do (def %when (op (test . body) e (if (eval test e) (eval (pair 'do body) e)))) (%when (= 1 2) (+ 10 20)))
 ```
 ---
 

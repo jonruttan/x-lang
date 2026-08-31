@@ -5,8 +5,8 @@
 
 ```scheme
 (do
-  (def %base (Base make))
-  (def %tokens (Tok read-str %base "(+ 1 2)"))
+  (def %fmt-base (Base make))
+  (def %tokens (Tok read-str %fmt-base "(+ 1 2)"))
   (display (List length %tokens))
   (display " ")
   (display (List length (first %tokens))))
@@ -18,8 +18,8 @@
 
 ```scheme
 (do
-  (def %base (Base make))
-  (def %tokens (Tok read-str %base "(def x 1)\n(def y 2)"))
+  (def %fmt-base (Base make))
+  (def %tokens (Tok read-str %fmt-base "(def x 1)\n(def y 2)"))
   (display (List length %tokens)))
 ```
 ---
@@ -29,8 +29,8 @@
 
 ```scheme
 (do
-  (def %base (Base make))
-  (def %tokens (Tok read-str %base "(if (> x 0) x (- 0 x))"))
+  (def %fmt-base (Base make))
+  (def %tokens (Tok read-str %fmt-base "(if (> x 0) x (- 0 x))"))
   (def %form (first %tokens))
   (display (first %form))
   (display " ")
@@ -43,8 +43,8 @@
 
 ```scheme
 (do
-  (def %base (Base make))
-  (def %tokens (Tok read-str %base "(display \"hello\")"))
+  (def %fmt-base (Base make))
+  (def %tokens (Tok read-str %fmt-base "(display \"hello\")"))
   (def %form (first %tokens))
   (display (first %form))
   (display " ")
@@ -57,8 +57,8 @@
 
 ```scheme
 (do
-  (def %base (Base make))
-  (def %tokens (Tok read-str %base "()"))
+  (def %fmt-base (Base make))
+  (def %tokens (Tok read-str %fmt-base "()"))
   (display (null? %tokens)))
 ```
 ---
@@ -68,8 +68,8 @@
 
 ```scheme
 (do
-  (def %base (Base make))
-  (def %tokens (Tok read-str %base "42\n"))
+  (def %fmt-base (Base make))
+  (def %tokens (Tok read-str %fmt-base "42\n"))
   (display (first %tokens)))
 ```
 ---
@@ -79,8 +79,8 @@
 
 ```scheme
 (do
-  (def %base (Base make))
-  (def %tokens (Tok read-str %base "#\\a\n"))
+  (def %fmt-base (Base make))
+  (def %tokens (Tok read-str %fmt-base "#\\a\n"))
   (display (char? (first %tokens))))
 ```
 ---
@@ -90,8 +90,8 @@
 
 ```scheme
 (do
-  (def %base (Base make))
-  (def %tokens (Tok read-str %base "(def x (+ 1 2))"))
+  (def %fmt-base (Base make))
+  (def %tokens (Tok read-str %fmt-base "(def x (+ 1 2))"))
   (def %form (first %tokens))
   (display (first %form))
   (display " ")
