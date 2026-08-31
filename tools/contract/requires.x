@@ -50,7 +50,10 @@
   ; coverage and profiling are VARIANT builds (x-bin-cov, x-bin-profile) and the
   ; default x-bin honestly does not have them.
   (profile posix)
+  (needs "lib/x-base.x" isa/gc)
   (needs "lib/x/boot/module.x" isa/syscall)
+  (needs "lib/x/boot/radon.x" isa/gc)
+  (needs "lib/x/boot/xenon.x" isa/gc)
   (needs "lib/x/codec/zlib.x" isa/ffi-call)
   (needs "lib/x/net/tls.x" isa/ffi-call)
   (needs "lib/x/num/float.x" isa/ffi-call)

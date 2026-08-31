@@ -301,3 +301,23 @@
         %compile-fvars))
     (#t %dec-analyse-interp)))
 (set! %compile-fvars ())
+
+; --- Reclaim the load burst: NOT HERE ---------------------------------------
+;
+; The collect that reclaims this block's output lives in the dialect BODIES
+; (boot/xenon.x, boot/radon.x, x-base.x), not in this file, and the reason is
+; worth recording because this file is the obvious place for it.
+;
+; THIS FILE IS IMPORTABLE.  tools/check/doctest.sh walks every module under
+; lib/x and imports it, from a HELIUM base where this path is not pre-seeded --
+; so `(import x/boot/tower-compiled)` really loads it, and a collect on the last
+; line runs inside the walking tool, at a moment that tool did not choose.  It
+; freed state doctest was holding and truncated its output; the run failed with
+; "an import is eating stdin".  A module cannot know what its importer is
+; holding, so a module must not collect.
+;
+; That is also the sharper lesson: the engine has no auto-GC, so objects that
+; are live-but-unrooted are invisible until something collects.  The first
+; collect anyone adds is the one that finds them.  Boot is the safe moment --
+; nothing else is in flight -- and the dialect bodies are the files that are
+; never imported.
