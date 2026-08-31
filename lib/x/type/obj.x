@@ -34,7 +34,7 @@
         (returns INT "Current extra-slot count"))
       ((prim-ref (lit obj) (lit meta-count))))
     (method meta-count! (self (param n INT "Extra slots to reserve per object"))
-      (doc "Set the base-wide extra-metadata slot count; objects allocated afterwards carry N extra slots."
+      (doc "Set the base-wide extra-metadata slot count; objects allocated afterwards carry N extra slots. BOOT-TIME POLICY: setting a width DIFFERENT from the current one while allocated objects are live is undefined -- the engine frees each object's prefix at the width current at COLLECT time, so older objects are freed at the wrong address (x-engine-c#21). Setting the value it already holds is safe."
         (returns INT "The previous extra-slot count"))
       ((prim-ref (lit obj) (lit meta-count!)) n))
     (method meta-ref (self (param obj ANY "Object") (param i INT "Metadata slot index"))

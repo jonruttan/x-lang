@@ -138,20 +138,45 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 		printf "(def %%T (op () %%E (def %%r (%s)) (if (eq? %%r (lit %%END%%)) () (%%seq (guard (err (display \"Error: \") (display err) (newline)) (%%repl-print (eval! %%r))) (%%T)))))\n", read_fn > tmpfile
 		printf "%s\n", "(%T)" > tmpfile
 		for (i = from; i <= to; i++) {
-			# Inter-snippet separator only.  No per-snippet heap dump: a
-			# heap-count is an O(heap) chain walk (~1.9s/call on the
-			# numeric-tower heap) whose output went to discarded stderr
-			# -- ~120s of pure waste per heavy-lib (x-base/complex/...) spec.
+			# A COLLECT AT EVERY SNIPPET SEAM.  With no auto-GC a batch
+			# used to accumulate every snippet's garbage until the
+			# process exited, so the alloc ceiling had to clear a whole
+			# BATCH's sum; the seam collect reclaims each snippet's
+			# garbage as it finishes, and the ceiling now covers one
+			# snippet's peak (the bundles re-measured 250-275M down to
+			# 75-150M -- see spec-runner.sh's calibration).
 			#
-			# Deliberately NO (heap collect) at the file seams of a
-			# merged bucket: a mid-batch collect after the sigint/Base
-			# e2e specs crashes the engine (the #283/#299 rooting
-			# family), taking every later test in the bucket with it --
-			# measured, 40 spec failures.  Bounding a bucket's garbage
-			# is the shell's job: SPEC_BATCH caps files per process and
-			# the alloc-limit! ceiling stays the runaway guard.
-			if (i > from)
+			# This was long refused, and the refusal blamed the wrong
+			# defect: the old note here cited the #283/#299 rooting
+			# family for "40 spec failures" from a mid-batch collect.
+			# Bisected (2026-08-31): every one of the 40 traced to TWO
+			# specs changing obj-meta-extra over a live heap -- the
+			# meta/base-paths and meta/obj-layout width round-trips --
+			# whose divergent-width objects the next collect freed at
+			# the wrong address (the x-engine-c#21 ruling: the width is
+			# boot-time policy; the engine is not privy to the
+			# metadata).  Both specs now test the same contracts
+			# without diverging, and the full suite runs green with
+			# this collect on the stock engine.  A future spec that
+			# diverges the width will abort ITS batch at the next seam
+			# -- that is the policy being enforced loudly, not a runner
+			# bug; see lib/x/boot/reflect.x's meta-count! note.
+			#
+			# Still no per-snippet heap dump: a heap-count is an
+			# O(heap) chain walk whose output went to discarded stderr
+			# -- ~120s of pure waste per heavy-lib spec.
+			# A file may declare `# @no-seam-collect`: it tests the
+			# divergent-width mechanism ITSELF (widths the policy
+			# forbids over a live heap), so a collect would free its
+			# deliberately mismatched objects at the wrong address.
+			# The classifier makes such a file run alone, so the
+			# opt-out never strips collects from an innocent
+			# bucket-mate.
+			if (i > from) {
+				if (!noseam)
+					printf "((prim-ref (lit heap) (lit collect)))\n" > tmpfile
 				printf "(display \"<<SEP>>\\n\")\n" > tmpfile
+			}
 			# The closing paren sits on its OWN line: a test whose last
 			# line ends in a `;` comment would otherwise swallow it,
 			# leaving an unterminated (begin that eats the <<SEP>>
@@ -322,6 +347,8 @@ fenced == 1 { next }
 }
 
 # Comments and metadata (only in IDLE state)
+state == 0 && /^# @no-seam-collect/ { noseam = 1 }
+
 state == 0 && /^# @lib / {
 	lib = lib_base "/" substr($0, 8)
 	next

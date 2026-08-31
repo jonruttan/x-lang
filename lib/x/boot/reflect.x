@@ -69,6 +69,15 @@
 ; many extra meta units subsequent allocations prepend.  The cell holds an
 ; int ATOM; its value is the atom's data word (first-int/set-first-int!).
 ; meta-count! returns the PREVIOUS count (C contract).
+;
+; BOOT-TIME POLICY, NOT A RUNTIME KNOB (the x-engine-c#21 ruling).  The
+; engine core is deliberately not privy to the metadata: its free path
+; steps back over an object's prefix using the CURRENT cell value, so an
+; object born at one width and collected under another is freed at the
+; wrong address -- the allocator aborts the process on the first one.
+; Writing a DIFFERENT width while allocated objects are live is therefore
+; undefined.  Writing the value the cell already holds is safe and still
+; exercises the previous-count return contract; that is what the specs do.
 (def %reflect-meta-count
   (fn (_) (%cell-int (first %reflect-meta-extra-cell))))
 (def %reflect-meta-count!

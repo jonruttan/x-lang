@@ -65,31 +65,27 @@ fi
 #
 # THE BINDING CASE IS A LANG BUNDLE, and this runner is what arms the guard for
 # them: a bundle points X at an x-lang tree and runs THIS core, so the default
-# here is the default there.  Re-measured after the tower's boot collect landed
-# (the dialect bodies reclaim ~46M that every process used to carry for life):
+# here is the default there.  Re-measured with the SEAM COLLECT on (the awk
+# harness collects at every snippet boundary, so a batch no longer accumulates
+# -- the ceiling covers a single peak, not a batch's sum):
 #
-#   x-r5rs   200M: 667/35   250M: 667/6    275M: 667/0
-#   x-r7rs   200M: 637/179  250M: 637/27   300M: 637/27
+#   x-r5rs    75M: 667/667   100M: 667/0
+#   x-r7rs   125M: 637/637   150M: 637/27
 #
-# 27 is x-r7rs's own recorded debt, so x-r5rs peaks between 250M and 275M and
-# x-r7rs between 200M and 250M.  x-r5rs IS THE HEAVIER of the two, which
-# corrects the earlier note here: r7rs loads the r5rs surface before its own
-# and takes longer per file, and that was read as the bigger heap.  It is not.
-# Measure the ceiling, not the clock.
+# 27 is x-r7rs's own recorded debt, and the wholesale failures at the low
+# ceilings are the LIBRARY LOAD dying: with per-snippet accumulation gone, the
+# binding peak is the tower's boot burst itself (before the dialect body's own
+# collect fires) plus the lang layer -- x-r7rs's, since it loads the r5rs
+# surface before its own.  So the peaks: x-r5rs 75-100M, x-r7rs 125-150M.
 #
-# The default is 550M (~26 GB at ~48 B/obj on a 64-bit box): ~2x that heaviest
-# batch, the same margin 300M and 650M were both chosen with, so it still trips
-# only a genuinely unbounded loop -- which would otherwise grow without limit
-# -- before it eats the machine.
-#
-# WHY IT ONLY CAME DOWN 100M.  The boot collect reclaims the tower's load burst
-# -- 46,630,058 live objects to 123,597 -- and that is the whole of what it can
-# reclaim: boot was ~50M of a ~300M peak.  The other ~250M is the batch's OWN
-# garbage, made while running specs, and no collect at boot can touch it.  A
-# collect BETWEEN spec files in a batch is the lever for that, and it is the
-# obvious next measurement for whoever wants this number smaller.  Anyone
-# expecting the ceiling to return to 300M once boot was cleaned up should read
-# the table above instead: it was never boot that made these batches heavy.
+# The default is 300M (~14 GB at ~48 B/obj on a 64-bit box): ~2x the heaviest
+# peak, the same margin every ceiling here has been chosen with.  It is also
+# the ORIGINAL number, and the arc back to it is worth keeping: 300M went
+# stale when the binding case moved into the bundles unmeasured (667/0 became
+# 667/34), was raised to 650M on the batch-sum measurement, trimmed to 550M
+# when the boot collect reclaimed the tower's 46M load burst, and returns to
+# 300M now that the seam collect removed batch accumulation entirely.  Each
+# step was a measurement; the number is only ever as good as its last one.
 #
 # HOW THE OLD NUMBER WENT STALE, because the shape repeats.  300M was ~2x the
 # logo spec at ~150M, measured when logo lived here; ext/complex, the heaviest
@@ -100,8 +96,8 @@ fi
 # (x/num/decimal, ~50M objects a load) spent what was left: 667/0 became
 # 667/34, every one of them a batch dying rather than a wrong answer.  The
 # ceiling was the thing that changed, not the library.  650M was the answer to
-# that, measured the same way; the boot collect then gave ~50M back and this is
-# the re-measurement it earned.
+# that, measured the same way; the boot collect and then the seam collect each
+# earned a re-measurement, and the history above is those measurements.
 #
 # RE-MEASURE when heavy batches change -- INCLUDING the bundles', which this
 # suite never runs.  A too-low ceiling fails good specs (died mid-batch), which
@@ -112,7 +108,7 @@ fi
 # loads themselves, turning a lockup into a failed spec). NOTE: a per-process
 # guard cannot fix memory exhaustion from many heavy specs loading in PARALLEL;
 # for that lower PARALLEL_JOBS.
-export X_ALLOC_LIMIT_OBJS="${X_ALLOC_LIMIT_OBJS:-550000000}"
+export X_ALLOC_LIMIT_OBJS="${X_ALLOC_LIMIT_OBJS:-300000000}"
 
 # Fail OPEN on a malformed value: a non-numeric limit (e.g. "150M") would
 # otherwise tokenize as two forms -- (alloc-limit! 150 M) -- arming a
@@ -405,9 +401,10 @@ _classify() {
     /^### /                   { if (!testline) testline = FNR }
     /^```/                    { if (!fenceline) fenceline = FNR }
     /^# @timeout-scale [0-9]/ { scaled = 1 }
+    /^# @no-seam-collect/     { noseam = 1 }
     /^# @weight [0-9]/        { weight = substr($0, 11) + 0 }
     END {
-      if (scaled || nlib > 1) { print "!|" weight; exit }
+      if (scaled || noseam || nlib > 1) { print "!|" weight; exit }
       if (nlib == 0) { print "|" weight; exit }
       if ((testline && libline > testline) || (fenceline && libline > fenceline)) { print "!|" weight; exit }
       print libval "|" weight

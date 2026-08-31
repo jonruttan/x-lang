@@ -32,21 +32,28 @@ half (`make check-base-paths`) re-derives the paths from the headers.
 
 ### meta-count! round-trips through the policy cell
 
-The ambient count is NOT assumed (boot arms 2 meta slots: source line +
-source file id); the test saves, sets, and restores it.
+The write NEVER DIVERGES the width: it sets the value the cell already
+holds, which still exercises the C contract (the setter answers the
+PREVIOUS count).  Setting a DIFFERENT width over a live heap is undefined
+-- every object born at another width is freed at the wrong address by
+the next collect (the x-engine-c#21 ruling: the engine core is not privy
+to the metadata, so the width is boot-time policy, not a runtime knob).
+The old form of this test set 3 and restored, and the objects it
+allocated in between were exactly such landmines: they aborted the
+process at the first mid-batch collect, 40 specs at a stroke.
 
 ```scheme
 (do
   (def %mc  (prim-ref 'obj 'meta-count))
   (def %mc! (prim-ref 'obj 'meta-count!))
-  (def %before (%mc! 3))
-  (display (%mc)) (display " ")
-  (display (eq? (%mc! %before) 3)) (display " ")
-  (display (eq? (%mc) %before)))
+  (def %ambient (%mc))
+  (display (eq? (%mc! %ambient) %ambient)) (display " ")
+  (display (eq? (%mc) %ambient)) (display " ")
+  (display %ambient))
 ```
 ---
 ```output
-3 #t #t
+#t #t 2
 ```
 
 ### error-line reads the frozen raise-site line as an integer
