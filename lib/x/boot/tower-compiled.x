@@ -48,10 +48,6 @@
 ;     versions; these run on every char while tokenizing, so compiling them
 ;     keeps subsequent files parsing fast. ---
 ;
-; The character constants below are BYTE CODES, not the #\c literals their
-; interpreted twins in lit-reader.x/quasi-reader.x use: `compile` emits a
-; constant verbatim into the generated C, so #\` reaches cc as #\` and the
-; build dies with "expected expression".  ' = 39, $ = 36, ` = 96, , = 44.
 
 (set! %compile-fvars
   (list (pair '%quasi-accept %quasi-accept)))
@@ -60,7 +56,7 @@
     (%compile-hosted?
       (compile
       (lit (fn (_ buffer score chr)
-        (if (= chr 96) %quasi-accept ())))
+        (if (= chr #\`) %quasi-accept ())))
       %compile-fvars))
     ; No C headers in this engine: keep the interpreted twin, so the
     ; identity swap below replaces this handler with itself.
@@ -73,7 +69,7 @@
     (%compile-hosted?
       (compile
       (lit (fn (_ buffer score chr)
-        (if (= chr 44) %unquote-after-comma ())))
+        (if (= chr #\,) %unquote-after-comma ())))
       %compile-fvars))
     ; No C headers in this engine: keep the interpreted twin, so the
     ; identity swap below replaces this handler with itself.
@@ -86,7 +82,7 @@
     (%compile-hosted?
       (compile
       (lit (fn (_ buffer score chr)
-        (if (= chr 39) %lit-accept ())))
+        (if (= chr #\') %lit-accept ())))
       %compile-fvars))
     ; No C headers in this engine: keep the interpreted twin, so the
     ; identity swap below replaces this handler with itself.
@@ -103,7 +99,7 @@
     (%compile-hosted?
       (compile
       (lit (fn (_ buffer score chr)
-        (if (= chr 36) %interp-after-dollar ())))
+        (if (= chr #\$) %interp-after-dollar ())))
       %compile-fvars))
     ; No C headers in this engine: keep the interpreted twin, so the
     ; identity swap below replaces this handler with itself.
