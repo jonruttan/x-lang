@@ -156,7 +156,12 @@ if [ $# -eq 0 ]; then
   # (class.x, measured 2026-08-13); 8-wide OOM-killed the 7GB ubuntu CI
   # runner (SIGTERM 143, ECHILD noise in make) while 14GB macOS
   # survived.  4x600MB leaves headroom everywhere; raise NPROC
-  # explicitly on machines with the memory for it.
+  # explicitly on machines with the memory for it -- and LOWER it where
+  # the memory is the constraint: CI pins NPROC=2 on its ubuntu leg,
+  # because "leaves headroom everywhere" stopped being true there (two
+  # main runs OOM-killed at the derived width, same 143 signature).  The
+  # derivation below is min(cores, 4), so it tracks the RUNNER rather
+  # than the workload; a caller that knows its box should say so.
   # Batch by PRELOAD SIGNATURE (#323): one engine boot lints every file
   # that shares an identical mode+preload -- ~160 boots collapse to ~55
   # groups.  Identical preloads are the SOUNDNESS line: batching files
