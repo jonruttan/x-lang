@@ -101,7 +101,7 @@ Radon is the right choice for systems programming, kernel hacking, or any task t
 
 ### Langs
 
-Langs are loaded as additional libraries on top of a dialect, aliasing x-lang primitives and adding derived forms to emulate another language's syntax. This is where same-spelling-different-meaning belongs: a lang may re-mean anything, because it announces itself as a different language.
+Langs are loaded as additional libraries on top of a dialect, aliasing x-lang primitives and adding derived forms to emulate another language's syntax. This is where same-spelling-different-meaning belongs: a lang may claim any spelling it likes, because it announces itself as a different language.
 
 | Lang | Base Dialect | Description |
 |-------------|-------------|-------------|
