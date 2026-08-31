@@ -65,18 +65,31 @@ fi
 #
 # THE BINDING CASE IS A LANG BUNDLE, and this runner is what arms the guard for
 # them: a bundle points X at an x-lang tree and runs THIS core, so the default
-# here is the default there.  Measured against x-r7rs, the heaviest batch known
-# (it loads the r5rs surface before its own):
+# here is the default there.  Re-measured after the tower's boot collect landed
+# (the dialect bodies reclaim ~46M that every process used to carry for life):
 #
-#   x-r7rs   300M: 637/97   325M: 637/27   350M/400M/500M: 637/27
-#   x-r5rs   300M: 667/34   350M: 667/0    400M: 667/0
+#   x-r5rs   200M: 667/35   250M: 667/6    275M: 667/0
+#   x-r7rs   200M: 637/179  250M: 637/27   300M: 637/27
 #
-# 27 is x-r7rs's own recorded debt, so both bundles clear the guard somewhere
-# between 300M and 325M and neither improves above it.  The default is 650M
-# (~31 GB at ~48 B/obj on a 64-bit box): ~2x that heaviest batch, the same
-# margin 300M was chosen with, so it still trips only a genuinely unbounded
-# loop -- which would otherwise grow without limit -- before it eats the
-# machine.
+# 27 is x-r7rs's own recorded debt, so x-r5rs peaks between 250M and 275M and
+# x-r7rs between 200M and 250M.  x-r5rs IS THE HEAVIER of the two, which
+# corrects the earlier note here: r7rs loads the r5rs surface before its own
+# and takes longer per file, and that was read as the bigger heap.  It is not.
+# Measure the ceiling, not the clock.
+#
+# The default is 550M (~26 GB at ~48 B/obj on a 64-bit box): ~2x that heaviest
+# batch, the same margin 300M and 650M were both chosen with, so it still trips
+# only a genuinely unbounded loop -- which would otherwise grow without limit
+# -- before it eats the machine.
+#
+# WHY IT ONLY CAME DOWN 100M.  The boot collect reclaims the tower's load burst
+# -- 46,630,058 live objects to 123,597 -- and that is the whole of what it can
+# reclaim: boot was ~50M of a ~300M peak.  The other ~250M is the batch's OWN
+# garbage, made while running specs, and no collect at boot can touch it.  A
+# collect BETWEEN spec files in a batch is the lever for that, and it is the
+# obvious next measurement for whoever wants this number smaller.  Anyone
+# expecting the ceiling to return to 300M once boot was cleaned up should read
+# the table above instead: it was never boot that made these batches heavy.
 #
 # HOW THE OLD NUMBER WENT STALE, because the shape repeats.  300M was ~2x the
 # logo spec at ~150M, measured when logo lived here; ext/complex, the heaviest
@@ -86,7 +99,9 @@ fi
 # 83-97% of the ceiling with no margin at all, and the sixth tower stage
 # (x/num/decimal, ~50M objects a load) spent what was left: 667/0 became
 # 667/34, every one of them a batch dying rather than a wrong answer.  The
-# ceiling was the thing that changed, not the library.
+# ceiling was the thing that changed, not the library.  650M was the answer to
+# that, measured the same way; the boot collect then gave ~50M back and this is
+# the re-measurement it earned.
 #
 # RE-MEASURE when heavy batches change -- INCLUDING the bundles', which this
 # suite never runs.  A too-low ceiling fails good specs (died mid-batch), which
@@ -97,7 +112,7 @@ fi
 # loads themselves, turning a lockup into a failed spec). NOTE: a per-process
 # guard cannot fix memory exhaustion from many heavy specs loading in PARALLEL;
 # for that lower PARALLEL_JOBS.
-export X_ALLOC_LIMIT_OBJS="${X_ALLOC_LIMIT_OBJS:-650000000}"
+export X_ALLOC_LIMIT_OBJS="${X_ALLOC_LIMIT_OBJS:-550000000}"
 
 # Fail OPEN on a malformed value: a non-numeric limit (e.g. "150M") would
 # otherwise tokenize as two forms -- (alloc-limit! 150 M) -- arming a
