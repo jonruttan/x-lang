@@ -163,10 +163,10 @@
       (if (< chr 58) %big-digits ()))))
 (def %int-analyse-interp
   (fn (_ buffer score chr)
-    (if (< chr 48)
-      (if (or (= chr 45) (= chr 43)) %int-capped-sign ())
-      (if (= chr 48) %int-capped-base
-        (if (< chr 58) %int-capped-digits ())))))
+    (if (< chr #\0)
+      (if (or (= chr #\-) (= chr #\+)) %int-capped-sign ())
+      (if (= chr #\0) %int-capped-base
+        (if (<= chr #\9) %int-capped-digits ())))))
 (%type-push-analyse (%type-by-atom (%type-of (Num expt 2 64)))
   (match
     (%compile-hosted?
@@ -182,10 +182,10 @@
     (%compile-hosted?
       (compile
         (lit (fn (_ buffer score chr)
-          (if (< chr 48)
-            (if (or (= chr 45) (= chr 43)) %int-capped-sign ())
-            (if (= chr 48) %int-capped-base
-              (if (< chr 58) %int-capped-digits ())))))
+          (if (< chr #\0)
+            (if (or (= chr #\-) (= chr #\+)) %int-capped-sign ())
+            (if (= chr #\0) %int-capped-base
+              (if (<= chr #\9) %int-capped-digits ())))))
         %compile-fvars))
     (#t %int-analyse-interp)))
 (set! %compile-fvars ())

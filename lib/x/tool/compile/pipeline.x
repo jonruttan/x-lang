@@ -105,13 +105,15 @@
   (fn (_ )
     (%type-push-write %list-type %compile-list-write)
     (%type-push-write %symbol-type %compile-symbol-write)
-    (%type-push-write %int-type %compile-int-write)))
+    (%type-push-write %int-type %compile-int-write)
+    (%type-push-write %char-type %compile-char-write)))
 
 (def %compile-pop-writers
   (fn (_ )
     (%type-pop-write %list-type)
     (%type-pop-write %symbol-type)
-    (%type-pop-write %int-type)))
+    (%type-pop-write %int-type)
+    (%type-pop-write %char-type)))
 
 (doc (def compile-with-writers
   (fn (_ (param thunk CALLABLE "Zero-arg function to call with C emitters active"))

@@ -138,7 +138,10 @@
 (file "lib/x/tool/asm/arm64.x" 8)
 (file "lib/x/tool/asm/x86_64.x" 23)
 (file "lib/x/tool/compile.x" 25)
-(file "lib/x/tool/compile/emit.x" 54)
+; emit.x rose 54 to 57 for the CHARACTER write handler: the type handle,
+; the char->int door, and the writer itself -- one emitter family, the
+; same standing the int and symbol writers have.
+(file "lib/x/tool/compile/emit.x" 57)
 (file "lib/x/tool/compile/pipeline.x" 10)
 (file "lib/x/tool/contract.x" 4)
 (file "lib/x/tool/cov.x" 8)
