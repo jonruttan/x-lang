@@ -545,3 +545,47 @@ restores both env and boundary.
 ```
 ---
     77
+
+## base def-global
+
+`def` decides global-versus-local by save-stack depth, so a `def` inside an
+operative binds in that operative's own frame and the binding goes with it.
+`(base def-global)` takes the global path unconditionally, which is what a
+surface language's `define` needs: Scheme's and Kernel's are both operatives.
+
+### binds from inside an operative frame, where def does not
+
+```scheme
+(do (def %dg (prim-ref 'base 'def-global))
+    (def %setter (op () e (%dg (lit %dg-probe) 7)))
+    (%setter)
+    %dg-probe)
+```
+---
+    7
+
+### and survives a frame interposed above it
+
+The failure mode this exists for: one extra wrapper frame is enough to lose a
+binding made the old way, and shadowing a name interposes exactly one.
+
+```scheme
+(do (def %dg2 (prim-ref 'base 'def-global))
+    (def %inner (op () e (%dg2 (lit %dg-deep) 9)))
+    (def %outer (op () e (%inner)))
+    (%outer)
+    %dg-deep)
+```
+---
+    9
+
+### redefinition updates in place rather than shadowing
+
+```scheme
+(do (def %dg3 (prim-ref 'base 'def-global))
+    (%dg3 (lit %dg-twice) 1)
+    (%dg3 (lit %dg-twice) 2)
+    %dg-twice)
+```
+---
+    2

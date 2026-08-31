@@ -53,6 +53,7 @@
 (def %isa-catalog (lit (
                               ;   must exist in a bare env -- C by necessity (derived otherwise)
   (  base bind spine           )
+  (  base def-global spine)
   (  base eval spine)
   (  base make spine)
   (  base make-tok spine)
