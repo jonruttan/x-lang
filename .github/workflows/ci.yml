@@ -241,10 +241,14 @@ jobs:
         env:
           CHECK_MAN_C: ${{ runner.os == 'Linux' && '1' || '' }}
 
-  # Deep tier only: the examples ratchet and the tty contract.  Paired in
-  # one job so the ubuntu expect install is paid once.
-  interactive:
-    name: examples + tty (${{ matrix.os }})
+  # Deep tier only: the examples ratchet.  This job was `interactive` and ran
+  # the Logo pty contract beside it -- paired so the ubuntu expect install was
+  # paid once.  That contract went with the lang (x-logo runs it on both OSes,
+  # against a matrix of releases, which is more than this ever did), so what is
+  # left is the examples and the job is named for them.  It keeps the OS matrix:
+  # examples/rn/ reaches raw syscalls, and their numbers differ per platform.
+  examples:
+    name: examples (${{ matrix.os }})
     if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
