@@ -77,15 +77,25 @@ x --install-lang https://github.com/jonruttan/x-logo/releases/latest/download/la
 x -l logo                   # REPL + viewer at http://localhost:8080
 ```
 
-| lang | is | dialect |
-|---|---|---|
-| [x-logo](https://github.com/jonruttan/x-logo) | Logo turtle graphics, with a live browser viewer | radon |
-| [x-r5rs](https://github.com/jonruttan/x-r5rs) | R5RS Scheme | helium |
-| [x-r7rs](https://github.com/jonruttan/x-r7rs) | R7RS Scheme, on top of x-r5rs | helium |
-| [x-krn](https://github.com/jonruttan/x-krn) | Kernel, with `$vau` | helium |
-| [x-sweet](https://github.com/jonruttan/x-sweet) | SRFI-105/110 sweet-expressions | helium |
-| [x-python](https://github.com/jonruttan/x-python) | a Python 3 surface | xenon |
-| [x-ash](https://github.com/jonruttan/x-ash) | a POSIX-ish shell | radon |
+| lang | is | dialect | release |
+|---|---|---|---|
+| [x-logo](https://github.com/jonruttan/x-logo) | Logo turtle graphics, with a live browser viewer | radon | [latest](https://github.com/jonruttan/x-logo/releases/latest) |
+| [x-r5rs](https://github.com/jonruttan/x-r5rs) | R5RS Scheme | helium | [latest](https://github.com/jonruttan/x-r5rs/releases/latest) |
+| [x-r7rs](https://github.com/jonruttan/x-r7rs) | R7RS Scheme, on top of x-r5rs | helium | [latest](https://github.com/jonruttan/x-r7rs/releases/latest) |
+| [x-krn](https://github.com/jonruttan/x-krn) | Kernel, with `$vau` | helium | [latest](https://github.com/jonruttan/x-krn/releases/latest) |
+| [x-sweet](https://github.com/jonruttan/x-sweet) | SRFI-105/110 sweet-expressions | helium | [latest](https://github.com/jonruttan/x-sweet/releases/latest) |
+| [x-ash](https://github.com/jonruttan/x-ash) | a POSIX-ish shell | radon | [latest](https://github.com/jonruttan/x-ash/releases/latest) |
+| [x-python](https://github.com/jonruttan/x-python) | a Python 3 surface | xenon | unreleased |
+
+**No version numbers in that column, deliberately.** Every one of them would be
+a copy of a fact that lives in the bundle's own `lang.xon`, and a copy nobody
+checks goes stale at the next release and tells the next reader something
+false — the failure [scaling to many langs](docs/lang-scale.md) measures as one
+fact written in eighteen places. `releases/latest` cannot go stale, and the
+`--install-lang` line above needs no editing when a bundle publishes.
+
+x-python is the one row without a release, and it says so rather than
+linking to a page that would 404.
 
 Logo is the largest of them — its own tokenizer types, an infix expression
 parser, an HTTP server and an animated SVG turtle, in ~2,400 lines. It lived
