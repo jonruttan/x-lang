@@ -35,7 +35,8 @@
   (pair (lit x/num/float)
   (pair (lit x/num/rational)
   (pair (lit x/num/complex)
-    (first %module-loaded-cell))))))))))
+  (pair (lit x/num/decimal)
+    (first %module-loaded-cell)))))))))))
 
 ; Load compiler infrastructure FIRST (before numeric tower)
 ; (posix.x already loaded by x-core.x)
@@ -267,4 +268,36 @@
             (if (< chr 58) %cx-real-int ()))))
         %compile-fvars))
     (#t %cx-analyse-interp)))
+(set! %compile-fvars ())
+
+; 6. Decimal
+;
+; Last, and the order is load-bearing twice over.  Its from-alist declares
+; float and (through the pact) rational and complex, so those handles must
+; already exist; and its analyser only scores a run that ENDS in `d`, which
+; is a longer claim than float's on the same digits -- 1.5d beats 1.5 by the
+; suffix, and a token without one is never contested.
+(include "lib/x/num/decimal.x")
+(set! %compile-fvars
+  (list (pair '%dec-int %dec-int)
+        (pair '%dec-sign %dec-sign)))
+; The interpreted twin, for an engine with no C headers.  Must agree with
+; the compiled form below.
+(def %dec-analyse-interp
+  (fn (_ buffer score chr)
+      (if (< chr 48)
+      (if (or (= chr 45) (= chr 43)) %dec-sign ())
+      (if (< chr 58) %dec-int ()))))
+(%type-push-analyse (%type-by-atom (%type-of 1.5d))
+  (match
+    (%compile-hosted?
+      (compile
+        ; Sign branch mirrors the interpreted analyser: -0.001d is one
+        ; token, not a `-` applied to a decimal (#45 R4's lesson).
+        (lit (fn (_ buffer score chr)
+      (if (< chr 48)
+            (if (or (= chr 45) (= chr 43)) %dec-sign ())
+            (if (< chr 58) %dec-int ()))))
+        %compile-fvars))
+    (#t %dec-analyse-interp)))
 (set! %compile-fvars ())

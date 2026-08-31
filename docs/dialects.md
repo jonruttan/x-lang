@@ -74,6 +74,7 @@ composition — `x-base.x` and the xenon/radon bodies):
 3. **Float** (`x/num/float.x`) — IEEE 754 floating-point. Analyser compiled after loading.
 4. **Rational** (`x/num/rational.x`) — Exact rationals. Analyser compiled after loading.
 5. **Complex** (`x/num/complex.x`) — Complex numbers with rectangular and polar forms. Analyser compiled after loading.
+6. **Decimal** (`x/num/decimal.x`) — Arbitrary-precision decimal floating-point, literal suffix `d` (`1.5d`). Analyser compiled after loading. Last on purpose: its conversions declare float, rational and complex, and its analyser only claims a digit run that ends in `d`, so it never contests a token the earlier readers want.
 
 The analyser compilation pattern is the key design choice: each numeric type's tokenizer analyser is compiled to native code right after the type loads, so subsequent source files (including later numeric types) are parsed through fast compiled analysers rather than interpreted ones.
 

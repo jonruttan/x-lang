@@ -5,6 +5,104 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Arbitrary-precision decimal floating-point, the sixth tower stage**
+  (`x/num/decimal.x`, class `Decimal`, literal suffix `d`). It exists because
+  the tower had no exact answer for a decimal *fraction*. Bigint takes the
+  integers as far as they go and float is a double, so `(+ 0.1 0.2)` is
+  `0.30000000000000004` and always will be — 0.1 is not a binary fraction.
+  `(+ 0.1d 0.2d)` is `0.3d`, exactly, and stays exact however long the sum
+  runs.
+
+  A value is a significand times a power of ten, stored canonically: trailing
+  zeros are stripped and the exponent raised to match, so `1.50d` and `1.5d`
+  are the same pair, zero has one spelling, and `=` is a pair compare rather
+  than a walk. The significand is an ordinary exact integer, so it promotes to
+  bigint on its own — the type is decimal *floating* point, not a fixed number
+  of digits.
+
+  **What rounds is stated, and it is nearly nothing.** `+`, `-`, `*` and `%`
+  are EXACT: the significand grows to whatever the answer needs. `/` cannot be
+  — 1/3 has no finite decimal — so division is the operation that rounds, to
+  `(Decimal precision)` significant digits, half-even; `sqrt` rounds for the
+  same reason. This is deliberately *not* Python's `decimal`, which rounds
+  every operation to the context: a context that silently truncates an addition
+  is a footgun in a language whose whole numeric story is that the tower widens
+  rather than wraps.
+
+  It sits above float in the promotion chain, and the reason is that the
+  widening is exact rather than conventional: every finite double is a finite
+  decimal, because `m * 2^-k` is `m * 5^k * 10^-k`. So `(Decimal from 0.1)` is
+  `0.1000000000000000055511151231257827021181583404541015625d` — the double's
+  true value, not its 17-digit short form — and a mixed pair promotes without
+  inventing digits. Complex still absorbs decimal, as it absorbs every real.
+
+  The literal takes a trailing `d` and only scores when the suffix is there, so
+  it never contests a token the float reader wants: `1.5` is a float, `1.5d` is
+  a decimal, and the four-character claim beats the three-character one on the
+  same digits. `write` keeps the suffix, for the reason floats keep their point
+  — a printed `1.5` would read back as a double. `(Decimal ->str x)` is the
+  suffix-free text.
+
+  `x/num/tower` carries it across all seven generics, and `x/num/decimal`
+  registers rational and complex through the pact rather than importing them,
+  so the module stands on bigint and float alone.
+
+  **`ln`, `exp` and `log10` come with it, as series rather than as a door.**
+  Float's twenty math methods are each one `dlsym`, because libm computes in
+  doubles; nothing computes in 34-digit decimals, so these are implemented
+  here. All three reduce the argument into a window where a series converges
+  quickly, run at the precision plus ten guard digits, and round once at the
+  end — `exp` by halving until the Taylor series is forty terms and squaring
+  back (dividing a decimal by a power of two is exact), the logarithms by
+  folding the significand into `[0.3, 3)` and running one shared `atanh`.
+  They agree with the published constants to the last digit: `(Decimal exp
+  1d)` is e to 34 places, `(Decimal ln 2d)` is 0.6931471805599453094172321214581766.
+
+  Two decisions in there are worth naming. The fold window is `[0.3, 3)` and
+  not the obvious `[1, 10)` because inside it the exponent is *zero*: an
+  argument near 1, where `ln m` and `e·ln 10` would cancel completely and the
+  answer's leading digits would be guard digits, never meets `ln 10` at all.
+  And an exact power of ten answers `log10` from its own exponent, because
+  canonical storage has already stripped it to a significand of 1 — `(Decimal
+  log10 1000d)` is `3d`, not three followed by thirty-three zeros and a doubt.
+
+  **Two rewrites underneath them, together a 75x.** `ln 2d` at 34 digits took
+  9.8s when it first worked; it takes 0.13s.
+
+  The first was rounding, and it made everything else faster too. Rounding a
+  magnitude to N significant digits was `q = m / 10^(d-N)` with the
+  remainder — two of bigint's *general* multi-limb long divisions, measured at
+  **129ms per call** where the multiply feeding it took 3.5. Every series term
+  rounds once, so that one line was the entire cost of a logarithm. A divisor
+  *below* bigint's base is a single limb and takes its fast path, so the
+  discarded digits now come off a limb's worth at a time. That alone took
+  `ln 2d` to 0.9s, and `/`, `sqrt`, `round` and `rescale` ride the same path.
+
+  The second was the series themselves, which no longer compute in decimals.
+  A term is an integer at a fixed scale — `v` stands for `v · 10^S`, one `S`
+  per series — so addition is integer addition with no alignment, no exponent
+  arithmetic, no instance to build and canonicalise, and no rounding, and a
+  term that divides down to zero has fallen off the working precision, which
+  is the stopping condition for free. Only multiplication does anything: the
+  product sits at `2S` and comes back with one drop. A term went from ~19ms to
+  ~3.
+
+  The scale is the accuracy argument, and the two series choose differently.
+  `atanh` scales *relative* to its argument, so a `z` near zero — `ln` of an
+  `x` near 1 — keeps a full working precision instead of being measured
+  against a 1 it is nowhere near. `exp` scales absolutely, because its
+  accumulator starts at 1 and stays within a factor of e of it; its squarings
+  are the one place fixed point is wrong (each doubles the *magnitude*, which
+  only an exponent can carry for free) and they stayed in decimals.
+
+  Both rewrites were checked against the code they replaced rather than
+  assumed: the rounder over 500 random and deliberately tie-heavy magnitudes,
+  the series over 140 random arguments spanning 1e-40 to 1e3 including the
+  near-zero scale case. No disagreement in either, and every published
+  constant still lands on the same digits.
+
 ## [0.8.1] - 2026-08-30
 
 `syntax-rules` works. The reader stopped claiming the dot, and x-r5rs went

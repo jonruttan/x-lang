@@ -52,6 +52,27 @@
 ; cached int/char prims those functions call once per CHARACTER of every leading
 ; whitespace run.  The stack arithmetic, which runs once per LINE, is homed on
 ; the class as (Indent %pop) / (Indent %feed) and costs nothing here.  #520.
+; boot/tower-compiled.x grew from 17 to 18 for %dec-analyse-interp, the sixth
+; tower stage's interpreted analyser twin -- one per stage is what this file
+; IS, and the twin is not optional: the decimal analyser is PUSHED rather than
+; swapped, so an engine with no C headers has nothing to fall back to unless
+; the fallback is written here beside the compiled form it must agree with.
+; num/decimal.x arrives at 72, ABOVE float's 60, and the difference between
+; the two files is where the mathematics lives.  Float's twenty math methods
+; are each one dlsym: libm computes in doubles, so the module is a door.
+; There is no libm for a 34-digit decimal, so decimal.x carries the
+; arithmetic itself -- the series for ln/exp/log10, their shared atanh, the
+; ln 10 they ride on and its cache, the fixed-point scaling the series run
+; in, and the working-precision plumbing that keeps guard digits out of the
+; caller's answer.  Those are the rows float does not have to pay for, and
+; four of them (bite, bite-div, drop, to-fx) are the measured 75x: they are
+; what makes a power-of-ten division take bigint's single-limb fast path.  The rest stands on the same measured grounds
+; bigint's 57 does: significand arithmetic and eight analyser states are the
+; reader's and the tower's hot paths, and class dispatch costs 8-30x there.
+; What is NOT here is the point -- the text scanners (find, find-exp,
+; parse-exp, digits) and the printer's zero/scientific helpers are LOCAL defs
+; inside the two functions that use them, because a parse-local helper has no
+; business in a flat global namespace.  #550.
 ; apps/logo/types.x grew from 43 to 44 for %indent-scan-ref, and the growth BUYS
 ; a deletion: the hand-rolled %count-indent loop that walked the leading run and
 ; handed its INDEX back as a column.  Logo, x-sweet and Python each had their own
@@ -79,7 +100,7 @@
 (file "lib/x/boot/reflect.x" 29)
 (file "lib/x/boot/registry.x" 8)
 (file "lib/x/boot/string.x" 25)
-(file "lib/x/boot/tower-compiled.x" 17)
+(file "lib/x/boot/tower-compiled.x" 18)
 (file "lib/x/codec/json.x" 30)
 (file "lib/x/codec/sha256-jit.x" 34)
 (file "lib/x/codec/sha256.x" 33)
@@ -99,6 +120,7 @@
 (file "lib/x/doc/doc.x" 73)
 (file "lib/x/num/bigint.x" 57)
 (file "lib/x/num/complex.x" 41)
+(file "lib/x/num/decimal.x" 72)
 (file "lib/x/num/float.x" 60)
 (file "lib/x/num/random.x" 6)
 (file "lib/x/num/tower.x" 10)

@@ -83,3 +83,37 @@ exact rational-over-bigint arc. Recorded, not hidden.)
 ```
 ---
     unordered
+
+## decimal at the generic door
+
+### same-type pairs stay on decimal's own worker
+
+```scheme
+(display (num+ 0.1d 0.2d))
+```
+---
+    0.3d
+
+### float promotes into decimal, which absorbs it exactly
+
+```scheme
+(display (num* 2d 3.5))
+```
+---
+    7d
+
+### rational promotes too, at the current precision
+
+```scheme
+(display (num= 1/2 0.5d))
+```
+---
+    #t
+
+### complex still absorbs the decimal, not the other way round
+
+```scheme
+(display (Complex complex? (num+ 1+2i 0.5d)))
+```
+---
+    #t

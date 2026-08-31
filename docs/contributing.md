@@ -291,7 +291,7 @@ Tests are markdown spec files in `tests/x/specs/` organized by category:
 
 - `core/` — Language fundamentals (evaluation, forms, closures, logic, arithmetic, strings, etc.)
 - `applicative/` — Higher-order function tests
-- `ext/` — Extension types (bigint, float, rational, complex, regex, compile, POSIX)
+- `ext/` — Extension types (bigint, float, rational, complex, decimal, regex, compile, POSIX)
 - `lib/` — Standard library functions
 - `e2e/` — End-to-end integration tests
 - `tools/` — Tool tests (lint, fmt)

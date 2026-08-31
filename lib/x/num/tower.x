@@ -27,6 +27,7 @@
 (import x/num/float)
 (import x/num/rational)
 (import x/num/complex)
+(import x/num/decimal)
 (import x/type/generic)
 
 (def %tw-str-append (prim-ref (lit str) (lit append)))
@@ -84,7 +85,7 @@
                   (%tw-str-append " x " (%tw-str-append (%tw-type-name hb)
                     ") -- declare the cvt relation or write the (on ...) method"))))))))))))
 
-; Wire one operator across the four types: an exact-pair method per type
+; Wire one operator across the five types: an exact-pair method per type
 ; with a worker (nil = the type sits this operator out), the shared miss
 ; handler, and the ops-cell shim that shadows the module's own handler --
 ; same-type branches straight to the worker (hot), mixed falls into the
@@ -113,20 +114,22 @@
     (Generic miss! g (%tw-promote-for (%wtab structs workers ())))
     (%wire structs workers)))
 
-; struct order: bigint, float, rational, complex
-(def %tw-types (list %bigint-type %float-type %rational-type %complex-type))
+; struct order: bigint, float, rational, decimal, complex
+(def %tw-types
+  (list %bigint-type %float-type %rational-type %decimal-type %complex-type))
 (set! %tw-ensure-of
   (list (pair (%tw-handle %bigint-type) %ensure-big)
         (pair (%tw-handle %float-type) %ensure-float)
         (pair (%tw-handle %rational-type) %ensure-rat)
+        (pair (%tw-handle %decimal-type) %ensure-dec)
         (pair (%tw-handle %complex-type) %ensure-complex)))
-(%tw-op! num+ (lit +) %tw-types (list %big-add %f-add %rat-add %cx-add))
-(%tw-op! num- (lit -) %tw-types (list %big-sub %f-sub %rat-sub %cx-sub))
-(%tw-op! num* (lit *) %tw-types (list %big-mul %f-mul %rat-mul %cx-mul))
-(%tw-op! num/ (lit /) %tw-types (list %big-div %f-div %rat-div %cx-div))
-(%tw-op! num% (lit %) %tw-types (list %big-mod %f-mod %rat-mod ()))
-(%tw-op! num< (lit <) %tw-types (list %big-lt %f-lt %rat-lt ()))
-(%tw-op! num= (lit =) %tw-types (list %big-eq %f-eq %rat-eq %cx-eq))
+(%tw-op! num+ (lit +) %tw-types (list %big-add %f-add %rat-add %dec-add %cx-add))
+(%tw-op! num- (lit -) %tw-types (list %big-sub %f-sub %rat-sub %dec-sub %cx-sub))
+(%tw-op! num* (lit *) %tw-types (list %big-mul %f-mul %rat-mul %dec-mul %cx-mul))
+(%tw-op! num/ (lit /) %tw-types (list %big-div %f-div %rat-div %dec-div %cx-div))
+(%tw-op! num% (lit %) %tw-types (list %big-mod %f-mod %rat-mod %dec-mod ()))
+(%tw-op! num< (lit <) %tw-types (list %big-lt %f-lt %rat-lt %dec-lt ()))
+(%tw-op! num= (lit =) %tw-types (list %big-eq %f-eq %rat-eq %dec-eq %cx-eq))
 
 (doc (provide x/num/tower num+ num- num* num/ num% num< num=)
   (note "The mixed-type policy layer: import it whenever two numeric modules meet.")

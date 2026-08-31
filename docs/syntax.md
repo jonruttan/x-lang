@@ -33,11 +33,15 @@ echoes them in shorthand.
   correct spelling for negating a *variable* (it routes through the
   operand's type dispatch).
 - Tower literals — dialect-gated (xenon, radon, x-base): floats `3.14`,
-  `-7.5`; rationals `1/3`, `-2/7`; complexes `3+4i`, `2-3i`, `-1+2i`; big
+  `-7.5`; rationals `1/3`, `-2/7`; complexes `3+4i`, `2-3i`, `-1+2i`;
+  arbitrary-precision decimals `1.5d`, `-0.001d`, `1.5e-8d`; big
   integers as plain digit runs. (Implemented — the compiled analysers
   carry the sign branches.)
 - Floats print with their point: `1.0` echoes `1.0`, not `1`.
   (Implemented.)
+- Decimals print with their `d`: `1.5d` echoes `1.5d`, because a printed
+  `1.5` would read back as a float. `(Decimal ->str x)` is the suffix-free
+  text. (Implemented.)
 - Leading-zero integers are decimal (`019` is nineteen); `0x13` is hex.
   (Implemented.)
 
@@ -107,7 +111,7 @@ echoes them in shorthand.
 | ints (signed, hex), strings, `#\` chars, lists, `( . x)`, `;` | ✓ | ✓ | ✓ |
 | `#t`/`#f` as booleans, printer | — | ✓ | ✓ |
 | `'` `` ` `` `,` `,@` `$"…"` `#(…)` | — | ✓ | ✓ |
-| floats, rationals, complexes, bigints, `#/…/` | — | — | ✓ |
+| floats, rationals, complexes, bigints, decimals (`1.5d`), `#/…/` | — | — | ✓ |
 
 The bare column is normative for every implementation of the reader;
 see [syntax-bare.md](syntax-bare.md).
