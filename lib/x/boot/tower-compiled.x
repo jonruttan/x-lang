@@ -149,7 +149,8 @@
   (list (pair '%big-sign-state %big-sign-state)
         (pair '%big-digits %big-digits)
         (pair '%int-capped-digits %int-capped-digits)
-        (pair '%int-capped-sign %int-capped-sign)))
+        (pair '%int-capped-sign %int-capped-sign)
+        (pair '%int-capped-base %int-capped-base)))
 ; These two PUSH a new analyser rather than swapping one, so there is no
 ; interpreted twin already installed to fall back to -- the twin is written
 ; here.  The bodies must agree with the compiled forms below; they can, because
@@ -164,7 +165,8 @@
   (fn (_ buffer score chr)
     (if (< chr 48)
       (if (or (= chr 45) (= chr 43)) %int-capped-sign ())
-      (if (< chr 58) %int-capped-digits ()))))
+      (if (= chr 48) %int-capped-base
+        (if (< chr 58) %int-capped-digits ())))))
 (%type-push-analyse (%type-by-atom (%type-of (Num expt 2 64)))
   (match
     (%compile-hosted?
@@ -182,7 +184,8 @@
         (lit (fn (_ buffer score chr)
           (if (< chr 48)
             (if (or (= chr 45) (= chr 43)) %int-capped-sign ())
-            (if (< chr 58) %int-capped-digits ()))))
+            (if (= chr 48) %int-capped-base
+              (if (< chr 58) %int-capped-digits ())))))
         %compile-fvars))
     (#t %int-analyse-interp)))
 (set! %compile-fvars ())

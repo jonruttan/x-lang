@@ -72,8 +72,9 @@
 ; caller's answer.  Those are the rows float does not have to pay for, and
 ; four of them (bite, bite-div, drop, to-fx) are the measured 75x: they are
 ; what makes a power-of-ten division take bigint's single-limb fast path.  The rest stands on the same measured grounds
-; bigint's 57 does: significand arithmetic and eight analyser states are the
-; reader's and the tower's hot paths, and class dispatch costs 8-30x there.
+; bigint's 60 does: significand arithmetic and eleven analyser states are the
+; reader's and the tower's hot paths, and class dispatch costs 8-30x there
+; (the three hex states -- base, xfirst, xdigits -- joined for #507).
 ; What is NOT here is the point -- the text scanners (find, find-exp,
 ; parse-exp, digits) and the printer's zero/scientific helpers are LOCAL defs
 ; inside the two functions that use them, because a parse-local helper has no
@@ -105,7 +106,7 @@
 (file "lib/x/core/syntax.x" 5)
 (file "lib/x/doc/doc-gen.x" 32)
 (file "lib/x/doc/doc.x" 73)
-(file "lib/x/num/bigint.x" 57)
+(file "lib/x/num/bigint.x" 60)
 (file "lib/x/num/complex.x" 41)
 (file "lib/x/num/decimal.x" 72)
 (file "lib/x/num/float.x" 60)

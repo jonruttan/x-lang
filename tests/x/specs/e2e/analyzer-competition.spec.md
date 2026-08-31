@@ -27,6 +27,28 @@
 ---
     255
 
+### hex integer in operand position (#507)
+
+The write form above passed even while the capped analyser awarded
+`0xFF` a one-byte span -- the int reader's greedy value parse covered
+it, and the stray `xFF` symbol was ignored by the fexpr call. An
+operand position evaluates the stray symbol, so this check holds the
+analyser to claiming the whole literal.
+
+```scheme
+(+ 0xFF 1)
+```
+---
+    256
+
+### hex at the 64-bit boundary stays int
+
+```scheme
+(if (Bigint bigint? 0x7FFFFFFFFFFFFFFF) "big" "int")
+```
+---
+    "int"
+
 ## integer vs float
 
 ### integer without dot
