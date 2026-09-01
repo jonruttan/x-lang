@@ -60,8 +60,9 @@ left feature-complete at 167 — the full POSIX surface: arrays, printf,
 field assignment, sub/gsub, getline, RS incl. paragraph mode, user
 functions, the CLI front (`x -l awk -- ...` over files and stdin), and
 both pipe forms with SIGPIPE held off; its stdin slurp reads 64K chunks
-through the engine's raw make door. x-grep (29 specs), x-sed (21), and
-x-make (23) registered beside it, completing the core set.
+through the engine's raw make door. x-grep (29 specs), x-sed (21),
+x-make (23), and x-coreutils (24) registered beside it, completing the
+core set.
 
 **Release-day motions became tools.** `fan-out-langs.sh` runs every
 bundle's suite against a candidate x and stages the `requires-release`

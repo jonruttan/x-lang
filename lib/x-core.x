@@ -48,7 +48,7 @@
 ; their own, which is why they can.
 
 
-(def x-lib-version "0.9.0")
+(def x-lib-version "0.10.0")
 
 ; Pre-register all boot module NAMES so import calls are no-ops.
 ; INVARIANT (machine-checked by make check-boot-order): every lib module
