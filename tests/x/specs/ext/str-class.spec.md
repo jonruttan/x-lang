@@ -187,6 +187,19 @@ the fill actually reached both ends.
 ---
     (16384 #\a #\a)
 
+### upcase at 16K elements (crash regression)
+
+upcase/downcase/->str run %map over every element, so the non-tail %map1
+put one C eval frame group per byte -- 16384 segfaulted even after make
+itself was fixed.  Pins the tail-shape %map1.
+
+```x
+(def s (Str8 upcase (Str8 make 16384 #\a)))
+(list (Str8 length s) (Str8 ref 0 s) (Str8 ref 16383 s))
+```
+---
+    (16384 #\A #\A)
+
 ### join with separator
 
 ```x

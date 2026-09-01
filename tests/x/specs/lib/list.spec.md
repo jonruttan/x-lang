@@ -271,6 +271,21 @@
 ---
     #t
 
+### map at 16K elements (crash regression)
+
+%map1 was non-tail -- one C eval frame group per element -- so any map
+over a ~16K+ list overflowed the C stack (found via Str8 upcase, which
+maps over every byte).  Now accumulate + reverse; the engine trampolines
+the tail self-call, so depth is bounded.  The end probes pin that order
+survived the reverse.
+
+```scheme
+(def l (List map (method-ref Num inc) (List repeat 16384 1)))
+(list (List length l) (List ref 0 l) (List ref 16383 l))
+```
+---
+    (16384 2 2)
+
 ## filter
 
 ### keeps matching elements

@@ -48,9 +48,17 @@
     (%fold (fn (_ acc _) (+ acc 1)) 0 lst)))
   "Boot-layer length; the public face is (List length).")
 
+; Reverse-prepend: the tail-shape list builder (one trampolined self-call
+; per element, no C frame growth).  Every walker below that used to grow
+; the C stack -- one eval frame group per element, a segfault at ~16K
+; elements -- now accumulates through this and reverses once (#333).
+(def %rev-onto
+  (fn (self l acc)
+    (if (null? l) acc (self (rest l) (pair (first l) acc)))))
+
 (def %append2
-  (fn (self a b)
-    (if (null? a) b (pair (first a) (self (rest a) b)))))
+  (fn (_ a b)
+    (%rev-onto (%rev-onto a ()) b)))
 
 (doc (def %append (fn (_ . args) (%fold %append2 () args)))
   "Boot-layer append; the public face is (List append).")
@@ -72,29 +80,35 @@
 ; The Err lookup resolves at CALL time, long after err.x loads (x-core.x:221),
 ; and nothing in boot maps over an improper list -- so the guard is safe here
 ; even though this module loads at :113.
-(def %map1
-  (fn (self f lst)
+; Accumulate + %rev-onto, NOT (pair (f x) (self ...)): the recursion in
+; argument position put one C eval frame group per element on the stack,
+; so any 16K-element map segfaulted (Str8 upcase maps every byte).  The
+; tail self-call trampolines; depth is bounded.
+(def %map1-go
+  (fn (self f lst acc)
     (match
-      ((null? lst) ())
+      ((null? lst) (%rev-onto acc ()))
       ((not (pair? lst)) (Err raise (lit type) "map: improper list" ()))
-      (#t (pair (f (first lst)) (self f (rest lst)))))))
+      (#t (self f (rest lst) (pair (f (first lst)) acc))))))
+
+(def %map1 (fn (_ f lst) (%map1-go f lst ())))
 
 ; Multi-list loop, inputs already normalized (the old recursion went
 ; back through the public entry, re-as-listing every tail per step).
+; Tail-shape accumulate, like %map1-go.
 (def %mapn-go
-  (fn (self f lsts)
+  (fn (self f lsts acc)
     (if (%any-null? lsts)
-      ()
-      (pair
-        (apply f (%map1 first lsts))
-        (self f (%map1 rest lsts))))))
+      (%rev-onto acc ())
+      (self f (%map1 rest lsts)
+        (pair (apply f (%map1 first lsts)) acc)))))
 
 (doc (def %map
   (fn (_ (param f CALLABLE "Function to apply") . (param lsts LIST "One or more lists"))
     (let ((lsts (%map1 %as-list lsts)))
       (if (null? (rest lsts))
         (%map1 f (first lsts))
-        (%mapn-go f lsts)))))
+        (%mapn-go f lsts ())))))
   (returns LIST "New list")
   "Boot-layer map; the public face is (List map).")
 
