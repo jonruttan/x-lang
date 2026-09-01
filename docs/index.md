@@ -18,7 +18,8 @@
 - [Type System](type-system.md) — Objects, types, the base object, dispatch, extensibility
 - [Object System](object-system.md) — Message-passing classes, single inheritance, encapsulated members, `super`
 - [Dialects](dialects.md) — the helium, xenon, and radon dialect layers
-- [The Lang Contract](lang-contract.md) — what a lang may rely on, and how one is acquired as a pinned bundle (proposed)
+- [The Lang Contract](lang-contract.md) — what a lang may rely on, and how one is acquired as a pinned bundle
+- [Scaling to Many Langs](lang-scale.md) — what has to be true for there to be twenty of them; measurements shipped, some rulings still proposals
 - [Modules](modules.md) — The provide/import module system, and pinning a project's libraries (pin.xon)
 
 ## Reference

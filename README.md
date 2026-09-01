@@ -13,7 +13,7 @@
 minimal, type-agnostic **engine**. The engine provides atom/pair primitives,
 an adaptive type system, and fexpr-based evaluation; s-expressions are the
 deliberately simple initial syntax — the reader itself is extensible, and
-whole surface languages load as langs. Everything above it — the
+whole surface languages load on top. Everything above it — the
 language semantics, standard library, object system, numeric tower, JIT
 compiler, and the toolchain itself — is written in x-lang.
 
@@ -34,7 +34,8 @@ readers, fexpr evaluation, runtime type systems, or self-hosted toolchains.
 It is not a general-purpose application language, and it is not trying to
 displace one.
 
-**Maturity — v0.5.2.** The language and the xenon dialect are covered by a
+**Maturity — [latest release](https://github.com/jonruttan/x-lang/releases/latest).**
+The language and the xenon dialect are covered by a
 full spec suite with CI on macOS and Linux plus a hard AddressSanitizer gate.
 The surface API is *not* frozen and may change between versions. The radon
 dialect is explicitly experimental. x86_64 parity for the automatic
@@ -158,7 +159,10 @@ The library is composed into dialects that control what capabilities are loaded:
 - **xenon** (`lib/xe.x`) — Stable full-stack dialect. Adds POSIX, hash tables, the JIT compiler, and a numeric tower (bigint, float, rational, complex, decimal) with compiled tokenizer analysers for fast parsing.
 - **radon** (`lib/rn.x`) — Experimental dialect. Everything in xenon plus the raw syscall surface, character constants, and I/O handle constants; file I/O and sockets load on demand (`(import x/sys/file)`, `x/platform/socket`).
 
-Dialects are selected via the `-l` flag on the shell wrapper. Langs (R5RS Scheme, R7RS Scheme, Kernel, ASH shell, sweet expressions) are maintained as sibling projects and load as additional libraries on top of a dialect.
+Dialects are selected via the `-l` flag on the shell wrapper. Langs load on
+top of a dialect — the table in
+[other languages, on top](#a-larger-demonstration-other-languages-on-top)
+names each one and the dialect it requires.
 
 ## Build
 
