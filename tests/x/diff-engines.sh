@@ -64,11 +64,15 @@ run b "$X_BIN_B" "$TMP/out-b.txt"
 
 LA=$(wc -l < "$TMP/out-a.txt" | tr -d ' ')
 LB=$(wc -l < "$TMP/out-b.txt" | tr -d ' ')
+# Output lines map to CASES: the interleaved (Heap collect) lines print
+# nothing, so the batch file is filtered before any line-number lookup.
+grep -v "(Heap collect)" "$TMP/forms.x" > "$TMP/cases.x"
+
 if [ "$LA" != "$COUNT" ] || [ "$LB" != "$COUNT" ]; then
   echo "diff-engines: TRUNCATED RUN (a=$LA b=$LB of $COUNT) -- an engine died mid-batch."
   echo "  first form after the shorter output is the killer; seed=$SEED depth=$DEPTH"
   N=$(( (LA < LB ? LA : LB) + 1 ))
-  sed -n "${N}p" "$TMP/forms.x"
+  sed -n "${N}p" "$TMP/cases.x"
   exit 1
 fi
 
@@ -83,6 +87,6 @@ paste_delim=$(printf '\t')
 awk 'NR==FNR{a[FNR]=$0;next} a[FNR]!=$0{print FNR"\t"a[FNR]"\t"$0}' \
   "$TMP/out-a.txt" "$TMP/out-b.txt" | while IFS="$paste_delim" read -r line av bv; do
     echo "  line $line: A=$av B=$bv"
-    echo "    form: $(sed -n "${line}p" "$TMP/forms.x")"
+    echo "    form: $(sed -n "${line}p" "$TMP/cases.x")"
   done
 exit 1
