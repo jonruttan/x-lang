@@ -83,7 +83,20 @@ for repo in "$LANGS"/*/; do
 	fi
 
 	wt="$WORK/$name"
+	[ -L "$wt" ] && rm "$wt"      # a sibling link from an earlier bundle
 	git -C "$repo" worktree add -q "$wt" -b "$BRANCH" "$base"
+
+	# A bundle may declare (requires-lang "NAME") siblings it expects
+	# BESIDE itself; the isolated worktree has none, so link each
+	# declared sibling's checkout in.  Read-only use: the suite loads
+	# the sibling's lang tree, it does not run the sibling's gate.
+	for lang in $(sed -n 's/^(requires-lang "\([^"]*\)".*/\1/p' "$wt/lang.xon"); do
+		for cand in "$LANGS/$lang" "$LANGS/x-$lang"; do
+			if [ -d "$cand" ] && [ ! -e "$WORK/$(basename "$cand")" ]; then
+				ln -s "$cand" "$WORK/$(basename "$cand")"
+			fi
+		done
+	done
 
 	if [ -f "$wt/tests/spec-gate.sh" ]; then
 		door="gate"; runner="tests/spec-gate.sh"
