@@ -10,8 +10,8 @@
 ;
 ; This file was extracted from three near-identical copies in the dialect
 ; entries; the copies had already diverged (the experimental entry grew per-type fvar names
-; that were never reset).  One copy, one idiom: %compile-fvars is set before
-; each compile and cleared after, so no analyser accidentally captures a
+; that were never reset).  One copy, one idiom: each state's fvars are passed
+; as an argument to its own compile, so no analyser accidentally captures a
 ; previous type's free variables.
 ;
 ; Loads via raw `include` from the dialect entries -- registered in the
@@ -43,68 +43,70 @@
 (include "lib/x/type/hash.x")
 (include "lib/x/tool/compile.x")
 
+; --- THE BURST USES THE ENGINE'S OWN JIT, NEVER A SYSTEM TOOLCHAIN -----------
+;
+; These compiles used to go through the cc lane: write a .c file, spawn the
+; host's C compiler, dlopen the object.  A language runtime cannot assume a C
+; compiler exists on the machine that runs it -- CPython does not -- and a
+; boot that shells out to a toolchain is not hosting a JIT.  compile-asm is
+; the engine's own lane: machine code assembled in process, no toolchain, the
+; same lane the lang bundles adopt for their tokenizers.  One catchable probe
+; decides for the whole burst -- an engine without native/jit, or a platform
+; predating fvar forwarding, answers by RAISING -- and every state then keeps
+; its interpreted twin, the same honest fallback the missing-C-headers branch
+; used to be.  The cc lane (lib/x/tool/compile.x) remains a TOOL a user may
+; import and call; the boot never touches it again.
+(def %tower-jit?
+  (guard (_ #f)
+    (do (compile-asm (lit (fn (_ x) (+ x k))) (list (pair (lit k) 1))) #t)))
+
+; One site shape for the ten states: compile through the engine's JIT, and any
+; refusal -- the probe's or a single state's -- keeps the interpreted twin.
+; Fvars are passed as arguments and every value is a module-level def, which
+; is what roots them after the burst (#49's lesson, kept).
+(def %tower-asm
+  (fn (_ src fvars interp)
+    (if %tower-jit? (guard (_ interp) (compile-asm src fvars)) interp)))
+
 ; --- Compile the quote-family analysers and swap them into the symbol
 ;     type's analyse list.  x-core.x (lit-reader.x) installed interpreted
 ;     versions; these run on every char while tokenizing, so compiling them
 ;     keeps subsequent files parsing fast. ---
 ;
 
-(set! %compile-fvars
-  (list (pair '%quasi-accept %quasi-accept)))
 (def %c-quasi-analyse
-  (match
-    (%compile-hosted?
-      (compile
-      (lit (fn (_ buffer score chr)
-        (if (= chr #\`) %quasi-accept ())))
-      %compile-fvars))
-    ; No C headers in this engine: keep the interpreted twin, so the
-    ; identity swap below replaces this handler with itself.
-    (#t %quasi-analyse)))
+  (%tower-asm
+    (lit (fn (_ buffer score chr)
+      (if (= chr 96) %quasi-accept ())))
+    (list (pair (lit %quasi-accept) %quasi-accept))
+    ; No JIT in this engine: keep the interpreted twin, so the identity
+    ; swap below replaces this handler with itself.
+    %quasi-analyse))
 
-(set! %compile-fvars
-  (list (pair '%unquote-after-comma %unquote-after-comma)))
 (def %c-unquote-analyse
-  (match
-    (%compile-hosted?
-      (compile
-      (lit (fn (_ buffer score chr)
-        (if (= chr #\,) %unquote-after-comma ())))
-      %compile-fvars))
-    ; No C headers in this engine: keep the interpreted twin, so the
-    ; identity swap below replaces this handler with itself.
-    (#t %unquote-analyse)))
+  (%tower-asm
+    (lit (fn (_ buffer score chr)
+      (if (= chr 44) %unquote-after-comma ())))
+    (list (pair (lit %unquote-after-comma) %unquote-after-comma))
+    %unquote-analyse))
 
-(set! %compile-fvars
-  (list (pair '%lit-accept %lit-accept)))
 (def %c-lit-analyse
-  (match
-    (%compile-hosted?
-      (compile
-      (lit (fn (_ buffer score chr)
-        (if (= chr #\') %lit-accept ())))
-      %compile-fvars))
-    ; No C headers in this engine: keep the interpreted twin, so the
-    ; identity swap below replaces this handler with itself.
-    (#t %lit-analyse)))
+  (%tower-asm
+    (lit (fn (_ buffer score chr)
+      (if (= chr 39) %lit-accept ())))
+    (list (pair (lit %lit-accept) %lit-accept))
+    %lit-analyse))
 
 ; Only the entry test compiles: it is the piece that runs on every character.
 ; The states behind it (%interp-after-dollar's machine) run inside a literal
 ; only, so they stay interpreted -- and they are closures over a `let`, with no
-; global names for %compile-fvars to bind anyway.
-(set! %compile-fvars
-  (list (pair '%interp-after-dollar %interp-after-dollar)))
+; global names for an fvar list to bind anyway.
 (def %c-interp-analyse
-  (match
-    (%compile-hosted?
-      (compile
-      (lit (fn (_ buffer score chr)
-        (if (= chr #\$) %interp-after-dollar ())))
-      %compile-fvars))
-    ; No C headers in this engine: keep the interpreted twin, so the
-    ; identity swap below replaces this handler with itself.
-    (#t %interp-analyse)))
-(set! %compile-fvars ())
+  (%tower-asm
+    (lit (fn (_ buffer score chr)
+      (if (= chr 36) %interp-after-dollar ())))
+    (list (pair (lit %interp-after-dollar) %interp-after-dollar))
+    %interp-analyse))
 
 ; Swap the compiled analysers in for the interpreted handlers BY IDENTITY,
 ; never by seat.  A positional swap breaks silently the day lit-reader.x
@@ -141,12 +143,6 @@
 
 ; 1. Bigint + int-capped
 (include "lib/x/num/bigint.x")
-(set! %compile-fvars
-  (list (pair '%big-sign-state %big-sign-state)
-        (pair '%big-digits %big-digits)
-        (pair '%int-capped-digits %int-capped-digits)
-        (pair '%int-capped-sign %int-capped-sign)
-        (pair '%int-capped-base %int-capped-base)))
 ; These two PUSH a new analyser rather than swapping one, so there is no
 ; interpreted twin already installed to fall back to -- the twin is written
 ; here.  The bodies must agree with the compiled forms below; they can, because
@@ -164,37 +160,32 @@
       (if (= chr #\0) %int-capped-base
         (if (<= chr #\9) %int-capped-digits ())))))
 (%type-push-analyse (%type-by-atom (%type-of (Num expt 2 64)))
-  (match
-    (%compile-hosted?
-      (compile
-        (lit (fn (_ buffer score chr)
-          (if (< chr 48)
-            (if (or (= chr 45) (= chr 43)) %big-sign-state ())
-            (if (< chr 58) %big-digits ()))))
-        %compile-fvars))
-    (#t %big-analyse-interp)))
+  (%tower-asm
+    (lit (fn (_ buffer score chr)
+      (if (< chr 48)
+        (if (or (= chr 45) (= chr 43)) %big-sign-state ())
+        (if (< chr 58) %big-digits ()))))
+    (list (pair (lit %big-sign-state) %big-sign-state)
+          (pair (lit %big-digits) %big-digits))
+    %big-analyse-interp))
 (%type-push-analyse (%type-by-atom (%type-of 0))
-  (match
-    (%compile-hosted?
-      (compile
-        (lit (fn (_ buffer score chr)
-          (if (< chr #\0)
-            (if (or (= chr #\-) (= chr #\+)) %int-capped-sign ())
-            (if (= chr #\0) %int-capped-base
-              (if (<= chr #\9) %int-capped-digits ())))))
-        %compile-fvars))
-    (#t %int-analyse-interp)))
-(set! %compile-fvars ())
+  (%tower-asm
+    (lit (fn (_ buffer score chr)
+      (if (< chr 48)
+        (if (or (= chr 45) (= chr 43)) %int-capped-sign ())
+        (if (= chr 48) %int-capped-base
+          (if (<= chr 57) %int-capped-digits ())))))
+    (list (pair (lit %int-capped-sign) %int-capped-sign)
+          (pair (lit %int-capped-base) %int-capped-base)
+          (pair (lit %int-capped-digits) %int-capped-digits))
+    %int-analyse-interp))
 
 ; 2. Regex (C analyser, no compile needed)
 (include "lib/x/type/regex.x")
 
 ; 3. Float
 (include "lib/x/num/float.x")
-(set! %compile-fvars
-  (list (pair '%float-int-digits %float-int-digits)
-        (pair '%float-neg-int %float-neg-int)))
-; The interpreted twin, for an engine with no C headers.  Must agree with
+; The interpreted twin, for an engine with no JIT.  Must agree with
 ; the compiled form below.
 (def %float-analyse-interp
   (fn (_ buffer score chr)
@@ -202,30 +193,25 @@
       (if (= chr 45) %float-neg-int ())
       (if (< chr 58) %float-int-digits ()))))
 (%type-push-analyse (%type-by-atom (%type-of 1.0))
-  (match
-    (%compile-hosted?
-      (compile
-        ; Sign branch mirrors the interpreted analyser -- without it, -7.5
-        ; only parses via the stacked interpreted fallback (#45 R4).
-        (lit (fn (_ buffer score chr)
+  (%tower-asm
+    ; Sign branch mirrors the interpreted analyser -- without it, -7.5
+    ; only parses via the stacked interpreted fallback (#45 R4).
+    (lit (fn (_ buffer score chr)
       (if (< chr 48)
-            (if (= chr 45) %float-neg-int ())
-            (if (< chr 58) %float-int-digits ()))))
-        %compile-fvars))
-    (#t %float-analyse-interp)))
-(set! %compile-fvars ())
+        (if (= chr 45) %float-neg-int ())
+        (if (< chr 58) %float-int-digits ()))))
+    (list (pair (lit %float-neg-int) %float-neg-int)
+          (pair (lit %float-int-digits) %float-int-digits))
+    %float-analyse-interp))
 
 ; 4. Rational
 (include "lib/x/num/rational.x")
-(set! %compile-fvars
-  ; %rat-sign is rational.x's module-level def, like every other stage's sign
-  ; state. It used to be an anonymous closure built right here, which the
-  ; compiled analyser captured and nothing rooted once %compile-fvars was
-  ; cleared below -- a later collect freed it, and the next leading '+'/'-'
-  ; jumped into freed memory (#49).
-  (list (pair '%rat-numer %rat-numer)
-        (pair '%rat-sign %rat-sign)))
-; The interpreted twin, for an engine with no C headers.  Must agree with
+; %rat-sign is rational.x's module-level def, like every other stage's sign
+; state. It used to be an anonymous closure built right here, which the
+; compiled analyser captured and nothing rooted once the fvar list was
+; cleared -- a later collect freed it, and the next leading '+'/'-'
+; jumped into freed memory (#49).
+; The interpreted twin, for an engine with no JIT.  Must agree with
 ; the compiled form below.
 (def %rat-analyse-interp
   (fn (_ buffer score chr)
@@ -233,23 +219,18 @@
       (if (= chr 45) %rat-sign (if (= chr 43) %rat-sign ()))
       (if (< chr 58) %rat-numer ()))))
 (%type-push-analyse (%type-by-atom (%type-of 1/2))
-  (match
-    (%compile-hosted?
-      (compile
-        (lit (fn (_ buffer score chr)
+  (%tower-asm
+    (lit (fn (_ buffer score chr)
       (if (< chr 48)
-            (if (= chr 45) %rat-sign (if (= chr 43) %rat-sign ()))
-            (if (< chr 58) %rat-numer ()))))
-        %compile-fvars))
-    (#t %rat-analyse-interp)))
-(set! %compile-fvars ())
+        (if (= chr 45) %rat-sign (if (= chr 43) %rat-sign ()))
+        (if (< chr 58) %rat-numer ()))))
+    (list (pair (lit %rat-sign) %rat-sign)
+          (pair (lit %rat-numer) %rat-numer))
+    %rat-analyse-interp))
 
 ; 5. Complex
 (include "lib/x/num/complex.x")
-(set! %compile-fvars
-  (list (pair '%cx-real-int %cx-real-int)
-        (pair '%cx-neg %cx-neg)))
-; The interpreted twin, for an engine with no C headers.  Must agree with
+; The interpreted twin, for an engine with no JIT.  Must agree with
 ; the compiled form below.
 (def %cx-analyse-interp
   (fn (_ buffer score chr)
@@ -257,17 +238,15 @@
       (if (= chr 45) %cx-neg ())
       (if (< chr 58) %cx-real-int ()))))
 (%type-push-analyse (%type-by-atom (%type-of 1+1i))
-  (match
-    (%compile-hosted?
-      (compile
-        ; Sign branch: -1+2i analyses as complex (#45 R4).
-        (lit (fn (_ buffer score chr)
+  (%tower-asm
+    ; Sign branch: -1+2i analyses as complex (#45 R4).
+    (lit (fn (_ buffer score chr)
       (if (< chr 48)
-            (if (= chr 45) %cx-neg ())
-            (if (< chr 58) %cx-real-int ()))))
-        %compile-fvars))
-    (#t %cx-analyse-interp)))
-(set! %compile-fvars ())
+        (if (= chr 45) %cx-neg ())
+        (if (< chr 58) %cx-real-int ()))))
+    (list (pair (lit %cx-neg) %cx-neg)
+          (pair (lit %cx-real-int) %cx-real-int))
+    %cx-analyse-interp))
 
 ; 6. Decimal
 ;
@@ -277,10 +256,7 @@
 ; is a longer claim than float's on the same digits -- 1.5d beats 1.5 by the
 ; suffix, and a token without one is never contested.
 (include "lib/x/num/decimal.x")
-(set! %compile-fvars
-  (list (pair '%dec-int %dec-int)
-        (pair '%dec-sign %dec-sign)))
-; The interpreted twin, for an engine with no C headers.  Must agree with
+; The interpreted twin, for an engine with no JIT.  Must agree with
 ; the compiled form below.
 (def %dec-analyse-interp
   (fn (_ buffer score chr)
@@ -288,18 +264,16 @@
       (if (or (= chr 45) (= chr 43)) %dec-sign ())
       (if (< chr 58) %dec-int ()))))
 (%type-push-analyse (%type-by-atom (%type-of 1.5d))
-  (match
-    (%compile-hosted?
-      (compile
-        ; Sign branch mirrors the interpreted analyser: -0.001d is one
-        ; token, not a `-` applied to a decimal (#45 R4's lesson).
-        (lit (fn (_ buffer score chr)
+  (%tower-asm
+    ; Sign branch mirrors the interpreted analyser: -0.001d is one
+    ; token, not a `-` applied to a decimal (#45 R4's lesson).
+    (lit (fn (_ buffer score chr)
       (if (< chr 48)
-            (if (or (= chr 45) (= chr 43)) %dec-sign ())
-            (if (< chr 58) %dec-int ()))))
-        %compile-fvars))
-    (#t %dec-analyse-interp)))
-(set! %compile-fvars ())
+        (if (or (= chr 45) (= chr 43)) %dec-sign ())
+        (if (< chr 58) %dec-int ()))))
+    (list (pair (lit %dec-sign) %dec-sign)
+          (pair (lit %dec-int) %dec-int))
+    %dec-analyse-interp))
 
 ; --- Reclaim the load burst: NOT HERE ---------------------------------------
 ;
