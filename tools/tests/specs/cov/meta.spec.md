@@ -1,3 +1,12 @@
+# @no-seam-collect
+<!-- This file TESTS the divergent-width mechanism: it arms meta-count
+     values the live base never has, which the x-engine-c#21 ruling makes
+     undefined to collect over (objects born at another width are freed at
+     the wrong address).  The directive suppresses the runner's seam
+     collects and makes the file run alone, restoring the exact regime it
+     always passed under.  Everything else should NOT copy this: test
+     against the ambient width instead (see meta/base-paths.spec.md). -->
+
 ## meta: obj-meta-count primitives
 
 ### obj-meta-count defaults to 2 (source-location line/file slots)

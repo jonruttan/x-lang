@@ -138,20 +138,53 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 		printf "(def %%T (op () %%E (def %%r (%s)) (if (eq? %%r (lit %%END%%)) () (%%seq (guard (err (display \"Error: \") (display err) (newline)) (%%repl-print (eval! %%r))) (%%T)))))\n", read_fn > tmpfile
 		printf "%s\n", "(%T)" > tmpfile
 		for (i = from; i <= to; i++) {
-			# Inter-snippet separator only.  No per-snippet heap dump: a
-			# heap-count is an O(heap) chain walk (~1.9s/call on the
-			# numeric-tower heap) whose output went to discarded stderr
-			# -- ~120s of pure waste per heavy-lib (x-base/complex/...) spec.
+			# A COLLECT AT EVERY SNIPPET SEAM.  With no auto-GC a batch
+			# used to accumulate every snippet's garbage until the
+			# process exited, so the alloc ceiling had to clear a whole
+			# BATCH's sum; the seam collect reclaims each snippet's
+			# garbage as it finishes, and the ceiling now covers one
+			# snippet's peak (the bundles re-measured 250-275M down to
+			# 75-150M -- see spec-runner.sh's calibration).
 			#
-			# Deliberately NO (heap collect) at the file seams of a
-			# merged bucket: a mid-batch collect after the sigint/Base
-			# e2e specs crashes the engine (the #283/#299 rooting
-			# family), taking every later test in the bucket with it --
-			# measured, 40 spec failures.  Bounding a bucket's garbage
-			# is the shell's job: SPEC_BATCH caps files per process and
-			# the alloc-limit! ceiling stays the runaway guard.
-			if (i > from)
+			# This was long refused by a note citing the #283/#299
+			# rooting family for "40 spec failures".  The bisect
+			# (2026-08-31) split that into TWO families, and the old
+			# note had one of them right:
+			#
+			#   - the meta-width specs (meta/base-paths, meta/
+			#     obj-layout) changed obj-meta-extra over a live heap,
+			#     so the collect freed their objects at the wrong
+			#     width (the x-engine-c#21 ruling: the width is
+			#     boot-time policy).  FIXED: both now test against the
+			#     ambient width.  A future spec that diverges aborts
+			#     its own batch at the next seam -- the policy
+			#     enforced loudly; see reflect.x's meta-count! note.
+			#
+			#   - the #283 family is REAL and remains: objects
+			#     reachable only through C-held state (sigint's
+			#     handler cells, a child base's internals) are
+			#     invisible to the mark, so a collect frees them live.
+			#     Linux segfaults; macOS's allocator TOLERATES the bad
+			#     free, which is exactly how a macOS bisect missed it
+			#     and why "it passes on my machine" is not evidence
+			#     here.  Those files (core/sandbox, core/signal,
+			#     applicative/gc-hooks) carry the directive below
+			#     until the rooting hole closes engine-side.
+			#
+			# Still no per-snippet heap dump: a heap-count is an
+			# O(heap) chain walk whose output went to discarded stderr
+			# -- ~120s of pure waste per heavy-lib spec.
+			# A file may declare `# @no-seam-collect`, for either
+			# reason above: its SUBJECT is the divergent-width
+			# mechanism (cov/meta), or it holds objects only C-side
+			# state can reach (#283 family).  The classifier makes
+			# such a file run alone, so the opt-out never strips
+			# collects from an innocent bucket-mate.
+			if (i > from) {
+				if (!noseam)
+					printf "((prim-ref (lit heap) (lit collect)))\n" > tmpfile
 				printf "(display \"<<SEP>>\\n\")\n" > tmpfile
+			}
 			# The closing paren sits on its OWN line: a test whose last
 			# line ends in a `;` comment would otherwise swallow it,
 			# leaving an unterminated (begin that eats the <<SEP>>
@@ -322,6 +355,8 @@ fenced == 1 { next }
 }
 
 # Comments and metadata (only in IDLE state)
+state == 0 && /^# @no-seam-collect/ { noseam = 1 }
+
 state == 0 && /^# @lib / {
 	lib = lib_base "/" substr($0, 8)
 	next

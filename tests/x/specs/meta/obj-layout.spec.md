@@ -94,15 +94,16 @@ since e62ac80, so pinning the two together would be a tautology.)
 
 ### meta words are PREPENDED: unit I at word -(I+1), and flag-meta is set
 
-The ambient meta-count is saved and RESTORED (boot arms 1 slot for
-source-line tracking; leaving it at a test value would strip line meta
-from every object a later block allocates -- see base-paths.spec.md).
+The AMBIENT width is used, never changed: boot arms 2 slots (source line
++ file id), so a fresh pair already carries the prefix this block probes.
+The old form set the width to 1 and restored -- and the pair it allocated
+in between was born at the divergent width, a landmine the next mid-batch
+collect freed at the wrong address (the x-engine-c#21 ruling: the width
+is boot-time policy; changing it over a live heap is undefined).
 
 ```scheme
 (do
-  (def %mc-prev (%meta-count! 1))
   (def o (pair 5 6))
-  (%meta-count! %mc-prev)
   (%meta-set! o 0 42)
   (display (%meta-ref o 0)) (display " ")
   (display (%ptr-ref-word (%obj->ptr o) (- 0 %word-size))) (display " ")
