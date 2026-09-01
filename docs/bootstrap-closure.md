@@ -5,6 +5,29 @@ invokes, measured rather than grepped. The long-term goal is that each row
 below is either implemented in x, absorbed as an x-ash applet, or explicitly
 ruled a permanent external.
 
+## Progress (2026-09-01)
+
+One day after the measurement, 21 of the 46 rows have registered,
+oracle-checked implementations in x, covering ~94% of all logged
+invocations:
+
+- **the language tools**: awk (x-awk, 167 specs), grep (x-grep, 29),
+  sed (x-sed, 21), make (x-make, 23) — the original core four
+- **the applets** (x-coreutils, 24 specs, one bundle): cat sort uniq
+  head tail wc comm join tr cut basename dirname cp rm mkdir, and
+  **sha256sum as FIPS 180-4 in pure x**, byte-identical with the
+  system tool (retiring the sha256sum/shasum fallback pair)
+- **sh**: x-ash, in progress (2 recorded failures)
+
+Pipelines of x tools compose today:
+`... | x -l awk '{print $1}' | x -l coreutils -- sort | x -l coreutils -- uniq -c`.
+
+Still external: cc/strip (the compiler tier — the next mountain),
+codesign/sysctl (platform, permanent), git/curl (fetch, out of scope),
+timeout/nproc (GNU externals, to eliminate from scripts), install,
+mktemp, tar/gzip, diff/cmp, find, xargs, date, readlink, ls, mv, ln,
+touch, stat, fold, shasum, uname, which.
+
 Measured 2026-08-31 on macOS (Darwin 25.5.0) by shimming every executable on
 PATH (4,455 logging wrappers) and running three phases in the x-lang checkout:
 
