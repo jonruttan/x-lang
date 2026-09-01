@@ -126,16 +126,20 @@
 ; -- 67 specs at once -- where the honest answer is that the tower's compiled
 ; analysers are an OPTIMISATION over interpreted twins x-core already
 ; installed, and an engine without C headers simply keeps the twins.
-; WHERE THE ENGINE IS, AS DATA.  x.sh emits (def %engine-root "...") ahead of
+; WHERE THE ENGINE IS, AS DATA.  x.sh emits (def %engine-dir "...") ahead of
 ; the boot -- the directory holding the binary it is about to run, which in a
-; release or an install is also where include/ ships.  The cwd spelling
-; `engine` remains as the fallback for the paths that carry no wrapper: the
-; repo's own spec runners drive the binary directly, and their cwd is the
-; repo root where the `engine` link lives.  Before this, the probe was ONLY
-; the cwd spelling -- true in exactly one place, an x-lang checkout -- so an
-; install or a bundle checkout booted with interpreted reader analysers and
-; paid ~3x the wall clock without a word.
-(def %compile-engine-root (guard (_ "engine") %engine-root))
+; release or an install is also where include/ ships.  The fallback is the
+; platform's own %engine-root (boot/engine.x), the cwd spelling `engine`,
+; which serves the paths that carry no wrapper: the repo's own spec runners
+; drive the binary directly, and their cwd is the repo root where the link
+; lives.  %engine-dir is a FRESH name because engine.x re-defs %engine-root
+; as x-core's first include -- before guard exists -- so a preamble def of
+; the old name is silently clobbered (measured; the flag stayed #f with the
+; emission traced firing).  Before this seam, the probe was ONLY the cwd
+; spelling -- true in exactly one place, an x-lang checkout -- so an install
+; or a bundle checkout booted with interpreted reader analysers and paid ~3x
+; the wall clock without a word.
+(def %compile-engine-root (guard (_ %engine-root) %engine-dir))
 
 (def %compile-hosted?
   (if (File exists? (Str append %compile-engine-root "/include"))

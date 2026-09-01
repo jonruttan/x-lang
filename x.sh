@@ -306,10 +306,17 @@ param_forms() {
 	# interpreted reader analysers and paid ~3x the wall clock.  The
 	# release dir ships include/ for exactly this; the library just could
 	# not find it without being told where the engine is.
+	#
+	# A FRESH NAME, deliberately: boot/engine.x already owns %engine-root
+	# and re-defs it to "engine" as x-core's FIRST include, before guard
+	# or Str exist -- so a preamble def of that name is silently clobbered
+	# (measured: the flag stayed #f with the emission traced firing).
+	# compile.x prefers %engine-dir when bound and falls back to the
+	# platform's own %engine-root.
 	_ed="$(dirname "$X_BIN")"
 	case "$_ed" in
 		*\"* | *\\*) ;; # a quote would break the literal; keep the cwd fallback
-		*) printf '(def %%engine-root "%s")\n' "$_ed" ;;
+		*) printf '(def %%engine-dir "%s")\n' "$_ed" ;;
 	esac
 	_pf="$(dirname "$X_BIN")/x-engine-build.xon"
 	[ -f "$_pf" ] || return 0
