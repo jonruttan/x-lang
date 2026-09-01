@@ -381,7 +381,29 @@ fenced == 1 { next }
 state == 0 && /^# @no-seam-collect/ { noseam = 1 }
 
 state == 0 && /^# @lib / {
+	# THE WRAPPER IS THE CONTRACT.  @lib paths resolve against LANG_LIB's
+	# directory, which each lang runner sets before sourcing this core; a
+	# hand-rolled invocation of the core skips that, every @lib resolves
+	# against nothing, and the batch used to die a SILENT death that two
+	# sessions independently mis-attributed (library rot; a sandbox) for
+	# most of a day -- see #574.  Both guards below convert that whole
+	# investigation into one message at the first run.
+	if (LANG_LIB == "") {
+		printf "spec-runner: %s declares `# @lib` but LANG_LIB is unset --\n" \
+			"  the core runner was invoked directly; run the lang wrapper\n" \
+			"  (e.g. tests/x/spec-runner.sh), which sets LANG_LIB and X_BIN.\n", \
+			FILENAME > "/dev/stderr"
+		exit 1
+	}
 	lib = lib_base "/" substr($0, 8)
+	# Guard 2: the resolved path must exist NOW, not fail as a silent cat
+	# inside the interpreter pipeline three stages later.
+	if ((getline _libprobe < lib) < 0) {
+		printf "spec-runner: %s: `# @lib %s` resolves to %s, which does not exist\n", \
+			FILENAME, substr($0, 8), lib > "/dev/stderr"
+		exit 1
+	}
+	close(lib)
 	next
 }
 state == 0 && /^#/ { next }
