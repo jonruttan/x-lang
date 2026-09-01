@@ -967,6 +967,20 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	else \
 		echo "install: WARNING -- $(ENGINE_DIR)/x-engine-build.xon is missing; the installed tree cannot say what platform its engine was built for" >&2; \
 	fi
+	# The engine's C HEADERS travel with the engine too.  %compile-hosted? is
+	# the operational test of native/cc, and it now probes wherever the engine
+	# is (%engine-root from x.sh) -- so an installed tree that carries the
+	# headers boots with COMPILED reader analysers, and one that does not
+	# silently reads everything ~3x slower.  The release dir ships include/
+	# for exactly this reason; the install has to keep it.
+	@if [ -d $(ENGINE_DIR)/include ] && [ -d $(ENGINE_DIR)/ext/x-expr/include ]; then \
+		rm -rf $(DESTDIR)$(LIBEXECDIR)/include $(DESTDIR)$(LIBEXECDIR)/ext; \
+		cp -R $(ENGINE_DIR)/include $(DESTDIR)$(LIBEXECDIR)/include; \
+		install -d -m 0755 $(DESTDIR)$(LIBEXECDIR)/ext/x-expr; \
+		cp -R $(ENGINE_DIR)/ext/x-expr/include $(DESTDIR)$(LIBEXECDIR)/ext/x-expr/include; \
+	else \
+		echo "install: WARNING -- $(ENGINE_DIR) ships no C headers; the installed tree will boot with interpreted reader analysers (~3x slower)" >&2; \
+	fi
 	@if [ -f $(ENGINE_DIR)/entitlements.plist ]; then codesign -s - --entitlements $(ENGINE_DIR)/entitlements.plist -f $(DESTDIR)$(LIBEXECDIR)/$(EXECUTABLE) 2>/dev/null || true; fi
 	install $C -m 0755 $(NAME).sh $(DESTDIR)$(BINDIR)/$(NAME)
 	rm -rf $(DESTDIR)$(LIBDIR)/lib $(DESTDIR)$(LIBDIR)/apps $(DESTDIR)$(LIBDIR)/boot $(DESTDIR)$(LIBDIR)/tests

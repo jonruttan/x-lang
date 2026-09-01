@@ -126,9 +126,20 @@
 ; -- 67 specs at once -- where the honest answer is that the tower's compiled
 ; analysers are an OPTIMISATION over interpreted twins x-core already
 ; installed, and an engine without C headers simply keeps the twins.
+; WHERE THE ENGINE IS, AS DATA.  x.sh emits (def %engine-root "...") ahead of
+; the boot -- the directory holding the binary it is about to run, which in a
+; release or an install is also where include/ ships.  The cwd spelling
+; `engine` remains as the fallback for the paths that carry no wrapper: the
+; repo's own spec runners drive the binary directly, and their cwd is the
+; repo root where the `engine` link lives.  Before this, the probe was ONLY
+; the cwd spelling -- true in exactly one place, an x-lang checkout -- so an
+; install or a bundle checkout booted with interpreted reader analysers and
+; paid ~3x the wall clock without a word.
+(def %compile-engine-root (guard (_ "engine") %engine-root))
+
 (def %compile-hosted?
-  (if (File exists? "engine/include")
-    (File exists? "engine/ext/x-expr/include")
+  (if (File exists? (Str append %compile-engine-root "/include"))
+    (File exists? (Str append %compile-engine-root "/ext/x-expr/include"))
     #f))
 
 ; --- Multi-arg string concatenation ---
@@ -160,15 +171,19 @@
         (pair "cc"
           (%append %compile-cc-flags
             (list "-O2" "-DX_HEAP" "-DX_TYPE" "-Wno-unused-value"
-                  ; The engine's headers live wherever `engine` points -- the
-                  ; submodule, a checkout, or an unpacked release, which ships
-                  ; include/ for exactly this reason.  These are the ONLY paths
-                  ; in the runtime library that point at C sources, and the JIT
-                  ; lane is STRESS-gated, so nothing but CI's stress run
-                  ; exercises them: that is how they survived the engine split
-                  ; broken for a day.  check-path-literals asserts both dirs
-                  ; exist on every push, which is why they stay literals.
-                  "-Iengine/ext/x-expr/include" "-Iengine/include"
+                  ; The engine's headers live wherever %compile-engine-root
+                  ; says -- x.sh's %engine-root when a wrapper booted this
+                  ; process, the repo's `engine` link otherwise -- resolved
+                  ; beside %compile-hosted? above so the probe and the flags
+                  ; cannot disagree.  These are the ONLY paths in the runtime
+                  ; library that point at C sources, and the JIT lane is
+                  ; STRESS-gated, so nothing but CI's stress run exercises
+                  ; them: that is how they survived the engine split broken
+                  ; for a day.
+                  (Str append "-I"
+                    (Str append %compile-engine-root "/ext/x-expr/include"))
+                  (Str append "-I"
+                    (Str append %compile-engine-root "/include"))
                   "-o" %tmp-path src-path)))))
     (if (not (= %cc-status 0))
       (Err raise 'io (Str append "compile: cc failed with status " (%cvt %cc-status %string)) ()))

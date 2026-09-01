@@ -298,6 +298,19 @@ bundle_form() {
 # generator writes that when a fact could not be established, and x-lang falling
 # back to its own detection beats believing a value nobody knows.
 param_forms() {
+	# The ENGINE'S OWN DIRECTORY, as data -- the same route as everything
+	# else in this function and for a concrete consumer: %compile-hosted?
+	# probes for the engine's C headers, and a probe spelled against cwd
+	# (the repo's `engine` link) is false everywhere x.sh actually runs --
+	# an install, a bundle checkout -- so every such boot silently kept
+	# interpreted reader analysers and paid ~3x the wall clock.  The
+	# release dir ships include/ for exactly this; the library just could
+	# not find it without being told where the engine is.
+	_ed="$(dirname "$X_BIN")"
+	case "$_ed" in
+		*\"* | *\\*) ;; # a quote would break the literal; keep the cwd fallback
+		*) printf '(def %%engine-root "%s")\n' "$_ed" ;;
+	esac
 	_pf="$(dirname "$X_BIN")/x-engine-build.xon"
 	[ -f "$_pf" ] || return 0
 	# The quoted rows first: `machine` and `release` are STRINGS, because their

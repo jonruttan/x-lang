@@ -52,11 +52,24 @@ echo "path-literals: ok"
 BAD=0
 for f in $(grep -rl '"-I' lib apps --include='*.x' 2>/dev/null | sort); do
 	for inc in $(sed 's/;.*//' "$f" | grep -o '"-I[^"]*"' | sed 's/^"-I//; s/"$//'); do
-		case "$inc" in .|./) continue;; esac
+		# A bare "-I" is the PREFIX of a computed path (compile.x builds its
+		# include flags from %compile-engine-root now); the resolvable half
+		# of that computation is the fallback, asserted below.
+		case "$inc" in ""|.|./) continue;; esac
 		[ -d "$inc" ] && continue
 		echo "$f: -I$inc does not exist" >&2
 		BAD=1
 	done
+done
+
+# The include flags are computed from %compile-engine-root, whose repo-mode
+# FALLBACK is the `engine` link -- so the directories that fallback names
+# must exist here, or the cc lane dies in the stress tier three inference
+# steps from the cause, exactly the failure this file exists to pre-empt.
+for inc in engine/include engine/ext/x-expr/include; do
+	[ -d "$inc" ] && continue
+	echo "compile.x fallback: -I$inc does not exist" >&2
+	BAD=1
 done
 
 if [ "$BAD" != 0 ]; then

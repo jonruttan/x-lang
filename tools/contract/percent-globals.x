@@ -142,7 +142,11 @@
 (file "lib/x/tool/asm.x" 37)
 (file "lib/x/tool/asm/arm64.x" 8)
 (file "lib/x/tool/asm/x86_64.x" 23)
-(file "lib/x/tool/compile.x" 25)
+; compile.x rose 25 to 26 for %compile-engine-root: where the engine's C
+; headers are, resolved once beside %compile-hosted? so the probe and the
+; -I flags cannot disagree -- a load-time fact read before the class
+; doors exist, so it cannot home on a class.
+(file "lib/x/tool/compile.x" 26)
 ; emit.x rose 54 to 57 for the CHARACTER write handler: the type handle,
 ; the char->int door, and the writer itself -- one emitter family, the
 ; same standing the int and symbol writers have.
