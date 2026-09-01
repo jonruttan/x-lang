@@ -309,11 +309,15 @@
             (self cs (pair lm acc))))))
     (pair sign (%bigint-normalize (%reverse (%go dlen ()))))))
 
-; Decimal string to bigint instance
+; Decimal string to bigint instance.  Through %make-bigint, NOT a direct
+; %make-instance: the capped int analyser hands over anything past 16
+; digits, but 17-19 digit values can still fit the native int -- a direct
+; instance there is a stealth bigint (prints like an int, fails eq? and
+; raw slot ops).  %make-bigint demotes exactly the ones that round-trip.
 (def %bigint-from-string
   (fn (_ s)
     (def parsed (%bigint-parse-digits s))
-    (%make-instance %bigint parsed)))
+    (%make-bigint (first parsed) (rest parsed))))
 
 ; --- Constructor with auto-demotion ---
 
@@ -347,8 +351,14 @@
     ; Zero check
     (if (if (null? (rest nl)) (%int= (first nl) 0) #f)
       0
-      ; If few enough limbs to possibly fit in native int, try demotion
-      (if (not (%int< (%int* %word-size 2) (%int* (%length nl) %bigint-digits-per-limb)))
+      ; If few enough limbs to possibly fit in native int, try demotion.
+      ; The window is every length whose value COULD fit -- one limb past
+      ; the safe digit budget (a 3-limb 19-digit value can still be under
+      ; MAX); the round-trip verify below rejects the ones that wrapped.
+      ; The old guard (length*digits <= budget) only ever demoted single
+      ; limbs, so any result >= the limb base stayed bigint forever --
+      ; printing like an int but failing eq? and raw slot ops.
+      (if (not (%int< (%int* %word-size 2) (%int* (%int- (%length nl) 2) %bigint-digits-per-limb)))
         (let ()
           (def val (%bigint-to-int sign nl))
           ; Verify it round-trips (didn't overflow)
@@ -446,12 +456,29 @@
 
 (def %int-abs (fn (_ n) (if (%int< n 0) (%int- 0 n) n)))
 
+; a+b overflows iff (b>0 and a > MAX-b) or (b<0 and a < MIN-b).  Both
+; thresholds are computed on the side that cannot wrap: MAX-b for b>0 and
+; MIN-b for b<0 stay in range.  (The old form built MIN-b as (MIN+2)+b,
+; which itself wrapped for b < -2 -- every (- x digit) with x negative
+; spuriously promoted to bigint, and 2-limb results then never demoted,
+; leaving bigints that print like ints but fail eq? and raw slot ops.)
 (def %would-overflow-add?
   (fn (_ a b)
-    (if (%int< 0 a)
-      (if (%int< 0 b) (%int< (%int- %long-max a) b) #f)
+    (if (%int< 0 b)
+      (%int< (%int- %long-max b) a)
       (if (%int< b 0)
-        (%int< a (%int- (%int+ (%int- 0 %long-max) 1) (%int- 0 b)))
+        (%int< a (%int- (%int- (%int- 0 %long-max) 1) b))
+        #f))))
+
+; a-b overflows iff (b<0 and a > MAX+b) or (b>0 and a < MIN+b).  A direct
+; predicate, not add?-of-negation: (%int- 0 b) wraps for b = MIN, and this
+; form also answers that edge exactly (MAX+MIN = -1, so a >= 0 promotes).
+(def %would-overflow-sub?
+  (fn (_ a b)
+    (if (%int< b 0)
+      (%int< (%int+ %long-max b) a)
+      (if (%int< 0 b)
+        (%int< a (%int+ (%int- (%int- 0 %long-max) 1) b))
         #f))))
 
 (def %would-overflow-mul?
@@ -482,7 +509,7 @@
 (def %big-sub2
   (fn (_ acc x)
     (if (if (%int-number? acc) (%int-number? x) #f)
-      (if (%would-overflow-add? acc (%int- 0 x))
+      (if (%would-overflow-sub? acc x)
         (%big-sub (%ensure-big acc) (%ensure-big x))
         (%int- acc x))
       (%int- acc x))))
@@ -596,9 +623,13 @@
             (fn (_ self) (%bigint-to-string (first (first self)) (rest (first self))))))))))
 
 ; --- Reader (set after make-type so closure captures the real %bigint) ---
+; Through %make-bigint for the same reason as %bigint-from-string: the
+; capped analyser triggers on digit COUNT, and a 17-19 digit literal that
+; fits the native int must come out native, not as a stealth bigint.
 (set! %bigint-read
   (fn (_ . args)
-    (%make-instance %bigint (%bigint-parse-digits (%buffer-token (first args))))))
+    (let ((parsed (%bigint-parse-digits (%buffer-token (first args)))))
+      (%make-bigint (first parsed) (rest parsed)))))
 
 ; --- Cap the integer analyser ---
 ; Push a capped analyser onto the integer type's analyse stack

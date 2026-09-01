@@ -5,6 +5,24 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The exact tower is exact at every magnitude.** Rational arithmetic
+silently answered wrong values once cross products passed 2^63 (two ~1e13
+denominators multiply to ~1e26): the `%rat-*` internals used the raw C
+binaries, which wrap. They now go through the public promoting operators,
+and `%gcd` reduces by `%int%` instead of reconstructing `a - b*(a/b)` (the
+reconstruction product wrapped for bigint-sized operands). Two bigint
+defects fell out of the same probe: `%would-overflow-add?`'s negative
+threshold itself wrapped for subtrahends past 2, promoting nearly every
+negative subtraction; and demotion only ever fired for single-limb
+results, so any bigint ≥ the limb base — including 17-19 digit literals
+straight from the reader — stayed a *stealth bigint* that printed like an
+int but failed `eq?` and raw slot ops (`str->number`'s own overflow verify
+among them: an 11-digit all-nines parse raised a spurious "integer
+overflow"). Subtraction gets its own exact `%would-overflow-sub?`, the
+demotion window now spans every length that could round-trip, and both
+bigint construction paths route through it. Pinned in
+`tests/x/specs/ext/rational.spec.md` and `ext/bigint.spec.md`.
+
 ## [0.9.0] - 2026-08-31
 
 **Logo left, and the platform grew the row that let it.** `apps/` is empty:

@@ -129,6 +129,48 @@
 ---
     #t
 
+### negative minus digit stays native (regression: wrapped threshold)
+
+```scheme
+(if (Bigint bigint? (- -99999999990 9)) "big" "native")
+```
+---
+    "native"
+
+### negative minus digit answers a value-eq native int
+
+```scheme
+(eq? (- -99999999990 9) -99999999999)
+```
+---
+    #t
+
+## demotion window (regression: 2+ limb results never demoted)
+
+### bigint difference that fits native demotes
+
+```scheme
+(eq? (- 99999999999999999999 99999999990000000000) 9999999999)
+```
+---
+    #t
+
+### 19-digit quotient that fits native demotes
+
+```scheme
+(eq? (/ 10000000000000000000 10) 1000000000000000000)
+```
+---
+    #t
+
+### str->number reads 11 digits of nines (regression: stealth bigint failed its verify)
+
+```scheme
+(%str->number "99999999999")
+```
+---
+    99999999999
+
 ## would-overflow-mul?
 
 ### detects multiplication overflow
@@ -188,7 +230,23 @@
 ### large multiply
 
 ```scheme
-(Bigint bigint? (Bigint * (Convert to 999999999 %bigint) (Convert to 999999999 %bigint)))
+(Bigint bigint? (Bigint * (Convert to 99999999999 %bigint) (Convert to 99999999999 %bigint)))
+```
+---
+    #t
+
+### product that fits native demotes
+
+```scheme
+(if (Bigint bigint? (Bigint * (Convert to 999999999 %bigint) (Convert to 999999999 %bigint))) "big" "native")
+```
+---
+    "native"
+
+### demoted product has the native value
+
+```scheme
+(eq? (Bigint * (Convert to 999999999 %bigint) (Convert to 999999999 %bigint)) 999999998000000001)
 ```
 ---
     #t

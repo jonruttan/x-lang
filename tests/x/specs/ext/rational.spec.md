@@ -458,3 +458,53 @@
 ```
 ---
     1/2
+
+## large components promote instead of wrapping (regression)
+
+### coprime 1e13 denominators add exactly
+
+```scheme
+(+ 1/10000000000000 1/9999999999999)
+```
+---
+    19999999999999/99999999999990000000000000
+
+### large-denominator difference demotes to the integer
+
+```scheme
+(- 30000000000001/10000000000000 1/10000000000000)
+```
+---
+    3
+
+### sqrt-2 digit pipeline stays exact
+
+```scheme
+(+ (* (- (/ 14142135623731 10000000000000) 1) 100000) 1/2)
+```
+---
+    4142185623731/100000000
+
+### 11-digit denominator literal reads
+
+```scheme
+1/99999999999
+```
+---
+    1/99999999999
+
+### comparison crosses promote
+
+```scheme
+(< 1/10000000000000 1/9999999999999)
+```
+---
+    #t
+
+### equality crosses promote
+
+```scheme
+(= 20000000000000/10000000000000 2)
+```
+---
+    #t

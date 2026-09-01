@@ -32,10 +32,14 @@
 (def %rational ())
 ; --- GCD (Euclidean algorithm) ---
 
+; The modulo is the %int% binary, NOT a - b*(a/b): the reconstruction
+; product b*(a/b) re-approaches a's magnitude, which wraps once a is a
+; cross product past 2^63 (the promoting %rat-* ops feed bigints in here).
+; %int% cannot overflow on ints and dispatches bigint operands to %big-mod.
 (def %gcd
   (fn (self a b)
     (if (%int= b 0) a
-      (self b (%int- a (%int* b (%int/ a b)))))))
+      (self b (%int% a b)))))
 
 (def %abs (fn (_ n) (if (%int< n 0) (%int- 0 n) n)))
 ; --- Find '/' position in string ---
@@ -164,33 +168,41 @@
 (def %rat-numer-of %numer-of)
 (def %rat-denom-of %denom-of)
 
+; CROSS PRODUCTS GO THROUGH THE PUBLIC OPERATORS, not %int*/%int+: two
+; ~1e13 denominators cross-multiply past 2^63, and the raw C binaries wrap
+; silently there (1/1e13 + 1/9999999999999 answered a wrapped-garbage
+; rational).  The public + - * are bigint's overflow-promoting folds when
+; bigint is loaded, so oversize components promote and %gcd/%make-rational
+; reduce them back down through the dispatching binaries (which already
+; route bigint operands).  Without bigint in the tower the publics are the
+; raw folds and behavior is unchanged.
 (def %rat-add
   (fn (_ a b)
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
       (%make-rational
-        (%int+ (%int* an bd) (%int* bn ad))
-        (%int* ad bd)))))
+        (+ (* an bd) (* bn ad))
+        (* ad bd)))))
 
 (def %rat-sub
   (fn (_ a b)
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
       (%make-rational
-        (%int- (%int* an bd) (%int* bn ad))
-        (%int* ad bd)))))
+        (- (* an bd) (* bn ad))
+        (* ad bd)))))
 
 (def %rat-mul
   (fn (_ a b)
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
-      (%make-rational (%int* an bn) (%int* ad bd)))))
+      (%make-rational (* an bn) (* ad bd)))))
 
 (def %rat-div
   (fn (_ a b)
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
-      (%make-rational (%int* an bd) (%int* ad bn)))))
+      (%make-rational (* an bd) (* ad bn)))))
 ; --- Comparisons ---
 
 (note "Comparison")
@@ -199,21 +211,22 @@
   (fn (_ a b)
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
-      (%int< (%int* an bd) (%int* bn ad)))))
+      (%int< (* an bd) (* bn ad)))))
 
 ; Truncating modulo, matching int % and float fmod: a - b*trunc(a/b).
-; trunc(a/b) = C integer division of the cross products.
+; trunc(a/b) = integer division of the cross products (%int/ dispatches
+; bigint operands when the promoting * produced them).
 (def %rat-mod
   (fn (_ a b)
-    (let ((q (%int/ (%int* (%rat-numer-of a) (%rat-denom-of b))
-                    (%int* (%rat-denom-of a) (%rat-numer-of b)))))
+    (let ((q (%int/ (* (%rat-numer-of a) (%rat-denom-of b))
+                    (* (%rat-denom-of a) (%rat-numer-of b)))))
       (%rat-sub a (%rat-mul b (%make-rational q 1))))))
 
 (def %rat-eq
   (fn (_ a b)
     (let ((an (%rat-numer-of a)) (ad (%rat-denom-of a))
           (bn (%rat-numer-of b)) (bd (%rat-denom-of b)))
-      (%int= (%int* an bd) (%int* bn ad)))))
+      (%int= (* an bd) (* bn ad)))))
 ; --- Type ops + the / promotion policy ---
 
 (note "Operator Overrides")
