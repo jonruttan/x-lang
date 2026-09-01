@@ -169,7 +169,12 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 			#     and why "it passes on my machine" is not evidence
 			#     here.  Those files (core/sandbox, core/signal,
 			#     applicative/gc-hooks) carry the directive below
-			#     until the rooting hole closes engine-side.
+			#     until the rooting hole closes engine-side.  A lang
+			#     bundle whose EVAL DOOR holds such state (x-python's
+			#     python-run builds an isolated tokenizer base) turns
+			#     the whole run off with SPEC_SEAM_COLLECT=0 in its
+			#     wrapper -- proven by exactly the works-twice,
+			#     dies-third shape in its conformance cases.
 			#
 			# Still no per-snippet heap dump: a heap-count is an
 			# O(heap) chain walk whose output went to discarded stderr
@@ -181,7 +186,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 			# such a file run alone, so the opt-out never strips
 			# collects from an innocent bucket-mate.
 			if (i > from) {
-				if (!noseam)
+				if (!noseam && SEAM_COLLECT != "0")
 					printf "((prim-ref (lit heap) (lit collect)))\n" > tmpfile
 				printf "(display \"<<SEP>>\\n\")\n" > tmpfile
 			}
