@@ -339,16 +339,19 @@
   (fn (_ . exprs)
     (def %n (%length exprs))
 
-    ; Resolve functions from a loaded library
+    ; Resolve functions from a loaded library.  Tail accumulate +
+    ; %rev-onto (the 2026-09-01 %map1 shape): the old (pair %fn (self ...))
+    ; recursed in argument position, one C eval frame group per batch
+    ; entry -- a huge compile-batch would have crashed the C stack.
     (def %resolve-all
-      (fn (self lib i n)
-        (unless (= i n)
+      (fn (self lib i n acc)
+        (if (= i n) (%rev-onto acc ())
           (let ((name (Str append "batch_" (%cvt i %string))))
             (def %fn (%dlsym lib name))
             (if (null? %fn)
               (Err raise 'io (Str append "compile-batch: dlsym failed for " name) ()))
             (%type-cast! %fn first)
-            (pair %fn (self lib (+ i 1) n))))))
+            (self lib (+ i 1) n (pair %fn acc))))))
 
     ; Cache lookup
     (def %batch-key (%write-to-str exprs))
@@ -362,7 +365,7 @@
           (do
             (if (not (null? %compile-fvars))
               (%compile-patch-fvars lib %compile-fvars))
-            (%resolve-all lib 0 %n))))
+            (%resolve-all lib 0 %n ()))))
 
       ; Cache miss: generate, compile, cache, load
       (let ()
@@ -410,7 +413,7 @@
         (if (not (null? %compile-fvars))
           (%compile-patch-fvars %lib %compile-fvars))
 
-        (%resolve-all %lib 0 %n)))))
+        (%resolve-all %lib 0 %n ())))))
 (doc compile-batch "Compile multiple (fn ...) expressions in a single cc invocation."
   (returns LIST "List of compiled native primitives"))
 
