@@ -75,11 +75,8 @@
 ; bigint's 60 does: significand arithmetic and eleven analyser states are the
 ; reader's and the tower's hot paths, and class dispatch costs 8-30x there
 ; (the three hex states -- base, xfirst, xdigits -- joined for #507).
-; Rows 61-63 are the #584 guard: %big-mixed-check raises the lattice's
-; teaching error where the C arbitration would fall through to
-; payload-word reads (an undeclared typed pair with handlers on both
-; sides), and %type-from-cell/%type-ops-cell are its cached catalog
-; accessors, per the file's own fetch-and-cache convention.
+; (The interim #584 guard rows are gone: the engine's op arbitration
+; now raises the teaching error itself, so the budget shrank back.)
 ; What is NOT here is the point -- the text scanners (find, find-exp,
 ; parse-exp, digits) and the printer's zero/scientific helpers are LOCAL defs
 ; inside the two functions that use them, because a parse-local helper has no
@@ -111,7 +108,7 @@
 (file "lib/x/core/syntax.x" 5)
 (file "lib/x/doc/doc-gen.x" 32)
 (file "lib/x/doc/doc.x" 73)
-(file "lib/x/num/bigint.x" 63)
+(file "lib/x/num/bigint.x" 60)
 (file "lib/x/num/complex.x" 41)
 (file "lib/x/num/decimal.x" 72)
 (file "lib/x/num/float.x" 60)

@@ -74,24 +74,41 @@ the generic door that is now a TEACHING error.
 
 ### the bare operators reach the same door
 
-The C arbitration punts on this pair -- both sides carry handlers and
-neither declares the other -- and its raw fallback read payload words
-as integers (#584, caught by the cross-engine fuzzer as address
-garbage).  The bigint folds now ask %big-mixed-check first, which reads
-the same from/ops cells the C arbitration walks and raises the
-lattice's teaching error for exactly the punted pair, in EVERY dialect
-profile (the generics below are an optional import; the folds are not).
-Binary % < = still call the C prims bare and keep the raw fallback --
-that residue stays open on #584.
+The C arbitration used to punt on this pair -- both sides carry
+handlers and neither declares the other -- and its raw fallback read
+payload words as integers (#584, caught by the cross-engine fuzzer as
+address garbage).  The arbitration itself (x_type_op_try and its rust
+twin) now decides, in every dialect profile with no lib-side guard to
+keep in step: = answers #f -- unrelated values are not equal, a
+question with an answer (x-python's tuple-vs-list == leans on it) --
+and every op with no answer absent a declared relation raises the
+teaching error.
 
 ```scheme
 (display (list
   (guard (e 'loud) (+ 123456789012345678901234567890 1/2))
   (guard (e 'loud) (- 1/2 123456789012345678901234567890))
-  (guard (e 'loud) (* 123456789012345678901234567890 1/2))))
+  (guard (e 'loud) (* 123456789012345678901234567890 1/2))
+  (guard (e 'loud) (% 123456789012345678901234567890 1/2))
+  (guard (e 'loud) (< 123456789012345678901234567890 1/2))
+  (= 123456789012345678901234567890 1/2)
+  (= 1/2 123456789012345678901234567890)))
 ```
 ---
-    (loud loud loud)
+    (loud loud loud loud loud #f #f)
+
+### the teaching error names the unabsorbed type
+
+Pinned exactly: the two engines must compose the identical message, or
+the differential fuzzer reads the difference as an engine divergence.
+One appended name is what the engine's error door offers; the second
+operand's type is the one named.
+
+```scheme
+(display (guard (e e) (% 123456789012345678901234567890 1/2)))
+```
+---
+    no declared promotion; declare the cvt relation for 'RATIONAL'
 
 ### declared pairs still promote through the folds
 
