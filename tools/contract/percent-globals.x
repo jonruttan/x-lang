@@ -190,3 +190,4 @@
 (file "tools/dev/fmt.x" 13)
 (file "tools/dev/highlight.x" 8)
 (file "tools/dev/lint.x" 22)
+(file "tools/fuzz/diff-gen.x" 18)
