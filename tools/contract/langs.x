@@ -39,6 +39,12 @@
 (lang "krn"   "x-krn"    74  0)
 (lang "sweet" "x-sweet"  32  0)
 (lang "python" "x-python"  4  0)
+; awk is the self-hosting arc's first tool bundle: the build closure's
+; heaviest external after the regex trio (docs/bootstrap-closure.md).  69 is
+; the first vertical slice -- lexer, parser, exact-rational core, oracle-
+; checked end to end; its ten pending are recorded divergences and unbuilt
+; features (printf, arrays, getline), listed in its 04-divergences spec.
+(lang "awk"   "x-awk"    69  0)
 ; logo arrived GREEN, which is what an extraction should look like: 83/0 here
 ; is the same 83 tests that ran as lib/logo.spec.md in this tree, against the
 ; same turtle kernel, through the bundle's own harness instead of tests/x/lib.
