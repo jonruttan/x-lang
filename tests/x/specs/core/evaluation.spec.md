@@ -90,6 +90,29 @@
 ---
     "Unbound SYMBOL 'no-such-var'"
 
+### an engine-raised error writes bare
+
+The engine raises the base's error ATOM, and write shows an atom's
+text without quotes -- one identity, one representation, both engines
+(x-engine-rust#23 caught the rust side carrying strings).
+
+```scheme
+(write (guard (e e) (+ () 1)))
+```
+---
+    +: operand is nil
+
+### a program-raised string writes quoted
+
+`(error "...")` raises the string itself -- guard binds a real STRING,
+and write shows it quoted, distinguishable from the engine's atom.
+
+```scheme
+(write (guard (e e) (error "a lib error")))
+```
+---
+    "a lib error"
+
 ## recursive definitions
 
 ### computes fact(0)
