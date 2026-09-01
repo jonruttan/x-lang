@@ -184,6 +184,22 @@
         (if (null? ps)
           (Err raise 'value (Str append "asm-compile: unbound: " (symbol->str name)) ())
           (if (eq? name (first ps)) idx (self (rest ps) (+ idx 1))))))
+    ; THE SELF PARAM IS ARG SLOT 0.  A looping analyser state must RETURN
+    ; ITSELF -- the tokenizer's replace-analyser protocol loops by handing the
+    ; same handler back -- and an fvar cannot self-reference (the pointer does
+    ; not exist until the compile finishes).  But in the prim ABI the callee
+    ; sits in its own argument list: p_args is (fn arg0 ...), so the fn's own
+    ; self-name resolves as firstobj of the args, no eval, no unbox -- exactly
+    ; the object the protocol wants back.  Analyser mode only: an integer
+    ; function returning its own prim would be unboxed into nonsense, and no
+    ; integer function has a reason to name its self param.
+    (if (if (not (null? %compile-fvars))
+          (if (not (null? %asm-self-name)) (eq? name %asm-self-name) #f)
+          #f)
+      (do
+        (asm-emit! asm 'mov x0 x20)
+        (%emit-firstobj! asm))
+    (do
     ; Check fvars first (before params, since fvar symbols may shadow)
     (def fv-entry (%compile-fvar-lookup name))
     (if (not (null? fv-entry))
@@ -220,7 +236,7 @@
             (asm-emit! asm 'mov x0 x19)
             (%emit-eval-arg! asm)
             (when unbox (%emit-atomint! asm)))
-          (when unbox (%emit-atomint! asm)))))))
+          (when unbox (%emit-atomint! asm)))))))))
 
 ; Compile (or a b ...): short-circuit, returns first truthy value
 (def %asm-compile-or
