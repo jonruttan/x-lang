@@ -54,6 +54,11 @@
 ; -E native, -F bytes; -i compiled into the pattern; the full POSIX flag
 ; set minus back-references and [:named:] classes, which refuse loudly.
 (lang "grep"  "x-grep"   29  0)
+; sed is the arc's third tool and its first CROSS-BUNDLE build: it
+; requires-lang grep and rides its BRE translator and byte doors.
+; s/// with backrefs on the regex engine's capture groups, addresses
+; and ranges, the cycle; hold space and multiline are recorded pending.
+(lang "sed"   "x-sed"    21  0)
 ; logo arrived GREEN, which is what an extraction should look like: 83/0 here
 ; is the same 83 tests that ran as lib/logo.spec.md in this tree, against the
 ; same turtle kernel, through the bundle's own harness instead of tests/x/lib.
