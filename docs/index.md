@@ -19,6 +19,7 @@
 - [Object System](object-system.md) — Message-passing classes, single inheritance, encapsulated members, `super`
 - [Dialects](dialects.md) — the helium, xenon, and radon dialect layers
 - [The Lang Contract](lang-contract.md) — what a lang may rely on, and how one is acquired as a pinned bundle
+- [Crafting a Lang](crafting-a-lang.md) — how one is actually built: the reader's machinery, the type-system mapping, the rules that bite, distilled from building x-python
 - [Scaling to Many Langs](lang-scale.md) — what has to be true for there to be twenty of them; measurements shipped, some rulings still proposals
 - [Modules](modules.md) — The provide/import module system, and pinning a project's libraries (pin.xon)
 
