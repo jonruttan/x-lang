@@ -321,6 +321,17 @@ param_forms() {
 root_form() {
 	if [ -n "$INSTALL_ROOT" ]; then
 		printf '(def %%install-root "%s")\n' "$INSTALL_ROOT"
+		# The platform's own release, as DATA, the way %param-release already
+		# carries the engine's: make install writes contract/release beside the
+		# library, and a banner that can say WHICH x-lang answered saves the
+		# next which-install-am-I-running investigation (a lang REPL cannot
+		# read the file itself without an FFI excursion; the shell is already
+		# here).  A checkout has no contract/ and emits nothing -- absence
+		# says checkout, which is also information.
+		if [ -f "$INSTALL_ROOT/contract/release" ]; then
+			_prel=$(head -1 "$INSTALL_ROOT/contract/release")
+			[ -n "$_prel" ] && printf '(def %%platform-release "%s")\n' "$_prel"
+		fi
 	fi
 }
 
