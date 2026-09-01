@@ -64,17 +64,42 @@ is a teaching error at the generic door.
 ### the generic door errors, naming both types
 
 The recorded hole: bigint and rational declare no cvt relation. Through
-the generic door that is now a TEACHING error. (At the raw operator the
-C arbitration still falls through for this one pair -- both sides carry
-handlers and neither declares the other, so no x-lang code is ever
-reached; routing it needs either the C-side arbitration fallback or the
-exact rational-over-bigint arc. Recorded, not hidden.)
+the generic door that is now a TEACHING error.
 
 ```scheme
 (display (guard (e 'loud) (num+ 123456789012345678901234567890 1/2)))
 ```
 ---
     loud
+
+### the bare operators reach the same door
+
+The C arbitration punts on this pair -- both sides carry handlers and
+neither declares the other -- and its raw fallback read payload words
+as integers (#584, caught by the cross-engine fuzzer as address
+garbage).  The bigint folds now ask %big-mixed-check first, which reads
+the same from/ops cells the C arbitration walks and raises the
+lattice's teaching error for exactly the punted pair, in EVERY dialect
+profile (the generics below are an optional import; the folds are not).
+Binary % < = still call the C prims bare and keep the raw fallback --
+that residue stays open on #584.
+
+```scheme
+(display (list
+  (guard (e 'loud) (+ 123456789012345678901234567890 1/2))
+  (guard (e 'loud) (- 1/2 123456789012345678901234567890))
+  (guard (e 'loud) (* 123456789012345678901234567890 1/2))))
+```
+---
+    (loud loud loud)
+
+### declared pairs still promote through the folds
+
+```scheme
+(display (list (+ 123456789012345678901234567890 1) (+ 1 1/2)))
+```
+---
+    (123456789012345678901234567891 3/2)
 
 ### complex sits ordering out at the generic door too
 

@@ -208,8 +208,10 @@
 ; from-alists -- the absorbing side's handler wins -- and the tower's policy
 ; layer, x/num/tower, promotes through the same lattice at the generic
 ; level; docs/object-system.md "One model, four doors" is the ruling
-; record. A pair NEITHER side declares still falls through to raw C at
-; this door -- the recorded bigint x rational residual.) Prepend semantics: a
+; record. A pair NEITHER side declares falls through to raw C at this
+; door; for + - * the bigint folds' %big-mixed-check catches it first
+; and raises the teaching error (#584) -- % < = keep the raw
+; fallthrough.) Prepend semantics: a
 ; re-registration shadows the older handler. This replaces set!-wrapping the
 ; global operators -- types register ops; nothing wraps ambient names.
 (def %type-push-op
