@@ -105,6 +105,22 @@
 ---
     2
 
+### computed large negative int plus rational
+
+```scheme
+(write (+ (+ 0 -1000000000) (/ 1 4)))
+```
+---
+    -3999999999/4
+
+### negated large int plus rational
+
+```scheme
+(write (+ (- 0 1000000000) (/ 1 4)))
+```
+---
+    -3999999999/4
+
 ## complex arithmetic
 
 ### complex addition

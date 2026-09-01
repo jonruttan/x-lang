@@ -446,12 +446,15 @@
 
 (def %int-abs (fn (_ n) (if (%int< n 0) (%int- 0 n) n)))
 
+; Negative side: a + b < LONG_MIN iff a < LONG_MIN - b.  With b < 0 the
+; subtraction moves LONG_MIN toward zero, so it cannot wrap; LONG_MIN
+; itself is spelled -LONG_MAX - 1, both steps representable.
 (def %would-overflow-add?
   (fn (_ a b)
     (if (%int< 0 a)
       (if (%int< 0 b) (%int< (%int- %long-max a) b) #f)
       (if (%int< b 0)
-        (%int< a (%int- (%int+ (%int- 0 %long-max) 1) (%int- 0 b)))
+        (%int< a (%int- (%int- (%int- 0 %long-max) 1) b))
         #f))))
 
 (def %would-overflow-mul?
