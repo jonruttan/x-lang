@@ -41,6 +41,21 @@
 ---
     #t
 
+### ->list at 16K elements (crash regression)
+
+The drain recursed in argument position -- (pair h (drain it)) -- one C
+eval frame group per element, so a ~16K+ iterator crashed the C stack
+(the shape %map1 had before 2026-09-01).  Now tail accumulate +
+%rev-onto, reverse once; the end probes pin that order survived the
+reverse.
+
+```scheme
+(def l (Iter ->list (Iter new (List range 0 16384))))
+(list (List length l) (List ref 0 l) (List ref 16383 l))
+```
+---
+    (16384 0 16383)
+
 ## iter-empty?
 
 ### reports exhaustion across a step

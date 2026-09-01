@@ -87,8 +87,13 @@
       (doc "Drain the iterator into a list, in order; the iterator ends exhausted."
         (returns LIST "Every remaining element")
         (example "(Iter ->list (Iter new \"ab\"))" "(#\\a #\\b)"))
-      (let drain ((it it))
-        (if (%i-empty? it) () (let ((h (%i-next it))) (pair h (drain it))))))
+      ; Tail accumulate + %rev-onto (boot's, list.x): (pair h (drain it))
+      ; recursed in argument position -- one C eval frame group per
+      ; element, a segfault at ~16K.  it rides through unchanged like the
+      ; fold/for-each loops below (the C driver advances it in place).
+      (let drain ((it it) (acc ()))
+        (if (%i-empty? it) (%rev-onto acc ())
+          (drain it (pair (%i-next it) acc)))))
     (method for-each (self (param f CALLABLE "One-argument fn, called per element for effect")
                            (param it ITER "Iterator to drain"))
       (doc "Drain the iterator applying f to each element for effect; returns nil."
