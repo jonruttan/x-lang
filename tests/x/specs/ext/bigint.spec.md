@@ -129,6 +129,61 @@
 ---
     #t
 
+### no overflow adding zero to a large negative
+
+```scheme
+(if (Bigint would-overflow-add? 0 -1000000000) "y" "n")
+```
+---
+    "n"
+
+### no overflow for a small negative plus a large negative
+
+```scheme
+(if (Bigint would-overflow-add? -1 -1000000000) "y" "n")
+```
+---
+    "n"
+
+### no overflow adding zero to the most negative
+
+The guard's domain is plain native ints, and the reader promotes long
+literals, so the edge operands are computed: 3037000499 squared is the
+largest native square, and the trim reaches LONG_MIN exactly.
+
+```scheme
+(let ((m (- (- 0 (* 3037000499 3037000499)) 5928526807)))
+  (if (Bigint would-overflow-add? 0 m) "y" "n"))
+```
+---
+    "n"
+
+### overflow for two large negatives
+
+```scheme
+(let ((n (- 0 (* 3037000499 3037000499))))
+  (Bigint would-overflow-add? n n))
+```
+---
+    #t
+
+### overflow one below the most negative
+
+```scheme
+(let ((m (- (- 0 (* 3037000499 3037000499)) 5928526807)))
+  (Bigint would-overflow-add? m -1))
+```
+---
+    #t
+
+### a sum that fits stays native
+
+```scheme
+(if (Bigint bigint? (+ 0 -1000000000)) "big" "native")
+```
+---
+    "native"
+
 ### negative minus digit stays native (regression: wrapped threshold)
 
 ```scheme
@@ -170,6 +225,14 @@
 ```
 ---
     99999999999
+
+### negative subtraction that fits stays native
+
+```scheme
+(if (Bigint bigint? (- 0 1000000000)) "big" "native")
+```
+---
+    "native"
 
 ## would-overflow-mul?
 

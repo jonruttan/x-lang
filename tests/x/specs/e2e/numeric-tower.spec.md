@@ -105,6 +105,30 @@
 ---
     2
 
+### computed large negative int plus rational
+
+```scheme
+(write (+ (+ 0 -1000000000) (/ 1 4)))
+```
+---
+    -3999999999/4
+
+### negated large int plus rational
+
+```scheme
+(write (+ (- 0 1000000000) (/ 1 4)))
+```
+---
+    -3999999999/4
+
+### a computed bigint meeting a rational teaches instead of leaking
+
+```scheme
+(write (guard (e (lit caught)) (+ (* 10000000000 10000000000) (/ 1 4))))
+```
+---
+    'caught
+
 ## complex arithmetic
 
 ### complex addition

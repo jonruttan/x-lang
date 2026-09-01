@@ -1,7 +1,8 @@
 ; engine.pin.xon -- which engine this tree builds against, and where to get it.
 ;
 ; `make engine` reads this file, acquires what it names, and points the `engine`
-; link at the result.  Everything downstream sees a directory and does not care
+; link at the result.  `sh tools/engine/bump-pin.sh vX.Y.Z` rewrites it from a
+; published release's own .sha256 sidecars.  Everything downstream sees a directory and does not care
 ; how it arrived: a checkout is a superset of a release, which is the whole
 ; premise of the arrangement.
 ;

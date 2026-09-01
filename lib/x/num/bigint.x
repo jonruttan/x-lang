@@ -458,7 +458,8 @@
 
 ; a+b overflows iff (b>0 and a > MAX-b) or (b<0 and a < MIN-b).  Both
 ; thresholds are computed on the side that cannot wrap: MAX-b for b>0 and
-; MIN-b for b<0 stay in range.  (The old form built MIN-b as (MIN+2)+b,
+; MIN-b for b<0 stay in range (MIN itself is spelled -LONG_MAX - 1, both
+; steps representable).  (The old form built MIN-b as (MIN+2)+b,
 ; which itself wrapped for b < -2 -- every (- x digit) with x negative
 ; spuriously promoted to bigint, and 2-limb results then never demoted,
 ; leaving bigints that print like ints but fail eq? and raw slot ops.)
@@ -495,6 +496,52 @@
 ; semantics the binary dispatch cannot see is INT OVERFLOW PROMOTION: both
 ; operands are plain ints, so these folds check %would-overflow-* and promote.
 ; Binary % < = need no wrapper at all: the C prims dispatch directly.
+;
+; One more blind spot (#584): the C arbitration (x_type_op_try) PUNTS on
+; a typed pair where BOTH types register the operator and NEITHER side's
+; cvt from-alist declares the other, and the raw fallback then reads
+; payload words as integers -- address garbage, caught by the
+; cross-engine fuzzer as a divergence (the C answer moves with ASLR, the
+; rust answer sits on the pinned arena).  The folds ask %big-mixed-check
+; first: exactly that pair raises the lattice's teaching error at the
+; operator door.  Every other shape keeps the raw path -- same-type,
+; declared, and single-handler pairs are op dispatch's to run, and the
+; raw nil raise stays the error the specs pin.  The from/ops alists are
+; read through the type catalog: one lattice, one authority (the same
+; cells x_type_op_try walks).
+
+(def %type-from-cell (prim-ref 'type 'from-cell))
+(def %type-ops-cell (prim-ref 'type 'ops-cell))
+
+(def %big-mixed-check
+  (fn (_ op a b)
+    (if (null? a) ()
+      (if (null? b) ()
+        (if (%int-number? a) ()
+          (if (%int-number? b) ()
+            (do
+              (def ha (%type-of a))
+              (def hb (%type-of b))
+              (def %hit
+                (fn (self alist key)
+                  (if (null? alist) #f
+                    (if (same? (first (first alist)) key) #t
+                      (self (rest alist) key)))))
+              (if (same? ha hb) ()
+                (do
+                  (def ta (%type-by-atom ha))
+                  (def tb (%type-by-atom hb))
+                  (if (%hit (first (%type-from-cell ta)) hb) ()
+                    (if (%hit (first (%type-from-cell tb)) ha) ()
+                      (if (%hit (first (%type-ops-cell ta)) op)
+                        (if (%hit (first (%type-ops-cell tb)) op)
+                          (error (%str-append "int op: no declared promotion ("
+                            (%str-append ((prim-ref 'type 'name) ha)
+                              (%str-append " x "
+                                (%str-append ((prim-ref 'type 'name) hb)
+                                  ") -- declare the cvt relation (#584)")))))
+                          ())
+                        ()))))))))))))
 
 ; The per-pair binaries, NAMED so the 2-arg fast path below calls them
 ; directly -- (op a b) is the overwhelming shape and the fold entry
@@ -505,21 +552,24 @@
       (if (%would-overflow-add? acc x)
         (%big-add (%ensure-big acc) (%ensure-big x))
         (%int+ acc x))
-      (%int+ acc x))))
+      (do (%big-mixed-check (lit +) acc x)
+        (%int+ acc x)))))
 (def %big-sub2
   (fn (_ acc x)
     (if (if (%int-number? acc) (%int-number? x) #f)
       (if (%would-overflow-sub? acc x)
         (%big-sub (%ensure-big acc) (%ensure-big x))
         (%int- acc x))
-      (%int- acc x))))
+      (do (%big-mixed-check (lit -) acc x)
+        (%int- acc x)))))
 (def %big-mul2
   (fn (_ acc x)
     (if (if (%int-number? acc) (%int-number? x) #f)
       (if (%would-overflow-mul? acc x)
         (%big-mul (%ensure-big acc) (%ensure-big x))
         (%int* acc x))
-      (%int* acc x))))
+      (do (%big-mixed-check (lit *) acc x)
+        (%int* acc x)))))
 
 (doc + "Add numbers, promoting to bigint on overflow."
   (param args INT|BIGINT "Numbers to add")
