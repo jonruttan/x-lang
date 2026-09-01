@@ -121,6 +121,14 @@
 ---
     -3999999999/4
 
+### a computed bigint meeting a rational teaches instead of leaking
+
+```scheme
+(write (guard (e (lit caught)) (+ (* 10000000000 10000000000) (/ 1 4))))
+```
+---
+    'caught
+
 ## complex arithmetic
 
 ### complex addition
