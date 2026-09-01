@@ -247,7 +247,18 @@
       ; element, so (Str8 make 16384 c) overflowed the C stack outright
       ; (segfault; found via x-awk's stdin slurp).  Same class of crash
       ; repeat already fixed (#333); same cure.
-      (self repeat k (self ->str (list ch))))
+      (def unit (self ->str (list ch)))
+      ; A fill that encodes to NUL is a request the string model cannot
+      ; hold: strings are C strings, so the result would BE "" -- and the
+      ; old list-encode path silently allocated an n-byte buffer behind
+      ; that "", which x-awk's read wrapper leaned on as an allocation
+      ; door until the kernel wrote n bytes into repeat's 1-byte ""
+      ; (the 2026-09-01 stdin heap corruption).  Raise and teach: the
+      ; raw buffer door is the str make prim (make-str), space-filled.
+      (if (eq? (%str-byte-len unit) 0)
+        (Err raise (lit value)
+          "Str8 make: fill encodes to NUL; for a raw read buffer use the str make prim (make-str)" ())
+        (self repeat k unit)))
 
     ; --- predicates ---
     (method empty? (self (param s STRING "String to test"))

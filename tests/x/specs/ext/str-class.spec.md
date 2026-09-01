@@ -187,6 +187,20 @@ the fill actually reached both ends.
 ---
     (16384 #\a #\a)
 
+### make refuses a NUL fill loudly (the allocation door is make-str)
+
+Strings are C strings, so a NUL-filled string would BE "" -- and the old
+list-encode path silently allocated n bytes behind that "", which x-awk's
+read wrapper leaned on until repeat's 1-byte "" met a raw n-byte kernel
+read (the 2026-09-01 stdin heap corruption).  A raw buffer request
+belongs to the str make prim; this pins the teaching error.
+
+```scheme
+(Str8 make 8 (Char from-int 0))
+```
+---
+    Error: #<err:value Str8 make: fill encodes to NUL; for a raw read buffer use the str make prim (make-str)>
+
 ### upcase at 16K elements (crash regression)
 
 upcase/downcase/->str run %map over every element, so the non-tail %map1
