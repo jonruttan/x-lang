@@ -55,13 +55,13 @@ resolved as arg slot 0, no eval in analyser mode, a negative score-set
 sign that survives the trip to x1, and the lazy `compile-asm` stub
 forwarding the fvar table.
 
-**Three tool langs ride the contract now.** x-awk arrived at 69 specs and
+**The core tool set rides the contract now.** x-awk arrived at 69 specs and
 left feature-complete at 167 — the full POSIX surface: arrays, printf,
 field assignment, sub/gsub, getline, RS incl. paragraph mode, user
 functions, the CLI front (`x -l awk -- ...` over files and stdin), and
 both pipe forms with SIGPIPE held off; its stdin slurp reads 64K chunks
-through the engine's raw make door. x-grep (29 specs) and x-sed (21)
-registered beside it.
+through the engine's raw make door. x-grep (29 specs), x-sed (21), and
+x-make (23) registered beside it, completing the core set.
 
 **Release-day motions became tools.** `fan-out-langs.sh` runs every
 bundle's suite against a candidate x and stages the `requires-release`
