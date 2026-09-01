@@ -44,6 +44,7 @@ To read them offline, `make doc-x` and `make doc-c` write them to `ref/x/` and
   the pin names) and [x-engine-rust](https://github.com/jonruttan/x-engine-rust)
   (a second engine, in progress). The terms both are held to are [The Engine
   Contract](engine-contract.md).
+- [Bootstrap tool closure](bootstrap-closure.md) — the self-hosting scorecard: every external tool the build actually invokes, measured
 - [Contributing](contributing.md) — Build prerequisites, code style, testing, commit conventions
 - [Changelog](../CHANGELOG.md) — Version history
 - [License](../LICENSE) — MIT No Attribution (MIT-0)
