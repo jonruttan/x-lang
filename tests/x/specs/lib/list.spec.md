@@ -286,6 +286,38 @@ survived the reverse.
 ---
     (16384 2 2)
 
+### boot filter at 16K elements (crash regression)
+
+The public (List filter) carries its own tail loop, so this pins the
+BOOT walker behind %filter -- the one Assoc pick/omit, lint and the
+class builders run -- which kept elements by recursing in argument
+position, one C eval frame group per kept element.  The end probes pin
+that order survived the reverse.
+
+```scheme
+(def l (%filter (fn (_ x) (< x 20000)) (List range 0 16384)))
+(list (List length l) (List ref 0 l) (List ref 16383 l))
+```
+---
+    (16384 0 16383)
+
+### iterable normalization at 16K elements (crash regression)
+
+%as-list's iterator branch (the non-list path every %fold/%map/%filter
+normalizes through) was doubly broken: APPLYING the iter object never
+advances it -- (it) yields a singleton of the iterator -- so the loop
+spun forever, and the recursion was in argument position, so it spun
+straight into a C-stack crash at ANY size (nothing in boot ever hit the
+branch).  Now it drains via %i-empty?/%i-next in the tail accumulate
+shape.  %length counts through %fold, which normalizes first; 16K pins
+the depth-independence of the drain.
+
+```scheme
+(do (import x/type/vector) (%length (Vector make 16384 1)))
+```
+---
+    16384
+
 ## filter
 
 ### keeps matching elements

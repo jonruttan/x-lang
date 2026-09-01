@@ -14,10 +14,17 @@
     (if (null? x) x
       (if (pair? x) x
         (let ((it (Iter new x)))
-          (def %go (fn (self )
-            (let ((v (it)))
-              (if (null? v) () (pair v (self))))))
-          (%go))))))
+          ; Drain via %i-empty?/%i-next like (Iter ->list): APPLYING the
+          ; iter object never advances it -- (it) yields a singleton of
+          ; the iterator -- so the old (it) loop spun forever on every
+          ; non-pair input (C-stack crash; nothing in boot hit it).  And
+          ; accumulate + %rev-onto (tail), so depth is bounded.  All the
+          ; names here resolve at CALL time, like Iter above and the Err
+          ; note at %map1-go.
+          (def %go (fn (self acc)
+            (if (%i-empty? it) (%rev-onto acc ())
+              (self (pair (%i-next it) acc)))))
+          (%go ()))))))
   (param x ANY "A list, nil, or iterable (e.g. vector)")
   (returns LIST "The input as a proper list")
   "Boot-layer plumbing: normalize any iterable to a list (%fold/%map/%filter self-normalize through it). The PUBLIC conversion surface is (List from-seq); this % helper is not provided.")
@@ -112,19 +119,21 @@
   (returns LIST "New list")
   "Boot-layer map; the public face is (List map).")
 
-; Already-normalized loop; see %fold-go.
+; Already-normalized loop; see %fold-go.  Accumulate + %rev-onto, like
+; %map1-go: the keep branch recursed in argument position -- one C eval
+; frame group per kept element, a segfault at ~16K.
 (def %filter-go
-  (fn (self pred lst)
+  (fn (self pred lst acc)
     (match
-      ((null? lst) ())
+      ((null? lst) (%rev-onto acc ()))
       ((pred (first lst))
-        (pair (first lst) (self pred (rest lst))))
-      (#t (self pred (rest lst))))))
+        (self pred (rest lst) (pair (first lst) acc)))
+      (#t (self pred (rest lst) acc)))))
 
 (doc (def %filter
   (fn (_ (param pred CALLABLE "Predicate function")
        (param lst LIST "List or iterable"))
-    (%filter-go pred (%as-list lst))))
+    (%filter-go pred (%as-list lst) ())))
   (returns LIST "Filtered list")
   "Boot-layer filter; the public face is (List filter).")
 
