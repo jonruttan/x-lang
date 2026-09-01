@@ -79,7 +79,9 @@
 ; teaching error where the C arbitration would fall through to
 ; payload-word reads (an undeclared typed pair with handlers on both
 ; sides), and %type-from-cell/%type-ops-cell are its cached catalog
-; accessors, per the file's own fetch-and-cache convention.
+; accessors, per the file's own fetch-and-cache convention.  Row 64 is
+; %would-overflow-sub? from the exactness arc (208578f9): a direct
+; subtract predicate, because add?-of-negation wraps for b = LONG_MIN.
 ; What is NOT here is the point -- the text scanners (find, find-exp,
 ; parse-exp, digits) and the printer's zero/scientific helpers are LOCAL defs
 ; inside the two functions that use them, because a parse-local helper has no
@@ -114,7 +116,7 @@
 (file "lib/x/core/syntax.x" 5)
 (file "lib/x/doc/doc-gen.x" 32)
 (file "lib/x/doc/doc.x" 73)
-(file "lib/x/num/bigint.x" 63)
+(file "lib/x/num/bigint.x" 64)
 (file "lib/x/num/complex.x" 41)
 (file "lib/x/num/decimal.x" 72)
 (file "lib/x/num/float.x" 60)
