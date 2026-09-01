@@ -210,7 +210,16 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 	# Arm the interpreter's runaway-memory guard before the library loads (the
 	# interpreter reads no environment -- no stdlib).  The pipeline's shell
 	# expands $X_ALLOC_LIMIT_OBJS (exported by spec-runner.sh; 0/unset disables).
-	cmd = "{ echo \"(alloc-limit! ${X_ALLOC_LIMIT_OBJS:-0})\"; cat " q(blib) "; cat " q(tmpfile) "; } | " timeout_pfx q(X_BIN) " 2>/dev/null"
+	# Keep the interpreter's stderr in a file instead of discarding it: a
+	# batch that dies during the @lib BOOT often died of a perfectly clean,
+	# well-worded raise -- "compile: cc failed with status 1" was the live
+	# case, an engine whose sandbox could not shell out to cc -- and with
+	# stderr on /dev/null that surfaced as an unexplained "died mid-batch"
+	# on every test, misread as lib rot by two independent investigations
+	# before the message was found in the discard.  The file is read ONLY
+	# when a death message is being built; a green batch never opens it.
+	errfile = TMPDIR "/spec-" SPEC_ID ".err"
+	cmd = "{ echo \"(alloc-limit! ${X_ALLOC_LIMIT_OBJS:-0})\"; cat " q(blib) "; cat " q(tmpfile) "; } | " timeout_pfx q(X_BIN) " 2>" q(errfile)
 
 	tidx = from
 	output = ""
@@ -275,6 +284,15 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 			} else {
 				got = "<no result -- interpreter died mid-batch"
 				if (cmd_status > 0) got = got " (exit " cmd_status ")"
+				# The engine's last words, if it had any: the tail of
+				# the captured stderr names the actual cause (a load-
+				# time raise, a guard trip) where the exit code alone
+				# reads as a mystery.
+				_lw = ""
+				while ((getline _el < errfile) > 0)
+					if (_el != "") _lw = _el
+				close(errfile)
+				if (_lw != "") got = got " -- engine stderr: " _lw
 				# Name the wall-clock budget: a timeout kill produces exactly
 				# this shape, and on the one-true-awk close() returns 0, so the
 				# exit suffix never identifies it there -- a load-induced 60s
