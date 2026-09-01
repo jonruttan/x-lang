@@ -93,7 +93,10 @@
 (file "lib/x/boot/reflect.x" 29)
 (file "lib/x/boot/registry.x" 8)
 (file "lib/x/boot/string.x" 25)
-(file "lib/x/boot/tower-compiled.x" 18)
+; tower-compiled.x rose 18 to 20 for %tower-jit? and %tower-asm: the burst
+; moved off the cc lane onto the engine's own JIT (compile-asm), and the
+; probe + per-site helper are the whole seam.
+(file "lib/x/boot/tower-compiled.x" 20)
 (file "lib/x/codec/json.x" 30)
 (file "lib/x/codec/sha256-jit.x" 34)
 (file "lib/x/codec/sha256.x" 33)
