@@ -40,14 +40,15 @@
 (lang "sweet" "x-sweet"  32  0)
 (lang "python" "x-python"  4  0)
 ; awk is the self-hosting arc's first tool bundle: the build closure's
-; heaviest external after the regex trio (docs/bootstrap-closure.md).  158 =
-; the language complete and the CLI real: `x -l awk -- ...` runs programs
-; over files and stdin with -F/-v/-f, FILENAME/FNR/ARGV, redirection,
-; file getline, close/system, and exit's status as the process's.  Its
-; seven pending are recorded divergences plus the two pipe forms, listed
-; in its 04-divergences spec.  Known ceiling: heavy per-record allocation
-; caps practical runs at a few thousand records until a performance pass.
-(lang "awk"   "x-awk"   158  0)
+; heaviest external after the regex trio (docs/bootstrap-closure.md).
+; 167 = feature-complete: the language, the CLI (`x -l awk -- ...` with
+; -F/-v/-f, files/stdin, FILENAME/FNR/ARGV, redirection, exit status),
+; and both pipe forms with SIGPIPE held off.  The six pending are
+; recorded divergences only (04-divergences).  First performance pass
+; done: byte-door scans, if-chain dispatchers, no defs at depth -- the
+; record loop is 2.8x its first measure; the next step is the compile
+; lanes.
+(lang "awk"   "x-awk"   167  0)
 ; logo arrived GREEN, which is what an extraction should look like: 83/0 here
 ; is the same 83 tests that ran as lib/logo.spec.md in this tree, against the
 ; same turtle kernel, through the bundle's own harness instead of tests/x/lib.
