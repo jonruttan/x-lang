@@ -65,6 +65,11 @@
 ; rules and automatics x-lang's own Makefiles use; it dry-runs x-awk's
 ; real Makefile.
 (lang "make"  "x-make"   23  0)
+; coreutils is the arc's second tier: sixteen applets in one bundle
+; (busybox shape), chosen by the closure's remaining measurements --
+; sort/tr/cut/join/comm and friends, plus sha256sum as FIPS 180-4 in
+; pure x, byte-identical with the system tool.
+(lang "coreutils" "x-coreutils" 24 0)
 ; logo arrived GREEN, which is what an extraction should look like: 83/0 here
 ; is the same 83 tests that ran as lib/logo.spec.md in this tree, against the
 ; same turtle kernel, through the bundle's own harness instead of tests/x/lib.
