@@ -1044,6 +1044,8 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tools/lang-kit
 	install $C -m 0644 tools/lang-kit/release-refs.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/release-refs.sh
 	diff tools/lang-kit/release-refs.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/release-refs.sh
+	install $C -m 0644 tools/lang-kit/spec-gate.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/spec-gate.sh
+	diff tools/lang-kit/spec-gate.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/spec-gate.sh
 	# The tree's RELEASE IDENTITY, beside the engine's ISA fingerprint and
 	# for the same reason: an installed tree has no source checkout and no
 	# git, so without these two lines it cannot answer "which release is
