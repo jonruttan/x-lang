@@ -241,7 +241,13 @@
         (returns STRING "k-element string of the fill character")
         (example "(Str8 make 3 (\" \" 0))" "\"   \""))
       (def ch (if (null? rest) #\space (first rest)))
-      (self ->str (List repeat k ch)))
+      ; Encode the fill character ONCE, then delegate to repeat's binary
+      ; doubling.  The old shape encoded a k-element char list through
+      ; ->str, whose %map recursion is non-tail -- one C eval frame per
+      ; element, so (Str8 make 16384 c) overflowed the C stack outright
+      ; (segfault; found via x-awk's stdin slurp).  Same class of crash
+      ; repeat already fixed (#333); same cure.
+      (self repeat k (self ->str (list ch))))
 
     ; --- predicates ---
     (method empty? (self (param s STRING "String to test"))

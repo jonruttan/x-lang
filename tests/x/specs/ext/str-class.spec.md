@@ -172,6 +172,21 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 ---
     "xxx"
 
+### make at 16K elements (crash regression)
+
+The list-encode shape of make put one C eval frame per element on the
+stack (%map is non-tail), so 16384 segfaulted where 8192 squeaked by --
+found via x-awk's stdin slurp.  make now delegates to repeat's binary
+doubling; this pins the depth-independence, and the ref probes pin that
+the fill actually reached both ends.
+
+```x
+(def s (Str8 make 16384 #\a))
+(list (Str8 length s) (Str8 ref 0 s) (Str8 ref 16383 s))
+```
+---
+    (16384 #\a #\a)
+
 ### join with separator
 
 ```x
