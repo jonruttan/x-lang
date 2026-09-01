@@ -99,19 +99,24 @@
       ; Nested quantifiers/groups: delegate to full exec
       (#t (%regex-exec (list node) str pos end caps)))))
 
-; Greedy star: collect all reachable STATES, try rest from farthest first
+; Greedy star: collect all reachable STATES, try rest from farthest first.
+; Tail accumulate (the %map1 shape, 2026-09-01): (pair st (self next))
+; recursed in argument position -- one C eval frame group per MATCHED
+; CHARACTER, not per pattern node -- so a* over a ~16K+ input crashed
+; the C stack.  The accumulator comes out farthest-first, which is the
+; order greedy wanted anyway, so the old %reverse is gone with it.
 (def %regex-exec-star
   (fn (_ inner rest-nodes str pos end caps)
     (def collect
-      (fn (self st)
+      (fn (self st acc)
         (def next (%regex-exec-one inner str (first st) end (rest st)))
-        (if (null? next) (list st) (pair st (self next)))))
+        (if (null? next) (pair st acc) (self next (pair st acc)))))
     (def try-from
       (fn (self sts)
         (if (null? sts) ()
           (let ((r (%regex-exec rest-nodes str (first (first sts)) end (rest (first sts)))))
             (if r r (self (rest sts)))))))
-    (try-from (%reverse (collect (pair pos caps))))))
+    (try-from (collect (pair pos caps) ()))))
 
 ; Plus: match inner once, then star
 (def %regex-exec-plus
@@ -129,19 +134,22 @@
         (if result result (%regex-exec rest-nodes str pos end caps)))
       (%regex-exec rest-nodes str pos end caps))))
 
-; Lazy star: try shortest match first (don't reverse)
+; Lazy star: try shortest match first.  Same tail collect as the greedy
+; star (laziness is only the TRY order -- the full state list is built
+; either way, so the same ~16K crash lived here); the accumulator is
+; farthest-first, so lazy is now the side that pays the one %rev-onto.
 (def %regex-exec-lazy-star
   (fn (_ inner rest-nodes str pos end caps)
     (def collect
-      (fn (self st)
+      (fn (self st acc)
         (def next (%regex-exec-one inner str (first st) end (rest st)))
-        (if (null? next) (list st) (pair st (self next)))))
+        (if (null? next) (pair st acc) (self next (pair st acc)))))
     (def try-from
       (fn (self sts)
         (if (null? sts) ()
           (let ((r (%regex-exec rest-nodes str (first (first sts)) end (rest (first sts)))))
             (if r r (self (rest sts)))))))
-    (try-from (collect (pair pos caps)))))
+    (try-from (%rev-onto (collect (pair pos caps) ()) ()))))
 
 ; Lazy plus: match once, then lazy star
 (def %regex-exec-lazy-plus
@@ -162,23 +170,27 @@
 ; Counted repetition: match inner between min and max times
 (def %regex-exec-repeat
   (fn (_ inner min max rest-nodes str pos end caps)
-    ; Collect states from min to max matches (greedy)
+    ; Collect states from min to max matches (greedy).  Tail accumulate
+    ; like the star collectors (one frame group per REPETITION was the
+    ; ~16K crash); farthest-first out of the accumulator, so no %reverse.
+    ; The below-min failure still answers () -- acc is provably () there,
+    ; states only accumulate once count reaches min.
     (def collect-from
-      (fn (self count st)
-        (if (> count max) ()
+      (fn (self count st acc)
+        (if (> count max) acc
           (if (< count min)
             (let ((next (%regex-exec-one inner str (first st) end (rest st))))
-              (if (null? next) () (self (+ count 1) next)))
+              (if (null? next) () (self (+ count 1) next acc)))
             (let ((next (%regex-exec-one inner str (first st) end (rest st))))
-              (if (null? next) (list st)
-                (pair st (self (+ count 1) next))))))))
-    (def states (collect-from 0 (pair pos caps)))
+              (if (null? next) (pair st acc)
+                (self (+ count 1) next (pair st acc))))))))
+    (def states (collect-from 0 (pair pos caps) ()))
     (def try-from
       (fn (self sts)
         (if (null? sts) ()
           (let ((r (%regex-exec rest-nodes str (first (first sts)) end (rest (first sts)))))
             (if r r (self (rest sts)))))))
-    (try-from (%reverse states))))
+    (try-from states)))
 
 ; Walk AST node list against string: STATE (pos . caps) or ()
 (set! %regex-exec
@@ -264,13 +276,17 @@
 ; branches never see it.
 (def %regex-close-group
   (fn (_ caps n endpos)
-    (def go (fn (self cs)
-      (if (null? cs) ()
+    ; Tail accumulate + %rev-onto for shape uniformity with the state
+    ; collectors (caps is group-count-bounded, so this one was depth-safe
+    ; in practice).  Not-found keeps the old copy-of-caps answer: the
+    ; walked prefix reverses back onto ().
+    (def go (fn (self cs acc)
+      (if (null? cs) (%rev-onto acc ())
         (let ((c (first cs)))
           (if (if (eq? (first c) 'g-open) (= (first (rest c)) n) #f)
-            (pair (list n (first (rest (rest c))) endpos) (rest cs))
-            (pair c (self (rest cs))))))))
-    (go caps)))
+            (%rev-onto acc (pair (list n (first (rest (rest c))) endpos) (rest cs)))
+            (self (rest cs) (pair c acc)))))))
+    (go caps ())))
 
 ; --- Write: reconstruct pattern from AST ---
 

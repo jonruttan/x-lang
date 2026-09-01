@@ -211,6 +211,19 @@
 ---
     #t
 
+### greedy star at 16K characters (crash regression)
+
+The star state collector recursed in argument position -- one C eval
+frame group per matched character, NOT pattern-bounded -- so a* over a
+~16K+ input crashed the C stack (the %map1 shape, fixed 2026-09-01).
+Now tail accumulate, states farthest-first for free.
+
+```scheme
+(Regex match (Str8 make 16384 #\a) #/a*/)
+```
+---
+    #t
+
 ### matches star at end
 
 ```scheme
@@ -669,6 +682,20 @@
 ---
     #t
 
+### counted repeat at 16K characters (crash regression)
+
+collect-from gathered its state list by recursing in argument position
+-- one C eval frame group per repetition -- so a ~16K+ count crashed
+the C stack (the %map1 shape, fixed 2026-09-01).  Now tail accumulate;
+the states come out farthest-first, which is the order greedy try-from
+wanted anyway.
+
+```scheme
+(Regex match (Str8 make 16384 #\a) #/a{0,16384}/)
+```
+---
+    #t
+
 ## lazy quantifiers
 
 ### lazy star matches shortest
@@ -694,6 +721,19 @@
 ```
 ---
     "aaaa"
+
+### lazy star at 16K characters (crash regression)
+
+Lazy quantifiers collect the FULL state list up front too (laziness is
+only the try order), so the same argument-position recursion crashed
+a*? over a ~16K+ input before it ever tried a state.  The length probe
+pins that the whole run of a's plus the b matched.
+
+```scheme
+(Str8 length (Regex find (Str8 append (Str8 make 16384 #\a) "b") #/a*?b/))
+```
+---
+    16385
 
 ## regex-find
 
