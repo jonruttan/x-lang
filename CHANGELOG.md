@@ -5,6 +5,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-01
+
 **The exact tower is exact at every magnitude.** Rational arithmetic
 silently answered wrong values once cross products passed 2^63 (two ~1e13
 denominators multiply to ~1e26): the `%rat-*` internals used the raw C
@@ -21,7 +23,57 @@ among them: an 11-digit all-nines parse raised a spurious "integer
 overflow"). Subtraction gets its own exact `%would-overflow-sub?`, the
 demotion window now spans every length that could round-trip, and both
 bigint construction paths route through it. Pinned in
-`tests/x/specs/ext/rational.spec.md` and `ext/bigint.spec.md`.
+`tests/x/specs/ext/rational.spec.md` and `ext/bigint.spec.md`. The op
+arbitration gained the #584 guard beside it: an undeclared typed pair
+with handlers on both sides now raises the lattice's teaching error at
+the operator door instead of falling through to payload-word reads.
+
+**16K+ is no longer a cliff.** The boot layer's non-tail recursions each
+put one C eval frame group per element on the stack, so any walk over
+~16K elements segfaulted outright — first surfaced by `(Str8 make 16384
+c)` in x-awk's stdin slurp, then found across the family. `Str8 make`
+delegates to `repeat`'s binary doubling; boot `%map1`/`%mapn-go`/
+`%append2`/`%filter-go` are tail-shaped; `%as-list`'s iterator drain
+actually drains; `Iter ->list` (behind `List from-seq`) is tail; the
+regex quantifier state collectors got the same cure. Each is pinned by a
+16K spec. One behavior change fell out and is deliberate: **`Str8 make`
+refuses a NUL fill loudly.** Strings are C strings, so a NUL-filled
+string *is* `""` — the old list-encode path silently allocated n bytes
+behind that empty string, and x-awk's read wrapper leaned on the accident
+as an allocation door until the doubling rewrite collapsed it to one byte
+and a raw kernel read overran it (heap corruption, found and fixed the
+same day). The teaching error names the real door: the `str make` prim
+(`make-str`), n writable space-filled bytes.
+
+**The boot burst compiles on the engine's own JIT, never a system
+toolchain.** Requiring `cc` at runtime was always against the law of the
+tree; the burst now goes through `compile-asm`, with the cc lane as the
+fallback where the engine ships headers, and the compile cache keyed by
+engine identity so one engine's artifacts cannot poison another's.
+Compiled analysers grew up alongside: object params, the self-param
+resolved as arg slot 0, no eval in analyser mode, a negative score-set
+sign that survives the trip to x1, and the lazy `compile-asm` stub
+forwarding the fvar table.
+
+**Three tool langs ride the contract now.** x-awk arrived at 69 specs and
+left feature-complete at 167 — the full POSIX surface: arrays, printf,
+field assignment, sub/gsub, getline, RS incl. paragraph mode, user
+functions, the CLI front (`x -l awk -- ...` over files and stdin), and
+both pipe forms with SIGPIPE held off; its stdin slurp reads 64K chunks
+through the engine's raw make door. x-grep (29 specs) and x-sed (21)
+registered beside it.
+
+**Release-day motions became tools.** `fan-out-langs.sh` runs every
+bundle's suite against a candidate x and stages the `requires-release`
+bumps for the green ones; `bump-pin.sh` rewrites the engine pin from a
+release's sidecars; `diff-engines` fuzzes the C and rust engines
+differentially and reports the form the diverging line printed. The spec
+harness hardened in passing: a batch that dies mid-batch reports the
+engine's last words, a wrapperless `@lib` run is refused loudly, and
+`SPEC_SEAM_COLLECT` is the run-level door out of the seam collect.
+`x.sh` emits `%platform-release` beside `%install-root`, and two docs
+joined the tree: crafting-a-lang (the practice beside the contract) and
+the bootstrap tool closure scorecard.
 
 ## [0.9.0] - 2026-08-31
 
