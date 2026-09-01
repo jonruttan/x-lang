@@ -110,6 +110,17 @@ fi
 # for that lower PARALLEL_JOBS.
 export X_ALLOC_LIMIT_OBJS="${X_ALLOC_LIMIT_OBJS:-300000000}"
 
+# Seam collects, run-wide (see the seam note in spec-runner.awk).  Default ON:
+# it is what lets the 300M ceiling above cover a single peak instead of a
+# batch's sum.  A LANG BUNDLE whose eval path holds objects only C-side state
+# can reach -- x-python's python-run builds an isolated tokenizer base, the
+# x-lang#283 family -- sets this to 0 in its own wrapper and keeps the old
+# accumulate-then-exit regime (and should size X_ALLOC_LIMIT_OBJS for batch
+# sums, not peaks).  Per-FILE opt-out stays `# @no-seam-collect`; this knob is
+# for a suite whose GENERATED files all share one C-state-holding eval door,
+# where editing hundreds of files would be the wrong tool.
+export SPEC_SEAM_COLLECT="${SPEC_SEAM_COLLECT:-1}"
+
 # Fail OPEN on a malformed value: a non-numeric limit (e.g. "150M") would
 # otherwise tokenize as two forms -- (alloc-limit! 150 M) -- arming a
 # 150-object limit that kills every test process at startup.
@@ -328,6 +339,7 @@ _spawn() {
           -v READ_FN="${READ_FN:-Io read}" \
           -v TIMEOUT_CMD="$_tcmd" \
           -v TMPDIR="$_TMPDIR" \
+          -v SEAM_COLLECT="$SPEC_SEAM_COLLECT" \
           -v SPEC_ID="$_I" \
           -f "$RUNNER" "$@"
     ) &
@@ -339,6 +351,7 @@ _spawn() {
         -v READ_FN="${READ_FN:-Io read}" \
         -v TIMEOUT_CMD="$_tcmd" \
         -v TMPDIR="$_TMPDIR" \
+        -v SEAM_COLLECT="$SPEC_SEAM_COLLECT" \
         -v SPEC_ID="$_I" \
         -f "$RUNNER" "$@"
     _t1=$(date +%s); _dt=$((_t1 - _t0))
