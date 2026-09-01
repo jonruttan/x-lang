@@ -445,8 +445,24 @@
       (%asm-compile-param asm (first (rest (rest args))) params #f)
       (%asm-compile-expr asm (first (rest (rest args))) params))
     (asm-push! asm x0)
-    ; sign is a literal number
-    (def sign-val (first (rest args)))
+    ; sign is a literal number -- with the house style folded and everything
+    ; else refused BY NAME.  This codebase writes negative literals as
+    ; (- 0 1) in analyser code (tokens.x throughout), and a pair fed to the
+    ; old emitter reached the encoder's masking arithmetic, which raised
+    ; "&: operands must be integers" -- an operation the caller's code never
+    ; performs, worn by machinery two layers down.  Two sessions chased that
+    ; as an emitter defect.  Fold the (- a b) constant shape; refuse anything
+    ; else non-numeric with the contract's own words.
+    (def %sign-raw (first (rest args)))
+    (def sign-val
+      (if (number? %sign-raw) %sign-raw
+        (if (and (pair? %sign-raw) (eq? (first %sign-raw) '-)
+                 (number? (first (rest %sign-raw)))
+                 (number? (first (rest (rest %sign-raw)))))
+          (- (first (rest %sign-raw)) (first (rest (rest %sign-raw))))
+          (Err raise 'type
+            "asm-compile: score-set sign must be a literal integer (or (- a b) of literals)"
+            %sign-raw))))
     ; Call jit_score_set(score, sign, buffer)
     (asm-pop! asm x0)                   ; x0 = buffer
     (asm-emit! asm 'mov x2 x0)           ; x2 = buffer
