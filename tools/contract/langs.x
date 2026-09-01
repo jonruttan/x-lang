@@ -49,6 +49,11 @@
 ; record loop is 2.8x its first measure; the next step is the compile
 ; lanes.
 (lang "awk"   "x-awk"   167  0)
+; grep is the arc's second tool, and the closure's MOST-invoked external
+; (4,186 calls).  BRE by escape-swap translation onto the regex engine,
+; -E native, -F bytes; -i compiled into the pattern; the full POSIX flag
+; set minus back-references and [:named:] classes, which refuse loudly.
+(lang "grep"  "x-grep"   29  0)
 ; logo arrived GREEN, which is what an extraction should look like: 83/0 here
 ; is the same 83 tests that ran as lib/logo.spec.md in this tree, against the
 ; same turtle kernel, through the bundle's own harness instead of tests/x/lib.
