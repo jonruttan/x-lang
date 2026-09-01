@@ -309,10 +309,17 @@
 ; toolchain on first call via import (top-level defs bind globally and REPLACE
 ; this stub with the real compile-asm), then dispatches. import, not a path
 ; literal: resolves through the import roots so it works installed too.
+; The stub is VARIADIC because the real compile-asm is: its optional second
+; argument is the fvar table.  The original stub took only `expr`, so the
+; FIRST compile-asm call in any fresh process silently dropped its fvars and
+; raised "asm-compile: unbound: <fvar>" -- while the second call, dispatching
+; to the real definition, worked.  A first-call-only failure is the worst
+; kind to chase (every REPL retry "fixes" it); found while reconstructing the
+; x-lang#573 second-accept repro, whose first line died here instead.
 (def compile-asm
-  (fn (_ expr)
+  (fn (_ expr . %asm-rest)
     (import x/tool/asm-compile)
-    (compile-asm expr)))
+    (apply compile-asm (pair expr %asm-rest))))
 
 ; --- Default compile: JIT assembler with C compiler fallback ---
 
