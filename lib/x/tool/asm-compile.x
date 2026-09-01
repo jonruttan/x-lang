@@ -451,7 +451,16 @@
     (asm-pop! asm x0)                   ; x0 = buffer
     (asm-emit! asm 'mov x2 x0)           ; x2 = buffer
     (asm-pop! asm x0)                   ; x0 = score
-    (asm-emit! asm 'mov x1 (imm sign-val)) ; x1 = sign
+    ; SIGN -1 IS THE COMMON CASE and mov-immediate cannot hold it: MOVZ
+    ; zero-extends 16 bits, so (imm -1) reached the register as 65535 and
+    ; every negative (discard) score-set scored POSITIVE 65535*len -- one
+    ; giant accepted token swallowing the tail (lldb: x1 = 0xffff at
+    ; jit_score_set, one call for a whole multi-token input).  The general
+    ; constant emitter already routes negatives through the 64-bit load;
+    ; the sign must too.
+    (if (and (>= sign-val 0) (<= sign-val 65535))
+      (asm-emit! asm 'mov x1 (imm sign-val))
+      (asm-load-imm64! asm x1 sign-val))  ; x1 = sign
     (%emit-call! asm %jit-score-set)))
 
 ; Compile (%buffer-unread buffer): jit_buffer_unread(buffer)
