@@ -165,10 +165,20 @@
             (Err raise 'value (Str append "asm-compile: unsupported: " (%write-to-str expr)) ())))))))
 
 ; Compile parameter access from x-lang args list
-; p_args = (self arg0 arg1 ...) — walk rest N+1 times, first, eval, atomint
+; p_args = (self arg0 arg1 ...) — walk rest N+1 times, first, eval, atomint.
 ; If symbol is a free variable (fvar), load its pointer as a 64-bit immediate.
+;
+; TWO MODES, because two kinds of parameter exist.  An arithmetic operand wants
+; the raw machine word, so the default unboxes with atomint.  An OBJECT operand
+; -- the score and buffer an analyse callback receives -- must stay a pointer:
+; atomint on a buffer reads its first word as an integer, and jit_score_set
+; then dereferences that garbage.  That is exactly what killed every compiled
+; analyser while plain integer functions worked, and the %score-set emitter's
+; own comment ("score and buffer are x_obj_t*") had promised the object case
+; all along without the loader implementing it.
 (set! %asm-compile-param
-  (fn (_ asm name params)
+  (fn (_ asm name params . %mode)
+    (def unbox (if (null? %mode) #t (first %mode)))
     (def %find
       (fn (self ps idx)
         (if (null? ps)
@@ -191,10 +201,26 @@
               (do (%emit-restobj! asm) (self (- n 1))))))
         (%skip idx)
         (%emit-firstobj! asm)
-        (asm-emit! asm 'mov x1 x0)
-        (asm-emit! asm 'mov x0 x19)
-        (%emit-eval-arg! asm)
-        (%emit-atomint! asm)))))
+        ; TWO CALLING WORLDS, discriminated the way the return path already
+        ; discriminates them: FVARS PRESENT MEANS ANALYSER.
+        ;
+        ; An integer function is called from x, and the prim ABI hands the
+        ; callee UNEVALUATED argument expressions -- so its params must
+        ; eval-arg, then unbox.  An analyse callback is invoked from C's
+        ; scoring loop with LIVE VALUES built on the C stack: typeless satoms
+        ; and spair chains the evaluator was never meant to see.  Evaluating
+        ; one is undefined -- measured as an allocation spin that ends at the
+        ; ceiling -- and unnecessary, because they are already values.  So in
+        ; analyser mode nothing evals: an unboxed param (chr) reads its raw
+        ; word straight off the atom, and an object param (score, buffer)
+        ; stays the pointer it arrived as.
+        (if (null? %compile-fvars)
+          (do
+            (asm-emit! asm 'mov x1 x0)
+            (asm-emit! asm 'mov x0 x19)
+            (%emit-eval-arg! asm)
+            (when unbox (%emit-atomint! asm)))
+          (when unbox (%emit-atomint! asm)))))))
 
 ; Compile (or a b ...): short-circuit, returns first truthy value
 (def %asm-compile-or
@@ -408,11 +434,16 @@
 ; score and buffer are x_obj_t* (fvars or params), sign is raw int
 (def %asm-compile-score-set
   (fn (_ asm args params)
-    ; Eval score -> push
-    (%asm-compile-expr asm (first args) params)
+    ; Eval score -> push (OBJECT: jit_score_set writes through it; a symbol
+    ; loads via the no-unbox param mode, anything else the generic path)
+    (if (symbol? (first args))
+      (%asm-compile-param asm (first args) params #f)
+      (%asm-compile-expr asm (first args) params))
     (asm-push! asm x0)
-    ; Eval buffer -> push
-    (%asm-compile-expr asm (first (rest (rest args))) params)
+    ; Eval buffer -> push (OBJECT: jit_score_set reads its length)
+    (if (symbol? (first (rest (rest args))))
+      (%asm-compile-param asm (first (rest (rest args))) params #f)
+      (%asm-compile-expr asm (first (rest (rest args))) params))
     (asm-push! asm x0)
     ; sign is a literal number
     (def sign-val (first (rest args)))
@@ -426,13 +457,17 @@
 ; Compile (%buffer-unread buffer): jit_buffer_unread(buffer)
 (def %asm-compile-buffer-unread
   (fn (_ asm args params)
-    (%asm-compile-expr asm (first args) params)
+    (if (symbol? (first args))
+      (%asm-compile-param asm (first args) params #f)
+      (%asm-compile-expr asm (first args) params))
     (%emit-call! asm %jit-buffer-unread)))
 
 ; Compile (%buffer-len buffer): jit_buffer_len(buffer) -> raw int
 (def %asm-compile-buffer-len
   (fn (_ asm args params)
-    (%asm-compile-expr asm (first args) params)
+    (if (symbol? (first args))
+      (%asm-compile-param asm (first args) params #f)
+      (%asm-compile-expr asm (first args) params))
     (%emit-call! asm %jit-buffer-len)))
 
 ; Compile standalone comparison: (= a b) -> 1 or 0
