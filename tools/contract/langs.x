@@ -59,6 +59,12 @@
 ; s/// with backrefs on the regex engine's capture groups, addresses
 ; and ranges, the cycle; hold space and multiline are recorded pending.
 (lang "sed"   "x-sed"    21  0)
+; make completes the arc's core set (awk, grep, sed, make), and is
+; deliberately self-contained -- the bootstrap's root requires no other
+; lang.  The measured GNU subset: the functions, conditionals, pattern
+; rules and automatics x-lang's own Makefiles use; it dry-runs x-awk's
+; real Makefile.
+(lang "make"  "x-make"   23  0)
 ; logo arrived GREEN, which is what an extraction should look like: 83/0 here
 ; is the same 83 tests that ran as lib/logo.spec.md in this tree, against the
 ; same turtle kernel, through the bundle's own harness instead of tests/x/lib.
