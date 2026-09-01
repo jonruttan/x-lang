@@ -82,7 +82,7 @@
 ; ns `heap` is de-registered (R5): fetch the raw collector from the catalog.
 ; The instrumented heap-collect / heap-collect-force ops below are this
 ; tool's own exports, defined fresh (nothing bare to shadow anymore).
-(def %heap-collect-prim (prim-ref 'heap 'collect))
+(def %heap-collect-prim (prim-ref (lit heap) (lit collect)))
 (def %hc-last-allocs 0)
 (def %hc-last-surviving 10000)
 
@@ -109,9 +109,32 @@
 
 ; --- Output ---
 
+; READER-NEUTRAL ON PURPOSE.  A lang bundle imports this module through its
+; OWN reader (x-sweet does), and $-interpolation is a he/xe reader feature:
+; sweet's reader mangles the $-string silently, and the mangled body crashed
+; the engine when evaluated (found live, 2026-09-01).  Plain prims and 2-arg
+; appends read identically under every reader this module can arrive through.
+; The helpers are BODY defs, not globals (the percent-globals budget holds
+; this file at 4) -- dump runs once, so the defs-at-depth cost is nothing.
 (doc (def profile-dump
   (fn (_ )
-    (%stderr $"allocs={(alloc-count)} evals={(eval-count)} tco={(tco-count)} assoc-calls={(assoc-calls-count)} assoc-steps={(assoc-steps-count)} sym-find-calls={(sym-find-calls-count)} sym-find-steps={(sym-find-steps-count)} gc-runs={(gc-runs-count)} bst-hits={(bst-hits-count)} bst-misses={(bst-misses-count)} heap={(Heap count)}\n")))
+    (def %prof-sa (prim-ref (lit str) (lit append)))
+    (def %prof-w (prim-ref (lit io) (lit write-to-str)))
+    (def %prof-kv
+      (fn (_ label value rest)
+        (%prof-sa label (%prof-sa (%prof-w value) rest))))
+    (%stderr
+      (%prof-kv "allocs=" (alloc-count)
+        (%prof-kv " evals=" (eval-count)
+          (%prof-kv " tco=" (tco-count)
+            (%prof-kv " assoc-calls=" (assoc-calls-count)
+              (%prof-kv " assoc-steps=" (assoc-steps-count)
+                (%prof-kv " sym-find-calls=" (sym-find-calls-count)
+                  (%prof-kv " sym-find-steps=" (sym-find-steps-count)
+                    (%prof-kv " gc-runs=" (gc-runs-count)
+                      (%prof-kv " bst-hits=" (bst-hits-count)
+                        (%prof-kv " bst-misses=" (bst-misses-count)
+                          (%prof-kv " heap=" (Heap count) "\n"))))))))))))))
   "Dump all profile counters to stderr.")
 
 (doc (provide x/tool/profile
