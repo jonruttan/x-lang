@@ -82,6 +82,11 @@
 ; accessors, per the file's own fetch-and-cache convention.  Row 64 is
 ; %would-overflow-sub? from the exactness arc (208578f9): a direct
 ; subtract predicate, because add?-of-negation wraps for b = LONG_MIN.
+; core/list.x grew 19 to 21 for %map1-go and %rev-onto (029e9169): the
+; non-tail %map1 put one C eval frame group per element and overflowed
+; the C stack at 16K+ elements; the tail loop and its shared
+; reverse-prepend are boot-layer by necessity -- list.x loads before the
+; class machinery that would home them.
 ; What is NOT here is the point -- the text scanners (find, find-exp,
 ; parse-exp, digits) and the printer's zero/scientific helpers are LOCAL defs
 ; inside the two functions that use them, because a parse-local helper has no
@@ -107,7 +112,7 @@
 (file "lib/x/core/arithmetic.x" 17)
 (file "lib/x/core/boolean.x" 3)
 (file "lib/x/core/control.x" 2)
-(file "lib/x/core/list.x" 19)
+(file "lib/x/core/list.x" 21)
 (file "lib/x/core/logic.x" 1)
 (file "lib/x/core/math.x" 5)
 (file "lib/x/core/op-guard.x" 6)
