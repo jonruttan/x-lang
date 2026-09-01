@@ -60,13 +60,26 @@
   (guard (_ #f)
     (do (compile-asm (lit (fn (_ x) (+ x k))) (list (pair (lit k) 1))) #t)))
 
-; One site shape for the ten states: compile through the engine's JIT, and any
-; refusal -- the probe's or a single state's -- keeps the interpreted twin.
-; Fvars are passed as arguments and every value is a module-level def, which
-; is what roots them after the burst (#49's lesson, kept).
+; One site shape for the ten states, a LADDER of three rungs:
+;
+;   1. compile-asm -- the engine's own JIT, no toolchain, first choice.
+;   2. the cc lane -- ONLY as a fallback, and only where the engine ships
+;      its C headers (%compile-hosted?): an engine without native/jit but
+;      with a hosted toolchain still gets compiled analysers, and the cc
+;      lane's content-keyed /tmp cache means each expression compiles once
+;      per machine, not once per boot.
+;   3. the interpreted twin -- always correct, never raises.
+;
+; Any refusal at a rung drops one rung, never dies.  Fvars are passed as
+; arguments and every value is a module-level def, which is what roots them
+; after the burst (#49's lesson, kept).
 (def %tower-asm
   (fn (_ src fvars interp)
-    (if %tower-jit? (guard (_ interp) (compile-asm src fvars)) interp)))
+    (if %tower-jit?
+      (guard (_ interp) (compile-asm src fvars))
+      (if %compile-hosted?
+        (guard (_ interp) (compile src fvars))
+        interp))))
 
 ; --- Compile the quote-family analysers and swap them into the symbol
 ;     type's analyse list.  x-core.x (lit-reader.x) installed interpreted
