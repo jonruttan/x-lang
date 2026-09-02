@@ -14,11 +14,60 @@
   else root.Bitwise = factory();
 }(typeof self !== "undefined" ? self : this, function () {
   "use strict";
-  const GLYPHS = (typeof BITWISE_GLYPHS !== "undefined") ? BITWISE_GLYPHS
-    : (typeof require === "function" ? require("../glyphs.json") : null);
-  const LANGS = (typeof BITWISE_LANGS !== "undefined") ? BITWISE_LANGS
-    : (typeof require === "function" ? require("../langs.json") : null);
-  if (!GLYPHS || !LANGS) throw new Error("bitwise.js needs glyphs.json and langs.json (BITWISE_GLYPHS, BITWISE_LANGS)");
+  // The data is xon: s-expression forms, one reader for both files.  A form
+  // is an array whose head is a symbol ({sym}); strings, integers and nested
+  // forms are what the files use.
+  function readXon(text) {
+    const forms = [], stack = [];
+    let i = 0, cur = null;
+    const push = (v) => { if (cur) cur.push(v); else forms.push(v); };
+    while (i < text.length) {
+      const c = text[i];
+      if (c === ";") { while (i < text.length && text[i] !== "\n") i++; }
+      else if (c === "(") { const f = []; push(f); stack.push(cur); cur = f; i++; }
+      else if (c === ")") { cur = stack.pop(); i++; }
+      else if (c === '"') {
+        let s = ""; i++;
+        while (i < text.length && text[i] !== '"') {
+          if (text[i] === "\\") { i++; s += ({ n: "\n", t: "\t", r: "\r" })[text[i]] || text[i]; }
+          else s += text[i];
+          i++;
+        }
+        i++; push(s);
+      }
+      else if (/\s/.test(c)) i++;
+      else {
+        let t = ""; while (i < text.length && !/[\s()"]/.test(text[i])) t += text[i++];
+        push(/^-?\d+$/.test(t) ? parseInt(t, 10) : { sym: t });
+      }
+    }
+    return forms;
+  }
+  const head = (f) => Array.isArray(f) && f[0] && f[0].sym;
+  function shapeGlyphs(text) {
+    const g = { glyphs: {}, index: {} };
+    for (const f of readXon(text)) {
+      if (head(f) === "font") { g.family = f[1]; g.upm = f[2]; g.adv = f[3]; g.asc = f[4]; g.desc = f[5]; g.gap = f[6]; }
+      else if (head(f) === "glyph") { g.index[f[1]] = f[2]; g.glyphs[f[1]] = f[3]; }
+    }
+    return g;
+  }
+  function shapeLangs(text) {
+    const langs = {};
+    for (const f of readXon(text)) {
+      if (head(f) !== "costume") continue;
+      const lang = {};
+      for (const field of f.slice(2)) {
+        const k = head(field), v = field.slice(1);
+        lang[k] = ["accent", "secondary", "eyes", "rows", "roles"].includes(k) ? v : v[0];
+      }
+      langs[f[1]] = lang;
+    }
+    return langs;
+  }
+  const readText = (name) => (typeof require === "function") ? require("fs").readFileSync(require("path").join(__dirname, "..", name), "utf8") : null;
+  const GLYPHS = shapeGlyphs((typeof BITWISE_GLYPHS_XON !== "undefined") ? BITWISE_GLYPHS_XON : readText("glyphs.xon"));
+  const LANGS = shapeLangs((typeof BITWISE_LANGS_XON !== "undefined") ? BITWISE_LANGS_XON : readText("langs.xon"));
   const UPM = GLYPHS.upm, ADV = GLYPHS.adv, ASC = GLYPHS.asc, LINE = GLYPHS.asc - GLYPHS.desc + GLYPHS.gap;
   const U = 1000000, INK = "#161a22", PAPER = "#f2f4f7";
   const FONT = "'Roboto Mono','Martian Mono',Menlo,'DejaVu Sans Mono',ui-monospace,monospace";
@@ -254,5 +303,5 @@
     for (const b of bytes) h = Math.imul(h ^ b, 16777619) >>> 0;
     return bytes.length + ":" + h.toString(16).padStart(8, "0");
   }
-  return { render, renderWith, digest, sha256, fingerprint, params, palette, costume, field, hueStr, LANGS, OPS, GRIDS, SIGIL };
+  return { render, renderWith, digest, sha256, fingerprint, params, palette, costume, field, hueStr, readXon, LANGS, GLYPHS, OPS, GRIDS, SIGIL };
 }));

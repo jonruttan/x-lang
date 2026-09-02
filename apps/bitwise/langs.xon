@@ -1,0 +1,121 @@
+; langs.xon -- the costumes: what a project wears over the plain owl.
+;
+;   (costume "NAME"
+;     (mascot "LABEL")              shown on the gallery card and in the readout
+;     (logo "COLOUR NAME")          printed where the hue would be
+;     (accent H S L)                replaces the hashed hue in the field and the eyes
+;     (secondary H S L)             the colour for role b
+;     (eyes (H S L) (H S L))        two-tone eyes, left then right
+;     (rows "ROW" ...)              the owl's glyph rows in costume: printable ASCII, λ or ▲
+;     (roles "ROW" ...)             same shape: i ink, e/f the eyes, a accent, b secondary
+;     (reference "LINE"))           one line in the project's own language, on the banner
+;
+; Every field is optional; a name with no costume wears the plain owl.
+
+(costume "x-lang"
+  (rows "., .," "{OvO}" "(   )" " \" \"")
+  (roles "ii ii" "ieifi" "iiiii" " i i ")
+  (reference "(def owl '{O,O})"))
+
+(costume "x-expr"
+  (logo "the C logo's blue")
+  (accent 206 100 31)
+  (rows "., .," "{OvO}" "( C )" " \" \"")
+  (roles "ii ii" "ieifi" "i a i" " i i ")
+  (reference "/* {O,O} */"))
+
+(costume "x-engine-c"
+  (logo "the C logo's blue")
+  (accent 206 100 31)
+  (rows "., .," "{OvO}" "( C )" " \" \"")
+  (roles "ii ii" "ieifi" "i a i" " i i ")
+  (reference "return x; /* {O,O} */"))
+
+(costume "x-engine-rust"
+  (mascot "Ferris the crab")
+  (logo "Ferris orange")
+  (accent 18 100 48)
+  (rows "., .," "{OvO}" "V   V" " \" \"")
+  (roles "ii ii" "ieifi" "a   a" " i i ")
+  (reference "let owl = \"{O,O}\";"))
+
+(costume "x-python"
+  (mascot "the two Python snakes")
+  (logo "Python blue and yellow")
+  (accent 207 51 44)
+  (secondary 45 100 42)
+  (eyes (207 51 44) (45 100 42))
+  (rows "., .," "{OvO}" "( py)" " \" \"")
+  (roles "ii ii" "ieifi" "i aai" " i i ")
+  (reference "print(\"{O,O}\")"))
+
+(costume "x-logo"
+  (mascot "the turtle")
+  (logo "turtle green")
+  (accent 146 50 36)
+  (rows "., .," "{OvO}" "( ▲ )" " \" \"")
+  (roles "ii ii" "ieifi" "i a i" " i i ")
+  (reference "REPEAT 4 [FD 100 RT 90]"))
+
+(costume "x-awk"
+  (mascot "the auk")
+  (logo "auk black")
+  (accent 214 11 25)
+  (rows "., .," "{O>O}" "(awk)" " \" \"")
+  (roles "ii ii" "ieafi" "iaaai" " i i ")
+  (reference "awk '/{O,O}/'"))
+
+(costume "x-r5rs"
+  (mascot "lambda")
+  (rows "., .," "{OvO}" "( λ )" " \" \"")
+  (roles "ii ii" "ieifi" "i a i" " i i ")
+  (reference "(lambda (x) '{O,O})"))
+
+(costume "x-r7rs"
+  (mascot "lambda")
+  (rows "., .," "{OvO}" "( λ )" " \" \"")
+  (roles "ii ii" "ieifi" "i a i" " i i ")
+  (reference "(import (scheme base)) '{O,O}"))
+
+(costume "x-krn"
+  (mascot "$vau")
+  (rows "., .," "{OvO}" "(vau)" " \" \"")
+  (roles "ii ii" "ieifi" "iaaai" " i i ")
+  (reference "($vau (x) e '{O,O})"))
+
+(costume "x-sweet"
+  (rows "., .," "{OvO}" "({+})" " \" \"")
+  (roles "ii ii" "ieifi" "iaaai" " i i ")
+  (reference "{O + O}"))
+
+(costume "x-sed"
+  (rows "., .," "{OvO}" "(sed)" " \" \"")
+  (roles "ii ii" "ieifi" "iaaai" " i i ")
+  (reference "s/owl/{O,O}/g"))
+
+(costume "x-grep"
+  (rows "., .," "{OvO}" "(/./)" " \" \"")
+  (roles "ii ii" "ieifi" "iaaai" " i i ")
+  (reference "grep -c '{O,O}' *.x"))
+
+(costume "x-make"
+  (rows "., .," "{OvO}" "(all)" " \" \"")
+  (roles "ii ii" "ieifi" "iaaai" " i i ")
+  (reference "owl: ; echo '{O,O}'"))
+
+(costume "x-coreutils"
+  (rows "., .," "{OvO}" "( | )" " \" \"")
+  (roles "ii ii" "ieifi" "i a i" " i i ")
+  (reference "printf '%s\\n' '{O,O}'"))
+
+(costume "x-ash"
+  (rows "., .," "{OvO}" "( $ )" " \" \"")
+  (roles "ii ii" "ieifi" "i a i" " i i ")
+  (reference "$ echo '{O,O}'"))
+
+(costume "x-cc"
+  (logo "the C logo's blue")
+  (accent 206 100 31)
+  (rows "., .," "{OvO}" "(int)" " \" \"")
+  (roles "ii ii" "ieifi" "iaaai" " i i ")
+  (reference "puts(\"{O,O}\");"))

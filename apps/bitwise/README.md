@@ -37,8 +37,8 @@ its README, and writes into `--out` (default `build/bitwise`) plus an
 | `run.x` | the entry: boots the core, arms the roots, runs the command line |
 | `gen.x` | class `Bitwise`: seeding, field, palette, costume, the owl, the formats; `(Bitwise render name fmt tagline kind uid)`, `(Bitwise params name)`, `(Bitwise diff a b)` |
 | `cli.x` | class `BitwiseCli`: arguments, workspace discovery, README taglines, files and PNGs; `(BitwiseCli main args)` |
-| `glyphs.json` | printable ASCII, λ and ▲ as outlines from Roboto Mono Regular (Apache-2.0); ▲ borrowed from Menlo |
-| `langs.json` | the costumes: per project, glyph rows, colours, a reference line |
+| `glyphs.xon` | printable ASCII, λ and ▲ as outlines from Roboto Mono Regular (Apache-2.0); ▲ borrowed from Menlo |
+| `langs.xon` | the costumes: per project, glyph rows, colours, a reference line |
 | `gallery/bitwise.js` | the browser twin: the same integer geometry, byte-identical output |
 | `gallery/gallery.tmpl.html`, `gallery/build.js` | the live page: `node apps/bitwise/gallery/build.js` → `build/bitwise/gallery.html` |
 | `gallery/parity.js` | prints the twin's digests in the shape `tests/x/specs/apps/bitwise-parity.spec.md` asserts |
@@ -72,17 +72,20 @@ itself is never generated.
 
 ## Costumes
 
-`langs.json` is keyed by project name; every field is optional:
+`langs.xon` holds one `(costume "NAME" ...)` form per project; every field
+is optional:
 
-| field | what |
-|---|---|
-| `mascot` | a label, shown on the gallery card and in the readout |
-| `logo` | the name of the brand colour, printed where the hue would be |
-| `accent` | `[h, s, l]`: replaces the hashed hue in the field and the eyes |
-| `eyes`, `secondary` | `[[h,s,l],[h,s,l]]` for two-tone eyes; the colour for role `b` |
-| `rows` | the owl's glyph rows in costume; any printable ASCII, λ, or ▲ |
-| `roles` | same shape as `rows`: `i` ink, `e`/`f` the eyes, `a` accent, `b` secondary |
-| `reference` | one line in the project's own language, set on the banner |
+```
+(costume "x-python"
+  (mascot "the two Python snakes")        shown on the gallery card and in the readout
+  (logo "Python blue and yellow")         printed where the hue would be
+  (accent 207 51 44)                      h s l: replaces the hashed hue in the field and the eyes
+  (secondary 45 100 42)                   the colour for role b
+  (eyes (207 51 44) (45 100 42))          two-tone eyes, left then right
+  (rows "., .," "{OvO}" "( py)" " \" \"")  the owl's glyph rows in costume: printable ASCII, λ or ▲
+  (roles "ii ii" "ieifi" "i aai" " i i ") same shape: i ink, e/f the eyes, a accent, b secondary
+  (reference "print(\"{O,O}\")"))         one line in the project's own language, on the banner
+```
 
 Every costumed owl wears the `v` beak (the auk keeps its `>` bill) and
 carries its logo on its belly:
@@ -105,6 +108,6 @@ Never edit a rendered SVG by hand; change the generator and re-render. A
 project renames, its field changes, and that is the point. The owl does not
 change, ever.
 
-`glyphs.json` was extracted once from `RobotoMono-Regular.ttf` with a
+`glyphs.xon` was extracted once from `RobotoMono-Regular.ttf` with a
 fontTools one-off (kept outside the tree, beside the font); a wider glyph set
 is a re-extraction, not an edit.
