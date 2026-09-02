@@ -79,7 +79,8 @@ itself is never generated.
 | `roles` | same shape as `rows`: `i` ink, `e`/`f` the eyes, `a` accent, `b` secondary |
 | `reference` | one line in the project's own language, set on the banner |
 
-Every costumed owl wears the `v` beak and carries its logo on its belly:
+Every costumed owl wears the `v` beak (the auk keeps its `>` bill) and
+carries its logo on its belly:
 `( C )` for the C projects, `( λ )` for the Schemes, `({+})` for
 sweet-expressions, `(/./)` for grep, `(vau)` for Kernel, `( py)` for Python,
 `( ▲ )` for Logo, `(awk)`, `(sed)`, `(all)`, `( | )`, `( $ )`, `(int)`,

@@ -156,13 +156,13 @@
   "reference": "awk '/{O,O}/'",
   "rows": [
    "., .,",
-   "{OvO}",
+   "{O>O}",
    "(awk)",
    " \" \""
   ],
   "roles": [
    "ii ii",
-   "ieifi",
+   "ieafi",
    "iaaai",
    " i i "
   ],
