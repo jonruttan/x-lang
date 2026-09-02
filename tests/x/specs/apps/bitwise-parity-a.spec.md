@@ -20,13 +20,13 @@ from slowing the next.
 
 ```scheme
 (do
-  (def %bitwise-root "apps/bitwise")
   (import-path! "apps")
   (import bitwise/gen)
+  (Bitwise root! "apps/bitwise")
   (def tag "A tagline with enough words in it to wrap past four lines of the banner column, so the fourth line ends with an ellipsis rather than running off the edge of the picture")
   (List for-each
     (fn (_ fmt)
-      (display (list fmt (bitwise-diff (first (bitwise-render "x-lang" fmt tag "a language on x-lang" "o"))
+      (display (list fmt (Bitwise diff (first (Bitwise render "x-lang" fmt tag "a language on x-lang" "o"))
                                       (File read-all (%str-concat (list "tests/x/fixtures/bitwise/expected/x-lang-" fmt ".svg"))))))
       (newline))
     (list "mark" "avatar" "banner")))
@@ -42,13 +42,13 @@ from slowing the next.
 
 ```scheme
 (do
-  (def %bitwise-root "apps/bitwise")
   (import-path! "apps")
   (import bitwise/gen)
+  (Bitwise root! "apps/bitwise")
   (def tag "A tagline with enough words in it to wrap past four lines of the banner column, so the fourth line ends with an ellipsis rather than running off the edge of the picture")
   (List for-each
     (fn (_ fmt)
-      (display (list fmt (bitwise-diff (first (bitwise-render "x-engine-rust" fmt tag "a language on x-lang" "o"))
+      (display (list fmt (Bitwise diff (first (Bitwise render "x-engine-rust" fmt tag "a language on x-lang" "o"))
                                       (File read-all (%str-concat (list "tests/x/fixtures/bitwise/expected/x-engine-rust-" fmt ".svg"))))))
       (newline))
     (list "mark" "avatar" "banner")))
@@ -64,13 +64,13 @@ from slowing the next.
 
 ```scheme
 (do
-  (def %bitwise-root "apps/bitwise")
   (import-path! "apps")
   (import bitwise/gen)
+  (Bitwise root! "apps/bitwise")
   (def tag "A tagline with enough words in it to wrap past four lines of the banner column, so the fourth line ends with an ellipsis rather than running off the edge of the picture")
   (List for-each
     (fn (_ fmt)
-      (display (list fmt (bitwise-diff (first (bitwise-render "x-python" fmt tag "a language on x-lang" "o"))
+      (display (list fmt (Bitwise diff (first (Bitwise render "x-python" fmt tag "a language on x-lang" "o"))
                                       (File read-all (%str-concat (list "tests/x/fixtures/bitwise/expected/x-python-" fmt ".svg"))))))
       (newline))
     (list "mark" "avatar" "banner")))
@@ -86,13 +86,13 @@ from slowing the next.
 
 ```scheme
 (do
-  (def %bitwise-root "apps/bitwise")
   (import-path! "apps")
   (import bitwise/gen)
+  (Bitwise root! "apps/bitwise")
   (def tag "A tagline with enough words in it to wrap past four lines of the banner column, so the fourth line ends with an ellipsis rather than running off the edge of the picture")
   (List for-each
     (fn (_ fmt)
-      (display (list fmt (bitwise-diff (first (bitwise-render "x-logo" fmt tag "a language on x-lang" "o"))
+      (display (list fmt (Bitwise diff (first (Bitwise render "x-logo" fmt tag "a language on x-lang" "o"))
                                       (File read-all (%str-concat (list "tests/x/fixtures/bitwise/expected/x-logo-" fmt ".svg"))))))
       (newline))
     (list "mark" "avatar" "banner")))

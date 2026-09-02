@@ -35,13 +35,18 @@ its README, and writes into `--out` (default `build/bitwise`) plus an
 | file | what |
 |---|---|
 | `run.x` | the entry: boots the core, arms the roots, runs the command line |
-| `gen.x` | the generator: seeding, field, palette, costume, the owl, the formats |
-| `cli.x` | arguments, workspace discovery, README taglines, files and PNGs |
+| `gen.x` | class `Bitwise`: seeding, field, palette, costume, the owl, the formats; `(Bitwise render name fmt tagline kind uid)`, `(Bitwise params name)`, `(Bitwise diff a b)` |
+| `cli.x` | class `BitwiseCli`: arguments, workspace discovery, README taglines, files and PNGs; `(BitwiseCli main args)` |
 | `glyphs.json` | printable ASCII, λ and ▲ as outlines from Roboto Mono Regular (Apache-2.0); ▲ borrowed from Menlo |
 | `langs.json` | the costumes: per project, glyph rows, colours, a reference line |
 | `gallery/bitwise.js` | the browser twin: the same integer geometry, byte-identical output |
 | `gallery/gallery.tmpl.html`, `gallery/build.js` | the live page: `node apps/bitwise/gallery/build.js` → `build/bitwise/gallery.html` |
 | `gallery/parity.js` | prints the twin's digests in the shape `tests/x/specs/apps/bitwise-parity.spec.md` asserts |
+
+Each file is one class and one public global, every helper a `%`-static on
+it (the tree's rule for `%`-globals); the data root is armed with
+`(Bitwise root! dir)`, by the entry from `%install-root` and by a spec as
+`apps/bitwise`.
 
 ## How a picture is made
 

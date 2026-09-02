@@ -15,7 +15,7 @@
 ; and arms its own roots.  Installed trees define %install-root
 ; (boot/module.x); the guard falls back to the repo-relative layout.
 (include "lib/x-core.x")
-(def %bitwise-root (guard (_ "apps/bitwise") (%path-join %install-root "apps/bitwise")))
 (import-path! (guard (_ "apps") (%path-join %install-root "apps")))
 (import bitwise/cli)
-(bitwise-main args)
+(Bitwise root! (guard (_ "apps/bitwise") (%path-join %install-root "apps/bitwise")))
+(BitwiseCli main args)

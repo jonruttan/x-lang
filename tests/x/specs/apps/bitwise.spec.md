@@ -16,10 +16,10 @@ picture is a function of the name alone -- and the gallery's browser twin,
 
 ```scheme
 (do
-  (def %bitwise-root "apps/bitwise")
   (import-path! "apps")
   (import bitwise/gen)
-  (def p (bitwise-params "x-lang"))
+  (Bitwise root! "apps/bitwise")
+  (def p (Bitwise params "x-lang"))
   (display (list (p get 'opname) (p get 'bit) (p get 'a) (p get 'b) (p get 'n) (p get 'hue10) (p get 'lit)))
   (newline)
   (display (p get 'formula)))
@@ -37,12 +37,12 @@ touches; these two are the ones whose first draw was outside it.
 
 ```scheme
 (do
-  (def %bitwise-root "apps/bitwise")
   (import-path! "apps")
   (import bitwise/gen)
+  (Bitwise root! "apps/bitwise")
   (List for-each
     (fn (_ name)
-      (let ((p (bitwise-params name)))
+      (let ((p (Bitwise params name)))
         (display (list name (p get 'opname) (p get 'bit) (p get 'n) (p get 'lit)))
         (newline)))
     (list "x-cc" "x-r5rs" "x-engine-c")))
@@ -60,10 +60,10 @@ touches; these two are the ones whose first draw was outside it.
 
 ```scheme
 (do
-  (def %bitwise-root "apps/bitwise")
   (import-path! "apps")
   (import bitwise/gen)
-  (def svg (first (bitwise-render "x-lang" "mark" "" "" "o")))
+  (Bitwise root! "apps/bitwise")
+  (def svg (first (Bitwise render "x-lang" "mark" "" "" "o")))
   (display (list (Str8 includes? "<path id=\"o-47\" d=\"M" svg)
                  (Str8 includes? "<use href=\"#o-47\" transform=\"translate(" svg)
                  (Str8 includes? "<g fill=\"hsl(261.6,58%,46%)\"><use href=\"#o-47\"" svg)
@@ -79,10 +79,10 @@ touches; these two are the ones whose first draw was outside it.
 
 ```scheme
 (do
-  (def %bitwise-root "apps/bitwise")
   (import-path! "apps")
   (import bitwise/gen)
-  (display (list (bitwise-diff "same" "same") (first (bitwise-diff "<rect x=\"6.62\"/>" "<rect x=\"6.63\"/>")) (first (rest (bitwise-diff "<rect x=\"6.62\"/>" "<rect x=\"6.63\"/>"))))))
+  (Bitwise root! "apps/bitwise")
+  (display (list (Bitwise diff "same" "same") (first (Bitwise diff "<rect x=\"6.62\"/>" "<rect x=\"6.63\"/>")) (first (rest (Bitwise diff "<rect x=\"6.62\"/>" "<rect x=\"6.63\"/>"))))))
 ```
 ---
 ```output
@@ -98,12 +98,12 @@ end, and an unclosed parenthesis is dropped with what follows it.
 
 ```scheme
 (do
-  (def %bitwise-root "apps/bitwise")
   (import-path! "apps")
   (import bitwise/cli)
-  (display (%bw-unlink "A [Kernel](https://x) surface on [x-lang][xl], riding"))
+  (Bitwise root! "apps/bitwise")
+  (display (BitwiseCli %unlink "A [Kernel](https://x) surface on [x-lang][xl], riding"))
   (newline)
-  (display (%bw-tagline "tests/x/fixtures/bitwise/README.md")))
+  (display (BitwiseCli %tagline "tests/x/fixtures/bitwise/README.md")))
 ```
 ---
 ```output
@@ -115,11 +115,11 @@ A fixture for x-lang's owl, the second tool of the self-hosting arc
 
 ```scheme
 (do
-  (def %bitwise-root "apps/bitwise")
   (import-path! "apps")
   (import bitwise/cli)
+  (Bitwise root! "apps/bitwise")
   (import x/codec/json)
-  (bitwise-main (list "x-bin" "--" "--all" "--root" "tests/x/fixtures/bitwise/root" "--out" "build/bitwise-spec"))
+  (BitwiseCli main (list "x-bin" "--" "--all" "--root" "tests/x/fixtures/bitwise/root" "--out" "build/bitwise-spec"))
   (def index (Json parse (File read-all "build/bitwise-spec/index.json")))
   (display (List map (fn (_ d) (list (d get "name") (d get "kind") (d get "tagline"))) index))
   (newline)
@@ -138,11 +138,11 @@ x-fixture       xor    bit 3  n=24  hue  90.9
 
 ```scheme
 (do
-  (def %bitwise-root "apps/bitwise")
   (import-path! "apps")
   (import bitwise/cli)
+  (Bitwise root! "apps/bitwise")
   (import x/codec/json)
-  (def out (Io display-to-str (Json emit (rest (bitwise-render "x-awk" "mark" "" "" "o")))))
+  (def out (Io display-to-str (Json emit (rest (Bitwise render "x-awk" "mark" "" "" "o")))))
   (display (list (Str8 includes? "\"opname\":\"or\"" out) (Str8 includes? "\"costume\":\"the auk\"" out))))
 ```
 ---

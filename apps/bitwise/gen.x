@@ -20,460 +20,454 @@
 ; from langs.json: glyph rows around the owl, brand colours, a reference
 ; line in its language.  Same name, same picture, forever.
 ;
-; EVERY QUANTITY IS AN INTEGER.  Geometry is carried in micro-units (%bw-U
-; per user unit) and formatted with %bw-fmt, half-up, so the picture is a
-; function of the name alone and the browser twin (gallery/bitwise.js)
-; computes the identical bytes with the same integer arithmetic.
+; EVERY QUANTITY IS AN INTEGER.  Geometry is carried in micro-units (%U per
+; user unit) and formatted with %fmt, half-up, so the picture is a function
+; of the name alone and the browser twin (gallery/bitwise.js) computes the
+; identical bytes with the same integer arithmetic.
+;
+; One class, one public global (tools/check/percent-globals.sh): every helper
+; is a %-static on Bitwise, and the per-cell work stays inside one method's
+; local loops -- a static dispatch per cell would be the whole budget.
+(import x/type/class)
 (import x/codec/json)
 (import x/codec/sha256)
 (import x/codec/hex)
 (import x/sys/file)
 
-; The data lives beside this file, and %bitwise-root says where that is: the
-; entry (run.x) arms it from %install-root, a spec from the repo root.  No
-; literal here -- a runtime module may not know the tree's layout
-; (tools/check/path-literals.sh) -- and no read at load time either: the
-; linter imports this module as data, with no root armed.  The first render
-; reads the two files and fills the metrics in.
-; lint-known: %bitwise-root
-(def %bw-glyphs #f)
-(def %bw-langs #f)
-(def %bw-upm 0)
-(def %bw-adv 0)
-(def %bw-asc 0)
-(def %bw-line 0)
-(def %bw-gmap #f)
-(def %bw-gix #f)
-(def %bw-load!
-  (fn (_)
-    (unless %bw-glyphs
-      (set! %bw-glyphs (Json parse (File read-all (%path-join %bitwise-root "glyphs.json"))))
-      (set! %bw-langs (Json parse (File read-all (%path-join %bitwise-root "langs.json"))))
-      (set! %bw-upm (%bw-glyphs get "upm"))
-      (set! %bw-adv (%bw-glyphs get "adv"))
-      (set! %bw-asc (%bw-glyphs get "asc"))
-      (set! %bw-line (+ (- (%bw-glyphs get "asc") (%bw-glyphs get "desc")) (%bw-glyphs get "gap")))
-      (set! %bw-gmap (%bw-glyphs get "glyphs"))
-      (set! %bw-gix (%bw-glyphs get "index")))))
+(def-class Bitwise ()
+  (doc "The owl sigil, drawn for a project: (Bitwise render name fmt tagline kind uid) is an SVG whose field, colours and costume the name decides."
+    (example "(first (Bitwise params \"x-lang\"))" "..."))
+  (static
+    ; where glyphs.json and langs.json live: the entry arms it from
+    ; %install-root, a spec from the repo root.  No literal here -- a runtime
+    ; module may not know the tree's layout (tools/check/path-literals.sh).
+    (%root-cell (pair () ()))
+    ; the loaded data, read on the first render, never at import: the
+    ; linter imports this module as data with no root armed
+    (%data-cell (pair () ()))
+    (%U 1000000)
+    (%ink "#161a22")
+    (%paper "#f2f4f7")
+    (%font "'Roboto Mono','Martian Mono',Menlo,'DejaVu Sans Mono',ui-monospace,monospace")
+    (%sigil (list "., .," "{O,O}" "(   )" " \" \""))
+    (%sigil-roles (list "ii ii" "ieifi" "iiiii" " i i "))
+    (%ops (list "xor" "and" "or" "rings" "moire" "prod"))
+    (%grids (list 16 20 24 32))
 
-(def %bw-U 1000000)
-(def %bw-ink "#161a22")
-(def %bw-paper "#f2f4f7")
-(def %bw-font "'Roboto Mono','Martian Mono',Menlo,'DejaVu Sans Mono',ui-monospace,monospace")
-(def %bw-sigil (list "., .," "{O,O}" "(   )" " \" \""))
-(def %bw-sigil-roles (list "ii ii" "ieifi" "iiiii" " i i "))
-(def %bw-ops (list "xor" "and" "or" "rings" "moire" "prod"))
-(def %bw-grids (list 16 20 24 32))
-(def %bw-pow10 (list 1 10 100 1000 10000 100000 1000000))
+    (method root! (self (param path STRING "Directory holding glyphs.json and langs.json"))
+      (doc "Arm the data root.  The entry does this from %install-root; a spec names apps/bitwise."
+        (returns STRING "The path"))
+      (%set-first! (Bitwise %root-cell) path)
+      path)
 
-(def %bw-s (fn (_ v) (Io display-to-str v)))
-(def %bw-cat (fn (_ parts) (%str-concat parts)))
-(def %bw-esc
-  (fn (_ t)
-    (Str8 replace "\"" "&quot;"
-      (Str8 replace ">" "&gt;" (Str8 replace "<" "&lt;" (Str8 replace "&" "&amp;" t))))))
+    (method %data (self)
+      (let ((d (first (Bitwise %data-cell))))
+        (if (null? d)
+          (let ((root (first (Bitwise %root-cell))))
+            (let ((g (Json parse (File read-all (%path-join root "glyphs.json"))))
+                  (nd (Dict make)))
+              (nd set! 'glyphs g)
+              (nd set! 'langs (Json parse (File read-all (%path-join root "langs.json"))))
+              (nd set! 'upm (g get "upm"))
+              (nd set! 'adv (g get "adv"))
+              (nd set! 'asc (g get "asc"))
+              (nd set! 'line (+ (- (g get "asc") (g get "desc")) (g get "gap")))
+              (nd set! 'gmap (g get "glyphs"))
+              (nd set! 'gix (g get "index"))
+              (%set-first! (Bitwise %data-cell) nd)
+              nd))
+          d)))
 
-; v micro-units -> "d.dd" with d decimals (0, 1, 2 or 4), rounded half-up.
-; Hand-rolled: the library's pad-left costs milliseconds and this runs per
-; glyph and per grid line.
-(def %bw-fmt
-  (fn (_ v d)
-    (match
-      ((= d 0) (%bw-s (/ (+ v 500000) 1000000)))
-      ((= d 1)
-       (let ((q (/ (+ v 50000) 100000)))
-         (%bw-cat (list (%bw-s (/ q 10)) "." (%bw-s (- q (* 10 (/ q 10))))))))
-      ((= d 2)
-       (let ((q (/ (+ v 5000) 10000)))
-         (let ((f (- q (* 100 (/ q 100)))))
-           (%bw-cat (list (%bw-s (/ q 100)) (if (< f 10) ".0" ".") (%bw-s f))))))
-      (#t
-       (let ((q (/ (+ v 50) 100)))
-         (let ((f (- q (* 10000 (/ q 10000)))))
-           (%bw-cat (list (%bw-s (/ q 10000))
-                          (if (< f 10) ".000" (if (< f 100) ".00" (if (< f 1000) ".0" ".")))
-                          (%bw-s f)))))))))
+    (method %s (self v) (Io display-to-str v))
+    (method %cat (self parts) (%str-concat parts))
+    (method %esc (self t)
+      (Str8 replace "\"" "&quot;"
+        (Str8 replace ">" "&gt;" (Str8 replace "<" "&lt;" (Str8 replace "&" "&amp;" t)))))
 
-; ---------------------------------------------------------------- seeding
-
-(def %bw-digest (fn (_ name) (Hex decode-bytes (Sha256 hex name))))
-
-; Each op maps a shifted cell coordinate pair to an integer; bit k of the
-; result decides whether the cell is lit.  a, b are small odd multipliers,
-; s a per-name salt.  Masked to 32 bits so the twin agrees.
-(def %bw-op
-  (fn (_ op x y a b s)
-    (match
-      ((= op 0) (^ (^ (* x a) (* y b)) s))
-      ((= op 1) (^ (& (* x a) (* y b)) s))
-      ((= op 2) (^ (| (* x a) (* y b)) s))
-      ((= op 3) (^ (+ (* (* x x) a) (* (* y y) b)) s))
-      ((= op 4) (^ (^ (+ (* x a) (* y b)) (* x y)) s))
-      (#t (^ (^ (* (* x y) a) (* (+ x y) b)) s)))))
-
-(def %bw-field
-  (fn (_ p n)
-    (def op (p get 'op))
-    (def a (p get 'a))
-    (def b (p get 'b))
-    (def s (p get 'salt))
-    (def k (p get 'bit))
-    (def ox (p get 'ox))
-    (def oy (p get 'oy))
-    (def half (/ n 2))
-    (let rows ((j 0) (acc ()))
-      (if (>= j n) (%reverse acc)
-        (rows (+ j 1)
-          (pair
-            (let cells ((i 0) (racc ()))
-              (if (>= i n) (%reverse racc)
-                (cells (+ i 1)
-                  (pair
-                    (let ((x (if (= op 3) (Num abs (- i half)) (+ i ox)))
-                          (y (if (= op 3) (Num abs (- j half)) (+ j oy))))
-                      (= 1 (& (>> (& (%bw-op op x y a b s) 4294967295) k) 1)))
-                    racc))))
-            acc))))))
-
-; A field is asked for more than once per picture (the gate, the count, the
-; ground); remember each grid size on the params.
-(def %bw-field-of
-  (fn (_ p n)
-    (def key (%bw-cat (list "field-" (%bw-s n))))
-    (if (p has? key) (p get key)
-      (let ((rows (%bw-field p n)))
-        (p set! key rows)
-        rows))))
-
-(def %bw-lit
-  (fn (_ rows)
-    (let go ((rs rows) (n 0))
-      (if (null? rs) n
-        (go (rest rs)
-            (+ n (let cnt ((cs (first rs)) (m 0))
-                   (if (null? cs) m (cnt (rest cs) (if (first cs) (+ m 1) m))))))))))
-
-(def %bw-formula
-  (fn (_ op a b)
-    (def sa (%bw-s a))
-    (def sb (%bw-s b))
-    (match
-      ((= op 0) (%bw-cat (list "(x*" sa ") ^ (y*" sb ")")))
-      ((= op 1) (%bw-cat (list "(x*" sa ") & (y*" sb ")")))
-      ((= op 2) (%bw-cat (list "(x*" sa ") | (y*" sb ")")))
-      ((= op 3) (%bw-cat (list "x*x*" sa " + y*y*" sb)))
-      ((= op 4) (%bw-cat (list "(x*" sa " + y*" sb ") ^ (x*y)")))
-      (#t (%bw-cat (list "(x*y*" sa ") ^ (x+y)*" sb))))))
-
-; The lit fraction must read as a texture: sparse and dense are both fine
-; (they are the variety); only under 18% or over 82% is rejected.  Walk the
-; bit, then the op.  Deterministic, so the same name lands on the same field.
-(def %bw-gate-ok?
-  (fn (_ p)
-    (def n (p get 'n))
-    (def lit (%bw-lit (%bw-field-of p n)))
-    (if (>= (* lit 100) (* 18 (* n n))) (<= (* lit 100) (* 82 (* n n))) #f)))
-
-(def %bw-params
-  (fn (_ name)
-    (def h (%bw-digest name))
-    (def b (fn (_ i) (List ref i h)))
-    (def p (Dict make))
-    (p set! 'name name)
-    ; hue to one decimal, as tenths: round((h0*256+h1) * 3600 / 65536), half-up
-    (p set! 'hue10 (/ (+ (* (+ (* (b 0) 256) (b 1)) 7200) 65536) 131072))
-    (p set! 'op (Num modulo (b 2) 6))
-    (p set! 'bit (+ 1 (Num modulo (b 3) 4)))
-    (p set! 'a (+ (* (& (b 4) 7) 2) 1))
-    (p set! 'b (+ (* (& (b 5) 7) 2) 1))
-    (p set! 'ox (& (b 6) 31))
-    (p set! 'oy (& (b 7) 31))
-    (p set! 'salt (b 8))
-    (p set! 'n (List ref (Num modulo (b 9) 4) %bw-grids))
-    (let walk ((step 0))
-      (if (< step 24)
-        (unless (%bw-gate-ok? p)
-          (p del! (%bw-cat (list "field-" (%bw-s (p get 'n)))))
-          (p set! 'bit (+ 1 (Num modulo (p get 'bit) 4)))
-          (when (= (Num modulo step 4) 3)
-            (p set! 'op (Num modulo (+ (p get 'op) 1) 6)))
-          (walk (+ step 1)))))
-    (p set! 'lit (%bw-lit (%bw-field-of p (p get 'n))))
-    (p set! 'opname (List ref (p get 'op) %bw-ops))
-    (p set! 'formula
-      (%bw-cat (list (%bw-formula (p get 'op) (p get 'a) (p get 'b)) " >> " (%bw-s (p get 'bit)) " & 1")))
-    p))
-
-; ---------------------------------------------------------------- colour
-
-(def %bw-hue-str
-  (fn (_ hue10) (%bw-cat (list (%bw-s (/ hue10 10)) "." (%bw-s (Num modulo hue10 10))))))
-(def %bw-hsl
-  (fn (_ h s l) (%bw-cat (list "hsl(" h "," (%bw-s s) "%," (%bw-s l) "%)"))))
-(def %bw-hsl3
-  (fn (_ t) (%bw-hsl (%bw-s (List ref 0 t)) (List ref 1 t) (List ref 2 t))))
-
-; Colours: the hashed hue, unless the costume names its own.
-(def %bw-palette
-  (fn (_ p lang)
-    (def hue (%bw-hue-str (p get 'hue10)))
-    (def acc (if (lang has? "accent") (lang get "accent") #f))
-    (def accent (if acc (%bw-hsl3 acc) (%bw-hsl hue 58 46)))
-    (def pal (Dict make))
-    (pal set! 'accent accent)
-    (pal set! 'deep
-      (if acc (%bw-hsl (%bw-s (List ref 0 acc)) (List ref 1 acc) (/ (* (List ref 2 acc) 65) 100))
-        (%bw-hsl hue 55 30)))
-    (pal set! 'eyes
-      (if (lang has? "eyes") (List map %bw-hsl3 (lang get "eyes")) (list accent accent)))
-    (pal set! 'secondary (if (lang has? "secondary") (%bw-hsl3 (lang get "secondary")) accent))
-    pal))
-
-(def %bw-colour
-  (fn (_ pal role)
-    (match
-      ((str=? role "e") (List ref 0 (pal get 'eyes)))
-      ((str=? role "f") (List ref 1 (pal get 'eyes)))
-      ((str=? role "a") (pal get 'accent))
-      ((str=? role "b") (pal get 'secondary))
-      (#t %bw-ink))))
-
-; ---------------------------------------------------------------- the owl
-
-; A row is bytes; the owl's glyphs are characters.  Split on UTF-8 leads.
-(def %bw-glyph-list
-  (fn (_ s)
-    (def len (Str8 length s))
-    (let go ((i 0) (acc ()))
-      (if (>= i len) (%reverse acc)
-        (let ((b (Char ->int (Str8 ref i s))))
-          (let ((w (if (< b 128) 1 (if (< b 224) 2 (if (< b 240) 3 4)))))
-            (go (+ i w) (pair (Str8 sub i w s) acc))))))))
-
-; (rows roles): the glyph rows and, per glyph, who colours it --
-; i ink, e/f the two eyes, a accent, b the secondary colour.
-(def %bw-costume
-  (fn (_ lang)
-    (list (List map %bw-glyph-list (if (lang has? "rows") (lang get "rows") %bw-sigil))
-          (List map %bw-glyph-list (if (lang has? "roles") (lang get "roles") %bw-sigil-roles)))))
-
-(def %bw-cols
-  (fn (_ rows)
-    (let go ((rs rows) (m 0)) (if (null? rs) m (go (rest rs) (Num max m (%length (first rs))))))))
-
-; The owl set from outlines.  (x-u, y-u) is the block's top-left and k the
-; micro-units per font unit; glyph paths are declared once each, by index.
-(def %bw-owl
-  (fn (_ pal rows roles uid x-u y-u k)
-    (def used ())
-    (def groups (Dict make))
-    (def ks (%bw-fmt k 4))
-    (let rl ((rs rows) (ro roles) (row 0))
-      (unless (null? rs)
-        (let ((base (+ y-u (* (+ %bw-asc (* row %bw-line)) k))))
-          (let cl ((cs (first rs)) (os (first ro)) (col 0))
-            (unless (null? cs)
-              (let ((ch (first cs)) (role (first os)))
-                (unless (str=? ch " ")
-                  (unless (%member-str? ch used) (set! used (pair ch used)))
-                  (groups set! role
-                    (pair (%bw-cat (list "<use href=\"#" uid "-" (%bw-s (%bw-gix get ch))
-                                         "\" transform=\"translate(" (%bw-fmt (+ x-u (* (* col %bw-adv) k)) 2)
-                                         "," (%bw-fmt base 2) ") scale(" ks ",-" ks ")\"/>"))
-                          (groups get-or (list) role)))))
-              (cl (rest cs) (rest os) (+ col 1)))))
-        (rl (rest rs) (rest ro) (+ row 1))))
-    (def defs
-      (%bw-cat (List map (fn (_ c) (%bw-cat (list "<path id=\"" uid "-" (%bw-s (%bw-gix get c)) "\" d=\"" (%bw-gmap get c) "\"/>")))
-                 (%reverse used))))
-    (%bw-cat
-      (list "<defs>" defs "</defs>"
-        (%bw-cat (List map (fn (_ r)
-                             (if (groups has? r)
-                               (%bw-cat (list "<g fill=\"" (%bw-colour pal r) "\">" (%bw-cat (%reverse (groups get r))) "</g>"))
-                               ""))
-                   (list "i" "e" "f" "a" "b")))))))
-
-; The owl centred in the box at (x, y) of bw x bh user units.
-(def %bw-owl-in
-  (fn (_ pal lang uid x y bw bh)
-    (def cr (%bw-costume lang))
-    (def rows (first cr))
-    (def roles (first (rest cr)))
-    (def n (%length rows))
-    (def cols (%bw-cols rows))
-    (def size-u (Num min (/ (* bh (* %bw-upm %bw-U)) (* n %bw-line))
-                         (/ (* bw (* %bw-upm %bw-U)) (* cols %bw-adv))))
-    (def k (/ size-u %bw-upm))
-    (def w-u (* (* cols %bw-adv) k))
-    (def h-u (* (* n %bw-line) k))
-    (%bw-owl pal rows roles uid
-      (+ (* x %bw-U) (/ (- (* bw %bw-U) w-u) 2))
-      (+ (* y %bw-U) (/ (- (* bh %bw-U) h-u) 2))
-      k)))
-
-; The field: the name's bit function, one square per lit cell.  Coordinates
-; are formatted once per column and once per row, not once per cell.
-(def %bw-bitfield
-  (fn (_ p cols rows-n cell-u color opacity)
-    (def rows (%bw-field-of p (Num max cols rows-n)))
-    (def inset (/ (* cell-u 3) 10))
-    (def ws (%bw-fmt (- cell-u (* 2 inset)) 1))
-    (def coords
-      (let go ((i 0) (acc ()))
-        (if (>= i (Num max cols rows-n)) (%reverse acc)
-          (go (+ i 1) (pair (%bw-fmt (+ (* i cell-u) inset) 1) acc)))))
-    (def cells
-      (let rl ((rs rows) (ys coords) (j 0) (acc ()))
-        (if (>= j rows-n) acc
-          (rl (rest rs) (rest ys) (+ j 1)
-              (let cl ((cs (first rs)) (xs coords) (i 0) (acc acc))
-                (if (>= i cols) acc
-                  (cl (rest cs) (rest xs) (+ i 1)
-                      (if (first cs)
-                        (pair (%bw-cat (list "<rect x=\"" (first xs) "\" y=\"" (first ys)
-                                             "\" width=\"" ws "\" height=\"" ws "\"/>"))
-                              acc)
-                        acc))))))))
-    (%bw-cat (list "<g fill=\"" color "\" fill-opacity=\"" opacity "\">" (%bw-cat (%reverse cells)) "</g>"))))
-
-; ---------------------------------------------------------------- formats
-
-(def %bw-svg-open
-  (fn (_ w h title)
-    (%bw-cat (list "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" (%bw-s w) "\" height=\"" (%bw-s h)
-                   "\" viewBox=\"0 0 " (%bw-s w) " " (%bw-s h) "\" role=\"img\" aria-label=\"" (%bw-esc title) "\">"))))
-
-(def %bw-fmt-mark
-  (fn (_ p pal lang uid)
-    (def n (p get 'n))
-    (%bw-cat
-      (list "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\" width=\"512\" height=\"512\" role=\"img\" aria-label=\"Bitwise, "
-            (%bw-esc (p get 'name)) "\">"
-            (%bw-bitfield p n n (/ (* 100 %bw-U) n) (pal get 'accent) "0.22")
-            (%bw-owl-in pal lang uid 6 8 88 84)
-            "</svg>"))))
-
-(def %bw-fmt-avatar
-  (fn (_ p pal lang uid)
-    (%bw-cat
-      (list (%bw-svg-open 512 512 (%bw-cat (list "Bitwise, " (p get 'name))))
-            "<rect width=\"512\" height=\"512\" fill=\"" %bw-paper "\"/>"
-            (%bw-bitfield p 16 16 (* 32 %bw-U) (pal get 'accent) "0.14")
-            (%bw-owl-in pal lang uid 40 56 432 400)
-            "</svg>"))))
-
-(def %bw-words
-  (fn (_ t) (List filter (fn (_ w) (not (str=? w ""))) (Str8 split " " t))))
-(def %bw-chars (fn (_ s) (%length (%bw-glyph-list s))))
-
-; Greedy wrap to width characters, at most four lines, an ellipsis if cut.
-; The current line's length rides along; re-measuring it per word cost
-; a second on a long tagline.
-(def %bw-wrap
-  (fn (_ text width)
-    (def lines
-      (let go ((ws (%bw-words text)) (cur "") (cur-n 0) (acc ()))
-        (if (null? ws) (%reverse (if (= cur-n 0) acc (pair cur acc)))
-          (let ((w (first ws)))
-            (let ((wn (%bw-chars w)))
-              (if (if (= cur-n 0) #f (> (+ cur-n (+ 1 wn)) width))
-                (go (rest ws) w wn (pair cur acc))
-                (go (rest ws) (if (= cur-n 0) w (%bw-cat (list cur " " w))) (if (= cur-n 0) wn (+ cur-n (+ 1 wn))) acc)))))))
-    (if (> (%length lines) 4)
-      (list (List ref 0 lines) (List ref 1 lines) (List ref 2 lines)
-            (%bw-cat (list (%bw-rstrip-chars (%bw-glyph-take (List ref 3 lines) (- width 1)) ",;: ") "\xe2\x80\xa6")))
-      lines)))
-
-; Drop trailing bytes that are in chars.
-(def %bw-rstrip-chars
-  (fn (_ s chars)
-    (let go ((e (Str8 length s)))
-      (if (= e 0) ""
-        (if (Str8 includes? (Str8 sub (- e 1) 1 s) chars) (go (- e 1)) (Str8 sub 0 e s))))))
-
-; The first n characters of s (UTF-8 aware).
-(def %bw-glyph-take
-  (fn (_ s n)
-    (%bw-cat (let go ((gs (%bw-glyph-list s)) (i 0) (acc ()))
-               (if (if (null? gs) #t (>= i n)) (%reverse acc) (go (rest gs) (+ i 1) (pair (first gs) acc)))))))
-
-(def %bw-text
-  (fn (_ x y size fill extra body)
-    (%bw-cat (list "<text x=\"" (%bw-s x) "\" y=\"" (%bw-s y) "\" font-family=\"" %bw-font
-                   "\" font-size=\"" (%bw-s size) "\"" extra " fill=\"" fill "\">" (%bw-esc body) "</text>"))))
-
-(def %bw-fmt-banner
-  (fn (_ p pal lang tagline kind uid)
-    (def x 560)
-    (def name (p get 'name))
-    (def nlen (%bw-chars name))
-    (def fs (if (<= nlen 10) 96 (if (<= nlen 14) 72 56)))
-    (def tag-lines
-      (let go ((ls (%bw-wrap tagline 42)) (y 356) (acc ()))
-        (if (null? ls) (%reverse acc)
-          (go (rest ls) (+ y 36) (pair (%bw-text x y 26 %bw-ink "" (first ls)) acc)))))
-    (def colour
-      (if (lang has? "logo") (lang get "logo")
-        (%bw-cat (list "hue " (%bw-s (/ (p get 'hue10) 10)) "&#176;"))))
-    (%bw-cat
-      (list (%bw-svg-open 1280 640 (%bw-cat (list name ", with Bitwise")))
-            "<rect width=\"1280\" height=\"640\" fill=\"" %bw-paper "\"/>"
-            (%bw-bitfield p 40 20 (* 32 %bw-U) (pal get 'accent) "0.09")
-            (%bw-owl-in pal lang uid 60 90 440 460)
-            (%bw-text x 200 20 (pal get 'deep) " letter-spacing=\"4\"" (Str8 upcase (if (str=? kind "") "an x project" kind)))
-            (%bw-text x 300 fs %bw-ink " font-weight=\"700\"" name)
-            (%bw-cat tag-lines)
-            (if (lang has? "reference")
-              (%bw-text x 524 24 (pal get 'deep) " xml:space=\"preserve\"" (lang get "reference"))
-              "")
-            "<text x=\"" (%bw-s x) "\" y=\"580\" font-family=\"" %bw-font "\" font-size=\"15\" fill=\"" (pal get 'deep)
-            "\">plumage  " (%bw-esc (p get 'formula)) "   " colour "</text>"
-            "</svg>"))))
-
-; ---------------------------------------------------------------- entry
-
-(def %bw-lang-of
-  (fn (_ name)
-    (%bw-load!)
-    (if (%bw-langs has? name) (%bw-langs get name) (Dict make))))
-
-; (bitwise-render name fmt tagline kind uid) -> (svg . params)
-(def bitwise-render
-  (fn (_ name fmt tagline kind uid)
-    (%bw-load!)
-    (def p (%bw-params name))
-    (def lang (%bw-lang-of name))
-    (def pal (%bw-palette p lang))
-    (p set! 'costume (if (lang has? "mascot") (lang get "mascot") (if (lang has? "logo") (lang get "logo") "")))
-    (p set! 'reference (if (lang has? "reference") (lang get "reference") ""))
-    (pair
+    ; v micro-units -> "d.dd" with d decimals (0, 1, 2 or 4), rounded half-up.
+    ; Hand-rolled: the library's pad-left costs milliseconds and this runs
+    ; per glyph and per grid line.
+    (method %fmt (self v d)
+      (def s (fn (_ n) (Io display-to-str n)))
       (match
-        ((str=? fmt "mark") (%bw-fmt-mark p pal lang uid))
-        ((str=? fmt "avatar") (%bw-fmt-avatar p pal lang uid))
-        ((str=? fmt "banner") (%bw-fmt-banner p pal lang tagline kind uid))
-        (#t (Err raise 'value (%bw-cat (list "bitwise: unknown format " fmt)) ())))
-      p)))
+        ((= d 0) (s (/ (+ v 500000) 1000000)))
+        ((= d 1)
+         (let ((q (/ (+ v 50000) 100000)))
+           (%str-concat (list (s (/ q 10)) "." (s (- q (* 10 (/ q 10))))))))
+        ((= d 2)
+         (let ((q (/ (+ v 5000) 10000)))
+           (let ((f (- q (* 100 (/ q 100)))))
+             (%str-concat (list (s (/ q 100)) (if (< f 10) ".0" ".") (s f))))))
+        (#t
+         (let ((q (/ (+ v 50) 100)))
+           (let ((f (- q (* 10000 (/ q 10000)))))
+             (%str-concat (list (s (/ q 10000))
+                                (if (< f 10) ".000" (if (< f 100) ".00" (if (< f 1000) ".0" ".")))
+                                (s f))))))))
 
-(def bitwise-params %bw-params)
+    ; ---------------------------------------------------------------- seeding
 
-; (bitwise-diff a b): #t when the two renderings are the same bytes, else
-; the offset of the first difference with a window of each around it.  The
-; parity specs compare gen.x against the twin's checked-in renderings with
-; this: a native compare, then a binary search over prefixes on a mismatch
-; -- a byte loop over a 60KB picture costs more in pure x than drawing it.
-(def bitwise-diff
-  (fn (_ a b)
-    (if (str=? a b) #t
-      (let ((n (Num min (Str8 length a) (Str8 length b))))
-        (let go ((lo 0) (hi n))
-          (if (>= lo hi)
-            (list 'differ-at lo
-                  (Str8 sub (Num max 0 (- lo 30)) (Num min 70 (- (Str8 length a) (Num max 0 (- lo 30)))) a)
-                  (Str8 sub (Num max 0 (- lo 30)) (Num min 70 (- (Str8 length b) (Num max 0 (- lo 30)))) b))
-            (let ((mid (/ (+ lo hi 1) 2)))
-              (if (str=? (Str8 sub 0 mid a) (Str8 sub 0 mid b)) (go mid hi) (go lo (- mid 1))))))))))
+    (method %digest (self name) (Hex decode-bytes (Sha256 hex name)))
 
-(provide bitwise/gen bitwise-render bitwise-params bitwise-diff
-  %bw-load! %bw-lang-of %bw-palette %bw-costume %bw-glyph-list %bw-chars %bw-glyph-take
-  %bw-rstrip-chars %bw-words %bw-hue-str %bw-s %bw-cat %bw-esc %bw-fmt %bw-digest %bw-field %bw-field-of)
+    ; n x n booleans for parameter set p.  Each op maps a shifted cell
+    ; coordinate pair to an integer; bit k of the result decides whether the
+    ; cell is lit.  a, b are small odd multipliers, s a per-name salt.  Masked
+    ; to 32 bits so the twin agrees.  The op is a local fn: per cell, no
+    ; dispatch.
+    (method %field (self p n)
+      (def op (p get 'op))
+      (def a (p get 'a))
+      (def b (p get 'b))
+      (def s (p get 'salt))
+      (def k (p get 'bit))
+      (def ox (p get 'ox))
+      (def oy (p get 'oy))
+      (def half (/ n 2))
+      (def f
+        (fn (_ x y)
+          (match
+            ((= op 0) (^ (^ (* x a) (* y b)) s))
+            ((= op 1) (^ (& (* x a) (* y b)) s))
+            ((= op 2) (^ (| (* x a) (* y b)) s))
+            ((= op 3) (^ (+ (* (* x x) a) (* (* y y) b)) s))
+            ((= op 4) (^ (^ (+ (* x a) (* y b)) (* x y)) s))
+            (#t (^ (^ (* (* x y) a) (* (+ x y) b)) s)))))
+      (let rows ((j 0) (acc ()))
+        (if (>= j n) (%reverse acc)
+          (rows (+ j 1)
+            (pair
+              (let cells ((i 0) (racc ()))
+                (if (>= i n) (%reverse racc)
+                  (cells (+ i 1)
+                    (pair
+                      (let ((x (if (= op 3) (Num abs (- i half)) (+ i ox)))
+                            (y (if (= op 3) (Num abs (- j half)) (+ j oy))))
+                        (= 1 (& (>> (& (f x y) 4294967295) k) 1)))
+                      racc))))
+              acc)))))
+
+    ; A field is asked for more than once per picture (the gate, the count,
+    ; the ground); remember each grid size on the params.
+    (method %field-of (self p n)
+      (def key (%str-concat (list "field-" (Io display-to-str n))))
+      (if (p has? key) (p get key)
+        (let ((rows (self %field p n)))
+          (p set! key rows)
+          rows)))
+
+    (method %lit (self rows)
+      (let go ((rs rows) (n 0))
+        (if (null? rs) n
+          (go (rest rs)
+              (+ n (let cnt ((cs (first rs)) (m 0))
+                     (if (null? cs) m (cnt (rest cs) (if (first cs) (+ m 1) m)))))))))
+
+    (method %formula (self op a b)
+      (def sa (Io display-to-str a))
+      (def sb (Io display-to-str b))
+      (match
+        ((= op 0) (%str-concat (list "(x*" sa ") ^ (y*" sb ")")))
+        ((= op 1) (%str-concat (list "(x*" sa ") & (y*" sb ")")))
+        ((= op 2) (%str-concat (list "(x*" sa ") | (y*" sb ")")))
+        ((= op 3) (%str-concat (list "x*x*" sa " + y*y*" sb)))
+        ((= op 4) (%str-concat (list "(x*" sa " + y*" sb ") ^ (x*y)")))
+        (#t (%str-concat (list "(x*y*" sa ") ^ (x+y)*" sb)))))
+
+    ; The lit fraction must read as a texture: sparse and dense are both
+    ; fine (they are the variety); only under 18% or over 82% is rejected.
+    (method %gate-ok? (self p)
+      (def n (p get 'n))
+      (def lit (self %lit (self %field-of p n)))
+      (if (>= (* lit 100) (* 18 (* n n))) (<= (* lit 100) (* 82 (* n n))) #f))
+
+    (method params (self (param name STRING "The project's name"))
+      (doc "The traits sha256(name) settles: hue (tenths), operator, sampled bit, multipliers, offset, salt, grid; then the gate walk (bit, then op) until the field reads as a texture."
+        (returns DICT "'name 'hue10 'op 'bit 'a 'b 'ox 'oy 'salt 'n 'lit 'opname 'formula")
+        (example "((Bitwise params \"x-lang\") get 'formula)" "\"(x*11) ^ (y*15) >> 3 & 1\""))
+      (def h (self %digest name))
+      (def b (fn (_ i) (List ref i h)))
+      (def p (Dict make))
+      (p set! 'name name)
+      ; hue to one decimal, as tenths: round((h0*256+h1) * 3600 / 65536), half-up
+      (p set! 'hue10 (/ (+ (* (+ (* (b 0) 256) (b 1)) 7200) 65536) 131072))
+      (p set! 'op (Num modulo (b 2) 6))
+      (p set! 'bit (+ 1 (Num modulo (b 3) 4)))
+      (p set! 'a (+ (* (& (b 4) 7) 2) 1))
+      (p set! 'b (+ (* (& (b 5) 7) 2) 1))
+      (p set! 'ox (& (b 6) 31))
+      (p set! 'oy (& (b 7) 31))
+      (p set! 'salt (b 8))
+      (p set! 'n (List ref (Num modulo (b 9) 4) (Bitwise %grids)))
+      (let walk ((step 0))
+        (if (< step 24)
+          (unless (self %gate-ok? p)
+            (p del! (%str-concat (list "field-" (Io display-to-str (p get 'n)))))
+            (p set! 'bit (+ 1 (Num modulo (p get 'bit) 4)))
+            (when (= (Num modulo step 4) 3)
+              (p set! 'op (Num modulo (+ (p get 'op) 1) 6)))
+            (walk (+ step 1)))))
+      (p set! 'lit (self %lit (self %field-of p (p get 'n))))
+      (p set! 'opname (List ref (p get 'op) (Bitwise %ops)))
+      (p set! 'formula
+        (%str-concat (list (self %formula (p get 'op) (p get 'a) (p get 'b)) " >> " (Io display-to-str (p get 'bit)) " & 1")))
+      p)
+
+    ; ---------------------------------------------------------------- colour
+
+    (method %hue-str (self hue10)
+      (%str-concat (list (Io display-to-str (/ hue10 10)) "." (Io display-to-str (Num modulo hue10 10)))))
+    (method %hsl (self h s l)
+      (%str-concat (list "hsl(" h "," (Io display-to-str s) "%," (Io display-to-str l) "%)")))
+    (method %hsl3 (self t)
+      (self %hsl (Io display-to-str (List ref 0 t)) (List ref 1 t) (List ref 2 t)))
+
+    ; Colours: the hashed hue, unless the costume names its own.
+    (method %palette (self p lang)
+      (def hue (self %hue-str (p get 'hue10)))
+      (def acc (if (lang has? "accent") (lang get "accent") #f))
+      (def accent (if acc (self %hsl3 acc) (self %hsl hue 58 46)))
+      (def pal (Dict make))
+      (pal set! 'accent accent)
+      (pal set! 'deep
+        (if acc (self %hsl (Io display-to-str (List ref 0 acc)) (List ref 1 acc) (/ (* (List ref 2 acc) 65) 100))
+          (self %hsl hue 55 30)))
+      (pal set! 'eyes
+        (if (lang has? "eyes") (List map (fn (_ e) (Bitwise %hsl3 e)) (lang get "eyes")) (list accent accent)))
+      (pal set! 'secondary (if (lang has? "secondary") (self %hsl3 (lang get "secondary")) accent))
+      pal)
+
+    (method %colour (self pal role)
+      (match
+        ((str=? role "e") (List ref 0 (pal get 'eyes)))
+        ((str=? role "f") (List ref 1 (pal get 'eyes)))
+        ((str=? role "a") (pal get 'accent))
+        ((str=? role "b") (pal get 'secondary))
+        (#t (Bitwise %ink))))
+
+    ; ---------------------------------------------------------------- the owl
+
+    ; A row is bytes; the owl's glyphs are characters.  Split on UTF-8 leads.
+    (method %glyph-list (self s)
+      (def len (Str8 length s))
+      (let go ((i 0) (acc ()))
+        (if (>= i len) (%reverse acc)
+          (let ((b (Char ->int (Str8 ref i s))))
+            (let ((w (if (< b 128) 1 (if (< b 224) 2 (if (< b 240) 3 4)))))
+              (go (+ i w) (pair (Str8 sub i w s) acc)))))))
+    (method %chars (self s) (%length (self %glyph-list s)))
+    ; The first n characters of s.
+    (method %glyph-take (self s n)
+      (%str-concat (let go ((gs (self %glyph-list s)) (i 0) (acc ()))
+                     (if (if (null? gs) #t (>= i n)) (%reverse acc) (go (rest gs) (+ i 1) (pair (first gs) acc))))))
+    ; Drop trailing bytes that are in chars.
+    (method %rstrip (self s chars)
+      (let go ((e (Str8 length s)))
+        (if (= e 0) ""
+          (if (Str8 includes? (Str8 sub (- e 1) 1 s) chars) (go (- e 1)) (Str8 sub 0 e s)))))
+    (method %words (self t)
+      (List filter (fn (_ w) (not (str=? w ""))) (Str8 split " " t)))
+
+    ; (rows roles): the glyph rows and, per glyph, who colours it --
+    ; i ink, e/f the two eyes, a accent, b the secondary colour.
+    (method %costume (self lang)
+      (list (List map (fn (_ r) (Bitwise %glyph-list r)) (if (lang has? "rows") (lang get "rows") (Bitwise %sigil)))
+            (List map (fn (_ r) (Bitwise %glyph-list r)) (if (lang has? "roles") (lang get "roles") (Bitwise %sigil-roles)))))
+
+    (method %cols (self rows)
+      (let go ((rs rows) (m 0)) (if (null? rs) m (go (rest rs) (Num max m (%length (first rs)))))))
+
+    ; The owl set from outlines.  (x-u, y-u) is the block's top-left and k
+    ; the micro-units per font unit; glyph paths are declared once each, by
+    ; index.  One dispatch per glyph for the coordinates, none per byte.
+    (method %owl (self pal rows roles uid x-u y-u k)
+      (def d (self %data))
+      (def adv (d get 'adv))
+      (def asc (d get 'asc))
+      (def line (d get 'line))
+      (def gix (d get 'gix))
+      (def gmap (d get 'gmap))
+      (def used ())
+      (def groups (Dict make))
+      (def ks (self %fmt k 4))
+      (let rl ((rs rows) (ro roles) (row 0))
+        (unless (null? rs)
+          (let ((base (+ y-u (* (+ asc (* row line)) k))))
+            (let cl ((cs (first rs)) (os (first ro)) (col 0))
+              (unless (null? cs)
+                (let ((ch (first cs)) (role (first os)))
+                  (unless (str=? ch " ")
+                    (unless (%member-str? ch used) (set! used (pair ch used)))
+                    (groups set! role
+                      (pair (%str-concat (list "<use href=\"#" uid "-" (Io display-to-str (gix get ch))
+                                               "\" transform=\"translate(" (self %fmt (+ x-u (* (* col adv) k)) 2)
+                                               "," (self %fmt base 2) ") scale(" ks ",-" ks ")\"/>"))
+                            (groups get-or (list) role)))))
+                (cl (rest cs) (rest os) (+ col 1)))))
+          (rl (rest rs) (rest ro) (+ row 1))))
+      (def defs
+        (%str-concat (List map (fn (_ c) (%str-concat (list "<path id=\"" uid "-" (Io display-to-str (gix get c)) "\" d=\"" (gmap get c) "\"/>")))
+                       (%reverse used))))
+      (%str-concat
+        (list "<defs>" defs "</defs>"
+          (%str-concat (List map (fn (_ r)
+                                   (if (groups has? r)
+                                     (%str-concat (list "<g fill=\"" (Bitwise %colour pal r) "\">" (%str-concat (%reverse (groups get r))) "</g>"))
+                                     ""))
+                         (list "i" "e" "f" "a" "b"))))))
+
+    ; The owl centred in the box at (x, y) of bw x bh user units.
+    (method %owl-in (self pal lang uid x y bw bh)
+      (def d (self %data))
+      (def U (Bitwise %U))
+      (def upm (d get 'upm))
+      (def cr (self %costume lang))
+      (def rows (first cr))
+      (def roles (first (rest cr)))
+      (def n (%length rows))
+      (def cols (self %cols rows))
+      (def size-u (Num min (/ (* bh (* upm U)) (* n (d get 'line)))
+                           (/ (* bw (* upm U)) (* cols (d get 'adv)))))
+      (def k (/ size-u upm))
+      (def w-u (* (* cols (d get 'adv)) k))
+      (def h-u (* (* n (d get 'line)) k))
+      (self %owl pal rows roles uid
+        (+ (* x U) (/ (- (* bw U) w-u) 2))
+        (+ (* y U) (/ (- (* bh U) h-u) 2))
+        k))
+
+    ; The field: the name's bit function, one square per lit cell.
+    ; Coordinates are formatted once per column and once per row.
+    (method %bitfield (self p cols rows-n cell-u color opacity)
+      (def rows (self %field-of p (Num max cols rows-n)))
+      (def inset (/ (* cell-u 3) 10))
+      (def ws (self %fmt (- cell-u (* 2 inset)) 1))
+      (def coords
+        (let go ((i 0) (acc ()))
+          (if (>= i (Num max cols rows-n)) (%reverse acc)
+            (go (+ i 1) (pair (Bitwise %fmt (+ (* i cell-u) inset) 1) acc)))))
+      (def cells
+        (let rl ((rs rows) (ys coords) (j 0) (acc ()))
+          (if (>= j rows-n) acc
+            (rl (rest rs) (rest ys) (+ j 1)
+                (let cl ((cs (first rs)) (xs coords) (i 0) (acc acc))
+                  (if (>= i cols) acc
+                    (cl (rest cs) (rest xs) (+ i 1)
+                        (if (first cs)
+                          (pair (%str-concat (list "<rect x=\"" (first xs) "\" y=\"" (first ys)
+                                                   "\" width=\"" ws "\" height=\"" ws "\"/>"))
+                                acc)
+                          acc))))))))
+      (%str-concat (list "<g fill=\"" color "\" fill-opacity=\"" opacity "\">" (%str-concat (%reverse cells)) "</g>")))
+
+    ; ---------------------------------------------------------------- formats
+
+    (method %svg-open (self w h title)
+      (%str-concat (list "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" (Io display-to-str w) "\" height=\"" (Io display-to-str h)
+                         "\" viewBox=\"0 0 " (Io display-to-str w) " " (Io display-to-str h) "\" role=\"img\" aria-label=\"" (self %esc title) "\">")))
+
+    (method %mark (self p pal lang uid)
+      (def n (p get 'n))
+      (%str-concat
+        (list "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\" width=\"512\" height=\"512\" role=\"img\" aria-label=\"Bitwise, "
+              (self %esc (p get 'name)) "\">"
+              (self %bitfield p n n (/ (* 100 (Bitwise %U)) n) (pal get 'accent) "0.22")
+              (self %owl-in pal lang uid 6 8 88 84)
+              "</svg>")))
+
+    (method %avatar (self p pal lang uid)
+      (%str-concat
+        (list (self %svg-open 512 512 (%str-concat (list "Bitwise, " (p get 'name))))
+              "<rect width=\"512\" height=\"512\" fill=\"" (Bitwise %paper) "\"/>"
+              (self %bitfield p 16 16 (* 32 (Bitwise %U)) (pal get 'accent) "0.14")
+              (self %owl-in pal lang uid 40 56 432 400)
+              "</svg>")))
+
+    ; Greedy wrap to width characters, at most four lines, an ellipsis if
+    ; cut.  The current line's length rides along.
+    (method %wrap (self text width)
+      (def lines
+        (let go ((ws (self %words text)) (cur "") (cur-n 0) (acc ()))
+          (if (null? ws) (%reverse (if (= cur-n 0) acc (pair cur acc)))
+            (let ((w (first ws)))
+              (let ((wn (Bitwise %chars w)))
+                (if (if (= cur-n 0) #f (> (+ cur-n (+ 1 wn)) width))
+                  (go (rest ws) w wn (pair cur acc))
+                  (go (rest ws) (if (= cur-n 0) w (%str-concat (list cur " " w))) (if (= cur-n 0) wn (+ cur-n (+ 1 wn))) acc)))))))
+      (if (> (%length lines) 4)
+        (list (List ref 0 lines) (List ref 1 lines) (List ref 2 lines)
+              (%str-concat (list (self %rstrip (self %glyph-take (List ref 3 lines) (- width 1)) ",;: ") "\xe2\x80\xa6")))
+        lines))
+
+    (method %text (self x y size fill extra body)
+      (%str-concat (list "<text x=\"" (Io display-to-str x) "\" y=\"" (Io display-to-str y) "\" font-family=\"" (Bitwise %font)
+                         "\" font-size=\"" (Io display-to-str size) "\"" extra " fill=\"" fill "\">" (self %esc body) "</text>")))
+
+    (method %banner (self p pal lang tagline kind uid)
+      (def x 560)
+      (def name (p get 'name))
+      (def nlen (self %chars name))
+      (def fs (if (<= nlen 10) 96 (if (<= nlen 14) 72 56)))
+      (def tag-lines
+        (let go ((ls (self %wrap tagline 42)) (y 356) (acc ()))
+          (if (null? ls) (%reverse acc)
+            (go (rest ls) (+ y 36) (pair (Bitwise %text x y 26 (Bitwise %ink) "" (first ls)) acc)))))
+      (def colour
+        (if (lang has? "logo") (lang get "logo")
+          (%str-concat (list "hue " (Io display-to-str (/ (p get 'hue10) 10)) "&#176;"))))
+      (%str-concat
+        (list (self %svg-open 1280 640 (%str-concat (list name ", with Bitwise")))
+              "<rect width=\"1280\" height=\"640\" fill=\"" (Bitwise %paper) "\"/>"
+              (self %bitfield p 40 20 (* 32 (Bitwise %U)) (pal get 'accent) "0.09")
+              (self %owl-in pal lang uid 60 90 440 460)
+              (self %text x 200 20 (pal get 'deep) " letter-spacing=\"4\"" (Str8 upcase (if (str=? kind "") "an x project" kind)))
+              (self %text x 300 fs (Bitwise %ink) " font-weight=\"700\"" name)
+              (%str-concat tag-lines)
+              (if (lang has? "reference")
+                (self %text x 524 24 (pal get 'deep) " xml:space=\"preserve\"" (lang get "reference"))
+                "")
+              "<text x=\"" (Io display-to-str x) "\" y=\"580\" font-family=\"" (Bitwise %font) "\" font-size=\"15\" fill=\"" (pal get 'deep)
+              "\">plumage  " (self %esc (p get 'formula)) "   " colour "</text>"
+              "</svg>")))
+
+    ; ---------------------------------------------------------------- entry
+
+    (method %lang-of (self name)
+      (def langs ((self %data) get 'langs))
+      (if (langs has? name) (langs get name) (Dict make)))
+
+    (method render (self (param name STRING "The project's name")
+                         (param fmt STRING "mark, avatar or banner")
+                         (param tagline STRING "One sentence for the banner; may be empty")
+                         (param kind STRING "The banner's eyebrow, e.g. \"a language on x-lang\"; empty for the default")
+                         (param uid STRING "Prefix for the SVG ids, so several pictures can share a page"))
+      (doc "Draw the project: (svg . params).  The owl is set from outlines, the field and hue from sha256(name), the costume from langs.json."
+        (returns PAIR "The SVG text, then the params Dict with 'costume and 'reference added")
+        (example "(Str8 sub 0 4 (first (Bitwise render \"x-lang\" \"mark\" \"\" \"\" \"o\")))" "\"<svg\""))
+      (def p (self params name))
+      (def lang (self %lang-of name))
+      (def pal (self %palette p lang))
+      (p set! 'costume (if (lang has? "mascot") (lang get "mascot") (if (lang has? "logo") (lang get "logo") "")))
+      (p set! 'reference (if (lang has? "reference") (lang get "reference") ""))
+      (pair
+        (match
+          ((str=? fmt "mark") (self %mark p pal lang uid))
+          ((str=? fmt "avatar") (self %avatar p pal lang uid))
+          ((str=? fmt "banner") (self %banner p pal lang tagline kind uid))
+          (#t (Err raise 'value (%str-concat (list "bitwise: unknown format " fmt)) ())))
+        p))
+
+    (method diff (self (param a STRING "A rendering") (param b STRING "Another"))
+      (doc "#t when the two renderings are the same bytes, else (differ-at OFFSET WINDOW-A WINDOW-B).  A native compare, then a binary search over prefixes -- a byte loop over a 60KB picture costs more in pure x than drawing it."
+        (returns ANY "#t, or a list naming the first difference")
+        (example "(Bitwise diff \"same\" \"same\")" "#t"))
+      (if (str=? a b) #t
+        (let ((n (Num min (Str8 length a) (Str8 length b))))
+          (let go ((lo 0) (hi n))
+            (if (>= lo hi)
+              (list 'differ-at lo
+                    (Str8 sub (Num max 0 (- lo 30)) (Num min 70 (- (Str8 length a) (Num max 0 (- lo 30)))) a)
+                    (Str8 sub (Num max 0 (- lo 30)) (Num min 70 (- (Str8 length b) (Num max 0 (- lo 30)))) b))
+              (let ((mid (/ (+ lo hi 1) 2)))
+                (if (str=? (Str8 sub 0 mid a) (Str8 sub 0 mid b)) (go mid hi) (go lo (- mid 1)))))))))))
+
+(provide bitwise/gen Bitwise)
