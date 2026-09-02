@@ -152,6 +152,57 @@
       (#t (do (%tower-swap-one! cell) (self (rest cell)))))))
 (%tower-swap-analysers! %sym-analyse-list)
 
+; --- Compile the symbol type's delimiter hook -------------------------------
+;
+; %macro-delimit (lit-reader.x) runs on EVERY character of every symbol-shaped
+; token: the C symbol analyser calls it per char to ask whether ' ` , ends the
+; token (so foo'bar reads as foo then 'bar).  Interpreted, it is the single
+; largest per-character reader cost.  It is the same shape as the numeric
+; analysers, so it JITs through the same lane, and like them it speeds every
+; read AFTER it -- the rest of the tower, xe.x, and (the bulk of the win) all
+; source read once the platform is up: bundles, user files, specs.  A tower
+; boot itself drops ~13% (x-core is read before the compiler exists, so it,
+; like the numeric literals, stays interpreted); the
+; one op it needs that they do not, reading the last consumed character, is the
+; jit_buffer_last_char trampoline (%buffer-last-char below).  The %tower-asm
+; ladder keeps the interpreted %macro-delimit as the fallback, so an engine
+; without the JIT (or the trampoline) is unchanged.  A lone (pair (lit _u) 1)
+; fvar forces analyser mode for a body that has no real free variable.
+(def %type-delimit-cell (prim-ref 'type 'delimit-cell))
+; Compile only when the engine actually exports jit_buffer_last_char.
+; asm-compile resolved it to a non-zero address; an engine that predates it
+; (the released engine CI builds against, until the next engine release) left
+; it 0.  Decide up front rather than attempting the compile and catching the
+; failure: a compile aborted against a missing trampoline is not worth the
+; risk (an x86-64 backend left bad state and the next boot crashed), when the
+; answer -- keep the interpreted %macro-delimit -- is known here.  The guard
+; covers the (import-order) case where the name is not yet bound at all.
+(def %c-macro-delimit
+  (if (guard (_ #t) (= %jit-buffer-last-char 0))
+    %macro-delimit
+  (%tower-asm
+    (lit (fn (_ buffer)
+      ; ' ` , (39 96 44) each end an adjacent token.  %buffer-unread rewinds
+      ; the delimiter char AND returns the buffer, which is the value the C
+      ; delimit protocol tests for a match -- so no %seq is needed (and the
+      ; asm lane does not compile %seq with a call in discard position).
+      (if (or (= (%buffer-last-char buffer) 39)
+              (or (= (%buffer-last-char buffer) 96)
+                  (= (%buffer-last-char buffer) 44)))
+        (%buffer-unread buffer)
+        ())))
+    (list (pair (lit _u) 1))
+    %macro-delimit)))
+(def %sym-delimit-list
+  (first (%type-delimit-cell (%type-by-atom (%type-of "x")))))
+(def %tower-swap-delimit!
+  (fn (self cell)
+    (match
+      ((null? cell) ())
+      ((%tower-same? (first cell) %macro-delimit) (%set-first! cell %c-macro-delimit))
+      (#t (self (rest cell))))))
+(%tower-swap-delimit! %sym-delimit-list)
+
 ; --- Load numeric tower with immediate analyser compilation ---
 
 ; 1. Bigint + int-capped

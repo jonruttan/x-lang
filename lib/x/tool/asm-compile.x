@@ -68,6 +68,19 @@
 (def %jit-score-set (%jit-addr "jit_score_set"))
 (def %jit-buffer-unread (%jit-addr "jit_buffer_unread"))
 (def %jit-buffer-len (%jit-addr "jit_buffer_len"))
+; jit_buffer_last_char postdates the core trampolines, so an older JIT engine
+; has the JIT but not this one symbol.  Resolve it WITHOUT %jit-sym's
+; missing-symbol tracking: a miss recorded here would trip compile-asm's "JIT
+; runtime unavailable" refusal (below) for EVERY compile, dropping even the
+; numeric analysers to interpreted on an engine that is otherwise fully
+; JIT-capable.  A 0 instead means only a compile that actually needs it raises
+; -- at %emit-call! -- and falls back, which is what the delimiter's %tower-asm
+; ladder wants.
+(def %jit-addr-optional
+  (fn (_ name)
+    (def p (%dlsym %jit-lib name))
+    (if (null? p) 0 (%ptr->int p))))
+(def %jit-buffer-last-char (%jit-addr-optional "jit_buffer_last_char"))
 
 ; Stack push/pop ride the per-arch asm-push!/asm-pop! FUNCTIONS: each
 ; backend owns its 16-byte discipline (arm64 pre/post-indexed str/ldr;
@@ -479,21 +492,16 @@
       (asm-load-imm64! asm x1 sign-val))  ; x1 = sign
     (%emit-call! asm %jit-score-set)))
 
-; Compile (%buffer-unread buffer): jit_buffer_unread(buffer)
-(def %asm-compile-buffer-unread
-  (fn (_ asm args params)
+; Compile a unary buffer call -- (%buffer-unread b), (%buffer-len b),
+; (%buffer-last-char b): eval the single buffer argument into x0, then call
+; the given jit_buffer_* trampoline.  One shape, three (and counting)
+; call sites that differ only in which trampoline they end on.
+(def %asm-compile-buffer-op
+  (fn (_ asm args params jit-fn)
     (if (symbol? (first args))
       (%asm-compile-param asm (first args) params #f)
       (%asm-compile-expr asm (first args) params))
-    (%emit-call! asm %jit-buffer-unread)))
-
-; Compile (%buffer-len buffer): jit_buffer_len(buffer) -> raw int
-(def %asm-compile-buffer-len
-  (fn (_ asm args params)
-    (if (symbol? (first args))
-      (%asm-compile-param asm (first args) params #f)
-      (%asm-compile-expr asm (first args) params))
-    (%emit-call! asm %jit-buffer-len)))
+    (%emit-call! asm jit-fn)))
 
 ; Compile standalone comparison: (= a b) -> 1 or 0
 (def %asm-compile-cmp
@@ -588,9 +596,11 @@
                         (if (eq? op '%score-set)
                           (%asm-compile-score-set asm args params)
                           (if (eq? op '%buffer-unread)
-                            (%asm-compile-buffer-unread asm args params)
+                            (%asm-compile-buffer-op asm args params %jit-buffer-unread)
+                            (if (eq? op '%buffer-last-char)
+                              (%asm-compile-buffer-op asm args params %jit-buffer-last-char)
                             (if (eq? op '%buffer-len)
-                              (%asm-compile-buffer-len asm args params)
+                              (%asm-compile-buffer-op asm args params %jit-buffer-len)
                               (if (eq? op '=)
                                 (%asm-compile-cmp asm 'b/eq args params)
                                 (if (eq? op '<)
@@ -601,7 +611,7 @@
                                       (%asm-compile-cmp asm 'b/le args params)
                                       (if (eq? op '>=)
                                         (%asm-compile-cmp asm 'b/ge args params)
-                                        (%asm-compile-funcall asm op args params))))))))))))))))))))))))))))))))
+                                        (%asm-compile-funcall asm op args params)))))))))))))))))))))))))))))))))
 
 ; Binary operation: push left, eval right, pop left, combine
 (set! %asm-compile-binop
