@@ -70,11 +70,13 @@
 ; sort/tr/cut/join/comm and friends, plus sha256sum as FIPS 180-4 in
 ; pure x, byte-identical with the system tool.
 (lang "coreutils" "x-coreutils" 24 0)
-; cc is the arc's final tier, slice one: the full C front end and a
-; cell-machine evaluator -- `x -l cc -- run prog.c` executes C, every
-; spec an oracle row against /usr/bin/cc's own output.  The compile-asm
-; backend is the reserved next slice.
-(lang "cc"    "x-cc"     27  0)
+; cc is the arc's final tier: the full C front end, a cell-machine
+; evaluator (`run` -- every spec an oracle row against /usr/bin/cc),
+; and now `build` -- the eligible integer functions lower through the
+; engine's compile-asm lane to NATIVE code, no external toolchain
+; (fib(24): 67s interpreted, 10.5s wall built, the function itself at
+; machine speed).  Twin agreement is the spec.
+(lang "cc"    "x-cc"     33  0)
 ; logo arrived GREEN, which is what an extraction should look like: 83/0 here
 ; is the same 83 tests that ran as lib/logo.spec.md in this tree, against the
 ; same turtle kernel, through the bundle's own harness instead of tests/x/lib.
