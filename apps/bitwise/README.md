@@ -88,8 +88,8 @@ Every costumed owl wears the `v` beak (the auk keeps its `>` bill) and
 carries its logo on its belly:
 `( C )` for the C projects, `( λ )` for the Schemes, `({+})` for
 sweet-expressions, `(/./)` for grep, `(vau)` for Kernel, `( py)` for Python,
-`( ▲ )` for Logo, `(awk)`, `(sed)`, `(all)`, `( | )`, `( $ )`, `(int)`,
-`( x )`. The Rust engine is Ferris: `{OvO}` over `V   V`.
+`( ▲ )` for Logo, `(awk)`, `(sed)`, `(all)`, `( | )`, `( $ )`, `(int)`.
+x-lang itself keeps a plain belly. The Rust engine is Ferris: `{OvO}` over `V   V`.
 
 ## Changing the design
 
