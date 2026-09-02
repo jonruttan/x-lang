@@ -1,0 +1,4 @@
+(lang "sweet")
+(release "v0.1.5")
+(bundle "sha256:7917d45822793ca1db0171317d3c0d5f79bc3488b779f89364eb4cc655a44f47" "https://github.com/jonruttan/x-sweet/releases/download/v0.1.5/x-sweet-v0.1.5.tar.gz")
+(source "https://github.com/jonruttan/x-sweet.git")
