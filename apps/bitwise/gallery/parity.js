@@ -1,4 +1,4 @@
-// node parity.js [--write] -- the browser twin's renderings for eight names in
+// node parity.js [--write] -- the browser twin's renderings for ten names in
 // every format.  --write puts them under tests/x/fixtures/bitwise/expected/,
 // where tests/x/specs/apps/bitwise-parity-*.spec.md compares gen.x's bytes
 // against them; without it, prints "NAME FMT LENGTH:FNV1A32".  A design change
@@ -6,7 +6,7 @@
 const fs = require("fs"), path = require("path");
 const B = require("./bitwise.js");
 const TAG = "A tagline with enough words in it to wrap past four lines of the banner column, so the fourth line ends with an ellipsis rather than running off the edge of the picture";
-const NAMES = ["x-lang", "x-engine-rust", "x-python", "x-logo", "x-awk", "x-r5rs", "x-sweet", "hello, world"];
+const NAMES = ["x-lang", "x-engine-rust", "x-python", "x-logo", "x-krn", "x-awk", "x-r5rs", "x-sweet", "x-cc", "hello, world"];
 const slug = (s) => s.replace(/[^A-Za-z0-9]+/g, "-");
 const write = process.argv.includes("--write");
 const dir = path.resolve(__dirname, "../../../tests/x/fixtures/bitwise/expected");
