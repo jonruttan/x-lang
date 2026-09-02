@@ -79,11 +79,14 @@
 ; substitute away; if/else merges as a ternary; return/break/continue
 ; are guarded exits, pre-loop guards wrap when loop-invariant; inits
 ; over the params pad as lane functions applied at the call boundary;
-; nested loops two deep run as a state machine over the one self-call),
-; so gcd, isprime, a countdown-from-n and a triangular pair count all
-; compile: a 2M-iteration loop, 79s interpreted vs 9.5s built.  Twin
-; agreement is the spec.
-(lang "cc"    "x-cc"     67  0)
+; nested loops two deep run as a state machine over the one self-call;
+; and POINTERS -- the program's memory is one raw buffer the interpreter
+; and the native twins address alike, so arrays cross the boundary and
+; a NATIVE BUBBLE SORT sorts main's array), so gcd, isprime, a
+; countdown-from-n, a triangular pair count and the sort all compile:
+; a 2M-iteration loop, 79s interpreted vs 9.5s built.  Twin agreement
+; is the spec.
+(lang "cc"    "x-cc"     74  0)
 ; logo arrived GREEN, which is what an extraction should look like: 83/0 here
 ; is the same 83 tests that ran as lib/logo.spec.md in this tree, against the
 ; same turtle kernel, through the bundle's own harness instead of tests/x/lib.
