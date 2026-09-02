@@ -65,11 +65,11 @@
 ; rules and automatics x-lang's own Makefiles use; it dry-runs x-awk's
 ; real Makefile.
 (lang "make"  "x-make"   23  0)
-; coreutils is the arc's second tier: sixteen applets in one bundle
-; (busybox shape), chosen by the closure's remaining measurements --
-; sort/tr/cut/join/comm and friends, plus sha256sum as FIPS 180-4 in
-; pure x, byte-identical with the system tool.
-(lang "coreutils" "x-coreutils" 24 0)
+; coreutils is the arc's second tier: FORTY-FOUR applets in one bundle
+; (busybox shape) -- the measured core (sort/tr/cut/join/comm, sha256sum
+; as FIPS 180-4 in pure x) plus the scripting set (echo printf seq test
+; [ diff cmp ls mv touch install mktemp which xargs env date ...).
+(lang "coreutils" "x-coreutils" 48 0)
 ; cc is the arc's final tier: the full C front end, a cell-machine
 ; evaluator (`run` -- every spec an oracle row against /usr/bin/cc),
 ; and now `build` -- the eligible integer functions lower through the
