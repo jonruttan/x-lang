@@ -15,6 +15,7 @@
 (def %ptr-call (prim-ref 'ptr 'call))
 (def %ptr->int (prim-ref 'ptr '->int))
 (def %ptr-set! (prim-ref 'ptr 'set!))
+(def %ptr-ref  (prim-ref 'ptr 'ref))
 (def %dlopen (prim-ref 'ffi 'dlopen))
 (def %dlsym (prim-ref 'ffi 'dlsym))
 
@@ -209,13 +210,14 @@
     (def cap (if (null? rest) 4096 (first rest)))
     (def ptr (%asm-mmap cap))
     (if (null? ptr) (Err raise 'io "asm-new: mmap failed" ()))
-    (def a (%make-obj %asm-type 6))
+    (def a (%make-obj %asm-type 7))
     (%obj-set! a 0 ptr)      ; buf-ptr (from ptr-call, PTR type)
     (%obj-set! a 1 0)        ; buf-pos
     (%obj-set! a 2 cap)      ; buf-cap
     (%obj-set! a 3 ())       ; labels
     (%obj-set! a 4 ())       ; patches
     (%obj-set! a 5 %arch)    ; (table . encoder)
+    (%obj-set! a 6 ())       ; relocs: (offset kind name), newest first
     a))
 
 (def asm-emit!
@@ -243,6 +245,44 @@
 
 (def asm-pos
   (fn (_ asm) (%obj-ref asm 1)))
+
+; --- Relocations: the per-process addresses baked into the code ----------
+;
+; A 64-bit immediate is how this assembler names anything outside the code
+; it is emitting: a jit_* trampoline resolved by dlsym, an fvar's object
+; pointer, the self-call trampoline cell.  Every one of those is an address
+; valid only in the process that compiled -- which is exactly what stops the
+; emitted bytes from being reusable.  Recording each site as
+; (offset kind name) is what makes them reusable: a loader can pour the same
+; bytes into a fresh buffer and re-encode each immediate for the process it
+; is loading into.  Nothing here changes what is emitted; it only writes down
+; where the addresses went.
+;
+; KIND is `trampoline` (NAME is the dlsym symbol), `fvar` (NAME is the free
+; variable's symbol) or `self-cell` (NAME is nil -- there is one per compile).
+(def asm-reloc!
+  (fn (_ asm offset kind name)
+    (%obj-set! asm 6 (pair (list offset kind name) (%obj-ref asm 6)))))
+
+; Oldest-first, which is the order a loader wants to walk them.
+(def asm-relocs
+  (fn (_ asm)
+    ((fn (self xs acc) (if (null? xs) acc (self (rest xs) (pair (first xs) acc))))
+      (%obj-ref asm 6) ())))
+
+; Re-encode the 64-bit immediate at OFFSET to VAL, in place.  The encoding is
+; the backend's business (ARM64 spreads it across MOVZ+3xMOVK, x86-64 stores
+; it flat after the opcode), so this dispatches to the arch's relocator --
+; slot 3 of %arch, beside the label patcher in slot 2.  MUST run while the
+; buffer is still writable: asm-finalize! mprotects it R+X, and a write after
+; that is a segfault, not an error.
+(def asm-reloc-apply!
+  (fn (_ asm offset val)
+    (def arch (%obj-ref asm 5))
+    (def f (when (> (%length arch) 3) (List ref 3 arch)))
+    (if (null? f)
+      (Err raise 'state "asm: this backend cannot relocate a 64-bit immediate" ())
+      (f (%obj-ref asm 0) offset val))))
 
 (def asm-finalize!
   (fn (_ asm)

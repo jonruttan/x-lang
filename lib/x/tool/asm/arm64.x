@@ -371,4 +371,17 @@
         (%ptr-set! buf-ptr offset (- target (+ offset width)) width)))))
 
 ; --- Export architecture: (table . encoder . resolver) ---
-(set! %arch (list %arm64-table %arm64-dispatch %arm64-patch))
+; --- Relocate a 64-bit immediate in place (MOVZ + 3x MOVK) ---
+; The value is spread 16 bits to a word, so all four words are rewritten.
+; The destination register is READ BACK from the existing MOVZ (its low five
+; bits) rather than passed in: the site already encodes which register it
+; loads, and re-deriving it keeps a relocation record down to an offset.
+(def %arm64-reloc
+  (fn (_ buf-ptr offset val)
+    (def rd (& (%ptr-ref buf-ptr offset 4) 31))
+    (%ptr-set! buf-ptr offset        (| 3531603968 (| (<< (& val 65535) 5) rd)) 4)
+    (%ptr-set! buf-ptr (+ offset 4)  (| 4070572032 (| (<< (& (>> val 16) 65535) 5) rd)) 4)
+    (%ptr-set! buf-ptr (+ offset 8)  (| 4072669184 (| (<< (& (>> val 32) 65535) 5) rd)) 4)
+    (%ptr-set! buf-ptr (+ offset 12) (| 4074766336 (| (<< (& (>> val 48) 65535) 5) rd)) 4)))
+
+(set! %arch (list %arm64-table %arm64-dispatch %arm64-patch %arm64-reloc))

@@ -82,6 +82,32 @@
     (if (null? p) 0 (%ptr->int p))))
 (def %jit-buffer-last-char (%jit-addr-optional "jit_buffer_last_char"))
 
+; The name each trampoline address came from.  A relocation record has to
+; name the SYMBOL, not the address: the address is the very thing that is
+; wrong in another process.  Built by reversing the lookups above rather
+; than by threading a name through every %emit-call! call site -- the table
+; is nine entries and consulted once per emitted call.  An unresolved
+; optional trampoline is 0 and is left out, so 0 never matches a name.
+(def %jit-symbol-names
+  (list (pair %jit-mkint "jit_mkint")
+        (pair %jit-mkpair "jit_mkpair")
+        (pair %jit-firstobj "jit_firstobj")
+        (pair %jit-restobj "jit_restobj")
+        (pair %jit-atomint "jit_atomint")
+        (pair %jit-eval-arg "jit_eval_arg")
+        (pair %jit-score-set "jit_score_set")
+        (pair %jit-buffer-unread "jit_buffer_unread")
+        (pair %jit-buffer-len "jit_buffer_len")
+        (pair %jit-buffer-last-char "jit_buffer_last_char")))
+(def %jit-name-of
+  (fn (self addr)
+    ((fn (walk xs)
+       (if (null? xs) ()
+         (if (if (= addr 0) #f (= (first (first xs)) addr))
+           (rest (first xs))
+           (walk (rest xs)))))
+      %jit-symbol-names)))
+
 ; Stack push/pop ride the per-arch asm-push!/asm-pop! FUNCTIONS: each
 ; backend owns its 16-byte discipline (arm64 pre/post-indexed str/ldr;
 ; x86-64 keeps rsp 16-aligned for SysV calls at any push depth), and the
@@ -93,6 +119,9 @@
 
 (def %emit-call!
   (fn (_ asm addr)
+    ; The immediate about to be emitted is a dlsym address -- per-process, so
+    ; a relocation site.  Record where it lands before emitting it.
+    (asm-reloc! asm (asm-pos asm) (lit trampoline) (%jit-name-of addr))
     (asm-load-imm64! asm x8 addr)
     (asm-emit! asm 'blr x8)))
 
@@ -143,6 +172,13 @@
 ; buffer reads its first word as an integer, and the trampolines then
 ; dereference that.  These two names are the object-kinded ones.
 (def %asm-object-params ())
+; The relocation records and code size of the MOST RECENT compile.  The
+; assembler object does not outlive compile-asm -- it returns a callable, not
+; the builder -- so the facts a byte cache needs about the emitted code are
+; published here as they are produced.  Read them immediately after a compile
+; or not at all.
+(def %asm-last-relocs ())
+(def %asm-last-size 0)
 (def %asm-memq
   (fn (self x xs)
     (if (null? xs) #f (if (eq? x (first xs)) #t (self x (rest xs))))))
@@ -230,7 +266,11 @@
       (let ((val (rest fv-entry)))
         (if (null? val)
           (asm-emit! asm 'mov x0 (imm 0))
-          (asm-load-imm64! asm x0 (%ptr->int (%obj->ptr val)))))
+          (do
+            ; An fvar is baked as its object's ADDRESS: per-process, and the
+            ; name is what identifies it again elsewhere.
+            (asm-reloc! asm (asm-pos asm) (lit fvar) name)
+            (asm-load-imm64! asm x0 (%ptr->int (%obj->ptr val))))))
       ; Not a fvar: load from params
       (let ((idx (%find params 0)))
         (asm-emit! asm 'mov x0 x20)
@@ -761,6 +801,9 @@
     ; Call self: x0=p_base, x1=p_args
     (asm-emit! asm 'mov x1 x0)           ; p_args
     (asm-emit! asm 'mov x0 x19)          ; p_base
+    ; The self-call trampoline cell is malloc'd per compile -- one per
+    ; compiled function, so the record carries no name.
+    (asm-reloc! asm (asm-pos asm) (lit self-cell) ())
     (asm-load-imm64! asm x8 (%ptr->int %asm-self-cell))
     ; (mem BASE off) takes the base as a raw register NUMBER, not a
     ; (reg n) operand -- passing x8 handed the encoder a list to shift,
@@ -840,6 +883,8 @@
     ; Epilogue
     (asm-epilogue! asm)
 
+    (set! %asm-last-relocs (asm-relocs asm))
+    (set! %asm-last-size (asm-pos asm))
     (def raw-fn (asm-finalize! asm))
 
     ; Patch trampoline with actual address
