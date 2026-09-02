@@ -8,7 +8,7 @@ instance OR static method). A miss errors at definition, not at call time.
 
 ### an interface-declaring class is abstract and defines fine
 
-```scheme
+```x
 (do (def-class Drawable () (interface draw)) (class? Drawable))
 ```
 ---
@@ -16,7 +16,7 @@ instance OR static method). A miss errors at definition, not at call time.
 
 ### a subclass that implements the interface (instance method) defines fine
 
-```scheme
+```x
 (do
   (def-class Drawable () (interface draw))
   (def-class Square (extends Drawable) (method draw (self) "[]"))
@@ -27,7 +27,7 @@ instance OR static method). A miss errors at definition, not at call time.
 
 ### a subclass that implements it as a static method also passes
 
-```scheme
+```x
 (do
   (def-class Codec () (interface encode))
   (def-class Hex (extends Codec) (static (method encode (self x) x)))
@@ -38,7 +38,7 @@ instance OR static method). A miss errors at definition, not at call time.
 
 ### a concrete subclass missing an interface method is rejected at def-class
 
-```scheme
+```x
 (guard (e "rejected")
   (do
     (def-class Shape () (interface area))

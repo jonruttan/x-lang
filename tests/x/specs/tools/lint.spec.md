@@ -5,7 +5,7 @@
 
 ### detects undefined symbol reference
 
-```scheme
+```x
 (do
   (def %result (lint-forms (list (list '+ 'x 1)) () ()))
   (def %undef (lint-undefined (first %result) (first (rest %result))))
@@ -16,7 +16,7 @@
 
 ### defined symbol is not flagged undefined
 
-```scheme
+```x
 (do
   (def %forms (list (list 'def 'x 1) 'x))
   (def %result (lint-forms %forms () ()))
@@ -28,7 +28,7 @@
 
 ### detects unused definition
 
-```scheme
+```x
 (do
   (def %forms (list (list 'def 'x 1)))
   (def %result (lint-forms %forms () ()))
@@ -40,7 +40,7 @@
 
 ### %-prefixed names are not flagged unused
 
-```scheme
+```x
 (do
   (def %forms (list (list 'def '%internal 1)))
   (def %result (lint-forms %forms () ()))
@@ -54,7 +54,7 @@
 
 ### flags first applied to a quoted non-list
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list (list 'first (list 'lit 'sym))) () ()))
   (display (null? (lint-first-rest %r))))
@@ -64,7 +64,7 @@
 
 ### does not flag first applied to a variable
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list (list 'first 'xs)) () ()))
   (display (null? (lint-first-rest %r))))
@@ -74,7 +74,7 @@
 
 ### does not flag rest applied to a quoted list
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list (list 'rest (list 'lit (list 1 2)))) () ()))
   (display (null? (lint-first-rest %r))))
@@ -86,7 +86,7 @@
 
 ### flags a def inside a tail-position do
 
-```scheme
+```x
 (do
   (def %f (list 'fn (list '_ 'x)
             (list 'do (list 'def 'y 1) 'x)))
@@ -98,7 +98,7 @@
 
 ### does not flag a non-tail def (it binds locally)
 
-```scheme
+```x
 (do
   (def %f (list 'fn (list '_ 'x)
             (list 'def 'y 1) 'x))
@@ -110,7 +110,7 @@
 
 ### flags a def inside a tail if-branch
 
-```scheme
+```x
 (do
   (def %f (list 'fn (list '_ 'x)
             (list 'if 'c
@@ -125,7 +125,7 @@
 
 ### flags a call with the wrong number of arguments
 
-```scheme
+```x
 (do
   (def %fs (list
     (list 'def 'f (list 'fn (list '_ 'x 'y) 'x))
@@ -138,7 +138,7 @@
 
 ### does not flag a correct-arity call
 
-```scheme
+```x
 (do
   (def %fs (list
     (list 'def 'f (list 'fn (list '_ 'x) 'x))
@@ -151,7 +151,7 @@
 
 ### flags calling a non-callable '... head
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list (list (list 'lit 'g) 1)) () ()))
   (display (null? (lint-warnings-of "call-nonfn" %r))))
@@ -161,7 +161,7 @@
 
 ### flags a duplicate top-level def
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list (list 'def 'a 1) (list 'def 'a 2)) () ()))
   (display (lint-has? "a" (lint-warnings-of "dup-def" %r))))
@@ -173,7 +173,7 @@
 
 ### flags a lexical shadow (inner binding hides an outer local)
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(def f (fn (_ x) (fn (_ x) x)))) () ()))
   (display (lint-has? "x" (lint-warnings-of "shadow" %r))))
@@ -183,7 +183,7 @@
 
 ### flags a let-binding that shadows a param
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(def f (fn (_ x) (let ((x 1)) x)))) () ()))
   (display (lint-has? "x" (lint-warnings-of "shadow" %r))))
@@ -193,7 +193,7 @@
 
 ### does not flag shadowing a global (de-noised)
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(def f (fn (_ list) list))) () ()))
   (display (null? (lint-warnings-of "shadow" %r))))
@@ -203,7 +203,7 @@
 
 ### does not flag the rebind idiom (init mentions the shadowed name)
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(def f (fn (_ lst) (let ((lst (rest lst))) lst)))) () ()))
   (display (null? (lint-warnings-of "shadow" %r))))
@@ -213,7 +213,7 @@
 
 ### does not flag self/_ shadows (conventional self slots)
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(def f (fn (self x) (fn (self y) (self y))))) () ()))
   (display (null? (lint-warnings-of "shadow" %r))))
@@ -223,7 +223,7 @@
 
 ### flags a malformed if (missing branches)
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list (list 'if 'c)) () ()))
   (display (null? (lint-warnings-of "malformed" %r))))
@@ -233,7 +233,7 @@
 
 ### does not flag a well-formed if
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list (list 'if 'c 1 2)) () ()))
   (display (null? (lint-warnings-of "malformed" %r))))
@@ -250,7 +250,7 @@ render whole; the writer is hijacked by the walk for lists and symbols).
 
 ### flags a match clause with more than one body expression
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list (list 'match (list #t 1 2))) () ()))
   (display (lint-has? "#t" (lint-warnings-of "match-multi" %r))))
@@ -260,7 +260,7 @@ render whole; the writer is hijacked by the walk for lists and symbols).
 
 ### the warning names a compound test by its head
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list (list 'match (list (list 'null? 'v) 1 2))) () ()))
   (display (lint-has? "null?" (lint-warnings-of "match-multi" %r))))
@@ -270,7 +270,7 @@ render whole; the writer is hijacked by the walk for lists and symbols).
 
 ### a do-wrapped clause body is clean
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list (list 'match (list #t (list 'do 1 2)))) () ()))
   (display (null? (lint-warnings-of "match-multi" %r))))
@@ -280,7 +280,7 @@ render whole; the writer is hijacked by the walk for lists and symbols).
 
 ### a single-expression clause body is clean
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list (list 'match (list #t 1))) () ()))
   (display (null? (lint-warnings-of "match-multi" %r))))
@@ -298,7 +298,7 @@ locals and unbound heads keep plain call analysis.
 
 ### a selector after a non-callable subject is not a use
 
-```scheme
+```x
 (do
   (def %zsubject (pair 1 2))
   (def %r (lint-forms (list '(def f (fn (_ s) (%zsubject frobnicate s)))) () ()))
@@ -309,7 +309,7 @@ locals and unbound heads keep plain call analysis.
 
 ### an argument after a callable head is still a use
 
-```scheme
+```x
 (do
   (def %zfn (fn (_ a b) a))
   (def %r (lint-forms (list '(def g (fn (_ s) (%zfn frobwiggle s)))) () ()))
@@ -320,7 +320,7 @@ locals and unbound heads keep plain call analysis.
 
 ### method-ref's selector is not a use
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(def h (fn (_ l) (method-ref %zsubject frobnicate)))) () ()))
   (display (not (lint-has? "frobnicate" (first (rest %r))))))
@@ -330,7 +330,7 @@ locals and unbound heads keep plain call analysis.
 
 ### a nil env-param op lints (the slot is legal; it once crashed the walk)
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(def z (op () () (z)))) () ()))
   (display (null? (lint-undefined (first %r) (first (rest %r))))))
@@ -340,7 +340,7 @@ locals and unbound heads keep plain call analysis.
 
 ### the embedder contract name is known unbound-by-design
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(def q (fn (_) (guard (_ "x") %install-root)))) () ()))
   (display (null? (lint-undefined (first %r) (first (rest %r))))))
@@ -352,7 +352,7 @@ locals and unbound heads keep plain call analysis.
 
 ### does not flag a 0-arg fn (empty params) called with no args
 
-```scheme
+```x
 (do
   (def %fs (list
     (list 'def 'f (list 'fn () 1))
@@ -365,7 +365,7 @@ locals and unbound heads keep plain call analysis.
 
 ### does not flag a data list with a literal head (operative argument)
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list (list 'foo (list "0" 0))) () ()))
   (display (null? (lint-warnings-of "call-nonfn" %r))))
@@ -377,7 +377,7 @@ locals and unbound heads keep plain call analysis.
 
 ### flags a trailing unused parameter
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(def f (fn (_ x y) x))) () ()))
   (display (lint-has? "y" (lint-warnings-of "unused" %r))))
@@ -387,7 +387,7 @@ locals and unbound heads keep plain call analysis.
 
 ### does not flag a positional (non-trailing) unused parameter
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(def f (fn (_ x y) y))) () ()))
   (display (null? (lint-warnings-of "unused" %r))))
@@ -397,7 +397,7 @@ locals and unbound heads keep plain call analysis.
 
 ### does not flag an unused rest parameter
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(def f (fn (_ x . more) x))) () ()))
   (display (null? (lint-warnings-of "unused" %r))))
@@ -407,7 +407,7 @@ locals and unbound heads keep plain call analysis.
 
 ### does not flag _ (the ignore slot)
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(def f (fn (_ x) x))) () ()))
   (display (null? (lint-warnings-of "unused" %r))))
@@ -417,7 +417,7 @@ locals and unbound heads keep plain call analysis.
 
 ### flags an unused let-binding
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(let ((b 1) (c 2)) b)) () ()))
   (display (lint-has? "c" (lint-warnings-of "unused" %r))))
@@ -427,7 +427,7 @@ locals and unbound heads keep plain call analysis.
 
 ### does not flag a used let-binding
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(let ((b 1) (c 2)) (foo b c))) () ()))
   (display (null? (lint-warnings-of "unused" %r))))
@@ -439,7 +439,7 @@ locals and unbound heads keep plain call analysis.
 
 ### flags an unused guard error var
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(guard (e 1) (foo))) () ()))
   (display (lint-has? "e" (lint-warnings-of "unused" %r))))
@@ -449,7 +449,7 @@ locals and unbound heads keep plain call analysis.
 
 ### does not flag an error var used in a later handler form
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(guard (e (bar) (baz e)) (foo))) () ()))
   (display (null? (lint-warnings-of "unused" %r))))
@@ -461,7 +461,7 @@ locals and unbound heads keep plain call analysis.
 
 ### adjacent output calls in a sequence warn (advisory)
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(def f (fn (_ x) (do (display "a") (display x) ())))) () ()))
   (display (lint-has? "display" (lint-warnings-of "display-chain" %r))))
@@ -471,7 +471,7 @@ locals and unbound heads keep plain call analysis.
 
 ### a lone display does not warn
 
-```scheme
+```x
 (do
   (def %r (lint-forms (list '(def g (fn (_ x) (do (display x) ())))) () ()))
   (display (null? (lint-warnings-of "display-chain" %r))))

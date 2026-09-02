@@ -9,7 +9,7 @@ reader parses back to the same value.
 
 ### reads forms in file order
 
-```scheme
+```x
 (do
   (import x/codec/xon)
   (def %f (Xon parse "(file \"a.x\" \"sha256:aa\")\n(seed \"n\" \"r\")"))
@@ -22,7 +22,7 @@ reader parses back to the same value.
 
 ### the final token needs no terminator (the #161 door)
 
-```scheme
+```x
 (do
   (import x/codec/xon)
   (display (%length (Xon parse "(a) (b)"))))
@@ -34,7 +34,7 @@ reader parses back to the same value.
 
 ### one form per line, strings quoted
 
-```scheme
+```x
 (do
   (import x/codec/xon)
   (display (Xon emit (list (list 'file "a.x" "sha256:aa")
@@ -48,7 +48,7 @@ reader parses back to the same value.
 
 ### a quote in a string argument round-trips
 
-```scheme
+```x
 (do
   (import x/codec/xon)
   (def %odd "a\"b")
@@ -62,7 +62,7 @@ reader parses back to the same value.
 
 ### a backslash in a string argument round-trips
 
-```scheme
+```x
 (do
   (import x/codec/xon)
   (def %odd "a\\b")
@@ -76,7 +76,7 @@ reader parses back to the same value.
 
 ### a newline in a string argument stays on one line
 
-```scheme
+```x
 (do
   (import x/codec/xon)
   (def %odd "a\nb")
@@ -92,7 +92,7 @@ reader parses back to the same value.
 
 ### emit rejects a non-symbol head
 
-```scheme
+```x
 (do
   (import x/codec/xon)
   (Xon emit (list (list "nothead" "a"))))
@@ -104,7 +104,7 @@ reader parses back to the same value.
 
 ### dispatches by head, collects non-nil results in order
 
-```scheme
+```x
 (do
   (import x/codec/xon)
   (display (Xon walk
@@ -118,7 +118,7 @@ reader parses back to the same value.
 
 ### the unknown handler sees unlisted heads and non-list forms
 
-```scheme
+```x
 (do
   (import x/codec/xon)
   (def %seen ())
@@ -140,7 +140,7 @@ tool that re-emits source (fmt) or inspects it (doc) needs.
 
 ### unarmed, the literal shatters into pieces
 
-```scheme
+```x
 (do (import x/codec/xon)
     (%length (first (Xon parse "(f $\"a {x} b\" 1)" (Base make)))))
 ```
@@ -149,7 +149,7 @@ tool that re-emits source (fmt) or inspects it (doc) needs.
 
 ### armed, it is one token carrying its own text
 
-```scheme
+```x
 (do (import x/codec/xon)
     (def b (Base make))
     (Xon arm-source! b)
@@ -161,7 +161,7 @@ tool that re-emits source (fmt) or inspects it (doc) needs.
 
 ### an ordinary string in the same base is untouched
 
-```scheme
+```x
 (do (import x/codec/xon)
     (def b (Base make))
     (Xon arm-source! b)

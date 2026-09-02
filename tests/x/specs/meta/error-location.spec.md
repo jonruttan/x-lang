@@ -14,7 +14,7 @@ sits on line 10.
 
 ### error-line is the fixture's unbound-reference line
 
-```scheme
+```x
 (do
   (def %el (prim-ref 'io 'error-line))
   (include "tests/x/lib/error-loc-fixture.x")
@@ -25,7 +25,7 @@ sits on line 10.
 
 ### error-file is the included fixture path
 
-```scheme
+```x
 (do
   (def %ef (prim-ref 'io 'error-file))
   (include "tests/x/lib/error-loc-fixture.x")
@@ -36,7 +36,7 @@ sits on line 10.
 
 ### a bare stdin error carries no file (error-file is "")
 
-```scheme
+```x
 (do
   (def %ef (prim-ref 'io 'error-file))
   (guard (e (%ef)) (error undefined-thing)))

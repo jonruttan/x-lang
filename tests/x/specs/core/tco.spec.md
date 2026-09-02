@@ -3,7 +3,7 @@
 
 ### tail-recursive countdown
 
-```scheme
+```x
 (do (def loop (fn (self n) (if (= n 0) 'done (self (- n 1))))) (loop 1000))
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### tail-recursive accumulator
 
-```scheme
+```x
 (do (def sum (fn (self n acc) (if (= n 0) acc (self (- n 1) (+ acc n))))) (sum 1000 0))
 ```
 ---
@@ -21,7 +21,7 @@
 
 ### tail-recursive with match
 
-```scheme
+```x
 (do (def f (fn (self n) (match ((= n 0) 'zero) (#t (self (- n 1)))))) (f 1000))
 ```
 ---
@@ -31,7 +31,7 @@
 
 ### last form of do is tail
 
-```scheme
+```x
 (do (def f (fn (self n) (do 1 2 (if (= n 0) 'ok (self (- n 1)))))) (f 1000))
 ```
 ---
@@ -41,7 +41,7 @@
 
 ### last form of let is tail
 
-```scheme
+```x
 (do (def f (fn (self n) (let ((m (- n 1))) (if (= m 0) 'done (self m))))) (f 1000))
 ```
 ---
@@ -51,7 +51,7 @@
 
 ### even?/odd? mutual recursion via set
 
-```scheme
+```x
 (do (def odd? ()) (def even? (fn (_ n) (if (= n 0) #t (odd? (- n 1))))) (set! odd? (fn (_ n) (if (= n 0) () (even? (- n 1))))) (even? 1000))
 ```
 ---
@@ -61,7 +61,7 @@
 
 ### apply with deep recursion
 
-```scheme
+```x
 (do (def f (fn (self n) (if (= n 0) 'done (apply self (list (- n 1)))))) (f 1000))
 ```
 ---
@@ -71,7 +71,7 @@
 
 ### and tail-evaluates last expression
 
-```scheme
+```x
 (do (def f (fn (self n) (if (and #t (> n 0)) (self (- n 1)) 'done))) (f 1000))
 ```
 ---
@@ -81,7 +81,7 @@
 
 ### or tail-evaluates last expression
 
-```scheme
+```x
 (do (def f (fn (self n) (if (or () (= n 0)) 'done (self (- n 1))))) (f 1000))
 ```
 ---
@@ -91,7 +91,7 @@
 
 ### and with fn call preserves env
 
-```scheme
+```x
 (do (def h (fn (_ n) (> n 0))) (def f (fn (_ n) (if (and (h n) #t) n "no"))) (f 5))
 ```
 ---
@@ -99,7 +99,7 @@
 
 ### or with fn call preserves env
 
-```scheme
+```x
 (do (def h (fn (_ n) (= n 0))) (def f (fn (_ n) (if (or () (h n)) "yes" "no"))) (f 0))
 ```
 ---
@@ -109,7 +109,7 @@
 
 ### if in arg position preserves env
 
-```scheme
+```x
 (do (def h (fn (_ x) (+ x 10))) (def f (fn (_ n m) (+ (if #t (h n) 0) m))) (f 5 100))
 ```
 ---
@@ -117,7 +117,7 @@
 
 ### nested if with fn calls preserves env
 
-```scheme
+```x
 (do (def h (fn (_ n) (> n 0))) (def g (fn (self n m) (if (if #t (h n) ()) (self (- n 1) m) m))) (g 100 42))
 ```
 ---
@@ -127,7 +127,7 @@
 
 ### let inside or inside recursive fn
 
-```scheme
+```x
 (do (def f (fn (self n) (if (or () (let ((m (- n 1))) (= m 0))) 'done (self (- n 1))))) (f 1000))
 ```
 ---
@@ -135,7 +135,7 @@
 
 ### do inside and inside recursive fn
 
-```scheme
+```x
 (do (def f (fn (self n) (if (and #t (do (> n 0))) (self (- n 1)) 'done))) (f 1000))
 ```
 ---
@@ -145,7 +145,7 @@
 
 ### factorial via non-tail recursion
 
-```scheme
+```x
 (do (def fact (fn (self n) (if (= n 0) 1 (* n (self (- n 1)))))) (fact 10))
 ```
 ---
@@ -153,7 +153,7 @@
 
 ### map with higher-order function
 
-```scheme
+```x
 (do (def mymap (fn (self f xs) (if (null? xs) xs (pair (f (first xs)) (self f (rest xs)))))) (mymap (fn (_ x) (* x x)) (list 1 2 3)))
 ```
 ---

@@ -3,7 +3,7 @@
 
 ### returns #t for equal symbols
 
-```scheme
+```x
 (eq? 'a 'a)
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### returns #t for eq? on same binding
 
-```scheme
+```x
 (do (def x 5) (eq? x x))
 ```
 ---
@@ -19,7 +19,7 @@
 
 ### value-compares equal integers
 
-```scheme
+```x
 (eq? 5 5)
 ```
 ---
@@ -27,7 +27,7 @@
 
 ### distinguishes unequal integers
 
-```scheme
+```x
 (if (eq? 1 2) "y" "n")
 ```
 ---
@@ -35,7 +35,7 @@
 
 ### string literals are distinct objects
 
-```scheme
+```x
 (if (eq? "a" "a") "y" "n")
 ```
 ---
@@ -43,7 +43,7 @@
 
 ### value-compares equal characters
 
-```scheme
+```x
 (eq? #\a #\a)
 ```
 ---
@@ -51,7 +51,7 @@
 
 ### nil and booleans compare equal
 
-```scheme
+```x
 (list (eq? () ()) (eq? #t #t) (eq? #f #f))
 ```
 ---
@@ -59,7 +59,7 @@
 
 ### distinct pairs are not eq? (no deep compare)
 
-```scheme
+```x
 (if (eq? (list 1) (list 1)) "y" "n")
 ```
 ---
@@ -69,7 +69,7 @@
 
 ### identical object is same?
 
-```scheme
+```x
 (do (def x (list 1)) (same? x x))
 ```
 ---
@@ -77,7 +77,7 @@
 
 ### interned symbols are same?
 
-```scheme
+```x
 (same? 'a 'a)
 ```
 ---
@@ -85,7 +85,7 @@
 
 ### equal integers are NOT same?
 
-```scheme
+```x
 (if (same? 5 5) "y" "n")
 ```
 ---
@@ -93,7 +93,7 @@
 
 ### nil is same? to nil
 
-```scheme
+```x
 (same? () ())
 ```
 ---
@@ -103,7 +103,7 @@
 
 ### returns #t for equal integers
 
-```scheme
+```x
 (= 3 3)
 ```
 ---
@@ -111,7 +111,7 @@
 
 ### returns #f for unequal integers
 
-```scheme
+```x
 (= 3 4)
 ```
 ---
@@ -121,7 +121,7 @@
 
 ### returns #t for less than
 
-```scheme
+```x
 (< 1 2)
 ```
 ---
@@ -129,7 +129,7 @@
 
 ### returns #f for equal
 
-```scheme
+```x
 (< 2 2)
 ```
 ---
@@ -137,7 +137,7 @@
 
 ### returns #f for greater than
 
-```scheme
+```x
 (< 3 2)
 ```
 ---
@@ -145,7 +145,7 @@
 
 ### handles negative numbers
 
-```scheme
+```x
 (< -5 0)
 ```
 ---
@@ -155,7 +155,7 @@
 
 ### returns #t for greater than
 
-```scheme
+```x
 (> 3 2)
 ```
 ---
@@ -163,7 +163,7 @@
 
 ### returns #f for equal
 
-```scheme
+```x
 (> 2 2)
 ```
 ---
@@ -171,7 +171,7 @@
 
 ### returns #f for less than
 
-```scheme
+```x
 (> 1 2)
 ```
 ---
@@ -179,7 +179,7 @@
 
 ### handles negative numbers
 
-```scheme
+```x
 (> 0 -5)
 ```
 ---
@@ -189,7 +189,7 @@
 
 ### returns #t for less than
 
-```scheme
+```x
 (<= 1 2)
 ```
 ---
@@ -197,7 +197,7 @@
 
 ### returns #t for equal
 
-```scheme
+```x
 (<= 2 2)
 ```
 ---
@@ -205,7 +205,7 @@
 
 ### returns #f for greater than
 
-```scheme
+```x
 (<= 3 2)
 ```
 ---
@@ -215,7 +215,7 @@
 
 ### returns #t for greater than
 
-```scheme
+```x
 (>= 3 2)
 ```
 ---
@@ -223,7 +223,7 @@
 
 ### returns #t for equal
 
-```scheme
+```x
 (>= 2 2)
 ```
 ---
@@ -231,7 +231,7 @@
 
 ### returns #f for less than
 
-```scheme
+```x
 (>= 1 2)
 ```
 ---
@@ -241,7 +241,7 @@
 
 ### returns #t for nil
 
-```scheme
+```x
 (null? (lit ()))
 ```
 ---
@@ -249,7 +249,7 @@
 
 ### returns #f for non-nil
 
-```scheme
+```x
 (null? 1)
 ```
 ---
@@ -259,7 +259,7 @@
 
 ### returns #t for a list
 
-```scheme
+```x
 (pair? (list 1 2))
 ```
 ---
@@ -267,7 +267,7 @@
 
 ### returns #t for a pair
 
-```scheme
+```x
 (pair? (pair 1 2))
 ```
 ---
@@ -275,7 +275,7 @@
 
 ### returns #f for an atom
 
-```scheme
+```x
 (pair? 42)
 ```
 ---
@@ -285,7 +285,7 @@
 
 ### returns #t for an integer
 
-```scheme
+```x
 (atom? 42)
 ```
 ---
@@ -293,7 +293,7 @@
 
 ### returns #t for a symbol
 
-```scheme
+```x
 (atom? 'a)
 ```
 ---
@@ -301,7 +301,7 @@
 
 ### returns #f for a list
 
-```scheme
+```x
 (atom? (list 1 2))
 ```
 ---
@@ -311,7 +311,7 @@
 
 ### true for integer
 
-```scheme
+```x
 (number? 42)
 ```
 ---
@@ -319,7 +319,7 @@
 
 ### false for string
 
-```scheme
+```x
 (number? "hello")
 ```
 ---
@@ -329,7 +329,7 @@
 
 ### true for string
 
-```scheme
+```x
 (str? "hello")
 ```
 ---
@@ -337,7 +337,7 @@
 
 ### false for integer
 
-```scheme
+```x
 (str? 42)
 ```
 ---
@@ -347,7 +347,7 @@
 
 ### true for symbol
 
-```scheme
+```x
 (symbol? 'hello)
 ```
 ---
@@ -355,7 +355,7 @@
 
 ### false for integer
 
-```scheme
+```x
 (symbol? 42)
 ```
 ---
@@ -365,7 +365,7 @@
 
 ### true for fn
 
-```scheme
+```x
 (procedure? (fn (_ x) x))
 ```
 ---
@@ -373,7 +373,7 @@
 
 ### true for builtin
 
-```scheme
+```x
 (procedure? first)
 ```
 ---
@@ -381,7 +381,7 @@
 
 ### false for integer
 
-```scheme
+```x
 (procedure? 42)
 ```
 ---
@@ -389,7 +389,7 @@
 
 ### false for an operative
 
-```scheme
+```x
 (procedure? (op (_ x) x))
 ```
 ---
@@ -399,7 +399,7 @@
 
 ### true for an op
 
-```scheme
+```x
 (operative? (op (_ x) x))
 ```
 ---
@@ -407,7 +407,7 @@
 
 ### false for a fn
 
-```scheme
+```x
 (operative? (fn (_ x) x))
 ```
 ---
@@ -415,7 +415,7 @@
 
 ### false for a builtin
 
-```scheme
+```x
 (operative? first)
 ```
 ---
@@ -423,7 +423,7 @@
 
 ### false for an integer
 
-```scheme
+```x
 (operative? 42)
 ```
 ---
@@ -433,7 +433,7 @@
 
 ### returns #t for a character
 
-```scheme
+```x
 (char? #\a)
 ```
 ---
@@ -441,7 +441,7 @@
 
 ### returns #f for number
 
-```scheme
+```x
 (char? 42)
 ```
 ---
@@ -449,7 +449,7 @@
 
 ### returns #f for string
 
-```scheme
+```x
 (char? "hello")
 ```
 ---
@@ -457,7 +457,7 @@
 
 ### returns #f for symbol
 
-```scheme
+```x
 (char? 'a)
 ```
 ---
@@ -467,7 +467,7 @@
 
 ### converts lowercase letter
 
-```scheme
+```x
 (Convert to #\a %int)
 ```
 ---
@@ -475,7 +475,7 @@
 
 ### converts uppercase letter
 
-```scheme
+```x
 (Convert to #\A %int)
 ```
 ---
@@ -483,7 +483,7 @@
 
 ### converts digit character
 
-```scheme
+```x
 (Convert to #\0 %int)
 ```
 ---
@@ -493,7 +493,7 @@
 
 ### converts code point to character
 
-```scheme
+```x
 (Convert to 65 %char)
 ```
 ---
@@ -501,7 +501,7 @@
 
 ### round-trips char/integer
 
-```scheme
+```x
 (= (Convert to (Convert to 97 %char) %int) 97)
 ```
 ---

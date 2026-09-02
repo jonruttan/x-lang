@@ -3,7 +3,7 @@
 
 ### iterates a list
 
-```scheme
+```x
 (Iter ->list (Iter new (list 1 2 3)))
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### iterates a vector
 
-```scheme
+```x
 (Iter ->list (Iter new (Vector of 10 20 30)))
 ```
 ---
@@ -19,7 +19,7 @@
 
 ### iterates a string by code point
 
-```scheme
+```x
 (Iter ->list (Iter new "abc"))
 ```
 ---
@@ -27,7 +27,7 @@
 
 ### empty list yields an empty iterator
 
-```scheme
+```x
 (null? (Iter ->list (Iter new (list))))
 ```
 ---
@@ -35,7 +35,7 @@
 
 ### empty vector yields an empty iterator
 
-```scheme
+```x
 (null? (Iter ->list (Iter new (Vector of))))
 ```
 ---
@@ -49,7 +49,7 @@ eval frame group per element, so a ~16K+ iterator crashed the C stack
 %rev-onto, reverse once; the end probes pin that order survived the
 reverse.
 
-```scheme
+```x
 (def l (Iter ->list (Iter new (List range 0 16384))))
 (list (List length l) (List ref 0 l) (List ref 16383 l))
 ```
@@ -60,7 +60,7 @@ reverse.
 
 ### reports exhaustion across a step
 
-```scheme
+```x
 (do (def it (Iter new (list 1))) (def before (Iter empty? it)) (Iter next it) (list before (Iter empty? it)))
 ```
 ---
@@ -70,7 +70,7 @@ reverse.
 
 ### advances element by element
 
-```scheme
+```x
 (do (def it (Iter new (list 7 8 9))) (list (Iter next it) (Iter next it) (Iter next it)))
 ```
 ---
@@ -80,7 +80,7 @@ reverse.
 
 ### left-folds the remaining elements
 
-```scheme
+```x
 (Iter fold + 0 (Iter new (list 1 2 3 4)))
 ```
 ---
@@ -90,7 +90,7 @@ reverse.
 
 ### visits every element
 
-```scheme
+```x
 (do (def %acc (list 0)) (Iter for-each (fn (_ x) (%set-first! %acc (+ (first %acc) x))) (Iter new (Vector of 1 2 3 4))) (first %acc))
 ```
 ---
@@ -100,7 +100,7 @@ reverse.
 
 ### iterates a def-class instance as name/value pairs
 
-```scheme
+```x
 (do (def-class Pt () (x 0) (y 0)) (def p (new Pt x 3 y 4)) (Iter ->list (Iter new p)))
 ```
 ---
@@ -110,7 +110,7 @@ reverse.
 
 ### builds an iterator from a custom step function (pure: state -> (value . next-state))
 
-```scheme
+```x
 (do (def it (Iter make (fn (self st) (if (null? st) () (pair (first st) (rest st)))) (list 5 6))) (Iter ->list it))
 ```
 ---
@@ -120,7 +120,7 @@ reverse.
 
 ### yields (value . next-iterator) and leaves the source untouched
 
-```scheme
+```x
 (do (import x/type/iter)
   (def it (Iter new (list 7 8)))
   (def s (Iter step it))
@@ -131,7 +131,7 @@ reverse.
 
 ### returns nil on an exhausted iterator
 
-```scheme
+```x
 (do (import x/type/iter) (null? (Iter step (Iter new ()))))
 ```
 ---
@@ -141,7 +141,7 @@ reverse.
 
 ### true for an iterator
 
-```scheme
+```x
 (Iter iter? (Iter new (list 1 2 3)))
 ```
 ---
@@ -149,7 +149,7 @@ reverse.
 
 ### false for the underlying list
 
-```scheme
+```x
 (if (Iter iter? (list 1 2 3)) "yes" "no")
 ```
 ---
@@ -157,7 +157,7 @@ reverse.
 
 ### false for an integer
 
-```scheme
+```x
 (if (Iter iter? 42) "yes" "no")
 ```
 ---

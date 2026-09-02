@@ -21,7 +21,7 @@ must not): such callables are fetched raw from the catalog instead.
 
 ### a no-op mark-hook survives a full collect
 
-```scheme
+```x
 (Heap mark-hook! (fn (_ ) ()))
 (Heap collect)
 #t
@@ -34,7 +34,7 @@ must not): such callables are fetched raw from the catalog instead.
 A hook whose body returns a non-nil tail used to leave the env extended
 and the call deferred; the collect then freed the in-flight frame.
 
-```scheme
+```x
 (Heap mark-hook! (fn (_ ) 42))
 (Heap collect)
 #t
@@ -44,7 +44,7 @@ and the call deferred; the collect then freed the in-flight frame.
 
 ### an allocating mark-hook survives a full collect
 
-```scheme
+```x
 (Heap mark-hook! (fn (_ ) (list 1 2 3)))
 (Heap collect)
 #t
@@ -57,7 +57,7 @@ and the call deferred; the collect then freed the in-flight frame.
 The hook runs mid-collect, so it is the raw catalog prim, not a class
 dispatch.
 
-```scheme
+```x
 (Heap mark-hook! (prim-ref 'heap 'count))
 (Heap collect)
 #t
@@ -67,7 +67,7 @@ dispatch.
 
 ### a no-op free-hook survives a full collect
 
-```scheme
+```x
 (Heap free-hook! (fn (_ ) ()))
 (Heap collect)
 #t
@@ -81,7 +81,7 @@ The pair is reachable from the global `kept`, but registering it as a
 root additionally exercises the root-mark pass; after collect its data
 is intact.
 
-```scheme
+```x
 (def kept (pair 'alive ()))
 (Heap mark-root! kept)
 (Heap collect)
@@ -96,7 +96,7 @@ The hook registers a root during the mark phase, so it calls the raw
 catalog prim (no allocation mid-collect); the freshly registered root
 is honoured and the object survives.
 
-```scheme
+```x
 (def guarded (pair 'safe ()))
 (def %mark-root (prim-ref 'heap 'mark-root!))
 (Heap mark-hook! (fn (_ ) (%mark-root guarded) ()))
@@ -108,7 +108,7 @@ is honoured and the object survives.
 
 ### all three registration surfaces compose
 
-```scheme
+```x
 (Heap mark-hook! (fn (_ ) ()))
 (Heap free-hook! (fn (_ ) ()))
 (def survivor (pair 'kept ()))
@@ -123,7 +123,7 @@ is honoured and the object survives.
 
 ### pin! returns the object it marks
 
-```scheme
+```x
 (def pinned (pair 'held ()))
 (eq? ((prim-ref 'heap 'pin!) pinned) pinned)
 ```
@@ -137,7 +137,7 @@ global, so this exercises the SYSTEM-flag traversal rather than proving
 survival of an otherwise-unreachable object; the flag makes it immune to
 the sweep and its contents are unchanged afterwards.
 
-```scheme
+```x
 (def held (pair 'safe ()))
 ((prim-ref 'heap 'pin!) held)
 (Heap collect)
@@ -148,7 +148,7 @@ the sweep and its contents are unchanged afterwards.
 
 ### pin! marks recursively: nested data survives too
 
-```scheme
+```x
 (def deep (pair 'outer (pair 'inner ())))
 ((prim-ref 'heap 'pin!) deep)
 (Heap collect)
@@ -173,7 +173,7 @@ exists.
 
 ### mark returns nil (side-effect contract)
 
-```scheme
+```x
 (null? ((prim-ref 'heap 'mark)))
 ```
 ---
@@ -184,7 +184,7 @@ exists.
 A mark sets flags and reclaims no memory; it is only half a collection.
 The pair is intact afterwards because nothing swept.
 
-```scheme
+```x
 (def survives (pair 'still ()))
 ((prim-ref 'heap 'mark))
 (eq? (first survives) 'still)

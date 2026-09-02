@@ -5,7 +5,7 @@
 
 ### small number stays integer
 
-```scheme
+```x
 (if (Bigint bigint? 42) "big" "int")
 ```
 ---
@@ -13,7 +13,7 @@
 
 ### large number becomes bigint
 
-```scheme
+```x
 (if (Bigint bigint? 99999999999999999999) "big" "int")
 ```
 ---
@@ -21,7 +21,7 @@
 
 ### hex integer
 
-```scheme
+```x
 (write 0xFF)
 ```
 ---
@@ -35,7 +35,7 @@ it, and the stray `xFF` symbol was ignored by the fexpr call. An
 operand position evaluates the stray symbol, so this check holds the
 analyser to claiming the whole literal.
 
-```scheme
+```x
 (+ 0xFF 1)
 ```
 ---
@@ -43,7 +43,7 @@ analyser to claiming the whole literal.
 
 ### hex at the 64-bit boundary stays int
 
-```scheme
+```x
 (if (Bigint bigint? 0x7FFFFFFFFFFFFFFF) "big" "int")
 ```
 ---
@@ -53,7 +53,7 @@ analyser to claiming the whole literal.
 
 ### integer without dot
 
-```scheme
+```x
 (if (Float float? 42) "float" "int")
 ```
 ---
@@ -61,7 +61,7 @@ analyser to claiming the whole literal.
 
 ### float with dot
 
-```scheme
+```x
 (Float float? 1.5)
 ```
 ---
@@ -69,7 +69,7 @@ analyser to claiming the whole literal.
 
 ### float zero
 
-```scheme
+```x
 (Float float? 0.0)
 ```
 ---
@@ -79,7 +79,7 @@ analyser to claiming the whole literal.
 
 ### bare integer is not rational type
 
-```scheme
+```x
 (if (Type ? 42 %rational) "rat" "int")
 ```
 ---
@@ -87,7 +87,7 @@ analyser to claiming the whole literal.
 
 ### slash notation is rational
 
-```scheme
+```x
 (Type ? 3/4 %rational)
 ```
 ---
@@ -95,7 +95,7 @@ analyser to claiming the whole literal.
 
 ### division in expression is not literal
 
-```scheme
+```x
 (write (/ 3 4))
 ```
 ---
@@ -105,7 +105,7 @@ analyser to claiming the whole literal.
 
 ### regex does not conflict with division
 
-```scheme
+```x
 (write #/abc/)
 ```
 ---
@@ -113,7 +113,7 @@ analyser to claiming the whole literal.
 
 ### regex vs hash
 
-```scheme
+```x
 (write #(1 2 3))
 ```
 ---
@@ -123,7 +123,7 @@ analyser to claiming the whole literal.
 
 ### arithmetic preserves types
 
-```scheme
+```x
 (do (def a 42) (def b 1.5) (def c 1/3) (Float float? (+ a b)))
 ```
 ---
@@ -131,7 +131,7 @@ analyser to claiming the whole literal.
 
 ### chained promotions
 
-```scheme
+```x
 (do (def x (* 999999999999 999999999999)) (Bigint bigint? x))
 ```
 ---

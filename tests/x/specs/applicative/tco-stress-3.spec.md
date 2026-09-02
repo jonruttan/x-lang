@@ -7,7 +7,7 @@
 
 ### let inside or inside recursive fn
 
-```scheme
+```x
 (do (def f (fn (self n) (if (or () (let ((m (- n 1))) (= m 0))) 'done (self (- n 1))))) (f 50000))
 ```
 ---
@@ -15,7 +15,7 @@
 
 ### do inside and inside recursive fn
 
-```scheme
+```x
 (do (def f (fn (self n) (if (and #t (do (> n 0))) (self (- n 1)) 'done))) (f 50000))
 ```
 ---
@@ -23,7 +23,7 @@
 
 ### match with and guard in recursive fn
 
-```scheme
+```x
 (do (def h (fn (_ n) (> n 0))) (def f (fn (self n) (match ((and (h n) #t) (self (- n 1))) (#t 'done)))) (f 50000))
 ```
 ---
@@ -31,7 +31,7 @@
 
 ### nested fn calls in or condition preserve env through recursion
 
-```scheme
+```x
 (do (def p (fn (_ n) (= (% n 2) 0))) (def q (fn (_ n) (= n 0))) (def f (fn (self n) (if (or (q n) (p n)) (if (q n) 'done (self (- n 1))) (self (- n 1))))) (f 50000))
 ```
 ---
@@ -41,7 +41,7 @@
 
 ### factorial via non-tail recursion
 
-```scheme
+```x
 (do (def fact (fn (self n) (if (= n 0) 1 (* n (self (- n 1)))))) (fact 10))
 ```
 ---
@@ -49,7 +49,7 @@
 
 ### map with higher-order function
 
-```scheme
+```x
 (do (def map (fn (self f xs) (if (null? xs) xs (pair (f (first xs)) (self f (rest xs)))))) (List map (fn (_ x) (* x x)) (list 1 2 3)))
 ```
 ---

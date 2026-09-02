@@ -10,7 +10,7 @@ contract.
 
 ### bitwise and
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ a b) (& a b))) 12 5))
 ```
 ---
@@ -18,7 +18,7 @@ contract.
 
 ### bitwise or
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ a b) (| a b))) 12 5))
 ```
 ---
@@ -26,7 +26,7 @@ contract.
 
 ### bitwise xor
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ a b) (^ a b))) 12 5))
 ```
 ---
@@ -34,7 +34,7 @@ contract.
 
 ### bitwise not
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ a) (~ a))) 12))
 ```
 ---
@@ -42,7 +42,7 @@ contract.
 
 ### shift left
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ a b) (<< a b))) 12 3))
 ```
 ---
@@ -50,7 +50,7 @@ contract.
 
 ### shift right
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ a b) (>> a b))) 12 3))
 ```
 ---
@@ -65,7 +65,7 @@ identical interpreted one, which is the only contract the JIT has. It
 emits ASRV now. (On the masked non-negative values a digest shifts,
 the two instructions agree, so nothing above would have caught this.)
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ a b) (>> a b))) -16 2))
 ```
 ---
@@ -73,7 +73,7 @@ the two instructions agree, so nothing above would have caught this.)
 
 ### a shift amount may itself be an expression
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ a b) (<< a (- b 1)))) 1 5))
 ```
 ---
@@ -81,7 +81,7 @@ the two instructions agree, so nothing above would have caught this.)
 
 ### compiled agrees with interpreted on a mixed expression
 
-```scheme
+```x
 (do
   (def %f (fn (_ a b) (& (^ (| a b) (<< a 2)) 255)))
   (def %c (compile-asm '(fn (_ a b) (& (^ (| a b) (<< a 2)) 255))))
@@ -97,7 +97,7 @@ the two instructions agree, so nothing above would have caught this.)
 rotr32(x, n) = ((x >> n) | (x << (32 - n))) & 0xFFFFFFFF — the operation
 the digest's four sigma functions are built from.
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ x n) (& (| (>> x n) (<< x (- 32 n))) 4294967295))) 1 1))
 ```
 ---
@@ -105,7 +105,7 @@ the digest's four sigma functions are built from.
 
 ### the rotate agrees with the interpreted definition across cases
 
-```scheme
+```x
 (do
   (def %rotr (fn (_ x n) (& (| (>> x n) (<< x (- 32 n))) 4294967295)))
   (def %crotr (compile-asm '(fn (_ x n) (& (| (>> x n) (<< x (- 32 n))) 4294967295))))

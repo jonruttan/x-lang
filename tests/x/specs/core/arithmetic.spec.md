@@ -3,7 +3,7 @@
 
 ### adds two numbers
 
-```scheme
+```x
 (+ 1 2)
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### subtracts two numbers
 
-```scheme
+```x
 (- 10 3)
 ```
 ---
@@ -19,7 +19,7 @@
 
 ### multiplies two numbers
 
-```scheme
+```x
 (* 4 5)
 ```
 ---
@@ -27,7 +27,7 @@
 
 ### nests arithmetic
 
-```scheme
+```x
 (+ 1 (* 2 3))
 ```
 ---
@@ -35,7 +35,7 @@
 
 ### handles negative results
 
-```scheme
+```x
 (- 3 10)
 ```
 ---
@@ -45,7 +45,7 @@
 
 ### adds two numbers
 
-```scheme
+```x
 (+ 1 2)
 ```
 ---
@@ -53,7 +53,7 @@
 
 ### adds three numbers
 
-```scheme
+```x
 (+ 1 2 3)
 ```
 ---
@@ -61,7 +61,7 @@
 
 ### adds many numbers
 
-```scheme
+```x
 (+ 1 2 3 4 5)
 ```
 ---
@@ -69,7 +69,7 @@
 
 ### identity is 0
 
-```scheme
+```x
 (+)
 ```
 ---
@@ -77,7 +77,7 @@
 
 ### single arg returns it
 
-```scheme
+```x
 (+ 5)
 ```
 ---
@@ -87,7 +87,7 @@
 
 ### subtracts two numbers
 
-```scheme
+```x
 (- 10 3)
 ```
 ---
@@ -95,7 +95,7 @@
 
 ### subtracts three numbers
 
-```scheme
+```x
 (- 10 3 2)
 ```
 ---
@@ -103,7 +103,7 @@
 
 ### unary negates
 
-```scheme
+```x
 (- 5)
 ```
 ---
@@ -111,7 +111,7 @@
 
 ### no args returns 0
 
-```scheme
+```x
 (-)
 ```
 ---
@@ -121,7 +121,7 @@
 
 ### multiplies two numbers
 
-```scheme
+```x
 (* 4 5)
 ```
 ---
@@ -129,7 +129,7 @@
 
 ### multiplies three numbers
 
-```scheme
+```x
 (* 2 3 4)
 ```
 ---
@@ -137,7 +137,7 @@
 
 ### identity is 1
 
-```scheme
+```x
 (*)
 ```
 ---
@@ -145,7 +145,7 @@
 
 ### single arg returns it
 
-```scheme
+```x
 (* 7)
 ```
 ---
@@ -155,7 +155,7 @@
 
 ### divides two numbers
 
-```scheme
+```x
 (/ 10 3)
 ```
 ---
@@ -163,7 +163,7 @@
 
 ### divides evenly
 
-```scheme
+```x
 (/ 12 4)
 ```
 ---
@@ -171,7 +171,7 @@
 
 ### handles negative dividend
 
-```scheme
+```x
 (/ -10 3)
 ```
 ---
@@ -179,7 +179,7 @@
 
 ### chains division
 
-```scheme
+```x
 (/ 100 5 2)
 ```
 ---
@@ -189,7 +189,7 @@
 
 ### computes modulo
 
-```scheme
+```x
 (% 10 3)
 ```
 ---
@@ -197,7 +197,7 @@
 
 ### returns zero for even division
 
-```scheme
+```x
 (% 12 4)
 ```
 ---
@@ -205,7 +205,7 @@
 
 ### handles negative dividend
 
-```scheme
+```x
 (% -10 3)
 ```
 ---
@@ -213,7 +213,7 @@
 
 ### chains modulo
 
-```scheme
+```x
 (% 100 7 3)
 ```
 ---
@@ -223,7 +223,7 @@
 
 ### inverts zero
 
-```scheme
+```x
 (~ 0)
 ```
 ---
@@ -231,7 +231,7 @@
 
 ### inverts one
 
-```scheme
+```x
 (~ 1)
 ```
 ---
@@ -239,7 +239,7 @@
 
 ### inverts negative
 
-```scheme
+```x
 (~ -1)
 ```
 ---
@@ -247,7 +247,7 @@
 
 ### double invert is identity
 
-```scheme
+```x
 (~ (~ 42))
 ```
 ---
@@ -257,7 +257,7 @@
 
 ### ands with zero
 
-```scheme
+```x
 (& 255 0)
 ```
 ---
@@ -265,7 +265,7 @@
 
 ### ands with self
 
-```scheme
+```x
 (& 42 42)
 ```
 ---
@@ -273,7 +273,7 @@
 
 ### masks low bits
 
-```scheme
+```x
 (& 255 15)
 ```
 ---
@@ -281,7 +281,7 @@
 
 ### masks high nibble
 
-```scheme
+```x
 (& 170 240)
 ```
 ---
@@ -291,7 +291,7 @@
 
 ### ors with zero
 
-```scheme
+```x
 (| 42 0)
 ```
 ---
@@ -299,7 +299,7 @@
 
 ### ors complementary bits
 
-```scheme
+```x
 (| 170 85)
 ```
 ---
@@ -307,7 +307,7 @@
 
 ### ors with self
 
-```scheme
+```x
 (| 42 42)
 ```
 ---
@@ -317,7 +317,7 @@
 
 ### xors with zero
 
-```scheme
+```x
 (^ 42 0)
 ```
 ---
@@ -325,7 +325,7 @@
 
 ### xors with self gives zero
 
-```scheme
+```x
 (^ 42 42)
 ```
 ---
@@ -333,7 +333,7 @@
 
 ### xors complementary bits
 
-```scheme
+```x
 (^ 170 85)
 ```
 ---
@@ -341,7 +341,7 @@
 
 ### double xor is identity
 
-```scheme
+```x
 (^ (^ 42 99) 99)
 ```
 ---
@@ -351,7 +351,7 @@
 
 ### shifts by 0
 
-```scheme
+```x
 (<< 1 0)
 ```
 ---
@@ -359,7 +359,7 @@
 
 ### shifts by 1
 
-```scheme
+```x
 (<< 1 1)
 ```
 ---
@@ -367,7 +367,7 @@
 
 ### shifts by 4
 
-```scheme
+```x
 (<< 1 4)
 ```
 ---
@@ -375,7 +375,7 @@
 
 ### shifts value
 
-```scheme
+```x
 (<< 5 3)
 ```
 ---
@@ -385,7 +385,7 @@
 
 ### shifts by 0
 
-```scheme
+```x
 (>> 16 0)
 ```
 ---
@@ -393,7 +393,7 @@
 
 ### shifts by 1
 
-```scheme
+```x
 (>> 16 1)
 ```
 ---
@@ -401,7 +401,7 @@
 
 ### shifts by 4
 
-```scheme
+```x
 (>> 255 4)
 ```
 ---
@@ -409,7 +409,7 @@
 
 ### shifts to zero
 
-```scheme
+```x
 (>> 1 1)
 ```
 ---
@@ -427,7 +427,7 @@ The guard lives in `lib/x/core/arithmetic.x`, the same layer that gives
 `%` has no meaningful identity element, so unlike `+ - * /` it raises rather
 than returning a value. spec.md's old `(%) -> 0` claim is retracted.
 
-```scheme
+```x
 (guard (e (lit RAISED)) (%))
 ```
 ---
@@ -435,7 +435,7 @@ than returning a value. spec.md's old `(%) -> 0` claim is retracted.
 
 ### one-arg modulo still passes through
 
-```scheme
+```x
 (% 7)
 ```
 ---
@@ -443,7 +443,7 @@ than returning a value. spec.md's old `(%) -> 0` claim is retracted.
 
 ### bitwise ops need two arguments
 
-```scheme
+```x
 (list (guard (e (lit R)) (&)) (guard (e (lit R)) (& 6))
       (guard (e (lit R)) (|)) (guard (e (lit R)) (^)))
 ```
@@ -452,7 +452,7 @@ than returning a value. spec.md's old `(%) -> 0` claim is retracted.
 
 ### shifts need two arguments
 
-```scheme
+```x
 (list (guard (e (lit R)) (<< 1)) (guard (e (lit R)) (>> 4)))
 ```
 ---
@@ -460,7 +460,7 @@ than returning a value. spec.md's old `(%) -> 0` claim is retracted.
 
 ### bitwise not needs one argument
 
-```scheme
+```x
 (guard (e (lit RAISED)) (~))
 ```
 ---
@@ -468,7 +468,7 @@ than returning a value. spec.md's old `(%) -> 0` claim is retracted.
 
 ### less-than needs two arguments
 
-```scheme
+```x
 (list (guard (e (lit R)) (<)) (guard (e (lit R)) (< 1)))
 ```
 ---
@@ -481,7 +481,7 @@ dereferenced exactly like a missing one. `x_prim_lt` reads `x_intval(NULL)`
 where `x_prim_eq` is nil-safe, so an explicit `()` was a live crash after the
 arity tier landed.
 
-```scheme
+```x
 (list (guard (e (lit R)) (< 1 ())) (guard (e (lit R)) (< () 1))
       (guard (e (lit R)) (& 6 ())) (guard (e (lit R)) (~ ())))
 ```
@@ -494,7 +494,7 @@ arity tier landed.
 `(< nil 1)` -- two arguments, so the arity tier passes it straight to the
 unchecked primitive.
 
-```scheme
+```x
 (list (guard (e (lit R)) (> 1)) (guard (e (lit R)) (<= 1))
       (guard (e (lit R)) (>= 1)) (guard (e (lit R)) (>)))
 ```
@@ -510,7 +510,7 @@ is stopped; boxed tower divisors keep their own dispatch.
 
 ### binary tier raises for / and %
 
-```scheme
+```x
 (list (guard (e (lit R)) (/ 1 0)) (guard (e (lit R)) (% 1 0)))
 ```
 ---
@@ -518,7 +518,7 @@ is stopped; boxed tower divisors keep their own dispatch.
 
 ### fold tier raises mid-fold
 
-```scheme
+```x
 (list (guard (e (lit R)) (/ 8 2 0)) (guard (e (lit R)) (% 17 10 0)))
 ```
 ---
@@ -526,7 +526,7 @@ is stopped; boxed tower divisors keep their own dispatch.
 
 ### zero as dividend still divides
 
-```scheme
+```x
 (list (/ 0 5) (% 0 5) (/ 100 2 5) (% 17 10 3))
 ```
 ---
@@ -534,7 +534,7 @@ is stopped; boxed tower divisors keep their own dispatch.
 
 ### the guarded operators still compute normally
 
-```scheme
+```x
 (list (& 6 3) (| 6 3) (^ 6 3) (<< 1 4) (>> 16 4) (~ 0) (% 7 2) (< 1 2) (< 2 1))
 ```
 ---
@@ -542,7 +542,7 @@ is stopped; boxed tower divisors keep their own dispatch.
 
 ### the identity-carrying operators keep their zero-arg tiers
 
-```scheme
+```x
 (list (+) (-) (*) (/))
 ```
 ---
@@ -559,7 +559,7 @@ booleans are a real BOOL type (#101) and refuse like everything else.
 
 ### wrong-type operands raise err:type across the family
 
-```scheme
+```x
 (list (guard (e (Err kind-of e)) (+ 1 "abc"))
       (guard (e (Err kind-of e)) (< 1 "a"))
       (guard (e (Err kind-of e)) (* 2 (list 1)))
@@ -571,7 +571,7 @@ booleans are a real BOOL type (#101) and refuse like everything else.
 
 ### the message names op and type
 
-```scheme
+```x
 (guard (e (e msg)) (+ 1 "abc"))
 ```
 ---
@@ -579,7 +579,7 @@ booleans are a real BOOL type (#101) and refuse like everything else.
 
 ### booleans refuse too -- BOOL is a real type (#101)
 
-```scheme
+```x
 (list (Type name (Type of #t)) (guard (e (e msg)) (+ #t 1)) (guard (e (Err kind-of e)) (< #f 3)))
 ```
 ---
@@ -590,7 +590,7 @@ booleans are a real BOOL type (#101) and refuse like everything else.
 The regex engine reads {3} via (- ch #\0) inside the tokenizer, utf8 decode
 masks CHAR-typed bytes with &, and the printer's escaper orders chars with <.
 
-```scheme
+```x
 (list (< #\a #\b) (- #\3 #\0) (+ #\a 1) (& #\a 15))
 ```
 ---
@@ -604,7 +604,7 @@ tests inside the prim, after op_try. (+ 1 ()) segfaulted before this.
 
 ### nil raises catchably on all five, all shapes
 
-```scheme
+```x
 (list (guard (e (lit R)) (+ 1 ())) (guard (e (lit R)) (- ())) (guard (e (lit R)) (- 5 ()))
       (guard (e (lit R)) (* () 2)) (guard (e (lit R)) (/ 6 ())) (guard (e (lit R)) (% () 2))
       (guard (e (lit R)) (+ 1 2 () 4)))
@@ -620,7 +620,7 @@ is simply correct -- inline type tests in the wrappers, nil included.
 
 ### non-integers raise across the bitwise family
 
-```scheme
+```x
 (list (guard (e (lit R)) (& "a" 1)) (guard (e (lit R)) (| 1 (list 2)))
       (guard (e (lit R)) (~ "x")) (guard (e (lit R)) (<< 1 ())))
 ```

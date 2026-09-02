@@ -3,7 +3,7 @@
 
 ### backtick produces a literal list
 
-```scheme
+```x
 `(1 2 3)
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### backtick quotes a symbol
 
-```scheme
+```x
 `foo
 ```
 ---
@@ -19,14 +19,14 @@
 
 ### backtick quotes nil
 
-```scheme
+```x
 `()
 ```
 ---
 
 ### backtick quotes a nested list
 
-```scheme
+```x
 `(a (b c) d)
 ```
 ---
@@ -34,7 +34,7 @@
 
 ### backtick quotes an integer atom
 
-```scheme
+```x
 `42
 ```
 ---
@@ -42,7 +42,7 @@
 
 ### backtick quotes a string atom
 
-```scheme
+```x
 `"hello"
 ```
 ---
@@ -52,7 +52,7 @@
 
 ### comma substitutes a variable
 
-```scheme
+```x
 (do (def x 42) `(a ,x c))
 ```
 ---
@@ -60,7 +60,7 @@
 
 ### comma evaluates an expression
 
-```scheme
+```x
 `(result ,(+ 1 2))
 ```
 ---
@@ -68,7 +68,7 @@
 
 ### comma in first position
 
-```scheme
+```x
 (do (def %qq-op (lit +)) `(,%qq-op 1 2))
 ```
 ---
@@ -76,7 +76,7 @@
 
 ### comma in last position
 
-```scheme
+```x
 (do (def x 99) `(a b ,x))
 ```
 ---
@@ -84,7 +84,7 @@
 
 ### multiple commas
 
-```scheme
+```x
 (do (def a 1) (def b 2) `(,a ,b))
 ```
 ---
@@ -94,7 +94,7 @@
 
 ### comma-at splices a list
 
-```scheme
+```x
 (do (def xs (list 2 3)) `(1 ,@xs 4))
 ```
 ---
@@ -102,7 +102,7 @@
 
 ### comma-at splices empty list
 
-```scheme
+```x
 `(a ,@(list) b)
 ```
 ---
@@ -110,7 +110,7 @@
 
 ### comma-at at beginning
 
-```scheme
+```x
 (do (def xs (list 1 2)) `(,@xs 3))
 ```
 ---
@@ -118,7 +118,7 @@
 
 ### comma-at at end
 
-```scheme
+```x
 (do (def xs (list 3 4)) `(1 2 ,@xs))
 ```
 ---
@@ -126,7 +126,7 @@
 
 ### comma and comma-at mixed
 
-```scheme
+```x
 (do (def x 1) (def ys (list 2 3)) `(,x ,@ys 4))
 ```
 ---
@@ -136,7 +136,7 @@
 
 ### write outputs backtick for quasi
 
-```scheme
+```x
 (write (lit (quasi (a (unquote b)))))
 ```
 ---
@@ -144,7 +144,7 @@
 
 ### write outputs comma-at for splicing
 
-```scheme
+```x
 (write (lit (quasi (a (unquote-splicing xs)))))
 ```
 ---
@@ -152,7 +152,7 @@
 
 ### write outputs backtick for simple quasi
 
-```scheme
+```x
 (write (lit (quasi foo)))
 ```
 ---
@@ -162,7 +162,7 @@
 
 ### explicit quasi syntax still works
 
-```scheme
+```x
 (do (def x 42) (quasi (a (unquote x) c)))
 ```
 ---
@@ -170,7 +170,7 @@
 
 ### explicit unquote-splicing still works
 
-```scheme
+```x
 (do (def xs (list 2 3)) (quasi (1 (unquote-splicing xs) 4)))
 ```
 ---

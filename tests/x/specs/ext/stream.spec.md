@@ -15,7 +15,7 @@ value) without performing real I/O.
 
 ### to-fd wraps the given fd
 
-```scheme
+```x
 (do
   (def s (Stream to-fd 7))
   (eq? (s fd) 7))
@@ -25,7 +25,7 @@ value) without performing real I/O.
 
 ### a wrapped fd is not owned -- close is a no-op returning nil
 
-```scheme
+```x
 (do
   (def s (Stream to-fd 7))
   (null? (s close)))
@@ -35,7 +35,7 @@ value) without performing real I/O.
 
 ### stdout / stderr convenience constructors carry fd 1 / 2
 
-```scheme
+```x
 (and (eq? ((Stream stdout) fd) 1)
      (eq? ((Stream stderr) fd) 2))
 ```
@@ -46,7 +46,7 @@ value) without performing real I/O.
 
 ### with-fd runs the thunk and returns its value
 
-```scheme
+```x
 (Stream with-fd (Stream output-fd) (fn (_) 42))
 ```
 ---
@@ -54,7 +54,7 @@ value) without performing real I/O.
 
 ### with-fd restores the previous output fd afterward
 
-```scheme
+```x
 (do
   (def before (Stream output-fd))
   (Stream with-fd before (fn (_) ()))
@@ -65,7 +65,7 @@ value) without performing real I/O.
 
 ### (s with thunk) redirects through the stream and returns the thunk's value
 
-```scheme
+```x
 (do
   (def s (Stream to-fd (Stream output-fd)))
   (s with (fn (_) 99)))

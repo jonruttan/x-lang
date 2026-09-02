@@ -15,7 +15,7 @@ namlen bound decodes correctly on Darwin.
 
 ### ino-0 skipped, namlen bounds the name, dots kept
 
-```scheme
+```x
 (do
   (import x/sys/file)
   (def %i->c (prim-ref 'int '->char))

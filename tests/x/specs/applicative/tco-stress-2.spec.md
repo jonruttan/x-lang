@@ -9,7 +9,7 @@
 
 ### and with fn call preserves env across iterations
 
-```scheme
+```x
 (do (def h (fn (_ n) (> n 0))) (def f (fn (_ n) (if (and (h n) #t) n "no"))) (f 5))
 ```
 ---
@@ -17,7 +17,7 @@
 
 ### or with fn call preserves env across iterations
 
-```scheme
+```x
 (do (def h (fn (_ n) (= n 0))) (def f (fn (_ n) (if (or () (h n)) "yes" "no"))) (f 0))
 ```
 ---
@@ -25,7 +25,7 @@
 
 ### or with fn call in deep recursion preserves env
 
-```scheme
+```x
 (do (def h (fn (_ n) (= n 0))) (def g (fn (self n) (if (or () (h n)) 'done (self (- n 1))))) (g 50000))
 ```
 ---
@@ -33,7 +33,7 @@
 
 ### and with fn call in deep recursion preserves env
 
-```scheme
+```x
 (do (def h (fn (_ n) (> n 0))) (def g (fn (self n) (if (and (h n) #t) (self (- n 1)) 'done))) (g 50000))
 ```
 ---
@@ -43,7 +43,7 @@
 
 ### if in arg position preserves env
 
-```scheme
+```x
 (do (def h (fn (_ x) (+ x 10))) (def f (fn (_ n m) (+ (if #t (h n) 0) m))) (f 5 100))
 ```
 ---
@@ -51,7 +51,7 @@
 
 ### do in arg position preserves env
 
-```scheme
+```x
 (do (def h (fn (_ x) (+ x 10))) (def f (fn (_ n m) (+ (do 1 (h n)) m))) (f 5 100))
 ```
 ---
@@ -59,7 +59,7 @@
 
 ### match in arg position preserves env
 
-```scheme
+```x
 (do (def h (fn (_ x) (+ x 10))) (def f (fn (_ n m) (+ (match (#t (h n))) m))) (f 5 100))
 ```
 ---
@@ -67,7 +67,7 @@
 
 ### nested if with fn calls preserves env
 
-```scheme
+```x
 (do (def h (fn (_ n) (> n 0))) (def g (fn (self n m) (if (if #t (h n) ()) (self (- n 1) m) m))) (g 100 42))
 ```
 ---
@@ -75,7 +75,7 @@
 
 ### if with fn call in deep recursive condition
 
-```scheme
+```x
 (do (def h (fn (_ n) (= n 0))) (def g (fn (self n m) (if (if #t (h n) ()) m (self (- n 1) m)))) (g 50000 99))
 ```
 ---
@@ -83,7 +83,7 @@
 
 ### do with fn call in recursive condition
 
-```scheme
+```x
 (do (def h (fn (_ n) (= n 0))) (def g (fn (self n) (if (do (h n)) 'done (self (- n 1))))) (g 50000))
 ```
 ---
@@ -91,7 +91,7 @@
 
 ### match with fn call in non-tail position
 
-```scheme
+```x
 (do (def h (fn (_ x) (* x 2))) (def f (fn (_ n m) (+ (match ((> n 0) (h n)) (#t 0)) m))) (f 5 100))
 ```
 ---

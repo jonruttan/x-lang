@@ -10,7 +10,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 
 ### the accept terminator is a function
 
-```scheme
+```x
 (procedure? %acc)
 ```
 ---
@@ -20,7 +20,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 
 ### the reject terminator is a function
 
-```scheme
+```x
 (procedure? %rej)
 ```
 ---
@@ -30,7 +30,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 
 ### returns a function
 
-```scheme
+```x
 (procedure? (Analyser make-digit-state %acc))
 ```
 ---
@@ -40,7 +40,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 
 ### returns a function
 
-```scheme
+```x
 (procedure? (Analyser make-xdigit-state %acc))
 ```
 ---
@@ -50,7 +50,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 
 ### returns a function
 
-```scheme
+```x
 (procedure? (Analyser make-char-state 65 %acc ()))
 ```
 ---
@@ -60,7 +60,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 
 ### returns a function
 
-```scheme
+```x
 (procedure? (Analyser make-pred-state (fn (_ c) (Char alphabetic? c)) %acc))
 ```
 ---
@@ -70,7 +70,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 
 ### returns a function
 
-```scheme
+```x
 (procedure? (Analyser make-range-state 48 57 %acc))
 ```
 ---
@@ -80,7 +80,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 
 ### returns a function
 
-```scheme
+```x
 (procedure? (Analyser make-alt-state %acc %rej))
 ```
 ---
@@ -90,7 +90,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 
 ### returns a function
 
-```scheme
+```x
 (procedure? (Analyser make-str-state "abc" %acc ()))
 ```
 ---
@@ -100,7 +100,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 
 ### returns a function for n=3
 
-```scheme
+```x
 (procedure? (Analyser make-count-state 3 (fn (_ c) (Char numeric? c)) %acc))
 ```
 ---
@@ -108,7 +108,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 
 ### returns done directly for n=0
 
-```scheme
+```x
 (eq? (Analyser make-count-state 0 (fn (_ c) (Char numeric? c)) %acc) %acc)
 ```
 ---
@@ -118,7 +118,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 
 ### returns a function
 
-```scheme
+```x
 (procedure? (Analyser make-min-state 1 (fn (_ c) (Char numeric? c)) %acc))
 ```
 ---
@@ -128,7 +128,7 @@ reader-context callers to fetch. The harness caches `%acc` / `%rej`.
 
 ### returns a function
 
-```scheme
+```x
 (procedure? (Analyser make-optional-char 43 %acc))
 ```
 ---

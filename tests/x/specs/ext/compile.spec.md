@@ -5,7 +5,7 @@
 
 ### is a list
 
-```scheme
+```x
 (pair? compile-cc-flags)
 ```
 ---
@@ -15,7 +15,7 @@
 
 ### is a string
 
-```scheme
+```x
 (str? compile-ext)
 ```
 ---
@@ -23,7 +23,7 @@
 
 ### is a known extension
 
-```scheme
+```x
 (or (str=? compile-ext ".so") (str=? compile-ext ".dylib") (str=? compile-ext ".bundle"))
 ```
 ---
@@ -33,7 +33,7 @@
 
 ### is a list
 
-```scheme
+```x
 (pair? compile-emitters)
 ```
 ---
@@ -41,7 +41,7 @@
 
 ### has entries
 
-```scheme
+```x
 (> (List length compile-emitters) 10)
 ```
 ---
@@ -51,7 +51,7 @@
 
 ### adds an emitter
 
-```scheme
+```x
 (do (def before (List length compile-emitters))
     (compile-add-emitter! 'test-emit-42 (fn (_ args) (display "42")))
     (def after (List length compile-emitters))
@@ -64,7 +64,7 @@
 
 ### generates C source string
 
-```scheme
+```x
 (str? (compile-to-c (lit (fn (_ n) n)) ()))
 ```
 ---
@@ -72,7 +72,7 @@
 
 ### includes x-obj.h header
 
-```scheme
+```x
 (Str includes? "x-obj.h" (compile-to-c (lit (fn (_ n) n)) ()))
 ```
 ---
@@ -80,7 +80,7 @@
 
 ### generates function body
 
-```scheme
+```x
 (Str includes? "fn_0" (compile-to-c (lit (fn (_ n) n)) ()))
 ```
 ---
@@ -90,7 +90,7 @@
 
 ### writes string to file
 
-```scheme
+```x
 (do (compile-write "/tmp/x-test-write.txt" "hello")
     (Sys file-exists? "/tmp/x-test-write.txt"))
 ```
@@ -101,7 +101,7 @@
 
 ### executes body with writers pushed
 
-```scheme
+```x
 (str? (compile-with-writers (fn (_) (Io write-to-str 42))))
 ```
 ---

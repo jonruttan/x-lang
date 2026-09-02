@@ -12,7 +12,7 @@ below stay inside that contract rather than probing past it.
 
 covers: str/byte-len
 
-```scheme
+```x
 (def %len (%coord (lit str) (lit byte-len)))
 (%ok (= (%len "hello") 5))
 ```
@@ -23,7 +23,7 @@ covers: str/byte-len
 
 covers: str/byte-ref char/->int
 
-```scheme
+```x
 (def %ref (%coord (lit str) (lit byte-ref)))
 (def %c2i (%coord (lit char) (lit ->int)))
 (%ok (match ((= (%c2i (%ref "abc" 0)) 97) (= (%c2i (%ref "abc" 2)) 99)) (#t ())))
@@ -35,7 +35,7 @@ covers: str/byte-ref char/->int
 
 covers: int/->char char/->int
 
-```scheme
+```x
 (def %c2i (%coord (lit char) (lit ->int)))
 (def %i2c (%coord (lit int) (lit ->char)))
 (%ok (= (%c2i (%i2c 65)) 65))
@@ -47,7 +47,7 @@ covers: int/->char char/->int
 
 covers: str/append
 
-```scheme
+```x
 (def %app (%coord (lit str) (lit append)))
 (def %len (%coord (lit str) (lit byte-len)))
 (def %ref (%coord (lit str) (lit byte-ref)))
@@ -69,7 +69,7 @@ and cstr field at a non-zero offset. Writing this case is what found it. The
 assertion below therefore uses a NON-ZERO start, deliberately: at offset 0 both
 conventions pass and the case would prove nothing.
 
-```scheme
+```x
 (def %sub (%coord (lit str) (lit byte-sub)))
 (def %len (%coord (lit str) (lit byte-len)))
 (def %ref (%coord (lit str) (lit byte-ref)))
@@ -88,7 +88,7 @@ Interning is what makes the catalog's pointer comparisons correct; an engine tha
 returned a fresh symbol would fail here and make every lookup in the library
 quietly wrong.
 
-```scheme
+```x
 (def %s2y (%coord (lit str) (lit ->sym)))
 (%ok (eq? (%s2y "alpha") (lit alpha)))
 ```
@@ -99,7 +99,7 @@ quietly wrong.
 
 covers: sym/->str
 
-```scheme
+```x
 (def %y2s (%coord (lit sym) (lit ->str)))
 (def %len (%coord (lit str) (lit byte-len)))
 (def %ref (%coord (lit str) (lit byte-ref)))
@@ -114,7 +114,7 @@ covers: sym/->str
 
 covers: bytes/->str
 
-```scheme
+```x
 (def %b2s (%coord (lit bytes) (lit ->str)))
 (def %len (%coord (lit str) (lit byte-len)))
 (def %ref (%coord (lit str) (lit byte-ref)))
@@ -129,7 +129,7 @@ covers: bytes/->str
 
 covers: str/make
 
-```scheme
+```x
 (def %mk (%coord (lit str) (lit make)))
 (def %p (%coord (lit str) (lit ->ptr)))
 (%ok (match ((eq? (%mk 8) ()) ()) (#t (match ((eq? (%p (%mk 8)) ()) ()) (#t 1)))))
@@ -141,7 +141,7 @@ covers: str/make
 
 covers: str/->ptr ptr/->str
 
-```scheme
+```x
 (def %p (%coord (lit str) (lit ->ptr)))
 (def %p2s (%coord (lit ptr) (lit ->str)))
 (def %len (%coord (lit str) (lit byte-len)))

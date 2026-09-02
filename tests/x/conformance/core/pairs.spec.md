@@ -10,7 +10,7 @@ requirement the language deliberately declined.
 
 covers: pair first rest
 
-```scheme
+```x
 (def p (pair 1 2))
 (%ok (match ((= (first p) 1) (= (rest p) 2)) (#t ())))
 ```
@@ -24,7 +24,7 @@ covers: pair
 `()` is nil is NULL -- one value, not three. An engine with a distinct empty-list
 object would pass the first arm and fail the second.
 
-```scheme
+```x
 (%ok (match (() ()) (#t 1)))
 ```
 ---
@@ -37,7 +37,7 @@ covers: eq?
 The nil==nil case is why `eq?` answers with a `t` SYMBOL rather than a boolean:
 returning nil-for-false and nil-for-nil-equals-nil would be indistinguishable.
 
-```scheme
+```x
 (%ok (eq? () ()))
 ```
 ---
@@ -47,7 +47,7 @@ returning nil-for-false and nil-for-nil-equals-nil would be indistinguishable.
 
 covers: eq?
 
-```scheme
+```x
 (%ok (match ((eq? 1 1) (match ((eq? 1 2) ()) (#t 1))) (#t ())))
 ```
 ---
@@ -61,7 +61,7 @@ Symbol interning is what lets the catalog compare by pointer; an engine that
 allocated a fresh symbol per occurrence would fail here and would make every
 catalog lookup in the library quietly linear-and-wrong.
 
-```scheme
+```x
 (%ok (eq? (lit alpha) (lit alpha)))
 ```
 ---
@@ -71,7 +71,7 @@ catalog lookup in the library quietly linear-and-wrong.
 
 covers: eq?
 
-```scheme
+```x
 (%ok (match ((eq? (lit alpha) (lit beta)) ()) (#t 1)))
 ```
 ---
@@ -81,7 +81,7 @@ covers: eq?
 
 covers: pair first rest
 
-```scheme
+```x
 (def l (pair 1 (pair 2 (pair 3 ()))))
 (%ok (match ((= (first l) 1) (match ((= (first (rest l)) 2) (match ((= (first (rest (rest l))) 3) (eq? (rest (rest (rest l))) ())) (#t ()))) (#t ()))) (#t ())))
 ```
@@ -92,7 +92,7 @@ covers: pair first rest
 
 covers: same?
 
-```scheme
+```x
 (def p (pair 1 2))
 (%ok (same? p p))
 ```

@@ -12,7 +12,7 @@ specs pin the pure tier.
 
 ### a json content-type decodes the body; others pass bytes through
 
-```scheme
+```x
 (do (import x/net/rest)
   (def %s->b (fn (_ s) (let go ((i (- (Str8 length s) 1)) (acc ()))
                          (if (< i 0) acc (go (- i 1) (pair (Char ->int (Str8 ref i s)) acc))))))
@@ -30,7 +30,7 @@ specs pin the pure tier.
 
 ### an empty body stays nil even when the type says json
 
-```scheme
+```x
 (do (import x/net/rest)
   (list (rest (Assoc find 'body
     (Rest %decode (list (pair 'status 204)
@@ -44,7 +44,7 @@ specs pin the pure tier.
 
 ### ok? is the 2xx test; statuses stay data
 
-```scheme
+```x
 (do (import x/net/rest)
   (list (Rest ok? (list (pair 'status 200)))
         (Rest ok? (list (pair 'status 204)))
@@ -58,7 +58,7 @@ specs pin the pure tier.
 
 ### the json pair rides ahead of caller headers
 
-```scheme
+```x
 (do (import x/net/rest)
   (Rest %headers (list (pair "X-A" "1"))))
 ```

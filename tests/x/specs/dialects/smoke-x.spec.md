@@ -12,7 +12,7 @@ is in this directory's README.md.
 
 ### arithmetic through the pointer
 
-```scheme
+```x
 (+ 2 3)
 ```
 ---
@@ -20,7 +20,7 @@ is in this directory's README.md.
 
 ### the standard library is loaded through the pointer
 
-```scheme
+```x
 (List length (list 1 2 3))
 ```
 ---

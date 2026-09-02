@@ -10,7 +10,7 @@
 
 ### creates a base object
 
-```scheme
+```x
 (pair? (Base make))
 ```
 ---
@@ -18,7 +18,7 @@
 
 ### a base survives being displayed (the REPL echo path)
 
-```scheme
+```x
 (do (def %pb (Base make)) (display %pb) (display "\n") (Base eval %pb (lit (+ 1 2))))
 ```
 ---
@@ -33,7 +33,7 @@ same way -- raw bases from the catalog prims stay plumbing.
 
 ### the instance evaluates directly
 
-```scheme
+```x
 (do (def %ib (Base make)) (%ib eval (lit (* 6 7))))
 ```
 ---
@@ -41,7 +41,7 @@ same way -- raw bases from the catalog prims stay plumbing.
 
 ### the instance binds directly
 
-```scheme
+```x
 (do (def %ib2 (Base make)) (%ib2 bind (lit x) 5) (%ib2 eval (lit x)))
 ```
 ---
@@ -49,7 +49,7 @@ same way -- raw bases from the catalog prims stay plumbing.
 
 ### base? discriminates; raw bases are not instances
 
-```scheme
+```x
 (list (Base base? (Base make)) (Base base? ((prim-ref 'base 'make))) (Base base? 5))
 ```
 ---
@@ -57,7 +57,7 @@ same way -- raw bases from the catalog prims stay plumbing.
 
 ### statics accept the raw form too
 
-```scheme
+```x
 (do (def %rb2 ((prim-ref 'base 'make))) (Base eval %rb2 (lit (+ 40 2))))
 ```
 ---
@@ -65,7 +65,7 @@ same way -- raw bases from the catalog prims stay plumbing.
 
 ### raw-of unwraps an instance and passes a raw base through
 
-```scheme
+```x
 (do (def %ib3 (Base make))
     (list (null? (Base raw-of %ib3))
           (Base base? (Base raw-of %ib3))
@@ -76,7 +76,7 @@ same way -- raw bases from the catalog prims stay plumbing.
 
 ### an instance renders by its live allocation count
 
-```scheme
+```x
 (do (def %ib4 (Base make))
     (def %r ((prim-ref 'io 'display-to-str) %ib4))
     (Str8 includes? "#<base:objs " %r))
@@ -94,7 +94,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### a fresh base's line counter reads 1 through the contract
 
-```scheme
+```x
 (do (def %fb (Base make)) (%cell-int (first (%fb cell (lit line)))))
 ```
 ---
@@ -102,7 +102,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### the field list carries the contract's base-rooted names
 
-```scheme
+```x
 (do (def %names ((Base make) fields))
     (list (not (null? (List filter (fn (_ n) (eq? n (lit env-alist))) %names)))
           (not (null? (List filter (fn (_ n) (eq? n (lit type-alist))) %names)))
@@ -113,7 +113,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### a non-base-rooted name is refused
 
-```scheme
+```x
 (do (def %gb (Base make)) (guard (e (lit refused)) (%gb cell (lit type-write))))
 ```
 ---
@@ -121,7 +121,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### a bound value is visible through the env-alist cell
 
-```scheme
+```x
 (do (def %eb (Base make))
     (%eb bind (lit marker) 77)
     (def %alist (first (%eb cell (lit env-alist))))
@@ -132,7 +132,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### new base has arithmetic
 
-```scheme
+```x
 (do (def b (Base make)) (Base eval b (lit (+ 1 2))))
 ```
 ---
@@ -140,7 +140,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### new base has def
 
-```scheme
+```x
 (do (def b (Base make)) (Base eval b (lit (def x 10))) (Base eval b 'x))
 ```
 ---
@@ -150,7 +150,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### parent binding not visible in child
 
-```scheme
+```x
 (do (def x 10) (def b (Base make)) (guard (e 'isolated) (Base eval b 'x)))
 ```
 ---
@@ -158,7 +158,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### child binding not visible in parent
 
-```scheme
+```x
 (do (def b (Base make)) (Base eval b (lit (def cx 42))) (guard (e 'isolated) cx))
 ```
 ---
@@ -166,7 +166,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### two bases are independent
 
-```scheme
+```x
 (do (def a (Base make)) (def b (Base make)) (Base eval a (lit (def x 1))) (Base eval b (lit (def x 2))) (+ (Base eval a 'x) (Base eval b 'x)))
 ```
 ---
@@ -176,7 +176,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### evaluates arithmetic
 
-```scheme
+```x
 (do (def b (Base make)) (Base eval b (lit (* 6 7))))
 ```
 ---
@@ -184,7 +184,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### evaluates closures
 
-```scheme
+```x
 (do (def b (Base make)) (Base eval b (lit (%seq (def f (fn (_ x) (* x x))) (f 5)))))
 ```
 ---
@@ -192,7 +192,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### propagates errors to parent guard
 
-```scheme
+```x
 (do (def b (Base make)) (guard (e 'caught) (Base eval b (lit (error "boom")))))
 ```
 ---
@@ -202,7 +202,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### binds a value in target base
 
-```scheme
+```x
 (do (def b (Base make)) (Base bind b 'x 42) (Base eval b 'x))
 ```
 ---
@@ -210,7 +210,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### binds a list in target base
 
-```scheme
+```x
 (do (def b (Base make)) (Base bind b 'xs (list 1 2 3)) (Base eval b (lit (first xs))))
 ```
 ---
@@ -218,7 +218,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### does not affect parent
 
-```scheme
+```x
 (do (def b (Base make)) (Base bind b 'z 99) (guard (e 'ok) z))
 ```
 ---
@@ -228,7 +228,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### creates a base object
 
-```scheme
+```x
 (not (null? (Base make-tok)))
 ```
 ---
@@ -236,7 +236,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### bare base produces no tokens
 
-```scheme
+```x
 (null? (Tok read-str (Base make-tok) "hello"))
 ```
 ---
@@ -246,7 +246,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### single custom type tokenizes
 
-```scheme
+```x
 (do (def %tb1 (Base make-tok))
     (def %buf-tok (prim-ref 'buf 'tok))
     (def %tb1-r (fn (_ . args) (list 'word (%buf-tok (first args)))))
@@ -263,7 +263,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### multiple types with discard
 
-```scheme
+```x
 (do (def %tb2 (Base make-tok))
     (def %buf-tok (prim-ref 'buf 'tok))
     (def %tb2-r (fn (_ . args) (list 'word (%buf-tok (first args)))))
@@ -282,7 +282,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### reader extracts buffer-token
 
-```scheme
+```x
 (do (def %tb3 (Base make-tok))
     (def %buf-tok (prim-ref 'buf 'tok))
     (def %tb3-r (fn (_ . args) (%buf-tok (first args))))
@@ -299,7 +299,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### deterministic positive scoring
 
-```scheme
+```x
 (do (def %tb4 (Base make-tok))
     (def %buf-tok (prim-ref 'buf 'tok))
     (def %tb4-r (fn (_ . args) (%buf-tok (first args))))
@@ -317,7 +317,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### greedy negative scoring
 
-```scheme
+```x
 (do (def %tb5 (Base make-tok))
     (def %buf-tok (prim-ref 'buf 'tok))
     (def %tb5-r (fn (_ . args) (list 'tok (%buf-tok (first args)))))
@@ -336,7 +336,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### custom type coexists with built-in types
 
-```scheme
+```x
 (do (def %tb6i (Base make))
     (def %tb6 (%tb6i raw))
     (def %tb6-r (fn (_ . args) (list '%comment (%buf-tok (first args)))))
@@ -358,7 +358,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### make-base includes sexp types
 
-```scheme
+```x
 (first (Tok read-str (Base make) "(+ 1 2)"))
 ```
 ---
@@ -366,7 +366,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### multi-token sexp input
 
-```scheme
+```x
 (List length (Tok read-str (Base make) "(+ 1 2) (* 3 4)"))
 ```
 ---
@@ -376,7 +376,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### access type alist
 
-```scheme
+```x
 (do (def %tb7i (Base make)) (not (null? (first (%tb7i cell (lit type-alist))))))
 ```
 ---
@@ -384,7 +384,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### move entry from front to end
 
-```scheme
+```x
 (do (def %tb8i (Base make))
     (def %tb8 (%tb8i raw))
     (def %tb8-a (Base make-type %tb8 "A" (list (pair 'analyse (fn (_ buffer score chr) ())))))
@@ -400,7 +400,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ### last entry wins scoring ties
 
-```scheme
+```x
 (do (def %tb9 (Base make-tok))
     (def %buf-tok (prim-ref 'buf 'tok))
     (def %tb9-r1 (fn (_ . args) 'first-type))
@@ -426,7 +426,7 @@ prim-ref into every child; that was incidental, and no consumer used it.)
 
 ### a child has no display
 
-```scheme
+```x
 (do (def %bc1 (Base make))
     (guard (e 'bare) (Base eval %bc1 (lit (display 42)))))
 ```
@@ -435,7 +435,7 @@ prim-ref into every child; that was incidental, and no consumer used it.)
 
 ### a child has no catalog protocol
 
-```scheme
+```x
 (do (def %bc2 (Base make))
     (guard (e 'bare) (Base eval %bc2 (lit (prim-ref 'int '+)))))
 ```
@@ -444,7 +444,7 @@ prim-ref into every child; that was incidental, and no consumer used it.)
 
 ### the C ISA is present: arithmetic, def, eval
 
-```scheme
+```x
 (do (def %bc3 (Base make))
     (Base eval %bc3 (lit (def x (* 6 7))))
     (Base eval %bc3 'x))
@@ -454,7 +454,7 @@ prim-ref into every child; that was incidental, and no consumer used it.)
 
 ### the parent reaches in with closures
 
-```scheme
+```x
 (do (def %bc4 (Base make))
     (Base bind %bc4 'shout (fn (_ v) (display v) (display "!")))
     (Base eval %bc4 (lit (shout 7))))
@@ -473,7 +473,7 @@ BYTES through the raw reflect walk -- child handles do not intern into
 the parent, and the handler spines are C-built (pair? answers #f), so
 the canonical List walkers must not touch them.
 
-```scheme
+```x
 (do
   (def %count (fn (self l) (if (null? l) 0 (+ 1 (self (rest l))))))
   (def %hb (Base make))
@@ -504,7 +504,7 @@ repeated caught errors (see "repeated caught errors" below, #253).
 
 ### the bitwise family raises catchably on nil operands
 
-```scheme
+```x
 (do (def %bn (Base make))
     (list (guard (e (lit R)) (Base eval %bn (lit (~ ()))))
           (guard (e (lit R)) (Base eval %bn (lit (& () 1))))
@@ -529,7 +529,7 @@ restores both env and boundary.
 
 ### many caught errors, then the child still evaluates
 
-```scheme
+```x
 (do (def %b (Base make))
     (def %loop ())
     (set! %loop (fn (_ n) (if (eq? n 0) 'done
@@ -542,7 +542,7 @@ restores both env and boundary.
 
 ### a child binding survives repeated caught errors
 
-```scheme
+```x
 (do (def %b (Base make))
     (Base eval %b (lit (def keep 77)))
     (guard (e ()) (Base eval %b 'n1)) (guard (e ()) (Base eval %b 'n2))
@@ -562,7 +562,7 @@ surface language's `define` needs: Scheme's and Kernel's are both operatives.
 
 ### binds from inside an operative frame, where def does not
 
-```scheme
+```x
 (do (def %dg (prim-ref 'base 'def-global))
     (def %setter (op () e (%dg (lit %dg-probe) 7)))
     (%setter)
@@ -576,7 +576,7 @@ surface language's `define` needs: Scheme's and Kernel's are both operatives.
 The failure mode this exists for: one extra wrapper frame is enough to lose a
 binding made the old way, and shadowing a name interposes exactly one.
 
-```scheme
+```x
 (do (def %dg2 (prim-ref 'base 'def-global))
     (def %inner (op () e (%dg2 (lit %dg-deep) 9)))
     (def %outer (op () e (%inner)))
@@ -588,7 +588,7 @@ binding made the old way, and shadowing a name interposes exactly one.
 
 ### redefinition updates in place rather than shadowing
 
-```scheme
+```x
 (do (def %dg3 (prim-ref 'base 'def-global))
     (%dg3 (lit %dg-twice) 1)
     (%dg3 (lit %dg-twice) 2)

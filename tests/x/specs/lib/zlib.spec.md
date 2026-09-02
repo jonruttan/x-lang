@@ -11,7 +11,7 @@ trips, the buffer-doubling path, and the error contract.
 
 ### compress shrinks repetitive data; decompress round-trips exactly
 
-```scheme
+```x
 (do (import x/codec/zlib)
   (def data (List flat-map (fn (_ i) (list 1 2 3 4 5 6 7 8)) (List range 0 100)))
   (def z (Zlib compress data))
@@ -22,7 +22,7 @@ trips, the buffer-doubling path, and the error contract.
 
 ### the destination doubles from a too-small hint until it fits
 
-```scheme
+```x
 (do (import x/codec/zlib)
   (def data (List flat-map (fn (_ i) (list 7 7 7 7)) (List range 0 200)))
   (equal? (Zlib decompress (Zlib compress data 9) 1) data))
@@ -32,7 +32,7 @@ trips, the buffer-doubling path, and the error contract.
 
 ### corrupt and empty input raise 'value
 
-```scheme
+```x
 (do (import x/codec/zlib)
   (list (guard (e (Err kind-of e)) (Zlib decompress (list 1 2 3 4 5)))
         (guard (e (Err kind-of e)) (Zlib decompress ()))))
@@ -44,7 +44,7 @@ trips, the buffer-doubling path, and the error contract.
 
 ### gz-write-all / gz-read-all round-trip through a real file
 
-```scheme
+```x
 (do (import x/codec/zlib) (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-373-spec.gz")
   (def payload (List flat-map (fn (_ i) (list 65 66 67 0 68)) (List range 0 50)))
@@ -58,7 +58,7 @@ trips, the buffer-doubling path, and the error contract.
 
 ### a missing .gz raises 'io
 
-```scheme
+```x
 (do (import x/codec/zlib)
   (list (guard (e (Err kind-of e)) (Zlib gz-read-all "/tmp/x-373-definitely-not.gz"))))
 ```

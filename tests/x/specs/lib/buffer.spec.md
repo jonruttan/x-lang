@@ -20,7 +20,7 @@ not run -- see tests/spec-format.md.)
 
 ### construction yields a BUFFER
 
-```scheme
+```x
 (Type name ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
 ```
 ---
@@ -28,7 +28,7 @@ not run -- see tests/spec-format.md.)
 
 ### append then read advances; tok returns the consumed bytes
 
-```scheme
+```x
 (do
   (def %b ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
   (Buf append %b #\h) (Buf append %b #\i)
@@ -40,7 +40,7 @@ not run -- see tests/spec-format.md.)
 
 ### reads the whole appended input in order
 
-```scheme
+```x
 (do
   (def %b ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
   (Buf append %b #\a) (Buf append %b #\b) (Buf append %b #\c)
@@ -52,7 +52,7 @@ not run -- see tests/spec-format.md.)
 
 ### tok covers only the consumed portion, not appended-but-unread bytes
 
-```scheme
+```x
 (do
   (def %b ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
   (Buf append %b #\x) (Buf append %b #\y)
@@ -64,7 +64,7 @@ not run -- see tests/spec-format.md.)
 
 ### last-char reports the last byte consumed, as its code
 
-```scheme
+```x
 (do
   (def %b ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
   (Buf append %b #\h) (Buf append %b #\i)
@@ -76,7 +76,7 @@ not run -- see tests/spec-format.md.)
 
 ### reset empties the buffer (tok becomes zero-length)
 
-```scheme
+```x
 (do
   (def %b ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
   (Buf append %b #\z) (Buf read %b)
@@ -88,7 +88,7 @@ not run -- see tests/spec-format.md.)
 
 ### retain compacts unread bytes to the front of the backing string
 
-```scheme
+```x
 (do
   (def %s ((prim-ref 'str 'make) 8))
   (def %b ((prim-ref 'buf 'make) %s))
@@ -102,7 +102,7 @@ not run -- see tests/spec-format.md.)
 
 ### read-text treats a NUL byte as end-of-input
 
-```scheme
+```x
 (do
   (def %b ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
   (Buf append %b #\x)
@@ -125,7 +125,7 @@ a fresh RO view has read == write == base, i.e. it is ALREADY exhausted.
 
 ### a read-only view returns () at end of input
 
-```scheme
+```x
 (null? (do (def %b ((prim-ref 'buf 'make) "x" %obj-flag-ro))
            ((prim-ref 'buf 'read) %b)))
 ```
@@ -134,7 +134,7 @@ a fresh RO view has read == write == base, i.e. it is ALREADY exhausted.
 
 ### empty input is an immediately-exhausted read-only buffer
 
-```scheme
+```x
 (null? (do (def %b ((prim-ref 'buf 'make) "" %obj-flag-ro))
            ((prim-ref 'buf 'read) %b)))
 ```
@@ -149,7 +149,7 @@ case above pins the "BUFFER" name.
 
 ### a buffer's type differs from its backing string's type
 
-```scheme
+```x
 (str=? (Type name ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 4)))
        (Type name "plain string"))
 ```

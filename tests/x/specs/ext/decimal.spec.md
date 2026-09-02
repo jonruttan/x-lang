@@ -10,7 +10,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### parses a simple decimal
 
-```scheme
+```x
 1.5d
 ```
 ---
@@ -18,7 +18,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### parses a negative decimal
 
-```scheme
+```x
 -0.001d
 ```
 ---
@@ -26,7 +26,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### parses an integer-shaped decimal
 
-```scheme
+```x
 3d
 ```
 ---
@@ -34,7 +34,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### parses an exponent form
 
-```scheme
+```x
 1.5e3d
 ```
 ---
@@ -42,7 +42,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### parses a negative exponent
 
-```scheme
+```x
 2.5e-4d
 ```
 ---
@@ -50,7 +50,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### the suffix is what claims the token: without it a float still reads
 
-```scheme
+```x
 (Float float? 1.5)
 ```
 ---
@@ -58,7 +58,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### with it a decimal wins the same digits
 
-```scheme
+```x
 (Decimal decimal? 1.5d)
 ```
 ---
@@ -66,7 +66,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### a lone sign is still the operator
 
-```scheme
+```x
 (- 5d 2d)
 ```
 ---
@@ -76,7 +76,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### trailing zeros are stripped, so one value has one spelling
 
-```scheme
+```x
 (Decimal = 1.50d 1.5d)
 ```
 ---
@@ -84,7 +84,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### and print alike
 
-```scheme
+```x
 1.500d
 ```
 ---
@@ -92,7 +92,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### zero has one form
 
-```scheme
+```x
 (Decimal = 0d (- 1.5d 1.5d))
 ```
 ---
@@ -100,7 +100,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### the significand is the stripped one
 
-```scheme
+```x
 (Decimal significand 1.500d)
 ```
 ---
@@ -108,7 +108,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### paired with its exponent
 
-```scheme
+```x
 (Decimal exponent 1.500d)
 ```
 ---
@@ -116,7 +116,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### (Decimal make) builds from the pair directly
 
-```scheme
+```x
 (Decimal ->str (Decimal make 125 -2))
 ```
 ---
@@ -126,7 +126,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### the decimal fraction addition a double cannot do
 
-```scheme
+```x
 (+ 0.1d 0.2d)
 ```
 ---
@@ -134,7 +134,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### the same sum in doubles is not 0.3
 
-```scheme
+```x
 (Float = (+ 0.1 0.2) 0.3)
 ```
 ---
@@ -142,7 +142,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### subtraction is exact too
 
-```scheme
+```x
 (- 1d 0.9d)
 ```
 ---
@@ -150,7 +150,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### multiplication keeps every digit
 
-```scheme
+```x
 (* 1.5d 1.5d)
 ```
 ---
@@ -158,7 +158,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### and grows the significand past the machine word
 
-```scheme
+```x
 (* 99999999999999999999d 99999999999999999999d)
 ```
 ---
@@ -166,7 +166,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### a hundred additions of a tenth land exactly on ten
 
-```scheme
+```x
 (let ((go (fn (self n acc) (if (= n 0) acc (self (- n 1) (+ acc 0.1d))))))
   (Decimal = (go 100 0d) 10d))
 ```
@@ -177,7 +177,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### a terminating quotient is exact
 
-```scheme
+```x
 (/ 1d 8d)
 ```
 ---
@@ -185,7 +185,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### a repeating one rounds to the precision
 
-```scheme
+```x
 (/ 1d 3d)
 ```
 ---
@@ -193,7 +193,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### the default precision is decimal128's coefficient width
 
-```scheme
+```x
 (Decimal precision)
 ```
 ---
@@ -201,7 +201,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### the precision is a knob
 
-```scheme
+```x
 (do (Decimal precision! 10)
     (let ((q (/ 1d 3d))) (do (Decimal precision! 34) q)))
 ```
@@ -210,7 +210,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### rounding is half-even: a tie goes to the even digit
 
-```scheme
+```x
 (do (Decimal precision! 2)
     (let ((q (/ 25d 100d))) (do (Decimal precision! 34) q)))
 ```
@@ -219,7 +219,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### dividing by zero is a raise, not a trap
 
-```scheme
+```x
 (guard (e 'raised) (/ 1d 0d))
 ```
 ---
@@ -227,7 +227,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### zero divided by anything is zero
 
-```scheme
+```x
 (/ 0d 7d)
 ```
 ---
@@ -237,7 +237,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### truncating, like int % and float fmod
 
-```scheme
+```x
 (% 7.5d 2d)
 ```
 ---
@@ -245,7 +245,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### the sign follows the dividend
 
-```scheme
+```x
 (% -7.5d 2d)
 ```
 ---
@@ -253,7 +253,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### a negative divisor does not change that
 
-```scheme
+```x
 (% 7.5d -2d)
 ```
 ---
@@ -261,7 +261,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### and the division identity holds
 
-```scheme
+```x
 (let ((a 22.75d) (b 3.5d))
   (Decimal = a (+ (* b (Decimal trunc (/ a b))) (% a b))))
 ```
@@ -272,7 +272,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### ordering
 
-```scheme
+```x
 (< 1.5d 1.6d)
 ```
 ---
@@ -280,7 +280,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### across wildly different scales, without scaling anything
 
-```scheme
+```x
 (< 1e-1000d 1e1000d)
 ```
 ---
@@ -288,7 +288,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### negatives order the other way
 
-```scheme
+```x
 (< -2d -1d)
 ```
 ---
@@ -296,7 +296,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### three-way compare
 
-```scheme
+```x
 (Decimal compare 2d 1d)
 ```
 ---
@@ -304,7 +304,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### equality is value equality
 
-```scheme
+```x
 (= 2.50d 2.5d)
 ```
 ---
@@ -314,7 +314,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### a double widens EXACTLY -- this is 0.1's true value, not its short form
 
-```scheme
+```x
 (Decimal ->str (Decimal from 0.1))
 ```
 ---
@@ -322,7 +322,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### and converts back to the same double
 
-```scheme
+```x
 (Float = 0.1 (Decimal ->float (Decimal from 0.1)))
 ```
 ---
@@ -330,7 +330,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### from a numeric string
 
-```scheme
+```x
 (Decimal ->str (Decimal from "1.25"))
 ```
 ---
@@ -338,7 +338,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### from a bigint, with no limb walk in between
 
-```scheme
+```x
 (Decimal ->str (Decimal from (* 99999999999 99999999999)))
 ```
 ---
@@ -346,7 +346,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### garbage text is a raise, not a zero
 
-```scheme
+```x
 (guard (e 'raised) (Decimal from "abc"))
 ```
 ---
@@ -354,7 +354,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### and so is a half-written number
 
-```scheme
+```x
 (guard (e 'raised) (Decimal from "1e"))
 ```
 ---
@@ -362,7 +362,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### a point with nothing after it is still a number
 
-```scheme
+```x
 (Decimal ->str (Decimal from "12."))
 ```
 ---
@@ -370,7 +370,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### so is one with nothing before it
 
-```scheme
+```x
 (Decimal ->str (Decimal from ".5"))
 ```
 ---
@@ -378,7 +378,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### a rational rounds -- 1/3 has no finite decimal
 
-```scheme
+```x
 (Decimal ->str (Decimal from 1/4))
 ```
 ---
@@ -386,7 +386,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### ->int truncates toward zero
 
-```scheme
+```x
 (Decimal ->int -2.9d)
 ```
 ---
@@ -394,7 +394,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### ->str drops the suffix that `write` adds for round-tripping
 
-```scheme
+```x
 (Decimal ->str 1.5d)
 ```
 ---
@@ -402,7 +402,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### a value too spread out to spell positionally prints scientific
 
-```scheme
+```x
 1e25d
 ```
 ---
@@ -410,7 +410,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### and re-reads as itself
 
-```scheme
+```x
 (= 1e25d (Decimal make 1 25))
 ```
 ---
@@ -420,7 +420,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### round to decimal places, half-even
 
-```scheme
+```x
 (Decimal ->str (Decimal round 2.675d 2))
 ```
 ---
@@ -428,7 +428,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### an exact tie at an even digit stays put
 
-```scheme
+```x
 (Decimal ->str (Decimal round 2.665d 2))
 ```
 ---
@@ -436,7 +436,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### negative places round to tens, hundreds, ...
 
-```scheme
+```x
 (Decimal ->str (Decimal round 1250d -2))
 ```
 ---
@@ -444,7 +444,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### floor goes down
 
-```scheme
+```x
 (Decimal floor -1.5d)
 ```
 ---
@@ -452,7 +452,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### ceil goes up
 
-```scheme
+```x
 (Decimal ceil -1.5d)
 ```
 ---
@@ -460,7 +460,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### trunc goes toward zero
 
-```scheme
+```x
 (Decimal trunc -1.9d)
 ```
 ---
@@ -470,7 +470,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### sqrt to the current precision
 
-```scheme
+```x
 (Decimal sqrt 2d)
 ```
 ---
@@ -478,7 +478,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### an exact root comes back exact
 
-```scheme
+```x
 (Decimal sqrt 2.25d)
 ```
 ---
@@ -486,7 +486,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### squaring the root gets back to the value
 
-```scheme
+```x
 (let ((r (Decimal sqrt 9d))) (Decimal = 9d (* r r)))
 ```
 ---
@@ -494,7 +494,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### a negative has no real root
 
-```scheme
+```x
 (guard (e 'raised) (Decimal sqrt -1d))
 ```
 ---
@@ -502,7 +502,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### an integer power is exact
 
-```scheme
+```x
 (Decimal pow 1.1d 10)
 ```
 ---
@@ -510,7 +510,7 @@ fraction is written with are the digits it keeps. `+ - *` are exact; `/` and
 
 ### a negative power divides once
 
-```scheme
+```x
 (Decimal pow 2d -2)
 ```
 ---
@@ -524,7 +524,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### e, to the full default precision
 
-```scheme
+```x
 (Decimal exp 1d)
 ```
 ---
@@ -532,7 +532,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### ln 2, likewise -- both agree with the published constants to the last digit
 
-```scheme
+```x
 (Decimal ln 2d)
 ```
 ---
@@ -540,7 +540,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### exp of zero is exactly one
 
-```scheme
+```x
 (Decimal exp 0d)
 ```
 ---
@@ -548,7 +548,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### and ln of one is exactly zero
 
-```scheme
+```x
 (Decimal ln 1d)
 ```
 ---
@@ -556,7 +556,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### the exponential at a lower precision
 
-```scheme
+```x
 (do (Decimal precision! 12)
     (let ((v (Decimal exp 2d))) (do (Decimal precision! 34) v)))
 ```
@@ -565,7 +565,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### a negative exponent
 
-```scheme
+```x
 (do (Decimal precision! 12)
     (let ((v (Decimal exp -1d))) (do (Decimal precision! 34) v)))
 ```
@@ -574,7 +574,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### ln 10, the constant the exponent rides on
 
-```scheme
+```x
 (do (Decimal precision! 12)
     (let ((v (Decimal ln 10d))) (do (Decimal precision! 34) v)))
 ```
@@ -583,7 +583,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### an argument below one
 
-```scheme
+```x
 (do (Decimal precision! 12)
     (let ((v (Decimal ln 0.5d))) (do (Decimal precision! 34) v)))
 ```
@@ -592,7 +592,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### ln of e is one, round-tripped
 
-```scheme
+```x
 (do (Decimal precision! 12)
     (let ((v (Decimal ln (Decimal exp 1d)))) (do (Decimal precision! 34) v)))
 ```
@@ -601,7 +601,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### log10
 
-```scheme
+```x
 (do (Decimal precision! 12)
     (let ((v (Decimal log10 2d))) (do (Decimal precision! 34) v)))
 ```
@@ -610,7 +610,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### an exact power of ten answers exactly, at any precision
 
-```scheme
+```x
 (Decimal log10 1000d)
 ```
 ---
@@ -618,7 +618,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### including a negative one
 
-```scheme
+```x
 (Decimal log10 0.00001d)
 ```
 ---
@@ -626,7 +626,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### an argument near one keeps its digits -- no cancellation against ln 10
 
-```scheme
+```x
 (Decimal ln 1.000000000000000000001d)
 ```
 ---
@@ -634,7 +634,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### other numerics coerce
 
-```scheme
+```x
 (do (Decimal precision! 12)
     (let ((v (Decimal ln 2.0))) (do (Decimal precision! 34) v)))
 ```
@@ -643,7 +643,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### the logarithm of zero is a raise
 
-```scheme
+```x
 (guard (e 'raised) (Decimal ln 0d))
 ```
 ---
@@ -651,7 +651,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### and so is the logarithm of a negative
 
-```scheme
+```x
 (guard (e 'raised) (Decimal log10 -1d))
 ```
 ---
@@ -661,7 +661,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### decimals are numbers
 
-```scheme
+```x
 (number? 1.5d)
 ```
 ---
@@ -669,7 +669,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### and real ones
 
-```scheme
+```x
 (real? 1.5d)
 ```
 ---
@@ -677,7 +677,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### zero?
 
-```scheme
+```x
 (Decimal zero? 0d)
 ```
 ---
@@ -685,7 +685,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### a float is not a decimal
 
-```scheme
+```x
 (Decimal decimal? 1.5)
 ```
 ---
@@ -693,7 +693,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### value dispatch is subject-last
 
-```scheme
+```x
 (1.5d decimal?)
 ```
 ---
@@ -703,7 +703,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### an int coerces
 
-```scheme
+```x
 (+ 1 0.5d)
 ```
 ---
@@ -711,7 +711,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### either way round
 
-```scheme
+```x
 (- 1 1.5d)
 ```
 ---
@@ -719,7 +719,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### a bigint coerces
 
-```scheme
+```x
 (+ 99999999999999999999 0.5d)
 ```
 ---
@@ -727,7 +727,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### a float coerces, exactly
 
-```scheme
+```x
 (* 2d 3.5)
 ```
 ---
@@ -735,7 +735,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### a rational coerces
 
-```scheme
+```x
 (+ 1/2 0.25d)
 ```
 ---
@@ -743,7 +743,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### complex still absorbs the decimal
 
-```scheme
+```x
 (Complex complex? (+ 1+2i 0.5d))
 ```
 ---
@@ -751,7 +751,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### and the real part carries the decimal through
 
-```scheme
+```x
 (Decimal = 1.5d (Complex real-part (+ 1+2i 0.5d)))
 ```
 ---
@@ -759,7 +759,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### a value that converts to nothing numeric is a raise
 
-```scheme
+```x
 (guard (e 'raised) (Decimal + 'sym 1d))
 ```
 ---
@@ -769,7 +769,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### precision must be at least one digit
 
-```scheme
+```x
 (guard (e 'raised) (Decimal precision! 0))
 ```
 ---
@@ -777,7 +777,7 @@ digits as at 34, and the suite is not the place to pay for 34.
 
 ### and the setter answers the new precision
 
-```scheme
+```x
 (do (Decimal precision! 12)
     (let ((p (Decimal precision))) (do (Decimal precision! 34) p)))
 ```

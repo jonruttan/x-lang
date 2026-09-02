@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**x-lang's own spec fences say `x`, not `scheme`.** 2,735 of them, across 154
+files. The tag was decoration to the runner — it collects any fenced block the
+same way, and only ` ```output ` means anything to it — but it is a claim to
+every reader, and it named a language this is not. A reader who trusts it
+reaches for `car`, which is unbound. `x` is what the rest of the tree already
+uses: it is the tag the Pages build highlights (Rouge has no x-lang lexer, so
+`tools/dev/highlight-sweep.sh` supplies one) and the tag the hand-written docs
+are written with. The `scheme` row stays for the langs that are Scheme
+dialects.
+
 ## [0.11.0] - 2026-09-03
 
 **x runs C, and compiles it.** x-cc registered at 27 specs and left this

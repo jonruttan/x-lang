@@ -13,7 +13,7 @@ An instance of a plain type is itself; an instance whose type registers
 to the instance and then evaluates the INSTANCE — the second step is the
 handler's.
 
-```scheme
+```x
 (def %tmake (%coord (lit type) (lit make)))
 (def %minst (%coord (lit type) (lit make-instance)))
 (def h (%tmake "CONF-EVAL"
@@ -30,7 +30,7 @@ covers: type/make type/make-instance eval
 
 Absence of the handler means the value is its own meaning.
 
-```scheme
+```x
 (def %tmake (%coord (lit type) (lit make)))
 (def %minst (%coord (lit type) (lit make-instance)))
 (def h (%tmake "CONF-PLAIN" ()))
@@ -48,7 +48,7 @@ A value is callable because its TYPE registers `call` — the same door
 the reference's procedures, operatives and primitives come through, and
 the door a class layer walks in through.
 
-```scheme
+```x
 (def %tmake (%coord (lit type) (lit make)))
 (def %minst (%coord (lit type) (lit make-instance)))
 (def h (%tmake "CONF-CALL"
@@ -66,7 +66,7 @@ covers: type/make type/make-instance
 A head that is not callable makes the form DATA — the form answers
 itself, nothing raises.
 
-```scheme
+```x
 (def %tmake (%coord (lit type) (lit make)))
 (def %minst (%coord (lit type) (lit make-instance)))
 (def h (%tmake "CONF-NOCALL" ()))
@@ -85,7 +85,7 @@ Not decoration: `lib/x/tool/cov.x` walks a PROCEDURE's slot 1 for the
 body forms, on whichever engine is underneath. The data offset is probed
 the way `lib/x/boot/data.x` probes it; the word stride is the machine's.
 
-```scheme
+```x
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %prw (%coord (lit ptr) (lit ref-word)))
 (def %p2o (%coord (lit ptr) (lit ->obj)))
@@ -108,7 +108,7 @@ The JIT door and the instruction table are one mechanism: a made
 callable IS a primitive, distinguishable from one the engine registered
 only by where its entry points.
 
-```scheme
+```x
 (def %mc (%coord (lit obj) (lit make-callable)))
 (def %i2p (%coord (lit int) (lit ->ptr)))
 (def %tof (%coord (lit type) (lit of)))

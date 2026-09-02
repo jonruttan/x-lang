@@ -20,7 +20,7 @@ primitive was subtly wrong.
 
 covers: +
 
-```scheme
+```x
 (%ok (= (+ 2 3) 5))
 ```
 ---
@@ -30,7 +30,7 @@ covers: +
 
 covers: - *
 
-```scheme
+```x
 (%ok (match ((= (- 10 4) 6) (= (* 6 7) 42)) (#t ())))
 ```
 ---
@@ -42,7 +42,7 @@ covers: /
 
 Truncation, not floor: an engine that floors would answer -4 for the second.
 
-```scheme
+```x
 (%ok (match ((= (/ 7 2) 3) (= (/ -7 2) -3)) (#t ())))
 ```
 ---
@@ -56,7 +56,7 @@ C remainder semantics, not Euclidean: `(% -7 2)` is -1, not 1. An engine
 implementing a mathematical modulo would answer 1 and pass every positive-operand
 test ever written, which is why the negative case is the one asserted.
 
-```scheme
+```x
 (%ok (match ((= (% 7 2) 1) (= (% -7 2) -1)) (#t ())))
 ```
 ---
@@ -71,7 +71,7 @@ engine's `eq?` answers with a `t` symbol rather than `#t`, and pinning that woul
 freeze a representation detail. What an engine must guarantee is that the answer
 works as a test.
 
-```scheme
+```x
 (%ok (match ((< 1 2) (match ((= 2 2) 1) (#t ()))) (#t ())))
 ```
 ---
@@ -81,7 +81,7 @@ works as a test.
 
 covers: <
 
-```scheme
+```x
 (%ok (match ((< 2 1) ()) (#t 1)))
 ```
 ---
@@ -95,7 +95,7 @@ Complement is asserted as `(~ 0)` = -1, which is two's complement and not merely
 "some bits flipped" -- an engine using a sign-magnitude or ones-complement integer
 would answer differently.
 
-```scheme
+```x
 (%ok (match ((= (& 12 10) 8) (match ((= (| 12 10) 14) (match ((= (^ 12 10) 6) (match ((= (<< 1 4) 16) (match ((= (>> 16 4) 1) (= (~ 0) -1)) (#t ()))) (#t ()))) (#t ()))) (#t ()))) (#t ())))
 ```
 ---

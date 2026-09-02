@@ -3,7 +3,7 @@
 
 ### increments by one
 
-```scheme
+```x
 (Num inc 5)
 ```
 ---
@@ -13,7 +13,7 @@
 
 ### decrements by one
 
-```scheme
+```x
 (Num dec 5)
 ```
 ---
@@ -23,7 +23,7 @@
 
 ### negates positive
 
-```scheme
+```x
 (Num negate 5)
 ```
 ---
@@ -31,7 +31,7 @@
 
 ### negates negative
 
-```scheme
+```x
 (Num negate -3)
 ```
 ---
@@ -41,7 +41,7 @@
 
 ### positive stays positive
 
-```scheme
+```x
 (Num abs 5)
 ```
 ---
@@ -49,7 +49,7 @@
 
 ### negative becomes positive
 
-```scheme
+```x
 (Num abs -5)
 ```
 ---
@@ -57,7 +57,7 @@
 
 ### zero stays zero
 
-```scheme
+```x
 (Num abs 0)
 ```
 ---
@@ -67,7 +67,7 @@
 
 ### returns smaller
 
-```scheme
+```x
 (Num min 3 7)
 ```
 ---
@@ -75,7 +75,7 @@
 
 ### returns smaller when first is larger
 
-```scheme
+```x
 (Num min 7 3)
 ```
 ---
@@ -85,7 +85,7 @@
 
 ### returns larger
 
-```scheme
+```x
 (Num max 3 7)
 ```
 ---
@@ -93,7 +93,7 @@
 
 ### returns larger when first is larger
 
-```scheme
+```x
 (Num max 7 3)
 ```
 ---
@@ -103,7 +103,7 @@
 
 ### clamps below minimum
 
-```scheme
+```x
 (Num clamp 0 10 -5)
 ```
 ---
@@ -111,7 +111,7 @@
 
 ### clamps above maximum
 
-```scheme
+```x
 (Num clamp 0 10 15)
 ```
 ---
@@ -119,7 +119,7 @@
 
 ### passes through in range
 
-```scheme
+```x
 (Num clamp 0 10 5)
 ```
 ---
@@ -129,7 +129,7 @@
 
 ### returns min by key function
 
-```scheme
+```x
 (Num min-by (method-ref Num abs) 3 -5)
 ```
 ---
@@ -139,7 +139,7 @@
 
 ### returns max by key function
 
-```scheme
+```x
 (Num max-by (method-ref Num abs) 3 -5)
 ```
 ---
@@ -149,7 +149,7 @@
 
 ### sums a list
 
-```scheme
+```x
 (List sum (list 1 2 3 4))
 ```
 ---
@@ -157,7 +157,7 @@
 
 ### sum of empty is zero
 
-```scheme
+```x
 (List sum ())
 ```
 ---
@@ -167,7 +167,7 @@
 
 ### multiplies a list
 
-```scheme
+```x
 (List product (list 1 2 3 4))
 ```
 ---
@@ -175,7 +175,7 @@
 
 ### product of empty is one
 
-```scheme
+```x
 (List product ())
 ```
 ---
@@ -185,7 +185,7 @@
 
 ### true for zero
 
-```scheme
+```x
 (Num zero? 0)
 ```
 ---
@@ -193,7 +193,7 @@
 
 ### false for non-zero
 
-```scheme
+```x
 (if (Num zero? 5) "y" "n")
 ```
 ---
@@ -203,7 +203,7 @@
 
 ### true for positive
 
-```scheme
+```x
 (Num positive? 5)
 ```
 ---
@@ -211,7 +211,7 @@
 
 ### false for negative
 
-```scheme
+```x
 (if (Num positive? -1) "y" "n")
 ```
 ---
@@ -221,7 +221,7 @@
 
 ### true for negative
 
-```scheme
+```x
 (Num negative? -5)
 ```
 ---
@@ -229,7 +229,7 @@
 
 ### false for positive
 
-```scheme
+```x
 (if (Num negative? 1) "y" "n")
 ```
 ---
@@ -239,7 +239,7 @@
 
 ### true for even
 
-```scheme
+```x
 (Num even? 4)
 ```
 ---
@@ -247,7 +247,7 @@
 
 ### false for odd
 
-```scheme
+```x
 (if (Num even? 3) "y" "n")
 ```
 ---
@@ -257,7 +257,7 @@
 
 ### true for odd
 
-```scheme
+```x
 (Num odd? 3)
 ```
 ---
@@ -265,7 +265,7 @@
 
 ### false for even
 
-```scheme
+```x
 (if (Num odd? 4) "y" "n")
 ```
 ---
@@ -276,7 +276,7 @@
 
 ### two numbers
 
-```scheme
+```x
 (Num gcd 12 8)
 ```
 ---
@@ -284,7 +284,7 @@
 
 ### coprime
 
-```scheme
+```x
 (Num gcd 7 13)
 ```
 ---
@@ -292,7 +292,7 @@
 
 ### variadic
 
-```scheme
+```x
 (Num gcd 12 8 6)
 ```
 ---
@@ -302,7 +302,7 @@
 
 ### two numbers
 
-```scheme
+```x
 (Num lcm 4 6)
 ```
 ---
@@ -310,7 +310,7 @@
 
 ### variadic
 
-```scheme
+```x
 (Num lcm 2 3 4)
 ```
 ---
@@ -320,7 +320,7 @@
 
 ### power of two
 
-```scheme
+```x
 (Num expt 2 10)
 ```
 ---
@@ -328,7 +328,7 @@
 
 ### zero exponent
 
-```scheme
+```x
 (Num expt 5 0)
 ```
 ---
@@ -336,7 +336,7 @@
 
 ### base one
 
-```scheme
+```x
 (Num expt 1 100)
 ```
 ---
@@ -347,7 +347,7 @@
 A negative exponent used to walk away from the base case, squaring the base
 each even step until it exhausted memory.
 
-```scheme
+```x
 (Num expt 2 -1)
 ```
 ---
@@ -357,7 +357,7 @@ each even step until it exhausted memory.
 
 ### quotient truncates toward zero
 
-```scheme
+```x
 (list (Num quotient 7 2) (Num quotient -7 2))
 ```
 ---
@@ -365,7 +365,7 @@ each even step until it exhausted memory.
 
 ### remainder takes the dividend's sign
 
-```scheme
+```x
 (list (Num remainder 7 2) (Num remainder -7 2))
 ```
 ---
@@ -373,7 +373,7 @@ each even step until it exhausted memory.
 
 ### modulo takes the divisor's sign
 
-```scheme
+```x
 (list (Num modulo -7 3) (Num modulo 7 -3))
 ```
 ---
@@ -381,7 +381,7 @@ each even step until it exhausted memory.
 
 ### divmod pairs them
 
-```scheme
+```x
 (Num divmod 7 2)
 ```
 ---
@@ -391,7 +391,7 @@ each even step until it exhausted memory.
 
 ### more than two arguments
 
-```scheme
+```x
 (list (Num min 3 1 2) (Num max 3 1 2))
 ```
 ---
@@ -399,7 +399,7 @@ each even step until it exhausted memory.
 
 ### binary still works
 
-```scheme
+```x
 (Num min 5 4)
 ```
 ---
@@ -409,7 +409,7 @@ each even step until it exhausted memory.
 
 ### largest k with k*k <= n
 
-```scheme
+```x
 (list (Num isqrt 0) (Num isqrt 1) (Num isqrt 99) (Num isqrt 100))
 ```
 ---
@@ -417,7 +417,7 @@ each even step until it exhausted memory.
 
 ### errors on negatives
 
-```scheme
+```x
 (Num isqrt -1)
 ```
 ---
@@ -427,7 +427,7 @@ each even step until it exhausted memory.
 
 ### recognizes machine integers only (N5's explicit-control door)
 
-```scheme
+```x
 (list (Num int? 3) (Num int? ()) (Num int? "3"))
 ```
 ---

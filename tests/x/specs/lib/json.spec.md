@@ -8,7 +8,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### integers
 
-```scheme
+```x
 (do (import x/codec/json) (Json parse "42"))
 ```
 ---
@@ -16,7 +16,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### negative integers
 
-```scheme
+```x
 (do (import x/codec/json) (Json parse "-7"))
 ```
 ---
@@ -24,7 +24,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### decimals parse as floats
 
-```scheme
+```x
 (do (import x/codec/json) (Json parse "2.5"))
 ```
 ---
@@ -32,7 +32,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### exponents parse as floats (and keep their point, #45 R4)
 
-```scheme
+```x
 (do (import x/codec/json)
   (let ((v (Json parse "1e3"))) (list (Type name v) v)))
 ```
@@ -41,7 +41,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### true / false / null
 
-```scheme
+```x
 (do (import x/codec/json)
   (list (Json parse "true") (Json parse "false") (Json parse "null")))
 ```
@@ -50,7 +50,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### strings
 
-```scheme
+```x
 (do (import x/codec/json) (Json parse "\"hello\""))
 ```
 ---
@@ -60,7 +60,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### quote and backslash escapes
 
-```scheme
+```x
 (do (import x/codec/json) (Json parse "\"a\\\"b\\\\c\""))
 ```
 ---
@@ -68,7 +68,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### newline and tab escapes land as real bytes
 
-```scheme
+```x
 (do (import x/codec/json)
   (List map (method-ref Char ->int) (StrUtf8 ->list (Json parse "\"a\\n\\tb\""))))
 ```
@@ -77,7 +77,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### unicode escape decodes to UTF-8
 
-```scheme
+```x
 (do (import x/codec/json) (Json parse "\"\\u00e9\""))
 ```
 ---
@@ -85,7 +85,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### surrogate pairs combine
 
-```scheme
+```x
 (do (import x/codec/json)
   (StrUtf8 length (Json parse "\"\\ud83d\\ude00\"")))
 ```
@@ -94,7 +94,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### raw UTF-8 passes through
 
-```scheme
+```x
 (do (import x/codec/json) (Json parse "\"café\""))
 ```
 ---
@@ -104,7 +104,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### arrays become lists in order
 
-```scheme
+```x
 (do (import x/codec/json) (Json parse "[1, 2, 3]"))
 ```
 ---
@@ -112,7 +112,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### empty array
 
-```scheme
+```x
 (do (import x/codec/json) (null? (Json parse "[]")))
 ```
 ---
@@ -120,7 +120,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### nested arrays
 
-```scheme
+```x
 (do (import x/codec/json) (Json parse "[[1],[2,[3]]]"))
 ```
 ---
@@ -128,7 +128,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### objects become Dicts with string keys
 
-```scheme
+```x
 (do (import x/codec/json)
   ((Json parse "{\"name\": \"x\", \"n\": 3}") get "name"))
 ```
@@ -137,7 +137,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### empty object
 
-```scheme
+```x
 (do (import x/codec/json) ((Json parse "{}") empty?))
 ```
 ---
@@ -145,7 +145,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### nested structure end to end
 
-```scheme
+```x
 (do (import x/codec/json)
   (let ((v (Json parse "{\"xs\": [1, {\"y\": true}], \"z\": null}")))
     (list ((first (rest (v get "xs"))) get "y") (v get "z"))))
@@ -155,7 +155,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### duplicate keys: last wins
 
-```scheme
+```x
 (do (import x/codec/json) ((Json parse "{\"a\":1,\"a\":2}") get "a"))
 ```
 ---
@@ -165,7 +165,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### trailing content errors
 
-```scheme
+```x
 (do (import x/codec/json) (Json parse "1 2"))
 ```
 ---
@@ -173,7 +173,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### unterminated string errors
 
-```scheme
+```x
 (do (import x/codec/json) (Json parse "\"abc"))
 ```
 ---
@@ -181,7 +181,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### bad literal errors
 
-```scheme
+```x
 (do (import x/codec/json) (Json parse "nulL"))
 ```
 ---
@@ -191,7 +191,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### scalars
 
-```scheme
+```x
 (do (import x/codec/json)
   (list (Json emit 42) (Json emit #t) (Json emit #f) (Json emit 'null)))
 ```
@@ -200,7 +200,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### floats emit their decimal form
 
-```scheme
+```x
 (do (import x/codec/json) (Json emit (Json parse "2.5")))
 ```
 ---
@@ -208,7 +208,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### strings escape quotes and backslashes (the gap x-logo's json.x had)
 
-```scheme
+```x
 (do (import x/codec/json) (Json emit "a\"b\\c"))
 ```
 ---
@@ -216,7 +216,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### control bytes escape
 
-```scheme
+```x
 (do (import x/codec/json)
   (Json emit (bytes->str (list 104 10 105))))
 ```
@@ -225,7 +225,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### lists emit as arrays
 
-```scheme
+```x
 (do (import x/codec/json) (Json emit (list 1 2 (list 3))))
 ```
 ---
@@ -233,7 +233,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### dicts emit as objects
 
-```scheme
+```x
 (do (import x/codec/json)
   (let ((d (Dict make))) (d set! "k" 1) (Json emit d)))
 ```
@@ -242,7 +242,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### rationals refuse politely
 
-```scheme
+```x
 (do (import x/codec/json) (import x/num/rational)
   (Json emit (/ 1 2)))
 ```
@@ -253,7 +253,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### parse . emit is identity on compact text (single key: Dict order is unordered)
 
-```scheme
+```x
 (do (import x/codec/json)
   (Json emit (Json parse "{\"a\":[1,true,null]}")))
 ```
@@ -262,7 +262,7 @@ Objects are Dicts, arrays are lists, null is the symbol `null`.
 
 ### emit . parse preserves values
 
-```scheme
+```x
 (do (import x/codec/json)
   (let ((v (Json parse (Json emit (list 1 "two" #t 'null)))))
     v))

@@ -11,7 +11,7 @@ this directory's README.md.
 
 ### arithmetic
 
-```scheme
+```x
 (+ 2 3)
 ```
 ---
@@ -19,7 +19,7 @@ this directory's README.md.
 
 ### classes are available
 
-```scheme
+```x
 (List length (list 1 2 3))
 ```
 ---

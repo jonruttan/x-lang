@@ -20,7 +20,7 @@ region first; the shadow bit is retired.
 
 ### Err raise works with a caller param named new
 
-```scheme
+```x
 ((fn (_ new) (guard (g (Err kind-of g)) (Err raise 'value "m" ()))) 1)
 ```
 ---
@@ -28,7 +28,7 @@ region first; the shadow bit is retired.
 
 ### the raised error carries through untouched
 
-```scheme
+```x
 ((fn (_ new) (guard (g (g msg)) (Err raise 'value "boom" ()))) 1)
 ```
 ---
@@ -38,7 +38,7 @@ region first; the shadow bit is retired.
 
 ### def e then a dotted-param static method call
 
-```scheme
+```x
 (import x/num/random)
 (def e (Err make 'io "decoy" ()))
 (let ((r (Random sw 42))) (if (null? r) 'no 'ok))
@@ -48,7 +48,7 @@ region first; the shadow bit is retired.
 
 ### def e as a plain int does not corrupt dispatch
 
-```scheme
+```x
 (import x/num/random)
 (def e 42)
 (let ((r (Random sw 7))) (if (null? r) 'no 'ok))
@@ -60,7 +60,7 @@ region first; the shadow bit is retired.
 
 ### a capture two frames up wins over a same-named global
 
-```scheme
+```x
 (def x-47 1)
 ((fn (_ x-47) ((fn (_ y) ((fn (_) x-47))) 9)) 2)
 ```
@@ -69,7 +69,7 @@ region first; the shadow bit is retired.
 
 ### set! through two frames mutates the local, not the global
 
-```scheme
+```x
 (def z-47 1)
 (list
   ((fn (_ z-47) ((fn (_ y) (do (set! z-47 5) z-47)) 9)) 2)
@@ -82,7 +82,7 @@ region first; the shadow bit is retired.
 
 ### a callee resolves the global while the caller shadows it
 
-```scheme
+```x
 (def g-47 (fn (_) (list 1 2)))
 ((fn (_ list) (g-47)) 1)
 ```

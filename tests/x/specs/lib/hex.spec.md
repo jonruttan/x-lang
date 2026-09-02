@@ -11,7 +11,7 @@ byte sequences.
 
 ### encode and decode, string doors
 
-```scheme
+```x
 (do (import x/codec/hex)
   (list (Hex encode "foobar") (Hex decode "666f6f626172")
         (Hex encode "") (Hex decode "")))
@@ -21,7 +21,7 @@ byte sequences.
 
 ### uppercase input decodes
 
-```scheme
+```x
 (do (import x/codec/hex)
   (Hex decode "666F6F"))
 ```
@@ -30,7 +30,7 @@ byte sequences.
 
 ### a NUL-bearing payload round-trips losslessly through the bytes doors
 
-```scheme
+```x
 (do (import x/codec/hex)
   (list (Hex encode-bytes (list 255 0 16))
         (Hex decode-bytes "ff0010")))
@@ -42,7 +42,7 @@ byte sequences.
 
 ### odd length and out-of-range characters raise 'value
 
-```scheme
+```x
 (do (import x/codec/hex)
   (list (guard (e (Err kind-of e)) (Hex decode "abc"))
         (guard (e (Err kind-of e)) (Hex decode "zz"))))

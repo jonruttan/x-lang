@@ -11,7 +11,7 @@ covers: type/?
 
 This is what every predicate in `lib/x/core/predicates.x` is: `(type ? x T)`.
 
-```scheme
+```x
 (def %tof (%coord (lit type) (lit of)))
 (def %is (%coord (lit type) (lit ?)))
 (%ok (match ((%is 1 (%tof 1)) (match ((%is 1 (%tof "s")) ()) (#t 1))) (#t ())))
@@ -23,7 +23,7 @@ This is what every predicate in `lib/x/core/predicates.x` is: `(type ? x T)`.
 
 covers: type/of
 
-```scheme
+```x
 (def %tof (%coord (lit type) (lit of)))
 (%ok (match ((same? (%tof 1) (%tof "s")) ()) (#t (match ((same? (%tof 1) (%tof (pair 1 2))) ()) (#t 1)))))
 ```
@@ -37,7 +37,7 @@ covers: type/make
 `(type make "NAME" methods)` -- the door `lib/x/num/bigint.x` and its siblings use
 to add a type the C knows nothing about.
 
-```scheme
+```x
 (def %mkt (%coord (lit type) (lit make)))
 (def T (%mkt "CONFORM" ()))
 (%ok (match ((eq? T ()) ()) (#t 1)))
@@ -52,7 +52,7 @@ covers: type/make-instance type/of type/?
 The property the numeric tower rests on: an instance must be recognisable as its
 own type and not as any built-in one.
 
-```scheme
+```x
 (def %mkt (%coord (lit type) (lit make)))
 (def %mki (%coord (lit type) (lit make-instance)))
 (def %tof (%coord (lit type) (lit of)))
@@ -68,7 +68,7 @@ own type and not as any built-in one.
 
 covers: type/make-instance
 
-```scheme
+```x
 (def %mkt (%coord (lit type) (lit make)))
 (def %mki (%coord (lit type) (lit make-instance)))
 (def T (%mkt "CONFORM" ()))

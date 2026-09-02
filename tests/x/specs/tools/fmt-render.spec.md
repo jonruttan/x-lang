@@ -18,7 +18,7 @@ real tool feeds tokenizer output and is covered separately by `tools/tests/specs
 
 ### estimates the display width of a form
 
-```scheme
+```x
 (do (import x/tool/fmt) (Fmt width (lit (+ 1 2))))
 ```
 ---
@@ -28,7 +28,7 @@ real tool feeds tokenizer output and is covered separately by `tools/tests/specs
 
 ### a narrow form prints on one line (under the 60-char threshold)
 
-```scheme
+```x
 (do (import x/tool/fmt) (Fmt expr (lit (+ 1 2)) 0))
 ```
 ---
@@ -36,7 +36,7 @@ real tool feeds tokenizer output and is covered separately by `tools/tests/specs
 
 ### a wide form breaks across lines with 2-space indentation
 
-```scheme
+```x
 (do (import x/tool/fmt) (Fmt expr (lit (define (factorial n) (if (= n 0) 1 (* n (factorial (- n 1)))))) 0))
 ```
 ---

@@ -10,7 +10,7 @@ compares every captured line; anything else compares only the last line.
 
 ### captures multiple output lines, not just the last
 
-```scheme
+```x
 (do (display "alpha") (newline) (display "beta") (newline) (display "gamma") (newline))
 ```
 ---
@@ -22,7 +22,7 @@ gamma
 
 ### preserves an interior blank line
 
-```scheme
+```x
 (do (display "top") (newline) (newline) (display "bottom") (newline))
 ```
 ---
@@ -34,7 +34,7 @@ bottom
 
 ### a single-line result still works under full mode
 
-```scheme
+```x
 (display "solo")
 ```
 ---
@@ -46,7 +46,7 @@ solo
 
 ### default mode still compares only the last line
 
-```scheme
+```x
 (do (display "ignored-first-line") (newline) (+ 2 3))
 ```
 ---

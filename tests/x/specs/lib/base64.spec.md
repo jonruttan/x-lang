@@ -11,7 +11,7 @@ else outside the alphabet (#61: no silent repair).
 
 ### encode: all seven
 
-```scheme
+```x
 (do (import x/codec/base64)
   (list (Base64 encode "") (Base64 encode "f") (Base64 encode "fo")
         (Base64 encode "foo") (Base64 encode "foob") (Base64 encode "fooba")
@@ -22,7 +22,7 @@ else outside the alphabet (#61: no silent repair).
 
 ### decode: round trips, both padded shapes
 
-```scheme
+```x
 (do (import x/codec/base64)
   (list (Base64 decode "Zm9vYmFy") (Base64 decode "Zm9vYg==")
         (Base64 decode "Zm8=") (Base64 decode "")))
@@ -34,7 +34,7 @@ else outside the alphabet (#61: no silent repair).
 
 ### a NUL-bearing payload round-trips losslessly
 
-```scheme
+```x
 (do (import x/codec/base64)
   (Base64 decode-bytes (Base64 encode-bytes (list 0 255 16 0))))
 ```
@@ -43,7 +43,7 @@ else outside the alphabet (#61: no silent repair).
 
 ### the + and / alphabet edges
 
-```scheme
+```x
 (do (import x/codec/base64)
   (list (Base64 encode-bytes (list 251 239))
         (Base64 encode-bytes (list 255 255 255))
@@ -56,7 +56,7 @@ else outside the alphabet (#61: no silent repair).
 
 ### whitespace-wrapped payload decodes (the PEM shape)
 
-```scheme
+```x
 (do (import x/codec/base64)
   (Base64 decode "Zm9v\nYmFy"))
 ```
@@ -65,7 +65,7 @@ else outside the alphabet (#61: no silent repair).
 
 ### out-of-alphabet, short group, and misplaced padding all raise 'value
 
-```scheme
+```x
 (do (import x/codec/base64)
   (list (guard (e (Err kind-of e)) (Base64 decode "Zm9!"))
         (guard (e (Err kind-of e)) (Base64 decode "Zm9"))

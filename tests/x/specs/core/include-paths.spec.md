@@ -15,7 +15,7 @@ files already under `lib/`, so nothing depends on paths outside the repo.
 
 ### ./ resolves against the including file's directory
 
-```scheme
+```x
 (str=? (%resolve-include-path "./cell.x" "app/maze") "app/maze/cell.x")
 ```
 ---
@@ -23,7 +23,7 @@ files already under `lib/`, so nothing depends on paths outside the repo.
 
 ### ../ is kept for the OS to collapse
 
-```scheme
+```x
 (str=? (%resolve-include-path "../shared/x.x" "app/maze") "app/maze/../shared/x.x")
 ```
 ---
@@ -31,7 +31,7 @@ files already under `lib/`, so nothing depends on paths outside the repo.
 
 ### a plain path is unchanged (cwd-relative, as before)
 
-```scheme
+```x
 (str=? (%resolve-include-path "lib/x/type/list.x" "app/maze") "lib/x/type/list.x")
 ```
 ---
@@ -39,7 +39,7 @@ files already under `lib/`, so nothing depends on paths outside the repo.
 
 ### an absolute path is unchanged
 
-```scheme
+```x
 (str=? (%resolve-include-path "/etc/hosts" "app/maze") "/etc/hosts")
 ```
 ---
@@ -47,7 +47,7 @@ files already under `lib/`, so nothing depends on paths outside the repo.
 
 ### a directory is everything before the last slash
 
-```scheme
+```x
 (list (str=? (%path-dir "app/maze/cell.x") "app/maze") (str=? (%path-dir "cell.x") "."))
 ```
 ---
@@ -55,7 +55,7 @@ files already under `lib/`, so nothing depends on paths outside the repo.
 
 ### the top-level current directory is "." after boot
 
-```scheme
+```x
 (str=? (%include-curdir) ".")
 ```
 ---
@@ -63,7 +63,7 @@ files already under `lib/`, so nothing depends on paths outside the repo.
 
 ### the dir-stack feeds the current directory into resolution
 
-```scheme
+```x
 (%include-dir-push! "lib/x/core")
 (let ((%r (%resolve-include-path "./list.x" (%include-curdir))))
   (%include-dir-pop!)
@@ -83,7 +83,7 @@ chain. Without this, the loader wrappers' formals (`path`, `name`, ...) are
 captured by every closure a module defines and shadow the global env inside
 loaded code forever.
 
-```scheme
+```x
 (do
   (include "tests/x/lib/loader-frame-fixture.x")
   (%loader-frame-probe))
@@ -95,7 +95,7 @@ loaded code forever.
 
 ### conservative: the only default root is lib
 
-```scheme
+```x
 (str=? (%module-resolve 'x/num/random) "lib/x/num/random.x")
 ```
 ---
@@ -103,7 +103,7 @@ loaded code forever.
 
 ### configurable: import-path! adds a root, falling back to the lib default
 
-```scheme
+```x
 (import-path! "lib/x")
 (list (str=? (%module-resolve 'core/list) "lib/x/core/list.x")
       (str=? (%module-resolve 'x/num/random) "lib/x/num/random.x"))
@@ -121,7 +121,7 @@ build/ivspec/ and armed as an import root.
 
 ### fixture tree
 
-```scheme
+```x
 (do
   (import x/sys/file)
   (guard (_ ()) (File mkdir "build"))
@@ -146,7 +146,7 @@ build/ivspec/ and armed as an import root.
 `"1.3.*"` reaches 1.3.1 the moment the patch file lands; no import site
 changes. This is how fixes flow: resolution, not mutation.
 
-```scheme
+```x
 (do
   (import-version-once vmod/thing "1.3.*")
   (display %thing-v))
@@ -160,7 +160,7 @@ The loaded 1.3.1 satisfies `"^1"` (no-op). It does not satisfy `"2"`: a
 named version is a contract, so import's silent first-wins would be the
 wrong answer — the mismatch errs, naming both sides.
 
-```scheme
+```x
 (do
   (import-version-once vmod/thing "^1")
   (display (guard (_ #t) (do (import-version-once vmod/thing "2") #f))))
@@ -170,7 +170,7 @@ wrong answer — the mismatch errs, naming both sides.
 
 ### a bare import after a versioned load no-ops — import's own contract
 
-```scheme
+```x
 (do
   (import vmod/thing)
   (display %thing-v))
@@ -182,7 +182,7 @@ wrong answer — the mismatch errs, naming both sides.
 
 `3.1` the float is `3.10` the float; only a string can spell semver.
 
-```scheme
+```x
 (display (guard (_ #t) (do (import-version-once vmod/thing 1.3) #f)))
 ```
 ---
@@ -193,7 +193,7 @@ wrong answer — the mismatch errs, naming both sides.
 Fresh name so the registry has no entry: `"1.3"` takes 1.3, not the 1.3.1
 sitting beside it.
 
-```scheme
+```x
 (do
   (File write-all "build/ivspec/vmod/exact.x"
     "(def %exact-v \"0\")\n(provide vmod/exact %exact-v)\n")
@@ -209,7 +209,7 @@ sitting beside it.
 
 ### star takes the newest overall; the bare file is version 0
 
-```scheme
+```x
 (do
   (File write-all "build/ivspec/vmod/star.x"
     "(def %star-v \"0\")\n(provide vmod/star %star-v)\n")
@@ -225,7 +225,7 @@ sitting beside it.
 
 The bare load's version is unknowable, so no spec can be satisfied.
 
-```scheme
+```x
 (do
   (File write-all "build/ivspec/vmod/plain.x"
     "(def %plain-v \"0\")\n(provide vmod/plain %plain-v)\n")
@@ -237,7 +237,7 @@ The bare load's version is unknowable, so no spec can be satisfied.
 
 ### nothing satisfies: the error names module and spec
 
-```scheme
+```x
 (display (guard (_ #t) (do (import-version-once vmod/thing "9.9") #f)))
 ```
 ---
@@ -254,7 +254,7 @@ handed out the newer one would rebind the exported names under every caller.
 
 ### fixture: a v2 that extends its own v1
 
-```scheme
+```x
 (do
   (File write-all "build/ivspec/vmod/layer@1.0.x"
     "(def-class L ()\n  (doc (x 10) \"The x slot.\")\n  (static (method new (self) (new-from self (list))))\n  (method x (self) (member 'x))\n  (method describe (self) \"v1\"))\n(provide vmod/layer L)\n")
@@ -270,7 +270,7 @@ handed out the newer one would rebind the exported names under every caller.
 Inherited static `new`, the parent's slot and method, the subclass's own,
 and `super` reaching the v1 method through the chain.
 
-```scheme
+```x
 (do
   (import-version-once vmod/layer "2.0.*")
   (def o (L new))
@@ -286,7 +286,7 @@ and `super` reaching the v1 method through the chain.
 A satisfied re-request no-ops; a lower request from OUTSIDE a self-load
 keeps the loud contract.
 
-```scheme
+```x
 (do
   (import-version-once vmod/layer "2.0.*")
   (display (guard (_ "refused") (do (import-version-once vmod/layer "1.0.*") "allowed"))))
@@ -304,7 +304,7 @@ unwinds the three stacks to its snapshot and closes the cut-away fds.
 
 ### a caught mid-include raise does not leak the file's trailing forms
 
-```scheme
+```x
 (do (def %gi1 (guard (e 'caught) (include "tests/x/lib/guard-include-fixture.x")))
     (list %gi1 %guard-include-marker (guard (e 'unbound) %guard-include-leaked)))
 ```
@@ -313,7 +313,7 @@ unwinds the three stacks to its snapshot and closes the cut-away fds.
 
 ### the trailing def stays unread on the next top-level read too
 
-```scheme
+```x
 (guard (e 'still-unbound) %guard-include-leaked)
 ```
 ---
@@ -321,7 +321,7 @@ unwinds the three stacks to its snapshot and closes the cut-away fds.
 
 ### three hundred caught raises leak no fds
 
-```scheme
+```x
 (do (def %gi-loop ())
     (set! %gi-loop (fn (_ n)
       (if (eq? n 0) 'done
@@ -336,7 +336,7 @@ unwinds the three stacks to its snapshot and closes the cut-away fds.
 
 ### a guard inside an included file keeps that file's frames
 
-```scheme
+```x
 (do (include "tests/x/lib/guard-include-inner.x")
     (list %gi-inner %gi-inner-after))
 ```
@@ -357,7 +357,7 @@ probe open's fd number is stable iff the caught raises leaked nothing.
 
 ### a read-error raise inside include is catchable
 
-```scheme
+```x
 (guard (e 'caught) (include "tests/x/lib"))
 ```
 ---
@@ -365,7 +365,7 @@ probe open's fd number is stable iff the caught raises leaked nothing.
 
 ### five caught read-error raises leak no fds
 
-```scheme
+```x
 (import x/sys/file)
 (def %gi-fd-probe (fn (_)
   (let ((fd (File open "tests/x/lib/guard-include-ok.x" 'rdonly)))

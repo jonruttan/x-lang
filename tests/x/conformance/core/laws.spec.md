@@ -20,7 +20,7 @@ escape classifier is handed `(str byte-ref s i)` and matches it against 34, 92,
 10, 9 and 13. An engine that type-gates the comparison misses every arm, and
 prints a quote unescaped and a newline as `\x0a`.
 
-```scheme
+```x
 (def %bref (%coord (lit str) (lit byte-ref)))
 (%ok (eq? (%bref "A" 0) 65))
 ```
@@ -35,7 +35,7 @@ Never a symbol, never nil. Both of those branch correctly, so nothing that merel
 TESTS a predicate can tell the difference — only printing one can, which is why
 this asserts identity with `#t` rather than truth.
 
-```scheme
+```x
 (%ok (same? (eq? 1 1) #t))
 ```
 ---
@@ -45,7 +45,7 @@ this asserts identity with `#t` rather than truth.
 
 covers: obj/eq?
 
-```scheme
+```x
 (%ok (match ((eq? (eq? 1 2) ()) ()) (#t (same? (eq? 1 2) #f))))
 ```
 ---
@@ -60,7 +60,7 @@ Not an optimisation detail: `lib/x/core/control.x` expands `(let ...)` to
 instead of parking it makes every `let` in tail position grow the host stack.
 Fifty thousand frames is past what an 8MB stack survives.
 
-```scheme
+```x
 (def go (fn (self n) (match ((< n 1) 1) (#t (apply self (pair (- n 1) ()))))))
 (%ok (= (go 50000) 1))
 ```
@@ -77,7 +77,7 @@ engine whose `byte-sub` stops at the first NUL cannot read a dirent name at
 offset 21 — `File list-dir` then answers a list of empty strings. `byte-ref`
 beside it always addressed raw bytes; the two must agree.
 
-```scheme
+```x
 (def %sub (%coord (lit str) (lit byte-sub)))
 (def %b2s (%coord (lit bytes) (lit ->str)))
 (def %bref (%coord (lit str) (lit byte-ref)))
@@ -91,7 +91,7 @@ beside it always addressed raw bytes; the two must agree.
 
 covers: str/byte-len bytes/->str
 
-```scheme
+```x
 (def %len (%coord (lit str) (lit byte-len)))
 (def %b2s (%coord (lit bytes) (lit ->str)))
 (%ok (= (%len (%b2s (pair 65 (pair 0 (pair 66 ()))))) 1))
@@ -109,7 +109,7 @@ receives `(handler a b)` and owns the coercion. An engine without the dispatch
 adds the operand words and answers a machine integer, which is how
 `(+ 2.0 2.0)` once answered a float's bit pattern.
 
-```scheme
+```x
 (def %tmake (%coord (lit type) (lit make)))
 (def %minst (%coord (lit type) (lit make-instance)))
 (def h (%tmake "CONF-OPS"
@@ -134,7 +134,7 @@ The flag's value word is found by PROBING, the way `lib/x/boot/data.x` finds
 That keeps the check layout-agnostic, which decision L1 requires — the offset is
 the ENGINE's, not the contract's.
 
-```scheme
+```x
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %prw (%coord (lit ptr) (lit ref-word)))
 (def %psw (%coord (lit ptr) (lit set-word!)))
@@ -153,7 +153,7 @@ covers: obj/->ptr ptr/ref-word ptr/set-word!
 
 Cleared FIRST, so a handler that returns does not re-trip on its next form.
 
-```scheme
+```x
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %prw (%coord (lit ptr) (lit ref-word)))
 (def %psw (%coord (lit ptr) (lit set-word!)))

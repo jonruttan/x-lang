@@ -3,7 +3,7 @@
 
 ### returns a literal list
 
-```scheme
+```x
 (quasi (1 2 3))
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### returns a literal symbol
 
-```scheme
+```x
 (quasi foo)
 ```
 ---
@@ -19,14 +19,14 @@
 
 ### returns nil for empty list
 
-```scheme
+```x
 (quasi ())
 ```
 ---
 
 ### returns a nested literal
 
-```scheme
+```x
 (quasi (a (b c) d))
 ```
 ---
@@ -36,7 +36,7 @@
 
 ### substitutes a variable
 
-```scheme
+```x
 (do (def x 42) (quasi (a (unquote x) c)))
 ```
 ---
@@ -44,7 +44,7 @@
 
 ### evaluates an expression
 
-```scheme
+```x
 (quasi (result (unquote (+ 1 2))))
 ```
 ---
@@ -52,7 +52,7 @@
 
 ### substitutes in first position
 
-```scheme
+```x
 (do (def %qq-op '+) (quasi ((unquote %qq-op) 1 2)))
 ```
 ---
@@ -60,7 +60,7 @@
 
 ### substitutes in last position
 
-```scheme
+```x
 (do (def x 99) (quasi (a b (unquote x))))
 ```
 ---
@@ -68,7 +68,7 @@
 
 ### handles multiple unquotes
 
-```scheme
+```x
 (do (def a 1) (def b 2) (quasi ((unquote a) (unquote b))))
 ```
 ---
@@ -78,7 +78,7 @@
 
 ### splices a list
 
-```scheme
+```x
 (do (def xs (list 2 3)) (quasi (1 (unquote-splicing xs) 4)))
 ```
 ---
@@ -86,7 +86,7 @@
 
 ### splices an empty list
 
-```scheme
+```x
 (quasi (a (unquote-splicing (list)) b))
 ```
 ---
@@ -94,7 +94,7 @@
 
 ### splices at beginning
 
-```scheme
+```x
 (do (def xs (list 1 2)) (quasi ((unquote-splicing xs) 3)))
 ```
 ---
@@ -102,7 +102,7 @@
 
 ### splices at end
 
-```scheme
+```x
 (do (def xs (list 3 4)) (quasi (1 2 (unquote-splicing xs))))
 ```
 ---
@@ -110,7 +110,7 @@
 
 ### splices with unquote mixed
 
-```scheme
+```x
 (do (def x 1) (def ys (list 2 3)) (quasi ((unquote x) (unquote-splicing ys) 4)))
 ```
 ---
@@ -120,7 +120,7 @@
 
 ### handles integer atom
 
-```scheme
+```x
 (quasi 42)
 ```
 ---
@@ -128,7 +128,7 @@
 
 ### handles string atom
 
-```scheme
+```x
 (quasi "hello")
 ```
 ---
@@ -136,7 +136,7 @@
 
 ### handles dotted pair
 
-```scheme
+```x
 (do (def x 2) (quasi (1 (unquote x))))
 ```
 ---
@@ -153,7 +153,7 @@ reader's shorthand, so expectations here use the true echo.
 
 ### the innermost unquote evaluates through both levels
 
-```scheme
+```x
 (do (def %qq-y 42) (quasi (quasi (unquote (unquote %qq-y)))))
 ```
 ---
@@ -161,7 +161,7 @@ reader's shorthand, so expectations here use the true echo.
 
 ### a quoted payload survives as syntax
 
-```scheme
+```x
 (quasi (quasi (unquote (unquote (lit x)))))
 ```
 ---
@@ -169,7 +169,7 @@ reader's shorthand, so expectations here use the true echo.
 
 ### nested quasi with no unquote stays syntax
 
-```scheme
+```x
 (quasi (quasi (a)))
 ```
 ---
@@ -177,7 +177,7 @@ reader's shorthand, so expectations here use the true echo.
 
 ### splicing under nesting: inner payload evaluates, form survives one level
 
-```scheme
+```x
 (do (def %qq-xs (list 1 2)) (quasi (quasi ((unquote-splicing (unquote %qq-xs))))))
 ```
 ---
@@ -185,7 +185,7 @@ reader's shorthand, so expectations here use the true echo.
 
 ### single-level substitution and splicing unchanged
 
-```scheme
+```x
 (do (def %qq-x 1) (def %qq-l (list 2 3))
   (list (quasi (a (unquote %qq-x) b)) (quasi (a (unquote-splicing %qq-l) b))))
 ```

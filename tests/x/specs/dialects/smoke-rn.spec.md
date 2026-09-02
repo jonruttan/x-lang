@@ -13,7 +13,7 @@ story is in this directory's README.md.
 
 ### multiplication
 
-```scheme
+```x
 (* 2 3)
 ```
 ---
@@ -21,7 +21,7 @@ story is in this directory's README.md.
 
 ### complex multiplication
 
-```scheme
+```x
 (* 1+2i 3+4i)
 ```
 ---
@@ -29,7 +29,7 @@ story is in this directory's README.md.
 
 ### rationals (#49)
 
-```scheme
+```x
 (+ 1/3 1/6)
 ```
 ---
@@ -37,7 +37,7 @@ story is in this directory's README.md.
 
 ### a leading sign no longer crashes the repl reader (#49)
 
-```scheme
+```x
 (- 5 3)
 ```
 ---
@@ -45,7 +45,7 @@ story is in this directory's README.md.
 
 ### $-interpolation survives the compiled-analyser swap
 
-```scheme
+```x
 (do (def w 3) $"n={w}/x")
 ```
 ---
@@ -53,7 +53,7 @@ story is in this directory's README.md.
 
 ### Dict is loaded by default (common containers)
 
-```scheme
+```x
 (do (def d (Dict make)) (d set! (lit k) 1) (d get (lit k)))
 ```
 ---
@@ -61,7 +61,7 @@ story is in this directory's README.md.
 
 ### Set is loaded by default (common containers)
 
-```scheme
+```x
 ((Set of 1 2 2 3) length)
 ```
 ---

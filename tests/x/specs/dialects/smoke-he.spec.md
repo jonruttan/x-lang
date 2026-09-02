@@ -11,7 +11,7 @@ parallel (#320); the family story is in this directory's README.md.
 
 ### arithmetic
 
-```scheme
+```x
 (+ 2 3)
 ```
 ---
@@ -19,7 +19,7 @@ parallel (#320); the family story is in this directory's README.md.
 
 ### the standard library is loaded
 
-```scheme
+```x
 (List length (list 1 2 3))
 ```
 ---
@@ -27,7 +27,7 @@ parallel (#320); the family story is in this directory's README.md.
 
 ### strings
 
-```scheme
+```x
 (Str upcase "abc")
 ```
 ---

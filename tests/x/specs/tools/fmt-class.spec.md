@@ -8,70 +8,70 @@ when many token-reads run alongside these in a single batch.
 ## Fmt class
 
 ### comment? detects a comment token
-```scheme
+```x
 (Fmt comment? (list '%comment "hi"))
 ```
 ---
     #t
 
 ### width measures a form (symbols write as 'x: 8, the quote mark counts)
-```scheme
+```x
 (display (Fmt width (lit (+ 1 2))))
 ```
 ---
     8
 
 ### build-table returns a lookup table
-```scheme
+```x
 (pair? (Fmt build-table (list (list 'if (pair 'fmt 'head-1)))))
 ```
 ---
     #t
 
 ### lookup finds a present construct's props
-```scheme
+```x
 (pair? (Fmt lookup 'if (Fmt build-table (list (list 'if (pair 'fmt 'head-1))))))
 ```
 ---
     #t
 
 ### lookup of a missing key returns nil
-```scheme
+```x
 (null? (Fmt lookup 'nope (Fmt build-table (list (list 'if (pair 'fmt 'head-1))))))
 ```
 ---
     #t
 
 ### get-prop pulls a property from a property list
-```scheme
+```x
 (eq? (Fmt get-prop 'fmt (list (pair 'fmt 'head-1))) 'head-1)
 ```
 ---
     #t
 
 ### expr writes a short form as-is
-```scheme
+```x
 (Fmt expr (lit (+ 1 2)) 0)
 ```
 ---
     (+ 1 2)
 
 ### body prints forms one per line
-```scheme
+```x
 (Fmt body (list 'a 'b) 0)
 ```
 ---
     b
 
 ### list indents a wide form (default layout)
-```scheme
+```x
 (Fmt list (lit (alpha beta gamma delta epsilon zeta eta theta iota kappa)) 0 (Fmt build-table ()))
 ```
 ---
       kappa)
 
 ### tokens formats top-level tokens through the pipeline
-```scheme
+```x
 (Fmt tokens (Tok read-str (Base make) "(+ 1 2)") (Fmt build-table ()))
 ```
 ---

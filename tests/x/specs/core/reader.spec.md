@@ -5,7 +5,7 @@
 
 ### reads positive integers
 
-```scheme
+```x
 99
 ```
 ---
@@ -13,7 +13,7 @@
 
 ### reads negative integers
 
-```scheme
+```x
 -99
 ```
 ---
@@ -21,7 +21,7 @@
 
 ### reads zero
 
-```scheme
+```x
 0
 ```
 ---
@@ -31,7 +31,7 @@
 
 ### reads simple string
 
-```scheme
+```x
 "hello"
 ```
 ---
@@ -39,7 +39,7 @@
 
 ### reads empty string
 
-```scheme
+```x
 ""
 ```
 ---
@@ -47,7 +47,7 @@
 
 ### reads string with escaped quote
 
-```scheme
+```x
 "a\"b"
 ```
 ---
@@ -55,7 +55,7 @@
 
 ### reads string with escaped backslash
 
-```scheme
+```x
 "a\\\\b"
 ```
 ---
@@ -63,7 +63,7 @@
 
 ### reads string with newline escape
 
-```scheme
+```x
 (%str-length "a\nb")
 ```
 ---
@@ -71,7 +71,7 @@
 
 ### reads string with tab escape
 
-```scheme
+```x
 (%str-length "a\tb")
 ```
 ---
@@ -79,7 +79,7 @@
 
 ### reads string with carriage return escape
 
-```scheme
+```x
 (%str-length "a\rb")
 ```
 ---
@@ -87,7 +87,7 @@
 
 ### reads string with hex escape
 
-```scheme
+```x
 (= (Convert to (%str-ref "\x41" 0) %int) 65)
 ```
 ---
@@ -95,7 +95,7 @@
 
 ### preserves unknown escape sequences
 
-```scheme
+```x
 (%str-length "\q")
 ```
 ---
@@ -105,7 +105,7 @@
 
 ### reads simple symbol
 
-```scheme
+```x
 'abc
 ```
 ---
@@ -113,7 +113,7 @@
 
 ### reads symbol with punctuation
 
-```scheme
+```x
 'my-var?
 ```
 ---
@@ -121,7 +121,7 @@
 
 ### reads operator symbols
 
-```scheme
+```x
 '+
 ```
 ---
@@ -131,7 +131,7 @@
 
 ### reads character literal
 
-```scheme
+```x
 (char? #\x)
 ```
 ---
@@ -139,7 +139,7 @@
 
 ### reads specific character
 
-```scheme
+```x
 (Convert to #\a %int)
 ```
 ---
@@ -147,7 +147,7 @@
 
 ### reads uppercase character
 
-```scheme
+```x
 (Convert to #\Z %int)
 ```
 ---
@@ -155,7 +155,7 @@
 
 ### reads named character space
 
-```scheme
+```x
 (Convert to #\space %int)
 ```
 ---
@@ -163,7 +163,7 @@
 
 ### reads named character newline
 
-```scheme
+```x
 (Convert to #\newline %int)
 ```
 ---
@@ -171,7 +171,7 @@
 
 ### reads named character tab
 
-```scheme
+```x
 (Convert to #\tab %int)
 ```
 ---
@@ -181,7 +181,7 @@
 
 ### reads proper list
 
-```scheme
+```x
 (lit (1 2 3))
 ```
 ---
@@ -189,7 +189,7 @@
 
 ### reads nested list
 
-```scheme
+```x
 (lit (1 (2 3)))
 ```
 ---
@@ -197,14 +197,14 @@
 
 ### reads empty list
 
-```scheme
+```x
 ()
 ```
 ---
 
 ### truncated list raises instead of spinning
 
-```scheme
+```x
 (guard (e (display e)) ((prim-ref 'tok 'read-str) (%base) "(a b"))
 ```
 ---
@@ -212,7 +212,7 @@
 
 ### truncated non-list tail still drops silently
 
-```scheme
+```x
 (write ((prim-ref 'tok 'read-str) (%base) "12 34"))
 ```
 ---
@@ -220,7 +220,7 @@
 
 ### clean-EOF sentinel is identity-stable
 
-```scheme
+```x
 (write ((prim-ref 'obj 'same?) %token-eof %token-eof))
 ```
 ---
@@ -230,7 +230,7 @@
 
 ### reads dotted pair first
 
-```scheme
+```x
 (first (lit (1 . 2)))
 ```
 ---
@@ -238,7 +238,7 @@
 
 ### reads dotted pair rest
 
-```scheme
+```x
 (rest (lit (1 . 2)))
 ```
 ---
@@ -246,7 +246,7 @@
 
 ### reads list with dotted tail
 
-```scheme
+```x
 (rest (lit (1 2 . 3)))
 ```
 ---
@@ -256,7 +256,7 @@
 
 ### single-quote expands to lit
 
-```scheme
+```x
 'a
 ```
 ---
@@ -271,7 +271,7 @@
 
 ### reads vector literal
 
-```scheme
+```x
 (write #(1 2 3))
 ```
 ---
@@ -279,7 +279,7 @@
 
 ### reads empty vector literal
 
-```scheme
+```x
 (write #())
 ```
 ---
@@ -289,7 +289,7 @@
 
 ### reads regex literal
 
-```scheme
+```x
 (write #/abc/)
 ```
 ---

@@ -9,7 +9,7 @@ chars. Class instances are identity keys: address-hashed, same?-compared.
 
 ### make yields an empty dict
 
-```scheme
+```x
 (do (import x/type/dict) ((Dict make) empty?))
 ```
 ---
@@ -23,7 +23,7 @@ generic new builds an inert instance and the %slot guard raises the
 teaching kind-'state Err the moment it is used -- no fake refusal method
 in the help listing, the guard sits at the point of harm.
 
-```scheme
+```x
 (do (import x/type/dict)
   (guard (e (list (Err kind-of e) ((Dict make) empty?)))
     ((Dict new) set! 'a 1)))
@@ -33,7 +33,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### an uninitialized instance fails loudly, not at the raw slot layer
 
-```scheme
+```x
 (do (import x/type/dict)
   ((new-from Dict ()) get 'a))
 ```
@@ -42,7 +42,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### from-plist is the simplest literal shape
 
-```scheme
+```x
 (do (import x/type/dict)
   ((Dict from-plist (list 'a 1 'b 2)) get 'b))
 ```
@@ -51,7 +51,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### from-plist rejects an odd-length plist
 
-```scheme
+```x
 (do (import x/type/dict)
   (Dict from-plist (list 'a 1 'b)))
 ```
@@ -60,7 +60,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### from-bindings takes the let shape
 
-```scheme
+```x
 (do (import x/type/dict)
   ((Dict from-bindings (list (list 'a 1) (list 'b 2))) get 'a))
 ```
@@ -69,7 +69,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### every shape converts back out: ->plist and ->bindings
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict from-plist (list 'a 1))))
     (list (d ->plist) (d ->bindings))))
@@ -79,7 +79,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### from-alist loads an alist
 
-```scheme
+```x
 (do (import x/type/dict)
   ((Dict from-alist (list (pair 'a 1) (pair 'b 2))) get 'b))
 ```
@@ -88,7 +88,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### from-alist: later duplicates overwrite
 
-```scheme
+```x
 (do (import x/type/dict)
   ((Dict from-alist (list (pair 'a 1) (pair 'a 9))) get 'a))
 ```
@@ -99,7 +99,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### roundtrips a symbol key
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make))) (d set! 'k 42) (d get 'k)))
 ```
@@ -108,7 +108,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### STRING keys work (the Assoc eq? gap this class closes)
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make))) (d set! "name" "x-lang") (d get "name")))
 ```
@@ -117,7 +117,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### distinct-but-equal string keys hit the same entry
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make)))
     (d set! (Str8 append "na" "me") 1)
@@ -128,7 +128,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### integer keys
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make))) (d set! 7 "seven") (d get 7)))
 ```
@@ -137,7 +137,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### char keys
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make))) (d set! #\a 1) (d get #\a)))
 ```
@@ -146,7 +146,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### set! overwrites an existing key
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make))) (d set! 'k 1) (d set! 'k 2) (d get 'k)))
 ```
@@ -155,7 +155,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### set! chains
 
-```scheme
+```x
 (do (import x/type/dict)
   ((((Dict make) set! 'a 1) set! 'b 2) get 'a))
 ```
@@ -164,7 +164,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### get misses with nil
 
-```scheme
+```x
 (do (import x/type/dict)
   (null? ((Dict make) get 'missing)))
 ```
@@ -173,7 +173,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### unhashable keys error loudly
 
-```scheme
+```x
 (do (import x/type/dict)
   ((Dict make) set! (list 1 2) "v"))
 ```
@@ -184,7 +184,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### returns the default for an absent key
 
-```scheme
+```x
 (do (import x/type/dict)
   ((Dict make) get-or 99 'z))
 ```
@@ -193,7 +193,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### get-or-else is the lazy twin: the thunk runs only on a miss
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make)) (calls 0))
     (d set! 'a 1)
@@ -205,7 +205,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### returns a stored nil, not the default
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make))) (d set! 'k ()) (null? (d get-or 99 'k))))
 ```
@@ -216,7 +216,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### has? sees a stored key
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make))) (d set! "k" 1) (d has? "k")))
 ```
@@ -225,7 +225,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### has? rejects an absent key
 
-```scheme
+```x
 (do (import x/type/dict)
   (if ((Dict make) has? "k") "y" "n"))
 ```
@@ -234,7 +234,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### del! removes an entry
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make)))
     (d set! 'k 1) (d del! 'k)
@@ -245,7 +245,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### del! on an absent key is a no-op
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make))) (d set! 'a 1) (d del! 'z) (d length)))
 ```
@@ -254,7 +254,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### length tracks entries
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make)))
     (d set! 'a 1) (d set! 'b 2) (d set! 'a 3)
@@ -267,7 +267,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### a one-bucket table still behaves (everything collides)
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make 1)))
     (d set! 'a 1) (d set! 'b 2) (d set! "c" 3)
@@ -278,7 +278,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### entries survive growth past the load factor
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make 2)))
     (List for-each (fn (_ i) (d set! i (* i 10))) (List range 0 20))
@@ -291,7 +291,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### ->alist snapshots the entries
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make)))
     (d set! 'a 1)
@@ -304,7 +304,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### keys and vals
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make)))
     (d set! 'a 1)
@@ -315,7 +315,7 @@ in the help listing, the guard sits at the point of harm.
 
 ### for-each visits every entry
 
-```scheme
+```x
 (do (import x/type/dict)
   (let ((d (Dict make)) (sum (pair 0 ())))
     (d set! 'a 1) (d set! 'b 2)
@@ -334,7 +334,7 @@ would recurse into the field box and loop on cyclic instances).
 
 ### equal-but-distinct instances are distinct keys
 
-```scheme
+```x
 (do (import x/type/dict)
   (def-class P () x y)
   (let ((a (P new x 1 y 2)) (b (P new x 1 y 2)) (d (Dict make)))
@@ -347,7 +347,7 @@ would recurse into the field box and loop on cyclic instances).
 
 ### del! removes only the given instance
 
-```scheme
+```x
 (do (import x/type/dict)
   (def-class P () x)
   (let ((a (P new x 1)) (b (P new x 1)) (d (Dict make)))
@@ -360,7 +360,7 @@ would recurse into the field box and loop on cyclic instances).
 
 ### cyclic instances are safe keys (eq?, not equal?)
 
-```scheme
+```x
 (do (import x/type/dict)
   (def-class N () v next)
   (let ((a (N new v 1)) (b (N new v 2)) (d (Dict make)))
@@ -373,7 +373,7 @@ would recurse into the field box and loop on cyclic instances).
 
 ### instance keys survive the resize rehash
 
-```scheme
+```x
 (do (import x/type/dict) (import x/type/list)
   (def-class P () v)
   (let ((ks (List map (fn (_ i) (P new v i)) (List range 0 20)))

@@ -8,7 +8,7 @@ most-common ranks by count (stable sort -- ties keep table order).
 
 ### from-list counts occurrences; absent keys read 0
 
-```scheme
+```x
 (do (import x/type/counter)
   (def c (Counter from-list (list 'a 'b 'a 'c 'a 'b)))
   (list (c get 'a) (c get 'b) (c get 'z) (c total)))
@@ -18,7 +18,7 @@ most-common ranks by count (stable sort -- ties keep table order).
 
 ### most-common ranks descending; n takes the top slice
 
-```scheme
+```x
 (do (import x/type/counter)
   (def c (Counter from-list (list 'a 'b 'a 'c 'a 'b)))
   (c most-common 2))
@@ -28,7 +28,7 @@ most-common ranks by count (stable sort -- ties keep table order).
 
 ### add! by n, del! forgets, chaining works
 
-```scheme
+```x
 (do (import x/type/counter)
   (def c (Counter make))
   ((c add! 'x 10) add! 'x)

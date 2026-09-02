@@ -22,7 +22,7 @@ run — two bugs, one at generation and one at runtime:
 
 ### a recursive function terminates and returns
 
-```scheme
+```x
 (display ((compile-asm '(fn (self a t) (if (= t 3) a (self a (+ t 1))))) 7 0))
 ```
 ---
@@ -30,7 +30,7 @@ run — two bugs, one at generation and one at runtime:
 
 ### the recursion actually iterates (accumulates per level)
 
-```scheme
+```x
 (display ((compile-asm '(fn (self n acc) (if (= n 0) acc (self (- n 1) (+ acc n))))) 10 0))
 ```
 ---
@@ -38,7 +38,7 @@ run — two bugs, one at generation and one at runtime:
 
 ### one argument
 
-```scheme
+```x
 (display ((compile-asm '(fn (self n) (if (= n 0) 100 (self (- n 1))))) 5))
 ```
 ---
@@ -49,7 +49,7 @@ run — two bugs, one at generation and one at runtime:
 Each argument is boxed and threaded through a fresh pair list per call,
 which is where the clobbered accumulator corrupted things.
 
-```scheme
+```x
 (display ((compile-asm '(fn (self a b c) (if (= c 0) (+ a b) (self (+ a 1) (+ b 10) (- c 1))))) 1 2 3))
 ```
 ---
@@ -57,7 +57,7 @@ which is where the clobbered accumulator corrupted things.
 
 ### deep recursion (64 levels, the SHA-256 round count)
 
-```scheme
+```x
 (display ((compile-asm '(fn (self n acc) (if (= n 0) acc (self (- n 1) (+ acc 1))))) 64 0))
 ```
 ---
@@ -65,7 +65,7 @@ which is where the clobbered accumulator corrupted things.
 
 ### recursion composes with do and arithmetic
 
-```scheme
+```x
 (display ((compile-asm '(fn (self n acc) (if (= n 0) acc (do acc (self (- n 1) (% (+ acc 7) 255)))))) 4 0))
 ```
 ---
@@ -83,7 +83,7 @@ implemented; the suite caught the stale premise. Any stand-in here is
 only valid while it stays unimplemented — if `abs` ever lands, pick
 another rather than deleting the case.)
 
-```scheme
+```x
 (display (guard (_ 'raised) (do (compile-asm '(fn (_ a b) (abs a b))) 'no-raise)))
 ```
 ---
@@ -91,7 +91,7 @@ another rather than deleting the case.)
 
 ### a call to a name that is not the function's own also raises
 
-```scheme
+```x
 (display (guard (_ 'raised) (do (compile-asm '(fn (self a) (helper a))) 'no-raise)))
 ```
 ---
@@ -99,7 +99,7 @@ another rather than deleting the case.)
 
 ### compiled recursion agrees with the interpreted definition
 
-```scheme
+```x
 (do
   (def %i (fn (self n acc) (if (= n 0) acc (self (- n 1) (+ acc (* n n))))))
   (def %c (compile-asm '(fn (self n acc) (if (= n 0) acc (self (- n 1) (+ acc (* n n)))))))

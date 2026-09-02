@@ -11,7 +11,7 @@ values **without issuing any real syscall**; the assertions branch on
 
 ### os-darwin? reflects the build machine (x-machine)
 
-```scheme
+```x
 (eq? os-darwin? (Str8 includes? "darwin" x-machine))
 ```
 ---
@@ -19,7 +19,7 @@ values **without issuing any real syscall**; the assertions branch on
 
 ### syscall-id maps open to the platform's number (BSD 5 / Linux 2)
 
-```scheme
+```x
 (eq? (syscall-id 'open) (if os-darwin? 5 2))
 ```
 ---
@@ -27,7 +27,7 @@ values **without issuing any real syscall**; the assertions branch on
 
 ### syscall-id maps read / write / close per platform
 
-```scheme
+```x
 (and (eq? (syscall-id 'read)  (if os-darwin? 3 0))
      (eq? (syscall-id 'write) (if os-darwin? 4 1))
      (eq? (syscall-id 'close) (if os-darwin? 6 3)))
@@ -37,7 +37,7 @@ values **without issuing any real syscall**; the assertions branch on
 
 ### syscall-id maps fork / execve / wait4 per platform (examples/or/execve-ls.x)
 
-```scheme
+```x
 (and (eq? (syscall-id 'fork)   (if os-darwin? 2 57))
      (eq? (syscall-id 'execve) 59)
      (eq? (syscall-id 'wait4)  (if os-darwin? 7 61)))
@@ -49,7 +49,7 @@ values **without issuing any real syscall**; the assertions branch on
 
 ### O_CREAT matches the platform (macOS 512 / Linux 64)
 
-```scheme
+```x
 (eq? (first (Assoc get 'creat (File file-modes))) (if os-darwin? 512 64))
 ```
 ---
@@ -57,7 +57,7 @@ values **without issuing any real syscall**; the assertions branch on
 
 ### O_TRUNC matches the platform (macOS 1024 / Linux 512)
 
-```scheme
+```x
 (eq? (first (Assoc get 'trunc (File file-modes))) (if os-darwin? 1024 512))
 ```
 ---
@@ -65,7 +65,7 @@ values **without issuing any real syscall**; the assertions branch on
 
 ### O_RDWR is 2 on every platform (the low access-mode bits are universal)
 
-```scheme
+```x
 (eq? (first (Assoc get 'rdwr (File file-modes))) 2)
 ```
 ---
@@ -80,7 +80,7 @@ length, not its text.
 
 ### x-version is a string, not a callable
 
-```scheme
+```x
 (str? x-version)
 ```
 ---
@@ -90,7 +90,7 @@ length, not its text.
 
 The exact value moves with the release, so this asserts the shape.
 
-```scheme
+```x
 (Str8 includes? "." x-version)
 ```
 ---
@@ -100,7 +100,7 @@ The exact value moves with the release, so this asserts the shape.
 
 Set from `git describe` at build time, so only its shape is stable.
 
-```scheme
+```x
 (if (str? x-release) (> ((prim-ref 'str 'byte-len) x-release) 0) #f)
 ```
 ---
@@ -111,7 +111,7 @@ Set from `git describe` at build time, so only its shape is stable.
 `(x-version)` looks like an accessor and is not one; it applies the string to
 no arguments, which answers its byte length.
 
-```scheme
+```x
 (eq? (x-version) ((prim-ref 'str 'byte-len) x-version))
 ```
 ---

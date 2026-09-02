@@ -5,7 +5,7 @@
 
 ### parses large number
 
-```scheme
+```x
 (Bigint bigint? 99999999999999999999)
 ```
 ---
@@ -13,7 +13,7 @@
 
 ### small numbers stay native
 
-```scheme
+```x
 (if (Bigint bigint? 42) "big" "native")
 ```
 ---
@@ -21,7 +21,7 @@
 
 ### displays correctly
 
-```scheme
+```x
 (write 10000000000000000000)
 ```
 ---
@@ -29,7 +29,7 @@
 
 ### negative bigint
 
-```scheme
+```x
 (write -99999999999999999999)
 ```
 ---
@@ -39,7 +39,7 @@
 
 ### multiplication overflow promotes
 
-```scheme
+```x
 (Bigint bigint? (* 999999999999 999999999999))
 ```
 ---
@@ -47,7 +47,7 @@
 
 ### multiplication result correct
 
-```scheme
+```x
 (write (* 999999999999 999999999999))
 ```
 ---
@@ -55,7 +55,7 @@
 
 ### addition overflow promotes
 
-```scheme
+```x
 (Bigint bigint? (+ 9223372036854775807 1))
 ```
 ---
@@ -65,7 +65,7 @@
 
 ### adds two bigints
 
-```scheme
+```x
 (write (+ 99999999999999999999 1))
 ```
 ---
@@ -75,7 +75,7 @@
 
 ### subtracts bigints
 
-```scheme
+```x
 (write (- 100000000000000000000 1))
 ```
 ---
@@ -85,7 +85,7 @@
 
 ### multiplies bigints
 
-```scheme
+```x
 (write (* 10000000000 10000000000))
 ```
 ---
@@ -95,7 +95,7 @@
 
 ### compares bigints
 
-```scheme
+```x
 (< 99999999999999999999 100000000000000000000)
 ```
 ---
@@ -105,7 +105,7 @@
 
 ### equal bigints
 
-```scheme
+```x
 (= 99999999999999999999 99999999999999999999)
 ```
 ---
@@ -115,7 +115,7 @@
 
 ### no overflow for small addition
 
-```scheme
+```x
 (if (Bigint would-overflow-add? 1 2) "y" "n")
 ```
 ---
@@ -123,7 +123,7 @@
 
 ### overflow for large positive
 
-```scheme
+```x
 (Bigint would-overflow-mul? 3037000500 3037000500)
 ```
 ---
@@ -131,7 +131,7 @@
 
 ### no overflow adding zero to a large negative
 
-```scheme
+```x
 (if (Bigint would-overflow-add? 0 -1000000000) "y" "n")
 ```
 ---
@@ -139,7 +139,7 @@
 
 ### no overflow for a small negative plus a large negative
 
-```scheme
+```x
 (if (Bigint would-overflow-add? -1 -1000000000) "y" "n")
 ```
 ---
@@ -151,7 +151,7 @@ The guard's domain is plain native ints, and the reader promotes long
 literals, so the edge operands are computed: 3037000499 squared is the
 largest native square, and the trim reaches LONG_MIN exactly.
 
-```scheme
+```x
 (let ((m (- (- 0 (* 3037000499 3037000499)) 5928526807)))
   (if (Bigint would-overflow-add? 0 m) "y" "n"))
 ```
@@ -160,7 +160,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### overflow for two large negatives
 
-```scheme
+```x
 (let ((n (- 0 (* 3037000499 3037000499))))
   (Bigint would-overflow-add? n n))
 ```
@@ -169,7 +169,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### overflow one below the most negative
 
-```scheme
+```x
 (let ((m (- (- 0 (* 3037000499 3037000499)) 5928526807)))
   (Bigint would-overflow-add? m -1))
 ```
@@ -178,7 +178,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### a sum that fits stays native
 
-```scheme
+```x
 (if (Bigint bigint? (+ 0 -1000000000)) "big" "native")
 ```
 ---
@@ -186,7 +186,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### negative minus digit stays native (regression: wrapped threshold)
 
-```scheme
+```x
 (if (Bigint bigint? (- -99999999990 9)) "big" "native")
 ```
 ---
@@ -194,7 +194,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### negative minus digit answers a value-eq native int
 
-```scheme
+```x
 (eq? (- -99999999990 9) -99999999999)
 ```
 ---
@@ -204,7 +204,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### bigint difference that fits native demotes
 
-```scheme
+```x
 (eq? (- 99999999999999999999 99999999990000000000) 9999999999)
 ```
 ---
@@ -212,7 +212,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### 19-digit quotient that fits native demotes
 
-```scheme
+```x
 (eq? (/ 10000000000000000000 10) 1000000000000000000)
 ```
 ---
@@ -220,7 +220,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### str->number reads 11 digits of nines (regression: stealth bigint failed its verify)
 
-```scheme
+```x
 (%str->number "99999999999")
 ```
 ---
@@ -228,7 +228,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### negative subtraction that fits stays native
 
-```scheme
+```x
 (if (Bigint bigint? (- 0 1000000000)) "big" "native")
 ```
 ---
@@ -238,7 +238,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### detects multiplication overflow
 
-```scheme
+```x
 (Bigint would-overflow-mul? 9999999999 9999999999)
 ```
 ---
@@ -246,7 +246,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### no overflow for small
 
-```scheme
+```x
 (if (Bigint would-overflow-mul? 2 3) "y" "n")
 ```
 ---
@@ -256,7 +256,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### adds two bigints
 
-```scheme
+```x
 (write (Bigint + (Convert to 100 %bigint) (Convert to 200 %bigint)))
 ```
 ---
@@ -264,7 +264,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### adds large bigints
 
-```scheme
+```x
 (write (Bigint + (Convert to 999999999999999999 %bigint) (Convert to 1 %bigint)))
 ```
 ---
@@ -274,7 +274,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### subtracts bigints
 
-```scheme
+```x
 (write (Bigint - (Convert to 1000 %bigint) (Convert to 1 %bigint)))
 ```
 ---
@@ -284,7 +284,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### multiplies bigints
 
-```scheme
+```x
 (write (Bigint * (Convert to 12345 %bigint) (Convert to 6789 %bigint)))
 ```
 ---
@@ -292,7 +292,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### large multiply
 
-```scheme
+```x
 (Bigint bigint? (Bigint * (Convert to 99999999999 %bigint) (Convert to 99999999999 %bigint)))
 ```
 ---
@@ -300,7 +300,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### product that fits native demotes
 
-```scheme
+```x
 (if (Bigint bigint? (Bigint * (Convert to 999999999 %bigint) (Convert to 999999999 %bigint))) "big" "native")
 ```
 ---
@@ -308,7 +308,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### demoted product has the native value
 
-```scheme
+```x
 (eq? (Bigint * (Convert to 999999999 %bigint) (Convert to 999999999 %bigint)) 999999998000000001)
 ```
 ---
@@ -318,7 +318,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### divides bigints
 
-```scheme
+```x
 (write (Bigint / (Convert to 100 %bigint) (Convert to 7 %bigint)))
 ```
 ---
@@ -326,7 +326,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### divides with a multi-limb quotient
 
-```scheme
+```x
 (write (Bigint / (Convert to 99999999999999999999 %bigint) (Convert to 7 %bigint)))
 ```
 ---
@@ -334,7 +334,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### remainder dispatches through the generic %
 
-```scheme
+```x
 (% 99999999999999999999 7)
 ```
 ---
@@ -344,7 +344,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### less than
 
-```scheme
+```x
 (Bigint < (Convert to 1 %bigint) (Convert to 2 %bigint))
 ```
 ---
@@ -352,7 +352,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### not less than
 
-```scheme
+```x
 (Bigint < (Convert to 2 %bigint) (Convert to 1 %bigint))
 ```
 ---
@@ -362,7 +362,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### equal
 
-```scheme
+```x
 (Bigint = (Convert to 42 %bigint) (Convert to 42 %bigint))
 ```
 ---
@@ -370,7 +370,7 @@ largest native square, and the trim reaches LONG_MIN exactly.
 
 ### not equal
 
-```scheme
+```x
 (Bigint = (Convert to 1 %bigint) (Convert to 2 %bigint))
 ```
 ---
@@ -385,7 +385,7 @@ block here checks the q*b+r=a identity a broken quotient cannot fake.
 
 ### the #401 repro: 97b+5 over a two-limb b
 
-```scheme
+```x
 (let ((b (Bigint * 123456789 987654321)))
   (write (Bigint / (Bigint + (Bigint * b 97) 5) b)))
 ```
@@ -394,7 +394,7 @@ block here checks the q*b+r=a identity a broken quotient cannot fake.
 
 ### remainder of the repro
 
-```scheme
+```x
 (let ((b (Bigint * 123456789 987654321)))
   (write (Bigint % (Bigint + (Bigint * b 97) 5) b)))
 ```
@@ -403,7 +403,7 @@ block here checks the q*b+r=a identity a broken quotient cannot fake.
 
 ### exact multiple: b*b / b = b
 
-```scheme
+```x
 (let ((b (Bigint * 123456789 987654321)))
   (Bigint = b (Bigint / (Bigint * b b) b)))
 ```
@@ -412,7 +412,7 @@ block here checks the q*b+r=a identity a broken quotient cannot fake.
 
 ### identity at limb gap 2
 
-```scheme
+```x
 (let ((b (Bigint * 123456789 987654321)))
   (let ((a (Bigint + (Bigint * b b) 1)))
     (let ((q (Bigint / a b)) (r (Bigint % a b)))
@@ -423,7 +423,7 @@ block here checks the q*b+r=a identity a broken quotient cannot fake.
 
 ### identity at a large limb gap (formerly value-linear: never finished)
 
-```scheme
+```x
 (let ((p (fn (self x n) (if (= n 1) x (Bigint * x (self x (- n 1)))))))
   (let ((a (p 987654321987654321 11)) (b (p 987654321987654321 10)))
     (let ((q (Bigint / a b)) (r (Bigint % a b)))
@@ -434,7 +434,7 @@ block here checks the q*b+r=a identity a broken quotient cannot fake.
 
 ### quotient of zero dividend limbs mid-stream
 
-```scheme
+```x
 (let ((b (Bigint * 999999999 999999999)))
   (write (Bigint / (Bigint * b 1000000000000000000) b)))
 ```

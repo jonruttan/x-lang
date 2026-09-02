@@ -11,7 +11,7 @@ keep their raw contract -- see ext/file.spec.md.
 
 ### write-all writes, read-all reads back, unlink cleans up
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-spec22-a")
   (def n (File write-all p "alpha\nbeta\n"))
@@ -24,7 +24,7 @@ keep their raw contract -- see ext/file.spec.md.
 
 ### write-all truncates on rewrite
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-spec22-b")
   (File write-all p "a longer first body")
@@ -40,7 +40,7 @@ keep their raw contract -- see ext/file.spec.md.
 
 ### stat reports size and kind for a file we control
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-spec22-c")
   (File write-all p "12345")
@@ -53,7 +53,7 @@ keep their raw contract -- see ext/file.spec.md.
 
 ### a directory stats as kind 'dir
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (Assoc get 'kind (File stat "/tmp")))
 ```
@@ -62,7 +62,7 @@ keep their raw contract -- see ext/file.spec.md.
 
 ### exists? is a presence door, not an error
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (list (File exists? "/tmp") (File exists? "/tmp/x-spec22-definitely-not")))
 ```
@@ -73,7 +73,7 @@ keep their raw contract -- see ext/file.spec.md.
 
 ### splits on newline, no phantom empty last line
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-spec22-d")
   (File write-all p "one\ntwo\nthree\n")
@@ -86,7 +86,7 @@ keep their raw contract -- see ext/file.spec.md.
 
 ### a file without a trailing newline keeps its last line
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-spec22-e")
   (File write-all p "one\ntwo")
@@ -101,7 +101,7 @@ keep their raw contract -- see ext/file.spec.md.
 
 ### mkdir / list-dir / rename / rmdir roundtrip
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (def d "/tmp/x-spec22-dir")
   ; REMOVED BEFORE IT IS BUILT, not only after.  These fixtures live at fixed
@@ -126,7 +126,7 @@ keep their raw contract -- see ext/file.spec.md.
 
 ### list-dir excludes dot and dotdot
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (def d "/tmp/x-spec22-dir2")
   ; Same pre-clean as above, and this one needs it twice over: a leftover would
@@ -144,7 +144,7 @@ keep their raw contract -- see ext/file.spec.md.
 
 ### a missing file read-alls to a kind-'io enoent Err
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (guard (e (list (Err kind-of e) (Assoc get 'sym (e data)) (Assoc get 'op (e data))))
     (File read-all "/tmp/x-spec22-definitely-not")))
@@ -154,7 +154,7 @@ keep their raw contract -- see ext/file.spec.md.
 
 ### rmdir on a missing directory raises, with the path as detail
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (guard (e (Assoc get 'detail (e data)))
     (File rmdir "/tmp/x-spec22-definitely-not")))
@@ -170,7 +170,7 @@ The class dispatch binds a missing argument as nil; before this guard
 (File list-dir) surfaced as a baffling "Bad address" io error (or worse
 through the REPL error path -- jon hit corrupted error bytes).
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (list (guard (e (Err kind-of e)) (File list-dir))
         (guard (e (Err kind-of e)) (File read-all))
@@ -184,7 +184,7 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ### seek to end reports the size; an absolute seek rereads mid-file
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-spec360-a")
   (File write-all p "hello world")
@@ -202,7 +202,7 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ### tell starts at 0 and tracks reads
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-spec360-b")
   (File write-all p "abcdef")
@@ -220,7 +220,7 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ### truncate to an explicit size; stat and read-all confirm
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-spec360-c")
   (File write-all p "abcdef")
@@ -237,7 +237,7 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ### truncate without a size cuts at the current offset
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (def p "/tmp/x-spec360-d")
   (File write-all p "abcdef")
@@ -254,7 +254,7 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ### seek rejects an unknown whence symbol at the door
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (list (guard (e (Err kind-of e)) (File seek 0 0 'nope))))
 ```
@@ -265,7 +265,7 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ### copy is binary-safe: a NUL-bearing file copies byte-exact
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (def t1 (File temp "/tmp/x-364a-"))
   (def t2 (File temp "/tmp/x-364b-"))
@@ -285,7 +285,7 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ### temp creates a fresh openable file under the prefix
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   (def t (File temp "/tmp/x-364t-"))
   (def existed (File exists? (rest t)))
@@ -298,7 +298,7 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ### walk reports every non-directory entry, relative, recursing subdirs
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file)
   ; Same pre-clean as the mkdir roundtrip above.  This is the fixture that
   ; proved the point: a kill left /tmp/x-364-walk behind and the next run failed
@@ -323,7 +323,7 @@ through the REPL error path -- jon hit corrupted error bytes).
 
 ### lstat reports a symlink as itself; stat follows it
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/file) (import x/sys/proc)
   (def p "/tmp/x-364-lnk-target")
   (File write-all p "x")

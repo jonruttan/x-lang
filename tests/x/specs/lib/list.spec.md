@@ -3,7 +3,7 @@
 
 ### from-seq passes through a list
 
-```scheme
+```x
 (do (import x/type/list) (List from-seq (list 1 2 3)))
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### from-seq passes through nil
 
-```scheme
+```x
 (do (import x/type/list) (null? (List from-seq ())))
 ```
 ---
@@ -19,7 +19,7 @@
 
 ### the as-list global is retired from the public surface
 
-```scheme
+```x
 (guard (e "unbound") (as-list (list 1)))
 ```
 ---
@@ -29,7 +29,7 @@
 
 ### folds left
 
-```scheme
+```x
 (List fold + 0 (list 1 2 3))
 ```
 ---
@@ -37,7 +37,7 @@
 
 ### fold with subtraction
 
-```scheme
+```x
 (List fold - 10 (list 1 2 3))
 ```
 ---
@@ -47,7 +47,7 @@
 
 ### reduces without initial value
 
-```scheme
+```x
 (List reduce + (list 1 2 3 4))
 ```
 ---
@@ -57,7 +57,7 @@
 
 ### returns intermediate values
 
-```scheme
+```x
 (List scan + 0 (list 1 2 3))
 ```
 ---
@@ -67,7 +67,7 @@
 
 ### counts elements
 
-```scheme
+```x
 (List length (list 1 2 3))
 ```
 ---
@@ -75,7 +75,7 @@
 
 ### empty list is zero
 
-```scheme
+```x
 (List length ())
 ```
 ---
@@ -85,7 +85,7 @@
 
 ### the (start, length) twin of slice
 
-```scheme
+```x
 (list (List slice 1 3 (list 10 20 30 40)) (List sub 1 2 (list 10 20 30 40)))
 ```
 ---
@@ -95,7 +95,7 @@
 
 ### builds a list from any iterable (the from-X verb)
 
-```scheme
+```x
 (do (import x/type/vector) (List from-seq (Vector of 1 2 3)))
 ```
 ---
@@ -105,7 +105,7 @@
 
 ### the variadic literal, homed on the class
 
-```scheme
+```x
 (List of 1 2 3)
 ```
 ---
@@ -115,7 +115,7 @@
 
 ### gets element at index
 
-```scheme
+```x
 (List ref 1 (list 10 20 30))
 ```
 ---
@@ -123,7 +123,7 @@
 
 ### gets first element
 
-```scheme
+```x
 (List ref 0 (list 10 20 30))
 ```
 ---
@@ -131,7 +131,7 @@
 
 ### errors past the end instead of crashing
 
-```scheme
+```x
 (List ref 5 (list 1 2))
 ```
 ---
@@ -139,7 +139,7 @@
 
 ### negative index counts from the end
 
-```scheme
+```x
 (List ref -1 (list 1 2))
 ```
 ---
@@ -147,7 +147,7 @@
 
 ### errors when a negative index reaches past the front
 
-```scheme
+```x
 (List ref -3 (list 1 2))
 ```
 ---
@@ -155,7 +155,7 @@
 
 ### a piped index-search miss (nil) is unconvertible and fails loudly
 
-```scheme
+```x
 (List ref (List index-of 99 (list 1 2)) (list 1 2))
 ```
 ---
@@ -165,7 +165,7 @@
 
 ### returns last element
 
-```scheme
+```x
 (List last (list 1 2 3))
 ```
 ---
@@ -173,7 +173,7 @@
 
 ### returns only element
 
-```scheme
+```x
 (List last (list 42))
 ```
 ---
@@ -183,7 +183,7 @@
 
 ### returns all but last
 
-```scheme
+```x
 (List init (list 1 2 3))
 ```
 ---
@@ -193,7 +193,7 @@
 
 ### concatenates two lists
 
-```scheme
+```x
 (List append (list 1 2) (list 3 4))
 ```
 ---
@@ -201,7 +201,7 @@
 
 ### appends to empty
 
-```scheme
+```x
 (List append () (list 1 2))
 ```
 ---
@@ -211,7 +211,7 @@
 
 ### adds to front
 
-```scheme
+```x
 (List prepend 0 (list 1 2))
 ```
 ---
@@ -221,7 +221,7 @@
 
 ### reverses a list
 
-```scheme
+```x
 (List reverse (list 1 2 3))
 ```
 ---
@@ -229,7 +229,7 @@
 
 ### reverses empty
 
-```scheme
+```x
 (null? (List reverse ()))
 ```
 ---
@@ -239,7 +239,7 @@
 
 ### flattens nested lists
 
-```scheme
+```x
 (List flatten (list 1 (list 2 (list 3))))
 ```
 ---
@@ -247,7 +247,7 @@
 
 ### flat list unchanged
 
-```scheme
+```x
 (List flatten (list 1 2 3))
 ```
 ---
@@ -257,7 +257,7 @@
 
 ### applies function to each
 
-```scheme
+```x
 (List map (method-ref Num inc) (list 1 2 3))
 ```
 ---
@@ -265,7 +265,7 @@
 
 ### maps over empty
 
-```scheme
+```x
 (null? (List map (method-ref Num inc) ()))
 ```
 ---
@@ -279,7 +279,7 @@ maps over every byte).  Now accumulate + reverse; the engine trampolines
 the tail self-call, so depth is bounded.  The end probes pin that order
 survived the reverse.
 
-```scheme
+```x
 (def l (List map (method-ref Num inc) (List repeat 16384 1)))
 (list (List length l) (List ref 0 l) (List ref 16383 l))
 ```
@@ -294,7 +294,7 @@ class builders run -- which kept elements by recursing in argument
 position, one C eval frame group per kept element.  The end probes pin
 that order survived the reverse.
 
-```scheme
+```x
 (def l (%filter (fn (_ x) (< x 20000)) (List range 0 16384)))
 (list (List length l) (List ref 0 l) (List ref 16383 l))
 ```
@@ -312,7 +312,7 @@ branch).  Now it drains via %i-empty?/%i-next in the tail accumulate
 shape.  %length counts through %fold, which normalizes first; 16K pins
 the depth-independence of the drain.
 
-```scheme
+```x
 (do (import x/type/vector) (%length (Vector make 16384 1)))
 ```
 ---
@@ -322,7 +322,7 @@ the depth-independence of the drain.
 
 ### keeps matching elements
 
-```scheme
+```x
 (List filter (method-ref Num even?) (list 1 2 3 4))
 ```
 ---
@@ -330,7 +330,7 @@ the depth-independence of the drain.
 
 ### filters to empty
 
-```scheme
+```x
 (null? (List filter (method-ref Num negative?) (list 1 2 3)))
 ```
 ---
@@ -340,7 +340,7 @@ the depth-independence of the drain.
 
 ### applies function for side effects
 
-```scheme
+```x
 (null? (List for-each (fn (_ x) x) (list 1 2 3)))
 ```
 ---
@@ -350,7 +350,7 @@ the depth-independence of the drain.
 
 ### removes matching elements
 
-```scheme
+```x
 (List reject (method-ref Num even?) (list 1 2 3 4))
 ```
 ---
@@ -360,7 +360,7 @@ the depth-independence of the drain.
 
 ### maps and flattens
 
-```scheme
+```x
 (List flat-map (fn (_ x) (list x (* x 10))) (list 1 2 3))
 ```
 ---
@@ -370,7 +370,7 @@ the depth-independence of the drain.
 
 ### concatenates multiple lists
 
-```scheme
+```x
 (List append (list 1) (list 2 3) (list 4))
 ```
 ---
@@ -378,7 +378,7 @@ the depth-independence of the drain.
 
 ### concatenates with empty
 
-```scheme
+```x
 (List append () (list 1) ())
 ```
 ---
@@ -388,7 +388,7 @@ the depth-independence of the drain.
 
 ### returns #t when one matches
 
-```scheme
+```x
 (List any? (method-ref Num even?) (list 1 2 3))
 ```
 ---
@@ -396,7 +396,7 @@ the depth-independence of the drain.
 
 ### returns nil when none match
 
-```scheme
+```x
 (if (List any? (method-ref Num negative?) (list 1 2 3)) "y" "n")
 ```
 ---
@@ -406,7 +406,7 @@ the depth-independence of the drain.
 
 ### returns #t when all match
 
-```scheme
+```x
 (List all? (method-ref Num positive?) (list 1 2 3))
 ```
 ---
@@ -414,7 +414,7 @@ the depth-independence of the drain.
 
 ### returns nil when one fails
 
-```scheme
+```x
 (if (List all? (method-ref Num even?) (list 2 3 4)) "y" "n")
 ```
 ---
@@ -424,7 +424,7 @@ the depth-independence of the drain.
 
 ### returns #t when none match
 
-```scheme
+```x
 (List none? (method-ref Num negative?) (list 1 2 3))
 ```
 ---
@@ -432,7 +432,7 @@ the depth-independence of the drain.
 
 ### returns nil when one matches
 
-```scheme
+```x
 (if (List none? (method-ref Num even?) (list 1 2 3)) "y" "n")
 ```
 ---
@@ -442,7 +442,7 @@ the depth-independence of the drain.
 
 ### true for empty list
 
-```scheme
+```x
 (List empty? ())
 ```
 ---
@@ -450,7 +450,7 @@ the depth-independence of the drain.
 
 ### false for non-empty
 
-```scheme
+```x
 (if (List empty? (list 1)) "y" "n")
 ```
 ---
@@ -460,7 +460,7 @@ the depth-independence of the drain.
 
 ### finds first match
 
-```scheme
+```x
 (List find (method-ref Num even?) (list 1 3 4 6))
 ```
 ---
@@ -468,7 +468,7 @@ the depth-independence of the drain.
 
 ### returns nil when not found
 
-```scheme
+```x
 (null? (List find (method-ref Num negative?) (list 1 2 3)))
 ```
 ---
@@ -478,7 +478,7 @@ the depth-independence of the drain.
 
 ### returns index of first match
 
-```scheme
+```x
 (List find-index (method-ref Num even?) (list 1 3 4 6))
 ```
 ---
@@ -486,7 +486,7 @@ the depth-independence of the drain.
 
 ### misses with nil, like every other miss
 
-```scheme
+```x
 (null? (List find-index (method-ref Num negative?) (list 1 2 3)))
 ```
 ---
@@ -496,7 +496,7 @@ the depth-independence of the drain.
 
 ### finds element index
 
-```scheme
+```x
 (List index-of 30 (list 10 20 30))
 ```
 ---
@@ -504,7 +504,7 @@ the depth-independence of the drain.
 
 ### misses with nil, like every other miss
 
-```scheme
+```x
 (null? (List index-of 99 (list 10 20 30)))
 ```
 ---
@@ -514,7 +514,7 @@ the depth-independence of the drain.
 
 ### finds element in list
 
-```scheme
+```x
 (List includes? 3 (list 1 2 3))
 ```
 ---
@@ -522,7 +522,7 @@ the depth-independence of the drain.
 
 ### returns nil when not found
 
-```scheme
+```x
 (if (List includes? 9 (list 1 2 3)) "y" "n")
 ```
 ---
@@ -532,7 +532,7 @@ the depth-independence of the drain.
 
 ### counts matching elements
 
-```scheme
+```x
 (List count-if (method-ref Num even?) (list 1 2 3 4 5 6))
 ```
 ---
@@ -540,7 +540,7 @@ the depth-independence of the drain.
 
 ### returns zero for no matches
 
-```scheme
+```x
 (List count-if (method-ref Num negative?) (list 1 2 3))
 ```
 ---
@@ -550,7 +550,7 @@ the depth-independence of the drain.
 
 ### takes first n elements
 
-```scheme
+```x
 (List take 2 (list 1 2 3 4))
 ```
 ---
@@ -558,7 +558,7 @@ the depth-independence of the drain.
 
 ### takes zero
 
-```scheme
+```x
 (null? (List take 0 (list 1 2 3)))
 ```
 ---
@@ -566,7 +566,7 @@ the depth-independence of the drain.
 
 ### takes more than available
 
-```scheme
+```x
 (List take 5 (list 1 2))
 ```
 ---
@@ -576,7 +576,7 @@ the depth-independence of the drain.
 
 ### drops first n elements
 
-```scheme
+```x
 (List drop 2 (list 1 2 3 4))
 ```
 ---
@@ -584,7 +584,7 @@ the depth-independence of the drain.
 
 ### drops zero
 
-```scheme
+```x
 (List drop 0 (list 1 2 3))
 ```
 ---
@@ -594,7 +594,7 @@ the depth-independence of the drain.
 
 ### takes while predicate holds
 
-```scheme
+```x
 (List take-while (method-ref Num positive?) (list 1 2 -3 4))
 ```
 ---
@@ -602,7 +602,7 @@ the depth-independence of the drain.
 
 ### takes nothing when first fails
 
-```scheme
+```x
 (null? (List take-while (method-ref Num negative?) (list 1 2 3)))
 ```
 ---
@@ -612,7 +612,7 @@ the depth-independence of the drain.
 
 ### drops while predicate holds
 
-```scheme
+```x
 (List drop-while (method-ref Num positive?) (list 1 2 -3 4))
 ```
 ---
@@ -622,7 +622,7 @@ the depth-independence of the drain.
 
 ### splits list at index
 
-```scheme
+```x
 (List split-at 2 (list 1 2 3 4))
 ```
 ---
@@ -632,7 +632,7 @@ the depth-independence of the drain.
 
 ### extracts sublist
 
-```scheme
+```x
 (List slice 1 3 (list 10 20 30 40 50))
 ```
 ---
@@ -642,7 +642,7 @@ the depth-independence of the drain.
 
 ### generates ascending range
 
-```scheme
+```x
 (List range 0 5)
 ```
 ---
@@ -650,7 +650,7 @@ the depth-independence of the drain.
 
 ### empty when start >= end
 
-```scheme
+```x
 (null? (List range 5 5))
 ```
 ---
@@ -660,7 +660,7 @@ the depth-independence of the drain.
 
 ### repeats a value
 
-```scheme
+```x
 (List repeat 3 0)
 ```
 ---
@@ -668,7 +668,7 @@ the depth-independence of the drain.
 
 ### repeats zero times
 
-```scheme
+```x
 (null? (List repeat 0 0))
 ```
 ---
@@ -678,7 +678,7 @@ the depth-independence of the drain.
 
 ### calls function n times
 
-```scheme
+```x
 (List times 4 (fn (_ i) i))
 ```
 ---
@@ -686,7 +686,7 @@ the depth-independence of the drain.
 
 ### applies function to indices
 
-```scheme
+```x
 (List times 4 (fn (_ i) (* i i)))
 ```
 ---
@@ -696,7 +696,7 @@ the depth-independence of the drain.
 
 ### builds a list from seed
 
-```scheme
+```x
 (List unfold (fn (_ x) (> x 5)) (fn (_ x) x) (method-ref Num inc) 1)
 ```
 ---
@@ -706,7 +706,7 @@ the depth-independence of the drain.
 
 ### generates repeated applications
 
-```scheme
+```x
 (List iterate (fn (_ x) (* x 2)) 4 1)
 ```
 ---
@@ -716,7 +716,7 @@ the depth-independence of the drain.
 
 ### zips two lists into an alist of assocs
 
-```scheme
+```x
 (List zip (list 1 2 3) (list 4 5 6))
 ```
 ---
@@ -724,7 +724,7 @@ the depth-independence of the drain.
 
 ### stops at shorter list
 
-```scheme
+```x
 (List zip (list 1 2) (list 3 4 5))
 ```
 ---
@@ -732,7 +732,7 @@ the depth-independence of the drain.
 
 ### zip output feeds the keyed consumers directly
 
-```scheme
+```x
 (do (import x/type/dict)
   ((Dict from-alist (List zip (list 'a 'b) (list 1 2))) get 'b))
 ```
@@ -743,7 +743,7 @@ the depth-independence of the drain.
 
 ### zips with combining function
 
-```scheme
+```x
 (List zip-with + (list 1 2 3) (list 10 20 30))
 ```
 ---
@@ -753,7 +753,7 @@ the depth-independence of the drain.
 
 ### splits by predicate
 
-```scheme
+```x
 (List partition (method-ref Num even?) (list 1 2 3 4 5 6))
 ```
 ---
@@ -766,7 +766,7 @@ the depth-independence of the drain.
 Value, not length: a count of 2 groups says nothing about which elements
 landed in which group, or in what order the groups come back.
 
-```scheme
+```x
 (List group-by (method-ref Num even?) (list 1 2 3 4 5))
 ```
 ---
@@ -774,7 +774,7 @@ landed in which group, or in what order the groups come back.
 
 ### keeps element order within a group and first-seen key order
 
-```scheme
+```x
 (List group-by (method-ref Num even?) (list 1 2 3 4 5))
 ```
 ---
@@ -784,7 +784,7 @@ landed in which group, or in what order the groups come back.
 
 ### sorts ascending
 
-```scheme
+```x
 (List sort < (list 5 3 1 4 2))
 ```
 ---
@@ -792,7 +792,7 @@ landed in which group, or in what order the groups come back.
 
 ### sorts descending
 
-```scheme
+```x
 (List sort > (list 1 3 2))
 ```
 ---
@@ -800,7 +800,7 @@ landed in which group, or in what order the groups come back.
 
 ### sorts single element
 
-```scheme
+```x
 (List sort < (list 1))
 ```
 ---
@@ -808,7 +808,7 @@ landed in which group, or in what order the groups come back.
 
 ### sorts empty
 
-```scheme
+```x
 (null? (List sort < ()))
 ```
 ---
@@ -816,7 +816,7 @@ landed in which group, or in what order the groups come back.
 
 ### is stable: equal keys keep input order
 
-```scheme
+```x
 (List sort (fn (_ a b) (< (first a) (first b)))
   (list (list 1 90) (list 0 5) (list 1 10) (list 0 7)))
 ```
@@ -827,7 +827,7 @@ landed in which group, or in what order the groups come back.
 
 ### sorts by key function
 
-```scheme
+```x
 (List sort-by (method-ref Num abs) (list 3 -1 -2))
 ```
 ---
@@ -837,7 +837,7 @@ landed in which group, or in what order the groups come back.
 
 ### removes consecutive duplicates
 
-```scheme
+```x
 (List uniq (list 1 1 2 2 3 3))
 ```
 ---
@@ -845,7 +845,7 @@ landed in which group, or in what order the groups come back.
 
 ### keeps non-consecutive duplicates
 
-```scheme
+```x
 (List uniq (list 1 2 1 2))
 ```
 ---
@@ -858,7 +858,7 @@ landed in which group, or in what order the groups come back.
 A length assertion alone let #73 hide here: `(List length ...)` is 3 whether the
 first or the last element of each run survives. Assert the value.
 
-```scheme
+```x
 (List uniq-by (method-ref Num abs) (list 1 -1 2 -2 3))
 ```
 ---
@@ -866,7 +866,7 @@ first or the last element of each run survives. Assert the value.
 
 ### keeps the first across a run of three
 
-```scheme
+```x
 (List uniq-by (method-ref Num abs) (list 5 -5 5 7))
 ```
 ---
@@ -876,7 +876,7 @@ first or the last element of each run survives. Assert the value.
 
 ### inserts separator between elements
 
-```scheme
+```x
 (List intersperse 0 (list 1 2 3))
 ```
 ---
@@ -884,7 +884,7 @@ first or the last element of each run survives. Assert the value.
 
 ### single element unchanged
 
-```scheme
+```x
 (List intersperse 0 (list 1))
 ```
 ---
@@ -894,7 +894,7 @@ first or the last element of each run survives. Assert the value.
 
 ### appends two lists
 
-```scheme
+```x
 (List append (list 1 2) (list 3 4))
 ```
 ---
@@ -902,7 +902,7 @@ first or the last element of each run survives. Assert the value.
 
 ### appends three lists
 
-```scheme
+```x
 (List append (list 1) (list 2) (list 3))
 ```
 ---
@@ -910,7 +910,7 @@ first or the last element of each run survives. Assert the value.
 
 ### appends with empty
 
-```scheme
+```x
 (List append () (list 1 2) ())
 ```
 ---
@@ -918,7 +918,7 @@ first or the last element of each run survives. Assert the value.
 
 ### appends zero lists
 
-```scheme
+```x
 (null? (List append))
 ```
 ---
@@ -926,7 +926,7 @@ first or the last element of each run survives. Assert the value.
 
 ### appends one list
 
-```scheme
+```x
 (List append (list 1 2))
 ```
 ---
@@ -936,7 +936,7 @@ first or the last element of each run survives. Assert the value.
 
 ### maps over two lists
 
-```scheme
+```x
 (List map + (list 1 2 3) (list 10 20 30))
 ```
 ---
@@ -944,7 +944,7 @@ first or the last element of each run survives. Assert the value.
 
 ### maps over three lists
 
-```scheme
+```x
 (List map + (list 1 2) (list 10 20) (list 100 200))
 ```
 ---
@@ -952,7 +952,7 @@ first or the last element of each run survives. Assert the value.
 
 ### stops at shortest
 
-```scheme
+```x
 (List map + (list 1 2 3) (list 10 20))
 ```
 ---
@@ -960,7 +960,7 @@ first or the last element of each run survives. Assert the value.
 
 ### single-list backward compat
 
-```scheme
+```x
 (List map (method-ref Num inc) (list 1 2 3))
 ```
 ---
@@ -970,7 +970,7 @@ first or the last element of each run survives. Assert the value.
 
 ### iterates two lists
 
-```scheme
+```x
 (do (def r ()) (List for-each (fn (_ a b) (set! r (pair (+ a b) r))) (list 1 2) (list 10 20)) (List reverse r))
 ```
 ---
@@ -978,7 +978,7 @@ first or the last element of each run survives. Assert the value.
 
 ### single-list backward compat
 
-```scheme
+```x
 (do (def r ()) (List for-each (fn (_ x) (set! r (pair x r))) (list 1 2 3)) (List reverse r))
 ```
 ---
@@ -988,7 +988,7 @@ first or the last element of each run survives. Assert the value.
 
 ### transposes a matrix
 
-```scheme
+```x
 (List transpose (list (list 1 2 3) (list 4 5 6)))
 ```
 ---
@@ -998,7 +998,7 @@ first or the last element of each run survives. Assert the value.
 
 ### updates element at index
 
-```scheme
+```x
 (List update 1 99 (list 10 20 30))
 ```
 ---
@@ -1008,7 +1008,7 @@ first or the last element of each run survives. Assert the value.
 
 ### inserts at index
 
-```scheme
+```x
 (List insert 1 99 (list 10 20 30))
 ```
 ---
@@ -1016,7 +1016,7 @@ first or the last element of each run survives. Assert the value.
 
 ### insert at the length appends
 
-```scheme
+```x
 (List insert 3 99 (list 10 20 30))
 ```
 ---
@@ -1024,7 +1024,7 @@ first or the last element of each run survives. Assert the value.
 
 ### insert past the end clamps to append
 
-```scheme
+```x
 (List insert 7 99 (list 10 20 30))
 ```
 ---
@@ -1034,7 +1034,7 @@ first or the last element of each run survives. Assert the value.
 
 ### removes n elements at start index
 
-```scheme
+```x
 (List remove 1 2 (list 10 20 30 40))
 ```
 ---
@@ -1044,7 +1044,7 @@ first or the last element of each run survives. Assert the value.
 
 ### applies function at index
 
-```scheme
+```x
 (List adjust 1 (method-ref Num inc) (list 10 20 30))
 ```
 ---
@@ -1055,7 +1055,7 @@ first or the last element of each run survives. Assert the value.
 
 ### combines last-to-first, (f acc element) like fold
 
-```scheme
+```x
 (List fold-right (fn (_ acc x) (pair x acc)) () (list 1 2 3))
 ```
 ---
@@ -1065,7 +1065,7 @@ first or the last element of each run survives. Assert the value.
 
 ### splits with a short tail
 
-```scheme
+```x
 (List chunk 2 (list 1 2 3 4 5))
 ```
 ---
@@ -1073,7 +1073,7 @@ first or the last element of each run survives. Assert the value.
 
 ### errors on a non-positive size
 
-```scheme
+```x
 (List chunk 0 (list 1))
 ```
 ---
@@ -1083,7 +1083,7 @@ first or the last element of each run survives. Assert the value.
 
 ### inverts zip
 
-```scheme
+```x
 (List unzip (List zip (list 1 2) (list 9 8)))
 ```
 ---
@@ -1093,7 +1093,7 @@ first or the last element of each run survives. Assert the value.
 
 ### alternates, stopping at the shorter
 
-```scheme
+```x
 (List interleave (list 1 3 5) (list 2 4))
 ```
 ---
@@ -1103,7 +1103,7 @@ first or the last element of each run survives. Assert the value.
 
 ### removes all duplicates, keeping first occurrences
 
-```scheme
+```x
 (List distinct (list 1 2 1 3 2 1))
 ```
 ---
@@ -1111,7 +1111,7 @@ first or the last element of each run survives. Assert the value.
 
 ### works on strings (equal?, not eq?)
 
-```scheme
+```x
 (List distinct (list "a" "b" "a"))
 ```
 ---
@@ -1121,7 +1121,7 @@ first or the last element of each run survives. Assert the value.
 
 ### finds extremes
 
-```scheme
+```x
 (list (List min (list 3 1 2)) (List max (list 3 1 2)))
 ```
 ---
@@ -1129,7 +1129,7 @@ first or the last element of each run survives. Assert the value.
 
 ### errors on empty
 
-```scheme
+```x
 (List min ())
 ```
 ---
@@ -1137,7 +1137,7 @@ first or the last element of each run survives. Assert the value.
 
 ### fold rejects an improper list
 
-```scheme
+```x
 (List fold (fn (_ a x) a) 0 (pair 1 2))
 ```
 ---
@@ -1145,7 +1145,7 @@ first or the last element of each run survives. Assert the value.
 
 ### length rejects an improper list
 
-```scheme
+```x
 (List length (pair 1 2))
 ```
 ---
@@ -1153,7 +1153,7 @@ first or the last element of each run survives. Assert the value.
 
 ### reverse rejects an improper list
 
-```scheme
+```x
 (List reverse (pair 1 2))
 ```
 ---
@@ -1161,7 +1161,7 @@ first or the last element of each run survives. Assert the value.
 
 ### map rejects an improper list
 
-```scheme
+```x
 (List map (fn (_ x) x) (pair 1 2))
 ```
 ---

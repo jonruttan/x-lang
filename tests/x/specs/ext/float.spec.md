@@ -5,7 +5,7 @@
 
 ### parses simple float
 
-```scheme
+```x
 3.14
 ```
 ---
@@ -13,7 +13,7 @@
 
 ### parses integer-like float
 
-```scheme
+```x
 1.0
 ```
 ---
@@ -21,7 +21,7 @@
 
 ### parses negative float
 
-```scheme
+```x
 -7.5
 ```
 ---
@@ -29,7 +29,7 @@
 
 ### parses small float
 
-```scheme
+```x
 0.5
 ```
 ---
@@ -37,7 +37,7 @@
 
 ### parses large float
 
-```scheme
+```x
 12345.6789
 ```
 ---
@@ -45,7 +45,7 @@
 
 ### float? true for float
 
-```scheme
+```x
 (Float float? 3.14)
 ```
 ---
@@ -53,7 +53,7 @@
 
 ### float? false for integer
 
-```scheme
+```x
 (Float float? 42)
 ```
 ---
@@ -61,7 +61,7 @@
 
 ### float? false for string
 
-```scheme
+```x
 (Float float? "3.14")
 ```
 ---
@@ -71,7 +71,7 @@
 
 ### convert int to float
 
-```scheme
+```x
 (Convert to 42 %float)
 ```
 ---
@@ -79,7 +79,7 @@
 
 ### convert result is float
 
-```scheme
+```x
 (Float float? (Convert to 42 %float))
 ```
 ---
@@ -87,7 +87,7 @@
 
 ### convert float to float is identity
 
-```scheme
+```x
 (def x 3.14) (eq? (Convert to x %float) x)
 ```
 ---
@@ -95,7 +95,7 @@
 
 ### convert string to float
 
-```scheme
+```x
 (Float float? (Convert to "3.14" %float))
 ```
 ---
@@ -103,7 +103,7 @@
 
 ### convert nil returns nil
 
-```scheme
+```x
 (null? (Convert to () %float))
 ```
 ---
@@ -111,7 +111,7 @@
 
 ### convert negative int
 
-```scheme
+```x
 (Convert to -5 %float)
 ```
 ---
@@ -119,7 +119,7 @@
 
 ### convert zero
 
-```scheme
+```x
 (Convert to 0 %float)
 ```
 ---
@@ -129,7 +129,7 @@
 
 ### from converts int
 
-```scheme
+```x
 (Float from 5)
 ```
 ---
@@ -137,7 +137,7 @@
 
 ### from result is float
 
-```scheme
+```x
 (Float float? (Float from 5))
 ```
 ---
@@ -145,7 +145,7 @@
 
 ### from float identity
 
-```scheme
+```x
 (def x 3.14) (eq? (Float from x) x)
 ```
 ---
@@ -153,7 +153,7 @@
 
 ### ->int truncates
 
-```scheme
+```x
 (Float ->int 3.14)
 ```
 ---
@@ -161,7 +161,7 @@
 
 ### ->int rounds toward zero
 
-```scheme
+```x
 (Float ->int 9.99)
 ```
 ---
@@ -169,7 +169,7 @@
 
 ### str->float and back
 
-```scheme
+```x
 (Float bits->str (Float str->bits "2.718"))
 ```
 ---
@@ -177,7 +177,7 @@
 
 ### int->float and back
 
-```scheme
+```x
 (Float bits->int (Float int->bits 42))
 ```
 ---
@@ -187,7 +187,7 @@
 
 ### f+ addition
 
-```scheme
+```x
 (Float + 1.5 2.5)
 ```
 ---
@@ -195,7 +195,7 @@
 
 ### f- subtraction
 
-```scheme
+```x
 (Float - 10.0 3.5)
 ```
 ---
@@ -203,7 +203,7 @@
 
 ### f* multiplication
 
-```scheme
+```x
 (Float * 3.0 4.0)
 ```
 ---
@@ -211,7 +211,7 @@
 
 ### f/ division
 
-```scheme
+```x
 (Float / 10.0 4.0)
 ```
 ---
@@ -219,7 +219,7 @@
 
 ### f/ non-integer result
 
-```scheme
+```x
 (Float / 1.0 3.0)
 ```
 ---
@@ -229,7 +229,7 @@
 
 ### + two floats
 
-```scheme
+```x
 (+ 1.5 2.5)
 ```
 ---
@@ -237,7 +237,7 @@
 
 ### + int and float
 
-```scheme
+```x
 (+ 1 2.5)
 ```
 ---
@@ -245,7 +245,7 @@
 
 ### + float and int
 
-```scheme
+```x
 (+ 2.5 1)
 ```
 ---
@@ -253,7 +253,7 @@
 
 ### + three with float
 
-```scheme
+```x
 (+ 1 2 3.0)
 ```
 ---
@@ -261,7 +261,7 @@
 
 ### - two floats
 
-```scheme
+```x
 (- 10.0 3.5)
 ```
 ---
@@ -269,7 +269,7 @@
 
 ### - negate float
 
-```scheme
+```x
 (- 3.14)
 ```
 ---
@@ -277,7 +277,7 @@
 
 ### * two floats
 
-```scheme
+```x
 (* 3.0 4.0)
 ```
 ---
@@ -285,7 +285,7 @@
 
 ### * int and float
 
-```scheme
+```x
 (* 2 3.5)
 ```
 ---
@@ -293,7 +293,7 @@
 
 ### / two floats
 
-```scheme
+```x
 (/ 10.0 4.0)
 ```
 ---
@@ -301,7 +301,7 @@
 
 ### / int and float
 
-```scheme
+```x
 (/ 7 2.0)
 ```
 ---
@@ -309,7 +309,7 @@
 
 ### + integers unchanged
 
-```scheme
+```x
 (+ 1 2 3)
 ```
 ---
@@ -317,7 +317,7 @@
 
 ### * integers unchanged
 
-```scheme
+```x
 (* 2 3 4)
 ```
 ---
@@ -327,7 +327,7 @@
 
 ### % smaller by larger is the dividend
 
-```scheme
+```x
 (% 1.2 1.4)
 ```
 ---
@@ -335,7 +335,7 @@
 
 ### % larger by smaller
 
-```scheme
+```x
 (% 1.4 1.2)
 ```
 ---
@@ -343,7 +343,7 @@
 
 ### % float by float
 
-```scheme
+```x
 (% 7.5 2.0)
 ```
 ---
@@ -351,7 +351,7 @@
 
 ### % truncates toward zero (C semantics)
 
-```scheme
+```x
 (% -7.5 2.0)
 ```
 ---
@@ -359,7 +359,7 @@
 
 ### % float by int coerces
 
-```scheme
+```x
 (% 5.5 2)
 ```
 ---
@@ -367,7 +367,7 @@
 
 ### % integers unchanged
 
-```scheme
+```x
 (% 7 3)
 ```
 ---
@@ -377,7 +377,7 @@
 
 ### f< true
 
-```scheme
+```x
 (Float < 1.5 2.5)
 ```
 ---
@@ -385,7 +385,7 @@
 
 ### f< false
 
-```scheme
+```x
 (Float < 2.5 1.5)
 ```
 ---
@@ -393,7 +393,7 @@
 
 ### f= true
 
-```scheme
+```x
 (Float = 1.0 1.0)
 ```
 ---
@@ -401,7 +401,7 @@
 
 ### f= false
 
-```scheme
+```x
 (Float = 1.0 2.0)
 ```
 ---
@@ -411,7 +411,7 @@
 
 ### < with floats
 
-```scheme
+```x
 (< 1.5 2.5)
 ```
 ---
@@ -419,7 +419,7 @@
 
 ### > with floats
 
-```scheme
+```x
 (> 3.0 2.0)
 ```
 ---
@@ -427,7 +427,7 @@
 
 ### = with floats
 
-```scheme
+```x
 (= 1.0 1.0)
 ```
 ---
@@ -435,7 +435,7 @@
 
 ### <= with floats
 
-```scheme
+```x
 (<= 2.0 2.0)
 ```
 ---
@@ -443,7 +443,7 @@
 
 ### >= with floats
 
-```scheme
+```x
 (>= 3.0 2.0)
 ```
 ---
@@ -451,7 +451,7 @@
 
 ### < int and float
 
-```scheme
+```x
 (< 1 2.5)
 ```
 ---
@@ -459,7 +459,7 @@
 
 ### > float and int
 
-```scheme
+```x
 (> 3.5 2)
 ```
 ---
@@ -467,7 +467,7 @@
 
 ### = int and float
 
-```scheme
+```x
 (= 2 2.0)
 ```
 ---
@@ -475,7 +475,7 @@
 
 ### < integers still work
 
-```scheme
+```x
 (< 1 2)
 ```
 ---
@@ -483,7 +483,7 @@
 
 ### = integers still work
 
-```scheme
+```x
 (= 5 5)
 ```
 ---
@@ -493,7 +493,7 @@
 
 ### fsin of 0
 
-```scheme
+```x
 (Float sin (Float from 0))
 ```
 ---
@@ -501,7 +501,7 @@
 
 ### fcos of 0
 
-```scheme
+```x
 (Float cos (Float from 0))
 ```
 ---
@@ -509,7 +509,7 @@
 
 ### fsqrt of 4
 
-```scheme
+```x
 (Float sqrt 4.0)
 ```
 ---
@@ -517,7 +517,7 @@
 
 ### fsqrt of 2
 
-```scheme
+```x
 (Float sqrt 2.0)
 ```
 ---
@@ -525,7 +525,7 @@
 
 ### fabs positive
 
-```scheme
+```x
 (Float abs 3.14)
 ```
 ---
@@ -533,7 +533,7 @@
 
 ### fabs negative
 
-```scheme
+```x
 (Float abs (- 3.14))
 ```
 ---
@@ -541,7 +541,7 @@
 
 ### ffloor
 
-```scheme
+```x
 (Float floor 3.7)
 ```
 ---
@@ -549,7 +549,7 @@
 
 ### fceil
 
-```scheme
+```x
 (Float ceil 3.2)
 ```
 ---
@@ -557,7 +557,7 @@
 
 ### fround
 
-```scheme
+```x
 (Float round 3.5)
 ```
 ---
@@ -565,7 +565,7 @@
 
 ### fexp of 0
 
-```scheme
+```x
 (Float exp (Float from 0))
 ```
 ---
@@ -573,7 +573,7 @@
 
 ### flog of 1
 
-```scheme
+```x
 (Float log 1.0)
 ```
 ---
@@ -581,7 +581,7 @@
 
 ### fpow 2^10
 
-```scheme
+```x
 (Float pow 2.0 10.0)
 ```
 ---
@@ -591,7 +591,7 @@
 
 ### pi is approximately 3.14159
 
-```scheme
+```x
 (> %pi 3.14)
 ```
 ---
@@ -599,7 +599,7 @@
 
 ### pi is approximately 3.14159 upper
 
-```scheme
+```x
 (< %pi 3.15)
 ```
 ---
@@ -607,7 +607,7 @@
 
 ### e is approximately 2.71828
 
-```scheme
+```x
 (> %e 2.71)
 ```
 ---
@@ -615,7 +615,7 @@
 
 ### e is approximately 2.71828 upper
 
-```scheme
+```x
 (< %e 2.72)
 ```
 ---
@@ -625,7 +625,7 @@
 
 ### number? true for integer
 
-```scheme
+```x
 (number? 42)
 ```
 ---
@@ -633,7 +633,7 @@
 
 ### number? true for float
 
-```scheme
+```x
 (number? 3.14)
 ```
 ---
@@ -641,7 +641,7 @@
 
 ### number? false for string
 
-```scheme
+```x
 (number? "hello")
 ```
 ---
@@ -649,7 +649,7 @@
 
 ### integer? true for int
 
-```scheme
+```x
 (Float integer? 42)
 ```
 ---
@@ -657,7 +657,7 @@
 
 ### integer? false for float
 
-```scheme
+```x
 (Float integer? 3.14)
 ```
 ---
@@ -665,7 +665,7 @@
 
 ### float? true for float
 
-```scheme
+```x
 (Float float? 3.14)
 ```
 ---
@@ -673,7 +673,7 @@
 
 ### float? false for int
 
-```scheme
+```x
 (Float float? 42)
 ```
 ---
@@ -681,7 +681,7 @@
 
 ### inexact? true for float
 
-```scheme
+```x
 (Float inexact? 3.14)
 ```
 ---
@@ -689,7 +689,7 @@
 
 ### inexact? false for int
 
-```scheme
+```x
 (Float inexact? 42)
 ```
 ---
@@ -699,7 +699,7 @@
 
 ### float in list
 
-```scheme
+```x
 (list 1.5 2.5 3.5)
 ```
 ---
@@ -707,7 +707,7 @@
 
 ### float in pair
 
-```scheme
+```x
 (pair 1.5 2.5)
 ```
 ---
@@ -715,7 +715,7 @@
 
 ### float in variable
 
-```scheme
+```x
 (def x 3.14) x
 ```
 ---
@@ -723,7 +723,7 @@
 
 ### map with floats
 
-```scheme
+```x
 (List map (fn (_ x) (* x 2.0)) (list 1.0 2.0 3.0))
 ```
 ---
@@ -731,7 +731,7 @@
 
 ### filter with floats
 
-```scheme
+```x
 (List filter (fn (_ x) (> x 2.0)) (list 1.0 2.5 3.0 0.5))
 ```
 ---
@@ -739,7 +739,7 @@
 
 ### fold with floats
 
-```scheme
+```x
 (List fold + 0.0 (list 1.0 2.0 3.0))
 ```
 ---
@@ -747,7 +747,7 @@
 
 ### float in vector
 
-```scheme
+```x
 (Vector of 1.5 2.5 3.5)
 ```
 ---
@@ -757,7 +757,7 @@
 
 ### very small float
 
-```scheme
+```x
 (> 0.001 (Float from 0))
 ```
 ---
@@ -765,7 +765,7 @@
 
 ### negative float
 
-```scheme
+```x
 (- 3.14)
 ```
 ---
@@ -773,7 +773,7 @@
 
 ### float zero
 
-```scheme
+```x
 (Float = 0.0 (Float from 0))
 ```
 ---
@@ -781,7 +781,7 @@
 
 ### mixed arithmetic chain
 
-```scheme
+```x
 (+ (* 2.0 3.0) (/ 10.0 5.0))
 ```
 ---
@@ -792,7 +792,7 @@
 
 ### a float count truncates via the registered converter
 
-```scheme
+```x
 (list (List take 2.75 (list 1 2 3 4)) (List ref 1.25 (list 10 20 30)))
 ```
 ---
@@ -802,7 +802,7 @@
 
 ### an int-valued float prints as a float
 
-```scheme
+```x
 (list 1.0 (Float / 4.0 2.0))
 ```
 ---
@@ -817,7 +817,7 @@ is unchanged.
 
 ### from on a list raises type, not silent nil
 
-```scheme
+```x
 (Float from (list 1))
 ```
 ---
@@ -825,7 +825,7 @@ is unchanged.
 
 ### a mixed op with an unconvertible operand raises type, not a crash
 
-```scheme
+```x
 (Float + 1.0 (list 1))
 ```
 ---
@@ -833,7 +833,7 @@ is unchanged.
 
 ### ->int on a non-number raises type
 
-```scheme
+```x
 (Float ->int (list 1))
 ```
 ---
@@ -841,7 +841,7 @@ is unchanged.
 
 ### ->int int passthrough keeps exact identity
 
-```scheme
+```x
 (Float ->int 5)
 ```
 ---
@@ -849,7 +849,7 @@ is unchanged.
 
 ### the Convert-level miss stays silent nil (policy unchanged)
 
-```scheme
+```x
 (null? (Convert to (list 1) %float))
 ```
 ---
@@ -859,7 +859,7 @@ is unchanged.
 
 ### log2, log10, hypot
 
-```scheme
+```x
 (list (Float log2 8.0) (Float log10 1000.0) (Float hypot 3.0 4.0))
 ```
 ---
@@ -867,7 +867,7 @@ is unchanged.
 
 ### the constants: pi, e, tau; tau is 2*pi
 
-```scheme
+```x
 (list (Float pi) (Float e) (Float = (Float tau) (Float * 2.0 (Float pi))))
 ```
 ---
@@ -875,7 +875,7 @@ is unchanged.
 
 ### nan? is #t only for a NaN float
 
-```scheme
+```x
 (list (Float nan? (/ 0.0 0.0)) (Float nan? (/ 1.0 0.0))
       (Float nan? 1.5) (Float nan? 42))
 ```
@@ -884,7 +884,7 @@ is unchanged.
 
 ### inf? sees both signs, not NaN, not finite
 
-```scheme
+```x
 (list (Float inf? (/ 1.0 0.0)) (Float inf? (/ -1.0 0.0))
       (Float inf? (/ 0.0 0.0)) (Float inf? 1.5))
 ```
@@ -893,7 +893,7 @@ is unchanged.
 
 ### finite? is total: ints and finite floats in, specials and non-numbers out
 
-```scheme
+```x
 (list (Float finite? 42) (Float finite? 1.5)
       (Float finite? (/ 1.0 0.0)) (Float finite? (/ 0.0 0.0))
       (Float finite? "x"))

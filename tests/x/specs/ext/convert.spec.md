@@ -18,7 +18,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 
 ### identity: converting a value to its own type returns it unchanged
 
-```scheme
+```x
 (Convert to 42 %int)
 ```
 ---
@@ -26,7 +26,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 
 ### a registered conversion runs (int -> decimal string)
 
-```scheme
+```x
 (Convert to 255 %string)
 ```
 ---
@@ -34,7 +34,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 
 ### the radix extra arg is threaded through (int -> hex string)
 
-```scheme
+```x
 (Convert to 255 %string 16)
 ```
 ---
@@ -42,7 +42,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 
 ### and the inverse parses with the radix (hex string -> int)
 
-```scheme
+```x
 (Convert to "ff" %int 16)
 ```
 ---
@@ -50,7 +50,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 
 ### a symbol/string roundtrip preserves the name
 
-```scheme
+```x
 (Convert to (Convert to 'hi %string) %symbol)
 ```
 ---
@@ -58,7 +58,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 
 ### a nil value converts to nil (absence stays absence)
 
-```scheme
+```x
 (Convert to () %int)
 ```
 ---
@@ -67,7 +67,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 
 ### an unregistered conversion returns nil by DEFAULT (silent)
 
-```scheme
+```x
 (null? (Convert to 42 %symbol))
 ```
 ---
@@ -75,7 +75,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 
 ### a custom (Convert missing) makes a miss loud -- and is restorable
 
-```scheme
+```x
 (do
   (def %orig (Convert missing))
   (Convert missing (fn (_ v t) (error "no conversion")))
@@ -88,7 +88,7 @@ here the focus is the dispatch contract, the radix `extra` arg, and the policy.
 
 ### the default policy is restored afterward (no leak to later tests)
 
-```scheme
+```x
 (null? (Convert to 42 %symbol))
 ```
 ---

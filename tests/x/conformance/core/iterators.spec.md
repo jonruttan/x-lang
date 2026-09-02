@@ -14,7 +14,7 @@ the step's CONTRACT rather than about lists.
 
 covers: iter/make iter/next
 
-```scheme
+```x
 (def %mk (%coord (lit iter) (lit make)))
 (def %next (%coord (lit iter) (lit next)))
 (def %step (fn (self st) (match ((eq? st ()) ()) (#t (pair (first st) (rest st))))))
@@ -28,7 +28,7 @@ covers: iter/make iter/next
 
 covers: iter/empty? iter/next
 
-```scheme
+```x
 (def %mk (%coord (lit iter) (lit make)))
 (def %next (%coord (lit iter) (lit next)))
 (def %empty (%coord (lit iter) (lit empty?)))
@@ -49,7 +49,7 @@ covers: iter/step
 `next` mutates the box; `step` does not. An engine that made them synonyms would
 pass every single-pass test and corrupt anything that iterates twice.
 
-```scheme
+```x
 (def %mk (%coord (lit iter) (lit make)))
 (def %stepp (%coord (lit iter) (lit step)))
 (def %step (fn (self st) (match ((eq? st ()) ()) (#t (pair (first st) (rest st))))))
@@ -65,7 +65,7 @@ pass every single-pass test and corrupt anything that iterates twice.
 
 covers: iter/make iter/empty?
 
-```scheme
+```x
 (def %mk (%coord (lit iter) (lit make)))
 (def %empty (%coord (lit iter) (lit empty?)))
 (def %step (fn (self st) (match ((eq? st ()) ()) (#t (pair (first st) (rest st))))))

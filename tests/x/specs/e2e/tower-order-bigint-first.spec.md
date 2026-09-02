@@ -16,7 +16,7 @@ their import's test as separate forms.
 
 ### bigint works alone
 
-```scheme
+```x
 (import x/num/bigint)
 (Bigint + 9223372036854775807 1)
 ```
@@ -25,7 +25,7 @@ their import's test as separate forms.
 
 ### bigint literals parse from the next form on
 
-```scheme
+```x
 (Bigint bigint? 10000000000000000000)
 ```
 ---
@@ -33,7 +33,7 @@ their import's test as separate forms.
 
 ### float joins later; the conversion installed at float load
 
-```scheme
+```x
 (import x/num/float)
 (import x/sys/pact)
 (def %t-cv (prim-ref 'convert 'to))
@@ -49,7 +49,7 @@ their import's test as separate forms.
 
 ### mixed literal arithmetic in the next form
 
-```scheme
+```x
 (= (+ 0.0 10000000000000000000) 10000000000000000000.0)
 ```
 ---
@@ -57,7 +57,7 @@ their import's test as separate forms.
 
 ### rational on top of both
 
-```scheme
+```x
 (import x/num/rational)
 (Rational rational? (Rational / 2 6))
 ```
@@ -66,7 +66,7 @@ their import's test as separate forms.
 
 ### rational literals parse from the next form on
 
-```scheme
+```x
 (+ 1/3 1/6)
 ```
 ---

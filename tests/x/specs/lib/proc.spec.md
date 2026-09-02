@@ -9,7 +9,7 @@ happened, 128+N for death by signal N.
 
 ### a normal exit code comes back as itself
 
-```scheme
+```x
 (do
   (import x/sys/proc)
   (display (Proc run! (list "/bin/sh" "-c" "exit 3"))))
@@ -19,7 +19,7 @@ happened, 128+N for death by signal N.
 
 ### an absent command is 127, the exec-failure convention
 
-```scheme
+```x
 (do
   (import x/sys/proc)
   (display (Proc run! (list "/nonexistent-command-proc-spec"))))
@@ -29,7 +29,7 @@ happened, 128+N for death by signal N.
 
 ### a signal-killed child is 128+N, not a fake success
 
-```scheme
+```x
 (do
   (import x/sys/proc)
   (display (Proc run! (list "/bin/sh" "-c" "kill -TERM $$"))))
@@ -41,7 +41,7 @@ happened, 128+N for death by signal N.
 
 ### stdout comes back with the status
 
-```scheme
+```x
 (do
   (import x/sys/proc)
   (def %r (Proc capture (list "/bin/sh" "-c" "printf 'a b'; exit 7")))
@@ -54,7 +54,7 @@ happened, 128+N for death by signal N.
 
 ### output larger than one read chunk is drained, not deadlocked
 
-```scheme
+```x
 (do
   (import x/sys/proc)
   ; 200000 bytes: bigger than the 64K read chunk and any pipe buffer --
@@ -73,7 +73,7 @@ happened, 128+N for death by signal N.
 
 ### an ignored signal does not kill the process
 
-```scheme
+```x
 (do
   (Sys signal (Sys sigint) (Sys sig-ign))
   (Sys kill (Sys getpid) (Sys sigint))
@@ -87,7 +87,7 @@ happened, 128+N for death by signal N.
 
 ### env overrides reach the child
 
-```scheme
+```x
 (do (import x/sys/proc)
   (rest (Proc capture-with (list (pair 'env (list (pair "X364" "yes"))))
               (list "/bin/sh" "-c" "printf %s $X364"))))
@@ -97,7 +97,7 @@ happened, 128+N for death by signal N.
 
 ### cwd applies in the child; an unusable cwd is 126, not a wrong-dir exec
 
-```scheme
+```x
 (do (import x/sys/proc)
   (list (first (Proc capture-with (list (pair 'cwd "/")) (list "/bin/sh" "-c" "pwd")))
         (rest (Proc capture-with (list (pair 'cwd "/")) (list "/bin/sh" "-c" "printf %s $PWD")))

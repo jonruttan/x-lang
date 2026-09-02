@@ -13,7 +13,7 @@ written so that evaluating an argument is an ERROR, not merely a different answe
 
 covers: def
 
-```scheme
+```x
 (def x 42)
 (%ok (= x 42))
 ```
@@ -24,7 +24,7 @@ covers: def
 
 covers: set!
 
-```scheme
+```x
 (def x 1)
 (set! x 2)
 (%ok (= x 2))
@@ -36,7 +36,7 @@ covers: set!
 
 covers: fn
 
-```scheme
+```x
 (def f (fn (self a) a))
 (%ok (= (f (+ 1 2)) 3))
 ```
@@ -47,7 +47,7 @@ covers: fn
 
 covers: fn
 
-```scheme
+```x
 (def count (fn (self n) (match ((= n 0) 0) (#t (+ 1 (self (- n 1)))))))
 (%ok (= (count 5) 5))
 ```
@@ -62,7 +62,7 @@ An unbound symbol is passed. If the engine evaluated it the case would die with
 `Unbound SYMBOL`, so this distinguishes the two models rather than just observing
 a value.
 
-```scheme
+```x
 (def q (op (x) e x))
 (%ok (eq? (q no-such-binding-anywhere) (lit no-such-binding-anywhere)))
 ```
@@ -73,7 +73,7 @@ a value.
 
 covers: op eval
 
-```scheme
+```x
 (def deref (op (x) e (eval x e)))
 (def y 9)
 (%ok (= (deref y) 9))
@@ -85,7 +85,7 @@ covers: op eval
 
 covers: lit
 
-```scheme
+```x
 (%ok (eq? (lit foo) (lit foo)))
 ```
 ---
@@ -95,7 +95,7 @@ covers: lit
 
 covers: match
 
-```scheme
+```x
 (%ok (= (match ((= 1 2) 10) ((= 2 2) 20) (#t 30)) 20))
 ```
 ---
@@ -105,7 +105,7 @@ covers: match
 
 covers: match
 
-```scheme
+```x
 (%ok (= (match ((= 1 2) 10) ((= 3 4) 20) (#t 30)) 30))
 ```
 ---
@@ -115,7 +115,7 @@ covers: match
 
 covers: guard error
 
-```scheme
+```x
 (%ok (eq? (guard (e (lit caught)) (error "boom")) (lit caught)))
 ```
 ---
@@ -125,7 +125,7 @@ covers: guard error
 
 covers: guard
 
-```scheme
+```x
 (%ok (= (guard (e 0) (+ 20 22)) 42))
 ```
 ---
@@ -135,7 +135,7 @@ covers: guard
 
 covers: call/cc
 
-```scheme
+```x
 (%ok (= (call/cc (fn (self k) (k 7))) 7))
 ```
 ---
@@ -145,7 +145,7 @@ covers: call/cc
 
 covers: call/cc
 
-```scheme
+```x
 (%ok (= (call/cc (fn (self k) 5)) 5))
 ```
 ---
@@ -155,7 +155,7 @@ covers: call/cc
 
 covers: apply
 
-```scheme
+```x
 (def add (fn (self a b) (+ a b)))
 (%ok (= (apply add (pair 1 (pair 2 ()))) 3))
 ```
@@ -170,7 +170,7 @@ covers: fn match
 outright when the recursion is NOT in tail position, which is what makes this a
 test of tail calls rather than of patience.
 
-```scheme
+```x
 (def loop (fn (self n) (match ((= n 0) (lit done)) (#t (self (- n 1))))))
 (%ok (eq? (loop 60000) (lit done)))
 ```

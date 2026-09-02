@@ -13,7 +13,7 @@ reached through the catalog.
 
 ### counts bytes in a string
 
-```scheme
+```x
 ((prim-ref 'str 'byte-len) "hello")
 ```
 ---
@@ -21,7 +21,7 @@ reached through the catalog.
 
 ### an empty string is zero bytes
 
-```scheme
+```x
 ((prim-ref 'str 'byte-len) "")
 ```
 ---
@@ -32,7 +32,7 @@ reached through the catalog.
 A two-byte code point makes the byte length exceed the character length; this
 is the property the UTF-8 layer above depends on.
 
-```scheme
+```x
 ((prim-ref 'str 'byte-len) "héllo")
 ```
 ---
@@ -42,7 +42,7 @@ is the property the UTF-8 layer above depends on.
 
 ### indexes a byte, zero-based
 
-```scheme
+```x
 ((prim-ref 'str 'byte-ref) "hello" 0)
 ```
 ---
@@ -50,7 +50,7 @@ is the property the UTF-8 layer above depends on.
 
 ### a negative index counts from the end
 
-```scheme
+```x
 ((prim-ref 'str 'byte-ref) "hello" -1)
 ```
 ---
@@ -58,7 +58,7 @@ is the property the UTF-8 layer above depends on.
 
 ### the result is a CHARACTER, not a one-byte string
 
-```scheme
+```x
 (char? ((prim-ref 'str 'byte-ref) "hello" 0))
 ```
 ---
@@ -71,7 +71,7 @@ is the property the UTF-8 layer above depends on.
 `(str byte-sub s 1 2)` is two bytes from offset one -- not bytes one through
 two.  Reading the third argument as an end index is the reachable mistake here.
 
-```scheme
+```x
 ((prim-ref 'str 'byte-sub) "hello" 1 2)
 ```
 ---
@@ -79,7 +79,7 @@ two.  Reading the third argument as an end index is the reachable mistake here.
 
 ### a zero length yields the empty string
 
-```scheme
+```x
 ((prim-ref 'str 'byte-sub) "hello" 0 0)
 ```
 ---
@@ -87,7 +87,7 @@ two.  Reading the third argument as an end index is the reachable mistake here.
 
 ### a run reaching the end of the string
 
-```scheme
+```x
 ((prim-ref 'str 'byte-sub) "hello" 3 2)
 ```
 ---
@@ -97,7 +97,7 @@ two.  Reading the third argument as an end index is the reachable mistake here.
 
 ### converts a string to a symbol of the same name
 
-```scheme
+```x
 ((prim-ref 'str '->sym) "hello")
 ```
 ---
@@ -105,7 +105,7 @@ two.  Reading the third argument as an end index is the reachable mistake here.
 
 ### the symbol is INTERNED: equal names are the same object
 
-```scheme
+```x
 (do
   (def %a ((prim-ref 'str '->sym) "hello"))
   (eq? %a ((prim-ref 'str '->sym) "hello")))
@@ -115,7 +115,7 @@ two.  Reading the third argument as an end index is the reachable mistake here.
 
 ### round-trips through sym ->str
 
-```scheme
+```x
 ((prim-ref 'sym '->str) ((prim-ref 'str '->sym) "round"))
 ```
 ---

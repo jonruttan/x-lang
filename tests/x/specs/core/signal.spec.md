@@ -8,7 +8,7 @@
 
 ### flag exists and starts at zero
 
-```scheme
+```x
 (%cell-int %sigint-flag)
 ```
 ---
@@ -18,7 +18,7 @@
 
 ### flag triggers STOP inside guard
 
-```scheme
+```x
 (guard (e (if (atom? e) (symbol->str e) e))
   (%set-cell-int! %sigint-flag 1)
   (+ 1 2))
@@ -28,7 +28,7 @@
 
 ### eval completes normally when flag is clear
 
-```scheme
+```x
 (guard (e 'caught)
   (%set-cell-int! %sigint-flag 0)
   (+ 1 2))
@@ -38,7 +38,7 @@
 
 ### STOP caught by innermost guard
 
-```scheme
+```x
 (guard (e 'outer)
   (guard (e 'inner)
     (%set-cell-int! %sigint-flag 1)
@@ -51,7 +51,7 @@
 
 ### STOP breaks tail-recursive fn loop
 
-```scheme
+```x
 (do (def n 0)
     (guard (e n)
       ((fn (f)
@@ -65,7 +65,7 @@
 
 ### STOP breaks do loop
 
-```scheme
+```x
 (do (def n 0)
     (guard (e n)
       (do (def loop (fn (self)
@@ -81,7 +81,7 @@
 
 ### sigint-install returns nil
 
-```scheme
+```x
 (null? (sigint-install))
 ```
 ---
@@ -89,7 +89,7 @@
 
 ### sigint-restore returns nil
 
-```scheme
+```x
 (null? (sigint-restore))
 ```
 ---

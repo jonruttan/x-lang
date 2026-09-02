@@ -13,7 +13,7 @@ would still pass while every de-dispatched hot path in the library broke.
 
 covers: int/+ int/- int/* int// int/%
 
-```scheme
+```x
 (def %p (fn (self m) (%coord (lit int) m)))
 (%ok (match ((= ((%p (lit +)) 2 3) (+ 2 3))
              (match ((= ((%p (lit -)) 9 4) (- 9 4))
@@ -32,7 +32,7 @@ covers: int/+ int/- int/* int// int/%
 
 covers: int/& int/| int/^ int/~ int/<< int/>>
 
-```scheme
+```x
 (def %p (fn (self m) (%coord (lit int) m)))
 (%ok (match ((= ((%p (lit &)) 12 10) (& 12 10))
              (match ((= ((%p (lit |)) 12 10) (| 12 10))
@@ -53,7 +53,7 @@ covers: int/& int/| int/^ int/~ int/<< int/>>
 
 covers: int/< int/=
 
-```scheme
+```x
 (def %lt (%coord (lit int) (lit <)))
 (def %eqn (%coord (lit int) (lit =)))
 (%ok (match ((%lt 1 2) (match ((%eqn 2 2) (match ((%lt 2 1) ()) (#t 1))) (#t ()))) (#t ())))
@@ -65,7 +65,7 @@ covers: int/< int/=
 
 covers: ctrl/call/cc
 
-```scheme
+```x
 (def %cc (%coord (lit ctrl) (lit call/cc)))
 (%ok (= (%cc (fn (self k) (k 12))) 12))
 ```

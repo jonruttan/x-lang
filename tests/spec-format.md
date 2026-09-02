@@ -12,7 +12,7 @@ extension so editors provide syntax highlighting and structure folding.
 
 ### test description
 
-```scheme
+```x
 (+ 1 2)
 ```
 ---
@@ -47,7 +47,7 @@ Test input and expected output must be in one of two forms:
 ````markdown
 ### test name
 
-```scheme
+```x
 (define x 42)
 x
 ```
@@ -89,7 +89,7 @@ after `---`:
 ````markdown
 ### evaluates nil
 
-```scheme
+```x
 ()
 ```
 ---
@@ -104,7 +104,7 @@ fence the expected block as `output`:
 ````markdown
 ### formats a nested form
 
-```scheme
+```x
 (fmt-expr (quote (a (b c))))
 ```
 ---
@@ -150,8 +150,22 @@ sh lang/sweet/tests/spec-runner.sh # Sweet   (31 tests)
 
 | Lang | Tag |
 |-------------|-----|
-| x-lang, R5RS, R7RS, Kernel, Sweet, SL | `scheme` |
+| x-lang | `x` |
+| R5RS, R7RS, Kernel, Sweet, SL | `scheme` |
 | ASH | `sh` |
+
+The tag is decoration — [the runner](spec-runner.awk) collects any fenced
+block the same way, and only `` ```output `` means anything to it. It is
+still worth getting right, and x-lang's own specs are tagged `x` rather
+than `scheme` for two reasons. It is what the rest of this repository
+already uses: `` ```x `` is the tag the Pages build highlights (Rouge has
+no x-lang lexer, so `tools/dev/highlight-sweep.sh` supplies one), and the
+hand-written docs are written with it. And `scheme` is not true — x-lang
+is not Scheme, it has no `car`/`cdr`, and a reader who trusts the tag,
+human or machine, guesses a language that is not this one.
+
+The `scheme` row is still right for the langs that *are* Scheme dialects,
+and they keep it.
 
 ## AWK runner internals
 

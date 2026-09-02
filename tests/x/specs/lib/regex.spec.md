@@ -4,7 +4,7 @@
 
 ### setup: regex loads in its own block (the begin-wrap rule)
 
-```scheme
+```x
 (do (import x/type/regex) #t)
 ```
 ---
@@ -12,7 +12,7 @@
 
 ### groups extract by number, 0 = whole match, sorted
 
-```scheme
+```x
 (Regex match-groups "on 2026-07-19 ok" (Regex compile "([0-9]+)-([0-9]+)-([0-9]+)"))
 ```
 ---
@@ -20,7 +20,7 @@
 
 ### an unmatched alternative's group is ABSENT (presence door)
 
-```scheme
+```x
 (let ((g (Regex match-groups "b" (Regex compile "(a)|(b)"))))
   (list (Assoc has? 1 g) (Assoc get 2 g)))
 ```
@@ -29,7 +29,7 @@
 
 ### a group under a quantifier keeps its last iteration
 
-```scheme
+```x
 (Assoc get 1 (Regex match-groups "abab" (Regex compile "(ab)+")))
 ```
 ---
@@ -37,7 +37,7 @@
 
 ### nested groups number in open order
 
-```scheme
+```x
 (Regex match-groups "xy" (Regex compile "((x)(y))"))
 ```
 ---
@@ -45,7 +45,7 @@
 
 ### no match is nil
 
-```scheme
+```x
 (null? (Regex match-groups "nope" (Regex compile "[0-9]+")))
 ```
 ---
@@ -53,7 +53,7 @@
 
 ### lazy quantifiers capture minimally
 
-```scheme
+```x
 (Assoc get 1 (Regex match-groups "<a><b>" (Regex compile "<(.+?)>")))
 ```
 ---
@@ -63,7 +63,7 @@
 
 ### $N reorders captures
 
-```scheme
+```x
 (Regex replace-all "2026-07-19" "$3/$2/$1" (Regex compile "([0-9]+)-([0-9]+)-([0-9]+)"))
 ```
 ---
@@ -71,7 +71,7 @@
 
 ### $0 is the whole match; $$ escapes; a missing group is empty
 
-```scheme
+```x
 (list (Regex replace "ab" "[$0]" (Regex compile "ab"))
       (Regex replace-all "cost" "$$9" (Regex compile "cost"))
       (Regex replace "ab" "[$5]" (Regex compile "ab")))
@@ -81,7 +81,7 @@
 
 ### a function replacement still receives the matched text
 
-```scheme
+```x
 (Regex replace-all "a1b22" (fn (_ m) (Str8 append "<" m ">")) (Regex compile "[0-9]+"))
 ```
 ---
@@ -91,7 +91,7 @@
 
 ### a {n,m} quantifier in a hole's regex is pattern text, not hole syntax
 
-```scheme
+```x
 $"[{(if (#/a{2,3}/ "aaa") "yes" "no")}]"
 ```
 ---

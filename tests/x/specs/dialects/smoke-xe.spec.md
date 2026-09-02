@@ -13,7 +13,7 @@ is in this directory's README.md.
 
 ### multiplication
 
-```scheme
+```x
 (* 2 3)
 ```
 ---
@@ -21,7 +21,7 @@ is in this directory's README.md.
 
 ### complex multiplication -- the README's own snippet
 
-```scheme
+```x
 (* 1+2i 3+4i)
 ```
 ---
@@ -33,7 +33,7 @@ Crashed until #49: the compiled rational analyser captured an unrooted
 anonymous closure for its sign state, so a collect freed the code the next
 leading `+`/`-` jumped into.
 
-```scheme
+```x
 (+ 1/3 1/6)
 ```
 ---
@@ -41,7 +41,7 @@ leading `+`/`-` jumped into.
 
 ### a leading sign no longer crashes the repl reader (#49)
 
-```scheme
+```x
 (- 5 3)
 ```
 ---
@@ -49,7 +49,7 @@ leading `+`/`-` jumped into.
 
 ### signed literals read correctly (#49)
 
-```scheme
+```x
 (+ -7 2)
 ```
 ---
@@ -57,7 +57,7 @@ leading `+`/`-` jumped into.
 
 ### $-interpolation survives the compiled-analyser swap
 
-```scheme
+```x
 (do (def w 3) $"n={w}/x")
 ```
 ---
@@ -65,7 +65,7 @@ leading `+`/`-` jumped into.
 
 ### Dict is loaded by default (common containers)
 
-```scheme
+```x
 (do (def d (Dict make)) (d set! "k" 1) (d get "k"))
 ```
 ---
@@ -73,7 +73,7 @@ leading `+`/`-` jumped into.
 
 ### Set is loaded by default (common containers)
 
-```scheme
+```x
 ((Set of 1 2 2 3) length)
 ```
 ---

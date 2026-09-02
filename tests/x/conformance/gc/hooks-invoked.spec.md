@@ -19,7 +19,7 @@ and each of those collections fires the hook too — that is the law working,
 not a miscount. The distinguishing observable survives: an engine that never
 invokes hooks answers 0, and 0 is what this catches.
 
-```scheme
+```x
 (def %mh (%coord (lit heap) (lit mark-hook!)))
 (def %gc (%coord (lit heap) (lit collect)))
 (def hits 0)
@@ -43,7 +43,7 @@ next collection to walk.
 
 A hook that allocates and escapes its allocation must therefore find it intact.
 
-```scheme
+```x
 (def %mh (%coord (lit heap) (lit mark-hook!)))
 (def %gc (%coord (lit heap) (lit collect)))
 (def kept ())

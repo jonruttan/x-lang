@@ -12,7 +12,7 @@ collector.
 
 ### GC during map over large list
 
-```scheme
+```x
 (def result (List map (fn (_ x) (* x x)) (List range 1 1001)))
 (Heap collect)
 (= (List length result) 1000)
@@ -22,7 +22,7 @@ collector.
 
 ### GC after abandoned large list
 
-```scheme
+```x
 (do (def waste (fn (self n acc) (if (= n 0) acc (self (- n 1) (pair n acc))))) (waste 1000 ()))
 (def before (Heap count))
 (Heap collect)
@@ -33,7 +33,7 @@ collector.
 
 ### shared structure survives GC
 
-```scheme
+```x
 (def shared (list 1 2 3 4 5))
 (def a (pair 'ref-a shared))
 (def b (pair 'ref-b shared))
@@ -45,7 +45,7 @@ collector.
 
 ### closure-captured data survives GC
 
-```scheme
+```x
 (def make-counter (fn (_ start) (def n start) (fn (_ ) (do (set! n (+ n 1)) n))))
 (def c (make-counter 100))
 (do (def waste (fn (self n) (if (= n 0) () (do (list 1 2 3) (self (- n 1)))))) (waste 2000))
@@ -64,7 +64,7 @@ accumulates frames and each in-loop collect walks a growing eval-list
 harness take ~90s (tracked separately).  Standalone the same loop at 100
 runs in well under a second.
 
-```scheme
+```x
 (def live-data (List range 1 101))
 (do (def gc-loop (fn (self n) (if (= n 0) () (do (list 1 2 3) (Heap collect) (self (- n 1)))))) (gc-loop 20))
 (= (List length live-data) 100)
@@ -81,7 +81,7 @@ Vectors are per-instance sized; the dynamic-units sentinel (type units
 it, a collect freed Dict buckets under the instance and the next get
 segfaulted -- jon hit it live because the REPL collects every turn.
 
-```scheme
+```x
 (do (import x/type/dict) (import x/type/array)
   (def d (Dict from-plist (list 'a 1 'b 2)))
   (def v (Vector of (list 1 2) (list 3 4)))
@@ -103,7 +103,7 @@ three gaps (VECTOR, ASM, ITER) are fixed, the rest verified.
 
 ### Gen driving a C iterator survives (ITER units fix)
 
-```scheme
+```x
 (do (import x/type/gen)
   (def g (Gen from-seq (Vector of 10 20 30)))
   (def it (Iter new (Vector of 1 2 3)))
@@ -116,7 +116,7 @@ three gaps (VECTOR, ASM, ITER) are fixed, the rest verified.
 
 ### the full type zoo survives two collects
 
-```scheme
+```x
 (do (import x/type/dict) (import x/type/set) (import x/type/array)
     (import x/type/regex) (import x/type/promise)
   (def d (Dict from-plist (list 'k (list 1 2 3))))
@@ -145,7 +145,7 @@ claim across back-to-back collections on the REPL's own sweep path.
 
 ### collect twice, then every boolean behaviour
 
-```scheme
+```x
 (do
   (Heap collect)
   (Heap collect)
@@ -166,7 +166,7 @@ trampoline now roots the kept records exactly as `x_eval` always did.
 
 ### collect mid-tail-chain leaves the restore record intact
 
-```scheme
+```x
 (do (def %g243-x 'outer)
     (def %g243-help (fn (_) (do (Heap collect) %g243-x)))
     (def %g243-op (op () e (%g243-help)))

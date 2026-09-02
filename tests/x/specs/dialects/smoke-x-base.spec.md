@@ -13,7 +13,7 @@ in parallel (#320); the family story is in this directory's README.md.
 
 ### rationals
 
-```scheme
+```x
 (+ 1/3 1/6)
 ```
 ---
@@ -21,7 +21,7 @@ in parallel (#320); the family story is in this directory's README.md.
 
 ### complex
 
-```scheme
+```x
 (* 1+2i 3+4i)
 ```
 ---
@@ -29,7 +29,7 @@ in parallel (#320); the family story is in this directory's README.md.
 
 ### integers still work
 
-```scheme
+```x
 (* 2 3)
 ```
 ---
@@ -37,7 +37,7 @@ in parallel (#320); the family story is in this directory's README.md.
 
 ### $-interpolation survives the compiled-analyser swap
 
-```scheme
+```x
 (do (def w 3) $"n={w}/x")
 ```
 ---

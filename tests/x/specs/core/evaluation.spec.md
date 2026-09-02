@@ -3,7 +3,7 @@
 
 ### evaluates positive integers
 
-```scheme
+```x
 99
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### evaluates negative integers
 
-```scheme
+```x
 -99
 ```
 ---
@@ -19,7 +19,7 @@
 
 ### evaluates string literals
 
-```scheme
+```x
 "hello"
 ```
 ---
@@ -27,7 +27,7 @@
 
 ### evaluates empty strings
 
-```scheme
+```x
 ""
 ```
 ---
@@ -35,14 +35,14 @@
 
 ### evaluates nil
 
-```scheme
+```x
 ()
 ```
 ---
 
 ### evaluates character literals
 
-```scheme
+```x
 #\a
 ```
 ---
@@ -50,7 +50,7 @@
 
 ### evaluates #t
 
-```scheme
+```x
 #t
 ```
 ---
@@ -60,7 +60,7 @@
 
 ### binds and looks up a value
 
-```scheme
+```x
 (do (def x 42) x)
 ```
 ---
@@ -68,7 +68,7 @@
 
 ### looks up in expression
 
-```scheme
+```x
 (do (def x 5) (+ x 1))
 ```
 ---
@@ -76,7 +76,7 @@
 
 ### unbound symbol signals error
 
-```scheme
+```x
 (guard (e 'caught) no-such-var)
 ```
 ---
@@ -84,7 +84,7 @@
 
 ### the error names the offending symbol
 
-```scheme
+```x
 (guard (e (symbol->str e)) no-such-var)
 ```
 ---
@@ -96,7 +96,7 @@ The engine raises the base's error ATOM, and write shows an atom's
 text without quotes -- one identity, one representation, both engines
 (x-engine-rust#23 caught the rust side carrying strings).
 
-```scheme
+```x
 (write (guard (e e) (+ () 1)))
 ```
 ---
@@ -107,7 +107,7 @@ text without quotes -- one identity, one representation, both engines
 `(error "...")` raises the string itself -- guard binds a real STRING,
 and write shows it quoted, distinguishable from the engine's atom.
 
-```scheme
+```x
 (write (guard (e e) (error "a lib error")))
 ```
 ---
@@ -117,7 +117,7 @@ and write shows it quoted, distinguishable from the engine's atom.
 
 ### computes fact(0)
 
-```scheme
+```x
 (do (def fact (fn (self n) (if (= n 0) 1 (* n (self (- n 1)))))) (fact 0))
 ```
 ---
@@ -125,7 +125,7 @@ and write shows it quoted, distinguishable from the engine's atom.
 
 ### computes fact(5)
 
-```scheme
+```x
 (do (def fact (fn (self n) (if (= n 0) 1 (* n (self (- n 1)))))) (fact 5))
 ```
 ---
@@ -133,7 +133,7 @@ and write shows it quoted, distinguishable from the engine's atom.
 
 ### computes fact(10)
 
-```scheme
+```x
 (do (def fact (fn (self n) (if (= n 0) 1 (* n (self (- n 1)))))) (fact 10))
 ```
 ---
@@ -143,7 +143,7 @@ and write shows it quoted, distinguishable from the engine's atom.
 
 ### computes length of a list
 
-```scheme
+```x
 (do (def len (fn (self xs) (if (null? xs) 0 (+ 1 (self (rest xs)))))) (len (list 1 2 3 4 5)))
 ```
 ---
@@ -151,7 +151,7 @@ and write shows it quoted, distinguishable from the engine's atom.
 
 ### computes length of empty list
 
-```scheme
+```x
 (do (def len (fn (self xs) (if (null? xs) 0 (+ 1 (self (rest xs)))))) (len (list)))
 ```
 ---
@@ -159,7 +159,7 @@ and write shows it quoted, distinguishable from the engine's atom.
 
 ### maps over a list
 
-```scheme
+```x
 (do (def map (fn (self f xs) (if (null? xs) xs (pair (f (first xs)) (self f (rest xs)))))) (List map (fn (_ x) (* x x)) (list 1 2 3)))
 ```
 ---
@@ -167,7 +167,7 @@ and write shows it quoted, distinguishable from the engine's atom.
 
 ### appends two lists
 
-```scheme
+```x
 (do (def append (fn (self a b) (if (null? a) b (pair (first a) (self (rest a) b))))) (List append (list 1 2) (list 3 4)))
 ```
 ---
@@ -177,7 +177,7 @@ and write shows it quoted, distinguishable from the engine's atom.
 
 ### folds a list
 
-```scheme
+```x
 (do (def fold (fn (self f acc xs) (if (null? xs) acc (self f (f acc (first xs)) (rest xs))))) (List fold (fn (_ a b) (+ a b)) 0 (list 1 2 3 4 5)))
 ```
 ---
@@ -185,7 +185,7 @@ and write shows it quoted, distinguishable from the engine's atom.
 
 ### filters a list
 
-```scheme
+```x
 (do (def filter (fn (self p xs) (if (null? xs) xs (if (p (first xs)) (pair (first xs) (self p (rest xs))) (self p (rest xs)))))) (List filter (fn (_ x) (= x 3)) (list 1 2 3 4 3)))
 ```
 ---
@@ -206,7 +206,7 @@ dotted pair with no float module -- killed the process.
 
 ### callable head with improper args raises, catchably
 
-```scheme
+```x
 (list (guard (e (lit R)) (list 1 . 5))
       (guard (e (lit R)) ((fn (_ a) a) 1 . 5))
       (guard (e (lit R)) (eval (pair list 5))))
@@ -216,7 +216,7 @@ dotted pair with no float module -- killed the process.
 
 ### the error names the fault
 
-```scheme
+```x
 (guard (e (Str8 includes? "improper argument list" (Str8 str "" e))) (list 1 . 5))
 ```
 ---
@@ -224,7 +224,7 @@ dotted pair with no float module -- killed the process.
 
 ### non-callable heads echo the data form, dotted or not
 
-```scheme
+```x
 (list (1 . 2) (1 2 . 3) (eval (pair 1 2)))
 ```
 ---
@@ -232,7 +232,7 @@ dotted pair with no float module -- killed the process.
 
 ### ops still bind dotted tails through dotted param specs
 
-```scheme
+```x
 ((op (o . a) e (list o a)) 1 . 5)
 ```
 ---
@@ -240,7 +240,7 @@ dotted pair with no float module -- killed the process.
 
 ### proper calls and proper data pass-throughs unchanged
 
-```scheme
+```x
 (list (list 1 2) ((fn (_ a b) (+ a b)) 3 4) (eval (lit (1 2 3))))
 ```
 ---

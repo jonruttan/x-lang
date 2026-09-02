@@ -5,7 +5,7 @@
 
 ### of builds an array variadically
 
-```scheme
+```x
 (do (import x/type/array) ((Array of 1 2 3) ->list))
 ```
 ---
@@ -13,7 +13,7 @@
 
 ### make yields an empty array
 
-```scheme
+```x
 (do (import x/type/array) ((Array make) empty?))
 ```
 ---
@@ -21,7 +21,7 @@
 
 ### push! grows past the initial capacity
 
-```scheme
+```x
 (do (import x/type/array)
   (let ((v (Array make 2)))
     (List for-each (fn (_ i) (v push! i)) (List range 0 20))
@@ -32,7 +32,7 @@
 
 ### from-list preserves order
 
-```scheme
+```x
 (do (import x/type/array) ((Array from-list (list 1 2 3)) ->list))
 ```
 ---
@@ -42,7 +42,7 @@
 
 ### ref and set! roundtrip
 
-```scheme
+```x
 (do (import x/type/array)
   (let ((v (Array from-list (list 1 2 3))))
     (v set! 1 99)
@@ -53,7 +53,7 @@
 
 ### negative indices count from the end
 
-```scheme
+```x
 (do (import x/type/array) ((Array from-list (list 1 2 3)) ref -1))
 ```
 ---
@@ -61,7 +61,7 @@
 
 ### ref errors out of range
 
-```scheme
+```x
 (do (import x/type/array) ((Array from-list (list 1)) ref 5))
 ```
 ---
@@ -71,7 +71,7 @@
 
 ### removes and returns the last element
 
-```scheme
+```x
 (do (import x/type/array)
   (let ((v (Array from-list (list 1 2 3))))
     (list (v pop!) (v length) (v ->list))))
@@ -81,7 +81,7 @@
 
 ### errors when empty
 
-```scheme
+```x
 (do (import x/type/array) ((Array make) pop!))
 ```
 ---
@@ -91,7 +91,7 @@
 
 ### a generic-new instance raises kind-'state at first use; make constructs
 
-```scheme
+```x
 (do (import x/type/array)
   (guard (e (list (Err kind-of e) (((Array make) push! 7) ->list)))
     ((Array new) push! 7)))

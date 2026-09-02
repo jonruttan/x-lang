@@ -18,7 +18,7 @@ harness caches them as `%adv` / `%msr` / `%cls`.
 
 ### a space is one column
 
-```scheme
+```x
 (write (%adv 0 #\space 8))
 (newline)
 ```
@@ -27,7 +27,7 @@ harness caches them as `%adv` / `%msr` / `%cls`.
 
 ### a tab from column 0 reaches the first stop
 
-```scheme
+```x
 (write (%adv 0 #\tab 8))
 (newline)
 ```
@@ -41,7 +41,7 @@ both advance to the next multiple of 8. They differ exactly when a tab is not
 the first thing on the line, which is why a suite with no tab case could not see
 it.
 
-```scheme
+```x
 (write (%adv 1 #\tab 8))
 (newline)
 ```
@@ -50,7 +50,7 @@ it.
 
 ### a tab from a column already on a stop moves a full stop
 
-```scheme
+```x
 (write (%adv 8 #\tab 8))
 (newline)
 ```
@@ -62,7 +62,7 @@ it.
 Logo's answer, expressed as policy rather than as a different code path: the
 next multiple of 1 after n is n+1, so Logo's rule is this rule.
 
-```scheme
+```x
 (write (%adv 3 #\tab 1))
 (newline)
 ```
@@ -73,7 +73,7 @@ next multiple of 1 after n is n+1, so Logo's rule is this rule.
 
 The caller decides that the run has ended; measurement does not guess.
 
-```scheme
+```x
 (write (%adv 4 #\x 8))
 (newline)
 ```
@@ -84,7 +84,7 @@ The caller decides that the run has ended; measurement does not guess.
 
 ### counts a run of spaces
 
-```scheme
+```x
 (write (%msr "    x" 0 8))
 (newline)
 ```
@@ -93,7 +93,7 @@ The caller decides that the run has ended; measurement does not guess.
 
 ### stops at the first non-whitespace character
 
-```scheme
+```x
 (write (%msr "  a    b" 0 8))
 (newline)
 ```
@@ -102,7 +102,7 @@ The caller decides that the run has ended; measurement does not guess.
 
 ### measures from an offset, for a token carrying its own newline
 
-```scheme
+```x
 (write (%msr "\n   word" 1 8))
 (newline)
 ```
@@ -111,7 +111,7 @@ The caller decides that the run has ended; measurement does not guess.
 
 ### mixes tabs and spaces on the stops
 
-```scheme
+```x
 (write (%msr " \t x" 0 8))
 (newline)
 ```
@@ -120,7 +120,7 @@ The caller decides that the run has ended; measurement does not guess.
 
 ### a line with no indentation is column zero
 
-```scheme
+```x
 (write (%msr "x" 0 8))
 (newline)
 ```
@@ -131,7 +131,7 @@ The caller decides that the run has ended; measurement does not guess.
 
 ### hands back the column and the index together
 
-```scheme
+```x
 (write (Indent scan "  x" 0 8))
 (newline)
 ```
@@ -144,7 +144,7 @@ A consumer that reconstructed the index by adding the column to its start would
 slice here at 8 rather than at 1. Logo computed exactly that, correctly, only
 because its tab was worth one column.
 
-```scheme
+```x
 (write (Indent scan "\tx" 0 8))
 (newline)
 ```
@@ -155,7 +155,7 @@ because its tab was worth one column.
 
 ### deeper
 
-```scheme
+```x
 (write (%cls 4 0))
 (newline)
 ```
@@ -164,7 +164,7 @@ because its tab was worth one column.
 
 ### same
 
-```scheme
+```x
 (write (%cls 4 4))
 (newline)
 ```
@@ -173,7 +173,7 @@ because its tab was worth one column.
 
 ### shallower
 
-```scheme
+```x
 (write (%cls 2 4))
 (newline)
 ```
@@ -184,7 +184,7 @@ because its tab was worth one column.
 
 ### a fresh indenter has column zero open
 
-```scheme
+```x
 (def i1 (Indent make))
 (write (list (i1 column) (i1 depth)))
 (newline)
@@ -194,7 +194,7 @@ because its tab was worth one column.
 
 ### a deeper line opens
 
-```scheme
+```x
 (def i2 (Indent make))
 (write (i2 feed 4))
 (newline)
@@ -204,7 +204,7 @@ because its tab was worth one column.
 
 ### an equal line is the same block
 
-```scheme
+```x
 (def i3 (Indent make))
 (i3 feed 4)
 (write (i3 feed 4))
@@ -218,7 +218,7 @@ because its tab was worth one column.
 Every result ends with exactly one `open` or `same`, so a caller never counts
 levels itself -- the loop both previous implementations owned.
 
-```scheme
+```x
 (def i4 (Indent make))
 (i4 feed 4)
 (write (i4 feed 0))
@@ -229,7 +229,7 @@ levels itself -- the loop both previous implementations owned.
 
 ### one dedent can close several levels at once
 
-```scheme
+```x
 (def i5 (Indent make))
 (i5 feed 2)
 (i5 feed 4)
@@ -242,7 +242,7 @@ levels itself -- the loop both previous implementations owned.
 
 ### the column follows the stack
 
-```scheme
+```x
 (def i6 (Indent make))
 (i6 feed 4)
 (i6 feed 8)
@@ -255,7 +255,7 @@ levels itself -- the loop both previous implementations owned.
 
 ### close-all closes what is open and reports no continuation
 
-```scheme
+```x
 (def i7 (Indent make))
 (i7 feed 2)
 (i7 feed 4)
@@ -267,7 +267,7 @@ levels itself -- the loop both previous implementations owned.
 
 ### close-all on an unindented stream is empty
 
-```scheme
+```x
 (def i8 (Indent make))
 (write (i8 close-all))
 (newline)
@@ -277,7 +277,7 @@ levels itself -- the loop both previous implementations owned.
 
 ### close-all leaves the indenter reusable
 
-```scheme
+```x
 (def i9 (Indent make))
 (i9 feed 4)
 (i9 close-all)
@@ -289,7 +289,7 @@ levels itself -- the loop both previous implementations owned.
 
 ### reset! closes everything without reporting
 
-```scheme
+```x
 (def ia (Indent make))
 (ia feed 4)
 (ia reset!)
@@ -306,7 +306,7 @@ column 2 when 0 and 4 are open matches no level; what that means is policy.
 
 ### by default it is an error, which is Python's answer
 
-```scheme
+```x
 (def j1 (Indent make))
 (j1 feed 4)
 (write (j1 feed 2))
@@ -317,7 +317,7 @@ column 2 when 0 and 4 are open matches no level; what that means is policy.
 
 ### 'open opens a level at the odd column, which is Logo's answer
 
-```scheme
+```x
 (def j2 (Indent make 8 'open))
 (j2 feed 4)
 (write (j2 feed 2))
@@ -328,7 +328,7 @@ column 2 when 0 and 4 are open matches no level; what that means is policy.
 
 ### 'open leaves the odd column on the stack
 
-```scheme
+```x
 (def j3 (Indent make 8 'open))
 (j3 feed 4)
 (j3 feed 2)
@@ -340,7 +340,7 @@ column 2 when 0 and 4 are open matches no level; what that means is policy.
 
 ### 'close hands the line to the nearest enclosing level
 
-```scheme
+```x
 (def j4 (Indent make 8 'close))
 (j4 feed 4)
 (write (j4 feed 2))
@@ -351,7 +351,7 @@ column 2 when 0 and 4 are open matches no level; what that means is policy.
 
 ### 'close leaves the odd column off the stack
 
-```scheme
+```x
 (def j5 (Indent make 8 'close))
 (j5 feed 4)
 (j5 feed 2)
@@ -366,7 +366,7 @@ column 2 when 0 and 4 are open matches no level; what that means is policy.
 Only a dedent can land between levels, so a genuine indent opens under every
 policy -- including the one that would otherwise raise.
 
-```scheme
+```x
 (def j6 (Indent make))
 (write (j6 feed 3))
 (newline)
@@ -376,7 +376,7 @@ policy -- including the one that would otherwise raise.
 
 ### policy is per instance, not global
 
-```scheme
+```x
 (def k1 (Indent make 1 'open))
 (def k2 (Indent make))
 (write (list (%adv 0 #\tab 1) (k2 feed 4)))

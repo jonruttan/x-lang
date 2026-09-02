@@ -9,7 +9,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ### make carries kind, msg, data
 
-```scheme
+```x
 (let ((e (Err make 'io "boom" '((fd . 3)))))
   (list (e kind) (e msg) (Assoc get 'fd (e data))))
 ```
@@ -18,7 +18,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ### instances inspect as #<err:KIND MESSAGE>
 
-```scheme
+```x
 (Err make 'value "bad input" ())
 ```
 ---
@@ -28,7 +28,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ### err? accepts only Err instances
 
-```scheme
+```x
 (list (Err err? (Err make 'io "x" ())) (Err err? "x") (Err err? 42))
 ```
 ---
@@ -36,7 +36,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ### kind? tests the instance kind
 
-```scheme
+```x
 (list ((Err make 'io "x" ()) kind? 'io) ((Err make 'io "x" ()) kind? 'type))
 ```
 ---
@@ -44,7 +44,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ### kind-of is total: Err answers its kind
 
-```scheme
+```x
 (Err kind-of (Err make 'index "oops" ()))
 ```
 ---
@@ -52,7 +52,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ### kind-of is total: legacy bare strings answer 'user
 
-```scheme
+```x
 (Err kind-of "opt store: expected an alist or plist")
 ```
 ---
@@ -60,7 +60,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ### kind-of is total: any non-Err value answers 'user
 
-```scheme
+```x
 (list (Err kind-of 42) (Err kind-of ()) (Err kind-of '(a b)))
 ```
 ---
@@ -70,7 +70,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ### raise throws the constructed Err
 
-```scheme
+```x
 (guard (e (list (Err kind-of e) (e msg))) (Err raise 'state "already closed" ()))
 ```
 ---
@@ -78,7 +78,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ### one match discriminates structured and legacy errors
 
-```scheme
+```x
 (let ((classify (fn (_ thunk)
                   (guard (e (match
                               ((eq? (Err kind-of e) 'io) "io-handled")
@@ -93,7 +93,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ### unhandled kinds re-raise through nested guards
 
-```scheme
+```x
 (guard (outer (list 'outer-saw (Err kind-of outer)))
   (guard (e (if (eq? (Err kind-of e) 'io) "handled" (error e)))
     (Err raise 'type "not mine" ())))
@@ -105,7 +105,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ### from-errno builds a kind-'io Err with a strerror message
 
-```scheme
+```x
 (let ((e (Err from-errno 2 'open "/nope")))
   (list (e kind) (e msg)))
 ```
@@ -114,7 +114,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ### the syscall layer's negative -errno normalizes
 
-```scheme
+```x
 (Assoc get 'errno ((Err from-errno -13 'write ()) data))
 ```
 ---
@@ -122,7 +122,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ### data carries errno, sym, op, detail
 
-```scheme
+```x
 (let ((d ((Err from-errno 2 'open "/nope") data)))
   (list (Assoc get 'sym d) (Assoc get 'op d) (Assoc get 'detail d)))
 ```
@@ -131,7 +131,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ### shared-range entries are OS-independent
 
-```scheme
+```x
 (list (Assoc get 'sym ((Err from-errno 9 'read ()) data))
       (Assoc get 'sym ((Err from-errno 17 'mkdir ()) data))
       (Assoc get 'sym ((Err from-errno 28 'write ()) data)))
@@ -141,7 +141,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ### unknown numbers degrade gracefully
 
-```scheme
+```x
 (let ((e (Err from-errno 9999 'op ())))
   (list (Assoc get 'sym (e data)) (e msg)))
 ```
@@ -164,7 +164,7 @@ invisible when nothing caught it (x-lang#211).
 `guard` here catches nothing — it runs the raise in a child that reports
 the way an uncaught error does, and the harness surfaces that text.
 
-```scheme
+```x
 (display (guard (e (e msg)) (Err raise 'io "DISTINCTIVE" ())))
 ```
 ---
@@ -174,7 +174,7 @@ the way an uncaught error does, and the harness surfaces that text.
 
 The value is still the Err, with every accessor intact.
 
-```scheme
+```x
 (display (list (guard (e (Err kind-of e)) (Err raise 'state "closed" ()))
                (guard (e (Err err? e)) (Err raise 'io "x" ()))
                (guard (e (e msg)) (Err raise 'value "the message" ()))))
@@ -187,7 +187,7 @@ The value is still the Err, with every accessor intact.
 A bare string value still reports itself, and a guard still sees the
 value it was given.
 
-```scheme
+```x
 (display (guard (e e) (error "plain string")))
 ```
 ---

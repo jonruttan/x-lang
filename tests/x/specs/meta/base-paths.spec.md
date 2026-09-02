@@ -10,7 +10,7 @@ half (`make check-base-paths`) re-derives the paths from the headers.
 
 ### the prims path lands on the catalog cell
 
-```scheme
+```x
 (eq? (first (%reflect-base-cell 'prims)) (prims))
 ```
 ---
@@ -18,7 +18,7 @@ half (`make check-base-paths`) re-derives the paths from the headers.
 
 ### the true/false paths land on the boolean singletons
 
-```scheme
+```x
 (do
   (display (eq? (first (%reflect-base-cell 'true)) #t)) (display " ")
   (display (eq? (first (%reflect-base-cell 'false)) #f)))
@@ -42,7 +42,7 @@ The old form of this test set 3 and restored, and the objects it
 allocated in between were exactly such landmines: they aborted the
 process at the first mid-batch collect, 40 specs at a stroke.
 
-```scheme
+```x
 (do
   (def %mc  (prim-ref 'obj 'meta-count))
   (def %mc! (prim-ref 'obj 'meta-count!))
@@ -65,7 +65,7 @@ and, from within a handler, the actual raise-site line without raising.
 Unlike the old handler-slot walk this survives the handler pop the guard
 does before its body runs.
 
-```scheme
+```x
 (do
   (def %el (prim-ref 'io 'error-line))
   (display (>= (%el) 0)) (display " ")

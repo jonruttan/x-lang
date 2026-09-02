@@ -20,7 +20,7 @@ wants back.
 state, consume — and anything else unreads and accepts. The whole
 name-token loop runs compiled, no interpreter re-entry per character.
 
-```scheme
+```x
 (do
   (def %b (Base make-tok))
   (def %read-str (prim-ref 'tok 'read-str))
@@ -56,7 +56,7 @@ The boundary case: the state is entered and immediately exited — the
 self-return path is never taken, and the accept path must not be
 disturbed by the slot-0 machinery.
 
-```scheme
+```x
 (do
   (def %b (Base make-tok))
   (def %read-str (prim-ref 'tok 'read-str))

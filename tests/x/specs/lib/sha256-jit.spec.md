@@ -26,7 +26,7 @@ dispatch actually happens.
 
 Seconds of compile on the first call; the second is a state read.
 
-```scheme
+```x
 (do
   (import x/codec/sha256)
   (display (list (Sha256 jit!) (Sha256 jit!))))
@@ -38,7 +38,7 @@ Seconds of compile on the first call; the second is a state read.
 
 Same process as above, so the engine is active for these.
 
-```scheme
+```x
 (do
   (import x/codec/sha256)
   (display (Sha256 hex "abc"))(newline)
@@ -59,7 +59,7 @@ one under the length-tail boundary (55), one over it (56 is a vector;
 57 is not), and a 3-block message. The pure-x side is `%sha-digest-words`
 called directly — the reference, bypassing the engine dispatch.
 
-```scheme
+```x
 (do
   (import x/codec/sha256)
   (Sha256 jit!)

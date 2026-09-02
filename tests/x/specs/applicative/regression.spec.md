@@ -3,7 +3,7 @@
 
 ### countdown 100k does not blow stack
 
-```scheme
+```x
 (do (def loop (fn (self n) (if (= n 0) #t (self (- n 1))))) (loop 100000))
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### countdown 200k does not blow stack
 
-```scheme
+```x
 (do (def loop (fn (self n) (if (= n 0) #t (self (- n 1))))) (loop 200000))
 ```
 ---
@@ -19,7 +19,7 @@
 
 ### accumulator 100k is correct
 
-```scheme
+```x
 (do (def sum (fn (self n acc) (if (= n 0) acc (self (- n 1) (+ acc n))))) (sum 100000 0))
 ```
 ---
@@ -29,7 +29,7 @@
 
 ### TCO loop does not leak allocations
 
-```scheme
+```x
 (import x/tool/profile)
 (profile-reset)
 (do (def loop (fn (self n) (if (= n 0) #t (self (- n 1))))) (loop 10000))
@@ -40,7 +40,7 @@
 
 ### fold over list stays bounded
 
-```scheme
+```x
 (import x/tool/profile)
 (profile-reset)
 (List fold (fn (_ acc x) (+ acc x)) 0 (List range 1 1001))
@@ -53,7 +53,7 @@
 
 ### forced GC frees discarded objects
 
-```scheme
+```x
 (import x/tool/profile)
 (def before (Heap count))
 (do (def waste (fn (self n) (if (= n 0) () (do (list 1 2 3) (self (- n 1)))))) (waste 1000))
@@ -67,7 +67,7 @@
 
 ### GC reduces heap after waste
 
-```scheme
+```x
 (import x/tool/profile)
 (def before (Heap count))
 (do (def waste (fn (self n) (if (= n 0) () (do (list 1 2 3) (self (- n 1)))))) (waste 1000))
@@ -82,7 +82,7 @@
 
 ### map 5000 elements completes
 
-```scheme
+```x
 (= (List length (List map (method-ref Num inc) (List range 1 5001))) 5000)
 ```
 ---
@@ -90,7 +90,7 @@
 
 ### fold 10000 elements completes
 
-```scheme
+```x
 (= (List fold (fn (_ acc x) (+ acc x)) 0 (List range 1 10001)) 50005000)
 ```
 ---
@@ -98,7 +98,7 @@
 
 ### deep recursion 50k with match
 
-```scheme
+```x
 (do (def f (fn (self n) (match ((= n 0) #t) (#t (self (- n 1)))))) (f 50000))
 ```
 ---

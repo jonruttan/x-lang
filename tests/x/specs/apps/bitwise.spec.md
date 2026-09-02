@@ -14,7 +14,7 @@ picture is a function of the name alone -- and the gallery's browser twin,
 
 ### the name seeds the field, and the walk lands where the twin lands
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/gen)
@@ -35,7 +35,7 @@ picture is a function of the name alone -- and the gallery's browser twin,
 `(p get 'lit)` sits inside the 18%..82% gate for every name the walk
 touches; these two are the ones whose first draw was outside it.
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/gen)
@@ -58,7 +58,7 @@ touches; these two are the ones whose first draw was outside it.
 
 ### the owl is set from outlines, by glyph index, with the eyes coloured
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/gen)
@@ -78,7 +78,7 @@ touches; these two are the ones whose first draw was outside it.
 
 ### a divergence from the twin is reported at its first byte
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/gen)
@@ -97,7 +97,7 @@ touches; these two are the ones whose first draw was outside it.
 Links become their text, emphasis is dropped, the cut is the first sentence
 end, and an unclosed parenthesis is dropped with what follows it.
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/cli)
@@ -118,7 +118,7 @@ Both fixture projects carry their own `bitwise.xon`, so the costume column
 and the gathered `costumes.xon` are this case's own doing, not a leftover
 from an earlier one.
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/cli)
@@ -144,7 +144,7 @@ x-fixture       xor    bit 3  n=24  hue  90.9  the fixture              (fixture
 
 ### --json answers the seeded parameters for one name
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/cli)
