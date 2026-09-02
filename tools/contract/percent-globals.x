@@ -162,10 +162,23 @@
 ; analyser mode the tokenizer protocol fixes the leading params as OBJECTS
 ; (buffer, score), and the loader/self-call marshalling both have to know
 ; which positions those are -- boxing or unboxing one is a segfault.
-(file "lib/x/tool/asm-compile.x" 66)
-(file "lib/x/tool/asm.x" 37)
-(file "lib/x/tool/asm/arm64.x" 8)
-(file "lib/x/tool/asm/x86_64.x" 23)
+; asm-compile.x rose 66 to 70 for the relocation seam: %jit-symbol-names and
+; %jit-name-of (an address cannot name itself in another process -- a record
+; must carry the dlsym SYMBOL), plus %asm-last-relocs / %asm-last-size, the
+; facts about freshly emitted code that a byte cache needs and that the
+; assembler object -- which compile-asm does not return -- would otherwise
+; take to the grave.
+(file "lib/x/tool/asm-compile.x" 70)
+; asm.x rose 37 to 38 for %ptr-ref: the relocator reads a site back (the
+; ARM64 MOVZ carries the destination register) rather than making every
+; relocation record carry one.
+(file "lib/x/tool/asm.x" 38)
+; arm64.x rose 8 to 9 for %arm64-reloc: re-encoding a 64-bit immediate is
+; per-backend work (MOVZ + 3x MOVK, sixteen bits to a word).
+(file "lib/x/tool/asm/arm64.x" 9)
+; x86_64.x rose 23 to 24 for %x86_64-reloc: the same operation, one flat
+; 8-byte store after the two opcode bytes.
+(file "lib/x/tool/asm/x86_64.x" 24)
 ; compile.x rose 25 to 26 for %compile-cache-identity: the engine-and-machine
 ; half of the cache key, held apart from the expression so the pairing can be
 ; named and asserted (#590 -- a key without engine identity served

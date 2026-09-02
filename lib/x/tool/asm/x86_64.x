@@ -543,4 +543,12 @@
     (%ptr-set! buf-ptr offset val width)))
 
 ; --- Export architecture ---
-(set! %arch (list %x86_64-table %x86_64-dispatch %x86_64-patch))
+; --- Relocate a 64-bit immediate in place (REX.W B8+rd imm64) ---
+; The opcode is two bytes (REX.W, then B8+rd) and the immediate is stored
+; flat after it, so one 8-byte store does the whole job -- no register to
+; re-derive, unlike the ARM64 MOVZ/MOVK spread.
+(def %x86_64-reloc
+  (fn (_ buf-ptr offset val)
+    (%ptr-set! buf-ptr (+ offset 2) val 8)))
+
+(set! %arch (list %x86_64-table %x86_64-dispatch %x86_64-patch %x86_64-reloc))
