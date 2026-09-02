@@ -351,6 +351,15 @@ pin_arm() {
 		printf '(import %s)\n' "$X_PIN_MOD"
 	fi
 }
+# -c/--eval source, emitted onto the pipe after the library and after any
+# -F file, so an expression can use what those defined.  printf '%s' and
+# not echo: an expression starting with -n or containing a backslash is
+# DATA, and echo would eat it.
+eval_form() {
+	if [ -n "$have_eval" ]; then
+		printf '%s' "$eval_src"
+	fi
+}
 
 [ -z "$INSTALL_ROOT" ] || path_form_safe "$INSTALL_ROOT" "install root"
 
@@ -450,6 +459,14 @@ shquote() {
 # stdin from fd 3 (saved below) before its first read
 file=""
 file1=""
+# -c/--eval expressions, accumulated in order and emitted onto the pipe
+# after the library (see eval_form).  Kept separate from $file because
+# they are TEXT, not a path: nothing to shquote into a `cat`.
+eval_src=""
+have_eval=""
+# Set when stdin is not a terminal: the caller piped a program in, and it
+# rides the tail of the library pipe (see the batch decision below).
+stdin_prog=""
 no_pin=""
 allow_skew=""
 fetch_release=""
@@ -479,6 +496,7 @@ display_help() {
 	echo
 	echo "Options"
 	echo "  -h, --help      display this help and exit"
+	echo "  -c, --eval EXPR evaluate EXPR and exit (repeatable)"
 	echo "  -e, --ext EXT   file extension (default: \"$X_EXT\")"
 	echo "  -f, --file FILE evaluate file and exit"
 	echo "  -F, --load FILE evaluate file then continue"
@@ -500,6 +518,15 @@ display_help() {
 while :
 do
 	case "$1" in
+		-c | --eval)
+			# Repeatable, and each expression arrives as its own line so a
+			# trailing comment in one cannot swallow the next.  -e is taken
+			# (--ext), so the flag letter is -c, as in `sh -c` / `python -c`.
+			eval_src="$eval_src$2
+"
+			have_eval=1
+			shift 2
+			;;
 		-f | --file)
 			file="$(shquote "$2")"
 			[ -z "$file1" ] && file1="$2"
@@ -1200,18 +1227,47 @@ fi
 # REPL rides the same -F shape: --batch suppresses the entry's own
 # launcher so the arming import lands before the prompt, then launch.x
 # hands over the session.
-if [ "$file" ]; then
+#
+# -c/--eval is the same bargain as -f: expressions to evaluate, then exit,
+# so it suppresses the launcher the same way.
+#
+# A NON-TERMINAL stdin is the third case, and it used to be a silent
+# no-op: `echo '(write 1)' | x` printed a prompt and exited having
+# evaluated nothing.  The pipe the wrapper builds IS the engine's stdin,
+# so the REPL reaches the caller's stdin only by reclaiming fd 3 -- and
+# lib/x/repl/loop.x reclaims it only `(when (Sys isatty 3))`, which a
+# pipe is not.  Nothing consumed the program and nothing said so.  The
+# fix is the form README documents for direct invocation -- `cat lib/x.x -
+# | x-bin` -- put back where the wrapper can reach it: piped stdin is
+# program text, appended after the library, in batch.  A terminal keeps
+# the REPL, and -f/-c win over the pipe (they named their source).
+if [ "$file" ] || [ -n "$have_eval" ]; then
+	xflags="$xflags \"--batch\""
+elif [ ! -t 0 ]; then
+	stdin_prog=1
 	xflags="$xflags \"--batch\""
 elif [ -n "$PIN_FILE" ]; then
 	xflags="$xflags \"--batch\""
 	post="$(shquote "${LIB_PATH}${X_LAUNCH}")"
 fi
 
+# -c says "and exit", so it drops any launcher -F asked for: the two
+# together mean run the file, then the expressions, then stop.
+[ -n "$have_eval" ] && post=""
+
 # An empty tail must vanish entirely -- a bare `cat` would read stdin.
+# When $stdin_prog is set that is exactly what it must do: the bare `cat`
+# IS the program.
+#
+# ORDER IS THE CONTRACT: files first (they define), then piped stdin,
+# then -c expressions, and the launcher LAST -- it hands over the session,
+# so anything emitted after it is never reached.  Fold the four into one
+# `cat` and that ordering stops being visible; keep them separate.
 TAIL=
-if [ -n "${file}${post}" ]; then
-	TAIL="cat ${file} ${post}; "
-fi
+[ -n "$file" ]       && TAIL="cat ${file}; "
+[ -n "$stdin_prog" ] && TAIL="${TAIL}cat; "
+[ -n "$have_eval" ]  && TAIL="${TAIL}eval_form; "
+[ -n "$post" ]       && TAIL="${TAIL}cat ${post}; "
 
 CMD="{ root_form; param_forms; pin_form; cat $(shquote "$ENTRY"); pin_arm; bundle_form; ${TAIL}} | $(shquote "$X_BIN")$xflags$args"
 

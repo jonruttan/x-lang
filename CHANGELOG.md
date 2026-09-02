@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**Two ways in that were missing, and a silent one that lied.** `x.sh` gained
+`-c/--eval`: evaluate an expression and exit, repeatable, expressions running
+in order, so a definition and its use fit in one command. Before it, asking
+the language a one-line question — what does `(help Str8/split)` say, what
+does this expression evaluate to — cost a temporary file, which is why
+nothing scripted ever asked. The obvious alternative was worse than missing:
+`echo '(write 1)' | sh x.sh` printed a prompt, evaluated *nothing*, and
+exited 0. The pipe the wrapper builds is the engine's stdin, so the REPL
+reaches the caller's only by reclaiming fd 3 — and `repl/loop.x` reclaims it
+only `(when (Sys isatty 3))`, which a pipe is not. A non-terminal stdin is
+now program text, appended after the library: the wrapper's spelling of the
+`cat lib/x.x - | ./x-bin` the README has always documented. `make
+check-wrapper` is the gate that keeps all of it honest — the spec suite talks
+to the engine, so nothing tested the wrapper at all.
+
 **x-lang's own spec fences say `x`, not `scheme`.** 2,735 of them, across 154
 files. The tag was decoration to the runner — it collects any fenced block the
 same way, and only ` ```output ` means anything to it — but it is a claim to
