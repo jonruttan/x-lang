@@ -3,7 +3,7 @@ Description: Development notes for x-lang.
 Keywords:    [#x-lang, #Project, #Notes]  
 Author:      "[Jon Ruttan](jonruttan@gmail.com)"  
 Date:        2021-10-06  
-Revision:    8 (2026-08-27)  
+Revision:    9 (2026-09-01)  
 
 # x-lang Project Notes
 
@@ -70,5 +70,6 @@ never re-mean a shared spelling.
 - Profiler (implemented: `lib/x/tool/profile.x`)
 - Package manager(s) (aspirational)
 - Editor (aspirational)
-- Make (aspirational)
-- C Compiler (aspirational)
+- Make (implemented as a lang: [x-make](https://github.com/jonruttan/x-make))
+- C Compiler (implemented as a lang: [x-cc](https://github.com/jonruttan/x-cc))
+- awk, grep, sed, coreutils (implemented as langs — the self-hosting arc; see docs/bootstrap-closure.md)
