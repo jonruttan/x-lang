@@ -20,15 +20,15 @@
 (costume "x-expr"
   (logo "the C logo's blue")
   (accent 206 100 31)
-  (rows "., .," "{OvO}" "( C )" " \" \"")
-  (roles "ii ii" "ieifi" "i a i" " i i ")
+  (rows "., .," "{OvO}" "(   )" " \" \"")
+  (roles "ii ii" "ieifi" "iiiii" " i i ")
   (reference "/* {O,O} */"))
 
 (costume "x-engine-c"
   (logo "the C logo's blue")
   (accent 206 100 31)
-  (rows "., .," "{OvO}" "( C )" " \" \"")
-  (roles "ii ii" "ieifi" "i a i" " i i ")
+  (rows "., .," "{OvO}" "(   )" " \" \"")
+  (roles "ii ii" "ieifi" "iiiii" " i i ")
   (reference "return x; /* {O,O} */"))
 
 (costume "x-engine-rust"
@@ -79,7 +79,7 @@
 
 (costume "x-krn"
   (mascot "$vau")
-  (rows "., .," "{OvO}" "(vau)" " \" \"")
+  (rows "., .," "{OvO}" "(krn)" " \" \"")
   (roles "ii ii" "ieifi" "iaaai" " i i ")
   (reference "($vau (x) e '{O,O})"))
 
@@ -116,6 +116,6 @@
 (costume "x-cc"
   (logo "the C logo's blue")
   (accent 206 100 31)
-  (rows "., .," "{OvO}" "(int)" " \" \"")
-  (roles "ii ii" "ieifi" "iaaai" " i i ")
+  (rows "., .," "{OvO}" "( C )" " \" \"")
+  (roles "ii ii" "ieifi" "i a i" " i i ")
   (reference "puts(\"{O,O}\");"))
