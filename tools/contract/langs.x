@@ -74,10 +74,12 @@
 ; evaluator (`run` -- every spec an oracle row against /usr/bin/cc),
 ; and `build` -- eligible integer functions lower through the engine's
 ; compile-asm lane to NATIVE code, no external toolchain.  The build
-; slice now covers LOOPS (for/while transformed to tail self-recursion,
-; accumulators as padded params): a 2M-iteration loop, 79s interpreted
-; vs 9.5s built.  Twin agreement is the spec.
-(lang "cc"    "x-cc"     40  0)
+; slice covers LOOPS (for/while transformed to tail self-recursion --
+; params and accumulators alike ride the self-call; body locals
+; substitute away; if/else merges as a ternary), so gcd compiles to
+; recursive gcd: a 2M-iteration loop, 79s interpreted vs 9.5s built.
+; Twin agreement is the spec.
+(lang "cc"    "x-cc"     45  0)
 ; logo arrived GREEN, which is what an extraction should look like: 83/0 here
 ; is the same 83 tests that ran as lib/logo.spec.md in this tree, against the
 ; same turtle kernel, through the bundle's own harness instead of tests/x/lib.
