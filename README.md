@@ -349,6 +349,11 @@ included, is published at <https://jonruttan.github.io/x-lang/>. New to the
 vocabulary? The [Glossary](docs/glossary.md) defines the load-bearing terms
 (fexpr, operative, dialect, the base, contract).
 
+**Coding agents start at [AGENTS.md](AGENTS.md)** (`CLAUDE.md` symlinks to
+it) — the short briefing: how to run it, the Lisp assumptions that fail here,
+and the three calls that answer "what exists" without reading any of the
+above. [llms.txt](llms.txt) is the machine-readable index of this list.
+
 ### Guides
 
 - [Architecture](docs/architecture.md) — System design, evaluation model, the contract pattern

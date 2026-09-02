@@ -6,6 +6,9 @@
 - [Pinning, step by step](pinning-tutorial.md) — Set up a pinned project, retrofit an existing one, pin the platform
 - [Sandboxing and type reflection, step by step](sandboxing-tutorial.md) — Make an isolated interpreter, hand it capabilities, teach it types, inspect anything
 - [README](../README.md) — Project overview, build instructions, feature summary
+- [AGENTS.md](../AGENTS.md) — the briefing for coding agents: running it, the
+  Lisp assumptions that fail here, and how to find what exists
+  (`CLAUDE.md` symlinks to it; [llms.txt](../llms.txt) indexes this page)
 
 ## Language
 

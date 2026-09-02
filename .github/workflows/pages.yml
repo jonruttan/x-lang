@@ -189,6 +189,11 @@ jobs:
             - .github/
             - Makefile
             - ext/
+            # A symlink to AGENTS.md, which publishes on its own.  Jekyll
+            # would render the same page twice under two names, and the
+            # second name is one Claude Code looks for on disk, not a URL
+            # anyone visits.
+            - CLAUDE.md
             # Personal working notes from 2021, carrying the author's
             # address in their headers.  Nothing links to them and they
             # do not describe the system as it is; they stay in the repo

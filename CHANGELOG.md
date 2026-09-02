@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The documentation answers a machine now.** `AGENTS.md` (with `CLAUDE.md`
+symlinked to it, so there is one file and not a copy to rot) is the briefing
+a coding agent needs and the prose docs could not be: how to run it, the Lisp
+assumptions that fail here — no `car`, no `print`, subject-last dispatch,
+self as argument 0 — the three calls that answer "what exists" without
+reading anything else, and which dialect has what. `llms.txt` indexes the
+published documentation for the same audience, listing entry points rather
+than every page, so it cannot go stale behind them.
+
 **A failed dispatch suggests what you meant.** `(List mp …)` answered `no
 such static member mp` and stopped; it now adds `-- did you mean map?`.
 Selectors within one edit of the miss, or a proper prefix of it, are
