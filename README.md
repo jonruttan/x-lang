@@ -78,25 +78,43 @@ x --install-lang https://github.com/jonruttan/x-logo/releases/latest/download/la
 x -l logo                   # REPL + viewer at http://localhost:8080
 ```
 
-| lang | is | dialect | release |
-|---|---|---|---|
-| [x-logo](https://github.com/jonruttan/x-logo) | Logo turtle graphics, with a live browser viewer | radon | [latest](https://github.com/jonruttan/x-logo/releases/latest) |
-| [x-r5rs](https://github.com/jonruttan/x-r5rs) | R5RS Scheme | helium | [latest](https://github.com/jonruttan/x-r5rs/releases/latest) |
-| [x-r7rs](https://github.com/jonruttan/x-r7rs) | R7RS Scheme, on top of x-r5rs | helium | [latest](https://github.com/jonruttan/x-r7rs/releases/latest) |
-| [x-krn](https://github.com/jonruttan/x-krn) | Kernel, with `$vau` | helium | [latest](https://github.com/jonruttan/x-krn/releases/latest) |
-| [x-sweet](https://github.com/jonruttan/x-sweet) | SRFI-105/110 sweet-expressions | helium | [latest](https://github.com/jonruttan/x-sweet/releases/latest) |
-| [x-ash](https://github.com/jonruttan/x-ash) | a POSIX-ish shell | radon | [latest](https://github.com/jonruttan/x-ash/releases/latest) |
-| [x-python](https://github.com/jonruttan/x-python) | a Python 3 surface | xenon | unreleased |
+| lang | is | release |
+|---|---|---|
+| [x-logo](https://github.com/jonruttan/x-logo) | Logo turtle graphics, with a live browser viewer | [latest](https://github.com/jonruttan/x-logo/releases/latest) |
+| [x-r5rs](https://github.com/jonruttan/x-r5rs) | R5RS Scheme | [latest](https://github.com/jonruttan/x-r5rs/releases/latest) |
+| [x-r7rs](https://github.com/jonruttan/x-r7rs) | R7RS Scheme, on top of x-r5rs | [latest](https://github.com/jonruttan/x-r7rs/releases/latest) |
+| [x-krn](https://github.com/jonruttan/x-krn) | Kernel, with `$vau` | [latest](https://github.com/jonruttan/x-krn/releases/latest) |
+| [x-sweet](https://github.com/jonruttan/x-sweet) | SRFI-105/110 sweet-expressions | [latest](https://github.com/jonruttan/x-sweet/releases/latest) |
+| [x-ash](https://github.com/jonruttan/x-ash) | a POSIX-ish shell | [latest](https://github.com/jonruttan/x-ash/releases/latest) |
+| [x-python](https://github.com/jonruttan/x-python) | a Python 3 surface | unreleased |
+| [x-awk](https://github.com/jonruttan/x-awk) | an awk: the language and the `x -l awk --` CLI | unreleased |
+| [x-grep](https://github.com/jonruttan/x-grep) | a grep: BRE by translation, ERE native, `-F` on bytes | unreleased |
+| [x-sed](https://github.com/jonruttan/x-sed) | a sed, riding x-grep's regex doors — the first cross-bundle lang | unreleased |
+| [x-make](https://github.com/jonruttan/x-make) | a make: the GNU subset x-lang's own Makefiles use | unreleased |
+| [x-coreutils](https://github.com/jonruttan/x-coreutils) | forty-four applets in one busybox-shaped bundle, `sort` to `sha256sum` | unreleased |
+| [x-cc](https://github.com/jonruttan/x-cc) | a C front end and evaluator; eligible functions lower to native through the engine | unreleased |
 
-**No version numbers in that column, deliberately.** Every one of them would be
-a copy of a fact that lives in the bundle's own `lang.xon`, and a copy nobody
-checks goes stale at the next release and tells the next reader something
-false — the failure [scaling to many langs](docs/lang-scale.md) measures as one
-fact written in eighteen places. `releases/latest` cannot go stale, and the
-`--install-lang` line above needs no editing when a bundle publishes.
+**No version numbers in that column, deliberately** — and no dialect column
+any more, for the same reason. Each would be a copy of a fact that lives in
+the bundle's own `lang.xon`, and a copy nobody checks goes stale and tells the
+next reader something false — the failure [scaling to many
+langs](docs/lang-scale.md) measures as one fact written in eighteen places,
+and the dialect column proved it here: two of its cells had already rotted
+when the table was next read. `releases/latest` cannot go stale, the
+`--install-lang` line above needs no editing when a bundle publishes, and a
+row without a release says `unreleased` rather than linking a page that would
+404.
 
-x-python is the one row without a release, and it says so rather than
-linking to a page that would 404.
+The rows from x-awk down are a second kind of demonstration — the
+**self-hosting arc**: tools x-lang's own build invokes, reimplemented as
+langs, with [the bootstrap tool closure](docs/bootstrap-closure.md) as the
+scorecard. `x -l cc` runs C, and eligible functions lower to native code
+through the engine's compile lane, no external toolchain.
+
+Bundles live in their own repositories, but this tree still answers for the
+ones present on disk: [`tools/contract/langs.x`](tools/contract/langs.x)
+records each bundle's suite counts and `make check-langs` holds them —
+advisory about presence, strict about regression.
 
 Logo is the largest of them — its own tokenizer types, an infix expression
 parser, an HTTP server and an animated SVG turtle, in ~2,400 lines. It lived
