@@ -93,7 +93,7 @@
 ; landed 2026-09-02.
 ; #ifdef/#ifndef/#else/#endif/#undef/#if-defined and initializer lists
 ; landed 2026-09-02; the heap zero-fills (str make is space-filled).
-(lang "cc"    "x-cc"    103  0)
+(lang "cc"    "x-cc"    106  0)
 ; logo arrived GREEN, which is what an extraction should look like: 83/0 here
 ; is the same 83 tests that ran as lib/logo.spec.md in this tree, against the
 ; same turtle kernel, through the bundle's own harness instead of tests/x/lib.
