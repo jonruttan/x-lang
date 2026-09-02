@@ -1,0 +1,151 @@
+# Bitwise -- the owl sigil, drawn for a project
+
+# @weight 3
+
+`apps/bitwise` draws the ASCII owl from every source header for a named
+project: the owl is set from Roboto Mono outlines, the field it sits on and
+its accent hue come from sha256(name), and a costume from langs.json adds a
+project's mascot, colours and idiom.  Every quantity is an integer, so the
+picture is a function of the name alone -- and the gallery's browser twin,
+`apps/bitwise/gallery/bitwise.js`, must produce the identical bytes: see
+`bitwise-parity.spec.md` for the digests both sides answer.
+
+## seeding
+
+### the name seeds the field, and the walk lands where the twin lands
+
+```scheme
+(do
+  (def %bitwise-root "apps/bitwise")
+  (import-path! "apps")
+  (import bitwise/gen)
+  (def p (bitwise-params "x-lang"))
+  (display (list (p get 'opname) (p get 'bit) (p get 'a) (p get 'b) (p get 'n) (p get 'hue10) (p get 'lit)))
+  (newline)
+  (display (p get 'formula)))
+```
+---
+```output
+(xor 3 11 15 32 2616 512)
+(x*11) ^ (y*15) >> 3 & 1
+```
+
+### a near-solid field walks the bit, then the operator
+
+`(p get 'lit)` sits inside the 18%..82% gate for every name the walk
+touches; these two are the ones whose first draw was outside it.
+
+```scheme
+(do
+  (def %bitwise-root "apps/bitwise")
+  (import-path! "apps")
+  (import bitwise/gen)
+  (List for-each
+    (fn (_ name)
+      (let ((p (bitwise-params name)))
+        (display (list name (p get 'opname) (p get 'bit) (p get 'n) (p get 'lit)))
+        (newline)))
+    (list "x-cc" "x-r5rs" "x-engine-c")))
+```
+---
+```output
+(x-cc and 1 32 768)
+(x-r5rs and 4 24 433)
+(x-engine-c and 2 16 64)
+```
+
+## the picture
+
+### the owl is set from outlines, by glyph index, with the eyes coloured
+
+```scheme
+(do
+  (def %bitwise-root "apps/bitwise")
+  (import-path! "apps")
+  (import bitwise/gen)
+  (def svg (first (bitwise-render "x-lang" "mark" "" "" "o")))
+  (display (list (Str8 includes? "<path id=\"o-47\" d=\"M" svg)
+                 (Str8 includes? "<use href=\"#o-47\" transform=\"translate(" svg)
+                 (Str8 includes? "<g fill=\"hsl(261.6,58%,46%)\"><use href=\"#o-47\"" svg)
+                 (Str8 includes? "<g fill=\"#161a22\"><use href=\"#o-14\"" svg)
+                 (> (Str8 length svg) 20000))))
+```
+---
+```output
+(#t #t #t #t #t)
+```
+
+### a divergence from the twin is reported at its first byte
+
+```scheme
+(do
+  (def %bitwise-root "apps/bitwise")
+  (import-path! "apps")
+  (import bitwise/gen)
+  (display (list (bitwise-diff "same" "same") (first (bitwise-diff "<rect x=\"6.62\"/>" "<rect x=\"6.63\"/>")) (first (rest (bitwise-diff "<rect x=\"6.62\"/>" "<rect x=\"6.63\"/>"))))))
+```
+---
+```output
+(#t differ-at 12)
+```
+
+## the command line
+
+### a README's first paragraph becomes a one-sentence tagline
+
+Links become their text, emphasis is dropped, the cut is the first sentence
+end, and an unclosed parenthesis is dropped with what follows it.
+
+```scheme
+(do
+  (def %bitwise-root "apps/bitwise")
+  (import-path! "apps")
+  (import bitwise/cli)
+  (display (%bw-unlink "A [Kernel](https://x) surface on [x-lang][xl], riding"))
+  (newline)
+  (display (%bw-tagline "tests/x/fixtures/bitwise/README.md")))
+```
+---
+```output
+A Kernel surface on x-lang, riding
+A fixture for x-lang's owl, the second tool of the self-hosting arc
+```
+
+### --all walks a workspace root, writes every format, and an index
+
+```scheme
+(do
+  (def %bitwise-root "apps/bitwise")
+  (import-path! "apps")
+  (import bitwise/cli)
+  (import x/codec/json)
+  (bitwise-main (list "x-bin" "--" "--all" "--root" "tests/x/fixtures/bitwise/root" "--out" "build/bitwise-spec"))
+  (def index (Json parse (File read-all "build/bitwise-spec/index.json")))
+  (display (List map (fn (_ d) (list (d get "name") (d get "kind") (d get "tagline"))) index))
+  (newline)
+  (display (List map (fn (_ f) (File exists? (%path-join "build/bitwise-spec" f)))
+             (list "x-lang-mark.svg" "x-lang-avatar.svg" "x-lang-banner.svg" "x-fixture-banner.svg"))))
+```
+---
+```output
+x-lang          xor    bit 3  n=32  hue 261.6                           (def owl '{O,O})
+x-fixture       xor    bit 3  n=24  hue  90.9                           
+((x-lang the language The language, as a fixture) (x-fixture a language on x-lang A fixture for x-lang's owl, the second tool of the self-hosting arc))
+(#t #t #t #t)
+```
+
+### --json answers the seeded parameters for one name
+
+```scheme
+(do
+  (def %bitwise-root "apps/bitwise")
+  (import-path! "apps")
+  (import bitwise/cli)
+  (import x/codec/json)
+  (def out (Io display-to-str (Json emit (rest (bitwise-render "x-awk" "mark" "" "" "o")))))
+  (display (list (Str8 includes? "\"opname\":\"or\"" out) (Str8 includes? "\"costume\":\"the auk\"" out))))
+```
+---
+```output
+(#t #t)
+```

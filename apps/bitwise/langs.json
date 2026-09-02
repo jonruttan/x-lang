@@ -1,0 +1,340 @@
+{
+ "x-lang": {
+  "reference": "(def owl '{O,O})",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "( x )",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "i a i",
+   " i i "
+  ],
+  "belly": "( x )"
+ },
+ "x-expr": {
+  "logo": "the C logo's blue",
+  "accent": [
+   206,
+   100,
+   31
+  ],
+  "reference": "/* {O,O} */",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "( C )",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "i a i",
+   " i i "
+  ],
+  "belly": "( C )"
+ },
+ "x-engine-c": {
+  "logo": "the C logo's blue",
+  "accent": [
+   206,
+   100,
+   31
+  ],
+  "reference": "return x; /* {O,O} */",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "( C )",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "i a i",
+   " i i "
+  ],
+  "belly": "( C )"
+ },
+ "x-engine-rust": {
+  "mascot": "Ferris the crab",
+  "logo": "Ferris orange",
+  "accent": [
+   18,
+   100,
+   48
+  ],
+  "reference": "let owl = \"{O,O}\";",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "V   V",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "a   a",
+   " i i "
+  ],
+  "belly": "V   V"
+ },
+ "x-python": {
+  "mascot": "the two Python snakes",
+  "logo": "Python blue and yellow",
+  "accent": [
+   207,
+   51,
+   44
+  ],
+  "secondary": [
+   45,
+   100,
+   42
+  ],
+  "eyes": [
+   [
+    207,
+    51,
+    44
+   ],
+   [
+    45,
+    100,
+    42
+   ]
+  ],
+  "reference": "print(\"{O,O}\")",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "( py)",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "i aai",
+   " i i "
+  ],
+  "belly": "( py)"
+ },
+ "x-logo": {
+  "mascot": "the turtle",
+  "logo": "turtle green",
+  "accent": [
+   146,
+   50,
+   36
+  ],
+  "reference": "REPEAT 4 [FD 100 RT 90]",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "( ▲ )",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "i a i",
+   " i i "
+  ],
+  "belly": "( ▲ )"
+ },
+ "x-awk": {
+  "mascot": "the auk",
+  "logo": "auk black",
+  "accent": [
+   214,
+   11,
+   25
+  ],
+  "reference": "awk '/{O,O}/'",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "(awk)",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "iaaai",
+   " i i "
+  ],
+  "belly": "(awk)"
+ },
+ "x-r5rs": {
+  "mascot": "lambda",
+  "reference": "(lambda (x) '{O,O})",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "( λ )",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "i a i",
+   " i i "
+  ],
+  "belly": "( λ )"
+ },
+ "x-r7rs": {
+  "mascot": "lambda",
+  "reference": "(import (scheme base)) '{O,O}",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "( λ )",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "i a i",
+   " i i "
+  ],
+  "belly": "( λ )"
+ },
+ "x-krn": {
+  "mascot": "$vau",
+  "reference": "($vau (x) e '{O,O})",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "(vau)",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "iaaai",
+   " i i "
+  ],
+  "belly": "(vau)"
+ },
+ "x-sweet": {
+  "reference": "{O + O}",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "({+})",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "iaaai",
+   " i i "
+  ],
+  "belly": "({+})"
+ },
+ "x-sed": {
+  "reference": "s/owl/{O,O}/g",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "(sed)",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "iaaai",
+   " i i "
+  ],
+  "belly": "(sed)"
+ },
+ "x-grep": {
+  "reference": "grep -c '{O,O}' *.x",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "(/./)",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "iaaai",
+   " i i "
+  ],
+  "belly": "(/./)"
+ },
+ "x-make": {
+  "reference": "owl: ; echo '{O,O}'",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "(all)",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "iaaai",
+   " i i "
+  ],
+  "belly": "(all)"
+ },
+ "x-coreutils": {
+  "reference": "printf '%s\\n' '{O,O}'",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "( | )",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "i a i",
+   " i i "
+  ],
+  "belly": "( | )"
+ },
+ "x-ash": {
+  "reference": "$ echo '{O,O}'",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "( $ )",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "i a i",
+   " i i "
+  ],
+  "belly": "( $ )"
+ },
+ "x-cc": {
+  "logo": "the C logo's blue",
+  "accent": [
+   206,
+   100,
+   31
+  ],
+  "reference": "puts(\"{O,O}\");",
+  "rows": [
+   "., .,",
+   "{OvO}",
+   "(int)",
+   " \" \""
+  ],
+  "roles": [
+   "ii ii",
+   "ieifi",
+   "iaaai",
+   " i i "
+  ],
+  "belly": "(int)"
+ }
+}

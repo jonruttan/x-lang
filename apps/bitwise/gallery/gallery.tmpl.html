@@ -1,0 +1,234 @@
+<title>Bitwise</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;700&family=Archivo:wght@400;500;600&display=swap">
+<style>
+:root {
+  --paper: #f2f4f7; --surface: #ffffff; --ink: #161a22; --muted: #5b6170; --line: #d5d9e2;
+  --accent: hsl(262,58%,46%); --deep: hsl(262,55%,30%);
+  --print: #f2f4f7; --print-ink: #161a22;
+  --mono: 'Martian Mono', 'Roboto Mono', Menlo, 'DejaVu Sans Mono', ui-monospace, monospace;
+  --sans: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --paper: #12141b; --surface: #1a1d27; --ink: #e8eaf0; --muted: #9aa1b2; --line: #2b2f3b; }
+}
+:root[data-theme="dark"] { --paper: #12141b; --surface: #1a1d27; --ink: #e8eaf0; --muted: #9aa1b2; --line: #2b2f3b; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.5; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 36px 24px 72px; }
+header { display: flex; align-items: flex-end; gap: 28px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 24px; }
+header pre { font-family: var(--mono); font-size: 15px; line-height: 1.1; margin: 0 0 6px; color: var(--accent); }
+h1 { font-family: var(--mono); font-size: clamp(40px, 7vw, 72px); line-height: 1; margin: 0; letter-spacing: -0.03em; font-weight: 700; }
+.lede { flex: 1 1 320px; max-width: 58ch; color: var(--muted); font-size: 17px; margin: 0; align-self: flex-end; }
+.lede b { color: var(--ink); font-weight: 600; }
+.lab { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); gap: 28px; align-items: start; margin-top: 36px; }
+@media (max-width: 860px) { .lab { grid-template-columns: 1fr; } }
+.plate { background: var(--print); color: var(--print-ink); border: 1px solid var(--line); border-radius: 6px; padding: 24px; min-height: 240px; display: grid; place-items: center;
+  box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 24px 40px -32px rgba(22,26,34,.45); }
+.plate svg { display: block; width: 100%; height: auto; max-height: 72vh; }
+.plate[data-fmt="mark"] svg, .plate[data-fmt="avatar"] svg { max-width: 440px; }
+.panel { display: grid; gap: 20px; }
+.field { display: grid; gap: 6px; }
+.field > span, .seg-label, .readout dt { font-family: var(--mono); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+input[type="text"] { font-family: var(--mono); font-size: 22px; font-weight: 700; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); width: 100%; }
+input[type="text"]:focus-visible, button:focus-visible, .card:focus-visible, .seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg label { position: relative; font-family: var(--mono); font-size: 13px; padding: 8px 13px; border: 1.5px solid var(--line); border-radius: 4px; cursor: pointer; background: var(--surface); }
+.seg label:has(input:checked) { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+.seg input { position: absolute; opacity: 0; width: 0; height: 0; }
+.readout { display: grid; grid-template-columns: auto 1fr; gap: 8px 18px; font-family: var(--mono); font-size: 13px; margin: 0; align-items: baseline; }
+.readout dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 7px; background: var(--accent); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+button { font-family: var(--mono); font-size: 13px; padding: 9px 14px; border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper); border-radius: 4px; cursor: pointer; }
+button.ghost { background: transparent; color: var(--ink); }
+details { border-top: 1px solid var(--line); padding-top: 12px; }
+summary { cursor: pointer; font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+textarea { width: 100%; min-height: 160px; margin-top: 10px; font-family: var(--mono); font-size: 11px; line-height: 1.4; border: 1.5px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); padding: 10px; resize: vertical; }
+code { font-family: var(--mono); font-size: .88em; background: var(--surface); border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px; }
+.flock { margin-top: 64px; }
+.flock h2, .how h2 { font-family: var(--mono); font-size: 20px; margin: 0 0 6px; letter-spacing: -0.01em; }
+.sub { margin: 0 0 20px; color: var(--muted); max-width: 64ch; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(164px, 1fr)); gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px; text-align: left; cursor: pointer; display: grid; gap: 8px; color: inherit; font: inherit; }
+.card .print { background: var(--print); border-radius: 4px; padding: 10px; }
+.card svg { width: 100%; height: auto; display: block; }
+.card .name { font-family: var(--mono); font-weight: 700; font-size: 14px; }
+.card .meta { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.card[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.how { margin-top: 64px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; }
+@media (max-width: 860px) { .how { grid-template-columns: 1fr; } }
+.how p { max-width: 62ch; }
+.bytes { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12.5px; }
+.bytes th, .bytes td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.bytes th { font-weight: 400; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; font-size: 11px; }
+.bytes td:first-child { color: var(--accent); white-space: nowrap; }
+.tablewrap { overflow-x: auto; }
+pre.cmd { font-family: var(--mono); font-size: 12.5px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 12px 14px; overflow-x: auto; margin: 10px 0 0; }
+footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+@media (prefers-reduced-motion: no-preference) { .card { transition: box-shadow .12s, border-color .12s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <pre aria-hidden="true">., .,
+{O,O}
+(   )
+ " "</pre>
+      <h1>Bitwise</h1>
+    </div>
+    <p class="lede">The owl stamped in every x source header, set in Roboto Mono exactly as it is on jrexpr.ca. <b>Type a name</b> and the owl stays the owl while the field it sits on is decided by the name's SHA-256. A project with a mascot, a logo colour or an idiom of its own wears it as a costume.</p>
+  </header>
+
+  <section class="lab" aria-label="Generator">
+    <div class="plate" id="plate" data-fmt="mark"></div>
+    <div class="panel">
+      <label class="field"><span>Project name</span><input type="text" id="name" value="x-lang" spellcheck="false" autocomplete="off"></label>
+      <div class="field"><span class="seg-label">Format</span>
+        <div class="seg" role="radiogroup" aria-label="Format">
+          <label><input type="radio" name="fmt" value="mark" checked>mark</label>
+          <label><input type="radio" name="fmt" value="avatar">avatar 512</label>
+          <label><input type="radio" name="fmt" value="banner">banner 1280×640</label>
+        </div>
+      </div>
+      <dl class="readout">
+        <dt>plumage</dt><dd id="r-formula"></dd>
+        <dt>op</dt><dd id="r-op"></dd>
+        <dt>grid</dt><dd id="r-grid"></dd>
+        <dt>lit cells</dt><dd id="r-density"></dd>
+        <dt>colour</dt><dd><span class="swatch" aria-hidden="true"></span><span id="r-hue"></span></dd>
+        <dt>costume</dt><dd id="r-costume"></dd>
+        <dt>reference</dt><dd id="r-ref"></dd>
+      </dl>
+      <div class="actions">
+        <button id="copy-svg" type="button">Copy SVG</button>
+        <button id="copy-cmd" type="button" class="ghost">Copy CLI command</button>
+      </div>
+      <details><summary>SVG source</summary><textarea id="src" readonly spellcheck="false" aria-label="SVG source"></textarea></details>
+    </div>
+  </section>
+
+  <section class="flock" aria-label="The flock">
+    <h2>The flock</h2>
+    <p class="sub">Every project in the x workspace, as its own bird. Pick one to put it on the plate.</p>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section class="how" aria-label="How a bird is seeded">
+    <div>
+      <h2>How a bird is seeded</h2>
+      <p>The owl itself is never generated. It is the five glyphs from the source headers, set from Roboto Mono's outlines so it is identical on every machine, with the eyes taking the project's accent.</p>
+      <p>Costumes are data, in <code>langs.json</code>. A costumed owl wears the <code>v</code> beak and carries its project's logo on its belly: a <code>C</code> for the C projects, <code>λ</code> for the Schemes, <code>{+}</code> for sweet-expressions, <code>/./</code> for grep, <code>vau</code> for Kernel. Ferris keeps his pincers, <code>V   V</code>. A logo colour replaces the hashed hue in the field, and x-python's eyes take the two snakes' colours. Every project also gets a one-line reference in its own language on the banner.</p>
+      <p>The name is hashed once. The first ten bytes of the digest are read off in order, each one settling a single trait. Bytes 10 to 31 are unused, kept for later.</p>
+      <p>The field is a bit of a bitwise function, sampled on a grid: cell <code>(x, y)</code> is lit when the chosen bit of <code>f(x, y)</code> is set. If a name lands on a near-empty or near-solid field, the bit advances, then the operator, until it reads as a texture. That walk is deterministic, so it is still the name that decides.</p>
+      <p>This page is the browser twin of <code>apps/bitwise</code>, the x-lang program that owns the design; both compute the same integer geometry and produce byte-identical SVG, and the spec suite holds the digests they must agree on. Render every project from an x-lang checkout:</p>
+      <pre class="cmd">x -l bitwise -- --all --png</pre>
+      <p>An edited generator is a different flock. Re-render everything rather than touching an SVG by hand; the parity test keeps the page and the CLI drawing the same picture.</p>
+    </div>
+    <div class="tablewrap">
+      <table class="bytes">
+        <thead><tr><th>digest bytes</th><th>trait</th><th>range</th></tr></thead>
+        <tbody>
+          <tr><td>0–1</td><td>hue of the accent</td><td>0° to 360°</td></tr>
+          <tr><td>2</td><td>operator</td><td>xor · and · or · rings · moire · prod</td></tr>
+          <tr><td>3</td><td>which bit is sampled</td><td>1 to 4</td></tr>
+          <tr><td>4, 5</td><td>multipliers a, b</td><td>odd, 1 to 15</td></tr>
+          <tr><td>6, 7</td><td>field offset</td><td>0 to 31 cells</td></tr>
+          <tr><td>8</td><td>salt xor'd into the field</td><td>0 to 255</td></tr>
+          <tr><td>9</td><td>grid resolution</td><td>16 · 20 · 24 · 32</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Bitwise is the sigil on x-expr, x-engine-c, x-engine-rust, x-lang and every language bundle. <code>apps/bitwise/gen.x</code> is the generator; this page is its browser twin.</footer>
+</div>
+
+<script>
+/*@GLYPHS@*/
+</script>
+<script>
+/*@BITWISE_JS@*/
+</script>
+<script>
+(function () {
+  "use strict";
+  const PROJECTS = /*@PROJECTS@*/;
+  const $ = (s) => document.querySelector(s);
+  const plate = $("#plate"), nameInput = $("#name"), grid = $("#grid"), src = $("#src");
+  const state = { name: "x-lang", fmt: "mark" };
+  try {
+    const saved = JSON.parse(localStorage.getItem("bitwise.state") || "null");
+    if (saved && typeof saved.name === "string") { state.name = saved.name; }
+    if (saved && ["mark", "avatar", "banner"].includes(saved.fmt)) { state.fmt = saved.fmt; }
+  } catch (e) { /* no storage: defaults stand */ }
+  nameInput.value = state.name;
+  document.querySelectorAll('input[name="fmt"]').forEach((r) => { r.checked = r.value === state.fmt; });
+
+  let token = 0, current = null;
+  async function draw() {
+    const my = ++token;
+    const proj = PROJECTS.find((p) => p.name === state.name);
+    const r = await Bitwise.render(state.name, state.fmt, proj ? proj.tagline : "", proj ? proj.kind : "", "stage");
+    if (my !== token) return;
+    current = r;
+    plate.dataset.fmt = state.fmt;
+    plate.innerHTML = r.svg;
+    src.value = r.svg;
+    const p = r.params;
+    $("#r-formula").textContent = p.formula;
+    $("#r-op").textContent = p.opname;
+    $("#r-grid").textContent = p.n + " × " + p.n;
+    $("#r-density").textContent = Math.round(p.lit * 100 / (p.n * p.n)) + "%";
+    const lang = Bitwise.LANGS[state.name] || {};
+    $("#r-hue").textContent = lang.logo ? lang.logo : "hue " + Bitwise.hueStr(p.hue10) + "°";
+    $("#r-costume").textContent = lang.mascot ? lang.mascot : (lang.rows ? "yes" : "none, the plain owl");
+    $("#r-ref").textContent = lang.reference || "none";
+    document.documentElement.style.setProperty("--accent", r.palette.accent);
+    document.documentElement.style.setProperty("--deep", r.palette.deep);
+    grid.querySelectorAll(".card").forEach((c) => c.setAttribute("aria-pressed", c.dataset.name === state.name ? "true" : "false"));
+    try { localStorage.setItem("bitwise.state", JSON.stringify(state)); } catch (e) { /* fine */ }
+  }
+
+  nameInput.addEventListener("input", () => { state.name = nameInput.value; draw(); });
+  document.querySelectorAll('input[name="fmt"]').forEach((r) => r.addEventListener("change", () => { if (r.checked) { state.fmt = r.value; draw(); } }));
+
+  function flash(btn, text) {
+    const was = btn.textContent; btn.textContent = text; btn.disabled = true;
+    setTimeout(() => { btn.textContent = was; btn.disabled = false; }, 1400);
+  }
+  async function copy(text, btn) {
+    try { await navigator.clipboard.writeText(text); flash(btn, "Copied"); }
+    catch (e) {
+      const d = $("details"); d.open = true; src.focus(); src.select(); flash(btn, "Select and copy");
+    }
+  }
+  $("#copy-svg").addEventListener("click", (e) => { if (current) copy(current.svg, e.currentTarget); });
+  $("#copy-cmd").addEventListener("click", (e) => {
+    const q = (s) => "'" + String(s).replace(/'/g, "'\\''") + "'";
+    const proj = PROJECTS.find((p) => p.name === state.name);
+    let cmd = "x -l bitwise -- " + q(state.name) + " --fmt " + state.fmt;
+    if (state.fmt === "banner") cmd += " --tagline " + q(proj ? proj.tagline : "") + " --kind " + q(proj ? proj.kind : "");
+    cmd += " -o " + q((state.name || "bitwise").replace(/[^A-Za-z0-9._-]+/g, "-") + "-" + state.fmt + ".svg") + " --png";
+    copy(cmd, e.currentTarget);
+  });
+
+  async function flock() {
+    for (let i = 0; i < PROJECTS.length; i++) {
+      const proj = PROJECTS[i];
+      const r = await Bitwise.render(proj.name, "mark", "", "", "c" + i);
+      const card = document.createElement("button");
+      card.type = "button"; card.className = "card"; card.dataset.name = proj.name;
+      card.setAttribute("aria-pressed", proj.name === state.name ? "true" : "false");
+      card.innerHTML = '<div class="print">' + r.svg + '</div><div class="name"></div><div class="meta"></div>';
+      card.querySelector(".name").textContent = proj.name;
+      card.querySelector(".meta").textContent = r.params.costume ? r.params.costume : r.params.opname + " · " + Math.floor(r.params.hue10 / 10) + "°";
+      card.addEventListener("click", () => { state.name = proj.name; nameInput.value = proj.name; draw(); window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); });
+      grid.appendChild(card);
+    }
+  }
+  draw(); flock();
+})();
+</script>

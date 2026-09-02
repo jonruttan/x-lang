@@ -5,10 +5,12 @@
 ([the lang contract](../docs/lang-contract.md)). This directory is the second
 step.
 
-**It is empty, and that is the current state rather than the design.** Logo
-lived here — it is what the second step was added for (#35) — and it left for
+**One occupant: [`bitwise/`](bitwise/README.md)**, the owl sigil drawn for a
+project (`x -l bitwise -- --all`). Logo lived here before it — it is what the
+second step was added for (#35) — and it left for
 [x-logo](https://github.com/jonruttan/x-logo) when the bundle format could
-carry it. Nothing else has needed the shape since.
+carry it. Bitwise is the shape's second use: a program that belongs to this
+repository and is not a language.
 
 ## When something belongs here
 
