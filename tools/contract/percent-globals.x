@@ -166,7 +166,11 @@
 (file "lib/x/tool/asm.x" 37)
 (file "lib/x/tool/asm/arm64.x" 8)
 (file "lib/x/tool/asm/x86_64.x" 23)
-(file "lib/x/tool/compile.x" 25)
+; compile.x rose 25 to 26 for %compile-cache-identity: the engine-and-machine
+; half of the cache key, held apart from the expression so the pairing can be
+; named and asserted (#590 -- a key without engine identity served
+; ABI-stale objects that silently misread numbers).
+(file "lib/x/tool/compile.x" 26)
 ; emit.x rose 54 to 57 for the CHARACTER write handler: the type handle,
 ; the char->int door, and the writer itself -- one emitter family, the
 ; same standing the int and symbol writers have.
