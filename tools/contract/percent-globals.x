@@ -103,7 +103,12 @@
 ; tower-compiled.x rose 18 to 20 for %tower-jit? and %tower-asm: the burst
 ; moved off the cc lane onto the engine's own JIT (compile-asm), and the
 ; probe + per-site helper are the whole seam.
-(file "lib/x/boot/tower-compiled.x" 20)
+; tower-compiled.x rose 20 to 24 for the compiled delimiter hook: the cell
+; accessor %type-delimit-cell, the compiled twin %c-macro-delimit, the
+; symbol delimit list %sym-delimit-list, and the by-identity swap
+; %tower-swap-delimit! -- the same de-dispatch grounds as the analyser burst
+; beside it (the hook runs per source character).
+(file "lib/x/boot/tower-compiled.x" 24)
 (file "lib/x/codec/json.x" 30)
 (file "lib/x/codec/sha256-jit.x" 34)
 (file "lib/x/codec/sha256.x" 33)
@@ -148,7 +153,12 @@
 (file "lib/x/sys/posix.x" 32)
 (file "lib/x/sys/socket.x" 31)
 (file "lib/x/sys/stream.x" 5)
-(file "lib/x/tool/asm-compile.x" 63)
+; asm-compile.x rose 63 to 64 for %jit-addr-optional: an OPTIONAL JIT
+; trampoline (jit_buffer_last_char, newer than the core set) resolves through
+; it WITHOUT recording a miss, so an older engine that lacks only that symbol
+; still compiles everything else (the numeric analysers) rather than tripping
+; the whole-runtime "JIT unavailable" refusal.
+(file "lib/x/tool/asm-compile.x" 64)
 (file "lib/x/tool/asm.x" 37)
 (file "lib/x/tool/asm/arm64.x" 8)
 (file "lib/x/tool/asm/x86_64.x" 23)
