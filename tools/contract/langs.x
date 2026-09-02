@@ -88,7 +88,10 @@
 ; is the spec.
 ; Structs landed (2026-09-02): fields as cell offsets, -> and ., arrays
 ; of structs, scaled pointer steps, typedef, copy -- oracle-identical.
-(lang "cc"    "x-cc"     80  0)
+; switch (fallthrough, break, continue through to the loop) and
+; function-like macros (argument text, boundary substitution, rescan)
+; landed 2026-09-02.
+(lang "cc"    "x-cc"     87  0)
 ; logo arrived GREEN, which is what an extraction should look like: 83/0 here
 ; is the same 83 tests that ran as lib/logo.spec.md in this tree, against the
 ; same turtle kernel, through the bundle's own harness instead of tests/x/lib.
