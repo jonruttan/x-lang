@@ -55,9 +55,26 @@
 ; dlopen fails, and the failure surfaces wherever the loaded function was
 ; about to be used.  x-machine is the compiler's own triple, so folding it
 ; into the hash partitions the cache exactly along the lines that matter.
+;
+; THE TRIPLE IS NOT ENOUGH: it names the architecture, not the ENGINE.  A
+; bundle is native code compiled against ONE engine's headers -- its struct
+; layouts and prim ABI -- and the key held nothing that changed when the
+; engine did, so an object built against an older engine hit the cache for
+; every later engine on the machine, forever.  That is not theoretical: the
+; boot burst's cc rung picked up bundles built against a pre-#583 engine and
+; registered tower analysers that silently misbehaved -- `2.5` read as the
+; int `2` followed by the symbol `.5`, with no error anywhere (#590).  A
+; wrong answer with no diagnostic is the worst failure a cache can have.
+;
+; x-release is the engine's own release string (the ISA declares it, so it is
+; there on every engine), and folding it in means a new engine simply misses:
+; the stale entries age out with /tmp instead of poisoning the next boot.
 (def %compile-cache-dir "/tmp/x-cache-")
+; The part of the key that is a property of THIS ENGINE ON THIS MACHINE, held
+; apart from the expression so the pairing is nameable -- and testable.
+(def %compile-cache-identity (Str append x-machine x-release))
 (def %compile-cache-key
-  (fn (_ s) (Hash ->hex (Hash fnv-1a (Str append x-machine s)))))
+  (fn (_ s) (Hash ->hex (Hash fnv-1a (Str append %compile-cache-identity s)))))
 
 ; Why a freshly-built object refuses to load.  dlopen answers nil and
 ; nothing more -- there is no dlerror door -- so the message names the
