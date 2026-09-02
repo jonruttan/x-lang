@@ -12,8 +12,7 @@
    "ieifi",
    "iiiii",
    " i i "
-  ],
-  "belly": "(   )"
+  ]
  },
  "x-expr": {
   "logo": "the C logo's blue",
@@ -34,8 +33,7 @@
    "ieifi",
    "i a i",
    " i i "
-  ],
-  "belly": "( C )"
+  ]
  },
  "x-engine-c": {
   "logo": "the C logo's blue",
@@ -56,8 +54,7 @@
    "ieifi",
    "i a i",
    " i i "
-  ],
-  "belly": "( C )"
+  ]
  },
  "x-engine-rust": {
   "mascot": "Ferris the crab",
@@ -79,8 +76,7 @@
    "ieifi",
    "a   a",
    " i i "
-  ],
-  "belly": "V   V"
+  ]
  },
  "x-python": {
   "mascot": "the two Python snakes",
@@ -119,8 +115,7 @@
    "ieifi",
    "i aai",
    " i i "
-  ],
-  "belly": "( py)"
+  ]
  },
  "x-logo": {
   "mascot": "the turtle",
@@ -142,8 +137,7 @@
    "ieifi",
    "i a i",
    " i i "
-  ],
-  "belly": "( ▲ )"
+  ]
  },
  "x-awk": {
   "mascot": "the auk",
@@ -165,8 +159,7 @@
    "ieafi",
    "iaaai",
    " i i "
-  ],
-  "belly": "(awk)"
+  ]
  },
  "x-r5rs": {
   "mascot": "lambda",
@@ -182,8 +175,7 @@
    "ieifi",
    "i a i",
    " i i "
-  ],
-  "belly": "( λ )"
+  ]
  },
  "x-r7rs": {
   "mascot": "lambda",
@@ -199,8 +191,7 @@
    "ieifi",
    "i a i",
    " i i "
-  ],
-  "belly": "( λ )"
+  ]
  },
  "x-krn": {
   "mascot": "$vau",
@@ -216,8 +207,7 @@
    "ieifi",
    "iaaai",
    " i i "
-  ],
-  "belly": "(vau)"
+  ]
  },
  "x-sweet": {
   "reference": "{O + O}",
@@ -232,8 +222,7 @@
    "ieifi",
    "iaaai",
    " i i "
-  ],
-  "belly": "({+})"
+  ]
  },
  "x-sed": {
   "reference": "s/owl/{O,O}/g",
@@ -248,8 +237,7 @@
    "ieifi",
    "iaaai",
    " i i "
-  ],
-  "belly": "(sed)"
+  ]
  },
  "x-grep": {
   "reference": "grep -c '{O,O}' *.x",
@@ -264,8 +252,7 @@
    "ieifi",
    "iaaai",
    " i i "
-  ],
-  "belly": "(/./)"
+  ]
  },
  "x-make": {
   "reference": "owl: ; echo '{O,O}'",
@@ -280,8 +267,7 @@
    "ieifi",
    "iaaai",
    " i i "
-  ],
-  "belly": "(all)"
+  ]
  },
  "x-coreutils": {
   "reference": "printf '%s\\n' '{O,O}'",
@@ -296,8 +282,7 @@
    "ieifi",
    "i a i",
    " i i "
-  ],
-  "belly": "( | )"
+  ]
  },
  "x-ash": {
   "reference": "$ echo '{O,O}'",
@@ -312,8 +297,7 @@
    "ieifi",
    "i a i",
    " i i "
-  ],
-  "belly": "( $ )"
+  ]
  },
  "x-cc": {
   "logo": "the C logo's blue",
@@ -334,7 +318,6 @@
    "ieifi",
    "iaaai",
    " i i "
-  ],
-  "belly": "(int)"
+  ]
  }
 }
