@@ -29,6 +29,11 @@
 ; approved 2026-08-20): the dispatch engine's own helpers are the
 ; measured hot path (8-30x, #332) the exception above exists for --
 ; each growth step is one warm-path helper, named per commit.
+; Grew by one for %sug-hint, and this one is NOT a hot-path helper -- it
+; is the did-you-mean suffix on a failed dispatch, cold by construction,
+; reached only on the way to raising.  It takes a row because BOTH error
+; sites need it (%dispatch-miss and the two call handlers), and its own
+; six helpers are nested inside it rather than spent as rows.
 ; doc-gen grew by one for %doc-vis-note, shared by the method and member
 ; emitters when an entry comes out of a (private ...) or (protected ...)
 ; block: inlining it instead would duplicate the tier wording at both call
@@ -231,7 +236,7 @@
 (file "lib/x/type/char.x" 5)
 (file "lib/x/type/record.x" 3)
 (file "lib/x/type/trait.x" 6)
-(file "lib/x/type/class.x" 89)
+(file "lib/x/type/class.x" 90)
 (file "lib/x/type/convert.x" 20)
 (file "lib/x/type/dict.x" 19)
 (file "lib/x/type/err.x" 6)

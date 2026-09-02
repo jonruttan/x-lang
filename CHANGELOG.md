@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A failed dispatch suggests what you meant.** `(List mp …)` answered `no
+such static member mp` and stopped; it now adds `-- did you mean map?`.
+Selectors within one edit of the miss, or a proper prefix of it, are
+proposed, three at most, privacy-wrapped entries skipped — a typo
+self-corrects, a wrong concept still does not, and a miss with nothing near
+it reads exactly as it did before. Both dispatch-miss sites share the one
+cold-path helper; the hot path never reaches it.
+
 **Two ways in that were missing, and a silent one that lied.** `x.sh` gained
 `-c/--eval`: evaluate an expression and exit, repeatable, expressions running
 in order, so a definition and its use fit in one command. Before it, asking
