@@ -158,7 +158,11 @@
 ; it WITHOUT recording a miss, so an older engine that lacks only that symbol
 ; still compiles everything else (the numeric analysers) rather than tripping
 ; the whole-runtime "JIT unavailable" refusal.
-(file "lib/x/tool/asm-compile.x" 64)
+; asm-compile.x rose 64 to 66 for %asm-object-params and %asm-memq: in
+; analyser mode the tokenizer protocol fixes the leading params as OBJECTS
+; (buffer, score), and the loader/self-call marshalling both have to know
+; which positions those are -- boxing or unboxing one is a segfault.
+(file "lib/x/tool/asm-compile.x" 66)
 (file "lib/x/tool/asm.x" 37)
 (file "lib/x/tool/asm/arm64.x" 8)
 (file "lib/x/tool/asm/x86_64.x" 23)

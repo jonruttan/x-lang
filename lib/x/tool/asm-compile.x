@@ -137,6 +137,15 @@
 ; Only a call to THAT name is self-recursion; anything else is an
 ; unsupported form and must say so -- see %asm-compile-funcall.
 (def %asm-self-name ())
+; In analyser mode the tokenizer protocol fixes the leading params: (self
+; buffer score chr) -- buffer and score are x_obj_t*, chr is a raw character.
+; A bare object param must load its POINTER, never unbox it: atomint on a
+; buffer reads its first word as an integer, and the trampolines then
+; dereference that.  These two names are the object-kinded ones.
+(def %asm-object-params ())
+(def %asm-memq
+  (fn (self x xs)
+    (if (null? xs) #f (if (eq? x (first xs)) #t (self x (rest xs))))))
 (def %asm-label-counter 0)
 
 ; Generate unique label names (for nested if/else)
@@ -191,7 +200,8 @@
 ; all along without the loader implementing it.
 (set! %asm-compile-param
   (fn (_ asm name params . %mode)
-    (def unbox (if (null? %mode) #t (first %mode)))
+    (def unbox
+      (if (null? %mode) (not (%asm-memq name %asm-object-params)) (first %mode)))
     (def %find
       (fn (self ps idx)
         (if (null? ps)
@@ -694,7 +704,14 @@
     (def nargs (%length args))
     (if (> nargs 4) (Err raise 'value "asm-compile: max 4 args for recursive calls" ()))
 
-    ; Evaluate each arg to raw integer, push to stack
+    ; Evaluate each arg and push.  An OBJECT-kinded position (the analyser
+    ; protocol's buffer/score) is pushed as its pointer and must NOT be
+    ; re-boxed below; every other position is a raw integer that must be.
+    (def %arg-is-object?
+      (fn (self i ps n)
+        (if (null? ps) #f
+          (if (= i n) (%asm-memq (first ps) %asm-object-params)
+            (self (+ i 1) (rest ps) n)))))
     (%for-each
       (fn (_ arg)
         (%asm-compile-expr asm arg params)
@@ -721,7 +738,12 @@
             ; this compiler's prologue already spills it.
             (asm-emit! asm 'mov x21 x0)   ; x21 = accum (save)
             (asm-pop! asm x0)            ; pop raw arg -> x0
-            (%emit-mkint! asm)                  ; x0 = atom(raw) via jit_mkint
+            ; Box ONLY a raw integer position.  Boxing an object position
+            ; would hand the callee an integer atom whose value happens to
+            ; be a pointer -- which is what made a self-recursive analyser
+            ; (read-ahead) segfault on its first buffer argument.
+            (unless (%arg-is-object? 0 params i)
+              (%emit-mkint! asm))                ; x0 = atom(raw) via jit_mkint
             (asm-emit! asm 'mov x1 x0)    ; x1 = a (atom)
             (asm-emit! asm 'mov x2 x21)   ; x2 = d (accum)
             (asm-emit! asm 'mov x0 x19)   ; x0 = p_base
@@ -747,8 +769,16 @@
     (asm-emit! asm 'ldr x8 (mem x8 0))
     (asm-emit! asm 'blr x8)
 
-    ; x0 = boxed result. Unbox to raw integer (inline LDR).
-    (%emit-atomint! asm)))
+    ; x0 = the callee's result.  Unbox it ONLY for a pure integer function.
+    ; In ANALYSER mode (fvars present) a handler returns an OBJECT -- a state,
+    ; the score, or nil -- and atomint would read that object's first word as
+    ; an integer and hand the tokenizer a garbage pointer to dereference.
+    ; This is the same integer-recursion assumption the argument marshalling
+    ; above makes, at the other end: compile-asm's own epilogue already boxes
+    ; the final result only when %compile-fvars is empty, and this mirrors it.
+    (if (null? %compile-fvars)
+      (%emit-atomint! asm)
+      ())))
 
 ; --- Public API ---
 
@@ -776,6 +806,11 @@
     (%ptr-set-word! self-cell 0 0)
     (set! %asm-self-cell self-cell)
     (set! %asm-self-name (first fn-params))
+    (set! %asm-object-params
+      (if (null? %compile-fvars) ()
+        (if (null? params) ()
+          (if (null? (rest params)) (list (first params))
+            (list (first params) (first (rest params)))))))
 
     ; Size the code buffer to the expression: asm-new's 4096-byte
     ; default is 1024 instructions, and a GENERATED body (an unrolled
@@ -811,6 +846,7 @@
     (%ptr-set-word! self-cell 0 (%ptr->int raw-fn))
     (set! %asm-self-cell ())
     (set! %asm-self-name ())
+    (set! %asm-object-params ())
     (set! %compile-fvars ())
 
     ; Create proper x-lang prim from the raw function pointer

@@ -85,3 +85,53 @@ disturbed by the slot-0 machinery.
 ```
 ---
     ("a" "b")
+
+## the self param as a CALL target
+
+A state may also CALL itself, and that path had never run for an
+analyser. `%asm-compile-funcall` was written for integer recursion: it
+marshalled every argument through `jit_mkint` and unboxed the result
+with `atomint`. Both are wrong here — `buffer` and `score` are
+`x_obj_t*`, and a handler returns an OBJECT (a state, the score, or
+nil). Boxing the buffer handed the callee an integer atom whose value
+happened to be a pointer; unboxing the result handed the tokenizer a
+pointer built out of an object's first word. Either way: segfault on
+the first self-call.
+
+### a compiled state calls itself, passing the buffer and score through
+
+`me` consumes letters by returning itself (the path above), and finishes
+through a self-CALL that carries `buffer` and `score` across the call
+before accepting. If either object were re-boxed on the way in, or the
+returned score unboxed on the way out, this reads nothing at all.
+
+```scheme
+(do
+  (def %b (Base make-tok))
+  (def %read-str (prim-ref 'tok 'read-str))
+  (def %buf-tok (prim-ref 'buf 'tok))
+  (def %body
+    (compile-asm
+      '(fn (me buffer score chr)
+        (if (and (>= chr 97) (<= chr 122))
+          me
+          (if (= chr 0)
+            (%seq (%buffer-unread buffer) (%score-set score 1 buffer))
+            (me buffer score 0))))
+      (list (pair 'u 1))))
+  (Base make-type %b "S-NAME"
+    (list (pair 'analyse
+        (compile-asm
+          '(fn (_ buffer score chr)
+            (if (and (>= chr 97) (<= chr 122)) body ()))
+          (list (pair 'body %body))))
+      (pair 'read (fn (_ . args) (%buf-tok (first args))))))
+  (Base make-type %b "S-WS"
+    (list (pair 'analyse
+      (fn (_ buffer score chr)
+        (if (= chr 32) (%score-set score -1 buffer) ())))))
+  (write (%read-str (Base raw-of %b) "de b a "))
+  (newline))
+```
+---
+    ("de" "b" "a")
