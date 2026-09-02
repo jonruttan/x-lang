@@ -1,5 +1,7 @@
 # x-lang
 
+<p align="center"><img src="docs/bitwise-banner.svg" alt="x-lang, with Bitwise the owl" width="100%"></p>
+
 ```
     ., .,
     {O,O}
@@ -358,3 +360,5 @@ vocabulary? The [Glossary](docs/glossary.md) defines the load-bearing terms
 ## License
 
 [MIT No Attribution (MIT-0)](LICENSE)
+
+<p align="center"><img src="docs/bitwise-mark.svg" alt="Bitwise" width="96"></p>
