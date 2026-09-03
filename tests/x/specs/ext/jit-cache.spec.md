@@ -108,23 +108,57 @@ merely hashed in — it is in the text the entry stores and the load compares.
 
 ### the fvar table's shape is part of the key
 
-The emitted code is not a function of the source alone. An empty table
-compiles a pure integer function whose result is boxed; a non-empty one
-compiles an analyser returning an object; and within analyser mode a name
-present-but-nil is emitted as a literal zero with no relocation at all. Three
-bodies for one source text, so three keys.
+The emitted code is not a function of the source alone. Within analyser mode
+a name absent from the table is read as a parameter while a name
+present-but-nil is emitted as a literal zero with no relocation at all --
+different bodies for one source text, so different keys.
 
 ```scheme
 (do
   (import x/tool/asm-cache)
   (def %e '(fn (_ x) x))
-  (write (list (str=? (%asm-cache-text %e ()) (%asm-cache-text %e '((y . 1))))
-               (str=? (%asm-cache-text %e '((y . 1))) (%asm-cache-text %e '((y . ()))))
-               (str=? (%asm-cache-text %e '((y . 1))) (%asm-cache-text %e '((z . 1))))))
+  (write (list (str=? (%asm-cache-text %e () #f) (%asm-cache-text %e '((y . 1)) #t))
+               (str=? (%asm-cache-text %e '((y . 1)) #t) (%asm-cache-text %e '((y . ())) #t))
+               (str=? (%asm-cache-text %e '((y . 1)) #t) (%asm-cache-text %e '((z . 1)) #t))))
   (newline))
 ```
 ---
     (#f #f #f)
+
+### the calling world is part of the key in its own right
+
+It used to be readable off the fvar table -- empty meant an integer function
+whose result is boxed, non-empty meant an analyser returning an object -- and
+is not any more, because an integer function may carry an fvar naming a callee
+it calls (#603). One source text and one fvar table now name two bodies, and
+the key has to say which.
+
+```scheme
+(do
+  (import x/tool/asm-cache)
+  (def %e '(fn (_ x) x))
+  (write (str=? (%asm-cache-text %e '((y . 1)) #f) (%asm-cache-text %e '((y . 1)) #t)))
+  (newline))
+```
+---
+    #f
+
+### an analyser entry is not served to an integer-mode compile
+
+The key case that matters, run end to end rather than on the key text: compile
+the analyser first so ITS entry is the one sitting in the cache, then ask for
+the identical source and the identical fvar table as an integer function. An
+integer function boxes its result; an analyser's would come back raw.
+
+```scheme
+(do
+  (def %src '(fn (_ n) (+ n 1)))
+  (def %fv (list (pair 'k 1)))
+  (compile-asm %src %fv)
+  (display ((compile-asm %src %fv #f) 41)))
+```
+---
+    42
 
 ### an entry that is not one misses rather than answering
 

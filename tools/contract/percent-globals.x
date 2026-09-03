@@ -228,7 +228,18 @@
 ; (a warm byte cache never loads this file, and the loader publishes them too),
 ; and %asm-compile-fresh arrived -- this file is now the MISS path under the
 ; cache door in asm-cache.x, not the public entry.
-(file "lib/x/tool/asm-compile.x" 68)
+; asm-compile.x rose 68 to 79 for calling something OTHER than itself
+; (#603, #604).  The lane had one call shape -- the self-call -- and now has
+; three, so the shared parts are named rather than nested inside one
+; definition: %asm-emit-arg-list! and %asm-arg-is-object? (the marshalling
+; both share), %asm-emit-call-result! (the unbox-only-for-an-integer-function
+; rule, at two call sites), %asm-compile-self-call and
+; %asm-compile-callable-call (the two shapes), %asm-form-name (a rejected head
+; is not always a symbol), %asm-fvar-callable? plus %asm-type-of and
+; %asm-prim-type (deciding at GENERATION whether a named fvar can be called),
+; %jit-call-value (the new trampoline) and %asm-analyser? (the calling world,
+; declared now instead of inferred from whether fvars are present).
+(file "lib/x/tool/asm-compile.x" 79)
 ; asm.x rose 37 to 38 for %ptr-ref: the relocator reads a site back (the
 ; ARM64 MOVZ carries the destination register) rather than making every
 ; relocation record carry one.
