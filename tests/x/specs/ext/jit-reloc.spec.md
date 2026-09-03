@@ -92,3 +92,34 @@ it only meant to rewrite in place.
 ```
 ---
     #t
+
+## surviving the collector
+
+### the records survive a collection while the builder is alive
+
+The records live in a slot on the ASM object, and between recording a site
+and reading it back there is nothing else holding them — so whether they
+survive is entirely a question of whether the mark hook can see that slot.
+It could not: `asm-new` makes seven slots and `set-units!` declared six, from
+the commit that added the relocations slot. One collection turned three
+records into a single nil, and the first thing to hold them across an
+allocation got `(() ...)` and segfaulted writing it.
+
+Forcing the collection is the whole point of the case — the defect is not
+that the records are wrong, it is that a collection landing in the wrong
+place makes them wrong, which is invisible until something allocates at the
+wrong moment.
+
+```scheme
+(do
+  (import x/sys/gc)
+  (def %a (asm-new 4096))
+  (asm-reloc! %a 0 'trampoline "jit_mkint")
+  (asm-reloc! %a 16 'fvar 'y)
+  (asm-reloc! %a 32 'self-cell ())
+  (Heap collect)
+  (write (asm-relocs %a))
+  (newline))
+```
+---
+    ((0 'trampoline "jit_mkint") (16 'fvar 'y) (32 'self-cell ()))
