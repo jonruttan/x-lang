@@ -270,3 +270,80 @@ this file uses the `Sys` abstraction for that reason).
 ```
 ---
     (0 0)
+
+## process identity and the machine
+
+### getuid and geteuid agree for a process nobody set-uid
+
+```scheme
+(do (import x/sys/posix)
+  (list (= (Sys getuid) (Sys geteuid)) (>= (Sys getuid) 0)))
+```
+---
+    (#t #t)
+
+### getgroups answers a list that carries the effective group
+
+```scheme
+(do (import x/sys/posix) (import x/core/list)
+  (def gs (Sys getgroups))
+  (list (pair? gs)
+        (null? (List filter (fn (_ g) (= g (Sys getegid))) gs))))
+```
+---
+    (#t #f)
+
+### uname names the system this build runs on
+
+```scheme
+(do (import x/sys/posix) (import x/core/alist) (import x/platform/syscall)
+  (def u (Sys uname))
+  (list (if os-darwin?
+          (Str8 =? (rest (Assoc entry 'sysname u)) "Darwin")
+          (Str8 =? (rest (Assoc entry 'sysname u)) "Linux"))
+        (> (Str8 length (rest (Assoc entry 'machine u))) 0)
+        (> (Str8 length (rest (Assoc entry 'release u))) 0)))
+```
+---
+    (#t #t #t)
+
+### cpu-count is at least one
+
+```scheme
+(do (import x/sys/posix) (>= (Sys cpu-count) 1))
+```
+---
+    #t
+
+### sync returns, and fsync flushes one open file
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (def p "/tmp/x-doors-fsync")
+  (def fd (File open p (list 'wronly 'creat 'trunc) 420))
+  (File write fd "flushed" 7)
+  (def r (Sys fsync fd))
+  (File close fd)
+  (Sys sync)
+  (def body (File read-all p))
+  (File unlink p)
+  (list r body))
+```
+---
+    (0 "flushed")
+
+### nice reports the priority it leaves the process at
+
+```scheme
+(do (import x/sys/posix) (>= (Sys nice 0) 0))
+```
+---
+    #t
+
+### chroot refuses an unprivileged caller rather than succeeding
+
+```scheme
+(do (import x/sys/posix) (< (Sys chroot "/tmp") 0))
+```
+---
+    #t

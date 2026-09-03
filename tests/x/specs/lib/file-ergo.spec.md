@@ -336,3 +336,105 @@ through the REPL error path -- jon hit corrupted error bytes).
 ```
 ---
     ('link 'file)
+
+## the metadata doors
+
+### chmod sets the mode stat reads back
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (def p "/tmp/x-doors-chmod")
+  (File write-all p "x")
+  (File chmod p 384)
+  (def m (& (Assoc get 'mode (File stat p)) 4095))
+  (File chmod p 420)
+  (def m2 (& (Assoc get 'mode (File stat p)) 4095))
+  (File unlink p)
+  (list m m2))
+```
+---
+    (384 420)
+
+### symlink writes a target readlink reads back, verbatim
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (def l "/tmp/x-doors-link")
+  (File symlink "../relative/target" l)
+  (def t (File readlink l))
+  (File unlink l)
+  t)
+```
+---
+    "../relative/target"
+
+### link makes a second name for the same bytes
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (def a "/tmp/x-doors-hard-a")
+  (def b "/tmp/x-doors-hard-b")
+  (File write-all a "shared")
+  (File link a b)
+  (def same (= (Assoc get 'ino (File stat a)) (Assoc get 'ino (File stat b))))
+  (def body (File read-all b))
+  (File unlink a)
+  (def survives (File read-all b))
+  (File unlink b)
+  (list body survives))
+```
+---
+    ("shared" "shared")
+
+### readlink refuses a path that is not a link
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file) (import x/type/err)
+  (def p "/tmp/x-doors-notlink")
+  (File write-all p "x")
+  (def r (guard (e (Err kind-of e)) (do (File readlink p) (lit no-raise))))
+  (File unlink p)
+  r)
+```
+---
+    'io
+
+### utimes bumps the modification time without touching the bytes
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (def p "/tmp/x-doors-utimes")
+  (File write-all p "unchanged")
+  (File utimes p)
+  (def s (File stat p))
+  (def body (File read-all p))
+  (File unlink p)
+  (list body (Assoc get 'size s)))
+```
+---
+    ("unchanged" 9)
+
+### mkfifo makes a path whose kind is fifo
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (def p "/tmp/x-doors-fifo")
+  (File mkfifo p)
+  (def k (Assoc get 'kind (File stat p)))
+  (File unlink p)
+  k)
+```
+---
+    'fifo
+
+### statfs answers block counts that multiply out to a real size
+
+```scheme
+(do (import x/sys/posix) (import x/sys/file)
+  (def s (File statfs "/tmp"))
+  (list (> (Assoc get 'bsize s) 0)
+        (> (Assoc get 'blocks s) 0)
+        (<= (Assoc get 'bavail s) (Assoc get 'blocks s))))
+```
+---
+    (#t #t #t)
