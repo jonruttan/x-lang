@@ -194,10 +194,17 @@
         (fn (_ self . args)
           (apply asm-emit! (pair self args)))))))
 
-; GC: ASM objects are 6 fixed slots (labels/patches alists are heap
+; GC: ASM objects are 7 fixed slots (labels/patches/relocs alists are heap
 ; pairs); without units the mark hook never traced them (same class as
 ; the vector-payload gap).
-((prim-ref 'type 'set-units!) ((prim-ref 'type 'by-atom) %asm-type) 6)
+;
+; THIS NUMBER MUST MATCH asm-new's %make-obj, and it did not.  It said 6 while
+; asm-new made 7, from the commit that added the relocations slot (#598) -- so
+; slot 6, the relocation records, was the one thing on a live builder the
+; collector could not see.  One (Heap collect) with three records held turned
+; them into a single nil: not a leak, a use-after-free, waiting for a
+; collection to land between recording a site and reading it back.
+((prim-ref 'type 'set-units!) ((prim-ref 'type 'by-atom) %asm-type) 7)
 
 ; --- Architecture loading ---
 ; Each arch module sets %arch to (table . encoder)
