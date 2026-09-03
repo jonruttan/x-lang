@@ -6,6 +6,11 @@
 ; Fetch the raw-object prims from the catalog (ns `obj` is de-registered, R5).
 (def %obj->ptr (prim-ref 'obj '->ptr))
 (def %make-callable (prim-ref 'obj 'make-callable))
+; Fetch the type prim from the catalog (ns `type` is de-registered, R5).
+; A callee has to be a PRIM and nothing else -- see %asm-callee-of, which
+; names that type by example (%obj->ptr came from the catalog, so it IS
+; one) rather than by a string the type system would have to look up.
+(def %asm-type-of (prim-ref 'type 'of))
 
 ; Fetch the string prims from the catalog (ns `str` is de-registered, R5).
 (def %str->symbol (prim-ref 'str '->sym))
@@ -163,9 +168,26 @@
 (def %asm-compile-funcall ())
 (def %asm-self-cell ())
 ; The name bound to the function being compiled (its self parameter).
-; Only a call to THAT name is self-recursion; anything else is an
-; unsupported form and must say so -- see %asm-compile-funcall.
+; Only a call to THAT name is self-recursion; anything else is either a
+; declared CALLEE (below) or an unsupported form that must say so --
+; see %asm-compile-funcall.
 (def %asm-self-name ())
+; The functions this compile may CALL: an alist ((name . prim) ...) of
+; already-compiled prims, compile-asm's third argument.
+;
+; A SEPARATE ARGUMENT FROM THE FVARS, because fvars mean something else
+; here: a non-empty fvar list is what puts the whole compile in ANALYSER
+; mode -- params stop eval-arg'ing, the first two become object-kinded,
+; and the result is returned unboxed (see %asm-compile-param).  An
+; integer function that named its callee as an fvar would silently be
+; compiled for C's scoring loop instead of for x, and calling it bus
+; errors (measured).  Callees ride their own list so an ordinary integer
+; function stays an ordinary integer function.
+;
+; Head position only.  A callee named anywhere else is not a value the
+; compiler can produce -- %asm-compile-param refuses it as unbound,
+; which is the honest answer.
+(def %asm-callees ())
 ; In analyser mode the tokenizer protocol fixes the leading params: (self
 ; buffer score chr) -- buffer and score are x_obj_t*, chr is a raw character.
 ; A bare object param must load its POINTER, never unbox it: atomint on a
@@ -182,6 +204,33 @@
 (def %asm-memq
   (fn (self x xs)
     (if (null? xs) #f (if (eq? x (first xs)) #t (self x (rest xs))))))
+; Resolve NAME as a callable this compile may branch to.
+;
+; Two tables answer, in this order: the callee list compile-asm was
+; given, then the fvars -- an analyser's fvar already carries a prim
+; (the tokenizer's replace-state protocol hands compiled handlers
+; around), so a call to one is a cross-call too.
+;
+; THREE ANSWERS, because two different mistakes reach here.  A prim is
+; the call.  A DECLARED name holding anything else raises RIGHT HERE and
+; says so: a closure is the dangerous one -- callable in x, no machine
+; code, so branching to its object would execute an object header -- and
+; naming it is a mistake worth its own sentence.  A name in neither table
+; answers nil, which %asm-compile-funcall refuses as an unsupported form
+; along with every other unrecognised head.
+(def %asm-callee-of
+  (fn (_ name)
+    (def entry
+      (let ((c (%asm-assq name %asm-callees)))
+        (if (null? c) (%compile-fvar-lookup name) c)))
+    (if (null? entry) ()
+      (let ((val (rest entry)))
+        (if (if (null? val) #f (eq? (%asm-type-of val) (%asm-type-of %obj->ptr)))
+          val
+          (Err raise 'value
+            (Str append "asm-compile: not a compiled function: "
+              (symbol->str name)) ()))))))
+
 (def %asm-label-counter 0)
 
 ; Generate unique label names (for nested if/else)
@@ -725,24 +774,30 @@
         (%asm-compile-expr asm else-expr params)
         (asm-label! asm lbl-end)))))
 
-; Self-recursive call via trampoline
-; The trampoline cell holds the prim's address. Save/restore x19/x20
-; across the call since the callee uses them too.
-(set! %asm-compile-funcall
-  (fn (_ asm fn-name args params)
-    (if (null? %asm-self-cell)
-      (Err raise 'value (Str append "asm-compile: unknown function: " (symbol->str fn-name)) ()))
-    ; Anything reaching here that is NOT the function's own name is an
-    ; operator the JIT does not implement -- a bitwise op on a build
-    ; without them, a typo, a library call.  This used to compile it AS
-    ; A SELF-CALL: the code ran, recursed on itself forever, and died
-    ; with a segfault far from the cause.  Silently wrong is the worst
-    ; failure mode a compiler has; refuse at generation instead.
-    (if (not (eq? fn-name %asm-self-name))
-      (Err raise 'value
-        (Str append "asm-compile: unsupported form: " (symbol->str fn-name)) ()))
+; --- Calls to a compiled function --------------------------------------
+;
+; Two shapes share one argument protocol.  A SELF-CALL branches through a
+; trampoline cell because the function's own prim does not exist yet while
+; its body is being compiled.  A CROSS-CALL branches to another prim that
+; already does -- an entry in %asm-callees, or an analyser's fvar.
+;
+; Both build a real x-lang argument list and enter through the prim ABI
+; (p_base, p_args), because that is the only entry a compiled function has:
+; its parameters read themselves out of p_args (see %asm-compile-param), so
+; a call that skipped the list would hand the callee whatever was in the
+; register.  The list costs one jit_mkint per integer argument and one
+; jit_mkpair per element; nothing here is cheaper than the interpreter by
+; being a call, only by being one call instead of a whole eval.
+
+; Marshal ARGS into an x-lang argument list, leaving (SELF a0 a1 ... aN) in
+; x0.  CALLEE is the prim to name in the self slot, or nil for a self-call
+; (whose own prim does not exist yet -- the slot is unused in integer mode
+; and %asm-compile-param reads it only in analyser mode, where the callee
+; IS the object the protocol wants back).
+(def %asm-emit-call-args!
+  (fn (_ asm fn-name args params callee)
     (def nargs (%length args))
-    (if (> nargs 4) (Err raise 'value "asm-compile: max 4 args for recursive calls" ()))
+    (if (> nargs 4) (Err raise 'value "asm-compile: max 4 args for compiled calls" ()))
 
     ; Evaluate each arg and push.  An OBJECT-kinded position (the analyser
     ; protocol's buffer/score) is pushed as its pointer and must NOT be
@@ -791,26 +846,88 @@
             (asm-push! asm x0)           ; push new accum
             (self (- i 1))))))
     (%build-arg (- nargs 1))
-    ; Pop final list, prepend nil as self
+    ; Pop final list, prepend the self slot
     (asm-pop! asm x0)                    ; x0 = (a0 a1 ... aN)
     (asm-emit! asm 'mov x2 x0)            ; x2 = d (args list)
-    (asm-emit! asm 'mov x1 (imm 0))       ; x1 = a (nil = self)
+    (if (null? callee)
+      (asm-emit! asm 'mov x1 (imm 0))     ; x1 = a (nil = self)
+      (do
+        ; The callee is baked as its object's ADDRESS -- per-process, so a
+        ; relocation site, recorded under the NAME that finds it again in
+        ; another process.  Its OWN kind, not `fvar`: what has to be found
+        ; again is a prim, and a loader that resolved it to any other value
+        ; would produce code that branches into it.
+        (asm-reloc! asm (asm-pos asm) (lit callee) fn-name)
+        (asm-load-imm64! asm x1 (%ptr->int (%obj->ptr callee)))))
     (asm-emit! asm 'mov x0 x19)           ; x0 = p_base
-    (%emit-call! asm %jit-mkpair)              ; x0 = (nil a0 a1 ...)
+    (%emit-call! asm %jit-mkpair)))            ; x0 = (self a0 a1 ...)
 
-    ; Call self: x0=p_base, x1=p_args
-    (asm-emit! asm 'mov x1 x0)           ; p_args
-    (asm-emit! asm 'mov x0 x19)          ; p_base
-    ; The self-call trampoline cell is malloc'd per compile -- one per
-    ; compiled function, so the record carries no name.
-    (asm-reloc! asm (asm-pos asm) (lit self-cell) ())
-    (asm-load-imm64! asm x8 (%ptr->int %asm-self-cell))
-    ; (mem BASE off) takes the base as a raw register NUMBER, not a
-    ; (reg n) operand -- passing x8 handed the encoder a list to shift,
-    ; so every self-recursive call died at GENERATION with ">>: operands
-    ; must be integers".  Recursion had simply never run.
-    (asm-emit! asm 'ldr x8 (mem x8 0))
-    (asm-emit! asm 'blr x8)
+; A call: self-recursion, a cross-call to another compiled function, or a
+; refusal.
+;
+; ANYTHING NOT IN THOSE TWO TABLES IS REFUSED AT GENERATION.  An operator
+; the JIT does not implement, a typo, a library call, a closure, a bound
+; name holding an integer -- all reach here, and this used to compile every
+; one of them AS A SELF-CALL: the code ran, recursed on itself forever, and
+; died with a segfault far from the cause.  Silently wrong is the worst
+; failure mode a compiler has, so the answer is a raise; the callers that
+; matter (the tower's ladder, Sha256's guard) catch it and stay interpreted,
+; which is correct and merely slower.
+;
+; A CROSS-CALL CANNOT CHECK THE CALLEE'S ARITY, and the callee's rules are
+; unforgiving: a compiled function reads parameter N by walking N+1 cells of
+; p_args, so a call that passes fewer arguments than the callee has
+; parameters walks off the end of the list and segfaults (measured, not
+; theoretical).  A prim carries no parameter count to check against -- it is
+; a C function pointer -- so this is the caller's contract to keep.
+(set! %asm-compile-funcall
+  (fn (_ asm fn-name args params)
+    (if (null? %asm-self-cell)
+      (Err raise 'value (Str append "asm-compile: unknown function: " (symbol->str fn-name)) ()))
+    (def %self? (eq? fn-name %asm-self-name))
+    (def callee (unless %self? (%asm-callee-of fn-name)))
+    (if (and (not %self?) (null? callee))
+      (Err raise 'value
+        (Str append "asm-compile: unsupported form: " (symbol->str fn-name)) ()))
+
+    (%asm-emit-call-args! asm fn-name args params callee)
+
+    (if (null? callee)
+      (do
+        ; Call self: x0=p_base, x1=p_args
+        (asm-emit! asm 'mov x1 x0)           ; p_args
+        (asm-emit! asm 'mov x0 x19)          ; p_base
+        ; The self-call trampoline cell is malloc'd per compile -- one per
+        ; compiled function, so the record carries no name.
+        (asm-reloc! asm (asm-pos asm) (lit self-cell) ())
+        (asm-load-imm64! asm x8 (%ptr->int %asm-self-cell))
+        ; (mem BASE off) takes the base as a raw register NUMBER, not a
+        ; (reg n) operand -- passing x8 handed the encoder a list to shift,
+        ; so every self-recursive call died at GENERATION with ">>: operands
+        ; must be integers".  Recursion had simply never run.
+        (asm-emit! asm 'ldr x8 (mem x8 0))
+        (asm-emit! asm 'blr x8))
+      (do
+        ; Cross-call: branch to the callee's own machine code.
+        ;
+        ; THE FUNCTION POINTER IS DATA UNIT 0 OF THE PRIM, which is exactly
+        ; what jit_firstobj returns -- x_primval and x_firstobj select two
+        ; members of the SAME union slot (x-obj.h), so the trampoline that
+        ; already exists reads the x_fn_t with no new engine symbol and no
+        ; offset for this file to know.  Reading it at run time rather than
+        ; baking the code address keeps one relocation per call site (the
+        ; object pointer, above) and keeps working if the prim is ever
+        ; re-pointed after this compile.
+        (asm-push! asm x0)                   ; save p_args across the fetch
+        (asm-reloc! asm (asm-pos asm) (lit callee) fn-name)
+        (asm-load-imm64! asm x0 (%ptr->int (%obj->ptr callee)))
+        (%emit-firstobj! asm)                ; x0 = the callee's x_fn_t
+        ; x8 only AFTER the last helper call: it is the call-target register
+        ; and %emit-call! loads its own target into it.
+        (asm-emit! asm 'mov x8 x0)
+        (asm-pop! asm x1)                    ; x1 = p_args
+        (asm-emit! asm 'mov x0 x19)          ; x0 = p_base
+        (asm-emit! asm 'blr x8)))
 
     ; x0 = the callee's result.  Unbox it ONLY for a pure integer function.
     ; In ANALYSER mode (fvars present) a handler returns an OBJECT -- a state,
@@ -839,6 +956,12 @@
     (if (not (eq? (first expr) 'fn))
       (Err raise 'type "compile-asm: expression must be (fn (_ params...) body)" ()))
     (set! %compile-fvars (unless (null? %asm-rest) (first %asm-rest)))
+    ; The third argument, and separate from the fvars on purpose -- see
+    ; %asm-callees.  A caller that has no callees passes nothing and gets
+    ; exactly the compiler it had before.
+    (set! %asm-callees
+      (unless (null? %asm-rest)
+        (unless (null? (rest %asm-rest)) (first (rest %asm-rest)))))
     (def fn-params (first (rest expr)))
     (def fn-body (first (rest (rest expr))))
     (def params (rest fn-params))  ; skip self (_)
@@ -892,6 +1015,7 @@
     (set! %asm-self-cell ())
     (set! %asm-self-name ())
     (set! %asm-object-params ())
+    (set! %asm-callees ())
     (set! %compile-fvars ())
 
     ; Create proper x-lang prim from the raw function pointer
@@ -899,8 +1023,10 @@
 (doc compile-asm
   (returns CALLABLE "X-lang callable prim")
   "JIT compile an x-lang (fn ...) expression to a native prim.
-   Accepts optional fvar alist for free variable support.
-   The compiled function works with map, fold, closures, etc.")
+   Accepts an optional fvar alist for free variable support, and an
+   optional third alist of already-compiled prims this body may CALL --
+   ((name . prim) ...), head position only.  The compiled function works
+   with map, fold, closures, etc.")
 
 (doc (provide x/tool/asm-compile compile-asm)
   "JIT compiler: x-lang to native code via assembler.")

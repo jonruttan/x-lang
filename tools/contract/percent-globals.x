@@ -168,7 +168,14 @@
 ; facts about freshly emitted code that a byte cache needs and that the
 ; assembler object -- which compile-asm does not return -- would otherwise
 ; take to the grave.
-(file "lib/x/tool/asm-compile.x" 70)
+; asm-compile.x rose 70 to 74 for cross-calls -- one compiled function
+; calling another: %asm-callees (the callee table, compile-asm's third
+; argument, and separate from the fvars because a non-empty fvar list is
+; what means ANALYSER), %asm-callee-of (the resolve-or-refuse that keeps a
+; closure from being branched into), %asm-type-of (the prim test that
+; refusal rests on), and %asm-emit-call-args! (the argument marshalling the
+; self-call and the cross-call now share instead of one owning it).
+(file "lib/x/tool/asm-compile.x" 74)
 ; asm.x rose 37 to 38 for %ptr-ref: the relocator reads a site back (the
 ; ARM64 MOVZ carries the destination register) rather than making every
 ; relocation record carry one.

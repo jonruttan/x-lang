@@ -266,7 +266,10 @@
 ; where the addresses went.
 ;
 ; KIND is `trampoline` (NAME is the dlsym symbol), `fvar` (NAME is the free
-; variable's symbol) or `self-cell` (NAME is nil -- there is one per compile).
+; variable's symbol), `callee` (NAME is the symbol of another compiled
+; function this code CALLS -- what must be found again is a prim, and
+; anything else resolves to code that branches into it) or `self-cell`
+; (NAME is nil -- there is one per compile).
 (def asm-reloc!
   (fn (_ asm offset kind name)
     (%obj-set! asm 6 (pair (list offset kind name) (%obj-ref asm 6)))))

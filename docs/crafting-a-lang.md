@@ -344,6 +344,22 @@ contesting type — and the platform can compile them:
   from C with live stack values — nothing evaluated, objects stay pointers,
   result returned unboxed).  A compiled-with-fvars function is **for the
   tokenizer, not for you**: direct-calling it crashes by contract.
+- **A compiled function may CALL another one.**  `compile-asm`'s third
+  argument is an alist `((name . prim) ...)` of already-compiled callees,
+  and a call to one of those names branches straight into its machine code
+  — so a callee with its own loop or recursion no longer has to be inlined
+  into every caller.  It is a separate argument from the fvars for the
+  reason above: naming a callee as an fvar would compile the caller for the
+  tokenizer instead of for x.  Analyser fvars that hold prims are callable
+  too, since an analyser is already in that world.  Two rules the compiler
+  cannot check for you: at most **four** arguments, and a call must pass
+  **every** parameter the callee has — a prim carries no arity, and passing
+  fewer walks off the end of the argument list and segfaults.
+- **A head that is not a self-call or a declared callee is REFUSED at
+  generation**, including a bound name holding a closure or an integer.
+  That refusal is load-bearing: compiling an unrecognised head as a
+  self-call once made the code recurse on itself and die arbitrarily far
+  from the cause.  Catch it and stay interpreted; do not try to widen it.
 - `%score-set`'s sign folds `(- 0 1)` and raises loudly on other
   non-literals; any other non-trivial constant belongs in an fvar.
 - **Adopt with sha256.x's pattern**: lazy, threshold-triggered, the whole

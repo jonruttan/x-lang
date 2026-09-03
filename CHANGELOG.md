@@ -5,6 +5,28 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**One compiled function can call another.** `compile-asm` refused every
+call whose head was not the function's own name, so the JIT lane could
+recurse but two compiled functions could not call each other -- anything a
+lane function needed from another had to be INLINED into it, which cannot
+work when the callee has a loop or its own recursion (an inlined body must
+be one expression, and an expression cannot loop). Callees are now
+`compile-asm`'s third argument, an alist `((name . prim) ...)` of
+already-compiled prims, and a call to one branches into its machine code:
+the self-call's argument marshalling, the callee's `x_fn_t` read out of
+data unit 0 of the prim (the union slot `jit_firstobj` already returns, so
+no new engine symbol), then `blr`. Analyser fvars holding prims are
+callable the same way. A separate argument from the fvars on purpose: a
+non-empty fvar list is what puts a compile in analyser mode, and an
+integer function compiled that way bus errors when x calls it. **The
+refusals are unchanged and load-bearing**: an unbound name, a name absent
+from the callee list, and a declared callee that is a closure or an
+integer all still raise at generation rather than compiling to a
+self-call -- the bug that made compiled code recurse on itself and die
+arbitrarily far from the cause. Two rules the compiler cannot check: at
+most four arguments, and a call must pass every parameter the callee has.
+Pinned in `tests/x/specs/ext/jit-cross-call.spec.md`, on both backends.
+
 ## [0.10.0] - 2026-09-01
 
 **The exact tower is exact at every magnitude.** Rational arithmetic
