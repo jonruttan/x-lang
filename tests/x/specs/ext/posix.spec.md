@@ -332,18 +332,34 @@ this file uses the `Sys` abstraction for that reason).
 ---
     (0 "flushed")
 
-### nice reports the priority it leaves the process at
+### nice with a zero increment leaves the priority where it was
+
+A process's nice value may be NEGATIVE -- it is a priority, not a
+count -- so the sign is not the thing to assert.  A zero increment is
+a no-op, and that is: it answers a number, and the same number twice.
 
 ```scheme
-(do (import x/sys/posix) (>= (Sys nice 0) 0))
+(do (import x/sys/posix)
+  (def a (Sys nice 0))
+  (list (number? a) (= a (Sys nice 0))))
 ```
 ---
-    #t
+    (#t #t)
 
-### chroot refuses an unprivileged caller rather than succeeding
+### chroot refuses a path that is not a directory
+
+The obvious probe -- chroot a real directory and expect EPERM -- is a
+TRAP: it asserts the caller is unprivileged, and under a root runner it
+would succeed and chroot the spec process for the rest of the suite.  A
+regular file is ENOTDIR for everyone, root included.
 
 ```scheme
-(do (import x/sys/posix) (< (Sys chroot "/tmp") 0))
+(do (import x/sys/posix) (import x/sys/file)
+  (def p "/tmp/x-doors-notadir")
+  (File write-all p "x")
+  (def r (Sys chroot p))
+  (File unlink p)
+  (< r 0))
 ```
 ---
     #t
