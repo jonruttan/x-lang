@@ -320,12 +320,15 @@
 
 
 ; --- JIT assembler: lazy-loaded on first pure-JIT use ---
-; The assembler toolchain (asm-compile.x -> asm.x -> host platform) is ~900 lines,
+; The assembler toolchain (asm-cache.x -> asm.x -> host platform) is ~900 lines,
 ; about half of compile.x's parse cost, and only the pure-JIT path needs it --
 ; compile-to-c and the C-compiler path never do. So ship a stub that loads the
 ; toolchain on first call via import (top-level defs bind globally and REPLACE
 ; this stub with the real compile-asm), then dispatches. import, not a path
 ; literal: resolves through the import roots so it works installed too.
+; The stub loads the CACHE, which is the door: it probes for the emitted bytes
+; before deciding whether the COMPILER (asm-compile.x, another 2.5M evals to
+; load) is needed at all, and on a warm cache it never is (x-lang#590).
 ; The stub is VARIADIC because the real compile-asm is: its optional second
 ; argument is the fvar table.  The original stub took only `expr`, so the
 ; FIRST compile-asm call in any fresh process silently dropped its fvars and
@@ -335,7 +338,7 @@
 ; x-lang#573 second-accept repro, whose first line died here instead.
 (def compile-asm
   (fn (_ expr . %asm-rest)
-    (import x/tool/asm-compile)
+    (import x/tool/asm-cache)
     (apply compile-asm (pair expr %asm-rest))))
 
 ; --- Default compile: JIT assembler with C compiler fallback ---

@@ -153,6 +153,15 @@
 (file "lib/x/sys/posix.x" 32)
 (file "lib/x/sys/socket.x" 31)
 (file "lib/x/sys/stream.x" 5)
+; asm-cache.x is a new file and 60 is nearly all DOORS: ~20 prim-refs and 10
+; dlsym'd libc entries, fetched once at load because this module may not walk
+; bytes and every catalog dispatch or symbol lookup on its path is a cost per
+; site.  The rest are the format's own constants (magic, kinds, strides) and
+; the parse and store helpers.  A class here would be a door per call on the
+; one lane where that is exactly what must not happen (x-lang#590).  The rest
+; are the size cap and the stand-aside seam -- the two reasons this module
+; declines an expression rather than keying it.
+(file "lib/x/tool/asm-cache.x" 66)
 ; asm-compile.x rose 63 to 64 for %jit-addr-optional: an OPTIONAL JIT
 ; trampoline (jit_buffer_last_char, newer than the core set) resolves through
 ; it WITHOUT recording a miss, so an older engine that lacks only that symbol
@@ -168,11 +177,20 @@
 ; facts about freshly emitted code that a byte cache needs and that the
 ; assembler object -- which compile-asm does not return -- would otherwise
 ; take to the grave.
-(file "lib/x/tool/asm-compile.x" 70)
+; asm-compile.x fell 70 to 69: %asm-last-relocs / %asm-last-size moved to asm.x
+; (a warm byte cache never loads this file, and the loader publishes them too),
+; and %asm-compile-fresh arrived -- this file is now the MISS path under the
+; cache door in asm-cache.x, not the public entry.
+(file "lib/x/tool/asm-compile.x" 68)
 ; asm.x rose 37 to 38 for %ptr-ref: the relocator reads a site back (the
 ; ARM64 MOVZ carries the destination register) rather than making every
 ; relocation record carry one.
-(file "lib/x/tool/asm.x" 38)
+; asm.x rose 38 to 41 for %asm-last-relocs / %asm-last-size / %asm-last-buf,
+; the facts about the most recently produced native function.  They started in
+; asm-compile.x, which is the wrong home once there are TWO producers: a hit in
+; the byte cache never loads that file, and nothing reading these should have
+; to know which path ran.
+(file "lib/x/tool/asm.x" 43)
 ; arm64.x rose 8 to 9 for %arm64-reloc: re-encoding a 64-bit immediate is
 ; per-backend work (MOVZ + 3x MOVK, sixteen bits to a word).
 (file "lib/x/tool/asm/arm64.x" 9)

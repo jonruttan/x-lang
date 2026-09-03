@@ -210,6 +210,40 @@
 ; Each arch module sets %arch to (table . encoder)
 (def %arch ())
 
+; The JIT runtime helpers asm-compile.x could not resolve.  It RECORDS them
+; while it loads and refuses at the entry point rather than mid-import (#201);
+; the name lives here so the entry point -- compile-asm, in asm-cache.x -- can
+; consult it without loading the compiler to find out.  Empty is the honest
+; answer before that file loads: nothing has tried to resolve anything yet,
+; and a genuinely missing helper makes every cached trampoline fail to
+; re-resolve, so the load misses and reaches the compiler's refusal anyway.
+(def %jit-missing ())
+
+; The fresh compiler, registered by asm-compile.x when it loads -- the same
+; shape as %arch above, and for the same reason: the seam has to be nameable
+; by a file that does not import the one filling it in.  asm-cache.x is the
+; compile-asm door and reaches the compiler only when the byte cache misses,
+; so it imports asm-compile.x on that line and calls whatever landed HERE.
+; A slot rather than a lazily-bound name because a name would have to be
+; forward-declared, and a forward declaration loaded in the wrong order would
+; overwrite the real definition with nil -- which in x does not raise: calling
+; nil silently answers the form as data.
+(def %asm-compiler ())
+
+; --- The facts about the most recently produced native function -----------
+; Set by whichever path produced it: asm-compile.x after it emits, asm-cache.x
+; after it loads.  They live HERE, not in asm-compile.x where they started,
+; because a warm cache never loads asm-compile.x -- and a reader of these
+; (the relocation specs, a byte cache) must not have to care which path ran.
+; The assembler object itself does not outlive either path, so these are the
+; only way out for what it knew.  Read them immediately after a compile or not
+; at all.
+(def %asm-last-relocs ())
+(def %asm-last-size 0)
+; The code buffer itself, not a copy: the cache stores the bytes with one
+; write(2) straight out of it.
+(def %asm-last-buf ())
+
 ; --- Public API ---
 
 (def asm-new
@@ -283,10 +317,19 @@
 ; slot 3 of %arch, beside the label patcher in slot 2.  MUST run while the
 ; buffer is still writable: asm-finalize! mprotects it R+X, and a write after
 ; that is a segfault, not an error.
+; The backend's relocator, or () when it has none.  Fetched apart from the
+; call because FINDING it costs a %length and a List ref -- a class dispatch --
+; which is nothing for one site and is not nothing for the scores of them a
+; cached function re-encodes on load.  A loader hoists this out of its loop and
+; calls the answer directly; asm-reloc-apply! below is the one-shot form.
+(def asm-relocator
+  (fn (_ asm)
+    (def arch (%obj-ref asm 5))
+    (when (> (%length arch) 3) (List ref 3 arch))))
+
 (def asm-reloc-apply!
   (fn (_ asm offset val)
-    (def arch (%obj-ref asm 5))
-    (def f (when (> (%length arch) 3) (List ref 3 arch)))
+    (def f (asm-relocator asm))
     (if (null? f)
       (Err raise 'state "asm: this backend cannot relocate a 64-bit immediate" ())
       (f (%obj-ref asm 0) offset val))))
