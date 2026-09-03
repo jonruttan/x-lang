@@ -1,4 +1,5 @@
-// node build.js [index.json] -- inline the xon data, the twin and the
+// node build.js [index.json] -- inline the glyphs, the gathered costumes,
+// the twin and the
 // project index into gallery.tmpl.html -> build/bitwise/gallery.html.
 // The index comes from `x -l bitwise -- --all` (build/bitwise/index.json);
 // without one the flock is the costume list, taglines empty.
@@ -8,7 +9,10 @@ const out = path.join(root, "build", "bitwise", "gallery.html");
 const indexPath = process.argv[2] || path.join(root, "build", "bitwise", "index.json");
 const safe = (t) => t.replace(/<\/(script)/gi, "<\\/$1");   // only </script ends a script block
 const glyphs = fs.readFileSync(path.join(here, "../glyphs.xon"), "utf8");
-const langs = fs.readFileSync(path.join(here, "../langs.xon"), "utf8");
+// the costumes the projects handed over, gathered by `x -l bitwise -- --all`
+const costumesPath = path.join(root, "build", "bitwise", "costumes.xon");
+const langs = fs.existsSync(costumesPath) ? fs.readFileSync(costumesPath, "utf8") : "";
+if (!langs) console.warn("build.js: no " + costumesPath + "; every owl will be plain (run: x -l bitwise -- --all)");
 const js = fs.readFileSync(path.join(here, "bitwise.js"), "utf8");
 let projects;
 if (fs.existsSync(indexPath)) {

@@ -23,6 +23,7 @@ from slowing the next.
   (import-path! "apps")
   (import bitwise/gen)
   (Bitwise root! "apps/bitwise")
+  (Bitwise costume-load! "tests/x/fixtures/bitwise/costumes/x-awk.xon")
   (def tag "A tagline with enough words in it to wrap past four lines of the banner column, so the fourth line ends with an ellipsis rather than running off the edge of the picture")
   (List for-each
     (fn (_ fmt)
@@ -45,6 +46,7 @@ from slowing the next.
   (import-path! "apps")
   (import bitwise/gen)
   (Bitwise root! "apps/bitwise")
+  (Bitwise costume-load! "tests/x/fixtures/bitwise/costumes/x-r5rs.xon")
   (def tag "A tagline with enough words in it to wrap past four lines of the banner column, so the fourth line ends with an ellipsis rather than running off the edge of the picture")
   (List for-each
     (fn (_ fmt)
@@ -67,6 +69,7 @@ from slowing the next.
   (import-path! "apps")
   (import bitwise/gen)
   (Bitwise root! "apps/bitwise")
+  (Bitwise costume-load! "tests/x/fixtures/bitwise/costumes/x-sweet.xon")
   (def tag "A tagline with enough words in it to wrap past four lines of the banner column, so the fourth line ends with an ellipsis rather than running off the edge of the picture")
   (List for-each
     (fn (_ fmt)
@@ -111,6 +114,7 @@ from slowing the next.
   (import-path! "apps")
   (import bitwise/gen)
   (Bitwise root! "apps/bitwise")
+  (Bitwise costume-load! "tests/x/fixtures/bitwise/costumes/x-cc.xon")
   (def tag "A tagline with enough words in it to wrap past four lines of the banner column, so the fourth line ends with an ellipsis rather than running off the edge of the picture")
   (List for-each
     (fn (_ fmt)

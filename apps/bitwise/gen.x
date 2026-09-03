@@ -16,9 +16,12 @@
 ; (glyphs.xon), so it is the same owl on every machine.  The project's NAME
 ; decides everything around it: sha256(name) seeds a bitwise function over a
 ; cell grid -- the field the owl sits on -- and the accent hue.  A project
-; with a mascot, a logo colour or an idiom of its own wears it as a COSTUME
-; from langs.xon: glyph rows around the owl, brand colours, a reference
-; line in its language.  Same name, same picture, forever.
+; with a mascot, a logo colour or an idiom of its own wears it as a COSTUME:
+; glyph rows around the owl, brand colours, a reference line in its language.
+; A costume belongs to the PROJECT, not to this app -- each repository
+; carries its own `bitwise.xon` and hands it over with (Bitwise costume-load!
+; path); an unregistered name wears the plain owl.  Same name, same picture,
+; forever.
 ;
 ; EVERY QUANTITY IS AN INTEGER.  Geometry is carried in micro-units (%U per
 ; user unit) and formatted with %fmt, half-up, so the picture is a function
@@ -39,13 +42,15 @@
   (doc "The owl sigil, drawn for a project: (Bitwise render name fmt tagline kind uid) is an SVG whose field, colours and costume the name decides."
     (example "(first (Bitwise params \"x-lang\"))" "..."))
   (static
-    ; where glyphs.xon and langs.xon live: the entry arms it from
+    ; where glyphs.xon lives: the entry arms it from
     ; %install-root, a spec from the repo root.  No literal here -- a runtime
     ; module may not know the tree's layout (tools/check/path-literals.sh).
     (%root-cell (pair () ()))
-    ; the loaded data, read on the first render, never at import: the
+    ; the loaded glyphs, read on the first render, never at import: the
     ; linter imports this module as data with no root armed
     (%data-cell (pair () ()))
+    ; the costumes projects have handed over, by name
+    (%costumes-cell (pair () ()))
     (%U 1000000)
     (%ink "#161a22")
     (%paper "#f2f4f7")
@@ -55,24 +60,21 @@
     (%ops (list "xor" "and" "or" "rings" "moire" "prod"))
     (%grids (list 16 20 24 32))
 
-    (method root! (self (param path STRING "Directory holding glyphs.xon and langs.xon"))
-      (doc "Arm the data root.  The entry does this from %install-root; a spec names apps/bitwise."
+    (method root! (self (param path STRING "Directory holding glyphs.xon"))
+      (doc "Arm the glyph root.  The entry does this from %install-root; a spec names apps/bitwise."
         (returns STRING "The path"))
       (%set-first! (Bitwise %root-cell) path)
       path)
 
-    ; The two data files are xon: forms the ordinary reader reads and no one
-    ; evaluates.  glyphs.xon is (font ...) then one (glyph "CHAR" INDEX "PATH")
-    ; per glyph; langs.xon is one (costume "NAME" (field ...) ...) per project,
-    ; each field form becoming a string-keyed entry on the costume's Dict.
+    ; glyphs.xon is xon: forms the ordinary reader reads and no one
+    ; evaluates -- (font ...), then one (glyph "CHAR" INDEX "PATH") per glyph.
     (method %data (self)
       (let ((d (first (Bitwise %data-cell))))
         (if (null? d)
           (let ((root (first (Bitwise %root-cell)))
                 (nd (Dict make))
                 (gmap (Dict make))
-                (gix (Dict make))
-                (langs (Dict make)))
+                (gix (Dict make)))
             (List for-each
               (fn (_ form)
                 (let ((head (symbol->str (first form))))
@@ -87,30 +89,52 @@
                          (gmap set! (List ref 1 form) (List ref 3 form))))
                     (#t ()))))
               (Xon parse (File read-all (%path-join root "glyphs.xon"))))
-            (List for-each
-              (fn (_ form)
-                (when (str=? (symbol->str (first form)) "costume")
-                  (let ((lang (Dict make)))
-                    (List for-each
-                      (fn (_ field)
-                        (let ((key (symbol->str (first field))) (vals (rest field)))
-                          (lang set! key
-                            (match
-                              ((str=? key "accent") vals)
-                              ((str=? key "secondary") vals)
-                              ((str=? key "eyes") vals)
-                              ((str=? key "rows") vals)
-                              ((str=? key "roles") vals)
-                              (#t (first vals))))))
-                      (rest (rest form)))
-                    (langs set! (List ref 1 form) lang))))
-              (Xon parse (File read-all (%path-join root "langs.xon"))))
             (nd set! 'gmap gmap)
             (nd set! 'gix gix)
-            (nd set! 'langs langs)
             (%set-first! (Bitwise %data-cell) nd)
             nd)
           d)))
+
+    ; ---------------------------------------------------------------- costumes
+
+    (method %costumes (self)
+      (let ((c (first (Bitwise %costumes-cell))))
+        (if (null? c)
+          (let ((d (Dict make))) (%set-first! (Bitwise %costumes-cell) d) d)
+          c)))
+
+    ; One (costume "NAME" (field ...) ...) form -> a name and its Dict.  The
+    ; five list-valued fields keep their arguments; every other field is the
+    ; one argument it carries.
+    (method %costume-of (self form)
+      (def lang (Dict make))
+      (List for-each
+        (fn (_ field)
+          (let ((key (symbol->str (first field))) (vals (rest field)))
+            (lang set! key
+              (match
+                ((str=? key "accent") vals)
+                ((str=? key "secondary") vals)
+                ((str=? key "eyes") vals)
+                ((str=? key "rows") vals)
+                ((str=? key "roles") vals)
+                (#t (first vals))))))
+        (rest (rest form)))
+      (pair (List ref 1 form) lang))
+
+    (method costume-load! (self (param path STRING "A project's bitwise.xon"))
+      (doc "Register every (costume \"NAME\" ...) form in a project's own bitwise.xon, so a render of that name wears it.  A name with no costume registered wears the plain owl."
+        (returns LIST "The names registered, in file order")
+        (example "(Bitwise costume-load! \"bitwise.xon\")" "(\"x-lang\")"))
+      (def out ())
+      (List for-each
+        (fn (_ form)
+          (when (if (pair? form) (str=? (symbol->str (first form)) "costume") #f)
+            (let ((nl (Bitwise %costume-of form)))
+              ((Bitwise %costumes) set! (first nl) (rest nl))
+              (set! out (pair (first nl) out)))))
+        (Xon parse (File read-all path)))
+      (%reverse out))
 
     (method %s (self v) (Io display-to-str v))
     (method %cat (self parts) (%str-concat parts))
@@ -466,15 +490,15 @@
     ; ---------------------------------------------------------------- entry
 
     (method %lang-of (self name)
-      (def langs ((self %data) get 'langs))
-      (if (langs has? name) (langs get name) (Dict make)))
+      (def cs (self %costumes))
+      (if (cs has? name) (cs get name) (Dict make)))
 
     (method render (self (param name STRING "The project's name")
                          (param fmt STRING "mark, avatar or banner")
                          (param tagline STRING "One sentence for the banner; may be empty")
                          (param kind STRING "The banner's eyebrow, e.g. \"a language on x-lang\"; empty for the default")
                          (param uid STRING "Prefix for the SVG ids, so several pictures can share a page"))
-      (doc "Draw the project: (svg . params).  The owl is set from outlines, the field and hue from sha256(name), the costume from langs.xon."
+      (doc "Draw the project: (svg . params).  The owl is set from outlines, the field and hue from sha256(name), the costume from whatever (Bitwise costume-load! ...) registered for the name."
         (returns PAIR "The SVG text, then the params Dict with 'costume and 'reference added")
         (example "(Str8 sub 0 4 (first (Bitwise render \"x-lang\" \"mark\" \"\" \"\" \"o\")))" "\"<svg\""))
       (def p (self params name))

@@ -38,12 +38,12 @@ its README, and writes into `--out` (default `build/bitwise`) plus an
 | `gen.x` | class `Bitwise`: seeding, field, palette, costume, the owl, the formats; `(Bitwise render name fmt tagline kind uid)`, `(Bitwise params name)`, `(Bitwise diff a b)` |
 | `cli.x` | class `BitwiseCli`: arguments, workspace discovery, README taglines, files and PNGs; `(BitwiseCli main args)` |
 | `glyphs.xon` | printable ASCII, λ and ▲ as outlines from Roboto Mono Regular (Apache-2.0); ▲ borrowed from Menlo |
-| `langs.xon` | the costumes: per project, glyph rows, colours, a reference line |
 | `gallery/bitwise.js` | the browser twin: the same integer geometry, byte-identical output |
 | `gallery/gallery.tmpl.html`, `gallery/build.js` | the live page: `node apps/bitwise/gallery/build.js` → `build/bitwise/gallery.html` |
-| `gallery/parity.js` | prints the twin's digests in the shape `tests/x/specs/apps/bitwise-parity.spec.md` asserts |
+| `gallery/parity.js` | renders the twin's side of the parity set, from the same frozen costumes the specs load |
 
-Each file is one class and one public global, every helper a `%`-static on
+The project files this app reads live in the projects: each repository
+carries `bitwise.xon` at its root. Each file here is one class and one public global, every helper a `%`-static on
 it (the tree's rule for `%`-globals); the data root is armed with
 `(Bitwise root! dir)`, by the entry from `%install-root` and by a spec as
 `apps/bitwise`.
@@ -72,8 +72,12 @@ itself is never generated.
 
 ## Costumes
 
-`langs.xon` holds one `(costume "NAME" ...)` form per project; every field
-is optional:
+**A costume belongs to its project.** Each repository carries `bitwise.xon`
+at its root holding its own `(costume "NAME" ...)` form; discovery hands
+every one it finds to `(Bitwise costume-load! path)`, and a name with no
+costume registered wears the plain owl. `--all` also writes the gathered
+forms as `costumes.xon` beside the pictures, which is what the gallery build
+inlines for the browser twin. Every field is optional:
 
 ```
 (costume "x-python"

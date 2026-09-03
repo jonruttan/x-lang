@@ -1,0 +1,7 @@
+; x-sweet's bitwise.xon, frozen: the parity specs must not depend on a
+; sibling checkout being present, or on its costume staying still.
+
+(costume "x-sweet"
+  (rows "., .," "{OvO}" "({+})" " \" \"")
+  (roles "ii ii" "ieifi" "iaaai" " i i ")
+  (reference "{O + O}"))

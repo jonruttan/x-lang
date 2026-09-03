@@ -4,8 +4,8 @@
 
 `apps/bitwise` draws the ASCII owl from every source header for a named
 project: the owl is set from Roboto Mono outlines, the field it sits on and
-its accent hue come from sha256(name), and a costume from langs.json adds a
-project's mascot, colours and idiom.  Every quantity is an integer, so the
+its accent hue come from sha256(name), and the project's own `bitwise.xon`
+adds its mascot, colours and idiom.  Every quantity is an integer, so the
 picture is a function of the name alone -- and the gallery's browser twin,
 `apps/bitwise/gallery/bitwise.js`, must produce the identical bytes: see
 `bitwise-parity.spec.md` for the digests both sides answer.
@@ -63,6 +63,7 @@ touches; these two are the ones whose first draw was outside it.
   (import-path! "apps")
   (import bitwise/gen)
   (Bitwise root! "apps/bitwise")
+  (Bitwise costume-load! "tests/x/fixtures/bitwise/costumes/x-lang.xon")
   (def svg (first (Bitwise render "x-lang" "mark" "" "" "o")))
   (display (list (Str8 includes? "<path id=\"o-47\" d=\"M" svg)
                  (Str8 includes? "<use href=\"#o-47\" transform=\"translate(" svg)
@@ -111,7 +112,11 @@ A Kernel surface on x-lang, riding
 A fixture for x-lang's owl, the second tool of the self-hosting arc
 ```
 
-### --all walks a workspace root, writes every format, and an index
+### --all gathers each project's costume, writes every format, and an index
+
+Both fixture projects carry their own `bitwise.xon`, so the costume column
+and the gathered `costumes.xon` are this case's own doing, not a leftover
+from an earlier one.
 
 ```scheme
 (do
@@ -124,14 +129,17 @@ A fixture for x-lang's owl, the second tool of the self-hosting arc
   (display (List map (fn (_ d) (list (d get "name") (d get "kind") (d get "tagline"))) index))
   (newline)
   (display (List map (fn (_ f) (File exists? (%path-join "build/bitwise-spec" f)))
-             (list "x-lang-mark.svg" "x-lang-avatar.svg" "x-lang-banner.svg" "x-fixture-banner.svg"))))
+             (list "x-lang-mark.svg" "x-lang-avatar.svg" "x-lang-banner.svg" "x-fixture-banner.svg")))
+  (newline)
+  (display (Str8 includes? "(costume \"x-fixture\"" (File read-all "build/bitwise-spec/costumes.xon"))))
 ```
 ---
 ```output
 x-lang          xor    bit 3  n=32  hue 261.6                           (def owl '{O,O})
-x-fixture       xor    bit 3  n=24  hue  90.9                           
+x-fixture       xor    bit 3  n=24  hue  90.9  the fixture              (fixture)
 ((x-lang the language The language, as a fixture) (x-fixture a language on x-lang A fixture for x-lang's owl, the second tool of the self-hosting arc))
 (#t #t #t #t)
+#t
 ```
 
 ### --json answers the seeded parameters for one name
@@ -141,6 +149,7 @@ x-fixture       xor    bit 3  n=24  hue  90.9
   (import-path! "apps")
   (import bitwise/cli)
   (Bitwise root! "apps/bitwise")
+  (Bitwise costume-load! "tests/x/fixtures/bitwise/costumes/x-awk.xon")
   (import x/codec/json)
   (def out (Io display-to-str (Json emit (rest (Bitwise render "x-awk" "mark" "" "" "o")))))
   (display (list (Str8 includes? "\"opname\":\"or\"" out) (Str8 includes? "\"costume\":\"the auk\"" out))))

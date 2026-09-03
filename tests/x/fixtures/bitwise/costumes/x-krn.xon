@@ -1,0 +1,8 @@
+; x-krn's bitwise.xon, frozen: the parity specs must not depend on a
+; sibling checkout being present, or on its costume staying still.
+
+(costume "x-krn"
+  (mascot "$vau")
+  (rows "., .," "{OvO}" "(krn)" " \" \"")
+  (roles "ii ii" "ieifi" "iaaai" " i i ")
+  (reference "($vau (x) e '{O,O})"))

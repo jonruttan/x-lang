@@ -1,0 +1,10 @@
+; x-awk's bitwise.xon, frozen: the parity specs must not depend on a
+; sibling checkout being present, or on its costume staying still.
+
+(costume "x-awk"
+  (mascot "the auk")
+  (logo "auk black")
+  (accent 214 11 25)
+  (rows "., .," "{O>O}" "(awk)" " \" \"")
+  (roles "ii ii" "ieafi" "iaaai" " i i ")
+  (reference "awk '/{O,O}/'"))

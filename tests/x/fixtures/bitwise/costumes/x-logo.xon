@@ -1,0 +1,10 @@
+; x-logo's bitwise.xon, frozen: the parity specs must not depend on a
+; sibling checkout being present, or on its costume staying still.
+
+(costume "x-logo"
+  (mascot "the turtle")
+  (logo "turtle green")
+  (accent 146 50 36)
+  (rows "., .," "{OvO}" "( ▲ )" " \" \"")
+  (roles "ii ii" "ieifi" "i a i" " i i ")
+  (reference "REPEAT 4 [FD 100 RT 90]"))

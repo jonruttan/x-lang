@@ -1,0 +1,6 @@
+; the fixture project's own costume, so the --all case exercises gathering
+(costume "x-fixture"
+  (mascot "the fixture")
+  (rows "., .," "{OvO}" "(fix)" " \" \"")
+  (roles "ii ii" "ieifi" "iaaai" " i i ")
+  (reference "(fixture)"))

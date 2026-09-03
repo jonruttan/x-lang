@@ -12,7 +12,7 @@
 ;      " "
 ;
 ;   x -l bitwise -- NAME [--fmt mark|avatar|banner] [--tagline TEXT]
-;                        [--kind KIND] [-o FILE] [--png] [--json]
+;                        [--kind KIND] [--costume FILE] [-o FILE] [--png] [--json]
 ;   x -l bitwise -- --all [--root DIR] [--out DIR] [--png]
 ;
 ; --all discovers x-expr, x-lang, engines/* and languages/* under --root
@@ -20,6 +20,13 @@
 ; each tagline off the first paragraph of its README, and writes every
 ; format for every project plus index.json.  --png shells out to
 ; rsvg-convert when it is on PATH.
+;
+; A COSTUME BELONGS TO ITS PROJECT: each repository carries `bitwise.xon` at
+; its root, and this is what finds it -- discovery hands every one it meets
+; to (Bitwise costume-load! ...), and a single NAME is looked up the same way
+; (--costume names one directly, for a project that is not in the workspace).
+; --all also writes the gathered forms as costumes.xon beside the pictures,
+; which is what the gallery build inlines for the browser twin.
 (import x/type/class)
 (import bitwise/gen)
 (import x/sys/proc)
@@ -51,6 +58,7 @@
       (o set! 'fmt "mark")
       (o set! 'tagline "")
       (o set! 'kind "")
+      (o set! 'costume #f)
       (o set! 'out #f)
       (o set! 'png #f)
       (o set! 'json #f)
@@ -65,6 +73,7 @@
               ((str=? a "--fmt") (do (o set! 'fmt (first more)) (go (rest more))))
               ((str=? a "--tagline") (do (o set! 'tagline (first more)) (go (rest more))))
               ((str=? a "--kind") (do (o set! 'kind (first more)) (go (rest more))))
+              ((str=? a "--costume") (do (o set! 'costume (first more)) (go (rest more))))
               ((str=? a "-o") (do (o set! 'out (first more)) (go (rest more))))
               ((str=? a "--root") (do (o set! 'root (first more)) (go (rest more))))
               ((str=? a "--out") (do (o set! 'outdir (first more)) (go (rest more))))
@@ -159,6 +168,12 @@
 
     ; ---------------------------------------------------------------- output
 
+    ; A project's own costume file, if it carries one.
+    (method %costume-file (self dir) (%path-join dir "bitwise.xon"))
+    (method %wear! (self dir)
+      (let ((f (self %costume-file dir)))
+        (when (File exists? f) (Bitwise costume-load! f))))
+
     (method %png! (self svg-path fmt)
       (def png (%str-concat (list (Str8 sub 0 (- (Str8 length svg-path) 4) svg-path) ".png")))
       (Proc run! (list "rsvg-convert" "-w" (Io display-to-str (self %width fmt)) svg-path "-o" png))
@@ -167,6 +182,17 @@
     (method %run-all (self o)
       (def outdir (o get 'outdir))
       (unless (File exists? outdir) (File mkdir outdir))
+      (def projects (self %discover (o get 'root)))
+      ; every project's own costume, before anything is drawn -- and the
+      ; gathered forms beside the pictures, for the gallery build
+      (List for-each (fn (_ proj) (BitwiseCli %wear! (first (rest proj)))) projects)
+      (File write-all (%path-join outdir "costumes.xon")
+        (%str-concat
+          (List map
+            (fn (_ proj)
+              (let ((f (BitwiseCli %costume-file (first (rest proj)))))
+                (if (File exists? f) (%str-concat (list (File read-all f) "\n")) "")))
+            projects)))
       (def index
         (List map
           (fn (_ proj)
@@ -189,10 +215,15 @@
                     (d set! "bit" (p get 'bit)) (d set! "n" (p get 'n)) (d set! "hue10" (p get 'hue10))
                     (d set! "lit" (p get 'lit)) (d set! "costume" (p get 'costume)) (d set! "reference" (p get 'reference))
                     d)))))
-          (self %discover (o get 'root))))
+          projects))
       (File write-all (%path-join outdir "index.json") (Json emit index)))
 
     (method %run-one (self o)
+      ; the costume named outright, else the project's own file if the
+      ; workspace holds it; failing both, the plain owl
+      (if (o get 'costume) (Bitwise costume-load! (o get 'costume))
+        (let ((proj (%find (fn (_ e) (str=? (first e) (o get 'name))) (self %discover (o get 'root)))))
+          (when proj (self %wear! (first (rest proj))))))
       (def r (Bitwise render (o get 'name) (o get 'fmt) (o get 'tagline) (o get 'kind) "o"))
       (if (o get 'json)
         (display (%str-concat (list (Json emit (rest r)) "\n")))
@@ -208,7 +239,7 @@
       (def o (self %opts (self %argv raw)))
       (if (o get 'all) (self %run-all o)
         (if (o get 'name) (self %run-one o)
-          (display (%str-concat (list "usage: x -l bitwise -- NAME [--fmt mark|avatar|banner] [--tagline TEXT] [--kind KIND] [-o FILE] [--png] [--json]\n"
+          (display (%str-concat (list "usage: x -l bitwise -- NAME [--fmt mark|avatar|banner] [--tagline TEXT] [--kind KIND] [--costume FILE] [-o FILE] [--png] [--json]\n"
                                       "       x -l bitwise -- --all [--root DIR] [--out DIR] [--png]\n"))))))))
 
 (provide bitwise/cli BitwiseCli)

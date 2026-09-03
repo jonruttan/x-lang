@@ -65,9 +65,20 @@
     }
     return langs;
   }
-  const readText = (name) => (typeof require === "function") ? require("fs").readFileSync(require("path").join(__dirname, "..", name), "utf8") : null;
+  // In a browser the gallery build injects both texts.  Under node (the
+  // parity script) the glyphs come from beside this file, and the costumes
+  // from the SAME frozen fixtures the specs load -- both sides must draw
+  // from identical inputs for a parity run to mean anything.
+  const readText = (rel) => (typeof require === "function") ? require("fs").readFileSync(require("path").join(__dirname, "..", rel), "utf8") : null;
+  function fixtureCostumes() {
+    if (typeof require !== "function") return "";
+    const fs = require("fs"), path = require("path");
+    const dir = path.join(__dirname, "../../../tests/x/fixtures/bitwise/costumes");
+    return fs.readdirSync(dir).filter((f) => f.endsWith(".xon")).sort()
+      .map((f) => fs.readFileSync(path.join(dir, f), "utf8")).join("\n");
+  }
   const GLYPHS = shapeGlyphs((typeof BITWISE_GLYPHS_XON !== "undefined") ? BITWISE_GLYPHS_XON : readText("glyphs.xon"));
-  const LANGS = shapeLangs((typeof BITWISE_LANGS_XON !== "undefined") ? BITWISE_LANGS_XON : readText("langs.xon"));
+  const LANGS = shapeLangs((typeof BITWISE_LANGS_XON !== "undefined") ? BITWISE_LANGS_XON : fixtureCostumes());
   const UPM = GLYPHS.upm, ADV = GLYPHS.adv, ASC = GLYPHS.asc, LINE = GLYPHS.asc - GLYPHS.desc + GLYPHS.gap;
   const U = 1000000, INK = "#161a22", PAPER = "#f2f4f7";
   const FONT = "'Roboto Mono','Martian Mono',Menlo,'DejaVu Sans Mono',ui-monospace,monospace";

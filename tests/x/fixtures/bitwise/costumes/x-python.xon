@@ -1,0 +1,12 @@
+; x-python's bitwise.xon, frozen: the parity specs must not depend on a
+; sibling checkout being present, or on its costume staying still.
+
+(costume "x-python"
+  (mascot "the two Python snakes")
+  (logo "Python blue and yellow")
+  (accent 207 51 44)
+  (secondary 45 100 42)
+  (eyes (207 51 44) (45 100 42))
+  (rows "., .," "{OvO}" "( py)" " \" \"")
+  (roles "ii ii" "ieifi" "i aai" " i i ")
+  (reference "print(\"{O,O}\")"))

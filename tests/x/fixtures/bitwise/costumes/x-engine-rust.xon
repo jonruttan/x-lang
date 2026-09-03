@@ -1,0 +1,10 @@
+; x-engine-rust's bitwise.xon, frozen: the parity specs must not depend on a
+; sibling checkout being present, or on its costume staying still.
+
+(costume "x-engine-rust"
+  (mascot "Ferris the crab")
+  (logo "Ferris orange")
+  (accent 18 100 48)
+  (rows "., .," "{OvO}" "V   V" " \" \"")
+  (roles "ii ii" "ieifi" "a   a" " i i ")
+  (reference "let owl = \"{O,O}\";"))
