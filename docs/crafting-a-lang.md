@@ -258,7 +258,9 @@ which is what makes everything unreachable there genuinely dead.
 
 **An isolated tokenizer base does not survive collection.**  This is the one
 that turns the rule above into a dilemma, and it is a platform defect rather
-than a rule to code around.  A base from `(Base make-tok)` with a type
+than a rule to code around — tracked as
+[#599](https://github.com/jonruttan/x-lang/issues/599), so if that is closed,
+delete this entry rather than working around it.  A base from `(Base make-tok)` with a type
 registered on it reads correctly, survives one collect, and dies on the read
 after a few more.  Minimal, with no bundle code involved:
 
