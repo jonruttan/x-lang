@@ -63,6 +63,7 @@
   (needs "lib/x/sys/gc.x" isa/gc)
   (needs "lib/x/sys/posix.x" isa/ffi-call isa/sys)
   (needs "lib/x/sys/socket.x" isa/ffi-call)
+  (needs "lib/x/tool/asm-cache.x" isa/ffi-call)
   (needs "lib/x/tool/asm-compile.x" isa/ffi-call)
   (needs "lib/x/tool/asm.x" isa/ffi-call)
   (needs "lib/x/tool/compile.x" isa/ffi-call)
