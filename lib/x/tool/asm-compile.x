@@ -49,7 +49,8 @@
 ; in an ordinary call that Sha256's adoption guard turns into "stay
 ; pure-x" -- correct, merely slower.
 (def %jit-lib (%dlopen () 1))
-(def %jit-missing ())
+; %jit-missing itself is defined in asm.x -- see the note there; this file
+; fills it in.
 (def %jit-sym
   (fn (_ name)
     (def p (%dlsym %jit-lib name))
@@ -172,13 +173,7 @@
 ; buffer reads its first word as an integer, and the trampolines then
 ; dereference that.  These two names are the object-kinded ones.
 (def %asm-object-params ())
-; The relocation records and code size of the MOST RECENT compile.  The
-; assembler object does not outlive compile-asm -- it returns a callable, not
-; the builder -- so the facts a byte cache needs about the emitted code are
-; published here as they are produced.  Read them immediately after a compile
-; or not at all.
-(def %asm-last-relocs ())
-(def %asm-last-size 0)
+; The %asm-last-* facts this fills in live in asm.x -- see the note there.
 (def %asm-memq
   (fn (self x xs)
     (if (null? xs) #f (if (eq? x (first xs)) #t (self x (rest xs))))))
@@ -825,8 +820,8 @@
 
 ; --- Public API ---
 
-(def compile-asm
-  (fn (_ expr . %asm-rest)
+(def %asm-compile-fresh
+  (fn (_ expr fvars)
     ; Refuse before emitting anything when the JIT runtime is not
     ; reachable.  An unresolved helper is address 0, and a compiled call
     ; to 0 is a SIGSEGV arbitrarily far from the cause -- which is what a
@@ -838,7 +833,7 @@
             "); engine built without its exported symbols?")) ()))
     (if (not (eq? (first expr) 'fn))
       (Err raise 'type "compile-asm: expression must be (fn (_ params...) body)" ()))
-    (set! %compile-fvars (unless (null? %asm-rest) (first %asm-rest)))
+    (set! %compile-fvars fvars)
     (def fn-params (first (rest expr)))
     (def fn-body (first (rest (rest expr))))
     (def params (rest fn-params))  ; skip self (_)
@@ -885,7 +880,11 @@
 
     (set! %asm-last-relocs (asm-relocs asm))
     (set! %asm-last-size (asm-pos asm))
+    ; After finalize!, not before: finalize resolves the label patches INTO
+    ; the code, and those bytes are part of what gets stored.  The page is
+    ; R+X by then, which reading it does not mind.
     (def raw-fn (asm-finalize! asm))
+    (set! %asm-last-buf raw-fn)
 
     ; Patch trampoline with actual address
     (%ptr-set-word! self-cell 0 (%ptr->int raw-fn))
@@ -896,11 +895,17 @@
 
     ; Create proper x-lang prim from the raw function pointer
     (%make-callable raw-fn)))
-(doc compile-asm
-  (returns CALLABLE "X-lang callable prim")
-  "JIT compile an x-lang (fn ...) expression to a native prim.
-   Accepts optional fvar alist for free variable support.
-   The compiled function works with map, fold, closures, etc.")
 
-(doc (provide x/tool/asm-compile compile-asm)
+; Fill in asm.x's compiler slot: this file is imported lazily, by the cache
+; door, on the one path that needs a compiler.
+(set! %asm-compiler %asm-compile-fresh)
+
+(doc %asm-compile-fresh
+  (returns CALLABLE "X-lang callable prim")
+  "Emit native code for an x-lang (fn ...) expression, with no cache in the
+   way.  compile-asm -- the public door, in asm-cache.x -- calls this only
+   when the byte cache misses, which is why this module is imported lazily
+   from there: loading it costs 2.5M evals, and a warm cache never needs it.")
+
+(doc (provide x/tool/asm-compile %asm-compile-fresh)
   "JIT compiler: x-lang to native code via assembler.")

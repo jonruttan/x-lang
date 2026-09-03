@@ -5,6 +5,38 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The JIT compiles each function once per machine, not once per process.**
+`compile-asm` emits the same bytes every time it is asked for the same
+expression, and a xenon boot asked eleven times — 7.2M evals of a 52M boot,
+none of it per-process except the addresses the code bakes in. Those are
+recorded now, so the bytes are kept and poured into a fresh buffer with each
+address re-encoded for the process loading them: warm boot **46.0M evals
+(-11.5%), -12.6% wall**; cold pays +5.8% to fill the cache.
+
+Two things had to be true for that to be worth having. Nothing on this path
+may walk bytes — hex-encoding the code cost ~24,000 evals per byte and
+parsing a text record file by hand ~880, so the code moves through libc
+`write(2)`/`read(2)` straight out of and into the mmap'd buffer and the
+record file is fixed-stride binary. And the cache is the DOOR, with the
+compiler as its fallback: loading `asm-compile.x` costs 2.5M evals before it
+emits an instruction, and a warm process never loads it at all.
+
+Correctness rests on the key, because the failure this replaces was a cache
+key blind to engine identity serving ABI-stale objects that silently misread
+numbers. The key carries machine, engine release and the fvar table's shape,
+and the whole key text is stored in the entry and compared before a byte is
+trusted — so a hash collision costs a recompile, not a wrong function. Every
+doubt is a miss rather than an error. Expressions past 128 nodes are not
+keyed at all: naming one means printing it, and the printer is superlinear
+(1.4K evals per node at 35 nodes, 8.9K at 400), so a generated body takes the
+uncached path it always had.
+
+Fixed alongside: the assembler's relocation slot was never traced by the
+collector — `asm-new` makes seven slots and `set-units!` said six — so one
+collection turned three live records into a single nil. Quiet since it
+landed, because nothing yet held those records across an allocation.
+
+
 ## [0.10.0] - 2026-09-01
 
 **The exact tower is exact at every magnitude.** Rational arithmetic
