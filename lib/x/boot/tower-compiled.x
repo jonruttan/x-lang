@@ -390,24 +390,6 @@
 ; jumped into freed memory (#49).
 ; The interpreted twin, for an engine with no JIT.  Must agree with
 ; the compiled form below.
-(def %rat-numer-interp %rat-numer)
-(def %rat-denom-interp %rat-denom)
-(set! %rat-denom
-  (%tower-asm-only
-    (lit (fn (me buffer score chr)
-      (if (and (>= chr 48) (<= chr 57))
-        (%seq (%score-set score 1 buffer) me)
-        (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
-    (list (pair (lit _u) 1))
-    %rat-denom-interp))
-(set! %rat-numer
-  (%tower-asm-only
-    (lit (fn (me buffer score chr)
-      (if (and (>= chr 48) (<= chr 57))
-        me
-        (if (= chr 47) %rat-first-denom ()))))
-    (list (pair (lit %rat-first-denom) %rat-first-denom))
-    %rat-numer-interp))
 (def %rat-analyse-interp
   (fn (_ buffer score chr)
       (if (< chr 48)
@@ -427,49 +409,6 @@
 (include "lib/x/num/complex.x")
 ; The interpreted twin, for an engine with no JIT.  Must agree with
 ; the compiled form below.
-(def %cx-real-int-interp %cx-real-int)
-(def %cx-real-frac-interp %cx-real-frac)
-(def %cx-imag-int-interp %cx-imag-int)
-(def %cx-imag-frac-interp %cx-imag-frac)
-(set! %cx-imag-frac
-  (%tower-asm-only
-    (lit (fn (me buffer score chr)
-      (if (and (>= chr 48) (<= chr 57))
-        me
-        (if (= chr 105) (%score-set score 1 buffer) ()))))
-    (list (pair (lit _u) 1))
-    %cx-imag-frac-interp))
-(set! %cx-imag-int
-  (%tower-asm-only
-    (lit (fn (me buffer score chr)
-      (if (and (>= chr 48) (<= chr 57))
-        me
-        (if (= chr 46) %cx-imag-dot
-          (if (= chr 105) (%score-set score 1 buffer) ())))))
-    (list (pair (lit %cx-imag-dot) %cx-imag-dot))
-    %cx-imag-int-interp))
-(set! %cx-real-frac
-  (%tower-asm-only
-    (lit (fn (me buffer score chr)
-      (if (and (>= chr 48) (<= chr 57))
-        me
-        (if (= chr 43) %cx-sign
-          (if (= chr 45) %cx-sign
-            (if (= chr 105) (%score-set score 1 buffer) ()))))))
-    (list (pair (lit %cx-sign) %cx-sign))
-    %cx-real-frac-interp))
-(set! %cx-real-int
-  (%tower-asm-only
-    (lit (fn (me buffer score chr)
-      (if (and (>= chr 48) (<= chr 57))
-        me
-        (if (= chr 46) %cx-real-dot
-          (if (= chr 43) %cx-sign
-            (if (= chr 45) %cx-sign
-              (if (= chr 105) (%score-set score 1 buffer) ())))))))
-    (list (pair (lit %cx-real-dot) %cx-real-dot)
-          (pair (lit %cx-sign) %cx-sign))
-    %cx-real-int-interp))
 (def %cx-analyse-interp
   (fn (_ buffer score chr)
       (if (< chr 48)
@@ -496,34 +435,6 @@
 (include "lib/x/num/decimal.x")
 ; The interpreted twin, for an engine with no JIT.  Must agree with
 ; the compiled form below.
-(def %dec-int-interp %dec-int)
-(def %dec-frac-interp %dec-frac)
-(def %dec-exp-digits-interp %dec-exp-digits)
-(set! %dec-exp-digits
-  (%tower-asm-only
-    (lit (fn (me buffer score chr)
-      (if (and (>= chr 48) (<= chr 57)) me
-        (if (= chr 100) (%score-set score 1 buffer) ()))))
-    (list (pair (lit _u) 1))
-    %dec-exp-digits-interp))
-(set! %dec-frac
-  (%tower-asm-only
-    (lit (fn (me buffer score chr)
-      (if (and (>= chr 48) (<= chr 57)) me
-        (if (= chr 100) (%score-set score 1 buffer)
-          (if (or (= chr 101) (= chr 69)) %dec-exp-sign ())))))
-    (list (pair (lit %dec-exp-sign) %dec-exp-sign))
-    %dec-frac-interp))
-(set! %dec-int
-  (%tower-asm-only
-    (lit (fn (me buffer score chr)
-      (if (and (>= chr 48) (<= chr 57)) me
-        (if (= chr 100) (%score-set score 1 buffer)
-          (if (= chr 46) %dec-first-frac
-            (if (or (= chr 101) (= chr 69)) %dec-exp-sign ()))))))
-    (list (pair (lit %dec-first-frac) %dec-first-frac)
-          (pair (lit %dec-exp-sign) %dec-exp-sign))
-    %dec-int-interp))
 (def %dec-analyse-interp
   (fn (_ buffer score chr)
       (if (< chr 48)
