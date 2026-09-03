@@ -278,3 +278,66 @@ so the pushed handler shows through the list writer.
 ```
 ---
     ("(0x1 0x2 0x2a)" "(1 2 42)")
+
+## Type set-shape!
+
+`set-units!` says how many units an instance has. `set-shape!` says what each
+one **is**, installing the pair form of the slot -- `(count . mask)`, two bits
+per unit, unit 0 lowest: `REF` 0, `WORD` 1, `BYTES` 2, `FOREIGN` 3.
+
+The kind decides who may touch the unit. Only a `REF` holds a heap object
+pointer, and only a `REF` may be handed to the collector's mark walk -- which
+sets a mark bit *through* the pointer before it can establish that the pointer
+is a heap object. Tracing a `WORD` therefore writes through whatever that
+immediate happens to be.
+
+Which is why the cases below force a collection. Nothing here checks a return
+value: the assertion is that the process is still alive and the `REF` unit is
+intact on the other side. An unshaped type would have traced the immediate.
+
+### a WORD unit is not traced, and the REF beside it survives
+
+Unit 0 is a `REF` and unit 1 a `WORD`, so the mask is `(1 << 2) | 0` = 4. The
+immediate is a plain integer that is not a heap address; if the collector
+walked it as one, this case would not finish.
+
+```x
+(do
+  (import x/sys/gc)
+  (def %ss (prim-ref (lit type) (lit set-shape!)))
+  (def %by (prim-ref (lit type) (lit by-atom)))
+  (def %mi (prim-ref (lit type) (lit make-instance)))
+  (def %set! (prim-ref (lit obj) (lit set!)))
+  (def %ref (prim-ref (lit obj) (lit ref)))
+  (def %t ((prim-ref (lit type) (lit make)) "SHAPEWORD" ()))
+  (%ss (%by %t) 2 4)
+  (def %i (%mi %t (list 1 2 3)))
+  (%set! %i 1 987654321)
+  (Heap collect)
+  (write (%ref %i 0)))
+```
+---
+    (1 2 3)
+
+### a zero mask means every unit a reference
+
+The bare-count form's meaning, unchanged -- `REF` is 0, so a mask of 0
+describes an all-reference instance and both units are traced as before.
+
+```x
+(do
+  (import x/sys/gc)
+  (def %ss (prim-ref (lit type) (lit set-shape!)))
+  (def %by (prim-ref (lit type) (lit by-atom)))
+  (def %mi (prim-ref (lit type) (lit make-instance)))
+  (def %set! (prim-ref (lit obj) (lit set!)))
+  (def %ref (prim-ref (lit obj) (lit ref)))
+  (def %t ((prim-ref (lit type) (lit make)) "SHAPEREF" ()))
+  (%ss (%by %t) 2 0)
+  (def %i (%mi %t (list 4 5)))
+  (%set! %i 1 (list 6 7))
+  (Heap collect)
+  (write (list (%ref %i 0) (%ref %i 1))))
+```
+---
+    ((4 5) (6 7))
