@@ -5,6 +5,29 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-03
+
+**x runs C, and compiles it.** x-cc registered at 27 specs and left this
+release at 117, 0 failed — the language arc's final tier. The front end is
+whole and the evaluator is a cell machine, with every expectation an oracle
+row against `/usr/bin/cc`: twin agreement *is* the spec, so a first
+divergence is loud. The C surface grew across the release to pointers,
+structs (fields as cell offsets, `->` and `.`, arrays of structs, scaled
+pointer steps, typedef, copy), `switch` with fallthrough, function-like
+macros with argument text and rescan, `enum`, `union`, function pointers,
+initializer lists and the `#ifdef`/`#elif`/`#undef` family.
+
+The half that makes it more than an interpreter is `build`: eligible integer
+functions lower through the engine's own `compile-asm` lane to **native code
+with no external toolchain**. Loops become tail self-recursion — params and
+accumulators alike ride the self-call, body locals substitute away, if/else
+merges as a ternary, `return`/`break`/`continue` are guarded exits, and
+nested loops two deep run as a state machine over the one self-call. Pointers
+make the program's memory one raw buffer that the interpreter and the native
+twin address alike, so arrays cross the boundary and **a native bubble sort
+sorts main's array**. A 2M-iteration loop costs 79s interpreted and 9.5s
+built.
+
 **The JIT compiles each function once per machine, not once per process.**
 `compile-asm` emits the same bytes every time it is asked for the same
 expression, and a xenon boot asked eleven times — 7.2M evals of a 52M boot,
@@ -35,6 +58,73 @@ Fixed alongside: the assembler's relocation slot was never traced by the
 collector — `asm-new` makes seven slots and `set-units!` said six — so one
 collection turned three live records into a single nil. Quiet since it
 landed, because nothing yet held those records across an allocation.
+
+**The reader's hottest hook is compiled too.** `%macro-delimit` runs on every
+character of every symbol-shaped token — the C symbol analyser calls it per
+char to ask whether `'` `` ` `` `,` terminates the token — and it was the
+single largest per-character reader cost while the numeric analysers beside
+it were already compiled. It is the same shape, so it goes through the same
+lane, reaching the new `jit_buffer_last_char` trampoline as
+`%buffer-last-char`. It stays safe on an engine that predates that
+trampoline: the compiled twin is built ONLY when the address resolved, and
+`asm-compile.x` resolves it through a `%jit-addr-optional` that records no
+miss — recording one would trip `compile-asm`'s whole-runtime "JIT
+unavailable" refusal (#201) for every compile and drop even the numeric
+analysers to interpreted on a fully JIT-capable engine.
+
+**A compiled analyser may now call itself.** The assembler lane's self-call
+path was written for integer recursion and had never been run by an analyser,
+which breaks all three of its integer assumptions: bare params were unboxed
+with `atomint`, self-call arguments were marshalled through `jit_mkint`, and
+the self-call's result was unboxed the same way — but the tokenizer protocol
+fixes the leading params as OBJECTS and a handler returns an object. Any one
+is a segfault on the first self-call, which is why a self-recursive analyser
+had never worked: it died before returning. The lane now knows which
+parameter positions are object-kinded and honours that in the loader, the
+boxing and the result. Library-only — no engine change, no new trampoline.
+
+**The core tool set is complete at forty-four applets.** x-coreutils grew
+from 24 specs to 48, taking the bundle from the measured core
+(sort/tr/cut/join/comm, `sha256sum` as FIPS 180-4 in pure x) to the full
+busybox shape with the scripting set beside it — `echo printf seq test [
+diff cmp ls mv touch install mktemp which xargs env date` and friends. The
+install tree gained the half the shim migration had been waiting on:
+`tools/lang-kit/spec-gate.sh` now ships, so kit-gated bundles stop answering
+"no lang kit ... upgrade x" against an installed tree — the v0.10.0 fan-out
+surfaced it with five bundles red on the missing file and zero on their
+suites.
+
+**The linter reports shape, on measured criteria.** Three advisory rules,
+one finding per definition with the numbers carried in the name: `ladder`
+(a nested if chain branching on one variable), `ladder-dict` (the same,
+string-keyed, ≥15 arms) and `shape` (depth ≥12 and ≥500 nodes). `match` is
+an engine primitive and measures faster than the chain it replaces (605ms vs
+897ms over 40 arms and 10k lookups), so `ladder` has no hot-path exemption —
+hot code converts first, not last — while a Dict wins only on string keys
+(2.75s vs 6.90s at 25 arms) and is 5x SLOWER than `match` on integer keys,
+which is why the fix rides the key type. `shape` counts NODES, not lines:
+the linter reads forms as data and density runs 4.8–9.7 nodes/line, so a
+line count would partly measure the formatter. The 500 is calibrated — at
+250 the rule found 83 definitions in a smooth decay with no natural gap.
+`docs/code-quality.md` records the criteria and, deliberately, the plausible
+rules that failed, so they do not come back.
+
+**Two chapters written from debugging that had cost real time.**
+`docs/crafting-a-lang.md` gains garbage collection: NOTHING COLLECTS UNLESS
+YOU ASK — every sweep in this tree is a hand-placed `(Heap collect)`, so a
+lang that replaces the REPL loop inherits the per-turn sweep as a DUTY and a
+long session or a `-f` script grows without bound otherwise. And an isolated
+tokenizer base does not survive collection, which turns that rule into a
+dilemma for any lang bringing its own base; the doc carries a verified
+seven-line reproduction and the consequence for a suite's alloc ceiling.
+
+**`apps/` has a second occupant, and a project has a face.** Bitwise draws
+the ASCII owl from every source header, set from Roboto Mono outlines over a
+field that `sha256(name)` seeds, in a costume from `langs.json`
+(`x -l bitwise -- --all --png`). Every quantity is an integer in micro-units,
+so the picture is a function of the name alone and the gallery's browser twin
+computes the identical bytes — pinned by parity specs that compare `gen.x`
+against the twin's checked-in renderings.
 
 
 ## [0.10.0] - 2026-09-01
