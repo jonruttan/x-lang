@@ -47,5 +47,6 @@ To read them offline, `make doc-x` and `make doc-c` write them to `ref/x/` and
   Contract](engine-contract.md).
 - [Bootstrap tool closure](bootstrap-closure.md) — the self-hosting scorecard: every external tool the build actually invokes, measured
 - [Contributing](contributing.md) — Build prerequisites, code style, testing, commit conventions
+- [Code quality criteria](code-quality.md) — what counts as a defect in `.x` source, measured and benchmarked
 - [Changelog](../CHANGELOG.md) — Version history
 - [License](../LICENSE) — MIT No Attribution (MIT-0)
