@@ -13,7 +13,7 @@ three.
 
 ### bytes past an embedded NUL are unobservable
 
-```scheme
+```x
 (def %b2s (%coord (lit bytes) (lit ->str)))
 (def %blen (%coord (lit str) (lit byte-len)))
 (%ok (= (%blen (%b2s (pair 97 (pair 0 (pair 98 ()))))) 1))
@@ -27,7 +27,7 @@ An engine could terminate on construction yet carry the hidden bytes along in
 concatenation. Appending to a string whose NUL is interior must not resurrect what
 follows it: `"a\0b"` + `"c"` is `"ac"`, length 2.
 
-```scheme
+```x
 (def %b2s (%coord (lit bytes) (lit ->str)))
 (def %blen (%coord (lit str) (lit byte-len)))
 (def %app (%coord (lit str) (lit append)))

@@ -16,7 +16,7 @@ because this suite loads no library.
 
 ### the declared word size is the one the engine actually has
 
-```scheme
+```x
 (def %i2p (%coord (lit int) (lit ->ptr)))
 (def %p2i (%coord (lit ptr) (lit ->int)))
 (def %probed (match ((< 0 (%p2i (%i2p 4294967296))) 8) (#t 4)))

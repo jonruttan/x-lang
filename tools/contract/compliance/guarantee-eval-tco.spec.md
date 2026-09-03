@@ -14,7 +14,7 @@ the call is NOT in tail position) and well inside the ceiling.
 
 ### deep tail recursion returns rather than crashing
 
-```scheme
+```x
 (def %loop (fn (self n) (match ((= n 0) (lit done)) (#t (self (- n 1))))))
 (%ok (eq? (%loop 60000) (lit done)))
 ```

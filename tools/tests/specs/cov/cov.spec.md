@@ -2,7 +2,7 @@
 
 ### convert obj to ptr returns a non-nil value
 
-```scheme
+```x
 (display (not (null? (Convert to (pair 1 2) %ptr))))
 ```
 ---
@@ -10,7 +10,7 @@
 
 ### convert integer to ptr returns a non-nil value
 
-```scheme
+```x
 (display (not (null? (Convert to 42 %ptr))))
 ```
 ---
@@ -18,7 +18,7 @@
 
 ### ptr-ref-word reads flags field
 
-```scheme
+```x
 (do
   (def word-size
     (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
@@ -31,7 +31,7 @@
 
 ### ptr-set-word! can set and read flags
 
-```scheme
+```x
 (do
   (def word-size
     (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
@@ -48,7 +48,7 @@
 
 ### eval marks pair with coverage flag
 
-```scheme
+```x
 (do
   (def word-size
     (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
@@ -65,7 +65,7 @@
 
 ### direct if marks then branch
 
-```scheme
+```x
 (do
   (def word-size
     (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
@@ -87,7 +87,7 @@
 
 ### atom branches mark and read correctly
 
-```scheme
+```x
 (do
   (def word-size
     (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
@@ -110,7 +110,7 @@
 
 ### untaken if-else branch is unmarked
 
-```scheme
+```x
 (do
   (def word-size
     (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
@@ -128,7 +128,7 @@
 
 ### closure if marks both branches when both taken
 
-```scheme
+```x
 (do
   (def word-size
     (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
@@ -163,7 +163,7 @@
 
 ### closure if leaves untaken branch unmarked
 
-```scheme
+```x
 (do
   (def word-size
     (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
@@ -191,7 +191,7 @@
 
 ### flag survives GC
 
-```scheme
+```x
 (do
   (def word-size
     (if (> (Convert to (Convert to 4294967296 %ptr) %int) 0) 8 4))
@@ -217,7 +217,7 @@ is nil) because nothing exercised this layer.
 
 ### cov-count-tree walks a C-built fn body spine
 
-```scheme
+```x
 (do
   (import x/tool/cov)
   (def f (fn (_ x) (+ x 1)))
@@ -229,7 +229,7 @@ is nil) because nothing exercised this layer.
 
 ### cov-check-fn reports a called fn as covered
 
-```scheme
+```x
 (do
   (import x/tool/cov)
   (def f (fn (_ x) (+ x 1)))
@@ -244,7 +244,7 @@ is nil) because nothing exercised this layer.
 
 ### cov-check-class reports a class's own methods (#408)
 
-```scheme
+```x
 (do
   (import x/tool/cov)
   (def-class CovProbe ()

@@ -12,7 +12,7 @@ engine that collected during allocation would have freed it before it is read ba
 
 ### a raw pointer held across allocation still addresses live data
 
-```scheme
+```x
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %p2i (%coord (lit ptr) (lit ->int)))
 (def %i2p (%coord (lit int) (lit ->ptr)))
