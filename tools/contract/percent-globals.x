@@ -130,7 +130,14 @@
 ; symbol delimit list %sym-delimit-list, and the by-identity swap
 ; %tower-swap-delimit! -- the same de-dispatch grounds as the analyser burst
 ; beside it (the hook runs per source character).
-(file "lib/x/boot/tower-compiled.x" 24)
+; tower-compiled.x rose 24 to 38 for the analyser STATES.  Compiling only the
+; entry tests left every state they hand off to interpreted, and those run once
+; per CHARACTER for six competing numeric types; the states are compiled here
+; now, each keeping a named interpreted twin (%float-frac-interp and its
+; siblings) because %tower-asm's whole contract is that any rung may drop to
+; the one below -- a twin per state is what "always correct, never raises"
+; costs -- plus %tower-asm-only, the ladder without its middle rung.
+(file "lib/x/boot/tower-compiled.x" 38)
 (file "lib/x/codec/json.x" 30)
 (file "lib/x/codec/sha256-jit.x" 34)
 (file "lib/x/codec/sha256.x" 33)
