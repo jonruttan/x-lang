@@ -14,10 +14,14 @@
 ;   'io     errno-backed OS boundary (see from-errno)
 ;   'state  wrong lifecycle state (uninitialized, already closed)
 ;   'user   everything untagged -- ALL legacy bare-string errors
+;   'engine  the ENGINE raised it, not the library: an ERR value, whose
+;            code and subject are reachable with (Err code-of) and
+;            (Err subject-of).  Not in the blessed list above because a
+;            library raise never uses it -- only the engine can.
 ;
-; (Err kind-of v) is TOTAL: an Err answers its kind, any other value
-; (bare string, C error atom) answers 'user -- so one match discriminates
-; old and new errors alike:
+; (Err kind-of v) is TOTAL: an Err answers its kind, an engine-raised ERR
+; answers 'engine, and anything else (a legacy bare string) answers 'user
+; -- so one match discriminates every error the system can raise:
 ;
 ;   (guard (e (match
 ;               ((eq? (Err kind-of e) 'io) (retry))
@@ -132,6 +136,20 @@
       (returns STRING "The repr string"))
     (Str8 append "#<err:" (symbol->str (self kind)) " " (self msg) ">"))
   (static
+    ; --- engine errors ---------------------------------------------------
+    ; The ERR type handle, resolved once from the base's own ERR -- the
+    ; single instance every engine raise fills.  A static member and not a
+    ; top-level %-global: the top level is sacred (#108), and a class is
+    ; the namespace the rule points at.
+    (%engine-type ((prim-ref (lit type) (lit of))
+                   (first (%reflect-base-cell (lit err)))))
+
+    (method %str (self (param a ANY "An ERR slot: a static-string atom"))
+      (doc "Lift an ERR slot to a real STRING."
+        (returns STRING "The slot's bytes")
+        (note "An ERR's code and subject are static-string ATOMS -- the engine repoints their string pointers per raise, which is what keeps a raise allocation-free -- so they carry no STRING type and Str8 refuses them. Appending to \"\" copies the bytes out, the same lift the printer always used on a raw error atom."))
+      (%str-append "" a))
+
     (method make (self (param kind SYMBOL "Error kind, e.g. 'io")
                        (param msg STRING "Human-readable message")
                        (param data ALIST "Context alist (or ())"))
@@ -161,11 +179,37 @@
       (if (object? v) (eq? (class-of v) Err) #f))
 
     (method kind-of (self (param v ANY "Any error value"))
-      (doc "The kind of any error value -- TOTAL: non-Err values (legacy bare strings, C error atoms) answer 'user, so one match discriminates old and new errors."
-        (returns SYMBOL "The Err's kind, or 'user")
+      (doc "The kind of any error value -- TOTAL, so one match discriminates every error the system can raise: an Err answers its own kind, an engine-raised ERR answers 'engine, and anything else (a legacy bare string) answers 'user."
+        (returns SYMBOL "The Err's kind, 'engine, or 'user")
         (example "(Err kind-of \"bare string\")" "'user")
-        (example "(Err kind-of (Err make 'index \"oops\" ()))" "'index"))
-      (if (Err err? v) (v kind) 'user))
+        (example "(Err kind-of (Err make 'index \"oops\" ()))" "'index")
+        (example "(guard (e (Err kind-of e)) (no-such-binding))" "'engine"))
+      (if (Err err? v) (v kind) (if (Err engine? v) 'engine 'user)))
+
+    (method engine? (self (param v ANY "Any error value"))
+      (doc "Test whether v is an ERR -- the value the ENGINE raises (an unbound symbol, a failed include), as opposed to an Err the library raised or a bare string."
+        (returns BOOL "True for engine-raised errors only")
+        (example "(guard (e (Err engine? e)) (no-such-binding))" "#t"))
+      (eq? ((prim-ref (lit type) (lit of)) v) (self %engine-type)))
+
+    (method code-of (self (param v ANY "An ERR value"))
+      (doc "The raise site's message literal, as a STRING -- \"Unbound SYMBOL\", \"include: cannot open\". The engine's whole vocabulary is five of these; a lang keys its own wording off them."
+        (returns STRING "The code, or \"\" for a non-ERR")
+        (example "(guard (e (Err code-of e)) (no-such-binding))" "\"Unbound SYMBOL\""))
+      (if (Err engine? v) (self %str (first v)) ""))
+
+    (method subject-of (self (param v ANY "An ERR value"))
+      (doc "What the raise was about -- the unbound symbol's name, the path that would not open -- as a STRING, separate from the code rather than quoted into it. Empty when the raise named no subject."
+        (returns STRING "The subject, or \"\"")
+        (example "(guard (e (Err subject-of e)) (no-such-binding))" "\"no-such-binding\""))
+      (if (Err engine? v) (self %str (rest v)) ""))
+
+    (method stop? (self (param v ANY "Any error value"))
+      (doc "Test whether v is the interrupt error -- ctrl-c, which the engine raises with the code STOP."
+        (returns BOOL "True for an interrupt, however it was delivered")
+        (note "Total, and deliberately accepts both spellings: an engine raise arrives as an ERR whose code is STOP, while a bare (error \"STOP\") arrives as the string. The REPL's ctrl-c path tests this rather than lifting bytes out of the value -- reading an error's memory as a symbol name is what printed garbage for every structured error in #46, and an ERR is atom? too, so the same lift would have failed the same way.")
+        (example "(guard (e (Err stop? e)) (error \"STOP\"))" "#t"))
+      (str=? (if (str? v) v (Err code-of v)) "STOP"))
 
     (method errno-of (self (param r INT "A failed call's raw return value (negative)"))
       (doc "Recover the CURRENT errno after a failed libc/syscall call. The syscall prim routes through libc on both OSes, returning a bare -1 with the reason parked behind the per-thread errno location -- __error() on Darwin, __errno_location() on Linux; this derefs it (lazily resolving the symbol once). Falls back to (- 0 r) on a libc without the symbol. Fetch BEFORE any intervening call (a close on the error path clobbers errno)."

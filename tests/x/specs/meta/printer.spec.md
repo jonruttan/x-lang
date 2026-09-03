@@ -226,15 +226,22 @@ round segfaulted at ~10k elements.
 ---
     #<obj:GHOST>
 
-## the C-raised error atom prints its message (#54)
+## a C-raised error prints its message (#54)
 
-x_eval_error delivers a nil-typed atom whose string is the base's error
-scratch buffer. The printer's generic sentinel form rendered the BUFFER
-POINTER -- every C-raised error printed as the same #<ATOM:0x..>, zero
-diagnostic signal with the message sitting right there in the atom. The
-printer now identity-tests that one atom (reached via the error-str layout
-path) and emits its bytes. (error "msg") delivers a real STRING and never
-took this path.
+x_eval_error used to deliver a NIL-TYPED atom whose string was the base's
+error scratch buffer, so the printer's generic sentinel form rendered the
+BUFFER POINTER: every C-raised error printed as the same `#<ATOM:0x..>`,
+zero diagnostic signal with the message sitting right there in the atom.
+The printer answered that with an identity test against that one atom.
+
+It no longer needs one. The engine raises a TYPED **ERR** carrying
+`(code . subject)` -- the raise site's message literal and what it was
+about, unflattened -- and `x/type/err-io.x` pushes the wording onto that
+type's display/write stacks. So an error renders by ordinary dispatch,
+like any other value, and the special case is gone. The wording below is
+byte-for-byte what C used to emit; the difference is that it is now a
+handler a lang can push over. `(error "msg")` delivers a real STRING and
+never took either path.
 
 ### uncaught unbound symbol shows the diagnostic
 
@@ -256,12 +263,49 @@ nosuchsym
 
 ```x
 (do
-  (def a (%str-append "" (guard (e e) nosuchsym)))
-  (def b (%str-append "" (guard (e e) (list 1 . 5))))
+  (def a (%display-to-str (guard (e e) nosuchsym)))
+  (def b (%display-to-str (guard (e e) (list 1 . 5))))
   (list (str=? a b) (Str8 includes? "improper" b)))
 ```
 ---
     (#f #t)
+
+### the code and its subject arrive apart, not quoted into one sentence
+
+```x
+(guard (e (list (Err code-of e) (Err subject-of e))) nosuchsym)
+```
+---
+    ("Unbound SYMBOL" "nosuchsym")
+
+### a raise that names no subject carries an empty one
+
+```x
+(guard (e (Err subject-of e)) (list 1 . 5))
+```
+---
+    ""
+
+### an engine raise answers its own kind, not 'user
+
+```x
+(guard (e (Err kind-of e)) nosuchsym)
+```
+---
+    'engine
+
+### a lang can replace the wording, and put it back
+
+```x
+(do
+  (def et (%err-io-by-atom (%err-io-type-of (first (%reflect-base-cell (lit err))))))
+  (def before (%display-to-str (guard (e e) nosuchsym)))
+  (%err-io-push-display et (fn (_ e) (display (Str8 append "nope: " (Err subject-of e)))))
+  (def after (%display-to-str (guard (e e) nosuchsym)))
+  (list before after))
+```
+---
+    ("Unbound SYMBOL 'nosuchsym'" "nope: nosuchsym")
 
 ### x-level (error msg) still delivers the string itself
 

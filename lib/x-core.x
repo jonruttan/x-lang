@@ -156,6 +156,11 @@
 (include-once "lib/x/type/str-utf8.x")
 ; UTF-8-aware CHARACTER write/display handlers (shadow the C byte fallback)
 (include-once "lib/x/type/char-io.x")
+; ERR write/display: the wording of an engine-raised error, which the
+; engine deliberately leaves unspelled.  Beside char-io for the same
+; reason -- both fill IO stacks the C layer boots empty -- and EARLY,
+; since until it loads an engine error renders as #<obj:ERR>.
+(include-once "lib/x/type/err-io.x")
 (include-once "lib/x/type/class.x")
 ; Records: def-record, lightweight named-field data types over def-class.
 (include-once "lib/x/type/record.x")

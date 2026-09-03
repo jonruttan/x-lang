@@ -5,6 +5,53 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A lang can word the engine's errors.** `(no-such-binding)` reached x-lang as
+a bare, type-less atom holding one pre-flattened English string — "Unbound
+SYMBOL 'no-such-binding'" — with the symbol already concatenated in and thrown
+away. A lang that wanted to say it differently had nothing to work with: no
+type, so no dispatch stack to push a handler onto, and no structure, so its
+only recourse was to pattern-match English.
+
+The engine now raises a typed **ERR** carrying `(code . subject)` — the raise
+site's message literal and what it was about, unflattened — and
+`x/type/err-io.x` pushes the default wording onto that type's write/display
+stacks. The wording is byte-for-byte what C emitted; the difference is that
+it is now a handler, so a lang pushes its own over it and pops it again, the
+same shape `char-io.x` has always used for CHARACTER:
+
+```x
+(%type-push-display ERR
+  (fn (_ e) (display (Str8 append "symbole non liée : " (Err subject-of e)))))
+```
+
+`Err` learned the vocabulary: `(Err kind-of e)` answers `'engine` for an
+engine raise rather than lumping it in with `'user`, and `(Err code-of e)` /
+`(Err subject-of e)` return the two facts as strings. The engine's whole
+raise vocabulary is five codes, so keying a translation off them is
+tractable. `boot/printer.x` lost the identity test it used to need (#54): a
+nil-typed atom had to be recognised by pointer to print at all, and a typed
+value simply dispatches — two `%`-globals gone with it.
+
+Uncaught errors still word themselves in C and read exactly as before: that
+path runs before any library is loaded, and nothing on a fatal path should
+be calling into x-lang.
+
+**Migrating a guard that reads the message.** The value a guard receives
+for an ENGINE raise is now a structured ERR rather than an atom whose bytes
+are the message, so the old lifts out of that atom no longer work — they
+read a slot as a character pointer and hand back garbage rather than
+failing loudly, which is the one unkind part of this change:
+
+| was | now |
+|---|---|
+| `(symbol->str e)` | `(%display-to-str e)` for the whole sentence |
+| `(Str8 append "" e)` | `(Err code-of e)` for just the code |
+| — | `(Err subject-of e)` for just the name it is about |
+
+Guards that only *re-raise* or match on `(Err kind-of e)` are unaffected,
+and `(error "msg")` still delivers the string itself exactly as before.
+
+
 **The documentation answers a machine now.** `AGENTS.md` (with `CLAUDE.md`
 symlinked to it, so there is one file and not a copy to rot) is the briefing
 a coding agent needs and the prose docs could not be: how to run it, the Lisp

@@ -89,7 +89,7 @@ belong to `isa/spine`, `args` to `invoke/argv`, `%token-eof` to `isa/tok`,
 
 **A profile is not a boot.** Capabilities say which INSTRUCTIONS resolve. They
 say nothing about what the engine's base carries, and the library walks base
-routes *by name* at runtime — `type-alist`, `type-iter`, `error-str` and a dozen
+routes *by name* at runtime — `type-alist`, `type-iter`, `err` and a dozen
 more. Decision L1 makes the STEPS an engine's own business, so that a different
 object model can arrange its base differently; the NAMES are not negotiable.
 `make check-base-routes` derives the set from the library's call sites and holds

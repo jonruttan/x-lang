@@ -96,7 +96,7 @@
           ; flag while an x-level reader handler was mid-eval -- the
           ; poll CLEARS the flag before raising).
           (if (if (= 1 (%cell-int %sigint-flag)) #t
-                (if (atom? err) (str=? (symbol->str err) "STOP") #f))
+                (Err stop? err))
             (do
               (%set-cell-int! %sigint-flag 0)
               (%set-cell-int! (first %repl-filein-cell) %repl-filein-fd)
@@ -123,7 +123,7 @@
       (%seq
         (guard (err
             (%set-cell-int! %sigint-flag 0)
-            (if (if (atom? err) (str=? (symbol->str err) "STOP") #f)
+            (if (Err stop? err)
               (display "\n")
               ; %seq is BINARY (it is the primitive `do` is built on), so a
               ; flat (%seq a b c ...) would silently run only the first two and

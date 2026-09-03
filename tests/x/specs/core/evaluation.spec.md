@@ -84,8 +84,28 @@
 
 ### the error names the offending symbol
 
+An engine raise arrives as an **ERR**, so the name is a slot rather than
+something to dig out of a sentence. `symbol->str` was the old lift, back
+when the value was a bare atom whose bytes were the whole message.
+
 ```x
-(guard (e (symbol->str e)) no-such-var)
+(guard (e (Err subject-of e)) no-such-var)
+```
+---
+    "no-such-var"
+
+### and the code is separate from the name it is about
+
+```x
+(guard (e (Err code-of e)) no-such-var)
+```
+---
+    "Unbound SYMBOL"
+
+### rendering puts them back together, as the engine used to
+
+```x
+(guard (e (%display-to-str e)) no-such-var)
 ```
 ---
     "Unbound SYMBOL 'no-such-var'"
