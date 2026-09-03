@@ -25,6 +25,7 @@
 - [Crafting a Lang](crafting-a-lang.md) — how one is actually built: the reader's machinery, the type-system mapping, the rules that bite, distilled from building x-python
 - [Scaling to Many Langs](lang-scale.md) — what has to be true for there to be twenty of them; measurements shipped, some rulings still proposals
 - [Modules](modules.md) — The provide/import module system, and pinning a project's libraries (pin.xon)
+- [State Images](state-images.md) — saving and loading a live base as a binary image: what is already reflective, what is measured, and the declarations still proposed
 
 ## Reference
 
