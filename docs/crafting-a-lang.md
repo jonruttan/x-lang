@@ -245,6 +245,43 @@ leaks when the body raises — x-python's lexical-class cell leaked out of a
 failed parse and a later `super()` error reported the wrong context.
 Per-run state gets **reset at the entry point**, not restored at exits.
 
+**Nothing collects unless you ask.**  x has no automatic collection: every
+sweep in the tree is a hand-placed `(Heap collect)` — one at the end of the
+boot amalgams, one at the top of each REPL turn (`lib/x/repl/loop.x`), and
+`lib/x/codec/sha256.x` schedules its own inside the digest loop.  So the
+interactive session is fine and *everything else accumulates until the process
+exits*.  A lang that replaces the REPL loop (§7) inherits that turn sweep as a
+duty: forget it and a long session, or a `-f` script with a loop in it, grows
+without bound.  The platform's own note calls the per-turn sweep "the seat is
+quiet" — the previous turn's eval has finished and no reader is mid-flight,
+which is what makes everything unreachable there genuinely dead.
+
+**An isolated tokenizer base does not survive collection.**  This is the one
+that turns the rule above into a dilemma, and it is a platform defect rather
+than a rule to code around.  A base from `(Base make-tok)` with a type
+registered on it reads correctly, survives one collect, and dies on the read
+after a few more.  Minimal, with no bundle code involved:
+
+```x
+(def collect (prim-ref (lit heap) (lit collect)))
+(def read-str (prim-ref (lit tok) (lit read-str)))
+(def b (Base make-tok))
+(Base make-type b "W"
+  (list (pair (lit analyse) (fn (_ buffer score chr) (%score-set score 1 buffer)))
+        (pair (lit read)    (fn (_ . args) (lit w)))))
+(read-str (Base raw-of b) "a")        ; fine
+(collect) (read-str (Base raw-of b) "a")   ; fine
+(collect) (collect) (read-str (Base raw-of b) "a")   ; dies
+```
+
+The consequence is structural, not cosmetic: **a lang that brings its own
+tokenizer base cannot take the per-turn sweep**, so its sessions and its batch
+runs accumulate, and its spec suite must set `SPEC_SEAM_COLLECT=0` (the
+per-snippet collect kills the tokenizer specs first).  x-ash is the bundle
+this bites; if your lang builds on `(Base make)` — the shared base, with the
+sexp types already registered — you are not affected, and that is one more
+reason to want the shared base if your surface can tolerate it.
+
 **Whole-file paren balance can lie.**  Two miscounted closers in different
 functions cancel to a clean total.  Check each edited definition closes at
 depth zero, not the file sum.  And bound a text replacement by the text being
@@ -274,6 +311,11 @@ What the loop must know:
   statements (silent) and which are expressions (echo their repr) — but
   inspect carefully: the same head (`let`) can serve both, distinguished by
   what it binds.
+- **The loop owns the collect.**  The platform loop sweeps at the top of every
+  iteration, and that is what keeps a long session's heap at its live set
+  rather than at its history.  Replacing the loop means replacing the sweep —
+  unless your lang owns a tokenizer base, in which case you cannot have it
+  (see §6), and a long session will grow.  Know which case you are in.
 - **The banner should identify the whole stack.**  `%param-release` (engine)
   and `%platform-release` (x-lang) arrive as boot data; printing them plus
   the resolved root makes every which-install-am-I-running mystery
@@ -329,6 +371,17 @@ contesting type — and the platform can compile them:
   files before they graze it.  And never force `PARALLEL` over many
   tower-booting files, or run two heavy suites concurrently: the per-process
   guards cannot bound total memory.
+- **Size the alloc ceiling to the smallest machine that runs the suite, not
+  the biggest.**  With `SPEC_SEAM_COLLECT=0` (which a lang owning a tokenizer
+  base must set — §6) a spec job accumulates a whole file's garbage, so the
+  `alloc-limit!` guard is bounding a *sum*.  The platform default is 300M
+  objects, ~14 GB, calibrated for a dev box: on a 16 GB CI runner a process
+  approaching it exhausts the machine *before* the guard trips, and the job
+  dies with `spec-gate: killed by SIGTERM` and no output at all to say why.
+  Lower it until the guard fires first — a failed spec is legible, a killed
+  job is not.  Measure on the small machine; a workstation that passes proves
+  nothing about the runner, and "it is green here" is how this gets shipped
+  twice.
 - **Controls before conclusions.**  In two days, seven confident diagnoses
   died under control runs — a wrong bisect, two wrong suspects, a
   misattributed environment difference, a self-defective probe among them.
