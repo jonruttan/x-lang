@@ -356,10 +356,14 @@
     (let ((saved (first %lint-scope)))                 ; (def (name params) body)
         (%scope-add! (%cvt (first name-part) %string))
         (%set-first! %lint-scope (%add-params (rest name-part) (first %lint-scope)))
+        (%lint-ladder-scan (%cvt (first name-part) %string) (rest (rest form)))
+        (%lint-shape-scan  (%cvt (first name-part) %string) (rest (rest form)))
         (%lint-seq (rest (rest form)))
         (%lint-leak-scan (%last (rest (rest form))))   ; def-form body has its own tail
         (%set-first! %lint-scope saved))
     (do (%scope-add! (%cvt name-part %string))      ; (def name val): self-ref ok
+        (%lint-ladder-scan (%cvt name-part %string) (%ladder-at form 2))
+        (%lint-shape-scan  (%cvt name-part %string) (%ladder-at form 2))
         (%lint-form (first (rest (rest form))))))))
 
 (def %lint-set (fn (_ form)
@@ -408,6 +412,200 @@
         (self (rest clauses))))))
   (%scan (rest form))
   (%lint-seq (rest form))))
+
+; --- Multi-way ladder check (docs/code-quality.md 1.1 / 1.2) ---
+;
+; A nested `if` chain branching on ONE variable against literals is a
+; multi-way conditional written as a tower.  `match` is an engine primitive
+; -- `if` itself is derived from it -- and it measures FASTER than the chain
+; it replaces (605ms vs 897ms; 40 arms, 10k lookups, xenon) as well as flat.
+; A win on both axes, so there is NO hot-path exemption: hot code converts
+; first, not last.
+;
+; The key type changes the advice, so it rides the warning.  With >=15 STRING
+; arms a Dict beats both forms (2.75s vs 6.90s; 25 arms, 4k lookups) because
+; each arm costs a string compare rather than a free C `=`.  Below that bar
+; the same Dict is 5x SLOWER than match on integer keys, and #344 already
+; adjudicated Dict-vs-alist the other way for the linter's own small tables.
+; So: "ladder" means rewrite as match, "ladder-dict" means build a table.
+
+(def %ladder-min 4)        ; arms before a chain is worth reporting
+(def %ladder-dict-min 15)  ; string arms before a Dict beats match
+
+; (first ()) is UNDEFINED behaviour -- docs/spec.md: "Calling (first ()) is
+; undefined" -- and in practice it segfaults.  This walk meets arbitrary
+; source text, including one-element forms such as a bare (if) sitting in
+; quoted data, so every step down a form goes through %ladder-at, which
+; confirms the pair before taking its first.
+(def %ladder-at (fn (self xs n)
+  (if (not (pair? xs)) ()
+    (if (= n 0) (first xs) (self (rest xs) (- n 1))))))
+
+; The literal side of a comparison: a chain arm needs one.
+(def %ladder-lit-kind (fn (_ x)
+  (match
+    ((str? x) "str")
+    ((number? x) "int")
+    ((char? x) "int")
+    (#t ()))))
+
+(def %ladder-cmp? (fn (_ h)
+  (match
+    ((str=? h "=") #t) ((str=? h "eq?") #t) ((str=? h "equal?") #t)
+    ((str=? h "str=?") #t) ((str=? h "char=?") #t) ((str=? h "=?") #t)
+    (#t #f))))
+
+; One comparison's operands -> (varname . kind), or nil when this is not a
+; variable-against-literal test.  Either operand may be the literal.
+(def %ladder-pair (fn (_ a b)
+  (let ((ka (%ladder-lit-kind b)))
+    (if (if (symbol? a) (not (null? ka)) #f)
+      (pair (%cvt a %string) ka)
+      (let ((kb (%ladder-lit-kind a)))
+        (if (if (symbol? b) (not (null? kb)) #f)
+          (pair (%cvt b %string) kb)
+          ()))))))
+
+; One comparison, in either spelling: the bare call (= c 40) or the
+; subject-last method form (Str8 =? nm "upper"), whose head is the CLASS and
+; whose selector sits second.
+(def %ladder-cmp-test (fn (_ test)
+  (if (not (pair? test)) ()
+    (if (not (symbol? (first test))) ()
+      (if (%ladder-cmp? (%cvt (first test) %string))
+        (%ladder-pair (%ladder-at test 1) (%ladder-at test 2))
+        (let ((sel (%ladder-at test 1)))
+          (if (if (symbol? sel) (%ladder-cmp? (%cvt sel %string)) #f)
+            (%ladder-pair (%ladder-at test 2) (%ladder-at test 3))
+            ())))))))
+
+; A chain arm's test: one comparison, or an inlined `or` over the SAME
+; variable -- (if T1 #t T2), the Tier 3.1 spelling -- which still selects
+; one arm of the same dispatch.  %py-str-attr is why this matters: its
+; 25-arm string dispatch reads as a 10-arm run without it, and lands in
+; the wrong bucket.  Every leaf must agree on the variable; a compound
+; over two DIFFERENT variables is a genuine decision and ends the chain.
+(def %ladder-test (fn (self test)
+  (let ((plain (%ladder-cmp-test test)))
+    (if (not (null? plain)) plain
+      (if (not (pair? test)) ()
+        (if (not (symbol? (first test))) ()
+          (if (not (str=? (%cvt (first test) %string) "if")) ()
+            (if (not (eq? (%ladder-at test 2) #t)) ()
+              (let ((a (self (%ladder-at test 1))))
+                (if (null? a) ()
+                  (let ((b (self (%ladder-at test 3))))
+                    (if (null? b) ()
+                      (if (str=? (first a) (first b)) a ())))))))))))))
+
+; Arms of the chain rooted at this `if`, all testing `var`.  A chain runs
+; down the ELSE branch: (if T1 A (if T2 B (if T3 C D))).
+(def %ladder-run (fn (self form var)
+  (if (not (pair? form)) 0
+    (if (not (symbol? (first form))) 0
+      (if (not (str=? (%cvt (first form) %string) "if")) 0
+        (let ((vk (%ladder-test (%ladder-at form 1))))
+          (if (null? vk) 0
+            (if (not (str=? (first vk) var)) 0
+              (+ 1 (self (%ladder-at form 3) var))))))))))
+
+; Longest chain found in the def under analysis, as (count . kind).
+(def %ladder-best (list ()))
+
+(def %ladder-note! (fn (_ n kind)
+  (let ((b (first %ladder-best)))
+    (when (if (null? b) #t (> n (first b)))
+      (%set-first! %ladder-best (pair n kind))))))
+
+; Heads whose subtree this walk does not enter.
+;   lit  -- quoted DATA, not code: a ladder cannot live there, and the rest
+;           of the linter skips it too (%lint-dispatch, %form-mentions?).
+;   def  -- %lint-def reaches nested defs separately; the finding belongs
+;           to the definition that actually holds the tower.
+(def %ladder-skip? (fn (_ form)
+  (if (symbol? (first form))
+    (let ((h (%cvt (first form) %string)))
+      (if (str=? h "lit") #t (str=? h "def")))
+    #f)))
+
+; Walk the body for chain roots, keeping the longest.  Inner chains are
+; visited too and simply lose the max, so no root bookkeeping is needed.
+(def %ladder-walk (fn (self form)
+  (when (pair? form)
+    (unless (%ladder-skip? form)
+      (do
+        (when (if (symbol? (first form))
+                (str=? (%cvt (first form) %string) "if") #f)
+          (let ((vk (%ladder-test (%ladder-at form 1))))
+            (unless (null? vk)
+              (%ladder-note! (%ladder-run form (first vk)) (rest vk)))))
+        (%ladder-walk (first form))
+        (self (rest form)))))))
+
+; --- Shape check: depth x size (docs/code-quality.md 1.3) ---
+;
+; Neither number is a finding on its own, and the corpus says why.  Long and
+; FLAT is a data table (syscalls-*.x, %arm64-table, %isa-catalog) that only
+; gets worse when split.  Deep and SMALL is a tight recursive walker, which
+; is the idiom.  The defect is the pair: a definition deep enough to have to
+; be held in the head AND large enough that it cannot be.
+;
+; Size is counted in NODES, not lines: the linter reads forms as data and
+; has no line numbers, and a node count does not move when the formatter
+; does.  Quoted data scores 1 -- a big literal table is not something the
+; reader holds -- but an inner `def` is counted IN FULL, unlike the ladder
+; walk which skips it.  Bodies here are written as runs of inner-`def`
+; bindings (%cc-lower-loop has eighty), and skipping their subtrees scored
+; a 377-line function at almost nothing.  %lint-def still scans each one
+; on its own; the outer count is the one that says "this is too much".
+
+; CALIBRATED against the corpus, not guessed.  At 250 nodes the rule found
+; 83 definitions -- a smooth decay with no natural gap, median 349 -- and
+; the low end is not defective: %sh-expand-dollar (x-ash, 15d/266) uses
+; cond, keeps its two helpers local in a let, and says why in a comment.
+; Depth does not separate that from %cc-lower-loop, which is the same 15
+; deep and seven times the size; SIZE is the discriminator.  At 500 the
+; finding set is 16, and every one of them is a definition nobody claims
+; is fine.  A report that flags good code is a report people learn to skip.
+(def %shape-depth-min 12)
+(def %shape-nodes-min 500)
+
+; (depth . nodes) for one form.
+(def %shape-of (fn (_ form)
+  (if (not (pair? form)) (pair 0 1)
+    (if (if (symbol? (first form)) (str=? (%cvt (first form) %string) "lit") #f)
+      (pair 1 1)
+      (let ((s (%shape-elems form 0 0)))
+        (pair (+ 1 (first s)) (+ 1 (rest s))))))))
+
+; Fold %shape-of over a form's elements, keeping the deepest and the total.
+(def %shape-elems (fn (self xs d n)
+  (if (not (pair? xs)) (pair d n)
+    (let ((s (%shape-of (first xs))))
+      (self (rest xs)
+            (if (> (first s) d) (first s) d)
+            (+ n (rest s)))))))
+
+(def %lint-shape-scan (fn (_ name body)
+  (let ((s (%shape-of body)))
+    (when (if (>= (first s) %shape-depth-min) (>= (rest s) %shape-nodes-min) #f)
+      (%warn! "shape"
+        (Str8 append (Str8 append (Str8 append (Str8 append name "/")
+          (%cvt (first s) %string)) "d/") (%cvt (rest s) %string)))))))
+
+; Report at most one finding per definition, named NAME/ARMS so the count
+; survives into the wrapper's flat kind listing.
+(def %lint-ladder-scan (fn (_ name body)
+  (%set-first! %ladder-best ())
+  (%ladder-walk body)
+  (let ((b (first %ladder-best)))
+    (unless (null? b)
+      (when (>= (first b) %ladder-min)
+        (%warn!
+          (if (str=? (rest b) "str")
+            (if (>= (first b) %ladder-dict-min) "ladder-dict" "ladder")
+            "ladder")
+          (Str8 append (Str8 append name "/") (%cvt (first b) %string))))))))
 
 (def %lint-quasi (fn (self form)
   (unless (null? form)
@@ -806,7 +1004,7 @@
   (param forms LIST "List of top-level forms to analyze")
   (param defs LIST "Accumulator for defined symbol NAMES")
   (param uses LIST "Accumulator for used symbol NAMES")
-  (returns LIST "(defs uses issues leaks warnings) -- defs/uses/issues/leaks are NAME STRINGS; warnings are (kind . name) pairs for arity / call-nonfn / dup-def / malformed / match-multi / shadow / unused")
+  (returns LIST "(defs uses issues leaks warnings) -- defs/uses/issues/leaks are NAME STRINGS; warnings are (kind . name) pairs for arity / call-nonfn / display-chain / dup-def / ladder / ladder-dict / malformed / match-multi / shadow / unused; ladder names carry the arm count as NAME/ARMS")
   "Walk top-level forms via the write stacks, collecting def/use names, first/rest issues, tail-position def leaks, and pedantic warnings (arity, non-callable calls, duplicate defs, malformed forms, lexical shadows, and unused locals).")
 
 (doc (def lint-undefined (fn (_ defs uses)

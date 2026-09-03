@@ -478,3 +478,169 @@ locals and unbound heads keep plain call analysis.
 ```
 ---
     #t
+
+## lint: multi-way ladder warning (docs/code-quality.md 1.1 / 1.2)
+
+### a nested if chain on one variable warns, named NAME/ARMS
+
+```x
+(do
+  (def %r (lint-forms (list '(def f (fn (_ c)
+             (if (= c 40) 1 (if (= c 41) 2 (if (= c 42) 3 (if (= c 43) 4 0))))))) () ()))
+  (display (lint-has? "f/4" (lint-warnings-of "ladder" %r))))
+```
+---
+    #t
+
+### a two-way if is not a ladder
+
+```x
+(do
+  (def %r (lint-forms (list '(def g (fn (_ c) (if (= c 40) 1 0)))) () ()))
+  (display (null? (lint-warnings-of "ladder" %r))))
+```
+---
+    #t
+
+### alternating variables are a decision tree, not a ladder
+
+```x
+(do
+  (def %r (lint-forms (list '(def h (fn (_ a b)
+             (if (= a 1) 1 (if (= b 2) 2 (if (= a 3) 3 (if (= b 4) 4 0))))))) () ()))
+  (display (null? (lint-warnings-of "ladder" %r))))
+```
+---
+    #t
+
+### the subject-last method spelling is recognised
+
+```x
+(do
+  (def %r (lint-forms (list '(def k (fn (_ n)
+             (if (Str8 =? n "a") 1 (if (Str8 =? n "b") 2
+             (if (Str8 =? n "c") 3 (if (Str8 =? n "d") 4 0))))))) () ()))
+  (display (lint-has? "k/4" (lint-warnings-of "ladder" %r))))
+```
+---
+    #t
+
+### a one-operand comparison does not crash the walk
+
+`(first ())` is undefined (docs/spec.md) and segfaults, so every step down a
+form goes through %ladder-at.  A malformed `(= c)` in an if test reaches the
+operand accessors directly: with the unguarded `(first (rest (rest test)))`
+this shape segfaults the engine, so it is the regression that pins the fix.
+
+```x
+(do
+  (def %r (lint-forms (list '(def q (fn (_ c) (if (= c) 1 0)))) () ()))
+  (display (null? (lint-warnings-of "ladder" %r))))
+```
+---
+    #t
+
+### quoted data is not walked for ladders
+
+Quoted data is not code, so a ladder cannot live there; the rest of the
+linter skips `lit` too.
+
+```x
+(do
+  (def %r (lint-forms (list '(def q (list 'def 'fn 'if))) () ()))
+  (display (null? (lint-warnings-of "ladder" %r))))
+```
+---
+    #t
+
+### an inlined `or` over the same variable does not end the chain
+
+`(if T1 #t T2)` on one variable still selects one arm of the same dispatch,
+so the run continues through it.  Five arms, the middle one compound.
+
+```x
+(do
+  (def %r (lint-forms (list '(def m (fn (_ n)
+             (if (= n 1) 1
+             (if (if (= n 2) #t (= n 3)) 2
+             (if (= n 4) 3 (if (= n 5) 4 0))))))) () ()))
+  (display (lint-has? "m/4" (lint-warnings-of "ladder" %r))))
+```
+---
+    #t
+
+### a compound over two different variables ends the chain
+
+```x
+(do
+  (def %r (lint-forms (list '(def p (fn (_ a b)
+             (if (= a 1) 1
+             (if (if (= a 2) #t (= b 3)) 2
+             (if (= a 4) 3 0)))))) () ()))
+  (display (null? (lint-warnings-of "ladder" %r))))
+```
+---
+    #t
+
+## lint: shape warning, depth x size (docs/code-quality.md 1.3)
+
+Neither number is a finding alone: long-and-flat is a data table, and
+deep-and-small is a tight recursive walker.  The pair is the defect.  The
+forms below are built rather than written out, since the threshold is 500
+nodes.
+
+### deep and large is flagged
+
+```x
+(do
+  (def build (fn (self n acc)
+    (if (= n 0) acc (self (- n 1) (list 'if (list '= 'c n) 1 acc)))))
+  (def %r (lint-forms
+            (list (list 'def 'big (list 'fn (list '_ 'c) (build 120 0)))) () ()))
+  (display (not (null? (lint-warnings-of "shape" %r)))))
+```
+---
+    #t
+
+### deep but small is not flagged
+
+```x
+(do
+  (def build (fn (self n acc)
+    (if (= n 0) acc (self (- n 1) (list 'if (list '= 'c n) 1 acc)))))
+  (def %r (lint-forms
+            (list (list 'def 'tight (list 'fn (list '_ 'c) (build 14 0)))) () ()))
+  (display (null? (lint-warnings-of "shape" %r))))
+```
+---
+    #t
+
+### large but flat is not flagged
+
+A data table: hundreds of nodes, nesting of two.
+
+```x
+(do
+  (def wide (fn (self n acc) (if (= n 0) acc (self (- n 1) (pair n acc)))))
+  (def %r (lint-forms
+            (list (list 'def 'table (pair 'list (wide 400 ())))) () ()))
+  (display (null? (lint-warnings-of "shape" %r))))
+```
+---
+    #t
+
+### quoted data is not counted as size
+
+```x
+(do
+  (def wide (fn (self n acc) (if (= n 0) acc (self (- n 1) (pair n acc)))))
+  (def build (fn (self n acc)
+    (if (= n 0) acc (self (- n 1) (list 'if (list '= 'c n) 1 acc)))))
+  (def %r (lint-forms
+            (list (list 'def 'q (list 'fn (list '_ 'c)
+                    (list 'lit (wide 900 ()))
+                    (build 14 0)))) () ()))
+  (display (null? (lint-warnings-of "shape" %r))))
+```
+---
+    #t

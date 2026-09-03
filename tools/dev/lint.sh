@@ -7,6 +7,7 @@
 #
 # Usage: sh tools/dev/lint.sh [--lib] [--lang LANG] [file.x ...]
 #   --lib: suppress unused warnings (for library/export files)
+#   --warnings: also print advisory warnings for files that pass
 #   --lang LANG: use language-specific constructs
 #   No args: lint lib/x-core.x, lib/x/*.x, and apps/*/*.x in --lib mode
 #
@@ -27,14 +28,16 @@ CONSTRUCTS="$PROJECT_DIR/lib/x/constructs.x"
 
 LIB_MODE=0
 LANG=""
+SHOW_WARNINGS=0
 
 # Parse flags (before file args)
 while [ $# -gt 0 ]; do
   case "$1" in
     --lib) LIB_MODE=1; shift ;;
+    --warnings) SHOW_WARNINGS=1; shift ;;
     --group) GROUP_LIST="$2"; shift 2 ;;
     --lang) LANG="$2"; shift 2 ;;
-    -*) echo "Usage: $0 [--lib] [--lang LANG] [file.x ...]" >&2; exit 1 ;;
+    -*) echo "Usage: $0 [--lib] [--warnings] [--lang LANG] [file.x ...]" >&2; exit 1 ;;
     *) break ;;
   esac
 done
@@ -259,6 +262,18 @@ for f in "$@"; do
   # "ok" line.
   if printf '%s\n' "$_OUT" | grep -qx "ok"; then
     printf '  \033[1;32m.\033[0m %s\n' "$_NAME"
+    # Advisory warnings (ladder, arity, shadow, ...) ride a file that still
+    # verdicts "ok", so they are dropped with the rest of its output unless
+    # asked for.  --warnings surfaces them without failing the lint, which
+    # is what a report-only rule needs to be readable at all.
+    if [ "$SHOW_WARNINGS" -eq 1 ]; then
+      printf '%s\n' "$_OUT" | sed -n '/^Warnings:/,$p' | while IFS= read -r line; do
+        case "$line" in
+          ""|ok) ;;
+          *) printf '    %s\n' "$line" ;;
+        esac
+      done
+    fi
   else
     FAIL=1
     printf '  \033[1;31mF\033[0m %s\n' "$_NAME"

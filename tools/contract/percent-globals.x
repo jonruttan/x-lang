@@ -33,6 +33,16 @@
 ; emitters when an entry comes out of a (private ...) or (protected ...)
 ; block: inlining it instead would duplicate the tier wording at both call
 ; sites, which is how the two drift.
+; tool/lint.x grew by fourteen, 69 -> 83, for the multi-way ladder check
+; (docs/code-quality.md 1.1): %ladder-at/-lit-kind/-cmp?/-pair/-cmp-test/
+; -test/-run/-best/-note!/-skip?/-walk, the two thresholds, and
+; %lint-ladder-scan; then by five more, 83 -> 88, for the depth-x-size shape
+; check (1.3): %shape-of/-elems, its two thresholds, and %lint-shape-scan.
+; These are WALK CORE, not cold analysis: both walks visit every node of
+; every def body, exactly the ground on which the file's existing per-form
+; walk stays off the Lint class (see the class comment there, and #344 --
+; the linter's own Dict-vs-alist ruling, lost on value-call dispatch).
+; Homing them as %-statics would put a class send on each node of the walk.
 ; platform/syscall.x grew by two for %declared-os and %declared-arch: the engine's
 ; BUILD now declares its os and arch, and the triple parse became the fallback for
 ; an engine that could not establish them.  Boot-constrained like the rest of that
@@ -193,7 +203,7 @@
 (file "lib/x/tool/cov.x" 8)
 (file "lib/x/tool/fmt.x" 23)
 (file "lib/x/tool/highlight.x" 39)
-(file "lib/x/tool/lint.x" 69)
+(file "lib/x/tool/lint.x" 88)
 (file "lib/x/tool/pin.x" 1)
 (file "lib/x/tool/profile.x" 4)
 (file "lib/x/type/array.x" 2)

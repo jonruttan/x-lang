@@ -160,7 +160,8 @@
             %unused)))
 
     ; Pedantic warnings (advisory -- shown but do not fail the lint): arity,
-    ; call-nonfn, dup-def, malformed, shadow (lexical), unused (local).  Grouped
+    ; call-nonfn, dup-def, ladder, malformed, shadow (lexical), unused (local).
+    ; Grouped
     ; by kind, discovered from the results so a new kind needs no change here.
     (def %warnings (lint-warnings %result))
     (def %uniq-kinds (fn (self ws acc)
