@@ -125,6 +125,9 @@ The library's correctness rests on them anyway.
 - `str/nul-terminated` — a string value is a C string; bytes past the NUL are
   unobservable.
 - `int/ptr-same-width` — the fixnum and the pointer are the same width.
+- `err/typed-raise` — a raise delivers a value of a REGISTERED type carrying
+  two slots, `(code . subject)`, and the base's `err` row holds a value of
+  that same type.
 
 ### What the engine requires of *you*
 
@@ -151,6 +154,24 @@ the point of damage.
 `eval/tco` is semantic, not a performance note: the library recurses in tail
 position throughout and binds a tail `def` globally *because* of it. An engine
 without tail calls does not run slowly, it overflows the stack in ordinary code.
+
+`err/typed-raise` exists because **the language words errors and the engine does
+not**. An engine that flattens its message and the thing it is complaining about
+into one English string leaves nothing to reword: the structure is gone before
+x-lang sees it, and a value with no type has no dispatch stacks to push a
+handler onto. So a raise must deliver the two facts apart, on a type — the code
+(the raise site's message) and the subject (the name it was about, or the empty
+string when it names none). `lib/x/type/err-io.x` reaches that type through the
+base's `err` row and pushes the default prose onto its write/display stacks; a
+lang pushes its own over that and pops it again, the same way `char-io.x` fills
+CHARACTER's. Spell the prose in C and every lang inherits English it cannot
+replace.
+
+What the guarantee does *not* require is identity. The reference engine reuses one
+base-resident instance so a raise allocates nothing — which is why a caught error
+must be read before the next raise overwrites it — but an engine that allocates
+per raise conforms equally. `tests/x/conformance/core/errors.spec.md` is the
+executable form of all of this, and tests no `eq?` between two raises.
 
 ## Profiles
 

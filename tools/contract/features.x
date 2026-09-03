@@ -201,6 +201,15 @@
   ; lets one parameter (word-size) cover both and what makes data.x's probe --
   ; round-tripping 2^32 through a pointer cast -- a legitimate way to size a word.
   (int/ptr-same-width -)
+  ; THE LANGUAGE WORDS ERRORS, THE ENGINE DOES NOT.  An engine that flattens its
+  ; message and the thing it is complaining about into one English string leaves
+  ; nothing to reword -- the structure is gone before x-lang sees it, and a
+  ; type-less value has no dispatch stacks to push a handler onto.  So a raise
+  ; delivers the two facts APART, on a registered type, and the base's `err` row
+  ; holds a value of that same type (which is how x/type/err-io.x finds it).
+  ; Identity is NOT required: the reference engine reuses one instance so a raise
+  ; allocates nothing, but allocating per raise conforms equally.
+  (err/typed-raise -)
 )))
 
 ; REMOVED, and worth saying why rather than leaving a hole: tok/callback-no-alloc.
