@@ -6,7 +6,7 @@ the interpreter can already read — so saving it is a **traversal**, not a
 feature that has to be built into the engine first.
 
 This document is the design for that: a binary image of a live base, written
-and read from x. **The unit-shape declaration it rests on is implemented**
+from x and read by the engine at startup. **The unit-shape declaration it rests on is implemented**
 (x-engine-c branch `feat/unit-shapes`, plus `Type set-shape!` and the atom-type
 declarations here); the image format, the writer and the reader are still
 design. The measurements are real and every one of them is reproducible with
@@ -401,74 +401,558 @@ few hundred entries. The same discipline is why the walk must not collect,
 and it should arm that: no collect between the opening sweep and the last
 row written.
 
+## The reader is C, and the profile says why
+
+Measured on this tree, booting each dialect and reading the base's own eval
+counter:
+
+| | evals | boot | evals/sec | live objects |
+|---|--:|--:|--:|--:|
+| helium | 6,728,402 | 0.92s | 7.3M | 90,937 |
+| xenon | 46,154,541 | 5.65s | 8.2M | 153,924 |
+| radon | 46,451,316 | 5.81s | 8.0M | — |
+
+Throughput is flat at ~8M evals/sec, so **boot time is pure interpretation** —
+proportional to work done, with no `cc` invocation, no I/O stall and nothing
+quadratic hiding in it. Any of those would show as time without evals, and
+xenon's rate is if anything *higher* than helium's.
+
+That is 46M evals to produce 154k surviving objects: **about 300 evals per
+live object**. An image replaces all of them with one allocate-and-patch each.
+
+### There is no cheaper lever, and that was checked
+
+The obvious hope is that a boot this expensive has one hot spot to fix
+instead. It does not. A profiling engine (`-DX_PROFILE -DX_COV`) booting
+xenon reports:
+
+| counter | xenon |
+|---|--:|
+| evals | 48,342,243 |
+| assoc calls / steps | 4,272,848 / 72,477,713 (~17 deep) |
+| BST hits / misses | 17,144,538 / 1,509 |
+| symbol-find steps | 0 |
+
+The alist scanning is the eye-catching number and is not the answer: at a few
+nanoseconds a step it is a fraction of a second out of 5.65. The globals BST
+is essentially perfect — 1,509 misses in 17 million. And the one structural
+win is **already banked**: `lib/x/tool/asm-cache.x` caches the compile-asm
+lane, whose own header prices it at 7.2M evals of a 52M boot, and a fresh
+xenon boot writes zero new cache entries, so it is fully hit.
+
+What is left is ~48M evals of diffuse interpretation at ~118ns each, with no
+hot spot. Which is the case *for* an image rather than against it: a wholesale
+skip is the only thing that helps a cost with no peak in it.
+
+> **The per-include timings a profiling build prints are INCLUSIVE.** A parent
+> counts everything nested under it, so their sum exceeds the boot several
+> times over and ranking by them attributes a whole subtree to its root. Read
+> them as a tree or rank only the leaves.
+
+It also rules the reader out of x. A bare heap walk — following the chain and
+counting, nothing else — costs 0.81s over helium's heap and 2.28s over
+xenon's, which is ~3µs per evaluator operation. A reader needs roughly twenty
+operations per object, so ~9s against a 5.65s boot. And a reader living in the
+library would need the library booted before it could read the image that was
+meant to replace booting the library.
+
+**So the reader is C, at process startup, before any x runs.** The writer
+stays in x: it runs once, offline, inside the dialect it is imaging, where 2s
+does not matter.
+
+## What the loader may not do
+
+This is the constraint that shapes the format, and it is easy to miss: **the
+loader runs before x exists, so it cannot call an x closure.** The
+`internalise` half of the type declaration is x code. It cannot run at load
+time.
+
+So the load-time foreign vocabulary is **closed, and every entry must be
+resolvable by C alone**:
+
+| kind | payload | how C resolves it |
+|---|---|---|
+| `nil` | — | NULL |
+| `catalog` | ns, method | walk the fresh base's prims catalog |
+| `bare` | name | look up the fresh base's boot binding |
+| `dlsym` | library, symbol | `dlopen` + `dlsym` |
+| `fd` | role (in/out/err) | the process's own descriptors |
+
+A `foreign` unit whose value is not one of these **makes the write refuse**.
+Types wanting richer reacquisition get it after boot, from x, through
+`internalise` — but then their instances are not part of a startup image, and
+saying so at write time is the whole point of the refusal.
+
+The measured foreign surface fits this: a booted helium's 147 address-holding
+objects are 129 primitives (catalog or bare — both C-resolvable) and 17
+pointers that are sixteen `dlsym` results over one `dlopen` handle.
+
 ## The format
 
 Word-oriented, in the writing machine's own word size and byte order, because
-an image is not a portable artifact — the header exists to say so and to
-refuse.
+an image is not a portable artifact — the header exists to say so and refuse.
 
 ```
-header        magic and format version
-              engine release, os, arch, endian, word size
+header        magic "XIMG" + format version
+              a known byte-order word, word size
+              engine release, os, arch
               extra-metadata width (Obj meta-count at write time)
-              digests of base-layout.x, obj-layout.x, obj shape table
-              counts: types, foreign entries, objects; the root index
-type table    one row per distinct type word: name, and the unit shape
-foreign table one row per foreign leaf: its externalised form
-object table  one row per object: type index, flags, meta units, units
+              digests of base-layout.x, obj-layout.x, base-paths.x
+              counts: types, foreign, objects, bytes
+              root index -- the base object
+type table    per type: name, units count, units mask, and which of
+              { static ATOM, static PAIR, heap type } it is
+foreign table per entry: kind + payload, from the closed table above
+extent table  one word per object: its unit count
+object table  per object: type index, flags, then its units
+byte blob     string bytes, symbol names, and the tables' own strings
 ```
 
-Index 0 is nil, so objects number from 1 and a nil unit needs no tag.
+**Index 0 is nil**, so objects number from 1 and a nil unit needs no tag.
 
-**No per-unit tags.** The type table's shape says what each unit of each
-instance is, which is precisely why the shape declaration is the linchpin of
-the design rather than a detail of it. An image with per-unit tags would cost
-a word per unit — on this measurement, several megabytes to say what fourteen
+**Every unit is one word, and the type's shape says what it means** — a
+reference is an object index, a word is the value itself, bytes is an index
+into the byte blob, foreign is an index into the foreign table. This is why
+the shape declaration is the linchpin: without it the format needs a tag per
+unit, which on this measurement is megabytes spent restating what fourteen
 type rows already say.
 
-**The two static type objects** — the built-in ATOM and PAIR types, which the
-engine matches by pointer identity, not by name — are two fixed rows in the
-type table with reserved ids. They are the reason the table holds ids rather
-than addresses.
+**The extent table is explicit** rather than derived. A fixed-shape type's
+count comes from its shape, but a slot-0-counted type's does not without
+reading slot 0 first, and one word per object buys a pass-one that is a
+straight loop.
 
-**The metadata width is base-wide and load-bearing.** This build runs
-`(Obj meta-count)` = 2, so every object carries two prepended units at
-negative offsets and the meta flag set. obj.x is explicit that changing the
-width while objects are live is undefined, so the width goes in the header and
-the reader sets it before it allocates the first object — or refuses.
+**Metadata units are imaged as `word`.** They carry coverage flags and source
+lines; the header records the width, and the loader sets it before it
+allocates anything, because obj.x is explicit that changing the width with
+objects live is undefined.
 
-## Restore
+## Load
 
-Two passes, into a **child base**, not the running one.
+Four passes, none of which call x:
 
-1. Set the metadata width from the header. Allocate every object with its
-   type and unit count, filling nothing. Keep the index-to-address table.
-2. Patch every unit: `ref` from the table, `word` verbatim, `bytes`
-   reallocated and copied, `foreign` through `internalise`. Set the shared
-   flag where the image records it.
+1. **Verify and arm.** Check the header against this engine — release, os,
+   arch, byte order, word size, and each layout digest. Set the extra-metadata
+   width. Any mismatch refuses here, before a byte is allocated.
+2. **Resolve foreign.** Build a fresh base the usual way, so its types and
+   primitives exist, then resolve every foreign entry against it. Pin the
+   results: they are about to be referenced by objects the fresh base cannot
+   see, and nothing else is keeping them alive.
+3. **Allocate.** One object per record, from the extent table, in index order.
+   Fill nothing. Keep the index-to-pointer table.
+4. **Patch.** Walk the unit stream, writing each unit per its kind. Set the
+   flags the image records, including `X_OBJ_FLAG_SHARED` where it had it.
 
-Then wrap the root with `Base wrap` and hand it back. `(Image read path)`
-answers a Base instance.
+Then install the image's root as the process base. The fresh base from pass 2
+is discarded; what survives of it is exactly what pass 2 pinned, which is
+correct — identity is by path, so the image's reference to bare `+` *is* this
+process's bare `+`.
 
-Restoring into a child is what makes this a library feature instead of an
-engine feature. The machinery exists —
-[sandboxing-tutorial.md](sandboxing-tutorial.md) already builds isolated
-interpreters, hands them capabilities, and evaluates in them — and a child is
-independent by construction, so a botched restore damages a value, not the
-process. Replacing the running base is a separate question and does not need
-answering first.
+**Identity needs one interning table and no more.** Two saved references to
+one object must come back as one object, and two that differed must stay
+distinct. The index table gives that for free within the image; the foreign
+table gives it across the boundary, which is why naming is by path and not by
+value — resolving bare `+` and catalog `(int +)` to the same object would
+merge two the running base kept apart.
 
-It also answers a complaint that tutorial already documents: a fresh child is
-the bare C ISA, and giving it a library means replaying the library into it.
-An image is the other way to get one.
+## Restore into a child, from x
 
-Proposed surface, data-last per [contributing.md](contributing.md):
+The startup loader replaces the process base. That is what boot elision needs
+and it is the harder case. The gentler one is worth keeping: a reader called
+from x that builds a **child base** rather than replacing the running one, as
+in [sandboxing-tutorial.md](sandboxing-tutorial.md). It is slower than booting
+— that is what the numbers above say — so it is not for speed. It is for
+handing someone a heap: a sandbox with a library already in it, or a bug
+report that is the state at the moment it broke.
 
-```x
-(Image write path base)   ; refuses rather than write an unfaithful image
-(Image read path)         ; => a Base instance
-(Image inspect path)      ; => the header, without loading anything
+Same format, same passes, no privilege. Only the last step differs: wrap the
+root with `Base wrap` instead of installing it.
+
+## The writer, and the discipline it needs
+
+**Where this ended up, before the account of how.** The writer enumerates by
+walking the heap chain, filters by asking the collector what is reachable
+(`(heap trace! base)`, read the flag, `(heap untrace!)`), and reads each
+object's units through its type's shape. Two passes: stamp an index into
+metadata slot 1, then resolve every unit against those indices.
+
+The subsections below are the record of arriving there, and several of them
+are accounts of approaches that did not work — a walk that computed
+reachability itself, a walk seeded from named base fields, a walk that treated
+the base tree as ordinary structure. They are kept because each one failed for
+a reason about this heap that is worth knowing, and because the reasons are
+what argued for the engine change rather than a preference.
+
+
+The writer is x, and a first pass over the heap — asking each object its
+extent — is written and works: **88,705 objects, 169,838 units, zero
+refusals** on a booted helium. Getting there needed two rules that are not
+optional and were each learned by being killed by the OS.
+
+**Bare primitives only in the loop, and that includes the reflective
+accessors.** `%reflect-meta-set!` is x, not C — it runs a `match`, calls
+`%reflect-flags`, and uses the *guarded* `&` — so calling it per object cost
+three times what inlining the same three raw word operations does. The library's guarded operators are
+enormously more expensive than the coordinates under them, measured over 2,000
+iterations of an otherwise empty loop:
+
+| loop body | allocations per iteration |
+|---|--:|
+| guarded `>`, variadic `+` | 486 |
+| bare `eq?`, variadic `+` | 111 |
+| bare `eq?`, `(int +)` | **35** |
+
+`>` alone accounts for ~375 of those, because it routes through `or`, `null?`
+and `%arith-guard`'s `match`. Fourteen times fewer allocations for the same
+loop. This is [contributing.md](contributing.md)'s prim-caching rule, and a
+reflective pass over 90k objects is exactly where ignoring it stops the
+process: three attempts at this pass were SIGKILLed at ~19,400 allocations per
+iteration before the operators were the suspect. Two wrong diagnoses came
+first — `let` in the loop, then lost tail calls — and the control that settled
+it was an *empty* loop, which allocates 491 objects an iteration all by
+itself.
+
+**Hold the cursor as an object, not an address, and the walk can collect.**
+(*Why* it survives is not established: the claim below that a function
+parameter roots what it holds was never tested by that experiment, since the
+cursor was reachable from the base regardless. A collecting reachability walk
+whose worklist is reachable from nothing else does survive, which is evidence
+for it, but not proof.)
+A raw-address cursor cannot survive a collect — the object under it is freed
+and the address dangles — and that is why the first version of every pass here
+was pure accumulation. But a cursor held as an ordinary x value is a function
+parameter, so it is rooted, and the sweep relinks its heap word past whatever
+it freed. A mid-walk collect is then safe, and it is what makes the writer
+affordable:
+
+| pass 1 | peak live objects |
+|---|--:|
+| first working version | 139M allocated, none reclaimed |
+| bare prims + a last-type cache | 45M allocated, none reclaimed |
+| object cursor, collecting every 4096 objects | **3.0M peak** |
+
+Fifteen times less memory than the disciplined non-collecting version, and it
+is also *more correct*: the collect reclaims the writer's own setup garbage,
+which a non-collecting walk would otherwise reach and index. The collecting
+walk indexed 83,729 objects against 82,846 live at walk start — over, not
+under, so nothing live was missed.
+
+Even so, keep the passes few and the loops bare. At ~500 allocations per
+object visited the writer is near the floor of what an interpreted loop costs,
+and that floor is what decides how many passes the design can afford.
+
+### The two passes, and what they measured
+
+Indices cannot be assigned and resolved in one walk — a reference can point at
+an object the walk has not reached yet — so the writer is two passes.
+
+**Pass 1 stamps an index into metadata slot 1.** This is the forwarding-slot
+trick, and it is what makes the writer affordable at all: an 88k-entry side
+map built in interpreted x would cost about what the boot costs, while a meta
+slot turns an address into an index in O(1) with no map. Slot 0 is already
+taken — it holds the source line the error machinery reports — and slot 1 is
+unowned by lib and specs. The writer perturbs it and does not restore it,
+which is acceptable because a write runs once, at the end of a build step, in
+a process that then exits.
+
+**120 objects will not take a stamp**, and they are the same 120 every time:
+`meta-set!` is a documented no-op on an object without `%obj-flag-meta`, and
+these are the objects allocated by engine init *before* x set the metadata
+width. They are a contiguous tail of the walk — indices 88,703 to 88,822 of
+88,822, newest-to-oldest — because the chain walk reaches the oldest objects
+last. So they need a 120-entry side table and a range check, not a general
+fallback map.
+
+**Pass 2 resolves every unit per its type's shape.** On a booted helium:
+
+| units | count | | references | count |
+|---|--:|---|---|--:|
+| `ref` | 145,510 | | resolved | 121,545 |
+| `bytes` | 6,216 | | nil | 23,681 |
+| `word` | 1,113 | | unstampable tail | 265 |
+| `foreign` | **148** | | unresolved | 19 |
+
+Nothing was refused for want of a shape. The classification cross-checks
+against the census at the top of this document, arrived at by a completely
+different route: `foreign` is 148, which is exactly the 129 primitives plus 17
+pointers plus 2 buffers counted there; `bytes` is the strings plus the
+symbols; `ref` is the pairs times two.
+
+> **Do not give one value two meanings — especially not in this design.** Pass
+> 2's first run segfaulted because it used `-1` for "this type declares no
+> units", and `-1` is already the dynamic-size sentinel. BUFFER declares
+> nothing, so the pass read its slot 0 as a unit count and walked off into
+> whatever the arithmetic produced. Refusal needs its own flag, and the C
+> loader will need the same separation.
+
+**The writer perturbs what it measures, and the mechanism is exactly one
+thing: `set!` on a global.** A global's binding is a pair in the environment,
+the environment is part of the heap being imaged, and `set!` repoints that
+imaged pair at a freshly allocated value that pass 1 never indexed. One
+mutated global, one unresolved reference.
+
+That is measured, not reasoned. The writer mutated 17 globals and pass 2
+reported 19 unresolved references; adding three more counters that do nothing
+but increment took it to **22**, exactly as predicted.
+
+So the rule is not "allocate nothing between the passes" — allocation is
+harmless, because anything allocated after pass 1 is newer than the cursor and
+never walked. The rule is:
+
+> **The writer must not mutate any object inside the heap it is imaging.**
+> Its state belongs in call frames — threaded through the recursion as
+> parameters — not in mutable globals. Frames created during the walk are new
+> objects: never visited, and never referenced by anything imaged.
+
+The one permitted exception is pass 1's stamp, which writes *metadata*, not a
+unit. Metadata is not part of any object's imaged content, so repointing it
+cannot dangle a reference.
+
+Two candidate fixes are thereby ruled out rather than left open: allocating
+nothing between passes solves a problem that does not exist and reinstates the
+memory ceiling the collecting cursor removed; and walking pass 2 over a
+recorded count does not help, because the unresolved references are *inside*
+objects pass 1 legitimately indexed.
+
+The residual count drift — pass 1 reporting 83,598, 83,640 and 83,706 across
+three runs — has the same cause and the same fix.
+
+**Built, and the result is determinism.** Rewritten to thread its state, the
+writer reports the *same numbers every run* — 84,042 indexed, 79,828 visited,
+across three consecutive runs with no variation at all, where the mutating
+version drifted by ~100 each time. That is not a nicety: an image is only
+reproducible if the writer is.
+
+Unresolved references fall from 19 to **6**, and the six are structural rather
+than incidental. They are the base's own control and I/O state: `save-stack`,
+`error-handler`, `env-alist`, `line`, `err-line`, `err-file`, `state`, `file`
+and `sigint` all hold values pass 1 never indexed, because the evaluator
+repoints them continuously *while the writer runs* — the writer cannot stand
+outside the interpreter that is executing it.
+
+Which is not a defect to fix but the `(foreign drop)` category arriving on its
+own. Every one of those fields is control state, reader position, or an I/O
+handle: nil at the quiet seam, meaningless in a saved image, and rebuilt by the
+loader against the fresh base. `env-alist` is the sharpest case — it is the
+*live* environment, including the writer's own frames, and what an image wants
+is `env-global-tree`, which indexes cleanly and does not appear in that list.
+
+**It holds across the dialects, unchanged.** The same writer, run against each:
+
+| dialect | indexed | visited | unresolved | refused for want of a shape |
+|---|--:|--:|--:|--:|
+| helium | 84,130 | 79,917 | 6 | **0** |
+| xenon | 132,670 | 128,409 | 6 | **0** |
+| radon | 133,569 | 129,308 | 6 | **0** |
+
+Xenon and radon were the point of the exercise and bring a numeric tower the
+walk had never seen — bigint, rational, float, complex, decimal, regex — and
+not one of those types failed to state its extent. The six unresolved
+references are the same six base control cells in every dialect, which is what
+one would expect of something structural. Each run reproduces its own numbers
+exactly.
+
+So the writer's analysis half is done: every live object states its extent,
+every unit classifies, and every reference resolves except the ones the design
+already said to drop.
+
+### An image reaches disk, and what it does not yet contain
+
+Pass 3 pours each object's record into one raw block — type index, flags,
+extent, then its units — and hands the block to `write(2)` in a single call.
+Nothing walks bytes, for `lib/x/tool/asm-cache.x`'s reason. A booted helium
+emits **3,152,336 bytes across 80,306 object records**, and reading the file
+back parses cleanly:
+
 ```
+record 0: type=83926 flags=128 extent=1 units=[0]
+record 1: type=83972 flags=128 extent=2 units=[83580, 0]
+```
+
+Types and references are **indices, not addresses** — indices 0, 1 and 2 are
+reserved for nil and the two static type tags, so pass 1 stamps from 3 and no
+pointer reaches the file.
+
+Three defects were found by reading the file back rather than by writing it,
+which is the argument for doing so:
+
+- **The header disagreed with the body.** It carried pass 2's object count,
+  and pass 3 emitted 174 more. The general fault is conflating an estimate
+  with a description: pass 2's counts size the buffer, they do not describe
+  the file, so the header is now written last from what was actually emitted.
+- **The magic was wrong**, reading `GSFX` rather than `XIMG`.
+- **The root index was 0**, and that one is not a slip.
+
+> **The base is not a chain-linked heap object, so no walk can reach it.**
+> Three measurements say so together. Its flags word is **0**, where every
+> ordinary object carries the metadata bit (128, or 160 for an owned string).
+> Its type word sits in the static address band but is *neither* static tag —
+> `4366025000` against `satom` 4366027776 and `spair` 4366027808 — which is
+> the engine's own base sentinel, the one `x_type_heap_mark` special-cases to
+> traverse a base's pair tree instead of treating it as an object. And walking
+> the chain *from* the base never terminates, where every real chain walk ends
+> cleanly, because word 0 of a base is not a link.
+>
+> So the root is **emitted out of band** — taken from `(%base)` and given a
+> reserved index — and that is not a workaround for a walk that ought to find
+> it. Nothing on the chain can find it. The base's *contents* are ordinary
+> pairs and are imaged normally; only the base object itself is special, which
+> is exactly how the collector already treats it.
+
+So the file on disk is a faithful record of the object graph's *structure* and
+is not yet loadable. Outstanding, in the order they block a loader: the root;
+the byte blob, since `bytes` units emit 0 and string contents are absent; the
+foreign table, since `foreign` units emit 0; and the side table for the other
+119 unstampable objects, whose 265 incoming references also emit 0.
+
+### The base tree cannot be walked generically
+
+Reachability from the base — the walk this document has argued for since "an
+image writer is a mark phase that emits" — crashes deterministically about
+32,768 objects in, and always on an object flagged SHARED, which x-heap.h
+reserves for base tree nodes.
+
+The cause is visible once every unit pushed from a SHARED node is printed.
+Slots in those nodes hold addresses around 4.31e9, the static data band. One
+holds **6160731856** — the text band, where the seventeen `dlsym` results from
+the census live. It is a **raw C function pointer sitting in a structural
+pair**, and `x-heap.c` reads the collector's own hooks exactly that way:
+`x_firstptr(x_firstobj(x_base_field_heap_mark(p_base)))`, a pair whose first
+is a function pointer rather than an object. Following it as a reference and
+dereferencing it is a wild read.
+
+So a structural pair is not always two references, and the rule that every
+other type obeys does not reach here. **The base tree must be walked through
+`base-layout.x` and `base-paths.x`** — the committed descriptors that say
+which leaves are cells, which are direct values, and which are external —
+exactly as `lib/x/boot/reflect.x` walks it, and never as ordinary structure.
+
+This is the same lesson BUFFER teaches one level down: a per-type shape
+describes a type whose instances agree, and the two places that break the rule
+are the two the engine already treats as special.
+
+Four theories died before this one, and the discipline that killed them is
+worth as much as the answer. Raw values in base slots — disproved, the I/O
+fields are ordinary atoms holding their values. Non-pointers pushed as
+references — a guard for small words never fired. The mid-walk collect
+freeing the worklist — an identical crash with collecting disabled, which also
+clears the collect of suspicion. And before those, the collect interval, which
+changed nothing.
+
+### Let the engine compute reachability
+
+Walking reachability in x was the wrong instinct. The collector already knows
+what is reachable, including everything that kept catching this walk out: the
+base sentinel, the base spine's function pointers, PROCEDURE's custom mark
+handler, the mark hooks and the root chain. `x_heap_tree_mark` is that walker,
+it takes the flag to set **as a parameter**, and `(heap pin!)` is an x-level
+door to it. So the writer should not recompute reachability; it should ask,
+then use the chain purely as an enumerator and the flag as the filter. That is
+the "mark phase that emits" thesis done literally rather than reinvented.
+
+Neither existing flag can carry it, and both failures are informative.
+
+**SHARED cannot**, because `x_heap_tree_mark` uses the flag it sets as its own
+visited test: `while (p_obj != NULL && (x_obj_flags(p_obj) & flags) != flags)`.
+Base tree nodes are *already* SHARED, so the traversal halts at the first one
+it reaches. Measured: pinning from the base moved the SHARED count from 1,882
+to **1,884** — two objects — while 85,431 were live.
+
+**The GC's own mark bit cannot**, because leaving it set across a collect is
+unsafe in exactly the way `heap collect`'s comment warns about. The next
+collect's mark phase would treat the pre-set objects as already visited, stop
+short, and its sweep would then free their unmarked children. And the walk
+must collect to stay bounded, so "mark once and never collect" is not
+available either.
+
+**And there is no spare bit.** All four attribute bits are aliased by the eval
+layer — `X_OBJ_FLAG_1..4` are `SHADOW`, `COV`, `FRAME`, `FNFRAME` — and
+`own`, `ro`, `meta`, `shared` and `mark` are all taken.
+
+**Built, and measured.** `X_OBJ_FLAG_TRACE` (0x400), `x_heap_chain_clear`,
+and the coordinates `(heap trace! obj)` / `(heap untrace!)`:
+
+```
+live objects:            85,466
+chain / traced before:   83,522 /      0
+chain / traced after:    83,521 / 79,407
+chain / traced cleared:  83,540 /      0
+```
+
+The bit starts genuinely unused, `(heap trace! (%base))` marks **79,407**
+objects, and `(heap untrace!)` takes every one of them back. Against the
+33,823 a reachability walk written in x could reach, that is the measurement
+that settles it: **the collector's traversal sees more than twice what an x
+walk can**, because it accounts for the base sentinel, the spine's function
+pointers, custom mark handlers, the hooks and the root chain.
+
+The 4,114 chain objects it does *not* mark are the writer's own state and
+garbage — precisely what an image must exclude, isolated for free rather than
+by discipline.
+
+The clear is a CHAIN walk, not a tree one, and not an unset mode on
+`x_heap_tree_mark`. The mark hooks are why: `x_type_heap_mark` calls back into
+the tree walker with the flags it is handed, so an unset mode would have hooks
+*setting* the flag on children unless the mode threaded through every hook
+signature. A chain clear sidesteps that and is strictly more complete — it
+reaches objects that became garbage after the trace, which a tree walk would
+leave flagged for good.
+
+So the door is a small engine change, and the heap is already built for it.
+Both halves of the collector are **flag-generic**: `x_heap_tree_mark` takes
+the flag to set, and `x_heap_sweep` takes the flag to test — keeping what
+carries it, `&= ~flags` on the survivors, freeing the rest. Mark and sweep
+over the same flag are already a complete cycle that leaves no residue.
+
+What imaging needs is that cycle without the freeing: set a flag over the
+reachable set, read it, clear it. Three pieces:
+
+1. **A new flag above `mark` (0x400)**, because no spare exists, with a row in
+   `obj-layout.x` where `make check-obj-layout` will hold it.
+2. **A clear mode on the tree walker.** The guard inverts by itself, which is
+   why this is small rather than a rewrite — the flag is the visited test in
+   both directions:
+
+   ```c
+   /* set   */  while (p && (x_obj_flags(p) & f) != f) { x_obj_flags(p) |=  f; ... }
+   /* clear */  while (p && (x_obj_flags(p) & f) != 0) { x_obj_flags(p) &= ~f; ... }
+   ```
+3. **One coordinate** exposing both with a caller-chosen flag, rather than
+   `pin!`'s hardcoded SHARED.
+
+The walker already does the work; it only needs somewhere to write the answer
+that nothing else is reading, and a way to take it back.
+
+> **A tree clear only reaches what is still reachable.** Anything that became
+> unreachable between the mark and the clear keeps the flag for good. That is
+> harmless in a writer that exits — which is the only mode this design claims
+> — but a long-running process wanting to image itself repeatedly would want a
+> chain-based clear instead, in the shape of `x_heap_root_chain_mark`'s
+> existing pre-clear pass.
+
+**What this replaces.** Seeding the walk from named base fields does not work:
+`type-alist` reaches 33,781 objects, every other field adds almost nothing
+because they are already reachable through it, and the total stalls at 33,823
+of 85,431 live — 39%. Whether the missing 61% is the writer's own machinery
+(which an image should exclude) or real data (which it must not) cannot be
+settled by adding roots, which is the argument for asking the collector
+instead of guessing.
+
+### BUFFER cannot be described by a per-type shape
+
+The only two objects that could not state their extent were the reader
+buffers, and looking at why turned up a limit the shape design did not
+anticipate. A BUFFER is two units: a raw `char *` and a reference to an inner
+bookkeeping object which is *itself* BUFFER-typed and holds two raw `char *`
+cursors. So the outer instance is `(bytes ref)` and the inner is
+`(bytes bytes)` — **the same type, two shapes.**
+
+It costs the collector nothing, because BUFFER has a custom mark handler and
+its shape is never read. It costs the image nothing either, because buffers
+are not imaged: they are cursors into a char array, the loader's fresh base
+has its own, and the base field is repointed. But it means a per-type shape is
+not universally sufficient, and a type whose instances differ has to say so
+some other way.
 
 ## What the header refuses
 
@@ -514,9 +998,28 @@ no shape at all.
   only a cache, it needs none of that and may be deleted at any time.
 - **Foreign values that participate in cycles.** None do today. The design
   above assumes it and does not check it.
-- **Interning on restore.** Identity is by path, but the reader still needs one
-  table so that two saved references to the same object come back as one
-  object, and two that differed come back distinct. Cheap; easy to get wrong.
+- **Whether the loader may allocate one arena instead of N objects.** Pass 3
+  currently allocates per object to keep the heap chain and the free path
+  exactly as they are. A contiguous arena threaded onto the chain would be
+  faster still, but it changes what `x_obj_free` may assume, so it is a second
+  step and not a first one.
+- **The writer's own `def`s cost holes.** Each one added between the passes
+  repoints an imaged environment pair; adding two took the count from 6 to
+  10. The mutation-free rule applies to the writer's setup, not only its
+  loops.
+- **Whether a per-type shape is enough.** BUFFER says it is not: one type,
+  two instance shapes. Nothing needs it today — buffers are not imaged — but
+  the next type whose instances differ will need an answer, and the format
+  has no place to put one.
+- **What ash costs, and whether an image can carry a tokenizer base.** ash was
+  the dialect that prompted this and is not installed here, so it is unmeasured
+  — though xenon and radon both walk clean, which is the tower ash sits on.
+  It is also the bundle that cannot take the per-turn collect
+  ([crafting-a-lang.md](crafting-a-lang.md) §6), and an isolated tokenizer base
+  that does not survive collection may not survive imaging either.
+- **Where the writer runs.** It needs the reflective walker, which lives in the
+  library, so it runs *inside* the dialect it is imaging. Consistent, but it
+  means a dialect must boot once to produce the image that skips its boot.
 - **The probes in this document are not in the tree.** The census belongs in
   `tools/dev/` alongside the other measuring tools, and the naming coverage
   check belongs wherever it can fail a build when a new primitive arrives with
@@ -530,6 +1033,11 @@ writer has to respect:
 - **A collect during a walk dangles the cursor.** The cursor is a raw address
   in a chain the collector is free to unlink. Do not collect between the
   opening sweep and the last row.
+- **A profiling build of the wrong engine boots partway and dies.** The first
+  profile run here was built from a checkout predating the library's engine
+  requirements; it segfaulted 25 includes in, and its timings looked like a
+  fast boot rather than a crashed one. Check that the probe produced its
+  *answer*, not just a plausible number.
 - **`obj ->ptr` on nil segfaults.** A reflective walker meets nil constantly —
   every list terminator, every empty field, every unbound cell — and the raw
   door has no nil check. Guard before every conversion, not after the first
