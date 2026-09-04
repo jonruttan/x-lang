@@ -147,6 +147,28 @@ identical work per block whatever the bytes are -- no build artifact
 needed. The three FIPS vectors are checked on every run before any
 timing is reported; a fast wrong digest is worth nothing.
 
+## State image writer
+
+Writes the live heap out as a binary state image -- the writer half of
+[../../docs/state-images.md](../../docs/state-images.md).
+
+```sh
+sh x.sh -q -f tools/dev/image-write.x        # helium, to /tmp/x-core.ximg
+sh x.sh -q -l xe -f tools/dev/image-write.x  # xenon
+```
+
+It images the base it runs in, so the dialect flag chooses what gets imaged.
+Output path is the `%IMG` def near the bottom of the file.
+
+**Not yet loadable.** The image carries the object graph -- extent table,
+object table and byte blob, with every reference resolved to an object index
+-- but no type table, foreign table or root index. Nothing can read it in any
+case until the engine grows the allocate-and-patch loop the document specs.
+
+What it does guarantee is self-consistency, and that is worth checking after
+any change: the extent table must sum to exactly the object table's unit
+count, and the section sizes must add up to the file length.
+
 ## Others
 
 - `tools/dev/bench.sh` -- library-load benchmarks over `x-bin-profile`
