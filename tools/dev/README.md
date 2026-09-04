@@ -191,10 +191,25 @@ spine is built from; and `%reflect-type-word` is itself a dereference, so even
 asking "may I walk this?" is the unsafe act. Names are declared, looked up, or
 asked of the dynamic linker.
 
-**Not yet loadable.** The image carries the object graph -- extent table,
-object table and byte blob, with every reference resolved to an object index
--- but no type table, foreign table or root index. Nothing can read it in any
-case until the engine grows the allocate-and-patch loop the document specs.
+The image carries the object graph -- extent table, object table and byte blob,
+with every reference resolved to an object index -- and a **foreign table**:
+one entry per named address, as a kind word, a name-length word and the name
+bytes padded to a word boundary. Foreign units in the object table are indices
+into it. The section references nothing else, so it can be built before the
+object walk.
+
+**Not yet loadable.** There is still no type table and no root index, and
+nothing can read the file in any case until the engine grows the
+allocate-and-patch loop the document specs.
+
+Two things to know when reading one. The writer images the base it runs in, so
+its own libc doors (`malloc`, `calloc`, `write`, `creat`) appear among the
+foreign entries -- that is the writer-in-its-own-base problem the document
+records, showing through. And **the heap may be marked only once per process**:
+`(heap chain-clear!)` permanently disables any later `(heap tree-mark!)`, and a
+mark after a clear flags nothing at all, silently, so every later walk reports
+a clean zero. Passes that need no reachability use `%walk-all` and run before
+the mark.
 
 What it does guarantee is self-consistency, and that is worth checking after
 any change: the extent table must sum to exactly the object table's unit

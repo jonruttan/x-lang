@@ -43,21 +43,31 @@
 (def %next (fn (_ p) (%rw p %heap-off)))
 (def %traced? (fn (_ p) (if (eq? (%int& (%rw p %flags-off) %TRACE) 0) #f #t)))
 
-(def %walk
-  (fn (_ cur f acc) (%walk-on cur f acc 0 0)))
+; %walk visits only TRACED objects and so needs a mark; %walk-all visits every
+; object on the chain and needs none.  That distinction is forced, not stylish:
+;
+;   MARK ONCE PER PROCESS.  (heap chain-clear!) permanently disables any later
+;   (heap tree-mark!) -- marking twice with no clear between is idempotent and
+;   fine, but a mark AFTER a clear flags nothing at all, silently, and every
+;   subsequent walk then reports a clean zero of everything.  So a pass that
+;   needs no reachability must not spend the one mark: it uses %walk-all and
+;   runs BEFORE the mark, which also lets it `def` its results freely.
+(def %walk     (fn (_ cur f acc) (%walk-on cur f acc 0 0 #t)))
+(def %walk-all (fn (_ cur f acc) (%walk-on cur f acc 0 0 #f)))
+(def %take? (fn (_ p filt) (if filt (%traced? p) #t)))
 (def %walk-on
-  (fn (_ cur f acc n seen)
+  (fn (_ cur f acc n seen filt)
     (%walk-after cur f
-      (if (%traced? (%o->p cur)) (f (%o->p cur) acc) acc)
+      (if (%take? (%o->p cur) filt) (f (%o->p cur) acc) acc)
       n
-      (if (%traced? (%o->p cur)) (%int+ seen 1) seen))))
+      (if (%take? (%o->p cur) filt) (%int+ seen 1) seen) filt)))
 (def %walk-after
-  (fn (_ cur f acc n seen)
+  (fn (_ cur f acc n seen filt)
     (do (if (eq? (%int& n 1023) 0) (%collect) ())
         (if (eq? (%next (%o->p cur)) 0)
             (pair acc seen)
             (%walk-on (%p->o (%i->p (%next (%o->p cur)))) f acc
-                      (%int+ n 1) seen)))))
+                      (%int+ n 1) seen filt)))))
 
 ; --- shapes ---------------------------------------------------------------
 (def %int- (prim-ref (lit int) (lit -)))

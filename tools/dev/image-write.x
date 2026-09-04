@@ -49,7 +49,7 @@
 ;
 ; The cursor is an OBJECT, never a pointer.  An object held in a parameter is
 ; rooted, so a collect cannot free it; a PTR roots nothing it addresses.
-(include "tools/dev/image-walk.x")
+(include "tools/dev/image-name.x")
 
 ; --- pass 1: stamp an index, and count types that cannot state an extent ---
 (def %refuses? (fn (_ p) (if (eq? (%rw p %type-off) %reflect-satom-tw) #f
@@ -91,6 +91,47 @@
 
 (def %put (fn (_ p i w) (do (%psw p (%int* i %word-size) w) (%int+ i 1))))
 
+; --- the foreign table -----------------------------------------------------
+; One entry per named address: kind word, name-length word, then the name
+; bytes NUL-padded to a word boundary.  Self-contained -- it references no
+; other section -- so it can be built before the object walk and written
+; wherever it is wanted in the file.
+(def %F-CAP (* 8 40000))
+(def %f-p (%i->p (%pcall %c-calloc 1 %F-CAP)))
+(def %words-for (fn (_ n) (%int+ 1 (%shr n 3))))
+(def %emit-ftable
+  (fn (self t cur)
+    (if (null? t) cur (self (rest t) (%emit-fentry (rest (first t)) cur)))))
+(def %emit-fentry
+  (fn (_ kp cur) (%emit-fbytes (first kp) (rest kp) cur (%blen (rest kp)))))
+(def %emit-fbytes
+  (fn (_ kind nm cur n)
+    (do (%psw %f-p (%int* cur %word-size) kind)
+        (%psw %f-p (%int* (%int+ cur 1) %word-size) n)
+        (%pcall %c-memcpy (%int+ (%p->i %f-p) (%int* (%int+ cur 2) %word-size))
+                (%word-at (%o->p nm) 0) n)
+        (%int+ cur (%int+ 2 (%words-for n))))))
+(def %f-index
+  (fn (self t a n)
+    (if (null? t) 0 (if (eq? (first (first t)) a) n (self (rest t) a (%int+ n 1))))))
+(def %flen (fn (self t n) (if (null? t) n (self (rest t) (%int+ n 1)))))
+
+; Discovery: a foreign address the declared sources do not name may still be
+; nameable by the linker.  This runs as its own walk so the table is complete
+; BEFORE the stamping pass -- the emit pass may not allocate a table entry.
+(def %discover (fn (_ p acc) (%over-units p %disc-unit acc)))
+(def %disc-unit
+  (fn (_ k w acc)
+    (if (eq? k 3)
+      (if (null? (%map-get %MAP w))
+        (if (null? (%map-get acc w)) (%disc-add w acc) acc)
+        acc)
+      acc)))
+(def %disc-add
+  (fn (_ w acc)
+    ((fn (_ nm) (if (null? nm) acc (%map-add acc w %F-DLSYM nm))) (%dl-name w))))
+(def %append (fn (self a b) (if (null? a) b (self (rest a) (pair (first a) b)))))
+
 ; A ref resolves to the target's stamped index; 0 for nil, and 0 for a static,
 ; which is what the foreign table will carry instead (not yet emitted).
 (def %ref-index
@@ -102,7 +143,9 @@
 (def %emit-unit
   (fn (_ k w acc)
     (if (eq? k 2) (%emit-bytes w acc)
-      (pair (%put %obj-p (first acc) (if (eq? k 0) (%ref-index w) w))
+      (pair (%put %obj-p (first acc)
+              (if (eq? k 0) (%ref-index w)
+                (if (eq? k 3) (%f-index %FTABLE w 1) w)))
             (rest acc)))))
 (def %emit-bytes
   (fn (_ w acc)
@@ -146,7 +189,9 @@
         (%psw %hdr-p (* 5 %word-size) objw) ; object-table words
         (%psw %hdr-p (* 6 %word-size) blobn); blob bytes
         (%psw %hdr-p (* 7 %word-size) 0)    ; root index -- not yet named
-        (* 8 %word-size))))
+        (%psw %hdr-p (* 8 %word-size) %FCOUNT)
+        (%psw %hdr-p (* 9 %word-size) %FWORDS)
+        (* 10 %word-size))))
 
 (def %wr (fn (_ fd p n) (%pcall %c-write fd p n)))
 ; Where the image lands.  A def rather than an argument: `Contract argv` is
@@ -159,13 +204,17 @@
         (display "extent:      ") (write (%int* extw %word-size)) (display " bytes") (newline)
         (display "objects tbl: ") (write (%int* objw %word-size)) (display " bytes") (newline)
         (display "byte blob:   ") (write blobn) (display " bytes") (newline)
+        (display "foreign tbl: ") (write (%int* %FWORDS %word-size))
+        (display " bytes, ") (write %FCOUNT) (display " entries") (newline)
         (display "IMAGE TOTAL: ")
-        (write (%int+ hdrn (%int+ (%int* extw %word-size)
-                                  (%int+ (%int* objw %word-size) blobn))))
+        (write (%int+ hdrn (%int+ (%int* %FWORDS %word-size)
+                            (%int+ (%int* extw %word-size)
+                                   (%int+ (%int* objw %word-size) blobn)))))
         (display " bytes -> ") (display %IMG) (newline))))
 (def %write-to
   (fn (_ fd n extw objw blobn hdrn)
     (do (%wr fd %hdr-p hdrn)
+        (%wr fd %f-p (%int* %FWORDS %word-size))
         (%wr fd %ext-p (%int* extw %word-size))
         (%wr fd %obj-p (%int* objw %word-size))
         (%wr fd %blob-p blobn)
@@ -190,6 +239,20 @@
 
 (%collect)
 (display "live objects:  ") (write (%hc)) (newline)
+
+; PASS 0 -- discover the addresses the declared sources do not name, which the
+; linker may still name.  The heap has to be marked for the walk to see it, and
+; is cleared again immediately: the table is then built, and the foreign
+; section emitted, while NOTHING is marked, so these defs cost nothing.  The
+; table must be COMPLETE before stamping, because the emit pass may not
+; allocate -- it looks entries up, it does not add them.
+; Unfiltered and BEFORE the mark: discovery needs to see foreign units, not to
+; know which are reachable, so it must not spend the one mark this process has.
+(def %EXTRAS (first (%walk-all (pair 1 2) %discover ())))
+(def %FTABLE (%append %EXTRAS %MAP))
+(def %FCOUNT (%flen %FTABLE 0))
+(def %FWORDS (%emit-ftable %FTABLE 0))
+
 (%mark! (%base) %TRACE)
 ; ONE expression, no `def` between the mark and the last walk: a def repoints
 ; an environment pair, which is itself traced, at a value pass 1 never stamped.
