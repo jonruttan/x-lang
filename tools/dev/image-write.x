@@ -240,6 +240,11 @@
 ; carry a foreign unit 0 and theirs differ per instance, so a type qualifies
 ; only if every instance seen agrees.  acc = (first-seen . disagreed).
 (def %F-TYPECALL 4)
+; A dlopen HANDLE is not a symbol and dladdr will never name one, but it is
+; perfectly reacquirable: the loader calls dlopen again.  An empty payload
+; means the process handle -- dlopen(NULL) -- which is the only one this tree
+; opens.  Detected by value, against the handle this writer holds.
+(def %F-DLOPEN 5)
 (def %cp-kind0
   (fn (_ tw)
     (if (eq? (%ty-kind tw) %T-HEAP) (%cp-cell-kind (%cell-of tw)) 9)))
@@ -310,6 +315,14 @@
 
 ; A ref resolves to the target's stamped index; 0 for nil, and 0 for a static,
 ; which is what the foreign table will carry instead (not yet emitted).
+; A foreign unit that names nothing gets FCOUNT+1, one past the table, for the
+; reason the reference sentinel exists: index 0 is a NIL foreign, so writing an
+; unnameable address as 0 restores it as "no address" instead of failing.
+(def %f-ref
+  (fn (_ w)
+    (if (eq? w 0) 0
+      ((fn (_ i) (if (eq? i 0) (%int+ %FCOUNT 1) i)) (%f-index %FTABLE w 1)))))
+
 ; A static reference is emitted NEGATIVE -- object indices are non-negative, so
 ; the ranges cannot collide and the loader needs no count to tell them apart.
 ;
@@ -333,7 +346,7 @@
     (if (eq? k 2) (%emit-bytes w acc)
       (pair (%put %obj-p (first acc)
               (if (eq? k 0) (%ref-index w)
-                (if (eq? k 3) (%f-index %FTABLE w 1) w)))
+                (if (eq? k 3) (%f-ref w) w)))
             (rest acc)))))
 (def %emit-bytes
   (fn (_ w acc)
@@ -401,8 +414,10 @@
         (display " bytes, ") (write %TCOUNT) (display " types") (newline)
         (display "statics tbl: ") (write (%int* %SWORDS %word-size))
         (display " bytes, ") (write %SCOUNT) (display " nodes") (newline)
-        (display "unresolvable refs (written as nil, indistinguishable): ")
-        (write %UNRES) (newline)
+        (display "unnameable refs (sentinel, refusable): ") (write %UNRES) (newline)
+        (display "unnameable foreign (sentinel): ") (write (rest %FU))
+        (display "  + ") (write (first %FU))
+        (display " that are this writer's own buffers") (newline)
         (display "foreign tbl: ") (write (%int* %FWORDS %word-size))
         (display " bytes, ") (write %FCOUNT) (display " entries, ")
         (write (%flen %CALLS 0)) (display " of them type-call") (newline)
@@ -458,8 +473,9 @@
 (def %TWORDS (%emit-ttable %TTABLE 0))
 (def %CPSCAN (first (%walk-all (pair 1 2) %cp-scan (pair () ()))))
 (def %CALLS (%cp-entries (first %CPSCAN) (rest %CPSCAN) ()))
+(def %HANDLES (%map-add () (Ptr ->int %lib) %F-DLOPEN ""))
 (def %EXTRAS (first (%walk-all (pair 1 2) %discover ())))
-(def %FTABLE (%append %CALLS (%append %EXTRAS %MAP)))
+(def %FTABLE (%append %HANDLES (%append %CALLS (%append %EXTRAS %MAP))))
 (def %FCOUNT (%flen %FTABLE 0))
 (def %FWORDS (%emit-ftable %FTABLE 0))
 ; No walk at all: the statics come from the declared paths, not the heap.
@@ -481,6 +497,29 @@
           (if (eq? (%f-index %STATICS w 1) 0) (%int+ acc 1) acc)))
       acc)))
 (def %UNRES (first (%walk-all (pair 1 2) %unres 0)))
+
+; The writer's own buffers are POINTER objects in the heap it is imaging, so
+; they turn up as foreign units nothing can name -- an address malloc handed
+; THIS process is meaningless in another.  They are not a gap in the format;
+; they are the writer-in-its-own-base problem docs/state-images.md records, and
+; they vanish when the writer runs in a child base.  Counted apart so the
+; number that remains is the number that actually matters.
+(def %MINE
+  (list (Ptr ->int %ext-p) (Ptr ->int %obj-p) (Ptr ->int %blob-p)
+        (Ptr ->int %f-p) (Ptr ->int %t-p) (Ptr ->int %s-p)
+        (Ptr ->int %hdr-p) (Ptr ->int %dl-buf)))
+(def %mine? (fn (self l a) (if (null? l) #f (if (eq? (first l) a) #t (self (rest l) a)))))
+(def %fu-scan (fn (_ p acc) (%over-units p %fu-unit acc)))
+(def %fu-unit
+  (fn (_ k w acc)
+    (if (eq? k 3)
+      (if (eq? (%f-index %FTABLE w 1) 0)
+        (if (%mine? %MINE w)
+            (pair (%int+ (first acc) 1) (rest acc))
+            (pair (first acc) (%int+ (rest acc) 1)))
+        acc)
+      acc)))
+(def %FU (first (%walk-all (pair 1 2) %fu-scan (pair 0 0))))
 
 (%mark! (%base) %TRACE)
 ; ONE expression, no `def` between the mark and the last walk: a def repoints

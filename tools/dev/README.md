@@ -232,10 +232,30 @@ Which types qualify is measured, not assumed -- `PRIMITIVE` and `POINTER` also
 carry a foreign unit 0 and theirs differ per instance, so a type qualifies only
 if every instance agrees.
 
+A `dlopen` **handle** is named as itself: it is not a symbol and `dladdr` will
+never name one, but a loader reacquires it by calling `dlopen` again. An empty
+payload means the process handle.
+
+Nothing unnameable is written as 0 any more, in either table. 0 means nil for
+both a reference and a foreign unit, so an address that could not be named
+would come back as "no address" instead of failing -- the same silent-wrong
+shape twice. Both now emit a value one past their table, which a loader can
+refuse.
+
 **Still not loadable**, because nothing can read the file until the engine
-grows the allocate-and-patch loop. What remains unnamed in the data is 13
-foreign units (12 `POINTER`, 1 `PRIMITIVE`) and 159 references to spine nodes
-no declared path reaches.
+grows the allocate-and-patch loop. What remains unnamed is:
+
+| | |
+|---|--:|
+| references to spine nodes no declared path reaches | 159 |
+| foreign units genuinely unnameable | 3 |
+| foreign units that are the writer's own buffers | 8 |
+
+The last row is not a gap in the format. An address `malloc` handed *this*
+process means nothing in another, and those pointers are in the heap only
+because the writer images the base it runs in -- they vanish when it runs in a
+child base. The 3 are two library-owned allocations and one engine-internal
+primitive that no naming source reaches.
 
 Two things to know when reading one. The writer images the base it runs in, so
 its own libc doors (`malloc`, `calloc`, `write`, `creat`) appear among the
