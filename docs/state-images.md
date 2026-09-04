@@ -487,6 +487,48 @@ The measured foreign surface fits this: a booted helium's 147 address-holding
 objects are 129 primitives (catalog or bare — both C-resolvable) and 17
 pointers that are sixteen `dlsym` results over one `dlopen` handle.
 
+## Naming the statics: a reference into the base is a path, not a copy
+
+266 references from imaged objects point at objects that carry no metadata
+word and so cannot hold an index. They are **185 distinct objects, and they
+are the base's own spine** — measured by dumping them:
+
+```
+#<ATOM:0x0>  #<ATOM:0x1>  #<ATOM:0x2>          the three file descriptors
+(())   (#<buffer> ())   ((#<ATOM:0x2>) (()) (#<buffer> ()))
+                                               the pair tree holding them
+```
+
+Those atoms are exactly what `filein`, `fileout` and `fileerr` answer, and the
+pairs are the io group they hang from. None of it is heap-allocated: it is
+built at base creation, which is why it has no metadata prefix and why the
+chain walk never reaches it.
+
+So a reference into that structure must not be *copied*. The loader builds a
+fresh base, which has its own — at different addresses, with different
+descriptors — and copying would produce a second, dead spine alongside the
+live one.
+
+**Record the walk instead.** Every one of these objects sits at a fixed
+position in the base tree, reachable by a sequence of `first`/`rest` steps
+from the base. That is exactly the vocabulary
+`engine/tools/contract/base-paths.x` already commits — its rows *are* step
+lists, `make check-base-paths` re-derives them from the C headers, and
+`lib/x/boot/reflect.x` already walks them at runtime. So the foreign table
+gains one more kind:
+
+| kind | payload | how C resolves it |
+|---|---|---|
+| `base-path` | a step list (`f`/`r`) | walk it from the fresh base |
+
+It is C-resolvable, which is the loader's standing requirement, and it needs
+no new contract: the steps are the ones already checked.
+
+Recording steps rather than a field name matters, because not every node in
+that tree is named. The fd atoms sit at named rows; the interior pairs holding
+them do not, and a reference can land on either. A step list addresses both,
+and degrades to the named case when a row happens to match.
+
 ## The format
 
 Word-oriented, in the writing machine's own word size and byte order, because
@@ -571,10 +613,77 @@ root with `Base wrap` instead of installing it.
 ## The writer, and the discipline it needs
 
 **Where this ended up, before the account of how.** The writer enumerates by
-walking the heap chain, filters by asking the collector what is reachable
-(`(heap trace! base)`, read the flag, `(heap untrace!)`), and reads each
-object's units through its type's shape. Two passes: stamp an index into
-metadata slot 1, then resolve every unit against those indices.
+walking the heap chain, filters by asking the collector what is reachable, and
+reads each object's units through its type's shape. Two passes: stamp an index
+into metadata slot 1, then resolve every unit against those indices.
+
+```x
+(heap tree-mark! (%base) 1024)   ; the collector answers; 1024 is ours to pick
+   ... walk the chain, act on flagged objects only ...
+(heap chain-clear! 1024)         ; take the bit back
+```
+
+Measured on a booted helium: **80,398 objects indexed, 1 unresolved
+reference, 2 extents refused** — the two BUFFERs, whose type declares no
+units. Against 33,823 objects for the best walk that computed reachability in
+x. The worklist, the visited set and the base-tree special case are all gone:
+the chain is an enumerator, the flag is the filter. The byte blob those
+objects need is **191,087 bytes**.
+
+> **Every walk goes through one helper, and it returns what it visited.**
+> Written once because writing it per pass produced the same three faults
+> repeatedly: a PTR cursor, which roots nothing it addresses, freed under the
+> walk by a collect; a collect on the first iteration, while the start object
+> is still an unrooted temporary; and — the one that did real damage — a pass
+> that visited nothing and therefore reported zero of everything. A clean zero
+> over zero objects was reported here as a result. The helper holds its cursor
+> as an object and returns `(acc . visited)`, so that cannot recur silently.
+
+**The unresolved references are the writer's own bindings**, one per `def`
+evaluated after the mark. A `def` repoints a pair in the environment, the
+environment is inside the heap being imaged, and the value it now points at
+was never stamped. Measured by prediction twice: three extra `def`s gave
+exactly three more, and hoisting the reporter's definition above the mark took
+five down to one.
+
+The last one does not go away by discipline. The writer runs inside the base
+it is imaging, so evaluating anything at all leaves a trace on the thing being
+recorded — the same fact as the base control cells above. The structural fix
+is to run the writer in a base of its own: a child shares the heap chain,
+which no longer matters now that reachability comes from the collector, but it
+does *not* share the environment, which is where this last reference lives.
+
+**What running the writer in a child actually costs.** Attempted, not
+finished, and the obstacles are worth recording before anyone tries again:
+
+- A bare child is the C ISA and nothing else, so **every form has to be handed
+  in** — `do`, `if`, the variadic arithmetic, all of it. They bind and work
+  (`Base bind` carries operatives and parent closures fine, and a parent
+  closure called from the child resolves its own library names), but the
+  writer must be written against whatever was passed, not against the library.
+- **A closure in a child captures its environment as a snapshot**, so a name
+  defined *after* it is invisible. Mutual recursion that works in the parent —
+  where the globals BST inserts in place — fails silently in a child. The walk
+  had to be restructured to pure self-recursion.
+- **A collect from the child is survivable.** It marks from the child's roots
+  and sweeps a shared chain, which looks alarming, but the parent came through
+  intact and kept evaluating. That is worth understanding properly rather than
+  relying on.
+
+Against a payoff of **one reference** on helium, that is not yet worth it. The
+discipline half is free and already banked: nothing defined between the mark
+and the last pass took seven down to one. The child-base writer is the right
+shape for a writer that is a module rather than a prototype — written for the
+child from the start, instead of retrofitted into it.
+
+**120 traced objects cannot hold an index, and do not need one.** Their flags
+carry no metadata bit and their type words are the two *static* type objects,
+which makes them compile-time constants in the binary rather than heap
+allocations — `x_obj_set` statics, with no metadata prefix to stamp. Nothing
+in the image references them: the measured count of references into that set
+is zero. A loader's fresh base brings its own, so they are excluded rather
+than restored, and the side table this document previously wanted for them is
+not needed.
 
 The subsections below are the record of arriving there, and several of them
 are accounts of approaches that did not work — a walk that computed
@@ -1007,6 +1116,12 @@ no shape at all.
   repoints an imaged environment pair; adding two took the count from 6 to
   10. The mutation-free rule applies to the writer's setup, not only its
   loops.
+- **Whether the base spine's shape is stable enough to address by steps.** The
+  step lists come from a contract that a gate re-derives from the headers, so
+  a spine change fails the build rather than silently moving a reference — but
+  an image written before such a change and loaded after it would resolve its
+  steps against a different tree. The header's layout digest is what should
+  refuse that, and it is already in the format.
 - **Whether a per-type shape is enough.** BUFFER says it is not: one type,
   two instance shapes. Nothing needs it today — buffers are not imaged — but
   the next type whose instances differ will need an answer, and the format
