@@ -1,32 +1,10 @@
-; image-read.x -- read a state image back and rebuild its object graph.
+; image-inspect.x -- load an image and report on what came back.
 ;
-;   sh x.sh -q -f tools/dev/image-write.x     # write /tmp/x-core.ximg
-;   X_BIN=<engine-with-image-rebuild> sh x.sh -q -f tools/dev/image-read.x
+;   X_BIN=<engine-with-image-rebuild> sh x.sh -q -f tools/dev/image-inspect.x
 ;
-; NEEDS AN ENGINE CARRYING (image rebuild!), which the pinned one does not yet.
-;
-; THE SPLIT THIS DEMONSTRATES.  X resolves the tables -- verifying the header,
-; matching each file type NAME to a live type, reacquiring foreign addresses by
-; name, walking base paths for the statics -- which is per-entry work over a few
-; hundred items.  One primitive does the only per-object work there is: two
-; passes over ~86k records, allocate then patch.
-;
-; That division is not stylistic.  The same two passes written in x take ~30s
-; and allocate garbage nothing collects, because collection is manual and a
-; per-object interpreted loop has nowhere safe to collect; it exhausted a
-; machine's memory.  Through the primitive the whole rebuild is ~0.5s on top of
-; helium's boot.
-;
-; NOTHING ABOUT SHAPE COMES OUT OF THE FILE.  Unit counts and kinds are the
-; LIVE type's, through (Type set-shape!), which is why there is no extent table
-; and no mask column.  The reader proves it: it walks the object table with no
-; length field anywhere and lands exactly on the declared word count.
-;
-; The three NON-HEAP tags are the exception, and the only shape the reader
-; states itself: a structural PAIR is two references, a static ATOM one word,
-; nil-typed one word.  image-walk.x's %over-tw says the same when writing.
-; They have no live type to ask, so their counts go to the primitive in a
-; table -- fifteen words, not per-object.
+; The diagnostic twin of tools/dev/image-read.x, which is the boot path and
+; stays lean.  Everything here is an O(N) scan over the rebuilt graph, which is
+; exactly what a loader must not do and a diagnosis must.
 ;
 ; @author [Jon Ruttan](jonruttan@gmail.com)
 ; @copyright 2026 Jon Ruttan
@@ -236,13 +214,39 @@
 
 ; --- the whole rebuild, in one primitive ------------------------------------
 ; X resolved the tables; C does the only per-object work there is.
-; --- rebuild and install --------------------------------------------------
-; One primitive does the per-object work; everything above is per-entry.
+
+; --- what came back --------------------------------------------------------
 ((fn (_ ix)
    (do (%oset! (B cell (lit env-alist)) 0 (ixref ix ROOTENV))
        (%install-slot! (lit env-global-tree) (ixref ix ROOTG))
-       (display "loaded ") (write N) (display " objects; ")
-       (display "(list 1 2 3) => ") (write (B eval (lit (list 1 2 3)))) (newline)))
+       (display "objects rebuilt: ") (write N) (newline)
+       (display "evaluating in the loaded image:") (newline)
+       (display "  (+ 1 2)      => ") (write (guard (_ (lit RAISED)) (B eval (lit (+ 1 2))))) (newline)
+       (display "  x-release    => ") (write (guard (_ (lit RAISED)) (B eval (lit x-release)))) (newline)
+       (display "  (list 1 2 3) => ") (write (guard (_ (lit RAISED)) (B eval (lit (list 1 2 3))))) (newline)
+       (display "  %word-size   => ") (write (guard (_ (lit RAISED)) (B eval (lit %word-size)))) (newline)
+       ((fn (_ n) (do (display "env chain: ") (write n) (newline)))
+        ((fn (self o n) (if (null? o) n (if (eq? n 100000) n (self (%oref o 1) (%i+ n 1)))))
+         (ixref ix ROOTENV) 0))
+       ((fn (_ r)
+          (do (display "callables: ") (write (first r))
+              (display "   with a NULL call pointer: ") (write (rest r)) (newline)))
+        ((fn (self i acc)
+           (if (%lt N i) acc
+             (self (%i+ i 1)
+               ((fn (_ o)
+                  (if (if (str=? (guard (_ "?") (Type name o)) "PROCEDURE") #t
+                        (str=? (guard (_ "?") (Type name o)) "PRIMITIVE"))
+                    (if (eq? (%word-at (%o->p o) 0) 0)
+                      (pair (%i+ (first acc) 1) (%i+ (rest acc) 1))
+                      (pair (%i+ (first acc) 1) (rest acc)))
+                    acc))
+                (ixref ix i)))))
+         1 (pair 0 0)))
+       ((fn (_ z) (do (display "foreign entries unresolved: ") (write z)
+                      (display " of ") (write FCOUNT) (newline)))
+        ((fn (self i n) (if (%lt FCOUNT i) n
+            (self (%i+ i 1) (if (eq? (%oref FV i) 0) (%i+ n 1) n)))) 1 0))))
  ((prim-ref (lit image) (lit rebuild!))
   buf OSTART N TT FV ST (%i+ (Ptr ->int buf) (%i* BSTART W)) IX TCNT SYMTI
   (%i+ FCOUNT 1) (%i+ SCOUNT 1)))
