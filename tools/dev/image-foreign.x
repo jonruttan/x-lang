@@ -80,7 +80,31 @@
 ; reference is a wild read.  The bare bindings must come through base-paths.x
 ; step lists, not a generic descent -- which is the next piece of work, not a
 ; thing to bodge here.
-; CATALOG ONLY -- and the two failed attempts are why.
+; --- source 2: the bare globals, from the ISA contract -------------------
+;
+; The engine DECLARES its bare globals -- %isa-bare in the ISA contract -- so
+; they can be looked up by name instead of hunted for.  That matters because
+; nothing in x may go looking: `first` is unchecked (the C layer is a CPU), so
+; (first 5) segfaults, `pair?` answers #f for the structural pairs the base
+; spine is made of, and %reflect-type-word IS a dereference -- asking "may I
+; walk this?" is already the unsafe act.  Two attempts to walk the spine for
+; these names crashed, once generically and once over a single flat list.
+;
+; Looking a name up cannot crash: eval raises catchably when it is unbound,
+; and Type name is safe on any value including immediates.  A name the library
+; has rebound (the six raw bitwise operators, wrapped by core/arithmetic.x)
+; yields the wrapper, not the primitive, and is simply not added -- those
+; survive only inside a closure, which docs/state-images.md already records.
+(include "engine/tools/contract/isa.x")
+(def %from-bare
+  (fn (self rows m)
+    (if (null? rows) m (self (rest rows) (%bare-add (first (first rows)) m)))))
+(def %bare-add
+  (fn (_ nm m)
+    (guard (_ m)
+      ((fn (_ v) (if (%prim? v) (%map-add m (%fnptr v) 2) m)) (eval nm)))))
+
+; NOT the base env, and the two failed attempts are why.
 ;
 ; The bare bindings live in the base's STATIC SPINE, and nothing here may walk
 ; it.  A generic descent crashes as docs/state-images.md predicts: a structural
@@ -94,30 +118,66 @@
 ; read through base-layout.x and base-paths.x, whose rows say which leaves are
 ; cells, which are direct values and which are external.  That is the next
 ; piece of work.
-(def %MAP (%from-catalog (first (%reflect-base-cell (lit prims))) ()))
+(def %MAP
+  (%from-bare %isa-bare
+    (%from-catalog (first (%reflect-base-cell (lit prims))) ())))
 
 (def %mlen (fn (self m n) (if (null? m) n (self (rest m) (%int+ n 1)))))
 (display "catalog entries: ") (write (%mlen %MAP 0)) (newline)
+
+; --- source 3: ask the dynamic linker what an address is called -----------
+;
+; The pointers left over are dlsym results -- the census in the document counts
+; sixteen over one dlopen handle.  Nothing declares them, but nothing has to:
+; dladdr maps an address back to its symbol, and dlsym maps that symbol back to
+; the address.  The round trip is CHECKED here rather than assumed, because a
+; name that does not resolve is worse than no name -- macOS reports getpid as
+; "__getpid", which does dlsym back to the same address, and a mechanism that
+; silently produced unresolvable names would look like coverage.
+(def %lib ((prim-ref (lit ffi) (lit dlopen)) () 1))
+(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
+(def %pcall (prim-ref (lit ptr) (lit call)))
+(def %p->i (prim-ref (lit ptr) (lit ->int)))
+(def %p->s (prim-ref (lit ptr) (lit ->str)))
+(def %c-dladdr (%dlsym %lib "dladdr"))
+(def %dl-buf ((prim-ref (lit int) (lit ->ptr)) (%pcall (%dlsym %lib "malloc") 64)))
+(def %DLI-SNAME 16)   ; Dl_info: fname, fbase, sname, saddr
+(def %dl-round-trips?
+  (fn (_ w)
+    (if (eq? (%pcall %c-dladdr w %dl-buf) 0) #f (%dl-check w (%rw %dl-buf %DLI-SNAME)))))
+(def %dl-check
+  (fn (_ w sname)
+    (if (eq? sname 0) #f
+      (guard (_ #f)
+        ((fn (_ back) (if (null? back) #f (eq? (%p->i back) w)))
+         (%dlsym %lib (%p->s ((prim-ref (lit int) (lit ->ptr)) sname))))))))
 
 ; --- census: classify every foreign unit in the heap -----------------------
 ; acc = (catalog-named bare-named . unnamed)
 (def %census
   (fn (_ k w acc)
-    (if (eq? k 3) (%tally (%map-get %MAP w) acc) acc)))
+    (if (eq? k 3) (%tally (%map-get %MAP w) acc w) acc)))
 (def %tally
-  (fn (_ tag acc)
-    (if (null? tag) (pair (first acc) (pair (first (rest acc)) (%int+ (rest (rest acc)) 1)))
+  (fn (_ tag acc w)
+    (if (null? tag) (%tally-miss acc w)
       (if (eq? tag 1) (pair (%int+ (first acc) 1) (rest acc))
         (pair (first acc) (pair (%int+ (first (rest acc)) 1) (rest (rest acc))))))))
+(def %tally-miss
+  (fn (_ acc w)
+    (pair (first acc)
+      (pair (first (rest acc))
+        (if (%dl-round-trips? w)
+          (pair (%int+ (first (rest (rest acc))) 1) (rest (rest (rest acc))))
+          (pair (first (rest (rest acc))) (%int+ (rest (rest (rest acc))) 1)))))))
 (def %f-walk (fn (_ p acc) (%over-units p %census acc)))
 
 (%collect)
 (%mark! (%base) %TRACE)
 ((fn (_ r)
    (do (display "foreign units named by catalog: ") (write (first (first r))) (newline)
-       (display "               by bare binding: ") (write (first (rest (first r))))
-       (display "   (needs the base-paths route)") (newline)
-       (display "                       UNNAMED: ") (write (rest (rest (first r)))) (newline)
+       (display "               by bare binding: ") (write (first (rest (first r)))) (newline)
+       (display "            by dladdr round-trip: ") (write (first (rest (rest (first r))))) (newline)
+       (display "                       UNNAMED: ") (write (rest (rest (rest (first r))))) (newline)
        (display "                       visited: ") (write (rest r)) (newline)))
- (%walk (pair 1 2) %f-walk (pair 0 (pair 0 0))))
+ (%walk (pair 1 2) %f-walk (pair 0 (pair 0 (pair 0 0)))))
 (%clear! %TRACE)

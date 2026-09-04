@@ -175,9 +175,21 @@ sh x.sh -q -f tools/dev/image-foreign.x
 
 Counts how many of the heap's foreign units the image can actually name. Every
 foreign unit holds a raw address and no address survives into another process,
-so each has to be reacquired by name. Currently the prims catalog names 104 of
-146; the rest are bare bindings in the base's static spine, which need the
-`base-paths.x` route rather than any walk.
+so each has to be reacquired by name. Three sources, and between them they
+reach 142 of 146:
+
+| source | names |
+|---|--:|
+| the prims catalog | 104 |
+| the bare globals the ISA contract declares (`%isa-bare`) | 24 |
+| `dladdr`, round-trip checked back through `dlsym` | 17 |
+| still unnamed | 4 |
+
+None of them goes looking. Nothing in x safely can: `first` is unchecked, so
+`(first 5)` segfaults; `pair?` answers #f for the structural pairs the base
+spine is built from; and `%reflect-type-word` is itself a dereference, so even
+asking "may I walk this?" is the unsafe act. Names are declared, looked up, or
+asked of the dynamic linker.
 
 **Not yet loadable.** The image carries the object graph -- extent table,
 object table and byte blob, with every reference resolved to an object index
