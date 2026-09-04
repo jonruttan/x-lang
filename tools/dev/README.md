@@ -274,9 +274,14 @@ by that name in another process. That is the dynamic linker's job and the
 engine has no substitute for it. It is a design question -- what a portable
 image should do about C addresses at all -- rather than a missing door.
 
-**Outstanding:** AddressSanitizer reports the writer writing 8 bytes past a
-SYMBOL object through `ptr set-word!`. It is not new -- nothing in the move off
-libc introduced a write -- but it is newly reachable, and it is unexplained.
+**A note on testing this.** `make` builds the normal engine; the sanitiser
+build is a separate target and is NOT rebuilt with it. Running these tools
+against a stale sanitiser build after adding a coordinate makes `prim-ref`
+return nil for it, so a buffer becomes nil and every write lands somewhere
+arbitrary -- which reads as a memory-safety bug in the tools rather than as a
+stale binary. An image written by one build and read by another goes wrong the
+same way, and the header carries digests to refuse exactly that, which these
+tools do not yet check. Rebuild both, and check the digests.
 
 ### Imaging a child base
 
