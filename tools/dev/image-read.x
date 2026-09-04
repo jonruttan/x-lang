@@ -81,6 +81,12 @@
                                    (pair (first (%type-units-cell (rest (first l))))
                                          (rest (first l)))) SHAPES))
           (self (rest l))))))
+; The reader's own type registry, not B's -- and that is a constraint worth
+; naming: an image of helium CANNOT be loaded into a bare base.  It references
+; fifteen types by name and a fresh (Base make) does not have VECTOR, PROMISE
+; or ITER, so the shape lookup misses, units-of returns 0, and the record walk
+; desyncs on the first such object.  A loader's base must already carry the
+; type registry the image was written against.
 (add-shape (first %reflect-type-alist-cell))
 (def lookup (fn (self l nm) (if (null? l) () (if (str=? (first (first l)) nm) (rest (first l)) (self (rest l) nm)))))
 (def tagged (fn (_ nm) (if (str=? nm "PAIR") (pair 2 0) (if (str=? nm "ATOM") (pair 1 1) (if (str=? nm "NIL") (pair 1 1) ())))))
@@ -226,12 +232,10 @@
    (do (display "rebuilt ") (write N) (display " objects") (newline)
        ; INSTALL: point the fresh base's env cells at the rebuilt roots.
        (%oset! (B cell (lit env-alist)) 0 (%oref ix ROOTENV))
-       ; GLOBALS ARE NOT INSTALLED.  The rebuilt tree is structurally perfect
-       ; -- 1,102 nodes, no nil entry, no nil children, every entry's first a
-       ; SYMBOL, which is everything x_alist_bst_lookup dereferences -- and
-       ; installing it still segfaults on the first evaluation.  Replaying
-       ; X_OBJ_FLAG_SHARED (which bst_pair sets on every node) does not change
-       ; it.  Unexplained.  Writing the rebuilt tree into the slot
+       ; Globals: env-global-tree is a SLOT, so installing means writing into
+       ; its parent at the half the last step names -- base-layout.x says which
+       ; rows are cells and which are slots.
+       (%install-slot! (lit env-global-tree) (%oref ix ROOTG))  Writing the rebuilt tree into the slot
        ; (which %install-slot! now does correctly -- it is a slot, not a cell)
        ; segfaults on the first evaluation, so the rebuilt tree is not yet a
        ; structure the evaluator can search.  The env alist is installed and
@@ -293,4 +297,5 @@
             (if (str=? (Type name (%oref ix i)) "SYMBOL") (%oref ix i) (self (%i+ i 1)))))
          1))))
  ((prim-ref (lit image) (lit rebuild!))
-  buf OSTART N TT FV ST (%i+ (Ptr ->int buf) (%i* BSTART W)) IX TCNT SYMTI))
+  buf OSTART N TT FV ST (%i+ (Ptr ->int buf) (%i* BSTART W)) IX TCNT SYMTI
+  (%i+ FCOUNT 1) (%i+ SCOUNT 1)))
