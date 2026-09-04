@@ -116,11 +116,29 @@
 (def stepwalk
   (fn (self v n pos)
     (if (eq? n 0) v (self (if (eq? (w pos) 0) (first v) (rest v)) (%i- n 1) (%i+ pos 1)))))
+; Two forms.  A base path is steps from the base.  A TYPE path is a type NAME
+; plus steps from that type's struct -- portable where a positional path is
+; not, because a loader's type registry differs from the writer's.
+(def tstruct
+  (fn (_ nm) ((fn (_ e) (if (null? e) () (rest e))) (lookup SHAPES nm))))
 (def rdstatics
   (fn (self i pos)
     (if (%lt SCOUNT i) ()
-      (do (%oset! ST i (stepwalk RAWB (w pos) (%i+ pos 1)))
-          (self (%i+ i 1) (%i+ pos (%i+ 1 (w pos))))))))
+      (if (eq? (w pos) 1) (%st-type self i pos) (%st-path self i pos)))))
+(def %st-path
+  (fn (_ k i pos)
+    (do (%oset! ST i (stepwalk RAWB (w (%i+ pos 1)) (%i+ pos 2)))
+        (k (%i+ i 1) (%i+ pos (%i+ 2 (w (%i+ pos 1))))))))
+(def %st-type
+  (fn (_ k i pos)
+    ((fn (_ nl)
+       ((fn (_ nm np)
+          (do (%oset! ST i ((fn (_ st) (if (null? st) () (stepwalk st (w np) (%i+ np 1))))
+                            (tstruct nm)))
+              (k (%i+ i 1) (%i+ np (%i+ 1 (w np))))))
+        (Ptr ->str (%i2p (at (%i+ pos 2))))
+        (%i+ pos (%i+ 3 (%shr nl 3)))))
+     (w (%i+ pos 1)))))
 (rdstatics 1 SSTART)
 
 ; --- foreign: reacquire by name --------------------------------------------
@@ -179,6 +197,11 @@
           (do (display "  rebuilt env chain length: ") (write chain) (newline)))
         ((fn (self o n) (if (null? o) n (if (eq? n 100000) n (self (%oref o 1) (%i+ n 1)))))
          (%oref ix ROOTENV) 0))
+       ((fn (_ g)
+          (do (display "  rebuilt globals tree: type=") (write (Type name g))
+              (display "  slot0=") (write (guard (_ (lit RAISED)) (Type name (%oref g 0))))
+              (display "  slot1=") (write (guard (_ (lit RAISED)) (Type name (%oref g 1)))) (newline)))
+        (%oref ix ROOTG))
        ((fn (_ sym)
           (do (display "  a rebuilt symbol vs the interned one: ")
               (write (guard (_ (lit RAISED))

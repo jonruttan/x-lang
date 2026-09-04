@@ -217,14 +217,71 @@
 (def %st-rows
   (fn (self rows acc)
     (if (null? rows) acc (self (rest rows) (%st-row (first rows) acc)))))
+
+; --- statics inside a type struct, named by the TYPE'S NAME -----------------
+; A step list from the base cannot reach these: the path would be positional
+; ("the third entry of the alist"), and a loader's base has a different type
+; registry.  A type NAME is portable, and base-paths.x describes a struct in
+; full -- 44 rows rooted at `type` -- so the steps from the struct are declared
+; and need no probing.
+(def %S-PATH 0)   ; steps from the base
+(def %S-TYPE 1)   ; a type name, then steps from its struct
+(def %st-at
+  (fn (self v steps) (if (null? steps) v (self (%step v (first steps)) (rest steps)))))
+(def %ta-steps
+  ((fn (self rows)
+     (if (null? rows) ()
+       (if (eq? (first (first rows)) (lit type-alist)) (rest (rest (first rows)))
+         (self (rest rows))))) %base-paths))
+(def %type-rows
+  ((fn (self rows acc)
+     (if (null? rows) acc
+       (self (rest rows)
+         (if (eq? (first (rest (first rows))) (lit type))
+             (pair (rest (rest (first rows))) acc) acc)))) %base-paths ()))
+(def %st-trecord
+  (fn (_ v acc nm rpfx)
+    ((fn (_ a) (if (null? (%map-get acc a)) (%map-add acc a %S-TYPE (pair nm rpfx)) acc))
+     (Ptr ->int (%o->p v)))))
+(def %st-twalk
+  (fn (self v steps acc nm rpfx)
+    (if (null? steps) acc
+      ((fn (_ nv nr) (self nv (rest steps) (%st-trecord nv acc nm nr) nm nr))
+       (%step v (first steps)) (pair (first steps) rpfx)))))
+(def %st-tstruct
+  (fn (self rows struct acc nm)
+    (if (null? rows) acc
+      (self (rest rows) struct (%st-twalk struct (first rows) acc nm ()) nm))))
+(def %st-talist
+  (fn (self node acc)
+    (if (null? node) acc
+      (self (rest node)
+        ((fn (_ st) (%st-tstruct %type-rows st (%st-trecord st acc ((Type wrap st) name) ())
+                                 ((Type wrap st) name)))
+         (rest (first node)))))))
+(def %st-types
+  (fn (_ acc) (%st-talist (first (%st-at %RAW %ta-steps)) acc)))
 (def %rev (fn (self l acc) (if (null? l) acc (self (rest l) (pair (first l) acc)))))
 (def %slen (fn (self l n) (if (null? l) n (self (rest l) (%int+ n 1)))))
 (def %emit-stable
   (fn (self t cur)
-    (if (null? t) cur (self (rest t) (%emit-sentry (rest (rest (first t))) cur)))))
+    (if (null? t) cur (self (rest t) (%emit-sentry (rest (first t)) cur)))))
 (def %emit-sentry
+  (fn (_ kp cur)
+    (if (eq? (first kp) %S-TYPE)
+      (%emit-tentry2 (first (rest kp)) (rest (rest kp)) (%put %s-p cur %S-TYPE))
+      (%emit-bentry (rest kp) (%put %s-p cur %S-PATH)))))
+(def %emit-bentry
   (fn (_ rpfx cur)
     (%emit-steps (%rev rpfx ()) (%put %s-p cur (%slen rpfx 0)))))
+(def %emit-tentry2
+  (fn (_ nm rpfx cur) (%emit-tname nm rpfx cur (%blen nm))))
+(def %emit-tname
+  (fn (_ nm rpfx cur n)
+    (do (%psw %s-p (%int* cur %word-size) n)
+        (Ptr call %c-memcpy (%int+ (Ptr ->int %s-p) (%int* (%int+ cur 1) %word-size))
+             (%word-at (%o->p nm) 0) n)
+        (%emit-bentry rpfx (%int+ cur (%int+ 1 (%words-for n)))))))
 (def %emit-steps
   (fn (self steps cur)
     (if (null? steps) cur
@@ -465,7 +522,7 @@
 ; the same steps reach a different node or run off the end, and the reader
 ; segfaults on exactly that.  Naming a node inside a type struct needs the
 ; TYPE'S NAME plus a field, which is a second form of entry and is not built.
-(def %STATICS (%st-rows %base-paths (%st-record %RAW () ())))
+(def %STATICS (%st-types (%st-rows %base-paths (%st-record %RAW () ()))))
 (def %SCOUNT (%flen %STATICS 0))
 (def %SWORDS (%emit-stable %STATICS 0))
 
