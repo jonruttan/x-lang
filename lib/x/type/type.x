@@ -271,7 +271,15 @@
     (%shape (lit %)  1 (lit (bytes)))     ; SYMBOL    -- pointer to its name
     (%shape first    1 (lit (foreign)))   ; PRIMITIVE -- a C function address
     (%shape ((prim-ref (lit obj) (lit ->ptr)) 0)
-                     1 (lit (foreign)))))  ; POINTER  -- an address C owns
+                     1 (lit (foreign)))    ; POINTER  -- an address C owns
+    ; The two callables: [fn-ptr][state], and slot 0 is a raw C function
+    ; pointer, NOT a heap object -- x-type/procedure.h and x-type/operative.h
+    ; both say so, and both warn that marking it as one would corrupt the free
+    ; list.  Undeclared, the units slot gave a count of 2 and no mask, and a
+    ; missing mask means "every unit is a reference": anything reading units
+    ; generically then dereferences the call pointer.  State is slot 1.
+    (%shape (fn (_ x) x) 2 (lit (foreign ref)))   ; PROCEDURE
+    (%shape (op (x) x)   2 (lit (foreign ref)))))  ; OPERATIVE
 
 (doc (provide x/type/type Type)
   (note "Mechanism in lib/x/type/struct.x, filed under catalog ns `type`; load-time wiring fetch-and-caches the helpers instead of calling the class.")
