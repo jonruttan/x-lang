@@ -188,7 +188,9 @@
 ; silently produced unresolvable names would look like coverage.
 (def %lib (Ffi dlopen () 1))
 (def %c-dladdr (Ffi dlsym %lib "dladdr"))
-(def %dl-buf (Ptr from-int (Ptr call (Ffi dlsym %lib "malloc") 64)))
+; The engine's allocator.  dlopen/dlsym/dladdr stay: naming a C function is
+; the dynamic linker's job, and there is no engine-side substitute for it.
+(def %dl-buf ((prim-ref (lit ptr) (lit alloc)) 64))
 (def %DLI-SNAME 16)   ; Dl_info: fname, fbase, sname, saddr
 ; Returns the symbol NAME if it round-trips back to the same address, else nil.
 ; The round trip is checked rather than assumed: macOS reports getpid as

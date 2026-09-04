@@ -125,14 +125,18 @@
 ; stdlib too (x/type/ptr exports both).  Nothing here hand-fetches a prim;
 ; image-walk.x does, and says why: the library's own note is that hot callers
 ; cache prims rather than class-dispatch per unit.
-(def %c-write  (Ffi dlsym %lib "write"))
-(def %c-malloc (Ffi dlsym %lib "malloc"))
+; NOTHING HERE COMES FROM LIBC.  The engine carries its own allocator, byte
+; copy and fd I/O -- x_sys_malloc, x_lib_memcpy, x_sys_write -- precisely so a
+; runtime need not assume a C library on the machine that runs it.  They were
+; simply not reachable from X until (ptr alloc), (ptr copy!), (ptr fill!) and
+; (sys write) exposed them; reaching dlopen/dlsym for libc's was borrowing the
+; dependency the engine went to the trouble of avoiding.
+(def %alloc  (prim-ref (lit ptr) (lit alloc)))
+(def %swrite (prim-ref (lit sys) (lit write)))
 ; calloc was libc's only for the zeroing; malloc still is, and is the one
 ; remaining borrow -- see the README.  Engine-allocated buffers would be
 ; objects in the heap being imaged, which is a different problem.
-(def %zeroed
-  (fn (_ n) ((fn (_ a) (do (%pfill! (%i->p a) 0 n) a))
-             (Ptr call %c-malloc n))))
+(def %zeroed (fn (_ n) ((fn (_ p) (do (%pfill! p 0 n) p)) (%alloc n))))
 ; The engine has its own memcpy and memset (x_lib_memcpy / x_lib_memset), now
 ; exposed as (ptr copy!) and (ptr fill!).  Reaching dlsym for libc's was
 ; borrowing a system library a runtime cannot assume is there, and the only
@@ -148,14 +152,14 @@
 ; records; a prototype pays it and says so rather than hiding it.
 (def %OBJ-CAP  (* 8 6000000))
 (def %BLOB-CAP (* 8  400000))
-(def %obj-p  (%i->p (Ptr call %c-malloc %OBJ-CAP)))
+(def %obj-p  (%alloc %OBJ-CAP))
 ; calloc, not malloc: every blob entry ends in a NUL, and zeroed memory
 ; already has one, so no byte poke is needed to place it.  (An earlier comment
 ; here claimed (Ptr set!) could not do that job.  It can -- it writes a
 ; WIDTH-byte little-endian value at P+OFF; the probe that "proved" otherwise
 ; had called (Ptr ref) with the width argument missing and crashed before it
 ; ever reached set!.)
-(def %blob-p (%i->p (%zeroed %BLOB-CAP)))
+(def %blob-p (%zeroed %BLOB-CAP))
 
 ; ONLY THE BITS THAT DESCRIBE THE OBJECT, not the moment.  Masking to 0xFFFF
 ; swept in MARK (0x200) and this writer's own trace bit (0x400) -- transient
@@ -184,7 +188,7 @@
 ; calloc'd buffer -- no boxing, and nothing allocated during the walk.
 (def %HT-SIZE 262144)
 (def %ht-mask (%int- %HT-SIZE 1))
-(def %ht-p (%i->p (%zeroed (* 16 %HT-SIZE))))
+(def %ht-p (%zeroed (* 16 %HT-SIZE)))
 (def %ht-key (fn (_ i) (%rw %ht-p (%int* (%int* i 2) %word-size))))
 (def %ht-val (fn (_ i) (%rw %ht-p (%int* (%int+ (%int* i 2) 1) %word-size))))
 (def %ht-idx (fn (_ a) (%int& (%shr a 4) %ht-mask)))
@@ -213,9 +217,9 @@
 ; other section -- so it can be built before the object walk and written
 ; wherever it is wanted in the file.
 (def %F-CAP (* 8 40000))
-(def %f-p (%i->p (%zeroed %F-CAP)))
-(def %t-p (%i->p (%zeroed %F-CAP)))
-(def %s-p (%i->p (%zeroed %F-CAP)))
+(def %f-p (%zeroed %F-CAP))
+(def %t-p (%zeroed %F-CAP))
+(def %s-p (%zeroed %F-CAP))
 (def %words-for (fn (_ n) (%int+ 1 (%shr n 3))))
 (def %emit-ftable
   (fn (self t cur)
@@ -510,8 +514,8 @@
 (def %emit (fn (_ p acc) (%emit-obj p acc)))
 
 ; --- write the sections out, in format order ------------------------------
-(def %wr (fn (_ fd p n) (Ptr call %c-write fd p n)))
-(def %hdr-p (%i->p (Ptr call %c-malloc 512)))
+(def %wr (fn (_ fd p n) (%swrite fd p n)))
+(def %hdr-p (%alloc 512))
 (def %emit-header
   (fn (_ n objw blobn)
     (do (%psw %hdr-p 0 1196247384)          ; "XIMG" little-endian

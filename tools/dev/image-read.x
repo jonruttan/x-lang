@@ -34,7 +34,11 @@
 
 (include "tools/dev/image-walk.x")
 (def %lib0 (Ffi dlopen () 1))
-(def %rd (Ffi dlsym %lib0 "read"))
+; The engine's own read and allocator, not libc's.  dlopen stays only for
+; reacquiring foreign ADDRESSES by name, which is the dynamic linker's job and
+; nothing else's.
+(def %sread (prim-ref (lit sys) (lit read)))
+(def %alloc (prim-ref (lit ptr) (lit alloc)))
 (def %i2p (prim-ref (lit int) (lit ->ptr)))
 (def %mk (prim-ref (lit obj) (lit make)))
 (def %oset! (prim-ref (lit obj) (lit set!)))
@@ -43,9 +47,9 @@
 (def %i+ (prim-ref (lit int) (lit +)))  (def %i* (prim-ref (lit int) (lit *)))
 (def %i- (prim-ref (lit int) (lit -)))  (def %lt (prim-ref (lit int) (lit <)))
 (def W %word-size)
-(def buf (%i2p (Ptr call (Ffi dlsym %lib0 "malloc") (* 8 1000000))))
+(def buf (%alloc (* 8 1000000)))
 (def fd (Sys open-read "/tmp/x-core.ximg"))
-(def got (Ptr call %rd fd buf (* 8 1000000)))
+(def got (%sread fd buf (* 8 1000000)))
 (Sys close fd)
 (def w (fn (_ i) (%rw buf (%i* i W))))
 (def at (fn (_ i) (%i+ (Ptr ->int buf) (%i* i W))))

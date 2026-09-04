@@ -256,23 +256,27 @@ process means nothing in another, and those pointers are in the heap only
 because the writer images the base it runs in. The 3 are two library-owned
 allocations and one engine-internal primitive that no naming source reaches.
 
-### They depend on system libraries, and should not
+### What they take from the system
 
-The image tools reach into libc through `Ffi`/`Ptr`, and that has to go: a
-language runtime cannot assume a C library is present on the machine that runs
-it, which is the same argument `lib/x/boot/tower-compiled.x` makes about
-assuming a C compiler.
+The engine carries its own C library and syscalls -- `x-stdlib.h` and
+`x-sys.h` -- so that a runtime need not assume a C library on the machine that
+runs it. None of it was reachable from x, so these tools reached
+`dlopen`/`dlsym` for libc's instead, borrowing exactly the dependency the
+engine went to the trouble of avoiding.
 
-| pulled from libc | for | replacement |
-|---|---|---|
-| `malloc` / `calloc` | six section buffers and the index table | **exists today** -- `(obj make TYPE n)` allocates n units through the engine, written with `Ptr set-word!` |
-| `memcpy` | string bytes into the blob | **no door** -- `Ptr set!` writes one width-sized value, so replacing it means a per-byte loop, which is exactly what asm-cache.x's rule forbids |
-| `write` / `read` | file I/O over a region of memory | **no door** -- `Sys fd-write` takes a string and an image is binary, NULs included |
-| `dlsym` / `dladdr` | naming and reacquiring C functions | a design question, not a door: naming a C function is the dynamic linker's job |
+They now use the engine's, through the coordinates that expose it:
+`(ptr alloc)`, `(ptr free!)`, `(ptr copy!)`, `(ptr fill!)`, `(sys read)`,
+`(sys write)`.
 
-The buffers are the easy majority and could move now. The other two rows want
-stdlib doors that do not exist -- a byte copy, and fd I/O over a pointer and a
-length -- and until they do, this is borrowed.
+What remains is `dlopen` / `dlsym` / `dladdr`, and only for **naming**: an
+image records a foreign address by the symbol it answers to, and reacquires it
+by that name in another process. That is the dynamic linker's job and the
+engine has no substitute for it. It is a design question -- what a portable
+image should do about C addresses at all -- rather than a missing door.
+
+**Outstanding:** AddressSanitizer reports the writer writing 8 bytes past a
+SYMBOL object through `ptr set-word!`. It is not new -- nothing in the move off
+libc introduced a write -- but it is newly reachable, and it is unexplained.
 
 ### Imaging a child base
 
