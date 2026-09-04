@@ -94,12 +94,10 @@
             (new Type handle handle raw raw)))))
     (method %kind-code (self (param k SYMBOL "A unit kind"))
       (doc "The engine's numeric code for a unit kind." (returns INT "0..3"))
-      (match
-        ((eq? k (lit ref)) 0)
-        ((eq? k (lit word)) 1)
-        ((eq? k (lit bytes)) 2)
-        ((eq? k (lit foreign)) 3)
-        (#t (error (pair (lit type-shape-unknown-kind) k)))))
+      ((fn (loop rows)
+         (if (null? rows) (error (pair (lit type-shape-unknown-kind) k))
+           (if (eq? (first (first rows)) k) (rest (first rows)) (loop (rest rows)))))
+       %type-kind-codes))
     (method %kind-mask (self (param kinds LIST "Unit kinds, unit 0 first"))
       (doc "Pack kinds into the engine's two-bits-per-unit mask."
         (returns INT "The mask"))
@@ -262,20 +260,10 @@
 ; calls.  A fresh (Base make) carries none of them, and a type with no mask
 ; means "every unit is a reference" -- so anything reading units generically
 ; then dereferences a PROCEDURE's call pointer.  Declaring them on another base
-; is walking its own type alist, which needs the rows, not the samples.
-(def %type-shape-rows
-  (lit (("INTEGER"   1 (word))       ; the value word
-        ("CHARACTER" 1 (word))       ; the code point
-        ("STRING"    1 (bytes))      ; pointer to its bytes
-        ("SYMBOL"    1 (bytes))      ; pointer to its name
-        ("PRIMITIVE" 1 (foreign))    ; a C function address
-        ("POINTER"   1 (foreign))    ; an address C owns
-        ; The two callables are [fn-ptr][state]: slot 0 is a raw C function
-        ; pointer, NOT a heap object.  x-type/procedure.h and
-        ; x-type/operative.h both say so, and both warn that marking it as one
-        ; would corrupt the GC free list.  State is slot 1.
-        ("PROCEDURE" 2 (foreign ref))
-        ("OPERATIVE" 2 (foreign ref)))))
+; is walking its own type alist, which needs the rows, not the samples -- and
+; the rows live in their own file because the image loader (lib/img.x) needs
+; them on a base with no class system at all.
+(include "lib/x/type/shape-rows.x")
 
 (def %type-shape-find
   (fn (self rows nm)

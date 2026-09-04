@@ -486,8 +486,8 @@ tree vary ~10% run to run, which is why they differ slightly from the eval
 table above.)
 
 Everything the four passes do *except the per-object loop* is per-entry work
-over hundreds of items — one header, ~150 foreign entries, 185 static paths —
-which x does in milliseconds. So the division is:
+over hundreds of items — one header, ~150 foreign entries, ~1,000 static paths
+— which x does in tens of milliseconds (measured below). So the division is:
 
 - **x** — open, verify, resolve the foreign table, install, and say something
   useful when any of that fails.
@@ -591,6 +591,43 @@ job it does.
 
 The C budget does not change. What changes is that the reader's x half may not
 lean on the library it is about to load.
+
+That prelude is `lib/img.x`, loaded with `sh x.sh -l img`, and it is measured
+rather than argued: **0.05s to boot**, and the whole x-core image — 95,497
+objects, 15 types, 1,079 statics, 145 foreign entries — **loads and evaluates
+in 0.26s**, against 0.90s to boot the same x-core from source. The same reader
+hosted on helium took 1.95s, and 0.88s of it was helium. Where the 0.26s goes:
+
+| phase | cost | what it is |
+|---|--:|---|
+| boot img | 50ms | `if`, `do`, `prim-ref`, byte strings, reflection, shapes |
+| read | 5ms | one `sys read` into raw memory |
+| types | 24ms | fifteen names matched to live types, absent ones registered |
+| statics | 107ms | 1,079 base-path walks from the target base |
+| foreign | 39ms | 145 names reacquired |
+| rebuild | 7ms | the one primitive, allocate then patch |
+| install, eval | 0.2ms | two roots written, `(list 1 2 3)` evaluated |
+
+So "per-entry work in milliseconds" above is right in kind and optimistic by an
+order: the statics walk is ~0.1ms an entry and there are a thousand of them.
+It is the next thing to cut, not a floor.
+
+The prelude carries everything the library would otherwise have supplied and
+nothing else: `(obj ref)` and `(obj set!)` are not engine primitives — the
+engine's own comment says they are "pure x-lang now" — so img defines them
+from the same addressing formula as `boot/data.x`; type names and units cells
+are walks of the type-rooted rows of `base-paths.x`; the unit shapes are the
+rows of `lib/x/type/shape-rows.x`, split out of `type.x` so that one file
+feeds both helium's boot and this one.
+
+**What the image does not carry yet, and the loader is honest about:** the
+types' handler stacks. Those are base state — the writer's base pushed the
+printers and class dispatch onto its type structs, and the type structs are
+statics, not imaged objects — so a loaded x-core can run `list` but not
+`write`. The reader registers CLASS and OBJECT empty when the host lacks them
+and proves life by reading the pairs the image built, not by asking the image
+to print. Restoring the stacks is the next format change: a per-type table of
+cell contents, installed after the rebuild the way the two env roots are.
 
 **What this does not fix**, so the arithmetic stays honest:
 
