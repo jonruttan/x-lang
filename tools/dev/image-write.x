@@ -569,10 +569,39 @@
   (fn (_ w)
     (if (eq? w 0) 0
       ((fn (_ i) (if (eq? i 0) (%static-ref w) i)) (%ht-find w)))))
+; COMPACT ON FIRST USE.  The statics map names every node on every declared
+; path -- 1,084 of them -- and a loader walked every one at 0.16ms apiece,
+; 170ms of a 450ms load, for the few dozen an imaged object actually points
+; at.  So the table in the file is the USED entries, numbered in order of first
+; reference during the walk, and an object record carries the compact index.
+; Two raw buffers, allocated before the mark: full index -> compact index, and
+; compact index -> full index (word 0 is the count), both written only through
+; %psw, so the walk allocates nothing and mutates nothing traced.
+; The sentinel stays -(FULL+1): always past the compact table, so the loader's
+; strict bound turns it into nil, and it needs no count that is not final
+; until the walk ends.
+(def %compact-new!
+  (fn (_ i)
+    ((fn (_ c)
+       (do (%psw %SUSED (%int* i %word-size) c)
+           (%psw %SORDER (%int* c %word-size) i)
+           (%psw %SORDER 0 c)
+           c))
+     (%int+ 1 (%rw %SORDER 0)))))
+(def %compact!
+  (fn (_ i)
+    ((fn (_ c) (if (eq? c 0) (%compact-new! i) c))
+     (%rw %SUSED (%int* i %word-size)))))
 (def %static-ref
   (fn (_ w)
-    ((fn (_ i) (%int- 0 (if (eq? i 0) (%int+ %SCOUNT 1) i)))
+    ((fn (_ i) (%int- 0 (if (eq? i 0) (%int+ %SFULL 1) (%compact! i))))
      (%f-index %STATICS w 1))))
+(def %nth (fn (self l n) (if (eq? n 1) (first l) (self (rest l) (%int- n 1)))))
+(def %emit-compact
+  (fn (self c cur)
+    (if (%ilt (%rw %SORDER 0) c) cur
+      (self (%int+ c 1)
+            (%emit-sentry (rest (%nth %STATICS (%rw %SORDER (%int* c %word-size)))) cur)))))
 
 ; acc = (obj-cursor . blob-cursor), both in units of their own buffer
 (def %emit-unit
@@ -643,7 +672,7 @@
         (display "type tbl:    ") (write (%int* %TWORDS %word-size))
         (display " bytes, ") (write %TCOUNT) (display " types") (newline)
         (display "statics tbl: ") (write (%int* %SWORDS %word-size))
-        (display " bytes, ") (write %SCOUNT) (display " nodes") (newline)
+        (display " bytes, ") (write %SCOUNT) (display " used of ") (write %SFULL) (display " named") (newline)
         (display "cells tbl:   ") (write (%int* %CWORDS %word-size))
         (display " bytes, ") (write %CCOUNT) (display " type cells") (newline)
         (display "unnameable foreign (sentinel): ") (write (rest %FU))
@@ -673,6 +702,8 @@
 (def %finish
   (fn (_ r1 r2)
     (set! %CWORDS (%emit-ctable %CELLS-T 0))
+    (set! %SCOUNT (%rw %SORDER 0))
+    (set! %SWORDS (%emit-compact 1 0))
     (%write-to (Sys open-write %IMG)
                (first (first r1))
                (first (first r2))
@@ -721,8 +752,11 @@
 ; segfaults on exactly that.  Naming a node inside a type struct needs the
 ; TYPE'S NAME plus a field, which is a second form of entry and is not built.
 (def %STATICS (%st-types (%st-rows %base-paths (%st-record %RAW () ()))))
-(def %SCOUNT (%flen %STATICS 0))
-(def %SWORDS (%emit-stable %STATICS 0))
+(def %SFULL (%flen %STATICS 0))
+(def %SCOUNT 0)      ; the USED count, set at %finish
+(def %SWORDS 0)
+(def %SUSED  (%zeroed (%int* (%int+ %SFULL 2) %word-size)))
+(def %SORDER (%zeroed (%int* (%int+ %SFULL 2) %word-size)))
 ; The pristine base %st-types made is garbage now.  Free it before the mark:
 ; left on the chain it is untraced but linked from this base, and the walk's
 ; own collects would free its nodes under a traced parent.
