@@ -171,7 +171,14 @@
 ; --- foreign: reacquire by name --------------------------------------------
 (def FV (mkn (%i+ FCOUNT 1)))
 (def fnptr-of (fn (_ v) (%word-at (%o->p v) 0)))
-(def slash (fn (self s i n) (if (eq? i n) -1 (if (str=? (Str8 sub s i (%i+ i 1)) "/") i (self s (%i+ i 1) n)))))
+; (Str8 sub st len v): START, LENGTH, and the SUBJECT LAST -- methods dispatch
+; subject-last.  These calls had the string first and an END offset instead of
+; a length, so every catalog name raised into the guard and came back 0.  105 of
+; 145 foreign entries never resolved, and nothing noticed because until the
+; globals were installed nothing USED them.
+(def slash
+  (fn (self s i n)
+    (if (eq? i n) -1 (if (str=? (Str8 sub i 1 s) "/") i (self s (%i+ i 1) n)))))
 (def resolve
   (fn (_ kind nm)
     (guard (_ 0)
@@ -180,12 +187,18 @@
           (if (eq? kind 3) (Ptr ->int (Ffi dlsym %lib0 nm))
             (if (eq? kind 4) (%res-typecall nm)
               (if (eq? kind 5) (Ptr ->int %lib0) 0))))))))
+; prim-ref is a BARE GLOBAL and it evaluates its arguments; (prim ref) is not a
+; coordinate and never was.  Every catalog entry raised into the guard and came
+; back 0 -- 105 of 145 foreign entries unresolved, `int/+` among them -- and a
+; 0 in a callable's slot 0 is a call through a null pointer, which is what the
+; installed image was doing.
+(def %->sym (prim-ref (lit str) (lit ->sym)))
 (def %res-cat
   (fn (_ nm)
-    ((fn (_ i) (fnptr-of ((prim-ref (lit prim) (lit ref))
-                          ((prim-ref (lit str) (lit ->sym)) (Str8 sub nm 0 i))
-                          ((prim-ref (lit str) (lit ->sym)) (Str8 sub nm (%i+ i 1) (Str8 length nm))))))
-     (slash nm 0 (Str8 length nm)))))
+    ((fn (_ i n)
+       (fnptr-of (prim-ref (%->sym (Str8 sub 0 i nm))
+                           (%->sym (Str8 sub (%i+ i 1) (%i- n (%i+ i 1)) nm)))))
+     (slash nm 0 (Str8 length nm)) (Str8 length nm))))
 (def %res-typecall
   (fn (_ nm) (if (str=? nm "PROCEDURE") (fnptr-of (fn (_ x) x)) (fnptr-of (op (x) x)))))
 (def rdforeign
