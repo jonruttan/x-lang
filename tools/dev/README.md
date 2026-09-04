@@ -256,6 +256,24 @@ process means nothing in another, and those pointers are in the heap only
 because the writer images the base it runs in. The 3 are two library-owned
 allocations and one engine-internal primitive that no naming source reaches.
 
+### They depend on system libraries, and should not
+
+The image tools reach into libc through `Ffi`/`Ptr`, and that has to go: a
+language runtime cannot assume a C library is present on the machine that runs
+it, which is the same argument `lib/x/boot/tower-compiled.x` makes about
+assuming a C compiler.
+
+| pulled from libc | for | replacement |
+|---|---|---|
+| `malloc` / `calloc` | six section buffers and the index table | **exists today** -- `(obj make TYPE n)` allocates n units through the engine, written with `Ptr set-word!` |
+| `memcpy` | string bytes into the blob | **no door** -- `Ptr set!` writes one width-sized value, so replacing it means a per-byte loop, which is exactly what asm-cache.x's rule forbids |
+| `write` / `read` | file I/O over a region of memory | **no door** -- `Sys fd-write` takes a string and an image is binary, NULs included |
+| `dlsym` / `dladdr` | naming and reacquiring C functions | a design question, not a door: naming a C function is the dynamic linker's job |
+
+The buffers are the easy majority and could move now. The other two rows want
+stdlib doors that do not exist -- a byte copy, and fd I/O over a pointer and a
+length -- and until they do, this is borrowed.
+
 ### Imaging a child base
 
 `%IMG`'s neighbour `%B` chooses which base gets imaged, and everything --
