@@ -209,7 +209,12 @@
    (do (display "rebuilt ") (write N) (display " objects") (newline)
        ; INSTALL: point the fresh base's env cells at the rebuilt roots.
        (%oset! (B cell (lit env-alist)) 0 (%oref ix ROOTENV))
-       ; GLOBALS ARE NOT INSTALLED.  Writing the rebuilt tree into the slot
+       ; GLOBALS ARE NOT INSTALLED.  The rebuilt tree is structurally perfect
+       ; -- 1,102 nodes, no nil entry, no nil children, every entry's first a
+       ; SYMBOL, which is everything x_alist_bst_lookup dereferences -- and
+       ; installing it still segfaults on the first evaluation.  Replaying
+       ; X_OBJ_FLAG_SHARED (which bst_pair sets on every node) does not change
+       ; it.  Unexplained.  Writing the rebuilt tree into the slot
        ; (which %install-slot! now does correctly -- it is a slot, not a cell)
        ; segfaults on the first evaluation, so the rebuilt tree is not yet a
        ; structure the evaluator can search.  The env alist is installed and
@@ -229,6 +234,39 @@
               (display "  slot0=") (write (guard (_ (lit RAISED)) (Type name (%oref g 0))))
               (display "  slot1=") (write (guard (_ (lit RAISED)) (Type name (%oref g 1)))) (newline)))
         (%oref ix ROOTG))
+       ; Is the rebuilt tree COMPLETE?  The engine's lookup derefs entry,
+       ; entry's symbol, and the children pair with no nil checks.
+       ((fn (_ r)
+          (do (display "  tree nodes=") (write (first r))
+              (display "  nil entries=") (write (first (rest r)))
+              (display "  nil children=") (write (rest (rest r))) (newline)))
+        ((fn (self t acc d)
+           (if (null? t) acc
+             (if (%lt 40 d) acc
+               ((fn (_ e c)
+                  (if (null? e) (pair (first acc) (pair (%i+ (first (rest acc)) 1) (rest (rest acc))))
+                    (if (null? c) (pair (%i+ (first acc) 1) (pair (first (rest acc)) (%i+ (rest (rest acc)) 1)))
+                      (self (%oref c 1)
+                        (self (%oref c 0)
+                          (pair (%i+ (first acc) 1) (rest acc)) (%i+ d 1)) (%i+ d 1)))))
+                (%oref t 0) (%oref t 1)))))
+         (%oref ix ROOTG) (pair 0 (pair 0 0)) 0))
+       ; The engine derefs first(entry) as a SYMBOL with no check.
+       ((fn (_ r)
+          (do (display "  entries whose first is a SYMBOL: ") (write (first r))
+              (display "   NOT a symbol: ") (write (rest r)) (newline)))
+        ((fn (self t acc d)
+           (if (null? t) acc
+             (if (%lt 40 d) acc
+               ((fn (_ e c)
+                  (self (%oref c 1)
+                    (self (%oref c 0)
+                      (if (str=? (guard (_ "?") (Type name (%oref e 0))) "SYMBOL")
+                        (pair (%i+ (first acc) 1) (rest acc))
+                        (pair (first acc) (%i+ (rest acc) 1)))
+                      (%i+ d 1)) (%i+ d 1)))
+                (%oref t 0) (%oref t 1)))))
+         (%oref ix ROOTG) (pair 0 0) 0))
        ((fn (_ sym)
           (do (display "  a rebuilt symbol vs the interned one: ")
               (write (guard (_ (lit RAISED))
