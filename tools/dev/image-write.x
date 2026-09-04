@@ -127,10 +127,8 @@
 ; Buffers are allocated BEFORE the mark, so they are themselves traced and
 ; land in the image.  That is the writer-in-its-own-base problem the document
 ; records; a prototype pays it and says so rather than hiding it.
-(def %EXT-CAP  (* 8 1000000))
 (def %OBJ-CAP  (* 8 6000000))
 (def %BLOB-CAP (* 8  400000))
-(def %ext-p  (%i->p (Ptr call %c-malloc %EXT-CAP)))
 (def %obj-p  (%i->p (Ptr call %c-malloc %OBJ-CAP)))
 ; calloc, not malloc: every blob entry ends in a NUL, and zeroed memory
 ; already has one, so no byte poke is needed to place it.  (An earlier comment
@@ -255,22 +253,21 @@
 (def %emit-ttable
   (fn (self t cur)
     (if (null? t) cur (self (rest t) (%emit-tentry (rest (first t)) cur)))))
+; A NAME, and nothing else.  A type's unit count and kinds are declared on the
+; type itself -- (Type set-shape!) -- and a loader runs on an engine whose
+; types carry the same declarations, so it asks ITS OWN type what unit 3 is.
+; Writing count and mask into the file put a derived fact in it and made every
+; reader re-implement the shift-and-mask decode.
 (def %emit-tentry
-  (fn (_ kv cur)
-    (%emit-tbytes (first kv) (first (rest kv)) (first (rest (rest kv)))
-                  (rest (rest (rest kv))) cur)))
+  (fn (_ kv cur) (%emit-tbytes (rest (rest (rest kv))) cur)))
 (def %emit-tbytes
-  (fn (_ kind count mask nm cur)
-    (%emit-tbytes2 kind count mask nm cur (%blen nm))))
+  (fn (_ nm cur) (%emit-tbytes2 nm cur (%blen nm))))
 (def %emit-tbytes2
-  (fn (_ kind count mask nm cur n)
-    (do (%psw %t-p (%int* cur %word-size) kind)
-        (%psw %t-p (%int* (%int+ cur 1) %word-size) count)
-        (%psw %t-p (%int* (%int+ cur 2) %word-size) mask)
-        (%psw %t-p (%int* (%int+ cur 3) %word-size) n)
-        (Ptr call %c-memcpy (%int+ (Ptr ->int %t-p) (%int* (%int+ cur 4) %word-size))
+  (fn (_ nm cur n)
+    (do (%psw %t-p (%int* cur %word-size) n)
+        (Ptr call %c-memcpy (%int+ (Ptr ->int %t-p) (%int* (%int+ cur 1) %word-size))
              (%word-at (%o->p nm) 0) n)
-        (%int+ cur (%int+ 4 (%words-for n))))))
+        (%int+ cur (%int+ 1 (%words-for n))))))
 (def %flen (fn (self t n) (if (null? t) n (self (rest t) (%int+ n 1)))))
 
 ; Discovery: a foreign address the declared sources do not name may still be
@@ -336,21 +333,16 @@
 
 ; One object record: type word, flags, then its units.  The extent table gets
 ; this object's unit count, so pass one of the loader is a straight loop.
+; [type index][flags][units...].  No length: the type says how many units it
+; has, and a slot-0-counted type says so in slot 0, which is in the record.
+; An extent table was 19% of the file restating fifteen type rows.
 (def %emit-obj
   (fn (_ p acc)
-    (%emit-units p
-      (pair (%put %obj-p (%put %obj-p (first (rest acc))
+    (%over-units p %emit-unit
+      (pair (%put %obj-p (%put %obj-p (first acc)
                     (%f-index %TTABLE (%rw p %type-off) 1))
                   (%int& (%rw p %flags-off) 65535))
-            (rest (rest acc)))
-      (first acc))))
-(def %emit-units
-  (fn (_ p acc ecur)
-    (%emit-after p (%over-units p %emit-unit acc) ecur (first acc))))
-(def %emit-after
-  (fn (_ p acc ecur before)
-    (pair (%put %ext-p ecur (%int- (first acc) before))
-          acc)))
+            (rest acc)))))
 
 (def %emit (fn (_ p acc) (%emit-obj p acc)))
 
@@ -381,9 +373,8 @@
 ; cannot see it.  Change it here, or copy the file afterwards.
 (def %IMG "/tmp/x-core.ximg")
 (def %report-image
-  (fn (_ n extw objw blobn hdrn)
+  (fn (_ n objw blobn hdrn)
     (do (display "objects:     ") (write n) (newline)
-        (display "extent:      ") (write (%int* extw %word-size)) (display " bytes") (newline)
         (display "objects tbl: ") (write (%int* objw %word-size)) (display " bytes") (newline)
         (display "byte blob:   ") (write blobn) (display " bytes") (newline)
         (display "type tbl:    ") (write (%int* %TWORDS %word-size))
@@ -401,34 +392,30 @@
         (write (%int+ hdrn (%int+ (%int* %TWORDS %word-size)
                             (%int+ (%int* %SWORDS %word-size)
                              (%int+ (%int* %FWORDS %word-size)
-                              (%int+ (%int* extw %word-size)
-                                     (%int+ (%int* objw %word-size) blobn)))))))
+                                     (%int+ (%int* objw %word-size) blobn))))))
         (display " bytes -> ") (display %IMG) (newline))))
 (def %write-to
-  (fn (_ fd n extw objw blobn hdrn)
+  (fn (_ fd n objw blobn hdrn)
     (do (%wr fd %hdr-p hdrn)
         (%wr fd %t-p (%int* %TWORDS %word-size))
         (%wr fd %s-p (%int* %SWORDS %word-size))
         (%wr fd %f-p (%int* %FWORDS %word-size))
-        (%wr fd %ext-p (%int* extw %word-size))
         (%wr fd %obj-p (%int* objw %word-size))
         (%wr fd %blob-p blobn)
         (Sys close fd)
-        (%report-image n extw objw blobn hdrn))))
+        (%report-image n objw blobn hdrn))))
 (def %finish
   (fn (_ r1 r2)
     (%write-to (Sys open-write %IMG)
                (first (first r1))
                (first (first r2))
-               (first (rest (first r2)))
-               (rest (rest (first r2)))
+               (rest (first r2))
                (%emit-header (first (first r1))
-                             (first (rest (first r2)))
-                             (rest (rest (first r2)))))))
+                             (first (first r2))
+                             (rest (first r2))))))
 
 ; A null buffer would segfault on the first put, and the fault would look like
 ; a walk bug rather than an out-of-memory.  Say so here instead.
-(if (eq? (Ptr ->int %ext-p) 0) (Err raise 'state "writer: ext buffer alloc failed" ()) ())
 (if (eq? (Ptr ->int %obj-p) 0) (Err raise 'state "writer: obj buffer alloc failed" ()) ())
 (if (eq? (Ptr ->int %blob-p) 0) (Err raise 'state "writer: blob buffer alloc failed" ()) ())
 
@@ -481,7 +468,7 @@
 ; they vanish when the writer runs in a child base.  Counted apart so the
 ; number that remains is the number that actually matters.
 (def %MINE
-  (list (Ptr ->int %ext-p) (Ptr ->int %obj-p) (Ptr ->int %blob-p)
+  (list (Ptr ->int %obj-p) (Ptr ->int %blob-p)
         (Ptr ->int %f-p) (Ptr ->int %t-p) (Ptr ->int %s-p)
         (Ptr ->int %hdr-p) (Ptr ->int %dl-buf)))
 (def %mine? (fn (self l a) (if (null? l) #f (if (eq? (first l) a) #t (self (rest l) a)))))
@@ -500,6 +487,6 @@
 (%mark! %RAW %TRACE)
 ; ONE expression, no `def` between the mark and the last walk: a def repoints
 ; an environment pair, which is itself traced, at a value pass 1 never stamped.
-((fn (_ r1) (%finish r1 (%walk (%cursor) %emit (pair 0 (pair 0 0)))))
+((fn (_ r1) (%finish r1 (%walk (%cursor) %emit (pair 0 0))))
  (%walk (%cursor) %stamp (pair 0 0)))
 (%clear! %TRACE)
