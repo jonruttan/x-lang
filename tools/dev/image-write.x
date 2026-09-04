@@ -111,7 +111,7 @@
 ; read back out of their metadata slots.
 (def %stamp
   (fn (_ p acc)
-    (do (if (%flagged? p) (%psw p %meta1-off (%int+ (first acc) 1)) ())
+    (do (%ht-add! (Ptr ->int p) (%int+ (first acc) 1))
         (pair (%int+ (first acc) 1)
               (if (%refuses? p) (%int+ (rest acc) 1) (rest acc))))))
 
@@ -155,6 +155,43 @@
 ; SHARED is policy ("never sweep this") and RO is advisory; both belong to the
 ; object.  Nothing else does.
 (def %IMG-FLAGS (| %obj-flag-shared %obj-flag-ro))
+
+; --- address -> index, in raw memory ---------------------------------------
+; THE WRITER MUST NOT ASK AN ARBITRARY ADDRESS WHAT IT IS.  Stamping the index
+; into an object's metadata forced exactly that: resolving a reference meant
+; reading the TARGET's flags to see whether it had been stamped, and a
+; reference can point at something that is not a heap object.
+; AddressSanitizer found it -- a target that is `proc_exp`, a stack-allocated
+; pair inside x_type_procedure_call, whose flags claim META but which has no
+; metadata, so reading slot 1 at -2 words underflowed the call frame.
+;
+; The walk already knows which objects it visited and at what index.  Recording
+; that here, keyed by address, answers the same question without touching the
+; target at all: a miss simply is not in the image.  Open addressing in a
+; calloc'd buffer -- no boxing, and nothing allocated during the walk.
+(def %HT-SIZE 262144)
+(def %ht-mask (%int- %HT-SIZE 1))
+(def %ht-p (%i->p (Ptr call %c-calloc 1 (* 16 %HT-SIZE))))
+(def %ht-key (fn (_ i) (%rw %ht-p (%int* (%int* i 2) %word-size))))
+(def %ht-val (fn (_ i) (%rw %ht-p (%int* (%int+ (%int* i 2) 1) %word-size))))
+(def %ht-idx (fn (_ a) (%int& (%shr a 4) %ht-mask)))
+(def %ht-put
+  (fn (self a v i)
+    ((fn (_ k)
+       (if (eq? k a) (%psw %ht-p (%int* (%int+ (%int* i 2) 1) %word-size) v)
+         (if (eq? k 0)
+           (do (%psw %ht-p (%int* (%int* i 2) %word-size) a)
+               (%psw %ht-p (%int* (%int+ (%int* i 2) 1) %word-size) v))
+           (self a v (%int& (%int+ i 1) %ht-mask)))))
+     (%ht-key i))))
+(def %ht-get
+  (fn (self a i)
+    ((fn (_ k)
+       (if (eq? k 0) 0 (if (eq? k a) (%ht-val i)
+         (self a (%int& (%int+ i 1) %ht-mask)))))
+     (%ht-key i))))
+(def %ht-add! (fn (_ a v) (%ht-put a v (%ht-idx a))))
+(def %ht-find (fn (_ a) (%ht-get a (%ht-idx a))))
 (def %put (fn (_ p i w) (do (%psw p (%int* i %word-size) w) (%int+ i 1))))
 
 ; --- the foreign table -----------------------------------------------------
@@ -420,7 +457,7 @@
 (def %ref-index
   (fn (_ w)
     (if (eq? w 0) 0
-      (if (%flagged? (%i->p w)) (%rw (%i->p w) %meta1-off) (%static-ref w)))))
+      ((fn (_ i) (if (eq? i 0) (%static-ref w) i)) (%ht-find w)))))
 (def %static-ref
   (fn (_ w)
     ((fn (_ i) (%int- 0 (if (eq? i 0) (%int+ %SCOUNT 1) i)))
@@ -471,12 +508,12 @@
         (%psw %hdr-p (* 4 %word-size) n)    ; object count
         (%psw %hdr-p (* 5 %word-size) objw) ; object-table words
         (%psw %hdr-p (* 6 %word-size) blobn); blob bytes
-        (%psw %hdr-p (* 7 %word-size) (%rw %ENV-P %meta1-off))   ; root: the env
+        (%psw %hdr-p (* 7 %word-size) (%ht-find (Ptr ->int %ENV-P)))   ; root: the env
         (%psw %hdr-p (* 8 %word-size) %FCOUNT)
         (%psw %hdr-p (* 9 %word-size) %FWORDS)
         (%psw %hdr-p (* 10 %word-size) %TCOUNT)
         (%psw %hdr-p (* 11 %word-size) %TWORDS)
-        (%psw %hdr-p (* 12 %word-size) (%rw %GLOB-P %meta1-off))  ; the globals
+        (%psw %hdr-p (* 12 %word-size) (%ht-find (Ptr ->int %GLOB-P)))  ; the globals
         (%psw %hdr-p (* 13 %word-size) %SCOUNT)
         (%psw %hdr-p (* 14 %word-size) %SWORDS)
         (* 15 %word-size))))
@@ -494,7 +531,6 @@
         (display " bytes, ") (write %TCOUNT) (display " types") (newline)
         (display "statics tbl: ") (write (%int* %SWORDS %word-size))
         (display " bytes, ") (write %SCOUNT) (display " nodes") (newline)
-        (display "unnameable refs (sentinel, refusable): ") (write %UNRES) (newline)
         (display "unnameable foreign (sentinel): ") (write (rest %FU))
         (display "  + ") (write (first %FU))
         (display " that are this writer's own buffers") (newline)
@@ -574,23 +610,10 @@
 ; the file -- it looks exactly like an empty list.  Count them here, where the
 ; two cases are still distinguishable: a target that is neither stampable
 ; (flagged) nor a declared static cannot be written down at all.
-(def %unres
-  (fn (_ p acc) (%over-units p %unres-unit acc)))
-(def %unres-unit
-  (fn (_ k w acc)
-    (if (eq? k 0)
-      (if (eq? w 0) acc
-        (if (%flagged? (%i->p w)) acc
-          (if (eq? (%f-index %STATICS w 1) 0) (%int+ acc 1) acc)))
-      acc)))
-(def %UNRES (first (%walk-all (%cursor) %unres 0)))
-
-; The writer's own buffers are POINTER objects in the heap it is imaging, so
-; they turn up as foreign units nothing can name -- an address malloc handed
-; THIS process is meaningless in another.  They are not a gap in the format;
-; they are the writer-in-its-own-base problem docs/state-images.md records, and
-; they vanish when the writer runs in a child base.  Counted apart so the
-; number that remains is the number that actually matters.
+; The unresolvable-reference count is GONE from here.  It ran before the mark,
+; so it could not consult the index table, and it answered the same question by
+; probing arbitrary targets -- the very read this change removes.  The sentinel
+; is observable in the file, which is where the count belongs.
 (def %MINE
   (list (Ptr ->int %obj-p) (Ptr ->int %blob-p)
         (Ptr ->int %f-p) (Ptr ->int %t-p) (Ptr ->int %s-p)
