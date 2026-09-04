@@ -49,7 +49,7 @@
 (Sys close fd)
 (def w (fn (_ i) (%rw buf (%i* i W))))
 (def at (fn (_ i) (%i+ (Ptr ->int buf) (%i* i W))))
-(def N (w 4)) (def OBJW (w 5)) (def ROOTENV (w 7))
+(def N (w 4)) (def OBJW (w 5)) (def ROOTENV (w 7)) (def ROOTG (w 12))
 (def FCOUNT (w 8)) (def FWORDS (w 9)) (def TCOUNT (w 10)) (def TWORDS (w 11))
 (def SCOUNT (w 13)) (def SWORDS (w 14))
 (def TSTART 15)
@@ -59,6 +59,14 @@
 (def BSTART (%i+ OSTART OBJW))
 (def PT ((prim-ref (lit type) (lit of)) (pair 1 2)))
 (def mkn (fn (_ n) (%mk PT (if (%lt n 1) 1 n))))
+
+; The base the image is installed INTO.  It has to exist before the statics are
+; resolved: a static reference is a walk from a base, and the walk has to start
+; at the base the rebuilt graph will live in, not at the one doing the reading.
+; Resolving them against the reader's own base would wire the loaded env to
+; this process's spine.
+(def B (Base make))
+(def RAWB (Base raw-of B))
 
 ; --- live shapes by name ---------------------------------------------------
 (def SHAPES ())   ; (name . (units-cell . struct))
@@ -84,6 +92,11 @@
                       (self (%i+ i 1) (%i+ pos (%i+ 2 (%shr (w pos) 3))))))
        (Ptr ->str (%i2p (at (%i+ pos 1))))))))
 (rdtypes 1 TSTART)
+; Which index the file calls SYMBOL: the primitive interns those by name
+; instead of rebuilding them, because the evaluator matches symbols by identity.
+(def SYMTI
+  ((fn (self i) (if (%lt TCOUNT i) -1
+                  (if (str=? (%oref TN i) "SYMBOL") i (self (%i+ i 1))))) 1))
 (def units-of
   (fn (_ ti pos)
     ((fn (_ t) (if (null? t) (%uheap ti pos) (first t))) (tagged (%oref TN ti)))))
@@ -106,7 +119,7 @@
 (def rdstatics
   (fn (self i pos)
     (if (%lt SCOUNT i) ()
-      (do (%oset! ST i (stepwalk (%base) (w pos) (%i+ pos 1)))
+      (do (%oset! ST i (stepwalk RAWB (w pos) (%i+ pos 1)))
           (self (%i+ i 1) (%i+ pos (%i+ 1 (w pos))))))))
 (rdstatics 1 SSTART)
 
@@ -153,11 +166,26 @@
 ; X resolved the tables; C does the only per-object work there is.
 ((fn (_ ix)
    (do (display "rebuilt ") (write N) (display " objects") (newline)
-       (display "types of records 1, 7, 99: ")
-       (write (Type name (%oref ix 1))) (display " ")
-       (write (Type name (%oref ix 7))) (display " ")
-       (write (Type name (%oref ix 99))) (newline)
-       (display "root env record type: ")
-       (write (Type name (%oref ix ROOTENV))) (newline)))
+       ; INSTALL: point the fresh base's env cells at the rebuilt roots.
+       (%oset! (B cell (lit env-alist)) 0 (%oref ix ROOTENV))
+       (%oset! (B cell (lit env-global-tree)) 0 (%oref ix ROOTG))
+       (display "installed.  evaluating in the loaded image:") (newline)
+       (display "  (+ 1 2)        => ") (write (guard (_ (lit RAISED)) (B eval (lit (+ 1 2))))) (newline)
+       (display "  x-release      => ") (write (guard (_ (lit RAISED)) (B eval (lit x-release)))) (newline)
+       (display "  (list 1 2 3)   => ") (write (guard (_ (lit RAISED)) (B eval (lit (list 1 2 3))))) (newline)
+       (display "  %word-size     => ") (write (guard (_ (lit RAISED)) (B eval (lit %word-size)))) (newline)
+       ; Which is it: a truncated env chain, or symbols that lost identity?
+       ((fn (_ chain)
+          (do (display "  rebuilt env chain length: ") (write chain) (newline)))
+        ((fn (self o n) (if (null? o) n (if (eq? n 100000) n (self (%oref o 1) (%i+ n 1)))))
+         (%oref ix ROOTENV) 0))
+       ((fn (_ sym)
+          (do (display "  a rebuilt symbol vs the interned one: ")
+              (write (guard (_ (lit RAISED))
+                       (same? sym ((prim-ref (lit str) (lit ->sym)) (symbol->str sym)))))
+              (display "   name=") (write (guard (_ (lit RAISED)) (symbol->str sym))) (newline)))
+        ((fn (self i) (if (%lt N i) ()
+            (if (str=? (Type name (%oref ix i)) "SYMBOL") (%oref ix i) (self (%i+ i 1)))))
+         1))))
  ((prim-ref (lit image) (lit rebuild!))
-  buf OSTART N TT FV ST (%i+ (Ptr ->int buf) (%i* BSTART W)) IX TCNT))
+  buf OSTART N TT FV ST (%i+ (Ptr ->int buf) (%i* BSTART W)) IX TCNT SYMTI))
