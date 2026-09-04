@@ -264,24 +264,32 @@ its own allocation chain (1,799 objects against the parent's 80,320) and the
 walks allocate in the parent, so a child's chain does not grow while it is
 walked: nothing the writer allocates could reach the file.
 
-**It is not switched on, because it crashes the collector.** Reduced:
+**It is not switched on, and it is not an engine bug.** An earlier version of
+this section said it crashed the collector, on no evidence: the reduction it
+gave -- a run of cross-base evals, a large malloc, then a collect that
+segfaulted -- named where the fault *surfaced*, not where it came from.
 
-```
-(def b (Base make))
-(%from-bare %isa-bare () b)   ; ~30 (b eval NAME), most of them unbound
-... one large malloc ...
-(%collect)                    ; SIGSEGV
-```
+Two causes have been found since, both in this tree:
 
-One cross-base eval is fine, bound or unbound; the batch is not, and the fault
-lands in the collect rather than in the evals. Setting `%B` to `(Base make)`
-reproduces it. A fresh child is also bare -- the C ISA and no library -- so
-loading one into it is a second problem behind this one.
+- **Shapes are per-base.** A fresh base has no library, so none of the
+  `(Type set-shape!)` declarations ran on it, and a type with no mask means
+  "every unit is a reference" -- so reading a child's units generically
+  dereferences a `PROCEDURE`'s call pointer. Fixed:
+  `(%type-declare-shapes! (first (b cell 'type-alist)))` declares them on any
+  base, and this is very likely what the "collector crash" was.
+- **The walk cursor is unrooted in the child.** `(Base eval)` restores the
+  target's env on the way out, so a pair it allocates is unreachable from the
+  child the instant it returns, and the walk reads freed memory --
+  AddressSanitizer reports a heap-use-after-free. Binding the cursor into the
+  child did not clear it. Still open.
+
+A fresh child is also bare -- the C ISA and no library -- so loading something
+into it is a further problem behind those.
 
 Two things to know when reading one. The writer images the base it runs in, so
 its own libc doors (`malloc`, `calloc`, `write`, `creat`) appear among the
 foreign entries -- that is the writer-in-its-own-base problem the document
-records, showing through. And **the heap may be marked only once per process**:
+records, showing through. And, **observed but not diagnosed**, the heap appears to be markable only once per process:
 `(heap chain-clear!)` permanently disables any later `(heap tree-mark!)`, and a
 mark after a clear flags nothing at all, silently, so every later walk reports
 a clean zero. Passes that need no reachability use `%walk-all` and run before

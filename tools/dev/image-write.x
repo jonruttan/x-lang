@@ -61,17 +61,26 @@
 ; their accumulators in the parent, so a child's chain does not even grow while
 ; it is walked.  Everything below is already parameterised for it.
 ;
-; IT CRASHES THE COLLECTOR, so it is not switched on.  Reduced:
+; IT DOES NOT WORK YET, and the reason is NOT an engine bug -- an earlier
+; version of this comment said it was, on no evidence, and the reduction it
+; offered (a run of cross-base evals, then a collect, then SIGSEGV) named the
+; place the fault SURFACED rather than the place it came from.
 ;
-;   (def b (Base make))
-;   (%from-bare %isa-bare () b)   ; ~30 (b eval NAME), most of them unbound
-;   ... one large malloc ...
-;   (%collect)                    ; SIGSEGV
+; Two causes have been found since, both here:
 ;
-; ONE cross-base eval is fine, bound or unbound.  The batch is not, and the
-; fault lands in the collect afterwards rather than in the evals -- so what a
-; run of cross-base raises leaves behind is what the collector then walks into.
-; Switching this def to (Base make) reproduces it.
+;   * SHAPES ARE PER-BASE.  A fresh base has no library, so none of the
+;     (Type set-shape!) declarations ran on it, and a type with no mask means
+;     "every unit is a reference" -- so reading a child's units generically
+;     dereferences a PROCEDURE's call pointer.  That is fixed:
+;     (%type-declare-shapes! (first (b cell 'type-alist))) declares them on any
+;     base, and it is very likely what the "collector crash" actually was.
+;   * THE WALK CURSOR IS UNROOTED IN THE CHILD.  (Base eval) restores the
+;     target's env on the way out, so a pair it allocates is unreachable from
+;     the child the instant it returns, and the walk then reads freed memory --
+;     AddressSanitizer calls it a heap-use-after-free.  Binding the cursor into
+;     the child did not clear it.  This one is still open.
+;
+; Switching this def to (Base make) reproduces the second.
 (def %B (Base wrap (%base)))
 (def %MAP (%make-map %B))
 (def %RAW (Base raw-of %B))
