@@ -127,8 +127,21 @@
 ; cache prims rather than class-dispatch per unit.
 (def %c-write  (Ffi dlsym %lib "write"))
 (def %c-malloc (Ffi dlsym %lib "malloc"))
-(def %c-calloc (Ffi dlsym %lib "calloc"))
-(def %c-memcpy (Ffi dlsym %lib "memcpy"))
+; calloc was libc's only for the zeroing; malloc still is, and is the one
+; remaining borrow -- see the README.  Engine-allocated buffers would be
+; objects in the heap being imaged, which is a different problem.
+(def %zeroed
+  (fn (_ n) ((fn (_ a) (do (%pfill! (%i->p a) 0 n) a))
+             (Ptr call %c-malloc n))))
+; The engine has its own memcpy and memset (x_lib_memcpy / x_lib_memset), now
+; exposed as (ptr copy!) and (ptr fill!).  Reaching dlsym for libc's was
+; borrowing a system library a runtime cannot assume is there, and the only
+; alternative in X was a per-byte loop -- a hack or a pathology, when the
+; engine had the routine all along.
+(def %pcopy! (prim-ref (lit ptr) (lit copy!)))
+(def %pfill! (prim-ref (lit ptr) (lit fill!)))
+; Same shape as the libc call it replaces, so the call sites read unchanged.
+(def %memcpy (fn (_ d s n) (%pcopy! (%i->p d) (%i->p s) n)))
 
 ; Buffers are allocated BEFORE the mark, so they are themselves traced and
 ; land in the image.  That is the writer-in-its-own-base problem the document
@@ -142,7 +155,7 @@
 ; WIDTH-byte little-endian value at P+OFF; the probe that "proved" otherwise
 ; had called (Ptr ref) with the width argument missing and crashed before it
 ; ever reached set!.)
-(def %blob-p (%i->p (Ptr call %c-calloc 1 %BLOB-CAP)))
+(def %blob-p (%i->p (%zeroed %BLOB-CAP)))
 
 ; ONLY THE BITS THAT DESCRIBE THE OBJECT, not the moment.  Masking to 0xFFFF
 ; swept in MARK (0x200) and this writer's own trace bit (0x400) -- transient
@@ -171,7 +184,7 @@
 ; calloc'd buffer -- no boxing, and nothing allocated during the walk.
 (def %HT-SIZE 262144)
 (def %ht-mask (%int- %HT-SIZE 1))
-(def %ht-p (%i->p (Ptr call %c-calloc 1 (* 16 %HT-SIZE))))
+(def %ht-p (%i->p (%zeroed (* 16 %HT-SIZE))))
 (def %ht-key (fn (_ i) (%rw %ht-p (%int* (%int* i 2) %word-size))))
 (def %ht-val (fn (_ i) (%rw %ht-p (%int* (%int+ (%int* i 2) 1) %word-size))))
 (def %ht-idx (fn (_ a) (%int& (%shr a 4) %ht-mask)))
@@ -200,9 +213,9 @@
 ; other section -- so it can be built before the object walk and written
 ; wherever it is wanted in the file.
 (def %F-CAP (* 8 40000))
-(def %f-p (%i->p (Ptr call %c-calloc 1 %F-CAP)))
-(def %t-p (%i->p (Ptr call %c-calloc 1 %F-CAP)))
-(def %s-p (%i->p (Ptr call %c-calloc 1 %F-CAP)))
+(def %f-p (%i->p (%zeroed %F-CAP)))
+(def %t-p (%i->p (%zeroed %F-CAP)))
+(def %s-p (%i->p (%zeroed %F-CAP)))
 (def %words-for (fn (_ n) (%int+ 1 (%shr n 3))))
 (def %emit-ftable
   (fn (self t cur)
@@ -213,7 +226,7 @@
   (fn (_ kind nm cur n)
     (do (%psw %f-p (%int* cur %word-size) kind)
         (%psw %f-p (%int* (%int+ cur 1) %word-size) n)
-        (Ptr call %c-memcpy (%int+ (Ptr ->int %f-p) (%int* (%int+ cur 2) %word-size))
+        (%memcpy (%int+ (Ptr ->int %f-p) (%int* (%int+ cur 2) %word-size))
                 (%word-at (%o->p nm) 0) n)
         (%int+ cur (%int+ 2 (%words-for n))))))
 ; Shared by both tables: an entry's index is its position, 1-based, 0 meaning
@@ -360,8 +373,8 @@
 (def %emit-tname
   (fn (_ nm rpfx cur n)
     (do (%psw %s-p (%int* cur %word-size) n)
-        (Ptr call %c-memcpy (%int+ (Ptr ->int %s-p) (%int* (%int+ cur 1) %word-size))
-             (%word-at (%o->p nm) 0) n)
+        (%pcopy! (%i->p (%int+ (Ptr ->int %s-p) (%int* (%int+ cur 1) %word-size)))
+             (%i->p (%word-at (%o->p nm) 0)) n)
         (%emit-bentry rpfx (%int+ cur (%int+ 1 (%words-for n)))))))
 (def %emit-steps
   (fn (self steps cur)
@@ -415,8 +428,8 @@
 (def %emit-tbytes2
   (fn (_ nm cur n)
     (do (%psw %t-p (%int* cur %word-size) n)
-        (Ptr call %c-memcpy (%int+ (Ptr ->int %t-p) (%int* (%int+ cur 1) %word-size))
-             (%word-at (%o->p nm) 0) n)
+        (%pcopy! (%i->p (%int+ (Ptr ->int %t-p) (%int* (%int+ cur 1) %word-size)))
+             (%i->p (%word-at (%o->p nm) 0)) n)
         (%int+ cur (%int+ 1 (%words-for n))))))
 (def %flen (fn (self t n) (if (null? t) n (self (rest t) (%int+ n 1)))))
 
@@ -477,7 +490,7 @@
 (def %emit-bytes-at
   (fn (_ w acc n off)
     (do (%psw %blob-p off n)
-        (Ptr call %c-memcpy (%int+ (Ptr ->int %blob-p) (%int+ off %word-size)) w n)
+        (%memcpy (%int+ (Ptr ->int %blob-p) (%int+ off %word-size)) w n)
         (pair (%put %obj-p (first acc) off)
               (%int+ off (%int+ %word-size (%int+ n 1)))))))
 
