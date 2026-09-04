@@ -114,9 +114,6 @@
     (do (if (%flagged? p) (%psw p %meta1-off (%int+ (first acc) 1)) ())
         (pair (%int+ (first acc) 1)
               (if (%refuses? p) (%int+ (rest acc) 1) (rest acc))))))
-; Through the Base door, so this follows %B when %B is a child.
-(def %ENV-P  (%o->p (first (%B cell (lit env-alist)))))
-(def %GLOB-P (%o->p (first (%B cell (lit env-global-tree)))))
 
 ; --- libc doors: raw fd I/O, memcpy, malloc -------------------------------
 ; The asm-cache rule applies here too: NOTHING WALKS BYTES.  Strings reach the
@@ -209,6 +206,13 @@
     (if (null? steps) acc
       ((fn (_ nv nr) (self nv (rest steps) (%st-record nv acc nr) nr))
        (%step v (first steps)) (pair (first steps) rpfx)))))
+; NOT the cell VALUES, though they are what several unnameable references point
+; at: base-paths.x names a cell, and the value sits one step further, in its
+; first slot.  Reaching it needs to know which rows ARE cells -- base-layout.x
+; says, for 27 of them -- and testing instead does not work: probing a leaf
+; with Type name dereferences it, and some leaves hold raw C function pointers
+; (the collector's hooks).  That crashes the writer.  Reading base-layout.x is
+; the way in, and it is not built.
 (def %st-row
   (fn (_ row acc)
     (if (eq? (first (rest row)) (lit base))
@@ -563,6 +567,18 @@
         acc)
       acc)))
 (def %FU (first (%walk-all (%cursor) %fu-scan (pair 0 0))))
+
+; THE ROOTS ARE CAPTURED HERE, as late as a top-level def can be.
+;
+; Every `def` pushes a new head onto the env chain, so a root captured earlier
+; in this file names a node partway DOWN it -- the writer's chain is 171 links
+; and a mid-file capture rebuilt only 82, the difference being the definitions
+; made in between.  Reading the cell at EMIT time is worse, not better: by then
+; the read happens inside nested calls, and the cell gives that frame, which
+; the stamping pass never saw.  Here, at top level and immediately before the
+; mark, the head is the one the stamp is about to index.
+(def %ENV-P  (%o->p (first (%B cell (lit env-alist)))))
+(def %GLOB-P (%o->p (first (%B cell (lit env-global-tree)))))
 
 (%mark! %RAW %TRACE)
 ; ONE expression, no `def` between the mark and the last walk: a def repoints
