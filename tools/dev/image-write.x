@@ -65,16 +65,17 @@
 ; --- libc doors: raw fd I/O, memcpy, malloc -------------------------------
 ; The asm-cache rule applies here too: NOTHING WALKS BYTES.  Strings reach the
 ; blob through memcpy, one call per string, never a character loop.
-(def %lib ((prim-ref (lit ffi) (lit dlopen)) () 1))
-(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
-(def %pcall (prim-ref (lit ptr) (lit call)))
-(def %p->i (prim-ref (lit ptr) (lit ->int)))
-(def %c-creat  (%dlsym %lib "creat"))
-(def %c-write  (%dlsym %lib "write"))
-(def %c-close  (%dlsym %lib "close"))
-(def %c-malloc (%dlsym %lib "malloc"))
-(def %c-calloc (%dlsym %lib "calloc"))
-(def %c-memcpy (%dlsym %lib "memcpy"))
+; Sys owns the file: (Sys open-write) and (Sys close) are the stdlib doors and
+; there is no reason to reach past them.  What Sys cannot do is write a REGION
+; OF MEMORY -- (Sys fd-write) takes a string, and an image is binary, NULs and
+; all -- so the buffers and the write itself go through Ptr and Ffi, which are
+; stdlib too (x/type/ptr exports both).  Nothing here hand-fetches a prim;
+; image-walk.x does, and says why: the library's own note is that hot callers
+; cache prims rather than class-dispatch per unit.
+(def %c-write  (Ffi dlsym %lib "write"))
+(def %c-malloc (Ffi dlsym %lib "malloc"))
+(def %c-calloc (Ffi dlsym %lib "calloc"))
+(def %c-memcpy (Ffi dlsym %lib "memcpy"))
 
 ; Buffers are allocated BEFORE the mark, so they are themselves traced and
 ; land in the image.  That is the writer-in-its-own-base problem the document
@@ -82,12 +83,15 @@
 (def %EXT-CAP  (* 8 1000000))
 (def %OBJ-CAP  (* 8 6000000))
 (def %BLOB-CAP (* 8  400000))
-(def %ext-p  (%i->p (%pcall %c-malloc %EXT-CAP)))
-(def %obj-p  (%i->p (%pcall %c-malloc %OBJ-CAP)))
+(def %ext-p  (%i->p (Ptr call %c-malloc %EXT-CAP)))
+(def %obj-p  (%i->p (Ptr call %c-malloc %OBJ-CAP)))
 ; calloc, not malloc: every blob entry ends in a NUL, and zeroed memory
-; already has one.  ptr set! reads a slot as an OBJECT and segfaults on raw
-; memory, so there is no byte poke available to write one.
-(def %blob-p (%i->p (%pcall %c-calloc 1 %BLOB-CAP)))
+; already has one, so no byte poke is needed to place it.  (An earlier comment
+; here claimed (Ptr set!) could not do that job.  It can -- it writes a
+; WIDTH-byte little-endian value at P+OFF; the probe that "proved" otherwise
+; had called (Ptr ref) with the width argument missing and crashed before it
+; ever reached set!.)
+(def %blob-p (%i->p (Ptr call %c-calloc 1 %BLOB-CAP)))
 
 (def %put (fn (_ p i w) (do (%psw p (%int* i %word-size) w) (%int+ i 1))))
 
@@ -97,7 +101,7 @@
 ; other section -- so it can be built before the object walk and written
 ; wherever it is wanted in the file.
 (def %F-CAP (* 8 40000))
-(def %f-p (%i->p (%pcall %c-calloc 1 %F-CAP)))
+(def %f-p (%i->p (Ptr call %c-calloc 1 %F-CAP)))
 (def %words-for (fn (_ n) (%int+ 1 (%shr n 3))))
 (def %emit-ftable
   (fn (self t cur)
@@ -108,7 +112,7 @@
   (fn (_ kind nm cur n)
     (do (%psw %f-p (%int* cur %word-size) kind)
         (%psw %f-p (%int* (%int+ cur 1) %word-size) n)
-        (%pcall %c-memcpy (%int+ (%p->i %f-p) (%int* (%int+ cur 2) %word-size))
+        (Ptr call %c-memcpy (%int+ (Ptr ->int %f-p) (%int* (%int+ cur 2) %word-size))
                 (%word-at (%o->p nm) 0) n)
         (%int+ cur (%int+ 2 (%words-for n))))))
 (def %f-index
@@ -153,7 +157,7 @@
 (def %emit-bytes-at
   (fn (_ w acc n off)
     (do (%psw %blob-p off n)
-        (%pcall %c-memcpy (%int+ (%p->i %blob-p) (%int+ off %word-size)) w n)
+        (Ptr call %c-memcpy (%int+ (Ptr ->int %blob-p) (%int+ off %word-size)) w n)
         (pair (%put %obj-p (first acc) off)
               (%int+ off (%int+ %word-size (%int+ n 1)))))))
 
@@ -177,8 +181,8 @@
 (def %emit (fn (_ p acc) (%emit-obj p acc)))
 
 ; --- write the sections out, in format order ------------------------------
-(def %wr (fn (_ fd p n) (%pcall %c-write fd p n)))
-(def %hdr-p (%i->p (%pcall %c-malloc 512)))
+(def %wr (fn (_ fd p n) (Ptr call %c-write fd p n)))
+(def %hdr-p (%i->p (Ptr call %c-malloc 512)))
 (def %emit-header
   (fn (_ n objw blobn)
     (do (%psw %hdr-p 0 1196247384)          ; "XIMG" little-endian
@@ -193,7 +197,6 @@
         (%psw %hdr-p (* 9 %word-size) %FWORDS)
         (* 10 %word-size))))
 
-(def %wr (fn (_ fd p n) (%pcall %c-write fd p n)))
 ; Where the image lands.  A def rather than an argument: `Contract argv` is
 ; injected by x.sh's pin machinery, not the library, so a tool run with -f
 ; cannot see it.  Change it here, or copy the file afterwards.
@@ -218,11 +221,11 @@
         (%wr fd %ext-p (%int* extw %word-size))
         (%wr fd %obj-p (%int* objw %word-size))
         (%wr fd %blob-p blobn)
-        (%pcall %c-close fd)
+        (Sys close fd)
         (%report-image n extw objw blobn hdrn))))
 (def %finish
   (fn (_ r1 r2)
-    (%write-to (%pcall %c-creat %IMG 420)
+    (%write-to (Sys open-write %IMG)
                (first (first r1))
                (first (first r2))
                (first (rest (first r2)))
@@ -233,9 +236,9 @@
 
 ; A null buffer would segfault on the first put, and the fault would look like
 ; a walk bug rather than an out-of-memory.  Say so here instead.
-(if (eq? (%p->i %ext-p) 0) (Err raise 'state "writer: ext buffer alloc failed" ()) ())
-(if (eq? (%p->i %obj-p) 0) (Err raise 'state "writer: obj buffer alloc failed" ()) ())
-(if (eq? (%p->i %blob-p) 0) (Err raise 'state "writer: blob buffer alloc failed" ()) ())
+(if (eq? (Ptr ->int %ext-p) 0) (Err raise 'state "writer: ext buffer alloc failed" ()) ())
+(if (eq? (Ptr ->int %obj-p) 0) (Err raise 'state "writer: obj buffer alloc failed" ()) ())
+(if (eq? (Ptr ->int %blob-p) 0) (Err raise 'state "writer: blob buffer alloc failed" ()) ())
 
 (%collect)
 (display "live objects:  ") (write (%hc)) (newline)

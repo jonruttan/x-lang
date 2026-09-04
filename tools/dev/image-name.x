@@ -18,7 +18,6 @@
 (include "tools/dev/image-walk.x")
 
 ; --- the naming sources: address -> the path it was found at ---------------
-(def %p->i (prim-ref (lit ptr) (lit ->int)))
 ; The KEY is the C function pointer the primitive holds in unit 0, not the
 ; primitive object's own address -- a foreign unit IS that pointer.  Two
 ; distinct primitive objects (catalog + and bare +) share one function, and
@@ -139,13 +138,9 @@
 ; name that does not resolve is worse than no name -- macOS reports getpid as
 ; "__getpid", which does dlsym back to the same address, and a mechanism that
 ; silently produced unresolvable names would look like coverage.
-(def %lib ((prim-ref (lit ffi) (lit dlopen)) () 1))
-(def %dlsym (prim-ref (lit ffi) (lit dlsym)))
-(def %pcall (prim-ref (lit ptr) (lit call)))
-(def %p->i (prim-ref (lit ptr) (lit ->int)))
-(def %p->s (prim-ref (lit ptr) (lit ->str)))
-(def %c-dladdr (%dlsym %lib "dladdr"))
-(def %dl-buf ((prim-ref (lit int) (lit ->ptr)) (%pcall (%dlsym %lib "malloc") 64)))
+(def %lib (Ffi dlopen () 1))
+(def %c-dladdr (Ffi dlsym %lib "dladdr"))
+(def %dl-buf (Ptr from-int (Ptr call (Ffi dlsym %lib "malloc") 64)))
 (def %DLI-SNAME 16)   ; Dl_info: fname, fbase, sname, saddr
 ; Returns the symbol NAME if it round-trips back to the same address, else nil.
 ; The round trip is checked rather than assumed: macOS reports getpid as
@@ -153,15 +148,15 @@
 ; unresolvable names would look exactly like coverage.
 (def %dl-name
   (fn (_ w)
-    (if (eq? (%pcall %c-dladdr w %dl-buf) 0) () (%dl-check w (%rw %dl-buf %DLI-SNAME)))))
+    (if (eq? (Ptr call %c-dladdr w %dl-buf) 0) () (%dl-check w (Ptr ref-word %dl-buf %DLI-SNAME)))))
 (def %dl-check
   (fn (_ w sname)
     (if (eq? sname 0) ()
       (guard (_ ())
-        (%dl-verify w (%p->s ((prim-ref (lit int) (lit ->ptr)) sname)))))))
+        (%dl-verify w (Ptr ->str (Ptr from-int sname)))))))
 (def %dl-verify
   (fn (_ w nm)
-    ((fn (_ back) (if (null? back) () (if (eq? (%p->i back) w) nm ())))
-     (%dlsym %lib nm))))
+    ((fn (_ back) (if (null? back) () (if (eq? (Ptr ->int back) w) nm ())))
+     (Ffi dlsym %lib nm))))
 (def %dl-round-trips? (fn (_ w) (if (null? (%dl-name w)) #f #t)))
 
