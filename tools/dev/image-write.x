@@ -356,52 +356,128 @@
          (if (eq? (first (rest (first rows))) (lit type))
              (pair (rest (rest (first rows))) acc) acc)))) %base-paths ()))
 (def %st-trecord
-  (fn (_ v acc nm rpfx)
-    ((fn (_ a) (if (null? (%map-get acc a)) (%map-add acc a %S-TYPE (pair nm rpfx)) acc))
-     (Ptr ->int (%o->p v)))))
+  (fn (_ v acc nm rpfx keep?)
+    (if (keep? v)
+      ((fn (_ a) (if (null? (%map-get acc a)) (%map-add acc a %S-TYPE (pair nm rpfx)) acc))
+       (Ptr ->int (%o->p v)))
+      acc)))
 (def %st-twalk
-  (fn (self v steps acc nm rpfx)
+  (fn (self v steps acc nm rpfx keep?)
     (if (null? steps) acc
-      ((fn (_ nv nr) (self nv (rest steps) (%st-trecord nv acc nm nr) nm nr))
+      ((fn (_ nv nr) (self nv (rest steps) (%st-trecord nv acc nm nr keep?) nm nr keep?))
        (%step v (first steps)) (pair (first steps) rpfx)))))
 (def %st-tstruct
-  (fn (self rows struct acc nm)
+  (fn (self rows struct acc nm keep?)
     (if (null? rows) acc
-      (self (rest rows) struct (%st-twalk struct (first rows) acc nm ()) nm))))
+      (self (rest rows) struct (%st-twalk struct (first rows) acc nm () keep?) nm keep?))))
 (def %st-talist
-  (fn (self node acc)
+  (fn (self node acc keep?)
     (if (null? node) acc
       (self (rest node)
-        ((fn (_ st) (%st-tstruct %type-rows st (%st-trecord st acc ((Type wrap st) name) ())
-                                 ((Type wrap st) name)))
-         (rest (first node)))))))
+        ((fn (_ st) (%st-tstruct %type-rows st (%st-trecord st acc ((Type wrap st) name) () keep?)
+                                 ((Type wrap st) name) keep?))
+         (rest (first node)))
+        keep?))))
+(def %st-any (fn (_ v) #t))
+; STATIC means off the allocation chain -- heap link 0 -- not "tagged satom":
+; the engine's own token handlers are type-word-0 objects that print as nothing
+; at all, and a filter on the atom tag skipped every one of them.
+(def %st-static?
+  (fn (_ v) (if (null? v) #f (eq? (%rw (%o->p v) %heap-off) 0))))
+; TWO bases are walked.  This one's rows name what its structs hold NOW -- a
+; pushed handler at the top of every stack the library touched.  But the
+; engine's own handler is still IN that stack, under the pushed ones, and
+; nothing declared ends there: STRING's read stack is (fn fn fn fn ATOM) and
+; the ATOM is the fifth element of a list, which no row reaches.  Fourteen
+; references were unnameable for exactly this reason, and the loader made
+; them NULL inside handler lists the tokenizer walks without a nil check.
+; That atom IS nameable: it is what a FRESH base holds at (type STRING
+; type-read), and every loader has a fresh base to resolve against.  So a
+; pristine (Base make) is walked as well, its static nodes recorded under the
+; same type-rooted paths -- statics only, because its pairs are this process's
+; heap and die with it, and a stale address in the statics map is a wrong
+; answer waiting for a reused slot.
 (def %st-types
-  (fn (_ acc) (%st-talist (first (%st-at %RAW %ta-steps)) acc)))
+  (fn (_ acc)
+    (%st-talist (first (%st-at (Base raw-of (Base make)) %ta-steps))
+                (%st-talist (first (%st-at %RAW %ta-steps)) acc %st-any)
+                %st-static?)))
 (def %rev (fn (self l acc) (if (null? l) acc (self (rest l) (pair (first l) acc)))))
 (def %slen (fn (self l n) (if (null? l) n (self (rest l) (%int+ n 1)))))
 (def %emit-stable
   (fn (self t cur)
     (if (null? t) cur (self (rest t) (%emit-sentry (rest (first t)) cur)))))
+; The entry emitters take their BUFFER: the statics table and the type-cell
+; table below are the same bytes -- a type name and a step list -- in two
+; sections.
 (def %emit-sentry
   (fn (_ kp cur)
     (if (eq? (first kp) %S-TYPE)
-      (%emit-tentry2 (first (rest kp)) (rest (rest kp)) (%put %s-p cur %S-TYPE))
-      (%emit-bentry (rest kp) (%put %s-p cur %S-PATH)))))
+      (%emit-tentry2 %s-p (first (rest kp)) (rest (rest kp)) (%put %s-p cur %S-TYPE))
+      (%emit-bentry %s-p (rest kp) (%put %s-p cur %S-PATH)))))
 (def %emit-bentry
-  (fn (_ rpfx cur)
-    (%emit-steps (%rev rpfx ()) (%put %s-p cur (%slen rpfx 0)))))
+  (fn (_ b rpfx cur)
+    (%emit-steps b (%rev rpfx ()) (%put b cur (%slen rpfx 0)))))
 (def %emit-tentry2
-  (fn (_ nm rpfx cur) (%emit-tname nm rpfx cur (%blen nm))))
+  (fn (_ b nm rpfx cur) (%emit-tname b nm rpfx cur (%blen nm))))
 (def %emit-tname
-  (fn (_ nm rpfx cur n)
-    (do (%psw %s-p (%int* cur %word-size) n)
-        (%pcopy! (%i->p (%int+ (Ptr ->int %s-p) (%int* (%int+ cur 1) %word-size)))
+  (fn (_ b nm rpfx cur n)
+    (do (%psw b (%int* cur %word-size) n)
+        (%pcopy! (%i->p (%int+ (Ptr ->int b) (%int* (%int+ cur 1) %word-size)))
              (%i->p (%word-at (%o->p nm) 0)) n)
-        (%emit-bentry rpfx (%int+ cur (%int+ 1 (%words-for n)))))))
+        (%emit-bentry b rpfx (%int+ cur (%int+ 1 (%words-for n)))))))
 (def %emit-steps
-  (fn (self steps cur)
+  (fn (self b steps cur)
     (if (null? steps) cur
-      (self (rest steps) (%put %s-p cur (if (eq? (first steps) (lit f)) 0 1))))))
+      (self b (rest steps) (%put b cur (if (eq? (first steps) (lit f)) 0 1))))))
+
+; --- the type-cell table ---------------------------------------------------
+; What the type table does NOT carry: the handler stacks.  A type struct is
+; base state -- a static, walked by name -- but what the library PUSHED onto
+; its stacks is heap: each `-stack` row reaches the head pair of a handler
+; list, (handler . older), and a push writes a new head into the parent's
+; slot.  Those heads are traced from the base and stamped like any object, so
+; an image already contains every printer and every class dispatcher; what it
+; lacked was the eleven words per type saying which slot each one hangs from.
+; A loader that installs only the two env roots gets a helium that can run
+; `list` and cannot `write`.
+;
+; Entry: [object index][name bytes][steps], the statics' own type-rooted form
+; minus its tag word.  The rows are the eleven stacks the library pushes onto
+; -- the `type push-*` coordinates and the from/to cells; name, data, units
+; and the collector's hooks are the engine's and the loader's own.
+(def %CELL-ROWS
+  (lit (type-call-stack type-eval-stack type-write-stack type-display-stack
+        type-analyse-stack type-delimit-stack type-read-stack
+        type-from-stack type-to-stack type-iter-stack type-ops-stack)))
+(def %c-p (%zeroed %F-CAP))
+(def %row-steps
+  (fn (self rows nm)
+    (if (null? rows) ()
+      (if (eq? (first (first rows)) nm) (rest (rest (first rows))) (self (rest rows) nm)))))
+; (name address rsteps), recorded BEFORE the mark, addresses only: the index
+; is not known until the stamp, and nothing may def after it.
+(def %cell-rows-of
+  (fn (self st nm rows acc)
+    (if (null? rows) acc
+      (self st nm (rest rows)
+        ((fn (_ steps)
+           (pair (pair nm (pair (Ptr ->int (%o->p (%st-at st steps)))
+                                (%rev steps ())))
+                 acc))
+         (%row-steps %base-paths (first rows)))))))
+(def %cell-alist
+  (fn (self node acc)
+    (if (null? node) acc
+      (self (rest node)
+        (%cell-rows-of (rest (first node)) ((Type wrap (rest (first node))) name)
+                       %CELL-ROWS acc)))))
+(def %emit-ctable
+  (fn (self t cur)
+    (if (null? t) cur
+      (self (rest t)
+        (%emit-tentry2 %c-p (first (first t)) (rest (rest (first t)))
+                       (%put %c-p cur (%ht-find (first (rest (first t))))))))))
 
 ; --- the type table --------------------------------------------------------
 ; One entry per DISTINCT type word the heap actually uses, discovered from the
@@ -551,7 +627,9 @@
         (%psw %hdr-p (* 12 %word-size) (%ht-find (Ptr ->int %GLOB-P)))  ; the globals
         (%psw %hdr-p (* 13 %word-size) %SCOUNT)
         (%psw %hdr-p (* 14 %word-size) %SWORDS)
-        (* 15 %word-size))))
+        (%psw %hdr-p (* 15 %word-size) %CCOUNT)
+        (%psw %hdr-p (* 16 %word-size) %CWORDS)
+        (* 17 %word-size))))
 
 ; Where the image lands.  A def rather than an argument: `Contract argv` is
 ; injected by x.sh's pin machinery, not the library, so a tool run with -f
@@ -566,6 +644,8 @@
         (display " bytes, ") (write %TCOUNT) (display " types") (newline)
         (display "statics tbl: ") (write (%int* %SWORDS %word-size))
         (display " bytes, ") (write %SCOUNT) (display " nodes") (newline)
+        (display "cells tbl:   ") (write (%int* %CWORDS %word-size))
+        (display " bytes, ") (write %CCOUNT) (display " type cells") (newline)
         (display "unnameable foreign (sentinel): ") (write (rest %FU))
         (display "  + ") (write (first %FU))
         (display " that are this writer's own buffers") (newline)
@@ -574,15 +654,17 @@
         (write (%flen %CALLS 0)) (display " of them type-call") (newline)
         (display "IMAGE TOTAL: ")
         (write (%int+ hdrn (%int+ (%int* %TWORDS %word-size)
+                            (%int+ (%int* %CWORDS %word-size)
                             (%int+ (%int* %SWORDS %word-size)
                              (%int+ (%int* %FWORDS %word-size)
-                                     (%int+ (%int* objw %word-size) blobn))))))
+                                     (%int+ (%int* objw %word-size) blobn)))))))
         (display " bytes -> ") (display %IMG) (newline))))
 (def %write-to
   (fn (_ fd n objw blobn hdrn)
     (do (%wr fd %hdr-p hdrn)
         (%wr fd %t-p (%int* %TWORDS %word-size))
         (%wr fd %s-p (%int* %SWORDS %word-size))
+        (%wr fd %c-p (%int* %CWORDS %word-size))
         (%wr fd %f-p (%int* %FWORDS %word-size))
         (%wr fd %obj-p (%int* objw %word-size))
         (%wr fd %blob-p blobn)
@@ -590,6 +672,7 @@
         (%report-image n objw blobn hdrn))))
 (def %finish
   (fn (_ r1 r2)
+    (set! %CWORDS (%emit-ctable %CELLS-T 0))
     (%write-to (Sys open-write %IMG)
                (first (first r1))
                (first (first r2))
@@ -640,6 +723,14 @@
 (def %STATICS (%st-types (%st-rows %base-paths (%st-record %RAW () ()))))
 (def %SCOUNT (%flen %STATICS 0))
 (def %SWORDS (%emit-stable %STATICS 0))
+; The pristine base %st-types made is garbage now.  Free it before the mark:
+; left on the chain it is untraced but linked from this base, and the walk's
+; own collects would free its nodes under a traced parent.
+(%collect)
+; The type cells, addresses only; the indices come at %finish, after the stamp.
+(def %CELLS-T (%cell-alist (first (%st-at %RAW %ta-steps)) ()))
+(def %CCOUNT (%flen %CELLS-T 0))
+(def %CWORDS 0)
 
 ; A reference emitted as 0 means NIL, so an unresolvable one is invisible in
 ; the file -- it looks exactly like an empty list.  Count them here, where the

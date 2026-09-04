@@ -34,9 +34,11 @@
 (def N (w 4)) (def OBJW (w 5)) (def ROOTENV (w 7)) (def ROOTG (w 12))
 (def FCOUNT (w 8)) (def FWORDS (w 9)) (def TCOUNT (w 10)) (def TWORDS (w 11))
 (def SCOUNT (w 13)) (def SWORDS (w 14))
-(def TSTART 15)
+(def CCOUNT (w 15)) (def CWORDS (w 16))
+(def TSTART 17)
 (def SSTART (%i+ TSTART TWORDS))
-(def FSTART (%i+ SSTART SWORDS))
+(def CSTART (%i+ SSTART SWORDS))       ; the type-cell table; see image-read.x
+(def FSTART (%i+ CSTART CWORDS))
 (def OSTART (%i+ FSTART FWORDS))
 (def BSTART (%i+ OSTART OBJW))
 (def PT ((prim-ref (lit type) (lit of)) (pair 1 2)))

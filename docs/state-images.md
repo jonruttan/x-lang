@@ -593,23 +593,25 @@ The C budget does not change. What changes is that the reader's x half may not
 lean on the library it is about to load.
 
 That prelude is `lib/img.x`, loaded with `sh x.sh -l img`, and it is measured
-rather than argued: **0.05s to boot**, and the whole x-core image — 95,497
-objects, 15 types, 1,079 statics, 145 foreign entries — **loads and evaluates
-in 0.26s**, against 0.90s to boot the same x-core from source. The same reader
-hosted on helium took 1.95s, and 0.88s of it was helium. Where the 0.26s goes:
+rather than argued: **0.05s to boot**, and the whole x-core image — 98,508
+objects, 15 instanced types, 1,084 statics, 149 foreign entries, 209 type
+cells — **loads, installs and evaluates in 0.45s**, against 0.90s to boot the
+same x-core from source. The same reader hosted on helium took 1.95s, and
+0.88s of it was helium. Where the 0.45s goes:
 
 | phase | cost | what it is |
 |---|--:|---|
 | boot img | 50ms | `if`, `do`, `prim-ref`, byte strings, reflection, shapes |
 | read | 5ms | one `sys read` into raw memory |
-| types | 24ms | fifteen names matched to live types, absent ones registered |
-| statics | 107ms | 1,079 base-path walks from the target base |
-| foreign | 39ms | 145 names reacquired |
-| rebuild | 7ms | the one primitive, allocate then patch |
-| install, eval | 0.2ms | two roots written, `(list 1 2 3)` evaluated |
+| types | 87ms | 19 names matched to live types, absent ones registered, shapes |
+| statics | 170ms | 1,084 base-path walks from the target base |
+| foreign | 44ms | 149 names reacquired |
+| rebuild | 9ms | the one primitive, allocate then patch |
+| roots, cells | 36ms | two env roots and 209 handler stacks written into place |
+| eval | 0.7ms | `(write (list 1 2 3))`, through the image's own printer |
 
 So "per-entry work in milliseconds" above is right in kind and optimistic by an
-order: the statics walk is ~0.1ms an entry and there are a thousand of them.
+order: the statics walk is ~0.16ms an entry and there are a thousand of them.
 It is the next thing to cut, not a floor.
 
 The prelude carries everything the library would otherwise have supplied and
@@ -618,16 +620,51 @@ engine's own comment says they are "pure x-lang now" — so img defines them
 from the same addressing formula as `boot/data.x`; type names and units cells
 are walks of the type-rooted rows of `base-paths.x`; the unit shapes are the
 rows of `lib/x/type/shape-rows.x`, split out of `type.x` so that one file
-feeds both helium's boot and this one.
+feeds both helium's boot and this one. Its `do` is two operatives handing the
+body to each other through `tail-eval`: a helper *procedure* does not keep a
+tail call in constant stack, and a 300,000-step loop found that out.
 
-**What the image does not carry yet, and the loader is honest about:** the
-types' handler stacks. Those are base state — the writer's base pushed the
-printers and class dispatch onto its type structs, and the type structs are
-statics, not imaged objects — so a loaded x-core can run `list` but not
-`write`. The reader registers CLASS and OBJECT empty when the host lacks them
-and proves life by reading the pairs the image built, not by asking the image
-to print. Restoring the stacks is the next format change: a per-type table of
-cell contents, installed after the rebuild the way the two env roots are.
+### The type-cell table
+
+A type struct is base state — a static, walked by name — but what the
+library *pushed* onto its stacks is heap. Every `-stack` row of the layout
+contract reaches the head pair of a handler list, `(handler . older)`, and a
+push writes a new head into the parent's slot. Those heads are traced from
+the base and stamped like any object, so the image already held every
+printer and every class dispatcher; what it lacked was eleven words per type
+saying which slot each hangs from. A loader that installs only the two env
+roots gets a helium that can run `list` and cannot `write`.
+
+The table is one entry per type per pushed-on stack — the eleven rows the
+`type push-*` coordinates and the from/to cells name — in the statics' own
+type-rooted form, `[object index][type name][steps]`, minus the tag word.
+The loader walks its own struct to the parent and sets the half the last
+step names. 209 entries, 36ms.
+
+Installing them was also what surfaced two faults nothing had exercised,
+because for the first time the host's collector and tokenizer walked into the
+imaged graph:
+
+- **The static sentinel was being read as an entry.** The writer emits
+  −(SCOUNT+1) for a reference it cannot name so a loader can refuse it; the
+  rebuild's bound was `<=` and read the word past the statics object
+  (ASan: 0 bytes after an 8680-byte region). Strict now, like the foreign
+  bound beside it.
+- **The engine's own handlers were unnameable.** `STRING type-read-stack` is
+  `(fn fn fn fn ATOM)` after the library's pushes: the C reader is the fifth
+  element of a list, which no row reaches, and the tokenizer applies every
+  element of an analyse list without a nil check. The atom *is* nameable — it
+  is what a fresh base holds at `(type STRING type-read)`, and every loader
+  has a fresh base — so the writer also walks a pristine `(Base make)` and
+  records its off-chain nodes under the same type-rooted paths. Off-chain,
+  not "atom-tagged": the token handlers are type-word-0 objects that `write`
+  prints as nothing at all, and a filter on the tag skipped every one.
+
+**Still unnamed, and harmless for now:** `%token-eof`, a global the engine
+registers in every base whose value is a static the writer has no path to —
+the name itself is the path, and that is a small new statics kind — and eight
+nodes of the tokenizer's syntax table, a `todo` subtree of `base-layout.x`
+that the loader never installs because it keeps its own. Both restore as nil.
 
 **What this does not fix**, so the arithmetic stays honest:
 

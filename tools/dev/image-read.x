@@ -7,10 +7,16 @@
 ;
 ; RUNS ON THE img DIALECT (lib/img.x), NOT HELIUM.  The host is the floor under
 ; every load, and helium's 0.88s boot was 96% of a 2.3s load; on img the same
-; load is 0.26s -- read 5ms, types 24ms, statics 107ms, foreign 39ms, rebuild
-; 7ms, install 0.2ms -- against 0.90s to boot the x-core it replaces.  Nothing
-; here touches a class: (obj ref)/(obj set!) are img's, type names and units
-; cells come from the base-paths rows, strings are the byte prims.
+; load is under half a second against 0.90s to boot the x-core it replaces.
+; Nothing here touches a class: (obj ref)/(obj set!) are img's, type names and
+; units cells come from the base-paths rows, strings are the byte prims.
+;
+; WHAT IS RESTORED: the env chain and the globals tree (two roots), and every
+; type's handler stacks (the type-cell table) -- so the loaded image prints
+; through its own printers and dispatches through its own classes.  What is
+; not: the base's tokenizer table (a `todo` subtree of base-layout.x, this
+; base keeps its own) and %token-eof, an engine-registered global whose
+; static the writer cannot yet name.
 ;
 ; THE SPLIT THIS DEMONSTRATES.  X resolves the tables -- verifying the header,
 ; matching each file type NAME to a live type, reacquiring foreign addresses by
@@ -71,9 +77,11 @@
 (def N (w 4)) (def OBJW (w 5)) (def ROOTENV (w 7)) (def ROOTG (w 12))
 (def FCOUNT (w 8)) (def FWORDS (w 9)) (def TCOUNT (w 10)) (def TWORDS (w 11))
 (def SCOUNT (w 13)) (def SWORDS (w 14))
-(def TSTART 15)
+(def CCOUNT (w 15)) (def CWORDS (w 16))
+(def TSTART 17)
 (def SSTART (%i+ TSTART TWORDS))
-(def FSTART (%i+ SSTART SWORDS))
+(def CSTART (%i+ SSTART SWORDS))
+(def FSTART (%i+ CSTART CWORDS))
 (def OSTART (%i+ FSTART FWORDS))
 (def BSTART (%i+ OSTART OBJW))
 (def PT ((prim! (lit type) (lit of)) (pair 1 2)))
@@ -116,9 +124,8 @@
 ; Types the file names and this base lacks -- CLASS and OBJECT are the
 ; library's, registered by lib/x/type/class.x, and a loader that has not run
 ; the library has neither.  Register them empty so the type-rooted statics have
-; a struct to walk from and the rebuild has a type to make instances of.  Empty
-; is the honest word: their handler stacks are the writer's base's state and
-; the image does not carry them yet, so class dispatch is not restored here.
+; a struct to walk from and the rebuild has a type to make instances of; the
+; type-cell table fills their stacks after the rebuild.
 (def %type-make (prim! (lit type) (lit make)))
 (def ensure-types
   (fn (self i pos)
@@ -130,6 +137,18 @@
            (%p->s (%i2p (at (%i+ pos 1)))))
           (self (%i+ i 1) (%i+ pos (%i+ 2 (%shr (w pos) 3))))))))
 (ensure-types 1 TSTART)
+; The cell table names every type the writer's base had, instanced or not.
+(def ensure-cell-types
+  (fn (self i pos)
+    (if (%lt CCOUNT i) ()
+      (do ((fn (_ nm) (if (null? (lookup SHAPES nm)) (%type-make nm ()) ()))
+           (%p->s (%i2p (at (%i+ pos 2)))))
+          (self (%i+ i 1) (%cell-next pos))))))
+; [index][name-len][name...][nsteps][steps...]: the statics' type-rooted
+; layout without its tag word, so the name and the steps parse the same way.
+(def %cell-np (fn (_ pos) (%i+ pos (%i+ 3 (%shr (w (%i+ pos 1)) 3)))))
+(def %cell-next (fn (_ pos) ((fn (_ np) (%i+ np (%i+ 1 (w np)))) (%cell-np pos))))
+(ensure-cell-types 1 CSTART)
 (set! SHAPES ())
 (add-shape (first %reflect-type-alist-cell))
 (def TN (mkn (%i+ TCOUNT 1)))  (def TS (mkn (%i+ TCOUNT 1)))  (def TT (mkn (%i+ TCOUNT 1)))
@@ -278,22 +297,36 @@
 
 ; --- the whole rebuild, in one primitive ------------------------------------
 ; X resolved the tables; C does the only per-object work there is.
+; --- the type cells: hang each imaged handler list from the live struct -----
+; A `-stack` row reaches a list HEAD; the slot that holds it is the half of
+; the parent the last step names.  Walk nsteps-1 from this base's struct, set
+; that half.  Every handler the list holds is an imaged object or a static
+; that already resolved to this base's own C handler.
+(def %install-cell!
+  (fn (_ ix idx st np)
+    (%oset! (stepwalk st (%i- (w np) 1) (%i+ np 1))
+            (w (%i+ np (w np)))            ; the last step: 0 first, 1 rest
+            (ixref ix idx))))
+(def rdcells
+  (fn (self ix i pos)
+    (if (%lt CCOUNT i) ()
+      (do ((fn (_ st) (if (null? st) () (%install-cell! ix (w pos) st (%cell-np pos))))
+           (tstruct (%p->s (%i2p (at (%i+ pos 2))))))
+          (self ix (%i+ i 1) (%cell-next pos))))))
+
 ; --- rebuild and install --------------------------------------------------
 ; One primitive does the per-object work; everything above is per-entry.
 ((fn (_ ix)
    (do (%oset! (%img-of RAWB (lit env-alist)) 0 (ixref ix ROOTENV))
        (%install-slot! (lit env-global-tree) (ixref ix ROOTG))
+       (rdcells ix 1 CSTART)
        (display "loaded ") (say-num N) (display " objects; ")
-       ; The image's `list` runs and the host reads the pairs it built.  Not
-       ; the image's `write`: printing dispatches through the type stacks, which
-       ; are the writer's base's state and are not restored yet.
-       (display "(list 1 2 3) => (")
-       ((fn (_ r)
-          (say-num (first r)) (display " ")
-          (say-num (first (rest r))) (display " ")
-          (say-num (first (rest (rest r))))
-          (display (if (null? (rest (rest (rest r)))) ")" " ...)")))
-        (%beval RAWB (lit (list 1 2 3))))
+       ; The proof of life is the IMAGE printing: `write` dispatches through the
+       ; type stacks just installed, so a list on the screen is the printers,
+       ; the pair type's write handler and the integer type's all restored.
+       ; The host has no object printer of its own to fall back on.
+       (display "(list 1 2 3) => ")
+       (%beval RAWB (lit (write (list 1 2 3))))
        (newline)))
  ((prim! (lit image) (lit rebuild!))
   buf OSTART N TT FV ST (%i+ (%p2i buf) (%i* BSTART W)) IX TCNT SYMTI
