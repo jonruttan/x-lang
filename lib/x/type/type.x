@@ -258,28 +258,43 @@
 ; nil for (type set-shape!), and the types simply stay undeclared -- the state
 ; every engine was in before this.  Guarded rather than required so the
 ; platform still boots on the pinned engine while the shape release lands.
+; SHAPES ARE PER-BASE, and that is the reason this is data rather than a run of
+; calls.  A fresh (Base make) carries none of them, and a type with no mask
+; means "every unit is a reference" -- so anything reading units generically
+; then dereferences a PROCEDURE's call pointer.  Declaring them on another base
+; is walking its own type alist, which needs the rows, not the samples.
+(def %type-shape-rows
+  (lit (("INTEGER"   1 (word))       ; the value word
+        ("CHARACTER" 1 (word))       ; the code point
+        ("STRING"    1 (bytes))      ; pointer to its bytes
+        ("SYMBOL"    1 (bytes))      ; pointer to its name
+        ("PRIMITIVE" 1 (foreign))    ; a C function address
+        ("POINTER"   1 (foreign))    ; an address C owns
+        ; The two callables are [fn-ptr][state]: slot 0 is a raw C function
+        ; pointer, NOT a heap object.  x-type/procedure.h and
+        ; x-type/operative.h both say so, and both warn that marking it as one
+        ; would corrupt the GC free list.  State is slot 1.
+        ("PROCEDURE" 2 (foreign ref))
+        ("OPERATIVE" 2 (foreign ref)))))
+
+(def %type-shape-find
+  (fn (self rows nm)
+    (if (null? rows) ()
+      (if (str=? (first (first rows)) nm) (first rows) (self (rest rows) nm)))))
+(def %type-shape-row!
+  (fn (_ ts)
+    ((fn (_ row)
+       (if (null? row) ()
+         (Type set-shape! ts (first (rest row)) (first (rest (rest row))))))
+     (%type-shape-find %type-shape-rows ((Type wrap ts) name)))))
+(def %type-declare-shapes!
+  (fn (self alist)
+    (if (null? alist) ()
+      (do (%type-shape-row! (rest (first alist))) (self (rest alist))))))
+
 (if (null? (prim-ref (lit type) (lit set-shape!)))
   ()
-  (let ((%shape
-          (fn (_ sample n kinds)
-            (Type set-shape! ((prim-ref (lit type) (lit by-atom))
-                               ((prim-ref (lit type) (lit of)) sample))
-                             n kinds))))
-    (%shape 0        1 (lit (word)))      ; INTEGER   -- the value word
-    (%shape #\a       1 (lit (word)))      ; CHARACTER -- the code point
-    (%shape ""       1 (lit (bytes)))     ; STRING    -- pointer to its bytes
-    (%shape (lit %)  1 (lit (bytes)))     ; SYMBOL    -- pointer to its name
-    (%shape first    1 (lit (foreign)))   ; PRIMITIVE -- a C function address
-    (%shape ((prim-ref (lit obj) (lit ->ptr)) 0)
-                     1 (lit (foreign)))    ; POINTER  -- an address C owns
-    ; The two callables: [fn-ptr][state], and slot 0 is a raw C function
-    ; pointer, NOT a heap object -- x-type/procedure.h and x-type/operative.h
-    ; both say so, and both warn that marking it as one would corrupt the free
-    ; list.  Undeclared, the units slot gave a count of 2 and no mask, and a
-    ; missing mask means "every unit is a reference": anything reading units
-    ; generically then dereferences the call pointer.  State is slot 1.
-    (%shape (fn (_ x) x) 2 (lit (foreign ref)))   ; PROCEDURE
-    (%shape (op (x) x)   2 (lit (foreign ref)))))  ; OPERATIVE
+  (%type-declare-shapes! (first %reflect-type-alist-cell)))
 
 (doc (provide x/type/type Type)
   (note "Mechanism in lib/x/type/struct.x, filed under catalog ns `type`; load-time wiring fetch-and-caches the helpers instead of calling the class.")
