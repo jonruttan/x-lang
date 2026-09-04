@@ -143,7 +143,7 @@ make_seed() {
 		packages:
 		EOF
 		# What a checkout needs to build the engine and run the suite.
-		for p in build-essential git curl rsync file gdb bzip2 xz-utils; do
+		for p in build-essential git curl rsync file gdb time bzip2 xz-utils; do
 			printf '  - %s\n' "$p"
 		done
 	} > "$seeddir/user-data"
