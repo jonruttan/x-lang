@@ -119,6 +119,29 @@
 ; Two forms.  A base path is steps from the base.  A TYPE path is a type NAME
 ; plus steps from that type's struct -- portable where a positional path is
 ; not, because a loader's type registry differs from the writer's.
+; env-alist is a CELL: its value lives in the cell's first slot, so installing
+; is a write into the cell.  env-global-tree is a SLOT: the value IS what the
+; path reaches, so installing means writing into its PARENT, at whichever half
+; the last step names.  base-layout.x is what says which is which.
+(include "engine/tools/contract/base-paths.x")
+(def %row-steps
+  (fn (self rows nm)
+    (if (null? rows) ()
+      (if (eq? (first (first rows)) nm) (rest (rest (first rows)))
+        (self (rest rows) nm)))))
+(def %but-last
+  (fn (self l) (if (null? (rest l)) () (pair (first l) (self (rest l))))))
+(def %last (fn (self l) (if (null? (rest l)) (first l) (self (rest l)))))
+(def %walk-steps
+  (fn (self v steps)
+    (if (null? steps) v (self (if (eq? (first steps) (lit f)) (first v) (rest v)) (rest steps)))))
+(def %install-slot!
+  (fn (_ nm v)
+    ((fn (_ steps)
+       (%oset! (%walk-steps RAWB (%but-last steps))
+               (if (eq? (%last steps) (lit f)) 0 1) v))
+     (%row-steps %base-paths nm))))
+
 (def tstruct
   (fn (_ nm) ((fn (_ e) (if (null? e) () (rest e))) (lookup SHAPES nm))))
 (def rdstatics
@@ -186,7 +209,11 @@
    (do (display "rebuilt ") (write N) (display " objects") (newline)
        ; INSTALL: point the fresh base's env cells at the rebuilt roots.
        (%oset! (B cell (lit env-alist)) 0 (%oref ix ROOTENV))
-       (%oset! (B cell (lit env-global-tree)) 0 (%oref ix ROOTG))
+       ; GLOBALS ARE NOT INSTALLED.  Writing the rebuilt tree into the slot
+       ; (which %install-slot! now does correctly -- it is a slot, not a cell)
+       ; segfaults on the first evaluation, so the rebuilt tree is not yet a
+       ; structure the evaluator can search.  The env alist is installed and
+       ; works; globals stay the host's until that is understood.
        (display "installed.  evaluating in the loaded image:") (newline)
        (display "  (+ 1 2)        => ") (write (guard (_ (lit RAISED)) (B eval (lit (+ 1 2))))) (newline)
        (display "  x-release      => ") (write (guard (_ (lit RAISED)) (B eval (lit x-release)))) (newline)

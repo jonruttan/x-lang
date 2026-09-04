@@ -206,17 +206,46 @@
     (if (null? steps) acc
       ((fn (_ nv nr) (self nv (rest steps) (%st-record nv acc nr) nr))
        (%step v (first steps)) (pair (first steps) rpfx)))))
-; NOT the cell VALUES, though they are what several unnameable references point
-; at: base-paths.x names a cell, and the value sits one step further, in its
-; first slot.  Reaching it needs to know which rows ARE cells -- base-layout.x
-; says, for 27 of them -- and testing instead does not work: probing a leaf
-; with Type name dereferences it, and some leaves hold raw C function pointers
-; (the collector's hooks).  That crashes the writer.  Reading base-layout.x is
-; the way in, and it is not built.
+; --- which rows are CELLS, from base-layout.x ------------------------------
+; base-paths.x names a cell; the VALUE sits one step further, in its first
+; slot, and that is what several unnameable references point at -- `true` and
+; `false` among them, which is why the globals tree rebuilt with a nil where
+; the live one holds the static #t.
+;
+; Which rows are cells cannot be tested for.  Probing a leaf with Type name
+; DEREFERENCES it, and some leaves hold the collector's raw function pointers;
+; that crashes the writer, measured.  base-layout.x says instead -- it is the
+; contract that distinguishes (cell NAME) from (slot NAME) -- and its header
+; says it is meant to be read as data by this layer, which nothing did until
+; now.  Binding its tags as constructors is the way in: `cell` records its
+; name, everything else evaluates to nothing.
+; The tags are OPERATIVES: a name like `base` or `env-alist` must not be
+; evaluated, but the children must be, or the tree is never walked.  `pair` is
+; the primitive and evaluates its two halves, which is what carries the walk.
+(def %CELLS ())
+(def %eval-all
+  (fn (self l e) (if (null? l) () (do (eval (first l) e) (self (rest l) e)))))
+(def cell (op (nm) e (do (set! %CELLS (pair nm %CELLS)) ())))
+(def slot (op (nm) e ()))
+(def todo (op (nm) e ()))
+(def nil (op () e ()))
+(def node (op (nm . kids) e (do (%eval-all kids e) ())))
+(def build (fn (_ x) ()))
+(include "engine/tools/contract/base-layout.x")
+(display "cells declared by base-layout: ")
+(write ((fn (self l n) (if (null? l) n (self (rest l) (%int+ n 1)))) %CELLS 0)) (newline)
+
+(def %cell? (fn (self l nm) (if (null? l) #f (if (eq? (first l) nm) #t (self (rest l) nm)))))
 (def %st-row
   (fn (_ row acc)
     (if (eq? (first (rest row)) (lit base))
-      (%st-walk %RAW (rest (rest row)) acc ())
+      (%st-cellval row (%st-walk %RAW (rest (rest row)) acc ()))
+      acc)))
+(def %st-cellval
+  (fn (_ row acc)
+    (if (%cell? %CELLS (first row))
+      (%st-record (first (%st-at %RAW (rest (rest row)))) acc
+                  (pair (lit f) (%rev (rest (rest row)) ())))
       acc)))
 (def %st-rows
   (fn (self rows acc)
@@ -578,7 +607,11 @@
 ; the stamping pass never saw.  Here, at top level and immediately before the
 ; mark, the head is the one the stamp is about to index.
 (def %ENV-P  (%o->p (first (%B cell (lit env-alist)))))
-(def %GLOB-P (%o->p (first (%B cell (lit env-global-tree)))))
+; env-alist is a CELL -- its value is in the first slot -- but env-global-tree
+; is a SLOT: base-layout.x says (cell env-alist) and (slot env-global-tree),
+; and taking `first` of a slot's value takes the first child of the BST root
+; and calls it the tree.
+(def %GLOB-P (%o->p (%B cell (lit env-global-tree))))
 
 (%mark! %RAW %TRACE)
 ; ONE expression, no `def` between the mark and the last walk: a def repoints
