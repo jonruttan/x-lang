@@ -171,7 +171,25 @@
 ;
 ; SHARED is policy ("never sweep this") and RO is advisory; both belong to the
 ; object.  Nothing else does.
-(def %IMG-FLAGS (| %obj-flag-shared %obj-flag-ro))
+; THE ATTRIBUTE BITS ARE SEMANTIC, and dropping them was wrong.  They are the
+; LOW bits -- 0x01 WRAP/SHADOW, 0x02 COV, 0x04 FRAME, 0x08 FNFRAME -- and they
+; say what an object IS, not what the collector was doing to it:
+;
+;   WRAP     a procedure is a wrapped applicative; its `env` holds the
+;            underlying combiner and calling it dispatches there instead.
+;            Lose it and every wrapper in the image is called wrongly.
+;   FRAME    this spine cell is a lexical frame cell.  Symbol lookup walks
+;            "the leading run of FRAME-marked cells" as step 1, so without it
+;            a restored environment has different lookup semantics.
+;   FNFRAME  the same, for fn frames.
+;
+; What still must NOT be replayed: MARK and the writer's own trace bit, which
+; are the collector mid-write; META, which describes a layout a loader's base
+; decides for itself; and OWN, which would have a loader free memory the object
+; never owned.
+(def %IMG-FLAGS
+  (| (| %obj-flag-1 (| %obj-flag-2 (| %obj-flag-3 %obj-flag-4)))
+     (| %obj-flag-ro %obj-flag-shared)))
 
 ; --- address -> index, in raw memory ---------------------------------------
 ; THE WRITER MUST NOT ASK AN ARBITRARY ADDRESS WHAT IT IS.  Stamping the index
