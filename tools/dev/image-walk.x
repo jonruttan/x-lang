@@ -115,3 +115,18 @@
         acc
         (%units p g (g (%kind m i d) (%word-at p i) acc) (%int+ i 1) n m d))))
 
+
+; How a type word is tagged.  Three of the four are not heap types at all --
+; nil-typed, the static ATOM sentinel, the structural PAIR sentinel -- and none
+; of those carries a navigable type pointer, so every consumer branches here
+; before dereferencing one.
+(def %T-NIL 0)
+(def %T-ATOM 1)
+(def %T-PAIR 2)
+(def %T-HEAP 3)
+(def %ty-kind
+  (fn (_ tw)
+    (if (eq? tw 0) %T-NIL
+      (if (eq? tw %reflect-satom-tw) %T-ATOM
+        (if (eq? tw %reflect-spair-tw) %T-PAIR %T-HEAP)))))
+

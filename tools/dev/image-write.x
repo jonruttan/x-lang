@@ -51,6 +51,38 @@
 ; rooted, so a collect cannot free it; a PTR roots nothing it addresses.
 (include "tools/dev/image-name.x")
 
+; THE BASE THIS IMAGES.
+;
+; It SHOULD be a child.  Imaging (Base wrap (%base)) images the writer too --
+; its buffers, defs and closures are all in that heap, which is why eight
+; POINTER objects holding addresses malloc gave THIS process end up in the
+; file, nameable by nothing.  A child base has its own allocation chain
+; (measured: 1,799 objects against the parent's 80,320) and the walks allocate
+; their accumulators in the parent, so a child's chain does not even grow while
+; it is walked.  Everything below is already parameterised for it.
+;
+; IT CRASHES THE COLLECTOR, so it is not switched on.  Reduced:
+;
+;   (def b (Base make))
+;   (%from-bare %isa-bare () b)   ; ~30 (b eval NAME), most of them unbound
+;   ... one large malloc ...
+;   (%collect)                    ; SIGSEGV
+;
+; ONE cross-base eval is fine, bound or unbound.  The batch is not, and the
+; fault lands in the collect afterwards rather than in the evals -- so what a
+; run of cross-base raises leaves behind is what the collector then walks into.
+; Switching this def to (Base make) reproduces it.
+(def %B (Base wrap (%base)))
+(def %MAP (%make-map %B))
+(def %RAW (Base raw-of %B))
+; A FRESH cursor per walk, never a stored one.  The heap chain links newest to
+; oldest, so a walk sees only what existed when its cursor was allocated: a
+; cursor defined once at the top silently skipped every object created after
+; it -- 5,000 of them, the writer's own buffers among them, and the env's
+; newest pairs, which left the root unstamped and recorded as 0.  It read as
+; a smaller, cleaner image.
+(def %cursor (fn (_) (pair 1 2)))
+
 ; --- pass 1: stamp an index, and count types that cannot state an extent ---
 (def %refuses? (fn (_ p) (if (eq? (%rw p %type-off) %reflect-satom-tw) #f
   (if (eq? (%rw p %type-off) 0) #f
@@ -73,8 +105,9 @@
     (do (if (%flagged? p) (%psw p %meta1-off (%int+ (first acc) 1)) ())
         (pair (%int+ (first acc) 1)
               (if (%refuses? p) (%int+ (rest acc) 1) (rest acc))))))
-(def %ENV-P  (%o->p (first (%reflect-base-cell (lit env-alist)))))
-(def %GLOB-P (%o->p (first (%reflect-base-cell (lit env-global-tree)))))
+; Through the Base door, so this follows %B when %B is a child.
+(def %ENV-P  (%o->p (first (%B cell (lit env-alist)))))
+(def %GLOB-P (%o->p (first (%B cell (lit env-global-tree)))))
 
 ; --- libc doors: raw fd I/O, memcpy, malloc -------------------------------
 ; The asm-cache rule applies here too: NOTHING WALKS BYTES.  Strings reach the
@@ -169,7 +202,7 @@
 (def %st-row
   (fn (_ row acc)
     (if (eq? (first (rest row)) (lit base))
-      (%st-walk (%base) (rest (rest row)) acc ())
+      (%st-walk %RAW (rest (rest row)) acc ())
       acc)))
 (def %st-rows
   (fn (self rows acc)
@@ -194,15 +227,6 @@
 ; structural PAIR) are not in it at all.  Entry: kind, unit count, unit mask,
 ; then the name.  A count may be NEGATIVE: that is the slot-0-counted form, and
 ; the loader needs the sign as much as the magnitude.
-(def %T-NIL 0)
-(def %T-ATOM 1)
-(def %T-PAIR 2)
-(def %T-HEAP 3)
-(def %ty-kind
-  (fn (_ tw)
-    (if (eq? tw 0) %T-NIL
-      (if (eq? tw %reflect-satom-tw) %T-ATOM
-        (if (eq? tw %reflect-spair-tw) %T-PAIR %T-HEAP)))))
 (def %ty-shape
   (fn (_ tw)
     (if (eq? (%ty-kind tw) %T-HEAP) (%ty-cell-shape (%cell-of tw)) (%ty-flat tw))))
@@ -228,54 +252,6 @@
        (%map-add acc tw (%ty-kind tw)
          (pair (first sh) (pair (rest sh) (%ty-name tw p)))))
      (%ty-shape tw))))
-; --- the call pointer a whole TYPE shares -----------------------------------
-; A PROCEDURE's unit 0 is the engine's procedure-call function, and EVERY
-; procedure holds the same one; operatives likewise hold theirs.  Such an
-; address has no useful symbol -- it is internal, so dladdr names it and dlsym
-; will not give it back -- and it needs none: a loader creating an object of
-; that type already knows which call function to install.  So it is named by
-; the TYPE, not by a symbol.
-;
-; Which types qualify is MEASURED, not assumed: PRIMITIVE and POINTER also
-; carry a foreign unit 0 and theirs differ per instance, so a type qualifies
-; only if every instance seen agrees.  acc = (first-seen . disagreed).
-(def %F-TYPECALL 4)
-; A dlopen HANDLE is not a symbol and dladdr will never name one, but it is
-; perfectly reacquirable: the loader calls dlopen again.  An empty payload
-; means the process handle -- dlopen(NULL) -- which is the only one this tree
-; opens.  Detected by value, against the handle this writer holds.
-(def %F-DLOPEN 5)
-(def %cp-kind0
-  (fn (_ tw)
-    (if (eq? (%ty-kind tw) %T-HEAP) (%cp-cell-kind (%cell-of tw)) 9)))
-(def %cp-cell-kind
-  (fn (_ u)
-    (if (eq? u ()) 9 (%kind (%sh-mask u) 0 (%sh-desc (%sh-count u))))))
-(def %cp-scan
-  (fn (_ p acc)
-    (if (eq? (%cp-kind0 (%rw p %type-off)) 3)
-        (%cp-note (%rw p %type-off) (%word-at p 0) acc)
-        acc)))
-(def %cp-note
-  (fn (_ tw v acc)
-    ((fn (_ e)
-       (if (null? e) (pair (%map-add (first acc) tw 0 v) (rest acc))
-         (if (eq? (rest e) v) acc (pair (first acc) (%cp-disagree (rest acc) tw)))))
-     (%map-get (first acc) tw))))
-(def %cp-disagree
-  (fn (_ d tw) (if (null? (%map-get d tw)) (%map-add d tw 0 0) d)))
-(def %cp-entries
-  (fn (self m d acc)
-    (if (null? m) acc
-      (self (rest m) d
-        (if (null? (%map-get d (first (first m))))
-            (%map-add acc (rest (rest (first m))) %F-TYPECALL
-                      (%tw-name (first (first m))))
-            acc)))))
-(def %tw-name
-  (fn (_ tw)
-    ((fn (_ e) (if (null? e) "?" (rest (rest (rest e))))) (%map-get %TTABLE tw))))
-
 (def %emit-ttable
   (fn (self t cur)
     (if (null? t) cur (self (rest t) (%emit-tentry (rest (first t)) cur)))))
@@ -468,13 +444,13 @@
 ; because the emit pass looks entries up and may not add them.
 ; The type table comes first: naming a shared call pointer needs its type's
 ; name, so %TTABLE has to exist before the foreign table is assembled.
-(def %TTABLE (first (%walk-all (pair 1 2) %ty-discover ())))
+(def %TTABLE (first (%walk-all (%cursor) %ty-discover ())))
 (def %TCOUNT (%flen %TTABLE 0))
 (def %TWORDS (%emit-ttable %TTABLE 0))
-(def %CPSCAN (first (%walk-all (pair 1 2) %cp-scan (pair () ()))))
+(def %CPSCAN (first (%walk-all (%cursor) %cp-scan (pair () ()))))
 (def %CALLS (%cp-entries (first %CPSCAN) (rest %CPSCAN) ()))
 (def %HANDLES (%map-add () (Ptr ->int %lib) %F-DLOPEN ""))
-(def %EXTRAS (first (%walk-all (pair 1 2) %discover ())))
+(def %EXTRAS (first (%walk-all (%cursor) %discover ())))
 (def %FTABLE (%append %HANDLES (%append %CALLS (%append %EXTRAS %MAP))))
 (def %FCOUNT (%flen %FTABLE 0))
 (def %FWORDS (%emit-ftable %FTABLE 0))
@@ -496,7 +472,7 @@
         (if (%flagged? (%i->p w)) acc
           (if (eq? (%f-index %STATICS w 1) 0) (%int+ acc 1) acc)))
       acc)))
-(def %UNRES (first (%walk-all (pair 1 2) %unres 0)))
+(def %UNRES (first (%walk-all (%cursor) %unres 0)))
 
 ; The writer's own buffers are POINTER objects in the heap it is imaging, so
 ; they turn up as foreign units nothing can name -- an address malloc handed
@@ -519,11 +495,11 @@
             (pair (first acc) (%int+ (rest acc) 1)))
         acc)
       acc)))
-(def %FU (first (%walk-all (pair 1 2) %fu-scan (pair 0 0))))
+(def %FU (first (%walk-all (%cursor) %fu-scan (pair 0 0))))
 
-(%mark! (%base) %TRACE)
+(%mark! %RAW %TRACE)
 ; ONE expression, no `def` between the mark and the last walk: a def repoints
 ; an environment pair, which is itself traced, at a value pass 1 never stamped.
-((fn (_ r1) (%finish r1 (%walk (pair 1 2) %emit (pair 0 (pair 0 0)))))
- (%walk (pair 1 2) %stamp (pair 0 0)))
+((fn (_ r1) (%finish r1 (%walk (%cursor) %emit (pair 0 (pair 0 0)))))
+ (%walk (%cursor) %stamp (pair 0 0)))
 (%clear! %TRACE)

@@ -101,32 +101,80 @@
 ; survive only inside a closure, which docs/state-images.md already records.
 (include "engine/tools/contract/isa.x")
 (def %from-bare
-  (fn (self rows m)
-    (if (null? rows) m (self (rest rows) (%bare-add (first (first rows)) m)))))
+  (fn (self rows m b)
+    (if (null? rows) m (self (rest rows) (%bare-add (first (first rows)) m b) b))))
 (def %bare-add
-  (fn (_ nm m)
+  (fn (_ nm m b)
     (guard (_ m)
       ((fn (_ v) (if (%prim? v) (%map-add m (%fnptr v) %F-BARE (symbol->str nm)) m))
-       (eval nm)))))
+       (b eval nm)))))
 
-; NOT the base env, and the two failed attempts are why.
+; NOT by walking the base env, and two failed attempts are why.
 ;
-; The bare bindings live in the base's STATIC SPINE, and nothing here may walk
-; it.  A generic descent crashes as docs/state-images.md predicts: a structural
-; pair in the base tree may hold a raw C function pointer (the collector's own
-; hooks), and following it as a reference is a wild read.  Restricting to one
-; flat `rest`-only pass over the boot frame crashes too, for a subtler reason
-; -- the predicate itself.  Asking %reflect-type-word what a slot holds IS a
-; dereference, so the test for "may I walk this?" is already the unsafe act.
+; The bare bindings live in the base's STATIC SPINE and nothing here may walk
+; it.  A generic descent crashes as docs/state-images.md predicts -- a
+; structural pair there may hold a raw C function pointer, the collector's own
+; hooks, and following it as a reference is a wild read.  Restricting to one
+; flat rest-only pass crashes too, for a subtler reason: asking
+; %reflect-type-word what a slot holds IS a dereference, so the test for "may I
+; walk this?" is already the unsafe act.  Looking a DECLARED name up cannot
+; crash, which is why %isa-bare is the door.
 ;
-; Both attempts are the same mistake at different depths: the spine can only be
-; read through base-layout.x and base-paths.x, whose rows say which leaves are
-; cells, which are direct values and which are external.  That is the next
-; piece of work.
-(def %MAP
-  (%from-bare %isa-bare
-    (%from-catalog (first (%reflect-base-cell (lit prims))) ())))
+; Built FOR a base rather than for the ambient one: the writer images a child,
+; whose catalog and bare bindings are its own.
+(def %make-map
+  (fn (_ b)
+    (%from-bare %isa-bare (%from-catalog (first (b cell (lit prims))) ()) b)))
 
+; --- the call pointer a whole TYPE shares -----------------------------------
+; A PROCEDURE's unit 0 is the engine's procedure-call function, and EVERY
+; procedure holds the same one; operatives likewise hold theirs.  Such an
+; address has no useful symbol -- it is internal, so dladdr names it and dlsym
+; will not give it back -- and it needs none: a loader creating an object of
+; that type already knows which call function to install.  So it is named by
+; the TYPE, not by a symbol.
+;
+; Which types qualify is MEASURED, not assumed: PRIMITIVE and POINTER also
+; carry a foreign unit 0 and theirs differ per instance, so a type qualifies
+; only if every instance seen agrees.  acc = (first-seen . disagreed).
+(def %F-TYPECALL 4)
+; A dlopen HANDLE is not a symbol and dladdr will never name one, but it is
+; perfectly reacquirable: the loader calls dlopen again.  An empty payload
+; means the process handle -- dlopen(NULL) -- which is the only one this tree
+; opens.  Detected by value, against the handle this writer holds.
+(def %F-DLOPEN 5)
+(def %cp-kind0
+  (fn (_ tw)
+    (if (eq? (%ty-kind tw) %T-HEAP) (%cp-cell-kind (%cell-of tw)) 9)))
+(def %cp-cell-kind
+  (fn (_ u)
+    (if (eq? u ()) 9 (%kind (%sh-mask u) 0 (%sh-desc (%sh-count u))))))
+(def %cp-scan
+  (fn (_ p acc)
+    (if (eq? (%cp-kind0 (%rw p %type-off)) 3)
+        (%cp-note (%rw p %type-off) (%word-at p 0) acc p)
+        acc)))
+(def %cp-note
+  (fn (_ tw v acc p)
+    ((fn (_ e)
+       (if (null? e)
+           (pair (%map-add (first acc) tw 0 (pair v (Type name (%p->o p)))) (rest acc))
+         (if (eq? (first (rest e)) v) acc
+             (pair (first acc) (%cp-disagree (rest acc) tw)))))
+     (%map-get (first acc) tw))))
+(def %cp-disagree
+  (fn (_ d tw) (if (null? (%map-get d tw)) (%map-add d tw 0 0) d)))
+(def %cp-entries
+  (fn (self m d acc)
+    (if (null? m) acc
+      (self (rest m) d
+        (if (null? (%map-get d (first (first m))))
+            (%map-add acc (first (rest (rest (first m)))) %F-TYPECALL
+                      (rest (rest (rest (first m)))))
+            acc)))))
+
+
+(def %append (fn (self a b) (if (null? a) b (self (rest a) (pair (first a) b)))))
 (def %mlen (fn (self m n) (if (null? m) n (self (rest m) (%int+ n 1)))))
 
 ; --- source 3: ask the dynamic linker what an address is called -----------

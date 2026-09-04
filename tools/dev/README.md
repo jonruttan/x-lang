@@ -253,9 +253,30 @@ grows the allocate-and-patch loop. What remains unnamed is:
 
 The last row is not a gap in the format. An address `malloc` handed *this*
 process means nothing in another, and those pointers are in the heap only
-because the writer images the base it runs in -- they vanish when it runs in a
-child base. The 3 are two library-owned allocations and one engine-internal
-primitive that no naming source reaches.
+because the writer images the base it runs in. The 3 are two library-owned
+allocations and one engine-internal primitive that no naming source reaches.
+
+### Imaging a child base
+
+`%IMG`'s neighbour `%B` chooses which base gets imaged, and everything --
+naming map, statics, roots, cursor -- is parameterised for it. A child base has
+its own allocation chain (1,799 objects against the parent's 80,320) and the
+walks allocate in the parent, so a child's chain does not grow while it is
+walked: nothing the writer allocates could reach the file.
+
+**It is not switched on, because it crashes the collector.** Reduced:
+
+```
+(def b (Base make))
+(%from-bare %isa-bare () b)   ; ~30 (b eval NAME), most of them unbound
+... one large malloc ...
+(%collect)                    ; SIGSEGV
+```
+
+One cross-base eval is fine, bound or unbound; the batch is not, and the fault
+lands in the collect rather than in the evals. Setting `%B` to `(Base make)`
+reproduces it. A fresh child is also bare -- the C ISA and no library -- so
+loading one into it is a second problem behind this one.
 
 Two things to know when reading one. The writer images the base it runs in, so
 its own libc doors (`malloc`, `calloc`, `write`, `creat`) appear among the
