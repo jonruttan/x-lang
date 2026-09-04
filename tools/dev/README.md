@@ -211,10 +211,29 @@ rebuilds it. What a loader reattaches is what hangs off it, so the header
 records the imaged indices of the env-alist and the global tree, both of which
 are flagged, traced and on the chain.
 
-**Still not loadable**, because nothing can read the file until the engine
-grows the allocate-and-patch loop the document specs. The remaining gap in the
-file itself is the 266 references to statics, which resolve to 0 and need the
-base-paths encoding.
+References into the base's spine are recorded as a **statics table**: the
+first/rest steps that reach each node from the base, taken from `base-paths.x`
+and following only declared steps. Every prefix of every row is recorded, not
+just its leaf, because a reference may land on an interior pair no row ends
+at. A ref unit that names a static is emitted NEGATIVE, so it cannot collide
+with an object index.
+
+A reference nameable neither way gets `-(statics+1)`, one past the table,
+rather than 0 -- 0 is nil in this format, so writing an unnameable reference
+as 0 restores it as an empty list, which is a silent wrong answer. 161
+references currently land there: spine nodes no declared path reaches.
+
+**Still not loadable.** Nothing can read the file until the engine grows the
+allocate-and-patch loop, and one defect stands in the data:
+
+> **PROCEDURE and OPERATIVE have no declared unit shape.** Their units cell
+> gives a count (2) but no mask, and a missing mask defaults to "every unit is
+> a reference". Unit 0 of both is not a reference -- it holds a tagged value
+> (`0x910303ffa94767fa` in a helium image) -- so the writer dereferences it as
+> an object, reads whatever the wild address yields as metadata, and emits
+> that as an index. 1,130 units are affected. These two types need
+> `(Type set-shape!)` declarations the way the atom types got them; until then
+> an image is wrong here, quietly.
 
 Two things to know when reading one. The writer images the base it runs in, so
 its own libc doors (`malloc`, `calloc`, `write`, `creat`) appear among the

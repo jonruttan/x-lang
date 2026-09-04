@@ -117,6 +117,7 @@
 (def %F-CAP (* 8 40000))
 (def %f-p (%i->p (Ptr call %c-calloc 1 %F-CAP)))
 (def %t-p (%i->p (Ptr call %c-calloc 1 %F-CAP)))
+(def %s-p (%i->p (Ptr call %c-calloc 1 %F-CAP)))
 (def %words-for (fn (_ n) (%int+ 1 (%shr n 3))))
 (def %emit-ftable
   (fn (self t cur)
@@ -135,6 +136,56 @@
 (def %f-index
   (fn (self t a n)
     (if (null? t) 0 (if (eq? (first (first t)) a) n (self (rest t) a (%int+ n 1))))))
+
+; --- the statics table ----------------------------------------------------
+; A reference into the base's spine cannot be an object index: the spine is
+; static, off the allocation chain, and never stamped -- which is why 266
+; references were resolving to 0.  It is recorded as the WALK instead: the
+; first/rest steps that reach it from the base.
+;
+; Only DECLARED steps are followed.  That is the whole safety argument: the
+; spine may hold a raw C function pointer in a structural pair (the collector's
+; own hooks), so following it as ordinary structure is a wild read, and
+; base-paths.x is the committed list of steps that are real.  Every node along
+; a declared path measures as Type name () -- a structural pair -- and that is
+; the check before an address is taken.
+;
+; Steps rather than a field NAME, because not every node in that tree is named:
+; a reference may land on an interior pair that no row ends at, so every prefix
+; of every row is recorded, not just its leaf.
+(include "engine/tools/contract/base-paths.x")
+(def %step (fn (_ v s) (if (eq? s (lit f)) (first v) (rest v))))
+(def %st-record
+  (fn (_ v acc rpfx)
+    (if (null? (Type name v))
+      ((fn (_ a) (if (null? (%map-get acc a)) (%map-add acc a 0 rpfx) acc))
+       (Ptr ->int (%o->p v)))
+      acc)))
+(def %st-walk
+  (fn (self v steps acc rpfx)
+    (if (null? steps) acc
+      ((fn (_ nv nr) (self nv (rest steps) (%st-record nv acc nr) nr))
+       (%step v (first steps)) (pair (first steps) rpfx)))))
+(def %st-row
+  (fn (_ row acc)
+    (if (eq? (first (rest row)) (lit base))
+      (%st-walk (%base) (rest (rest row)) acc ())
+      acc)))
+(def %st-rows
+  (fn (self rows acc)
+    (if (null? rows) acc (self (rest rows) (%st-row (first rows) acc)))))
+(def %rev (fn (self l acc) (if (null? l) acc (self (rest l) (pair (first l) acc)))))
+(def %slen (fn (self l n) (if (null? l) n (self (rest l) (%int+ n 1)))))
+(def %emit-stable
+  (fn (self t cur)
+    (if (null? t) cur (self (rest t) (%emit-sentry (rest (rest (first t))) cur)))))
+(def %emit-sentry
+  (fn (_ rpfx cur)
+    (%emit-steps (%rev rpfx ()) (%put %s-p cur (%slen rpfx 0)))))
+(def %emit-steps
+  (fn (self steps cur)
+    (if (null? steps) cur
+      (self (rest steps) (%put %s-p cur (if (eq? (first steps) (lit f)) 0 1))))))
 
 ; --- the type table --------------------------------------------------------
 ; One entry per DISTINCT type word the heap actually uses, discovered from the
@@ -216,10 +267,22 @@
 
 ; A ref resolves to the target's stamped index; 0 for nil, and 0 for a static,
 ; which is what the foreign table will carry instead (not yet emitted).
+; A static reference is emitted NEGATIVE -- object indices are non-negative, so
+; the ranges cannot collide and the loader needs no count to tell them apart.
+;
+; A reference that can be named NEITHER way gets -(SCOUNT+1), one past the
+; table, rather than 0.  0 is NIL in this format, so writing an unnameable
+; reference as 0 would restore it as an empty list -- a silent wrong answer,
+; and the failure shape this work keeps producing.  One past the table is a
+; value the loader can refuse.
 (def %ref-index
   (fn (_ w)
     (if (eq? w 0) 0
-      (if (%flagged? (%i->p w)) (%rw (%i->p w) %meta1-off) 0))))
+      (if (%flagged? (%i->p w)) (%rw (%i->p w) %meta1-off) (%static-ref w)))))
+(def %static-ref
+  (fn (_ w)
+    ((fn (_ i) (%int- 0 (if (eq? i 0) (%int+ %SCOUNT 1) i)))
+     (%f-index %STATICS w 1))))
 
 ; acc = (obj-cursor . blob-cursor), both in units of their own buffer
 (def %emit-unit
@@ -277,7 +340,9 @@
         (%psw %hdr-p (* 10 %word-size) %TCOUNT)
         (%psw %hdr-p (* 11 %word-size) %TWORDS)
         (%psw %hdr-p (* 12 %word-size) (%rw %GLOB-P %meta1-off))  ; the globals
-        (* 13 %word-size))))
+        (%psw %hdr-p (* 13 %word-size) %SCOUNT)
+        (%psw %hdr-p (* 14 %word-size) %SWORDS)
+        (* 15 %word-size))))
 
 ; Where the image lands.  A def rather than an argument: `Contract argv` is
 ; injected by x.sh's pin machinery, not the library, so a tool run with -f
@@ -291,18 +356,24 @@
         (display "byte blob:   ") (write blobn) (display " bytes") (newline)
         (display "type tbl:    ") (write (%int* %TWORDS %word-size))
         (display " bytes, ") (write %TCOUNT) (display " types") (newline)
+        (display "statics tbl: ") (write (%int* %SWORDS %word-size))
+        (display " bytes, ") (write %SCOUNT) (display " nodes") (newline)
+        (display "unresolvable refs (written as nil, indistinguishable): ")
+        (write %UNRES) (newline)
         (display "foreign tbl: ") (write (%int* %FWORDS %word-size))
         (display " bytes, ") (write %FCOUNT) (display " entries") (newline)
         (display "IMAGE TOTAL: ")
         (write (%int+ hdrn (%int+ (%int* %TWORDS %word-size)
-                            (%int+ (%int* %FWORDS %word-size)
-                             (%int+ (%int* extw %word-size)
-                                    (%int+ (%int* objw %word-size) blobn))))))
+                            (%int+ (%int* %SWORDS %word-size)
+                             (%int+ (%int* %FWORDS %word-size)
+                              (%int+ (%int* extw %word-size)
+                                     (%int+ (%int* objw %word-size) blobn)))))))
         (display " bytes -> ") (display %IMG) (newline))))
 (def %write-to
   (fn (_ fd n extw objw blobn hdrn)
     (do (%wr fd %hdr-p hdrn)
         (%wr fd %t-p (%int* %TWORDS %word-size))
+        (%wr fd %s-p (%int* %SWORDS %word-size))
         (%wr fd %f-p (%int* %FWORDS %word-size))
         (%wr fd %ext-p (%int* extw %word-size))
         (%wr fd %obj-p (%int* objw %word-size))
@@ -343,6 +414,25 @@
 (def %TTABLE (first (%walk-all (pair 1 2) %ty-discover ())))
 (def %TCOUNT (%flen %TTABLE 0))
 (def %TWORDS (%emit-ttable %TTABLE 0))
+; No walk at all: the statics come from the declared paths, not the heap.
+(def %STATICS (%st-rows %base-paths ()))
+(def %SCOUNT (%flen %STATICS 0))
+(def %SWORDS (%emit-stable %STATICS 0))
+
+; A reference emitted as 0 means NIL, so an unresolvable one is invisible in
+; the file -- it looks exactly like an empty list.  Count them here, where the
+; two cases are still distinguishable: a target that is neither stampable
+; (flagged) nor a declared static cannot be written down at all.
+(def %unres
+  (fn (_ p acc) (%over-units p %unres-unit acc)))
+(def %unres-unit
+  (fn (_ k w acc)
+    (if (eq? k 0)
+      (if (eq? w 0) acc
+        (if (%flagged? (%i->p w)) acc
+          (if (eq? (%f-index %STATICS w 1) 0) (%int+ acc 1) acc)))
+      acc)))
+(def %UNRES (first (%walk-all (pair 1 2) %unres 0)))
 
 (%mark! (%base) %TRACE)
 ; ONE expression, no `def` between the mark and the last walk: a def repoints
