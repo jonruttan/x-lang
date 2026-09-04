@@ -195,12 +195,15 @@
 ; of every row is recorded, not just its leaf.
 (include "engine/tools/contract/base-paths.x")
 (def %step (fn (_ v s) (if (eq? s (lit f)) (first v) (rest v))))
+; RECORD EVERY NODE ON A DECLARED PATH, structural or not.  The old guard kept
+; only nodes whose Type name is nil -- structural pairs -- and so skipped the
+; static ATOMs, which several unnameable references point at.  The guard was
+; never needed: taking an address is a CAST, not a dereference, so a node that
+; turns out not to be an object yields a number that simply never matches.
 (def %st-record
   (fn (_ v acc rpfx)
-    (if (null? (Type name v))
-      ((fn (_ a) (if (null? (%map-get acc a)) (%map-add acc a 0 rpfx) acc))
-       (Ptr ->int (%o->p v)))
-      acc)))
+    ((fn (_ a) (if (null? (%map-get acc a)) (%map-add acc a 0 rpfx) acc))
+     (Ptr ->int (%o->p v)))))
 (def %st-walk
   (fn (self v steps acc rpfx)
     (if (null? steps) acc
@@ -451,7 +454,18 @@
 (def %FCOUNT (%flen %FTABLE 0))
 (def %FWORDS (%emit-ftable %FTABLE 0))
 ; No walk at all: the statics come from the declared paths, not the heap.
-(def %STATICS (%st-rows %base-paths ()))
+; The base itself is reachable at the EMPTY path, and references to it were
+; going unnamed for want of that one entry.
+;
+; NOT extended into the type alist or the catalog.  Walking those by declared
+; type-rooted rows does cut the count (161 -> 120), and it is still WRONG: a
+; path into either is POSITIONAL -- "the third entry, then this field" -- and
+; position is not portable.  The writer's base has the library's types
+; registered (VECTOR, PROMISE, ITER, ...); a base a loader builds has fewer, so
+; the same steps reach a different node or run off the end, and the reader
+; segfaults on exactly that.  Naming a node inside a type struct needs the
+; TYPE'S NAME plus a field, which is a second form of entry and is not built.
+(def %STATICS (%st-rows %base-paths (%st-record %RAW () ())))
 (def %SCOUNT (%flen %STATICS 0))
 (def %SWORDS (%emit-stable %STATICS 0))
 
