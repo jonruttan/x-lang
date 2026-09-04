@@ -1,0 +1,163 @@
+; image-read.x -- read a state image back and rebuild its object graph.
+;
+;   sh x.sh -q -f tools/dev/image-write.x     # write /tmp/x-core.ximg
+;   X_BIN=<engine-with-image-rebuild> sh x.sh -q -f tools/dev/image-read.x
+;
+; NEEDS AN ENGINE CARRYING (image rebuild!), which the pinned one does not yet.
+;
+; THE SPLIT THIS DEMONSTRATES.  X resolves the tables -- verifying the header,
+; matching each file type NAME to a live type, reacquiring foreign addresses by
+; name, walking base paths for the statics -- which is per-entry work over a few
+; hundred items.  One primitive does the only per-object work there is: two
+; passes over ~86k records, allocate then patch.
+;
+; That division is not stylistic.  The same two passes written in x take ~30s
+; and allocate garbage nothing collects, because collection is manual and a
+; per-object interpreted loop has nowhere safe to collect; it exhausted a
+; machine's memory.  Through the primitive the whole rebuild is ~0.5s on top of
+; helium's boot.
+;
+; NOTHING ABOUT SHAPE COMES OUT OF THE FILE.  Unit counts and kinds are the
+; LIVE type's, through (Type set-shape!), which is why there is no extent table
+; and no mask column.  The reader proves it: it walks the object table with no
+; length field anywhere and lands exactly on the declared word count.
+;
+; The three NON-HEAP tags are the exception, and the only shape the reader
+; states itself: a structural PAIR is two references, a static ATOM one word,
+; nil-typed one word.  image-walk.x's %over-tw says the same when writing.
+; They have no live type to ask, so their counts go to the primitive in a
+; table -- fifteen words, not per-object.
+;
+; @author [Jon Ruttan](jonruttan@gmail.com)
+; @copyright 2026 Jon Ruttan
+; @license MIT No Attribution (MIT-0)
+
+(include "tools/dev/image-walk.x")
+(def %lib0 (Ffi dlopen () 1))
+(def %rd (Ffi dlsym %lib0 "read"))
+(def %i2p (prim-ref (lit int) (lit ->ptr)))
+(def %mk (prim-ref (lit obj) (lit make)))
+(def %oset! (prim-ref (lit obj) (lit set!)))
+(def %oref (prim-ref (lit obj) (lit ref)))
+(def %psw (prim-ref (lit ptr) (lit set-word!)))
+(def %i+ (prim-ref (lit int) (lit +)))  (def %i* (prim-ref (lit int) (lit *)))
+(def %i- (prim-ref (lit int) (lit -)))  (def %lt (prim-ref (lit int) (lit <)))
+(def W %word-size)
+(def buf (%i2p (Ptr call (Ffi dlsym %lib0 "malloc") (* 8 1000000))))
+(def fd (Sys open-read "/tmp/x-core.ximg"))
+(def got (Ptr call %rd fd buf (* 8 1000000)))
+(Sys close fd)
+(def w (fn (_ i) (%rw buf (%i* i W))))
+(def at (fn (_ i) (%i+ (Ptr ->int buf) (%i* i W))))
+(def N (w 4)) (def OBJW (w 5)) (def ROOTENV (w 7))
+(def FCOUNT (w 8)) (def FWORDS (w 9)) (def TCOUNT (w 10)) (def TWORDS (w 11))
+(def SCOUNT (w 13)) (def SWORDS (w 14))
+(def TSTART 15)
+(def SSTART (%i+ TSTART TWORDS))
+(def FSTART (%i+ SSTART SWORDS))
+(def OSTART (%i+ FSTART FWORDS))
+(def BSTART (%i+ OSTART OBJW))
+(def PT ((prim-ref (lit type) (lit of)) (pair 1 2)))
+(def mkn (fn (_ n) (%mk PT (if (%lt n 1) 1 n))))
+
+; --- live shapes by name ---------------------------------------------------
+(def SHAPES ())   ; (name . (units-cell . struct))
+(def add-shape
+  (fn (self l)
+    (if (null? l) ()
+      (do (set! SHAPES (pair (pair ((Type wrap (rest (first l))) name)
+                                   (pair (first (%type-units-cell (rest (first l))))
+                                         (rest (first l)))) SHAPES))
+          (self (rest l))))))
+(add-shape (first %reflect-type-alist-cell))
+(def lookup (fn (self l nm) (if (null? l) () (if (str=? (first (first l)) nm) (rest (first l)) (self (rest l) nm)))))
+(def tagged (fn (_ nm) (if (str=? nm "PAIR") (pair 2 0) (if (str=? nm "ATOM") (pair 1 1) (if (str=? nm "NIL") (pair 1 1) ())))))
+(def TN (mkn (%i+ TCOUNT 1)))  (def TS (mkn (%i+ TCOUNT 1)))  (def TT (mkn (%i+ TCOUNT 1)))
+(def TCNT (mkn (%i+ TCOUNT 1)))
+(def rdtypes
+  (fn (self i pos)
+    (if (%lt TCOUNT i) ()
+      ((fn (_ nm) (do (%oset! TN i nm)
+                      (%oset! TS i ((fn (_ e) (if (null? e) () (first e))) (lookup SHAPES nm)))
+                      (%oset! TT i ((fn (_ e) (if (null? e) () (rest e))) (lookup SHAPES nm)))
+                      (%oset! TCNT i ((fn (_ t) (if (null? t) -1 (first t))) (tagged nm)))
+                      (self (%i+ i 1) (%i+ pos (%i+ 2 (%shr (w pos) 3))))))
+       (Ptr ->str (%i2p (at (%i+ pos 1))))))))
+(rdtypes 1 TSTART)
+(def units-of
+  (fn (_ ti pos)
+    ((fn (_ t) (if (null? t) (%uheap ti pos) (first t))) (tagged (%oref TN ti)))))
+(def %uheap
+  (fn (_ ti pos)
+    ((fn (_ u) (if (null? u) 0 ((fn (_ c) (if (%lt c 0) (%i+ (w (%i+ pos 2)) (%i- 0 c)) c)) (%sh-count u))))
+     (%oref TS ti))))
+(def kind-of
+  (fn (_ ti j)
+    ((fn (_ t) (if (null? t) (%kheap ti j) (rest t))) (tagged (%oref TN ti)))))
+(def %kheap
+  (fn (_ ti j)
+    ((fn (_ u) (if (null? u) 1 (%kind (%sh-mask u) j (%sh-desc (%sh-count u))))) (%oref TS ti))))
+
+; --- statics: walk the declared steps from THIS base ------------------------
+(def ST (mkn (%i+ SCOUNT 1)))
+(def stepwalk
+  (fn (self v n pos)
+    (if (eq? n 0) v (self (if (eq? (w pos) 0) (first v) (rest v)) (%i- n 1) (%i+ pos 1)))))
+(def rdstatics
+  (fn (self i pos)
+    (if (%lt SCOUNT i) ()
+      (do (%oset! ST i (stepwalk (%base) (w pos) (%i+ pos 1)))
+          (self (%i+ i 1) (%i+ pos (%i+ 1 (w pos))))))))
+(rdstatics 1 SSTART)
+
+; --- foreign: reacquire by name --------------------------------------------
+(def FV (mkn (%i+ FCOUNT 1)))
+(def fnptr-of (fn (_ v) (%word-at (%o->p v) 0)))
+(def slash (fn (self s i n) (if (eq? i n) -1 (if (str=? (Str8 sub s i (%i+ i 1)) "/") i (self s (%i+ i 1) n)))))
+(def resolve
+  (fn (_ kind nm)
+    (guard (_ 0)
+      (if (eq? kind 1) (%res-cat nm)
+        (if (eq? kind 2) (fnptr-of (eval ((prim-ref (lit str) (lit ->sym)) nm)))
+          (if (eq? kind 3) (Ptr ->int (Ffi dlsym %lib0 nm))
+            (if (eq? kind 4) (%res-typecall nm)
+              (if (eq? kind 5) (Ptr ->int %lib0) 0))))))))
+(def %res-cat
+  (fn (_ nm)
+    ((fn (_ i) (fnptr-of ((prim-ref (lit prim) (lit ref))
+                          ((prim-ref (lit str) (lit ->sym)) (Str8 sub nm 0 i))
+                          ((prim-ref (lit str) (lit ->sym)) (Str8 sub nm (%i+ i 1) (Str8 length nm))))))
+     (slash nm 0 (Str8 length nm)))))
+(def %res-typecall
+  (fn (_ nm) (if (str=? nm "PROCEDURE") (fnptr-of (fn (_ x) x)) (fnptr-of (op (x) x)))))
+(def rdforeign
+  (fn (self i pos)
+    (if (%lt FCOUNT i) ()
+      (do (%oset! FV i (resolve (w pos) (Ptr ->str (%i2p (at (%i+ pos 2))))))
+          (self (%i+ i 1) (%i+ pos (%i+ 3 (%shr (w (%i+ pos 1)) 3))))))))
+(rdforeign 1 FSTART)
+
+; --- allocate, then patch every unit ---------------------------------------
+(def mkt
+  (fn (_ ti n)
+    ((fn (_ st) (if (null? st) (mkn n) (%mk st (if (%lt n 1) 1 n)))) (%oref TT ti))))
+(def mkt-unused ())
+(def IX (mkn (%i+ N 1)))
+(def alloc
+  (fn (self i pos)
+    (if (%lt N i) pos
+      ((fn (_ n) (do (%oset! IX i (mkt (w pos) n)) (self (%i+ i 1) (%i+ pos (%i+ 2 n)))))
+       (units-of (w pos) pos)))))
+
+; --- the whole rebuild, in one primitive ------------------------------------
+; X resolved the tables; C does the only per-object work there is.
+((fn (_ ix)
+   (do (display "rebuilt ") (write N) (display " objects") (newline)
+       (display "types of records 1, 7, 99: ")
+       (write (Type name (%oref ix 1))) (display " ")
+       (write (Type name (%oref ix 7))) (display " ")
+       (write (Type name (%oref ix 99))) (newline)
+       (display "root env record type: ")
+       (write (Type name (%oref ix ROOTENV))) (newline)))
+ ((prim-ref (lit image) (lit rebuild!))
+  buf OSTART N TT FV ST (%i+ (Ptr ->int buf) (%i* BSTART W)) IX TCNT))
