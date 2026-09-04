@@ -350,8 +350,14 @@ nothing; VirtualBox cannot run an x86-64 guest on an arm64 host.
 invalidated and re-translated the way real hardware would do it.
 
 The price is speed -- TCG is roughly an order of magnitude off native,
-so a tower boot is minutes. Use it to reproduce and bisect; use CI or a
-real x86-64 host for full suite runs.
+so a tower boot is minutes rather than the six seconds it takes on
+arm64. Use it to reproduce and bisect; use CI or a real x86-64 host for
+full suite runs.
+
+The guest gets 8G and 4G of swap, which is not generosity. A cold tower
+boot peaks at 2.4G on arm64 and more here, and a 4G guest was
+OOM-killed evaluating `(display 1)`. qemu allocates guest memory
+lazily, so the ceiling costs the host nothing until it is touched.
 
 It also contains the blast radius. The allocation ceiling is not an
 OOM guard -- the runners default to a limit well past physical memory,

@@ -50,7 +50,11 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SRC_DIR="${X86_VM_SRC:-$PROJECT_DIR}"
 
 VM_DIR="${X86_VM_DIR:-$HOME/.cache/x-lang/x86-vm}"
-MEM="${X86_VM_MEM:-4096}"
+# 8G, NOT A ROUND-NUMBER GUESS.  A cold tower boot -- `x.sh -l xe` on an empty
+# JIT cache -- peaks at 2.4G on arm64 and rather more here, and a 4G guest was
+# OOM-killed doing nothing more exotic than `(display 1)`.  qemu allocates
+# guest memory lazily, so the ceiling costs nothing until the guest touches it.
+MEM="${X86_VM_MEM:-8192}"
 CPUS="${X86_VM_CPUS:-2}"
 PORT="${X86_VM_PORT:-2222}"
 CPU_MODEL="${X86_VM_CPU:-max}"
@@ -128,6 +132,14 @@ make_seed() {
 		    ssh_authorized_keys:
 		      - $(cat "$KEY.pub")
 		package_update: true
+		# Swap as well as RAM: the failure being chased lives in the
+		# allocator, and the difference between "swapped and slow" and
+		# "OOM-killed at rc=137" is the difference between a run that
+		# tells you something and one that does not.
+		swap:
+		  filename: /swapfile
+		  size: 4294967296
+		  maxsize: 4294967296
 		packages:
 		EOF
 		# What a checkout needs to build the engine and run the suite.
