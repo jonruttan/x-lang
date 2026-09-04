@@ -56,11 +56,25 @@
   (if (eq? (%rw p %type-off) 0) #f
     (if (eq? (%rw p %type-off) %reflect-spair-tw) #f
       (eq? (%cell-of (%rw p %type-off)) ()))))))
+; THE ROOT IS THE ENVIRONMENT, NOT THE BASE.
+;
+; The base object is traced but is NOT on the allocation chain, so no walk
+; reaches it and it is not in the image at all.  That is right rather than a
+; gap: the base is the static spine, which docs/state-images.md says may only
+; be read through base-layout.x and base-paths.x, and which a loader rebuilds
+; for itself.  What a loader must REATTACH is what hangs off it -- and the
+; env-alist and the global tree are both flagged, traced and on the chain, so
+; both are imaged and both carry a stamped index.
+;
+; Which means no threading: after the stamping pass their indices can simply be
+; read back out of their metadata slots.
 (def %stamp
   (fn (_ p acc)
     (do (if (%flagged? p) (%psw p %meta1-off (%int+ (first acc) 1)) ())
         (pair (%int+ (first acc) 1)
               (if (%refuses? p) (%int+ (rest acc) 1) (rest acc))))))
+(def %ENV-P  (%o->p (first (%reflect-base-cell (lit env-alist)))))
+(def %GLOB-P (%o->p (first (%reflect-base-cell (lit env-global-tree)))))
 
 ; --- libc doors: raw fd I/O, memcpy, malloc -------------------------------
 ; The asm-cache rule applies here too: NOTHING WALKS BYTES.  Strings reach the
@@ -102,6 +116,7 @@
 ; wherever it is wanted in the file.
 (def %F-CAP (* 8 40000))
 (def %f-p (%i->p (Ptr call %c-calloc 1 %F-CAP)))
+(def %t-p (%i->p (Ptr call %c-calloc 1 %F-CAP)))
 (def %words-for (fn (_ n) (%int+ 1 (%shr n 3))))
 (def %emit-ftable
   (fn (self t cur)
@@ -115,9 +130,72 @@
         (Ptr call %c-memcpy (%int+ (Ptr ->int %f-p) (%int* (%int+ cur 2) %word-size))
                 (%word-at (%o->p nm) 0) n)
         (%int+ cur (%int+ 2 (%words-for n))))))
+; Shared by both tables: an entry's index is its position, 1-based, 0 meaning
+; "not in the table".
 (def %f-index
   (fn (self t a n)
     (if (null? t) 0 (if (eq? (first (first t)) a) n (self (rest t) a (%int+ n 1))))))
+
+; --- the type table --------------------------------------------------------
+; One entry per DISTINCT type word the heap actually uses, discovered from the
+; heap rather than read off the type alist -- the alist would not tell us which
+; types have instances, and the three non-heap tags (nil-typed, static ATOM,
+; structural PAIR) are not in it at all.  Entry: kind, unit count, unit mask,
+; then the name.  A count may be NEGATIVE: that is the slot-0-counted form, and
+; the loader needs the sign as much as the magnitude.
+(def %T-NIL 0)
+(def %T-ATOM 1)
+(def %T-PAIR 2)
+(def %T-HEAP 3)
+(def %ty-kind
+  (fn (_ tw)
+    (if (eq? tw 0) %T-NIL
+      (if (eq? tw %reflect-satom-tw) %T-ATOM
+        (if (eq? tw %reflect-spair-tw) %T-PAIR %T-HEAP)))))
+(def %ty-shape
+  (fn (_ tw)
+    (if (eq? (%ty-kind tw) %T-HEAP) (%ty-cell-shape (%cell-of tw)) (%ty-flat tw))))
+(def %ty-flat
+  (fn (_ tw)
+    (if (eq? tw %reflect-spair-tw) (pair 2 0) (pair 1 1))))   ; PAIR: 2 refs; else 1 word
+(def %ty-cell-shape
+  (fn (_ u) (if (eq? u ()) (pair 0 0) (pair (%sh-count u) (%sh-mask u)))))
+(def %ty-name
+  (fn (_ tw p)
+    (if (eq? tw 0) "NIL"
+      (if (eq? tw %reflect-satom-tw) "ATOM"
+        (if (eq? tw %reflect-spair-tw) "PAIR" (%ty-heap-name p))))))
+(def %ty-heap-name
+  (fn (_ p) (guard (_ "?") ((fn (_ nm) (if (null? nm) "?" nm)) (Type name (%p->o p))))))
+(def %ty-discover (fn (_ p acc) (%ty-see p (%rw p %type-off) acc)))
+(def %ty-see
+  (fn (_ p tw acc)
+    (if (null? (%map-get acc tw)) (%ty-add p tw acc) acc)))
+(def %ty-add
+  (fn (_ p tw acc)
+    ((fn (_ sh)
+       (%map-add acc tw (%ty-kind tw)
+         (pair (first sh) (pair (rest sh) (%ty-name tw p)))))
+     (%ty-shape tw))))
+(def %emit-ttable
+  (fn (self t cur)
+    (if (null? t) cur (self (rest t) (%emit-tentry (rest (first t)) cur)))))
+(def %emit-tentry
+  (fn (_ kv cur)
+    (%emit-tbytes (first kv) (first (rest kv)) (first (rest (rest kv)))
+                  (rest (rest (rest kv))) cur)))
+(def %emit-tbytes
+  (fn (_ kind count mask nm cur)
+    (%emit-tbytes2 kind count mask nm cur (%blen nm))))
+(def %emit-tbytes2
+  (fn (_ kind count mask nm cur n)
+    (do (%psw %t-p (%int* cur %word-size) kind)
+        (%psw %t-p (%int* (%int+ cur 1) %word-size) count)
+        (%psw %t-p (%int* (%int+ cur 2) %word-size) mask)
+        (%psw %t-p (%int* (%int+ cur 3) %word-size) n)
+        (Ptr call %c-memcpy (%int+ (Ptr ->int %t-p) (%int* (%int+ cur 4) %word-size))
+             (%word-at (%o->p nm) 0) n)
+        (%int+ cur (%int+ 4 (%words-for n))))))
 (def %flen (fn (self t n) (if (null? t) n (self (rest t) (%int+ n 1)))))
 
 ; Discovery: a foreign address the declared sources do not name may still be
@@ -166,7 +244,8 @@
 (def %emit-obj
   (fn (_ p acc)
     (%emit-units p
-      (pair (%put %obj-p (%put %obj-p (first (rest acc)) (%rw p %type-off))
+      (pair (%put %obj-p (%put %obj-p (first (rest acc))
+                    (%f-index %TTABLE (%rw p %type-off) 1))
                   (%int& (%rw p %flags-off) 65535))
             (rest (rest acc)))
       (first acc))))
@@ -192,10 +271,13 @@
         (%psw %hdr-p (* 4 %word-size) n)    ; object count
         (%psw %hdr-p (* 5 %word-size) objw) ; object-table words
         (%psw %hdr-p (* 6 %word-size) blobn); blob bytes
-        (%psw %hdr-p (* 7 %word-size) 0)    ; root index -- not yet named
+        (%psw %hdr-p (* 7 %word-size) (%rw %ENV-P %meta1-off))   ; root: the env
         (%psw %hdr-p (* 8 %word-size) %FCOUNT)
         (%psw %hdr-p (* 9 %word-size) %FWORDS)
-        (* 10 %word-size))))
+        (%psw %hdr-p (* 10 %word-size) %TCOUNT)
+        (%psw %hdr-p (* 11 %word-size) %TWORDS)
+        (%psw %hdr-p (* 12 %word-size) (%rw %GLOB-P %meta1-off))  ; the globals
+        (* 13 %word-size))))
 
 ; Where the image lands.  A def rather than an argument: `Contract argv` is
 ; injected by x.sh's pin machinery, not the library, so a tool run with -f
@@ -207,16 +289,20 @@
         (display "extent:      ") (write (%int* extw %word-size)) (display " bytes") (newline)
         (display "objects tbl: ") (write (%int* objw %word-size)) (display " bytes") (newline)
         (display "byte blob:   ") (write blobn) (display " bytes") (newline)
+        (display "type tbl:    ") (write (%int* %TWORDS %word-size))
+        (display " bytes, ") (write %TCOUNT) (display " types") (newline)
         (display "foreign tbl: ") (write (%int* %FWORDS %word-size))
         (display " bytes, ") (write %FCOUNT) (display " entries") (newline)
         (display "IMAGE TOTAL: ")
-        (write (%int+ hdrn (%int+ (%int* %FWORDS %word-size)
-                            (%int+ (%int* extw %word-size)
-                                   (%int+ (%int* objw %word-size) blobn)))))
+        (write (%int+ hdrn (%int+ (%int* %TWORDS %word-size)
+                            (%int+ (%int* %FWORDS %word-size)
+                             (%int+ (%int* extw %word-size)
+                                    (%int+ (%int* objw %word-size) blobn))))))
         (display " bytes -> ") (display %IMG) (newline))))
 (def %write-to
   (fn (_ fd n extw objw blobn hdrn)
     (do (%wr fd %hdr-p hdrn)
+        (%wr fd %t-p (%int* %TWORDS %word-size))
         (%wr fd %f-p (%int* %FWORDS %word-size))
         (%wr fd %ext-p (%int* extw %word-size))
         (%wr fd %obj-p (%int* objw %word-size))
@@ -243,18 +329,20 @@
 (%collect)
 (display "live objects:  ") (write (%hc)) (newline)
 
-; PASS 0 -- discover the addresses the declared sources do not name, which the
-; linker may still name.  The heap has to be marked for the walk to see it, and
-; is cleared again immediately: the table is then built, and the foreign
-; section emitted, while NOTHING is marked, so these defs cost nothing.  The
-; table must be COMPLETE before stamping, because the emit pass may not
-; allocate -- it looks entries up, it does not add them.
-; Unfiltered and BEFORE the mark: discovery needs to see foreign units, not to
-; know which are reachable, so it must not spend the one mark this process has.
+; PASS 0 -- both tables, BEFORE the mark and unfiltered.
+;
+; Neither discovery needs to know what is REACHABLE, only what exists, so
+; neither may spend the one mark this process has (see image-walk.x).  Running
+; here also lets them `def` freely: the def discipline binds only between the
+; mark and the last stamping walk.  Both tables must be COMPLETE before then,
+; because the emit pass looks entries up and may not add them.
 (def %EXTRAS (first (%walk-all (pair 1 2) %discover ())))
 (def %FTABLE (%append %EXTRAS %MAP))
 (def %FCOUNT (%flen %FTABLE 0))
 (def %FWORDS (%emit-ftable %FTABLE 0))
+(def %TTABLE (first (%walk-all (pair 1 2) %ty-discover ())))
+(def %TCOUNT (%flen %TTABLE 0))
+(def %TWORDS (%emit-ttable %TTABLE 0))
 
 (%mark! (%base) %TRACE)
 ; ONE expression, no `def` between the mark and the last walk: a def repoints

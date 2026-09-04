@@ -198,9 +198,23 @@ bytes padded to a word boundary. Foreign units in the object table are indices
 into it. The section references nothing else, so it can be built before the
 object walk.
 
-**Not yet loadable.** There is still no type table and no root index, and
-nothing can read the file in any case until the engine grows the
-allocate-and-patch loop the document specs.
+It also carries a **type table** -- one entry per distinct type word the heap
+actually uses, as kind, unit count, unit mask and name -- and object records
+name their type by index into it. A count may be negative: that is the
+slot-0-counted form, and the loader needs the sign as much as the magnitude.
+
+**The root is the environment, not the base.** The base object is traced but
+is not on the allocation chain, so no walk reaches it and it is not in the
+image at all -- which is right rather than missing: the base is the static
+spine, readable only through `base-layout.x` and `base-paths.x`, and a loader
+rebuilds it. What a loader reattaches is what hangs off it, so the header
+records the imaged indices of the env-alist and the global tree, both of which
+are flagged, traced and on the chain.
+
+**Still not loadable**, because nothing can read the file until the engine
+grows the allocate-and-patch loop the document specs. The remaining gap in the
+file itself is the 266 references to statics, which resolve to 0 and need the
+base-paths encoding.
 
 Two things to know when reading one. The writer images the base it runs in, so
 its own libc doors (`malloc`, `calloc`, `write`, `creat`) appear among the
