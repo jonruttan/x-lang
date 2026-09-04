@@ -401,7 +401,7 @@ few hundred entries. The same discipline is why the walk must not collect,
 and it should arm that: no collect between the opening sweep and the last
 row written.
 
-## The reader is C, and the profile says why
+## The reader: a loop in C, the rest in x
 
 Measured on this tree, booting each dialect and reading the base's own eval
 counter:
@@ -449,34 +449,179 @@ skip is the only thing that helps a cost with no peak in it.
 > times over and ranking by them attributes a whole subtree to its root. Read
 > them as a tree or rank only the leaves.
 
-It also rules the reader out of x. A bare heap walk — following the chain and
-counting, nothing else — costs 0.81s over helium's heap and 2.28s over
-xenon's, which is ~3µs per evaluator operation. A reader needs roughly twenty
-operations per object, so ~9s against a 5.65s boot. And a reader living in the
-library would need the library booted before it could read the image that was
-meant to replace booting the library.
+It also rules the *per-object* work out of x. A bare heap walk — following
+the chain and counting, nothing else — costs 0.81s over helium's heap and
+2.28s over xenon's, which is ~3µs per evaluator operation. A reader needs
+roughly twenty operations per object, so ~9s against a 5.65s boot.
 
-**So the reader is C, at process startup, before any x runs.** The writer
-stays in x: it runs once, offline, inside the dialect it is imaging, where 2s
-does not matter.
+**So the allocate-and-patch loop is C, and nothing else has to be.** The first
+draft of this document put the whole loader in C, reasoning that a reader must
+run before x exists. That reasoning is wrong, and the next section prices what
+it would have cost.
 
-## What the loader may not do
+The writer stays in x throughout: it runs once, offline, inside the dialect it
+is imaging, where 2s does not matter.
 
-This is the constraint that shapes the format, and it is easy to miss: **the
-loader runs before x exists, so it cannot call an x closure.** The
-`internalise` half of the type declaration is x code. It cannot run at load
-time.
+### The reader hosts below the library, and that is most of the C
 
-So the load-time foreign vocabulary is **closed, and every entry must be
-resolvable by C alone**:
+A loader that must run before x exists has to do all of it in C: read the
+file, verify the header, resolve every foreign entry, allocate, patch, and
+explain itself when any of that fails. Call it 350 lines. But **it does not
+have to run before x exists — only before the *expensive* x exists**, and
+those are not the same moment.
 
-| kind | payload | how C resolves it |
+Where xenon's boot actually goes, measured by including each stage over a
+helium base:
+
+| stage | cost | share |
+|---|--:|--:|
+| helium | 0.83s | 16% |
+| the numeric tower (`lib/x/boot/tower-compiled.x`) | +2.92s | 56% |
+| `lib/x/xe.x` | +0.13s | 2% |
+| the rest of `lib/x/boot/xenon.x` | +1.36s | 26% |
+| **xenon** | **5.24s** | |
+
+(One sitting, so the totals are internally consistent; boot timings on this
+tree vary ~10% run to run, which is why they differ slightly from the eval
+table above.)
+
+Everything the four passes do *except the per-object loop* is per-entry work
+over hundreds of items — one header, ~150 foreign entries, 185 static paths —
+which x does in milliseconds. So the division is:
+
+- **x** — open, verify, resolve the foreign table, install, and say something
+  useful when any of that fails.
+- **C, one primitive** — allocate N objects from the extent table and patch
+  their units. Per-object across 154k objects, so it can be nothing else.
+
+That is ~80–100 lines and one ISA coordinate against ~350 lines and five kinds
+of resolution logic. The C refuses with a code; x turns the code into a
+sentence. Which is the division the ISA contract already states in its opening
+lines: the C layer is a CPU, and checks, dispatch and policy live in x.
+
+**But the host may not be a dialect.** The reader is x, so *something* must be
+booted before it runs, and that something is a floor under every load. helium
+is the tempting host — it has `Sys/open-read`, `Sys/fd-read`, the catalog and
+the whole library vocabulary — and for a xenon startup its 0.83s is a fair
+trade against 5.24s. It is the wrong answer anyway, because the suite is the
+consumer that matters and helium costs more than what the suite loads. The
+next section measures that.
+
+### Restoring compiled code needs no C either
+
+The tower is 56% of what an image would cache, and the tower's headline is a
+JIT burst — `compile-asm` assembling analysers in process. Machine code is the
+one thing that looks like it must be reconstituted in C: it needs executable
+pages, and every address it baked in is wrong in a new process.
+
+Both were solved before this document existed. `%asm-cache-pour` in
+`lib/x/tool/asm-cache.x` already pours cached bytes into a fresh buffer and
+re-encodes every baked address for the loading process, across three
+relocation kinds — trampoline, fvar, self. The lane is:
+
+```
+asm-new (mmap) -> one read(2) into the buffer -> walk the relocation records
+-> asm-finalize! (mprotect R+X) -> (obj make-callable code)
+```
+
+All of it is x calling libc through `dlsym` and `ptr-call`: `%asm-mmap` and
+`%asm-mprotect-rx!` are not primitives. The only ISA coordinate in the whole
+lane is `(obj make-callable alloc)`, which is already pinned.
+
+So an image need not store machine code at all. The analysers are reachable
+from the heap — they are swapped into the symbol type's analyse list — so
+*something* callable must land in those slots; but a foreign entry can name an
+**asm-cache key**, and resolving it calls the existing pour. One more foreign
+kind, resolved in x, no C. The two mechanisms already agree on identity: the
+cache keys on `x-machine` and `x-release`, which is the refusal the image
+header makes on arch and engine release.
+
+And the JIT matters less than its share suggests. Booting xenon with the cache
+stashed, and again with it in place:
+
+| | xenon boot |
+|---|--:|
+| cold — 12 compiles | 6.27s |
+| warm — 12 pours | 5.80s |
+
+Compiling is worth ~0.5s, about 8% of the boot. The tower's 2.92s is
+overwhelmingly *interpreted construction* — types, classes, methods, closures
+— which is precisely what an image caches wholesale and what no narrower cache
+can reach.
+
+### The suite is the consumer, and it sets the host
+
+Boot elision is not mainly an interactive nicety here. The spec suite pays the
+same boot once per spec file, and that is where the time is:
+
+| | |
+|---|--:|
+| `make test-x`, whole suite | 299s |
+| tests / spec files / jobs | 2,792 / 143 / 43 |
+
+`tests/spec-runner.awk` cuts a batch only when the declared library changes,
+so it is **one interpreter per spec file**, and each one re-evaluates that
+file's library from source. `lib/x/specs/lib/ansi.spec.md` runs a single test
+in 0.86s; almost all of it is the library.
+
+Which sets the floor, and the floor is the whole design constraint:
+
+| | |
+|---|--:|
+| engine start + parse, no library at all | **0.05s** |
+| `lib/x-core.x`, the default (97 of 143 files) | **0.90s** |
+
+**The engine's own floor is eighteen times cheaper than the library the suite
+loads.** So a host that is itself a dialect cannot pay: helium's 0.83s is
+indistinguishable from the 0.90s it would be replacing, and 97 files would
+save nothing. On the x-core files alone the library costs ~82s of the 299s,
+and the heavy-library files — `decimal` 15s, `sha256-jit` 16s, `tower` 13s,
+`compile` 12s — pay far more than 0.85s per spawn.
+
+**So the host is the engine plus a loader prelude, not a dialect.** That is a
+requirement, not a preference, and it decides what the reader is written in:
+on a bare base there is no library, and `fn` itself is derived, so the prelude
+defines what little it needs or the reader is written in `op` directly.
+Everything it actually needs is already a primitive — `ffi dlopen`/`dlsym` and
+`ptr call` for the file, `first`/`rest`/`pair` for the foreign table, integer
+ops, and the one new loop coordinate. `lib/x/tool/asm-cache.x` is the
+precedent and was written at exactly this level for exactly this reason: it
+fetches bare prim doors because the library layer was too expensive for the
+job it does.
+
+The C budget does not change. What changes is that the reader's x half may not
+lean on the library it is about to load.
+
+**What this does not fix**, so the arithmetic stays honest:
+
+- **The per-snippet collect.** The runner emits a collect at every snippet
+  seam, which is why `tower.spec.md` is 14.6s for fourteen tests. An image
+  removes that file's boot, not its thirteen collects over a large heap.
+- **One image per library.** The suite names 28 distinct ones, each stale the
+  moment its sources change — so the runner needs a freshness rule, and the
+  header's digests are only half of it.
+
+## What the loader may not assume
+
+This is the constraint that shapes the format: **an image is loaded by a
+process that is not the one that wrote it, so not one address in it
+survives.** Every foreign unit has to be *reacquired* by name, and the name
+has to mean the same thing on the far side.
+
+Putting the resolving in x relaxes what may do it — it is x, so it may call an
+x closure — but it does not relax the discipline. The
+vocabulary stays **closed and declared**, because the refusal is the point: a
+type whose foreign values cannot be named this way should be told so at write
+time, not have it discovered at load time.
+
+| kind | payload | how it is reacquired |
 |---|---|---|
 | `nil` | — | NULL |
-| `catalog` | ns, method | walk the fresh base's prims catalog |
-| `bare` | name | look up the fresh base's boot binding |
+| `catalog` | ns, method | walk the host base's prims catalog |
+| `bare` | name | look up the host base's boot binding |
 | `dlsym` | library, symbol | `dlopen` + `dlsym` |
 | `fd` | role (in/out/err) | the process's own descriptors |
+| `asm` | asm-cache key | `%asm-cache-pour` re-pours and relocates |
 
 A `foreign` unit whose value is not one of these **makes the write refuse**.
 Types wanting richer reacquisition get it after boot, from x, through
@@ -484,7 +629,7 @@ Types wanting richer reacquisition get it after boot, from x, through
 saying so at write time is the whole point of the refusal.
 
 The measured foreign surface fits this: a booted helium's 147 address-holding
-objects are 129 primitives (catalog or bare — both C-resolvable) and 17
+objects are 129 primitives (catalog or bare — both nameable) and 17
 pointers that are sixteen `dlsym` results over one `dlopen` handle.
 
 ## Naming the statics: a reference into the base is a path, not a copy
@@ -504,10 +649,9 @@ pairs are the io group they hang from. None of it is heap-allocated: it is
 built at base creation, which is why it has no metadata prefix and why the
 chain walk never reaches it.
 
-So a reference into that structure must not be *copied*. The loader builds a
-fresh base, which has its own — at different addresses, with different
-descriptors — and copying would produce a second, dead spine alongside the
-live one.
+So a reference into that structure must not be *copied*. The host base has its
+own — at different addresses, with different descriptors — and copying would
+produce a second, dead spine alongside the live one.
 
 **Record the walk instead.** Every one of these objects sits at a fixed
 position in the base tree, reachable by a sequence of `first`/`rest` steps
@@ -517,12 +661,11 @@ lists, `make check-base-paths` re-derives them from the C headers, and
 `lib/x/boot/reflect.x` already walks them at runtime. So the foreign table
 gains one more kind:
 
-| kind | payload | how C resolves it |
+| kind | payload | how it is reacquired |
 |---|---|---|
-| `base-path` | a step list (`f`/`r`) | walk it from the fresh base |
+| `base-path` | a step list (`f`/`r`) | walk it from the host base |
 
-It is C-resolvable, which is the loader's standing requirement, and it needs
-no new contract: the steps are the ones already checked.
+It needs no new contract: the steps are the ones already checked.
 
 Recording steps rather than a field name matters, because not every node in
 that tree is named. The fd atoms sit at named rows; the interior pairs holding
@@ -571,24 +714,26 @@ objects live is undefined.
 
 ## Load
 
-Four passes, none of which call x:
+Four passes. One and two are x on the host; three and four are the one
+primitive, being the only per-object work:
 
-1. **Verify and arm.** Check the header against this engine — release, os,
-   arch, byte order, word size, and each layout digest. Set the extra-metadata
-   width. Any mismatch refuses here, before a byte is allocated.
-2. **Resolve foreign.** Build a fresh base the usual way, so its types and
-   primitives exist, then resolve every foreign entry against it. Pin the
-   results: they are about to be referenced by objects the fresh base cannot
-   see, and nothing else is keeping them alive.
-3. **Allocate.** One object per record, from the extent table, in index order.
-   Fill nothing. Keep the index-to-pointer table.
-4. **Patch.** Walk the unit stream, writing each unit per its kind. Set the
-   flags the image records, including `X_OBJ_FLAG_SHARED` where it had it.
+1. **Verify and arm.** *(x)* Check the header against this engine — release,
+   os, arch, byte order, word size, and each layout digest. Set the
+   extra-metadata width. Any mismatch refuses here, before a byte is
+   allocated — and refuses in a sentence, which is the point of doing it in x.
+2. **Resolve foreign.** *(x)* The host is already a base, so its types and
+   primitives exist even with no library on top: resolve every foreign entry
+   against it and pin the results. They are about to be referenced by objects
+   the host cannot see, and nothing else is keeping them alive.
+3. **Allocate.** *(C)* One object per record, from the extent table, in index
+   order. Fill nothing. Keep the index-to-pointer table.
+4. **Patch.** *(C)* Walk the unit stream, writing each unit per its kind. Set
+   the flags the image records, including `X_OBJ_FLAG_SHARED` where it had it.
 
-Then install the image's root as the process base. The fresh base from pass 2
-is discarded; what survives of it is exactly what pass 2 pinned, which is
-correct — identity is by path, so the image's reference to bare `+` *is* this
-process's bare `+`.
+Then `Base wrap` the image's root and evaluate in it. The host stays where it
+is; what it contributes is exactly what pass 2 pinned, which is correct —
+identity is by path, so the image's reference to bare `+` *is* this process's
+bare `+`.
 
 **Identity needs one interning table and no more.** Two saved references to
 one object must come back as one object, and two that differed must stay
@@ -597,18 +742,18 @@ table gives it across the boundary, which is why naming is by path and not by
 value — resolving bare `+` and catalog `(int +)` to the same object would
 merge two the running base kept apart.
 
-## Restore into a child, from x
+## One path, not two
 
-The startup loader replaces the process base. That is what boot elision needs
-and it is the harder case. The gentler one is worth keeping: a reader called
-from x that builds a **child base** rather than replacing the running one, as
-in [sandboxing-tutorial.md](sandboxing-tutorial.md). It is slower than booting
-— that is what the numbers above say — so it is not for speed. It is for
-handing someone a heap: a sandbox with a library already in it, or a bug
-report that is the state at the moment it broke.
+An earlier draft of this document had two. A privileged startup loader that
+*replaces* the process base, for boot elision; and a gentler reader callable
+from x that builds a **child base**, as in
+[sandboxing-tutorial.md](sandboxing-tutorial.md), for everything else. The
+first was the hard case and carried all the risk.
 
-Same format, same passes, no privilege. Only the last step differs: wrap the
-root with `Base wrap` instead of installing it.
+Hosting the reader in x collapses them into one. There is nothing to replace:
+the host boots, loads, wraps the root with `Base wrap`, and evaluates in it. Boot elision, a sandbox with a library already in it, a bug report that
+is the state at the moment it broke, a REPL that outlives its process — one
+path, no privilege, and the hard case simply stops existing.
 
 ## The writer, and the discipline it needs
 
@@ -1083,7 +1228,8 @@ no shape at all.
 ## What it buys
 
 - **Boot elision.** A dialect is a fixed traversal of the same source every
-  time. An image is that result.
+  time. An image is that result: against ~300 evals per live object today, a
+  load starts from the engine's 0.05s floor rather than a dialect's seconds.
 - **Sandboxes with a library in them**, without replaying the library.
 - **A bug report that is the heap.** The state at the moment of a defect,
   written out, loaded elsewhere, inspected with the tools in the tree.
@@ -1098,10 +1244,17 @@ no shape at all.
   and nothing else; writing objects back means setting type words and flags, which today is raw word
   surgery of the kind `lib/x/boot/reflect.x` already does in `%reflect-retag!`.
   Whether that stays reflective or earns a primitive is open.
-- **The shape landed on a branch, not in a release.** `isa.x` carries the
-  `(type set-shape! types)` row and the gates pass, but an engine change
-  reaches this repo only as a pinned artifact: it still wants a release and a
-  re-pin before anything may depend on it.
+- **How the runner knows an image is stale.** One image per library, 28 of
+  them for the suite, each invalid the moment its sources change. The header's
+  digests catch a changed *engine*, not changed x source, and a suite that
+  silently tests a stale library is worse than a slow one. Whether that is a
+  content hash over the library's transitive includes, a make dependency, or
+  something the pin vocabulary already answers, is undecided — and it is the
+  gate on using images in the suite at all.
+- **How small the loader prelude can actually be.** The host must sit below
+  the library (measured above), so the prelude is written against bare
+  primitives. Nothing says yet how many lines that is, and if it turns out to
+  need much of a dialect, the floor rises and the suite case weakens.
 - **Is an image a pinned artifact or a local cache?** If a lang may ship one,
   it acquires a release, a digest, and a place in the pin vocabulary. If it is
   only a cache, it needs none of that and may be deleted at any time.
