@@ -18,5 +18,9 @@
 (def %meta-ref     (prim-ref (lit obj) (lit meta-ref)))
 ; Header-word probes over the descriptor slots.
 (def %word  (fn (_ o slot) (%ptr-ref-word (%obj->ptr o) (* slot %word-size))))
+; OR the masks, never add them: they were disjoint (0xF0 / 0x0F) until
+; attr-mask widened to 0x1F, and from then on `+` carries -- 0xF0 + 0x1F is
+; 0x10F, which drops OWN and picks up SHARED, so a str stopped looking
+; different from an int.
 (def %flags (fn (_ o) (& (%ptr-ref-word (%obj->ptr o) (* %obj-slot-flags %word-size))
-                         (+ %obj-flag-type-mask %obj-flag-attr-mask))))
+                         (| %obj-flag-type-mask %obj-flag-attr-mask))))

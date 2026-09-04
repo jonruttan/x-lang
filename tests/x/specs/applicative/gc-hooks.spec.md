@@ -119,6 +119,63 @@ is honoured and the object survives.
 ---
     #t
 
+## heap tree-mark! / chain-clear!
+
+`pin!` above sets one particular flag, `SHARED`, which is permanent. These two
+take the flag as an argument, so a caller can borrow the collector's traversal
+to ask *what is reachable from here* and then take the answer back.
+
+Which bit is the caller's to pick, and it must be one the collector does not
+own. `SHARED` is already set on base-tree nodes and the flag doubles as the
+traversal's visited test, so marking with it halts at the first one; a leftover
+`MARK` makes the next collect's mark phase stop short and free what it missed.
+`0x400` is above both and is what these tests use.
+
+### tree-mark! returns the object it marks
+
+```x
+(def subject (pair 'held ()))
+(eq? ((prim-ref 'heap 'tree-mark!) subject 1024) subject)
+```
+---
+    #t
+
+### the flag goes on, and comes off again
+
+An object reachable from the base carries the bit after a mark from the base,
+and does not after the clear. The assertion is the transition, not a count:
+how many objects a heap holds is not a property worth pinning in a spec.
+
+```x
+(do
+  (def set? (fn (_ o) (if (eq? (& (%reflect-flags o) 1024) 0) #f #t)))
+  (def subject (pair 'reachable ()))
+  (def before (set? subject))
+  ((prim-ref 'heap 'tree-mark!) (%base) 1024)
+  (def during (set? subject))
+  ((prim-ref 'heap 'chain-clear!) 1024)
+  (list before during (set? subject)))
+```
+---
+    (#f #t #f)
+
+### chain-clear! reaches what a tree walk would not
+
+The clear walks the allocation chain, so it takes the flag off an object that
+became unreachable after the mark -- which a traversal from a root could no
+longer find.
+
+```x
+(do
+  (def orphan (pair 'gone ()))
+  ((prim-ref 'heap 'tree-mark!) orphan 1024)
+  (def marked (if (eq? (& (%reflect-flags orphan) 1024) 0) #f #t))
+  ((prim-ref 'heap 'chain-clear!) 1024)
+  (list marked (if (eq? (& (%reflect-flags orphan) 1024) 0) #f #t)))
+```
+---
+    (#t #f)
+
 ## heap pin!
 
 ### pin! returns the object it marks
