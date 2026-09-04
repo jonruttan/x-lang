@@ -160,6 +160,25 @@ sh x.sh -q -l xe -f tools/dev/image-write.x  # xenon
 It images the base it runs in, so the dialect flag chooses what gets imaged.
 Output path is the `%IMG` def near the bottom of the file.
 
+`image-walk.x` holds the heap walk and unit reader both image tools share; it
+is a file rather than a copy in each because its three rules were each learned
+by breaking them. Run it from the repository root -- the include is
+cwd-relative -- and note that `tools/dev/lint.sh` does not follow the include,
+so the two including files report the shared names as undefined. `make lint-x`
+covers `lib/` and `apps/`, not `tools/`, so nothing is gated on it.
+
+## Foreign-unit census
+
+```sh
+sh x.sh -q -f tools/dev/image-foreign.x
+```
+
+Counts how many of the heap's foreign units the image can actually name. Every
+foreign unit holds a raw address and no address survives into another process,
+so each has to be reacquired by name. Currently the prims catalog names 104 of
+146; the rest are bare bindings in the base's static spine, which need the
+`base-paths.x` route rather than any walk.
+
 **Not yet loadable.** The image carries the object graph -- extent table,
 object table and byte blob, with every reference resolved to an object index
 -- but no type table, foreign table or root index. Nothing can read it in any
