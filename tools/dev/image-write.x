@@ -144,6 +144,17 @@
 ; ever reached set!.)
 (def %blob-p (%i->p (Ptr call %c-calloc 1 %BLOB-CAP)))
 
+; ONLY THE BITS THAT DESCRIBE THE OBJECT, not the moment.  Masking to 0xFFFF
+; swept in MARK (0x200) and this writer's own trace bit (0x400) -- transient
+; collector state written into a persistent artifact -- and META (0x80), which
+; describes a layout THIS base gave the object when a loader's base decides its
+; own.  Worst is OWN (0x20): "x_obj_free() releases it", so a rebuilt object
+; carrying it would have a loader free memory it never owned.  That is why
+; replaying the flags word wholesale crashed.
+;
+; SHARED is policy ("never sweep this") and RO is advisory; both belong to the
+; object.  Nothing else does.
+(def %IMG-FLAGS (| %obj-flag-shared %obj-flag-ro))
 (def %put (fn (_ p i w) (do (%psw p (%int* i %word-size) w) (%int+ i 1))))
 
 ; --- the foreign table -----------------------------------------------------
@@ -443,7 +454,7 @@
     (%over-units p %emit-unit
       (pair (%put %obj-p (%put %obj-p (first acc)
                     (%f-index %TTABLE (%rw p %type-off) 1))
-                  (%int& (%rw p %flags-off) 65535))
+                  (%int& (%rw p %flags-off) %IMG-FLAGS))
             (rest acc)))))
 
 (def %emit (fn (_ p acc) (%emit-obj p acc)))
