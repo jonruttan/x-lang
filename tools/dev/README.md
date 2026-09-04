@@ -223,17 +223,19 @@ rather than 0 -- 0 is nil in this format, so writing an unnameable reference
 as 0 restores it as an empty list, which is a silent wrong answer. 161
 references currently land there: spine nodes no declared path reaches.
 
-**Still not loadable.** Nothing can read the file until the engine grows the
-allocate-and-patch loop, and one defect stands in the data:
+A foreign address that a whole TYPE shares -- every PROCEDURE holds the
+engine's procedure-call function, every OPERATIVE holds its own -- is named by
+the **type**, not by a symbol. Such an address is internal, so `dladdr` names
+it and `dlsym` will not give it back, and it needs no symbol anyway: a loader
+creating an object of that type already knows which call function to install.
+Which types qualify is measured, not assumed -- `PRIMITIVE` and `POINTER` also
+carry a foreign unit 0 and theirs differ per instance, so a type qualifies only
+if every instance agrees.
 
-> **PROCEDURE and OPERATIVE have no declared unit shape.** Their units cell
-> gives a count (2) but no mask, and a missing mask defaults to "every unit is
-> a reference". Unit 0 of both is not a reference -- it holds a tagged value
-> (`0x910303ffa94767fa` in a helium image) -- so the writer dereferences it as
-> an object, reads whatever the wild address yields as metadata, and emits
-> that as an index. 1,130 units are affected. These two types need
-> `(Type set-shape!)` declarations the way the atom types got them; until then
-> an image is wrong here, quietly.
+**Still not loadable**, because nothing can read the file until the engine
+grows the allocate-and-patch loop. What remains unnamed in the data is 13
+foreign units (12 `POINTER`, 1 `PRIMITIVE`) and 159 references to spine nodes
+no declared path reaches.
 
 Two things to know when reading one. The writer images the base it runs in, so
 its own libc doors (`malloc`, `calloc`, `write`, `creat`) appear among the

@@ -228,6 +228,49 @@
        (%map-add acc tw (%ty-kind tw)
          (pair (first sh) (pair (rest sh) (%ty-name tw p)))))
      (%ty-shape tw))))
+; --- the call pointer a whole TYPE shares -----------------------------------
+; A PROCEDURE's unit 0 is the engine's procedure-call function, and EVERY
+; procedure holds the same one; operatives likewise hold theirs.  Such an
+; address has no useful symbol -- it is internal, so dladdr names it and dlsym
+; will not give it back -- and it needs none: a loader creating an object of
+; that type already knows which call function to install.  So it is named by
+; the TYPE, not by a symbol.
+;
+; Which types qualify is MEASURED, not assumed: PRIMITIVE and POINTER also
+; carry a foreign unit 0 and theirs differ per instance, so a type qualifies
+; only if every instance seen agrees.  acc = (first-seen . disagreed).
+(def %F-TYPECALL 4)
+(def %cp-kind0
+  (fn (_ tw)
+    (if (eq? (%ty-kind tw) %T-HEAP) (%cp-cell-kind (%cell-of tw)) 9)))
+(def %cp-cell-kind
+  (fn (_ u)
+    (if (eq? u ()) 9 (%kind (%sh-mask u) 0 (%sh-desc (%sh-count u))))))
+(def %cp-scan
+  (fn (_ p acc)
+    (if (eq? (%cp-kind0 (%rw p %type-off)) 3)
+        (%cp-note (%rw p %type-off) (%word-at p 0) acc)
+        acc)))
+(def %cp-note
+  (fn (_ tw v acc)
+    ((fn (_ e)
+       (if (null? e) (pair (%map-add (first acc) tw 0 v) (rest acc))
+         (if (eq? (rest e) v) acc (pair (first acc) (%cp-disagree (rest acc) tw)))))
+     (%map-get (first acc) tw))))
+(def %cp-disagree
+  (fn (_ d tw) (if (null? (%map-get d tw)) (%map-add d tw 0 0) d)))
+(def %cp-entries
+  (fn (self m d acc)
+    (if (null? m) acc
+      (self (rest m) d
+        (if (null? (%map-get d (first (first m))))
+            (%map-add acc (rest (rest (first m))) %F-TYPECALL
+                      (%tw-name (first (first m))))
+            acc)))))
+(def %tw-name
+  (fn (_ tw)
+    ((fn (_ e) (if (null? e) "?" (rest (rest (rest e))))) (%map-get %TTABLE tw))))
+
 (def %emit-ttable
   (fn (self t cur)
     (if (null? t) cur (self (rest t) (%emit-tentry (rest (first t)) cur)))))
@@ -361,7 +404,8 @@
         (display "unresolvable refs (written as nil, indistinguishable): ")
         (write %UNRES) (newline)
         (display "foreign tbl: ") (write (%int* %FWORDS %word-size))
-        (display " bytes, ") (write %FCOUNT) (display " entries") (newline)
+        (display " bytes, ") (write %FCOUNT) (display " entries, ")
+        (write (%flen %CALLS 0)) (display " of them type-call") (newline)
         (display "IMAGE TOTAL: ")
         (write (%int+ hdrn (%int+ (%int* %TWORDS %word-size)
                             (%int+ (%int* %SWORDS %word-size)
@@ -407,13 +451,17 @@
 ; here also lets them `def` freely: the def discipline binds only between the
 ; mark and the last stamping walk.  Both tables must be COMPLETE before then,
 ; because the emit pass looks entries up and may not add them.
-(def %EXTRAS (first (%walk-all (pair 1 2) %discover ())))
-(def %FTABLE (%append %EXTRAS %MAP))
-(def %FCOUNT (%flen %FTABLE 0))
-(def %FWORDS (%emit-ftable %FTABLE 0))
+; The type table comes first: naming a shared call pointer needs its type's
+; name, so %TTABLE has to exist before the foreign table is assembled.
 (def %TTABLE (first (%walk-all (pair 1 2) %ty-discover ())))
 (def %TCOUNT (%flen %TTABLE 0))
 (def %TWORDS (%emit-ttable %TTABLE 0))
+(def %CPSCAN (first (%walk-all (pair 1 2) %cp-scan (pair () ()))))
+(def %CALLS (%cp-entries (first %CPSCAN) (rest %CPSCAN) ()))
+(def %EXTRAS (first (%walk-all (pair 1 2) %discover ())))
+(def %FTABLE (%append %CALLS (%append %EXTRAS %MAP)))
+(def %FCOUNT (%flen %FTABLE 0))
+(def %FWORDS (%emit-ftable %FTABLE 0))
 ; No walk at all: the statics come from the declared paths, not the heap.
 (def %STATICS (%st-rows %base-paths ()))
 (def %SCOUNT (%flen %STATICS 0))
