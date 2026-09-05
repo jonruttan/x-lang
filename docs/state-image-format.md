@@ -1,338 +1,363 @@
 # State image format
 
-This is the byte-level contract between `tools/dev/image-write.x` (the
-writer), `tools/dev/image-read.x` (the loader), and `(image rebuild!)` in the
-engine. [state-images.md](state-images.md) argues *why* an image looks like
-this; this document says *what* one is, what each side may assume, and what a
-conforming test checks. When the two disagree, this one is wrong and must be
-fixed first — nothing may be added to the format that is not written here.
+The contract between the writer (`tools/dev/image-write.x`), the loader
+(`tools/dev/image-read.x`), and `(image rebuild!)` in the engine.
+[state-images.md](state-images.md) argues *why*; this says *what*. When code
+and this document disagree, this document is what gets fixed first, and
+nothing enters the format that is not written here.
 
-Everything below is stated for format version 1. "Word" means a machine word
-of `%word-size` bytes, little-endian, and every offset is in words unless it
-says bytes.
+This is version 2 of the format. Version 1 is what the tools implement at
+the time of writing; §9 says what changes and why. Every claim below about
+the engine was read from `ext/x-expr` and `x-engine-c` source, and names the
+file it came from.
 
-## 1. What an image is
+## 1. What the engine holds, and where
 
-An image is the object graph reachable from one base's environment — its env
-chain, its globals tree, and everything they reference — written so that a
-*different process*, running the *same engine release*, can rebuild that graph
-into a base of its own and continue evaluating in it.
+**All state is on the base.** A base is one atom (`x_base_make`, `x-base.c`)
+whose data word points at a tree of pairs and atoms. Every leaf is a *field
+cell*, `(value . saved-values)`, and everything the evaluator, the type
+system, the reader, the printer, the collector and the allocator know is a
+node of that tree. There is no table anywhere that is not reachable from the
+base object.
 
-Three facts shape everything else:
+The tree's shape is the contract `engine/tools/contract/base-layout.x`, and
+its tags already say which parts belong to whom:
 
-1. **No address survives.** The writing process's pointers mean nothing in the
-   loading one. Every word the image stores is therefore one of exactly three
-   things, and the image must say which: a reference *into the image* (an
-   object index), a reference to something *the loader already owns*
-   (resolved by name), or a plain *value* (an integer, a code point, bytes).
-2. **The loader owns its base.** Its type structs, its static atoms, its
-   spine cells, its C functions are its own. The image never carries those; it
-   carries *names* for them, and the loader resolves each name against what
-   it has. A name that does not resolve is an error the loader can see, never
-   a silent nil.
-3. **Shape comes from the loader's types**, not from the file — except for
-   the three tags that have no type struct to ask (§4.2). The count and kind
-   of every unit an object has is what the loader's type for that name
-   declares. Writer and loader must therefore agree on every type's shape,
-   and §7 lists what makes them disagree.
+| tag | who builds it | what it holds |
+|---|---|---|
+| `(build …)` subtrees | `x_eval_make` (`x-eval.c`) from the descriptor | **language state**: env, ctrl, type-alist, io-state, profile counters, the state group |
+| `(todo …)` subtrees | `x_base_make` (`x-base.c`) | **process state**: file descriptors, the read buffer, the hooks, the heap group, the allocation group |
 
-## 2. File layout
+That split is the whole design. An image is a base's **language state** and
+every object reachable from it. A loader has a base of its own with its own
+**process state**, and the image never touches that.
 
-Sections in order, each a run of words, contiguous, no padding between:
+Language state, cell by cell (the `x_eval_field_*` accessors of the
+generated `x-eval-layout.h`):
 
-| # | section | start word | length (words) |
-|---|---|---|---|
-| 0 | header | 0 | 19 |
-| 1 | type table | 19 | `TWORDS` |
-| 2 | statics table | after 1 | `SWORDS` |
-| 3 | type-cell table | after 2 | `CWORDS` |
-| 4 | relocation table | after 3 | `RWORDS` |
-| 5 | foreign table | after 4 | `FWORDS` |
-| 6 | object table | after 5 | `OBJW` |
-| 7 | byte blob | after 6 | `BLOBN` **bytes** |
+| group | cells | notes |
+|---|---|---|
+| env | `env-alist` (cell), `env-local-boundary`, `env-global-tree`, `shadow-list` (slots) | the chain, where locals end, the BST over globals, the shadow list |
+| ctrl | `save-stack`, `error-handler`, `tco-expr`, `tco-env` | evaluator transients; **nil at image time and at install** (§6) |
+| io-group | `type-alist` (cell) | the type registry: `((name-stack . struct) …)`, keyed by the name-stack node (`x_alist_assoc` compares `first(key)`, `x-alist.c`) |
+| io-state | `line`, `true`, `false` | `true`/`false` hold the engine statics `x_true_obj`/`x_false_obj` |
+| profile | nine counters | plain integers; the loader may keep its own |
+| state | `eval-list`, `token-cache`, `sigint`, `err`, `prims`, `file`, `err-line`, `err-file`, `file-registry` | `err` is the one base-resident ERR instance every raise fills (`x_type_err_register`); `prims` is the catalog, a list of `(ns (method . PRIMITIVE) …)` (`x_prim_register`); `sigint` is a shared atom |
 
-The loader derives every start from the header; nothing is at a fixed offset
-except the header itself.
+Process state, which the loader keeps: `files` (descriptors, write-buf, and
+the read buffer — a BUFFER over a C array on `main`'s stack, `x-cli.c`),
+the four `hooks` and the heap group's mark/free hooks (static atoms holding
+C function pointers), `mark-hooks`, `free-hooks`, `mark-roots`, the
+`root-chain` (off-chain stack objects pushed by frames, marked never swept,
+`x-base.h`), `obj-meta-extra`, and the `alloc` group.
 
-### 2.1 Header (19 words)
+Two more facts about where things live:
+
+- **Type structs are in the tree.** `x_type_struct_make` (`x-type.c`) builds a
+  pair tree per type; the registry cell lists them. A type struct's cells
+  hold handler *lists*; the built-in types' handlers, name atoms, and the
+  default units/length values are **static objects in the engine binary**
+  (`x_type_int_name`, `x_type_int_make_prim`, `x_type_units_pair_obj`, …).
+  The library's pushed handlers are heap closures. The SYMBOL type's `data`
+  slot holds the intern list and BST (`symbol.c`), so symbol identity is
+  part of the tree too.
+- **Every base has its own allocation chain**, and the base object is its
+  head (`x_obj_alloc`: `x_obj_heap(obj) = x_obj_heap(base); x_obj_heap(base)
+  = obj`). Walking from the base object's heap link enumerates everything the
+  base ever allocated and not yet freed. A child base (`base make`) has a
+  separate chain.
+
+## 2. What an image is
+
+An image is: the values of the language-state cells of one base, and the
+transitive closure of objects they reach, written so a different process
+running the same engine release can rebuild them as objects of *its* base
+and set *its* language-state cells to them.
+
+Consequences, each of which removes something version 1 needed:
+
+1. The type registry comes with the image. Types are objects; a type word is
+   a reference to an imaged struct. There is no type table, no matching by
+   name, no registering of missing types, no handle identity rule, and no
+   relocation of cached type words — an INTEGER holding a type word holds an
+   address that is now an object reference like any other (§4.3).
+2. Handler stacks, the resident ERR, the catalog, the symbol table, the
+   file registry all come with the image because they are reachable. No
+   type-cell table.
+3. The only things not in the image are the two kinds of thing the loader
+   already owns: **C functions** and the **engine's static objects**. One
+   table names them (§3.3). No statics-by-path table.
+4. The roots are the language-state cells, named by the contract (§3.4).
+
+## 3. File layout
+
+Words are `%word-size` bytes, little-endian. Sections are contiguous:
+
+| # | section | length |
+|---|---|---|
+| 0 | header | fixed |
+| 1 | shape table | `SHWORDS` |
+| 2 | externals table | `XWORDS` |
+| 3 | roots table | `RTWORDS` |
+| 4 | object table | `OBJW` |
+| 5 | byte blob | `BLOBN` bytes |
+
+### 3.1 Header
 
 | word | name | meaning |
 |---|---|---|
-| 0 | magic | `1196247384` (`"XIMG"` as a little-endian word) |
-| 1 | version | `1` |
-| 2 | word size | `%word-size` of the writer; the loader refuses a mismatch |
-| 3 | byte order | `1`, read back as a word; the loader refuses if it is not `1` |
+| 0 | magic | `"XIMG"` little-endian |
+| 1 | version | `2` |
+| 2 | word size | refused on mismatch |
+| 3 | byte order probe | `1`; refused if not |
 | 4 | `N` | object count |
-| 5 | `OBJW` | object table length, words |
-| 6 | `BLOBN` | blob length, **bytes** |
-| 7 | `ROOTENV` | object index of the env chain head |
-| 8 | `FCOUNT` | foreign entries |
-| 9 | `FWORDS` | foreign table length |
-| 10 | `TCOUNT` | type rows |
-| 11 | `TWORDS` | type table length |
-| 12 | `ROOTG` | object index of the globals tree root |
-| 13 | `SCOUNT` | statics entries (the *used* ones — §3.2) |
-| 14 | `SWORDS` | statics table length |
-| 15 | `CCOUNT` | type-cell entries |
-| 16 | `CWORDS` | type-cell table length |
-| 17 | `RCOUNT` | relocation entries |
-| 18 | `RWORDS` | relocation table length |
+| 5 | `OBJW` | object table words |
+| 6 | `BLOBN` | blob bytes |
+| 7 | `SHCOUNT` | shape rows |
+| 8 | `SHWORDS` | |
+| 9 | `XCOUNT` | external entries |
+| 10 | `XWORDS` | |
+| 11 | `RTCOUNT` | root entries |
+| 12 | `RTWORDS` | |
+| 13 | `META` | extra metadata words per object the writer's base used (`obj-meta-extra`; 2 in a CLI base) |
+| 14 | `RELEASE` | blob offset of the engine release string (`x-release`) |
 
-Words 2 and 3 are the only refusals the header supports today. Engine
-release, machine, and library digests are **not** in the header (open, §8).
+The loader refuses a `RELEASE` that is not its own: an image is a heap laid
+out by one build of the engine, and its externals are named against that
+build's catalog and statics.
 
-### 2.2 Names
+### 3.2 Names and steps
 
-Several tables carry a *name*: a byte string. A name is stored as
+A name is `[len][bytes…]` in `words-for(len) = 1 + ((len + 1) >> 3)` words —
+room for a NUL, which a zeroed buffer supplies. Steps, where used, are
+`[n][s…]` with `0` = first, `1` = rest.
 
-    [len][bytes ...]
+### 3.3 Shape table — how many units, of what kind
 
-`len` is the byte count, the bytes occupy `words-for(len)` words where
+    [struct index][count][mask]
 
-    words-for(n) = 1 + ((n + 1) >> 3)
+One row per type struct that has instances in the image, keyed by the
+struct's own object index. `count`/`mask` are what the writer read from the
+struct's `type-units` cell through the one reader both sides share
+(`image-walk.x`'s `%sh-count`): an INT is the count with every unit a
+reference; a `(count . mask)` pair is explicit; the static
+`x_type_units_pair_obj` means *two reference units* — what `make-instance`
+allocates (`X_OBJ_LENGTH_PAIR`, data in slot 0) for every type the library
+registers. Kinds are `ref` 0, `word` 1, `bytes` 2, `foreign` 3, two bits per
+unit, the last repeating.
 
-i.e. room for the bytes **and a terminating NUL**, which the zeroed buffer
-supplies. The NUL is load-bearing: the loader hands names to
-`(type make)`, whose C `strlen`s them.
+Three rows are keyed by **role**, not by struct index, because their type is
+a static tag with no struct:
 
-### 2.3 Steps
+| role | tag | units |
+|---|---|---|
+| `spair` | `x_type_pair_obj` — a type-struct node | 2 ref |
+| `satom` | `x_type_atom_obj` — a static atom | 1 word |
+| `nil-typed` | `NULL` type — `#t`, `#f`, the base's own atom | 1 word |
 
-A *path* is a list of first/rest steps: `[nsteps][s1 ... sn]`, each step
-`0` for first, `1` for rest. Steps are the ones the layout contract
-(`engine/tools/contract/base-paths.x`) declares; the writer emits no step the
-contract does not name.
+An ordinary pair is **not** a role: its type is the base's PAIR struct, in
+the registry like any other, and it has a shape row like any other.
 
-## 3. The tables
-
-### 3.1 Type table — "which type is this a row of"
-
-One row per **type name** that has at least one instance in the image:
-
-    [name]
-
-Rows are 1-based; object records refer to a row by index. Two different type
-words in the writer's process that carry the same name share **one** row
-(the child's and the parent's `STRING`, for instance): the writer aliases
-the second to the first. The loader matches a row to its own type by name.
-
-Three rows have no type struct in any base and are recognised by name:
-
-| name | what it tags | units | kind |
-|---|---|---|---|
-| `SPAIR` | a **type-struct node** — tagged `x_type_pair_obj` | 2 | reference |
-| `ATOM` | a static atom — tagged `x_type_atom_obj` | 1 | word |
-| `NIL` | a nil-typed object (`#t`, `#f`, and their kin) | 1 | word |
-
-**`PAIR` is not one of them.** An ordinary pair is tagged with the base's own
-PAIR type struct, a heap object; its name is `PAIR` and it is not in the type
-alist. The loader allocates a `PAIR` row with the type a fresh `(pair 1 2)`
-carries. Naming the struct-node tag `PAIR` too was the single bug behind
-every "collect after load" failure: the loader rebuilt every ordinary pair
-with no type, and the collector never entered one.
-
-The row named `SYMBOL` is special to the rebuild: objects of that row are not
-rebuilt, they are **interned** by their bytes into the loader's symbol table,
-because the evaluator compares symbols by identity.
-
-### 3.2 Statics table — "something in the loader's base, by path"
-
-An entry names a node the loader can *walk to*; the object record that refers
-to it stores `-(entry index)`. Two forms, distinguished by the first word:
-
-    [0][steps]                 walk from the base object
-    [1][name][steps]           walk from the struct of the type called name
-
-Every entry is a node on a declared path (every prefix of every row of
-`base-paths.x`), plus, for `cell` rows of `base-layout.x`, the cell's value
-(one extra `first`). The writer also walks a **pristine** `(Base make)` and
-records its off-chain nodes under the same type-rooted paths: that is how the
-engine's own handlers — buried under the library's pushes in a stack the
-rows do not reach — get a name.
-
-Only entries actually referenced are written, numbered in order of first
-reference; `SCOUNT` is that count. A reference the writer could not name is
-stored as `-(FULL + 1)` where `FULL` is the writer's *unwritten* full count:
-always past the table, so the loader's bound turns it into nil. §8 lists the
-references that currently take that road.
-
-A **type handle** — a type's name atom — is always a static, never an object
-index, even when the writer's process has it on the chain: the registry,
-`make-instance`, `type?` and `by-atom` compare handles by identity, and only
-the loader's own atom has the right identity.
-
-### 3.3 Type-cell table — "what the library pushed onto this type's stack"
-
-    [object index][name][steps]
-
-The statics' type-rooted form minus its tag word. `steps` reach the head pair
-of a handler list from the struct of the type called `name`; the loader walks
-to the *parent* and writes the object at the half the last step names. Rows
-are the eleven stacks the `type push-*` coordinates and the from/to cells
-name: call, eval, write, display, analyse, delimit, read, from, to, iter, ops.
-Name, data, units and the collector's hooks are the engine's and the loader's
-own.
-
-### 3.4 Relocation table — "an integer whose value is a type word"
-
-    [object index][name]
-
-The object is an INTEGER whose value, in the writer's process, was the type
-word of the type called `name`. The loader writes its *own* type word for
-that name into the rebuilt integer: the struct's address for a heap type,
-`x_type_pair_obj` for `SPAIR`, `x_type_atom_obj` for `ATOM`, `0` for `NIL`.
-This exists because `boot/reflect.x` and `boot/printer.x` cache type words in
-globals at boot; carried as plain integers they are addresses of a process
-that no longer exists.
-
-*Status: emitted by the writer; the loader-side install is written; the
-round trip is untested.*
-
-### 3.5 Foreign table — "a C address, by how to reacquire it"
+### 3.4 Externals table — what the loader already owns
 
     [kind][name]
 
-A foreign unit (§4.3) stores an entry index; the loader resolves the entry to
-an address and writes that. Kinds:
+A unit that refers to something outside the image stores an external
+index (negative in a `ref` unit, plain in a `foreign` unit). Kinds:
 
-| kind | name is | loader resolves by |
+| kind | names | loader resolves to |
 |---|---|---|
-| 1 | `ns/method` | the catalog: `(prim-ref ns method)`'s function pointer |
-| 2 | a bare global | evaluating the symbol in the loader's base |
-| 3 | a C symbol | `dlsym` on the process |
-| 4 | `PROCEDURE` or `OPERATIVE` | the call pointer a fresh closure of that kind carries |
-| 5 | (empty) | the `dlopen` handle of the process |
+| 1 `catalog` | `ns/method` | the C function pointer behind its own `(prim-ref ns method)` |
+| 2 `bare` | a global's name | the function pointer of the callable bound to that name in a fresh base |
+| 3 `dlsym` | a C symbol | `dlsym` |
+| 4 `typecall` | `PROCEDURE` or `OPERATIVE` | the call pointer a fresh closure of that kind carries |
+| 5 `dlopen` | — | the process handle |
+| 6 `static` | a role name | one of the engine's static objects, by role — see below |
+| 7 `type-static` | a type name and a row of `base-paths.x` | the static object a **freshly registered** type of that name holds at that row |
 
-An address that resolves to `0` is a null call pointer waiting to be called.
-The loader must report the count; a nonzero count is a broken image.
+Kinds 1–5 are version 1's foreign kinds, unchanged. Kind 6 names the
+statics that are not inside any type struct: `true`, `false` (`x_true_obj`,
+`x_false_obj`), `tag-atom`, `tag-pair` (the two tags, when they appear as
+type words), `units-atom`, `units-pair`, `length-atom`, `length-pair`,
+`token-eof` (`x_token_eof_prim`). Kind 7 names the statics that are: a
+built-in type's name atom, its C handler atoms, its default units value.
+`x_type_int_register` builds INTEGER's struct from the same static
+descriptors in every base, so `(type-make INTEGER)` is the same object in
+the writer's process and the loader's.
+
+The writer discovers kind-7 names by walking a pristine `(base make)` and
+recording every **off-chain** node (heap link 0) under the row that reaches
+it. That is why a C reader buried under four library pushes in STRING's read
+stack still has a name: it is what a fresh STRING holds at `type-read`.
+Kind 6 comes from a fixed list; kind 7 is derived; nothing else is static.
+
+An external the writer cannot name is stored as `XCOUNT + 1`; the loader
+resolves it to nil, **counts it, and reports the count**. A nonzero count
+is a broken image (§6.9).
+
+### 3.5 Roots table — which cell gets which object
+
+    [cell name][object index]
+
+One entry per language-state cell of `base-layout.x` (§1). The name is the
+contract's, so the loader finds the cell by the same path the C accessors
+use. `cell` rows get the object in their first slot; `slot` rows get it in
+the half of the parent the last step names — the distinction is the
+contract's, not the loader's.
 
 ### 3.6 Object table
 
-`N` records, back to back, **no length word**:
+`N` records, no length word:
 
-    [type row][flags][unit ...]
+    [type][flags][unit…]
 
-The number of units is what the type row's shape says (§4.1). Reading the
-table with a shape that disagrees with the writer's desynchronises every
-record after the first disagreement, which is the failure mode to suspect
-first when a load produces garbage.
+`type` is the object index of its type struct, or `-1 spair`, `-2 satom`,
+`-3 nil-typed`. The unit count and kinds come from the shape row for that
+type. `flags` are the writer's flags masked to `WRAP 0x01`, `COV 0x02`,
+`FRAME 0x04`, `FNFRAME 0x08`, `RO 0x40`; `SHARED` is set on every rebuilt
+object regardless (the image lives as long as the process); `OWN`, `META`,
+`MARK` are never replayed.
 
-`flags` is the writer's flag word masked to the bits that are replayed:
-`0x01 WRAP`, `0x02 COV`, `0x04 FRAME`, `0x08 FNFRAME`, `0x40 RO`. `SHARED`
-is *set* on every rebuilt object regardless of the writer's bit: the image
-lives as long as the process. `OWN`, `META`, `MARK` are never replayed.
+Unit words: `ref` — `> 0` object index, `< 0` external, `0` nil; `word` —
+verbatim; `bytes` — blob byte offset; `foreign` — external index.
 
 ### 3.7 Blob
 
-Byte payloads for `bytes` units: `[len][bytes ... NUL]` at the byte offset the
-unit stores. Strings and symbol names live here. A `bytes` unit is a pointer
-into the blob after rebuild, so the blob's buffer must outlive the image.
+`[len][bytes… NUL]` at the offset a `bytes` unit stores. The loader's buffer
+outlives the image; a rebuilt `bytes` unit points into it.
 
-## 4. Units
+## 4. Rules the writer keeps
 
-### 4.1 Shape
+### 4.1 The walk
 
-A type's shape is its unit count and, per unit, a kind: `ref` (0), `word`
-(1), `bytes` (2), `foreign` (3), packed two bits per unit into a mask. The
-writer reads the shape from *its* type; the loader from *its* own type of the
-same name. A units value in a type struct is one of three things, and
-`image-walk.x`'s `%sh-count` is the one place both sides read it:
+The walk is the imaged base's allocation chain, from the base object's heap
+link, filtered to objects the mark reached. The mark is
+`(heap tree-mark! base-object TRACE)` — the collector's own traversal from
+the base, with a flag the collector does not use — so "reachable" means what
+the collector means by it, type hooks included. The mark is made **once per
+process**: `chain-clear!` disables later marks.
 
-| units value | meaning |
-|---|---|
-| an INT `n` | `n` units, all `ref` |
-| a pair `(n . mask)` | `n` units with kinds from `mask`; `n < 0` is the slot-0-counted form |
-| the static `x_type_units_pair_obj` (type word 0) | **2 `ref` units** — what `make-instance` allocates for every library-registered type |
+While a frame holds a cursor into a child base's chain, **this base must not
+collect**: the collector marks through whatever a frame holds, and a sweep
+clears flags on this chain only, so each collect leaves stale mark bits on
+the child. Walk the child with the periodic collect off; collect this base
+between walks.
 
-### 4.2 The three tags
+Nothing walks bytes; strings reach the blob through one copy each.
 
-`SPAIR`, `ATOM`, `NIL` rows have no type to ask; the loader states their
-counts (2/1/1) and kinds (ref/word/word) and passes them to the rebuild as
-`given`. The rebuild must not read `x_type_field_units` off the type it
-allocates such a row with: `x_type_pair_obj` is a static descriptor, not a
-struct tree.
+### 4.2 Two chains for a child
 
-### 4.3 What a unit stores
+A child base's language state may refer to objects this base lent it —
+`include` and `syscall` (`x_callable_bind`, root base only), `args`,
+`x-machine`, `x-version`, `x-release` (`x_value_bind`, `x-cli.c`). Those
+live on this base's chain. The walk covers the child's chain and then this
+one, same fold, same mark; what the mark reached is the image, whichever
+chain holds it. (An engine primitive that binds the CLI globals into any
+base would let the child own them and make the second walk unnecessary —
+§8.)
 
-| kind | stored word |
-|---|---|
-| `ref` | `> 0`: object index. `< 0`: statics entry. `0`: nil |
-| `word` | the value, verbatim (see §3.4 for the one exception) |
-| `bytes` | byte offset into the blob |
-| `foreign` | foreign entry index; `FCOUNT + 1` if unnameable, which resolves to `0` |
+### 4.3 What is a reference
 
-## 5. What the loader installs, and in what order
+A word is a reference iff its unit's kind is `ref`. An INTEGER's one unit is
+`word`; it is never resolved, even when it holds an address — so a global
+that caches a type word (`%reflect-satom-tw`, `%print-int-tw`) is written
+verbatim and is **wrong after load** unless the library recomputes it.
+Version 1 relocated these by table; version 2 does not, because the right
+fix is in the library: a cached process address is a boot-time computation
+the image cannot carry, and `boot/reflect.x` and `boot/printer.x` must
+recompute theirs on load (§8).
 
-1. Read the whole file into raw memory.
-2. Type rows: match each name to a live type; **register** any the base lacks
-   with `(type make name ())` — empty handlers; the type-cell table fills
-   them. Declare shapes from `lib/x/type/shape-rows.x` on this base first
-   (the img dialect does this at boot).
-3. Statics: resolve every entry to a node of *this* base.
-4. Foreign: resolve every entry to an address.
-5. `(image rebuild!)`: allocate every object with its row's type and shape,
-   then patch every unit.
-6. Type cells: write each handler-list head into this base's struct.
-7. Relocations: write this base's type words into the flagged integers.
-8. **Roots, as the last three top-level forms, each a direct primitive call:**
-   the local boundary, then the env head, then the globals tree. A `do` or
-   any operative here leaves a TCO compound on the save-stack that later
-   restores the host's stale env over the install. The loader's own names are
-   gone after the third write; the next form on stdin evaluates inside the
-   image.
+### 4.4 Names for types
 
-The loader is silent when driven by a runner (`%IMG-PATH` bound); its stdout
-is the batch's.
+None. A type is its struct's object index. Two bases' STRING types are two
+structs and two indices; the loader does not care which is which.
 
-## 6. Invariants a conforming test checks
+## 5. What the loader does, in order
 
-Each is one spec test, on a **small** image — a base with a handful of defs —
-not on x-core. Seconds per cycle.
+1. Read the file into raw memory. Refuse on word size, byte order, release.
+2. Resolve every external to an address or object (§3.4). Count the ones
+   that resolve to nil.
+3. `(image rebuild!)`: allocate `N` objects with the type each record names
+   — an imaged struct's *rebuilt* object, or the static tag — and the shape
+   row's count; patch every unit. Objects are allocated on this base's
+   chain with this base's `obj-meta-extra`; the rebuild never reads
+   `x_type_field_units` off a static tag.
+4. Install the roots (§3.5) as **separate top-level forms, each a direct
+   primitive call**, `ctrl` cells last and to nil. Any operative or
+   procedure here pushes a TCO compound onto the save-stack that a later
+   restore would use to put this base's stale env back (`x_tco_restore`,
+   `x-eval.c`); a primitive call pushes nothing. After the last write the
+   loader's own names are gone, and the next form on stdin evaluates
+   inside the image.
 
-1. Header round trip: magic, version, word size, byte order, every count.
-2. A pair, a string, a symbol, an integer, a character: written and read back
-   equal, and the rebuilt pair is `x_obj_type_isspair`-typed like a fresh one.
-3. A closure: callable after load; its env resolves; its call pointer is not
-   `0`.
-4. A class instance: `object?` is true, `class-of` is the class, a method
-   dispatches.
-5. A type-word integer (`%reflect-satom-tw`): after load equals the loader's
-   own `(%reflect-type-word (type of 0))`.
-6. A raised `Err`: caught as an object, `(Err kind-of e)` answers.
-7. Collect safety: after load, `(heap collect)` twice, then a top-level def,
-   a tail-position def inside a call, printing, and a lookup of each —
-   ASan-clean.
-8. Statics: `#t`, the env-alist cell, a type-name endpoint each resolve to the
-   loader's own object (`same?`, not `eq?`).
-9. Every foreign entry resolves nonzero; the loader's count of unnameable
-   references is 0.
-10. Two collects between forms inside the image with no cell installed leave
-    a tail-def'd global alive (the pair-type invariant, §3.1).
+The loader is silent when a runner drives it; with `%IMG-VERBOSE` bound it
+prints one line of counts and the unresolved externals by name.
 
-## 7. Known ways writer and loader disagree
+## 6. Invariants — each is one spec test
 
-These are the ones found so far; each was found by loading x-core and
-crashing, and each is a test in §6 waiting to be written.
+On a small base, seconds per cycle; the x-core image is the integration
+test, not the unit test.
 
-- A library type with no declared shape: both sides must read the static
-  units pair as 2 refs (§4.1).
-- The struct-node tag vs the pair type (§3.1).
-- A name without room for its NUL (§2.2).
-- A type handle indexed rather than named (§3.2).
-- Boot-cached type words (§3.4).
-- Roots installed through an operative (§5.8).
-- A child base walked with this base's periodic collect on: a collect while
-  a frame holds a cursor into another base's chain leaves stale mark bits
-  there. Walk the child with collects off, collect this base between walks.
-- A child's references to objects this base lent it (`include`, `x-release`,
-  `args`): walk both chains, or they are unnameable.
+1. Header round trip, and refusal on word size, byte order, release.
+2. A pair, a string, a symbol, an integer, a character read back equal; the
+   rebuilt pair's type word is the rebuilt PAIR struct; `(pair 1 2)` after
+   load has the same type word.
+3. A rebuilt closure is callable and its call pointer is nonzero.
+4. `(new C …)` makes an instance; `object?` and `class-of` agree; a method
+   dispatches; `(Type of instance)` is the rebuilt struct's name-stack node's
+   atom.
+5. A symbol read after load is `same?` as the imaged symbol of that name
+   (the intern table came with the image).
+6. A raised `Err` is caught as an object; `(Err kind-of e)` answers; a C
+   primitive's type error is the resident ERR.
+7. Collect safety: two collects, a top-level def, a tail-position def
+   inside a call, printing, then lookups of each — ASan-clean.
+8. `#t` after load is `same?` as the loader's `x_true_obj`; the SYMBOL
+   type's C reader is the same static as in a fresh base.
+9. Unresolved externals: 0.
+10. `ctrl` cells are nil in the file and after install; the save-stack is
+    empty when the next form is read.
+
+## 7. What must be true of the engine
+
+- Every engine type declares its units (`x_type_field_units` non-nil with a
+  correct mask) in its own descriptor. BUFFER holds a pointer into another
+  object's bytes and a C stack array; with no declared shape both sides
+  would read it as two references. Today `lib/x/type/shape-rows.x` declares
+  eight; the engine should declare all of its own.
+- `(image rebuild!)` allocates by rebuilt struct or static tag, with `given`
+  counts for the three roles, and sets `SHARED`.
+- The static bound: an external index past the table is the sentinel.
 
 ## 8. Open
 
-- `%token-eof` and eight tokenizer-table nodes are unnameable: the first
-  needs a "bare global" statics kind, the second is a `todo` subtree of
-  `base-layout.x`. Both restore as nil.
-- The header carries no engine release, machine or library digest; the build
-  script's key does that job outside the file.
-- One type row per name means a library type declaring a custom shape would
-  need the shape in the file; none does today.
-- The relocation table's round trip (§3.4) is untested.
+- **CLI globals per base.** `include`, `syscall`, `args`, `x-*` are bound
+  into the root base by `x-cli.c` only; a child gets them lent from its
+  parent, which is what forces the second walk (§4.2). An engine coordinate
+  that binds them into any base removes that.
+- **Cached process addresses in the library** (§4.3): `%reflect-satom-tw`,
+  `%reflect-spair-tw`, the printer's `%print-*-tw` — recompute on load, or
+  stop caching.
+- **The read buffer** is process state and stays the loader's; the image
+  therefore cannot carry a partially consumed input, and does not try.
+- **Object metadata** (`obj-meta-extra`: line and file ids) is not carried;
+  a loaded image's error reports have no source positions.
+- **Digests.** The header carries the engine release; it does not carry a
+  digest of the library sources. `tools/dev/image-build.sh`'s key does that
+  outside the file.
+
+## 9. From version 1 to version 2
+
+Version 1 treated the base as a static spine the image may only read
+through `base-paths.x`, imaged the env and globals hanging off it, and
+resolved every other piece of base state against the loader's own base by
+name: type structs by type name, handler stacks by cell row, the resident
+ERR and the boundary by ad-hoc install, cached type words by relocation.
+Each of those was a table, each table a parser, and each grew from the one
+before it failing to express the next thing found. The eleven findings in
+the version-1 spec's §7 are all the same finding: the base is one tree, and
+an image that does not carry the tree has to reconstruct it by guesswork.
+
+What version 2 keeps from version 1: the walk and its three rules, the
+externals kinds 1–5 and the pristine-base derivation of kind 7, the shape
+reader, the primitive-call install, the NUL in names, and the sentinel.
