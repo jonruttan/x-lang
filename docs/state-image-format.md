@@ -78,6 +78,11 @@ Consequences:
 1. The type registry comes with the image. Types are objects, so a type
    word is a reference to an imaged struct, and an object's type is never
    matched by name against anything the loader has.
+0. Two types are primitive — atom and pair — and every other type is a
+   struct whose cells are its behaviour. Two of those cells are `save` and
+   `load` (§4.3): a type turns its own objects into tagged words and fixes a
+   rebuilt one up. The writer never reads a type's units from outside; it
+   asks the type, through `(image save!)`.
 2. Handler stacks, the resident ERR, the catalog, the symbol table and the
    file registry come with the image because they are reachable from the
    cells.
@@ -93,11 +98,10 @@ Words are `%word-size` bytes, little-endian. Sections are contiguous:
 | # | section | length |
 |---|---|---|
 | 0 | header | fixed |
-| 1 | shape table | `SHWORDS` |
-| 2 | externals table | `XWORDS` |
-| 3 | roots table | `RTWORDS` |
-| 4 | object table | `OBJW` |
-| 5 | byte blob | `BLOBN` bytes |
+| 1 | externals table | `XWORDS` |
+| 2 | roots table | `RTWORDS` |
+| 3 | object table | `OBJW` |
+| 4 | byte blob | `BLOBN` bytes |
 
 ### 3.1 Header
 
@@ -110,14 +114,12 @@ Words are `%word-size` bytes, little-endian. Sections are contiguous:
 | 4 | `N` | object count |
 | 5 | `OBJW` | object table words |
 | 6 | `BLOBN` | blob bytes |
-| 7 | `SHCOUNT` | shape rows |
-| 8 | `SHWORDS` | |
-| 9 | `XCOUNT` | external entries |
-| 10 | `XWORDS` | |
-| 11 | `RTCOUNT` | root entries |
-| 12 | `RTWORDS` | |
-| 13 | `META` | extra metadata words per object the writer's base used (`obj-meta-extra`; 2 in a CLI base) |
-| 14 | `RELEASE` | blob offset of the engine release string (`x-release`) |
+| 7 | `XCOUNT` | external entries |
+| 8 | `XWORDS` | |
+| 9 | `RTCOUNT` | root entries |
+| 10 | `RTWORDS` | |
+| 11 | `META` | extra metadata words per object the writer's base used (`obj-meta-extra`; 2 in a CLI base) |
+| 12 | `RELEASE` | blob offset of the engine release string (`x-release`) |
 
 The loader refuses a `RELEASE` that is not its own: an image is a heap laid
 out by one build of the engine, and its externals are named against that
@@ -129,31 +131,23 @@ A name is `[len][bytes…]` in `words-for(len) = 1 + ((len + 1) >> 3)` words —
 room for a NUL, which a zeroed buffer supplies. Steps, where used, are
 `[n][s…]` with `0` = first, `1` = rest.
 
-### 3.3 Shape table — how many units, of what kind
+### 3.3 Objects carry their own shape
 
-    [struct index][count][mask]
+There is no shape table. Every record (§3.6) says how many units it has and
+what kind each is, because the type's `save` handler wrote it that way.
+Kinds: `ref` 0, `word` 1, `bytes` 2, `foreign` 3.
 
-One row per type struct that has instances in the image, keyed by the
-struct's own object index. `count`/`mask` are what the writer read from the
-struct's `type-units` cell through the one reader both sides share
-(`image-walk.x`'s `%sh-count`): an INT is the count with every unit a
-reference; a `(count . mask)` pair is explicit; the static
-`x_type_units_pair_obj` means *two reference units* — what `make-instance`
-allocates (`X_OBJ_LENGTH_PAIR`, data in slot 0) for every type the library
-registers. Kinds are `ref` 0, `word` 1, `bytes` 2, `foreign` 3, two bits per
-unit, the last repeating.
+Three types have no struct and are saved structurally, by role:
 
-Three rows are keyed by **role**, not by struct index, because their type is
-a static tag with no struct:
-
-| role | tag | units |
+| role | tag | payload |
 |---|---|---|
 | `spair` | `x_type_pair_obj` — a type-struct node | 2 ref |
 | `satom` | `x_type_atom_obj` — a static atom | 1 word |
 | `nil-typed` | `NULL` type — `#t`, `#f`, the base's own atom | 1 word |
 
 An ordinary pair is **not** a role: its type is the base's PAIR struct, in
-the registry like any other, and it has a shape row like any other.
+the registry like any other, and its `save` says two references.
+
 
 ### 3.4 Externals table — what the loader already owns
 
@@ -216,17 +210,18 @@ contract's, not the loader's.
 
 `N` records, no length word:
 
-    [type][flags][unit…]
+    [type][flags][n][kind word]…n
 
 `type` is the object index of its type struct, or `-1 spair`, `-2 satom`,
-`-3 nil-typed`. The unit count and kinds come from the shape row for that
-type. `flags` are the writer's flags masked to `WRAP 0x01`, `COV 0x02`,
+`-3 nil-typed`. `n` and the kinds are what `(image save!)` answered for this
+object. `flags` are the writer's flags masked to `WRAP 0x01`, `COV 0x02`,
 `FRAME 0x04`, `FNFRAME 0x08`, `RO 0x40`; `SHARED` is set on every rebuilt
 object regardless (the image lives as long as the process); `OWN`, `META`,
 `MARK` are never replayed.
 
 Unit words: `ref` — `> 0` object index, `< 0` external, `0` nil; `word` —
 verbatim; `bytes` — blob byte offset; `foreign` — external index.
+
 
 ### 3.7 Blob
 
@@ -262,15 +257,37 @@ in the child, the strings copied in the child, `args` as a list the child
 builds. Nothing the child's language state reaches then lives on another
 base's chain, and the walk is the child's chain alone.
 
-### 4.3 What is a reference
+### 4.3 Save and load are the type's
 
-A word is a reference iff its unit's kind is `ref`. An INTEGER's one unit is
-`word`; it is never resolved, even when it holds an address — so a global
-that caches a type word (`%reflect-satom-tw`, `%print-int-tw`) is written
-verbatim and is **wrong after load** unless the library recomputes it. A
-cached process address is a boot-time computation the image cannot carry,
-and `boot/reflect.x` and `boot/printer.x` must recompute theirs on load
-(§8).
+Every type struct has two more cells, `type-save` and `type-load`
+(`base-paths.x` rows `type-save`, `type-load`), beside `mark`, `make`,
+`read` and `write`. Both are handlers like any other and are pushed like
+any other; `(type make name handlers)` takes them under the keys `save`
+and `load`.
+
+- `save`, applied by `(image save! obj buf)` with evaluated arguments,
+  writes the unit count at `buf[0]` and `[kind][word]` pairs after it, and
+  returns the object. The engine provides one per built-in type whose
+  payload is not all references — STRING and SYMBOL say `bytes`, INTEGER
+  and CHARACTER `word`, PRIMITIVE and POINTER `foreign`, PROCEDURE and
+  OPERATIVE `foreign ref`, BUFFER `bytes ref` for its outer and two offsets
+  for its inner — and `x_type_save_default`, which walks the units shape,
+  for every type that declares none. A type the library registers gets the
+  default, two references (`make-instance`'s layout), unless it pushes its
+  own. A handler evaluates nothing and allocates nothing: the per-type
+  files link without the evaluator.
+- `load`, applied by the rebuild's third pass to every rebuilt object whose
+  type has one, once every object's units are in place. BUFFER re-bases
+  its inner's read and write pointers from the saved offsets. Most types
+  have none.
+
+A word is a reference iff its kind says so. An INTEGER's unit is `word`; it
+is never resolved, even when it holds an address — a global that caches a
+type word (`%reflect-satom-tw`, `%print-int-tw`) is written verbatim and is
+**wrong after load** unless the library recomputes it. A cached process
+address is a boot-time computation the image cannot carry, and
+`boot/reflect.x` and `boot/printer.x` must recompute theirs on load (§8).
+
 
 ### 4.4 Names for types
 
@@ -282,15 +299,15 @@ structs and two indices; the loader does not care which is which.
 1. Read the file into raw memory. Refuse on word size, byte order, release.
 2. Resolve every external to an address or object (§3.4). Count the ones
    that resolve to nil.
-3. `(image rebuild!)`: two passes over the object table. The first
+3. `(image rebuild!)`: three passes over the object table. The first
    allocates every object on this base's chain (its own `obj-meta-extra`
-   applies) with the shape row's count, typed by the static tag for a role
-   and untyped otherwise. The second sets each untyped object's type word to
-   the *rebuilt* struct its record names and patches every unit by kind.
-   The loader hands the primitive the shape rows as two raw arrays indexed
-   by struct object index, the externals as one vector whose entry `k` is
-   an object (kinds 6–8) or an integer address (kinds 1–5), and the blob's
-   address; it never reads `x_type_field_units` off anything.
+   applies) with the record's unit count, typed by the static tag for a
+   role and untyped otherwise. The second sets each untyped object's type
+   word to the *rebuilt* struct its record names and patches every unit by
+   the kind the record carries. The third applies each object's type `load`
+   where there is one. The loader hands the primitive the externals as one
+   vector whose entry `k` is an object (kinds 6–8) or an integer address
+   (kinds 1–5), and the blob's address.
 4. Install the roots (§3.5) as **separate top-level forms, each a direct
    primitive call**, `ctrl` cells last and to nil. Any operative or
    procedure here pushes a TCO compound onto the save-stack that a later
@@ -329,13 +346,12 @@ test, not the unit test.
 
 ## 7. What must be true of the engine
 
-- Every engine type declares its units (`x_type_field_units` non-nil with a
-  correct mask) in its own descriptor. BUFFER holds a pointer into another
-  object's bytes and a C stack array; with no declared shape both sides
-  would read it as two references. Today `lib/x/type/shape-rows.x` declares
-  eight; the engine should declare all of its own.
-- `(image rebuild!)` allocates by rebuilt struct or static tag, with `given`
-  counts for the three roles, and sets `SHARED`.
+- Every engine type whose payload is not "all references" provides its own
+  `save` (§4.3), and any whose payload needs fixing up once its words are
+  in place provides a `load`.
+- `(image save!)` applies a type's save with evaluated arguments and saves
+  the three roles structurally; `(image rebuild!)` allocates from the
+  record's own count and kinds, sets `SHARED`, and runs the load pass.
 - The static bound: an external index past the table is the sentinel.
 
 ## 8. Open
