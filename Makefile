@@ -333,11 +333,7 @@ install-man-c uninstall-man-c: ## The C reference man pages (delegates to the en
 # at its own top level, which the writer's child reaches through `include`
 # -- the collect-inside-a-load #614 moved out of boot, closed engine-side
 # by x-engine-c #38 (v0.2.6).  Their specs boot from source until an image
-# can hold compiled code.  ON LINUX THE FLOAT-LOADING LIBRARIES ARE REFUSED
-# TOO -- glibc keeps float.x's dlopen'd libm out of the global scope, so
-# none of its 18 pointers round-trips through dlsym -- and boot from source
-# there; the fix is a library-qualified external (docs/state-images.md,
-# Not decided).  See docs/state-images.md.
+# can hold compiled code.  See docs/state-images.md.
 IMG ?= 1
 IMG_DIR ?= .images
 # A refusal (exit 3) is tested INSIDE the if: .POSIX above makes GNU make 4

@@ -101,16 +101,44 @@
           (if h2 h2
             (%dlopen () 1)))))))
 (def %libm (%libm-open))
-; The handle is this process's alone -- a state image cannot carry it, and
-; log2/log10/hypot below reach it at call time -- so it is declared a
-; transient (imaged as nil) and re-opened once an image is installed.  The
-; function pointers resolved through it need nothing: each is a symbol the
-; writer names and the loader resolves again.
+
+; --- What libm gives this module is this process's alone --------------------
+; The handle, and every pointer resolved through it.  A state image cannot
+; carry them (the transient rule, boot/reflect.x): the handle has no symbol,
+; and a symbol of a library the loader has not opened does not resolve --
+; glibc keeps a dlopen'd libm out of the global scope, where macOS's
+; libSystem folds it in.  So each binding below REGISTERS ITSELF, once, on
+; the line that makes it: a row the hook remakes it from, and a transient the
+; writer images as nil.  The maker is shared by the load and the hook, and
+; log2/log10/hypot reach the re-opened handle at call time.
+(def %libm-rows ())                 ; ((global kind name) ...), newest first
+(def %libm-make
+  (fn (_ kind name)
+    (let ((sym (%dlsym %libm name)))
+      (match
+        ((str=? kind "d->d")
+          (fn (_ x) (%make-instance %float (%ffi-call "d->d" sym (first x)))))
+        ((str=? kind "dd->d")
+          (fn (_ a b) (%make-instance %float (%ffi-call "dd->d" sym (first a) (first b)))))
+        (#t sym)))))                ; "ptr": the pointer itself
+(def %libm-fn
+  (fn (_ global kind name)
+    (do (set! %libm-rows (pair (list global kind name) %libm-rows))
+        (set! %image-transients (pair global %image-transients))
+        (%libm-make kind name))))
 (set! %image-transients (pair (lit %libm) %image-transients))
 (set! %image-recache-hooks
-  (pair (fn (_) (set! %libm (%libm-open))) %image-recache-hooks))
+  (pair (fn (_)
+          (do (set! %libm (%libm-open))
+              ((fn (self l)
+                 (if (null? l) ()
+                   (do (eval (list (lit set!) (first (first l))
+                                   (list %libm-make (first (rest (first l))) (first (rest (rest (first l)))))))
+                       (self (rest l)))))
+               %libm-rows)))
+        %image-recache-hooks))
 
-(def %strtod (%dlsym %libm "strtod"))
+(def %strtod (%libm-fn (lit %strtod) "ptr" "strtod"))
 
 (def %str->float
   (fn (_ s) (%ffi-call "s0->d" %strtod s)))
@@ -200,7 +228,7 @@
 ; function -- NOT an inline C convention.  The retired d%d convention was
 ; the binary's ONLY link-time libm reference; with it gone the link drops
 ; -lm entirely (%libm above already loads libm itself at runtime).
-(def %ffmod (%dlsym %libm "fmod"))
+(def %ffmod (%libm-fn (lit %ffmod) "ptr" "fmod"))
 (def %f-mod
   (fn (_ a b)
     (%make-instance %float (%ffi-call "dd->d" %ffmod (first a) (first b)))))
@@ -226,55 +254,42 @@
 
 (note "Math Functions")
 
-; Factory: resolve dlsym at definition time, return closure with cached pointer
+; Each resolves its symbol once and keeps the pointer in the closure; the
+; row it registers (%libm-fn above) is how an image gets it back.
 
-(def %libm-d
-  (fn (_ name)
-    (let ((sym (%dlsym %libm name)))
-      (fn (_ x)
-        (%make-instance %float (%ffi-call "d->d" sym (first x)))))))
+(def %fsin (%libm-fn (lit %fsin) "d->d" "sin"))
 
-(def %libm-dd
-  (fn (_ name)
-    (let ((sym (%dlsym %libm name)))
-      (fn (_ a b)
-        (%make-instance
-          %float
-          (%ffi-call "dd->d" sym (first a) (first b)))))))
+(def %fcos (%libm-fn (lit %fcos) "d->d" "cos"))
 
-(def %fsin (%libm-d "sin"))
+(def %ftan (%libm-fn (lit %ftan) "d->d" "tan"))
 
-(def %fcos (%libm-d "cos"))
+(def %fsqrt (%libm-fn (lit %fsqrt) "d->d" "sqrt"))
 
-(def %ftan (%libm-d "tan"))
+(def %fexp (%libm-fn (lit %fexp) "d->d" "exp"))
 
-(def %fsqrt (%libm-d "sqrt"))
+(def %flog (%libm-fn (lit %flog) "d->d" "log"))
 
-(def %fexp (%libm-d "exp"))
+(def %fabs (%libm-fn (lit %fabs) "d->d" "fabs"))
 
-(def %flog (%libm-d "log"))
+(def %ffloor (%libm-fn (lit %ffloor) "d->d" "floor"))
 
-(def %fabs (%libm-d "fabs"))
+(def %fceil (%libm-fn (lit %fceil) "d->d" "ceil"))
 
-(def %ffloor (%libm-d "floor"))
+(def %fround (%libm-fn (lit %fround) "d->d" "round"))
 
-(def %fceil (%libm-d "ceil"))
+(def %ftrunc (%libm-fn (lit %ftrunc) "d->d" "trunc"))
 
-(def %fround (%libm-d "round"))
+(def %frint (%libm-fn (lit %frint) "d->d" "rint"))
 
-(def %ftrunc (%libm-d "trunc"))
+(def %fasin (%libm-fn (lit %fasin) "d->d" "asin"))
 
-(def %frint (%libm-d "rint"))
+(def %facos (%libm-fn (lit %facos) "d->d" "acos"))
 
-(def %fasin (%libm-d "asin"))
+(def %fatan (%libm-fn (lit %fatan) "d->d" "atan"))
 
-(def %facos (%libm-d "acos"))
+(def %fpow (%libm-fn (lit %fpow) "dd->d" "pow"))
 
-(def %fatan (%libm-d "atan"))
-
-(def %fpow (%libm-dd "pow"))
-
-(def %fatan2 (%libm-dd "atan2"))
+(def %fatan2 (%libm-fn (lit %fatan2) "dd->d" "atan2"))
 
 ; --- Constants ---
 

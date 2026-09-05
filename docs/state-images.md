@@ -1348,15 +1348,16 @@ points them back.
 ## Not decided
 
 - **A `dlsym` external names only the symbol, and on glibc that is not
-  enough.** `num/float.x` opens libm with the default flags, which glibc
-  keeps out of the global scope, so the writer's `dladdr` → `dlsym` round
-  trip through its own handle fails for all 18 libm pointers, and every
-  library that loads float (float, rational, complex, decimal, tower) is
-  refused on Linux and boots from source. macOS folds libm into libSystem
-  and names all 18. The fix is a **library-qualified foreign external** —
-  `dladdr`'s `dli_fname` beside the symbol — that the loader resolves
-  through a handle on that library; additive to format v1, and it needs a
-  Linux box to prove, which CI's ubuntu leg is.
+  enough for a library the process dlopen'd itself.** CI's first Linux run
+  of the writer found it: glibc keeps `num/float.x`'s libm out of the
+  global scope, so none of its 18 pointers round-tripped and every
+  float-loading library was refused there. Float's answer is the transient
+  rule — each libm binding registers itself and one hook remakes them all
+  — so no libm pointer is an external at all. A module that must keep such
+  a pointer *as* an external would need a **library-qualified** one,
+  `dladdr`'s `dli_fname` beside the symbol, resolved by the loader through
+  a handle on that library: additive to format v1, and undecided until
+  something needs it.
 
 - **The writer half needs a door.** Reading needs the shape declaration above
   and nothing else; writing objects back means setting type words and flags, which today is raw word

@@ -327,13 +327,14 @@ structs and two indices; the loader does not care which is which.
    `%image-recache-hooks`, and this call runs them all, in the order they
    were added. Every image's
    library binds the name; `lib/img.x` binds it to nothing.
-   A value the image cannot carry at all -- `num/float.x`'s dlopen handle,
-   which no symbol names and which the module reaches again at call time
-   -- is a **transient**: the module lists the global in
-   `%image-transients`, the writer sets it to nil inside the child before
-   the walk, and the module's own hook re-derives it here. The function
-   pointers resolved through such a handle need nothing of the kind; each
-   is a symbol (§3.4).
+   A value the image cannot carry at all is a **transient**: the module
+   lists the global in `%image-transients`, the writer sets it to nil
+   inside the child before the walk, and the module's own hook re-derives
+   it here. `num/float.x`'s dlopen handle is one -- no symbol names it --
+   and so is every pointer resolved through it: a symbol of a library the
+   loader has not opened does not resolve (glibc keeps a dlopen'd libm out
+   of the global scope; macOS folds it into libSystem), so float registers
+   each such binding as it makes it and one hook remakes them all.
 
 The loader is silent when a runner drives it; with `%IMG-VERBOSE` bound it
 prints one line of counts and the unresolved externals by name.
