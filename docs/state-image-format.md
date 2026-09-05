@@ -377,9 +377,16 @@ test, not the unit test.
 ## 8. Open
 
 - **The read buffer** is process state and stays the loader's; the image
-  therefore cannot carry a partially consumed input, and does not try.
+  therefore cannot carry a partially consumed input, and does not try. So
+  does the **line counter**: `line` sits in the layout's build region, but
+  the C reader holds the counter atom directly and counts into it, so a
+  cell swapped under the reader reads 0 from then on. Writer and loader
+  leave it out of the roots, beside the profile counters and `sigint`.
 - **Object metadata** (`obj-meta-extra`: line and file ids) is not carried;
-  a loaded image's error reports have no source positions.
+  a loaded image's error reports have no source positions. The loader
+  rebuilds with the metadata width at 0 and puts it back after, so a
+  rebuilt object carries no META flag: with the flag over zeroed slots,
+  evaluating any imaged form would set the line counter to 0.
 - **Digests.** The header carries the engine release; it does not carry a
   digest of the library sources. `tools/dev/image-build.sh`'s key does that
   outside the file.

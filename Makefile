@@ -323,6 +323,7 @@ test-x: $(EXECUTABLE) ## Run x-lang tests
 IMG_DIR ?= .images
 test-x-img: $(EXECUTABLE) ## Run x-lang tests, booting each batch from a state image
 	sh tools/dev/image-build.sh lib/x-core.x $(IMG_DIR)
+	sh tools/dev/image-build.sh lib/x.x $(IMG_DIR)
 	SPEC_RUNNER_DIR="$(CURDIR)/tests" X_IMG_DIR="$(abspath $(IMG_DIR))" X_IMAGE_SPECS=1 sh tests/x/spec-runner.sh
 .PHONY: test-x-img
 

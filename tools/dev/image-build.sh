@@ -41,4 +41,12 @@ if [ ! -s "$img" ]; then
 	echo "image-build: no image written -- see $out/$name.log" >&2
 	exit 1
 fi
+# An unnameable is a word the loader will restore as nil -- a JIT entry
+# point, a lent object.  An image carrying one is a crash waiting for the
+# call that reaches it; it is not written.
+if ! grep -q 'unnameable: 0' "$out/$name.log"; then
+	echo "image-build: $img has unnameable words -- not kept; see $out/$name.log" >&2
+	rm -f "$img"
+	exit 1
+fi
 printf '%s\n' "$key" > "$keyf"
