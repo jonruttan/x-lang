@@ -24,7 +24,7 @@
 #   no network: deps/ is gitignored and a fresh worktree would otherwise try
 #   to acquire one.  Measured at ~3m for a full build plus test-fast.
 #
-# Runs `make test-fast` (the fast scan gates + test-c + test-x), NOT the full
+# Runs `make test-fast` (the fast scan gates, the ASan boot, test-c + test-x), NOT the full
 # `make test`: the full suite is too long to hold a push's SSH connection open
 # across the hook -- GitHub hangs up the idle channel before the transfer
 # starts.  CI remains the enforcing gate for the FULL surface:
