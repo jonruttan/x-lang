@@ -338,12 +338,25 @@ contesting type — and the platform can compile them:
 - **There are two JIT lanes.**  `compile-asm` (the assembler lane) emits
   machine code directly and needs no toolchain; `compile` (the cc lane)
   shells out to a PATH cc at runtime.  Analysers use the assembler lane.
-- **Fvars-present means analyser.**  The compiler discriminates its two
-  calling worlds by the fvar table: integer functions (called from x, prim
-  ABI, args evaluated and unboxed, result boxed) versus analysers (called
-  from C with live stack values — nothing evaluated, objects stay pointers,
-  result returned unboxed).  A compiled-with-fvars function is **for the
-  tokenizer, not for you**: direct-calling it crashes by contract.
+- **Fvars-present means analyser, unless you say otherwise.**  The compiler
+  has two calling worlds: integer functions (called from x, prim ABI, args
+  evaluated and unboxed, result boxed) versus analysers (called from C with
+  live stack values — nothing evaluated, objects stay pointers, result
+  returned unboxed).  It picks by the fvar table, so a compiled-with-fvars
+  function is **for the tokenizer, not for you**: direct-calling it crashes
+  by contract.  `compile-asm`'s optional **third** argument overrides that
+  guess — pass `#f` for an integer function that carries fvars for some
+  other reason, which is what calling a named callee needs.
+- **A compiled function can call something other than itself.**  A name
+  bound to an fvar that holds a prim compiles to a call to that prim, and
+  `(%call HEAD arg ...)` calls a prim the code *computes* — a callback
+  parameter, a pointer out of a dispatch table.  Both build the same
+  argument list the self-call builds, and both check at run time that the
+  head really is a callable prim rather than branching into its first word.
+  Up to four arguments, and the callee gets **every** parameter it declares
+  (passing fewer segfaults).  A head the emitter cannot resolve still
+  refuses at generation: silently compiling one as a self-call is what
+  once produced an infinite recursion and a crash far from the cause.
 - `%score-set`'s sign folds `(- 0 1)` and raises loudly on other
   non-literals; any other non-trivial constant belongs in an fvar.
 - **Adopt with sha256.x's pattern**: lazy, threshold-triggered, the whole

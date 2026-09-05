@@ -113,28 +113,34 @@
 (def %asm-cache-identity (Str append x-machine x-release))
 
 ; The emitted code is not a function of the source alone, so the fvar table's
-; SHAPE is part of the key.  An empty table compiles a pure integer function
-; whose result is boxed; a non-empty one compiles an analyser returning an
-; object.  And inside analyser mode a name absent from the table is read as a
-; PARAMETER, while a name present-but-nil is emitted as a literal zero with no
-; relocation at all -- three different bodies for one source text.  Names and
-; nil-ness, then; the VALUES are per-process, and re-resolving those by name is
-; what the relocation records are for.
+; SHAPE is part of the key.  Inside analyser mode a name absent from the table
+; is read as a PARAMETER, while a name present-but-nil is emitted as a literal
+; zero with no relocation at all -- two different bodies for one source text.
+; Names and nil-ness, then; the VALUES are per-process, and re-resolving those
+; by name is what the relocation records are for.
+;
+; AND THE CALLING WORLD, which used to be readable off the table (empty meant
+; an integer function whose result is boxed, non-empty meant an analyser
+; returning an object) and no longer is: an integer function may now carry an
+; fvar naming a callee it calls.  So ANALYSER? is keyed in its own right.
+; Leaving it out would let one source text with one fvar table hit an entry
+; compiled in the OTHER world -- the wrong body, handed back as a hit, which
+; is the one thing a cache must never do.
 (def %asm-cache-mode
-  (fn (_ fvars)
+  (fn (_ fvars analyser?)
     ((fn (self fs acc)
        (if (null? fs) acc
          (self (rest fs)
            (Str append acc "|" (symbol->str (first (first fs)))
              (if (null? (rest (first fs))) "=" ":")))))
-      fvars "")))
+      fvars (if analyser? "!a" "!i"))))
 
 ; The full text a hit must match.  It is both hashed into the filename and
 ; STORED IN THE ENTRY, so a 64-bit collision costs a miss rather than handing
 ; back the wrong function: the load compares this text before it trusts a byte.
 (def %asm-cache-text
-  (fn (_ expr fvars)
-    (Str append %asm-cache-identity (%asm-cache-mode fvars)
+  (fn (_ expr fvars analyser?)
+    (Str append %asm-cache-identity (%asm-cache-mode fvars analyser?)
                 (%asm-cache-wts expr))))
 
 ; Decimal, through write-to-str -- one native call.  The hex spelling the cc
@@ -179,9 +185,9 @@
 ; x/tool/asm-compile is reached from, and every path that declines to use the
 ; cache comes through here.
 (def %asm-cache-uncached
-  (fn (_ expr fvars)
+  (fn (_ expr fvars analyser?)
     (import x/tool/asm-compile)
-    (%asm-compiler expr fvars)))
+    (%asm-compiler expr fvars analyser?)))
 
 ; Two reasons to leave the cache out of it entirely.
 ;
@@ -561,21 +567,31 @@
 (def compile-asm
   (fn (_ expr . %asm-rest)
     (def fvars (unless (null? %asm-rest) (first %asm-rest)))
+    ; THE CALLING WORLD IS DECIDED HERE, at the door, and nowhere else.  An
+    ; absent third argument keeps the historical reading -- fvars present
+    ; means analyser -- which is what every caller written before there was
+    ; a third argument means.  It is settled here rather than downstream so
+    ; that the key below and the compile below name the same answer.
+    (def analyser?
+      (if (null? %asm-rest) #f
+        (if (null? (rest %asm-rest))
+          (not (null? fvars))
+          (first (rest %asm-rest)))))
     ; Whether to stand aside is decided FIRST, before the printer is asked for
     ; anything: on that path this module gets out of the way entirely and the
     ; expression takes the route it took before there was a cache.
     (if (%asm-cache-stand-aside? expr)
-      (%asm-cache-uncached expr fvars)
+      (%asm-cache-uncached expr fvars analyser?)
       (do
         ; The key text and the path hashed from it are computed ONCE and handed
         ; down: hashing the same text again for the store, or for the sibling
         ; file, would cost as much as hashing it did the first time.
-        (def text (%asm-cache-text expr fvars))
+        (def text (%asm-cache-text expr fvars analyser?))
         (def base (%asm-cache-path text))
         (def hit (%asm-cache-load text base fvars))
         (if (not (null? hit)) hit
           (do
-            (def f (%asm-cache-uncached expr fvars))
+            (def f (%asm-cache-uncached expr fvars analyser?))
             (%asm-cache-store! text base %asm-last-size %asm-last-relocs %asm-last-buf)
             f))))))
 
@@ -583,7 +599,11 @@
   (returns CALLABLE "X-lang callable prim")
   "JIT compile an x-lang (fn ...) expression to a native prim, through a
    persistent byte cache.  Accepts an optional fvar alist for free variable
-   support.  The compiled function works with map, fold, closures, etc.")
+   support, and an optional third argument declaring analyser mode (default:
+   fvars present).  An fvar holding a prim may be CALLED by name; (%call HEAD
+   arg ...) calls a prim the code computes, and refuses at run time if the
+   head is not one.
+   The compiled function works with map, fold, closures, etc.")
 
 (doc (provide x/tool/asm-cache compile-asm)
   "The compile-asm door: a persistent cache of emitted native code, over the

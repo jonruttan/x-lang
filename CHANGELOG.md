@@ -5,6 +5,30 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A compiled function can call something other than itself.** The
+`compile-asm` lane refused every head but the function's own name, so a
+compiled function could recurse and nothing else: anything a lane function
+needed from another function had to be inlined into it, which cannot reach a
+callee that loops. Two shapes join the self-call. A name bound to an fvar
+holding a prim compiles to a call to that prim, its address baked at
+generation (#603). `(%call HEAD arg ...)` takes an **operand** as its head
+— a callback parameter, a pointer read out of a dispatch table — so which
+prim runs is decided at run time (#604); C function pointers are exactly
+that shape, and a compiled caller of one no longer has to drop back to the
+interpreter. Both build the argument list the self-call already built and
+hand `(callee arg0 ...)` to a new `jit_call_value` trampoline, which
+**checks the head is a callable prim before it branches**: on anything else
+the word it would jump through is a length or a character, and the crash
+would have no relation to the call site. A head the emitter cannot resolve
+— an unbound name, an fvar holding a non-prim, an unimplemented operator —
+still refuses at generation. Analyser mode is now *declared* rather than
+inferred: `compile-asm` takes an optional third argument, defaulting to the
+old fvars-present guess, so an integer function may carry a callee fvar
+without its params silently ceasing to evaluate. The byte cache's key
+carries that mode in its own right for the same reason it carries the fvar
+table's shape: the two worlds emit different bodies for one source text,
+and a key that could not tell them apart would serve the wrong one as a hit.
+
 **A lang can word the engine's errors.** `(no-such-binding)` reached x-lang as
 a bare, type-less atom holding one pre-flattened English string — "Unbound
 SYMBOL 'no-such-binding'" — with the symbol already concatenated in and thrown
