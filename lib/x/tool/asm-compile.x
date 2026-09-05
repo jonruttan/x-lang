@@ -199,7 +199,17 @@
 (set! %asm-compile-expr
   (fn (_ asm expr params)
     (%set-first! %asm-gc-tick (+ (first %asm-gc-tick) 1))
-    (when (= 0 (%asm-int% (first %asm-gc-tick) %asm-gc-window)) (Heap collect))
+    ; NOT WHILE A FILE IS LOADING.  A compile that runs during an include --
+    ; the tower's own boot is one -- would collect with the include wrapper's
+    ; frame and restore compound parked in the loader's C locals, where the
+    ; collector cannot see them (x_eval_load; x-engine-c fix/load-roots).
+    ; The wrapper then resumes into freed memory.  %include-dir-cell is the
+    ; wrapper's own record of what is loading: nil means nothing is, and the
+    ; window collect is safe; otherwise the entry's boot collect reclaims the
+    ; burst once the include has returned (lib/xe.x).
+    (when (and (= 0 (%asm-int% (first %asm-gc-tick) %asm-gc-window))
+               (eq? (first %include-dir-cell) ()))
+      (Heap collect))
     (if (null? expr)
       (asm-emit! asm 'mov x0 (imm 0))    ; nil = NULL = 0
       (if (number? expr)

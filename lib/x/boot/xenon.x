@@ -45,9 +45,14 @@
 ; into its budget and carry it for life, which is how a bundle spec batch came
 ; to sit at 83-97% of a 300M ceiling.
 ;
-; HERE, NOT IN boot/tower-compiled.x, though that is where the burst is made:
-; that file is importable and gets imported (doctest walks every module), and a
-; collect inside an importer's process frees what the importer was holding.
-; See the note at the end of that file.  Boot is the safe moment; a dialect
-; body is never imported.  Cost ~0.2s of a ~5s boot.
-((prim-ref (lit heap) (lit collect)))
+; NOT HERE EITHER.  This body is reached through `include`, and the include
+; wrapper (boot/module.x) is a procedure mid-call while it loads: its formals
+; and its restore compound are the importer's state, and the engine parks
+; them where the collector cannot see them for the length of the load
+; (x_eval_load, x-engine-c fix/load-roots).  A collect on this line swept
+; them, and the wrapper resumed into freed memory -- a SIGSEGV in symbol
+; lookup wherever the allocator reuses a freed cell at once (glibc; x86-64
+; Linux CI), luck everywhere else.  The safe moment is one line later than
+; this file can reach: the ENTRY's top level, after `include` returns, where
+; nothing is in flight.  The collect lives in lib/xe.x; the measurements
+; above are why it exists at all.

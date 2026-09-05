@@ -15,6 +15,10 @@
 ;     (   )
 ;      " "
 (include "lib/x/boot/radon.x")
+; Reclaim the tower's load burst -- the same collect, at the same moment, for
+; the same reason as lib/xe.x: the entry's top level, after the include has
+; returned, is the first point at which nothing is in flight.
+((prim-ref (lit heap) (lit collect)))
 ; Interactive launcher, unless x.sh passed --batch (see repl/banner.x).
 ; Kept at top level -- (repl) inside the body include would read the
 ; file's EOF, not the session's stdin (see boot/radon.x).
