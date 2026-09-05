@@ -325,6 +325,62 @@ the mark.
 What it does guarantee is self-consistency, and that is worth checking after
 any change: the extent table must sum to exactly the object table's unit
 count, and the section sizes must add up to the file length.
+## An x86-64 Linux box
+
+```sh
+sh tools/dev/x86-vm.sh up            # boot (first run provisions; minutes)
+sh tools/dev/x86-vm.sh run 'make -s' # sync this checkout in and run something
+sh tools/dev/x86-vm.sh ssh           # interactive shell
+sh tools/dev/x86-vm.sh down          # graceful shutdown
+```
+
+CI covers `ubuntu-24.04`, so x86-64 Linux is tested -- but on Apple
+Silicon there was no way to *reach* it, and a platform whose only test
+is a twelve-minute round trip through CI is a platform that gets fixed
+by guessing. This is the local one.
+
+It has to be a full-system VM. The cheap routes were tried first and
+each of them answers the wrong question: Rosetta 2 gives x86-64 with
+macOS underneath (right ISA, wrong OS -- it does not reproduce the JIT
+crash the remote Linux box does); Rosetta for Linux dies on an
+unimplemented syscall; qemu-user and `docker --platform linux/amd64`
+crash the *known-good* configuration, so a crash under them proves
+nothing; VirtualBox cannot run an x86-64 guest on an arm64 host.
+`qemu-system-x86_64` emulates the MMU, so freshly-mmap'd JIT pages are
+invalidated and re-translated the way real hardware would do it.
+
+The price is speed -- TCG is roughly an order of magnitude off native,
+so a tower boot is minutes rather than the six seconds it takes on
+arm64. Use it to reproduce and bisect; use CI or a real x86-64 host for
+full suite runs.
+
+The guest gets 8G and 4G of swap, which is not generosity. A cold tower
+boot peaks at 2.4G on arm64 and more here, and a 4G guest was
+OOM-killed evaluating `(display 1)`. qemu allocates guest memory
+lazily, so the ceiling costs the host nothing until it is touched.
+
+It also contains the blast radius. The allocation ceiling is not an
+OOM guard -- the runners default to a limit well past physical memory,
+and a runaway engine has taken a workstation down more than once. In
+the guest it hits a 4G wall and the guest's own OOM killer reaps it.
+
+The guest starts empty: `sync` sends the tree, and the checkout still
+has to acquire an engine for *its* platform before anything runs.
+
+```sh
+sh tools/dev/x86-vm.sh run 'make engine && make'
+sh tools/dev/x86-vm.sh ssh  'cd x-lang && sh x.sh -q -l xe -f prog.x'
+```
+
+`X86_VM_SRC=/path/to/worktree` sends a different checkout, which is what
+a worktree-per-branch layout needs -- the branch under test is rarely
+the one this script happens to sit in.
+
+Needs `qemu` (`brew install qemu`). State lives in
+`~/.cache/x-lang/x86-vm`, never in the checkout, so `destroy` cannot
+take a source tree with it. The sync sends files without `.git`, which
+is enough to build the engine and run the specs; the gates that shell
+out to git want a clone.
 
 ## Others
 
