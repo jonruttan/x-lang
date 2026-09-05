@@ -81,6 +81,29 @@
         (guard (_ interp) (compile src fvars))
         interp))))
 
+; The ladder's MIDDLE RUNG is for bodies EITHER compiler can lower, and none of
+; the analyser STATES below is one.  They speak the tokenizer protocol -- they
+; loop by returning their self param, and they call %score-set and
+; %buffer-unread -- and every part of that is the ASSEMBLER lane's:
+; the self param resolves to firstobj of p_args with no eval and no unbox
+; (#583), and the trampolines are its own.  Grep the cc lane for analyser mode,
+; object params or a self param and there is nothing; it is simply the wrong
+; compiler for these bodies, whatever it does with one.
+;
+; The ENTRY analysers above are different and keep the full ladder: they only
+; test a character and hand back a state, which the cc lane has lowered
+; correctly for as long as it has existed.
+;
+; So every state takes the asm lane or stays interpreted, nothing in between.
+; The point is not only to avoid a bad compile -- it is that on a host WITHOUT
+; native/jit this whole section must be a strict NO-OP, leaving exactly the
+; interpreted states that were there before it was written.  CI's ubuntu engine
+; is that host, and it is where the ladder's middle rung was found reaching
+; these bodies at all.
+(def %tower-asm-only
+  (fn (_ src fvars interp)
+    (if %tower-jit? (guard (_ interp) (compile-asm src fvars)) interp)))
+
 ; --- Compile the quote-family analysers and swap them into the symbol
 ;     type's analyse list.  x-core.x (lit-reader.x) installed interpreted
 ;     versions; these run on every char while tokenizing, so compiling them
@@ -223,6 +246,29 @@
       (if (or (= chr #\-) (= chr #\+)) %int-capped-sign ())
       (if (= chr #\0) %int-capped-base
         (if (<= chr #\9) %int-capped-digits ())))))
+; --- The per-character digit LOOPS ---
+; Each of these is entered once per token and then runs once per CHARACTER
+; until the token ends, which is where a number's reading cost actually goes.
+; They loop by returning their self param (`me`), so the whole run of digits
+; stays in native code instead of re-entering the interpreter per character.
+; The states they hand off to at the END of a run are left interpreted: those
+; fire once per token, and an interpreted state resolves its successor by
+; global name at call time, so it picks up whichever of these is installed.
+; %big-digits and %int-capped-digits are NOT compiled, and the attempt is not
+; made.  Both close their run by measuring the token -- (%buffer-len buffer),
+; against %int-max-digits -- and the lane has no door for it, so the compile
+; raises.  A raise here is not free the way a miss is: the compiler emits most
+; of the body before it reaches the form it cannot lower, nothing is cached
+; because nothing was produced, and the attempt drags in asm-compile.x (2.5M
+; evals) on a boot that would otherwise never load it.  Measured, the two
+; attempts alone cost ~14M evals of a 65M boot -- more than every successful
+; state put together.
+;
+; So they stay interpreted, declared here rather than discovered each boot.
+; The other five types' states still compile, and they run on the same
+; characters, which is why an integer literal still reads 58% cheaper.
+; Compiling these two wants a buffer-length door on the lane.
+
 (%type-push-analyse (%type-by-atom (%type-of (Num expt 2 64)))
   (%tower-asm
     (lit (fn (_ buffer score chr)
@@ -249,6 +295,73 @@
 
 ; 3. Float
 (include "lib/x/num/float.x")
+; --- The STATES, not just the entry test (x-lang#596's parked half) ---
+;
+; The entry analyser runs once per token; the states run once per CHARACTER,
+; and until now every one of them was interpreted -- which is why a number
+; costs so much more than an identifier to read.  Measured on this tree, 2000
+; literals each, over the cost of the same count of symbols: a float literal
+; +60,036 evals, an int +21,793.
+;
+; This could not be written until a compiled analyser could return ITSELF
+; (#583) and call itself (#596): a looping state continues a token by handing
+; the same handler back, and the function's own pointer does not exist until
+; its compile finishes, so no fvar can carry it.  The self param does -- it is
+; slot 0 of the callee's own argument list.  `me` names it below.
+;
+; It was also not worth doing until compiling was cheap.  Each of these is
+; another compile-asm call on every boot; with the byte cache (#590) they are
+; a load rather than a compile from the second process onward.
+;
+; ORDER IS LOAD-BEARING, twice.  A state that hands off to another takes it as
+; an fvar, which bakes the value that name holds AT COMPILE TIME -- so the
+; innermost state compiles first, or the compiled one hands back an
+; interpreted successor and the loop drops out of native code on its first
+; transition.  And all four compile before the ENTRY analyser below, which
+; names two of them the same way.
+(def %float-frac-interp %float-frac)
+(def %float-first-frac-interp %float-first-frac)
+(def %float-int-digits-interp %float-int-digits)
+(def %float-neg-int-interp %float-neg-int)
+(set! %float-frac
+  (%tower-asm-only
+    (lit (fn (me buffer score chr)
+      (if (and (>= chr 48) (<= chr 57))
+        me
+        (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
+    ; A lone throwaway fvar forces analyser mode for a body whose only free
+    ; name is its own self param.
+    (list (pair (lit _u) 1))
+    %float-frac-interp))
+(set! %float-first-frac
+  (%tower-asm-only
+    (lit (fn (_ buffer score chr)
+      (if (and (>= chr 48) (<= chr 57))
+        (%seq (%score-set score 1 buffer) %float-frac)
+        ())))
+    (list (pair (lit %float-frac) %float-frac))
+    %float-first-frac-interp))
+(set! %float-int-digits
+  (%tower-asm-only
+    (lit (fn (me buffer score chr)
+      (if (and (>= chr 48) (<= chr 57))
+        me
+        (if (= chr 46) %float-first-frac ()))))
+    (list (pair (lit %float-first-frac) %float-first-frac))
+    %float-int-digits-interp))
+; %float-neg-int -- the SIGN state -- is deliberately NOT compiled.
+;
+; #49 was "a compiled analyser captured something nothing rooted, a later
+; collect freed it, and the next leading '+'/'-' jumped into freed memory",
+; and the sign states are where it lived: every other tower stage keeps its
+; sign state a module-level def for exactly that reason.  Two of the radon
+; smoke cases that fail on CI with the states installed are #49's own
+; regressions, and this is the only sign state among them.
+;
+; It is also the cheapest one to give up: a sign runs ONCE per token, not once
+; per character, so leaving it interpreted costs almost nothing of the win
+; while removing the one shape with a history of exactly this failure.
+
 ; The interpreted twin, for an engine with no JIT.  Must agree with
 ; the compiled form below.
 (def %float-analyse-interp
@@ -277,6 +390,24 @@
 ; jumped into freed memory (#49).
 ; The interpreted twin, for an engine with no JIT.  Must agree with
 ; the compiled form below.
+(def %rat-numer-interp %rat-numer)
+(def %rat-denom-interp %rat-denom)
+(set! %rat-denom
+  (%tower-asm-only
+    (lit (fn (me buffer score chr)
+      (if (and (>= chr 48) (<= chr 57))
+        (%seq (%score-set score 1 buffer) me)
+        (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
+    (list (pair (lit _u) 1))
+    %rat-denom-interp))
+(set! %rat-numer
+  (%tower-asm-only
+    (lit (fn (me buffer score chr)
+      (if (and (>= chr 48) (<= chr 57))
+        me
+        (if (= chr 47) %rat-first-denom ()))))
+    (list (pair (lit %rat-first-denom) %rat-first-denom))
+    %rat-numer-interp))
 (def %rat-analyse-interp
   (fn (_ buffer score chr)
       (if (< chr 48)
@@ -296,6 +427,49 @@
 (include "lib/x/num/complex.x")
 ; The interpreted twin, for an engine with no JIT.  Must agree with
 ; the compiled form below.
+(def %cx-real-int-interp %cx-real-int)
+(def %cx-real-frac-interp %cx-real-frac)
+(def %cx-imag-int-interp %cx-imag-int)
+(def %cx-imag-frac-interp %cx-imag-frac)
+(set! %cx-imag-frac
+  (%tower-asm-only
+    (lit (fn (me buffer score chr)
+      (if (and (>= chr 48) (<= chr 57))
+        me
+        (if (= chr 105) (%score-set score 1 buffer) ()))))
+    (list (pair (lit _u) 1))
+    %cx-imag-frac-interp))
+(set! %cx-imag-int
+  (%tower-asm-only
+    (lit (fn (me buffer score chr)
+      (if (and (>= chr 48) (<= chr 57))
+        me
+        (if (= chr 46) %cx-imag-dot
+          (if (= chr 105) (%score-set score 1 buffer) ())))))
+    (list (pair (lit %cx-imag-dot) %cx-imag-dot))
+    %cx-imag-int-interp))
+(set! %cx-real-frac
+  (%tower-asm-only
+    (lit (fn (me buffer score chr)
+      (if (and (>= chr 48) (<= chr 57))
+        me
+        (if (= chr 43) %cx-sign
+          (if (= chr 45) %cx-sign
+            (if (= chr 105) (%score-set score 1 buffer) ()))))))
+    (list (pair (lit %cx-sign) %cx-sign))
+    %cx-real-frac-interp))
+(set! %cx-real-int
+  (%tower-asm-only
+    (lit (fn (me buffer score chr)
+      (if (and (>= chr 48) (<= chr 57))
+        me
+        (if (= chr 46) %cx-real-dot
+          (if (= chr 43) %cx-sign
+            (if (= chr 45) %cx-sign
+              (if (= chr 105) (%score-set score 1 buffer) ())))))))
+    (list (pair (lit %cx-real-dot) %cx-real-dot)
+          (pair (lit %cx-sign) %cx-sign))
+    %cx-real-int-interp))
 (def %cx-analyse-interp
   (fn (_ buffer score chr)
       (if (< chr 48)
@@ -322,6 +496,34 @@
 (include "lib/x/num/decimal.x")
 ; The interpreted twin, for an engine with no JIT.  Must agree with
 ; the compiled form below.
+(def %dec-int-interp %dec-int)
+(def %dec-frac-interp %dec-frac)
+(def %dec-exp-digits-interp %dec-exp-digits)
+(set! %dec-exp-digits
+  (%tower-asm-only
+    (lit (fn (me buffer score chr)
+      (if (and (>= chr 48) (<= chr 57)) me
+        (if (= chr 100) (%score-set score 1 buffer) ()))))
+    (list (pair (lit _u) 1))
+    %dec-exp-digits-interp))
+(set! %dec-frac
+  (%tower-asm-only
+    (lit (fn (me buffer score chr)
+      (if (and (>= chr 48) (<= chr 57)) me
+        (if (= chr 100) (%score-set score 1 buffer)
+          (if (or (= chr 101) (= chr 69)) %dec-exp-sign ())))))
+    (list (pair (lit %dec-exp-sign) %dec-exp-sign))
+    %dec-frac-interp))
+(set! %dec-int
+  (%tower-asm-only
+    (lit (fn (me buffer score chr)
+      (if (and (>= chr 48) (<= chr 57)) me
+        (if (= chr 100) (%score-set score 1 buffer)
+          (if (= chr 46) %dec-first-frac
+            (if (or (= chr 101) (= chr 69)) %dec-exp-sign ()))))))
+    (list (pair (lit %dec-first-frac) %dec-first-frac)
+          (pair (lit %dec-exp-sign) %dec-exp-sign))
+    %dec-int-interp))
 (def %dec-analyse-interp
   (fn (_ buffer score chr)
       (if (< chr 48)
