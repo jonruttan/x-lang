@@ -137,7 +137,10 @@
 ; siblings) because %tower-asm's whole contract is that any rung may drop to
 ; the one below -- a twin per state is what "always correct, never raises"
 ; costs -- plus %tower-asm-only, the ladder without its middle rung.
-(file "lib/x/boot/tower-compiled.x" 29)
+; ...and 29 to 38 for the rest of the analyser states -- rational, complex and
+; decimal joining float.  Each keeps a named interpreted twin, because
+; %tower-asm-only's contract is that the rung below is always available.
+(file "lib/x/boot/tower-compiled.x" 38)
 (file "lib/x/codec/json.x" 30)
 (file "lib/x/codec/sha256-jit.x" 34)
 (file "lib/x/codec/sha256.x" 33)
