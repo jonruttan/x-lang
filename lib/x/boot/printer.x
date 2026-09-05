@@ -340,6 +340,14 @@
 (def %print-str-tw  (%reflect-type-word ""))
 (def %print-symq-tw (%reflect-type-word (lit q)))
 (def %print-listq-tw (%reflect-type-word (lit (0))))
+; Addresses again -- recomputed after a state image loads (reflect.x).
+(set! %image-recache-hooks
+  (pair (fn (_)
+          (do (set! %print-int-tw  (%reflect-type-word 0))
+              (set! %print-str-tw  (%reflect-type-word ""))
+              (set! %print-symq-tw (%reflect-type-word (lit q)))
+              (set! %print-listq-tw (%reflect-type-word (lit (0))))))
+        %image-recache-hooks))
 (def %print-int-wnode  (%print-node-of (%print-type-of 0)        %print-wstack-parent))
 (def %print-int-dnode  (%print-node-of (%print-type-of 0)        %print-dstack-parent))
 (def %print-str-wnode  (%print-node-of (%print-type-of "")       %print-wstack-parent))

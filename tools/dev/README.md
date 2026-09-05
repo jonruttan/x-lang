@@ -147,6 +147,185 @@ identical work per block whatever the bytes are -- no build artifact
 needed. The three FIPS vectors are checked on every run before any
 timing is reported; a fast wrong digest is worth nothing.
 
+## State image writer
+
+Writes the live heap out as a binary state image -- the writer half of
+[../../docs/state-images.md](../../docs/state-images.md).
+
+```sh
+sh x.sh -q -f tools/dev/image-write.x        # helium, to /tmp/x-core.ximg
+sh x.sh -q -l xe -f tools/dev/image-write.x  # xenon
+```
+
+It images the base it runs in, so the dialect flag chooses what gets imaged.
+Output path is the `%IMG` def near the bottom of the file.
+
+`image-walk.x` holds the heap walk and unit reader both image tools share; it
+is a file rather than a copy in each because its three rules were each learned
+by breaking them. Run it from the repository root -- the include is
+cwd-relative -- and note that `tools/dev/lint.sh` does not follow the include,
+so the two including files report the shared names as undefined. `make lint-x`
+covers `lib/` and `apps/`, not `tools/`, so nothing is gated on it.
+
+## Foreign-unit census
+
+```sh
+sh x.sh -q -f tools/dev/image-foreign.x
+```
+
+Counts how many of the heap's foreign units the image can actually name. Every
+foreign unit holds a raw address and no address survives into another process,
+so each has to be reacquired by name. Three sources, and between them they
+reach 142 of 146:
+
+| source | names |
+|---|--:|
+| the prims catalog | 104 |
+| the bare globals the ISA contract declares (`%isa-bare`) | 24 |
+| `dladdr`, round-trip checked back through `dlsym` | 17 |
+| still unnamed | 4 |
+
+None of them goes looking. Nothing in x safely can: `first` is unchecked, so
+`(first 5)` segfaults; `pair?` answers #f for the structural pairs the base
+spine is built from; and `%reflect-type-word` is itself a dereference, so even
+asking "may I walk this?" is the unsafe act. Names are declared, looked up, or
+asked of the dynamic linker.
+
+The image carries the object graph -- extent table, object table and byte blob,
+with every reference resolved to an object index -- and a **foreign table**:
+one entry per named address, as a kind word, a name-length word and the name
+bytes padded to a word boundary. Foreign units in the object table are indices
+into it. The section references nothing else, so it can be built before the
+object walk.
+
+It also carries a **type table** -- one entry per distinct type word the heap
+actually uses, as kind, unit count, unit mask and name -- and object records
+name their type by index into it. A count may be negative: that is the
+slot-0-counted form, and the loader needs the sign as much as the magnitude.
+
+**The root is the environment, not the base.** The base object is traced but
+is not on the allocation chain, so no walk reaches it and it is not in the
+image at all -- which is right rather than missing: the base is the static
+spine, readable only through `base-layout.x` and `base-paths.x`, and a loader
+rebuilds it. What a loader reattaches is what hangs off it, so the header
+records the imaged indices of the env-alist and the global tree, both of which
+are flagged, traced and on the chain.
+
+References into the base's spine are recorded as a **statics table**: the
+first/rest steps that reach each node from the base, taken from `base-paths.x`
+and following only declared steps. Every prefix of every row is recorded, not
+just its leaf, because a reference may land on an interior pair no row ends
+at. A ref unit that names a static is emitted NEGATIVE, so it cannot collide
+with an object index.
+
+A reference nameable neither way gets `-(statics+1)`, one past the table,
+rather than 0 -- 0 is nil in this format, so writing an unnameable reference
+as 0 restores it as an empty list, which is a silent wrong answer. 161
+references currently land there: spine nodes no declared path reaches.
+
+A foreign address that a whole TYPE shares -- every PROCEDURE holds the
+engine's procedure-call function, every OPERATIVE holds its own -- is named by
+the **type**, not by a symbol. Such an address is internal, so `dladdr` names
+it and `dlsym` will not give it back, and it needs no symbol anyway: a loader
+creating an object of that type already knows which call function to install.
+Which types qualify is measured, not assumed -- `PRIMITIVE` and `POINTER` also
+carry a foreign unit 0 and theirs differ per instance, so a type qualifies only
+if every instance agrees.
+
+A `dlopen` **handle** is named as itself: it is not a symbol and `dladdr` will
+never name one, but a loader reacquires it by calling `dlopen` again. An empty
+payload means the process handle.
+
+Nothing unnameable is written as 0 any more, in either table. 0 means nil for
+both a reference and a foreign unit, so an address that could not be named
+would come back as "no address" instead of failing -- the same silent-wrong
+shape twice. Both now emit a value one past their table, which a loader can
+refuse.
+
+**Still not loadable**, because nothing can read the file until the engine
+grows the allocate-and-patch loop. What remains unnamed is:
+
+| | |
+|---|--:|
+| references to spine nodes no declared path reaches | 159 |
+| foreign units genuinely unnameable | 3 |
+| foreign units that are the writer's own buffers | 8 |
+
+The last row is not a gap in the format. An address `malloc` handed *this*
+process means nothing in another, and those pointers are in the heap only
+because the writer images the base it runs in. The 3 are two library-owned
+allocations and one engine-internal primitive that no naming source reaches.
+
+### What they take from the system
+
+The engine carries its own C library and syscalls -- `x-stdlib.h` and
+`x-sys.h` -- so that a runtime need not assume a C library on the machine that
+runs it. None of it was reachable from x, so these tools reached
+`dlopen`/`dlsym` for libc's instead, borrowing exactly the dependency the
+engine went to the trouble of avoiding.
+
+They now use the engine's, through the coordinates that expose it:
+`(ptr alloc)`, `(ptr free!)`, `(ptr copy!)`, `(ptr fill!)`, `(sys read)`,
+`(sys write)`.
+
+What remains is `dlopen` / `dlsym` / `dladdr`, and only for **naming**: an
+image records a foreign address by the symbol it answers to, and reacquires it
+by that name in another process. That is the dynamic linker's job and the
+engine has no substitute for it. It is a design question -- what a portable
+image should do about C addresses at all -- rather than a missing door.
+
+**A note on testing this.** `make` builds the normal engine; the sanitiser
+build is a separate target and is NOT rebuilt with it. Running these tools
+against a stale sanitiser build after adding a coordinate makes `prim-ref`
+return nil for it, so a buffer becomes nil and every write lands somewhere
+arbitrary -- which reads as a memory-safety bug in the tools rather than as a
+stale binary. An image written by one build and read by another goes wrong the
+same way, and the header carries digests to refuse exactly that, which these
+tools do not yet check. Rebuild both, and check the digests.
+
+### Imaging a child base
+
+`%IMG`'s neighbour `%B` chooses which base gets imaged, and everything --
+naming map, statics, roots, cursor -- is parameterised for it. A child base has
+its own allocation chain (1,799 objects against the parent's 80,320) and the
+walks allocate in the parent, so a child's chain does not grow while it is
+walked: nothing the writer allocates could reach the file.
+
+**It is not switched on, and it is not an engine bug.** An earlier version of
+this section said it crashed the collector, on no evidence: the reduction it
+gave -- a run of cross-base evals, a large malloc, then a collect that
+segfaulted -- named where the fault *surfaced*, not where it came from.
+
+Two causes have been found since, both in this tree:
+
+- **Shapes are per-base.** A fresh base has no library, so none of the
+  `(Type set-shape!)` declarations ran on it, and a type with no mask means
+  "every unit is a reference" -- so reading a child's units generically
+  dereferences a `PROCEDURE`'s call pointer. Fixed:
+  `(%type-declare-shapes! (first (b cell 'type-alist)))` declares them on any
+  base, and this is very likely what the "collector crash" was.
+- **The walk cursor is unrooted in the child.** `(Base eval)` restores the
+  target's env on the way out, so a pair it allocates is unreachable from the
+  child the instant it returns, and the walk reads freed memory --
+  AddressSanitizer reports a heap-use-after-free. Binding the cursor into the
+  child did not clear it. Still open.
+
+A fresh child is also bare -- the C ISA and no library -- so loading something
+into it is a further problem behind those.
+
+Two things to know when reading one. The writer images the base it runs in, so
+its own libc doors (`malloc`, `calloc`, `write`, `creat`) appear among the
+foreign entries -- that is the writer-in-its-own-base problem the document
+records, showing through. And, **observed but not diagnosed**, the heap appears to be markable only once per process:
+`(heap chain-clear!)` permanently disables any later `(heap tree-mark!)`, and a
+mark after a clear flags nothing at all, silently, so every later walk reports
+a clean zero. Passes that need no reachability use `%walk-all` and run before
+the mark.
+
+What it does guarantee is self-consistency, and that is worth checking after
+any change: the extent table must sum to exactly the object table's unit
+count, and the section sizes must add up to the file length.
+
 ## Others
 
 - `tools/dev/bench.sh` -- library-load benchmarks over `x-bin-profile`

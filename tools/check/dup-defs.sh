@@ -17,6 +17,12 @@
 #     the adjudicated allowlist below or every definition lives in the
 #     per-arch backend directory (lib/x/tool/asm/ -- one loads per host).
 #
+# Out of scope: lib/img.x, the state-image loader's dialect.  It is a
+# runtime of its own -- it loads nothing of lib/x, nothing of lib/x loads
+# into it, and its loader replaces the whole env at install -- so its
+# function-only `do`, `prim-ref`, `newline` and the rest never share a base
+# with the boot's.  Same rule as the per-arch backends: it cannot co-load.
+#
 # Scope: lib/ + apps/ + tools/ (everything that can co-load into one
 # base env -- the driver scripts load x-core and then their tool file, so
 # tools/ globals land in the same env; the %lookup rebind fixed in #252
@@ -49,7 +55,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_DIR" || exit 1
 
-_FILES=$(find lib apps tools -name '*.x' 2>/dev/null | sort)
+_FILES=$(find lib apps tools -name '*.x' ! -path 'lib/img.x' 2>/dev/null | sort)
 
 awk '
 BEGIN {

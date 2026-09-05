@@ -172,6 +172,13 @@ for _chunk in "$_TMP"/chunk-*; do
     if [ "$_nothing" = yes ]; then
       if [ "$MODE" != man ] && grep -q '(doc (provide' "$f"; then
         printf '  \033[1;31mEMPTY\033[0m %s\n' "$_page"
+        # The run succeeded and this page is still empty: whatever doc.x
+        # caught while it worked on this file went to stderr, and that is
+        # the only witness.  Show it, or an EMPTY on a machine that is not
+        # this one cannot be diagnosed at all.
+        if [ -s "$_TMP/err" ]; then
+          sed 's/^/    /' "$_TMP/err" | head -20 >&2
+        fi
         exit 1
       else
         rm -f "$_page"

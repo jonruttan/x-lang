@@ -104,3 +104,4 @@ x-engine-build.xon
 # The engine link (Makefile: engine-link) -- points at the submodule, a
 # checkout named by X_ENGINE_DIR, or an unpacked release.  Never committed.
 /engine
+.images/

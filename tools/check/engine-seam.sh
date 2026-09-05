@@ -39,6 +39,13 @@ exempt_reason() {
 			# and the check would pass while checking nothing -- trading a live,
 			# machine-checked assertion for a tidier grep.  The literal stays.
 			echo "keeps -I literals so check-path-literals can verify they exist" ;;
+		lib/img.x)
+			# The state-image loader's dialect boots with no library and so no
+			# seam: it is what runs BEFORE anything that could define
+			# %engine-root.  It reaches the two contract files it needs -- the
+			# base paths and the object layout -- by the same engine link the
+			# seam itself resolves, and nothing else in it names the engine.
+			echo "boots before the seam exists; reaches the contract by the engine link" ;;
 		*) return 1 ;;
 	esac
 }

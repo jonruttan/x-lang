@@ -62,6 +62,14 @@
       (%bool-retag #t %bool)
       (%bool-retag #f %bool)))
   (#t ()))
+;  The retag writes into two engine statics, and a state image carries no
+; static's header (docs/state-image-format.md 5, step 5): redone when an
+; image loads, through the hook list reflect.x runs.
+(set! %image-recache-hooks
+  (pair (fn (_)
+          (do (%bool-retag #t %bool)
+              (%bool-retag #f %bool)))
+        %image-recache-hooks))
 
 (doc (provide x/type/bool)
   "BOOL: the boolean singletons as a real x-defined type -- (Type of #t) answers, and arithmetic on booleans refuses through the op registry instead of falling through to machine math.")
