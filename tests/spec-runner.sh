@@ -458,7 +458,7 @@ for _spec in "$@"; do
   case "$_tag" in
     arm64|x86_64) [ "$_tag" = "$_HOST_ARCH" ] || continue ;;
     # *.image.spec.md needs an engine carrying (image rebuild!) and writes a
-    # state image to run against; opt in with X_IMAGE_SPECS=1 (make test-x-img).
+    # state image to run against; `make test-x` sets X_IMAGE_SPECS=1 (IMG=0 does not).
     image) [ -n "$X_IMAGE_SPECS" ] || continue ;;
   esac
   # Capability-gated specs: `# @requires <capability>` in the header runs the

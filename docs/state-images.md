@@ -1314,8 +1314,9 @@ no shape at all.
 
 ### The suite, booted from images: measured
 
-The consumer arrived. `make test-x-img` writes one image per library the
-specs declare — 25 of the 29, keyed so a lib edit rewrites them all — and
+The consumer arrived. `make test-x` writes one image per library the
+specs declare (`make images` alone does that; `IMG=0` is the source-boot
+control) — 25 of the 29, keyed so a lib edit rewrites them all — and
 `tests/spec-runner.awk` boots each job from its image; `spec-runner.sh`
 drops the bucket to one file per job when images are on, because a boot
 that costs a third of a second no longer needs eight files to amortize it,
@@ -1324,7 +1325,7 @@ and the parallel scheduler all wanted anyway. On the same box, the same
 suite (2,804 tests from source; the image runs add the image spec's 15),
 2026-09-05:
 
-| | from source, 8-file buckets | from images, one file per job |
+| | `IMG=0`: from source, 8-file buckets | default: from images, one file per job |
 |---|--:|--:|
 | serial | 304s | 280s |
 | `PARALLEL=1` | 210s | 178s |

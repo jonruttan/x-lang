@@ -5,8 +5,9 @@
 Each test here is one invariant of [docs/state-image-format.md](../../../../docs/state-image-format.md)
 §6, checked by loading the x-core image and evaluating inside it. The image
 is `$X_IMG_DIR/x-core.x.ximg`, written by `tools/dev/image-build.sh`; `make
-test-x-img` builds it and sets `X_IMAGE_SPECS=1`, which is what makes the
-runner pick this file up (the `.image` tag). It needs an engine carrying
+test-x` builds it and sets `X_IMAGE_SPECS=1`, which is what makes the
+runner pick this file up (the `.image` tag); `IMG=0` boots from source and
+skips this file. It needs an engine carrying
 `(image rebuild!)` -- `X_BIN` until the pin has one.
 
 Every probe is a subprocess: `lib/img.x`, the loader, then the probe's forms,
