@@ -1314,8 +1314,9 @@ no shape at all.
 
 ### The suite, booted from images: measured
 
-The consumer arrived. `make test-x-img` writes one image per library the
-specs declare — 25 of the 29, keyed so a lib edit rewrites them all — and
+The consumer arrived. `make test-x` writes one image per library the
+specs declare (`make images` alone does that; `IMG=0` is the source-boot
+control) — 25 of the 29, keyed so a lib edit rewrites them all — and
 `tests/spec-runner.awk` boots each job from its image; `spec-runner.sh`
 drops the bucket to one file per job when images are on, because a boot
 that costs a third of a second no longer needs eight files to amortize it,
@@ -1324,7 +1325,7 @@ and the parallel scheduler all wanted anyway. On the same box, the same
 suite (2,804 tests from source; the image runs add the image spec's 15),
 2026-09-05:
 
-| | from source, 8-file buckets | from images, one file per job |
+| | `IMG=0`: from source, 8-file buckets | default: from images, one file per job |
 |---|--:|--:|
 | serial | 304s | 280s |
 | `PARALLEL=1` | 210s | 178s |
@@ -1345,6 +1346,18 @@ which `eq?` depends on and a rebuilt symbol had lost — `type/bool.x`'s hook
 points them back.
 
 ## Not decided
+
+- **A `dlsym` external names only the symbol, and on glibc that is not
+  enough for a library the process dlopen'd itself.** CI's first Linux run
+  of the writer found it: glibc keeps `num/float.x`'s libm out of the
+  global scope, so none of its 18 pointers round-tripped and every
+  float-loading library was refused there. Float's answer is the transient
+  rule — each libm binding registers itself and one hook remakes them all
+  — so no libm pointer is an external at all. A module that must keep such
+  a pointer *as* an external would need a **library-qualified** one,
+  `dladdr`'s `dli_fname` beside the symbol, resolved by the loader through
+  a handle on that library: additive to format v1, and undecided until
+  something needs it.
 
 - **The writer half needs a door.** Reading needs the shape declaration above
   and nothing else; writing objects back means setting type words and flags, which today is raw word

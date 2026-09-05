@@ -299,7 +299,7 @@ Tests are markdown spec files in `tests/x/specs/` organized by category:
 ### Running Tests
 
 ```sh
-make test-x          # x-lang spec suite
+make test-x          # x-lang spec suite, booted from state images (IMG=0: from source)
 make test-c          # C unit tests
 make test            # all tests (the full gate)
 make test-asan       # both suites under AddressSanitizer (memory-safety net)

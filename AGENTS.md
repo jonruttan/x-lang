@@ -183,7 +183,8 @@ Full style rules: [docs/contributing.md](docs/contributing.md) and
 ## Testing and gates
 
 ```bash
-make test-x       # the x-lang spec suite (2,500+ cases)
+make test-x       # the x-lang spec suite (2,800+ cases), each job booted
+                  # from a state image; IMG=0 boots every library from source
 make test-c       # the engine's C unit tests (delegated; a fetched
                   # release ships no C and says it skipped)
 make test         # everything

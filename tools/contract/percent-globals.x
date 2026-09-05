@@ -124,8 +124,10 @@
 ; %image-recache!: the list a module adds its address-recomputing thunk to, and
 ; the call the loader makes last; boot-level because reflect.x is where the
 ; first cached address is made.  A third, %image-transients, names the
-; globals an image cannot carry at all -- num/float.x's libm handle, which
-; rises by one for %libm-open, the re-opener its recache thunk calls.  The
+; globals an image cannot carry at all -- num/float.x's libm handle and the
+; eighteen pointers resolved through it, which register themselves as they
+; are made: float.x rises by two for %libm-open, %libm-rows, %libm-make
+; and %libm-fn against the two factories they replace.  The
 ; six tools/dev/image-*.x rows are the writer, loader, walk, naming,
 ; foreign-pointer and inspector scripts, written in the tool-script shape;
 ; the writer co-loads with helium, the loader with nothing at all (it runs
@@ -179,7 +181,7 @@
 (file "lib/x/num/bigint.x" 64)
 (file "lib/x/num/complex.x" 41)
 (file "lib/x/num/decimal.x" 72)
-(file "lib/x/num/float.x" 61)
+(file "lib/x/num/float.x" 62)
 (file "lib/x/num/random.x" 6)
 (file "lib/x/num/tower.x" 10)
 (file "lib/x/num/rational.x" 39)

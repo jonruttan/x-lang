@@ -64,6 +64,19 @@ jobs:
         run: make
       - name: C specs
         run: make test-c
+      # THE STATE IMAGES THE SUITE BOOTS FROM, cached across runs.  Writing
+      # all 25 costs about two minutes, more than images save a run, so a
+      # miss pays once and a hit boots for free.  The key names the inputs
+      # tools/dev/image-build.sh hashes -- the pin stands in for the engine
+      # binary, which does not exist until `make engine` has run -- and the
+      # builder re-checks its own key on load, so a stale hit only costs a
+      # rewrite, never a stale library.  After the engine step on purpose:
+      # the contract files under engine/ are part of the hash.
+      - name: State images
+        uses: actions/cache@v4
+        with:
+          path: .images
+          key: images-${{ runner.os }}-${{ hashFiles('tools/engine/engine.pin.xon', 'lib/**/*.x', 'tests/x/lib/*.x', 'engine/tools/contract/*.x', 'tools/dev/image-build.sh', 'tools/dev/image-write.x', 'tools/dev/image-walk.x', 'tools/dev/image-name.x') }}
       - name: x-lang specs
         run: make test-x
         env:

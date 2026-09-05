@@ -34,7 +34,9 @@ jobs:
       - name: Build
         run: make
       # The full gate stands between a tag and its artifacts: a tag on a
-      # red tree publishes nothing.
+      # red tree publishes nothing.  test-x writes its state images here
+      # uncached, about two minutes: a release run is rare and a second
+      # copy of ci.yml's cache key is a fact nobody would keep in step.
       - name: Full gate
         run: make test
         env:
