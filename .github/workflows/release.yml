@@ -46,6 +46,18 @@ jobs:
           # the conformance fix let the gate run far enough to reach it.  One
           # heavy spec in flight bounds the window at one big heap.
           SPEC_HEAVY_JOBS: "1"
+          # THE SAME LESSON, ONE TARGET LATER.  ci.yml pins NPROC=2 for lint
+          # on its ubuntu leg -- two main runs OOM-killed at lint.sh's
+          # derived width of four, SIGTERM 143 -- and this step, which
+          # reaches lint-x through `make test`, never inherited that pin
+          # either.  The v0.11.0 tag died there twice, identically: every
+          # spec green, then four lint children, then the runner's shutdown
+          # signal about two minutes in, at the same file both times.  A
+          # child is no longer the ~600MB lint.sh's note measured; batching
+          # by preload signature (#323) lints up to eight files in one boot,
+          # and with no collect between them a child now peaks past 2GB.
+          # Two in flight is what the box holds.  Same width ci.yml runs.
+          NPROC: "2"
       - name: Amalgams + manifest
         run: |
           make boot
