@@ -322,13 +322,14 @@ test-x: $(EXECUTABLE) ## Run x-lang tests
 # SPEC_BATCH note).  A library the writer cannot name boots from source
 # (exit 3, remembered beside the key), and a failed write stops the run.
 # THE JIT DIALECTS ARE NOT LISTED: x-base, xe and rn load compiled tower
-# code whose entry points no image can carry, so the writer could only
-# ever refuse them -- and it cannot safely reach the refusal: each entry
-# collects at its own top level, which the writer's child reaches through
-# `include`, the collect-inside-a-load that #614 moved out of boot for
-# the engine bug x-engine-c fix/load-roots closes (not in v0.2.5).  Their
-# specs boot from source until an image can hold compiled code.  See
-# docs/state-images.md.
+# code whose entry points no image can carry (twelve words each), so the
+# writer could only ever refuse them, and a refusal is eight seconds of
+# child load per key change for an answer already known.  On engine
+# v0.2.5 the writer could not even reach it: each entry collects at its
+# own top level, which the writer's child reaches through `include` --
+# the collect-inside-a-load #614 moved out of boot, closed engine-side by
+# x-engine-c #38 (v0.2.6).  Their specs boot from source until an image
+# can hold compiled code.  See docs/state-images.md.
 IMG_DIR ?= .images
 test-x-img: $(EXECUTABLE) ## Run x-lang tests, booting each job from a state image
 	@for l in lib/x-core.x lib/x.x lib/he.x \
