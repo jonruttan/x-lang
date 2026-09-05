@@ -5,6 +5,31 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-05
+
+**The tool tier got its doors.** A bundle could read and write files and
+little else, and the small tools stopped at that wall: no `chmod`, no
+`ln`, no `readlink`, no `df`, no `uname`, no way to ask who is running.
+`File` gains `chmod`, `chown`, `link`, `symlink`, `readlink`, `utimes`,
+`mkfifo` and `statfs` — syscalls, in that module's own idiom, and only
+the DARWIN table needed new numbers because the Linux index tables
+already name every one. Two of those numbers are not the obvious ones:
+`statfs64` (345) rather than `statfs` (157), whose 32-bit-inode struct
+reads `f_bsize` back as zero; and `utimes` takes only the clock, because
+explicit stamps want a packed pair of timevals and that module holds no
+pointer prims to build one. `Sys` gains `getuid`, `geteuid`, `getgid`,
+`getegid`, `getgroups`, `uname`, `cpu-count`, `sync`, `fsync`, `nice`
+and `chroot` — all libc through `%resolve`, so no syscall number appears
+there at all. `uname` reads the five `utsname` fields as C strings at
+their own offsets rather than through the `Struct` codec, because
+`posix.x` loads mid-x-core before that codec exists; the array WIDTH is
+the whole per-OS difference, 256 against 65, as `_SC_NPROCESSORS_ONLN`
+is 58 against 84. Thirteen specs, each checked against the system tool
+it mirrors: `getgroups` against `id -G`, `uname` against `uname -smrn`,
+`cpu-count` against `hw.ncpu`, `statfs`'s block counts against `df -k`.
+What they unblock is x-coreutils' second half — the nineteen applets
+from `chmod` to `whoami` that take it to busybox parity at 92.
+
 **A compiled function can call something other than itself.** The
 `compile-asm` lane refused every head but the function's own name, so a
 compiled function could recurse and nothing else: anything a lane function
@@ -117,8 +142,6 @@ uses: it is the tag the Pages build highlights (Rouge has no x-lang lexer, so
 `tools/dev/highlight-sweep.sh` supplies one) and the tag the hand-written docs
 are written with. The `scheme` row stays for the langs that are Scheme
 dialects.
-
-## [0.11.0] - 2026-09-03
 
 **x runs C, and compiles it.** x-cc registered at 27 specs and left this
 release at 117, 0 failed — the language arc's final tier. The front end is
