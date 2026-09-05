@@ -121,7 +121,7 @@
         (self (rest rows) nm)))))
 (def %but-last
   (fn (self l) (if (null? (rest l)) () (pair (first l) (self (rest l))))))
-(def %last (fn (self l) (if (null? (rest l)) (first l) (self (rest l)))))
+(def %inspect-last (fn (self l) (if (null? (rest l)) (first l) (self (rest l)))))
 (def %walk-steps
   (fn (self v steps)
     (if (null? steps) v (self (if (eq? (first steps) (lit f)) (first v) (rest v)) (rest steps)))))
@@ -129,7 +129,7 @@
   (fn (_ nm v)
     ((fn (_ steps)
        (%oset! (%walk-steps RAWB (%but-last steps))
-               (if (eq? (%last steps) (lit f)) 0 1) v))
+               (if (eq? (%inspect-last steps) (lit f)) 0 1) v))
      (%row-steps %base-paths nm))))
 
 (def tstruct

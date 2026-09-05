@@ -119,7 +119,7 @@
 (def %unresolved 0)
 (def %UNRESOLVED ())
 (def %miss (fn (_ kind nm) (do (set! %unresolved (%i+ %unresolved 1)) (set! %UNRESOLVED (pair (pair kind nm) %UNRESOLVED)) ())))
-(def %resolve
+(def %resolve-external
   (fn (_ kind nm)
     (guard (_ (%miss kind nm))
       (if (eq? kind 1)
@@ -147,7 +147,7 @@
 (def rdexternals
   (fn (self k pos)
     (if (%lt XCOUNT k) ()
-      (do (%obj-set! XV k (%resolve (w pos) (%name-at (%i+ pos 1))))
+      (do (%obj-set! XV k (%resolve-external (w pos) (%name-at (%i+ pos 1))))
           (self (%i+ k 1) (%after-name (%i+ pos 1)))))))
 (rdexternals 1 XSTART)
 
@@ -190,7 +190,7 @@
 (include "engine/tools/contract/base-layout.x")
 (def %kind-of (fn (self l nm) (if (null? l) (%fail (pair (lit not-a-cell) nm)) (if (eq? (first (first l)) nm) (rest (first l)) (self (rest l) nm)))))
 (def %but-last (fn (self l) (if (null? (rest l)) () (pair (first l) (self (rest l))))))
-(def %last (fn (self l) (if (null? (rest l)) (first l) (self (rest l)))))
+(def %last-of (fn (self l) (if (null? (rest l)) (first l) (self (rest l)))))
 
 ; One write: the target word's pointer and offset, and the value's address.
 ; A cell takes the object in its first slot; a slot is the half of its
@@ -201,7 +201,7 @@
        (if (eq? (%kind-of %LANG nm) (lit cell))
            (list (%obj->ptr (%img-walk (%base) steps)) (%data-word-off 0) v)
            (list (%obj->ptr (%img-walk (%base) (%but-last steps)))
-                 (%data-word-off (if (eq? (%last steps) (lit f)) 0 1))
+                 (%data-word-off (if (eq? (%last-of steps) (lit f)) 0 1))
                  v)))
      (%img-row %base-paths nm)
      ((fn (_ o) (if (null? o) 0 (%ptr->int (%obj->ptr o)))) (%ref-obj (%root-ref ROOTS nm))))))
