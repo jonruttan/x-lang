@@ -20,6 +20,15 @@
 c=$(jq -r '.tool_input.command // empty' 2>/dev/null)
 [ -z "$c" ] && exit 0
 
+# A backslash-newline continues the SAME command, so join those lines first.
+# The quote-stripping below is per line (sed), and a quoted span that crosses
+# a continuation was invisible to it: an ssh payload spread over three lines
+# for readability had its interior read as host commands and was denied --
+# the same text on one line passed.  Genuine newlines are left alone: they
+# separate commands, and an engine name starting its own line must still
+# match.
+c=$(printf '%s\n' "$c" | sed -e ':a' -e '/\\$/{N;s/\\\n/ /;ba' -e '}')
+
 # Quoted spans are argument DATA (sed programs, grep patterns, commit
 # messages) -- text inside them cannot start a command, so strip them
 # before matching.  An engine path deliberately spelled in quotes to
