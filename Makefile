@@ -310,33 +310,50 @@ install-man-c uninstall-man-c: ## The C reference man pages (delegates to the en
 # Test
 # ============================================================================
 
-test-x: $(EXECUTABLE) ## Run x-lang tests
-	sh tests/x/spec-runner.sh
-.PHONY: test-x
-
-# The suite booted from STATE IMAGES: every library the specs declare is
-# written once (tools/dev/image-build.sh, keyed on the sources and the
-# engine) and each job loads its image instead of evaluating the library
-# from source -- one file per job, since a boot that costs a third of a
-# second no longer needs a bucket to amortize it (spec-runner.sh's
-# SPEC_BATCH note).  A library the writer cannot name boots from source
-# (exit 3, remembered beside the key), and a failed write stops the run.
-# THE JIT DIALECTS ARE NOT LISTED: x-base, xe and rn load compiled tower
-# code whose entry points no image can carry (twelve words each), so the
-# writer could only ever refuse them, and a refusal is eight seconds of
-# child load per key change for an answer already known.  On engine
-# v0.2.5 the writer could not even reach it: each entry collects at its
-# own top level, which the writer's child reaches through `include` --
-# the collect-inside-a-load #614 moved out of boot, closed engine-side by
-# x-engine-c #38 (v0.2.6).  Their specs boot from source until an image
+# THE SUITE BOOTS FROM STATE IMAGES.  `images` writes one for every library
+# the specs declare (tools/dev/image-build.sh, keyed on the sources and the
+# engine, so a current image is skipped and a lib edit rewrites them all),
+# and each job of the suite loads its image instead of evaluating the
+# library from source -- one file per job, since a boot that costs a third
+# of a second no longer needs a bucket to amortize it (spec-runner.sh's
+# SPEC_BATCH note).  Measured 2026-09-05: serial 304s -> 280s, PARALLEL=1
+# 210s -> 178s; the suite is test-bound, so that is the ceiling.  A library
+# the writer cannot name boots from source (exit 3, remembered beside the
+# key), and a failed write stops the run.
+#
+# IMG=0 IS THE CONTROL: every job boots its library from source, in
+# buckets of eight, exactly the suite before images -- the run to reach for
+# when an image is the suspect.
+#
+# THE JIT DIALECTS ARE NOT IMAGED: x-base, xe and rn load compiled tower
+# code whose entry points no image can carry (one JIT page per compiled
+# function), so the writer could only ever refuse them, and a refusal is
+# eight seconds of child load per key change for an answer already known.
+# On engine v0.2.5 the writer could not even reach it: each entry collects
+# at its own top level, which the writer's child reaches through `include`
+# -- the collect-inside-a-load #614 moved out of boot, closed engine-side
+# by x-engine-c #38 (v0.2.6).  Their specs boot from source until an image
 # can hold compiled code.  See docs/state-images.md.
+IMG ?= 1
 IMG_DIR ?= .images
-test-x-img: $(EXECUTABLE) ## Run x-lang tests, booting each job from a state image
+# A refusal (exit 3) is tested INSIDE the if: .POSIX above makes GNU make 4
+# run every recipe under `sh -ec`, where a bare non-zero status aborts the
+# loop before its own test -- ubuntu's make 4.3 stopped at the first
+# refused library while macOS's 3.81 did not, and the difference was this.
+images: $(EXECUTABLE) ## Write the state images the suite boots from (a current one is skipped)
 	@for l in lib/x-core.x lib/x.x lib/he.x \
 	  $$(grep -rho '^# @lib \.\./tests/x/lib/[a-z-]*\.x' tests/x/specs | sed 's|^# @lib \.\./||' | sort -u); do \
-	  sh tools/dev/image-build.sh $$l $(IMG_DIR); s=$$?; [ $$s -eq 0 ] || [ $$s -eq 3 ] || exit $$s; done
+	  if sh tools/dev/image-build.sh $$l $(IMG_DIR); then :; else s=$$?; [ $$s -eq 3 ] || exit $$s; fi; done
+.PHONY: images
+
+ifeq ($(IMG),0)
+test-x: $(EXECUTABLE)
+	sh tests/x/spec-runner.sh
+else
+test-x: images ## Run x-lang tests, each job booted from a state image (IMG=0 boots from source)
 	SPEC_RUNNER_DIR="$(CURDIR)/tests" X_IMG_DIR="$(abspath $(IMG_DIR))" X_IMAGE_SPECS=1 sh tests/x/spec-runner.sh
-.PHONY: test-x-img
+endif
+.PHONY: test-x
 
 # The applicative stress lane rides test-x only when STRESS=1 (CI's
 # native specs jobs set it; see #300).  This target is the local

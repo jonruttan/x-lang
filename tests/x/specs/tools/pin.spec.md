@@ -1,7 +1,14 @@
 # @lib ../tests/x/lib/assert.x
 
 # @weight 13
+# @timeout-scale 3
 ## pin: manifest interpretation (x/tool/pin)
+
+The timeout scale is the budget this file always used: it shared a
+three-file bucket, and a bucket's budget is the base times its files, so
+its 25 serial seconds -- sync and check run end to end, spawning as they
+go -- had 180 to finish in.  One file per job (the image boot) gave it 60,
+and CI's ubuntu runner under parallel load killed it at that line.
 
 The manifest (pin.xon) is DATA: forms are read with the ordinary reader
 (`%pin-forms`) and interpreted against a closed vocabulary
