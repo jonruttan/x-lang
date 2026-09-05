@@ -327,6 +327,13 @@ structs and two indices; the loader does not care which is which.
    `%image-recache-hooks`, and this call runs them all, in the order they
    were added. Every image's
    library binds the name; `lib/img.x` binds it to nothing.
+   A value the image cannot carry at all -- `num/float.x`'s dlopen handle,
+   which no symbol names and which the module reaches again at call time
+   -- is a **transient**: the module lists the global in
+   `%image-transients`, the writer sets it to nil inside the child before
+   the walk, and the module's own hook re-derives it here. The function
+   pointers resolved through such a handle need nothing of the kind; each
+   is a symbol (§3.4).
 
 The loader is silent when a runner drives it; with `%IMG-VERBOSE` bound it
 prints one line of counts and the unresolved externals by name.
@@ -355,6 +362,12 @@ test, not the unit test.
 9. Unresolved externals: 0.
 10. `ctrl` cells are nil in the file and after install; the save-stack is
     empty when the next form is read.
+11. A declared transient is re-derived at install: in an image of a library
+    that loads `num/float.x`, the libm handle is a pointer after the load,
+    and the call-time path through it answers.
+12. A `#t` the reader produces after load is `eq?` to the evaluated `#t`:
+    the interned name shares the singleton's bytes, as it does in a fresh
+    base, where binding the name interned it on those bytes.
 
 ## 7. What must be true of the engine
 
@@ -377,9 +390,16 @@ test, not the unit test.
 ## 8. Open
 
 - **The read buffer** is process state and stays the loader's; the image
-  therefore cannot carry a partially consumed input, and does not try.
+  therefore cannot carry a partially consumed input, and does not try. So
+  does the **line counter**: `line` sits in the layout's build region, but
+  the C reader holds the counter atom directly and counts into it, so a
+  cell swapped under the reader reads 0 from then on. Writer and loader
+  leave it out of the roots, beside the profile counters and `sigint`.
 - **Object metadata** (`obj-meta-extra`: line and file ids) is not carried;
-  a loaded image's error reports have no source positions.
+  a loaded image's error reports have no source positions. The loader
+  rebuilds with the metadata width at 0 and puts it back after, so a
+  rebuilt object carries no META flag: with the flag over zeroed slots,
+  evaluating any imaged form would set the line counter to 0.
 - **Digests.** The header carries the engine release; it does not carry a
   digest of the library sources. `tools/dev/image-build.sh`'s key does that
   outside the file.

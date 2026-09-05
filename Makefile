@@ -314,15 +314,27 @@ test-x: $(EXECUTABLE) ## Run x-lang tests
 	sh tests/x/spec-runner.sh
 .PHONY: test-x
 
-# The suite booted from STATE IMAGES: each library the specs declare is
-# written once (tools/dev/image-build.sh, keyed on lib/ and the engine) and
-# every batch loads the image instead of evaluating the library from source.
-# Needs an engine carrying (image rebuild!) -- X_BIN=... until the pin has it.
-# Only x-core is imaged here; a library with no image boots from source.
-# See docs/state-images.md.
+# The suite booted from STATE IMAGES: every library the specs declare is
+# written once (tools/dev/image-build.sh, keyed on the sources and the
+# engine) and each job loads its image instead of evaluating the library
+# from source -- one file per job, since a boot that costs a third of a
+# second no longer needs a bucket to amortize it (spec-runner.sh's
+# SPEC_BATCH note).  A library the writer cannot name boots from source
+# (exit 3, remembered beside the key), and a failed write stops the run.
+# THE JIT DIALECTS ARE NOT LISTED: x-base, xe and rn load compiled tower
+# code whose entry points no image can carry (twelve words each), so the
+# writer could only ever refuse them, and a refusal is eight seconds of
+# child load per key change for an answer already known.  On engine
+# v0.2.5 the writer could not even reach it: each entry collects at its
+# own top level, which the writer's child reaches through `include` --
+# the collect-inside-a-load #614 moved out of boot, closed engine-side by
+# x-engine-c #38 (v0.2.6).  Their specs boot from source until an image
+# can hold compiled code.  See docs/state-images.md.
 IMG_DIR ?= .images
-test-x-img: $(EXECUTABLE) ## Run x-lang tests, booting each batch from a state image
-	sh tools/dev/image-build.sh lib/x-core.x $(IMG_DIR)
+test-x-img: $(EXECUTABLE) ## Run x-lang tests, booting each job from a state image
+	@for l in lib/x-core.x lib/x.x lib/he.x \
+	  $$(grep -rho '^# @lib \.\./tests/x/lib/[a-z-]*\.x' tests/x/specs | sed 's|^# @lib \.\./||' | sort -u); do \
+	  sh tools/dev/image-build.sh $$l $(IMG_DIR); s=$$?; [ $$s -eq 0 ] || [ $$s -eq 3 ] || exit $$s; done
 	SPEC_RUNNER_DIR="$(CURDIR)/tests" X_IMG_DIR="$(abspath $(IMG_DIR))" X_IMAGE_SPECS=1 sh tests/x/spec-runner.sh
 .PHONY: test-x-img
 

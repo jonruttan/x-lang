@@ -59,9 +59,23 @@
       (%child-str! (lit x-machine) x-machine)
       (%child-str! (lit x-version) x-version)
       (%child-str! (lit x-release) x-release)
-      (%child-def! (lit args) (list (lit lit) ()))
+      ; The child is a BATCH: a dialect entry ends in (unless %batch? (do
+      ; (%banner) (repl))), and repl/banner.x derives %batch? from args
+      ; holding "--batch".  Without it the child's REPL reads this writer's
+      ; own stdin and the image is never written.  One string, the child's.
+      (%child-def! (lit args)
+        (list (lit pair) (list (prim-ref (lit str) (lit append)) "" "--batch") (list (lit lit) ())))
       ; The path too: `include` records it in the child's file registry.
       (%B eval (list (lit include) (list (prim-ref (lit str) (lit append)) "" %IMG-LIB)))
+      ; A TRANSIENT IS IMAGED AS NIL.  reflect.x's %image-transients names
+      ; the globals whose value belongs to this process alone -- float.x's
+      ; libm handle -- and a recache hook of the same module re-derives each
+      ; once the loader has installed the image.  Cleared here, inside the
+      ; child, so the walk below never meets the word.  ONE FORM, walked by
+      ; the child over its own list: a version that fetched the list out
+      ; and evaluated a set! per name put child objects in this base's
+      ; hands between two collects, and the x-base writer died of it.
+      (guard (_ ()) (%B eval (lit ((fn (self l) (if (null? l) () (do (eval (list (lit set!) (first l) ())) (self (rest l))))) %image-transients))))
       ; The child has never collected.  Its own collect, evaluated inside it.
       (%B eval (list %collect))
       ; And this base may not collect while a walk holds a cursor into the
@@ -92,11 +106,15 @@
 (def node (op (nm . kids) e (do (%eval-all kids e) ())))
 (def build (op (x) e (do (set! %IN-BUILD #t) (eval x e) (set! %IN-BUILD #f) ())))
 (include "engine/tools/contract/base-layout.x")
-; The profile counters and the sigint flag stay the loader's own.
+; The profile counters, the sigint flag and the line counter stay the
+; loader's own.  `line` sits in the layout's build region, but the C reader
+; holds its counter atom directly and counts into it: a cell swapped under
+; the reader reads 0 from then on (spec 8).
 (def %root-cell?
   (fn (_ nm)
     (if (eq? nm (lit sigint)) #f
-      (not (str=? (Str8 sub 0 8 (symbol->str nm)) "profile-")))))
+      (if (eq? nm (lit line)) #f
+        (not (str=? (Str8 sub 0 8 (symbol->str nm)) "profile-"))))))
 (def %ROOTS ((fn (self l acc) (if (null? l) acc (self (rest l) (if (%root-cell? (first (first l))) (pair (first l) acc) acc)))) %LANG ()))
 
 (def %step (fn (_ v s) (if (eq? s (lit f)) (first v) (rest v))))

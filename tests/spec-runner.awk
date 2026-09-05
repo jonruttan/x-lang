@@ -232,8 +232,15 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 	if (IMG_DIR != "") {
 		_n = split(blib, _bp, "/")
 		img = IMG_DIR "/" _bp[_n] ".ximg"
-		if (system("test -f " q(img)) == 0)
+		if (system("test -f " q(img)) == 0) {
 			boot = "echo " q("(def %IMG-PATH \"" img "\")") "; cat " q(lib_base "/img.x") " " q(lib_base "/../tools/dev/image-read.x")
+			# A dialect entry ends in (repl): its batch is read by the x-lang
+			# REPL reader, not the C loop -- the path #49 lived on, and the one
+			# that counts lines.  The image was written by a batch child that
+			# skipped that call, so the boot makes it here, after the loader.
+			if (system("grep -q '(repl)' " q(blib)) == 0)
+				boot = boot "; echo '(repl)'"
+		}
 	}
 	cmd = "{ echo \"(alloc-limit! ${X_ALLOC_LIMIT_OBJS:-0})\"; " boot "; cat " q(tmpfile) "; } | " timeout_pfx q(X_BIN) " 2>" q(errfile)
 

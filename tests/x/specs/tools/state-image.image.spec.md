@@ -156,6 +156,37 @@ says why.
 ---
     unresolved=0
 
+## §6.11 transients
+
+A value an image cannot carry -- `num/float.x`'s libm handle -- is listed in
+`%image-transients`, written as nil, and re-derived by the module's recache
+hook.  Probed in the float test library's image, which is the smallest one
+that loads float.
+
+### a declared transient is re-derived, and the call-time path through it answers
+
+```x
+(def %probe-in
+  (fn (_ name forms)
+    (%write-file (Str8 append %tmp "/pre.x") (Str8 append "(def %IMG-PATH \"" (Str8 append %dir (Str8 append "/" (Str8 append name "\")\n")))))
+    (%write-file (Str8 append %tmp "/forms.x") forms)
+    (%sh (Str8 append "{ cat " (Str8 append %tmp (Str8 append "/pre.x tools/dev/image-read.x " (Str8 append %tmp (Str8 append "/forms.x; } | sh x.sh -q -l img > " (Str8 append %tmp "/out.txt 2>&1")))))))
+    (File read-all (Str8 append %tmp "/out.txt"))))
+(display (%probe-in "float.x.ximg" "(write (list (not (null? %libm)) (Float hypot 3.0 4.0))) (newline)"))
+```
+---
+    (#t 5.0)
+
+## §6.12 the interned `#t`
+
+### a `#t` the reader produces after load is eq? to the evaluated one
+
+```x
+(display (%probe "(write (list (eq? (first (lit (#t))) #t) (eq? (first (lit (#f))) #f))) (newline)"))
+```
+---
+    (#t #t)
+
 ## §6.10 the primitives
 
 The three engine primitives, exercised in this process rather than through
