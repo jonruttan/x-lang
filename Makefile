@@ -367,7 +367,7 @@ doctest: $(EXECUTABLE) ## Extract (example ...) forms and run them as doctests
 # CI's "Contract gates" step runs exactly this target.  They must not
 # drift -- ci.yml once hand-listed a subset, and check-pin's first run
 # on Linux happened in the RELEASE job (where it promptly died).
-gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
+gates: engine-link check-engine-fetch check-boot-closed check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-boot-amalgam check-pin check-release-manifest check-bootstrap check-package check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-compliance check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-asan-boot check-langs check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-highlight-roundtrip check-primitives-doc ## Run the contract gates
 .PHONY: gates
 
 .PHONY: check-spec-weights
@@ -401,7 +401,7 @@ check-spec-globals: ## No spec rebinds a name the engine or library owns
 gates-fast: engine-link check-engine-fetch check-isa check-prim-coverage check-obj-layout check-base-paths check-boot-order check-path-literals check-doc-vocab check-dup-defs check-bare-globals check-percent-globals check-constraints check-engine-contract check-conformance-coverage check-engine-seam check-platform-seam check-second-engine check-base-routes check-seam check-wrapper check-spec-weights check-spec-globals check-release-version check-dialect-cover check-primitives-doc ## The fast contract gates (pre-push subset)
 .PHONY: gates-fast
 
-test-fast: gates-fast test-c test-x ## Pre-push gate: fast gates + both spec suites (CI runs full `make test`)
+test-fast: gates-fast check-asan-boot test-c test-x ## Pre-push gate: fast gates, the ASan boot, both spec suites (CI runs full `make test`)
 .PHONY: test-fast
 
 # bootstrap.sh's build+install path (its coupling to the install layout);
@@ -682,6 +682,16 @@ check-seam: $(EXECUTABLE) ## Assert the platform still provides what a lang is p
 	sh tools/check/seam.sh
 .PHONY: check-seam
 
+# The one gate that sees a use-after-free BEFORE the allocator decides to
+# reveal it.  Boots every dialect on an AddressSanitizer build of the pinned
+# engine's sources, so a live-but-unrooted object -- the class that reached
+# x86-64 CI as a SIGSEGV and passed every macOS run by luck (#614) -- traps
+# here with a stack, on any machine.  First run clones and builds (~1 min);
+# thereafter ~30s, which is why it rides test-fast and gates, not gates-fast.
+check-asan-boot: ## Boot every dialect on an ASan engine: a freed read fails here, not in CI
+	sh tools/check/asan-boot.sh
+.PHONY: check-asan-boot
+
 # EVERY LANG, AGAINST THIS WORKING TREE.  check-seam above catches a RENAME in
 # eight seconds and cannot catch anything else -- a behaviour change, an arity
 # change, a reader that scores a tie differently all leave this tree green while
@@ -823,7 +833,14 @@ check-doc-vocab: ## Lint doc forms for banned type-token aliases + retired names
 #     arch/compiler defaults already; pinned off so behavior matches.
 #   - WRAPPER= disables the C runner's valgrind auto-wrap (ASan != valgrind).
 #   - TIMEOUT_UNIT_SECS raised: instrumentation slows each spec ~2-3x.
-ASAN_RUN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0
+#   - quarantine_size_mb=2048: ASan reports a freed read only while the chunk
+#     is still quarantined, and the default 256M is exhausted by a single
+#     tower boot, which frees gigabytes -- after that a use-after-free reads
+#     someone else's live object and reports nothing.  That is how the
+#     x_eval_load hole (#614, x-engine-c fix/load-roots) passed this gate on
+#     main while crashing every PR on x86-64.  2G keeps a boot's frees
+#     poisoned end to end; one heavy at a time (below) keeps it in RAM.
+ASAN_RUN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0:quarantine_size_mb=2048
 #   - SPEC_HEAVY_JOBS=1 (#366): the scheduler's heavy-set admission cap
 #     of 2 is tuned at NORMAL resident sizes; sanitizer instrumentation
 #     multiplies RSS ~2-3x, and two co-resident heavies OOM-killed the

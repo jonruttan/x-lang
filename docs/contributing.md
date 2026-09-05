@@ -342,7 +342,9 @@ The spec runner evaluates the `scheme` code block and compares stdout against th
 
 ### Memory safety (AddressSanitizer)
 
-`make test-asan` runs both suites against an ASan build. It catches the crash class that is silently wrong on 64-bit but faults on 32-bit/Pi (e.g. an unchecked read past an object) — run it before pushing C or eval-core changes. The baseline is **clean** (since 2026-07-13) and CI hard-gates it: a red ASan run is a real regression. Note the pinned `ASAN_OPTIONS` in the Makefile — leak detection is off (the GC does not free at exit) and so is the fake stack (incompatible with stack-copying call/cc).
+`make test-asan` runs both suites against an ASan build. It catches the crash class that is silently wrong on 64-bit but faults on 32-bit/Pi (e.g. an unchecked read past an object) — run it before pushing C or eval-core changes. The baseline is **clean** (since 2026-07-13) and CI hard-gates it on merges to `main`: a red ASan run is a real regression. Note the pinned `ASAN_OPTIONS` in the Makefile — leak detection is off (the GC does not free at exit), so is the fake stack (incompatible with stack-copying call/cc), and the quarantine is 2G: a tower boot frees more than ASan's default 256M holds, after which a use-after-free reads a recycled cell and reports nothing.
+
+`make check-asan-boot` is the cheap, pre-push half of the same idea: it boots every dialect **cold** on an ASan build of the pinned engine's sources (~1 min the first time, under a minute after) and fails on any sanitizer report. It exists because the engine has no auto-GC and a precise collector — an object referenced only from a C frame is garbage the moment anything collects, and whether the freed cell is *reused* before it is read depends on the allocator: glibc reuses it at once, macOS mostly does not. So the whole class was invisible on the desk and red in CI (#614). ASan makes the allocator irrelevant. It rides `test-fast` (the pre-push hook) and `gates`.
 
 ### Pre-push gate
 
@@ -350,7 +352,7 @@ The spec runner evaluates the `scheme` code block and compares stdout against th
 make install-hooks   # sets core.hooksPath=.githooks
 ```
 
-The hook hard-gates on `make test` (both suites) and blocks the push if it fails (bypass a single push with `git push --no-verify`). `make test-asan` is green at HEAD but slow (~2-3x), so locally it stays opt-in — `RUN_ASAN=1` runs it non-blocking; CI hard-gates it on every push regardless.
+The hook hard-gates on `make test-fast` (the fast contract gates, the ASan boot, both suites) and blocks the push if it fails (bypass a single push with `git push --no-verify`). `make test-asan` is green at HEAD but slow (~2-3x), so locally it stays opt-in — `RUN_ASAN=1` runs it non-blocking; CI hard-gates it on every push regardless.
 
 ### CI
 
