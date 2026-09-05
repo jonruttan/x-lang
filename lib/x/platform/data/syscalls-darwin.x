@@ -27,7 +27,20 @@
     ; wall clock (#21): the timeval decode is OS-shared (sec i64@0; usec
     ; fits the low u32@8 on both -- Darwin's tv_usec is a 32-bit field,
     ; Linux's is an i64 whose value is < 1e6).
-    (list (lit gettimeofday) 116)))
+    (list (lit gettimeofday) 116)
+    ; The metadata and identity tail.  Linux reaches all of these through
+    ; the index table already; Darwin's are sparse, so they are named
+    ; here.  statfs64 (345), not statfs (157): the legacy number returns
+    ; the 32-bit-inode struct, whose f_bsize reads back zero.
+    (list (lit chmod) 15) (list (lit chown) 16)
+    (list (lit link) 9) (list (lit symlink) 57) (list (lit readlink) 58)
+    (list (lit utimes) 138) (list (lit truncate) 200)
+    (list (lit mknod) 14) (list (lit chroot) 61)
+    (list (lit sync) 36) (list (lit fsync) 95)
+    (list (lit statfs64) 345)
+    (list (lit getuid) 24) (list (lit geteuid) 25)
+    (list (lit getgid) 47) (list (lit getegid) 43)
+    (list (lit getgroups) 79) (list (lit setpriority) 96)))
 
 ; syscall-id: look up a syscall number by name. On Darwin, use the BSD alist;
 ; elsewhere the x86_64 index table (falling back to i386). Returns the number,

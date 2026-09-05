@@ -368,6 +368,116 @@
       (when (< r 0) (error (Err from-errno (%fs-errno r) 'rename (list from to))))
       ())
 
+    ; --- The metadata doors ---
+    ;
+    ; A tool tier needs more of the filesystem than reading and writing:
+    ; chmod(1) and install -m want the mode, ln(1) wants both link
+    ; calls, readlink(1) and realpath(1) want the target, touch(1) wants
+    ; the timestamps, and df(1) wants the mount's block counts.  All six
+    ; are syscalls the platform table already names.
+
+    (method chmod (self (param path STRING "Path whose mode to set")
+                        (param mode INT "Permission bits, e.g. 420 for 0644"))
+      (doc "Set a path's permission bits (chmod). Raises a kind-'io Err on failure; returns nil."
+        (returns ANY "nil")
+        (sample "(File chmod \"run.sh\" 493)" "makes it 0755"))
+      (%fs-path path "File chmod")
+      (def r (syscall (syscall-id 'chmod) path mode))
+      (when (< r 0) (error (Err from-errno (%fs-errno r) 'chmod path)))
+      ())
+
+    (method chown (self (param path STRING "Path whose owner to set")
+                        (param uid INT "Owning user id, or -1 to leave it")
+                        (param gid INT "Owning group id, or -1 to leave it"))
+      (doc "Set a path's owning user and group (chown). Either id may be -1 to leave that half alone. Raises a kind-'io Err on failure; returns nil."
+        (returns ANY "nil")
+        (sample "(File chown \"out.txt\" 501 20)" "sets both")
+        (sample "(File chown \"out.txt\" -1 20)" "sets only the group"))
+      (%fs-path path "File chown")
+      (def r (syscall (syscall-id 'chown) path uid gid))
+      (when (< r 0) (error (Err from-errno (%fs-errno r) 'chown path)))
+      ())
+
+    (method link (self (param target STRING "Existing path")
+                       (param path STRING "New name for it"))
+      (doc "Create a hard link: a second directory entry for the SAME inode, so both names share the file's bytes and it survives until the last one goes. Raises a kind-'io Err on failure; returns nil."
+        (returns ANY "nil")
+        (sample "(File link \"a.txt\" \"b.txt\")" "b.txt is now a.txt"))
+      (%fs-path target "File link")
+      (%fs-path path "File link")
+      (def r (syscall (syscall-id 'link) target path))
+      (when (< r 0) (error (Err from-errno (%fs-errno r) 'link (list target path))))
+      ())
+
+    (method symlink (self (param target STRING "What the link should point at")
+                          (param path STRING "The link to create"))
+      (doc "Create a symbolic link at path pointing at target. The target is stored as WRITTEN and is never resolved here, so it need not exist. Raises a kind-'io Err on failure; returns nil."
+        (returns ANY "nil")
+        (sample "(File symlink \"../lib/x.x\" \"here.x\")" "creates the link"))
+      (%fs-path target "File symlink")
+      (%fs-path path "File symlink")
+      (def r (syscall (syscall-id 'symlink) target path))
+      (when (< r 0) (error (Err from-errno (%fs-errno r) 'symlink (list target path))))
+      ())
+
+    (method readlink (self (param path STRING "Symbolic link to read"))
+      (doc "The text a symbolic link holds, exactly as it was written -- relative targets come back relative. Raises a kind-'io Err when the path is not a link."
+        (returns STRING "The link's target")
+        (sample "(File readlink \"here.x\")" "\"../lib/x.x\""))
+      (%fs-path path "File readlink")
+      (def buf (%make-str 4096))
+      (def n (syscall (syscall-id 'readlink) path buf 4096))
+      (when (< n 0) (error (Err from-errno (%fs-errno n) 'readlink path)))
+      ; readlink does NOT terminate what it writes; the length is the answer
+      (Str8 sub 0 n buf))
+
+    (method utimes (self (param path STRING "Path to stamp"))
+      (doc "Set a path's access and modification times to the current clock (utimes with a null times pointer) -- what touch(1) means for a file that already exists. Raises a kind-'io Err on failure; returns nil."
+        (returns ANY "nil")
+        (note "Explicit timestamps would want a packed pair of timevals, and this module holds no pointer prims to build one; the clock is the door.")
+        (sample "(File utimes \"out.txt\")" "bumps both stamps to now"))
+      (%fs-path path "File utimes")
+      (def r (syscall (syscall-id 'utimes) path ()))
+      (when (< r 0) (error (Err from-errno (%fs-errno r) 'utimes path)))
+      ())
+
+    (method mkfifo (self (param path STRING "FIFO to create")
+                    . (param perm INT "Permission bits; default 0644"))
+      (doc "Create a named pipe (mknod with the S_IFIFO bit). Raises a kind-'io Err on failure; returns nil."
+        (returns ANY "nil")
+        (sample "(File mkfifo \"work.pipe\")" "creates the FIFO"))
+      (%fs-path path "File mkfifo")
+      ; S_IFIFO is 0010000; mknod's device argument is unused for a FIFO
+      (def r (syscall (syscall-id 'mknod) path
+               (| 4096 (if (null? perm) 420 (first perm))) 0))
+      (when (< r 0) (error (Err from-errno (%fs-errno r) 'mkfifo path)))
+      ())
+
+    (method statfs (self (param path STRING "Any path on the filesystem to measure"))
+      (doc "The filesystem holding path, as an alist: ((bsize . BYTES) (blocks . N) (bfree . N) (bavail . N) (files . N) (ffree . N)). Multiply a block count by bsize for bytes. Raises a kind-'io Err on failure."
+        (returns ALIST "((bsize . B) (blocks . N) (bfree . N) (bavail . N) (files . N) (ffree . N))")
+        (sample "(File statfs \"/\")" "((bsize . 4096) (blocks . 242837545) ...)"))
+      (%fs-path path "File statfs")
+      ; Darwin's struct carries two 1024-byte mount names after the counts
+      (def buf (%make-str 2304))
+      (def r (if os-darwin?
+               (syscall (syscall-id 'statfs64) path buf)
+               (syscall (syscall-id 'statfs) path buf)))
+      (when (< r 0) (error (Err from-errno (%fs-errno r) 'statfs path)))
+      ; The field spec, inlined the way (File %stat-decode)'s is: Darwin's
+      ; f_bsize is a u32 leading the struct, Linux's is the second of
+      ; eleven longs.  Only the block and inode counts are decoded --
+      ; Darwin puts two 1024-byte mount names after them.
+      (Struct unpack
+        (if os-darwin?
+          (list (list 'bsize 'u32) (list 'iosize 'i32)
+                (list 'blocks 'u64) (list 'bfree 'u64) (list 'bavail 'u64)
+                (list 'files 'u64) (list 'ffree 'u64))
+          (list (list 'pad 8) (list 'bsize 'i64)
+                (list 'blocks 'u64) (list 'bfree 'u64) (list 'bavail 'u64)
+                (list 'files 'u64) (list 'ffree 'u64)))
+        buf))
+
     ; --- The coverage tail (#364) ---
 
     (method lstat (self (param path STRING "Path to stat, symlinks NOT followed"))

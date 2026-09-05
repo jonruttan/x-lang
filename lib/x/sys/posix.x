@@ -238,6 +238,85 @@
           (let ((e (%ptr-ref (%cvt envp %ptr) (* i %word-size) %word-size)))
             (if (= e 0) (%reverse acc)
               (go (+ i 1) (pair (%cvt (%cvt e %ptr) %string) acc)))))))
+    ; --- Process identity and the machine ---
+    ;
+    ; The tool tier's remaining questions: who am I (id, whoami, groups),
+    ; what am I running on (uname, arch, nproc), and the two process-state
+    ; doors nice(1) and chroot(1).  All libc, so all portable -- no
+    ; syscall numbers appear here.
+    (method getuid (self)
+      (doc "The process's REAL user id -- who invoked it, before any setuid."
+        (returns INT "User id")
+        (sample "(Sys getuid)" "501"))
+      (%sys-fold (%ptr-call (%resolve "getuid"))))
+    (method geteuid (self)
+      (doc "The process's EFFECTIVE user id -- who it acts as, which is what a permission check reads."
+        (returns INT "User id"))
+      (%sys-fold (%ptr-call (%resolve "geteuid"))))
+    (method getgid (self)
+      (doc "The process's real group id."
+        (returns INT "Group id"))
+      (%sys-fold (%ptr-call (%resolve "getgid"))))
+    (method getegid (self)
+      (doc "The process's effective group id."
+        (returns INT "Group id"))
+      (%sys-fold (%ptr-call (%resolve "getegid"))))
+    (method getgroups (self)
+      (doc "The process's supplementary group ids, as a list. getgroups is asked its own count first, so the buffer is never guessed."
+        (returns LIST "Group ids")
+        (sample "(Sys getgroups)" "(20 12 61 79)"))
+      ; size 0 with a null list is the documented "how many?" call
+      (let ((n (%sys-fold (%ptr-call (%resolve "getgroups") 0 0))))
+        (if (< n 1) ()
+          (let ((buf (%make-str (* n 4))))
+            (let ((p (%str->ptr buf)))
+              (%ptr-call (%resolve "getgroups") n p)
+              (let go ((i 0) (acc ()))
+                (if (= i n) (%reverse acc)
+                  (go (+ i 1) (pair (%ptr-ref p (* i 4) 4) acc)))))))))
+    ; struct utsname is five fixed char arrays back to back, and the
+    ; array WIDTH is the whole per-OS difference: Darwin's _SYS_NAMELEN
+    ; is 256, Linux's is 65 (with a sixth domainname field after).
+    (method uname (self)
+      (doc "The running system, as an alist: ((sysname . S) (nodename . S) (release . S) (version . S) (machine . S)). sysname is \"Darwin\" or \"Linux\"; machine is the architecture uname -m prints."
+        (returns ALIST "((sysname . S) (nodename . S) (release . S) (version . S) (machine . S))")
+        (sample "(Sys uname)" "((sysname . \"Darwin\") ... (machine . \"arm64\"))"))
+      ; This module loads mid-x-core, before the Struct codec exists, so
+      ; the five fields are read as C strings at their own offsets --
+      ; each array is NUL-terminated and none needs the codec.
+      (let ((w (if os-darwin? 256 65)))
+        (let ((buf (%make-str (* w 6))))
+          (%ptr-call (%resolve "uname") (%str->ptr buf))
+          (let ((base (%cvt (%str->ptr buf) %int)))
+            (def %at (fn (_ k) (%cvt (%cvt (+ base (* k w)) %ptr) %string)))
+            (list (pair (lit sysname) (%at 0)) (pair (lit nodename) (%at 1))
+                  (pair (lit release) (%at 2)) (pair (lit version) (%at 3))
+                  (pair (lit machine) (%at 4)))))))
+    (method cpu-count (self)
+      (doc "How many processors are online (sysconf _SC_NPROCESSORS_ONLN) -- what nproc(1) reports. Answers 1 when the query fails, never 0."
+        (returns INT "Processor count, at least 1")
+        (sample "(Sys cpu-count)" "10"))
+      ; _SC_NPROCESSORS_ONLN is one of the sysconf names that is NOT
+      ; shared: 58 on Darwin, 84 on Linux.
+      (let ((n (%sys-fold (%ptr-call (%resolve "sysconf") (if os-darwin? 58 84)))))
+        (if (< n 1) 1 n)))
+    (method sync (self)
+      (doc "Flush the filesystem write buffers (sync). Returns nil; there is nothing to fail."
+        (returns ANY "nil"))
+      (%ptr-call (%resolve "sync"))
+      ())
+    (method fsync (self (param fd INT "File descriptor to flush"))
+      (doc "Flush ONE open file's buffers to disk (fsync), rather than the whole system."
+        (returns INT "0 on success, -1 on error"))
+      (%sys-fold (%ptr-call (%resolve "fsync") fd)))
+    (method nice (self (param increment INT "Amount to add to the scheduling priority"))
+      (doc "Raise the process's nice value -- a HIGHER number means a LOWER priority, and only a privileged process may lower it."
+        (returns INT "The new nice value, or -1 on error"))
+      (%sys-fold (%ptr-call (%resolve "nice") increment)))
+    (method chroot (self (param path STRING "New filesystem root"))
+      (doc "Change the process's filesystem root. Privileged: an unprivileged caller gets -1 with EPERM."
+        (returns INT "0 on success, -1 on error"))
+      (%sys-fold (%ptr-call (%resolve "chroot") path)))
     ; --- Sleep (#361) ---
     (method sleep (self (param seconds INT "Whole seconds to block"))
       (doc "Block for the given number of seconds (libc sleep). A signal can wake it early; sub-second waits are (Sys usleep)."
