@@ -6,10 +6,11 @@ The contract between the writer (`tools/dev/image-write.x`), the loader
 and this document disagree, this document is what gets fixed first, and
 nothing enters the format that is not written here.
 
-This is version 2 of the format. Version 1 is what the tools implement at
-the time of writing; §9 says what changes and why. Every claim below about
-the engine was read from `ext/x-expr` and `x-engine-c` source, and names the
-file it came from.
+This is version 1 of the format — the first one. The tools in
+`tools/dev/` at the time of writing implement an earlier draft that never
+loaded a working image; §9 says what it got wrong and what carries over.
+Every claim below about the engine was read from `ext/x-expr` and
+`x-engine-c` source, and names the file it came from.
 
 ## 1. What the engine holds, and where
 
@@ -74,7 +75,7 @@ transitive closure of objects they reach, written so a different process
 running the same engine release can rebuild them as objects of *its* base
 and set *its* language-state cells to them.
 
-Consequences, each of which removes something version 1 needed:
+Consequences, each of which removes something the draft needed:
 
 1. The type registry comes with the image. Types are objects; a type word is
    a reference to an imaged struct. There is no type table, no matching by
@@ -107,7 +108,7 @@ Words are `%word-size` bytes, little-endian. Sections are contiguous:
 | word | name | meaning |
 |---|---|---|
 | 0 | magic | `"XIMG"` little-endian |
-| 1 | version | `2` |
+| 1 | version | `1` |
 | 2 | word size | refused on mismatch |
 | 3 | byte order probe | `1`; refused if not |
 | 4 | `N` | object count |
@@ -175,7 +176,7 @@ index (negative in a `ref` unit, plain in a `foreign` unit). Kinds:
 | 6 `static` | a role name | one of the engine's static objects, by role — see below |
 | 7 `type-static` | a type name and a row of `base-paths.x` | the static object a **freshly registered** type of that name holds at that row |
 
-Kinds 1–5 are version 1's foreign kinds, unchanged. Kind 6 names the
+Kinds 1–5 are the draft's foreign kinds, unchanged. Kind 6 names the
 statics that are not inside any type struct: `true`, `false` (`x_true_obj`,
 `x_false_obj`), `tag-atom`, `tag-pair` (the two tags, when they appear as
 type words), `units-atom`, `units-pair`, `length-atom`, `length-pair`,
@@ -262,8 +263,8 @@ A word is a reference iff its unit's kind is `ref`. An INTEGER's one unit is
 `word`; it is never resolved, even when it holds an address — so a global
 that caches a type word (`%reflect-satom-tw`, `%print-int-tw`) is written
 verbatim and is **wrong after load** unless the library recomputes it.
-Version 1 relocated these by table; version 2 does not, because the right
-fix is in the library: a cached process address is a boot-time computation
+The draft relocated these by table; this format does not, because the
+right fix is in the library: a cached process address is a boot-time computation
 the image cannot carry, and `boot/reflect.x` and `boot/printer.x` must
 recompute theirs on load (§8).
 
@@ -346,18 +347,18 @@ test, not the unit test.
   digest of the library sources. `tools/dev/image-build.sh`'s key does that
   outside the file.
 
-## 9. From version 1 to version 2
+## 9. What the draft got wrong
 
-Version 1 treated the base as a static spine the image may only read
+The draft treated the base as a static spine the image may only read
 through `base-paths.x`, imaged the env and globals hanging off it, and
 resolved every other piece of base state against the loader's own base by
 name: type structs by type name, handler stacks by cell row, the resident
 ERR and the boundary by ad-hoc install, cached type words by relocation.
 Each of those was a table, each table a parser, and each grew from the one
-before it failing to express the next thing found. The eleven findings in
-the version-1 spec's §7 are all the same finding: the base is one tree, and
-an image that does not carry the tree has to reconstruct it by guesswork.
+before it failing to express the next thing found. Its findings were all
+the same finding: the base is one tree, and an image that does not carry
+the tree has to reconstruct it by guesswork.
 
-What version 2 keeps from version 1: the walk and its three rules, the
+What this format keeps from the draft: the walk and its three rules, the
 externals kinds 1–5 and the pristine-base derivation of kind 7, the shape
 reader, the primitive-call install, the NUL in names, and the sentinel.
