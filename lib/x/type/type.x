@@ -115,7 +115,7 @@
       (doc "Declare what each of a type's units IS, not just how many there are. The collector traces `ref` units and leaves the rest alone -- which is what makes a unit holding bytes or a foreign address declarable at all, since the marker writes through any pointer it is handed."
         (note "A fixed count describes its own units; a count of -k describes k leading units plus the kind of the slot-0-counted payload that follows, so (Type set-shape! ts -1 '(word ref)) is the vector.")
         (returns ANY "The type struct")
-        (example "(Type set-shape! (Type by-atom (Type of \"s\")) 1 '(bytes))" "<type>"))
+        (example "(let ((st (Type by-atom (Type of \"s\")))) (same? (Type set-shape! st 1 '(bytes)) st))" "#t"))
       ((prim-ref (lit type) (lit set-shape!)) ts n (Type %kind-mask kinds)))
     (method fields (self)
       (doc "Every type field name in the layout contract (type-rooted rows of engine/tools/contract/base-paths.x)."
