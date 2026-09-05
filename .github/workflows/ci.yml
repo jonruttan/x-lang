@@ -287,6 +287,18 @@ jobs:
       # newcomer runs was previously the only code with no gate -- and its
       # first-ever run caught or/cat.x broken by the #36 opt-in re-cut.
       - name: Examples
+        # EXAMPLE_JOBS PINNED ON UBUNTU, for the reason SPEC_HEAVY_JOBS is:
+        # examples.sh runs four at once, and glob order makes its first batch
+        # three radon boots plus x/factorial.x.  Measured on x86-64 (the qemu
+        # box, tools/dev/x86-vm.sh): a tower boot peaks at ~3.4GB there and the
+        # factorial example at 7.1GB, so that batch is ~17GB at once on the
+        # linux runner.  It dies at that peak, ~30s in -- SIGTERM 143, no
+        # example finished, so nothing named -- the signature this file already
+        # documents for an OOM-killed runner.  Red on most main runs since #595
+        # made every tower boot heavier (2026-09-02); the macOS leg, with the
+        # smaller arm64 peaks, passed throughout at width 4 and keeps it.
+        env:
+          EXAMPLE_JOBS: ${{ matrix.os == 'ubuntu-24.04' && '1' || '4' }}
         run: make check-examples
 
   # Memory-safety gate: both suites under AddressSanitizer. HARD gate since
