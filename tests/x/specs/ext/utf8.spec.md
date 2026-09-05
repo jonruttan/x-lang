@@ -17,7 +17,7 @@ Sample chars: `$` = U+0024 (1 byte), `¢` = U+00A2 (2 bytes), `€` = U+20AC (3 
 Value, not length: a count of 3 is true even if the bytes were regrouped
 incorrectly.
 
-```scheme
+```x
 (StrUtf8 ->list "$¢€")
 ```
 ---
@@ -25,7 +25,7 @@ incorrectly.
 
 ### byte length is larger than the code-point count
 
-```scheme
+```x
 (%str-length "$¢€")
 ```
 ---
@@ -33,7 +33,7 @@ incorrectly.
 
 ### a 2-byte code point inside ASCII counts once (café = 4 code points)
 
-```scheme
+```x
 (StrUtf8 ->list "café")
 ```
 ---
@@ -41,7 +41,7 @@ incorrectly.
 
 ### empty string decodes to the empty list
 
-```scheme
+```x
 (StrUtf8 ->list "")
 ```
 ---
@@ -50,7 +50,7 @@ incorrectly.
 
 ### the documented example builds a UTF-8 string
 
-```scheme
+```x
 (StrUtf8 ->str (list #\$ #\€))
 ```
 ---
@@ -58,7 +58,7 @@ incorrectly.
 
 ### str->list then list->str round-trips the string
 
-```scheme
+```x
 (StrUtf8 ->str (StrUtf8 ->list "$¢€"))
 ```
 ---
@@ -66,7 +66,7 @@ incorrectly.
 
 ### the round-trip preserves the exact byte length (no corruption)
 
-```scheme
+```x
 (%str-length (StrUtf8 ->str (StrUtf8 ->list "¢€")))
 ```
 ---

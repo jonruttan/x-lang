@@ -5,6 +5,95 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A lang can word the engine's errors.** `(no-such-binding)` reached x-lang as
+a bare, type-less atom holding one pre-flattened English string — "Unbound
+SYMBOL 'no-such-binding'" — with the symbol already concatenated in and thrown
+away. A lang that wanted to say it differently had nothing to work with: no
+type, so no dispatch stack to push a handler onto, and no structure, so its
+only recourse was to pattern-match English.
+
+The engine now raises a typed **ERR** carrying `(code . subject)` — the raise
+site's message literal and what it was about, unflattened — and
+`x/type/err-io.x` pushes the default wording onto that type's write/display
+stacks. The wording is byte-for-byte what C emitted; the difference is that
+it is now a handler, so a lang pushes its own over it and pops it again, the
+same shape `char-io.x` has always used for CHARACTER:
+
+```x
+(%type-push-display ERR
+  (fn (_ e) (display (Str8 append "symbole non liée : " (Err subject-of e)))))
+```
+
+`Err` learned the vocabulary: `(Err kind-of e)` answers `'engine` for an
+engine raise rather than lumping it in with `'user`, and `(Err code-of e)` /
+`(Err subject-of e)` return the two facts as strings. The engine's whole
+raise vocabulary is five codes, so keying a translation off them is
+tractable. `boot/printer.x` lost the identity test it used to need (#54): a
+nil-typed atom had to be recognised by pointer to print at all, and a typed
+value simply dispatches — two `%`-globals gone with it.
+
+Uncaught errors still word themselves in C and read exactly as before: that
+path runs before any library is loaded, and nothing on a fatal path should
+be calling into x-lang.
+
+**Migrating a guard that reads the message.** The value a guard receives
+for an ENGINE raise is now a structured ERR rather than an atom whose bytes
+are the message, so the old lifts out of that atom no longer work — they
+read a slot as a character pointer and hand back garbage rather than
+failing loudly, which is the one unkind part of this change:
+
+| was | now |
+|---|---|
+| `(symbol->str e)` | `(%display-to-str e)` for the whole sentence |
+| `(Str8 append "" e)` | `(Err code-of e)` for just the code |
+| — | `(Err subject-of e)` for just the name it is about |
+
+Guards that only *re-raise* or match on `(Err kind-of e)` are unaffected,
+and `(error "msg")` still delivers the string itself exactly as before.
+
+
+**The documentation answers a machine now.** `AGENTS.md` (with `CLAUDE.md`
+symlinked to it, so there is one file and not a copy to rot) is the briefing
+a coding agent needs and the prose docs could not be: how to run it, the Lisp
+assumptions that fail here — no `car`, no `print`, subject-last dispatch,
+self as argument 0 — the three calls that answer "what exists" without
+reading anything else, and which dialect has what. `llms.txt` indexes the
+published documentation for the same audience, listing entry points rather
+than every page, so it cannot go stale behind them.
+
+**A failed dispatch suggests what you meant.** `(List mp …)` answered `no
+such static member mp` and stopped; it now adds `-- did you mean map?`.
+Selectors within one edit of the miss, or a proper prefix of it, are
+proposed, three at most, privacy-wrapped entries skipped — a typo
+self-corrects, a wrong concept still does not, and a miss with nothing near
+it reads exactly as it did before. Both dispatch-miss sites share the one
+cold-path helper; the hot path never reaches it.
+
+**Two ways in that were missing, and a silent one that lied.** `x.sh` gained
+`-c/--eval`: evaluate an expression and exit, repeatable, expressions running
+in order, so a definition and its use fit in one command. Before it, asking
+the language a one-line question — what does `(help Str8/split)` say, what
+does this expression evaluate to — cost a temporary file, which is why
+nothing scripted ever asked. The obvious alternative was worse than missing:
+`echo '(write 1)' | sh x.sh` printed a prompt, evaluated *nothing*, and
+exited 0. The pipe the wrapper builds is the engine's stdin, so the REPL
+reaches the caller's only by reclaiming fd 3 — and `repl/loop.x` reclaims it
+only `(when (Sys isatty 3))`, which a pipe is not. A non-terminal stdin is
+now program text, appended after the library: the wrapper's spelling of the
+`cat lib/x.x - | ./x-bin` the README has always documented. `make
+check-wrapper` is the gate that keeps all of it honest — the spec suite talks
+to the engine, so nothing tested the wrapper at all.
+
+**x-lang's own spec fences say `x`, not `scheme`.** 2,735 of them, across 154
+files. The tag was decoration to the runner — it collects any fenced block the
+same way, and only ` ```output ` means anything to it — but it is a claim to
+every reader, and it named a language this is not. A reader who trusts it
+reaches for `car`, which is unbound. `x` is what the rest of the tree already
+uses: it is the tag the Pages build highlights (Rouge has no x-lang lexer, so
+`tools/dev/highlight-sweep.sh` supplies one) and the tag the hand-written docs
+are written with. The `scheme` row stays for the langs that are Scheme
+dialects.
+
 ## [0.11.0] - 2026-09-03
 
 **x runs C, and compiles it.** x-cc registered at 27 specs and left this

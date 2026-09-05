@@ -3,7 +3,7 @@
 
 ### is a procedure
 
-```scheme
+```x
 (procedure? call/cc)
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### immediate invoke returns the passed value
 
-```scheme
+```x
 (call/cc (fn (_ k) (k 9)))
 ```
 ---
@@ -19,7 +19,7 @@
 
 ### fall-through returns the body value
 
-```scheme
+```x
 (call/cc (fn (_ k) 5))
 ```
 ---
@@ -27,7 +27,7 @@
 
 ### escapes from a nested computation
 
-```scheme
+```x
 (+ 1 (call/cc (fn (_ k) (+ 10 (k 5)))))
 ```
 ---
@@ -35,7 +35,7 @@
 
 ### invoking with no value returns nil
 
-```scheme
+```x
 (null? (call/cc (fn (_ k) (k))))
 ```
 ---
@@ -43,7 +43,7 @@
 
 ### continuation used as a value
 
-```scheme
+```x
 (do (def cell ())
     (set! cell (call/cc (fn (_ k) k)))
     (if (procedure? cell) (cell 42) ())

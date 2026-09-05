@@ -3,7 +3,7 @@
 
 ### returns non-nil
 
-```scheme
+```x
 (not (null? (Type alist)))
 ```
 ---
@@ -13,7 +13,7 @@
 
 ### finds integer type
 
-```scheme
+```x
 (not (null? (Type by-atom (Type of 42))))
 ```
 ---
@@ -21,7 +21,7 @@
 
 ### finds string type
 
-```scheme
+```x
 (not (null? (Type by-atom (Type of "hello"))))
 ```
 ---
@@ -29,7 +29,7 @@
 
 ### finds symbol type
 
-```scheme
+```x
 (not (null? (Type by-atom (Type of 'foo))))
 ```
 ---
@@ -37,7 +37,7 @@
 
 ### returns nil for unknown
 
-```scheme
+```x
 (null? (Type by-atom 999))
 ```
 ---
@@ -47,7 +47,7 @@
 
 ### returns non-nil for integer type
 
-```scheme
+```x
 (not (null? (Type io (Type by-atom (Type of 42)))))
 ```
 ---
@@ -57,7 +57,7 @@
 
 ### returns non-nil for integer type
 
-```scheme
+```x
 (not (null? (Type cvt (Type by-atom (Type of 42)))))
 ```
 ---
@@ -67,7 +67,7 @@
 
 ### returns non-nil
 
-```scheme
+```x
 (not (null? (Type write-cell (Type by-atom (Type of 42)))))
 ```
 ---
@@ -77,7 +77,7 @@
 
 ### returns non-nil
 
-```scheme
+```x
 (not (null? (Type analyse-cell (Type by-atom (Type of 42)))))
 ```
 ---
@@ -87,7 +87,7 @@
 
 ### returns conversion data for string type
 
-```scheme
+```x
 (not (null? (Type from-cell (Type by-atom (Type of "")))))
 ```
 ---
@@ -97,7 +97,7 @@
 
 ### returns conversion data for integer type
 
-```scheme
+```x
 (not (null? (Type to-cell (Type by-atom (Type of 42)))))
 ```
 ---
@@ -107,7 +107,7 @@
 
 ### push adds handler, pop removes it
 
-```scheme
+```x
 (do (def ts (Type by-atom (Type of 42)))
     (def before (first (Type write-cell ts)))
     (Type push-write ts (fn (_ x) x))
@@ -123,7 +123,7 @@
 
 ### changes object type identity
 
-```scheme
+```x
 (do (def a (pair 1 2))
     (def orig-type (Type of a))
     (Type cast! a "hello")
@@ -140,7 +140,7 @@ by bool.spec.md and the gc-stress collect path.
 
 ### retags an object to a handle-resolved type
 
-```scheme
+```x
 (do (def rt-t ((prim-ref (lit type) (lit make)) "RETAGT" ()))
     (def rt-a (pair 1 2))
     ((prim-ref (lit obj) (lit retag!)) rt-a rt-t)
@@ -151,7 +151,7 @@ by bool.spec.md and the gc-stress collect path.
 
 ### an unknown handle refuses -- policy in x
 
-```scheme
+```x
 (guard (e e) ((prim-ref (lit obj) (lit retag!)) (pair 1 2) (lit no-such-type)))
 ```
 ---
@@ -160,7 +160,7 @@ by bool.spec.md and the gc-stress collect path.
 
 ### resolves a built-in handle (the documented handle form)
 
-```scheme
+```x
 (Type name (Type of 42))
 ```
 ---
@@ -168,7 +168,7 @@ by bool.spec.md and the gc-stress collect path.
 
 ### resolves a custom handle
 
-```scheme
+```x
 (do (def %t (Type make "NAMED-T" (list))) (Type name %t))
 ```
 ---
@@ -176,7 +176,7 @@ by bool.spec.md and the gc-stress collect path.
 
 ### object form returns the object's type name
 
-```scheme
+```x
 (Type name "hello")
 ```
 ---
@@ -184,7 +184,7 @@ by bool.spec.md and the gc-stress collect path.
 
 ### a plain symbol is an object, not a handle
 
-```scheme
+```x
 (Type name 'foo)
 ```
 ---
@@ -195,7 +195,7 @@ by bool.spec.md and the gc-stress collect path.
 Pins the nil-return path (formerly a C spec: nil input, nil-typed objects,
 and nil-NAME types all resolve to nil rather than misreading a payload).
 
-```scheme
+```x
 (null? (Type name ()))
 ```
 ---
@@ -211,7 +211,7 @@ a type addresses arbitrary spine words.
 
 ### wrap a handle; the instance names itself
 
-```scheme
+```x
 ((Type wrap (Type of 0)) name)
 ```
 ---
@@ -219,7 +219,7 @@ a type addresses arbitrary spine words.
 
 ### wrap a struct; the same instance surface
 
-```scheme
+```x
 ((Type wrap (Type by-atom (Type of 0))) name)
 ```
 ---
@@ -227,7 +227,7 @@ a type addresses arbitrary spine words.
 
 ### the instance renders as #<type:NAME>
 
-```scheme
+```x
 ((prim-ref 'io 'display-to-str) (Type wrap (Type of 0)))
 ```
 ---
@@ -235,7 +235,7 @@ a type addresses arbitrary spine words.
 
 ### the write stack is reachable as a contract cell
 
-```scheme
+```x
 (do (def %ti (Type wrap (Type of 0)))
     (not (null? (first (%ti cell (lit type-write-stack))))))
 ```
@@ -244,7 +244,7 @@ a type addresses arbitrary spine words.
 
 ### the field list carries the contract's type-rooted names only
 
-```scheme
+```x
 (do (def %tn ((Type wrap (Type of 0)) fields))
     (list (not (null? (List filter (fn (_ n) (eq? n (lit type-write-stack))) %tn)))
           (null? (List filter (fn (_ n) (eq? n (lit line))) %tn))))
@@ -254,7 +254,7 @@ a type addresses arbitrary spine words.
 
 ### a non-type-rooted name is refused
 
-```scheme
+```x
 (guard (e (lit refused)) ((Type wrap (Type of 0)) cell (lit line)))
 ```
 ---
@@ -268,7 +268,7 @@ probe that skipped the pop would leave INTEGER's write stack hexed for
 the whole batch.  Children of a written list render in the same mode,
 so the pushed handler shows through the list writer.
 
-```scheme
+```x
 (do
   (def %wt (Type wrap (Type of 0)))
   (%wt push-write (fn (_ n) (display (Str8 append "0x" (%number->str n 16)))))
@@ -278,3 +278,66 @@ so the pushed handler shows through the list writer.
 ```
 ---
     ("(0x1 0x2 0x2a)" "(1 2 42)")
+
+## Type set-shape!
+
+`set-units!` says how many units an instance has. `set-shape!` says what each
+one **is**, installing the pair form of the slot -- `(count . mask)`, two bits
+per unit, unit 0 lowest: `REF` 0, `WORD` 1, `BYTES` 2, `FOREIGN` 3.
+
+The kind decides who may touch the unit. Only a `REF` holds a heap object
+pointer, and only a `REF` may be handed to the collector's mark walk -- which
+sets a mark bit *through* the pointer before it can establish that the pointer
+is a heap object. Tracing a `WORD` therefore writes through whatever that
+immediate happens to be.
+
+Which is why the cases below force a collection. Nothing here checks a return
+value: the assertion is that the process is still alive and the `REF` unit is
+intact on the other side. An unshaped type would have traced the immediate.
+
+### a WORD unit is not traced, and the REF beside it survives
+
+Unit 0 is a `REF` and unit 1 a `WORD`, so the mask is `(1 << 2) | 0` = 4. The
+immediate is a plain integer that is not a heap address; if the collector
+walked it as one, this case would not finish.
+
+```x
+(do
+  (import x/sys/gc)
+  (def %ss (prim-ref (lit type) (lit set-shape!)))
+  (def %by (prim-ref (lit type) (lit by-atom)))
+  (def %mi (prim-ref (lit type) (lit make-instance)))
+  (def %set! (prim-ref (lit obj) (lit set!)))
+  (def %ref (prim-ref (lit obj) (lit ref)))
+  (def %t ((prim-ref (lit type) (lit make)) "SHAPEWORD" ()))
+  (%ss (%by %t) 2 4)
+  (def %i (%mi %t (list 1 2 3)))
+  (%set! %i 1 987654321)
+  (Heap collect)
+  (write (%ref %i 0)))
+```
+---
+    (1 2 3)
+
+### a zero mask means every unit a reference
+
+The bare-count form's meaning, unchanged -- `REF` is 0, so a mask of 0
+describes an all-reference instance and both units are traced as before.
+
+```x
+(do
+  (import x/sys/gc)
+  (def %ss (prim-ref (lit type) (lit set-shape!)))
+  (def %by (prim-ref (lit type) (lit by-atom)))
+  (def %mi (prim-ref (lit type) (lit make-instance)))
+  (def %set! (prim-ref (lit obj) (lit set!)))
+  (def %ref (prim-ref (lit obj) (lit ref)))
+  (def %t ((prim-ref (lit type) (lit make)) "SHAPEREF" ()))
+  (%ss (%by %t) 2 0)
+  (def %i (%mi %t (list 4 5)))
+  (%set! %i 1 (list 6 7))
+  (Heap collect)
+  (write (list (%ref %i 0) (%ref %i 1))))
+```
+---
+    ((4 5) (6 7))

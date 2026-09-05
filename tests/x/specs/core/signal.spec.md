@@ -8,7 +8,7 @@
 
 ### flag exists and starts at zero
 
-```scheme
+```x
 (%cell-int %sigint-flag)
 ```
 ---
@@ -18,17 +18,36 @@
 
 ### flag triggers STOP inside guard
 
-```scheme
-(guard (e (if (atom? e) (symbol->str e) e))
+```x
+(guard (e (%display-to-str e))
   (%set-cell-int! %sigint-flag 1)
   (+ 1 2))
 ```
 ---
     "STOP"
 
+### the interrupt is recognised through Err stop?, not by lifting bytes
+
+This is what the REPL's ctrl-c path tests. It matters that the predicate
+is total over BOTH spellings -- the engine's ERR and a bare `(error
+"STOP")` -- because reading the value's own bytes is the thing that keeps
+breaking: an ERR answers `atom?` with `#t`, so the old
+`(symbol->str err)` lift read a slot as a character pointer and compared
+garbage, silently, exactly as it had for `Err` instances in #46.
+
+```x
+(list
+  (Err stop? (guard (e e) (do (%set-cell-int! %sigint-flag 1) (+ 1 2))))
+  (Err stop? (guard (e e) (error "STOP")))
+  (Err stop? (guard (e e) nosuchsym))
+  (Err stop? "not an error at all"))
+```
+---
+    (#t #t #f #f)
+
 ### eval completes normally when flag is clear
 
-```scheme
+```x
 (guard (e 'caught)
   (%set-cell-int! %sigint-flag 0)
   (+ 1 2))
@@ -38,7 +57,7 @@
 
 ### STOP caught by innermost guard
 
-```scheme
+```x
 (guard (e 'outer)
   (guard (e 'inner)
     (%set-cell-int! %sigint-flag 1)
@@ -51,7 +70,7 @@
 
 ### STOP breaks tail-recursive fn loop
 
-```scheme
+```x
 (do (def n 0)
     (guard (e n)
       ((fn (f)
@@ -65,7 +84,7 @@
 
 ### STOP breaks do loop
 
-```scheme
+```x
 (do (def n 0)
     (guard (e n)
       (do (def loop (fn (self)
@@ -81,7 +100,7 @@
 
 ### sigint-install returns nil
 
-```scheme
+```x
 (null? (sigint-install))
 ```
 ---
@@ -89,7 +108,7 @@
 
 ### sigint-restore returns nil
 
-```scheme
+```x
 (null? (sigint-restore))
 ```
 ---

@@ -17,7 +17,7 @@ covers: base/make base/eval obj/->ptr ptr/ref-word
 Two values a child base allocates share one stamp, and it is not the
 host's.
 
-```scheme
+```x
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %prw (%coord (lit ptr) (lit ref-word)))
 (def %bmake (%coord (lit base) (lit make)))
@@ -51,7 +51,7 @@ A value's type word is the address of a type filed in the allocating
 base's type-alist — the child's in the child's, the host's in the
 host's, and the child's in neither's parent.
 
-```scheme
+```x
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %prw (%coord (lit ptr) (lit ref-word)))
 (def %p2i (%coord (lit ptr) (lit ->int)))
@@ -86,7 +86,7 @@ covers: type/make type/make-instance base/make base/eval eval
 A made type's instance answers its `eval` handler in whichever base
 evaluates it.
 
-```scheme
+```x
 (def %tmake (%coord (lit type) (lit make)))
 (def %minst (%coord (lit type) (lit make-instance)))
 (def %bmake (%coord (lit base) (lit make)))

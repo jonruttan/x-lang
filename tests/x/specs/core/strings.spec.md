@@ -3,7 +3,7 @@
 
 ### returns length of string
 
-```scheme
+```x
 (%str-length "hello")
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### returns 0 for empty string
 
-```scheme
+```x
 (%str-length "")
 ```
 ---
@@ -21,7 +21,7 @@
 
 ### returns character at index
 
-```scheme
+```x
 (%str-ref "hello" 0)
 ```
 ---
@@ -29,7 +29,7 @@
 
 ### returns middle character
 
-```scheme
+```x
 (%str-ref "hello" 2)
 ```
 ---
@@ -39,7 +39,7 @@
 
 ### concatenates two strings
 
-```scheme
+```x
 (Str8 append "hello" " world")
 ```
 ---
@@ -47,7 +47,7 @@
 
 ### appends to empty string
 
-```scheme
+```x
 (Str8 append "" "abc")
 ```
 ---
@@ -59,7 +59,7 @@
 sibling seat already raised. `append` does not coerce -- `(Str8 str ...)` is
 the seat that renders non-strings.
 
-```scheme
+```x
 (Str8 append "a" ())
 ```
 ---
@@ -67,7 +67,7 @@ the seat that renders non-strings.
 
 ### a non-string argument raises wherever it sits
 
-```scheme
+```x
 (Str8 append "a" 5 "b")
 ```
 ---
@@ -77,7 +77,7 @@ the seat that renders non-strings.
 
 ### extracts substring
 
-```scheme
+```x
 (%substring "hello world" 6 11)
 ```
 ---
@@ -85,7 +85,7 @@ the seat that renders non-strings.
 
 ### extracts from start
 
-```scheme
+```x
 (%substring "hello" 0 3)
 ```
 ---
@@ -93,7 +93,7 @@ the seat that renders non-strings.
 
 ### single character
 
-```scheme
+```x
 (%substring "abc" 1 2)
 ```
 ---
@@ -103,7 +103,7 @@ the seat that renders non-strings.
 
 ### returns #t for equal strings
 
-```scheme
+```x
 (str=? "hello" "hello")
 ```
 ---
@@ -111,7 +111,7 @@ the seat that renders non-strings.
 
 ### returns #f for different strings
 
-```scheme
+```x
 (str=? "hello" "world")
 ```
 ---
@@ -121,7 +121,7 @@ the seat that renders non-strings.
 
 ### converts string to symbol
 
-```scheme
+```x
 (Convert to "hello" %symbol)
 ```
 ---
@@ -129,7 +129,7 @@ the seat that renders non-strings.
 
 ### interned equality
 
-```scheme
+```x
 (eq? (Convert to "hello" %symbol) 'hello)
 ```
 ---
@@ -139,7 +139,7 @@ the seat that renders non-strings.
 
 ### converts symbol to string
 
-```scheme
+```x
 (Convert to 'hello %string)
 ```
 ---
@@ -147,7 +147,7 @@ the seat that renders non-strings.
 
 ### round-trip string/symbol/string
 
-```scheme
+```x
 (Convert to (Convert to "test" %symbol) %string)
 ```
 ---
@@ -157,7 +157,7 @@ the seat that renders non-strings.
 
 ### converts positive number
 
-```scheme
+```x
 (Convert to 42 %string)
 ```
 ---
@@ -165,7 +165,7 @@ the seat that renders non-strings.
 
 ### converts zero
 
-```scheme
+```x
 (Convert to 0 %string)
 ```
 ---
@@ -173,7 +173,7 @@ the seat that renders non-strings.
 
 ### converts negative number
 
-```scheme
+```x
 (Convert to -7 %string)
 ```
 ---
@@ -183,7 +183,7 @@ the seat that renders non-strings.
 
 ### parses positive number
 
-```scheme
+```x
 (Convert to "42" %int)
 ```
 ---
@@ -191,7 +191,7 @@ the seat that renders non-strings.
 
 ### parses negative number
 
-```scheme
+```x
 (Convert to "-5" %int)
 ```
 ---
@@ -199,7 +199,7 @@ the seat that renders non-strings.
 
 ### parses zero
 
-```scheme
+```x
 (Convert to "0" %int)
 ```
 ---
@@ -209,7 +209,7 @@ the seat that renders non-strings.
 
 ### escaped quote round-trips through write
 
-```scheme
+```x
 (write "a\"b")
 ```
 ---
@@ -217,7 +217,7 @@ the seat that renders non-strings.
 
 ### escaped backslash round-trips through write
 
-```scheme
+```x
 (write "a\\\\b")
 ```
 ---
@@ -225,7 +225,7 @@ the seat that renders non-strings.
 
 ### newline round-trips through write
 
-```scheme
+```x
 (write "a\nb")
 ```
 ---
@@ -233,7 +233,7 @@ the seat that renders non-strings.
 
 ### tab round-trips through write
 
-```scheme
+```x
 (write "a\tb")
 ```
 ---
@@ -241,7 +241,7 @@ the seat that renders non-strings.
 
 ### carriage return round-trips through write
 
-```scheme
+```x
 (write "a\rb")
 ```
 ---
@@ -249,7 +249,7 @@ the seat that renders non-strings.
 
 ### hex escape produces correct byte
 
-```scheme
+```x
 (= (Convert to (%str-ref "\x41" 0) %int) 65)
 ```
 ---
@@ -257,7 +257,7 @@ the seat that renders non-strings.
 
 ### display outputs raw characters
 
-```scheme
+```x
 (display "a\tb")
 ```
 ---
@@ -267,7 +267,7 @@ the seat that renders non-strings.
 
 ### round-trips number/string/number
 
-```scheme
+```x
 (Convert to (Convert to 99 %string) %int)
 ```
 ---
@@ -275,7 +275,7 @@ the seat that renders non-strings.
 
 ### builds string from parts
 
-```scheme
+```x
 (%str-length (Str8 append "abc" "defgh"))
 ```
 ---
@@ -286,7 +286,7 @@ the seat that renders non-strings.
 
 ### zero and ordinaries
 
-```scheme
+```x
 (list (%number->str 0) (%number->str 12345) (%number->str -42))
 ```
 ---
@@ -294,7 +294,7 @@ the seat that renders non-strings.
 
 ### radix
 
-```scheme
+```x
 (list (%number->str 255 16) (%number->str -255 16) (%number->str 7 2))
 ```
 ---
@@ -305,7 +305,7 @@ the seat that renders non-strings.
 The negative-domain rewrite's INT_MIN pin, computed from %word-size so
 the 32-bit Pi build passes too; the round-trip proves the digits.
 
-```scheme
+```x
 (do
   (def %n (<< 1 (- (* 8 %word-size) 1)))
   (eq? (%str->number (%number->str %n)) %n))
@@ -322,7 +322,7 @@ keeps the JSON `\u` parser (`(%str->number %t 16)`) byte-exact.
 
 ### parses the reader's hex notation
 
-```scheme
+```x
 (list (%str->number "0xff") (%str->number "0XFF") (%str->number "0x1A"))
 ```
 ---
@@ -330,7 +330,7 @@ keeps the JSON `\u` parser (`(%str->number %t 16)`) byte-exact.
 
 ### sign parses before the prefix
 
-```scheme
+```x
 (list (%str->number "-0xff") (%str->number "+0x10"))
 ```
 ---
@@ -338,7 +338,7 @@ keeps the JSON `\u` parser (`(%str->number %t 16)`) byte-exact.
 
 ### misses stay nil -- 0 would be indistinguishable from parsing "0"
 
-```scheme
+```x
 (list (null? (%str->number "0x")) (null? (%str->number "0xg")) (null? (%str->number "abc")))
 ```
 ---
@@ -346,7 +346,7 @@ keeps the JSON `\u` parser (`(%str->number %t 16)`) byte-exact.
 
 ### an explicit radix disables auto-detection
 
-```scheme
+```x
 (list (%str->number "ff" 16) (null? (%str->number "0xff" 16)) (%str->number "101" 2))
 ```
 ---
@@ -361,7 +361,7 @@ number, which is how JSON corrupted 64-bit IDs.
 
 ### overflow raises, boundaries parse exactly
 
-```scheme
+```x
 (list (guard (e (lit R)) (%str->number "12345678901234567890"))
       (guard (e (lit R)) (%str->number "9223372036854775808"))
       (%str->number "9223372036854775807")

@@ -5,7 +5,7 @@
 
 ### int arithmetic is unchanged
 
-```scheme
+```x
 (+ 2 3)
 ```
 ---
@@ -13,7 +13,7 @@
 
 ### int comparison is unchanged
 
-```scheme
+```x
 (< 2 3)
 ```
 ---
@@ -23,7 +23,7 @@
 
 ### a typed operand dispatches + to its type's handler
 
-```scheme
+```x
 (do
   (def %t (Type make "OPSPEC" (list)))
   (def %ts (Type by-atom %t))
@@ -35,7 +35,7 @@
 
 ### dispatch works with the typed operand on the right
 
-```scheme
+```x
 (do
   (def %t2 (Type make "OPSPEC2" (list)))
   (def %ts2 (Type by-atom %t2))
@@ -47,7 +47,7 @@
 
 ### the handler receives both raw operands
 
-```scheme
+```x
 (do
   (def %t6 (Type make "OPSPEC6" (list)))
   (def %ts6 (Type by-atom %t6))
@@ -59,7 +59,7 @@
 
 ### a new type's ops alist starts nil (never dispatches)
 
-```scheme
+```x
 (do
   (def %t3 (Type make "OPSPEC3" (list)))
   (def %ts3 (Type by-atom %t3))
@@ -70,7 +70,7 @@
 
 ### comparison dispatches too
 
-```scheme
+```x
 (do
   (def %t4 (Type make "OPSPEC4" (list)))
   (def %ts4 (Type by-atom %t4))
@@ -82,7 +82,7 @@
 
 ### same type on both sides dispatches its handler
 
-```scheme
+```x
 (do
   (def %t7 (Type make "OPSPEC7" (list)))
   (def %ts7 (Type by-atom %t7))
@@ -94,7 +94,7 @@
 
 ### the from-relation decides mixed types (absorber wins)
 
-```scheme
+```x
 (do
   (def %lo2 (Type make "OPSLO2" (list)))
   (def %hi2 (Type make "OPSHI2"
@@ -110,7 +110,7 @@
 
 ### the from-relation is order-independent
 
-```scheme
+```x
 (do
   (def %lo3 (Type make "OPSLO3" (list)))
   (def %hi3 (Type make "OPSHI3"
@@ -126,7 +126,7 @@
 
 ### eq? keeps identity semantics (never dispatches)
 
-```scheme
+```x
 (do
   (def %t5 (Type make "OPSPEC5" (list)))
   (def %ts5 (Type by-atom %t5))

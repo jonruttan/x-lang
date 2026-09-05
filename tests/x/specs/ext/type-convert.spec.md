@@ -5,7 +5,7 @@
 
 ### returns a handle for integers
 
-```scheme
+```x
 (not (null? (Type of 42)))
 ```
 ---
@@ -13,7 +13,7 @@
 
 ### returns a handle for strings
 
-```scheme
+```x
 (not (null? (Type of "hello")))
 ```
 ---
@@ -21,7 +21,7 @@
 
 ### returns nil for nil
 
-```scheme
+```x
 (null? (Type of ()))
 ```
 ---
@@ -31,7 +31,7 @@
 
 ### same type handle for two ints
 
-```scheme
+```x
 (eq? (Type of 1) (Type of 999))
 ```
 ---
@@ -39,7 +39,7 @@
 
 ### same type handle for two strings
 
-```scheme
+```x
 (eq? (Type of "a") (Type of "zzz"))
 ```
 ---
@@ -47,7 +47,7 @@
 
 ### same type handle for two pairs
 
-```scheme
+```x
 (do (def a (Type of (pair 1 2))) (def b (Type of (pair 3 4))) (eq? a b))
 ```
 ---
@@ -55,7 +55,7 @@
 
 ### same type handle for two floats
 
-```scheme
+```x
 (eq? (Type of 1.0) (Type of 2.5))
 ```
 ---
@@ -63,7 +63,7 @@
 
 ### same type handle for two booleans
 
-```scheme
+```x
 (eq? (Type of #t) (Type of #t))
 ```
 ---
@@ -71,7 +71,7 @@
 
 ### same type handle for two chars
 
-```scheme
+```x
 (eq? (Type of #\a) (Type of #\z))
 ```
 ---
@@ -81,7 +81,7 @@
 
 ### int differs from string
 
-```scheme
+```x
 (not (eq? (Type of 1) (Type of "x")))
 ```
 ---
@@ -89,7 +89,7 @@
 
 ### int differs from float
 
-```scheme
+```x
 (not (eq? (Type of 1) (Type of 1.0)))
 ```
 ---
@@ -97,7 +97,7 @@
 
 ### string differs from pair
 
-```scheme
+```x
 (do (def a (Type of "x")) (def b (Type of (pair 1 2))) (not (eq? a b)))
 ```
 ---
@@ -105,7 +105,7 @@
 
 ### int differs from char
 
-```scheme
+```x
 (not (eq? (Type of 1) (Type of #\a)))
 ```
 ---
@@ -113,7 +113,7 @@
 
 ### float differs from string
 
-```scheme
+```x
 (not (eq? (Type of 1.0) (Type of "1.0")))
 ```
 ---
@@ -123,7 +123,7 @@
 
 ### custom type returns a handle
 
-```scheme
+```x
 (do (def %t (Type make "TEST-T" (list))) (def obj (Type make-instance %t 1)) (not (null? (Type of obj))))
 ```
 ---
@@ -131,7 +131,7 @@
 
 ### same custom type returns same handle
 
-```scheme
+```x
 (do (def %t (Type make "TEST-T" (list))) (def a (Type make-instance %t 1)) (def b (Type make-instance %t 2)) (eq? (Type of a) (Type of b)))
 ```
 ---
@@ -139,7 +139,7 @@
 
 ### different custom types differ
 
-```scheme
+```x
 (do (def %t1 (Type make "T1" (list))) (def %t2 (Type make "T2" (list))) (not (eq? (Type of (Type make-instance %t1 1)) (Type of (Type make-instance %t2 1)))))
 ```
 ---
@@ -147,7 +147,7 @@
 
 ### custom type differs from int
 
-```scheme
+```x
 (do (def %t (Type make "TEST-T" (list))) (not (eq? (Type of (Type make-instance %t 1)) (Type of 42))))
 ```
 ---
@@ -157,7 +157,7 @@
 
 ### type-of key matches int for int convert
 
-```scheme
+```x
 (Float float? (Convert to 42 %float))
 ```
 ---
@@ -165,7 +165,7 @@
 
 ### type-of key matches string for float
 
-```scheme
+```x
 (Float float? (Convert to "3.14" %float))
 ```
 ---
@@ -175,7 +175,7 @@
 
 ### integer to string
 
-```scheme
+```x
 (Io write-to-str 42)
 ```
 ---
@@ -183,7 +183,7 @@
 
 ### negative integer to string
 
-```scheme
+```x
 (Io write-to-str -7)
 ```
 ---
@@ -191,7 +191,7 @@
 
 ### zero to string
 
-```scheme
+```x
 (Io write-to-str 0)
 ```
 ---
@@ -199,7 +199,7 @@
 
 ### string to quoted string
 
-```scheme
+```x
 (Io write-to-str "hello")
 ```
 ---
@@ -207,7 +207,7 @@
 
 ### symbol to string
 
-```scheme
+```x
 (Io write-to-str 'foo)
 ```
 ---
@@ -215,7 +215,7 @@
 
 ### boolean to string
 
-```scheme
+```x
 (Io write-to-str #t)
 ```
 ---
@@ -223,7 +223,7 @@
 
 ### nil to "()" string
 
-```scheme
+```x
 (Io write-to-str ())
 ```
 ---
@@ -231,7 +231,7 @@
 
 ### pair to string
 
-```scheme
+```x
 (Io write-to-str (pair 1 2))
 ```
 ---
@@ -239,7 +239,7 @@
 
 ### list to string
 
-```scheme
+```x
 (Io write-to-str (list 1 2 3))
 ```
 ---
@@ -247,7 +247,7 @@
 
 ### char to string
 
-```scheme
+```x
 (Io write-to-str #\a)
 ```
 ---
@@ -255,7 +255,7 @@
 
 ### float to string
 
-```scheme
+```x
 (Io write-to-str 3.14)
 ```
 ---
@@ -263,7 +263,7 @@
 
 ### nested list to string
 
-```scheme
+```x
 (Io write-to-str (list (list 1 2) 3))
 ```
 ---
@@ -271,7 +271,7 @@
 
 ### returns a string type
 
-```scheme
+```x
 (str? (Io write-to-str 42))
 ```
 ---
@@ -281,7 +281,7 @@
 
 ### convert nil returns nil
 
-```scheme
+```x
 (null? (Convert to () %float))
 ```
 ---
@@ -289,7 +289,7 @@
 
 ### convert nil to custom type returns nil
 
-```scheme
+```x
 (do (def %t (Type make "CNV-T" (list (pair 'from (list (pair (Type of 42) (fn (_ v) (Type make-instance %t v)))))))) (null? (Convert to () %t)))
 ```
 ---
@@ -299,7 +299,7 @@
 
 ### float to float is identity
 
-```scheme
+```x
 (def x 3.14) (eq? (Convert to x %float) x)
 ```
 ---
@@ -307,7 +307,7 @@
 
 ### custom type to same type is identity
 
-```scheme
+```x
 (do (def %t (Type make "ID-T" (list (pair 'from (list))))) (def obj (Type make-instance %t 42)) (eq? (Convert to obj %t) obj))
 ```
 ---
@@ -317,7 +317,7 @@
 
 ### exact match calls converter
 
-```scheme
+```x
 (Convert to 42 %float)
 ```
 ---
@@ -325,7 +325,7 @@
 
 ### exact match result has target type
 
-```scheme
+```x
 (Float float? (Convert to 42 %float))
 ```
 ---
@@ -333,7 +333,7 @@
 
 ### no match returns nil (the default miss policy)
 
-```scheme
+```x
 (null? (Convert to #\a %float))
 ```
 ---
@@ -341,7 +341,7 @@
 
 ### the miss policy is the dialect's (the Convert `missing` member)
 
-```scheme
+```x
 (do
   (def %saved-cm (Convert missing))
   (Convert missing (fn (_ v t) "missed"))
@@ -354,7 +354,7 @@
 
 ### convert negative int to float
 
-```scheme
+```x
 (Convert to -5 %float)
 ```
 ---
@@ -362,7 +362,7 @@
 
 ### convert zero to float
 
-```scheme
+```x
 (Convert to 0 %float)
 ```
 ---
@@ -370,7 +370,7 @@
 
 ### convert zero result is float
 
-```scheme
+```x
 (Float float? (Convert to 0 %float))
 ```
 ---
@@ -380,7 +380,7 @@
 
 ### wildcard matches any type
 
-```scheme
+```x
 (do (def %t (Type make "WILD-T" (list (pair 'from (list (pair #t (fn (_ v) (Type make-instance %t v)))))))) (Type ? (Convert to 42 %t) %t))
 ```
 ---
@@ -388,7 +388,7 @@
 
 ### wildcard catches string
 
-```scheme
+```x
 (do (def %t (Type make "WILD-T" (list (pair 'from (list (pair #t (fn (_ v) (Type make-instance %t v)))))))) (Type ? (Convert to "hello" %t) %t))
 ```
 ---
@@ -396,7 +396,7 @@
 
 ### exact match takes priority over wildcard
 
-```scheme
+```x
 (do (def %t (Type make "PRIO-T" (list (pair 'from (list (pair (Type of 42) (fn (_ v) (Type make-instance %t "exact"))) (pair #t (fn (_ v) (Type make-instance %t "wild")))))))) (first (Convert to 42 %t)))
 ```
 ---
@@ -404,7 +404,7 @@
 
 ### wildcard used when no exact match
 
-```scheme
+```x
 (do (def %t (Type make "PRIO-T" (list (pair 'from (list (pair (Type of 42) (fn (_ v) (Type make-instance %t "exact"))) (pair #t (fn (_ v) (Type make-instance %t "wild")))))))) (first (Convert to "hello" %t)))
 ```
 ---
@@ -414,7 +414,7 @@
 
 ### type with empty convert returns nil
 
-```scheme
+```x
 (do (def %t (Type make "EMPTY-T" (list (pair 'from (list))))) (null? (Convert to 42 %t)))
 ```
 ---
@@ -422,7 +422,7 @@
 
 ### type with no convert field returns nil
 
-```scheme
+```x
 (do (def %t (Type make "NO-CVT" (list))) (null? (Convert to 42 %t)))
 ```
 ---
@@ -432,7 +432,7 @@
 
 ### int converter works
 
-```scheme
+```x
 (do (def %t (Type make "MULTI-T" (list (pair 'from (list (pair (Type of 42) (fn (_ v) (Type make-instance %t (+ v 100)))) (pair (Type of "") (fn (_ v) (Type make-instance %t v)))))))) (first (Convert to 5 %t)))
 ```
 ---
@@ -440,7 +440,7 @@
 
 ### string converter works
 
-```scheme
+```x
 (do (def %t (Type make "MULTI-T" (list (pair 'from (list (pair (Type of 42) (fn (_ v) (Type make-instance %t (+ v 100)))) (pair (Type of "") (fn (_ v) (Type make-instance %t v)))))))) (first (Convert to "hello" %t)))
 ```
 ---
@@ -448,7 +448,7 @@
 
 ### unregistered type returns nil
 
-```scheme
+```x
 (do (def %t (Type make "MULTI-T" (list (pair 'from (list (pair (Type of 42) (fn (_ v) (Type make-instance %t v)))))))) (null? (Convert to #\a %t)))
 ```
 ---
@@ -458,7 +458,7 @@
 
 ### converts string to float
 
-```scheme
+```x
 (Float float? (Convert to "3.14" %float))
 ```
 ---
@@ -466,7 +466,7 @@
 
 ### converted string float has correct value
 
-```scheme
+```x
 (Io write-to-str (Convert to "3.14" %float))
 ```
 ---
@@ -474,7 +474,7 @@
 
 ### converts integer string to float
 
-```scheme
+```x
 (Float float? (Convert to "42" %float))
 ```
 ---
@@ -484,7 +484,7 @@
 
 ### copies the C string back (FFI getenv path)
 
-```scheme
+```x
 (do (def s "hello") (Convert to (Convert to s %ptr) %string))
 ```
 ---
@@ -492,7 +492,7 @@
 
 ### copy is a new string, not the source
 
-```scheme
+```x
 (do (def s "hello") (not (eq? (Convert to (Convert to s %ptr) %string) s)))
 ```
 ---
@@ -502,7 +502,7 @@
 
 ### converts list to vector
 
-```scheme
+```x
 (Vector vector? (Convert to (list 1 2 3) %vector))
 ```
 ---
@@ -510,7 +510,7 @@
 
 ### converted vector has correct contents
 
-```scheme
+```x
 (Vector ->list (Convert to (list 1 2 3) %vector))
 ```
 ---
@@ -518,7 +518,7 @@
 
 ### nil returns nil not vector
 
-```scheme
+```x
 (null? (Convert to () %vector))
 ```
 ---
@@ -528,7 +528,7 @@
 
 ### float to int via convert
 
-```scheme
+```x
 (def x (Convert to 3.14 (Type of 42))) (Float integer? x)
 ```
 ---
@@ -536,7 +536,7 @@
 
 ### float to int value
 
-```scheme
+```x
 (Convert to 3.14 (Type of 42))
 ```
 ---
@@ -544,7 +544,7 @@
 
 ### float to string via convert
 
-```scheme
+```x
 (str? (Convert to 3.14 (Type of "")))
 ```
 ---
@@ -552,7 +552,7 @@
 
 ### float to string value
 
-```scheme
+```x
 (Convert to 3.14 (Type of ""))
 ```
 ---
@@ -560,7 +560,7 @@
 
 ### vector to list via convert
 
-```scheme
+```x
 (Convert to (Vector of 1 2 3) (Type of (pair 1 ())))
 ```
 ---
@@ -568,7 +568,7 @@
 
 ### outbound no match returns nil
 
-```scheme
+```x
 (null? (Convert to 3.14 (Type of #\a)))
 ```
 ---

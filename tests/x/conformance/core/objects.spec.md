@@ -15,7 +15,7 @@ these six and never reaches the foreign door.
 
 covers: obj/->ptr ptr/->obj
 
-```scheme
+```x
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %p2o (%coord (lit ptr) (lit ->obj)))
 (def p (pair 3 4))
@@ -32,7 +32,7 @@ This is the round-trip `data.x` sizes a word with, and the reason word-size and
 fixnum-width cannot diverge: an engine whose integer cannot hold a pointer loses
 the address here rather than reporting an error.
 
-```scheme
+```x
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %p2i (%coord (lit ptr) (lit ->int)))
 (def %i2p (%coord (lit int) (lit ->ptr)))
@@ -47,7 +47,7 @@ the address here rather than reporting an error.
 
 covers: obj/eq? obj/same?
 
-```scheme
+```x
 (def %oeq (%coord (lit obj) (lit eq?)))
 (def %osame (%coord (lit obj) (lit same?)))
 (def p (pair 1 2))
@@ -61,7 +61,7 @@ covers: obj/eq? obj/same?
 
 covers: ptr/set-word! ptr/ref-word
 
-```scheme
+```x
 (def %mk (%coord (lit str) (lit make)))
 (def %s2p (%coord (lit str) (lit ->ptr)))
 (def %setw (%coord (lit ptr) (lit set-word!)))
@@ -81,7 +81,7 @@ Each offset is written before it is read: `(str make N)` is not promised to retu
 zeroed memory, and a case that asserted a neighbouring byte was 0 would be testing
 the allocator's mood rather than the primitives.
 
-```scheme
+```x
 (def %mk (%coord (lit str) (lit make)))
 (def %s2p (%coord (lit str) (lit ->ptr)))
 (def %set (%coord (lit ptr) (lit set!)))
@@ -104,7 +104,7 @@ property, not a choice: on a big-endian machine the same primitive would answer
 differently, which is why `tools/contract/constraints.x` records an `endian`
 constraint for every module that decodes a C struct this way.
 
-```scheme
+```x
 (def %mk (%coord (lit str) (lit make)))
 (def %s2p (%coord (lit str) (lit ->ptr)))
 (def %set (%coord (lit ptr) (lit set!)))
@@ -123,7 +123,7 @@ constraint for every module that decodes a C struct this way.
 
 covers: mem/alloc mem/free mem/set
 
-```scheme
+```x
 (def %alloc (%coord (lit mem) (lit alloc)))
 (def %free (%coord (lit mem) (lit free)))
 (def %memset (%coord (lit mem) (lit set)))
@@ -141,7 +141,7 @@ covers: mem/alloc mem/free mem/set
 
 covers: mem/copy mem/cmp
 
-```scheme
+```x
 (def %alloc (%coord (lit mem) (lit alloc)))
 (def %free (%coord (lit mem) (lit free)))
 (def %memset (%coord (lit mem) (lit set)))
@@ -164,7 +164,7 @@ covers: mem/copy mem/cmp
 
 covers: type/of
 
-```scheme
+```x
 (def %tof (%coord (lit type) (lit of)))
 (%ok (match ((same? (%tof 1) (%tof 2)) (match ((same? (%tof 1) (%tof (pair 1 2))) ()) (#t 1))) (#t ())))
 ```
@@ -183,7 +183,7 @@ answers nil when it is not there. That is why a bare `(obj make 2)` yields
 nothing -- there is no type to make an instance OF. This is the raw allocator
 `type/make-instance` is built over.
 
-```scheme
+```x
 (def %mkt (%coord (lit type) (lit make)))
 (def %omake (%coord (lit obj) (lit make)))
 (def %tof (%coord (lit type) (lit of)))
@@ -206,7 +206,7 @@ engine's own primitive calling convention, and `strlen` does not; wrapping it is
 safe, calling it would not be. `lib/x/tool/compile.x` wraps code it emitted for
 that convention, which is the only correct use.
 
-```scheme
+```x
 (def %dlopen (%coord (lit ffi) (lit dlopen)))
 (def %dlsym (%coord (lit ffi) (lit dlsym)))
 (def %mkcall (%coord (lit obj) (lit make-callable)))

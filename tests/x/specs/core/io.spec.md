@@ -3,7 +3,7 @@
 
 ### writes an integer
 
-```scheme
+```x
 (write 42)
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### writes a string with quotes
 
-```scheme
+```x
 (write "hello")
 ```
 ---
@@ -19,7 +19,7 @@
 
 ### writes a symbol
 
-```scheme
+```x
 (write 'hello)
 ```
 ---
@@ -27,7 +27,7 @@
 
 ### writes a list
 
-```scheme
+```x
 (write (lit (1 2 3)))
 ```
 ---
@@ -35,7 +35,7 @@
 
 ### writes a nested list
 
-```scheme
+```x
 (write (lit (1 (2 3))))
 ```
 ---
@@ -43,7 +43,7 @@
 
 ### writes a nested empty list
 
-```scheme
+```x
 (write (list (list)))
 ```
 ---
@@ -51,7 +51,7 @@
 
 ### writes a named character
 
-```scheme
+```x
 (write #\newline)
 ```
 ---
@@ -59,7 +59,7 @@
 
 ### returns nil
 
-```scheme
+```x
 (do (def r (write 42)) (newline) (null? r))
 ```
 ---
@@ -69,7 +69,7 @@
 
 ### displays an integer
 
-```scheme
+```x
 (display 42)
 ```
 ---
@@ -77,7 +77,7 @@
 
 ### displays a string without quotes
 
-```scheme
+```x
 (display "hello")
 ```
 ---
@@ -85,7 +85,7 @@
 
 ### displays a symbol
 
-```scheme
+```x
 (display 'hello)
 ```
 ---
@@ -93,7 +93,7 @@
 
 ### displays a list
 
-```scheme
+```x
 (display (lit (1 2 3)))
 ```
 ---
@@ -101,7 +101,7 @@
 
 ### returns nil
 
-```scheme
+```x
 (do (def r (display 42)) (newline) (null? r))
 ```
 ---
@@ -115,7 +115,7 @@ properties instead of a literal: negative rendering, termination, and
 str->number round-trip.  Relies on two's-complement wrap like every
 raw-op consumer.
 
-```scheme
+```x
 (do
   (def %n (<< 1 (- (* 8 %word-size) 1)))
   (def %s ((prim-ref 'io 'display-to-str) %n))
@@ -126,7 +126,7 @@ raw-op consumer.
 
 ### does not spoof a boolean on value-word collision
 
-```scheme
+```x
 (str=? ((prim-ref 'io 'display-to-str) (%cell-int #t)) "#t")
 ```
 ---
@@ -139,7 +139,7 @@ retired C write handlers printed the same strings).
 
 ### procedure, operative, primitive, pointer
 
-```scheme
+```x
 (list ((prim-ref 'io 'write-to-str) (fn (_ x) x))
       ((prim-ref 'io 'write-to-str) (op (x) e ()))
       ((prim-ref 'io 'write-to-str) (prim-ref 'io 'write-str))
@@ -150,7 +150,7 @@ retired C write handlers printed the same strings).
 
 ### display falls back to the write form
 
-```scheme
+```x
 (display (pair 1 (pair (fn (_ x) x) ())))
 ```
 ---
@@ -158,7 +158,7 @@ retired C write handlers printed the same strings).
 
 ### to-str captures opaque forms without leaking to stdout
 
-```scheme
+```x
 (do
   (def %s ((prim-ref 'io 'write-to-str) (pair (fn (_ x) x) ())))
   (display "[") (display %s) (display "]"))
@@ -170,7 +170,7 @@ retired C write handlers printed the same strings).
 
 ### returns nil
 
-```scheme
+```x
 (null? (newline))
 ```
 ---
@@ -180,25 +180,25 @@ retired C write handlers printed the same strings).
 
 ### reads an integer
 
-```scheme
+```x
 (do (def x (Io read)) x) 42
 ```
 
 ### reads a symbol
 
-```scheme
+```x
 (do (def x (Io read)) x) hello
 ```
 
 ### reads a list
 
-```scheme
+```x
 (do (def x (Io read)) x) (1 2 3)
 ```
 
 ### reads a string
 
-```scheme
+```x
 (do (def x (Io read)) x) "world"
 ```
 
@@ -206,13 +206,13 @@ retired C write handlers printed the same strings).
 
 ### reads a single character
 
-```scheme
+```x
 (do (def c (Io read-char)) (char? c))
 ```
 
 ### returns nil on end of input
 
-```scheme
+```x
 (do (Io read-char) (null? (Io read-char)))
 ```
 
@@ -220,7 +220,7 @@ retired C write handlers printed the same strings).
 
 ### returns positive integer
 
-```scheme
+```x
 (> (%current-line) 0)
 ```
 ---
@@ -230,7 +230,7 @@ retired C write handlers printed the same strings).
 
 ### returns nil
 
-```scheme
+```x
 (null? (Heap collect))
 ```
 ---
@@ -247,7 +247,7 @@ pin.
 
 ### agrees with write-to-str's length, form by form
 
-```scheme
+```x
 (do
   (def fits? (prim-ref (lit io) (lit write-fits?)))
   (def wtos (prim-ref (lit io) (lit write-to-str)))
@@ -270,7 +270,7 @@ pin.
 `"aé"` writes as 4 code points in 5 bytes, so a byte count would refuse a
 width the form actually fits.
 
-```scheme
+```x
 (do
   (def fits? (prim-ref (lit io) (lit write-fits?)))
   (def wtos (prim-ref (lit io) (lit write-to-str)))
@@ -281,7 +281,7 @@ width the form actually fits.
 
 ### the sink is restored after an aborted render
 
-```scheme
+```x
 (do
   (def fits? (prim-ref (lit io) (lit write-fits?)))
   (def wtos (prim-ref (lit io) (lit write-to-str)))
@@ -293,7 +293,7 @@ width the form actually fits.
 
 ### a nested ask keeps its own counter
 
-```scheme
+```x
 (do
   (def fits? (prim-ref (lit io) (lit write-fits?)))
   (def wtos (prim-ref (lit io) (lit write-to-str)))

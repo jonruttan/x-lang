@@ -14,7 +14,7 @@ the caller's value).
 
 ### passes pathname then numeric mode (not shifted by the self slot)
 
-```scheme
+```x
 (do
   (File open "/path/x" 577)
   (def c (first %last-syscall))
@@ -26,7 +26,7 @@ the caller's value).
 
 ### resolves a symbolic mode via (File file-modes) (rdwr -> 2)
 
-```scheme
+```x
 (do
   (File open "/p" 'rdwr)
   (eq? (first (rest (rest (first %last-syscall)))) 2))
@@ -36,7 +36,7 @@ the caller's value).
 
 ### ORs a list of flags together (numeric, platform-independent: 1|2|4 -> 7)
 
-```scheme
+```x
 (do
   (File open "/p" (list 1 2 4))
   (eq? (first (rest (rest (first %last-syscall)))) 7))
@@ -46,7 +46,7 @@ the caller's value).
 
 ### ORs a list of stable symbolic flags (rdonly|wronly = 0|1 -> 1, same on every OS)
 
-```scheme
+```x
 (do
   (File open "/p" (list 'rdonly 'wronly))
   (eq? (first (rest (rest (first %last-syscall)))) 1))
@@ -56,7 +56,7 @@ the caller's value).
 
 ### passes a default permission arg (0644 = 420) as open()'s third argument
 
-```scheme
+```x
 (do
   (File open "/p" 'creat)
   (eq? (first (rest (rest (rest (first %last-syscall))))) 420))
@@ -66,7 +66,7 @@ the caller's value).
 
 ### accepts an explicit permission arg (0777 = 511)
 
-```scheme
+```x
 (do
   (File open "/p" 'creat 511)
   (eq? (first (rest (rest (rest (first %last-syscall))))) 511))
@@ -78,7 +78,7 @@ the caller's value).
 
 ### read passes fd, buffer, size in order
 
-```scheme
+```x
 (do
   (File read 7 "buf" 3)
   (def c (first %last-syscall))
@@ -91,7 +91,7 @@ the caller's value).
 
 ### write passes the write op, fd, and buffer
 
-```scheme
+```x
 (do
   (File write 7 "data" 4)
   (def c (first %last-syscall))
@@ -106,7 +106,7 @@ the caller's value).
 
 ### close passes the close op and fd
 
-```scheme
+```x
 (do
   (File close 9)
   (def c (first %last-syscall))
@@ -118,7 +118,7 @@ the caller's value).
 
 ### getc reads one byte via (File read) with the given fd, returns -1 at EOF
 
-```scheme
+```x
 (do
   (def r (File getc 5))
   (and (eq? r -1)
@@ -132,7 +132,7 @@ the caller's value).
 
 ### seek passes fd, offset, and the resolved whence symbol (end -> 2)
 
-```scheme
+```x
 (do
   (File seek 7 128 'end)
   (def c (first %last-syscall))
@@ -146,7 +146,7 @@ the caller's value).
 
 ### seek defaults whence to 'set (absolute, 0)
 
-```scheme
+```x
 (do
   (File seek 7 32)
   (eq? (first (rest (rest (rest (first %last-syscall))))) 0))
@@ -156,7 +156,7 @@ the caller's value).
 
 ### seek passes a numeric whence straight through
 
-```scheme
+```x
 (do
   (File seek 7 0 1)
   (eq? (first (rest (rest (rest (first %last-syscall))))) 1))
@@ -166,7 +166,7 @@ the caller's value).
 
 ### tell is (seek fd 0 'cur)
 
-```scheme
+```x
 (do
   (File tell 7)
   (def c (first %last-syscall))
@@ -180,7 +180,7 @@ the caller's value).
 
 ### truncate passes fd and the explicit size
 
-```scheme
+```x
 (do
   (File truncate 7 3)
   (def c (first %last-syscall))
@@ -193,7 +193,7 @@ the caller's value).
 
 ### truncate without a size cuts at the current offset (tell's result)
 
-```scheme
+```x
 (do
   (File truncate 7)
   (def c (first %last-syscall))

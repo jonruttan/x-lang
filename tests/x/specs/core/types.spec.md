@@ -3,7 +3,7 @@
 
 ### creates a custom type with call handler
 
-```scheme
+```x
 (do (def %counter (Type make "COUNTER" (list (pair 'call (fn (_ self . args) (+ (first self) (first args))))))) (def c (Type make-instance %counter 10)) (c 5))
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### creates a custom type with write handler
 
-```scheme
+```x
 (do (def %tag (Type make "TAG" (list (pair 'write (fn (_ self) (display "<") (display (first self)) (display ">")))))) (write (Type make-instance %tag "hello")))
 ```
 ---
@@ -21,7 +21,7 @@
 
 ### stores data accessible via first
 
-```scheme
+```x
 (do (def my-t (Type make "MY-T" (list))) (def obj (Type make-instance my-t 42)) (first obj))
 ```
 ---
@@ -29,7 +29,7 @@
 
 ### instance self-evaluates
 
-```scheme
+```x
 (do (def my-t (Type make "MY-T" (list))) (def obj (Type make-instance my-t 42)) (eq? obj obj))
 ```
 ---
@@ -39,7 +39,7 @@
 
 ### returns #t for matching type
 
-```scheme
+```x
 (do (def my-t (Type make "MY-T" (list))) (Type ? (Type make-instance my-t 42) my-t))
 ```
 ---
@@ -47,7 +47,7 @@
 
 ### returns nil for wrong type
 
-```scheme
+```x
 (do (def t1 (Type make "T1" (list))) (def t2 (Type make "T2" (list))) (if (Type ? (Type make-instance t1 1) t2) "y" "n"))
 ```
 ---
@@ -55,7 +55,7 @@
 
 ### returns nil for non-instance
 
-```scheme
+```x
 (do (def my-t (Type make "MY-T" (list))) (if (Type ? 42 my-t) "y" "n"))
 ```
 ---
@@ -65,7 +65,7 @@
 
 ### returns VECTOR for a vector
 
-```scheme
+```x
 (Type name (Vector of 1))
 ```
 ---
@@ -73,7 +73,7 @@
 
 ### returns LIST for a list
 
-```scheme
+```x
 (Type name (list 1 2))
 ```
 ---
@@ -81,7 +81,7 @@
 
 ### returns INTEGER for a number
 
-```scheme
+```x
 (Type name 42)
 ```
 ---
@@ -89,7 +89,7 @@
 
 ### returns STRING for a string
 
-```scheme
+```x
 (Type name "hi")
 ```
 ---
@@ -97,7 +97,7 @@
 
 ### returns custom type name
 
-```scheme
+```x
 (do (def my-t (Type make "MY-T" (list))) (Type name (Type make-instance my-t 1)))
 ```
 ---

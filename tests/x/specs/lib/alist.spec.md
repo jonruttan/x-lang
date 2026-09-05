@@ -3,7 +3,7 @@
 
 ### retrieves value by key
 
-```scheme
+```x
 (do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc get 'b al))
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### returns nil for missing key
 
-```scheme
+```x
 (do (def al (list (pair 'a 1))) (null? (Assoc get 'z al)))
 ```
 ---
@@ -19,7 +19,7 @@
 
 ### retrieves value from first entry
 
-```scheme
+```x
 (do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc get 'a al))
 ```
 ---
@@ -29,7 +29,7 @@
 
 ### returns value when key exists
 
-```scheme
+```x
 (do (def al (list (pair 'a 1))) (Assoc get-or 99 'a al))
 ```
 ---
@@ -37,7 +37,7 @@
 
 ### returns default when key missing
 
-```scheme
+```x
 (do (def al (list (pair 'a 1))) (Assoc get-or 99 'z al))
 ```
 ---
@@ -45,7 +45,7 @@
 
 ### returns a stored nil, not the default
 
-```scheme
+```x
 (do (def al (list (pair 'a ()))) (null? (Assoc get-or 99 'a al)))
 ```
 ---
@@ -53,7 +53,7 @@
 
 ### stored #f is not the default either
 
-```scheme
+```x
 (do (def al (list (pair 'a #f))) (Assoc get-or 99 'a al))
 ```
 ---
@@ -63,7 +63,7 @@
 
 ### returns #t when key exists
 
-```scheme
+```x
 (do (def al (list (pair 'a 1))) (Assoc has? 'a al))
 ```
 ---
@@ -71,7 +71,7 @@
 
 ### returns nil when key missing
 
-```scheme
+```x
 (do (def al (list (pair 'a 1))) (if (Assoc has? 'z al) "y" "n"))
 ```
 ---
@@ -79,7 +79,7 @@
 
 ### finds key after first entry
 
-```scheme
+```x
 (do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc has? 'b al))
 ```
 ---
@@ -89,7 +89,7 @@
 
 ### adds key-value pair
 
-```scheme
+```x
 (do (def al (list (pair 'a 1))) (Assoc get 'b (Assoc put 'b 2 al)))
 ```
 ---
@@ -101,7 +101,7 @@
 
 Value, not length: a count of 1 is true whichever entry was deleted.
 
-```scheme
+```x
 (do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc del 'a al))
 ```
 ---
@@ -109,7 +109,7 @@ Value, not length: a count of 1 is true whichever entry was deleted.
 
 ### returns the alist unchanged when key not present
 
-```scheme
+```x
 (do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc del 'z al))
 ```
 ---
@@ -117,7 +117,7 @@ Value, not length: a count of 1 is true whichever entry was deleted.
 
 ### removes key not at head
 
-```scheme
+```x
 (do (def al (list (pair 'a 1) (pair 'b 2))) (null? (Assoc get 'b (Assoc del 'b al))))
 ```
 ---
@@ -127,7 +127,7 @@ Value, not length: a count of 1 is true whichever entry was deleted.
 
 ### returns list of keys
 
-```scheme
+```x
 (do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc keys al))
 ```
 ---
@@ -137,7 +137,7 @@ Value, not length: a count of 1 is true whichever entry was deleted.
 
 ### returns list of values
 
-```scheme
+```x
 (do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc vals al))
 ```
 ---
@@ -147,7 +147,7 @@ Value, not length: a count of 1 is true whichever entry was deleted.
 
 ### applies function to all values
 
-```scheme
+```x
 (do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc get 'a (Assoc map (method-ref Num inc) al)))
 ```
 ---
@@ -159,7 +159,7 @@ Value, not length: a count of 1 is true whichever entry was deleted.
 
 Value, not length: a count of 1 is true whichever entry survived.
 
-```scheme
+```x
 (do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc filter (fn (_ e) (> (rest e) 1)) al))
 ```
 ---
@@ -172,7 +172,7 @@ Value, not length: a count of 1 is true whichever entry survived.
 A length assertion alone let #73 hide here: the count is 2 in either order.
 Assert the value, and use overlapping keys so priority is covered too.
 
-```scheme
+```x
 (Assoc merge (list (pair 'a 1)) (list (pair 'a 9) (pair 'b 2)))
 ```
 ---
@@ -180,7 +180,7 @@ Assert the value, and use overlapping keys so priority is covered too.
 
 ### additions keep b's order
 
-```scheme
+```x
 (Assoc merge (list (pair 'a 1)) (list (pair 'b 2) (pair 'c 3)))
 ```
 ---
@@ -188,7 +188,7 @@ Assert the value, and use overlapping keys so priority is covered too.
 
 ### a duplicate key inside b keeps its first occurrence
 
-```scheme
+```x
 (Assoc merge () (list (pair 'b 2) (pair 'b 9)))
 ```
 ---
@@ -200,7 +200,7 @@ Assert the value, and use overlapping keys so priority is covered too.
 
 Value, not length: picking the WRONG two keys also counts 2.
 
-```scheme
+```x
 (do (def al (list (pair 'a 1) (pair 'b 2) (pair 'c 3))) (Assoc pick (list 'a 'c) al))
 ```
 ---
@@ -212,7 +212,7 @@ Value, not length: picking the WRONG two keys also counts 2.
 
 Value, not length: omitting the WRONG key also counts 2.
 
-```scheme
+```x
 (do (def al (list (pair 'a 1) (pair 'b 2) (pair 'c 3))) (Assoc omit (list 'a) al))
 ```
 ---
@@ -222,7 +222,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### converts a bindings list (the let shape) to an alist
 
-```scheme
+```x
 (do (def al (Assoc from-bindings (list (list 'a 1) (list 'b 2)))) (Assoc get 'a al))
 ```
 ---
@@ -232,7 +232,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### plist to alist and back
 
-```scheme
+```x
 (do (def al (Assoc from-plist (list 'a 1 'b 2)))
   (list (Assoc get 'b al) (Assoc ->plist al)))
 ```
@@ -241,7 +241,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### from-plist rejects an odd-length plist
 
-```scheme
+```x
 (Assoc from-plist (list 'a 1 'b))
 ```
 ---
@@ -251,7 +251,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### converts an alist to a bindings list
 
-```scheme
+```x
 (do (def al (list (pair 'a 1))) (first (first (Assoc ->bindings al))))
 ```
 ---
@@ -261,7 +261,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### transforms values by matching keys
 
-```scheme
+```x
 (do (def al (list (pair 'a 1) (pair 'b 2))) (Assoc get 'a (Assoc evolve (list (pair 'a (method-ref Num inc))) al)))
 ```
 ---
@@ -271,7 +271,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### returns the value for a present key (plist)
 
-```scheme
+```x
 (Assoc opt-get-or 99 'a (list 'a 1))
 ```
 ---
@@ -279,7 +279,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### returns the default for a missing key
 
-```scheme
+```x
 (Assoc opt-get-or 99 'z (list 'a 1))
 ```
 ---
@@ -287,7 +287,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### reads from an alist store
 
-```scheme
+```x
 (Assoc opt-get-or 99 'a (list (pair 'a 1)))
 ```
 ---
@@ -295,7 +295,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### keeps a present 0 instead of the default
 
-```scheme
+```x
 (Assoc opt-get-or 99 'a (list 'a 0))
 ```
 ---
@@ -305,7 +305,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### returns the value for a present key
 
-```scheme
+```x
 (Assoc opt-get-or-else (fn () 99) 'a (list 'a 1))
 ```
 ---
@@ -313,7 +313,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### calls the thunk for a missing key
 
-```scheme
+```x
 (Assoc opt-get-or-else (fn () 99) 'z (list 'a 1))
 ```
 ---
@@ -321,7 +321,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### does not run the thunk when the key is present
 
-```scheme
+```x
 (Assoc opt-get-or-else (fn () (error "boom")) 'a (list 'a 1))
 ```
 ---
@@ -329,7 +329,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### keeps a present 0 without calling the thunk
 
-```scheme
+```x
 (Assoc opt-get-or-else (fn () 99) 'a (list 'a 0))
 ```
 ---
@@ -339,7 +339,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### binds from a plist source with defaults
 
-```scheme
+```x
 (let-opts (list 'a 1) ((a 0) (b 9)) (list a b))
 ```
 ---
@@ -347,7 +347,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### binds from an alist source
 
-```scheme
+```x
 (let-opts (list (pair 'a 1)) ((a 0)) a)
 ```
 ---
@@ -355,7 +355,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### default is lazy: not evaluated when the option is present
 
-```scheme
+```x
 (let-opts (list 'a 1) ((a (error "boom"))) a)
 ```
 ---
@@ -363,7 +363,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### (name key default) binds a renamed key when present
 
-```scheme
+```x
 (let-opts (list 'bg-color "red") ((bg bg-color "black")) bg)
 ```
 ---
@@ -371,7 +371,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### (name key default) uses the default when the renamed key is absent
 
-```scheme
+```x
 (let-opts () ((bg bg-color "black")) bg)
 ```
 ---
@@ -379,7 +379,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### a bare name defaults to nil
 
-```scheme
+```x
 (let-opts (list 'x 5) (x y) (list x (null? y)))
 ```
 ---
@@ -387,7 +387,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### a later default can reference an earlier binding
 
-```scheme
+```x
 (let-opts () ((w 10) (h (* w 2))) h)
 ```
 ---
@@ -395,7 +395,7 @@ Value, not length: omitting the WRONG key also counts 2.
 
 ### keeps a present 0 instead of the default
 
-```scheme
+```x
 (let-opts (list 'a 0) ((a 99)) a)
 ```
 ---
@@ -414,7 +414,7 @@ status.
 
 ### non-alist receivers raise across the public seats
 
-```scheme
+```x
 (list (guard (e (Err kind-of e)) (Assoc get (lit k) 42))
       (guard (e (Err kind-of e)) (Assoc get (lit k) (pair 1 2)))
       (guard (e (lit R)) (Assoc has? (lit k) 42))
@@ -429,7 +429,7 @@ status.
 
 ### normal use unchanged, nil alist included
 
-```scheme
+```x
 (do
   (def al (list (pair (lit a) 1) (pair (lit b) 2)))
   (list (Assoc get (lit a) al) (Assoc get (lit z) al) (Assoc get (lit a) ())
@@ -442,7 +442,7 @@ status.
 
 ### entry finds the pair by identity; nil is the unambiguous miss
 
-```scheme
+```x
 (do (import x/type/assoc)
   (list (rest (Assoc entry 'b (list (pair 'a 1) (pair 'b 2) (pair 'c 3))))
         (null? (Assoc entry 'z (list (pair 'a 1))))))
@@ -452,7 +452,7 @@ status.
 
 ### find compares with equal?, so string and number keys hit
 
-```scheme
+```x
 (do (import x/type/assoc)
   (list (rest (Assoc find 2 (list (pair 1 10) (pair 2 20))))
         (rest (Assoc find "b" (list (pair "a" 1) (pair "b" 2))))

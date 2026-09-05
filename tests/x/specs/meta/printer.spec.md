@@ -17,7 +17,7 @@ UNCONDITIONALLY before asserting: if the probe raises, re-raising before
 the restore would leave STRING's write stack empty for the whole batch,
 cascading every later string-rendering test.
 
-```scheme
+```x
 (do
   (def %t (%registry-assoc-rest (%print-type-of "s") (first %reflect-type-alist-cell)))
   (def %node (%reflect-step %t (%reflect-path-parent %print-path-write-stack)))
@@ -32,7 +32,7 @@ cascading every later string-rendering test.
 
 ### a path step into nil answers nil
 
-```scheme
+```x
 (null? (%reflect-step () (lit (f r f))))
 ```
 ---
@@ -49,7 +49,7 @@ trees.
 
 ### a child-registered type's write handler dispatches from the parent
 
-```scheme
+```x
 (do
   (def %xb (Base make))
   (def %xb-t (Base make-type %xb "XB-T"
@@ -70,7 +70,7 @@ ATOM is the seventh: it registers lazily on first x_mkatom and NOTHING in
 the tree constructs one, so its tree is absent at boot and its push
 no-ops (kept for embedders that pre-register the type).
 
-```scheme
+```x
 (List map (fn (_ n) (null? (%print-handle-by-name n (first %reflect-type-alist-cell))))
      (pair "BUFFER" (pair "POINTER" (pair "PRIMITIVE"
        (pair "ITER" (pair "PROCEDURE" (pair "OPERATIVE" ())))))))
@@ -80,7 +80,7 @@ no-ops (kept for embedders that pre-register the type).
 
 ### ATOM is not boot-registered
 
-```scheme
+```x
 (null? (%print-handle-by-name "ATOM" (first %reflect-type-alist-cell)))
 ```
 ---
@@ -99,7 +99,7 @@ pins reach through the catalog for the raw object.
 
 ### a base's sentinel type tag answers its bytes, not a navigation
 
-```scheme
+```x
 ((prim-ref 'type 'name) ((prim-ref 'base 'make)))
 ```
 ---
@@ -107,7 +107,7 @@ pins reach through the catalog for the raw object.
 
 ### a raw base renders as the bounded opaque form
 
-```scheme
+```x
 ((prim-ref 'io 'display-to-str) ((prim-ref 'base 'make)))
 ```
 ---
@@ -120,7 +120,7 @@ is not a pair tree has no call slot to walk, so the form answers itself
 as data -- exactly the nil-call-slot contract -- instead of reading the
 tag's payload as pair pointers (the (b eval ...) segfault).
 
-```scheme
+```x
 (do (def %rawb ((prim-ref 'base 'make)))
     (pair? (%rawb eval 1)))
 ```
@@ -129,7 +129,7 @@ tag's payload as pair pointers (the (b eval ...) segfault).
 
 ### a type-handle operator is data too
 
-```scheme
+```x
 (pair? ((%print-type-of 0) 1))
 ```
 ---
@@ -137,7 +137,7 @@ tag's payload as pair pointers (the (b eval ...) segfault).
 
 ### reader symbols do NOT intern to type handles
 
-```scheme
+```x
 (eq? (%print-type-of (fn (_ x) x)) 'PROCEDURE)
 ```
 ---
@@ -147,7 +147,7 @@ tag's payload as pair pointers (the (b eval ...) segfault).
 
 ### to-str returns a FRESH string, never the source object
 
-```scheme
+```x
 (do (def %s "abc")
     (same? ((prim-ref 'io 'display-to-str) %s) %s))
 ```
@@ -156,7 +156,7 @@ tag's payload as pair pointers (the (b eval ...) segfault).
 
 ### to-str of a boolean is fresh per call
 
-```scheme
+```x
 (same? ((prim-ref 'io 'display-to-str) #t)
        ((prim-ref 'io 'display-to-str) #t))
 ```
@@ -165,7 +165,7 @@ tag's payload as pair pointers (the (b eval ...) segfault).
 
 ### to-str nests: a handler rendering to a string mid-capture
 
-```scheme
+```x
 (do
   (def %wts (prim-ref 'io 'write-to-str))
   (def %t (%registry-assoc-rest (%print-type-of 0) (first %reflect-type-alist-cell)))
@@ -190,7 +190,7 @@ per-element cost fell ~6.7x and this render measures 1.85GB RSS /
 runners before the cure.  It pins the TAIL join: the old non-tail
 round segfaulted at ~10k elements.
 
-```scheme
+```x
 (do
   (def %build (fn (self n acc) (match ((eq? n 0) acc) (#t (self (- n 1) (pair n acc))))))
   (str? ((prim-ref 'io 'write-to-str) (%build 12000 ()))))
@@ -200,7 +200,7 @@ round segfaulted at ~10k elements.
 
 ### an error mid-render restores the sink and propagates
 
-```scheme
+```x
 (do
   (def %wts (prim-ref 'io 'write-to-str))
   (def %t (%registry-assoc-rest (%print-type-of 0) (first %reflect-type-alist-cell)))
@@ -218,7 +218,7 @@ round segfaulted at ~10k elements.
 
 ### render the bounded #<obj:NAME> form, never a data word
 
-```scheme
+```x
 (do
   (def %h ((prim-ref 'type 'make) "GHOST" ()))
   (display ((prim-ref 'obj 'make) %h 0)))
@@ -226,19 +226,26 @@ round segfaulted at ~10k elements.
 ---
     #<obj:GHOST>
 
-## the C-raised error atom prints its message (#54)
+## a C-raised error prints its message (#54)
 
-x_eval_error delivers a nil-typed atom whose string is the base's error
-scratch buffer. The printer's generic sentinel form rendered the BUFFER
-POINTER -- every C-raised error printed as the same #<ATOM:0x..>, zero
-diagnostic signal with the message sitting right there in the atom. The
-printer now identity-tests that one atom (reached via the error-str layout
-path) and emits its bytes. (error "msg") delivers a real STRING and never
-took this path.
+x_eval_error used to deliver a NIL-TYPED atom whose string was the base's
+error scratch buffer, so the printer's generic sentinel form rendered the
+BUFFER POINTER: every C-raised error printed as the same `#<ATOM:0x..>`,
+zero diagnostic signal with the message sitting right there in the atom.
+The printer answered that with an identity test against that one atom.
+
+It no longer needs one. The engine raises a TYPED **ERR** carrying
+`(code . subject)` -- the raise site's message literal and what it was
+about, unflattened -- and `x/type/err-io.x` pushes the wording onto that
+type's display/write stacks. So an error renders by ordinary dispatch,
+like any other value, and the special case is gone. The wording below is
+byte-for-byte what C used to emit; the difference is that it is now a
+handler a lang can push over. `(error "msg")` delivers a real STRING and
+never took either path.
 
 ### uncaught unbound symbol shows the diagnostic
 
-```scheme
+```x
 nosuchsym
 ```
 ---
@@ -246,7 +253,7 @@ nosuchsym
 
 ### display and write of a caught error show the message
 
-```scheme
+```x
 (do (display (guard (e e) nosuchsym)) (display " / ") (write (guard (e e) nosuchsym)))
 ```
 ---
@@ -254,18 +261,55 @@ nosuchsym
 
 ### two different C-raised errors are distinguishable
 
-```scheme
+```x
 (do
-  (def a (%str-append "" (guard (e e) nosuchsym)))
-  (def b (%str-append "" (guard (e e) (list 1 . 5))))
+  (def a (%display-to-str (guard (e e) nosuchsym)))
+  (def b (%display-to-str (guard (e e) (list 1 . 5))))
   (list (str=? a b) (Str8 includes? "improper" b)))
 ```
 ---
     (#f #t)
 
+### the code and its subject arrive apart, not quoted into one sentence
+
+```x
+(guard (e (list (Err code-of e) (Err subject-of e))) nosuchsym)
+```
+---
+    ("Unbound SYMBOL" "nosuchsym")
+
+### a raise that names no subject carries an empty one
+
+```x
+(guard (e (Err subject-of e)) (list 1 . 5))
+```
+---
+    ""
+
+### an engine raise answers its own kind, not 'user
+
+```x
+(guard (e (Err kind-of e)) nosuchsym)
+```
+---
+    'engine
+
+### a lang can replace the wording, and put it back
+
+```x
+(do
+  (def et (%err-io-by-atom (%err-io-type-of (first (%reflect-base-cell (lit err))))))
+  (def before (%display-to-str (guard (e e) nosuchsym)))
+  (%err-io-push-display et (fn (_ e) (display (Str8 append "nope: " (Err subject-of e)))))
+  (def after (%display-to-str (guard (e e) nosuchsym)))
+  (list before after))
+```
+---
+    ("Unbound SYMBOL 'nosuchsym'" "nope: nosuchsym")
+
 ### x-level (error msg) still delivers the string itself
 
-```scheme
+```x
 (guard (e e) (error "custom boom"))
 ```
 ---
@@ -273,7 +317,7 @@ nosuchsym
 
 ### other sentinel atoms still render generically
 
-```scheme
+```x
 (Str8 starts? "#<ATOM:0x" (%display-to-str (Type of 0)))
 ```
 ---

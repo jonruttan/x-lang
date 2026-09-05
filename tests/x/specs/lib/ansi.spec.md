@@ -9,7 +9,7 @@ The ansi highlighter re-tokenizes doc sample strings; without this fold
 'rdonly displayed as (lit rdonly) in (help File) -- the R1/R8 echo
 regression jon caught at the REPL.
 
-```scheme
+```x
 (do (import x/repl/ansi)
   (list (%code-sugar '(lit x)) (%code-sugar (list 'quasi 'x))
         (%code-sugar (list 'unquote 'x)) (%code-sugar (list 'unquote-splicing 'x))

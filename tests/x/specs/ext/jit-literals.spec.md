@@ -18,7 +18,7 @@ Literals that do not fit now take the MOVZ+MOVK sequence
 
 Before the fix this answered 34506 — that is `(100000 & 65535) + 42`.
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ x) (+ x 100000))) 42))
 ```
 ---
@@ -28,7 +28,7 @@ Before the fix this answered 34506 — that is `(100000 & 65535) + 42`.
 
 Before the fix this answered 65577 — the mask had collapsed to 65535.
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ x) (+ x 4294967295))) 42))
 ```
 ---
@@ -36,7 +36,7 @@ Before the fix this answered 65577 — the mask had collapsed to 65535.
 
 ### a literal at the MOVZ boundary still works
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ x) (+ x 65535))) 1))
 ```
 ---
@@ -44,7 +44,7 @@ Before the fix this answered 65577 — the mask had collapsed to 65535.
 
 ### a literal just past the boundary is exact
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ x) (+ x 65536))) 0))
 ```
 ---
@@ -52,7 +52,7 @@ Before the fix this answered 65577 — the mask had collapsed to 65535.
 
 ### small literals are unaffected
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ x) (+ x 1000))) 42))
 ```
 ---
@@ -60,7 +60,7 @@ Before the fix this answered 65577 — the mask had collapsed to 65535.
 
 ### a negative literal round-trips
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ x) (+ x -100000))) 0))
 ```
 ---
@@ -68,7 +68,7 @@ Before the fix this answered 65577 — the mask had collapsed to 65535.
 
 ### compiled agrees with interpreted on a wide-constant expression
 
-```scheme
+```x
 (do
   (def %f (fn (_ x) (- (* x 1000000) 999999)))
   (def %c (compile-asm '(fn (_ x) (- (* x 1000000) 999999))))

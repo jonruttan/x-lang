@@ -7,7 +7,7 @@ changes is that the type system can finally SEE them.
 
 ### the singletons carry the BOOL type
 
-```scheme
+```x
 (list (Type name (Type of #t)) (Type name (Type of #f)))
 ```
 ---
@@ -15,7 +15,7 @@ changes is that the type system can finally SEE them.
 
 ### the #52 boolean residual is closed -- arithmetic refuses
 
-```scheme
+```x
 (list (guard (e (e msg)) (+ #t 1)) (guard (e (Err kind-of e)) (< #f 3))
       (guard (e (lit R)) (* #t 2)))
 ```
@@ -24,7 +24,7 @@ changes is that the type system can finally SEE them.
 
 ### everything identity-based is untouched
 
-```scheme
+```x
 (list #t #f (if #t 1 2) (if #f 1 2) (if () 1 2) (if 0 1 2)
       (not #f) (eq? #t #t) (eq? #t #f) (eq? #t 1) (boolean? #t) (boolean? 3))
 ```
@@ -33,7 +33,7 @@ changes is that the type system can finally SEE them.
 
 ### match keeps #t as the default clause; dict still refuses boolean keys
 
-```scheme
+```x
 (do (import x/type/dict)
   (list (match (#f 1) (#t 42))
         (guard (e (Err kind-of e)) ((Dict make) set! #t 1))))
@@ -43,7 +43,7 @@ changes is that the type system can finally SEE them.
 
 ### printing round-trips
 
-```scheme
+```x
 (list (Str8 append "" (%display-to-str #t)) (Str8 append "" (%display-to-str #f)))
 ```
 ---

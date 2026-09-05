@@ -10,7 +10,7 @@ combining glyphs are a known gap; see the glossary's width entry).
 
 ### counts the written form's code points
 
-```scheme
+```x
 (do (import x/tool/fmt) (Fmt width (list 10 20)))
 ```
 ---
@@ -18,7 +18,7 @@ combining glyphs are a known gap; see the glossary's width entry).
 
 ### non-ASCII is counted in code points, not bytes
 
-```scheme
+```x
 (do (import x/tool/fmt) (Fmt width "€€"))
 ```
 ---

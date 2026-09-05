@@ -15,7 +15,7 @@ declaring `gc/explicit-only` is telling the truth.
 
 covers: heap/count
 
-```scheme
+```x
 (def %count (%coord (lit heap) (lit count)))
 (def before (%count))
 (def junk (pair (pair 1 2) (pair 3 4)))
@@ -32,7 +32,7 @@ The one property that matters. An engine free to collect what is still reference
 would fail here, and would corrupt the six library sites that hold raw pointers
 across allocating expressions.
 
-```scheme
+```x
 (def %collect (%coord (lit heap) (lit collect)))
 (def keep (pair 11 22))
 (%collect)
@@ -45,7 +45,7 @@ across allocating expressions.
 
 covers: heap/collect
 
-```scheme
+```x
 (def %collect (%coord (lit heap) (lit collect)))
 (def keep (pair 33 44))
 (%collect)
@@ -59,7 +59,7 @@ covers: heap/collect
 
 covers: heap/pin!
 
-```scheme
+```x
 (def %pin (%coord (lit heap) (lit pin!)))
 (def %collect (%coord (lit heap) (lit collect)))
 (def p (pair 55 66))
@@ -78,7 +78,7 @@ covers: alloc/limit!
 loads -- every runner in this repo does, including this one. An engine that filed
 it only in the catalog would leave every bare harness unable to guard itself.
 
-```scheme
+```x
 (%ok (match ((eq? alloc-limit! ()) ()) (#t 1)))
 ```
 ---
@@ -100,7 +100,7 @@ catalog, and the same trap: one `first` too few and every lookup silently misses
 
 covers: heap/mark-hook!
 
-```scheme
+```x
 (def %mkhook (%coord (lit heap) (lit mark-hook!)))
 (def %f (fn (_ ) 1))
 (%mkhook %f)
@@ -113,7 +113,7 @@ covers: heap/mark-hook!
 
 covers: heap/free-hook!
 
-```scheme
+```x
 (def %fhook (%coord (lit heap) (lit free-hook!)))
 (def %f (fn (_ ) 1))
 (%fhook %f)
@@ -131,7 +131,7 @@ whatever else points at it. The engine's part is recording it; whether a later
 collection honours the list is the collector's behaviour, and `gc/non-moving` and
 `gc/explicit-only` in the compliance suite are where that is falsified.
 
-```scheme
+```x
 (def %mkroot (%coord (lit heap) (lit mark-root!)))
 (def %p (pair 1 2))
 (%mkroot %p)

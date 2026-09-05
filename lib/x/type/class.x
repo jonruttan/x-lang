@@ -319,6 +319,93 @@
           fresh)
         hot))))
 
+(note "Did-you-mean: near-match selectors for a failed dispatch")
+
+; The suffix appended to a failed dispatch: " -- did you mean split?", or
+; "" when nothing is near, so a message with no hint to give reads exactly
+; as it always did.  Called only from the two error paths below; dispatch
+; itself never reaches it.
+;
+; ONE global, and its helpers are activation-scoped mid-body defs (the
+; %build-class pattern: only TAIL defs leak globally under TCO).  The
+; type/class.x budget exception in tools/contract/percent-globals.x is
+; written for HOT-path helpers, and this is the opposite -- a cold path
+; that runs once, just before an error propagates -- so it pays the
+; nesting cost rather than spending eight rows of an exception it does
+; not qualify for.
+(def %sug-hint
+  (fn (_ tab sel)
+    ; Byte access, prim-ref'd here for the same reason the top of this
+    ; file does it: class.x loads ahead of the string layer.
+    (def %sg-len (prim-ref (lit str) (lit byte-len)))
+    (def %sg-ref (prim-ref (lit str) (lit byte-ref)))
+    ; Edit distance <= 1 (substitution, insertion, or deletion), walked as
+    ; two cursors with one unit of slack.  One edit is the whole budget on
+    ; purpose: it catches the typo that actually happens -- `splt` for
+    ; `split`, a dropped or doubled letter -- while a budget of two starts
+    ; proposing unrelated short selectors for every miss.
+    (def %sg-within1?
+      (fn (self a b i j slack)
+        (let ((la (%sg-len a)) (lb (%sg-len b)))
+          (if (>= i la)
+            (<= (- lb j) slack)
+            (if (>= j lb)
+              (<= (- la i) slack)
+              (if (= (%sg-ref a i) (%sg-ref b j))
+                (self a b (+ i 1) (+ j 1) slack)
+                (if (= slack 0)
+                  #f
+                  ; The three shapes one edit can take, tried in turn with
+                  ; the slack spent: substitute, drop from a, drop from b.
+                  (if (self a b (+ i 1) (+ j 1) 0) #t
+                    (if (self a b (+ i 1) j 0) #t
+                      (self a b i (+ j 1) 0))))))))))
+    ; a is a proper prefix of b -- the half-typed selector (`spl` for
+    ; `split`), which is two edits away and so invisible to the check above.
+    (def %sg-prefix?
+      (fn (self a b i)
+        (let ((la (%sg-len a)))
+          (if (>= i la)
+            (< la (%sg-len b))
+            (if (>= i (%sg-len b))
+              #f
+              (if (= (%sg-ref a i) (%sg-ref b i))
+                (self a b (+ i 1))
+                #f))))))
+    (def %sg-near?
+      (fn (_ miss cand)
+        (if (%sg-within1? miss cand 0 0 1) #t (%sg-prefix? miss cand 0))))
+    ; Walk a flat dispatch table collecting selectors near `miss`, capped at
+    ; three -- a longer list stops being a hint and becomes a second problem
+    ; to read.  A privacy-wrapped entry is skipped: naming a private selector
+    ; in an error is a leak, and it would not have dispatched anyway.
+    (def %sg-collect
+      (fn (self cell miss acc n)
+        (if (null? cell)
+          acc
+          (if (>= n 3)
+            acc
+            (let ((p (first cell)))
+              (let ((entry (rest p)))
+                (if (if (pair? entry) (eq? (first entry) %priv-tag) #f)
+                  (self (rest cell) miss acc n)
+                  (let ((cand (symbol->str (first p))))
+                    (if (%sg-near? miss cand)
+                      (self (rest cell) miss (pair cand acc) (+ n 1))
+                      (self (rest cell) miss acc n))))))))))
+    (def %sg-join
+      (fn (self names)
+        (if (null? names)
+          ""
+          (if (null? (rest names))
+            (first names)
+            (%str-append (first names)
+              (%str-append " or " (self (rest names))))))))
+    (let ((names (%sg-collect tab (symbol->str sel) () 0)))
+      (if (null? names)
+        ""
+        (%str-append " -- did you mean " (%str-append (%sg-join names) "?"))))))
+
 ; Total dispatch miss, one seam. The %missing protocol hook fires first
 ; when the chain defines it: (method %missing (self sel args) ...) --
 ; instance side resolves it through the flat itab, static side through the
@@ -335,7 +422,7 @@
         (if (null? m)
           (error (%str-append (symbol->str (class-name class))
             (%str-append (if static? ": no such static member " ": no such member ")
-              (symbol->str selector))))
+              (%str-append (symbol->str selector) (%sug-hint tab selector)))))
           (apply m (list target selector
                      (%map1 (fn (_ a) (eval a e)) args))))))))
 
@@ -636,7 +723,8 @@
               (let ((stab (first (rest (%class-hot class)))))
                 (let ((m (%entry-method (%tab-find! stab stab sel))))
                   (if (null? m)
-                    (error (%str-append "object: no such method " (symbol->str sel)))
+                    (error (%str-append "object: no such method "
+                      (%str-append (symbol->str sel) (%sug-hint stab sel))))
                     (tail-eval
                       (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
                       e))))
@@ -669,7 +757,8 @@
               (let ((stab (first (rest (%class-hot class)))))
                 (let ((m (%entry-method (%tab-find! stab stab sel))))
                   (if (null? m)
-                    (error (%str-append "object: no such method " (symbol->str sel)))
+                    (error (%str-append "object: no such method "
+                      (%str-append (symbol->str sel) (%sug-hint stab sel))))
                     (tail-eval
                       (pair m (pair class (%append (rest args) (list (list (lit lit) obj)))))
                       e))))

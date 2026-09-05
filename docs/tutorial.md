@@ -91,6 +91,23 @@ sh x.sh -F hello.x
 This file is [`examples/x/hello.x`](../examples/x/hello.x); the rest of
 [`examples/`](../examples/README.md) builds up from here.
 
+For a single expression there is no need for a file at all. `-c` evaluates
+one and exits, and repeats to run several in order:
+
+```sh
+sh x.sh -q -c '(display "Hello from x-lang!")' -c '(newline)'
+```
+
+A program arriving on stdin runs the same way, which is what makes x-lang
+usable from a pipe:
+
+```sh
+echo '(display "Hello from x-lang!")' | sh x.sh -q
+```
+
+`-q` drops the banner. Neither form prints a result on its own — like a
+file, and unlike the REPL, they produce output only where you ask for it.
+
 ## Basic Expressions
 
 ### Values

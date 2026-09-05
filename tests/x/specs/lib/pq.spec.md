@@ -9,7 +9,7 @@ The heap structure under the queue name -- Heap is the GC class.
 
 ### pops come out in comparator order, duplicates included
 
-```scheme
+```x
 (do (import x/type/pq)
   (def q (Pq make (fn (_ a b) (< a b))))
   (q push! 5) (q push! 1) (q push! 4) (q push! 1) (q push! 8)
@@ -20,7 +20,7 @@ The heap structure under the queue name -- Heap is the GC class.
 
 ### the comparator picks the order: a max-queue
 
-```scheme
+```x
 (do (import x/type/pq)
   (def q (Pq make (fn (_ a b) (> a b))))
   (q push! 3) (q push! 9) (q push! 6)
@@ -31,7 +31,7 @@ The heap structure under the queue name -- Heap is the GC class.
 
 ### empty peek and pop raise 'value
 
-```scheme
+```x
 (do (import x/type/pq)
   (def q (Pq make (fn (_ a b) (< a b))))
   (list (guard (e (Err kind-of e)) (q peek))

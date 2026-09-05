@@ -13,7 +13,7 @@ bigint->float conversion is the first client).
 
 ### get on an unjoined name is nil
 
-```scheme
+```x
 (import x/sys/pact)
 (null? (Pact get 'pact-ghost))
 ```
@@ -22,7 +22,7 @@ bigint->float conversion is the first client).
 
 ### has? is #f (not nil) before a join
 
-```scheme
+```x
 (import x/sys/pact)
 (Pact has? 'pact-ghost)
 ```
@@ -31,7 +31,7 @@ bigint->float conversion is the first client).
 
 ### join publishes a value that get reads back
 
-```scheme
+```x
 (import x/sys/pact)
 (Pact join 'pact-alpha 42)
 (Pact get 'pact-alpha)
@@ -41,7 +41,7 @@ bigint->float conversion is the first client).
 
 ### has? is true after a join
 
-```scheme
+```x
 (import x/sys/pact)
 (Pact has? 'pact-alpha)
 ```
@@ -50,7 +50,7 @@ bigint->float conversion is the first client).
 
 ### a re-join shadows the earlier value
 
-```scheme
+```x
 (import x/sys/pact)
 (Pact join 'pact-g 1)
 (Pact join 'pact-g 2)
@@ -63,7 +63,7 @@ bigint->float conversion is the first client).
 
 ### when fires immediately if the party already joined
 
-```scheme
+```x
 (import x/sys/pact)
 (Pact join 'pact-b 7)
 (def r1 ())
@@ -75,7 +75,7 @@ r1
 
 ### when defers until the join arrives
 
-```scheme
+```x
 (import x/sys/pact)
 (def r2 ())
 (Pact when (list 'pact-c) (fn (_ c) (set! r2 c)))
@@ -88,7 +88,7 @@ r1
 
 ### a multi-party entry waits for every name, values arrive in names order
 
-```scheme
+```x
 (import x/sys/pact)
 (def r3 ())
 (Pact when (list 'pact-d 'pact-e) (fn (_ d e) (set! r3 (- d e))))
@@ -102,7 +102,7 @@ r1
 
 ### an entry fires exactly once; a re-join does not re-fire it
 
-```scheme
+```x
 (import x/sys/pact)
 (def n1 0)
 (Pact when (list 'pact-f) (fn (_ v) (set! n1 (+ n1 1))))
@@ -115,7 +115,7 @@ n1
 
 ### a fired thunk may itself file a new when-entry
 
-```scheme
+```x
 (import x/sys/pact)
 (def r4 ())
 (Pact when (list 'pact-h)

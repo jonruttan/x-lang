@@ -9,7 +9,7 @@ exact rendered doc text.
 
 ### accepts a bare symbol
 
-```scheme
+```x
 (do (apropos upcase) #t)
 ```
 ---
@@ -17,7 +17,7 @@ exact rendered doc text.
 
 ### accepts a string
 
-```scheme
+```x
 (do (apropos "upcase") #t)
 ```
 ---
@@ -25,7 +25,7 @@ exact rendered doc text.
 
 ### accepts a quoted symbol
 
-```scheme
+```x
 (do (apropos 'gcd) #t)
 ```
 ---
@@ -33,7 +33,7 @@ exact rendered doc text.
 
 ### no matches is not an error
 
-```scheme
+```x
 (do (apropos "zzzznotamethod") #t)
 ```
 ---
@@ -43,7 +43,7 @@ exact rendered doc text.
 
 ### a bare method name resolves to matching methods rather than erroring
 
-```scheme
+```x
 (do (help upcase) #t)
 ```
 ---
@@ -51,7 +51,7 @@ exact rendered doc text.
 
 ### a genuinely unknown name still completes
 
-```scheme
+```x
 (do (help totallyunknownxyz) #t)
 ```
 ---
@@ -61,7 +61,7 @@ exact rendered doc text.
 
 ### the List class module is registered
 
-```scheme
+```x
 (null? (%module-find 'x/type/list))
 ```
 ---
@@ -69,7 +69,7 @@ exact rendered doc text.
 
 ### boot modules register retroactively
 
-```scheme
+```x
 (null? (%module-find 'x/boot/module))
 ```
 ---

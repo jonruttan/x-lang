@@ -3,7 +3,7 @@
 
 ### lowercase letter
 
-```scheme
+```x
 (Char alphabetic? #\a)
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### uppercase letter
 
-```scheme
+```x
 (Char alphabetic? #\Z)
 ```
 ---
@@ -19,7 +19,7 @@
 
 ### digit is not alphabetic
 
-```scheme
+```x
 (Char alphabetic? #\5)
 ```
 ---
@@ -29,7 +29,7 @@
 
 ### digit
 
-```scheme
+```x
 (Char numeric? #\7)
 ```
 ---
@@ -37,7 +37,7 @@
 
 ### letter is not numeric
 
-```scheme
+```x
 (Char numeric? #\x)
 ```
 ---
@@ -47,7 +47,7 @@
 
 ### space
 
-```scheme
+```x
 (Char whitespace? #\space)
 ```
 ---
@@ -55,7 +55,7 @@
 
 ### tab
 
-```scheme
+```x
 (Char whitespace? ("\t" 0))
 ```
 ---
@@ -63,7 +63,7 @@
 
 ### letter is not whitespace
 
-```scheme
+```x
 (Char whitespace? #\a)
 ```
 ---
@@ -73,7 +73,7 @@
 
 ### uppercase
 
-```scheme
+```x
 (Char upper-case? #\A)
 ```
 ---
@@ -81,7 +81,7 @@
 
 ### lowercase is not upper
 
-```scheme
+```x
 (Char upper-case? #\a)
 ```
 ---
@@ -91,7 +91,7 @@
 
 ### lowercase
 
-```scheme
+```x
 (Char lower-case? #\a)
 ```
 ---
@@ -99,7 +99,7 @@
 
 ### uppercase is not lower
 
-```scheme
+```x
 (Char lower-case? #\A)
 ```
 ---
@@ -109,7 +109,7 @@
 
 ### uppercases lowercase
 
-```scheme
+```x
 (= (Char upcase #\a) #\A)
 ```
 ---
@@ -117,7 +117,7 @@
 
 ### uppercase unchanged
 
-```scheme
+```x
 (= (Char upcase #\Z) #\Z)
 ```
 ---
@@ -127,7 +127,7 @@
 
 ### lowercases uppercase
 
-```scheme
+```x
 (= (Char downcase #\A) #\a)
 ```
 ---
@@ -137,7 +137,7 @@
 
 ### equal chars
 
-```scheme
+```x
 (Char =? #\a #\a)
 ```
 ---
@@ -145,7 +145,7 @@
 
 ### unequal chars
 
-```scheme
+```x
 (Char =? #\a #\b)
 ```
 ---
@@ -155,7 +155,7 @@
 
 ### less than
 
-```scheme
+```x
 (Char <? #\a #\b)
 ```
 ---
@@ -163,7 +163,7 @@
 
 ### not less
 
-```scheme
+```x
 (Char <? #\b #\a)
 ```
 ---
@@ -173,7 +173,7 @@
 
 ### case insensitive equal
 
-```scheme
+```x
 (Char ci=? #\a #\A)
 ```
 ---
@@ -181,7 +181,7 @@
 
 ### case insensitive unequal
 
-```scheme
+```x
 (Char ci=? #\a #\b)
 ```
 ---
@@ -191,7 +191,7 @@
 
 ### greater than
 
-```scheme
+```x
 (Char >? #\b #\a)
 ```
 ---
@@ -199,7 +199,7 @@
 
 ### not greater
 
-```scheme
+```x
 (if (Char >? #\a #\b) "y" "n")
 ```
 ---
@@ -209,7 +209,7 @@
 
 ### less or equal
 
-```scheme
+```x
 (Char <=? #\a #\a)
 ```
 ---
@@ -219,7 +219,7 @@
 
 ### greater or equal
 
-```scheme
+```x
 (Char >=? #\z #\z)
 ```
 ---
@@ -229,7 +229,7 @@
 
 ### case insensitive less
 
-```scheme
+```x
 (Char ci<? #\a #\B)
 ```
 ---
@@ -239,7 +239,7 @@
 
 ### case insensitive greater
 
-```scheme
+```x
 (Char ci>? #\B #\a)
 ```
 ---
@@ -249,7 +249,7 @@
 
 ### case insensitive less or equal
 
-```scheme
+```x
 (Char ci<=? #\a #\A)
 ```
 ---
@@ -259,7 +259,7 @@
 
 ### case insensitive greater or equal
 
-```scheme
+```x
 (Char ci>=? #\A #\a)
 ```
 ---

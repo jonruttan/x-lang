@@ -11,7 +11,7 @@
 
 ### obj-meta-count defaults to 2 (source-location line/file slots)
 
-```scheme
+```x
 ; Boot reserves meta slots 0/1 for raise-time line/file stamping
 ; (lib/x/boot/ + docs: source-location errors), so a base that has
 ; loaded x-core reports 2, not 0.
@@ -22,7 +22,7 @@
 
 ### obj-meta-ref on non-extended object returns 0
 
-```scheme
+```x
 (do
   (def %p (pair 1 2))
   (display (Obj meta-ref %p 0)))
@@ -34,7 +34,7 @@
 
 ### obj-meta-count! sets and returns old value
 
-```scheme
+```x
 ; The old value is 2: the source-location slots x-core booted with.
 (do
   (def %old (Obj meta-count! 3))
@@ -47,7 +47,7 @@
 
 ### obj-meta-set! and obj-meta-ref round-trip
 
-```scheme
+```x
 (do
   (Obj meta-count! 3)
   (def %p (pair 1 2))
@@ -59,7 +59,7 @@
 
 ### multiple extra slots work
 
-```scheme
+```x
 (do
   (Obj meta-count! 3)
   (def %p (pair 1 2))
@@ -77,7 +77,7 @@
 
 ### extended object survives GC
 
-```scheme
+```x
 (do
   (Obj meta-count! 3)
   (def %p (pair 1 2))
@@ -93,7 +93,7 @@
 
 ### token-read-string stamps line 1 on first token
 
-```scheme
+```x
 (do
   (Obj meta-count! 3)
   (def %tokens (Tok read-str (%base) "(+ 1 2)\n"))
@@ -104,7 +104,7 @@
 
 ### tokens on different lines get correct line numbers
 
-```scheme
+```x
 (do
   (Obj meta-count! 3)
   (def %tokens (Tok read-str (%base) "(+ 1 2)\n(- 3 4)\n"))
@@ -117,7 +117,7 @@
 
 ### nested form elements get correct line numbers
 
-```scheme
+```x
 (do
   (Obj meta-count! 3)
   (def %tokens (Tok read-str (%base) "(if t\n  1\n  2)\n"))

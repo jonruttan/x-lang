@@ -3,7 +3,7 @@
 
 ### returns #t for empty and
 
-```scheme
+```x
 (and)
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### returns value for single truthy
 
-```scheme
+```x
 (and 1)
 ```
 ---
@@ -19,14 +19,14 @@
 
 ### returns nil for single falsy
 
-```scheme
+```x
 (and (lit ()))
 ```
 ---
 
 ### returns last value when all truthy
 
-```scheme
+```x
 (and 1 2 3)
 ```
 ---
@@ -34,7 +34,7 @@
 
 ### returns #f on first falsy
 
-```scheme
+```x
 (and 1 (lit ()) 3)
 ```
 ---
@@ -42,7 +42,7 @@
 
 ### returns actual value not t
 
-```scheme
+```x
 (and 1 "yes")
 ```
 ---
@@ -50,7 +50,7 @@
 
 ### short-circuits evaluation
 
-```scheme
+```x
 (do (def x 0) (and (lit ()) (set! x 1)) x)
 ```
 ---
@@ -58,7 +58,7 @@
 
 ### short-circuits before error
 
-```scheme
+```x
 (and (lit ()) (error "boom"))
 ```
 ---
@@ -66,7 +66,7 @@
 
 ### and with nested function calls
 
-```scheme
+```x
 (let ((x 5)) (and (> x 3) (< x 10)))
 ```
 ---
@@ -76,14 +76,14 @@
 
 ### returns nil for empty or
 
-```scheme
+```x
 (or)
 ```
 ---
 
 ### returns value for single truthy
 
-```scheme
+```x
 (or 1)
 ```
 ---
@@ -91,14 +91,14 @@
 
 ### returns nil for single falsy
 
-```scheme
+```x
 (or (lit ()))
 ```
 ---
 
 ### returns first truthy value
 
-```scheme
+```x
 (or (lit ()) 2 3)
 ```
 ---
@@ -106,14 +106,14 @@
 
 ### returns nil when all falsy
 
-```scheme
+```x
 (or (lit ()) (lit ()))
 ```
 ---
 
 ### returns actual value not t
 
-```scheme
+```x
 (or (lit ()) "yes")
 ```
 ---
@@ -121,7 +121,7 @@
 
 ### short-circuits evaluation
 
-```scheme
+```x
 (do (def x 0) (or 1 (set! x 1)) x)
 ```
 ---
@@ -129,7 +129,7 @@
 
 ### short-circuits before error
 
-```scheme
+```x
 (or 1 (error "boom"))
 ```
 ---
@@ -137,7 +137,7 @@
 
 ### or with nested function calls
 
-```scheme
+```x
 (let ((x 5)) (or (< x 0) (> x 3)))
 ```
 ---
@@ -147,7 +147,7 @@
 
 ### returns #t for nil
 
-```scheme
+```x
 (not (lit ()))
 ```
 ---
@@ -155,7 +155,7 @@
 
 ### returns #f for non-nil
 
-```scheme
+```x
 (not 1)
 ```
 ---
@@ -165,7 +165,7 @@
 
 ### nested and/or returns correct value
 
-```scheme
+```x
 (and (or (lit ()) 1) (or (lit ()) 2))
 ```
 ---
@@ -173,7 +173,7 @@
 
 ### or of ands returns correct value
 
-```scheme
+```x
 (or (and (lit ()) 1) (and 1 2))
 ```
 ---
@@ -181,7 +181,7 @@
 
 ### and of ors returns correct value
 
-```scheme
+```x
 (and (or 1 2) (or 3 4))
 ```
 ---
@@ -189,7 +189,7 @@
 
 ### deeply nested logic
 
-```scheme
+```x
 (or (and (or (lit ()) (lit ())) 1) (and (or (lit ()) 5) 6))
 ```
 ---
@@ -199,7 +199,7 @@
 
 ### returns body result when no error
 
-```scheme
+```x
 (guard (e 'caught) (+ 1 2))
 ```
 ---
@@ -207,7 +207,7 @@
 
 ### catches explicit error
 
-```scheme
+```x
 (guard (e e) (error "boom"))
 ```
 ---
@@ -215,7 +215,7 @@
 
 ### runs handler body on error
 
-```scheme
+```x
 (guard (e (list 'caught e)) (error "oops"))
 ```
 ---
@@ -223,7 +223,7 @@
 
 ### catches unbound symbol
 
-```scheme
+```x
 (guard (e 'handled) no-such-var)
 ```
 ---
@@ -231,7 +231,7 @@
 
 ### returns last body form
 
-```scheme
+```x
 (guard (e e) 1 2 3)
 ```
 ---
@@ -239,7 +239,7 @@
 
 ### handler sees error value
 
-```scheme
+```x
 (guard (e (list 'err e)) (error 42))
 ```
 ---
@@ -252,7 +252,7 @@ The guard pops its handler BEFORE the handler body runs (control.c), so
 propagation idiom.  (Regression pin: the handler used to stay installed,
 and a re-raise longjmp'd back into its own guard forever.)
 
-```scheme
+```x
 (guard (e2 (Str8 append "outer: " e2))
   (guard (e (error (Str8 append "re: " e)))
     (error "inner")))
@@ -262,7 +262,7 @@ and a re-raise longjmp'd back into its own guard forever.)
 
 ### a handler-body re-raise with NO outer guard leaves the handler popped
 
-```scheme
+```x
 (do
   (def %r1 (guard (e2 'outer) (guard (e (error e)) (error 'boom))))
   (def %r2 (guard (e3 'clean) (+ 1 2)))
@@ -275,7 +275,7 @@ and a re-raise longjmp'd back into its own guard forever.)
 
 ### signals with string
 
-```scheme
+```x
 (guard (e e) (error "test"))
 ```
 ---
@@ -283,7 +283,7 @@ and a re-raise longjmp'd back into its own guard forever.)
 
 ### signals with number
 
-```scheme
+```x
 (guard (e e) (error 99))
 ```
 ---
@@ -291,7 +291,7 @@ and a re-raise longjmp'd back into its own guard forever.)
 
 ### signals from nested call
 
-```scheme
+```x
 (do (def boom (fn (_ ) (error "inner"))) (guard (e e) (boom)))
 ```
 ---
@@ -301,7 +301,7 @@ and a re-raise longjmp'd back into its own guard forever.)
 
 ### inner guard catches inner error
 
-```scheme
+```x
 (guard (e 'outer) (guard (e 'inner) (error "x")))
 ```
 ---
@@ -309,7 +309,7 @@ and a re-raise longjmp'd back into its own guard forever.)
 
 ### outer guard catches when inner has no guard
 
-```scheme
+```x
 (guard (e (list 'outer e)) (do (def f (fn (_ ) (error "deep"))) (f)))
 ```
 ---
@@ -317,7 +317,7 @@ and a re-raise longjmp'd back into its own guard forever.)
 
 ### inner guard does not catch outer body error
 
-```scheme
+```x
 (guard (e (list 'caught e)) (+ 1 2) (error "after"))
 ```
 ---
@@ -327,7 +327,7 @@ and a re-raise longjmp'd back into its own guard forever.)
 
 ### restores env after error in let
 
-```scheme
+```x
 (do (def x 10) (guard (e x) (let ((x 20)) (error "err"))))
 ```
 ---
@@ -335,7 +335,7 @@ and a re-raise longjmp'd back into its own guard forever.)
 
 ### restores env after error in fn
 
-```scheme
+```x
 (do (def x 5) (guard (e x) ((fn (_ ) (error "err")))))
 ```
 ---

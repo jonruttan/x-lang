@@ -5,7 +5,7 @@
 
 ### fetches a C prim by identity
 
-```scheme
+```x
 ((prim-ref 'int '+) 2 3)
 ```
 ---
@@ -13,7 +13,7 @@
 
 ### absent entry is nil
 
-```scheme
+```x
 (null? (prim-ref 'no-such-ns 'nothing))
 ```
 ---
@@ -23,7 +23,7 @@
 
 ### registers an x-lang fn under a new namespace
 
-```scheme
+```x
 (do
   (prim-reg! 'spec-reg 'double (fn (_ n) (* n 2)))
   ((prim-ref 'spec-reg 'double) 21))
@@ -33,7 +33,7 @@
 
 ### registers into an existing namespace
 
-```scheme
+```x
 (do
   (prim-reg! 'spec-reg2 'a (fn (_ n) (+ n 1)))
   (prim-reg! 'spec-reg2 'b (fn (_ n) (+ n 2)))
@@ -45,7 +45,7 @@
 
 ### holds any value, not just callables
 
-```scheme
+```x
 (do
   (prim-reg! 'spec-val 'answer 42)
   (prim-ref 'spec-val 'answer))
@@ -55,7 +55,7 @@
 
 ### re-registration shadows the older entry
 
-```scheme
+```x
 (do
   (prim-reg! 'spec-shadow 'v 1)
   (prim-reg! 'spec-shadow 'v 2)
@@ -66,7 +66,7 @@
 
 ### returns nil (side-effecting)
 
-```scheme
+```x
 (null? (prim-reg! 'spec-ret 'x 9))
 ```
 ---
@@ -76,7 +76,7 @@
 
 ### nil for an unknown namespace
 
-```scheme
+```x
 (null? (prim-domain 'no-such-ns))
 ```
 ---
@@ -84,7 +84,7 @@
 
 ### non-nil after a registration
 
-```scheme
+```x
 (do
   (prim-reg! 'spec-dom 'm 1)
   (null? (prim-domain 'spec-dom)))

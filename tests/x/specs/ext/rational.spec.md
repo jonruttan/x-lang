@@ -5,7 +5,7 @@
 
 ### make-rational basic
 
-```scheme
+```x
 (%make-rational 3 4)
 ```
 ---
@@ -13,7 +13,7 @@
 
 ### make-rational auto-reduce
 
-```scheme
+```x
 (%make-rational 6 4)
 ```
 ---
@@ -21,7 +21,7 @@
 
 ### make-rational reduces to integer
 
-```scheme
+```x
 (%make-rational 6 3)
 ```
 ---
@@ -29,7 +29,7 @@
 
 ### make-rational negative numerator
 
-```scheme
+```x
 (%make-rational -3 4)
 ```
 ---
@@ -37,7 +37,7 @@
 
 ### make-rational negative denominator normalizes
 
-```scheme
+```x
 (%make-rational 3 -4)
 ```
 ---
@@ -45,7 +45,7 @@
 
 ### make-rational division by zero
 
-```scheme
+```x
 (guard (e e) (%make-rational 1 0))
 ```
 ---
@@ -55,7 +55,7 @@
 
 ### rational literal 1/2
 
-```scheme
+```x
 1/2
 ```
 ---
@@ -63,7 +63,7 @@
 
 ### rational literal 3/4
 
-```scheme
+```x
 3/4
 ```
 ---
@@ -71,7 +71,7 @@
 
 ### rational literal auto-reduces
 
-```scheme
+```x
 6/4
 ```
 ---
@@ -79,7 +79,7 @@
 
 ### negative rational literal
 
-```scheme
+```x
 -3/4
 ```
 ---
@@ -87,7 +87,7 @@
 
 ### rational literal reduces to integer
 
-```scheme
+```x
 4/2
 ```
 ---
@@ -97,7 +97,7 @@
 
 ### rational? on rational
 
-```scheme
+```x
 (null? (Rational rational? 3/4))
 ```
 ---
@@ -105,7 +105,7 @@
 
 ### rational? on integer
 
-```scheme
+```x
 (null? (Rational rational? 42))
 ```
 ---
@@ -113,7 +113,7 @@
 
 ### exact? on rational
 
-```scheme
+```x
 (null? (Rational exact? 3/4))
 ```
 ---
@@ -121,7 +121,7 @@
 
 ### exact? on integer
 
-```scheme
+```x
 (null? (Rational exact? 42))
 ```
 ---
@@ -131,7 +131,7 @@
 
 ### numerator of rational
 
-```scheme
+```x
 (Rational numerator 3/4)
 ```
 ---
@@ -139,7 +139,7 @@
 
 ### denominator of rational
 
-```scheme
+```x
 (Rational denominator 3/4)
 ```
 ---
@@ -147,7 +147,7 @@
 
 ### numerator of integer
 
-```scheme
+```x
 (Rational numerator 5)
 ```
 ---
@@ -155,7 +155,7 @@
 
 ### denominator of integer
 
-```scheme
+```x
 (Rational denominator 5)
 ```
 ---
@@ -165,7 +165,7 @@
 
 ### rat+ basic
 
-```scheme
+```x
 (Rational + 1/3 1/6)
 ```
 ---
@@ -173,7 +173,7 @@
 
 ### rat- basic
 
-```scheme
+```x
 (Rational - 3/4 1/4)
 ```
 ---
@@ -181,7 +181,7 @@
 
 ### rat* basic
 
-```scheme
+```x
 (Rational * 2/3 3/5)
 ```
 ---
@@ -189,7 +189,7 @@
 
 ### rat/ basic
 
-```scheme
+```x
 (Rational / 1/2 1/3)
 ```
 ---
@@ -199,7 +199,7 @@
 
 ### + with rationals
 
-```scheme
+```x
 (+ 1/3 1/6)
 ```
 ---
@@ -207,7 +207,7 @@
 
 ### + int and rational
 
-```scheme
+```x
 (+ 1 1/2)
 ```
 ---
@@ -215,7 +215,7 @@
 
 ### - with rational
 
-```scheme
+```x
 (- 1 1/3)
 ```
 ---
@@ -223,7 +223,7 @@
 
 ### * rational and int
 
-```scheme
+```x
 (* 2/3 3)
 ```
 ---
@@ -231,7 +231,7 @@
 
 ### / integers produces rational
 
-```scheme
+```x
 (/ 1 3)
 ```
 ---
@@ -239,7 +239,7 @@
 
 ### / integers exact produces integer
 
-```scheme
+```x
 (/ 6 3)
 ```
 ---
@@ -247,7 +247,7 @@
 
 ### + int stays int
 
-```scheme
+```x
 (+ 2 3)
 ```
 ---
@@ -257,7 +257,7 @@
 
 ### rat< true
 
-```scheme
+```x
 (null? (Rational < 1/3 1/2))
 ```
 ---
@@ -265,7 +265,7 @@
 
 ### rat< false
 
-```scheme
+```x
 (if (Rational < 1/2 1/3) "yes" "no")
 ```
 ---
@@ -273,7 +273,7 @@
 
 ### rat= true
 
-```scheme
+```x
 (if (Rational = 2/4 1/2) "yes" "no")
 ```
 ---
@@ -281,7 +281,7 @@
 
 ### rat= false
 
-```scheme
+```x
 (if (Rational = 1/3 1/2) "yes" "no")
 ```
 ---
@@ -289,7 +289,7 @@
 
 ### < with rationals
 
-```scheme
+```x
 (null? (< 1/3 1/2))
 ```
 ---
@@ -297,7 +297,7 @@
 
 ### = with rationals
 
-```scheme
+```x
 (null? (= 2/4 1/2))
 ```
 ---
@@ -307,7 +307,7 @@
 
 ### convert int to rational
 
-```scheme
+```x
 (Convert to 5 %rational)
 ```
 ---
@@ -315,7 +315,7 @@
 
 ### convert string to rational
 
-```scheme
+```x
 (Convert to "3/4" %rational)
 ```
 ---
@@ -323,7 +323,7 @@
 
 ### convert rational to int
 
-```scheme
+```x
 (Convert to 3/4 (Type of 42))
 ```
 ---
@@ -331,7 +331,7 @@
 
 ### convert rational to string
 
-```scheme
+```x
 (Convert to 3/4 (Type of ""))
 ```
 ---
@@ -341,7 +341,7 @@
 
 ### extracts numerator
 
-```scheme
+```x
 (Rational numerator 3/4)
 ```
 ---
@@ -349,7 +349,7 @@
 
 ### integer numerator is itself
 
-```scheme
+```x
 (Rational numerator 5)
 ```
 ---
@@ -359,7 +359,7 @@
 
 ### extracts denominator
 
-```scheme
+```x
 (Rational denominator 3/4)
 ```
 ---
@@ -367,7 +367,7 @@
 
 ### integer denominator is one
 
-```scheme
+```x
 (Rational denominator 5)
 ```
 ---
@@ -377,7 +377,7 @@
 
 ### numerator via the value
 
-```scheme
+```x
 (1/2 numerator)
 ```
 ---
@@ -385,7 +385,7 @@
 
 ### denominator via the value
 
-```scheme
+```x
 (3/4 denominator)
 ```
 ---
@@ -393,7 +393,7 @@
 
 ### predicate via the value
 
-```scheme
+```x
 (1/3 rational?)
 ```
 ---
@@ -401,7 +401,7 @@
 
 ### commutative op reads naturally (the receiver is appended last)
 
-```scheme
+```x
 (1/2 + 1/3)
 ```
 ---
@@ -409,7 +409,7 @@
 
 ### a non-commutative op is subject-last too ((1/2 - 1/3) -> (- 1/3 1/2))
 
-```scheme
+```x
 (1/2 - 1/3)
 ```
 ---
@@ -417,7 +417,7 @@
 
 ### unknown method errors
 
-```scheme
+```x
 (guard (e "no-such") (1/2 bogus))
 ```
 ---
@@ -427,7 +427,7 @@
 
 ### iterate a list of rationals (re-evaluated data list must pass through)
 
-```scheme
+```x
 (Iter ->list (Iter new (list 1/2 1/3 1/4)))
 ```
 ---
@@ -435,7 +435,7 @@
 
 ### a single-element rational list iterates
 
-```scheme
+```x
 (Iter ->list (Iter new (list 3/4)))
 ```
 ---
@@ -445,7 +445,7 @@
 
 ### % is truncating, matching int % and float fmod
 
-```scheme
+```x
 (% 7/2 1)
 ```
 ---
@@ -453,7 +453,7 @@
 
 ### mixed int and rational operands
 
-```scheme
+```x
 (% 5 3/2)
 ```
 ---
@@ -463,7 +463,7 @@
 
 ### coprime 1e13 denominators add exactly
 
-```scheme
+```x
 (+ 1/10000000000000 1/9999999999999)
 ```
 ---
@@ -471,7 +471,7 @@
 
 ### large-denominator difference demotes to the integer
 
-```scheme
+```x
 (- 30000000000001/10000000000000 1/10000000000000)
 ```
 ---
@@ -479,7 +479,7 @@
 
 ### sqrt-2 digit pipeline stays exact
 
-```scheme
+```x
 (+ (* (- (/ 14142135623731 10000000000000) 1) 100000) 1/2)
 ```
 ---
@@ -487,7 +487,7 @@
 
 ### 11-digit denominator literal reads
 
-```scheme
+```x
 1/99999999999
 ```
 ---
@@ -495,7 +495,7 @@
 
 ### comparison crosses promote
 
-```scheme
+```x
 (< 1/10000000000000 1/9999999999999)
 ```
 ---
@@ -503,7 +503,7 @@
 
 ### equality crosses promote
 
-```scheme
+```x
 (= 20000000000000/10000000000000 2)
 ```
 ---

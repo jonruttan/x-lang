@@ -5,7 +5,7 @@
 
 ### basic addition
 
-```scheme
+```x
 (+ 2 3)
 ```
 ---
@@ -13,7 +13,7 @@
 
 ### basic multiplication
 
-```scheme
+```x
 (* 6 7)
 ```
 ---
@@ -23,7 +23,7 @@
 
 ### multiply overflow promotes
 
-```scheme
+```x
 (Bigint bigint? (* 999999999999 999999999999))
 ```
 ---
@@ -31,7 +31,7 @@
 
 ### add overflow promotes
 
-```scheme
+```x
 (Bigint bigint? (+ 4611686018427387904 4611686018427387904))
 ```
 ---
@@ -39,7 +39,7 @@
 
 ### bigint subtraction produces correct value
 
-```scheme
+```x
 (= (- (+ 4611686018427387904 4611686018427387904) 4611686018427387904) 4611686018427387904)
 ```
 ---
@@ -49,7 +49,7 @@
 
 ### float addition
 
-```scheme
+```x
 (write (+ 1.5 2.5))
 ```
 ---
@@ -57,7 +57,7 @@
 
 ### int plus float promotes
 
-```scheme
+```x
 (Float float? (+ 1 1.5))
 ```
 ---
@@ -65,7 +65,7 @@
 
 ### float times float
 
-```scheme
+```x
 (Float float? (* 2.0 3.0))
 ```
 ---
@@ -73,7 +73,7 @@
 
 ### float plus bigint promotes to float
 
-```scheme
+```x
 (Float float? (+ 1.0 99999999999999999999))
 ```
 ---
@@ -83,7 +83,7 @@
 
 ### rational addition
 
-```scheme
+```x
 (write (+ 1/3 1/6))
 ```
 ---
@@ -91,7 +91,7 @@
 
 ### int division produces rational
 
-```scheme
+```x
 (write (/ 1 3))
 ```
 ---
@@ -99,7 +99,7 @@
 
 ### rational times int
 
-```scheme
+```x
 (write (* 1/3 6))
 ```
 ---
@@ -107,7 +107,7 @@
 
 ### computed large negative int plus rational
 
-```scheme
+```x
 (write (+ (+ 0 -1000000000) (/ 1 4)))
 ```
 ---
@@ -115,7 +115,7 @@
 
 ### negated large int plus rational
 
-```scheme
+```x
 (write (+ (- 0 1000000000) (/ 1 4)))
 ```
 ---
@@ -123,7 +123,7 @@
 
 ### a computed bigint meeting a rational teaches instead of leaking
 
-```scheme
+```x
 (write (guard (e (lit caught)) (+ (* 10000000000 10000000000) (/ 1 4))))
 ```
 ---
@@ -133,7 +133,7 @@
 
 ### complex addition
 
-```scheme
+```x
 (write (+ 1+2i 3+4i))
 ```
 ---
@@ -141,7 +141,7 @@
 
 ### complex times real
 
-```scheme
+```x
 (write (* 2+3i 2))
 ```
 ---
@@ -151,7 +151,7 @@
 
 ### int < float comparison
 
-```scheme
+```x
 (< 1 1.5)
 ```
 ---
@@ -159,7 +159,7 @@
 
 ### rational equality
 
-```scheme
+```x
 (= 1/2 1/2)
 ```
 ---
@@ -167,7 +167,7 @@
 
 ### float equality with rational
 
-```scheme
+```x
 (= 0.5 1/2)
 ```
 ---
@@ -177,7 +177,7 @@
 
 ### the literal reads on the boot path too
 
-```scheme
+```x
 (Decimal decimal? 1.5d)
 ```
 ---
@@ -185,7 +185,7 @@
 
 ### exact decimal-fraction addition
 
-```scheme
+```x
 (write (+ 0.1d 0.2d))
 ```
 ---
@@ -193,7 +193,7 @@
 
 ### a sign is part of the literal, not an operator applied to it
 
-```scheme
+```x
 (write -0.001d)
 ```
 ---
@@ -201,7 +201,7 @@
 
 ### a float promotes into the decimal exactly
 
-```scheme
+```x
 (write (* 2d 3.5))
 ```
 ---
@@ -209,7 +209,7 @@
 
 ### and the float reader still owns an unsuffixed token
 
-```scheme
+```x
 (Float float? 1.5)
 ```
 ---

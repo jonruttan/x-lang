@@ -238,6 +238,46 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ---
     'no-static
 
+### a near-miss selector suggests what was meant
+
+```x
+(do
+  (def-class C () (static (method map (self) 1)))
+  (guard (e e) (C mp)))
+```
+---
+    "C: no such static member mp -- did you mean map?"
+
+### a half-typed selector suggests its completion
+
+```x
+(do
+  (def-class C () (static (method split (self) 1)))
+  (guard (e e) (C spl)))
+```
+---
+    "C: no such static member spl -- did you mean split?"
+
+### a selector near nothing gets no suggestion
+
+```x
+(do
+  (def-class C () (static (method map (self) 1)))
+  (guard (e e) (C zzzqqq)))
+```
+---
+    "C: no such static member zzzqqq"
+
+### a private selector is never suggested
+
+```x
+(do
+  (def-class C () (static (private (method map (self) 1))))
+  (guard (e e) (C mp)))
+```
+---
+    "C: no such static member mp"
+
 ### super with no parent method is an error
 
 ```x

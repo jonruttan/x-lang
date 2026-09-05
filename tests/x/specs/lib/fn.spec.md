@@ -3,7 +3,7 @@
 
 ### returns its argument
 
-```scheme
+```x
 (Fn identity 42)
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### returns a list
 
-```scheme
+```x
 (Fn identity (list 1 2))
 ```
 ---
@@ -21,7 +21,7 @@
 
 ### returns a constant function
 
-```scheme
+```x
 ((Fn const 5) 99)
 ```
 ---
@@ -31,7 +31,7 @@
 
 ### composes two functions
 
-```scheme
+```x
 ((Fn compose (method-ref Num inc) (method-ref Num inc)) 3)
 ```
 ---
@@ -39,7 +39,7 @@
 
 ### applies right-to-left
 
-```scheme
+```x
 ((Fn compose (fn (_ x) (* x 2)) (method-ref Num inc)) 3)
 ```
 ---
@@ -49,7 +49,7 @@
 
 ### pipes two functions left-to-right
 
-```scheme
+```x
 ((Fn pipe (method-ref Num inc) (fn (_ x) (* x 2))) 3)
 ```
 ---
@@ -59,7 +59,7 @@
 
 ### partially applies first argument
 
-```scheme
+```x
 ((Fn curry + 10) 5)
 ```
 ---
@@ -69,7 +69,7 @@
 
 ### swaps argument order
 
-```scheme
+```x
 ((Fn flip -) 3 10)
 ```
 ---
@@ -79,7 +79,7 @@
 
 ### returns original value
 
-```scheme
+```x
 ((Fn tap (fn (_ x) x)) 42)
 ```
 ---
@@ -89,7 +89,7 @@
 
 ### negates a predicate
 
-```scheme
+```x
 ((Fn complement (method-ref Num even?)) 3)
 ```
 ---
@@ -97,7 +97,7 @@
 
 ### negates a true result
 
-```scheme
+```x
 (if ((Fn complement (method-ref Num even?)) 4) "odd" "even")
 ```
 ---
@@ -107,7 +107,7 @@
 
 ### partially applies one argument
 
-```scheme
+```x
 ((Fn partial * 3) 4)
 ```
 ---
@@ -115,7 +115,7 @@
 
 ### partially applies with subtract
 
-```scheme
+```x
 ((Fn partial - 100) 30)
 ```
 ---
@@ -125,7 +125,7 @@
 
 ### applies multiple functions
 
-```scheme
+```x
 ((Fn juxt (method-ref Num inc) (method-ref Num dec)) 5)
 ```
 ---
@@ -135,7 +135,7 @@
 
 ### returns #t when both pass
 
-```scheme
+```x
 ((Fn both (method-ref Num positive?) (method-ref Num even?)) 4)
 ```
 ---
@@ -143,7 +143,7 @@
 
 ### returns nil when one fails
 
-```scheme
+```x
 (if ((Fn both (method-ref Num positive?) (method-ref Num even?)) 3) "y" "n")
 ```
 ---
@@ -153,7 +153,7 @@
 
 ### returns #t when one passes
 
-```scheme
+```x
 ((Fn either (method-ref Num positive?) (method-ref Num even?)) -2)
 ```
 ---
@@ -161,7 +161,7 @@
 
 ### returns nil when both fail
 
-```scheme
+```x
 (if ((Fn either (method-ref Num positive?) (method-ref Num even?)) -3) "y" "n")
 ```
 ---
@@ -171,7 +171,7 @@
 
 ### all predicates pass
 
-```scheme
+```x
 ((Fn all-pass (list (method-ref Num positive?) (method-ref Num even?))) 4)
 ```
 ---
@@ -179,7 +179,7 @@
 
 ### fails when one fails
 
-```scheme
+```x
 (if ((Fn all-pass (list (method-ref Num positive?) (method-ref Num even?))) 3) "y" "n")
 ```
 ---
@@ -189,7 +189,7 @@
 
 ### one predicate passes
 
-```scheme
+```x
 ((Fn any-pass (list (method-ref Num negative?) (method-ref Num even?))) 4)
 ```
 ---
@@ -197,7 +197,7 @@
 
 ### fails when all fail
 
-```scheme
+```x
 (if ((Fn any-pass (list (method-ref Num negative?) (method-ref Num even?))) 3) "y" "n")
 ```
 ---

@@ -3,7 +3,7 @@
 
 ### returns a symbol
 
-```scheme
+```x
 (lit a)
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### returns a list
 
-```scheme
+```x
 (lit (a b c))
 ```
 ---
@@ -19,7 +19,7 @@
 
 ### returns a nested list
 
-```scheme
+```x
 (lit (1 (2 3)))
 ```
 ---
@@ -29,7 +29,7 @@
 
 ### creates a dotted pair
 
-```scheme
+```x
 (pair 1 2)
 ```
 ---
@@ -37,7 +37,7 @@
 
 ### creates a list when rest is nil
 
-```scheme
+```x
 (pair 1 (lit ()))
 ```
 ---
@@ -45,7 +45,7 @@
 
 ### prepends to a list
 
-```scheme
+```x
 (pair 1 (lit (2 3)))
 ```
 ---
@@ -55,7 +55,7 @@
 
 ### returns first of a pair
 
-```scheme
+```x
 (first (pair 1 2))
 ```
 ---
@@ -63,7 +63,7 @@
 
 ### returns first of a list
 
-```scheme
+```x
 (first (lit (a b c)))
 ```
 ---
@@ -73,7 +73,7 @@
 
 ### returns second of a pair
 
-```scheme
+```x
 (rest (pair 1 2))
 ```
 ---
@@ -81,7 +81,7 @@
 
 ### returns rest of a list
 
-```scheme
+```x
 (rest (lit (a b c)))
 ```
 ---
@@ -91,7 +91,7 @@
 
 ### creates a list
 
-```scheme
+```x
 (list 1 2 3)
 ```
 ---
@@ -99,7 +99,7 @@
 
 ### evaluates arguments
 
-```scheme
+```x
 (list (+ 1 2) (* 3 4))
 ```
 ---
@@ -107,7 +107,7 @@
 
 ### returns nil for empty list
 
-```scheme
+```x
 (list)
 ```
 ---
@@ -116,7 +116,7 @@
 
 ### binds a value
 
-```scheme
+```x
 (do (def x 42) x)
 ```
 ---
@@ -124,7 +124,7 @@
 
 ### binds and uses in expression
 
-```scheme
+```x
 (do (def x 5) (+ x 1))
 ```
 ---
@@ -134,7 +134,7 @@
 
 ### mutates a binding
 
-```scheme
+```x
 (do (def x 1) (set! x 2) x)
 ```
 ---
@@ -142,7 +142,7 @@
 
 ### returns the new value
 
-```scheme
+```x
 (do (def x 1) (set! x 42))
 ```
 ---
@@ -152,7 +152,7 @@
 
 ### takes then branch for non-nil
 
-```scheme
+```x
 (if #t 1 2)
 ```
 ---
@@ -160,7 +160,7 @@
 
 ### takes else branch for nil
 
-```scheme
+```x
 (if #f 1 2)
 ```
 ---
@@ -168,7 +168,7 @@
 
 ### works with eq? true case
 
-```scheme
+```x
 (if (eq? (lit a) (lit a)) 10 20)
 ```
 ---
@@ -176,14 +176,14 @@
 
 ### returns nil when false and no else
 
-```scheme
+```x
 (if (= 1 2) 42)
 ```
 ---
 
 ### returns then when true and no else
 
-```scheme
+```x
 (if (= 1 1) 42)
 ```
 ---
@@ -193,7 +193,7 @@
 
 ### returns last form
 
-```scheme
+```x
 (do 1 2 3)
 ```
 ---
@@ -201,7 +201,7 @@
 
 ### rejects a dotted body instead of walking it
 
-```scheme
+```x
 (do 1 2 . 3)
 ```
 ---
@@ -209,7 +209,7 @@
 
 ### rejects a non-list body
 
-```scheme
+```x
 (begin . 3)
 ```
 ---
@@ -217,7 +217,7 @@
 
 ### evaluates all forms
 
-```scheme
+```x
 (do (def a 1) (def b 2) (+ a b))
 ```
 ---
@@ -225,7 +225,7 @@
 
 ### returns nil for empty do
 
-```scheme
+```x
 (do)
 ```
 ---
@@ -234,7 +234,7 @@
 
 ### returns first matching branch
 
-```scheme
+```x
 (match ((= 1 1) 10) ((= 2 2) 20))
 ```
 ---
@@ -242,7 +242,7 @@
 
 ### returns later matching branch
 
-```scheme
+```x
 (match ((= 1 2) 10) ((= 2 2) 20))
 ```
 ---
@@ -250,7 +250,7 @@
 
 ### supports else with #t
 
-```scheme
+```x
 (match ((= 1 2) 10) (#t 30))
 ```
 ---
@@ -258,14 +258,14 @@
 
 ### returns nil when no match
 
-```scheme
+```x
 (match ((= 1 2) 10) ((= 3 4) 20))
 ```
 ---
 
 ### works with comparisons
 
-```scheme
+```x
 (do (def x 5) (match ((< x 0) (lit neg)) ((= x 0) (lit zero)) (#t (lit pos))))
 ```
 ---
@@ -275,7 +275,7 @@
 
 ### binds a single variable
 
-```scheme
+```x
 (let ((x 42)) x)
 ```
 ---
@@ -283,7 +283,7 @@
 
 ### binds multiple variables
 
-```scheme
+```x
 (let ((x 3) (y 4)) (+ x y))
 ```
 ---
@@ -291,7 +291,7 @@
 
 ### evaluates binding expressions
 
-```scheme
+```x
 (let ((x (+ 1 2)) (y (* 3 4))) (+ x y))
 ```
 ---
@@ -299,7 +299,7 @@
 
 ### does not pollute outer scope
 
-```scheme
+```x
 (do (def x 1) (let ((x 2)) x) x)
 ```
 ---
@@ -307,7 +307,7 @@
 
 ### supports multiple body forms
 
-```scheme
+```x
 (let ((x 1)) (+ x 1) (+ x 2))
 ```
 ---
@@ -315,7 +315,7 @@
 
 ### nests correctly
 
-```scheme
+```x
 (let ((x 1)) (let ((y 2)) (+ x y)))
 ```
 ---
@@ -325,7 +325,7 @@
 
 ### applies to arg list
 
-```scheme
+```x
 (apply + (list 1 2 3))
 ```
 ---
@@ -333,7 +333,7 @@
 
 ### with one prefix arg
 
-```scheme
+```x
 (apply + 10 (list 1 2))
 ```
 ---
@@ -341,7 +341,7 @@
 
 ### with two prefix args
 
-```scheme
+```x
 (apply + 1 2 (list 3 4))
 ```
 ---
@@ -349,7 +349,7 @@
 
 ### with closure
 
-```scheme
+```x
 (apply (fn (_ a b c) (+ a (* b c))) (list 2 3 4))
 ```
 ---
@@ -357,7 +357,7 @@
 
 ### with prefix and closure
 
-```scheme
+```x
 (apply (fn (_ a b c) (+ a (* b c))) 2 (list 3 4))
 ```
 ---
@@ -365,7 +365,7 @@
 
 ### with empty tail list
 
-```scheme
+```x
 (apply + 1 2 ())
 ```
 ---
@@ -375,7 +375,7 @@
 
 ### indexes first element
 
-```scheme
+```x
 ((list 1 2 3) 0)
 ```
 ---
@@ -383,7 +383,7 @@
 
 ### indexes last element
 
-```scheme
+```x
 ((list 1 2 3) 2)
 ```
 ---
@@ -391,7 +391,7 @@
 
 ### indexes via binding
 
-```scheme
+```x
 (do (def l (list 10 20 30)) (l 1))
 ```
 ---
@@ -399,7 +399,7 @@
 
 ### negative index from end
 
-```scheme
+```x
 ((list 1 2 3) -1)
 ```
 ---
@@ -407,7 +407,7 @@
 
 ### slices from middle
 
-```scheme
+```x
 ((list 1 2 3 4 5) 1 3)
 ```
 ---
@@ -415,7 +415,7 @@
 
 ### slices from start
 
-```scheme
+```x
 ((list 1 2 3 4 5) 0 2)
 ```
 ---

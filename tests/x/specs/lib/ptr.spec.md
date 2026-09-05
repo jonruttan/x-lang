@@ -8,7 +8,7 @@ reads it back; `(Ptr ptr? x)` tests for a pointer.
 
 ### round-trips an address through a pointer
 
-```scheme
+```x
 (Ptr ->int (Ptr from-int 42))
 ```
 ---
@@ -18,7 +18,7 @@ reads it back; `(Ptr ptr? x)` tests for a pointer.
 
 ### true for a pointer
 
-```scheme
+```x
 (Ptr ptr? (Ptr from-int 0))
 ```
 ---
@@ -26,7 +26,7 @@ reads it back; `(Ptr ptr? x)` tests for a pointer.
 
 ### false for the integer address
 
-```scheme
+```x
 (if (Ptr ptr? 42) "yes" "no")
 ```
 ---
@@ -34,7 +34,7 @@ reads it back; `(Ptr ptr? x)` tests for a pointer.
 
 ### false for a string
 
-```scheme
+```x
 (if (Ptr ptr? "x") "yes" "no")
 ```
 ---
@@ -57,7 +57,7 @@ nothing worth having. This belongs in a C test, next to a conforming symbol.
 `str ->ptr` hands out the address of a string's bytes; `ptr ->str` copies a
 C string back out of one.  The copy is a new object, not the original.
 
-```scheme
+```x
 (do
   (def %s "hello")
   (def %p ((prim-ref 'str '->ptr) %s))
@@ -68,7 +68,7 @@ C string back out of one.  The copy is a new object, not the original.
 
 ### the result is a copy, not the original object
 
-```scheme
+```x
 (do
   (def %s "hello")
   (def %c ((prim-ref 'ptr '->str) ((prim-ref 'str '->ptr) %s)))

@@ -10,7 +10,7 @@ never fail a real test.
 
 ### returns #t when the thunk raises
 
-```scheme
+```x
 (throws? (fn (_) (error "boom")))
 ```
 ---
@@ -18,7 +18,7 @@ never fail a real test.
 
 ### returns #f when the thunk returns normally
 
-```scheme
+```x
 (throws? (fn (_) 42))
 ```
 ---
@@ -26,7 +26,7 @@ never fail a real test.
 
 ### returns #f for a thunk that returns nil (nil-return is NOT a raise)
 
-```scheme
+```x
 (throws? (fn (_) ()))
 ```
 ---
@@ -36,7 +36,7 @@ never fail a real test.
 
 ### returns the value handed to error
 
-```scheme
+```x
 (raised (fn (_) (error "boom")))
 ```
 ---
@@ -44,7 +44,7 @@ never fail a real test.
 
 ### returns a non-string raised value verbatim
 
-```scheme
+```x
 (raised (fn (_) (error 99)))
 ```
 ---
@@ -52,7 +52,7 @@ never fail a real test.
 
 ### returns the %no-raise sentinel when nothing is raised
 
-```scheme
+```x
 (eq? (raised (fn (_) 42)) '%no-raise)
 ```
 ---
@@ -62,7 +62,7 @@ never fail a real test.
 
 ### throws? via (import x/test/assert)
 
-```scheme
+```x
 (do (import x/test/assert) (throws? (fn (_) (error "boom"))))
 ```
 ---
@@ -70,7 +70,7 @@ never fail a real test.
 
 ### raised exposes the error value
 
-```scheme
+```x
 (do (import x/test/assert) (raised (fn (_) (error "boom"))))
 ```
 ---

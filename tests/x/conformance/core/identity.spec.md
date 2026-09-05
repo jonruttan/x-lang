@@ -25,7 +25,7 @@ the binary replaced it as the platform door; it stays in the vocabulary as
 
 covers: x-release
 
-```scheme
+```x
 (def %len (%coord (lit str) (lit byte-len)))
 (%ok (match ((= (%len x-release) 0) ()) (#t #t)))
 ```
@@ -36,7 +36,7 @@ covers: x-release
 
 covers: x-version
 
-```scheme
+```x
 (def %len (%coord (lit str) (lit byte-len)))
 (%ok (match ((= (%len x-version) 0) ()) (#t #t)))
 ```

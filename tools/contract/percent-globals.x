@@ -29,6 +29,18 @@
 ; approved 2026-08-20): the dispatch engine's own helpers are the
 ; measured hot path (8-30x, #332) the exception above exists for --
 ; each growth step is one warm-path helper, named per commit.
+; Grew by one for %sug-hint, and this one is NOT a hot-path helper -- it
+; is the did-you-mean suffix on a failed dispatch, cold by construction,
+; reached only on the way to raising.  It takes a row because BOTH error
+; sites need it (%dispatch-miss and the two call handlers), and its own
+; six helpers are nested inside it rather than spent as rows.
+; boot/printer.x RATCHETED DOWN by two, 76 -> 74: %print-error-atom and
+; %print-str-append both existed to special-case one identity-known atom,
+; the nil-typed value a C raise used to deliver.  The engine raises a typed
+; ERR now, which dispatches to its own display handler like anything else,
+; so the special case and its two helpers are gone.
+; type/err-io.x is a NEW row at 7, the char-io.x shape: cached prim-refs
+; plus the renderer, filling IO stacks the C layer boots empty.
 ; doc-gen grew by one for %doc-vis-note, shared by the method and member
 ; emitters when an entry comes out of a (private ...) or (protected ...)
 ; block: inlining it instead would duplicate the tier wording at both call
@@ -106,7 +118,7 @@
 (file "lib/x/boot/engine.x" 2)
 (file "lib/x/boot/module.x" 50)
 (file "lib/x/boot/operatives.x" 6)
-(file "lib/x/boot/printer.x" 76)
+(file "lib/x/boot/printer.x" 74)
 (file "lib/x/boot/reflect.x" 29)
 (file "lib/x/boot/registry.x" 8)
 (file "lib/x/boot/string.x" 25)
@@ -228,10 +240,11 @@
 (file "lib/x/type/assoc.x" 1)
 (file "lib/x/type/bool.x" 5)
 (file "lib/x/type/char-io.x" 11)
+(file "lib/x/type/err-io.x" 7)
 (file "lib/x/type/char.x" 5)
 (file "lib/x/type/record.x" 3)
 (file "lib/x/type/trait.x" 6)
-(file "lib/x/type/class.x" 89)
+(file "lib/x/type/class.x" 90)
 (file "lib/x/type/convert.x" 20)
 (file "lib/x/type/dict.x" 19)
 (file "lib/x/type/err.x" 6)

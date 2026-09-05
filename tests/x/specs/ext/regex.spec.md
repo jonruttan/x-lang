@@ -5,7 +5,7 @@
 
 ### writes exact pattern
 
-```scheme
+```x
 (write #/abc/)
 ```
 ---
@@ -13,7 +13,7 @@
 
 ### writes empty pattern
 
-```scheme
+```x
 (write #//)
 ```
 ---
@@ -21,7 +21,7 @@
 
 ### writes pattern with star
 
-```scheme
+```x
 (write #/ab*c/)
 ```
 ---
@@ -29,7 +29,7 @@
 
 ### writes pattern with plus
 
-```scheme
+```x
 (write #/a+b/)
 ```
 ---
@@ -37,7 +37,7 @@
 
 ### writes pattern with optional
 
-```scheme
+```x
 (write #/a?b/)
 ```
 ---
@@ -45,7 +45,7 @@
 
 ### writes pattern with dot
 
-```scheme
+```x
 (write #/a.b/)
 ```
 ---
@@ -53,7 +53,7 @@
 
 ### writes pattern with escaped dot
 
-```scheme
+```x
 (write #/a\.b/)
 ```
 ---
@@ -61,7 +61,7 @@
 
 ### writes pattern with escaped backslash
 
-```scheme
+```x
 (write #/a\\b/)
 ```
 ---
@@ -71,7 +71,7 @@
 
 ### returns #t for a regex
 
-```scheme
+```x
 (Regex regex? #/abc/)
 ```
 ---
@@ -79,7 +79,7 @@
 
 ### returns nil for a string
 
-```scheme
+```x
 (if (Regex regex? "abc") "yes" "no")
 ```
 ---
@@ -87,7 +87,7 @@
 
 ### returns nil for a number
 
-```scheme
+```x
 (if (Regex regex? 42) "yes" "no")
 ```
 ---
@@ -97,7 +97,7 @@
 
 ### matches exact string
 
-```scheme
+```x
 (#/abc/ "abc")
 ```
 ---
@@ -105,7 +105,7 @@
 
 ### rejects different string
 
-```scheme
+```x
 (if (#/abc/ "abd") "yes" "no")
 ```
 ---
@@ -113,7 +113,7 @@
 
 ### rejects partial match (input too short)
 
-```scheme
+```x
 (if (#/abc/ "ab") "yes" "no")
 ```
 ---
@@ -121,7 +121,7 @@
 
 ### rejects partial match (input too long)
 
-```scheme
+```x
 (if (#/abc/ "abcd") "yes" "no")
 ```
 ---
@@ -129,7 +129,7 @@
 
 ### matches empty pattern against empty string
 
-```scheme
+```x
 (#// "")
 ```
 ---
@@ -137,7 +137,7 @@
 
 ### rejects non-empty string against empty pattern
 
-```scheme
+```x
 (if (#// "a") "yes" "no")
 ```
 ---
@@ -145,7 +145,7 @@
 
 ### matches single character
 
-```scheme
+```x
 (#/x/ "x")
 ```
 ---
@@ -155,7 +155,7 @@
 
 ### matches any single character
 
-```scheme
+```x
 (#/./ "x")
 ```
 ---
@@ -163,7 +163,7 @@
 
 ### matches dot in middle
 
-```scheme
+```x
 (#/a.c/ "abc")
 ```
 ---
@@ -171,7 +171,7 @@
 
 ### matches dot with different char
 
-```scheme
+```x
 (#/a.c/ "axc")
 ```
 ---
@@ -179,7 +179,7 @@
 
 ### rejects dot against empty
 
-```scheme
+```x
 (if (#/./ "") "yes" "no")
 ```
 ---
@@ -189,7 +189,7 @@
 
 ### matches zero occurrences
 
-```scheme
+```x
 (#/ab*c/ "ac")
 ```
 ---
@@ -197,7 +197,7 @@
 
 ### matches one occurrence
 
-```scheme
+```x
 (#/ab*c/ "abc")
 ```
 ---
@@ -205,7 +205,7 @@
 
 ### matches multiple occurrences
 
-```scheme
+```x
 (#/ab*c/ "abbbc")
 ```
 ---
@@ -218,7 +218,7 @@ frame group per matched character, NOT pattern-bounded -- so a* over a
 ~16K+ input crashed the C stack (the %map1 shape, fixed 2026-09-01).
 Now tail accumulate, states farthest-first for free.
 
-```scheme
+```x
 (Regex match (Str8 make 16384 #\a) #/a*/)
 ```
 ---
@@ -226,7 +226,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches star at end
 
-```scheme
+```x
 (#/ab*/ "abbb")
 ```
 ---
@@ -234,7 +234,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches star at end zero times
 
-```scheme
+```x
 (#/ab*/ "a")
 ```
 ---
@@ -242,7 +242,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches only stars
 
-```scheme
+```x
 (#/a*/ "aaa")
 ```
 ---
@@ -250,7 +250,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches empty with star
 
-```scheme
+```x
 (#/a*/ "")
 ```
 ---
@@ -260,7 +260,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches one occurrence
 
-```scheme
+```x
 (#/ab+c/ "abc")
 ```
 ---
@@ -268,7 +268,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches multiple occurrences
 
-```scheme
+```x
 (#/ab+c/ "abbbc")
 ```
 ---
@@ -276,7 +276,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### rejects zero occurrences
 
-```scheme
+```x
 (if (#/ab+c/ "ac") "yes" "no")
 ```
 ---
@@ -284,7 +284,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches plus at end
 
-```scheme
+```x
 (#/ab+/ "abb")
 ```
 ---
@@ -292,7 +292,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### rejects plus with no match
 
-```scheme
+```x
 (if (#/ab+/ "a") "yes" "no")
 ```
 ---
@@ -302,7 +302,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches with the optional char
 
-```scheme
+```x
 (#/ab?c/ "abc")
 ```
 ---
@@ -310,7 +310,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches without the optional char
 
-```scheme
+```x
 (#/ab?c/ "ac")
 ```
 ---
@@ -318,7 +318,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### rejects multiple of optional
 
-```scheme
+```x
 (if (#/ab?c/ "abbc") "yes" "no")
 ```
 ---
@@ -328,7 +328,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches literal dot
 
-```scheme
+```x
 (#/a\.b/ "a.b")
 ```
 ---
@@ -336,7 +336,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### rejects non-dot for escaped dot
 
-```scheme
+```x
 (if (#/a\.b/ "axb") "yes" "no")
 ```
 ---
@@ -344,7 +344,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches literal backslash
 
-```scheme
+```x
 (#/a\\b/ "a\b")
 ```
 ---
@@ -352,7 +352,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches escaped star as literal
 
-```scheme
+```x
 (#/a\*b/ "a*b")
 ```
 ---
@@ -362,7 +362,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### backtracks star for correct match
 
-```scheme
+```x
 (#/a.*b/ "axxb")
 ```
 ---
@@ -370,7 +370,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### backtracks when greedy over-consumes
 
-```scheme
+```x
 (#/.*b/ "aab")
 ```
 ---
@@ -378,7 +378,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### fails when backtracking exhausted
 
-```scheme
+```x
 (if (#/a.*b/ "axx") "yes" "no")
 ```
 ---
@@ -388,7 +388,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches dot-star combo
 
-```scheme
+```x
 (#/a.*/ "abcdef")
 ```
 ---
@@ -396,7 +396,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches complex pattern
 
-```scheme
+```x
 (#/a.b*c/ "axbbc")
 ```
 ---
@@ -404,7 +404,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches dot-plus combo
 
-```scheme
+```x
 (#/.+/ "abc")
 ```
 ---
@@ -412,7 +412,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### rejects dot-plus on empty
 
-```scheme
+```x
 (if (#/.+/ "") "yes" "no")
 ```
 ---
@@ -422,7 +422,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches full string
 
-```scheme
+```x
 (Regex match "abbc" #/ab*c/)
 ```
 ---
@@ -430,7 +430,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### rejects partial match
 
-```scheme
+```x
 (if (Regex match "abc" #/ab/) "yes" "no")
 ```
 ---
@@ -438,7 +438,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches empty pattern on empty string
 
-```scheme
+```x
 (Regex match "" #/a*/)
 ```
 ---
@@ -448,7 +448,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### finds match at start
 
-```scheme
+```x
 (Regex search "abbc" #/ab+/)
 ```
 ---
@@ -456,7 +456,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### finds match in middle
 
-```scheme
+```x
 (Regex search "aabbc" #/b+/)
 ```
 ---
@@ -464,7 +464,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### returns nil on no match
 
-```scheme
+```x
 (null? (Regex search "abc" #/z+/))
 ```
 ---
@@ -472,7 +472,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### finds single char match
 
-```scheme
+```x
 (Regex search "x" #/./)
 ```
 ---
@@ -482,7 +482,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### returns REGEX for a regex
 
-```scheme
+```x
 (Type name #/abc/)
 ```
 ---
@@ -492,7 +492,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches character set
 
-```scheme
+```x
 (Regex match "abcba" #/[abc]+/)
 ```
 ---
@@ -500,7 +500,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### rejects non-member
 
-```scheme
+```x
 (not (Regex match "xyz" #/[abc]+/))
 ```
 ---
@@ -508,7 +508,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### matches range
 
-```scheme
+```x
 (Regex match "hello" #/[a-z]+/)
 ```
 ---
@@ -516,7 +516,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### negated class rejects member
 
-```scheme
+```x
 (not (Regex match "hello" #/[^a-z]+/))
 ```
 ---
@@ -524,7 +524,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### negated class matches non-member
 
-```scheme
+```x
 (Regex match "123" #/[^a-z]+/)
 ```
 ---
@@ -532,7 +532,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### class with escape
 
-```scheme
+```x
 (Regex match "456" #/[\d]+/)
 ```
 ---
@@ -540,7 +540,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### class with multiple escapes
 
-```scheme
+```x
 (Regex match "1 2 3" #/[\d\s]+/)
 ```
 ---
@@ -550,7 +550,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### digit class
 
-```scheme
+```x
 (Regex match "42" #/\d+/)
 ```
 ---
@@ -558,7 +558,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### word class
 
-```scheme
+```x
 (Regex match "hello_42" #/\w+/)
 ```
 ---
@@ -566,7 +566,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### space class
 
-```scheme
+```x
 (Regex match "  " #/\s+/)
 ```
 ---
@@ -574,7 +574,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### non-digit class
 
-```scheme
+```x
 (Regex match "abc" #/\D+/)
 ```
 ---
@@ -582,7 +582,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### non-digit rejects digits
 
-```scheme
+```x
 (not (Regex match "123" #/\D+/))
 ```
 ---
@@ -592,7 +592,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### alternation matches left
 
-```scheme
+```x
 (Regex match "foo" #/(foo|bar)/)
 ```
 ---
@@ -600,7 +600,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### alternation matches right
 
-```scheme
+```x
 (Regex match "bar" #/(foo|bar)/)
 ```
 ---
@@ -608,7 +608,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### alternation rejects neither
 
-```scheme
+```x
 (not (Regex match "baz" #/(foo|bar)/))
 ```
 ---
@@ -616,7 +616,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### nested group
 
-```scheme
+```x
 (Regex match "abd" #/(a(b|c)d)/)
 ```
 ---
@@ -626,7 +626,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### start anchor
 
-```scheme
+```x
 (not (null? (Regex search "hello world" #/^hello/)))
 ```
 ---
@@ -634,7 +634,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### end anchor
 
-```scheme
+```x
 (not (null? (Regex search "hello world" #/world$/)))
 ```
 ---
@@ -642,7 +642,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### both anchors
 
-```scheme
+```x
 (Regex match "exact" #/^exact$/)
 ```
 ---
@@ -652,7 +652,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### exact count
 
-```scheme
+```x
 (Regex match "aaa" #/a{3}/)
 ```
 ---
@@ -660,7 +660,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### exact count rejects too few
 
-```scheme
+```x
 (not (Regex match "aa" #/a{3}/))
 ```
 ---
@@ -668,7 +668,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### range count
 
-```scheme
+```x
 (Regex match "aaa" #/a{2,4}/)
 ```
 ---
@@ -676,7 +676,7 @@ Now tail accumulate, states farthest-first for free.
 
 ### open-ended count
 
-```scheme
+```x
 (Regex match "aaaaa" #/a{2,}/)
 ```
 ---
@@ -690,7 +690,7 @@ the C stack (the %map1 shape, fixed 2026-09-01).  Now tail accumulate;
 the states come out farthest-first, which is the order greedy try-from
 wanted anyway.
 
-```scheme
+```x
 (Regex match (Str8 make 16384 #\a) #/a{0,16384}/)
 ```
 ---
@@ -700,7 +700,7 @@ wanted anyway.
 
 ### lazy star matches shortest
 
-```scheme
+```x
 (Regex find "aaab" #/a*?b/)
 ```
 ---
@@ -708,7 +708,7 @@ wanted anyway.
 
 ### lazy plus matches shortest
 
-```scheme
+```x
 (Regex find "aaaa" #/a+?/)
 ```
 ---
@@ -716,7 +716,7 @@ wanted anyway.
 
 ### greedy plus matches longest
 
-```scheme
+```x
 (Regex find "aaaa" #/a+/)
 ```
 ---
@@ -729,7 +729,7 @@ only the try order), so the same argument-position recursion crashed
 a*? over a ~16K+ input before it ever tried a state.  The length probe
 pins that the whole run of a's plus the b matched.
 
-```scheme
+```x
 (Str8 length (Regex find (Str8 append (Str8 make 16384 #\a) "b") #/a*?b/))
 ```
 ---
@@ -739,7 +739,7 @@ pins that the whole run of a's plus the b matched.
 
 ### finds substring
 
-```scheme
+```x
 (Regex find "abc123def" #/[0-9]+/)
 ```
 ---
@@ -747,7 +747,7 @@ pins that the whole run of a's plus the b matched.
 
 ### returns nil on no match
 
-```scheme
+```x
 (null? (Regex find "abcdef" #/[0-9]+/))
 ```
 ---
@@ -757,7 +757,7 @@ pins that the whole run of a's plus the b matched.
 
 ### finds all matches
 
-```scheme
+```x
 (Regex find-all "a1b22c333" #/[0-9]+/)
 ```
 ---
@@ -765,7 +765,7 @@ pins that the whole run of a's plus the b matched.
 
 ### returns empty list on no match
 
-```scheme
+```x
 (null? (Regex find-all "abcdef" #/[0-9]+/))
 ```
 ---
@@ -775,7 +775,7 @@ pins that the whole run of a's plus the b matched.
 
 ### replaces first match
 
-```scheme
+```x
 (Regex replace "a1b22c" "N" #/[0-9]+/)
 ```
 ---
@@ -783,7 +783,7 @@ pins that the whole run of a's plus the b matched.
 
 ### no match returns original
 
-```scheme
+```x
 (Regex replace "abc" "N" #/[0-9]+/)
 ```
 ---
@@ -793,7 +793,7 @@ pins that the whole run of a's plus the b matched.
 
 ### replaces all matches
 
-```scheme
+```x
 (Regex replace-all "a1b22c333" "N" #/[0-9]+/)
 ```
 ---
@@ -803,7 +803,7 @@ pins that the whole run of a's plus the b matched.
 
 ### splits on delimiter
 
-```scheme
+```x
 (Regex split "a,b,c" #/,/)
 ```
 ---
@@ -811,7 +811,7 @@ pins that the whole run of a's plus the b matched.
 
 ### splits on whitespace
 
-```scheme
+```x
 (Regex split "hello world" #/\s+/)
 ```
 ---
@@ -819,7 +819,7 @@ pins that the whole run of a's plus the b matched.
 
 ### no match returns single-element list
 
-```scheme
+```x
 (Regex split "abc" #/,/)
 ```
 ---
@@ -829,7 +829,7 @@ pins that the whole run of a's plus the b matched.
 
 ### counts matches
 
-```scheme
+```x
 (Regex match-count "a1b22c333" #/[0-9]+/)
 ```
 ---
@@ -837,7 +837,7 @@ pins that the whole run of a's plus the b matched.
 
 ### no matches returns zero
 
-```scheme
+```x
 (Regex match-count "abc" #/[0-9]+/)
 ```
 ---
@@ -845,7 +845,7 @@ pins that the whole run of a's plus the b matched.
 
 ### single match
 
-```scheme
+```x
 (Regex match-count "xabcx" #/abc/)
 ```
 ---
@@ -855,7 +855,7 @@ pins that the whole run of a's plus the b matched.
 
 ### replace with function
 
-```scheme
+```x
 (Regex replace "hello123" (method-ref Str upcase) #/[a-z]+/)
 ```
 ---
@@ -863,7 +863,7 @@ pins that the whole run of a's plus the b matched.
 
 ### replace-all with function
 
-```scheme
+```x
 (Regex replace-all "hello123world" (method-ref Str upcase) #/[a-z]+/)
 ```
 ---
@@ -873,7 +873,7 @@ pins that the whole run of a's plus the b matched.
 
 ### word boundary at start
 
-```scheme
+```x
 (Regex match "hello" #/\bhello\b/)
 ```
 ---
@@ -881,7 +881,7 @@ pins that the whole run of a's plus the b matched.
 
 ### word boundary rejects mid-word
 
-```scheme
+```x
 (Regex match "hello" #/\bello/)
 ```
 ---
@@ -889,7 +889,7 @@ pins that the whole run of a's plus the b matched.
 
 ### word boundary in search
 
-```scheme
+```x
 (Regex find "abc 123 def" #/\b[0-9]+\b/)
 ```
 ---
@@ -897,7 +897,7 @@ pins that the whole run of a's plus the b matched.
 
 ### non-word-boundary matches inside
 
-```scheme
+```x
 (Regex match "hello" #/hel\Blo/)
 ```
 ---
@@ -907,7 +907,7 @@ pins that the whole run of a's plus the b matched.
 
 ### find-at from offset
 
-```scheme
+```x
 (Regex find-at "abc123def456" 6 #/[0-9]+/)
 ```
 ---
@@ -915,7 +915,7 @@ pins that the whole run of a's plus the b matched.
 
 ### find-at from zero same as search
 
-```scheme
+```x
 (Regex find-at "abc123" 0 #/[0-9]+/)
 ```
 ---
@@ -923,7 +923,7 @@ pins that the whole run of a's plus the b matched.
 
 ### find-at past all matches
 
-```scheme
+```x
 (null? (Regex find-at "abc123" 6 #/[0-9]+/))
 ```
 ---
@@ -933,7 +933,7 @@ pins that the whole run of a's plus the b matched.
 
 ### returns position pairs
 
-```scheme
+```x
 (Regex find-all-pos "a1b22c333" #/[0-9]+/)
 ```
 ---
@@ -941,7 +941,7 @@ pins that the whole run of a's plus the b matched.
 
 ### no matches returns empty list
 
-```scheme
+```x
 (null? (Regex find-all-pos "abc" #/[0-9]+/))
 ```
 ---
@@ -951,7 +951,7 @@ pins that the whole run of a's plus the b matched.
 
 ### lazy-opt prefers not matching
 
-```scheme
+```x
 (Regex find "ab" #/a??b/)
 ```
 ---
@@ -959,7 +959,7 @@ pins that the whole run of a's plus the b matched.
 
 ### lazy star minimal
 
-```scheme
+```x
 (Regex find "aXXbYYb" #/a.*?b/)
 ```
 ---
@@ -967,7 +967,7 @@ pins that the whole run of a's plus the b matched.
 
 ### lazy plus minimal
 
-```scheme
+```x
 (Regex find "aXXb" #/.+?b/)
 ```
 ---
@@ -977,7 +977,7 @@ pins that the whole run of a's plus the b matched.
 
 ### negated digit class
 
-```scheme
+```x
 (Regex find "123abc456" #/[^\d]+/)
 ```
 ---
@@ -985,7 +985,7 @@ pins that the whole run of a's plus the b matched.
 
 ### negated word class
 
-```scheme
+```x
 (Regex find "hello world" #/[^\w]+/)
 ```
 ---
@@ -995,7 +995,7 @@ pins that the whole run of a's plus the b matched.
 
 ### empty pattern matches empty string
 
-```scheme
+```x
 (Regex match "" #//)
 ```
 ---
@@ -1003,7 +1003,7 @@ pins that the whole run of a's plus the b matched.
 
 ### star on empty matches anything
 
-```scheme
+```x
 (Regex match "" #/a*/)
 ```
 ---
@@ -1011,7 +1011,7 @@ pins that the whole run of a's plus the b matched.
 
 ### anchored empty
 
-```scheme
+```x
 (Regex match "" #/^$/)
 ```
 ---
@@ -1019,7 +1019,7 @@ pins that the whole run of a's plus the b matched.
 
 ### anchored empty rejects non-empty
 
-```scheme
+```x
 (Regex match "x" #/^$/)
 ```
 ---
@@ -1030,7 +1030,7 @@ pins that the whole run of a's plus the b matched.
 
 ### method form
 
-```scheme
+```x
 (if (null? (Regex match "aaa" #/a+/)) "no" "yes")
 ```
 ---
@@ -1038,7 +1038,7 @@ pins that the whole run of a's plus the b matched.
 
 ### bare match call still works
 
-```scheme
+```x
 (if (null? (#/a+/ "aaa")) "no" "yes")
 ```
 ---
@@ -1046,7 +1046,7 @@ pins that the whole run of a's plus the b matched.
 
 ### value-call split routes subject-last
 
-```scheme
+```x
 (#/,/ split "a,b,c")
 ```
 ---
@@ -1054,7 +1054,7 @@ pins that the whole run of a's plus the b matched.
 
 ### value-call find
 
-```scheme
+```x
 (#/[0-9]+/ find "abc123def")
 ```
 ---
@@ -1062,7 +1062,7 @@ pins that the whole run of a's plus the b matched.
 
 ### value-call replace-all
 
-```scheme
+```x
 (#/[0-9]+/ replace-all "a1b2" "N")
 ```
 ---
@@ -1070,7 +1070,7 @@ pins that the whole run of a's plus the b matched.
 
 ### value-call match-count
 
-```scheme
+```x
 (#/[0-9]+/ match-count "a1b22c333")
 ```
 ---
@@ -1080,7 +1080,7 @@ pins that the whole run of a's plus the b matched.
 
 ### compiles a pattern string into a usable regex
 
-```scheme
+```x
 (Regex find "abc123" (Regex compile "[0-9]+"))
 ```
 ---
@@ -1088,7 +1088,7 @@ pins that the whole run of a's plus the b matched.
 
 ### a compiled regex value-dispatches like a literal
 
-```scheme
+```x
 ((Regex compile ",") split "a,b,c")
 ```
 ---
@@ -1096,7 +1096,7 @@ pins that the whole run of a's plus the b matched.
 
 ### exec methods reject a non-REGEX instead of no-opping
 
-```scheme
+```x
 (Regex split "a,b" (Regex parse ","))
 ```
 ---

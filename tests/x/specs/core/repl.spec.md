@@ -12,7 +12,7 @@ harness itself drives output through `%repl-print`).
 
 ### the default prompt is "> "
 
-```scheme
+```x
 %repl-prompt
 ```
 ---
@@ -20,7 +20,7 @@ harness itself drives output through `%repl-print`).
 
 ### is a customizable variable (set! then restore)
 
-```scheme
+```x
 (do
   (def %old %repl-prompt)
   (set! %repl-prompt "x> ")
@@ -35,7 +35,7 @@ harness itself drives output through `%repl-print`).
 
 ### writes a value, then a newline
 
-```scheme
+```x
 (do (%repl-print 42) ())
 ```
 ---
@@ -45,7 +45,7 @@ harness itself drives output through `%repl-print`).
 
 ### writes strings in read syntax (quoted)
 
-```scheme
+```x
 (do (%repl-print "hi") ())
 ```
 ---
@@ -55,7 +55,7 @@ harness itself drives output through `%repl-print`).
 
 ### prints nothing for nil -- just the newline (no "()")
 
-```scheme
+```x
 (do (%repl-print ()) (display "after") (newline))
 ```
 ---
@@ -65,7 +65,7 @@ after
 
 ### is customizable: a custom printer takes effect, then restores
 
-```scheme
+```x
 (do
   (def %old %repl-print)
   (set! %repl-print (fn (_ r) (display "P=") (write r) (newline)))
@@ -82,7 +82,7 @@ P=7
 
 ### a dialect banner names the dialect, its version, and the exit path
 
-```scheme
+```x
 (do
   (def %on %lang-name) (def %ov %lang-version)
   (set! %lang-name "x-test") (set! %lang-version "1.0")
@@ -98,7 +98,7 @@ x-test v1.0 on x-lang
 
 ### the base dialect does not claim to run on itself
 
-```scheme
+```x
 (do
   (def %on %lang-name) (def %ov %lang-version)
   (set! %lang-name "x-lang") (set! %lang-version "1.0")
@@ -116,7 +116,7 @@ x-lang v1.0
 
 ### the binding exists (calling it would end the harness process)
 
-```scheme
+```x
 (null? quit)
 ```
 ---

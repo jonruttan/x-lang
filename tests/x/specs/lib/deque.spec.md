@@ -8,7 +8,7 @@ length rides a counter. Empty pops raise kind-'value.
 
 ### push/pop each end; ->list reads left to right
 
-```scheme
+```x
 (do (import x/type/deque)
   (def d (Deque make))
   (d push! 2) (d push-left! 1) (d push! 3)
@@ -19,7 +19,7 @@ length rides a counter. Empty pops raise kind-'value.
 
 ### draining across the internal rebalance keeps order
 
-```scheme
+```x
 (do (import x/type/deque)
   (def d (Deque make))
   (d push! 1) (d push! 2) (d push! 3) (d push! 4)
@@ -30,7 +30,7 @@ length rides a counter. Empty pops raise kind-'value.
 
 ### empty pops raise 'value
 
-```scheme
+```x
 (do (import x/type/deque)
   (list (guard (e (Err kind-of e)) ((Deque make) pop!))
         (guard (e (Err kind-of e)) ((Deque make) pop-left!))))

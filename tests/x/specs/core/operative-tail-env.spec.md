@@ -25,7 +25,7 @@ if that fix is reverted, independent of how `$"..."` is parsed.
 
 ### a closure var is still bound after an if-tail interpolation
 
-```scheme
+```x
 ((fn (_ x) (do (if #t $"a{x}" "") x)) 9)
 ```
 ---
@@ -33,7 +33,7 @@ if that fix is reverted, independent of how `$"..."` is parsed.
 
 ### an expression over a closure var is still evaluable afterward
 
-```scheme
+```x
 ((fn (_ x) (do (if #t $"a{x}" "") (+ x 1))) 9)
 ```
 ---
@@ -41,7 +41,7 @@ if that fix is reverted, independent of how `$"..."` is parsed.
 
 ### a let-frame interpolation likewise leaves scope intact
 
-```scheme
+```x
 ((fn (_ x) (do (let ((q 0)) $"a{x}") x)) 9)
 ```
 ---
@@ -51,7 +51,7 @@ if that fix is reverted, independent of how `$"..."` is parsed.
 
 ### both in if-tail position resolve their holes
 
-```scheme
+```x
 ((fn (_ x) (Str8 str (if #t $"a{x}" "") (if #t $"b{x}" ""))) 9)
 ```
 ---
@@ -59,7 +59,7 @@ if that fix is reverted, independent of how `$"..."` is parsed.
 
 ### a leading if-tail interpolation does not corrupt a following direct one
 
-```scheme
+```x
 ((fn (_ x) (Str8 str (if #t $"a{x}" "") $"b{x}")) 9)
 ```
 ---
@@ -69,7 +69,7 @@ if that fix is reverted, independent of how `$"..."` is parsed.
 
 ### a recursive-build operative in if-tail leaves the caller's scope intact
 
-```scheme
+```x
 (do
   (def %mk (fn (self n acc) (if (= n 0) acc (self (- n 1) (pair 'x acc)))))
   (def %op (op () e (eval (pair '+ (pair 0 (%mk 3 ()))) e)))
@@ -80,7 +80,7 @@ if that fix is reverted, independent of how `$"..."` is parsed.
 
 ### a token-read-string operative (the fmt.x class) in if-tail likewise
 
-```scheme
+```x
 (do
   (def %trs (prim-ref 'tok 'read-str))
   (def %evalstr (op (s) e (eval (first (%trs (%base) s)) e)))

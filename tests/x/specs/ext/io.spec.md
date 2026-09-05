@@ -16,7 +16,7 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
 
 ### write then read round-trips the bytes
 
-```scheme
+```x
 (do
   (def %p "/tmp/x-spec-io-sys.txt")
   (def %w (Sys open-write %p)) (Sys fd-write %w "abc") (Sys close %w)
@@ -29,7 +29,7 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
 
 ### fd-read returns nil at end of file
 
-```scheme
+```x
 (do
   (def %p "/tmp/x-spec-io-eof.txt")
   (def %w (Sys open-write %p)) (Sys fd-write %w "z") (Sys close %w)
@@ -45,7 +45,7 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
 
 ### file-exists? tracks create then unlink
 
-```scheme
+```x
 (do
   (def %p "/tmp/x-spec-io-exists.txt")
   (syscall (syscall-id 'unlink) %p)
@@ -63,7 +63,7 @@ displayed output to a file. Each test cleans up its own `/tmp` file via `unlink`
 
 ### File write lands bytes that read back
 
-```scheme
+```x
 (do
   (def %p "/tmp/x-spec-io-file.txt")
   (def %w (File open %p (list 'wronly 'creat 'trunc)))
@@ -83,7 +83,7 @@ region (File read/getc were blocked before it existed).
 
 ### File read fills a (str make) buffer
 
-```scheme
+```x
 (do
   (def %p "/tmp/x-spec-io-fread.txt")
   (def %w (Sys open-write %p)) (Sys fd-write %w "abc") (Sys close %w)
@@ -99,7 +99,7 @@ region (File read/getc were blocked before it existed).
 
 ### File getc returns the first byte as a char
 
-```scheme
+```x
 (do
   (def %p "/tmp/x-spec-io-getc.txt")
   (def %w (Sys open-write %p)) (Sys fd-write %w "Q") (Sys close %w)
@@ -116,7 +116,7 @@ region (File read/getc were blocked before it existed).
 
 ### with-file writes the displayed output
 
-```scheme
+```x
 (do
   (def %p "/tmp/x-spec-io-stream.txt")
   (Stream with-file %p (fn (_) (display "hi")))

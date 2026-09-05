@@ -11,7 +11,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 
 ### loading the module without an announced manifest is a no-op
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display "loaded"))
@@ -21,7 +21,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 
 ### a relative root resolves against the manifest's directory
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (first (Pin %pin-interpret (Pin %pin-forms "(root \"deps\")") "/proj"))))
@@ -31,7 +31,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 
 ### an absolute root passes through unchanged
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (first (Pin %pin-interpret (Pin %pin-forms "(root \"/opt/deps\")") "/proj"))))
@@ -41,7 +41,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 
 ### roots keep manifest order
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (first (rest (Pin %pin-interpret (Pin %pin-forms "(root \"a\") (root \"b\")") "/p")))))
@@ -51,7 +51,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 
 ### manifest comments are skipped
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (first (Pin %pin-interpret (Pin %pin-forms "; a comment
@@ -62,7 +62,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 
 ### an unknown form is a loud error
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(evil \"x\")") "/p")))))
@@ -72,7 +72,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 
 ### a bare (non-list) form is a loud error
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(root \"a\") stray") "/p")))))
@@ -82,7 +82,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 
 ### a non-string root argument is a loud error
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(root 42)") "/p")))))
@@ -92,7 +92,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 
 ### a missing root argument is a loud error
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(root)") "/p")))))
@@ -102,7 +102,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 
 ### an extra root argument is a loud error
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(root \"a\" \"b\")") "/p")))))
@@ -115,7 +115,7 @@ by tools/check/pin-smoke.sh (make check-pin).
 The wrapper consumes `(boot "FILE")` (the entry must be chosen before
 the pipe exists); the loader only shape-checks it.
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (first (Pin %pin-interpret (Pin %pin-forms "(boot \"boot/xe.x\") (root \"deps\")") "/proj"))))
@@ -125,7 +125,7 @@ the pipe exists); the loader only shape-checks it.
 
 ### a manifest of only a boot form arms nothing
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (null? (Pin %pin-interpret (Pin %pin-forms "(boot \"boot/xe.x\")") "/proj"))))
@@ -135,7 +135,7 @@ the pipe exists); the loader only shape-checks it.
 
 ### a non-string boot argument is a loud error
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(boot 42)") "/p")))))
@@ -145,7 +145,7 @@ the pipe exists); the loader only shape-checks it.
 
 ### a missing boot argument is a loud error
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(boot)") "/p")))))
@@ -155,7 +155,7 @@ the pipe exists); the loader only shape-checks it.
 
 ### an extra boot argument is a loud error
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(boot \"a\" \"b\")") "/p")))))
@@ -169,7 +169,7 @@ The manifest's second wrapper-consumed form (#435): it waives the
 boot-time release pairing refusal for this project, so like `(boot ...)`
 it is decided before the pipe exists and the loader only shape-checks it.
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (null? (Pin %pin-interpret (Pin %pin-forms "(allow-release-skew)") "/proj"))))
@@ -183,7 +183,7 @@ A safety waiver that is silently ignored because it was misspelled is
 worse than one that was never written, so the closed vocabulary rejects
 it rather than skipping it.
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (throws? (fn (_) (Pin %pin-interpret (Pin %pin-forms "(allow-release-skew \"yes\")") "/p")))))
@@ -193,7 +193,7 @@ it rather than skipping it.
 
 ### arming a nonexistent root directory is a loud error
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (display (throws? (fn (_) (Pin %pin-arm! (list "/nonexistent-pin-root-xyz"))))))
@@ -211,7 +211,7 @@ and hides an import of acme/three inside a deferred fn body.
 
 ### fixture tree
 
-```scheme
+```x
 (do
   (import x/tool/pin)
   (guard (_ ()) (File mkdir "build"))
@@ -234,7 +234,7 @@ and hides an import of acme/three inside a deferred fn body.
 
 ### the closure: transitive imports, ./ siblings, deferred-body imports; the boot floor excluded
 
-```scheme
+```x
 (write (Pin closure 'acme/one))
 ```
 ---
@@ -242,7 +242,7 @@ and hides an import of acme/three inside a deferred fn body.
 
 ### vendor copies the closure into the overlay layout
 
-```scheme
+```x
 (do
   (Pin vendor "build/pin-spec/out" 'acme/one)
   (display (File exists? "build/pin-spec/out/acme/one-extra.x")))
@@ -252,7 +252,7 @@ and hides an import of acme/three inside a deferred fn body.
 
 ### the vendored copy is byte-identical to its source
 
-```scheme
+```x
 (display (str=? (File read-all "build/pin-spec/out/acme/two.x")
                 (File read-all "build/pin-spec/lib0/acme/two.x")))
 ```
@@ -261,7 +261,7 @@ and hides an import of acme/three inside a deferred fn body.
 
 ### the boot floor is never copied
 
-```scheme
+```x
 (display (File exists? "build/pin-spec/out/x/core/list.x"))
 ```
 ---
@@ -269,7 +269,7 @@ and hides an import of acme/three inside a deferred fn body.
 
 ### a boot-floor seed is refused (the pin boundary)
 
-```scheme
+```x
 (display (throws? (fn (_) (Pin vendor "build/pin-spec/out" 'x/core/list))))
 ```
 ---
@@ -277,7 +277,7 @@ and hides an import of acme/three inside a deferred fn body.
 
 ### a computed include path in the closure is a loud error
 
-```scheme
+```x
 (display (throws? (fn (_) (Pin closure 'acme/bad))))
 ```
 ---
@@ -288,7 +288,7 @@ and hides an import of acme/three inside a deferred fn body.
 `(first (rest form))` on a form with no argument derefs nil, so the
 argument check has to precede the shape check that used to reach for it.
 
-```scheme
+```x
 (do
   (File write-all "build/pin-spec/lib0/acme/noimp.x" "(import)\n(provide acme/noimp)\n")
   (display (throws? (fn (_) (Pin closure 'acme/noimp)))))
@@ -298,7 +298,7 @@ argument check has to precede the shape check that used to reach for it.
 
 ### an argument-less (include-once) in scanned source is a loud error, not a crash
 
-```scheme
+```x
 (do
   (File write-all "build/pin-spec/lib0/acme/noinc.x" "(include-once)\n(provide acme/noinc)\n")
   (display (throws? (fn (_) (Pin closure 'acme/noinc)))))
@@ -310,7 +310,7 @@ argument check has to precede the shape check that used to reach for it.
 
 ### vendor writes the lockfile
 
-```scheme
+```x
 (display (File exists? "build/pin-spec/out.lock.xon"))
 ```
 ---
@@ -318,7 +318,7 @@ argument check has to precede the shape check that used to reach for it.
 
 ### verify passes on a fresh vendor, counting the files
 
-```scheme
+```x
 (display (Pin verify "build/pin-spec/out"))
 ```
 ---
@@ -326,7 +326,7 @@ argument check has to precede the shape check that used to reach for it.
 
 ### a modified vendored file fails verify
 
-```scheme
+```x
 (do
   (File write-all "build/pin-spec/out/acme/two.x" "(tampered)\n")
   (display (throws? (fn (_) (Pin verify "build/pin-spec/out")))))
@@ -336,7 +336,7 @@ argument check has to precede the shape check that used to reach for it.
 
 ### re-vendoring restores verification
 
-```scheme
+```x
 (do
   (Pin vendor "build/pin-spec/out" 'acme/one)
   (display (Pin verify "build/pin-spec/out")))
@@ -346,7 +346,7 @@ argument check has to precede the shape check that used to reach for it.
 
 ### an unlisted file in the overlay fails verify (a rogue shadow)
 
-```scheme
+```x
 (do
   (File write-all "build/pin-spec/out/acme/rogue.x" "(evil)\n")
   (def %pin-spec-r (throws? (fn (_) (Pin verify "build/pin-spec/out"))))
@@ -362,7 +362,7 @@ An overlay rel is a lockfile KEY and a copy target, not just something
 to open, so `..` has to collapse here — `acme/../shared.x` and the tree
 walk's `shared.x` name one file and never compared equal.
 
-```scheme
+```x
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/lib0/up"))
   (File write-all "build/pin-spec/lib0/up/mod.x"
@@ -380,7 +380,7 @@ walk's `shared.x` name one file and never compared equal.
 Enough `..` and the copy target resolves outside dest entirely — neither
 absolute nor root-relative, so the other guards miss it.
 
-```scheme
+```x
 (do
   (File write-all "build/pin-spec/lib0/acme/escape.x"
     "(include-once \"./../../escapee.x\")\n(provide acme/escape)\n")
@@ -391,7 +391,7 @@ absolute nor root-relative, so the other guards miss it.
 
 ### a garbage lockfile is a loud error
 
-```scheme
+```x
 (do
   (Pin %pin-mkdirs "build/pin-spec/out2")
   (File write-all "build/pin-spec/out2.lock.xon" "(evil)\n")
@@ -408,7 +408,7 @@ as `(seed "NAME" "rel" ...)`; re-vendoring replaces that seed's claim.
 
 ### vendor records the seed's claim
 
-```scheme
+```x
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/lib0/prov"))
   (File write-all "build/pin-spec/lib0/prov/a.x" "(import prov/dep)\n(provide prov/a)\n")
@@ -425,7 +425,7 @@ Previously it stayed in both tree and lock, still shadowing the
 platform, with verify calling the pair clean because both went stale
 together.
 
-```scheme
+```x
 (do
   (File write-all "build/pin-spec/lib0/prov/a.x" "(provide prov/a)\n")
   (write (Pin vendor "build/pin-spec/prov" 'prov/a)))
@@ -439,7 +439,7 @@ prov/dep.x
 
 ### the orphan is then unlisted, so verify refuses it
 
-```scheme
+```x
 (display (throws? (fn (_) (Pin verify "build/pin-spec/prov"))))
 ```
 ---
@@ -447,7 +447,7 @@ prov/dep.x
 
 ### removing the orphan restores verification
 
-```scheme
+```x
 (do
   (File unlink "build/pin-spec/prov/prov/dep.x")
   (display (Pin verify "build/pin-spec/prov")))
@@ -461,7 +461,7 @@ The documented workflow: repeated vendors into one overlay accumulate.
 A separate overlay from the drop cycle above, so the counts here do not
 depend on which spec ran last (`build/` survives between runs).
 
-```scheme
+```x
 (do
   (File write-all "build/pin-spec/lib0/prov/m1.x" "(provide prov/m1)\n")
   (File write-all "build/pin-spec/lib0/prov/m2.x" "(provide prov/m2)\n")
@@ -474,7 +474,7 @@ depend on which spec ran last (`build/` survives between runs).
 
 ### re-vendoring one seed leaves the other's files alone
 
-```scheme
+```x
 (do
   (Pin vendor "build/pin-spec/prov2" 'prov/m1)
   (display (Pin verify "build/pin-spec/prov2")))
@@ -487,7 +487,7 @@ depend on which spec ran last (`build/` survives between runs).
 A lockfile written before seeds existed has unattributed entries; a new
 vendor into that overlay must not evict them.
 
-```scheme
+```x
 (do
   (Pin %pin-mkdirs "build/pin-spec/legacy/old")
   (File write-all "build/pin-spec/legacy/old/keep.x" "(def %keep 1)\n")
@@ -504,7 +504,7 @@ vendor into that overlay must not evict them.
 
 ### the release URL layout
 
-```scheme
+```x
 (display (Pin %pin-url "https://host/dl" "v1.2.3" "xe.x"))
 ```
 ---
@@ -512,7 +512,7 @@ vendor into that overlay must not evict them.
 
 ### a release manifest parses to its parts
 
-```scheme
+```x
 (do
   (def %pin-spec-m (Pin %pin-release-parse (Pin %pin-forms
     "(release \"v1\") (isa \"sha256:aa\") (file \"xe.x\" \"sha256:bb\")")))
@@ -531,7 +531,7 @@ ships as library.  `isa` is the C surface and is byte-identical across
 releases, so it can say "compatible" but never "same release"; this row
 is what tells two releases apart.
 
-```scheme
+```x
 (do
   (def %pin-spec-p (Pin %pin-release-parse (Pin %pin-forms
     "(release \"v1\") (isa \"sha256:aa\") (payload \"sha256:cc\")")))
@@ -546,7 +546,7 @@ Every release published before #435 has no such row, and unpinning those
 projects to fix a fingerprint they never had would be the worse trade --
 so the fact is optional and reads back as nil.
 
-```scheme
+```x
 (do
   (def %pin-spec-q (Pin %pin-release-parse (Pin %pin-forms
     "(release \"v1\") (isa \"sha256:aa\")")))
@@ -557,7 +557,7 @@ so the fact is optional and reads back as nil.
 
 ### a non-string payload is a loud error
 
-```scheme
+```x
 (display (throws? (fn (_) (Pin %pin-release-parse (Pin %pin-forms "(release \"v1\") (payload 42)")))))
 ```
 ---
@@ -565,7 +565,7 @@ so the fact is optional and reads back as nil.
 
 ### a manifest without (release ...) is a loud error
 
-```scheme
+```x
 (display (throws? (fn (_) (Pin %pin-release-parse (Pin %pin-forms "(isa \"sha256:aa\")")))))
 ```
 ---
@@ -573,7 +573,7 @@ so the fact is optional and reads back as nil.
 
 ### an unknown release-manifest form is a loud error
 
-```scheme
+```x
 (display (throws? (fn (_) (Pin %pin-release-parse (Pin %pin-forms "(evil \"x\")")))))
 ```
 ---
@@ -581,7 +581,7 @@ so the fact is optional and reads back as nil.
 
 ### a file absent from the release manifest is a loud error
 
-```scheme
+```x
 (display (throws? (fn (_) (Pin %pin-release-file "nope.x" (list (pair "xe.x" "sha256:bb"))))))
 ```
 ---
@@ -589,7 +589,7 @@ so the fact is optional and reads back as nil.
 
 ### an absent command reports 127 (the print-the-URLs fallback's trigger)
 
-```scheme
+```x
 (display (Proc run! (list "no-such-command-pin-spec-xyz")))
 ```
 ---
@@ -603,7 +603,7 @@ what a project importing acme/one must vendor.
 
 ### a project source tree that imports acme/one
 
-```scheme
+```x
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/proj"))
   (File write-all "build/pin-spec/proj/app.x" "(import acme/one)\n(display \"hi\")\n")
@@ -614,7 +614,7 @@ what a project importing acme/one must vendor.
 
 ### vendor-project copies the union closure of every project import
 
-```scheme
+```x
 (write (Pin vendor-project "build/pin-spec/pout" "build/pin-spec/proj"))
 ```
 ---
@@ -622,7 +622,7 @@ what a project importing acme/one must vendor.
 
 ### the deferred-body import is vendored too (deep closure member)
 
-```scheme
+```x
 (display (File exists? "build/pin-spec/pout/acme/three.x"))
 ```
 ---
@@ -630,7 +630,7 @@ what a project importing acme/one must vendor.
 
 ### verify passes on the vendored project overlay
 
-```scheme
+```x
 (display (Pin verify "build/pin-spec/pout"))
 ```
 ---
@@ -638,7 +638,7 @@ what a project importing acme/one must vendor.
 
 ### audit of a complete overlay reports nothing missing
 
-```scheme
+```x
 (display (null? (Pin audit "build/pin-spec/pout" "build/pin-spec/proj")))
 ```
 ---
@@ -646,7 +646,7 @@ what a project importing acme/one must vendor.
 
 ### %pin-audit-missing lists the rels absent from the overlay
 
-```scheme
+```x
 (write (Pin %pin-audit-missing "build/pin-spec/nowhere" (list "acme/one.x" "acme/two.x")))
 ```
 ---
@@ -654,7 +654,7 @@ what a project importing acme/one must vendor.
 
 ### audit of a half-pin names every import that falls through to the platform
 
-```scheme
+```x
 (do
   (Pin vendor "build/pin-spec/partial" 'acme/two)
   (Pin audit "build/pin-spec/partial" "build/pin-spec/proj")
@@ -674,7 +674,7 @@ acme/three.x
 The project scan reads arbitrary user sources, where a half-typed
 `(import)` is an ordinary typo rather than a library bug.
 
-```scheme
+```x
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/badproj"))
   (File write-all "build/pin-spec/badproj/app.x" "(import)\n")
@@ -688,7 +688,7 @@ The project scan reads arbitrary user sources, where a half-typed
 A project importing only boot-floor modules has an empty closure; dest
 must still exist for the lockfile to land.
 
-```scheme
+```x
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/floorproj"))
   (File write-all "build/pin-spec/floorproj/app.x" "(import x/core/list)\n")
@@ -701,7 +701,7 @@ must still exist for the lockfile to land.
 
 ### the source scan recurses into subdirectories
 
-```scheme
+```x
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/proj/sub"))
   (File write-all "build/pin-spec/proj/sub/deep.x" "(import acme/four)\n")
@@ -719,7 +719,7 @@ and work from the code that is actually there.
 
 ### sync derives the overlay from the project's own imports
 
-```scheme
+```x
 (do
   (Pin %pin-mkdirs "build/pin-spec/fd/src")
   (Pin %pin-mkdirs "build/pin-spec/fd/dep")
@@ -746,7 +746,7 @@ and work from the code that is actually there.
 
 ### the lock is named for the overlay, beside it, not inside it
 
-```scheme
+```x
 (display (list (File exists? "build/pin-spec/fd/dep.lock.xon")
                (File exists? "build/pin-spec/fd/dep/dep.lock.xon")))
 ```
@@ -755,7 +755,7 @@ and work from the code that is actually there.
 
 ### check is clean once synced
 
-```scheme
+```x
 (write (Pin check "build/pin-spec/fd"))
 ```
 ---
@@ -763,7 +763,7 @@ and work from the code that is actually there.
 
 ### a later import falls through until the next sync
 
-```scheme
+```x
 (do
   (File write-all "build/pin-spec/fd/src/more.x" "(import acme/four)\n")
   (write (Pin check "build/pin-spec/fd")))
@@ -773,7 +773,7 @@ and work from the code that is actually there.
 
 ### re-syncing picks it up
 
-```scheme
+```x
 (do
   (Pin sync "build/pin-spec/fd")
   (write (Pin check "build/pin-spec/fd")))
@@ -787,7 +787,7 @@ The platform half of the lock -- release, isa, boot -- is written by the
 boot verb; a sync re-derives the overlay and must carry it through
 untouched, or growing an import would silently drop the language pin.
 
-```scheme
+```x
 (do
   (File write-all "build/pin-spec/fd/dep.lock.xon"
     (Str8 append "(release \"v9.9.9\")\n(isa \"sha256:abc\")\n"
@@ -802,7 +802,7 @@ untouched, or growing an import would silently drop the language pin.
 
 ### the manifest must state what a verb needs
 
-```scheme
+```x
 (do
   (Pin %pin-mkdirs "build/pin-spec/nosrc")
   (File write-all "build/pin-spec/nosrc/pin.xon" "(root \"dep\")\n")
@@ -818,7 +818,7 @@ anyone else's machine and leaks wherever the author kept the project,
 so the seed records what the manifest said -- even when sync was handed
 an absolute project directory, as it is here.
 
-```scheme
+```x
 (display (Str8 includes? "(seed \"project:src\"" (File read-all "build/pin-spec/fd/dep.lock.xon")))
 ```
 ---
@@ -832,7 +832,7 @@ The scanner routes (import-version-once NAME "SPEC") through the boot
 layer's own resolver, so the overlay receives the concrete file the
 constraint selects -- here the newest 1.3.*.
 
-```scheme
+```x
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/vfix"))
   (guard (_ ()) (File mkdir "build/pin-spec/vfix/acme"))
@@ -849,7 +849,7 @@ constraint selects -- here the newest 1.3.*.
 
 ### a computed version spec is a loud error, like every computed argument
 
-```scheme
+```x
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/vproj2"))
   (File write-all "build/pin-spec/vproj2/app.x" "(import-version-once acme/vd (spec))\n")
@@ -866,7 +866,7 @@ Same fixture as the vendoring section: vd.x, vd@1.3.x, vd@1.3.1.x under
 build/pin-spec/vfix. Exact takes the named file; the prefix takes the
 newest satisfying -- without loading either.
 
-```scheme
+```x
 (display (list (Str8 ends? "vd@1.3.x" (Pin resolve 'acme/vd "1.3"))
                (Str8 ends? "vd@1.3.1.x" (Pin resolve 'acme/vd "1.3.*"))))
 ```
@@ -879,7 +879,7 @@ The project imports "1.3.*" (selects 1.3.1). Unselected: the bare vd.x
 (no bare import anywhere) and the shadowed vd@1.3.x. Removal of either is
 provably resolution-neutral; the selected 1.3.1 is not listed.
 
-```scheme
+```x
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/uproj"))
   ; build/ survives between runs and the next spec adds bare.x, which
@@ -893,7 +893,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
 
 ### a bare import protects the bare file
 
-```scheme
+```x
 (do
   (File write-all "build/pin-spec/uproj/bare.x" "(import acme/vd)\n")
   (write (List map (fn (_ p) (Path basename p)) (Pin unused "build/pin-spec/uproj"))))
@@ -905,7 +905,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
 
 ### init writes a manifest the loader accepts, and returns its path
 
-```scheme
+```x
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/initproj"))
   ; build/ survives between runs and init refuses to overwrite -- clear
@@ -921,7 +921,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
 
 ### init refuses to overwrite
 
-```scheme
+```x
 (display (throws? (fn (_) (Pin init "build/pin-spec/initproj"))))
 ```
 ---
@@ -929,7 +929,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
 
 ### the entry symbol picks the boot line's dialect
 
-```scheme
+```x
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/initxe"))
   (guard (_ ()) (File unlink "build/pin-spec/initxe/pin.xon"))
@@ -942,7 +942,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
 
 ### the manifest init writes drives the other verbs
 
-```scheme
+```x
 (do
   (File write-all "build/pin-spec/initproj/app.x" "(import acme/two)\n")
   (write (Pin sync "build/pin-spec/initproj")))
@@ -952,7 +952,7 @@ provably resolution-neutral; the selected 1.3.1 is not listed.
 
 ### the no-manifest error names the way out
 
-```scheme
+```x
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/noman"))
   (display (throws? (fn (_) (Pin sync "build/pin-spec/noman")))))
@@ -970,7 +970,7 @@ one.
 
 ### the placeholder passes check; an unlisted module file still fails
 
-```scheme
+```x
 (do
   (guard (_ ()) (File mkdir "build/pin-spec/empty"))
   (guard (_ ()) (File mkdir "build/pin-spec/empty/deps"))
@@ -986,7 +986,7 @@ one.
 
 ### the skip is dotfiles only -- a rogue module file is still tampering
 
-```scheme
+```x
 (do
   (File write-all "build/pin-spec/empty/deps/rogue.x" "(evil)\n")
   (display (throws? (fn (_) (Pin check "build/pin-spec/empty")))))
@@ -1004,7 +1004,7 @@ land), and vendors only what resolves to the platform.
 
 ### own modules are walked but not vendored; their platform deps land
 
-```scheme
+```x
 (do
   (Pin %pin-mkdirs "build/pin-spec/own/src")
   (Pin %pin-mkdirs "build/pin-spec/own/ownmod")
@@ -1022,7 +1022,7 @@ land), and vendors only what resolves to the platform.
 
 ### the project's own module is NOT in the overlay
 
-```scheme
+```x
 (display (File exists? "build/pin-spec/own/dep/ownmod/util.x"))
 ```
 ---
@@ -1030,7 +1030,7 @@ land), and vendors only what resolves to the platform.
 
 ### re-sync is stable: same answer, still no self-copy
 
-```scheme
+```x
 (do
   (write (Pin sync "build/pin-spec/own"))
   (display " ")
@@ -1045,7 +1045,7 @@ land), and vendors only what resolves to the platform.
 does: it must resolve own-module imports (not die on them) and never
 report a module the repo itself carries as a half-pin.
 
-```scheme
+```x
 (write (Pin check "build/pin-spec/own"))
 ```
 ---

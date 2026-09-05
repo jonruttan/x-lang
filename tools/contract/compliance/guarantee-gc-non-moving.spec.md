@@ -7,7 +7,7 @@ silently, with no error and no crash at the point of damage.
 
 ### an address survives heavy allocation
 
-```scheme
+```x
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %p2i (%coord (lit ptr) (lit ->int)))
 (def %p (pair 1 2))

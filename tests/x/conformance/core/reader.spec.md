@@ -45,7 +45,7 @@ between them, and accepting means writing that distance into the score object.
 `buf/read` is claimed because the tokenizer must pull each character out of the
 buffer to feed the analyser: break it and nothing ever reaches this type.
 
-```scheme
+```x
 (include "tools/contract/obj-layout.x")
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %refw (%coord (lit ptr) (lit ref-word)))
@@ -82,7 +82,7 @@ The same registration over `"42"` -- no trailing delimiter -- yields no tokens a
 all. An engine that accepted at end-of-input instead would read one, and every
 reader type in the library is written to the behaviour asserted here.
 
-```scheme
+```x
 (include "tools/contract/obj-layout.x")
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %refw (%coord (lit ptr) (lit ref-word)))
@@ -119,7 +119,7 @@ The other half of `analyse`: returning `()` declines the text, and a base whose
 only type declines produces no tokens. Without this an engine could pass the
 first case by accepting unconditionally.
 
-```scheme
+```x
 (def %analyse (fn (_ buffer score chr) ()))
 (def %readfn (fn (_ . args) 7))
 (def %mktok (%coord (lit base) (lit make-tok)))
@@ -147,7 +147,7 @@ the demonstration that cost two green cases.
 
 covers: buf/tok
 
-```scheme
+```x
 (include "tools/contract/obj-layout.x")
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %refw (%coord (lit ptr) (lit ref-word)))
@@ -187,7 +187,7 @@ distance between the retain mark and the read cursor, which is what an analyser
 measures when it scores. An engine where the two could disagree would score one
 length and hand the reader another.
 
-```scheme
+```x
 (include "tools/contract/obj-layout.x")
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %refw (%coord (lit ptr) (lit ref-word)))
@@ -222,7 +222,7 @@ length and hand the reader another.
 
 covers: buf/last-char
 
-```scheme
+```x
 (include "tools/contract/obj-layout.x")
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %refw (%coord (lit ptr) (lit ref-word)))
@@ -266,7 +266,7 @@ input and `"43"` would measure 5 rather than 2. The case also shows the scorer
 choosing between two candidate types per position rather than taking the first
 registered.
 
-```scheme
+```x
 (include "tools/contract/obj-layout.x")
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %refw (%coord (lit ptr) (lit ref-word)))
@@ -314,7 +314,7 @@ a digit type registered, `"42 43 "` yields ONE token. Nothing claims the space, 
 tokenising stops rather than skipping it. An engine that silently skipped
 unclaimable input would read two.
 
-```scheme
+```x
 (include "tools/contract/obj-layout.x")
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %refw (%coord (lit ptr) (lit ref-word)))

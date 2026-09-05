@@ -28,7 +28,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 
 ### Str8 ref errors past the end instead of over-reading
 
-```scheme
+```x
 (Str8 ref 10 "ab")
 ```
 ---
@@ -36,7 +36,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 
 ### Str8 ref takes a negative index from the end
 
-```scheme
+```x
 (Str8 ref -1 "ab")
 ```
 ---
@@ -44,7 +44,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 
 ### Str8 ref errors when a negative index reaches past the front
 
-```scheme
+```x
 (Str8 ref -3 "ab")
 ```
 ---
@@ -52,7 +52,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 
 ### StrUtf8 ref takes a negative index from the end (code points)
 
-```scheme
+```x
 (StrUtf8 ref -1 "$¢€")
 ```
 ---
@@ -60,7 +60,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 
 ### a nil index is unconvertible and errors loudly (a piped index-search miss)
 
-```scheme
+```x
 (Str8 ref () "ab")
 ```
 ---
@@ -68,7 +68,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 
 ### StrUtf8 ref errors past the last code point
 
-```scheme
+```x
 (StrUtf8 ref 3 "$¢€")
 ```
 ---
@@ -76,7 +76,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 
 ### pad-right is pad-left's twin (elements, not columns)
 
-```scheme
+```x
 (Str8 pad-right 5 #\0 "42")
 ```
 ---
@@ -84,7 +84,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 
 ### slice is the (start, end-exclusive) twin of sub
 
-```scheme
+```x
 (Str8 slice 1 4 "hello")
 ```
 ---
@@ -92,7 +92,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 
 ### StrUtf8 slice inherits through (self sub) and cuts code points
 
-```scheme
+```x
 (StrUtf8 slice 1 3 "$¢€!")
 ```
 ---
@@ -100,7 +100,7 @@ kept alias for `ref`. The classes are preloaded, so no import is needed.
 
 ### Str8 sub clamps start and length to the byte bounds
 
-```scheme
+```x
 (Str8 append (Str8 sub 3 10 "hello") (Str8 sub -2 2 "ab") (Str8 sub 9 3 "xy"))
 ```
 ---
@@ -195,7 +195,7 @@ read wrapper leaned on until repeat's 1-byte "" met a raw n-byte kernel
 read (the 2026-09-01 stdin heap corruption).  A raw buffer request
 belongs to the str make prim; this pins the teaching error.
 
-```scheme
+```x
 (Str8 make 8 (Char from-int 0))
 ```
 ---
@@ -411,7 +411,7 @@ were sliced at the wrong boundaries.
 
 ### method form: a string dispatches to Str, appended as the subject (last arg)
 
-```scheme
+```x
 ("a,b,c" split ",")
 ```
 ---
@@ -419,7 +419,7 @@ were sliced at the wrong boundaries.
 
 ### another combinator: includes?
 
-```scheme
+```x
 ("hello" includes? "ell")
 ```
 ---
@@ -427,7 +427,7 @@ were sliced at the wrong boundaries.
 
 ### the bare (s i) code-point call still works
 
-```scheme
+```x
 ("hi" 0)
 ```
 ---
@@ -435,7 +435,7 @@ were sliced at the wrong boundaries.
 
 ### the bare (s i) call takes a negative index from the end
 
-```scheme
+```x
 ("hi" -1)
 ```
 ---
@@ -443,7 +443,7 @@ were sliced at the wrong boundaries.
 
 ### the bare (s i) call errors past the end instead of over-reading
 
-```scheme
+```x
 ("hi" 5)
 ```
 ---
@@ -451,7 +451,7 @@ were sliced at the wrong boundaries.
 
 ### the bare (s a n) slice clamps at the end
 
-```scheme
+```x
 ("hello" 3 10)
 ```
 ---
@@ -459,7 +459,7 @@ were sliced at the wrong boundaries.
 
 ### the named accessor now value-dispatches too (data-last -> subject-last)
 
-```scheme
+```x
 ("abc" index 1)
 ```
 ---
@@ -469,7 +469,7 @@ were sliced at the wrong boundaries.
 
 ### index is a working alias for ref
 
-```scheme
+```x
 (Char ->int (Str8 index 1 "abc"))
 ```
 ---
@@ -479,7 +479,7 @@ were sliced at the wrong boundaries.
 
 ### index-of finds the first occurrence; misses are nil
 
-```scheme
+```x
 (list (Str8 index-of "ll" "hello") (Str8 index-of "" "hi") (null? (Str8 index-of "zz" "hello")))
 ```
 ---
@@ -487,7 +487,7 @@ were sliced at the wrong boundaries.
 
 ### last-index-of finds the last occurrence; misses are nil
 
-```scheme
+```x
 (list (Str8 last-index-of "l" "hello") (Str8 last-index-of "aa" "aaaa") (null? (Str8 last-index-of "z" "abc")))
 ```
 ---
@@ -495,7 +495,7 @@ were sliced at the wrong boundaries.
 
 ### StrUtf8 positions are code points
 
-```scheme
+```x
 (import x/type/str-utf8)
 (StrUtf8 index-of "€" "$¢€!")
 ```
@@ -506,7 +506,7 @@ were sliced at the wrong boundaries.
 
 ### replaces every occurrence, non-overlapping, left to right
 
-```scheme
+```x
 (list (Str8 replace "l" "L" "hello") (Str8 replace "aa" "b" "aaaa") (Str8 replace "zz" "b" "hello"))
 ```
 ---
@@ -514,7 +514,7 @@ were sliced at the wrong boundaries.
 
 ### an empty search string refuses (it would never advance)
 
-```scheme
+```x
 (guard (e (Err kind-of e)) (Str8 replace "" "x" "hi"))
 ```
 ---
@@ -524,7 +524,7 @@ were sliced at the wrong boundaries.
 
 ### positional slots render display-style
 
-```scheme
+```x
 (Str8 format "{} + {} = {}" 1 2 "three")
 ```
 ---
@@ -532,7 +532,7 @@ were sliced at the wrong boundaries.
 
 ### width and alignment: > right, < left (the default)
 
-```scheme
+```x
 (list (Str8 format "[{:>6}]" "ok") (Str8 format "[{:<6}]" "ok") (Str8 format "[{:6}]" "ok"))
 ```
 ---
@@ -544,7 +544,7 @@ The harness begin-wraps each block into one form, so a float literal in
 the same block as (import x/num/float) would parse BEFORE the import
 evaluates -- the tower parse-before-eval trap, begin-flavored.
 
-```scheme
+```x
 (do (import x/num/float) #t)
 ```
 ---
@@ -552,7 +552,7 @@ evaluates -- the tower parse-before-eval trap, begin-flavored.
 
 ### precision: ints gain decimals, floats round and keep exactly P
 
-```scheme
+```x
 (list (Str8 format "{:.2}" 7) (Str8 format "{:.2}" 3.14159) (Str8 format "{:.2}" 2.5) (Str8 format "{:>8.2}" 3.5))
 ```
 ---
@@ -560,7 +560,7 @@ evaluates -- the tower parse-before-eval trap, begin-flavored.
 
 ### braces escape by doubling
 
-```scheme
+```x
 (Str8 format "{{}} is a slot; {} fills it" "x")
 ```
 ---
@@ -568,7 +568,7 @@ evaluates -- the tower parse-before-eval trap, begin-flavored.
 
 ### slot/argument arity is strict, both directions, and templates must close
 
-```scheme
+```x
 (list (guard (e (Err kind-of e)) (Str8 format "{}"))
       (guard (e (Err kind-of e)) (Str8 format "x" 1))
       (guard (e (Err kind-of e)) (Str8 format "{" 1)))
@@ -578,7 +578,7 @@ evaluates -- the tower parse-before-eval trap, begin-flavored.
 
 ### StrUtf8 widths pad by code points
 
-```scheme
+```x
 (import x/type/str-utf8)
 (StrUtf8 format "[{:>4}]" "é")
 ```
@@ -587,7 +587,7 @@ evaluates -- the tower parse-before-eval trap, begin-flavored.
 
 ### upcase rejects a non-string
 
-```scheme
+```x
 (Str upcase 42)
 ```
 ---
@@ -598,7 +598,7 @@ evaluates -- the tower parse-before-eval trap, begin-flavored.
 `Str` is StrUtf8, whose `length` counts code points through the cursor walk,
 so the guard fires at `start` rather than in Str8's byte-length seat.
 
-```scheme
+```x
 (Str length 42)
 ```
 ---
@@ -606,7 +606,7 @@ so the guard fires at `start` rather than in Str8's byte-length seat.
 
 ### length on a pair no longer returns a byte count
 
-```scheme
+```x
 (Str length (list 1 2))
 ```
 ---
@@ -614,7 +614,7 @@ so the guard fires at `start` rather than in Str8's byte-length seat.
 
 ### join rejects non-string elements
 
-```scheme
+```x
 (Str join ", " (list 1 2 3))
 ```
 ---
@@ -622,7 +622,7 @@ so the guard fires at `start` rather than in Str8's byte-length seat.
 
 ### sub rejects a non-string
 
-```scheme
+```x
 (Str sub 0 2 42)
 ```
 ---
@@ -633,7 +633,7 @@ so the guard fires at `start` rather than in Str8's byte-length seat.
 
 ### greedy wrap at the width; fill joins with newlines
 
-```scheme
+```x
 (list (Str8 wrap 10 "the quick brown fox jumps")
       (Str8 fill 10 "the quick brown fox"))
 ```
@@ -642,7 +642,7 @@ so the guard fires at `start` rather than in Str8's byte-length seat.
 
 ### long words stand alone unbroken; whitespace-only input gives no lines
 
-```scheme
+```x
 (list (Str8 wrap 4 "a verylongword b")
       (Str8 wrap 5 "   ")
       (Str8 fill 5 ""))

@@ -11,7 +11,7 @@ class's first consumer, and was verified end-to-end against nc.
 
 ### a non-quad host raises kind-'value before any syscall
 
-```scheme
+```x
 (do (import x/sys/socket)
   (guard (e (Err kind-of e)) (Socket tcp-connect "not.an.ip" 1)))
 ```
@@ -20,7 +20,7 @@ class's first consumer, and was verified end-to-end against nc.
 
 ### octets out of range raise too
 
-```scheme
+```x
 (do (import x/sys/socket)
   (guard (e (Err kind-of e)) (Socket tcp-connect "127.0.0.999" 1)))
 ```
@@ -31,7 +31,7 @@ class's first consumer, and was verified end-to-end against nc.
 
 ### tcp-listen answers a real fd; rebinding the port is a structured eaddrinuse
 
-```scheme
+```x
 (do (import x/sys/socket)
   (def lfd (Socket tcp-listen 47913))
   (def second (guard (e (list (Err kind-of e) (Assoc get 'sym (e data)))) (Socket tcp-listen 47913)))
@@ -43,7 +43,7 @@ class's first consumer, and was verified end-to-end against nc.
 
 ### the port frees on close
 
-```scheme
+```x
 (do (import x/sys/socket)
   (def a (Socket tcp-listen 47914))
   (Socket close a)
@@ -61,7 +61,7 @@ it, then connect: a bare fixed port turned out to be LISTENED ON by
 something on the ubuntu CI runner (connect returned an fd; the pin got
 "5").
 
-```scheme
+```x
 (do (import x/sys/socket)
   (def l (Socket tcp-listen 49877))
   (Socket close l)
@@ -80,7 +80,7 @@ accept is called -- no step blocks.
 
 ### connected-UDP request, recv-from identifies the sender, send-to replies
 
-```scheme
+```x
 (do (import x/sys/socket)
   (def sfd (Socket udp-bind 49364))
   (def cfd (Socket udp-connect "127.0.0.1" 49364))
@@ -96,7 +96,7 @@ accept is called -- no step blocks.
 
 ### unix-domain round trip through listen/connect/accept
 
-```scheme
+```x
 (do (import x/sys/socket) (import x/sys/file)
   (def up "/tmp/x-364-spec.sock")
   (guard (_ ()) (File unlink up))
@@ -114,7 +114,7 @@ accept is called -- no step blocks.
 
 ### a unix path past sockaddr_un capacity raises 'value
 
-```scheme
+```x
 (do (import x/sys/socket)
   (list (guard (e (Err kind-of e))
     (Socket unix-connect (Str8 repeat 25 "aaaa")))))
@@ -127,7 +127,7 @@ accept is called -- no step blocks.
 
 ### a NUL-bearing payload survives the byte-list door where recv's string truncates
 
-```scheme
+```x
 (do (import x/sys/socket) (import x/sys/file)
   (def up "/tmp/x-374-rb.sock")
   (guard (_ ()) (File unlink up))

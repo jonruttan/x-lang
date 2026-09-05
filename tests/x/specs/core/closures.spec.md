@@ -3,7 +3,7 @@
 
 ### creates a procedure
 
-```scheme
+```x
 (fn (_ x) x)
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### creates a procedure with empty params
 
-```scheme
+```x
 (fn (_ ) 42)
 ```
 ---
@@ -19,7 +19,7 @@
 
 ### applies identity
 
-```scheme
+```x
 ((fn (_ x) x) 7)
 ```
 ---
@@ -27,7 +27,7 @@
 
 ### applies with two params
 
-```scheme
+```x
 ((fn (_ x y) (+ x y)) 3 4)
 ```
 ---
@@ -35,7 +35,7 @@
 
 ### applies with empty params
 
-```scheme
+```x
 ((fn (_ ) 42))
 ```
 ---
@@ -43,7 +43,7 @@
 
 ### supports multiple body forms
 
-```scheme
+```x
 ((fn (_ x) (+ x 1) (+ x 2)) 10)
 ```
 ---
@@ -53,7 +53,7 @@
 
 ### captures enclosing environment
 
-```scheme
+```x
 (do (def make-adder (fn (_ x) (fn (_ y) (+ x y)))) ((make-adder 5) 3))
 ```
 ---
@@ -61,7 +61,7 @@
 
 ### captures and returns value
 
-```scheme
+```x
 (do (def f (do (def a 10) (fn (_ ) a))) (f))
 ```
 ---
@@ -71,7 +71,7 @@
 
 ### increments on each call
 
-```scheme
+```x
 (do (def counter (do (def n 0) (fn (_ ) (do (set! n (+ n 1)) n)))) (do (counter) (counter) (counter)))
 ```
 ---
@@ -79,7 +79,7 @@
 
 ### binds variadic args as the self-passed list
 
-```scheme
+```x
 (rest ((fn args args) 1 2))
 ```
 ---
@@ -87,7 +87,7 @@
 
 ### variadic args survive the binding frame
 
-```scheme
+```x
 (rest (((fn args (fn (_) args)) 7)))
 ```
 ---
@@ -97,7 +97,7 @@
 
 ### creates an operative
 
-```scheme
+```x
 (def my-op (op (x) e x)) my-op
 ```
 ---
@@ -105,7 +105,7 @@
 
 ### receives unevaluated args
 
-```scheme
+```x
 (do (def my-op (op (x) e x)) (def a 42) (my-op a))
 ```
 ---
@@ -113,7 +113,7 @@
 
 ### can eval args explicitly
 
-```scheme
+```x
 (do (def my-op (op (x) e (eval x e))) (def a 42) (my-op a))
 ```
 ---
@@ -121,7 +121,7 @@
 
 ### binds env-param to caller env
 
-```scheme
+```x
 (do (def my-op (op (x) e (eval x e))) (def a 42) (my-op a))
 ```
 ---
@@ -129,7 +129,7 @@
 
 ### supports variadic args
 
-```scheme
+```x
 (do (def my-op (op args e (first args))) (my-op 1 2 3))
 ```
 ---
@@ -137,7 +137,7 @@
 
 ### supports dotted formals
 
-```scheme
+```x
 (do (def my-op (op (x . rest) e (list x rest))) (my-op 1 2 3))
 ```
 ---
@@ -147,7 +147,7 @@
 
 ### implements when
 
-```scheme
+```x
 (do (def %when (op (test . body) e (if (eval test e) (eval (pair 'do body) e)))) (%when (= 1 1) (+ 10 20)))
 ```
 ---
@@ -155,14 +155,14 @@
 
 ### when returns nil on false
 
-```scheme
+```x
 (do (def %when (op (test . body) e (if (eval test e) (eval (pair 'do body) e)))) (%when (= 1 2) (+ 10 20)))
 ```
 ---
 
 ### implements define sugar
 
-```scheme
+```x
 (do (def define (op (name-or-form . body) e (if (pair? name-or-form) (tail-eval (list 'def (first name-or-form) (pair 'fn (pair (pair '_ (rest name-or-form)) body))) e) (tail-eval (list 'def name-or-form (first body)) e)))) (define (square x) (* x x)) (square 5))
 ```
 ---
@@ -170,7 +170,7 @@
 
 ### define sugar with simple binding
 
-```scheme
+```x
 (do (def define (op (name-or-form . body) e (if (pair? name-or-form) (tail-eval (list 'def (first name-or-form) (pair 'fn (pair (rest name-or-form) body))) e) (tail-eval (list 'def name-or-form (first body)) e)))) (define pi 314) pi)
 ```
 ---
@@ -180,7 +180,7 @@
 
 ### wraps an operative into an applicative
 
-```scheme
+```x
 (procedure? (wrap (op (x) e x)))
 ```
 ---
@@ -188,7 +188,7 @@
 
 ### wrapped operative evaluates args
 
-```scheme
+```x
 (do (def my-op (op (x) e x)) (def my-fn (wrap my-op)) (my-fn (+ 1 2)))
 ```
 ---
@@ -196,7 +196,7 @@
 
 ### wrapped fn stays applicative
 
-```scheme
+```x
 ((wrap (fn (_ x) (* x 2))) 5)
 ```
 ---
@@ -206,7 +206,7 @@
 
 ### extracts underlying combiner
 
-```scheme
+```x
 (do (def my-op (op (x) e x)) (def my-fn (wrap my-op)) ((unwrap my-fn) (+ 1 2)))
 ```
 ---
@@ -214,7 +214,7 @@
 
 ### unwrapped applicative receives unevaluated args
 
-```scheme
+```x
 (do (def my-op (op (x) e x)) ((unwrap (wrap my-op)) (+ 1 2)))
 ```
 ---
@@ -224,7 +224,7 @@
 
 ### applies a function to a list of args
 
-```scheme
+```x
 (apply (fn (_ x y) (+ x y)) (list 3 4))
 ```
 ---
@@ -232,7 +232,7 @@
 
 ### applies with empty args
 
-```scheme
+```x
 (apply (fn (_ ) 42) (list))
 ```
 ---
@@ -240,7 +240,7 @@
 
 ### applies a named function
 
-```scheme
+```x
 (do (def add (fn (_ a b) (+ a b))) (apply add (list 10 20)))
 ```
 ---
@@ -248,7 +248,7 @@
 
 ### applies with computed arg list
 
-```scheme
+```x
 (do (def f (fn (_ x) (* x x))) (apply f (list (+ 2 3))))
 ```
 ---
@@ -256,7 +256,7 @@
 
 ### applies a recursive function
 
-```scheme
+```x
 (do (def fact (fn (self n) (if (= n 0) 1 (* n (self (- n 1)))))) (apply fact (list 5)))
 ```
 ---
@@ -266,7 +266,7 @@
 
 ### evaluates a quoted expression
 
-```scheme
+```x
 (eval (lit (+ 1 2)))
 ```
 ---
@@ -274,7 +274,7 @@
 
 ### evaluates a self-evaluating form
 
-```scheme
+```x
 (eval 42)
 ```
 ---
@@ -282,7 +282,7 @@
 
 ### evaluates in current environment
 
-```scheme
+```x
 (do (def x 10) (eval (lit (+ x 1))))
 ```
 ---
@@ -290,7 +290,7 @@
 
 ### evaluates a constructed expression
 
-```scheme
+```x
 (eval (pair '+ (list 3 4)))
 ```
 ---
@@ -298,7 +298,7 @@
 
 ### evaluates nested eval
 
-```scheme
+```x
 (eval (lit (eval '99)))
 ```
 ---
@@ -306,7 +306,7 @@
 
 ### evaluates in given environment
 
-```scheme
+```x
 (do (def x 10) (let ((x 20)) (eval 'x)))
 ```
 ---
@@ -314,7 +314,7 @@
 
 ### eval without env uses current env
 
-```scheme
+```x
 (eval (lit (+ 1 2)))
 ```
 ---
@@ -324,7 +324,7 @@
 
 ### too few args: missing params bind to nil (not a crash)
 
-```scheme
+```x
 ((fn (_ a b) (list a b)) 1)
 ```
 ---
@@ -332,7 +332,7 @@
 
 ### a missing param is usable as nil
 
-```scheme
+```x
 ((fn (_ a b) (null? b)) 1)
 ```
 ---
@@ -340,7 +340,7 @@
 
 ### surplus args are ignored once params run out
 
-```scheme
+```x
 ((fn (_ a) a) 1 2 3)
 ```
 ---

@@ -13,7 +13,7 @@ mid-evaluation is the engine's own.
 
 covers: eval
 
-```scheme
+```x
 (def %rowv (fn (_ n) (%walk (rest (rest (%assoc n %base-paths))) (%base))))
 (def top (%rowv (lit save-stack)))
 (def f (fn (_)
@@ -33,7 +33,7 @@ covers: eval
 
 covers: eval
 
-```scheme
+```x
 (def f (fn (_)
   (def %esr-local 41)
   %esr-local))
@@ -50,7 +50,7 @@ covers: eval
 
 covers: eval
 
-```scheme
+```x
 (def %rowc (fn (_ n) (%walk (rest (rest (%assoc n %base-paths))) (%base))))
 (def sg (first (%rowc (lit sigint))))
 (match ((eq? sg %sigint-flag) (error "ROW-IS-FLAG")) (#t (error "ROW-OTHER")))
@@ -62,7 +62,7 @@ covers: eval
 
 covers: eval
 
-```scheme
+```x
 (def %rowv (fn (_ n) (%walk (rest (rest (%assoc n %base-paths))) (%base))))
 (def a (%rowv (lit tco-expr)))
 (def b (%rowv (lit tco-env)))

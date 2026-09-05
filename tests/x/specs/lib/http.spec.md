@@ -15,7 +15,7 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 
 ### host/port/path split; defaults; strict refusals
 
-```scheme
+```x
 (do (import x/net/http)
   (list (Http %parse-url "http://127.0.0.1:8080/a/b?q=1")
         (Http %parse-url "http://10.0.0.5")
@@ -29,7 +29,7 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 
 ### verb, Host, Connection: close, Content-Length, user headers, CRLF framing
 
-```scheme
+```x
 (do (import x/net/http)
   (Http %build-request "POST" (Http %parse-url "http://h:9/p")
         (list (pair "X-A" "1")) "hi"))
@@ -41,7 +41,7 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 
 ### content-length framing trims trailing bytes; headers lowercase
 
-```scheme
+```x
 (do (import x/net/http)
   (def %s->b (fn (_ s) (let go ((i (- (Str8 length s) 1)) (acc ()))
                          (if (< i 0) acc (go (- i 1) (pair (Char ->int (Str8 ref i s)) acc))))))
@@ -55,7 +55,7 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 
 ### chunked framing reassembles across chunks
 
-```scheme
+```x
 (do (import x/net/http)
   (def %s->b (fn (_ s) (let go ((i (- (Str8 length s) 1)) (acc ()))
                          (if (< i 0) acc (go (- i 1) (pair (Char ->int (Str8 ref i s)) acc))))))
@@ -67,7 +67,7 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 
 ### garbage responses and bad chunk framing raise 'value
 
-```scheme
+```x
 (do (import x/net/http)
   (def %s->b (fn (_ s) (let go ((i (- (Str8 length s) 1)) (acc ()))
                          (if (< i 0) acc (go (- i 1) (pair (Char ->int (Str8 ref i s)) acc))))))
@@ -82,7 +82,7 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 
 ### url-encode passes unreserved bytes, encodes the rest uppercase
 
-```scheme
+```x
 (do (import x/net/http)
   (list (Http url-encode "a b&c=d")
         (Http url-encode "A-z_0.~")))
@@ -92,7 +92,7 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 
 ### with-query: ? on a bare url, & after; both sides encoded
 
-```scheme
+```x
 (do (import x/net/http)
   (Http with-query (Http with-query "http://h/p" (list (pair "q" "a b")))
                    (list (pair "n" "2"))))
@@ -102,7 +102,7 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 
 ### quad detection routes names to resolve
 
-```scheme
+```x
 (do (import x/net/http)
   (list (Http %quad? "127.0.0.1") (Http %quad? "github.com") (Http %quad? "")))
 ```
@@ -111,7 +111,7 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 
 ### HEAD framing: content-length describes the body a GET would carry
 
-```scheme
+```x
 (do (import x/net/http)
   (def %s->b (fn (_ s) (let go ((i (- (Str8 length s) 1)) (acc ()))
                          (if (< i 0) acc (go (- i 1) (pair (Char ->int (Str8 ref i s)) acc))))))
@@ -123,7 +123,7 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 
 ### resolve turns localhost into the loopback quad (no network needed)
 
-```scheme
+```x
 (do (import x/sys/socket)
   (Socket resolve "localhost"))
 ```
@@ -135,7 +135,7 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 
 ### the method rules: 303 -> GET; 301/302 flip only POST; 307/308 preserve
 
-```scheme
+```x
 (do (import x/net/http)
   (list (Http %redirect-method 303 "POST")
         (Http %redirect-method 302 "POST")
@@ -147,7 +147,7 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 
 ### location resolution: absolute, path-absolute (port kept), relative
 
-```scheme
+```x
 (do (import x/net/http)
   (list (Http %resolve-location (Http %parse-url "https://h/x") "http://elsewhere/y")
         (Http %resolve-location (Http %parse-url "https://h:8443/a/b") "/c")
@@ -161,7 +161,7 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 
 ### basic (the RFC 7617 vector), bearer (RFC 6750); the cross-host strip covers both
 
-```scheme
+```x
 (do (import x/net/http)
   (list (Http basic-auth "Aladdin" "open sesame")
         (Http bearer-auth "abc123")

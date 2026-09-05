@@ -142,6 +142,7 @@
   (  type make-instance alloc)
   (  type of hot               )
                               ;   validator (%boot-cell?) and the predicate layer call it per invocation
+  (  type set-shape! types)
 )))
 
 (def %isa-bare (lit (

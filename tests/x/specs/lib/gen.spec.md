@@ -11,7 +11,7 @@ intermediate list is built between stages.
 
 ### range -- integers [start, stop)
 
-```scheme
+```x
 ((Gen range 0 4) ->list)
 ```
 ---
@@ -19,7 +19,7 @@ intermediate list is built between stages.
 
 ### range-by -- with a step
 
-```scheme
+```x
 ((Gen range-by 0 10 3) ->list)
 ```
 ---
@@ -27,7 +27,7 @@ intermediate list is built between stages.
 
 ### range-by rejects a zero step (it would never terminate)
 
-```scheme
+```x
 ((Gen range-by 0 10 0) ->list)
 ```
 ---
@@ -35,7 +35,7 @@ intermediate list is built between stages.
 
 ### count-from is infinite -- take bounds it
 
-```scheme
+```x
 (((Gen count-from 1) take 3) ->list)
 ```
 ---
@@ -43,7 +43,7 @@ intermediate list is built between stages.
 
 ### iterate -- x, (f x), (f (f x)), ...
 
-```scheme
+```x
 (((Gen iterate (fn (_ n) (* n 2)) 1) take 4) ->list)
 ```
 ---
@@ -51,7 +51,7 @@ intermediate list is built between stages.
 
 ### of -- over given values
 
-```scheme
+```x
 ((Gen of 1 2 3) ->list)
 ```
 ---
@@ -61,7 +61,7 @@ intermediate list is built between stages.
 
 ### map
 
-```scheme
+```x
 (((Gen range 0 4) map (fn (_ x) (* x x))) ->list)
 ```
 ---
@@ -69,7 +69,7 @@ intermediate list is built between stages.
 
 ### filter
 
-```scheme
+```x
 (((Gen range 0 6) filter (fn (_ x) (Num even? x))) ->list)
 ```
 ---
@@ -77,7 +77,7 @@ intermediate list is built between stages.
 
 ### drop
 
-```scheme
+```x
 (((Gen range 0 5) drop 2) ->list)
 ```
 ---
@@ -85,7 +85,7 @@ intermediate list is built between stages.
 
 ### take-while
 
-```scheme
+```x
 (((Gen count-from 1) take-while (fn (_ x) (< x 4))) ->list)
 ```
 ---
@@ -93,7 +93,7 @@ intermediate list is built between stages.
 
 ### drop-while
 
-```scheme
+```x
 (((Gen range 0 6) drop-while (fn (_ x) (< x 3))) ->list)
 ```
 ---
@@ -101,7 +101,7 @@ intermediate list is built between stages.
 
 ### enumerate -- (index . value)
 
-```scheme
+```x
 (((Gen of 10 20) enumerate) ->list)
 ```
 ---
@@ -109,7 +109,7 @@ intermediate list is built between stages.
 
 ### zip-with -- stops at the shorter
 
-```scheme
+```x
 (((Gen range 0 3) zip-with (fn (_ a b) (+ a b)) (Gen range 10 13)) ->list)
 ```
 ---
@@ -117,7 +117,7 @@ intermediate list is built between stages.
 
 ### scan -- running fold
 
-```scheme
+```x
 (((Gen range 1 5) scan (fn (_ a x) (+ a x)) 0) ->list)
 ```
 ---
@@ -125,7 +125,7 @@ intermediate list is built between stages.
 
 ### lazy chaining builds no intermediate list
 
-```scheme
+```x
 (((((Gen range 0 100) map (fn (_ x) (* x x))) filter (fn (_ x) (Num even? x))) take 3) ->list)
 ```
 ---
@@ -135,7 +135,7 @@ intermediate list is built between stages.
 
 ### fold
 
-```scheme
+```x
 ((Gen range 1 5) fold (fn (_ a x) (+ a x)) 0)
 ```
 ---
@@ -143,7 +143,7 @@ intermediate list is built between stages.
 
 ### sum / count
 
-```scheme
+```x
 (list ((Gen range 1 5) sum) ((Gen range 0 7) count))
 ```
 ---
@@ -151,7 +151,7 @@ intermediate list is built between stages.
 
 ### any? short-circuits
 
-```scheme
+```x
 ((Gen range 0 5) any? (fn (_ x) (> x 3)))
 ```
 ---
@@ -159,7 +159,7 @@ intermediate list is built between stages.
 
 ### find
 
-```scheme
+```x
 ((Gen range 0 9) find (fn (_ x) (> x 5)))
 ```
 ---
@@ -167,7 +167,7 @@ intermediate list is built between stages.
 
 ### ref / first / last
 
-```scheme
+```x
 (list ((Gen range 0 9) ref 3) ((Gen range 5 9) first) ((Gen range 5 9) last))
 ```
 ---
@@ -175,7 +175,7 @@ intermediate list is built between stages.
 
 ### min / max
 
-```scheme
+```x
 (list ((Gen of 3 1 4 1 5) min) ((Gen of 3 1 4 1 5) max))
 ```
 ---
@@ -183,7 +183,7 @@ intermediate list is built between stages.
 
 ### ref errors past the last value (absence discipline: no nil miss)
 
-```scheme
+```x
 ((Gen range 0 3) ref 9)
 ```
 ---
@@ -191,7 +191,7 @@ intermediate list is built between stages.
 
 ### ref errors on a negative index
 
-```scheme
+```x
 ((Gen range 0 3) ref -1)
 ```
 ---
@@ -199,7 +199,7 @@ intermediate list is built between stages.
 
 ### first errors on an empty generator; empty? is the presence door
 
-```scheme
+```x
 ((Gen of) first)
 ```
 ---
@@ -207,7 +207,7 @@ intermediate list is built between stages.
 
 ### reduce errors on an empty generator
 
-```scheme
+```x
 ((Gen of) reduce +)
 ```
 ---
@@ -215,7 +215,7 @@ intermediate list is built between stages.
 
 ### empty? peeks without consuming (a Gen is persistent)
 
-```scheme
+```x
 (do (def g (Gen of 1 2))
   (list ((Gen of) empty?) (g empty?) (g ->list)))
 ```
@@ -224,7 +224,7 @@ intermediate list is built between stages.
 
 ### from-seq drives any iterable through the C iterator steps
 
-```scheme
+```x
 (list ((Gen from-seq (list 1 2 3)) ->list)
       ((Gen from-seq (Vector of 4 5)) ->list)
       ((Gen from-seq "ab") ->list))
@@ -234,7 +234,7 @@ intermediate list is built between stages.
 
 ### ->vector
 
-```scheme
+```x
 ((Gen range 0 3) ->vector)
 ```
 ---

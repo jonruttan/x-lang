@@ -50,24 +50,18 @@
 ; zero-data-word instance reads past the allocation, and a slot-0 pointer
 ; is not a value -- those render via %print-obj-opaque below.
 ;
-; ONE identity-known sentinel prints its PAYLOAD instead: the base's
-; error atom (x_eval_error's delivery -- unbound symbols and every other
-; C-raised error).  It is a nil-typed atom whose string is the error
-; scratch buffer, so the generic form rendered the BUFFER POINTER --
-; every C-raised error printed as the same #<ATOM:0x..>, carrying zero
-; diagnostic signal while the message sat right there in the atom (#54).
-; (error "msg") delivers a real STRING and never reaches this path; a
-; make-base child's error atom is a different object and still renders
-; generically.  The append prim reads the atom's bytes directly, exactly
-; as guard handlers already do with (Str8 append "" e).
-(def %print-error-atom (first (%reflect-base-cell (lit error-str))))
+; A C-raised error no longer arrives here at all.  It used to: the base's
+; error atom was NIL-TYPED, so the generic form rendered its BUFFER
+; POINTER and every C-raised error printed as the same #<ATOM:0x..> with
+; zero diagnostic signal (#54).  The fix then was an identity test against
+; that one atom.  The fix now is upstream -- the engine raises a TYPED ERR
+; (x-type/err.c), which dispatches to its own display handler like any
+; other value, and x/type/err-io.x owns the wording.  So the special case
+; is gone, and with it the reason a lang could not replace that wording.
 (def %print-same? (prim-ref (lit obj) (lit same?)))
-(def %print-str-append (prim-ref (lit str) (lit append)))
 (def %print-generic
   (fn (_ o)
     (match
-      ((%print-same? o %print-error-atom)
-        (%print-emit (%print-str-append "" o)))
       (#t
         (do
           (%print-emit "#<ATOM:0x")

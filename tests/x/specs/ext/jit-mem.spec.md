@@ -25,7 +25,7 @@ as `(obj ref)`: the caller owns the buffer and its bounds.
 
 ### a value round-trips through native code
 
-```scheme
+```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
   (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -40,7 +40,7 @@ as `(obj ref)`: the caller owns the buffer and its bounds.
 
 ### a full 32-bit value survives (the slot is a machine word)
 
-```scheme
+```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
   (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -55,7 +55,7 @@ as `(obj ref)`: the caller owns the buffer and its bounds.
 
 ### distinct slots do not interfere
 
-```scheme
+```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
   (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -70,7 +70,7 @@ as `(obj ref)`: the caller owns the buffer and its bounds.
 
 ### a non-literal constant index is refused
 
-```scheme
+```x
 (display (guard (_ 'raised) (do (compile-asm '(fn (_ a i) (%mem-ref a i))) 'no-raise)))
 ```
 ---
@@ -80,7 +80,7 @@ as `(obj ref)`: the caller owns the buffer and its bounds.
 
 The scaled offset is a 12-bit field: 0..4095 words.
 
-```scheme
+```x
 (display (guard (_ 'raised) (do (compile-asm '(fn (_ a) (%mem-ref a 9000))) 'no-raise)))
 ```
 ---
@@ -92,7 +92,7 @@ The scaled offset is a 12-bit field: 0..4095 words.
 
 `(& i 15)` is the shape a round loop uses for a 16-word window.
 
-```scheme
+```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
   (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -107,7 +107,7 @@ The scaled offset is a 12-bit field: 0..4095 words.
 
 ### runtime store and load agree across several slots
 
-```scheme
+```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
   (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -125,7 +125,7 @@ The scaled offset is a 12-bit field: 0..4095 words.
 
 ### a runtime store yields the value it stored
 
-```scheme
+```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
   (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -153,7 +153,7 @@ The two directions go through different code paths (the interpreter's
 ptr prims vs the compiled LDRB/STRB), so agreement is evidence neither
 is self-consistently wrong.
 
-```scheme
+```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
   (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -177,7 +177,7 @@ is self-consistently wrong.
 byte above 0x7F in a digest's message would corrupt the word built from
 it.
 
-```scheme
+```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
   (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -197,7 +197,7 @@ it.
 The form's value is the expression's value, same as the word family; the
 truncation happens in memory, where STRB ignores everything above bit 7.
 
-```scheme
+```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
   (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -218,7 +218,7 @@ Word slot 6 is bytes 48..55, little-endian: the word 258 (0x102) reads
 back as byte 2 at 48 and byte 1 at 49. This is the layout contract that
 lets one buffer serve both families at once.
 
-```scheme
+```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
   (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -234,7 +234,7 @@ lets one buffer serve both families at once.
 
 ### a computed index walks bytes, not words
 
-```scheme
+```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
   (def %str->ptr (prim-ref (lit str) (lit ->ptr)))
@@ -253,7 +253,7 @@ lets one buffer serve both families at once.
 
 ### a non-literal constant index is refused
 
-```scheme
+```x
 (display (guard (_ 'raised) (do (compile-asm '(fn (_ a i) (%mem-byte-ref a i))) 'no-raise)))
 ```
 ---
@@ -263,7 +263,7 @@ lets one buffer serve both families at once.
 
 imm12 is unscaled here: 0..4095 BYTES, not words.
 
-```scheme
+```x
 (display (guard (_ 'raised) (do (compile-asm '(fn (_ a) (%mem-byte-ref a 4096))) 'no-raise)))
 ```
 ---

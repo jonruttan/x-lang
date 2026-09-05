@@ -262,12 +262,27 @@ cat lib/rn.x - | ./x-bin        # radon dialect
 # Evaluate a file
 cat lib/x.x program.x | ./x-bin
 sh x.sh -f program.x
+
+# Evaluate an expression, or a program on stdin
+sh x.sh -q -c '(write (+ 1 2))'
+echo '(write (+ 1 2))' | sh x.sh -q
 ```
 
 The `-` in `cat ... - | ./x-bin` connects stdin for interactive use after library loading.
 
+`-c/--eval` is repeatable and its expressions run in order, so a definition
+and its use fit in one command; it implies "and then exit", the same bargain
+`-f` makes. A non-terminal stdin is program text, appended after the library
+— the wrapper's spelling of `cat lib/x.x - | ./x-bin`. Nothing prints
+unless the program prints: use `(write x)` for the machine-readable form and
+`(display x)` for the human one.
+
 Inside a session, `(help)` shows the documentation index; `(quit)` or ctrl-d
 exits. For line editing and history, wrap the session in `rlwrap`.
+
+`(apropos "split")` searches every documented name, `(help Str8/split)`
+gives a signature with argument types and a runnable example, and
+`(modules)` lists what is available — from a shell too, via `-c`.
 
 A project can **pin** the library modules it depends on — keep the exact
 files it was written against in its own tree and declare them in a
@@ -333,6 +348,11 @@ with a suggested reading order. The whole of it, both generated references
 included, is published at <https://jonruttan.github.io/x-lang/>. New to the
 vocabulary? The [Glossary](docs/glossary.md) defines the load-bearing terms
 (fexpr, operative, dialect, the base, contract).
+
+**Coding agents start at [AGENTS.md](AGENTS.md)** (`CLAUDE.md` symlinks to
+it) — the short briefing: how to run it, the Lisp assumptions that fail here,
+and the three calls that answer "what exists" without reading any of the
+above. [llms.txt](llms.txt) is the machine-readable index of this list.
 
 ### Guides
 

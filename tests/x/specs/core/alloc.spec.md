@@ -10,7 +10,7 @@ header-less blocks; (buf make) wraps a string's bytes non-owning.
 
 ### allocates exactly n visible bytes
 
-```scheme
+```x
 (%str-length ((prim-ref 'str 'make) 64))
 ```
 ---
@@ -18,7 +18,7 @@ header-less blocks; (buf make) wraps a string's bytes non-owning.
 
 ### the region is writable through str ->ptr
 
-```scheme
+```x
 (do
   (def %s ((prim-ref 'str 'make) 4))
   (def %p ((prim-ref 'str '->ptr) %s))
@@ -31,7 +31,7 @@ header-less blocks; (buf make) wraps a string's bytes non-owning.
 
 ### fresh per call
 
-```scheme
+```x
 (same? ((prim-ref 'str 'make) 8) ((prim-ref 'str 'make) 8))
 ```
 ---
@@ -41,7 +41,7 @@ header-less blocks; (buf make) wraps a string's bytes non-owning.
 
 ### a region is allocated zeroed, writable, and freeable
 
-```scheme
+```x
 (do
   (def %alloc (prim-ref 'mem 'alloc))
   (def %free (prim-ref 'mem 'free))
@@ -57,7 +57,7 @@ header-less blocks; (buf make) wraps a string's bytes non-owning.
 
 ### mem free returns nil (side-effect contract)
 
-```scheme
+```x
 (do
   (def %p ((prim-ref 'mem 'alloc) 8))
   (null? ((prim-ref 'mem 'free) %p)))
@@ -69,7 +69,7 @@ header-less blocks; (buf make) wraps a string's bytes non-owning.
 
 ### a buffer views a string's bytes and prints its opaque form
 
-```scheme
+```x
 (do
   (def %b ((prim-ref 'buf 'make) ((prim-ref 'str 'make) 8)))
   (display %b))
@@ -79,7 +79,7 @@ header-less blocks; (buf make) wraps a string's bytes non-owning.
 
 ### append then read round-trips through the view
 
-```scheme
+```x
 (do
   (def %s ((prim-ref 'str 'make) 8))
   (def %b ((prim-ref 'buf 'make) %s))
@@ -94,7 +94,7 @@ header-less blocks; (buf make) wraps a string's bytes non-owning.
 
 ### copy moves a region in one instruction
 
-```scheme
+```x
 (do
   (def %src ((prim-ref 'str 'make) 4))
   (def %dst ((prim-ref 'str 'make) 4))
@@ -112,7 +112,7 @@ header-less blocks; (buf make) wraps a string's bytes non-owning.
 Both regions get an equal NUL at byte 0, then diverge at byte 2 --
 strncmp would stop at the NUL and call them equal; memcmp must not.
 
-```scheme
+```x
 (do
   (def %cmp (prim-ref 'mem 'cmp))
   (def %p (prim-ref 'str '->ptr))
@@ -129,7 +129,7 @@ strncmp would stop at the NUL and call them equal; memcmp must not.
 
 ### set fills a region
 
-```scheme
+```x
 (do
   (def %s ((prim-ref 'str 'make) 4))
   ((prim-ref 'mem 'set) ((prim-ref 'str '->ptr) %s) 122 3)
@@ -140,7 +140,7 @@ strncmp would stop at the NUL and call them equal; memcmp must not.
 
 ### str=? bottoms out in the block compare
 
-```scheme
+```x
 (list (str=? "hello" "hello") (str=? "hello" "hellp") (str=? "ab" "abc"))
 ```
 ---
@@ -153,7 +153,7 @@ strncmp would stop at the NUL and call them equal; memcmp must not.
 `ptr set!` writes a byte; this is its machine-word sibling, writing
 sizeof(long) bytes with no bounds checking.
 
-```scheme
+```x
 (do
   (def %p ((prim-ref 'mem 'alloc) 32))
   ((prim-ref 'ptr 'set-word!) %p 0 123456789)
@@ -166,7 +166,7 @@ sizeof(long) bytes with no bounds checking.
 
 ### set-word! returns the pointer it wrote through
 
-```scheme
+```x
 (do
   (def %p ((prim-ref 'mem 'alloc) 32))
   (def %r ((prim-ref 'ptr 'set-word!) %p 0 7))
@@ -184,7 +184,7 @@ sizeof(long) bytes with no bounds checking.
 The ceiling this spec run already carries is well under the value armed
 here, so raising it changes nothing the rest of the file depends on.
 
-```scheme
+```x
 (null? (alloc-limit! 100000000))
 ```
 ---
@@ -192,7 +192,7 @@ here, so raising it changes nothing the rest of the file depends on.
 
 ### evaluation continues normally under a raised ceiling
 
-```scheme
+```x
 (do
   (alloc-limit! 100000000)
   (List length (list 1 2 3)))

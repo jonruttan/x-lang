@@ -3,7 +3,7 @@
 
 ### true for #t
 
-```scheme
+```x
 (boolean? #t)
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### true for #f
 
-```scheme
+```x
 (boolean? #f)
 ```
 ---
@@ -19,7 +19,7 @@
 
 ### false for number
 
-```scheme
+```x
 (if (boolean? 42) "y" "n")
 ```
 ---
@@ -29,7 +29,7 @@
 
 ### returns value when non-nil
 
-```scheme
+```x
 (Fn default-to 0 42)
 ```
 ---
@@ -37,7 +37,7 @@
 
 ### returns default when nil
 
-```scheme
+```x
 (Fn default-to 0 ())
 ```
 ---
@@ -47,7 +47,7 @@
 
 ### iterates until predicate holds
 
-```scheme
+```x
 (Fn until (fn (_ x) (> x 10)) (method-ref Num inc) 1)
 ```
 ---
@@ -57,7 +57,7 @@
 
 ### compares numbers
 
-```scheme
+```x
 (equal? 5 5)
 ```
 ---
@@ -65,7 +65,7 @@
 
 ### compares different numbers
 
-```scheme
+```x
 (if (equal? 5 6) "y" "n")
 ```
 ---
@@ -73,7 +73,7 @@
 
 ### compares strings
 
-```scheme
+```x
 (equal? "hi" "hi")
 ```
 ---
@@ -81,7 +81,7 @@
 
 ### compares nil
 
-```scheme
+```x
 (equal? () ())
 ```
 ---
@@ -89,7 +89,7 @@
 
 ### compares different symbols
 
-```scheme
+```x
 (if (equal? 'a 'b) "y" "n")
 ```
 ---
@@ -97,7 +97,7 @@
 
 ### compares vectors elementwise
 
-```scheme
+```x
 (equal? #(1 2) #(1 2))
 ```
 ---
@@ -105,7 +105,7 @@
 
 ### different vector elements are not equal
 
-```scheme
+```x
 (if (equal? #(1 2) #(1 3)) "y" "n")
 ```
 ---
@@ -113,7 +113,7 @@
 
 ### different vector lengths are not equal
 
-```scheme
+```x
 (if (equal? #(1 2) #(1 2 3)) "y" "n")
 ```
 ---
@@ -121,7 +121,7 @@
 
 ### vectors nest inside pairs and other vectors
 
-```scheme
+```x
 (equal? (list #(1 #(2))) (list #(1 #(2))))
 ```
 ---
@@ -129,7 +129,7 @@
 
 ### includes? finds an equal vector
 
-```scheme
+```x
 (List includes? #(1 2) (list #(9) #(1 2)))
 ```
 ---
@@ -137,7 +137,7 @@
 
 ### compares equal symbols
 
-```scheme
+```x
 (equal? 'a 'a)
 ```
 ---
@@ -145,7 +145,7 @@
 
 ### compares different strings
 
-```scheme
+```x
 (if (equal? "foo" "bar") "y" "n")
 ```
 ---
@@ -155,7 +155,7 @@
 
 ### returns immediately when predicate holds
 
-```scheme
+```x
 (Fn until (fn (_ x) (> x 10)) (method-ref Num inc) 15)
 ```
 ---
@@ -166,7 +166,7 @@
 
 ### nil and #f are the only falsy values
 
-```scheme
+```x
 (list (if () "t" "f") (if #f "t" "f"))
 ```
 ---
@@ -174,7 +174,7 @@
 
 ### zero is truthy
 
-```scheme
+```x
 (if 0 "t" "f")
 ```
 ---
@@ -182,7 +182,7 @@
 
 ### the empty string is truthy
 
-```scheme
+```x
 (if "" "t" "f")
 ```
 ---
@@ -190,7 +190,7 @@
 
 ### an empty vector is truthy (a real object, not nil)
 
-```scheme
+```x
 (if (Vector make 0 ()) "t" "f")
 ```
 ---
@@ -198,7 +198,7 @@
 
 ### and normalizes failure to #f; or returns () when given nothing truthy
 
-```scheme
+```x
 (list (and 1 () 3) (or #f ()))
 ```
 ---

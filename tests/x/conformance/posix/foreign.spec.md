@@ -16,7 +16,7 @@ covers: ffi/dlopen ffi/dlsym
 `(ffi dlopen () 1)` is the self/global handle -- the form `lib/x/sys/socket.x` and
 `lib/x/sys/posix.x` both use to reach libc without naming a file.
 
-```scheme
+```x
 (def %dlopen (%coord (lit ffi) (lit dlopen)))
 (def %dlsym (%coord (lit ffi) (lit dlsym)))
 (def lib (%dlopen () 1))
@@ -32,7 +32,7 @@ covers: ptr/call
 `strlen` is chosen because it is pure, cannot fail, and its answer is checkable
 without trusting anything else in the suite.
 
-```scheme
+```x
 (def %dlopen (%coord (lit ffi) (lit dlopen)))
 (def %dlsym (%coord (lit ffi) (lit dlsym)))
 (def %pcall (%coord (lit ptr) (lit call)))
@@ -49,7 +49,7 @@ covers: ffi/dlsym
 The failure mode matters as much as the success: the library branches on a nil
 handle in several places rather than guarding every lookup.
 
-```scheme
+```x
 (def %dlopen (%coord (lit ffi) (lit dlopen)))
 (def %dlsym (%coord (lit ffi) (lit dlsym)))
 (def lib (%dlopen () 1))
@@ -62,7 +62,7 @@ handle in several places rather than guarding every lookup.
 
 covers: sys/clock
 
-```scheme
+```x
 (def %clock (%coord (lit sys) (lit clock)))
 (def t0 (%clock))
 (%burn 20000 ())
@@ -91,7 +91,7 @@ with a declared fact is the part that was missing.
 An unrecognised platform fails loudly rather than passing: a case that quietly
 skips is a case that proves nothing.
 
-```scheme
+```x
 (def %sys-write
   (match
     ((eq? %param-os (lit darwin)) 4)
@@ -129,7 +129,7 @@ release time as the first conformance run Linux ever saw, on exactly that
 difference. Each symbol is also checked before the call: a nil function pointer
 is a MISS to report, not a value to hand the engine.
 
-```scheme
+```x
 (def %dlopen (%coord (lit ffi) (lit dlopen)))
 (def %dlsym (%coord (lit ffi) (lit dlsym)))
 (def %fcall (%coord (lit ffi) (lit call)))
@@ -168,7 +168,7 @@ run would inherit it". That was simply wrong about the harness.
 
 `restore` runs before the assertion, so the process ends as it began.
 
-```scheme
+```x
 (include "tools/contract/obj-layout.x")
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %refw (%coord (lit ptr) (lit ref-word)))
@@ -197,7 +197,7 @@ own array and hands libc a raw offset gets no write at all — the region keeps
 the fill `str make` left, `waitpid`'s status reads as "killed by signal 32",
 and every `Proc run!` answers 160 whatever the child did.
 
-```scheme
+```x
 (def %dlopen (%coord (lit ffi) (lit dlopen)))
 (def %dlsym (%coord (lit ffi) (lit dlsym)))
 (def %pcall (%coord (lit ptr) (lit call)))

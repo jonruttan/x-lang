@@ -15,7 +15,7 @@ sequence.
 
 ### int lands in [0, n)
 
-```scheme
+```x
 (import x/num/random)
 (let ((r (Random sw 42))) (let ((x (r int 6))) (and (>= x 0) (< x 6))))
 ```
@@ -24,7 +24,7 @@ sequence.
 
 ### the same seed reproduces the same stream
 
-```scheme
+```x
 (import x/num/random)
 (= ((Random sw 7) int 1000000) ((Random sw 7) int 1000000))
 ```
@@ -33,7 +33,7 @@ sequence.
 
 ### seed! rewinds the stream
 
-```scheme
+```x
 (import x/num/random)
 (let ((r (Random sw 1)))
   (let ((a (r int 1000000)))
@@ -45,7 +45,7 @@ sequence.
 
 ### range lands in [lo, hi)
 
-```scheme
+```x
 (import x/num/random)
 (let ((x ((Random sw 3) range 10 20))) (and (>= x 10) (< x 20)))
 ```
@@ -54,7 +54,7 @@ sequence.
 
 ### between is inclusive -- a singleton interval is fixed
 
-```scheme
+```x
 (import x/num/random)
 ((Random sw 99) between 5 5)
 ```
@@ -63,7 +63,7 @@ sequence.
 
 ### bytes returns the requested count
 
-```scheme
+```x
 (import x/num/random)
 (List length ((Random sw 8) bytes 5))
 ```
@@ -72,7 +72,7 @@ sequence.
 
 ### each byte is in [0, 256)
 
-```scheme
+```x
 (import x/num/random)
 (let ((b (List ref 0 ((Random sw 8) bytes 1)))) (and (>= b 0) (< b 256)))
 ```
@@ -81,7 +81,7 @@ sequence.
 
 ### choice returns a member of the list
 
-```scheme
+```x
 (import x/num/random)
 (let ((xs (list 10 20 30)))
   (if (List includes? ((Random sw 5) choice xs) xs) #t #f))
@@ -91,7 +91,7 @@ sequence.
 
 ### shuffle is a permutation (List length and sum preserved)
 
-```scheme
+```x
 (import x/num/random)
 (let ((s ((Random sw 5) shuffle (list 1 2 3 4 5))))
   (and (= (List length s) 5)
@@ -104,7 +104,7 @@ sequence.
 
 ### hw int lands in [0, n)
 
-```scheme
+```x
 (import x/num/random)
 (let ((x ((Random hw) int 100))) (and (>= x 0) (< x 100)))
 ```
@@ -113,7 +113,7 @@ sequence.
 
 ### hw yields the requested number of bytes
 
-```scheme
+```x
 (import x/num/random)
 (List length ((Random hw) bytes 8))
 ```
@@ -124,7 +124,7 @@ sequence.
 
 ### same seed, same stream (rejection sampling included)
 
-```scheme
+```x
 (do (import x/num/random)
   (let ((a (Random sw 7)) (b (Random sw 7)))
     (equal? (a bytes 8) (b bytes 8))))
@@ -136,7 +136,7 @@ sequence.
 
 ### float lands in [0, 1) and is a float
 
-```scheme
+```x
 (do (import x/num/random) (import x/num/float)
   (let ((r (Random sw 42)))
     (let ((f (r float)))
@@ -149,7 +149,7 @@ sequence.
 
 ### draws spread across [0,1) -- the bits-door bug clustered everything in [0.98,1)
 
-```scheme
+```x
 (do (import x/num/random) (import x/num/float)
   (let ((r (Random sw 42)))
     (let go ((i 0) (low #f))
@@ -162,7 +162,7 @@ sequence.
 
 ### float is reproducible under a seed
 
-```scheme
+```x
 (do (import x/num/random) (import x/num/float)
   (Float = ((Random sw 7) float) ((Random sw 7) float)))
 ```
@@ -171,7 +171,7 @@ sequence.
 
 ### sample draws k distinct members, k=0 draws none
 
-```scheme
+```x
 (do (import x/num/random)
   (let ((drawn ((Random sw 5) sample 3 (list 1 2 3 4 5))))
     (list (List length drawn)
@@ -184,7 +184,7 @@ sequence.
 
 ### sample beyond the population raises 'value
 
-```scheme
+```x
 (do (import x/num/random)
   (list (guard (e (Err kind-of e)) ((Random sw 1) sample 3 (list 1 2)))))
 ```
@@ -196,7 +196,7 @@ sequence.
 
 ### v4 shape: 36 chars, version nibble 4, IETF variant, seeded reproducibility
 
-```scheme
+```x
 (do (import x/num/random) (import x/codec/hex)
   (def u ((Random sw 42) uuid))
   (list (Str8 length u)

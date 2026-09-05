@@ -7,7 +7,7 @@ No filesystem access -- every method is a total string function.
 
 ### seams get exactly one slash
 
-```scheme
+```x
 (do (import x/type/path)
   (list (Path join "a" "b") (Path join "a/" "b") (Path join "a" "/b") (Path join "a/" "/b")))
 ```
@@ -16,7 +16,7 @@ No filesystem access -- every method is a total string function.
 
 ### empty components vanish, absolute roots survive
 
-```scheme
+```x
 (do (import x/type/path)
   (list (Path join "a" "" "b") (Path join "/root" "etc") (Path join "" "rel")))
 ```
@@ -27,7 +27,7 @@ No filesystem access -- every method is a total string function.
 
 ### the usual splits
 
-```scheme
+```x
 (do (import x/type/path)
   (list (Path dirname "/a/b/c.txt") (Path basename "/a/b/c.txt")))
 ```
@@ -36,7 +36,7 @@ No filesystem access -- every method is a total string function.
 
 ### no slash means dot; root-level means root
 
-```scheme
+```x
 (do (import x/type/path)
   (list (Path dirname "c.txt") (Path dirname "/etc")))
 ```
@@ -45,7 +45,7 @@ No filesystem access -- every method is a total string function.
 
 ### trailing slashes strip before splitting
 
-```scheme
+```x
 (do (import x/type/path)
   (list (Path dirname "/a/b/") (Path basename "/a/b/")))
 ```
@@ -54,7 +54,7 @@ No filesystem access -- every method is a total string function.
 
 ### the root itself
 
-```scheme
+```x
 (do (import x/type/path)
   (list (Path dirname "/") (Path basename "/")))
 ```
@@ -65,7 +65,7 @@ No filesystem access -- every method is a total string function.
 
 ### extension without its dot
 
-```scheme
+```x
 (do (import x/type/path)
   (list (Path ext "a/b.tar.gz") (Path ext "x.txt")))
 ```
@@ -74,7 +74,7 @@ No filesystem access -- every method is a total string function.
 
 ### absence is nil: no dot, dotfile, trailing dot
 
-```scheme
+```x
 (do (import x/type/path)
   (list (null? (Path ext "Makefile")) (null? (Path ext ".bashrc")) (null? (Path ext "x."))))
 ```
@@ -85,7 +85,7 @@ No filesystem access -- every method is a total string function.
 
 ### components, empties dropped
 
-```scheme
+```x
 (do (import x/type/path)
   (list (Path split "/a/b/c") (Path split "a//b/") (Path split "/")))
 ```
@@ -94,7 +94,7 @@ No filesystem access -- every method is a total string function.
 
 ### absolute? checks the leading slash
 
-```scheme
+```x
 (do (import x/type/path)
   (list (Path absolute? "/etc") (Path absolute? "etc") (Path absolute? "")))
 ```
@@ -105,7 +105,7 @@ No filesystem access -- every method is a total string function.
 
 ### dot and empty components drop, dot-dot consumes
 
-```scheme
+```x
 (do (import x/type/path)
   (display (Path norm "a/./b//c"))
   (display " ")
@@ -116,7 +116,7 @@ No filesystem access -- every method is a total string function.
 
 ### leading dot-dots survive for the caller to judge
 
-```scheme
+```x
 (do (import x/type/path)
   (display (Path norm "../a"))
   (display " ")
@@ -127,7 +127,7 @@ No filesystem access -- every method is a total string function.
 
 ### collapse to current dir or root
 
-```scheme
+```x
 (do (import x/type/path)
   (display (Path norm "a/.."))
   (display " ")
@@ -140,7 +140,7 @@ No filesystem access -- every method is a total string function.
 
 ### strips one extension from the basename, keeps the directory
 
-```scheme
+```x
 (do (import x/type/path)
   (display (Path strip-ext "a/b.x"))
   (display " ")
@@ -155,7 +155,7 @@ No filesystem access -- every method is a total string function.
 
 ### common prefix drops; climbs become ..
 
-```scheme
+```x
 (do (import x/type/path)
   (list (Path relpath "/a/b" "/a/c/d")
         (Path relpath "a/b" "a/b")
@@ -167,7 +167,7 @@ No filesystem access -- every method is a total string function.
 
 ### mixing absolute and relative raises 'value
 
-```scheme
+```x
 (do (import x/type/path)
   (list (guard (e (Err kind-of e)) (Path relpath "/a" "b"))))
 ```
@@ -178,7 +178,7 @@ No filesystem access -- every method is a total string function.
 
 ### segment-aware: * stays inside a segment, ** crosses
 
-```scheme
+```x
 (do (import x/type/path)
   (list (Path match? "*.x" "file.x")
         (Path match? "*.x" "dir/file.x")

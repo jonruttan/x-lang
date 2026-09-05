@@ -11,7 +11,7 @@ Everything reflective starts here: the prelude walks the committed base paths fr
 `(%base)` to reach the prims catalog, so an engine without it cannot even be asked
 what it provides.
 
-```scheme
+```x
 (%ok (match ((eq? (%base) ()) ()) (#t 1)))
 ```
 ---
@@ -26,7 +26,7 @@ cannot start the library at all -- which is why `io/include` is a capability in 
 own right rather than an assumed convenience. The prelude has already exercised it
 by the time this case runs.
 
-```scheme
+```x
 (%ok (match ((eq? %base-paths ()) ()) (#t 1)))
 ```
 ---
@@ -36,7 +36,7 @@ by the time this case runs.
 
 covers: wrap
 
-```scheme
+```x
 (def o (op (x) e x))
 (def w (wrap o))
 (%ok (= (w (+ 1 2)) 3))
@@ -52,7 +52,7 @@ Identity, not equivalence: `same?`, so an engine that rebuilt an equal operative
 would fail. The library relies on this to strip and re-wrap combiners without
 losing their identity.
 
-```scheme
+```x
 (def o (op (x) e x))
 (%ok (same? (unwrap (wrap o)) o))
 ```
@@ -63,7 +63,7 @@ losing their identity.
 
 covers: atomic
 
-```scheme
+```x
 (%ok (= (atomic (+ 20 22)) 42))
 ```
 ---
@@ -76,7 +76,7 @@ covers: tail-eval
 The operative's door back into evaluation: `e` is the CALLER's environment, so an
 operative can decide what to evaluate and where.
 
-```scheme
+```x
 (def probe (op (x) e (tail-eval x e)))
 (def y 40)
 (%ok (= (probe y) 40))
@@ -92,7 +92,7 @@ Distinct from `tail-eval`: no environment is passed, so a symbol held in a varia
 resolves against wherever the call sits. This is the REPL's door, and it is what
 lets the compliance suite probe bare primitives from a data list.
 
-```scheme
+```x
 (def s (lit first))
 (%ok (match ((eq? (eval! s) ()) ()) (#t 1)))
 ```
@@ -107,7 +107,7 @@ The sandbox door (`docs/sandboxing-tutorial.md`). `(base eval B expr)` runs the
 expression inside ANOTHER interpreter context -- not another environment, another
 base -- which is x-lang's isolation story and the reason `base/make` exists.
 
-```scheme
+```x
 (def %mkb (%coord (lit base) (lit make)))
 (def %beval (%coord (lit base) (lit eval)))
 (def b (%mkb))
@@ -123,7 +123,7 @@ covers: base/eval
 The property that makes it a sandbox rather than a second env: a name defined out
 here is unbound in there, so the expression raises and `guard` catches it.
 
-```scheme
+```x
 (def %mkb (%coord (lit base) (lit make)))
 (def %beval (%coord (lit base) (lit eval)))
 (def b (%mkb))
@@ -143,7 +143,7 @@ half is what makes it a capability model rather than a naming convenience -- a
 name bound into one base is unbound in another, so a base gets exactly what it was
 given.
 
-```scheme
+```x
 (def %mkb (%coord (lit base) (lit make)))
 (def %bind (%coord (lit base) (lit bind)))
 (def %beval (%coord (lit base) (lit eval)))
@@ -169,7 +169,7 @@ This is what makes `base make` an isolation boundary rather than a second
 environment. It also means a host cannot smuggle a name into a child by
 constructing it -- the child's table is the child's.
 
-```scheme
+```x
 (def %mkb (%coord (lit base) (lit make)))
 (def %beval (%coord (lit base) (lit eval)))
 (def %bind (%coord (lit base) (lit bind)))
@@ -189,7 +189,7 @@ Not a snapshot of the parent's table taken at `base make`: a symbol the host
 interned BEFORE the child existed is still a different object inside it. Each
 base interns for itself, from the beginning.
 
-```scheme
+```x
 (def %mkb (%coord (lit base) (lit make)))
 (def %beval (%coord (lit base) (lit eval)))
 (def %bind (%coord (lit base) (lit bind)))
@@ -216,7 +216,7 @@ and the child's environment is keyed by that very object.
 Without this, per-base interning plus identity lookup would make every
 cross-base form unbound, and the sandbox would be unusable rather than isolated.
 
-```scheme
+```x
 (def %mkb (%coord (lit base) (lit make)))
 (def %beval (%coord (lit base) (lit eval)))
 (def %bind (%coord (lit base) (lit bind)))
@@ -242,7 +242,7 @@ This is the other half of what makes per-base interning meaningful: if lookup
 were by name, two bases interning separately would still see each other's
 bindings and the tables would be decoration.
 
-```scheme
+```x
 (def %mkb (%coord (lit base) (lit make)))
 (def %beval (%coord (lit base) (lit eval)))
 (def %bind (%coord (lit base) (lit bind)))

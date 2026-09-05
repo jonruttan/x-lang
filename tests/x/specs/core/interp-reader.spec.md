@@ -11,7 +11,7 @@ in the env where the literal sits.
 
 ### interpolates a bare-symbol hole
 
-```scheme
+```x
 (let ((x 9)) $"a{x}")
 ```
 ---
@@ -19,7 +19,7 @@ in the env where the literal sits.
 
 ### interpolates a parenthesized-expression hole
 
-```scheme
+```x
 $"sum {(+ 3 4)}"
 ```
 ---
@@ -27,7 +27,7 @@ $"sum {(+ 3 4)}"
 
 ### interpolates multiple holes with surrounding text
 
-```scheme
+```x
 $"#<Grid {(+ 3 4)}x{(+ 1 1)}>"
 ```
 ---
@@ -35,7 +35,7 @@ $"#<Grid {(+ 3 4)}x{(+ 1 1)}>"
 
 ### interpolates adjacent holes
 
-```scheme
+```x
 (let ((x 7)) $"{x}{x}{x}")
 ```
 ---
@@ -43,7 +43,7 @@ $"#<Grid {(+ 3 4)}x{(+ 1 1)}>"
 
 ### passes through a string with no holes
 
-```scheme
+```x
 $"no holes here"
 ```
 ---
@@ -51,7 +51,7 @@ $"no holes here"
 
 ### handles an empty string
 
-```scheme
+```x
 $""
 ```
 ---
@@ -61,7 +61,7 @@ $""
 
 ### {{ and }} are literal braces, not a hole
 
-```scheme
+```x
 $"{{literal}} braces"
 ```
 ---
@@ -69,7 +69,7 @@ $"{{literal}} braces"
 
 ### a lone } is a literal brace
 
-```scheme
+```x
 $"a lone } brace"
 ```
 ---
@@ -77,7 +77,7 @@ $"a lone } brace"
 
 ### {{}} yields a pair of literal braces
 
-```scheme
+```x
 $"{{}}"
 ```
 ---
@@ -89,7 +89,7 @@ The backslash itself survives, exactly as it does in an ordinary string: the
 chunk goes back through the C string reader, so there is one escape table and
 `{{` stays the way to write a bare brace.
 
-```scheme
+```x
 $"a\{b\}c"
 ```
 ---
@@ -103,7 +103,7 @@ code they belong to.
 
 ### a string literal inside a hole
 
-```scheme
+```x
 $"hi {(Str8 upcase "ab")}!"
 ```
 ---
@@ -111,7 +111,7 @@ $"hi {(Str8 upcase "ab")}!"
 
 ### braces inside a hole's string are not hole syntax
 
-```scheme
+```x
 $"[{(Str8 append "a}b{c" "|")}]"
 ```
 ---
@@ -119,7 +119,7 @@ $"[{(Str8 append "a}b{c" "|")}]"
 
 ### a #\ character literal in a hole cannot end the scan
 
-```scheme
+```x
 $"{(List length (list #\" #\} #\a))}"
 ```
 ---
@@ -127,7 +127,7 @@ $"{(List length (list #\" #\} #\a))}"
 
 ### a nested $"..." inside a hole
 
-```scheme
+```x
 (let ((c 7)) $"a{$"<{c}>"}z")
 ```
 ---
@@ -135,7 +135,7 @@ $"{(List length (list #\" #\} #\a))}"
 
 ### three literals deep
 
-```scheme
+```x
 $"a{$"b{$"c{(+ 1 1)}"}"}z"
 ```
 ---
@@ -143,7 +143,7 @@ $"a{$"b{$"c{(+ 1 1)}"}"}z"
 
 ### a hole holding a string and a nested literal at once
 
-```scheme
+```x
 $"Hello, {(Str8 join " " (List map (fn (_ c) $"{c}") (list 1 2 3)))}!"
 ```
 ---
@@ -151,7 +151,7 @@ $"Hello, {(Str8 join " " (List map (fn (_ c) $"{c}") (list 1 2 3)))}!"
 
 ### $ not followed by a quote stays an ordinary symbol
 
-```scheme
+```x
 (lit $foo)
 ```
 ---
@@ -165,7 +165,7 @@ A hole with no expression reads no form, so it contributes nothing -- the same
 way `$""` is `""`. This used to segfault the READER (`first` on the empty token
 list is unchecked), before evaluation began.
 
-```scheme
+```x
 $"a{}b"
 ```
 ---
@@ -173,7 +173,7 @@ $"a{}b"
 
 ### a hole of only whitespace is equally empty
 
-```scheme
+```x
 $"a{   }b"
 ```
 ---
@@ -181,7 +181,7 @@ $"a{   }b"
 
 ### a literal that is nothing but an empty hole
 
-```scheme
+```x
 $"{}"
 ```
 ---
@@ -192,7 +192,7 @@ $"{}"
 Nothing scores the token, so the symbol reader -- the analyse list's tail --
 claims the text, exactly as it does for any run of characters no literal wants.
 
-```scheme
+```x
 (symbol? (first (Tok read-str (%base) "$\"a{x ")))
 ```
 ---
@@ -205,7 +205,7 @@ where the literal sits, even when a *second* interpolation follows it.
 
 ### as direct arguments to Str8 str
 
-```scheme
+```x
 ((fn (_ x) (Str8 str $"a{x}" $"b{x}")) 9)
 ```
 ---
@@ -213,7 +213,7 @@ where the literal sits, even when a *second* interpolation follows it.
 
 ### inside separate let frames
 
-```scheme
+```x
 ((fn (_ x) (Str8 str (let ((q 1)) $"a{x}") (let ((q 1)) $"b{x}"))) 9)
 ```
 ---
@@ -221,7 +221,7 @@ where the literal sits, even when a *second* interpolation follows it.
 
 ### a second interpolation in if-tail (TCO) position
 
-```scheme
+```x
 ((fn (_ x) (Str8 str (if #t $"a{x}" "") (if #t $"b{x}" ""))) 9)
 ```
 ---
@@ -229,7 +229,7 @@ where the literal sits, even when a *second* interpolation follows it.
 
 ### an expr hole then a symbol hole across if-tails
 
-```scheme
+```x
 ((fn (_ x) (Str8 str (if #t $"a{(+ 1 1)}" "") (if #t $"b{x}" ""))) 9)
 ```
 ---
@@ -237,7 +237,7 @@ where the literal sits, even when a *second* interpolation follows it.
 
 ### a single interpolation in a fn body
 
-```scheme
+```x
 ((fn (_ x) $"a{x}") 9)
 ```
 ---
@@ -245,7 +245,7 @@ where the literal sits, even when a *second* interpolation follows it.
 
 ### two holes in one string reference the same binding
 
-```scheme
+```x
 ((fn (_ x) $"a{x}b{x}c") 9)
 ```
 ---
@@ -255,7 +255,7 @@ where the literal sits, even when a *second* interpolation follows it.
 
 ### $"..." expands to a direct (Str8 str ...) call at read time
 
-```scheme
+```x
 '$"a{x}"
 ```
 ---
@@ -265,7 +265,7 @@ where the literal sits, even when a *second* interpolation follows it.
 
 ### a list that is only a tail IS the tail (reads as the bare form)
 
-```scheme
+```x
 '( . b)
 ```
 ---
@@ -273,7 +273,7 @@ where the literal sits, even when a *second* interpolation follows it.
 
 ### the bare-variadic parameter form binds everything
 
-```scheme
+```x
 (rest ((fn ( . rest) rest) 1 2 3))
 ```
 ---
@@ -283,7 +283,7 @@ where the literal sits, even when a *second* interpolation follows it.
 
 ### 019 is nineteen, not octal-then-stop
 
-```scheme
+```x
 (list 019 010 0x13)
 ```
 ---

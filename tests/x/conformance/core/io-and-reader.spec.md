@@ -14,7 +14,7 @@ the side effect happened AND that the primitive answers nil rather than a count 
 a distinction an engine could easily get wrong in either direction, since nothing
 in the library reads the return.
 
-```scheme
+```x
 (def %w (%coord (lit io) (lit write-str)))
 (%ok (eq? (%w "zz") ()))
 ```

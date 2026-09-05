@@ -9,7 +9,7 @@ pins live in ext/posix coverage: here everything is deterministic.
 
 ### the epoch is Thursday 1970-01-01
 
-```scheme
+```x
 (do (import x/sys/date)
   (let ((d (Date from-unix 0)))
     (list (Assoc get 'year d) (Assoc get 'month d) (Assoc get 'day d) (Assoc get 'wday d))))
@@ -19,7 +19,7 @@ pins live in ext/posix coverage: here everything is deterministic.
 
 ### a famous timestamp formats correctly
 
-```scheme
+```x
 (do (import x/sys/date)
   (Date ->iso (Date from-unix 1234567890)))
 ```
@@ -28,7 +28,7 @@ pins live in ext/posix coverage: here everything is deterministic.
 
 ### the last pre-epoch second is 1969-12-31 23:59:59
 
-```scheme
+```x
 (do (import x/sys/date)
   (Date ->iso (Date from-unix -1)))
 ```
@@ -37,7 +37,7 @@ pins live in ext/posix coverage: here everything is deterministic.
 
 ### leap day 2024 exists and roundtrips
 
-```scheme
+```x
 (do (import x/sys/date)
   (Date ->iso (Date from-unix (Date to-unix '((year . 2024) (month . 2) (day . 29))))))
 ```
@@ -46,7 +46,7 @@ pins live in ext/posix coverage: here everything is deterministic.
 
 ### hour/minute/second default to zero in to-unix
 
-```scheme
+```x
 (do (import x/sys/date)
   (Date to-unix '((year . 1970) (month . 1) (day . 2))))
 ```
@@ -60,7 +60,7 @@ pins live in ext/posix coverage: here everything is deterministic.
 Steps of 86399 seconds (not a divisor of a day) walk through every
 time-of-day and both sides of the epoch.
 
-```scheme
+```x
 (do (import x/sys/date)
   (let go ((i 0) (t -172800000) (bad 0))
     (if (= i 4000) bad
@@ -72,7 +72,7 @@ time-of-day and both sides of the epoch.
 
 ### century boundaries obey the Gregorian leap rules
 
-```scheme
+```x
 (do (import x/sys/date)
   (list (Date leap-year? 2024) (Date leap-year? 1900) (Date leap-year? 2000) (Date leap-year? 2100)))
 ```
@@ -81,7 +81,7 @@ time-of-day and both sides of the epoch.
 
 ### March 1st follows Feb 28 in non-leap years, Feb 29 in leap years
 
-```scheme
+```x
 (do (import x/sys/date)
   (list (Assoc get 'day (Date from-unix (+ (Date to-unix '((year . 2023) (month . 2) (day . 28))) 86400)))
         (Assoc get 'day (Date from-unix (+ (Date to-unix '((year . 2024) (month . 2) (day . 28))) 86400)))))
@@ -93,7 +93,7 @@ time-of-day and both sides of the epoch.
 
 ### (Sys now) is wall time, after 2023, and time-of-day's usec is sane
 
-```scheme
+```x
 (do (import x/sys/posix) (import x/sys/date)
   (let ((t (Sys now)) (tod (Sys time-of-day)))
     (list (> t 1700000000) (>= (rest tod) 0) (< (rest tod) 1000000)
@@ -106,7 +106,7 @@ time-of-day and both sides of the epoch.
 
 ### the inverse of ->iso, wday included
 
-```scheme
+```x
 (do (import x/sys/date)
   (list (Date ->iso (Date from-iso "2009-02-13T23:31:30Z"))
         (Date to-unix (Date from-iso "2009-02-13T23:31:30Z"))
@@ -118,7 +118,7 @@ time-of-day and both sides of the epoch.
 
 ### strict: bad shapes, out-of-range fields, nonexistent civil dates all raise 'value
 
-```scheme
+```x
 (do (import x/sys/date)
   (list (guard (e (Err kind-of e)) (Date from-iso "2023-02-30T00:00:00Z"))
         (guard (e (Err kind-of e)) (Date from-iso "2023-13-01T00:00:00Z"))

@@ -7,7 +7,7 @@
 
 ### integer real and imaginary
 
-```scheme
+```x
 (Complex real-part 3+4i)
 ```
 ---
@@ -15,7 +15,7 @@
 
 ### imaginary part of literal
 
-```scheme
+```x
 (Complex imag-part 3+4i)
 ```
 ---
@@ -23,7 +23,7 @@
 
 ### negative imaginary
 
-```scheme
+```x
 (Complex imag-part 1-3i)
 ```
 ---
@@ -31,7 +31,7 @@
 
 ### float components
 
-```scheme
+```x
 (display 3.14+2.5i)
 ```
 ---
@@ -39,7 +39,7 @@
 
 ### pure imaginary
 
-```scheme
+```x
 (Complex imag-part 5i)
 ```
 ---
@@ -47,7 +47,7 @@
 
 ### pure imaginary real part is zero
 
-```scheme
+```x
 (Complex real-part 5i)
 ```
 ---
@@ -55,7 +55,7 @@
 
 ### zero imaginary collapses to real
 
-```scheme
+```x
 3+0i
 ```
 ---
@@ -63,7 +63,7 @@
 
 ### i squared is minus one
 
-```scheme
+```x
 (* 0+1i 0+1i)
 ```
 ---
@@ -73,7 +73,7 @@
 
 ### constructs complex from real and imaginary parts
 
-```scheme
+```x
 (Complex real-part (Complex make 3 4))
 ```
 ---
@@ -81,7 +81,7 @@
 
 ### imaginary part is accessible
 
-```scheme
+```x
 (Complex imag-part (Complex make 3 4))
 ```
 ---
@@ -91,7 +91,7 @@
 
 ### real-part of integer is itself
 
-```scheme
+```x
 (Complex real-part 5)
 ```
 ---
@@ -99,7 +99,7 @@
 
 ### imag-part of integer is zero
 
-```scheme
+```x
 (Complex imag-part 5)
 ```
 ---
@@ -109,7 +109,7 @@
 
 ### complex addition
 
-```scheme
+```x
 (Complex real-part (Complex + (Complex make 1 2) (Complex make 3 4)))
 ```
 ---
@@ -117,7 +117,7 @@
 
 ### complex addition imaginary
 
-```scheme
+```x
 (Complex imag-part (Complex + (Complex make 1 2) (Complex make 3 4)))
 ```
 ---
@@ -125,7 +125,7 @@
 
 ### complex subtraction
 
-```scheme
+```x
 (Complex real-part (Complex - (Complex make 5 7) (Complex make 2 3)))
 ```
 ---
@@ -133,7 +133,7 @@
 
 ### complex multiplication real part
 
-```scheme
+```x
 (Complex real-part (Complex * (Complex make 1 2) (Complex make 3 4)))
 ```
 ---
@@ -141,7 +141,7 @@
 
 ### complex equality
 
-```scheme
+```x
 (Complex = (Complex make 1 2) (Complex make 1 2))
 ```
 ---
@@ -149,7 +149,7 @@
 
 ### complex inequality
 
-```scheme
+```x
 (Complex = (Complex make 1 2) (Complex make 1 3))
 ```
 ---
@@ -159,7 +159,7 @@
 
 ### magnitude of 3+4i is 5
 
-```scheme
+```x
 (= (Complex magnitude (Complex make 3 4)) 5)
 ```
 ---
@@ -167,7 +167,7 @@
 
 ### magnitude of negative real
 
-```scheme
+```x
 (= (Complex magnitude -7) 7)
 ```
 ---
@@ -175,7 +175,7 @@
 
 ### angle of positive real is zero
 
-```scheme
+```x
 (= (Complex angle 5) 0)
 ```
 ---
@@ -183,7 +183,7 @@
 
 ### angle of negative real is pi
 
-```scheme
+```x
 (= (Complex angle -1) %pi)
 ```
 ---
@@ -191,7 +191,7 @@
 
 ### angle of pure imaginary
 
-```scheme
+```x
 (= (Complex angle (Complex make 0 1)) (Float / %pi 2.0))
 ```
 ---
@@ -201,7 +201,7 @@
 
 ### complex division real part
 
-```scheme
+```x
 (Complex real-part (Complex / (Complex make 4 2) (Complex make 2 0)))
 ```
 ---
@@ -209,7 +209,7 @@
 
 ### complex division of conjugates
 
-```scheme
+```x
 (= (Complex real-part (Complex / (Complex make 1 1) (Complex make 1 -1))) 0)
 ```
 ---
@@ -217,7 +217,7 @@
 
 ### complex division imaginary part
 
-```scheme
+```x
 (= (Complex imag-part (Complex / (Complex make 1 1) (Complex make 1 -1))) 1)
 ```
 ---
@@ -227,7 +227,7 @@
 
 ### from-polar with zero angle
 
-```scheme
+```x
 (Complex real-part (Complex from-polar 5 0))
 ```
 ---
@@ -237,7 +237,7 @@
 
 ### integer is real
 
-```scheme
+```x
 (Float real? 42)
 ```
 ---
@@ -245,7 +245,7 @@
 
 ### complex with zero imaginary is real
 
-```scheme
+```x
 (Float real? (Complex make 5 0))
 ```
 ---
@@ -253,7 +253,7 @@
 
 ### complex with nonzero imaginary is not real
 
-```scheme
+```x
 (Float real? (Complex make 1 2))
 ```
 ---
@@ -263,7 +263,7 @@
 
 ### complex is complex
 
-```scheme
+```x
 (Complex complex? (Complex make 1 2))
 ```
 ---
@@ -271,7 +271,7 @@
 
 ### integer is also complex (numeric tower)
 
-```scheme
+```x
 (Complex complex? 42)
 ```
 ---
@@ -281,7 +281,7 @@
 
 ### % refuses instead of computing garbage
 
-```scheme
+```x
 (% 1+2i 2)
 ```
 ---
@@ -291,7 +291,7 @@
 
 ### -1+2i parses as a complex literal
 
-```scheme
+```x
 -1+2i
 ```
 ---
@@ -299,7 +299,7 @@
 
 ### arithmetic on a negative-real literal
 
-```scheme
+```x
 (+ -1+2i 2)
 ```
 ---

@@ -20,7 +20,7 @@ top-level form, so literal tests simply follow their import's test.
 
 ### rational imports without bigint (the repro)
 
-```scheme
+```x
 (import x/num/rational)
 (Rational rational? (Rational / 1 3))
 ```
@@ -29,7 +29,7 @@ top-level form, so literal tests simply follow their import's test.
 
 ### rational literals parse from the next form on
 
-```scheme
+```x
 (Rational rational? 1/3)
 ```
 ---
@@ -37,7 +37,7 @@ top-level form, so literal tests simply follow their import's test.
 
 ### float literals and arithmetic work without bigint
 
-```scheme
+```x
 (+ 0.5 0.25)
 ```
 ---
@@ -47,7 +47,7 @@ top-level form, so literal tests simply follow their import's test.
 
 ### bigint joins later; the pact installs bigint->float
 
-```scheme
+```x
 (import x/num/bigint)
 (import x/sys/pact)
 (def %t-big1 (Bigint + 9223372036854775807 1))
@@ -59,7 +59,7 @@ top-level form, so literal tests simply follow their import's test.
 
 ### bigint literals parse from the next form on
 
-```scheme
+```x
 (Bigint bigint? 10000000000000000000)
 ```
 ---
@@ -67,7 +67,7 @@ top-level form, so literal tests simply follow their import's test.
 
 ### mixed literal arithmetic across the whole tower
 
-```scheme
+```x
 (= (+ 0.0 10000000000000000000) 10000000000000000000.0)
 ```
 ---
@@ -75,7 +75,7 @@ top-level form, so literal tests simply follow their import's test.
 
 ### the conversion is value-correct (2^63 is float-exact, and doubling agrees)
 
-```scheme
+```x
 (def %t-cv2 (prim-ref 'convert 'to))
 (def %t-fh2 (Pact get 'float))
 (def %t-big2 (Bigint + 9223372036854775807 1))
@@ -87,7 +87,7 @@ top-level form, so literal tests simply follow their import's test.
 
 ### the converter honours the sign
 
-```scheme
+```x
 (def %t-cv3 (prim-ref 'convert 'to))
 (def %t-fh3 (Pact get 'float))
 (def %t-big3 (Bigint + 9223372036854775807 1))

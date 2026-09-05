@@ -5,7 +5,7 @@
 
 ### writes to file descriptor
 
-```scheme
+```x
 (do (def fd (Sys open-write "/tmp/x-test-fd.txt"))
     (Sys fd-write fd "hello")
     (Sys close fd)
@@ -18,7 +18,7 @@
 
 ### returns true for existing file
 
-```scheme
+```x
 (Sys file-exists? "lib/x-core.x")
 ```
 ---
@@ -26,7 +26,7 @@
 
 ### returns false for missing file
 
-```scheme
+```x
 (Sys file-exists? "/tmp/x-nonexistent-file-999")
 ```
 ---
@@ -36,7 +36,7 @@
 
 ### returns a positive integer
 
-```scheme
+```x
 (> (Sys getpid) 0)
 ```
 ---
@@ -46,7 +46,7 @@
 
 ### reads an unset variable as nil
 
-```scheme
+```x
 (null? (Sys getenv "X_SPEC_UNSET_VAR_42"))
 ```
 ---
@@ -56,7 +56,7 @@
 
 ### reports success
 
-```scheme
+```x
 (Sys setenv "X_SPEC_VAR_42" "ok")
 ```
 ---
@@ -64,7 +64,7 @@
 
 ### roundtrips through getenv
 
-```scheme
+```x
 (do (Sys setenv "X_SPEC_RT_VAR" "ok") (Sys getenv "X_SPEC_RT_VAR"))
 ```
 ---
@@ -72,7 +72,7 @@
 
 ### overwrites an existing value
 
-```scheme
+```x
 (do (Sys setenv "X_SPEC_RT_VAR" "first")
     (Sys setenv "X_SPEC_RT_VAR" "second")
     (Sys getenv "X_SPEC_RT_VAR"))
@@ -84,7 +84,7 @@
 
 ### opens and closes without error
 
-```scheme
+```x
 (do (def fd (Sys open-write "/tmp/x-test-open.txt"))
     (Sys close fd)
     #t)
@@ -96,7 +96,7 @@
 
 ### opens readable file
 
-```scheme
+```x
 (do (def fd (Sys open-read "lib/x-core.x"))
     (def ok (> fd 0))
     (Sys close fd)
@@ -115,7 +115,7 @@ distinguishes; that is the point of the pin.
 
 ### open-read on a missing path answers a negative fd
 
-```scheme
+```x
 (< (Sys open-read "/tmp/x-nonexistent-file-999") 0)
 ```
 ---
@@ -123,7 +123,7 @@ distinguishes; that is the point of the pin.
 
 ### chdir to a missing directory answers negative
 
-```scheme
+```x
 (< (Sys chdir "/tmp/x-nonexistent-dir-999") 0)
 ```
 ---
@@ -134,7 +134,7 @@ distinguishes; that is the point of the pin.
 Unfolded, read(2)'s -1 became a 4294967295-iteration pointer walk off
 the end of the buffer.
 
-```scheme
+```x
 (null? (Sys fd-read -1 4))
 ```
 ---
@@ -142,7 +142,7 @@ the end of the buffer.
 
 ### fd-write on a bad fd answers negative
 
-```scheme
+```x
 (< (Sys fd-write -1 "x") 0)
 ```
 ---
@@ -150,7 +150,7 @@ the end of the buffer.
 
 ### close on a bad fd answers negative
 
-```scheme
+```x
 (< (Sys close -1) 0)
 ```
 ---
@@ -174,7 +174,7 @@ this file uses the `Sys` abstraction for that reason).
 
 ### an unsupported syscall argument raises before the call fires
 
-```scheme
+```x
 (guard (e 'raised) (syscall 999 (list 1)))
 ```
 ---
@@ -182,7 +182,7 @@ this file uses the `Sys` abstraction for that reason).
 
 ### a nil ptr-call argument marshals as NULL in its own slot
 
-```scheme
+```x
 (do (def %pc-dlopen (prim-ref 'ffi 'dlopen))
     (def %pc-dlsym (prim-ref 'ffi 'dlsym))
     (def %pc-call (prim-ref 'ptr 'call))
@@ -194,7 +194,7 @@ this file uses the `Sys` abstraction for that reason).
 
 ### an unsupported ptr-call argument raises
 
-```scheme
+```x
 (do (def %pc2-dlopen (prim-ref 'ffi 'dlopen))
     (def %pc2-dlsym (prim-ref 'ffi 'dlsym))
     (def %pc2-call (prim-ref 'ptr 'call))
@@ -208,7 +208,7 @@ this file uses the `Sys` abstraction for that reason).
 
 ### getcwd returns a string
 
-```scheme
+```x
 (str? (Sys getcwd))
 ```
 ---
@@ -216,7 +216,7 @@ this file uses the `Sys` abstraction for that reason).
 
 ### chdir and getcwd round-trip
 
-```scheme
+```x
 (do (def home (Sys getcwd))
     (Sys chdir "/")
     (def at-root (Sys getcwd))
@@ -230,7 +230,7 @@ this file uses the `Sys` abstraction for that reason).
 
 ### unsetenv removes what setenv set
 
-```scheme
+```x
 (do (Sys setenv "X_SPEC_361" "v1")
     (def before (Sys getenv "X_SPEC_361"))
     (Sys unsetenv "X_SPEC_361")
@@ -241,7 +241,7 @@ this file uses the `Sys` abstraction for that reason).
 
 ### unsetenv of an absent name succeeds
 
-```scheme
+```x
 (Sys unsetenv "X_SPEC_361_NEVER_SET")
 ```
 ---
@@ -249,7 +249,7 @@ this file uses the `Sys` abstraction for that reason).
 
 ### environ carries a variable we set, as NAME=VALUE
 
-```scheme
+```x
 (do (Sys setenv "X_SPEC_361E" "yes")
     (def found
       (let go ((es (Sys environ)))
@@ -265,7 +265,7 @@ this file uses the `Sys` abstraction for that reason).
 
 ### sleep 0 and a 1ms usleep return 0 promptly
 
-```scheme
+```x
 (list (Sys sleep 0) (Sys usleep 1000))
 ```
 ---

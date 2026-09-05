@@ -15,7 +15,7 @@ failed obscurely.
 
 ### a two-form do yields its last value
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ a b) (do a b))) 1 2))
 ```
 ---
@@ -23,7 +23,7 @@ failed obscurely.
 
 ### a many-form do yields its last value
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ a b) (do a b a b (+ a b)))) 20 22))
 ```
 ---
@@ -35,7 +35,7 @@ The JIT's nil is a raw 0 in x0, and the boxing at return makes that the
 integer 0 rather than `()` — the same boundary every other JIT form
 sits on, pinned here so it is a decision and not a surprise.
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ a) (do))) 1))
 ```
 ---
@@ -43,7 +43,7 @@ sits on, pinned here so it is a decision and not a surprise.
 
 ### a do nests inside other forms
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ a b) (+ (do a b) (do b a)))) 10 32))
 ```
 ---
@@ -54,7 +54,7 @@ sits on, pinned here so it is a decision and not a surprise.
 The middle form is a division that would trap on a zero divisor, so a
 `do` that skipped it would answer instead of dying.
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ a b) (do (/ a b) (+ a b)))) 40 2))
 ```
 ---
@@ -72,7 +72,7 @@ mmap'd region and segfaulted somewhere unrelated. It raises now, and
 Nine nops into an eight-byte buffer: a nop is one byte on x86-64 and
 four on ARM64, so nine overruns eight bytes on ANY backend.
 
-```scheme
+```x
 (do
   (def %a (asm-new 8))
   (def %fill (fn (self n) (match ((= n 0) ()) (#t (do (asm-emit! %a 'nop) (self (- n 1)))))))
@@ -83,7 +83,7 @@ four on ARM64, so nine overruns eight bytes on ANY backend.
 
 ### a small function still compiles and runs
 
-```scheme
+```x
 (display ((compile-asm '(fn (_ a) (+ a 1))) 41))
 ```
 ---
@@ -94,7 +94,7 @@ four on ARM64, so nine overruns eight bytes on ANY backend.
 Well past the old 1024-instruction default: 400 nested additions, which
 before the sizing fix wrote off the end of the buffer.
 
-```scheme
+```x
 (do
   (def %big
     ((fn (self i acc) (match ((= i 0) acc) (#t (self (- i 1) (list '+ acc 1)))))
@@ -120,7 +120,7 @@ end, the exact tear shape. The case then pins that the failing emit
 moved the position by NOTHING: a torn instruction would leave it past
 `4*size`.
 
-```scheme
+```x
 (do
   (def %probe (asm-new 64))
   (asm-emit! %probe 'mov x0 x0)
@@ -156,7 +156,7 @@ showed up as correct answers followed by a stray error and exit 1.
 stripped engine without needing one, and the case restores it so the
 rest of the batch still compiles.
 
-```scheme
+```x
 (do
   (def %saved %jit-missing)
   (set! %jit-missing (list "jit_mkint"))

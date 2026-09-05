@@ -20,7 +20,7 @@ The body of a multi-line `(match ...)` renders with code classes — `p`, `kc`,
 regression this guards (docs/tutorial.md's Conditionals section, published
 that way).
 
-```scheme
+```x
 (do (import x/tool/highlight)
     (Highlight transcript "> (match\n    (#t 1))\n1" (list "match")))
 ```
@@ -35,7 +35,7 @@ that way).
 
 One line, balanced, so what follows is output rather than more code.
 
-```scheme
+```x
 (do (import x/tool/highlight)
     (Highlight transcript "> (+ 1 2)\n3" (list)))
 ```
@@ -50,7 +50,7 @@ One line, balanced, so what follows is output rather than more code.
 The depth scan counts only the parens the scanner treats as punctuation, so
 a string's bracket cannot swallow the result line behind it.
 
-```scheme
+```x
 (do (import x/tool/highlight)
     (Highlight transcript "> (id \"(\")\n\"(\"" (list)))
 ```

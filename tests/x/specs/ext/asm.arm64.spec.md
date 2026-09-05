@@ -6,7 +6,7 @@
 
 ### creates assembler instance
 
-```scheme
+```x
 (do (def a (asm-new)) (display (asm-pos a)))
 ```
 ---
@@ -16,7 +16,7 @@
 
 ### returns first argument
 
-```scheme
+```x
 (do (def a (asm-new)) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 42 0)) (asm-free! a))
 ```
 ---
@@ -24,7 +24,7 @@
 
 ### returns zero for zero
 
-```scheme
+```x
 (do (def a (asm-new)) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 0 0)) (asm-free! a))
 ```
 ---
@@ -34,7 +34,7 @@
 
 ### loads constant into return register
 
-```scheme
+```x
 (do (def a (asm-new)) (asm-emit! a 'mov x0 (imm 99)) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 0 0)) (asm-free! a))
 ```
 ---
@@ -42,7 +42,7 @@
 
 ### loads zero
 
-```scheme
+```x
 (do (def a (asm-new)) (asm-emit! a 'mov x0 (imm 0)) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 999 0)) (asm-free! a))
 ```
 ---
@@ -52,7 +52,7 @@
 
 ### adds two registers
 
-```scheme
+```x
 (do (def a (asm-new)) (asm-emit! a 'add x0 x0 x1) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 20 22)) (asm-free! a))
 ```
 ---
@@ -60,7 +60,7 @@
 
 ### add immediate
 
-```scheme
+```x
 (do (def a (asm-new)) (asm-emit! a 'add x0 x0 (imm 10)) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 32 0)) (asm-free! a))
 ```
 ---
@@ -70,7 +70,7 @@
 
 ### subtracts two registers
 
-```scheme
+```x
 (do (def a (asm-new)) (asm-emit! a 'sub x0 x0 x1) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 100 58)) (asm-free! a))
 ```
 ---
@@ -78,7 +78,7 @@
 
 ### sub immediate
 
-```scheme
+```x
 (do (def a (asm-new)) (asm-emit! a 'sub x0 x0 (imm 8)) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 50 0)) (asm-free! a))
 ```
 ---
@@ -88,7 +88,7 @@
 
 ### nop does not change registers
 
-```scheme
+```x
 (do (def a (asm-new)) (asm-emit! a 'nop) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 42 0)) (asm-free! a))
 ```
 ---
@@ -98,7 +98,7 @@
 
 ### forward branch skips instruction
 
-```scheme
+```x
 (do (def a (asm-new)) (asm-emit! a 'mov x0 (imm 1)) (asm-emit! a 'b (label 'skip)) (asm-emit! a 'mov x0 (imm 99)) (asm-label! a 'skip) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 0 0)) (asm-free! a))
 ```
 ---
@@ -108,7 +108,7 @@
 
 ### sequence of operations
 
-```scheme
+```x
 (do (def a (asm-new)) (asm-emit! a 'mov x0 (imm 0)) (asm-emit! a 'add x0 x0 x1) (asm-emit! a 'add x0 x0 x1) (asm-emit! a 'ret) (def f (asm-finalize! a)) (display (Ptr call f 0 21)) (asm-free! a))
 ```
 ---

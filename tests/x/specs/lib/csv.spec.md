@@ -11,7 +11,7 @@ equal?-keyed door).
 
 ### rows, quoting, escapes, embedded newlines, CRLF
 
-```scheme
+```x
 (do (import x/codec/csv)
   (list (Csv parse "a,b\n1,2\n")
         (Csv parse "a,\"b\"\"c\",d")
@@ -22,7 +22,7 @@ equal?-keyed door).
 
 ### empty fields, interior empty lines, empty text; a trailing newline adds no row
 
-```scheme
+```x
 (do (import x/codec/csv)
   (list (Csv parse "a,\n,b")
         (Csv parse "a\n\nb\n")
@@ -35,7 +35,7 @@ equal?-keyed door).
 
 ### minimal quoting; hostile fields round-trip exactly
 
-```scheme
+```x
 (do (import x/codec/csv)
   (def rows (list (list "a,b" "c\"d" "e\nf") (list "" "plain" "q")))
   (list (Csv emit (list (list "a" "b")))
@@ -48,7 +48,7 @@ equal?-keyed door).
 
 ### header-keyed alists in, explicit header order out
 
-```scheme
+```x
 (do (import x/codec/csv)
   (list (rest (Assoc find "age" (first (Csv records "name,age\nida,7\n"))))
         (Csv emit-records (list "a" "b")
@@ -61,7 +61,7 @@ equal?-keyed door).
 
 ### unclosed quotes, stray quotes, post-quote bytes, width mismatches, missing keys
 
-```scheme
+```x
 (do (import x/codec/csv)
   (list (guard (e (Err kind-of e)) (Csv parse "\"unclosed"))
         (guard (e (Err kind-of e)) (Csv parse "ab\"cd"))

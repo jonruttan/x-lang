@@ -3,7 +3,7 @@
 
 ### quote produces a literal list
 
-```scheme
+```x
 '(1 2 3)
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### quote quotes a symbol
 
-```scheme
+```x
 'foo
 ```
 ---
@@ -19,14 +19,14 @@
 
 ### quote quotes nil
 
-```scheme
+```x
 '()
 ```
 ---
 
 ### quote quotes a nested list
 
-```scheme
+```x
 '(a (b c) d)
 ```
 ---
@@ -34,7 +34,7 @@
 
 ### quote quotes an integer atom
 
-```scheme
+```x
 '42
 ```
 ---
@@ -42,7 +42,7 @@
 
 ### quote quotes a string atom
 
-```scheme
+```x
 '"hello"
 ```
 ---
@@ -50,7 +50,7 @@
 
 ### nested quote
 
-```scheme
+```x
 ''x
 ```
 ---
@@ -60,7 +60,7 @@
 
 ### quote is the shorthand for lit
 
-```scheme
+```x
 (if (eq? 'foo (lit foo)) 1 0)
 ```
 ---
@@ -68,7 +68,7 @@
 
 ### first of a quoted list
 
-```scheme
+```x
 (first '(a b c))
 ```
 ---
@@ -76,7 +76,7 @@
 
 ### a quoted list passed to a function
 
-```scheme
+```x
 (List map (fn (_ x) (* x 10)) '(1 2 3))
 ```
 ---
@@ -84,7 +84,7 @@
 
 ### quote terminates an adjacent token
 
-```scheme
+```x
 (list 'a'b)
 ```
 ---
@@ -94,7 +94,7 @@
 
 ### explicit lit syntax still works
 
-```scheme
+```x
 (lit (1 2 3))
 ```
 ---
@@ -102,7 +102,7 @@
 
 ### quasiquote reader still works alongside quote
 
-```scheme
+```x
 (do (def x 5) `(a ,x b))
 ```
 ---
@@ -112,7 +112,7 @@
 
 ### an apostrophe inside a string is just a character
 
-```scheme
+```x
 "it's a string"
 ```
 ---
@@ -120,7 +120,7 @@
 
 ### the apostrophe character literal still reads
 
-```scheme
+```x
 (Char ->int #\')
 ```
 ---

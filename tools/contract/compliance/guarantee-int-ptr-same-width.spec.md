@@ -17,7 +17,7 @@ back as itself or does not.
 
 ### an object's address survives a round trip through an integer
 
-```scheme
+```x
 (def %o2p (%coord (lit obj) (lit ->ptr)))
 (def %p2i (%coord (lit ptr) (lit ->int)))
 (def %i2p (%coord (lit int) (lit ->ptr)))

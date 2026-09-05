@@ -5,7 +5,7 @@
 
 ### hashes empty string
 
-```scheme
+```x
 (not (null? (Hash fnv-1a "")))
 ```
 ---
@@ -13,7 +13,7 @@
 
 ### hashes non-empty string
 
-```scheme
+```x
 (not (null? (Hash fnv-1a "hello")))
 ```
 ---
@@ -21,7 +21,7 @@
 
 ### same input same hash
 
-```scheme
+```x
 (= (Hash fnv-1a "test") (Hash fnv-1a "test"))
 ```
 ---
@@ -29,7 +29,7 @@
 
 ### different input different hash
 
-```scheme
+```x
 (if (= (Hash fnv-1a "a") (Hash fnv-1a "b")) "same" "diff")
 ```
 ---
@@ -39,7 +39,7 @@
 
 ### produces hex string
 
-```scheme
+```x
 (%str-length (Hash ->hex (Hash fnv-1a "hello")))
 ```
 ---
@@ -47,7 +47,7 @@
 
 ### consistent output
 
-```scheme
+```x
 (str=? (Hash ->hex (Hash fnv-1a "test")) (Hash ->hex (Hash fnv-1a "test")))
 ```
 ---

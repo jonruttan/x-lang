@@ -15,7 +15,7 @@ checked for liveness only.
 
 ### every live C prim is in the manifest, and every manifest entry is live
 
-```scheme
+```x
 (do
   (def %prim-type (Type of first))
   (def %live ())
@@ -50,7 +50,7 @@ ok
 
 ### every bare-bound name in the manifest is live
 
-```scheme
+```x
 (do
   (List map (fn (_ e) (eval (first e))) %isa-bare)
   (display "ok"))
@@ -62,7 +62,7 @@ ok
 
 ### every C-bound value in the manifest is live
 
-```scheme
+```x
 (do
   (List map (fn (_ e) (eval (first e))) %isa-values)
   (display "ok"))
@@ -83,7 +83,7 @@ exists in the live env and fails here.  (Keep-list names the lib shadows
 with X wrappers, like `+`, simply don't appear as PRIMITIVE; this
 direction is live-to-manifest only.)
 
-```scheme
+```x
 (do
   (def %walk
     (fn (self node acc)

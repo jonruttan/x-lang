@@ -11,7 +11,7 @@ gate exists for.
 
 ### every coordinate the group declares actually resolves
 
-```scheme
+```x
 (%ok (= (+ (%count-missing %expect-coords 0) (%count-missing-bare %expect-bare 0)) 0))
 ```
 ---

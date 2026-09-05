@@ -38,7 +38,7 @@ reasons that are not defects.
 
 ### compiled and interpreted agree across generated expressions
 
-```scheme
+```x
 (do
   ; --- seeded LCG (Numerical Recipes constants); pure INT ops ---
   (def %seed-cell (pair 20260805 ()))
@@ -214,7 +214,7 @@ defect either side.
 This is the coverage that would have caught the unknown-operator bug —
 anything the JIT does not implement used to compile *as* a self-call.
 
-```scheme
+```x
 (do
   (def %seed-cell (pair 777001 ()))
   (def %rand
@@ -322,7 +322,7 @@ Sharing one region is deliberate — a scale confusion between the
 families (a byte store scaled by 8, a word store unscaled) corrupts the
 other family's sentinels and is caught by whichever phase runs next.
 
-```scheme
+```x
 (do
   (def %seed-cell (pair 20260806 ()))
   (def %rand

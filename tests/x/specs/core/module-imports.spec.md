@@ -3,21 +3,21 @@
 
 ### valid selective import succeeds
 
-```scheme
+```x
 (import x/core/predicates null? pair?)
 ```
 ---
 
 ### empty selector works (no validation)
 
-```scheme
+```x
 (import x/core/list)
 ```
 ---
 
 ### invalid symbol raises error
 
-```scheme
+```x
 (guard (e (display e)) (import x/core/predicates null? nonexistent pair?))
 ```
 ---
@@ -25,14 +25,14 @@
 
 ### all listed symbols are valid
 
-```scheme
+```x
 (import x/core/predicates null? pair?)
 ```
 ---
 
 ### unregistered module selector is ignored
 
-```scheme
+```x
 (import x/core/predicates null? pair? atom?)
 ```
 ---

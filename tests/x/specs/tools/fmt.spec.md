@@ -3,7 +3,7 @@
 
 ### tokenizes simple expression
 
-```scheme
+```x
 (do
   (def %fmt-base (Base make))
   (def %tokens (Tok read-str %fmt-base "(+ 1 2)"))
@@ -16,7 +16,7 @@
 
 ### tokenizes multiple forms
 
-```scheme
+```x
 (do
   (def %fmt-base (Base make))
   (def %tokens (Tok read-str %fmt-base "(def x 1)\n(def y 2)"))
@@ -27,7 +27,7 @@
 
 ### tokenizes nested expressions
 
-```scheme
+```x
 (do
   (def %fmt-base (Base make))
   (def %tokens (Tok read-str %fmt-base "(if (> x 0) x (- 0 x))"))
@@ -41,7 +41,7 @@
 
 ### tokenizes strings
 
-```scheme
+```x
 (do
   (def %fmt-base (Base make))
   (def %tokens (Tok read-str %fmt-base "(display \"hello\")"))
@@ -55,7 +55,7 @@
 
 ### tokenizes nil as empty list
 
-```scheme
+```x
 (do
   (def %fmt-base (Base make))
   (def %tokens (Tok read-str %fmt-base "()"))
@@ -66,7 +66,7 @@
 
 ### preserves integer values
 
-```scheme
+```x
 (do
   (def %fmt-base (Base make))
   (def %tokens (Tok read-str %fmt-base "42\n"))
@@ -77,7 +77,7 @@
 
 ### preserves character literals
 
-```scheme
+```x
 (do
   (def %fmt-base (Base make))
   (def %tokens (Tok read-str %fmt-base "#\\a\n"))
@@ -88,7 +88,7 @@
 
 ### tokenizes def form structure
 
-```scheme
+```x
 (do
   (def %fmt-base (Base make))
   (def %tokens (Tok read-str %fmt-base "(def x (+ 1 2))"))

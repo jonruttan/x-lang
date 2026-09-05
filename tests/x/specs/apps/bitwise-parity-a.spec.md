@@ -18,7 +18,7 @@ from slowing the next.
 
 ### x-lang
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/gen)
@@ -41,7 +41,7 @@ from slowing the next.
 
 ### x-engine-rust
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/gen)
@@ -64,7 +64,7 @@ from slowing the next.
 
 ### x-python
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/gen)
@@ -87,7 +87,7 @@ from slowing the next.
 
 ### x-logo
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/gen)
@@ -110,7 +110,7 @@ from slowing the next.
 
 ### x-krn
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/gen)

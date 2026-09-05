@@ -18,7 +18,7 @@ from slowing the next.
 
 ### x-awk
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/gen)
@@ -41,7 +41,7 @@ from slowing the next.
 
 ### x-r5rs
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/gen)
@@ -64,7 +64,7 @@ from slowing the next.
 
 ### x-sweet
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/gen)
@@ -87,7 +87,7 @@ from slowing the next.
 
 ### hello, world
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/gen)
@@ -109,7 +109,7 @@ from slowing the next.
 
 ### x-cc
 
-```scheme
+```x
 (do
   (import-path! "apps")
   (import bitwise/gen)

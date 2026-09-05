@@ -11,7 +11,7 @@ is a teaching error at the generic door.
 
 ### rational arithmetic through the shims
 
-```scheme
+```x
 (display (list (+ 1/2 1/3) (< 1/3 1/2) (= 1/2 2/4)))
 ```
 ---
@@ -19,7 +19,7 @@ is a teaching error at the generic door.
 
 ### the generics are callable values
 
-```scheme
+```x
 (display (list (num+ 1/2 1/3) (num= 1/2 1/2)))
 ```
 ---
@@ -29,7 +29,7 @@ is a teaching error at the generic door.
 
 ### rational + float promotes to float
 
-```scheme
+```x
 (display (+ 1/2 0.25))
 ```
 ---
@@ -37,7 +37,7 @@ is a teaching error at the generic door.
 
 ### int + rational promotes to rational
 
-```scheme
+```x
 (display (+ 1 1/2))
 ```
 ---
@@ -45,7 +45,7 @@ is a teaching error at the generic door.
 
 ### float + complex promotes to complex
 
-```scheme
+```x
 (display (+ 1+2i 0.5))
 ```
 ---
@@ -53,7 +53,7 @@ is a teaching error at the generic door.
 
 ### mixed ordering promotes too
 
-```scheme
+```x
 (display (< 1/3 0.5))
 ```
 ---
@@ -66,7 +66,7 @@ is a teaching error at the generic door.
 The recorded hole: bigint and rational declare no cvt relation. Through
 the generic door that is now a TEACHING error.
 
-```scheme
+```x
 (display (guard (e 'loud) (num+ 123456789012345678901234567890 1/2)))
 ```
 ---
@@ -84,7 +84,7 @@ profile (the generics below are an optional import; the folds are not).
 Binary % < = still call the C prims bare and keep the raw fallback --
 that residue stays open on #584.
 
-```scheme
+```x
 (display (list
   (guard (e 'loud) (+ 123456789012345678901234567890 1/2))
   (guard (e 'loud) (- 1/2 123456789012345678901234567890))
@@ -95,7 +95,7 @@ that residue stays open on #584.
 
 ### declared pairs still promote through the folds
 
-```scheme
+```x
 (display (list (+ 123456789012345678901234567890 1) (+ 1 1/2)))
 ```
 ---
@@ -103,7 +103,7 @@ that residue stays open on #584.
 
 ### complex sits ordering out at the generic door too
 
-```scheme
+```x
 (display (guard (e 'unordered) (num< 1+2i 3+4i)))
 ```
 ---
@@ -113,7 +113,7 @@ that residue stays open on #584.
 
 ### same-type pairs stay on decimal's own worker
 
-```scheme
+```x
 (display (num+ 0.1d 0.2d))
 ```
 ---
@@ -121,7 +121,7 @@ that residue stays open on #584.
 
 ### float promotes into decimal, which absorbs it exactly
 
-```scheme
+```x
 (display (num* 2d 3.5))
 ```
 ---
@@ -129,7 +129,7 @@ that residue stays open on #584.
 
 ### rational promotes too, at the current precision
 
-```scheme
+```x
 (display (num= 1/2 0.5d))
 ```
 ---
@@ -137,7 +137,7 @@ that residue stays open on #584.
 
 ### complex still absorbs the decimal, not the other way round
 
-```scheme
+```x
 (display (Complex complex? (num+ 1+2i 0.5d)))
 ```
 ---

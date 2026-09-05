@@ -3,7 +3,7 @@
 
 ### creates a vector from arguments
 
-```scheme
+```x
 (write (Vector of 1 2 3))
 ```
 ---
@@ -11,7 +11,7 @@
 
 ### creates a single-element vector
 
-```scheme
+```x
 (write (Vector of 42))
 ```
 ---
@@ -19,7 +19,7 @@
 
 ### creates an empty vector
 
-```scheme
+```x
 (write (Vector of))
 ```
 ---
@@ -27,7 +27,7 @@
 
 ### builds a vector from an index function
 
-```scheme
+```x
 (write (Vector build 4 (fn (_ i) (* i i))))
 ```
 ---
@@ -37,7 +37,7 @@
 
 ### indexes from the start
 
-```scheme
+```x
 ((Vector of 10 20 30) 1)
 ```
 ---
@@ -45,7 +45,7 @@
 
 ### indexes first element
 
-```scheme
+```x
 ((Vector of 10 20 30) 0)
 ```
 ---
@@ -53,7 +53,7 @@
 
 ### indexes last element
 
-```scheme
+```x
 ((Vector of 10 20 30) 2)
 ```
 ---
@@ -61,7 +61,7 @@
 
 ### indexes from the end with negative
 
-```scheme
+```x
 ((Vector of 10 20 30) -1)
 ```
 ---
@@ -71,7 +71,7 @@
 
 ### returns #t for a vector
 
-```scheme
+```x
 (Vector vector? (Vector of 1))
 ```
 ---
@@ -79,7 +79,7 @@
 
 ### returns nil for a list
 
-```scheme
+```x
 (if (Vector vector? (list 1)) "yes" "no")
 ```
 ---
@@ -87,7 +87,7 @@
 
 ### returns nil for an integer
 
-```scheme
+```x
 (if (Vector vector? 42) "yes" "no")
 ```
 ---
@@ -97,7 +97,7 @@
 
 ### retrieves element by index
 
-```scheme
+```x
 (Vector ref 1 (Vector of 10 20 30))
 ```
 ---
@@ -105,7 +105,7 @@
 
 ### indexes from the end with negative, matching the call slot
 
-```scheme
+```x
 (Vector ref -1 (Vector of 10 20 30))
 ```
 ---
@@ -113,7 +113,7 @@
 
 ### errors past the end instead of reading raw memory
 
-```scheme
+```x
 (Vector ref 5 (Vector of 10 20 30))
 ```
 ---
@@ -121,7 +121,7 @@
 
 ### errors past the front on a negative index
 
-```scheme
+```x
 (Vector ref -4 (Vector of 10 20 30))
 ```
 ---
@@ -129,7 +129,7 @@
 
 ### the bare call slot is bounds-checked too
 
-```scheme
+```x
 ((Vector of 10 20 30) 5)
 ```
 ---
@@ -139,7 +139,7 @@
 
 ### returns the length of a vector
 
-```scheme
+```x
 (Vector length (Vector of 1 2 3))
 ```
 ---
@@ -147,7 +147,7 @@
 
 ### returns 0 for empty vector
 
-```scheme
+```x
 (Vector length (Vector of))
 ```
 ---
@@ -157,7 +157,7 @@
 
 ### converts a vector to a list
 
-```scheme
+```x
 (Vector ->list (Vector of 1 2 3))
 ```
 ---
@@ -167,7 +167,7 @@
 
 ### converts a list to a vector
 
-```scheme
+```x
 (write (Vector from-list (list 4 5 6)))
 ```
 ---
@@ -177,7 +177,7 @@
 
 ### creates a vector of repeated values
 
-```scheme
+```x
 (write (Vector make 3 0))
 ```
 ---
@@ -185,7 +185,7 @@
 
 ### creates a vector with custom fill
 
-```scheme
+```x
 (write (Vector make 2 7))
 ```
 ---
@@ -193,7 +193,7 @@
 
 ### creates an empty vector with make-vector
 
-```scheme
+```x
 (write (Vector make 0 0))
 ```
 ---
@@ -201,7 +201,7 @@
 
 ### write separates elements with spaces
 
-```scheme
+```x
 (write (Vector of 1 2))
 ```
 ---
@@ -212,7 +212,7 @@
 
 ### method form: a vector dispatches to Vector (subject appended last)
 
-```scheme
+```x
 ((Vector of 1 2 3) ->list)
 ```
 ---
@@ -220,7 +220,7 @@
 
 ### bare index call still works
 
-```scheme
+```x
 ((Vector of 10 20 30) 1)
 ```
 ---
@@ -230,7 +230,7 @@
 
 ### stores in place and chains
 
-```scheme
+```x
 (Vector ref 0 (Vector set! 0 99 (Vector of 1 2)))
 ```
 ---
@@ -238,7 +238,7 @@
 
 ### negative index counts from the end
 
-```scheme
+```x
 (do (def v (Vector of 1 2 3)) (Vector set! -1 9 v) v)
 ```
 ---
@@ -246,7 +246,7 @@
 
 ### errors past the end
 
-```scheme
+```x
 (Vector set! 5 9 (Vector of 1 2))
 ```
 ---
@@ -254,7 +254,7 @@
 
 ### rejects a non-vector receiver
 
-```scheme
+```x
 (Vector length 7)
 ```
 ---
@@ -262,7 +262,7 @@
 
 ### ref rejects a non-vector receiver
 
-```scheme
+```x
 (Vector ref 0 42)
 ```
 ---
@@ -270,7 +270,7 @@
 
 ### ref on a list no longer returns pair internals
 
-```scheme
+```x
 (Vector ref 0 (list 1 2 3))
 ```
 ---
@@ -278,7 +278,7 @@
 
 ### set! rejects a non-vector receiver
 
-```scheme
+```x
 (Vector set! 0 9 42)
 ```
 ---
@@ -286,7 +286,7 @@
 
 ### ->list rejects a non-vector receiver
 
-```scheme
+```x
 (Vector ->list 7)
 ```
 ---
@@ -297,7 +297,7 @@
 A negative n built a vector REPORTING length n, so every later bounds check
 compared against a lie.
 
-```scheme
+```x
 (list (guard (e (Err kind-of e)) (Vector make -5)) (Vector length (Vector make 0)))
 ```
 ---
