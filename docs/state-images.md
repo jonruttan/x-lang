@@ -1312,19 +1312,52 @@ no shape at all.
   which is a different answer to the cost [lang-scale.md](lang-scale.md)
   measures.
 
+### The suite, booted from images: measured
+
+The consumer arrived. `make test-x-img` writes one image per library the
+specs declare — 25 of the 29, keyed so a lib edit rewrites them all — and
+`tests/spec-runner.awk` boots each job from its image; `spec-runner.sh`
+drops the bucket to one file per job when images are on, because a boot
+that costs a third of a second no longer needs eight files to amortize it,
+and a one-file job is what the timeout, the alloc ceiling, the crash report
+and the parallel scheduler all wanted anyway. On the same box, the same
+suite (2,804 tests from source; the image runs add the image spec's 15),
+2026-09-05:
+
+| | from source, 8-file buckets | from images, one file per job |
+|---|--:|--:|
+| serial | 304s | 280s |
+| `PARALLEL=1` | 210s | 178s |
+
+Where the rest of the time is: the suite is test-bound, not boot-bound. The
+serial run's boots summed to roughly 70s before images and roughly 45s
+after (140 boots at a third of a second); the heaviest single jobs are
+tests — `bitwise-parity` 17s a file, `tools/pin` 25s, `sha256-jit` 15s —
+and images do not touch those. The three JIT dialects (`x-base`, `xe`,
+`rn`) are not imaged: their compiled tower entry points are unnameable
+(twelve words each), so their specs boot from source.
+
+Two facts the suite surfaced that the format doc now carries as invariants
+11 and 12: a value an image cannot carry (`num/float.x`'s libm handle) is
+a declared **transient**, written as nil and re-derived by the module's
+recache hook; and the interned `#t`/`#f` share the singletons' bytes,
+which `eq?` depends on and a rebuilt symbol had lost — `type/bool.x`'s hook
+points them back.
+
 ## Not decided
 
 - **The writer half needs a door.** Reading needs the shape declaration above
   and nothing else; writing objects back means setting type words and flags, which today is raw word
   surgery of the kind `lib/x/boot/reflect.x` already does in `%reflect-retag!`.
   Whether that stays reflective or earns a primitive is open.
-- **How the runner knows an image is stale.** One image per library, 28 of
-  them for the suite, each invalid the moment its sources change. The header's
-  digests catch a changed *engine*, not changed x source, and a suite that
-  silently tests a stale library is worse than a slow one. Whether that is a
-  content hash over the library's transitive includes, a make dependency, or
-  something the pin vocabulary already answers, is undecided — and it is the
-  gate on using images in the suite at all.
+- ~~**How the runner knows an image is stale.**~~ Decided, and it is a
+  content hash: `tools/dev/image-build.sh` keys each image on the library
+  file, every `.x` under `lib/`, `tests/x/lib/` and the engine's contract
+  directory, the writer and its helpers, and the engine binary, and rewrites
+  the image when the key beside it differs. The header's digests catch a
+  changed *engine*; the key catches changed x source, over-broadly on
+  purpose — a lib edit rewrites every image, a few seconds each — because a
+  suite that silently tests a stale library is worse than a slow one.
 - **How small the loader prelude can actually be.** The host must sit below
   the library (measured above), so the prelude is written against bare
   primitives. Nothing says yet how many lines that is, and if it turns out to

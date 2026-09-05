@@ -140,6 +140,11 @@
 ; the loader calls (%image-recache!) once its install is done, and nothing
 ; else does.
 (def %image-recache-hooks ())
+;  A value that is this process's alone and NOT recomputable from the image
+; -- float.x's dlopen handle -- is a TRANSIENT: the module names the global
+; here, the writer images it as nil, and the module's own thunk above
+; re-derives it.  Symbols, so the writer can clear them inside the child.
+(def %image-transients ())
 ;  In the order the modules added them: bool.x's retag resolves its handle
 ; through the tags this module recomputes, so this module's thunk runs first.
 (def %image-recache!

@@ -526,7 +526,20 @@ done
 # as before, one process instead of N.  Lower SPEC_BATCH on a
 # memory-constrained box (it composes with PARALLEL_JOBS); 1 restores
 # the old one-file-per-job behaviour exactly.
-: "${SPEC_BATCH:=8}"
+#
+# FROM A STATE IMAGE THE BUCKET IS ONE FILE.  The cap of eight exists to
+# amortize a library boot that costs a second from source; a boot from an
+# image costs a third of that, which is less than the bucket was ever
+# saving per file, and a one-file job is what every other guard here wants:
+# the timeout and the alloc ceiling bound one file's work, a crash names
+# its file, and the parallel scheduler places 140 small jobs where it
+# placed 45 uneven ones.  So the default follows the boot: X_IMG_DIR set
+# means images, and SPEC_BATCH still overrides either way.
+if [ -n "${X_IMG_DIR:-}" ]; then
+  : "${SPEC_BATCH:=1}"
+else
+  : "${SPEC_BATCH:=8}"
+fi
 if [ "$_args_mode" = 0 ]; then
   _CLS="$_TMPDIR/classes.lst"
   : > "$_CLS"

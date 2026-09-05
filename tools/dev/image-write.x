@@ -67,6 +67,15 @@
         (list (lit pair) (list (prim-ref (lit str) (lit append)) "" "--batch") (list (lit lit) ())))
       ; The path too: `include` records it in the child's file registry.
       (%B eval (list (lit include) (list (prim-ref (lit str) (lit append)) "" %IMG-LIB)))
+      ; A TRANSIENT IS IMAGED AS NIL.  reflect.x's %image-transients names
+      ; the globals whose value belongs to this process alone -- float.x's
+      ; libm handle -- and a recache hook of the same module re-derives each
+      ; once the loader has installed the image.  Cleared here, inside the
+      ; child, so the walk below never meets the word.  ONE FORM, walked by
+      ; the child over its own list: a version that fetched the list out
+      ; and evaluated a set! per name put child objects in this base's
+      ; hands between two collects, and the x-base writer died of it.
+      (guard (_ ()) (%B eval (lit ((fn (self l) (if (null? l) () (do (eval (list (lit set!) (first l) ())) (self (rest l))))) %image-transients))))
       ; The child has never collected.  Its own collect, evaluated inside it.
       (%B eval (list %collect))
       ; And this base may not collect while a walk holds a cursor into the

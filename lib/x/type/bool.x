@@ -65,10 +65,26 @@
 ;  The retag writes into two engine statics, and a state image carries no
 ; static's header (docs/state-image-format.md 5, step 5): redone when an
 ; image loads, through the hook list reflect.x runs.
+;  AND THE INTERNED NAMES SHARE THE SINGLETONS' BYTES.  Binding "#t" at
+; registration interns the name on the static's own bytes, and eq? --
+; identity, or an equal data word -- is what joins a `#t` the reader
+; produces to the evaluated one: (eq? (first (lit (#t))) #t).  The image
+; carries the two interned symbols with bytes of their own, so each is
+; pointed back at this process's singleton.
 (set! %image-recache-hooks
   (pair (fn (_)
           (do (%bool-retag #t %bool)
-              (%bool-retag #f %bool)))
+              (%bool-retag #f %bool)
+              ((fn (self l)
+                 (if (null? l) ()
+                   (do ((prim-ref (lit ptr) (lit set-word!))
+                        ((prim-ref (lit obj) (lit ->ptr)) ((prim-ref (lit str) (lit ->sym)) (first (first l))))
+                        %data-off-0
+                        ((prim-ref (lit ptr) (lit ref-word))
+                         ((prim-ref (lit obj) (lit ->ptr)) (first (rest (first l))))
+                         %data-off-0))
+                       (self (rest l)))))
+               (list (list "#t" #t) (list "#f" #f)))))
         %image-recache-hooks))
 
 (doc (provide x/type/bool)

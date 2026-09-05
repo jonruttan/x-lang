@@ -93,12 +93,22 @@
 ; --- Math library for strtod (needed by convert alist) ---
 ; Try libm.so.6 (Linux), libm.dylib (macOS), then fall back to current process
 
-(def %libm
-  (let ((h (%dlopen "libm.so.6" 1)))
-    (if h h
-      (let ((h2 (%dlopen "libm.dylib" 1)))
-        (if h2 h2
-          (%dlopen () 1))))))
+(def %libm-open
+  (fn (_)
+    (let ((h (%dlopen "libm.so.6" 1)))
+      (if h h
+        (let ((h2 (%dlopen "libm.dylib" 1)))
+          (if h2 h2
+            (%dlopen () 1)))))))
+(def %libm (%libm-open))
+; The handle is this process's alone -- a state image cannot carry it, and
+; log2/log10/hypot below reach it at call time -- so it is declared a
+; transient (imaged as nil) and re-opened once an image is installed.  The
+; function pointers resolved through it need nothing: each is a symbol the
+; writer names and the loader resolves again.
+(set! %image-transients (pair (lit %libm) %image-transients))
+(set! %image-recache-hooks
+  (pair (fn (_) (set! %libm (%libm-open))) %image-recache-hooks))
 
 (def %strtod (%dlsym %libm "strtod"))
 

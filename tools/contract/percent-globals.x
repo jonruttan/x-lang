@@ -123,18 +123,21 @@
 ; could hold it.  boot/reflect.x grows by two for %image-recache-hooks and
 ; %image-recache!: the list a module adds its address-recomputing thunk to, and
 ; the call the loader makes last; boot-level because reflect.x is where the
-; first cached address is made.  The six tools/dev/image-*.x rows are the
-; writer, loader, walk, naming, foreign-pointer and inspector scripts, written
-; in the tool-script shape; the writer co-loads with helium, the loader with
-; nothing at all (it runs on img).  They are inventory awaiting the pin.x
-; treatment, entered at their counts so the ratchet holds them from here.
+; first cached address is made.  A third, %image-transients, names the
+; globals an image cannot carry at all -- num/float.x's libm handle, which
+; rises by one for %libm-open, the re-opener its recache thunk calls.  The
+; six tools/dev/image-*.x rows are the writer, loader, walk, naming,
+; foreign-pointer and inspector scripts, written in the tool-script shape;
+; the writer co-loads with helium, the loader with nothing at all (it runs
+; on img).  They are inventory awaiting the pin.x treatment, entered at
+; their counts so the ratchet holds them from here.
 (file "lib/img.x" 37)
 (file "lib/x/boot/data.x" 14)
 (file "lib/x/boot/engine.x" 2)
 (file "lib/x/boot/module.x" 50)
 (file "lib/x/boot/operatives.x" 6)
 (file "lib/x/boot/printer.x" 74)
-(file "lib/x/boot/reflect.x" 31)
+(file "lib/x/boot/reflect.x" 32)
 (file "lib/x/boot/registry.x" 8)
 (file "lib/x/boot/string.x" 25)
 ; tower-compiled.x rose 18 to 20 for %tower-jit? and %tower-asm: the burst
@@ -176,7 +179,7 @@
 (file "lib/x/num/bigint.x" 64)
 (file "lib/x/num/complex.x" 41)
 (file "lib/x/num/decimal.x" 72)
-(file "lib/x/num/float.x" 60)
+(file "lib/x/num/float.x" 61)
 (file "lib/x/num/random.x" 6)
 (file "lib/x/num/tower.x" 10)
 (file "lib/x/num/rational.x" 39)
@@ -306,7 +309,7 @@
 (file "tools/dev/image-foreign.x" 8)
 (file "tools/dev/image-inspect.x" 23)
 (file "tools/dev/image-name.x" 26)
-(file "tools/dev/image-read.x" 55)
+(file "tools/dev/image-read.x" 57)
 (file "tools/dev/image-walk.x" 50)
 (file "tools/dev/image-write.x" 97)
 (file "tools/dev/lint.x" 22)

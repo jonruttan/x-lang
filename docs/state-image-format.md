@@ -327,6 +327,13 @@ structs and two indices; the loader does not care which is which.
    `%image-recache-hooks`, and this call runs them all, in the order they
    were added. Every image's
    library binds the name; `lib/img.x` binds it to nothing.
+   A value the image cannot carry at all -- `num/float.x`'s dlopen handle,
+   which no symbol names and which the module reaches again at call time
+   -- is a **transient**: the module lists the global in
+   `%image-transients`, the writer sets it to nil inside the child before
+   the walk, and the module's own hook re-derives it here. The function
+   pointers resolved through such a handle need nothing of the kind; each
+   is a symbol (§3.4).
 
 The loader is silent when a runner drives it; with `%IMG-VERBOSE` bound it
 prints one line of counts and the unresolved externals by name.
@@ -355,6 +362,12 @@ test, not the unit test.
 9. Unresolved externals: 0.
 10. `ctrl` cells are nil in the file and after install; the save-stack is
     empty when the next form is read.
+11. A declared transient is re-derived at install: in an image of a library
+    that loads `num/float.x`, the libm handle is a pointer after the load,
+    and the call-time path through it answers.
+12. A `#t` the reader produces after load is `eq?` to the evaluated `#t`:
+    the interned name shares the singleton's bytes, as it does in a fresh
+    base, where binding the name interned it on those bytes.
 
 ## 7. What must be true of the engine
 
