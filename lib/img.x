@@ -194,3 +194,6 @@
 (if (null? (prim-ref (lit type) (lit set-shape!)))
   ()
   (%img-declare-shapes! (first %reflect-type-alist-cell)))
+
+; The spec runner's seam between snippets, in direct mode (tests/spec-runner.awk).
+(def heap-collect (prim! (lit heap) (lit collect)))

@@ -114,12 +114,27 @@
 ; inside the two functions that use them, because a parse-local helper has no
 ; business in a flat global namespace.  #550.
 
+; STATE IMAGES.  lib/img.x is the loader's dialect, function-only by design:
+; it declares the engine's type shapes and rebuilds an image on a base with no
+; class system at all, so there is no class to home anything on, and its 37 are
+; the dialect's whole surface.  lib/x/type/shape-rows.x (2) is the rows that
+; dialect and lib/x/type/type.x (3) both read -- data by design -- and the three
+; in type.x are the per-base shape declaration that runs at boot, before Type
+; could hold it.  boot/reflect.x grows by two for %image-recache-hooks and
+; %image-recache!: the list a module adds its address-recomputing thunk to, and
+; the call the loader makes last; boot-level because reflect.x is where the
+; first cached address is made.  The six tools/dev/image-*.x rows are the
+; writer, loader, walk, naming, foreign-pointer and inspector scripts, written
+; in the tool-script shape; the writer co-loads with helium, the loader with
+; nothing at all (it runs on img).  They are inventory awaiting the pin.x
+; treatment, entered at their counts so the ratchet holds them from here.
+(file "lib/img.x" 37)
 (file "lib/x/boot/data.x" 14)
 (file "lib/x/boot/engine.x" 2)
 (file "lib/x/boot/module.x" 50)
 (file "lib/x/boot/operatives.x" 6)
 (file "lib/x/boot/printer.x" 74)
-(file "lib/x/boot/reflect.x" 29)
+(file "lib/x/boot/reflect.x" 31)
 (file "lib/x/boot/registry.x" 8)
 (file "lib/x/boot/string.x" 25)
 ; tower-compiled.x rose 18 to 20 for %tower-jit? and %tower-asm: the burst
@@ -257,8 +272,10 @@
 (file "lib/x/type/promise.x" 6)
 (file "lib/x/type/ptr.x" 3)
 (file "lib/x/type/regex.x" 41)
+(file "lib/x/type/shape-rows.x" 2)
 (file "lib/x/type/str-utf8.x" 14)
 (file "lib/x/type/struct.x" 48)
+(file "lib/x/type/type.x" 3)
 (file "lib/x/type/vector.x" 17)
 (file "tools/check/boot-order.x" 33)
 (file "tools/check/dialect-cover.x" 9)
@@ -276,5 +293,11 @@
 (file "tools/dev/doc.x" 4)
 (file "tools/dev/fmt.x" 13)
 (file "tools/dev/highlight.x" 8)
+(file "tools/dev/image-foreign.x" 8)
+(file "tools/dev/image-inspect.x" 23)
+(file "tools/dev/image-name.x" 26)
+(file "tools/dev/image-read.x" 55)
+(file "tools/dev/image-walk.x" 50)
+(file "tools/dev/image-write.x" 97)
 (file "tools/dev/lint.x" 22)
 (file "tools/fuzz/diff-gen.x" 18)

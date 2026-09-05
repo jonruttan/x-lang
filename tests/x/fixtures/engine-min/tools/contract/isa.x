@@ -51,7 +51,6 @@
 ; special-cases them.
 
 (def %isa-catalog (lit (
-                              ;   must exist in a bare env -- C by necessity (derived otherwise)
   (  base bind spine           )
   (  base def-global spine)
   (  base eval spine)
@@ -59,9 +58,8 @@
   (  base make-tok spine)
   (  base make-type spine)
   (  buf append tok)
-  (  buf make alloc            )
-                              ;   revives buffer construction from x. Added 2026-07-15 (user-approved)
   (  buf last-char tok)
+  (  buf make alloc            )
   (  buf read tok)
   (  buf read-text tok)
   (  buf reset tok)
@@ -70,7 +68,9 @@
   (  bytes ->str alloc)
   (  char ->int raw-op)
   (  ctrl call/cc spine)
-                              ;   walk of millions of objects takes minutes vs ms -- perf-pinned in C
+  (  image rebuild! alloc)
+  (  image save! types)
+  (  image write! types)
   (  int % raw-op)
   (  int & raw-op)
   (  int * raw-op)
@@ -84,31 +84,22 @@
   (  int = raw-op)
   (  int >> raw-op)
   (  int ^ raw-op)
+  (  int abs raw-op)
   (  int | raw-op)
   (  int ~ raw-op)
   (  io read io)
   (  io read-char io)
   (  io repl-read io)
   (  io write-str io           )
-                              ;   the pure-X printer bottoms out here. UNCHECKED like first/rest --
-                              ;   callers pass a STR. Added 2026-07-14 (printer batch)
   (  iter empty? hot           )
   (  iter make types)
   (  iter next hot             )
   (  iter step hot             )
-                              ;   generator view of an iterator; Gen runs on C steps through this.
-                              ;   Added 2026-07-17 (iter recontract: pure steps + one driver)
   (  mem alloc alloc           )
-                              ;   Prefer (str make) (GC-owned). UNCHECKED like first/rest.
-                              ;   Added 2026-07-15 (user-approved: the missing malloc door)
   (  mem cmp raw-mem           )
-                              ;   The machine's rep-cmps; str=? bottoms out here. UNCHECKED.
-                              ;   Added 2026-07-15 (user-approved: block-op round)
   (  mem copy raw-mem          )
-                              ;   UNCHECKED. Added 2026-07-15 (user-approved: block-op round)
   (  mem free alloc            )
   (  mem set raw-mem           )
-                              ;   Added 2026-07-15 (user-approved: block-op round)
   (  obj ->ptr ffi)
   (  obj eq? raw-op)
   (  obj make alloc)
@@ -116,13 +107,20 @@
   (  obj same? raw-op)
   (  ptr ->int ffi)
   (  ptr ->obj ffi             )
-                              ;   object. UNCHECKED like first/rest. Added 2026-07-14 (user-approved) --
-                              ;   the ONE instruction that lets reflective X accessors return objects
   (  ptr ->str ffi)
+  (  ptr alloc raw-mem)
+  (  ptr copy! raw-mem)
+  (  ptr fill! raw-mem)
+  (  ptr free! raw-mem)
   (  ptr ref raw-mem)
   (  ptr ref-word raw-mem)
   (  ptr set! raw-mem)
   (  ptr set-word! raw-mem)
+  (  ptr strchr raw-mem)
+  (  ptr strcmp raw-mem)
+  (  ptr strlen raw-mem)
+  (  ptr strncmp raw-mem)
+  (  ptr strndup raw-mem)
   (  str ->ptr ffi)
   (  str ->sym alloc)
   (  str append alloc)
@@ -130,18 +128,13 @@
   (  str byte-ref hot          )
   (  str byte-sub raw-mem)
   (  str make alloc            )
-                              ;   byte-len sees n); the GC frees it -- no free door. Fill via
-                              ;   (str ->ptr) + raw-mem stores, File read, or FFI. UNCHECKED (n trusted).
-                              ;   Added 2026-07-15 (user-approved: make-str for File/FFI/buffers)
   (  sym ->str alloc)
   (  tok read tok)
   (  tok read-str tok)
   (  type ? hot                )
-                              ;   and per predicate call (pair?, str?, ...) -- the hottest sites in the system
   (  type make types)
   (  type make-instance alloc)
   (  type of hot               )
-                              ;   validator (%boot-cell?) and the predicate layer call it per invocation
   (  type set-shape! types)
 )))
 

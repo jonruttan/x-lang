@@ -100,6 +100,7 @@ function collect() {
 	t_unit[tc] = unit
 	t_unit_hdr[tc] = unit_hdr
 	t_lib[tc] = lib
+	t_direct[tc] = direct
 	t_full[tc] = expect_full
 
 	unit_hdr = ""
@@ -109,7 +110,7 @@ function collect() {
 }
 
 function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, got, boundary_done, seen, want, _tn, _tp) {
-	if (repl_cmd == " ") {
+	if (repl_cmd == " " || t_direct[from]) {
 		# Direct mode: feed tests to the lang REPL without
 		# %T harness or (begin ...) wrapper.  Used by Sweet where
 		# indentation-based grouping must see raw newlines/tokens.
@@ -394,6 +395,10 @@ fenced == 1 { next }
 
 # Comments and metadata (only in IDLE state)
 state == 0 && /^# @no-seam-collect/ { noseam = 1 }
+# Direct mode for one file: its snippets go to the dialect's own read-eval
+# loop, unwrapped, and print for themselves -- the shape for a dialect with
+# no `Io read` and no REPL printer (lib/img.x, the state-image loader's host).
+state == 0 && /^# @direct/ { direct = 1 }
 
 state == 0 && /^# @lib / {
 	# THE WRAPPER IS THE CONTRACT.  @lib paths resolve against LANG_LIB's

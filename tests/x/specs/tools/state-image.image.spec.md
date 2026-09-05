@@ -1,4 +1,5 @@
 # State image: the format's invariants, checked on a loaded image
+# @weight 5
 # @lib x.x
 
 Each test here is one invariant of [docs/state-image-format.md](../../../../docs/state-image-format.md)
