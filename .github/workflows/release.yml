@@ -21,6 +21,8 @@ on:
 
 permissions:
   contents: write
+  # the gate reads ci.yml's verdict for the tagged commit
+  actions: read
 
 jobs:
   artifacts:
@@ -33,33 +35,61 @@ jobs:
         run: make engine
       - name: Build
         run: make
-      # The full gate stands between a tag and its artifacts: a tag on a
-      # red tree publishes nothing.  test-x writes its state images here
+      # THE GATE STANDS BETWEEN A TAG AND ITS ARTIFACTS: a tag on a red
+      # tree publishes nothing.  But a tag lands on a commit ci.yml has
+      # ALREADY judged -- every push to main runs the full contract gates,
+      # both spec suites, conformance, doctests, examples, lint and docs,
+      # on both platforms -- and re-running the same half hour here on the
+      # same bytes bought nothing but a second chance to fail.  It took
+      # that chance: the v0.11.0 tag died twice in this step, on a lint
+      # width ci.yml had already pinned, and every retry cost forty
+      # minutes.  So the gate ASKS for that verdict first and runs the
+      # suite itself only when there is none -- a tag on a commit CI never
+      # saw still pays in full.  The one target ci.yml cannot run is run
+      # here regardless: check-release-version fires only AT a tag.
+      # When the suite does run here, test-x writes its state images
       # uncached, about two minutes: a release run is rare and a second
       # copy of ci.yml's cache key is a fact nobody would keep in step.
-      - name: Full gate
-        run: make test
+      - name: Gate
         env:
+          GH_TOKEN: ${{ github.token }}
+          # For the fallback, when the suite does run here.  SPEC_HEAVY_JOBS
+          # (2026-08-20): at the heavy-spec window the 16GB ubuntu runner
+          # cannot hold two ~5-9GB x-bin heaps -- the v0.5.0 run died there
+          # (test-x, `recursion`, exit 143); one heavy spec in flight bounds
+          # it at one heap.  NPROC: the same lesson one target later.  A
+          # lint child peaks past 2GB now that a batch lints eight files in
+          # one boot (#323), and four of them killed this runner twice
+          # (v0.11.0, SIGTERM 143, the same file both times).  Two is the
+          # width ci.yml has run green since its own pin.
           PARALLEL: "1"
-          # The 2026-08-20 lesson from ci.yml's specs job, which this step
-          # never inherited: at the heavy-spec window the 16GB ubuntu runner
-          # cannot hold two ~5-9GB x-bin heaps at once -- the v0.5.0 release
-          # run died exactly there (test-x, `recursion`, exit 143) the moment
-          # the conformance fix let the gate run far enough to reach it.  One
-          # heavy spec in flight bounds the window at one big heap.
           SPEC_HEAVY_JOBS: "1"
-          # THE SAME LESSON, ONE TARGET LATER.  ci.yml pins NPROC=2 for lint
-          # on its ubuntu leg -- two main runs OOM-killed at lint.sh's
-          # derived width of four, SIGTERM 143 -- and this step, which
-          # reaches lint-x through `make test`, never inherited that pin
-          # either.  The v0.11.0 tag died there twice, identically: every
-          # spec green, then four lint children, then the runner's shutdown
-          # signal about two minutes in, at the same file both times.  A
-          # child is no longer the ~600MB lint.sh's note measured; batching
-          # by preload signature (#323) lints up to eight files in one boot,
-          # and with no collect between them a child now peaks past 2GB.
-          # Two in flight is what the box holds.  Same width ci.yml runs.
           NPROC: "2"
+        run: |
+          set -e
+          make check-release-version
+          # ci.yml's run for THIS sha -- the push to main the tag sits on.
+          # Still in flight: wait for it rather than duplicate it.
+          runs() {
+            gh run list --workflow=ci.yml --event push --commit "$GITHUB_SHA" \
+              --json status,conclusion --jq "$1"
+          }
+          waited=0
+          while [ "$(runs '[.[] | select(.status != "completed")] | length')" != "0" ] \
+                && [ "$waited" -lt 2400 ]; do
+            echo "gate: ci.yml is still judging $GITHUB_SHA -- waiting (${waited}s)"
+            sleep 60; waited=$((waited + 60))
+          done
+          # ANY green run for the sha counts: a cancelled or superseded run
+          # beside a passing one is still a judged commit.
+          verdict=$(runs '[.[] | select(.status == "completed") | .conclusion]
+                          | if index("success") then "success" else (.[0] // "none") end')
+          if [ "$verdict" = "success" ]; then
+            echo "gate: ci.yml already passed $GITHUB_SHA -- not running the suite twice"
+          else
+            echo "gate: no green ci.yml run for $GITHUB_SHA (got '$verdict') -- running the full gate here"
+            make test
+          fi
       - name: Amalgams + manifest
         run: |
           make boot
