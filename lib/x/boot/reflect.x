@@ -133,6 +133,28 @@
 (def %reflect-spair-tw
   (%reflect-type-word (rest (first (first %reflect-type-alist-cell)))))
 
+;  THOSE TWO ARE ADDRESSES, AND ADDRESSES DO NOT SURVIVE A STATE IMAGE
+; (docs/state-image-format.md 5.5): the loader rebuilds every object at a
+; new address, and the engine's statics sit wherever that process put
+; them.  A module that caches an address adds a thunk that recomputes it;
+; the loader calls (%image-recache!) once its install is done, and nothing
+; else does.
+(def %image-recache-hooks ())
+;  In the order the modules added them: bool.x's retag resolves its handle
+; through the tags this module recomputes, so this module's thunk runs first.
+(def %image-recache!
+  (fn (_)
+    ((fn (self l) (if (null? l) () (do ((first l)) (self (rest l)))))
+     ((fn (self l acc) (if (null? l) acc (self (rest l) (pair (first l) acc))))
+      %image-recache-hooks ()))))
+(set! %image-recache-hooks
+  (pair (fn (_)
+          (do (set! %reflect-satom-tw
+                (%reflect-type-word ((prim-ref (lit type) (lit of)) 0)))
+              (set! %reflect-spair-tw
+                (%reflect-type-word (rest (first (first %reflect-type-alist-cell)))))))
+        %image-recache-hooks))
+
 ; THE TYPE-TAG TRAP predicate: does this type word mark a type HANDLE
 ; rather than an instance?  Both sentinel tags qualify -- the static-atom
 ; tag (bare handle atoms) and the structural-pair tag (registered

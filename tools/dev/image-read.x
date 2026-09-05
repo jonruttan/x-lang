@@ -1,333 +1,261 @@
-; image-read.x -- read a state image back and rebuild its object graph.
+; image-read.x -- load a state image into THIS base.  docs/state-image-format.md
+; is the contract; section numbers below are its.
 ;
-;   sh x.sh -q -f tools/dev/image-write.x           # write /tmp/x-core.ximg
-;   X_BIN=<engine-with-image-rebuild> sh x.sh -q -l img -f tools/dev/image-read.x
+;   { echo '(def %IMG-PATH "/tmp/x-core.ximg")'; cat tools/dev/image-read.x;
+;     echo '(write (list 1 2 3))'; } | sh x.sh -q -l img
 ;
-; NEEDS AN ENGINE CARRYING (image rebuild!), which the pinned one does not yet.
+; Runs on the img dialect (lib/img.x): functions and operatives, no classes.
+; %IMG-PATH names the file; without it the writer's default is read.  Bound
+; by a runner, the loader prints nothing -- its stdout is the batch's; with
+; %IMG-VERBOSE bound it prints one line of counts and names every external
+; that did not resolve.
 ;
-; RUNS ON THE img DIALECT (lib/img.x), NOT HELIUM.  The host is the floor under
-; every load, and helium's 0.88s boot was 96% of a 2.3s load; on img the same
-; load is under half a second against 0.90s to boot the x-core it replaces.
-; Nothing here touches a class: (obj ref)/(obj set!) are img's, type names and
-; units cells come from the base-paths rows, strings are the byte prims.
-;
-; WHAT IS RESTORED: the env chain and the globals tree (two roots), and every
-; type's handler stacks (the type-cell table) -- so the loaded image prints
-; through its own printers and dispatches through its own classes.  What is
-; not: the base's tokenizer table (a `todo` subtree of base-layout.x, this
-; base keeps its own) and %token-eof, an engine-registered global whose
-; static the writer cannot yet name.
-;
-; THE SPLIT THIS DEMONSTRATES.  X resolves the tables -- verifying the header,
-; matching each file type NAME to a live type, reacquiring foreign addresses by
-; name, walking base paths for the statics -- which is per-entry work over a few
-; hundred items.  One primitive does the only per-object work there is: two
-; passes over ~86k records, allocate then patch.
-;
-; That division is not stylistic.  The same two passes written in x take ~30s
-; and allocate garbage nothing collects, because collection is manual and a
-; per-object interpreted loop has nowhere safe to collect; it exhausted a
-; machine's memory.  Through the primitive the whole rebuild is ~0.5s on top of
-; helium's boot.
-;
-; NOTHING ABOUT SHAPE COMES OUT OF THE FILE.  Unit counts and kinds are the
-; LIVE type's, through (Type set-shape!), which is why there is no extent table
-; and no mask column.  The reader proves it: it walks the object table with no
-; length field anywhere and lands exactly on the declared word count.
-;
-; The three NON-HEAP tags are the exception, and the only shape the reader
-; states itself: a structural PAIR is two references, a static ATOM one word,
-; nil-typed one word.  image-walk.x's %over-tw says the same when writing.
-; They have no live type to ask, so their counts go to the primitive in a
-; table -- fifteen words, not per-object.
+; What it does, in the contract's order (spec 5): read the file and refuse a
+; word size, byte order or engine release that is not this process's;
+; resolve every external to an object or an address; rebuild the object
+; table in one primitive; then write the roots into this base's language
+; cells as ONE form of nested primitive calls, env group last, tree last of
+; all.  After that form nothing here resolves and the next form on stdin
+; evaluates inside the image.
 ;
 ; @author [Jon Ruttan](jonruttan@gmail.com)
 ; @copyright 2026 Jon Ruttan
 ; @license MIT No Attribution (MIT-0)
 
-(include "tools/dev/image-walk.x")
-(def %dlopen (prim! (lit ffi) (lit dlopen)))
-(def %dlsym (prim! (lit ffi) (lit dlsym)))
-(def %lib0 (%dlopen () 1))
-; The engine's own read and allocator, not libc's.  dlopen stays only for
-; reacquiring foreign ADDRESSES by name, which is the dynamic linker's job and
-; nothing else's.
-(def %sread (prim! (lit sys) (lit read)))
-(def %alloc (prim! (lit ptr) (lit alloc)))
-(def %i2p (prim! (lit int) (lit ->ptr)))
-(def %p2i (prim! (lit ptr) (lit ->int)))
-(def %sopen (prim! (lit sys) (lit open)))
+(def IMG (guard (_ "/tmp/x.ximg") (eval (lit %IMG-PATH))))
+(def QUIET (guard (_ #f) (do (eval (lit %IMG-PATH)) #t)))
+(def VERBOSE (guard (_ #f) (do (eval (lit %IMG-VERBOSE)) #t)))
+
+(def %sread  (prim! (lit sys) (lit read)))
+(def %sopen  (prim! (lit sys) (lit open)))
 (def %sclose (prim! (lit sys) (lit close)))
-(def %beval (prim! (lit base) (lit eval)))
+(def %alloc  (prim! (lit ptr) (lit alloc)))
+(def %rw     (prim! (lit ptr) (lit ref-word)))
+(def %psw    (prim! (lit ptr) (lit set-word!)))
+(def %p2i    (prim! (lit ptr) (lit ->int)))
+(def %i2p    (prim! (lit int) (lit ->ptr)))
+(def %p2o    (prim! (lit ptr) (lit ->obj)))
+(def %p->s   (prim! (lit ptr) (lit ->str)))
+(def %strcmp (prim! (lit ptr) (lit strcmp)))
+(def %dlopen (prim! (lit ffi) (lit dlopen)))
+(def %dlsym  (prim! (lit ffi) (lit dlsym)))
+(def %->sym  (prim! (lit str) (lit ->sym)))
+(def %i+ (prim! (lit int) (lit +)))  (def %i- (prim! (lit int) (lit -)))
+(def %i* (prim! (lit int) (lit *)))  (def %lt (prim! (lit int) (lit <)))
+(def %shr (prim! (lit int) (lit >>))) (def %i& (prim! (lit int) (lit &)))
 (def %mk (prim! (lit obj) (lit make)))
-; Not (obj set!)/(obj ref): those are library definitions, absent from a bare
-; base, and the img dialect supplies its own.
-(def %oset! %obj-set!)
-(def %oref %obj-ref)
-(def %psw (prim! (lit ptr) (lit set-word!)))
-(def %i+ (prim! (lit int) (lit +)))  (def %i* (prim! (lit int) (lit *)))
-(def %i- (prim! (lit int) (lit -)))  (def %lt (prim! (lit int) (lit <)))
 (def W %word-size)
-(def buf (%alloc (* 8 1000000)))
-(def fd (%sopen "/tmp/x-core.ximg" 0))          ; 0 is O_RDONLY
-(def got (%sread fd buf (* 8 1000000)))
+;  Say what, then raise: the bare engine renders a raised pair as "error".
+(def %symbytes (fn (_ o) (%i2p (%ptr-ref-word (%obj->ptr o) (%data-word-off 0)))))
+(def %fail
+  (fn (_ what)
+    (display "image: ")
+    (if (null? what) () (display (%p->s (%symbytes (if (eq? (%reflect-type-word what) (%reflect-type-word (pair 1 2))) (first what) what)))))
+    (newline)
+    (error "image load failed")))
+
+; --- the file (spec 3.1) ------------------------------------------------------
+(def CAP (* 8 8000000))
+(def buf (%alloc CAP))
+(def fd (%sopen IMG 0))
+(if (%lt fd 0) (%fail (pair (lit open-failed) IMG)) ())
+(def got (%sread fd buf CAP))
 (%sclose fd)
+(if (%lt got CAP) () (%fail (lit larger-than-the-buffer)))
 (def w (fn (_ i) (%rw buf (%i* i W))))
 (def at (fn (_ i) (%i+ (%p2i buf) (%i* i W))))
-(def N (w 4)) (def OBJW (w 5)) (def ROOTENV (w 7)) (def ROOTG (w 12))
-(def FCOUNT (w 8)) (def FWORDS (w 9)) (def TCOUNT (w 10)) (def TWORDS (w 11))
-(def SCOUNT (w 13)) (def SWORDS (w 14))
-(def CCOUNT (w 15)) (def CWORDS (w 16))
-(def TSTART 17)
-(def SSTART (%i+ TSTART TWORDS))
-(def CSTART (%i+ SSTART SWORDS))
-(def FSTART (%i+ CSTART CWORDS))
-(def OSTART (%i+ FSTART FWORDS))
+(if (eq? (w 0) 1196247384) () (%fail (lit not-an-image)))
+(if (eq? (w 1) 1) () (%fail (pair (lit version) (w 1))))
+(if (eq? (w 2) W) () (%fail (pair (lit word-size) (w 2))))
+(if (eq? (w 3) 1) () (%fail (lit byte-order)))
+(def N (w 4)) (def OBJW (w 5)) (def BLOBN (w 6))
+(def XCOUNT (w 7)) (def XWORDS (w 8))
+(def RTCOUNT (w 9)) (def RTWORDS (w 10))
+(def RELEASE (w 12))
+(def XSTART 13)
+(def RTSTART (%i+ XSTART XWORDS))
+(def OSTART (%i+ RTSTART RTWORDS))
 (def BSTART (%i+ OSTART OBJW))
+(def BLOB (at BSTART))
+; The engine release: [len][bytes] at RELEASE in the blob, against this
+; process's x-release.  An image is a heap laid out by one build.
+(def %strp (fn (_ s) (%i2p (%ptr-ref-word (%obj->ptr s) (%data-word-off 0)))))
+(if (eq? 0 (%strcmp (%i2p (%i+ BLOB (%i+ RELEASE W))) (%strp x-release))) ()
+  (%fail (pair (lit engine-release) (%p->s (%i2p (%i+ BLOB (%i+ RELEASE W)))))))
+
+; --- names in the tables (spec 3.2) -----------------------------------------
+(def %words-for (fn (_ n) (%i+ 1 (%shr (%i+ n 1) 3))))
+(def %name-at (fn (_ pos) (%p->s (%i2p (at (%i+ pos 1))))))   ; pos: the len word
+(def %after-name (fn (_ pos) (%i+ pos (%i+ 1 (%words-for (w pos))))))
+(def %str-byte-ref (prim! (lit str) (lit byte-ref)))
+(def %split
+  (fn (self s i n sep)
+    (if (eq? i n) ()
+      (if (eq? (%str-byte-ref s i) sep) i (self s (%i+ i 1) n sep)))))
+(def SLASH (%str-byte-ref "/" 0))
+(def SPACE (%str-byte-ref " " 0))
+(def %head (fn (_ s i) (%str-byte-sub s 0 i)))
+(def %tail (fn (_ s i) (%str-byte-sub s (%i+ i 1) (%i- (%str-byte-len s) (%i+ i 1)))))
+
+; --- externals (spec 3.4) -------------------------------------------------------
+; Entry k of XV is an object (kinds 6-8) or an integer address (kinds 1-5).
+; Every engine type this base registers lazily is registered first, so a
+; type-static row of a type the image used has a struct to be walked here.
+((prim! (lit ptr) (lit alloc)) 8)
+(guard (_ ()) ((prim! (lit buf) (lit make)) ""))
+(guard (_ ()) ((prim! (lit iter) (lit make)) (pair 1 2) ()))
 (def PT ((prim! (lit type) (lit of)) (pair 1 2)))
 (def mkn (fn (_ n) (%mk PT (if (%lt n 1) 1 n))))
-
-; The base the image is installed INTO.  It has to exist before the statics are
-; resolved: a static reference is a walk from a base, and the walk has to start
-; at the base the rebuilt graph will live in, not at the one doing the reading.
-; Resolving them against the reader's own base would wire the loaded env to
-; this process's spine.
-(def RAWB ((prim! (lit base) (lit make))))
-
-; --- live shapes by name ---------------------------------------------------
-; A type's name as a RAW BYTE POINTER, not an x string.  Names in the file are
-; already bytes in the image buffer; lifting each one into a string to compare
-; it allocated 954 strings for the statics table alone and then compared them
-; through class dispatch.  (ptr strcmp) compares them where they lie.
-(def %strcmp (prim! (lit ptr) (lit strcmp)))
-(def %namep (fn (_ s) (%i2p (%word-at (%o->p s) 0))))
-(def SHAPES ())   ; (name . (units-cell . struct))
-(def add-shape
-  (fn (self l)
-    (if (null? l) ()
-      (do (set! SHAPES (pair (pair (%namep (%type-name (rest (first l))))
-                                   (pair (first (%type-units-cell (rest (first l))))
-                                         (rest (first l)))) SHAPES))
-          (self (rest l))))))
-; The reader's own type registry, not B's -- and that is a constraint worth
-; naming: an image of helium CANNOT be loaded into a bare base.  It references
-; fifteen types by name and a fresh (Base make) does not have VECTOR, PROMISE
-; or ITER, so the shape lookup misses, units-of returns 0, and the record walk
-; desyncs on the first such object.  A loader's base must already carry the
-; type registry the image was written against.
-(add-shape (first %reflect-type-alist-cell))
-(def lookup
-  (fn (self l nm)
-    (if (null? l) ()
-      (if (eq? (%strcmp (first (first l)) nm) 0) (rest (first l)) (self (rest l) nm)))))
-(def tagged (fn (_ nm) (if (str=? nm "PAIR") (pair 2 0) (if (str=? nm "ATOM") (pair 1 1) (if (str=? nm "NIL") (pair 1 1) ())))))
-; Types the file names and this base lacks -- CLASS and OBJECT are the
-; library's, registered by lib/x/type/class.x, and a loader that has not run
-; the library has neither.  Register them empty so the type-rooted statics have
-; a struct to walk from and the rebuild has a type to make instances of; the
-; type-cell table fills their stacks after the rebuild.
-(def %type-make (prim! (lit type) (lit make)))
-(def ensure-types
-  (fn (self i pos)
-    (if (%lt TCOUNT i) ()
-      (do ((fn (_ nm)
-             (if (null? (lookup SHAPES nm))
-                 (if (null? (tagged nm)) (%type-make nm ()) ())
-                 ()))
-           (%p->s (%i2p (at (%i+ pos 1)))))
-          (self (%i+ i 1) (%i+ pos (%i+ 2 (%shr (w pos) 3))))))))
-(ensure-types 1 TSTART)
-; The cell table names every type the writer's base had, instanced or not.
-(def ensure-cell-types
-  (fn (self i pos)
-    (if (%lt CCOUNT i) ()
-      (do ((fn (_ nm) (if (null? (lookup SHAPES nm)) (%type-make nm ()) ()))
-           (%p->s (%i2p (at (%i+ pos 2)))))
-          (self (%i+ i 1) (%cell-next pos))))))
-; [index][name-len][name...][nsteps][steps...]: the statics' type-rooted
-; layout without its tag word, so the name and the steps parse the same way.
-(def %cell-np (fn (_ pos) (%i+ pos (%i+ 3 (%shr (w (%i+ pos 1)) 3)))))
-(def %cell-next (fn (_ pos) ((fn (_ np) (%i+ np (%i+ 1 (w np)))) (%cell-np pos))))
-(ensure-cell-types 1 CSTART)
-(set! SHAPES ())
-(add-shape (first %reflect-type-alist-cell))
-(def TN (mkn (%i+ TCOUNT 1)))  (def TS (mkn (%i+ TCOUNT 1)))  (def TT (mkn (%i+ TCOUNT 1)))
-(def TCNT (mkn (%i+ TCOUNT 1)))
-(def rdtypes
-  (fn (self i pos)
-    (if (%lt TCOUNT i) ()
-      ((fn (_ nm) (do (%oset! TN i nm)
-                      (%oset! TS i ((fn (_ e) (if (null? e) () (first e))) (lookup SHAPES nm)))
-                      (%oset! TT i ((fn (_ e) (if (null? e) () (rest e))) (lookup SHAPES nm)))
-                      (%oset! TCNT i ((fn (_ t) (if (null? t) -1 (first t))) (tagged nm)))
-                      (self (%i+ i 1) (%i+ pos (%i+ 2 (%shr (w pos) 3))))))
-       (%p->s (%i2p (at (%i+ pos 1))))))))
-(rdtypes 1 TSTART)
-; Which index the file calls SYMBOL: the primitive interns those by name
-; instead of rebuilding them, because the evaluator matches symbols by identity.
-(def SYMTI
-  ((fn (self i) (if (%lt TCOUNT i) -1
-                  (if (str=? (%oref TN i) "SYMBOL") i (self (%i+ i 1))))) 1))
-(def units-of
-  (fn (_ ti pos)
-    ((fn (_ t) (if (null? t) (%uheap ti pos) (first t))) (tagged (%oref TN ti)))))
-(def %uheap
-  (fn (_ ti pos)
-    ((fn (_ u) (if (null? u) 0 ((fn (_ c) (if (%lt c 0) (%i+ (w (%i+ pos 2)) (%i- 0 c)) c)) (%sh-count u))))
-     (%oref TS ti))))
-(def kind-of
-  (fn (_ ti j)
-    ((fn (_ t) (if (null? t) (%kheap ti j) (rest t))) (tagged (%oref TN ti)))))
-(def %kheap
-  (fn (_ ti j)
-    ((fn (_ u) (if (null? u) 1 (%kind (%sh-mask u) j (%sh-desc (%sh-count u))))) (%oref TS ti))))
-
-; --- statics: walk the declared steps from THIS base ------------------------
-(def ST (mkn (%i+ SCOUNT 1)))
-(def stepwalk
-  (fn (self v n pos)
-    (if (eq? n 0) v (self (if (eq? (w pos) 0) (first v) (rest v)) (%i- n 1) (%i+ pos 1)))))
-; Two forms.  A base path is steps from the base.  A TYPE path is a type NAME
-; plus steps from that type's struct -- portable where a positional path is
-; not, because a loader's type registry differs from the writer's.
-; env-alist is a CELL: its value lives in the cell's first slot, so installing
-; is a write into the cell.  env-global-tree is a SLOT: the value IS what the
-; path reaches, so installing means writing into its PARENT, at whichever half
-; the last step names.  base-layout.x is what says which is which.
-(include "engine/tools/contract/base-paths.x")
-(def %row-steps
-  (fn (self rows nm)
-    (if (null? rows) ()
-      (if (eq? (first (first rows)) nm) (rest (rest (first rows)))
-        (self (rest rows) nm)))))
-(def %but-last
-  (fn (self l) (if (null? (rest l)) () (pair (first l) (self (rest l))))))
-(def %last (fn (self l) (if (null? (rest l)) (first l) (self (rest l)))))
-(def %walk-steps
-  (fn (self v steps)
-    (if (null? steps) v (self (if (eq? (first steps) (lit f)) (first v) (rest v)) (rest steps)))))
-(def %install-slot!
-  (fn (_ nm v)
-    ((fn (_ steps)
-       (%oset! (%walk-steps RAWB (%but-last steps))
-               (if (eq? (%last steps) (lit f)) 0 1) v))
-     (%row-steps %base-paths nm))))
-
-(def tstruct
-  (fn (_ nm) ((fn (_ e) (if (null? e) () (rest e))) (lookup SHAPES nm))))
-(def rdstatics
-  (fn (self i pos)
-    (if (%lt SCOUNT i) ()
-      (if (eq? (w pos) 1) (%st-type self i pos) (%st-path self i pos)))))
-(def %st-path
-  (fn (_ k i pos)
-    (do (%oset! ST i (stepwalk RAWB (w (%i+ pos 1)) (%i+ pos 2)))
-        (k (%i+ i 1) (%i+ pos (%i+ 2 (w (%i+ pos 1))))))))
-(def %st-type
-  (fn (_ k i pos)
-    ((fn (_ nl)
-       ((fn (_ nm np)
-          (do (%oset! ST i ((fn (_ st) (if (null? st) () (stepwalk st (w np) (%i+ np 1))))
-                            (tstruct nm)))
-              (k (%i+ i 1) (%i+ np (%i+ 1 (w np))))))
-        (%i2p (at (%i+ pos 2)))
-        (%i+ pos (%i+ 3 (%shr nl 3)))))
-     (w (%i+ pos 1)))))
-(rdstatics 1 SSTART)
-
-; --- foreign: reacquire by name --------------------------------------------
-(def FV (mkn (%i+ FCOUNT 1)))
-(def fnptr-of (fn (_ v) (%word-at (%o->p v) 0)))
-; (Str8 sub st len v): START, LENGTH, and the SUBJECT LAST -- methods dispatch
-; subject-last.  These calls had the string first and an END offset instead of
-; a length, so every catalog name raised into the guard and came back 0.  105 of
-; 145 foreign entries never resolved, and nothing noticed because until the
-; globals were installed nothing USED them.
-(def slash
-  (fn (self s i n)
-    (if (eq? i n) -1 (if (str=? (%str-byte-sub s i 1) "/") i (self s (%i+ i 1) n)))))
-(def resolve
+(def XV (mkn (%i+ XCOUNT 1)))
+(def %lib0 (%dlopen () 1))
+(def fnptr-of (fn (_ v) (%ptr-ref-word (%obj->ptr v) (%data-word-off 0))))
+(def %struct-named
+  (fn (self al nm)
+    (if (null? al) ()
+      (if (str=? (%type-name (rest (first al))) nm) (rest (first al)) (self (rest al) nm)))))
+(def %probe-units
+  ((fn (_ h) (first (%type-units-cell (rest (first (first %reflect-type-alist-cell))))))
+   ((prim! (lit type) (lit make)) "%img-probe" ())))
+(def %unresolved 0)
+(def %UNRESOLVED ())
+(def %miss (fn (_ kind nm) (do (set! %unresolved (%i+ %unresolved 1)) (set! %UNRESOLVED (pair (pair kind nm) %UNRESOLVED)) ())))
+(def %resolve
   (fn (_ kind nm)
-    (guard (_ 0)
-      (if (eq? kind 1) (%res-cat nm)
-        (if (eq? kind 2) (fnptr-of (eval ((prim! (lit str) (lit ->sym)) nm)))
+    (guard (_ (%miss kind nm))
+      (if (eq? kind 1)
+          ((fn (_ i) (fnptr-of (prim-ref (%->sym (%head nm i)) (%->sym (%tail nm i)))))
+           (%split nm 0 (%str-byte-len nm) SLASH))
+        (if (eq? kind 2) (fnptr-of (eval (%->sym nm)))
           (if (eq? kind 3) (%p2i (%dlsym %lib0 nm))
-            (if (eq? kind 4) (%res-typecall nm)
-              (if (eq? kind 5) (%p2i %lib0) 0))))))))
-; prim-ref is a BARE GLOBAL and it evaluates its arguments; (prim ref) is not a
-; coordinate and never was.  Every catalog entry raised into the guard and came
-; back 0 -- 105 of 145 foreign entries unresolved, `int/+` among them -- and a
-; 0 in a callable's slot 0 is a call through a null pointer, which is what the
-; installed image was doing.
-(def %->sym (prim! (lit str) (lit ->sym)))
-(def %res-cat
-  (fn (_ nm)
-    ((fn (_ i n)
-       (fnptr-of (prim-ref (%->sym (%str-byte-sub nm 0 i))
-                           (%->sym (%str-byte-sub nm (%i+ i 1) (%i- n (%i+ i 1)))))))
-     (slash nm 0 (%str-byte-len nm)) (%str-byte-len nm))))
-(def %res-typecall
-  (fn (_ nm) (if (str=? nm "PROCEDURE") (fnptr-of (fn (_ x) x)) (fnptr-of (op (x) x)))))
-(def rdforeign
-  (fn (self i pos)
-    (if (%lt FCOUNT i) ()
-      (do (%oset! FV i (resolve (w pos) (%p->s (%i2p (at (%i+ pos 2))))))
-          (self (%i+ i 1) (%i+ pos (%i+ 3 (%shr (w (%i+ pos 1)) 3))))))))
-(rdforeign 1 FSTART)
+            (if (eq? kind 4) (if (str=? nm "PROCEDURE") (fnptr-of (fn (_ x) x)) (fnptr-of (op (x) x)))
+              (if (eq? kind 5) (%p2i %lib0)
+                (if (eq? kind 6)
+                    (if (str=? nm "true") (first (%img-cell (lit true)))
+                      (if (str=? nm "false") (first (%img-cell (lit false)))
+                        (if (str=? nm "sigint") (first (%img-cell (lit sigint)))
+                          (if (str=? nm "token-eof") (eval (lit %token-eof))
+                            (if (str=? nm "units-pair") %probe-units
+                              (%miss kind nm))))))
+                  (if (eq? kind 7)
+                      ((fn (_ i)
+                         ((fn (_ st) (if (null? st) (%miss kind nm) (%img-of st (%->sym (%tail nm i)))))
+                          (%struct-named (first %reflect-type-alist-cell) (%head nm i))))
+                       (%split nm 0 (%str-byte-len nm) SPACE))
+                    (if (eq? kind 8)
+                        (if (str=? nm "base") (%base) (%img-walk (%base) (%img-row %base-paths (%->sym nm))))
+                        (%miss kind nm))))))))))))
+(def rdexternals
+  (fn (self k pos)
+    (if (%lt XCOUNT k) ()
+      (do (%obj-set! XV k (%resolve (w pos) (%name-at (%i+ pos 1))))
+          (self (%i+ k 1) (%after-name (%i+ pos 1)))))))
+(rdexternals 1 XSTART)
 
-; --- allocate, then patch every unit ---------------------------------------
-(def mkt
-  (fn (_ ti n)
-    ((fn (_ st) (if (null? st) (mkn n) (%mk st (if (%lt n 1) 1 n)))) (%oref TT ti))))
-(def mkt-unused ())
-; RAW MEMORY, not an object: an obj make of ~95k units cost 612ms of a 1.5s
-; load, more than every other phase together.  The collector need not see it --
-; rebuilt objects are on the heap chain from birth, and nothing collects
-; between the rebuild and the install.
+; --- rebuild (spec 5.3) ------------------------------------------------------------
 (def IX (%alloc (%i* (%i+ N 1) W)))
-; The index is raw memory now, so reading an entry is a word read and a cast,
-; not (obj ref).
-(def %p2o (prim! (lit ptr) (lit ->obj)))
-(def ixref (fn (_ ix i) (%p2o (%i2p (%rw ix (%i* i W))))))
-(def alloc
+((prim! (lit image) (lit rebuild!)) buf OSTART N XV (%i+ XCOUNT 1) (%i2p BLOB) IX)
+(def ixref (fn (_ i) (%p2o (%i2p (%rw IX (%i* i W))))))
+(def %ref-obj
+  (fn (_ r) (if (eq? r 0) () (if (%lt 0 r) (ixref r) (%obj-ref XV (%i- 0 r))))))
+
+; --- roots (spec 3.5): name -> ref ---------------------------------------------------
+(def ROOTS ())
+(def rdroots
   (fn (self i pos)
-    (if (%lt N i) pos
-      ((fn (_ n) (do (%oset! IX i (mkt (w pos) n)) (self (%i+ i 1) (%i+ pos (%i+ 2 n)))))
-       (units-of (w pos) pos)))))
+    (if (%lt RTCOUNT i) ()
+      ((fn (_ np)
+         (do (set! ROOTS (pair (pair (%name-at pos) (w np)) ROOTS))
+             (self (%i+ i 1) (%i+ np 1))))
+       (%after-name pos)))))
+(rdroots 1 RTSTART)
+;  A root's name in the file is a string; the contract's is a symbol.  Both
+; carry their bytes in word 0, so one strcmp compares them.
+(def %name=? (fn (_ sym str) (eq? 0 (%strcmp (%strp sym) (%strp str)))))
+(def %root-ref
+  (fn (self l nm)
+    (if (null? l) (%fail (pair (lit root-not-in-image) nm))
+      (if (%name=? nm (first (first l))) (rest (first l)) (self (rest l) nm)))))
 
-; --- the whole rebuild, in one primitive ------------------------------------
-; X resolved the tables; C does the only per-object work there is.
-; --- the type cells: hang each imaged handler list from the live struct -----
-; A `-stack` row reaches a list HEAD; the slot that holds it is the half of
-; the parent the last step names.  Walk nsteps-1 from this base's struct, set
-; that half.  Every handler the list holds is an imaged object or a static
-; that already resolved to this base's own C handler.
-(def %install-cell!
-  (fn (_ ix idx st np)
-    (%oset! (stepwalk st (%i- (w np) 1) (%i+ np 1))
-            (w (%i+ np (w np)))            ; the last step: 0 first, 1 rest
-            (ixref ix idx))))
-(def rdcells
-  (fn (self ix i pos)
-    (if (%lt CCOUNT i) ()
-      (do ((fn (_ st) (if (null? st) () (%install-cell! ix (w pos) st (%cell-np pos))))
-           (tstruct (%p->s (%i2p (at (%i+ pos 2))))))
-          (self ix (%i+ i 1) (%cell-next pos))))))
+; The contract's language cells, read as data the same way the writer reads
+; them, so the two agree on what is a cell and what a slot.
+(def %LANG ())
+(def %IN-BUILD #f)
+(def %eval-all (fn (self l e) (if (null? l) () (do (eval (first l) e) (self (rest l) e)))))
+(def cell (op (nm) e (do (if %IN-BUILD (set! %LANG (pair (pair nm (lit cell)) %LANG)) ()) ())))
+(def slot (op (nm) e (do (if %IN-BUILD (set! %LANG (pair (pair nm (lit slot)) %LANG)) ()) ())))
+(def todo (op (nm) e ()))
+(def nil (op () e ()))
+(def node (op (nm . kids) e (do (%eval-all kids e) ())))
+(def build (op (x) e (do (set! %IN-BUILD #t) (eval x e) (set! %IN-BUILD #f) ())))
+(include "engine/tools/contract/base-layout.x")
+(def %kind-of (fn (self l nm) (if (null? l) (%fail (pair (lit not-a-cell) nm)) (if (eq? (first (first l)) nm) (rest (first l)) (self (rest l) nm)))))
+(def %but-last (fn (self l) (if (null? (rest l)) () (pair (first l) (self (rest l))))))
+(def %last (fn (self l) (if (null? (rest l)) (first l) (self (rest l)))))
 
-; --- rebuild and install --------------------------------------------------
-; One primitive does the per-object work; everything above is per-entry.
-((fn (_ ix)
-   (do (%oset! (%img-of RAWB (lit env-alist)) 0 (ixref ix ROOTENV))
-       (%install-slot! (lit env-global-tree) (ixref ix ROOTG))
-       (rdcells ix 1 CSTART)
-       (display "loaded ") (say-num N) (display " objects; ")
-       ; The proof of life is the IMAGE printing: `write` dispatches through the
-       ; type stacks just installed, so a list on the screen is the printers,
-       ; the pair type's write handler and the integer type's all restored.
-       ; The host has no object printer of its own to fall back on.
-       (display "(list 1 2 3) => ")
-       (%beval RAWB (lit (write (list 1 2 3))))
-       (newline)))
- ((prim! (lit image) (lit rebuild!))
-  buf OSTART N TT FV ST (%i+ (%p2i buf) (%i* BSTART W)) IX TCNT SYMTI
-  (%i+ FCOUNT 1) (%i+ SCOUNT 1)))
+; One write: the target word's pointer and offset, and the value's address.
+; A cell takes the object in its first slot; a slot is the half of its
+; parent the last step names.
+(def %write-of
+  (fn (_ nm)
+    ((fn (_ steps v)
+       (if (eq? (%kind-of %LANG nm) (lit cell))
+           (list (%obj->ptr (%img-walk (%base) steps)) (%data-word-off 0) v)
+           (list (%obj->ptr (%img-walk (%base) (%but-last steps)))
+                 (%data-word-off (if (eq? (%last steps) (lit f)) 0 1))
+                 v)))
+     (%img-row %base-paths nm)
+     ((fn (_ o) (if (null? o) 0 (%ptr->int (%obj->ptr o)))) (%ref-obj (%root-ref ROOTS nm))))))
+
+; The order: every root but the env group, then the env group with the tree
+; last.  Each root the image carries is written; a language cell the image
+; does not carry (the contract grew) is an error, never a silent skip.
+(def %rev-l (fn (_ l) ((fn (loop l acc) (if (null? l) acc (loop (rest l) (pair (first l) acc)))) l ())))
+(def %append-l (fn (self a b) (if (null? a) b (pair (first a) (self (rest a) b)))))
+(def %ENV-ORDER (lit (shadow-list env-local-boundary env-alist env-global-tree)))
+(def %env-cell? (fn (self l nm) (if (null? l) #f (if (eq? (first l) nm) #t (self (rest l) nm)))))
+;  The same cells the writer roots: not the profile counters, not sigint
+; (spec 1) -- those stay this base's own.
+(def %prefix? (fn (_ sym pre) (if (%lt (%str-byte-len (%p->s (%symbytes sym))) (%str-byte-len pre)) #f (str=? (%str-byte-sub (%p->s (%symbytes sym)) 0 (%str-byte-len pre)) pre))))
+(def %root-cell? (fn (_ nm) (if (eq? nm (lit sigint)) #f (not (%prefix? nm "profile-")))))
+(def %OTHERS ((fn (self l acc) (if (null? l) acc (self (rest l) (if (%root-cell? (first (first l))) (if (%env-cell? %ENV-ORDER (first (first l))) acc (pair (first (first l)) acc)) acc)))) %LANG ()))
+; execution order: the others, then the env group, the tree last
+(def %ORDER (%append-l %OTHERS %ENV-ORDER))
+(def %WRITES ((fn (self l acc) (if (null? l) (%rev-l acc) (self (rest l) (pair (%write-of (first l)) acc)))) %ORDER ()))
+
+(if VERBOSE
+    (do (display "image: objects=") (say-num N)
+        (display " externals=") (say-num XCOUNT) (display " roots=") (say-num RTCOUNT)
+        (display " unresolved=") (say-num %unresolved) (newline)
+        ((fn (self l) (if (null? l) () (do (display "  unresolved kind ") (say-num (first (first l))) (display " ") (display (rest (first l))) (newline) (self (rest l))))) %UNRESOLVED))
+    ())
+
+;  THIS BASE'S OWN TYPE STRUCTS STAY ALIVE.  Its process state -- the read
+; buffer, the allocation-error string -- is typed by structs of ITS registry,
+; and the install replaces that registry with the image's.  Unreached from
+; any cell, those structs would be freed at the next collect under objects
+; that still carry them, and the marker would walk a freed type.  The old
+; registry is made a mark root: never swept, never consulted.
+((prim! (lit heap) (lit mark-root!)) (first (%img-cell (lit type-alist))))
+
+; --- install (spec 5.4) ---------------------------------------------------------------
+; ONE FORM, NOTHING IN IT BUT PRIMITIVE CALLS.  Built as data, evaluated
+; last: (& (->int (set-word! P O V)) rest), nested so the first write is the
+; innermost-leftmost and the tree's is the outermost.  The operators are the
+; primitive OBJECTS, not their names, so no symbol is looked up while the
+; base's cells are half this loader's and half the image's; `lit` is bound
+; by the engine in every base.  A procedure or an operative anywhere in this
+; form would push a TCO compound that a later restore would use to put this
+; base's old env back.
+;  The fold puts its first element INNERMOST, and the outermost argument is
+; evaluated first, so the list is fed in reverse: the tree's write is the
+; first element in and the last write out.
+(def %INSTALL
+  ((fn (self l acc)
+     (if (null? l) acc
+       (self (rest l) (list %i& (list %p2i (list %psw (list (lit lit) (first (first l))) (first (rest (first l))) (first (rest (rest (first l)))))) acc))))
+   (%rev-l %WRITES) 0))
+(eval %INSTALL)
+
+;  The library recomputes what it cached by address (spec 5.5).  Resolved
+; in the image, as every form from here on is.
+(%image-recache!)

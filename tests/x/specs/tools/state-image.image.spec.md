@@ -149,7 +149,62 @@ says why.
 (%write-file (Str8 append %tmp "/pre.x") (Str8 append "(def %IMG-PATH \"" (Str8 append %img "\") (def %IMG-VERBOSE #t)\n")))
 (%write-file (Str8 append %tmp "/forms.x") "")
 (%sh (Str8 append "{ cat " (Str8 append %tmp (Str8 append "/pre.x tools/dev/image-read.x " (Str8 append %tmp (Str8 append "/forms.x; } | sh x.sh -q -l img > " (Str8 append %tmp "/out.txt 2>&1")))))))
-(display (File read-all (Str8 append %tmp "/out.txt")))
+(def %out (File read-all (Str8 append %tmp "/out.txt")))
+(display (Str8 sub (- (Str8 length %out) 13) 12 %out))
 ```
 ---
-    image: unresolved foreign=0 statics=0
+    unresolved=0
+
+## §6.10 the primitives
+
+The three engine primitives, exercised in this process rather than through
+the loader: a fresh type struct is flagged node by node, `(image write!)`
+writes it with a naming callable that names nothing, `(image rebuild!)`
+rebuilds it, and the rebuilt struct is a struct whose name reads back.
+`(image save!)` alone saves an ordinary pair as its two references.
+
+### save! saves a pair as two reference units
+
+```x
+(def %sbuf ((prim-ref (lit ptr) (lit alloc)) 80))
+(def n ((prim-ref (lit image) (lit save!)) (pair 1 2) %sbuf))
+(display (list n (Ptr ref-word %sbuf 8) (Ptr ref-word %sbuf 24)))
+```
+---
+    (2 0 0)
+
+### write! then rebuild! round-trips a flagged type struct
+
+```x
+(include "engine/tools/contract/obj-layout.x")
+(def %FLAG 1024)
+(def %flags-off (* %obj-slot-flags %word-size))
+(def %type-off (* %obj-slot-type %word-size))
+(def %data-off (* %obj-meta-len %word-size))
+(def %alloc (prim-ref (lit ptr) (lit alloc)))
+(def %psw (prim-ref (lit ptr) (lit set-word!)))
+(def %p2o (prim-ref (lit ptr) (lit ->obj)))
+(def %rw (fn (_ o off) (Ptr ref-word (Obj ->ptr o) off)))
+(def %flag! (fn (_ o) (%psw (Obj ->ptr o) %flags-off (| (%rw o %flags-off) %FLAG))))
+(def %spair? (fn (_ o) (eq? (%rw o %type-off) %reflect-spair-tw)))
+; Flag every on-chain node of the struct tree: its spair nodes and the leaves they hold.
+(def %flag-tree!
+  (fn (self o)
+    (if (null? o) ()
+      (do (%flag! o)
+          (if (%spair? o) (do (self (first o)) (self (rest o))) ())))))
+(def h ((prim-ref (lit type) (lit make)) "IMGT" ()))
+(def st ((prim-ref (lit type) (lit by-atom)) h))
+(%flag-tree! st)
+(def cursor (pair 1 2))
+(def table (%alloc 8000)) (def blob (%alloc 800)) (def result (%alloc 40))
+(%psw result 0 1000) (%psw result 8 800)
+(def N ((prim-ref (lit image) (lit write!)) cursor %FLAG table blob (fn (_ w k o) ()) (list st) result))
+(def IX (%alloc (* 8 (+ N 1))))
+((prim-ref (lit image) (lit rebuild!)) table 0 N (pair () ()) 1 blob IX)
+(def root (%p2o (Ptr from-int (Ptr ref-word IX (* 8 (Ptr ref-word result 32))))))
+(def name-atom (first (first root)))
+(display (list (< 0 N) (%spair? root) (Ptr ->str (Ptr from-int (%rw name-atom %data-off)))))
+```
+---
+    (#t #t IMGT)

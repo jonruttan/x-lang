@@ -125,6 +125,9 @@
   (%reflect-type-word ((prim-ref (lit type) (lit of)) 0)))
 (def %reflect-spair-tw
   (%reflect-type-word (rest (first (first %reflect-type-alist-cell)))))
+; The loader calls this after its install (docs/state-image-format.md 5.5);
+; img caches nothing an image moves, so there is nothing to recompute.
+(def %image-recache! (fn (_) ()))
 
 ; Type slots are base-paths rows too, rooted at the type object rather than at
 ; (%base) -- so the same walker reaches them, given the type.

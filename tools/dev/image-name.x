@@ -131,51 +131,12 @@
 ; procedure holds the same one; operatives likewise hold theirs.  Such an
 ; address has no useful symbol -- it is internal, so dladdr names it and dlsym
 ; will not give it back -- and it needs none: a loader creating an object of
-; that type already knows which call function to install.  So it is named by
-; the TYPE, not by a symbol.
-;
-; Which types qualify is MEASURED, not assumed: PRIMITIVE and POINTER also
-; carry a foreign unit 0 and theirs differ per instance, so a type qualifies
-; only if every instance seen agrees.  acc = (first-seen . disagreed).
+; that type gives it the type's own call pointer.  The writer recognises one
+; by its type: the word the type's call handler holds (image-write.x).
 (def %F-TYPECALL 4)
-; A dlopen HANDLE is not a symbol and dladdr will never name one, but it is
-; perfectly reacquirable: the loader calls dlopen again.  An empty payload
-; means the process handle -- dlopen(NULL) -- which is the only one this tree
-; opens.  Detected by value, against the handle this writer holds.
+; A dlopen HANDLE is not a symbol and dladdr will never name one: the
+; writer's own, re-opened by the loader.
 (def %F-DLOPEN 5)
-(def %cp-kind0
-  (fn (_ tw)
-    (if (eq? (%ty-kind tw) %T-HEAP) (%cp-cell-kind (%cell-of tw)) 9)))
-(def %cp-cell-kind
-  (fn (_ u)
-    (if (eq? u ()) 9 (%kind (%sh-mask u) 0 (%sh-desc (%sh-count u))))))
-(def %cp-scan
-  (fn (_ p acc)
-    (if (eq? (%cp-kind0 (%rw p %type-off)) 3)
-        (%cp-note (%rw p %type-off) (%word-at p 0) acc p)
-        acc)))
-(def %cp-note
-  (fn (_ tw v acc p)
-    ((fn (_ e)
-       (if (null? e)
-           (pair (%map-add (first acc) tw 0 (pair v (Type name (%p->o p)))) (rest acc))
-         (if (eq? (first (rest e)) v) acc
-             (pair (first acc) (%cp-disagree (rest acc) tw)))))
-     (%map-get (first acc) tw))))
-(def %cp-disagree
-  (fn (_ d tw) (if (null? (%map-get d tw)) (%map-add d tw 0 0) d)))
-(def %cp-entries
-  (fn (self m d acc)
-    (if (null? m) acc
-      (self (rest m) d
-        (if (null? (%map-get d (first (first m))))
-            (%map-add acc (first (rest (rest (first m)))) %F-TYPECALL
-                      (rest (rest (rest (first m)))))
-            acc)))))
-
-
-(def %append (fn (self a b) (if (null? a) b (self (rest a) (pair (first a) b)))))
-(def %mlen (fn (self m n) (if (null? m) n (self (rest m) (%int+ n 1)))))
 
 ; --- source 3: ask the dynamic linker what an address is called -----------
 ;

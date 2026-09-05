@@ -142,7 +142,7 @@ Three types have no struct and are saved structurally, by role:
 | role | tag | payload |
 |---|---|---|
 | `spair` | `x_type_pair_obj` — a type-struct node | 2 ref |
-| `satom` | `x_type_atom_obj` — a static atom | 1 word |
+| `satom` | `x_type_atom_obj` — a static atom, or a type handle: the name atom `make-type` allocates | 1 unit: bytes when the object is OWN (the handle's name), else a word |
 | `nil-typed` | `NULL` type — `#t`, `#f`, the base's own atom | 1 word |
 
 An ordinary pair is **not** a role: its type is the base's PAIR struct, in
@@ -237,7 +237,10 @@ link, filtered to objects the mark reached. The mark is
 `(heap tree-mark! base-object TRACE)` — the collector's own traversal from
 the base, with a flag the collector does not use — so "reachable" means what
 the collector means by it, type hooks included. The mark is made **once per
-process**: `chain-clear!` disables later marks.
+process**: `chain-clear!` disables later marks. A spine cell the library
+holds -- the `false` cell, the registry cell -- is reached by the mark and
+is not language state: the writer takes the flag off it before the walk,
+which is `(image write!)`'s (§7): the loop sees flags and nothing else.
 
 While a frame holds a cursor into a child base's chain, **this base must not
 collect**: the collector marks through whatever a frame holds, and a sweep
@@ -270,23 +273,25 @@ and `load`.
   returns the object. The engine provides one per built-in type whose
   payload is not all references — STRING and SYMBOL say `bytes`, INTEGER
   and CHARACTER `word`, PRIMITIVE and POINTER `foreign`, PROCEDURE and
-  OPERATIVE `foreign ref`, BUFFER `bytes ref` for its outer and two offsets
-  for its inner — and `x_type_save_default`, which walks the units shape,
+  OPERATIVE `foreign ref`, BUFFER `bytes ref word` for its outer (the bytes,
+  the inner, the consumed count) and two words for its inner (0 and the
+  unread count) — and `x_type_save_default`, which walks the units shape,
   for every type that declares none. A type the library registers gets the
   default, two references (`make-instance`'s layout), unless it pushes its
   own. A handler evaluates nothing and allocates nothing: the per-type
   files link without the evaluator.
 - `load`, applied by the rebuild's third pass to every rebuilt object whose
-  type has one, once every object's units are in place. BUFFER re-bases
-  its inner's read and write pointers from the saved offsets. Most types
-  have none.
+  type has one, once every object's units are in place. BUFFER's outer puts
+  its inner's read and write pointers back from the consumed count, the
+  unread count and the bytes' new address; a rebuilt outer has the third
+  unit, a fresh one does not. Most types have none.
 
 A word is a reference iff its kind says so. An INTEGER's unit is `word`; it
 is never resolved, even when it holds an address — a global that caches a
 type word (`%reflect-satom-tw`, `%print-int-tw`) is written verbatim and is
-**wrong after load** unless the library recomputes it. A cached process
-address is a boot-time computation the image cannot carry, and
-`boot/reflect.x` and `boot/printer.x` must recompute theirs on load (§8).
+**wrong after load** until the library recomputes it. A cached process
+address is a boot-time computation the image cannot carry; the library
+recomputes it in the loader's last step (§5, step 5).
 
 
 ### 4.4 Names for types
@@ -315,6 +320,13 @@ structs and two indices; the loader does not care which is which.
    `x-eval.c`); a primitive call pushes nothing. After the last write the
    loader's own names are gone, and the next form on stdin evaluates
    inside the image.
+ 5. Call `(%image-recache!)`, resolved in the image. A library module that
+   caches an address at boot, or writes into an engine static -- the two
+   type tags `boot/reflect.x` keeps, the four struct words `boot/printer.x`
+   keeps, the retag of `#t` and `#f` in `type/bool.x` -- adds a thunk to
+   `%image-recache-hooks`, and this call runs them all, in the order they
+   were added. Every image's
+   library binds the name; `lib/img.x` binds it to nothing.
 
 The loader is silent when a runner drives it; with `%IMG-VERBOSE` bound it
 prints one line of counts and the unresolved externals by name.
@@ -352,13 +364,18 @@ test, not the unit test.
 - `(image save!)` applies a type's save with evaluated arguments and saves
   the three roles structurally; `(image rebuild!)` allocates from the
   record's own count and kinds, sets `SHARED`, and runs the load pass.
+- `(image write!)` is the writer's loop: it walks the chain from a cursor,
+  indexes every object carrying the caller's flag, and writes each one's
+  record through the same save. It names nothing. A word it cannot place
+  -- a reference to an object outside the image, a foreign address -- goes
+  to a callable the caller supplies, `(name word kind obj)`, once per
+  distinct word; an integer answer is the external index and anything else
+  the sentinel. It also answers the object index of each root value the
+  caller lists, so the roots table needs no second index.
 - The static bound: an external index past the table is the sentinel.
 
 ## 8. Open
 
-- **Cached process addresses in the library** (§4.3): `%reflect-satom-tw`,
-  `%reflect-spair-tw`, the printer's `%print-*-tw` — recompute on load, or
-  stop caching.
 - **The read buffer** is process state and stays the loader's; the image
   therefore cannot carry a partially consumed input, and does not try.
 - **Object metadata** (`obj-meta-extra`: line and file ids) is not carried;

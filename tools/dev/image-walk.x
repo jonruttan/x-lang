@@ -52,6 +52,13 @@
 ;   subsequent walk then reports a clean zero of everything.  So a pass that
 ;   needs no reachability must not spend the one mark: it uses %walk-all and
 ;   runs BEFORE the mark, which also lets it `def` its results freely.
+;   * NO COLLECT WHILE A CURSOR POINTS INTO ANOTHER BASE'S CHAIN (spec 4.1).
+;     The periodic collect below is this base's; it marks whatever this
+;     base's frames hold -- the cursor, an object on the other chain -- and a
+;     sweep clears flags on this chain only, so every collect during such a
+;     walk leaves the other base with stale mark bits.  A walk over a child
+;     sets %WALK-COLLECT off and collects between walks instead.
+(def %WALK-COLLECT #t)
 (def %walk     (fn (_ cur f acc) (%walk-on cur f acc 0 0 #t)))
 (def %walk-all (fn (_ cur f acc) (%walk-on cur f acc 0 0 #f)))
 (def %take? (fn (_ p filt) (if filt (%traced? p) #t)))
@@ -63,7 +70,7 @@
       (if (%take? (%o->p cur) filt) (%int+ seen 1) seen) filt)))
 (def %walk-after
   (fn (_ cur f acc n seen filt)
-    (do (if (eq? (%int& n 1023) 0) (%collect) ())
+    (do (if %WALK-COLLECT (if (eq? (%int& n 1023) 0) (%collect) ()) ())
         (if (eq? (%next (%o->p cur)) 0)
             (pair acc seen)
             (%walk-on (%p->o (%i->p (%next (%o->p cur)))) f acc
@@ -82,8 +89,18 @@
 (def %meta1-off (- 0 (* 2 %word-size)))
 (def %meta-bit %obj-flag-meta)
 (def %flagged? (fn (_ p) (if (eq? (%int& (%rw p %flags-off) %meta-bit) 0) #f #t)))
-(def %sh-count (fn (_ u) (if (eq? (%reflect-type-word u) %reflect-spair-tw) (%int+ 0 (first u)) (%int+ 0 u))))
-(def %sh-mask  (fn (_ u) (if (eq? (%reflect-type-word u) %reflect-spair-tw) (%int+ 0 (rest u)) 0)))
+;  A units value is one of THREE things -- docs/state-image-format.md 3.3 --
+; and the third is not an integer: a type the library registered holds the
+; engine's static x_type_units_pair_obj (type word 0), which means what
+; make-instance allocates, two reference units.  Both the writer and the
+; loader read shapes through here.
+(def %sh-static? (fn (_ u) (eq? (%reflect-type-word u) 0)))
+(def %sh-count
+  (fn (_ u)
+    (if (eq? (%reflect-type-word u) %reflect-spair-tw) (%int+ 0 (first u))
+      (if (%sh-static? u) 2 (%int+ 0 u)))))
+(def %sh-mask
+  (fn (_ u) (if (eq? (%reflect-type-word u) %reflect-spair-tw) (%int+ 0 (rest u)) 0)))
 (def %sh-desc  (fn (_ c) (if (%ilt c 0) (%int+ 1 (%int- 0 c)) c)))
 (def %kind (fn (_ m i d) (%int& (%shr m (%int* 2 (if (%ilt i d) i (%int- d 1)))) 3)))
 (def %cell-of (fn (_ tw) (first (%type-units-cell (%p->o (%i->p tw))))))
