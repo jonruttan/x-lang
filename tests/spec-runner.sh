@@ -341,6 +341,7 @@ _spawn() {
           -v TMPDIR="$_TMPDIR" \
           -v SEAM_COLLECT="$SPEC_SEAM_COLLECT" \
           -v SPEC_ID="$_I" \
+          -v IMG_DIR="${X_IMG_DIR:-}" \
           -f "$RUNNER" "$@"
     ) &
     _register "$!" "$_I" "$_w_adm"
@@ -353,6 +354,7 @@ _spawn() {
         -v TMPDIR="$_TMPDIR" \
         -v SEAM_COLLECT="$SPEC_SEAM_COLLECT" \
         -v SPEC_ID="$_I" \
+        -v IMG_DIR="${X_IMG_DIR:-}" \
         -f "$RUNNER" "$@"
     _t1=$(date +%s); _dt=$((_t1 - _t0))
     if [ "$_dt" -gt 0 ]; then
@@ -455,6 +457,9 @@ for _spec in "$@"; do
   _tag="${_spec%.spec.md}"; _tag="${_tag##*.}"
   case "$_tag" in
     arm64|x86_64) [ "$_tag" = "$_HOST_ARCH" ] || continue ;;
+    # *.image.spec.md needs an engine carrying (image rebuild!) and writes a
+    # state image to run against; opt in with X_IMAGE_SPECS=1 (make test-x-img).
+    image) [ -n "$X_IMAGE_SPECS" ] || continue ;;
   esac
   # Capability-gated specs: `# @requires <capability>` in the header runs the
   # file only against an engine whose x-engine.xon declares

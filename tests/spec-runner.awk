@@ -219,7 +219,22 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 	# before the message was found in the discard.  The file is read ONLY
 	# when a death message is being built; a green batch never opens it.
 	errfile = TMPDIR "/spec-" SPEC_ID ".err"
-	cmd = "{ echo \"(alloc-limit! ${X_ALLOC_LIMIT_OBJS:-0})\"; cat " q(blib) "; cat " q(tmpfile) "; } | " timeout_pfx q(X_BIN) " 2>" q(errfile)
+	# THE LIBRARY BOOT, OR A STATE IMAGE OF IT.  With IMG_DIR set and
+	# IMG_DIR/<lib file name>.ximg present, the batch boots the img dialect
+	# and the image loader instead of evaluating the library from source:
+	# the loader installs the image into the running base, so every form
+	# after it on stdin -- this batch -- evaluates inside the loaded library.
+	# The image path reaches the loader as a bound global, one form ahead;
+	# the engine reads no environment.  No image, and nothing changes.
+	# tools/dev/image-build.sh writes the images; docs/state-images.md says why.
+	boot = "cat " q(blib)
+	if (IMG_DIR != "") {
+		_n = split(blib, _bp, "/")
+		img = IMG_DIR "/" _bp[_n] ".ximg"
+		if (system("test -f " q(img)) == 0)
+			boot = "echo " q("(def %IMG-PATH \"" img "\")") "; cat " q(lib_base "/img.x") " " q(lib_base "/../tools/dev/image-read.x")
+	}
+	cmd = "{ echo \"(alloc-limit! ${X_ALLOC_LIMIT_OBJS:-0})\"; " boot "; cat " q(tmpfile) "; } | " timeout_pfx q(X_BIN) " 2>" q(errfile)
 
 	tidx = from
 	output = ""
