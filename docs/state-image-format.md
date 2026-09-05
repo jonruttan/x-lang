@@ -171,6 +171,13 @@ index (negative in a `ref` unit, plain in a `foreign` unit). Kinds:
 | 5 `dlopen` | — | the process handle |
 | 6 `static` | a role name | one of the engine's static objects, by role — see below |
 | 7 `type-static` | a type name and a row of `base-paths.x` | the static object a **freshly registered** type of that name holds at that row |
+| 8 `base-row` | a base-rooted row of `base-paths.x`, or `base` | that node of the **loader's** base tree — the spine cell the library cached (`%reflect-base-cell`), or the base object itself |
+
+Kind 8 exists because the library holds spine cells by reference:
+`boot/reflect.x` and `boot/registry.x` cache `type-alist`, `prims`, `false`,
+`err-line`, `err-file`, `file-registry`, `obj-meta-extra`. A spine node is
+never imaged; a reference to one resolves to the loader's node of the same
+row, and a spine node with no row is unnameable.
 
 Kind 6 names the
 statics that are not inside any type struct: `true`, `false` (`x_true_obj`,
@@ -194,7 +201,10 @@ is a broken image (§6.9).
 
 ### 3.5 Roots table — which cell gets which object
 
-    [cell name][object index]
+    [cell name][ref]
+
+`ref` is a `ref` unit word (§3.6): an object index, or a negative external —
+the `true` and `false` cells hold engine statics.
 
 One entry per language-state cell of `base-layout.x` (§1). The name is the
 contract's, so the loader finds the cell by the same path the C accessors
@@ -242,16 +252,15 @@ between walks.
 
 Nothing walks bytes; strings reach the blob through one copy each.
 
-### 4.2 Two chains for a child
+### 4.2 A child owns its bindings
 
-A child base's language state may refer to objects this base lent it —
-`include` and `syscall` (`x_callable_bind`, root base only), `args`,
-`x-machine`, `x-version`, `x-release` (`x_value_bind`, `x-cli.c`). Those
-live on this base's chain. The walk covers the child's chain and then this
-one, same fold, same mark; what the mark reached is the image, whichever
-chain holds it. (An engine primitive that binds the CLI globals into any
-base would let the child own them and make the second walk unnecessary —
-§8.)
+`x-cli.c` binds `include`, `syscall` (`x_callable_bind`) and `args`,
+`x-machine`, `x-version`, `x-release` (`x_value_bind`) into the root base
+only. A child base the writer images gets each of them **as its own
+object**: the two primitives through `(obj make-callable fnptr)` evaluated
+in the child, the strings copied in the child, `args` as a list the child
+builds. Nothing the child's language state reaches then lives on another
+base's chain, and the walk is the child's chain alone.
 
 ### 4.3 What is a reference
 
@@ -273,11 +282,15 @@ structs and two indices; the loader does not care which is which.
 1. Read the file into raw memory. Refuse on word size, byte order, release.
 2. Resolve every external to an address or object (§3.4). Count the ones
    that resolve to nil.
-3. `(image rebuild!)`: allocate `N` objects with the type each record names
-   — an imaged struct's *rebuilt* object, or the static tag — and the shape
-   row's count; patch every unit. Objects are allocated on this base's
-   chain with this base's `obj-meta-extra`; the rebuild never reads
-   `x_type_field_units` off a static tag.
+3. `(image rebuild!)`: two passes over the object table. The first
+   allocates every object on this base's chain (its own `obj-meta-extra`
+   applies) with the shape row's count, typed by the static tag for a role
+   and untyped otherwise. The second sets each untyped object's type word to
+   the *rebuilt* struct its record names and patches every unit by kind.
+   The loader hands the primitive the shape rows as two raw arrays indexed
+   by struct object index, the externals as one vector whose entry `k` is
+   an object (kinds 6–8) or an integer address (kinds 1–5), and the blob's
+   address; it never reads `x_type_field_units` off anything.
 4. Install the roots (§3.5) as **separate top-level forms, each a direct
    primitive call**, `ctrl` cells last and to nil. Any operative or
    procedure here pushes a TCO compound onto the save-stack that a later
@@ -327,10 +340,6 @@ test, not the unit test.
 
 ## 8. Open
 
-- **CLI globals per base.** `include`, `syscall`, `args`, `x-*` are bound
-  into the root base by `x-cli.c` only; a child gets them lent from its
-  parent, which is what forces the second walk (§4.2). An engine coordinate
-  that binds them into any base removes that.
 - **Cached process addresses in the library** (§4.3): `%reflect-satom-tw`,
   `%reflect-spair-tw`, the printer's `%print-*-tw` — recompute on load, or
   stop caching.
