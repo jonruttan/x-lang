@@ -19,7 +19,7 @@ cd "$(dirname "$0")/../.." || exit 1
 FOUND=0
 for f in $(find lib apps -name '*.x' \
     ! -path 'lib/x-core.x' ! -path 'lib/x-base.x' \
-    ! -path 'lib/x.x' ! -path 'lib/he.x' ! -path 'lib/xe.x' ! -path 'lib/rn.x' \
+    ! -path 'lib/x.x' ! -path 'lib/he.x' ! -path 'lib/xe.x' ! -path 'lib/rn.x' ! -path 'lib/img.x' \
     ! -path 'lib/x/boot/*' ! -path 'apps/*/run.x' | sort); do
 	HITS=$(sed 's/;.*//' "$f" \
 		| grep -nE '\((include|include-once|require-once)[[:space:]]+"(lib|tools|apps|ext)/')

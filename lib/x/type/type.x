@@ -263,7 +263,7 @@
 ; is walking its own type alist, which needs the rows, not the samples -- and
 ; the rows live in their own file because the image loader (lib/img.x) needs
 ; them on a base with no class system at all.
-(include "lib/x/type/shape-rows.x")
+(import x/type/shape-rows)
 
 (def %type-shape-find
   (fn (self rows nm)
