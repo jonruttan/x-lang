@@ -339,12 +339,12 @@ down into a collection:
 
 | Class | Wrapped selectors |
 |---|---|
-| `List` | `map` `filter` `for-each` `find` `flat-map` `sort-by` `take-while` `any?` `all?` `fold` `sort` `reduce` |
+| `List` | `map` `filter` `for-each` `find` `flat-map` `sort-by` `take-while` `any?` `all?` `group-by` `partition` `fold` `sort` `reduce` |
 | `Vector` | `map` `filter` `for-each` `fold` |
 | `Iter` | `for-each` `fold` |
 | `Seq` | `for-each` `fold` — inherited by every subclass, `Str8` included |
 | `Gen` | `map` `filter` `for-each` `find` `take-while` `any?` `all?` `fold` `reduce` |
-| `Dict` | `for-each` (pair shape) |
+| `Dict` | `for-each` `map` (pair shape) |
 | `Set` | `map` `filter` `for-each` `fold` |
 
 Adding another is one `(Block method! Class sel ...)` line, plus its selector

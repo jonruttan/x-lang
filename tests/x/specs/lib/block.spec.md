@@ -283,3 +283,67 @@ binding list.
 ```
 ---
     6
+
+## group-by and partition
+
+### group-by takes a key block
+
+```x
+(List group-by (x) (% x 2) (list 1 2 3 4))
+```
+---
+    ((1 1 3) (0 2 4))
+
+### group-by can key on the index
+
+```x
+(List group-by (x i) (< i 2) (list "a" "b" "c"))
+```
+---
+    ((#t "a" "b") (#f "c"))
+
+### partition takes a predicate block
+
+```x
+(List partition (x) (> x 2) (list 1 2 3 4))
+```
+---
+    ((3 4) (1 2))
+
+## Dict map uses the pair shape too
+
+### two names are key and value
+
+```x
+(do (import x/type/dict)
+  (((Dict from-plist (list 'a 1 'b 2)) map (k v) (* v 10)) get 'b))
+```
+---
+    20
+
+### the key is available to the body
+
+```x
+(do (import x/type/dict)
+  (((Dict from-plist (list 'a 1)) map (k v) (list k v)) get 'a))
+```
+---
+    ('a 1)
+
+### one name binds the whole entry
+
+```x
+(do (import x/type/dict)
+  (((Dict from-plist (list 'a 1)) map (e) (rest e)) get 'a))
+```
+---
+    1
+
+### the applicative form is untouched
+
+```x
+(do (import x/type/dict)
+  (((Dict from-plist (list 'a 1)) map (fn (_ e) (* (rest e) 3))) get 'a))
+```
+---
+    3

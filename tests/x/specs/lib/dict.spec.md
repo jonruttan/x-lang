@@ -384,3 +384,60 @@ would recurse into the field box and loop on cyclic instances).
 ```
 ---
     (20 #t)
+
+## map
+
+### maps values, keeping the keys
+
+```x
+(do (import x/type/dict)
+  (let ((d ((Dict from-plist (list 'a 1 'b 2)) map (fn (_ e) (* (rest e) 10)))))
+    (list (d get 'a) (d get 'b))))
+```
+---
+    (10 20)
+
+### the callback receives the whole entry, so the key is available
+
+```x
+(do (import x/type/dict)
+  (((Dict from-plist (list 'a 1)) map (fn (_ e) (first e))) get 'a))
+```
+---
+    'a
+
+### the source dict is not mutated
+
+```x
+(do (import x/type/dict)
+  (let ((d (Dict from-plist (list 'a 1))))
+    (d map (fn (_ e) 99))
+    (d get 'a)))
+```
+---
+    1
+
+### the result is a Dict, not an alist
+
+```x
+(do (import x/type/dict) (Dict dict? ((Dict from-plist (list 'a 1)) map (fn (_ e) 0))))
+```
+---
+    #t
+
+### mapping an empty dict gives an empty dict
+
+```x
+(do (import x/type/dict) (((Dict make) map (fn (_ e) 0)) empty?))
+```
+---
+    #t
+
+### keys cannot collapse -- every source key survives
+
+```x
+(do (import x/type/dict)
+  (((Dict from-plist (list 'a 1 'b 2 'c 3)) map (fn (_ e) 0)) length))
+```
+---
+    3
