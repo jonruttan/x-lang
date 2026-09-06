@@ -1399,7 +1399,7 @@ reader specs run from the image in 1s a file against 6s from source, and
 a direct load-plus-rejit is 0.77s with every analyser native again and
 `(/ 1 3)`, `1.5d`, `1+2i` and `(Num expt 2 70)` answering correctly.
 
-**What still refuses them is not the tower.** After the un-JIT, four
+**What refused them after that was not the tower.** After the un-JIT, four
 words remain, and the writer now says who holds them (a holder chase,
 printed with the census when anything is unnameable): `hit`, `cell`,
 `buf`, `sl` -- the `def`s inside `lib/x/tool/asm-cache.x`'s own function
@@ -1417,14 +1417,15 @@ operative's restore sheds an inner operative's frame instead of keeping
 it whenever the caller's head was "reachable" -- which, every chain
 ending at the same bottom cells, it always was, so a `when` or `unless`
 whose `if` took the empty branch had been leaving `test then else e` at
-the head of the top-level environment for the rest of the session. On
-that engine `x-base.x`, `xe.x` and `rn.x` write clean from the real
-library. On the pinned engine they image only with a warm asm byte cache:
-the site mechanism runs every compile inside a helper closure in non-tail
-position, which the old rule classifies as closure scope, but a cold cache
-takes the compiler's miss path and asm-compile.x's own tail-position
-defs leak (a CI runner found it: refused, fourteen minutes each). So
-`make images` lists the three only once the engine fix is pinned.
+the head of the top-level environment for the rest of the session. That
+engine is the pinned one (x-engine-c v0.2.8, #41), and on it `x-base.x`,
+`xe.x` and `rn.x` write clean from the real library, on a cold asm byte
+cache as much as a warm one. The distinction mattered on v0.2.7: the site
+mechanism runs every compile inside a helper closure in non-tail
+position, which the old rule classified as closure scope, but a cold
+cache took the compiler's miss path and asm-compile.x's own tail-position
+defs leaked (a CI runner found it: refused, fourteen minutes each), so
+the three waited for the pin. `make images` lists them now.
 
 ## Not decided
 

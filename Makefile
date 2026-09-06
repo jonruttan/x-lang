@@ -329,18 +329,16 @@ install-man-c uninstall-man-c: ## The C reference man pages (delegates to the en
 # native code no image can carry, so boot/tower-compiled.x records every
 # compile as a SITE and the writer puts the interpreted twins back before
 # its walk (a thunk among %image-transients); the loader compiles them anew after the
-# install (%image-recache-hooks).  The tower itself images clean now.  What
+# install (%image-recache-hooks).  The tower itself images clean.  What
 # refused them after that was the asm lane: a `def` in a closure's TAIL
 # position bound globally (the engine decided top-level by an empty save
 # stack), so every compile leaked its last code buffer, self-cell and
 # function into bare globals (hit, cell, buf) the writer cannot name.  The
-# engine fix (x-engine-c feat/def-lexical-scope: a def scopes by the live
-# frame) images them clean.  On the pinned engine they image only with a
-# WARM asm byte cache -- the sites run each compile in non-tail position,
-# which the old rule classifies as closure scope, but a cold cache takes
-# the compiler's miss path and asm-compile.x's own tail defs leak -- and a
-# CI runner is always cold, so the three are NOT in the list until the
-# engine fix is pinned; a refusal there costs a child load per key change.  On engine v0.2.5 the writer could
+# pinned engine (x-engine-c v0.2.8, #41) scopes a def by the live frame,
+# so the asm lane's temporaries stay frame-local and the three image
+# clean even on a COLD asm byte cache -- the case that had kept them out
+# of the list: a cold cache takes the compiler's miss path, whose own
+# tail-position defs leaked too, and a CI runner is always cold.  On engine v0.2.5 the writer could
 # not even reach it: each entry collects at its own top level, which the
 # writer's child reaches through `include` -- the collect-inside-a-load
 # #614 moved out of boot, closed engine-side by x-engine-c #38 (v0.2.6).
@@ -352,7 +350,7 @@ IMG_DIR ?= .images
 # loop before its own test -- ubuntu's make 4.3 stopped at the first
 # refused library while macOS's 3.81 did not, and the difference was this.
 images: $(EXECUTABLE) ## Write the state images the suite boots from (a current one is skipped)
-	@for l in lib/x-core.x lib/x.x lib/he.x \
+	@for l in lib/x-core.x lib/x.x lib/he.x lib/x-base.x lib/xe.x lib/rn.x \
 	  $$(grep -rho '^# @lib \.\./tests/x/lib/[a-z-]*\.x' tests/x/specs | sed 's|^# @lib \.\./||' | sort -u); do \
 	  if sh tools/dev/image-build.sh $$l $(IMG_DIR); then :; else s=$$?; [ $$s -eq 3 ] || exit $$s; fi; done
 .PHONY: images

@@ -65,8 +65,9 @@ jobs:
       - name: C specs
         run: make test-c
       # THE STATE IMAGES THE SUITE BOOTS FROM, cached across runs.  Writing
-      # all 25 costs about two minutes, more than images save a run, so a
-      # miss pays once and a hit boots for free.  The key names the inputs
+      # all 29 costs about three minutes (2026-09-06, the three JIT dialects
+      # among them), more than images save a run, so a miss pays once and a
+      # hit boots for free.  The key names the inputs
       # tools/dev/image-build.sh hashes -- the pin stands in for the engine
       # binary, which does not exist until `make engine` has run -- and the
       # builder re-checks its own key on load, so a stale hit only costs a
