@@ -576,6 +576,18 @@ Four things that are not obvious, each of which costs an afternoon:
   edit there rewrites the image as an edit under the platform's `lib/`
   does. A refusal (exit 3, the library holds words no image can carry) or
   a missing builder both fall through to the source boot, named on stderr.
+
+  The lang's own boot images the same way, and a bundle's image is its
+  installer's to write -- the wrapper will not write into a bundle behind
+  it. So `make install` ends with the one line that does:
+
+  ```make
+  	"$(X)" --image -l NAME || true
+  ```
+
+  A platform without the writer boots from source, which is what the
+  `|| true` is for. `x -l NAME` then loads the image while it is current
+  (the key covers the bundle's modules, so a reinstall rewrites it).
   Until the JIT lane stops leaking its temporaries into globals
   ([state-images.md](state-images.md), "Compiled code"), a harness that
   compiles anything -- one on `x-base.x`, or a bundle with compiled
