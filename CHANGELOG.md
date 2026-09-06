@@ -5,7 +5,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-## [0.11.1] - 2026-09-06
+## [0.12.0] - 2026-09-06
 
 **The engine pin rides to x-engine-c v0.2.8, and the three JIT dialects
 are in the images list.** v0.2.8 carries x-engine-c #41: a `def` scopes by
