@@ -25,11 +25,12 @@ name. The writer now says so: when anything is unnameable its census is
 followed by the holders, one path up to a named spine node, which is how
 those four were found. The engine fix -- `def` scopes by the live frame,
 `eval!` evaluates as a top-level form, an operative's restore sheds an
-inner frame -- is x-engine-c's `feat/def-lexical-scope`. The three dialects
-image on the pinned engine as well, because the site mechanism runs each
-compile inside a helper closure in non-tail position, which the old rule
-classifies as closure scope; the engine fix makes that a property rather
-than a position. `make images` lists them. `docs/state-images.md` carries the
+inner frame -- is x-engine-c's `feat/def-lexical-scope`, and with it the
+three write clean from the real library. On the pinned engine they image
+only with a warm asm byte cache (a cold one takes the compiler's miss path,
+whose tail defs leak too), so `make images` lists them once that fix is
+pinned. The writer's holder chase is opt-in, `X_IMG_WHO=1`: it is minutes
+on a dialect-sized heap. `docs/state-images.md` carries the
 measurements and the open item.
 
 For the bundles: `tools/dev/image-build.sh` takes extra key paths, so a

@@ -1419,11 +1419,12 @@ ending at the same bottom cells, it always was, so a `when` or `unless`
 whose `if` took the empty branch had been leaving `test then else e` at
 the head of the top-level environment for the rest of the session. On
 that engine `x-base.x`, `xe.x` and `rn.x` write clean from the real
-library, and `make images` lists them. They image on the pinned engine as
-well, by an accident the engine fix retires: the site mechanism runs every
-compile inside a helper closure in non-tail position, and the old rule
-classifies the asm cache's inner defs as closure scope there, so nothing
-leaks -- move a compile into tail position and it would again.
+library. On the pinned engine they image only with a warm asm byte cache:
+the site mechanism runs every compile inside a helper closure in non-tail
+position, which the old rule classifies as closure scope, but a cold cache
+takes the compiler's miss path and asm-compile.x's own tail-position
+defs leak (a CI runner found it: refused, fourteen minutes each). So
+`make images` lists the three only once the engine fix is pinned.
 
 ## Not decided
 

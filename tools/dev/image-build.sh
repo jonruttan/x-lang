@@ -19,6 +19,8 @@
 #
 # Needs an engine carrying (image rebuild!); x.sh honours X_BIN.  Runs from a
 # CHECKOUT: the writer's includes and the key's directories are repo-relative.
+# X_IMG_WHO=1 makes a refused write name the holders of each unnameable word
+# (minutes on a dialect-sized heap; the census alone is seconds).
 #
 # Exit 0: the image is current or was written.  Exit 3: this library holds
 # words no image can carry (the unnameable rule below) and boots from
@@ -57,7 +59,7 @@ if [ -f "$keyf" ] && [ "$(cat "$keyf")" = "$key" ]; then
 fi
 echo "image-build: writing $img from $lib"
 rm -f "$img" "$keyf" "$skip"
-{ printf '(def %%IMG-LIB "%s") (def %%IMG-OUT "%s")\n' "$lib" "$img"; cat tools/dev/image-write.x; } \
+{ printf '(def %%IMG-LIB "%s") (def %%IMG-OUT "%s")\n' "$lib" "$img"; [ -n "${X_IMG_WHO:-}" ] && printf '(def %%IMG-WHO #t)\n'; cat tools/dev/image-write.x; } \
 	| sh x.sh -q > "$out/$name.log" 2>&1 || true
 grep 'objects:\|IMAGE TOTAL\|ERROR\|fault' "$out/$name.log" || true
 # The writer is the left side of a pipe, so its death is invisible to set -e;

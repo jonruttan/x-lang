@@ -457,10 +457,12 @@
 (display "  unnameable: ") (write %SENT) (newline)
 ((fn (self l) (if (null? l) () (do (display "  ") (write (rest (first l))) (newline) (self (rest l))))) %SENT-LOG)
 ; --- WHO HOLDS AN UNNAMEABLE.  For each object that carried a word the writer
-; could not name, the objects that reference it, three levels up, naming the
-; global where a level lands on a (symbol . value) pair -- one pass over the
-; traced chain per level, only when there is something to explain.  The
-; census above says WHAT could not be named; this says WHY it was reached.
+; could not name, the objects that reference it, one path up to a named spine
+; node, naming the global where a level lands on a (symbol . value) pair --
+; one pass over the traced chain per level.  The census above says WHAT could
+; not be named; this says WHY it was reached.  ONLY WHEN ASKED (%IMG-WHO):
+; forty passes over a dialect-sized heap took fourteen minutes on a CI
+; runner, on every refused dialect, until the job was killed.
 (def %holders-of
   (fn (_ targets)
     ((fn (_ in? first-name spine-name)
@@ -478,7 +480,9 @@
      ;  A (symbol . value) pair names a global: the symbol's bytes are its word 0.
      (fn (_ p) (guard (_ "") ((fn (_ q) (if (eq? q 0) "" (if (str=? (%ty-name (%rw (%i->p q) %type-off) (%i->p q)) "SYMBOL") (%p->s (%i->p (%word-at (%i->p q) 0))) ""))) (%word-at p 0))))
      (fn (_ p) ((fn (_ nm) (if (eq? nm 0) "" (symbol->str (%p->o (%i->p nm))))) (%ht-find %SPINE-NAMES (Ptr ->int p)))))))
-(if (eq? %SENT 0) ()
+;  %IMG-WHO bound (to anything) asks for it: image-build.sh binds it under
+; X_IMG_WHO=1.  Read here rather than def'd, on the file's %-global budget.
+(if (if (eq? %SENT 0) #t (guard (_ #t) (do (eval (lit %IMG-WHO)) #f))) ()
   (do (display "  holders, nearest first (one path, up to a spine node):") (newline)
       ((fn (self ts depth)
          (if (eq? depth 0) ()

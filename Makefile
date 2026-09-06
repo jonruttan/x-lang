@@ -335,11 +335,12 @@ install-man-c uninstall-man-c: ## The C reference man pages (delegates to the en
 # stack), so every compile leaked its last code buffer, self-cell and
 # function into bare globals (hit, cell, buf) the writer cannot name.  The
 # engine fix (x-engine-c feat/def-lexical-scope: a def scopes by the live
-# frame) makes that a property; the sites already make it a fact on the
-# pinned engine, since each compile runs inside a helper closure in
-# non-tail position, which the old rule classifies as closure scope.  So
-# the three are in the images list; a refusal, should one return, exits 3
-# and costs one child load per key change.  On engine v0.2.5 the writer could
+# frame) images them clean.  On the pinned engine they image only with a
+# WARM asm byte cache -- the sites run each compile in non-tail position,
+# which the old rule classifies as closure scope, but a cold cache takes
+# the compiler's miss path and asm-compile.x's own tail defs leak -- and a
+# CI runner is always cold, so the three are NOT in the list until the
+# engine fix is pinned; a refusal there costs a child load per key change.  On engine v0.2.5 the writer could
 # not even reach it: each entry collects at its own top level, which the
 # writer's child reaches through `include` -- the collect-inside-a-load
 # #614 moved out of boot, closed engine-side by x-engine-c #38 (v0.2.6).
@@ -351,7 +352,7 @@ IMG_DIR ?= .images
 # loop before its own test -- ubuntu's make 4.3 stopped at the first
 # refused library while macOS's 3.81 did not, and the difference was this.
 images: $(EXECUTABLE) ## Write the state images the suite boots from (a current one is skipped)
-	@for l in lib/x-core.x lib/x.x lib/he.x lib/x-base.x lib/xe.x lib/rn.x \
+	@for l in lib/x-core.x lib/x.x lib/he.x \
 	  $$(grep -rho '^# @lib \.\./tests/x/lib/[a-z-]*\.x' tests/x/specs | sed 's|^# @lib \.\./||' | sort -u); do \
 	  if sh tools/dev/image-build.sh $$l $(IMG_DIR); then :; else s=$$?; [ $$s -eq 3 ] || exit $$s; fi; done
 .PHONY: images
