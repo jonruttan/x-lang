@@ -1333,10 +1333,17 @@ suite (2,804 tests from source; the image runs add the image spec's 15),
 Where the rest of the time is: the suite is test-bound, not boot-bound. The
 serial run's boots summed to roughly 70s before images and roughly 45s
 after (140 boots at a third of a second); the heaviest single jobs are
-tests — `bitwise-parity` 17s a file, `tools/pin` 25s, `sha256-jit` 15s —
-and images do not touch those. The three JIT dialects (`x-base`, `xe`,
-`rn`) are not imaged: their compiled tower entry points are unnameable
-(twelve words each), so their specs boot from source.
+tests, and images do not touch those. The two that stood out were then cut
+along their fixture chains: `tools/pin` (25s, one file) is six files of at
+most 7s, sharing `tests/x/lib/pin.x`, which makes the trees they read; the
+two `bitwise-parity` files (17s each, five renders apiece) are five files
+of two renders. `sha256-jit` (15s) stays one file: its cases share the
+engine its first case builds, and a split would build it once per file.
+The long poles are now `date`, `list`, `bitwise` and `str-class`, 11–16s
+each, none of them a batch. The three JIT dialects (`x-base`, `xe`, `rn`)
+are not imaged: their compiled tower entry points are unnameable, two
+dozen words each since the analyser states compile, so their specs boot
+from source.
 
 Two facts the suite surfaced that the format doc now carries as invariants
 11 and 12: a value an image cannot carry (`num/float.x`'s libm handle) is

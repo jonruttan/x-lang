@@ -6,19 +6,18 @@ Two of the ten parity names; the design note is bitwise-parity-a.spec.md's.
 
 ## parity
 
-### x-python
+### hello, world
 
 ```x
 (do
   (import-path! "apps")
   (import bitwise/gen)
   (Bitwise root! "apps/bitwise")
-  (Bitwise costume-load! "tests/x/fixtures/bitwise/costumes/x-python.xon")
   (def tag "A tagline with enough words in it to wrap past four lines of the banner column, so the fourth line ends with an ellipsis rather than running off the edge of the picture")
   (List for-each
     (fn (_ fmt)
-      (display (list fmt (Bitwise diff (first (Bitwise render "x-python" fmt tag "a language on x-lang" "o"))
-                                      (File read-all (%str-concat (list "tests/x/fixtures/bitwise/expected/x-python-" fmt ".svg"))))))
+      (display (list fmt (Bitwise diff (first (Bitwise render "hello, world" fmt tag "a language on x-lang" "o"))
+                                      (File read-all (%str-concat (list "tests/x/fixtures/bitwise/expected/hello-world-" fmt ".svg"))))))
       (newline))
     (list "mark" "avatar" "banner")))
 ```
@@ -29,19 +28,19 @@ Two of the ten parity names; the design note is bitwise-parity-a.spec.md's.
 (banner #t)
 ```
 
-### x-logo
+### x-cc
 
 ```x
 (do
   (import-path! "apps")
   (import bitwise/gen)
   (Bitwise root! "apps/bitwise")
-  (Bitwise costume-load! "tests/x/fixtures/bitwise/costumes/x-logo.xon")
+  (Bitwise costume-load! "tests/x/fixtures/bitwise/costumes/x-cc.xon")
   (def tag "A tagline with enough words in it to wrap past four lines of the banner column, so the fourth line ends with an ellipsis rather than running off the edge of the picture")
   (List for-each
     (fn (_ fmt)
-      (display (list fmt (Bitwise diff (first (Bitwise render "x-logo" fmt tag "a language on x-lang" "o"))
-                                      (File read-all (%str-concat (list "tests/x/fixtures/bitwise/expected/x-logo-" fmt ".svg"))))))
+      (display (list fmt (Bitwise diff (first (Bitwise render "x-cc" fmt tag "a language on x-lang" "o"))
+                                      (File read-all (%str-concat (list "tests/x/fixtures/bitwise/expected/x-cc-" fmt ".svg"))))))
       (newline))
     (list "mark" "avatar" "banner")))
 ```
