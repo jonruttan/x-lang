@@ -522,10 +522,16 @@ Four things that are not obvious, each of which costs an afternoon:
   installed tree as it boots, and `module.x` learns where that is from
   `%install-root`. `x.sh` emits `(def %install-root "…")` ahead of every boot
   entry; a harness loading an amalgam directly must emit the same line first.
-- **Load `x-base.x`, not a dialect entry.** The dialect amalgams end with
-  `(unless %batch? (do (%banner) (repl)))` and would start a REPL underneath the
-  suite. `x-base.x` is the launcher-free one, and being an amalgam it carries no
-  path literals, so it loads from any cwd.
+- **Load `x-core.x` or `x-base.x`, not a dialect entry.** The dialect amalgams
+  end with `(unless %batch? (do (%banner) (repl)))` and would start a REPL
+  underneath the suite. `x-core.x` and `x-base.x` are the launcher-free ones,
+  and being amalgams they carry no path literals, so they load from any cwd.
+  `x-core.x` is the core the `he` dialect is, with nothing the bundle did not
+  import itself -- the honest harness for a helium-weight bundle, and the one
+  a state image can hold (below). `x-base.x` is the full compiled tower: what
+  an `xe`/`rn` bundle runs on, and what a helium bundle should NOT test
+  under, because it hides what the shipped lang lacks -- x-awk's arithmetic
+  was wrong under `x -l awk` for as long as its suite booted `x-base.x`.
 - **Its path is the one thing `<root>/…` does *not* settle.** `<root>/tests/`
   is the runner in both modes, but the boot amalgams are at `<root>/boot/` in an
   install and `<root>/build/boot/` in a checkout, where they are build output.
@@ -542,9 +548,38 @@ Four things that are not obvious, each of which costs an afternoon:
   with the cwd at the repo root, which is the addressing failure this whole
   document exists to prevent. Loading it from a bundle fails with a bare
   `include: cannot open`.
-- **The tower is the price.** `x-base.x` is the *full tower*, and there is no
-  launcher-free light amalgam — a helium-weight bundle pays for a tower it does
-  not call. `make boot` producing one would close this.
+- **The suite can boot from a state image of the harness.** The platform's
+  `tools/dev/image-build.sh` images a child that loaded the harness and keys
+  the image on the harness, the platform's `lib/`, its engine and the paths
+  the caller adds (the bundle's module tree); the runner boots each spec
+  file from the image when `X_IMG_DIR` names its directory. A harness on
+  `x-core.x` images; one on `x-base.x` is refused (the compiled tower's JIT
+  entry points are unnameable) and boots from source as before. x-awk's
+  runner is the worked example -- twelve lines, `IMG=0` as the from-source
+  control -- and its suite went from 38s to 16s. The writer is a checkout
+  tool; an installed tree boots from source. See
+  [state-images.md](state-images.md).
+
+  ```sh
+  # after LANG_LIB and SPEC_PATH, before sourcing the platform runner
+  if [ "${IMG:-1}" != 0 ]; then
+      _builder="$X_ROOT/tools/dev/image-build.sh"
+      if [ -f "$_builder" ] && X_BIN="$X_BIN" sh "$_builder" "$LANG_LIB" "$BUNDLE/tests/lib/.images" "$BUNDLE/<modules>"; then
+          X_IMG_DIR="$BUNDLE/tests/lib/.images"; export X_IMG_DIR
+      else
+          echo "<lang>: no state image -- the suite boots from source" >&2
+      fi
+  fi
+  ```
+
+  The third argument is the key path: the bundle's own module tree, so an
+  edit there rewrites the image as an edit under the platform's `lib/`
+  does. A refusal (exit 3, the library holds words no image can carry) or
+  a missing builder both fall through to the source boot, named on stderr.
+  Until the JIT lane stops leaking its temporaries into globals
+  ([state-images.md](state-images.md), "Compiled code"), a harness that
+  compiles anything -- one on `x-base.x`, or a bundle with compiled
+  analysers -- is refused and boots from source.
 - **`# @lib` resolves against `LANG_LIB`'s directory**, not the spec's. A
   harness beside the specs is named bare — `# @lib harness.gen.x` — and a path
   that looks right relative to the spec silently produces an empty library,

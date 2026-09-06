@@ -5,6 +5,45 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The JIT dialects can be imaged, and a lang bundle's suite can boot from
+an image.** A state image could not carry the tower's compiled analysers
+-- native code in a page the writing process mapped -- so `x-base`, `xe`
+and `rn` were refused outright and every lang bundle's harness, all of
+which boot `x-base.x`, with them. `boot/tower-compiled.x` now records each
+compile as a site: what it displaced, where it went, and how to make it
+again. The writer runs it inside the child before its walk -- a thunk listed
+among `%image-transients`, the second half of the transient rule in
+`boot/reflect.x` -- which puts the interpreted twins back; the loader's recache hook compiles them anew
+in boot order. The x-base smoke and reader specs run from the image in 1s
+a file against 6s from source, and a load with every analyser native
+again is 0.77s. What refused the three after that was the asm lane: a
+`def` in a closure's TAIL position bound globally (the engine decided
+top-level by an empty save stack, and the frame is popped before a
+deferred tail runs), so every compile left its last function, self-cell
+and read buffer in bare globals (`hit`, `cell`, `buf`) the writer cannot
+name. The writer now says so: when anything is unnameable its census is
+followed by the holders, one path up to a named spine node, which is how
+those four were found. The engine fix -- `def` scopes by the live frame,
+`eval!` evaluates as a top-level form, an operative's restore sheds an
+inner frame -- is x-engine-c's `feat/def-lexical-scope`, and with it the
+three write clean from the real library. On the pinned engine they image
+only with a warm asm byte cache (a cold one takes the compiler's miss path,
+whose tail defs leak too), so `make images` lists them once that fix is
+pinned. The writer's holder chase is opt-in, `X_IMG_WHO=1`: it is minutes
+on a dialect-sized heap. `docs/state-images.md` carries the
+measurements and the open item.
+
+For the bundles: `tools/dev/image-build.sh` takes extra key paths, so a
+bundle's image is keyed on its own modules as well as the platform;
+`tests/spec-runner.sh` finds the loader from the platform root rather
+than the library's directory and roots the loader's repo-relative
+includes there, since a bundle's suite runs in the bundle; and `make
+boot` emits a launcher-free `x-core.x` beside `x-base.x`, the amalgam a
+helium-weight harness should have been loading all along --
+`docs/lang-contract.md` says which to load and why. x-awk is the worked
+example: 167 tests, 38s from `x-base.x` to 18s from an image, one file per
+job, and `IMG=0` as the from-source control.
+
 ## [0.11.0] - 2026-09-05
 
 **The tool tier got its doors.** A bundle could read and write files and

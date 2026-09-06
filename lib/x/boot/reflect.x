@@ -144,6 +144,12 @@
 ; -- float.x's dlopen handle -- is a TRANSIENT: the module names the global
 ; here, the writer images it as nil, and the module's own thunk above
 ; re-derives it.  Symbols, so the writer can clear them inside the child.
+;  A value that is this process's alone and IS recomputable -- a compiled
+; analyser, native code in a page this process mapped -- is the other half
+; of the same rule: the module adds a THUNK here instead of a symbol, the
+; writer runs it inside the child before its walk, and the thunk puts the
+; carryable form back (tower-compiled.x restores its interpreted analysers);
+; the module's recache thunk above remakes the rest after the load.
 (def %image-transients ())
 ;  In the order the modules added them: bool.x's retag resolves its handle
 ; through the tags this module recomputes, so this module's thunk runs first.

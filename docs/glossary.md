@@ -28,9 +28,11 @@ it takes; "spine" and "tree" belong only in sentences about layout.
 - **frame** — one environment's bindings; frames chain outward to
   enclosing scopes. The current environment is part of the evaluation,
   however an engine spells it.
-- **save stack** — what decides whether a definition is top-level: a
-  `def` made while it is empty binds globally. Closure bodies hold a
-  save over their non-tail forms; operatives and sequences hold none.
+- **save stack** — the frames a closure body holds over its non-tail
+  forms; operatives and sequences hold none. It used to decide whether a
+  `def` is top-level, which made a def in tail position global; a `def`
+  now scopes by the live frame (the env head's FRAME mark), and `eval!`
+  evaluates its form as a top-level one whatever frame called it.
 - **tco-expr, tco-env** — the deferred tail: the expression a body left
   for its caller's loop, and the restore that travels with it. Base
   fields, named by their rows.

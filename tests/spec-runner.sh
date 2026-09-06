@@ -152,6 +152,12 @@ if [ ! -f "$RUNNER" ]; then
 	echo "  from an installed tree that is \"\$(x --share-dir)/tests\"" >&2
 	exit 1
 fi
+# THE PLATFORM ROOT, for the state-image loader (lib/img.x and
+# tools/dev/image-read.x): the runner's own directory is <root>/tests in a
+# checkout and in an install alike, so <root> is its parent.  Derived from
+# the harness rather than from LANG_LIB, whose directory is the LIBRARY's --
+# a lang bundle's harness sits in the bundle, where no loader lives.
+_X_ROOT="$(cd "$(dirname "$RUNNER")/.." && pwd)"
 
 # Host arch for arch-tagged specs (e.g. asm.arm64.spec.md runs only on A64
 # hosts). Darwin says arm64 where GNU says aarch64; normalize to the tags the
@@ -342,6 +348,7 @@ _spawn() {
           -v SEAM_COLLECT="$SPEC_SEAM_COLLECT" \
           -v SPEC_ID="$_I" \
           -v IMG_DIR="${X_IMG_DIR:-}" \
+          -v X_ROOT="$_X_ROOT" \
           -f "$RUNNER" "$@"
     ) &
     _register "$!" "$_I" "$_w_adm"
@@ -355,6 +362,7 @@ _spawn() {
         -v SEAM_COLLECT="$SPEC_SEAM_COLLECT" \
         -v SPEC_ID="$_I" \
         -v IMG_DIR="${X_IMG_DIR:-}" \
+        -v X_ROOT="$_X_ROOT" \
         -f "$RUNNER" "$@"
     _t1=$(date +%s); _dt=$((_t1 - _t0))
     if [ "$_dt" -gt 0 ]; then

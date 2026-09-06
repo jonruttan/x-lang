@@ -325,15 +325,26 @@ install-man-c uninstall-man-c: ## The C reference man pages (delegates to the en
 # buckets of eight, exactly the suite before images -- the run to reach for
 # when an image is the suspect.
 #
-# THE JIT DIALECTS ARE NOT IMAGED: x-base, xe and rn load compiled tower
-# code whose entry points no image can carry (one JIT page per compiled
-# function), so the writer could only ever refuse them, and a refusal is
-# eight seconds of child load per key change for an answer already known.
-# On engine v0.2.5 the writer could not even reach it: each entry collects
-# at its own top level, which the writer's child reaches through `include`
-# -- the collect-inside-a-load #614 moved out of boot, closed engine-side
-# by x-engine-c #38 (v0.2.6).  Their specs boot from source until an image
-# can hold compiled code.  See docs/state-images.md.
+# THE JIT DIALECTS: x-base, xe and rn compile the tower's analysers to
+# native code no image can carry, so boot/tower-compiled.x records every
+# compile as a SITE and the writer puts the interpreted twins back before
+# its walk (a thunk among %image-transients); the loader compiles them anew after the
+# install (%image-recache-hooks).  The tower itself images clean now.  What
+# refused them after that was the asm lane: a `def` in a closure's TAIL
+# position bound globally (the engine decided top-level by an empty save
+# stack), so every compile leaked its last code buffer, self-cell and
+# function into bare globals (hit, cell, buf) the writer cannot name.  The
+# engine fix (x-engine-c feat/def-lexical-scope: a def scopes by the live
+# frame) images them clean.  On the pinned engine they image only with a
+# WARM asm byte cache -- the sites run each compile in non-tail position,
+# which the old rule classifies as closure scope, but a cold cache takes
+# the compiler's miss path and asm-compile.x's own tail defs leak -- and a
+# CI runner is always cold, so the three are NOT in the list until the
+# engine fix is pinned; a refusal there costs a child load per key change.  On engine v0.2.5 the writer could
+# not even reach it: each entry collects at its own top level, which the
+# writer's child reaches through `include` -- the collect-inside-a-load
+# #614 moved out of boot, closed engine-side by x-engine-c #38 (v0.2.6).
+# See docs/state-images.md.
 IMG ?= 1
 IMG_DIR ?= .images
 # A refusal (exit 3) is tested INSIDE the if: .POSIX above makes GNU make 4
@@ -578,7 +589,7 @@ check-path-literals: ## Lint for root-relative load literals outside the boot cl
 # amalgams cannot drift from the sources they are made of.
 boot: ## Generate amalgamated boot entries into build/boot
 	@mkdir -p build/boot
-	@for e in x he xe rn x-base; do \
+	@for e in x he xe rn x-core x-base; do \
 		sh tools/release/amalgamate.sh "lib/$$e.x" > "build/boot/$$e.x" || exit 1; done
 	@# GUARDED, because apps/ is empty since Logo became a bundle and an
 	@# unmatched glob is the literal pattern, which amalgamate.sh would then

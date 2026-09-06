@@ -335,6 +335,14 @@ structs and two indices; the loader does not care which is which.
    loader has not opened does not resolve (glibc keeps a dlopen'd libm out
    of the global scope; macOS folds it into libSystem), so float registers
    each such binding as it makes it and one hook remakes them all.
+   A value the image cannot carry but the library can REMAKE -- the tower's
+   compiled analysers, native code in a page the writing process mapped --
+   is the other half of the same rule: the module lists a THUNK in
+   `%image-transients` instead of a symbol, the writer runs it inside the
+   child before its walk, and that thunk puts the carryable form back -- `boot/tower-compiled.x` restores
+   every interpreted analyser and lets go of the compiled objects -- while
+   the module's recache hook here compiles them anew, in boot order, asking
+   the lane again because the loading engine is not the writing one.
 
 The loader is silent when a runner drives it; with `%IMG-VERBOSE` bound it
 prints one line of counts and the unresolved externals by name.
@@ -356,7 +364,7 @@ test, not the unit test.
    (the intern table came with the image).
 6. A raised `Err` is caught as an object; `(Err kind-of e)` answers; a C
    primitive's type error is the resident ERR.
-7. Collect safety: two collects, a top-level def, a tail-position def
+7. Collect safety: two collects, a top-level def, a `def-global` from
    inside a call, printing, then lookups of each — ASan-clean.
 8. `#t` after load is `same?` as the loader's `x_true_obj`; the SYMBOL
    type's C reader is the same static as in a fresh base.
@@ -369,6 +377,10 @@ test, not the unit test.
 12. A `#t` the reader produces after load is `eq?` to the evaluated `#t`:
     the interned name shares the singleton's bytes, as it does in a fresh
     base, where binding the name interned it on those bytes.
+13. Compiled code is remade at install: in an image of `x-base.x`, every
+    analyser `boot/tower-compiled.x` compiles is a PRIMITIVE after the load,
+    `%tower-jit?` answers for the loading engine, and `1.5d`, `1+2i` and
+    `(/ 1 3)` read and answer as they do from source.
 
 ## 7. What must be true of the engine
 

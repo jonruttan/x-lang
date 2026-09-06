@@ -104,45 +104,145 @@
   (fn (_ src fvars interp)
     (if %tower-jit? (guard (_ interp) (compile-asm src fvars)) interp)))
 
+; --- JIT SITES ARE RECORDED, so a state image can put them down and pick them up --
+; A compiled analyser is native code in a page THIS process mapped, and no
+; image can carry it (docs/state-images.md, the unnameable rule) -- which is
+; why x-base, xe and rn could not be imaged at all.  So every compile below
+; goes through a site: it records WHERE the result went (a global, a type's
+; analyse stack, one cell of the symbol type's lists), the interpreted twin it
+; displaced, a maker that compiles it again, and the value now in place.  Two
+; walks over the record do the rest.  %tower-unjit! puts every twin back --
+; the writer runs it inside the child before the walk (a THUNK on
+; %image-transients, boot/reflect.x),
+; so the image holds the interpreted tower and nothing unnameable.
+; %tower-rejit! compiles every site anew in boot order -- the loader runs it
+; once the install is done (%image-recache-hooks) -- so a loaded image has
+; the native analysers a source boot has.  A maker re-evaluates its fvars
+; form each time: a state's free names are the analysers compiled before it,
+; and after a rejit those are new objects.  A dialect booted from source
+; records the sites and never walks them.
+(def %tower-sites ())
+(def %tower-site!
+  (fn (_ kind place interp maker value)
+    (set! %tower-sites (pair (list kind place interp maker value) %tower-sites))))
+(def %tower-site-kind (fn (_ s) (first s)))
+(def %tower-site-place (fn (_ s) (first (rest s))))
+(def %tower-site-interp (fn (_ s) (first (rest (rest s)))))
+(def %tower-site-maker (fn (_ s) (first (rest (rest (rest s))))))
+(def %tower-site-value-cell (fn (_ s) (rest (rest (rest (rest s))))))
+; (%tower-jit-global! NAME ONLY? SRC FVARS INTERP): NAME is set! to the compile
+; of SRC over FVARS, or to INTERP when the lane refuses; ONLY? picks
+; %tower-asm-only over %tower-asm.  An operative, so FVARS stays a form.
+(def %tower-jit-global!
+  (op (name only? src fvars interp) e
+    (%tower-jit-global-run! name (eval only? e) (eval src e) (fn (_) (eval fvars e)) (eval interp e))))
+(def %tower-jit-global-run!
+  (fn (_ name only? src fvarsf interp)
+    ((fn (_ maker)
+       ((fn (_ v)
+          (do (%tower-site! (lit global) name interp maker v)
+              (eval (list (lit set!) name (list (lit lit) v)))))
+        (maker)))
+     (fn (_) ((if only? %tower-asm-only %tower-asm) src (fvarsf) interp)))))
+; (%tower-jit-push! TYPE SRC FVARS INTERP): the compile is pushed onto TYPE's
+; analyse stack, where %type-push-analyse puts it.
+(def %tower-jit-push!
+  (op (ts src fvars interp) e
+    (%tower-jit-push-run! (eval ts e) (eval src e) (fn (_) (eval fvars e)) (eval interp e))))
+(def %tower-jit-push-run!
+  (fn (_ ts src fvarsf interp)
+    ((fn (_ maker)
+       ((fn (_ v)
+          (do (%tower-site! (lit push) ts interp maker v)
+              (%type-push-analyse ts v)))
+        (maker)))
+     (fn (_) (%tower-asm src (fvarsf) interp)))))
+; (%tower-swap! CELL INTERP MAKER): CELL's first, INTERP, becomes (MAKER).
+(def %tower-swap!
+  (fn (_ cell interp maker)
+    ((fn (_ v)
+       (do (%tower-site! (lit swap) cell interp maker v)
+           (%set-first! cell v)))
+     (maker))))
+; Remove the first entry of L that is the object V.
+(def %tower-without
+  (fn (self l v)
+    (if (null? l) ()
+      (if (%tower-same? (first l) v) (rest l) (pair (first l) (self (rest l) v))))))
+(def %tower-site-down!
+  (fn (_ s)
+    ((fn (_ kind place interp v)
+       (match
+         ((eq? kind (lit global)) (eval (list (lit set!) place (list (lit lit) interp))))
+         ((eq? kind (lit push))
+           ((fn (_ cell) (%set-first! cell (%tower-without (first cell) v)))
+            (%type-analyse-cell place)))
+         (#t (%set-first! place interp))))
+     (%tower-site-kind s) (%tower-site-place s) (%tower-site-interp s)
+     ;  The record lets go of the compiled object too: held here, the writer
+     ; would still reach it, and reach it unnameable.
+     ((fn (_ v) (do (%set-first! (%tower-site-value-cell s) ()) v))
+      (first (%tower-site-value-cell s))))))
+(def %tower-site-up!
+  (fn (_ s)
+    ((fn (_ kind place v)
+       (do (%set-first! (%tower-site-value-cell s) v)
+           (match
+             ((eq? kind (lit global)) (eval (list (lit set!) place (list (lit lit) v))))
+             ((eq? kind (lit push)) (%type-push-analyse place v))
+             (#t (%set-first! place v)))))
+     (%tower-site-kind s) (%tower-site-place s) ((%tower-site-maker s)))))
+(def %tower-unjit!
+  (fn (_)
+    ((fn (self l) (if (null? l) () (do (%tower-site-down! (first l)) (self (rest l)))))
+     %tower-sites)))
+;  Boot order, so each state's fvars see the states already remade; and the
+; lane is asked again, since the loading engine is not the writing one.
+(def %tower-rejit!
+  (fn (_)
+    (do (set! %tower-jit? (guard (_ #f) (do (compile-asm (lit (fn (_ x) (+ x k))) (list (pair (lit k) 1))) #t)))
+        ((fn (self l) (if (null? l) () (do (%tower-site-up! (first l)) (self (rest l)))))
+         ((fn (self l acc) (if (null? l) acc (self (rest l) (pair (first l) acc)))) %tower-sites ())))))
+
 ; --- Compile the quote-family analysers and swap them into the symbol
 ;     type's analyse list.  x-core.x (lit-reader.x) installed interpreted
 ;     versions; these run on every char while tokenizing, so compiling them
 ;     keeps subsequent files parsing fast. ---
 ;
 
-(def %c-quasi-analyse
-  (%tower-asm
+(def %c-quasi-analyse ())
+(%tower-jit-global! %c-quasi-analyse #f
     (lit (fn (_ buffer score chr)
       (if (= chr 96) %quasi-accept ())))
     (list (pair (lit %quasi-accept) %quasi-accept))
     ; No JIT in this engine: keep the interpreted twin, so the identity
     ; swap below replaces this handler with itself.
-    %quasi-analyse))
+    %quasi-analyse)
 
-(def %c-unquote-analyse
-  (%tower-asm
+(def %c-unquote-analyse ())
+(%tower-jit-global! %c-unquote-analyse #f
     (lit (fn (_ buffer score chr)
       (if (= chr 44) %unquote-after-comma ())))
     (list (pair (lit %unquote-after-comma) %unquote-after-comma))
-    %unquote-analyse))
+    %unquote-analyse)
 
-(def %c-lit-analyse
-  (%tower-asm
+(def %c-lit-analyse ())
+(%tower-jit-global! %c-lit-analyse #f
     (lit (fn (_ buffer score chr)
       (if (= chr 39) %lit-accept ())))
     (list (pair (lit %lit-accept) %lit-accept))
-    %lit-analyse))
+    %lit-analyse)
 
 ; Only the entry test compiles: it is the piece that runs on every character.
 ; The states behind it (%interp-after-dollar's machine) run inside a literal
 ; only, so they stay interpreted -- and they are closures over a `let`, with no
 ; global names for an fvar list to bind anyway.
-(def %c-interp-analyse
-  (%tower-asm
+(def %c-interp-analyse ())
+(%tower-jit-global! %c-interp-analyse #f
     (lit (fn (_ buffer score chr)
       (if (= chr 36) %interp-after-dollar ())))
     (list (pair (lit %interp-after-dollar) %interp-after-dollar))
-    %interp-analyse))
+    %interp-analyse)
 
 ; Swap the compiled analysers in for the interpreted handlers BY IDENTITY,
 ; never by seat.  A positional swap breaks silently the day lit-reader.x
@@ -163,10 +263,10 @@
 (def %tower-swap-one!
   (fn (_ cell)
     (match
-      ((%tower-same? (first cell) %interp-analyse) (%set-first! cell %c-interp-analyse))
-      ((%tower-same? (first cell) %lit-analyse) (%set-first! cell %c-lit-analyse))
-      ((%tower-same? (first cell) %quasi-analyse) (%set-first! cell %c-quasi-analyse))
-      ((%tower-same? (first cell) %unquote-analyse) (%set-first! cell %c-unquote-analyse))
+      ((%tower-same? (first cell) %interp-analyse) (%tower-swap! cell %interp-analyse (fn (_) %c-interp-analyse)))
+      ((%tower-same? (first cell) %lit-analyse) (%tower-swap! cell %lit-analyse (fn (_) %c-lit-analyse)))
+      ((%tower-same? (first cell) %quasi-analyse) (%tower-swap! cell %quasi-analyse (fn (_) %c-quasi-analyse)))
+      ((%tower-same? (first cell) %unquote-analyse) (%tower-swap! cell %unquote-analyse (fn (_) %c-unquote-analyse)))
       (#t ()))))
 (def %tower-swap-analysers!
   (fn (self cell)
@@ -200,10 +300,9 @@
 ; risk (an x86-64 backend left bad state and the next boot crashed), when the
 ; answer -- keep the interpreted %macro-delimit -- is known here.  The guard
 ; covers the (import-order) case where the name is not yet bound at all.
-(def %c-macro-delimit
-  (if (guard (_ #t) (= %jit-buffer-last-char 0))
-    %macro-delimit
-  (%tower-asm
+(def %c-macro-delimit %macro-delimit)
+(if (guard (_ #t) (= %jit-buffer-last-char 0)) ()
+  (%tower-jit-global! %c-macro-delimit #f
     (lit (fn (_ buffer)
       ; ' ` , (39 96 44) each end an adjacent token.  %buffer-unread rewinds
       ; the delimiter char AND returns the buffer, which is the value the C
@@ -215,14 +314,14 @@
         (%buffer-unread buffer)
         ())))
     (list (pair (lit _u) 1))
-    %macro-delimit)))
+    %macro-delimit))
 (def %sym-delimit-list
   (first (%type-delimit-cell (%type-by-atom (%type-of "x")))))
 (def %tower-swap-delimit!
   (fn (self cell)
     (match
       ((null? cell) ())
-      ((%tower-same? (first cell) %macro-delimit) (%set-first! cell %c-macro-delimit))
+      ((%tower-same? (first cell) %macro-delimit) (%tower-swap! cell %macro-delimit (fn (_) %c-macro-delimit)))
       (#t (self (rest cell))))))
 (%tower-swap-delimit! %sym-delimit-list)
 
@@ -269,17 +368,15 @@
 ; characters, which is why an integer literal still reads 58% cheaper.
 ; Compiling these two wants a buffer-length door on the lane.
 
-(%type-push-analyse (%type-by-atom (%type-of (Num expt 2 64)))
-  (%tower-asm
+(%tower-jit-push! (%type-by-atom (%type-of (Num expt 2 64)))
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
         (if (or (= chr 45) (= chr 43)) %big-sign-state ())
         (if (< chr 58) %big-digits ()))))
     (list (pair (lit %big-sign-state) %big-sign-state)
           (pair (lit %big-digits) %big-digits))
-    %big-analyse-interp))
-(%type-push-analyse (%type-by-atom (%type-of 0))
-  (%tower-asm
+    %big-analyse-interp)
+(%tower-jit-push! (%type-by-atom (%type-of 0))
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
         (if (or (= chr 45) (= chr 43)) %int-capped-sign ())
@@ -288,7 +385,7 @@
     (list (pair (lit %int-capped-sign) %int-capped-sign)
           (pair (lit %int-capped-base) %int-capped-base)
           (pair (lit %int-capped-digits) %int-capped-digits))
-    %int-analyse-interp))
+    %int-analyse-interp)
 
 ; 2. Regex (C analyser, no compile needed)
 (include "lib/x/type/regex.x")
@@ -323,8 +420,7 @@
 (def %float-first-frac-interp %float-first-frac)
 (def %float-int-digits-interp %float-int-digits)
 (def %float-neg-int-interp %float-neg-int)
-(set! %float-frac
-  (%tower-asm-only
+(%tower-jit-global! %float-frac #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         me
@@ -332,23 +428,21 @@
     ; A lone throwaway fvar forces analyser mode for a body whose only free
     ; name is its own self param.
     (list (pair (lit _u) 1))
-    %float-frac-interp))
-(set! %float-first-frac
-  (%tower-asm-only
+    %float-frac-interp)
+(%tower-jit-global! %float-first-frac #t
     (lit (fn (_ buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         (%seq (%score-set score 1 buffer) %float-frac)
         ())))
     (list (pair (lit %float-frac) %float-frac))
-    %float-first-frac-interp))
-(set! %float-int-digits
-  (%tower-asm-only
+    %float-first-frac-interp)
+(%tower-jit-global! %float-int-digits #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         me
         (if (= chr 46) %float-first-frac ()))))
     (list (pair (lit %float-first-frac) %float-first-frac))
-    %float-int-digits-interp))
+    %float-int-digits-interp)
 ; %float-neg-int -- the SIGN state -- is deliberately NOT compiled.
 ;
 ; #49 was "a compiled analyser captured something nothing rooted, a later
@@ -369,8 +463,7 @@
       (if (< chr 48)
       (if (= chr 45) %float-neg-int ())
       (if (< chr 58) %float-int-digits ()))))
-(%type-push-analyse (%type-by-atom (%type-of 1.0))
-  (%tower-asm
+(%tower-jit-push! (%type-by-atom (%type-of 1.0))
     ; Sign branch mirrors the interpreted analyser -- without it, -7.5
     ; only parses via the stacked interpreted fallback (#45 R4).
     (lit (fn (_ buffer score chr)
@@ -379,7 +472,7 @@
         (if (< chr 58) %float-int-digits ()))))
     (list (pair (lit %float-neg-int) %float-neg-int)
           (pair (lit %float-int-digits) %float-int-digits))
-    %float-analyse-interp))
+    %float-analyse-interp)
 
 ; 4. Rational
 (include "lib/x/num/rational.x")
@@ -392,36 +485,33 @@
 ; the compiled form below.
 (def %rat-numer-interp %rat-numer)
 (def %rat-denom-interp %rat-denom)
-(set! %rat-denom
-  (%tower-asm-only
+(%tower-jit-global! %rat-denom #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         (%seq (%score-set score 1 buffer) me)
         (%seq (%buffer-unread buffer) (%score-set score 1 buffer)))))
     (list (pair (lit _u) 1))
-    %rat-denom-interp))
-(set! %rat-numer
-  (%tower-asm-only
+    %rat-denom-interp)
+(%tower-jit-global! %rat-numer #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         me
         (if (= chr 47) %rat-first-denom ()))))
     (list (pair (lit %rat-first-denom) %rat-first-denom))
-    %rat-numer-interp))
+    %rat-numer-interp)
 (def %rat-analyse-interp
   (fn (_ buffer score chr)
       (if (< chr 48)
       (if (= chr 45) %rat-sign (if (= chr 43) %rat-sign ()))
       (if (< chr 58) %rat-numer ()))))
-(%type-push-analyse (%type-by-atom (%type-of 1/2))
-  (%tower-asm
+(%tower-jit-push! (%type-by-atom (%type-of 1/2))
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
         (if (= chr 45) %rat-sign (if (= chr 43) %rat-sign ()))
         (if (< chr 58) %rat-numer ()))))
     (list (pair (lit %rat-sign) %rat-sign)
           (pair (lit %rat-numer) %rat-numer))
-    %rat-analyse-interp))
+    %rat-analyse-interp)
 
 ; 5. Complex
 (include "lib/x/num/complex.x")
@@ -431,25 +521,22 @@
 (def %cx-real-frac-interp %cx-real-frac)
 (def %cx-imag-int-interp %cx-imag-int)
 (def %cx-imag-frac-interp %cx-imag-frac)
-(set! %cx-imag-frac
-  (%tower-asm-only
+(%tower-jit-global! %cx-imag-frac #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         me
         (if (= chr 105) (%score-set score 1 buffer) ()))))
     (list (pair (lit _u) 1))
-    %cx-imag-frac-interp))
-(set! %cx-imag-int
-  (%tower-asm-only
+    %cx-imag-frac-interp)
+(%tower-jit-global! %cx-imag-int #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         me
         (if (= chr 46) %cx-imag-dot
           (if (= chr 105) (%score-set score 1 buffer) ())))))
     (list (pair (lit %cx-imag-dot) %cx-imag-dot))
-    %cx-imag-int-interp))
-(set! %cx-real-frac
-  (%tower-asm-only
+    %cx-imag-int-interp)
+(%tower-jit-global! %cx-real-frac #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         me
@@ -457,9 +544,8 @@
           (if (= chr 45) %cx-sign
             (if (= chr 105) (%score-set score 1 buffer) ()))))))
     (list (pair (lit %cx-sign) %cx-sign))
-    %cx-real-frac-interp))
-(set! %cx-real-int
-  (%tower-asm-only
+    %cx-real-frac-interp)
+(%tower-jit-global! %cx-real-int #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57))
         me
@@ -469,14 +555,13 @@
               (if (= chr 105) (%score-set score 1 buffer) ())))))))
     (list (pair (lit %cx-real-dot) %cx-real-dot)
           (pair (lit %cx-sign) %cx-sign))
-    %cx-real-int-interp))
+    %cx-real-int-interp)
 (def %cx-analyse-interp
   (fn (_ buffer score chr)
       (if (< chr 48)
       (if (= chr 45) %cx-neg ())
       (if (< chr 58) %cx-real-int ()))))
-(%type-push-analyse (%type-by-atom (%type-of 1+1i))
-  (%tower-asm
+(%tower-jit-push! (%type-by-atom (%type-of 1+1i))
     ; Sign branch: -1+2i analyses as complex (#45 R4).
     (lit (fn (_ buffer score chr)
       (if (< chr 48)
@@ -484,7 +569,7 @@
         (if (< chr 58) %cx-real-int ()))))
     (list (pair (lit %cx-neg) %cx-neg)
           (pair (lit %cx-real-int) %cx-real-int))
-    %cx-analyse-interp))
+    %cx-analyse-interp)
 
 ; 6. Decimal
 ;
@@ -499,23 +584,20 @@
 (def %dec-int-interp %dec-int)
 (def %dec-frac-interp %dec-frac)
 (def %dec-exp-digits-interp %dec-exp-digits)
-(set! %dec-exp-digits
-  (%tower-asm-only
+(%tower-jit-global! %dec-exp-digits #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57)) me
         (if (= chr 100) (%score-set score 1 buffer) ()))))
     (list (pair (lit _u) 1))
-    %dec-exp-digits-interp))
-(set! %dec-frac
-  (%tower-asm-only
+    %dec-exp-digits-interp)
+(%tower-jit-global! %dec-frac #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57)) me
         (if (= chr 100) (%score-set score 1 buffer)
           (if (or (= chr 101) (= chr 69)) %dec-exp-sign ())))))
     (list (pair (lit %dec-exp-sign) %dec-exp-sign))
-    %dec-frac-interp))
-(set! %dec-int
-  (%tower-asm-only
+    %dec-frac-interp)
+(%tower-jit-global! %dec-int #t
     (lit (fn (me buffer score chr)
       (if (and (>= chr 48) (<= chr 57)) me
         (if (= chr 100) (%score-set score 1 buffer)
@@ -523,14 +605,13 @@
             (if (or (= chr 101) (= chr 69)) %dec-exp-sign ()))))))
     (list (pair (lit %dec-first-frac) %dec-first-frac)
           (pair (lit %dec-exp-sign) %dec-exp-sign))
-    %dec-int-interp))
+    %dec-int-interp)
 (def %dec-analyse-interp
   (fn (_ buffer score chr)
       (if (< chr 48)
       (if (or (= chr 45) (= chr 43)) %dec-sign ())
       (if (< chr 58) %dec-int ()))))
-(%type-push-analyse (%type-by-atom (%type-of 1.5d))
-  (%tower-asm
+(%tower-jit-push! (%type-by-atom (%type-of 1.5d))
     ; Sign branch mirrors the interpreted analyser: -0.001d is one
     ; token, not a `-` applied to a decimal (#45 R4's lesson).
     (lit (fn (_ buffer score chr)
@@ -539,7 +620,7 @@
         (if (< chr 58) %dec-int ()))))
     (list (pair (lit %dec-sign) %dec-sign)
           (pair (lit %dec-int) %dec-int))
-    %dec-analyse-interp))
+    %dec-analyse-interp)
 
 ; --- Reclaim the load burst: NOT HERE ---------------------------------------
 ;
@@ -560,3 +641,8 @@
 ; collect anyone adds is the one that finds them.  Boot is the safe moment --
 ; nothing else is in flight -- and the dialect bodies are the files that are
 ; never imported.
+
+; The two hooks of the site record above: down before a write (a thunk among
+; the transients), up after a load.
+(set! %image-transients (pair %tower-unjit! %image-transients))
+(set! %image-recache-hooks (pair %tower-rejit! %image-recache-hooks))
