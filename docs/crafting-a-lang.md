@@ -256,34 +256,6 @@ without bound.  The platform's own note calls the per-turn sweep "the seat is
 quiet" — the previous turn's eval has finished and no reader is mid-flight,
 which is what makes everything unreachable there genuinely dead.
 
-**An isolated tokenizer base does not survive collection.**  This is the one
-that turns the rule above into a dilemma, and it is a platform defect rather
-than a rule to code around — tracked as
-[#599](https://github.com/jonruttan/x-lang/issues/599), so if that is closed,
-delete this entry rather than working around it.  A base from `(Base make-tok)` with a type
-registered on it reads correctly, survives one collect, and dies on the read
-after a few more.  Minimal, with no bundle code involved:
-
-```x
-(def collect (prim-ref (lit heap) (lit collect)))
-(def read-str (prim-ref (lit tok) (lit read-str)))
-(def b (Base make-tok))
-(Base make-type b "W"
-  (list (pair (lit analyse) (fn (_ buffer score chr) (%score-set score 1 buffer)))
-        (pair (lit read)    (fn (_ . args) (lit w)))))
-(read-str (Base raw-of b) "a")        ; fine
-(collect) (read-str (Base raw-of b) "a")   ; fine
-(collect) (collect) (read-str (Base raw-of b) "a")   ; dies
-```
-
-The consequence is structural, not cosmetic: **a lang that brings its own
-tokenizer base cannot take the per-turn sweep**, so its sessions and its batch
-runs accumulate, and its spec suite must set `SPEC_SEAM_COLLECT=0` (the
-per-snippet collect kills the tokenizer specs first).  x-ash is the bundle
-this bites; if your lang builds on `(Base make)` — the shared base, with the
-sexp types already registered — you are not affected, and that is one more
-reason to want the shared base if your surface can tolerate it.
-
 **Whole-file paren balance can lie.**  Two miscounted closers in different
 functions cancel to a clean total.  Check each edited definition closes at
 depth zero, not the file sum.  And bound a text replacement by the text being
@@ -387,9 +359,10 @@ contesting type — and the platform can compile them:
   tower-booting files, or run two heavy suites concurrently: the per-process
   guards cannot bound total memory.
 - **Size the alloc ceiling to the smallest machine that runs the suite, not
-  the biggest.**  With `SPEC_SEAM_COLLECT=0` (which a lang owning a tokenizer
-  base must set — §6) a spec job accumulates a whole file's garbage, so the
-  `alloc-limit!` guard is bounding a *sum*.  The platform default is 300M
+  the biggest.**  With the per-snippet collect off (`SPEC_SEAM_COLLECT=0`,
+  the accumulate-then-exit regime x-ash ran in until x-engine-c v0.2.7) a
+  spec job accumulates a whole file's garbage, so the `alloc-limit!` guard is
+  bounding a *sum*.  The platform default is 300M
   objects, ~14 GB, calibrated for a dev box: on a 16 GB CI runner a process
   approaching it exhausts the machine *before* the guard trips, and the job
   dies with `spec-gate: killed by SIGTERM` and no output at all to say why.
