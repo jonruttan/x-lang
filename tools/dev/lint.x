@@ -220,31 +220,30 @@
     ; %%LINT%% block; the shell reassembles per-file verdicts.
     (do
       (def %any-fail (list #f))
-      ; Set once a file has been linted: the sweep below runs between
-      ; files, never after the last one (a single-file child would pay
-      ; ~5s to free a heap the exit is about to drop anyway).
-      (def %linted (list #f))
       (%for-each
         (fn (_ g)
           (unless (null? g)
             (when (%batch-marker? (first g))
               (let ((name (first (rest (first g)))))
                 (do
-                  ; Sweep between files.  x has no automatic GC, so without
-                  ; this a child's heap grows monotonically across the
-                  ; group: the live-object count at the end of a batch is
-                  ; the SUM of every file's analysis garbage (a 16GB
-                  ; release runner OOM-killed four such children, #622).
-                  ; %all-forms pins every file's AST for the run, but the
-                  ; ASTs are ~100K objects against 2-117M of per-file
-                  ; analysis state, so the sweep takes the heap back to
-                  ; its floor -- measured figures in the commit.
-                  (when (first %linted) (Heap collect))
+                  ; Sweep before every file -- and never after the last
+                  ; one (a single-file child would pay ~5s to free a heap
+                  ; the exit is about to drop anyway).  x has no automatic
+                  ; GC, so without this a child's heap grows monotonically
+                  ; across the group: the live-object count at the end of
+                  ; a batch is the SUM of every file's analysis garbage (a
+                  ; 16GB release runner OOM-killed four such children,
+                  ; #622).  Before the FIRST file the sweep drops the boot
+                  ; and reader residue (~17M objects) from under the
+                  ; heaviest work.  %all-forms pins every file's AST for
+                  ; the run, but the ASTs are ~100K objects against
+                  ; 2-117M of per-file analysis state, so the sweep takes
+                  ; the heap back to its floor -- figures in the commits.
+                  (Heap collect)
                   (%emit-out "%%LINT%% " name "\n")
                   (if (%lint-one (rest g) %emit-out)
                     (%emit-out "%%OK%%\n")
                     (do (%set-first! %any-fail #t)
-                        (%emit-out "%%FAIL%%\n")))
-                  (%set-first! %linted #t))))))
+                        (%emit-out "%%FAIL%%\n"))))))))
         %groups)
       (if (first %any-fail) (error 'lint-failed) ()))))

@@ -158,8 +158,9 @@ if [ $# -eq 0 ]; then
   # Default fan-out: min(cores, 4).  A child is NOT small: measured
   # 2026-09-05 (engine v0.2.6, --lib --group, GNU time -v on the 8GB
   # x86-64 Linux guest of tools/dev/x86-vm.sh), the single-file children
-  # class.x and pin.x peak at 7.3GB and 7.9GB maxrss -- so NPROC=2 on a
-  # 16GB runner is already the edge, and one such child was OOM-killed
+  # class.x and pin.x peak at 6.2GB and 7.9GB maxrss (with lint.x's sweep
+  # before the first file; 7.3GB and 7.9GB without it) -- so NPROC=2 on
+  # a 16GB runner is already the edge, and one such child was OOM-killed
   # at 5.18GB anon-rss.  macOS reports the same runs anywhere between
   # 1GB and 3.6GB (the compressor takes pages out of the resident set;
   # read those as a floor).  The ~600MB figure this comment used to quote
@@ -171,7 +172,7 @@ if [ $# -eq 0 ]; then
   # is the constraint: CI pins NPROC=2 on its ubuntu leg.  The
   # derivation below is min(cores, 4), so it tracks the RUNNER rather
   # than the workload; a caller that knows its box should say so.
-  # Within a batch child the driver sweeps the heap between files
+  # Within a batch child the driver sweeps the heap before every file
   # (lint.x; x has no automatic GC), so a group costs its heaviest FILE,
   # not the sum of its files: the figures above are per file.
   # Batch by PRELOAD SIGNATURE (#323): one engine boot lints every file
