@@ -5,6 +5,32 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A lang boots from its image.** `x -l NAME` paid the same boot on every
+run -- six seconds for awk, eleven for xe -- although its suite had been
+booting from a state image since 0.11.1. The wrapper now images the prefix
+it pipes ahead of the user's program (the root and param forms, the entry,
+the pin arming, a bundle's root and entry) through the same
+`tools/dev/image-build.sh` and the same key, and when the image is current
+the loader stands in for the prefix: `x -l awk` is 0.7s, `x -l xe` 0.9s,
+an installed `x -l he` 0.4s. The engine's own `args` survives the install
+(the loader rebinds it, since the writer's child had none), and what the
+prefix would have decided by evaluating -- the `%batch?` reset, the
+launcher -- is emitted after the loader. A bundle's image is its
+installer's: `make install` runs `x --image -l NAME` into the bundle's
+`.images/`, and a stale one means boot from source, quietly. Every other
+boot writes its own into `~/.cache/x/images/<tree>/` on a miss and says so
+on stderr, because that run pays a boot twice. `--no-image` boots from
+source; a pinned boot is never imaged. `make install` ships the image
+tools and the layout contracts under the share tree, so an installed x
+does all of this too.
+
+The first cold load of an x-base image found one more transient: the
+compiler's trampoline addresses are integers, resolved when the module
+loads, and an integer names nothing, so a compile on the far side of a load
+called the writer's process's addresses. They register as transients now
+and the recache hook resolves them again.
+
+
 ## [0.12.0] - 2026-09-06
 
 **The engine pin rides to x-engine-c v0.2.8, and the three JIT dialects

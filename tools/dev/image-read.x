@@ -265,7 +265,15 @@
      (if (null? l) acc
        (self (rest l) (list %i& (list %p2i (list %psw (list (lit lit) (first (first l))) (first (rest (first l))) (first (rest (rest (first l)))))) acc))))
    (%rev-l %WRITES) 0))
-(eval %INSTALL)
+;  THE PROCESS KEEPS ITS OWN ARGS.  The CLI binds `args` in the base's
+; global tree, and the install replaces that tree with the image's, whose
+; `args` is the WRITER'S CHILD'S ("--batch").  A lang booted from an image
+; reads its operands from `args`, so the install is followed -- inside the
+; same form, since nothing this loader named survives it -- by a def-global
+; of this process's list: %seq (a C prim) evaluates the writes, then the
+; rebind; the name is interned AFTER the install, in the image's table.
+(eval (list (eval (lit %seq)) %INSTALL
+        (list (prim! (lit base) (lit def-global)) (list %->sym (list (lit lit) "args")) (list (lit lit) args))))
 
 ;  The library recomputes what it cached by address (spec 5.5).  Resolved
 ; in the image, as every form from here on is.

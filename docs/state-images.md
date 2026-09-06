@@ -1378,6 +1378,45 @@ recache hook; and the interned `#t`/`#f` share the singletons' bytes,
 which `eq?` depends on and a rebuilt symbol had lost — `type/bool.x`'s hook
 points them back.
 
+**An integer that is an address is a transient too.** The first cold load
+of an x-base image died with SIGBUS inside an analyser it had just
+compiled: `tool/asm-compile.x` holds its trampoline addresses (`jit_mkint`
+and the rest) as INTEGERS, resolved by `dlsym` when the module loads, and
+an integer names nothing, so the image carried the writer's process's
+addresses and a compile on the far side emitted calls to them. A warm byte
+cache never reaches those integers -- a pour re-resolves every trampoline
+by name from the relocation records -- which is why every warm run passed
+and CI, where the images came from the actions cache and `/tmp` was cold,
+did not. Each binding now registers itself as it is made, the float.x
+shape: a transient the writer images as nil, a row the recache hook
+remakes it from, the handle with them. The rule it states: a value that is
+an address is a transient whatever type it is stored as.
+
+### A lang's own boot, from its image
+
+`x -l NAME` boots the same way its suite does now. The wrapper writes the
+prefix it would have piped ahead of the user's program to
+`<images>/NAME.boot.x` -- for a bundle, the bundle's `.images/`; for a
+dialect or app, `~/.cache/x/images/<tree>/` -- and asks `image-build.sh`
+for an image of it. The key is the prefix, the platform's `lib/`, the
+engine, and a bundle's own modules, so any change rewrites it. A current
+image replaces the prefix in the pipe: the loader, then the `%batch?`
+reset and the launcher when there is a session to hand over, then the
+user's program; a bundle's entry runs again after the loader, where its
+imports are no-ops and its CLI dispatch sees the real `args`, which the
+loader rebinds after the install. Who writes: a bundle's `make install`
+(`x --image -l NAME`), so the wrapper never writes into a bundle behind its
+installer's back; everything else on a miss, with one line on stderr,
+because that run pays a boot twice.
+
+| | source | image |
+|---|--:|--:|
+| `x -l he -f` (checkout) | 4.3s incl. the write | 0.38s |
+| `x -l xe -f` (checkout) | 11s incl. the write | 0.90s |
+| `x -l awk -- ...` (checkout) | 6.3s | 0.72s |
+| `x -l he -f` (installed) | 4.4s incl. the write | 0.41s |
+| `x -l awk -- ...` (installed) | -- | 0.47s |
+
 ### Compiled code: put down before the write, picked up after the load
 
 A compiled analyser is native code in a page the writing process mapped,
@@ -1457,16 +1496,20 @@ the three waited for the pin. `make images` lists them now.
   the library (measured above), so the prelude is written against bare
   primitives. Nothing says yet how many lines that is, and if it turns out to
   need much of a dialect, the floor rises and the suite case weakens.
-- **When a lang's own boot loads from an image.** `x -l awk` costs 6s, all
-  of it library, and the wrapper assembles the boot it would image (root
-  and param forms, the dialect entry, the bundle forms, the entry) -- so the
-  image is that pipe's result and the loader stands in for the entry, with
-  the root, param and bundle forms re-emitted after it, since the install
-  replaces the env they landed in. Undecided: who writes it (the bundle's
-  `make install`, or the wrapper on a miss, paying the boot once and saying
-  so), and whether `args` and `%batch?` -- the child's at write time -- are
-  cells the install would overwrite with the writer's values. Probe before
-  building: the suite never asked, a lang always does.
+- ~~**When a lang's own boot loads from an image.**~~ Decided, and built:
+  the wrapper's boot prefix (root and param forms, the entry, the pin
+  arming, a bundle's root and entry) is written to a file and imaged by
+  `image-build.sh`, keyed like every other image plus a bundle's own
+  modules; when current, `lib/img.x` and the loader stand in for the
+  prefix, `args` is rebound to the process's after the install (the
+  writer's child had none), and what the prefix would have decided by
+  evaluating -- the `%batch?` reset, the launcher -- is emitted after the
+  loader. A bundle's image is its installer's (`make install` runs
+  `x --image -l NAME` into the bundle's `.images/`; a stale one means boot
+  from source, quietly); every other boot writes its own on a miss into
+  the per-user cache and says so on stderr. Measured: `x -l awk` 6.3s to
+  0.7s, `x -l xe` 11s to 0.9s, an installed `x -l he` 4.4s to 0.4s. A pinned
+  boot is never imaged. `--no-image` boots from source.
 - **Is an image a pinned artifact or a local cache?** If a lang may ship one,
   it acquires a release, a digest, and a place in the pin vocabulary. If it is
   only a cache, it needs none of that and may be deleted at any time.

@@ -4,6 +4,8 @@
 #   sh tools/dev/image-build.sh LIB-FILE OUT-DIR [KEY-PATH...]
 #       e.g. lib/x-core.x .images
 #       e.g. /path/x-awk/tests/lib/harness.gen.x /path/x-awk/tests/lib/.images /path/x-awk/awk
+#   IMG_CHECK=1 answers without writing: 0 current, 3 refused (marked), 4 stale
+#   or absent.  X_SH names the wrapper (an installed tree's is not ./x.sh).
 #
 # Writes OUT-DIR/<lib file name>.ximg with tools/dev/image-write.x imaging a
 # CHILD base that loaded LIB-FILE, and OUT-DIR/<name>.key beside it.  The key
@@ -43,7 +45,9 @@ engine="${X_BIN:-$root/x-bin}"
 # outside lib/; a key that read only lib/ kept an image of tests/x/lib/isa.x
 # current across a change to either.  The caller's KEY-PATHs come last, in
 # the order given; a path that is a file is hashed as one.
-key="$( { cat "$lib"; find lib tests/x/lib engine/tools/contract -name '*.x' | LC_ALL=C sort | xargs cat; cat tools/dev/image-write.x tools/dev/image-walk.x tools/dev/image-name.x; cat "$engine"; for p in "$@"; do find "$p" -name '*.x' | LC_ALL=C sort | xargs cat; done; } | shasum | cut -d' ' -f1)"
+# An installed tree has no tests/x/lib; a directory that is not there hashes
+# as nothing rather than as an error.
+key="$( { cat "$lib"; for d in lib tests/x/lib engine/tools/contract; do [ -d "$d" ] && find "$d" -name '*.x'; done | LC_ALL=C sort | xargs cat; cat tools/dev/image-write.x tools/dev/image-walk.x tools/dev/image-name.x; cat "$engine"; for p in "$@"; do find "$p" -name '*.x' | LC_ALL=C sort | xargs cat; done; } | shasum | cut -d' ' -f1)"
 # A library the writer could not name (see the unnameable rule below) is
 # remembered by a marker beside the key, so the answer is not re-derived by
 # a failed write on every run: the marker holds until the key changes.
@@ -57,10 +61,13 @@ if [ -f "$keyf" ] && [ "$(cat "$keyf")" = "$key" ]; then
 		exit 3
 	fi
 fi
+# A caller that only wants the answer -- the wrapper, for a bundle whose
+# image is its installer's to write -- stops here.
+[ -n "${IMG_CHECK:-}" ] && exit 4
 echo "image-build: writing $img from $lib"
 rm -f "$img" "$keyf" "$skip"
 { printf '(def %%IMG-LIB "%s") (def %%IMG-OUT "%s")\n' "$lib" "$img"; [ -n "${X_IMG_WHO:-}" ] && printf '(def %%IMG-WHO #t)\n'; cat tools/dev/image-write.x; } \
-	| sh x.sh -q > "$out/$name.log" 2>&1 || true
+	| sh "${X_SH:-x.sh}" -q --no-image > "$out/$name.log" 2>&1 || true
 grep 'objects:\|IMAGE TOTAL\|ERROR\|fault' "$out/$name.log" || true
 # The writer is the left side of a pipe, so its death is invisible to set -e;
 # the image on disk is the only witness that counts.

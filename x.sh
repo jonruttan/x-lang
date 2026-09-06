@@ -277,7 +277,11 @@ bundle_form() {
 		# Restored HERE rather than by not passing --batch, because the flag is
 		# still doing its other job.  The dialect has booted by this point, so
 		# banner.x's def exists to be set!.
-		[ -n "$file1" ] || printf '(set! %%batch? ())\n'
+		#
+		# Not when the boot comes from a STATE IMAGE ($1 = image): the pipe
+		# emits the reset after the loader, since a def made before the
+		# install is replaced with it.
+		[ -n "$file1" ] || [ "$1" = image ] || printf '(set! %%batch? ())\n'
 	fi
 }
 
@@ -502,6 +506,8 @@ display_help() {
 	echo "  -F, --load FILE evaluate file then continue"
 	echo "  -l, --lib NAME  library name (default: \"$X_LIB\")"
 	echo "      --boot FILE boot from FILE (a pinned amalgam) instead of -l's entry"
+	echo "      --image     write the state image -l's boot loads from, and exit"
+	echo "      --no-image  boot from source even when a state image is current"
 	echo "  -q, --quiet     suppress the startup banner"
 	echo "      --no-color  disable ANSI colour in the REPL"
 	echo "      --no-pin    ignore any $X_PIN manifest"
@@ -581,6 +587,14 @@ do
 		--boot)
 			boot_file="$2"
 			shift 2
+			;;
+		--image)
+			image_write=1
+			shift
+			;;
+		--no-image)
+			no_image=1
+			shift
 			;;
 		-v | --verbose)
 			verbose="verbose"
@@ -1269,7 +1283,123 @@ TAIL=
 [ -n "$have_eval" ]  && TAIL="${TAIL}eval_form; "
 [ -n "$post" ]       && TAIL="${TAIL}cat ${post}; "
 
-CMD="{ root_form; param_forms; pin_form; cat $(shquote "$ENTRY"); pin_arm; bundle_form; ${TAIL}} | $(shquote "$X_BIN")$xflags$args"
+# --- STATE IMAGES: the boot, saved once and loaded after -------------------
+# Everything the pipe below feeds ahead of the user's program -- the root and
+# param forms, the entry, the pin arming, the bundle's root and entry -- is a
+# fixed traversal of the same source every time, and it costs seconds (a
+# lang bundle's boot is six).  docs/state-images.md: a state image is that
+# traversal's RESULT, and lib/img.x plus tools/dev/image-read.x load one in a
+# fraction of a second.  So the wrapper writes that prefix to a file, asks
+# tools/dev/image-build.sh for an image of it (keyed on the prefix, the
+# library, the engine and -- for a bundle -- the bundle's own modules, so
+# any change rewrites it), and when the image is current the loader stands
+# in for the prefix.  The engine's own argv survives the install: the loader
+# rebinds `args` after it.  What the image cannot stand in for is emitted
+# after the loader: the %batch? reset and the launcher, both of which the
+# prefix would have decided by evaluating.
+#
+# WHO WRITES IT.  A bundle's image is its installer's: `make install` runs
+# `x --image NAME` into the bundle's own .images/, so a missing or stale one
+# means boot from source, quietly -- the wrapper does not write into a
+# bundle behind its installer's back.  Every other boot (a dialect, an app)
+# is the user's own: on a miss the wrapper writes the image into the per-user
+# cache, and says so on stderr, because the first run after a library or
+# engine change pays a boot twice.  --no-image boots from source; a pinned
+# boot (--boot, or a project manifest) is never imaged, since what a pin
+# arms is per-directory state the key does not see.
+IMAGE=
+img_root() { if [ -n "$INSTALL_ROOT" ]; then printf '%s' "$INSTALL_ROOT"; else pwd; fi; }
+img_loader() {
+	printf '(def %%IMG-PATH "%s")\n' "$IMAGE"
+	# The loader's includes are root-relative (engine/tools/contract/*.x,
+	# lib/x/type/shape-rows.x), as everything under lib/ is; this process
+	# runs wherever the user is, so they are rooted here, on the way in --
+	# the same sed the spec runner uses.
+	sed 's|^(include "\([^/]\)|(include "'"$_iroot"'/\1|' "$_iroot/lib/img.x" "$_iroot/tools/dev/image-read.x"
+}
+# The loader dialect itself is never imaged: lib/img.x boots in 0.05s and is
+# what an image is loaded through, so its image would be the reader read
+# through itself, written on every cold cache for nothing -- the image spec's
+# fifteen probes each boot it, and on a slow runner those writes cost the
+# file its budget.
+if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$PIN_FILE" ] && [ "$X_LIB" != img ]; then
+	_iroot=$(img_root)
+	_ibuild="$_iroot/tools/dev/image-build.sh"
+	if [ -f "$_ibuild" ] && [ -f "$_iroot/lib/img.x" ]; then
+		path_form_safe "$_iroot" "install root"
+		if [ -n "$BUNDLE_DIR" ]; then
+			_idir="$BUNDLE_DIR/.images"
+			_ikeys="$BUNDLE_DIR $BUNDLE_DEPS"
+		else
+			_idir="${XDG_CACHE_HOME:-$HOME/.cache}/x/images/$(printf '%s' "$_iroot" | shasum | cut -c1-12)"
+			_ikeys=""
+		fi
+		require_engine
+		# The prefix, written where the builder can key it and the child
+		# can load it: exactly what the source boot would feed.  A bundle's
+		# entry is in it too: its imports are the bulk of the boot.  It is
+		# still run after the loader (it sits in $file), where its imports
+		# are no-ops and its CLI dispatch sees the real args -- in the
+		# writer's child there were none.
+		#
+		# In a TEMPORARY directory, never beside the image: the builder
+		# names the image and the key by the prefix's basename and keys
+		# them by its content, and a bundle's directory takes nothing from
+		# the wrapper but the image its installer asked for -- a prefix
+		# left there is a .x file the tree's gates would read as the
+		# bundle's.
+		_itmp=$(mktemp -d "${TMPDIR:-/tmp}/x-image.XXXXXX" 2>/dev/null) || _itmp=
+		_ilib="$_itmp/$X_LIB.boot.x"
+		_iimg="$_idir/$X_LIB.boot.x.ximg"
+		if [ -n "$_itmp" ] && { root_form; param_forms; pin_form; cat "$ENTRY"; pin_arm; bundle_form image; \
+		     [ -z "$BUNDLE_DIR" ] || cat "$BUNDLE_DIR/$BUNDLE_ENTRY"; } > "$_ilib" 2>/dev/null; then
+			_ish="$SCRIPT_PATH/$(basename "$0")"
+			[ -n "$INSTALL_ROOT" ] || _ish="$0"
+			if [ -n "$image_write" ]; then
+				mkdir -p "$_idir" 2>/dev/null
+				X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys 1>&2
+				_irc=$?
+				[ "$_irc" -eq 0 ] && echo "x: state image for $X_LIB written to $_idir" >&2
+				rm -rf "$_itmp"
+				exit "$_irc"
+			elif [ -n "$BUNDLE_DIR" ]; then
+				[ -d "$_idir" ] && IMG_CHECK=1 X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys > /dev/null 2>&1 \
+					&& IMAGE="$_iimg"
+			else
+				mkdir -p "$_idir" 2>/dev/null
+				if ! IMG_CHECK=1 X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" > /dev/null 2>&1; then
+					echo "x: no current state image for $X_LIB -- writing one to $_idir (once per change of the library or engine)" >&2
+					X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" > /dev/null 2>&1 || true
+				fi
+				[ -f "$_iimg" ] && IMAGE="$_iimg"
+			fi
+			[ -n "$IMAGE" ] && path_form_safe "$IMAGE" "state image"
+		fi
+		[ -n "$_itmp" ] && rm -rf "$_itmp"
+	fi
+fi
+if [ -n "$image_write" ]; then
+	echo "Error: --image: nothing to write for '$X_LIB'" >&2
+	echo "  a pinned boot is not imaged, and the tree must carry tools/dev/image-build.sh" >&2
+	exit 1
+fi
+
+if [ -n "$IMAGE" ]; then
+	# A session with nothing to run gets the launcher the entry would have
+	# started itself, and the %batch? the entry would have derived.
+	_ipost=
+	if [ -z "$file" ] && [ -z "$have_eval" ] && [ -z "$stdin_prog" ]; then
+		_ipost="printf '(set! %%batch? ())\n'; "
+		if [ -z "$post" ]; then
+			post="$(shquote "${LIB_PATH}${X_LAUNCH}")"
+			TAIL="${TAIL}cat ${post}; "
+		fi
+	fi
+	[ "$verbose" ] && echo "x.sh: booting from state image $IMAGE" >&2
+	CMD="{ img_loader; ${_ipost}${TAIL}} | $(shquote "$X_BIN")$xflags$args"
+else
+	CMD="{ root_form; param_forms; pin_form; cat $(shquote "$ENTRY"); pin_arm; bundle_form; ${TAIL}} | $(shquote "$X_BIN")$xflags$args"
+fi
 
 if [ "$verbose" ]; then
 	echo "$CMD"

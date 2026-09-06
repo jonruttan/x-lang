@@ -77,7 +77,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .images
-          key: images-${{ runner.os }}-${{ hashFiles('tools/engine/engine.pin.xon', 'lib/**/*.x', 'tests/x/lib/*.x', 'engine/tools/contract/*.x', 'tools/dev/image-build.sh', 'tools/dev/image-write.x', 'tools/dev/image-walk.x', 'tools/dev/image-name.x') }}
+          key: images-${{ runner.os }}-${{ hashFiles('tools/engine/engine.pin.xon', 'lib/**/*.x', 'tests/x/lib/*.x', 'engine/tools/contract/*.x', 'tools/dev/image-build.sh', 'tools/dev/image-write.x', 'tools/dev/image-walk.x', 'tools/dev/image-name.x', 'tools/dev/image-read.x', 'lib/img.x') }}
       - name: x-lang specs
         run: make test-x
         env:
