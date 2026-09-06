@@ -67,15 +67,18 @@
         (list (lit pair) (list (prim-ref (lit str) (lit append)) "" "--batch") (list (lit lit) ())))
       ; The path too: `include` records it in the child's file registry.
       (%B eval (list (lit include) (list (prim-ref (lit str) (lit append)) "" %IMG-LIB)))
-      ; A TRANSIENT IS IMAGED AS NIL.  reflect.x's %image-transients names
-      ; the globals whose value belongs to this process alone -- float.x's
-      ; libm handle -- and a recache hook of the same module re-derives each
-      ; once the loader has installed the image.  Cleared here, inside the
-      ; child, so the walk below never meets the word.  ONE FORM, walked by
+      ; A TRANSIENT IS IMAGED AS NIL, OR PUT DOWN.  reflect.x's
+      ; %image-transients holds the globals whose value belongs to this
+      ; process alone -- float.x's libm handle -- and a recache hook of the
+      ; same module re-derives each once the loader has installed the image;
+      ; an entry that is a THUNK rather than a symbol is run instead --
+      ; tower-compiled.x swaps its interpreted analysers back in for the
+      ; compiled ones, and its recache hook compiles them anew.  Cleared and
+      ; run here, inside the child, so the walk below never meets the word.  ONE FORM, walked by
       ; the child over its own list: a version that fetched the list out
       ; and evaluated a set! per name put child objects in this base's
       ; hands between two collects, and the x-base writer died of it.
-      (guard (_ ()) (%B eval (lit ((fn (self l) (if (null? l) () (do (eval (list (lit set!) (first l) ())) (self (rest l))))) %image-transients))))
+      (guard (_ ()) (%B eval (lit ((fn (self l) (if (null? l) () (do ((fn (_ t) (if (symbol? t) (eval (list (lit set!) t ())) (t))) (first l)) (self (rest l))))) %image-transients))))
       ; The child has never collected.  Its own collect, evaluated inside it.
       (%B eval (list %collect))
       ; And this base may not collect while a walk holds a cursor into the
@@ -313,11 +316,11 @@
 (def %x-index
   (fn (_ a kind nm) ((fn (_ i) (if (eq? i 0) (%x-new! a kind nm) i)) (%ht-find %XIDX a))))
 (def %SENT 0)                    ; unnameable references, counted and described
-(def %SENT-LOG ())
-(def %CUR-TW 0)                  ; the type word of the object being emitted
-(def %CUR-KIND 0)                ; the unit kind of the word being named
+(def %SENT-LOG ())               ; ((holder address . description) ...)
+(def %CUR ())                    ; (type word, unit kind, address) of the object whose word is being named
 (def %describe
   (fn (_ w)
+    ((fn (_ %CUR-TW %CUR-KIND)
     (if (eq? %CUR-KIND 3) (list (%ty-name %CUR-TW 0) (lit foreign-unnamed) w)
     (list (%ty-name %CUR-TW 0)
           (if (eq? (%ht-find %SPINE w) 1) (lit spine-unnamed)
@@ -325,9 +328,10 @@
               (if (%traced? w) (lit on-chain-traced-not-imaged) (lit on-chain-untraced))))
           (%ty-name (%rw w %type-off) w)
           w
-          (if (eq? (%ht-find %SPINE w) 1) ((fn (_ nm) (if (eq? nm 0) "no-row" (symbol->str (%p->o (%i->p nm))))) (%ht-find %SPINE-NAMES w)) "-")))))
+          (if (eq? (%ht-find %SPINE w) 1) ((fn (_ nm) (if (eq? nm 0) "no-row" (symbol->str (%p->o (%i->p nm))))) (%ht-find %SPINE-NAMES w)) "-"))))
+     (first %CUR) (first (rest %CUR)))))
 (def %sentinel!
-  (fn (_ w) (do (set! %SENT (%int+ %SENT 1)) (set! %SENT-LOG (pair (%describe w) %SENT-LOG)) 0)))
+  (fn (_ w) (do (set! %SENT (%int+ %SENT 1)) (set! %SENT-LOG (pair (pair (first (rest (rest %CUR))) (%describe w)) %SENT-LOG)) 0)))
 ; A reference: an imaged object's index; a spine node by row; a static by
 ; role or type row; else the sentinel (past the table, restores nil).
 (def %extern-ref
@@ -391,8 +395,7 @@
 (def %name
   (fn (_ w kind o)
     ((fn (_ p)
-       (do (set! %CUR-TW (%rw p %type-off))
-           (set! %CUR-KIND kind)
+       (do (set! %CUR (list (%rw p %type-off) kind (Ptr ->int p)))
            (if (eq? kind 3) (%fn-word w p) (%extern-ref w))))
      (%o->p o))))
 ; The roots' values, in %ROOTS order; the write answers with their indices.
@@ -452,7 +455,42 @@
 (display "objects: ") (write %N)
 (display "  externals: ") (write %XCOUNT) (display "  roots: ") (write %RTCOUNT)
 (display "  unnameable: ") (write %SENT) (newline)
-((fn (self l) (if (null? l) () (do (display "  ") (write (first l)) (newline) (self (rest l))))) %SENT-LOG)
+((fn (self l) (if (null? l) () (do (display "  ") (write (rest (first l))) (newline) (self (rest l))))) %SENT-LOG)
+; --- WHO HOLDS AN UNNAMEABLE.  For each object that carried a word the writer
+; could not name, the objects that reference it, three levels up, naming the
+; global where a level lands on a (symbol . value) pair -- one pass over the
+; traced chain per level, only when there is something to explain.  The
+; census above says WHAT could not be named; this says WHY it was reached.
+(def %holders-of
+  (fn (_ targets)
+    ((fn (_ in? first-name spine-name)
+       (first (%walk %CURSOR
+         (fn (_ p acc)
+           (%over-units p
+             (fn (_ kind w acc2)
+               (if (in? w targets)
+                   (do (display "    ") (write (list (%ty-name (%rw p %type-off) p) (Ptr ->int p) (lit holds) w (first-name p) (spine-name p))) (newline)
+                       (pair (Ptr ->int p) acc2))
+                 acc2))
+             acc))
+         ())))
+     (fn (self w l) (if (null? l) #f (if (eq? w (first l)) #t (self w (rest l)))))
+     ;  A (symbol . value) pair names a global: the symbol's bytes are its word 0.
+     (fn (_ p) (guard (_ "") ((fn (_ q) (if (eq? q 0) "" (if (str=? (%ty-name (%rw (%i->p q) %type-off) (%i->p q)) "SYMBOL") (%p->s (%i->p (%word-at (%i->p q) 0))) ""))) (%word-at p 0))))
+     (fn (_ p) ((fn (_ nm) (if (eq? nm 0) "" (symbol->str (%p->o (%i->p nm))))) (%ht-find %SPINE-NAMES (Ptr ->int p)))))))
+(if (eq? %SENT 0) ()
+  (do (display "  holders, nearest first (one path, up to a spine node):") (newline)
+      ((fn (self ts depth)
+         (if (eq? depth 0) ()
+           (if (null? ts) ()
+             (do (display "   level ") (write (%int- 41 depth)) (newline)
+                 ((fn (_ hs)
+                    (do (%collect)
+                        (if (null? hs) ()
+                          (if (eq? (%ht-find %SPINE (first hs)) 1) ()
+                            (self (list (first hs)) (%int- depth 1))))))
+                  (%holders-of ts))))))
+       (list (first (first %SENT-LOG))) 40)))
 (if (eq? %SENT 0) ()
   (do (display "  legend: satom-tw=") (write %reflect-satom-tw) (display " spair-tw=") (write %reflect-spair-tw)
       (display " true=") (write (%addr (first (%at %RAW (%row-steps %base-paths (lit true))))))

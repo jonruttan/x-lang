@@ -16,6 +16,7 @@
 # Variables (passed via -v):
 #   X_BIN    -- path to interpreter binary
 #   LANG_LIB -- default library file path
+#   X_ROOT   -- the platform root, where the state-image loader lives
 #   TMPDIR   -- temp directory for scratch files
 #   SPEC_ID  -- unique integer for temp file namespacing
 #
@@ -222,18 +223,25 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 	errfile = TMPDIR "/spec-" SPEC_ID ".err"
 	# THE LIBRARY BOOT, OR A STATE IMAGE OF IT.  With IMG_DIR set and
 	# IMG_DIR/<lib file name>.ximg present, the batch boots the img dialect
-	# and the image loader instead of evaluating the library from source:
+	# and the image loader (both from X_ROOT, the platform: a lang bundle's
+	# library sits in the bundle) instead of evaluating the library from source:
 	# the loader installs the image into the running base, so every form
 	# after it on stdin -- this batch -- evaluates inside the loaded library.
 	# The image path reaches the loader as a bound global, one form ahead;
 	# the engine reads no environment.  No image, and nothing changes.
+	#  THE LOADER'S INCLUDES ARE REPO-RELATIVE (engine/tools/contract/*.x,
+	# lib/x/type/shape-rows.x), as x.sh's repo mode requires of everything
+	# under lib/; this process runs wherever the caller is -- a lang bundle's
+	# suite runs in the bundle -- so the sed roots them at X_ROOT on the way
+	# in.  Its first symptom was 161 of x-awk's 167 dying on `include:
+	# cannot open`, which named neither the file nor the directory.
 	# tools/dev/image-build.sh writes the images; docs/state-images.md says why.
 	boot = "cat " q(blib)
 	if (IMG_DIR != "") {
 		_n = split(blib, _bp, "/")
 		img = IMG_DIR "/" _bp[_n] ".ximg"
 		if (system("test -f " q(img)) == 0) {
-			boot = "echo " q("(def %IMG-PATH \"" img "\")") "; cat " q(lib_base "/img.x") " " q(lib_base "/../tools/dev/image-read.x")
+			boot = "echo " q("(def %IMG-PATH \"" img "\")") "; sed 's|^(include \"\\([^/]\\)|(include \"" X_ROOT "/\\1|' " q(X_ROOT "/lib/img.x") " " q(X_ROOT "/tools/dev/image-read.x")
 			# A dialect entry ends in (repl): its batch is read by the x-lang
 			# REPL reader, not the C loop -- the path #49 lived on, and the one
 			# that counts lines.  The image was written by a batch child that

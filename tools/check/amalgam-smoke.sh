@@ -51,6 +51,7 @@ TOWER_EXPECT='3
 
 smoke x "$CORE_EXPECT" ''
 smoke he "$CORE_EXPECT" ''
+smoke x-core "$CORE_EXPECT" ''
 smoke xe "$TOWER_EXPECT" '(display (/ 1 3))(newline)'
 smoke rn "$TOWER_EXPECT" '(display (/ 1 3))(newline)'
 smoke x-base "$TOWER_EXPECT" '(display (/ 1 3))(newline)'

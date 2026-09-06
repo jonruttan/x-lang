@@ -160,7 +160,12 @@
 ; ...and 29 to 38 for the rest of the analyser states -- rational, complex and
 ; decimal joining float.  Each keeps a named interpreted twin, because
 ; %tower-asm-only's contract is that the rung below is always available.
-(file "lib/x/boot/tower-compiled.x" 38)
+; tower-compiled.x rose 38 to 55 for the JIT SITES: every compile is recorded
+; (what it displaced, where it went, how to make it again) so a state image
+; can put the interpreted twins back before the write and compile anew after
+; the load -- the two walks and the record are boot-level state with no
+; class to live in, since the file runs before any module could hold them.
+(file "lib/x/boot/tower-compiled.x" 55)
 (file "lib/x/codec/json.x" 30)
 (file "lib/x/codec/sha256-jit.x" 34)
 (file "lib/x/codec/sha256.x" 33)

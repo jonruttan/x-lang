@@ -125,10 +125,14 @@ says why.
 
 ## §6.7 collect safety
 
-### collects, top-level and tail-position defs, printing, and lookups
+### collects, top-level and def-global defs, printing, and lookups
+
+A def inside `f` is frame-local (it was global by the accident of tail
+position on engines before the live-frame rule); `def-global` is how a
+closure binds for the base on either engine.
 
 ```x
-(display (%probe "((prim-ref (lit heap) (lit collect))) ((prim-ref (lit heap) (lit collect))) (def q 1) (def f (fn (_) (def zz 9))) (f) (display \"x\") (newline) ((prim-ref (lit heap) (lit collect))) (write (list q zz)) (newline) ((prim-ref (lit heap) (lit collect))) (write (Str8 length \"abc\")) (newline)"))
+(display (%probe "((prim-ref (lit heap) (lit collect))) ((prim-ref (lit heap) (lit collect))) (def q 1) (def f (fn (_) ((prim-ref (lit base) (lit def-global)) (lit zz) 9))) (f) (display \"x\") (newline) ((prim-ref (lit heap) (lit collect))) (write (list q zz)) (newline) ((prim-ref (lit heap) (lit collect))) (write (Str8 length \"abc\")) (newline)"))
 ```
 ---
     3

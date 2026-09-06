@@ -1341,9 +1341,35 @@ of two renders. `sha256-jit` (15s) stays one file: its cases share the
 engine its first case builds, and a split would build it once per file.
 The long poles are now `date`, `list`, `bitwise` and `str-class`, 11–16s
 each, none of them a batch. The three JIT dialects (`x-base`, `xe`, `rn`)
-are not imaged: their compiled tower entry points are unnameable, two
-dozen words each since the analyser states compile, so their specs boot
-from source.
+were not imaged: their compiled tower entry points are unnameable, two
+dozen words each since the analyser states compile. The next section
+says how that was closed, and what still stands in the way.
+
+### A lang bundle's suite, booted from an image of its harness
+
+A bundle's spec harness (`tests/lib/harness.gen.x`, [lang-contract.md](lang-contract.md))
+is a library like any the suite declares: an amalgam, the bundle's root
+armed, its base module imported. `image-build.sh` takes it as the library
+and the bundle's module tree as an extra key path, so the image is
+rewritten when the bundle changes as well as when the platform does, and
+the runner loads `lib/img.x` and the loader from `X_ROOT` -- the platform
+root, derived from the runner's own location -- because the harness sits in
+the bundle, where no loader lives. x-awk is the worked example (its
+`tests/spec-runner.sh`, twelve lines): 167 tests, 38s from `x-base.x` to
+16s from an image of an `x-core.x` harness, one file per job, 2026-09-05.
+
+Two things the first bundle taught. **The harness must be on `x-core.x`**:
+every bundle had booted `x-base.x`, whose compiled tower is unnameable, so
+none of them could image until the amalgam list gained `x-core.x` (`make
+boot`). And **`x-base.x` had been hiding a bug**: x-awk declares dialect
+`he` and never imported the numeric layer its arithmetic assumes, so `x -l
+awk` printed 0 for `1/4` while the suite, booted under a full tower, stayed
+green. A harness on bare `x-core.x` -- the dialect the bundle ships -- found
+it in one run (19 failures). The harness now imports `x/num/tower`
+interpreted, which is the tower `x-base.x` gave it and images clean; the
+gap in the shipped lang is recorded in the bundle, priced (the tower is 7s
+of a helium boot) and left for the bundle to close. An `xe` or `rn` bundle
+stays on `x-base.x` and from source until an image can carry compiled code.
 
 Two facts the suite surfaced that the format doc now carries as invariants
 11 and 12: a value an image cannot carry (`num/float.x`'s libm handle) is
@@ -1351,6 +1377,53 @@ a declared **transient**, written as nil and re-derived by the module's
 recache hook; and the interned `#t`/`#f` share the singletons' bytes,
 which `eq?` depends on and a rebuilt symbol had lost — `type/bool.x`'s hook
 points them back.
+
+### Compiled code: put down before the write, picked up after the load
+
+A compiled analyser is native code in a page the writing process mapped,
+and no name reacquires it in another process. The tower does not need it
+to be *carried*, only *remade*: every compile in `boot/tower-compiled.x` is
+the same shape, source over free variables, with an interpreted twin it
+displaces. So each compile goes through a **site** that records where the
+result went (a global, a type's analyse stack, one cell of the symbol
+type's lists), the twin, a maker, and the value in place. Two walks over
+the record: `%tower-unjit!` puts every twin back and lets go of the
+compiled objects, run by the writer inside the child before its walk
+(a thunk among `%image-transients`, the second half of the transient rule
+in `boot/reflect.x`); `%tower-rejit!` compiles every site anew in boot order,
+run by the loader after the install (`%image-recache-hooks`), asking the
+lane again since the loading engine is not the writing one. Measured
+2026-09-05: x-base's twelve unnameable words go to zero from the tower;
+x-base, xe and rn each write clean at ~130K objects; the x-base smoke and
+reader specs run from the image in 1s a file against 6s from source, and
+a direct load-plus-rejit is 0.77s with every analyser native again and
+`(/ 1 3)`, `1.5d`, `1+2i` and `(Num expt 2 70)` answering correctly.
+
+**What still refuses them is not the tower.** After the un-JIT, four
+words remain, and the writer now says who holds them (a holder chase,
+printed with the census when anything is unnameable): `hit`, `cell`,
+`buf`, `sl` -- the `def`s inside `lib/x/tool/asm-cache.x`'s own function
+bodies. **A `def` in a closure's tail position bound globally**: the
+engine decided top-level by an empty save stack, and a closure's frame is
+popped before its deferred tail runs, so a def under an `if`/`do` in tail
+position was global while the same def one form earlier was frame-local.
+Every compile so left its last compiled function, self-cell and read
+buffer in bare globals -- a clobbering bug in its own right, since a
+user's `a`, `f` or `r` was overwritten by any compile. The fix is the
+engine's (x-engine-c `feat/def-lexical-scope`): a `def` scopes by the
+live frame, `eval!` evaluates its form as a top-level one (the REPL runs
+inside the frames of `unless`, `if`, `do` and its own loop), and an
+operative's restore sheds an inner operative's frame instead of keeping
+it whenever the caller's head was "reachable" -- which, every chain
+ending at the same bottom cells, it always was, so a `when` or `unless`
+whose `if` took the empty branch had been leaving `test then else e` at
+the head of the top-level environment for the rest of the session. On
+that engine `x-base.x`, `xe.x` and `rn.x` write clean from the real
+library, and `make images` lists them. They image on the pinned engine as
+well, by an accident the engine fix retires: the site mechanism runs every
+compile inside a helper closure in non-tail position, and the old rule
+classifies the asm cache's inner defs as closure scope there, so nothing
+leaks -- move a compile into tail position and it would again.
 
 ## Not decided
 
@@ -1382,6 +1455,16 @@ points them back.
   the library (measured above), so the prelude is written against bare
   primitives. Nothing says yet how many lines that is, and if it turns out to
   need much of a dialect, the floor rises and the suite case weakens.
+- **When a lang's own boot loads from an image.** `x -l awk` costs 6s, all
+  of it library, and the wrapper assembles the boot it would image (root
+  and param forms, the dialect entry, the bundle forms, the entry) -- so the
+  image is that pipe's result and the loader stands in for the entry, with
+  the root, param and bundle forms re-emitted after it, since the install
+  replaces the env they landed in. Undecided: who writes it (the bundle's
+  `make install`, or the wrapper on a miss, paying the boot once and saying
+  so), and whether `args` and `%batch?` -- the child's at write time -- are
+  cells the install would overwrite with the writer's values. Probe before
+  building: the suite never asked, a lang always does.
 - **Is an image a pinned artifact or a local cache?** If a lang may ship one,
   it acquires a release, a digest, and a place in the pin vocabulary. If it is
   only a cache, it needs none of that and may be deleted at any time.
