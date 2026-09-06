@@ -227,6 +227,9 @@
 ; List: list/sequence operations as the List class (core/list.x holds the
 ; low-level impl + %-helpers; functions migrate onto this class over time).
 (include-once "lib/x/type/list.x")
+; Block-form methods: (List map (x) body xs). Wraps stored methods, so it needs
+; the class layer above and List itself (the one selector it ships wired).
+(include-once "lib/x/type/block.x")
 ; Gen: lazy generators (unfold-based). Needs object/list/vector, all above.
 (include-once "lib/x/type/gen.x")
 (include-once "lib/x/reader/analyser.x")
