@@ -302,6 +302,15 @@
       (returns ANY "nil"))
     (List for-each f (self ->alist))))
 
+
+; --- Block forms ------------------------------------------------------------
+; (d for-each (k v) ...) alongside (d for-each f); see x/type/block.x.  The
+; PAIR shape, not the default: this callback receives one (key . value) pair,
+; so a second name is the value -- never an index.  An instance method, so the
+; receiver is self and the trailing count is 0.
+(import x/type/block)
+(Block method! Dict (lit for-each) (lit pair) 0)
+
 (doc (provide x/type/dict Dict)
   (note "Buckets over a raw slot vector; content hashing (FNV-1a) + equal? keys, instances by identity (address hash + eq?); doubles past a 3/4 load factor.")
   (example "(let ((d (Dict make))) (d set! \"k\" 1) (d get \"k\"))" "1")

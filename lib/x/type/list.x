@@ -520,6 +520,19 @@
     ; dialect, where the R7RS-isms live -- the core class stays data-last.
     ))
 
+
+; --- Block forms ------------------------------------------------------------
+; (List map (x) (* x 10) xs) alongside (List map f xs); see x/type/block.x.
+; Every selector here is subject-last, so the trailing count is 1 (the list)
+; -- except fold, which carries init as well.
+(import x/type/block)
+(List for-each (fn (_ %lst-sel) (Block method! List %lst-sel))
+  (list (lit map) (lit filter) (lit for-each) (lit find) (lit flat-map)
+        (lit sort-by) (lit take-while) (lit any?) (lit all?)))
+(Block method! List (lit fold) (lit fold) 2)
+(Block method! List (lit sort) (lit binary) 1)
+(Block method! List (lit reduce) (lit binary) 1)
+
 (doc (provide x/type/list List)
   (note "The list/sequence operations as static methods; core/list.x keeps the low-level layer (fold/map/filter globals + %-helpers) it is built on.")
   (note "Element access is (List ref n lst) -- the adjudicated name; list-ref/list-tail are Scheme-compat wrappers.")

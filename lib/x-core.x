@@ -80,6 +80,7 @@
   (pair (lit x/type/ptr)
   (pair (lit x/type/io)
   (pair (lit x/type/convert)
+  (pair (lit x/type/block)
   (pair (lit x/core/boolean)
   (pair (lit x/core/fn)
   (pair (lit x/core/logic)
@@ -116,7 +117,7 @@
   (pair (lit x/type/err)
   (pair (lit x/repl/ansi)
   (pair (lit x/repl/banner)
-    (first %module-loaded-cell)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+    (first %module-loaded-cell))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 ; --- Standard modules ---
 (include-once "lib/x/core/predicates.x")
@@ -170,6 +171,9 @@
 ; def-class + doc, and every caller (tower, regex, posix, hash, tools)
 ; loads later still.
 (include-once "lib/x/type/convert.x")
+; Block-form methods: the (names ...) body ... call shape. Machinery only --
+; each class wires its own selectors -- so it loads before the collections do.
+(include-once "lib/x/type/block.x")
 ; Type: the type-system reflection API (the Type class). The mechanism stays
 ; in sys/type.x (pre-object, %-private, filed under catalog ns `type`);
 ; this class presents it and carries the docs.
@@ -227,9 +231,6 @@
 ; List: list/sequence operations as the List class (core/list.x holds the
 ; low-level impl + %-helpers; functions migrate onto this class over time).
 (include-once "lib/x/type/list.x")
-; Block-form methods: (List map (x) body xs). Wraps stored methods, so it needs
-; the class layer above and List itself (the one selector it ships wired).
-(include-once "lib/x/type/block.x")
 ; Gen: lazy generators (unfold-based). Needs object/list/vector, all above.
 (include-once "lib/x/type/gen.x")
 (include-once "lib/x/reader/analyser.x")

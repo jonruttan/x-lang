@@ -151,6 +151,13 @@
 (def %object-iter (fn (_ inst) (%list-iter (%obj-fields inst))))
 (%type-push-iter (%type-by-atom %object) %object-iter)
 
+
+; --- Block forms ------------------------------------------------------------
+; ((v iter) for-each (x i) ...) alongside (Iter for-each f it); x/type/block.x.
+(import x/type/block)
+(Block method! Iter (lit for-each))
+(Block method! Iter (lit fold) (lit fold) 2)
+
 (doc (provide x/type/iter Iter iter)
   (note "(Iter new seq) iterates lists, vectors, strings, and def-class instances")
   (note "(instances yield (name . value) pairs); empty sequences give an empty iterator.")

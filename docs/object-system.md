@@ -333,8 +333,23 @@ the call site:
 ```
 
 Both forms stay live on the same selector; `(help List/map)` keeps answering
-with the applicative signature. `List map` is the one selector the library
-ships wrapped — adding another is one `(Block method! Class sel ...)` line.
+with the applicative signature. Each class wires its own selectors beside the
+methods being wrapped, so `x/type/block` is the mechanism and never reaches
+down into a collection:
+
+| Class | Wrapped selectors |
+|---|---|
+| `List` | `map` `filter` `for-each` `find` `flat-map` `sort-by` `take-while` `any?` `all?` `fold` `sort` `reduce` |
+| `Vector` | `map` `filter` `for-each` `fold` |
+| `Iter` | `for-each` `fold` |
+| `Seq` | `for-each` `fold` — inherited by every subclass, `Str8` included |
+| `Gen` | `map` `filter` `for-each` `find` `take-while` `any?` `all?` `fold` `reduce` |
+| `Dict` | `for-each` (pair shape) |
+| `Set` | `map` `filter` `for-each` `fold` |
+
+Adding another is one `(Block method! Class sel ...)` line, plus its selector
+name in the linter's table (`Lint %lint-block-selectors`) so the block's names
+are not reported undefined.
 
 The mechanism is an ordinary stored method that happens to be an `op`, so
 nothing in the dispatch path changes and an unwrapped selector pays nothing.
@@ -356,6 +371,10 @@ differ:
 The second option is how many argument forms follow the callback: `1` for a
 static method (the subject, spliced last by the value handler), `0` for an
 instance method (the receiver is `self`), `2` for `fold` (init, then subject).
+`Dict`'s `for-each` is an instance method and `List`'s is a static — the two
+conventions differ in argument layout, and `Block method!` probes the static
+table first, then the instance table, so the caller does not have to know
+which a given class uses.
 
 ```x
 (Block method! Dict 'for-each 'pair 0)

@@ -142,6 +142,17 @@
             (%fold (fn (_ acc el) (%rev-onto (self char->bytes el) acc))
                   () elements)))))))
 
+
+; --- Block forms ------------------------------------------------------------
+; Wrapped on Seq, so every Seq subclass -- Str8 included -- inherits the block
+; form through the merged dispatch table; x/type/block.x.  The wrapper passes
+; the RECEIVING class through as argument 0, so the polymorphic
+; (method-of self ...) walks inside these methods still resolve to the
+; subclass.
+(import x/type/block)
+(Block method! Seq (lit for-each))
+(Block method! Seq (lit fold) (lit fold) 2)
+
 (doc (provide x/protocol/seq Seq)
   (note "A subclass supplies start/done?/step (and char->bytes to encode); count, length, ->list, for-each, fold and ->str are derived. (help Seq) lists the methods.")
   "Seq: the base sequence protocol -- cursor-based traversal shared by every sequence type.")

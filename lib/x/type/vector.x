@@ -227,7 +227,58 @@
       (%vector-from-list %vector lst))
     (method iter (self (param v VECTOR "Vector to iterate"))
       (doc "An iterator over the vector's elements." (returns ITER "Iterator"))
-      (Iter new v))))
+      (Iter new v))
+    ; --- Traversal ---
+    ; Slot walks, not ->list walks: a vector is already indexable, so
+    ; materialising a list first would allocate a pair per element for nothing.
+    ; filter is the exception -- its result length is unknown until the walk
+    ; ends, so it accumulates and converts once.  Every inner loop names its
+    ; own self slot (go), never `self`: the method's self IS the class, and
+    ; shadowing it would break the (self build ...) / (self from-list ...)
+    ; sends these bodies make.
+    (method for-each (self (param f CALLABLE "Applied to each element for effect")
+                           (param v VECTOR "Vector to traverse"))
+      (doc "Apply f to each element in order, for its side effects; returns nil. Named for-each, matching List/Iter/Seq."
+        (returns ANY "nil"))
+      (%vec-check v "Vector for-each: not a vector")
+      (def len (%obj-ref v 0))
+      (def go
+        (fn (go i)
+          (if (< i len) (do (f (%obj-ref v (+ i 1))) (go (+ i 1))))))
+      (go 0))
+    (method map (self (param f CALLABLE "Applied to each element")
+                      (param v VECTOR "Vector to map over"))
+      (doc "A new vector of (f element), in order. Built in place -- no intermediate list."
+        (returns VECTOR "New vector of the same length")
+        (example "(Vector map (fn (_ x) (* x 2)) (Vector of 1 2 3))" "#(2 4 6)"))
+      (%vec-check v "Vector map: not a vector")
+      (self build (%obj-ref v 0) (fn (_ i) (f (%obj-ref v (+ i 1))))))
+    (method filter (self (param pred CALLABLE "Kept when it answers truthy")
+                         (param v VECTOR "Vector to filter"))
+      (doc "A new vector of the elements satisfying pred, in order."
+        (returns VECTOR "New vector, possibly shorter")
+        (example "(Vector filter (fn (_ x) (> x 1)) (Vector of 1 2 3))" "#(2 3)"))
+      (%vec-check v "Vector filter: not a vector")
+      ; Walks backwards so the accumulated list comes out in order -- one pass,
+      ; no reverse.
+      (def go
+        (fn (go i acc)
+          (if (< i 0) acc
+            (let ((x (%obj-ref v (+ i 1))))
+              (go (- i 1) (if (pred x) (pair x acc) acc))))))
+      (self from-list (go (- (%obj-ref v 0) 1) ())))
+    (method fold (self (param f CALLABLE "Combiner, called (f acc element)")
+                       (param acc ANY "Initial accumulator")
+                       (param v VECTOR "Vector to fold over"))
+      (doc "Left-fold: thread acc through the elements, left to right."
+        (returns ANY "The final accumulator")
+        (example "(Vector fold + 0 (Vector of 1 2 3))" "6"))
+      (%vec-check v "Vector fold: not a vector")
+      (def len (%obj-ref v 0))
+      (def go
+        (fn (go i a)
+          (if (< i len) (go (+ i 1) (f a (%obj-ref v (+ i 1)))) a)))
+      (go 0 acc))))
 
 ; Value dispatch over the existing index call handler. A symbol selector
 ; dispatches subject-LAST, so (v ref i) -> (Vector ref i v) and (v ->list) work;
@@ -255,6 +306,15 @@
       (if (%type? a %vector)
         (if (%type? b %vector) (%vector-equal eq a b) #f)
         (prev eq a b)))))
+
+
+; --- Block forms ------------------------------------------------------------
+; (#(1 2 3) map (x i) (* x i)) alongside (Vector map f v); see x/type/block.x.
+(import x/type/block)
+(Block method! Vector (lit map))
+(Block method! Vector (lit filter))
+(Block method! Vector (lit for-each))
+(Block method! Vector (lit fold) (lit fold) 2)
 
 (doc (provide x/type/vector Vector)
   (note "Literal syntax: #(1 2 3), with negative indexing via the vector's call slot.")

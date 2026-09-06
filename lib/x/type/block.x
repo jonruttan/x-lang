@@ -38,7 +38,6 @@
 ; door is used only for start/done?/step and Char upcase/downcase.
 
 (import x/type/class)
-(import x/type/list)
 
 (def-class Block ()
   (doc "Block-form methods: give a higher-order method a (names ...) body ... call shape.")
@@ -200,13 +199,10 @@
             (self %block-op sm shape
               (if (self %len>=? opts 2) (first (rest opts)) 1))))))))
 
-; --- the shipped wiring ----------------------------------------------------
-; List map is the first method to carry a block form.  Every other
-; higher-order method is one line of the same shape, e.g.
-;   (Block method! List 'fold 'fold 2)
-;   (Block method! Dict 'for-each 'pair 0)
-
-(Block method! List (lit map))
+; Each class wires its own selectors, beside the methods being wrapped -- this
+; file is the mechanism only, and never reaches down into a collection.  See
+; the (Block method! ...) lines at the foot of list.x, vector.x, iter.x,
+; seq.x, gen.x, dict.x and set.x.
 
 (doc (provide x/type/block Block)
   (note "The operative sees the binding list, which is what makes the optional")
