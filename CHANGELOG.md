@@ -24,6 +24,12 @@ source; a pinned boot is never imaged. `make install` ships the image
 tools and the layout contracts under the share tree, so an installed x
 does all of this too.
 
+The first cold load of an x-base image found one more transient: the
+compiler's trampoline addresses are integers, resolved when the module
+loads, and an integer names nothing, so a compile on the far side of a load
+called the writer's process's addresses. They register as transients now
+and the recache hook resolves them again.
+
 
 ## [0.12.0] - 2026-09-06
 

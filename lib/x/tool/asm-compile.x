@@ -64,19 +64,42 @@
     (def p (%dlsym %jit-lib name))
     (when (null? p) (set! %jit-missing (pair name %jit-missing)))
     p))
+; OPTIONAL (a true second argument) resolves WITHOUT %jit-sym's missing-symbol
+; tracking: a helper newer than the core trampolines -- jit_buffer_last_char,
+; jit_call_value -- is absent from an older JIT engine, and a miss recorded
+; here would trip compile-asm's "JIT runtime unavailable" refusal for EVERY
+; compile.  A 0 instead means only a compile that actually needs it raises
+; and falls back, which is what the delimiter's %tower-asm ladder wants.
 (def %jit-addr
-  (fn (_ name)
-    (def p (%jit-sym name))
+  (fn (_ name . optional)
+    (def p (if (null? optional) (%jit-sym name) (%dlsym %jit-lib name)))
     (if (null? p) 0 (%ptr->int p))))
-(def %jit-mkint    (%jit-addr "jit_mkint"))
-(def %jit-mkpair   (%jit-addr "jit_mkpair"))
-(def %jit-firstobj (%jit-addr "jit_firstobj"))
-(def %jit-restobj  (%jit-addr "jit_restobj"))
-(def %jit-atomint  (%jit-addr "jit_atomint"))
-(def %jit-eval-arg (%jit-addr "jit_eval_arg"))
-(def %jit-score-set (%jit-addr "jit_score_set"))
-(def %jit-buffer-unread (%jit-addr "jit_buffer_unread"))
-(def %jit-buffer-len (%jit-addr "jit_buffer_len"))
+; --- These addresses are THIS PROCESS'S ALONE ---------------------------------
+; Each is an INTEGER holding a dlsym result, and an integer names nothing: a
+; state image carries it as it is, and a process that loads the image then
+; emits calls to wherever the WRITER's process had jit_mkint.  A warm byte
+; cache never reaches them -- a pour re-resolves every trampoline by name --
+; which is how x-base loaded fine until its first cold compile after a load,
+; which died with SIGBUS inside the analyser it had just emitted.  So each
+; binding registers itself as it is made (the transient rule, boot/reflect.x:
+; the writer images it as nil) with the row the recache hook remakes it
+; from, the handle with them; the name table is read off the rows.
+(def %jit-rows ())                 ; ((global name optional?) ...), newest first
+(def %jit-bind!
+  (fn (_ global name optional?)
+    (do (set! %jit-rows (pair (list global name optional?) %jit-rows))
+        (set! %image-transients (pair global %image-transients))
+        (%jit-addr name optional?))))
+(set! %image-transients (pair (lit %jit-lib) %image-transients))
+(def %jit-mkint    (%jit-bind! (lit %jit-mkint) "jit_mkint" #f))
+(def %jit-mkpair   (%jit-bind! (lit %jit-mkpair) "jit_mkpair" #f))
+(def %jit-firstobj (%jit-bind! (lit %jit-firstobj) "jit_firstobj" #f))
+(def %jit-restobj  (%jit-bind! (lit %jit-restobj) "jit_restobj" #f))
+(def %jit-atomint  (%jit-bind! (lit %jit-atomint) "jit_atomint" #f))
+(def %jit-eval-arg (%jit-bind! (lit %jit-eval-arg) "jit_eval_arg" #f))
+(def %jit-score-set (%jit-bind! (lit %jit-score-set) "jit_score_set" #f))
+(def %jit-buffer-unread (%jit-bind! (lit %jit-buffer-unread) "jit_buffer_unread" #f))
+(def %jit-buffer-len (%jit-bind! (lit %jit-buffer-len) "jit_buffer_len" #f))
 ; jit_buffer_last_char postdates the core trampolines, so an older JIT engine
 ; has the JIT but not this one symbol.  Resolve it WITHOUT %jit-sym's
 ; missing-symbol tracking: a miss recorded here would trip compile-asm's "JIT
@@ -85,18 +108,14 @@
 ; JIT-capable.  A 0 instead means only a compile that actually needs it raises
 ; -- at %emit-call! -- and falls back, which is what the delimiter's %tower-asm
 ; ladder wants.
-(def %jit-addr-optional
-  (fn (_ name)
-    (def p (%dlsym %jit-lib name))
-    (if (null? p) 0 (%ptr->int p))))
-(def %jit-buffer-last-char (%jit-addr-optional "jit_buffer_last_char"))
+(def %jit-buffer-last-char (%jit-bind! (lit %jit-buffer-last-char) "jit_buffer_last_char" #t))
 ; jit_call_value is newer still, and OPTIONAL for the same reason: an
 ; engine with the JIT but not this symbol must keep compiling every form
 ; that does not need it.  A call through a computed head is the only form
 ; that does, and %asm-compile-callable-call refuses by name when the
 ; address is 0 -- an unresolved trampoline emitted as `blr 0` is the
 ; segfault-far-from-the-cause this file exists to refuse.
-(def %jit-call-value (%jit-addr-optional "jit_call_value"))
+(def %jit-call-value (%jit-bind! (lit %jit-call-value) "jit_call_value" #t))
 
 ; The name each trampoline address came from.  A relocation record has to
 ; name the SYMBOL, not the address: the address is the very thing that is
@@ -104,26 +123,33 @@
 ; than by threading a name through every %emit-call! call site -- the table
 ; is nine entries and consulted once per emitted call.  An unresolved
 ; optional trampoline is 0 and is left out, so 0 never matches a name.
-(def %jit-symbol-names
-  (list (pair %jit-mkint "jit_mkint")
-        (pair %jit-mkpair "jit_mkpair")
-        (pair %jit-firstobj "jit_firstobj")
-        (pair %jit-restobj "jit_restobj")
-        (pair %jit-atomint "jit_atomint")
-        (pair %jit-eval-arg "jit_eval_arg")
-        (pair %jit-score-set "jit_score_set")
-        (pair %jit-buffer-unread "jit_buffer_unread")
-        (pair %jit-buffer-len "jit_buffer_len")
-        (pair %jit-buffer-last-char "jit_buffer_last_char")
-        (pair %jit-call-value "jit_call_value")))
+; The name each trampoline address came from -- read off the rows, so the
+; table never goes stale under a rebind.  A relocation record has to name the
+; SYMBOL, not the address: the address is the very thing that is wrong in
+; another process.  Eleven rows, consulted once per emitted call.  An
+; unresolved optional trampoline is 0 and never matches a name.
 (def %jit-name-of
   (fn (self addr)
-    ((fn (walk xs)
-       (if (null? xs) ()
-         (if (if (= addr 0) #f (= (first (first xs)) addr))
-           (rest (first xs))
-           (walk (rest xs)))))
-      %jit-symbol-names)))
+    ((fn (walk rs)
+       (if (null? rs) ()
+         (if (if (= addr 0) #f (= (eval (first (first rs))) addr))
+           (first (rest (first rs)))
+           (walk (rest rs)))))
+      %jit-rows)))
+; After a load: the handle, then every address in the order it was made
+; (rows are newest first), then the name table over the new addresses.
+(set! %image-recache-hooks
+  (pair (fn (_)
+          (do (set! %jit-lib (%dlopen () 1))
+              (set! %jit-missing ())
+              ((fn (self l)
+                 (if (null? l) ()
+                   (do (self (rest l))
+                       (eval (list (lit set!) (first (first l))
+                               (list %jit-addr (first (rest (first l)))
+                                     (first (rest (rest (first l))))))))))
+               %jit-rows)))
+        %image-recache-hooks))
 
 ; Stack push/pop ride the per-arch asm-push!/asm-pop! FUNCTIONS: each
 ; backend owns its 16-byte discipline (arm64 pre/post-indexed str/ldr;

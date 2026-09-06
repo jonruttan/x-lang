@@ -1378,6 +1378,20 @@ recache hook; and the interned `#t`/`#f` share the singletons' bytes,
 which `eq?` depends on and a rebuilt symbol had lost — `type/bool.x`'s hook
 points them back.
 
+**An integer that is an address is a transient too.** The first cold load
+of an x-base image died with SIGBUS inside an analyser it had just
+compiled: `tool/asm-compile.x` holds its trampoline addresses (`jit_mkint`
+and the rest) as INTEGERS, resolved by `dlsym` when the module loads, and
+an integer names nothing, so the image carried the writer's process's
+addresses and a compile on the far side emitted calls to them. A warm byte
+cache never reaches those integers -- a pour re-resolves every trampoline
+by name from the relocation records -- which is why every warm run passed
+and CI, where the images came from the actions cache and `/tmp` was cold,
+did not. Each binding now registers itself as it is made, the float.x
+shape: a transient the writer images as nil, a row the recache hook
+remakes it from, the handle with them. The rule it states: a value that is
+an address is a transient whatever type it is stored as.
+
 ### A lang's own boot, from its image
 
 `x -l NAME` boots the same way its suite does now. The wrapper writes the
