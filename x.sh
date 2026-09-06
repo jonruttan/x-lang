@@ -1317,7 +1317,12 @@ img_loader() {
 	# the same sed the spec runner uses.
 	sed 's|^(include "\([^/]\)|(include "'"$_iroot"'/\1|' "$_iroot/lib/img.x" "$_iroot/tools/dev/image-read.x"
 }
-if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$PIN_FILE" ]; then
+# The loader dialect itself is never imaged: lib/img.x boots in 0.05s and is
+# what an image is loaded through, so its image would be the reader read
+# through itself, written on every cold cache for nothing -- the image spec's
+# fifteen probes each boot it, and on a slow runner those writes cost the
+# file its budget.
+if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$PIN_FILE" ] && [ "$X_LIB" != img ]; then
 	_iroot=$(img_root)
 	_ibuild="$_iroot/tools/dev/image-build.sh"
 	if [ -f "$_ibuild" ] && [ -f "$_iroot/lib/img.x" ]; then
@@ -1330,36 +1335,47 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$PIN_FILE" ]; then
 			_ikeys=""
 		fi
 		require_engine
-		mkdir -p "$_idir" 2>/dev/null
-		_ilib="$_idir/$X_LIB.boot.x"
 		# The prefix, written where the builder can key it and the child
-		# can load it: exactly what the source boot would feed.
-		# A bundle's entry is in the prefix too: its imports are the bulk
-		# of the boot.  It is still run after the loader (it sits in $file),
-		# where its imports are no-ops and its CLI dispatch sees the real
-		# args -- in the writer's child there were none.
-		if { root_form; param_forms; pin_form; cat "$ENTRY"; pin_arm; bundle_form image; \
-		     [ -z "$BUNDLE_DIR" ] || cat "$BUNDLE_DIR/$BUNDLE_ENTRY"; } > "$_ilib.new" 2>/dev/null \
-			&& mv "$_ilib.new" "$_ilib"; then
+		# can load it: exactly what the source boot would feed.  A bundle's
+		# entry is in it too: its imports are the bulk of the boot.  It is
+		# still run after the loader (it sits in $file), where its imports
+		# are no-ops and its CLI dispatch sees the real args -- in the
+		# writer's child there were none.
+		#
+		# In a TEMPORARY directory, never beside the image: the builder
+		# names the image and the key by the prefix's basename and keys
+		# them by its content, and a bundle's directory takes nothing from
+		# the wrapper but the image its installer asked for -- a prefix
+		# left there is a .x file the tree's gates would read as the
+		# bundle's.
+		_itmp=$(mktemp -d "${TMPDIR:-/tmp}/x-image.XXXXXX" 2>/dev/null) || _itmp=
+		_ilib="$_itmp/$X_LIB.boot.x"
+		_iimg="$_idir/$X_LIB.boot.x.ximg"
+		if [ -n "$_itmp" ] && { root_form; param_forms; pin_form; cat "$ENTRY"; pin_arm; bundle_form image; \
+		     [ -z "$BUNDLE_DIR" ] || cat "$BUNDLE_DIR/$BUNDLE_ENTRY"; } > "$_ilib" 2>/dev/null; then
 			_ish="$SCRIPT_PATH/$(basename "$0")"
 			[ -n "$INSTALL_ROOT" ] || _ish="$0"
 			if [ -n "$image_write" ]; then
+				mkdir -p "$_idir" 2>/dev/null
 				X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys 1>&2
 				_irc=$?
 				[ "$_irc" -eq 0 ] && echo "x: state image for $X_LIB written to $_idir" >&2
+				rm -rf "$_itmp"
 				exit "$_irc"
 			elif [ -n "$BUNDLE_DIR" ]; then
-				IMG_CHECK=1 X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys > /dev/null 2>&1 \
-					&& IMAGE="$_ilib.ximg"
+				[ -d "$_idir" ] && IMG_CHECK=1 X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys > /dev/null 2>&1 \
+					&& IMAGE="$_iimg"
 			else
+				mkdir -p "$_idir" 2>/dev/null
 				if ! IMG_CHECK=1 X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" > /dev/null 2>&1; then
 					echo "x: no current state image for $X_LIB -- writing one to $_idir (once per change of the library or engine)" >&2
 					X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" > /dev/null 2>&1 || true
 				fi
-				[ -f "$_ilib.ximg" ] && IMAGE="$_ilib.ximg"
+				[ -f "$_iimg" ] && IMAGE="$_iimg"
 			fi
 			[ -n "$IMAGE" ] && path_form_safe "$IMAGE" "state image"
 		fi
+		[ -n "$_itmp" ] && rm -rf "$_itmp"
 	fi
 fi
 if [ -n "$image_write" ]; then
