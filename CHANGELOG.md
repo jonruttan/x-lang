@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The engine pin rides to x-engine-c v0.2.8, and the three JIT dialects
+are in the images list.** v0.2.8 carries x-engine-c #41: a `def` scopes by
+the live frame rather than by an empty save stack, so a def in a closure's
+tail position is frame-local like the one a form earlier. That is what
+had refused `x-base`, `xe` and `rn`: the asm lane's temporaries (`hit`,
+`cell`, `buf`) leaked into bare globals, and though the pinned v0.2.7
+imaged them with a warm asm byte cache, a cold one took the compiler's
+miss path, whose own tail defs leaked too -- and a CI runner is always
+cold. On v0.2.8 the three write clean from a cold cache, so `make images`
+lists them after `x-core`, `x` and `he`: 29 images, none refused, and the
+lang bundles' harnesses, which all boot `x-base.x`, get the image they
+were waiting for.
+
 **The JIT dialects can be imaged, and a lang bundle's suite can boot from
 an image.** A state image could not carry the tower's compiled analysers
 -- native code in a page the writing process mapped -- so `x-base`, `xe`
@@ -28,9 +41,9 @@ those four were found. The engine fix -- `def` scopes by the live frame,
 inner frame -- is x-engine-c's `feat/def-lexical-scope`, and with it the
 three write clean from the real library. On the pinned engine they image
 only with a warm asm byte cache (a cold one takes the compiler's miss path,
-whose tail defs leak too), so `make images` lists them once that fix is
-pinned. The writer's holder chase is opt-in, `X_IMG_WHO=1`: it is minutes
-on a dialect-sized heap. `docs/state-images.md` carries the
+whose tail defs leak too), so `make images` waited for that fix to be
+pinned (the entry above). The writer's holder chase is opt-in,
+`X_IMG_WHO=1`: it is minutes on a dialect-sized heap. `docs/state-images.md` carries the
 measurements and the open item.
 
 For the bundles: `tools/dev/image-build.sh` takes extra key paths, so a
