@@ -155,16 +155,25 @@ if [ $# -eq 0 ]; then
   # per-line atomic; a failing file's block may interleave with others,
   # which a green gate never shows.
   #
-  # Default fan-out: min(cores, 4).  A child peaks at ~600MB RSS
-  # (class.x, measured 2026-08-13); 8-wide OOM-killed the 7GB ubuntu CI
-  # runner (SIGTERM 143, ECHILD noise in make) while 14GB macOS
-  # survived.  4x600MB leaves headroom everywhere; raise NPROC
-  # explicitly on machines with the memory for it -- and LOWER it where
-  # the memory is the constraint: CI pins NPROC=2 on its ubuntu leg,
-  # because "leaves headroom everywhere" stopped being true there (two
-  # main runs OOM-killed at the derived width, same 143 signature).  The
+  # Default fan-out: min(cores, 4).  A child is NOT small: measured
+  # 2026-09-05 (engine v0.2.6, --lib --group, GNU time -v on the 8GB
+  # x86-64 Linux guest of tools/dev/x86-vm.sh), the single-file children
+  # class.x and pin.x peak at 7.3GB and 7.9GB maxrss -- so NPROC=2 on a
+  # 16GB runner is already the edge, and one such child was OOM-killed
+  # at 5.18GB anon-rss.  macOS reports the same runs anywhere between
+  # 1GB and 3.6GB (the compressor takes pages out of the resident set;
+  # read those as a floor).  The ~600MB figure this comment used to quote
+  # (class.x, 2026-08-13) is history: 8-wide OOM-killed the 7GB ubuntu
+  # CI runner (SIGTERM 143, ECHILD noise in make) back then, and at
+  # today's sizes 4-wide OOM-killed the 16GB release runner twice at the
+  # same file (#622 caps that gate at NPROC=2).  Raise NPROC explicitly
+  # on machines with the memory for it -- and LOWER it where the memory
+  # is the constraint: CI pins NPROC=2 on its ubuntu leg.  The
   # derivation below is min(cores, 4), so it tracks the RUNNER rather
   # than the workload; a caller that knows its box should say so.
+  # Within a batch child the driver sweeps the heap between files
+  # (lint.x; x has no automatic GC), so a group costs its heaviest FILE,
+  # not the sum of its files: the figures above are per file.
   # Batch by PRELOAD SIGNATURE (#323): one engine boot lints every file
   # that shares an identical mode+preload -- ~160 boots collapse to ~55
   # groups.  Identical preloads are the SOUNDNESS line: batching files
