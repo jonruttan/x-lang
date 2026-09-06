@@ -47,9 +47,20 @@ jobs:
       # suite itself only when there is none -- a tag on a commit CI never
       # saw still pays in full.  The one target ci.yml cannot run is run
       # here regardless: check-release-version fires only AT a tag.
-      # When the suite does run here, test-x writes its state images
-      # uncached, about two minutes: a release run is rare and a second
-      # copy of ci.yml's cache key is a fact nobody would keep in step.
+      # The verdict is read JOB BY JOB, not off the run: a main run also
+      # carries `make test-asan`, CI's own extra, which is no part of
+      # `make test` and takes ~32 minutes (2026-09-05: 23:06 -> 23:38)
+      # where every job that does cover the suite is done in ~12.  Judged
+      # by the run, the gate waited on the slowest job -- and when the run
+      # had queued behind another main push first (ci.yml runs main one at
+      # a time), the wait cap tripped and the gate fell back to the very
+      # half hour it exists to skip; the v0.11.0 retag came within minutes
+      # of that.  So the set is EVERY job of the run except test-asan (and
+      # a skipped one), which is the `make test` coverage set without a
+      # second copy of ci.yml's job list to keep in step.  When the suite
+      # does run here, test-x writes its state images uncached, about two
+      # minutes: a release run is rare and a second copy of ci.yml's cache
+      # key is a fact nobody would keep in step.
       - name: Gate
         env:
           GH_TOKEN: ${{ github.token }}
@@ -68,28 +79,44 @@ jobs:
         run: |
           set -e
           make check-release-version
-          # ci.yml's run for THIS sha -- the push to main the tag sits on.
-          # Still in flight: wait for it rather than duplicate it.
+          # ci.yml's runs for THIS sha -- the push to main the tag sits on.
           runs() {
             gh run list --workflow=ci.yml --event push --commit "$GITHUB_SHA" \
-              --json status,conclusion --jq "$1"
+              --json databaseId --jq '.[].databaseId'
           }
+          # One run's verdict over the jobs that cover `make test`: pending
+          # while any of them is still queued or running, success once all
+          # are green, failure otherwise.  A run queued behind another main
+          # push has NO jobs yet -- that is pending too, not an empty pass.
+          # test-asan is not in the set (see above); an in-flight job's
+          # conclusion is the empty string, which no test here mistakes.
+          judge() {
+            gh run view "$1" --json status,jobs --jq '
+              [.jobs[] | select(.name != "make test-asan" and .conclusion != "skipped")] as $req
+              | if ($req | any(.status != "completed"))
+                   or ($req == [] and .status != "completed") then "pending"
+                elif $req != [] and ($req | all(.conclusion == "success")) then "success"
+                else "failure" end'
+          }
+          # ANY green run for the sha counts: a cancelled or superseded run
+          # beside a passing one is still a judged commit.  Wait only while
+          # none is green and one is still judging.
           waited=0
-          while [ "$(runs '[.[] | select(.status != "completed")] | length')" != "0" ] \
-                && [ "$waited" -lt 2400 ]; do
+          while :; do
+            verdicts=$(for id in $(runs); do judge "$id"; done | tr "\n" " ")
+            case "$verdicts" in *success*) break ;; esac
+            case "$verdicts" in *pending*) ;; *) break ;; esac
+            [ "$waited" -lt 2400 ] || break
             echo "gate: ci.yml is still judging $GITHUB_SHA -- waiting (${waited}s)"
             sleep 60; waited=$((waited + 60))
           done
-          # ANY green run for the sha counts: a cancelled or superseded run
-          # beside a passing one is still a judged commit.
-          verdict=$(runs '[.[] | select(.status == "completed") | .conclusion]
-                          | if index("success") then "success" else (.[0] // "none") end')
-          if [ "$verdict" = "success" ]; then
-            echo "gate: ci.yml already passed $GITHUB_SHA -- not running the suite twice"
-          else
-            echo "gate: no green ci.yml run for $GITHUB_SHA (got '$verdict') -- running the full gate here"
-            make test
-          fi
+          case "$verdicts" in
+            *success*)
+              echo "gate: ci.yml already passed $GITHUB_SHA -- not running the suite twice" ;;
+            *)
+              echo "gate: no green ci.yml run for $GITHUB_SHA (got '${verdicts:-none}') -- running the full gate here"
+              make test ;;
+          esac
       - name: Amalgams + manifest
         run: |
           make boot
