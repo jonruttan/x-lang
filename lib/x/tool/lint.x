@@ -691,8 +691,18 @@
 ; head expression lints on its own, the message name is skipped.
 ; Dispatched from the non-symbol-head path of %lint-dispatch.
 
+; Block-form sends -- (subject sel (names ...) body ...) -- bind the names for
+; everything after them (x/type/block.x).  The recogniser and its selector
+; table are homed on Lint (below), so this file's top level does not grow.
 (def %lint-call (fn (_ form)
   (match
+    ((if (%lint-value-subject? (first form))
+       (if (symbol? (first (rest form)))
+         (Lint %lint-block-send? (%cvt (first (rest form)) %string) (rest (rest form)))
+         #f)
+       #f)
+      (do (%lint-form (first form))            ; the subject is a real use
+          (Lint %lint-block-body (rest (rest form)))))  ; names bound over the rest
     ((if (%lint-value-subject? (first form))
        (symbol? (first (rest form))) #f)
       (do (%lint-form (first form))          ; the subject is a real use
@@ -877,6 +887,34 @@
   (static
     (%lint-class-siblings (list ()) "Sibling method names of the class being walked")
     (%lint-embedder-known (list "%install-root" "%pin-file") "Embedder-contract names, announced before any file runs")
+    (%lint-block-selectors
+      (list "map" "filter" "for-each" "find" "flat-map" "sort-by" "take-while"
+            "any?" "all?" "fold" "sort" "reduce")
+      "Selectors carrying a block form (x/type/block); one entry per shipped wrap")
+    (method %lint-all-syms? (self xs)
+      (if (null? xs) #t
+        (if (pair? xs)
+          (if (symbol? (first xs)) (recur self (rest xs)) #f)
+          #f)))
+    ; Keyed by SELECTOR, not by shape alone: only a wrapped selector may read a
+    ; list of symbols as a binding list, so an ordinary call that happens to
+    ; pass (f x) still lints as a call.
+    (method %lint-block-send? (self sel args)
+      (match
+        ((not (%member-str? sel (Lint %lint-block-selectors))) #f)
+        ((not (pair? args)) #f)
+        ((not (pair? (rest args))) #f)             ; names alone is not a block
+        ((not (pair? (first args))) #f)
+        (#t (self %lint-all-syms? (first args)))))
+    ; The names cover the body AND the trailing arguments (the subject, fold's
+    ; init).  Over-scoping by those few forms is deliberate: the linter does not
+    ; know each selector's trailing count, and guessing would produce false
+    ; 'undefined' reports, which this linter is adjudicated against.
+    (method %lint-block-body (self args)
+      (def saved (first %lint-scope))
+      (%set-first! %lint-scope (%add-params (first args) saved))
+      (%lint-seq (rest args))
+      (%set-first! %lint-scope saved))
     (method %lint-out-verb? (self form)
       (match
         ((not (pair? form)) #f)

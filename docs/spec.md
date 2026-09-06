@@ -166,7 +166,11 @@ Constructs a pair from evaluated `a` and `b`.
 
 `(first p) -> obj`
 
-Returns the first element of pair `p`. Calling `(first ())` is undefined.
+Returns the first element of pair `p`. Calling `(first ())` is undefined — in
+practice it dereferences nil and takes the process down. Importing
+`x/tool/safe-access` shadows `first` and `rest` with guarded closures so both
+raise instead; it is opt-in because the library walks its own lists through
+the same globals and the guard costs 1.4x–1.7x.
 
 ```x-repl
 (first (pair 1 2)) -> 1
@@ -177,7 +181,8 @@ Returns the first element of pair `p`. Calling `(first ())` is undefined.
 
 `(rest p) -> obj`
 
-Returns the rest element of pair `p`. Calling `(rest ())` is undefined.
+Returns the rest element of pair `p`. Calling `(rest ())` is undefined; see
+[`first`](#first) for the opt-in guard.
 
 ```x-repl
 (rest (pair 1 2)) -> 2

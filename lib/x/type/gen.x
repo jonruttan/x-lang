@@ -275,6 +275,17 @@
     (doc "The greatest value; errors on an empty generator (drives the whole generator)." (returns ANY "Greatest value"))
     (self reduce (fn (_ a x) (if (< a x) x a)))))
 
+
+; --- Block forms ------------------------------------------------------------
+; Gen's methods are INSTANCE methods -- the receiver is self -- so the trailing
+; count is 0, or 1 for fold (its init); x/type/block.x.
+(import x/type/block)
+(List for-each (fn (_ %gen-sel) (Block method! Gen %gen-sel (lit element) 0))
+  (list (lit map) (lit filter) (lit for-each) (lit find) (lit take-while)
+        (lit any?) (lit all?)))
+(Block method! Gen (lit fold) (lit fold) 1)
+(Block method! Gen (lit reduce) (lit binary) 0)
+
 (doc (provide x/type/gen Gen)
   (note "Lazy generators (unfold-based): build (range/iterate/repeat/from-list/of),")
   (note "transform lazily (map/filter/take/drop/zip/scan/...), drive eagerly")

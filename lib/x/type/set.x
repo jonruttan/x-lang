@@ -159,6 +159,17 @@
     (doc "The members as a list (unordered)." (returns LIST "List of members"))
     ((self %d) keys)))
 
+
+; --- Block forms ------------------------------------------------------------
+; Instance methods -- the receiver is self -- so the trailing count is 0, or 1
+; for fold (its init); see x/type/block.x.  Iteration order is unspecified, so
+; the index a second name binds is arrival order, not a stable position.
+(import x/type/block)
+(Block method! Set (lit map) (lit element) 0)
+(Block method! Set (lit filter) (lit element) 0)
+(Block method! Set (lit for-each) (lit element) 0)
+(Block method! Set (lit fold) (lit fold) 1)
+
 (doc (provide x/type/set Set)
   (note "Membership = key presence in the backing Dict; same key-type rules -- content comparison, instances by identity.")
   (example "((Set from-list (list \"a\" \"b\" \"a\")) length)" "2")

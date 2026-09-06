@@ -318,6 +318,76 @@ like `new`). The fn is stored as-is — it receives `(self . args)` and uses
 `(self f)` member access. The class's data mutates (so `(help)` sees the
 addition immediately) and every cached dispatch table refolds.
 
+---
+
+### Block-form methods
+
+A higher-order method normally takes a callable. `Block method!` gives one a
+second call shape where the callback's parameter names and body are written at
+the call site:
+
+```x
+(List map (fn (_ x) (* x 10)) xs)   ; applicative -- always available
+(List map (x) (* x 10) xs)          ; block form
+(List map (x i) (list i x) xs)      ; a second name is the 0-based index
+```
+
+Both forms stay live on the same selector; `(help List/map)` keeps answering
+with the applicative signature. Each class wires its own selectors beside the
+methods being wrapped, so `x/type/block` is the mechanism and never reaches
+down into a collection:
+
+| Class | Wrapped selectors |
+|---|---|
+| `List` | `map` `filter` `for-each` `find` `flat-map` `sort-by` `take-while` `any?` `all?` `fold` `sort` `reduce` |
+| `Vector` | `map` `filter` `for-each` `fold` |
+| `Iter` | `for-each` `fold` |
+| `Seq` | `for-each` `fold` — inherited by every subclass, `Str8` included |
+| `Gen` | `map` `filter` `for-each` `find` `take-while` `any?` `all?` `fold` `reduce` |
+| `Dict` | `for-each` (pair shape) |
+| `Set` | `map` `filter` `for-each` `fold` |
+
+Adding another is one `(Block method! Class sel ...)` line, plus its selector
+name in the linter's table (`Lint %lint-block-selectors`) so the block's names
+are not reported undefined.
+
+The mechanism is an ordinary stored method that happens to be an `op`, so
+nothing in the dispatch path changes and an unwrapped selector pays nothing.
+Because an operative receives its argument *forms*, it can see how many names
+the block declared — which is what makes the optional index possible at all:
+the language has no arity introspection, and calls are lenient, so an
+applicative method handed a two-parameter callback would silently bind nil.
+
+What a second name means is declared per selector, because callback shapes
+differ:
+
+| Shape | One name | Two names | Three names |
+|---|---|---|---|
+| `element` (default) | element | element, index | — |
+| `pair` | the `(k . v)` pair | key, value | — |
+| `fold` | — | acc, element | acc, element, index |
+| `binary` | — | a, b | — |
+
+The second option is how many argument forms follow the callback: `1` for a
+static method (the subject, spliced last by the value handler), `0` for an
+instance method (the receiver is `self`), `2` for `fold` (init, then subject).
+`Dict`'s `for-each` is an instance method and `List`'s is a static — the two
+conventions differ in argument layout, and `Block method!` probes the static
+table first, then the instance table, so the caller does not have to know
+which a given class uses.
+
+```x
+(Block method! Dict 'for-each 'pair 0)
+(Block method! List 'fold 'fold 2)
+```
+
+Two limits are worth knowing. A binding list is recognised structurally — a
+non-empty list of symbols in the callback seat — so a *computed* callable built
+only from symbols, `(List map (make-f x) a b)`, reads as a block; spell that one
+with an explicit `(fn ...)`. And after wrapping, the stored method **is** the
+operative, so `(method-of Class sel)` on a block-enabled selector returns
+something that must not be called directly.
+
 The `%missing` protocol hook catches what dispatch cannot resolve — instance
 and static sides, inherited like any method:
 
@@ -623,6 +693,7 @@ too.
 | `(def-trait T ...)` / `(with T...)` | Define a trait / mix it into a class |
 | `(delegates field (sel...))` | Generate forwarders to a field's value |
 | `(C def-method! sel fn)` / `(C def-static! sel fn)` | Add a method at runtime |
+| `(Block method! C sel [shape] [trailing])` | Give a method a `(names…) body…` call shape |
 | `(method %init/%repr/%str/%missing ...)` | Protocol hooks: construction, printing, miss |
 | `(method-of Class sel)` | Resolve a static once for hot-loop direct calls |
 

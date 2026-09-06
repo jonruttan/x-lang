@@ -302,3 +302,77 @@ compared against a lie.
 ```
 ---
     ('value 0)
+
+## traversal
+
+### map builds a new vector in place
+
+```x
+(Vector map (fn (_ x) (* x 2)) (Vector of 1 2 3))
+```
+---
+    #(2 4 6)
+
+### map over an empty vector is empty
+
+```x
+(Vector map (fn (_ x) x) (Vector of))
+```
+---
+    #()
+
+### filter keeps the satisfying elements, in order
+
+```x
+(Vector filter (fn (_ x) (> x 1)) (Vector of 3 1 2))
+```
+---
+    #(3 2)
+
+### filter can keep nothing
+
+```x
+(Vector length (Vector filter (fn (_ x) #f) (Vector of 1 2)))
+```
+---
+    0
+
+### fold threads the accumulator left to right
+
+```x
+(Vector fold (fn (_ a x) (Str8 str a x)) "" (Vector of "a" "b" "c"))
+```
+---
+    "abc"
+
+### fold over an empty vector returns the seed
+
+```x
+(Vector fold + 99 (Vector of))
+```
+---
+    99
+
+### for-each visits every element in order and returns nil
+
+```x
+(let ((acc (list ()))) (Vector for-each (fn (_ x) (%set-first! acc (pair x (first acc)))) (Vector of 1 2 3)) (first acc))
+```
+---
+    (3 2 1)
+
+### traversal rejects a non-vector receiver
+
+```x
+(guard (e (Err kind-of e)) (Vector map (fn (_ x) x) 7))
+```
+---
+    'type
+
+### the value form dispatches subject-last
+
+```x
+((Vector of 1 2 3) filter (fn (_ x) (> x 1)))
+```
+---
+    #(2 3)
