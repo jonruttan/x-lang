@@ -5,6 +5,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-09-06
+
 **The engine pin rides to x-engine-c v0.2.8, and the three JIT dialects
 are in the images list.** v0.2.8 carries x-engine-c #41: a `def` scopes by
 the live frame rather than by an empty save stack, so a def in a closure's
@@ -56,6 +58,37 @@ helium-weight harness should have been loading all along --
 `docs/lang-contract.md` says which to load and why. x-awk is the worked
 example: 167 tests, 38s from `x-base.x` to 18s from an image, one file per
 job, and `IMG=0` as the from-source control.
+
+**The engine pin had first moved to x-engine-c v0.2.7**, and with it #599
+closed: a type registered on another base outlives the collector.
+`base-make-type` pinned the type's objects by marking from the target
+base's tree root, and a base's root is born SHARED, so the walk stopped on
+its first node and pinned nothing -- a defect that surfaced one collect
+late and read as a collector bug. A lang that brings its own tokenizer
+base (x-ash) could not take the per-turn sweep and ran its suite with the
+per-snippet collect off; both workarounds went with that pin. The
+`crafting-a-lang.md` entry that described the defect asked to be deleted
+when it closed, and is.
+
+**The release gate reads ci.yml job by job.** It polled the tag's run
+until nothing was in flight, which meant waiting on `make test-asan` --
+CI's own ~32-minute extra, not part of `make test` -- and tripping the
+cap when the run had queued behind another main push. The verdict is now
+the jobs that cover the suite, each judged as it lands.
+
+**Lint children sweep before every file.** A batch child lints up to
+eight files in one boot and x collects only when asked, so its peak was
+the sum of every file's analysis garbage -- four such children OOM-killed
+the 16 GB release runner twice. The sweep runs before each file, the
+first included: the single-file children (`class.x`, `pin.x`,
+`asm-compile.x`) start on 17-19M live objects of boot and reader residue,
+and that was the peak that mattered.
+
+**The two long spec batches are cut along their fixture chains**:
+`tools/pin` into six files sharing two on-demand fixture trees,
+`bitwise-parity` in two, none over 7 s.
+
+x-coreutils' contract advances to 103 applets, 0 failed.
 
 ## [0.11.0] - 2026-09-05
 
