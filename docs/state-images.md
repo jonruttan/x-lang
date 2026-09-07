@@ -1419,10 +1419,28 @@ marker that stops the write being retried until the key changes:
   is refused with the count.
 - **An entry that reads stdin at load ends the writer.** The engine's
   program and the child's stdin are one descriptor, so logo's and ash's
-  `%batch?` dispatch read the writer's own script. The child is told:
+  `%batch?` dispatch read the writer's own script -- and ash's ends in
+  `(Sys exit)`, which took the writer with it. The child is told:
   `%image-writing` is bound there before the include, and an entry that
-  loads and stops while it is bound images like any other. Until then the
-  refusal names the shape: "ended the writer while loading".
+  loads and stops while it is bound images like any other. The refusal
+  names the shape when one does not: "ended the writer while loading".
+
+  The spelling an entry uses is a guarded read, because that name is bound
+  in the writer's child ALONE and this language has no `bound?` predicate
+  (boot/module.x says so, and gives the catalog's nil answer as the test
+  where a catalog entry exists; here there is none, since the child has no
+  catalog until the library it is loading arrives):
+
+  ```
+  (if (guard (_ #f) %image-writing)
+    ()
+    (if %batch? (batch) (session)))
+  ```
+
+  The writer takes the mark back before it walks, so no image carries a
+  true one -- otherwise every boot from that image would read "I am being
+  imaged" and skip the dispatch the entry skipped during the write, and a
+  lang that images would never start.
 - **A crash is called a crash.** The shell's signal report in the log is
   read back as "the writer crashed", exit 1, never as a library's refusal.
 

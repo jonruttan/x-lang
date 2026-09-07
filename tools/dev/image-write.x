@@ -76,6 +76,14 @@
       (display "image: writer begins") (newline)
       ; The path too: `include` records it in the child's file registry.
       (%B eval (list (lit include) (list (prim-ref (lit str) (lit append)) "" %IMG-LIB)))
+      ;  AND THE MARK IS TAKEN BACK.  It is a global in the child, so the
+      ; walk below would carry it into the image, and every boot from that
+      ; image would read "I am being imaged" and skip the very dispatch the
+      ; entry skipped HERE -- a lang that images would then never start.
+      ; Cleared rather than unbound: the entry reads it through a guard
+      ; (there is no bound? predicate), and a bound nil is what a normal
+      ; boot's guard answers anyway.
+      (%child-def! (lit %image-writing) (list (lit lit) ()))
       ; A TRANSIENT IS IMAGED AS NIL, OR PUT DOWN.  reflect.x's
       ; %image-transients holds the globals whose value belongs to this
       ; process alone -- float.x's libm handle -- and a recache hook of the
