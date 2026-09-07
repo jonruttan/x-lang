@@ -376,3 +376,22 @@ compared against a lie.
 ```
 ---
     #(2 3)
+
+### a bare call with no index is an error, not a crash
+
+`first` on `()` is undefined and would dereference nil, so the index handler
+guards before it reads. `(Vector length v)` is the length door.
+
+```x
+(guard (e e) (#(1 2 3)))
+```
+---
+    #<err:index vector: call with no index>
+
+### indexing still works either way round it
+
+```x
+(list (#(1 2 3) 0) (#(1 2 3) -1) (guard (e (Err kind-of e)) (#(1 2 3) 9)))
+```
+---
+    (1 3 'index)
