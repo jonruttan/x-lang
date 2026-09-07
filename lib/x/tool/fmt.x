@@ -50,10 +50,15 @@
 
 ; --- Width estimation ---
 
-; Column math counts CODE POINTS via the bare (s) call -- str-length is
-; BYTES and misaligns any non-ASCII source. True display columns
-; (double-width CJK, zero-width combining marks) need a wcwidth-style
-; table: known gap (#44 N3); code points are correct for everything else.
+; Column math counts CODE POINTS -- (Str8 length s) is BYTES and misaligns
+; any non-ASCII source. True display columns (double-width CJK, zero-width
+; combining marks) need a wcwidth-style table: known gap (#44 N3); code
+; points are correct for everything else.
+;
+; This read the bare (s) call until a string's value-call was made to refuse
+; one naming no index. That spelling answered a length, which is what made
+; (x-version) look like an accessor; (Str length s) says which unit it means.
+; See docs/type-system.md, "A call must name what to do".
 (def %fmt-cp-len (fn (_ s) (Str length s)))
 
 (def %fmt-width (fn (_ form)
