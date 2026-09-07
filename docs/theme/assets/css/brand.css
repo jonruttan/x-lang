@@ -1,0 +1,110 @@
+/* brand.css -- x-lang's own marks over jekyll-theme-primer.
+ *
+ * Loaded AFTER the theme's stylesheet, and deliberately small: a bar, a
+ * footer, and one colour.  Primer keeps the page; this file only says
+ * whose page it is.
+ *
+ * The palette is not invented here.  #161a22 is the owl's ink and
+ * hsl(261.6 58% 46%) is x-lang's accent -- sha256("x-lang") picked that
+ * hue, apps/bitwise draws every mark with it, and the site now reads in
+ * it too.  Rename the project and the owl changes colour; this file
+ * would have to be told, which is the one place the site repeats itself.
+ */
+
+:root {
+  --x-ink:    #161a22;  /* the owl's ink */
+  --x-accent: #6231b9;  /* hsl(261.6 58% 46%), the hashed hue */
+  --x-mute:   #57606a;
+  --x-rule:   #d8dee4;
+}
+
+/* The bar spans the viewport; its contents sit on the same 1012px
+ * measure as the prose below, so the owl lines up with the H1. */
+.x-bar {
+  border-bottom: 1px solid var(--x-rule);
+  background: #fff;
+}
+
+.x-bar-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  min-height: 54px;
+}
+
+.x-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--x-ink);
+  text-decoration: none;
+}
+
+.x-home:hover { text-decoration: none; }
+
+/* The owl is TEXT, not the drawn mark.  Bitwise is ASCII in the header of
+ * every x source file, and at 30px the drawn glyphs -- Roboto Mono
+ * outlines over their field -- anti-alias into a grey smudge.  Set as
+ * type it is crisp at any size, costs no request, and is the same owl. */
+.x-owl,
+.x-owl-sm {
+  flex: none;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+  letter-spacing: -0.05em;
+  color: var(--x-ink);
+}
+
+.x-owl i,
+.x-owl-sm i {
+  font-style: normal;
+  color: var(--x-accent);
+}
+
+.x-owl { font-size: 16px; font-weight: 600; }
+.x-owl-sm { font-size: 13px; opacity: 0.85; }
+
+.x-name {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.x-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  font-size: 14px;
+}
+
+.x-nav a {
+  color: var(--x-mute);
+  text-decoration: none;
+}
+
+.x-nav a:hover {
+  color: var(--x-accent);
+  text-decoration: underline;
+}
+
+/* One colour change, and it is the loudest thing here: every link in the
+ * prose moves off Primer's blue onto the owl's purple. */
+.markdown-body a { color: var(--x-accent); }
+
+.x-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--x-rule);
+  font-size: 12px;
+  color: var(--x-mute);
+}
+
+.x-foot-end { margin-left: auto; }
