@@ -7,7 +7,7 @@ The x-lang library is modular: ~100 modules (one module = one `provide`-ing `.x`
 
 This document covers the core functions loaded by `lib/x.x` (the base x-lang dialect). For the complete auto-generated reference covering all modules, see the [x-lang API Reference](https://jonruttan.github.io/x-lang/docs/ref/x/index.html) (offline: `make doc-x`, then `ref/x/index.md`).
 
-**Library version:** `0.5.2`
+**Library version:** `0.12.0`
 
 ### Module Categories
 
@@ -310,6 +310,10 @@ Applies `f` to each element and returns a list of results.
 ```x-repl
 (List map (method-ref Num inc) (list 1 2 3)) -> (2 3 4)
 ```
+> `map` and most other higher-order methods also take a **block form**, writing
+> the callback's names and body at the call site: `(List map (x) (* x 10) xs)`,
+> where a second name binds the 0-based index. [Object System](object-system.md)
+> lists which selectors carry it and what a second name means for each.
 
 ### `List filter`
 `(List filter pred lst) -> list`
@@ -881,6 +885,52 @@ Converts a list to a vector.
 Creates a vector of length `n` with every element set to `fill`.
 ```x-repl
 (Vector make 3 0) -> #(0 0 0)
+```
+
+### `Vector build`
+`(Vector build n f) -> vector`
+Creates a vector of length `n` where element `i` is `(f i)`. Built in place, with no intermediate list.
+```x-repl
+(Vector build 3 (fn (_ i) (* i i))) -> #(0 1 4)
+```
+
+### `Vector set!`
+`(Vector set! i x v) -> vector`
+Stores `x` at index `i` of `v`, in place; negative `i` counts from the end. Errors when `i` is out of range. Returns `v`, for chaining.
+```x-repl
+(Vector set! 0 99 (Vector of 1 2)) -> #(99 2)
+```
+
+### `Vector map`
+`(Vector map f v) -> vector`
+A new vector of `(f element)`, in order. Built in place, with no intermediate list.
+```x-repl
+(Vector map (fn (_ x) (* x 2)) (Vector of 1 2 3)) -> #(2 4 6)
+```
+
+### `Vector filter`
+`(Vector filter pred v) -> vector`
+A new vector of the elements satisfying `pred`, in order.
+```x-repl
+(Vector filter (fn (_ x) (> x 1)) (Vector of 1 2 3)) -> #(2 3)
+```
+
+### `Vector fold`
+`(Vector fold f acc v) -> value`
+Left-fold: threads `acc` through the elements, calling `(f acc element)`.
+```x-repl
+(Vector fold + 0 (Vector of 1 2 3)) -> 6
+```
+
+### `Vector for-each`
+`(Vector for-each f v) -> nil`
+Applies `f` to each element in order, for its side effects.
+
+### `Vector iter`
+`(Vector iter v) -> iterator`
+An iterator over the vector's elements.
+```x-repl
+(Iter ->list (Vector iter (Vector of 1 2))) -> (1 2)
 ```
 
 ## 17. Objects
