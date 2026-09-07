@@ -72,3 +72,14 @@ it takes; "spine" and "tree" belong only in sentences about layout.
 - **competition** — how the reader chooses: every registered type's
   analyse handlers score a position, and the best claim wins. A type
   with no read handler discards its span.
+
+## Text
+
+- **width** — how much horizontal room a rendered form takes, counted in
+  **code points**. Not bytes: `(Str8 length s)` counts bytes and overstates
+  any non-ASCII text, so a byte count wraps lines that would have fit. Not
+  true display columns either — double-width CJK and zero-width combining
+  marks need a wcwidth-style table, a known gap (#44 N3). So "width" names
+  the code-point count wherever the library says it, and the other two
+  measures are named outright when they are meant. `(Fmt width form)`
+  measures a form, `(Str length s)` a string.
