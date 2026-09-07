@@ -98,6 +98,20 @@ flags takes parse-leading, which stops at the first of them.
 ---
     (("f" "g") #t ("f" "-n" "g") #f)
 
+### `on?` asks about PRESENCE, not which list the flag was declared in
+
+A caller that had to remember whether `-m` stood alone or took an
+argument would be re-deriving the declaration it already made.
+
+```x
+(do (import x/sys/opts)
+  (def o (Opts parse (list "-v") (list "-m") (list "-v" "-m" "700")))
+  (list (Opts on? o "-v") (Opts on? o "-m") (Opts on? o "-x")
+        (Opts value o "-m")))
+```
+---
+    (#t #t #f "700")
+
 ## the undeclared
 
 ### an unknown option is REMEMBERED, not raised: the caller words it

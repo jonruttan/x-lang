@@ -58,11 +58,13 @@
 
     (method on? (self (param opts ALIST "A parsed command line")
                       (param flag STRING "The flag to ask about"))
-      (doc "Was this flag given, in any spelling it has?"
+      (doc "Was this flag given, in any spelling it has? True for a flag that stands alone AND for one that takes an argument -- the question is presence, not kind, and a caller that had to know which list a flag landed in would be re-deriving the declaration it already made."
         (returns BOOL "True when the flag was present")
         (example "(Opts on? (Opts parse (list \"-v\") () (list \"-v\")) \"-v\")" "#t")
+        (example "(Opts on? (Opts parse () (list \"-m\") (list \"-m\" \"700\")) \"-m\")" "#t")
         (example "(Opts on? (Opts parse (list \"-v\") () ()) \"-v\")" "#f"))
-      (self %member? flag (rest (Assoc entry (lit on) opts))))
+      (if (self %member? flag (rest (Assoc entry (lit on) opts))) #t
+        (not (null? (self values opts flag)))))
 
     (method value (self (param opts ALIST "A parsed command line")
                         (param flag STRING "The value-taking flag")
