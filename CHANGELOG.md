@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A boot from a state image keeps ctrl-c, and a bundle keeps its session.**
+Two things a boot does that an image cannot carry, both found by driving
+x-logo from one. The SIGINT handler is the process's, not the heap's:
+`sigint-install` ran in x-core.x at boot and never again, so every image boot
+ran with SIGINT at its default and ctrl-c killed the session outright instead
+of raising STOP -- in every lang and every dialect. It is now an image recache
+hook. And `%batch?` was reset for a bundle only when `$file` was empty, which
+for a bundle it never is (it holds the bundle's own entry), so an entry that
+chooses between a REPL and a batch reader on `%batch?` always read the
+`--batch` the loader needs: x-logo booted from an image read its own launcher
+as a Logo program and exited without a prompt. The reset now keys on the
+user's file, the same rule `bundle_form` uses.
+
 **The image writer refuses instead of dying.** Five lang bundles crashed it
 on first contact, and a crash says nothing. The transient walk now runs
 from the writer's base with primitive objects rather than as a form the

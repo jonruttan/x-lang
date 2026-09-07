@@ -1426,11 +1426,18 @@ marker that stops the write being retried until the key changes:
 - **A crash is called a crash.** The shell's signal report in the log is
   read back as "the writer crashed", exit 1, never as a library's refusal.
 
-What the two remaining refusals say, measured 2026-09-06: logo, three
-unplaced references held by two spine nodes and a list; python, two, held
-by lists. Both bundles make a second base at load, and a reference into
-another base's heap is one this writer, which walks one chain, cannot
-place -- the isolated-base item below, no longer hypothetical.
+Both refusals that remained on 2026-09-06 said the same thing -- logo,
+three unplaced references held by two spine nodes and a list; python, two,
+held by lists -- and both bundles were making a second base at load. A
+reference into another base's heap is one this writer, which walks one
+chain, cannot place. Both are fixed now, in the bundles, and the shape of
+the fix is the same one either way: find every base made at load, turn what
+registers onto it into a table that can be replayed, give it ONE builder,
+nil it in a transient and call the builder from a recache hook. Nothing
+about that is particular to a lang, so it is written here rather than
+there. A bundle whose entry starts something -- logo forks a viewer server
+-- moves that out of its imports too: an import is what the image carries,
+so a fork decided there is decided once, in the writer's batch child.
 
 ### A lang's own boot, from its image
 
