@@ -5,6 +5,22 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The image writer refuses instead of dying.** Five lang bundles crashed it
+on first contact, and a crash says nothing. The transient walk now runs
+from the writer's base with primitive objects rather than as a form the
+child evaluates (r5rs rebinds `fn`), and a raise inside the child stops the
+write with its message -- a swallowed raise left the child's root chain
+pointing at C frames that were gone, and its next collect walked freed
+stack, which was every silent SIGSEGV. A reference word the writer cannot
+place is reported by its holder, never read; a child past a million live
+objects is refused with the count; an entry that reads stdin at load (the
+engine's program and the child's stdin are one descriptor) is refused as
+"ended the writer", and the child is told it is being imaged through
+`%image-writing`; a signal in the log is called a crash. r5rs images
+(144K objects, 0.5s to boot against 7s); logo and python refuse with three
+and two unplaced references into the second base each makes at load.
+
+
 **A lang boots from its image.** `x -l NAME` paid the same boot on every
 run -- six seconds for awk, eleven for xe -- although its suite had been
 booting from a state image since 0.11.1. The wrapper now images the prefix

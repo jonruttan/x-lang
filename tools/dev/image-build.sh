@@ -69,6 +69,42 @@ rm -f "$img" "$keyf" "$skip"
 { printf '(def %%IMG-LIB "%s") (def %%IMG-OUT "%s")\n' "$lib" "$img"; [ -n "${X_IMG_WHO:-}" ] && printf '(def %%IMG-WHO #t)\n'; cat tools/dev/image-write.x; } \
 	| sh "${X_SH:-x.sh}" -q --no-image > "$out/$name.log" 2>&1 || true
 grep 'objects:\|IMAGE TOTAL\|ERROR\|fault' "$out/$name.log" || true
+# A refusal the writer states -- a type it cannot describe, a transient that
+# raised in the child -- is exit 3 like an unnameable word: the caller
+# boots from source, and the log says why.  The marker holds until the key
+# changes, as below.
+if grep -q '^image: refused\|^image: clearing a transient raised' "$out/$name.log"; then
+	grep '^image: ' "$out/$name.log" >&2
+	printf '%s\n' "$key" > "$keyf"
+	: > "$skip"
+	exit 3
+fi
+# The writer began, and neither a census nor a refusal followed: the library
+# ENDED THE WRITER -- an entry that reads stdin at load read the writer's own
+# script, or exited.  The child is told (%image-writing is bound there); a
+# lang that loads and stops while it is bound images like any other.
+# A raise in the writer itself is the writer's bug, said as such.
+if grep -q '^\*\*\* ERROR' "$out/$name.log"; then
+	echo "image-build: the writer raised: $(grep '^\*\*\* ERROR' "$out/$name.log" | head -1) -- see $out/$name.log" >&2
+	exit 1
+fi
+# The writer died of a signal: its own bug, or an object it walked into that
+# it should have refused, and the log's last lines are the shell's report.
+if grep -q 'Segmentation fault\|Bus error\|Killed:\|Abort trap\|Illegal instruction' "$out/$name.log"; then
+	echo "image-build: the writer crashed -- $(grep -o 'Segmentation fault\|Bus error\|Killed:[^|]*\|Abort trap\|Illegal instruction' "$out/$name.log" | head -1) -- see $out/$name.log" >&2
+	exit 1
+fi
+# The writer began, and neither a census nor a refusal nor a crash followed:
+# the library ENDED THE WRITER -- an entry that reads stdin at load read the
+# writer's own script, or exited.  The child is told (%image-writing is
+# bound there); a lang that loads and stops while it is bound images like
+# any other.
+if grep -q '^image: writer begins' "$out/$name.log" && ! grep -q '^objects:' "$out/$name.log"; then
+	echo "image: refused -- $lib ended the writer while loading (an entry that reads stdin or exits at load; check %image-writing and load only)" >&2
+	printf '%s\n' "$key" > "$keyf"
+	: > "$skip"
+	exit 3
+fi
 # The writer is the left side of a pipe, so its death is invisible to set -e;
 # the image on disk is the only witness that counts.
 if [ ! -s "$img" ]; then
