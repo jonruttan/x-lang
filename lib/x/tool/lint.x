@@ -889,7 +889,7 @@
     (%lint-embedder-known (list "%install-root" "%pin-file") "Embedder-contract names, announced before any file runs")
     (%lint-block-selectors
       (list "map" "filter" "for-each" "find" "flat-map" "sort-by" "take-while"
-            "any?" "all?" "fold" "sort" "reduce")
+            "any?" "all?" "group-by" "partition" "fold" "sort" "reduce")
       "Selectors carrying a block form (x/type/block); one entry per shipped wrap")
     (method %lint-all-syms? (self xs)
       (if (null? xs) #t

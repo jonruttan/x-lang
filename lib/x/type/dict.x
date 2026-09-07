@@ -300,7 +300,24 @@
     (doc "Apply f to each (key . val) entry pair, for side effects."
       (param f CALLABLE "Applied to each (key . val) pair")
       (returns ANY "nil"))
-    (List for-each f (self ->alist))))
+    (List for-each f (self ->alist)))
+
+  ; Type-preserving, like List/Vector/Set/Gen map -- a dict maps to a dict.
+  ; The callback receives the whole ENTRY, matching for-each above, and its
+  ; result is the new VALUE: keys are carried over unchanged, so the result
+  ; always has exactly this dict's keys and no image can collapse two entries.
+  ; Rewriting keys is deliberately not this method's job -- that is
+  ; (Dict from-alist (List map f (d ->alist))), where a collision is the
+  ; caller's to mean.
+  (method map (self f)
+    (doc "A new dict with the same keys, each value replaced by (f (key . val))."
+      (param f CALLABLE "Applied to each (key . val) pair; its result becomes the new value")
+      (returns Dict "A fresh dict: this dict's keys, mapped values")
+      (note "The callback receives the ENTRY, as for-each does, so the key is available; the RESULT is the value. To rewrite keys, map the ->alist and rebuild with from-alist.")
+      (example "(((Dict from-plist (list 'a 1 'b 2)) map (fn (_ e) (* (rest e) 10))) get 'b)" "20"))
+    (def out (Dict make (self cap)))
+    (List for-each (fn (_ e) (out set! (first e) (f e))) (self ->alist))
+    out))
 
 
 ; --- Block forms ------------------------------------------------------------
@@ -310,6 +327,7 @@
 ; receiver is self and the trailing count is 0.
 (import x/type/block)
 (Block method! Dict (lit for-each) (lit pair) 0)
+(Block method! Dict (lit map) (lit pair) 0)
 
 (doc (provide x/type/dict Dict)
   (note "Buckets over a raw slot vector; content hashing (FNV-1a) + equal? keys, instances by identity (address hash + eq?); doubles past a 3/4 load factor.")
