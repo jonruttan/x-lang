@@ -111,30 +111,64 @@
 ; the line that makes it: a row the hook remakes it from, and a transient the
 ; writer images as nil.  The maker is shared by the load and the hook, and
 ; log2/log10/hypot reach the re-opened handle at call time.
-(def %libm-rows ())                 ; ((global kind name) ...), newest first
+(def %libm-rows ())                 ; ((global kind name cell) ...), newest first
+;  THE RESOLVED ADDRESS LIVES IN A CELL, AND NEVER INSIDE A CLOSURE.  The
+; maker below used to bind (let ((sym (%dlsym %libm name))) ...) and close
+; over `sym`, which puts a raw address in the closure's own frame -- where
+; the transient rule cannot reach it.  %image-transients names GLOBALS, so
+; clearing %fsin empties the global and leaves the frame the closure still
+; holds; seventeen of those survived the child's collect and the writer
+; refused the image on `unnameable: 16`.
+;  IT REFUSED ON LINUX ONLY, and that is what kept it quiet.  Nothing about
+; the heap differs by platform -- a mac bakes in the same addresses -- only
+; whether the writer can NAME them: glibc keeps a dlopen'd libm out of the
+; global scope, where macOS's libSystem folds it in, so words that have no
+; name under glibc resolve and are named there.  A clean `unnameable: 0` on
+; a mac was this bug passing quietly, not its absence.
+;  So the address goes in a ONE-SLOT CELL the closure reads at call time.
+; The cells are emptied by a thunk among the transients -- run inside the
+; child, before the walk, so the walk never meets an address -- and refilled
+; by the recache hook after the load.  A closure now holds a cell, which is
+; an ordinary pair and images like one; the cost is one indirection per
+; call, not the dlsym-per-call the math tail below pays.
 (def %libm-make
-  (fn (_ kind name)
-    (let ((sym (%dlsym %libm name)))
-      (match
-        ((str=? kind "d->d")
-          (fn (_ x) (%make-instance %float (%ffi-call "d->d" sym (first x)))))
-        ((str=? kind "dd->d")
-          (fn (_ a b) (%make-instance %float (%ffi-call "dd->d" sym (first a) (first b)))))
-        (#t sym)))))                ; "ptr": the pointer itself
+  (fn (_ kind cell)
+    (match
+      ((str=? kind "d->d")
+        (fn (_ x) (%make-instance %float (%ffi-call "d->d" (first cell) (first x)))))
+      ((str=? kind "dd->d")
+        (fn (_ a b) (%make-instance %float (%ffi-call "dd->d" (first cell) (first a) (first b)))))
+      (#t (first cell)))))          ; "ptr": the pointer itself
 (def %libm-fn
   (fn (_ global kind name)
-    (do (set! %libm-rows (pair (list global kind name) %libm-rows))
-        (set! %image-transients (pair global %image-transients))
-        (%libm-make kind name))))
+    (let ((cell (pair (%dlsym %libm name) ())))
+      (do (set! %libm-rows (pair (list global kind name cell) %libm-rows))
+          (set! %image-transients (pair global %image-transients))
+          (%libm-make kind cell)))))
+;  A THUNK, NOT A SYMBOL, because what has to be emptied is a cell that each
+; closure holds and no global names.  boot/reflect.x states the rule: a
+; symbol among the transients is cleared, a thunk is run.  Registered after
+; the maker and read at RUN time, so it empties every row made below it.
+(set! %image-transients
+  (pair (fn (_)
+          ((fn (self l)
+             (if (null? l) ()
+               (do (self (rest l))
+                   (%set-first! (first (rest (rest (rest (first l))))) ()))))
+           %libm-rows))
+        %image-transients))
 (set! %image-transients (pair (lit %libm) %image-transients))
 (set! %image-recache-hooks
   (pair (fn (_)
           (do (set! %libm (%libm-open))
               ((fn (self l)
                  (if (null? l) ()
-                   (do (eval (list (lit set!) (first (first l))
-                                   (list %libm-make (first (rest (first l))) (first (rest (rest (first l)))))))
-                       (self (rest l)))))
+                   (do (self (rest l))
+                       (%set-first! (first (rest (rest (rest (first l)))))
+                                    (%dlsym %libm (first (rest (rest (first l))))))
+                       (eval (list (lit set!) (first (first l))
+                                   (list %libm-make (first (rest (first l)))
+                                         (first (rest (rest (rest (first l)))))))))))
                %libm-rows)))
         %image-recache-hooks))
 
