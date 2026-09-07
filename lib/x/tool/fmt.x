@@ -54,7 +54,7 @@
 ; BYTES and misaligns any non-ASCII source. True display columns
 ; (double-width CJK, zero-width combining marks) need a wcwidth-style
 ; table: known gap (#44 N3); code points are correct for everything else.
-(def %fmt-cp-len (fn (_ s) (s)))
+(def %fmt-cp-len (fn (_ s) (Str length s)))
 
 (def %fmt-width (fn (_ form)
   (if (%fmt-comment? form) 80

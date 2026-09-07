@@ -251,7 +251,7 @@ pin.
 (do
   (def fits? (prim-ref (lit io) (lit write-fits?)))
   (def wtos (prim-ref (lit io) (lit write-to-str)))
-  (def long? (fn (_ f n) (< ((wtos f)) n)))
+  (def long? (fn (_ f n) (< (Str length (wtos f)) n)))
   (def forms (list 1 "ab" (lit sym) (list 1 2 3) (list "a" (list 2 (list 3 4)))
                    (list (lit lit) (lit x)) (pair 1 2) ()))
   (%for-each (fn (_ f)
@@ -274,7 +274,7 @@ width the form actually fits.
 (do
   (def fits? (prim-ref (lit io) (lit write-fits?)))
   (def wtos (prim-ref (lit io) (lit write-to-str)))
-  (list ((wtos "aé")) (Str8 length (wtos "aé")) (fits? "aé" 5) (fits? "aé" 4)))
+  (list (Str length (wtos "aé")) (Str8 length (wtos "aé")) (fits? "aé" 5) (fits? "aé" 4)))
 ```
 ---
     (4 5 #t #f)

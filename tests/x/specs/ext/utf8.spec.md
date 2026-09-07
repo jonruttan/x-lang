@@ -71,3 +71,55 @@ incorrectly.
 ```
 ---
     5
+
+## the value-call indexes; it does not answer a length
+
+### a call with no index raises
+
+A string's value-call is indexing, so a call naming no index is an index call
+that named nothing -- the same answer `(v)` gives on a vector. It used to
+answer the code-point length, which made `(x-version)` look like an accessor.
+
+```x
+(guard (e e) ("héllo"))
+```
+---
+    "string: call with no index -- (Str length s) is the length"
+
+### one index is still the code point there
+
+```x
+("héllo" 1)
+```
+---
+    #\é
+
+### two indices are still the substring
+
+```x
+("héllo" 1 3)
+```
+---
+    "éll"
+
+### the length doors say which unit they mean
+
+```x
+(list (Str length "héllo") (Str8 length "héllo"))
+```
+---
+    (5 6)
+
+### the code-point counter is published on the catalog for the boot printer
+
+`write-fits?` decides every line break in the formatter and needs code points,
+but the printer loads long before the UTF-8 layer, so it resolves the counter
+through the catalog and falls back to bytes when it is absent.
+
+```x
+(list ((prim-ref 'str 'cp-len) "héllo")
+      ((prim-ref 'io 'write-fits?) "héllo" 6)
+      ((prim-ref 'io 'write-fits?) "héllo" 20))
+```
+---
+    (5 #f #t)
