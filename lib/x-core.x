@@ -284,6 +284,14 @@
     (def sigint-restore (fn () ()))
     (def %sigint-flag (list 0)))
   (sigint-install))
+; THE HANDLER IS THIS PROCESS'S, so it is installed again after a state image
+; loads.  What the image carries is the heap the install left behind -- the
+; flag cell the evaluator's poll reads -- and not the OS disposition, which
+; belongs to the process that called sigaction and to no other.  Without this
+; every boot from an image ran with SIGINT at its default: ctrl-c killed the
+; session outright instead of raising STOP, in every lang and every dialect.
+; A build without signal support installed the no-op above and re-installs it.
+(set! %image-recache-hooks (pair (fn (_) (sigint-install)) %image-recache-hooks))
 
 ; --- Provide ---
 ; Retroactive provides for the boot layer: those files load BEFORE the

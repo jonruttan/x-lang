@@ -1388,7 +1388,17 @@ if [ -n "$IMAGE" ]; then
 	# A session with nothing to run gets the launcher the entry would have
 	# started itself, and the %batch? the entry would have derived.
 	_ipost=
-	if [ -z "$file" ] && [ -z "$have_eval" ] && [ -z "$stdin_prog" ]; then
+	# %batch? IS RESET HERE, and the condition is file1 -- the USER's file --
+	# not $file, which for a bundle always holds the bundle's own entry.  This
+	# is the reset bundle_form defers to the pipe (a def made before the
+	# install is replaced by it), and keying it on $file meant a bundle never
+	# got one: its entry saw the --batch the loader needs and took its batch
+	# branch, so x-logo booted from an image read its own launcher as a Logo
+	# program and exited without a prompt.  Same rule as bundle_form's line,
+	# and the launcher below keeps its own (a bundle's was appended already).
+	if [ -n "$BUNDLE_DIR" ]; then
+		[ -n "$file1" ] || _ipost="printf '(set! %%batch? ())\n'; "
+	elif [ -z "$file" ] && [ -z "$have_eval" ] && [ -z "$stdin_prog" ]; then
 		_ipost="printf '(set! %%batch? ())\n'; "
 		if [ -z "$post" ]; then
 			post="$(shquote "${LIB_PATH}${X_LAUNCH}")"
