@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A boot from a state image keeps its terminal.** Three things a boot decides
+from the process it is in, which an image cannot carry, all found by driving
+langs from one. Colour is the visible one: every colour is a string baked when
+`x/repl/ansi.x` loaded, and the writer's child has a pipe for stdout, so an
+imaged session had colour off for good -- `(help)` came out plain in a terminal
+that could show it. Detection and installation are one `Ansi install` now, run
+again by an image recache hook. Measured on a pty, escape codes in `(help)`:
+source 63, image 0 before, image 63 after; a pipe still gets 0.
+
 **A boot from a state image keeps ctrl-c, and a bundle keeps its session.**
 Two things a boot does that an image cannot carry, both found by driving
 x-logo from one. The SIGINT handler is the process's, not the heap's:
