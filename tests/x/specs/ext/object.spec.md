@@ -278,6 +278,70 @@ member name (no quote needed) -- a method wins, otherwise it is a field that
 ---
     "C: no such static member mp"
 
+### a send with no selector at all is an error, not a crash
+
+A stray pair of parens used to take the process down: dispatch binds the
+selector from the caller's form, so `(p)` binds nil, and rendering nil with
+`symbol->str` -- unchecked C, typed SYMBOL -- dereferenced it.
+
+```x
+(do
+  (def-class C () v)
+  (guard (e e) ((new C v 1))))
+```
+---
+    "C: call with no selector -- name a member or method"
+
+### the class side answers the same way
+
+```x
+(do
+  (def-class C () (static (method m (self) 1)))
+  (guard (e e) (C)))
+```
+---
+    "C: call with no selector -- name a member or method"
+
+### an explicit nil selector is the same mistake
+
+```x
+(do
+  (def-class C () v)
+  (guard (e e) ((new C v 1) ())))
+```
+---
+    "C: call with no selector -- name a member or method"
+
+### a non-symbol selector reports what was asked for
+
+```x
+(do
+  (def-class C () v)
+  (guard (e e) ((new C v 1) 5)))
+```
+---
+    "C: no such member 5"
+
+### a non-symbol selector on the class side
+
+```x
+(do
+  (def-class C () (static (method m (self) 1)))
+  (guard (e e) (C 5)))
+```
+---
+    "C: no such static member 5"
+
+### %missing still receives a selector that is not a symbol
+
+```x
+(do
+  (def-class C () (static (method %missing (self sel args) (list 'missed sel))))
+  (C 5))
+```
+---
+    ('missed 5)
+
 ### super with no parent method is an error
 
 ```x

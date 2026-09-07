@@ -420,9 +420,27 @@
                  (first (%class-hot class)))))
       (let ((m (%entry-method (%entry-inner (%tab-find! tab tab (lit %missing))))))
         (if (null? m)
-          (error (%str-append (symbol->str (class-name class))
-            (%str-append (if static? ": no such static member " ": no such member ")
-              (%str-append (symbol->str selector) (%sug-hint tab selector)))))
+          ; The selector is NOT guaranteed to be a symbol: dispatch binds it
+          ; from the caller's form, so a send naming nothing -- (obj), or
+          ; (Class) -- binds nil by ordinary argument leniency, and (obj 5)
+          ; binds an INT.  symbol->str is unchecked C (docs/spec.md types it
+          ; SYMBOL), so rendering either one used to dereference a non-symbol
+          ; and take the process down -- a stray pair of parens crashed the
+          ; interpreter with nothing on stderr.  The class layer is the guard
+          ; site, as it is for the raw slot ops in vector.x.
+          ;   A no-selector send is called out separately: it is a different
+          ; mistake from a misspelling -- nothing was named, so there is
+          ; nothing to suggest -- and the near-name hint is offered only for a
+          ; symbol, the only thing that can be a typo for a member name.
+          (let ((what (if static? ": no such static member " ": no such member ")))
+            (error (%str-append (symbol->str (class-name class))
+              (match
+                ((null? selector)
+                  ": call with no selector -- name a member or method")
+                ((symbol? selector)
+                  (%str-append what
+                    (%str-append (symbol->str selector) (%sug-hint tab selector))))
+                (#t (%str-append what (%display-to-str selector)))))))
           (apply m (list target selector
                      (%map1 (fn (_ a) (eval a e)) args))))))))
 

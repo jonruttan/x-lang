@@ -64,6 +64,13 @@
       (pair
         (lit call)
         (fn (_ self . args)
+          ; (v) with no index at all: `first` on () is undefined (docs/spec.md)
+          ; and would dereference nil -- a stray pair of parens crashed the
+          ; process. A bare vector call names no element, so it raises rather
+          ; than inventing a meaning; (Vector length v) is the length door.
+          (if (null? args)
+            (Err raise (lit index) "vector: call with no index" ())
+            ())
           ; Bounds-checked like (Vector ref ...): %obj-ref past the object is a
           ; raw memory read, so slot 0's length is the guard for bare (v i) too.
           (def i (%vec->int (first args) "vector: index not convertible to INT"))
