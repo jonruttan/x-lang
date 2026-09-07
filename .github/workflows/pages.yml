@@ -89,6 +89,23 @@ jobs:
           git ls-files -z | rsync -a --files-from=- --from0 ./ build/site/
           rsync -a docs/ref/ build/site/docs/ref/
 
+          # The site's own chrome -- the brand bar, the footer, one colour.
+          # It is kept at docs/theme/ in the repo, beside the pages it
+          # frames, because that is where someone looking for the frame will
+          # look; Jekyll looks for _layouts and assets at the SITE ROOT, so
+          # the move happens here rather than the repo carrying a pair of
+          # Jekyll directories at its top level.
+          #
+          # _layouts/default.html OVERRIDES the theme's layout of that name.
+          # Primer's supported hook, head-custom.html, only reaches <head>,
+          # and a bar and a footer are markup in <body>.  The override is
+          # Primer's own layout with those two additions, so a theme upgrade
+          # stays a readable diff.  assets/css/brand.css loads after the
+          # theme's stylesheet and only says whose site this is.
+          mv build/site/docs/theme/_layouts build/site/_layouts
+          mv build/site/docs/theme/assets   build/site/assets
+          rm -rf build/site/docs/theme
+
           # x-lang code blocks become highlighted markup here, before the
           # guards below run -- an emitted block can contain {{ (Str8's
           # brace escape appears in the reference), and the guard pass has
