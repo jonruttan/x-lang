@@ -74,6 +74,21 @@ what three silent defects in x-coreutils came down to.
 ---
     (("-") ("-5"))
 
+### a DECLARED digit flag beats the negative-number reading
+
+comm(1) declares -1 -2 -3, so `-12` is two of its flags; nobody
+declares -5, so it stays an operand.
+
+```x
+(do (import x/sys/opts)
+  (def c (Opts parse (list "-1" "-2" "-3") () (list "-12" "a")))
+  (def n (Opts parse (list "-r") () (list "-5" "f")))
+  (list (Opts on? c "-1") (Opts on? c "-2") (Opts on? c "-3")
+        (Opts operands c) (Opts operands n) (Opts unknown n)))
+```
+---
+    (#t #t #f ("a") ("-5" "f") ())
+
 ### `--` ends the options, whatever follows looks like
 
 ```x

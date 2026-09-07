@@ -28,7 +28,9 @@
 ; cluster `-nk2`, the long form `--name` and `--name=value`, and `--`
 ; ending the options.  A bare `-` is an operand (it means stdin), and
 ; so is a negative number, so `sort -5` reads as an operand rather
-; than five unknown flags.
+; than five unknown flags -- unless the caller DECLARED it, as comm(1)
+; declares -1 -2 -3.  The declaration beats the heuristic; deciding by
+; shape alone made a declared digit flag unreachable.
 
 (import x/type/class)
 (import x/core/list)
@@ -107,18 +109,32 @@
       (let go ((l xs))
         (if (null? l) #f (if (str=? (first l) x) #t (go (rest l))))))
 
-    ; a token that could be an option: two or more characters, leading
-    ; `-`, and not a negative number.  `-` alone is stdin, an operand.
+    ; a token that could be an option: two or more characters and a
+    ; leading `-`.  `-` alone is stdin, an operand.  Whether a NUMBER
+    ; like -5 is an option is not decided here -- see %numeric?.
     (method %option? (self (param tok STRING "A command-line token"))
-      (doc "Could this token be an option?"
-        (returns BOOL "True for -x, -xy, --long; false for -, -5 and plain words")
-        (example "(Opts %option? \"-5\")" "#f"))
+      (doc "Could this token be an option? A leading dash and something after it; a bare - is an operand."
+        (returns BOOL "True for -x, -xy, -5, --long; false for - and plain words")
+        (example "(Opts %option? \"-\")" "#f"))
       (def %blen (prim-ref (lit str) (lit byte-len)))
       (def %bref (prim-ref (lit str) (lit byte-ref)))
-      (if (< (%blen tok) 2) #f
-        (if (not (= (%bref tok 0) 45)) #f
-          (let ((c (%bref tok 1)))
-            (if (>= c 48) (not (<= c 57)) #t)))))
+      (if (< (%blen tok) 2) #f (= (%bref tok 0) 45)))
+
+    ; THE DECLARATION WINS OVER THE HEURISTIC.  `-5` is an operand
+    ; because it reads as a negative number -- unless the caller
+    ; DECLARED it, as comm(1) declares -1 -2 -3 and cut(1) could
+    ; declare -5.  Deciding by shape alone made a declared digit flag
+    ; unreachable, which is the declaration losing to a guess.
+    (method %numeric? (self (param tok STRING "A command-line token"))
+      (doc "Does this token read as a negative number rather than a flag?"
+        (returns BOOL "True for -5, -12; false for -x and --long")
+        (example "(Opts %numeric? \"-12\")" "#t"))
+      (def %blen (prim-ref (lit str) (lit byte-len)))
+      (def %bref (prim-ref (lit str) (lit byte-ref)))
+      (let go ((i 1))
+        (if (>= i (%blen tok)) (> (%blen tok) 1)
+          (let ((c (%bref tok i)))
+            (if (if (>= c 48) (<= c 57) #f) (go (+ i 1)) #f)))))
 
     (method %walk (self (param flags LIST "Standalone options")
                         (param values LIST "Value-taking options")
@@ -145,6 +161,11 @@
                     bad #t))
               ((not (self %option? a))
                 (go (rest as) on vals (pair a ops) bad leading))
+              ; a bare number is an operand unless it was declared
+              ((if (self %numeric? a)
+                 (if (self %member? a flags) #f
+                   (not (self %cluster-declared? a flags values))) #f)
+                (go (rest as) on vals (pair a ops) bad leading))
               ; an exact value option: its argument is the next token
               ((self %member? a values)
                 (if (null? (rest as))
@@ -166,6 +187,20 @@
                         (%append2 (first r) on)
                         (%append2 (List ref 1 r) vals)
                         ops bad done)))))))))
+
+    (method %cluster-declared? (self (param tok STRING "A clustered token")
+                                     (param flags LIST "Standalone options")
+                                     (param values LIST "Value-taking options"))
+      (doc "Is every letter of this cluster declared? -12 is comm's two flags; -5 is a number nobody named."
+        (returns BOOL "True when the whole cluster is declared"))
+      (def %blen (prim-ref (lit str) (lit byte-len)))
+      (def %bref (prim-ref (lit str) (lit byte-ref)))
+      (def %dash (fn (_ c) (bytes->str (list 45 c))))
+      (let go ((i 1))
+        (if (>= i (%blen tok)) #t
+          (let ((name (%dash (%bref tok i))))
+            (if (self %member? name flags) (go (+ i 1))
+              (if (self %member? name values) #t #f))))))
 
     (method %long-split (self (param tok STRING "A --name=value token"))
       (doc "Split --name=value into its pair." (returns PAIR "(--name . value)"))
