@@ -5,6 +5,28 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-07
+
+**Opts: the command line, parsed against a declaration.** Every bundle was
+writing this by hand -- x-grep's and x-make's option readers were byte
+identical apart from an error tag, and x-coreutils had grown nine of its own.
+The cost was never the duplication but the drift between the check and the
+read. A bundle declares its options and Opts answers them.
+
+**Block form across the collections.** A higher-order method takes a callable,
+and the call site can now write the callback's parameter names and body
+directly -- `(List map (x) (* x 10) xs)` beside the applicative
+`(List map (fn (_ x) (* x 10)) xs)`, with a second name binding the index.
+Both forms stay live on the same selector. `List group-by`, `List partition`
+and `Dict map` join them.
+
+**A string's value-call indexes.** `("ab")` answered `2`, which made a bare
+string call a second, unrelated operation wearing the indexing syntax. It
+indexes now, and a length is asked for by name.
+
+**A send that names nothing errors instead of crashing.** `((new P v 1))`,
+`(P)` and `(#(1 2))` each took the interpreter down with nothing on stderr.
+
 **A boot from a state image keeps its terminal.** Three things a boot decides
 from the process it is in, which an image cannot carry, all found by driving
 langs from one. Colour is the visible one: every colour is a string baked when
@@ -42,6 +64,14 @@ engine's program and the child's stdin are one descriptor) is refused as
 (144K objects, 0.5s to boot against 7s); logo and python refuse with three
 and two unplaced references into the second base each makes at load.
 
+
+**The recache walk is not shaped like R5RS iteration.** `(%image-recache!)`
+remakes what an image could not carry -- a dlopen handle, a JIT trampoline,
+the colour detection -- and its hook walk was spelled `(do ((first l)) ...)`,
+which sequences correctly here and nowhere else: `do` is late-bound, and a
+lang that gives it Scheme's meaning reads that as a loop and calls no hook at
+all. x-r5rs did, silently, and the first thing to fail was thousands of forms
+from the cause.
 
 **A lang boots from its image.** `x -l NAME` paid the same boot on every
 run -- six seconds for awk, eleven for xe -- although its suite had been
