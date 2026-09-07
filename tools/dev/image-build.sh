@@ -47,7 +47,34 @@ engine="${X_BIN:-$root/x-bin}"
 # the order given; a path that is a file is hashed as one.
 # An installed tree has no tests/x/lib; a directory that is not there hashes
 # as nothing rather than as an error.
-key="$( { cat "$lib"; for d in lib tests/x/lib engine/tools/contract; do [ -d "$d" ] && find "$d" -name '*.x'; done | LC_ALL=C sort | xargs cat; cat tools/dev/image-write.x tools/dev/image-walk.x tools/dev/image-name.x; cat "$engine"; for p in "$@"; do find "$p" -name '*.x' | LC_ALL=C sort | xargs cat; done; } | shasum | cut -d' ' -f1)"
+#  A KEY-PATH IS A BUNDLE'S SOURCE, AND ONLY THE BUNDLE KNOWS HOW IT IS SPELT.
+# This globbed '*.x' and nothing else, so a lang whose modules are written in
+# anything else had them silently outside its own image key: editing one left
+# the key unchanged, this script answered "is current", and the suite went on
+# testing the library that was there BEFORE, out of the image, while a
+# from-source run tested the one on disk.  Both legs green, at two different
+# libraries -- the stale image the note above calls worse than a slow suite,
+# and the one thing a diff cannot show you.
+#
+# THE PLATFORM STILL KNOWS ONLY ITS OWN SPELLING, and the default below names
+# .x alone.  IMG_KEY_EXT is how a BUNDLE says what else its modules are written
+# in: the caller that arms a tree is the only thing that can know, so nothing
+# here has to carry a lang's vocabulary or be edited when a new one arrives.
+#
+# A KEY-PATH THAT IS A FILE IS HASHED AS ONE, which the note above has claimed
+# since it was written and which `find FILE -name '*.x'` never did for anything
+# but a .x: a module handed over directly hashed as NOTHING, in silence.
+_caller_key() {
+	for p in "$@"; do
+		if [ -f "$p" ]; then
+			cat "$p"
+		else
+			{ for e in ${IMG_KEY_EXT:-x}; do find "$p" -name "*.$e"; done; } \
+				| LC_ALL=C sort | xargs cat
+		fi
+	done
+}
+key="$( { cat "$lib"; for d in lib tests/x/lib engine/tools/contract; do [ -d "$d" ] && find "$d" -name '*.x'; done | LC_ALL=C sort | xargs cat; cat tools/dev/image-write.x tools/dev/image-walk.x tools/dev/image-name.x; cat "$engine"; _caller_key "$@"; } | shasum | cut -d' ' -f1)"
 # A library the writer could not name (see the unnameable rule below) is
 # remembered by a marker beside the key, so the answer is not re-derived by
 # a failed write on every run: the marker holds until the key changes.
