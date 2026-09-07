@@ -121,6 +121,20 @@ which is the basis for computed properties and for private data (below).
 > `(obj name)` is idiomatic. The `'` reader is a separate general feature
 > (`lib/x/type/lit-reader.x`); objects don't need it.
 
+A send must name something. `(obj)` and `(Class)` supply no selector at all —
+argument leniency binds it to nil — and a non-symbol selector names nothing
+either, so both raise rather than guessing:
+
+```x
+((new Point x 1))   ; => Point: call with no selector -- name a member or method
+(Point 5)           ; => Point: no such static member 5
+```
+
+That is the object side of a rule the whole language keeps: a form whose head
+is **callable** must say what to do with it, while a form whose head is *not*
+callable was never a call and evaluates to itself as data (`(1)` is the list
+`(1)`). See [Type System](type-system.md) — *A call must name what to do*.
+
 ---
 
 ### Inside methods
