@@ -215,6 +215,19 @@ The evaluator, call mechanism, writer, and length calculator all follow the same
 - Strings: `call` implements character access and substring extraction
 - Custom types: `call` invokes whatever closure was provided to `make-type`
 
+**A call must name what to do.** These handlers all read their first argument
+as an index or a selector, so a value-call that supplies neither —
+`("ab")`, `(#(1 2))`, `(obj)`, `(Class)` — is an index or selector call that
+named nothing, and it raises. The counterpart rule, ruled separately, is that
+a form whose head is **not** callable was never a call at all: `(1)` and
+`(#\a)` reproduce themselves as data, which is required because the iterator
+re-evaluates the lists it traverses. Together: a non-callable head is data, a
+callable head must be told what to do.
+
+> `("ab")` used to answer the string's code-point length, so `(x-version)`
+> looked like an accessor and silently returned a number. `(Str length s)` is
+> the length door and `(Str8 length s)` the byte count.
+
 **Write dispatch** — When a value is output:
 
 - Each type's `write` method produces its external representation

@@ -106,13 +106,15 @@ Set from `git describe` at build time, so only its shape is stable.
 ---
     #t
 
-### applying the value is a string call, NOT a lookup
+### applying the value is a call, and it names no index
 
-`(x-version)` looks like an accessor and is not one; it applies the string to
-no arguments, which answers its byte length.
+`(x-version)` looks like an accessor and is not one -- it applies the string.
+A string's value-call INDEXES, so a call with no index raises rather than
+answering some other question about the string. `(Str length x-version)` is
+the length; the constant itself is just `x-version`.
 
 ```x
-(eq? (x-version) ((prim-ref 'str 'byte-len) x-version))
+(guard (e e) (x-version))
 ```
 ---
-    #t
+    "string: call with no index -- (Str length s) is the length"

@@ -516,7 +516,26 @@
                   (%set-first! %print-sink old)
                   (< (first n) limit)))))
         (pair 0 ()) (first %print-sink))))
-   (fn (_ s) (if (= (%print-byte-len s) 1) 1 (s)))))
+  ; Chunk width.  This used to read (s) -- the string's own value-call,
+  ; which answered a code-point LENGTH; that spelling is gone (a value-call
+  ; with no index is an index call that named nothing, and it raises).  The
+  ; counter lives in the UTF-8 layer, which loads ~120 include lines further
+  ; down x-core and cannot be named from here, so it arrives through the
+  ; CATALOG -- resolved once into a cell that rides this registration
+  ; closure, per the note above, since the %-budget is shrink-only.  Absent
+  ; (a dialect with no UTF-8 layer), bytes stand in: bytes >= code points,
+  ; so the only cost is wrapping a non-ASCII form that would have fit.
+   ((fn (_ cell)
+      (fn (_ s)
+        (if (= (%print-byte-len s) 1) 1
+          (do
+            (if (null? (first cell))
+              (%set-first! cell
+                ((fn (_ f) (if (null? f) %print-byte-len f))
+                 (prim-ref (lit str) (lit cp-len))))
+              ())
+            ((first cell) s)))))
+    (pair () ()))))
 ; The bare verbs: write is unary; display is variadic (the shape the old
 ; string.x shim over the retired C prim established).
 ; The bare verbs are OPS, not fns: the repl's print seat calls them between

@@ -130,10 +130,29 @@
 
 ; --- push the code-point call handler over the byte default ---
 ; (fn (_ s . vals)): s is the string, vals the (already-evaluated) index args.
+; Publish the code-point counter so the boot printer can find it.  write-fits?
+; decides every line break in the formatter and needs code points, not bytes,
+; but printer.x loads long before this file and cannot name %cp-count; the
+; catalog is the seam it resolves through (it falls back to bytes when this
+; entry is absent).
+(prim-reg! (lit str) (lit cp-len) (fn (_ s) (%cp-count s (%str-byte-len s) 0 0)))
+
+; The string's value-call indexes: (s i) is the code point at i, (s a b) the
+; substring between them.  A call with NO index is therefore an index call that
+; named nothing, and it raises -- the same answer (v) gives on a vector, and
+; the same shape of mistake (obj) makes on the object side.
+;
+; It used to answer the string's code-point LENGTH, which made a bare (s) a
+; second, unrelated operation wearing the indexing syntax: (x-version) looked
+; like an accessor and silently returned 6.  #69 already ruled the other half
+; of this -- a form whose head is NOT callable was never a call, so (1) and
+; (#\a) reproduce themselves as data -- and a callable head is exactly the case
+; that has to name what to do.  (Str length s) is the length door, and it says
+; so; (Str8 length s) is the byte count.
 (%type-push-call %str-type
   (fn (_ s . vals)
     (if (null? vals)
-      (%cp-count s (%str-byte-len s) 0 0)
+      (error "string: call with no index -- (Str length s) is the length")
       (if (null? (rest vals))
         (%cp-ref s (first vals))
         (%cp-substring s (first vals) (first (rest vals)))))))
