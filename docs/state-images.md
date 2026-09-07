@@ -1392,6 +1392,46 @@ shape: a transient the writer images as nil, a row the recache hook
 remakes it from, the handle with them. The rule it states: a value that is
 an address is a transient whatever type it is stored as.
 
+### Every refusal is stated, and the writer never dies
+
+Five lang bundles crashed the writer the first time it met them, and a
+crash says nothing. Each is a refusal now, with its reason in the log and
+on stderr, exit 3 from `image-build.sh` like an unnameable word, and the
+marker that stops the write being retried until the key changes:
+
+- **The transient walk names nothing in the child.** It was sent over as a
+  form, and a form evaluated in the child resolves its names there; r5rs
+  rebinds `fn`, and the walk died on Unbound `_`. It runs from the writer's
+  base now, with the `set!` primitive object and the child's list in hand,
+  and a raise inside the child is reported and stops the write -- because
+  a raise that a parent guard swallows leaves the child's root chain
+  holding nodes of C frames that no longer exist, and the child's next
+  collect walks freed stack. That was every silent SIGSEGV.
+- **A reference word the writer cannot place is not read.** The census used
+  to read the word's heap link, flags and type to say which kind of miss it
+  was; a lang object whose declared reference unit holds an integer made
+  that a read at an integer. It is reported by the holder's type and the
+  word (`reference-unplaced`); `X_IMG_WHO=1` chases the holders through
+  real objects only.
+- **The live count is checked against the table.** The object table is a
+  fixed allocation, and a heap past it walked until the kernel killed the
+  process; a child with more than a million live objects after its collect
+  is refused with the count.
+- **An entry that reads stdin at load ends the writer.** The engine's
+  program and the child's stdin are one descriptor, so logo's and ash's
+  `%batch?` dispatch read the writer's own script. The child is told:
+  `%image-writing` is bound there before the include, and an entry that
+  loads and stops while it is bound images like any other. Until then the
+  refusal names the shape: "ended the writer while loading".
+- **A crash is called a crash.** The shell's signal report in the log is
+  read back as "the writer crashed", exit 1, never as a library's refusal.
+
+What the two remaining refusals say, measured 2026-09-06: logo, three
+unplaced references held by two spine nodes and a list; python, two, held
+by lists. Both bundles make a second base at load, and a reference into
+another base's heap is one this writer, which walks one chain, cannot
+place -- the isolated-base item below, no longer hypothetical.
+
 ### A lang's own boot, from its image
 
 `x -l NAME` boots the same way its suite does now. The wrapper writes the

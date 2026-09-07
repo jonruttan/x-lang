@@ -23,6 +23,7 @@
 (include "engine/tools/contract/base-paths.x")
 
 (def %IMG-LIB (guard (_ ()) (eval (lit %IMG-LIB))))
+(def %OBJ-CAP-WORDS 6000000)
 (def %IMG-OUT (guard (_ "/tmp/x.ximg") (eval (lit %IMG-OUT))))
 
 (def %alloc  (prim-ref (lit ptr) (lit alloc)))
@@ -65,6 +66,14 @@
       ; own stdin and the image is never written.  One string, the child's.
       (%child-def! (lit args)
         (list (lit pair) (list (prim-ref (lit str) (lit append)) "" "--batch") (list (lit lit) ())))
+      ; THE CHILD IS TOLD IT IS BEING IMAGED.  An entry that reads stdin at
+      ; load -- logo's and ash's dispatch on %batch? -- would read THIS
+      ; script, since the engine's program and the child's stdin are one fd;
+      ; a lang that binds nothing while %image-writing is bound loads and
+      ; stops.  The marker before the include is how image-build.sh tells an
+      ; entry that ended the writer from a writer that never ran.
+      (%child-def! (lit %image-writing) (list (lit lit) #t))
+      (display "image: writer begins") (newline)
       ; The path too: `include` records it in the child's file registry.
       (%B eval (list (lit include) (list (prim-ref (lit str) (lit append)) "" %IMG-LIB)))
       ; A TRANSIENT IS IMAGED AS NIL, OR PUT DOWN.  reflect.x's
@@ -78,9 +87,47 @@
       ; the child over its own list: a version that fetched the list out
       ; and evaluated a set! per name put child objects in this base's
       ; hands between two collects, and the x-base writer died of it.
-      (guard (_ ()) (%B eval (lit ((fn (self l) (if (null? l) () (do ((fn (_ t) (if (symbol? t) (eval (list (lit set!) t ())) (t))) (first l)) (self (rest l))))) %image-transients))))
+      ;  THE WALK RUNS HERE, OVER THE CHILD'S LIST, AND NAMES NOTHING IN THE
+      ; CHILD.  A form evaluated in the child resolves its names in the
+      ; child, and a lang is free to have rebound them: r5rs's `fn` is not
+      ; x-core's, and the first version of this walk, sent over as a form,
+      ; died there on Unbound '_'.  So each entry is handled from this base
+      ; -- a symbol is cleared with the set! PRIMITIVE OBJECT (engine-bound,
+      ; the same object in every base), a thunk is applied as an object --
+      ; and nothing the child could rename is in the form.  Child objects
+      ; are in this base's hands for the length of the loop, which is safe
+      ; exactly as long as nothing here collects: no %between until the
+      ; loop is done.
+      ;  A RAISE INSIDE THE CHILD IS A REFUSAL, NEVER SWALLOWED.  Answering
+      ; nil and carrying on to the collect below left the child's root chain
+      ; holding the nodes the unwound C frames had pushed; the collect walked
+      ; freed stack and the writer died of SIGSEGV with nothing said.
+      (guard (e (do (display "image: clearing a transient raised in the child: ")
+                    (display (guard (_ e) (Err message e))) (newline) (Sys exit 3)))
+        ((fn (self l)
+           (if (null? l) ()
+             (do ((fn (_ t)
+                    (if (symbol? t)
+                        (%B eval (list (eval (lit set!)) t ()))
+                        (%B eval (list t))))
+                  (first l))
+                 (self (rest l)))))
+         (%B eval (lit %image-transients))))
       ; The child has never collected.  Its own collect, evaluated inside it.
       (%B eval (list %collect))
+      ; WHAT THE WRITER CAN HOLD IS STATED, NOT DISCOVERED BY DYING.  Its
+      ; object table is a fixed allocation (%OBJ-CAP-WORDS below), and a
+      ; record is three words plus the units, so the live count the child's
+      ; collect leaves bounds what fits.  A heap past it -- python's runtime
+      ; is tens of millions of allocations and a few million live -- used to
+      ; walk until the kernel killed the process, with nothing said.
+      ((fn (_ live)
+         (if (%ilt live 1000000) ()
+           (do (display "image: refused -- ") (write live)
+               (display " live objects in the child; this writer holds a million")
+               (display " (raise %OBJ-CAP-WORDS in tools/dev/image-write.x to widen it)") (newline)
+               (Sys exit 3))))
+       (%B eval (list %hc)))
       ; And this base may not collect while a walk holds a cursor into the
       ; child (image-walk.x).  Walks run with the periodic collect off.
       (set! %WALK-COLLECT #f)))
@@ -293,6 +340,7 @@
 (%untrace-spine! %SPINE-LIST)
 (%between)
 
+
 ; --- the externals table (spec 3.4), grown on first use during the emit ------------
 (def %X-CAP (* 8 400000))
 (def %x-p (%zeroed %X-CAP))
@@ -322,11 +370,16 @@
   (fn (_ w)
     ((fn (_ %CUR-TW %CUR-KIND)
     (if (eq? %CUR-KIND 3) (list (%ty-name %CUR-TW 0) (lit foreign-unnamed) w)
+    ;  A REFERENCE WORD THE WRITER COULD NOT PLACE IS NOT READ.  This used to
+    ; read its heap link, its flags and its type word to say which kind of
+    ; miss it was -- and a lang's object whose declared REFERENCE unit holds
+    ; an integer (logo, python) made that a read at an integer, and a
+    ; SIGSEGV in place of a census.  A spine node is known and is named by
+    ; its row; anything else is reported by the holder's type and the word,
+    ; which is what a refusal needs, and the holder chase (%IMG-WHO) walks
+    ; only real objects.
     (list (%ty-name %CUR-TW 0)
-          (if (eq? (%ht-find %SPINE w) 1) (lit spine-unnamed)
-            (if (eq? (%rw w %heap-off) 0) (lit off-chain-unnamed)
-              (if (%traced? w) (lit on-chain-traced-not-imaged) (lit on-chain-untraced))))
-          (%ty-name (%rw w %type-off) w)
+          (if (eq? (%ht-find %SPINE w) 1) (lit spine-unnamed) (lit reference-unplaced))
           w
           (if (eq? (%ht-find %SPINE w) 1) ((fn (_ nm) (if (eq? nm 0) "no-row" (symbol->str (%p->o (%i->p nm))))) (%ht-find %SPINE-NAMES w)) "-"))))
      (first %CUR) (first (rest %CUR)))))
@@ -377,7 +430,6 @@
 (%between)
 
 ; --- the object table and the blob (spec 3.6, 3.7) --------------------------------
-(def %OBJ-CAP-WORDS 6000000)
 (def %OBJ-CAP (* %word-size %OBJ-CAP-WORDS))
 (def %BLOB-CAP (* %word-size 400000))
 (def %obj-p (%alloc %OBJ-CAP))
