@@ -9,9 +9,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 answered the applicative signature and nothing else -- true, and incomplete:
 the block form is a second call shape a reader could not discover from it.
 The wrap is the one place that knows the shape, so it adds the note itself,
-spelled per shape -- `(x)` or `(i x)` for an element callback, `(acc i x)`
-for a fold, `()` for a thunk -- onto the method's own entry, pending or
-committed; wrapping twice does not say it twice. One fact stated where it is
+onto the method's own entry, pending or committed; wrapping twice does not
+say it twice. It shows the method's own head with the block in the
+callable's seat -- `(Vector filter (x) body ... v)`, `(for-each (p) body
+...)` on a Dict, `(List times n (x) body ...)` where the callback is not
+first -- and the shape's other spelling as a suffix, `(i x)`, `(acc i x)`,
+`(k v)`. "In place of f" was not discernible; the head is. One fact stated where it is
 decided, instead of fifty `(doc ...)` forms repeating it and drifting. The
 generated reference carries it too: the generator loads the module it
 documents (guarded; boot files and the dialect toolboxes skipped) and merges

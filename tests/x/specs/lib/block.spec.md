@@ -529,6 +529,34 @@ help's layout.
 ---
     #t
 
+### the note shows the method's own head, the block in the callable's seat
+
+```x
+(do (help Vector filter)
+    (List any? (n) (Str8 includes? "(Vector filter (x) body ... v)" n) (%doc-entry-notes (%doc-lookup (%str->symbol "Vector/filter")))))
+```
+---
+    #t
+
+### an instance method's head has no class; a fold's carries its init and subject
+
+```x
+(do (import x/type/dict) (help Dict for-each) (help List fold)
+    (list (List any? (n) (Str8 includes? "(for-each (p) body ...)" n) (%doc-entry-notes (%doc-lookup (%str->symbol "Dict/for-each"))))
+          (List any? (n) (Str8 includes? "(List fold (acc x) body ... init lst)" n) (%doc-entry-notes (%doc-lookup (%str->symbol "List/fold"))))))
+```
+---
+    (#t #t)
+
+### a callback that is not first keeps its place in the head
+
+```x
+(do (help List times)
+    (List any? (n) (Str8 includes? "(List times n (x) body ...)" n) (%doc-entry-notes (%doc-lookup (%str->symbol "List/times")))))
+```
+---
+    #t
+
 ### wrapping twice does not say it twice
 
 ```x
