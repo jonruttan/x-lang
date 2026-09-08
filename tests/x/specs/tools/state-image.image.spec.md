@@ -25,7 +25,12 @@ says why.
 (import x/sys/file)
 (def %dir (Sys getenv "X_IMG_DIR"))
 (def %img (Str8 append %dir "/x-core.x.ximg"))
-(def %tmp "/tmp/x-image-spec")
+; Scratch files live beside the image, NOT in a fixed /tmp path. `pre.x`
+; carries this checkout's %IMG-PATH -- and, in 6.9, %IMG-VERBOSE -- so a
+; shared path lets a concurrent run in ANOTHER checkout supply them: the
+; probe boots a peer's image, verbose, and prints the loader's count line
+; where the test expected its own output. X_IMG_DIR is per checkout.
+(def %tmp (Str8 append %dir "/spec-tmp"))
 (if (File exists? %tmp) () (File mkdir %tmp))
 (def %sh
   (fn (_ cmd)
