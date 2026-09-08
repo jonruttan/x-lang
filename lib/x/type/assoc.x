@@ -161,6 +161,16 @@
         (returns ANY "Stored value, or (thunk) when the key is absent"))
       (%opt-get-or-else thunk key store))))
 
+; --- Block forms ------------------------------------------------------------
+; Subject-last statics, the alist trailing; x/type/block.x.  Two shapes on one
+; class, which is why the shape is declared per selector: map hands its
+; callback the VALUE, filter hands it the whole (key . val) assoc.
+; opt-get-or-else takes a thunk -- (Assoc opt-get-or-else () (default) key store).
+(import x/type/block)
+(Block method! Assoc (lit map) (lit element) 1)
+(Block method! Assoc (lit filter) (lit pair) 1)
+(Block method! Assoc (lit opt-get-or-else) (lit thunk) 2)
+
 (doc (provide x/type/assoc Assoc)
   (note "An assoc is one dotted (key . val) pair; an alist is a list of assocs. Keys compared with eq?.")
   (note "The get/has?/del/put/keys bootstrap globals remain in x/core/alist (the object")

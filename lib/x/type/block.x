@@ -24,12 +24,17 @@
 ; failing.  An operative SEES the binding list, so the block's NAME COUNT can
 ; select the callback shape at the call site.
 ;
-; TWO FACTS VARY PER SELECTOR, both declared at wrap time:
-;   SHAPE     what the names mean -- element (the default), pair, fold, binary
+; THREE FACTS VARY PER SELECTOR, all declared at wrap time:
+;   SHAPE     what the names mean -- element (the default), pair, fold,
+;             binary, thunk (no names: `()`, for a lazy default)
 ;   TRAILING  how many argument forms follow the callback.  map/filter/for-each
 ;             take 1 (the subject, which the value handler splices last); fold
 ;             takes 2 (init and subject); an instance method takes 0, its
 ;             receiver being self.
+;   POSITION  where the callback sits, when it is not first.  List's
+;             constructor-count rule puts the count ahead of it -- (List times
+;             n f), (List adjust n f lst) -- so those wrap at position 1, and
+;             the forms before the callback evaluate in the caller's env.
 ;
 ; HAZARD.  After wrapping, the stored method IS the operative, so (method-of
 ; Class sel) -- the de-dispatch door (#332) -- returns an op, and calling that
@@ -79,9 +84,26 @@
     ; The one residual collision is a variadic send whose callable is itself
     ; computed from symbols: (List map (make-f x) a b) reads as a block.
     ; Spell that one with an explicit (fn ...), or bind the callable first.
-    (method %block-call? (self args n)
+    ; `pos` is where the binding list sits; `n` the minimum send length
+    ; (leading forms + names + one body form + trailing).  `()` is accepted
+    ; as a binding list -- the thunk shape -- and each shape validates its
+    ; own count, so `()` in an element seat still fails, only clearly.
+    (method %block-call? (self args pos n)
       (and (self %len>=? args n)
-        (and (pair? (first args)) (self %all-syms? (first args)))))
+        (let ((names (self %nth args pos)))
+          (and (or (null? names) (pair? names)) (self %all-syms? names)))))
+
+    (method %nth (self xs i)
+      (if (null? xs) () (if (< i 1) (first xs) (recur self (rest xs) (- i 1)))))
+
+    (method %take-n (self xs n)
+      (if (< n 1) () (if (null? xs) () (pair (first xs) (recur self (rest xs) (- n 1))))))
+
+    (method %drop-n (self xs n)
+      (if (< n 1) xs (if (null? xs) () (recur self (rest xs) (- n 1)))))
+
+    (method %append (self a b)
+      (if (null? a) b (pair (first a) (recur self (rest a) b))))
 
     ; --- shapes --------------------------------------------------------
     ; A shape turns the block closure into the callback the unchanged
@@ -137,11 +159,19 @@
       (if (eq? n 2) blk
         (self %shape-error "block takes (a b), got names: " n)))
 
+    ; thunk: a nullary callback -- a lazy default, run only on a miss.  The
+    ; binding list is `()`, so the body reads as the value it stands in for:
+    ; (d get-or-else () (compute-default) k).
+    (method %shape-thunk (self blk n)
+      (if (eq? n 0) blk
+        (self %shape-error "block takes () -- a thunk binds no names, got names: " n)))
+
     (method %adapt (self shape blk n)
       (match
         ((eq? shape (lit pair))   (self %shape-pair blk n))
         ((eq? shape (lit fold))   (self %shape-fold blk n))
         ((eq? shape (lit binary)) (self %shape-binary blk n))
+        ((eq? shape (lit thunk))  (self %shape-thunk blk n))
         (#t                  (self %shape-element blk n))))
 
     ; The block closure is built in the CALLER's env, so the body closes over
@@ -155,16 +185,20 @@
     ; with the receiver spliced as (lit V), so a list-valued subject stays data
     ; and every existing call site -- variadic ones included -- keeps its exact
     ; behaviour.
-    (method %block-op (self m shape trailing)
+    (method %block-op (self m shape trailing pos)
       (op (recv . args) e
-        (if (self %block-call? args (+ 2 trailing))
-          (apply m
-            (pair recv
-              (pair (self %adapt shape
-                      (self %block-fn (first args)
-                            (self %but-last-n (rest args) trailing) e)
-                      (self %name-count (first args)))
-                    (self %eval-each (self %last-n (rest args) trailing) e))))
+        (if (self %block-call? args pos (+ pos (+ 2 trailing)))
+          ; args = (lead... names body... trailing...): the leading forms
+          ; evaluate in the caller's env and ride ahead of the callback.
+          (let ((tail (self %drop-n args pos)))
+            (apply m
+              (pair recv
+                (self %append (self %eval-each (self %take-n args pos) e)
+                  (pair (self %adapt shape
+                          (self %block-fn (first tail)
+                                (self %but-last-n (rest tail) trailing) e)
+                          (self %name-count (first tail)))
+                        (self %eval-each (self %last-n (rest tail) trailing) e))))))
           (tail-eval (pair m (pair (list (lit lit) recv) args)) e))))
 
     (method %imethod-of (self class sel)
@@ -173,19 +207,23 @@
 
     (method method! (self (param class CLASS "Class owning the method")
                           (param sel SYMBOL "Selector to give a block form")
-                        . (param opts LIST "Optional shape symbol, then trailing-argument count"))
+                        . (param opts LIST "Optional: shape symbol, trailing-argument count, callback position"))
       (doc "Give a higher-order method a block form: (subject sel (names ...) body ...)."
         (returns ANY "The installed operative")
         (note "Shapes: element (default) -- (x) or (x index); pair -- (p) or (key value);")
-        (note "fold -- (acc x) or (acc x index); binary -- (a b), no index.")
+        (note "fold -- (acc x) or (acc x index); binary -- (a b), no index;")
+        (note "thunk -- (), a nullary callback such as a lazy default.")
         (note "Trailing defaults to 1 for a static method (the subject) and 0 for an")
         (note "instance method (the receiver is self); fold needs 2 (init, subject).")
+        (note "Position defaults to 0; (List times n f) wraps at 1, the count")
+        (note "ahead of it evaluating in the caller's env.")
         (note "The applicative form keeps working unchanged, and (help Class/sel)")
         (note "still answers from the doc registry.")
         (note "Do NOT (method-of Class sel) a block-enabled selector: the stored")
         (note "method is now an operative and a direct call would not evaluate.")
         (example "(do (Block method! List 'map) (List map (x) (* x 2) (list 1 2)))" "(2 4)"))
       (let ((shape (if (null? opts) () (first opts)))
+            (pos (if (self %len>=? opts 3) (first (rest (rest opts))) 0))
             (sm (method-of class sel)))
         (if (null? sm)
           (let ((im (self %imethod-of class sel)))
@@ -194,10 +232,10 @@
                                   (symbol->str sel))))
             (class def-method! sel
               (self %block-op im shape
-                (if (self %len>=? opts 2) (first (rest opts)) 0))))
+                (if (self %len>=? opts 2) (first (rest opts)) 0) pos)))
           (class def-static! sel
             (self %block-op sm shape
-              (if (self %len>=? opts 2) (first (rest opts)) 1))))))))
+              (if (self %len>=? opts 2) (first (rest opts)) 1) pos)))))))
 
 ; Each class wires its own selectors, beside the methods being wrapped -- this
 ; file is the mechanism only, and never reaches down into a collection.  See

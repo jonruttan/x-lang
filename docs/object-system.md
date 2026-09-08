@@ -353,17 +353,20 @@ down into a collection:
 
 | Class | Wrapped selectors |
 |---|---|
-| `List` | `map` `filter` `for-each` `find` `flat-map` `sort-by` `take-while` `any?` `all?` `group-by` `partition` `fold` `sort` `reduce` |
+| `List` | `map` `filter` `for-each` `find` `flat-map` `sort-by` `take-while` `any?` `all?` `none?` `count-if` `reject` `find-index` `uniq-by` `drop-while` `group-by` `partition` `iterate` · `fold` `fold-right` `scan` · `sort` `reduce` `zip-with` · `times` `adjust` (position 1) |
 | `Vector` | `map` `filter` `for-each` `fold` |
-| `Iter` | `for-each` `fold` |
+| `Iter` | `for-each` `fold` `make` |
 | `Seq` | `for-each` `fold` — inherited by every subclass, `Str8` included |
-| `Gen` | `map` `filter` `for-each` `find` `take-while` `any?` `all?` `fold` `reduce` |
-| `Dict` | `for-each` `map` (pair shape) |
+| `Gen` | `map` `filter` `for-each` `find` `take-while` `any?` `all?` `none?` `drop-while` `iterate` `make` · `fold` `scan` · `reduce` `zip-with` |
+| `Dict` | `for-each` `map` (pair) · `get-or-else` (thunk) |
+| `Assoc` | `map` (element) · `filter` (pair) · `opt-get-or-else` (thunk) |
 | `Set` | `map` `filter` `for-each` `fold` |
 
 Adding another is one `(Block method! Class sel ...)` line, plus its selector
 name in the linter's table (`Lint %lint-block-selectors`) so the block's names
-are not reported undefined.
+are not reported undefined. `List unfold` is the one callable-taking method
+left out on purpose: it takes three callables, and a block for one of them
+would confuse more than it saves.
 
 The mechanism is an ordinary stored method that happens to be an `op`, so
 nothing in the dispatch path changes and an unwrapped selector pays nothing.
@@ -381,10 +384,24 @@ differ:
 | `pair` | the `(k . v)` pair | key, value | — |
 | `fold` | — | acc, element | acc, element, index |
 | `binary` | — | a, b | — |
+| `thunk` | — | — | — |
+
+`thunk` takes **no** names: the binding list is `()` and the body is the value
+it stands in for, run only when asked — a lazy default.
+`(d get-or-else () (expensive-default) k)` computes it on a miss and never on a
+hit.
 
 The second option is how many argument forms follow the callback: `1` for a
 static method (the subject, spliced last by the value handler), `0` for an
 instance method (the receiver is `self`), `2` for `fold` (init, then subject).
+A third gives the callback's **position** when it is not first — List's
+constructor-count rule puts the count ahead of it, so `times` and `adjust` wrap
+at position 1, and the forms before the block evaluate in the caller's env:
+
+```x
+(List times 4 (i) (* i i))               ; (0 1 4 9)
+(List adjust 0 (x) (* x 100) (list 1 2)) ; (100 2)
+```
 `Dict`'s `for-each` is an instance method and `List`'s is a static — the two
 conventions differ in argument layout, and `Block method!` probes the static
 table first, then the instance table, so the caller does not have to know

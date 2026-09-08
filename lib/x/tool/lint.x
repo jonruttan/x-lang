@@ -889,7 +889,10 @@
     (%lint-embedder-known (list "%install-root" "%pin-file") "Embedder-contract names, announced before any file runs")
     (%lint-block-selectors
       (list "map" "filter" "for-each" "find" "flat-map" "sort-by" "take-while"
-            "any?" "all?" "group-by" "partition" "fold" "sort" "reduce")
+            "any?" "all?" "none?" "group-by" "partition" "count-if" "reject"
+            "find-index" "uniq-by" "drop-while" "fold" "fold-right" "scan"
+            "sort" "reduce" "zip-with" "iterate" "times" "adjust" "make"
+            "get-or-else" "opt-get-or-else")
       "Selectors carrying a block form (x/type/block); one entry per shipped wrap")
     (method %lint-all-syms? (self xs)
       (if (null? xs) #t
@@ -899,21 +902,33 @@
     ; Keyed by SELECTOR, not by shape alone: only a wrapped selector may read a
     ; list of symbols as a binding list, so an ordinary call that happens to
     ; pass (f x) still lints as a call.
+    ; The binding list may sit at position 0 or 1 -- (List times 3 (i) ...)
+    ; puts the count first -- and `()` is a binding list too (a thunk).
+    (method %lint-names-at? (self args)
+      (match
+        ((not (pair? args)) #f)
+        ((not (pair? (rest args))) #f)             ; names alone is not a block
+        ((null? (first args)) #t)                  ; () -- a thunk
+        ((not (pair? (first args))) #f)
+        (#t (self %lint-all-syms? (first args)))))
     (method %lint-block-send? (self sel args)
       (match
         ((not (%member-str? sel (Lint %lint-block-selectors))) #f)
+        ((self %lint-names-at? args) #t)
         ((not (pair? args)) #f)
-        ((not (pair? (rest args))) #f)             ; names alone is not a block
-        ((not (pair? (first args))) #f)
-        (#t (self %lint-all-syms? (first args)))))
+        (#t (self %lint-names-at? (rest args)))))
     ; The names cover the body AND the trailing arguments (the subject, fold's
     ; init).  Over-scoping by those few forms is deliberate: the linter does not
     ; know each selector's trailing count, and guessing would produce false
     ; 'undefined' reports, which this linter is adjudicated against.
     (method %lint-block-body (self args)
+      ; A leading form ahead of the names (position 1) lints in the OUTER
+      ; scope: it is an ordinary evaluated argument, not part of the block.
+      (def tail (if (self %lint-names-at? args) args (rest args)))
+      (unless (eq? tail args) (%lint-form (first args)))
       (def saved (first %lint-scope))
-      (%set-first! %lint-scope (%add-params (first args) saved))
-      (%lint-seq (rest args))
+      (%set-first! %lint-scope (%add-params (first tail) saved))
+      (%lint-seq (rest tail))
       (%set-first! %lint-scope saved))
     (method %lint-out-verb? (self form)
       (match
