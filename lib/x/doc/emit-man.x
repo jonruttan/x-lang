@@ -80,74 +80,74 @@
       ; it came from.  Read from the environment for the same reason doc-c
       ; does it that way: the Makefile owns X_RELEASE.
       (def %rel (let ((v (Sys getenv "X_RELEASE"))) (if (null? v) "" v)))
-      (display $".TH \"{(self page-name mod)}\" \"3x\" \"{(self esc %rel)}\" \"x-lang\" \"x-lang library\"\n")
+      (display #".TH \"{(self page-name mod)}\" \"3x\" \"{(self esc %rel)}\" \"x-lang\" \"x-lang library\"\n")
       ; NAME is what apropos indexes, so the dash separator only appears
       ; when there is something after it: lib/x/boot/* and the platform
       ; tables declare no module and have no description at all.
       (display ".SH NAME\n")
-      (display (if (str=? desc "") $"{(self esc mod)}\n"
-                 $"{(self esc mod)} \\- {(self esc desc)}\n"))
+      (display (if (str=? desc "") #"{(self esc mod)}\n"
+                 #"{(self esc mod)} \\- {(self esc desc)}\n"))
       ; No .PP after .SH: a paragraph macro straight after a section heading
       ; is redundant, and both groff and mandoc skip it with a warning.
       ; DESCRIPTION is skipped entirely when there is nothing to put in it,
       ; rather than left standing empty above the first entry.
       (unless (if (str=? desc "") (null? notes) #f)
         (do (display ".SH DESCRIPTION\n")
-            (unless (str=? desc "") (display $"{(self esc desc)}\n"))
+            (unless (str=? desc "") (display #"{(self esc desc)}\n"))
             (List for-each (fn (_ n) (self note n)) notes))))
 
     (method section (self (param title STRING "Section title"))
       (doc "Emit a top-level section heading.")
-      (display $".SH \"{(self esc title)}\"\n"))
+      (display #".SH \"{(self esc title)}\"\n"))
 
     (method class-head (self (param cname STRING "Class name")
                              (param parent STRING "Parent class name, or \"\""))
       (doc "Emit a class as its own section, naming the parent when it extends one.")
-      (display $".SH \"CLASS {(self esc cname)}\"\n")
+      (display #".SH \"CLASS {(self esc cname)}\"\n")
       (unless (str=? parent "")
-        (display $".PP\nExtends \\fB{(self esc parent)}\\fP.\n")))
+        (display #".PP\nExtends \\fB{(self esc parent)}\\fP.\n")))
 
     (method interface-line (self (param names LIST "Operation name strings"))
       (doc "Emit the class's (interface ...) contract.")
       (display ".PP\n\\fBInterface:\\fP")
-      (List for-each (fn (_ n) (display $" \\fB{(self esc n)}\\fP")) names)
+      (List for-each (fn (_ n) (display #" \\fB{(self esc n)}\\fP")) names)
       (newline))
 
     (method entry-head (self (param name STRING "Entry name or rendered signature"))
       (doc "Emit one entry as a subsection heading.")
-      (display $".SS \"{(self esc name)}\"\n"))
+      (display #".SS \"{(self esc name)}\"\n"))
 
     (method alias (self (param name STRING "Lookup name for the entry that follows"))
       (doc "Record a lookup name as a roff comment for the sweep to harvest into a .so stub."
         (note "Emitted UNESCAPED: this is a file name for the sweep, not display text."))
-      (display $".\\\" X-ALIAS {name}\n"))
+      (display #".\\\" X-ALIAS {name}\n"))
 
     (method text (self (param s STRING "Paragraph text"))
       (doc "Emit a description paragraph.")
-      (display $".PP\n{(self esc s)}\n"))
+      (display #".PP\n{(self esc s)}\n"))
 
     (method note (self (param s STRING "Note text"))
       (doc "Emit a note as an indented block, the roff answer to Markdown's blockquote.")
-      (display $".RS 4\n.PP\n{(self esc s)}\n.RE\n"))
+      (display #".RS 4\n.PP\n{(self esc s)}\n.RE\n"))
 
     (method params (self (param ps LIST "List of (name type desc) string triples"))
       (doc "Emit the parameter list as tagged paragraphs -- the shape man readers expect for arguments.")
       (display ".PP\n\\fBParameters:\\fP\n")
       (List for-each
         (fn (_ p)
-          (display $".TP\n\\fB{(self esc (List ref 0 p))}\\fP")
+          (display #".TP\n\\fB{(self esc (List ref 0 p))}\\fP")
           (unless (str=? (List ref 1 p) "")
-            (display $" (\\fI{(self esc (List ref 1 p))}\\fP)"))
+            (display #" (\\fI{(self esc (List ref 1 p))}\\fP)"))
           (newline)
           (display (if (str=? (List ref 2 p) "") "\\&\n"
-                     $"{(self esc (List ref 2 p))}\n")))
+                     #"{(self esc (List ref 2 p))}\n")))
         ps))
 
     (method returns (self (param type STRING "Return type name")
                           (param desc STRING "Return description, or \"\""))
       (doc "Emit the return type and its description.")
-      (display $".PP\n\\fBReturns:\\fP \\fI{(self esc type)}\\fP")
-      (unless (str=? desc "") (display $" \\- {(self esc desc)}"))
+      (display #".PP\n\\fBReturns:\\fP \\fI{(self esc type)}\\fP")
+      (unless (str=? desc "") (display #" \\- {(self esc desc)}"))
       (newline))
 
     (method examples (self (param exs LIST "List of (input output) string pairs"))
@@ -155,14 +155,14 @@
       (display ".PP\n\\fBExamples:\\fP\n.RS 4\n.nf\n")
       (List for-each
         (fn (_ ex)
-          (display $"{(self esc (List ref 0 ex))} => {(self esc (List ref 1 ex))}\n"))
+          (display #"{(self esc (List ref 0 ex))} => {(self esc (List ref 1 ex))}\n"))
         exs)
       (display ".fi\n.RE\n"))
 
     (method see-also (self (param names LIST "Referenced name strings"))
       (doc "Emit the cross-references.")
       (display ".PP\n\\fBSee also:\\fP")
-      (List for-each (fn (_ s) (display $" \\fB{(self esc s)}\\fP")) names)
+      (List for-each (fn (_ s) (display #" \\fB{(self esc s)}\\fP")) names)
       (newline))))
 
 (doc (provide x/doc/emit-man)

@@ -51,8 +51,8 @@
       (%seq (%buffer-unread buffer) buffer)
       ())))
 
-; --- $"...{expr}..." string interpolation --------------------------------
-; $"a{x}b" parses at READ time into the call (Str8 str "a" x "b"): the analyser
+; --- #"...{expr}..." string interpolation --------------------------------
+; #"a{x}b" parses at READ time into the call (Str8 str "a" x "b"): the analyser
 ; scores the whole literal as one token and %interp-read splits it, emitting the
 ; call directly.  Each hole is thus a plain sub-expression that evaluates in
 ; place, in whatever env the literal sits in -- no eval-time wrapper, no
@@ -60,7 +60,7 @@
 ;
 ; The analyser is a state machine because a hole holds arbitrary code, and code
 ; contains characters that would otherwise end the token: a string inside a hole
-; ($"{(join " " xs)}"), a nested literal ($"{$"{c}"}"), a #\" or #\} character
+; (#"{(join " " xs)}"), a nested literal (#"{#"{c}"}"), a #\" or #\} character
 ; literal.  Each state is a closure carrying the state to RESUME when the
 ; construct it opened closes, so nesting needs neither a depth counter nor any
 ; shared mutable state -- which matters because %interp-read re-enters the
@@ -91,10 +91,13 @@
 ; stays interpreted -- it only runs INSIDE a literal, never on the hot path of
 ; ordinary characters.
 ;
-; %interp-after-dollar: a $ has been seen.  A " opens the literal and the scan
-; runs to the quote that closes it; anything else declines, leaving a bare $ (or
-; $foo) an ordinary symbol.
-(def %interp-after-dollar
+; %interp-after-hash: a # has been seen.  A " opens the literal and the scan
+; runs to the quote that closes it; anything else declines.  Declining costs the
+; rest of the # family nothing: x_token_analyse runs every handler from the
+; token's first character independently, so #t, #\a, #(...) and #/.../ are
+; scored by their own analysers exactly as before, and a bare # (or #foo) is
+; still an ordinary symbol.
+(def %interp-after-hash
   (let ((mk-text ()) (mk-open ()) (mk-hole ()) (mk-str ()))
     ; Literal text.  `k` is the state to resume when this literal's closing
     ; quote arrives; nil for the outermost literal, which scores the token
@@ -118,27 +121,24 @@
         (fn (_ buffer score chr)
           (if (= chr #\{) back
             ((mk-hole back) buffer score chr)))))
-    ; Inside {...}: expression context.  " opens a plain string, $" a nested
-    ; literal, #\ a character literal (so #\" and #\} cannot derail the scan),
-    ; #/ a regex literal (whose {2,3} quantifiers otherwise read as braces),
-    ; } closes the hole and resumes `back`.
+    ; Inside {...}: expression context.  " opens a plain string; # opens the
+    ; hash family -- #" a nested literal, #\ a character literal (so #\" and
+    ; #\} cannot derail the scan), #/ a regex literal (whose {2,3} quantifiers
+    ; otherwise read as braces); } closes the hole and resumes `back`.
     (set! mk-hole
       (fn (_ back)
-        (let ((body ()) (dol ()) (hash ()) (charlit ()) (rex ()) (rex-esc ()))
+        (let ((body ()) (hash ()) (charlit ()) (rex ()) (rex-esc ()))
           (set! body
             (fn (self buffer score chr)
               (match
                 ((= chr #\") (mk-str self))
                 ((= chr #\}) back)
-                ((= chr #\$) dol)
                 ((= chr #\#) hash)
                 (#t self))))
-          (set! dol
-            (fn (_ buffer score chr)
-              (if (= chr #\") (mk-text body) (body buffer score chr))))
           (set! hash
             (fn (_ buffer score chr)
               (match
+                ((= chr #\") (mk-text body))
                 ((= chr #\\) charlit)
                 ((= chr #\/) rex)
                 (#t (body buffer score chr)))))
@@ -166,7 +166,7 @@
     (fn (_ buffer score chr) (if (= chr #\") (mk-text ()) ()))))
 
 (def %interp-analyse
-  (fn (_ buffer score chr) (if (= chr #\$) %interp-after-dollar ())))
+  (fn (_ buffer score chr) (if (= chr #\#) %interp-after-hash ())))
 
 ; Interpolated text -> argument list for (Str8 str ...): literal chunks
 ; interleaved with parsed hole expressions.  A single { opens a hole; {{ and }}
@@ -196,12 +196,12 @@
           ((>= i len) len)
           ((= (%str-ref s i) #\}) i)
           ((= (%str-ref s i) #\") (self s (str-end s (+ i 1) len) len))
+          ((and (= (%str-ref s i) #\#) (next? s i len #\"))
+            (self s (text-end s (+ i 2) len) len))               ; nested #"..."
           ((and (= (%str-ref s i) #\#) (next? s i len #\\))
             (self s (+ i 3) len))                                ; #\X
           ((and (= (%str-ref s i) #\#) (next? s i len #\/))
             (self s (rex-end s (+ i 2) len) len))                ; #/.../
-          ((and (= (%str-ref s i) #\$) (next? s i len #\"))
-            (self s (text-end s (+ i 2) len) len))               ; nested $"..."
           (#t (self s (+ i 1) len)))))
     ; Index just past the " closing a string whose body starts at i.
     (set! str-end
@@ -264,21 +264,24 @@
                       ; An EMPTY hole ({} or whitespace) reads no form at all,
                       ; and `first` is unchecked -- (first ()) is UB, and it
                       ; segfaulted the READER before evaluation ever began
-                      ; (#159).  Nothing to splice, so splice nothing: $"a{}b"
-                      ; is "ab", the same way $"" is "".
+                      ; (#159).  Nothing to splice, so splice nothing: #"a{}b"
+                      ; is "ab", the same way #"" is "".
                       (if (null? forms)
                         (self s (+ close 1) len)
                         (pair (first forms) (self s (+ close 1) len))))))))))))
     walk))
 
-; The winning token is the whole literal: strip $" and the closing ", split what
+; The winning token is the whole literal: strip #" and the closing ", split what
 ; is left.  The last-character test is the cheap guard -- no ordinary symbol ends
-; in a quote -- so the token text is only materialized for a real candidate.
+; in a quote -- so the token text is only materialized for a real candidate,
+; and the candidate must OPEN with #" as well as close with ": a token that
+; merely starts with # and ends in a quote is the symbol reader's, not ours.
 (def %interp-read
   (fn (_ buffer . rest)
     (if (= (%buffer-last-char buffer) #\")
       (let ((tok (%buffer-token buffer)))
-        (if (and (> (%str-length tok) 2) (= (%str-ref tok 0) #\$))
+        (if (and (> (%str-length tok) 2)
+                 (and (= (%str-ref tok 0) #\#) (= (%str-ref tok 1) #\")))
           (let ((s (%substring tok 2 (- (%str-length tok) 1))))
             (pair (lit Str8)
               (pair (lit str) (%interp-forms s 0 (%str-length s)))))

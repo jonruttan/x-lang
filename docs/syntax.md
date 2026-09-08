@@ -50,12 +50,14 @@ echoes them in shorthand.
 - `#\a`, `#\newline`, `#\€` — everywhere, including boot files. The
   string-index idiom `("x" 0)` is retired.
 - Strings escape with `\" \\ \n \t \r \0 \xHH`.
-- `$"text {expr} text"` interpolates at read time (expands to
+- `#"text {expr} text"` interpolates at read time (expands to
   `(Str8 str …)`).  A hole is scanned in expression context, so it holds
-  arbitrary code — a string (`$"{(join " " xs)}"`), a `#\` character
-  literal, or another `$"…"` — and only the `}` that closes it ends it.
+  arbitrary code — a string (`#"{(join " " xs)}"`), a `#\` character
+  literal, or another `#"…"` — and only the `}` that closes it ends it.
   `{{` and `}}` are literal braces; `\` escapes the next character, so
   `\{` opens no hole (and, as in any string, keeps its backslash).
+  The `#` is the prefix every reader extension wears (`#t`, `#\a`, `#(…)`,
+  `#/…/`); the literal was spelled `$"…"` through 0.13.0.
 
 ## Collections
 
@@ -110,7 +112,7 @@ echoes them in shorthand.
 |---|---|---|---|
 | ints (signed, hex), strings, `#\` chars, lists, `( . x)`, `;` | ✓ | ✓ | ✓ |
 | `#t`/`#f` as booleans, printer | — | ✓ | ✓ |
-| `'` `` ` `` `,` `,@` `$"…"` `#(…)` | — | ✓ | ✓ |
+| `'` `` ` `` `,` `,@` `#"…"` `#(…)` | — | ✓ | ✓ |
 | floats, rationals, complexes, bigints, decimals (`1.5d`), `#/…/` | — | — | ✓ |
 
 The bare column is normative for every implementation of the reader;

@@ -32,7 +32,7 @@
           ((number? v) (w v))
           (#t (Err raise (lit type) "Xon emit: unsupported atom in form" v)))))
     ; A scratch base is the bare C ISA: the reader macros are armed on the
-    ; BOOT base's string type (lit-reader.x), so a $"..." literal read into
+    ; BOOT base's string type (lit-reader.x), so a #"..." literal read into
     ; one SHATTERS at its first space -- and the trailing quote then opens a
     ; string that never closes, killing the file with "Unterminated input".
     ; Arm the SHARED analyser (one definition of where a literal ends, no
@@ -52,7 +52,7 @@
     ; handler" and wrapping it makes the tokenizer apply a LIST as a handler,
     ; which bus-errors.
     (method arm-source! (self (param b ANY "A fresh base, before its first read"))
-      (doc "Arm b to keep $\"...\" literals as ('%interp \"<source text>\") tokens."
+      (doc "Arm b to keep #\"...\" literals as ('%interp \"<source text>\") tokens."
         (returns ANY "nil")
         (note "For tools that read SOURCE into a scratch base (fmt, doc). The literal survives verbatim instead of shattering."))
       (let ((st (Xon %xon-find-type b "STRING")))
@@ -66,7 +66,8 @@
                   (fn (_ buffer . rest)
                     (if (= (%buffer-last-char buffer) #\")
                       (let ((tok (%tokf buffer)))
-                        (if (and (> (%str-length tok) 2) (= (%str-ref tok 0) #\$))
+                        (if (and (> (%str-length tok) 2)
+                                 (and (= (%str-ref tok 0) #\#) (= (%str-ref tok 1) #\")))
                           (list (lit %interp) tok)
                           ()))
                       ())))

@@ -110,10 +110,11 @@
 ; --- Output ---
 
 ; READER-NEUTRAL ON PURPOSE.  A lang bundle imports this module through its
-; OWN reader (x-sweet does), and $-interpolation is a he/xe reader feature:
-; sweet's reader mangles the $-string silently, and the mangled body crashed
-; the engine when evaluated (found live, 2026-09-01).  Plain prims and 2-arg
-; appends read identically under every reader this module can arrive through.
+; OWN reader (x-sweet does), and #"..." interpolation is a he/xe reader
+; feature: sweet's reader mangled the literal silently (then spelled $"..."),
+; and the mangled body crashed the engine when evaluated (found live,
+; 2026-09-01).  Plain prims and 2-arg appends read identically under every
+; reader this module can arrive through.
 ; The helpers are BODY defs, not globals (the percent-globals budget holds
 ; this file at 4) -- dump runs once, so the defs-at-depth cost is nothing.
 (doc (def profile-dump

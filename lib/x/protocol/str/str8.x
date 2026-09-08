@@ -19,10 +19,10 @@
 ; argument's display rendering (encoding-transparent: concatenating valid
 ; UTF-8 fragments yields valid UTF-8). Swept %-private from the bare `str`
 ; global in #108 (e322895); its public face is the (Str8 str ...) class
-; method below, which $"..." interpolation also delegates to.
+; method below, which #"..." interpolation also delegates to.
 ; One rendering pass, ONE concatenation (#333): the old fold re-copied
 ; the whole accumulator per argument -- O(n^2) in the rendered length,
-; paid by every $"..." interpolation.
+; paid by every #"..." interpolation.
 (def %str-build
   (fn (_ . args)
     (%str-concat (%map %display-to-str args))))
@@ -229,7 +229,7 @@
       (%str-concat
         (%map (fn (_ s) (%str8-check s "Str8 append: not a string")) args)))
     (method str (self . (param args ANY "Values to render and concatenate"))
-      (doc "Concatenate values into one string, coercing each via display (so non-strings render too). The target of $\"...{expr}...\" interpolation."
+      (doc "Concatenate values into one string, coercing each via display (so non-strings render too). The target of #\"...{expr}...\" interpolation."
         (returns STRING "The rendered values joined end to end")
         (example "(Str8 str \"x=\" 5 \"!\")" "\"x=5!\""))
       (apply %str-build args))                     ; delegate to the %-private builder

@@ -57,7 +57,7 @@
       ; --- Tokenize both with a fresh base ---
       ; (Base make): make-base retired when the constructors homed on the Base class
       ; A scratch base has no reader macros: arm it (once, before the first
-      ; read) so a $"..." literal survives as its own text instead of
+      ; read) so a #"..." literal survives as its own text instead of
       ; shattering at its first space -- see (Xon arm-source!).
       (let ((%prims-input (if (str=? %file %prims-path) "" (File read-all %prims-path))))
         (let ((%source-input (File read-all %file)))

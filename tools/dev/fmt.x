@@ -198,7 +198,7 @@
         (first (%reflect-step %fmt-base (%reflect-path 'type-alist %base-paths))))
       ; Push the keeping reader through the blessed door (path-driven cell).
       (%type-push-read (%find-type %fmt-registry "COMMENT") %fmt-comment-reader)
-      ; Same treatment for $"..." literals: keep them as their source
+      ; Same treatment for #"..." literals: keep them as their source
       ; text, so formatting cannot expand the sugar away -- see
       ; (Xon arm-source!).
       (Xon arm-source! %fmt-base)

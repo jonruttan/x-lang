@@ -195,11 +195,11 @@
     (match
       ; Comment: to end of line, the newline left for the next pass.
       ((eq? c 59) (%hl-write "c1" s i (%hl-to-eol s i n) n))
-      ; String, and $"..." interpolation -- one class: the hole syntax is part
+      ; String, and #"..." interpolation -- one class: the hole syntax is part
       ; of the literal, and colouring it apart would suggest it escapes the
       ; string, which it does not.
       ((eq? c 34) (%hl-write "s" s i (%hl-string-end s (%hl+ i 1) n) n))
-      ((and (eq? c 36) (and (< (%hl+ i 1) n) (eq? (%hl-byte-ref s (%hl+ i 1)) 34)))
+      ((and (eq? c 35) (and (< (%hl+ i 1) n) (eq? (%hl-byte-ref s (%hl+ i 1)) 34)))
         (%hl-write "s" s i (%hl-string-end s (%hl+ i 2) n) n))
       ; Character literal: #\ and the one glyph after it, plus any word behind
       ; that, so #\newline stays one token and #\( does not lose its paren to
