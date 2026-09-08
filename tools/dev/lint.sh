@@ -20,10 +20,27 @@
 # (run.x/main.x, no provide) safe to lint: nothing forks a server.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-X_BIN="$PROJECT_DIR/x-bin"
+# THE ROOT IS OVERRIDABLE so an INSTALLED tree can drive this: a lang
+# bundle lives outside the checkout and has no x-bin of its own, and the
+# lint is the one check every bundle would otherwise go without.  Both
+# default to the checkout, so a developer's `make lint-x` is unchanged.
+PROJECT_DIR="${X_LINT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+X_BIN="${X_BIN:-$PROJECT_DIR/x-bin}"
 LINTER="$SCRIPT_DIR/lint.x"
+# THE LANGUAGE, as this root can serve it.  lib/x-core.x opens with a
+# ROOT-RELATIVE include, so it only loads with the checkout as the
+# working directory; an installed tree ships the launcher-free boot
+# amalgam instead, which carries the same library with no path in it.
+# A checkout keeps x-core.x, so `make lint-x` is byte-for-byte as before.
 LANG_LIB="$PROJECT_DIR/lib/x-core.x"
+LANG_PRE=""
+if [ -n "${X_LINT_ROOT:-}" ] && [ -f "$PROJECT_DIR/boot/x-base.x" ]; then
+  LANG_LIB="$PROJECT_DIR/boot/x-base.x"
+  # The amalgam resolves its DEFERRED imports against %install-root, so
+  # that has to be bound before it -- the same first line the bundle
+  # spec harness writes for the same file.
+  LANG_PRE="(def %install-root \"$PROJECT_DIR\")"
+fi
 CONSTRUCTS="$PROJECT_DIR/lib/x/constructs.x"
 
 LIB_MODE=0
@@ -46,6 +63,60 @@ done
 # imports executed ahead of the linter so the target's legitimate env is
 # bound.  Factored out (#323): the per-file loop and the batch grouper
 # both need it (the group KEY is the preload text, verbatim).
+# The sibling preload for a directory of modules: the target reads its
+# siblings' exports, so linting it alone would call every one of them
+# Undefined.  Both an app under apps/NAME/ and a LANG BUNDLE under its
+# own root have that shape -- a directory of (provide ...) modules plus
+# an entry with none -- so the walk takes the modules root as an
+# argument rather than matching one hard-coded path.
+_preload_siblings() {
+  _MOD_DIR="$(cd "$(dirname "$1")" && pwd)"
+  _ROOT="$(dirname "$_MOD_DIR")"
+  _NS="$(basename "$_MOD_DIR")"
+  _ABS_F="$_MOD_DIR/$(basename "$1")"
+  _PRELOAD="(import-path! \"$_ROOT\")"
+  for _m in "$_MOD_DIR"/*.x; do
+    grep -q '(provide ' "$_m" && [ "$_m" != "$_ABS_F" ] && continue
+    _PRELOAD="$_PRELOAD $(grep '^(import ' "$_m" | sed 's/;.*$//' | tr '\n' ' ')"
+  done
+  for _m in "$_MOD_DIR"/*.x; do
+    [ "$_m" = "$_ABS_F" ] && continue
+    grep -q '(provide ' "$_m" || continue
+    _PRELOAD="$_PRELOAD (import $_NS/$(basename "$_m" .x))"
+  done
+
+  # A sibling with NO provide is not a module -- it is a FRAGMENT some
+  # module include-once's, and its definitions live in the assembled
+  # whole rather than behind an export.  An import cannot reach them, so
+  # the fragment is included, exactly as its own module includes it;
+  # without this, x-coreutils reads half of itself as Undefined.
+  #
+  # ORDER COMES FROM THE ASSEMBLER, NOT FROM ls.  The fragments are not
+  # independent: cu/cli.x names every applet as it builds its table, and
+  # alphabetically it loads before the applets exist.  So the order is
+  # read off the file that actually assembles them -- the sibling
+  # carrying the include-once lines.
+  #
+  # AND ONLY WHAT AN ASSEMBLER NAMES IS A FRAGMENT.  A non-provide
+  # sibling nothing includes is an ENTRY (apps/bitwise/run.x), whose top
+  # level RUNS -- preloading one would execute an app to lint its
+  # library, into the stream the group driver is parsing.
+  _ORDER=""
+  for _m in "$_MOD_DIR"/*.x; do
+    _ORDER="$_ORDER $(sed -n 's|^(include-once "\(\./\)\{0,1\}\([^"]*\)").*|\2|p' "$_m" | tr '\n' ' ')"
+  done
+  _SEEN=""
+  for _b in $_ORDER; do
+    _m="$_MOD_DIR/$_b"
+    [ -f "$_m" ] || continue
+    case " $_SEEN " in *" $_b "*) continue ;; esac
+    _SEEN="$_SEEN $_b"
+    [ "$_m" = "$_ABS_F" ] && continue
+    grep -q '(provide ' "$_m" && continue
+    _PRELOAD="$_PRELOAD (include-once \"$_m\")"
+  done
+}
+
 _preload_for() {
   _PRELOAD=""
   case "$1" in
@@ -53,22 +124,40 @@ _preload_for() {
       _PRELOAD="$(grep '^(import ' "$1" | sed 's/;.*$//' | tr '\n' ' ')"
       ;;
     */apps/*/*.x)
-      _APP_DIR="$(cd "$(dirname "$1")" && pwd)"
-      _APPS_ROOT="$(dirname "$_APP_DIR")"
-      _APP="$(basename "$_APP_DIR")"
-      _ABS_F="$_APP_DIR/$(basename "$1")"
-      _PRELOAD="(import-path! \"$_APPS_ROOT\")"
-      for _m in "$_APP_DIR"/*.x; do
-        grep -q '(provide ' "$_m" && [ "$_m" != "$_ABS_F" ] && continue
-        _PRELOAD="$_PRELOAD $(grep '^(import ' "$_m" | sed 's/;.*$//' | tr '\n' ' ')"
-      done
-      for _m in "$_APP_DIR"/*.x; do
-        [ "$_m" = "$_ABS_F" ] && continue
-        grep -q '(provide ' "$_m" || continue
-        _PRELOAD="$_PRELOAD (import $_APP/$(basename "$_m" .x))"
-      done
+      _preload_siblings "$1"
+      ;;
+    *)
+      # A bundle names its own module root; anything under it is
+      # preloaded with its siblings, and its entry (run.x, no provide)
+      # is analysed as data exactly as an app's is.
+      if [ -n "${X_LINT_MODULE_ROOT:-}" ]; then
+        case "$1" in
+          "$X_LINT_MODULE_ROOT"/*)
+            if ls "$(dirname "$1")"/*.x >/dev/null 2>&1 &&
+               grep -lq '(provide ' "$(dirname "$1")"/*.x 2>/dev/null; then
+              _preload_siblings "$1"
+            else
+              # NOT a module directory: an entry, or a tool the bundle
+              # loads ALONGSIDE itself (`x -l NAME -f tool.x`).  Either
+              # way its environment is the whole bundle, so every module
+              # the bundle provides is imported ahead of it.
+              _PRELOAD="(import-path! \"$X_LINT_MODULE_ROOT\")"
+              for _m in "$X_LINT_MODULE_ROOT"/*/*.x; do
+                [ -e "$_m" ] || continue
+                grep -q '(provide ' "$_m" || continue
+                _MD="$(basename "$(dirname "$_m")")"
+                _PRELOAD="$_PRELOAD (import $_MD/$(basename "$_m" .x))"
+              done
+              _PRELOAD="$_PRELOAD $(grep '^(import ' "$1" | sed 's/;.*$//' | tr '\n' ' ')"
+            fi
+            ;;
+        esac
+      fi
       ;;
   esac
+  # A file may name symbols the linter should take as known -- the
+  # escape hatch for a reference no preload can bind.  This runs for
+  # EVERY target, whatever branch above matched.
   for _k in $(sed -n 's/^; lint-known:\(.*\)$/\1/p' "$1"); do
     _PRELOAD="$_PRELOAD (def $_k 0)"   # 0, not (): a nil binding would fail the value-subject test
   done
@@ -92,7 +181,7 @@ if [ -n "${GROUP_LIST:-}" ]; then
         cat "$_f"
         printf '\n'
       done < "$GROUP_LIST"
-    } | { cat "$LANG_LIB"; printf '%s\n' "$_PRELOAD"; cat "$LINTER" -; } | "$X_BIN" 2>&1)
+    } | { printf '%s\n' "$LANG_PRE"; cat "$LANG_LIB"; printf '%s\n' "$_PRELOAD"; cat "$LINTER" -; } | "$X_BIN" 2>&1)
   printf '%s\n' "$_OUT" | awk -v listfile="$GROUP_LIST" -v proj="$PROJECT_DIR/" '
     BEGIN {
       nf = 0
@@ -100,7 +189,13 @@ if [ -n "${GROUP_LIST:-}" ]; then
       fail = 0
     }
     /^%%LINT%% / { name = substr($0, 10); buf = ""; next }
-    /^%%OK%%$/   { printf "  \033[1;32m.\033[0m %s\n", name; done[name] = 1; name = ""; next }
+    # A CLEAN FILE STILL HAS ITS WARNINGS.  This printed the dot and
+    # dropped buf, so in group mode every advisory finding on a file that
+    # otherwise passed -- ladder, shape, unused -- was discarded silently;
+    # the only warnings anyone ever saw here were the ones riding on a
+    # FAILING file, which is why an x-coreutils gate over twenty-one
+    # ladders reported ok.  The per-file path always printed both.
+    /^%%OK%%$/   { printf "  \033[1;32m.\033[0m %s\n", name; printf "%s", buf; done[name] = 1; name = ""; next }
     /^%%FAIL%%$/ {
       fail = 1
       printf "  \033[1;31mF\033[0m %s\n", name
@@ -261,9 +356,9 @@ for f in "$@"; do
   # Run linter: library [+ app preload] + linter code, then constructs +
   # [mode flag] + target
   if [ "$LIB_MODE" -eq 1 ]; then
-    _OUT=$({ printf '%s\n%%lint-lib\n' "$_CONSTRUCTS_INPUT"; cat "$f"; } | { cat "$LANG_LIB"; printf '%s\n' "$_PRELOAD"; cat "$LINTER" -; } | "$X_BIN" 2>&1)
+    _OUT=$({ printf '%s\n%%lint-lib\n' "$_CONSTRUCTS_INPUT"; cat "$f"; } | { printf '%s\n' "$LANG_PRE"; cat "$LANG_LIB"; printf '%s\n' "$_PRELOAD"; cat "$LINTER" -; } | "$X_BIN" 2>&1)
   else
-    _OUT=$({ printf '%s\n' "$_CONSTRUCTS_INPUT"; cat "$f"; } | { cat "$LANG_LIB"; printf '%s\n' "$_PRELOAD"; cat "$LINTER" -; } | "$X_BIN" 2>&1)
+    _OUT=$({ printf '%s\n' "$_CONSTRUCTS_INPUT"; cat "$f"; } | { printf '%s\n' "$LANG_PRE"; cat "$LANG_LIB"; printf '%s\n' "$_PRELOAD"; cat "$LINTER" -; } | "$X_BIN" 2>&1)
   fi
   # Decide pass/fail from the linter's own output, not $?: an uncaught
   # x-lang (error) now exits non-zero, but output-based detection also
