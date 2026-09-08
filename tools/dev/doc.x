@@ -59,6 +59,18 @@
       ; A scratch base has no reader macros: arm it (once, before the first
       ; read) so a #"..." literal survives as its own text instead of
       ; shattering at its first space -- see (Xon arm-source!).
+      ; Load the module first, guarded, so the docs it adds AT LOAD exist to
+      ; be merged: x/type/block.x puts a "Block form:" note on a method's
+      ; doc when its class module loads, and the page should show what
+      ; (help) shows.  A core module is already booted, so the import is a
+      ; no-op; an opt-in one (Dict, Set) loads here.  Boot files and the
+      ; dialect toolboxes are skipped -- x-core cannot be re-imported, and
+      ; xe/rn would pull a tower into a helium sweep.  A failing import
+      ; documents the file exactly as before, those notes absent.
+      (let ((%mod (Str8 replace ".x" "" (Str8 replace "lib/" "" %file))))
+        (unless (or (eq? (Str8 index-of "x/boot/" %mod) 0)
+                    (or (str=? %mod "x-core") (or (str=? %mod "x/xe") (str=? %mod "x/rn"))))
+          (guard (_ ()) (eval (list (lit import) (%str->symbol %mod))))))
       (let ((%prims-input (if (str=? %file %prims-path) "" (File read-all %prims-path))))
         (let ((%source-input (File read-all %file)))
           (let ((%doc-base (Base make)))
