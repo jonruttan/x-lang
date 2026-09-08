@@ -51,15 +51,16 @@
       (pair (lit quasi) (pair (%token-read buffer) ()))
       ())))
 
+; Select on the token's LEADING char: the comma token is exactly "," or ",@".
+; (A symbol may end in a comma -- foo, -- now that the comma is not a
+; delimiter, so the last char no longer identifies the macro.)
 (def %unquote-read
   (fn (_ buffer . rest)
-    (if (= (%buffer-last-char buffer) #\,)
-      (pair (lit unquote) (pair (%token-read buffer) ()))
+    (if (= (%str-ref (%buffer-token buffer) 0) #\,)
       (if (= (%buffer-last-char buffer) #\@)
-        (if (= (%str-ref (%buffer-token buffer) 0) #\,)
-          (pair (lit unquote-splicing) (pair (%token-read buffer) ()))
-          ())
-        ()))))
+        (pair (lit unquote-splicing) (pair (%token-read buffer) ()))
+        (pair (lit unquote) (pair (%token-read buffer) ())))
+      ())))
 
 (doc (provide x/reader/quasi-reader
   %quasi-analyse %unquote-analyse %quasi-read %unquote-read

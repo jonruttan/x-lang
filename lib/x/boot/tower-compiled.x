@@ -304,13 +304,14 @@
 (if (guard (_ #t) (= %jit-buffer-last-char 0)) ()
   (%tower-jit-global! %c-macro-delimit #f
     (lit (fn (_ buffer)
-      ; ' ` , (39 96 44) each end an adjacent token.  %buffer-unread rewinds
+      ; ' ` (39 96) each end an adjacent token; the comma (44) does not, as
+      ; in the interpreted %macro-delimit this twins.  %buffer-unread rewinds
       ; the delimiter char AND returns the buffer, which is the value the C
       ; delimit protocol tests for a match -- so no %seq is needed (and the
       ; asm lane does not compile %seq with a call in discard position).
       (if (or (= (%buffer-last-char buffer) 39)
               (or (= (%buffer-last-char buffer) 96)
-                  (= (%buffer-last-char buffer) 44)))
+                  (= (%buffer-last-char buffer) 96)))
         (%buffer-unread buffer)
         ())))
     (list (pair (lit _u) 1))

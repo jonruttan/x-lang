@@ -41,13 +41,15 @@
       (pair (lit lit) (pair (%token-read buffer) ()))
       ())))
 
-; ' ` , each terminate an adjacent token.  Nested if (no cond/or) and no
-; binding keep it allocation-free on the per-char delimiter path.
+; ' and ` each terminate an adjacent token (foo'bar reads as foo then 'bar).
+; The comma does NOT: unquote is recognised only where a token BEGINS, so a
+; comma inside a token is just a symbol character ({O,O} is one symbol).
+; Nested if (no cond/or) and no binding keep it allocation-free on the
+; per-char delimiter path.
 (def %macro-delimit
   (fn (_ buffer . rest)
     (if (if (= (%buffer-last-char buffer) #\') #t
-          (if (= (%buffer-last-char buffer) #\`) #t
-            (= (%buffer-last-char buffer) #\,)))
+          (= (%buffer-last-char buffer) #\`))
       (%seq (%buffer-unread buffer) buffer)
       ())))
 
