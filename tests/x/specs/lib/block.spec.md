@@ -9,10 +9,10 @@
 ---
     (10 20 30)
 
-### a second name binds the 0-based index, element first
+### two names bind the 0-based index, then the element
 
 ```x
-(List map (x i) (list i x) (list 7 8 9))
+(List map (i x) (list i x) (list 7 8 9))
 ```
 ---
     ((0 7) (1 8) (2 9))
@@ -36,7 +36,7 @@
 ### an index counter is per send, not shared
 
 ```x
-(List map (x i) (List map (y j) (list i j x y) (list "a")) (list "p" "q"))
+(List map (i x) (List map (j y) (list i j x y) (list "a")) (list "p" "q"))
 ```
 ---
     (((0 0 "p" "a")) ((1 0 "q" "a")))
@@ -91,7 +91,7 @@
 (guard (e e) (List map (a b c) a (list 1)))
 ```
 ---
-    "block takes (element) or (element index), got names: 3"
+    "block takes (element) or (index element), got names: 3"
 
 ## wrapping is per selector
 
@@ -162,7 +162,7 @@ call, not a binding list.
 ### sort-by, with the index available
 
 ```x
-(List sort-by (x i) (- 0 x) (list 1 3 2))
+(List sort-by (i x) (- 0 x) (list 1 3 2))
 ```
 ---
     (3 2 1)
@@ -180,7 +180,7 @@ call, not a binding list.
 ### a third name is the index
 
 ```x
-(List fold (acc x i) (+ acc (* x i)) 0 (list 5 5 5))
+(List fold (acc i x) (+ acc (* x i)) 0 (list 5 5 5))
 ```
 ---
     15
@@ -216,7 +216,7 @@ call, not a binding list.
 ### map with an index
 
 ```x
-(#(1 2 3) map (x i) (* x i))
+(#(1 2 3) map (i x) (* x i))
 ```
 ---
     #(0 2 6)
@@ -234,7 +234,7 @@ call, not a binding list.
 ### a string iterates through Seq's block form
 
 ```x
-(Str8 fold (acc c i) (+ acc i) 0 "abcd")
+(Str8 fold (acc i c) (+ acc i) 0 "abcd")
 ```
 ---
     6
@@ -244,7 +244,7 @@ call, not a binding list.
 ### Gen is an instance method -- the receiver is self, not a trailing argument
 
 ```x
-(((Gen range 0 4) map (x i) (list i x)) ->list)
+(((Gen range 0 4) map (i x) (list i x)) ->list)
 ```
 ---
     ((0 0) (1 1) (2 2) (3 3))
@@ -298,7 +298,7 @@ call, not a binding list.
 ### group-by can key on the index
 
 ```x
-(List group-by (x i) (< i 2) (list "a" "b" "c"))
+(List group-by (i x) (< i 2) (list "a" "b" "c"))
 ```
 ---
     ((#t "a" "b") (#f "c"))
@@ -491,4 +491,4 @@ call, not a binding list.
 (guard (e e) (List map () 1 (list 1)))
 ```
 ---
-    "block takes (element) or (element index), got names: 0"
+    "block takes (element) or (index element), got names: 0"
