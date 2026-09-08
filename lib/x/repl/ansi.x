@@ -68,6 +68,7 @@
     (bold-yellow (%str-append (%sgr "1") (%sgr "33")) "Bold yellow foreground")
     (bold-red    (%str-append (%sgr "1") (%sgr "31")) "Bold red foreground")
     (bold-blue   (%str-append (%sgr "1") (%sgr "34")) "Bold blue foreground")
+    (repl-own    ()  "The REPL printer this class installed, or nil -- how install/1 tells its own from a lang's")
     (method enabled? (self)
       (doc "Check whether ANSI color support is active."
         (returns BOOL "True if ANSI color output is enabled"))
@@ -102,10 +103,14 @@
         (set! %repl-print
           (fn (_ result)
             (unless (null? result) (%ansi-write result))
-            (newline)))))
+            (newline)))
+        ; Remembered, so `install` can tell a printer THIS class put there
+        ; from one a lang installed for itself.
+        (Ansi repl-own %repl-print)))
     (method disable-repl (self)
       (doc "Restore plain REPL output.")
-      (set! %repl-print %saved-repl-print))
+      (set! %repl-print %saved-repl-print)
+      (Ansi repl-own ()))
     (method install (self)
       (doc "Detect the terminal and (re)install every colour this file owns -- the class statics, the printer's %c-* globals, doc.x's stubs and the REPL printer. Called when this file loads and again by the image recache hook, since whether there is a terminal is a fact of the PROCESS and the colours are strings a state image would otherwise carry from the writer's pipe."
         (returns NIL "Nothing; the colours are installed as a side effect"))
@@ -158,7 +163,22 @@
         ; Both directions, so a re-run with no terminal puts the plain ones
         ; back rather than leaving a half-coloured session behind.
         (set! %highlight-code (if %ansi? (method-ref Ansi highlight) display))
-        (if %ansi? (Ansi enable-repl) (Ansi disable-repl))
+        ;  AND THE REPL PRINTER IS ONLY EVER OURS TO MOVE.  A lang replaces
+        ; %repl-print for itself -- every bundle's spec harness does -- and
+        ; this runs again after a state image loads, which is AFTER that
+        ; replacement is already in the imaged heap.  Enabling over it, or
+        ; "restoring" the plain one under it, silently took the lang's
+        ; printer away: x-krn's suite from an image printed ('b 'c) for
+        ; (b c) and failed four specs, and the bundles whose values print
+        ; the same either way passed while quietly using the wrong printer.
+        ; So touch it only when it is the platform's own, or the one this
+        ; class last installed.
+        ((fn (_ ours)
+           (if %ansi?
+             (if ours (Ansi enable-repl) ())
+             (if (same? %repl-print (Ansi repl-own)) (Ansi disable-repl) ())))
+         (if (same? %repl-print %saved-repl-print) #t
+           (same? %repl-print (Ansi repl-own))))
         ()))
 ))
 
