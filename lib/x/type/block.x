@@ -203,6 +203,84 @@
                         (self %eval-each (self %last-n (rest tail) trailing) e))))))
           (tail-eval (pair m (pair (list (lit lit) recv) args)) e))))
 
+    ; --- documenting the wrap ------------------------------------------
+    ; (help Class/sel) answered only the applicative signature: true, and
+    ; incomplete -- the block form is a second call shape a reader cannot
+    ; discover from it.  The wrap is the one place that knows the shape, so it
+    ; adds the note itself: one fact, stated where it is decided, instead of
+    ; fifty (doc ...) forms repeating it by hand and drifting.
+    ;
+    ; A method's doc is PENDING -- a (%bare KEY desc . meta) entry -- until the
+    ; first (help) commits it, and every library wrap runs at boot, before
+    ; that.  So the note is spliced onto the pending entry's meta when there is
+    ; one; a wrap made after (help) has run finds the committed registry entry
+    ; and prepends to its notes instead.  An undocumented method gets nothing,
+    ; which is what it had.
+    (method %shape-note (self shape)
+      (match
+        ((eq? shape (lit pair))
+          "Block form: (p) body ... in place of f binds the (key . value) pair; (k v) binds the key and the value.")
+        ((eq? shape (lit fold))
+          "Block form: (acc x) body ... in place of f; (acc i x) adds the 0-based index ahead of the element.")
+        ((eq? shape (lit binary))
+          "Block form: (a b) body ... in place of f binds the two operands.")
+        ((eq? shape (lit thunk))
+          "Block form: () body ... in place of the thunk -- the body is the default, run only on a miss.")
+        (#t
+          "Block form: (x) body ... in place of f binds the element; (i x) binds the 0-based index, then the element.")))
+
+    (method %last-cell (self xs)
+      (if (null? (rest xs)) xs (recur self (rest xs))))
+
+    (method %nth-cell (self xs i)
+      (if (null? xs) () (if (< i 1) xs (recur self (rest xs) (- i 1)))))
+
+    ; The pending entry keyed "Class/sel", by NAME: keys are symbols made by
+    ; %str->symbol at stash time, and a symbol built here may not be eq? to
+    ; one built there.  The kind and key are tested before symbol->str
+    ; touches them -- it is unchecked on a non-symbol (#638).
+    (method %pending-entry (self key)
+      ((fn (go l)
+         (if (null? l) ()
+           (let ((e (first l)))
+             (if (and (pair? e)
+                   (and (pair? (rest e))
+                     (and (symbol? (first (rest e)))
+                       (str=? (symbol->str (first (rest e))) key))))
+               e
+               (go (rest l))))))
+       (first %doc-pending-cell)))
+
+    ; Idempotent: wrapping a selector twice must not say the same thing
+    ; twice, so both paths look for the text before adding it.
+    (method %notes-have? (self strs text)
+      (if (null? strs) #f
+        (if (and (str? (first strs)) (str=? (first strs) text)) #t
+          (recur self (rest strs) text))))
+
+    (method %meta-has-note? (self meta text)
+      (if (null? meta) #f
+        (let ((f (first meta)))
+          (if (and (pair? f) (and (eq? (first f) (lit note))
+                     (and (pair? (rest f)) (and (str? (first (rest f)))
+                       (str=? (first (rest f)) text)))))
+            #t
+            (recur self (rest meta) text)))))
+
+    (method %doc-note! (self class sel shape)
+      (let ((key (%str-append (symbol->str (class-name class))
+                   (%str-append "/" (symbol->str sel))))
+            (text (self %shape-note shape)))
+        (let ((pend (self %pending-entry key)))
+          (if (null? pend)
+            (let ((e (%doc-lookup ((prim-ref (lit str) (lit ->sym)) key))))
+              (unless (null? e)
+                (let ((cell (self %nth-cell e 6)))          ; the notes slot
+                  (unless (self %notes-have? (first cell) text)
+                    (%set-first! cell (pair text (first cell)))))))
+            (unless (self %meta-has-note? (rest (rest pend)) text)
+              (%set-rest! (self %last-cell pend) (list (list (lit note) text))))))))
+
     (method %imethod-of (self class sel)
       (let ((itab (first (%class-hot class))))
         (%entry-method (%tab-find! itab itab sel))))
@@ -234,10 +312,13 @@
                                   (symbol->str sel))))
             (class def-method! sel
               (self %block-op im shape
-                (if (self %len>=? opts 2) (first (rest opts)) 0) pos)))
-          (class def-static! sel
-            (self %block-op sm shape
-              (if (self %len>=? opts 2) (first (rest opts)) 1) pos)))))))
+                (if (self %len>=? opts 2) (first (rest opts)) 0) pos))
+            (self %doc-note! class sel shape))
+          (do
+            (class def-static! sel
+              (self %block-op sm shape
+                (if (self %len>=? opts 2) (first (rest opts)) 1) pos))
+            (self %doc-note! class sel shape)))))))
 
 ; Each class wires its own selectors, beside the methods being wrapped -- this
 ; file is the mechanism only, and never reaches down into a collection.  See
