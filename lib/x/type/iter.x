@@ -153,7 +153,7 @@
 
 
 ; --- Block forms ------------------------------------------------------------
-; ((v iter) for-each (x i) ...) alongside (Iter for-each f it); x/type/block.x.
+; ((v iter) for-each (i x) ...) alongside (Iter for-each f it); x/type/block.x.
 (import x/type/block)
 (Block method! Iter (lit for-each))
 (Block method! Iter (lit fold) (lit fold) 2)

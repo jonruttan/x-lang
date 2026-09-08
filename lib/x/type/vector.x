@@ -316,7 +316,7 @@
 
 
 ; --- Block forms ------------------------------------------------------------
-; (#(1 2 3) map (x i) (* x i)) alongside (Vector map f v); see x/type/block.x.
+; (#(1 2 3) map (i x) (* x i)) alongside (Vector map f v); see x/type/block.x.
 (import x/type/block)
 (Block method! Vector (lit map))
 (Block method! Vector (lit filter))

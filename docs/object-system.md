@@ -343,7 +343,7 @@ the call site:
 ```x
 (List map (fn (_ x) (* x 10)) xs)   ; applicative -- always available
 (List map (x) (* x 10) xs)          ; block form
-(List map (x i) (list i x) xs)      ; a second name is the 0-based index
+(List map (i x) (list i x) xs)      ; two names: the 0-based index, then the element
 ```
 
 Both forms stay live on the same selector; `(help List/map)` keeps answering
@@ -375,14 +375,14 @@ the block declared — which is what makes the optional index possible at all:
 the language has no arity introspection, and calls are lenient, so an
 applicative method handed a two-parameter callback would silently bind nil.
 
-What a second name means is declared per selector, because callback shapes
+What two names mean is declared per selector, because callback shapes
 differ:
 
 | Shape | One name | Two names | Three names |
 |---|---|---|---|
-| `element` (default) | element | element, index | — |
+| `element` (default) | element | index, element | — |
 | `pair` | the `(k . v)` pair | key, value | — |
-| `fold` | — | acc, element | acc, element, index |
+| `fold` | — | acc, element | acc, index, element |
 | `binary` | — | a, b | — |
 | `thunk` | — | — | — |
 

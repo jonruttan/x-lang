@@ -312,8 +312,9 @@ Applies `f` to each element and returns a list of results.
 ```
 > `map` and most other higher-order methods also take a **block form**, writing
 > the callback's names and body at the call site: `(List map (x) (* x 10) xs)`,
-> where a second name binds the 0-based index. [Object System](object-system.md)
-> lists which selectors carry it and what a second name means for each.
+> where two names bind the 0-based index, then the element — the order of
+> `Gen enumerate`'s `(index . value)`. [Object System](object-system.md) lists
+> which selectors carry it and what two names mean for each.
 
 ### `List filter`
 `(List filter pred lst) -> list`

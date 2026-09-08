@@ -8,7 +8,7 @@
 ; directly, with no (fn ...) wrapper:
 ;
 ;   (List map (x) (* x 10) xs)
-;   (List map (x i) (list i x) xs)        ; a second name is the 0-based index
+;   (List map (i x) (list i x) xs)        ; two names: the 0-based index, then the element
 ;
 ; NOTHING IN THE DISPATCH PATH CHANGES.  A method stored as an `op` already
 ; receives its argument FORMS plus the caller's env: %class-call-handler
@@ -114,9 +114,11 @@
     (method %shape-error (self what n)
       (error (%str-append what (%cvt n %string))))
 
-    ; element: (x) is the element; (x i) is the element and then a 0-based
-    ; index.  The counter is a box owned by this send, so nested traversals
-    ; never share it -- one closure and one box per send, nothing per element.
+    ; element: (x) is the element; (i x) is the 0-based index and THEN the
+    ; element -- index first, the order Gen enumerate's (index . value) pair
+    ; already fixed for this library.  The counter is a box owned by this
+    ; send, so nested traversals never share it -- one closure and one box
+    ; per send, nothing per element.
     (method %shape-element (self blk n)
       (match
         ((eq? n 1) blk)
@@ -125,9 +127,9 @@
             (fn (_ x)
               (let ((i (first box)))
                 (%set-first! box (+ i 1))
-                (blk x i)))))
+                (blk i x)))))
         (#t (self %shape-error
-              "block takes (element) or (element index), got names: " n))))
+              "block takes (element) or (index element), got names: " n))))
 
     ; pair: (p) is the (key . value) pair as it stands; (k v) destructures it.
     ; Dict hands its callback a pair, so on a Dict a second name is the value
@@ -140,7 +142,7 @@
               "block takes (pair) or (key value), got names: " n))))
 
     ; fold: the callback is genuinely binary -- (acc element) -- with an
-    ; optional third name for the index.
+    ; optional index, which precedes the element it indexes: (acc i x).
     (method %shape-fold (self blk n)
       (match
         ((eq? n 2) blk)
@@ -149,9 +151,9 @@
             (fn (_ acc x)
               (let ((i (first box)))
                 (%set-first! box (+ i 1))
-                (blk acc x i)))))
+                (blk acc i x)))))
         (#t (self %shape-error
-              "block takes (acc element) or (acc element index), got names: " n))))
+              "block takes (acc element) or (acc index element), got names: " n))))
 
     ; binary: a comparator or reducer over two elements.  No index -- there is
     ; no single position to count.
@@ -210,8 +212,8 @@
                         . (param opts LIST "Optional: shape symbol, trailing-argument count, callback position"))
       (doc "Give a higher-order method a block form: (subject sel (names ...) body ...)."
         (returns ANY "The installed operative")
-        (note "Shapes: element (default) -- (x) or (x index); pair -- (p) or (key value);")
-        (note "fold -- (acc x) or (acc x index); binary -- (a b), no index;")
+        (note "Shapes: element (default) -- (x) or (index x); pair -- (p) or (key value);")
+        (note "fold -- (acc x) or (acc index x); binary -- (a b), no index;")
         (note "thunk -- (), a nullary callback such as a lazy default.")
         (note "Trailing defaults to 1 for a static method (the subject) and 0 for an")
         (note "instance method (the receiver is self); fold needs 2 (init, subject).")
@@ -245,5 +247,5 @@
 (doc (provide x/type/block Block)
   (note "The operative sees the binding list, which is what makes the optional")
   (note "index possible: the language has no arity introspection.")
-  (example "(List map (x i) (list i x) (list 7 8))" "((0 7) (1 8))")
+  (example "(List map (i x) (list i x) (list 7 8))" "((0 7) (1 8))")
   "Block-form methods: write a callback's names and body at the call site.")

@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A block's index comes first.** `(v for-each (i x) ...)`, not `(x i)`: the
+order of `Gen enumerate`'s `(index . value)`, which this library had already
+fixed, and the one a hand reaches for -- the prototype was index-first for
+that reason, and the shipped order was a crossed wire. A fold's optional
+index precedes the element it indexes, `(acc i x)`. Breaking for any
+two-name block written against 0.13.0; the language cannot catch a swapped
+pair, since both names are just symbols, so the fix is to swap them.
+
+
 **Interpolated strings are spelled `#"…"`.** The `$"…"` spelling (0.4.0)
 was a mistake: every other reader extension -- `#t`, `#\a`, `#(…)`, `#/…/`
 -- wears the `#`, and interpolation was the one form that did not. It does
