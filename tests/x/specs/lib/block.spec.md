@@ -97,11 +97,12 @@
 
 ### an unwrapped selector still reads its first argument as a callable
 
-`drop-while` is deliberately not wrapped, so `(x)` there is a call, not a
-binding list.
+`unfold` takes three callables, so it is deliberately not wrapped -- a block
+for one of three would confuse more than it saves -- and `(x)` there is a
+call, not a binding list.
 
 ```x
-(guard (e "not-callable") (List drop-while (x) (> x 1) (list 1 2)))
+(guard (e "not-callable") (List unfold (x) (> x 1) (list 1 2)))
 ```
 ---
     "not-callable"
@@ -347,3 +348,147 @@ binding list.
 ```
 ---
     3
+
+## every remaining callable-first selector
+
+### List: the predicates
+
+```x
+(list (List count-if (x) (> x 1) (list 3 1 2 1)) (List none? (x) (> x 9) (list 1)) (List reject (x) (> x 1) (list 3 1 2 1)) (List find-index (x) (= x 2) (list 3 1 2)))
+```
+---
+    (2 #t (1 1) 2)
+
+### List: uniq-by (consecutive duplicates) and drop-while
+
+```x
+(list (List uniq-by (x) x (list 1 1 2 2 1)) (List drop-while (x) (> x 1) (list 3 1 2 1)))
+```
+---
+    ((1 2 1) (1 2 1))
+
+### List: fold-right and scan take the fold shape
+
+```x
+(list (List fold-right (acc x) (pair x acc) () (list 3 1 2)) (List scan (acc x) (+ acc x) 0 (list 1 2 3)))
+```
+---
+    ((3 1 2) (0 1 3 6))
+
+### List: zip-with is binary over two lists
+
+```x
+(List zip-with (a b) (+ a b) (list 1 2) (list 10 20))
+```
+---
+    (11 22)
+
+### List: iterate's successor takes one name; the count and seed trail
+
+```x
+(List iterate (x) (* x 2) 4 1)
+```
+---
+    (1 2 4 8)
+
+### Gen: none?, drop-while, scan, zip-with
+
+```x
+(list ((Gen range 0 3) none? (x) (> x 5)) (((Gen range 0 6) drop-while (x) (< x 3)) ->list) (((Gen range 1 5) scan (a x) (+ a x) 0) ->list) (((Gen of 1 2) zip-with (a b) (+ a b) (Gen of 10 20)) ->list))
+```
+---
+    (#t (3 4 5) (1 3 6 10) (11 22))
+
+### Gen: the constructors are static, and the seed follows the block
+
+```x
+(list (((Gen iterate (x) (* x 2) 1) take 4) ->list) ((Gen make (st) (if (< st 3) (pair st (+ st 1)) ()) 0) ->list))
+```
+---
+    ((1 2 4 8) (0 1 2))
+
+### Iter make: a nil next-state ends after that value
+
+```x
+(Iter ->list (Iter make (st) (if (< st 2) (pair st (+ st 1)) (pair st ())) 0))
+```
+---
+    (0 1 2)
+
+### Assoc: map hands the block the value, filter the assoc -- two shapes on one class
+
+```x
+(list (Assoc map (v) (* v 10) (list (pair 'a 1) (pair 'b 2))) (Assoc filter (k v) (> v 1) (list (pair 'a 1) (pair 'b 2))))
+```
+---
+    ((('a . 10) ('b . 20)) (('b . 2)))
+
+## the callback need not be first
+
+### times: the count is ahead of the block
+
+```x
+(List times 4 (i) (* i i))
+```
+---
+    (0 1 4 9)
+
+### adjust: the index, then the block, then the list
+
+```x
+(List adjust 0 (x) (* x 100) (list 1 2 3))
+```
+---
+    (100 2 3)
+
+### a leading form is evaluated in the caller's env
+
+```x
+(let ((n 2)) (List times (+ n 1) (i) i))
+```
+---
+    (0 1 2)
+
+### the applicative form at position 1 is unchanged
+
+```x
+(list (List times 3 (fn (_ i) (+ i 1))) (List adjust 1 (fn (_ x) (- x)) (list 1 2 3)))
+```
+---
+    ((1 2 3) (1 -2 3))
+
+## a thunk is a block with no names
+
+### Dict get-or-else: the body is the default, and runs only on a miss
+
+```x
+(do (import x/type/dict)
+  (let ((d (Dict from-plist (list 'a 1))))
+    (list (d get-or-else () (* 6 7) 'zzz) (d get-or-else () (error "must not run") 'a))))
+```
+---
+    (42 1)
+
+### Assoc opt-get-or-else
+
+```x
+(Assoc opt-get-or-else () 99 'q (list (pair 'a 1)))
+```
+---
+    99
+
+### the thunk shape refuses names
+
+```x
+(do (import x/type/dict) (guard (e e) ((Dict from-plist (list 'a 1)) get-or-else (x) x 'a)))
+```
+---
+    "block takes () -- a thunk binds no names, got names: 1"
+
+### an empty binding list in an element seat fails clearly, not silently
+
+```x
+(guard (e e) (List map () 1 (list 1)))
+```
+---
+    "block takes (element) or (element index), got names: 0"

@@ -157,6 +157,8 @@
 (import x/type/block)
 (Block method! Iter (lit for-each))
 (Block method! Iter (lit fold) (lit fold) 2)
+; make: (step state) -- the step is (st) -> (value . next-state); state trails.
+(Block method! Iter (lit make) (lit element) 1)
 
 (doc (provide x/type/iter Iter iter)
   (note "(Iter new seq) iterates lists, vectors, strings, and def-class instances")

@@ -529,10 +529,21 @@
 (List for-each (fn (_ %lst-sel) (Block method! List %lst-sel))
   (list (lit map) (lit filter) (lit for-each) (lit find) (lit flat-map)
         (lit sort-by) (lit take-while) (lit any?) (lit all?)
-        (lit group-by) (lit partition)))
+        (lit group-by) (lit partition)
+        (lit count-if) (lit none?) (lit reject) (lit find-index)
+        (lit uniq-by) (lit drop-while)))
 (Block method! List (lit fold) (lit fold) 2)
+(Block method! List (lit fold-right) (lit fold) 2)
+(Block method! List (lit scan) (lit fold) 2)
 (Block method! List (lit sort) (lit binary) 1)
 (Block method! List (lit reduce) (lit binary) 1)
+(Block method! List (lit zip-with) (lit binary) 2)
+; iterate: (f n x) -- the successor takes one argument; n and x trail.
+(Block method! List (lit iterate) (lit element) 2)
+; The constructor-count rule puts the count AHEAD of the callback, so these
+; wrap at position 1: (List times 3 (i) (* i i)), (List adjust 0 (x) (- x) lst).
+(Block method! List (lit times) (lit element) 0 1)
+(Block method! List (lit adjust) (lit element) 1 1)
 
 (doc (provide x/type/list List)
   (note "The list/sequence operations as static methods; core/list.x keeps the low-level layer (fold/map/filter globals + %-helpers) it is built on.")

@@ -282,9 +282,16 @@
 (import x/type/block)
 (List for-each (fn (_ %gen-sel) (Block method! Gen %gen-sel (lit element) 0))
   (list (lit map) (lit filter) (lit for-each) (lit find) (lit take-while)
-        (lit any?) (lit all?)))
+        (lit any?) (lit all?) (lit none?) (lit drop-while)))
 (Block method! Gen (lit fold) (lit fold) 1)
+(Block method! Gen (lit scan) (lit fold) 1)
 (Block method! Gen (lit reduce) (lit binary) 0)
+(Block method! Gen (lit zip-with) (lit binary) 1)
+; The constructors are STATIC, and their seed follows the callback:
+;   (Gen iterate (x) (* x 2) 1)          successor, then the seed
+;   (Gen make (st) (pair st (+ st 1)) 0) step -> (value . next-state), then state
+(Block method! Gen (lit iterate) (lit element) 1)
+(Block method! Gen (lit make) (lit element) 1)
 
 (doc (provide x/type/gen Gen)
   (note "Lazy generators (unfold-based): build (range/iterate/repeat/from-list/of),")

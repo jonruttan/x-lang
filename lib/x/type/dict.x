@@ -328,6 +328,9 @@
 (import x/type/block)
 (Block method! Dict (lit for-each) (lit pair) 0)
 (Block method! Dict (lit map) (lit pair) 0)
+; get-or-else takes a THUNK -- the binding list is (), and the body is the
+; default, computed only on a miss: (d get-or-else () (expensive) k).
+(Block method! Dict (lit get-or-else) (lit thunk) 1)
 
 (doc (provide x/type/dict Dict)
   (note "Buckets over a raw slot vector; content hashing (FNV-1a) + equal? keys, instances by identity (address hash + eq?); doubles past a 3/4 load factor.")
