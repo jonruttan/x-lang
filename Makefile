@@ -1121,6 +1121,13 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	diff tools/lang-kit/release-refs.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/release-refs.sh
 	install $C -m 0644 tools/lang-kit/spec-gate.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/spec-gate.sh
 	diff tools/lang-kit/spec-gate.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/spec-gate.sh
+	install $C -m 0644 tools/lang-kit/lint.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/lint.sh
+	diff tools/lang-kit/lint.sh $(DESTDIR)$(LIBDIR)/tools/lang-kit/lint.sh
+	# THE LINTER ITSELF, which the kit shim drives: `make lint-x` sweeps
+	# lib/ and apps/, and a bundle under languages/ was swept by nothing.
+	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tools/dev
+	install $C -m 0644 tools/dev/lint.sh $(DESTDIR)$(LIBDIR)/tools/dev/lint.sh
+	install $C -m 0644 tools/dev/lint.x $(DESTDIR)$(LIBDIR)/tools/dev/lint.x
 	# THE STATE-IMAGE TOOLS, so an installed x boots from images too: the
 	# wrapper writes a dialect's image on a miss and a bundle's installer
 	# writes the bundle's (x --image NAME), and both load through lib/img.x

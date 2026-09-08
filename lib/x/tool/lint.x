@@ -449,10 +449,16 @@
     ((char? x) "int")
     (#t ()))))
 
+; The equality spellings a ladder branches on.  `string=?` is here
+; because the LANG BUNDLES use it -- 476 times across eight of them,
+; and not once in this tree, which is why its absence went unseen:
+; x-coreutils carried twenty-one unreported ladders written after this
+; rule shipped.  A rule the linter cannot spell is advice nobody hears.
 (def %ladder-cmp? (fn (_ h)
   (match
     ((str=? h "=") #t) ((str=? h "eq?") #t) ((str=? h "equal?") #t)
     ((str=? h "str=?") #t) ((str=? h "char=?") #t) ((str=? h "=?") #t)
+    ((str=? h "string=?") #t)
     (#t #f))))
 
 ; One comparison's operands -> (varname . kind), or nil when this is not a
@@ -820,13 +826,14 @@
 ; lenient at runtime (a missing piece just becomes nil), so a structurally
 ; short core form is a silent mistake.
 (def %lint-min-len (fn (_ h)
-  (if (str=? h "if") 3              ; (if cond then [else])
-    (if (str=? h "def") 3           ; (def name value)
-      (if (str=? h "set!") 3        ; (set! name value)
-        (if (str=? h "fn") 2        ; (fn params [body...])
-          (if (str=? h "op") 3      ; (op params env [body...])
-            (if (str=? h "let") 2   ; (let bindings [body...])
-              0))))))))             ; 0 = no minimum
+  (match
+    ((str=? h "if") 3)              ; (if cond then [else])
+    ((str=? h "def") 3)             ; (def name value)
+    ((str=? h "set!") 3)            ; (set! name value)
+    ((str=? h "fn") 2)              ; (fn params [body...])
+    ((str=? h "op") 3)              ; (op params env [body...])
+    ((str=? h "let") 2)             ; (let bindings [body...])
+    (#t 0))))                       ; 0 = no minimum
 
 (def %lint-check-malformed (fn (_ form)
   (let ((h (first %lint-head-cell)))
