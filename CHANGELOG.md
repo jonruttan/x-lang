@@ -13,7 +13,10 @@ spelled per shape -- `(x)` or `(i x)` for an element callback, `(acc i x)`
 for a fold, `()` for a thunk -- onto the method's own entry, pending or
 committed; wrapping twice does not say it twice. One fact stated where it is
 decided, instead of fifty `(doc ...)` forms repeating it and drifting. The
-generated reference is built from source and does not carry the note.
+generated reference carries it too: the generator loads the module it
+documents (guarded; boot files and the dialect toolboxes skipped) and merges
+each method's live registry notes into its page, deduplicated against the
+source form's own -- so a page shows what `(help)` shows.
 
 
 **A block's index comes first.** `(v for-each (i x) ...)`, not `(x i)`: the

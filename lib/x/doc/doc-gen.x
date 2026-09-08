@@ -266,6 +266,31 @@
         (%str-build "(" cname " " %mname (%doc-sig-str %args) ")")
         (%str-build "(" %mname (%doc-sig-str %args) ")")))
     (def %notes (%doc-extract-meta-type %meta "note" ()))
+    ; Notes the LIVE registry holds for this method that the source form
+    ; does not.  x/type/block.x adds "Block form: ..." to a method's doc
+    ; when its class module loads -- the wrap is the one place that knows
+    ; the shape -- and a reader of the generated page should see what
+    ; (help) shows.  Pending docs commit on the first (help); committing
+    ; here makes the entry exist.  Matched by NAME strings, never eq?: the
+    ; source form's strings come from the scratch base, the registry's
+    ; from the booted one.  A method the running library does not have
+    ; (an unloaded module, a renamed class) merges nothing, as before.
+    (def %rt-notes
+      (let ()
+        (%doc-commit!)
+        (let ((%e (%doc-lookup (%str->symbol (%str-build cname "/" %mname)))))
+          (if (null? %e) ()
+            ((fn (go l acc)
+               (if (null? l) (%reverse acc)
+                 (go (rest l)
+                     (if ((fn (has? ns)
+                            (if (null? ns) #f
+                              (if (str=? (first (rest (first ns))) (first l)) #t
+                                (has? (rest ns)))))
+                          %notes)
+                       acc
+                       (pair (list 'note (first l)) acc)))))
+             (%doc-entry-notes %e) ())))))
     ; The alias is built from the STRUCTURED name, not %head: a lookup name
     ; has to be typeable, and %head is a rendered signature.
     (em alias (%str-build cname "-" %mname))
@@ -282,11 +307,13 @@
             (%doc-extract-meta-type %meta "example" ())
             (%doc-extract-meta-type %meta "see" ())
             (%append
-              (if static? %notes
-                (%append %notes
-                  (list (list 'note
-                    (%str-build "Instance method: called on a " cname " instance.")))))
-              (%doc-vis-note vis cname))))))
+              (%append
+                (if static? %notes
+                  (%append %notes
+                    (list (list 'note
+                      (%str-build "Instance method: called on a " cname " instance.")))))
+                (%doc-vis-note vis cname))
+              %rt-notes)))))
 
 ; The class-level doc form: (doc "description" (note ...) (example ...)).
 (def %doc-emit-class-doc

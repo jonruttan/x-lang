@@ -348,8 +348,9 @@ the call site:
 
 Both forms stay live on the same selector, and `(help List/map)` answers with
 both: the applicative signature it always had, plus a "Block form:" note the
-wrap adds to the method's own entry, spelled for its shape. (The generated
-API reference is built from source, so it does not carry that runtime note.) Each class wires its own selectors beside the
+wrap adds to the method's own entry, spelled for its shape. The generated
+API reference carries it too: the generator merges each method's live
+registry notes into its page, so the page shows what `help` shows. Each class wires its own selectors beside the
 methods being wrapped, so `x/type/block` is the mechanism and never reaches
 down into a collection:
 
