@@ -63,7 +63,7 @@
 
 (def %fmt-width (fn (_ form)
   (if (%fmt-comment? form) 80
-    ; A kept $"..." literal measures as its SOURCE TEXT; write-to-str would
+    ; A kept #"..." literal measures as its SOURCE TEXT; write-to-str would
     ; measure the ('%interp "...") marker and misjudge every wrap around it.
     (if (if (pair? form) (eq? (first form) (lit %interp)) #f)
       (%fmt-cp-len (first (rest form)))
@@ -107,7 +107,7 @@
   (fn (self form)
     (match
       ((null? form) (display "()"))
-      ; A ('%interp "...") token is a $"..." literal the reader kept as its
+      ; A ('%interp "...") token is a #"..." literal the reader kept as its
       ; own source text (Xon arm-source!): print the text, never the marker.
       ; It IS a pair, so this clause must precede the list printer -- which
       ; would otherwise emit the raw marker, the #39 symptom in the shape
@@ -199,7 +199,7 @@
         (if (eq? fmt-type 'body)    (%fmt-body-only head rest-forms col)
           (%fmt-default head rest-forms col))))))))))
 
-; A kept $"..." literal is a PAIR, like a comment, so the pretty printer
+; A kept #"..." literal is a PAIR, like a comment, so the pretty printer
 ; needs the same guard the compact one has: without it %fmt-list descends
 ; and emits the raw ('%interp "...") marker.  Short forms hid this -- they
 ; take the one-line path through %fmt-write-src.

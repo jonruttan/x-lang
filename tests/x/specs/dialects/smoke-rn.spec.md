@@ -43,10 +43,10 @@ story is in this directory's README.md.
 ---
     2
 
-### $-interpolation survives the compiled-analyser swap
+### #"..." interpolation survives the compiled-analyser swap
 
 ```x
-(do (def w 3) $"n={w}/x")
+(do (def w 3) #"n={w}/x")
 ```
 ---
     "n=3/x"

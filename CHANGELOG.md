@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**Interpolated strings are spelled `#"…"`.** The `$"…"` spelling (0.4.0)
+was a mistake: every other reader extension -- `#t`, `#\a`, `#(…)`, `#/…/`
+-- wears the `#`, and interpolation was the one form that did not. It does
+now: `#"a{x}b"` reads exactly as `$"a{x}b"` did, into `(Str8 str "a" x "b")`,
+a `#"…"` nests inside a hole the same way, and `{{`, `}}` and `\{` mean what
+they meant. The rest of the `#` family is untouched, and the spec pins the
+neighbours: `x_token_analyse` runs every handler from the token's first
+character independently, so the literal's analyser declining on `#t` or
+`#\"` costs their own readers nothing -- and the read guard now checks the
+whole `#"` opener, so `#\"`, three bytes that start with `#` and end with
+`"`, can never be mistaken for an empty literal. The library, tools, specs
+and docs are respelled; the highlighter, the formatter and `Xon arm-source!`
+follow the reader; the downstream langs never used the form. BREAKING: a
+`$"…"` left in source fails loudly -- an unbound symbol `$"…"`, or past its
+first space an unterminated string -- and the fix is one character.
+
+
 **The documentation site wears the owl.** Every page under
 jonruttan.github.io/x-lang published as bare jekyll-theme-primer -- a blue
 `x-lang` text link above the H1, and nothing else, across 143 pages of which

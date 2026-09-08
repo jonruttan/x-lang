@@ -39,7 +39,7 @@
       (doc "Stringify a token value the way the generator's interpolation does."
         (note "Entry heads are sometimes symbols (a bare def) and sometimes already strings (a rendered method signature); both must render unquoted.")
         (returns STRING "The value as display text"))
-      $"{v}")
+      #"{v}")
 
     (method meta-strs (self (param forms LIST "(note ...) or (see ...) forms"))
       (doc "Take the payload of each meta form, stringified."
@@ -93,30 +93,30 @@
           (def %back
             (let go ((i depth) (acc ""))
               (if (< i 1) acc (go (- i 1) (Str8 append acc "../")))))
-          (display $"[← Index]({%back}index.md)\n\n")
-          (display $"# {mod}\n\n")
-          (unless (str=? desc "") (display $"{desc}\n\n"))
-          (List for-each (fn (_ n) (display $"> {n}\n\n")) notes))))
+          (display #"[← Index]({%back}index.md)\n\n")
+          (display #"# {mod}\n\n")
+          (unless (str=? desc "") (display #"{desc}\n\n"))
+          (List for-each (fn (_ n) (display #"> {n}\n\n")) notes))))
 
     (method section (self (param title STRING "Section title"))
       (doc "Emit a section heading -- a (note \"...\") form at file top level.")
-      (display $"## {title}\n\n"))
+      (display #"## {title}\n\n"))
 
     (method class-head (self (param cname STRING "Class name")
                              (param parent STRING "Parent class name, or \"\""))
       (doc "Emit a class heading, and its parent when the class extends one.")
-      (display $"## Class `{cname}`\n\n")
-      (unless (str=? parent "") (display $"*Extends `{parent}`.*\n\n")))
+      (display #"## Class `{cname}`\n\n")
+      (unless (str=? parent "") (display #"*Extends `{parent}`.*\n\n")))
 
     (method interface-line (self (param names LIST "Operation name strings"))
       (doc "Emit a class's (interface ...) contract -- the operations a subclass must supply.")
       (display "**Interface:** ")
-      (List for-each (fn (_ n) (display $"`{n}` ")) names)
+      (List for-each (fn (_ n) (display #"`{n}` ")) names)
       (display "\n\n"))
 
     (method entry-head (self (param name STRING "Entry name or rendered signature"))
       (doc "Emit the heading for one documented entry: a def, a method, or a member.")
-      (display $"### `{name}`\n\n"))
+      (display #"### `{name}`\n\n"))
 
     (method alias (self (param name STRING "Lookup name for the entry that follows"))
       (doc "Record a lookup name for the next entry. Markdown has intra-page anchors already, so this is a no-op here; man output turns each one into a .so stub page."
@@ -125,20 +125,20 @@
 
     (method text (self (param s STRING "Paragraph text"))
       (doc "Emit a description paragraph.")
-      (display $"{s}\n\n"))
+      (display #"{s}\n\n"))
 
     (method note (self (param s STRING "Note text"))
       (doc "Emit one note -- a caveat or contract line attached to the entry above it.")
-      (display $"> {s}\n\n"))
+      (display #"> {s}\n\n"))
 
     (method params (self (param ps LIST "List of (name type desc) string triples"))
       (doc "Emit the parameter list. An empty type or description is omitted rather than rendered blank.")
       (display "**Parameters:**\n\n")
       (List for-each
         (fn (_ p)
-          (display $"- **{(List ref 0 p)}**")
-          (unless (str=? (List ref 1 p) "") (display $" : `{(List ref 1 p)}`"))
-          (unless (str=? (List ref 2 p) "") (display $" — {(List ref 2 p)}"))
+          (display #"- **{(List ref 0 p)}**")
+          (unless (str=? (List ref 1 p) "") (display #" : `{(List ref 1 p)}`"))
+          (unless (str=? (List ref 2 p) "") (display #" — {(List ref 2 p)}"))
           (newline))
         ps)
       (newline))
@@ -146,8 +146,8 @@
     (method returns (self (param type STRING "Return type name")
                           (param desc STRING "Return description, or \"\""))
       (doc "Emit the return type and its description.")
-      (display $"**Returns:** `{type}`")
-      (unless (str=? desc "") (display $" — {desc}"))
+      (display #"**Returns:** `{type}`")
+      (unless (str=? desc "") (display #" — {desc}"))
       (newline) (newline))
 
     (method examples (self (param exs LIST "List of (input output) string pairs"))
@@ -155,14 +155,14 @@
         (note "The x-repl fence is what the doctest ratchet reads back; the pairs are (example INPUT OUTPUT) forms."))
       (display "**Examples:**\n\n" "```x-repl\n")
       (List for-each
-        (fn (_ ex) (display $"{(List ref 0 ex)} => {(List ref 1 ex)}\n"))
+        (fn (_ ex) (display #"{(List ref 0 ex)} => {(List ref 1 ex)}\n"))
         exs)
       (display "```\n\n"))
 
     (method see-also (self (param names LIST "Referenced name strings"))
       (doc "Emit the cross-references as intra-page anchors.")
       (display "**See also:** ")
-      (List for-each (fn (_ s) (display $"[`{s}`](#{s}) ")) names)
+      (List for-each (fn (_ s) (display #"[`{s}`](#{s}) ")) names)
       (newline) (newline))))
 
 (doc (provide x/doc/emit)

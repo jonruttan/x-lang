@@ -4,7 +4,7 @@
 An operative (`op`) evaluated in tail position must restore the caller's
 environment on exit, so the next form the caller evaluates sees the correct
 scope. The tricky case is an operative whose body runs a nested TCO recursion
-inside `(eval expr e)` -- the `$"..."` string-interpolation operative parses its
+inside `(eval expr e)` -- the `#"..."` string-interpolation operative parses its
 holes that way -- evaluated in **if-tail (simple-TCO)** position: its tail can
 leave the env-alist head on a frame that is neither the op's formals nor the
 caller. `x_op_restore` (src/x-eval.c) must detect that the head no longer chains
@@ -13,20 +13,20 @@ to the caller and restore it, rather than leaking the foreign frame.
 Without the fix, a second interpolation (or any closure-variable reference) after
 an if-tail interpolation reads its variable as Unbound.
 
-Coverage note: with read-time `$"..."` parsing (the shipped default), the
+Coverage note: with read-time `#"..."` parsing (the shipped default), the
 interpolation cases below no longer route through the eval-time operative, so
 they guard the user-visible behaviour via the read-time path. The "pure eval-core"
 cases at the end reproduce the operative-tail wander WITHOUT interpolation -- a
 recursive-build operative (no tokenizer at all) and a `token-read-string`
 operative (the fmt.x class) -- so they isolate `x_op_restore`: each reads Unbound
-if that fix is reverted, independent of how `$"..."` is parsed.
+if that fix is reverted, independent of how `#"..."` is parsed.
 
 ## env survives an if-tail operative
 
 ### a closure var is still bound after an if-tail interpolation
 
 ```x
-((fn (_ x) (do (if #t $"a{x}" "") x)) 9)
+((fn (_ x) (do (if #t #"a{x}" "") x)) 9)
 ```
 ---
     9
@@ -34,7 +34,7 @@ if that fix is reverted, independent of how `$"..."` is parsed.
 ### an expression over a closure var is still evaluable afterward
 
 ```x
-((fn (_ x) (do (if #t $"a{x}" "") (+ x 1))) 9)
+((fn (_ x) (do (if #t #"a{x}" "") (+ x 1))) 9)
 ```
 ---
     10
@@ -42,7 +42,7 @@ if that fix is reverted, independent of how `$"..."` is parsed.
 ### a let-frame interpolation likewise leaves scope intact
 
 ```x
-((fn (_ x) (do (let ((q 0)) $"a{x}") x)) 9)
+((fn (_ x) (do (let ((q 0)) #"a{x}") x)) 9)
 ```
 ---
     9
@@ -52,7 +52,7 @@ if that fix is reverted, independent of how `$"..."` is parsed.
 ### both in if-tail position resolve their holes
 
 ```x
-((fn (_ x) (Str8 str (if #t $"a{x}" "") (if #t $"b{x}" ""))) 9)
+((fn (_ x) (Str8 str (if #t #"a{x}" "") (if #t #"b{x}" ""))) 9)
 ```
 ---
     "a9b9"
@@ -60,7 +60,7 @@ if that fix is reverted, independent of how `$"..."` is parsed.
 ### a leading if-tail interpolation does not corrupt a following direct one
 
 ```x
-((fn (_ x) (Str8 str (if #t $"a{x}" "") $"b{x}")) 9)
+((fn (_ x) (Str8 str (if #t #"a{x}" "") #"b{x}")) 9)
 ```
 ---
     "a9b9"

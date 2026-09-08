@@ -131,7 +131,7 @@ reader parses back to the same value.
 ---
     2
 
-## arm-source!: a scratch base keeps $"..." literals
+## arm-source!: a scratch base keeps #"..." literals
 
 A fresh base has no reader macros, so an interpolated literal would shatter at
 its first space and its trailing quote would open a string that never closes.
@@ -142,7 +142,7 @@ tool that re-emits source (fmt) or inspects it (doc) needs.
 
 ```x
 (do (import x/codec/xon)
-    (%length (first (Xon parse "(f $\"a {x} b\" 1)" (Base make)))))
+    (%length (first (Xon parse "(f #\"a {x} b\" 1)" (Base make)))))
 ```
 ---
     5
@@ -153,11 +153,11 @@ tool that re-emits source (fmt) or inspects it (doc) needs.
 (do (import x/codec/xon)
     (def b (Base make))
     (Xon arm-source! b)
-    (def form (first (Xon parse "(f $\"a {x} b\" 1)" b)))
+    (def form (first (Xon parse "(f #\"a {x} b\" 1)" b)))
     (list (%length form) (first (first (rest form))) (first (rest (first (rest form))))))
 ```
 ---
-    (3 '%interp "$\"a {x} b\"")
+    (3 '%interp "#\"a {x} b\"")
 
 ### an ordinary string in the same base is untouched
 

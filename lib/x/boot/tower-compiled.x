@@ -234,21 +234,21 @@
     %lit-analyse)
 
 ; Only the entry test compiles: it is the piece that runs on every character.
-; The states behind it (%interp-after-dollar's machine) run inside a literal
+; The states behind it (%interp-after-hash's machine) run inside a literal
 ; only, so they stay interpreted -- and they are closures over a `let`, with no
 ; global names for an fvar list to bind anyway.
 (def %c-interp-analyse ())
 (%tower-jit-global! %c-interp-analyse #f
     (lit (fn (_ buffer score chr)
-      (if (= chr 36) %interp-after-dollar ())))
-    (list (pair (lit %interp-after-dollar) %interp-after-dollar))
+      (if (= chr 35) %interp-after-hash ())))
+    (list (pair (lit %interp-after-hash) %interp-after-hash))
     %interp-analyse)
 
 ; Swap the compiled analysers in for the interpreted handlers BY IDENTITY,
 ; never by seat.  A positional swap breaks silently the day lit-reader.x
-; grows a handler: when $"..." interpolation joined the list at seat 0,
-; the old three-seat overwrite destroyed the $ analyser (every $-string
-; then read as one SYMBOL in every tower dialect) while ' ` , kept
+; grows a handler: when #"..." interpolation joined the list at seat 0,
+; the old three-seat overwrite destroyed its analyser (every interpolated
+; literal then read as one SYMBOL in every tower dialect) while ' ` , kept
 ; working -- each char still had SOME handler, so nothing failed loudly.
 ; Matching each interpreted handler follows the contract instead of the
 ; layout; handlers this file does not know (and the C catch-all tail)
