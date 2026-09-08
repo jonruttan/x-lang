@@ -48,6 +48,12 @@ indexes now, and a length is asked for by name.
 **A send that names nothing errors instead of crashing.** `((new P v 1))`,
 `(P)` and `(#(1 2))` each took the interpreter down with nothing on stderr.
 
+**`(first ())` can be made to raise.** It is undefined by spec and
+dereferences nil in practice, so an ordinary typo takes the process down
+with no diagnostic. `(import x/tool/safe-access)` guards both accessors.
+Opt-in: the library walks its own lists through them, and the guard costs
+1.4x-1.7x.
+
 **A boot from a state image keeps its terminal.** Three things a boot decides
 from the process it is in, which an image cannot carry, all found by driving
 langs from one. Colour is the visible one: every colour is a string baked when
