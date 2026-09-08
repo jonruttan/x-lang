@@ -216,18 +216,63 @@
     ; one; a wrap made after (help) has run finds the committed registry entry
     ; and prepends to its notes instead.  An undocumented method gets nothing,
     ; which is what it had.
-    (method %shape-note (self shape)
+    ; The note shows the method's OWN head with the block in the callable's
+    ; seat -- (Vector filter (x) body ... v) -- because "in place of f" was
+    ; not discernible: a reader could not tell where the block went or that
+    ; the subject stayed last.  The head comes from the doc entry's own
+    ; parameter names, so it is right for a static (class first), an
+    ; instance method (no class), and a callback that is not first.
+    (method %shape-names (self shape)
       (match
-        ((eq? shape (lit pair))
-          "Block form: (p) body ... in place of f binds the (key . value) pair; (k v) binds the key and the value.")
-        ((eq? shape (lit fold))
-          "Block form: (acc x) body ... in place of f; (acc i x) adds the 0-based index ahead of the element.")
-        ((eq? shape (lit binary))
-          "Block form: (a b) body ... in place of f binds the two operands.")
-        ((eq? shape (lit thunk))
-          "Block form: () body ... in place of the thunk -- the body is the default, run only on a miss.")
-        (#t
-          "Block form: (x) body ... in place of f binds the element; (i x) binds the 0-based index, then the element.")))
+        ((eq? shape (lit pair))   "(p)")
+        ((eq? shape (lit fold))   "(acc x)")
+        ((eq? shape (lit binary)) "(a b)")
+        ((eq? shape (lit thunk))  "()")
+        (#t                       "(x)")))
+
+    (method %shape-alt (self shape)
+      (match
+        ((eq? shape (lit pair))   " -- or (k v) for the key and the value")
+        ((eq? shape (lit fold))   " -- or (acc i x) with the 0-based index ahead of the element")
+        ((eq? shape (lit binary)) "")
+        ((eq? shape (lit thunk))  " -- the body is the default, run only on a miss")
+        (#t                       " -- or (i x) for the 0-based index, then the element")))
+
+    ; Parameter names, as strings, from either home of a method's doc: the
+    ; pending entry's (param NAME ...) meta forms, or the committed entry's
+    ; (name type desc) triples.  A name is tested symbol? before symbol->str
+    ; touches it (#638).
+    (method %meta-param-names (self meta)
+      (if (null? meta) ()
+        (let ((f (first meta)))
+          (if (and (pair? f) (and (eq? (first f) (lit param))
+                     (and (pair? (rest f)) (symbol? (first (rest f))))))
+            (pair (symbol->str (first (rest f))) (recur self (rest meta)))
+            (recur self (rest meta))))))
+
+    (method %entry-param-names (self triples)
+      (if (null? triples) ()
+        (let ((t (first triples)))
+          (if (and (pair? t) (symbol? (first t)))
+            (pair (symbol->str (first t)) (recur self (rest triples)))
+            (recur self (rest triples))))))
+
+    ; The argument list rendered, the seat at `pos` holding the block.
+    (method %join-args (self names pos seat i)
+      (if (null? names) ""
+        (%str-append (if (eq? i pos) seat (first names))
+          (if (null? (rest names)) ""
+            (%str-append " " (recur self (rest names) pos seat (+ i 1)))))))
+
+    (method %block-head (self class sel static? names pos seat)
+      (%str-append "("
+        (%str-append
+          (if static?
+            (%str-append (symbol->str (class-name class))
+              (%str-append " " (symbol->str sel)))
+            (symbol->str sel))
+          (%str-append (if (null? names) "" " ")
+            (%str-append (self %join-args names pos seat 0) ")")))))
 
     (method %last-cell (self xs)
       (if (null? (rest xs)) xs (recur self (rest xs))))
@@ -267,19 +312,31 @@
             #t
             (recur self (rest meta) text)))))
 
-    (method %doc-note! (self class sel shape)
+    (method %doc-note! (self class sel shape static? pos)
       (let ((key (%str-append (symbol->str (class-name class))
                    (%str-append "/" (symbol->str sel))))
-            (text (self %shape-note shape)))
+            (seat (%str-append (self %shape-names shape) " body ..."))
+            (alt (self %shape-alt shape)))
         (let ((pend (self %pending-entry key)))
-          (if (null? pend)
-            (let ((e (%doc-lookup ((prim-ref (lit str) (lit ->sym)) key))))
-              (unless (null? e)
-                (let ((cell (self %nth-cell e 6)))          ; the notes slot
-                  (unless (self %notes-have? (first cell) text)
-                    (%set-first! cell (pair text (first cell)))))))
-            (unless (self %meta-has-note? (rest (rest pend)) text)
-              (%set-rest! (self %last-cell pend) (list (list (lit note) text))))))))
+          (let ((e (if (null? pend) (%doc-lookup (%str->symbol key)) ())))
+            (let ((names (if (null? pend)
+                           (if (null? e) () (self %entry-param-names (%doc-entry-params e)))
+                           (self %meta-param-names (rest (rest pend))))))
+              ; A doc that names no parameter at the callable's seat cannot
+              ; place the block, so the note falls back to saying so.
+              (let ((text (%str-append "Block form: "
+                            (%str-append
+                              (if (self %len>=? names (+ pos 1))
+                                (self %block-head class sel static? names pos seat)
+                                (%str-append seat " in place of the callable"))
+                              (%str-append alt ".")))))
+                (if (null? pend)
+                  (unless (null? e)
+                    (let ((cell (self %nth-cell e 6)))          ; the notes slot
+                      (unless (self %notes-have? (first cell) text)
+                        (%set-first! cell (pair text (first cell))))))
+                  (unless (self %meta-has-note? (rest (rest pend)) text)
+                    (%set-rest! (self %last-cell pend) (list (list (lit note) text)))))))))))
 
     (method %imethod-of (self class sel)
       (let ((itab (first (%class-hot class))))
@@ -313,12 +370,12 @@
             (class def-method! sel
               (self %block-op im shape
                 (if (self %len>=? opts 2) (first (rest opts)) 0) pos))
-            (self %doc-note! class sel shape))
+            (self %doc-note! class sel shape #f pos))
           (do
             (class def-static! sel
               (self %block-op sm shape
                 (if (self %len>=? opts 2) (first (rest opts)) 1) pos))
-            (self %doc-note! class sel shape)))))))
+            (self %doc-note! class sel shape #t pos)))))))
 
 ; Each class wires its own selectors, beside the methods being wrapped -- this
 ; file is the mechanism only, and never reaches down into a collection.  See
