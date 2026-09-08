@@ -79,40 +79,36 @@ _preload_siblings() {
     grep -q '(provide ' "$_m" && [ "$_m" != "$_ABS_F" ] && continue
     _PRELOAD="$_PRELOAD $(grep '^(import ' "$_m" | sed 's/;.*$//' | tr '\n' ' ')"
   done
+  # AN ASSEMBLER IS PRELOADED WHOLE, not fragment by fragment.  A bundle
+  # like x-coreutils or x-cc is ONE module built from files carrying no
+  # provide of their own: an import cannot reach their definitions, and
+  # it cannot reach the assembler's own un-exported top level either
+  # (cc/base.x defines %cc-x-write, which five fragments call).
+  # Including the assembler binds all of it, in the order the bundle
+  # really loads, with no order to reconstruct.
+  #
+  # It also gives every file in the directory the SAME preload, which is
+  # what --group requires: one preload is computed from the FIRST file
+  # and applied to the rest, so a preload that omits its own target
+  # leaves the other files without that file's definitions.
+  #
+  # An assembler both PROVIDES and INCLUDES.  That is what distinguishes
+  # it from an ENTRY (apps/bitwise/run.x), whose top level RUNS and which
+  # must never be preloaded: that would execute an app to lint its
+  # library, into the stream the group driver is parsing.
+  _ASM=""
+  for _m in "$_MOD_DIR"/*.x; do
+    grep -q '(include-once "' "$_m" || continue
+    grep -q '(provide ' "$_m" || continue
+    _ASM="$_ASM $_m"
+  done
   for _m in "$_MOD_DIR"/*.x; do
     [ "$_m" = "$_ABS_F" ] && continue
     grep -q '(provide ' "$_m" || continue
+    case " $_ASM " in *" $_m "*) continue ;; esac
     _PRELOAD="$_PRELOAD (import $_NS/$(basename "$_m" .x))"
   done
-
-  # A sibling with NO provide is not a module -- it is a FRAGMENT some
-  # module include-once's, and its definitions live in the assembled
-  # whole rather than behind an export.  An import cannot reach them, so
-  # the fragment is included, exactly as its own module includes it;
-  # without this, x-coreutils reads half of itself as Undefined.
-  #
-  # ORDER COMES FROM THE ASSEMBLER, NOT FROM ls.  The fragments are not
-  # independent: cu/cli.x names every applet as it builds its table, and
-  # alphabetically it loads before the applets exist.  So the order is
-  # read off the file that actually assembles them -- the sibling
-  # carrying the include-once lines.
-  #
-  # AND ONLY WHAT AN ASSEMBLER NAMES IS A FRAGMENT.  A non-provide
-  # sibling nothing includes is an ENTRY (apps/bitwise/run.x), whose top
-  # level RUNS -- preloading one would execute an app to lint its
-  # library, into the stream the group driver is parsing.
-  _ORDER=""
-  for _m in "$_MOD_DIR"/*.x; do
-    _ORDER="$_ORDER $(sed -n 's|^(include-once "\(\./\)\{0,1\}\([^"]*\)").*|\2|p' "$_m" | tr '\n' ' ')"
-  done
-  _SEEN=""
-  for _b in $_ORDER; do
-    _m="$_MOD_DIR/$_b"
-    [ -f "$_m" ] || continue
-    case " $_SEEN " in *" $_b "*) continue ;; esac
-    _SEEN="$_SEEN $_b"
-    [ "$_m" = "$_ABS_F" ] && continue
-    grep -q '(provide ' "$_m" && continue
+  for _m in $_ASM; do
     _PRELOAD="$_PRELOAD (include-once \"$_m\")"
   done
 }
