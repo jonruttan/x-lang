@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A wrapped method's help shows its block form.** `(help Vector for-each)`
+answered the applicative signature and nothing else -- true, and incomplete:
+the block form is a second call shape a reader could not discover from it.
+The wrap is the one place that knows the shape, so it adds the note itself,
+spelled per shape -- `(x)` or `(i x)` for an element callback, `(acc i x)`
+for a fold, `()` for a thunk -- onto the method's own entry, pending or
+committed; wrapping twice does not say it twice. One fact stated where it is
+decided, instead of fifty `(doc ...)` forms repeating it and drifting. The
+generated reference is built from source and does not carry the note.
+
+
 **A block's index comes first.** `(v for-each (i x) ...)`, not `(x i)`: the
 order of `Gen enumerate`'s `(index . value)`, which this library had already
 fixed, and the one a hand reaches for -- the prototype was index-first for

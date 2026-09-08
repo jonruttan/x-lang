@@ -492,3 +492,48 @@ call, not a binding list.
 ```
 ---
     "block takes (element) or (index element), got names: 0"
+
+## the wrap documents itself
+
+`(help Class/sel)` answered only the applicative signature -- true, and
+incomplete. The wrap is the one place that knows the shape, so it adds a
+"Block form:" note to the method's own entry. The registry is inspected
+directly here rather than help's output, so the spec is not coupled to
+help's layout.
+
+### a wrapped method's help carries the block form
+
+```x
+(do (help List map)
+    (List any? (n) (Str8 includes? "Block form" n) (%doc-entry-notes (%doc-lookup ((prim-ref 'str '->sym) "List/map")))))
+```
+---
+    #t
+
+### the note is shape-specific: fold names the accumulator, thunk names no one
+
+```x
+(do (import x/type/dict) (help List fold)
+    (list (List any? (n) (Str8 includes? "(acc i x)" n) (%doc-entry-notes (%doc-lookup ((prim-ref 'str '->sym) "List/fold"))))
+          (List any? (n) (Str8 includes? "() body" n) (%doc-entry-notes (%doc-lookup ((prim-ref 'str '->sym) "Dict/get-or-else"))))))
+```
+---
+    (#t #t)
+
+### an inherited method finds the ancestor's note
+
+```x
+(do (help Str8 for-each)
+    (List any? (n) (Str8 includes? "Block form" n) (%doc-entry-notes (%doc-lookup ((prim-ref 'str '->sym) "Seq/for-each")))))
+```
+---
+    #t
+
+### wrapping twice does not say it twice
+
+```x
+(do (help List map) (Block method! List 'map) (Block method! List 'map)
+    (List count-if (n) (Str8 includes? "Block form" n) (%doc-entry-notes (%doc-lookup ((prim-ref 'str '->sym) "List/map")))))
+```
+---
+    1

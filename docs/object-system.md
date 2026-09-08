@@ -346,8 +346,10 @@ the call site:
 (List map (i x) (list i x) xs)      ; two names: the 0-based index, then the element
 ```
 
-Both forms stay live on the same selector; `(help List/map)` keeps answering
-with the applicative signature. Each class wires its own selectors beside the
+Both forms stay live on the same selector, and `(help List/map)` answers with
+both: the applicative signature it always had, plus a "Block form:" note the
+wrap adds to the method's own entry, spelled for its shape. (The generated
+API reference is built from source, so it does not carry that runtime note.) Each class wires its own selectors beside the
 methods being wrapped, so `x/type/block` is the mechanism and never reaches
 down into a collection:
 
