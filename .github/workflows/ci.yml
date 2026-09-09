@@ -49,7 +49,11 @@ jobs:
   specs:
     name: specs (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    # The macOS job grew from 8 to 19 minutes across eight runs of main and
+    # PR #665's first attempt was cancelled at 20 with every suite green,
+    # fifteen seconds into doc-examples: the cap sits inside the job's normal
+    # spread now, so a slow runner reads as a failure.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

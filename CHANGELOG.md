@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**CI's specs job has room to breathe.** Its 20-minute cap was set when
+the macOS run took eight; across the last eight runs of main it took 8,
+13, 15, 16, 17, 18 and 19, and PR #665's first attempt was cancelled at
+20 with every suite green, fifteen seconds into doc-examples. The cap is
+30 now -- a slow runner is not a failed change.
+
 **`Vector build` takes a block.** The one callable-taking builder without
 one: `(Vector build 3 (i) (* i i))` now stands beside `(Vector build 3 (fn (_
 i) (* i i)))`, wired at position 1 as `List times` is, count first. It
