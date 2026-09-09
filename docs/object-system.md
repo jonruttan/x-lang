@@ -364,7 +364,7 @@ down into a collection:
 | Class | Wrapped selectors |
 |---|---|
 | `List` | `map` `filter` `for-each` `find` `flat-map` `sort-by` `take-while` `any?` `all?` `none?` `count-if` `reject` `find-index` `uniq-by` `drop-while` `group-by` `partition` `iterate` · `fold` `fold-right` `scan` · `sort` `reduce` `zip-with` · `times` `adjust` (position 1) |
-| `Vector` | `map` `filter` `for-each` `fold` |
+| `Vector` | `map` `filter` `for-each` `fold` · `build` (position 1) |
 | `Iter` | `for-each` `fold` `make` |
 | `Seq` | `for-each` `fold` — inherited by every subclass, `Str8` included |
 | `Gen` | `map` `filter` `for-each` `find` `take-while` `any?` `all?` `none?` `drop-while` `iterate` `make` · `fold` `scan` · `reduce` `zip-with` |
@@ -404,13 +404,15 @@ hit.
 The second option is how many argument forms follow the callback: `1` for a
 static method (the subject, spliced last by the value handler), `0` for an
 instance method (the receiver is `self`), `2` for `fold` (init, then subject).
-A third gives the callback's **position** when it is not first — List's
-constructor-count rule puts the count ahead of it, so `times` and `adjust` wrap
-at position 1, and the forms before the block evaluate in the caller's env:
+A third gives the callback's **position** when it is not first — the
+constructor-count rule puts the count ahead of it, so `List times`, `List
+adjust` and `Vector build` wrap at position 1, and the forms before the block
+evaluate in the caller's env:
 
 ```x
 (List times 4 (i) (* i i))               ; (0 1 4 9)
 (List adjust 0 (x) (* x 100) (list 1 2)) ; (100 2)
+(Vector build 3 (i) (* i i))             ; #(0 1 4)
 ```
 `Dict`'s `for-each` is an instance method and `List`'s is a static — the two
 conventions differ in argument layout, and `Block method!` probes the static

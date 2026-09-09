@@ -893,7 +893,7 @@
       (list "map" "filter" "for-each" "find" "flat-map" "sort-by" "take-while"
             "any?" "all?" "none?" "group-by" "partition" "count-if" "reject"
             "find-index" "uniq-by" "drop-while" "fold" "fold-right" "scan"
-            "sort" "reduce" "zip-with" "iterate" "times" "adjust" "make"
+            "sort" "reduce" "zip-with" "iterate" "times" "adjust" "make" "build"
             "get-or-else" "opt-get-or-else")
       "Selectors carrying a block form (x/type/block); one entry per shipped wrap")
     (method %lint-all-syms? (self xs)
