@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A comma is not a token delimiter, and the owl's nose is one.** The quote
+family's shared delimit hook ended a token on `'`, `` ` `` and `,` -- so
+`foo'bar` reads as `foo` then `'bar`, which is right, and a comma glued to a
+token split it, which was not: `{O,O}` was two tokens. Unquote is recognised
+only where a token BEGINS, so with a space or a paren before it the comma
+already starts its own token; the delimiter changed exactly one thing, and
+it is gone. Bitwise's nose is `{O,O}` -- every costume, the frozen parity
+fixtures and the twin's renderings, the site bar and footer, and x-lang's
+own mark and banner follow; only the auk keeps its `>` bill, for the
+wordplay. x-lang's reference line is `(def owl "{O,O}")` -- the bare datum
+was splitting on the comma until the reader stopped treating one as a
+delimiter.
+
+
 **A wrapped method's help shows its block form.** `(help Vector for-each)`
 answered the applicative signature and nothing else -- true, and incomplete:
 the block form is a second call shape a reader could not discover from it.
@@ -31,6 +45,44 @@ two-name block written against 0.13.0; the language cannot catch a swapped
 pair, since both names are just symbols, so the fix is to swap them.
 
 
+**A bundle can be swept, and the assembler is preloaded whole.** `make
+lint-x` sweeps `lib/` and `apps/`; a lang bundle under `languages/` was
+swept by nothing, so every rule the linter knows was advice those bundles
+never heard. The platform ships the gate, bundles do not vendor it:
+`tools/lang-kit/lint.sh` drives the linter at a bundle, with an overridable
+root (`X_LINT_ROOT`/`X_BIN`) for one outside the checkout, a non-module
+sibling recognised as a fragment (x-coreutils is one module assembled from
+twenty-one `include-once`'d files with no `provide`), a clean file's
+advisory warnings no longer dropped with its dot, and `string=?` known to
+the ladder rule -- 476 uses across eight bundles that `%ladder-cmp?` could
+not spell. Pointing it at the bundles found the next two: an assembler's own
+top level was missed (`cc/base.x` defines `%cc-x-write`; five fragments call
+it; an import cannot reach it), and a group's preload omitted its own first
+file. The assembler is preloaded whole now, in the order the bundle really
+uses, which also drops the order reconstruction; `%cc-x-write` resolves and
+two phantom `go/N` ladders vanish. Swept: x-coreutils, x-awk, x-grep,
+x-make, x-cc.
+
+
+**Every callable-taking method takes a block, and two shapes joined.** The
+block form shipped in 0.13.0 on 35 selectors; this wires every remaining
+higher-order method but one -- List's `count-if none? reject find-index
+uniq-by drop-while fold-right scan zip-with iterate`, Gen's `none?
+drop-while scan zip-with iterate make`, `Iter make`, and Assoc's `map`
+(the callback gets the value) and `filter` (it gets the whole assoc): two
+shapes on one class, which is why shape is declared per selector. Two
+mechanism extensions covered the stragglers. POSITION: List's
+constructor-count rule puts the count ahead of the callback, so `(List
+times 4 (i) (* i i))` and `(List adjust 0 (x) (* x 100) lst)` wrap at
+position 1, the forms ahead evaluating in the caller's env. THUNK: `()` is
+a binding list, and `get-or-else` takes it -- `(d get-or-else () (expensive)
+k)`, the body a default run only on a miss; an empty binding list in any
+other shape now fails with its count. Left out on purpose: `List unfold`
+takes three callables, and a block for one of them would confuse more than
+it saves -- it is the spec's opt-in proof now; `PQ make` waits on its doc.
+The linter accepts the binding list at position 0 or 1 and `()`.
+
+
 **Interpolated strings are spelled `#"…"`.** The `$"…"` spelling (0.4.0)
 was a mistake: every other reader extension -- `#t`, `#\a`, `#(…)`, `#/…/`
 -- wears the `#`, and interpolation was the one form that did not. It does
@@ -46,6 +98,74 @@ and docs are respelled; the highlighter, the formatter and `Xon arm-source!`
 follow the reader; the downstream langs never used the form. BREAKING: a
 `$"…"` left in source fails loudly -- an unbound symbol `$"…"`, or past its
 first space an unterminated string -- and the fix is one character.
+
+
+**The REPL printer is only Ansi's to move.** `Ansi install` runs again
+after a state image loads -- that is what put colour back in an imaged
+session -- and it ended by enabling or disabling the highlighted printer
+unconditionally, so a lang's own printer was replaced by the platform's:
+x-krn's suite from an image printed `('b 'c)` for `(b c)`, four specs
+failing on nothing but the printer, and the quieter half was worse --
+bundles whose values print the same either way passed while using the
+platform's printer instead of theirs. The class now remembers what it
+installed and moves `%repl-print` only when it holds the platform's own
+printer or that one; anything else belongs to someone who asked for it.
+x-krn from an image: 74 tests, 4 failed, to 0. Found wiring the remaining
+bundles' suites to boot from an image.
+
+
+**The image spec's scratch files are per checkout.** The state-image spec
+kept them in a fixed `/tmp/x-image-spec`, world-writable and shared by
+every checkout and worktree on the machine, and they are not inert: `pre.x`
+carries this run's `%IMG-PATH`, and one test writes one binding
+`%IMG-VERBOSE`. A concurrent run in another checkout supplied them, so the
+header probe booted the PEER's image, verbose, and captured the loader's
+count line where it expected `header ok` -- the leftover file named the
+other session's worktree. Intermittent, one run in three, and it presented
+as an unrelated red that blocked `git push` through the pre-push hook. The
+scratch dir lives under `X_IMG_DIR` now, which is per checkout.
+
+
+**A KEY-PATH is a bundle's source, and only the bundle spells it.**
+`image-build.sh` keyed a caller's KEY-PATH with `find -name '*.x'` and
+nothing else, so a lang whose modules are written in anything but `.x` had
+them silently outside its own image key: editing one left the key unchanged,
+the builder answered "is current", and the suite went on testing the
+library that was there before, out of the image, while its from-source
+control tested the one on disk -- both legs green, at two different
+libraries. Measured on x-r7rs, whose `scm/` layer IS its library: before,
+CURRENT after an edit; after, NEEDS REBUILD. Reworked after review: the
+first version put `x scm` in the platform's default, a bundle's fact living
+in the platform, and it is not there any more.
+
+
+**libm addresses live in cells, not inside closures.** `float.x` resolved
+each libm entry once at load and closed over the result -- a raw address
+inside the closure's own frame, where the transient rule cannot reach it:
+`%image-transients` names globals, so clearing `%fsin` emptied the global
+and left the frame the closure still held. Seventeen survived the child's
+collect and the writer refused the image on `unnameable: 16`, every one a
+foreign address, and `X_IMG_WHO=1` named the holder in one word: `sym`. It
+refused on Linux only because only there the words could not be NAMED --
+glibc keeps a dlopen'd libm out of the global scope, where macOS's
+libSystem folds it in -- so a clean `unnameable: 0` on a mac was this bug
+passing quietly, not its absence. The address lives in a one-slot cell the
+closure reads at call time, and a thunk among the transients empties every
+cell in the child before the walk.
+
+
+**Opts asks the declaration before it assumes.** Two fixes, one fault --
+the class assuming something it had been told -- both found by x-coreutils
+within hours of adopting the library. `(Opts on? o "-m")` answered `#f` for
+a flag that HAD been given, when it was declared as taking an argument:
+`on?` read only the standalone list, so a caller asking "was -m given" had
+to know which of its own two lists it went into. It answers presence for
+either kind now; a value flag is still read with `(Opts value ...)`. And
+`-5` read as an operand because it looks like a number -- decided by shape
+alone, before consulting the declaration -- so `comm(1)`, which declares
+`-5`, could not take it. The declaration is asked first; the heuristic
+still stands where nothing claims the token (`sort -5` is an operand, not
+five unknown flags).
 
 
 **The documentation site wears the owl.** Every page under
@@ -68,6 +188,16 @@ site root by the workflow, where Jekyll looks for it. One thing beyond the
 chrome: "Improve this page" no longer appears on the generated reference,
 whose pages are never committed, so the link had been sending a reader to
 github.com to CREATE a file the next build overwrites.
+
+**The documentation catches up with the code.** `width` is pinned in the
+glossary as the code-point count, with bytes and true display columns
+named as the two things it is not; the formatter's comment above its width
+function had described a `(s)` call the code no longer made and a
+`str-length` it had never called. `standard-library.md` documents all
+fourteen Vector methods where it listed seven, points `List map` at the
+block form, and reads `0.12.0` where it said `0.5.2`; `object-system.md`
+says what a send with no selector does.
+
 
 ## [0.13.0] - 2026-09-07
 
