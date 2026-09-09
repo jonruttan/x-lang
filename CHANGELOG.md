@@ -5,6 +5,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-08
+
 **A list dispatches to `List` at the value.** `((List of 1 2 3) filter (x)
 (> x 1))` answered `Unbound SYMBOL 'filter'`: the engine's list call reads its
 first argument as an index, and a vector's or a string's value form -- `(v
