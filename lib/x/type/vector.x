@@ -322,6 +322,9 @@
 (Block method! Vector (lit filter))
 (Block method! Vector (lit for-each))
 (Block method! Vector (lit fold) (lit fold) 2)
+; build takes the count AHEAD of the callback, as List times does, so it
+; wraps at position 1: (Vector build 3 (i) (* i i)) -- #(0 1 4).
+(Block method! Vector (lit build) (lit element) 0 1)
 
 (doc (provide x/type/vector Vector)
   (note "Literal syntax: #(1 2 3), with negative indexing via the vector's call slot.")

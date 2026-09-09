@@ -629,3 +629,33 @@ re-evaluates keeps its echo.
 ```
 ---
     Error: object: no such method frob
+
+## a builder's block: `Vector build`
+
+`Vector build` takes its count ahead of the callback, as `List times` does,
+so it wraps at position 1; the applicative form stays live beside it.
+
+### the block form builds by index
+
+```x
+(Vector build 3 (i) (* i i))
+```
+---
+    #(0 1 4)
+
+### the applicative form is unchanged
+
+```x
+(Vector build 3 (fn (_ i) (* i i)))
+```
+---
+    #(0 1 4)
+
+### its help note shows the count ahead of the block
+
+```x
+(do (help Vector build)
+    (List any? (n) (Str8 includes? "(Vector build n (x) body ...)" n) (%doc-entry-notes (%doc-lookup (%str->symbol "Vector/build")))))
+```
+---
+    #t

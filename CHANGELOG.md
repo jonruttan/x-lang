@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`Vector build` takes a block.** The one callable-taking builder without
+one: `(Vector build 3 (i) (* i i))` now stands beside `(Vector build 3 (fn (_
+i) (* i i)))`, wired at position 1 as `List times` is, count first. It
+slipped the collection-wide sweep because its callback is declared `ANY`,
+not `CALLABLE`, and the sweep keyed on the type token; every other builder
+on an iterable either has its block already (`List times`, `List iterate`,
+`Gen iterate`, `Gen make`, `Iter make`) or takes no callable.
+
 ## [0.14.0] - 2026-09-08
 
 **A list dispatches to `List` at the value.** `((List of 1 2 3) filter (x)

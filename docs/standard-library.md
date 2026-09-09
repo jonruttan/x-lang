@@ -895,6 +895,7 @@ Creates a vector of length `n` with every element set to `fill`.
 Creates a vector of length `n` where element `i` is `(f i)`. Built in place, with no intermediate list.
 ```x-repl
 (Vector build 3 (fn (_ i) (* i i))) -> #(0 1 4)
+(Vector build 3 (i) (* i i)) -> #(0 1 4)
 ```
 
 ### `Vector set!`
