@@ -565,3 +565,67 @@ help's layout.
 ```
 ---
     1
+
+## a list has value dispatch (0.14.0): a symbol selector sends to `List`
+
+`(%bind-call-over! (Type of (list 1)) List)` sits OVER the engine's list
+call, so the value form reads exactly as a vector's or a string's --
+`((List of 1 2 3) filter (x) (> x 1))` -- while an index or a slice still
+goes to the handler underneath, and nested list DATA the iterator
+re-evaluates keeps its echo.
+
+### the block form at the value, subject spliced last
+
+```x
+((List of 1 2 3) filter (x) (> x 1))
+```
+---
+    (2 3)
+
+### two names bind the 0-based index, then the element
+
+```x
+((List of 1 2 3) map (i x) (* i x))
+```
+---
+    (0 2 6)
+
+### a fold's init trails the block
+
+```x
+((List of 1 2 3) fold (acc x) (+ acc x) 0)
+```
+---
+    6
+
+### the applicative form rides the same door
+
+```x
+((List of 1 2 3) map (fn (_ x) (* x 10)))
+```
+---
+    (10 20 30)
+
+### an index and a slice still go to the list call underneath
+
+```x
+(list ((List of 1 2 3) 0) ((List of 1 2 3) 1 3))
+```
+---
+    (1 (2 3))
+
+### nested list data re-evaluated by the iterator keeps its echo
+
+```x
+(List map (fn (_ e) e) (lit ((1 2) x)))
+```
+---
+    ((1 2) 'x)
+
+### a selector the class does not have is a method miss, not a crash
+
+```x
+((List of 1 2 3) frob)
+```
+---
+    Error: object: no such method frob

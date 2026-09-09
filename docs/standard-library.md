@@ -314,7 +314,9 @@ Applies `f` to each element and returns a list of results.
 > the callback's names and body at the call site: `(List map (x) (* x 10) xs)`,
 > where two names bind the 0-based index, then the element — the order of
 > `Gen enumerate`'s `(index . value)`. [Object System](object-system.md) lists
-> which selectors carry it and what two names mean for each.
+> which selectors carry it and what two names mean for each. A list value
+> dispatches to `List` as a vector does to `Vector`, so the same block reads
+> `(xs map (x) (* x 10))` with the subject in front; `(xs 0)` still indexes.
 
 ### `List filter`
 `(List filter pred lst) -> list`

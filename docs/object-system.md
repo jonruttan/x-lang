@@ -344,7 +344,13 @@ the call site:
 (List map (fn (_ x) (* x 10)) xs)   ; applicative -- always available
 (List map (x) (* x 10) xs)          ; block form
 (List map (i x) (list i x) xs)      ; two names: the 0-based index, then the element
+(xs map (i x) (list i x))           ; at the value: the subject in front, the block last
 ```
+
+The value form is the class's own dispatch reached through the value's call
+slot -- `Vector` and `Str` have always been bound that way, and `List` is
+bound OVER the engine's list call, so a symbol selector sends to the class
+and `(xs 0)` or `(xs 1 3)` still index and slice underneath.
 
 Both forms stay live on the same selector, and `(help List/map)` answers with
 both: the applicative signature it always had, plus a "Block form:" note the
