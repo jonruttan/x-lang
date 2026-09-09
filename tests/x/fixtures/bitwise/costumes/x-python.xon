@@ -7,6 +7,6 @@
   (accent 207 51 44)
   (secondary 45 100 42)
   (eyes (207 51 44) (45 100 42))
-  (rows "., .," "{OvO}" "( py)" " \" \"")
+  (rows "., .," "{O,O}" "( py)" " \" \"")
   (roles "ii ii" "ieifi" "i aai" " i i ")
   (reference "print(\"{O,O}\")"))

@@ -135,7 +135,7 @@ from an earlier one.
 ```
 ---
 ```output
-x-lang          xor    bit 3  n=32  hue 261.6                           (def owl '{O,O})
+x-lang          xor    bit 3  n=32  hue 261.6                           (def owl "{O,O}")
 x-fixture       xor    bit 3  n=24  hue  90.9  the fixture              (fixture)
 ((x-lang the language The language, as a fixture) (x-fixture a language on x-lang A fixture for x-lang's owl, the second tool of the self-hosting arc))
 (#t #t #t #t)

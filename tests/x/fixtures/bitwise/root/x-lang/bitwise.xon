@@ -2,6 +2,6 @@
 ; sibling checkout being present, or on its costume staying still.
 
 (costume "x-lang"
-  (rows "., .," "{OvO}" "(   )" " \" \"")
+  (rows "., .," "{O,O}" "(   )" " \" \"")
   (roles "ii ii" "ieifi" "iiiii" " i i ")
-  (reference "(def owl '{O,O})"))
+  (reference "(def owl \"{O,O}\")"))

@@ -15,6 +15,6 @@
 ;   (reference "LINE")        one line in this project's own language, on the banner
 
 (costume "x-lang"
-  (rows "., .," "{OvO}" "(   )" " \" \"")
+  (rows "., .," "{O,O}" "(   )" " \" \"")
   (roles "ii ii" "ieifi" "iiiii" " i i ")
-  (reference "(def owl '{O,O})"))
+  (reference "(def owl \"{O,O}\")"))

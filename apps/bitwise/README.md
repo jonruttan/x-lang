@@ -86,17 +86,17 @@ inlines for the browser twin. Every field is optional:
   (accent 207 51 44)                      h s l: replaces the hashed hue in the field and the eyes
   (secondary 45 100 42)                   the colour for role b
   (eyes (207 51 44) (45 100 42))          two-tone eyes, left then right
-  (rows "., .," "{OvO}" "( py)" " \" \"")  the owl's glyph rows in costume: printable ASCII, λ or ▲
+  (rows "., .," "{O,O}" "( py)" " \" \"")  the owl's glyph rows in costume: printable ASCII, λ or ▲
   (roles "ii ii" "ieifi" "i aai" " i i ") same shape: i ink, e/f the eyes, a accent, b secondary
   (reference "print(\"{O,O}\")"))         one line in the project's own language, on the banner
 ```
 
-Every costumed owl wears the `v` beak (the auk keeps its `>` bill) and
-carries its logo on its belly: `( C )` for the C compiler, `( λ )` for the
-Schemes, `({+})` for sweet-expressions, `(/./)` for grep, `(krn)` for
-Kernel, `( py)` for Python, `( ▲ )` for Logo, `(awk)`, `(sed)`, `(all)`,
-`( | )`, `( $ )`. x-lang, x-expr and the C engine keep a plain belly. The
-Rust engine is Ferris: `{OvO}` over `V   V`.
+Bitwise's nose is a comma, `{O,O}`; only the auk keeps its `>` bill, for
+the wordplay. A costumed owl carries its logo on its belly: `( C )` for the
+C compiler, `( λ )` for the Schemes, `({+})` for sweet-expressions, `(/./)`
+for grep, `(krn)` for Kernel, `( py)` for Python, `( ▲ )` for Logo, `(awk)`,
+`(sed)`, `(all)`, `( | )`, `( $ )`. x-lang, x-expr and the C engine keep a
+plain belly. The Rust engine is Ferris: `{O,O}` over `V   V`.
 
 ## Changing the design
 

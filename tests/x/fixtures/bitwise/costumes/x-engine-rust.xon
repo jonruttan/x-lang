@@ -5,6 +5,6 @@
   (mascot "Ferris the crab")
   (logo "Ferris orange")
   (accent 18 100 48)
-  (rows "., .," "{OvO}" "V   V" " \" \"")
+  (rows "., .," "{O,O}" "V   V" " \" \"")
   (roles "ii ii" "ieifi" "a   a" " i i ")
   (reference "let owl = \"{O,O}\";"))

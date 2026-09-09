@@ -3,6 +3,6 @@
 
 (costume "x-krn"
   (mascot "$vau")
-  (rows "., .," "{OvO}" "(krn)" " \" \"")
+  (rows "., .," "{O,O}" "(krn)" " \" \"")
   (roles "ii ii" "ieifi" "iaaai" " i i ")
-  (reference "($vau (x) e '{O,O})"))
+  (reference "($define! owl \"{O,O}\")"))

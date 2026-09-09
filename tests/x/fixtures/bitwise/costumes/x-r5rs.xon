@@ -3,6 +3,6 @@
 
 (costume "x-r5rs"
   (mascot "lambda")
-  (rows "., .," "{OvO}" "( λ )" " \" \"")
+  (rows "., .," "{O,O}" "( λ )" " \" \"")
   (roles "ii ii" "ieifi" "i a i" " i i ")
-  (reference "(lambda (x) '{O,O})"))
+  (reference "(define owl \"{O,O}\")"))

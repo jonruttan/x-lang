@@ -2,6 +2,6 @@
 ; sibling checkout being present, or on its costume staying still.
 
 (costume "x-sweet"
-  (rows "., .," "{OvO}" "({+})" " \" \"")
+  (rows "., .," "{O,O}" "({+})" " \" \"")
   (roles "ii ii" "ieifi" "iaaai" " i i ")
   (reference "{O + O}"))
