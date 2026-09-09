@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A list dispatches to `List` at the value.** `((List of 1 2 3) filter (x)
+(> x 1))` answered `Unbound SYMBOL 'filter'`: the engine's list call reads its
+first argument as an index, and a vector's or a string's value form -- `(v
+filter (x) (> x 1))` -- had no counterpart for the one collection every other
+one is built from. `x/type/list` now binds `List` OVER that handler the way
+`Vector` and `Str` are bound, so a symbol selector sends to the class,
+subject-last, and both call shapes ride it: `(xs map (i x) (* i x))` and `(xs
+map (fn (_ x) (* x 10)))`. Everything the handler underneath did it still
+does -- `(xs 0)` indexes, `(xs 1 3)` slices, and nested list data the iterator
+re-evaluates keeps its #69 echo, since a list head followed by a non-symbol
+delegates to the prior handler unchanged. The linter learned the value form
+with it: it bound a block's names only under a class head, so `(v map (x)
+...)` reported `x` undefined for a vector as much as for a list -- a block
+send binds its names at any head now, still keyed by the selector table. The
+full suite ran with the binding in place before it was kept: 2961 tests, 0
+failed.
+
 **A comma is not a token delimiter, and the owl's nose is one.** The quote
 family's shared delimit hook ended a token on `'`, `` ` `` and `,` -- so
 `foo'bar` reads as `foo` then `'bar`, which is right, and a comma glued to a

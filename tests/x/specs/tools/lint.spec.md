@@ -644,3 +644,55 @@ A data table: hundreds of nodes, nesting of two.
 ```
 ---
     #t
+
+## lint: a block send at the value binds its names
+
+The value form -- `(v map (x) ...)`, `((List of 1 2) map (i x) ...)` --
+reaches the same wrapped method as `(List map (x) ... xs)` through the
+value's call slot, so the linter binds the block's names at any head. It
+stays keyed by the selector table: an unwrapped selector at the value is
+still an ordinary send, and its arguments lint as calls.
+
+### a local subject's block names are bound
+
+```x
+(do
+  (def %result (lint-forms (list '(def f (fn (_ v) (v map (x) (* x 2))))) () ()))
+  (def %undef (lint-undefined (first %result) (first (rest %result))))
+  (display (null? %undef)))
+```
+---
+    #t
+
+### a computed subject's block names are bound, the index included
+
+```x
+(do
+  (def %result (lint-forms (list '(def h (fn (_) ((List of 1 2) map (i x) (* i x))))) () ()))
+  (def %undef (lint-undefined (first %result) (first (rest %result))))
+  (display (null? %undef)))
+```
+---
+    #t
+
+### an unwrapped selector at the value still lints its arguments as calls
+
+```x
+(do
+  (def %result (lint-forms (list '(def f (fn (_ v) (v frob (x) (* x 2))))) () ()))
+  (def %undef (lint-undefined (first %result) (first (rest %result))))
+  (display (lint-has? "x" %undef)))
+```
+---
+    #t
+
+### a symbol list whose every name already resolves is an expression, not a block
+
+```x
+(do
+  (def %r (lint-forms (list '(def pad (fn (_ mk k len ch) (mk make (- k len) ch)))) () ()))
+  (def %undef (lint-undefined (first %r) (first (rest %r))))
+  (display (list (null? (lint-warnings-of "shadow" %r)) (null? %undef))))
+```
+---
+    (#t #t)

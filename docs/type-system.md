@@ -211,7 +211,7 @@ The evaluator, call mechanism, writer, and length calculator all follow the same
 - Primitives: `call` invokes the C function pointer directly
 - Procedures: `call` binds parameters to evaluated arguments in a new environment, then evaluates the body
 - Operatives: `call` binds parameters to unevaluated arguments plus the caller's environment
-- Lists: `call` implements indexing — `(lst 0)` returns the first element, `(lst 1 3)` returns a slice
+- Lists: `call` implements indexing — `(lst 0)` returns the first element, `(lst 1 3)` returns a slice; a symbol selector sends to `List` subject-last, so `((List of 1 2 3) filter (x) (> x 1))` is `(2 3)` (bound over the engine's handler by `x/type/list`, the way `Vector` and `Str` are)
 - Strings: `call` implements character access and substring extraction
 - Custom types: `call` invokes whatever closure was provided to `make-type`
 

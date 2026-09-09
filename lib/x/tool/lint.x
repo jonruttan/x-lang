@@ -702,13 +702,7 @@
 ; table are homed on Lint (below), so this file's top level does not grow.
 (def %lint-call (fn (_ form)
   (match
-    ((if (%lint-value-subject? (first form))
-       (if (symbol? (first (rest form)))
-         (Lint %lint-block-send? (%cvt (first (rest form)) %string) (rest (rest form)))
-         #f)
-       #f)
-      (do (%lint-form (first form))            ; the subject is a real use
-          (Lint %lint-block-body (rest (rest form)))))  ; names bound over the rest
+    ((Lint %lint-block-form? form) (Lint %lint-block-form! form))
     ((if (%lint-value-subject? (first form))
        (symbol? (first (rest form))) #f)
       (do (%lint-form (first form))          ; the subject is a real use
@@ -737,7 +731,8 @@
 ; Hardcoded special forms (by name); everything else is a function call.
 (set! %lint-dispatch (fn (_ form)
   (def head (first form))
-  (if (not (symbol? head)) (%lint-seq form)
+  (if (not (symbol? head))
+    (if (Lint %lint-block-form? form) (Lint %lint-block-form! form) (%lint-seq form))
     (let ((h (%cvt head %string)))
       (match
         ((str=? h "fn")    (%lint-fn form))
@@ -917,13 +912,44 @@
         ((not (pair? (rest args))) #f)             ; names alone is not a block
         ((null? (first args)) #t)                  ; () -- a thunk
         ((not (pair? (first args))) #f)
-        (#t (self %lint-all-syms? (first args)))))
+        ((not (self %lint-all-syms? (first args))) #f)
+        (#t (self %lint-new-names? (first args)))))
+    ; A list of symbols in which EVERY name already resolves -- in scope or
+    ; bound globally -- is an expression, (- k len), not a binding list: a
+    ; block's names are new names.  So (self make (- k len) ch) stays a call
+    ; while (v map (x) ...) and (xs fold (acc x) ...) are blocks; a block
+    ; whose every name shadows a binding reads as a call, and its body still
+    ; resolves through the bindings it shadowed.
+    (method %lint-new-names? (self xs)
+      (if (null? xs) #f
+        (if (self %lint-resolves? (first xs)) (recur self (rest xs)) #t)))
+    (method %lint-resolves? (self sym)
+      (let ((nm (%cvt sym %string)))
+        (if (%scope-has-name? nm (first %lint-scope)) #t (self %env-known? nm))))
     (method %lint-block-send? (self sel args)
       (match
         ((not (%member-str? sel (Lint %lint-block-selectors))) #f)
         ((self %lint-names-at? args) #t)
         ((not (pair? args)) #f)
         (#t (self %lint-names-at? (rest args)))))
+    ; A block send at ANY head, not only a class's: the value form --
+    ; (v map (x) ...), (s for-each (c) ...), ((List of 1 2) map (i x) ...)
+    ; -- reaches the same wrapped method through the value's call slot
+    ; (x/type/list.x, vector.x, str-utf8.x), so its names bind the same way.
+    ; The selector table keys it as before, and %lint-new-names? (above)
+    ; keeps a list of already-bound symbols an expression; what remains is
+    ; a call passing a same-named global and a list of NEW symbols, which
+    ; reads as a block and costs at most a missed 'undefined' inside that
+    ; call -- the side this linter is adjudicated toward.
+    (method %lint-block-form? (self form)
+      (match
+        ((not (pair? form)) #f)
+        ((not (pair? (rest form))) #f)
+        ((not (symbol? (first (rest form)))) #f)
+        (#t (self %lint-block-send? (%cvt (first (rest form)) %string) (rest (rest form))))))
+    (method %lint-block-form! (self form)
+      (%lint-form (first form))                  ; the subject is a real use
+      (self %lint-block-body (rest (rest form))))  ; names bound over the rest
     ; The names cover the body AND the trailing arguments (the subject, fold's
     ; init).  Over-scoping by those few forms is deliberate: the linter does not
     ; know each selector's trailing count, and guessing would produce false
@@ -1022,6 +1048,7 @@
         (recur self (rest forms)))))
     (method %lint-computed-call (self form)
   (match
+    ((self %lint-block-form? form) (self %lint-block-form! form))
     ((if (pair? (rest form))
        (if (symbol? (first (rest form)))
          (if (%scope-has-name? (%cvt (first (rest form)) %string) (first %lint-scope)) #f

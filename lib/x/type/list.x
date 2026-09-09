@@ -545,6 +545,14 @@
 (Block method! List (lit times) (lit element) 0 1)
 (Block method! List (lit adjust) (lit element) 1 1)
 
+; Value dispatch, bound OVER the engine's list call so (lst 0) and (lst 1 3)
+; still index and slice: a SYMBOL selector sends to the class, subject-last
+; -- ((List of 1 2 3) filter (x) (> x 1)) -- exactly as Vector and Str are
+; bound.  Nested list DATA re-evaluated by the iterator keeps its #69
+; echo: a list head followed by a non-symbol delegates to the prior handler
+; as it always did.
+(%bind-call-over! (Type of (list 1)) List)
+
 (doc (provide x/type/list List)
   (note "The list/sequence operations as static methods; core/list.x keeps the low-level layer (fold/map/filter globals + %-helpers) it is built on.")
   (note "Element access is (List ref n lst) -- the adjudicated name; list-ref/list-tail are Scheme-compat wrappers.")
