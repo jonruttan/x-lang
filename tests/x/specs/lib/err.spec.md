@@ -1,4 +1,4 @@
-# Err: structured errors (kind + message + data)
+# Err: structured errors (tag + message + data)
 # @weight 1
 
 The Err class (boot-loaded) is the structured-error convention over the
@@ -7,11 +7,11 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ## construction
 
-### make carries kind, msg, data
+### make carries tag, msg, data
 
 ```x
 (let ((e (Err make 'io "boom" '((fd . 3)))))
-  (list (e kind) (e msg) (Assoc get 'fd (e data))))
+  (list (e tag) (e msg) (Assoc get 'fd (e data))))
 ```
 ---
     ('io "boom" 3)
@@ -34,34 +34,34 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 ---
     (#t #f #f)
 
-### kind? tests the instance kind
+### tag? tests the instance tag
 
 ```x
-(list ((Err make 'io "x" ()) kind? 'io) ((Err make 'io "x" ()) kind? 'type))
+(list ((Err make 'io "x" ()) tag? 'io) ((Err make 'io "x" ()) tag? 'type))
 ```
 ---
     (#t #f)
 
-### kind-of is total: Err answers its kind
+### tag is total: Err answers its tag
 
 ```x
-(Err kind-of (Err make 'index "oops" ()))
+(Err tag (Err make 'index "oops" ()))
 ```
 ---
     'index
 
-### kind-of is total: legacy bare strings answer 'user
+### tag is total: legacy bare strings answer 'user
 
 ```x
-(Err kind-of "opt store: expected an alist or plist")
+(Err tag "opt store: expected an alist or plist")
 ```
 ---
     'user
 
-### kind-of is total: any non-Err value answers 'user
+### tag is total: any non-Err value answers 'user
 
 ```x
-(list (Err kind-of 42) (Err kind-of ()) (Err kind-of '(a b)))
+(list (Err tag 42) (Err tag ()) (Err tag '(a b)))
 ```
 ---
     ('user 'user 'user)
@@ -71,7 +71,7 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 ### raise throws the constructed Err
 
 ```x
-(guard (e (list (Err kind-of e) (e msg))) (Err raise 'state "already closed" ()))
+(guard (e (list (Err tag e) (e msg))) (Err raise 'state "already closed" ()))
 ```
 ---
     ('state "already closed")
@@ -81,8 +81,8 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 ```x
 (let ((classify (fn (_ thunk)
                   (guard (e (match
-                              ((eq? (Err kind-of e) 'io) "io-handled")
-                              ((eq? (Err kind-of e) 'user) "legacy-handled")
+                              ((eq? (Err tag e) 'io) "io-handled")
+                              ((eq? (Err tag e) 'user) "legacy-handled")
                               (#t "other")))
                     (thunk)))))
   (list (classify (fn (_) (Err raise 'io "fd gone" ())))
@@ -91,11 +91,11 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 ---
     ("io-handled" "legacy-handled")
 
-### unhandled kinds re-raise through nested guards
+### unhandled tags re-raise through nested guards
 
 ```x
-(guard (outer (list 'outer-saw (Err kind-of outer)))
-  (guard (e (if (eq? (Err kind-of e) 'io) "handled" (error e)))
+(guard (outer (list 'outer-saw (Err tag outer)))
+  (guard (e (if (eq? (Err tag e) 'io) "handled" (error e)))
     (Err raise 'type "not mine" ())))
 ```
 ---
@@ -103,11 +103,11 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ## errno translation
 
-### from-errno builds a kind-'io Err with a strerror message
+### from-errno builds a tag 'io Err with a strerror message
 
 ```x
 (let ((e (Err from-errno 2 'open "/nope")))
-  (list (e kind) (e msg)))
+  (list (e tag) (e msg)))
 ```
 ---
     ('io "open: No such file or directory")
@@ -150,16 +150,16 @@ untyped C error prim (#20). Kinds are blessed but open: 'type 'value
 
 ## the uncaught report
 
-A guard receives the Err OBJECT — `(Err kind-of e)` and friends depend on
+A guard receives the Err OBJECT — `(Err tag e)` and friends depend on
 that. But an uncaught object cannot be rendered by the evaluator, which
 does not know a class's layout and should not learn it, so it used to
 print as the bare word `error`: every message the library raises was
 invisible when nothing caught it (x-lang#211).
 
 `(error VALUE TEXT)` takes an optional report string. `Err raise` passes
-`"kind: msg"`, so the prose travels with the raise and C only carries it.
+`"tag: msg"`, so the prose travels with the raise and C only carries it.
 
-### an uncaught raise prints its kind and message
+### an uncaught raise prints its tag and message
 
 `guard` here catches nothing — it runs the raise in a child that reports
 the way an uncaught error does, and the harness surfaces that text.
@@ -175,7 +175,7 @@ the way an uncaught error does, and the harness surfaces that text.
 The value is still the Err, with every accessor intact.
 
 ```x
-(display (list (guard (e (Err kind-of e)) (Err raise 'state "closed" ()))
+(display (list (guard (e (Err tag e)) (Err raise 'state "closed" ()))
                (guard (e (Err err? e)) (Err raise 'io "x" ()))
                (guard (e (e msg)) (Err raise 'value "the message" ()))))
 ```

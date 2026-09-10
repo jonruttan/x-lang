@@ -18,8 +18,8 @@
 ; access with every length EXPLICIT, so the string tier's limits never
 ; touch the data.
 ;
-; Failures raise kind-'value with zlib's code in the payload (corrupt
-; input is Z_DATA_ERROR -3); gz file troubles raise kind-'io. Cold paths
+; Failures raise tag 'value with zlib's code in the payload (corrupt
+; input is Z_DATA_ERROR -3); gz file troubles raise tag 'io. Cold paths
 ; throughout: symbols resolve per call ((Zlib %sym) -- dlopen re-returns
 ; the cached handle), keeping the file at zero top-level %-globals.
 
@@ -86,7 +86,7 @@
 
     (method compress (self (param bytes LIST "Bytes to compress")
                            . (param level INT "zlib level 0-9; default 6"))
-      (doc "Compress a byte list (zlib format, RFC 1950) at the given level. Raises kind-'value with zlib's code on failure."
+      (doc "Compress a byte list (zlib format, RFC 1950) at the given level. Raises tag 'value with zlib's code on failure."
         (returns LIST "The compressed bytes")
         (example "(Zlib decompress (Zlib compress (list 1 2 3 1 2 3 1 2 3)))" "(1 2 3 1 2 3 1 2 3)"))
       (def %call (prim-ref (lit ptr) (lit call)))
@@ -111,7 +111,7 @@
 
     (method decompress (self (param bytes LIST "zlib-format bytes to decompress")
                              . (param hint INT "Expected output size; default 4x the input (the buffer doubles on shortfall either way)"))
-      (doc "Decompress zlib-format bytes. The format carries no output size, so the destination starts at hint (or 4x the input) and DOUBLES on Z_BUF_ERROR until it fits. Corrupt input raises kind-'value with zlib's code (Z_DATA_ERROR is -3)."
+      (doc "Decompress zlib-format bytes. The format carries no output size, so the destination starts at hint (or 4x the input) and DOUBLES on Z_BUF_ERROR until it fits. Corrupt input raises tag 'value with zlib's code (Z_DATA_ERROR is -3)."
         (returns LIST "The decompressed bytes")
         (example "(Zlib decompress (Zlib compress (list 104 105)))" "(104 105)"))
       (def %call (prim-ref (lit ptr) (lit call)))
@@ -136,7 +136,7 @@
                 (#t (Err raise (lit value) "Zlib decompress: zlib error" r))))))))
 
     (method gz-read-all (self (param path STRING "A .gz file to read"))
-      (doc "The whole decompressed content of a gzip file, as a byte list (gzopen/gzread in 64KB slabs). Raises kind-'io when the file cannot be opened; corrupt content raises kind-'value."
+      (doc "The whole decompressed content of a gzip file, as a byte list (gzopen/gzread in 64KB slabs). Raises tag 'io when the file cannot be opened; corrupt content raises tag 'value."
         (returns LIST "The decompressed bytes")
         (sample "(bytes->str (Zlib gz-read-all \"notes.txt.gz\"))" "the text, when the content is textual"))
       (def %call (prim-ref (lit ptr) (lit call)))
@@ -167,7 +167,7 @@
     (method gz-write-all (self (param path STRING "The .gz file to write (created/truncated)")
                                (param bytes LIST "Bytes to compress into it")
                                . (param level INT "zlib level 1-9; default 6"))
-      (doc "Write a byte list as a gzip file. Raises kind-'io on open or short-write failure; returns the byte count written."
+      (doc "Write a byte list as a gzip file. Raises tag 'io on open or short-write failure; returns the byte count written."
         (returns INT "Bytes written (the uncompressed count)")
         (sample "(Zlib gz-write-all \"notes.txt.gz\" (Str8 char->bytes ...))" "the byte count"))
       (def %call (prim-ref (lit ptr) (lit call)))

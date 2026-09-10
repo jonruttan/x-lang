@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**An error's classifying symbol is its TAG, not its "kind".** `Err` grew
+up saying `kind`: `(Err kind-of e)`, `(e kind? 'io)`, the `kind` field,
+`(Err make kind msg data)`, and every doc string that promised "a kind-'io
+Err". Kind is not a term this tree uses for a classifier -- a token's
+classification is its variant, an error's is its tag -- so the API now says
+so: `(Err tag e)` is the total accessor (the noun applied to the value, the
+way `(List length lst)` reads), `(e tag)` the field, `(e tag? 'io)` the
+predicate, and `make` / `raise` take a `tag`. No alias is kept: a guard
+that matched on `(Err kind-of e)` now writes `(Err tag e)`. (`Err code-of`
+and `File stat`'s `kind` key are untouched: the first is an engine raise's
+message literal, the second names a file's kind -- 'file 'dir 'link.)
+
 **The core boot reclaims its garbage as it goes.** The engine never
 collects on its own -- mark and sweep run from the heap prims and nowhere
 else -- and the dialect bodies collect once, after the whole boot, so a

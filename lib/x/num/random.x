@@ -175,7 +175,7 @@
                  (Str8 sub 20 12 h)))
 
   (method sample (self k lst)
-    (doc "k distinct elements of lst, uniformly, in random order -- a shuffled prefix (#363). Raises kind-'value when k exceeds the population."
+    (doc "k distinct elements of lst, uniformly, in random order -- a shuffled prefix (#363). Raises tag 'value when k exceeds the population."
       (param k INT "How many to draw")
       (param lst LIST "The population")
       (returns LIST "k distinct elements")

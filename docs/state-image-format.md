@@ -362,7 +362,7 @@ test, not the unit test.
    atom.
 5. A symbol read after load is `same?` as the imaged symbol of that name
    (the intern table came with the image).
-6. A raised `Err` is caught as an object; `(Err kind-of e)` answers; a C
+6. A raised `Err` is caught as an object; `(Err tag e)` answers; a C
    primitive's type error is the resident ERR.
 7. Collect safety: two collects, a top-level def, a `def-global` from
    inside a call, printing, then lookups of each — ASan-clean.

@@ -181,7 +181,7 @@
     ; syscall result comes back, negative = -errno. i386's lseek syscall
     ; takes 32-bit offsets (llseek is the 64-bit door there; not wired).
     (method %whence (self (param whence ANY "Seek origin -- symbol or number"))
-      (doc "Resolve a seek origin to its POSIX SEEK_* value (identical across Linux/macOS): 'set -> 0, 'cur -> 1, 'end -> 2; a number passes through. Raises a kind-'type Err on anything else -- an unknown origin must not reach the kernel."
+      (doc "Resolve a seek origin to its POSIX SEEK_* value (identical across Linux/macOS): 'set -> 0, 'cur -> 1, 'end -> 2; a number passes through. Raises a tag 'type Err on anything else -- an unknown origin must not reach the kernel."
         (returns INT "0, 1, 2, or the number given"))
       (match
         ((number? whence) whence)
@@ -218,7 +218,7 @@
 
     ; ======================================================================
     ; The ergonomic tier (#22): whole-file and filesystem operations that
-    ; RAISE a kind-'io Err (via Err from-errno, #20) instead of returning
+    ; RAISE a tag 'io Err (via Err from-errno, #20) instead of returning
     ; the raw layer's negative -errno.  The five raw ops above keep their
     ; documented raw contract (absence-model rule 5).
     ; ======================================================================
@@ -247,7 +247,7 @@
             (pair 'mtime (rest (Assoc entry 'mtime d)))))
 
     (method stat (self (param path STRING "Path to stat"))
-      (doc "File metadata as an alist: ((size . BYTES) (mode . RAW) (kind . SYM) (mtime . UNIX-SECONDS)). kind is one of 'file 'dir 'link 'char 'block 'fifo 'socket (from the S_IFMT bits). Raises a kind-'io Err on failure."
+      (doc "File metadata as an alist: ((size . BYTES) (mode . RAW) (kind . SYM) (mtime . UNIX-SECONDS)). kind is one of 'file 'dir 'link 'char 'block 'fifo 'socket (from the S_IFMT bits). Raises a tag 'io Err on failure."
         (returns ALIST "((size . N) (mode . M) (kind . K) (mtime . T))")
         (sample "(File stat \"lib/x.x\")" "((size . 461) (mode . 33188) (kind . file) (mtime . 1752861000))"))
       (%fs-path path "File stat")
@@ -266,7 +266,7 @@
       (guard (_ #f) (do (File stat path) #t)))
 
     (method read-all (self (param path STRING "File to read"))
-      (doc "The whole file as one string (stat for the size, one read). Raises a kind-'io Err on open/read failure."
+      (doc "The whole file as one string (stat for the size, one read). Raises a tag 'io Err on open/read failure."
         (returns STRING "The file's bytes")
         (sample "(File read-all \"/etc/hostname\")" "the file's contents as a string"))
       (%fs-path path "File read-all")
@@ -282,7 +282,7 @@
 
     (method write-all (self (param path STRING "File to write (created/truncated)")
                        (param s STRING "Contents"))
-      (doc "Write s as the entire contents of path (create or truncate, mode 0644). Raises a kind-'io Err on failure; returns the byte count written."
+      (doc "Write s as the entire contents of path (create or truncate, mode 0644). Raises a tag 'io Err on failure; returns the byte count written."
         (returns INT "Bytes written")
         (sample "(File write-all \"out.txt\" \"hi\\n\")" "3"))
       (%fs-path path "File write-all")
@@ -308,7 +308,7 @@
           (if (str=? lastc "") (List init all) all))))
 
     (method list-dir (self (param path STRING "Directory to list"))
-      (doc "The directory's entry names as a list of strings, '.' and '..' excluded. Per-OS dirent decoding over getdents64 (Linux) / getdirentries64 (Darwin). Raises a kind-'io Err on failure."
+      (doc "The directory's entry names as a list of strings, '.' and '..' excluded. Per-OS dirent decoding over getdents64 (Linux) / getdirentries64 (Darwin). Raises a tag 'io Err on failure."
         (returns LIST "Entry-name strings")
         (sample "(File list-dir \"lib\")" "(\"x-core.x\" \"x.x\" ...)"))
       (%fs-path path "File list-dir")
@@ -332,7 +332,7 @@
 
     (method mkdir (self (param path STRING "Directory to create")
                         . (param perm INT "Permission bits; default 0755"))
-      (doc "Create a directory (default mode 0755). Raises a kind-'io Err on failure; returns nil."
+      (doc "Create a directory (default mode 0755). Raises a tag 'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File mkdir \"build/out\")" "creates the directory"))
       (%fs-path path "File mkdir")
@@ -341,7 +341,7 @@
       ())
 
     (method unlink (self (param path STRING "File to remove"))
-      (doc "Remove a file (not a directory -- see rmdir). Raises a kind-'io Err on failure; returns nil."
+      (doc "Remove a file (not a directory -- see rmdir). Raises a tag 'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File unlink \"out.txt\")" "removes the file"))
       (%fs-path path "File unlink")
@@ -350,7 +350,7 @@
       ())
 
     (method rmdir (self (param path STRING "Empty directory to remove"))
-      (doc "Remove an empty directory. Raises a kind-'io Err on failure; returns nil."
+      (doc "Remove an empty directory. Raises a tag 'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File rmdir \"build/out\")" "removes the directory"))
       (%fs-path path "File rmdir")
@@ -359,7 +359,7 @@
       ())
 
     (method rename (self (param from STRING "Existing path") (param to STRING "New path"))
-      (doc "Rename/move a filesystem entry. Raises a kind-'io Err on failure; returns nil."
+      (doc "Rename/move a filesystem entry. Raises a tag 'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File rename \"a.txt\" \"b.txt\")" "moves a.txt to b.txt"))
       (%fs-path from "File rename")
@@ -378,7 +378,7 @@
 
     (method chmod (self (param path STRING "Path whose mode to set")
                         (param mode INT "Permission bits, e.g. 420 for 0644"))
-      (doc "Set a path's permission bits (chmod). Raises a kind-'io Err on failure; returns nil."
+      (doc "Set a path's permission bits (chmod). Raises a tag 'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File chmod \"run.sh\" 493)" "makes it 0755"))
       (%fs-path path "File chmod")
@@ -389,7 +389,7 @@
     (method chown (self (param path STRING "Path whose owner to set")
                         (param uid INT "Owning user id, or -1 to leave it")
                         (param gid INT "Owning group id, or -1 to leave it"))
-      (doc "Set a path's owning user and group (chown). Either id may be -1 to leave that half alone. Raises a kind-'io Err on failure; returns nil."
+      (doc "Set a path's owning user and group (chown). Either id may be -1 to leave that half alone. Raises a tag 'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File chown \"out.txt\" 501 20)" "sets both")
         (sample "(File chown \"out.txt\" -1 20)" "sets only the group"))
@@ -400,7 +400,7 @@
 
     (method link (self (param target STRING "Existing path")
                        (param path STRING "New name for it"))
-      (doc "Create a hard link: a second directory entry for the SAME inode, so both names share the file's bytes and it survives until the last one goes. Raises a kind-'io Err on failure; returns nil."
+      (doc "Create a hard link: a second directory entry for the SAME inode, so both names share the file's bytes and it survives until the last one goes. Raises a tag 'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File link \"a.txt\" \"b.txt\")" "b.txt is now a.txt"))
       (%fs-path target "File link")
@@ -411,7 +411,7 @@
 
     (method symlink (self (param target STRING "What the link should point at")
                           (param path STRING "The link to create"))
-      (doc "Create a symbolic link at path pointing at target. The target is stored as WRITTEN and is never resolved here, so it need not exist. Raises a kind-'io Err on failure; returns nil."
+      (doc "Create a symbolic link at path pointing at target. The target is stored as WRITTEN and is never resolved here, so it need not exist. Raises a tag 'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File symlink \"../lib/x.x\" \"here.x\")" "creates the link"))
       (%fs-path target "File symlink")
@@ -421,7 +421,7 @@
       ())
 
     (method readlink (self (param path STRING "Symbolic link to read"))
-      (doc "The text a symbolic link holds, exactly as it was written -- relative targets come back relative. Raises a kind-'io Err when the path is not a link."
+      (doc "The text a symbolic link holds, exactly as it was written -- relative targets come back relative. Raises a tag 'io Err when the path is not a link."
         (returns STRING "The link's target")
         (sample "(File readlink \"here.x\")" "\"../lib/x.x\""))
       (%fs-path path "File readlink")
@@ -432,7 +432,7 @@
       (Str8 sub 0 n buf))
 
     (method utimes (self (param path STRING "Path to stamp"))
-      (doc "Set a path's access and modification times to the current clock (utimes with a null times pointer) -- what touch(1) means for a file that already exists. Raises a kind-'io Err on failure; returns nil."
+      (doc "Set a path's access and modification times to the current clock (utimes with a null times pointer) -- what touch(1) means for a file that already exists. Raises a tag 'io Err on failure; returns nil."
         (returns ANY "nil")
         (note "Explicit timestamps would want a packed pair of timevals, and this module holds no pointer prims to build one; the clock is the door.")
         (sample "(File utimes \"out.txt\")" "bumps both stamps to now"))
@@ -443,7 +443,7 @@
 
     (method mkfifo (self (param path STRING "FIFO to create")
                     . (param perm INT "Permission bits; default 0644"))
-      (doc "Create a named pipe (mknod with the S_IFIFO bit). Raises a kind-'io Err on failure; returns nil."
+      (doc "Create a named pipe (mknod with the S_IFIFO bit). Raises a tag 'io Err on failure; returns nil."
         (returns ANY "nil")
         (sample "(File mkfifo \"work.pipe\")" "creates the FIFO"))
       (%fs-path path "File mkfifo")
@@ -454,7 +454,7 @@
       ())
 
     (method statfs (self (param path STRING "Any path on the filesystem to measure"))
-      (doc "The filesystem holding path, as an alist: ((bsize . BYTES) (blocks . N) (bfree . N) (bavail . N) (files . N) (ffree . N)). Multiply a block count by bsize for bytes. Raises a kind-'io Err on failure."
+      (doc "The filesystem holding path, as an alist: ((bsize . BYTES) (blocks . N) (bfree . N) (bavail . N) (files . N) (ffree . N)). Multiply a block count by bsize for bytes. Raises a tag 'io Err on failure."
         (returns ALIST "((bsize . B) (blocks . N) (bfree . N) (bavail . N) (files . N) (ffree . N))")
         (sample "(File statfs \"/\")" "((bsize . 4096) (blocks . 242837545) ...)"))
       (%fs-path path "File statfs")
@@ -481,7 +481,7 @@
     ; --- The coverage tail (#364) ---
 
     (method lstat (self (param path STRING "Path to stat, symlinks NOT followed"))
-      (doc "File metadata like (File stat), but a symbolic link reports itself (kind 'link) instead of its target -- the door (File walk) uses to avoid following link cycles. Raises a kind-'io Err on failure."
+      (doc "File metadata like (File stat), but a symbolic link reports itself (kind 'link) instead of its target -- the door (File walk) uses to avoid following link cycles. Raises a tag 'io Err on failure."
         (returns ALIST "((size . N) (mode . M) (kind . K) (mtime . T))")
         (sample "(File lstat \"some-symlink\")" "((size . 11) (mode . 41453) (kind . link) (mtime . ...))"))
       (%fs-path path "File lstat")
@@ -493,7 +493,7 @@
       (File %stat-decode buf))
 
     (method copy (self (param from STRING "Source file") (param to STRING "Destination (created/truncated, mode 0644)"))
-      (doc "Copy a file's bytes, binary-safe: a 64KB fd-level read/write loop driven by the raw byte counts, never by string length (a string's observable bytes end at the first NUL, so read-all->write-all corrupts binary). Raises a kind-'io Err on failure; returns the byte count copied."
+      (doc "Copy a file's bytes, binary-safe: a 64KB fd-level read/write loop driven by the raw byte counts, never by string length (a string's observable bytes end at the first NUL, so read-all->write-all corrupts binary). Raises a tag 'io Err on failure; returns the byte count copied."
         (returns INT "Bytes copied")
         (sample "(File copy \"a.bin\" \"b.bin\")" "1048576"))
       (%fs-path from "File copy")
@@ -555,7 +555,7 @@
             (if (< fd 0) (attempt (- left 1)) (pair fd path))))))
 
     (method walk (self (param path STRING "Directory to walk"))
-      (doc "Every non-directory entry under path, recursively, as paths RELATIVE to path (files, links, sockets, fifos alike -- filter on (File lstat) kind for finer policy). Recursion decisions ride lstat, so a symlinked directory is REPORTED as its link, never followed (no cycle risk). Order follows the directory tables; treat it as unspecified. Raises a kind-'io Err on failure."
+      (doc "Every non-directory entry under path, recursively, as paths RELATIVE to path (files, links, sockets, fifos alike -- filter on (File lstat) kind for finer policy). Recursion decisions ride lstat, so a symlinked directory is REPORTED as its link, never followed (no cycle risk). Order follows the directory tables; treat it as unspecified. Raises a tag 'io Err on failure."
         (returns LIST "Relative path strings")
         (sample "(File walk \"lib/x/num\")" "(\"bigint.x\" \"complex.x\" ...)"))
       (%fs-path path "File walk")

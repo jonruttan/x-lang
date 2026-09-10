@@ -415,8 +415,8 @@ status.
 ### non-alist receivers raise across the public seats
 
 ```x
-(list (guard (e (Err kind-of e)) (Assoc get (lit k) 42))
-      (guard (e (Err kind-of e)) (Assoc get (lit k) (pair 1 2)))
+(list (guard (e (Err tag e)) (Assoc get (lit k) 42))
+      (guard (e (Err tag e)) (Assoc get (lit k) (pair 1 2)))
       (guard (e (lit R)) (Assoc has? (lit k) 42))
       (guard (e (lit R)) (Assoc del (lit k) 42))
       (guard (e (lit R)) (Assoc put (lit k) 1 42))

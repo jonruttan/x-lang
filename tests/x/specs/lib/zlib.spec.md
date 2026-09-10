@@ -34,8 +34,8 @@ trips, the buffer-doubling path, and the error contract.
 
 ```x
 (do (import x/codec/zlib)
-  (list (guard (e (Err kind-of e)) (Zlib decompress (list 1 2 3 4 5)))
-        (guard (e (Err kind-of e)) (Zlib decompress ()))))
+  (list (guard (e (Err tag e)) (Zlib decompress (list 1 2 3 4 5)))
+        (guard (e (Err tag e)) (Zlib decompress ()))))
 ```
 ---
     ('value 'value)
@@ -60,7 +60,7 @@ trips, the buffer-doubling path, and the error contract.
 
 ```x
 (do (import x/codec/zlib)
-  (list (guard (e (Err kind-of e)) (Zlib gz-read-all "/tmp/x-373-definitely-not.gz"))))
+  (list (guard (e (Err tag e)) (Zlib gz-read-all "/tmp/x-373-definitely-not.gz"))))
 ```
 ---
     ('io)

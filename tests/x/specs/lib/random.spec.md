@@ -186,7 +186,7 @@ sequence.
 
 ```x
 (do (import x/num/random)
-  (list (guard (e (Err kind-of e)) ((Random sw 1) sample 3 (list 1 2)))))
+  (list (guard (e (Err tag e)) ((Random sw 1) sample 3 (list 1 2)))))
 ```
 ---
     ('value)

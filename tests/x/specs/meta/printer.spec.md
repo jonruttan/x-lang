@@ -286,10 +286,10 @@ nosuchsym
 ---
     ""
 
-### an engine raise answers its own kind, not 'user
+### an engine raise answers its own tag, not 'user
 
 ```x
-(guard (e (Err kind-of e)) nosuchsym)
+(guard (e (Err tag e)) nosuchsym)
 ```
 ---
     'engine

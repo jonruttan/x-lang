@@ -515,7 +515,7 @@ were sliced at the wrong boundaries.
 ### an empty search string refuses (it would never advance)
 
 ```x
-(guard (e (Err kind-of e)) (Str8 replace "" "x" "hi"))
+(guard (e (Err tag e)) (Str8 replace "" "x" "hi"))
 ```
 ---
     'value
@@ -569,9 +569,9 @@ evaluates -- the tower parse-before-eval trap, begin-flavored.
 ### slot/argument arity is strict, both directions, and templates must close
 
 ```x
-(list (guard (e (Err kind-of e)) (Str8 format "{}"))
-      (guard (e (Err kind-of e)) (Str8 format "x" 1))
-      (guard (e (Err kind-of e)) (Str8 format "{" 1)))
+(list (guard (e (Err tag e)) (Str8 format "{}"))
+      (guard (e (Err tag e)) (Str8 format "x" 1))
+      (guard (e (Err tag e)) (Str8 format "{" 1)))
 ```
 ---
     ('value 'value 'value)

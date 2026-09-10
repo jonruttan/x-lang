@@ -298,7 +298,7 @@ A negative n built a vector REPORTING length n, so every later bounds check
 compared against a lie.
 
 ```x
-(list (guard (e (Err kind-of e)) (Vector make -5)) (Vector length (Vector make 0)))
+(list (guard (e (Err tag e)) (Vector make -5)) (Vector length (Vector make 0)))
 ```
 ---
     ('value 0)
@@ -364,7 +364,7 @@ compared against a lie.
 ### traversal rejects a non-vector receiver
 
 ```x
-(guard (e (Err kind-of e)) (Vector map (fn (_ x) x) 7))
+(guard (e (Err tag e)) (Vector map (fn (_ x) x) 7))
 ```
 ---
     'type
@@ -391,7 +391,7 @@ guards before it reads. `(Vector length v)` is the length door.
 ### indexing still works either way round it
 
 ```x
-(list (#(1 2 3) 0) (#(1 2 3) -1) (guard (e (Err kind-of e)) (#(1 2 3) 9)))
+(list (#(1 2 3) 0) (#(1 2 3) -1) (guard (e (Err tag e)) (#(1 2 3) 9)))
 ```
 ---
     (1 3 'index)

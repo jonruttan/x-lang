@@ -10,7 +10,7 @@
 ; may hold commas, quotes ("" escapes), and newlines; rows end at LF,
 ; CRLF, or lone CR; a trailing newline yields no phantom row; an interior
 ; empty line is one empty field. Strict per #61 -- no silent repair:
-;   - an unclosed quote at end of input raises kind-'value
+;   - an unclosed quote at end of input raises tag 'value
 ;   - a quote inside an unquoted field raises (RFC: such fields MUST be
 ;     quoted; Python's reader silently keeps it -- we refuse)
 ;   - bytes between a closing quote and the next separator raise
@@ -35,7 +35,7 @@
     (see parse) (see records))
   (static
     (method parse (self (param text STRING "csv text"))
-      (doc "Parse csv text into a list of rows, each a list of field strings. Quoted fields carry commas, doubled quotes, and newlines; rows end at LF/CRLF/CR; a trailing newline adds no row. Raises kind-'value on an unclosed quote, a quote inside an unquoted field, or bytes after a closing quote (#61: no silent repair)."
+      (doc "Parse csv text into a list of rows, each a list of field strings. Quoted fields carry commas, doubled quotes, and newlines; rows end at LF/CRLF/CR; a trailing newline adds no row. Raises tag 'value on an unclosed quote, a quote inside an unquoted field, or bytes after a closing quote (#61: no silent repair)."
         (returns LIST "Rows of field strings")
         (example "(Csv parse \"a,\\\"b\\\"\\\"c\\\",d\")" "((\"a\" \"b\\\"c\" \"d\"))"))
       (def %blen (prim-ref (lit str) (lit byte-len)))
@@ -127,7 +127,7 @@
         "" rows))
 
     (method records (self (param text STRING "csv text whose first row is the header"))
-      (doc "Parse csv text whose FIRST row names the columns: one string-keyed alist per data row, in header order -- (Assoc find), the equal?-keyed door, is the matching lookup. Raises kind-'value when a data row's width differs from the header's (#61)."
+      (doc "Parse csv text whose FIRST row names the columns: one string-keyed alist per data row, in header order -- (Assoc find), the equal?-keyed door, is the matching lookup. Raises tag 'value when a data row's width differs from the header's (#61)."
         (returns LIST "((header . value) ...) alists, one per data row")
         (example "(rest (Assoc find \"age\" (first (Csv records \"name,age\\nida,7\\n\"))))" "\"7\""))
       (def rows (Csv parse text))
@@ -146,7 +146,7 @@
 
     (method emit-records (self (param headers LIST "Column names, in output order")
                                (param records LIST "String-keyed alists, one per row"))
-      (doc "Render records as csv text under an explicit header row: each record supplies every header's value ((Assoc find), equal?-keyed); a missing key raises kind-'value (#61)."
+      (doc "Render records as csv text under an explicit header row: each record supplies every header's value ((Assoc find), equal?-keyed); a missing key raises tag 'value (#61)."
         (returns STRING "csv text: the header row, then one row per record")
         (example "(Csv emit-records (list \"a\" \"b\") (list (list (pair \"a\" \"1\") (pair \"b\" \"2\"))))" "\"a,b\\n1,2\\n\""))
       (Csv emit

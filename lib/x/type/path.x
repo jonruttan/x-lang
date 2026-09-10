@@ -146,7 +146,7 @@
 
     (method relpath (self (param start STRING "The path to be relative FROM")
                           (param p STRING "The path to express relative to start"))
-      (doc "Express p relative to start, lexically (#364): both are normalized, the common prefix drops, and each remaining start segment becomes '..'. Both must be absolute or both relative -- mixing raises kind-'value (relating them needs a working directory, which this pure-string class refuses to consult); a relative start that still climbs ('..' after norm) raises for the same reason."
+      (doc "Express p relative to start, lexically (#364): both are normalized, the common prefix drops, and each remaining start segment becomes '..'. Both must be absolute or both relative -- mixing raises tag 'value (relating them needs a working directory, which this pure-string class refuses to consult); a relative start that still climbs ('..' after norm) raises for the same reason."
         (returns STRING "p relative to start ('.' when they coincide)")
         (example "(Path relpath \"/a/b\" \"/a/c/d\")" "\"../c/d\"")
         (example "(Path relpath \"a/b\" \"a/b\")" "\".\"")

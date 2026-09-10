@@ -8,7 +8,7 @@
 ;
 ; Emission is lowercase (the binascii convention); decode accepts both
 ; cases. Decode is strict per #61: an odd-length input or a character
-; outside [0-9a-fA-F] raises a kind-'value Err -- no whitespace tolerance
+; outside [0-9a-fA-F] raises a tag 'value Err -- no whitespace tolerance
 ; (hex payloads are not line-wrapped the way PEM base64 is).
 ;
 ; Digest formatting is a different job: (Hash ->hex) renders one 64-bit
@@ -52,7 +52,7 @@
             (go (- i 1) (pair (%c->i (%bref s i)) acc))))))
 
     (method decode-bytes (self (param hex STRING "Hex text to decode"))
-      (doc "Decode hex text to a byte list -- the lossless door. Either case decodes; odd length or a character outside [0-9a-fA-F] raises a kind-'value Err (#61: no silent repair)."
+      (doc "Decode hex text to a byte list -- the lossless door. Either case decodes; odd length or a character outside [0-9a-fA-F] raises a tag 'value Err (#61: no silent repair)."
         (returns LIST "Byte values (0-255)")
         (example "(Hex decode-bytes \"ff0010\")" "(255 0 16)"))
       (def %blen (prim-ref (lit str) (lit byte-len)))

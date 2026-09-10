@@ -169,7 +169,7 @@ No filesystem access -- every method is a total string function.
 
 ```x
 (do (import x/type/path)
-  (list (guard (e (Err kind-of e)) (Path relpath "/a" "b"))))
+  (list (guard (e (Err tag e)) (Path relpath "/a" "b"))))
 ```
 ---
     ('value)

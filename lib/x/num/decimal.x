@@ -988,7 +988,7 @@
         (do (set! %dec-prec n) n)))
     ; --- Conversions ---
     (method from (self (param x ANY "An int, bigint, float, rational, numeric string, or decimal (identity)"))
-      (doc "Construct a decimal from any convertible value, through the conversion catalog. A float converts EXACTLY; a rational rounds to the current precision. Raises kind-'type when nothing converts."
+      (doc "Construct a decimal from any convertible value, through the conversion catalog. A float converts EXACTLY; a rational rounds to the current precision. Raises tag 'type when nothing converts."
         (returns DECIMAL "Decimal instance")
         (sample "(Decimal ->str (Decimal from \"1.25\"))" "\"1.25\""))
       (%ensure-dec x))
@@ -1100,12 +1100,12 @@
         (sample "(Decimal ->str (Decimal exp 0d))" "\"1\""))
       (%dec-exp-of (%ensure-dec x)))
     (method ln (self (param x NUMBER "Positive decimal"))
-      (doc "The natural logarithm of a decimal, to the current precision. Raises kind-'value for zero or a negative."
+      (doc "The natural logarithm of a decimal, to the current precision. Raises tag 'value for zero or a negative."
         (returns DECIMAL "Natural logarithm of x")
         (sample "(Decimal ->str (Decimal ln 1d))" "\"0\""))
       (%dec-ln (%ensure-dec x)))
     (method log10 (self (param x NUMBER "Positive decimal"))
-      (doc "The base-10 logarithm of a decimal, to the current precision. An exact power of ten answers its exponent exactly. Raises kind-'value for zero or a negative."
+      (doc "The base-10 logarithm of a decimal, to the current precision. An exact power of ten answers its exponent exactly. Raises tag 'value for zero or a negative."
         (returns DECIMAL "log10(x)")
         (sample "(Decimal ->str (Decimal log10 1000d))" "\"3\""))
       (%dec-log10 (%ensure-dec x)))))

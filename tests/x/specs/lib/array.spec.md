@@ -89,11 +89,11 @@
 
 ## uninitialized instances fail loudly (constructor adjudication)
 
-### a generic-new instance raises kind-'state at first use; make constructs
+### a generic-new instance raises tag 'state at first use; make constructs
 
 ```x
 (do (import x/type/array)
-  (guard (e (list (Err kind-of e) (((Array make) push! 7) ->list)))
+  (guard (e (list (Err tag e) (((Array make) push! 7) ->list)))
     ((Array new) push! 7)))
 ```
 ---

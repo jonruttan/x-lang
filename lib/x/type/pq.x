@@ -63,14 +63,14 @@
     self)
 
   (method peek (self)
-    (doc "The front value (the one pop! would return), without removing it; raises kind-'value when empty."
+    (doc "The front value (the one pop! would return), without removing it; raises tag 'value when empty."
       (returns ANY "The front value"))
     (if (= ((member 'store) length) 0)
       (Err raise 'value "Pq peek: empty" ())
       ((member 'store) ref 0)))
 
   (method pop! (self)
-    (doc "Remove and return the front value: O(log n); raises kind-'value when empty."
+    (doc "Remove and return the front value: O(log n); raises tag 'value when empty."
       (returns ANY "The front value")
       (example "(let ((q (Pq make (fn (_ a b) (< a b))))) (q push! 9) (q push! 4) (list (q pop!) (q pop!)))" "(4 9)"))
     (let ((st (member 'store)))

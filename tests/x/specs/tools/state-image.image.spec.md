@@ -103,7 +103,7 @@ says why.
 ### new makes an instance; object?, class-of and dispatch agree
 
 ```x
-(display (%probe "(write (list (Err err? (Err make (lit k) \"m\" ())) (Err kind-of (Err make (lit k) \"m\" ())) (Str8 length \"abcd\"))) (newline)"))
+(display (%probe "(write (list (Err err? (Err make (lit k) \"m\" ())) (Err tag (Err make (lit k) \"m\" ())) (Str8 length \"abcd\"))) (newline)"))
 ```
 ---
     (#t 'k 4)
@@ -123,7 +123,7 @@ says why.
 ### a primitive's type error arrives as an Err the class can read
 
 ```x
-(display (%probe "(write (list (guard (e (Err kind-of e)) (+ \"a\" 1)) (guard (e (Err kind-of e)) (Err raise (lit k) \"m\" ())))) (newline)"))
+(display (%probe "(write (list (guard (e (Err tag e)) (+ \"a\" 1)) (guard (e (Err tag e)) (Err raise (lit k) \"m\" ())))) (newline)"))
 ```
 ---
     ('type 'k)

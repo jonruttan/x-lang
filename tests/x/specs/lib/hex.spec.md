@@ -2,7 +2,7 @@
 # @weight 1
 
 Lowercase out, either case in, strict decode (odd length or a character
-outside [0-9a-fA-F] raises kind-'value -- #61: no silent repair).
+outside [0-9a-fA-F] raises tag 'value -- #61: no silent repair).
 encode/decode carry strings; the -bytes doors carry byte lists losslessly.
 (Hash ->hex) remains the INT-digest formatter; this codec transcodes
 byte sequences.
@@ -44,8 +44,8 @@ byte sequences.
 
 ```x
 (do (import x/codec/hex)
-  (list (guard (e (Err kind-of e)) (Hex decode "abc"))
-        (guard (e (Err kind-of e)) (Hex decode "zz"))))
+  (list (guard (e (Err tag e)) (Hex decode "abc"))
+        (guard (e (Err tag e)) (Hex decode "zz"))))
 ```
 ---
     ('value 'value)
