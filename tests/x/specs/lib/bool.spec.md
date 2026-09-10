@@ -16,7 +16,7 @@ changes is that the type system can finally SEE them.
 ### the #52 boolean residual is closed -- arithmetic refuses
 
 ```x
-(list (guard (e (e msg)) (+ #t 1)) (guard (e (Err kind-of e)) (< #f 3))
+(list (guard (e (e msg)) (+ #t 1)) (guard (e (Err tag e)) (< #f 3))
       (guard (e (lit R)) (* #t 2)))
 ```
 ---
@@ -36,7 +36,7 @@ changes is that the type system can finally SEE them.
 ```x
 (do (import x/type/dict)
   (list (match (#f 1) (#t 42))
-        (guard (e (Err kind-of e)) ((Dict make) set! #t 1))))
+        (guard (e (Err tag e)) ((Dict make) set! #t 1))))
 ```
 ---
     (42 'type)

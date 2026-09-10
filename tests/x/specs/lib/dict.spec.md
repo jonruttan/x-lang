@@ -20,12 +20,12 @@ chars. Class instances are identity keys: address-hashed, same?-compared.
 The generic allocator once built a dict that SEGFAULTED on set!; a quiet
 new->make alias then hid two different operations behind one name. Now
 generic new builds an inert instance and the %slot guard raises the
-teaching kind-'state Err the moment it is used -- no fake refusal method
+teaching tag 'state Err the moment it is used -- no fake refusal method
 in the help listing, the guard sits at the point of harm.
 
 ```x
 (do (import x/type/dict)
-  (guard (e (list (Err kind-of e) ((Dict make) empty?)))
+  (guard (e (list (Err tag e) ((Dict make) empty?)))
     ((Dict new) set! 'a 1)))
 ```
 ---

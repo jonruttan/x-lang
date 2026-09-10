@@ -417,7 +417,7 @@
     (method replace (self (param old STRING "Literal substring to replace (not a regex)")
                           (param replacement STRING "Replacement")
                           (param s STRING "String to rewrite"))
-      (doc "Replace every occurrence of old with new (literal, non-overlapping, left to right). Regex replacement lives on the Regex class; an empty old raises kind-'value (it would never advance)."
+      (doc "Replace every occurrence of old with new (literal, non-overlapping, left to right). Regex replacement lives on the Regex class; an empty old raises tag 'value (it would never advance)."
         (returns STRING "s with every old replaced by new")
         (example "(Str8 replace \"l\" \"L\" \"hello\")" "\"heLLo\"")
         (example "(Str8 replace \"aa\" \"b\" \"aaaa\")" "\"bb\"")
@@ -440,7 +440,7 @@
       (go 0 ()))
     (method format (self (param spec STRING "Template: literal text with {} slots; {{ and }} escape braces")
                          . (param args ANY "One value per {} slot"))
-      (doc "Render args into a template (#25). A slot is {} or {:FLAGS} with FLAGS = [<|>][WIDTH][.PRECISION]: < left-aligns (default), > right-aligns, WIDTH pads with spaces to at least WIDTH ELEMENTS (bytes for Str8, code points for Str), .P renders a number with exactly P decimals (floats round; ints gain .000...). Slot/argument counts must match (kind-'value otherwise). Strings render raw; other values render display-style."
+      (doc "Render args into a template (#25). A slot is {} or {:FLAGS} with FLAGS = [<|>][WIDTH][.PRECISION]: < left-aligns (default), > right-aligns, WIDTH pads with spaces to at least WIDTH ELEMENTS (bytes for Str8, code points for Str), .P renders a number with exactly P decimals (floats round; ints gain .000...). Slot/argument counts must match (tag 'value otherwise). Strings render raw; other values render display-style."
         (returns STRING "The rendered string")
         (example "(Str8 format \"{} + {} = {}\" 1 2 3)" "\"1 + 2 = 3\"")
         (example "(Str8 format \"[{:>6}]\" \"ok\")" "\"[    ok]\"")

@@ -30,7 +30,7 @@
 ; layout walkers), unrelated to binary records.
 ;
 ; Strict per #61: unknown type symbols, malformed fields, and pack values
-; missing a name raise kind-'value.
+; missing a name raise tag 'value.
 ;
 ; Zero top-level %-globals (new-file budget 0); the plan builder is a
 ; %-private method (cold, build-time), and per-field work inside a plan
@@ -48,7 +48,7 @@
     ; The compiled plan: ((name width rdr) ...) with rdr = (fn (buf off) -> value)
     ; capturing the byte prims; pads carry a nil rdr. Cold, build-time only.
     (method %plan (self (param spec LIST "Field spec"))
-      (doc "Compile a field spec into ((name width reader-closure) ...) -- pads carry a nil reader. Raises kind-'value on malformed fields or unknown types."
+      (doc "Compile a field spec into ((name width reader-closure) ...) -- pads carry a nil reader. Raises tag 'value on malformed fields or unknown types."
         (returns LIST "The plan, in spec order"))
       (def %bref (prim-ref (lit str) (lit byte-ref)))
       (def %c->i (prim-ref (lit char) (lit ->int)))
@@ -169,7 +169,7 @@
 
     (method pack (self (param spec LIST "Field spec")
                        (param values ALIST "((name . value) ...); every non-pad field must be present"))
-      (doc "Encode values into a byte LIST (the lossless carrier, #362), fields in spec order: pads emit zeros, str/cstr fields zero-pad to width (cstr reserves the last byte for NUL), and a missing name raises kind-'value."
+      (doc "Encode values into a byte LIST (the lossless carrier, #362), fields in spec order: pads emit zeros, str/cstr fields zero-pad to width (cstr reserves the last byte for NUL), and a missing name raises tag 'value."
         (returns LIST "Byte values (0-255)")
         (example "(Struct pack (list (list 'a 'u16) (list 'pad 1)) (list (pair 'a 513)))" "(1 2 0)"))
       (def %bref (prim-ref (lit str) (lit byte-ref)))

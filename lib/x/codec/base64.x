@@ -9,7 +9,7 @@
 ; (StrUtf8 encode)).
 ;
 ; Decode is strict per #61 (no silent repair): a character outside the
-; alphabet raises a kind-'value Err, as do misplaced padding and a short
+; alphabet raises a tag 'value Err, as do misplaced padding and a short
 ; final group. The one tolerance is whitespace (space/tab/CR/LF), skipped
 ; before decoding so PEM-style wrapped payloads decode directly.
 ;
@@ -80,7 +80,7 @@
             (go (- i 1) (pair (%c->i (%bref s i)) acc))))))
 
     (method decode-bytes (self (param b64 STRING "Base64 text to decode"))
-      (doc "Decode base64 text to a byte list -- the lossless door. Whitespace (space/tab/CR/LF) is skipped; any other character outside the alphabet, misplaced =, or a short final group raises a kind-'value Err (#61: no silent repair)."
+      (doc "Decode base64 text to a byte list -- the lossless door. Whitespace (space/tab/CR/LF) is skipped; any other character outside the alphabet, misplaced =, or a short final group raises a tag 'value Err (#61: no silent repair)."
         (returns LIST "Byte values (0-255)")
         (example "(Base64 decode-bytes \"Zm9v\")" "(102 111 111)"))
       (def %blen (prim-ref (lit str) (lit byte-len)))

@@ -4,7 +4,7 @@
 The standard alphabet with = padding. encode/decode carry strings;
 encode-bytes/decode-bytes carry byte lists (the lossless door -- str
 values are C strings, so a NUL-bearing payload is only observable as a
-byte list). Decode skips whitespace, and raises kind-'value on anything
+byte list). Decode skips whitespace, and raises tag 'value on anything
 else outside the alphabet (#61: no silent repair).
 
 ## the RFC 4648 vectors
@@ -67,9 +67,9 @@ else outside the alphabet (#61: no silent repair).
 
 ```x
 (do (import x/codec/base64)
-  (list (guard (e (Err kind-of e)) (Base64 decode "Zm9!"))
-        (guard (e (Err kind-of e)) (Base64 decode "Zm9"))
-        (guard (e (Err kind-of e)) (Base64 decode "Zm==Zm9v"))))
+  (list (guard (e (Err tag e)) (Base64 decode "Zm9!"))
+        (guard (e (Err tag e)) (Base64 decode "Zm9"))
+        (guard (e (Err tag e)) (Base64 decode "Zm==Zm9v"))))
 ```
 ---
     ('value 'value 'value)

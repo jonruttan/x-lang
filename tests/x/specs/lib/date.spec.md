@@ -120,10 +120,10 @@ time-of-day and both sides of the epoch.
 
 ```x
 (do (import x/sys/date)
-  (list (guard (e (Err kind-of e)) (Date from-iso "2023-02-30T00:00:00Z"))
-        (guard (e (Err kind-of e)) (Date from-iso "2023-13-01T00:00:00Z"))
-        (guard (e (Err kind-of e)) (Date from-iso "2023-01-01T25:00:00Z"))
-        (guard (e (Err kind-of e)) (Date from-iso "garbage"))))
+  (list (guard (e (Err tag e)) (Date from-iso "2023-02-30T00:00:00Z"))
+        (guard (e (Err tag e)) (Date from-iso "2023-13-01T00:00:00Z"))
+        (guard (e (Err tag e)) (Date from-iso "2023-01-01T25:00:00Z"))
+        (guard (e (Err tag e)) (Date from-iso "garbage"))))
 ```
 ---
     ('value 'value 'value 'value)

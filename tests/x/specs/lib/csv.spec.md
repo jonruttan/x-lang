@@ -63,11 +63,11 @@ equal?-keyed door).
 
 ```x
 (do (import x/codec/csv)
-  (list (guard (e (Err kind-of e)) (Csv parse "\"unclosed"))
-        (guard (e (Err kind-of e)) (Csv parse "ab\"cd"))
-        (guard (e (Err kind-of e)) (Csv parse "\"ab\"x,c"))
-        (guard (e (Err kind-of e)) (Csv records "a,b\n1\n"))
-        (guard (e (Err kind-of e)) (Csv emit-records (list "a") (list ())))))
+  (list (guard (e (Err tag e)) (Csv parse "\"unclosed"))
+        (guard (e (Err tag e)) (Csv parse "ab\"cd"))
+        (guard (e (Err tag e)) (Csv parse "\"ab\"x,c"))
+        (guard (e (Err tag e)) (Csv records "a,b\n1\n"))
+        (guard (e (Err tag e)) (Csv emit-records (list "a") (list ())))))
 ```
 ---
     ('value 'value 'value 'value 'value)

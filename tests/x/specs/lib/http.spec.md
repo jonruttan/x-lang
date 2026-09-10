@@ -19,8 +19,8 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 (do (import x/net/http)
   (list (Http %parse-url "http://127.0.0.1:8080/a/b?q=1")
         (Http %parse-url "http://10.0.0.5")
-        (guard (e (Err kind-of e)) (Http %parse-url "https://x.test/"))
-        (guard (e (Err kind-of e)) (Http %parse-url "ftp://x/"))))
+        (guard (e (Err tag e)) (Http %parse-url "https://x.test/"))
+        (guard (e (Err tag e)) (Http %parse-url "ftp://x/"))))
 ```
 ---
     ((('host . "127.0.0.1") ('port . 8080) ('path . "/a/b?q=1") ('tls . #f)) (('host . "10.0.0.5") ('port . 80) ('path . "/") ('tls . #f)) (('host . "x.test") ('port . 443) ('path . "/") ('tls . #t)) 'value)
@@ -71,8 +71,8 @@ both ends of a blocking exchange, so the wire stays out of the suite.
 (do (import x/net/http)
   (def %s->b (fn (_ s) (let go ((i (- (Str8 length s) 1)) (acc ()))
                          (if (< i 0) acc (go (- i 1) (pair (Char ->int (Str8 ref i s)) acc))))))
-  (list (guard (e (Err kind-of e)) (Http %parse-response (%s->b "garbage")))
-        (guard (e (Err kind-of e)) (Http %dechunk (%s->b "zz\r\n")))))
+  (list (guard (e (Err tag e)) (Http %parse-response (%s->b "garbage")))
+        (guard (e (Err tag e)) (Http %dechunk (%s->b "zz\r\n")))))
 ```
 ---
     ('value 'value)

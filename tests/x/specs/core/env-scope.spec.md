@@ -21,7 +21,7 @@ region first; the shadow bit is retired.
 ### Err raise works with a caller param named new
 
 ```x
-((fn (_ new) (guard (g (Err kind-of g)) (Err raise 'value "m" ()))) 1)
+((fn (_ new) (guard (g (Err tag g)) (Err raise 'value "m" ()))) 1)
 ```
 ---
     'value

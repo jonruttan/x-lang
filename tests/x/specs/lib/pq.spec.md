@@ -34,8 +34,8 @@ The heap structure under the queue name -- Heap is the GC class.
 ```x
 (do (import x/type/pq)
   (def q (Pq make (fn (_ a b) (< a b))))
-  (list (guard (e (Err kind-of e)) (q peek))
-        (guard (e (Err kind-of e)) (q pop!))))
+  (list (guard (e (Err tag e)) (q peek))
+        (guard (e (Err tag e)) (q pop!))))
 ```
 ---
     ('value 'value)

@@ -434,7 +434,7 @@
       (doc "The IEEE 754 bit pattern of a decimal string's double value -- FFI plumbing, NOT a parser-to-instance; (Float from) builds instances (the old from-str name claimed FLOAT and returned bits, #66)." (returns INT "IEEE 754 double bit pattern"))
       (%str->float s))
     (method from (self (param x ANY "An exact number (int, bigint, rational), a numeric string, or a float (identity)"))
-      (doc "Construct a float from any convertible value, through the conversion catalog -- the generic value door (was exact->inexact, #357). Raises kind-'type when nothing converts." (returns FLOAT "Float instance"))
+      (doc "Construct a float from any convertible value, through the conversion catalog -- the generic value door (was exact->inexact, #357). Raises tag 'type when nothing converts." (returns FLOAT "Float instance"))
       (%float-of x))
     (method ->int (self (param x FLOAT "Float value (machine ints pass through)"))
       (doc "Convert an inexact float to an exact integer by truncation." (returns INT "Truncated integer value"))

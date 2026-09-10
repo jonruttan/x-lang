@@ -82,9 +82,9 @@ First adopter: sys/file.x's stat/lstat decode.
 
 ```x
 (do (import x/codec/struct)
-  (list (guard (e (Err kind-of e))
+  (list (guard (e (Err tag e))
           (Struct unpack (list (list 'x 'float)) "ab"))
-        (guard (e (Err kind-of e))
+        (guard (e (Err tag e))
           (Struct pack (list (list 'v 'i64)) ()))))
 ```
 ---

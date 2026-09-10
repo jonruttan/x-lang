@@ -37,7 +37,7 @@
   (static
     ; --- url -> ((host . H) (port . P) (path . S)); strict per #61 ---
     (method %parse-url (self (param url STRING "http://HOST[:PORT][/PATH...]"))
-      (doc "Split an http or https url; the path defaults to \"/\", the port to the scheme's (80/443); a missing scheme raises kind-'value."
+      (doc "Split an http or https url; the path defaults to \"/\", the port to the scheme's (80/443); a missing scheme raises tag 'value."
         (returns ALIST "((host . H) (port . P) (path . S) (tls . BOOL))"))
       (def tls? (Str8 starts? "https://" url))
       (unless (if tls? #t (Str8 starts? "http://" url))
@@ -90,7 +90,7 @@
         (#t -1)))
 
     (method %dechunk (self (param bytes LIST "Chunked-framing body bytes"))
-      (doc "Decode Transfer-Encoding: chunked framing: hex-size line, that many bytes, CRLF, repeated to the zero chunk. Malformed framing raises kind-'value."
+      (doc "Decode Transfer-Encoding: chunked framing: hex-size line, that many bytes, CRLF, repeated to the zero chunk. Malformed framing raises tag 'value."
         (returns LIST "The unframed body bytes"))
       (def %bad (fn (_ what)
         (Err raise (lit value) (Str8 append "Http: bad chunked framing: " what) ())))
@@ -339,7 +339,7 @@
                           (param headers ALIST "(name . value) strings; () for none")
                           (param body ANY "Body string, or nil")
                           . (param opts ALIST "Options: (redirects . N) hop cap -- default 10, 0 disables following"))
-      (doc "An http exchange that FOLLOWS redirects (cap 10, (redirects . 0) opts out): 3xx responses with a location header re-request per RFC -- 303 as GET, 301/302 as GET when the verb was POST, 307/308 preserving method and body; relative locations resolve against the current url; cross-scheme hops (http -> https) follow. Exceeding the cap raises kind-'io."
+      (doc "An http exchange that FOLLOWS redirects (cap 10, (redirects . 0) opts out): 3xx responses with a location header re-request per RFC -- 303 as GET, 301/302 as GET when the verb was POST, 307/308 preserving method and body; relative locations resolve against the current url; cross-scheme hops (http -> https) follow. Exceeding the cap raises tag 'io."
         (returns ALIST "((status . INT) (headers . ALIST) (body . BYTE-LIST)) -- the FINAL response")
         (sample "(rest (Assoc find 'status (Http get \"http://github.com/\")))" "200 -- the 301 to https was followed"))
       (def cap

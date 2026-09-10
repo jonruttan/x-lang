@@ -11,7 +11,7 @@
 (import x/type/list)
 
 (def-class Deque ()
-  (doc "A double-ended queue: push!/pop! work the right end, push-left!/pop-left! the left, all amortized O(1) (the two-list construction). Empty pops raise kind-'value."
+  (doc "A double-ended queue: push!/pop! work the right end, push-left!/pop-left! the left, all amortized O(1) (the two-list construction). Empty pops raise tag 'value."
     (example "(let ((d (Deque make))) (d push! 2) (d push-left! 1) (d push! 3) (d ->list))" "(1 2 3)")
     (see push!) (see pop-left!))
 
@@ -50,7 +50,7 @@
     (set-member! 'front ()))
 
   (method pop-left! (self)
-    (doc "Remove and return the leftmost value: amortized O(1); raises kind-'value when empty."
+    (doc "Remove and return the leftmost value: amortized O(1); raises tag 'value when empty."
       (returns ANY "The leftmost value")
       (example "(let ((d (Deque make))) (d push! 1) (d push! 2) (d pop-left!))" "1"))
     (match
@@ -64,7 +64,7 @@
             v)))))
 
   (method pop! (self)
-    (doc "Remove and return the rightmost value: amortized O(1); raises kind-'value when empty."
+    (doc "Remove and return the rightmost value: amortized O(1); raises tag 'value when empty."
       (returns ANY "The rightmost value")
       (example "(let ((d (Deque make))) (d push! 1) (d push! 2) (d pop!))" "2"))
     (match
@@ -78,7 +78,7 @@
             v)))))
 
   (method peek-left (self)
-    (doc "The leftmost value without removing it; raises kind-'value when empty."
+    (doc "The leftmost value without removing it; raises tag 'value when empty."
       (returns ANY "The leftmost value"))
     (match
       ((= (member 'len) 0) (Err raise 'value "Deque peek-left: empty" ()))
@@ -86,7 +86,7 @@
       (#t (List last (member 'back)))))
 
   (method peek (self)
-    (doc "The rightmost value without removing it; raises kind-'value when empty. O(n) when every element sits on the far list; the pops stay amortized O(1)."
+    (doc "The rightmost value without removing it; raises tag 'value when empty. O(n) when every element sits on the far list; the pops stay amortized O(1)."
       (returns ANY "The rightmost value"))
     (match
       ((= (member 'len) 0) (Err raise 'value "Deque peek: empty" ()))

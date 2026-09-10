@@ -134,7 +134,7 @@ the Doxygen house style — live with the code they govern, in
   Never alias one to the other, and never ship a method documented "don't
   call me": a stateful container whose internals `new` cannot build guards
   at the point of harm — first USE of the uninitialized instance raises a
-  kind-`'state` Err naming `make` / `from-*` (Dict's `%slot`, Set's `%d`,
+  tag `'state` Err naming `make` / `from-*` (Dict's `%slot`, Set's `%d`,
   Array's `%live`). Input-shape constructors are `from-x` (one name per shape:
   `from-alist` / `from-plist` / `from-bindings` / `from-list`), variadic
   literals are `of`.

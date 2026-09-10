@@ -110,7 +110,7 @@
         "Z"))
 
     (method from-iso (self (param s STRING "ISO-8601 UTC timestamp: \"YYYY-MM-DDTHH:MM:SSZ\" or the bare date \"YYYY-MM-DD\""))
-      (doc "Parse an ISO-8601 UTC timestamp back to a date alist -- the inverse of ->iso (#364). Strict per #61: wrong shape, out-of-range fields, or a nonexistent civil date (Feb 30) raises kind-'value. A bare date reads as midnight."
+      (doc "Parse an ISO-8601 UTC timestamp back to a date alist -- the inverse of ->iso (#364). Strict per #61: wrong shape, out-of-range fields, or a nonexistent civil date (Feb 30) raises tag 'value. A bare date reads as midnight."
         (returns ALIST "Canonical date alist (wday included), as from-unix builds")
         (example "(Date from-iso \"2009-02-13T23:31:30Z\")" "(('year . 2009) ('month . 2) ('day . 13) ('hour . 23) ('minute . 31) ('second . 30) ('wday . 5))")
         (example "(Assoc get 'hour (Date from-iso \"1970-01-01\"))" "0")

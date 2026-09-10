@@ -560,11 +560,11 @@ booleans are a real BOOL type (#101) and refuse like everything else.
 ### wrong-type operands raise err:type across the family
 
 ```x
-(list (guard (e (Err kind-of e)) (+ 1 "abc"))
-      (guard (e (Err kind-of e)) (< 1 "a"))
-      (guard (e (Err kind-of e)) (* 2 (list 1)))
-      (guard (e (Err kind-of e)) (/ #(1) 2))
-      (guard (e (Err kind-of e)) (% 7 (pair 1 2))))
+(list (guard (e (Err tag e)) (+ 1 "abc"))
+      (guard (e (Err tag e)) (< 1 "a"))
+      (guard (e (Err tag e)) (* 2 (list 1)))
+      (guard (e (Err tag e)) (/ #(1) 2))
+      (guard (e (Err tag e)) (% 7 (pair 1 2))))
 ```
 ---
     ('type 'type 'type 'type 'type)
@@ -580,7 +580,7 @@ booleans are a real BOOL type (#101) and refuse like everything else.
 ### booleans refuse too -- BOOL is a real type (#101)
 
 ```x
-(list (Type name (Type of #t)) (guard (e (e msg)) (+ #t 1)) (guard (e (Err kind-of e)) (< #f 3)))
+(list (Type name (Type of #t)) (guard (e (e msg)) (+ #t 1)) (guard (e (Err tag e)) (< #f 3)))
 ```
 ---
     ("BOOL" "no + for BOOL" 'type)

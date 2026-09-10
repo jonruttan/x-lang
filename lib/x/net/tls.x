@@ -14,7 +14,7 @@
 ; Verification is ON by default: the build's default CA paths PLUS the
 ; system bundle at /etc/ssl/cert.pem (the union is harmless where either
 ; is absent), SNI set, hostname checked (SSL_set1_host). A failed
-; handshake raises kind-'io carrying the X509 verify-result code when
+; handshake raises tag 'io carrying the X509 verify-result code when
 ; verification is what failed (10 = expired, 18 = self-signed, ...).
 ;
 ; Library resolution order: libssl.so.3 (Linux), the Homebrew OpenSSL 3
@@ -44,7 +44,7 @@
   (static
     ; Resolve one libssl (or libcrypto) symbol, per call.
     (method %sym (self (param name STRING "Function name"))
-      (doc "The named symbol from the first loadable TLS library: libssl.so.3, Homebrew OpenSSL 3 (arm/intel), or the versioned system LibreSSL. Raises kind-'io when none loads."
+      (doc "The named symbol from the first loadable TLS library: libssl.so.3, Homebrew OpenSSL 3 (arm/intel), or the versioned system LibreSSL. Raises tag 'io when none loads."
         (returns PTR "The function pointer"))
       (def %dlopen (prim-ref (lit ffi) (lit dlopen)))
       (def %dlsym (prim-ref (lit ffi) (lit dlsym)))
@@ -69,7 +69,7 @@
     (method connect (self (param quad STRING "Dotted-quad IPv4 address (resolve names via (Socket resolve))")
                           (param port INT "Port, usually 443")
                           . (param opts ALIST "Options: (host . NAME) for SNI + hostname verification against NAME (recommended when connecting by resolved quad); ('insecure) to skip verification entirely"))
-      (doc "Open a verified TLS session: TCP connect, then handshake with SNI, the system trust stores, and hostname checking. A failed handshake raises kind-'io -- carrying the X509 verify code when verification failed (10 expired, 18 self-signed, 62 hostname mismatch)."
+      (doc "Open a verified TLS session: TCP connect, then handshake with SNI, the system trust stores, and hostname checking. A failed handshake raises tag 'io -- carrying the X509 verify code when verification failed (10 expired, 18 self-signed, 62 hostname mismatch)."
         (returns OBJECT "The session, a TlsSession record (ssl ctx fd)")
         (sample "(Tls connect \"140.82.114.3\" 443 (list (pair 'host \"github.com\")))" "a verified session"))
       (def %call (prim-ref (lit ptr) (lit call)))
@@ -109,7 +109,7 @@
 
     (method send (self (param session OBJECT "A (Tls connect) session (TlsSession record)")
                        (param s STRING "Bytes to send"))
-      (doc "Send the whole string through the session; raises kind-'io on failure."
+      (doc "Send the whole string through the session; raises tag 'io on failure."
         (returns INT "Bytes written"))
       (def %call (prim-ref (lit ptr) (lit call)))
       (def r (Tls %fold (%call (Tls %sym "SSL_write") (session ssl) s (Str8 length s))))
@@ -118,7 +118,7 @@
 
     (method recv-bytes (self (param session OBJECT "A (Tls connect) session (TlsSession record)")
                              (param maxlen INT "Maximum bytes to receive"))
-      (doc "Receive up to maxlen bytes as a byte list (the lossless carrier); nil at an orderly TLS close; raises kind-'io on transport failure."
+      (doc "Receive up to maxlen bytes as a byte list (the lossless carrier); nil at an orderly TLS close; raises tag 'io on transport failure."
         (returns ANY "Byte list, or nil at orderly close"))
       (def %call (prim-ref (lit ptr) (lit call)))
       (def %make-str (prim-ref (lit str) (lit make)))
