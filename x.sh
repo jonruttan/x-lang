@@ -1299,14 +1299,17 @@ TAIL=
 # prefix would have decided by evaluating.
 #
 # WHO WRITES IT.  A bundle's image is its installer's: `make install` runs
-# `x --image NAME` into the bundle's own .images/, so a missing or stale one
-# means boot from source, quietly -- the wrapper does not write into a
-# bundle behind its installer's back.  Every other boot (a dialect, an app)
-# is the user's own: on a miss the wrapper writes the image into the per-user
-# cache, and says so on stderr, because the first run after a library or
-# engine change pays a boot twice.  --no-image boots from source; a pinned
-# boot (--boot, or a project manifest) is never imaged, since what a pin
-# arms is per-directory state the key does not see.
+# `x --image NAME` into the bundle's own .images/, and the wrapper does not
+# write into a bundle behind its installer's back.  What it does instead,
+# when that one is missing or stale, is fall through to the per-user cache
+# it already keeps for every other boot (a dialect, an app) -- writing the
+# user's own there, and saying so on stderr, because the first run after a
+# library or engine change pays a boot twice.  A bundle needs that fallback
+# MORE than a dialect does, not less: its key carries lib/ and the engine, so
+# one platform reinstall stales every installed bundle's image at once.
+# --no-image boots from source; a pinned boot (--boot, or a project
+# manifest) is never imaged, since what a pin arms is per-directory state
+# the key does not see.
 IMAGE=
 img_root() { if [ -n "$INSTALL_ROOT" ]; then printf '%s' "$INSTALL_ROOT"; else pwd; fi; }
 img_loader() {
@@ -1362,15 +1365,45 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$PIN_FILE" ] && [ "$X_LIB"
 				[ "$_irc" -eq 0 ] && echo "x: state image for $X_LIB written to $_idir" >&2
 				rm -rf "$_itmp"
 				exit "$_irc"
-			elif [ -n "$BUNDLE_DIR" ]; then
-				[ -d "$_idir" ] && IMG_CHECK=1 X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys > /dev/null 2>&1 \
-					&& IMAGE="$_iimg"
+			elif [ -n "$BUNDLE_DIR" ] && [ -d "$_idir" ] \
+			     && IMG_CHECK=1 X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys > /dev/null 2>&1; then
+				# The installer's, and current: that is the whole
+				# point of it, so nothing else runs.
+				IMAGE="$_iimg"
 			else
-				mkdir -p "$_idir" 2>/dev/null
-				if ! IMG_CHECK=1 X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" > /dev/null 2>&1; then
-					echo "x: no current state image for $X_LIB -- writing one to $_idir (once per change of the library or engine)" >&2
-					X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" > /dev/null 2>&1 || true
+				# THE USER'S OWN CACHE -- and for a bundle this is the
+				# SECOND chance rather than the first.  The rule above
+				# still holds: nothing is written into a bundle behind
+				# its installer's back.  What was missing is what
+				# happens next, because a bundle's key carries lib/ and
+				# the engine, so ONE platform reinstall stales every
+				# installed bundle's image at once -- and the boot then
+				# fell back to source on every run, in silence, until
+				# the user thought to re-run each bundle's `make
+				# install`.  Measured on x-python the day it was found:
+				# 16.4s a boot against 0.98s from the image its
+				# installer HAD written, and not a word on stderr.
+				# The user's cache is the user's; a bundle may have one
+				# there too.
+				if [ -n "$BUNDLE_DIR" ]; then
+					_idir="${XDG_CACHE_HOME:-$HOME/.cache}/x/images/$(printf '%s' "$_iroot $BUNDLE_DIR" | shasum | cut -c1-12)"
+					_iimg="$_idir/$X_LIB.boot.x.ximg"
 				fi
+				mkdir -p "$_idir" 2>/dev/null
+				IMG_CHECK=1 X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys > /dev/null 2>&1
+				# 0 current, 3 words no image can carry (said once, by
+				# the write that found out), anything else stale or
+				# absent.  Retrying a 3 every boot would re-announce a
+				# refusal the builder already remembers.
+				case $? in
+				0|3) ;;
+				*)
+					_iwhat="the library or the engine"
+					[ -z "$BUNDLE_DIR" ] || _iwhat="the library, the bundle or the engine"
+					echo "x: no current state image for $X_LIB -- writing one to $_idir (once per change of $_iwhat)" >&2
+					X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys > /dev/null 2>&1 || true
+					;;
+				esac
 				[ -f "$_iimg" ] && IMAGE="$_iimg"
 			fi
 			[ -n "$IMAGE" ] && path_form_safe "$IMAGE" "state image"

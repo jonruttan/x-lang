@@ -5,7 +5,8 @@
 #       e.g. lib/x-core.x .images
 #       e.g. /path/x-awk/tests/lib/harness.gen.x /path/x-awk/tests/lib/.images /path/x-awk/awk
 #   IMG_CHECK=1 answers without writing: 0 current, 3 refused (marked), 4 stale
-#   or absent.  X_SH names the wrapper (an installed tree's is not ./x.sh).
+#   or absent.  X_SH names the wrapper; unset, one is found -- ./x.sh in a
+#   checkout, else <prefix>/bin/x beside an install, else the x on PATH.
 #
 # Writes OUT-DIR/<lib file name>.ximg with tools/dev/image-write.x imaging a
 # CHILD base that loaded LIB-FILE, and OUT-DIR/<name>.key beside it.  The key
@@ -91,10 +92,34 @@ fi
 # A caller that only wants the answer -- the wrapper, for a bundle whose
 # image is its installer's to write -- stops here.
 [ -n "${IMG_CHECK:-}" ] && exit 4
+# ONLY THE WRITE NEEDS A WRAPPER, so it is found here rather than at the top:
+# a check answers from the key alone and must not fail for want of an x.
+#
+# X_SH IS NAMED BY THE WRAPPER AND BY NOBODY ELSE.  Six lang bundles call this
+# script from their spec runners and not one of them sets it, so from an
+# INSTALLED tree -- which has no ./x.sh -- every one of them wrote no image at
+# all: `sh: x.sh: No such file or directory`, in the log beside the image that
+# nobody reads, and a suite that quietly booted from source at ten times the
+# cost.  A default that only works in a checkout is not a default.
+if [ -z "${X_SH:-}" ]; then
+	if [ -f "$root/x.sh" ]; then
+		X_SH="$root/x.sh"
+	elif [ -x "$root/../../bin/x" ]; then
+		# An install: the tree is <prefix>/share/x and the wrapper
+		# <prefix>/bin/x.
+		X_SH="$root/../../bin/x"
+	else
+		X_SH="$(command -v x 2>/dev/null || true)"
+	fi
+	[ -n "$X_SH" ] || {
+		echo "image-build: no x wrapper found for the writer -- set X_SH to one" >&2
+		exit 2
+	}
+fi
 echo "image-build: writing $img from $lib"
 rm -f "$img" "$keyf" "$skip"
 { printf '(def %%IMG-LIB "%s") (def %%IMG-OUT "%s")\n' "$lib" "$img"; [ -n "${X_IMG_WHO:-}" ] && printf '(def %%IMG-WHO #t)\n'; cat tools/dev/image-write.x; } \
-	| sh "${X_SH:-x.sh}" -q --no-image > "$out/$name.log" 2>&1 || true
+	| sh "$X_SH" -q --no-image > "$out/$name.log" 2>&1 || true
 grep 'objects:\|IMAGE TOTAL\|ERROR\|fault' "$out/$name.log" || true
 # A refusal the writer states -- a type it cannot describe, a transient that
 # raised in the child -- is exit 3 like an unnameable word: the caller
