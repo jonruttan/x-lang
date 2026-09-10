@@ -1574,7 +1574,13 @@ the three waited for the pin. `make images` lists them now.
   from source, quietly); every other boot writes its own on a miss into
   the per-user cache and says so on stderr. Measured: `x -l awk` 6.3s to
   0.7s, `x -l xe` 11s to 0.9s, an installed `x -l he` 4.4s to 0.4s. A pinned
-  boot is never imaged. `--no-image` boots from source.
+  boot *amalgam* (`--boot`, or a manifest's `(boot ...)`) is never imaged:
+  it is another release's boot, and the loader here is this tree's. A
+  project manifest without one is imaged into the project's own `.images/`
+  beside the manifest, like a bundle's, with the manifest in the key -- its
+  `(root ...)` rows are armed inside the prefix, so an edited manifest is a
+  different image; the overlay's modules load after the loader and need
+  no place in it. `--no-image` boots from source.
 - **Is an image a pinned artifact or a local cache?** If a lang may ship one,
   it acquires a release, a digest, and a place in the pin vocabulary. If it is
   only a cache, it needs none of that and may be deleted at any time.

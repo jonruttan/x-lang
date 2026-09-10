@@ -56,6 +56,13 @@
 #   pin-quote  a manifest DIRECTORY carrying a double quote is refused:
 #              the path is emitted as an x-lang string literal, and a
 #              quote would close it and inject forms into the boot stream
+#   image      a pinned project without a (boot ...) row boots from a state
+#              image of its own: --image lands it in the project's .images/
+#              beside the manifest, the next run boots from it with the
+#              overlay resolving, a touched manifest is a miss (the manifest
+#              keys the image), --no-image boots from source, and a manifest
+#              WITH a (boot ...) row is refused by --image as before.
+#              Skipped, and said, when the engine cannot write an image
 # (The pinned REPL path is tty-side -- the fd-3 class check-examples.sh
 # documents -- and is not smokeable here; it shares every pipe stage but
 # the final launch.x with the -f path exercised below.)
@@ -1055,5 +1062,63 @@ _sd=$(cd "$_TMP" && sh "$_repo/x.sh" --share-dir 2>"$_TMP/sderr") \
 _ep=$(cd "$_TMP" && sh "$_repo/x.sh" --engine-path 2>"$_TMP/eperr") \
   || fail "engine-path: refused to answer from outside the tree" "$_TMP/eperr"
 [ -x "$_ep" ] || fail "engine-path: answered a non-executable from outside: $_ep"
+
+# image: a pinned project (roots, no boot row) boots from an image of its
+# own, beside its manifest, keyed on the manifest.  The engine must carry
+# (image rebuild!) to write one; an engine that cannot makes --image exit
+# nonzero (the builder's 3), and the case says so and stands down rather
+# than failing a gate on a capability the pin has not reached.
+mkdir -p "$_TMP/proj9/deps/acme"
+cat > "$_TMP/proj9/deps/acme/util.x" <<'EOF'
+(def acme-marker "imaged")
+(provide acme/util acme-marker)
+EOF
+cat > "$_TMP/proj9/pin.xon" <<'EOF'
+(root "deps")
+EOF
+cat > "$_TMP/proj9/main.x" <<'EOF'
+(alloc-limit! 300000000)
+(import acme/util)
+(display acme-marker)
+(newline)
+EOF
+$TIMEOUT_CMD sh "$WRAPPER" --image -f "$_TMP/proj9/main.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+if [ "$status" -eq 0 ]; then
+  [ -f "$_TMP/proj9/.images/x.boot.x.ximg" ] \
+    || fail "image: --image did not land the image beside the manifest" "$_TMP/err"
+  $TIMEOUT_CMD sh "$WRAPPER" -v -f "$_TMP/proj9/main.x" >"$_TMP/out" 2>"$_TMP/err"
+  status=$?
+  [ "$status" -eq 0 ] || fail "image: the pinned run from the image exited $status" "$_TMP/err" "$_TMP/out"
+  grep -qx "imaged" "$_TMP/out" \
+    || fail "image: the overlay did not resolve from the image boot" "$_TMP/out" "$_TMP/err"
+  grep -q "booting from state image .*proj9/.images/x.boot.x.ximg" "$_TMP/err" \
+    || fail "image: the second run did not boot from the project's image" "$_TMP/err"
+  # the manifest keys the image: touch it and the stale image is a miss,
+  # rewritten with the notice, and the run still answers
+  printf '; touched\n' >> "$_TMP/proj9/pin.xon"
+  $TIMEOUT_CMD sh "$WRAPPER" -v -f "$_TMP/proj9/main.x" >"$_TMP/out" 2>"$_TMP/err"
+  status=$?
+  [ "$status" -eq 0 ] || fail "image: the run after a touched manifest exited $status" "$_TMP/err" "$_TMP/out"
+  grep -q "no current state image" "$_TMP/err" \
+    || fail "image: a touched manifest still booted the old image" "$_TMP/err"
+  grep -qx "imaged" "$_TMP/out" || fail "image: no answer after the rewrite" "$_TMP/out" "$_TMP/err"
+  # --no-image boots from source
+  $TIMEOUT_CMD sh "$WRAPPER" --no-image -v -f "$_TMP/proj9/main.x" >"$_TMP/out" 2>"$_TMP/err"
+  [ $? -eq 0 ] || fail "image: --no-image run failed" "$_TMP/err" "$_TMP/out"
+  grep -q "booting from state image" "$_TMP/err" \
+    && fail "image: --no-image still booted from the image" "$_TMP/err"
+  # a manifest WITH a (boot ...) row is a pinned amalgam: not imaged, as before
+  cat > "$_TMP/proj9/pin.xon" <<EOF
+(root "deps")
+(boot "$(pwd)/lib/x-core.x")
+EOF
+  $TIMEOUT_CMD sh "$WRAPPER" --image -f "$_TMP/proj9/main.x" >"$_TMP/out" 2>"$_TMP/err"
+  [ $? -ne 0 ] || fail "image: --image wrote an image for a pinned boot amalgam" "$_TMP/err"
+  grep -q "not imaged" "$_TMP/err" \
+    || fail "image: the pinned-amalgam refusal did not say why" "$_TMP/err"
+else
+  echo "pin-smoke: image case skipped -- this engine cannot write a state image (--image exited $status)" >&2
+fi
 
 echo "pin-smoke: ok"

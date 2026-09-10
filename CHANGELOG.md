@@ -5,6 +5,27 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A pinned project boots from a state image of its own.** The wrapper
+imaged every boot but one: a project with a `pin.xon` paid the full source
+traversal on every run -- seven seconds for a helium REPL that boots from
+an image in under one -- because "what a pin arms is per-directory state
+the key does not see". It sees it now. A manifest's `(root ...)` rows are
+armed inside the imaged prefix (`pin_arm` imports `x/tool/pin`, which reads
+the manifest and `import-path!`s each root), so the manifest is a key path,
+hashed as one file, and an edited manifest is a different image. The image
+lives beside the manifest, in the project's own `.images/`, the way a
+bundle's does -- the per-user cache keeps one file per dialect per install
+root, and two pinned projects would have taken turns overwriting it. The
+overlay's modules are not in the key and need not be: they load after the
+loader, on import, from the roots the image armed. What stays unimaged is
+a pinned boot *amalgam* (`--boot`, or a manifest's `(boot ...)`): another
+release's boot, which this tree's loader has no business standing in for.
+`tools/check/pin-smoke.sh` grows the case: the image lands beside the
+manifest, the second run boots from it with the overlay resolving, a
+touched manifest misses, `--no-image` boots from source, and a manifest
+with a `(boot ...)` row is refused by `--image` as before. Add `.images/`
+to a pinned project's `.gitignore`, as the bundles do.
+
 **The state images are written in parallel.** `make images` wrote its 29
 images one after another, and that loop was the longest phase of a CI
 specs job: 6m43s on the 4-core Linux runner and 9m30s on the 3-core macOS
