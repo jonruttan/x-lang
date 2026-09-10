@@ -5,6 +5,24 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The state images are written in parallel.** `make images` wrote its 29
+images one after another, and that loop was the longest phase of a CI
+specs job: 6m43s on the 4-core Linux runner and 9m30s on the 3-core macOS
+one, ahead of the 8-minute suite the images exist to speed up. The writes
+are independent, so `tools/dev/images.sh` runs them under `xargs -P`. The
+job count is bounded by memory, not cores: a writer boots a library from
+source and images the child, and measured one at a time x-base peaks at
+2.0GB, x-core at 3.2GB and the tower harness at 3.9GB -- a first cut that
+took one job per core put twelve writers on a 16GB box and took it down.
+On arm64 a job is budgeted 3.5GB: four on a 16GB box, two on the 7GB
+macOS runner, where the 29 images now take five minutes against nine and
+a half. On x86-64 the same writer is bigger -- the heap costs ~64 bytes an
+object there against ~29 -- and four jobs killed the 16GB Linux runner 49
+seconds in, so until its peak is measured x86-64 budgets 9GB a job, which
+keeps that 16GB runner serial. A box whose size cannot be read gets one, and
+`IMG_JOBS` overrides. Measured on a 12-core arm64 box: 271s serially, 84s
+at four jobs, with the suite green behind it.
+
 **CI's specs job has room to breathe.** Its 20-minute cap was set when
 the macOS run took eight; across the last eight runs of main it took 8,
 13, 15, 16, 17, 18 and 19, and PR #665's first attempt was cancelled at

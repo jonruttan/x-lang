@@ -345,14 +345,15 @@ install-man-c uninstall-man-c: ## The C reference man pages (delegates to the en
 # See docs/state-images.md.
 IMG ?= 1
 IMG_DIR ?= .images
-# A refusal (exit 3) is tested INSIDE the if: .POSIX above makes GNU make 4
-# run every recipe under `sh -ec`, where a bare non-zero status aborts the
-# loop before its own test -- ubuntu's make 4.3 stopped at the first
-# refused library while macOS's 3.81 did not, and the difference was this.
-images: $(EXECUTABLE) ## Write the state images the suite boots from (a current one is skipped)
-	@for l in lib/x-core.x lib/x.x lib/he.x lib/x-base.x lib/xe.x lib/rn.x \
-	  $$(grep -rho '^# @lib \.\./tests/x/lib/[a-z-]*\.x' tests/x/specs | sed 's|^# @lib \.\./||' | sort -u); do \
-	  if sh tools/dev/image-build.sh $$l $(IMG_DIR); then :; else s=$$?; [ $$s -eq 3 ] || exit $$s; fi; done
+IMG_JOBS ?=
+# The loop lives in tools/dev/images.sh, which runs the writes in parallel
+# under a memory-bounded job count and treats a refusal (exit 3) as a skip.
+# It used to sit here, and the refusal test had to be INSIDE its if: .POSIX
+# above makes GNU make 4 run every recipe under `sh -ec`, where a bare
+# non-zero status aborts the loop before its own test -- ubuntu's make 4.3
+# stopped at the first refused library while macOS's 3.81 did not.
+images: $(EXECUTABLE) ## Write the state images the suite boots from, in parallel (a current one is skipped)
+	@sh tools/dev/images.sh $(IMG_DIR) $(IMG_JOBS)
 .PHONY: images
 
 ifeq ($(IMG),0)
