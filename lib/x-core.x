@@ -30,6 +30,33 @@
 (include "lib/x/boot/printer.x")
 (include "lib/x/boot/string.x")
 (include "lib/x/boot/module.x")
+; --- Reclaim the load garbage as the boot goes, not only at its end ------------
+;
+; THE ENGINE NEVER COLLECTS ON ITS OWN: mark and sweep run from the heap
+; prims and nowhere else, so everything a boot allocates -- forms read,
+; closures built and dropped, every intermediate of every definition --
+; stays until something asks.  The dialect bodies ask once, after the whole
+; boot (lib/x-base.x explains why there and not in an importable module).
+; Until then a source boot's footprint is the SUM of its includes' garbage:
+; the image writer for this file peaked at 3.05GB on arm64 and 2.9GB on
+; x86-64 for a heap that holds 85K objects when it is done.
+;
+; SO THIS FILE COLLECTS BETWEEN ITS OWN INCLUDES.  It may: x-core.x is the
+; core boot, included by the dialect bodies and the test harnesses at their
+; top level and imported by nothing, so at each line below nothing of an
+; includer's is in flight -- the case the module rule guards against does
+; not arise.  Fourteen collects at the group boundaries, not one behind
+; every include: measured on a 12-core arm64 box, every include (55
+; collects) took the writer's peak to 1.20GB for +0.36s on a 1.97s boot, and
+; every fourth (13) to 1.28GB for +0.24s; the sweep is the cost, and it is
+; the same garbage either way.  The x-base writer, whose extra is the tower's
+; load burst inside boot/tower-compiled.x, went 4.14GB to 2.53GB; that burst
+; is the remainder, and the module rule keeps it out of this pass.  These
+; fourteen, interleaved against main on the same box: 1.92s to 2.29s a
+; source boot, and the writers at 1.15GB (x-core), 2.37GB (x-base), 2.58GB
+; (the tower harness, from 3.92).  A boot from a state image pays nothing.
+; The asan-boot gate, the full suite and doctest are the proof it is safe.
+((prim-ref (lit heap) (lit collect)))
 
 ; --- ONE-SHOT FROM HERE, and that is what makes x-core re-includable --------
 ; Everything below is include-ONCE, not include.  During a normal boot nothing
@@ -129,6 +156,7 @@
 ; Documentation system
 (include-once "lib/x/doc/doc.x")
 (include-once "lib/x/doc/doc-prims.x")
+((prim-ref (lit heap) (lit collect)))
 
 ; Boolean operatives
 (include-once "lib/x/core/boolean.x")
@@ -140,6 +168,7 @@
 
 ; Variadic arithmetic
 (include-once "lib/x/core/arithmetic.x")
+((prim-ref (lit heap) (lit collect)))
 
 ; Tokenizer helpers
 (include-once "lib/x/reader/intrinsics.x")
@@ -155,6 +184,7 @@
 ; to the byte primitives, and every reader/tokenizer/loader that needs bytes
 ; uses them (not the ambient (s i) call).
 (include-once "lib/x/type/str-utf8.x")
+((prim-ref (lit heap) (lit collect)))
 ; UTF-8-aware CHARACTER write/display handlers (shadow the C byte fallback)
 (include-once "lib/x/type/char-io.x")
 ; ERR write/display: the wording of an engine-raised error, which the
@@ -165,6 +195,7 @@
 (include-once "lib/x/type/class.x")
 ; Records: def-record, lightweight named-field data types over def-class.
 (include-once "lib/x/type/record.x")
+((prim-ref (lit heap) (lit collect)))
 ; Convert: the conversion dispatcher (registered in the catalog as
 ; (convert . to)) + the Convert class with the no-match policy member.
 ; Relocated past object.x from the early type-internals block -- it needs
@@ -178,6 +209,7 @@
 ; in sys/type.x (pre-object, %-private, filed under catalog ns `type`);
 ; this class presents it and carries the docs.
 (include-once "lib/x/type/type.x")
+((prim-ref (lit heap) (lit collect)))
 ; Obj: the raw object layer (slots, metadata, FFI handles) as the Obj class.
 ; ns `obj` is de-registered; boot/data.x's pair mutators fetch the prims.
 (include-once "lib/x/type/obj.x")
@@ -190,6 +222,7 @@
 ; Io: input/output surface (the Io class). ns io is de-registered except
 ; write/display (kept bare via the keep-list); the rest fetch-and-cache.
 (include-once "lib/x/type/io.x")
+((prim-ref (lit heap) (lit collect)))
 ; Fn: function combinators (the Fn class). Moved here from the early core block
 ; -- it needs def-class, and nothing loaded before object.x references it.
 (include-once "lib/x/core/fn.x")
@@ -202,6 +235,7 @@
 ; Assoc: the association-list API (the Assoc class). core/alist.x keeps the
 ; bootstrap five the object system runs on; this class delegates to them.
 (include-once "lib/x/type/assoc.x")
+((prim-ref (lit heap) (lit collect)))
 ; Heap: GC control (the Heap class; methods fetch the C prims from the
 ; catalog). Relocated from the early block -- the heap-* bare C names are
 ; bound by registration regardless of where this module loads.
@@ -212,6 +246,7 @@
 ; Vector: #() type machinery + the Vector class. Needs def-class; relocated past
 ; object.x from the early block -- nothing before it uses vectors or #() literals.
 (include-once "lib/x/type/vector.x")
+((prim-ref (lit heap) (lit collect)))
 ; Char: classification / case / comparison (the Char class). Needs def-class; the
 ; pre-object string layer uses char->integer, not these, so it relocated here.
 (include-once "lib/x/type/char.x")
@@ -223,6 +258,7 @@
 (include-once "lib/x/protocol/str/str8.x")
 (include-once "lib/x/protocol/str/utf8.x")
 (include-once "lib/x/type/str.x")
+((prim-ref (lit heap) (lit collect)))
 ; Iterator protocol: defines the Iter class + wires the iter slot on the
 ; sequence types (registered above) + consumers.
 (include-once "lib/x/type/iter.x")
@@ -234,6 +270,7 @@
 ; Gen: lazy generators (unfold-based). Needs object/list/vector, all above.
 (include-once "lib/x/type/gen.x")
 (include-once "lib/x/reader/analyser.x")
+((prim-ref (lit heap) (lit collect)))
 
 ; Quasi-quoting
 (include-once "lib/x/core/quasi.x")
@@ -243,6 +280,7 @@
 
 ; Quote reader syntax (apostrophe expr to lit expr)
 (include-once "lib/x/reader/lit-reader.x")
+((prim-ref (lit heap) (lit collect)))
 
 ; REPL
 (include-once "lib/x/repl/loop.x")
@@ -260,6 +298,7 @@
 ; (+ 1 "abc") to err:type instead of the int fallthrough's pointer math.
 ; After err.x (Err raise) and vector.x (the #() handle).
 (include-once "lib/x/core/op-guard.x")
+((prim-ref (lit heap) (lit collect)))
 
 ; BOOL claims the #t/#f singletons (#101): an x-defined type over the
 ; C statics via (obj retag!), closing the #52 boolean residual -- and
@@ -275,6 +314,7 @@
 
 ; Banner
 (include-once "lib/x/repl/banner.x")
+((prim-ref (lit heap) (lit collect)))
 
 ; Install the SIGINT handler so ctrl-c breaks loops.  On builds without
 ; signal support these primitives are absent; fall back to inert no-ops so

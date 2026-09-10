@@ -24,12 +24,15 @@
 # minutes there, against nine and a half serially).
 #  ON x86-64 THE SAME WRITER IS BIGGER -- the heap costs ~64 bytes an
 # object there against ~29 on arm64 -- and four jobs killed the 16GB
-# Linux runner 49 seconds in (exit 143, no failing image).  Its peak has
-# not been measured, so x86-64 budgets 9GB a job, which is one job on the
-# 16GB runner: the serial build it always had, until a measurement says
-# otherwise.  A box whose size cannot be read gets one -- the spec
-# runner's rule (tests/spec-runner.sh), unknown reads as small.  JOBS on
-# the command line, or IMG_JOBS through make, overrides.
+# Linux runner 49 seconds in (exit 143, no failing image).  Measured one
+# at a time in the qemu guest (2026-09-10, before the boot collects in
+# lib/x-core.x): x-core 2.9GB, x-base 6.2GB, the tower harness 7.7GB.  Two
+# of those do not share a 16GB runner, so x86-64 budgets 9GB a job, which
+# is one job there -- the serial build it always had -- until the tower's
+# load burst is reclaimed during the boot as well.  A box whose size
+# cannot be read gets one -- the spec runner's rule (tests/spec-runner.sh),
+# unknown reads as small.  JOBS on the command line, or IMG_JOBS through
+# make, overrides.
 set -e
 cd "$(dirname "$0")/../.."
 out="${1:-.images}"
