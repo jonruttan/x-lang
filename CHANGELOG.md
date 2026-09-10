@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The core boot reclaims its garbage as it goes.** The engine never
+collects on its own -- mark and sweep run from the heap prims and nowhere
+else -- and the dialect bodies collect once, after the whole boot, so a
+source boot's footprint was the sum of every include's garbage: the image
+writer for `lib/x-core.x` peaked at 3.05GB on arm64 and 2.9GB on x86-64
+for a heap that holds 85K objects when it is done, and on x86-64 the
+x-base writer reached 6.2GB and the tower harness 7.7GB, which is why the
+Linux runner writes its images one at a time. `x-core.x` now collects at
+fourteen group boundaries between its own includes; it may, because it is
+included at the top level of the dialect bodies and the harnesses and
+imported by nothing, so nothing of an includer's is in flight -- the case
+the module rule guards against does not arise. Measured on a 12-core
+arm64 box, interleaved against main: a source boot 1.92s to 2.29s, the
+x-core writer 3.05GB to 1.15GB, x-base 4.14GB to 2.37GB, the tower harness
+3.92GB to 2.58GB; a boot from a state image pays nothing. The tower's own
+load burst inside `boot/tower-compiled.x` is what remains, and stays,
+because that file is importable. The asan-boot gate, the full suite and
+doctest passed on it.
+
 **A pinned project boots from a state image of its own.** The wrapper
 imaged every boot but one: a project with a `pin.xon` paid the full source
 traversal on every run -- seven seconds for a helium REPL that boots from
