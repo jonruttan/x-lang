@@ -195,7 +195,12 @@
 (file "lib/x/protocol/seq.x" 1)
 (file "lib/x/protocol/str/str8.x" 14)
 (file "lib/x/protocol/str/utf8.x" 5)
-(file "lib/x/reader/intrinsics.x" 5)
+; intrinsics.x rose 5 to 8 for the variant channel: %score-variant-cell (the raw
+; door to the cell the engine hangs off the score), %score-variant! (the
+; analyser's end) and %read-variant (the reader's end) -- per-token intrinsics on
+; the analyser protocol, the same grounds as %score-set beside them
+; (reader/analyser.x: class dispatch allocates mid-reader-callback).
+(file "lib/x/reader/intrinsics.x" 8)
 (file "lib/x/reader/lit-reader.x" 21)
 (file "lib/x/reader/quasi-reader.x" 9)
 (file "lib/x/reader/analyser.x" 14)
@@ -249,7 +254,10 @@
 ; %asm-prim-type (deciding at GENERATION whether a named fvar can be called),
 ; %jit-call-value (the new trampoline) and %asm-analyser? (the calling world,
 ; declared now instead of inferred from whether fvars are present).
-(file "lib/x/tool/asm-compile.x" 79)
+; asm-compile.x rose 79 to 81 for the variant channel: %jit-score-variant (the
+; optional trampoline binding, the %jit-buffer-last-char shape) and
+; %asm-compile-score-variant (its emitter, the %asm-compile-score-set shape).
+(file "lib/x/tool/asm-compile.x" 81)
 ; asm.x rose 37 to 38 for %ptr-ref: the relocator reads a site back (the
 ; ARM64 MOVZ carries the destination register) rather than making every
 ; relocation record carry one.

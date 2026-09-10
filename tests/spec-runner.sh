@@ -495,16 +495,24 @@ for _spec in "$@"; do
   # meant every gated file skipped against every RELEASED engine whatever that
   # engine declared: a check that cannot pass is not a check, and this one
   # failed shut in the configuration a consumer's CI actually runs.
-  _req=$(sed -n 's/^# @requires //p' "$_spec" | head -1)
-  if [ -n "$_req" ] && [ "$_args_mode" != 1 ]; then
+  # EVERY `# @requires` LINE GATES, not the first.  A file that needs two
+  # capabilities -- the compiled variant channel needs native/jit AND tok/variant
+  # -- was read with `head -1`, gated on one, and ran where the other was
+  # absent; the skip names the capability that was missing.
+  _reqs=$(sed -n 's/^# @requires //p' "$_spec")
+  if [ -n "$_reqs" ] && [ "$_args_mode" != 1 ]; then
     if [ -n "${X_ENGINE_DIR:-}" ]; then
       _xon="$X_ENGINE_DIR/x-engine.xon"
     else
       _xon="$(dirname "$X_BIN")/engine/x-engine.xon"
       [ -f "$_xon" ] || _xon="$(dirname "$X_BIN")/x-engine.xon"
     fi
-    if ! grep -q "(provides $_req)" "$_xon" 2>/dev/null; then
-      printf '[skip %s: requires %s]\n' "$(basename "$_spec" .spec.md)" "$_req"
+    _missing=""
+    for _req in $_reqs; do
+      grep -q "(provides $_req)" "$_xon" 2>/dev/null || _missing="$_req"
+    done
+    if [ -n "$_missing" ]; then
+      printf '[skip %s: requires %s]\n' "$(basename "$_spec" .spec.md)" "$_missing"
       continue
     fi
   fi

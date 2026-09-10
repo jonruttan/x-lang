@@ -109,6 +109,10 @@
 ; -- at %emit-call! -- and falls back, which is what the delimiter's %tower-asm
 ; ladder wants.
 (def %jit-buffer-last-char (%jit-bind! (lit %jit-buffer-last-char) "jit_buffer_last_char" #t))
+; jit_score_variant is newer still, and OPTIONAL for the same reason: only a
+; state that declares a variant needs it, and an engine without it must keep
+; compiling every state that does not.
+(def %jit-score-variant (%jit-bind! (lit %jit-score-variant) "jit_score_variant" #t))
 ; jit_call_value is newer still, and OPTIONAL for the same reason: an
 ; engine with the JIT but not this symbol must keep compiling every form
 ; that does not need it.  A call through a computed head is the only form
@@ -608,6 +612,20 @@
       (asm-load-imm64! asm x1 sign-val))  ; x1 = sign
     (%emit-call! asm %jit-score-set)))
 
+; Compile (%score-variant! score variant): jit_score_variant(score, variant).  The
+; score is an OBJECT, loaded the way %score-set loads it; the variant is a
+; literal integer, like the sign, and lands in x1 the same way.
+(def %asm-compile-score-variant
+  (fn (_ asm args params)
+    (if (symbol? (first args))
+      (%asm-compile-param asm (first args) params #f)
+      (%asm-compile-expr asm (first args) params))
+    (def variant-val (first (rest args)))
+    (if (and (>= variant-val 0) (<= variant-val 65535))
+      (asm-emit! asm 'mov x1 (imm variant-val))
+      (asm-load-imm64! asm x1 variant-val))   ; x1 = variant
+    (%emit-call! asm %jit-score-variant)))
+
 ; Compile a unary buffer call -- (%buffer-unread b), (%buffer-len b),
 ; (%buffer-last-char b): eval the single buffer argument into x0, then call
 ; the given jit_buffer_* trampoline.  One shape, three (and counting)
@@ -716,8 +734,10 @@
                         (%asm-compile-callable-call asm (first args) (rest args) params)
                       (if (eq? op '%seq)
                         (%asm-compile-seq asm args params)
-                        (if (eq? op '%score-set)
-                          (%asm-compile-score-set asm args params)
+                        (if (if (eq? op '%score-set) #t (eq? op '%score-variant!))
+                          (if (eq? op '%score-set)
+                            (%asm-compile-score-set asm args params)
+                            (%asm-compile-score-variant asm args params))
                           (if (eq? op '%buffer-unread)
                             (%asm-compile-buffer-op asm args params %jit-buffer-unread)
                             (if (eq? op '%buffer-last-char)
