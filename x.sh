@@ -1307,9 +1307,17 @@ TAIL=
 # library or engine change pays a boot twice.  A bundle needs that fallback
 # MORE than a dialect does, not less: its key carries lib/ and the engine, so
 # one platform reinstall stales every installed bundle's image at once.
-# --no-image boots from source; a pinned boot (--boot, or a project
-# manifest) is never imaged, since what a pin arms is per-directory state
-# the key does not see.
+# --no-image boots from source.  A pinned boot AMALGAM (--boot, or a
+# manifest's (boot ...)) is never imaged: it is another release's boot, and
+# the loader here is this tree's.  A project MANIFEST without one is: its
+# image lives beside the manifest, in the project's own .images/, like a
+# bundle's -- one file per dialect per install root would have two projects
+# taking turns overwriting each other's -- and the manifest is in the key,
+# because its (root ...) rows are armed INSIDE the prefix (pin_arm imports
+# x/tool/pin, which reads the manifest and import-path!s each root), so an
+# edited manifest is a different image.  The overlay's modules are not in
+# the key and need not be: they load after the loader, on import, from the
+# roots the image armed.
 IMAGE=
 img_root() { if [ -n "$INSTALL_ROOT" ]; then printf '%s' "$INSTALL_ROOT"; else pwd; fi; }
 img_loader() {
@@ -1325,7 +1333,7 @@ img_loader() {
 # through itself, written on every cold cache for nothing -- the image spec's
 # fifteen probes each boot it, and on a slow runner those writes cost the
 # file its budget.
-if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$PIN_FILE" ] && [ "$X_LIB" != img ]; then
+if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ "$X_LIB" != img ]; then
 	_iroot=$(img_root)
 	_ibuild="$_iroot/tools/dev/image-build.sh"
 	if [ -f "$_ibuild" ] && [ -f "$_iroot/lib/img.x" ]; then
@@ -1333,6 +1341,12 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$PIN_FILE" ] && [ "$X_LIB"
 		if [ -n "$BUNDLE_DIR" ]; then
 			_idir="$BUNDLE_DIR/.images"
 			_ikeys="$BUNDLE_DIR $BUNDLE_DEPS"
+		elif [ -n "$PIN_FILE" ]; then
+			# The project's own, beside its manifest; the manifest keys it
+			# (a file as a KEY-PATH is hashed as one).  PIN_FILE is
+			# absolute: the probe above resolved it with pwd.
+			_idir="$(dirname "$PIN_FILE")/.images"
+			_ikeys="$PIN_FILE"
 		else
 			_idir="${XDG_CACHE_HOME:-$HOME/.cache}/x/images/$(printf '%s' "$_iroot" | shasum | cut -c1-12)"
 			_ikeys=""
@@ -1400,6 +1414,7 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$PIN_FILE" ] && [ "$X_LIB"
 				*)
 					_iwhat="the library or the engine"
 					[ -z "$BUNDLE_DIR" ] || _iwhat="the library, the bundle or the engine"
+					[ -z "$PIN_FILE" ] || _iwhat="the library, the manifest or the engine"
 					echo "x: no current state image for $X_LIB -- writing one to $_idir (once per change of $_iwhat)" >&2
 					X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys > /dev/null 2>&1 || true
 					;;
@@ -1413,7 +1428,7 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ -z "$PIN_FILE" ] && [ "$X_LIB"
 fi
 if [ -n "$image_write" ]; then
 	echo "Error: --image: nothing to write for '$X_LIB'" >&2
-	echo "  a pinned boot is not imaged, and the tree must carry tools/dev/image-build.sh" >&2
+	echo "  a pinned boot amalgam (--boot, or a manifest's (boot ...)) is not imaged, and the tree must carry tools/dev/image-build.sh" >&2
 	exit 1
 fi
 
