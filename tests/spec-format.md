@@ -118,6 +118,36 @@ In this mode leading blank lines are ignored and the trailing newline is
 trimmed; interior blank lines are significant. Errors are assertable too: the
 harness prints an uncaught error to stdout as `Error: <value>`.
 
+### NUL bytes
+
+A zero byte in the captured output reaches the comparison as the literal text
+`<<NUL>>`, so a spec asserts one by writing `<<NUL>>` in its expected block:
+
+````markdown
+### writes a zero byte
+```x
+(File write 1 buf 3)
+```
+---
+```output
+a<<NUL>>b
+```
+````
+
+Escaping happens in the pipeline, before awk reads the line, because awk is a
+C-string language: a raw NUL TERMINATES a record, so the rest of the line used
+to be lost silently (`a\0b` compared as `a`). Only stdout is escaped -- a NUL
+in stderr still truncates the diagnostic the harness quotes on a crash.
+
+Two caveats. `display` stops at the zero byte itself, so it cannot put one on
+the wire; use a door that takes an explicit length, like `(File write)`. And
+like `<<SEP>>`, the sentinel is in-band: a program that prints the seven
+characters `<<NUL>>` is indistinguishable from one that prints a zero byte.
+
+The escaper needs `perl`. Without it the runner warns once and the old
+truncation stands, so a spec asserting `<<NUL>>` fails rather than passing
+quietly. `SPEC_NUL_FILTER` overrides the command (set it empty to disable).
+
 ## Running tests
 
 Each lang has a `spec-runner.sh` that sets three variables
@@ -184,8 +214,16 @@ Content is collected from fenced blocks (literal, between `` ``` ``
 markers) or indented blocks (4-space / tab prefix stripped). Bare lines
 are ignored.
 
-Test execution pipes `cat $LANG_LIB $tmpfile | $X_BIN 2>/dev/null`,
-strips REPL prompts (`> `, `$ `), and compares the last non-empty output
-line against the expected value — unless the expected block is fenced as
-`` ```output ``, in which case the full multi-line output is compared (leading
-blanks ignored, trailing newline trimmed, interior blanks significant).
+Test execution pipes `cat $LANG_LIB $tmpfile | $X_BIN`, strips REPL prompts
+(`> `, `$ `), and compares the last non-empty output line against the expected
+value — unless the expected block is fenced as `` ```output ``, in which case
+the full multi-line output is compared (leading blanks ignored, trailing
+newline trimmed, interior blanks significant).
+
+Two stages sit between the engine and the comparison. Stderr is redirected to a
+file, quoted only when a death message is being built (a green batch never
+opens it). Stdout passes through the NUL escaper, so a zero byte arrives as
+`<<NUL>>` instead of truncating the record — see **NUL bytes** above. Because
+that escaper is the pipeline's last command, the engine's own exit status is
+echoed to a file inside the pipeline rather than taken from `close()`, which
+would otherwise report the escaper's 0 and lose the crash code.

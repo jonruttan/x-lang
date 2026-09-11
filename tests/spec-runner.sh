@@ -49,6 +49,39 @@ if [ -n "$_TIMEOUT_BIN" ]; then
   TIMEOUT_APPL="$_TIMEOUT_BIN ${TIMEOUT_APPL_SECS:-120}"
 fi
 
+# NUL escaper for the captured stdout.  awk is a C-string language: a NUL byte
+# in a record TERMINATES it, so `cmd | getline` silently truncated a test's
+# output at the first zero byte and no spec could ever assert one (a program
+# emitting "a\0b" was compared as "a").  The fix is to escape the byte BEFORE
+# awk reads it, into the harness's existing in-band sentinel style: a real NUL
+# arrives at the comparison as the literal text `<<NUL>>`, which a spec writes
+# in its expected block.  This is a NO-OP for NUL-free output -- every other
+# byte passes through untouched -- so no existing spec is affected.
+#
+# perl is the escaper because it is the only tool here that is both byte-clean
+# and able to EXPAND one byte into several: BSD sed cannot even express a NUL
+# match ("first RE may not be empty"), and tr is strictly 1:1 so it can only
+# swap the byte for another single byte, not for readable text.
+#
+# Written WITHOUT a backslash on purpose -- see the chr(0) note in
+# spec-runner.awk before "simplifying" it to s/\x00/.
+#
+# SPEC_NUL_FILTER overrides the escaper (set it empty to turn escaping off, or
+# to a command of your own on a host whose perl is unusable).  Set-but-empty is
+# a deliberate choice, so it passes without the warning below.
+_NUL_FILTER=""
+if [ -n "${SPEC_NUL_FILTER+set}" ]; then
+  _NUL_FILTER="$SPEC_NUL_FILTER"
+elif command -v perl >/dev/null 2>&1; then
+  _NUL_FILTER="perl -pe 'BEGIN{\$z=chr(0)} s/\$z/<<NUL>>/g'"
+else
+  # No escaper: the truncation stands.  Say so once, loudly.  A spec that
+  # asserts `<<NUL>>` then FAILS on this host (expected `a<<NUL>>b`, got `a`)
+  # rather than passing silently, which is the safe direction to degrade.
+  printf '%bWARNING: no perl; NUL bytes in captured output cannot be asserted%b\n' \
+    "$ANSI_RED" "$ANSI_RESET" >&2
+fi
+
 # Memory runaway guard (complements the wall-time timeout above). The timeout
 # bounds CPU/wall-time; this bounds MEMORY: the interpreter stops a runaway ./x-bin
 # once its allocated-object count reaches the ceiling, instead of allocating
@@ -348,6 +381,7 @@ _spawn() {
           -v SEAM_COLLECT="$SPEC_SEAM_COLLECT" \
           -v SPEC_ID="$_I" \
           -v IMG_DIR="${X_IMG_DIR:-}" \
+          -v NUL_FILTER="$_NUL_FILTER" \
           -v X_ROOT="$_X_ROOT" \
           -f "$RUNNER" "$@"
     ) &
@@ -362,6 +396,7 @@ _spawn() {
         -v SEAM_COLLECT="$SPEC_SEAM_COLLECT" \
         -v SPEC_ID="$_I" \
         -v IMG_DIR="${X_IMG_DIR:-}" \
+        -v NUL_FILTER="$_NUL_FILTER" \
         -v X_ROOT="$_X_ROOT" \
         -f "$RUNNER" "$@"
     _t1=$(date +%s); _dt=$((_t1 - _t0))
