@@ -166,6 +166,15 @@
 
 (def %emit-call!
   (fn (_ asm addr)
+    ; An unresolved OPTIONAL trampoline is address 0 (%jit-addr), and `blr 0`
+    ; is a SIGSEGV arbitrarily far from the cause: x-python's compiled number
+    ; states declared a variant through jit_score_variant on an engine that
+    ; had no such symbol, and the first number token after the swap died.
+    ; Refuse here, once, for every caller -- the compile raises, the caller's
+    ; guard falls back, and the interpreted twin runs.
+    (if (= addr 0)
+      (Err raise 'state
+        "asm-compile: this engine lacks a JIT symbol the form needs, so it cannot be compiled" ()))
     ; The immediate about to be emitted is a dlsym address -- per-process, so
     ; a relocation site.  Record where it lands before emitting it.
     (asm-reloc! asm (asm-pos asm) (lit trampoline) (%jit-name-of addr))
@@ -617,6 +626,14 @@
 ; literal integer, like the sign, and lands in x1 the same way.
 (def %asm-compile-score-variant
   (fn (_ asm args params)
+    ; Refuse BY NAME when this engine has no jit_score_variant (the bind is
+    ; optional, so the address is 0), the way %asm-compile-callable-call does
+    ; for jit_call_value: a bundle probes the lane by compiling exactly this
+    ; form, and must hear no rather than get a state that calls address 0.
+    (if (= %jit-score-variant 0)
+      (Err raise 'state
+        (Str append "asm-compile: this engine has no jit_score_variant, so "
+          "a state that declares a variant cannot be compiled") ()))
     (if (symbol? (first args))
       (%asm-compile-param asm (first args) params #f)
       (%asm-compile-expr asm (first args) params))

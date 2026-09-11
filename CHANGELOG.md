@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The assembler lane refuses a form it cannot spell on this engine, instead
+of calling address 0.** An optional JIT symbol -- `jit_score_variant`,
+`jit_buffer_last_char` -- binds as 0 on an engine that lacks it, so that
+every other form keeps compiling; but a form that needed one was emitted
+anyway, as `blr 0`, and died arbitrarily far from the cause: x-python's
+compiled number states declared their variant on an engine without the
+symbol and the first number token after the swap segfaulted (its main-lane
+CI, 3 of 5 runs). `%emit-call!` now refuses an address of 0 with a `'state`
+Err, and `%score-variant!` refuses by name the way a call through a value
+already did, so a bundle's probe hears no and its guard keeps the
+interpreted twin. Pinned in `ext/jit-optional-symbol.spec.md` on every
+engine, by standing in for the missing symbol.
+
 **An error's classifying symbol is its TAG, not its "kind".** `Err` grew
 up saying `kind`: `(Err kind-of e)`, `(e kind? 'io)`, the `kind` field,
 `(Err make kind msg data)`, and every doc string that promised "a kind-'io
