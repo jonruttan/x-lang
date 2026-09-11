@@ -110,7 +110,7 @@ function collect() {
 	state = 0
 }
 
-function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, got, boundary_done, seen, want, _tn, _tp) {
+function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, got, boundary_done, seen, want, _tn, _tp, statfile, _st) {
 	if (repl_cmd == " " || t_direct[from]) {
 		# Direct mode: feed tests to the lang REPL without
 		# %T harness or (begin ...) wrapper.  Used by Sweet where
@@ -250,7 +250,36 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 				boot = boot "; echo '(repl)'"
 		}
 	}
-	cmd = "{ echo \"(alloc-limit! ${X_ALLOC_LIMIT_OBJS:-0})\"; " boot "; cat " q(tmpfile) "; } | " timeout_pfx q(X_BIN) " 2>" q(errfile)
+	# THE CAPTURE.  The engine's stdout is read below with `cmd | getline`, and
+	# awk is a C-string language: a NUL byte in a record TERMINATES it, so the
+	# raw pipeline truncated a test's output at the first zero byte -- "a\0b"
+	# was compared as "a", and no spec could assert a NUL at all.  NUL_FILTER
+	# (set by spec-runner.sh) escapes the byte to the literal text `<<NUL>>`
+	# BEFORE awk reads it, in the same in-band sentinel style as <<SEP>>; a
+	# spec asserts it by writing `<<NUL>>` in its expected block.  Every other
+	# byte passes through untouched, so this is a no-op for NUL-free output.
+	#
+	# The perl the .sh builds matches chr(0) instead of \x00 because awk's -v
+	# performs escape processing on its value: a backslash-0 in the filter text
+	# would itself be turned into a NUL byte on the way in.  Keep it
+	# backslash-free.
+	#
+	# Only stdout is escaped.  A NUL in the engine's STDERR still truncates the
+	# message read out of errfile below -- that text is diagnostic, never an
+	# assertion, so it is left alone rather than given a second filter.
+	#
+	# statfile exists because the escaper is the LAST stage of the pipeline,
+	# and a shell pipeline's exit code is its last command's: close(cmd) would
+	# report perl's 0 and hide the engine's crash/timeout status, which the
+	# died-mid-batch diagnosis below depends on.  The engine's real status is
+	# echoed to the file inside the pipeline and read back after close().  The
+	# rm rides in the same group (one less fork than a system() call): a batch
+	# killed before the echo must not read the PREVIOUS batch's status, since
+	# one job runs a batch per @lib group under the same SPEC_ID.
+	statfile = TMPDIR "/spec-" SPEC_ID ".status"
+	cmd = "{ echo \"(alloc-limit! ${X_ALLOC_LIMIT_OBJS:-0})\"; " boot "; cat " q(tmpfile) "; } | { rm -f " q(statfile) "; " timeout_pfx q(X_BIN) " 2>" q(errfile) "; echo $? >" q(statfile) "; }"
+	if (NUL_FILTER != "")
+		cmd = cmd " | " NUL_FILTER
 
 	tidx = from
 	output = ""
@@ -289,6 +318,12 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 		}
 	}
 	cmd_status = close(cmd)
+	# The engine's OWN exit code, not the escaper's (see the statfile note at
+	# the pipeline above).  Missing or empty means the pipeline never reached
+	# the echo -- the whole job was killed -- so keep close()'s value there.
+	if ((getline _st < statfile) > 0 && _st != "")
+		cmd_status = _st + 0
+	close(statfile)
 
 	# Account for tests with no <<SEP>> separator of their own.  Standard mode
 	# emits a trailing separator after the last test, so a healthy run leaves
@@ -300,8 +335,9 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 	# silent pass -- surfacing it is the whole point of the harness.  (Before:
 	# only the boundary test was handled and the rest of the batch was dropped
 	# from the counts, so a crash made the tail of a spec file read as passing.
-	# cmd_status is the pipeline exit code where the awk reports it -- 0 on the
-	# one-true-awk, the real code on gawk/mawk.)
+	# cmd_status is the engine's exit code, read from statfile just above: it
+	# used to come from close(), which the one-true-awk reports as 0, so the
+	# code was only ever visible on gawk/mawk.)
 	boundary_done = 0
 	while (tidx <= to) {
 		got = t_full[tidx] ? rtrim_blank(output) : output
