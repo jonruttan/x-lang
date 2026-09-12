@@ -240,6 +240,34 @@
       (%sk-ptr-call %c-close fd)
       ())
 
+    ; --- The port the kernel chose. A bind to port 0 gets an ephemeral
+    ; port, and getsockname is the only way to learn which: it fills a
+    ; sockaddr_in whose port sits at bytes 2-3, network order, on both
+    ; OSes. Cold path ((%sk ...) per call), like sendto/recvfrom below,
+    ; so the module's %-globals budget stays flat.
+
+    (method local-port (self (param fd INT "A bound or listening file descriptor"))
+      (doc "The local port fd is bound to -- the one the kernel chose when the bind asked for port 0. TCP and UDP alike."
+        (returns INT "The bound port, host order")
+        (sample "(Socket local-port (Socket tcp-listen 0))" "an ephemeral port, e.g. 52341"))
+      (def addr (%sk-int->ptr (%sk-ptr-call %c-malloc 16)))
+      (def alen (%sk-int->ptr (%sk-ptr-call %c-malloc 4)))
+      (%sk-ptr-call %c-memset addr 0 16)
+      (%sk-set1! alen 0 16)
+      (%sk-set1! alen 1 0) (%sk-set1! alen 2 0) (%sk-set1! alen 3 0)
+      (def %free-both (fn (_)
+        (%sk-ptr-call %c-free addr)
+        (%sk-ptr-call %c-free alen)))
+      (def r (%sk-fold (%sk-ptr-call (%sk "getsockname") fd addr alen)))
+      (when (< r 0)
+        (let ((en (Err errno-of r)))
+          (%free-both)
+          (error (Err from-errno en 'getsockname fd))))
+      (def %u8at (prim-ref (lit ptr) (lit ref)))
+      (def port (+ (* 256 (& (%u8at addr 2 1) 255)) (& (%u8at addr 3 1) 255)))
+      (%free-both)
+      port)
+
     ; --- UDP (#364). SOCK_DGRAM = 2 on both OSes. Cold paths resolve
     ; sendto/recvfrom per call ((%sk ...)), keeping the module's %-globals
     ; budget flat.

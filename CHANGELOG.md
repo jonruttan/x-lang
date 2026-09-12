@@ -7,6 +7,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.14.0] - 2026-09-12
 
+**The socket specs let the kernel pick their ports.** Four cases bound
+fixed ports, two of them inside the ephemeral range macOS hands to any
+process that asks, and on 2026-09-12 Spotify held UDP 49364 when the
+release tag's pre-push suite ran: `bind: Address already in use`, the
+gate red on a port the test had no claim to. There was no way to bind
+port 0 and learn what was chosen, so `Socket local-port` is new:
+`getsockname` on a bound or listening fd, the port read from bytes 2-3
+of the sockaddr, TCP and UDP alike, a cold `(%sk ...)` resolve like
+`sendto` so the module's %-globals budget is unchanged. Every fixed port
+in `lib/socket.spec.md` is now a bind to 0 followed by `local-port`,
+which also makes the eaddrinuse, frees-on-close and econnrefused cases
+say what they claim rather than "47913 happened to be free"; the door
+has two cases of its own, one for the failure path.
+
 **The assembler lane refuses a form it cannot spell on this engine, instead
 of calling address 0.** An optional JIT symbol -- `jit_score_variant`,
 `jit_buffer_last_char` -- binds as 0 on an engine that lacks it, so that
