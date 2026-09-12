@@ -144,7 +144,16 @@ jobs:
   gates:
     name: gates (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    # 30, not 20 (2026-09-12): the full set has run 16-20 minutes on both
+    # OSes since 2026-09-09 and tripped the 20-minute cap in nine of the
+    # last thirteen main runs, on one OS or the other, with every gate that
+    # got to print printing ok.  pin-smoke alone is ten minutes on the
+    # ubuntu runner.  A cap that a green run hits is not a gate, it is a
+    # coin -- and the release workflow reads this job's verdict, so a
+    # tripped cap here sent the v0.14.0 tag into a 45-minute fallback that
+    # could not finish either.  Same lesson, one job over, as the specs
+    # job's 30 (#666).
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

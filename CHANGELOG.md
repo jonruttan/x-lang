@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**CI's gates job has room to breathe too.** Its 20-minute cap was fine
+when the full contract set ran in twelve; since 2026-09-09 it has run
+16 to 20 minutes on both runners -- pin-smoke alone is ten on ubuntu,
+asan-boot five -- and the cap tripped in nine of the last thirteen main
+runs, on one OS or the other, with every gate that got to print printing
+ok. Main had no green run for four days, and the release workflow reads
+this job's verdict: with none for the v0.14.0 tag it fell back to running
+the whole suite itself under its own 45-minute cap, which it could not
+make either. The cap is 30 now, the specs job's number (#666), for the
+same reason.
+
 ## [0.14.0] - 2026-09-12
 
 **The socket specs let the kernel pick their ports.** Four cases bound
