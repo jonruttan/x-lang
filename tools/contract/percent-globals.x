@@ -223,7 +223,7 @@
 ; one lane where that is exactly what must not happen (x-lang#590).  The rest
 ; are the size cap and the stand-aside seam -- the two reasons this module
 ; declines an expression rather than keying it.
-(file "lib/x/tool/asm-cache.x" 66)
+(file "lib/x/tool/asm-cache.x" 65)
 ; asm-compile.x rose 63 to 64 for %jit-addr-optional: an OPTIONAL JIT
 ; trampoline (jit_buffer_last_char, newer than the core set) resolves through
 ; it WITHOUT recording a miss, so an older engine that lacks only that symbol

@@ -87,6 +87,58 @@ symbol, a trampoline's name as the dlsym string.
 ---
     (#t #t #t #t)
 
+## size is not a reason to miss
+
+The first cache stood aside above 128 nodes, and its slurp read one 64KB
+buffer and called a full one a miss. Both were sized for the boot's
+analysers (9 to 42 nodes, entries of a few hundred bytes), and both turned
+away exactly the expression that hurt most: sha256-jit's 12,241-node fill
+body compiled for nine seconds in every process that digested more than
+64KB, with its 82KB record file sitting in the cache, unread past the first
+64KB. The key text is spelled by the C `write-to-str` door and hashed by
+FNV, both linear, so the probe is a fixed small fraction of a compile at any
+size -- there is no size at which standing aside pays.
+
+### a body well past the old node cap is keyed, and its second compile is a load
+
+Three hundred nodes, generated: an unrolled chain of adds. `%asm-cache-load`
+answering a callable is the proof the entry was stored and read back whole.
+
+```scheme
+(do
+  (def %chain (fn (self i acc) (if (= i 0) acc (self (- i 1) (list '+ 1 acc)))))
+  (def %e (list 'fn '(_ x) (%chain 150 'x)))
+  (def %t (%asm-cache-text %e () #f))
+  (def %f (compile-asm %e))
+  (def %g (%asm-cache-load %t (%asm-cache-path %t) ()))
+  (write (list (%f 2) (if (null? %g) 'miss (%g 2))))
+  (newline))
+```
+---
+    (152 152)
+
+### an entry longer than one read round loads whole
+
+The slurp reads in rounds of `%asm-cache-slurp-chunk`; a full round grows the
+buffer and reads on. Shrinking the round to 64 bytes makes even a tiny entry
+take several, and a hit under that setting is a hit on an 82KB entry under the
+default.
+
+```scheme
+(do
+  (def %e '(fn (_ x) (+ x 40)))
+  (def %t (%asm-cache-text %e () #f))
+  (compile-asm %e)
+  (def %saved %asm-cache-slurp-chunk)
+  (set! %asm-cache-slurp-chunk 64)
+  (def %g (%asm-cache-load %t (%asm-cache-path %t) ()))
+  (set! %asm-cache-slurp-chunk %saved)
+  (write (if (null? %g) 'miss (%g 2)))
+  (newline))
+```
+---
+    42
+
 ## everything else misses
 
 ### the key carries the engine and the machine
