@@ -1404,6 +1404,7 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ "$X_LIB" != img ]; then
 					_iimg="$_idir/$X_LIB.boot.x.ximg"
 				fi
 				mkdir -p "$_idir" 2>/dev/null
+				_istale=
 				IMG_CHECK=1 X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys > /dev/null 2>&1
 				# 0 current, 3 words no image can carry (said once, by
 				# the write that found out), anything else stale or
@@ -1412,14 +1413,28 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ "$X_LIB" != img ]; then
 				case $? in
 				0|3) ;;
 				*)
-					_iwhat="the library or the engine"
-					[ -z "$BUNDLE_DIR" ] || _iwhat="the library, the bundle or the engine"
-					[ -z "$PIN_FILE" ] || _iwhat="the library, the manifest or the engine"
-					echo "x: no current state image for $X_LIB -- writing one to $_idir (once per change of $_iwhat)" >&2
-					X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys > /dev/null 2>&1 || true
+					if [ -n "${X_IMAGE_NO_WRITE:-}" ]; then
+						# THE WRITER'S OWN HOST.  image-build.sh boots
+						# helium through this wrapper to run the writer,
+						# and a host that wrote on a miss would be that
+						# script calling itself.  It booted with --no-image
+						# for that reason -- from source, every time: 2.3s
+						# of a 5.7s write on arm64, when a current image,
+						# once there is one, is the same helium in 0.4s.
+						# So this mode: a current image is used, a stale
+						# or absent one is neither written nor used, and
+						# the boot is from source.
+						_istale=1
+					else
+						_iwhat="the library or the engine"
+						[ -z "$BUNDLE_DIR" ] || _iwhat="the library, the bundle or the engine"
+						[ -z "$PIN_FILE" ] || _iwhat="the library, the manifest or the engine"
+						echo "x: no current state image for $X_LIB -- writing one to $_idir (once per change of $_iwhat)" >&2
+						X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys > /dev/null 2>&1 || true
+					fi
 					;;
 				esac
-				[ -f "$_iimg" ] && IMAGE="$_iimg"
+				[ -z "$_istale" ] && [ -f "$_iimg" ] && IMAGE="$_iimg"
 			fi
 			[ -n "$IMAGE" ] && path_form_safe "$IMAGE" "state image"
 		fi

@@ -118,8 +118,16 @@ if [ -z "${X_SH:-}" ]; then
 fi
 echo "image-build: writing $img from $lib"
 rm -f "$img" "$keyf" "$skip"
+# THE WRITER RUNS ON HELIUM, booted through the wrapper -- and that boot is
+# most of a write.  It ran with --no-image, from source every time, so that a
+# host missing its own image could not write one and land back here: 2.3s of
+# a 5.7s write on arm64, 29 times over in `make images`, once per pinned
+# project's first boot.  X_IMAGE_NO_WRITE is the mode that answers the
+# recursion without the source boot: a current image is used (the same helium
+# in 0.4s), a stale or absent one is neither written nor used.  Measured
+# 2026-09-12: an x.x write 3.7s from 5.7.
 { printf '(def %%IMG-LIB "%s") (def %%IMG-OUT "%s")\n' "$lib" "$img"; [ -n "${X_IMG_WHO:-}" ] && printf '(def %%IMG-WHO #t)\n'; cat tools/dev/image-write.x; } \
-	| sh "$X_SH" -q --no-image > "$out/$name.log" 2>&1 || true
+	| X_IMAGE_NO_WRITE=1 sh "$X_SH" -q > "$out/$name.log" 2>&1 || true
 grep 'objects:\|IMAGE TOTAL\|ERROR\|fault' "$out/$name.log" || true
 # A refusal the writer states -- a type it cannot describe, a transient that
 # raised in the child -- is exit 3 like an unnameable word: the caller
