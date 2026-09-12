@@ -5,6 +5,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-12
+
 **The assembler lane refuses a form it cannot spell on this engine, instead
 of calling address 0.** An optional JIT symbol -- `jit_score_variant`,
 `jit_buffer_last_char` -- binds as 0 on an engine that lacks it, so that
@@ -53,6 +55,29 @@ that matched on `(Err kind-of e)` now writes `(Err tag e)`. (`Err code-of`
 and `File stat`'s `kind` key are untouched: the first is an engine raise's
 message literal, the second names a file's kind -- 'file 'dir 'link.)
 
+**A reader hears which state accepted, instead of rescanning to find out.**
+An analyser state knows which of its states accepted and threw it away; the
+type's reader then rescanned the text to learn what it had just been told.
+The engine now hangs a variant cell off the score cell (x-engine-c#43),
+records the winning handler's variant at the accept, and hands it to the
+reader as its second argument; this release is the library's two ends of
+that channel. `%score-variant!` is the writing end, called by a state at
+its accept, and `%read-variant` the reading end -- the integer, or nil when
+no state declared one. The variant travels as a raw atom cell because an
+int object only exists relative to a base that registered the int type, and
+a tokenizer base has none by design. The assembler lane compiles
+`%score-variant!` through an optional JIT symbol, so an engine without it
+keeps compiling every state that does not use one. The capability is
+`tok/variant` in the contract, claimed by the engine, and the two spec files
+that need it say so with `# @requires`: the interpreted twin in
+`lib/reader-variant.spec.md` and the compiled one in
+`ext/jit-analyser-variant.spec.md`, split out of `jit-analyser-self` so
+that file keeps its self-param coverage on an engine without the door. The
+runner honoured only the FIRST `# @requires` line of a file, so one needing
+two capabilities was gated on one and would have run, and failed, where the
+other was absent; every line gates now, and a skip names the capability it
+was missing.
+
 **The core boot reclaims its garbage as it goes.** The engine never
 collects on its own -- mark and sweep run from the heap prims and nowhere
 else -- and the dialect bodies collect once, after the whole boot, so a
@@ -93,6 +118,28 @@ touched manifest misses, `--no-image` boots from source, and a manifest
 with a `(boot ...)` row is refused by `--image` as before. Add `.images/`
 to a pinned project's `.gitignore`, as the bundles do.
 
+**A bundle boots from its image again after the platform is reinstalled.**
+A bundle's image key carries `lib/` and the engine, so one platform
+reinstall staled every installed bundle's image at once, and the wrapper's
+rule -- never write into a bundle behind its installer's back -- left what
+followed as a source boot on every run, with nothing on stderr: `x -l
+python` took 16.4s a boot against 0.98s from the image its installer HAD
+written, until the user thought to re-run each bundle's `make install`. The
+rule is kept, and the fallback the wrapper already had for every other boot
+now applies to bundles too: the installer's image is preferred, and on a
+miss the user's own is written into the per-user cache, announced, and
+used; the key gains the bundle's directory so two checkouts of one lang do
+not overwrite each other's. Found beside it: `tools/dev/image-build.sh`
+defaulted its wrapper to `./x.sh`, which exists only in a checkout, and the
+six lang bundles that call it from their spec runners set nothing else, so
+from an installed tree not one of them wrote an image at all -- the failure
+went into a log beside the image nobody reads, and the suite booted from
+source. The default now finds a wrapper -- `./x.sh` in a checkout, else the
+install's `bin/x`, else the `x` on PATH -- and says so rather than failing
+into a log when there is none; only the write looks, a check still answers
+from the key alone. Measured on x-python's suite, one spec file: 22s before,
+1.5s after.
+
 **The state images are written in parallel.** `make images` wrote its 29
 images one after another, and that loop was the longest phase of a CI
 specs job: 6m43s on the 4-core Linux runner and 9m30s on the 3-core macOS
@@ -124,8 +171,6 @@ slipped the collection-wide sweep because its callback is declared `ANY`,
 not `CALLABLE`, and the sweep keyed on the type token; every other builder
 on an iterable either has its block already (`List times`, `List iterate`,
 `Gen iterate`, `Gen make`, `Iter make`) or takes no callable.
-
-## [0.14.0] - 2026-09-08
 
 **A list dispatches to `List` at the value.** `((List of 1 2 3) filter (x)
 (> x 1))` answered `Unbound SYMBOL 'filter'`: the engine's list call reads its
