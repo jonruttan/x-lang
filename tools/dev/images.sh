@@ -51,6 +51,13 @@ if [ -z "$jobs" ]; then
   jobs=$cpus; [ "$bymem" -lt "$jobs" ] && jobs=$bymem
 fi
 mkdir -p "$out"
+# EVERY WRITER'S HOST IS HELIUM, booted through the wrapper (image-build.sh),
+# and a host boots from the per-user cache image of x.x when one is current
+# -- 0.4s -- and from source when not: 2.3s on arm64, more on the x86-64
+# runner, once per image.  A fresh checkout has no such image, so every one
+# of the 29 hosts would pay source.  One plain boot first writes it, and the
+# 29 then hit; the boot is the wrapper's ordinary path, refusals included.
+sh x.sh -q -c 1 > /dev/null 2>&1 || true
 { printf '%s\n' lib/x-core.x lib/x.x lib/he.x lib/x-base.x lib/xe.x lib/rn.x
   grep -rho '^# @lib \.\./tests/x/lib/[a-z-]*\.x' tests/x/specs | sed 's|^# @lib \.\./||' | sort -u
 } | IMG_OUT="$out" xargs -P "$jobs" -n 1 sh -c '

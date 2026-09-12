@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The state image writer's host boots from an image.** A write is a helium
+process running `tools/dev/image-write.x` over a child that loads the
+library from source, and the host booted with `--no-image` -- from source,
+every time -- so that a host missing its own image could not write one and
+land back in the builder that started it. That was 2.3s of a 5.7s x.x
+write on arm64, 29 times over in `make images` (6m43s of a CI specs job on
+the Linux runner, where a source boot is slower still), and once per
+pinned project's first boot, where it was the whole of pin-smoke's
+remaining cost: a pinned miss was 6.8s against 3.3s from source. The
+wrapper has the mode the recursion actually needs, `X_IMAGE_NO_WRITE`: a
+current image is booted from, a stale or absent one is neither written nor
+used, and the boot is from source. `image-build.sh` runs the host under
+it, and `tools/dev/images.sh` boots helium once before its 29 writers so
+that every host hits on a fresh checkout. An x.x write is 3.7s from 5.7, a
+pinned project's first boot 5.5s from 7.35, and the 29 images at four jobs
+on a 12-core arm64 box 56s from 72; pin-smoke checks the mode both ways.
+
 ## [0.14.0] - 2026-09-12
 
 **The socket specs let the kernel pick their ports.** Four cases bound

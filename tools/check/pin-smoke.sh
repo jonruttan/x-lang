@@ -60,8 +60,10 @@
 #              image of its own: --image lands it in the project's .images/
 #              beside the manifest, the next run boots from it with the
 #              overlay resolving, a touched manifest is a miss (the manifest
-#              keys the image), --no-image boots from source, and a manifest
-#              WITH a (boot ...) row is refused by --image as before.
+#              keys the image), --no-image boots from source, X_IMAGE_NO_WRITE
+#              (the writer's own host mode) boots from a current image and
+#              never writes one, and a manifest WITH a (boot ...) row is
+#              refused by --image as before.
 #              Skipped, and said, when the engine cannot write an image
 # (The pinned REPL path is tty-side -- the fd-3 class check-examples.sh
 # documents -- and is not smokeable here; it shares every pipe stage but
@@ -1108,6 +1110,19 @@ if [ "$status" -eq 0 ]; then
   [ $? -eq 0 ] || fail "image: --no-image run failed" "$_TMP/err" "$_TMP/out"
   grep -q "booting from state image" "$_TMP/err" \
     && fail "image: --no-image still booted from the image" "$_TMP/err"
+  # X_IMAGE_NO_WRITE is what image-build.sh boots the writer's host under:
+  # a missing image is neither written nor used (a host that wrote would be
+  # the builder calling itself), a current one is booted from
+  rm -rf "$_TMP/proj9/.images"
+  X_IMAGE_NO_WRITE=1 $TIMEOUT_CMD sh "$WRAPPER" -v -f "$_TMP/proj9/main.x" >"$_TMP/out" 2>"$_TMP/err"
+  [ $? -eq 0 ] || fail "image: the X_IMAGE_NO_WRITE run failed" "$_TMP/err" "$_TMP/out"
+  grep -qx "imaged" "$_TMP/out" || fail "image: no answer from the no-write source boot" "$_TMP/out" "$_TMP/err"
+  [ ! -f "$_TMP/proj9/.images/x.boot.x.ximg" ] || fail "image: X_IMAGE_NO_WRITE wrote an image" "$_TMP/err"
+  $TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/proj9/main.x" >"$_TMP/out" 2>"$_TMP/err"
+  [ -f "$_TMP/proj9/.images/x.boot.x.ximg" ] || fail "image: the plain run after no-write did not write" "$_TMP/err"
+  X_IMAGE_NO_WRITE=1 $TIMEOUT_CMD sh "$WRAPPER" -v -f "$_TMP/proj9/main.x" >"$_TMP/out" 2>"$_TMP/err"
+  grep -q "booting from state image .*proj9/.images/x.boot.x.ximg" "$_TMP/err" \
+    || fail "image: X_IMAGE_NO_WRITE did not boot from the current image" "$_TMP/err"
   # a manifest WITH a (boot ...) row is a pinned amalgam: not imaged, as before
   cat > "$_TMP/proj9/pin.xon" <<EOF
 (root "deps")
