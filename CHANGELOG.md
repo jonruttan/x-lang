@@ -5,6 +5,41 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The pin gate's digests cost what they weigh.** `tools/check/pin-smoke.sh`
+was ten minutes of the ubuntu gates job, and the job tripped its 20-minute
+cap in nine of the last thirteen main runs; measured under a timestamped
+trace on a 12-core arm64 box, the smoke's fifty wrapper runs took 261 of
+its 264 seconds, and three costs owned most of them, none of them the
+tests. First, `Pin fetch` and `Pin boot` digested the engine's 15KB
+`isa.x` in pure x-lang -- 2.4KB/s, six seconds a run -- to print a drift
+notice, when the fact is already written down twice: an install tree's
+`contract/isa.sha256` stamp and a checkout engine's `(isa "sha256:...")`
+row in `x-engine.xon`. `Pin %pin-tree-isa` reads one of those now, the way
+the wrapper's own boot guard compares recorded strings, and says the
+pairing is unchecked when neither is readable; a fetch is 2.3s, from 7.7.
+Second, `(Sha256 jit!)` cost twelve seconds in every process that called
+it, nine of them compiling the engine's 12,241-node fill body, because the
+assembler cache stood aside above 128 nodes -- a cap sized for an
+interpreted printer the cache had already stopped using: its key text is
+spelled by the C `write-to-str` door and hashed by FNV, and the fill body
+prints in 0.6s and hashes in 0.1s. The cap is gone, and with it the
+slurp's 64KB single read that called a full buffer a miss (the fill body's
+record file is 82KB, so the first cut of this change stored it every time
+and never read it): the slurp reads in rounds now and an entry is whatever
+size it is. The build is 4.5s from 12, of which 1.8s is relocating the fill
+body's 2,945 sites and 1.4s the differential check. Third, `Pin bundle`
+called `jit!` unconditionally where `Pin fetch` had guarded it behind a
+64KB size since #324, so the smoke's six bundle runs and two install runs
+each built the engine to verify a few hundred bytes; the guard is the same
+now. Pinned by three spec cases: a 300-node body is keyed and its second
+compile is a load, an entry longer than one read round loads whole, and
+the tree's fingerprint answers the engine's declaration. The smoke is 154s
+from 264 on the same box, all of it still in the wrapper runs; what is
+left is nine pinned throwaway projects at 7 to 9 seconds each, the state
+image their first boot writes (#669) against 3.3s for the same boot with
+`--no-image`, which is the writer's cost, not the pin's, and the next
+thing to measure.
+
 ## [0.14.0] - 2026-09-12
 
 **The socket specs let the kernel pick their ports.** Four cases bound
