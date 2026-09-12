@@ -18,6 +18,29 @@ already did, so a bundle's probe hears no and its guard keeps the
 interpreted twin. Pinned in `ext/jit-optional-symbol.spec.md` on every
 engine, by standing in for the missing symbol.
 
+**A spec can assert a NUL byte in captured output.** The shared runner reads
+the interpreter's stdout with `cmd | getline`, and awk is a C-string
+language: a zero byte TERMINATES a record, so a test's output was truncated
+at the first one and compared short -- `a\0b` arrived as `a`, with nothing
+said about the rest. On the one-true-awk that record's `length` is 1,
+measured. The byte is now escaped before awk reads it, to the literal text
+`<<NUL>>` in the same in-band style as the harness's own `<<SEP>>`, and a
+spec asserts one by writing `<<NUL>>` in its expected block; every other
+byte passes through untouched, so no existing spec sees a difference. perl
+does the escaping, being the only tool to hand that is both byte-clean and
+able to expand one byte into several -- BSD sed cannot express a NUL match
+("first RE may not be empty") and `tr` is strictly 1:1. Without perl the
+runner warns once and the truncation stands, so a spec asserting the byte
+fails rather than passing quietly, and `SPEC_NUL_FILTER` overrides the
+command. Because the escaper is the pipeline's last stage, the engine's own
+exit code is now read from a file written inside the pipeline rather than
+from `close()` -- which makes a mid-batch death report its status on the
+one-true-awk, where that code was previously only ever visible on
+gawk/mawk. x-python wanted this: its `bytes` carries NULs and its `str` is
+becoming a code point list that can hold one, so a bare `print` of such a
+value had to be pinnable at all. `tests/spec-format.md` states the
+contract, `meta/multiline.spec.md` holds it.
+
 **An error's classifying symbol is its TAG, not its "kind".** `Err` grew
 up saying `kind`: `(Err kind-of e)`, `(e kind? 'io)`, the `kind` field,
 `(Err make kind msg data)`, and every doc string that promised "a kind-'io
