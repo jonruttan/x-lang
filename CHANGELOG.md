@@ -5,7 +5,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-## [0.15.0] - 2026-09-12
+## [0.14.0] - 2026-09-12
 
 **The assembler lane refuses a form it cannot spell on this engine, instead
 of calling address 0.** An optional JIT symbol -- `jit_score_variant`,
@@ -171,8 +171,6 @@ slipped the collection-wide sweep because its callback is declared `ANY`,
 not `CALLABLE`, and the sweep keyed on the type token; every other builder
 on an iterable either has its block already (`List times`, `List iterate`,
 `Gen iterate`, `Gen make`, `Iter make`) or takes no callable.
-
-## [0.14.0] - 2026-09-08
 
 **A list dispatches to `List` at the value.** `((List of 1 2 3) filter (x)
 (> x 1))` answered `Unbound SYMBOL 'filter'`: the engine's list call reads its
