@@ -34,6 +34,27 @@ Seconds of compile on the first call; the second is a state read.
 ---
     (#t #t)
 
+### the engine's two bodies come back from the cache
+
+`jit!` compiles a round schedule and a fill body; both are far past the
+128 nodes the cache once refused to key, and the fill body's record file
+is past the 64KB one read used to be. A load answering a callable for each
+is what keeps the build at seconds of relocation instead of seconds of
+compile, in every process that digests an archive.
+
+```x
+(do
+  (import x/codec/sha256)
+  (Sha256 jit!)
+  (import x/tool/asm-cache)
+  (def %hit? (fn (_ e)
+    (def %t (%asm-cache-text e () #f))
+    (not (null? (%asm-cache-load %t (%asm-cache-path %t) ())))))
+  (display (list (%hit? %sj-rounds-expr) (%hit? %sj-fill-expr))))
+```
+---
+    (#t #t)
+
 ### the FIPS vectors hold through the engine
 
 Same process as above, so the engine is active for these.

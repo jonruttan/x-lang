@@ -1256,6 +1256,31 @@
           ((str=? want (Str8 append "sha256:" have))
             (display "pin: lock payload fingerprint matches this engine's library tree\n"))
           (#t (display "pin: lock payload fingerprint DIFFERS from this engine's library tree -- same tag, different bytes\n")))))
+    ; THE TREE'S ISA FINGERPRINT, READ, NOT RECOMPUTED.  Every fetch used to
+    ; digest engine/tools/contract/isa.x -- 15KB, pure x-lang at ~2.4KB/s,
+    ; six seconds -- to print a drift NOTICE, when the fact is already
+    ; written down twice: an install tree stamps it at contract/isa.sha256
+    ; (bare hex, the string the wrapper's boot guard compares), and a
+    ; checkout's engine declares it in x-engine.xon's (isa "sha256:...") row,
+    ; derived from the same file.  Reading a recorded string is what the
+    ; wrapper itself does at boot, where the pairing is ENFORCED; a notice
+    ; has no call to be more suspicious than the guard.  Nil when neither
+    ; is readable, and the caller says the pairing is unchecked.
+    (method %pin-tree-isa (self)
+      (let ((stamp (Pin %pin-engine-stamp "isa.sha256")))
+        (match
+          ((not (null? stamp)) (Str8 append "sha256:" stamp))
+          (#t (let ((decl (Str append %engine-root "/x-engine.xon")))
+                (match
+                  ((not (File exists? decl)) ())
+                  (#t (let ((row (%find (fn (_ f)
+                                          (if (pair? f)
+                                            (if (eq? (first f) (lit isa)) (pair? (rest f)) #f)
+                                            #f))
+                                        (Pin %pin-forms (File read-all decl)))))
+                        (match
+                          ((null? row) ())
+                          (#t (first (rest row))))))))))))
     ; ISA drift is information, not an error (the fetch ruling): pairing
     ; ENFORCEMENT is the wrapper's job at boot; verify reports.
     (method %pin-isa-notice (self lockforms)
@@ -1263,11 +1288,12 @@
                           (if (pair? f)
                             (if (eq? (first f) (lit isa)) (pair? (rest f)) #f)
                             #f))
-                        lockforms)))
+                        lockforms))
+            (have (Pin %pin-tree-isa)))
         (match
           ((null? row) ())
-          ((not (File exists? (Str append %engine-contract-root "/isa.x"))) ())
-          ((str=? (Pin %pin-digest (Str append %engine-contract-root "/isa.x")) (first (rest row)))
+          ((null? have) ())
+          ((str=? have (first (rest row)))
             (display "pin: lock isa fingerprint matches this tree\n"))
           (#t (display "pin: lock isa fingerprint DIFFERS from this tree -- a pinned platform pairs with its release's engine\n")))))
     (method verify (self (param dest STRING "Overlay root directory"))
@@ -1494,32 +1520,33 @@
                               (File rename tmp (Str8 append target ".rejected"))
                               (Pin %pin-bad (Str8 append "digest mismatch: " target
                                               (Str8 append " -- rejected bytes at " (Str8 append target ".rejected; the pinned path is untouched")))))))))
-                    (match
-                      ((File exists? (Str append %engine-contract-root "/isa.x"))
-                        (do (display (match
-                                       ; A manifest may carry no (isa ...) at all --
-                                       ; %pin-release-parse requires only the tag, so
-                                       ; %pin-assoc hands back nil, and str=? on nil
-                                       ; would die AFTER the amalgam verified clean.
-                                       ; Drift is information, not an error (docstring),
-                                       ; and so is an absent fingerprint.
-                                       ((null? (%assoc-get 'isa m))
-                                         "pin: the release manifest carries no isa fingerprint -- engine pairing unchecked")
-                                       ((str=? (Pin %pin-digest (Str append %engine-contract-root "/isa.x")) (%assoc-get 'isa m))
-                                         "pin: isa fingerprint matches this tree")
-                                       (#t "pin: isa fingerprint DIFFERS from this tree -- pair the amalgam with its release's engine"))
-                                     "\n")))
-                      ; No local ISA manifest -- the reader case: an
-                      ; unpacked tarball has no source checkout, so the
-                      ; check above cannot run.  SAY so.  Silence here
-                      ; reads as "pairing verified" to someone who just
-                      ; watched the digest verify, and the pairing is
-                      ; precisely what a platform pin is for.  Absent
-                      ; information is information, the same ruling the
-                      ; absent-fingerprint branch above already makes.
-                      (#t
-                        (do
-                          (display "pin: no isa manifest here -- engine pairing unchecked (run from a source checkout to compare)\n"))))
+                    (let ((have (Pin %pin-tree-isa)))
+                      (match
+                        ((not (null? have))
+                          (do (display (match
+                                         ; A manifest may carry no (isa ...) at all --
+                                         ; %pin-release-parse requires only the tag, so
+                                         ; %pin-assoc hands back nil, and str=? on nil
+                                         ; would die AFTER the amalgam verified clean.
+                                         ; Drift is information, not an error (docstring),
+                                         ; and so is an absent fingerprint.
+                                         ((null? (%assoc-get 'isa m))
+                                           "pin: the release manifest carries no isa fingerprint -- engine pairing unchecked")
+                                         ((str=? have (%assoc-get 'isa m))
+                                           "pin: isa fingerprint matches this tree")
+                                         (#t "pin: isa fingerprint DIFFERS from this tree -- pair the amalgam with its release's engine"))
+                                       "\n")))
+                        ; No fingerprint readable for this tree -- neither an
+                        ; install stamp nor an engine declaration, so the
+                        ; comparison above cannot run.  SAY so.  Silence here
+                        ; reads as "pairing verified" to someone who just
+                        ; watched the digest verify, and the pairing is
+                        ; precisely what a platform pin is for.  Absent
+                        ; information is information, the same ruling the
+                        ; absent-fingerprint branch above already makes.
+                        (#t
+                          (do
+                            (display "pin: no isa fingerprint readable for this tree -- engine pairing unchecked\n")))))
                     target))))))))
     (method install (self (param url STRING "URL of a published lang.pin.xon")
                           . (param dest STRING "Where to install; default the running x's langs directory"))
@@ -1635,8 +1662,15 @@
         ; target first and making a rejected download the booted one).
         (let ((tmp (Pin %pin-download-tmp! url archive)))
           (do
+            ; Build the compiled digest only when the archive justifies it:
+            ; the same 65536 bar `fetch` applies (#324), which this door never
+            ; got -- the pin gate's six bundle smokes and two install smokes
+            ; each paid the engine build to verify a few hundred bytes.
             (display "pin: verifying " name " " tag
-                     (if (Sha256 jit!) " (jit sha256)" " (pure x-lang sha256)") "\n")
+                     (if (< (%assoc-get 'size (File stat tmp)) 65536)
+                         ""
+                         (if (Sha256 jit!) " (jit sha256)" " (pure x-lang sha256)"))
+                     "\n")
             (match
               ((str=? (Pin %pin-digest-bin tmp) want) ())
               (#t

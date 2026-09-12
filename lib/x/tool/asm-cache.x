@@ -54,15 +54,18 @@
 ; existing entry misses -- the format's own version, and the reason a format
 ; change can never be mistaken for a working entry.
 (def %asm-cache-magic 859189592)
-; The most a record file can be, and the size of the buffer every probe
-; allocates to read one.  It is slack, not a budget: the node cap below bounds
-; an entry to a printed expression of a couple of kilobytes plus its records,
-; and the largest written by the whole spec suite is 256 bytes.  A read that
-; fills the buffer exactly is treated as a miss rather than a truncation, so
-; the cost of it being too small would be an entry that misses forever and is
-; re-stored every time -- which is why the slack is generous even though the
-; bound is known.
-(def %asm-cache-cap 65536)
+; The FIRST read of a record file, and the size the buffer grows by when a
+; read fills it.  This was a cap once -- "the most a record file can be", a
+; read that filled it was a miss -- sized for the node-capped entries of the
+; day (a couple of kilobytes; the largest in the spec suite 256 bytes) with
+; generous slack, because its own note saw the failure: an entry bigger than
+; the cap misses forever and is re-stored every time.  When the node cap went
+; (see "what is worth keying") that is precisely what happened: sha256-jit's
+; fill body writes an 82KB record file, every probe read 64KB of it and
+; called that a miss, and the engine build stayed at eleven seconds with its
+; bytes sitting in the cache.  So the slurp reads in rounds now and an entry
+; is whatever size it is; this number only decides how many rounds.
+(def %asm-cache-slurp-chunk 65536)
 ; Kinds, as they sit in the file.  A trampoline's name is the dlsym SYMBOL, an
 ; fvar's is the free variable's symbol, and a self-cell has no name -- there is
 ; one per compile and the loader mints its own.
@@ -100,6 +103,7 @@
 (def %asm-libc-rename (%asm-cache-dlsym %asm-cache-lib "rename"))
 (def %asm-libc-unlink (%asm-cache-dlsym %asm-cache-lib "unlink"))
 (def %asm-libc-malloc (%asm-cache-dlsym %asm-cache-lib "malloc"))
+(def %asm-libc-realloc (%asm-cache-dlsym %asm-cache-lib "realloc"))
 (def %asm-libc-free   (%asm-cache-dlsym %asm-cache-lib "free"))
 (def %asm-libc-getpid (%asm-cache-dlsym %asm-cache-lib "getpid"))
 
@@ -152,34 +156,23 @@
 (def %asm-cache-path
   (fn (_ text) (Str append %asm-cache-dir (%asm-cache-wts (Hash fnv-1a text)))))
 
-; --- what is worth keying --------------------------------------------------
-; A key has to name the expression, and the only exact name available is the
-; printer's -- and the printer is SUPERLINEAR.  Measured: a 35-node analyser
-; prints in 48K evals (1.4K per node); a 400-node generated body prints in
-; 3.55M (8.9K per node), because building the text is a string append per
-; step.  Compiling, by contrast, is roughly linear.  So the probe is a small
-; fraction of a compile for a small expression and a multiple of it for a
-; large one, and sha256-jit's ~3500-node round schedule is far enough out that
-; printing it once exhausted the interpreter mid-batch.
+; --- what is worth keying: everything ----------------------------------------
+; A key has to name the expression, and the only exact name available is its
+; printed text.  The first version of this module capped that at 128 nodes,
+; because the printer it measured was the interpreted one -- SUPERLINEAR, a
+; string append per step, 8.9K evals a node at 400 nodes -- and a generated
+; body (sha256-jit's round schedule) exhausted the interpreter mid-batch just
+; being printed.  But the key text is spelled by `io write-to-str` (the C
+; door, %asm-cache-wts) and hashed by FNV over its bytes, and both are linear:
+; measured 2026-09-12, sha256-jit's fill body -- 12,241 nodes, 22KB of text --
+; prints in 0.6s and hashes in 0.1s, against a 9-second compile.  The probe is
+; a fixed small fraction of a compile at ANY size, so there is no size at
+; which standing aside pays, and the cap was costing exactly the expressions
+; that hurt most: with it, every process that digested more than 64KB paid the
+; eleven-second engine build again -- `Pin bundle` and `Pin install` in the
+; pin gate, six and two times a run.
 ;
-; The cache is therefore for the expressions the boot compiles over and over:
-; the numeric analysers, measured at 9 to 42 nodes each.  A GENERATED body --
-; an unrolled loop, a round schedule -- takes the uncached path it always had,
-; and this walk stops as soon as it knows that, so a huge expression costs a
-; bounded look rather than a full traverse.
-;
-; The cap is on NODES, not bytes, because it has to be decided before anything
-; is printed.  128 is three times the largest expression the boot compiles and
-; keeps the print under half a compile; lifting it wants a canonical
-; serialiser cheaper than the printer, which is a different piece of work.
-(def %asm-cache-max-nodes 128)
-
-; Answers the budget left after walking EXPR, or a negative number as soon as
-; the walk costs more than N -- it never traverses further than the cap.
-(def %asm-cache-node-budget
-  (fn (self e n)
-    (if (< n 0) n
-      (if (pair? e) (self (rest e) (self (first e) (- n 1))) (- n 1)))))
+; What still stands aside is decided by the engine, not the size: see below.
 
 ; The compiler, loaded on the line that needs it.  This is the only place
 ; x/tool/asm-compile is reached from, and every path that declines to use the
@@ -189,11 +182,9 @@
     (import x/tool/asm-compile)
     (%asm-compiler expr fvars analyser?)))
 
-; Two reasons to leave the cache out of it entirely.
+; One reason to leave the cache out of it entirely.
 ;
-; The expression is too big to key, per the note above.
-;
-; Or a JIT runtime helper would not resolve when asm-compile.x loaded, in
+; A JIT runtime helper would not resolve when asm-compile.x loaded, in
 ; which case the compiler is going to REFUSE (#201: an unresolved helper is
 ; address 0, and compiled code calling 0 is a SIGSEGV arbitrarily far from the
 ; cause).  That refusal belongs to the entry point, so it must not be
@@ -202,9 +193,8 @@
 ; convenient: on such an engine dlsym fails for every recorded trampoline, so
 ; the load misses and the compiler refuses on the far side of it.
 (def %asm-cache-stand-aside?
-  (fn (_ expr)
-    (if (not (null? %jit-missing)) #t
-      (< (%asm-cache-node-budget expr %asm-cache-max-nodes) 0))))
+  (fn (_)
+    (not (null? %jit-missing))))
 
 ; --- raw fd I/O -------------------------------------------------------------
 ; 0644 is 420 decimal.  creat(2) rather than open(2) with a mode, because open
@@ -331,25 +321,48 @@
 
 ; The whole record file in one malloc'd buffer.  open(2) answering -1 IS the
 ; existence probe: a separate stat door would cost another call to learn what
-; the open is about to say anyway.  Answers (ptr . length), or ().
+; the open is about to say anyway.  Read in rounds of a chunk: a read that
+; comes back short is the end of the file, a read that fills what was asked
+; grows the buffer and goes again -- so the file's size is never assumed, and
+; a big entry costs a few read(2) calls rather than a miss.  No byte is
+; walked here; the bytes land where read(2) puts them.  Answers
+; (ptr . length), or ().
 (def %asm-cache-slurp
   (fn (_ path)
     (def fd (%asm-cache-pcall %asm-libc-open path 0))
     (if (< fd 0) ()
       (do
-        (def buf (%asm-cache-int->ptr
-                   (%asm-cache-pcall %asm-libc-malloc (+ %asm-cache-cap 1))))
-        (def got (%asm-cache-pcall %asm-libc-read fd buf %asm-cache-cap))
+        (def r
+          ((fn (self buf room got)
+             (def want (- room got))
+             (def n (%asm-cache-pcall %asm-libc-read fd
+                      (%asm-cache-int->ptr (+ (%asm-cache-ptr->int buf) got)) want))
+             (if (< n 0) (do (%asm-cache-pcall %asm-libc-free buf) ())
+               (if (< n want) (pair buf (+ got n))
+                 ; Full: a byte of room past the chunk stays for the NUL
+                 ; backstop below, whatever the final size.
+                 (do
+                   (def nb (%asm-cache-pcall %asm-libc-realloc buf
+                             (+ (+ room %asm-cache-slurp-chunk) 1)))
+                   (if (= nb 0) (do (%asm-cache-pcall %asm-libc-free buf) ())
+                     (self (%asm-cache-int->ptr nb) (+ room %asm-cache-slurp-chunk) (+ got n)))))))
+           (%asm-cache-int->ptr
+             (%asm-cache-pcall %asm-libc-malloc (+ %asm-cache-slurp-chunk 1)))
+           %asm-cache-slurp-chunk 0))
         (%asm-cache-pcall %asm-libc-close fd)
-        (if (if (< got %asm-cache-head-bytes) #t (>= got %asm-cache-cap))
-          (do (%asm-cache-pcall %asm-libc-free buf) ())
-          ; The buffer is a byte longer than the cap for exactly this: a NUL
-          ; after the last byte read, so that ptr->str on a corrupt blob stops
-          ; at the end of the file rather than walking into whatever malloc
-          ; handed back.  The offsets are checked below as well; this is the
-          ; backstop, because reading past the end here is a segfault, not an
-          ; error.
-          (do (%asm-cache-ptr-set! buf got 0 1) (pair buf got)))))))
+        (if (null? r) ()
+          (do
+            (def buf (first r))
+            (def got (rest r))
+            (if (< got %asm-cache-head-bytes)
+              (do (%asm-cache-pcall %asm-libc-free buf) ())
+              ; The buffer is a byte longer than what was read for exactly
+              ; this: a NUL after the last byte, so that ptr->str on a corrupt
+              ; blob stops at the end of the file rather than walking into
+              ; whatever malloc handed back.  The offsets are checked below as
+              ; well; this is the backstop, because reading past the end here
+              ; is a segfault, not an error.
+              (do (%asm-cache-ptr-set! buf got 0 1) (pair buf got)))))))))
 
 ; The i-th NUL-terminated string in the blob, lifted whole by ptr->str -- which
 ; strndups, so what comes back is ours and the buffer stays the file's.
@@ -580,7 +593,7 @@
     ; Whether to stand aside is decided FIRST, before the printer is asked for
     ; anything: on that path this module gets out of the way entirely and the
     ; expression takes the route it took before there was a cache.
-    (if (%asm-cache-stand-aside? expr)
+    (if (%asm-cache-stand-aside?)
       (%asm-cache-uncached expr fvars analyser?)
       (do
         ; The key text and the path hashed from it are computed ONCE and handed

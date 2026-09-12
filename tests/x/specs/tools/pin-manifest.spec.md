@@ -240,6 +240,25 @@ it rather than skipping it.
 ---
     v1 sha256:bb
 
+### the tree's isa fingerprint is read from the engine's declaration
+
+`%pin-tree-isa` is what fetch and verify compare a manifest's `isa` row
+against. It READS the fact -- an install tree's `contract/isa.sha256`
+stamp, or in a checkout the engine's own `(isa "sha256:...")` row in
+`x-engine.xon`, derived from the same `isa.x` -- where it used to digest
+the 15KB file in pure x-lang at 2.4KB/s: six seconds a fetch, to print a
+notice the wrapper decides from the recorded strings anyway.
+
+```x
+(do
+  (def %pin-spec-decl
+    (%find (fn (_ f) (if (pair? f) (eq? (first f) 'isa) #f))
+           (Pin %pin-forms (File read-all (Str append %engine-root "/x-engine.xon")))))
+  (display (if (str=? (Pin %pin-tree-isa) (first (rest %pin-spec-decl))) "declared" "recomputed?")))
+```
+---
+    declared
+
 ### a release manifest's payload fingerprint parses
 
 The release fingerprint (#435): one digest over everything the release
