@@ -7,24 +7,23 @@
 #   PIN=other.xon sh tools/engine/fetch.sh   read a different pin (the smoke)
 #   FROM_SOURCE=1 sh tools/engine/fetch.sh   take the source arm on purpose
 #
-# SHELL, AND NOT BY HABIT.  This runs before there is an engine to run x with,
-# which is the one place in tools/ where the charter's "logic lives in x" cannot
-# apply: parsing the pin IS the step that gets us an engine.
+# Shell rather than x: this runs before there is an engine to run x with, which
+# is the one place in tools/ where the charter's "logic lives in x" cannot
+# apply -- parsing the pin is the step that produces an engine.
 #
-# WHAT IT GUARANTEES, in the order the rules matter:
+# What it guarantees, in the order the rules matter:
 #
-#   1. A DECLARED ARTIFACT THAT FAILS IS AN ERROR, never a quiet source build.
-#      The fallback exists for platforms nobody publishes for -- the Pi, 32-bit
-#      -- and firing it on a failed download would turn "the release is broken"
-#      into "the build took eleven minutes today" and hide it forever.
-#   2. NOTHING IS PUBLISHED UNVERIFIED.  The download lands on a pid-tagged temp
-#      path, is digested there, and is renamed into place only if it matches.  A
-#      rejected download is quarantined as <dest>.rejected rather than deleted,
-#      because the bytes are the evidence.  (x-lang's own Pin fetch learned this
-#      as #145: it wrote the final path first, so a rejected amalgam became the
-#      booted amalgam.)
-#   3. AN EXISTING VALID TREE IS HONOURED.  Same digest, no network.  Offline is
-#      the normal case for everyone who has built once.
+#   1. A declared artifact that fails is an error, never a quiet source build.
+#      The fallback exists for platforms nobody publishes for -- the Pi,
+#      32-bit -- and firing it on a failed download would turn "the release is
+#      broken" into "the build took eleven minutes today".
+#   2. Nothing is published unverified.  The download lands on a pid-tagged
+#      temp path, is digested there, and is renamed into place only if it
+#      matches.  A rejected download is quarantined as <dest>.rejected rather
+#      than deleted, because the bytes are the evidence.  Writing the final
+#      path first would make a rejected amalgam the booted one (#145).
+#   3. An existing valid tree is honoured: same digest, no network.  Offline is
+#      the normal case for anyone who has built once.
 set -e
 
 cd "$(dirname "$0")/../.."
@@ -67,17 +66,17 @@ case "$(uname -m)" in
 	*)              arch=unknown ;;
 esac
 
-# WHITESPACE-TOLERANT, AND LOUD ABOUT A ROW IT CANNOT READ.  The first version
-# matched a single space between fields with sed, so aligning the columns in the
-# pin -- two spaces, for readability -- made the row invisible and sent the build
-# down the source arm.  That is the failure this script is most careful to
-# prevent, arriving through the back door: a declared artifact must never look
-# like an undeclared one.  So the fields are split on whitespace, and a row for
-# THIS platform that does not yield all four is an error rather than a miss.
-# ASKING FOR SOURCES IS DIFFERENT FROM HAVING NO ARTIFACT.  The variant builds
-# (asan, cov) and anyone hacking on the engine need the C even where a release
-# exists, and that is a request, not a fallback -- so it takes the same arm by
-# skipping artifact selection rather than by pretending nothing is published.
+# Whitespace-tolerant, and loud about a row it cannot read.  Matching a single
+# space between fields would make an aligned row invisible and send the build
+# down the source arm -- a declared artifact looking like an undeclared one,
+# which rule 1 above forbids.  So the fields are split on whitespace, and a row
+# for this platform that does not yield all four is an error rather than a
+# miss.
+#
+# Asking for sources is different from having no artifact.  The variant builds
+# (asan, cov) and anyone working on the engine need the C even where a release
+# exists; that is a request rather than a fallback, so it takes the same arm by
+# skipping artifact selection rather than by reporting nothing published.
 if [ -n "${FROM_SOURCE:-}" ]; then
 	row=""
 else
