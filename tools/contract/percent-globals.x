@@ -51,6 +51,10 @@
 ; walk stays off the Lint class (see the class comment there, and #344 --
 ; the linter's own Dict-vs-alist ruling, lost on value-call dispatch).
 ; Homing them as %-statics would put a class send on each node of the walk.
+; Then by one, 88 -> 89, for %lint-write: the catalog door the walk writes
+; through, fetched at load as %write-to-str and %cvt beside it are.  It is read
+; once per node of the same walk, so homing it on the class would add a send to
+; every node of every file.
 ; platform/syscall.x grew by two for %declared-os and %declared-arch: the engine's
 ; BUILD now declares its os and arch, and the triple parse became the fallback for
 ; an engine that could not establish them.  Boot-constrained like the rest of that
@@ -281,7 +285,7 @@
 (file "lib/x/tool/cov.x" 8)
 (file "lib/x/tool/fmt.x" 23)
 (file "lib/x/tool/highlight.x" 39)
-(file "lib/x/tool/lint.x" 88)
+(file "lib/x/tool/lint.x" 89)
 (file "lib/x/tool/pin.x" 1)
 (file "lib/x/tool/profile.x" 4)
 (file "lib/x/type/array.x" 2)
