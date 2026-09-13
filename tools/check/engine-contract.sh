@@ -6,27 +6,27 @@
 # it describes is worse than none: it reads as authority while naming nothing.
 # This gate keeps the two in step.
 #
-# WHAT IT CHECKS
-#   1. TOTAL      every isa.x row lands in exactly one capability group -- by its
+# What it checks
+#   1. total      every isa.x row lands in exactly one capability group -- by its
 #                 tag, or by explicit membership for a split tag.  A new C row
 #                 cannot appear without being classified in the same commit.
-#   2. DISJOINT   no coordinate is claimed by two groups.
-#   3. GROUNDED   every explicitly-listed coordinate actually exists in isa.x, so
+#   2. disjoint   no coordinate is claimed by two groups.
+#   3. grounded   every explicitly-listed coordinate actually exists in isa.x, so
 #                 a group cannot outlive the rows it names.
-#   4. CLOSED     every atom named in a profile resolves -- to a capability, or to
+#   4. closed     every atom named in a profile resolves -- to a capability, or to
 #                 a profile defined before it.  No forward or dangling references.
-#   5. SEPARATE   no profile names a PARAMETER.  Width, arch and OS are values an
+#   5. separate   no profile names a parameter.  Width, arch and OS are values an
 #                 engine reports, not capabilities it has; `word-size = 8` in a
 #                 requirement would lock out the 32-bit Pi.  Per-module needs go
 #                 to tools/contract/constraints.x instead.
 #
-# WHY 1 AND 2 ARE THE POINT.  The `ffi` tag carries eleven rows that split three
-# ways -- the pointer CASTS (mandatory: boot reads header words through them), the
-# foreign DOOR (dlopen/dlsym/ptr-call), and the raw SYSCALL door.  Treating the
-# tag as one group would have made dlopen mandatory for every engine, including a
-# sandboxed one, and would have put the sandbox target out of reach on paper while
-# it works in fact.  Since that split is hand-drawn, it is exactly the thing that
-# rots -- so the partition is machine-checked against isa.x rather than trusted.
+# Checks 1 and 2 carry the weight, because the groups are hand-drawn.  The `ffi`
+# tag carries eleven rows that split three ways: the pointer casts (mandatory --
+# boot reads header words through them), the foreign door (dlopen/dlsym/
+# ptr-call), and the raw syscall door.  Treating the tag as one group makes
+# dlopen mandatory for every engine, a sandboxed one included, putting that
+# target out of reach on paper while it works in fact.  So the partition is
+# machine-checked against isa.x rather than trusted.
 #
 # Usage: sh tools/check/engine-contract.sh
 set -e
@@ -53,19 +53,15 @@ engine_name() {
 	printf '%s' "$_n"
 }
 
-# TWO ENGINES, TWO QUESTIONS, and conflating them was a bug this gate shipped
-# with.  The REFERENCE surface is the language's own view of what instructions
-# exist; the CANDIDATE is whatever engine is being judged.
+# Two engines, two questions.  The reference surface is the language's own view
+# of what instructions exist; the candidate is whatever engine is being judged.
 #
-#   partition + derived requires  ->  REFERENCE.  "What does lib/ need?" is a
-#       property of lib/, and deriving it through a candidate's coordinate map
-#       made a reduced engine appear to shrink the library's requirements: point
-#       this at an engine with no collector and requires.x is reported stale for
-#       no longer needing one.  The library needs exactly what it needs.
-#   satisfaction + staleness      ->  CANDIDATE.  "Can THIS engine run it?"
-#
-# Found by pointing the apparatus at a second engine for the first time, which
-# is what that exercise is for.
+#   partition + derived requires  ->  reference.  "What does lib/ need?" is a
+#       property of lib/.  Deriving it through a candidate's coordinate map lets
+#       a reduced engine appear to shrink the library's requirements: pointed at
+#       an engine with no collector, requires.x reads as stale for no longer
+#       needing one.  The library needs exactly what it needs.
+#   satisfaction + staleness      ->  candidate.  "Can this engine run it?"
 REFERENCE_DIR="${X_REFERENCE_DIR:-engine}"
 ISA="$REFERENCE_DIR/tools/contract/isa.x"
 REQ="tools/contract/requires.x"
@@ -87,13 +83,11 @@ awk '
 	/^\(def %isa-bare/    { sect="bare";    next }
 	/^\(def %isa-keep/    { sect="keep";    next }
 	/^\(def %isa-aliases/ { sect="";        next }   # x-level aliases: not C rows
-	# VALUES ARE PART OF THE SURFACE.  They were skipped as "not instructions",
-	# which left x-release, x-version, args and the rest outside the capability
-	# system entirely: no atom could name them, so no requires row could demand
-	# them, so x.sh depended on x-release with nothing checking any engine had
-	# it.  They carry no tag column, so they enter with the sentinel tag `value`
-	# -- which no capability claims wholesale, so TOTAL forces every one of them
-	# into an explicit group.
+	# Values are part of the surface.  x-release, x-version, args and the rest
+	# must be nameable by an atom, or no requires row can demand them -- x.sh
+	# depends on x-release.  They carry no tag column, so they enter with the
+	# sentinel tag `value`, which no capability claims wholesale; the totality
+	# check then forces each one into an explicit group.
 	/^\(def %isa-values/  { sect="values";  next }
 	/^  \(/ {
 		if (sect == "") next
@@ -264,15 +258,12 @@ fi
 # equality compare -- superset, so a richer engine is never refused).
 XON="$ENGINE_DIR/x-engine.xon"
 if [ ! -f "$XON" ]; then
-	# SILENCE IS NOT A PASS.  Without a declaration there is nothing to satisfy,
-	# and skipping quietly reported an engine as fine when the gate had not looked
-	# at it -- the vacuous-pass shape, in the gate that answers the resolver's
-	# question.  Unknown is not wrong, but it has to say so.
-	# ...and it has to FAIL, not merely say so.  The message alone was still a
-	# vacuous pass: this gate answers "can this engine run the library?", it
-	# exited 0 for an engine it had not looked at, and `make test` went green.
-	# An engine with no declaration cannot be paired with anything -- that is a
-	# refusal, and an easily fixed one.
+	# Silence is not a pass.  Without a declaration there is nothing to satisfy,
+	# and an engine the gate has not looked at must not report as fine.  It has
+	# to fail rather than merely say so: this gate answers "can this engine run
+	# the library?", and exiting 0 for an unexamined engine takes `make test`
+	# green with it.  An engine with no declaration cannot be paired with
+	# anything, so it is refused.
 	note "no declaration at $XON -- nothing to satisfy"
 	echo "    (generate one: sh tools/contract/gen-engine-xon.sh $ENGINE_DIR)"
 fi

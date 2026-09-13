@@ -2,11 +2,11 @@
 # pin-smoke.sh -- the wrapper's pin.xon probe and the loader, end to end.
 #
 # Builds a throwaway project under $TMPDIR (a pin.xon manifest, overlay
-# trees, a program) and runs the program THROUGH THE WRAPPER from the
-# repo root -- the probe must find the manifest beside the PROGRAM, not
+# trees, a program) and runs the program through the wrapper from the
+# repo root -- the probe must find the manifest beside the program, not
 # the cwd.  Cases:
 #   overlay    (import acme/util) resolves in the project's deps/ tree
-#   order      two roots: the root listed FIRST wins
+#   order      two roots: the root listed first wins
 #   boot       an overlay copy of a boot module is a no-op -- the
 #              pre-seeded set is the unpinnable core (GH #115 ruling)
 #   notice     the wrapper announces the manifest on stderr
@@ -14,27 +14,27 @@
 #   no-pin     --no-pin skips the probe (and the notice)
 #   vendor     (Pin vendor) copies x/type/dict's closure into an overlay
 #              (helium: dict is not boot-floor there), the boot floor is
-#              skipped, and a pinned run loads the OVERLAY copy -- proven
+#              skipped, and a pinned run loads the overlay copy -- proven
 #              by appending a drift marker the platform copy lacks
 #   fetch      (Pin fetch) against a fake release over file:// -- curl,
 #              manifest, pure-x digest, and the tamper refusal; hermetic,
 #              no network
 #   bundle     (Pin bundle) acquires a lang bundle over file://:
-#              the tree lands (modules AND data files), a second run
+#              the tree lands (modules and data files), a second run
 #              honours it without the network, and every refusal holds --
-#              a swapped archive (quarantined, and NOT unpacked), a bundle
+#              a swapped archive (quarantined, and not unpacked), a bundle
 #              naming another lang, an archive with no declaration,
 #              and an unknown pin form.  A git-archive-style tarball (one
 #              top-level directory) is descended; a two-entry one is not
-#   install    (Pin install) takes a PUBLISHED pin URL, lands at the stable
+#   install    (Pin install) takes a published pin URL, lands at the stable
 #              <langs>/<name>, and a bad digest leaves the working install
 #              untouched
-#   load       `-l NAME` RUNS an acquired bundle: the dialect it declares
+#   load       `-l NAME` runs an acquired bundle: the dialect it declares
 #              boots, its modules resolve, its surface name takes, and the
 #              refusals hold -- an unknown name (whose inventory names the
 #              langs it searched), two bundles claiming one name,
 #              and a dialect this tree has no entry for
-#   share-dir  --share-dir and --engine-path answer FROM OUTSIDE the tree,
+#   share-dir  --share-dir and --engine-path answer from outside the tree,
 #              which is the only place a bundle ever asks from
 #   compose    (boot "FILE") + (root "DIR") in one manifest (GH #139):
 #              the wrapper boots the project's own entry AND arms the
@@ -46,14 +46,14 @@
 #   boot-bad   a malformed (boot ...) is rejected by the loader's
 #              closed vocabulary (the wrapper's probe ignores it)
 #   boot-quote a (boot ...) path carrying shell metacharacters stays a
-#              PATH: the wrapper assembles its pipe as text and evals it,
+#              path: the wrapper assembles its pipe as text and evals it,
 #              so an unquoted value would make the manifest executable --
 #              the manifest is documented inert (docs/modules.md)
-#   release-guard  a pinned amalgam from another RELEASE is refused even
+#   release-guard  a pinned amalgam from another release is refused even
 #              though the isa fingerprints match (#435), --allow-release-skew
 #              and (allow-release-skew) waive it loudly, and a lock or an
 #              engine with nothing to compare says so
-#   pin-quote  a manifest DIRECTORY carrying a double quote is refused:
+#   pin-quote  a manifest directory carrying a double quote is refused:
 #              the path is emitted as an x-lang string literal, and a
 #              quote would close it and inject forms into the boot stream
 #   image      a pinned project without a (boot ...) row boots from a state
@@ -62,8 +62,8 @@
 #              overlay resolving, a touched manifest is a miss (the manifest
 #              keys the image), --no-image boots from source, X_IMAGE_NO_WRITE
 #              (the writer's own host mode) boots from a current image and
-#              never writes one, and a manifest WITH a (boot ...) row is
-#              refused by --image as before.
+#              never writes one, and a manifest with a (boot ...) row is
+#              refused by --image.
 #              Skipped, and said, when the engine cannot write an image
 # (The pinned REPL path is tty-side -- the fd-3 class check-examples.sh
 # documents -- and is not smokeable here; it shares every pipe stage but
@@ -222,10 +222,10 @@ status=$?
 [ "$status" -eq 0 ] || fail "vendored-pin run exited $status" "$_TMP/err" "$_TMP/out"
 grep -qx "yes" "$_TMP/out" || fail "vendored-pin: the platform copy loaded, not the overlay" "$_TMP/out"
 
-# stale (GH #147): a dependency dropped upstream must LEAVE the lock on
-# re-vendor.  It used to stay in both tree and lock -- still shadowing
-# the platform -- with verify calling the pair clean because both had
-# gone stale together.  Runs through the wrapper, on the acme fixture.
+# stale (GH #147): a dependency dropped upstream must leave the lock on
+# re-vendor.  One left in both tree and lock still shadows the platform, and
+# verify calls the pair clean because they went stale together.  Runs through
+# the wrapper, on the acme fixture.
 mkdir -p "$_TMP/proj7/lib0/acme"
 cat > "$_TMP/proj7/lib0/acme/head.x" <<'EOF'
 (import acme/tail)
@@ -317,9 +317,9 @@ status=$?
 grep -q "digest mismatch" "$_TMP/out" "$_TMP/err" || fail "fetch-tamper: no digest-mismatch error" "$_TMP/out" "$_TMP/err"
 
 # fetch survives a manifest with no (isa ...): the parser requires only the
-# tag, so %pin-assoc hands back nil, and the fingerprint report used to
-# compare against it -- dying AFTER the amalgam had verified clean.  Drift
-# is information, not an error, and so is an absent fingerprint.
+# tag, so %pin-assoc hands back nil and the fingerprint report has nothing to
+# compare against.  Drift is information rather than an error, and so is an
+# absent fingerprint.
 mkdir -p "$_TMP/rel/v9.9.7-noisa"
 cp "$_TMP/rel/v9.9.9-smoke/tiny.x" "$_TMP/rel/v9.9.7-noisa/tiny.x"
 {
@@ -399,17 +399,17 @@ $TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/proj5/main.x" >"$_TMP/out" 2>"$_TMP/err"
 status=$?
 [ "$status" -ne 0 ] || fail "boot-bad: malformed boot form was accepted" "$_TMP/out" "$_TMP/err"
 
-# boot-quote: a boot path carrying shell metacharacters must stay a PATH.
-# The wrapper builds its pipe as text and evals it, so an unquoted value
-# here used to reach the shell as code -- with pin.xon documented as inert
-# data (docs/modules.md "Pinning"), that made a manifest executable.  The
-# marker file exists so the wrapper's -e gate passes and the value reaches
-# the eval; a leaked metacharacter runs the payload, a quoted one does not.
-# The payload has to be a FILENAME, so it can hold no slash -- it prints
-# instead of writing a file.  Its output must also differ from its own
-# source text, because the wrapper's `pinned boot:` notice echoes the path
-# verbatim: `printf %s%s LE AK` emits LEAK while the path only ever reads
-# "LE AK", so a grep for LEAK matches execution and nothing else.
+# boot-quote: a boot path carrying shell metacharacters must stay a path.
+# The wrapper builds its pipe as text and evals it, so an unquoted value here
+# would reach the shell as code, making a manifest executable -- and pin.xon
+# is documented inert (docs/modules.md "Pinning").  The marker file exists so
+# the wrapper's -e gate passes and the value reaches the eval; a leaked
+# metacharacter runs the payload, a quoted one does not.  The payload has to
+# be a filename, so it can hold no slash -- it prints instead of writing a
+# file.  Its output must also differ from its own source text, because the
+# wrapper's `pinned boot:` notice echoes the path verbatim: `printf %s%s LE AK`
+# emits LEAK while the path only ever reads "LE AK", so a grep for LEAK matches
+# execution and nothing else.
 mkdir -p "$_TMP/proj6"
 _evil='q";printf %s%s LE AK >&2;"'
 : > "$_TMP/proj6/$_evil"

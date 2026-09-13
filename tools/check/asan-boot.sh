@@ -1,32 +1,26 @@
 #!/bin/sh
 # asan-boot.sh -- boot every dialect on an AddressSanitizer engine.
 #
-# THE FAILURE IT EXISTS FOR reaches CI and nowhere else.  The engine has no
-# auto-GC and a precise collector: an object referenced only from a C frame is
-# garbage the moment anything collects, and nothing notices until the freed
-# cell is REUSED.  glibc reuses a freed cell at once; macOS's allocator mostly
-# leaves it intact for a while.  So a use-after-free that the tower's boot
-# commits on every machine crashed only on x86-64 Linux, and only when the
-# heap happened to land so that the cell was recycled in time -- green on the
-# desk, red in CI, and which PR went red depended on what the engine release
-# had shuffled (x-lang#614, x-engine-c fix/load-roots).  Every one of those
-# runs had been "verified locally".  The local verification could not have
-# seen it.
+# The failure this gate exists for depends on allocator luck.  The engine has
+# no auto-GC and a precise collector: an object referenced only from a C frame
+# is garbage the moment anything collects, and nothing notices until the freed
+# cell is reused.  glibc reuses a freed cell at once; macOS's allocator mostly
+# leaves it intact for a while.  So a use-after-free the tower's boot commits
+# on every machine surfaces only where the heap lands such that the cell is
+# recycled in time -- green on one box, red on another, with no difference in
+# the code.
 #
-# ADDRESSSANITIZER MAKES THE LUCK IRRELEVANT.  It quarantines freed memory
-# and traps the read, on any allocator, on any OS, with a stack.  The unfixed
-# engine aborts under ASan on this machine the first time a boot collects
-# inside an include.  So this gate boots each dialect on an ASan build of the
-# PINNED engine -- the sources fetch.sh clones at the pin's release tag -- and
-# asks only that the boot finishes and the probe prints.  It is the one
-# check here that turns "layout luck" into a verdict before push.
+# AddressSanitizer removes the luck: it quarantines freed memory and traps the
+# read, on any allocator and any OS, with a stack.  This gate boots each
+# dialect on an ASan build of the pinned engine -- the sources fetch.sh clones
+# at the pin's release tag -- and asks that the boot finishes and the probe
+# prints.
 #
-# WHAT IT COSTS.  First run clones the pinned sources and builds x-bin-asan
-# (~1 min); after that the build is reused for as long as the pin stands.  The
-# boots are COLD by construction (see below), so the tower compiles every unit
-# under ASan each time: a few minutes for the three dialects, not seconds.  Too
-# slow for gates-fast's sub-minute budget, so it rides test-fast and gates,
-# where the pre-push hook and CI already spend minutes.
+# Cost: the first run clones the pinned sources and builds x-bin-asan (~1 min),
+# and the build is then reused for as long as the pin stands.  The boots are
+# cold by construction (see below), so the tower compiles every unit under
+# ASan each time -- a few minutes for the three dialects.  That is past
+# gates-fast's sub-minute budget, so it rides test-fast and gates instead.
 #
 # X_ASAN_DIALECTS narrows the run (default: he xe rn).  X_ASAN_BIN points at
 # an ASan engine already built elsewhere, skipping the clone and build.
@@ -117,14 +111,14 @@ elif command -v gtimeout >/dev/null 2>&1; then TIMEOUT="gtimeout 600"; fi
 
 # ASan's own exit status is what fails the boot.  Leak detection is off: a
 # batch process that exits without freeing its heap is the engine's normal
-# shape, not a finding.  THE QUARANTINE IS THE GATE'S MEMORY.  ASan catches a
-# freed read only while the freed chunk is still quarantined; its default
-# quarantine is 256M and a tower boot frees gigabytes, so a cell freed early
-# in the boot can be recycled before the includer resumes to read it, and
-# what ASan then sees is a valid read of someone else's object -- or an
-# overflow past a smaller one, which is how the first trap here reported
-# itself.  A 2G quarantine keeps every boot-time free poisoned until the
-# boot is over, so the class reports as what it is.
+# shape, not a finding.
+#
+# The quarantine is the gate's memory.  ASan catches a freed read only while
+# the freed chunk is still quarantined, and its default quarantine is 256M
+# against a tower boot that frees gigabytes.  A cell freed early in the boot
+# is then recycled before the includer resumes to read it, and ASan sees a
+# valid read of someone else's object, or an overflow past a smaller one.  A
+# 2G quarantine keeps every boot-time free poisoned until the boot is over.
 export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0:quarantine_size_mb=2048}"
 
 fail=0
