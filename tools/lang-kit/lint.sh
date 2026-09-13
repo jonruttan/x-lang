@@ -71,9 +71,26 @@ if [ $# -gt 0 ]; then
 	# shellcheck disable=SC2086
 	set -- $_ABS
 else
+	# A DOT DIRECTORY UNDER A BUNDLE IS NOT THE BUNDLE.  This swept `.git`
+	# by name and nothing else, which was fine until a bundle's CI checked
+	# the PLATFORM out inside its own root: every lang's workflow does
+	# `actions/checkout` with `path: .x-lang`, because a runner cannot write
+	# outside the workspace, and x-r7rs adds `.x-r5rs` beside it.  So the
+	# default target list quietly grew every .x in x-lang -- apps/bitwise,
+	# benchmarks, the whole library -- and x-r5rs's first green-probe CI run
+	# spent 22 minutes linting the platform with a bundle's preload before
+	# the engine took a SIGSEGV.  Locally there is no nested checkout and
+	# none of it shows.
+	#
+	# Pruned rather than filtered, so find never descends: a nested checkout
+	# is thousands of files.  The pattern is anchored to $BUNDLE instead of
+	# '*/.*' on purpose -- an INSTALLED bundle lives under a share tree that
+	# is itself commonly dot-pathed (~/.local/share/x/langs/NAME), and the
+	# unanchored spelling would prune every file it was asked to lint.
+	# `.git` needs no clause of its own now; it is a dot directory.
 	# shellcheck disable=SC2046
-	set -- $(find "$BUNDLE" -name '*.x' \
-		-not -path '*/tests/lib/*' -not -path '*/.git/*' | sort)
+	set -- $(find "$BUNDLE" -path "$BUNDLE/.*" -prune -o \
+		-name '*.x' -not -path '*/tests/lib/*' -print | sort)
 fi
 
 # ONE BOOT PER DIRECTORY, not one per file.  The platform's --group
