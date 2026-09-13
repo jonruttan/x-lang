@@ -151,6 +151,24 @@ jobs:
         os: [macos-14, ubuntu-24.04]
     steps:
       - uses: actions/checkout@v7
+      # THE SANITIZER ENGINE IS BUILT FROM THE PINNED SOURCES, and a tag is
+      # immutable (asan-boot.sh: "the build never goes stale"), so the build
+      # -- 55 seconds on both runners, before a single dialect boots -- is
+      # the same bytes on every run of the same pin on the same image.
+      # Cached on exactly those two facts.  The IMAGE is in the key on
+      # purpose: the engine is built with gcc, which links libasan
+      # DYNAMICALLY, so a binary is only as good as its image's runtime, and
+      # a new image is a new build.  A miss costs what every run cost
+      # before; the sources come back with the build, so fetch.sh's source
+      # arm reuses the tree instead of cloning.
+      - name: Runner image
+        id: image
+        run: echo "version=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+      - name: Sanitizer engine build
+        uses: actions/cache@v4
+        with:
+          path: deps/engine-src
+          key: asan-engine-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/engine/engine.pin.xon') }}-${{ steps.image.outputs.version }}
       # x-lang is the language; the engine is a separate project, acquired
       # rather than carried.  This is the step the submodule used to hide.
       - name: Acquire the engine
@@ -334,6 +352,24 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
+      # THE SANITIZER ENGINE IS BUILT FROM THE PINNED SOURCES, and a tag is
+      # immutable (asan-boot.sh: "the build never goes stale"), so the build
+      # -- 55 seconds on both runners, and again in this job, before the suite -- is
+      # the same bytes on every run of the same pin on the same image.
+      # Cached on exactly those two facts.  The IMAGE is in the key on
+      # purpose: the engine is built with gcc, which links libasan
+      # DYNAMICALLY, so a binary is only as good as its image's runtime, and
+      # a new image is a new build.  A miss costs what every run cost
+      # before; the sources come back with the build, so fetch.sh's source
+      # arm reuses the tree instead of cloning.
+      - name: Runner image
+        id: image
+        run: echo "version=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+      - name: Sanitizer engine build
+        uses: actions/cache@v4
+        with:
+          path: deps/engine-src
+          key: asan-engine-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/engine/engine.pin.xon') }}-${{ steps.image.outputs.version }}
       # SOURCES, not a release: the sanitizer build compiles the engine, so
       # this is the leg that keeps the source arm honest.  It is also the only
       # CI job that exercises it, which is why it is not `make engine`.
