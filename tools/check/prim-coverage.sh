@@ -73,8 +73,8 @@ BEGIN {
 	# ---- the surface
 	while ((getline line < scan) > 0) {
 		n = split(line, f, " ")
-		# Two kinds of subject, in the contract's terms: a bare row is its
-		# name and a catalog row is its coordinate, which is how x-lang
+		# Two kinds of subject, in the terms the contract uses: a bare row is
+		# its name and a catalog row is its coordinate, which is how x-lang
 		# addresses them.  The registration name a C table carries as a third
 		# string is not recorded in isa.x, and a non-C engine has none.
 		if (f[1] == "bare" || f[1] == "value") { bare[f[2]] = 1; bound[f[2]] = 1 }
