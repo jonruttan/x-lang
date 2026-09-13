@@ -1,23 +1,20 @@
 #!/bin/sh
 # release-version.sh -- the tag, the library version and the changelog agree.
 #
-# THREE PLACES HOLD ONE FACT, and nothing held them together.  v0.6.0 shipped
-# reporting `helium 0.5.2` in its banner and in `x -V`, because the tag and the
-# changelog moved and lib/x-core.x's x-lib-version did not.  The release stamp
-# (share/x/contract/release) was correct, so pinning and the pairing guard were
-# unaffected -- only the number a user is shown was wrong, which is the kind of
-# defect that survives precisely because nothing loads it.
+# Three places hold one fact: the tag, lib/x-core.x's x-lib-version, and the
+# changelog.  Moving two of them leaves the banner and `x -V` reporting the old
+# number, while the release stamp (share/x/contract/release) stays correct, so
+# pinning and the pairing guard are unaffected and nothing else notices.
 #
-# CHECKED, NOT GENERATED, and that is forced.  x-lib-version lives in
-# lib/x-core.x, which ships verbatim and is covered by the release's PAYLOAD
-# fingerprint -- a value written into it at build time would change that digest
-# on every build and make the fingerprint describe the builder rather than the
+# Checked rather than generated, and that is forced: x-lib-version lives in
+# lib/x-core.x, which ships verbatim and is covered by the release's payload
+# fingerprint.  A value written into it at build time would change that digest
+# on every build, making the fingerprint describe the builder rather than the
 # release.  So the three stay separate and this holds them equal.
 #
-# ONLY MEANINGFUL AT A TAG.  On any other commit `git describe --exact-match`
+# Only meaningful at a tag.  On any other commit `git describe --exact-match`
 # says nothing and there is no release to agree with, so this skips and says
-# so: a gate that invented an answer on a dev checkout would be noise every
-# other day of the week.
+# so.
 set -e
 
 cd "$(dirname "$0")/../.."

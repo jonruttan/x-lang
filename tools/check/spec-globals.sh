@@ -9,38 +9,32 @@
 # throwaway name clobbers the operative former for every later file in its
 # bucket.
 #
-# THAT IS WHAT THIS GATE EXISTS FOR, and the reason it is a gate rather than a
-# convention is that the damage is invisible from the file that causes it.  The
-# spec that breaks is someone else's, in a different directory, and it breaks
-# only at a particular batch size:
+# This is a gate rather than a convention because the damage is invisible from
+# the file that causes it.  The spec that breaks is someone else's, in a
+# different directory, and only at a particular batch size:
 #
 #     args mode, one job per file    2831/0
 #     glob mode, SPEC_BATCH=1        2695/0
 #     glob mode, SPEC_BATCH=8        2695, 2 failed
 #
-# The failure it produced read as a missing binding in a NEW C primitive --
-# convincingly enough to be diagnosed as an engine defect and nearly answered
-# with an engine release.  It was `(do (def op '+) ...)` in a quasiquote spec,
-# eight files earlier in the same process.
+# The failure reads as a missing binding in a C primitive, rather than as a
+# `(do (def op '+) ...)` eight files earlier in the same process.
 #
-# THE PROTECTED SET is the shared vocabulary, from the two manifests that
-# already define it: the engine's bare and keep names
+# The protected set is the shared vocabulary, derived from the two manifests
+# that already define it: the engine's bare and keep names
 # (engine/tools/contract/isa.x) and the runtime library's sanctioned top level
-# (tools/contract/bare-globals.x).  It follows those files automatically, which
-# is the point of deriving rather than listing -- a name that becomes global
-# tomorrow is protected tomorrow.
+# (tools/contract/bare-globals.x).  Deriving rather than listing means a name
+# that becomes global tomorrow is protected tomorrow.
 #
-# NOT PROTECTED, deliberately: everything else a spec defines.  Helper names
-# (`x`, `xs`, `f`) are the normal way to write a spec and collide with nothing.
-# The rule is only "do not take a name the vocabulary owns".
+# Everything else a spec defines is unprotected.  Helper names (`x`, `xs`, `f`)
+# are the normal way to write a spec and collide with nothing; the rule is only
+# "do not take a name the vocabulary owns".
 #
-# WHAT COUNTS AS TOP LEVEL is the binding position, not the column: depth 0 of
-# a fence, or nested only inside sequencing forms (`do`, `%seq`, `begin`,
-# `doc`), which open no frame.  A def inside a `fn` or `op` body binds in that
-# frame and is nobody else's business.  Quoted data (`'`, a backquote, `lit`,
-# `quasi`) is skipped -- a spec ABOUT quasiquote is full of unevaluated `def`
-# forms, and flagging those would make the gate useless in exactly the file
-# that motivated it.
+# Top level here is the binding position, not the column: depth 0 of a fence,
+# or nested only inside sequencing forms (`do`, `%seq`, `begin`, `doc`), which
+# open no frame.  A def inside a `fn` or `op` body binds in that frame.  Quoted
+# data (`'`, a backquote, `lit`, `quasi`) is skipped, since a spec about
+# quasiquote is full of unevaluated `def` forms.
 #
 # Scope is x-lang's own specs.  The bundles run the same harness with the same
 # hazard; their kit could carry this check, and does not yet.
