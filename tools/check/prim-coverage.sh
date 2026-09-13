@@ -1,22 +1,15 @@
 #!/bin/sh
 # prim-coverage.sh -- every C primitive is exercised by a spec, or says why not.
 #
-# THE CONTRACT: for each primitive the C source registers, the spec suite either
-# exercises it -- by name, through its catalog coordinate, or through the class
-# that fronts its namespace -- or carries a section saying it is deliberately
-# unspecced and why.  A primitive that is neither fails this gate.
+# The contract: for each primitive the C source registers, the spec suite
+# either exercises it -- by name, through its catalog coordinate, or through
+# the class that fronts its namespace -- or carries a section saying it is
+# deliberately unspecced and why.  A primitive that is neither fails this gate.
 #
-# WHY.  Thirteen primitives had no spec at all, and nobody knew: the byte-level
-# string trio, the pointer word-writer, the heap pin, the allocation guard the
-# harness itself arms before every run.  They were found by accident while
-# auditing documentation.  Nothing enumerated the surface and asked which parts
-# of it ran, so the gap could only ever be found by looking.
-#
-# The exemption is the part that keeps this honest.  An untestable primitive is
-# a decision -- heap-sweep frees live data without an immediately preceding
-# mark, and evaluating anything in x allocates, so no correct x-level call site
-# exists -- and a decision belongs on the record, next to the subject, where a
-# reader meets it.  It is written as a spec section:
+# An untestable primitive is a decision: heap-sweep frees live data without an
+# immediately preceding mark, and evaluating anything in x allocates, so no
+# correct x-level call site exists.  Such a decision is recorded next to its
+# subject, as a spec section:
 #
 #     ## heap sweep -- deliberately not specced here
 #
@@ -29,18 +22,13 @@
 # Shell, per the tools charter: this is a corpus scan over ~135 spec files, and
 # the same per-byte cost that keeps dup-defs and bare-globals out of x applies.
 #
-# THE SURFACE COMES FROM THE MANIFEST, NOT FROM THE C.  It used to run the
-# engine's own isa-scan.awk over the engine's sources, which meant this gate
-# could not be asked about an engine that ships no sources -- and since
-# `make engine` fetches exactly such an engine, that is now the ordinary case
-# rather than an exotic one.
-#
-# Reading tools/contract/isa.x instead is not a weaker claim.  The engine's own
-# check-isa holds that manifest against its C on every build of that repository,
-# so the manifest IS the surface, ratcheted by the project that owns it.  Both
-# were compared here before the switch: identical, except that the manifest also
-# lists `#t` and `#f`, which the scanner does not emit as value rows.  This gate
-# now asks about those two as well, and every spec exercises them.
+# The surface is read from tools/contract/isa.x rather than from the C, so the
+# gate can be asked about an engine that ships no sources -- which is what
+# `make engine` fetches.  That is not a weaker claim: the engine's own
+# check-isa holds that manifest against its C on every build of that
+# repository, so the manifest is the surface, ratcheted by the project that
+# owns it.  The manifest also lists `#t` and `#f`, which a C scanner does not
+# emit as value rows; this gate asks about those two as well.
 set -e
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -56,9 +44,9 @@ ISA="$ENGINE/tools/contract/isa.x"
 SCAN="${TMPDIR:-/tmp}/prim-cov-scan.$$"
 trap 'rm -f "$SCAN" "$SCAN.files"' EXIT INT TERM
 
-# The three sections that name PRIMITIVES.  %isa-keep is deliberately absent,
-# as it was from the scanner's output before: those are names the engine keeps
-# bound but does not register, and this gate asks about the registered surface.
+# The three sections that name primitives.  %isa-keep is absent: those are
+# names the engine keeps bound but does not register, and this gate asks about
+# the registered surface.
 awk '
 	/^\(def %isa-catalog/ { s="catalog"; next }
 	/^\(def %isa-bare/    { s="bare";    next }
@@ -72,11 +60,10 @@ awk '
 		else if (s != "catalog" && NF >= 1) print s, $1
 	}' "$ISA" > "$SCAN"
 
-# x-lang's specs, and only those.  The engine's C suite used to be read across
-# the boundary here; it is not in the tree once the engine arrives as a release,
-# and what it uniquely covered is now covered here -- ffi/call by the
-# conformance suite (which reaches primitives through %coord, see below), and
-# heap/sweep by a declared exemption, since no correct x-level call site exists.
+# x-lang's specs, and only those: the engine's C suite is not in the tree once
+# the engine arrives as a release.  What it uniquely covered is covered here --
+# ffi/call by the conformance suite, which reaches primitives through %coord
+# (see below), and heap/sweep by a declared exemption.
 find tests \( -name '*.spec.md' -o -name '*.spec.c' \) | sort > "$SCAN.files"
 
 awk -v scan="$SCAN" '
@@ -86,11 +73,10 @@ BEGIN {
 	# ---- the surface
 	while ((getline line < scan) > 0) {
 		n = split(line, f, " ")
-		# TWO KINDS OF SUBJECT, in the terms the contract uses.  The C scanner
-		# keyed everything on the registration NAME the C table carries as a
-		# third string -- a fact isa.x does not record, and one a non-C engine
-		# does not have at all.  So a bare row is its name and a catalog row is
-		# its coordinate, which is how x-lang addresses them anyway.
+		# Two kinds of subject, in the contract's terms: a bare row is its
+		# name and a catalog row is its coordinate, which is how x-lang
+		# addresses them.  The registration name a C table carries as a third
+		# string is not recorded in isa.x, and a non-C engine has none.
 		if (f[1] == "bare" || f[1] == "value") { bare[f[2]] = 1; bound[f[2]] = 1 }
 		# KEEP rows are bound but not registered: `%` and the rest of the int
 		# operators are reachable by name and filed in the catalog as well.
@@ -161,14 +147,12 @@ FNR == 1 { in_fence = 0; is_c = (FILENAME ~ /\.spec\.c$/) }
 		s = substr(s, RSTART + RLENGTH)
 	}
 
-	# THE CONFORMANCE DOOR.  That suite runs against a bare engine, where
+	# The conformance door.  That suite runs against a bare engine, where
 	# prim-ref does not exist -- it is x-level -- so it reaches a primitive by
-	# walking the base to the catalog: (%coord (lit ffi) (lit call)).  Not
-	# reading this idiom is why ffi/call looked unexercised the moment the C
-	# suite left the tree: it is tested, in this repository, by the suite whose
-	# whole subject is the surface of an engine.
+	# walking the base to the catalog: (%coord (lit ffi) (lit call)).  Reading
+	# that idiom is what keeps ffi/call from reading as unexercised.
 	#
-	# NO APOSTROPHES IN THIS PROGRAM.  It is single-quoted by the shell, which
+	# No apostrophes in this program: it is single-quoted by the shell, which
 	# is also why the quote character below is built with sprintf.
 	s = code
 	while (match(s, /%coord[ \t]+\(lit[ \t]+[^ \t)]+\)[ \t]+\(lit[ \t]+[^ \t)]+\)/)) {
@@ -233,14 +217,13 @@ END {
 			if ((cc[i] " " m) in classcall) { hit = 1; break }
 		if (hit) { ok++; continue }
 
-		# THE SAME PRIMITIVE, REACHED BARE.  `%` is filed at (int %) and also
-		# bound bare, and a spec that computes with `%` has exercised the C
-		# function behind both.  The scanner merged them by accident, because
-		# the registration name collided; this says it on purpose, and only
-		# when isa.x actually lists the name as bound.
+		# The same primitive, reached bare.  `%` is filed at (int %) and also
+		# bound bare, so a spec that computes with `%` has exercised the C
+		# function behind both.  They are merged only when isa.x lists the
+		# name as bound.
 		#
-		# RECONSTRUCTING THE REGISTRATION NAME.  The C files a catalog entry
-		# under a NAME as well as a coordinate -- (alloc limit!) is called as
+		# Reconstructing the registration name: the C files a catalog entry
+		# under a name as well as a coordinate -- (alloc limit!) is called as
 		# alloc-limit!, (io repl-read) as repl-read -- and that name is a free
 		# string in the C table which isa.x does not record.  In practice it is
 		# one of two spellings, so both are tried as plain tokens.

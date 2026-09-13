@@ -14,31 +14,26 @@
 #     (   )
 #      " "
 #
-# THE COMPANION TO check-seam, NOT A REPLACEMENT.  Seam asks whether the
-# platform still PROVIDES the names a lang is promised -- eight seconds, fast
-# tier, catches a rename.  This asks whether the langs still RUN, which is
-# minutes and catches everything else.  Deep tier.
+# A companion to check-seam rather than a replacement.  Seam asks whether the
+# platform still provides the names a lang is promised -- eight seconds, fast
+# tier, and catches a rename.  This asks whether the langs still run, which
+# takes minutes and catches the rest.  Deep tier.
 #
-# ADVISORY ABOUT PRESENCE, STRICT ABOUT REGRESSION.  A bundle lives in its own
+# Presence is advisory, regression is strict.  A bundle lives in its own
 # repository and this tree must build for someone who cloned nothing else, so a
-# missing bundle is announced and skipped rather than fatal.  A bundle that is
-# HERE and got worse is fatal.
+# missing bundle is announced and skipped.  A bundle that is present and got
+# worse is fatal.
 #
 # X_LANGS_DIR overrides where bundles are looked for.  LANGS='krn sweet' runs a
-# subset, for the loop where you already know which one you are chasing.
+# subset.
 #
-# PARALLEL IS NOT FORCED, AND THAT COST AN HOUR TO LEARN.  The first draft ran
-# every bundle with PARALLEL=1 for speed.  r7rs is 21 spec files each booting a
-# full tower, and the shared runner's own header says it: "a per-process guard
-# cannot fix memory exhaustion from many heavy specs loading in PARALLEL; for
-# that lower PARALLEL_JOBS."  Under load whole batches get killed by the alloc
-# ceiling, report no result, and the runner counts every one as a failure --
-# r7rs came back 637 of 637 red on one run and 58 on the next, with nothing
-# changed between them.
-#
-# A GATE THAT FLAKES IS WORSE THAN NO GATE: it trains you to re-run until green,
-# which is the same as not having it.  So the runners get their own default,
-# which is serial.  Export PARALLEL yourself if you want to trade that back.
+# PARALLEL is not forced, and the runners default to serial here.  Several
+# bundles are many spec files each booting a full tower, and the shared
+# runner's header states the limit: "a per-process guard cannot fix memory
+# exhaustion from many heavy specs loading in PARALLEL; for that lower
+# PARALLEL_JOBS."  Under load whole batches are killed by the alloc ceiling and
+# report no result, which the runner counts as failures -- so the same tree
+# scores differently run to run.  Export PARALLEL to trade that back.
 set -e
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -56,11 +51,10 @@ if [ ! -d "$LANGS_DIR" ]; then
 	exit 0
 fi
 
-# THE X UNDER TEST IS THIS TREE'S WRAPPER, and that is the whole point of the
-# gate.  A bundle runner asks `x --share-dir` where the platform lives, and mode
-# detection is cwd-based -- from a bundle directory the x on PATH answers the
-# INSTALL, so a suite run without this would score the last release rather than
-# the change you are about to push.
+# The x under test is this tree's wrapper.  A bundle runner asks
+# `x --share-dir` where the platform lives, and mode detection is cwd-based:
+# from a bundle directory the x on PATH answers the install, so a suite run
+# without this scores the last release rather than the working tree.
 X_UNDER_TEST="$ROOT/x.sh"
 [ -x "$X_UNDER_TEST" ] || { echo "langs: no wrapper at $X_UNDER_TEST" >&2; exit 1; }
 
@@ -84,12 +78,11 @@ sed -n 's/^(lang "\([^"]*\)"  *"\([^"]*\)"  *\([0-9]*\)  *\([0-9]*\)).*/\1 \2 \3
 		continue
 	fi
 
-	# PARSED IN AWK, and neither half of that is fussiness.  BSD sed does not
-	# interpret \033 in a pattern, so the obvious ANSI strip silently matches
-	# nothing on macOS and the coloured summary line never anchors.  And a
-	# greedy .* before a digit class eats all but the last digit -- "74 tests"
-	# captures 4, "80 failed" captures 0, and a bundle 80 specs in the red
-	# reports green.  Both of those were live in the first draft of this file.
+	# Parsed in awk, for two reasons.  BSD sed does not interpret \033 in a
+	# pattern, so an ANSI strip written that way matches nothing on macOS and
+	# the coloured summary line never anchors.  And a greedy .* before a digit
+	# class eats all but the last digit: "74 tests" captures 4 and "80 failed"
+	# captures 0, so a bundle 80 specs in the red reads as green.
 	line="$(cd "$D" && X="$X_UNDER_TEST" sh tests/spec-runner.sh 2>&1 \
 		| awk '{
 			gsub(/\033\[[0-9;]*m/, "")
@@ -100,9 +93,9 @@ sed -n 's/^(lang "\([^"]*\)"  *"\([^"]*\)"  *\([0-9]*\)  *\([0-9]*\)).*/\1 \2 \3
 	tests="${line% *}"
 	failed="${line#* }"
 
-	# NO RESULT IS A FAILURE, never a pass.  A suite whose harness died prints
-	# no summary line at all, and treating a missing number as zero is how a
-	# broken platform reads as a green one.
+	# No result is a failure, never a pass.  A suite whose harness died prints
+	# no summary line at all, and a missing number treated as zero would make
+	# a broken platform read as a green one.
 	if [ -z "$line" ] || [ -z "$failed" ]; then
 		printf '%-8s %8s %8s %8s   %s\n' "$name" "?" "?" "$budget" "FAIL (no result -- suite did not report)"
 		echo "$name" >> "$ROOT/.langs-fails.$$"
@@ -116,9 +109,9 @@ sed -n 's/^(lang "\([^"]*\)"  *"\([^"]*\)"  *\([0-9]*\)  *\([0-9]*\)).*/\1 \2 \3
 	elif [ "$failed" -lt "$budget" ]; then
 		verdict="improved -- ratchet langs.x to $failed"
 	fi
-	# A SUITE THAT SHRANK is compared against a number that described a bigger
-	# run, so the budget stops meaning what it said.  Loud, not fatal: a bundle
-	# is free to reorganise its specs, and the fix is to re-record.
+	# A suite that shrank is compared against a number describing a bigger
+	# run, so the budget no longer means what it said.  Loud, not fatal: a
+	# bundle may reorganise its specs, and the fix is to re-record.
 	if [ "$tests" -lt "$want_tests" ]; then
 		verdict="$verdict; suite shrank $want_tests->$tests, re-record"
 	fi
