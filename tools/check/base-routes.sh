@@ -1,18 +1,17 @@
 #!/bin/sh
 # base-routes.sh -- the engine's base carries the routes the library walks.
 #
-# A GAP THE PROFILE DOES NOT COVER.  x-engine-rust reached the `core` profile --
-# every capability satisfied, every conformance case that exists passing -- with
-# a base-paths.x declaring TWO routes.  The library walks eleven, by name, and
-# would have died on the first one.  Nothing said so: the declaration digests
-# base-paths.x without reading it, and `reflect/layout-data` claims only that an
-# engine SHIPS the file.
+# The capability profile does not cover this.  An engine can satisfy every
+# capability and pass every conformance case while declaring a base-paths.x
+# with far fewer routes than the library walks: the declaration digests
+# base-paths.x without reading it, and `reflect/layout-data` claims only that
+# an engine ships the file.
 #
 # Route names are a contract even though the paths are not.  Decision L1 makes
-# the STEPS an engine's own business -- `(prims base f)` here, `(prims base f r
-# r r r r r r r r f)` in the C -- precisely so a different object model can
-# arrange its base differently.  What both must agree on is what the routes are
-# CALLED, because the library resolves them by name at runtime:
+# the steps an engine's own business -- `(prims base f)` here, `(prims base f r
+# r r r r r r r r f)` in the C -- so that a different object model can arrange
+# its base differently.  What both must agree on is what the routes are called,
+# because the library resolves them by name at runtime:
 #
 #   lib/x/boot/registry.x:  (%reflect-step (%base) (%reflect-path name %base-paths))
 #
@@ -32,11 +31,10 @@ trap 'rm -rf "$W"' EXIT INT TERM
 
 # What the library asks for, by name.
 #
-# THROUGH THE WRAPPERS TOO.  This matched only the two resolvers directly, and
-# lib/x/type/struct.x reaches thirty-odd routes through %type-parent-path -- so
-# the check reported "all 16 routes are declared" while the library needed 25,
-# and x-engine-rust died on type-analyse-stack with a green gate behind it.
-# Any helper that forwards a name to %reflect-path belongs in this list.
+# The wrappers count too.  lib/x/type/struct.x reaches thirty-odd routes
+# through %type-parent-path, so matching only the two resolvers directly
+# undercounts what the library needs.  Any helper that forwards a name to
+# %reflect-path belongs in this list.
 {
 	grep -rhoE "(%reflect-path|%reflect-base-cell|%type-parent-path) \(lit [a-z-]+\)" lib/ \
 		| grep -oE "lit [a-z-]+" | sed 's/lit //'

@@ -1,9 +1,9 @@
 #!/bin/sh
-# bare-globals-scan.sh -- THE TOP LEVEL IS SACRED ratchet (#108)
+# bare-globals-scan.sh -- bare top-level name ratchet (#108)
 #
 # The shared boot/core layers may bind only the bare names the manifest
-# (tools/contract/bare-globals.x) lists: the approved keep-list survivors plus the
-# not-yet-swept remainder, which may only SHRINK.  Scans every top-level
+# (tools/contract/bare-globals.x) lists: the approved keep-list survivors plus
+# the not-yet-swept remainder, which may only shrink.  Scans every top-level
 # (def NAME ...) / (doc (def NAME ...)) / (def-class NAME ...) in
 # lib/x-core.x + lib/x/boot/*.x + lib/x/core/*.x whose NAME is not
 # %-private, and diffs BOTH directions against the manifest:
