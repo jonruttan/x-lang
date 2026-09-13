@@ -30,6 +30,15 @@
 (import x/type/str)
 ; Fetch the io plumbing prims from the catalog (ns `io` partly de-registered, R5).
 (def %write-to-str (prim-ref 'io 'write-to-str))
+; The walk writes the form it is analysing, and the handlers attached to the
+; list and symbol types (%lint-push) collect defs and uses as the write
+; dispatches to them.  The door comes from the catalog rather than the global
+; `write`, which a lang may rebind: x-r5rs binds it to a Scheme writer that
+; renders symbols bare and recurses by hand, so it never reaches the type
+; dispatch and the walk collects nothing.  `(io write)` is the door the global
+; is built on -- boot/printer.x registers %print-write1 there, beside the
+; write-to-str above -- so the walk is unchanged apart from who can replace it.
+(def %lint-write (prim-ref 'io 'write))
 
 (import x/type/struct)
 
@@ -208,7 +217,7 @@
 
 ; Walk one form: write dispatches a list to the list handler, a symbol to the
 ; symbol handler, anything else to its own (harmless) writer.  nil is skipped.
-(def %lint-form (fn (_ form) (unless (null? form) (do (write form) ()))))
+(def %lint-form (fn (_ form) (unless (null? form) (do (%lint-write form) ()))))
 
 ; Walk a body/clause sequence; a leading binding form adds its name for the rest.
 (def %lint-seq (fn (self forms)
