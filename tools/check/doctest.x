@@ -4,19 +4,19 @@
 ; Run via tools/check/doctest.sh: x-core + this file on stdin, the module list
 ; (import paths like x/type/dict) on argv. Emits a .spec.md on stdout.
 ;
-; Attribution: modules are imported ONE AT A TIME and the doc registry
-; (a prepend-only list) is diffed around each import -- the new entries
-; belong to that module. Entries already present after boot (x-core's
-; own docs) need no import line in their generated tests.
+; Attribution: modules are imported one at a time and the doc registry (a
+; prepend-only list) is diffed around each import, so the new entries belong to
+; that module.  Entries already present after boot (x-core's own docs) need no
+; import line in their generated tests.
 ;
-; The import is emitted as its OWN top-level form ahead of the example,
-; never wrapped in one (do ...) with it: a tower literal inside the same
-; top-level form as the import that defines its reader would misparse
-; (parse-before-eval -- the x-core load-order trap).
+; The import is emitted as its own top-level form ahead of the example, never
+; wrapped in one (do ...) with it: a tower literal inside the same top-level
+; form as the import that defines its reader misparses, since parsing precedes
+; evaluation.
 ;
-; Census discipline (#16 phase 1): an example with an EMPTY expected
-; string is illustrative-only -- counted and skipped, not emitted. Every
-; other example is emitted verbatim; the harness verdict buckets them.
+; An example with an empty expected string is illustrative only -- counted and
+; skipped, not emitted.  Every other example is emitted verbatim; the harness
+; verdict buckets them.
 
 ; Fetch the string prim from the catalog (ns `str` is de-registered, R5).
 (def %str->sym (prim-ref 'str '->sym))

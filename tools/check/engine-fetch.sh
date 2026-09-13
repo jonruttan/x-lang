@@ -7,17 +7,17 @@
 # the same technique tools/check/pin-smoke.sh uses for (Pin fetch), and for the
 # same reason: a release fixture proves the mechanism without needing a release.
 #
-# WHAT IT PINS DOWN, and each is a rule the mechanism would be wrong without:
+# What it pins down, each a rule the mechanism would be wrong without:
 #
 #   verify    a good digest fetches, unpacks and lands
 #   reuse     a second run does no work and touches nothing
-#   tamper    a bad digest REFUSES, and quarantines the bytes as evidence
-#   missing   a DECLARED artifact that will not fetch is an ERROR -- it must not
+#   tamper    a bad digest refuses, and quarantines the bytes as evidence
+#   missing   a declared artifact that will not fetch is an error -- it must not
 #             fall back to a source build.  The fallback is for platforms nobody
-#             publishes for; firing it on a broken release would turn a bad
-#             release into a slow build and hide it.
+#             publishes for; firing it on a broken release turns a bad release
+#             into a slow build and hides it.
 #   aligned   a row whose columns are padded for readability still matches
-#   malformed a row for this platform that cannot be read is an ERROR, not a miss
+#   malformed a row for this platform that cannot be read is an error, not a miss
 #   unknown   a form the pin does not define is refused, not ignored
 set -e
 
@@ -80,9 +80,9 @@ grep -q "DIGEST MISMATCH" "$T/err" || fail "tamper: refused without naming the r
 [ -d "$out.rejected" ] || fail "tamper: the bytes were not quarantined at $out.rejected"
 rm -rf "$out.rejected"
 
-# --- missing: a declared artifact that will not fetch is an ERROR ------------
-# THE RULE THIS GATE EXISTS FOR.  Falling back to source here would make a
-# broken release indistinguishable from a slow machine.
+# --- missing: a declared artifact that will not fetch is an error ------------
+# Falling back to source here would make a broken release indistinguishable
+# from a slow machine.
 pin "$DG" "file://$T/not-there.tar.gz"
 if PIN="$T/pin.xon" sh tools/engine/fetch.sh >"$T/out" 2>"$T/err"; then
 	fail "a declared artifact that could not be fetched fell back instead of failing" "$T/out"
@@ -91,11 +91,10 @@ grep -q "fetch failed" "$T/err" || fail "missing: wrong diagnosis" "$T/err"
 grep -q "source" "$T/out" 2>/dev/null && fail "missing: it fell back to a source build" "$T/out"
 
 # --- aligned columns still match ---------------------------------------------
-# THE BUG THIS LEG EXISTS FOR.  The first reader matched a single space between
-# fields, so aligning the pin's columns for readability made the row invisible
-# and the build took the source arm -- a declared artifact wearing the face of
-# an undeclared one, which is the exact failure the `missing` leg above forbids
-# arriving through the back door.
+# A reader that matches a single space between fields makes an aligned row
+# invisible, and the build then takes the source arm -- a declared artifact
+# wearing the face of an undeclared one, which is what the `missing` leg above
+# forbids.
 rm -rf "$out"
 { printf '(engine "fixture")\n(release "v9.9.9")\n'
   printf '(artifact %s %s   "sha256:%s"   "file://%s")\n' "$OS" "$ARCH" "$DG" "$T/fixture.tar.gz"

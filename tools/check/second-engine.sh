@@ -1,28 +1,20 @@
 #!/bin/sh
 # second-engine.sh -- the contract apparatus works for an engine that is not ours.
 #
-# x-lang's whole engine-contract arc rests on a claim: the vocabulary, the
-# generator and the resolver describe ANY engine meeting the contract, not just
-# x-engine-c.  Nothing tested that claim while only one engine existed, and the
-# first time the apparatus was pointed at a second one it produced two wrong
-# answers:
+# x-lang's engine-contract apparatus claims that the vocabulary, the generator
+# and the resolver describe any engine meeting the contract, not just
+# x-engine-c.  With one engine in the tree, nothing exercises that claim.
 #
-#   - tools/check/engine-contract.sh hardcoded ext/x-engine-c, so the gate that
-#     answers the resolver's question could not be asked about another engine.
-#   - tools/contract/gen-engine-xon.sh added explicitly-grouped coordinates from
-#     features.x WITHOUT intersecting them against the engine's own ISA, so an
-#     engine with zero foreign-door rows had (provides isa/ffi-call) written into
-#     its declaration BY THE TOOLING.  Compliance would then have audited a claim
-#     the engine never made.
+# This gate runs the apparatus against tests/x/fixtures/engine-min -- a paper
+# engine, contract files and nothing else, declaring `core` and no more -- and
+# asserts the resolver answers with the refusal it should, naming exactly the
+# groups that engine lacks.
 #
-# Both are fixed.  This gate keeps them fixed by running the apparatus against
-# tests/x/fixtures/engine-min -- a PAPER engine, contract files and nothing else,
-# declaring `core` and no more -- and asserting the resolver's answer is the
-# refusal it should be, naming exactly the groups that engine lacks.
-#
-# A fixture is cheaper than remembering.  The alternative is that these come back
-# the next time the vocabulary grows, and are found by whoever writes the second
-# engine for real -- which is the worst possible moment.
+# Two ways the apparatus can be wrong, both covered here: a gate that hardcodes
+# ext/x-engine-c cannot be asked about another engine, and a generator that
+# adds explicitly-grouped coordinates from features.x without intersecting them
+# against the engine's own ISA writes capabilities into a declaration the
+# engine never made.
 set -e
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -58,16 +50,15 @@ for atom in isa/ffi-call isa/syscall isa/gc isa/sys; do
 	fi
 done
 
-# --- a PARTIALLY implemented group is not a capability ------------------------
-# The generator used to derive (provides G) from "the engine has at least one row
-# tagged for G".  That is not what a capability means -- docs/engine-contract.md
-# defines one as "the coordinates in that group resolve", all of them -- and the
-# gap is not academic: an engine implementing `error` and nothing else of the
-# evaluator declared the whole 25-instruction isa/spine group, and the resolver
-# then reported it satisfied.  The library would have died on its first `fn`, at
-# runtime, after the one check whose entire job was to say so beforehand.
+# --- a partially implemented group is not a capability ------------------------
+# docs/engine-contract.md defines a capability as "the coordinates in that
+# group resolve" -- all of them.  Deriving (provides G) from "the engine has at
+# least one row tagged for G" would let an engine implementing `error` and
+# nothing else of the evaluator declare the whole 25-instruction isa/spine
+# group, and the resolver report it satisfied; the library would then die on
+# its first `fn`, at runtime.
 #
-# Here the fixture is trimmed to cover all but ONE coordinate of a group it
+# Here the fixture is trimmed to cover all but one coordinate of a group it
 # otherwise implements in full.  Derived from the real fixture rather than
 # committed as a second one, so it cannot drift out of step with the first.
 mkdir -p "$W/partial/tools/contract"
@@ -87,10 +78,9 @@ if [ "$after" -ne $((before - 1)) ]; then
 	fail=1
 fi
 
-# The engine SHIPS its declaration, so write it where an engine keeps it -- the
-# resolver reads the file, not the generator.  Testing through a directory with
-# no declaration would exercise the missing-file path instead of the coverage
-# one, which is how the first draft of this case passed for the wrong reason.
+# The engine ships its declaration, so it is written where an engine keeps it:
+# the resolver reads the file, not the generator.  A directory with no
+# declaration would exercise the missing-file path instead of the coverage one.
 sh tools/contract/gen-engine-xon.sh "$W/partial" > "$W/pxon" 2>"$W/perr" || {
 	echo "  PARTIAL: the generator failed against the trimmed fixture:" >&2
 	sed 's/^/    /' "$W/perr" >&2
@@ -141,9 +131,9 @@ for atom in isa/ffi-call isa/gc isa/sys isa/syscall; do
 	}
 done
 
-# The requires derivation must NOT be perturbed by the candidate: what lib/ needs
-# is a property of lib/.  Deriving it through a reduced engine's coordinate map
-# once made requires.x look stale for no longer needing a collector.
+# The requires derivation must not be perturbed by the candidate: what lib/
+# needs is a property of lib/.  Derived through a reduced engine's coordinate
+# map, requires.x reads as stale for no longer needing a collector.
 if grep -q "DERIVED:" "$W/out"; then
 	echo "  DERIVED: judging a candidate perturbed the requires derivation --"
 	echo "    what the library needs is a property of the library, not of the"

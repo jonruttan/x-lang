@@ -5,28 +5,21 @@
 ; (lang "NAME" "DIR" TESTS FAILED)   NAME as `-l` spells it, DIR under langs-dir,
 ;                                and the suite's counts as of the last edit.
 ;
-; FAILED MAY ONLY SHRINK (tools/check/langs.sh), the rule percent-globals.x
-; runs on.  A number here is not a target and not an excuse; it is the debt this
-; platform is known to be carrying, recorded so it cannot quietly grow.
+; FAILED may only shrink (tools/check/langs.sh), the rule percent-globals.x
+; runs on.  A number here is not a target; it is the debt this platform is
+; known to be carrying, recorded so it cannot quietly grow.
 ;
-; WHY THIS FILE EXISTS.  check-seam catches a RENAME in eight seconds -- one of
-; the three ways the last generation of langs rotted, and its header is right
-; that no amount of testing "over there" catches it in time.  It cannot catch
-; anything else.  A behaviour change, an arity change, a reader that now scores
-; a tie differently: the platform stays green, every bundle's CI is on its own
-; schedule against a RELEASE rather than your working tree, and the break
-; surfaces weeks later as somebody else's mystery.
+; check-seam catches a rename in eight seconds and catches nothing else.  A
+; behaviour change, an arity change, a reader that scores a tie differently:
+; the platform stays green, every bundle's CI runs on its own schedule against
+; a release rather than the working tree, and the break surfaces weeks later
+; somewhere else.  The platform moving under the bundles is invisible here
+; unless something runs them.
 ;
-; The measurement that prompted this: with x-lang green at 2590/0, the six
-; bundles carried 175 failures between them and nothing in this tree said so.
-; Pinning x-engine-c v0.1.3 took that to 69 without a line changing in any
-; bundle -- which is the same point from the other side: the platform moving
-; under them is invisible here unless something runs them.
-;
-; A BUNDLE LIVES IN ITS OWN REPOSITORY, so this gate is advisory about
-; PRESENCE and strict about REGRESSION.  Bundles absent from the disk are
-; skipped loudly and the gate still passes -- x-lang must build for someone who
-; cloned nothing else.  Bundles that ARE present must not get worse.
+; A bundle lives in its own repository, so this gate is advisory about presence
+; and strict about regression.  Bundles absent from the disk are skipped loudly
+; and the gate still passes -- x-lang must build for someone who cloned nothing
+; else.  Bundles that are present must not get worse.
 ;
 ; The counts are against whatever revision of each bundle is checked out, which
 ; is a real limitation and the reason TESTS is recorded beside FAILED: a suite
@@ -94,38 +87,35 @@
 ; are guarded exits, pre-loop guards wrap when loop-invariant; inits
 ; over the params pad as lane functions applied at the call boundary;
 ; nested loops two deep run as a state machine over the one self-call;
-; and POINTERS -- the program's memory is one raw buffer the interpreter
-; and the native twins address alike, so arrays cross the boundary and
-; a NATIVE BUBBLE SORT sorts main's array), so gcd, isprime, a
+; and pointers -- the program's memory is one raw buffer the interpreter
+; and the native twins address alike, so arrays cross the boundary and a
+; native bubble sort sorts main's array), so gcd, isprime, a
 ; countdown-from-n, a triangular pair count and the sort all compile:
 ; a 2M-iteration loop, 79s interpreted vs 9.5s built.  Twin agreement
 ; is the spec.
-; Structs landed (2026-09-02): fields as cell offsets, -> and ., arrays
-; of structs, scaled pointer steps, typedef, copy -- oracle-identical.
-; switch (fallthrough, break, continue through to the loop) and
-; function-like macros (argument text, boundary substitution, rescan)
-; landed 2026-09-02.
-; #ifdef/#ifndef/#else/#endif/#undef/#if-defined and initializer lists
-; landed 2026-09-02; the heap zero-fills (str make is space-filled).
+; Structs: fields as cell offsets, -> and ., arrays of structs, scaled
+; pointer steps, typedef, copy -- oracle-identical.  switch
+; (fallthrough, break, continue through to the loop) and function-like
+; macros (argument text, boundary substitution, rescan).
+; #ifdef/#ifndef/#else/#endif/#undef/#if-defined and initializer lists;
+; the heap zero-fills (str make is space-filled).
 (lang "cc"    "x-cc"    117  0)
-; logo arrived GREEN, which is what an extraction should look like: 83/0 here
-; is the same 83 tests that ran as lib/logo.spec.md in this tree, against the
-; same turtle kernel, through the bundle's own harness instead of tests/x/lib.
-; Nothing about the language moved -- what moved is who runs it.
+; logo's 83/0 here is the same 83 tests that ran as lib/logo.spec.md in this
+; tree, against the same turtle kernel, through the bundle's own harness
+; instead of tests/x/lib.
 ;
-; It is the ONE ROW TO RUN ALONE.  The turtle kernel's resident heap is 5-7GB
+; It is the one row to run alone.  The turtle kernel's resident heap is 5-7GB
 ; (its @weight 7 travelled with it), and check-langs runs these suites in
-; sequence on whatever machine invoked it.  That is exactly the condition the
-; r7rs note below describes: measured beside another heavy suite the numbers
-; here are fiction, and a gate whose verdict depends on what else was running
-; is worse than no gate.
+; sequence on whatever machine invoked it -- the condition the r7rs note below
+; describes.  Measured beside another heavy suite, the numbers here do not
+; mean anything.
 ;
-; Its two other suites are NOT counted here and cannot be: the examples gate
+; Its two other suites are not counted here and cannot be: the examples gate
 ; and the pty contract live in the bundle's CI, and one of them needs a
-; terminal this gate has no way to provide.
+; terminal this gate cannot provide.
 (lang "logo"  "x-logo"   83  0)
 
-; DEBT, each with a reason, none of them an invitation.
+; The recorded debt, each row with its reason.
 ;
 ; ash's two are the single- and double-quoted string readers, which accumulate
 ; the value in a module-level global during analyse and lose it -- a bundle bug,

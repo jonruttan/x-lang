@@ -199,7 +199,7 @@
   (fn (_ ti n)
     ((fn (_ st) (if (null? st) (mkn n) (%mk st (if (%lt n 1) 1 n)))) (%oref TT ti))))
 (def mkt-unused ())
-; RAW MEMORY, not an object: an obj make of ~95k units cost 612ms of a 1.5s
+; Raw memory, not an object: an obj make of ~95k units costs 612ms of a 1.5s
 ; load, more than every other phase together.  The collector need not see it --
 ; rebuilt objects are on the heap chain from birth, and nothing collects
 ; between the rebuild and the install.

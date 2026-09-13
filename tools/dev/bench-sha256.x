@@ -326,9 +326,8 @@
     (do
       (%init-h)
       ; Under --fold the compiled function is entered at the sentinel, so
-      ; this number INCLUDES the shuffles it absorbed -- which is why the
-      ; shuffle line below reports "folded" rather than a time that the
-      ; digest above no longer pays.
+      ; this number includes the shuffles it absorbed; the shuffle line
+      ; below reports "folded" rather than a time.
       (def %t-rounds (%clock))
       ((fn (self b)
          (match ((= b %nblocks) ())

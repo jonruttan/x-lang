@@ -1,7 +1,7 @@
 #!/bin/sh
 # highlight-roundtrip.sh -- the highlighter must not alter what it renders
 #
-# THE CONTRACT: for every ```x and ```x-repl block in the documentation,
+# The contract: for every ```x and ```x-repl block in the documentation,
 # stripping the span markup and unescaping the three entities returns the
 # fence's original bytes, exactly.  A highlighter that quietly drops a
 # character, reorders a token, or eats a brace is worse than none: the reader

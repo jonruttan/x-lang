@@ -70,13 +70,14 @@ mkdir -p build/release
   isa=$(_digest $ENGINE_DIR/tools/contract/isa.x)
   check_hex "$isa" $ENGINE_DIR/tools/contract/isa.x
   printf '(isa "sha256:%s")\n' "$isa"
-  # THE LAYOUT FINGERPRINT.  The isa row above is a compatibility hint and a poor
-  # one: it is the C SURFACE, byte-identical across v0.3.1-rc10, v0.4.0 and v0.5.0,
-  # so comparing it passed a mismatched amalgam onto a drifted engine (#435).  What
-  # an amalgam actually binds against is the LAYOUT -- it walks object header words
-  # through lib/x/boot/reflect.x -- and a layout that moved is a segfault in field
-  # access, not a diagnosable error.  The three descriptors are digested as ONE
-  # unit because an amalgam binds against all three or none.
+  # The layout fingerprint.  The isa row above is a weak compatibility hint: it
+  # is the C surface, which can be byte-identical across releases whose layout
+  # moved, so comparing it passes a mismatched amalgam onto a drifted engine
+  # (#435).  What an amalgam binds against is the layout -- it walks object
+  # header words through lib/x/boot/reflect.x -- and a layout that moved is a
+  # crash in field access rather than a diagnosable error.  The three
+  # descriptors are digested as one unit, because an amalgam binds against all
+  # three or none.
   lay="$W_LAYOUT"
   cat "$ENGINE_DIR/tools/contract/obj-layout.x" \
       "$ENGINE_DIR/tools/contract/base-paths.x" \
@@ -84,13 +85,12 @@ mkdir -p build/release
   layout=$(_digest "$lay")
   check_hex "$layout" "the layout descriptors"
   printf '(layout "sha256:%s")\n' "$layout"
-  # WHICH ENGINE BUILT THIS RELEASE.  A separate fact from (release ...) since
-  # the engine got a version line of its own: that row is the LANGUAGE's tag,
-  # this one is the engine's, and they have not been the same string since
-  # x-engine-c cut v0.1.0.  Read from the row the engine declares beside its
-  # binary rather than asked of the binary, so the pin can record it without
-  # starting anything.  Absent for an engine that predates the row -- the lock
-  # simply carries no engine-release, and the guard announces rather than
+  # Which engine built this release.  A separate fact from (release ...): that
+  # row is the language's tag, this one is the engine's, and they are different
+  # strings.  Read from the row the engine declares beside its binary rather
+  # than asked of the binary, so the pin can record it without starting
+  # anything.  Absent for an engine that predates the row: the lock then
+  # carries no engine-release, and the guard announces that rather than
   # inventing one.
   engrel=$(sed -n 's/^(param release "\(.*\)")[[:space:]]*$/\1/p' \
       "$ENGINE_DIR/x-engine-build.xon" 2>/dev/null | head -1)

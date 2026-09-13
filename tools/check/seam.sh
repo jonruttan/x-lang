@@ -5,16 +5,14 @@
 # running platform to them, in every dialect, and holds the documented table to
 # the declaration so the two cannot drift.
 #
-# THE FAILURE IT EXISTS FOR is invisible from inside this repository: a lang
+# The failure this catches is invisible from inside this repository: a lang
 # lives in its own repo, so a rename here that drops %repl-prompt or
-# import-path! breaks it silently and this tree stays green.  That is one of
-# the three ways the last generation of langs rotted, and it is the one no
-# amount of testing over there can catch in time.
+# import-path! breaks it while this tree stays green.
 #
-# EVERY DIALECT, because a lang declares which one it loads on and any of the
-# three is a legal answer.  ~8s for all three (he 1s, xe 4s, rn 3s -- the
-# tower's runtime cc compilations dominate), which buys a place in the fast
-# gates rather than the deep tier.
+# Every dialect is checked, because a lang declares which one it loads on and
+# any of the three is a legal answer.  ~8s for all three (he 1s, xe 4s, rn 3s;
+# the tower's runtime cc compilations dominate), which fits the fast gates
+# rather than the deep tier.
 set -e
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -66,9 +64,9 @@ for d in he xe rn; do
 			fail=1
 		fi
 	done
-	# A checkout has no %install-root.  If one of these ever answers `ok` here,
-	# the row is no longer conditional and every lang's guard has become
-	# superstition -- say so rather than let the guidance rot into a habit.
+	# A checkout has no %install-root.  If one of these answers `ok` here, the
+	# row is no longer conditional and every lang's guard is unnecessary, so
+	# the gate says so rather than leaving the guidance in place.
 	for n in $INSTALLED; do
 		if grep -qx "$n=ok" "$out"; then
 			echo "seam: $d provides '$n' in a CHECKOUT, but $SEAM declares it 'installed'" >&2
@@ -93,10 +91,10 @@ done
 # tools/contract/bundles/seamprobe/lang.xon); the entry defines nothing, so
 # everything the probe finds came from the wrapper's bundle_form.
 #
-# ONE DIALECT IS ENOUGH, and the asymmetry with the loop above is deliberate:
-# what varies across he/xe/rn is the LIBRARY, and %lang-root is emitted by the
-# wrapper ahead of any of it.  Running the fixture three times would cost the
-# tower's boot twice to re-prove a shell function's output.
+# One dialect is enough here, unlike the loop above: what varies across
+# he/xe/rn is the library, and %lang-root is emitted by the wrapper ahead of
+# any of it.  Running the fixture three times would cost the tower's boot
+# twice to re-prove a shell function's output.
 if [ -n "$BUNDLE" ]; then
 	out="$W/bundle.out"
 	if ! X_LANG_DIR=tools/contract/bundles/ \

@@ -8,30 +8,28 @@
 # reached ONE HUNDRED before it was homed into its class).  This check
 # closes the exemption: every file's count of top-level %-defs is
 # budgeted in tools/contract/percent-globals.x, and the budget may only
-# SHRINK.  The composed alternative is the classes-ARE-namespaces rule:
-# home helpers as %-prefixed statics on the module's class (pin.x is the
-# worked example -- one justified global remains).
+# shrink.  The composed alternative is the classes-are-namespaces rule: home
+# helpers as %-prefixed statics on the module's class (pin.x is the worked
+# example -- one justified global remains).
 #
 # Both directions fail, mirroring bare-globals:
 #   - a file over its budget fails (the pollution cannot grow);
-#   - a file under its budget fails (ratchet DOWN: update the row, keep
+#   - a file under its budget fails (ratchet down: update the row, keep
 #     the win); a file absent from the manifest has budget 0.
 #
-# Scope: lib/ + apps/ + tools/ -- dup-defs.sh's scope, for dup-defs.sh's
-# reason: a tool script co-loads with the library (its driver loads
-# x-core first), so its globals land in the same env.  Tools are not
-# exempt from the rule; the check just could not see them (#304).
+# Scope: lib/ + apps/ + tools/ -- dup-defs.sh's scope, for its reason: a tool
+# script co-loads with the library, since its driver loads x-core first, so
+# its globals land in the same env.
 #
-# Counting is FORM-ACCURATE (tools/check/defs.awk), not a line grep,
+# Counting is form-accurate (tools/check/defs.awk) rather than a line grep,
 # because "binds globally" is not the same as "starts in column 0":
-#   - (doc (def %name ...)) is a def -- the old ^(def % grep skipped
-#     every DOCUMENTED helper, so the better a global was documented the
-#     more invisible it was;
+#   - (doc (def %name ...)) is a def, so a ^(def % grep skips every
+#     documented helper;
 #   - a def directly inside a top-level (do ...) binds in the caller's
 #     env, which is how the tool scripts write nearly everything.
 #
-# Hot-path files keep large budgets on MEASURED grounds (class dispatch
-# costs 8-30x, so sha256/asm de-dispatched deliberately).
+# Hot-path files keep large budgets on measured grounds: class dispatch costs
+# 8-30x, so sha256/asm are de-dispatched deliberately.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"

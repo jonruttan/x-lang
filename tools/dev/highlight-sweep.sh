@@ -9,8 +9,8 @@
 # copy of the documentation (the site build) rather than the working tree --
 # the markdown in git keeps its fences, which is what github.com renders.
 #
-# ONE ENGINE, no chunking, and that is a fact worth stating because the
-# sibling sweeps chunk hard.  tools/dev/doc-sweep.sh must: it holds a scratch
+# One engine, no chunking, unlike the sibling sweeps.
+# tools/dev/doc-sweep.sh must chunk: it holds a scratch
 # base per file and cannot collect mid-batch, so it bounds garbage by bounding
 # files per process (25, ~1.7GB).  This tool owns nothing but strings on the
 # running base, so tools/dev/highlight.x calls (heap collect) between blocks

@@ -3,7 +3,7 @@
 #
 #   Usage: sh tools/contract/gen-engine-xon.sh <engine-dir>   (writes to stdout)
 #
-# WHY THIS LIVES IN x-lang, NOT IN THE ENGINE.  Generating the declaration needs
+# This lives in x-lang rather than in the engine.  Generating the declaration needs
 # the VOCABULARY -- the tag-to-atom map and, for a split tag, the explicit group
 # membership -- and that is tools/contract/features.x, which the language owns.
 # An engine that generated its own declaration would be choosing the terms it is
@@ -12,7 +12,7 @@
 # is RUN AGAINST an engine directory, which is also what lets one vocabulary
 # describe x-engine-c and x-engine-rust in the same words.
 #
-# WHAT IS DERIVED AND WHAT IS ASSERTED -- the split is the point:
+# What is derived and what is asserted -- the split is the point:
 #
 #   provides    DERIVED.  Every isa.x row maps to its capability group; a group
 #               is provided when the engine has rows for it.  Cannot be inflated
@@ -202,7 +202,7 @@ while read -r prow; do
 done < "$W/profiles"
 
 # --- emit --------------------------------------------------------------------
-# THE NAME IS ASSERTED, NOT OBSERVED.  It was `basename $ENGINE`, which reads
+# The name is asserted, not observed.  `basename $ENGINE` reads
 # the directory an engine happens to sit in: `x-engine-c` for a checkout,
 # `x-engine-c-<release>-<os>-<arch>` for an unpacked release.  Same engine, two
 # identities, and the wrapper compares this row to a project's (engine "...")

@@ -14,44 +14,30 @@
 #     (   )
 #      " "
 #
-# THE PLATFORM SHIPS IT; BUNDLES DO NOT VENDOR IT.  This is the same ruling
-# docs/lang-contract.md makes for the spec runner, applied to the rest of a
-# bundle's scaffolding: the check is identical in every bundle, so a copy per
-# repository buys nothing and costs an N-repo re-vendor for every fix.  It was
-# written twice before it moved here, and the second copy needed three fixes
-# backported the day it was written.
+# The platform ships this check; a bundle runs it rather than vendoring a copy.
 #
-# WHAT IT CHECKS.  lang.xon declares versions:
+# lang.xon declares the versions:
 #
 #   (requires-release "vN.N.N")        the x-lang the bundle was built against
 #   (requires-lang "NAME" "vN.N.N")    a lang it is written on top of
 #
-# Everything else naming one -- a README's status line, a workflow, a doc -- is
-# a COPY, and a copy nobody checks goes stale at the next release and tells the
-# next reader something false.  The bundle keeps working and its suite stays
-# green; the only symptom is a claim about a pairing nobody tested.
+# Anywhere else a version appears -- a README status line, a workflow, a doc --
+# is a copy, and a stale copy claims a pairing nobody tested while the bundle
+# and its suite stay green.  However many versions the manifest declares, the
+# table is read from it rather than written here.
 #
-# GENERIC OVER HOWEVER MANY THERE ARE.  x-r5rs declares one, x-r7rs declares
-# two, and a lang built on two others would declare three.  The table is read
-# from the manifest rather than written here.
+# A claim is a version preceded, within 24 characters, by the name it belongs
+# to: every version in a bundle has the same shape, so only what it sits beside
+# says whether it is x-lang's, a required lang's, the bundle's own or the
+# engine's.  Two rules narrow that window:
 #
-# WHAT COUNTS AS A CLAIM: a version preceded, within 24 characters, by the name
-# it belongs to.  Proximity is the whole mechanism -- every version in a bundle
-# is the same shape, and only what it sits beside says whether it is x-lang's,
-# a required lang's, the bundle's own, or the engine's.
+#   A `#` between the name and the version disqualifies the pair, so an issue
+#   reference such as `x-lang#527` does not read as a release.
 #
-# `x-lang#527` IS AN ISSUE, NOT A RELEASE.  A `#` between the name and the
-# version disqualifies the pair; without that this fires on a line where an
-# issue reference and an ENGINE version sit together, and neither is a claim.
+#   A name owns a version only if no other name stands between them, so the
+#   look-back cannot reach across a neighbouring pair.
 #
-# A NAME OWNS A VERSION ONLY IF NONE STANDS BETWEEN THEM.  A flat look-back
-# spans a neighbouring pair: given a line naming one artifact, its version,
-# a second artifact and its version, the window from the second reaches the
-# first.  CI caught this on the gate's own header, where the prose example is
-# written without the markdown padding that had been hiding it elsewhere.
-#
-# THE ESCAPE HATCH IS EXPLICIT, because history is worth writing down: a line
-# carrying `release-ref: history` is skipped, and having to say so is the point.
+# A line carrying `release-ref: history` is skipped.
 #
 # BUNDLE is the bundle root; the shim that sources this sets it.
 set -e
@@ -78,11 +64,9 @@ decls=$(
 files=$(git ls-files | grep -v "^$MANIFEST$" || true)
 [ -n "$files" ] || { echo "release-refs: no tracked files" >&2; exit 2; }
 
-# THE NAME IS THE REPOSITORY'S, "x-r5rs" and not "r5rs".  The bare form would
-# also match inside the long one and claim lines it does not own; the cost is
-# that a line writing the unprefixed name is not checked, which is the right
-# way round -- a missed check is a gap, a wrong one is a false alarm that gets
-# the gate switched off.
+# The name matched is the repository's, "x-r5rs" rather than "r5rs": the bare
+# form also matches inside the long one and would claim lines it does not own.
+# A line writing the unprefixed name therefore goes unchecked.
 scan() {
 	name=$1
 	want=$2
@@ -115,11 +99,9 @@ scan() {
 		}'
 }
 
-# A WORKFLOW NEVER PINS A VERSION LITERALLY, and this covers what the scan
-# structurally cannot.  `ref:` sits on its own line, so the name it belongs to
-# is on a DIFFERENT one and no per-line proximity test can pair them.  Rather
-# than teach the scan about YAML, forbid the shape: a ref is derived, or it is
-# a bug.
+# A workflow may not pin a version literally.  A `ref:` sits on its own line,
+# so the name it belongs to is on another one and the per-line proximity test
+# above cannot pair them; the shape is forbidden instead.  A ref is derived.
 refs=$(grep -n "^[[:space:]]*ref:[[:space:]]*v[0-9]" .github/workflows/*.yml 2>/dev/null || true)
 if [ -n "$refs" ]; then
 	echo "$refs" | sed 's/^/release-refs: literal ref in a workflow: /' >&2

@@ -3,25 +3,19 @@
 # runnable tests.
 #
 # spec.md:5-6 promises "Each section maps 1:1 to a test file in tests/x/specs/".
-# That promise is what keeps the normative spec honest, and it had no
-# enforcement -- so where the mapping quietly lapsed, the document drifted from
-# the implementation (#55: `and`/`or` return values, `def` shadowing vs
-# redef-in-place, `and`/`or` TCO). Note a mapping gate that only checked FILE
-# EXISTENCE would have stayed green through every one of those: the sections
-# exist and so do the files. Only running the examples catches it.
+# A mapping gate that checked only file existence stays green while the
+# document drifts from the implementation -- the sections exist and so do the
+# files.  Only running the examples catches that.
 #
 # Format: inside a fence, a line `EXPR -> EXPECTED` is an assertion, and any
 # line without ` -> ` is setup evaluated before it (e.g. `(def x 10)` preceding
-# `x -> 10`). Same idea as the doctest ratchet (#16), pointed at prose instead
+# `x -> 10`).  Same idea as the doctest ratchet (#16), pointed at prose instead
 # of the doc registry.
 #
-# THE DOC IS A PARAMETER. This began hardcoded to docs/spec.md, but that format
-# is not unique to the spec: docs/primitives.md and docs/standard-library.md
-# write their examples the same way and had no gate at all -- 235 assertions
-# that nothing had ever executed, hiding retired primitives and swapped
-# argument orders (#452, #453). Which docs are actually GATED is
-# tools/check/doc-examples.conf's business, not this script's; this one
-# extracts whatever it is pointed at.
+# The document is a parameter.  The format is not unique to the spec:
+# docs/primitives.md and docs/standard-library.md write their examples the same
+# way.  Which docs are gated is tools/check/doc-examples.conf's business; this
+# script extracts whatever it is pointed at.
 #
 #   DOC=docs/primitives.md SECTION='### ' sh tools/check/spec-examples.sh out/
 #
@@ -29,17 +23,16 @@
 #   DOC          source document (default docs/spec.md)
 #   SECTION      heading prefix that opens a spec group (default '## ').
 #                primitives.md needs '### ': its `##` headings are the three
-#                PARTS it is filed into (#486), so grouping at level 2 would
-#                emit three enormous files and re-create exactly the batching
-#                failure the per-section split exists to prevent.
+#                parts it is filed into, so grouping at level 2 emits three
+#                enormous files and re-creates the batching failure the
+#                per-section split exists to prevent.
 #   DEFAULT_LIB  `# @lib` dialect for every generated file (default: none,
 #                i.e. the runner's lib/x-core.x).
 #
-# Writes ONE generated spec file PER SECTION into $1 (default
-# build/spec-example-specs). Per-section files matter: the harness batches a
-# file into one interpreter process, so a single segfault reports every later
-# test in that file as "died mid-batch" -- with one big file, one crash at
-# section 5 masked 288 results.
+# Writes one generated spec file per section into $1 (default
+# build/spec-example-specs).  Per-section files matter: the harness batches a
+# file into one interpreter process, so one crash reports every later test in
+# that file as "died mid-batch".
 set -e
 
 DOC="${DOC:-docs/spec.md}"
@@ -156,10 +149,9 @@ index($0, section_mark) == 1 {
 }
 
 # Setup line: accumulate for subsequent assertions in this fence.
-# Comment-only lines are dropped: folded inline into the (do ...) wrap, a
-# `;` comments to END OF LINE and swallows the expression and the closing
-# paren -- the unterminated form then eats the following tests (found via
-# the Comments example itself, which demonstrates exactly this syntax).
+# Comment-only lines are dropped.  Folded inline into the (do ...) wrap, a `;`
+# comments to end of line and swallows the expression and the closing paren,
+# and the unterminated form then eats the following tests.
 {
   gsub(/^[ \t]+|[ \t]+$/, "")
   if ($0 ~ /^;/) next

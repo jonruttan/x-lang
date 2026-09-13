@@ -1,26 +1,19 @@
 #!/bin/sh
 # wrapper.sh -- x.sh's own entry points still evaluate what they are handed.
 #
-# WHY THIS GATE EXISTS.  The spec suite cannot see any of this.  Every spec
-# runs `cat $LANG_LIB $tmpfile | $X_BIN` -- the runner talks to the ENGINE,
-# deliberately, so a spec measures the language and not the shell around it.
-# The consequence is that x.sh's argument surface had no test of any kind,
-# and it showed: piping a program in (`echo '(write 1)' | sh x.sh`) printed a
-# prompt, evaluated NOTHING, and exited 0.  Not a crash, not a diagnostic --
-# a silent, successful no-op, in the most obvious way anyone would first try
-# to use the thing.  It survived because nothing in the tree pipes into the
-# wrapper, so nothing noticed.
+# The spec suite cannot see this surface.  Every spec runs
+# `cat $LANG_LIB $tmpfile | $X_BIN`: the runner talks to the engine, so a spec
+# measures the language rather than the shell around it, and x.sh's argument
+# handling goes untested there.
 #
-# So the rule this file holds is narrow and blunt: THE WAYS IN MUST EVALUATE
-# WHAT THEY ARE GIVEN, AND SAY SO IN THE EXIT STATUS.  A route that quietly
-# does nothing is the failure mode being gated, which is why every case
-# asserts on OUTPUT rather than on status alone -- exit 0 was the lie.
+# The rule held here: each way in must evaluate what it is handed and say so in
+# the exit status.  A route that quietly does nothing is the failure being
+# gated, so every case asserts on output rather than on status alone.
 #
-# Cheap on purpose (one engine boot per case, helium, no tower) so it can sit
-# in gates-fast.  Every capture carries `|| true`: set -e does not spare a
-# command substitution, and a wrapper that DIED would otherwise abort this
-# script silently -- a gate that says nothing when the thing it guards is
-# broken is worse than no gate.
+# One engine boot per case, helium, no tower, so it can sit in gates-fast.
+# Every capture carries `|| true`: set -e does not spare a command
+# substitution, so a wrapper that died would otherwise abort this script
+# without a word.
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

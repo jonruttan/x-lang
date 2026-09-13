@@ -3,22 +3,18 @@
 #
 #   sh tools/engine/bump-pin.sh vX.Y.Z
 #
-# The manual half of a release fan-out this replaces: open the release
-# page, copy each platform's digest out of its .sha256 sidecar, paste
-# them into the pin without transposing.  This script rewrites the
-# (release ...) row and every (artifact ...) row's digest and URL from
-# the sidecars directly.
+# Rewrites the (release ...) row and every (artifact ...) row's digest and URL
+# from the release's .sha256 sidecars, in place of copying each one by hand.
 #
-# THE RULES, same ones fetch.sh enforces on the way down:
+# The rules, the same ones fetch.sh enforces on the way down:
 #
-#   1. DIGESTS COME FROM THE SIDECARS, never computed here.  A pin that
-#      hashes what it downloaded would agree with itself no matter what
-#      arrived.
-#   2. EVERY DECLARED PLATFORM MUST BE IN THE RELEASE.  A missing sidecar
+#   1. Digests come from the sidecars, never computed here.  A pin that
+#      hashes what it downloaded would agree with itself whatever arrived.
+#   2. Every declared platform must be in the release.  A missing sidecar
 #      is an error, never a silently dropped artifact row: a release that
-#      lost a platform must not be able to disguise itself as a pin bump.
-#   3. THE PIN IS REPLACED WHOLE OR NOT AT ALL.  Rows rewrite into a temp
-#      copy; the pin is overwritten only after every row succeeded.
+#      lost a platform must not be able to pass as a pin bump.
+#   3. The pin is replaced whole or not at all.  Rows rewrite into a temp
+#      copy, and the pin is overwritten only after every row succeeded.
 #
 # The result is a working-tree edit: review it, run `make engine` to
 # prove the fetch, commit.  This script does not touch git.

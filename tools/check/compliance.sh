@@ -36,35 +36,24 @@ ENGINE_ABS="$(cd "$ENGINE" && pwd)"
 XON="$ENGINE_ABS/x-engine.xon"
 [ -f "$XON" ] || { echo "compliance: no declaration at $XON" >&2; exit 2; }
 
-# NO PRECONDITION ON THE ENGINE'S OWN HARNESS.  This used to require
-# $ENGINE/tests/bare/bare-runner.sh and refuse without it -- a leftover from the
-# first version, which really did drive that harness.  The rewrite moved the
-# checks to ordinary spec files run through x-lang's conformance runner (below),
-# and the requirement stayed behind, guarding a dependency that no longer
-# existed.  Nothing read the variable.
-#
-# It was not harmless.  Compliance is x-lang asking whether an engine does what
-# it claims, and an engine that supplies the harness it is judged by holds the
-# arbiter's pen -- the same reason the conformance suite lives here and not
-# there.  In practice the dead line refused two legitimate subjects: a released
-# engine (an artifact ships no tests) and any second implementation that does
-# not happen to build an x-lang-shaped smoke harness.  Found by pointing this at
-# an unpacked dist tarball.
+# The engine's own harness is not a precondition.  Compliance is x-lang asking
+# whether an engine does what it claims, and an engine that supplies the
+# harness it is judged by holds the arbiter's pen -- the same reason the
+# conformance suite lives here rather than there.  Requiring one would also
+# refuse two legitimate subjects: a released engine, since an artifact ships no
+# tests, and any second implementation that does not build an x-lang-shaped
+# smoke harness.  The checks below are ordinary spec files run through x-lang's
+# conformance runner.
 
-# --- WHICH BINARY IS ON TRIAL -----------------------------------------------
-# The engine directory is the SUBJECT, so the binary must come from it.  This
-# used to leave X_BIN alone and let the conformance runner default it, and the
-# runner's default is x-lang's own ./x-bin -- so pointing this at a second
-# engine tested the C engine against the SECOND engine's declaration.  It did
-# not error: it printed fourteen confident failures for capabilities the subject
-# implements perfectly well, because the binary answering the probes was never
-# the one being judged.
+# --- which binary is on trial ------------------------------------------------
+# The engine directory is the subject, so the binary comes from it.  Left to
+# itself the conformance runner defaults X_BIN to x-lang's own ./x-bin, which
+# would judge one engine's declaration against another engine's behaviour --
+# a run that looks like a real result and is a check of something else.
 #
-# A wrong-engine run is not a weaker check, it is a check of something else, and
-# it looks exactly like a real result.  So: the binary is resolved from the
-# engine, an X_BIN from outside the engine directory is refused rather than
-# obeyed, and there is no fallback -- an engine whose binary cannot be found is
-# an error, never a silent substitution.
+# So the binary is resolved from the engine, an X_BIN from outside the engine
+# directory is refused rather than obeyed, and there is no fallback: an engine
+# whose binary cannot be found is an error, never a silent substitution.
 binname=$(sed -n 's/^(binary "\(.*\)").*/\1/p' "$XON" 2>/dev/null | head -1)
 [ -n "$binname" ] || binname="x-bin"
 if [ -n "${X_BIN:-}" ]; then

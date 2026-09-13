@@ -7,14 +7,13 @@
 #
 # Prints one 64-hex line, nothing else.
 #
-# WHY THIS EXISTS (#435).  The ISA fingerprint answers "will this amalgam
-# run on this engine's C surface?" -- a question about engine/tools/contract/isa.x,
-# which is deliberately fixed and minimal.  It answers NOTHING about which
-# release a tree is: isa.x is byte-identical across v0.3.1-rc10, v0.4.0
-# and v0.5.0, as are obj-layout.x, base-paths.x and base-layout.x, while
-# lib/ moved 83 files between the first two.  A key derived from any of
-# those contracts cannot tell two releases apart; a key derived from what
-# the release actually ships can, and does so by construction.
+# The ISA fingerprint answers "will this amalgam run on this engine's C
+# surface?" -- a question about engine/tools/contract/isa.x, which is
+# deliberately fixed and minimal.  It says nothing about which release a tree
+# is: isa.x can be byte-identical across releases, as can obj-layout.x,
+# base-paths.x and base-layout.x, while lib/ moves dozens of files between
+# them.  A key derived from any of those contracts cannot tell two releases
+# apart; one derived from what the release ships can, by construction (#435).
 #
 # The digest is a Merkle root, not a hash of a tarball: each file is
 # digested, the "DIGEST  label/path" lines are sorted under LC_ALL=C, and

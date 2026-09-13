@@ -1,6 +1,6 @@
 ; tools/contract/bare-globals.x -- the sanctioned bare top level of boot/core (#108).
 ;
-; THE TOP LEVEL IS SACRED: lib/x-core.x + lib/x/boot + lib/x/core may bind
+; The shared top level is closed: lib/x-core.x + lib/x/boot + lib/x/core may bind
 ; only these bare names.  tools/check/bare-globals.sh (make check-bare-globals)
 ; diffs the live def surface against this file in BOTH directions, so the
 ; list can only shrink deliberately: sweep a name to %-private (public face
@@ -10,7 +10,7 @@
 ; FORMAT (rigid, one entry per line -- the awk parses the same bytes):
 ;   (name)
 ;
-; RULED TO STAY (2026-07-21): the ? predicates, the syntax forms, and the
+; Ruled to stay: the ? predicates, the syntax forms, and the
 ; keep-list survivors.  Everything under "SWEEP" is a future #108 round.
 (def %bare-globals (lit (
   ; --- predicates: ruled bare 2026-07-21 ---
@@ -107,9 +107,9 @@
   (dirent-names)
   (i386-syscall-names)
   ; arch-*? join os-*? for the same reason those rows exist: the build triple is
-  ; parsed ONCE, in lib/x/platform/syscall.x, and the answer is read by
-  ; lib/x/tool/asm.x and lib/x/tool/compile.x, which each used to sniff the
-  ; string themselves.  Bare because this layer loads mid-x-core, before the
+  ; parsed once, in lib/x/platform/syscall.x, and the answer is read by
+  ; lib/x/tool/asm.x and lib/x/tool/compile.x rather than sniffed again in
+  ; each.  Bare because this layer loads mid-x-core, before the
   ; class machinery that would otherwise home them.
   (arch-arm64?)
   (arch-x86-64?)

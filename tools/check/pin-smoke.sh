@@ -2,11 +2,11 @@
 # pin-smoke.sh -- the wrapper's pin.xon probe and the loader, end to end.
 #
 # Builds a throwaway project under $TMPDIR (a pin.xon manifest, overlay
-# trees, a program) and runs the program THROUGH THE WRAPPER from the
-# repo root -- the probe must find the manifest beside the PROGRAM, not
+# trees, a program) and runs the program through the wrapper from the
+# repo root -- the probe must find the manifest beside the program, not
 # the cwd.  Cases:
 #   overlay    (import acme/util) resolves in the project's deps/ tree
-#   order      two roots: the root listed FIRST wins
+#   order      two roots: the root listed first wins
 #   boot       an overlay copy of a boot module is a no-op -- the
 #              pre-seeded set is the unpinnable core (GH #115 ruling)
 #   notice     the wrapper announces the manifest on stderr
@@ -14,27 +14,27 @@
 #   no-pin     --no-pin skips the probe (and the notice)
 #   vendor     (Pin vendor) copies x/type/dict's closure into an overlay
 #              (helium: dict is not boot-floor there), the boot floor is
-#              skipped, and a pinned run loads the OVERLAY copy -- proven
+#              skipped, and a pinned run loads the overlay copy -- proven
 #              by appending a drift marker the platform copy lacks
 #   fetch      (Pin fetch) against a fake release over file:// -- curl,
 #              manifest, pure-x digest, and the tamper refusal; hermetic,
 #              no network
 #   bundle     (Pin bundle) acquires a lang bundle over file://:
-#              the tree lands (modules AND data files), a second run
+#              the tree lands (modules and data files), a second run
 #              honours it without the network, and every refusal holds --
-#              a swapped archive (quarantined, and NOT unpacked), a bundle
+#              a swapped archive (quarantined, and not unpacked), a bundle
 #              naming another lang, an archive with no declaration,
 #              and an unknown pin form.  A git-archive-style tarball (one
 #              top-level directory) is descended; a two-entry one is not
-#   install    (Pin install) takes a PUBLISHED pin URL, lands at the stable
+#   install    (Pin install) takes a published pin URL, lands at the stable
 #              <langs>/<name>, and a bad digest leaves the working install
 #              untouched
-#   load       `-l NAME` RUNS an acquired bundle: the dialect it declares
+#   load       `-l NAME` runs an acquired bundle: the dialect it declares
 #              boots, its modules resolve, its surface name takes, and the
 #              refusals hold -- an unknown name (whose inventory names the
 #              langs it searched), two bundles claiming one name,
 #              and a dialect this tree has no entry for
-#   share-dir  --share-dir and --engine-path answer FROM OUTSIDE the tree,
+#   share-dir  --share-dir and --engine-path answer from outside the tree,
 #              which is the only place a bundle ever asks from
 #   compose    (boot "FILE") + (root "DIR") in one manifest (GH #139):
 #              the wrapper boots the project's own entry AND arms the
@@ -46,14 +46,14 @@
 #   boot-bad   a malformed (boot ...) is rejected by the loader's
 #              closed vocabulary (the wrapper's probe ignores it)
 #   boot-quote a (boot ...) path carrying shell metacharacters stays a
-#              PATH: the wrapper assembles its pipe as text and evals it,
+#              path: the wrapper assembles its pipe as text and evals it,
 #              so an unquoted value would make the manifest executable --
 #              the manifest is documented inert (docs/modules.md)
-#   release-guard  a pinned amalgam from another RELEASE is refused even
+#   release-guard  a pinned amalgam from another release is refused even
 #              though the isa fingerprints match (#435), --allow-release-skew
 #              and (allow-release-skew) waive it loudly, and a lock or an
 #              engine with nothing to compare says so
-#   pin-quote  a manifest DIRECTORY carrying a double quote is refused:
+#   pin-quote  a manifest directory carrying a double quote is refused:
 #              the path is emitted as an x-lang string literal, and a
 #              quote would close it and inject forms into the boot stream
 #   image      a pinned project without a (boot ...) row boots from a state
@@ -62,8 +62,8 @@
 #              overlay resolving, a touched manifest is a miss (the manifest
 #              keys the image), --no-image boots from source, X_IMAGE_NO_WRITE
 #              (the writer's own host mode) boots from a current image and
-#              never writes one, and a manifest WITH a (boot ...) row is
-#              refused by --image as before.
+#              never writes one, and a manifest with a (boot ...) row is
+#              refused by --image.
 #              Skipped, and said, when the engine cannot write an image
 # (The pinned REPL path is tty-side -- the fd-3 class check-examples.sh
 # documents -- and is not smokeable here; it shares every pipe stage but
@@ -222,10 +222,10 @@ status=$?
 [ "$status" -eq 0 ] || fail "vendored-pin run exited $status" "$_TMP/err" "$_TMP/out"
 grep -qx "yes" "$_TMP/out" || fail "vendored-pin: the platform copy loaded, not the overlay" "$_TMP/out"
 
-# stale (GH #147): a dependency dropped upstream must LEAVE the lock on
-# re-vendor.  It used to stay in both tree and lock -- still shadowing
-# the platform -- with verify calling the pair clean because both had
-# gone stale together.  Runs through the wrapper, on the acme fixture.
+# stale (GH #147): a dependency dropped upstream must leave the lock on
+# re-vendor.  One left in both tree and lock still shadows the platform, and
+# verify calls the pair clean because they went stale together.  Runs through
+# the wrapper, on the acme fixture.
 mkdir -p "$_TMP/proj7/lib0/acme"
 cat > "$_TMP/proj7/lib0/acme/head.x" <<'EOF'
 (import acme/tail)
@@ -317,9 +317,9 @@ status=$?
 grep -q "digest mismatch" "$_TMP/out" "$_TMP/err" || fail "fetch-tamper: no digest-mismatch error" "$_TMP/out" "$_TMP/err"
 
 # fetch survives a manifest with no (isa ...): the parser requires only the
-# tag, so %pin-assoc hands back nil, and the fingerprint report used to
-# compare against it -- dying AFTER the amalgam had verified clean.  Drift
-# is information, not an error, and so is an absent fingerprint.
+# tag, so %pin-assoc hands back nil and the fingerprint report has nothing to
+# compare against.  Drift is information rather than an error, and so is an
+# absent fingerprint.
 mkdir -p "$_TMP/rel/v9.9.7-noisa"
 cp "$_TMP/rel/v9.9.9-smoke/tiny.x" "$_TMP/rel/v9.9.7-noisa/tiny.x"
 {
@@ -399,17 +399,17 @@ $TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/proj5/main.x" >"$_TMP/out" 2>"$_TMP/err"
 status=$?
 [ "$status" -ne 0 ] || fail "boot-bad: malformed boot form was accepted" "$_TMP/out" "$_TMP/err"
 
-# boot-quote: a boot path carrying shell metacharacters must stay a PATH.
-# The wrapper builds its pipe as text and evals it, so an unquoted value
-# here used to reach the shell as code -- with pin.xon documented as inert
-# data (docs/modules.md "Pinning"), that made a manifest executable.  The
-# marker file exists so the wrapper's -e gate passes and the value reaches
-# the eval; a leaked metacharacter runs the payload, a quoted one does not.
-# The payload has to be a FILENAME, so it can hold no slash -- it prints
-# instead of writing a file.  Its output must also differ from its own
-# source text, because the wrapper's `pinned boot:` notice echoes the path
-# verbatim: `printf %s%s LE AK` emits LEAK while the path only ever reads
-# "LE AK", so a grep for LEAK matches execution and nothing else.
+# boot-quote: a boot path carrying shell metacharacters must stay a path.
+# The wrapper builds its pipe as text and evals it, so an unquoted value here
+# would reach the shell as code, making a manifest executable -- and pin.xon
+# is documented inert (docs/modules.md "Pinning").  The marker file exists so
+# the wrapper's -e gate passes and the value reaches the eval; a leaked
+# metacharacter runs the payload, a quoted one does not.  The payload has to
+# be a filename, so it can hold no slash -- it prints instead of writing a
+# file.  Its output must also differ from its own source text, because the
+# wrapper's `pinned boot:` notice echoes the path verbatim: `printf %s%s LE AK`
+# emits LEAK while the path only ever reads "LE AK", so a grep for LEAK matches
+# execution and nothing else.
 mkdir -p "$_TMP/proj6"
 _evil='q";printf %s%s LE AK >&2;"'
 : > "$_TMP/proj6/$_evil"
@@ -629,7 +629,7 @@ mv "$_fake2/share/x/contract/engine-release" "$_fake2/share/x/contract/engine-re
 grep -q "no engine stamp" "$_TMP/err" || fail "engine-guard: an unanswerable pairing passed in silence" "$_TMP/err"
 mv "$_fake2/share/x/contract/engine-release.away" "$_fake2/share/x/contract/engine-release"
 
-# --- REACH FOR THE RELEASE (#499): before refusing a library skew, the
+# --- reach for the release (#499): before refusing a library skew, the
 # --- wrapper hands the invocation to a cached copy of the release the
 # --- lock names -- fetching it, verified, when told to.  The pin knows
 # --- what it needs and where to get it; blocking was the bug.  Every
@@ -727,8 +727,8 @@ _rel_proj rel5 v9.9.8-old
 (cd "$_TMP" && $TIMEOUT_CMD sh "$_fake/bin/x" -f "$_TMP/rel5/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
 grep -q "carries no release stamp" "$_TMP/err" || fail "release-guard: an unstamped engine skipped WITHOUT the unchecked notice" "$_TMP/err"
 
-# A corrupt MANIFEST names itself before anything boots -- it used to
-# surface as a bare mid-boot "Unterminated input" naming nothing.
+# A corrupt manifest names itself before anything boots, rather than
+# surfacing as a bare mid-boot "Unterminated input" naming nothing.
 mkdir -p "$_TMP/badman"
 printf 'this is (((not xon\n' > "$_TMP/badman/pin.xon"
 printf '(display "ran")\n' > "$_TMP/badman/main.x"
@@ -860,7 +860,7 @@ mkdir -p "$_bsrc/demo"
 printf '(lang "x-smoke")\n(dialect he)\n(entry "run.x")\n' > "$_bsrc/lang.xon"
 printf '(provide demo/g g)\n(def g (fn (_) "ok"))\n' > "$_bsrc/demo/g.x"
 printf '; entry\n' > "$_bsrc/run.x"
-# A NON-.x FILE ON PURPOSE: a lang may ship data (the Logo viewer
+# A non-.x file on purpose: a lang may ship data (the Logo viewer
 # is the worked case), so a bundle is a tree, not one amalgam.
 printf '<html>v</html>\n' > "$_bsrc/viewer.html"
 ( cd "$_bsrc" && tar -czf "$_TMP/x-smoke-v1.tar.gz" . )
@@ -885,7 +885,7 @@ grep -q "x-smoke-v1" "$_TMP/out" || fail "bundle: no bundle path in output" "$_T
 _brun "$_TMP/bproj" "$_TMP/bdeps"
 grep -q "already acquired" "$_TMP/out" || fail "bundle: re-run did not honour the existing tree" "$_TMP/out"
 
-# THE DIGEST MUST BE OF THE WHOLE ARCHIVE.  This is the regression guard for
+# The digest must be of the whole archive.  This is the regression guard for
 # the bug that shaped the design: with the strlen-bounded digest, a gzip
 # compared equal on its first three bytes, so a tampered archive verified
 # clean.  Here the payload differs but the leading bytes do not.
@@ -898,7 +898,7 @@ _brun "$_TMP/bproj2" "$_TMP/bdeps2"
 grep -q "digest mismatch" "$_TMP/err" "$_TMP/out" \
   || fail "bundle-tamper: the mismatch was not named" "$_TMP/err" "$_TMP/out"
 [ ! -d "$_TMP/bdeps2/x-smoke-tam" ] || fail "bundle-tamper: a rejected archive was published"
-# NOTHING IS UNPACKED on a mismatch -- the whole point of digesting first.
+# Nothing is unpacked on a mismatch, which is why the digest is taken first.
 [ -z "$(ls -d "$_TMP"/bdeps2/.staging-* 2>/dev/null)" ] \
   || fail "bundle-tamper: a rejected archive was unpacked anyway"
 [ -f "$_TMP/bdeps2/x-smoke-tam.tar.gz.rejected" ] \
@@ -984,7 +984,7 @@ X_LANG_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-nodialect -f /
 grep -q "declares dialect 'zz'" "$_TMP/err" \
   || fail "load-dialect: the missing dialect was not named" "$_TMP/err"
 
-# A TARBALL WITH A TOP-LEVEL DIRECTORY, which is the normal kind: `git archive
+# A tarball with a top-level directory, which is the normal kind: `git archive
 # --prefix=NAME/` is how a publisher rolls one and what every release tarball
 # looks like.  Refusing it would mean saying "ships no lang.xon" about a bundle
 # that plainly does -- found the first time a bundle was rolled for release.
@@ -1026,13 +1026,13 @@ printf '(alloc-limit! 300000000)\n(import x/tool/pin)\n(display (Pin install "fi
   "$_ipub" "$_ilangs" > "$_TMP/inst.x"
 $TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/inst.x" >"$_TMP/out" 2>"$_TMP/err"
 [ $? -eq 0 ] || fail "install: acquiring from a published pin failed" "$_TMP/err" "$_TMP/out"
-# THE STABLE NAME, not <name>-<release>: -l resolves it and an install is one
+# The stable name, not <name>-<release>: -l resolves it and an install is one
 # copy per machine, so a versioned directory would collide with itself on
 # upgrade -- two trees both declaring the same lang, which -l refuses.
 [ -f "$_ilangs/x-smoke/lang.xon" ] \
   || fail "install: did not land at the stable <langs>/<name>" "$_TMP/out"
 
-# A FAILED UPGRADE MUST LEAVE WHAT YOU HAD.  The digest is checked before
+# A failed upgrade leaves the working install in place.  The digest is checked before
 # anything replaces a working installation, so a bad pin costs you nothing.
 sed 's/sha256:[0-9a-f]*/sha256:0000000000000000000000000000000000000000000000000000000000000000/' \
   "$_ipub/lang.pin.xon" > "$_ipub/bad.pin.xon"
@@ -1043,7 +1043,7 @@ $TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/inst2.x" >"$_TMP/out" 2>"$_TMP/err
 [ -f "$_ilangs/x-smoke/lang.xon" ] \
   || fail "install-tamper: a failed upgrade destroyed the working install" "$_TMP/err"
 
-# --share-dir must answer FROM OUTSIDE THE TREE, because that is the entire
+# --share-dir must answer from outside the tree, because that is the entire
 # reason it exists: a bundle's runner is not in the x-lang checkout and needs
 # the tests/ root without guessing.  It did not, at first -- mode detection is
 # cwd-based, so from outside a checkout it took the installed branch and

@@ -1,18 +1,15 @@
 ; tools/check/dialect-cover.x -- the dialect coverage ratchet (#70).
 ;
-; Every shipped entry point under lib/*.x must be exercised end-to-end by
-; a `# @lib <file>` group in tests/x/specs/dialects/.  The dialects had
-; ZERO such coverage until #70, which is how #49 shipped: both tower
-; launchers crashed at the exact invocation the README documents, while
-; every numeric spec passed against its own bespoke harness.
+; Every shipped entry point under lib/*.x must be exercised end-to-end by a
+; `# @lib <file>` group in tests/x/specs/dialects/.  Without it a launcher can
+; crash at the exact invocation the README documents while every numeric spec
+; passes against its own bespoke harness.
 ;
-; The point is that a NEW dialect cannot ship untested -- add lib/x-foo.x
-; and this fails until a smoke group exists for it.  The reverse
-; direction: a group naming a dialect that no longer exists is stale
-; coverage, and would otherwise sit green forever against nothing.
+; A new dialect cannot ship untested: add lib/x-foo.x and this fails until a
+; smoke group exists for it.  The reverse direction holds too -- a group naming
+; a dialect that no longer exists is stale coverage, green against nothing.
 ;
-; Same shape as check-isa and the other contract ratchets: mechanical,
-; not a habit anyone has to remember.
+; Same shape as check-isa and the other contract ratchets.
 ;
 ; Run: sh x.sh --no-pin -q -f tools/check/dialect-cover.x  (make check-dialect-cover)
 

@@ -1,11 +1,10 @@
 #!/bin/sh
 # path-literals.sh -- ratchet: root-relative load-path literals are
-# BOOT-CLOSURE ONLY.
+# boot-closure only.
 #
 # A "lib/..." (or "tools/...", "apps/...", "ext/...") include in a runtime module
 # resolves against the process cwd, so it works only when cwd is the repo
-# root -- it breaks installed trees ONLY, the one environment CI never
-# runs.  Runtime modules load siblings via import
+# root, and breaks in an installed tree.  Runtime modules load siblings via import
 # (root-resolved) or ./-relative include-once (file-relative), both of
 # which work from any tree root.
 #
@@ -36,19 +35,15 @@ fi
 echo "path-literals: ok"
 
 # ---------------------------------------------------------------------------
-# COMPILER INCLUDE PATHS must name directories that exist.
+# Compiler include paths must name directories that exist.
 #
-# WHY THIS EXISTS.  lib/x/tool/compile.x hands cc a pair of -I paths so the
-# generated C can find the engine's headers.  When those headers moved to the
-# engine the paths went stale, and nothing said so: the JIT lane
-# is STRESS-gated, so the only thing that runs it is CI's stress job, and the
-# failure arrived there as 150 specs reporting "interpreter died mid-batch"
-# -- three inference steps from "cc could not find x.h".  Every other spec
-# suite passed, locally and on the PR's fast tier.
-#
-# It is a one-line scan, so it runs on every push instead of waiting for the
-# heavy lane.  Same shape as the include ratchet above: a path literal in the
-# runtime library that must resolve.
+# lib/x/tool/compile.x hands cc a pair of -I paths so the generated C can find
+# the engine's headers.  A stale path there surfaces only in the JIT lane,
+# which is stress-gated, and arrives as specs reporting "interpreter died
+# mid-batch" rather than as "cc could not find x.h".  This scan is one line,
+# so it runs on every push instead of waiting for the heavy lane.  Same shape
+# as the include ratchet above: a path literal in the runtime library that
+# must resolve.
 BAD=0
 for f in $(grep -rl '"-I' lib apps --include='*.x' 2>/dev/null | sort); do
 	for inc in $(sed 's/;.*//' "$f" | grep -o '"-I[^"]*"' | sed 's/^"-I//; s/"$//'); do
@@ -66,37 +61,26 @@ fi
 echo "include-paths: ok"
 
 # ---------------------------------------------------------------------------
-# APP DATA PATHS are root-relative literals too, and the include scan above
-# cannot see them.
+# App data paths are root-relative literals too, and the include scan above
+# cannot see them: a bare "apps/NAME/file.html" is not an include.  Such a
+# path resolves against the process cwd, which x.sh forces to the repo root in
+# a checkout, so it reads correctly there and fails in an installed tree, where
+# the app sits under share/x/apps/ and the cwd is wherever the user is.
 #
-# WHY THIS EXISTS.  The Logo app's serve.x read its viewer template from a
-# bare "apps/logo/viewer.html".  That is not an include, so the ratchet at the
-# top of this file -- which matches (include "lib/...") forms -- passed it
-# every time, for as long as it existed.  It resolves against the process cwd,
-# and x.sh forces cwd to the repo root in a checkout, so every test and every
-# developer run found the file.  An INSTALLED tree does not: the app was at
-# share/x/apps/logo/ and the user's cwd is wherever they happen to be, so the
-# viewer failed with `io: Could not read turtle.html` for every installed
-# user, in the one environment nothing ran in.
+# The rule, from docs/lang-contract.md: an app tree has exactly one file that
+# may know the layout -- its entry, which is exempt above and is where the
+# amalgam generator flattens the literals away.  Every other file reaches data
+# through a root the entry armed and named.  A lang bundle is covered from the
+# other side: x-logo's CI asserts its data goes through %lang-root and never
+# %install-root.
 #
-# THAT APP IS NOW A BUNDLE (x-logo) and apps/ is empty, so this scan currently
-# has nothing to read.  It stays, and not out of sentiment: apps/ is a live
-# resolution step (see apps/README.md), the failure it catches is invisible in
-# the environment an app is developed in, and a gate deleted for want of a
-# subject is a gate nobody thinks to write back when one arrives.  The same
-# rule now covers the bundle from the other side -- x-logo's CI asserts its
-# data goes through %lang-root and never %install-root.
+# apps/ is empty at present, so this scan has nothing to read.  It stays
+# because apps/ remains a live resolution step (see apps/README.md).
 #
-# THE RULE, from docs/lang-contract.md: an app tree has exactly ONE
-# file that may know the layout -- its entry, which is already exempt above
-# and is where the amalgam generator flattens the literals away.  Every other
-# file reaches data through a root the entry armed and named.
-#
-# SCOPE IS apps/, NOT lib/.  A library module is loaded from the platform's
-# own root and its doc (sample ...) / (example ...) strings legitimately name
-# repo paths -- "(File stat \"lib/x.x\")" is documentation, not a load.
-# Widening this to lib/ would be a false-positive generator; the relocatable
-# trees the contract governs are the app trees.
+# The scope is apps/, not lib/.  A library module is loaded from the
+# platform's own root, and its doc (sample ...) / (example ...) strings
+# legitimately name repo paths -- "(File stat \"lib/x.x\")" is documentation,
+# not a load.
 BAD=0
 for f in $(find apps -name '*.x' ! -path 'apps/*/run.x' | sort); do
 	HITS=$(sed 's/;.*//' "$f" | grep -nE '"(lib|apps|tools|ext)/[^"]*"')

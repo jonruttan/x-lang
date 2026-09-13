@@ -8,8 +8,8 @@
 ;
 ; so a batch fed to two engines yields line-aligned output, and any line
 ; that differs is an engine divergence or a behaviour the suite never
-; pinned.  A raise compares as the bare symbol E -- error MESSAGES are
-; engine prose and comparing them would report wording, not semantics.
+; pinned.  A raise compares as the bare symbol E: error messages are engine
+; prose, and comparing them would report wording rather than semantics.
 ;
 ; Deterministic on purpose, as ext/jit-fuzz.spec.md rules: a seeded LCG,
 ; so a mismatch names the seed and line that reproduce it exactly.

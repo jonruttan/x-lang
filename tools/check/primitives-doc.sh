@@ -1,30 +1,26 @@
 #!/bin/sh
 # primitives-doc.sh -- docs/primitives.md files each form where it actually lives.
 #
-# THE DOCUMENT IS PARTITIONED ALONG A SEAM THE SYSTEM ALREADY HAS (#486), and a
-# partition nothing checks drifts back into the list it replaced.  Half that
-# file's sections used to document x-lang operatives and procedures as if they
-# were C -- `if`, `let`, `and`, `or`, `display`, the predicates -- under a title
-# that promised the C surface.  Nothing said so, because nothing could: the only
-# record of what is C is the engine's own isa.x, and no reader diffs a prose doc
-# against a manifest by hand.
+# The document is partitioned along a seam the system already has (#486).  The
+# only record of what is C is the engine's own isa.x, and nobody diffs a prose
+# doc against a manifest by hand, so without this a section documenting an
+# x-lang operative sits under a title promising the C surface.
 #
-# WHAT THIS CHECKS.  Every `### `name`` section must sit in the part that says
-# what it IS, classified against the SAME manifest `make check-isa` diffs the C
-# source against:
+# Every `### `name`` section must sit in the part that says what it is,
+# classified against the same manifest `make check-isa` diffs the C source
+# against:
 #
 #   The C instruction set   %isa-bare or %isa-keep -- a bare name bound by C
 #   Coordinates             an (ns method) row in %isa-catalog, no bare name
 #   What boots on top       in no block at all -- library code
 #
-# The classification is mechanical and the failure names the section, the part
-# it is in, and the part it belongs to, so the fix is never a guess.
+# The classification is mechanical, and a failure names the section, the part
+# it is in, and the part it belongs to.
 #
-# WHY THE ENGINE'S MANIFEST AND NOT A LIST HERE: a copy would be right about
-# some engine and not necessarily the one this tree builds against, which is
-# the same reason the contract manifests travel with the engine.  A second
-# engine with a different surface re-partitions this document by rebuilding,
-# not by anyone remembering to edit a table.
+# The engine's manifest is used rather than a list here: a copy would be right
+# about some engine and not necessarily the one this tree builds against, the
+# same reason the contract manifests travel with the engine.  A second engine
+# with a different surface re-partitions this document by rebuilding.
 set -e
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

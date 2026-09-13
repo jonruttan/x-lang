@@ -1,6 +1,6 @@
 ; tools/contract/constraints.x -- per-module platform-parameter constraints.
 ;
-; THE ROW KIND THIS FILE HOLDS.  The evaluator contract has three kinds of row:
+; The row kind this file holds.  The evaluator contract has three kinds of row:
 ; CAPABILITIES (a primitive group is present -- set membership, compared by
 ; superset), GUARANTEES (a behaviour the engine promises, compared by must-hold),
 ; and PARAMETERS (values the engine REPORTS: word size, endianness, OS, arch).
@@ -17,7 +17,7 @@
 ; takes another value.  A 32-bit engine then gets a precise list of the modules
 ; it cannot load, instead of decoding garbage into a plausible-looking alist.
 ;
-; WHAT THIS RATCHET PROVES, AND WHAT IT DOES NOT.  It diffs the rows below
+; What this ratchet proves, and what it does not.  It diffs the rows below
 ; against `; constraint:` markers in the source, in BOTH directions: a marker
 ; with no row fails, a row with no marker fails.  So an assumption cannot be
 ; added silently and a row cannot outlive its subject -- the same discipline
@@ -26,7 +26,7 @@
 ; that needs a 32-bit engine (the evaluator-contract arc's phase 7).  Undeclared
 ; assumptions are still found by reading, not by this gate.
 ;
-; PARAMETERS IN USE:
+; Parameters in use:
 ;   word-size   bytes per machine word AND per fixnum -- ext/x-expr/include/x.h
 ;               asserts sizeof(x_int_t) == sizeof(void *) at compile time, so the
 ;               two cannot diverge and one key covers both

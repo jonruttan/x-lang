@@ -26,28 +26,24 @@ mkdir -p "$T"
 trap 'rm -rf "$T"' EXIT
 fail() { echo "bootstrap-smoke: FAIL: $1" >&2; [ -f "$T/log" ] && sed 's/^/  /' "$T/log" >&2; exit 1; }
 
-# Stage the TRACKED sources into a throwaway tree and drive bootstrap.sh
-# there (#326).  Build-in-place mode used to run against the live repo:
-# bootstrap.sh's `make clean` deleted x-bin and every object mid-`make
-# gates`, the rest of the pipeline silently re-paid the build, and the
-# gate could never share a workspace with a concurrent step.  The copy
-# is exactly `git ls-files` -- what a fresh clone
-# contains, which is closer to the script's real audience than an
-# artifact-strewn working tree, and hermetic (no network; the clone path
-# stays uncovered here as the header explains).  in_checkout needs only
-# Makefile + x.sh + ext/x-expr, all tracked, so the copy still selects
-# build-in-place.
+# Stage the tracked sources into a throwaway tree and drive bootstrap.sh there
+# (#326).  Run against the live repo, bootstrap.sh's `make clean` would delete
+# x-bin and every object mid-`make gates`, so the gate could not share a
+# workspace with a concurrent step.  The copy is exactly `git ls-files` -- what
+# a fresh clone contains, which is closer to the script's audience than an
+# artifact-strewn working tree, and hermetic (no network; the clone path stays
+# uncovered here, as the header explains).  in_checkout needs only Makefile +
+# x.sh + ext/x-expr, all tracked, so the copy still selects build-in-place.
 ( cd "$REPO" && git ls-files -z | tar -c --null -T - -f - ) \
 	| { mkdir -p "$T/tree" && tar -x -C "$T/tree" -f -; } \
 	|| fail "staging the tracked-source copy failed"
 
 # Build + install to the temp prefix from INSIDE the copy; run from $T so
 # the in-checkout detection triggers on the copy, never the repo.
-# OFFLINE, DELIBERATELY.  bootstrap acquires an engine, and a gate that
-# downloads one would fail on a plane and pass in CI for reasons unrelated to
-# the thing under test.  The copy is pointed at the engine this tree already
-# resolved, which is also the honest subject: whether bootstrap can BUILD and
-# INSTALL, not whether GitHub is up.
+# Offline, deliberately.  bootstrap acquires an engine, and a gate that
+# downloads one fails or passes for reasons unrelated to the thing under test.
+# The copy is pointed at the engine this tree already resolved, which is also
+# the subject: whether bootstrap can build and install.
 _engine_abs=$( cd "$REPO/engine" 2>/dev/null && pwd -P )
 [ -n "$_engine_abs" ] || fail "no engine linked at $REPO/engine -- run make engine first"
 ( cd "$T/tree" && X_PREFIX="$T/prefix" X_ENGINE_DIR="$_engine_abs" sh bootstrap.sh --install ) > "$T/log" 2>&1 \

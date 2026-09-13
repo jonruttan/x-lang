@@ -1,20 +1,14 @@
 #!/bin/sh
 # doc-forms.sh -- every class member must reach the generated reference
 #
-# THE CONTRACT: every member declared in a (def-class ...) body under lib/
+# The contract: every member declared in a (def-class ...) body under lib/
 # appears as an entry on that module's page in docs/ref/x.
 #
-# WHY, and why THIS invariant rather than the obvious one.  The generator's
-# class-body walker used to end in a silent catch-all, and members reached
-# the page as NOTHING while the page still looked finished -- Ansi's colours,
-# Random's kind/state/fd, every documented member in the library.  It was
-# found by reading a page beside (help ...), not by any check.
-#
-# The first version of this gate checked a closed VOCABULARY of class-body
-# forms.  That premise is false: a member is declared as (name), (name
-# default) or (name default "description"), so the head is the member's own
-# name and the set is open.  What can be checked is coverage -- declared
-# against rendered -- which is the property that was actually broken.
+# Coverage is the checkable property.  A closed vocabulary of class-body forms
+# is not: a member is declared as (name), (name default) or
+# (name default "description"), so the head is the member's own name and the
+# set is open.  Declared against rendered is what catches a generator that
+# drops members while the page still looks finished.
 #
 # Needs the reference BUILT: run after `make doc-x`, which is why this hangs
 # off the docs path and not the contract gates (a separate CI job with no

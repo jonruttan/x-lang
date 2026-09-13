@@ -12,11 +12,9 @@
 ; Anything not listed below is therefore a member, and the generator renders
 ; it as one.
 ;
-; WHY EITHER EXISTS.  The walker used to end in a silent catch-all: a form it
-; did not recognise reached the page as nothing at all, and the page still
-; looked finished.  Every member in the library rendered that way -- Ansi's
-; colours, Random's kind/state/fd -- and it was found by reading a page
-; beside (help ...), not by any check.
+; A walker that ends in a silent catch-all renders an unrecognised form as
+; nothing at all, and the page still looks finished.  These two lists are what
+; makes that visible instead.
 ;
 ; The object-model v2 (private ...) and (protected ...) blocks are taught:
 ; their tail SPLICES into the class body (lib/x/type/class.x explodes them

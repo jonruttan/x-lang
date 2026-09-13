@@ -9,10 +9,10 @@
 # live here once; the format is a flag passed straight through to doc.x,
 # which picks the emitter (x/doc/emit, x/doc/emit-man).
 #
-# MAN ALIASES.  A module page is not how a name gets looked up -- `man
+# Man aliases.  A module page is not how a name gets looked up -- `man
 # Str8-split` is -- so the roff emitter marks every documented name with a
 # `.\" X-ALIAS <name>` comment line, and this script turns each into a
-# one-line `.so` stub beside the real page.  Two pages CAN claim the same
+# one-line `.so` stub beside the real page.  Two pages can claim the same
 # name (a method name shared by two classes); first page wins and the
 # collision is reported, never silently dropped.
 #

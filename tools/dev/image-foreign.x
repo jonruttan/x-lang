@@ -4,18 +4,17 @@
 ;   sh x.sh -q -f tools/dev/image-foreign.x
 ;
 ; Every foreign unit in the heap holds a raw address, and no address survives
-; into another process.  So each one has to be REACQUIRED by name, and this
-; counts how far the naming sources actually reach.  Run it beside
-; tools/dev/image-write.x, whose foreign table this measures the inputs to.
+; into another process.  Each one has to be reacquired by name, and this counts
+; how far the naming sources reach.  Run it beside tools/dev/image-write.x,
+; whose foreign table this measures the inputs to.
 ;
-; THE KEY IS THE C FUNCTION POINTER, NOT THE OBJECT ADDRESS.  A foreign unit
-; IS the function pointer a primitive holds in unit 0; keying a naming map on
-; the primitive object's own address matches nothing, which is what the first
-; version of this did (0 of 146).  Nor does keying on the function merge
-; anything it should not: the catalog's `+` and the bare `+` are two distinct
-; objects sharing one C function, and they stay two records in the image, so
-; identity survives.  docs/state-images.md's warning is about naming an OBJECT
-; by a path that yields an equal value, which is a different thing.
+; The key is the C function pointer, not the object address: a foreign unit is
+; the function pointer a primitive holds in unit 0, so a naming map keyed on
+; the primitive object's own address matches nothing.  Keying on the function
+; merges nothing it should not -- the catalog's `+` and the bare `+` are two
+; distinct objects sharing one C function, and they stay two records in the
+; image, so identity survives.  docs/state-images.md's warning is about naming
+; an object by a path that yields an equal value, which is a different thing.
 ;
 ; @author [Jon Ruttan](jonruttan@gmail.com)
 ; @copyright 2026 Jon Ruttan

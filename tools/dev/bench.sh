@@ -32,13 +32,13 @@ if [ "$1" != "--no-build" ]; then
     echo "done."
 fi
 
-# Profile snippet, appended after each lang load.  SELF-CONTAINED ON PURPOSE:
-# it reads the engine's profile list through boot globals and prims only,
-# mirroring lib/x/tool/profile.x's profile-dump line.  It must not import
-# that module, because the snippet runs under each lang's OWN reader and the
-# include path under x-sweet does not strip the reader's whitespace marks
-# from multi-line forms -- an imported module's defs come back mangled.
-# Single-line forms read identically under every reader benched here.
+# Profile snippet, appended after each lang load.  It is self-contained: it
+# reads the engine's profile list through boot globals and prims only,
+# mirroring lib/x/tool/profile.x's profile-dump line.  It must not import that
+# module, because the snippet runs under each lang's own reader, and under
+# x-sweet the include path does not strip the reader's whitespace marks from
+# multi-line forms.  Single-line forms read identically under every reader
+# benched here.
 SNIPPET="${TMPDIR}/x-bench-$$.snippet.x"
 cat > "$SNIPPET" <<'EOF'
 (def %bp-sa (prim-ref (lit str) (lit append)))

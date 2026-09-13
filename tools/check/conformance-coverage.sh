@@ -3,27 +3,23 @@
 #
 #   Usage: sh tools/check/conformance-coverage.sh [--update]
 #
-# The conformance suite is x-lang's executable definition of what an engine must
-# do.  It starts from nothing (the bare smoke harness that used to live here moved
-# to the engine, deliberately -- it answered a different question), so the useful
-# gate is not "is it complete" but "did it just get smaller".
+# The conformance suite is x-lang's executable definition of what an engine
+# must do.  It is incomplete by construction, so the gate asks whether it just
+# got smaller rather than whether it is complete.
 #
-# THE RATCHET.  tools/contract/conformance-covered.x lists the ISA rows the suite
-# currently defines.  Coverage may GROW freely; a row that was covered and is no
-# longer fails this check.  That is the same shape as the %-global budgets, pointed
-# at a suite instead of at globals, and it is the honest gate for work that will
-# take many sittings: it cannot claim completeness it does not have, and it cannot
-# quietly regress.
+# tools/contract/conformance-covered.x lists the ISA rows the suite defines.
+# Coverage may grow freely; a row that was covered and is no longer fails this
+# check.  Same shape as the %-global budgets, pointed at a suite: it cannot
+# claim completeness it does not have, and it cannot regress quietly.
 #
-# A row is covered when some spec section names it on a `covers:` line.  Naming is
-# explicit rather than inferred from the source, for the reason the constraint
-# markers are explicit: a scan that guessed which primitive a case exercised would
-# be confidently wrong on exactly the cases that matter (a case that reaches `+`
-# through three layers of helper is not a test of `+`).
+# A row is covered when some spec section names it on a `covers:` line.  Naming
+# is explicit rather than inferred from the source, for the reason the
+# constraint markers are explicit: a scan guessing which primitive a case
+# exercised would be wrong on exactly the cases that matter, since a case that
+# reaches `+` through three layers of helper is not a test of `+`.
 #
-# UNCOVERED IS REPORTED, NOT FAILED.  The remaining rows are printed every run.  A
-# suite that is silent about its gaps reads as complete, and this one is at the
-# beginning of a long job.
+# Uncovered rows are reported, not failed: they are printed every run, because
+# a suite silent about its gaps reads as complete.
 set -e
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

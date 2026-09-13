@@ -5,13 +5,13 @@
 ; Prints one "FILE CLASS FORM" line per class-body form, for
 ; tools/check/doc-forms.sh to check against tools/contract/doc-forms.x.
 ;
-; STRUCTURAL, not a grep: a class body is s-expressions, and the head of a
-; body form is only knowable by reading it as one.  The file is parsed, never
-; evaluated -- this walks the same shape lib/x/doc/doc-gen.x walks, which is
-; the point: what it finds is exactly what that walker will be handed.
+; Structural rather than a grep: a class body is s-expressions, and the head of
+; a body form is knowable only by reading it as one.  The file is parsed, never
+; evaluated, and walks the same shape lib/x/doc/doc-gen.x walks, so what it
+; finds is what that walker will be handed.
 ;
-; Symbol comparison is by NAME, like doc-gen's own: symbols intern per base,
-; so a form read here is not eq? to a symbol written here.
+; Symbol comparison is by name, like doc-gen's own: symbols intern per base, so
+; a form read here is not eq? to a symbol written here.
 
 (do
   (import x/sys/posix)

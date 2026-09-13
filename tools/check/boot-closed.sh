@@ -1,26 +1,22 @@
 #!/bin/sh
 # boot-closed.sh -- a boot amalgam loads nothing from the platform (#467).
 #
-# THE CLAIM AN AMALGAM MAKES is that it is a whole boot: hand it to an engine
-# and the language stands up.  It was true of everything the entry `include`s
-# and false of everything the entry `import`s -- those resolved at RUNTIME
-# against whatever library the machine happened to have, so a pinned project
-# ran its own boot mixed with the platform's modules, and the overlay could not
-# intercept them because the pin arms AFTER the amalgam has already run.
+# An amalgam claims to be a whole boot: hand it to an engine and the language
+# stands up.  That holds for everything the entry `include`s and not for what
+# it `import`s, since those resolve at runtime against whatever library the
+# machine has.  A pinned project then runs its own boot mixed with the
+# platform's modules, and the overlay cannot intercept them, because the pin
+# arms after the amalgam has already run.
 #
-# That mixture is what crashed #435: a v0.3.1-rc10 amalgam on a v0.4.0 install,
-# reproduced with the engine held constant.
+# So every top-level `(import NAME)` left in a generated amalgam must name a
+# module the boot has already loaded -- one in x-core.x's pre-seeded
+# loaded-set, where `import` is a no-op.  Any other top-level import is a file
+# read from the platform at boot.
 #
-# WHAT THIS CHECKS.  Every top-level `(import NAME)` left in a generated
-# amalgam must name a module the boot has ALREADY loaded -- that is, one in
-# x-core.x's pre-seeded loaded-set, where `import` is a no-op.  Any other
-# top-level import is a file read from the platform at boot.
-#
-# STATIC, on purpose.  The end-to-end proof is to install a tree, delete its
-# lib/ and apps/, and boot each amalgam -- which is minutes, and is how this
-# was verified when it was written.  This is the ratchet that keeps it true:
-# seconds, and it fails on the commit that reintroduces the leak rather than
-# on the release that ships it.
+# The check is static.  The end-to-end proof is to install a tree, delete its
+# lib/ and apps/, and boot each amalgam, which takes minutes; this is the
+# ratchet that keeps it true in seconds, failing on the commit that
+# reintroduces the leak rather than on the release that ships it.
 set -e
 
 cd "$(dirname "$0")/../.." || exit 1

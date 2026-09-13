@@ -1,19 +1,16 @@
 #!/bin/sh
 # dup-defs.sh -- cross-module duplicate-global-def ratchet (#47)
 #
-# Top-level redefinition updates the shared binding IN PLACE since the
-# env-model fix (53b84b0), so two modules defining the same global name
-# with different meanings is a real collision: whichever loads last
-# rewires every caller (the %alist-find segfault -- sys/convert.x's
-# dispatcher helper clobbered by the case-insensitive one in what was then
-# apps/logo/types.x, and is now x-logo).
+# Top-level redefinition updates the shared binding in place, so two modules
+# defining the same global name with different meanings is a real collision:
+# whichever loads last rewires every caller.
 #
-# Rule, per global name defined at top level in MORE THAN ONE module:
+# Rule, per global name defined at top level in more than one module:
 #   - catalog fetches -- a body that is (prim-ref ...) -- must all fetch
-#     the SAME catalog entry (normalized-identical args);
+#     the same catalog entry (normalized-identical args);
 #   - one non-fetch definition (the registrar/owner) plus any number of
 #     fetches is fine: the fetches return the registered object;
-#   - several DISTINCT non-fetch definitions fail, unless the name is in
+#   - several distinct non-fetch definitions fail, unless the name is in
 #     the adjudicated allowlist below or every definition lives in the
 #     per-arch backend directory (lib/x/tool/asm/ -- one loads per host).
 #
@@ -23,22 +20,21 @@
 # function-only `do`, `prim-ref`, `newline` and the rest never share a base
 # with the boot's.  Same rule as the per-arch backends: it cannot co-load.
 #
-# Scope: lib/ + apps/ + tools/ (everything that can co-load into one
-# base env -- the driver scripts load x-core and then their tool file, so
-# tools/ globals land in the same env; the %lookup rebind fixed in #252
-# lived exactly there, invisible to the pre-tools scan).
-# Extraction is a real form scanner (paren depth outside strings, char
-# literals, and ; comments), not a line grep.  Recognized definers:
-# (def NAME ...), (def-class NAME ...), and their (doc ...) wrappers.
-# A top-level (do ...) is descended into: %do-seq tail-evals children in
-# the caller's env, so defs directly inside it bind globally -- treating
-# them as top-level is what makes the cov.x/lint.x (do ...) bodies
-# visible.  (let ...) is NOT descended: its bindings are scoped.
+# Scope: lib/ + apps/ + tools/ -- everything that can co-load into one base
+# env.  The driver scripts load x-core and then their tool file, so tools/
+# globals land in the same env.
 #
-# Adjudicated same-name multi-definition names (2026-07-19, #47 wrap-up):
+# Extraction is a form scanner (paren depth outside strings, char literals and
+# ; comments), not a line grep.  Recognized definers: (def NAME ...),
+# (def-class NAME ...) and their (doc ...) wrappers.  A top-level (do ...) is
+# descended into, because %do-seq tail-evals children in the caller's env, so
+# defs directly inside it bind globally.  (let ...) is not descended: its
+# bindings are scoped.
+#
+# Adjudicated same-name multi-definition names:
 #   let            -- staged bootstrap upgrade: core/control.x defines the
 #                     basic form, core/syntax.x redefines with named-let;
-#                     last-loaded wins IS the intent.
+#                     last-loaded wins is the intent.
 #   compile-asm    -- tool/compile.x installs a lazy stub that
 #                     include-onces tool/asm-compile.x (the real one) and
 #                     re-dispatches; the overwrite is the mechanism.
