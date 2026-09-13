@@ -1,21 +1,18 @@
 #!/bin/sh
 # man-smoke.sh -- gate the man-page generation and install path.
 #
-# doc-man and install-man had no target in the gate: doc-man sits outside
-# `doc` deliberately (it is a second full library sweep, and only install-man
-# consumes it), so nothing in CI ever ran either one.  This drives both
-# against a throwaway prefix and checks the properties that actually break.
+# doc-man sits outside `doc`: it is a second full library sweep and only
+# install-man consumes it, so neither runs in CI otherwise.  This drives both
+# against a throwaway prefix.
 #
-# WHAT IT CHECKS, and why each one is here rather than assumed:
+# What it checks:
 #
 #   pages exist          a sweep that emits nothing still exits 0.
 #   .TH on every page    a page without it is not a man page; roff renders it
 #                        as running text and `man` shows no header.
 #   every stub resolves  the alias pass writes `.so man3x/<page>` stubs and
-#                        REFUSES to overwrite, so a bug in the naming or the
+#                        refuses to overwrite, so a bug in the naming or the
 #                        collision rule leaves stubs pointing at nothing.
-#                        This is the one that would have caught the `/` in
-#                        `Bigint-/` and the non-idempotent sweep.
 #   no unsafe names      a `/` in a page name is a path separator, and a
 #                        leading `-` parses as an option at every command
 #                        that reads the name.

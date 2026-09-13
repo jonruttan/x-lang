@@ -2,29 +2,29 @@
 # constraints.sh -- diff the source's platform-parameter markers against the
 # committed manifest tools/contract/constraints.x.
 #
-# THE CONTRACT: a module that only works at one value of a platform parameter
+# The contract: a module that only works at one value of a platform parameter
 # (word size, byte order) says so at the code, as a one-line marker:
 #
 #     ; constraint: word-size = 8 -- struct addrinfo pointer offsets
 #
-# and carries the matching row in the manifest.  The diff runs BOTH ways, so a
+# and carries the matching row in the manifest.  The diff runs both ways, so a
 # marker without a row fails (an assumption added silently) and a row without a
-# marker fails (a row outliving its subject) -- the discipline check/prim-coverage.sh
-# applies to its exemptions, pointed at a different kind of claim.
+# marker fails (a row outliving its subject) -- the discipline
+# check/prim-coverage.sh applies to its exemptions, pointed at a different kind
+# of claim.
 #
-# WHY THIS EXISTS.  A parameter is not a capability.  `word-size = 8` in a
-# requires-list would lock out the 32-bit Pi, a supported target, and would be
-# false besides: obj-layout.x is expressed in WORDS and lib/x/boot/data.x probes
-# the width at boot, so the core is width-agnostic by construction.  The syscall
-# and FFI layer is not -- it decodes C structs at offsets taken from 64-bit
-# headers -- and before this those assumptions were prose beside the code, seen
-# by no gate.  Now a 32-bit engine can be told which modules to refuse instead of
-# decoding garbage into a plausible-looking alist.
+# A parameter is not a capability.  `word-size = 8` in a requires-list would
+# lock out the 32-bit Pi, a supported target, and would be false besides:
+# obj-layout.x is expressed in words and lib/x/boot/data.x probes the width at
+# boot, so the core is width-agnostic by construction.  The syscall and FFI
+# layer is not -- it decodes C structs at offsets taken from 64-bit headers --
+# so a 32-bit engine is told which modules to refuse rather than decoding
+# garbage into a plausible-looking alist.
 #
-# WHAT IT PROVES.  That every declared assumption is recorded and every record
-# still has a subject.  NOT that a module is correct at another parameter value:
-# only running it there shows that, and that needs a 32-bit engine.  Undeclared
-# assumptions are still found by reading.
+# What it proves: that every declared assumption is recorded and every record
+# still has a subject.  Not that a module is correct at another parameter
+# value -- only running it there shows that, and that needs a 32-bit engine.
+# Undeclared assumptions are found by reading.
 #
 # Shell, per the tools charter: a corpus scan over ~150 files, the same per-byte
 # grounds as check/dup-defs.sh and check/bare-globals.sh.
