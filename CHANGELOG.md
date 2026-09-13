@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**CI keeps the sanitizer engine it built.** The gates job's asan-boot and
+the asan job each cloned the pinned engine sources and built `x-bin-asan`
+from them, 55 seconds on both runners before a dialect booted -- the same
+bytes every run, because a tag is immutable and asan-boot.sh already says
+so ("the build never goes stale"). `deps/engine-src` is an
+`actions/cache` entry now, keyed on the engine pin and the runner image:
+the image because the engine is built with gcc, which links libasan
+dynamically, so a binary is only as good as its image's runtime. On a hit
+asan-boot finds the build and skips the clone; the asan job's source
+fetch reuses the tree the same way. What is left in asan-boot is the two
+tower boots, 1m33s each on the x86-64 runner, and they stay serial:
+measured there on 2026-09-13, each peaks at 10.0GB on a 15GB machine.
+
 **The state image writer's host boots from an image.** A write is a helium
 process running `tools/dev/image-write.x` over a child that loads the
 library from source, and the host booted with `--no-image` -- from source,
