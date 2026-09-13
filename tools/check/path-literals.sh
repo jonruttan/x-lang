@@ -1,6 +1,6 @@
 #!/bin/sh
 # path-literals.sh -- ratchet: root-relative load-path literals are
-# Boot closure only.
+# boot-closure only.
 #
 # A "lib/..." (or "tools/...", "apps/...", "ext/...") include in a runtime module
 # resolves against the process cwd, so it works only when cwd is the repo
