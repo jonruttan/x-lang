@@ -1,34 +1,32 @@
 ; percent-globals.x -- the %-global budget, per file: (file "PATH" COUNT)
-; May only SHRINK (tools/check/percent-globals.sh).  A file absent here
+; May only shrink (tools/check/percent-globals.sh).  A file absent here
 ; has budget 0.  The composed alternative: home helpers as %-statics on
-; the module's class (classes ARE namespaces; pin.x is the worked
+; the module's class (classes are namespaces; pin.x is the worked
 ; example -- 100 globals homed to 1).
 ;
 ; Scope is lib/ + apps/ + tools/ (#304): a tool script co-loads with the
 ; library, so its globals share the env.  Counting is form-accurate
-; (tools/check/defs.awk), which sees two shapes the old line grep did
-; not -- (doc (def %name ...)), so DOCUMENTED helpers stopped hiding, and
-; defs directly inside a top-level (do ...), which is how tool scripts
-; are written.  Rows that grew when the blind spots closed record
-; globals that were always there, not new pollution.
+; (tools/check/defs.awk), which sees two shapes a line grep does not --
+; (doc (def %name ...)), and defs directly inside a top-level (do ...),
+; which is how tool scripts are written.
 ;
-; Hot-path rows stand on MEASURED de-dispatch grounds (8-30x class
-; call overhead): sha256*, asm*, compile*, boot/*, and (#334: 15x on
-; the fnv byte loop, 2x on dict ops, benchmarked) type/dict + type/hash,
-; and (#335: cached int %// on the random draw loop, port math, and the
+; Hot-path rows stand on measured de-dispatch grounds (8-30x class call
+; overhead): sha256*, asm*, compile*, boot/*, and (#334: 15x on the fnv
+; byte loop, 2x on dict ops, benchmarked) type/dict + type/hash, and
+; (#335: cached int %// on the random draw loop, port math, and the
 ; per-expression gc tick) num/random + sys/socket + tool/asm-compile,
-; and (#307: the sugar-fold cell reads per PRINTED NODE) tool/fmt, and
-; tool/highlight, whose whole body is a per-BYTE scan: routing it through
-; the class doors (Str8 ref / Char =?) and the numeric tower cost ~10x the
-; resident memory of the cached byte prims -- 4KB of source wanted ~2.5GB
-; and a 13KB module OOM-killed the machine; on byte-ref it peaks ~290MB
-; above boot.  Grew by one for %hl-depth, the per-line paren scan that tells
-; a transcript's continuation lines from its results -- same inner loop, same
-; grounds.
-; The type/class.x row GROWS during the object-model v2 arc (plan
-; approved 2026-08-20): the dispatch engine's own helpers are the
-; measured hot path (8-30x, #332) the exception above exists for --
-; each growth step is one warm-path helper, named per commit.
+; and (#307: the sugar-fold cell reads per printed node) tool/fmt, and
+; tool/highlight, whose whole body is a per-byte scan: routing it through
+; the class doors (Str8 ref / Char =?) and the numeric tower costs ~10x the
+; resident memory of the cached byte prims -- 4KB of source wants ~2.5GB,
+; and on byte-ref it peaks ~290MB above boot.  %hl-depth, the per-line
+; paren scan that tells a transcript's continuation lines from its
+; results, is the same inner loop on the same grounds.
+;
+; The type/class.x row grows during the object-model v2 arc: the dispatch
+; engine's own helpers are the measured hot path (8-30x, #332) the
+; exception above exists for, and each growth step is one warm-path
+; helper, named per commit.
 ; Grew by one for %sug-hint, and this one is NOT a hot-path helper -- it
 ; is the did-you-mean suffix on a failed dispatch, cold by construction,
 ; reached only on the way to raising.  It takes a row because BOTH error

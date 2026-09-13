@@ -2,33 +2,25 @@
 # amalgamate.sh -- flatten a boot entry's raw-include chain into one
 # self-ordered stream on stdout.
 #
-# Splice-only, line-oriented, top level only: each spliced file's forms
-# land at STREAM top level, never wrapped in a grouping form -- the
-# stream is parsed form-by-form as it evaluates, which preserves the
-# tower's parse-before-eval ordering and keeps the (repl) launcher at
-# the top level it requires.  Source text is copied verbatim (a reader
-# round-trip would lose reader-sugar and formatting), so the interpreter
-# sees byte-for-byte the same forms it sees under live includes, in the
-# same effective order.
+# Splice-only, line-oriented, top level only: each spliced file's forms land at
+# stream top level, never wrapped in a grouping form.  The stream is parsed
+# form-by-form as it evaluates, which preserves the tower's parse-before-eval
+# ordering and keeps the (repl) launcher at the top level it requires.  Source
+# text is copied verbatim -- a reader round-trip would lose reader-sugar and
+# formatting -- so the interpreter sees byte-for-byte the same forms it sees
+# under live includes, in the same effective order.
 #
-# Strict convention, machine-enforced here: a boot-closure raw include
-# sits ALONE on its own line at column 0.  Any other root-relative
-# include anywhere in the closure is a build error, not a silent skip.
-# (Runtime modules never contain them at all -- tools/check/path-literals.sh.)
+# Strict convention, machine-enforced here: a boot-closure raw include sits
+# alone on its own line at column 0.  Any other root-relative include anywhere
+# in the closure is a build error, not a silent skip.  (Runtime modules contain
+# none at all -- tools/check/path-literals.sh.)
 #
-# ext/ IS ONE OF THE ROOTS.  It was not, and the omission was invisible
-# until the boot closure first included from there: an ext/ include matched
-# neither branch, so it fell through to `print line` and travelled into the
-# amalgam UNRESOLVED.  The installed tree has no ext/, so boot died with no
-# diagnostic -- check-bootstrap caught it as "the installed x did not run a
-# program", which is the symptom three steps downstream of the cause.  The
-# "build error, not a silent skip" promise above only held for the roots
-# the pattern happened to list.
-#
-# engine/ IS A ROOT for the same reason, and was added BEFORE the boot moved
-# its contract includes there rather than after -- the ext/ lesson, paid once.
-# It is the symlink at the repo root that names whichever engine this tree
-# builds against; the boot's first two includes come from it.
+# The roots include ext/ and engine/.  A root the pattern does not list matches
+# neither branch, falls through to `print line`, and travels into the amalgam
+# unresolved; the installed tree has no ext/, so boot then fails with no
+# diagnostic of its own.  engine/ is the symlink at the repo root naming
+# whichever engine this tree builds against, and the boot's first two includes
+# come from it.
 #
 # Usage: sh tools/release/amalgamate.sh lib/xe.x > build/boot/xe.x
 
@@ -61,21 +53,17 @@ function splice(path,  line, n, mod, file) {
 	while ((getline line < path) > 0) {
 		n++
 		if (line ~ /^[[:space:]]*;/) { print line; continue }
-		# include-once SPLICES EXACTLY AS include DOES, and has to be named
-		# here explicitly: this pattern used to match plain `include` only, so
-		# when x-core.x moved its 48 sub-includes to include-once (#539) not one
-		# of them matched, every one fell through to the arm below, and `make
-		# boot` died on the FIRST of them reporting "not alone at column 0" --
-		# which it was.  The arm below recognises the spelling and refuses it;
-		# recognising a form is not the same as being able to splice it, and
-		# that gap is worth exactly one confusing error message.
+		# include-once splices exactly as include does, and is named here
+		# explicitly: a pattern matching plain `include` alone sends every
+		# include-once to the arm below, which recognises the spelling and
+		# refuses it.
 		#
-		# The two differ in one place only.  A file spliced twice is a hard
-		# error for `include` -- it would inline the same text twice -- while
-		# for include-once a repeat is the whole point of the form, and the
-		# amalgam has already got the text, so it becomes a comment.  The
-		# ONE-SHOT semantics survive the amalgamation either way: splicing is
-		# textual and `seen` guarantees a file lands once.
+		# The two differ in one place.  A file spliced twice is a hard error
+		# for `include`, which would inline the same text twice, while for
+		# include-once a repeat is the point of the form and the amalgam
+		# already has the text, so it becomes a comment.  The one-shot
+		# semantics survive either way: splicing is textual, and `seen`
+		# guarantees a file lands once.
 		if (line ~ /^\((include|include-once)[[:space:]]+"(lib|tools|apps|ext|engine)\/[^"]*"\)[[:space:]]*(;.*)?$/) {
 			once = (line ~ /^\(include-once/)
 			sub(/^\((include|include-once)[[:space:]]+"/, "", line)
