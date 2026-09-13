@@ -1497,16 +1497,16 @@
                     (let ((tmp (Pin %pin-download-tmp! (Pin %pin-url b tag file) target)))
                       (do
                         ; Build the compiled digest only when the payload
-                        ; justifies it: 65536 mirrors sha256.x's own
-                        ; auto-build bar (%sha-jit-threshold).  An amalgam
+                        ; justifies it: sha256.x's own bar, the measured
+                        ; size at which the build repays itself.  An amalgam
                         ; (hundreds of KB) still gets the engine -- and the
                         ; slow-path warning when the build is unavailable --
                         ; while a small artifact digests pure-x in
-                        ; milliseconds instead of paying the ~14.5s engine
-                        ; build (#324: the pin gate's three fetch smokes
-                        ; each paid it to verify tens of bytes).
+                        ; milliseconds instead of paying the engine build
+                        ; (#324: the pin gate's three fetch smokes each
+                        ; paid it to verify tens of bytes).
                         (display "pin: verifying " target
-                                 (if (< (%assoc-get 'size (File stat tmp)) 65536)
+                                 (if (< (%assoc-get 'size (File stat tmp)) %sha-jit-threshold)
                                      ""
                                      (if (Sha256 jit!)
                                          " (jit sha256)"
@@ -1663,11 +1663,11 @@
         (let ((tmp (Pin %pin-download-tmp! url archive)))
           (do
             ; Build the compiled digest only when the archive justifies it:
-            ; the same 65536 bar `fetch` applies (#324), which this door never
-            ; got -- the pin gate's six bundle smokes and two install smokes
-            ; each paid the engine build to verify a few hundred bytes.
+            ; the same bar `fetch` applies (#324), which this door never got
+            ; -- the pin gate's six bundle smokes and two install smokes each
+            ; paid the engine build to verify a few hundred bytes.
             (display "pin: verifying " name " " tag
-                     (if (< (%assoc-get 'size (File stat tmp)) 65536)
+                     (if (< (%assoc-get 'size (File stat tmp)) %sha-jit-threshold)
                          ""
                          (if (Sha256 jit!) " (jit sha256)" " (pure x-lang sha256)"))
                      "\n")

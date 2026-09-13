@@ -16,7 +16,7 @@
 ; included -- are ONE compiled function pair driven per block, entered
 ; through a t=-1 sentinel.  25KB in ~71ms against ~10.9s pure-x on the
 ; measuring machine; compiling costs seconds ONCE, which is why adoption
-; is explicit (jit!) or cumulative-threshold, never per-call.
+; is explicit (jit!) or by the input's length, never per-call.
 ;
 ; x/tool/compile, not x/tool/asm-compile: the assembler backend is not
 ; standalone (its fvar plumbing lives in compile/emit.x), and compile.x

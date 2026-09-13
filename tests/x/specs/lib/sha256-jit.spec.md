@@ -22,6 +22,26 @@ dispatch actually happens.
 
 ## the engine builds and is adopted
 
+### the engine is built for an input that repays it, not for a total
+
+The bar is `%sha-jit-threshold` bytes in one input. Two inputs just under
+it, whose total is well over, stay pure-x: a total says nothing about what
+is left to digest. One input over it builds. FIRST in this file on purpose:
+the cases below build the engine explicitly, and the state is per process.
+
+```x
+(do
+  (import x/codec/sha256)
+  (def %under (Str8 repeat (- %sha-jit-threshold 1) "a"))
+  (Sha256 hex %under)
+  (Sha256 hex %under)
+  (def %after-two (null? %sha-jit-engine))
+  (Sha256 hex (Str8 repeat %sha-jit-threshold "a"))
+  (display (list %after-two (not (null? %sha-jit-engine)) (Sha256 jit!))))
+```
+---
+    (#t #t #t)
+
 ### jit! reports the engine active, and is idempotent
 
 Seconds of compile on the first call; the second is a state read.
