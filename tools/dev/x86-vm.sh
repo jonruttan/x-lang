@@ -45,7 +45,7 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SRC_DIR="${X86_VM_SRC:-$PROJECT_DIR}"
 
 VM_DIR="${X86_VM_DIR:-$HOME/.cache/x-lang/x86-vm}"
-# 8G, NOT A ROUND-NUMBER GUESS.  A cold tower boot -- `x.sh -l xe` on an empty
+# 8G is measured, not a round-number guess.  A cold tower boot -- `x.sh -l xe` on an empty
 # JIT cache -- peaks at 2.4G on arm64 and rather more here, and a 4G guest was
 # OOM-killed doing nothing more exotic than `(display 1)`.  qemu allocates
 # guest memory lazily, so the ceiling costs nothing until the guest touches it.
@@ -172,7 +172,7 @@ cmd_up() {
 	make_seed
 	make_disk
 
-	# ds=nocloud VIA SMBIOS, NOT JUST THE SEED.  A correct seed is not enough:
+	# ds=nocloud via SMBIOS, not just the seed.  A correct seed is not enough:
 	# cloud-init's generator runs ds-identify first, and when that probe comes
 	# up empty it DISABLES cloud-init outright -- no user, no host keys, and
 	# an ssh.service that fails to start, which reads like a networking fault
@@ -197,7 +197,7 @@ cmd_up() {
 	while [ "$i" -lt 180 ]; do
 		# shellcheck disable=SC2086
 		if ssh $SSH_OPTS x@127.0.0.1 true 2>/dev/null; then
-			# SSH ANSWERS BEFORE THE BOX IS USABLE.  cloud-init brings
+			# SSH answers before the box is usable.  cloud-init brings
 			# sshd up early and installs the compiler late, so the
 			# first `up` used to hand back a guest with no gcc -- and
 			# the resulting "gcc: command not found" reads like a

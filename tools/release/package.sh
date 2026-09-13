@@ -114,7 +114,7 @@ repo=$(sh tools/release/payload-digest.sh) || fail "payload digest failed"
 [ "$stamped" = "$repo" ] \
 	|| fail "packaged payload differs from the repo's, so it will differ from the release manifest ($stamped vs $repo)"
 
-# THE SHARED SPEC RUNNER SHIPS, and the wrapper can say where it is.  A
+# The shared spec runner ships, and the wrapper can say where it is.  A
 # lang bundle runs its own specs with this runner, locating it as
 # "$(x --share-dir)/tests" -- so a tarball missing either half leaves every
 # bundle unable to test itself, which is exactly the state the old
@@ -125,7 +125,7 @@ repo=$(sh tools/release/payload-digest.sh) || fail "payload digest failed"
 [ -f "$_tree/tests/spec-runner.awk" ] \
 	|| fail "no spec-runner awk harness in the packaged tree"
 #
-# RUN FROM THE EXTRACT, NOT THE REPO.  The wrapper decides repo-vs-installed
+# Run from the extract rather than the repo.  The wrapper decides repo-vs-installed
 # mode from the CWD (an lib/x.x under it), deliberately -- so an installed x
 # invoked inside a checkout reads the checkout, and answering the checkout's
 # root is then the honest answer, not a bug.  This gate runs with the repo as

@@ -77,17 +77,16 @@ function splice(path,  line, n, mod, file) {
 				printf "; (include-once %s) -- inlined above\n", line
 			else
 				splice(line)
-		# THE CHARACTER CLASS IS THE WHOLE MATCH.  Leaving `_` out of it silently
-		# skipped x/platform/data/syscalls-x86_64 -- the one module name in the
-		# boot closure that has an underscore -- so that table alone kept loading
-		# from the platform while its two siblings were inlined.  A class that
-		# omits a character real names use does not fail; it under-matches.
+		# The character class is the whole match.  A class that omits a
+		# character real module names use does not fail, it under-matches:
+		# without `_`, x/platform/data/syscalls-x86_64 is skipped and keeps
+		# loading from the platform while its siblings are inlined.
 		} else if (line ~ /^\(import[[:space:]]+[a-z0-9][a-z0-9_\/@.-]*[[:space:]]*\)[[:space:]]*(;.*)?$/) {
-			# A TOP-LEVEL IMPORT IS A BOOT-TIME LOAD, and an amalgam that leaves
-			# it unresolved is not self-contained: it reaches into whatever
-			# library the platform happens to have when it boots (#467).  Splice
-			# the module here, in the position the import occupied, so load order
-			# is exactly what it was.
+			# A top-level import is a boot-time load, and an amalgam that leaves
+			# one unresolved is not self-contained: it reaches into whatever
+			# library the platform has when it boots (#467).  The module is
+			# spliced in the position the import occupied, so load order is
+			# unchanged.
 			mod = line
 			sub(/^\(import[[:space:]]+/, "", mod)
 			sub(/[[:space:]]*\).*$/, "", mod)
@@ -97,19 +96,19 @@ function splice(path,  line, n, mod, file) {
 				bad = 1; exit 1
 			}
 			if (mod in seeded) {
-				# ALREADY LOADED AT RUNTIME.  x-core.x pre-seeds the loaded set
+				# Already loaded at runtime.  x-core.x pre-seeds the loaded set
 				# with every module it raw-includes, so this import is a no-op
-				# there and must stay one here: splicing it would inline a module
+				# there and stays one here: splicing it would inline a module
 				# the boot already contains.  The line is kept as it stands.
 				print line
 			} else if (file in seen) {
 				printf "; (import %s) -- inlined above\n", mod
 			} else {
-				# MARK IT LOADED, because `provide` does not.  provide fills the
-				# EXPORTS registry; `import` consults the LOADED set, and only
-				# `import` itself writes that.  Splicing the text without this
-				# leaves the module inlined AND re-imported from the platform --
-				# the bug wearing a bigger disguise.
+				# Mark it loaded, because `provide` does not: provide fills the
+				# exports registry, while `import` consults the loaded set and
+				# is the only thing that writes it.  Splicing the text without
+				# this leaves the module inlined and re-imported from the
+				# platform.
 				printf "(%%module-loaded! (lit %s))\n", mod
 				splice(file)
 			}

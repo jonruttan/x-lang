@@ -629,7 +629,7 @@ mv "$_fake2/share/x/contract/engine-release" "$_fake2/share/x/contract/engine-re
 grep -q "no engine stamp" "$_TMP/err" || fail "engine-guard: an unanswerable pairing passed in silence" "$_TMP/err"
 mv "$_fake2/share/x/contract/engine-release.away" "$_fake2/share/x/contract/engine-release"
 
-# --- REACH FOR THE RELEASE (#499): before refusing a library skew, the
+# --- reach for the release (#499): before refusing a library skew, the
 # --- wrapper hands the invocation to a cached copy of the release the
 # --- lock names -- fetching it, verified, when told to.  The pin knows
 # --- what it needs and where to get it; blocking was the bug.  Every
@@ -860,7 +860,7 @@ mkdir -p "$_bsrc/demo"
 printf '(lang "x-smoke")\n(dialect he)\n(entry "run.x")\n' > "$_bsrc/lang.xon"
 printf '(provide demo/g g)\n(def g (fn (_) "ok"))\n' > "$_bsrc/demo/g.x"
 printf '; entry\n' > "$_bsrc/run.x"
-# A NON-.x FILE ON PURPOSE: a lang may ship data (the Logo viewer
+# A non-.x file on purpose: a lang may ship data (the Logo viewer
 # is the worked case), so a bundle is a tree, not one amalgam.
 printf '<html>v</html>\n' > "$_bsrc/viewer.html"
 ( cd "$_bsrc" && tar -czf "$_TMP/x-smoke-v1.tar.gz" . )
@@ -885,7 +885,7 @@ grep -q "x-smoke-v1" "$_TMP/out" || fail "bundle: no bundle path in output" "$_T
 _brun "$_TMP/bproj" "$_TMP/bdeps"
 grep -q "already acquired" "$_TMP/out" || fail "bundle: re-run did not honour the existing tree" "$_TMP/out"
 
-# THE DIGEST MUST BE OF THE WHOLE ARCHIVE.  This is the regression guard for
+# The digest must be of the whole archive.  This is the regression guard for
 # the bug that shaped the design: with the strlen-bounded digest, a gzip
 # compared equal on its first three bytes, so a tampered archive verified
 # clean.  Here the payload differs but the leading bytes do not.
@@ -898,7 +898,7 @@ _brun "$_TMP/bproj2" "$_TMP/bdeps2"
 grep -q "digest mismatch" "$_TMP/err" "$_TMP/out" \
   || fail "bundle-tamper: the mismatch was not named" "$_TMP/err" "$_TMP/out"
 [ ! -d "$_TMP/bdeps2/x-smoke-tam" ] || fail "bundle-tamper: a rejected archive was published"
-# NOTHING IS UNPACKED on a mismatch -- the whole point of digesting first.
+# Nothing is unpacked on a mismatch, which is why the digest is taken first.
 [ -z "$(ls -d "$_TMP"/bdeps2/.staging-* 2>/dev/null)" ] \
   || fail "bundle-tamper: a rejected archive was unpacked anyway"
 [ -f "$_TMP/bdeps2/x-smoke-tam.tar.gz.rejected" ] \
@@ -984,7 +984,7 @@ X_LANG_DIR="$_lpers/" $TIMEOUT_CMD sh "$WRAPPER" --no-pin -q -l x-nodialect -f /
 grep -q "declares dialect 'zz'" "$_TMP/err" \
   || fail "load-dialect: the missing dialect was not named" "$_TMP/err"
 
-# A TARBALL WITH A TOP-LEVEL DIRECTORY, which is the normal kind: `git archive
+# A tarball with a top-level directory, which is the normal kind: `git archive
 # --prefix=NAME/` is how a publisher rolls one and what every release tarball
 # looks like.  Refusing it would mean saying "ships no lang.xon" about a bundle
 # that plainly does -- found the first time a bundle was rolled for release.
@@ -1026,13 +1026,13 @@ printf '(alloc-limit! 300000000)\n(import x/tool/pin)\n(display (Pin install "fi
   "$_ipub" "$_ilangs" > "$_TMP/inst.x"
 $TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/inst.x" >"$_TMP/out" 2>"$_TMP/err"
 [ $? -eq 0 ] || fail "install: acquiring from a published pin failed" "$_TMP/err" "$_TMP/out"
-# THE STABLE NAME, not <name>-<release>: -l resolves it and an install is one
+# The stable name, not <name>-<release>: -l resolves it and an install is one
 # copy per machine, so a versioned directory would collide with itself on
 # upgrade -- two trees both declaring the same lang, which -l refuses.
 [ -f "$_ilangs/x-smoke/lang.xon" ] \
   || fail "install: did not land at the stable <langs>/<name>" "$_TMP/out"
 
-# A FAILED UPGRADE MUST LEAVE WHAT YOU HAD.  The digest is checked before
+# A failed upgrade leaves the working install in place.  The digest is checked before
 # anything replaces a working installation, so a bad pin costs you nothing.
 sed 's/sha256:[0-9a-f]*/sha256:0000000000000000000000000000000000000000000000000000000000000000/' \
   "$_ipub/lang.pin.xon" > "$_ipub/bad.pin.xon"
@@ -1043,7 +1043,7 @@ $TIMEOUT_CMD sh "$WRAPPER" --no-pin -f "$_TMP/inst2.x" >"$_TMP/out" 2>"$_TMP/err
 [ -f "$_ilangs/x-smoke/lang.xon" ] \
   || fail "install-tamper: a failed upgrade destroyed the working install" "$_TMP/err"
 
-# --share-dir must answer FROM OUTSIDE THE TREE, because that is the entire
+# --share-dir must answer from outside the tree, because that is the entire
 # reason it exists: a bundle's runner is not in the x-lang checkout and needs
 # the tests/ root without guessing.  It did not, at first -- mode detection is
 # cwd-based, so from outside a checkout it took the installed branch and

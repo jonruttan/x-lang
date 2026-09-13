@@ -3,14 +3,14 @@
 #
 #   Usage: sh tools/contract/gen-compliance.sh <engine-dir> <out-dir>
 #
-# THIS SCRIPT EMITS DATA, NEVER CODE.  Its first version built x-lang out of a
+# This script emits data, never code.  Building x-lang out of a
 # stack of printf lines -- doubled %% signs, no highlighting, nothing runnable on
 # its own, and the only x-lang in the tree that could not be linted was the x-lang
 # that tests the engine.  The checks now live in tools/contract/compliance/*.spec.md
 # as ordinary spec files, and all this produces is one `(def %expect-... (lit ...))`
 # per capability group, which those files read.
 #
-# WHAT COMPLIANCE ASKS, and why it is not the conformance suite: conformance asks
+# What compliance asks, and why it is not the conformance suite: conformance asks
 # "is this a correct x-lang evaluator" and is written against the language;
 # compliance asks "does this engine do what IT CLAIMS", and its subject is the
 # engine's own x-engine.xon.  check-engine-contract compares provides against

@@ -9,17 +9,17 @@
 # (requires-release ...) in lang.xon, leave the change for review.  This
 # script sequences them and stops exactly where a human should look:
 #
-#   - NOTHING IS PUSHED and no PR is opened.  A green bundle gets a LOCAL
+#   - Nothing is pushed and no PR is opened.  A green bundle gets a local
 #     branch (bump/x-lang-TAG) carrying the one-line lang.xon commit; a
 #     red one gets a log and a report line.  Red means the release
-#     surfaced a real incompatibility -- staging a bump over it would be
-#     the lie this script exists to prevent.
-#   - THE USER'S CHECKOUTS ARE NEVER TOUCHED.  Each bundle is built in a
-#     temporary worktree off origin/<default>; dirty trees and checked-out
-#     feature branches are invisible to the run.  The bump branch survives
-#     the worktree; the worktree does not survive the run.
-#   - AN EXISTING BUMP BRANCH IS REFUSED, per bundle, not reset -- it may
-#     carry the operator's own edits.  Delete it to redo that bundle.
+#     surfaced a real incompatibility, and a bump staged over it would
+#     claim otherwise.
+#   - The user's checkouts are never touched.  Each bundle is built in a
+#     temporary worktree off origin/<default>, so dirty trees and
+#     checked-out feature branches are invisible to the run.  The bump
+#     branch survives the worktree; the worktree does not survive the run.
+#   - An existing bump branch is refused, per bundle, rather than reset --
+#     it may carry the operator's own edits.  Delete it to redo that bundle.
 #
 # X is a launcher that answers --share-dir (an installed x, a release
 # unpack's x, or a checkout's x.sh).  Bundles with the kit gate run

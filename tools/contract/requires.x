@@ -4,30 +4,29 @@
 ; offers, this file declares what the library needs, and the resolver pairs them
 ; by SUPERSET (tools/contract/features.x holds the vocabulary both quote).
 ;
-; DERIVED, NOT DECIDED.  Every row below is computed by
+; Derived rather than decided.  Every row below is computed by
 ; tools/check/engine-contract.sh, which joins the engine's isa.x against every
 ; (prim-ref ns method) site and every bare `syscall` call in lib/ and apps/, maps
 ; each coordinate to its capability group, and diffs the result against this
 ; file.  A row cannot be added by opinion and cannot go stale: the gate fails
 ; both ways.
 ;
-; A CAPABILITY THAT IS NOT prim-ref-ABLE CANNOT BE DERIVED, and two are not:
-; instr/cov and instr/profile are build flags that change how existing primitives
-; behave, so no call site names them and no row below can find them.  The coverage
-; and profiling tools do need a suitably built engine; that dependency is real and
-; is invisible to this derivation.  Recording it needs a hand-written row of the
-; constraints.x kind, which is the honest shape for a need that leaves no trace in
-; the source.  Until then this file under-reports by exactly those two.
+; A capability that is not prim-ref-able cannot be derived, and two are not:
+; instr/cov and instr/profile are build flags that change how existing
+; primitives behave, so no call site names them and no row below can find them.
+; The coverage and profiling tools do need a suitably built engine, and that
+; dependency is invisible to this derivation.  Recording it needs a
+; hand-written row of the constraints.x kind; until then this file
+; under-reports by exactly those two.
 ;
-; ONLY ABOVE-CORE CAPABILITIES GET ROWS.  Every file needs the `core` group; the
-; useful question is which files need MORE, because those are the ones a minimal
-; engine cannot load.  The answer is smaller than anyone expected: of ~150 files
-; in lib/ and apps/, the ones below are the entire above-core surface.  Everything
-; else runs with no foreign door, no syscalls and no collector -- which is the
-; sandbox dialect's shape and the first target worth aiming a second engine at.
+; Only above-core capabilities get rows.  Every file needs the `core` group, so
+; the useful question is which files need more, those being the ones a minimal
+; engine cannot load.  Of ~150 files in lib/ and apps/, the ones below are the
+; entire above-core surface; everything else runs with no foreign door, no
+; syscalls and no collector, which is the sandbox dialect's shape.
 ;
-; THE ROWS OVER-APPROXIMATE, DELIBERATELY.  A row says the FILE references the
-; capability, not that BOOT needs it.  lib/x/boot/module.x is the honest example:
+; The rows over-approximate, deliberately: a row says the file references the
+; capability, not that boot needs it.  lib/x/boot/module.x is the example:
 ; its syscall use is inside `module list-dir`, a cold method that imports
 ; x/platform/syscall in its own body, so booting never reaches it -- yet the file
 ; is charged for it here.  Narrowing this needs load-time-vs-call-time analysis
