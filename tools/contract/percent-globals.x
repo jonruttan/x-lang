@@ -108,7 +108,7 @@
 ; inside the two functions that use them, because a parse-local helper has no
 ; business in a flat global namespace.  #550.
 
-; STATE IMAGES.  lib/img.x is the loader's dialect, function-only by design:
+; State images.  lib/img.x is the loader's dialect, function-only by design:
 ; it declares the engine's type shapes and rebuilds an image on a base with no
 ; class system at all, so there is no class to home anything on, and its 37 are
 ; the dialect's whole surface.  lib/x/type/shape-rows.x (2) is the rows that

@@ -121,7 +121,7 @@ function splice(path,  line, n, mod, file) {
 	printf "; ---- end %s ----\n", path
 }
 BEGIN {
-	# THE PRE-SEEDED SET, read from the boot entry that owns it.  x-core.x marks
+	# The pre-seeded set, read from the boot entry that owns it.  x-core.x marks
 	# every module it raw-includes as loaded -- `include` does not register, so
 	# without that a later import would reload the file mid-boot -- and
 	# check-boot-order holds that invariant.  Reading the same list here is what

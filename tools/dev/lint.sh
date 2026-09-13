@@ -26,7 +26,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="${X_LINT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 X_BIN="${X_BIN:-$PROJECT_DIR/x-bin}"
 LINTER="$SCRIPT_DIR/lint.x"
-# THE LANGUAGE, as this root can serve it.  lib/x-core.x opens with a
+# The library, as this root can serve it.  lib/x-core.x opens with a
 # ROOT-RELATIVE include, so it only loads with the checkout as the
 # working directory; an installed tree ships the launcher-free boot
 # amalgam instead, which carries the same library with no path in it.

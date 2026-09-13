@@ -175,13 +175,12 @@
   (isa/spine         #t #f)         ; the booleans the evaluator itself binds
 )))
 
-; NOT CAPABILITIES, though the first draft of this file listed them as such.
-; `--batch` is interpreted by lib/x/repl/banner.x and lib/x/tool/contract.x, and
-; the fd-3 stdin reclaim is lib/x/repl/loop.x calling (Sys dup2 3 0).  Both are
-; conventions between the WRAPPER and the LIBRARY; an engine that binds argv and
-; offers the syscall door supports them without knowing they exist.  Listing them
-; as engine capabilities would have made a second engine implement a protocol it
-; has no part in.
+; Not capabilities.  `--batch` is interpreted by lib/x/repl/banner.x and
+; lib/x/tool/contract.x, and the fd-3 stdin reclaim is lib/x/repl/loop.x
+; calling (Sys dup2 3 0).  Both are conventions between the wrapper and the
+; library; an engine that binds argv and offers the syscall door supports them
+; without knowing they exist.  Listed as engine capabilities, they would make a
+; second engine implement a protocol it has no part in.
 
 ; --- GUARANTEES --------------------------------------------------------------
 ; Behavioural promises.  These CANNOT be derived from isa.x -- they are what the

@@ -79,7 +79,7 @@
       (if (%prim? (rest x)) (%map-add m (%fnptr (rest x)) 2) m)
       m)))
 
-; CATALOG ONLY.  Walking the base env for the bare bindings crashes exactly as
+; Catalog only.  Walking the base env for the bare bindings crashes exactly as
 ; docs/state-images.md predicts: a structural pair in the base tree may hold a
 ; raw C function pointer (the collector's own hooks), so following it as a
 ; reference is a wild read.  The bare bindings must come through base-paths.x

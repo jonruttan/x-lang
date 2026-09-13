@@ -40,11 +40,10 @@ fail() { echo "bootstrap-smoke: FAIL: $1" >&2; [ -f "$T/log" ] && sed 's/^/  /' 
 
 # Build + install to the temp prefix from INSIDE the copy; run from $T so
 # the in-checkout detection triggers on the copy, never the repo.
-# OFFLINE, DELIBERATELY.  bootstrap acquires an engine, and a gate that
-# downloads one would fail on a plane and pass in CI for reasons unrelated to
-# the thing under test.  The copy is pointed at the engine this tree already
-# resolved, which is also the honest subject: whether bootstrap can BUILD and
-# INSTALL, not whether GitHub is up.
+# Offline, deliberately.  bootstrap acquires an engine, and a gate that
+# downloads one fails or passes for reasons unrelated to the thing under test.
+# The copy is pointed at the engine this tree already resolved, which is also
+# the subject: whether bootstrap can build and install.
 _engine_abs=$( cd "$REPO/engine" 2>/dev/null && pwd -P )
 [ -n "$_engine_abs" ] || fail "no engine linked at $REPO/engine -- run make engine first"
 ( cd "$T/tree" && X_PREFIX="$T/prefix" X_ENGINE_DIR="$_engine_abs" sh bootstrap.sh --install ) > "$T/log" 2>&1 \
