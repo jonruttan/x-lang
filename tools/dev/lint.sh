@@ -34,13 +34,24 @@ LINTER="$SCRIPT_DIR/lint.x"
 # A checkout keeps x-core.x, so `make lint-x` is byte-for-byte as before.
 LANG_LIB="$PROJECT_DIR/lib/x-core.x"
 LANG_PRE=""
-if [ -n "${X_LINT_ROOT:-}" ] && [ -f "$PROJECT_DIR/boot/x-base.x" ]; then
-  LANG_LIB="$PROJECT_DIR/boot/x-base.x"
+# AN INSTALLED TREE CARRIES THE AMALGAM AT boot/, A CHECKOUT AT build/boot/,
+# and only the installed one was ever looked for.  `make install` copies the
+# one to the other (cp -R build/boot <lib>/boot), so it is the same file at a
+# different path -- but a BUNDLE'S CI HAS NO INSTALLED TREE.  It checks x-lang
+# out, builds it, and points X at ./x.sh, which is precisely the arrangement
+# this probe missed: it fell through to lib/x-core.x, whose opening include is
+# root-relative, and with the working directory set to the bundle the engine
+# died on `include: cannot open` for every file in the group.  x-coreutils
+# never caught it because it has no CI and is linted against an install.
+for _b in "$PROJECT_DIR/boot/x-base.x" "$PROJECT_DIR/build/boot/x-base.x"; do
+  [ -n "${X_LINT_ROOT:-}" ] && [ -f "$_b" ] || continue
+  LANG_LIB="$_b"
   # The amalgam resolves its DEFERRED imports against %install-root, so
   # that has to be bound before it -- the same first line the bundle
   # spec harness writes for the same file.
   LANG_PRE="(def %install-root \"$PROJECT_DIR\")"
-fi
+  break
+done
 CONSTRUCTS="$PROJECT_DIR/lib/x/constructs.x"
 
 LIB_MODE=0
