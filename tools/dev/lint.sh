@@ -138,6 +138,67 @@ _lint_known_from() {
   done
 }
 
+# THE LANGS THIS BUNDLE IS WRITTEN ON TOP OF, into _DEPS -- read from its own
+# lang.xon, exactly as the bundle's spec harness reads them.
+#
+# A bundle may declare `(requires-lang "NAME" ["VERSION"])`, and x.sh arms that
+# lang's root before the bundle's own.  Nothing here did, so a bundle standing
+# on another could not be linted AT ALL: x-r7rs's r7rs/base.x opens with
+# `(def %r7rs-repl-print %r5rs-repl-print)`, a LOAD-TIME read of a name the
+# x-r5rs bundle provides.  The preload imports that sibling to bind it for the
+# others, the import ran the def, and the engine died -- every file in every
+# group, `(no verdict -- engine died mid-group)` with one Unbound SYMBOL above
+# it.  x-sed dies the same way on `include: cannot open`, reaching for x-grep's
+# regex layer.  `; lint-known:` cannot rescue either: it appends its bindings
+# AFTER the imports, and the death is in an import.
+#
+# The version is deliberately ignored, the same bypass the harness takes and
+# for the same reason -- a sibling development checkout carries no `version`
+# stamp, and x.sh is where that constraint belongs.  Two spellings are probed
+# because two layouts are real: an installed tree names the directory for the
+# lang, a checkout for the repository.
+#
+# <NAME>_ROOT WINS, and it is not an invention here: x-r7rs's CI checks x-r5rs
+# out to .x-r5rs INSIDE the bundle -- no sibling exists on a runner -- and sets
+# R5RS_ROOT for the spec harness, whose own comment calls that "exactly this
+# case".  Reading the same variable means a CI lint step is the spec step with
+# the command swapped, not a second convention to keep in step.
+#
+# A dep that cannot be found is SKIPPED, not fatal.  The bundle's own suite
+# hard-fails on it and should; the linter is an advisory sweep, and the file
+# will simply report what it cannot see.
+_required_langs_preload() {
+  _DEPS=""
+  [ -n "${X_LINT_MODULE_ROOT:-}" ] || return 0
+  [ -f "$X_LINT_MODULE_ROOT/lang.xon" ] || return 0
+  # The pattern must not require ")" after the name: a row carrying a version
+  # stopped matching when that was assumed, and the deps came out empty.
+  for _req in $(sed -n 's/^(requires-lang "\([^"]*\)".*/\1/p' "$X_LINT_MODULE_ROOT/lang.xon"); do
+    # A manifest string becomes a VARIABLE NAME below, so take only the
+    # spelling a lang name is allowed: letters, digits, dash.
+    case "$_req" in *[!A-Za-z0-9-]*) continue ;; esac
+    eval "_rroot=\${$(printf '%s' "$_req" | tr 'a-z-' 'A-Z_')_ROOT:-}"
+    if [ -z "$_rroot" ]; then
+      for _cand in "$X_LINT_MODULE_ROOT/../$_req" "$X_LINT_MODULE_ROOT/../x-$_req"; do
+        [ -f "$_cand/lang.xon" ] && { _rroot="$_cand"; break; }
+      done
+    fi
+    [ -n "$_rroot" ] && [ -d "$_rroot" ] || continue
+    _rroot="$(cd "$_rroot" && pwd)"
+    # Arm the root, then import what it PROVIDES -- the entry-arm rule below,
+    # applied to the dependency.  Its entry has no provide and is skipped,
+    # which is what keeps a lang's run.x from being executed to lint another
+    # bundle.  Roots accumulate, so the bundle's own is armed after.
+    _DEPS="$_DEPS (import-path! \"$_rroot\")"
+    for _m in "$_rroot"/*/*.x; do
+      [ -e "$_m" ] || continue
+      grep -q '(provide ' "$_m" || continue
+      _MD="$(basename "$(dirname "$_m")")"
+      _DEPS="$_DEPS (import $_MD/$(basename "$_m" .x))"
+    done
+  done
+}
+
 _preload_for() {
   _PRELOAD=""
   case "$1" in
@@ -171,6 +232,11 @@ _preload_for() {
               done
               _PRELOAD="$_PRELOAD $(grep '^(import ' "$1" | sed 's/;.*$//' | tr '\n' ' ')"
             fi
+            # THE REQUIRED LANGS GO FIRST, ahead of both arms: the bundle's
+            # own modules are what READ them, so arming the dependency after
+            # importing the reader is no arming at all.
+            _required_langs_preload
+            [ -n "$_DEPS" ] && _PRELOAD="$_DEPS $_PRELOAD"
             ;;
         esac
       fi
