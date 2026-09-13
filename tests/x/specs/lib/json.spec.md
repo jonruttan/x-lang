@@ -1,5 +1,5 @@
 # Json: parse and emit
-# @weight 2
+# @weight 5
 
 Objects are Dicts, arrays are lists, null is the symbol `null`.
 `(import x/codec/json)` per test -- not in the x-core boot.
