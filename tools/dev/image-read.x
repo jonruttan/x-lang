@@ -153,13 +153,13 @@
 
 ; --- rebuild (spec 5.3) ------------------------------------------------------------
 (def IX (%alloc (%i* (%i+ N 1) W)))
-;  REBUILT OBJECTS CARRY NO METADATA (spec 8).  This base allocates with
-; its metadata width, and would give every rebuilt object the META flag
-; over fresh, zeroed slots -- a claim of "line 0" that eval then copies
-; into the line counter whenever an imaged form runs.  The width is 0 for
-; the rebuild and put back after.  Changing it while objects live is
-; undefined only for an object later freed at the wrong width; a rebuilt
-; object is SHARED and never freed.
+;  Rebuilt objects carry no metadata (spec 8).  This base allocates with its
+; metadata width, which would give every rebuilt object the META flag over
+; fresh, zeroed slots -- a claim of "line 0" that eval copies into the line
+; counter whenever an imaged form runs.  The width is 0 for the rebuild and
+; put back after.  Changing it while objects live is undefined only for an
+; object later freed at the wrong width, and a rebuilt object is shared and
+; never freed.
 (def %META-ATOM (%obj->ptr (first (%img-cell (lit obj-meta-extra)))))
 (def %META-WAS (%rw %META-ATOM (%data-word-off 0)))
 (%psw %META-ATOM (%data-word-off 0) 0)
@@ -240,38 +240,38 @@
         ((fn (self l) (if (null? l) () (do (display "  unresolved kind ") (say-num (first (first l))) (display " ") (display (rest (first l))) (newline) (self (rest l))))) %UNRESOLVED))
     ())
 
-;  THIS BASE'S OWN TYPE STRUCTS STAY ALIVE.  Its process state -- the read
-; buffer, the allocation-error string -- is typed by structs of ITS registry,
-; and the install replaces that registry with the image's.  Unreached from
-; any cell, those structs would be freed at the next collect under objects
-; that still carry them, and the marker would walk a freed type.  The old
-; registry is made a mark root: never swept, never consulted.
+;  This base's own type structs stay alive.  Its process state -- the read
+; buffer, the allocation-error string -- is typed by structs of its registry,
+; and the install replaces that registry with the image's.  Unreached from any
+; cell, those structs are freed at the next collect under objects that still
+; carry them, and the marker then walks a freed type.  The old registry is made
+; a mark root: never swept, never consulted.
 ((prim! (lit heap) (lit mark-root!)) (first (%img-cell (lit type-alist))))
 
 ; --- install (spec 5.4) ---------------------------------------------------------------
-; ONE FORM, NOTHING IN IT BUT PRIMITIVE CALLS.  Built as data, evaluated
-; last: (& (->int (set-word! P O V)) rest), nested so the first write is the
-; innermost-leftmost and the tree's is the outermost.  The operators are the
-; primitive OBJECTS, not their names, so no symbol is looked up while the
-; base's cells are half this loader's and half the image's; `lit` is bound
-; by the engine in every base.  A procedure or an operative anywhere in this
-; form would push a TCO compound that a later restore would use to put this
-; base's old env back.
-;  The fold puts its first element INNERMOST, and the outermost argument is
-; evaluated first, so the list is fed in reverse: the tree's write is the
-; first element in and the last write out.
+; One form, containing nothing but primitive calls.  Built as data and
+; evaluated last: (& (->int (set-word! P O V)) rest), nested so the first write
+; is the innermost-leftmost and the tree's is the outermost.  The operators are
+; the primitive objects, not their names, so no symbol is looked up while the
+; base's cells are half this loader's and half the image's; `lit` is bound by
+; the engine in every base.  A procedure or an operative anywhere in this form
+; would push a TCO compound that a later restore would use to put this base's
+; old env back.
+;  The fold puts its first element innermost, and the outermost argument is
+; evaluated first, so the list is fed in reverse: the tree's write is the first
+; element in and the last write out.
 (def %INSTALL
   ((fn (self l acc)
      (if (null? l) acc
        (self (rest l) (list %i& (list %p2i (list %psw (list (lit lit) (first (first l))) (first (rest (first l))) (first (rest (rest (first l)))))) acc))))
    (%rev-l %WRITES) 0))
-;  THE PROCESS KEEPS ITS OWN ARGS.  The CLI binds `args` in the base's
-; global tree, and the install replaces that tree with the image's, whose
-; `args` is the WRITER'S CHILD'S ("--batch").  A lang booted from an image
-; reads its operands from `args`, so the install is followed -- inside the
-; same form, since nothing this loader named survives it -- by a def-global
-; of this process's list: %seq (a C prim) evaluates the writes, then the
-; rebind; the name is interned AFTER the install, in the image's table.
+;  The process keeps its own args.  The CLI binds `args` in the base's global
+; tree, and the install replaces that tree with the image's, whose `args` is
+; the writer's child's ("--batch").  A lang booted from an image reads its
+; operands from `args`, so the install is followed -- inside the same form,
+; since nothing this loader named survives it -- by a def-global of this
+; process's list: %seq (a C prim) evaluates the writes, then the rebind, and
+; the name is interned after the install, in the image's table.
 (eval (list (eval (lit %seq)) %INSTALL
         (list (prim! (lit base) (lit def-global)) (list %->sym (list (lit lit) "args")) (list (lit lit) args))))
 

@@ -66,10 +66,10 @@
       ; own stdin and the image is never written.  One string, the child's.
       (%child-def! (lit args)
         (list (lit pair) (list (prim-ref (lit str) (lit append)) "" "--batch") (list (lit lit) ())))
-      ; THE CHILD IS TOLD IT IS BEING IMAGED.  An entry that reads stdin at
-      ; load -- logo's and ash's dispatch on %batch? -- would read THIS
-      ; script, since the engine's program and the child's stdin are one fd;
-      ; a lang that binds nothing while %image-writing is bound loads and
+      ; The child is told it is being imaged.  An entry that reads stdin at
+      ; load -- logo's and ash's dispatch on %batch? -- would otherwise read
+      ; this script, since the engine's program and the child's stdin are one
+      ; fd; a lang that binds nothing while %image-writing is bound loads and
       ; stops.  The marker before the include is how image-build.sh tells an
       ; entry that ended the writer from a writer that never ran.
       (%child-def! (lit %image-writing) (list (lit lit) #t))
@@ -95,21 +95,20 @@
       ; the child over its own list: a version that fetched the list out
       ; and evaluated a set! per name put child objects in this base's
       ; hands between two collects, and the x-base writer died of it.
-      ;  THE WALK RUNS HERE, OVER THE CHILD'S LIST, AND NAMES NOTHING IN THE
-      ; CHILD.  A form evaluated in the child resolves its names in the
-      ; child, and a lang is free to have rebound them: r5rs's `fn` is not
-      ; x-core's, and the first version of this walk, sent over as a form,
-      ; died there on Unbound '_'.  So each entry is handled from this base
-      ; -- a symbol is cleared with the set! PRIMITIVE OBJECT (engine-bound,
-      ; the same object in every base), a thunk is applied as an object --
-      ; and nothing the child could rename is in the form.  Child objects
-      ; are in this base's hands for the length of the loop, which is safe
-      ; exactly as long as nothing here collects: no %between until the
-      ; loop is done.
-      ;  A RAISE INSIDE THE CHILD IS A REFUSAL, NEVER SWALLOWED.  Answering
-      ; nil and carrying on to the collect below left the child's root chain
-      ; holding the nodes the unwound C frames had pushed; the collect walked
-      ; freed stack and the writer died of SIGSEGV with nothing said.
+      ;  The walk runs here, over the child's list, and names nothing in the
+      ; child.  A form evaluated in the child resolves its names in the child,
+      ; and a lang is free to have rebound them: r5rs's `fn` is not x-core's,
+      ; so a walk sent over as a form dies there on an unbound name.  Each
+      ; entry is handled from this base instead -- a symbol is cleared with the
+      ; set! primitive object (engine-bound, the same object in every base), a
+      ; thunk is applied as an object -- so nothing the child could rename is
+      ; in the form.  Child objects are in this base's hands for the length of
+      ; the loop, which is safe exactly as long as nothing here collects: no
+      ; %between until the loop is done.
+      ;  A raise inside the child is a refusal, never swallowed.  Answering nil
+      ; and carrying on to the collect below leaves the child's root chain
+      ; holding the nodes the unwound C frames pushed, and the collect then
+      ; walks freed stack.
       (guard (e (do (display "image: clearing a transient raised in the child: ")
                     (display (guard (_ e) (Err message e))) (newline) (Sys exit 3)))
         ((fn (self l)
@@ -123,12 +122,12 @@
          (%B eval (lit %image-transients))))
       ; The child has never collected.  Its own collect, evaluated inside it.
       (%B eval (list %collect))
-      ; WHAT THE WRITER CAN HOLD IS STATED, NOT DISCOVERED BY DYING.  Its
-      ; object table is a fixed allocation (%OBJ-CAP-WORDS below), and a
+      ; What the writer can hold is stated rather than discovered at run time.
+      ; Its object table is a fixed allocation (%OBJ-CAP-WORDS below), and a
       ; record is three words plus the units, so the live count the child's
-      ; collect leaves bounds what fits.  A heap past it -- python's runtime
-      ; is tens of millions of allocations and a few million live -- used to
-      ; walk until the kernel killed the process, with nothing said.
+      ; collect leaves bounds what fits.  Without the bound, a heap past it --
+      ; python's runtime is tens of millions of allocations and a few million
+      ; live -- walks until the process runs out of memory.
       ((fn (_ live)
          (if (%ilt live 1000000) ()
            (do (display "image: refused -- ") (write live)
@@ -378,14 +377,13 @@
   (fn (_ w)
     ((fn (_ %CUR-TW %CUR-KIND)
     (if (eq? %CUR-KIND 3) (list (%ty-name %CUR-TW 0) (lit foreign-unnamed) w)
-    ;  A REFERENCE WORD THE WRITER COULD NOT PLACE IS NOT READ.  This used to
-    ; read its heap link, its flags and its type word to say which kind of
-    ; miss it was -- and a lang's object whose declared REFERENCE unit holds
-    ; an integer (logo, python) made that a read at an integer, and a
-    ; SIGSEGV in place of a census.  A spine node is known and is named by
-    ; its row; anything else is reported by the holder's type and the word,
-    ; which is what a refusal needs, and the holder chase (%IMG-WHO) walks
-    ; only real objects.
+    ;  A reference word the writer could not place is not read.  Reading its
+    ; heap link, flags and type word to classify the miss is a read at an
+    ; integer whenever a lang's object holds one in a declared reference unit
+    ; (logo, python), which crashes in place of a census.  A spine node is
+    ; known and named by its row; anything else is reported by the holder's
+    ; type and the word, which is what a refusal needs, and the holder chase
+    ; (%IMG-WHO) walks only real objects.
     (list (%ty-name %CUR-TW 0)
           (if (eq? (%ht-find %SPINE w) 1) (lit spine-unnamed) (lit reference-unplaced))
           w
@@ -516,13 +514,12 @@
 (display "  externals: ") (write %XCOUNT) (display "  roots: ") (write %RTCOUNT)
 (display "  unnameable: ") (write %SENT) (newline)
 ((fn (self l) (if (null? l) () (do (display "  ") (write (rest (first l))) (newline) (self (rest l))))) %SENT-LOG)
-; --- WHO HOLDS AN UNNAMEABLE.  For each object that carried a word the writer
+; --- who holds an unnameable.  For each object that carried a word the writer
 ; could not name, the objects that reference it, one path up to a named spine
 ; node, naming the global where a level lands on a (symbol . value) pair --
-; one pass over the traced chain per level.  The census above says WHAT could
-; not be named; this says WHY it was reached.  ONLY WHEN ASKED (%IMG-WHO):
-; forty passes over a dialect-sized heap took fourteen minutes on a CI
-; runner, on every refused dialect, until the job was killed.
+; one pass over the traced chain per level.  The census above says what could
+; not be named; this says why it was reached.  Only when asked (%IMG-WHO):
+; forty passes over a dialect-sized heap take minutes each.
 (def %holders-of
   (fn (_ targets)
     ((fn (_ in? first-name spine-name)
