@@ -57,12 +57,10 @@
 ; BUILD now declares its os and arch, and the triple parse became the fallback for
 ; an engine that could not establish them.  Boot-constrained like the rest of that
 ; file -- it loads mid-x-core, before the class machinery that would home them.
-; LOGO'S THIRTEEN ROWS LEFT WITH LOGO (x-logo), and the last thing they
-; recorded is worth keeping even though the files are gone.  run.x's single
-; row was %logo-app-root, and it BOUGHT a deletion: the app root had been
-; re-derived in main.x and guessed a third way in serve.x, as a cwd-relative
-; literal that resolved only from the repo root -- so the viewer was broken in
-; every INSTALLED tree.  One name in the ENTRY was the fix.
+; Logo's rows left with the bundle (x-logo).  The pattern they recorded still
+; applies: an app root re-derived per module, and guessed a third way as a
+; cwd-relative literal, resolves only from the repo root and breaks in an
+; installed tree.  One name in the entry is the fix.
 ;
 ; The bundle needs even that one no longer: x.sh defines %lang-root for it
 ; (tools/contract/seam.x), so the fact is stated once by the only thing that

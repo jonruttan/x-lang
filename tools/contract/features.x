@@ -268,13 +268,12 @@
 ; Bundles, so a partial engine has a TARGET instead of an all-or-nothing wall.
 ; A profile INCLUDES the one before it (the gate checks the chain is closed).
 ;
-; FOUR TIERS, NOT SIX.  The first draft had `reader` and `io` as tiers above a
-; smaller core; the evidence refused it.  lib/x/boot reaches the `io` tag (the
-; printer is x-level but must emit bytes) and lib/x/type reaches `tok`, so
-; neither separates from core.  And `posix` cannot separate from the foreign
-; door: lib/x/sys/posix.x, the foundation of that tier, fetches dlopen, dlsym
-; AND ptr/call alongside syscall.  The chain below is what the library actually
-; is, not what a tidy diagram would prefer.
+; Four tiers rather than six.  `reader` and `io` do not separate from core:
+; lib/x/boot reaches the `io` tag (the printer is x-level but must emit bytes)
+; and lib/x/type reaches `tok`.  `posix` does not separate from the foreign
+; door either -- lib/x/sys/posix.x, the foundation of that tier, fetches
+; dlopen, dlsym and ptr/call alongside syscall.  The chain below is what the
+; library is, rather than what a tidier diagram would show.
 ;
 ; The interesting boundary is therefore core|gc: an engine with NO foreign door,
 ; NO syscalls and NO collector still boots x-core.  That is the sandbox dialect's
