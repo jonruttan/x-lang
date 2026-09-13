@@ -347,36 +347,11 @@ jobs:
     # Deep tier only: the sanitizer multiplies the whole suite 5-10x,
     # which is most of what made every PR round-trip cost tens of
     # minutes.  Merges to main still cannot land without it.
-    #
-    # TEMPORARY, FOR THIS BRANCH ONLY: the pull_request guard is lifted and a
-    # memory sampler runs alongside, to prove out the spec-weight change.
-    # Both revert before merge -- see the PR description.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
-      # TEMPORARY: what the runner actually provides, measured rather than
-      # assumed, and what the scheduler derives from it.
-      - name: Runner capacity (temporary)
-        run: |
-          echo "nproc:      $(nproc)"
-          awk '/^MemTotal|^SwapTotal/ {printf "%-11s %.1f GB\n", $1, $2/1048576}' /proc/meminfo
-          _c=$(nproc); echo "PARALLEL_JOBS would be: $(( _c * 2 / 3 < 2 ? 2 : _c * 2 / 3 ))"
-      # TEMPORARY: sample memory and the heaviest processes every 5s, so a
-      # run that dies says what was co-resident when it did.
-      - name: Start memory sampler (temporary)
-        run: |
-          cat > /tmp/sampler.sh <<'SH'
-          while :; do
-            avail=$(awk '/^MemAvailable/ {printf "%.2f", $2/1048576}' /proc/meminfo)
-            top=$(ps -eo rss=,args= --sort=-rss | head -3 \
-                  | awk '{printf "%.2fGB %s | ", $1/1048576, substr($0, index($0,$2), 42)}')
-            printf '[mem] %s avail=%sGB  %s\n' "$(date -u +%H:%M:%S)" "$avail" "$top"
-            sleep 5
-          done
-          SH
-          nohup sh /tmp/sampler.sh > /tmp/mem.log 2>&1 &
-          echo "sampler started"
       # THE SANITIZER ENGINE IS BUILT FROM THE PINNED SOURCES, and a tag is
       # immutable (asan-boot.sh: "the build never goes stale"), so the build
       # -- 55 seconds on both runners, and again in this job, before the suite -- is
@@ -404,12 +379,3 @@ jobs:
         run: make test-asan
         env:
           PARALLEL: "1"
-      # TEMPORARY: the sampler's record, on success or failure.  The last
-      # lines before a death name what was resident when the runner went.
-      - name: Memory trace (temporary)
-        if: always()
-        run: |
-          echo "=== peak (lowest MemAvailable) ==="
-          sort -t= -k2 -n /tmp/mem.log 2>/dev/null | head -3 || true
-          echo "=== last 40 samples ==="
-          tail -40 /tmp/mem.log 2>/dev/null || echo "(no samples)"
