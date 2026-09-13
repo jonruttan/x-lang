@@ -15,9 +15,6 @@
 ;            params  = first arg is parameter list (fn)
 ;            params-env = first + second args are params + env (op)
 ;            let     = first arg is binding pairs list (let)
-;            letrec  = the same, but the bindings are in scope for their
-;                      OWN inits -- what a personality's letrec needs; no
-;                      x-lang form has it
 ;            guard   = first arg is (var handler) clause (guard)
 ;            quasi   = body is quasiquoted (quasi)
 ;            none    = no scope effect (if, do, match)

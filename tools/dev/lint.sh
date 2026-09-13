@@ -133,67 +133,6 @@ _lint_known_from() {
   done
 }
 
-# THE LANGS THIS BUNDLE IS WRITTEN ON TOP OF, into _DEPS -- read from its own
-# lang.xon, exactly as the bundle's spec harness reads them.
-#
-# A bundle may declare `(requires-lang "NAME" ["VERSION"])`, and x.sh arms that
-# lang's root before the bundle's own.  Nothing here did, so a bundle standing
-# on another could not be linted AT ALL: x-r7rs's r7rs/base.x opens with
-# `(def %r7rs-repl-print %r5rs-repl-print)`, a LOAD-TIME read of a name the
-# x-r5rs bundle provides.  The preload imports that sibling to bind it for the
-# others, the import ran the def, and the engine died -- every file in every
-# group, `(no verdict -- engine died mid-group)` with one Unbound SYMBOL above
-# it.  x-sed dies the same way on `include: cannot open`, reaching for x-grep's
-# regex layer.  `; lint-known:` cannot rescue either: it appends its bindings
-# AFTER the imports, and the death is in an import.
-#
-# The version is deliberately ignored, the same bypass the harness takes and
-# for the same reason -- a sibling development checkout carries no `version`
-# stamp, and x.sh is where that constraint belongs.  Two spellings are probed
-# because two layouts are real: an installed tree names the directory for the
-# lang, a checkout for the repository.
-#
-# <NAME>_ROOT WINS, and it is not an invention here: x-r7rs's CI checks x-r5rs
-# out to .x-r5rs INSIDE the bundle -- no sibling exists on a runner -- and sets
-# R5RS_ROOT for the spec harness, whose own comment calls that "exactly this
-# case".  Reading the same variable means a CI lint step is the spec step with
-# the command swapped, not a second convention to keep in step.
-#
-# A dep that cannot be found is SKIPPED, not fatal.  The bundle's own suite
-# hard-fails on it and should; the linter is an advisory sweep, and the file
-# will simply report what it cannot see.
-_required_langs_preload() {
-  _DEPS=""
-  [ -n "${X_LINT_MODULE_ROOT:-}" ] || return 0
-  [ -f "$X_LINT_MODULE_ROOT/lang.xon" ] || return 0
-  # The pattern must not require ")" after the name: a row carrying a version
-  # stopped matching when that was assumed, and the deps came out empty.
-  for _req in $(sed -n 's/^(requires-lang "\([^"]*\)".*/\1/p' "$X_LINT_MODULE_ROOT/lang.xon"); do
-    # A manifest string becomes a VARIABLE NAME below, so take only the
-    # spelling a lang name is allowed: letters, digits, dash.
-    case "$_req" in *[!A-Za-z0-9-]*) continue ;; esac
-    eval "_rroot=\${$(printf '%s' "$_req" | tr 'a-z-' 'A-Z_')_ROOT:-}"
-    if [ -z "$_rroot" ]; then
-      for _cand in "$X_LINT_MODULE_ROOT/../$_req" "$X_LINT_MODULE_ROOT/../x-$_req"; do
-        [ -f "$_cand/lang.xon" ] && { _rroot="$_cand"; break; }
-      done
-    fi
-    [ -n "$_rroot" ] && [ -d "$_rroot" ] || continue
-    _rroot="$(cd "$_rroot" && pwd)"
-    # Arm the root, then import what it PROVIDES -- the entry-arm rule below,
-    # applied to the dependency.  Its entry has no provide and is skipped,
-    # which is what keeps a lang's run.x from being executed to lint another
-    # bundle.  Roots accumulate, so the bundle's own is armed after.
-    _DEPS="$_DEPS (import-path! \"$_rroot\")"
-    for _m in "$_rroot"/*/*.x; do
-      [ -e "$_m" ] || continue
-      grep -q '(provide ' "$_m" || continue
-      _MD="$(basename "$(dirname "$_m")")"
-      _DEPS="$_DEPS (import $_MD/$(basename "$_m" .x))"
-    done
-  done
-}
-
 _preload_for() {
   _PRELOAD=""
   case "$1" in
@@ -227,11 +166,6 @@ _preload_for() {
               done
               _PRELOAD="$_PRELOAD $(grep '^(import ' "$1" | sed 's/;.*$//' | tr '\n' ' ')"
             fi
-            # THE REQUIRED LANGS GO FIRST, ahead of both arms: the bundle's
-            # own modules are what READ them, so arming the dependency after
-            # importing the reader is no arming at all.
-            _required_langs_preload
-            [ -n "$_DEPS" ] && _PRELOAD="$_DEPS $_PRELOAD"
             ;;
         esac
       fi
@@ -243,44 +177,6 @@ _preload_for() {
   _lint_known_from "$1"
 }
 
-# The LANG CONSTRUCTS for one target, into _CONSTRUCTS_INPUT: the base
-# table, then the personality's own, or `()` when it has none.
-#
-# A personality declares how ITS forms affect scope in a constructs.x of
-# its own -- x-krn's krn/constructs.x says $define! binds a name, $lambda
-# takes a parameter list, $let/$let*/$letrec take binding pairs.  Without
-# it every name those forms introduce reads Undefined: krn/base.x reported
-# thirty-six, among them each of its own list primitives.
-#
-# The table used to be looked up at lang/$LANG/lib/constructs.x, INSIDE the
-# checkout, off a hard-coded list of language names.  The bundles moved out
-# to repos of their own, so that path has resolved to nothing since -- and
-# --group, the only path the lang kit uses, never consulted it at all: it
-# hardcoded the empty table.  So look where a bundle actually keeps it,
-# which is where _preload_siblings already looks for the modules: beside
-# the target, or one level under the bundle root for an entry (run.x) that
-# sits above the module directory.  X_LINT_LANG_CONSTRUCTS overrides.
-_lang_constructs_for() {
-  _LC="${X_LINT_LANG_CONSTRUCTS:-}"
-  [ -n "$_LC" ] || _LC="$(dirname "$1")/constructs.x"
-  if [ ! -f "$_LC" ] && [ -n "${X_LINT_MODULE_ROOT:-}" ]; then
-    for _c in "$X_LINT_MODULE_ROOT"/*/constructs.x; do
-      [ -f "$_c" ] && { _LC="$_c"; break; }
-    done
-  fi
-  # The legacy in-checkout layout, which is still how --lang NAME is served.
-  [ -f "$_LC" ] || _LC="$PROJECT_DIR/lang/${2:-}/lib/constructs.x"
-  # NEVER THE BASE TABLE ITSELF.  lib/x/*.x sits beside lib/x/constructs.x,
-  # so "beside the target" finds the platform's own table for every library
-  # file and would append all thirty-odd entries to themselves.
-  [ "$_LC" = "$CONSTRUCTS" ] && _LC=""
-  if [ -n "$_LC" ] && [ -f "$_LC" ]; then
-    _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") $(cat "$_LC")"
-  else
-    _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") ()"
-  fi
-}
-
 # --group LISTFILE (#323): lint every file in LISTFILE (absolute paths,
 # one per line, identical preloads by construction) in ONE engine.  The
 # stream interleaves (%lint-next-file "NAME") markers with the file
@@ -288,25 +184,6 @@ _lang_constructs_for() {
 # reassembles the legacy per-file lines.  A file with no verdict (the
 # engine died mid-group) reports as a failure, never a silent pass.
 if [ -n "${GROUP_LIST:-}" ]; then
-  # A constructs.x IS DATA, NOT CODE -- a bare list of declarations, read by
-  # the linter and the formatter and evaluated by nothing.  Walked as code it
-  # reports its every entry: each construct NAME as an undefined call, each
-  # property key and value as an undefined reference.  x-krn's twenty-line
-  # krn/constructs.x produced twenty findings that way.
-  #
-  # The default sweep below has always skipped it ("skip data-only files"),
-  # but that arm only builds the DEFAULT target list; a caller naming targets
-  # -- which is every caller through tools/lang-kit/lint.sh, since a bundle's
-  # shim names its own -- went straight past it.  Drop it from the group here
-  # instead, where both kinds of caller land.
-  _DROPPED=""
-  if grep -q '/constructs\.x$' "$GROUP_LIST"; then
-    _DROPPED=$(mktemp "${TMPDIR:-/tmp}/lint-group.XXXXXX") || exit 1
-    grep -v '/constructs\.x$' "$GROUP_LIST" > "$_DROPPED"
-    GROUP_LIST="$_DROPPED"
-    # A group of nothing but data files is a clean group, not an empty run.
-    [ -s "$GROUP_LIST" ] || { rm -f "$_DROPPED"; exit 0; }
-  fi
   _FIRST=$(head -1 "$GROUP_LIST")
   _preload_for "$_FIRST"
   # Imports come from the first file: a group's files share one import set by
@@ -318,12 +195,7 @@ if [ -n "${GROUP_LIST:-}" ]; then
   while IFS= read -r _gf; do
     [ "$_gf" = "$_FIRST" ] || _lint_known_from "$_gf"
   done < "$GROUP_LIST"
-  # One table for the group, from the first file -- the same rule, and the
-  # same soundness argument, as the preload above: the kit batches by
-  # DIRECTORY, and a personality's table is a property of its directory.
-  # (The declarations above are the exception, and say why they are one.)
-  # `--lang NAME` reaches this path too now; it never used to.
-  _lang_constructs_for "$_FIRST" "$LANG"
+  _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") ()"
   _OUT=$({
       printf '%s\n' "$_CONSTRUCTS_INPUT"
       [ "$LIB_MODE" -eq 1 ] && printf '%%lint-lib\n'
@@ -366,9 +238,7 @@ if [ -n "${GROUP_LIST:-}" ]; then
       }
       exit fail
     }'
-  _rc=$?
-  [ -n "$_DROPPED" ] && rm -f "$_DROPPED"
-  exit $_rc
+  exit $?
 fi
 
 # Default targets: library files in --lib mode (skip data-only files),
@@ -476,8 +346,6 @@ for f in "$@"; do
     /*) ;;
     *) f="$(cd "$(dirname "$f")" && pwd)/$(basename "$f")" ;;
   esac
-  # Data, not code -- see the group path, which drops it for the same reason.
-  case "$f" in */constructs.x) continue ;; esac
   _NAME=$(echo "$f" | sed "s|$PROJECT_DIR/||")
 
   # Auto-detect language from file path if not specified
@@ -494,7 +362,15 @@ for f in "$@"; do
   fi
 
   # Build constructs input: base + lang (or ())
-  _lang_constructs_for "$f" "$_LANG"
+  _LANG_CONSTRUCTS=""
+  if [ -n "$_LANG" ] && [ -f "$PROJECT_DIR/lang/$_LANG/lib/constructs.x" ]; then
+    _LANG_CONSTRUCTS="$PROJECT_DIR/lang/$_LANG/lib/constructs.x"
+  fi
+  if [ -n "$_LANG_CONSTRUCTS" ]; then
+    _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") $(cat "$_LANG_CONSTRUCTS")"
+  else
+    _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") ()"
+  fi
 
   # Preload: factored into _preload_for (#323) -- the batch grouper
   # keys on the same text this loop executes.
