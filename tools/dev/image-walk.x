@@ -1,26 +1,24 @@
 ; image-walk.x -- one heap walk and one unit reader, shared by the image tools.
 ;
-; Included by tools/dev/image-write.x and tools/dev/image-foreign.x.  It is a
-; file rather than a copy in each because the three rules below were each
-; learned by breaking them, and a second copy is a second place to relearn.
+; Included by tools/dev/image-write.x and tools/dev/image-foreign.x, so the
+; rules below hold in one place rather than in a copy each.
 ;
 ;   (%walk start f acc)  ->  (acc . visited)
 ;
-; f is called (f p acc) for each TRACED object, p a pointer to it.  VISITED is
-; returned so a vacuous walk is visible: a pass reporting a clean zero over
-; zero objects is not a clean pass.
+; f is called (f p acc) for each traced object, p a pointer to it.  The visited
+; count is returned so a vacuous walk is visible: a pass reporting a clean zero
+; over zero objects is not a clean pass.
 ;
-;   * NOTHING WALKS BYTES.  An interpreted per-byte loop costs hundreds of
-;     evals a byte.  This is lib/x/tool/asm-cache.x's rule, for its reason.
-;   * NO `def` BETWEEN THE MARK AND THE LAST WALK.  A def repoints an
+;   * Nothing walks bytes.  An interpreted per-byte loop costs hundreds of
+;     evals a byte; this is lib/x/tool/asm-cache.x's rule, for its reason.
+;   * No `def` between the mark and the last walk.  A def repoints an
 ;     environment pair -- itself a traced object in the image -- at a value
 ;     the stamping pass never saw, and each one surfaces as an unresolved
-;     reference.  Measured: three extra defs, three extra unresolved.
-;   * THE CURSOR IS AN OBJECT, NEVER A POINTER.  An object held in a parameter
-;     is rooted, so a collect cannot free it under the walk; a PTR roots
-;     nothing it addresses.  The first version collected on iteration zero,
-;     freed its own cursor, visited nothing, and reported a clean zero of
-;     everything -- which reads exactly like success.
+;     reference.
+;   * The cursor is an object, never a pointer.  An object held in a parameter
+;     is rooted, so a collect cannot free it under the walk; a ptr roots
+;     nothing it addresses.  A cursor freed under the walk visits nothing and
+;     reports a clean zero of everything.
 ;
 ; @author [Jon Ruttan](jonruttan@gmail.com)
 ; @copyright 2026 Jon Ruttan
@@ -43,16 +41,16 @@
 (def %next (fn (_ p) (%rw p %heap-off)))
 (def %traced? (fn (_ p) (if (eq? (%int& (%rw p %flags-off) %TRACE) 0) #f #t)))
 
-; %walk visits only TRACED objects and so needs a mark; %walk-all visits every
-; object on the chain and needs none.  That distinction is forced, not stylish:
+; %walk visits only traced objects and so needs a mark; %walk-all visits every
+; object on the chain and needs none.  Two rules force that distinction:
 ;
-;   MARK ONCE PER PROCESS.  (heap chain-clear!) permanently disables any later
-;   (heap tree-mark!) -- marking twice with no clear between is idempotent and
-;   fine, but a mark AFTER a clear flags nothing at all, silently, and every
-;   subsequent walk then reports a clean zero of everything.  So a pass that
-;   needs no reachability must not spend the one mark: it uses %walk-all and
-;   runs BEFORE the mark, which also lets it `def` its results freely.
-;   * NO COLLECT WHILE A CURSOR POINTS INTO ANOTHER BASE'S CHAIN (spec 4.1).
+;   * One mark per process.  (heap chain-clear!) permanently disables any
+;     later (heap tree-mark!): marking twice with no clear between is
+;     idempotent, but a mark after a clear flags nothing at all, silently, and
+;     every subsequent walk reports a clean zero of everything.  A pass that
+;     needs no reachability must not spend the one mark -- it uses %walk-all
+;     and runs before the mark, which also lets it `def` its results freely.
+;   * No collect while a cursor points into another base's chain (spec 4.1).
 ;     The periodic collect below is this base's; it marks whatever this
 ;     base's frames hold -- the cursor, an object on the other chain -- and a
 ;     sweep clears flags on this chain only, so every collect during such a

@@ -2,21 +2,20 @@
 ;
 ; A pure filter: markdown in, markdown out, with every ```x and ```x-repl
 ; fence replaced by the span markup x/tool/highlight emits.  Fences in any
-; other language, and naked fences, pass through untouched -- the fence pass
-; decided what each block holds, and this tool only believes it.
+; other language, and naked fences, pass through untouched: the fence pass
+; decides what each block holds.
 ;
 ;   sh x.sh --no-pin -q -f tools/dev/highlight.x -- FILE...
 ;
-; ONE file streams bare.  Several stream behind "%%HL-X-PAGE%% <source>"
+; One file streams bare.  Several stream behind "%%HL-X-PAGE%% <source>"
 ; sentinel lines (the doc.x batch pattern), so one engine boot serves a
 ; chunk and tools/dev/highlight-sweep.sh splits the pages back out.
 ;
-; COLLECTS BETWEEN BLOCKS.  Scanning allocates per token and the run would
-; otherwise keep every intermediate alive to process exit, which is what made
-; an early draft grow until the kernel killed it.  (heap collect) is safe
-; here in a way it is not in doc.x: that tool holds a scratch BASE per file
-; and cannot collect mid-batch (see tools/dev/doc-sweep.sh), while this one
-; owns nothing but strings on the running base.
+; It collects between blocks.  Scanning allocates per token, and without a
+; collect the run holds every intermediate alive to process exit.  (heap
+; collect) is safe here and not in doc.x: that tool holds a scratch base per
+; file and cannot collect mid-batch (see tools/dev/doc-sweep.sh), while this
+; one owns nothing but strings on the running base.
 
 (do
   (import x/sys/posix)

@@ -8,31 +8,22 @@
 # which skips a current one (its key matches) and refuses a marked one
 # (exit 3); the refusal is not a failure here, any other status is.
 #
-# IN PARALLEL, because the writes are independent -- each images a fresh
-# child that loaded one library -- and the serial loop this replaces was the
-# longest phase of a CI specs job: 29 images took 6m43s on the 4-core Linux
-# runner and 9m30s on the 3-core macOS one, ahead of the 8-minute suite they
-# exist to speed up.  The same 29 took 271s serially on a 12-core box and
-# 84s at the four jobs its memory allows (below).
+# The writes run in parallel: each images a fresh child that loaded one
+# library, so they are independent.
 #
-# BOUNDED BY MEMORY, NOT CORES.  A writer boots a library from source and
-# images the child: measured one at a time on arm64, x-base peaks at
-# 2.0GB, x-core at 3.2GB and the tower harness at 3.9GB.  A first cut of
-# this script took one job per core, and twelve writers beside two
-# sanitizer runs took a 16GB box down.  So on arm64 a job is budgeted
-# 3.5GB: a 16GB box gets four, the 7GB macOS runner two (29 images in five
-# minutes there, against nine and a half serially).
-#  ON x86-64 THE SAME WRITER IS BIGGER -- the heap costs ~64 bytes an
-# object there against ~29 on arm64 -- and four jobs killed the 16GB
-# Linux runner 49 seconds in (exit 143, no failing image).  Measured one
-# at a time in the qemu guest (2026-09-10, before the boot collects in
-# lib/x-core.x): x-core 2.9GB, x-base 6.2GB, the tower harness 7.7GB.  Two
-# of those do not share a 16GB runner, so x86-64 budgets 9GB a job, which
-# is one job there -- the serial build it always had -- until the tower's
-# load burst is reclaimed during the boot as well.  A box whose size
-# cannot be read gets one -- the spec runner's rule (tests/spec-runner.sh),
-# unknown reads as small.  JOBS on the command line, or IMG_JOBS through
-# make, overrides.
+# Concurrency is bounded by memory rather than by cores.  A writer boots a
+# library from source and images the child, and the peaks differ by
+# architecture -- measured one at a time:
+#
+#   arm64    x-base 2.0GB, x-core 3.2GB, tower harness 3.9GB
+#   x86-64   x-core 2.9GB, x-base 6.2GB, tower harness 7.7GB
+#            (the heap costs ~64 bytes an object there against ~29 on arm64)
+#
+# A job is therefore budgeted 3.5GB on arm64 -- four on a 16GB box, two on a
+# 7GB macOS runner -- and 9GB on x86-64, which is one job until the tower's
+# load burst is reclaimed during the boot as well.  A box whose size cannot be
+# read gets one: the spec runner's rule (tests/spec-runner.sh), unknown reads
+# as small.  JOBS on the command line, or IMG_JOBS through make, overrides.
 set -e
 cd "$(dirname "$0")/../.."
 out="${1:-.images}"
@@ -51,12 +42,12 @@ if [ -z "$jobs" ]; then
   jobs=$cpus; [ "$bymem" -lt "$jobs" ] && jobs=$bymem
 fi
 mkdir -p "$out"
-# EVERY WRITER'S HOST IS HELIUM, booted through the wrapper (image-build.sh),
-# and a host boots from the per-user cache image of x.x when one is current
-# -- 0.4s -- and from source when not: 2.3s on arm64, more on the x86-64
-# runner, once per image.  A fresh checkout has no such image, so every one
-# of the 29 hosts would pay source.  One plain boot first writes it, and the
-# 29 then hit; the boot is the wrapper's ordinary path, refusals included.
+# Every writer's host is helium, booted through the wrapper (image-build.sh).
+# A host boots from the per-user cache image of x.x when one is current (0.4s)
+# and from source when not (2.3s on arm64, more on x86-64), once per image.  A
+# fresh checkout has no such image, so one plain boot is taken first to write
+# it and the rest hit the cache; that boot is the wrapper's ordinary path,
+# refusals included.
 sh x.sh -q -c 1 > /dev/null 2>&1 || true
 { printf '%s\n' lib/x-core.x lib/x.x lib/he.x lib/x-base.x lib/xe.x lib/rn.x
   grep -rho '^# @lib \.\./tests/x/lib/[a-z-]*\.x' tests/x/specs | sed 's|^# @lib \.\./||' | sort -u

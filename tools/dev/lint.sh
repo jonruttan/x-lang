@@ -20,10 +20,9 @@
 # (run.x/main.x, no provide) safe to lint: nothing forks a server.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# THE ROOT IS OVERRIDABLE so an INSTALLED tree can drive this: a lang
-# bundle lives outside the checkout and has no x-bin of its own, and the
-# lint is the one check every bundle would otherwise go without.  Both
-# default to the checkout, so a developer's `make lint-x` is unchanged.
+# The root is overridable so an installed tree can drive this: a lang bundle
+# lives outside the checkout and has no x-bin of its own.  Both default to the
+# checkout, so `make lint-x` is unaffected.
 PROJECT_DIR="${X_LINT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 X_BIN="${X_BIN:-$PROJECT_DIR/x-bin}"
 LINTER="$SCRIPT_DIR/lint.x"
@@ -88,13 +87,12 @@ _preload_siblings() {
     grep -q '(provide ' "$_m" && [ "$_m" != "$_ABS_F" ] && continue
     _PRELOAD="$_PRELOAD $(grep '^(import ' "$_m" | sed 's/;.*$//' | tr '\n' ' ')"
   done
-  # AN ASSEMBLER IS PRELOADED WHOLE, not fragment by fragment.  A bundle
-  # like x-coreutils or x-cc is ONE module built from files carrying no
-  # provide of their own: an import cannot reach their definitions, and
-  # it cannot reach the assembler's own un-exported top level either
-  # (cc/base.x defines %cc-x-write, which five fragments call).
-  # Including the assembler binds all of it, in the order the bundle
-  # really loads, with no order to reconstruct.
+  # An assembler is preloaded whole rather than fragment by fragment.  A
+  # bundle like x-coreutils or x-cc is one module built from files carrying
+  # no provide of their own: an import reaches neither their definitions nor
+  # the assembler's own un-exported top level (cc/base.x defines
+  # %cc-x-write, which five fragments call).  Including the assembler binds
+  # all of it, in the order the bundle loads.
   #
   # It also gives every file in the directory the SAME preload, which is
   # what --group requires: one preload is computed from the FIRST file

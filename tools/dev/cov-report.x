@@ -56,9 +56,9 @@
       (fn (self rows)
         (unless (null? rows)
           (do (%tally-row (first rows)) (self (rest rows))))))
-    ; Walk with inline reporting.  Classes report their own methods
-    ; (#408): post-"functions into classes" the library surface lives
-    ; there, and a class entry used to be silently skipped.
+    ; Walk with inline reporting.  Classes report their own methods: the
+    ; library surface lives there, so a class entry is walked rather than
+    ; skipped.
     (def %report-walk
       (fn (_ al n)
         (unless (or (null? al) (> n 5000))

@@ -96,9 +96,8 @@
 
   ; Every file gets its sentinel line, one file or many: the sweep
   ; (tools/dev/doc-sweep.sh) splits the stream on it, and a chunk of one
-  ; file is a chunk -- the last one, whenever the corpus is one past a
-  ; multiple of the chunk size, which is how vector.md came out EMPTY on a
-  ; clean tree and full on one that kept an older page.
+  ; file is still a chunk -- the last one, whenever the corpus is one past
+  ; a multiple of the chunk size.
   (List for-each
     (fn (_ %f)
       (do (display "%%DOC-X-PAGE%% ")

@@ -14,40 +14,26 @@
 #     (   )
 #      " "
 #
-# THE PLATFORM SHIPS IT; BUNDLES DO NOT VENDOR IT.  The same ruling
-# release-refs.sh already carries, and this file is the case that proves it was
-# right: three bundles had a byte-identical copy differing only in the name in
-# line 2, and a trap bug in it had to be fixed in all three on the same day.
+# The platform ships this gate; a bundle runs it rather than vendoring a copy.
 #
-# THE BUG THAT MOVED IT.  `trap 'rm -rf "$work"' EXIT INT TERM` ran the cleanup
-# on a signal and then FELL THROUGH to the next line, which wrote into the
-# directory it had just removed.  A killed suite reported
+# spec-runner.sh exits non-zero on any failure, which is right at a prompt and
+# wrong for a release gate: a bundle carrying documented debt would then be
+# permanently unreleasable.  This asks instead whether what failed is what the
+# contract records.
 #
-#     spec-gate.sh: 58: cannot create /tmp/tmp.XXXX/clean: Directory nonexistent
+# The comparison is by name, over the set of failing tests, rather than by
+# count -- a budget of "9 failures" is satisfied by fixing one and breaking
+# another.
 #
-# naming neither the signal nor the suite -- and, reproduced outside CI, could
-# exit 0, which is a killed suite reporting SUCCESS.  Three copies, three
-# identical edits, and nothing to stop a fourth bundle vendoring the bug again.
+# Both directions are red.  A failure that is not recorded is a regression; a
+# recorded failure that now passes must be struck from the list, or it
+# re-authorises that failure later.  x-lang's percent-globals gate is the same
+# shape.
 #
-# WHY THIS EXISTS AT ALL.  spec-runner.sh exits non-zero on any failure, which
-# is right for a developer at a prompt and wrong for a gate: a bundle carrying
-# honest, documented debt is then permanently unreleasable, and release.yml
-# refuses to publish anything ever.  So the gate asks a better question than
-# "did anything fail".  It asks whether what failed is what we said would fail.
-#
-# BY NAME, NOT BY COUNT.  A budget of "9 failures" is satisfied by fixing one
-# and breaking another, which is the exact event a ratchet is for.  This
-# compares the SET of failing test names, so a swap is caught.
-#
-# BOTH DIRECTIONS ARE RED.  A failure that is not recorded is a regression.  A
-# recorded failure that now passes is a fix nobody wrote down, and leaving it
-# listed would quietly re-authorise the failure later.  x-lang's
-# percent-globals gate takes the same line, for the same reason.
-#
-# WHAT A BUNDLE MUST PROVIDE: tests/spec-runner.sh and, unless KNOWN_FAILURES
-# says otherwise, tests/contract/known-failures.txt.  Every variable
-# spec-runner.sh honours (X, X_BIN, SPEC_PATH, SPEC_BATCH, ...) is honoured
-# here, because this runs that script rather than reimplementing it.
+# A bundle provides tests/spec-runner.sh and, unless KNOWN_FAILURES says
+# otherwise, tests/contract/known-failures.txt.  Every variable spec-runner.sh
+# honours (X, X_BIN, SPEC_PATH, SPEC_BATCH, ...) is honoured here, because this
+# runs that script rather than reimplementing it.
 #
 # BUNDLE is the bundle root; the shim that sources this sets it.
 set -e
@@ -62,25 +48,14 @@ CONTRACT="${KNOWN_FAILURES:-$BUNDLE/tests/contract/known-failures.txt}"
 
 work=$(mktemp -d)
 
-# THE HANDLER HAS TO EXIT, and not doing so is how a KILLED suite reported a
-# filesystem error instead.
+# A signal handler must not fall through: cleanup removes the work directory,
+# and the lines below write into it.  Falling through also skips the
+# "did not run" check further down, which is what keeps a suite that never ran
+# from reading as a green one.
 #
-# This was `trap 'rm -rf "$work"' EXIT INT TERM`.  On a signal the handler ran,
-# removed the work directory, and then FELL THROUGH to the next line -- which
-# writes into the directory it had just removed.  A suite killed by an OOM, a
-# runaway guard or a cancelled CI job surfaced as
-#
-#     spec-gate.sh: 58: cannot create /tmp/tmp.XXXX/clean: Directory nonexistent
-#
-# and exit 143, naming neither the signal nor the suite.  Worse, it defeats the
-# "a suite that did not run is not a suite that passed" check below by never
-# reaching it -- the one guard written specifically so a suite that never ran
-# cannot be mistaken for a green one.
-#
-# So EXIT cleans up, and a signal cleans up, SAYS which signal, and re-raises
-# itself with the trap cleared -- so the parent sees a death by signal rather
-# than an ordinary status, which is what a CI runner reads to tell "cancelled"
-# from "failed".
+# So EXIT cleans up, and a signal cleans up, names the signal, and re-raises it
+# with the trap cleared.  The parent then sees a death by signal rather than an
+# ordinary status, which is how a CI runner tells "cancelled" from "failed".
 cleanup() { rm -rf "$work"; }
 trap cleanup EXIT
 trap 'cleanup; echo "spec-gate: killed by SIGINT -- the suite did not finish" >&2; trap - INT; kill -INT $$' INT

@@ -4,12 +4,13 @@
 ; Included by tools/dev/image-foreign.x (which counts them) and
 ; tools/dev/image-write.x (which emits them as the image's foreign table).
 ;
-; NOTHING HERE HUNTS FOR A NAME, because nothing in x safely can: `first` is
-; unchecked -- the C layer is a CPU -- so (first 5) segfaults; `pair?` answers
-; #f for the structural pairs the base spine is built from; and
-; %reflect-type-word IS a dereference, so the test for "may I walk this?" is
-; already the unsafe act.  Names are DECLARED (the ISA's %isa-bare), LOOKED UP
-; (the prims catalog), or ASKED OF THE LINKER (dladdr, round-trip checked).
+; Nothing here searches for a name, because nothing in x safely can: `first`
+; is unchecked -- the C layer is a CPU -- so (first 5) reads a bad address;
+; `pair?` answers #f for the structural pairs the base spine is built from; and
+; %reflect-type-word is itself a dereference, so the test for "may I walk
+; this?" is already the unsafe act.  Names are declared (the ISA's %isa-bare),
+; looked up (the prims catalog), or asked of the linker (dladdr, round-trip
+; checked).
 ;
 ; @author [Jon Ruttan](jonruttan@gmail.com)
 ; @copyright 2026 Jon Ruttan
@@ -18,11 +19,11 @@
 (include "tools/dev/image-walk.x")
 
 ; --- the naming sources: address -> the path it was found at ---------------
-; The KEY is the C function pointer the primitive holds in unit 0, not the
-; primitive object's own address -- a foreign unit IS that pointer.  Two
-; distinct primitive objects (catalog + and bare +) share one function, and
-; that is correct: they stay two object records in the image, so identity
-; survives; what the foreign table names is the C function behind them.
+; The key is the C function pointer the primitive holds in unit 0, not the
+; primitive object's own address -- a foreign unit is that pointer.  Two
+; distinct primitive objects (catalog + and bare +) share one function and stay
+; two object records in the image, so identity survives; what the foreign table
+; names is the C function behind them.
 (def %fnptr (fn (_ v) (%word-at (%o->p v) 0)))
 (def %prim? (fn (_ v) (str=? (Type name v) "PRIMITIVE")))
 

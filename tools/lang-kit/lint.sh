@@ -14,24 +14,17 @@
 #     (   )
 #      " "
 #
-# THE PLATFORM SHIPS IT; BUNDLES DO NOT VENDOR IT -- the ruling
-# spec-gate.sh carries, applied to the check that was missing entirely.
-# `make lint-x` sweeps lib/ and apps/; a bundle under languages/ was
-# swept by nothing, so every rule the linter knows was advice a bundle
-# never heard.  x-coreutils accumulated TWENTY-ONE `ladder` findings
-# that way -- nested if chains branching on one variable, the shape
-# `match` replaces and outruns -- written after the rule existed.
+# The platform ships this linter; a bundle runs it rather than vendoring a
+# copy.  `make lint-x` sweeps lib/ and apps/, which does not reach a bundle
+# under languages/.
 #
-# ADVISORY RULES ARE ADVICE UNTIL SOMETHING FAILS ON THEM.  The linter
-# reports them as warnings and exits 0, which is right for a sweep and
-# wrong for a bundle that wants them gated -- so --strict fails the run.
+# The linter reports advisory rules as warnings and exits 0.  --strict fails
+# the run on them instead, for a bundle that wants them gated.
 #
-# It fails on the STRUCTURAL rules only: ladder, ladder-dict and shape,
-# the ones that say a definition is built wrong.  Not `unused`, which
-# an applet protocol trips by design (every applet takes stdin-thunk
-# and most never read it), and not `shadow` or `display-chain`, which
-# are style.  A gate that fired on those would be turned off inside a
-# week, and the structural ones would go unheard again.
+# --strict fails on the structural rules only -- ladder, ladder-dict and
+# shape, which say a definition is built wrong.  Not `unused`, which an applet
+# protocol trips by design (every applet takes stdin-thunk and most never read
+# it), and not `shadow` or `display-chain`, which are style.
 #
 # Set BUNDLE to the bundle root and X to the x to lint with; both are
 # what the bundle's shim passes.
@@ -56,10 +49,9 @@ LINT="$X_ROOT/tools/dev/lint.sh"
 	exit 2
 }
 
-# The targets, ABSOLUTE: the linter cd's to each file's directory to
-# find its siblings, so a relative path would resolve against the wrong
-# root.  Given none, the caller gets every .x the bundle ships, minus
-# its generated harness.
+# Targets are made absolute: the linter cd's to each file's directory to find
+# its siblings, so a relative path would resolve against the wrong root.  Given
+# none, the targets are every .x the bundle ships, minus its generated harness.
 if [ $# -gt 0 ]; then
 	_ABS=""
 	for _t in "$@"; do
@@ -76,12 +68,11 @@ else
 		-not -path '*/tests/lib/*' -not -path '*/.git/*' | sort)
 fi
 
-# ONE BOOT PER DIRECTORY, not one per file.  The platform's --group
-# path lints a set of files sharing a PRELOAD in a single engine (#323),
-# and the preload is a property of the directory: cu/*.x import the same
-# siblings, the entry beside run.x imports the module namespace.  Mixing
-# them in one group would lint every file against the first one's
-# environment, which reads as a wall of Undefined.
+# One boot per directory rather than one per file.  The platform's --group
+# path lints a set of files sharing a preload in a single engine, and the
+# preload is a property of the directory: cu/*.x import the same siblings, the
+# entry beside run.x imports the module namespace.  Mixing directories in one
+# group lints every file against the first one's environment.
 _STATUS=0
 _WARNINGS=0
 _DIRS=$(for _t in "$@"; do dirname "$_t"; done | sort -u)
@@ -101,9 +92,9 @@ for _d in $_DIRS; do
 	fi
 	rm -f "$_LIST"
 	printf '%s\n' "$_OUT"
-	# COUNT THE FINDINGS, NOT THE LINES.  The linter prints one line per
-	# rule with every definition on it -- "ladder: %t-binary/11 %t-unary2/10
-	# %t-unary/9" is three findings -- so a line count called that one.
+	# Findings are counted, not lines: the linter prints one line per rule
+	# with every definition on it, so "ladder: %t-binary/11 %t-unary2/10
+	# %t-unary/9" is three findings on one line.
 	_N=$(printf '%s\n' "$_OUT" | grep -E '^      (ladder|ladder-dict|shape):' \
 		| sed 's/^ *[a-z-]*://' | wc -w | tr -d ' ')
 	_WARNINGS=$((_WARNINGS + ${_N:-0}))
