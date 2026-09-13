@@ -1,27 +1,23 @@
 #!/bin/sh
 # spec-weights.sh -- every spec file declares a `# @weight N`.
 #
-# WHY IT IS MANDATORY.  The runner's heavy-set admission cap classifies on
-# @weight: files at or above SPEC_HEAVY_MIN are limited to SPEC_HEAVY_JOBS in
-# flight, whatever PARALLEL_JOBS says, because two big heaps co-resident is the
-# shape that OOM-kills a 16GB box.  A file with no declaration used to read as
-# weight 0 -- light -- so the guard covered only the files someone had
-# remembered to annotate, and ext/complex.spec.md, the ~6GB heap the cap's own
-# rationale is written around, was not one of them.
+# The declaration is mandatory.  The runner's heavy-set admission cap
+# classifies on @weight: files at or above SPEC_HEAVY_MIN are limited to
+# SPEC_HEAVY_JOBS in flight, whatever PARALLEL_JOBS says, because two big heaps
+# co-resident is the shape that exhausts a 16GB box.
 #
-# The runner now reads an absent weight as HEAVY, which makes forgetting safe.
-# It does not make forgetting free: an unweighted file is capped, so under
-# PARALLEL it drags the whole suite toward serial.  This gate is what keeps
-# that from happening quietly -- the declaration is cheap, and its absence is
-# not visible in any output until someone wonders why CI got slower.
+# The runner reads an absent weight as heavy, so forgetting is safe but not
+# free: an unweighted file is capped, and under PARALLEL it drags the whole
+# suite toward serial.  That cost is invisible in any output, which is what
+# this gate is for.
 #
-# WHAT THE NUMBER MEANS: rough serial-seconds, the unit the existing
-# declarations already use.  It doubles as a footprint class, on the
-# observation that the files heavy in TIME are the files heavy in MEMORY.
-# Measure with `SPEC_BATCH=1 sh tests/x/spec-runner.sh` on a quiet machine --
-# batching amortises one interpreter boot across a whole bucket, so batched
-# timings cannot be attributed to a file.  A stale number only mis-ranks a
-# schedule; a missing one costs concurrency.
+# The number is rough serial-seconds, the unit the existing declarations use.
+# It doubles as a footprint class, on the observation that the files heavy in
+# time are the files heavy in memory.  Measure with
+# `SPEC_BATCH=1 sh tests/x/spec-runner.sh` on a quiet machine: batching
+# amortises one interpreter boot across a whole bucket, so batched timings
+# cannot be attributed to a file.  A stale number mis-ranks a schedule; a
+# missing one costs concurrency.
 set -e
 
 cd "$(dirname "$0")/../.."
