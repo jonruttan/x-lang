@@ -727,8 +727,8 @@ _rel_proj rel5 v9.9.8-old
 (cd "$_TMP" && $TIMEOUT_CMD sh "$_fake/bin/x" -f "$_TMP/rel5/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
 grep -q "carries no release stamp" "$_TMP/err" || fail "release-guard: an unstamped engine skipped WITHOUT the unchecked notice" "$_TMP/err"
 
-# A corrupt MANIFEST names itself before anything boots -- it used to
-# surface as a bare mid-boot "Unterminated input" naming nothing.
+# A corrupt manifest names itself before anything boots, rather than
+# surfacing as a bare mid-boot "Unterminated input" naming nothing.
 mkdir -p "$_TMP/badman"
 printf 'this is (((not xon\n' > "$_TMP/badman/pin.xon"
 printf '(display "ran")\n' > "$_TMP/badman/main.x"

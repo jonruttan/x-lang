@@ -107,9 +107,9 @@
   (dirent-names)
   (i386-syscall-names)
   ; arch-*? join os-*? for the same reason those rows exist: the build triple is
-  ; parsed ONCE, in lib/x/platform/syscall.x, and the answer is read by
-  ; lib/x/tool/asm.x and lib/x/tool/compile.x, which each used to sniff the
-  ; string themselves.  Bare because this layer loads mid-x-core, before the
+  ; parsed once, in lib/x/platform/syscall.x, and the answer is read by
+  ; lib/x/tool/asm.x and lib/x/tool/compile.x rather than sniffed again in
+  ; each.  Bare because this layer loads mid-x-core, before the
   ; class machinery that would otherwise home them.
   (arch-arm64?)
   (arch-x86-64?)

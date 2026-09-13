@@ -43,7 +43,7 @@ SRC_LIST="$SCRATCH/constraints-src.$$"
 MAN_LIST="$SCRATCH/constraints-man.$$"
 DIFF_OUT="$SCRATCH/constraints-diff.$$"
 # One trap covering all three: an interrupt between the diff and an inline rm
-# used to leak the diff output in the older scans.
+# would leave the diff output behind.
 trap 'rm -f "$SRC_LIST" "$MAN_LIST" "$DIFF_OUT"' EXIT INT TERM
 
 # --- 1. the SOURCE's view: every marker line, as "PATH param op value" -------

@@ -32,11 +32,9 @@
 ; reached only on the way to raising.  It takes a row because BOTH error
 ; sites need it (%dispatch-miss and the two call handlers), and its own
 ; six helpers are nested inside it rather than spent as rows.
-; boot/printer.x RATCHETED DOWN by two, 76 -> 74: %print-error-atom and
-; %print-str-append both existed to special-case one identity-known atom,
-; the nil-typed value a C raise used to deliver.  The engine raises a typed
-; ERR now, which dispatches to its own display handler like anything else,
-; so the special case and its two helpers are gone.
+; boot/printer.x is 74: the engine raises a typed ERR, which dispatches to
+; its own display handler like anything else, so no helper special-cases an
+; identity-known error atom.
 ; type/err-io.x is a NEW row at 7, the char-io.x shape: cached prim-refs
 ; plus the renderer, filling IO stacks the C layer boots empty.
 ; doc-gen grew by one for %doc-vis-note, shared by the method and member
