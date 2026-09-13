@@ -249,15 +249,26 @@
 ; %sha-jit-make and raises on any disagreement), so the failure mode of
 ; a bad JIT is "slower", never "wrong hash".
 ;
-; Adoption is never per-call: (Sha256 jit!) builds explicitly, and hex
-; auto-builds once CUMULATIVE bytes digested cross 64KB -- past that
-; point the seconds of compile always repay (breakeven is ~22KB on the
-; measured machine; an amalgam is hundreds of KB).  Small sessions --
-; the doctests, a lockfile spot-check -- never pay for what they would
-; never earn back.
+; WHEN TO BUILD: for an input that repays the build by itself.  (Sha256
+; jit!) builds explicitly; hex builds on its own when the input in hand
+; is %sha-jit-threshold bytes or more, and never otherwise.  The rule
+; was once CUMULATIVE -- build once 64KB had been digested in total --
+; and that shape paid the build for the wrong input: a lockfile of two
+; files, 16KB then 2KB, digested the first pure-x (just under the bar)
+; and then built the whole engine to digest the second (over it), 12s
+; where pure-x alone was 10.  A total says nothing about what is left
+; to digest; the length of this input does.
+;
+; THE BAR IS THE MEASURED BREAKEVEN, 2026-09-13, arm64: pure-x digests
+; at 2.4KB/s (64KB in 26.7s, 1MB in 427s) and the build -- toolchain,
+; two cache loads, the differential check -- is 4.5s, so an input of
+; ~11KB costs the same either way, and 12KB is the first size at which
+; the build is ahead within the call that paid for it.  Both sides
+; scale together on a slower host.  Below the bar a session that only
+; ever digests small things -- the doctests, a lockfile spot-check --
+; never pays for what it would never earn back.
 (def %sha-jit-engine ())
-(def %sha-jit-bytes (pair 0 ()))
-(def %sha-jit-threshold 65536)
+(def %sha-jit-threshold 12288)
 
 (def %sha-jit-try!
   (fn (_)
@@ -284,9 +295,8 @@
   (fn (_ s . n)
     (def %len (match ((null? n) (Str8 length s)) (#t (first n))))
     (do
-      (%set-first! %sha-jit-bytes (%sha+ (first %sha-jit-bytes) %len))
       (when (and (null? %sha-jit-engine)
-                 (>= (first %sha-jit-bytes) %sha-jit-threshold))
+                 (>= %len %sha-jit-threshold))
         (%sha-jit-try!))
       (match
         ((or (null? %sha-jit-engine) (eq? %sha-jit-engine (lit failed)))
@@ -309,9 +319,9 @@
         (example "(Sha256 hex-n \"abc\" 0)" "\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\""))
       (%sha-hex-list (%sha-hash-words s n)))
     (method jit! (self)
-      (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself: the engine is adopted only after agreeing with the pure-x digest on the FIPS vectors plus a multi-block padding case. Idempotent; seconds of compile on first success. Returns #t when the engine is active, #f when unavailable (no assembler backend for this host, no JIT toolchain, or a failed check -- pure-x carries on and results are identical either way). hex also auto-builds once 64KB of cumulative input has been digested, so calling this is an optimization, not a requirement."
+      (doc "Build and adopt the compiled digest engine (JIT; ARM64 and x86-64 backends) now, if it can prove itself: the engine is adopted only after agreeing with the pure-x digest on the FIPS vectors plus a multi-block padding case. Idempotent; seconds of compile on first success. Returns #t when the engine is active, #f when unavailable (no assembler backend for this host, no JIT toolchain, or a failed check -- pure-x carries on and results are identical either way). hex also builds it on its own for any single input of 12KB or more -- the measured size at which the build repays itself within the call -- so calling this is an optimization, not a requirement."
         (returns BOOL "#t when the compiled engine is active"))
       (%sha-jit-try!))))
 
 (doc (provide x/codec/sha256 Sha256)
-  "SHA-256 (FIPS 180-4): (Sha256 hex s) digests a byte string. Pure x-lang, with an optional differentially-verified JIT engine ((Sha256 jit!) or 64KB cumulative auto-build).")
+  "SHA-256 (FIPS 180-4): (Sha256 hex s) digests a byte string. Pure x-lang, with an optional differentially-verified JIT engine ((Sha256 jit!), or built on its own for an input of 12KB or more).")

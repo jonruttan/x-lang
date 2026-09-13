@@ -5,6 +5,24 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The digest engine is built for the input in hand, not for a running
+total.** `Sha256 hex` built the compiled engine once 64KB had been
+digested in a session, cumulatively -- a bar set when the build cost 12
+seconds and pure-x ran at 2.3KB/s, and a shape that paid the build for
+the wrong input: `Pin vendor`'s lockfile is two files, 16KB then 2KB,
+and with the bar lowered to what the build costs now the first digested
+pure-x, just under, and the second built the whole engine to digest 2KB,
+12s where pure-x alone was 10. A total says nothing about what is left
+to digest; the length of this input does. The rule is per input now:
+build when the input is `%sha-jit-threshold` bytes or more, and the bar
+is the measured breakeven -- pure-x at 2.4KB/s against a 4.5s build
+(#679), so 12KB is the first size at which the build is ahead within the
+call that paid for it. `Pin fetch` and `Pin bundle` read the same bar
+instead of carrying their own 65536. `Pin vendor` of `x/type/dict`: 6.6s
+from 10.5 on a 12-core arm64 box (the build's 4.5s, then two digests
+in milliseconds where the first alone was 6.7s); a spec case pins that two inputs just under the bar stay
+pure-x and one over it builds.
+
 **CI keeps the sanitizer engine it built.** The gates job's asan-boot and
 the asan job each cloned the pinned engine sources and built `x-bin-asan`
 from them, 55 seconds on both runners before a dialect booted -- the same
