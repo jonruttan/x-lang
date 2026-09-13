@@ -1,5 +1,5 @@
 # String classes (Str8 / StrUtf8 / Str)
-# @weight 2
+# @weight 4
 
 Two string protocols, each exposing the full string suite as static methods:
 

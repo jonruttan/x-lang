@@ -1,5 +1,5 @@
 # Numeric tower load order: bigint first, float later
-# @weight 3
+# @weight 4
 
 The bundle order under plain x-core imports: bigint is already joined when
 float.x files its when-entry, so the bigint->float conversion installs
