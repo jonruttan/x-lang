@@ -113,6 +113,20 @@ _preload_siblings() {
   done
 }
 
+# A file's `; lint-known: NAME...` header lines, appended to _PRELOAD as
+# bindings.  A DECLARATION IS A PROPERTY OF THE FILE, which is what makes
+# this its own function rather than four lines at the end of _preload_for:
+# a group shares one import set, but not one set of declarations, so the
+# group path has to walk every file here while the per-file path walks one.
+# Re-declaring a name is a no-op, so a group whose files declare the same
+# name binds it once.
+_lint_known_from() {
+  for _k in $(sed -n 's/^; lint-known:\(.*\)$/\1/p' "$1"); do
+    case " $_PRELOAD " in *" (def $_k 0) "*) continue ;; esac
+    _PRELOAD="$_PRELOAD (def $_k 0)"   # 0, not (): a nil binding would fail the value-subject test
+  done
+}
+
 _preload_for() {
   _PRELOAD=""
   case "$1" in
@@ -154,9 +168,7 @@ _preload_for() {
   # A file may name symbols the linter should take as known -- the
   # escape hatch for a reference no preload can bind.  This runs for
   # EVERY target, whatever branch above matched.
-  for _k in $(sed -n 's/^; lint-known:\(.*\)$/\1/p' "$1"); do
-    _PRELOAD="$_PRELOAD (def $_k 0)"   # 0, not (): a nil binding would fail the value-subject test
-  done
+  _lint_known_from "$1"
 }
 
 # --group LISTFILE (#323): lint every file in LISTFILE (absolute paths,
@@ -168,6 +180,21 @@ _preload_for() {
 if [ -n "${GROUP_LIST:-}" ]; then
   _FIRST=$(head -1 "$GROUP_LIST")
   _preload_for "$_FIRST"
+  # THE IMPORTS COME FROM THE FIRST FILE; THE DECLARATIONS COME FROM ALL OF
+  # THEM.  Sharing one preload is the whole point of a group and is sound for
+  # imports -- they are identical by construction -- but a `; lint-known:`
+  # line is written by ONE file about ITS OWN references, and reading it off
+  # the first file alone silently dropped every other file's.  x-lang's own
+  # sweep never saw it: it batches by preload signature, and the declarations
+  # are IN that signature, so a file with its own declaration lands in a group
+  # where it is already first.  A bundle linted through tools/lang-kit/lint.sh
+  # batches by DIRECTORY instead, so any declaring file that did not sort
+  # first lost its escape hatch -- x-logo's logo/serve.x, ninth of thirteen,
+  # reporting %lang-root (a `bundle`-class seam row, tools/contract/seam.x)
+  # undefined and failing the bundle's gate.
+  while IFS= read -r _gf; do
+    [ "$_gf" = "$_FIRST" ] || _lint_known_from "$_gf"
+  done < "$GROUP_LIST"
   _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") ()"
   _OUT=$({
       printf '%s\n' "$_CONSTRUCTS_INPUT"
