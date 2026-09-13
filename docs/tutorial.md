@@ -45,9 +45,14 @@ The prompt is `> `. Results are printed after each expression. Nil results print
 Leave the session with `(quit)` or ctrl-d. Ctrl-c cancels a half-typed
 multi-line form and returns a fresh prompt (at an empty prompt it ends the
 session). `(help)` shows the documentation
-index — see [Exploration](#exploration) below. There is no built-in line
-editing or history; wrap the session in [`rlwrap`](https://github.com/hanslub42/rlwrap)
-(`rlwrap sh x.sh`) if you want arrow keys.
+index — see [Exploration](#exploration) below.
+
+The arrow keys work, and so do the readline chords: ctrl-a and ctrl-e for
+the ends of the line, ctrl-w and ctrl-k to kill, ctrl-y to put it back, Up
+and Down for history that outlives the session, Tab to complete any
+documented name. What you type is coloured as you type it. It is built in —
+there is nothing to install and nothing to wrap the session in.
+[docs/repl.md](docs/repl.md) is the reference.
 
 For the full-stack dialect (xenon) with the numeric tower, the compiler,
 and POSIX:

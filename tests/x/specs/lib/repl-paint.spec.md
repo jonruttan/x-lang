@@ -1,0 +1,132 @@
+# Paint: colouring a half-typed line
+# @weight 1
+
+The interesting claim in `x/repl/paint` is that it does not decide what an
+atom is. It hands the bytes to the READER and takes the type of the value
+that comes back, so the colour and the evaluator cannot disagree — and a
+literal syntax this file has never heard of classifies correctly anyway.
+
+These cases run with colour off (the harness has no terminal), which is why
+they check `classify` rather than escape codes: the classification is the
+part that has to be right, and it is palette-independent.
+
+## The reader decides what an atom is
+
+### the numeric tower's spellings are all numbers
+
+Not one of these is special-cased here. `3.14`, `1/2`, `0xff` and `1e9` are
+numbers because the reader answers with a number.
+
+```x
+(do (import x/repl/paint)
+    (List map (fn (_ s) (Paint classify s))
+          (list "42" "-7" "3.14" "1/2" "0xff" "1e9")))
+```
+---
+    ('number 'number 'number 'number 'number 'number)
+
+### a lone minus is the operator it actually is, not a number
+
+The rule a hand-written painter gets wrong first.
+
+```x
+(do (import x/repl/paint)
+    (list (Paint classify "-") (Paint classify "+") (Paint classify "1+")))
+```
+---
+    ('symbol 'symbol 'number)
+
+### strings, characters and booleans
+
+```x
+(do (import x/repl/paint)
+    (List map (fn (_ s) (Paint classify s))
+          (list "\"hi\"" "#\\a" "#t" "#f")))
+```
+---
+    ('string 'char 'bool 'bool)
+
+### a construct is a construct, from lib/x/constructs.x
+
+```x
+(do (import x/repl/paint)
+    (List map (fn (_ s) (Paint classify s))
+          (list "def" "fn" "if" "match" "guard")))
+```
+---
+    ('construct 'construct 'construct 'construct 'construct)
+
+### the construct set is the one the rest of the toolchain reads
+
+```x
+(do (import x/repl/paint)
+    (and (> ((Paint keywords) length) 20) ((Paint keywords) get-or #f "def")))
+```
+---
+    #t
+
+### names are told apart by the conventions the library itself follows
+
+```x
+(do (import x/repl/paint)
+    (List map (fn (_ s) (Paint classify s))
+          (list "foo" "%private" "Str8" "foo-bar?")))
+```
+---
+    ('symbol 'private 'class 'symbol)
+
+### an atom the reader cannot make sense of is a plain name, not an error
+
+A line being typed is unreadable most of the time; that is not a failure.
+
+```x
+(do (import x/repl/paint)
+    (Paint classify "\"unterminated"))
+```
+---
+    'symbol
+
+## Colour off is a passthrough
+
+### with no terminal, line returns its argument unchanged
+
+```x
+(do (import x/repl/paint)
+    (let ((s "(def x 42) ; note"))
+      (list (Paint enabled?) (Str8 =? (Paint line s) s))))
+```
+---
+    (#f #t)
+
+### every class has a colour entry, empty though they are here
+
+```x
+(do (import x/repl/paint)
+    (List all? (fn (_ c) (str? (Paint colour c))) (Paint classes)))
+```
+---
+    #t
+
+### classes covers what classify can answer
+
+```x
+(do (import x/repl/paint)
+    (List all? (fn (_ c) (List includes? c (Paint classes)))
+      (List map (fn (_ s) (Paint classify s))
+        (list "42" "\"s\"" "#\\a" "#t" "def" "foo" "%p" "Str8"))))
+```
+---
+    #t
+
+## The memo
+
+### forget! rebuilds the caches and classification survives it
+
+```x
+(do (import x/repl/paint)
+    (let ((before (Paint classify "1/2")))
+      (Paint forget!)
+      (list before (Paint classify "1/2"))))
+```
+---
+    ('number 'number)

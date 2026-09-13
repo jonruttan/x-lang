@@ -152,5 +152,15 @@
   (note "Uses eval! (no env save/restore) so definitions persist.")
   "Start the read-eval-print loop.")
 
+; THE PLATFORM'S OWN REPL, remembered by identity.  `repl` is the seam a lang
+; replaces to read its own syntax -- x-python and x-ash both do -- and
+; x/repl/line replaces it too, for a terminal.  Two things installing over one
+; global need a way to tell whose it currently is, or the last one to load
+; wins: a bundle's entry runs BEFORE the launcher that imports the line
+; editor, so without this the editor silently took ash's reader away and read
+; Lisp at a `$ ` prompt.  Same rule, and the same reason, as repl/ansi.x's
+; %saved-repl-print.
+(def %repl-platform-repl repl)
+
 (doc (provide x/repl/loop repl quit)
   "Start the read-eval-print loop.")

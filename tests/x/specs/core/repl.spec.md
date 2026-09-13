@@ -121,3 +121,32 @@ x-lang v1.0
 ```
 ---
     #f
+
+## %repl-platform-repl
+
+`repl` is the seam a lang replaces to read its own syntax — x-python and
+x-ash both do — and `x/repl/line` replaces it too when it has a terminal.
+Two installers over one global need a way to tell whose it currently is, so
+the loop records its own by identity. Without that anchor the last one to
+load wins, and a lang bundle loses its reader to the line editor, because a
+bundle's entry runs before the launcher that imports it.
+
+### the loop records its own repl, by identity
+
+```x
+(same? repl %repl-platform-repl)
+```
+---
+    #t
+
+### a replaced repl is detectably not the platform's
+
+```x
+(do (def %spec-old repl)
+    (set! repl (op () () ()))
+    (let ((replaced (same? repl %repl-platform-repl)))
+      (set! repl %spec-old)
+      (list replaced (same? repl %repl-platform-repl))))
+```
+---
+    (#f #t)

@@ -206,8 +206,25 @@
 (file "lib/x/reader/analyser.x" 14)
 (file "lib/x/reader/indent.x" 6)
 (file "lib/x/repl/ansi.x" 26)
+; The line editor, on the hot-path grounds the rows above stand on -- the
+; same grounds reader/analyser.x and type/buf.x state in their own headers,
+; and measured here before they were claimed.  repl/paint.x paints on EVERY
+; keystroke, and a draft that reached through the class per token rendered a
+; 70-byte line in 27ms against the 32ms of the HTML renderer it was written
+; to replace; the %-private scan over cached prims does it in 19ms, and 0.24ms
+; when the text has not changed.  One class door measured 0.3-1.0ms on this
+; machine, which is why the palette, the memo accessors and the byte prims
+; are all resolved out of the loop.  repl/line.x is the redraw and the key
+; dispatch, per keystroke for the same reason, plus the completion and
+; history helpers that hang off them.
+(file "lib/x/repl/paint.x" 33)
+(file "lib/x/repl/line.x" 34)
 (file "lib/x/repl/banner.x" 4)
-(file "lib/x/repl/loop.x" 12)
+; Grew by one for %repl-platform-repl: the identity anchor that lets two
+; installers over `repl` -- a lang's reader and the line editor -- tell
+; whose it currently is.  Not a hot-path helper; a one-word fact that has
+; to live beside the definition it names.
+(file "lib/x/repl/loop.x" 13)
 (file "lib/x/rn.x" 1)
 (file "lib/x/sys/date.x" 6)
 (file "lib/x/sys/file.x" 7)

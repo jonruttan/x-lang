@@ -58,6 +58,14 @@
   (needs "lib/x/net/tls.x" isa/ffi-call)
   (needs "lib/x/num/float.x" isa/ffi-call)
   (needs "lib/x/repl/loop.x" isa/gc)
+  ; The line editor's terminal layer: termios through the ffi door
+  ; (tcgetattr/tcsetattr/cfmakeraw), and TIOCGWINSZ through the syscall door
+  ; -- ioctl is variadic, and a variadic argument does not travel in the
+  ; register a fixed one does on Apple arm64, so the ffi door silently
+  ; measured every terminal at 80x24.  repl/edit.x, repl/paint.x and
+  ; repl/line.x need neither: they are string and list work over what this
+  ; file hands them.
+  (needs "lib/x/repl/term.x" isa/ffi-call isa/syscall)
   (needs "lib/x/rn.x" isa/syscall)
   (needs "lib/x/sys/file.x" isa/syscall)
   (needs "lib/x/sys/gc.x" isa/gc)
