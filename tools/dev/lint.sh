@@ -34,15 +34,13 @@ LINTER="$SCRIPT_DIR/lint.x"
 # A checkout keeps x-core.x, so `make lint-x` is byte-for-byte as before.
 LANG_LIB="$PROJECT_DIR/lib/x-core.x"
 LANG_PRE=""
-# AN INSTALLED TREE CARRIES THE AMALGAM AT boot/, A CHECKOUT AT build/boot/,
-# and only the installed one was ever looked for.  `make install` copies the
-# one to the other (cp -R build/boot <lib>/boot), so it is the same file at a
-# different path -- but a BUNDLE'S CI HAS NO INSTALLED TREE.  It checks x-lang
-# out, builds it, and points X at ./x.sh, which is precisely the arrangement
-# this probe missed: it fell through to lib/x-core.x, whose opening include is
-# root-relative, and with the working directory set to the bundle the engine
-# died on `include: cannot open` for every file in the group.  x-coreutils
-# never caught it because it has no CI and is linted against an install.
+# The boot amalgam sits at boot/x-base.x in an installed tree and at
+# build/boot/x-base.x in a checkout (`make install` copies one to the other).
+# Both are probed, because either can be the root the caller drives this from:
+# a lang bundle's CI checks x-lang out and points X at ./x.sh rather than
+# installing it.  Without the amalgam the library below is lib/x-core.x, whose
+# opening include is root-relative and does not resolve when the working
+# directory is the bundle being linted.
 for _b in "$PROJECT_DIR/boot/x-base.x" "$PROJECT_DIR/build/boot/x-base.x"; do
   [ -n "${X_LINT_ROOT:-}" ] && [ -f "$_b" ] || continue
   LANG_LIB="$_b"
@@ -124,13 +122,10 @@ _preload_siblings() {
   done
 }
 
-# A file's `; lint-known: NAME...` header lines, appended to _PRELOAD as
-# bindings.  A DECLARATION IS A PROPERTY OF THE FILE, which is what makes
-# this its own function rather than four lines at the end of _preload_for:
-# a group shares one import set, but not one set of declarations, so the
-# group path has to walk every file here while the per-file path walks one.
-# Re-declaring a name is a no-op, so a group whose files declare the same
-# name binds it once.
+# Append a file's `; lint-known: NAME...` declarations to _PRELOAD as
+# bindings.  A declaration belongs to the file that carries it, so the group
+# path calls this for every file in the group and the per-file path calls it
+# once.  A name already bound is skipped.
 _lint_known_from() {
   for _k in $(sed -n 's/^; lint-known:\(.*\)$/\1/p' "$1"); do
     case " $_PRELOAD " in *" (def $_k 0) "*) continue ;; esac
@@ -314,18 +309,12 @@ if [ -n "${GROUP_LIST:-}" ]; then
   fi
   _FIRST=$(head -1 "$GROUP_LIST")
   _preload_for "$_FIRST"
-  # THE IMPORTS COME FROM THE FIRST FILE; THE DECLARATIONS COME FROM ALL OF
-  # THEM.  Sharing one preload is the whole point of a group and is sound for
-  # imports -- they are identical by construction -- but a `; lint-known:`
-  # line is written by ONE file about ITS OWN references, and reading it off
-  # the first file alone silently dropped every other file's.  x-lang's own
-  # sweep never saw it: it batches by preload signature, and the declarations
-  # are IN that signature, so a file with its own declaration lands in a group
-  # where it is already first.  A bundle linted through tools/lang-kit/lint.sh
-  # batches by DIRECTORY instead, so any declaring file that did not sort
-  # first lost its escape hatch -- x-logo's logo/serve.x, ninth of thirteen,
-  # reporting %lang-root (a `bundle`-class seam row, tools/contract/seam.x)
-  # undefined and failing the bundle's gate.
+  # Imports come from the first file: a group's files share one import set by
+  # construction.  Declarations do not -- a `; lint-known:` line names its own
+  # file's references -- so they are collected from every file in the group.
+  # A caller that groups by directory rather than by preload signature (the
+  # lang kit's driver does) otherwise leaves every file but the first without
+  # its declarations.
   while IFS= read -r _gf; do
     [ "$_gf" = "$_FIRST" ] || _lint_known_from "$_gf"
   done < "$GROUP_LIST"
