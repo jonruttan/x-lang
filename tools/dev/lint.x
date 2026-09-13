@@ -107,7 +107,6 @@
             ((str=? st "params")     (%lint-fn form))
             ((str=? st "params-env") (%lint-op form))
             ((str=? st "let")        (%lint-let form))
-            ((str=? st "letrec")     (%lint-letrec form))
             ((str=? st "guard")      (%lint-guard form))
             ((str=? st "class")      (Lint %lint-class form))
             ((str=? st "quasi")      (%lint-quasi (rest form)))

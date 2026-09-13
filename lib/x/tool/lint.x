@@ -350,49 +350,6 @@
   (%frame-unused! saved)                               ; flag let-bindings never referenced
   (%set-first! %lint-scope saved)))
 
-; A `let` whose bindings can see each other, and themselves.
-;
-; NAMES FIRST, THEN INITS.  %lint-let walks each init in the scope that
-; PRECEDES it, which is exactly right for `let` and exactly wrong here: a
-; recursive helper's own name is not bound yet when its init is walked, so
-; the self-call reads Undefined.  x-krn writes `reverse` as a $letrec over
-; rev-helper, a $lambda whose body calls rev-helper -- one binding, one
-; spurious finding, and enough to fail a bundle's lint gate.
-;
-; x-lang has no letrec of its own, so nothing in lib/x/constructs.x claims
-; this scope type.  It exists for the PERSONALITIES, which all have one
-; (r5rs/r7rs `letrec`, krn `$letrec`) and which until now could only declare
-; it as scope=let and wear the false positive.
-;
-; The two passes are LOCAL closures, not two more %-globals: each is called
-; once, from here, and this file's global count is a ratchet
-; (tools/contract/percent-globals.x).  They recurse through the `self` slot,
-; so neither init mentions the name it is bound to.
-(def %lint-letrec (fn (_ form)
-  (def saved (first %lint-scope))
-  (def bindings (first (rest form)))
-  (let ((add-names
-          (fn (self bs)
-            (unless (null? bs)
-              (do (let ((vn (%cvt (first (first bs)) %string)))
-                    ; Shadowing is judged against the ENCLOSING scope, never
-                    ; against the siblings this pass is still adding --
-                    ; otherwise every binding after the first shadows one.
-                    (%shadow-check! vn saved)
-                    (%scope-add! vn))
-                  (self (rest bs))))))
-        (walk-inits
-          (fn (self bs)
-            (unless (null? bs)
-              (do (%lint-form (first (rest (first bs))))
-                  (self (rest bs)))))))
-    (add-names bindings)
-    (walk-inits bindings))
-  (%lint-seq (rest (rest form)))
-  (%lint-leak-scan (%last (rest (rest form))))         ; body has its own tail
-  (%frame-unused! saved)                               ; flag bindings never referenced
-  (%set-first! %lint-scope saved)))
-
 (def %lint-def (fn (_ form)
   (def name-part (first (rest form)))
   (if (pair? name-part)
