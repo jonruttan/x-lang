@@ -1,49 +1,50 @@
 ; tools/contract/features.x -- the closed vocabulary of the engine contract.
 ;
-; x-lang is implementation-agnostic: x-engine-c is one engine, x-engine-rust may be
-; another.  An engine DECLARES what it offers (its x-engine.xon); x-lang DECLARES
-; what it needs (tools/contract/requires.x); a resolver pairs them.  This file is
-; the vocabulary both sides quote from -- the language owns it, because an engine
-; that defined the terms would be grading its own exam.
+; x-lang is implementation-agnostic: x-engine-c is one engine, x-engine-rust may
+; be another.  An engine declares what it offers (its x-engine.xon); x-lang
+; declares what it needs (tools/contract/requires.x); a resolver pairs them.
+; This file is the vocabulary both sides quote from, and the language owns it:
+; an engine that defined the terms would be grading its own exam.
 ;
-; THREE ROW KINDS, THREE COMPARE OPERATORS.  Collapsing them is the mistake this
-; file exists to prevent:
+; Three row kinds, three compare operators, which must not be collapsed:
 ;
-;   CAPABILITY  a group of instructions is reachable.  Set membership; compared by
-;               SUPERSET, so a richer engine is never refused.
-;   GUARANTEE   a behaviour the engine promises, usually BY NOT DOING SOMETHING.
-;               Compared by MUST-HOLD.  Invisible in isa.x -- no primitive names
-;               them -- and the library's correctness rests on them anyway.
-;   PARAMETER   a value the engine REPORTS (word size, byte order, os, arch).
-;               Never a requirement: `word-size = 8` in a requires list would lock
-;               out the 32-bit Pi, a supported target.  Per-module needs are
-;               recorded as constraint rows in tools/contract/constraints.x.
+;   capability  a group of instructions is reachable.  Set membership; compared
+;               by superset, so a richer engine is never refused.
+;   guarantee   a behaviour the engine promises, usually by not doing
+;               something.  Compared by must-hold.  Invisible in isa.x, since
+;               no primitive names them, and the library's correctness rests on
+;               them.
+;   parameter   a value the engine reports (word size, byte order, os, arch).
+;               Never a requirement: `word-size = 8` in a requires list would
+;               lock out the 32-bit Pi, a supported target.  Per-module needs
+;               are recorded as constraint rows in
+;               tools/contract/constraints.x.
 ;
-; WHAT A CAPABILITY ROW MEANS, PRECISELY: the catalog COORDINATES in that group
-; RESOLVE -- (prim-ref 'ns 'method) finds something callable, or the bare name is
-; bound.  It does NOT mean "implemented in C".  lib/x/boot/reflect.x already
-; replaces C prims with x-level ones filed under the same catalog names, and
-; isa.x's surface is the REDUCED set that survives that.  An engine may satisfy a
-; coordinate natively or in x; the contract is the coordinate, not the language it
-; is written in.  That is why `isa/hot` is a capability like any other while being,
-; by its own definition, derivable.
+; A capability row means the catalog coordinates in that group resolve:
+; (prim-ref 'ns 'method) finds something callable, or the bare name is bound.
+; It does not mean "implemented in C".  lib/x/boot/reflect.x replaces C prims
+; with x-level ones filed under the same catalog names, and isa.x's surface is
+; the reduced set that survives that.  An engine may satisfy a coordinate
+; natively or in x; the contract is the coordinate, not the language it is
+; written in.  That is why `isa/hot` is a capability like any other while
+; being, by its own definition, derivable.
 ;
-; GROUPS PARTITION THE ISA -- and a TAG IS NOT ALWAYS A GROUP.  Most groups are
-; exactly one isa.x tag.  The `ffi` tag is NOT: it carries eleven rows that split
-; into three unrelated capabilities, and treating it as one group would have made
-; dlopen mandatory for every engine including a sandboxed one.  The evidence is
-; direct -- lib/x/boot reaches int/->ptr, obj/->ptr, ptr/->int, ptr/->obj,
-; str/->ptr, ptr/ref-word and ptr/set-word!, and reaches dlopen/dlsym/ffi-call
-; ZERO times.  Boot needs the CASTS, not the DOOR.  So the split below is by
-; explicit row membership, and tools/check/engine-contract.sh asserts the
-; partition is TOTAL and DISJOINT over isa.x: every row lands in exactly one
-; group, so a new C row cannot appear without landing somewhere on purpose.
+; Groups partition the ISA, and a tag is not always a group.  Most groups are
+; exactly one isa.x tag; the `ffi` tag is not.  It carries eleven rows that
+; split into three unrelated capabilities, and treating it as one group makes
+; dlopen mandatory for every engine, a sandboxed one included.  lib/x/boot
+; reaches int/->ptr, obj/->ptr, ptr/->int, ptr/->obj, str/->ptr, ptr/ref-word
+; and ptr/set-word!, and reaches dlopen/dlsym/ffi-call zero times: boot needs
+; the casts, not the door.  So the split below is by explicit row membership,
+; and tools/check/engine-contract.sh asserts the partition is total and
+; disjoint over isa.x -- every row lands in exactly one group, so a new C row
+; cannot appear without landing somewhere on purpose.
 ;
 ; (isa.x's header legend also lists `registry`, which tags zero rows -- stale
 ; legend text in the engine's manifest, not a capability; no row here.)
 ;
-; FORMAT (rigid, one entry per line -- the awk parses the same bytes):
-;   (atom source)         source = the isa.x TAG that proves it, a BUILD FLAG,
+; Format (rigid, one entry per line -- the awk parses the same bytes):
+;   (atom source)         source = the isa.x tag that proves it, a build flag,
 ;                         `rows` when membership is listed explicitly below, or
 ;                         `-` when proven some other way (named in the comment)
 ;   (group-rows atom ns/method ...)   explicit membership, for split tags
@@ -127,10 +128,7 @@
   (reflect/word-probe  -)   ; int<->ptr round-trip faithful enough to size a word
                             ;   (lib/x/boot/data.x probes it at boot)
   ; --- the invocation protocol (contract layer E) ---
-  ; Assumed by x.sh everywhere and written down nowhere until now.
-  ; What the ENGINE actually owes, checked against src/x-cli.c rather than
-  ; assumed.  The first draft listed two more rows that turned out not to be the
-  ; engine's at all -- see the note below.
+  ; What the engine owes x.sh, checked against src/x-cli.c.
   (invoke/pipe-stdin   -)   ; the program arrives on stdin and is read-eval'd
   (invoke/argv         -)   ; every argv element is bound as the `args` list.
                             ;   The engine parses NOTHING: it does not know what
@@ -166,10 +164,9 @@
   (reflect/ptr-casts int/->ptr obj/->ptr ptr/->int ptr/->obj ptr/->str str/->ptr)
   (isa/ffi-call      ffi/call ffi/dlopen ffi/dlsym ptr/call)
   (isa/syscall       syscall)
-  ; THE VALUE ROWS.  isa.x's %isa-values carries no tag column, so every one of
-  ; them is classified here or the partition fails.  They were skipped by both
-  ; parsers until this file learned to name them, which is how x-release came to
-  ; be something x.sh depends on and no engine was obliged to have.
+  ; The value rows.  isa.x's %isa-values carries no tag column, so each one is
+  ; classified here or the partition fails.  Unclassified, they are nameable by
+  ; no atom, and x.sh can depend on a value no engine is obliged to have.
   (meta/identity     x-release x-version)
   (meta/platform     x-machine)
   (invoke/argv       args)          ; the argv list this group is already about
@@ -210,48 +207,39 @@
   ; lets one parameter (word-size) cover both and what makes data.x's probe --
   ; round-tripping 2^32 through a pointer cast -- a legitimate way to size a word.
   (int/ptr-same-width -)
-  ; THE LANGUAGE WORDS ERRORS, THE ENGINE DOES NOT.  An engine that flattens its
-  ; message and the thing it is complaining about into one English string leaves
-  ; nothing to reword -- the structure is gone before x-lang sees it, and a
-  ; type-less value has no dispatch stacks to push a handler onto.  So a raise
-  ; delivers the two facts APART, on a registered type, and the base's `err` row
-  ; holds a value of that same type (which is how x/type/err-io.x finds it).
-  ; Identity is NOT required: the reference engine reuses one instance so a raise
-  ; allocates nothing, but allocating per raise conforms equally.
+  ; The language words errors; the engine does not.  An engine that flattens
+  ; its message and the thing it is complaining about into one English string
+  ; leaves nothing to reword -- the structure is gone before x-lang sees it,
+  ; and a type-less value has no dispatch stacks to push a handler onto.  So a
+  ; raise delivers the two facts apart, on a registered type, and the base's
+  ; `err` row holds a value of that same type (which is how x/type/err-io.x
+  ; finds it).  Identity is not required: the reference engine reuses one
+  ; instance so a raise allocates nothing, but allocating per raise conforms
+  ; equally.
   (err/typed-raise -)
 )))
 
-; REMOVED, and worth saying why rather than leaving a hole: tok/callback-no-alloc.
-; It was declared as "tokenizer callbacks run without allocating", and it was wrong
-; twice over.  Wrong in CONTENT -- lib/x/reader/lit-reader.x records that the
-; no-allocation rationale is OBSOLETE ("GC is explicit-only, so re-entering the
-; tokenizer from a reader handler is safe"), and docs/syntax.md states the live
-; constraint as something else entirely: OPS ARE BANNED INSIDE x_token_read.  And
-; wrong in CATEGORY -- that ban is an obligation the engine imposes on callback
-; AUTHORS, not a promise the engine makes to callers, so it is not a guarantee at
-; all.  It is documented in docs/engine-contract.md where an implementer meets it.
-;
-; A guarantee that cannot be falsified because it does not describe the engine is
-; worse than an untested one: compliance would have reported it as a claim awaiting
-; an experiment forever.
+; There is no tok/callback-no-alloc row.  The live constraint is that ops are
+; banned inside x_token_read (docs/syntax.md), and that is an obligation the
+; engine imposes on callback authors rather than a promise it makes to callers,
+; so it is not a guarantee.  It is documented in docs/engine-contract.md, where
+; an implementer meets it.  A guarantee that does not describe the engine
+; cannot be falsified, and compliance would report it as a claim awaiting an
+; experiment indefinitely.
 
-; --- PARAMETERS --------------------------------------------------------------
+; --- parameters ---------------------------------------------------------------
 ; Values an engine reports.  Listed here so the vocabulary is closed (a requires
 ; row naming any of these is refused by the gate); the per-module needs live in
 ; tools/contract/constraints.x, which is where a value can legitimately bind.
 ;
-; THE VALUES ARE PART OF THE VOCABULARY TOO, and they were not written down.
-; They existed -- engine/tools/contract/gen-build-params.sh normalises a
-; build triple to darwin/linux/bsd and arm64/x86-64/i386, and
-; tests/x/conformance/posix/foreign.spec.md compares %param-os against those very
-; spellings -- but they lived inside ONE ENGINE'S build script, which is an
-; engine choosing the terms it is judged by.  A second implementation had to
-; reverse-engineer them from that script and a spec file: Rust's own names for
-; the same machines are `macos` and `aarch64`, and an engine stamping those
-; reports true facts in a vocabulary nothing can read, so every comparison
+; The values themselves are part of the vocabulary.  Held only in one engine's
+; build script, they would be an engine choosing the terms it is judged by, and
+; a second implementation would have to reverse-engineer them: Rust's own names
+; for the same machines are `macos` and `aarch64`, and an engine stamping those
+; reports true facts in a vocabulary nothing else can read, so every comparison
 ; against a literal fails silently.
 ;
-; FORMAT: (name value ...).  A row with values is CLOSED and the gate checks
+; Format: (name value ...).  A row with values is closed and the gate checks
 ; against it; a row with none accepts anything.  `unknown` is always legal and
 ; means the build could not say -- consumers skip it rather than guessing.
 ;
