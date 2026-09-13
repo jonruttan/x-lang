@@ -171,6 +171,44 @@ _preload_for() {
   _lint_known_from "$1"
 }
 
+# The LANG CONSTRUCTS for one target, into _CONSTRUCTS_INPUT: the base
+# table, then the personality's own, or `()` when it has none.
+#
+# A personality declares how ITS forms affect scope in a constructs.x of
+# its own -- x-krn's krn/constructs.x says $define! binds a name, $lambda
+# takes a parameter list, $let/$let*/$letrec take binding pairs.  Without
+# it every name those forms introduce reads Undefined: krn/base.x reported
+# thirty-six, among them each of its own list primitives.
+#
+# The table used to be looked up at lang/$LANG/lib/constructs.x, INSIDE the
+# checkout, off a hard-coded list of language names.  The bundles moved out
+# to repos of their own, so that path has resolved to nothing since -- and
+# --group, the only path the lang kit uses, never consulted it at all: it
+# hardcoded the empty table.  So look where a bundle actually keeps it,
+# which is where _preload_siblings already looks for the modules: beside
+# the target, or one level under the bundle root for an entry (run.x) that
+# sits above the module directory.  X_LINT_LANG_CONSTRUCTS overrides.
+_lang_constructs_for() {
+  _LC="${X_LINT_LANG_CONSTRUCTS:-}"
+  [ -n "$_LC" ] || _LC="$(dirname "$1")/constructs.x"
+  if [ ! -f "$_LC" ] && [ -n "${X_LINT_MODULE_ROOT:-}" ]; then
+    for _c in "$X_LINT_MODULE_ROOT"/*/constructs.x; do
+      [ -f "$_c" ] && { _LC="$_c"; break; }
+    done
+  fi
+  # The legacy in-checkout layout, which is still how --lang NAME is served.
+  [ -f "$_LC" ] || _LC="$PROJECT_DIR/lang/${2:-}/lib/constructs.x"
+  # NEVER THE BASE TABLE ITSELF.  lib/x/*.x sits beside lib/x/constructs.x,
+  # so "beside the target" finds the platform's own table for every library
+  # file and would append all thirty-odd entries to themselves.
+  [ "$_LC" = "$CONSTRUCTS" ] && _LC=""
+  if [ -n "$_LC" ] && [ -f "$_LC" ]; then
+    _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") $(cat "$_LC")"
+  else
+    _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") ()"
+  fi
+}
+
 # --group LISTFILE (#323): lint every file in LISTFILE (absolute paths,
 # one per line, identical preloads by construction) in ONE engine.  The
 # stream interleaves (%lint-next-file "NAME") markers with the file
@@ -178,6 +216,25 @@ _preload_for() {
 # reassembles the legacy per-file lines.  A file with no verdict (the
 # engine died mid-group) reports as a failure, never a silent pass.
 if [ -n "${GROUP_LIST:-}" ]; then
+  # A constructs.x IS DATA, NOT CODE -- a bare list of declarations, read by
+  # the linter and the formatter and evaluated by nothing.  Walked as code it
+  # reports its every entry: each construct NAME as an undefined call, each
+  # property key and value as an undefined reference.  x-krn's twenty-line
+  # krn/constructs.x produced twenty findings that way.
+  #
+  # The default sweep below has always skipped it ("skip data-only files"),
+  # but that arm only builds the DEFAULT target list; a caller naming targets
+  # -- which is every caller through tools/lang-kit/lint.sh, since a bundle's
+  # shim names its own -- went straight past it.  Drop it from the group here
+  # instead, where both kinds of caller land.
+  _DROPPED=""
+  if grep -q '/constructs\.x$' "$GROUP_LIST"; then
+    _DROPPED=$(mktemp "${TMPDIR:-/tmp}/lint-group.XXXXXX") || exit 1
+    grep -v '/constructs\.x$' "$GROUP_LIST" > "$_DROPPED"
+    GROUP_LIST="$_DROPPED"
+    # A group of nothing but data files is a clean group, not an empty run.
+    [ -s "$GROUP_LIST" ] || { rm -f "$_DROPPED"; exit 0; }
+  fi
   _FIRST=$(head -1 "$GROUP_LIST")
   _preload_for "$_FIRST"
   # THE IMPORTS COME FROM THE FIRST FILE; THE DECLARATIONS COME FROM ALL OF
@@ -195,7 +252,12 @@ if [ -n "${GROUP_LIST:-}" ]; then
   while IFS= read -r _gf; do
     [ "$_gf" = "$_FIRST" ] || _lint_known_from "$_gf"
   done < "$GROUP_LIST"
-  _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") ()"
+  # One table for the group, from the first file -- the same rule, and the
+  # same soundness argument, as the preload above: the kit batches by
+  # DIRECTORY, and a personality's table is a property of its directory.
+  # (The declarations above are the exception, and say why they are one.)
+  # `--lang NAME` reaches this path too now; it never used to.
+  _lang_constructs_for "$_FIRST" "$LANG"
   _OUT=$({
       printf '%s\n' "$_CONSTRUCTS_INPUT"
       [ "$LIB_MODE" -eq 1 ] && printf '%%lint-lib\n'
@@ -238,7 +300,9 @@ if [ -n "${GROUP_LIST:-}" ]; then
       }
       exit fail
     }'
-  exit $?
+  _rc=$?
+  [ -n "$_DROPPED" ] && rm -f "$_DROPPED"
+  exit $_rc
 fi
 
 # Default targets: library files in --lib mode (skip data-only files),
@@ -346,6 +410,8 @@ for f in "$@"; do
     /*) ;;
     *) f="$(cd "$(dirname "$f")" && pwd)/$(basename "$f")" ;;
   esac
+  # Data, not code -- see the group path, which drops it for the same reason.
+  case "$f" in */constructs.x) continue ;; esac
   _NAME=$(echo "$f" | sed "s|$PROJECT_DIR/||")
 
   # Auto-detect language from file path if not specified
@@ -362,15 +428,7 @@ for f in "$@"; do
   fi
 
   # Build constructs input: base + lang (or ())
-  _LANG_CONSTRUCTS=""
-  if [ -n "$_LANG" ] && [ -f "$PROJECT_DIR/lang/$_LANG/lib/constructs.x" ]; then
-    _LANG_CONSTRUCTS="$PROJECT_DIR/lang/$_LANG/lib/constructs.x"
-  fi
-  if [ -n "$_LANG_CONSTRUCTS" ]; then
-    _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") $(cat "$_LANG_CONSTRUCTS")"
-  else
-    _CONSTRUCTS_INPUT="$(cat "$CONSTRUCTS") ()"
-  fi
+  _lang_constructs_for "$f" "$_LANG"
 
   # Preload: factored into _preload_for (#323) -- the batch grouper
   # keys on the same text this loop executes.
