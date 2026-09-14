@@ -272,7 +272,15 @@
 ; asm-compile.x rose 79 to 81 for the variant channel: %jit-score-variant (the
 ; optional trampoline binding, the %jit-buffer-last-char shape) and
 ; %asm-compile-score-variant (its emitter, the %asm-compile-score-set shape).
-(file "lib/x/tool/asm-compile.x" 81)
+; asm-compile.x rose 81 to 82 for %asm-check-int-operands, the %sug-hint shape:
+; it takes a row because both sites that put two operands in registers need it
+; -- the call emitter, and the comparison an `if` test folds into its branch,
+; which does not reach that emitter -- and two inlined copies of the rule drift.
+; It rejects an object param used as a number in analyser mode, which compiled
+; to a wrong answer.  Its op set is a literal inside it rather than a second
+; row, and asm-cache.x spends none: the codegen epoch in its key is a literal
+; in %asm-cache-identity.
+(file "lib/x/tool/asm-compile.x" 82)
 ; asm.x rose 37 to 38 for %ptr-ref: the relocator reads a site back (the
 ; ARM64 MOVZ carries the destination register) rather than making every
 ; relocation record carry one.
