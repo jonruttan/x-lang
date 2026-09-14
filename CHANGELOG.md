@@ -19,6 +19,140 @@ reaches. The alist and the dispatch order are unchanged, and the member
 accessors need nothing -- their alists are written through `%box-put!`,
 which replaces an entry in place.
 
+**Tab's candidates are a seam a lang can fill.** `%repl-paint` answers the
+colour question for a lang's session; completion had no such answer.
+`%ln-candidates` prefix-searches the doc registry, which holds what x-lang
+modules document, so a lang that parses its own syntax has none of its names
+there and Tab at its prompt offers x-lang's. `(Line completer f)` installs a
+function from the `Edit` buffer to `(typed . names)`, and `()` turns Tab off.
+Filling a unique answer, extending to the common prefix and listing on the
+second Tab are the same job whatever the syntax is, and stay whichever
+completer is installed; `%ln-complete!` tests before it walks, since a nil
+completer has nothing to destructure and `first`/`rest` are unchecked prims.
+`line.x`'s `%`-global budget is 36, and `crafting-a-lang.md` §7 carries both
+seams for a lang author.
+**`List` and `Iter` raise on a value they cannot walk.** `List from-seq` is
+the door every basic normalizes through, and it hands anything that is not
+nil or a pair to `(Iter new)`. That answers nil for a value whose type
+carries no iter slot, and the driver prims dispatch on a type handle a nil
+does not have, so passing one on ends the process. `(Iter new)` raises
+`type` now rather than answering nil, which is what gives `(List length 5)`
+and `(List length (%type-alist))` an error; each public `Iter` door also
+checks its argument once on entry, so `(Iter ->list ())` raises too. The
+drain loops carry their iterator through unchanged and their per-element
+prim calls are unaffected. `Iter %check` is homed on the class under the
+classes-are-namespaces rule in `tools/check/percent-globals.sh`.
+**A lang bundle can no longer change what the library's containers mean by
+equal.** `equal?` is a bare global, so a session may rebind it, and lang
+bundles do -- x-sweet ships `(def equal? eq?)` as its eight-name Scheme shim.
+Every container that compares by content read that name: `Dict`'s bucket
+search, `Assoc find`, `List index-of`/`includes?`/`uniq`/`uniq-by`, and a
+record's `=?`. Rebound, none of them failed. They quietly began answering a
+different question, for the whole session, in code that never mentioned
+equality -- under `-l sweet`, `(Dict get "k")` on a dict that held `"k"`
+answered nil, and `(List includes? "a" (list "a" "b"))` answered `#f`. Same
+bytes, same FNV hash, same bucket; only the comparison had moved. The REPL
+painter is how it surfaced: its construct set is a string-keyed `Dict`, so
+inside a lang `def` classified as a plain symbol and lost its colour, with the
+vocabulary itself read off `lib/x/constructs.x` perfectly and all thirty
+entries present -- the reader was never involved. Library internals now hold
+`%equal?`, captured beside `equal?` where it is defined, which is the split
+[protocol/str/utf8.x](lib/x/protocol/str/utf8.x) already draws between `Str`,
+the rebindable ambient alias, and `Str8`, the fixed name its own internals
+use. What is captured is the closure, not the behaviour: its body reads
+`%equal-others` at call time, so a module extending equality through the
+sanctioned hook (`x/type/vector` does) still reaches every one of those seats.
+Rebinding the name is the only thing that stops working, and it is the thing
+that was wrong.
+
+**The painter says so when it cannot read its vocabulary.** `x/repl/paint`
+builds its construct set from [lib/x/constructs.x](lib/x/constructs.x) behind
+a `guard` whose handler returned an empty `Dict` and dropped the error with
+it. An empty vocabulary is indistinguishable from a session in which nothing
+happens to be a construct -- both look like a line with no colour on it -- so
+a broken install degraded in perfect silence. The fallback is unchanged,
+because losing a colour is not worth refusing to start a session over, but the
+handler now writes one line to stderr naming what could not be read.
+
+**A compiled function could be handed an argument back instead of an answer.**
+`compile-asm` emits for two calling worlds -- an integer function called from x,
+whose arguments arrive unevaluated and whose result is boxed, and an analyse
+callback invoked from C with live values, where nothing evaluates and the
+leading params stay pointers -- and with no third argument the door reads the
+fvar table to decide which: present means analyser. An fvar also names a callee
+the body calls, so a body that calls a prim that way compiles as a tokenizer
+state. Its first ordered comparison then reads a param as a pointer, takes the
+branch on that, and the unboxed result is one of the arguments; other argument
+shapes dereference an argument expression as an integer and reach a SIGSEGV.
+
+The misuse refuses rather than the undeclared call. Refusing the two-argument
+form would not raise in a bundle: x-python compiles its tokenizer states that
+way and adopts them under a guard, so the refusal would pin the interpreted
+states and keep them, and a bundle spec cannot assert that the JIT is active, so
+nothing would report it. What refuses is the shape. In analyser mode the leading
+one or two params are `x_obj_t*`, and arithmetic, a shift or an ordered
+comparison on one is not something an analyser means -- every state in the tower
+and in the bundles uses its object params as trampoline arguments and nothing
+else. The refusal names the parameter and the declaration that makes the compile
+an integer function. `=`, `not`, `and` and `or` stay legal on an object param:
+testing a pointer for equality or for truth is meaningful, and `(= buffer ())`
+asks a real question. A comparison in an `if` test is checked separately,
+because `if` folds one into its branch and it does not reach the call emitter.
+
+**The byte cache key names the compiler.** It named the machine and the engine
+release, so an entry outlived a change to the emitter: a hit never reaches a
+compiler, and a compile whose acceptance or output has changed was served the
+bytes an earlier version produced. #597 made this argument for the engine half
+of the key, after #590's cc cache served ABI-stale objects that misread `2.5` as
+`2` and the symbol `.5`. The key now carries `x-lib-version`, which covers a
+consumer, and a codegen epoch that covers development: bumping it is part of
+changing what the emitter accepts, refuses or emits, the rule the record
+format's magic already states. One boot per machine per version pays for it --
+a xenon boot costs 7.8s against a cold cache and 1.7s against a warm one.
+
+Every `compile-asm` call in the repository now declares its calling world, and
+the bodies with no free variable pass an empty fvar table instead of an unused
+one.
+
+**The session has a line editor, and `rlwrap` is no longer the answer.**
+`sh x.sh` with a terminal now gives arrow keys, the readline chords, history
+that outlives the process, Tab completion over every documented name, and
+colour applied to what you type as you type it. The documentation has told
+people to wrap the session in `rlwrap` since the REPL existed; that advice is
+gone from the README and the tutorial, replaced by [docs/repl.md](docs/repl.md).
+It is four modules and only one of them touches a descriptor -- `x/repl/edit`
+is the buffer, the cursor and the history walk with no terminal in it,
+`x/repl/term` is raw mode and byte-to-key decoding, `x/repl/paint` colours a
+half-typed line, `x/repl/line` is the loop that joins them. The split is what
+makes it testable: `Edit` is pure and `Term key` takes a byte-reading function
+rather than a descriptor, so 45 cases run in the ordinary spec harness with no
+pty anywhere. Installing it is the seam the langs already use -- `repl` is a
+plain global and x-python and x-ash both replace it -- so `x/repl/line`
+replaces it too, only when there is a terminal to drive, and a pipe, `-f`,
+`-c` or a spec harness reaches the C reader's loop unchanged and never loads
+any of this.
+
+The reader's type alist reaches this from ordinary code. It is a C-built
+spine, so `pair?` answers `#f` and `from-seq` treats it as a non-list; the
+catalog carries it as `type/alist`, and `(Base cell 'type-alist)` addresses
+the same structure. Such spines are walked with the bare `first`/`rest`
+accessors, the rule `docs/sandboxing-tutorial.md` states for handler spines;
+`type/struct.x`, `(Base cell)` and `(List from-seq)` point at it.
+
+**The wrapper checks that a pinned amalgam is the file the lock pinned.** The
+boot-time pairing guards compare recorded strings — a row in the lock against a
+stamp beside the installed library — and each of them describes the amalgam the
+lock names rather than the bytes on disk. An amalgam replaced after the lock was
+written satisfies all of them and still reaches the engine as another release's
+boot, where a base layout that has moved is a SIGSEGV in the first form that
+walks a base cell. The lock's three-element `(boot "he.x" "sha256:…")` row is
+the claim, and the wrapper now reads it: one digest of one amalgam, on a path
+that already parses those bytes, before the release reach rather than after it,
+since a reach hands the whole invocation to the release the lock names. The
+two-element row predates the digest and is skipped, and with no sha256 tool
+available the wrapper reports the identity as unchecked instead of passing in
+silence. `(Pin verify)` checks the same row on demand and in CI.
+
 **A lang can colour its own lines.** `%repl-paint` joins `%repl-prompt` and
 `%repl-print` as the REPL's third customisation point: a function from the
 line's text to the text to display for it, which the line editor calls in the

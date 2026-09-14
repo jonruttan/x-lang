@@ -162,3 +162,104 @@ reverse.
 ```
 ---
     "no"
+
+## refuses a non-iterator
+
+The driver prims dispatch on their argument's type handle.  A `nil` is
+typeless and gives them none to read, which ends the process, so no door may
+pass one on.  `(Iter new)` answers nil for a value whose type carries no iter
+slot, and `(List from-seq)` sends every non-pair through it, which puts
+`(List length 5)` and `(List length (%type-alist))` on that path -- the
+reader's type alist is a C-built spine, so `pair?` answers `#f` on it.  Such
+spines are walked with the bare `first`/`rest` accessors;
+`docs/sandboxing-tutorial.md` states the rule.  Each public door checks its
+iterator once on the way in and raises `type` instead.
+
+### new refuses an integer
+
+```x
+(Iter new 5)
+```
+---
+    Error: #<err:type Iter new: not iterable>
+
+### new refuses a fn
+
+```x
+(Iter new (fn (_) 1))
+```
+---
+    Error: #<err:type Iter new: not iterable>
+
+### new refuses the reader's type alist
+
+```x
+(Iter new (%type-alist))
+```
+---
+    Error: #<err:type Iter new: not iterable>
+
+### the bare accessors still walk the type alist
+
+```x
+(def go (fn (self al n) (if (null? al) n (self (rest al) (+ n 1)))))
+(> (go (%type-alist) 0) 0)
+```
+---
+    #t
+
+### ->list refuses nil
+
+```x
+(Iter ->list ())
+```
+---
+    Error: #<err:type Iter ->list: not an iterator>
+
+### next refuses nil
+
+```x
+(Iter next ())
+```
+---
+    Error: #<err:type Iter next: not an iterator>
+
+### step refuses nil
+
+```x
+(Iter step ())
+```
+---
+    Error: #<err:type Iter step: not an iterator>
+
+### empty? refuses nil
+
+```x
+(Iter empty? ())
+```
+---
+    Error: #<err:type Iter empty?: not an iterator>
+
+### fold refuses nil
+
+```x
+(Iter fold + 0 ())
+```
+---
+    Error: #<err:type Iter fold: not an iterator>
+
+### for-each refuses nil
+
+```x
+(Iter for-each (fn (_ x) x) ())
+```
+---
+    Error: #<err:type Iter for-each: not an iterator>
+
+### an empty sequence is still an iterator, not nil
+
+```x
+(list (Iter empty? (Iter new ())) (Iter empty? (Iter new (Vector of))))
+```
+---
+    (#t #t)

@@ -296,6 +296,18 @@ What the loop must know:
   rather than at its history.  Replacing the loop means replacing the sweep —
   unless your lang owns a tokenizer base, in which case you cannot have it
   (see §6), and a long session will grow.  Know which case you are in.
+- **The line editor reads your lines; its colouring and its completion do
+  not know your syntax.**  A lang that has not replaced `repl` inherits the
+  editor, and one that has can call `(Line read prompt)` for a single edited
+  line back as a string.  Either way the buffer, the cursor, the history and
+  the raw-mode bracketing carry no grammar.  Two things do: set `%repl-paint`
+  to a function from the line's text to the text to display for it, and
+  `(Line completer f)` to a function from the `Edit` buffer to
+  `(typed . names)`.  Both take `()` for none — but note that a nil
+  `%repl-paint` means no painter installed rather than no colour, which
+  `--no-color`, `NO_COLOR` and `TERM=dumb` already answer.  Tab's default
+  prefix-searches the doc registry, so a lang that parses its own syntax
+  completes x-lang's names until it installs its own.
 - **The banner should identify the whole stack.**  `%param-release` (engine)
   and `%platform-release` (x-lang) arrive as boot data; printing them plus
   the resolved root makes every which-install-am-I-running mystery
@@ -321,10 +333,23 @@ contesting type — and the platform can compile them:
   evaluated and unboxed, result boxed) versus analysers (called from C with
   live stack values — nothing evaluated, objects stay pointers, result
   returned unboxed).  It picks by the fvar table, so a compiled-with-fvars
-  function is **for the tokenizer, not for you**: direct-calling it crashes
-  by contract.  `compile-asm`'s optional **third** argument overrides that
-  guess — pass `#f` for an integer function that carries fvars for some
-  other reason, which is what calling a named callee needs.
+  function is **for the tokenizer, not for you**: direct-calling it is outside
+  the contract.  `compile-asm`'s optional **third** argument settles it —
+  pass `#f` for an integer function that carries fvars for some other reason,
+  which is what calling a named callee needs, and `#t` for an analyser.
+  Declare it: the guess cannot be made exact, because an fvar also names a
+  callee the body calls, so both worlds are `(fn (self a b c) …)` over one
+  vocabulary with nothing in the expression to separate them.
+- **A body compiled for the wrong world refuses rather than answering.**  In
+  analyser mode the leading one or two params are objects, and arithmetic, a
+  shift or an ordered comparison on one of those is not something an analyser
+  means, so it refuses at generation, names the parameter, and names the
+  declaration that makes the compile an integer function.  Without that, an
+  integer function read as an analyser compiled and then handed back one of
+  its own arguments.  `=`, `not`, `and` and `or` stay allowed on an object
+  param — testing a pointer for equality or for truth is meaningful, and
+  `(= buffer ())` asks a real question.  See
+  `tests/x/specs/ext/jit-fvar-mode.spec.md`.
 - **A compiled function can call something other than itself.**  A name
   bound to an fvar that holds a prim compiles to a call to that prim, and
   `(%call HEAD arg ...)` calls a prim the code *computes* — a callback

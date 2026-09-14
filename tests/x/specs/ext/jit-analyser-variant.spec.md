@@ -31,7 +31,7 @@ accepting states differ only in the variant they declare.
         (if (and (>= chr 48) (<= chr 57))
           me
           (%seq (%buffer-unread buffer) (%seq (%score-variant! score 2) (%score-set score 1 buffer)))))
-      (list (pair 'u 1))))
+      () #t))
   (def %body
     (compile-asm
       '(fn (me buffer score chr)
@@ -40,12 +40,12 @@ accepting states differ only in the variant they declare.
           (if (= chr 46)
             frac
             (%seq (%buffer-unread buffer) (%seq (%score-variant! score 1) (%score-set score 1 buffer))))))
-      (list (pair 'frac %frac))))
+      (list (pair 'frac %frac)) #t))
   (def %start
     (compile-asm
       '(fn (_ buffer score chr)
         (if (and (>= chr 48) (<= chr 57)) body ()))
-      (list (pair 'body %body))))
+      (list (pair 'body %body)) #t))
   (Base make-type %b "V-NUM"
     (list (pair 'analyse %start)
       (pair 'read (fn (_ . args) (list (%buf-tok (first args)) (%read-variant args))))))
@@ -75,12 +75,12 @@ second argument is nil, as it was before the channel existed.
         (if (and (>= chr 97) (<= chr 122))
           me
           (%seq (%buffer-unread buffer) (%score-set score 1 buffer))))
-      (list (pair 'u 1))))
+      () #t))
   (def %start
     (compile-asm
       '(fn (_ buffer score chr)
         (if (and (>= chr 97) (<= chr 122)) body ()))
-      (list (pair 'body %body))))
+      (list (pair 'body %body)) #t))
   (Base make-type %b "V-NAME"
     (list (pair 'analyse %start)
       (pair 'read (fn (_ . args) (list (%buf-tok (first args)) (%read-variant args))))))

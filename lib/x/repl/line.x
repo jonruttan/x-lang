@@ -260,6 +260,15 @@
             (if (not (null? qnames)) (pair qual qnames)
               (pair word (%ln-completions word)))))))))
 
+; The candidate source, as a value, the way %repl-paint holds the painter.
+; %ln-candidates prefix-searches the doc registry, which holds what x-lang
+; modules document; a lang that parses its own syntax has none of its names
+; in there, so Tab at its prompt offers x-lang's.  A lang sets this to its
+; own (ed -> (typed . names)), or to nil for a Tab that does nothing.  What
+; is left below -- fill the unique answer, extend to the common prefix, list
+; on the second Tab -- is the same job whatever the syntax is.
+(def %ln-completer %ln-candidates)
+
 ; The longest prefix every candidate shares -- what Tab fills in when the
 ; answer is not yet unique, the way a shell does it.
 (def %ln-common-prefix
@@ -282,27 +291,30 @@
 
 (def %ln-complete!
   (fn (_ fd ed)
-    (let ((c (%ln-candidates ed)))
-      (let ((typed (first c)) (names (rest c)))
-        (match
-          ((null? names) ())
-          ; One answer: finish the word.
-          ((null? (rest names)) (ed insert! (%ln-tail (first names) typed)))
-          (#t
-            ; Several: extend as far as they agree, and if that added
-            ; nothing, show them -- the shell's bargain, and the reason a
-            ; second Tab is what lists rather than the first.
-            (let ((common (%ln-common-prefix names)))
-              (if (> (%ln-blen common) (%ln-blen typed))
-                (ed insert! (%ln-tail common typed))
-                (do
-                  (Term emit fd "\r\n")
-                  (List for-each
-                        (fn (_ n) (Term emit fd (%ln-append "  " (%ln-append n "\r\n"))))
-                        (List take 40 names))
-                  (when (> (List length names) 40)
-                    (Term emit fd (%ln-append "  ... "
-                      (%ln-append (Str8 str (- (List length names) 40)) " more\r\n")))))))))))))
+    ; With no completer installed there is nothing to destructure, and
+    ; first/rest are unchecked prims, so the test comes before the walk.
+    (when %ln-completer
+      (let ((c (%ln-completer ed)))
+        (let ((typed (first c)) (names (rest c)))
+          (match
+            ((null? names) ())
+            ; One answer: finish the word.
+            ((null? (rest names)) (ed insert! (%ln-tail (first names) typed)))
+            (#t
+              ; Several: extend as far as they agree, and if that added
+              ; nothing, show them -- the shell's bargain, and the reason a
+              ; second Tab is what lists rather than the first.
+              (let ((common (%ln-common-prefix names)))
+                (if (> (%ln-blen common) (%ln-blen typed))
+                  (ed insert! (%ln-tail common typed))
+                  (do
+                    (Term emit fd "\r\n")
+                    (List for-each
+                          (fn (_ n) (Term emit fd (%ln-append "  " (%ln-append n "\r\n"))))
+                          (List take 40 names))
+                    (when (> (List length names) 40)
+                      (Term emit fd (%ln-append "  ... "
+                        (%ln-append (Str8 str (- (List length names) 40)) " more\r\n"))))))))))))))
 
 ; --- the key loop -------------------------------------------------------------
 ;
@@ -376,6 +388,13 @@
         (returns INT "The descriptor in force"))
       (unless (null? fd) (set! %ln-fd (first fd)))
       %ln-fd)
+
+    (method completer (self . (param f CALLABLE "The completer to install; () turns Tab off. Omit to read the one in force"))
+      (doc "The function Tab asks for candidates, and installs one when given it. It is handed the Edit buffer and answers (typed . names) -- the text being completed, and every name it could become."
+        (returns ANY "The completer in force, or nil when Tab does nothing")
+        (note "The default prefix-searches the doc registry, which holds what x-lang modules document. A lang that parses its own syntax has none of its names there, so it installs its own here, the way it sets %repl-paint for the colour. Filling a unique answer, extending to the common prefix and listing on the second Tab stay whichever completer is installed."))
+      (unless (null? f) (set! %ln-completer (first f)))
+      %ln-completer)
 
     (method buffer (self)
       (doc "The session's Edit buffer -- one for the process, so history carries from line to line. Made on first use, with the history file loaded into it."
@@ -556,4 +575,5 @@
   (note "Built on repl/edit.x (the buffer), repl/term.x (the tty) and repl/paint.x (the colour); each is usable on its own.")
   (note "History is appended per line to $XDG_STATE_HOME/x/history, so a session that crashes still keeps what it typed. X_HISTORY overrides the path; an empty X_HISTORY disables it.")
   (note "Tab completes against the documentation registry -- the same names apropos searches -- so a module that documents an export completes as soon as it loads.")
+  (note "A lang that reads its own syntax has no names in that registry: it sets (Line completer) to its own, or () to turn Tab off, as it sets %repl-paint for the colour.")
   "Line: one edited, coloured line read from the terminal; the built-in replacement for rlwrap.")
