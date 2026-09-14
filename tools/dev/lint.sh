@@ -103,9 +103,15 @@ _preload_siblings() {
   # it from an ENTRY (apps/bitwise/run.x), whose top level RUNS and which
   # must never be preloaded: that would execute an app to lint its
   # library, into the stream the group driver is parsing.
+  # An assembler includes its SIBLING .x files -- `(include-once "./text.x")`
+  # in cu/base.x, `./pp.x` in cc/base.x.  Asking only whether a file contains
+  # include-once at all catches modules that include something else entirely:
+  # r5rs/base.x includes ./scm/*.scm, and r7rs/base.x includes ./x/*.x from a
+  # subdirectory.  Neither assembles the directory it sits in, and both carry
+  # a provide, so both were being pulled in whole instead of imported.
   _ASM=""
   for _m in "$_MOD_DIR"/*.x; do
-    grep -q '(include-once "' "$_m" || continue
+    grep -qE '\(include-once "\./[^/"]*\.x"' "$_m" || continue
     grep -q '(provide ' "$_m" || continue
     _ASM="$_ASM $_m"
   done
@@ -401,9 +407,15 @@ for f in "$@"; do
   else
     FAIL=1
     printf '  \033[1;31mF\033[0m %s\n' "$_NAME"
+    # The linter signals a failing file by raising, and that raise renders as
+    # the bare line below -- its own protocol, saying nothing a reader needs.
+    # Every OTHER error is the engine dying, and is the only account of why:
+    # dropping all of them left a bare `F` with nothing under it, which is
+    # less than the group path prints for the same death.  Matched whole, so
+    # `*** ERROR: Unbound SYMBOL ...` and its kind still reach the reader.
     printf '%s\n' "$_OUT" | while IFS= read -r line; do
       case "$line" in
-        "*** ERROR"*) ;;
+        "*** ERROR: error") ;;
         *) printf '    %s\n' "$line" ;;
       esac
     done
