@@ -5,18 +5,18 @@
 ; bytes that arrive there into keys.  repl/edit.x holds the buffer those keys
 ; act on and never touches a descriptor; this file never touches a buffer.
 ;
-; RAW MODE IS BORROWED, NOT TAKEN.  The terminal belongs to the user's shell
+; Raw mode is borrowed, not taken.  The terminal belongs to the user's shell
 ; and has to go back the way it came -- a session that dies with ISIG and
 ; ECHO still off leaves a shell where ctrl-c does nothing and nothing types
 ; back, which is the classic way a line editor ruins an afternoon.  So the
 ; borrow is scoped as narrowly as it can be: repl/line.x enters raw mode to
-; read ONE line and leaves before the form is evaluated, which also means
+; read one line and leaves before the form is evaluated, which also means
 ; that evaluated code -- anything that prints, reads, or spawns a child --
 ; runs in the cooked terminal it expects, and that ctrl-c during a long
 ; evaluation is still a signal handled by the boot's SIGINT handler rather
 ; than a byte nobody is reading.
 ;
-; THE ESCAPE-SEQUENCE TIMING PROBLEM, stated rather than solved.  A bare
+; The escape-sequence timing problem, stated rather than solved.  A bare
 ; Escape and the start of an arrow key are the same byte, and telling them
 ; apart means waiting to see whether more bytes follow.  This file does what
 ; linenoise does and blocks for the rest of the sequence, because the
@@ -33,7 +33,7 @@
 
 (def-class Term ()
   (doc "The terminal a REPL line is read on: raw mode, window size, and byte-to-key decoding. Every method takes the descriptor explicitly -- this class holds no ambient tty."
-    (note "raw! returns a saved-state token to hand back to restore!; the pair is meant to bracket ONE line read, so evaluated code runs in a cooked terminal.")
+    (note "raw! returns a saved-state token to hand back to restore!; the pair is meant to bracket one line read, so evaluated code runs in a cooked terminal.")
     (note "key decodes one keystroke from a byte-reading function, so it is testable against a canned byte source with no terminal present.")
     (see raw!) (see restore!) (see key) (see window))
 
@@ -46,14 +46,14 @@
     (c-tcset   ()  "tcsetattr")
     (c-cfraw   ()  "cfmakeraw")
 
-    ; TCSADRAIN: apply the change once pending output has drained, and KEEP
+    ; TCSADRAIN: apply the change once pending output has drained, and keep
     ; input that has arrived but not been read.  1 on both Linux and Darwin.
     ;
-    ; NOT TCSAFLUSH, which is the other obvious choice and discards that
+    ; Not TCSAFLUSH, which is the other obvious choice and discards that
     ; input.  Between two lines the terminal is cooked -- that is the whole
     ; point of borrowing it per line -- so anything typed while a form is
     ; being evaluated is sitting unread when the next raw! runs.  Flushing
-    ; there silently eats type-ahead, which anyone who types faster than the
+    ; there discards type-ahead, which anyone who types faster than the
     ; evaluator will notice immediately and be unable to explain.  Draining
     ; keeps it, and the keys arrive in the next line as though nothing had
     ; happened.
@@ -86,7 +86,7 @@
     ; --- raw mode -----------------------------------------------------------
 
     (method tty? (self (param fd INT "Descriptor to test"))
-      (doc "Whether fd is a terminal AND this build can drive one -- the two questions a caller actually has, answered together, so nothing has to test for a nil libc symbol."
+      (doc "Whether fd is a terminal and this build can drive one -- the two questions a caller actually has, answered together, so nothing has to test for a nil libc symbol."
         (returns BOOL "True when fd is a tty and termios resolved"))
       (and (Sys isatty fd)
            (and (not (null? (Term c-tcget))) (not (null? (Term c-cfraw))))))
@@ -128,8 +128,7 @@
 
     ; --- geometry -----------------------------------------------------------
     ; Named `window`, not `size`: `size` is a retired spelling in this tree
-    ; (make check-doc-vocab holds the line), and it would have been the wrong
-    ; word anyway -- what comes back is two dimensions, not a count.
+    ; (check-doc-vocab holds the line), and two dimensions are not a count.
 
     (method window (self (param fd INT "Descriptor to measure"))
       (doc "The terminal window's (columns . rows), from TIOCGWINSZ. Falls back to COLUMNS/LINES in the environment and then to 80x24, because a width is needed on every redraw and a wrong one is better than a failed one."
@@ -309,7 +308,7 @@
 
   )
 
-; The libc handles and the OS's ioctl number are facts of THIS process, so
+; The libc handles and the OS's ioctl number are facts of this process, so
 ; they are resolved at load and again after a state image is loaded into a
 ; different one -- the same rule repl/ansi.x follows for whether there is a
 ; terminal at all.

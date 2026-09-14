@@ -8,7 +8,7 @@
 ; the two things a session needs around that loop, a history file and
 ; completion.
 ;
-; THE TERMINAL IS BORROWED PER LINE.  raw! and restore! bracket the read and
+; The terminal is borrowed per line.  raw! and restore! bracket the read and
 ; nothing else, so the form that was typed is evaluated in the cooked
 ; terminal every other part of the system expects: output still gets its
 ; newlines translated, a child process inherits a sane tty, and ctrl-c
@@ -16,12 +16,12 @@
 ; than a byte nobody is reading.  The cost is two tcsetattr calls per line,
 ; which is nothing next to being the reason someone's shell came back broken.
 ;
-; REDRAWING IS A WINDOW, NOT A WRAP.  A line longer than the terminal scrolls
+; Redrawing is a window, not a wrap.  A line longer than the terminal scrolls
 ; sideways inside its row rather than wrapping onto more rows.  That is the
 ; smaller and far more robust of the two designs -- no cursor arithmetic
 ; across rows, nothing to get wrong when the terminal is resized mid-line --
 ; and it has a second benefit that matters more than it looks: only the
-; VISIBLE bytes are painted, so the cost of a redraw is bounded by the width
+; visible bytes are painted, so the cost of a redraw is bounded by the width
 ; of the terminal instead of the length of the line.
 ;
 ; Percent-globals: the redraw and key dispatch run per keystroke, so they are
@@ -50,18 +50,6 @@
 ; below asks about fd 3 as well: at LOAD time the terminal is still there.
 (def %ln-fd 0)
 (def %ln-history-loaded ())
-
-; The colouring carries a grammar and the editing does not.  Paint decides an
-; atom's colour by asking the reader, which travels; the scan under it splits
-; the line on `(`, `)`, `;` and `"`, which are x's lexemes and not every
-; lang's.  The buffer, the cursor, the history and the redraw carry none.  So
-; a lang's loop calls (Line read) for the editing and installs its own painter
-; here, or nil, which writes the author's bytes unchanged.
-;
-; Held as a value rather than reached through the class: the redraw runs per
-; keystroke and a class door costs 0.3-1.0ms.  doc.x's %highlight-code has the
-; same shape.
-(def %ln-painter (method-ref Paint line))
 
 ; --- escape sequences, named once ------------------------------------------
 (def %ln-kill-right "\x1b[K")     ; erase from the cursor to end of line
@@ -96,9 +84,16 @@
                   (if (<= c 0) j (if (>= j n) n (self (Edit next-start s j) (- c 1)))))))
         (go i k)))))
 
+; Guarded: a painter that raises must not lose the keystroke.  The line is
+; drawn unpainted for that redraw instead.
+(def %ln-paint
+  (fn (_ window)
+    (if (null? %repl-paint) window
+      (guard (_ window) (%repl-paint window)))))
+
 ; --- the redraw -------------------------------------------------------------
 ;
-; ONE WRITE.  The whole frame -- return, erase, prompt, painted window,
+; One write.  The whole frame -- return, erase, prompt, painted window,
 ; return, cursor right -- is built as a single string and handed to the
 ; descriptor once.  Writing it in pieces lets the terminal render a
 ; half-drawn line, which is visible as a flicker on every keystroke.
@@ -118,14 +113,17 @@
                 (%ln-append "\r"
                   (%ln-append %ln-kill-right
                     (%ln-append prompt
-                      (%ln-append (if (null? %ln-painter) window (%ln-painter window))
+                      ; The painter belongs to the session, not to this file.
+                      ; A lang that reads its own syntax sets %repl-paint to a
+                      ; painter that knows it; nil means no colouring.
+                      (%ln-append (%ln-paint window)
                         (%ln-append "\r"
                           (if (= col 0) ""
                             (%ln-append "\x1b[" (%ln-append (Str8 str col) "C"))))))))))))))))
 
 ; --- history on disk --------------------------------------------------------
 ;
-; A REPL history outlives the process or it is not a history.  The path
+; A REPL history outlives the process, or it is not a history.  The path
 ; follows the XDG state convention -- state, not cache: a cache is something
 ; a tool may delete, and this is the user's own typing.  X_HISTORY overrides
 ; it outright, and an empty X_HISTORY turns persistence off, which is what a
@@ -241,7 +239,7 @@
         (if (if (<= b 32) #t (if (= b 40) #t (if (= b 41) #t (= b 59)))) i
           (self s (+ i 1) n))))))
 
-; WHAT IS ALREADY TYPED, and what the registry calls the thing being typed,
+; What is already typed, and what the registry calls the thing being typed,
 ; are not the same string in this language, and that is the whole reason this
 ; function exists.  Methods dispatch subject-last -- `(Str8 split "," s)` --
 ; so at `(Str8 sta` the three letters under the cursor are the tail of
@@ -262,12 +260,13 @@
             (if (not (null? qnames)) (pair qual qnames)
               (pair word (%ln-completions word)))))))))
 
-; Tab's other half, and x-specific for the reason the painter is:
-; %ln-candidates walks parens and quotes to find the head of the open form,
-; and qualifies `Str8 sta` against the doc registry by x's naming.  What is
-; left below -- fill the unique answer, extend to the common prefix, list on
-; the second Tab -- carries no grammar.  A lang installs its own
-; (ed -> (typed . names)) here, or nil for a Tab that does nothing.
+; The candidate source, as a value, the way %repl-paint holds the painter.
+; %ln-candidates prefix-searches the doc registry, which holds what x-lang
+; modules document; a lang that parses its own syntax has none of its names
+; in there, so Tab at its prompt offers x-lang's.  A lang sets this to its
+; own (ed -> (typed . names)), or to nil for a Tab that does nothing.  What
+; is left below -- fill the unique answer, extend to the common prefix, list
+; on the second Tab -- is the same job whatever the syntax is.
 (def %ln-completer %ln-candidates)
 
 ; The longest prefix every candidate shares -- what Tab fills in when the
@@ -390,18 +389,10 @@
       (unless (null? fd) (set! %ln-fd (first fd)))
       %ln-fd)
 
-    (method painter (self . (param f CALLABLE "The painter to install; () turns colouring off. Omit to read the one in force"))
-      (doc "The function that colours the line as it is typed, and installs one when given it. It is handed the visible bytes and answers the bytes to write, colour included; it must return the author's own bytes unchanged apart from escapes, because the cursor column is measured against them."
-        (returns ANY "The painter in force, or nil when colouring is off")
-        (note "The default paints x-lang. The colouring is the part of this editor that carries a grammar: Paint asks the reader what an atom is, which travels, but the scan under it splits on x's own `(`, `)`, `;` and `\"`. A lang driving (Line read) installs its own painter here, or () for editing with no colour; the buffer, the cursor, the history and the redraw carry no grammar.")
-        (sample "(Line painter ())" "colouring off; the line is written as typed"))
-      (unless (null? f) (set! %ln-painter (first f)))
-      %ln-painter)
-
     (method completer (self . (param f CALLABLE "The completer to install; () turns Tab off. Omit to read the one in force"))
       (doc "The function Tab asks for candidates, and installs one when given it. It is handed the Edit buffer and answers (typed . names) -- the text being completed, and every name it could become."
         (returns ANY "The completer in force, or nil when Tab does nothing")
-        (note "The default walks x's parens and quotes to find the open form's head, then prefix-searches the doc registry. Filling a unique answer, extending to the common prefix and listing on the second Tab are this file's and stay whichever completer is installed."))
+        (note "The default prefix-searches the doc registry, which holds what x-lang modules document. A lang that parses its own syntax has none of its names there, so it installs its own here, the way it sets %repl-paint for the colour. Filling a unique answer, extending to the common prefix and listing on the second Tab stay whichever completer is installed."))
       (unless (null? f) (set! %ln-completer (first f)))
       %ln-completer)
 
@@ -456,7 +447,7 @@
 ; loop.x keeps its own path untouched for every case where there is no
 ; terminal to edit on.
 ;
-; A TURN IS A FORM, BUT A READ IS A LINE, and those are not the same thing.
+; A turn is a form, but a read is a line, and those are not the same thing.
 ; The C reader knows when a form is finished because it is the thing doing
 ; the reading; here the line arrives whole and has to be offered to the
 ; reader to find out.  "Unterminated input" is the reader saying `keep
@@ -468,7 +459,7 @@
 ; Everything the reader said it could not finish, and nothing else: any other
 ; raise is a real syntax error and belongs on stderr.
 ;
-; TWO SHAPES, because the reader's raise has two.  With x/type/err loaded it
+; Two shapes, because the reader's raise has two.  With x/type/err loaded it
 ; arrives as an engine ERR whose code carries the text; without it, as the
 ; bare string it has always been.  Reading the CODE rather than rendering the
 ; error and matching that is what keeps this working when an Err grows a
@@ -518,8 +509,8 @@
                   (%stderr "\n"))))
             (%ln-eval-line line)))))))
 
-; The whole loop, replacing repl/loop.x's.  REPLACING `repl` IS THE SEAM
-; THIS TREE ALREADY USES: x-python and x-ash both install a reader of their
+; The whole loop, replacing repl/loop.x's.  Replacing `repl` is the seam
+; this tree already uses: x-python and x-ash both install a reader of their
 ; own that way, for the same reason this needs to -- the platform loop
 ; customises the PROMPT and the PRINTER, and reading a form with a line
 ; editor is neither of those.  What is kept from the original is everything
@@ -534,7 +525,7 @@
     ; because the descriptor it reads is the one this installs.
     (when (Sys isatty 3)
       (do (Sys dup2 3 0) (Sys close 3)))
-    ; STEPPING ASIDE RATHER THAN EXITING.  Installation decided there was a
+    ; Stepping aside rather than exiting.  Installation decided there was a
     ; terminal, but that was before the swap above and it can still turn out
     ; to be wrong -- fd 3 was a tty and fd 0 is not, the tty went away, a
     ; build's termios calls resolved but tcgetattr refuses this descriptor.
@@ -561,7 +552,7 @@
 ; loads the terminal is still parked on fd 3 and fd 0 is the boot pipe -- the
 ; swap %ln-repl does has not happened yet.
 ;
-; AND `repl` IS ONLY OURS TO MOVE WHEN NOBODY ELSE HAS MOVED IT.  A lang
+; `repl` is only ours to move when nobody else has moved it.  A lang
 ; replaces repl to read its own syntax -- x-python and x-ash both do -- and a
 ; bundle's entry runs BEFORE the launcher that imports this file, so the
 ; obvious unconditional set! would take the lang's reader away and read Lisp
@@ -584,5 +575,5 @@
   (note "Built on repl/edit.x (the buffer), repl/term.x (the tty) and repl/paint.x (the colour); each is usable on its own.")
   (note "History is appended per line to $XDG_STATE_HOME/x/history, so a session that crashes still keeps what it typed. X_HISTORY overrides the path; an empty X_HISTORY disables it.")
   (note "Tab completes against the documentation registry -- the same names apropos searches -- so a module that documents an export completes as soon as it loads.")
-  (note "The editing carries no grammar and the colouring does: a lang whose loop calls (Line read) installs its own (Line painter) and (Line completer), or () for either, and keeps the buffer, the history and the redraw as they are.")
+  (note "A lang that reads its own syntax has no names in that registry: it sets (Line completer) to its own, or () to turn Tab off, as it sets %repl-paint for the colour.")
   "Line: one edited, coloured line read from the terminal; the built-in replacement for rlwrap.")

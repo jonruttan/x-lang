@@ -5,83 +5,60 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**A lang's REPL loop can drive the line editor.** The editor does not install
-over a lang's `repl` -- x-python and x-ash both replace it, and taking it back
-would read Lisp at their prompt -- so a lang's loop reaches the editor only by
-asking, and until now there was nothing to ask for. `(Line read prompt)` is
-that door, and two seams make it usable outside x: `(Line painter f)` and
-`(Line completer f)` install a lang's own, and `()` turns either off.
+**Tab's candidates are a seam a lang can fill.** `%repl-paint` answers the
+colour question for a lang's session; completion had no such answer.
+`%ln-candidates` prefix-searches the doc registry, which holds what x-lang
+modules document, so a lang that parses its own syntax has none of its names
+there and Tab at its prompt offers x-lang's. `(Line completer f)` installs a
+function from the `Edit` buffer to `(typed . names)`, and `()` turns Tab off.
+Filling a unique answer, extending to the common prefix and listing on the
+second Tab are the same job whatever the syntax is, and stay whichever
+completer is installed; `%ln-complete!` tests before it walks, since a nil
+completer has nothing to destructure and `first`/`rest` are unchecked prims.
+`line.x`'s `%`-global budget is 36, and `crafting-a-lang.md` §7 carries both
+seams for a lang author.
 
-The split follows what carries a grammar. The buffer, the cursor, the history
-and the redraw carry none; `Paint`'s scan splits on `(`, `)`, `;` and `"`, and
-Tab walks those same lexemes to find the head of the open form before it
-prefix-searches the doc registry. Both seams are held as values rather than
-reached through the class, on the hot-path grounds `line.x` and `paint.x`
-already state: the redraw runs on every keystroke and a class door costs
-0.3-1.0ms. `doc.x`'s `%highlight-code` has the same shape. `line.x`'s
-`%`-global budget is 36, and `crafting-a-lang.md` §7 carries the rule for a
-lang author.
+**The wrapper checks that a pinned amalgam is the file the lock pinned.** The
+boot-time pairing guards compare recorded strings — a row in the lock against a
+stamp beside the installed library — and each of them describes the amalgam the
+lock names rather than the bytes on disk. An amalgam replaced after the lock was
+written satisfies all of them and still reaches the engine as another release's
+boot, where a base layout that has moved is a SIGSEGV in the first form that
+walks a base cell. The lock's three-element `(boot "he.x" "sha256:…")` row is
+the claim, and the wrapper now reads it: one digest of one amalgam, on a path
+that already parses those bytes, before the release reach rather than after it,
+since a reach hands the whole invocation to the release the lock names. The
+two-element row predates the digest and is skipped, and with no sha256 tool
+available the wrapper reports the identity as unchecked instead of passing in
+silence. `(Pin verify)` checks the same row on demand and in CI.
 
-**The session has a line editor, and `rlwrap` is no longer the answer.**
-`sh x.sh` with a terminal now gives arrow keys, the readline chords, history
-that outlives the process, Tab completion over every documented name, and
-colour applied to what you type as you type it. The documentation has told
-people to wrap the session in `rlwrap` since the REPL existed; that advice is
-gone from the README and the tutorial, replaced by [docs/repl.md](docs/repl.md).
-It is four modules and only one of them touches a descriptor -- `x/repl/edit`
-is the buffer, the cursor and the history walk with no terminal in it,
-`x/repl/term` is raw mode and byte-to-key decoding, `x/repl/paint` colours a
-half-typed line, `x/repl/line` is the loop that joins them. The split is what
-makes it testable: `Edit` is pure and `Term key` takes a byte-reading function
-rather than a descriptor, so 45 cases run in the ordinary spec harness with no
-pty anywhere. Installing it is the seam the langs already use -- `repl` is a
-plain global and x-python and x-ash both replace it -- so `x/repl/line`
-replaces it too, only when there is a terminal to drive, and a pipe, `-f`,
-`-c` or a spec harness reaches the C reader's loop unchanged and never loads
-any of this.
+**A lang can colour its own lines.** `%repl-paint` joins `%repl-prompt` and
+`%repl-print` as the REPL's third customisation point: a function from the
+line's text to the text to display for it, which the line editor calls in the
+one place it paints.
 
-**The reader decides the colour.** An atom's class is settled by handing its
-bytes to the base and taking the type of the value that comes back, so the
-colour and the evaluator cannot disagree. The first draft had its own rules
-for what counts as a number and they were wrong the way hand-written rules
-are wrong: `3.14` needed a clause, then `1/2`, then `0xff`, and a lang adding
-a literal syntax would have needed another. Asking the reader costs one call
-per distinct atom, memoised, and a line being typed re-asks about almost
-nothing. What is still scanned in x-lang is only where tokens begin and end,
-because the base offers no way to get that: its reader is recursive -- `(tok
-read)` on `(def x 42)` consumes the whole form and answers with a list,
-leaving `(buf tok)` empty -- so it yields values and never spans, and the
-per-type analyser scoring that does know spans is internal to `x_token_read`
-with no primitive over it. A primitive exposing that scoring (span plus
-winning type) would move the last scanned piece onto the base as well.
+It is a hook because colouring is the part of an interactive session that
+depends on the language. Reading a key, moving a cursor and remembering a line
+are the same job whatever the syntax is, and repl/line.x already does them for
+every lang that has not replaced the loop; the sweet bundle inherits the editor
+without knowing it exists. Where the tokens begin and end is not the same job,
+and the langs differ on where that answer lives: x-logo registers LOGO-OPEN and
+LOGO-BLOCK as token types on the base, while x-python parses Python in x-lang
+and never touches the base tokenizer. One painter cannot serve both.
 
-**`x/tool/highlight` was measured before it was passed over.** It classifies
-the same grammar and is documented as rendering fragments no parser would
-accept, which is exactly the input an as-you-type painter gets, so it was the
-obvious thing to reuse: 30.6ms per render of a 70-byte line, against 2.2ms for
-a bare walk of the same bytes, because it builds HTML and scans keywords
-through class doors. A redraw runs on every keystroke, so that is visible lag
-on a line of ordinary length. The replacement started at 80ms and got to 19ms
-by obeying the rule `reader/analyser.x` and `type/buf.x` already state in
-their own headers -- the hot path does not dispatch. One class door measured
-0.3-1.0ms on this machine, which turned out to dwarf the byte scanning
-between the doors, so the palette, the memo accessors and the byte prims are
-all resolved out of the loop and the scan is `%`-private functions rather than
-class methods. A redraw that does not change the text -- cursor motion, a
-history entry already seen, holding an arrow key down -- reuses the last paint
-and costs 0.24ms.
+The install follows the rule repl/ansi.x states for the printer and repl/line.x
+for the loop: over nil, or over the painter x/repl/paint last installed itself,
+and over nothing else. A bundle's entry runs before the launcher that imports
+the editor, so an unconditional install would take a lang's painter away and
+colour its lines as x-lang. A lang's painter survives whether it is set before
+the editor loads or after, and across a state image reload.
 
-**Two terminal facts that cost a morning each.** `TIOCGWINSZ` through the FFI
-returned success and wrote nothing: `ioctl` is variadic, and on Apple arm64 a
-variadic argument is passed on the stack where a fixed one is passed in a
-register, so the `winsize` pointer went into `x2`, the kernel read the stack,
-and every terminal measured 80x24. It goes through the syscall door now, which
-has no variadic convention to get wrong; `ioctl` is added to the Darwin table
-at 54 (the Linux tables already carried it at 16). And `tcsetattr` uses
-`TCSADRAIN`, not the `TCSAFLUSH` a line editor usually reaches for: raw mode
-brackets one line so that the form is evaluated in a cooked terminal, which
-means anything typed while a form is evaluating is sitting unread when the
-next line starts, and flushing there silently eats type-ahead.
+Nil means no painter installed, not no colour. `--no-color`, `NO_COLOR` and
+`TERM=dumb` answer the colour question, and the platform painter honours all
+three by returning its argument untouched; setting this to nil to mean off does
+not work, because the next install reads nil as nobody having set one. A
+painter that raises is caught at the redraw and the line is drawn unpainted for
+that keystroke.
 
 **The digest engine is built for the input in hand, not for a running
 total.** `Sha256 hex` built the compiled engine once 64KB had been

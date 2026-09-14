@@ -1,45 +1,34 @@
 ; repl/paint.x -- Paint: colouring a line that is still being typed.
 ;
-; WHAT DECIDES A COLOUR HERE IS THE READER, not this file.  An atom's class
-; is settled by handing its bytes to the base and taking the type of the
-; value that comes back -- the same verdict the evaluator will reach on the
-; same bytes.  The first draft had its own rules for what counts as a number
-; and they were wrong in the ordinary way hand-written rules are wrong: 3.14
-; needed a clause, then 1/2, then 0xff, and a lang adding a literal syntax
-; would have needed another.  Asking the reader costs one call per DISTINCT
-; atom -- they are memoised, and a line being typed re-asks about almost
-; nothing -- and it cannot drift, because there is no second opinion to
-; drift from.
+; What decides a colour here is the reader, not this file.  An atom's class is
+; settled by handing its bytes to the base and taking the type of the value
+; that comes back, which is the verdict the evaluator reaches on the same
+; bytes.  There is no second set of rules here for what counts as a number, so
+; 3.14, 1/2, 0xff and a literal syntax a lang adds all classify without this
+; file knowing about them.  The cost is one call per distinct atom; answers are
+; memoised, and a line being typed asks about few new atoms.
 ;
-; WHAT IS STILL SCANNED HERE IS WHERE TOKENS BEGIN AND END, and that is not
-; a preference.  The base's reader is recursive: (tok read) on `(def x 42)`
-; consumes the whole form and answers with a list, leaving (buf tok) empty,
-; so it yields VALUES and never spans.  The per-type analyser scoring that
-; does know spans lives inside x_token_read and has no primitive.  A painter
-; must keep the author's own bytes, spacing included, or the cursor column
-; stops matching the buffer -- so it needs spans, and splits the line itself
-; into whitespace, parens, comments, strings and atoms.  That is a far
-; smaller surface than classification, and it is the piece an engine
-; primitive could take over later (see the provide note).
+; What is still scanned here is where tokens begin and end.  The base's reader
+; is recursive: (tok read) on `(def x 42)` consumes the whole form and answers
+; with a list, leaving (buf tok) empty, so it yields values and never spans.
+; The per-type analyser scoring that does know spans lives inside x_token_read
+; and has no primitive over it.  A painter must keep the author's own bytes,
+; spacing included, or the cursor column stops matching the buffer, so it needs
+; spans and splits the line itself into whitespace, parens, comments, strings
+; and atoms.  That is a smaller surface than classification, and it is the
+; piece an engine primitive could take over later (see the provide note).
 ;
-; THE HOT PATH DOES NOT DISPATCH, which is the rule this tree already states
-; in reader/analyser.x and type/buf.x: class doors allocate, and a redraw runs
-; on every keystroke.  It is not a small effect.  Measured on this machine, on
-; a 70-byte line: x/tool/highlight -- which classifies the same grammar and is
-; the obvious thing to have reused -- renders in 30.6ms, against 2.2ms for a
-; bare walk of the same bytes, because it builds HTML and scans keywords
-; through class doors.  A first draft here, written in ordinary style with the
-; palette read off the Ansi statics and the segments pushed through static
-; methods, managed 80ms; reaching through the class once per atom instead of
-; once per render still cost 27ms.  One class door is 0.3-1.0ms, which dwarfs
-; the byte scanning between them.  So the scan is %-private functions over
-; cached prims, the palette is built once rather than per render, and the memo
-; is reached through instance-bound method-refs: 19ms, and 0.24ms for a redraw
-; whose text has not changed.  The Paint class is the cold-call API over them,
-; the way Analyser is over its builders.
+; The hot path does not dispatch, the rule reader/analyser.x and type/buf.x
+; state: class doors allocate, and a redraw runs on every keystroke.  A class
+; door costs 0.3-1.0ms here, which dwarfs the byte scanning between them.  So
+; the scan is %-private functions over cached prims, the palette is built once
+; rather than per render, and the memo is reached through instance-bound
+; method-refs.  A 70-byte line renders in 19ms, and a redraw whose text has not
+; changed in 0.24ms.  The Paint class is the cold-call API over them, as
+; Analyser is over its builders.
 ;
-; THE PALETTE IS repl/ansi.x's, so NO_COLOR, TERM=dumb and --no-color reach
-; this for free -- and a colourless terminal short-circuits the whole walk.
+; The palette is repl/ansi.x's, so NO_COLOR, TERM=dumb and --no-color reach
+; this for free, and a colourless terminal short-circuits the whole walk.
 
 (import x/type/class)
 (import x/type/str)
@@ -131,7 +120,7 @@
           ((null? v)   (lit bool))
           (#t (%paint-name-class text)))))))
 
-; THE MEMO HOLDS BOTH ANSWERS.  An entry is (class . code): the class is what
+; The memo holds both answers.  An entry is (class . code): the class is what
 ; `classify` is asked for and what a spec can check without a terminal, the
 ; code is what the scan actually writes.  Keeping only the class meant the
 ; scan walked the palette list per atom to turn one into the other -- nine
@@ -181,7 +170,7 @@
 
 ; To the end of a run of bytes that carry no colour: parens and whitespace.
 ; Emitting one segment per byte instead cost a substring and two list cells
-; EACH -- 87 segments for a 70-byte line, and the join at the end walks all
+; each -- 87 segments for a 70-byte line, and the join at the end walks all
 ; of them.
 (def %paint-plain-end
   (fn (self s i n)
@@ -217,7 +206,7 @@
             (let ((e (%paint-to-eol s i n)))
               (self s e n (%paint-seg segs %paint-c-comment
                                       (%pt-bsub s i (%pt- e i))))))
-          ; a string, and the #"..." interpolating form: ONE colour, because
+          ; a string, and the #"..." interpolating form: one colour, because
           ; the holes are part of the literal and colouring them apart would
           ; suggest they escape it, which they do not
           ((= b 34)
@@ -242,7 +231,7 @@
 
 ; --- installation ----------------------------------------------------------
 ;
-; WHETHER THERE IS A TERMINAL IS A FACT OF THE PROCESS, and so is what the
+; Whether there is a terminal is a fact of the process, and so is what the
 ; colours are: repl/ansi.x recomputes its statics when a state image is
 ; loaded into a process that has a tty, and the palette baked here has to be
 ; rebuilt on the same beat.  The memo goes with it -- a lang that registers
@@ -326,8 +315,26 @@
         (returns NIL "Nothing; the caches are rebuilt"))
       (%paint-install!))))
 
+; --- the painter this file installs ------------------------------------------
+;
+; %repl-paint is the seam a lang sets to colour its own syntax, and this file
+; loads with the line editor, after a lang's entry has run.  Installing
+; unconditionally would take a lang's painter away and colour its lines as
+; x-lang.  repl/ansi.x guards the printer the same way and repl/line.x the
+; loop: install over nil, or over the painter this file last installed, and
+; over nothing else.
+(def %paint-own ())
+
+(def %paint-install-hook!
+  (fn (_)
+    (when (or (null? %repl-paint) (%pt-same? %repl-paint %paint-own))
+      (set! %repl-paint (fn (_ s) (Paint line s)))
+      (set! %paint-own %repl-paint))))
+
 (%paint-install!)
-(set! %image-recache-hooks (pair (fn (_) (%paint-install!)) %image-recache-hooks))
+(%paint-install-hook!)
+(set! %image-recache-hooks
+  (pair (fn (_) (do (%paint-install!) (%paint-install-hook!))) %image-recache-hooks))
 
 (doc (provide x/repl/paint Paint)
   (note "An atom's class comes from the base: the bytes are read and the value's type decides, so a colour cannot disagree with the evaluator.")

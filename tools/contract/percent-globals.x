@@ -215,21 +215,23 @@
 ; are all resolved out of the loop.  repl/line.x is the redraw and the key
 ; dispatch, per keystroke for the same reason, plus the completion and
 ; history helpers that hang off them.
-(file "lib/x/repl/paint.x" 33)
-; line.x is 36 for the two seams a lang needs: %ln-painter and %ln-completer
-; hold the grammar-bearing halves of the editor as values, so a lang's loop
-; can drive (Line read) with its own colouring and completion, or neither,
-; and keep the buffer, the cursor and the history, which carry no grammar.
-; Globals rather than class state on the hot-path grounds the rows here
-; stand on -- the redraw reads the painter on every keystroke; doc.x's
-; %highlight-code is the same shape.
+(file "lib/x/repl/paint.x" 35)
+; line.x is 36 for %ln-completer, which holds Tab's candidate source as a
+; value so a lang can install its own -- a global rather than class state on
+; the grounds the rows here stand on, since %ln-complete! reads it per Tab.
+; %repl-paint is the same seam for the colour, and lives in the REPL's own
+; globals because a bundle sets it before this file loads.
 (file "lib/x/repl/line.x" 36)
 (file "lib/x/repl/banner.x" 4)
 ; Grew by one for %repl-platform-repl: the identity anchor that lets two
 ; installers over `repl` -- a lang's reader and the line editor -- tell
 ; whose it currently is.  Not a hot-path helper; a one-word fact that has
 ; to live beside the definition it names.
-(file "lib/x/repl/loop.x" 13)
+; Grew by one for %repl-paint, the third REPL customisation point beside
+; %repl-prompt and %repl-print.  A hook, not a helper: colouring is the one
+; part of a session that is about the LANGUAGE, so it has to be a name a lang
+; can set, and it belongs beside the two it is a sibling of.
+(file "lib/x/repl/loop.x" 14)
 (file "lib/x/rn.x" 1)
 (file "lib/x/sys/date.x" 6)
 (file "lib/x/sys/file.x" 7)

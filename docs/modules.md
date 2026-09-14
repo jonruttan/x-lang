@@ -417,6 +417,35 @@ evaluated, a manifest can only do what pinning does: redirect import
 resolution into its own project's files, and select which verified
 boot to run.
 
+### The amalgam's identity
+
+The pairing checks below compare **recorded strings** — a row in the lock
+against a stamp beside the installed library — and each of them describes the
+amalgam the lock names, not the bytes on disk. The wrapper therefore digests the
+amalgam first and refuses one that is not the file the lock pinned:
+
+```
+(boot "he.x" "sha256:…")
+```
+
+A three-element `(boot …)` row is that claim. The two-element row predates it,
+states nothing about bytes, and is skipped like any other row a lock may not
+carry. `(Pin verify)` checks the same row on demand and in CI.
+
+An amalgam replaced after the lock was written satisfies every other guard —
+the lock still names its release, the install still is that release, the
+fingerprints agree — and reaches the engine as another release's boot, walking
+a base layout that has moved. That is a crash in field access rather than a
+diagnosable error, which is why it refuses rather than warns.
+
+The digest runs **before** the release reach, because a reach hands the whole
+invocation to the release the lock names, and that is not the release the file
+came from.
+
+A sha256 tool is not required to boot. With neither `sha256sum` nor `shasum` on
+`PATH` the wrapper reports that the amalgam's identity is unchecked, the same
+way a missing lock is reported.
+
 ### Two pairings, two subjects
 
 A pinned boot is checked against **two** releases, because there are two
