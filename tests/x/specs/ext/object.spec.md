@@ -1193,6 +1193,23 @@ member access, with no super/member injection. The cold alist mutates
 ---
     'second
 
+### a shadowed row is not a second method name
+
+The addition prepends, leaving the row it shadows behind it. Introspection
+reports the selector once -- the row a dispatch reaches.
+
+```x
+(do
+  (def-class P ())
+  (P def-method! (lit m) (fn (_ self) 'first))
+  (P def-method! (lit m) (fn (_ self) 'second))
+  (P def-static! (lit s) (fn (_ self) 'one))
+  (P def-static! (lit s) (fn (_ self) 'two))
+  (list (class-methods P) (class-static-methods P)))
+```
+---
+    (('m) ('s))
+
 ## the %missing hook
 
 `(method %missing (self sel args) ...)` fires on a total dispatch miss --

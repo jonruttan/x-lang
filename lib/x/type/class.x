@@ -490,14 +490,19 @@
         (do (%check-init-key (first store) fields class)
             (loop (rest (rest store)) fields class))))))
 
-; Names in `names` not already in `seen`, in order -- the subclass-additions
-; step of the constructor order below.
+; Names in `names` not already in `seen`, in order, each one once -- the
+; subclass-additions step of the constructor order below, and the name
+; listing the introspection accessors answer with.  A name emitted joins
+; `seen`, so a list that repeats one keeps its FIRST occurrence: for the
+; method alists that is the row a dispatch reaches, %class-add! prepending
+; the newest registration over the row it shadows.
 (def %names-minus
   (fn (loop names seen)
     (unless (null? names)
       (if (%memq? (first names) seen)
         (loop (rest names) seen)
-        (pair (first names) (loop (rest names) seen))))))
+        (pair (first names)
+              (loop (rest names) (pair (first names) seen)))))))
 
 ; Instance members in CONSTRUCTOR order: the root ancestor's members first,
 ; then each subclass's own additions; an override keeps its ancestor's slot
@@ -964,6 +969,15 @@
 
 (note "Introspection -- member/method names (own, not inherited), used by help")
 
+; The method accessors below strain their keys through %names-minus: a
+; selector defined again after the class was built is a SECOND ROW in the
+; cold alist, %class-add! prepending so the newest registration wins at
+; dispatch, and the class still has one method under that name.  Every
+; (Block method! ...) wrap goes that way, so without this every wrapped
+; selector was named twice -- and printed twice by (help x/type/list) and
+; its siblings.  The member accessors need nothing: their alists are
+; written through %box-put!, which replaces an entry in place.
+
 (doc (def class-members
   (fn (_ (param c CLASS "A class")) (%assoc-keys (%assoc-get (lit fields) (%class-data c)))))
   (returns LIST "This class's own instance-member names")
@@ -971,7 +985,8 @@
   "List a class's own instance member names (not inherited).")
 
 (doc (def class-methods
-  (fn (_ (param c CLASS "A class")) (%assoc-keys (%assoc-get (lit methods) (%class-data c)))))
+  (fn (_ (param c CLASS "A class"))
+    (%names-minus (%assoc-keys (%assoc-get (lit methods) (%class-data c))) ())))
   (returns LIST "This class's own instance-method names")
   (see class-members)
   "List a class's own instance method names (not inherited).")
@@ -983,7 +998,8 @@
   "List a class's own static (class-wide) member names (not inherited).")
 
 (doc (def class-static-methods
-  (fn (_ (param c CLASS "A class")) (%assoc-keys (%assoc-get (lit s-methods) (%class-data c)))))
+  (fn (_ (param c CLASS "A class"))
+    (%names-minus (%assoc-keys (%assoc-get (lit s-methods) (%class-data c))) ())))
   (returns LIST "This class's own static-method names")
   (see class-static-members)
   "List a class's own static method names (not inherited).")
