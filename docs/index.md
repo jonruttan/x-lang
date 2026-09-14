@@ -29,6 +29,7 @@
 
 ## Reference
 
+- [The interactive session](repl.md) — the built-in line editor: keys, history, completion, as-you-type colour, and how to replace the loop
 - [Primitives and core forms](primitives.md) — the engine's instruction set, the coordinates reached through `prim-ref`, and the operatives and procedures that boot on top (hand-written)
 - [Standard Library](standard-library.md) — Core library functions (hand-written)
 - [x-lang API Reference](https://jonruttan.github.io/x-lang/docs/ref/x/index.html) — complete library reference, auto-generated from the `(doc ...)` forms in `lib/x/**`

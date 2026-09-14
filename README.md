@@ -278,7 +278,10 @@ unless the program prints: use `(write x)` for the machine-readable form and
 `(display x)` for the human one.
 
 Inside a session, `(help)` shows the documentation index; `(quit)` or ctrl-d
-exits. For line editing and history, wrap the session in `rlwrap`.
+exits. The session has a built-in line editor: arrow keys, the readline
+chords, history that persists across sessions, Tab completion over every
+documented name, and colour applied as you type. Nothing to wrap it in and
+nothing to install — see [docs/repl.md](docs/repl.md).
 
 `(apropos "split")` searches every documented name, `(help Str8/split)`
 gives a signature with argument types and a runnable example, and

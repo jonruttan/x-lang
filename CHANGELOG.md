@@ -5,6 +5,67 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The session has a line editor, and `rlwrap` is no longer the answer.**
+`sh x.sh` with a terminal now gives arrow keys, the readline chords, history
+that outlives the process, Tab completion over every documented name, and
+colour applied to what you type as you type it. The documentation has told
+people to wrap the session in `rlwrap` since the REPL existed; that advice is
+gone from the README and the tutorial, replaced by [docs/repl.md](docs/repl.md).
+It is four modules and only one of them touches a descriptor -- `x/repl/edit`
+is the buffer, the cursor and the history walk with no terminal in it,
+`x/repl/term` is raw mode and byte-to-key decoding, `x/repl/paint` colours a
+half-typed line, `x/repl/line` is the loop that joins them. The split is what
+makes it testable: `Edit` is pure and `Term key` takes a byte-reading function
+rather than a descriptor, so 45 cases run in the ordinary spec harness with no
+pty anywhere. Installing it is the seam the langs already use -- `repl` is a
+plain global and x-python and x-ash both replace it -- so `x/repl/line`
+replaces it too, only when there is a terminal to drive, and a pipe, `-f`,
+`-c` or a spec harness reaches the C reader's loop unchanged and never loads
+any of this.
+
+**The reader decides the colour.** An atom's class is settled by handing its
+bytes to the base and taking the type of the value that comes back, so the
+colour and the evaluator cannot disagree. The first draft had its own rules
+for what counts as a number and they were wrong the way hand-written rules
+are wrong: `3.14` needed a clause, then `1/2`, then `0xff`, and a lang adding
+a literal syntax would have needed another. Asking the reader costs one call
+per distinct atom, memoised, and a line being typed re-asks about almost
+nothing. What is still scanned in x-lang is only where tokens begin and end,
+because the base offers no way to get that: its reader is recursive -- `(tok
+read)` on `(def x 42)` consumes the whole form and answers with a list,
+leaving `(buf tok)` empty -- so it yields values and never spans, and the
+per-type analyser scoring that does know spans is internal to `x_token_read`
+with no primitive over it. A primitive exposing that scoring (span plus
+winning type) would move the last scanned piece onto the base as well.
+
+**`x/tool/highlight` was measured before it was passed over.** It classifies
+the same grammar and is documented as rendering fragments no parser would
+accept, which is exactly the input an as-you-type painter gets, so it was the
+obvious thing to reuse: 30.6ms per render of a 70-byte line, against 2.2ms for
+a bare walk of the same bytes, because it builds HTML and scans keywords
+through class doors. A redraw runs on every keystroke, so that is visible lag
+on a line of ordinary length. The replacement started at 80ms and got to 19ms
+by obeying the rule `reader/analyser.x` and `type/buf.x` already state in
+their own headers -- the hot path does not dispatch. One class door measured
+0.3-1.0ms on this machine, which turned out to dwarf the byte scanning
+between the doors, so the palette, the memo accessors and the byte prims are
+all resolved out of the loop and the scan is `%`-private functions rather than
+class methods. A redraw that does not change the text -- cursor motion, a
+history entry already seen, holding an arrow key down -- reuses the last paint
+and costs 0.24ms.
+
+**Two terminal facts that cost a morning each.** `TIOCGWINSZ` through the FFI
+returned success and wrote nothing: `ioctl` is variadic, and on Apple arm64 a
+variadic argument is passed on the stack where a fixed one is passed in a
+register, so the `winsize` pointer went into `x2`, the kernel read the stack,
+and every terminal measured 80x24. It goes through the syscall door now, which
+has no variadic convention to get wrong; `ioctl` is added to the Darwin table
+at 54 (the Linux tables already carried it at 16). And `tcsetattr` uses
+`TCSADRAIN`, not the `TCSAFLUSH` a line editor usually reaches for: raw mode
+brackets one line so that the form is evaluated in a cooked terminal, which
+means anything typed while a form is evaluating is sitting unread when the
+next line starts, and flushing there silently eats type-ahead.
+
 **The digest engine is built for the input in hand, not for a running
 total.** `Sha256 hex` built the compiled engine once 64KB had been
 digested in a session, cumulatively -- a bar set when the build cost 12

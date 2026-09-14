@@ -15,6 +15,14 @@
     (list (lit open)   5)  (list (lit close) 6)
     (list (lit wait4)  7)  (list (lit unlink) 10)
     (list (lit execve) 59) (list (lit rename) 128)
+    ; ioctl (#54), for TIOCGWINSZ.  It is reached as a SYSCALL rather than
+    ; through the FFI because ioctl is VARIADIC, and on Apple arm64 a
+    ; variadic argument is passed on the stack where a fixed one is passed
+    ; in a register: calling it through the fixed-signature ffi door put the
+    ; winsize pointer in x2, the kernel read the stack, and every terminal
+    ; measured 80x24.  The syscall door has no variadic convention to get
+    ; wrong.  (The Linux tables already carry ioctl, at 16.)
+    (list (lit ioctl)  54)
     (list (lit mkdir)  136) (list (lit rmdir) 137)
     (list (lit stat)   188) (list (lit fstat) 189) (list (lit lstat) 190)
     (list (lit lseek)  199) (list (lit ftruncate) 201)
