@@ -5,6 +5,33 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A lang can colour its own lines.** `%repl-paint` joins `%repl-prompt` and
+`%repl-print` as the REPL's third customisation point: a function from the
+line's text to the text to display for it, which the line editor calls in the
+one place it paints. It exists because colouring is the only part of an
+interactive session that is about the LANGUAGE being typed. Reading a key,
+moving a cursor and remembering a line are the same job whatever the syntax
+is, and repl/line.x already does them for every lang that has not replaced
+the loop -- verified against the sweet bundle, which inherits the editor
+without knowing it exists. Where the tokens begin and end is not the same job,
+and the langs do not agree on where that answer even lives: x-logo registers
+LOGO-OPEN and LOGO-BLOCK as token types on the base, while x-python has a
+`parse.x` and never touches the base tokenizer at all. One painter cannot
+serve those, so the painter became a name a lang can set.
+
+The install follows the rule repl/ansi.x states for the printer and
+repl/line.x for the loop: over nil, or over the painter x/repl/paint last
+installed itself, and over nothing else. A bundle's entry runs BEFORE the
+launcher that imports the editor, so an unconditional install would have taken
+a lang's painter away and coloured its lines as x-lang. A lang's painter now
+survives whether it is set before the editor loads or after, and across a
+state image reload. Nil means `no painter installed`, not `no colour` --
+`--no-color`, `NO_COLOR` and `TERM=dumb` answer the colour question and the
+platform painter already honours all three -- and the note beside the
+definition says so, because the obvious reading is the wrong one. A painter
+that raises is caught at the redraw: the line is drawn unpainted for that
+keystroke rather than the keystroke being lost.
+
 **The session has a line editor, and `rlwrap` is no longer the answer.**
 `sh x.sh` with a terminal now gives arrow keys, the readline chords, history
 that outlives the process, Tab completion over every documented name, and

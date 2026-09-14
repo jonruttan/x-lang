@@ -84,6 +84,11 @@
                   (if (<= c 0) j (if (>= j n) n (self (Edit next-start s j) (- c 1)))))))
         (go i k)))))
 
+(def %ln-paint
+  (fn (_ window)
+    (if (null? %repl-paint) window
+      (guard (_ window) (%repl-paint window)))))
+
 ; --- the redraw -------------------------------------------------------------
 ;
 ; ONE WRITE.  The whole frame -- return, erase, prompt, painted window,
@@ -106,7 +111,10 @@
                 (%ln-append "\r"
                   (%ln-append %ln-kill-right
                     (%ln-append prompt
-                      (%ln-append (Paint line window)
+                      ; THE PAINTER IS THE SESSION'S, not this file's: a lang
+                      ; that reads its own syntax sets %repl-paint to a painter
+                      ; that knows it, and nil means no colouring.
+                      (%ln-append (%ln-paint window)
                         (%ln-append "\r"
                           (if (= col 0) ""
                             (%ln-append "\x1b[" (%ln-append (Str8 str col) "C"))))))))))))))))

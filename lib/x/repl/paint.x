@@ -326,8 +326,27 @@
         (returns NIL "Nothing; the caches are rebuilt"))
       (%paint-install!))))
 
+; --- the painter this file installs ------------------------------------------
+;
+; AND IT IS ONLY OURS TO MOVE WHEN NOBODY ELSE HAS MOVED IT.  %repl-paint is
+; the seam a lang sets to colour its OWN syntax, and this file loads with the
+; line editor, which is after a lang's entry has run.  Installing
+; unconditionally would take a lang's painter away and colour its lines as
+; x-lang -- the same mistake repl/ansi.x guards against for the printer and
+; repl/line.x for the loop, and guarded here the same way: install over nil,
+; or over the painter this file last installed, and over nothing else.
+(def %paint-own ())
+
+(def %paint-install-hook!
+  (fn (_)
+    (when (or (null? %repl-paint) (%pt-same? %repl-paint %paint-own))
+      (set! %repl-paint (fn (_ s) (Paint line s)))
+      (set! %paint-own %repl-paint))))
+
 (%paint-install!)
-(set! %image-recache-hooks (pair (fn (_) (%paint-install!)) %image-recache-hooks))
+(%paint-install-hook!)
+(set! %image-recache-hooks
+  (pair (fn (_) (do (%paint-install!) (%paint-install-hook!))) %image-recache-hooks))
 
 (doc (provide x/repl/paint Paint)
   (note "An atom's class comes from the base: the bytes are read and the value's type decides, so a colour cannot disagree with the evaluator.")

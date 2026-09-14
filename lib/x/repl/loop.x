@@ -48,6 +48,38 @@
 ; Private cancel marker: a fresh pair, identity-compared, so it can
 ; never collide with anything a read returns.
 (def %repl-cancel (pair () ()))
+; HOW A LINE IS COLOURED, and the third of the REPL's customisation points
+; beside %repl-prompt and %repl-print.  A function from the line's text to the
+; text to DISPLAY for it -- normally the same bytes with SGR codes inserted --
+; or nil for no colouring at all.
+;
+; IT IS A HOOK BECAUSE COLOURING IS THE ONE PART OF A SESSION THAT IS ABOUT
+; THE LANGUAGE.  Reading a key, moving a cursor and remembering a line are the
+; same job whatever is being typed, and repl/line.x does them for every lang
+; that has not replaced this loop.  Where the tokens START AND END is not: it
+; is x-lang's grammar in x/repl/paint, Logo's in a lang that registers Logo
+; token types, and Python's in a lang that parses Python itself and never
+; touches the base tokenizer at all.  One painter cannot serve those, so the
+; painter is a name a lang can set, exactly as it sets its own printer.
+;
+; NIL MEANS `NO PAINTER INSTALLED`, NOT `NO COLOUR`, and the difference is
+; worth stating because the obvious reading is the wrong one.  It starts nil
+; because the boot has no painter in it; x/repl/paint installs the platform's
+; when the line editor loads it, and an editable line with no painter is a
+; complete answer in the meantime.
+;
+; A lang sets this to its own painter and the platform will not take it back:
+; the install happens over nil, or over the painter x/repl/paint itself last
+; put here, and over nothing else.  That holds whether the lang sets it before
+; the editor loads or after, and across a state image reload.
+;
+; TURNING COLOUR OFF IS A DIFFERENT SWITCH.  --no-color, NO_COLOR and
+; TERM=dumb are what answer that question, and the platform painter already
+; honours all three by returning its argument untouched.  Setting this to nil
+; to mean `off` does not work and is not meant to: the next install would
+; read it as `nobody has set one`.
+(def %repl-paint ())
+
 (def %repl-prompt "> ")
 (def %repl-print
   (fn (_ result)
@@ -147,7 +179,7 @@
                 (%stderr "\n"))))
           (%repl-print (eval! %r)))
         (repl))))))
-  (note "Customizable via %repl-prompt (default \"> \") and %repl-print.")
+  (note "Customizable via %repl-prompt (default \"> \"), %repl-print, and %repl-paint (nil, or a line-text -> display-text function used by the line editor).")
   (note "Uses dynamic scoping so def persists across iterations.")
   (note "Uses eval! (no env save/restore) so definitions persist.")
   "Start the read-eval-print loop.")
