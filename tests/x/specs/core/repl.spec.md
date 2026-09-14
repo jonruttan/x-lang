@@ -153,10 +153,10 @@ bundle's entry runs before the launcher that imports it.
 
 ## %repl-paint
 
-The third customisation point beside `%repl-prompt` and `%repl-print`, and the
-one that exists because colouring is the only part of a session that is about
-the LANGUAGE. Reading a key and remembering a line are the same job whatever
-is being typed; where the tokens begin and end is not. A lang sets this to a
+The third customisation point beside `%repl-prompt` and `%repl-print`. It
+exists because colouring is the part of a session that depends on the
+language. Reading a key and remembering a line are the same job whatever is
+being typed; where the tokens begin and end is not. A lang sets this to a
 painter that knows its own syntax.
 
 ### it exists, and starts with no painter installed
