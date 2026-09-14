@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The wrapper checks that a pinned amalgam is the file the lock pinned.** The
+boot-time pairing guards compare recorded strings — a row in the lock against a
+stamp beside the installed library — and each of them describes the amalgam the
+lock names rather than the bytes on disk. An amalgam replaced after the lock was
+written satisfies all of them and still reaches the engine as another release's
+boot, where a base layout that has moved is a SIGSEGV in the first form that
+walks a base cell. The lock's three-element `(boot "he.x" "sha256:…")` row is
+the claim, and the wrapper now reads it: one digest of one amalgam, on a path
+that already parses those bytes, before the release reach rather than after it,
+since a reach hands the whole invocation to the release the lock names. The
+two-element row predates the digest and is skipped, and with no sha256 tool
+available the wrapper reports the identity as unchecked instead of passing in
+silence. `(Pin verify)` checks the same row on demand and in CI.
+
 **A lang can colour its own lines.** `%repl-paint` joins `%repl-prompt` and
 `%repl-print` as the REPL's third customisation point: a function from the
 line's text to the text to display for it, which the line editor calls in the
