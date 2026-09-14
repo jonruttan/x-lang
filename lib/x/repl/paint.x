@@ -405,7 +405,7 @@
       (doc "Which paren the cursor is beside and its partner, as (offset . kind) pairs for `line`: 'pair on both halves of a match, 'lone on a paren with none, nil when the cursor is not beside a paren. A close paren just before the cursor is preferred, then an open paren under it. Strings, comments and character literals are stepped over, so #\\( is not an open paren and a paren inside a string matches nothing."
         (returns LIST "((offset . kind) ...), or nil")
         (example "(Paint focus \"(f x)\" 5)" "((4 . 'pair) (0 . 'pair))")
-        (example "(Paint focus \"(f x\" 4)" "()")
+        (example "(null? (Paint focus \"(f x\" 4))" "#t")
         (example "(Paint focus \"f x)\" 4)" "((3 . 'lone))"))
       (%paint-focus s at))
 
