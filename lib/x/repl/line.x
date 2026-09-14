@@ -51,6 +51,18 @@
 (def %ln-fd 0)
 (def %ln-history-loaded ())
 
+; THE COLOURING IS X-LANG'S GRAMMAR AND THE EDITING IS NOT.  Paint decides an
+; atom's colour by asking the reader, which travels anywhere; but the scan
+; under it splits the line on `(`, `)`, `;` and `"`, and those are x's
+; lexemes, not every lang's.  The buffer, the cursor, the history and the
+; redraw have no grammar in them at all.  So the two are separable here: a
+; lang's loop calls (Line read) for the editing and installs its own painter,
+; or none -- nil paints nothing and the author's bytes go out unchanged.
+; Held as a VALUE, not reached through the class, because the redraw runs per
+; keystroke and one class door measured 0.3-1.0ms (doc.x's %highlight-code,
+; the same shape for the same reason).
+(def %ln-painter (method-ref Paint line))
+
 ; --- escape sequences, named once ------------------------------------------
 (def %ln-kill-right "\x1b[K")     ; erase from the cursor to end of line
 (def %ln-clear-screen "\x1b[2J\x1b[H")
@@ -106,7 +118,7 @@
                 (%ln-append "\r"
                   (%ln-append %ln-kill-right
                     (%ln-append prompt
-                      (%ln-append (Paint line window)
+                      (%ln-append (if (null? %ln-painter) window (%ln-painter window))
                         (%ln-append "\r"
                           (if (= col 0) ""
                             (%ln-append "\x1b[" (%ln-append (Str8 str col) "C"))))))))))))))))
@@ -250,6 +262,15 @@
             (if (not (null? qnames)) (pair qual qnames)
               (pair word (%ln-completions word)))))))))
 
+; Tab's other half, and x-specific for the same reason the painter is:
+; %ln-candidates walks parens and quotes to find the head of the open form,
+; and qualifies `Str8 sta` against the doc registry by x's own naming.  What
+; is left below -- fill the unique answer, extend to the common prefix, list
+; on the second Tab -- is the shell's bargain and has no grammar in it.  A
+; lang installs its own (ed -> (typed . names)) here, or nil for a Tab that
+; does nothing.
+(def %ln-completer %ln-candidates)
+
 ; The longest prefix every candidate shares -- what Tab fills in when the
 ; answer is not yet unique, the way a shell does it.
 (def %ln-common-prefix
@@ -272,27 +293,31 @@
 
 (def %ln-complete!
   (fn (_ fd ed)
-    (let ((c (%ln-candidates ed)))
-      (let ((typed (first c)) (names (rest c)))
-        (match
-          ((null? names) ())
-          ; One answer: finish the word.
-          ((null? (rest names)) (ed insert! (%ln-tail (first names) typed)))
-          (#t
-            ; Several: extend as far as they agree, and if that added
-            ; nothing, show them -- the shell's bargain, and the reason a
-            ; second Tab is what lists rather than the first.
-            (let ((common (%ln-common-prefix names)))
-              (if (> (%ln-blen common) (%ln-blen typed))
-                (ed insert! (%ln-tail common typed))
-                (do
-                  (Term emit fd "\r\n")
-                  (List for-each
-                        (fn (_ n) (Term emit fd (%ln-append "  " (%ln-append n "\r\n"))))
-                        (List take 40 names))
-                  (when (> (List length names) 40)
-                    (Term emit fd (%ln-append "  ... "
-                      (%ln-append (Str8 str (- (List length names) 40)) " more\r\n")))))))))))))
+    ; No completer installed -- a lang that wants Tab to do nothing -- and
+    ; there is nothing to destructure; first/rest are unchecked prims, so
+    ; asking before walking is the difference between a no-op and a crash.
+    (when %ln-completer
+      (let ((c (%ln-completer ed)))
+        (let ((typed (first c)) (names (rest c)))
+          (match
+            ((null? names) ())
+            ; One answer: finish the word.
+            ((null? (rest names)) (ed insert! (%ln-tail (first names) typed)))
+            (#t
+              ; Several: extend as far as they agree, and if that added
+              ; nothing, show them -- the shell's bargain, and the reason a
+              ; second Tab is what lists rather than the first.
+              (let ((common (%ln-common-prefix names)))
+                (if (> (%ln-blen common) (%ln-blen typed))
+                  (ed insert! (%ln-tail common typed))
+                  (do
+                    (Term emit fd "\r\n")
+                    (List for-each
+                          (fn (_ n) (Term emit fd (%ln-append "  " (%ln-append n "\r\n"))))
+                          (List take 40 names))
+                    (when (> (List length names) 40)
+                      (Term emit fd (%ln-append "  ... "
+                        (%ln-append (Str8 str (- (List length names) 40)) " more\r\n"))))))))))))))
 
 ; --- the key loop -------------------------------------------------------------
 ;
@@ -366,6 +391,21 @@
         (returns INT "The descriptor in force"))
       (unless (null? fd) (set! %ln-fd (first fd)))
       %ln-fd)
+
+    (method painter (self . (param f CALLABLE "The painter to install; () turns colouring off. Omit to read the one in force"))
+      (doc "The function that colours the line as it is typed, and installs one when given it. It is handed the visible bytes and answers the bytes to write, colour included; it must return the author's own bytes unchanged apart from escapes, because the cursor column is measured against them."
+        (returns ANY "The painter in force, or nil when colouring is off")
+        (note "The default paints x-lang. The colouring is the one part of this editor that is a GRAMMAR: Paint asks the reader what an atom is, which travels, but the scan under it splits on x's own `(`, `)`, `;` and `\"`. A lang driving (Line read) installs its own painter here, or () for editing with no colour -- the buffer, the cursor, the history and the redraw have no grammar in them.")
+        (sample "(Line painter ())" "colouring off; the line is written as typed"))
+      (unless (null? f) (set! %ln-painter (first f)))
+      %ln-painter)
+
+    (method completer (self . (param f CALLABLE "The completer to install; () turns Tab off. Omit to read the one in force"))
+      (doc "The function Tab asks for candidates, and installs one when given it. It is handed the Edit buffer and answers (typed . names) -- the text being completed, and every name it could become."
+        (returns ANY "The completer in force, or nil when Tab does nothing")
+        (note "The default walks x's parens and quotes to find the open form's head, then prefix-searches the doc registry. Filling a unique answer, extending to the common prefix and listing on the second Tab are this file's and stay whichever completer is installed."))
+      (unless (null? f) (set! %ln-completer (first f)))
+      %ln-completer)
 
     (method buffer (self)
       (doc "The session's Edit buffer -- one for the process, so history carries from line to line. Made on first use, with the history file loaded into it."
@@ -546,4 +586,5 @@
   (note "Built on repl/edit.x (the buffer), repl/term.x (the tty) and repl/paint.x (the colour); each is usable on its own.")
   (note "History is appended per line to $XDG_STATE_HOME/x/history, so a session that crashes still keeps what it typed. X_HISTORY overrides the path; an empty X_HISTORY disables it.")
   (note "Tab completes against the documentation registry -- the same names apropos searches -- so a module that documents an export completes as soon as it loads.")
+  (note "The editing is grammar-agnostic and the colouring is not: a lang whose loop calls (Line read) installs its own (Line painter) and (Line completer), or () for either, and keeps the buffer, the history and the redraw as they are.")
   "Line: one edited, coloured line read from the terminal; the built-in replacement for rlwrap.")

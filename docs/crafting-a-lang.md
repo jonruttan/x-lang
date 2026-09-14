@@ -296,6 +296,18 @@ What the loop must know:
   rather than at its history.  Replacing the loop means replacing the sweep —
   unless your lang owns a tokenizer base, in which case you cannot have it
   (see §6), and a long session will grow.  Know which case you are in.
+- **The line editor is yours to drive, and its colouring is not.**  The
+  editor refuses to install over a lang's `repl` — it would read Lisp at your
+  prompt — and the other side of that refusal is that your loop gets none of
+  it unless it asks.  `(Line read prompt)` is the door: one edited line back
+  as a string, with the buffer, the cursor, the history file and the raw-mode
+  bracketing, none of which carry a grammar.  What does carry one is the
+  colouring and the completion, both x-lang's by construction — `Paint` scans
+  for x's `(`, `)`, `;` and `"`, and Tab prefix-searches the doc registry
+  against x's own naming — so install your own with `(Line painter f)` and
+  `(Line completer f)`, or pass `()` to either for editing without it.
+  `(Line available?)` says whether there is a terminal to edit on; when there
+  is not, read the plain way.
 - **The banner should identify the whole stack.**  `%param-release` (engine)
   and `%platform-release` (x-lang) arrive as boot data; printing them plus
   the resolved root makes every which-install-am-I-running mystery

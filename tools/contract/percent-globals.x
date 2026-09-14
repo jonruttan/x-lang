@@ -216,7 +216,14 @@
 ; dispatch, per keystroke for the same reason, plus the completion and
 ; history helpers that hang off them.
 (file "lib/x/repl/paint.x" 33)
-(file "lib/x/repl/line.x" 34)
+; line.x rose 34 to 36 for the two seams a lang needs: %ln-painter and
+; %ln-completer hold the grammar-bearing halves of the editor as VALUES, so
+; a lang's loop can drive (Line read) with its own colouring and completion
+; -- or neither -- and keep the buffer, the cursor and the history, which
+; have no grammar in them.  Globals rather than class state because the
+; redraw reads the painter on every keystroke, which is the rule the rows
+; here already stand on; doc.x's %highlight-code is the same shape.
+(file "lib/x/repl/line.x" 36)
 (file "lib/x/repl/banner.x" 4)
 ; Grew by one for %repl-platform-repl: the identity anchor that lets two
 ; installers over `repl` -- a lang's reader and the line editor -- tell
