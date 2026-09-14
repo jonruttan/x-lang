@@ -105,7 +105,9 @@
                         (if (if (>= o start) (< o end) #f)
                           (pair (pair (- o start) (rest (first ms))) acc)
                           acc)))))))
-        (go (guard (_ ()) (%repl-marks text point)) ())))))
+        ; Reversed back into source order: the scan consumes marks in the
+        ; order it meets them.
+        (%reverse (go (guard (_ ()) (%repl-marks text point)) ()))))))
 
 ; --- the redraw -------------------------------------------------------------
 ;

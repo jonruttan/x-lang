@@ -82,11 +82,13 @@
 (def %repl-paint ())
 
 ; Which characters to mark on a redraw, given the whole line and the cursor: a
-; function from (text point) to a list of (offset . kind) pairs, kind 'pair on
-; both halves of a matched pair of parens and 'lone on a paren with none, or
-; nil to mark nothing.  x/repl/paint installs the platform's when the line
-; editor loads it, under the same rule as %repl-paint.  A lang whose brackets
-; are not x-lang's sets its own, or leaves it nil.
+; function from (text point) to a list of (offset depth focused) marks, one
+; per bracket, depth being its nesting level from 0 (shared by both halves of
+; a pair, -1 for a close with nothing to close) and focused true on the pair
+; the cursor is beside; or nil to mark nothing.  x/repl/paint installs the
+; platform's when the line editor loads it, under the same rule as
+; %repl-paint.  A lang whose brackets are not x-lang's sets its own, or
+; leaves it nil.
 (def %repl-marks ())
 
 (def %repl-prompt "> ")

@@ -238,9 +238,9 @@ The install fills both seats, so both are put back.
 
 ## %repl-marks
 
-The fourth customisation point: which parens to highlight on a redraw, given
-the whole line and the cursor. A lang whose brackets are not x-lang's sets
-its own.
+The fourth customisation point: a mark for every bracket on a redraw, given
+the whole line and the cursor, as (offset depth focused). A lang whose
+brackets are not x-lang's sets its own.
 
 ### the platform installs over nil, and never over a lang's own marker
 
@@ -270,4 +270,4 @@ simply not drawn.
     (list (%ln-marks "(f x)" 5 2 5) (%ln-marks "(f x)" 3 0 5)))
 ```
 ---
-    (((2 . 'pair)) ())
+    (((2 0 #t)) ((0 0 #f) (4 0 #f)))

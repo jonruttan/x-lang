@@ -167,78 +167,85 @@ rebinding. The first element checks that the rebinding is live.
 ---
     ('number 'number)
 
-## Bracket matching
+## Bracket colouring
 
-`focus` names the paren beside a cursor and its partner, as the marks `line`
-paints. It runs on the scan's own rules, so strings, comments and character
-literals are stepped over. Pure, so it runs here with no terminal.
+`marks` gives every paren in a line its nesting depth, which is what `line`
+colours it by: both halves of a pair share a depth, so they share a colour,
+and a close paren with nothing to close is -1. It runs on the scan's own
+rules, so strings, comments and character literals are stepped over. Pure, so
+it runs here with no terminal.
 
-### the close paren just typed pairs with its open
-
-```x
-(do (import x/repl/paint) (Paint focus "(f x)" 5))
-```
----
-    ((4 . 'pair) (0 . 'pair))
-
-### an open paren under the cursor pairs forward
+### each paren carries its depth, and a pair shares one
 
 ```x
-(do (import x/repl/paint) (Paint focus "x (f)" 2))
+(do (import x/repl/paint) (Paint marks "(a (b (c)))" 0))
 ```
 ---
-    ((2 . 'pair) (4 . 'pair))
+    ((0 0 #t) (3 1 #f) (6 2 #f) (8 2 #f) (9 1 #f) (10 0 #t))
 
-### the inner pair is found from inside a nest
+### an open paren without a close yet is depth 0, not an error
+
+The state of every line while its first form is being typed.
 
 ```x
-(do (import x/repl/paint) (Paint focus "((a) b)" 4))
+(do (import x/repl/paint) (Paint marks "(def x" 1))
 ```
 ---
-    ((3 . 'pair) (1 . 'pair))
+    ((0 0 #f))
 
-### a paren with no partner is lone
+### a close paren with nothing to close is -1
 
 ```x
-(do (import x/repl/paint)
-    (list (Paint focus "f x)" 4) (Paint focus "(f x" 0)))
+(do (import x/repl/paint) (Paint marks "f x)" 4))
 ```
 ---
-    (((3 . 'lone)) ((0 . 'lone)))
+    ((3 -1 #t))
 
-### a cursor not beside a paren marks nothing
+### the pair beside the cursor is focused on both halves
+
+A close just before the cursor is preferred, so the pair lights as its close
+is typed; an open under the cursor is matched forward.
 
 ```x
 (do (import x/repl/paint)
-    (list (Paint focus "(f x" 3) (Paint focus "" 0)))
+    (list (Paint marks "(def x (f 1))" 13)
+          (Paint marks "(def x (f 1))" 12)))
 ```
 ---
-    (() ())
+    (((0 0 #t) (7 1 #f) (11 1 #f) (12 0 #t)) ((0 0 #f) (7 1 #t) (11 1 #t) (12 0 #f)))
+
+### a cursor not beside a paren focuses nothing, and no parens is no marks
+
+```x
+(do (import x/repl/paint)
+    (list (Paint marks "(f x" 3) (Paint marks "f x" 3) (Paint marks "" 0)))
+```
+---
+    (((0 0 #f)) () ())
 
 ### a paren inside a string is not a paren
 
 ```x
-(do (import x/repl/paint)
-    (list (Paint focus "(\")\")" 3) (Paint focus "(\")\")" 5)))
+(do (import x/repl/paint) (Paint marks "(\")\")" 5))
 ```
 ---
-    (() ((4 . 'pair) (0 . 'pair)))
+    ((0 0 #t) (4 0 #t))
 
 ### a character literal and a comment are stepped over
 
 ```x
 (do (import x/repl/paint)
-    (list (Paint focus "(f #\\()" 6) (Paint focus "(f) ; (" 3)))
+    (list (Paint marks "(f #\\()" 6) (Paint marks "(f) ; (" 3)))
 ```
 ---
-    (((6 . 'pair) (0 . 'pair)) ((2 . 'pair) (0 . 'pair)))
+    (((0 0 #t) (6 0 #t)) ((0 0 #t) (2 0 #t)))
 
 ### with colour off, marks change nothing
 
 ```x
 (do (import x/repl/paint)
-    (let ((s "(f x)"))
-      (Str8 =? (Paint line s (Paint focus s 5)) s)))
+    (let ((s "(f (g))"))
+      (Str8 =? (Paint line s (Paint marks s 0)) s)))
 ```
 ---
     #t

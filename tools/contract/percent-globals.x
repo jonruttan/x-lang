@@ -221,13 +221,13 @@
 ; are all resolved out of the loop.  repl/line.x is the redraw and the key
 ; dispatch, per keystroke for the same reason, plus the completion and
 ; history helpers that hang off them.
-; paint.x grew by eight for bracket matching: the matcher and the focus that
-; picks which paren the cursor is beside, the mark lookup the scan cuts a run
-; on, the two hoisted codes it paints marks with, the marks half of the redraw
-; cache and its comparison, and the guard for the %repl-marks install.  All on
-; the per-keystroke path, and homed beside the scan for the reason the rest of
-; this file's %-defs are.
-(file "lib/x/repl/paint.x" 43)
+; paint.x grew by eleven for bracket colouring: the depth walk that marks every
+; paren, the mark cursor the scan cuts a run on, the depth-to-code lookup, the
+; palette and its length, the lone and focus codes it paints with, the marks
+; half of the redraw cache and its comparison, the mod prim, and the guard for
+; the %repl-marks install.  All on the per-keystroke path, and homed beside
+; the scan for the reason the rest of this file's %-defs are.
+(file "lib/x/repl/paint.x" 46)
 ; line.x is 36 for %ln-completer, which holds Tab's candidate source as a
 ; value so a lang can install its own -- a global rather than class state on
 ; the grounds the rows here stand on, since %ln-complete! reads it per Tab.
