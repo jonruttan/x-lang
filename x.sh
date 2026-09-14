@@ -942,6 +942,62 @@ if [ -n "$boot_file" ]; then
 	if [ -z "$_rel" ] || [ ! -f "$_rel" ]; then
 		_rel="$(dirname "$ENTRY")/pin.release.xon"
 	fi
+	# THE AMALGAM IS THE ONE THE LOCK PINNED.  Every check below compares
+	# RECORDED strings -- the lock's engine facts against this install's
+	# stamps -- and each of them is a statement about the file the lock
+	# DESCRIBES.  Not one of them looks at the bytes on disk.  So an
+	# amalgam REPLACED after the lock was written passes all of them and
+	# reaches the engine as some other release's boot: the lock still
+	# names v0.5.2, the install still is v0.5.2, every fingerprint agrees,
+	# and the bytes are from a tree whose base layout moved.  That is a
+	# SIGSEGV in the first form that walks a base cell -- the exact crash
+	# the pairing guard exists to prevent, arriving through the one door
+	# it does not watch.  Observed in the wild: a dev install rewrote a
+	# pinned project's boot/he.x while the manifest's (boot ...) line was
+	# commented out, and re-enabling that line segfaulted mid-boot with
+	# every recorded string matching.
+	#
+	# `Pin verify` has re-digested the amalgam since #145 -- the on-demand
+	# and CI half of the same claim, and its comment said in so many words
+	# that nothing at boot time did.  That gap is what this closes.  The
+	# mismatch is mechanical, and this is the last place a refusal can
+	# still be a refusal instead of a crash.
+	#
+	# BEFORE the reach below, not after: a reach hands the whole
+	# invocation to the release the LOCK names, and this file is not from
+	# that release.  Reaching first would only carry the wrong bytes into
+	# a wrapper that trusts them.
+	#
+	# A sha tool is still not REQUIRED to boot -- when none is on PATH the
+	# guard says what it could not check rather than pretending it did,
+	# the same way a missing lock says so (#313).  The two-element
+	# (boot "NAME") row predates the digest and claims nothing about
+	# bytes; it is skipped, like every other row a lock may not carry yet.
+	if [ -f "$_rel" ]; then
+		_wantb=$(sed -n 's/^[[:space:]]*(boot "[^"]*" "sha256:\([0-9a-f]*\)").*/\1/p' "$_rel" | head -1)
+		if [ -n "$_wantb" ]; then
+			if command -v sha256sum >/dev/null 2>&1; then
+				_haveb=$(sha256sum "$ENTRY" | awk '{print $1}')
+			elif command -v shasum >/dev/null 2>&1; then
+				_haveb=$(shasum -a 256 "$ENTRY" | awk '{print $1}')
+			else
+				_haveb=
+				echo "x.sh: boot pin armed but no sha256 tool on PATH -- the amalgam's identity is unchecked" >&2
+			fi
+			if [ -n "$_haveb" ] && [ "$_wantb" != "$_haveb" ]; then
+				echo "Error: pinned boot amalgam is not the one the lock pinned" >&2
+				echo "  amalgam: $ENTRY" >&2
+				echo "  the lock's digest: $_wantb" >&2
+				echo "  this file's:       $_haveb" >&2
+				echo "  lock: $_rel" >&2
+				echo "  every pairing fact in that lock describes the amalgam it" >&2
+				echo "  names, not this file; booting it can segfault mid-boot." >&2
+				echo "  Re-pin to the file on disk with (Pin boot \"<tag>\"), or" >&2
+				echo "  restore the amalgam the lock names." >&2
+				exit 1
+			fi
+		fi
+	fi
 	# REACH FOR THE RELEASE THE LOCK NAMES (#499).  The refusals below can
 	# name every fact needed to fix what they refuse: the tag is in the
 	# lock, the artifact name is convention, the digest is in the sidecar.

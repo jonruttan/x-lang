@@ -5,6 +5,27 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The wrapper checks that the pinned amalgam is the file the lock pinned.**
+Every boot-time pairing guard compared recorded strings — a row in the lock
+against a stamp beside the installed library — and every one of them is a
+statement about the amalgam the lock *describes*. Nothing looked at the bytes
+on disk, so an amalgam **replaced** after the lock was written satisfied all of
+them: the lock still named v0.5.2, the install still was v0.5.2, every
+fingerprint agreed, and the file was from a tree whose base layout had moved.
+That boots into a SIGSEGV on the first form that walks a base cell — the exact
+crash the pairing guard exists to prevent, arriving through the one door it did
+not watch. It was found the way these are always found: a dev install rewrote a
+pinned project's `boot/he.x` while the manifest's `(boot …)` line was commented
+out, and re-enabling that line segfaulted with every recorded string matching.
+The lock's three-element `(boot "he.x" "sha256:…")` row is the claim, `(Pin
+verify)` has re-digested it since #145 and said in its own comment that nothing
+at boot time did, and now boot time does — one digest of one amalgam, on a path
+that already parses those bytes, before the release reach rather than after it,
+because reaching hands the whole invocation to the release the lock names and
+this file is not from it. The two-element row predates the digest and is
+skipped, a sha256 tool is still not required to boot, and when there is none
+the wrapper says the identity is unchecked instead of pretending it looked.
+
 **The session has a line editor, and `rlwrap` is no longer the answer.**
 `sh x.sh` with a terminal now gives arrow keys, the readline chords, history
 that outlives the process, Tab completion over every documented name, and

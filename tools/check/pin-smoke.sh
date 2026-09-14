@@ -442,6 +442,13 @@ status=$?
 [ "$status" -ne 0 ] || fail "pin-quote: a quoted manifest path was accepted" "$_TMP/out" "$_TMP/err"
 grep -q "quote or backslash" "$_TMP/err" || fail "pin-quote: no refusal message" "$_TMP/err"
 
+# Digest helper, shared by the boot-time guards below and the offline
+# lifecycle cases further down.
+_sha() {
+	if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+	else shasum -a 256 "$1" | awk '{print $1}'; fi
+}
+
 # pairing-guard: the wrapper's boot-time ISA refusal, both layouts.
 # The guard arms only in INSTALLED mode (INSTALL_ROOT set), so no other
 # in-repo gate exercises it -- which is exactly how v0.3.1-rc7 shipped a
@@ -512,6 +519,36 @@ printf 'total garbage, no isa line\n' > "$_TMP/pair5/deps.lock.xon"
 printf '(display "ran")\n' > "$_TMP/pair5/main.x"
 (cd "$_TMP" && $TIMEOUT_CMD sh "$_fake/bin/x" -f "$_TMP/pair5/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
 grep -q "no isa fingerprint readable" "$_TMP/err" || fail "pairing-guard: corrupt lock skipped WITHOUT the unchecked notice" "$_TMP/err"
+
+# boot-digest: the amalgam on disk must be the one the lock pinned.  The
+# guards above compare RECORDED strings, so an amalgam REPLACED after the
+# lock was written satisfies every one of them and reaches the engine as
+# another release's boot -- a mid-boot SIGSEGV with no fingerprint out of
+# place.  No fake install is needed here: this guard compares the lock to
+# the file, so it arms in repo mode too, and the fixture amalgam is never
+# booted (the refusal happens first).
+mkdir -p "$_TMP/bd1/boot" "$_TMP/bd1/deps"
+printf '(root "deps")\n(boot "boot/he.x")\n' > "$_TMP/bd1/pin.xon"
+printf '; not a real amalgam -- never reached\n' > "$_TMP/bd1/boot/he.x"
+printf '(display "ran")\n' > "$_TMP/bd1/main.x"
+printf '(boot "he.x" "sha256:%064d")\n' 0 > "$_TMP/bd1/deps.lock.xon"
+$TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/bd1/main.x" >"$_TMP/out" 2>"$_TMP/err"
+status=$?
+[ "$status" -ne 0 ] || fail "boot-digest: a replaced amalgam was accepted" "$_TMP/out" "$_TMP/err"
+grep -q "not the one the lock pinned" "$_TMP/err" || fail "boot-digest: no refusal message" "$_TMP/err"
+
+# The digest that DOES describe the file must not refuse.  The boot then
+# fails later on a fixture that is not an amalgam, which is fine -- the
+# assertion is only about the guard.
+printf '(boot "he.x" "sha256:%s")\n' "$(_sha "$_TMP/bd1/boot/he.x")" > "$_TMP/bd1/deps.lock.xon"
+$TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/bd1/main.x" >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "not the one the lock pinned" "$_TMP/err" && fail "boot-digest: a matching digest was refused" "$_TMP/err"
+
+# The two-element row predates the digest and claims nothing about bytes:
+# it must skip, not refuse, the way locks in the wild are shaped.
+printf '(boot "he.x")\n' > "$_TMP/bd1/deps.lock.xon"
+$TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/bd1/main.x" >"$_TMP/out" 2>"$_TMP/err" || true
+grep -q "not the one the lock pinned" "$_TMP/err" && fail "boot-digest: a lock predating the digest row was refused" "$_TMP/err"
 
 # release-guard (#435): the pairing refusal the ISA fingerprint cannot
 # make.  isa.x is the C surface and is byte-identical across v0.3.1-rc10,
@@ -750,10 +787,6 @@ grep -q "nothing armed" "$_TMP/err" || fail "manifest: empty manifest armed sile
 # --- re-checks the platform half.  file:// is fetch's sanctioned
 # --- mirror override; fixture amalgams are tiny, so digests are pure-x
 # --- milliseconds (under the JIT threshold).
-_sha() {
-	if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
-	else shasum -a 256 "$1" | awk '{print $1}'; fi
-}
 mkdir -p "$_TMP/rel/v9.9.9" "$_TMP/rel/v9.9.8" "$_TMP/proj/boot" "$_TMP/proj/deps"
 printf '; v1 amalgam\n(display 1)\n' > "$_TMP/rel/v9.9.9/he.x"
 printf '(release "v9.9.9")\n(isa "sha256:aaaa1111")\n(engine-release "eng-v9.1.2")\n(payload "sha256:eeee5555")\n(file "he.x" "sha256:%s")\n' \
@@ -1123,7 +1156,13 @@ if [ "$status" -eq 0 ]; then
   X_IMAGE_NO_WRITE=1 $TIMEOUT_CMD sh "$WRAPPER" -v -f "$_TMP/proj9/main.x" >"$_TMP/out" 2>"$_TMP/err"
   grep -q "booting from state image .*proj9/.images/x.boot.x.ximg" "$_TMP/err" \
     || fail "image: X_IMAGE_NO_WRITE did not boot from the current image" "$_TMP/err"
-  # a manifest WITH a (boot ...) row is a pinned amalgam: not imaged, as before
+  # a manifest WITH a (boot ...) row is a pinned amalgam: not imaged, as before.
+  # proj9 still carries the lock `Pin boot` wrote for the v9.9.9 fixture
+  # amalgam, and the boot named here is a different file entirely -- which the
+  # identity guard refuses before imaging is ever decided.  The subject of this
+  # case is the imaging refusal, so the contradicting lock goes: a lock left
+  # over from an unrelated step is fixture noise, not the claim under test.
+  rm -f "$_TMP/proj9/deps.lock.xon"
   cat > "$_TMP/proj9/pin.xon" <<EOF
 (root "deps")
 (boot "$(pwd)/lib/x-core.x")
