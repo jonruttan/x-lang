@@ -691,11 +691,54 @@
         (pair '<< 'lslv)
         (pair '>> 'asrv)))
 
+; An object param is not a number.
+;
+; In analyser mode the leading one or two params are x_obj_t* (%asm-object-
+; params, above): the tokenizer builds them on the C stack and they reach the
+; trampolines as the pointers they are.  An integer function's params are
+; numbers.  The mode the compile declares tells the two apart, and a caller that
+; declares nothing gets the door's reading of the fvar table (asm-cache.x), so
+; fvars passed only to name a prim the body calls (#603) produce an analyser.
+;
+; Arithmetic, a shift or an ordered comparison on an object param is not
+; something an analyser means: every state in the tower and in the bundles uses
+; its object params as trampoline arguments and nothing else.  In an integer
+; function read as an analyser it is often the first thing the body does, and
+; the result is a wrong answer rather than an error -- the param is ordered as a
+; pointer, the branch is taken on that, and an unboxed result hands the caller
+; one of its own arguments.  So it refuses at generation, names the parameter,
+; and names the declaration that makes the compile an integer function.
+;
+; The ops checked are the ones whose operands are raw integers and nothing else:
+; arithmetic, the bitwise family and the ordered comparisons each put two
+; operands in registers for one instruction that reads them as numbers.  `=`,
+; `not`, `and` and `or` are absent deliberately -- they test a word for equality
+; or for truth, and on a pointer both are meaningful, as (= buffer ()) is.  The
+; set is a literal: the reader builds it once, and a name for it is another
+; top-level %-global.
+(def %asm-check-int-operands
+  (fn (_ op args)
+    (when (%asm-memq op '(+ - * / % & | ^ << >> ~ < > <= >=))
+      ((fn (self as)
+         (unless (null? as)
+           (do
+             (when (%asm-memq (first as) %asm-object-params)
+               (Err raise 'value
+                 (Str append "asm-compile: " (symbol->str op)
+                   " cannot take the object parameter " (symbol->str (first as))
+                   " as an operand: this compile is in analyser mode, where "
+                   "that parameter arrives as an x_obj_t* and not as a number."
+                   "  Pass #f as compile-asm's third argument for an ordinary "
+                   "integer function.") ()))
+             (self (rest as)))))
+       args))))
+
 ; Compile a call expression
 (set! %asm-compile-call
   (fn (_ asm expr params)
     (def op (first expr))
     (def args (rest expr))
+    (%asm-check-int-operands op args)
     (def %bitwise (Assoc entry op %asm-bitwise-ops))
     (if (not (null? %bitwise))
       (%asm-compile-binop asm (rest %bitwise) args params)
@@ -814,6 +857,11 @@
     (if (and (pair? test-expr) (not (null? (%cmp-branch (first test-expr)))))
       (let ((cmp-op (first test-expr))
             (cmp-args (rest test-expr)))
+        ; A comparison in an if test is folded into the branch and does not
+        ; reach %asm-compile-call, so the operand check runs here as well.  `=`
+        ; is folded too and is deliberately unchecked, for the reason
+        ; %asm-check-int-operands gives.
+        (%asm-check-int-operands cmp-op cmp-args)
         (%asm-compile-expr asm (first cmp-args) params)
         (asm-push! asm x0)
         (%asm-compile-expr asm (first (rest cmp-args)) params)

@@ -114,7 +114,21 @@
 ; misread numbers -- `2.5` came back as `2` followed by the symbol `.5`.  #597
 ; fixed that key by carrying x-release, which is ISA-declared and available at
 ; runtime; this is the same rule for this lane.
-(def %asm-cache-identity (Str append x-machine x-release))
+;
+; The key names the compiler too, which is this library rather than the engine.
+; Naming only the machine and the engine release lets an entry outlive a change
+; to the emitter: a hit never reaches a compiler, so a compile whose acceptance
+; or output has changed is served the bytes an earlier version produced.  A key
+; blind to what produced the bytes serves stale bytes, which is the argument the
+; engine half of the key already makes.
+;
+; x-lib-version covers a consumer, who gets a release.  The "g1" is the codegen
+; epoch and covers development: bumping it is part of changing what the emitter
+; accepts, refuses or emits, the rule %asm-cache-magic states for the record
+; format.  It is a literal rather than a name of its own because a name here is
+; another top-level %-global (tools/contract/percent-globals.x).
+(def %asm-cache-identity
+  (Str append x-machine x-release x-lib-version "g1"))
 
 ; The emitted code is not a function of the source alone, so the fvar table's
 ; SHAPE is part of the key.  Inside analyser mode a name absent from the table
@@ -580,11 +594,20 @@
 (def compile-asm
   (fn (_ expr . %asm-rest)
     (def fvars (unless (null? %asm-rest) (first %asm-rest)))
-    ; THE CALLING WORLD IS DECIDED HERE, at the door, and nowhere else.  An
-    ; absent third argument keeps the historical reading -- fvars present
-    ; means analyser -- which is what every caller written before there was
-    ; a third argument means.  It is settled here rather than downstream so
-    ; that the key below and the compile below name the same answer.
+    ; The calling world is settled here, at the door, and nowhere else.  With
+    ; no third argument the fvar table decides it -- present means analyser --
+    ; which is what every caller written before the third argument existed
+    ; means, including callers outside this repository.  x-python's tokenizer
+    ; compiles its states as (compile-asm form fvars) and adopts them under a
+    ; guard, so refusing the undeclared form here would not raise there: it
+    ; would pin the interpreted states and keep them, and a bundle spec cannot
+    ; assert that the JIT is active, so nothing would report it.  The misuse
+    ; refuses instead -- %asm-check-int-operands in asm-compile.x rejects an
+    ; object param handed to arithmetic or to an ordered comparison.
+    ;
+    ; Declaring the mode is the right way, and every call in this repository
+    ; declares it.  Settling it here rather than downstream keeps the key below
+    ; and the compile below naming the same answer.
     (def analyser?
       (if (null? %asm-rest) #f
         (if (null? (rest %asm-rest))
@@ -612,10 +635,16 @@
   (returns CALLABLE "X-lang callable prim")
   "JIT compile an x-lang (fn ...) expression to a native prim, through a
    persistent byte cache.  Accepts an optional fvar alist for free variable
-   support, and an optional third argument declaring analyser mode (default:
-   fvars present).  An fvar holding a prim may be CALLED by name; (%call HEAD
-   arg ...) calls a prim the code computes, and refuses at run time if the
-   head is not one.
+   support, and a third argument declaring the calling mode: #f for an
+   integer function called from x, #t for an analyse callback the tokenizer
+   calls.  Declare it whenever fvars are present: with no third argument the
+   fvars themselves are read as the declaration (present means analyser),
+   which is right for a tokenizer state and wrong for an integer function that
+   merely names a callee, and in analyser mode nothing evaluates the arguments
+   and the result is not boxed.  Arithmetic or an ordered comparison on a
+   leading param refuses in that mode rather than answering.
+   An fvar holding a prim may be called by name; (%call HEAD arg ...) calls a
+   prim the code computes, and refuses at run time if the head is not one.
    The compiled function works with map, fold, closures, etc.")
 
 (doc (provide x/tool/asm-cache compile-asm)

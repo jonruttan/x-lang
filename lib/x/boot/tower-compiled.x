@@ -58,7 +58,7 @@
 ; import and call; the boot never touches it again.
 (def %tower-jit?
   (guard (_ #f)
-    (do (compile-asm (lit (fn (_ x) (+ x k))) (list (pair (lit k) 1))) #t)))
+    (do (compile-asm (lit (fn (_ x) (+ x k))) (list (pair (lit k) 1)) #f) #t)))
 
 ; One site shape for the ten states, a LADDER of three rungs:
 ;
@@ -76,7 +76,7 @@
 (def %tower-asm
   (fn (_ src fvars interp)
     (if %tower-jit?
-      (guard (_ interp) (compile-asm src fvars))
+      (guard (_ interp) (compile-asm src fvars #t))
       (if %compile-hosted?
         (guard (_ interp) (compile src fvars))
         interp))))
@@ -102,7 +102,7 @@
 ; these bodies at all.
 (def %tower-asm-only
   (fn (_ src fvars interp)
-    (if %tower-jit? (guard (_ interp) (compile-asm src fvars)) interp)))
+    (if %tower-jit? (guard (_ interp) (compile-asm src fvars #t)) interp)))
 
 ; --- JIT SITES ARE RECORDED, so a state image can put them down and pick them up --
 ; A compiled analyser is native code in a page THIS process mapped, and no
@@ -200,7 +200,7 @@
 ; lane is asked again, since the loading engine is not the writing one.
 (def %tower-rejit!
   (fn (_)
-    (do (set! %tower-jit? (guard (_ #f) (do (compile-asm (lit (fn (_ x) (+ x k))) (list (pair (lit k) 1))) #t)))
+    (do (set! %tower-jit? (guard (_ #f) (do (compile-asm (lit (fn (_ x) (+ x k))) (list (pair (lit k) 1)) #f) #t)))
         ((fn (self l) (if (null? l) () (do (%tower-site-up! (first l)) (self (rest l)))))
          ((fn (self l acc) (if (null? l) acc (self (rest l) (pair (first l) acc)))) %tower-sites ())))))
 
@@ -289,8 +289,8 @@
 ; one op it needs that they do not, reading the last consumed character, is the
 ; jit_buffer_last_char trampoline (%buffer-last-char below).  The %tower-asm
 ; ladder keeps the interpreted %macro-delimit as the fallback, so an engine
-; without the JIT (or the trampoline) is unchanged.  A lone (pair (lit _u) 1)
-; fvar forces analyser mode for a body that has no real free variable.
+; without the JIT (or the trampoline) is unchanged.  The body has no free
+; variable, so its fvar table is empty and the analyser mode is declared.
 (def %type-delimit-cell (prim-ref 'type 'delimit-cell))
 ; Compile only when the engine actually exports jit_buffer_last_char.
 ; asm-compile resolved it to a non-zero address; an engine that predates it
@@ -314,7 +314,7 @@
                   (= (%buffer-last-char buffer) 96)))
         (%buffer-unread buffer)
         ())))
-    (list (pair (lit _u) 1))
+    ()
     %macro-delimit))
 (def %sym-delimit-list
   (first (%type-delimit-cell (%type-by-atom (%type-of "x")))))

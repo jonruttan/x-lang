@@ -31,12 +31,12 @@ name-token loop runs compiled, no interpreter re-entry per character.
         (if (and (>= chr 97) (<= chr 122))
           me
           (%seq (%buffer-unread buffer) (%score-set score 1 buffer))))
-      (list (pair 'u 1))))
+      () #t))
   (def %name-start
     (compile-asm
       '(fn (_ buffer score chr)
         (if (and (>= chr 97) (<= chr 122)) body ()))
-      (list (pair 'body %name-body))))
+      (list (pair 'body %name-body)) #t))
   (Base make-type %b "S-NAME"
     (list (pair 'analyse %name-start)
       (pair 'read (fn (_ . args) (%buf-tok (first args))))))
@@ -67,12 +67,12 @@ disturbed by the slot-0 machinery.
         (if (and (>= chr 97) (<= chr 122))
           me
           (%seq (%buffer-unread buffer) (%score-set score 1 buffer))))
-      (list (pair 'u 1))))
+      () #t))
   (def %name-start
     (compile-asm
       '(fn (_ buffer score chr)
         (if (and (>= chr 97) (<= chr 122)) body ()))
-      (list (pair 'body %name-body))))
+      (list (pair 'body %name-body)) #t))
   (Base make-type %b "S-NAME"
     (list (pair 'analyse %name-start)
       (pair 'read (fn (_ . args) (%buf-tok (first args))))))
@@ -118,13 +118,13 @@ returned score unboxed on the way out, this reads nothing at all.
           (if (= chr 0)
             (%seq (%buffer-unread buffer) (%score-set score 1 buffer))
             (me buffer score 0))))
-      (list (pair 'u 1))))
+      () #t))
   (Base make-type %b "S-NAME"
     (list (pair 'analyse
         (compile-asm
           '(fn (_ buffer score chr)
             (if (and (>= chr 97) (<= chr 122)) body ()))
-          (list (pair 'body %body))))
+          (list (pair 'body %body)) #t))
       (pair 'read (fn (_ . args) (%buf-tok (first args))))))
   (Base make-type %b "S-WS"
     (list (pair 'analyse

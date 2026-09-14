@@ -202,12 +202,17 @@ the analyser first so ITS entry is the one sitting in the cache, then ask for
 the identical source and the identical fvar table as an integer function. An
 integer function boxes its result; an analyser's would come back raw.
 
+The arithmetic sits on the third param because analyser mode's leading two are
+object-kinded, and arithmetic on one of those refuses (jit-fvar-mode.spec.md).
+This case needs a body legal in both worlds, so that the two modes are told
+apart by their key rather than by one of them failing to compile.
+
 ```scheme
 (do
-  (def %src '(fn (_ n) (+ n 1)))
+  (def %src '(fn (_ a b n) (+ n 1)))
   (def %fv (list (pair 'k 1)))
-  (compile-asm %src %fv)
-  (display ((compile-asm %src %fv #f) 41)))
+  (compile-asm %src %fv #t)
+  (display ((compile-asm %src %fv #f) 0 0 41)))
 ```
 ---
     42
