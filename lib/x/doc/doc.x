@@ -124,32 +124,34 @@
   (fn (_ form)
     (def %p-name (first (rest form)))
     (def %p-type (if (null? (rest (rest form))) () (first (rest (rest form)))))
-    (def %p-desc (if (null? (rest (rest form))) ""
-                   (if (null? (rest (rest (rest form)))) ""
-                     (if (str? (first (rest (rest (rest form)))))
-                       (first (rest (rest (rest form))))
-                       ""))))
+    (def %p-desc (match
+                   ((null? (rest (rest form))) "")
+                   ((null? (rest (rest (rest form)))) "")
+                   ((str? (first (rest (rest (rest form)))))
+                     (first (rest (rest (rest form)))))
+                   (#t "")))
     (list %p-name %p-type %p-desc)))
 
 (def %doc-strip-params
   (fn (self ps)
-    (if (null? ps) ()
-      (if (not (pair? ps)) ps
-        (if (eq? (first ps) (lit param))
-          (let ()  ; scoped: def in tail position would leak to global
-            (def %info (%doc-extract-param ps))
+    (match
+      ((null? ps) ())
+      ((not (pair? ps)) ps)
+      ((eq? (first ps) (lit param))
+        (let ()  ; scoped: def in tail position would leak to global
+          (def %info (%doc-extract-param ps))
+          (%set-first! %doc-params-acc
+            (pair %info (first %doc-params-acc)))
+          (first %info)))
+      ((pair? (first ps))
+        (if (eq? (first (first ps)) (lit param))
+          (let ()
+            (def %info (%doc-extract-param (first ps)))
             (%set-first! %doc-params-acc
               (pair %info (first %doc-params-acc)))
-            (first %info))
-          (if (pair? (first ps))
-            (if (eq? (first (first ps)) (lit param))
-              (let ()
-                (def %info (%doc-extract-param (first ps)))
-                (%set-first! %doc-params-acc
-                  (pair %info (first %doc-params-acc)))
-                (pair (first %info) (self (rest ps))))
-              (pair (first ps) (self (rest ps))))
-            (pair (first ps) (self (rest ps)))))))))
+            (pair (first %info) (self (rest ps))))
+          (pair (first ps) (self (rest ps)))))
+      (#t (pair (first ps) (self (rest ps)))))))
 
 ; --- Process metadata sub-forms ---
 
@@ -167,31 +169,33 @@
           (let ()
             (def %form (first forms))
             (def %tag (first %form))
-            (if (eq? %tag (lit returns))
-              (%set-first! %doc-pending-returns
-                (list (first (rest %form))
-                  (if (null? (rest (rest %form))) ""
-                    (if (str? (first (rest (rest %form))))
-                      (first (rest (rest %form)))
-                      ""))))
-            (if (eq? %tag (lit example))
-              (%set-first! %doc-pending-examples
-                (pair (pair (first (rest %form)) (first (rest (rest %form))))
-                      (first %doc-pending-examples)))
-            (if (eq? %tag (lit sample))
-              (%set-first! %doc-pending-samples
-                (pair (pair (first (rest %form)) (first (rest (rest %form))))
-                      (first %doc-pending-samples)))
-            (if (eq? %tag (lit see))
-              (%set-first! %doc-pending-sees
-                (pair (first (rest %form)) (first %doc-pending-sees)))
-            (if (eq? %tag (lit note))
-              (%set-first! %doc-pending-notes
-                (pair (first (rest %form)) (first %doc-pending-notes)))
-            (if (eq? %tag (lit param))
-              (%set-first! %doc-params-acc
-                (pair (%doc-extract-param %form)
-                      (first %doc-params-acc)))))))))))
+            (match
+              ((eq? %tag (lit returns))
+                (%set-first! %doc-pending-returns
+                  (list (first (rest %form))
+                    (if (null? (rest (rest %form))) ""
+                      (if (str? (first (rest (rest %form))))
+                        (first (rest (rest %form)))
+                        "")))))
+              ((eq? %tag (lit example))
+                (%set-first! %doc-pending-examples
+                  (pair (pair (first (rest %form)) (first (rest (rest %form))))
+                        (first %doc-pending-examples))))
+              ((eq? %tag (lit sample))
+                (%set-first! %doc-pending-samples
+                  (pair (pair (first (rest %form)) (first (rest (rest %form))))
+                        (first %doc-pending-samples))))
+              ((eq? %tag (lit see))
+                (%set-first! %doc-pending-sees
+                  (pair (first (rest %form)) (first %doc-pending-sees))))
+              ((eq? %tag (lit note))
+                (%set-first! %doc-pending-notes
+                  (pair (first (rest %form)) (first %doc-pending-notes))))
+              (#t
+                (if (eq? %tag (lit param))
+                  (%set-first! %doc-params-acc
+                    (pair (%doc-extract-param %form)
+                          (first %doc-params-acc))))))))
         (self (rest forms))))))
 
 ; --- Reset all pending accumulators ---
@@ -240,15 +244,15 @@
 ; %doc-params-acc (the commit phase re-runs %doc-strip-fn to collect it).
 (def %doc-strip-params-fast
   (fn (self ps)
-    (if (null? ps) ()
-      (if (not (pair? ps)) ps
-        (if (eq? (first ps) (lit param))
-          (first (rest ps))
-          (if (pair? (first ps))
-            (if (eq? (first (first ps)) (lit param))
-              (pair (first (rest (first ps))) (self (rest ps)))
-              (pair (first ps) (self (rest ps))))
-            (pair (first ps) (self (rest ps)))))))))
+    (match
+      ((null? ps) ())
+      ((not (pair? ps)) ps)
+      ((eq? (first ps) (lit param)) (first (rest ps)))
+      ((pair? (first ps))
+        (if (eq? (first (first ps)) (lit param))
+          (pair (first (rest (first ps))) (self (rest ps)))
+          (pair (first ps) (self (rest ps)))))
+      (#t (pair (first ps) (self (rest ps)))))))
 
 (def %doc-strip-fn-fast
   (fn (_ fn-form)

@@ -46,10 +46,11 @@
     ; INT -- keep the point so floats round-trip (#45 R4). Skip anything
     ; already carrying a point, an exponent, or inf/nan.
     (let ((s (%ffi-call "d->s" () bits)))
-      (if (Str8 includes? "." s) s
-        (if (Str8 includes? "e" s) s
-          (if (Str8 includes? "n" s) s
-            (Str8 append s ".0")))))))
+      (match
+        ((Str8 includes? "." s) s)
+        ((Str8 includes? "e" s) s)
+        ((Str8 includes? "n" s) s)
+        (#t (Str8 append s ".0"))))))
 
 (def %int->float
   (fn (_ n) (%ffi-call "i->d" () n)))

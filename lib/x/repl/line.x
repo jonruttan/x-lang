@@ -226,8 +226,12 @@
   (fn (self s i n)
     (if (>= i n) i
       (let ((b (%ln-byte s i)))
-        (if (if (<= b 32) #t (if (= b 40) #t (if (= b 41) #t (= b 59)))) i
-          (self s (+ i 1) n))))))
+        (match
+          ((<= b 32) i)
+          ((= b 40) i)
+          ((= b 41) i)
+          ((= b 59) i)
+          (#t (self s (+ i 1) n)))))))
 
 ; WHAT IS ALREADY TYPED, and what the registry calls the thing being typed,
 ; are not the same string in this language, and that is the whole reason this

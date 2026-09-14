@@ -44,7 +44,11 @@
 
     ; The engine's own flags reach the program too; drop them, and a leading --.
     (method %engine-flag? (self s)
-      (if (str=? s "--quiet") #t (if (str=? s "--batch") #t (if (str=? s "--no-color") #t (str=? s "--verbose")))))
+      (match
+        ((str=? s "--quiet") #t)
+        ((str=? s "--batch") #t)
+        ((str=? s "--no-color") #t)
+        (#t (str=? s "--verbose"))))
     (method %argv (self raw)
       (def ops (List filter (fn (_ a) (not (BitwiseCli %engine-flag? a))) (if (pair? raw) (rest raw) ())))
       (if (if (pair? ops) (str=? (first ops) "--") #f) (rest ops) ops))
@@ -133,6 +137,17 @@
           (let ((i (self %idx (first ss) s)))
             (go (rest ss) (if (< i 0) best (if (< best 0) i (Num min best i))))))))
 
+    ; Badges, indented blocks, tables, raw HTML, headings and the owl: page
+    ; furniture, not prose.
+    (method %furniture? (self line)
+      (match
+        ((Str8 starts? "[!" line) #t)
+        ((Str8 starts? "    " line) #t)
+        ((Str8 starts? "|" line) #t)
+        ((Str8 starts? "<" line) #t)
+        ((Str8 starts? "#" line) #t)
+        (#t (Str8 includes? "{O,O}" line))))
+
     ; First prose paragraph after the H1, de-markdowned, cut to one sentence.
     (method %tagline (self readme)
       (def para
@@ -145,12 +160,7 @@
                 ((Str8 starts? "# " line) (go (rest ls) #t fence acc))
                 ((not seen) (go (rest ls) seen fence acc))
                 ((str=? (Str8 trim line) "") (if (null? acc) (go (rest ls) seen fence acc) (%reverse acc)))
-                ((if (Str8 starts? "[!" line) #t
-                   (if (Str8 starts? "    " line) #t
-                     (if (Str8 starts? "|" line) #t
-                       (if (Str8 starts? "<" line) #t
-                         (if (Str8 starts? "#" line) #t (Str8 includes? "{O,O}" line))))))
-                 (go (rest ls) seen fence acc))
+                ((BitwiseCli %furniture? line) (go (rest ls) seen fence acc))
                 (#t (go (rest ls) seen fence (pair (Str8 trim line) acc))))))))
       (def text0 (Str8 join " " (Bitwise %words (Str8 replace "`" "" (Str8 replace "_" "" (Str8 replace "*" "" (self %unlink (Str8 join " " para))))))))
       (def cut (self %earliest text0 (list ". " "; " " -- " " \xe2\x80\x94 ")))

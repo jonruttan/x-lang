@@ -43,7 +43,11 @@
 (def %json-byte (fn (_ s i) (%json-char->int (%json-byte-ref s i))))
 
 (def %json-ws?
-  (fn (_ b) (if (= b 32) #t (if (= b 9) #t (if (= b 10) #t (= b 13))))))
+  (fn (_ b) (match
+              ((= b 32) #t)
+              ((= b 9) #t)
+              ((= b 10) #t)
+              (#t (= b 13)))))
 
 (def %json-skip-ws
   (fn (self s i len)
@@ -87,7 +91,11 @@
       (let go ((j i))
         (if (>= j %end) #f
           (let ((b (%json-byte s j)))
-            (if (= b 46) #t (if (= b 101) #t (if (= b 69) #t (go (+ j 1)))))))))
+            (match
+              ((= b 46) #t)
+              ((= b 101) #t)
+              ((= b 69) #t)
+              (#t (go (+ j 1))))))))
     ; %json-cvt, not the bits door (Float str->bits): that returns the raw IEEE bit
     ; pattern; the convert path boxes a real FLOAT value.
     (def %v (if %floaty (%json-cvt %text %float) (%str->number %text)))
@@ -177,23 +185,25 @@
 (def %json-parse-object
   (fn (self s i len d)
     (def j (%json-skip-ws s i len))
-    (if (>= j len) (%json-err "unterminated object" j)
-      (if (= (%json-byte s j) 125)                             ; }
-        (pair d (+ j 1))
-        (if (not (= (%json-byte s j) 34))
-          (%json-err "expected a string key" j)
-          (let ((key (%json-parse-string s (+ j 1) len (+ j 1) "")))
-            (let ((c (%json-skip-ws s (rest key) len)))
-              (if (if (>= c len) #t (not (= (%json-byte s c) 58)))   ; :
-                (%json-err "expected : after key" c)
-                (let ((v (%json-parse-value s (+ c 1) len)))
-                  (do (d set! (first key) (first v))
-                      (let ((k (%json-skip-ws s (rest v) len)))
-                        (if (>= k len) (%json-err "unterminated object" k)
-                          (match
-                            ((= (%json-byte s k) 44) (self s (+ k 1) len d))
-                            ((= (%json-byte s k) 125) (pair d (+ k 1)))
-                            (#t (%json-err "expected , or } in object" k)))))))))))))))
+    (match
+      ((>= j len) (%json-err "unterminated object" j))
+      ((= (%json-byte s j) 125)
+        ; }
+        (pair d (+ j 1)))
+      ((not (= (%json-byte s j) 34)) (%json-err "expected a string key" j))
+      (#t
+        (let ((key (%json-parse-string s (+ j 1) len (+ j 1) "")))
+          (let ((c (%json-skip-ws s (rest key) len)))
+            (if (if (>= c len) #t (not (= (%json-byte s c) 58)))   ; :
+              (%json-err "expected : after key" c)
+              (let ((v (%json-parse-value s (+ c 1) len)))
+                (do (d set! (first key) (first v))
+                    (let ((k (%json-skip-ws s (rest v) len)))
+                      (if (>= k len) (%json-err "unterminated object" k)
+                        (match
+                          ((= (%json-byte s k) 44) (self s (+ k 1) len d))
+                          ((= (%json-byte s k) 125) (pair d (+ k 1)))
+                          (#t (%json-err "expected , or } in object" k))))))))))))))
 
 (set! %json-parse-value
   (fn (_ s i len)

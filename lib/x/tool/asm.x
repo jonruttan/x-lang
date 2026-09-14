@@ -78,9 +78,11 @@
 (def %op-sig
   (fn (_ op)
     (def t (first op))
-    (if (eq? t 'reg) "r"
-      (if (eq? t 'imm) "i"
-        (if (eq? t 'mem) "m" "l")))))
+    (match
+      ((eq? t 'reg) "r")
+      ((eq? t 'imm) "i")
+      ((eq? t 'mem) "m")
+      (#t "l"))))
 
 ; This file's emit path is the assembler's inner loop: every instruction
 ; of every compiled function goes through it, and a GENERATED body runs
@@ -100,7 +102,11 @@
 (def %op-code
   (fn (_ op)
     (def t (first op))
-    (if (eq? t 'reg) 1 (if (eq? t 'imm) 2 (if (eq? t 'mem) 3 4)))))
+    (match
+      ((eq? t 'reg) 1)
+      ((eq? t 'imm) 2)
+      ((eq? t 'mem) 3)
+      (#t 4))))
 (def %args-key
   (fn (self args acc)
     (if (null? args) acc

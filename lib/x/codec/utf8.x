@@ -17,10 +17,11 @@
 
 (def %utf8-seq-len
   (fn (_ b)
-    (if (< b 192) 1        ; 0xxxxxxx  ASCII (or a stray continuation byte)
-    (if (< b 224) 2        ; 110xxxxx
-    (if (< b 240) 3        ; 1110xxxx
-      4)))))               ; 11110xxx
+    (match
+      ((< b 192) 1)   ; 0xxxxxxx  ASCII (or a stray continuation byte)
+      ((< b 224) 2)   ; 110xxxxx
+      ((< b 240) 3)   ; 1110xxxx
+      (#t 4))))       ; 11110xxx
 
 ; Decode the UTF-8 sequence at byte index i of s -> (code-point . next-index).
 ; The shifted lead/continuation parts occupy disjoint bit ranges, so | merges
@@ -31,10 +32,11 @@
     (def n (%utf8-seq-len b0))
     (def cont (fn (_ k) (& (%char->integer (%str-ref s (+ i k))) 63)))   ; low 6 bits
     (pair
-      (if (= n 1) b0
-      (if (= n 2) (| (<< (& b0 31) 6) (cont 1))
-      (if (= n 3) (| (| (<< (& b0 15) 12) (<< (cont 1) 6)) (cont 2))
-        (| (| (| (<< (& b0 7) 18) (<< (cont 1) 12)) (<< (cont 2) 6)) (cont 3)))))
+      (match
+        ((= n 1) b0)
+        ((= n 2) (| (<< (& b0 31) 6) (cont 1)))
+        ((= n 3) (| (| (<< (& b0 15) 12) (<< (cont 1) 6)) (cont 2)))
+        (#t (| (| (| (<< (& b0 7) 18) (<< (cont 1) 12)) (<< (cont 2) 6)) (cont 3))))
       (+ i n))))
 
 ; --- Allocation-light accessors (no pair, no inner closure) ---
@@ -52,18 +54,20 @@
 (def %utf8-cp-at
   (fn (_ s i)
     (def b0 (%char->integer (%str-ref s i)))
-    (if (< b0 128) b0
-    (if (< b0 224)
-      (| (<< (& b0 31) 6)
-         (& (%char->integer (%str-ref s (+ i 1))) 63))
-    (if (< b0 240)
-      (| (| (<< (& b0 15) 12)
-            (<< (& (%char->integer (%str-ref s (+ i 1))) 63) 6))
-         (& (%char->integer (%str-ref s (+ i 2))) 63))
-      (| (| (| (<< (& b0 7) 18)
-               (<< (& (%char->integer (%str-ref s (+ i 1))) 63) 12))
-            (<< (& (%char->integer (%str-ref s (+ i 2))) 63) 6))
-         (& (%char->integer (%str-ref s (+ i 3))) 63)))))))
+    (match
+      ((< b0 128) b0)
+      ((< b0 224)
+        (| (<< (& b0 31) 6)
+           (& (%char->integer (%str-ref s (+ i 1))) 63)))
+      ((< b0 240)
+        (| (| (<< (& b0 15) 12)
+              (<< (& (%char->integer (%str-ref s (+ i 1))) 63) 6))
+           (& (%char->integer (%str-ref s (+ i 2))) 63)))
+      (#t
+        (| (| (| (<< (& b0 7) 18)
+                 (<< (& (%char->integer (%str-ref s (+ i 1))) 63) 12))
+              (<< (& (%char->integer (%str-ref s (+ i 2))) 63) 6))
+           (& (%char->integer (%str-ref s (+ i 3))) 63))))))
 
 ; Encode code point cp as a list of its 1-4 UTF-8 byte values (0-255). Out-of-
 ; range code points emit U+FFFD (the replacement character), matching the C
@@ -71,21 +75,23 @@
 ; integer->char to byte-pack via bytes->str, or use the bytes directly.
 (def %utf8-encode
   (fn (self cp)
-    (if (if (< cp 0) #t (> cp 1114111))   ; out of range -> U+FFFD
-      (self 65533)
-    (if (< cp 128)
-      (list cp)                            ; 0xxxxxxx
-    (if (< cp 2048)
-      (list (| 192 (>> cp 6))              ; 110xxxxx
-            (| 128 (& cp 63)))
-    (if (< cp 65536)
-      (list (| 224 (>> cp 12))             ; 1110xxxx
-            (| 128 (& (>> cp 6) 63))
-            (| 128 (& cp 63)))
-      (list (| 240 (>> cp 18))             ; 11110xxx
-            (| 128 (& (>> cp 12) 63))
-            (| 128 (& (>> cp 6) 63))
-            (| 128 (& cp 63)))))))))
+    (match
+      ((if (< cp 0) #t (> cp 1114111))
+        ; out of range -> U+FFFD
+        (self 65533))
+      ((< cp 128) (list cp))                ; 0xxxxxxx
+      ((< cp 2048)
+        (list (| 192 (>> cp 6))             ; 110xxxxx
+              (| 128 (& cp 63))))
+      ((< cp 65536)
+        (list (| 224 (>> cp 12))            ; 1110xxxx
+              (| 128 (& (>> cp 6) 63))
+              (| 128 (& cp 63))))
+      (#t
+        (list (| 240 (>> cp 18))            ; 11110xxx
+              (| 128 (& (>> cp 12) 63))
+              (| 128 (& (>> cp 6) 63))
+              (| 128 (& cp 63)))))))
 
 (doc (provide x/codec/utf8)
   (note "Internals are %-private (they also run inside tokenizer callbacks, where")

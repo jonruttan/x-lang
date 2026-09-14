@@ -347,31 +347,26 @@
     (def %sg-within1?
       (fn (self a b i j slack)
         (let ((la (%sg-len a)) (lb (%sg-len b)))
-          (if (>= i la)
-            (<= (- lb j) slack)
-            (if (>= j lb)
-              (<= (- la i) slack)
-              (if (= (%sg-ref a i) (%sg-ref b j))
-                (self a b (+ i 1) (+ j 1) slack)
-                (if (= slack 0)
-                  #f
-                  ; The three shapes one edit can take, tried in turn with
-                  ; the slack spent: substitute, drop from a, drop from b.
-                  (if (self a b (+ i 1) (+ j 1) 0) #t
-                    (if (self a b (+ i 1) j 0) #t
-                      (self a b i (+ j 1) 0))))))))))
+          (match
+            ((>= i la) (<= (- lb j) slack))
+            ((>= j lb) (<= (- la i) slack))
+            ((= (%sg-ref a i) (%sg-ref b j)) (self a b (+ i 1) (+ j 1) slack))
+            ((= slack 0) #f)
+            ; The three shapes one edit can take, tried in turn with
+            ; the slack spent: substitute, drop from a, drop from b.
+            ((self a b (+ i 1) (+ j 1) 0) #t)
+            ((self a b (+ i 1) j 0) #t)
+            (#t (self a b i (+ j 1) 0))))))
     ; a is a proper prefix of b -- the half-typed selector (`spl` for
     ; `split`), which is two edits away and so invisible to the check above.
     (def %sg-prefix?
       (fn (self a b i)
         (let ((la (%sg-len a)))
-          (if (>= i la)
-            (< la (%sg-len b))
-            (if (>= i (%sg-len b))
-              #f
-              (if (= (%sg-ref a i) (%sg-ref b i))
-                (self a b (+ i 1))
-                #f))))))
+          (match
+            ((>= i la) (< la (%sg-len b)))
+            ((>= i (%sg-len b)) #f)
+            ((= (%sg-ref a i) (%sg-ref b i)) (self a b (+ i 1)))
+            (#t #f)))))
     (def %sg-near?
       (fn (_ miss cand)
         (if (%sg-within1? miss cand 0 0 1) #t (%sg-prefix? miss cand 0))))
@@ -1223,12 +1218,13 @@
     (unless (null? forms)
       (let ((f (first forms)))
         (if (if (pair? f)
-              (if (eq? (first f) (lit method)) #t
-                (if (eq? (first f) (lit static)) #t
-                  (if (eq? (first f) (lit interface)) #t
-                    (if (eq? (first f) (lit with)) #t
-                      (if (eq? (first f) (lit delegates)) #t
-                        (%class-doc-form? f))))))    ; skip methods/statics/interface/with/delegates/class doc
+              (match
+                ((eq? (first f) (lit method)) #t)
+                ((eq? (first f) (lit static)) #t)
+                ((eq? (first f) (lit interface)) #t)
+                ((eq? (first f) (lit with)) #t)
+                ((eq? (first f) (lit delegates)) #t)
+                (#t (%class-doc-form? f)))    ; skip methods/statics/interface/with/delegates/class doc
               #f)
           (loop class-name (rest forms) e thunk?)
           (let ((decl (%member-decl f)))

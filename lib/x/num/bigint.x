@@ -91,10 +91,11 @@
         (let ()  ; scoped: def in tail position would leak to global
           (def %cmp-rev
             (fn (self ra rb)
-              (if (null? ra) 0
-                (if (%int< (first ra) (first rb)) -1
-                  (if (%int< (first rb) (first ra)) 1
-                    (self (rest ra) (rest rb)))))))
+              (match
+                ((null? ra) 0)
+                ((%int< (first ra) (first rb)) -1)
+                ((%int< (first rb) (first ra)) 1)
+                (#t (self (rest ra) (rest rb))))))
           (%cmp-rev (%reverse a) (%reverse b)))))))
 
 ; --- Limb arithmetic ---
@@ -189,10 +190,11 @@
         ; each per CALL (the #341 lesson, kept through the #401 rewrite).
         (def %cmp-msb
           (fn (self ra rb2)
-            (if (null? ra) 0
-              (if (%int< (first ra) (first rb2)) -1
-                (if (%int< (first rb2) (first ra)) 1
-                  (self (rest ra) (rest rb2)))))))
+            (match
+              ((null? ra) 0)
+              ((%int< (first ra) (first rb2)) -1)
+              ((%int< (first rb2) (first ra)) 1)
+              (#t (self (rest ra) (rest rb2))))))
         (def %cmp-len
           (fn (_ la ra lb2 rb2)
             (if (%int< la lb2) -1
@@ -515,33 +517,36 @@
 
 (def %big-mixed-check
   (fn (_ op a b)
-    (if (null? a) ()
-      (if (null? b) ()
-        (if (%int-number? a) ()
-          (if (%int-number? b) ()
+    (match
+      ((null? a) ())
+      ((null? b) ())
+      ((%int-number? a) ())
+      ((%int-number? b) ())
+      (#t
+        (do
+          (def ha (%type-of a))
+          (def hb (%type-of b))
+          (def %hit
+            (fn (self alist key)
+              (if (null? alist) #f
+                (if (same? (first (first alist)) key) #t
+                  (self (rest alist) key)))))
+          (if (same? ha hb) ()
             (do
-              (def ha (%type-of a))
-              (def hb (%type-of b))
-              (def %hit
-                (fn (self alist key)
-                  (if (null? alist) #f
-                    (if (same? (first (first alist)) key) #t
-                      (self (rest alist) key)))))
-              (if (same? ha hb) ()
-                (do
-                  (def ta (%type-by-atom ha))
-                  (def tb (%type-by-atom hb))
-                  (if (%hit (first (%type-from-cell ta)) hb) ()
-                    (if (%hit (first (%type-from-cell tb)) ha) ()
-                      (if (%hit (first (%type-ops-cell ta)) op)
-                        (if (%hit (first (%type-ops-cell tb)) op)
-                          (error (%str-append "int op: no declared promotion ("
-                            (%str-append ((prim-ref 'type 'name) ha)
-                              (%str-append " x "
-                                (%str-append ((prim-ref 'type 'name) hb)
-                                  ") -- declare the cvt relation (#584)")))))
-                          ())
-                        ()))))))))))))
+              (def ta (%type-by-atom ha))
+              (def tb (%type-by-atom hb))
+              (match
+                ((%hit (first (%type-from-cell ta)) hb) ())
+                ((%hit (first (%type-from-cell tb)) ha) ())
+                ((%hit (first (%type-ops-cell ta)) op)
+                  (if (%hit (first (%type-ops-cell tb)) op)
+                    (error (%str-append "int op: no declared promotion ("
+                      (%str-append ((prim-ref 'type 'name) ha)
+                        (%str-append " x "
+                          (%str-append ((prim-ref 'type 'name) hb)
+                            ") -- declare the cvt relation (#584)")))))
+                    ()))
+                (#t ())))))))))
 
 ; The per-pair binaries, NAMED so the 2-arg fast path below calls them
 ; directly -- (op a b) is the overwhelming shape and the fold entry
@@ -576,51 +581,55 @@
   (returns INT|BIGINT "Sum"))
 (set! +
   (fn (_ . args)
-    (if (eq? args ()) 0
-      (if (eq? (rest args) ()) (first args)
-        (if (eq? (rest (rest args)) ())
-          (%big-add2 (first args) (first (rest args)))
-          (%fold %big-add2 (first args) (rest args)))))))
+    (match
+      ((eq? args ()) 0)
+      ((eq? (rest args) ()) (first args))
+      ((eq? (rest (rest args)) ())
+        (%big-add2 (first args) (first (rest args))))
+      (#t (%fold %big-add2 (first args) (rest args))))))
 
 (doc - "Subtract numbers, promoting to bigint on overflow. Unary form negates."
   (param args INT|BIGINT "Numbers to subtract")
   (returns INT|BIGINT "Difference"))
 (set! -
   (fn (_ . args)
-    (if (eq? args ()) 0
-      (if (eq? (rest args) ())
+    (match
+      ((eq? args ()) 0)
+      ((eq? (rest args) ())
         ; Unary negation: plain ints negate directly; typed values (bigint,
         ; rational, float, ...) negate via the dispatching binary (- 0 x),
         ; which routes to the type's own - handler.
         (if (%int-number? (first args))
           (%int- (first args))
-          (%int- 0 (first args)))
-        (if (eq? (rest (rest args)) ())
-          (%big-sub2 (first args) (first (rest args)))
-          (%fold %big-sub2 (first args) (rest args)))))))
+          (%int- 0 (first args))))
+      ((eq? (rest (rest args)) ())
+        (%big-sub2 (first args) (first (rest args))))
+      (#t (%fold %big-sub2 (first args) (rest args))))))
 
 (doc * "Multiply numbers, promoting to bigint on overflow."
   (param args INT|BIGINT "Numbers to multiply")
   (returns INT|BIGINT "Product"))
 (set! *
   (fn (_ . args)
-    (if (eq? args ()) 1
-      (if (eq? (rest args) ()) (first args)
-        (if (eq? (rest (rest args)) ())
-          (%big-mul2 (first args) (first (rest args)))
-          (%fold %big-mul2 (first args) (rest args)))))))
+    (match
+      ((eq? args ()) 1)
+      ((eq? (rest args) ()) (first args))
+      ((eq? (rest (rest args)) ())
+        (%big-mul2 (first args) (first (rest args))))
+      (#t (%fold %big-mul2 (first args) (rest args))))))
 
 (doc / "Divide numbers; bigint operands dispatch through the type ops."
   (param args INT|BIGINT "Numbers to divide")
   (returns INT|BIGINT "Quotient"))
 (set! /
   (fn (_ . args)
-    (if (eq? args ()) 1
-      (if (eq? (rest args) ()) (first args)
-        (if (eq? (rest (rest args)) ())
-          (%int/ (first args) (first (rest args)))
-          (%fold (fn (_ acc x) (%int/ acc x))
-            (first args) (rest args)))))))
+    (match
+      ((eq? args ()) 1)
+      ((eq? (rest args) ()) (first args))
+      ((eq? (rest (rest args)) ()) (%int/ (first args) (first (rest args))))
+      (#t
+        (%fold (fn (_ acc x) (%int/ acc x))
+          (first args) (rest args))))))
 
 ; --- Type registration ---
 
@@ -707,22 +716,22 @@
 (def %int-capped-xdigits ())
 (set! %int-capped-xdigits
   (fn (_ buffer score chr)
-    (if (if (if (>= chr #\0) (<= chr #\9) #f) #t
-          (if (if (>= chr #\a) (<= chr #\f) #f) #t
-            (if (>= chr #\A) (<= chr #\F) #f)))
-      %int-capped-xdigits
-      (do (%buffer-unread buffer)
-          (if (not (%int< 18 (%buffer-len buffer)))
-            (%score-set score 1 buffer)
-            ())))))
+    (match
+      ((if (>= chr #\0) (<= chr #\9) #f) %int-capped-xdigits)
+      ((if (>= chr #\a) (<= chr #\f) #f) %int-capped-xdigits)
+      ((if (>= chr #\A) (<= chr #\F) #f) %int-capped-xdigits)
+      (#t (do (%buffer-unread buffer)
+              (if (not (%int< 18 (%buffer-len buffer)))
+                (%score-set score 1 buffer)
+                ()))))))
 
 (def %int-capped-xfirst
   (fn (_ buffer score chr)
-    (if (if (if (>= chr #\0) (<= chr #\9) #f) #t
-          (if (if (>= chr #\a) (<= chr #\f) #f) #t
-            (if (>= chr #\A) (<= chr #\F) #f)))
-      %int-capped-xdigits
-      ())))
+    (match
+      ((if (>= chr #\0) (<= chr #\9) #f) %int-capped-xdigits)
+      ((if (>= chr #\a) (<= chr #\f) #f) %int-capped-xdigits)
+      ((if (>= chr #\A) (<= chr #\F) #f) %int-capped-xdigits)
+      (#t ()))))
 
 (def %int-capped-base
   (fn (_ buffer score chr)
@@ -740,13 +749,11 @@
 
 (def %int-capped-analyse
   (fn (_ buffer score chr)
-    (if (= chr #\0)
-      %int-capped-base
-      (if (if (>= chr #\1) (<= chr #\9) #f)
-        %int-capped-digits
-        (if (if (= chr #\-) #t (= chr #\+))
-          %int-capped-sign
-          ())))))
+    (match
+      ((= chr #\0) %int-capped-base)
+      ((if (>= chr #\1) (<= chr #\9) #f) %int-capped-digits)
+      ((if (= chr #\-) #t (= chr #\+)) %int-capped-sign)
+      (#t ()))))
 
 (%type-push-analyse %int-type %int-capped-analyse)
 
