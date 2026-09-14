@@ -665,11 +665,12 @@
       ; the silent kind of wrong.
       (def %digits?
         (fn (self s i len)
-          (if (not (%int< i len)) #f
-            (if (%int< (%chr s i) 48) #f
-              (if (%int< 57 (%chr s i)) #f
-                (if (%int= (%int+ i 1) len) #t
-                  (self s (%int+ i 1) len)))))))
+          (match
+            ((not (%int< i len)) #f)
+            ((%int< (%chr s i) 48) #f)
+            ((%int< 57 (%chr s i)) #f)
+            ((%int= (%int+ i 1) len) #t)
+            (#t (self s (%int+ i 1) len)))))
       ; [+-]?digits as a native int, for the exponent field.
       (def %parse-exp
         (fn (_ s i len)
@@ -821,6 +822,11 @@
 ; Only the terminal `d` scores, and the score covers the suffix, so 1.5d
 ; (4 chars) outbids float's 1.5 (3) on the same run.  Without the suffix
 ; nothing here scores at all and the float reader keeps the token.
+;
+; The states below stay nested `if` rather than `match`: %dec-int,
+; %dec-frac and %dec-exp-digits have compiled twins in
+; boot/tower-compiled.x that must agree with them form for form, and the
+; asm lane lowers `if`, `and`, `or` and `not` but not `match`.
 
 (def %dec-exp-digits ())
 (set! %dec-exp-digits

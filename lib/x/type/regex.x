@@ -41,10 +41,11 @@
 ; these tests run per character in the matcher's inner loop.
 (def %regex-is-word-char
   (fn (_ c)
-    (if (if (>= c 48) (<= c 57) #f) #t
-      (if (if (>= c 65) (<= c 90) #f) #t
-        (if (if (>= c 97) (<= c 122) #f) #t
-          (= c 95))))))
+    (match
+      ((if (>= c 48) (<= c 57) #f) #t)
+      ((if (>= c 65) (<= c 90) #f) #t)
+      ((if (>= c 97) (<= c 122) #f) #t)
+      (#t (= c 95)))))
 
 ; Character class membership: check if chr (char) matches any entry (int codes)
 ; The char->int cast happens ONCE, above the entry walk (#337): the old

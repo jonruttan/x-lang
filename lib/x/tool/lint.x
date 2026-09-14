@@ -146,19 +146,20 @@
   (pair (pair pn (list #t)) scope)))
 
 (def %add-params (fn (self params scope)
-  (if (null? params) scope
-    (if (symbol? params) (%add-rest-name (%cvt params %string) scope)   ; improper tail = rest
-      (if (pair? params)
-        ; A bare `param` symbol is the flattened remnant of an inline-doc rest
-        ; param `. (param NAME TYPE "desc")` (the reader flattens `. (list)`):
-        ; the NEXT element is the real rest-param name; add it and stop, since
-        ; everything after is doc metadata (TYPE, description), not params.
-        (if (if (symbol? (first params)) (str=? (%cvt (first params) %string) "param") #f)
-          (if (pair? (rest params))
-            (%add-rest-name (%param-name (first (rest params))) scope)
-            scope)
-          (self (rest params) (%add-param-name (%param-name (first params)) scope)))
-        scope)))))
+  (match
+    ((null? params) scope)
+    ((symbol? params) (%add-rest-name (%cvt params %string) scope))   ; improper tail = rest
+    ((pair? params)
+      ; A bare `param` symbol is the flattened remnant of an inline-doc rest
+      ; param `. (param NAME TYPE "desc")` (the reader flattens `. (list)`):
+      ; the NEXT element is the real rest-param name; add it and stop, since
+      ; everything after is doc metadata (TYPE, description), not params.
+      (if (if (symbol? (first params)) (str=? (%cvt (first params) %string) "param") #f)
+        (if (pair? (rest params))
+          (%add-rest-name (%param-name (first (rest params))) scope)
+          scope)
+        (self (rest params) (%add-param-name (%param-name (first params)) scope))))
+    (#t scope))))
 
 (def %scope-add! (fn (_ name)
   (%set-first! %lint-scope (pair (pair name (list #f)) (first %lint-scope)))))
@@ -487,14 +488,16 @@
 ; subject-last method form (Str8 =? nm "upper"), whose head is the CLASS and
 ; whose selector sits second.
 (def %ladder-cmp-test (fn (_ test)
-  (if (not (pair? test)) ()
-    (if (not (symbol? (first test))) ()
-      (if (%ladder-cmp? (%cvt (first test) %string))
-        (%ladder-pair (%ladder-at test 1) (%ladder-at test 2))
-        (let ((sel (%ladder-at test 1)))
-          (if (if (symbol? sel) (%ladder-cmp? (%cvt sel %string)) #f)
-            (%ladder-pair (%ladder-at test 2) (%ladder-at test 3))
-            ())))))))
+  (match
+    ((not (pair? test)) ())
+    ((not (symbol? (first test))) ())
+    ((%ladder-cmp? (%cvt (first test) %string))
+      (%ladder-pair (%ladder-at test 1) (%ladder-at test 2)))
+    (#t
+      (let ((sel (%ladder-at test 1)))
+        (if (if (symbol? sel) (%ladder-cmp? (%cvt sel %string)) #f)
+          (%ladder-pair (%ladder-at test 2) (%ladder-at test 3))
+          ()))))))
 
 ; A chain arm's test: one comparison, or an inlined `or` over the SAME
 ; variable -- (if T1 #t T2), the Tier 3.1 spelling -- which still selects
@@ -504,16 +507,18 @@
 ; over two DIFFERENT variables is a genuine decision and ends the chain.
 (def %ladder-test (fn (self test)
   (let ((plain (%ladder-cmp-test test)))
-    (if (not (null? plain)) plain
-      (if (not (pair? test)) ()
-        (if (not (symbol? (first test))) ()
-          (if (not (str=? (%cvt (first test) %string) "if")) ()
-            (if (not (eq? (%ladder-at test 2) #t)) ()
-              (let ((a (self (%ladder-at test 1))))
-                (if (null? a) ()
-                  (let ((b (self (%ladder-at test 3))))
-                    (if (null? b) ()
-                      (if (str=? (first a) (first b)) a ())))))))))))))
+    (match
+      ((not (null? plain)) plain)
+      ((not (pair? test)) ())
+      ((not (symbol? (first test))) ())
+      ((not (str=? (%cvt (first test) %string) "if")) ())
+      ((not (eq? (%ladder-at test 2) #t)) ())
+      (#t
+        (let ((a (self (%ladder-at test 1))))
+          (if (null? a) ()
+            (let ((b (self (%ladder-at test 3))))
+              (if (null? b) ()
+                (if (str=? (first a) (first b)) a ()))))))))))
 
 ; Arms of the chain rooted at this `if`, all testing `var`.  A chain runs
 ; down the ELSE branch: (if T1 A (if T2 B (if T3 C D))).

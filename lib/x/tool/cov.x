@@ -78,16 +78,17 @@
     (def tot-cell (pair 0 ()))
     (def go
       (fn (self e d)
-        (if (null? e) ()
-          (if (> d 15) ()
-            (if (%cov-is-cons? e)
-              (do
-                (if (cov-covered? e)
-                  (%set-first! cov-cell (+ (first cov-cell) 1)) ())
-                (%set-first! tot-cell (+ (first tot-cell) 1))
-                (self (first e) (+ d 1))
-                (self (rest e) (+ d 1)))
-              ())))))
+        (match
+          ((null? e) ())
+          ((> d 15) ())
+          ((%cov-is-cons? e)
+            (do
+              (if (cov-covered? e)
+                (%set-first! cov-cell (+ (first cov-cell) 1)) ())
+              (%set-first! tot-cell (+ (first tot-cell) 1))
+              (self (first e) (+ d 1))
+              (self (rest e) (+ d 1))))
+          (#t ()))))
     (go expr depth)
     (list (first cov-cell) (first tot-cell))))
   (param expr ANY "AST node to walk")

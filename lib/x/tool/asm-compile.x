@@ -283,9 +283,9 @@
     (when (and (= 0 (%asm-int% (first %asm-gc-tick) %asm-gc-window))
                (eq? (first %include-dir-cell) ()))
       (Heap collect))
-    (if (null? expr)
-      (asm-emit! asm 'mov x0 (imm 0))    ; nil = NULL = 0
-      (if (number? expr)
+    (match
+      ((null? expr) (asm-emit! asm 'mov x0 (imm 0)))   ; nil = NULL = 0
+      ((number? expr)
         ; `mov Xd, #imm` is MOVZ: 16 bits, and the encoder MASKS the rest
         ; away (& val 65535) -- so a literal above 65535 silently compiled
         ; to a wrong constant ((+ x 100000) computed x + 34464, no error).
@@ -293,12 +293,10 @@
         ; negatives too, whose two's complement needs all four halfwords.
         (if (and (>= expr 0) (<= expr 65535))
           (asm-emit! asm 'mov x0 (imm expr))
-          (asm-load-imm64! asm x0 expr))
-        (if (symbol? expr)
-          (%asm-compile-param asm expr params)
-          (if (pair? expr)
-            (%asm-compile-call asm expr params)
-            (Err raise 'value (Str append "asm-compile: unsupported: " (%write-to-str expr)) ())))))))
+          (asm-load-imm64! asm x0 expr)))
+      ((symbol? expr) (%asm-compile-param asm expr params))
+      ((pair? expr) (%asm-compile-call asm expr params))
+      (#t (Err raise 'value (Str append "asm-compile: unsupported: " (%write-to-str expr)) ())))))
 
 ; Compile parameter access from x-lang args list
 ; p_args = (self arg0 arg1 ...) — walk rest N+1 times, first, eval, atomint.
@@ -740,81 +738,61 @@
     (def args (rest expr))
     (%asm-check-int-operands op args)
     (def %bitwise (Assoc entry op %asm-bitwise-ops))
-    (if (not (null? %bitwise))
-      (%asm-compile-binop asm (rest %bitwise) args params)
-    (if (eq? op '~)
-      ; MVN Xd, Xm is ORN Xd, XZR, Xm
-      (do (%asm-compile-expr asm (first args) params)
-          (asm-emit! asm 'orn x0 xzr x0))
-    (if (eq? op '%mem-ref-at)
-      (%asm-compile-mem-ref-at asm args params)
-    (if (eq? op '%mem-set-at!)
-      (%asm-compile-mem-set-at asm args params)
-    (if (eq? op '%mem-ref)
-      (%asm-compile-mem-ref asm args params)
-    (if (eq? op '%mem-set!)
-      (%asm-compile-mem-set asm args params)
-    (if (eq? op '%mem-byte-ref-at)
-      (%asm-compile-mem-byte-ref-at asm args params)
-    (if (eq? op '%mem-byte-set-at!)
-      (%asm-compile-mem-byte-set-at asm args params)
-    (if (eq? op '%mem-byte-ref)
-      (%asm-compile-mem-byte-ref asm args params)
-    (if (eq? op '%mem-byte-set!)
-      (%asm-compile-mem-byte-set asm args params)
-    (if (eq? op 'do)
-      (%asm-compile-do asm args params)
-    (if (eq? op '+)
-      (%asm-compile-binop asm 'add args params)
-      (if (eq? op '-)
+    (match
+      ((not (null? %bitwise))
+        (%asm-compile-binop asm (rest %bitwise) args params))
+      ((eq? op '~)
+        ; MVN Xd, Xm is ORN Xd, XZR, Xm
+        (do (%asm-compile-expr asm (first args) params)
+            (asm-emit! asm 'orn x0 xzr x0)))
+      ((eq? op '%mem-ref-at) (%asm-compile-mem-ref-at asm args params))
+      ((eq? op '%mem-set-at!) (%asm-compile-mem-set-at asm args params))
+      ((eq? op '%mem-ref) (%asm-compile-mem-ref asm args params))
+      ((eq? op '%mem-set!) (%asm-compile-mem-set asm args params))
+      ((eq? op '%mem-byte-ref-at)
+        (%asm-compile-mem-byte-ref-at asm args params))
+      ((eq? op '%mem-byte-set-at!)
+        (%asm-compile-mem-byte-set-at asm args params))
+      ((eq? op '%mem-byte-ref) (%asm-compile-mem-byte-ref asm args params))
+      ((eq? op '%mem-byte-set!) (%asm-compile-mem-byte-set asm args params))
+      ((eq? op 'do) (%asm-compile-do asm args params))
+      ((eq? op '+) (%asm-compile-binop asm 'add args params))
+      ((eq? op '-)
         (if (null? (rest args))
           (do (%asm-compile-expr asm (first args) params)
               (asm-emit! asm 'sub x0 xzr x0))
-          (%asm-compile-binop asm 'sub args params))
-        (if (eq? op '*)
-          (%asm-compile-binop asm 'mul args params)
-          (if (eq? op '/)
-            (%asm-compile-binop asm 'sdiv args params)
-            (if (eq? op '%)
-              (%asm-compile-mod asm args params)
-              (if (eq? op 'if)
-                (%asm-compile-if asm args params)
-                (if (eq? op 'or)
-                  (%asm-compile-or asm args params)
-                  (if (eq? op 'and)
-                    (%asm-compile-and asm args params)
-                    (if (eq? op 'not)
-                      (%asm-compile-not asm args params)
-                      (if (eq? op '%call)
-                        ; The one form whose HEAD is an operand: (%call HEAD
-                        ; arg ...).  Spelled explicitly rather than by
-                        ; letting a pair head fall through, so a head the
-                        ; emitter does not recognise still refuses loudly
-                        ; instead of becoming a computed call by accident.
-                        (%asm-compile-callable-call asm (first args) (rest args) params)
-                      (if (eq? op '%seq)
-                        (%asm-compile-seq asm args params)
-                        (if (if (eq? op '%score-set) #t (eq? op '%score-variant!))
-                          (if (eq? op '%score-set)
-                            (%asm-compile-score-set asm args params)
-                            (%asm-compile-score-variant asm args params))
-                          (if (eq? op '%buffer-unread)
-                            (%asm-compile-buffer-op asm args params %jit-buffer-unread)
-                            (if (eq? op '%buffer-last-char)
-                              (%asm-compile-buffer-op asm args params %jit-buffer-last-char)
-                            (if (eq? op '%buffer-len)
-                              (%asm-compile-buffer-op asm args params %jit-buffer-len)
-                              (if (eq? op '=)
-                                (%asm-compile-cmp asm 'b/eq args params)
-                                (if (eq? op '<)
-                                  (%asm-compile-cmp asm 'b/lt args params)
-                                  (if (eq? op '>)
-                                    (%asm-compile-cmp asm 'b/gt args params)
-                                    (if (eq? op '<=)
-                                      (%asm-compile-cmp asm 'b/le args params)
-                                      (if (eq? op '>=)
-                                        (%asm-compile-cmp asm 'b/ge args params)
-                                        (%asm-compile-funcall asm op args params))))))))))))))))))))))))))))))))))
+          (%asm-compile-binop asm 'sub args params)))
+      ((eq? op '*) (%asm-compile-binop asm 'mul args params))
+      ((eq? op '/) (%asm-compile-binop asm 'sdiv args params))
+      ((eq? op '%) (%asm-compile-mod asm args params))
+      ((eq? op 'if) (%asm-compile-if asm args params))
+      ((eq? op 'or) (%asm-compile-or asm args params))
+      ((eq? op 'and) (%asm-compile-and asm args params))
+      ((eq? op 'not) (%asm-compile-not asm args params))
+      ((eq? op '%call)
+        ; The one form whose HEAD is an operand: (%call HEAD
+        ; arg ...).  Spelled explicitly rather than by
+        ; letting a pair head fall through, so a head the
+        ; emitter does not recognise still refuses loudly
+        ; instead of becoming a computed call by accident.
+        (%asm-compile-callable-call asm (first args) (rest args) params))
+      ((eq? op '%seq) (%asm-compile-seq asm args params))
+      ((if (eq? op '%score-set) #t (eq? op '%score-variant!))
+        (if (eq? op '%score-set)
+          (%asm-compile-score-set asm args params)
+          (%asm-compile-score-variant asm args params)))
+      ((eq? op '%buffer-unread)
+        (%asm-compile-buffer-op asm args params %jit-buffer-unread))
+      ((eq? op '%buffer-last-char)
+        (%asm-compile-buffer-op asm args params %jit-buffer-last-char))
+      ((eq? op '%buffer-len)
+        (%asm-compile-buffer-op asm args params %jit-buffer-len))
+      ((eq? op '=) (%asm-compile-cmp asm 'b/eq args params))
+      ((eq? op '<) (%asm-compile-cmp asm 'b/lt args params))
+      ((eq? op '>) (%asm-compile-cmp asm 'b/gt args params))
+      ((eq? op '<=) (%asm-compile-cmp asm 'b/le args params))
+      ((eq? op '>=) (%asm-compile-cmp asm 'b/ge args params))
+      (#t (%asm-compile-funcall asm op args params)))))
 
 ; Binary operation: push left, eval right, pop left, combine
 (set! %asm-compile-binop
@@ -848,11 +826,12 @@
 
     (def %cmp-branch
       (fn (_ op)
-        (if (eq? op '=)  'b/ne
-          (if (eq? op '<)  'b/ge
-            (if (eq? op '>)  'b/le
-              (if (eq? op '<=) 'b/gt
-                (when (eq? op '>=) 'b/lt)))))))
+        (match
+          ((eq? op '=) 'b/ne)
+          ((eq? op '<) 'b/ge)
+          ((eq? op '>) 'b/le)
+          ((eq? op '<=) 'b/gt)
+          (#t (when (eq? op '>=) 'b/lt)))))
 
     (if (and (pair? test-expr) (not (null? (%cmp-branch (first test-expr)))))
       (let ((cmp-op (first test-expr))
@@ -1110,10 +1089,11 @@
     (set! %asm-self-cell self-cell)
     (set! %asm-self-name (first fn-params))
     (set! %asm-object-params
-      (if (not %asm-analyser?) ()
-        (if (null? params) ()
-          (if (null? (rest params)) (list (first params))
-            (list (first params) (first (rest params)))))))
+      (match
+        ((not %asm-analyser?) ())
+        ((null? params) ())
+        ((null? (rest params)) (list (first params)))
+        (#t (list (first params) (first (rest params))))))
 
     ; Size the code buffer to the expression: asm-new's 4096-byte
     ; default is 1024 instructions, and a GENERATED body (an unrolled

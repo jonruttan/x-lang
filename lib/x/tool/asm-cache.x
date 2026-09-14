@@ -437,13 +437,15 @@
 ; makes the whole load a miss.
 (def %asm-cache-value
   (fn (_ kind nm table cell)
-    (if (= kind %asm-cache-kind-trampoline)
-      (do (def p (%asm-cache-dlsym %asm-cache-lib nm))
-          (if (null? p) () (%asm-cache-ptr->int p)))
-      (if (= kind %asm-cache-kind-fvar)
+    (match
+      ((= kind %asm-cache-kind-trampoline)
+        (do (def p (%asm-cache-dlsym %asm-cache-lib nm))
+            (if (null? p) () (%asm-cache-ptr->int p))))
+      ((= kind %asm-cache-kind-fvar)
         (do (def hit (%asm-cache-fvar nm table))
-            (if (null? hit) () (%asm-cache-ptr->int (%asm-cache-obj->ptr (rest hit)))))
-        (if (null? cell) () (%asm-cache-ptr->int cell))))))
+            (if (null? hit) () (%asm-cache-ptr->int (%asm-cache-obj->ptr (rest hit))))))
+      ((null? cell) ())
+      (#t (%asm-cache-ptr->int cell)))))
 
 ; A fresh self-call trampoline cell -- one per load, exactly as the compile
 ; path mints one per compile.
@@ -476,12 +478,13 @@
 (def %asm-cache-header-sane?
   (fn (_ buf got)
     (def blob (%asm-cache-ptr-ref buf 12 4))
-    (if (not (= (%asm-cache-ptr-ref buf 0 4) %asm-cache-magic)) #f
-      (if (< (%asm-cache-ptr-ref buf 4 4) 1) #f
-        (if (not (= blob (+ %asm-cache-head-bytes
+    (match
+      ((not (= (%asm-cache-ptr-ref buf 0 4) %asm-cache-magic)) #f)
+      ((< (%asm-cache-ptr-ref buf 4 4) 1) #f)
+      ((not (= blob (+ %asm-cache-head-bytes
                             (* %asm-cache-rec-bytes (%asm-cache-ptr-ref buf 8 4)))))
-          #f
-          (<= blob got))))))
+        #f)
+      (#t (<= blob got)))))
 
 ; Everything that reads the record buffer, so the caller can free it on one
 ; path whatever the answer.  Answers (size . records), or () for a miss.

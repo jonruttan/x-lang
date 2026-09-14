@@ -47,11 +47,11 @@
 (def %make-xdigit-state
   (fn (_ done)
     (fn (self buffer score chr)
-      (if (if (if (>= chr 48) (<= chr 57) #f) #t
-            (if (if (>= chr 65) (<= chr 70) #f) #t
-              (if (>= chr 97) (<= chr 102) #f)))
-        self
-        (done buffer score chr)))))
+      (match
+        ((if (>= chr 48) (<= chr 57) #f) self)
+        ((if (>= chr 65) (<= chr 70) #f) self)
+        ((if (>= chr 97) (<= chr 102) #f) self)
+        (#t (done buffer score chr))))))
 
 (def %make-char-state
   (fn (_ ch next fail)
