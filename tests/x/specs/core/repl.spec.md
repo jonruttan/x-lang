@@ -150,3 +150,71 @@ bundle's entry runs before the launcher that imports it.
 ```
 ---
     (#f #t)
+
+## %repl-paint
+
+The third customisation point beside `%repl-prompt` and `%repl-print`. It
+exists because colouring is the part of a session that depends on the
+language. Reading a key and remembering a line are the same job whatever is
+being typed; where the tokens begin and end is not. A lang sets this to a
+painter that knows its own syntax.
+
+### it exists, and starts with no painter installed
+
+Nil means no painter, not "no colour" -- `x/repl/paint` installs the
+platform's when the line editor loads it, and `--no-color` is what answers the
+colour question.
+
+```x
+(null? %repl-paint)
+```
+---
+    #t
+
+### a painter is a function from the line's text to the text to display
+
+```x
+(do
+  (def %spec-old %repl-paint)
+  (set! %repl-paint (fn (_ s) (Str8 append "[" (Str8 append s "]"))))
+  (let ((r (%repl-paint "(f x)")))
+    (set! %repl-paint %spec-old)
+    r))
+```
+---
+    "[(f x)]"
+
+### the platform installs over nil, and never over a lang's own painter
+
+x/repl/paint's install is the rule repl/ansi.x follows for the printer: over
+nil, or over the painter it last installed itself, and over nothing else. A
+bundle's entry runs before the launcher that imports the editor, so an
+unconditional install would take a lang's painter away and colour its lines as
+x-lang.
+
+```x
+(do (import x/repl/paint)
+    (def %spec-old %repl-paint)
+    (def %spec-mine (fn (_ s) s))
+    (set! %repl-paint %spec-mine)
+    (%paint-install-hook!)
+    (let ((kept (same? %repl-paint %spec-mine)))
+      (set! %repl-paint %spec-old)
+      kept))
+```
+---
+    #t
+
+### and it does install when nothing has claimed the seat
+
+```x
+(do (import x/repl/paint)
+    (def %spec-old %repl-paint)
+    (set! %repl-paint ())
+    (%paint-install-hook!)
+    (let ((filled (not (null? %repl-paint))))
+      (set! %repl-paint %spec-old)
+      filled))
+```
+---
+    #t
