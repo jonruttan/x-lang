@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`List` and `Iter` raise on a value they cannot walk.** `List from-seq` is
+the door every basic normalizes through, and it hands anything that is not
+nil or a pair to `(Iter new)`. That answers nil for a value whose type
+carries no iter slot, and the driver prims dispatch on a type handle a nil
+does not have, so passing one on ends the process. `(Iter new)` raises
+`type` now rather than answering nil, which is what gives `(List length 5)`
+and `(List length (%type-alist))` an error; each public `Iter` door also
+checks its argument once on entry, so `(Iter ->list ())` raises too. The
+drain loops carry their iterator through unchanged and their per-element
+prim calls are unaffected. `Iter %check` is homed on the class under the
+classes-are-namespaces rule in `tools/check/percent-globals.sh`.
+
+The reader's type alist reaches this from ordinary code. It is a C-built
+spine, so `pair?` answers `#f` and `from-seq` treats it as a non-list; the
+catalog carries it as `type/alist`, and `(Base cell 'type-alist)` addresses
+the same structure. Such spines are walked with the bare `first`/`rest`
+accessors, the rule `docs/sandboxing-tutorial.md` states for handler spines;
+`type/struct.x`, `(Base cell)` and `(List from-seq)` point at it.
+
 **The wrapper checks that a pinned amalgam is the file the lock pinned.** The
 boot-time pairing guards compare recorded strings — a row in the lock against a
 stamp beside the installed library — and each of them describes the amalgam the
