@@ -163,18 +163,17 @@ reverse.
 ---
     "no"
 
-## refuses a non-iterator (crash regression)
+## refuses a non-iterator
 
-The driver prims read an iterator's box behind a type probe, and a `nil` is
-typeless -- the probe had no handle to read, so it walked off one and the
-process died.  `(Iter new)` answered exactly that nil for a value whose
-type carries no iter slot, which put the crash behind every `List` door
-via `(List from-seq)`: `(List length 5)` segfaulted, and so did `(List
-length (%type-alist))` -- the reader's type alist is a C-built spine, so
-`pair?` answers `#f` on it and `from-seq` sent it to `Iter`.  Those
-spines are walked with the bare `first`/`rest` accessors instead;
-`docs/sandboxing-tutorial.md` says why.  Every public door now probes its
-iterator once on the way in.
+The driver prims dispatch on their argument's type handle.  A `nil` is
+typeless and gives them none to read, which ends the process, so no door may
+pass one on.  `(Iter new)` answers nil for a value whose type carries no iter
+slot, and `(List from-seq)` sends every non-pair through it, which puts
+`(List length 5)` and `(List length (%type-alist))` on that path -- the
+reader's type alist is a C-built spine, so `pair?` answers `#f` on it.  Such
+spines are walked with the bare `first`/`rest` accessors;
+`docs/sandboxing-tutorial.md` states the rule.  Each public door checks its
+iterator once on the way in and raises `type` instead.
 
 ### new refuses an integer
 

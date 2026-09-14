@@ -43,8 +43,8 @@
 ;
 ; What comes back is a C-built spine, not a list: its nodes carry a type
 ; handle that is not the pair type, so pair? answers #f on them and the
-; typed walkers (List, Iter, write) refuse them -- docs/sandboxing-tutorial.md,
-; "diff a child against the parent", names the same trap on handler spines.
+; typed walkers (List, Iter, write) refuse them.  docs/sandboxing-tutorial.md,
+; "diff a child against the parent", states the same rule for handler spines.
 ; Walk it with the bare first / rest / null? accessors; %type-by-atom just
 ; below is the model.
 (def %type-alist-path (%reflect-path (lit type-alist) %base-paths))

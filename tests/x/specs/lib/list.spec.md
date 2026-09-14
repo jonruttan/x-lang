@@ -1170,10 +1170,9 @@ first or the last element of each run survives. Assert the value.
 ## non-iterable input
 
 `from-seq` is the door every basic normalizes through, and it hands a
-non-pair to `Iter`; before the `Iter` guard a value with no iter slot
-segfaulted the interpreter instead of erroring.  The reader's type alist
-is one such value -- a C-built spine, `pair?` #f -- so walk it with the
-bare `first`/`rest` accessors, as `%type-by-atom` does.
+non-pair to `Iter`, which raises `type` on a value it cannot iterate.  The
+reader's type alist is one such value: a C-built spine, `pair?` `#f`.  Walk
+it with the bare `first`/`rest` accessors, as `%type-by-atom` does.
 
 ### length rejects an integer
 

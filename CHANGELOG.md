@@ -5,27 +5,24 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**A walk that cannot start says so, instead of killing the process.**
-`(List length 5)` segfaulted, and so did `(List length (%type-alist))`,
-by the same path: `List from-seq` is the door every basic normalizes
-through, and anything that is not nil or a pair it hands to `(Iter new)`,
-which answers `nil` for a value whose type carries no iter slot. A nil is
-typeless, the driver prims behind `->list` dispatch on a type handle, and
-there is none to read. A typed non-iterator they survive -- `(Iter empty?
-5)` answered `#t` -- so nil was the one shape that died, and `Iter new`
-was manufacturing it. It refuses at the source now with a `type` Err,
-which is what makes the `List` doors report; and every public `Iter` door
-probes its iterator once on the way in, so `(Iter ->list ())` is an error
-rather than the same crash one step closer. The drain loops ride `it`
-through unchanged, so the per-element prim calls are untouched. The
-reader's type alist is how this is reached from ordinary code: it is a
-C-built spine, so `pair?` answers `#f` on it and `from-seq` calls it
-non-list, and it is in the catalog as `type/alist` with `(Base cell
-'type-alist)` handing back the same structure. Spines like that are
-walked with the bare `first`/`rest` accessors, as `%type-by-atom` walks
-this one and as `docs/sandboxing-tutorial.md` says of handler spines --
-`type/struct.x`, `(Base cell)` and `(List from-seq)` now say so where the
-structure is handed out.
+**`List` and `Iter` raise on a value they cannot walk.** `List from-seq` is
+the door every basic normalizes through, and it hands anything that is not
+nil or a pair to `(Iter new)`. That answers nil for a value whose type
+carries no iter slot, and the driver prims dispatch on a type handle a nil
+does not have, so passing one on ends the process. `(Iter new)` raises
+`type` now rather than answering nil, which is what gives `(List length 5)`
+and `(List length (%type-alist))` an error; each public `Iter` door also
+checks its argument once on entry, so `(Iter ->list ())` raises too. The
+drain loops carry their iterator through unchanged and their per-element
+prim calls are unaffected. `Iter %check` is homed on the class under the
+classes-are-namespaces rule in `tools/check/percent-globals.sh`.
+
+The reader's type alist reaches this from ordinary code. It is a C-built
+spine, so `pair?` answers `#f` and `from-seq` treats it as a non-list; the
+catalog carries it as `type/alist`, and `(Base cell 'type-alist)` addresses
+the same structure. Such spines are walked with the bare `first`/`rest`
+accessors, the rule `docs/sandboxing-tutorial.md` states for handler spines;
+`type/struct.x`, `(Base cell)` and `(List from-seq)` point at it.
 
 **The session has a line editor, and `rlwrap` is no longer the answer.**
 `sh x.sh` with a terminal now gives arrow keys, the readline chords, history
