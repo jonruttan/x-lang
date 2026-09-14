@@ -520,13 +520,12 @@ printf '(display "ran")\n' > "$_TMP/pair5/main.x"
 (cd "$_TMP" && $TIMEOUT_CMD sh "$_fake/bin/x" -f "$_TMP/pair5/main.x") >"$_TMP/out" 2>"$_TMP/err" || true
 grep -q "no isa fingerprint readable" "$_TMP/err" || fail "pairing-guard: corrupt lock skipped WITHOUT the unchecked notice" "$_TMP/err"
 
-# boot-digest: the amalgam on disk must be the one the lock pinned.  The
-# guards above compare RECORDED strings, so an amalgam REPLACED after the
-# lock was written satisfies every one of them and reaches the engine as
-# another release's boot -- a mid-boot SIGSEGV with no fingerprint out of
-# place.  No fake install is needed here: this guard compares the lock to
-# the file, so it arms in repo mode too, and the fixture amalgam is never
-# booted (the refusal happens first).
+# boot-digest: the amalgam on disk must be the file the lock pinned.  The
+# guards above compare recorded strings, so an amalgam replaced after the
+# lock was written satisfies all of them and reaches the engine as another
+# release's boot, with no fingerprint out of place.  No fake install is
+# needed: this guard compares the lock to the file, so it arms in repo mode,
+# and the fixture amalgam is never booted because the refusal comes first.
 mkdir -p "$_TMP/bd1/boot" "$_TMP/bd1/deps"
 printf '(root "deps")\n(boot "boot/he.x")\n' > "$_TMP/bd1/pin.xon"
 printf '; not a real amalgam -- never reached\n' > "$_TMP/bd1/boot/he.x"
@@ -537,15 +536,15 @@ status=$?
 [ "$status" -ne 0 ] || fail "boot-digest: a replaced amalgam was accepted" "$_TMP/out" "$_TMP/err"
 grep -q "not the one the lock pinned" "$_TMP/err" || fail "boot-digest: no refusal message" "$_TMP/err"
 
-# The digest that DOES describe the file must not refuse.  The boot then
-# fails later on a fixture that is not an amalgam, which is fine -- the
-# assertion is only about the guard.
+# A digest that describes the file must not refuse.  The boot then fails
+# later on a fixture that is not an amalgam; the assertion here is only
+# about the guard.
 printf '(boot "he.x" "sha256:%s")\n' "$(_sha "$_TMP/bd1/boot/he.x")" > "$_TMP/bd1/deps.lock.xon"
 $TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/bd1/main.x" >"$_TMP/out" 2>"$_TMP/err" || true
 grep -q "not the one the lock pinned" "$_TMP/err" && fail "boot-digest: a matching digest was refused" "$_TMP/err"
 
-# The two-element row predates the digest and claims nothing about bytes:
-# it must skip, not refuse, the way locks in the wild are shaped.
+# The two-element row predates the digest and states nothing about bytes,
+# so it skips rather than refusing.
 printf '(boot "he.x")\n' > "$_TMP/bd1/deps.lock.xon"
 $TIMEOUT_CMD sh "$WRAPPER" -f "$_TMP/bd1/main.x" >"$_TMP/out" 2>"$_TMP/err" || true
 grep -q "not the one the lock pinned" "$_TMP/err" && fail "boot-digest: a lock predating the digest row was refused" "$_TMP/err"
@@ -1157,11 +1156,10 @@ if [ "$status" -eq 0 ]; then
   grep -q "booting from state image .*proj9/.images/x.boot.x.ximg" "$_TMP/err" \
     || fail "image: X_IMAGE_NO_WRITE did not boot from the current image" "$_TMP/err"
   # a manifest WITH a (boot ...) row is a pinned amalgam: not imaged, as before.
-  # proj9 still carries the lock `Pin boot` wrote for the v9.9.9 fixture
-  # amalgam, and the boot named here is a different file entirely -- which the
-  # identity guard refuses before imaging is ever decided.  The subject of this
-  # case is the imaging refusal, so the contradicting lock goes: a lock left
-  # over from an unrelated step is fixture noise, not the claim under test.
+  # proj9 still holds the lock `Pin boot` wrote for the v9.9.9 fixture, and the
+  # boot named here is a different file, which the identity guard refuses before
+  # imaging is decided.  This case covers the imaging refusal, so the lock from
+  # the earlier step is removed.
   rm -f "$_TMP/proj9/deps.lock.xon"
   cat > "$_TMP/proj9/pin.xon" <<EOF
 (root "deps")

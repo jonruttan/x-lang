@@ -1182,11 +1182,10 @@
       (sample "(Pin vendor-project \"deps\" \"src\")" "(\"x/type/dict.x\" ...)"))
     (Pin %pin-vendor-project! dest srcdir srcdir))
     ; The PLATFORM half of verify (#145): a lock that pins a boot amalgam
-    ; must still describe the amalgam on disk.  The wrapper digests it too
-    ; now, at boot, because a replaced amalgam satisfies every recorded-string
-    ; guard and then segfaults; THIS is the same claim checked on demand and
-    ; in CI, over a whole project's lock rather than the one boot row, and it
-    ; reports every failure instead of refusing at the first.
+    ; must still describe the amalgam on disk.  The wrapper checks the same
+    ; row at boot; this is the on-demand and CI check, over a whole project's
+    ; lock rather than the one boot row, and it reports every failure instead
+    ; of refusing at the first.
     ; Returns fail lines, empty when clean or when no boot is pinned.
     (method %pin-boot-fails (self dest lockforms)
       (def row (%find (fn (_ f)

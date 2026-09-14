@@ -419,36 +419,32 @@ boot to run.
 
 ### The amalgam's identity
 
-Every pairing check below compares **recorded strings** — a row in the lock
-against a stamp beside the installed library — and each of them is a statement
-about the amalgam the lock *describes*. None of them looks at the bytes. So
-the wrapper digests the amalgam first and refuses one that is not the file the
-lock pinned:
+The pairing checks below compare **recorded strings** — a row in the lock
+against a stamp beside the installed library — and each of them describes the
+amalgam the lock names, not the bytes on disk. The wrapper therefore digests the
+amalgam first and refuses one that is not the file the lock pinned:
 
 ```
 (boot "he.x" "sha256:…")
 ```
 
-A three-element `(boot …)` row in the lock is that claim; the two-element row
-predates it, claims nothing about bytes, and is skipped like any other row a
-lock may not carry yet. `(Pin verify)` has re-digested the amalgam since #145,
-and the wrapper does it now too, because the failure this catches is a crash
-rather than a diagnosis: an amalgam **replaced** after the lock was written
-satisfies every other guard — the lock still names its release, the install
-still is that release, every fingerprint agrees — and reaches the engine as
-some other release's boot, walking a base layout that moved. It was observed
-in the wild when a dev install rewrote a pinned project's `boot/he.x` while
-the manifest's `(boot …)` line was commented out; re-enabling that line
-segfaulted mid-boot with nothing out of place to point at.
+A three-element `(boot …)` row is that claim. The two-element row predates it,
+states nothing about bytes, and is skipped like any other row a lock may not
+carry. `(Pin verify)` checks the same row on demand and in CI.
 
-The digest runs **before** the release reach: a reach hands the whole
-invocation to the release the lock names, and a file that is not from that
-release should not be carried into a wrapper that trusts it.
+An amalgam replaced after the lock was written satisfies every other guard —
+the lock still names its release, the install still is that release, the
+fingerprints agree — and reaches the engine as another release's boot, walking
+a base layout that has moved. That is a crash in field access rather than a
+diagnosable error, which is why it refuses rather than warns.
 
-A sha256 tool is still not required to boot. When neither `sha256sum` nor
-`shasum` is on `PATH` the wrapper says the amalgam's identity is unchecked,
-the same way a missing lock says so — a guard that disappears without a word
-is worse than none.
+The digest runs **before** the release reach, because a reach hands the whole
+invocation to the release the lock names, and that is not the release the file
+came from.
+
+A sha256 tool is not required to boot. With neither `sha256sum` nor `shasum` on
+`PATH` the wrapper reports that the amalgam's identity is unchecked, the same
+way a missing lock is reported.
 
 ### Two pairings, two subjects
 

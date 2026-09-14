@@ -942,37 +942,26 @@ if [ -n "$boot_file" ]; then
 	if [ -z "$_rel" ] || [ ! -f "$_rel" ]; then
 		_rel="$(dirname "$ENTRY")/pin.release.xon"
 	fi
-	# THE AMALGAM IS THE ONE THE LOCK PINNED.  Every check below compares
-	# RECORDED strings -- the lock's engine facts against this install's
-	# stamps -- and each of them is a statement about the file the lock
-	# DESCRIBES.  Not one of them looks at the bytes on disk.  So an
-	# amalgam REPLACED after the lock was written passes all of them and
-	# reaches the engine as some other release's boot: the lock still
-	# names v0.5.2, the install still is v0.5.2, every fingerprint agrees,
-	# and the bytes are from a tree whose base layout moved.  That is a
-	# SIGSEGV in the first form that walks a base cell -- the exact crash
-	# the pairing guard exists to prevent, arriving through the one door
-	# it does not watch.  Observed in the wild: a dev install rewrote a
-	# pinned project's boot/he.x while the manifest's (boot ...) line was
-	# commented out, and re-enabling that line segfaulted mid-boot with
-	# every recorded string matching.
+	# The amalgam must be the file the lock pinned.  The checks below
+	# compare recorded strings -- the lock's engine facts against this
+	# install's stamps -- and each of them describes the amalgam the lock
+	# names, not the bytes on disk.  An amalgam replaced after the lock was
+	# written therefore satisfies all of them and still reaches the engine
+	# as another release's boot, where a base layout that has moved is a
+	# SIGSEGV in the first form that walks a base cell rather than a
+	# diagnosable error.
 	#
-	# `Pin verify` has re-digested the amalgam since #145 -- the on-demand
-	# and CI half of the same claim, and its comment said in so many words
-	# that nothing at boot time did.  That gap is what this closes.  The
-	# mismatch is mechanical, and this is the last place a refusal can
-	# still be a refusal instead of a crash.
+	# The lock's three-element (boot "NAME" "sha256:...") row is the claim.
+	# (Pin verify) checks the same row on demand and in CI.
 	#
-	# BEFORE the reach below, not after: a reach hands the whole
-	# invocation to the release the LOCK names, and this file is not from
-	# that release.  Reaching first would only carry the wrong bytes into
-	# a wrapper that trusts them.
+	# This runs before the release reach below, because a reach hands the
+	# whole invocation to the release the lock names, and that is not the
+	# release the file came from.
 	#
-	# A sha tool is still not REQUIRED to boot -- when none is on PATH the
-	# guard says what it could not check rather than pretending it did,
-	# the same way a missing lock says so (#313).  The two-element
-	# (boot "NAME") row predates the digest and claims nothing about
-	# bytes; it is skipped, like every other row a lock may not carry yet.
+	# The two-element (boot "NAME") row predates the digest and states
+	# nothing about bytes, so it is skipped.  A sha tool is not required to
+	# boot: with neither sha256sum nor shasum available the guard reports
+	# the amalgam as unchecked rather than passing in silence.
 	if [ -f "$_rel" ]; then
 		_wantb=$(sed -n 's/^[[:space:]]*(boot "[^"]*" "sha256:\([0-9a-f]*\)").*/\1/p' "$_rel" | head -1)
 		if [ -n "$_wantb" ]; then
