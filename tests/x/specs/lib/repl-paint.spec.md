@@ -166,3 +166,79 @@ rebinding. The first element checks that the rebinding is live.
 ```
 ---
     ('number 'number)
+
+## Bracket matching
+
+`focus` names the paren beside a cursor and its partner, as the marks `line`
+paints. It runs on the scan's own rules, so strings, comments and character
+literals are stepped over. Pure, so it runs here with no terminal.
+
+### the close paren just typed pairs with its open
+
+```x
+(do (import x/repl/paint) (Paint focus "(f x)" 5))
+```
+---
+    ((4 . 'pair) (0 . 'pair))
+
+### an open paren under the cursor pairs forward
+
+```x
+(do (import x/repl/paint) (Paint focus "x (f)" 2))
+```
+---
+    ((2 . 'pair) (4 . 'pair))
+
+### the inner pair is found from inside a nest
+
+```x
+(do (import x/repl/paint) (Paint focus "((a) b)" 4))
+```
+---
+    ((3 . 'pair) (1 . 'pair))
+
+### a paren with no partner is lone
+
+```x
+(do (import x/repl/paint)
+    (list (Paint focus "f x)" 4) (Paint focus "(f x" 0)))
+```
+---
+    (((3 . 'lone)) ((0 . 'lone)))
+
+### a cursor not beside a paren marks nothing
+
+```x
+(do (import x/repl/paint)
+    (list (Paint focus "(f x" 3) (Paint focus "" 0)))
+```
+---
+    (() ())
+
+### a paren inside a string is not a paren
+
+```x
+(do (import x/repl/paint)
+    (list (Paint focus "(\")\")" 3) (Paint focus "(\")\")" 5)))
+```
+---
+    (() ((4 . 'pair) (0 . 'pair)))
+
+### a character literal and a comment are stepped over
+
+```x
+(do (import x/repl/paint)
+    (list (Paint focus "(f #\\()" 6) (Paint focus "(f) ; (" 3)))
+```
+---
+    (((6 . 'pair) (0 . 'pair)) ((2 . 'pair) (0 . 'pair)))
+
+### with colour off, marks change nothing
+
+```x
+(do (import x/repl/paint)
+    (let ((s "(f x)"))
+      (Str8 =? (Paint line s (Paint focus s 5)) s)))
+```
+---
+    #t

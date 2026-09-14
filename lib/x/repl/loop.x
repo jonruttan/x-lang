@@ -75,7 +75,19 @@
 ; TERM=dumb answer that question, and the platform painter honours all three by
 ; returning its argument untouched.  Setting this to nil to mean off does not
 ; work: the next install reads nil as nobody having set one.
+;
+; The editor passes a second argument: the marks %repl-marks answered for this
+; redraw, translated into the window being painted.  A painter written for one
+; argument ignores it.
 (def %repl-paint ())
+
+; Which characters to mark on a redraw, given the whole line and the cursor: a
+; function from (text point) to a list of (offset . kind) pairs, kind 'pair on
+; both halves of a matched pair of parens and 'lone on a paren with none, or
+; nil to mark nothing.  x/repl/paint installs the platform's when the line
+; editor loads it, under the same rule as %repl-paint.  A lang whose brackets
+; are not x-lang's sets its own, or leaves it nil.
+(def %repl-marks ())
 
 (def %repl-prompt "> ")
 (def %repl-print
@@ -176,7 +188,7 @@
                 (%stderr "\n"))))
           (%repl-print (eval! %r)))
         (repl))))))
-  (note "Customizable via %repl-prompt (default \"> \"), %repl-print, and %repl-paint (nil, or a line-text -> display-text function used by the line editor).")
+  (note "Customizable via %repl-prompt (default \"> \"), %repl-print, %repl-paint (nil, or a line-text -> display-text function used by the line editor) and %repl-marks (nil, or a (text point) -> marks function naming the parens to highlight).")
   (note "Uses dynamic scoping so def persists across iterations.")
   (note "Uses eval! (no env save/restore) so definitions persist.")
   "Start the read-eval-print loop.")

@@ -221,13 +221,21 @@
 ; are all resolved out of the loop.  repl/line.x is the redraw and the key
 ; dispatch, per keystroke for the same reason, plus the completion and
 ; history helpers that hang off them.
-(file "lib/x/repl/paint.x" 35)
+; paint.x grew by eight for bracket matching: the matcher and the focus that
+; picks which paren the cursor is beside, the mark lookup the scan cuts a run
+; on, the two hoisted codes it paints marks with, the marks half of the redraw
+; cache and its comparison, and the guard for the %repl-marks install.  All on
+; the per-keystroke path, and homed beside the scan for the reason the rest of
+; this file's %-defs are.
+(file "lib/x/repl/paint.x" 43)
 ; line.x is 36 for %ln-completer, which holds Tab's candidate source as a
 ; value so a lang can install its own -- a global rather than class state on
 ; the grounds the rows here stand on, since %ln-complete! reads it per Tab.
 ; %repl-paint is the same seam for the colour, and lives in the REPL's own
 ; globals because a bundle sets it before this file loads.
-(file "lib/x/repl/line.x" 36)
+; line.x grew by one for %ln-marks, which asks %repl-marks about the whole line
+; and translates the answer into the window being painted.
+(file "lib/x/repl/line.x" 37)
 (file "lib/x/repl/banner.x" 4)
 ; Grew by one for %repl-platform-repl: the identity anchor that lets two
 ; installers over `repl` -- a lang's reader and the line editor -- tell
@@ -237,7 +245,9 @@
 ; %repl-prompt and %repl-print.  A hook, not a helper: colouring is the one
 ; part of a session that is about the LANGUAGE, so it has to be a name a lang
 ; can set, and it belongs beside the two it is a sibling of.
-(file "lib/x/repl/loop.x" 14)
+; loop.x grew by one for %repl-marks, the fourth customisation point: which
+; parens to highlight is a fact about the language, like which colour they get.
+(file "lib/x/repl/loop.x" 15)
 (file "lib/x/rn.x" 1)
 (file "lib/x/sys/date.x" 6)
 (file "lib/x/sys/file.x" 7)

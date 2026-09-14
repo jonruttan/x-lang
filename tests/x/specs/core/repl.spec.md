@@ -171,6 +171,17 @@ colour question.
 ---
     #t
 
+### and so does %repl-marks, the marker beside it
+
+Both are nil until x/repl/paint installs the platform's, which the first
+import below does; this case runs before it.
+
+```x
+(null? %repl-marks)
+```
+---
+    #t
+
 ### a painter is a function from the line's text to the text to display
 
 ```x
@@ -195,11 +206,13 @@ x-lang.
 ```x
 (do (import x/repl/paint)
     (def %spec-old %repl-paint)
+    (def %spec-old-marks %repl-marks)
     (def %spec-mine (fn (_ s) s))
     (set! %repl-paint %spec-mine)
     (%paint-install-hook!)
     (let ((kept (same? %repl-paint %spec-mine)))
       (set! %repl-paint %spec-old)
+      (set! %repl-marks %spec-old-marks)
       kept))
 ```
 ---
@@ -207,14 +220,54 @@ x-lang.
 
 ### and it does install when nothing has claimed the seat
 
+The install fills both seats, so both are put back.
+
 ```x
 (do (import x/repl/paint)
     (def %spec-old %repl-paint)
+    (def %spec-old-marks %repl-marks)
     (set! %repl-paint ())
     (%paint-install-hook!)
     (let ((filled (not (null? %repl-paint))))
       (set! %repl-paint %spec-old)
+      (set! %repl-marks %spec-old-marks)
       filled))
 ```
 ---
     #t
+
+## %repl-marks
+
+The fourth customisation point: which parens to highlight on a redraw, given
+the whole line and the cursor. A lang whose brackets are not x-lang's sets
+its own.
+
+### the platform installs over nil, and never over a lang's own marker
+
+```x
+(do (import x/repl/paint)
+    (def %spec-old %repl-marks)
+    (def %spec-old-paint %repl-paint)
+    (def %spec-mine (fn (_ s at) ()))
+    (set! %repl-marks %spec-mine)
+    (%paint-install-hook!)
+    (let ((kept (same? %repl-marks %spec-mine)))
+      (set! %repl-marks %spec-old)
+      (set! %repl-paint %spec-old-paint)
+      kept))
+```
+---
+    #t
+
+### the editor translates marks into the window it paints
+
+Offsets become window-relative, and a mark outside the window is dropped: a
+partner that has scrolled out of view is still found on the whole line, and
+simply not drawn.
+
+```x
+(do (import x/repl/line)
+    (list (%ln-marks "(f x)" 5 2 5) (%ln-marks "(f x)" 3 0 5)))
+```
+---
+    (((2 . 'pair)) ())

@@ -57,6 +57,8 @@
 (def %paint-rst "")       ; the reset code
 (def %paint-c-comment "") ; hoisted: the two codes the scan needs without a classify
 (def %paint-c-string "")
+(def %paint-c-pair "")    ; hoisted: the code for the two halves of a matched pair
+(def %paint-c-lone "")    ; and for a paren that has no partner
 ; The last line painted, and what it painted to.  A redraw repaints only
 ; because the TEXT changed: moving the cursor, walking history onto a line
 ; already seen, and a resize all ask for the same bytes again, and holding an
@@ -65,6 +67,18 @@
 ; whenever it does not, which is exactly the question being asked.
 (def %paint-last-in ())
 (def %paint-last-out ())
+(def %paint-last-marks ())
+
+; Two mark lists, the same or not: at most two pairs each, compared in place
+; rather than through a generic equality a bundle might have rebound.
+(def %paint-same-marks?
+  (fn (self a b)
+    (if (null? a) (null? b)
+      (if (null? b) #f
+        (if (if (= (first (first a)) (first (first b)))
+              (eq? (rest (first a)) (rest (first b))) #f)
+          (self (rest a) (rest b))
+          #f)))))
 
 ; The classes, in the order %paint-pal holds their codes.  A symbol list
 ; rather than a Dict: the lookup is nine eq? tests on the hot path, which
@@ -196,6 +210,78 @@
         (if (if (<= b 32) #t (if (= b 40) #t (if (= b 41) #t (= b 59))))
           i (self s (%pt+ i 1) n))))))
 
+; --- bracket matching ---------------------------------------------------------
+;
+; The partner of the paren at `target`, found by one forward walk over the
+; line that steps over strings, comments and character literals the same way
+; the scan does.  Answers the partner's offset; 'lone when the paren is code
+; and has no partner; nil when `target` is not a paren in code at all, such
+; as one inside a string.  `open` is the stack of open-paren offsets seen so
+; far, and the walk stops as soon as the answer is known.
+(def %paint-partner
+  (fn (_ s n target)
+    (let ((go (fn (self i open)
+                (if (>= i n) (lit lone)
+                  (let ((b (%pt-cint (%pt-bref s i))))
+                    (match
+                      ((= b 59)
+                        (let ((e (%paint-to-eol s i n)))
+                          (if (< target e) () (self e open))))
+                      ((= b 34)
+                        (let ((e (%paint-str-end s (%pt+ i 1) n)))
+                          (if (< target e) () (self e open))))
+                      ((and (= b 35) (and (< (%pt+ i 1) n) (= 34 (%pt-cint (%pt-bref s (%pt+ i 1))))))
+                        (let ((e (%paint-str-end s (%pt+ i 2) n)))
+                          (if (< target e) () (self e open))))
+                      ((and (= b 35) (and (< (%pt+ i 1) n) (= 92 (%pt-cint (%pt-bref s (%pt+ i 1))))))
+                        (let ((e (%paint-atom-end s (if (> (%pt+ i 3) n) n (%pt+ i 3)) n)))
+                          (if (< target e) () (self e open))))
+                      ((= b 40) (self (%pt+ i 1) (pair i open)))
+                      ((= b 41)
+                        (if (= i target)
+                          (if (null? open) (lit lone) (first open))
+                          (if (null? open) (self (%pt+ i 1) ())
+                            (if (= (first open) target) i
+                              (self (%pt+ i 1) (rest open))))))
+                      (#t (self (%pt+ i 1) open))))))))
+      (go 0 ()))))
+
+; The marks for a cursor at byte offset `at`: which paren the cursor is next
+; to, and its partner.  A close paren just before the cursor is preferred,
+; since that is where the cursor sits the moment one is typed; then an open
+; paren under it; then the other two.  Answers a list of (offset . kind)
+; pairs -- kind 'pair for both halves of a match, 'lone for a paren with
+; none -- or nil when the cursor is not beside a paren.
+(def %paint-focus
+  (fn (_ s at)
+    (let ((n (%pt-blen s)))
+      (let ((before (if (> at 0) (%pt-cint (%pt-bref s (%pt- at 1))) 0))
+            (here (if (< at n) (%pt-cint (%pt-bref s at)) 0)))
+        (let ((target (match
+                        ((= before 41) (%pt- at 1))
+                        ((= here 40) at)
+                        ((= here 41) at)
+                        ((= before 40) (%pt- at 1))
+                        (#t -1))))
+          (if (< target 0) ()
+            (let ((p (%paint-partner s n target)))
+              (match
+                ((null? p) ())
+                ((eq? p (lit lone)) (list (pair target (lit lone))))
+                (#t (list (pair target (lit pair)) (pair p (lit pair))))))))))))
+
+; The mark whose offset falls in [i, e), if any -- the first one in the
+; list, which is at most two long.
+(def %paint-mark-in
+  (fn (self marks i e)
+    (if (null? marks) ()
+      (let ((o (first (first marks))))
+        (if (if (>= o i) (< o e) #f)
+          (let ((later (self (rest marks) i e)))
+            (if (null? later) (first marks)
+              (if (< (first later) o) later (first marks))))
+          (self (rest marks) i e))))))
+
 ; One coloured token onto the reversed segment list.  An empty code -- a
 ; class with no colour, or colour switched off -- pushes bare text, so
 ; nothing emits a stray reset.
@@ -205,7 +291,7 @@
       (pair %paint-rst (pair text (pair code segs))))))
 
 (def %paint-scan
-  (fn (self s i n segs)
+  (fn (self s i n segs marks)
     (if (>= i n) segs
       (let ((b (%pt-cint (%pt-bref s i))))
         (match
@@ -213,29 +299,50 @@
           ((= b 59)
             (let ((e (%paint-to-eol s i n)))
               (self s e n (%paint-seg segs %paint-c-comment
-                                      (%pt-bsub s i (%pt- e i))))))
+                                      (%pt-bsub s i (%pt- e i)))
+                    marks)))
           ; a string, and the #"..." interpolating form: one colour, because
           ; the holes are part of the literal and colouring them apart would
           ; suggest they escape it, which they do not
           ((= b 34)
             (let ((e (%paint-str-end s (%pt+ i 1) n)))
               (self s e n (%paint-seg segs %paint-c-string
-                                      (%pt-bsub s i (%pt- e i))))))
+                                      (%pt-bsub s i (%pt- e i)))
+                    marks)))
           ((and (= b 35) (and (< (%pt+ i 1) n) (= 34 (%pt-cint (%pt-bref s (%pt+ i 1))))))
             (let ((e (%paint-str-end s (%pt+ i 2) n)))
               (self s e n (%paint-seg segs %paint-c-string
-                                      (%pt-bsub s i (%pt- e i))))))
+                                      (%pt-bsub s i (%pt- e i)))
+                    marks)))
+          ; a character literal: #\ and the glyph after it, plus any name
+          ; behind that, so #\( does not read as an open paren
+          ((and (= b 35) (and (< (%pt+ i 1) n) (= 92 (%pt-cint (%pt-bref s (%pt+ i 1))))))
+            (let ((e (%paint-atom-end s (if (> (%pt+ i 3) n) n (%pt+ i 3)) n)))
+              (self s e n (%paint-seg segs (%paint-code (lit char))
+                                      (%pt-bsub s i (%pt- e i)))
+                    marks)))
           ; parens and whitespace carry no colour of their own, and go out as
-          ; one run rather than one segment per byte
+          ; one run rather than one segment per byte -- unless a mark falls
+          ; inside the run, in which case the run is cut there, the marked
+          ; paren goes out on its own, and the scan resumes after it
           ((if (<= b 32) #t (if (= b 40) #t (= b 41)))
             (let ((e (%paint-plain-end s (%pt+ i 1) n)))
-              (self s e n (pair (%pt-bsub s i (%pt- e i)) segs))))
+              (let ((m (%paint-mark-in marks i e)))
+                (if (null? m)
+                  (self s e n (pair (%pt-bsub s i (%pt- e i)) segs) marks)
+                  (let ((c (first m)))
+                    (self s (%pt+ c 1) n
+                      (%paint-seg (if (> c i) (pair (%pt-bsub s i (%pt- c i)) segs) segs)
+                                  (if (eq? (rest m) (lit pair)) %paint-c-pair %paint-c-lone)
+                                  (%pt-bsub s c 1))
+                      marks))))))
           ; everything else is an atom: its bytes go to the reader, and the
           ; answer picks the colour
           (#t
             (let ((e (%paint-atom-end s (%pt+ i 1) n)))
               (let ((text (%pt-bsub s i (%pt- e i))))
-                (self s e n (%paint-seg segs (rest (%paint-entry text)) text))))))))))
+                (self s e n (%paint-seg segs (rest (%paint-entry text)) text)
+                      marks)))))))))
 
 ; --- installation ----------------------------------------------------------
 ;
@@ -264,8 +371,15 @@
             (Ansi dim)))                            ; comment
     (set! %paint-c-comment (%paint-code (lit comment)))
     (set! %paint-c-string  (%paint-code (lit string)))
+    ; The matched pair is shown inverse rather than in a colour, so it stands
+    ; out against any of the palette's colours and on either background; a
+    ; paren with no partner is bold red, the palette's colour for a wrong
+    ; answer.
+    (set! %paint-c-pair (%sgr "7"))
+    (set! %paint-c-lone (Ansi bold-red))
     (set! %paint-last-in ())
     (set! %paint-last-out ())
+    (set! %paint-last-marks ())
     ()))
 
 ; --- the class: the cold-call API -----------------------------------------
@@ -279,16 +393,29 @@
     (see line) (see classify) (see forget!))
 
   (static
-    (method line (self (param s STRING "The line as typed so far"))
-      (doc "The line with ANSI colour codes inserted, and otherwise byte for byte -- the author's own spacing is preserved, because the cursor column is measured against it. Returns s unchanged when colour is off."
+    (method line (self (param s STRING "The line as typed so far")
+                       . (param marks LIST "Optional: (offset . kind) pairs to mark, from `focus`"))
+      (doc "The line with ANSI colour codes inserted, and otherwise byte for byte -- the author's own spacing is preserved, because the cursor column is measured against it. With marks, the parens at those offsets are painted inverse for 'pair and bold red for 'lone. Returns s unchanged when colour is off."
         (returns STRING "A string safe to write to the terminal")
-        (sample "(Paint line \"(def x 42)\")" "the same text, with `def` and `42` wrapped in SGR codes"))
+        (sample "(Paint line \"(def x 42)\")" "the same text, with `def` and `42` wrapped in SGR codes")
+        (sample "(Paint line \"(f x)\" (Paint focus \"(f x)\" 5))" "the same, with both parens inverse"))
       (if (not (Ansi enabled?)) s
-        (if (%pt-same? s %paint-last-in) %paint-last-out
-          (let ((out (Str8 join "" (List reverse (%paint-scan s 0 (%pt-blen s) ())))))
-            (set! %paint-last-in s)
-            (set! %paint-last-out out)
-            out))))
+        (let ((ms (if (null? marks) () (first marks))))
+          (if (if (%pt-same? s %paint-last-in) (%paint-same-marks? ms %paint-last-marks) #f)
+            %paint-last-out
+            (let ((out (Str8 join "" (List reverse (%paint-scan s 0 (%pt-blen s) () ms)))))
+              (set! %paint-last-in s)
+              (set! %paint-last-marks ms)
+              (set! %paint-last-out out)
+              out)))))
+
+    (method focus (self (param s STRING "The line") (param at INT "The cursor, as a byte offset"))
+      (doc "Which paren the cursor is beside and its partner, as (offset . kind) pairs for `line`: 'pair on both halves of a match, 'lone on a paren with none, nil when the cursor is not beside a paren. A close paren just before the cursor is preferred, then an open paren under it. Strings, comments and character literals are stepped over, so #\\( is not an open paren and a paren inside a string matches nothing."
+        (returns LIST "((offset . kind) ...), or nil")
+        (example "(Paint focus \"(f x)\" 5)" "((4 . 'pair) (0 . 'pair))")
+        (example "(null? (Paint focus \"(f x\" 4))" "#t")
+        (example "(Paint focus \"f x)\" 4)" "((3 . 'lone))"))
+      (%paint-focus s at))
 
     (method classify (self (param text STRING "One atom's bytes"))
       (doc "What an atom is, as a symbol: 'construct 'number 'string 'char 'bool 'private 'class or 'symbol. Constructs come from lib/x/constructs.x; everything else is decided by READING the bytes on the base and taking the type of the value, so the reader and the colour cannot disagree."
@@ -332,12 +459,16 @@
 ; loop: install over nil, or over the painter this file last installed, and
 ; over nothing else.
 (def %paint-own ())
+(def %paint-own-marks ())
 
 (def %paint-install-hook!
   (fn (_)
     (when (or (null? %repl-paint) (%pt-same? %repl-paint %paint-own))
-      (set! %repl-paint (fn (_ s) (Paint line s)))
-      (set! %paint-own %repl-paint))))
+      (set! %repl-paint (fn (_ s . marks) (Paint line s (if (null? marks) () (first marks)))))
+      (set! %paint-own %repl-paint))
+    (when (or (null? %repl-marks) (%pt-same? %repl-marks %paint-own-marks))
+      (set! %repl-marks (fn (_ s at) (%paint-focus s at)))
+      (set! %paint-own-marks %repl-marks))))
 
 (%paint-install!)
 (%paint-install-hook!)
@@ -348,4 +479,5 @@
   (note "An atom's class comes from the base: the bytes are read and the value's type decides, so a colour cannot disagree with the evaluator.")
   (note "Token SPANS are scanned here because the base offers none -- its reader is recursive and yields values. A primitive exposing the tokenizer's per-type scoring (span plus winning type) would move this last scanned piece onto the base too.")
   (note "The scan is %-private over cached prims and the palette is built once, not per render: class dispatch on a per-keystroke path costs more than the scanning between the doors.")
+  (note "focus finds the paren beside a cursor and its partner with the scan's own rules for strings, comments and character literals; line marks them when handed the result. The editor threads the two together on every redraw.")
   "Paint: ANSI syntax colouring for a REPL line that is still being typed.")
