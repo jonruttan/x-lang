@@ -40,6 +40,7 @@
   (method cell (self (param fname SYMBOL "A base field name -- see (Base fields)"))
     (doc "The object the layout contract's path addresses for fname, walked from this base. A cell-kind field's value sits in the cell's first slot; refuses non-base-rooted names."
       (returns ANY "The addressed cell/object")
+      (note "What it hands back is raw engine structure. Some of it is a C-built spine -- the type-alist field is one -- whose nodes answer #f to pair?; walk those with the bare first/rest/null? accessors, never the List or Iter walkers, which refuse them.")
       (example "(let ((b (Base make))) (%cell-int (first (b cell 'line))))" "1"))
     (Type %layout-cell (self raw) fname (lit base)))
   (method fields (self)
@@ -96,6 +97,7 @@
     (method cell (self (param target ANY "The base to walk (instance or raw)")
                        (param fname SYMBOL "A base field name -- see (Base fields)"))
       (doc "The layout-contract cell for fname, walked from target. Refuses non-base-rooted names."
+        (note "What it hands back is raw engine structure. Some of it is a C-built spine -- the type-alist field is one -- whose nodes answer #f to pair?; walk those with the bare first/rest/null? accessors, never the List or Iter walkers, which refuse them.")
         (returns ANY "The addressed cell/object"))
       (Type %layout-cell (Base raw-of target) fname (lit base)))
     (method fields (self)
