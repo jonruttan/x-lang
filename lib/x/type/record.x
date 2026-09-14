@@ -37,7 +37,7 @@
   (fn (_ self other)
     (if (not (object? other)) #f
       (if (not (same? (class-of self) (class-of other))) #f
-        (equal? (%obj-fields self) (%obj-fields other))))))
+        (%equal? (%obj-fields self) (%obj-fields other))))))
 
 (def %record-methods
   (lit ((method with (self . overrides) (%record-with self overrides))

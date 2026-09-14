@@ -118,6 +118,42 @@ A line being typed is unreadable most of the time; that is not a failure.
 ---
     #t
 
+## The construct set survives a lang rebinding the vocabulary
+
+`(Paint keywords)` is a string-keyed `Dict`, and `Dict` compares content keys
+with structural equality, so the painter depends on what `equal?` names. A
+lang bundle may rebind it -- x-sweet ships `(def equal? eq?)` -- and a lookup
+that followed the rebinding would miss every key while the set itself stayed
+correct. Containers read `%equal?` in core/logic.x, so the construct set
+classifies the same under any session's `equal?`.
+
+### `def` is still a construct while `equal?` is eq?
+
+`forget!` runs inside the window, so the set is built and read under the
+rebinding. The first element checks that the rebinding is live.
+
+```x
+(do (import x/repl/paint)
+  (let ((saved equal?))
+    (set! equal? eq?)
+    (let ((got (guard (e (list 'raised e))
+                 (do (Paint forget!)
+                     (list (equal? "a" "a") (Paint classify "def"))))))
+      (set! equal? saved)
+      (Paint forget!)
+      got)))
+```
+---
+    (#f 'construct)
+
+### and the session's own `equal?` is back afterwards
+
+```x
+(equal? "a" "a")
+```
+---
+    #t
+
 ## The memo
 
 ### forget! rebuilds the caches and classification survives it

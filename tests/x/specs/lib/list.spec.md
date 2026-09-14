@@ -528,6 +528,36 @@ the depth-independence of the drain.
 ---
     "n"
 
+## a rebound `equal?` does not move content comparison
+
+`index-of`, `includes?`, `uniq` and `uniq-by` compare by content, and a
+session may rebind the name that content equality is spelled with. They read
+`%equal?` in core/logic.x instead, as `Dict` does.
+
+### includes? and index-of still compare content while `equal?` is eq?
+
+```x
+(let ((saved equal?))
+  (set! equal? eq?)
+  (let ((got (guard (e (list 'raised e))
+               (list (equal? "a" "a")
+                     (List includes? "a" (list "a" "b"))
+                     (List index-of "b" (list "a" "b"))
+                     (List uniq (list "a" "a" "b"))))))
+    (set! equal? saved)
+    got))
+```
+---
+    (#f #t 1 ("a" "b"))
+
+### and the session's own `equal?` is back afterwards
+
+```x
+(equal? "a" "a")
+```
+---
+    #t
+
 ## count-if
 
 ### counts matching elements

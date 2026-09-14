@@ -76,11 +76,19 @@
 ; --- the construct vocabulary --------------------------------------------
 ; The same list the formatter, the linter, the coverage tool and the
 ; documentation renderer read, so a construct added there colours here
-; without this file being touched.  An unreadable file yields an empty set:
-; that costs colour on constructs and nothing else.
+; without this file being touched.
+;
+; An unreadable file yields an empty set: losing a colour is not worth
+; refusing to start a session over, and this runs from %paint-install!, which
+; the image-recache hook calls.  The cause is reported rather than dropped,
+; because an empty vocabulary looks the same as a session in which nothing
+; happens to be a construct -- a line with no colour on it, either way.  One
+; line to stderr, naming what could not be read.
 (def %paint-load-keywords
   (fn (_)
-    (guard (_ (Dict make))
+    (guard (e (do (%stderr "x/repl/paint: construct vocabulary unreadable ("
+                           e ") -- constructs will not colour\n")
+                  (Dict make)))
       (let ((path (%module-resolve-file "x/constructs.x"))
             (d (Dict make)))
         (List for-each
