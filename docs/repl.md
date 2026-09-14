@@ -112,21 +112,23 @@ identity function and costs nothing.
 
 ## Brackets
 
-The paren beside the cursor and its partner are shown inverse, and a paren
-with no partner is shown bold red. A close paren just before the cursor is
-matched first, so the pair lights the moment the close is typed and stays lit
-while the cursor is beside either half; an open paren under the cursor is
-matched forward. Strings, comments and character literals are stepped over,
-so `#\(` is not an open paren and a paren inside a string matches nothing.
+Parens are coloured by nesting depth, cycling yellow, magenta, cyan from the
+outside in, so both halves of a pair share a colour and the eye can pair
+them at a glance. A close paren with nothing to close is bold red; an open
+paren that is not closed yet is simply its depth's colour, since that is the
+state of every line while it is being typed. The pair beside the cursor is
+drawn inverse on top of its colour: a close just before the cursor is
+preferred, so a pair lights as its close is typed, and an open under the
+cursor is matched forward.
 
-The match is made on the whole line, not the visible window, so a partner
-that has scrolled out of view is still found; it is only not drawn. There is
-no timed blink: the highlight lasts as long as the cursor is beside the
-paren, which needs no timer and no waiting on the keyboard.
+Strings, comments and character literals are stepped over, so `#\(` is not
+an open paren and a paren inside a string is not counted. The depths are
+worked out on the whole line, not the visible window, so a line that has
+scrolled sideways still colours correctly.
 
-`(Paint focus line at)` answers the marks for a cursor position and
-`(Paint line text marks)` paints them, so the two can be used apart from the
-editor.
+`(Paint marks line at)` answers the marks for a cursor position, one per
+paren as `(offset depth focused)`, and `(Paint line text marks)` paints them,
+so the two can be used apart from the editor.
 
 ## Long lines
 
@@ -166,14 +168,16 @@ behaviour is checked by the ordinary spec harness with no pty anywhere:
 `%repl-paint` is the third customisation point beside `%repl-prompt` and
 `%repl-print`: a function from the line's text to the text to display for it.
 Set it and the editor uses it from the next keystroke. It is called with a
-second argument, the bracket marks for that redraw as `(offset . kind)` pairs
-translated into the window; a painter written for one argument ignores it.
+second argument, the bracket marks for that redraw as `(offset depth focused)`
+lists translated into the window; a painter written for one argument ignores
+it.
 
 `%repl-marks` is the fourth: a function from the whole line and the cursor
-offset to those marks, `'pair` on both halves of a match and `'lone` on a
-paren with none. A lang whose brackets are not x-lang's sets its own, or
-leaves it nil to mark nothing. It is installed and guarded the same way as
-`%repl-paint`.
+offset to those marks, one per bracket as `(offset depth focused)`, depth
+being the nesting level from 0, -1 for a close with nothing to close, and
+focused true on the pair the cursor is beside. A lang whose brackets are not
+x-lang's sets its own, or leaves it nil to mark nothing. It is installed and
+guarded the same way as `%repl-paint`.
 
 ```x
 (set! %repl-paint (fn (_ s) (my-lang-highlight s)))

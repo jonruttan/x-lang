@@ -5,28 +5,28 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**The REPL matches parens as they are typed.** The paren beside the cursor and
-its partner are painted inverse, and a paren with no partner bold red. A close
-paren just before the cursor is matched first, so a pair lights the moment its
-close is typed and stays lit while the cursor is beside either half; an open
-paren under the cursor is matched forward. The match steps over strings,
-comments and character literals with the scan's own rules, so `#\(` is not an
-open paren and a paren inside a string matches nothing. It is made on the whole
-line rather than the visible window, so a partner that has scrolled out of
-view is still found and is only not drawn. There is no timed blink; the
-highlight lasts as long as the cursor is beside the paren, which needs neither
-a timer nor a timed read on the keyboard.
+**The REPL colours parens by nesting depth.** Both halves of a pair share
+a colour, cycling yellow, magenta, cyan from the outside in, the way editors
+colour bracket pairs; a close paren with nothing to close is bold red; the
+pair beside the cursor is drawn inverse on top of its colour, a close just
+before the cursor first so a pair lights as its close is typed. An open paren
+not yet closed is simply its depth's colour, the state of every line while it
+is being typed. The depths come from one walk over the whole line that steps
+over strings, comments and character literals with the scan's own rules, so
+`#\(` is not an open paren and a paren inside a string is not counted, and a
+line that has scrolled sideways still colours correctly.
 
 `%repl-marks` joins `%repl-prompt`, `%repl-print` and `%repl-paint` as the
 fourth customisation point: a function from the line and the cursor offset to
-`(offset . kind)` marks, installed and guarded the way `%repl-paint` is, so a
-lang whose brackets are not x-lang's sets its own or leaves it nil. The editor
-passes the marks to `%repl-paint` as a second argument, translated into the
-window; a painter written for one argument ignores it. `(Paint focus line at)`
-and `(Paint line text marks)` expose the two halves for use apart from the
-editor. The partner walk costs about 4ms on a 70-byte line and runs only when
-the cursor is beside a paren; a redraw whose text and marks are unchanged is
-served from the cache as before.
+`(offset depth focused)` marks, installed and guarded the way `%repl-paint` is,
+so a lang whose brackets are not x-lang's sets its own or leaves it nil. The
+editor passes the marks to `%repl-paint` as a second argument, translated into
+the window; a painter written for one argument ignores it. `(Paint marks line
+at)` and `(Paint line text marks)` expose the two halves for use apart from the
+editor. The scan also treats `#\` and the glyph after it as one character
+literal. On a 70-byte line the depth walk costs about 4ms and the coloured
+render about 10ms over a plain one, and the walk runs on every redraw; a
+redraw whose text and marks are unchanged is served from the cache as before.
 
 **A class names each of its methods once.** `(help x/type/list)` printed
 `map`, `sort-by`, `times` and every other block-wrapped selector twice, and
