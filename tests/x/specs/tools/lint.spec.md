@@ -502,13 +502,19 @@ locals and unbound heads keep plain call analysis.
 ---
     #t
 
-### alternating variables are a decision tree, not a ladder
+### alternating variables are still a chain
+
+Four ifs nested through their else branches are four arms of one decision
+however the tests are spelled. This used to be exempt as a "decision
+tree"; the exemption hid most of the chains in the corpus, because a
+chain long enough to be worth reporting rarely tests one variable all
+the way down.
 
 ```x
 (do
   (def %r (lint-forms (list '(def h (fn (_ a b)
              (if (= a 1) 1 (if (= b 2) 2 (if (= a 3) 3 (if (= b 4) 4 0))))))) () ()))
-  (display (null? (lint-warnings-of "ladder" %r))))
+  (display (lint-has? "h/4" (lint-warnings-of "ladder" %r))))
 ```
 ---
     #t
@@ -569,7 +575,11 @@ so the run continues through it.  Five arms, the middle one compound.
 ---
     #t
 
-### a compound over two different variables ends the chain
+### a compound over two different variables does not end the chain
+
+It ends the KEYED chain, which is what decides the Dict advice -- a table
+cannot replace arms that are not keys. The chain itself is still three
+ifs deep.
 
 ```x
 (do
@@ -577,7 +587,7 @@ so the run continues through it.  Five arms, the middle one compound.
              (if (= a 1) 1
              (if (if (= a 2) #t (= b 3)) 2
              (if (= a 4) 3 0)))))) () ()))
-  (display (null? (lint-warnings-of "ladder" %r))))
+  (display (lint-has? "p/3" (lint-warnings-of "ladder" %r))))
 ```
 ---
     #t

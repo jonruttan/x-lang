@@ -424,8 +424,10 @@
 
 ; --- Multi-way ladder check (docs/code-quality.md 1.1 / 1.2) ---
 ;
-; A nested `if` chain branching on ONE variable against literals is a
-; multi-way conditional written as a tower.  `match` is an engine primitive
+; A nested `if` chain is a multi-way conditional written as a tower. The
+; tests do not have to compare one variable: three ifs nested through their
+; else branches are four arms of one decision however they are spelled, and
+; the rule used to miss every chain whose arms tested different things.  `match` is an engine primitive
 ; -- `if` itself is derived from it -- and it measures FASTER than the chain
 ; it replaces (605ms vs 897ms; 40 arms, 10k lookups, xenon) as well as flat.
 ; A win on both axes, so there is NO hot-path exemption: hot code converts
@@ -438,7 +440,7 @@
 ; adjudicated Dict-vs-alist the other way for the linter's own small tables.
 ; So: "ladder" means rewrite as match, "ladder-dict" means build a table.
 
-(def %ladder-min 4)        ; arms before a chain is worth reporting
+(def %ladder-min 3)        ; nested ifs before a chain is worth reporting
 (def %ladder-dict-min 15)  ; string arms before a Dict beats match
 
 ; (first ()) is UNDEFINED behaviour -- docs/spec.md: "Calling (first ()) is
@@ -515,14 +517,16 @@
 
 ; Arms of the chain rooted at this `if`, all testing `var`.  A chain runs
 ; down the ELSE branch: (if T1 A (if T2 B (if T3 C D))).
-(def %ladder-run (fn (self form var)
-  (if (not (pair? form)) 0
-    (if (not (symbol? (first form))) 0
-      (if (not (str=? (%cvt (first form) %string) "if")) 0
-        (let ((vk (%ladder-test (%ladder-at form 1))))
-          (if (null? vk) 0
-            (if (not (str=? (first vk) var)) 0
-              (+ 1 (self (%ladder-at form 3) var))))))))))
+; How many `if`s the chain rooted here runs through its ELSE branches. A
+; two-armed `if` has no else to continue into and ends the chain.
+; A two-armed `if` has no else to continue into: %ladder-at answers nil
+; there and the next step ends the chain, so it needs no special case.
+(def %ladder-run (fn (self form)
+  (match
+    ((not (pair? form)) 0)
+    ((not (symbol? (first form))) 0)
+    ((not (str=? (%cvt (first form) %string) "if")) 0)
+    (#t (+ 1 (self (%ladder-at form 3)))))))
 
 ; Longest chain found in the def under analysis, as (count . kind).
 (def %ladder-best (list ()))
@@ -551,9 +555,14 @@
       (do
         (when (if (symbol? (first form))
                 (str=? (%cvt (first form) %string) "if") #f)
-          (let ((vk (%ladder-test (%ladder-at form 1))))
-            (unless (null? vk)
-              (%ladder-note! (%ladder-run form (first vk)) (rest vk)))))
+          (let ((n (%ladder-run form)))
+            ; A chain is a chain whatever its tests compare; the key kind
+            ; rides along only when the whole of it is keyed on one
+            ; variable, because only then can a table replace it.
+            (let ((vk (%ladder-test (%ladder-at form 1))))
+              (%ladder-note! n
+                (if (null? vk) ""
+                  (if (= (Lint %ladder-keyed form (first vk)) n) (rest vk) ""))))))
         (%ladder-walk (first form))
         (self (rest form)))))))
 
@@ -982,6 +991,21 @@
                 ((str=? h "newline") #t)
                 ((str=? h "%stderr") #t)
                 (#t #f))))))
+    ; The chain counted only while every test compares ONE variable against
+    ; a literal. That is what decides the Dict advice: a table can only
+    ; replace arms that are keys.
+    (method %ladder-keyed (self form var)
+      (match
+        ((not (pair? form)) 0)
+        ((not (symbol? (first form))) 0)
+        ((not (str=? (%cvt (first form) %string) "if")) 0)
+        (#t
+          (let ((vk (%ladder-test (%ladder-at form 1))))
+            (match
+              ((null? vk) 0)
+              ((not (str=? (first vk) var)) 0)
+              (#t (+ 1 (Lint %ladder-keyed (%ladder-at form 3) var))))))))
+
     (method %env-known? (self name)
   (match
     ((%member-str? name (Lint %lint-embedder-known)) #t)
