@@ -216,7 +216,12 @@
 ; dispatch, per keystroke for the same reason, plus the completion and
 ; history helpers that hang off them.
 (file "lib/x/repl/paint.x" 35)
-(file "lib/x/repl/line.x" 35)
+; line.x is 36 for %ln-completer, which holds Tab's candidate source as a
+; value so a lang can install its own -- a global rather than class state on
+; the grounds the rows here stand on, since %ln-complete! reads it per Tab.
+; %repl-paint is the same seam for the colour, and lives in the REPL's own
+; globals because a bundle sets it before this file loads.
+(file "lib/x/repl/line.x" 36)
 (file "lib/x/repl/banner.x" 4)
 ; Grew by one for %repl-platform-repl: the identity anchor that lets two
 ; installers over `repl` -- a lang's reader and the line editor -- tell

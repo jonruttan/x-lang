@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**Tab's candidates are a seam a lang can fill.** `%repl-paint` answers the
+colour question for a lang's session; completion had no such answer.
+`%ln-candidates` prefix-searches the doc registry, which holds what x-lang
+modules document, so a lang that parses its own syntax has none of its names
+there and Tab at its prompt offers x-lang's. `(Line completer f)` installs a
+function from the `Edit` buffer to `(typed . names)`, and `()` turns Tab off.
+Filling a unique answer, extending to the common prefix and listing on the
+second Tab are the same job whatever the syntax is, and stay whichever
+completer is installed; `%ln-complete!` tests before it walks, since a nil
+completer has nothing to destructure and `first`/`rest` are unchecked prims.
+`line.x`'s `%`-global budget is 36, and `crafting-a-lang.md` §7 carries both
+seams for a lang author.
 **`List` and `Iter` raise on a value they cannot walk.** `List from-seq` is
 the door every basic normalizes through, and it hands anything that is not
 nil or a pair to `(Iter new)`. That answers nil for a value whose type

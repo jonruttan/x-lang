@@ -296,6 +296,18 @@ What the loop must know:
   rather than at its history.  Replacing the loop means replacing the sweep —
   unless your lang owns a tokenizer base, in which case you cannot have it
   (see §6), and a long session will grow.  Know which case you are in.
+- **The line editor reads your lines; its colouring and its completion do
+  not know your syntax.**  A lang that has not replaced `repl` inherits the
+  editor, and one that has can call `(Line read prompt)` for a single edited
+  line back as a string.  Either way the buffer, the cursor, the history and
+  the raw-mode bracketing carry no grammar.  Two things do: set `%repl-paint`
+  to a function from the line's text to the text to display for it, and
+  `(Line completer f)` to a function from the `Edit` buffer to
+  `(typed . names)`.  Both take `()` for none — but note that a nil
+  `%repl-paint` means no painter installed rather than no colour, which
+  `--no-color`, `NO_COLOR` and `TERM=dumb` already answer.  Tab's default
+  prefix-searches the doc registry, so a lang that parses its own syntax
+  completes x-lang's names until it installs its own.
 - **The banner should identify the whole stack.**  `%param-release` (engine)
   and `%platform-release` (x-lang) arrive as boot data; printing them plus
   the resolved root makes every which-install-am-I-running mystery
