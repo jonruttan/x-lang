@@ -125,6 +125,18 @@ call, not a binding list.
 ---
       => LIST -- New list
 
+### the wrap does not double the selector in the class listing
+
+`def-static!` prepends, so the applicative row stays behind the operative
+in the cold alist. The class still has one `map`, and the name listing
+`(help x/type/list)` walks says so once.
+
+```x
+(List count-if (s) (eq? s 'map) (class-static-methods List))
+```
+---
+    1
+
 ## the element shape across the wrapped selectors
 
 ### filter
