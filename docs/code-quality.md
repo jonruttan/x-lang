@@ -121,6 +121,18 @@ ladder found is keyed on characters or integers and wants `match` instead.
 rule goes wrong, and the linter reports the two cases as different kinds so
 the distinction cannot be lost.
 
+### What the linter counts
+
+Three `if`s nested through their **else** branches, whatever the tests
+compare. The tests do not have to name one variable: four arms of one
+decision are four arms however they are spelled, and requiring a shared key
+exempted most of the corpus — a chain long enough to be worth reporting
+rarely tests the same variable the whole way down.
+
+The shared key still decides the *advice*. `ladder` means rewrite as
+`match`; `ladder-dict` means build a table, and only a chain that is keyed
+on one variable with ≥15 string arms can become one.
+
 ### 1.3 Length and depth together, never either alone
 
 Long-and-flat is fine: 17 definitions exceed 60 lines at depth ≤8, and they
