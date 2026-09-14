@@ -1,7 +1,7 @@
 ; repl/edit.x -- Edit: the line buffer a key press acts on, with no terminal
 ; in sight.
 ;
-; THE SPLIT THIS FILE EXISTS TO MAKE.  A line editor is two things wearing
+; The split this file exists to make: a line editor is two things wearing
 ; one coat: a state machine over a string and a cursor, and a pile of
 ; terminal escape sequences.  Only the second needs a tty, and only the
 ; second is hard to test -- so they are separate files, and this is the one
@@ -10,7 +10,7 @@
 ; the whole of it runs under the ordinary spec harness with no pty at all.
 ; repl/term.x owns the descriptor, repl/line.x joins the two.
 ;
-; THE POINT IS A BYTE OFFSET, and the buffer is bytes, because that is what
+; The point is a byte offset, and the buffer is bytes, because that is what
 ; the reader downstream consumes and what a redraw has to measure.  Motion,
 ; though, is by CHARACTER: ctrl-b over an accented letter moves one glyph,
 ; not one of its two bytes, or the next keystroke splits the sequence and
@@ -81,7 +81,7 @@
     ; what a word is: anything that is not a space and not a delimiter the
     ; reader would break on.  A REPL's words are mostly symbols, and a symbol
     ; may hold nearly any punctuation, so the class is defined by what it
-    ; EXCLUDES rather than by an alphabet.
+    ; excludes rather than by an alphabet.
     (method word-byte? (self (param b INT "A byte value"))
       (doc "Whether a byte counts as part of a word for ctrl-left / meta-b motion: not whitespace, and not one of ()\";'`|."
         (returns BOOL "True when the byte is word material")

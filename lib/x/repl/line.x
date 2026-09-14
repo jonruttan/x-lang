@@ -8,7 +8,7 @@
 ; the two things a session needs around that loop, a history file and
 ; completion.
 ;
-; THE TERMINAL IS BORROWED PER LINE.  raw! and restore! bracket the read and
+; The terminal is borrowed per line.  raw! and restore! bracket the read and
 ; nothing else, so the form that was typed is evaluated in the cooked
 ; terminal every other part of the system expects: output still gets its
 ; newlines translated, a child process inherits a sane tty, and ctrl-c
@@ -16,12 +16,12 @@
 ; than a byte nobody is reading.  The cost is two tcsetattr calls per line,
 ; which is nothing next to being the reason someone's shell came back broken.
 ;
-; REDRAWING IS A WINDOW, NOT A WRAP.  A line longer than the terminal scrolls
+; Redrawing is a window, not a wrap.  A line longer than the terminal scrolls
 ; sideways inside its row rather than wrapping onto more rows.  That is the
 ; smaller and far more robust of the two designs -- no cursor arithmetic
 ; across rows, nothing to get wrong when the terminal is resized mid-line --
 ; and it has a second benefit that matters more than it looks: only the
-; VISIBLE bytes are painted, so the cost of a redraw is bounded by the width
+; visible bytes are painted, so the cost of a redraw is bounded by the width
 ; of the terminal instead of the length of the line.
 ;
 ; Percent-globals: the redraw and key dispatch run per keystroke, so they are
@@ -84,9 +84,16 @@
                   (if (<= c 0) j (if (>= j n) n (self (Edit next-start s j) (- c 1)))))))
         (go i k)))))
 
+; Guarded: a painter that raises must not lose the keystroke.  The line is
+; drawn unpainted for that redraw instead.
+(def %ln-paint
+  (fn (_ window)
+    (if (null? %repl-paint) window
+      (guard (_ window) (%repl-paint window)))))
+
 ; --- the redraw -------------------------------------------------------------
 ;
-; ONE WRITE.  The whole frame -- return, erase, prompt, painted window,
+; One write.  The whole frame -- return, erase, prompt, painted window,
 ; return, cursor right -- is built as a single string and handed to the
 ; descriptor once.  Writing it in pieces lets the terminal render a
 ; half-drawn line, which is visible as a flicker on every keystroke.
@@ -106,14 +113,17 @@
                 (%ln-append "\r"
                   (%ln-append %ln-kill-right
                     (%ln-append prompt
-                      (%ln-append (Paint line window)
+                      ; The painter belongs to the session, not to this file.
+                      ; A lang that reads its own syntax sets %repl-paint to a
+                      ; painter that knows it; nil means no colouring.
+                      (%ln-append (%ln-paint window)
                         (%ln-append "\r"
                           (if (= col 0) ""
                             (%ln-append "\x1b[" (%ln-append (Str8 str col) "C"))))))))))))))))
 
 ; --- history on disk --------------------------------------------------------
 ;
-; A REPL history outlives the process or it is not a history.  The path
+; A REPL history outlives the process, or it is not a history.  The path
 ; follows the XDG state convention -- state, not cache: a cache is something
 ; a tool may delete, and this is the user's own typing.  X_HISTORY overrides
 ; it outright, and an empty X_HISTORY turns persistence off, which is what a
@@ -229,7 +239,7 @@
         (if (if (<= b 32) #t (if (= b 40) #t (if (= b 41) #t (= b 59)))) i
           (self s (+ i 1) n))))))
 
-; WHAT IS ALREADY TYPED, and what the registry calls the thing being typed,
+; What is already typed, and what the registry calls the thing being typed,
 ; are not the same string in this language, and that is the whole reason this
 ; function exists.  Methods dispatch subject-last -- `(Str8 split "," s)` --
 ; so at `(Str8 sta` the three letters under the cursor are the tail of
@@ -418,7 +428,7 @@
 ; loop.x keeps its own path untouched for every case where there is no
 ; terminal to edit on.
 ;
-; A TURN IS A FORM, BUT A READ IS A LINE, and those are not the same thing.
+; A turn is a form, but a read is a line, and those are not the same thing.
 ; The C reader knows when a form is finished because it is the thing doing
 ; the reading; here the line arrives whole and has to be offered to the
 ; reader to find out.  "Unterminated input" is the reader saying `keep
@@ -430,7 +440,7 @@
 ; Everything the reader said it could not finish, and nothing else: any other
 ; raise is a real syntax error and belongs on stderr.
 ;
-; TWO SHAPES, because the reader's raise has two.  With x/type/err loaded it
+; Two shapes, because the reader's raise has two.  With x/type/err loaded it
 ; arrives as an engine ERR whose code carries the text; without it, as the
 ; bare string it has always been.  Reading the CODE rather than rendering the
 ; error and matching that is what keeps this working when an Err grows a
@@ -480,8 +490,8 @@
                   (%stderr "\n"))))
             (%ln-eval-line line)))))))
 
-; The whole loop, replacing repl/loop.x's.  REPLACING `repl` IS THE SEAM
-; THIS TREE ALREADY USES: x-python and x-ash both install a reader of their
+; The whole loop, replacing repl/loop.x's.  Replacing `repl` is the seam
+; this tree already uses: x-python and x-ash both install a reader of their
 ; own that way, for the same reason this needs to -- the platform loop
 ; customises the PROMPT and the PRINTER, and reading a form with a line
 ; editor is neither of those.  What is kept from the original is everything
@@ -496,7 +506,7 @@
     ; because the descriptor it reads is the one this installs.
     (when (Sys isatty 3)
       (do (Sys dup2 3 0) (Sys close 3)))
-    ; STEPPING ASIDE RATHER THAN EXITING.  Installation decided there was a
+    ; Stepping aside rather than exiting.  Installation decided there was a
     ; terminal, but that was before the swap above and it can still turn out
     ; to be wrong -- fd 3 was a tty and fd 0 is not, the tty went away, a
     ; build's termios calls resolved but tcgetattr refuses this descriptor.
@@ -523,7 +533,7 @@
 ; loads the terminal is still parked on fd 3 and fd 0 is the boot pipe -- the
 ; swap %ln-repl does has not happened yet.
 ;
-; AND `repl` IS ONLY OURS TO MOVE WHEN NOBODY ELSE HAS MOVED IT.  A lang
+; `repl` is only ours to move when nobody else has moved it.  A lang
 ; replaces repl to read its own syntax -- x-python and x-ash both do -- and a
 ; bundle's entry runs BEFORE the launcher that imports this file, so the
 ; obvious unconditional set! would take the lang's reader away and read Lisp
