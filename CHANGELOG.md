@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A class names each of its methods once.** `(help x/type/list)` printed
+`map`, `sort-by`, `times` and every other block-wrapped selector twice, and
+so did the listing for every other collection: `Block method!` installs its
+operative through `def-static!`, and `%class-add!` prepends, so the newest
+registration wins at dispatch and leaves the row it shadows behind it in the
+cold alist. `class-methods` and `class-static-methods` answered with that
+alist's keys as they stood, so a selector defined a second time was named a
+second time, and help -- which walks those names -- had an entry for each
+row. The accessors strain their keys through `%names-minus` now, which keeps
+the first occurrence of a name: for a method alist that is the row a dispatch
+reaches. The alist and the dispatch order are unchanged, and the member
+accessors need nothing -- their alists are written through `%box-put!`,
+which replaces an entry in place.
+
 **Tab's candidates are a seam a lang can fill.** `%repl-paint` answers the
 colour question for a lang's session; completion had no such answer.
 `%ln-candidates` prefix-searches the doc registry, which holds what x-lang
