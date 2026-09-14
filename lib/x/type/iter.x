@@ -54,6 +54,21 @@
 
 (def-class Iter ()
   (static
+    ; WHAT EVERY PUBLIC DOOR ASKS BEFORE IT HANDS `it` TO A DRIVER PRIM.  The
+    ; prims dispatch on the type handle, and NIL IS TYPELESS -- there is none
+    ; to read, and the process dies.  (A typed non-iterator they survive:
+    ; (Iter empty? 5) answered #t.)  So (Iter ->list ()) was a segfault, and
+    ; so was every List door on a value with no iter slot, which reaches the
+    ; same nil through `new` below.  Checking ONCE on the way in makes a
+    ; non-iterator an error instead -- list.x's improper-list guard, same
+    ; discipline -- while the drain loops ride `it` through unchanged, so
+    ; their per-element prim calls stay unchecked.  Homed on the class rather
+    ; than a top-level %-def (the ratchet's classes-are-namespaces rule,
+    ; tools/check/percent-globals.sh); sibling calls go through
+    ; (Iter %check ...), pin.x's convention.  `Err` resolves at CALL time,
+    ; the note at core/list.x's %map1-go.
+    (method %check (self it what)
+      (if (%type? it %iter) it (Err raise (lit type) what ())))
     (method make (self (param step CALLABLE "Pure step: (step state) -> (value . next-state); a NIL next-state ends the iteration after that value, and a nil state must answer ()")
                        (param state ANY "Initial state; nil marks an already-exhausted iterator"))
       (doc "Build an iterator from a pure step function and its starting state -- the from-scratch constructor; (Iter new) is the from-a-sequence door. Exhaustion rides the STATE: the step signals the last element by returning a nil next-state (the list step below is the model)."
@@ -63,26 +78,32 @@
     (method next (self (param it ITER "Iterator to advance"))
       (doc "The next element, ADVANCING the iterator in place (the C driver writes the successor state back into the box); () once exhausted. (Iter step) is the functional sibling that leaves it untouched."
         (returns ANY "The next element, or nil when exhausted"))
-      (%i-next it))
+      (%i-next (Iter %check it "Iter next: not an iterator")))
     (method step   (self it)
       (doc "Step ITERATOR functionally: (value . next-iterator) leaving it untouched, or () when exhausted -- the generator view of an iterator."
         (param it ITER "Iterator") (returns ANY "Pair of value and successor iterator, or nil"))
-      (%i-step it))
+      (%i-step (Iter %check it "Iter step: not an iterator")))
     (method empty? (self (param it ITER "Iterator to test"))
       (doc "Is the iterator exhausted? True once next would return nil; the source is not advanced."
         (returns BOOL "True when nothing remains"))
-      (%i-empty? it))
+      (%i-empty? (Iter %check it "Iter empty?: not an iterator")))
     (method iter? (self (param x ANY "Value to test"))
       (doc "Test whether a value is an iterator."
         (returns BOOL "True if x is an iterator"))
       (%type? x %iter))
     ; nil has no type for the prim to dispatch on, so shadow it to an empty
     ; iterator; everything else uses the prim's per-type slot dispatch.
+    ; That dispatch answers NIL for a type carrying no iter slot -- an INT,
+    ; a fn, a C-built spine node like the reader's type alist -- and a nil
+    ; handed on to a driver prim is the crash (Iter %check) exists for.  This
+    ; is the door (List from-seq) and (Gen from-seq) reach the prim through,
+    ; so refusing the nil HERE is what makes (List length 5) an error.
     (method new (self (param x ANY "A sequence: list, vector, string, or def-class instance; nil gives an empty iterator"))
-      (doc "An iterator over a sequence, via the type's iter slot. Instances yield their members as (name . value) pairs; also available bare as `iter`."
+      (doc "An iterator over a sequence, via the type's iter slot. Instances yield their members as (name . value) pairs; also available bare as `iter`. Raises `type` on a value whose type carries no iter slot -- an INT, a fn, or one of the engine's C-built spines such as the reader's type alist, which are walked with the bare first/rest accessors instead."
         (returns ITER "An iterator positioned at the first element")
         (example "(Iter ->list (Iter new (list 1 2)))" "(1 2)"))
-      (if (null? x) (%i-make %list-iter-step ()) (%i-new x)))
+      (if (null? x) (%i-make %list-iter-step ())
+        (Iter %check (%i-new x) "Iter new: not iterable")))
     (method ->list (self (param it ITER "Iterator to drain"))
       (doc "Drain the iterator into a list, in order; the iterator ends exhausted."
         (returns LIST "Every remaining element")
@@ -91,14 +112,14 @@
       ; recursed in argument position -- one C eval frame group per
       ; element, a segfault at ~16K.  it rides through unchanged like the
       ; fold/for-each loops below (the C driver advances it in place).
-      (let drain ((it it) (acc ()))
+      (let drain ((it (Iter %check it "Iter ->list: not an iterator")) (acc ()))
         (if (%i-empty? it) (%rev-onto acc ())
           (drain it (pair (%i-next it) acc)))))
     (method for-each (self (param f CALLABLE "One-argument fn, called per element for effect")
                            (param it ITER "Iterator to drain"))
       (doc "Drain the iterator applying f to each element for effect; returns nil."
         (returns ANY "nil"))
-      (let loop ((it it))
+      (let loop ((it (Iter %check it "Iter for-each: not an iterator")))
         (if (%i-empty? it) () (do (f (%i-next it)) (loop it)))))
     (method fold (self (param f CALLABLE "Two-argument fn: (f acc element) -> next acc")
                        (param acc ANY "Initial accumulator")
@@ -106,7 +127,7 @@
       (doc "Drain the iterator folding f over the elements, left to right."
         (returns ANY "The final accumulator")
         (example "(Iter fold + 0 (Iter new (list 1 2 3)))" "6"))
-      (let loop ((acc acc) (it it))
+      (let loop ((acc acc) (it (Iter %check it "Iter fold: not an iterator")))
         (if (%i-empty? it) acc (loop (f acc (%i-next it)) it))))))
 
 ; iter: the foundational iterator constructor. A TYPE constructor, so a bare

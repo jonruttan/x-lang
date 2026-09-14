@@ -1166,3 +1166,35 @@ first or the last element of each run survives. Assert the value.
 ```
 ---
     Error: #<err:type map: improper list>
+
+## non-iterable input
+
+`from-seq` is the door every basic normalizes through, and it hands a
+non-pair to `Iter`; before the `Iter` guard a value with no iter slot
+segfaulted the interpreter instead of erroring.  The reader's type alist
+is one such value -- a C-built spine, `pair?` #f -- so walk it with the
+bare `first`/`rest` accessors, as `%type-by-atom` does.
+
+### length rejects an integer
+
+```x
+(List length 5)
+```
+---
+    Error: #<err:type Iter new: not iterable>
+
+### map rejects a fn
+
+```x
+(List map (fn (_ x) x) (fn (_) 1))
+```
+---
+    Error: #<err:type Iter new: not iterable>
+
+### from-seq rejects the reader's type alist
+
+```x
+(List from-seq (%type-alist))
+```
+---
+    Error: #<err:type Iter new: not iterable>

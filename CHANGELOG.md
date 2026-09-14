@@ -5,6 +5,28 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A walk that cannot start says so, instead of killing the process.**
+`(List length 5)` segfaulted, and so did `(List length (%type-alist))`,
+by the same path: `List from-seq` is the door every basic normalizes
+through, and anything that is not nil or a pair it hands to `(Iter new)`,
+which answers NIL for a value whose type carries no iter slot. Nil is
+typeless, the driver prims behind `->list` dispatch on a type handle, and
+there is none to read. A typed non-iterator they survive -- `(Iter empty?
+5)` answered `#t` -- so nil was the one shape that died, and `Iter new`
+was manufacturing it. It refuses at the source now with a `type` Err,
+which is what makes the `List` doors report; and every public `Iter` door
+probes its iterator once on the way in, so `(Iter ->list ())` is an error
+rather than the same crash one step closer. The drain loops ride `it`
+through unchanged, so the per-element prim calls are untouched. The
+reader's type alist is how this is reached from ordinary code: it is a
+C-built spine, so `pair?` answers `#f` on it and `from-seq` calls it
+non-list, and it is in the catalog as `type/alist` with `(Base cell
+'type-alist)` handing back the same structure. Spines like that are
+walked with the bare `first`/`rest` accessors, as `%type-by-atom` walks
+this one and as `docs/sandboxing-tutorial.md` says of handler spines --
+`type/struct.x`, `(Base cell)` and `(List from-seq)` now say so where the
+structure is handed out.
+
 **The session has a line editor, and `rlwrap` is no longer the answer.**
 `sh x.sh` with a terminal now gives arrow keys, the readline chords, history
 that outlives the process, Tab completion over every documented name, and
