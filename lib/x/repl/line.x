@@ -87,9 +87,25 @@
 ; Guarded: a painter that raises must not lose the keystroke.  The line is
 ; drawn unpainted for that redraw instead.
 (def %ln-paint
-  (fn (_ window)
+  (fn (_ window marks)
     (if (null? %repl-paint) window
-      (guard (_ window) (%repl-paint window)))))
+      (guard (_ window) (%repl-paint window marks)))))
+
+; The marks for this redraw, asked of the whole line so that a partner that
+; has scrolled out of view is still found, then translated into the window:
+; offsets become window-relative and any that fall outside it are dropped.
+; Guarded like the painter, and for the same reason.
+(def %ln-marks
+  (fn (_ text point start end)
+    (if (null? %repl-marks) ()
+      (let ((go (fn (self ms acc)
+                  (if (null? ms) acc
+                    (let ((o (first (first ms))))
+                      (self (rest ms)
+                        (if (if (>= o start) (< o end) #f)
+                          (pair (pair (- o start) (rest (first ms))) acc)
+                          acc)))))))
+        (go (guard (_ ()) (%repl-marks text point)) ())))))
 
 ; --- the redraw -------------------------------------------------------------
 ;
@@ -108,6 +124,7 @@
                        (if (<= cc avail) 0 (%ln-back-columns text point avail)))))
           (let ((end (%ln-forward-columns text start avail)))
             (let ((window (%ln-bsub text start (- end start)))
+                  (marks (%ln-marks text point start end))
                   (col (+ pwidth (%ln-columns text start point))))
               (Term emit fd
                 (%ln-append "\r"
@@ -116,7 +133,7 @@
                       ; The painter belongs to the session, not to this file.
                       ; A lang that reads its own syntax sets %repl-paint to a
                       ; painter that knows it; nil means no colouring.
-                      (%ln-append (%ln-paint window)
+                      (%ln-append (%ln-paint window marks)
                         (%ln-append "\r"
                           (if (= col 0) ""
                             (%ln-append "\x1b[" (%ln-append (Str8 str col) "C"))))))))))))))))

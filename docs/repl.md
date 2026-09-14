@@ -110,6 +110,24 @@ Colour follows the same switches everything else does: `NO_COLOR`,
 `TERM=dumb`, or `--no-color` turn it off, and with it off the painter is an
 identity function and costs nothing.
 
+## Brackets
+
+The paren beside the cursor and its partner are shown inverse, and a paren
+with no partner is shown bold red. A close paren just before the cursor is
+matched first, so the pair lights the moment the close is typed and stays lit
+while the cursor is beside either half; an open paren under the cursor is
+matched forward. Strings, comments and character literals are stepped over,
+so `#\(` is not an open paren and a paren inside a string matches nothing.
+
+The match is made on the whole line, not the visible window, so a partner
+that has scrolled out of view is still found; it is only not drawn. There is
+no timed blink: the highlight lasts as long as the cursor is beside the
+paren, which needs no timer and no waiting on the keyboard.
+
+`(Paint focus line at)` answers the marks for a cursor position and
+`(Paint line text marks)` paints them, so the two can be used apart from the
+editor.
+
 ## Long lines
 
 A line longer than the terminal scrolls sideways within its row rather than
@@ -147,7 +165,15 @@ behaviour is checked by the ordinary spec harness with no pty anywhere:
 
 `%repl-paint` is the third customisation point beside `%repl-prompt` and
 `%repl-print`: a function from the line's text to the text to display for it.
-Set it and the editor uses it from the next keystroke.
+Set it and the editor uses it from the next keystroke. It is called with a
+second argument, the bracket marks for that redraw as `(offset . kind)` pairs
+translated into the window; a painter written for one argument ignores it.
+
+`%repl-marks` is the fourth: a function from the whole line and the cursor
+offset to those marks, `'pair` on both halves of a match and `'lone` on a
+paren with none. A lang whose brackets are not x-lang's sets its own, or
+leaves it nil to mark nothing. It is installed and guarded the same way as
+`%repl-paint`.
 
 ```x
 (set! %repl-paint (fn (_ s) (my-lang-highlight s)))

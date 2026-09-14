@@ -5,6 +5,29 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The REPL matches parens as they are typed.** The paren beside the cursor and
+its partner are painted inverse, and a paren with no partner bold red. A close
+paren just before the cursor is matched first, so a pair lights the moment its
+close is typed and stays lit while the cursor is beside either half; an open
+paren under the cursor is matched forward. The match steps over strings,
+comments and character literals with the scan's own rules, so `#\(` is not an
+open paren and a paren inside a string matches nothing. It is made on the whole
+line rather than the visible window, so a partner that has scrolled out of
+view is still found and is only not drawn. There is no timed blink; the
+highlight lasts as long as the cursor is beside the paren, which needs neither
+a timer nor a timed read on the keyboard.
+
+`%repl-marks` joins `%repl-prompt`, `%repl-print` and `%repl-paint` as the
+fourth customisation point: a function from the line and the cursor offset to
+`(offset . kind)` marks, installed and guarded the way `%repl-paint` is, so a
+lang whose brackets are not x-lang's sets its own or leaves it nil. The editor
+passes the marks to `%repl-paint` as a second argument, translated into the
+window; a painter written for one argument ignores it. `(Paint focus line at)`
+and `(Paint line text marks)` expose the two halves for use apart from the
+editor. The partner walk costs about 4ms on a 70-byte line and runs only when
+the cursor is beside a paren; a redraw whose text and marks are unchanged is
+served from the cache as before.
+
 **Tab's candidates are a seam a lang can fill.** `%repl-paint` answers the
 colour question for a lang's session; completion had no such answer.
 `%ln-candidates` prefix-searches the doc registry, which holds what x-lang
