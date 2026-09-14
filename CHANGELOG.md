@@ -31,6 +31,7 @@ completer is installed; `%ln-complete!` tests before it walks, since a nil
 completer has nothing to destructure and `first`/`rest` are unchecked prims.
 `line.x`'s `%`-global budget is 36, and `crafting-a-lang.md` §7 carries both
 seams for a lang author.
+
 **`List` and `Iter` raise on a value they cannot walk.** `List from-seq` is
 the door every basic normalizes through, and it hands anything that is not
 nil or a pair to `(Iter new)`. That answers nil for a value whose type
@@ -42,6 +43,7 @@ checks its argument once on entry, so `(Iter ->list ())` raises too. The
 drain loops carry their iterator through unchanged and their per-element
 prim calls are unaffected. `Iter %check` is homed on the class under the
 classes-are-namespaces rule in `tools/check/percent-globals.sh`.
+
 **A lang bundle can no longer change what the library's containers mean by
 equal.** `equal?` is a bare global, so a session may rebind it, and lang
 bundles do -- x-sweet ships `(def equal? eq?)` as part of its Scheme shim.
@@ -223,6 +225,7 @@ it, and `tools/dev/images.sh` boots helium once before its 29 writers so
 that every host hits on a fresh checkout. An x.x write is 3.7s from 5.7, a
 pinned project's first boot 5.5s from 7.35, and the 29 images at four jobs
 on a 12-core arm64 box 56s from 72; pin-smoke checks the mode both ways.
+
 **The pin gate's digests cost what they weigh.** `tools/check/pin-smoke.sh`
 was ten minutes of the ubuntu gates job, and the job tripped its 20-minute
 cap in nine of the last thirteen main runs; measured under a timestamped
