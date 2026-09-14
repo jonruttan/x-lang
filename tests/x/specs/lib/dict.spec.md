@@ -385,6 +385,43 @@ would recurse into the field box and loop on cyclic instances).
 ---
     (20 #t)
 
+## a rebound `equal?` does not move the bucket search
+
+`equal?` is a bare global, so a session may rebind it, and lang bundles do --
+x-sweet ships `(def equal? eq?)` as part of its Scheme shim. A bucket search
+that read that name would answer a different question for the rest of the
+session without failing: the bytes, the FNV hash and the bucket are unchanged,
+only the comparison. `%dict-key=` holds its own handle, `%equal?` in
+core/logic.x.
+
+### a string key still hits while `equal?` is eq?
+
+The first element checks that the rebinding is live inside the window, so the
+case cannot pass by testing nothing. The `guard` keeps the restore on the
+raising path too: a rebinding left in place leaks into every later file
+sharing the batch's interpreter.
+
+```x
+(do (import x/type/dict)
+  (let ((saved equal?) (d (Dict make)))
+    (d set! "k" 1)
+    (set! equal? eq?)
+    (let ((got (guard (e (list 'raised e))
+                 (list (equal? "a" "a") (d get "k") (d has? "k")))))
+      (set! equal? saved)
+      got)))
+```
+---
+    (#f 1 #t)
+
+### and the session's own `equal?` is back afterwards
+
+```x
+(equal? "a" "a")
+```
+---
+    #t
+
 ## map
 
 ### maps values, keeping the keys

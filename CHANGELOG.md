@@ -44,35 +44,30 @@ prim calls are unaffected. `Iter %check` is homed on the class under the
 classes-are-namespaces rule in `tools/check/percent-globals.sh`.
 **A lang bundle can no longer change what the library's containers mean by
 equal.** `equal?` is a bare global, so a session may rebind it, and lang
-bundles do -- x-sweet ships `(def equal? eq?)` as its eight-name Scheme shim.
+bundles do -- x-sweet ships `(def equal? eq?)` as part of its Scheme shim.
 Every container that compares by content read that name: `Dict`'s bucket
 search, `Assoc find`, `List index-of`/`includes?`/`uniq`/`uniq-by`, and a
-record's `=?`. Rebound, none of them failed. They quietly began answering a
-different question, for the whole session, in code that never mentioned
-equality -- under `-l sweet`, `(Dict get "k")` on a dict that held `"k"`
-answered nil, and `(List includes? "a" (list "a" "b"))` answered `#f`. Same
-bytes, same FNV hash, same bucket; only the comparison had moved. The REPL
-painter is how it surfaced: its construct set is a string-keyed `Dict`, so
-inside a lang `def` classified as a plain symbol and lost its colour, with the
-vocabulary itself read off `lib/x/constructs.x` perfectly and all thirty
-entries present -- the reader was never involved. Library internals now hold
+record's `=?`. A rebinding did not make them fail; it made them answer a
+different question for the rest of the session, in code that never mentioned
+equality. Under `-l sweet`, `(Dict get "k")` on a dict holding `"k"` answered
+nil, and `(List includes? "a" (list "a" "b"))` answered `#f`, with the bytes,
+the FNV hash and the bucket all unchanged. Library internals now read
 `%equal?`, captured beside `equal?` where it is defined, which is the split
-[protocol/str/utf8.x](lib/x/protocol/str/utf8.x) already draws between `Str`,
-the rebindable ambient alias, and `Str8`, the fixed name its own internals
-use. What is captured is the closure, not the behaviour: its body reads
-`%equal-others` at call time, so a module extending equality through the
-sanctioned hook (`x/type/vector` does) still reaches every one of those seats.
-Rebinding the name is the only thing that stops working, and it is the thing
-that was wrong.
+[protocol/str/utf8.x](lib/x/protocol/str/utf8.x) draws between `Str`, the
+rebindable ambient alias, and `Str8`, the fixed name its own internals use.
+What is captured is the closure, not the behaviour: its body reads
+`%equal-others` at call time, so a module extending equality through that hook
+(`x/type/vector` does) still reaches every one of those seats. Only rebinding
+the name stops working.
 
-**The painter says so when it cannot read its vocabulary.** `x/repl/paint`
-builds its construct set from [lib/x/constructs.x](lib/x/constructs.x) behind
-a `guard` whose handler returned an empty `Dict` and dropped the error with
-it. An empty vocabulary is indistinguishable from a session in which nothing
-happens to be a construct -- both look like a line with no colour on it -- so
-a broken install degraded in perfect silence. The fallback is unchanged,
-because losing a colour is not worth refusing to start a session over, but the
-handler now writes one line to stderr naming what could not be read.
+**The painter reports a vocabulary it cannot read.** `x/repl/paint` builds its
+construct set from [lib/x/constructs.x](lib/x/constructs.x) behind a `guard`
+whose handler returned an empty `Dict` and dropped the error with it. An empty
+vocabulary looks the same as a session in which nothing happens to be a
+construct -- a line with no colour on it, either way. The fallback is
+unchanged, because losing a colour is not worth refusing to start a session
+over, but the handler now writes one line to stderr naming what could not be
+read.
 
 **A compiled function could be handed an argument back instead of an answer.**
 `compile-asm` emits for two calling worlds -- an integer function called from x,

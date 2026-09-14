@@ -37,6 +37,12 @@
 ; identity-known error atom.
 ; type/err-io.x is a NEW row at 7, the char-io.x shape: cached prim-refs
 ; plus the renderer, filling IO stacks the C layer boots empty.
+; core/logic.x grew by one, 1 -> 2, for %equal? -- the library's own handle on
+; structural equality, shared by six seats in four files (type/dict, type/list
+; x4, type/assoc, type/record).  One row rather than four private captures,
+; because it is one fact: `equal?` is a bare global, a lang bundle may rebind
+; it, and a container that reads the name answers a different question for the
+; rest of the session without failing.
 ; doc-gen grew by one for %doc-vis-note, shared by the method and member
 ; emitters when an entry comes out of a (private ...) or (protected ...)
 ; block: inlining it instead would duplicate the tier wording at both call
@@ -173,7 +179,7 @@
 (file "lib/x/core/boolean.x" 3)
 (file "lib/x/core/control.x" 2)
 (file "lib/x/core/list.x" 21)
-(file "lib/x/core/logic.x" 1)
+(file "lib/x/core/logic.x" 2)
 (file "lib/x/core/math.x" 5)
 (file "lib/x/core/op-guard.x" 6)
 (file "lib/x/core/predicates.x" 12)
