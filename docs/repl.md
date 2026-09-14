@@ -143,6 +143,34 @@ behaviour is checked by the ordinary spec harness with no pty anywhere:
 `tests/x/specs/lib/repl-edit.spec.md`, `repl-term.spec.md`,
 `repl-paint.spec.md`.
 
+## Colouring another language
+
+`%repl-paint` is the third customisation point beside `%repl-prompt` and
+`%repl-print`: a function from the line's text to the text to display for it.
+Set it and the editor uses it from the next keystroke.
+
+```x
+(set! %repl-paint (fn (_ s) (my-lang-highlight s)))
+```
+
+It exists because colouring is the only part of a session that is about the
+language being typed. Reading a key, moving a cursor and remembering a line
+are the same job whatever the syntax is, and this editor does them for every
+lang that has not replaced the loop. Where the tokens begin and end is not the
+same job, and the langs do not even agree on where that answer lives: x-logo
+registers its tokens as types on the base, while x-python parses Python itself
+and never touches the base tokenizer. One painter cannot serve both.
+
+The platform installs its own painter over nil, or over the painter it last
+installed, and over nothing else -- so a lang's painter survives whether it is
+set before the editor loads or after, and across a state image reload. Nil
+means *no painter installed*, not *no colour*: `--no-color`, `NO_COLOR` and
+`TERM=dumb` are what answer the colour question, and the platform painter
+honours all three by returning its argument untouched.
+
+A painter that raises does not take the keystroke down with it. The line is
+drawn unpainted for that redraw.
+
 ## Replacing it
 
 `repl` is a plain global, and installing a different loop over it is the seam

@@ -215,14 +215,18 @@
 ; are all resolved out of the loop.  repl/line.x is the redraw and the key
 ; dispatch, per keystroke for the same reason, plus the completion and
 ; history helpers that hang off them.
-(file "lib/x/repl/paint.x" 33)
-(file "lib/x/repl/line.x" 34)
+(file "lib/x/repl/paint.x" 35)
+(file "lib/x/repl/line.x" 35)
 (file "lib/x/repl/banner.x" 4)
 ; Grew by one for %repl-platform-repl: the identity anchor that lets two
 ; installers over `repl` -- a lang's reader and the line editor -- tell
 ; whose it currently is.  Not a hot-path helper; a one-word fact that has
 ; to live beside the definition it names.
-(file "lib/x/repl/loop.x" 13)
+; Grew by one for %repl-paint, the third REPL customisation point beside
+; %repl-prompt and %repl-print.  A hook, not a helper: colouring is the one
+; part of a session that is about the LANGUAGE, so it has to be a name a lang
+; can set, and it belongs beside the two it is a sibling of.
+(file "lib/x/repl/loop.x" 14)
 (file "lib/x/rn.x" 1)
 (file "lib/x/sys/date.x" 6)
 (file "lib/x/sys/file.x" 7)
