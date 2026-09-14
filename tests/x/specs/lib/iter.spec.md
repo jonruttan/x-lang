@@ -165,8 +165,8 @@ reverse.
 
 ## refuses a non-iterator (crash regression)
 
-The driver prims read an iterator's box behind a type probe, and NIL IS
-TYPELESS -- the probe had no handle to read, so it walked off one and the
+The driver prims read an iterator's box behind a type probe, and a `nil` is
+typeless -- the probe had no handle to read, so it walked off one and the
 process died.  `(Iter new)` answered exactly that nil for a value whose
 type carries no iter slot, which put the crash behind every `List` door
 via `(List from-seq)`: `(List length 5)` segfaulted, and so did `(List

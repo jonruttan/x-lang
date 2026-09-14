@@ -41,7 +41,7 @@
 ; ends at the base CELL; the alist is its first.  Walked from (%base) per
 ; call, as the C prim did (only the step list is cached).
 ;
-; What comes back is a C-BUILT SPINE, not a list: its nodes carry a type
+; What comes back is a C-built spine, not a list: its nodes carry a type
 ; handle that is not the pair type, so pair? answers #f on them and the
 ; typed walkers (List, Iter, write) refuse them -- docs/sandboxing-tutorial.md,
 ; "diff a child against the parent", names the same trap on handler spines.

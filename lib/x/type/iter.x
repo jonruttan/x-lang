@@ -54,19 +54,19 @@
 
 (def-class Iter ()
   (static
-    ; WHAT EVERY PUBLIC DOOR ASKS BEFORE IT HANDS `it` TO A DRIVER PRIM.  The
-    ; prims dispatch on the type handle, and NIL IS TYPELESS -- there is none
-    ; to read, and the process dies.  (A typed non-iterator they survive:
-    ; (Iter empty? 5) answered #t.)  So (Iter ->list ()) was a segfault, and
-    ; so was every List door on a value with no iter slot, which reaches the
-    ; same nil through `new` below.  Checking ONCE on the way in makes a
-    ; non-iterator an error instead -- list.x's improper-list guard, same
-    ; discipline -- while the drain loops ride `it` through unchanged, so
-    ; their per-element prim calls stay unchecked.  Homed on the class rather
-    ; than a top-level %-def (the ratchet's classes-are-namespaces rule,
-    ; tools/check/percent-globals.sh); sibling calls go through
-    ; (Iter %check ...), pin.x's convention.  `Err` resolves at CALL time,
-    ; the note at core/list.x's %map1-go.
+    ; A nil is TYPELESS and the driver prims dispatch on a type handle, so a
+    ; nil gives them none to read and the process dies; a typed non-iterator
+    ; they
+    ; survive, (Iter empty? 5) answering #t.  That is why (Iter ->list ())
+    ; was a segfault, and why every List door on a value with no iter slot
+    ; was one too -- they reach the same nil through `new` below.  Checking
+    ; once on the way in makes a non-iterator an error instead (list.x's
+    ; improper-list guard, same discipline), while the drain loops ride `it`
+    ; through unchanged, so their per-element prim calls stay unchecked.
+    ; Homed on the class rather than a top-level %-def -- the ratchet's
+    ; classes-are-namespaces rule, tools/check/percent-globals.sh -- so
+    ; sibling calls go through (Iter %check ...), pin.x's convention.  `Err`
+    ; resolves at call time, the note at core/list.x's %map1-go.
     (method %check (self it what)
       (if (%type? it %iter) it (Err raise (lit type) what ())))
     (method make (self (param step CALLABLE "Pure step: (step state) -> (value . next-state); a NIL next-state ends the iteration after that value, and a nil state must answer ()")
@@ -93,11 +93,11 @@
       (%type? x %iter))
     ; nil has no type for the prim to dispatch on, so shadow it to an empty
     ; iterator; everything else uses the prim's per-type slot dispatch.
-    ; That dispatch answers NIL for a type carrying no iter slot -- an INT,
+    ; That dispatch answers nil for a type carrying no iter slot -- an INT,
     ; a fn, a C-built spine node like the reader's type alist -- and a nil
     ; handed on to a driver prim is the crash (Iter %check) exists for.  This
     ; is the door (List from-seq) and (Gen from-seq) reach the prim through,
-    ; so refusing the nil HERE is what makes (List length 5) an error.
+    ; so refusing the nil at this door is what makes (List length 5) an error.
     (method new (self (param x ANY "A sequence: list, vector, string, or def-class instance; nil gives an empty iterator"))
       (doc "An iterator over a sequence, via the type's iter slot. Instances yield their members as (name . value) pairs; also available bare as `iter`. Raises `type` on a value whose type carries no iter slot -- an INT, a fn, or one of the engine's C-built spines such as the reader's type alist, which are walked with the bare first/rest accessors instead."
         (returns ITER "An iterator positioned at the first element")

@@ -9,7 +9,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 `(List length 5)` segfaulted, and so did `(List length (%type-alist))`,
 by the same path: `List from-seq` is the door every basic normalizes
 through, and anything that is not nil or a pair it hands to `(Iter new)`,
-which answers NIL for a value whose type carries no iter slot. Nil is
+which answers `nil` for a value whose type carries no iter slot. A nil is
 typeless, the driver prims behind `->list` dispatch on a type handle, and
 there is none to read. A typed non-iterator they survive -- `(Iter empty?
 5)` answered `#t` -- so nil was the one shape that died, and `Iter new`
