@@ -2,11 +2,11 @@
 # @weight 1
 
 The editor splits into a half that carries a grammar and a half that does
-not. The buffer, the cursor, the history and the redraw have no syntax in
-them; the colouring and the completion are x-lang's, by construction --
-`Paint`'s scan splits on `(`, `)`, `;` and `"`, and `%ln-candidates` walks
-those same lexemes to find the head of the open form. So a lang whose REPL
-loop calls `(Line read)` installs its own of each, or neither.
+not. The buffer, the cursor, the history and the redraw carry no syntax; the
+colouring and the completion are x-lang's -- `Paint`'s scan splits on `(`,
+`)`, `;` and `"`, and `%ln-candidates` walks those same lexemes to find the
+head of the open form. A lang whose REPL loop calls `(Line read)` installs
+its own of each, or neither.
 
 These cases drive `%ln-redraw` and `%ln-complete!` directly rather than
 through `Line read`, which needs a terminal; the frame is emitted to fd 2 so

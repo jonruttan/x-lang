@@ -5,25 +5,22 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**A lang can have the line editor without having x-lang's colours.** The
-editor will not install over a lang's `repl` -- x-python and x-ash both
-replace it, and taking it back would read Lisp at their prompt -- and the
-other side of that refusal was that a lang's loop got none of the editor
-either: no arrow keys, no history, no completion, silently, in the same
-release that told everyone `rlwrap` was no longer the answer. Only half of
-this file is x-lang's, though. The buffer, the cursor, the history and the
-redraw carry no grammar at all; the colouring and the completion carry
-nothing but -- `Paint`'s scan splits on `(`, `)`, `;` and `"`, and Tab walks
-those same lexemes to find the head of the open form before it prefix-searches
-the doc registry. So those two are seams now: `(Line painter f)` and `(Line
-completer f)` install a lang's own, `()` turns either off, and a loop that
-calls `(Line read prompt)` keeps everything that was never x's to begin with.
-They are held as values rather than reached through the class because the
-redraw runs on every keystroke and one class door measured 0.3-1.0ms --
-`doc.x`'s `%highlight-code`, the same shape for the same reason -- which also
-takes one dispatch out of the existing redraw. `crafting-a-lang.md` §7 says
-so where a lang author is already reading, and `lib/repl-line.spec.md` pins
-which function the editor asks.
+**A lang's REPL loop can drive the line editor.** The editor does not install
+over a lang's `repl` -- x-python and x-ash both replace it, and taking it back
+would read Lisp at their prompt -- so a lang's loop reaches the editor only by
+asking, and until now there was nothing to ask for. `(Line read prompt)` is
+that door, and two seams make it usable outside x: `(Line painter f)` and
+`(Line completer f)` install a lang's own, and `()` turns either off.
+
+The split follows what carries a grammar. The buffer, the cursor, the history
+and the redraw carry none; `Paint`'s scan splits on `(`, `)`, `;` and `"`, and
+Tab walks those same lexemes to find the head of the open form before it
+prefix-searches the doc registry. Both seams are held as values rather than
+reached through the class, on the hot-path grounds `line.x` and `paint.x`
+already state: the redraw runs on every keystroke and a class door costs
+0.3-1.0ms. `doc.x`'s `%highlight-code` has the same shape. `line.x`'s
+`%`-global budget is 36, and `crafting-a-lang.md` §7 carries the rule for a
+lang author.
 
 **The session has a line editor, and `rlwrap` is no longer the answer.**
 `sh x.sh` with a terminal now gives arrow keys, the readline chords, history

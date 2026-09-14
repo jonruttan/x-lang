@@ -51,16 +51,16 @@
 (def %ln-fd 0)
 (def %ln-history-loaded ())
 
-; THE COLOURING IS X-LANG'S GRAMMAR AND THE EDITING IS NOT.  Paint decides an
-; atom's colour by asking the reader, which travels anywhere; but the scan
-; under it splits the line on `(`, `)`, `;` and `"`, and those are x's
-; lexemes, not every lang's.  The buffer, the cursor, the history and the
-; redraw have no grammar in them at all.  So the two are separable here: a
-; lang's loop calls (Line read) for the editing and installs its own painter,
-; or none -- nil paints nothing and the author's bytes go out unchanged.
-; Held as a VALUE, not reached through the class, because the redraw runs per
-; keystroke and one class door measured 0.3-1.0ms (doc.x's %highlight-code,
-; the same shape for the same reason).
+; The colouring carries a grammar and the editing does not.  Paint decides an
+; atom's colour by asking the reader, which travels; the scan under it splits
+; the line on `(`, `)`, `;` and `"`, which are x's lexemes and not every
+; lang's.  The buffer, the cursor, the history and the redraw carry none.  So
+; a lang's loop calls (Line read) for the editing and installs its own painter
+; here, or nil, which writes the author's bytes unchanged.
+;
+; Held as a value rather than reached through the class: the redraw runs per
+; keystroke and a class door costs 0.3-1.0ms.  doc.x's %highlight-code has the
+; same shape.
 (def %ln-painter (method-ref Paint line))
 
 ; --- escape sequences, named once ------------------------------------------
@@ -262,13 +262,12 @@
             (if (not (null? qnames)) (pair qual qnames)
               (pair word (%ln-completions word)))))))))
 
-; Tab's other half, and x-specific for the same reason the painter is:
+; Tab's other half, and x-specific for the reason the painter is:
 ; %ln-candidates walks parens and quotes to find the head of the open form,
-; and qualifies `Str8 sta` against the doc registry by x's own naming.  What
-; is left below -- fill the unique answer, extend to the common prefix, list
-; on the second Tab -- is the shell's bargain and has no grammar in it.  A
-; lang installs its own (ed -> (typed . names)) here, or nil for a Tab that
-; does nothing.
+; and qualifies `Str8 sta` against the doc registry by x's naming.  What is
+; left below -- fill the unique answer, extend to the common prefix, list on
+; the second Tab -- carries no grammar.  A lang installs its own
+; (ed -> (typed . names)) here, or nil for a Tab that does nothing.
 (def %ln-completer %ln-candidates)
 
 ; The longest prefix every candidate shares -- what Tab fills in when the
@@ -293,9 +292,8 @@
 
 (def %ln-complete!
   (fn (_ fd ed)
-    ; No completer installed -- a lang that wants Tab to do nothing -- and
-    ; there is nothing to destructure; first/rest are unchecked prims, so
-    ; asking before walking is the difference between a no-op and a crash.
+    ; With no completer installed there is nothing to destructure, and
+    ; first/rest are unchecked prims, so the test comes before the walk.
     (when %ln-completer
       (let ((c (%ln-completer ed)))
         (let ((typed (first c)) (names (rest c)))
@@ -395,7 +393,7 @@
     (method painter (self . (param f CALLABLE "The painter to install; () turns colouring off. Omit to read the one in force"))
       (doc "The function that colours the line as it is typed, and installs one when given it. It is handed the visible bytes and answers the bytes to write, colour included; it must return the author's own bytes unchanged apart from escapes, because the cursor column is measured against them."
         (returns ANY "The painter in force, or nil when colouring is off")
-        (note "The default paints x-lang. The colouring is the one part of this editor that is a GRAMMAR: Paint asks the reader what an atom is, which travels, but the scan under it splits on x's own `(`, `)`, `;` and `\"`. A lang driving (Line read) installs its own painter here, or () for editing with no colour -- the buffer, the cursor, the history and the redraw have no grammar in them.")
+        (note "The default paints x-lang. The colouring is the part of this editor that carries a grammar: Paint asks the reader what an atom is, which travels, but the scan under it splits on x's own `(`, `)`, `;` and `\"`. A lang driving (Line read) installs its own painter here, or () for editing with no colour; the buffer, the cursor, the history and the redraw carry no grammar.")
         (sample "(Line painter ())" "colouring off; the line is written as typed"))
       (unless (null? f) (set! %ln-painter (first f)))
       %ln-painter)
@@ -586,5 +584,5 @@
   (note "Built on repl/edit.x (the buffer), repl/term.x (the tty) and repl/paint.x (the colour); each is usable on its own.")
   (note "History is appended per line to $XDG_STATE_HOME/x/history, so a session that crashes still keeps what it typed. X_HISTORY overrides the path; an empty X_HISTORY disables it.")
   (note "Tab completes against the documentation registry -- the same names apropos searches -- so a module that documents an export completes as soon as it loads.")
-  (note "The editing is grammar-agnostic and the colouring is not: a lang whose loop calls (Line read) installs its own (Line painter) and (Line completer), or () for either, and keeps the buffer, the history and the redraw as they are.")
+  (note "The editing carries no grammar and the colouring does: a lang whose loop calls (Line read) installs its own (Line painter) and (Line completer), or () for either, and keeps the buffer, the history and the redraw as they are.")
   "Line: one edited, coloured line read from the terminal; the built-in replacement for rlwrap.")
