@@ -109,10 +109,11 @@
 ; Two forms.  A base path is steps from the base.  A TYPE path is a type NAME
 ; plus steps from that type's struct -- portable where a positional path is
 ; not, because a loader's type registry differs from the writer's.
-; env-alist is a CELL: its value lives in the cell's first slot, so installing
-; is a write into the cell.  env-global-tree is a SLOT: the value IS what the
-; path reaches, so installing means writing into its PARENT, at whichever half
-; the last step names.  base-layout.x is what says which is which.
+; A CELL's value lives in the cell's first slot, so installing one is a write
+; into the cell.  A SLOT's value IS what the path reaches, so installing one
+; means writing into its PARENT, at whichever half the last step names.  The
+; two environment rows, env and env-root, are slots.  base-layout.x is what
+; says which is which.
 (include "engine/tools/contract/base-paths.x")
 (def %row-steps
   (fn (self rows nm)
@@ -219,15 +220,15 @@
 
 ; --- what came back --------------------------------------------------------
 ((fn (_ ix)
-   (do (%oset! (B cell (lit env-alist)) 0 (ixref ix ROOTENV))
-       (%install-slot! (lit env-global-tree) (ixref ix ROOTG))
+   (do (%install-slot! (lit env) (ixref ix ROOTENV))
+       (%install-slot! (lit env-root) (ixref ix ROOTG))
        (display "objects rebuilt: ") (write N) (newline)
        (display "evaluating in the loaded image:") (newline)
        (display "  (+ 1 2)      => ") (write (guard (_ (lit RAISED)) (B eval (lit (+ 1 2))))) (newline)
        (display "  x-release    => ") (write (guard (_ (lit RAISED)) (B eval (lit x-release)))) (newline)
        (display "  (list 1 2 3) => ") (write (guard (_ (lit RAISED)) (B eval (lit (list 1 2 3))))) (newline)
        (display "  %word-size   => ") (write (guard (_ (lit RAISED)) (B eval (lit %word-size)))) (newline)
-       ((fn (_ n) (do (display "env chain: ") (write n) (newline)))
+       ((fn (_ n) (do (display "env parents: ") (write n) (newline)))
         ((fn (self o n) (if (null? o) n (if (eq? n 100000) n (self (%oref o 1) (%i+ n 1)))))
          (ixref ix ROOTENV) 0))
        ((fn (_ r)

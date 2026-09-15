@@ -440,7 +440,7 @@ values — is `engine/tools/contract/base-layout.x` (regenerate with `make gen-l
 ```
 base
   first: env + ctrl              (core leaves nil; eval layer fills)
-    env    env-alist, env-local-boundary, env-global-tree, shadow-list
+    env    env, env-root
     ctrl   save-stack, error-handler, tco-expr, tco-env
   rest:  io + meta               (expression-core skeleton)
     io     type-alist, line, true, false  (+ file handles)

@@ -42,7 +42,7 @@ The base object (`p_base`) is the interpreter's root context: a pair tree built 
 ```
 base = x_base(p_base)
   first: env + ctrl              (core leaves nil; eval layer fills)
-    env    env-alist, env-local-boundary, env-global-tree, shadow-list
+    env    env, env-root
     ctrl   save-stack, error-handler, tco-expr, tco-env
   rest:  io + meta               (expression-core skeleton)
     io     type-alist, line, true, false  (+ the core's file handles)
@@ -95,7 +95,7 @@ The `struct x_type_t` mirrors this layout for convenient initialization in C, bu
 (
   (type-alist)
   (file-in file-out file-err)
-  (env-alist eval-list buffer token-cache error-handler tco-expr tco-env)
+  (env eval-list buffer token-cache error-handler tco-expr tco-env)
 )
 ```
 

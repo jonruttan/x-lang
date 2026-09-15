@@ -104,7 +104,7 @@ words, and mutating "its cell" would overwrite interpreter state.
 
 ```x
 (do (def %names ((Base make) fields))
-    (list (not (null? (List filter (fn (_ n) (eq? n (lit env-alist))) %names)))
+    (list (not (null? (List filter (fn (_ n) (eq? n (lit env-root))) %names)))
           (not (null? (List filter (fn (_ n) (eq? n (lit type-alist))) %names)))
           (null? (List filter (fn (_ n) (eq? n (lit type-write))) %names))))
 ```
@@ -119,16 +119,22 @@ words, and mutating "its cell" would overwrite interpreter state.
 ---
     'refused
 
-### a bound value is visible through the env-alist cell
+### a bound value is visible in the root environment
+
+An environment is one pair, bindings and parent; the root's bindings are
+a tree whose nodes are `(entry . (left . right))`, and `bind` puts the
+name in it. `env-root` is a slot, so the walk lands on the environment
+itself, not on a cell holding it.
 
 ```x
 (do (def %eb (Base make))
     (%eb bind (lit marker) 77)
-    (def %alist (first (%eb cell (lit env-alist))))
-    (rest (first %alist)))
+    (def %root (%eb cell (lit env-root)))
+    (def %find (fn (self t) (if (null? t) () (if (eq? (first (first t)) (lit marker)) (rest (first t)) (let ((l (self (first (rest t))))) (if (null? l) (self (rest (rest t))) l))))))
+    (list (null? (rest %root)) (%find (first %root))))
 ```
 ---
-    77
+    (#t 77)
 
 ### new base has arithmetic
 
@@ -522,7 +528,7 @@ repeated caught errors (see "repeated caught errors" below, #253).
 pair-tree used to be built one wrapper shallower than `guard`'s, so the
 shared `x_error_handler_saved_env` accessor (which reads the env one
 level below an `(env . boundary)` cell) restored `first(env)` instead of
-`env` on every caught error -- degrading the child's env-alist head each
+`env` on every caught error -- degrading the child's environment each
 time until a symbol lookup walked a non-pair and segfaulted (the
 "fifth caught error" crash). The handler now matches `guard`'s shape and
 restores both env and boundary.

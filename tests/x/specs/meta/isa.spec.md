@@ -110,7 +110,7 @@ direction is live-to-manifest only.)
            ((List includes? (rest e) %cat-vals) ())
            ((List includes? (first e) %man-names) ())
            (#t (set! %bad (pair (first e) %bad)))))
-       (%walk (%reflect-base-cell 'env-global-tree) ()))
+       (%walk (first (%reflect-base-cell 'env-root)) ()))
   (if (null? %bad) "ok" %bad))
 ```
 ---
