@@ -823,10 +823,9 @@
 ; (4 chars) outbids float's 1.5 (3) on the same run.  Without the suffix
 ; nothing here scores at all and the float reader keeps the token.
 ;
-; The states below stay nested `if` rather than `match`: %dec-int,
-; %dec-frac and %dec-exp-digits have compiled twins in
-; boot/tower-compiled.x that must agree with them form for form, and the
-; asm lane lowers `if`, `and`, `or` and `not` but not `match`.
+; %dec-int, %dec-frac and %dec-exp-digits have compiled twins in
+; boot/tower-compiled.x that must agree with them form for form, so a
+; change to one of them here is a change there.
 
 (def %dec-exp-digits ())
 (set! %dec-exp-digits
