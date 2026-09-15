@@ -133,6 +133,13 @@ The shared key still decides the *advice*. `ladder` means rewrite as
 `match`; `ladder-dict` means build a table, and only a chain that is keyed
 on one variable with ≥15 string arms can become one.
 
+Both spellings of a definition are counted: `(def NAME body)` and the
+`(def NAME ())` + `(set! NAME body)` pair that a self-referential function
+needs so its body can name itself. The tokenizer state machines in
+`lib/x/num/` are written the second way, and were invisible to both this
+rule and the shape rule until the walk learned to read a `set!` body as the
+definition body it is.
+
 ### 1.3 Length and depth together, never either alone
 
 Long-and-flat is fine: 17 definitions exceed 60 lines at depth ≤8, and they

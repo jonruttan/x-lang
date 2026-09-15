@@ -592,6 +592,44 @@ ifs deep.
 ---
     #t
 
+### a set! body is scanned, like a def body
+
+`(set! NAME (fn ...))` is the second half of a self-referential
+definition, and the numeric tower's analyser states are all written that
+way -- a forward `(def NAME ())` so the body can name itself, then the
+body.  A chain there is the same chain.
+
+```x
+(do
+  (def %r (lint-forms (list '(set! q (fn (_ c)
+             (if (= c 40) 1 (if (= c 41) 2 (if (= c 42) 3 (if (= c 43) 4 0))))))) () ()))
+  (display (lint-has? "q/4" (lint-warnings-of "ladder" %r))))
+```
+---
+    #t
+
+### the forward declaration and its set! report once, under the set! name
+
+```x
+(do
+  (def %r (lint-forms (list '(def r ())
+                            '(set! r (fn (_ c)
+                               (if (= c 40) 1 (if (= c 41) 2 (if (= c 42) 3 0)))))) () ()))
+  (write (lint-warnings-of "ladder" %r)))
+```
+---
+    ("r/3")
+
+### a set! of a plain value is not a definition body
+
+```x
+(do
+  (def %r (lint-forms (list '(set! s 42)) () ()))
+  (display (null? (lint-warnings-of "ladder" %r))))
+```
+---
+    #t
+
 ## lint: shape warning, depth x size (docs/code-quality.md 1.3)
 
 Neither number is a finding alone: long-and-flat is a data table, and
