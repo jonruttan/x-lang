@@ -315,6 +315,12 @@ What the loop must know:
   `(lang NAME)` at x-lang's prompt switches to it, and your own spelling of
   the switch is a call to `Lang use!`; a seam the bundle does not name takes
   x-lang's value, so say `()` for no painter rather than leaving it out.
+- **Take the prompt only when you lead.**  `-l` is repeatable, and a bundle
+  named by a second or later `-l` is loaded beside the first lang.  Its
+  entry runs either way; `%lang-lead` is the first name, so compare it with
+  your own and register without `use!` (and without replacing `repl` or
+  `%banner`) when it is not yours.  Guard the read: a wrapper older than the
+  seam binds nothing, and the answer then is that you lead.
 - **The banner should identify the whole stack.**  `%param-release` (engine)
   and `%platform-release` (x-lang) arrive as boot data; printing them plus
   the resolved root makes every which-install-am-I-running mystery

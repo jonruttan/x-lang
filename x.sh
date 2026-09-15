@@ -97,6 +97,15 @@ BUNDLE_DIR=
 BUNDLE_ENTRY=
 BUNDLE_DIALECT=
 BUNDLE_DEPS=
+# Bundles loaded BESIDE the session's lang: every -l after the first.  Their
+# roots are armed and their entries read before the first lang's entry, and
+# their dependencies join BUNDLE_DEPS.  A bundle loaded this way registers
+# what it is and leaves the prompt to the lang that leads; %lang-lead, emitted
+# by bundle_form, is how it knows which it is.
+lib_given=
+EXTRA_LIBS=
+EXTRA_DIRS=
+EXTRA_ENTRIES=
 
 # The directory of the bundle calling itself $1, or empty.  Factored out
 # because dependency resolution needs exactly the same lookup, including the
@@ -230,6 +239,36 @@ bundle_resolve() {
 	done
 }
 
+# A bundle named by a second or later -l.  It must be a bundle -- a dialect
+# or an app is a way of booting, and a session boots once -- and it is
+# resolved exactly as the first is: the same directory lookup, the same
+# entry check, the same dependency walk into BUNDLE_DEPS.  What differs is
+# only where it lands: its root and entry go ahead of the first lang's.
+extra_resolve() {
+	_found=$(bundle_dir_of "$1") || {
+		echo "Error: lang '$1' is not an installed bundle" >&2
+		echo "  a further -l names a bundle to load beside the first;" >&2
+		echo "  searched ${LANGS_PATH}*/lang.xon" >&2
+		exit 1
+	}
+	_entry=$(sed -n 's/^(entry "\([^"]*\)").*/\1/p' "$_found/lang.xon" | head -1)
+	: "${_entry:=run.x}"
+	if [ ! -f "$_found/$_entry" ]; then
+		echo "Error: bundle '$1' names an entry that is not there: $_entry" >&2
+		echo "  looked in $_found" >&2
+		exit 1
+	fi
+	path_form_safe "$_found" "bundle root"
+	for _row in $(bundle_reqs_of "$_found"); do
+		bundle_deps_collect "${_row%%|*}" "$1" "${_row#*|}"
+	done
+	for _d in $BUNDLE_DEPS; do
+		path_form_safe "$_d" "required lang root"
+	done
+	EXTRA_DIRS="$EXTRA_DIRS $_found"
+	EXTRA_ENTRIES="$EXTRA_ENTRIES $(shquote "$_found/$_entry")"
+}
+
 # The bundle's module root, emitted after the dialect has booted (import-path!
 # is module.x's, so it does not exist before that) and before the bundle's own
 # entry is read.  Same route %install-root takes, and for the same reason.
@@ -251,14 +290,23 @@ bundle_resolve() {
 # (requires-lang ...) is a library to the bundle that needs it, and a second
 # %lang-root would overwrite the one whose entry is about to run.
 bundle_form() {
-	if [ -n "$BUNDLE_DIR" ]; then
+	if [ -n "$BUNDLE_DIR" ] || [ -n "$EXTRA_DIRS" ]; then
 		# Required langs first: import-path! prepends, so the bundle's own
-		# root ends up searched ahead of everything it depends on.
+		# root ends up searched ahead of everything it depends on.  Then
+		# the bundles loaded beside the session's lang, then that lang's
+		# own root, searched first of all.
 		for _d in $BUNDLE_DEPS; do
 			printf '(import-path! "%s")\n' "$_d"
 		done
-		printf '(import-path! "%s")\n' "$BUNDLE_DIR"
-		printf '(def %%lang-root "%s")\n' "$BUNDLE_DIR"
+		for _d in $EXTRA_DIRS; do
+			printf '(import-path! "%s")\n' "$_d"
+		done
+		[ -z "$BUNDLE_DIR" ] || printf '(import-path! "%s")\n' "$BUNDLE_DIR"
+		[ -z "$BUNDLE_DIR" ] || printf '(def %%lang-root "%s")\n' "$BUNDLE_DIR"
+		# Which lang owns the prompt: the first -l, by the name it was asked
+		# for.  A bundle whose name this is not was loaded beside the
+		# session's lang, and registers itself without taking the prompt.
+		printf '(def %%lang-lead "%s")\n' "$X_LIB"
 		# %batch? MEANS "A FILE WAS SUPPLIED", and for a bundle it had stopped
 		# meaning that.  --batch is passed unconditionally down there (the
 		# `if [ "$file" ]` below is always true once the bundle entry joins
@@ -504,7 +552,8 @@ display_help() {
 	echo "  -e, --ext EXT   file extension (default: \"$X_EXT\")"
 	echo "  -f, --file FILE evaluate file and exit"
 	echo "  -F, --load FILE evaluate file then continue"
-	echo "  -l, --lib NAME  library name (default: \"$X_LIB\")"
+	echo "  -l, --lib NAME  library name (default: \"$X_LIB\"); a further -l names"
+	echo "                  a lang bundle to load beside the first"
 	echo "      --boot FILE boot from FILE (a pinned amalgam) instead of -l's entry"
 	echo "      --image     write the state image -l's boot loads from, and exit"
 	echo "      --no-image  boot from source even when a state image is current"
@@ -554,7 +603,16 @@ do
 			shift 2
 			;;
 		-l | --lib)
-			X_LIB="$2"
+			# The first -l is the session's lang: a dialect, an app or a
+			# bundle, as it always was.  Each further -l names a bundle to
+			# load BESIDE it -- armed and loaded before the first's entry,
+			# so the first is the one that owns the prompt.
+			if [ -z "$lib_given" ]; then
+				X_LIB="$2"
+				lib_given=1
+			else
+				EXTRA_LIBS="$EXTRA_LIBS $2"
+			fi
 			shift 2
 			;;
 		-q | --quiet)
@@ -884,6 +942,18 @@ if [ ! -e "$ENTRY" ]; then
 		file="$(shquote "$BUNDLE_DIR/$BUNDLE_ENTRY") $file"
 		[ -n "$file1" ] || post="$(shquote "${LIB_PATH}${X_LAUNCH}")"
 	fi
+fi
+
+# The bundles loaded beside the session's lang, ahead of its entry: the lang
+# that leads is read last, so what it installs is what the session gets.
+# With a dialect leading there is no lead entry, and the launcher is still
+# owed, since the extras have put the dialect's own in --batch.
+if [ -n "$EXTRA_LIBS" ]; then
+	for _n in $EXTRA_LIBS; do
+		extra_resolve "$_n"
+	done
+	file="${EXTRA_ENTRIES# } $file"
+	[ -n "$file1" ] || post="$(shquote "${LIB_PATH}${X_LAUNCH}")"
 fi
 
 # A pinned boot replaces the entry outright (-l is not consulted).  A
@@ -1383,18 +1453,23 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ "$X_LIB" != img ]; then
 	_ibuild="$_iroot/tools/dev/image-build.sh"
 	if [ -f "$_ibuild" ] && [ -f "$_iroot/lib/img.x" ]; then
 		path_form_safe "$_iroot" "install root"
+		# The bundles loaded beside the lang are in the image too, so they
+		# key it and name it: `xe+python.boot.x.ximg` is not
+		# `xe.boot.x.ximg`, and a change to either bundle rewrites it.
+		_iname="$X_LIB"
+		for _n in $EXTRA_LIBS; do _iname="$_iname+$_n"; done
 		if [ -n "$BUNDLE_DIR" ]; then
 			_idir="$BUNDLE_DIR/.images"
-			_ikeys="$BUNDLE_DIR $BUNDLE_DEPS"
+			_ikeys="$BUNDLE_DIR $EXTRA_DIRS $BUNDLE_DEPS"
 		elif [ -n "$PIN_FILE" ]; then
 			# The project's own, beside its manifest; the manifest keys it
 			# (a file as a KEY-PATH is hashed as one).  PIN_FILE is
 			# absolute: the probe above resolved it with pwd.
 			_idir="$(dirname "$PIN_FILE")/.images"
-			_ikeys="$PIN_FILE"
+			_ikeys="$PIN_FILE $EXTRA_DIRS"
 		else
 			_idir="${XDG_CACHE_HOME:-$HOME/.cache}/x/images/$(printf '%s' "$_iroot" | shasum | cut -c1-12)"
-			_ikeys=""
+			_ikeys="$EXTRA_DIRS $BUNDLE_DEPS"
 		fi
 		require_engine
 		# The prefix, written where the builder can key it and the child
@@ -1411,9 +1486,10 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ "$X_LIB" != img ]; then
 		# left there is a .x file the tree's gates would read as the
 		# bundle's.
 		_itmp=$(mktemp -d "${TMPDIR:-/tmp}/x-image.XXXXXX" 2>/dev/null) || _itmp=
-		_ilib="$_itmp/$X_LIB.boot.x"
-		_iimg="$_idir/$X_LIB.boot.x.ximg"
+		_ilib="$_itmp/$_iname.boot.x"
+		_iimg="$_idir/$_iname.boot.x.ximg"
 		if [ -n "$_itmp" ] && { root_form; param_forms; pin_form; cat "$ENTRY"; pin_arm; bundle_form image; \
+		     [ -z "$EXTRA_ENTRIES" ] || eval "cat $EXTRA_ENTRIES"; \
 		     [ -z "$BUNDLE_DIR" ] || cat "$BUNDLE_DIR/$BUNDLE_ENTRY"; } > "$_ilib" 2>/dev/null; then
 			_ish="$SCRIPT_PATH/$(basename "$0")"
 			[ -n "$INSTALL_ROOT" ] || _ish="$0"
@@ -1421,7 +1497,7 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ "$X_LIB" != img ]; then
 				mkdir -p "$_idir" 2>/dev/null
 				X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys 1>&2
 				_irc=$?
-				[ "$_irc" -eq 0 ] && echo "x: state image for $X_LIB written to $_idir" >&2
+				[ "$_irc" -eq 0 ] && echo "x: state image for $_iname written to $_idir" >&2
 				rm -rf "$_itmp"
 				exit "$_irc"
 			elif [ -n "$BUNDLE_DIR" ] && [ -d "$_idir" ] \
@@ -1446,7 +1522,7 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ "$X_LIB" != img ]; then
 				# there too.
 				if [ -n "$BUNDLE_DIR" ]; then
 					_idir="${XDG_CACHE_HOME:-$HOME/.cache}/x/images/$(printf '%s' "$_iroot $BUNDLE_DIR" | shasum | cut -c1-12)"
-					_iimg="$_idir/$X_LIB.boot.x.ximg"
+					_iimg="$_idir/$_iname.boot.x.ximg"
 				fi
 				mkdir -p "$_idir" 2>/dev/null
 				_istale=
@@ -1472,9 +1548,9 @@ if [ -z "$no_image" ] && [ -z "$boot_file" ] && [ "$X_LIB" != img ]; then
 						_istale=1
 					else
 						_iwhat="the library or the engine"
-						[ -z "$BUNDLE_DIR" ] || _iwhat="the library, the bundle or the engine"
+						[ -z "$BUNDLE_DIR$EXTRA_DIRS" ] || _iwhat="the library, the bundle or the engine"
 						[ -z "$PIN_FILE" ] || _iwhat="the library, the manifest or the engine"
-						echo "x: no current state image for $X_LIB -- writing one to $_idir (once per change of $_iwhat)" >&2
+						echo "x: no current state image for $_iname -- writing one to $_idir (once per change of $_iwhat)" >&2
 						X_BIN="$X_BIN" X_SH="$_ish" sh "$_ibuild" "$_ilib" "$_idir" $_ikeys > /dev/null 2>&1 || true
 					fi
 					;;
@@ -1504,7 +1580,7 @@ if [ -n "$IMAGE" ]; then
 	# branch, so x-logo booted from an image read its own launcher as a Logo
 	# program and exited without a prompt.  Same rule as bundle_form's line,
 	# and the launcher below keeps its own (a bundle's was appended already).
-	if [ -n "$BUNDLE_DIR" ]; then
+	if [ -n "$BUNDLE_DIR" ] || [ -n "$EXTRA_DIRS" ]; then
 		[ -n "$file1" ] || _ipost="printf '(set! %%batch? ())\n'; "
 	elif [ -z "$file" ] && [ -z "$have_eval" ] && [ -z "$stdin_prog" ]; then
 		_ipost="printf '(set! %%batch? ())\n'; "

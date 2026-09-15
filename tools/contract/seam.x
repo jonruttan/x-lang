@@ -86,3 +86,10 @@
 ; x-logo's serve.x hands viewer.html to a browser, and no import means "the
 ; bytes of that file".
 (seam bundle %lang-root "the bundle's own directory; how a lang reaches DATA it ships, not modules")
+; A session boots one lang and may load others beside it (`-l xe -l python`).
+; Every bundle's entry runs either way, and this is how one tells whether it
+; owns the prompt or was loaded as a library to the lang that does: the name
+; the first -l asked for.  Bound whenever any bundle is loaded, whichever
+; position it was named in; absent in a bare dialect, where nothing but the
+; dialect is booted and the question does not arise.
+(seam bundle %lang-lead "the name the first -l asked for -- the lang that owns the prompt; a bundle whose name this is not was loaded beside it")
