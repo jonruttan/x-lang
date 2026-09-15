@@ -511,10 +511,15 @@
     (if (str? err) (Str8 =? err "Unterminated input")
       (guard (_ #f) (Str8 =? (Err code-of err) "Unterminated input")))))
 
+; The newline is the terminator.  The editor hands the line back without
+; one, and the reader drops a final atom that nothing ends (#161): `name`
+; read as no forms at all, and printed nothing, while `(def name 1)` was
+; fine because the paren closes it.  repl/paint.x appends a space for the
+; same reason; here it is a newline so a trailing comment ends too.
 (def %ln-eval-line
   (fn (self text)
     (let ((forms (guard (err (if (%ln-unterminated?  err) (lit %more) (Err raise (lit syntax) err ())))
-                   ((prim-ref (lit tok) (lit read-str)) (%base) text))))
+                   ((prim-ref (lit tok) (lit read-str)) (%base) (%ln-append text "\n")))))
       (if (eq? forms (lit %more))
         ; Unfinished: ask for the rest.  ctrl-c abandons the whole entry,
         ; ctrl-d on an empty continuation line is the end of the session --

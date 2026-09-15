@@ -84,3 +84,27 @@ each installs what it needs rather than inheriting the case above.
 ```
 ---
     (#t "(Str8 sta")
+
+## the line evaluator
+
+### a bare atom at the end of the line is a form
+
+The editor hands the line back without its newline, and the reader drops a
+final atom that nothing terminates. `name` at the prompt printed nothing while
+`(def name 1)` printed, because the paren closes it.
+
+```x
+(do (import x/repl/line)
+    (def %ln-spec-name "Jon")
+    (%ln-eval-line "%ln-spec-name")
+    (%ln-eval-line "42")
+    (%ln-eval-line "1 2")
+    ())
+```
+---
+```output
+"Jon"
+42
+1
+2
+```
