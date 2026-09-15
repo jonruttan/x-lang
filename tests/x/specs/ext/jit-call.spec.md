@@ -117,6 +117,12 @@ and the shape that kept every compiled caller of a callback interpreted.
 computed, so the head is an expression, not a name. A compiled opcode switch is
 this shape, and so is a sort with a comparator.
 
+The three callables are held in names as well as in the table: an address in
+raw memory is not a root, so a collection between the store and the call would
+free them and the call would land on reclaimed memory. Whether a collection
+fell there depended on the allocation count, which made this case fail one run
+in three and pass alone every time.
+
 ```x
 (do
   (def %make-str (prim-ref (lit str) (lit make)))
@@ -126,9 +132,12 @@ this shape, and so is a sort with a comparator.
   (def %store (compile-asm '(fn (_ a i v) (%mem-set-at! a i v))))
   (def %tbl (%make-str 512))
   (def %addr (%ptr->int (%str->ptr %tbl)))
-  (%store %addr 0 (%ptr->int (%obj->ptr (compile-asm '(fn (_ n) (+ n 1))))))
-  (%store %addr 1 (%ptr->int (%obj->ptr (compile-asm '(fn (_ n) (* n 2))))))
-  (%store %addr 2 (%ptr->int (%obj->ptr (compile-asm '(fn (_ n) (- 0 n))))))
+  (def %inc (compile-asm '(fn (_ n) (+ n 1))))
+  (def %dbl (compile-asm '(fn (_ n) (* n 2))))
+  (def %neg (compile-asm '(fn (_ n) (- 0 n))))
+  (%store %addr 0 (%ptr->int (%obj->ptr %inc)))
+  (%store %addr 1 (%ptr->int (%obj->ptr %dbl)))
+  (%store %addr 2 (%ptr->int (%obj->ptr %neg)))
   (def %dispatch (compile-asm '(fn (self a i x) (%call (%mem-ref-at a i) x))))
   (write (list (%dispatch %addr 0 10) (%dispatch %addr 1 10) (%dispatch %addr 2 10)))
   (newline))
