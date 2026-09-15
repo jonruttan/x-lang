@@ -44,45 +44,43 @@
 ; dispatch -- the wrapper tiers stay lean on purpose.
 (set! +
   (fn (_ . args)
-    (if (eq? args ()) 0
-      (if (eq? (rest args) ()) (first args)
-        (if (eq? (rest (rest args)) ())
-          (%int+ (first args) (first (rest args)))
-          (%fold %int+ (first args) (rest args)))))))
+    (match
+      ((eq? args ()) 0)
+      ((eq? (rest args) ()) (first args))
+      ((eq? (rest (rest args)) ()) (%int+ (first args) (first (rest args))))
+      (#t (%fold %int+ (first args) (rest args))))))
 (set! *
   (fn (_ . args)
-    (if (eq? args ()) 1
-      (if (eq? (rest args) ()) (first args)
-        (if (eq? (rest (rest args)) ())
-          (%int* (first args) (first (rest args)))
-          (%fold %int* (first args) (rest args)))))))
+    (match
+      ((eq? args ()) 1)
+      ((eq? (rest args) ()) (first args))
+      ((eq? (rest (rest args)) ()) (%int* (first args) (first (rest args))))
+      (#t (%fold %int* (first args) (rest args))))))
 (set! /
   (fn (_ . args)
-    (if (eq? args ()) 1
-      (if (eq? (rest args) ()) (first args)
-        (if (eq? (rest (rest args)) ())
-          (%int/0 (first args) (first (rest args)))
-          (%fold %int/0 (first args) (rest args)))))))
+    (match
+      ((eq? args ()) 1)
+      ((eq? (rest args) ()) (first args))
+      ((eq? (rest (rest args)) ()) (%int/0 (first args) (first (rest args))))
+      (#t (%fold %int/0 (first args) (rest args))))))
 (set! -
   (fn (_ . args)
-    (if (eq? args ())
-      0
-      (if (eq? (rest args) ())
-        (%int- 0 (first args))
-        (if (eq? (rest (rest args)) ())
-          (%int- (first args) (first (rest args)))
-          (%fold %int- (first args) (rest args)))))))
+    (match
+      ((eq? args ()) 0)
+      ((eq? (rest args) ()) (%int- 0 (first args)))
+      ((eq? (rest (rest args)) ()) (%int- (first args) (first (rest args))))
+      (#t (%fold %int- (first args) (rest args))))))
 (set! %
   (fn (_ . args)
     ; The zero-arg tier is an ERROR, not an identity (#72, ruled): unlike
     ; + - * /, % has no meaningful identity element, and spec.md's old
     ; "(%) -> 0" claim was arbitrary. Without this tier (%) fell through to
     ; (first ()) -- the documented-unchecked prim -- and segfaulted.
-    (if (eq? args ()) (error "%: needs at least one argument")
-      (if (eq? (rest args) ()) (first args)
-        (if (eq? (rest (rest args)) ())
-          (%int%0 (first args) (first (rest args)))
-          (%fold %int%0 (first args) (rest args)))))))
+    (match
+      ((eq? args ()) (error "%: needs at least one argument"))
+      ((eq? (rest args) ()) (first args))
+      ((eq? (rest (rest args)) ()) (%int%0 (first args) (first (rest args))))
+      (#t (%fold %int%0 (first args) (rest args))))))
 
 ; --- Arity guards for the binary/unary C primitives (#72) ---
 ;

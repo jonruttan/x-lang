@@ -115,11 +115,11 @@
       (pair
         'analyse
         (fn (_ buffer score chr)
-          (if (and (>= chr 48) (<= chr 57))
-            %rat-numer
-            (if (= chr 45)
-              %rat-sign
-              (if (= chr 43) %rat-sign ())))))
+          (match
+            ((and (>= chr 48) (<= chr 57)) %rat-numer)
+            ((= chr 45) %rat-sign)
+            ((= chr 43) %rat-sign)
+            (#t ()))))
       (pair 'read (fn (_ . args) (%rational-read (first args))))
       (pair
         'from

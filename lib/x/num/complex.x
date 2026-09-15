@@ -281,10 +281,11 @@
   (returns BOOL "True if x is a number"))
 (set! number?
   (fn (_ x)
-    (if (%complex? x) #t
-      (if (%rat? x) #t
-        (if (%float? x) #t
-          (%int-number? x))))))
+    (match
+      ((%complex? x) #t)
+      ((%rat? x) #t)
+      ((%float? x) #t)
+      (#t (%int-number? x)))))
 
 (doc complex? "Test whether a value is any numeric type (alias for number?)."
   (param x ANY "Value to test")
