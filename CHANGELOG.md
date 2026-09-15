@@ -5,7 +5,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-**An environment is a value** (x-engine-c v0.2.10, [#720]; design note
+**An environment is a value** (x-engine-c v0.2.11, [#720]; design note
 [#718]). The pinned engine's environment is one pair, bindings and parent:
 the root's bindings are a tree, every other environment keeps an alist and
 the environment it was made in. A call makes a child, an operative body
