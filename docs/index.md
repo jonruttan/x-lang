@@ -26,6 +26,7 @@
 - [Scaling to Many Langs](lang-scale.md) — what has to be true for there to be twenty of them; measurements shipped, some rulings still proposals
 - [Modules](modules.md) — The provide/import module system, and pinning a project's libraries (pin.xon)
 - [Namespaces](namespaces.md) — proposal: a scope per module, `provide` and `import` as its doors, and a rule for every name conflict
+- [First-Class Environments](environment-model.md) — proposal: an environment as one pair of bindings and parent, and the six engine mechanisms it retires
 - [State Images](state-images.md) — saving and loading a live base as a binary image: what is already reflective, what is measured, and the declarations still proposed
 
 ## Reference

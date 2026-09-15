@@ -80,9 +80,9 @@ and `set!` on module state persists.
 `provide` evaluates each listed name in the module's frame and records
 `(name . value)` in the registry entry, so the registry entry is the
 namespace. Names that are classes or in the sanctioned bare set
-(`tools/contract/bare-globals.x`) are also bound globally through the
-`base/def-global` door, so `(List map …)`, `when`, `equal?` and
-`(help x/core/list)` behave as they do now.
+(`tools/contract/bare-globals.x`) are also bound in the root environment,
+so `(List map …)`, `when`, `equal?` and `(help x/core/list)` behave as they
+do now.
 
 ### `import` binds
 
@@ -222,28 +222,19 @@ the operative's restore drops what its body added to the chain. The C loader
 strips frames on purpose, and `eval` restores the environment, so no
 library-side loader can route around this.
 
-The fix is one primitive:
-
-```x
-((prim-ref 'base 'def-in) env name value)
-```
-
-When the head of `env` is a frame cell, it binds `name` in that frame:
-an existing binding in the frame is updated, otherwise a frame-marked cell
-is spliced after the head. Splicing after the head keeps every saved
-restore pointer valid, and lets a closure captured earlier see a definition
-made later, which mutual recursion between module functions needs. When the
-head is not a frame cell it takes the global path `def-global` already
-takes.
-
-That one door serves four callers: the wrapped definers above, `import`,
-the langs' `define`, and the REPL hoists that use `def-global` today. It
-needs bare and C spec coverage in the same engine change, and a row in the
-ISA manifest.
+The first answer was one more primitive, a `def` directed at a given
+environment. It worked and it was withdrawn, because it was a policy in C
+compensating for the environment model rather than a capability the
+language lacked. The answer this note now rests on is
+[First-Class Environments](environment-model.md): an environment is a value,
+`(eval (list 'def n v) e)` binds in `e`, a module is an environment whose
+parent is the root, and the engine loses mechanisms rather than gaining
+one. The loader, `provide` and `import` above are written against that
+model.
 
 ## Sequence
 
-1. Engine: `base/def-in`, its specs, the ISA row, a contract note.
+1. Engine: first-class environments, per [environment-model.md](environment-model.md), with its specs and contract rows.
 2. Library, no behaviour change: `doc`, `def-class`, `def-record`,
    `def-generic` and `def-trait` define through the caller's environment.
 3. Loader: a framed path in `module.x`, switched per module, and the
@@ -289,5 +280,6 @@ ISA manifest.
   value form, and whether the alias pair is `(name alias)` or `(alias name)`.
 - Whether the boot files are ever scoped, or whether the boot set stays
   global as the pin boundary already makes it.
-- Whether the engine should also grow a framed variant of the file loader,
-  so scoped boot files do not pay for the x-side reader loop.
+- Whether the loader evaluates a scoped file through the x-side reader
+  loop or through a C door that takes an environment; with environments as
+  values the second is one argument on the existing loader.
