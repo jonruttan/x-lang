@@ -17,6 +17,13 @@ the piece that lets a lang keep the editor instead of replacing `repl`, and
 `"x"`, assembled by the files that own its parts as they load. All of it
 joins the lang contract's seam table.
 
+**A bare atom at the REPL prints.** The line editor hands a finished line
+to the reader without its newline, and the reader drops a final atom that
+nothing terminates (#161): `name` at the prompt read as no forms and printed
+nothing, and `1 2` lost the 2, while `(def name 1)` was fine because the
+paren closes it. The line evaluator now appends the newline before reading,
+as the painter appends a space for the same reason.
+
 **The linter reads a `set!` body as a definition body.** `(def NAME ())`
 followed by `(set! NAME (fn ...))` is how a self-referential function is
 written -- the forward declaration lets the body name itself -- and the walk
