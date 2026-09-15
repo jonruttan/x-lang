@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The assembler lane lowers `match`.** The arms are tried in order: a
+comparison test folds into `cmp` and one conditional branch, any other test
+is evaluated and tested with `cbz`, a literal `#t` test takes its arm
+unconditionally, and with no arm taken the value is nil. `if` reaches the
+lane as a match of one or two arms, the way `lib/x/core/control.x` derives
+it, so both forms share one lowering and `if` emits the instructions it did.
+A compiled analyser state written with `match` used to raise
+`asm-compile: unsupported form: match` inside the tower's guard and run
+interpreted with nothing reported. The byte cache's codegen epoch moves to
+`g2`, since the emitter accepts a form it refused.
+
 **The REPL colours parens by nesting depth.** Both halves of a pair share
 a colour, cycling yellow, magenta, cyan from the outside in, the way editors
 colour bracket pairs; a close paren with nothing to close is bold red; the

@@ -122,13 +122,13 @@
 ; blind to what produced the bytes serves stale bytes, which is the argument the
 ; engine half of the key already makes.
 ;
-; x-lib-version covers a consumer, who gets a release.  The "g1" is the codegen
+; x-lib-version covers a consumer, who gets a release.  The "g2" is the codegen
 ; epoch and covers development: bumping it is part of changing what the emitter
 ; accepts, refuses or emits, the rule %asm-cache-magic states for the record
 ; format.  It is a literal rather than a name of its own because a name here is
 ; another top-level %-global (tools/contract/percent-globals.x).
 (def %asm-cache-identity
-  (Str append x-machine x-release x-lib-version "g1"))
+  (Str append x-machine x-release x-lib-version "g2"))
 
 ; The emitted code is not a function of the source alone, so the fvar table's
 ; SHAPE is part of the key.  Inside analyser mode a name absent from the table

@@ -215,7 +215,7 @@
 (def %asm-compile-call ())
 (def %asm-compile-binop ())
 (def %asm-compile-mod ())
-(def %asm-compile-if ())
+(def %asm-compile-match ())
 (def %asm-compile-funcall ())
 (def %asm-compile-callable-call ())
 (def %asm-self-cell ())
@@ -765,7 +765,15 @@
       ((eq? op '*) (%asm-compile-binop asm 'mul args params))
       ((eq? op '/) (%asm-compile-binop asm 'sdiv args params))
       ((eq? op '%) (%asm-compile-mod asm args params))
-      ((eq? op 'if) (%asm-compile-if asm args params))
+      ; `if` is a match of one or two arms, the way lib/x/core/control.x
+      ; derives it: the else, when there is one, is the `#t` arm.
+      ((eq? op 'if)
+        (let ((arm (list (first args) (first (rest args))))
+              (alt (rest (rest args))))
+          (%asm-compile-match asm
+            (if (null? alt) (list arm) (list arm (list #t (first alt))))
+            params)))
+      ((eq? op 'match) (%asm-compile-match asm args params))
       ((eq? op 'or) (%asm-compile-or asm args params))
       ((eq? op 'and) (%asm-compile-and asm args params))
       ((eq? op 'not) (%asm-compile-not asm args params))
@@ -815,52 +823,64 @@
     (asm-emit! asm 'sdiv x2 x0 x1)
     (asm-emit! asm 'msub x0 x2 x1 x0)))
 
-; If: with comparison operators or nil test
-(set! %asm-compile-if
-  (fn (_ asm args params)
-    (def test-expr (first args))
-    (def then-expr (first (rest args)))
-    (def else-expr (if (null? (rest (rest args))) 0 (first (rest (rest args)))))
-    (def lbl-else (%asm-genlabel "%else"))
-    (def lbl-end  (%asm-genlabel "%end"))
+; Match: (match (test expr) ...).  The arms are tried in order and the first
+; whose test is truthy supplies the value; with no arm taken the value is nil.
+; A comparison as a test folds into cmp and one conditional branch; any other
+; test is evaluated and tested with cbz.  A literal #t test takes its arm
+; unconditionally -- the `(#t expr)` default is the fallthrough, and nothing
+; after it is emitted.
+(set! %asm-compile-match
+  (fn (_ asm arms params)
+    (def lbl-end (%asm-genlabel "%mend"))
 
     (def %cmp-branch
       (fn (_ op)
         (match
-          ((eq? op '=) 'b/ne)
-          ((eq? op '<) 'b/ge)
-          ((eq? op '>) 'b/le)
+          ((eq? op '=)  'b/ne)
+          ((eq? op '<)  'b/ge)
+          ((eq? op '>)  'b/le)
           ((eq? op '<=) 'b/gt)
-          (#t (when (eq? op '>=) 'b/lt)))))
+          ((eq? op '>=) 'b/lt)
+          (#t ()))))
 
-    (if (and (pair? test-expr) (not (null? (%cmp-branch (first test-expr)))))
-      (let ((cmp-op (first test-expr))
-            (cmp-args (rest test-expr)))
-        ; A comparison in an if test is folded into the branch and does not
-        ; reach %asm-compile-call, so the operand check runs here as well.  `=`
-        ; is folded too and is deliberately unchecked, for the reason
-        ; %asm-check-int-operands gives.
-        (%asm-check-int-operands cmp-op cmp-args)
-        (%asm-compile-expr asm (first cmp-args) params)
-        (asm-push! asm x0)
-        (%asm-compile-expr asm (first (rest cmp-args)) params)
-        (asm-emit! asm 'mov x1 x0)
-        (asm-pop! asm x0)
-        (asm-emit! asm 'cmp x0 x1)
-        (asm-emit! asm (%cmp-branch cmp-op) (label lbl-else))
-        (%asm-compile-expr asm then-expr params)
-        (asm-emit! asm 'b (label lbl-end))
-        (asm-label! asm lbl-else)
-        (%asm-compile-expr asm else-expr params)
-        (asm-label! asm lbl-end))
-      (do
-        (%asm-compile-expr asm test-expr params)
-        (asm-emit! asm 'cbz x0 (label lbl-else))
-        (%asm-compile-expr asm then-expr params)
-        (asm-emit! asm 'b (label lbl-end))
-        (asm-label! asm lbl-else)
-        (%asm-compile-expr asm else-expr params)
-        (asm-label! asm lbl-end)))))
+    ; Emit TEST, then a branch to LBL taken when it is falsy.
+    (def %branch-unless
+      (fn (_ test lbl)
+        (if (and (pair? test) (not (null? (%cmp-branch (first test)))))
+          (let ((cmp-op (first test))
+                (cmp-args (rest test)))
+            ; A comparison in a test is folded into the branch and does not
+            ; reach %asm-compile-call, so the operand check runs here as well.
+            ; `=` is folded too and is deliberately unchecked, for the reason
+            ; %asm-check-int-operands gives.
+            (%asm-check-int-operands cmp-op cmp-args)
+            (%asm-compile-expr asm (first cmp-args) params)
+            (asm-push! asm x0)
+            (%asm-compile-expr asm (first (rest cmp-args)) params)
+            (asm-emit! asm 'mov x1 x0)
+            (asm-pop! asm x0)
+            (asm-emit! asm 'cmp x0 x1)
+            (asm-emit! asm (%cmp-branch cmp-op) (label lbl)))
+          (do
+            (%asm-compile-expr asm test params)
+            (asm-emit! asm 'cbz x0 (label lbl))))))
+
+    (def %arms
+      (fn (self as)
+        (match
+          ((null? as) (asm-emit! asm 'mov x0 (imm 0)))   ; no arm taken: nil
+          ((eq? (first (first as)) #t)
+            (%asm-compile-expr asm (first (rest (first as))) params))
+          (#t
+            (let ((lbl-next (%asm-genlabel "%arm")))
+              (%branch-unless (first (first as)) lbl-next)
+              (%asm-compile-expr asm (first (rest (first as))) params)
+              (asm-emit! asm 'b (label lbl-end))
+              (asm-label! asm lbl-next)
+              (self (rest as)))))))
+
+    (%arms arms)
+    (asm-label! asm lbl-end)))
 
 ; Does NAME resolve, at generation, to an fvar holding a callable prim?
 ; %compile-fvar-lookup answers () for an unbound name, and (rest ()) is not
