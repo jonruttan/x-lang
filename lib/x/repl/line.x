@@ -115,8 +115,11 @@
 ; return, cursor right -- is built as a single string and handed to the
 ; descriptor once.  Writing it in pieces lets the terminal render a
 ; half-drawn line, which is visible as a flicker on every keystroke.
+; With `settled`, the frame is the one that stays in the transcript: the
+; cursor is treated as nowhere, so the pair beside it loses its inverse and
+; only the depth colours remain.
 (def %ln-redraw
-  (fn (_ fd prompt ed cols)
+  (fn (_ fd prompt ed cols . settled)
     (let ((text (ed text))
           (point (ed point))
           (pwidth (%ln-columns prompt 0 (%ln-blen prompt))))
@@ -126,7 +129,7 @@
                        (if (<= cc avail) 0 (%ln-back-columns text point avail)))))
           (let ((end (%ln-forward-columns text start avail)))
             (let ((window (%ln-bsub text start (- end start)))
-                  (marks (%ln-marks text point start end))
+                  (marks (%ln-marks text (if (null? settled) point -1) start end))
                   (col (+ pwidth (%ln-columns text start point))))
               (Term emit fd
                 (%ln-append "\r"
@@ -358,7 +361,9 @@
           ; The descriptor ended under us: the same answer as ctrl-d.
           ((null? k) (lit eof))
           ((str? k) (do (ed insert! k) (self fd prompt ed read-byte)))
-          ((eq? k (lit enter)) (ed text))
+          ; The line is kept: draw it once more with no cursor focus, since
+          ; this frame is what the transcript keeps.
+          ((eq? k (lit enter)) (do (%ln-redraw fd prompt ed cols #t) (ed text)))
           ((eq? k (lit interrupt)) (lit cancel))
           ((eq? k (lit eof))
             ; ctrl-d ends the session only on an EMPTY line; on a line with

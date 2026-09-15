@@ -119,7 +119,9 @@ paren that is not closed yet is simply its depth's colour, since that is the
 state of every line while it is being typed. The pair beside the cursor is
 drawn inverse on top of its colour: a close just before the cursor is
 preferred, so a pair lights as its close is typed, and an open under the
-cursor is matched forward.
+cursor is matched forward. When the line is submitted it is drawn once more
+with no cursor, so the depth colours stay in the transcript and the inverse
+does not.
 
 Strings, comments and character literals are stepped over, so `#\(` is not
 an open paren and a paren inside a string is not counted. The depths are

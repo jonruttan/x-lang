@@ -239,7 +239,9 @@
     (let ((n (%pt-blen s)))
       ; The paren the cursor is beside, if any, by offset.
       (let ((before (if (> at 0) (%pt-cint (%pt-bref s (%pt- at 1))) 0))
-            (here (if (< at n) (%pt-cint (%pt-bref s at)) 0)))
+            ; A cursor outside the line -- the editor passes -1 for a frame
+            ; that is to keep no focus -- is beside nothing.
+            (here (if (if (>= at 0) (< at n) #f) (%pt-cint (%pt-bref s at)) 0)))
         (let ((target (match
                         ((= before 41) (%pt- at 1))
                         ((= here 40) at)
@@ -419,7 +421,7 @@
               out)))))
 
     (method marks (self (param s STRING "The line") (param at INT "The cursor, as a byte offset"))
-      (doc "A mark for every paren in the line, as (offset depth focused): depth is the nesting level from 0, shared by both halves of a pair so they colour alike, and -1 for a close paren with nothing to close; focused is true on the two halves of the pair the cursor is beside, a close just before the cursor first, then an open under it. Strings, comments and character literals are stepped over, so #\\( is not an open paren and a paren inside a string is not counted."
+      (doc "A mark for every paren in the line, as (offset depth focused): depth is the nesting level from 0, shared by both halves of a pair so they colour alike, and -1 for a close paren with nothing to close; focused is true on the two halves of the pair the cursor is beside, a close just before the cursor first, then an open under it. A cursor outside the line, -1 say, is beside nothing, which is how a settled line keeps its colours and loses its focus. Strings, comments and character literals are stepped over, so #\\( is not an open paren and a paren inside a string is not counted."
         (returns LIST "((offset depth focused) ...) in source order")
         (example "(Paint marks \"(f (g))\" 0)" "((0 0 #t) (3 1 #f) (5 1 #f) (6 0 #t))")
         (example "(Paint marks \"f x)\" 4)" "((3 -1 #t))")

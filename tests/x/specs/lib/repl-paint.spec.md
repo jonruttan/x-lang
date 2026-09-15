@@ -223,6 +223,14 @@ is typed; an open under the cursor is matched forward.
 ---
     (((0 0 #f)) () ())
 
+### a cursor outside the line focuses nothing, so a settled line keeps only its colours
+
+```x
+(do (import x/repl/paint) (Paint marks "(f (g))" -1))
+```
+---
+    ((0 0 #f) (3 1 #f) (5 1 #f) (6 0 #f))
+
 ### a paren inside a string is not a paren
 
 ```x

@@ -9,9 +9,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 a colour, cycling yellow, magenta, cyan from the outside in, the way editors
 colour bracket pairs; a close paren with nothing to close is bold red; the
 pair beside the cursor is drawn inverse on top of its colour, a close just
-before the cursor first so a pair lights as its close is typed. An open paren
-not yet closed is simply its depth's colour, the state of every line while it
-is being typed. The depths come from one walk over the whole line that steps
+before the cursor first so a pair lights as its close is typed, and removed
+again when the line is submitted, so the transcript keeps the colours and not
+the inverse. An open paren not yet closed is simply its depth's colour, the
+state of every line while it is being typed. The depths come from one walk over the whole line that steps
 over strings, comments and character literals with the scan's own rules, so
 `#\(` is not an open paren and a paren inside a string is not counted, and a
 line that has scrolled sideways still colours correctly.
