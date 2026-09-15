@@ -349,9 +349,11 @@ integer form.
 
 > **The dynamic-size marker is a negative count, not a flag.** Worth stating
 > because the object header does have spare attribute bits and one might
-> reasonably expect the job to be done there: `X_OBJ_FLAG_3` is taken —
-> `include/x-eval.h` aliases it `X_OBJ_FLAG_FRAME` for environment frames,
-> which is 2,346 of the objects in the census above.
+> reasonably expect the job to be done there: when this was measured
+> `X_OBJ_FLAG_3` was taken — `include/x-eval.h` aliased it `X_OBJ_FLAG_FRAME`
+> for environment frames, 2,346 of the objects in the census above. The
+> frame mark is gone now that environments are values, and the bit is free,
+> but a count is still the honest marker: it is a fact about the object.
 
 `bytes` earns its place by arithmetic. Classified as `foreign`, strings would
 put 3,220 objects into the pile that needs per-type code; classified honestly
@@ -1053,7 +1055,7 @@ reproducible if the writer is.
 
 Unresolved references fall from 19 to **6**, and the six are structural rather
 than incidental. They are the base's own control and I/O state: `save-stack`,
-`error-handler`, `env-alist`, `line`, `err-line`, `err-file`, `state`, `file`
+`error-handler`, `env`, `line`, `err-line`, `err-file`, `state`, `file`
 and `sigint` all hold values pass 1 never indexed, because the evaluator
 repoints them continuously *while the writer runs* — the writer cannot stand
 outside the interpreter that is executing it.
@@ -1061,9 +1063,10 @@ outside the interpreter that is executing it.
 Which is not a defect to fix but the `(foreign drop)` category arriving on its
 own. Every one of those fields is control state, reader position, or an I/O
 handle: nil at the quiet seam, meaningless in a saved image, and rebuilt by the
-loader against the fresh base. `env-alist` is the sharpest case — it is the
-*live* environment, including the writer's own frames, and what an image wants
-is `env-global-tree`, which indexes cleanly and does not appear in that list.
+loader against the fresh base. `env` is the sharpest case — it is the *live*
+environment, the writer's own frames included, and what an image wants is
+`env-root`, the root environment holding the tree, which indexes cleanly and
+does not appear in that list.
 
 **It holds across the dialects, unchanged.** The same writer, run against each:
 
@@ -1193,9 +1196,10 @@ short, and its sweep would then free their unmarked children. And the walk
 must collect to stay bounded, so "mark once and never collect" is not
 available either.
 
-**And there is no spare bit.** All four attribute bits are aliased by the eval
-layer — `X_OBJ_FLAG_1..4` are `SHADOW`, `COV`, `FRAME`, `FNFRAME` — and
-`own`, `ro`, `meta`, `shared` and `mark` are all taken.
+**And there was no spare bit.** All four attribute bits were aliased by the
+eval layer when this was measured — `X_OBJ_FLAG_1..4` were `SHADOW`, `COV`,
+`FRAME`, `FNFRAME`; only `COV` remains now that environments are values —
+and `own`, `ro`, `meta`, `shared` and `mark` are all taken.
 
 **Built, and measured.** `X_OBJ_FLAG_TRACE` (0x400), `x_heap_chain_clear`,
 and the coordinates `(heap trace! obj)` / `(heap untrace!)`:

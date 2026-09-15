@@ -1423,7 +1423,7 @@ address arbitrary interpreter state.
 ```x
 (def b (Base make))
 (b bind 'marker 77)
-(rest (first (first (b cell 'env-alist)))) -> 77
+(list (b eval 'marker) (null? (rest (b cell 'env-root)))) -> (77 #t)
 ```
 
 ```x

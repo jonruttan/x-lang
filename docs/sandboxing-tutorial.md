@@ -151,14 +151,18 @@ layout contract — `engine/tools/contract/base-paths.x`, one row per field — 
 
 `(b cell 'name)` walks the contract's path from the child and answers the
 addressed object; a cell-kind field's value sits in the cell's first
-slot. The walk is honest about live state — bind something and read it
-back through the environment cell:
+slot. The walk is honest about live state — bind something and it is in
+the child's root environment, one pair of bindings and parent, whose
+parent is nil and whose bindings are a tree the child's every lookup
+reaches:
 
 ```x-repl
 > (b bind 'marker 77)
 77
-> (rest (first (first (b cell 'env-alist))))
+> (b eval 'marker)
 77
+> (null? (rest (b cell 'env-root)))
+#t
 ```
 
 A name whose row is not base-rooted is refused loudly, because a

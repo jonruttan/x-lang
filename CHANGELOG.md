@@ -5,6 +5,28 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**An environment is a value** (x-engine-c v0.2.11, [#720]; design note
+[#718]). The pinned engine's environment is one pair, bindings and parent:
+the root's bindings are a tree, every other environment keeps an alist and
+the environment it was made in. A call makes a child, an operative body
+runs in a child and receives the caller's environment as a value, `def`
+binds in the current environment, and `eval` with an environment makes it
+current with the binding staying put. So a definer written as an operative
+now defines for its caller inside a frame: `(eval (list 'def n v) e)` binds
+in `e`, and `doc`, `def-class`, `def-record` and a lang's `define` work in
+a closure body the way they always did at top level ([#527]). The engine
+retired the frame marks, the shadow list, the local boundary, the tree a
+closure carried and the top-level bracket's frame stripping with it, and
+its base layout's env group is now `env` and `env-root`. What read the old
+rows by name moved with the pin: the sandbox and ISA specs, the image
+reader and inspector, the normative example in the spec, the sandboxing
+tutorial and the layout passages in the architecture, type-system,
+glossary and state-image documents.
+
+[#527]: https://github.com/jonruttan/x-lang/issues/527
+[#718]: https://github.com/jonruttan/x-lang/pull/718
+[#720]: https://github.com/jonruttan/x-lang/pull/720
+
 **A session switches languages.** `x/repl/lang` keeps the REPL's seams as a
 named bundle -- the prompt, the continuation prompt, the printer, the
 painter, the bracket marks, Tab's candidate source and what a finished line

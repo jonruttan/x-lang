@@ -217,19 +217,19 @@
      (%img-row %base-paths nm)
      ((fn (_ o) (if (null? o) 0 (%ptr->int (%obj->ptr o)))) (%ref-obj (%root-ref ROOTS nm))))))
 
-; The order: every root but the env group, then the env group with the tree
-; last.  Each root the image carries is written; a language cell the image
+; The order: every root but the env group, then the env group with the root
+; environment, which holds the tree, last.  Each root the image carries is written; a language cell the image
 ; does not carry (the contract grew) is an error, never a silent skip.
 (def %rev-l (fn (_ l) ((fn (loop l acc) (if (null? l) acc (loop (rest l) (pair (first l) acc)))) l ())))
 (def %append-l (fn (self a b) (if (null? a) b (pair (first a) (self (rest a) b)))))
-(def %ENV-ORDER (lit (shadow-list env-local-boundary env-alist env-global-tree)))
+(def %ENV-ORDER (lit (env env-root)))
 (def %env-cell? (fn (self l nm) (if (null? l) #f (if (eq? (first l) nm) #t (self (rest l) nm)))))
 ;  The same cells the writer roots: not the profile counters, not sigint
 ; (spec 1) -- those stay this base's own.
 (def %prefix? (fn (_ sym pre) (if (%lt (%str-byte-len (%p->s (%symbytes sym))) (%str-byte-len pre)) #f (str=? (%str-byte-sub (%p->s (%symbytes sym)) 0 (%str-byte-len pre)) pre))))
 (def %root-cell? (fn (_ nm) (if (eq? nm (lit sigint)) #f (if (eq? nm (lit line)) #f (not (%prefix? nm "profile-"))))))
 (def %OTHERS ((fn (self l acc) (if (null? l) acc (self (rest l) (if (%root-cell? (first (first l))) (if (%env-cell? %ENV-ORDER (first (first l))) acc (pair (first (first l)) acc)) acc)))) %LANG ()))
-; execution order: the others, then the env group, the tree last
+; execution order: the others, then the env group, the root last
 (def %ORDER (%append-l %OTHERS %ENV-ORDER))
 (def %WRITES ((fn (self l acc) (if (null? l) (%rev-l acc) (self (rest l) (pair (%write-of (first l)) acc)))) %ORDER ()))
 

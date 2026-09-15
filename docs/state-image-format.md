@@ -36,7 +36,7 @@ generated `x-eval-layout.h`):
 
 | group | cells | notes |
 |---|---|---|
-| env | `env-alist` (cell), `env-local-boundary`, `env-global-tree`, `shadow-list` (slots) | the chain, where locals end, the BST over globals, the shadow list |
+| env | `env`, `env-root` (slots) | the current environment and the root, each one pair of bindings and parent; the root's bindings are the tree over globals |
 | ctrl | `save-stack`, `error-handler`, `tco-expr`, `tco-env` | evaluator transients; **nil at image time and at install** (§6) |
 | io-group | `type-alist` (cell) | the type registry: `((name-stack . struct) …)`, keyed by the name-stack node (`x_alist_assoc` compares `first(key)`, `x-alist.c`) |
 | io-state | `line`, `true`, `false` | `true`/`false` hold the engine statics `x_true_obj`/`x_false_obj` |
@@ -215,7 +215,8 @@ contract's, not the loader's.
 `type` is the object index of its type struct, or `-1 spair`, `-2 satom`,
 `-3 nil-typed`. `n` and the kinds are what `(image save!)` answered for this
 object. `flags` are the writer's flags masked to `WRAP 0x01`, `COV 0x02`,
-`FRAME 0x04`, `FNFRAME 0x08`, `RO 0x40`; `SHARED` is set on every rebuilt
+`RO 0x40` (bits `0x04` and `0x08`, once `FRAME` and `FNFRAME`, are free
+since environments became values); `SHARED` is set on every rebuilt
 object regardless (the image lives as long as the process); `OWN`, `META`,
 `MARK` are never replayed.
 
