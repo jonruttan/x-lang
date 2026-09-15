@@ -308,6 +308,13 @@ in every dialect:
 | `%repl-print` | the result printer — a lang that prints its own values `set!`s it | `lib/x/repl/loop.x` |
 | `%repl-read` | the reader the loop calls — a lang with its own syntax `set!`s it | `lib/x/repl/loop.x` |
 | `repl` | the read-eval-print loop | `lib/x/repl/` |
+| `%repl-prompt-more` | the continuation prompt, for the second and later lines of one entry | `lib/x/repl/loop.x` |
+| `%repl-paint` | the painter — nil, or a function from the line's text to the text to display | `lib/x/repl/loop.x` |
+| `%repl-marks` | the bracket marks — nil, or a function from the line and the cursor to `(offset depth focused)` per bracket | `lib/x/repl/loop.x` |
+| `%repl-complete` | Tab's candidate source — nil, or a function from the edit buffer to `(typed . names)` | `lib/x/repl/loop.x` |
+| `%repl-eval-line` | what a finished line means — nil, or a function from the line's text that reads, evaluates and prints, reading on itself for more | `lib/x/repl/loop.x` |
+| `Lang` | the registry of langs a session can switch between: `register!`, `use!`, `get`, `names`, `current` | `lib/x/repl/lang.x` |
+| `lang` | the switch: `(lang NAME)` installs a registered lang, `(lang)` lists them | `lib/x/repl/lang.x` |
 | `%batch?` | `-f`/`--batch` was passed | x-core, via `repl/banner.x` |
 | `%install-root` | the installed tree's root, when installed | `lib/x/boot/module.x` |
 | `%lang-root` | the bundle's own directory — how a lang reaches **data** it ships | `x.sh`, when `-l` resolved a bundle |

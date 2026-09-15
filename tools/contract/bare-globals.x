@@ -99,6 +99,10 @@
   ; --- repl verbs ---
   (quit)
   (repl)
+  ; lang switches the session to a registered language (x/repl/lang) -- a
+  ; verb typed at the prompt beside quit and repl, and a seam a lang's own
+  ; spelling of the switch calls, which is why it is bare.
+  (lang)
   ; --- iteration / laziness (form-like) ---
   (delay)
   (iter)

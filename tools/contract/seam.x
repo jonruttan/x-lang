@@ -48,6 +48,18 @@
 (seam always %repl-print    "the result printer, set! by a lang that prints its own values")
 (seam always %repl-read     "the reader the loop calls, set! by a lang with its own syntax")
 (seam always repl           "the read-eval-print loop a lang hands its session to")
+; The rest of what a prompt is, for a lang that keeps the line editor rather
+; than replacing the loop: the editor reads the line, and these say what the
+; line looks like and what it means.  x/repl/lang bundles them as a named
+; lang, and `lang` is the switch -- typed at x's prompt, or called by a
+; lang's own spelling of it.
+(seam always %repl-prompt-more "the continuation prompt for the second and later lines of one entry")
+(seam always %repl-paint    "the painter: nil, or line text -> the text to display, colour inserted")
+(seam always %repl-marks    "the bracket marks: nil, or (text cursor) -> (offset depth focused) per bracket")
+(seam always %repl-complete "Tab's candidate source: nil, or edit buffer -> (typed . names)")
+(seam always %repl-eval-line "what a finished line means: nil, or line text -> nothing, reading on itself for more")
+(seam always Lang           "the registry of langs a session can switch between: register!, use!, get, names, current")
+(seam always lang           "the switch: (lang NAME) installs a registered lang, (lang) lists them")
 (seam always %batch?        "whether -f/--batch was passed: no session to hand over")
 (seam always import-path!   "arm an import root at runtime -- how a lang finds its own modules")
 ; eval! is how a lang implements define, which its docstring ("evaluate in

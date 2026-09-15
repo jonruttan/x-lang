@@ -105,12 +105,15 @@
             (unless (null? result) (%ansi-write result))
             (newline)))
         ; Remembered, so `install` can tell a printer THIS class put there
-        ; from one a lang installed for itself.
-        (Ansi repl-own %repl-print)))
+        ; from one a lang installed for itself -- and registered as x's, so a
+        ; session that switched to another lang and back prints in colour.
+        (Ansi repl-own %repl-print)
+        (Lang register! "x" (list (pair (lit %repl-print) %repl-print)))))
     (method disable-repl (self)
       (doc "Restore plain REPL output.")
       (set! %repl-print %saved-repl-print)
-      (Ansi repl-own ()))
+      (Ansi repl-own ())
+      (Lang register! "x" (list (pair (lit %repl-print) %saved-repl-print))))
     (method install (self)
       (doc "Detect the terminal and (re)install every colour this file owns -- the class statics, the printer's %c-* globals, doc.x's stubs and the REPL printer. Called when this file loads and again by the image recache hook, since whether there is a terminal is a fact of the PROCESS and the colours are strings a state image would otherwise carry from the writer's pipe."
         (returns NIL "Nothing; the colours are installed as a side effect"))

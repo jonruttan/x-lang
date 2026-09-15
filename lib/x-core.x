@@ -142,9 +142,10 @@
   (pair (lit x/type/bool)
   (pair (lit x/core/op-guard)
   (pair (lit x/type/err)
+  (pair (lit x/repl/lang)
   (pair (lit x/repl/ansi)
   (pair (lit x/repl/banner)
-    (first %module-loaded-cell))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+    (first %module-loaded-cell)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 
 ; --- Standard modules ---
 (include-once "lib/x/core/predicates.x")
@@ -292,6 +293,10 @@
 ; time, so every post-boot error can be structured regardless of the
 ; raising module's own boot position.
 (include-once "lib/x/type/err.x")
+; The languages a session can switch between, and `lang`, the switch.  After
+; repl/loop.x, whose seams it bundles, and type/err.x, whose raise it uses;
+; before repl/ansi.x, which registers its coloured printer with it.
+(include-once "lib/x/repl/lang.x")
 
 ; Non-numeric types refuse arithmetic (#52): error-raising op handlers
 ; registered on string/symbol/char/list/pair/vector, so op_try routes
