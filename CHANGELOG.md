@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**A session switches languages.** `x/repl/lang` keeps the REPL's seams as a
+named bundle -- the prompt, the continuation prompt, the printer, the
+painter, the bracket marks, Tab's candidate source and what a finished line
+means -- and `(lang NAME)` installs one, so the next line the editor reads
+is that lang's, coloured as that lang. Two of those seams are new:
+`%repl-eval-line`, which is what the editor does with a finished line and
+the piece that lets a lang keep the editor instead of replacing `repl`, and
+`%repl-complete`, which is where `(Line completer)` now lives.
+`%repl-prompt-more` moved beside `%repl-prompt`. x-lang's own bundle is
+`"x"`, assembled by the files that own its parts as they load. All of it
+joins the lang contract's seam table.
+
 **The linter reads a `set!` body as a definition body.** `(def NAME ())`
 followed by `(set! NAME (fn ...))` is how a self-referential function is
 written -- the forward declaration lets the body name itself -- and the walk

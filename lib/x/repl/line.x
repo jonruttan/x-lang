@@ -289,11 +289,12 @@
 ; The candidate source, as a value, the way %repl-paint holds the painter.
 ; %ln-candidates prefix-searches the doc registry, which holds what x-lang
 ; modules document; a lang that parses its own syntax has none of its names
-; in there, so Tab at its prompt offers x-lang's.  A lang sets this to its
-; own (ed -> (typed . names)), or to nil for a Tab that does nothing.  What
-; is left below -- fill the unique answer, extend to the common prefix, list
-; on the second Tab -- is the same job whatever the syntax is.
-(def %ln-completer %ln-candidates)
+; in there, so Tab at its prompt offers x-lang's.  The seam is repl/loop.x's
+; %repl-complete: a lang sets it to its own (ed -> (typed . names)), or to
+; nil for a Tab that does nothing, and %ln-install! below puts this one there
+; when nobody else has.  What is left below -- fill the unique answer, extend
+; to the common prefix, list on the second Tab -- is the same job whatever
+; the syntax is.
 
 ; The longest prefix every candidate shares -- what Tab fills in when the
 ; answer is not yet unique, the way a shell does it.
@@ -319,8 +320,8 @@
   (fn (_ fd ed)
     ; With no completer installed there is nothing to destructure, and
     ; first/rest are unchecked prims, so the test comes before the walk.
-    (when %ln-completer
-      (let ((c (%ln-completer ed)))
+    (when %repl-complete
+      (let ((c (%repl-complete ed)))
         (let ((typed (first c)) (names (rest c)))
           (match
             ((null? names) ())
@@ -418,11 +419,11 @@
       %ln-fd)
 
     (method completer (self . (param f CALLABLE "The completer to install; () turns Tab off. Omit to read the one in force"))
-      (doc "The function Tab asks for candidates, and installs one when given it. It is handed the Edit buffer and answers (typed . names) -- the text being completed, and every name it could become."
+      (doc "The function Tab asks for candidates, and installs one when given it. It is handed the Edit buffer and answers (typed . names) -- the text being completed, and every name it could become. The seam itself is %repl-complete; this reads and sets it."
         (returns ANY "The completer in force, or nil when Tab does nothing")
         (note "The default prefix-searches the doc registry, which holds what x-lang modules document. A lang that parses its own syntax has none of its names there, so it installs its own here, the way it sets %repl-paint for the colour. Filling a unique answer, extending to the common prefix and listing on the second Tab stay whichever completer is installed."))
-      (unless (null? f) (set! %ln-completer (first f)))
-      %ln-completer)
+      (unless (null? f) (set! %repl-complete (first f)))
+      %repl-complete)
 
     (method buffer (self)
       (doc "The session's Edit buffer -- one for the process, so history carries from line to line. Made on first use, with the history file loaded into it."
@@ -481,8 +482,15 @@
 ; reader to find out.  "Unterminated input" is the reader saying `keep
 ; going`, so the turn asks for another line and tries again -- which is what
 ; makes a multi-line definition editable one line at a time.
-
-(def %repl-prompt-more "..   ")
+;
+; What the turn does with the line is the %repl-eval-line seam, and what is
+; below is the platform's answer to it: read as x-lang, ask for more while
+; the reader says the form is unfinished, evaluate and print each form.  A
+; lang installs its own -- Python's reads a block to the blank line and
+; parses Python -- and the turn, the keys, the history and the colour hooks
+; around it stay.  %ln-install! puts this one on the seam over nil or over
+; itself, the rule %repl-paint states, so a lang's survives whether it was
+; set before this file loaded or after.
 
 ; Everything the reader said it could not finish, and nothing else: any other
 ; raise is a real syntax error and belongs on stderr.
@@ -535,7 +543,7 @@
                   (%stderr (%str-append (%error-loc-prefix)
                              (if (str? err) err (%repl-write-to-str err))))
                   (%stderr "\n"))))
-            (%ln-eval-line line)))))))
+            (%repl-eval-line line)))))))
 
 ; The whole loop, replacing repl/loop.x's.  Replacing `repl` is the seam
 ; this tree already uses: x-python and x-ash both install a reader of their
@@ -588,9 +596,24 @@
 ; it last installed itself (the state-image rerun), and over nothing else.
 ; repl/ansi.x guards the REPL printer by exactly this rule, for exactly this
 ; reason.
+;
+; The two seams this file answers -- what a finished line means, and where
+; Tab's candidates come from -- install under the same rule, but with no
+; terminal test: they are values a lang may read or replace whether or not
+; a session is running, and a spec exercises them without a tty.  Both are
+; named globals here, so "the one this file last installed" is an identity
+; test against the name and needs no anchor of its own.  What they are is
+; also registered as x's, so a session that switched to another lang and
+; back gets them again.
 (def %ln-own ())
 (def %ln-install!
   (fn (_)
+    (when (or (null? %repl-eval-line) (same? %repl-eval-line %ln-eval-line))
+      (set! %repl-eval-line %ln-eval-line))
+    (when (or (null? %repl-complete) (same? %repl-complete %ln-candidates))
+      (set! %repl-complete %ln-candidates))
+    (Lang register! "x" (list (pair (lit %repl-eval-line) %ln-eval-line)
+                              (pair (lit %repl-complete) %ln-candidates)))
     (when (and (or (same? repl %repl-platform-repl) (same? repl %ln-own))
                (or (Term tty? %ln-fd) (Sys isatty 3)))
       (set! repl %ln-repl)
@@ -603,5 +626,5 @@
   (note "Built on repl/edit.x (the buffer), repl/term.x (the tty) and repl/paint.x (the colour); each is usable on its own.")
   (note "History is appended per line to $XDG_STATE_HOME/x/history, so a session that crashes still keeps what it typed. X_HISTORY overrides the path; an empty X_HISTORY disables it.")
   (note "Tab completes against the documentation registry -- the same names apropos searches -- so a module that documents an export completes as soon as it loads.")
-  (note "A lang that reads its own syntax has no names in that registry: it sets (Line completer) to its own, or () to turn Tab off, as it sets %repl-paint for the colour.")
+  (note "A lang that reads its own syntax has no names in that registry: it sets (Line completer) to its own, or () to turn Tab off, as it sets %repl-paint for the colour, and %repl-eval-line to read its syntax from the line the editor hands back. x/repl/lang bundles those as a named lang a session switches to with (lang NAME).")
   "Line: one edited, coloured line read from the terminal; the built-in replacement for rlwrap.")

@@ -203,10 +203,52 @@ honours all three by returning its argument untouched.
 A painter that raises does not take the keystroke down with it. The line is
 drawn unpainted for that redraw.
 
+## Reading another language
+
+`%repl-eval-line` is the fifth seam, and the one that lets a lang keep the
+editor: a function from the finished line's text to nothing, which reads it,
+evaluates what it holds and prints the results. The platform's hands the text
+to the x reader and reads on under `%repl-prompt-more` while the reader says
+the form is unfinished. A lang whose syntax is not x-lang's sets its own —
+one that collects a block to the blank line and parses Python, say — and the
+keys, the history, the colour and the completion around it stay. It asks for
+further lines itself with `(Line read %repl-prompt-more)`.
+
+`%repl-complete` is the sixth: Tab's candidate source, a function from the
+edit buffer to `(typed . names)`, or nil for a Tab that does nothing.
+`(Line completer)` reads and sets it.
+
+## Switching languages
+
+The seven seams together are what a prompt is, and `Lang` keeps them as a
+named bundle so a session can move between languages:
+
+```x
+(Lang register! "python"
+  (list (pair '%repl-prompt ">>> ")
+        (pair '%repl-prompt-more "... ")
+        (pair '%repl-print %py-print)
+        (pair '%repl-paint %py-paint)
+        (pair '%repl-marks ())
+        (pair '%repl-complete %py-complete)
+        (pair '%repl-eval-line %py-eval-line)))
+```
+
+`(lang python)` installs it, and the next line the editor reads is Python,
+coloured as Python; `(lang)` lists what is registered and names the current
+one. A lang's own spelling of the switch is a call to the same `Lang use!`.
+A seam a bundle does not name takes x-lang's value for it, so nil is said
+rather than left out: no painter, Tab off.
+
+x-lang's own bundle is `"x"`, assembled by the files that own its parts as
+they load and re-assembled after a state image loads, so switching back
+restores the coloured printer, the painter and the completer of the running
+process rather than the ones a snapshot carried.
+
 ## Replacing it
 
 `repl` is a plain global, and installing a different loop over it is the seam
-langs already use — x-python and x-ash both read their own syntax that way.
+langs used before `%repl-eval-line` existed — x-python and x-ash both read
+their own syntax that way, and a lang that does so gives up the editor.
 `x/repl/line` installs itself the same way and only when it has a terminal to
-drive. `%repl-prompt`, `%repl-prompt-more` and `%repl-print` are the smaller
-adjustments that do not need a new loop.
+drive.

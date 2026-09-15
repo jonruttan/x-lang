@@ -91,7 +91,28 @@
 ; leaves it nil.
 (def %repl-marks ())
 
+; Tab's candidate source: a function from the editor's buffer to
+; (typed . names), the text being completed and every name it could become,
+; or nil for a Tab that does nothing.  x/repl/line installs the platform's,
+; which prefix-searches the doc registry, under the rule %repl-paint states;
+; a lang whose names are not in that registry sets its own.
+(def %repl-complete ())
+
+; What a finished line means: a function from the line's text to nothing,
+; which reads it, evaluates what it holds and prints the results, asking for
+; further lines itself when the entry is not complete.  The editor calls it
+; once per turn and nothing else does, so it is nil until the editor loads.
+; x/repl/line installs the platform's, which hands the text to the x reader
+; and reads on under %repl-prompt-more while the reader says the form is
+; unfinished; a lang whose syntax is not x-lang's sets its own, and with it
+; the editor reads that lang.  The install rule is %repl-paint's.
+(def %repl-eval-line ())
+
 (def %repl-prompt "> ")
+; The continuation prompt: the second and later lines of one entry, a form
+; the reader could not finish or a block a lang is still collecting.  Beside
+; %repl-prompt because a lang sets the two together.
+(def %repl-prompt-more "..   ")
 (def %repl-print
   (fn (_ result)
     (unless (null? result) (write result))
@@ -190,7 +211,7 @@
                 (%stderr "\n"))))
           (%repl-print (eval! %r)))
         (repl))))))
-  (note "Customizable via %repl-prompt (default \"> \"), %repl-print, %repl-paint (nil, or a line-text -> display-text function used by the line editor) and %repl-marks (nil, or a (text point) -> marks function naming the parens to highlight).")
+  (note "Customizable via %repl-prompt (default \"> \"), %repl-prompt-more, %repl-print, %repl-paint (nil, or a line-text -> display-text function used by the line editor), %repl-marks (nil, or a (text point) -> marks function naming the parens to highlight), %repl-complete (Tab's candidate source) and %repl-eval-line (what the editor does with a finished line). x/repl/lang bundles the seven as a named lang, and (lang NAME) installs one.")
   (note "Uses dynamic scoping so def persists across iterations.")
   (note "Uses eval! (no env save/restore) so definitions persist.")
   "Start the read-eval-print loop.")

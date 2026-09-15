@@ -228,14 +228,13 @@
 ; the %repl-marks install.  All on the per-keystroke path, and homed beside
 ; the scan for the reason the rest of this file's %-defs are.
 (file "lib/x/repl/paint.x" 46)
-; line.x is 36 for %ln-completer, which holds Tab's candidate source as a
-; value so a lang can install its own -- a global rather than class state on
-; the grounds the rows here stand on, since %ln-complete! reads it per Tab.
-; %repl-paint is the same seam for the colour, and lives in the REPL's own
-; globals because a bundle sets it before this file loads.
 ; line.x grew by one for %ln-marks, which asks %repl-marks about the whole line
 ; and translates the answer into the window being painted.
-(file "lib/x/repl/line.x" 37)
+; line.x shrank by two when Tab's candidate source and the continuation
+; prompt moved to repl/loop.x as %repl-complete and %repl-prompt-more: seams
+; a lang sets, which belong beside %repl-paint for the reason that one lives
+; there -- a bundle sets them before this file loads.
+(file "lib/x/repl/line.x" 35)
 (file "lib/x/repl/banner.x" 4)
 ; Grew by one for %repl-platform-repl: the identity anchor that lets two
 ; installers over `repl` -- a lang's reader and the line editor -- tell
@@ -247,7 +246,13 @@
 ; can set, and it belongs beside the two it is a sibling of.
 ; loop.x grew by one for %repl-marks, the fourth customisation point: which
 ; parens to highlight is a fact about the language, like which colour they get.
-(file "lib/x/repl/loop.x" 15)
+; loop.x grew by three for %repl-prompt-more, %repl-complete and
+; %repl-eval-line, the rest of what a lang's prompt is: the continuation
+; prompt, Tab's candidate source and what a finished line means.  Seams, not
+; helpers, on the grounds %repl-paint's row states, and the last is what lets
+; a lang keep the line editor instead of replacing the loop.  x/repl/lang
+; bundles the seven as a named lang.
+(file "lib/x/repl/loop.x" 18)
 (file "lib/x/rn.x" 1)
 (file "lib/x/sys/date.x" 6)
 (file "lib/x/sys/file.x" 7)

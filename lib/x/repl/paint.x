@@ -472,14 +472,21 @@
 (def %paint-own ())
 (def %paint-own-marks ())
 
+; Whatever the seams hold, the two are registered as x's painter and marks
+; (x/repl/lang), so a session that switched to another lang and back gets
+; them; the identity the install rule tests is the registered closure.
 (def %paint-install-hook!
   (fn (_)
-    (when (or (null? %repl-paint) (%pt-same? %repl-paint %paint-own))
-      (set! %repl-paint (fn (_ s . marks) (Paint line s (if (null? marks) () (first marks)))))
-      (set! %paint-own %repl-paint))
-    (when (or (null? %repl-marks) (%pt-same? %repl-marks %paint-own-marks))
-      (set! %repl-marks (fn (_ s at) (%paint-depths s at)))
-      (set! %paint-own-marks %repl-marks))))
+    (let ((painter (fn (_ s . marks) (Paint line s (if (null? marks) () (first marks)))))
+          (marker (fn (_ s at) (%paint-depths s at))))
+      (when (or (null? %repl-paint) (%pt-same? %repl-paint %paint-own))
+        (set! %repl-paint painter))
+      (set! %paint-own painter)
+      (when (or (null? %repl-marks) (%pt-same? %repl-marks %paint-own-marks))
+        (set! %repl-marks marker))
+      (set! %paint-own-marks marker)
+      (Lang register! "x" (list (pair (lit %repl-paint) painter)
+                                (pair (lit %repl-marks) marker))))))
 
 (%paint-install!)
 (%paint-install-hook!)

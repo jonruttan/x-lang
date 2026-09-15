@@ -298,16 +298,23 @@ What the loop must know:
   (see §6), and a long session will grow.  Know which case you are in.
 - **The line editor reads your lines; its colouring and its completion do
   not know your syntax.**  A lang that has not replaced `repl` inherits the
-  editor, and one that has can call `(Line read prompt)` for a single edited
-  line back as a string.  Either way the buffer, the cursor, the history and
-  the raw-mode bracketing carry no grammar.  Two things do: set `%repl-paint`
-  to a function from the line's text to the text to display for it, and
-  `(Line completer f)` to a function from the `Edit` buffer to
-  `(typed . names)`.  Both take `()` for none — but note that a nil
-  `%repl-paint` means no painter installed rather than no colour, which
-  `--no-color`, `NO_COLOR` and `TERM=dumb` already answer.  Tab's default
-  prefix-searches the doc registry, so a lang that parses its own syntax
-  completes x-lang's names until it installs its own.
+  editor; the buffer, the cursor, the history and the raw-mode bracketing
+  carry no grammar.  Three things do: set `%repl-eval-line` to a function
+  from the finished line's text that parses your syntax, evaluates and
+  prints — asking for more lines itself with `(Line read %repl-prompt-more)`
+  when the entry is not complete — `%repl-paint` to a function from the
+  line's text to the text to display for it, and `%repl-complete` to a
+  function from the `Edit` buffer to `(typed . names)`.  The last two take
+  `()` for none — but note that a nil `%repl-paint` means no painter
+  installed rather than no colour, which `--no-color`, `NO_COLOR` and
+  `TERM=dumb` already answer.  Tab's default prefix-searches the doc
+  registry, so a lang that parses its own syntax completes x-lang's names
+  until it installs its own.  Replacing `repl` instead gives all of this up.
+- **Register the bundle as a lang.**  `(Lang register! "NAME" alist)` with
+  the seams above, then `(Lang use! "NAME")` if this lang owns the session.
+  `(lang NAME)` at x-lang's prompt switches to it, and your own spelling of
+  the switch is a call to `Lang use!`; a seam the bundle does not name takes
+  x-lang's value, so say `()` for no painter rather than leaving it out.
 - **The banner should identify the whole stack.**  `%param-release` (engine)
   and `%platform-release` (x-lang) arrive as boot data; printing them plus
   the resolved root makes every which-install-am-I-running mystery
