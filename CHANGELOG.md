@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The linter reads a `set!` body as a definition body.** `(def NAME ())`
+followed by `(set! NAME (fn ...))` is how a self-referential function is
+written -- the forward declaration lets the body name itself -- and the walk
+scanned only the `def` spelling, so the ladder and shape rules never saw
+those bodies. Every tokenizer state machine in `lib/x/num/` is written that
+way and reported nothing; `decimal.x` held two four-deep chains while
+reporting zero ladders. `%arity-collect` already read the two spellings
+together, so this brings the two rules into line with it.
+
 **The assembler lane lowers `match`.** The arms are tried in order: a
 comparison test folds into `cmp` and one conditional branch, any other test
 is evaluated and tested with `cbz`, a literal `#t` test takes its arm

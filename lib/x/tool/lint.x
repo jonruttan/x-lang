@@ -376,7 +376,17 @@
         (%lint-shape-scan  (%cvt name-part %string) (%ladder-at form 2))
         (%lint-form (first (rest (rest form))))))))
 
+; (set! NAME (fn ...)) is the second half of a self-referential definition:
+; a forward (def NAME ()) declares the name so the body can call itself, and
+; the body arrives here.  It is a definition body, so it gets the scans a
+; (def NAME ...) body gets -- %arity-collect already reads the two spellings
+; together.  Without this the numeric tower's analyser states, which are all
+; written this way, are invisible to both rules.
 (def %lint-set (fn (_ form)
+  (let ((target (first (rest form))))
+    (when (symbol? target)
+      (%lint-ladder-scan (%cvt target %string) (%ladder-at form 2))
+      (%lint-shape-scan  (%cvt target %string) (%ladder-at form 2))))
   (%lint-form (first (rest form)))
   (%lint-form (first (rest (rest form))))))
 
