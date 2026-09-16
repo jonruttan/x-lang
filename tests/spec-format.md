@@ -144,9 +144,11 @@ the wire; use a door that takes an explicit length, like `(File write)`. And
 like `<<SEP>>`, the sentinel is in-band: a program that prints the seven
 characters `<<NUL>>` is indistinguishable from one that prints a zero byte.
 
-The escaper needs `perl`. Without it the runner warns once and the old
-truncation stands, so a spec asserting `<<NUL>>` fails rather than passing
-quietly. `SPEC_NUL_FILTER` overrides the command (set it empty to disable).
+The escaper is `tools/dev/nul-escape.x`, run through the wrapper, and it runs
+only for a spec file that writes `<<NUL>>` somewhere. Without it the runner
+warns once and the old truncation stands, so a spec asserting `<<NUL>>` fails
+rather than passing quietly. `SPEC_NUL_FILTER` overrides the command (set it
+empty to disable).
 
 ## Running tests
 

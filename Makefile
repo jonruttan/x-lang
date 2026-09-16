@@ -1109,6 +1109,11 @@ install: $(EXECUTABLE) $(NAME).sh boot ## Install to PREFIX (DESTDIR honoured)
 	install $C -m 0644 tests/spec-runner.awk $(DESTDIR)$(LIBDIR)/tests/spec-runner.awk
 	diff tests/spec-runner.sh $(DESTDIR)$(LIBDIR)/tests/spec-runner.sh
 	diff tests/spec-runner.awk $(DESTDIR)$(LIBDIR)/tests/spec-runner.awk
+	# The runner's NUL escaper, which it reaches as <root>/tools/dev/ -- without
+	# it a bundle's spec asserting `<<NUL>>` fails against the installed runner.
+	install -d -m 0755 $(DESTDIR)$(LIBDIR)/tools/dev
+	install $C -m 0644 tools/dev/nul-escape.x $(DESTDIR)$(LIBDIR)/tools/dev/nul-escape.x
+	diff tools/dev/nul-escape.x $(DESTDIR)$(LIBDIR)/tools/dev/nul-escape.x
 	# THE LANG KIT, on exactly the argument above.  The spec runner was the
 	# first thing every bundle would otherwise have vendored; it is not the
 	# only one.  These checks are byte-identical in every bundle -- the same

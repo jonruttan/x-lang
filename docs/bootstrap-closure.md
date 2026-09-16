@@ -7,9 +7,9 @@ explicitly ruled a permanent external.
 
 ## Progress (2026-09-16)
 
-Measured fresh on this date. 36 of the 45 rows have a registered,
-spec-checked implementation in x, and they carry 97.7% of the logged
-invocations (19,934 of 20,398):
+Measured fresh on this date. 37 of the 45 rows have a registered,
+spec-checked implementation in x, and they carry 98.5% of the logged
+invocations (20,096 of 20,398):
 
 - **the language tools**: awk (x-awk, 167 cases), grep (x-grep, 29),
   sed (x-sed, 21), make (x-make, 23) — the original core four
@@ -23,9 +23,9 @@ invocations (19,934 of 20,398):
 Pipelines of x tools compose today:
 `... | x -l awk '{print $1}' | x -l coreutils -- sort | x -l coreutils -- uniq -c`.
 
-Still external — 9 rows, 464 invocations: cc (the JIT's compiler tier),
-perl, shasum, codesign/sysctl (platform, permanent), git/curl (fetch, out
-of scope), tar, strip.
+Still external — 8 rows, 302 invocations: cc (the JIT's compiler tier),
+shasum, codesign/sysctl (platform, permanent), git/curl (fetch, out of
+scope), tar, strip.
 
 **Implementation is not adoption.** The figure above says the tool exists in
 x and its suite passes; it does not say the build calls it. The build still
@@ -65,8 +65,9 @@ invocations, where the JIT's cc-hosted tier compiles at runtime — the middle
 rung of the asm → cc-hosted → twins ladder. That is a different thing from a
 build dependency, and the two should not be read as one row.
 
-Other movement: `perl` is new, `stat` and `touch` have dropped out, `find`
-went from 22 invocations to 315, and the crypto pair doubled to 330.
+Other movement: the spec runner's NUL escaper is new, `stat` and `touch` have
+dropped out, `find` went from 22 invocations to 315, and the crypto pair
+doubled to 330.
 
 ## Union: 45 tools, ranked by invocation count
 
@@ -95,7 +96,7 @@ build calls.
 | 181 | mkdir | test, install | x |
 | 170 | sha256sum | test, install | x |
 | 165 | timeout | test | x |
-| 162 | perl | test | **external** |
+| 162 | perl | test | x (the NUL escaper, now tools/dev/nul-escape.x) |
 | 160 | shasum | test, install | **external** |
 | 127 | cc | test | **external** |
 | 104 | xargs | test | x |
@@ -151,11 +152,10 @@ failed); install 27 / 441.
   producers that must agree by construction (the Makefile,
   `tools/release/release-manifest.sh`, the x-engine.xon generator), and five
   further shell tools under `tools/` reach for the pair independently.
-- **perl**: the spec runner's NUL filter (`tests/spec-runner.sh:76`), which
-  turns a zero byte into `<<NUL>>` so a spec can assert one. It entered the
-  closure with that feature and the runner warns when it is absent. A post-x
-  site: x reads and writes NUL-carrying bytes (x-coreutils#30), so this one is
-  reachable.
+- **the NUL escaper**: turns a zero byte into `<<NUL>>` so a spec can assert
+  one. It is `tools/dev/nul-escape.x`, run through the wrapper, and only for a
+  spec file that writes `<<NUL>>` — one run in a suite rather than one a
+  batch. The table row carries the name the measurement logged.
 - **compiler tier**: cc, in the test phase only, from the JIT. `strip` is one
   install-time call. Neither is a build dependency any more.
 - **archive**: tar, 3 calls. `x.sh:1116` unpacks a fetched engine, so part
