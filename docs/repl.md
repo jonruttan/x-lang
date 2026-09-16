@@ -236,7 +236,10 @@ named bundle so a session can move between languages:
 
 `(lang python)` installs it, and the next line the editor reads is Python,
 coloured as Python; `(lang)` lists what is registered and names the current
-one. A lang's own spelling of the switch is a call to the same `Lang use!`.
+one. A session that should hold both from the start names both: `-l` is
+repeatable, the first owns the prompt and each further one loads a bundle
+beside it, so `sh x.sh -l xe -l python` opens at xenon's prompt with
+`(lang python)` a call away. A lang's own spelling of the switch is a call to the same `Lang use!`.
 A seam a bundle does not name takes x-lang's value for it, so nil is said
 rather than left out: no painter, Tab off.
 

@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**`-l` is repeatable.** The first names the lang that owns the prompt, as it
+always has; each further one names a bundle to load beside it, resolved
+exactly as the first is and read ahead of its entry, so `x -l xe -l python`
+opens at xenon's prompt with Python registered and `(lang python)` a call
+away. `%lang-lead`, a new bundle-class seam, carries the first name into
+the pipe so a bundle's entry knows whether to take the prompt or only
+register what it is. The state image of such a boot is its own, named for
+every lang in it.
+
 **An environment is a value** (x-engine-c v0.2.11, [#720]; design note
 [#718]). The pinned engine's environment is one pair, bindings and parent:
 the root's bindings are a tree, every other environment keeps an alist and

@@ -136,6 +136,22 @@ before anything boots**, and two bundles claiming one name are refused rather
 than resolved by directory order — which one you got would otherwise depend on
 the filesystem.
 
+A session boots one lang and may load others beside it: `-l` is repeatable,
+the first names the lang that owns the prompt, and each further one names a
+bundle to load as a library to it. The wrapper resolves those exactly as it
+resolves the first — the same lookup, the same dependency walk — and reads
+their entries ahead of the first lang's, so what the first installs is what
+the session gets. `%lang-lead` carries the first name into the pipe; a
+bundle's entry compares it with its own to know whether to take the prompt
+or only register what it is:
+
+```
+(def %lang-lead "xe")           ; x -l xe -l python
+(import-path! "…/x-python")     ; the extra's root
+cat …/x-python/run.x            ; registers python, leaves the prompt alone
+cat lib/x/repl/launch.x         ; the prompt: xe's, with (lang python) a call away
+```
+
 ### One entry file, and one only
 
 `tools/check/path-literals.sh` forbids root-relative load literals
@@ -318,6 +334,7 @@ in every dialect:
 | `%batch?` | `-f`/`--batch` was passed | x-core, via `repl/banner.x` |
 | `%install-root` | the installed tree's root, when installed | `lib/x/boot/module.x` |
 | `%lang-root` | the bundle's own directory — how a lang reaches **data** it ships | `x.sh`, when `-l` resolved a bundle |
+| `%lang-lead` | the name the first `-l` asked for — the lang that owns the prompt; a bundle whose name this is not was loaded beside it | `x.sh`, when any `-l` resolved a bundle |
 | `import-path!` | arm an import root at runtime | `lib/x/boot/module.x` |
 | `eval!` | evaluate without env save/restore — **how a lang's `define` binds in its caller** | engine, via `x/doc/doc-prims.x` |
 | `x-lib-version` | the library's version | `lib/x-core.x` |

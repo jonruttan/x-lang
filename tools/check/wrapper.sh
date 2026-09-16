@@ -81,6 +81,23 @@ esac
 got=$(sh x.sh -q -l xe -c '(write (+ 1/3 1/6))' 2>/dev/null || true)
 want "-l selects the dialect" "1/2" "$got"
 
+# A further -l loads a bundle beside the first lang.  The fixture bundle the
+# seam gate uses is enough: what is under test is the wrapper's arrangement
+# -- the root armed, the entry read, and %lang-lead naming the first.
+got=$(X_LANG_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l he -l seamprobe \
+	-c '(write (list %lang-lead (Str8 ends? "seamprobe/run.x" (%module-resolve-file "run.x")) (guard (_ "no root") %lang-root)))' 2>/dev/null || true)
+want "a further -l loads a bundle beside a dialect" '("he" #t "no root")' "$got"
+got=$(X_LANG_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l seamprobe -c '(write %lang-lead)' 2>/dev/null || true)
+want "the first -l is the lead" '"seamprobe"' "$got"
+got=$(sh x.sh --no-pin -q -l he -c '(write (guard (_ "unbound") %lang-lead))' 2>/dev/null || true)
+want "no bundle, no lead" '"unbound"' "$got"
+if X_LANG_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -l he -l xe -c '()' >/dev/null 2>&1; then
+	printf 'wrapper: a further -l naming a dialect was accepted\n' >&2
+	fails=$((fails + 1))
+else
+	printf '  a further -l must name a bundle: ok\n'
+fi
+
 if [ "$fails" -gt 0 ]; then
 	printf 'wrapper: %d failure(s).\n' "$fails" >&2
 	exit 1
