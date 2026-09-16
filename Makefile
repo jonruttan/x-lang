@@ -115,7 +115,8 @@ ENGINE_ENSURE=if [ ! -e "$(ENGINE_SRC)" ]; then \
 		echo "  make engine-source  clone that release and build it here" >&2; \
 		echo "  make X_ENGINE_DIR=DIR   use an engine you already have" >&2; \
 		exit 1; \
-	fi; ln -sfn "$(ENGINE_SRC)" $(ENGINE_DIR)
+	fi; sh tools/engine/pin-match.sh "$(ENGINE_SRC)" || exit 1; \
+	ln -sfn "$(ENGINE_SRC)" $(ENGINE_DIR)
 
 # TWO WAYS TO HAVE NO SOURCES, and they want different advice.  A release
 # artifact ships a working engine and no Makefile ON PURPOSE -- telling its user
