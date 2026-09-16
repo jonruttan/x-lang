@@ -194,10 +194,11 @@
     (%fmt-write-src form)
     (let ((props (when (symbol? head) (%fmt-lookup head table))))
       (let ((fmt-type (unless (null? props) (%fmt-get-prop 'fmt props))))
-        (if (eq? fmt-type 'head-1)  (%fmt-head-1 head rest-forms col)
-        (if (eq? fmt-type 'head-kw) (%fmt-head-kw head rest-forms col)
-        (if (eq? fmt-type 'body)    (%fmt-body-only head rest-forms col)
-          (%fmt-default head rest-forms col))))))))))
+        (match
+          ((eq? fmt-type 'head-1)  (%fmt-head-1 head rest-forms col))
+          ((eq? fmt-type 'head-kw) (%fmt-head-kw head rest-forms col))
+          ((eq? fmt-type 'body)    (%fmt-body-only head rest-forms col))
+          (#t (%fmt-default head rest-forms col)))))))))
 
 ; A kept #"..." literal is a PAIR, like a comment, so the pretty printer
 ; needs the same guard the compact one has: without it %fmt-list descends

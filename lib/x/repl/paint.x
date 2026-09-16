@@ -221,8 +221,12 @@
   (fn (self s i n)
     (if (>= i n) i
       (let ((b (%pt-cint (%pt-bref s i))))
-        (if (if (<= b 32) #t (if (= b 40) #t (if (= b 41) #t (= b 59))))
-          i (self s (%pt+ i 1) n))))))
+        (match
+          ((<= b 32) i)
+          ((= b 40) i)
+          ((= b 41) i)
+          ((= b 59) i)
+          (#t (self s (%pt+ i 1) n)))))))
 
 ; --- bracket depths -----------------------------------------------------------
 ;
