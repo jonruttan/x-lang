@@ -99,7 +99,7 @@
 ; macros (argument text, boundary substitution, rescan).
 ; #ifdef/#ifndef/#else/#endif/#undef/#if-defined and initializer lists;
 ; the heap zero-fills (str make is space-filled).
-(lang "cc"    "x-cc"    117  0)
+(lang "cc"    "x-cc"    119  0)
 ; logo's 83/0 here is the same 83 tests that ran as lib/logo.spec.md in this
 ; tree, against the same turtle kernel, through the bundle's own harness
 ; instead of tests/x/lib.
