@@ -75,13 +75,11 @@
 (def %cx-imag-int ())
 (set! %cx-imag-int
   (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57))
-      %cx-imag-int
-      (if (= chr 46)
-        %cx-imag-dot
-        (if (= chr 105)
-          (%score-set score 1 buffer)
-          ())))))
+    (match
+      ((and (>= chr 48) (<= chr 57)) %cx-imag-int)
+      ((= chr 46) %cx-imag-dot)
+      ((= chr 105) (%score-set score 1 buffer))
+      (#t ()))))
 
 (def %cx-sign
   (fn (_ buffer score chr)
@@ -92,15 +90,12 @@
 (def %cx-real-frac ())
 (set! %cx-real-frac
   (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57))
-      %cx-real-frac
-      (if (= chr 43)
-        %cx-sign
-        (if (= chr 45)
-          %cx-sign
-          (if (= chr 105)
-            (%score-set score 1 buffer)
-            ()))))))
+    (match
+      ((and (>= chr 48) (<= chr 57)) %cx-real-frac)
+      ((= chr 43) %cx-sign)
+      ((= chr 45) %cx-sign)
+      ((= chr 105) (%score-set score 1 buffer))
+      (#t ()))))
 
 (def %cx-real-dot
   (fn (_ buffer score chr)
@@ -118,17 +113,13 @@
 (def %cx-real-int ())
 (set! %cx-real-int
   (fn (_ buffer score chr)
-    (if (and (>= chr 48) (<= chr 57))
-      %cx-real-int
-      (if (= chr 46)
-        %cx-real-dot
-        (if (= chr 43)
-          %cx-sign
-          (if (= chr 45)
-            %cx-sign
-            (if (= chr 105)
-              (%score-set score 1 buffer)
-              ())))))))
+    (match
+      ((and (>= chr 48) (<= chr 57)) %cx-real-int)
+      ((= chr 46) %cx-real-dot)
+      ((= chr 43) %cx-sign)
+      ((= chr 45) %cx-sign)
+      ((= chr 105) (%score-set score 1 buffer))
+      (#t ()))))
 
 ; --- Reader helpers ---
 
