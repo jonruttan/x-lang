@@ -30,6 +30,7 @@
 ; so is a negative number, so `sort -5` reads as an operand rather
 ; than five unknown flags.
 
+(module x/sys/opts)
 (import x/type/class)
 (import x/core/list)
 
@@ -213,3 +214,6 @@
                             () (rest more))))))
               ((self %member? name flags) (go (+ i 1) (pair name on) vals))
               (#t ()))))))))
+
+(doc (provide x/sys/opts Opts)
+  "Command-line parsing against a declaration of flags and valued options, on the Opts class.")

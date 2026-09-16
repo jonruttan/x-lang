@@ -13,6 +13,7 @@
 ; Thunks follow the self-passing convention: pass (fn (_) EXPR); the helper
 ; calls it as (thunk) -- arg 0 binds to the thunk itself and EXPR ignores it.
 
+(module x/test/assert)
 (doc (def throws?
   (fn (_ (param thunk CALLABLE "Nullary thunk to run"))
     (guard (e #t)

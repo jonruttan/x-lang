@@ -7,6 +7,7 @@
 ;
 ; Zero top-level %-globals (new-file budget 0).
 
+(module x/type/counter)
 (import x/type/class)
 (import x/type/dict)
 (import x/type/list)

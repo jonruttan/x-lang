@@ -27,6 +27,7 @@
 ; Sessions are TlsSession records. Cold paths: symbols resolve per
 ; call; zero top-level %-globals (new-file budget 0).
 
+(module x/net/tls)
 (import x/type/class)
 (import x/type/record)
 (import x/core/list)

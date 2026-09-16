@@ -24,6 +24,7 @@
 ;
 ; Zero top-level %-globals (new-file budget 0); helpers are method-local.
 
+(module x/codec/csv)
 (import x/type/class)
 (import x/core/list)
 (import x/type/assoc)

@@ -4,6 +4,7 @@
 ; job); every method is a total string function.  Byte-level '/' scanning
 ; via Str8 (paths are byte strings to the syscall layer anyway).
 
+(module x/type/path)
 (import x/protocol/str/str8)
 (import x/type/class)
 (import x/type/list)   ; relpath/match? segment work (reject/repeat/append/fold)

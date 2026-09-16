@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**Eighteen more run-time modules have a scope of their own** ([#719], step
+4). `x/codec/base64`, `x/codec/csv`, `x/codec/zlib`, `x/doc/emit`,
+`x/doc/emit-man`, `x/net/http`, `x/net/rest`, `x/net/tls`, `x/repl/edit`,
+`x/sys/opts`, `x/test/assert`, `x/tool/contract`, `x/tool/pin`,
+`x/type/array`, `x/type/counter`, `x/type/deque`, `x/type/path` and
+`x/type/pq` carry the `(module NAME)` header. No file outside any of them
+reaches one of their private names, in this tree, the language checkouts or
+the released bundles. Four public names that other code already used were
+missing from a `provide` list, and would have become private: `DocEmit`,
+`DocMd` and `DocMan` now appear in their modules' lists, and `x/sys/opts`,
+which had no `provide` at all, provides `Opts`. Importing a scoped module is
+no slower than importing it unscoped: the same five imports timed in-process
+ran between 2 and 10 percent faster with the header.
+
 **The first library modules have a scope of their own.** Nine modules
 that load through `import` at run time now carry a `(module NAME)` header
 and keep their private names to themselves: `x/tool/highlight`,

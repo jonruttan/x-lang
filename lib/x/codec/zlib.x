@@ -23,6 +23,7 @@
 ; throughout: symbols resolve per call ((Zlib %sym) -- dlopen re-returns
 ; the cached handle), keeping the file at zero top-level %-globals.
 
+(module x/codec/zlib)
 (import x/type/class)
 (import x/core/list)
 

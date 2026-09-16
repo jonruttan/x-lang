@@ -32,6 +32,8 @@
 ; import lands before any user form) this is exactly the boot pre-seed:
 ; the unpinnable core.  The vendor walk skips these names, which is why
 ; vendor sessions are run fresh with this module imported FIRST.
+
+(module x/tool/pin)
 (def %pin-floor (first %module-loaded-cell))
 
 (import x/sys/file)
