@@ -49,39 +49,6 @@ if [ -n "$_TIMEOUT_BIN" ]; then
   TIMEOUT_APPL="$_TIMEOUT_BIN ${TIMEOUT_APPL_SECS:-120}"
 fi
 
-# NUL escaper for the captured stdout.  awk is a C-string language: a NUL byte
-# in a record TERMINATES it, so `cmd | getline` silently truncated a test's
-# output at the first zero byte and no spec could ever assert one (a program
-# emitting "a\0b" was compared as "a").  The fix is to escape the byte BEFORE
-# awk reads it, into the harness's existing in-band sentinel style: a real NUL
-# arrives at the comparison as the literal text `<<NUL>>`, which a spec writes
-# in its expected block.  This is a NO-OP for NUL-free output -- every other
-# byte passes through untouched -- so no existing spec is affected.
-#
-# perl is the escaper because it is the only tool here that is both byte-clean
-# and able to EXPAND one byte into several: BSD sed cannot even express a NUL
-# match ("first RE may not be empty"), and tr is strictly 1:1 so it can only
-# swap the byte for another single byte, not for readable text.
-#
-# Written WITHOUT a backslash on purpose -- see the chr(0) note in
-# spec-runner.awk before "simplifying" it to s/\x00/.
-#
-# SPEC_NUL_FILTER overrides the escaper (set it empty to turn escaping off, or
-# to a command of your own on a host whose perl is unusable).  Set-but-empty is
-# a deliberate choice, so it passes without the warning below.
-_NUL_FILTER=""
-if [ -n "${SPEC_NUL_FILTER+set}" ]; then
-  _NUL_FILTER="$SPEC_NUL_FILTER"
-elif command -v perl >/dev/null 2>&1; then
-  _NUL_FILTER="perl -pe 'BEGIN{\$z=chr(0)} s/\$z/<<NUL>>/g'"
-else
-  # No escaper: the truncation stands.  Say so once, loudly.  A spec that
-  # asserts `<<NUL>>` then FAILS on this host (expected `a<<NUL>>b`, got `a`)
-  # rather than passing silently, which is the safe direction to degrade.
-  printf '%bWARNING: no perl; NUL bytes in captured output cannot be asserted%b\n' \
-    "$ANSI_RED" "$ANSI_RESET" >&2
-fi
-
 # Memory runaway guard (complements the wall-time timeout above). The timeout
 # bounds CPU/wall-time; this bounds MEMORY: the interpreter stops a runaway ./x-bin
 # once its allocated-object count reaches the ceiling, instead of allocating
@@ -191,6 +158,56 @@ fi
 # the harness rather than from LANG_LIB, whose directory is the LIBRARY's --
 # a lang bundle's harness sits in the bundle, where no loader lives.
 _X_ROOT="$(cd "$(dirname "$RUNNER")/.." && pwd)"
+
+# NUL escaper for the captured stdout.  awk is a C-string language: a NUL byte
+# in a record TERMINATES it, so `cmd | getline` silently truncated a test's
+# output at the first zero byte and no spec could ever assert one (a program
+# emitting "a\0b" was compared as "a").  The fix is to escape the byte BEFORE
+# awk reads it, into the harness's existing in-band sentinel style: a real NUL
+# arrives at the comparison as the literal text `<<NUL>>`, which a spec writes
+# in its expected block.  This is a NO-OP for NUL-free output -- every other
+# byte passes through untouched -- so no existing spec is affected.
+#
+# The escaper is tools/dev/nul-escape.x, run through the wrapper.  It has to
+# EXPAND one byte into several and stay byte-clean, which no tool already in
+# the closure does: BSD sed cannot express a NUL match ("first RE may not be
+# empty"), and tr is strictly 1:1.
+#
+# The wrapper is the runner's own tree's x.sh when it has one (x-lang's
+# checkout), and otherwise $X, which a bundle's runner sets to the wrapper it
+# was given before sourcing this file (an installed tree has no x.sh at its
+# root).  The tree's own comes first so an X exported in the caller's shell
+# cannot swap in a different x.
+#
+# It runs FROM the root: a checkout's x.sh finds its default dialect relative
+# to the working directory, and a bundle's suite runs from the bundle.  The
+# parentheses keep the cd inside this one pipeline stage.
+#
+# SPEC_NUL_FILTER overrides the escaper (set it empty to turn escaping off, or
+# to a command of your own).  Set-but-empty is a deliberate choice, so it
+# passes without the warning below.
+_NUL_FILTER=""
+_nul_wrapper=""
+if [ -f "$_X_ROOT/x.sh" ]; then
+  _nul_wrapper="sh '$_X_ROOT/x.sh'"
+elif [ -n "${X:-}" ] && command -v "$X" >/dev/null 2>&1; then
+  _nul_wrapper="'$X'"
+fi
+if [ -n "${SPEC_NUL_FILTER+set}" ]; then
+  _NUL_FILTER="$SPEC_NUL_FILTER"
+elif [ -n "$_nul_wrapper" ] && [ -f "$_X_ROOT/tools/dev/nul-escape.x" ]; then
+  _NUL_FILTER="(cd '$_X_ROOT' && $_nul_wrapper --no-pin -q -f '$_X_ROOT/tools/dev/nul-escape.x')"
+else
+  # No escaper: the truncation stands.  Say so once, loudly.  A spec that
+  # asserts `<<NUL>>` then FAILS on this host (expected `a<<NUL>>b`, got `a`)
+  # rather than passing silently, which is the safe direction to degrade.
+  printf '%bWARNING: no NUL escaper (%s); NUL bytes in captured output cannot be asserted%b\n' \
+    "$ANSI_RED" "$_X_ROOT/tools/dev/nul-escape.x" "$ANSI_RESET" >&2
+fi
+
+# The escaper is appended per BATCH by spec-runner.awk, and only when the job's
+# input writes `<<NUL>>` somewhere: each run boots the wrapper, and a suite runs
+# far more batches than it has specs asserting a NUL.
 
 # Host arch for arch-tagged specs (e.g. asm.arm64.spec.md runs only on A64
 # hosts). Darwin says arm64 where GNU says aarch64; normalize to the tags the

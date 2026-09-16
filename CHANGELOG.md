@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+**The spec runner's NUL escaper is x, and runs only for a spec that asserts
+a zero byte** ([#733]). It was perl, which is not part of this project; it is
+now `tools/dev/nul-escape.x`, run through the wrapper and installed beside the
+runner so a bundle's suite finds it too. It reads the caller's stdin from fd
+3, where the wrapper keeps it while the engine reads its program from fd 0.
+The runner also stopped appending an escaper to every batch: the awk runner
+reads every spec before it runs any batch, so it knows whether one writes
+`<<NUL>>`, and a suite that measured 162 escaper runs now makes one.
+
+[#733]: https://github.com/jonruttan/x-lang/pull/733
+
 **Eighteen more run-time modules have a scope of their own** ([#719], step
 4). `x/codec/base64`, `x/codec/csv`, `x/codec/zlib`, `x/doc/emit`,
 `x/doc/emit-man`, `x/net/http`, `x/net/rest`, `x/net/tls`, `x/repl/edit`,

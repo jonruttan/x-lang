@@ -259,10 +259,9 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 	# spec asserts it by writing `<<NUL>>` in its expected block.  Every other
 	# byte passes through untouched, so this is a no-op for NUL-free output.
 	#
-	# The perl the .sh builds matches chr(0) instead of \x00 because awk's -v
-	# performs escape processing on its value: a backslash-0 in the filter text
-	# would itself be turned into a NUL byte on the way in.  Keep it
-	# backslash-free.
+	# Keep the filter text backslash-free: awk's -v performs escape processing
+	# on its value, so a backslash-0 in it would itself be turned into a NUL
+	# byte on the way in.
 	#
 	# Only stdout is escaped.  A NUL in the engine's STDERR still truncates the
 	# message read out of errfile below -- that text is diagnostic, never an
@@ -270,7 +269,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 	#
 	# statfile exists because the escaper is the LAST stage of the pipeline,
 	# and a shell pipeline's exit code is its last command's: close(cmd) would
-	# report perl's 0 and hide the engine's crash/timeout status, which the
+	# report the escaper's 0 and hide the engine's crash/timeout status, which the
 	# died-mid-batch diagnosis below depends on.  The engine's real status is
 	# echoed to the file inside the pipeline and read back after close().  The
 	# rm rides in the same group (one less fork than a system() call): a batch
@@ -278,7 +277,7 @@ function run_batch(from, to, blib,    i, cmd, line, tidx, output, cmd_status, go
 	# one job runs a batch per @lib group under the same SPEC_ID.
 	statfile = TMPDIR "/spec-" SPEC_ID ".status"
 	cmd = "{ echo \"(alloc-limit! ${X_ALLOC_LIMIT_OBJS:-0})\"; " boot "; cat " q(tmpfile) "; } | { rm -f " q(statfile) "; " timeout_pfx q(X_BIN) " 2>" q(errfile) "; echo $? >" q(statfile) "; }"
-	if (NUL_FILTER != "")
+	if (NUL_FILTER != "" && nul_seen)
 		cmd = cmd " | " NUL_FILTER
 
 	tidx = from
@@ -395,6 +394,14 @@ function batch_run(    i, batch_start, cur_lib) {
 	}
 	run_batch(batch_start, tc, cur_lib)
 }
+
+# Does any spec in this job ASSERT a zero byte?  The escaper below costs a
+# process per batch and does nothing unless the output carries one, and only a
+# spec that writes `<<NUL>>` in an expected block can be expecting one.  END
+# drives every batch, so by the time one runs this flag has seen the whole
+# input -- the gate is exact and costs no process at all.  Measured: 162
+# escaper runs across a suite where one file asserts it.
+/<<NUL>>/ { nul_seen = 1 }
 
 # Expected output fenced as ```output -> compare the FULL multi-line output for
 # this test (opt-in). Must precede the generic fence rule below. The default
